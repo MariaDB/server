@@ -1523,6 +1523,21 @@ str	str1	b	c
 ::10.0.5.9	::10.0.5.9	1	0
 DROP TABLE t1;
 #
+# MDEV-14613: Assertion `fixed == 0' failed in Item_func::fix_fields
+#
+CREATE TABLE `t1` (
+`numgtfmt` char(10) COLLATE utf8_bin NOT NULL 
+) DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+create view v1(numgtfmt)
+as
+select 'x' from t1
+union
+select 'x' from t1 ;
+SELECT * FROM v1 WHERE numgtfmt =  NAME_CONST('wnumgtfmt',_utf8'QEDITIONS' COLLATE 'utf8_bin');
+numgtfmt
+DROP VIEW v1;
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
 #

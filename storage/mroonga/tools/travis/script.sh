@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright(C) 2012-2015 Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2012-2016 Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 # set -x
 set -e
@@ -43,11 +43,7 @@ fi
 
 build()
 {
-  if [ "${MROONGA_BUNDLED}" = "yes" ]; then
-    make -j${n_processors} > /dev/null
-  else
-    make -j${n_processors} > /dev/null
-  fi
+  make -j${n_processors} > /dev/null
 }
 
 run_unit_test()
@@ -62,8 +58,12 @@ prepare_mysql_test_dir()
   mysql_test_dir=/usr/mysql-test
   if [ -d /usr/lib/mysql-testsuite/ ]; then
     sudo cp -a /usr/lib/mysql-testsuite/ ${mysql_test_dir}/
+  elif [ -d /usr/lib/mysql-test/ ]; then
+    sudo cp -a /usr/lib/mysql-test/ ${mysql_test_dir}/
   elif [ -d /usr/share/mysql/mysql-test/ ]; then
     sudo cp -a /usr/share/mysql/mysql-test/ ${mysql_test_dir}/
+  elif [ -d /usr/share/mysql-test/ ]; then
+    sudo cp -a /usr/share/mysql-test/ ${mysql_test_dir}/
   elif [ -d /opt/mysql/ ]; then
     mysql_test_dir=$(echo /opt/mysql/server-*/mysql-test)
   else
@@ -100,6 +100,9 @@ run_sql_test()
   if [ "${MROONGA_TEST_EMBEDDED}" = "yes" ]; then
     test_args=("${test_args[@]}" "--embedded-server")
   fi
+  if [ "${MROONGA_TEST_PS_PROTOCOL}" = "yes" ]; then
+    test_args=("${test_args[@]}" "--ps-protocol")
+  fi
 
   if [ "${MROONGA_BUNDLED}" = "yes" ]; then
     # Plugins aren't supported.
@@ -112,16 +115,17 @@ run_sql_test()
 
     ${mroonga_dir}/test/run-sql-test.sh \
                   "${test_args[@]}" \
-                  --parallel="${n_processors}"
+                  --parallel="${n_processors}" \
+                  --retry=3
   else
     prepare_sql_test
 
     cd ${mysql_test_dir}/
-    ./mysql-test-run.pl \
+    perl ./mysql-test-run.pl \
       "${test_args[@]}" \
       --no-check-testcases \
       --parallel="${n_processors}" \
-      --retry=1 \
+      --retry=3 \
       --suite="${test_suite_names}" \
       --force
   fi

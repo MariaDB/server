@@ -21,6 +21,7 @@
 */
 
 #include "mariadb.h"
+#include "mysqld.h"
 #include "sql_priv.h"
 #ifndef __WIN__
 #include <netdb.h>        // getservbyname, servent
@@ -85,7 +86,7 @@ int get_or_create_user_conn(THD *thd, const char *user,
     uc->user=(char*) (uc+1);
     memcpy(uc->user,temp_user,temp_len+1);
     uc->host= uc->user + user_len +  1;
-    uc->len= temp_len;
+    uc->len= (uint)temp_len;
     uc->connections= uc->questions= uc->updates= uc->conn_per_hour= 0;
     uc->user_resources= *mqh;
     uc->reset_utime= thd->thr_create_utime;
@@ -316,13 +317,9 @@ extern "C" void free_user(struct user_conn *uc)
 void init_max_user_conn(void)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  if (my_hash_init(&hash_user_connections,system_charset_info,max_connections,
-                 0,0, (my_hash_get_key) get_key_conn,
-                 (my_hash_free_key) free_user, 0))
-  {
-    sql_print_error("Initializing hash_user_connections failed.");
-    exit(1);
-  }
+  my_hash_init(&hash_user_connections, system_charset_info, max_connections,
+               0, 0, (my_hash_get_key) get_key_conn,
+               (my_hash_free_key) free_user, 0);
 #endif
 }
 
@@ -342,7 +339,7 @@ void reset_mqh(LEX_USER *lu, bool get_them= 0)
   if (lu)  // for GRANT
   {
     USER_CONN *uc;
-    uint temp_len=lu->user.length+lu->host.length+2;
+    size_t temp_len=lu->user.length+lu->host.length+2;
     char temp_user[USER_HOST_BUFF_SIZE];
 
     memcpy(temp_user,lu->user.str,lu->user.length);
@@ -448,7 +445,7 @@ void init_user_stats(USER_STATS *user_stats,
   user_length= MY_MIN(user_length, sizeof(user_stats->user)-1);
   memcpy(user_stats->user, user, user_length);
   user_stats->user[user_length]= 0;
-  user_stats->user_name_length= user_length;
+  user_stats->user_name_length= (uint)user_length;
   strmake_buf(user_stats->priv_user, priv_user);
 
   user_stats->total_connections= total_connections;
@@ -481,24 +478,16 @@ void init_user_stats(USER_STATS *user_stats,
 
 void init_global_user_stats(void)
 {
-  if (my_hash_init(&global_user_stats, system_charset_info, max_connections,
-                0, 0, (my_hash_get_key) get_key_user_stats,
-                (my_hash_free_key)free_user_stats, 0))
-  {
-    sql_print_error("Initializing global_user_stats failed.");
-    exit(1);
-  }
+  my_hash_init(&global_user_stats, system_charset_info, max_connections,
+               0, 0, (my_hash_get_key) get_key_user_stats,
+               (my_hash_free_key) free_user_stats, 0);
 }
 
 void init_global_client_stats(void)
 {
-  if (my_hash_init(&global_client_stats, system_charset_info, max_connections,
-                0, 0, (my_hash_get_key) get_key_user_stats,
-                (my_hash_free_key)free_user_stats, 0))
-  {
-    sql_print_error("Initializing global_client_stats failed.");
-    exit(1);
-  }
+  my_hash_init(&global_client_stats, system_charset_info, max_connections,
+               0, 0, (my_hash_get_key) get_key_user_stats,
+               (my_hash_free_key) free_user_stats, 0);
 }
 
 extern "C" uchar *get_key_table_stats(TABLE_STATS *table_stats, size_t *length,
@@ -515,12 +504,9 @@ extern "C" void free_table_stats(TABLE_STATS* table_stats)
 
 void init_global_table_stats(void)
 {
-  if (my_hash_init(&global_table_stats, system_charset_info, max_connections,
-                0, 0, (my_hash_get_key) get_key_table_stats,
-                (my_hash_free_key)free_table_stats, 0)) {
-    sql_print_error("Initializing global_table_stats failed.");
-    exit(1);
-  }
+  my_hash_init(&global_table_stats, system_charset_info, max_connections,
+               0, 0, (my_hash_get_key) get_key_table_stats,
+               (my_hash_free_key) free_table_stats, 0);
 }
 
 extern "C" uchar *get_key_index_stats(INDEX_STATS *index_stats, size_t *length,
@@ -537,13 +523,9 @@ extern "C" void free_index_stats(INDEX_STATS* index_stats)
 
 void init_global_index_stats(void)
 {
-  if (my_hash_init(&global_index_stats, system_charset_info, max_connections,
-                0, 0, (my_hash_get_key) get_key_index_stats,
-                (my_hash_free_key)free_index_stats, 0))
-  {
-    sql_print_error("Initializing global_index_stats failed.");
-    exit(1);
-  }
+  my_hash_init(&global_index_stats, system_charset_info, max_connections,
+               0, 0, (my_hash_get_key) get_key_index_stats,
+               (my_hash_free_key) free_index_stats, 0);
 }
 
 
@@ -997,7 +979,7 @@ static int check_connection(THD *thd)
                       struct in_addr *ip4= &((struct sockaddr_in *) sa)->sin_addr;
                       /* See RFC 5737, 192.0.2.0/24 is reserved. */
                       const char* fake= "192.0.2.4";
-                      ip4->s_addr= inet_addr(fake);
+                      inet_pton(AF_INET,fake, ip4);
                       strcpy(ip, fake);
                       peer_rc= 0;
                     }
@@ -1283,7 +1265,7 @@ void prepare_new_connection_state(THD* thd)
       if (packet_length != packet_error)
         my_error(ER_NEW_ABORTING_CONNECTION, MYF(0),
                  thd->thread_id,
-                 thd->db ? thd->db : "unconnected",
+                 thd->db.str ? thd->db.str : "unconnected",
                  sctx->user ? sctx->user : "unauthenticated",
                  sctx->host_or_ip, "init_connect command failed");
       thd->server_status&= ~SERVER_STATUS_CLEAR_SET;

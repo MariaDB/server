@@ -449,7 +449,7 @@ static const uchar sort_order_tis620[]=
 static size_t thai2sortable(uchar *tstr, size_t len)
 {
   uchar	*p;
-  int	tlen;
+  size_t	tlen;
   uchar	l2bias;
 
   tlen= len;
@@ -524,7 +524,7 @@ int my_strnncoll_tis620(CHARSET_INFO *cs __attribute__((unused)),
 
   tc1= buf;
   if ((len1 + len2 +2) > (int) sizeof(buf))
-    tc1= (uchar*) my_str_malloc(len1+len2+2);
+    tc1= (uchar*) my_malloc(len1+len2+2, MYF(MY_FAE));
   tc2= tc1 + len1+1;
   memcpy((char*) tc1, (char*) s1, len1);
   tc1[len1]= 0;		/* if length(s1)> len1, need to put 'end of string' */
@@ -534,7 +534,7 @@ int my_strnncoll_tis620(CHARSET_INFO *cs __attribute__((unused)),
   thai2sortable(tc2, len2);
   i= strcmp((char*)tc1, (char*)tc2);
   if (tc1 != buf)
-    my_str_free(tc1);
+    my_free(tc1);
   return i;
 }
 
@@ -550,7 +550,7 @@ int my_strnncollsp_tis620(CHARSET_INFO * cs __attribute__((unused)),
 
   a= buf;
   if ((a_length + b_length +2) > (int) sizeof(buf))
-    alloced= a= (uchar*) my_str_malloc(a_length+b_length+2);
+    alloced= a= (uchar*) my_malloc(a_length+b_length+2, MYF(MY_FAE));
   
   b= a + a_length+1;
   memcpy((char*) a, (char*) a0, a_length);
@@ -578,7 +578,7 @@ int my_strnncollsp_tis620(CHARSET_INFO * cs __attribute__((unused)),
 ret:
   
   if (alloced)
-    my_str_free(alloced);
+    my_free(alloced);
   return res;
 }
 
@@ -609,10 +609,10 @@ my_strnxfrm_tis620(CHARSET_INFO *cs,
   set_if_smaller(dstlen, nweights);
   set_if_smaller(len, dstlen); 
   len= my_strxfrm_pad_desc_and_reverse(cs, dst, dst + len, dst + dstlen,
-                                       dstlen - len, flags, 0);
+                                       (uint)(dstlen - len), flags, 0);
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && len < dstlen0)
   {
-    uint fill_length= dstlen0 - len;
+    size_t fill_length= dstlen0 - len;
     cs->cset->fill(cs, (char*) dst + len, fill_length, cs->pad_char);
     len= dstlen0;
   }
@@ -632,10 +632,10 @@ my_strnxfrm_tis620_nopad(CHARSET_INFO *cs,
   set_if_smaller(dstlen, nweights);
   set_if_smaller(len, dstlen);
   len= my_strxfrm_pad_desc_and_reverse_nopad(cs, dst, dst + len, dst + dstlen,
-                                             dstlen - len, flags, 0);
+                                             (uint)(dstlen - len), flags, 0);
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && len < dstlen0)
   {
-    uint fill_length= dstlen0 - len;
+    size_t fill_length= dstlen0 - len;
     memset(dst + len, 0x00, fill_length);
     len= dstlen0;
   }

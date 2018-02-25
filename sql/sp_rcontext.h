@@ -178,6 +178,9 @@ public:
   /// (if one is found). Otherwise the client will hang due to a violation
   /// of the client/server protocol.
   bool end_partial_result_set;
+  bool pause_state;
+  bool quit_func;
+  uint instr_ptr;
 
   /// The stored program for which this runtime context is created. Used for
   /// checking if correct runtime context is used for variable handling.
@@ -188,16 +191,39 @@ public:
   // SP-variables.
   /////////////////////////////////////////////////////////////////////////
 
+  uint argument_count() const
+  {
+    return m_root_parsing_ctx->context_var_count();
+  }
+
   int set_variable(THD *thd, uint var_idx, Item **value);
-  void set_variable_row_field_to_null(THD *thd, uint var_idx, uint field_idx);
   int set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
                              Item **value);
+  int set_variable_row_field_by_name(THD *thd, uint var_idx,
+                                     const LEX_CSTRING &field_name,
+                                     Item **value);
   int set_variable_row(THD *thd, uint var_idx, List<Item> &items);
-  Item *get_item(uint var_idx) const
+
+  int set_parameter(THD *thd, uint var_idx, Item **value)
+  {
+    DBUG_ASSERT(var_idx < argument_count());
+    return set_variable(thd, var_idx, value);
+  }
+
+  Item_field *get_variable(uint var_idx) const
   { return m_var_items[var_idx]; }
 
-  Item **get_item_addr(uint var_idx) const
-  { return m_var_items.array() + var_idx; }
+  Item **get_variable_addr(uint var_idx) const
+  { return ((Item **) m_var_items.array()) + var_idx; }
+
+  Item_field *get_parameter(uint var_idx) const
+  {
+    DBUG_ASSERT(var_idx < argument_count());
+    return get_variable(var_idx);
+  }
+
+  bool find_row_field_by_name_or_error(uint *field_idx, uint var_idx,
+                                       const LEX_CSTRING &field_name);
 
   bool set_return_value(THD *thd, Item **return_value_item);
 
@@ -279,7 +305,7 @@ public:
   /// Pop and delete given number of sp_cursor instance from the cursor stack.
   ///
   /// @param count Number of cursors to pop & delete.
-  void pop_cursors(uint count);
+  void pop_cursors(size_t count);
 
   void pop_all_cursors()
   { pop_cursors(m_ccount); }
@@ -362,6 +388,8 @@ private:
   /// @return Pointer to valid object on success, or NULL in case of error.
   Item_cache *create_case_expr_holder(THD *thd, const Item *item) const;
 
+  Virtual_tmp_table *virtual_tmp_table_for_row(uint idx);
+
 private:
   /// Top-level (root) parsing context for this runtime context.
   const sp_pcontext *m_root_parsing_ctx;
@@ -371,7 +399,7 @@ private:
 
   /// Collection of Item_field proxies, each of them points to the
   /// corresponding field in m_var_table.
-  Bounds_checked_array<Item *> m_var_items;
+  Bounds_checked_array<Item_field *> m_var_items;
 
   /// This is a pointer to a field, which should contain return value for
   /// stored functions (only). For stored procedures, this pointer is NULL.
@@ -455,7 +483,7 @@ public:
   ulonglong fetch_count() const
   { return m_fetch_count; }
 
-  int fetch(THD *, List<sp_variable> *vars);
+  int fetch(THD *, List<sp_variable> *vars, bool error_on_no_data);
 
   bool export_structure(THD *thd, Row_definition_list *list);
 

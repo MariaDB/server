@@ -109,7 +109,7 @@ void *my_malloc(size_t size, myf my_flags)
       my_error(EE_OUTOFMEMORY, MYF(ME_BELL + ME_WAITTANG +
                                    ME_NOREFRESH + ME_FATALERROR),size);
     if (my_flags & MY_FAE)
-      exit(1);
+      abort();
   }
   else
   {
@@ -200,8 +200,6 @@ void *my_realloc(void *oldpoint, size_t size, myf my_flags)
 /**
   Free memory allocated with my_malloc.
 
-  @remark Relies on free being able to handle a NULL argument.
-
   @param ptr Pointer to the memory allocated by my_malloc.
 */
 void my_free(void *ptr)
@@ -214,6 +212,13 @@ void my_free(void *ptr)
     my_bool old_flags;
     old_size= MALLOC_SIZE_AND_FLAG(ptr, &old_flags);
     update_malloc_size(- (longlong) old_size - MALLOC_PREFIX_SIZE, old_flags);
+#ifndef SAFEMALLOC
+    /*
+      Trash memory if not safemalloc. We don't have to do this if safemalloc
+      is used as safemalloc will also do trashing
+    */
+    TRASH_FREE(ptr, old_size);
+#endif
     sf_free(MALLOC_FIX_POINTER_FOR_FREE(ptr));
   }
   DBUG_VOID_RETURN;

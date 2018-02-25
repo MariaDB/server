@@ -1,0 +1,20 @@
+--source include/have_rocksdb.inc
+--source include/have_binlog_format_row.inc
+
+CREATE TABLE `t` (
+  `a` text DEFAULT NULL
+) ENGINE=ROCKSDB;
+
+
+--let $size=`SELECT @@GLOBAL.max_binlog_size`
+--let $loop_cnt= 100
+while ($loop_cnt)
+{
+  --eval INSERT INTO t SET a=repeat('a', $size)
+  --eval INSERT INTO t SET a=repeat('a', $size/2)
+
+  --dec $loop_cnt
+}
+
+# Cleanup
+DROP TABLE t;

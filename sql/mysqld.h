@@ -37,7 +37,6 @@ class Time_zone;
 
 struct scheduler_functions;
 
-typedef struct st_mysql_const_lex_string LEX_CSTRING;
 typedef struct st_mysql_show_var SHOW_VAR;
 
 #if MAX_INDEXES <= 64
@@ -179,6 +178,36 @@ extern char *opt_backup_history_logname, *opt_backup_progress_logname,
             *opt_backup_settings_name;
 extern const char *log_output_str;
 extern const char *log_backup_output_str;
+
+/* System Versioning begin */
+enum vers_system_time_t
+{
+  SYSTEM_TIME_UNSPECIFIED = 0,
+  SYSTEM_TIME_AS_OF,
+  SYSTEM_TIME_FROM_TO,
+  SYSTEM_TIME_BETWEEN,
+  SYSTEM_TIME_BEFORE,
+  SYSTEM_TIME_ALL
+};
+
+struct vers_asof_timestamp_t
+{
+  ulong type;
+  MYSQL_TIME ltime;
+  vers_asof_timestamp_t() :
+    type(SYSTEM_TIME_UNSPECIFIED)
+  {}
+};
+
+enum vers_alter_history_enum
+{
+  VERS_ALTER_HISTORY_ERROR= 0,
+  VERS_ALTER_HISTORY_KEEP,
+  VERS_ALTER_HISTORY_SURVIVE,
+  VERS_ALTER_HISTORY_DROP
+};
+/* System Versioning end */
+
 extern char *mysql_home_ptr, *pidfile_name_ptr;
 extern MYSQL_PLUGIN_IMPORT char glob_hostname[FN_REFLEN];
 extern char mysql_home[FN_REFLEN];
@@ -208,6 +237,7 @@ extern my_bool slave_allow_batching;
 extern my_bool allow_slave_start;
 extern LEX_CSTRING reason_slave_blocked;
 extern ulong slave_trans_retries;
+extern ulong slave_trans_retry_interval;
 extern uint  slave_net_timeout;
 extern int max_user_connections;
 extern volatile ulong cached_thread_count;
@@ -235,7 +265,7 @@ extern "C" MYSQL_PLUGIN_IMPORT ulong server_id;
 extern ulong concurrency;
 extern time_t server_start_time, flush_status_time;
 extern char *opt_mysql_tmpdir, mysql_charsets_dir[];
-extern int mysql_unpacked_real_data_home_len;
+extern size_t mysql_unpacked_real_data_home_len;
 extern MYSQL_PLUGIN_IMPORT MY_TMPDIR mysql_tmpdir_list;
 extern const char *first_keyword, *delayed_user, *binary_keyword;
 extern MYSQL_PLUGIN_IMPORT const char  *my_localhost;
@@ -288,7 +318,7 @@ extern PSI_mutex_key key_LOCK_des_key_file;
 
 extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
-  m_key_LOCK_binlog_end_pos,
+  key_LOCK_binlog_end_pos,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
   key_LOCK_connection_count, key_LOCK_crypt, key_LOCK_delayed_create,
   key_LOCK_delayed_insert, key_LOCK_delayed_status, key_LOCK_error_log,
@@ -308,18 +338,22 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_start_thread,
   key_LOCK_error_messages, key_LOCK_thread_count, key_PARTITION_LOCK_auto_inc;
 extern PSI_mutex_key key_RELAYLOG_LOCK_index;
+extern PSI_mutex_key key_LOCK_relaylog_end_pos;
 extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
   key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool, key_LOCK_parallel_entry;
 
 extern PSI_mutex_key key_TABLE_SHARE_LOCK_share, key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
-  key_LOCK_global_index_stats, key_LOCK_wakeup_ready, key_LOCK_wait_commit;
+  key_LOCK_global_index_stats, key_LOCK_wakeup_ready, key_LOCK_wait_commit,
+  key_TABLE_SHARE_LOCK_rotation;
 extern PSI_mutex_key key_LOCK_gtid_waiting;
 
 extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
   key_rwlock_LOCK_sys_init_connect, key_rwlock_LOCK_sys_init_slave,
   key_rwlock_LOCK_system_variables_hash, key_rwlock_query_cache_query_lock,
-  key_LOCK_SEQUENCE;
+  key_LOCK_SEQUENCE,
+  key_rwlock_LOCK_vers_stats, key_rwlock_LOCK_stat_serial;
+
 #ifdef HAVE_MMAP
 extern PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;
 #endif /* HAVE_MMAP */
@@ -339,7 +373,8 @@ extern PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_TABLE_SHARE_cond, key_user_level_lock_cond,
   key_COND_start_thread,
   key_COND_thread_count, key_COND_thread_cache, key_COND_flush_thread_cache;
-extern PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
+extern PSI_cond_key key_RELAYLOG_COND_relay_log_updated,
+  key_RELAYLOG_COND_bin_log_updated, key_COND_wakeup_ready,
   key_COND_wait_commit;
 extern PSI_cond_key key_RELAYLOG_COND_queue_busy;
 extern PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
@@ -347,6 +382,7 @@ extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_queue,
   key_COND_rpl_thread_stop, key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer;
 extern PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
+extern PSI_cond_key key_TABLE_SHARE_COND_rotation;
 
 extern PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_kill_server, key_thread_main,
@@ -590,11 +626,10 @@ extern mysql_mutex_t LOCK_des_key_file;
 extern mysql_mutex_t LOCK_server_started;
 extern mysql_cond_t COND_server_started;
 extern mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
-extern mysql_rwlock_t LOCK_system_variables_hash;
+extern mysql_prlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_thread_count, COND_start_thread;
 extern mysql_cond_t COND_manager;
 extern mysql_cond_t COND_slave_background;
-extern int32 thread_running;
 extern int32 thread_count, service_thread_count;
 
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
@@ -737,15 +772,7 @@ inline query_id_t get_query_id()
 }
 
 /* increment global_thread_id and return it.  */
-inline __attribute__((warn_unused_result)) my_thread_id next_thread_id()
-{
-  return my_atomic_add64_explicit((int64*) &global_thread_id, 1, MY_MEMORY_ORDER_RELAXED);
-}
-
-#if defined(MYSQL_DYNAMIC_PLUGIN) && defined(_WIN32)
-extern "C" my_thread_id next_thread_id_noinline();
-#define next_thread_id() next_thread_id_noinline()
-#endif
+extern __attribute__((warn_unused_result)) my_thread_id next_thread_id(void);
 
 /*
   TODO: Replace this with an inline function.
@@ -782,16 +809,6 @@ inline void thread_safe_increment64(int64 *value)
 inline void thread_safe_decrement64(int64 *value)
 {
   (void) my_atomic_add64_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
-}
-
-inline void inc_thread_running()
-{
-  thread_safe_increment32(&thread_running);
-}
-
-inline void dec_thread_running()
-{
-  thread_safe_decrement32(&thread_running);
 }
 
 extern void set_server_version(char *buf, size_t size);

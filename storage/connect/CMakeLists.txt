@@ -61,7 +61,7 @@ IF(UNIX)
 
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive -fexceptions -fPIC ")
   get_property(inc_dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
-  SET(CONNECT_SOURCES ${CONNECT_SOURCES} inihandl.c)
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES} inihandl.cpp)
   SET(IPHLPAPI_LIBRARY "")
 ELSE(NOT UNIX)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES}
@@ -69,6 +69,10 @@ ELSE(NOT UNIX)
   # Add exception handling to the CONNECT project)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   SET(IPHLPAPI_LIBRARY iphlpapi.lib)
+  IF(MSVC AND (CMAKE_CXX_COMPILER_ID MATCHES Clang))
+    # Connect does not work with clang-cl
+    RETURN()
+  ENDIF()
 ENDIF(UNIX)
 
 
@@ -324,6 +328,16 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
 
 IF(NOT TARGET connect)
   RETURN()
+ENDIF()
+
+
+IF(MSVC)
+  # Temporarily disable "conversion from size_t .."
+  IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
+  ENDIF()
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4996")
+  string(REPLACE "/permissive-" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 ENDIF()
 
 # Install some extra files that belong to connect engine

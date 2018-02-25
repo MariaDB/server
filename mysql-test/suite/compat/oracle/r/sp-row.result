@@ -232,7 +232,7 @@ SELECT a=1;
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 2 column(s)
+ERROR HY000: Illegal parameter data types row and int for operation '='
 DROP PROCEDURE p1;
 CREATE PROCEDURE p1()
 AS
@@ -242,7 +242,7 @@ SELECT 1=a;
 END;
 $$
 CALL p1();
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data types int and row for operation '='
 DROP PROCEDURE p1;
 #
 # Passing the entire ROW to a stored function

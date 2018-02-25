@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -177,8 +177,7 @@ Note that if mode is PAGE_CUR_LE, which is used in inserts, then
 cursor->up_match and cursor->low_match both will have sensible values.
 If mode is PAGE_CUR_GE, then up_match will a have a sensible value. */
 dberr_t
-btr_cur_search_to_nth_level(
-/*========================*/
+btr_cur_search_to_nth_level_func(
 	dict_index_t*	index,	/*!< in: index */
 	ulint		level,	/*!< in: the tree level of search */
 	const dtuple_t*	tuple,	/*!< in: data tuple; NOTE: n_fields_cmp in
@@ -197,23 +196,29 @@ btr_cur_search_to_nth_level(
 				cursor->left_block is used to store a pointer
 				to the left neighbor page, in the cases
 				BTR_SEARCH_PREV and BTR_MODIFY_PREV;
-				NOTE that if has_search_latch
-				is != 0, we maybe do not have a latch set
-				on the cursor page, we assume
-				the caller uses his search latch
-				to protect the record! */
+				NOTE that if ahi_latch, we might not have a
+				cursor page latch, we assume that ahi_latch
+				protects the record! */
 	btr_cur_t*	cursor, /*!< in/out: tree cursor; the cursor page is
 				s- or x-latched, but see also above! */
-	ulint		has_search_latch,
-				/*!< in: latch mode the caller
-				currently has on search system:
-				RW_S_LATCH, or 0 */
+#ifdef BTR_CUR_HASH_ADAPT
+	rw_lock_t*	ahi_latch,
+				/*!< in: currently held btr_search_latch
+				(in RW_S_LATCH mode), or NULL */
+#endif /* BTR_CUR_HASH_ADAPT */
 	const char*	file,	/*!< in: file name */
 	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
 	ib_uint64_t	autoinc = 0);
 				/*!< in: PAGE_ROOT_AUTO_INC to be written
 				(0 if none) */
+#ifdef BTR_CUR_HASH_ADAPT
+# define btr_cur_search_to_nth_level(i,l,t,m,lm,c,a,fi,li,mtr) \
+	btr_cur_search_to_nth_level_func(i,l,t,m,lm,c,a,fi,li,mtr)
+#else /* BTR_CUR_HASH_ADAPT */
+# define btr_cur_search_to_nth_level(i,l,t,m,lm,c,a,fi,li,mtr) \
+	btr_cur_search_to_nth_level_func(i,l,t,m,lm,c,fi,li,mtr)
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /*****************************************************************//**
 Opens a cursor at either end of an index.

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 1995, 2017, MariaDB Corporation.
+   Copyright (c) 1995, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -204,6 +204,17 @@ enum ha_extra_function {
   HA_EXTRA_PREPARE_FOR_FORCED_CLOSE,
   /* Inform handler that we will do an alter table */
   HA_EXTRA_PREPARE_FOR_ALTER_TABLE,
+  /*
+    Used in ha_partition::handle_ordered_index_scan() to inform engine
+    that we are starting an ordered index scan. Needed by Spider
+  */
+  HA_EXTRA_STARTING_ORDERED_INDEX_SCAN,
+  /** Start writing rows during ALTER TABLE...ALGORITHM=COPY. */
+  HA_EXTRA_BEGIN_ALTER_COPY,
+  /** Finish writing rows during ALTER TABLE...ALGORITHM=COPY. */
+  HA_EXTRA_END_ALTER_COPY,
+  /** Fake the start of a statement after wsrep_load_data_splitting hack */
+  HA_EXTRA_FAKE_START_STMT
 };
 
 /* Compatible option, to be deleted in 6.0 */
@@ -277,7 +288,8 @@ enum ha_base_keytype {
   This flag can be calculated -- it's based on key lengths comparison.
 */
 #define HA_KEY_HAS_PART_KEY_SEG 65536
-
+/* Internal Flag Can be calcaluted */
+#define HA_INVISIBLE_KEY 2<<18
 	/* Automatic bits in key-flag */
 
 #define HA_SPACE_PACK_USED	 4	/* Test for if SPACE_PACK used */
@@ -408,6 +420,10 @@ enum ha_base_keytype {
   when only HA_STATUS_VARIABLE but it won't be used.
 */
 #define HA_STATUS_VARIABLE_EXTRA 128U
+/*
+  Treat empty table as empty (ignore HA_STATUS_TIME hack).
+*/
+#define HA_STATUS_OPEN           256U
 
 /*
   Errorcodes given by handler functions

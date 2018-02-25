@@ -1,7 +1,7 @@
 # run a check script to verify sst files reduced enough during each optimize table
 perl;
 
-$size += -s $_ for (<$ENV{datadir}/.rocksdb/*.sst>);
+$size += -s $_ for (<$ENV{datadir}/#rocksdb/*.sst>);
 $file= "$ENV{MYSQL_TMP_DIR}/sst_size.dat";
 
 if (-f $file) {

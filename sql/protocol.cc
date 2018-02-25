@@ -86,7 +86,7 @@ bool Protocol_binary::net_store_data_cs(const uchar *from, size_t length,
 {
   uint dummy_errors;
   /* Calculate maxumum possible result length */
-  uint conv_length= to_cs->mbmaxlen * length / from_cs->mbminlen;
+  size_t conv_length= to_cs->mbmaxlen * length / from_cs->mbminlen;
 
   if (conv_length > 250)
   {
@@ -106,8 +106,8 @@ bool Protocol_binary::net_store_data_cs(const uchar *from, size_t length,
             net_store_data((const uchar*) convert->ptr(), convert->length()));
   }
 
-  ulong packet_length= packet->length();
-  ulong new_length= packet_length + conv_length + 1;
+  size_t packet_length= packet->length();
+  size_t new_length= packet_length + conv_length + 1;
 
   if (new_length > packet->alloced_length() && packet->realloc(new_length))
     return 1;
@@ -480,8 +480,9 @@ bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
   - ulonglong for bigger numbers.
 */
 
-static uchar *net_store_length_fast(uchar *packet, uint length)
+static uchar *net_store_length_fast(uchar *packet, size_t length)
 {
+  DBUG_ASSERT(length < UINT_MAX16);
   if (length < 251)
   {
     *packet=(uchar) length;
@@ -661,7 +662,7 @@ void net_send_progress_packet(THD *thd)
 {
   uchar buff[200], *pos;
   const char *proc_info= thd->proc_info ? thd->proc_info : "";
-  uint length= strlen(proc_info);
+  size_t length= strlen(proc_info);
   ulonglong progress;
   DBUG_ENTER("net_send_progress_packet");
 
@@ -1015,7 +1016,7 @@ bool Protocol::store(const char *from, CHARSET_INFO *cs)
 {
   if (!from)
     return store_null();
-  uint length= strlen(from);
+  size_t length= strlen(from);
   return store(from, length, cs);
 }
 
@@ -1327,6 +1328,7 @@ bool Protocol_text::send_out_parameters(List<Item_param> *sp_params)
       continue;
     }
 
+    DBUG_ASSERT(sparam->get_item_param() == NULL);
     sparam->set_value(thd, thd->spcont, reinterpret_cast<Item **>(&item_param));
   }
 

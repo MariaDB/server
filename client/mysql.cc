@@ -1065,7 +1065,7 @@ static void fix_history(String *final_command);
 
 static COMMANDS *find_command(char *name);
 static COMMANDS *find_command(char cmd_name);
-static bool add_line(String &, char *, ulong, char *, bool *, bool);
+static bool add_line(String &, char *, size_t line_length, char *, bool *, bool);
 static void remove_cntrl(String &buffer);
 static void print_table_data(MYSQL_RES *result);
 static void print_table_data_html(MYSQL_RES *result);
@@ -1138,6 +1138,7 @@ int main(int argc,char *argv[])
   current_prompt = my_strdup(default_prompt,MYF(MY_WME));
   prompt_counter=0;
   aborted= 0;
+  sf_leaking_memory= 1; /* no memory leak reports yet */
 
   outfile[0]=0;			// no (default) outfile
   strmov(pager, "stdout");	// the default, if --pager wasn't given
@@ -1203,9 +1204,10 @@ int main(int argc,char *argv[])
     my_end(0);
     exit(1);
   }
+  sf_leaking_memory= 0;
   glob_buffer.realloc(512);
   completion_hash_init(&ht, 128);
-  init_alloc_root(&hash_mem_root, 16384, 0, MYF(0));
+  init_alloc_root(&hash_mem_root, "hash", 16384, 0, MYF(0));
   if (sql_connect(current_host,current_db,current_user,opt_password,
 		  opt_silent))
   {
@@ -1707,13 +1709,12 @@ static struct my_option my_long_options[] =
 
 static void usage(int version)
 {
+#ifdef HAVE_READLINE
 #if defined(USE_LIBEDIT_INTERFACE)
   const char* readline= "";
 #else
   const char* readline= "readline";
 #endif
-
-#ifdef HAVE_READLINE
   printf("%s  Ver %s Distrib %s, for %s (%s) using %s %s\n",
 	 my_progname, VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE,
          readline, rl_library_version);
@@ -1795,8 +1796,9 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     break;
   case OPT_MYSQL_PROTOCOL:
 #ifndef EMBEDDED_LIBRARY
-    opt_protocol= find_type_or_exit(argument, &sql_protocol_typelib,
-                                    opt->name);
+    if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
+                                              opt->name)) <= 0)
+      exit(1);
 #endif
     break;
   case OPT_SERVER_ARG:
@@ -1983,7 +1985,7 @@ static int read_and_execute(bool interactive)
   ulong line_number=0;
   bool ml_comment= 0;  
   COMMANDS *com;
-  ulong line_length= 0;
+  size_t line_length= 0;
   status.exit_status=1;
   
   real_binary_mode= !interactive && opt_binary_mode;
@@ -2277,7 +2279,7 @@ static COMMANDS *find_command(char *name)
 }
 
 
-static bool add_line(String &buffer, char *line, ulong line_length,
+static bool add_line(String &buffer, char *line, size_t line_length,
                      char *in_string, bool *ml_comment, bool truncated)
 {
   uchar inchar;
@@ -2985,12 +2987,12 @@ static void get_current_db()
  The different commands
 ***************************************************************************/
 
-int mysql_real_query_for_lazy(const char *buf, int length)
+int mysql_real_query_for_lazy(const char *buf, size_t length)
 {
   for (uint retry=0;; retry++)
   {
     int error;
-    if (!mysql_real_query(&mysql,buf,length))
+    if (!mysql_real_query(&mysql,buf,(ulong)length))
       return 0;
     error= put_error(&mysql);
     if (mysql_errno(&mysql) != CR_SERVER_GONE_ERROR || retry > 1 ||
@@ -3561,10 +3563,10 @@ is_binary_field(MYSQL_FIELD *field)
 /* Print binary value as hex literal (0x ...) */
 
 static void
-print_as_hex(FILE *output_file, const char *str, ulong len, ulong total_bytes_to_send)
+print_as_hex(FILE *output_file, const char *str, size_t len, size_t total_bytes_to_send)
 {
   const char *ptr= str, *end= ptr+len;
-  ulong i;
+  size_t i;
   fprintf(output_file, "0x");
   for(; ptr < end; ptr++)
     fprintf(output_file, "%02X", *((uchar*)ptr));
@@ -3614,11 +3616,11 @@ print_table_data(MYSQL_RES *result)
     (void) tee_fputs("|", PAGER);
     for (uint off=0; (field = mysql_fetch_field(result)) ; off++)
     {
-      uint name_length= (uint) strlen(field->name);
-      uint numcells= charset_info->cset->numcells(charset_info,
+      size_t name_length= (uint) strlen(field->name);
+      size_t numcells= charset_info->cset->numcells(charset_info,
                                                   field->name,
                                                   field->name + name_length);
-      uint display_length= field->max_length + name_length - numcells;
+      size_t display_length= field->max_length + name_length - numcells;
       tee_fprintf(PAGER, " %-*s |",(int) MY_MIN(display_length,
                                                 MAX_COLUMN_LENGTH),
                   field->name);
@@ -3639,7 +3641,6 @@ print_table_data(MYSQL_RES *result)
       const char *buffer;
       uint data_length;
       uint field_max_length;
-      uint visible_length;
       uint extra_padding;
 
       if (off)
@@ -3667,7 +3668,7 @@ print_table_data(MYSQL_RES *result)
        We need to find how much screen real-estate we will occupy to know how 
        many extra padding-characters we should send with the printing function.
       */
-      visible_length= charset_info->cset->numcells(charset_info, buffer, buffer + data_length);
+      size_t visible_length= charset_info->cset->numcells(charset_info, buffer, buffer + data_length);
       extra_padding= (uint) (data_length - visible_length);
 
       if (opt_binhex && is_binary_field(field))
@@ -4592,8 +4593,11 @@ static char *get_arg(char *line, get_arg_mode mode)
   }
   for (start=ptr ; *ptr; ptr++)
   {
-    if ((*ptr == '\\' && ptr[1]) ||  // escaped character
-        (!short_cmd && qtype && *ptr == qtype && ptr[1] == qtype)) // quote
+    /* if short_cmd use historical rules (only backslash) otherwise SQL rules */
+    if (short_cmd
+        ? (*ptr == '\\' && ptr[1])                     // escaped character
+        : (*ptr == '\\' && ptr[1] && qtype != '`') ||  // escaped character
+          (qtype && *ptr == qtype && ptr[1] == qtype)) // quote
     {
       // Remove (or skip) the backslash (or a second quote)
       if (mode != CHECK)

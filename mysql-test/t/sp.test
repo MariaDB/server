@@ -6317,7 +6317,7 @@ set names utf8|
 drop database if exists това_е_дълго_име_за_база_данни_нали|
 --enable_warnings
 create database това_е_дълго_име_за_база_данни_нали|
-INSERT INTO mysql.proc VALUES ('това_е_дълго_име_за_база_данни_нали','това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго','PROCEDURE','това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго','SQL','CONTAINS_SQL','NO','DEFINER','','','bad_body','root@localhost',now(), now(),'','', 'utf8', 'utf8_general_ci', 'utf8_general_ci', 'n/a')|
+INSERT INTO mysql.proc VALUES ('това_е_дълго_име_за_база_данни_нали','това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго','PROCEDURE','това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго','SQL','CONTAINS_SQL','NO','DEFINER','','','bad_body','root@localhost',now(), now(),'','', 'utf8', 'utf8_general_ci', 'utf8_general_ci', 'n/a', 'NONE')|
 --error ER_SP_PROC_TABLE_CORRUPT
 call това_е_дълго_име_за_база_данни_нали.това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго()|
 drop database това_е_дълго_име_за_база_данни_нали|
@@ -9583,6 +9583,172 @@ drop procedure p;
 drop view v;
 drop table t, tmp_t;
 
+
+--echo #
+--echo # MDEV-13936: Server crashes in Time_and_counter_tracker::incr_loops
+--echo #
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE RAND() > 0.5;
+CREATE FUNCTION f1() RETURNS INT RETURN ( SELECT MAX(i) FROM v1 );
+
+--error ER_NON_INSERTABLE_TABLE
+REPLACE INTO v1 VALUES (f1());
+SET @aux = f1();
+
+# Cleanup
+DROP FUNCTION f1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-14857: problem with 10.2.11 server crashing when
+--echo # executing stored procedure
+--echo #
+
+SET max_sp_recursion_depth=10;
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+
+delimiter ||;
+
+CREATE PROCEDURE proc_0()
+BEGIN
+  CALL empty_1();
+  CALL proc_1();
+END ||
+
+CREATE PROCEDURE proc_1()
+BEGIN
+  CALL proc_2();
+  CALL proc_3();
+  CALL proc_4();
+  CALL proc_5();
+END ||
+
+CREATE PROCEDURE proc_2()
+  CALL proc_6();
+||
+
+CREATE PROCEDURE proc_3()
+BEGIN
+  CALL empty_2();
+  CALL empty_3();
+END ||
+
+CREATE PROCEDURE proc_4()
+  CALL proc_7();
+||
+
+CREATE PROCEDURE proc_5()
+  CALL proc_select();
+||
+
+CREATE PROCEDURE proc_6()
+BEGIN
+  CALL empty_4();
+  CALL empty_5();
+  CALL empty_6();
+  CALL empty_7();
+  CALL proc_8();
+END ||
+
+CREATE PROCEDURE proc_7()
+  CALL proc_9('foo');
+||
+
+CREATE PROCEDURE proc_8()
+  CALL proc_10();
+||
+
+CREATE PROCEDURE proc_9(IN opt VARCHAR(40))
+  IF LEFT(opt,1) <> '_' THEN
+    CALL proc_11();
+  END IF;
+||
+
+CREATE PROCEDURE proc_10()
+  CALL proc_12();
+||
+
+CREATE PROCEDURE proc_11()
+BEGIN
+  CALL empty_8();
+  CALL empty_9();
+  CALL empty_10();
+  CALL proc_13();
+END ||
+
+CREATE PROCEDURE proc_12()
+BEGIN
+  CALL empty_11();
+  CALL empty_12();
+  CALL empty_13();
+END ||
+
+CREATE PROCEDURE proc_13()
+BEGIN
+  CALL proc_9('_bar');
+  CALL empty_14();
+END ||
+
+delimiter ;||
+
+CREATE PROCEDURE empty_1() BEGIN END ;
+CREATE PROCEDURE empty_2() BEGIN END ;
+CREATE PROCEDURE empty_3() BEGIN END ;
+CREATE PROCEDURE empty_4() BEGIN END ;
+CREATE PROCEDURE empty_5() BEGIN END ;
+CREATE PROCEDURE empty_6() BEGIN END ;
+CREATE PROCEDURE empty_7() BEGIN END ;
+CREATE PROCEDURE empty_8() BEGIN END ;
+CREATE PROCEDURE empty_9() BEGIN END ;
+CREATE PROCEDURE empty_10() BEGIN END ;
+CREATE PROCEDURE empty_11() BEGIN END ;
+CREATE PROCEDURE empty_12() BEGIN END ;
+CREATE PROCEDURE empty_13() BEGIN END ;
+CREATE PROCEDURE empty_14() BEGIN END ;
+
+CREATE PROCEDURE proc_select()
+  SELECT * FROM t1 WHERE NOT EXISTS ( SELECT * FROM t2)
+;
+
+CALL proc_0();
+
+# Cleanup
+DROP PROCEDURE empty_1;
+DROP PROCEDURE empty_2;
+DROP PROCEDURE empty_3;
+DROP PROCEDURE empty_4;
+DROP PROCEDURE empty_5;
+DROP PROCEDURE empty_6;
+DROP PROCEDURE empty_7;
+DROP PROCEDURE empty_8;
+DROP PROCEDURE empty_9;
+DROP PROCEDURE empty_10;
+DROP PROCEDURE empty_11;
+DROP PROCEDURE empty_12;
+DROP PROCEDURE empty_13;
+DROP PROCEDURE empty_14;
+DROP PROCEDURE proc_0;
+DROP PROCEDURE proc_1;
+DROP PROCEDURE proc_2;
+DROP PROCEDURE proc_3;
+DROP PROCEDURE proc_4;
+DROP PROCEDURE proc_5;
+DROP PROCEDURE proc_6;
+DROP PROCEDURE proc_7;
+DROP PROCEDURE proc_8;
+DROP PROCEDURE proc_9;
+DROP PROCEDURE proc_10;
+DROP PROCEDURE proc_11;
+DROP PROCEDURE proc_12;
+DROP PROCEDURE proc_13;
+DROP PROCEDURE proc_select;
+DROP TABLE t1, t2;
+
+SET max_sp_recursion_depth=default;
+
 --echo #End of 10.1 tests
 
 --echo #
@@ -9642,6 +9808,40 @@ END
 DELIMITER ;|
 CALL p1();
 DROP PROCEDURE p1;
+
+--echo #
+--echo # MDEV-15057 Crash when using an unknown identifier as an SP parameter
+--echo #
+
+CREATE OR REPLACE PROCEDURE p1 (a VARCHAR(10)) SELECT 1;
+--error ER_BAD_FIELD_ERROR
+CALL p1(a);
+drop procedure p1;
+
+DELIMITER |;
+
+CREATE OR REPLACE PROCEDURE p1 (a VARCHAR(10)) SELECT a|
+CREATE OR REPLACE PROCEDURE p2 ()
+BEGIN
+  DECLARE name VARCHAR(10);
+  SET name="hello";
+  call p1(name);
+END|
+CREATE OR REPLACE PROCEDURE p3 ()
+BEGIN
+  DECLARE name VARCHAR(10);
+  SET name="hello";
+  call p1(name2);
+END|
+
+DELIMITER ;|
+
+call p2();
+--error ER_BAD_FIELD_ERROR
+call p3();
+drop procedure p1;
+drop procedure p2;
+drop procedure p3;
 
 --echo #
 --echo # Start of 10.3 tests
@@ -9756,6 +9956,131 @@ $$
 DELIMITER ;$$
 CALL p1();
 DROP PROCEDURE p1;
+
+--echo #
+--echo # MDEV-14228 MariaDB crashes with function
+--echo #
+
+CREATE TABLE t1 (c VARCHAR(16), KEY(c));
+INSERT INTO t1 VALUES ('foo');
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS VARCHAR(16)
+BEGIN
+  DECLARE v VARCHAR(16);
+  FOR v IN (SELECT DISTINCT c FROM t1)
+  DO
+    IF (v = 'bar') THEN
+      SELECT 1 INTO @a;
+    END IF;
+  END FOR;
+  RETURN 'qux';
+END $$
+DELIMITER  ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT f1();
+DROP FUNCTION f1;
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS VARCHAR(16)
+BEGIN
+  DECLARE v ROW TYPE OF t1;
+  IF v = 'bar' THEN
+    RETURN 'eq';
+  END IF;
+  RETURN 'ne';
+END $$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT f1();
+DROP FUNCTION f1;
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS VARCHAR(16)
+BEGIN
+  DECLARE v ROW(a INT);
+  IF v = 'bar' THEN
+    RETURN 'eq';
+  END IF;
+  RETURN 'ne';
+END $$
+DELIMITER ;$$
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT f1();
+DROP FUNCTION f1;
+
+DROP TABLE t1;
+
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE v ROW(a INT);
+  SELECT v IN ('a','b');
+END $$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+BEGIN NOT ATOMIC
+DECLARE v ROW(a INT);
+  SELECT 'a' IN (v,'b');
+END $$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+BEGIN NOT ATOMIC
+  DECLARE v ROW(a INT);
+  SELECT 'a' IN ('b',v);
+END $$
+DELIMITER ;$$
+
+--echo #
+--echo # MDEV-15112 Inconsistent evaluation of spvariable=0 in strict mode
+--echo #
+
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE OR REPLACE TABLE t1 (e TIMESTAMP(6));
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
+
+DELIMITER $$;
+CREATE FUNCTION f1(a VARBINARY(255))
+RETURNS INT
+DETERMINISTIC
+BEGIN
+  RETURN a = timestamp'2038-01-19 03:14:07.999999'
+      OR a = 0;
+END
+$$
+CREATE FUNCTION f2(a VARBINARY(255))
+RETURNS INT
+DETERMINISTIC
+BEGIN
+  RETURN a = 0;
+END
+$$
+CREATE OR REPLACE FUNCTION f3(a VARBINARY(255))
+RETURNS INT
+DETERMINISTIC
+BEGIN
+  RETURN a = timestamp'2038-01-19 03:14:07.999999'
+      OR a = sleep(0);
+END
+$$
+DELIMITER ;$$
+
+--error ER_TRUNCATED_WRONG_VALUE
+SELECT f1(e) FROM t1;
+--error ER_TRUNCATED_WRONG_VALUE
+SELECT f2(e) FROM t1;
+--error ER_TRUNCATED_WRONG_VALUE
+SELECT f3(e) FROM t1;
+
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP FUNCTION f3;
+DROP TABLE t1;
 
 --echo # Test affected rows from an sp
 

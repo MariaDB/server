@@ -31,6 +31,9 @@
   The fw.c file includes all the mysql_client_test framework; this file
   contains only the actual tests, plus the list of test functions to call.
 */
+#ifdef _MSC_VER
+#pragma warning (disable : 4267)
+#endif
 
 #include "mysql_client_fw.c"
 #ifndef _WIN32
@@ -12406,6 +12409,119 @@ static void test_datetime_ranges()
 }
 
 
+/*
+  This test is used in:
+  mysql-test/suite/binlog/binlog_stm_datetime_ranges_mdev15289.test
+*/
+static void test_datetime_ranges_mdev15289()
+{
+  const char *stmt_text;
+  int rc, i;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND my_bind[4];
+  MYSQL_TIME tm[4];
+
+  myheader("test_datetime_ranges_mdev15289");
+
+  stmt_text= "SET sql_mode=''";
+  rc= mysql_real_query(mysql, stmt_text, strlen(stmt_text));
+  myquery(rc);
+
+  stmt_text= "create or replace table t1 "
+             "(t time, d date, dt datetime,ts timestamp)";
+  rc= mysql_real_query(mysql, stmt_text, strlen(stmt_text));
+  myquery(rc);
+
+  stmt= mysql_simple_prepare(mysql, "INSERT INTO t1 VALUES (?, ?, ?, ?)");
+  check_stmt(stmt);
+  verify_param_count(stmt, 4);
+
+  /*** Testing DATETIME ***/
+  bzero((char*) my_bind, sizeof(my_bind));
+  for (i= 0; i < 4; i++)
+  {
+    my_bind[i].buffer_type= MYSQL_TYPE_DATETIME;
+    my_bind[i].buffer= &tm[i];
+  }
+  rc= mysql_stmt_bind_param(stmt, my_bind);
+  check_execute(stmt, rc);
+
+  /* Notice bad year */
+  tm[0].year= 20010; tm[0].month= 1; tm[0].day= 2;
+  tm[0].hour= 03; tm[0].minute= 04; tm[0].second= 05;
+  tm[0].second_part= 0; tm[0].neg= 0;
+  tm[0].time_type= MYSQL_TIMESTAMP_DATETIME;
+  tm[3]= tm[2]= tm[1]= tm[0];
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  my_process_warnings(mysql, 4);
+
+  verify_col_data("t1", "t", "00:00:00");
+  verify_col_data("t1", "d", "0000-00-00");
+  verify_col_data("t1", "dt", "0000-00-00 00:00:00");
+  verify_col_data("t1", "ts", "0000-00-00 00:00:00");
+
+  /*** Testing DATE ***/
+  bzero((char*) my_bind, sizeof(my_bind));
+  for (i= 0; i < 4; i++)
+  {
+    my_bind[i].buffer_type= MYSQL_TYPE_DATE;
+    my_bind[i].buffer= &tm[i];
+  }
+  rc= mysql_stmt_bind_param(stmt, my_bind);
+  check_execute(stmt, rc);
+
+  /* Notice bad year */
+  tm[0].year= 20010; tm[0].month= 1; tm[0].day= 2;
+  tm[0].hour= 00; tm[0].minute= 00; tm[0].second= 00;
+  tm[0].second_part= 0; tm[0].neg= 0;
+  tm[0].time_type= MYSQL_TIMESTAMP_DATE;
+  tm[3]= tm[2]= tm[1]= tm[0];
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  my_process_warnings(mysql, 4);
+
+  verify_col_data("t1", "t", "00:00:00");
+  verify_col_data("t1", "d", "0000-00-00");
+  verify_col_data("t1", "dt", "0000-00-00 00:00:00");
+  verify_col_data("t1", "ts", "0000-00-00 00:00:00");
+
+  /*** Testing TIME ***/
+  bzero((char*) my_bind, sizeof(my_bind));
+  for (i= 0; i < 4; i++)
+  {
+    my_bind[i].buffer_type= MYSQL_TYPE_TIME;
+    my_bind[i].buffer= &tm[i];
+  }
+  rc= mysql_stmt_bind_param(stmt, my_bind);
+  check_execute(stmt, rc);
+
+  /* Notice bad hour */
+  tm[0].year= 0; tm[0].month= 0; tm[0].day= 0;
+  tm[0].hour= 100; tm[0].minute= 64; tm[0].second= 05;
+  tm[0].second_part= 0; tm[0].neg= 0;
+  tm[0].time_type= MYSQL_TIMESTAMP_TIME;
+  tm[3]= tm[2]= tm[1]= tm[0];
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  my_process_warnings(mysql, 4);
+
+  verify_col_data("t1", "t", "00:00:00");
+  verify_col_data("t1", "d", "0000-00-00");
+  verify_col_data("t1", "dt", "0000-00-00 00:00:00");
+  verify_col_data("t1", "ts", "0000-00-00 00:00:00");
+
+  mysql_stmt_close(stmt);
+
+  stmt_text= "drop table t1";
+  rc= mysql_real_query(mysql, stmt_text, strlen(stmt_text));
+  myquery(rc);
+}
+
+
 static void test_bug4172()
 {
   MYSQL_STMT *stmt;
@@ -19433,7 +19549,9 @@ static void test_mdev4326()
   myquery(rc);
 }
 
+/* Test uses MYSQL_PROTOCOL_SOCKET, not on Windows */
 
+#ifndef _WIN32
 /**
    BUG#17512527: LIST HANDLING INCORRECT IN MYSQL_PRUNE_STMT_LIST()
 */
@@ -19474,7 +19592,7 @@ static void test_bug17512527()
   mysql_stmt_close(stmt2);
   mysql_stmt_close(stmt1);
 }
-
+#endif
 
 
 /*
@@ -19861,6 +19979,85 @@ static void test_mdev14013_1()
 }
 
 
+static void test_mdev14454_internal(const char *init,
+                                    unsigned int csid,
+                                    const char *value)
+{
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind;
+  const char *stmtstr= "CALL P1(?)";
+  char res[20];
+  int rc;
+
+  if ((rc= mysql_query_or_error(mysql, init)) ||
+      (rc= mysql_query_or_error(mysql, "DROP PROCEDURE IF EXISTS p1")) ||
+      (rc= mysql_query_or_error(mysql,
+                               "CREATE PROCEDURE p1"
+                               "("
+                               "  OUT param1 TEXT CHARACTER SET utf8"
+                               ")"
+                               "BEGIN "
+                               "  SET param1 = _latin1'test\xFF'; "
+                               "END")))
+    DIE("Initiation failed");
+
+  stmt= mysql_stmt_init(mysql);
+  rc= mysql_stmt_prepare(stmt, stmtstr, strlen(stmtstr));
+  DIE_UNLESS(rc == 0);
+  DIE_UNLESS(mysql_stmt_param_count(stmt) == 1);
+
+  bind.buffer_type= MYSQL_TYPE_NULL;
+  rc= mysql_stmt_bind_param(stmt, &bind);
+  DIE_UNLESS(rc == 0);
+
+  rc= mysql_stmt_execute(stmt);
+  DIE_UNLESS(rc == 0);
+
+  memset(res, 0, sizeof(res));
+  memset(&bind, 0, sizeof(bind));
+  bind.buffer_type= MYSQL_TYPE_STRING;
+  bind.buffer_length= sizeof(res);
+  bind.buffer= res;
+
+  do {
+    if (mysql->server_status & SERVER_PS_OUT_PARAMS)
+    {
+      MYSQL_FIELD *field;
+      printf("\nOUT param result set:\n");
+      DIE_UNLESS(mysql_stmt_field_count(stmt) == 1);
+      field= &stmt->fields[0];
+      printf("Field: %s\n", field->name);
+      printf("Type: %d\n", field->type);
+      printf("Collation: %d\n", field->charsetnr);
+      printf("Length: %lu\n", field->length);
+      DIE_UNLESS(stmt->fields[0].charsetnr == csid);
+
+      rc= mysql_stmt_bind_result(stmt, &bind);
+      DIE_UNLESS(rc == 0);
+      rc= mysql_stmt_fetch(stmt);
+      DIE_UNLESS(rc == 0);
+      printf("Value: %s\n", res);
+      DIE_UNLESS(strcmp(res, value) == 0);
+    }
+    else if (mysql_stmt_field_count(stmt))
+    {
+      printf("sp result set\n");
+    }
+  } while (mysql_stmt_next_result(stmt) == 0);
+
+  mysql_stmt_close(stmt);
+  DIE_UNLESS(mysql_query_or_error(mysql, "DROP PROCEDURE p1") == 0);
+}
+
+
+static void test_mdev14454()
+{
+  myheader("test_mdev14454");
+  test_mdev14454_internal("SET NAMES latin1", 8, "test\xFF");
+  test_mdev14454_internal("SET NAMES utf8", 33, "test\xC3\xBF");
+}
+
+
 typedef struct {
   char sig[12];
   char ver_cmd;
@@ -20187,6 +20384,7 @@ static struct my_tests_st my_tests[]= {
   { "test_bug6081", test_bug6081 },
   { "test_bug6096", test_bug6096 },
   { "test_datetime_ranges", test_datetime_ranges },
+  { "test_datetime_ranges_mdev15289", test_datetime_ranges_mdev15289 },
   { "test_bug4172", test_bug4172 },
   { "test_conversion", test_conversion },
   { "test_rewind", test_rewind },
@@ -20318,6 +20516,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev12579", test_mdev12579 },
   { "test_mdev14013", test_mdev14013 },
   { "test_mdev14013_1", test_mdev14013_1 },
+  { "test_mdev14454", test_mdev14454 },
 #ifndef EMBEDDED_LIBRARY
   { "test_proxy_header", test_proxy_header},
 #endif

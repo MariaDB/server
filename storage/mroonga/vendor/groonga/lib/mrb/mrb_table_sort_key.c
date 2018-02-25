@@ -40,7 +40,9 @@ mrb_grn_table_sort_key_free(mrb_state *mrb, void *data)
   }
 
   if (sort_key->key) {
-    grn_obj_unlink(ctx, sort_key->key);
+    if (sort_key->key->header.type == GRN_ACCESSOR) {
+      grn_obj_unlink(ctx, sort_key->key);
+    }
   }
   mrb_free(mrb, sort_key);
 }

@@ -2,7 +2,7 @@
 --source include/have_binlog_format_row.inc
 --source include/have_rocksdb.inc
 --source include/master-slave.inc
---source include/have_gtid.inc
+#--source include/have_gtid.inc
 --source include/not_valgrind.inc
 
 # This is a test case for issue#655 -- SingleDelete on Primary Key may

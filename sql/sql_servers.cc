@@ -54,6 +54,8 @@
 static HASH servers_cache;
 static MEM_ROOT mem;
 static mysql_rwlock_t THR_LOCK_servers;
+static LEX_CSTRING MYSQL_SERVERS_NAME= {STRING_WITH_LEN("servers") };
+
 
 static bool get_server_from_table_to_cache(TABLE *table);
 
@@ -83,7 +85,7 @@ static uchar *servers_cache_get_key(FOREIGN_SERVER *server, size_t *length,
 			       my_bool not_used __attribute__((unused)))
 {
   DBUG_ENTER("servers_cache_get_key");
-  DBUG_PRINT("info", ("server_name_length %d server_name %s",
+  DBUG_PRINT("info", ("server_name_length %zd server_name %s",
                       server->server_name_length,
                       server->server_name));
 
@@ -154,7 +156,8 @@ bool servers_init(bool dont_read_servers_table)
   }
 
   /* Initialize the mem root for data */
-  init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(&mem, "servers", ACL_ALLOC_BLOCK_SIZE, 0,
+                 MYF(MY_THREAD_SPECIFIC));
 
   if (dont_read_servers_table)
     goto end;
@@ -203,7 +206,7 @@ static bool servers_load(THD *thd, TABLE_LIST *tables)
 
   my_hash_reset(&servers_cache);
   free_root(&mem, MYF(0));
-  init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&mem, "servers_load", ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   if (init_read_record(&read_record_info,thd,table=tables[0].table, NULL, NULL,
                        1,0, FALSE))
@@ -251,7 +254,7 @@ bool servers_reload(THD *thd)
   DBUG_PRINT("info", ("locking servers_cache"));
   mysql_rwlock_wrlock(&THR_LOCK_servers);
 
-  tables[0].init_one_table("mysql", 5, "servers", 7, "servers", TL_READ);
+  tables[0].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_READ);
 
   if (open_and_lock_tables(thd, tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {
@@ -383,10 +386,9 @@ insert_server(THD *thd, FOREIGN_SERVER *server)
   int error= -1;
   TABLE_LIST tables;
   TABLE *table;
-
   DBUG_ENTER("insert_server");
 
-  tables.init_one_table("mysql", 5, "servers", 7, "servers", TL_WRITE);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_WRITE);
 
   /* need to open before acquiring THR_LOCK_plugin or it will deadlock */
   if (! (table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT)))
@@ -431,7 +433,7 @@ insert_server_record_into_cache(FOREIGN_SERVER *server)
     We succeded in insertion of the server to the table, now insert
     the server to the cache
   */
-  DBUG_PRINT("info", ("inserting server %s at %p, length %d",
+  DBUG_PRINT("info", ("inserting server %s at %p, length %zd",
                         server->server_name, server,
                         server->server_name_length));
   if (my_hash_insert(&servers_cache, (uchar*) server))
@@ -603,7 +605,7 @@ static int drop_server_internal(THD *thd, LEX_SERVER_OPTIONS *server_options)
   DBUG_PRINT("info", ("server name server->server_name %s",
                       server_options->server_name.str));
 
-  tables.init_one_table("mysql", 5, "servers", 7, "servers", TL_WRITE);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_WRITE);
 
   /* hit the memory hit first */
   if ((error= delete_server_record_in_cache(server_options)))
@@ -687,7 +689,7 @@ delete_server_record_in_cache(LEX_SERVER_OPTIONS *server_options)
     We succeded in deletion of the server to the table, now delete
     the server from the cache
   */
-  DBUG_PRINT("info",("deleting server %s length %d",
+  DBUG_PRINT("info",("deleting server %s length %zd",
                      server->server_name,
                      server->server_name_length));
 
@@ -734,8 +736,7 @@ int update_server(THD *thd, FOREIGN_SERVER *existing, FOREIGN_SERVER *altered)
   TABLE_LIST tables;
   DBUG_ENTER("update_server");
 
-  tables.init_one_table("mysql", 5, "servers", 7, "servers",
-                         TL_WRITE);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_WRITE);
 
   if (!(table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT)))
   {

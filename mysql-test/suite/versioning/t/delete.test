@@ -1,0 +1,86 @@
+source suite/versioning/engines.inc;
+source suite/versioning/common.inc;
+
+replace_result $sys_datatype_expl SYS_DATATYPE;
+eval create or replace table t1(
+    XNo int unsigned,
+    sys_start $sys_datatype_expl as row start invisible,
+    sys_end $sys_datatype_expl as row end invisible,
+    period for system_time (sys_start, sys_end))
+  with system versioning;
+
+insert into t1(XNo) values(0);
+insert into t1(XNo) values(1);
+insert into t1(XNo) values(2);
+insert into t1(XNo) values(3);
+insert into t1(XNo) values(4);
+insert into t1(XNo) values(5);
+insert into t1(XNo) values(6);
+insert into t1(XNo) values(7);
+insert into t1(XNo) values(8);
+insert into t1(XNo) values(9);
+replace_result $sys_datatype_max MAXVAL;
+eval select XNo, sys_end < $sys_datatype_max from t1 for system_time all;
+delete from t1 where XNo = 0;
+delete from t1 where XNo = 1;
+delete from t1 where XNo > 5;
+create view vt1 as select XNo from t1;
+select XNo as XNo_vt1 from vt1;
+delete from vt1 where XNo = 3;
+select XNo as XNo_vt1 from vt1;
+drop view vt1;
+drop table t1;
+
+
+replace_result $sys_datatype_expl SYS_DATATYPE;
+eval create or replace table t1(
+    x int,
+    sys_start $sys_datatype_expl as row start invisible,
+    sys_end $sys_datatype_expl as row end invisible,
+    period for system_time (sys_start, sys_end))
+  with system versioning;
+
+insert into t1(x) values (1);
+select sys_start into @sys_start from t1;
+delete from t1;
+select * from t1;
+select x = 1 as A, sys_start = @sys_start as B, sys_end > sys_start as C from t1 for system_time all;
+drop table t1;
+
+replace_result $sys_datatype_expl SYS_DATATYPE;
+eval create or replace table t1(
+    x int,
+    y int,
+    sys_start $sys_datatype_expl as row start invisible,
+    sys_end $sys_datatype_expl as row end invisible,
+    period for system_time (sys_start, sys_end))
+  with system versioning;
+create or replace table t2 like t1;
+insert into t1(x, y) values (1, 1), (2, 2), (3, 3), (14, 4);
+insert into t2(x, y) values (11, 1), (12, 2), (13, 32), (14, 4);
+delete t1, t2 from t1 join t2 where t1.y = 3 and t2.y = 32;
+select x as t1_x from t1;
+select x as t2_x from t2;
+delete t1, t2 from t1 join t2 where t1.x = t2.x;
+select x as t1_x from t1;
+select x as t2_x from t2;
+select x as t1_x_all from t1 for system_time all;
+select x as t2_x_all from t2 for system_time all;
+drop table t1;
+drop table t2;
+
+--echo # Basic + delete from view
+
+--echo # Check sys_start, sys_end
+
+--echo # Multi-delete
+
+--echo # Update + delete
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1);
+update t1 set x= 2;
+delete from t1;
+select x from t1 for system_time all;
+
+drop database test;
+create database test;

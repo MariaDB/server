@@ -165,6 +165,7 @@ static void encryption_plugin_init(int argc, char **argv)
 {
   /* Patch optional and mandatory plugins, we only need to load the one in xb_plugin_load. */
   mysql_optional_plugins[0] = mysql_mandatory_plugins[0] = 0;
+  plugin_maturity = MariaDB_PLUGIN_MATURITY_UNKNOWN; /* mariabackup accepts all plugins */
   msg("Loading encryption plugin\n");
   for (int i= 1; i < argc; i++)
     msg("\t Encryption plugin parameter :  '%s'\n", argv[i]);

@@ -1,3 +1,4 @@
+FLUSH TABLES;
 #
 # MDEV-11369: Instant ADD COLUMN for InnoDB
 #

@@ -280,7 +280,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
   size_t info_length;
   char name_buff[FN_REFLEN], org_name[FN_REFLEN], index_name[FN_REFLEN],
        data_name[FN_REFLEN];
-  uchar *disk_cache, *disk_pos, *end_pos;
+  uchar *UNINIT_VAR(disk_cache), *disk_pos, *end_pos;
   MARIA_HA info, *UNINIT_VAR(m_info), *old_info;
   MARIA_SHARE share_buff,*share;
   double *rec_per_key_part;

@@ -95,8 +95,8 @@ static my_bool do_leaf;
 static my_bool per_page_details;
 static ulint n_merge;
 extern ulong			srv_checksum_algorithm;
-static ulong physical_page_size;  /* Page size in bytes on disk. */
-static ulong logical_page_size;   /* Page size when uncompressed. */
+static ulint physical_page_size;  /* Page size in bytes on disk. */
+static ulint logical_page_size;   /* Page size when uncompressed. */
 ulong srv_page_size;
 page_size_t			univ_page_size(0, 0, false);
 /* Current page number (0 based). */
@@ -431,13 +431,13 @@ open_file(
 						tablespace.
  @retval no. of bytes read.
 */
-ulong read_file(
+ulint read_file(
 	byte*	buf,
 	bool	partial_page_read,
-	ulong	physical_page_size,
+	ulint	physical_page_size,
 	FILE*	fil_in)
 {
-	ulong bytes = 0;
+	ulint bytes = 0;
 
 	DBUG_ASSERT(physical_page_size >= UNIV_ZIP_SIZE_MIN);
 
@@ -447,7 +447,7 @@ ulong read_file(
 		bytes = UNIV_ZIP_SIZE_MIN;
 	}
 
-	bytes += ulong(fread(buf, 1, physical_page_size, fil_in));
+	bytes += ulint(fread(buf, 1, physical_page_size, fil_in));
 
 	return bytes;
 }
@@ -792,7 +792,7 @@ parse_page(
 	ulint right_page_no;
 	ulint data_bytes;
 	bool is_leaf;
-	int size_range_id;
+	ulint size_range_id;
 
 	/* Check whether page is doublewrite buffer. */
 	if(skip_page) {
@@ -1703,13 +1703,12 @@ int main(
 		ulint zip_size = page_size.is_compressed() ? page_size.logical() : 0;
 		logical_page_size = page_size.is_compressed() ? zip_size : 0;
 		physical_page_size = page_size.physical();
-		srv_page_size = page_size.logical();
+		srv_page_size = (ulong)page_size.logical();
 		bool is_compressed = FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
 
 		if (page_size.physical() > UNIV_ZIP_SIZE_MIN) {
 			/* Read rest of the page 0 to determine crypt_data */
-			bytes = ulong(read_file(buf, partial_page_read, page_size.physical(), fil_in));
-
+			bytes = read_file(buf, partial_page_read, page_size.physical(), fil_in);
 			if (bytes != page_size.physical()) {
 				fprintf(stderr, "Error: Was not able to read the "
 					"rest of the page ");

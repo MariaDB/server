@@ -236,7 +236,7 @@ int handle_options(int *argc, char ***argv,
     {
       is_cmdline_arg= 1;
 
-      /* save the separator too if skip unkown options  */
+      /* save the separator too if skip unknown options  */
       if (my_getopt_skip_unknown)
         (*argv)[argvpos++]= cur_arg;
       else
@@ -826,7 +826,7 @@ static int setval(const struct my_option *opts, void *value, char *argument,
         *((ulonglong*)value)=
               find_set_from_flags(opts->typelib, opts->typelib->count, 
                                   *(ulonglong *)value, opts->def_value,
-                                  argument, strlen(argument),
+                                  argument, (uint)strlen(argument),
                                   &error, &error_len);
         if (error)
         {
@@ -969,31 +969,43 @@ my_bool getopt_compare_strings(register const char *s, register const char *t,
 /*
   function: eval_num_suffix
 
-  Transforms suffix like k/m/g to their real value.
+  Transforms suffix like k/m/g/t/p/e to their real value.
 */
 
-static inline long eval_num_suffix(char *suffix, int *error)
+static inline ulonglong eval_num_suffix(char *suffix, int *error)
 {
-  long num= 1;
-  if (*suffix == 'k' || *suffix == 'K')
-    num*= 1024L;
-  else if (*suffix == 'm' || *suffix == 'M')
-    num*= 1024L * 1024L;
-  else if (*suffix == 'g' || *suffix == 'G')
-    num*= 1024L * 1024L * 1024L;
-  else if (*suffix)
-  {
+  switch (*suffix) {
+  case '\0':
+    return 1ULL;
+  case 'k':
+  case 'K':
+    return 1ULL << 10;
+  case 'm':
+  case 'M':
+    return 1ULL << 20;
+  case 'g':
+  case 'G':
+    return 1ULL << 30;
+  case 't':
+  case 'T':
+    return 1ULL << 40;
+  case 'p':
+  case 'P':
+    return 1ULL << 50;
+  case 'e':
+  case 'E':
+    return 1ULL << 60;
+  default:
     *error= 1;
-    return 0;
+    return 0ULL;
   }
- return num;
 }
 
 /*
   function: eval_num_suffix_ll
 
   Transforms a number with a suffix to real number. Suffix can
-  be k|K for kilo, m|M for mega or g|G for giga.
+  be k|K for kilo, m|M for mega, etc.
 */
 
 static longlong eval_num_suffix_ll(char *argument,
@@ -1026,7 +1038,7 @@ static longlong eval_num_suffix_ll(char *argument,
   function: eval_num_suffix_ull
 
   Transforms a number with a suffix to positive Integer. Suffix can
-  be k|K for kilo, m|M for mega or g|G for giga.
+  be k|K for kilo, m|M for mega, etc.
 */
 
 static ulonglong eval_num_suffix_ull(char *argument,
@@ -1609,7 +1621,7 @@ void my_print_variables(const struct my_option *options)
 
   for (optp= options; optp->name; optp++)
   {
-    length= strlen(optp->name)+1;
+    length= (uint)strlen(optp->name)+1;
     if (length > name_space)
       name_space= length;
   }

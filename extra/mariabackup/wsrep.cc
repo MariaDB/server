@@ -43,7 +43,7 @@ permission notice:
 #include <my_global.h>
 #include <my_base.h>
 #include <handler.h>
-#include <trx0sys.h>
+#include <trx0rseg.h>
 
 #include "common.h"
 #ifdef WITH_WSREP
@@ -181,7 +181,7 @@ xb_write_galera_info(bool incremental_prepare)
 	memset(&xid, 0, sizeof(xid));
 	xid.formatID = -1;
 
-	if (!trx_sys_read_wsrep_checkpoint(&xid)) {
+	if (!trx_rseg_read_wsrep_checkpoint(xid)) {
 
 		return;
 	}

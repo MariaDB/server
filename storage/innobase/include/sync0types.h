@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -160,7 +160,7 @@ V
 lock_sys_mutex				Mutex protecting lock_sys_t
 |
 V
-trx_sys->mutex				Mutex protecting trx_sys_t
+trx_sys.mutex				Mutex protecting trx_sys_t
 |
 V
 Threads mutex				Background thread scheduling mutex
@@ -233,6 +233,7 @@ enum latch_level_t {
 	SYNC_REC_LOCK,
 	SYNC_THREADS,
 	SYNC_TRX,
+	SYNC_RW_TRX_HASH_ELEMENT,
 	SYNC_TRX_SYS,
 	SYNC_LOCK_SYS,
 	SYNC_LOCK_WAIT_SYS,
@@ -336,7 +337,6 @@ enum latch_id_t {
 	LATCH_ID_SRV_INNODB_MONITOR,
 	LATCH_ID_SRV_MISC_TMPFILE,
 	LATCH_ID_SRV_MONITOR_FILE,
-	LATCH_ID_SYNC_THREAD,
 	LATCH_ID_BUF_DBLWR,
 	LATCH_ID_TRX_UNDO,
 	LATCH_ID_TRX_POOL,
@@ -383,6 +383,7 @@ enum latch_id_t {
 	LATCH_ID_FIL_CRYPT_STAT_MUTEX,
 	LATCH_ID_FIL_CRYPT_DATA_MUTEX,
 	LATCH_ID_FIL_CRYPT_THREADS_MUTEX,
+	LATCH_ID_RW_TRX_HASH_ELEMENT,
 	LATCH_ID_TEST_MUTEX,
 	LATCH_ID_MAX = LATCH_ID_TEST_MUTEX
 };
@@ -634,14 +635,6 @@ public:
 		m_mutex.exit();
 
 		return(count);
-	}
-
-	/** Deregister the count. We don't do anything
-	@param[in]	count		The count instance to deregister */
-	void sum_deregister(Count* count)
-		UNIV_NOTHROW
-	{
-		/* Do nothing */
 	}
 
 	/** Register a single instance counter */
@@ -1161,17 +1154,34 @@ enum rw_lock_flag_t {
 #endif /* UNIV_INNOCHECKSUM */
 
 #ifdef _WIN64
-#define my_atomic_addlint(A,B) my_atomic_add64((int64*) (A), (B))
-#define my_atomic_loadlint(A) my_atomic_load64((int64*) (A))
-#define my_atomic_loadlint_explicit(A,O) my_atomic_load64_explicit((int64*) (A), (O))
-#define my_atomic_storelint(A,B) my_atomic_store64((int64*) (A), (B))
-#define my_atomic_caslint(A,B,C) my_atomic_cas64((int64*) (A), (int64*) (B), (C))
+static inline ulint my_atomic_addlint(ulint *A, ulint B)
+{
+  return ulint(my_atomic_add64((volatile int64*)A, B));
+}
+
+static inline ulint my_atomic_loadlint(const ulint *A)
+{
+  return ulint(my_atomic_load64((volatile int64*)A));
+}
+
+static inline lint my_atomic_addlint(volatile lint *A, lint B)
+{
+  return my_atomic_add64((volatile int64*)A, B);
+}
+
+static inline lint my_atomic_loadlint(const lint *A)
+{
+  return lint(my_atomic_load64((volatile int64*)A));
+}
+
+static inline void my_atomic_storelint(ulint *A, ulint B)
+{
+  my_atomic_store64((volatile int64*)A, B);
+}
 #else
 #define my_atomic_addlint my_atomic_addlong
 #define my_atomic_loadlint my_atomic_loadlong
-#define my_atomic_loadlint_explicit my_atomic_loadlong_explicit
 #define my_atomic_storelint my_atomic_storelong
-#define my_atomic_caslint my_atomic_caslong
 #endif
 
 /** Simple counter aligned to CACHE_LINE_SIZE
@@ -1197,7 +1207,7 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
 #pragma warning (push)
 #pragma warning (disable : 4244)
 #endif
-			return Type(my_atomic_addlint(reinterpret_cast<lint*>
+			return Type(my_atomic_addlint(reinterpret_cast<ulint*>
 						      (&m_counter), i));
 #ifdef _MSC_VER
 #pragma warning (pop)

@@ -166,6 +166,9 @@ static inline uint get_first_set(my_bitmap_map value, uint word_pos)
   return MY_BIT_NONE;                           /* Impossible */
 }
 
+/*
+  Initialize a bitmap object. All bits will be set to zero
+*/
 
 my_bool my_bitmap_init(MY_BITMAP *map, my_bitmap_map *buf, uint n_bits,
                        my_bool thread_safe)

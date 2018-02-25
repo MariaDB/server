@@ -32,22 +32,17 @@ CXX := $(DEB_HOST_GNU_TYPE)-g++
 # at https://www.debian.org/doc/debian-policy/ch-source.html#s-debianrules-options
 ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
     NUMJOBS = $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
-    MAKEFLAGS += -j $(NUMJOBS)
+    MAKEFLAGS += -j$(NUMJOBS)
 else
     # NUMJOBS cannot be empty as it is used as a parameter to mtr, default to 1.
     NUMJOBS = 1
 endif
 
 # Ignore test suite exit code on unstable platforms
-ifneq (,$(filter $(ARCH), mips mipsel))
+ifneq (,$(filter $(ARCH),mips mipsel mips64el alpha powerpc sh4 hurd-i386 sparc64 kfreebsd-i386 kfreebsd-amd64))
     TESTSUITE_FAIL_CMD:=true
 else
     TESTSUITE_FAIL_CMD:=exit 1
-endif
-
-# Skip TokuDB if arch is not amd64
-ifneq ($(ARCH), amd64)
-    CMAKEFLAGS += -DWITHOUT_TOKUDB=true
 endif
 
 # Add support for verbose builds
@@ -119,19 +114,10 @@ override_dh_auto_install:
 	dh_testdir
 	dh_testroot
 
-	# If TokuDB plugin was not built skip the package
-	[ -f $(BUILDDIR)/storage/tokudb/ha_tokudb.so ] || sed -i -e "/Package: mariadb-plugin-tokudb/,+16d" debian/control
-
-	# If Mroonga plugin was not built skip the package
-	[ -f $(BUILDDIR)/storage/mroonga/ha_mroonga.so ] || sed -i -e "/Package: mariadb-plugin-mroonga/,+15d" debian/control
-
 	# If libthrift-dev was available (manually installed, as it is
 	# not in Debian) and ha_cassandra.so was thus built, create package,
 	# otherwise skip it.
-	[ -f $(BUILDDIR)/storage/cassandra/ha_cassandra.so ] || sed -i -e "/Package: mariadb-plugin-cassandra/,+18d" debian/control
-
-	# If Spider plugin was not built skip the package
-	[ -f $(BUILDDIR)/storage/spider/ha_spider.so ] || sed -i -e "/Package: mariadb-plugin-spider/,+16d" debian/control
+	[ -f $(BUILDDIR)/storage/cassandra/ha_cassandra.so ] || sed -i -e "/Package: mariadb-plugin-cassandra/,+20d" debian/control
 
 	# Copy systemd files to a location available for dh_installinit
 	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.3.mariadb.service
@@ -162,13 +148,13 @@ override_dh_auto_install:
 	install -D -m 644 debian/mariadb-server-10.3.py $(TMP)/usr/share/apport/package-hooks/source_mariadb-10.3.py
 
 	# Install libmariadbclient18 compatibility links
-	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so
-	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so.18
+	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so
+	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so.18
 
 	# Install libmysqlclientclientXX compatibility links
-	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.18
-	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.19
-	ln -s /usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.20
+	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.18
+	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.19
+	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.20
 
 	touch $@
 
@@ -191,7 +177,11 @@ override_dh_installcron-arch:
 get-orig-source:
 	uscan --force-download --verbose
 
+# If a file is not supposed to be included anywhere, add it to the not-installed
+# file and document the reason. Note that dh_install supports the above mentioned
+# white list file only starting from Debian Stretch and Ubuntu Xenial.
+# To find more, grep build logs for 'but is not installed to anywhere'.
 %:
-	dh $@ --parallel --with dpatch --with systemd
+	dh $@ --parallel --with dpatch --with systemd --list-missing
 
 # vim: ts=8

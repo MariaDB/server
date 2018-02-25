@@ -218,11 +218,11 @@ drop table t1;
 create table t1 ( a int primary key, b varchar(30)) engine = MYISAM ;
 prepare stmt1 from ' show table status from test like ''t1%'' ';
 execute stmt1;
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Dynamic	0	0	0	4294967295	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Dynamic	0	0	0	4294967295	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			288230376151710720	N
 show table status from test like 't1%' ;
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Dynamic	0	0	0	4294967295	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Dynamic	0	0	0	4294967295	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			288230376151710720	N
 deallocate prepare stmt1 ;
 drop table t1;
 create table t1(a varchar(2), b varchar(3));
@@ -1207,20 +1207,23 @@ SET @aux= "SELECT COUNT(*)
 prepare my_stmt from @aux;
 execute my_stmt;
 COUNT(*)
-46
+47
 Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
 execute my_stmt;
 COUNT(*)
-46
+47
 Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
 execute my_stmt;
 COUNT(*)
-46
+47
 Warnings:
+Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
 deallocate prepare my_stmt;
@@ -1738,7 +1741,7 @@ execute stmt using @a;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `?` decimal(2,1) DEFAULT NULL
+  `?` decimal(2,1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 drop table if exists t1;
@@ -3388,7 +3391,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` bigint(20) DEFAULT NULL
+  `c1` bigint(20) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = b'10100100101';
 @a	@a = b'10100100101'
@@ -3478,7 +3481,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` bigint(20) DEFAULT NULL
+  `c1` bigint(20) unsigned DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = 2010;
 @a	@a = 2010
@@ -3550,7 +3553,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('a', 16);
 @a	@a = REPEAT('a', 16)
@@ -3568,7 +3571,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('b', 16);
 @a	@a = REPEAT('b', 16)
@@ -3586,7 +3589,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('c', 16);
 @a	@a = REPEAT('c', 16)
@@ -3604,7 +3607,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('d', 16);
 @a	@a = REPEAT('d', 16)
@@ -3622,7 +3625,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('e', 16);
 @a	@a = REPEAT('e', 16)
@@ -3640,7 +3643,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = REPEAT('f', 16);
 @a	@a = REPEAT('f', 16)
@@ -3766,7 +3769,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = 'aaa';
 @a	@a = 'aaa'
@@ -3784,7 +3787,7 @@ CREATE TEMPORARY TABLE tmp1 AS SELECT @a AS c1;
 SHOW CREATE TABLE tmp1;
 Table	Create Table
 tmp1	CREATE TEMPORARY TABLE `tmp1` (
-  `c1` longblob DEFAULT NULL
+  `c1` longtext DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @a, @a = 'aaa';
 @a	@a = 'aaa'
@@ -4345,6 +4348,24 @@ set join_cache_level=@join_cache_level_save;
 deallocate prepare stmt;
 drop view v1,v2,v3;
 drop table t1,t2,t3;
+#
+# MDEV-10657: incorrect result returned with binary protocol
+# (prepared statements)
+#
+create table  t1 (code varchar(10) primary key);
+INSERT INTO t1(code) VALUES ('LINE1'), ('LINE2'), ('LINE3');
+SELECT X.*
+FROM
+(SELECT CODE, RN
+FROM
+(SELECT A.CODE, @cnt := @cnt + 1 AS RN
+FROM  t1 A, (SELECT @cnt := 0) C) T
+) X;
+CODE	RN
+LINE1	1
+LINE2	2
+LINE3	3
+drop table t1;
 # End of 5.5 tests
 #
 # Start of 10.2 tests
@@ -4407,14 +4428,14 @@ EXECUTE stmt USING 10;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` bigint(21) NOT NULL
+  `c1` int(2) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING 10.123;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` decimal(5,3) DEFAULT NULL
+  `c1` decimal(5,3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING 10.123e0;
@@ -4428,49 +4449,49 @@ EXECUTE stmt USING CURRENT_DATE;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` date DEFAULT NULL
+  `c1` date NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIMESTAMP;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` datetime DEFAULT NULL
+  `c1` datetime NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIMESTAMP(3);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` datetime(3) DEFAULT NULL
+  `c1` datetime(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIMESTAMP(6);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` datetime(6) DEFAULT NULL
+  `c1` datetime(6) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIME;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` time DEFAULT NULL
+  `c1` time NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIME(3);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` time(3) DEFAULT NULL
+  `c1` time(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE stmt USING CURRENT_TIME(6);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` time(6) DEFAULT NULL
+  `c1` time(6) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DEALLOCATE PREPARE stmt;
@@ -4614,10 +4635,10 @@ EXECUTE IMMEDIATE
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` bigint(21) NOT NULL,
-  `b` decimal(3,1) DEFAULT NULL,
+  `a` bigint(20) NOT NULL,
+  `b` decimal(3,1) NOT NULL,
   `c` double NOT NULL,
-  `d` varchar(3) NOT NULL
+  `d` tinytext NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 EXECUTE IMMEDIATE
@@ -4626,8 +4647,8 @@ EXECUTE IMMEDIATE
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` bigint(21) NOT NULL,
-  `b` decimal(3,1) DEFAULT NULL,
+  `a` int(2) NOT NULL,
+  `b` decimal(3,1) NOT NULL,
   `c` double NOT NULL,
   `d` varchar(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -4642,11 +4663,11 @@ TIMESTAMP'2001-01-01 10:20:30.123';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `t1` time DEFAULT NULL,
-  `t2` time(3) DEFAULT NULL,
-  `d1` date DEFAULT NULL,
-  `dt1` datetime DEFAULT NULL,
-  `dt2` datetime(3) DEFAULT NULL
+  `t1` time NOT NULL,
+  `t2` time(3) NOT NULL,
+  `d1` date NOT NULL,
+  `dt1` datetime NOT NULL,
+  `dt2` datetime(3) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #
@@ -4991,4 +5012,231 @@ EXECUTE IMMEDIATE 'CALL p1(?)' USING DEFAULT;
 ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
 EXECUTE IMMEDIATE 'CALL p1(?)' USING IGNORE;
 ERROR 42000: OUT or INOUT argument 1 for routine test.p1 is not a variable or NEW pseudo-variable in BEFORE trigger
+DROP PROCEDURE p1;
+#
+# MDEV-14434 Wrong result for CHARSET(CONCAT(?,const))
+#
+SET NAMES utf8;
+EXECUTE IMMEDIATE "SELECT CHARSET(CONCAT(5,_latin1'a'))";
+CHARSET(CONCAT(5,_latin1'a'))
+latin1
+EXECUTE IMMEDIATE "SELECT CHARSET(CONCAT(?,_latin1'a'))" USING 5;
+CHARSET(CONCAT(?,_latin1'a'))
+latin1
+EXECUTE IMMEDIATE "SELECT CHARSET(CONCAT(?,_latin1'a'))" USING 5.5;
+CHARSET(CONCAT(?,_latin1'a'))
+latin1
+EXECUTE IMMEDIATE "SELECT CHARSET(CONCAT(?,_latin1'a'))" USING 5.5e0;
+CHARSET(CONCAT(?,_latin1'a'))
+latin1
+EXECUTE IMMEDIATE "SELECT CHARSET(CONCAT(?,_latin1'a'))" USING TIME'10:20:30';
+CHARSET(CONCAT(?,_latin1'a'))
+latin1
+EXECUTE IMMEDIATE "SELECT CHARSET(CONCAT(?,_latin1'a'))" USING TIMESTAMP'2001-01-01 10:20:30';
+CHARSET(CONCAT(?,_latin1'a'))
+latin1
+EXECUTE IMMEDIATE "SELECT COERCIBILITY(?)" USING 5;
+COERCIBILITY(?)
+5
+EXECUTE IMMEDIATE "SELECT COERCIBILITY(?)" USING 5.5;
+COERCIBILITY(?)
+5
+EXECUTE IMMEDIATE "SELECT COERCIBILITY(?)" USING 5.5e0;
+COERCIBILITY(?)
+5
+EXECUTE IMMEDIATE "SELECT COERCIBILITY(?)" USING TIME'10:20:30';
+COERCIBILITY(?)
+5
+EXECUTE IMMEDIATE "SELECT COERCIBILITY(?)" USING TIMESTAMP'2001-01-01 10:20:30';
+COERCIBILITY(?)
+5
+#
+# MDEV-14435 Different UNSIGNED flag of out user variable for YEAR parameter for direct vs prepared CALL
+#
+CREATE PROCEDURE p1(OUT v INT UNSIGNED) SET v = 2010;
+CALL p1(@a);
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING @b;
+DEALLOCATE PREPARE stmt;
+CREATE TABLE t1 AS SELECT @a AS a, @b AS b;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(20) unsigned DEFAULT NULL,
+  `b` bigint(20) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1(OUT v YEAR) SET v = 2010;
+CALL p1(@a);
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING @b;
+DEALLOCATE PREPARE stmt;
+CREATE TABLE t1 AS SELECT @a AS a, @b AS b;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(20) unsigned DEFAULT NULL,
+  `b` bigint(20) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1(OUT v BIT(16)) SET v = 2010;
+CALL p1(@a);
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING @b;
+DEALLOCATE PREPARE stmt;
+CREATE TABLE t1 AS SELECT @a AS a, @b AS b;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(20) unsigned DEFAULT NULL,
+  `b` bigint(20) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# MDEV-14426 Assertion in Diagnostics_area::set_error_status when using a bad datetime with PS and SP
+#
+CREATE PROCEDURE p1(OUT a VARCHAR(20))
+BEGIN
+SET a=10;
+END;
+$$
+BEGIN NOT ATOMIC
+DECLARE a DATETIME;
+CALL p1(a);
+END;
+$$
+ERROR 22007: Incorrect datetime value: '10' for column 'a' at row 1
+BEGIN NOT ATOMIC
+DECLARE a DATETIME;
+EXECUTE IMMEDIATE 'CALL p1(?)' USING a;
+END;
+$$
+ERROR 22007: Incorrect datetime value: '10' for column 'a' at row 1
+BEGIN NOT ATOMIC
+DECLARE a DATETIME;
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt  USING a;
+DEALLOCATE PREPARE stmt;
+END;
+$$
+ERROR 22007: Incorrect datetime value: '10' for column 'a' at row 1
+DROP PROCEDURE p1;
+#
+# MDEV-14454 Binary protocol returns wrong collation ID for SP OUT parameters
+#
+CREATE PROCEDURE p1(OUT v CHAR(32) CHARACTER SET utf8) SET v='aaa';
+PREPARE stmt1 FROM 'CALL p1(?)';
+EXECUTE stmt1 USING @a;
+CREATE TABLE t1 AS SELECT @a AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` longtext CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# MDEV-14467 Item_param: replace {INT|DECIMAL|REAL|STRING|TIME}_VALUE with Type_handler
+#
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT 1 FROM DUAL LIMIT ?' USING 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select 1 AS `1` limit 10
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT 1 FROM DUAL LIMIT ?' USING 10.1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select 1 AS `1` limit 10
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT 1 FROM DUAL LIMIT ?' USING 10.1e0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select 1 AS `1` limit 10
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT 1 FROM DUAL LIMIT ?' USING '10';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select 1 AS `1` limit 10
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT 1 FROM DUAL LIMIT ?' USING TIME'10:10:10';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select 1 AS `1` limit 101010
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 AS SELECT 1 AS a,? AS b' USING 1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(1) NOT NULL,
+  `b` int(1) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 AS SELECT 10 AS a,? AS b' USING 10;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(2) NOT NULL,
+  `b` int(2) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 AS SELECT 999999999 AS a,? AS b' USING 999999999;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(9) NOT NULL,
+  `b` int(9) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE IMMEDIATE 'CREATE OR REPLACE TABLE t1 AS SELECT 2147483647 AS a,? AS b' USING 2147483647;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(10) NOT NULL,
+  `b` bigint(10) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
+# MDEV-14603 signal 11 with short stacktrace
+#
+SET NAMES utf8;
+CREATE TABLE t1(i INT);
+CREATE PROCEDURE p1(tn VARCHAR(32))
+EXECUTE IMMEDIATE CONCAT('ANALYZE TABLE ',tn);
+CALL p1('t1');
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Table is already up to date
+DROP PROCEDURE p1;
+DROP TABLE t1;
+SET NAMES utf8;
+CREATE PROCEDURE p1()
+EXECUTE IMMEDIATE CONCAT('SELECT ',CONVERT(RAND() USING latin1));
+CALL p1();
+DROP PROCEDURE p1;
+SET NAMES utf8;
+CREATE PROCEDURE p1()
+BEGIN
+PREPARE stmt FROM CONCAT('SELECT ',CONVERT(RAND() USING latin1));
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+END;
+$$
+CALL p1();
+DROP PROCEDURE p1;
+SET NAMES utf8;
+CREATE PROCEDURE p1(a VARCHAR(10) CHARACTER SET utf8)
+EXECUTE IMMEDIATE 'SELECT ?' USING CONCAT(a, CONVERT(RAND() USING latin1));
+CALL p1('x');
+DROP PROCEDURE p1;
+SET NAMES utf8;
+CREATE PROCEDURE p1(a VARCHAR(10) CHARACTER SET utf8)
+BEGIN
+PREPARE stmt FROM 'SELECT ?';
+EXECUTE stmt USING CONCAT(a, CONVERT(RAND() USING latin1));
+DEALLOCATE PREPARE stmt;
+END;
+$$
+CALL p1('x');
 DROP PROCEDURE p1;

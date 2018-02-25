@@ -1,0 +1,17 @@
+DROP TABLE IF EXISTS users;
+FLUSH STATUS;
+CREATE TABLE users (
+id INT PRIMARY KEY
+) DEFAULT CHARSET=UTF8;
+INSERT INTO users (id) VALUES (1);
+INSERT INTO users (id) VALUES (2);
+INSERT INTO users (id) VALUES (3);
+INSERT INTO users (id) VALUES (4);
+INSERT INTO users (id) VALUES (5);
+SELECT COUNT(*) FROM users WHERE id < 3;
+COUNT(*)
+2
+SHOW STATUS LIKE 'mroonga_count_skip';
+Variable_name	Value
+Mroonga_count_skip	0
+DROP TABLE users;

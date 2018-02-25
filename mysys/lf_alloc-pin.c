@@ -161,7 +161,7 @@ LF_PINS *lf_pinbox_get_pins(LF_PINBOX *pinbox)
     pinstack_top_ver is 32 bits; 16 low bits are the index in the
     array, to the first element of the list. 16 high bits are a version
     (every time the 16 low bits are updated, the 16 high bits are
-    incremented). Versioniong prevents the ABA problem.
+    incremented). Versioning prevents the ABA problem.
   */
   top_ver= pinbox->pinstack_top_ver;
   do
@@ -430,7 +430,7 @@ static void alloc_free(uchar *first,
   {
     anext_node(last)= tmp.node;
   } while (!my_atomic_casptr((void **)(char *)&allocator->top,
-                             (void **)&tmp.ptr, first) && LF_BACKOFF);
+                             (void **)&tmp.ptr, first) && LF_BACKOFF());
 }
 
 /*
@@ -501,7 +501,7 @@ void *lf_alloc_new(LF_PINS *pins)
     {
       node= allocator->top;
      lf_pin(pins, 0, node);
-    } while (node != allocator->top && LF_BACKOFF);
+    } while (node != allocator->top && LF_BACKOFF());
     if (!node)
     {
       node= (void *)my_malloc(allocator->element_size, MYF(MY_WME));

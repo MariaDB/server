@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2427,18 +2427,19 @@ page_validate(
 	same temp-table in parallel.
 	max_trx_id is ignored for temp tables because it not required
 	for MVCC. */
-	if (dict_index_is_sec_or_ibuf(index)
-	    && !dict_table_is_temporary(index->table)
-	    && page_is_leaf(page)
-	    && !page_is_empty(page)) {
+	if (!page_is_leaf(page) || page_is_empty(page)
+	    || !dict_index_is_sec_or_ibuf(index)
+	    || index->table->is_temporary()) {
+	} else if (trx_id_t sys_max_trx_id = trx_sys.get_max_trx_id()) {
 		trx_id_t	max_trx_id	= page_get_max_trx_id(page);
-		trx_id_t	sys_max_trx_id	= trx_sys_get_max_trx_id();
 
 		if (max_trx_id == 0 || max_trx_id > sys_max_trx_id) {
 			ib::error() << "PAGE_MAX_TRX_ID out of bounds: "
 				<< max_trx_id << ", " << sys_max_trx_id;
 			goto func_exit2;
 		}
+	} else {
+		ut_ad(srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN);
 	}
 
 	heap = mem_heap_create(UNIV_PAGE_SIZE + 200);
@@ -2767,8 +2768,7 @@ page_delete_rec(
 	if (!rec_offs_any_extern(offsets)
 	    && ((page_get_data_size(page) - rec_offs_size(offsets)
 		< BTR_CUR_PAGE_COMPRESS_LIMIT(index))
-		|| (mach_read_from_4(page + FIL_PAGE_NEXT) == FIL_NULL
-		    && mach_read_from_4(page + FIL_PAGE_PREV) == FIL_NULL)
+		|| !page_has_siblings(page)
 		|| (page_get_n_recs(page) < 2))) {
 
 		ulint	root_page_no = dict_index_get_page(index);

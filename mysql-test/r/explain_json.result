@@ -1204,7 +1204,7 @@ create table t1 (i int) engine=myisam;
 explain 
 select * from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	const row not found
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
 explain format=json
 select * from t1;
 EXPLAIN
@@ -1584,3 +1584,63 @@ EXPLAIN
   }
 }
 drop table t0,t1;
+#
+# MDEV-10844: EXPLAIN FORMAT=JSON doesn't show order direction for filesort
+#
+create table t1 (a int, b int);
+insert into t1 values (1,2),(3,4),(2,3);
+explain format=json select * from t1 order by a, b desc;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "read_sorted_file": {
+      "filesort": {
+        "sort_key": "t1.a, t1.b desc",
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+explain format=json select * from t1 order by a desc, b desc;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "read_sorted_file": {
+      "filesort": {
+        "sort_key": "t1.a desc, t1.b desc",
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+explain format=json select * from t1 order by a desc, b ;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "read_sorted_file": {
+      "filesort": {
+        "sort_key": "t1.a desc, t1.b",
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100
+        }
+      }
+    }
+  }
+}
+drop table t1;

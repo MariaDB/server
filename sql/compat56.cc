@@ -45,8 +45,10 @@
 */
 longlong TIME_to_longlong_time_packed(const MYSQL_TIME *ltime)
 {
-  /* If month is 0, we mix day with hours: "1 00:10:10" -> "24:00:10" */
-  long hms= (((ltime->month ? 0 : ltime->day * 24) + ltime->hour) << 12) |
+  DBUG_ASSERT(ltime->year == 0);
+  DBUG_ASSERT(ltime->month == 0);
+  // Mix days with hours: "1 00:10:10" -> "24:10:10"
+  long hms= ((ltime->day * 24 + ltime->hour) << 12) |
             (ltime->minute << 6) | ltime->second;
   longlong tmp= MY_PACKED_TIME_MAKE(hms, ltime->second_part);
   return ltime->neg ? -tmp : tmp;

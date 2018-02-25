@@ -224,6 +224,12 @@ INSERT INTO global_suppressions VALUES
  ("Slave I/O: Setting @slave_gtid_ignore_duplicates failed with error.*"),
  ("Slave I/O: Setting @slave_until_gtid failed with error.*"),
  ("Slave I/O: Get master GTID position failed with error.*"),
+
+ /*
+   MDEV-12501 -- set --maturity-level by default
+ */
+ ("Plugin .* is of maturity level .* while the server is .*"),
+
  ("THE_LAST_SUPPRESSION")||
 
 

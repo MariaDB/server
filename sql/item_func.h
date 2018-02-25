@@ -30,6 +30,9 @@ extern "C"				/* Bug in BSDI include file */
 }
 #endif
 
+#include "sql_udf.h"    // udf_handler
+#include "my_decimal.h" // string2my_decimal
+
 
 class Item_func :public Item_func_or_sum
 {
@@ -160,14 +163,9 @@ public:
   void print_args(String *str, uint from, enum_query_type query_type);
   inline bool get_arg0_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   {
-    return (null_value=args[0]->get_date_with_conversion(ltime, fuzzy_date));
-  }
-  inline bool get_arg0_time(MYSQL_TIME *ltime)
-  {
-    null_value= args[0]->get_time(ltime);
-    DBUG_ASSERT(null_value ||
-                ltime->time_type != MYSQL_TIMESTAMP_TIME || ltime->day == 0);
-    return null_value;
+    DBUG_ASSERT(!(fuzzy_date & TIME_TIME_ONLY));
+    Datetime dt(current_thd, args[0], fuzzy_date);
+    return (null_value= dt.copy_to_mysql_time(ltime));
   }
   bool is_null() { 
     update_null_value();
@@ -386,6 +384,8 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_value);
   longlong val_int()
     { DBUG_ASSERT(fixed == 1); return (longlong) rint(val_real()); }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return get_date_from_real(ltime, fuzzydate); }
   const Type_handler *type_handler() const { return &type_handler_double; }
   void fix_length_and_dec()
   { decimals= NOT_FIXED_DEC; max_length= float_length(decimals); }
@@ -445,9 +445,15 @@ class Item_func_hybrid_field_type: public Item_hybrid_func
   */
   bool date_op_with_null_check(MYSQL_TIME *ltime)
   {
-     bool rc= date_op(ltime,
-                      field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0);
+     bool rc= date_op(ltime, 0);
      DBUG_ASSERT(!rc ^ null_value);
+     return rc;
+  }
+  bool time_op_with_null_check(MYSQL_TIME *ltime)
+  {
+     bool rc= time_op(ltime);
+     DBUG_ASSERT(!rc ^ null_value);
+     DBUG_ASSERT(rc || ltime->time_type == MYSQL_TIMESTAMP_TIME);
      return rc;
   }
   String *str_op_with_null_check(String *str)
@@ -486,32 +492,30 @@ public:
   {
     return real_op();
   }
-  bool get_date_from_date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
-  {
-    return date_op(ltime,
-                   (fuzzydate |
-                   (field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0)));
-  }
 
   // Value methods that involve conversion
   String *val_str_from_decimal_op(String *str);
   String *val_str_from_real_op(String *str);
   String *val_str_from_int_op(String *str);
   String *val_str_from_date_op(String *str);
+  String *val_str_from_time_op(String *str);
 
   my_decimal *val_decimal_from_str_op(my_decimal *dec);
   my_decimal *val_decimal_from_real_op(my_decimal *dec);
   my_decimal *val_decimal_from_int_op(my_decimal *dec);
   my_decimal *val_decimal_from_date_op(my_decimal *dec);
+  my_decimal *val_decimal_from_time_op(my_decimal *dec);
 
   longlong val_int_from_str_op();
   longlong val_int_from_real_op();
   longlong val_int_from_decimal_op();
   longlong val_int_from_date_op();
+  longlong val_int_from_time_op();
 
   double val_real_from_str_op();
   double val_real_from_decimal_op();
   double val_real_from_date_op();
+  double val_real_from_time_op();
   double val_real_from_int_op();
 
   bool get_date_from_str_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
@@ -607,10 +611,17 @@ public:
 
   /**
      @brief Performs the operation that this functions implements when
-     field type is a temporal type.
+     field type is DATETIME or DATE.
      @return The result of the operation.
   */
   virtual bool date_op(MYSQL_TIME *res, ulonglong fuzzy_date)= 0;
+
+  /**
+     @brief Performs the operation that this functions implements when
+     field type is TIME.
+     @return The result of the operation.
+  */
+  virtual bool time_op(MYSQL_TIME *res)= 0;
 
 };
 
@@ -670,6 +681,11 @@ public:
   { }
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
   bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool time_op(MYSQL_TIME *ltime)
   {
     DBUG_ASSERT(0);
     return true;
@@ -755,6 +771,8 @@ public:
   { collation.set_numeric(); }
   double val_real();
   String *val_str(String*str);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return get_date_from_int(ltime, fuzzydate); }
   const Type_handler *type_handler() const= 0;
   void fix_length_and_dec() {}
 };
@@ -819,8 +837,8 @@ public:
   {
     return Cursor_ref::print_func(str, func_name());
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_cursor_rowcount>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_cursor_rowcount>(thd, this); }
 };
 
 
@@ -839,8 +857,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_connection_id>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_connection_id>(thd, this); }
 };
 
 
@@ -896,8 +914,8 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   uint decimal_precision() const { return args[0]->decimal_precision(); }
   bool need_parentheses_in_default() { return true; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_signed>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_signed>(thd, this); }
 };
 
 
@@ -927,8 +945,8 @@ public:
   }
   uint decimal_precision() const { return max_length; }
   virtual void print(String *str, enum_query_type query_type);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_unsigned>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_unsigned>(thd, this); }
 };
 
 
@@ -948,6 +966,8 @@ public:
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal*);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return get_date_from_decimal(ltime, fuzzydate); }
   const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   void fix_length_and_dec_generic() {}
   void fix_length_and_dec()
@@ -957,8 +977,8 @@ public:
   const char *func_name() const { return "decimal_typecast"; }
   virtual void print(String *str, enum_query_type query_type);
   bool need_parentheses_in_default() { return true; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_decimal_typecast>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_decimal_typecast>(thd, this); }
 };
 
 
@@ -980,10 +1000,9 @@ public:
   const char *func_name() const { return "double_typecast"; }
   virtual void print(String *str, enum_query_type query_type);
   bool need_parentheses_in_default() { return true; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_double_typecast>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_double_typecast>(thd, this); }
 };
-
 
 
 class Item_func_additive_op :public Item_num_op
@@ -1007,8 +1026,8 @@ public:
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_plus>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_plus>(thd, this); }
 };
 
 class Item_func_minus :public Item_func_additive_op
@@ -1038,8 +1057,8 @@ public:
     Item_func_additive_op::fix_length_and_dec_int();
     fix_unsigned_flag();
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_minus>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_minus>(thd, this); }
 };
 
 
@@ -1057,8 +1076,8 @@ public:
   void fix_length_and_dec();
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_mul>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_mul>(thd, this); }
 };
 
 
@@ -1076,8 +1095,8 @@ public:
   void fix_length_and_dec_double();
   void fix_length_and_dec_int();
   void result_precision();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_div>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_div>(thd, this); }
 };
 
 
@@ -1100,8 +1119,8 @@ public:
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
   bool need_parentheses_in_default() { return true; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_int_div>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_int_div>(thd, this); }
 };
 
 
@@ -1135,8 +1154,8 @@ public:
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_mod>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_mod>(thd, this); }
 };
 
 
@@ -1161,8 +1180,8 @@ public:
   void fix_length_and_dec();
   uint decimal_precision() const { return args[0]->decimal_precision(); }
   bool need_parentheses_in_default() { return true; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_neg>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_neg>(thd, this); }
 };
 
 
@@ -1178,8 +1197,8 @@ public:
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
   void fix_length_and_dec();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_abs>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_abs>(thd, this); }
 };
 
 // A class to handle logarithmic and trigonometric functions
@@ -1204,8 +1223,8 @@ public:
   Item_func_exp(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "exp"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_exp>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_exp>(thd, this); }
 };
 
 
@@ -1215,8 +1234,8 @@ public:
   Item_func_ln(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "ln"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_ln>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_ln>(thd, this); }
 };
 
 
@@ -1227,8 +1246,8 @@ public:
   Item_func_log(THD *thd, Item *a, Item *b): Item_dec_func(thd, a, b) {}
   double val_real();
   const char *func_name() const { return "log"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_log>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_log>(thd, this); }
 };
 
 
@@ -1238,8 +1257,8 @@ public:
   Item_func_log2(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "log2"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_log2>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_log2>(thd, this); }
 };
 
 
@@ -1249,8 +1268,8 @@ public:
   Item_func_log10(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "log10"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_log10>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_log10>(thd, this); }
 };
 
 
@@ -1260,8 +1279,8 @@ public:
   Item_func_sqrt(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "sqrt"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_sqrt>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_sqrt>(thd, this); }
 };
 
 
@@ -1271,8 +1290,8 @@ public:
   Item_func_pow(THD *thd, Item *a, Item *b): Item_dec_func(thd, a, b) {}
   double val_real();
   const char *func_name() const { return "pow"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_pow>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_pow>(thd, this); }
 };
 
 
@@ -1282,8 +1301,8 @@ public:
   Item_func_acos(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "acos"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_acos>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_acos>(thd, this); }
 };
 
 class Item_func_asin :public Item_dec_func
@@ -1292,8 +1311,8 @@ public:
   Item_func_asin(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "asin"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_asin>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_asin>(thd, this); }
 };
 
 class Item_func_atan :public Item_dec_func
@@ -1303,8 +1322,8 @@ public:
   Item_func_atan(THD *thd, Item *a, Item *b): Item_dec_func(thd, a, b) {}
   double val_real();
   const char *func_name() const { return "atan"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_atan>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_atan>(thd, this); }
 };
 
 class Item_func_cos :public Item_dec_func
@@ -1313,8 +1332,8 @@ public:
   Item_func_cos(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "cos"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_cos>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_cos>(thd, this); }
 };
 
 class Item_func_sin :public Item_dec_func
@@ -1323,8 +1342,8 @@ public:
   Item_func_sin(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "sin"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_sin>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_sin>(thd, this); }
 };
 
 class Item_func_tan :public Item_dec_func
@@ -1333,8 +1352,8 @@ public:
   Item_func_tan(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "tan"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_tan>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_tan>(thd, this); }
 };
 
 class Item_func_cot :public Item_dec_func
@@ -1343,8 +1362,8 @@ public:
   Item_func_cot(THD *thd, Item *a): Item_dec_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "cot"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_cot>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_cot>(thd, this); }
 };
 
 
@@ -1366,8 +1385,8 @@ public:
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_ceiling>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_ceiling>(thd, this); }
 };
 
 
@@ -1379,8 +1398,8 @@ public:
   longlong int_op();
   double real_op();
   my_decimal *decimal_op(my_decimal *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_floor>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_floor>(thd, this); }
 };
 
 /* This handles round and truncate */
@@ -1404,8 +1423,8 @@ public:
   {
     args[0]->type_handler()->Item_func_round_fix_length_and_dec(this);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_round>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_round>(thd, this); }
 };
 
 
@@ -1429,8 +1448,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_NON_DETERMINISTIC);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_rand>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_rand>(thd, this); }
 private:
   void seed_random (Item * val);  
 };
@@ -1446,8 +1465,8 @@ public:
   uint decimal_precision() const { return 1; }
   void fix_length_and_dec() { fix_char_length(2); }
   longlong val_int();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_sign>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_sign>(thd, this); }
 };
 
 
@@ -1465,8 +1484,8 @@ public:
   const char *func_name() const { return name; }
   void fix_length_and_dec()
   { decimals= NOT_FIXED_DEC; max_length= float_length(decimals); }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_units>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_units>(thd, this); }
 };
 
 
@@ -1496,6 +1515,7 @@ public:
   longlong val_int_native();
   my_decimal *val_decimal_native(my_decimal *);
   bool get_date_native(MYSQL_TIME *res, ulonglong fuzzydate);
+  bool get_time_native(MYSQL_TIME *res);
 
   double val_real()
   {
@@ -1560,8 +1580,8 @@ class Item_func_min :public Item_func_min_max
 public:
   Item_func_min(THD *thd, List<Item> &list): Item_func_min_max(thd, list, 1) {}
   const char *func_name() const { return "least"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_min>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_min>(thd, this); }
 };
 
 class Item_func_max :public Item_func_min_max
@@ -1569,8 +1589,8 @@ class Item_func_max :public Item_func_min_max
 public:
   Item_func_max(THD *thd, List<Item> &list): Item_func_min_max(thd, list, -1) {}
   const char *func_name() const { return "greatest"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_max>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_max>(thd, this); }
 };
 
 
@@ -1590,6 +1610,10 @@ public:
   longlong val_int() { return args[0]->val_int(); }
   String *val_str(String *str) { return args[0]->val_str(str); }
   my_decimal *val_decimal(my_decimal *dec) { return args[0]->val_decimal(dec); }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return args[0]->get_date(ltime, fuzzydate);
+  }
   const char *func_name() const { return "rollup_const"; }
   bool const_item() const { return 0; }
   const Type_handler *type_handler() const { return args[0]->type_handler(); }
@@ -1601,8 +1625,8 @@ public:
     /* The item could be a NULL constant. */
     null_value= args[0]->is_null();
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_rollup_const>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_rollup_const>(thd, this); }
 };
 
 
@@ -1623,8 +1647,8 @@ public:
   Item_func_octet_length(THD *thd, Item *a): Item_long_func_length(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "octet_length"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_octet_length>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_octet_length>(thd, this); }
 };
 
 class Item_func_bit_length :public Item_longlong_func
@@ -1638,8 +1662,8 @@ public:
   }
   longlong val_int();
   const char *func_name() const { return "bit_length"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_bit_length>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_bit_length>(thd, this); }
 };
 
 class Item_func_char_length :public Item_long_func_length
@@ -1649,8 +1673,8 @@ public:
   Item_func_char_length(THD *thd, Item *a): Item_long_func_length(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "char_length"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_char_length>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_char_length>(thd, this); }
 };
 
 class Item_func_coercibility :public Item_long_func
@@ -1670,8 +1694,8 @@ public:
   Item* propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond)
   { return this; }
   bool const_item() const { return true; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_coercibility>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_coercibility>(thd, this); }
 };
 
 
@@ -1703,8 +1727,8 @@ public:
     agg_arg_charsets_for_comparison(cmp_collation, args, 2);
   }
   virtual void print(String *str, enum_query_type query_type);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_locate>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_locate>(thd, this); }
 };
 
 
@@ -1718,8 +1742,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "field"; }
   void fix_length_and_dec();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_field>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_field>(thd, this); }
 };
 
 
@@ -1733,8 +1757,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "ascii"; }
   void fix_length_and_dec() { max_length=3; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_ascii>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_ascii>(thd, this); }
 };
 
 class Item_func_ord :public Item_long_func
@@ -1747,8 +1771,8 @@ public:
   void fix_length_and_dec() { fix_char_length(7); }
   longlong val_int();
   const char *func_name() const { return "ord"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_ord>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_ord>(thd, this); }
 };
 
 class Item_func_find_in_set :public Item_long_func
@@ -1765,8 +1789,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "find_in_set"; }
   void fix_length_and_dec();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_find_in_set>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_find_in_set>(thd, this); }
 };
 
 /* Base class for all bit functions: '~', '|', '^', '&', '>>', '<<' */
@@ -1794,8 +1818,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "|"; }
   enum precedence precedence() const { return BITOR_PRECEDENCE; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_bit_or>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_bit_or>(thd, this); }
 };
 
 class Item_func_bit_and :public Item_func_bit
@@ -1805,8 +1829,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "&"; }
   enum precedence precedence() const { return BITAND_PRECEDENCE; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_bit_and>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_bit_and>(thd, this); }
 };
 
 class Item_func_bit_count :public Item_long_func
@@ -1818,8 +1842,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "bit_count"; }
   void fix_length_and_dec() { max_length=2; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_bit_count>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_bit_count>(thd, this); }
 };
 
 class Item_func_shift_left :public Item_func_bit
@@ -1829,8 +1853,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "<<"; }
   enum precedence precedence() const { return SHIFT_PRECEDENCE; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_shift_left>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_shift_left>(thd, this); }
 };
 
 class Item_func_shift_right :public Item_func_bit
@@ -1840,8 +1864,8 @@ public:
   longlong val_int();
   const char *func_name() const { return ">>"; }
   enum precedence precedence() const { return SHIFT_PRECEDENCE; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_shift_right>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_shift_right>(thd, this); }
 };
 
 class Item_func_bit_neg :public Item_func_bit
@@ -1856,8 +1880,8 @@ public:
     str->append(func_name());
     args[0]->print_parenthesised(str, query_type, precedence());
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_bit_neg>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_bit_neg>(thd, this); }
 };
 
 
@@ -1881,8 +1905,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_last_insert_id>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_last_insert_id>(thd, this); }
 };
 
 
@@ -1905,8 +1929,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_benchmark>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_benchmark>(thd, this); }
 };
 
 
@@ -1932,8 +1956,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_sleep>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_sleep>(thd, this); }
 };
 
 
@@ -2032,6 +2056,10 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_NON_DETERMINISTIC);
   }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+  }
 };
 
 
@@ -2060,8 +2088,8 @@ class Item_func_udf_float :public Item_udf_func
   String *val_str(String *str);
   const Type_handler *type_handler() const { return &type_handler_double; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_udf_float>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_udf_float>(thd, this); }
 };
 
 
@@ -2078,8 +2106,8 @@ public:
   String *val_str(String *str);
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   void fix_length_and_dec() { decimals= 0; max_length= 21; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_udf_int>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_udf_int>(thd, this); }
 };
 
 
@@ -2096,8 +2124,8 @@ public:
   String *val_str(String *str);
   const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   void fix_length_and_dec() { fix_num_length_and_dec(); }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_udf_decimal>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_udf_decimal>(thd, this); }
 };
 
 
@@ -2135,8 +2163,8 @@ public:
   }
   const Type_handler *type_handler() const { return string_type_handler(); }
   void fix_length_and_dec();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_udf_str>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_udf_str>(thd, this); }
 };
 
 #else /* Dummy functions to get sql_yacc.cc compiled */
@@ -2218,8 +2246,8 @@ class Item_func_get_lock :public Item_long_func
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_get_lock>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_get_lock>(thd, this); }
 };
 
 class Item_func_release_lock :public Item_long_func
@@ -2242,8 +2270,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_release_lock>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_release_lock>(thd, this); }
 };
 
 /* replication functions */
@@ -2273,8 +2301,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_master_pos_wait>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_master_pos_wait>(thd, this); }
 };
 
 
@@ -2298,8 +2326,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_master_gtid_wait>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_master_gtid_wait>(thd, this); }
 };
 
 
@@ -2329,6 +2357,8 @@ public:
   Field *create_field_for_create_select(TABLE *table)
   { return create_table_field_from_handler(table); }
   bool check_vcol_func_processor(void *arg);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return type_handler()->Item_get_date(this, ltime, fuzzydate); }
 };
 
 
@@ -2380,7 +2410,7 @@ public:
   String *str_result(String *str);
   my_decimal *val_decimal_result(my_decimal *);
   bool is_null_result();
-  bool update_hash(void *ptr, uint length, enum Item_result type,
+  bool update_hash(void *ptr, size_t length, enum Item_result type,
                    CHARSET_INFO *cs, bool unsigned_arg);
   bool send(Protocol *protocol, st_value *buffer);
   void make_field(THD *thd, Send_field *tmp_field);
@@ -2406,8 +2436,8 @@ public:
   bool register_field_in_bitmap(void *arg);
   bool set_entry(THD *thd, bool create_if_not_exists);
   void cleanup();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_set_user_var>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_set_user_var>(thd, this); }
 };
 
 
@@ -2434,8 +2464,8 @@ public:
   table_map used_tables() const
   { return const_item() ? 0 : RAND_TABLE_BIT; }
   bool eq(const Item *item, bool binary_cmp) const;
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_get_user_var>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_get_user_var>(thd, this); }
 private:
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
 
@@ -2458,20 +2488,22 @@ public:
 */
 class Item_user_var_as_out_param :public Item
 {
-  LEX_CSTRING name;
+  LEX_CSTRING org_name;
   user_var_entry *entry;
 public:
   Item_user_var_as_out_param(THD *thd, const LEX_CSTRING *a)
-  :Item(thd), name(*a)
+  :Item(thd)
   {
     DBUG_ASSERT(a->length < UINT_MAX32);
-    set_name(thd, a->str, (uint) a->length, system_charset_info);
+    org_name= *a;
+    set_name(thd, a->str, a->length, system_charset_info);
   }
   /* We should return something different from FIELD_ITEM here */
   enum Type type() const { return STRING_ITEM;}
   double val_real();
   longlong val_int();
   String *val_str(String *str);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   my_decimal *val_decimal(my_decimal *decimal_buffer);
   /* fix_fields() binds variable name with its entry structure */
   bool fix_fields(THD *thd, Item **ref);
@@ -2479,8 +2511,8 @@ public:
   void set_null_value(CHARSET_INFO* cs);
   void set_value(const char *str, uint length, CHARSET_INFO* cs);
   const Type_handler *type_handler() const { return &type_handler_double; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_user_var_as_out_param>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_user_var_as_out_param>(thd, this); }
 };
 
 
@@ -2519,6 +2551,10 @@ public:
   String* val_str(String*);
   my_decimal *val_decimal(my_decimal *dec_buf)
   { return val_decimal_from_real(dec_buf); }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+  }
   /* TODO: fix to support views */
   const char *func_name() const { return "get_system_var"; }
   /**
@@ -2534,8 +2570,8 @@ public:
 
   void cleanup();
   bool check_vcol_func_processor(void *arg);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_get_system_var>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_get_system_var>(thd, this); }
 };
 
 
@@ -2589,9 +2625,9 @@ public:
   {
     return mark_unsupported_function("match ... against()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_match>(thd, mem_root, this); }
-  Item *build_clone(THD *thd, MEM_ROOT *mem_root) { return 0; }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_match>(thd, this); }
+  Item *build_clone(THD *thd) { return 0; }
 private:
   /**
      Check whether storage engine for given table, 
@@ -2636,8 +2672,8 @@ public:
   longlong val_int();
   const char *func_name() const { return "^"; }
   enum precedence precedence() const { return BITXOR_PRECEDENCE; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_bit_xor>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_bit_xor>(thd, this); }
 };
 
 class Item_func_is_free_lock :public Item_long_func
@@ -2654,8 +2690,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_is_free_lock>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_is_free_lock>(thd, this); }
 };
 
 class Item_func_is_used_lock :public Item_long_func
@@ -2672,8 +2708,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_is_used_lock>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_is_used_lock>(thd, this); }
 };
 
 
@@ -2721,8 +2757,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_row_count>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_row_count>(thd, this); }
 };
 
 
@@ -2732,26 +2768,12 @@ public:
  *
  */
 
-class sp_head;
-class sp_name;
-struct st_sp_security_context;
-
-class Item_func_sp :public Item_func
+class Item_func_sp :public Item_func,
+                    public Item_sp
 {
 private:
-  Name_resolution_context *context;
-  sp_name *m_name;
-  mutable sp_head *m_sp;
-  TABLE *dummy_table;
-  uchar result_buf[64];
-  /*
-     The result field of the concrete stored function.
-  */
-  Field *sp_result_field;
 
   bool execute();
-  bool execute_impl(THD *thd);
-  bool init_result_field(THD *thd, sp_head *sp);
 
 protected:
   bool is_expensive_processor(void *arg)
@@ -2843,7 +2865,6 @@ public:
   virtual bool change_context_processor(void *cntx)
     { context= (Name_resolution_context *)cntx; return FALSE; }
 
-  bool sp_check_access(THD * thd);
   virtual enum Functype functype() const { return FUNC_SP; }
 
   bool fix_fields(THD *thd, Item **ref);
@@ -2864,11 +2885,11 @@ public:
   {
     return TRUE;
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_sp>(thd, mem_root, this); }
-  Item *build_clone(THD *thd, MEM_ROOT *mem_root)
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_sp>(thd, this); }
+  Item *build_clone(THD *thd)
   {
-    Item_func_sp *clone= (Item_func_sp *) Item_func::build_clone(thd, mem_root);
+    Item_func_sp *clone= (Item_func_sp *) Item_func::build_clone(thd);
     if (clone)
       clone->sp_result_field= NULL;
     return clone;
@@ -2892,8 +2913,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_found_rows>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_found_rows>(thd, this); }
 };
 
 
@@ -2911,8 +2932,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_oracle_sql_rowcount>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_oracle_sql_rowcount>(thd, this); }
 };
 
 
@@ -2935,8 +2956,8 @@ public:
     maybe_null= null_value= false;
     max_length= 11;
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_sqlcode>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_sqlcode>(thd, this); }
 };
 
 
@@ -2955,8 +2976,8 @@ public:
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_NON_DETERMINISTIC);
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_uuid_short>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_uuid_short>(thd, this); }
 };
 
 
@@ -2970,6 +2991,7 @@ public:
   longlong val_int();
   String *val_str(String *);
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   void fix_length_and_dec();
   const char *func_name() const { return "last_value"; }
   const Type_handler *type_handler() const { return last_value->type_handler(); }
@@ -2985,8 +3007,8 @@ public:
     Item_func::update_used_tables();
     maybe_null= last_value->maybe_null;
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_last_value>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_last_value>(thd, this); }
 };
 
 
@@ -2996,9 +3018,10 @@ class Item_func_nextval :public Item_longlong_func
 {
 protected:
   TABLE_LIST *table_list;
+  TABLE *table;
 public:
-  Item_func_nextval(THD *thd, TABLE_LIST *table):
-  Item_longlong_func(thd), table_list(table) {}
+  Item_func_nextval(THD *thd, TABLE_LIST *table_list_arg):
+  Item_longlong_func(thd), table_list(table_list_arg) {}
   longlong val_int();
   const char *func_name() const { return "nextval"; }
   void fix_length_and_dec()
@@ -3007,14 +3030,31 @@ public:
     max_length= MAX_BIGINT_WIDTH;
     maybe_null= 1;                              /* In case of errors */
   }
+  /*
+    update_table() function must be called during the value function
+    as in case of DEFAULT the sequence table may not yet be open
+    while fix_fields() are called
+  */
+  void update_table()
+  {
+    if (!(table= table_list->table))
+    {
+      /*
+        If nextval was used in DEFAULT then next_local points to
+        the table_list used by to open the sequence table
+      */
+      table= table_list->next_local->table;
+    }
+  }
   bool const_item() const { return 0; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_nextval>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_nextval>(thd, this); }
   void print(String *str, enum_query_type query_type);
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), "()", arg,
-                                     VCOL_NON_DETERMINISTIC);
+                                     (VCOL_NON_DETERMINISTIC |
+                                      VCOL_NOT_VIRTUAL));
   }
 };
 
@@ -3024,12 +3064,12 @@ public:
 class Item_func_lastval :public Item_func_nextval
 {
 public:
-  Item_func_lastval(THD *thd, TABLE_LIST *table):
-  Item_func_nextval(thd, table) {}
+  Item_func_lastval(THD *thd, TABLE_LIST *table_list_arg):
+  Item_func_nextval(thd, table_list_arg) {}
   longlong val_int();
   const char *func_name() const { return "lastval"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_lastval>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_lastval>(thd, this); }
 };
 
 
@@ -3041,16 +3081,16 @@ class Item_func_setval :public Item_func_nextval
   ulonglong round;
   bool is_used;
 public:
-  Item_func_setval(THD *thd, TABLE_LIST *table, longlong nextval_arg,
+  Item_func_setval(THD *thd, TABLE_LIST *table_list_arg, longlong nextval_arg,
                    ulonglong round_arg, bool is_used_arg)
-    : Item_func_nextval(thd, table),
+    : Item_func_nextval(thd, table_list_arg),
     nextval(nextval_arg), round(round_arg), is_used(is_used_arg)
   {}
   longlong val_int();
   const char *func_name() const { return "setval"; }
   void print(String *str, enum_query_type query_type);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_setval>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_setval>(thd, this); }
 };
 
 

@@ -588,9 +588,8 @@ sync_array_cell_print(
 
 			fprintf(file,
 				"number of readers " ULINTPF
-				", waiters flag %u, "
-				"lock_word: " ULINTPFx "\n"
-				"Last time read locked in file %s line %u\n"
+				", waiters flag %d, "
+				"lock_word: %x\n"
 				"Last time write locked in file %s line %u"
 #if 0 /* JAN: TODO: FIX LATER */
 				"\nHolder thread " ULINTPF
@@ -598,10 +597,8 @@ sync_array_cell_print(
 #endif
 				"\n",
 				rw_lock_get_reader_count(rwlock),
-				rwlock->waiters,
-				rwlock->lock_word,
-				innobase_basename(rwlock->last_s_file_name),
-				rwlock->last_s_line,
+				my_atomic_load32_explicit(&rwlock->waiters, MY_MEMORY_ORDER_RELAXED),
+				my_atomic_load32_explicit(&rwlock->lock_word, MY_MEMORY_ORDER_RELAXED),
 				innobase_basename(rwlock->last_x_file_name),
 				rwlock->last_x_line
 #if 0 /* JAN: TODO: FIX LATER */
@@ -1310,7 +1307,7 @@ sync_arr_fill_sys_semphore_waits_table(
 	ulint		n_items;
 
 	DBUG_ENTER("i_s_sys_semaphore_waits_fill_table");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
+	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
@@ -1397,11 +1394,10 @@ sync_arr_fill_sys_semphore_waits_table(
 						//OK(fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->store(rwlock->line, true));
 						//fields[SYS_SEMAPHORE_WAITS_HOLDER_LINE]->set_notnull();
 						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_READERS], rw_lock_get_reader_count(rwlock)));
-						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG], (longlong)rwlock->waiters));
-						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD], (longlong)rwlock->lock_word));
-						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_READER_FILE], innobase_basename(rwlock->last_s_file_name)));
-						OK(fields[SYS_SEMAPHORE_WAITS_LAST_READER_LINE]->store(rwlock->last_s_line, true));
-						fields[SYS_SEMAPHORE_WAITS_LAST_READER_LINE]->set_notnull();
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_WAITERS_FLAG],
+						   my_atomic_load32_explicit(&rwlock->waiters, MY_MEMORY_ORDER_RELAXED)));
+						OK(field_store_ulint(fields[SYS_SEMAPHORE_WAITS_LOCK_WORD],
+						   my_atomic_load32_explicit(&rwlock->lock_word, MY_MEMORY_ORDER_RELAXED)));
 						OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE], innobase_basename(rwlock->last_x_file_name)));
 						OK(fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->store(rwlock->last_x_line, true));
 						fields[SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE]->set_notnull();

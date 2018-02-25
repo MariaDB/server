@@ -257,4 +257,9 @@ function addToResponseFile(filename, responseFile)
            responseFile.WriteLine("\""+fso.GetFile(filename).Path+"\"");
        }
     }
+    else
+    {
+        echo("file " + filename + " not found. Can't generate symbols file");
+        WScript.Quit (1);
+    }
 }

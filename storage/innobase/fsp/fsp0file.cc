@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -516,8 +516,18 @@ Datafile::validate_first_page(lsn_t* flush_lsn)
 		}
 	}
 
+	if (error_txt != NULL) {
+err_exit:
+		ib::error() << error_txt << " in datafile: " << m_filepath
+			<< ", Space ID:" << m_space_id  << ", Flags: "
+			<< m_flags << ". " << TROUBLESHOOT_DATADICT_MSG;
+		m_is_valid = false;
+		free_first_page();
+		return(DB_CORRUPTION);
+	}
+
 	/* Check if the whole page is blank. */
-	if (error_txt == NULL && !m_space_id && !m_flags) {
+	if (!m_space_id && !m_flags) {
 		const byte*	b		= m_first_page;
 		ulint		nonzero_bytes	= UNIV_PAGE_SIZE;
 
@@ -528,56 +538,45 @@ Datafile::validate_first_page(lsn_t* flush_lsn)
 
 		if (nonzero_bytes == 0) {
 			error_txt = "Header page consists of zero bytes";
+			goto err_exit;
 		}
+	}
+
+	if (!fsp_flags_is_valid(m_flags, m_space_id)) {
+		/* Tablespace flags must be valid. */
+		error_txt = "Tablespace flags are invalid";
+		goto err_exit;
 	}
 
 	const page_size_t	page_size(m_flags);
 
-	if (error_txt != NULL) {
-
-		/* skip the next few tests */
-	} else if (univ_page_size.logical() != page_size.logical()) {
-
+	if (univ_page_size.logical() != page_size.logical()) {
 		/* Page size must be univ_page_size. */
-
 		ib::error()
 			<< "Data file '" << m_filepath << "' uses page size "
 			<< page_size.logical() << ", but the innodb_page_size"
 			" start-up parameter is "
 			<< univ_page_size.logical();
-
 		free_first_page();
-
 		return(DB_ERROR);
-	} else if (!fsp_flags_is_valid(m_flags, m_space_id)) {
-		/* Tablespace flags must be valid. */
-		error_txt = "Tablespace flags are invalid";
-	} else if (page_get_page_no(m_first_page) != 0) {
-
-		/* First page must be number 0 */
-		error_txt = "Header page contains inconsistent data";
-
-	} else if (m_space_id == ULINT_UNDEFINED) {
-
-		/* The space_id can be most anything, except -1. */
-		error_txt = "A bad Space ID was found";
-
-	} else if (buf_page_is_corrupted(false, m_first_page, page_size)) {
-
-		/* Look for checksum and other corruptions. */
-		error_txt = "Checksum mismatch";
 	}
 
-	if (error_txt != NULL) {
-		ib::error() << error_txt << " in datafile: " << m_filepath
-			<< ", Space ID:" << m_space_id  << ", Flags: "
-			<< m_flags << ". " << TROUBLESHOOT_DATADICT_MSG;
-		m_is_valid = false;
+	if (page_get_page_no(m_first_page) != 0) {
+		/* First page must be number 0 */
+		error_txt = "Header page contains inconsistent data";
+		goto err_exit;
+	}
 
-		free_first_page();
+	if (m_space_id == ULINT_UNDEFINED) {
+		/* The space_id can be most anything, except -1. */
+		error_txt = "A bad Space ID was found";
+		goto err_exit;
+	}
 
-		return(DB_CORRUPTION);
-
+	if (buf_page_is_corrupted(false, m_first_page, page_size)) {
+		/* Look for checksum and other corruptions. */
+		error_txt = "Checksum mismatch";
+		goto err_exit;
 	}
 
 	if (fil_space_read_name_and_filepath(
@@ -770,6 +769,10 @@ the double write buffer.
 bool
 Datafile::restore_from_doublewrite()
 {
+	if (srv_operation != SRV_OPERATION_NORMAL) {
+		return true;
+	}
+
 	/* Find if double write buffer contains page_no of given space id. */
 	const byte*	page = recv_sys->dblwr.find_page(m_space_id, 0);
 	const page_id_t	page_id(m_space_id, 0);

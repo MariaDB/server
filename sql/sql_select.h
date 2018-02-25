@@ -73,8 +73,44 @@ typedef struct keyuse_t {
   */
   uint         sj_pred_no;
 
+  /*
+    If this is NULL than KEYUSE is always enabled.
+    Otherwise it points to the enabling flag for this keyuse (true <=> enabled)
+  */
+  bool *validity_ref;
+
   bool is_for_hash_join() { return is_hash_join_key_no(key); }
 } KEYUSE;
+
+
+struct KEYUSE_EXT: public KEYUSE
+{
+  /*
+    This keyuse can be used only when the partial join being extended
+    contains the tables from this table map
+  */
+  table_map needed_in_prefix;
+  /* The enabling flag for keyuses usable for splitting */
+  bool validity_var;
+};
+
+/// Used when finding key fields
+struct KEY_FIELD {
+  Field		*field;
+  Item_bool_func *cond;
+  Item		*val;			///< May be empty if diff constant
+  uint		level;
+  uint		optimize;
+  bool		eq_func;
+  /**
+    If true, the condition this struct represents will not be satisfied
+    when val IS NULL.
+  */
+  bool          null_rejecting;
+  bool         *cond_guard; /* See KEYUSE::cond_guard */
+  uint          sj_pred_no; /* See KEYUSE::sj_pred_no */
+};
+
 
 #define NO_KEYPART ((uint)(-1))
 
@@ -201,6 +237,8 @@ class SJ_TMP_TABLE;
 class JOIN_TAB_RANGE;
 class AGGR_OP;
 class Filesort;
+struct SplM_plan_info;
+class SplM_opt_info;
 
 typedef struct st_join_table {
   st_join_table() {}
@@ -438,7 +476,7 @@ typedef struct st_join_table {
     will be turned to fields. These variables are pointing to
     tmp_fields_list[123]. Valid only for tmp tables and the last non-tmp
     table in the query plan.
-    @see JOIN::make_tmp_tables_info()
+    @see JOIN::make_aggr_tables_info()
   */
   List<Item> *fields;
   /** List of all expressions in the select list */
@@ -614,8 +652,10 @@ typedef struct st_join_table {
   bool use_order() const; ///< Use ordering provided by chosen index?
   bool sort_table();
   bool remove_duplicates();
-  Item *get_splitting_cond_for_grouping_derived(THD *thd);
-
+  void add_keyuses_for_splitting();
+  SplM_plan_info *choose_best_splitting(double record_count,
+                                        table_map remaining_tables);
+  bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables);
 } JOIN_TAB;
 
 
@@ -920,6 +960,9 @@ typedef struct st_position
   Firstmatch_picker         firstmatch_picker;
   LooseScan_picker          loosescan_picker;
   Sj_materialization_picker sjmat_picker;
+
+  /* Info on splitting plan used at this position */  
+  SplM_plan_info *spl_plan;
 } POSITION;
 
 typedef Bounds_checked_array<Item_null_result*> Item_null_array;
@@ -1053,11 +1096,13 @@ protected:
   /* Support for plan reoptimization with rewritten conditions. */
   enum_reopt_result reoptimize(Item *added_where, table_map join_tables,
                                Join_plan_state *save_to);
+  /* Choose a subquery plan for a table-less subquery. */
+  bool choose_tableless_subquery_plan();
+
+public:
   void save_query_plan(Join_plan_state *save_to);
   void reset_query_plan();
   void restore_query_plan(Join_plan_state *restore_from);
-  /* Choose a subquery plan for a table-less subquery. */
-  bool choose_tableless_subquery_plan();
 
 public:
   JOIN_TAB *join_tab, **best_ref;
@@ -1415,9 +1460,14 @@ public:
   */
   bool implicit_grouping; 
 
-  bool is_for_splittable_grouping_derived;
   bool with_two_phase_optimization;
-  ORDER *partition_list; 
+
+  /* Saved execution plan for this join */
+  Join_plan_state *save_qep;
+  /* Info on splittability of the table materialized by this plan*/
+  SplM_opt_info *spl_opt_info;
+  /* Contains info on keyuses usable for splitting */
+  Dynamic_array<KEYUSE_EXT> *ext_keyuses_for_splitting;
 
   JOIN_TAB *sort_and_group_aggr_tab;
 
@@ -1436,7 +1486,7 @@ public:
     table_count= 0;
     top_join_tab_count= 0;
     const_tables= 0;
-    const_table_map= 0;
+    const_table_map= found_const_table_map= 0;
     aggr_tables= 0;
     eliminated_tables= 0;
     join_list= 0;
@@ -1465,7 +1515,10 @@ public:
     need_distinct= 0;
     skip_sort_order= 0;
     with_two_phase_optimization= 0;
-    is_for_splittable_grouping_derived= 0;
+    save_qep= 0;
+    spl_opt_info= 0;
+    ext_keyuses_for_splitting= 0;
+    spl_opt_info= 0;
     need_tmp= 0;
     hidden_group_fields= 0; /*safety*/
     error= 0;
@@ -1674,10 +1727,12 @@ public:
                                const char *message);
   JOIN_TAB *first_breadth_first_tab() { return join_tab; }
   bool check_two_phase_optimization(THD *thd);
-  bool check_for_splittable_grouping_derived(THD *thd);
   bool inject_cond_into_where(Item *injected_cond);
-  bool push_splitting_cond_into_derived(THD *thd, Item *cond);
-  bool improve_chosen_plan(THD *thd);
+  bool check_for_splittable_materialized();
+  void add_keyuses_for_splitting();
+  bool inject_best_splitting_cond(table_map remaining_tables);
+  bool fix_all_splittings_in_plan();
+
   bool transform_in_predicates_into_in_subq(THD *thd);
 private:
   /**
@@ -1712,7 +1767,6 @@ private:
   void cleanup_item_list(List<Item> &items) const;
   bool add_having_as_table_cond(JOIN_TAB *tab);
   bool make_aggr_tables_info();
-
 };
 
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};
@@ -1977,7 +2031,7 @@ int report_error(TABLE *table, int error);
 int safe_index_read(JOIN_TAB *tab);
 int get_quick_record(SQL_SELECT *select);
 int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
-		List<Item> &fields, List <Item> &all_fields, ORDER *order,
+                List<Item> &fields, List <Item> &all_fields, ORDER *order,
                 bool from_window_spec= false);
 int setup_group(THD *thd,  Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
 		List<Item> &fields, List<Item> &all_fields, ORDER *order,
@@ -2058,7 +2112,8 @@ public:
     @param thd         - Current thread.
   */
   static void *operator new(size_t size, THD *thd) throw();
-  static void operator delete(void *ptr, size_t size) { TRASH(ptr, size); }
+  static void operator delete(void *ptr, size_t size) { TRASH_FREE(ptr, size); }
+  static void operator delete(void *, THD *) throw(){}
 
   Virtual_tmp_table(THD *thd)
   {
@@ -2105,7 +2160,7 @@ public:
       DBUG_ASSERT(s->blob_fields <= m_alloced_field_count);
       s->blob_field[s->blob_fields - 1]= s->fields;
     }
-    s->fields++;
+    new_field->field_index= s->fields++;
     return false;
   }
 
@@ -2128,6 +2183,48 @@ public:
     @return true  - on error (e.g. could not allocate the record buffer).
   */
   bool open();
+
+  void set_all_fields_to_null()
+  {
+    for (uint i= 0; i < s->fields; i++)
+      field[i]->set_null();
+  }
+  /**
+    Set all fields from a compatible item list.
+    The number of fields in "this" must be equal to the number
+    of elements in "value".
+  */
+  bool sp_set_all_fields_from_item_list(THD *thd, List<Item> &items);
+
+  /**
+    Set all fields from a compatible item.
+    The number of fields in "this" must be the same with the number
+    of elements in "value".
+  */
+  bool sp_set_all_fields_from_item(THD *thd, Item *value);
+
+  /**
+    Find a ROW element index by its name
+    Assumes that "this" is used as a storage for a ROW-type SP variable.
+    @param [OUT] idx        - the index of the found field is returned here
+    @param [IN]  field_name - find a field with this name
+    @return      true       - on error (the field was not found)
+    @return      false      - on success (idx[0] was set to the field index)
+  */
+  bool sp_find_field_by_name(uint *idx, const LEX_CSTRING &name) const;
+
+  /**
+    Find a ROW element index by its name.
+    If the element is not found, and error is issued.
+    @param [OUT] idx        - the index of the found field is returned here
+    @param [IN]  var_name   - the name of the ROW variable (for error reporting)
+    @param [IN]  field_name - find a field with this name
+    @return      true       - on error (the field was not found)
+    @return      false      - on success (idx[0] was set to the field index)
+  */
+  bool sp_find_field_by_name_or_error(uint *idx,
+                                      const LEX_CSTRING &var_name,
+                                      const LEX_CSTRING &field_name) const;
 };
 
 
@@ -2214,6 +2311,10 @@ inline Item * and_items(THD *thd, Item* cond, Item *item)
 {
   return (cond ? (new (thd->mem_root) Item_cond_and(thd, cond, item)) : item);
 }
+inline Item * or_items(THD *thd, Item* cond, Item *item)
+{
+  return (cond ? (new (thd->mem_root) Item_cond_or(thd, cond, item)) : item);
+}
 bool choose_plan(JOIN *join, table_map join_tables);
 void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab, 
                                 table_map last_remaining_tables, 
@@ -2275,7 +2376,7 @@ int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table,
 TABLE *create_tmp_table(THD *thd,TMP_TABLE_PARAM *param,List<Item> &fields,
 			ORDER *group, bool distinct, bool save_sum_fields,
 			ulonglong select_options, ha_rows rows_limit,
-			const char* alias, bool do_not_open=FALSE,
+                        const LEX_CSTRING *alias, bool do_not_open=FALSE,
                         bool keep_row_order= FALSE);
 void free_tmp_table(THD *thd, TABLE *entry);
 bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
@@ -2288,13 +2389,18 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
                                TMP_ENGINE_COLUMNDEF **recinfo, 
                                ulonglong options);
 bool instantiate_tmp_table(TABLE *table, KEY *keyinfo, 
-                           MARIA_COLUMNDEF *start_recinfo,
-                           MARIA_COLUMNDEF **recinfo, 
+                           TMP_ENGINE_COLUMNDEF *start_recinfo,
+                           TMP_ENGINE_COLUMNDEF **recinfo,
                            ulonglong options);
 bool open_tmp_table(TABLE *table);
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
 double prev_record_reads(POSITION *positions, uint idx, table_map found_ref);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
+double get_tmp_table_lookup_cost(THD *thd, double row_count, uint row_size);
+double get_tmp_table_write_cost(THD *thd, double row_count, uint row_size);
+void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
+bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
+                            bool skip_unprefixed_keyparts);
 
 struct st_cond_statistic
 {

@@ -165,7 +165,7 @@ void scramble(char *to, const char *message, const char *password);
 my_bool check_scramble(const unsigned char *reply, const char *message,
                        const unsigned char *hash_stage2);
 void get_salt_from_password(unsigned char *res, const char *password);
-char *octet2hex(char *to, const char *str, unsigned int len);
+char *octet2hex(char *to, const char *str, size_t len);
 char *get_tty_password(const char *opt_message);
 void get_tty_password_buff(const char *opt_message, char *to, size_t length);
 const char *mysql_errno_to_sqlstate(unsigned int mysql_errno);
@@ -242,6 +242,7 @@ typedef struct st_mem_root
   unsigned int block_num;
   unsigned int first_block_usage;
   void (*error_handler)(void);
+  const char *name;
 } MEM_ROOT;
 typedef struct st_typelib {
   unsigned int count;
@@ -252,8 +253,6 @@ typedef struct st_typelib {
 extern my_ulonglong find_typeset(char *x, TYPELIB *typelib,int *error_position);
 extern int find_type_with_warning(const char *x, TYPELIB *typelib,
                                   const char *option);
-extern int find_type_or_exit(const char *x, TYPELIB *typelib,
-                             const char *option);
 extern int find_type(const char *x, const TYPELIB *typelib, unsigned int flags);
 extern void make_type(char *to,unsigned int nr,TYPELIB *typelib);
 extern const char *get_type(TYPELIB *typelib,unsigned int nr);

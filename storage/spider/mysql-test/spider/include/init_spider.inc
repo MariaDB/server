@@ -277,10 +277,35 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
     default_group char(64) default null,
     KEY idx1 (data, format_id, gtrid_length, host)
   ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+  DROP TABLE IF EXISTS mysql.spider_xa_failed_log;
+  CREATE TABLE mysql.spider_xa_failed_log(
+    format_id int not null default 0,
+    gtrid_length int not null default 0,
+    bqual_length int not null default 0,
+    data char(128) charset binary not null default '',
+    scheme char(64) not null default '',
+    host char(64) not null default '',
+    port char(5) not null default '',
+    socket text not null,
+    username char(64) not null default '',
+    password char(64) not null default '',
+    ssl_ca text,
+    ssl_capath text,
+    ssl_cert text,
+    ssl_cipher char(64) default null,
+    ssl_key text,
+    ssl_verify_server_cert tinyint not null default 0,
+    default_file text,
+    default_group char(64) default null,
+    thread_id int default null,
+    status char(8) not null default '',
+    failed_time timestamp not null default current_timestamp,
+    key idx1 (data, format_id, gtrid_length, host)
+  ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
   DROP TABLE IF EXISTS mysql.spider_tables;
   CREATE TABLE mysql.spider_tables(
     db_name char(64) not null default '',
-    table_name char(64) not null default '',
+    table_name char(199) not null default '',
     link_id int not null default 0,
     priority bigint not null default 0,
     server char(64) default null,
@@ -296,18 +321,22 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
     ssl_cipher char(64) default null,
     ssl_key text default null,
     ssl_verify_server_cert tinyint not null default 0,
+    monitoring_binlog_pos_at_failing tinyint not null default 0,
     default_file text default null,
     default_group char(64) default null,
     tgt_db_name char(64) default null,
     tgt_table_name char(64) default null,
     link_status tinyint not null default 1,
+    block_status tinyint not null default 0,
+    static_link_id char(64) default null,
     PRIMARY KEY (db_name, table_name, link_id),
-    KEY idx1 (priority)
+    KEY idx1 (priority),
+    UNIQUE KEY uidx1 (db_name, table_name, static_link_id)
   ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
   DROP TABLE IF EXISTS mysql.spider_link_mon_servers;
   CREATE TABLE mysql.spider_link_mon_servers(
     db_name char(64) not null default '',
-    table_name char(64) not null default '',
+    table_name char(199) not null default '',
     link_id char(5) not null default '',
     sid int not null default 0,
     server char(64) default null,
@@ -330,10 +359,43 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
   DROP TABLE IF EXISTS mysql.spider_link_failed_log;
   CREATE TABLE mysql.spider_link_failed_log(
     db_name char(64) not null default '',
-    table_name char(64) not null default '',
+    table_name char(199) not null default '',
     link_id int not null default 0,
     failed_time timestamp not null default current_timestamp
   ) ENGINE=MYISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+  DROP TABLE IF EXISTS mysql.spider_table_position_for_recovery;
+  CREATE TABLE mysql.spider_table_position_for_recovery(
+    db_name char(64) not null default '',
+    table_name char(199) not null default '',
+    failed_link_id int not null default 0,
+    source_link_id int not null default 0,
+    file text,
+    position text,
+    gtid text,
+    primary key (db_name, table_name, failed_link_id, source_link_id)
+  ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+  DROP TABLE IF EXISTS mysql.spider_table_sts;
+  CREATE TABLE mysql.spider_table_sts(
+    db_name char(64) not null default '',
+    table_name char(199) not null default '',
+    data_file_length bigint unsigned not null default 0,
+    max_data_file_length bigint unsigned not null default 0,
+    index_file_length bigint unsigned not null default 0,
+    records bigint unsigned not null default 0,
+    mean_rec_length bigint unsigned not null default 0,
+    check_time datetime not null default '0000-00-00 00:00:00',
+    create_time datetime not null default '0000-00-00 00:00:00',
+    update_time datetime not null default '0000-00-00 00:00:00',
+    primary key (db_name, table_name)
+  ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+  DROP TABLE IF EXISTS mysql.spider_table_crd;
+  CREATE TABLE mysql.spider_table_crd(
+    db_name char(64) not null default '',
+    table_name char(199) not null default '',
+    key_seq int unsigned not null default 0,
+    cardinality bigint not null default 0,
+    primary key (db_name, table_name, key_seq)
+  ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 }
 
 SET spider_internal_sql_log_off= 0;

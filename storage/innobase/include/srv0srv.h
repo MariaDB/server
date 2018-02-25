@@ -381,8 +381,6 @@ extern ulong	srv_n_page_hash_locks;
 /** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
 extern ulong	srv_LRU_scan_depth;
 /** Whether or not to flush neighbors of a block */
-extern ulong	srv_buf_pool_dump_pct;	/*!< dump that may % of each buffer
-					pool during BP dump */
 extern ulong	srv_flush_neighbors;
 /** Previously requested size */
 extern ulint	srv_buf_pool_old_size;
@@ -392,6 +390,10 @@ extern ulint	srv_buf_pool_base_size;
 extern ulint	srv_buf_pool_curr_size;
 /** Dump this % of each buffer pool during BP dump */
 extern ulong	srv_buf_pool_dump_pct;
+#ifdef UNIV_DEBUG
+/** Abort load after this amount of pages */
+extern ulong srv_buf_pool_load_pages_abort;
+#endif
 /** Lock table size in bytes */
 extern ulint	srv_lock_table_size;
 
@@ -611,16 +613,16 @@ extern mysql_pfs_key_t	trx_rollback_clean_thread_key;
 schema */
 #  define pfs_register_thread(key)			\
 do {								\
-	struct PSI_thread* psi = PSI_THREAD_CALL(new_thread)(key, NULL, 0);\
+	struct PSI_thread* psi = PSI_CALL_new_thread(key, NULL, 0);\
 	/* JAN: TODO: MYSQL 5.7 PSI                             \
-	PSI_THREAD_CALL(set_thread_os_id)(psi);	*/		\
-	PSI_THREAD_CALL(set_thread)(psi);			\
+	PSI_CALL_set_thread_os_id(psi);	*/		\
+	PSI_CALL_set_thread(psi);			\
 } while (0)
 
 /* This macro delist the current thread from performance schema */
 #  define pfs_delete_thread()				\
 do {								\
-	PSI_THREAD_CALL(delete_current_thread)();		\
+	PSI_CALL_delete_current_thread();		\
 } while (0)
 # else
 #  define pfs_register_thread(key)
@@ -946,6 +948,7 @@ struct export_var_t{
 	char  innodb_buffer_pool_dump_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool dump status */
 	char  innodb_buffer_pool_load_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool load status */
 	char  innodb_buffer_pool_resize_status[512];/*!< Buf pool resize status */
+	my_bool innodb_buffer_pool_load_incomplete;/*!< Buf pool load incomplete */
 	ulint innodb_buffer_pool_pages_total;	/*!< Buffer pool size */
 	ulint innodb_buffer_pool_pages_data;	/*!< Data pages */
 	ulint innodb_buffer_pool_bytes_data;	/*!< File bytes used */
@@ -1018,9 +1021,6 @@ struct export_var_t{
 	ulint innodb_onlineddl_pct_progress;	/*!< Online alter progress */
 
 #ifdef UNIV_DEBUG
-	ulint innodb_purge_trx_id_age;		/*!< rw_max_trx_id - purged trx_id */
-	ulint innodb_purge_view_trx_id_age;	/*!< rw_max_trx_id
-						- purged view's min trx_id */
 	ulint innodb_ahi_drop_lookups;		/*!< number of adaptive hash
 						index lookups when freeing
 						file pages */

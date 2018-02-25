@@ -26,10 +26,12 @@ static int table_stats_fill(THD *thd, TABLE_LIST *tables, COND *cond)
     table_name_length= strlen(table_stats->table + schema_length + 1);
 
     bzero((char*) &tmp_table,sizeof(tmp_table));
-    tmp_table.db=         table_stats->table;
-    tmp_table.table_name= end_of_schema+1;
+    tmp_table.db.str= table_stats->table;
+    tmp_table.db.length= schema_length;
+    tmp_table.table_name.str= end_of_schema+1;
+    tmp_table.table_name.length= table_name_length;
     tmp_table.grant.privilege= 0;
-    if (check_access(thd, SELECT_ACL, tmp_table.db,
+    if (check_access(thd, SELECT_ACL, tmp_table.db.str,
                      &tmp_table.grant.privilege, NULL, 0, 1) ||
         check_grant(thd, SELECT_ACL, &tmp_table, 1, UINT_MAX,
                     1))

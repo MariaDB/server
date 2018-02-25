@@ -420,6 +420,16 @@ while ($i)
 enable_query_log;
 SET @@global.table_open_cache= @old_table_open_cache;
 
+--echo #
+--echo # MDEV-14505 - Threads_running becomes scalability bottleneck
+--echo #
+--echo # Session status for Threads_running is currently always 1.
+SHOW STATUS LIKE 'Threads_running';
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='THREADS_RUNNING';
+FLUSH STATUS;
+SHOW STATUS LIKE 'Threads_running';
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='THREADS_RUNNING';
+
 # Restore global concurrent_insert value. Keep in the end of the test file.
 --connection default
 set @@global.concurrent_insert= @old_concurrent_insert;

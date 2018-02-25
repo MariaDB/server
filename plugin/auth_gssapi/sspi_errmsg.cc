@@ -138,7 +138,7 @@ void sspi_errmsg(int err, char *buf, size_t size)
   len = FormatMessageA(
     FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL,
     err, MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US),
-    buf, size, NULL);
+    buf, (DWORD)size, NULL);
 
   if(len > 0)
   {

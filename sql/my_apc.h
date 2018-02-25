@@ -44,7 +44,7 @@ class THD;
 */
 class Apc_target
 {
-  mysql_mutex_t *LOCK_thd_data_ptr;
+  mysql_mutex_t *LOCK_thd_kill_ptr;
 public:
   Apc_target() : enabled(0), apc_calls(NULL) {} 
   ~Apc_target() { DBUG_ASSERT(!enabled && !apc_calls);}
@@ -66,9 +66,9 @@ public:
   void disable()
   {
     DBUG_ASSERT(enabled);
-    mysql_mutex_lock(LOCK_thd_data_ptr);
+    mysql_mutex_lock(LOCK_thd_kill_ptr);
     bool process= !--enabled && have_apc_requests();
-    mysql_mutex_unlock(LOCK_thd_data_ptr);
+    mysql_mutex_unlock(LOCK_thd_kill_ptr);
     if (unlikely(process))
       process_apc_requests();
   }

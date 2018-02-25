@@ -1,0 +1,34 @@
+set system_versioning_alter_history=keep;
+create or replace table t (a int, b int) engine=innodb;
+alter table t add system versioning, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
+alter table t add system versioning, lock=shared;
+alter table t drop column b, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
+alter table t drop column b, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned tables. Try ALGORITHM=COPY
+alter table t add index idx(a), lock=none;
+alter table t drop system versioning, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
+alter table t drop system versioning, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned tables. Try ALGORITHM=COPY
+create or replace table t (a int, b int) engine=innodb;
+alter table t
+add s bigint unsigned as row start,
+add e bigint unsigned as row end,
+add period for system_time(s, e),
+add system versioning,
+lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
+alter table t
+add s bigint unsigned as row start,
+add e bigint unsigned as row end,
+add period for system_time(s, e),
+add system versioning;
+alter table t drop column b, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
+alter table t add index idx(a), lock=none;
+alter table t drop column s, drop column e;
+alter table t drop system versioning, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned tables. Try LOCK=SHARED
+drop table t;

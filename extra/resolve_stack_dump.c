@@ -192,7 +192,7 @@ static my_long_addr_t read_addr(char** buf)
   while((c = hex_val(*p++)) != HEX_INVALID)
       addr = (addr << 4) + c;
 
-  *buf = p; 
+  *buf= p-1;
   return addr;
 }
 
@@ -203,6 +203,7 @@ static int init_sym_entry(SYM_ENTRY* se, char* buf)
 
   if (!se->addr)
     return -1;
+  buf++;
   while (my_isspace(&my_charset_latin1,*buf++))
     /* empty */;
 
@@ -281,32 +282,47 @@ static SYM_ENTRY* resolve_addr(uchar* addr, SYM_ENTRY* se)
 }
 
 
+/*
+  Resolve anything that starts with [0x or (+0x or start of line and 0x
+  Skip '_end' as this is an indication of a wrong symbol (stack?)
+*/
+
 static void do_resolve()
 {
   char buf[1024], *p;
   while (fgets(buf, sizeof(buf), fp_dump))
   {
-    /* skip bracket */
-    p= (p= strchr(buf, '[')) ? p+1 : buf;
-    /* skip space */
-    while (my_isspace(&my_charset_latin1,*p))
-      ++p;
-
-    if (*p++ == '0' && *p++ == 'x')
+    for (p= buf ; *p ; p++)
     {
-      SYM_ENTRY se ;
-      uchar* addr = (uchar*)read_addr(&p);
-      if (resolve_addr(addr, &se))
-	fprintf(fp_out, "%p %s + %d\n", addr, se.symbol,
-		(int) (addr - se.addr));
+      int found= 0;
+      if (p[0] == '[' && p[1] == '0' && p[2] == 'x')
+        found= 3;
+      if (p[0] == '(' && p[1] == '+' && p[2] == '0' && p[3] == 'x')
+        found= 4;
+
+      /* For stdin */
+      if (p == buf && p[0] == '0' && p[1] == 'x')
+        found= 2;
+
+      if (found)
+      {
+        SYM_ENTRY se ;
+        uchar *addr;
+        char *tmp= p + found;
+        addr= (uchar*)read_addr(&tmp);
+        if (resolve_addr(addr, &se) && strcmp(se.symbol, "_end"))
+        {
+          fprintf(fp_out, "%c%p %s + %d", *p, addr, se.symbol,
+                  (int) (addr - se.addr));
+          p= tmp-1;
+        }
+        else
+        {
+          fputc(*p, stdout);
+        }
+      }
       else
-	fprintf(fp_out, "%p (?)\n", addr);
-
-    }
-    else
-    {
-      fputs(buf, fp_out);
-      continue;
+        fputc(*p, stdout);
     }
   }
 }

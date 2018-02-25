@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 --source include/not_embedded.inc
 --source ../../include/mroonga/have_mroonga.inc
@@ -23,7 +23,7 @@ DROP TABLE IF EXISTS diaries;
 
 CREATE TABLE diaries (
   id INT PRIMARY KEY AUTO_INCREMENT,
-  title TEXT
+  title VARCHAR(40)
 ) DEFAULT CHARSET UTF8;
 SHOW CREATE TABLE diaries;
 
@@ -31,7 +31,7 @@ INSERT INTO diaries (title) VALUES ("survey");
 SELECT * FROM diaries;
 
 ALTER TABLE diaries
-      ADD COLUMN body TEXT FIRST,
+      ADD COLUMN body VARCHAR(140) FIRST,
       ADD COLUMN published BOOLEAN AFTER id,
       ADD COLUMN created_at DATETIME;
 UPDATE diaries SET body = "will start groonga!";

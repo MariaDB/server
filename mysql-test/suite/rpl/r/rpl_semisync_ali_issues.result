@@ -1,0 +1,353 @@
+include/master-slave.inc
+[connection master]
+CALL mtr.add_suppression("Failed to start semi-sync ACK receiver thread.*");
+CALL mtr.add_suppression("Failed to register slave to semi-sync ACK receiver thread.*");
+CALL mtr.add_suppression("Failed to stop ack receiver thread on pthread_join.*");
+CALL mtr.add_suppression("Got an error reading communication packets:*");
+CALL mtr.add_suppression("Timeout waiting for reply of binlog*");
+CALL mtr.add_suppression("slave_read_sync_header*");
+CALL mtr.add_suppression("Missing magic number for semi-sync*");
+CALL mtr.add_suppression("Got timeout reading communication packets*");
+CALL mtr.add_suppression("Failed to call*");
+CALL mtr.add_suppression("Execution failed on master*");
+CALL mtr.add_suppression("Failed on request_dump()*");
+CALL mtr.add_suppression("Semi-sync master failed on*");
+CALL mtr.add_suppression("Master command COM_BINLOG_DUMP failed*");
+CALL mtr.add_suppression("on master failed*");
+CALL mtr.add_suppression("Master server does not support semi-sync*");
+CALL mtr.add_suppression("Semi-sync slave net_flush*");
+CALL mtr.add_suppression("Failed to flush master info*");
+CALL mtr.add_suppression("Request to stop slave SQL Thread received while apply*");
+connection master;
+[ enable semi-sync on master ]
+set global rpl_semi_sync_master_enabled = 1;
+show variables like 'rpl_semi_sync_master_enabled';
+Variable_name	Value
+rpl_semi_sync_master_enabled	ON
+connection slave;
+[ enable semi-sync on slave ]
+stop slave;
+set global rpl_semi_sync_slave_enabled = 1;
+start slave;
+show status like 'rpl_semi_sync_slave%';
+Variable_name	Value
+Rpl_semi_sync_slave_send_ack	0
+Rpl_semi_sync_slave_status	ON
+connection master;
+CREATE TABLE t1(a INT) ENGINE=InnoDB;
+connection slave;
+connection master;
+connect con1,localhost,root,,;
+connect con2,localhost,root,,;
+connect con3,localhost,root,,;
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+show status like "rpl_semi_sync_master_yes_tx";
+Variable_name	Value
+Rpl_semi_sync_master_yes_tx	1
+#########################################
+# Test rpl_semi_sync_master_wait_point  #
+#########################################
+# Test after_sync and after_commit first.
+#Test after_sync
+connection con1;
+SET GLOBAL rpl_semi_sync_master_timeout = 1000000;
+SET GLOBAL rpl_semi_sync_master_wait_point= 'AFTER_SYNC';
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL after_sync_done WAIT_FOR end";
+INSERT into t1 values (1);;
+connection con2;
+SET DEBUG_SYNC= "now WAIT_FOR after_sync_done";
+connection slave;
+#slave can see record (1) after sync slave with master
+select * from t1;
+a
+1
+connection con2;
+#con2 shouldn't see record (1)
+select * from t1;
+a
+SET DEBUG_SYNC= "now SIGNAL end";
+connection con1;
+connection con1;
+select * from t1;
+a
+1
+truncate table t1;
+connection slave;
+connection con1;
+SET DEBUG_SYNC= 'reset';
+SET DEBUG_SYNC= "commit_before_get_LOCK_log SIGNAL before_fetch_done WAIT_FOR more_queue";
+INSERT into t1 VALUES (1);;
+connection con2;
+SET DEBUG_SYNC= "now WAIT_FOR before_fetch_done";
+SET DEBUG_SYNC= "after_semisync_queue SIGNAL more_queue";
+INSERT INTO t1 VALUES (2);
+connection con1;
+connection con1;
+SET DEBUG_SYNC= 'reset';
+SET DEBUG_SYNC= "commit_before_get_LOCK_log SIGNAL before_fetch_done WAIT_FOR disable_semisync";
+INSERT into t1 VALUES (3);;
+connection con2;
+SET DEBUG_SYNC= "now WAIT_FOR before_fetch_done";
+SET GLOBAL rpl_semi_sync_master_enabled= 0;
+SET DEBUG_SYNC= "now SIGNAL disable_semisync";
+connection con1;
+SET GLOBAL rpl_semi_sync_master_enabled = 1;
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+#Test after_commit
+connection con1;
+SET GLOBAL rpl_semi_sync_master_wait_point= 'AFTER_COMMIT';
+SET DEBUG_SYNC= "after_group_after_commit SIGNAL after_commit_done WAIT_FOR end";
+INSERT into t1 values (4);;
+connection con2;
+SET DEBUG_SYNC= "now WAIT_FOR after_commit_done";
+connection slave;
+select * from t1;
+a
+1
+2
+3
+4
+connection con2;
+select * from t1;
+a
+1
+2
+3
+4
+SET DEBUG_SYNC= "now SIGNAL end";
+connection con1;
+connection con1;
+select * from t1;
+a
+1
+2
+3
+4
+truncate table t1;
+#######################################################
+# Test some other options in order to cover the patch #
+#######################################################
+connection slave;
+# Test rpl_semi_sync_slave_trace_level
+SET GLOBAL rpl_semi_sync_slave_trace_level= 1;
+SET GLOBAL rpl_semi_sync_slave_trace_level= 16;
+SET GLOBAL rpl_semi_sync_slave_trace_level= 64;
+SET GLOBAL rpl_semi_sync_slave_trace_level= 128;
+SET GLOBAL rpl_semi_sync_slave_trace_level= 32;
+connection master;
+# Test rpl_semi_sync_master_trace_level
+SET GLOBAL rpl_semi_sync_master_trace_level= 1;
+SET GLOBAL rpl_semi_sync_master_trace_level= 16;
+SET GLOBAL rpl_semi_sync_master_trace_level= 64;
+SET GLOBAL rpl_semi_sync_master_trace_level= 128;
+SET GLOBAL rpl_semi_sync_master_trace_level= 32;
+# Test rpl_semi_sync_master_timeout
+SET GLOBAL rpl_semi_sync_master_timeout= 1000;
+SET GLOBAL rpl_semi_sync_master_timeout= 10000;
+SET GLOBAL rpl_semi_sync_master_timeout = 1000000;
+# Test rpl_semi_sync_slave_kill_conn_timeout
+SET GLOBAL rpl_semi_sync_slave_kill_conn_timeout= 10;
+SET GLOBAL rpl_semi_sync_slave_kill_conn_timeout= 20;
+SET GLOBAL rpl_semi_sync_slave_kill_conn_timeout= 60;
+SET GLOBAL rpl_semi_sync_slave_kill_conn_timeout= 5;
+############################################
+# Test rpl_semi_sync_master_wait_no_slave  #
+############################################
+SET GLOBAL rpl_semi_sync_master_wait_no_slave = 1;
+connection slave;
+STOP SLAVE IO_THREAD;
+include/wait_for_slave_io_to_stop.inc
+connection con1;
+SET GLOBAL rpl_semi_sync_master_timeout = 1000;
+INSERT INTO t1 values (1);;
+connection con1;
+# Rpl_semi_sync_master_no_tx should be non-zero
+SHOW STATUS LIKE 'Rpl_semi_sync_master_no_tx'
+connection slave;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+connection con1;
+INSERT INTO t1 values (2);
+connection slave;
+connection con1;
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+show status like 'Rpl_semi_sync_master_status';
+Variable_name	Value
+Rpl_semi_sync_master_status	ON
+connection slave;
+STOP SLAVE IO_THREAD;
+include/wait_for_slave_io_to_stop.inc
+connection con1;
+SET GLOBAL rpl_semi_sync_master_wait_no_slave= 0;
+SET GLOBAL rpl_semi_sync_master_timeout= 1000000000;
+INSERT INTO t1 values (3);
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	0
+show status like 'Rpl_semi_sync_master_status';
+Variable_name	Value
+Rpl_semi_sync_master_status	OFF
+connection slave;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+connection con1;
+SET GLOBAL rpl_semi_sync_master_timeout= 10000000;
+SET GLOBAL rpl_semi_sync_master_wait_no_slave= 1;
+INSERT INTO t1 values (4);
+connection slave;
+connection con1;
+show status like 'Rpl_semi_sync_master_status';
+Variable_name	Value
+Rpl_semi_sync_master_status	ON
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+##########################################
+# Test rpl_semi_sync_slave_delay_master  #
+##########################################
+connection slave;
+SET GLOBAL rpl_semi_sync_slave_delay_master= 1;
+START SLAVE IO_THREAD;
+Warnings:
+Note	1254	Slave is already running
+include/wait_for_slave_io_to_start.inc
+connection con1;
+INSERT INTO t1 values (3);
+include/sync_slave_io_with_master.inc
+connection con1;
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+show status like 'Rpl_semi_sync_master_status';
+Variable_name	Value
+Rpl_semi_sync_master_status	ON
+connection slave;
+connection slave;
+select * from t1 order by a;
+a
+1
+2
+3
+3
+4
+connection con1;
+select * from t1 order by a;
+a
+1
+2
+3
+3
+4
+connection slave;
+SET GLOBAL rpl_semi_sync_slave_delay_master = 0;
+STOP SLAVE IO_THREAD;
+include/wait_for_slave_io_to_stop.inc
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+##########################################################
+# Test rpl_semi_sync_master_enabled and new ACK thread   #
+#########################################################
+connection con1;
+SET GLOBAL rpl_semi_sync_master_enabled = 0;
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+INSERT INTO t1 VALUES (1);
+SET GLOBAL rpl_semi_sync_master_enabled = 1;
+INSERT INTO t1 VALUES (2);
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+# Test failure of select error .
+SET GLOBAL debug = 'd,rpl_semisync_simulate_select_error';
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+INSERT INTO t1 VALUES(3);
+connection slave;
+connection con1;
+# Test failure of pthread_create
+SET GLOBAL rpl_semi_sync_master_enabled = 0;
+SET GLOBAL debug = 'd,rpl_semisync_simulate_create_thread_failure';
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET GLOBAL rpl_semi_sync_master_enabled= ON;
+# Test failure of pthread_join
+SET GLOBAL rpl_semi_sync_master_enabled= OFF;
+#
+# Failure on registering semisync slave
+#
+SET GLOBAL debug= 'd,rpl_semisync_simulate_add_slave_failure';
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET GLOBAL rpl_semi_sync_master_enabled= ON;
+connection slave;
+STOP SLAVE IO_THREAD;
+include/wait_for_slave_io_to_stop.inc
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+connection con1;
+SET GLOBAL debug='';
+Warnings:
+Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+connection slave;
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+connection con1;
+connection slave;
+show status like 'Rpl_semi_sync_master_clients';
+Variable_name	Value
+Rpl_semi_sync_master_clients	0
+##################################################################
+# Test fixing of BUG#70669                                       #
+#SLAVE CAN'T CONTINUE REPLICATION AFTER MASTER'S CRASH RECOVERY  #
+#################################################################
+connection con1;
+SET GLOBAL sync_binlog = 1;
+CREATE TABLE t2 (c1 INT);
+connection slave;
+connection con1;
+INSERT INTO t2 values (1);
+connection slave;
+connection con2;
+connection con1;
+connection slave;
+show tables like 't2';
+Tables_in_test (t2)
+t2
+select * from t2;
+c1
+1
+connection con1;
+INSERT INTO t2 VALUES (2);
+connection con2;
+INSERT INTO t2 VALUES (3);
+connection con1;
+connection con2;
+connection con1;
+SET GLOBAL sync_binlog = 0;
+DROP TABLE t2;
+connection con2;
+connection slave;
+show tables like 't2';
+Tables_in_test (t2)
+connection con2;
+#cleanup
+connection master;
+SET DEBUG_SYNC= 'reset';
+disconnect con1;
+disconnect con2;
+disconnect con3;
+SET GLOBAL rpl_semi_sync_master_timeout= 10000;
+SET GLOBAL rpl_semi_sync_master_enabled = 0;
+DROP TABLE t1;
+connection slave;
+SET GLOBAL rpl_semi_sync_slave_enabled = 0;
+stop slave;
+start slave;
+include/rpl_end.inc

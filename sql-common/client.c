@@ -96,6 +96,7 @@ my_bool	net_flush(NET *net);
 #ifndef _WIN32
 #include <errno.h>
 #define SOCKET_ERROR -1
+#define INVALID_SOCKET -1
 #endif
 
 #ifdef __WIN__
@@ -258,7 +259,6 @@ HANDLE create_named_pipe(MYSQL *mysql, uint connect_timeout, char **arg_host,
   char pipe_name[1024];
   DWORD dwMode;
   int i;
-  my_bool testing_named_pipes=0;
   char *host= *arg_host, *unix_socket= *arg_unix_socket;
 
   if ( ! unix_socket || (unix_socket)[0] == 0x00)
@@ -369,7 +369,7 @@ HANDLE create_shared_memory(MYSQL *mysql,NET *net, uint connect_timeout)
   char *shared_memory_base_name = mysql->options.shared_memory_base_name;
   static const char *name_prefixes[] = {"","Global\\"};
   const char *prefix;
-  int i;
+  uint i;
 
   /*
     If this is NULL, somebody freed the MYSQL* options.  mysql_close()
@@ -740,7 +740,7 @@ void free_old_query(MYSQL *mysql)
   if (mysql->fields)
     free_root(&mysql->field_alloc,MYF(0));
  /* Assume rowlength < 8192 */
-  init_alloc_root(&mysql->field_alloc, 8192, 0,
+  init_alloc_root(&mysql->field_alloc, "fields", 8192, 0,
                   MYF(mysql->options.use_thread_specific_memory ?
                       MY_THREAD_SPECIFIC : 0));
   mysql->fields= 0;
@@ -915,13 +915,6 @@ static int cli_report_progress(MYSQL *mysql, char *pkt, uint length)
   return 0;
 }
 
-#ifdef __WIN__
-static my_bool is_NT(void)
-{
-  char *os=getenv("OS");
-  return (os && !strcmp(os, "Windows_NT")) ? 1 : 0;
-}
-#endif
 
 /**************************************************************************
   Shut down connection
@@ -1234,11 +1227,12 @@ void mysql_read_default_options(struct st_mysql_options *options,
 	    options->max_allowed_packet= atoi(opt_arg);
 	  break;
         case OPT_protocol:
-          if ((options->protocol= find_type(opt_arg, &sql_protocol_typelib,
+          if (options->protocol != UINT_MAX32 &&
+              (options->protocol= find_type(opt_arg, &sql_protocol_typelib,
                                             FIND_TYPE_BASIC)) <= 0)
           {
             fprintf(stderr, "Unknown option to protocol: %s\n", opt_arg);
-            exit(1);
+            options->protocol= UINT_MAX32;
           }
           break;
         case OPT_shared_memory_base_name:
@@ -1463,7 +1457,7 @@ MYSQL_DATA *cli_read_rows(MYSQL *mysql,MYSQL_FIELD *mysql_fields,
     DBUG_RETURN(0);
   }
   /* Assume rowlength < 8192 */
-  init_alloc_root(&result->alloc, 8192, 0,
+  init_alloc_root(&result->alloc, "result", 8192, 0,
                   MYF(mysql->options.use_thread_specific_memory ?
                       MY_THREAD_SPECIFIC : 0));
   result->alloc.min_malloc=sizeof(MYSQL_ROWS);
@@ -2971,7 +2965,7 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
       /* new "use different plugin" packet */
       uint len;
       auth_plugin_name= (char*)mysql->net.read_pos + 1;
-      len= strlen(auth_plugin_name); /* safe as my_net_read always appends \0 */
+      len= (uint)strlen(auth_plugin_name); /* safe as my_net_read always appends \0 */
       mpvio.cached_server_reply.pkt_len= pkt_length - len - 2;
       mpvio.cached_server_reply.pkt= mysql->net.read_pos + len + 2;
       DBUG_PRINT ("info", ("change plugin packet from server for plugin %s",
@@ -3133,6 +3127,8 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     my_free(mysql->options.my_cnf_file);
     my_free(mysql->options.my_cnf_group);
     mysql->options.my_cnf_file=mysql->options.my_cnf_group=0;
+    if (mysql->options.protocol == UINT_MAX32)
+      goto error;
   }
 
   /* Some empty-string-tests are done because of ODBC */
@@ -3212,7 +3208,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   {
     my_socket sock= socket(AF_UNIX, SOCK_STREAM, 0);
     DBUG_PRINT("info", ("Using socket"));
-    if (sock == SOCKET_ERROR)
+    if (sock == INVALID_SOCKET)
     {
       set_mysql_extended_error(mysql, CR_SOCKET_CREATE_ERROR,
                                unknown_sqlstate,
@@ -3259,7 +3255,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   if (!net->vio &&
       (mysql->options.protocol == MYSQL_PROTOCOL_PIPE ||
        (host && !strcmp(host,LOCAL_HOST_NAMEDPIPE)) ||
-       (! have_tcpip && (unix_socket || !host && is_NT()))))
+       (! have_tcpip && (unix_socket || !host ))))
   {
     if ((hPipe= create_named_pipe(mysql, mysql->options.connect_timeout,
                                   (char**) &host, (char**) &unix_socket)) ==
@@ -3293,7 +3289,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     struct addrinfo *res_lst, hints, *t_res;
     int gai_errno;
     char port_buf[NI_MAXSERV];
-    my_socket sock= SOCKET_ERROR;
+    my_socket sock= INVALID_SOCKET;
     int saved_error= 0, status= -1;
 
     unix_socket=0;				/* This is not used */
@@ -3341,7 +3337,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
                           t_res->ai_family, t_res->ai_socktype,
                           t_res->ai_protocol));
       sock= socket(t_res->ai_family, t_res->ai_socktype, t_res->ai_protocol);
-      if (sock == SOCKET_ERROR)
+      if (sock == INVALID_SOCKET)
       {
         saved_error= socket_errno;
         continue;
@@ -3358,7 +3354,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
 
       DBUG_PRINT("info", ("Connect socket"));
       status= connect_sync_or_async(mysql, net, sock,
-                                    t_res->ai_addr, t_res->ai_addrlen);
+                                    t_res->ai_addr, (uint)t_res->ai_addrlen);
       /*
         Here we rely on my_connect() to return success only if the
         connect attempt was really successful. Otherwise we would stop
@@ -3383,7 +3379,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
 
     freeaddrinfo(res_lst);
 
-    if (sock == SOCKET_ERROR)
+    if (sock == INVALID_SOCKET)
     {
       set_mysql_extended_error(mysql, CR_IPSOCK_ERROR, unknown_sqlstate,
                                 ER(CR_IPSOCK_ERROR), saved_error);

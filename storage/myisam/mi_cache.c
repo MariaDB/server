@@ -35,10 +35,10 @@
 
 #include "myisamdef.h"
 
-int _mi_read_cache(IO_CACHE *info, uchar *buff, my_off_t pos, uint length,
+int _mi_read_cache(IO_CACHE *info, uchar *buff, my_off_t pos, size_t length,
 		   int flag)
 {
-  uint read_length,in_buff_length;
+  size_t read_length,in_buff_length;
   my_off_t offset;
   uchar *in_buff_pos;
   DBUG_ENTER("_mi_read_cache");
@@ -48,7 +48,7 @@ int _mi_read_cache(IO_CACHE *info, uchar *buff, my_off_t pos, uint length,
   {
     read_length=length;
     if ((my_off_t) read_length > (my_off_t) (info->pos_in_file-pos))
-      read_length=(uint) (info->pos_in_file-pos);
+      read_length=(size_t)(info->pos_in_file-pos);
     info->seek_not_done=1;
     if (mysql_file_pread(info->file, buff, read_length, pos, MYF(MY_NABP)))
       DBUG_RETURN(1);
@@ -61,9 +61,9 @@ int _mi_read_cache(IO_CACHE *info, uchar *buff, my_off_t pos, uint length,
       (offset= (my_off_t) (pos - info->pos_in_file)) <
       (my_off_t) (info->read_end - info->request_pos))
   {
-    in_buff_pos=info->request_pos+(uint) offset;
-    in_buff_length= MY_MIN(length, (size_t) (info->read_end-in_buff_pos));
-    memcpy(buff,info->request_pos+(uint) offset,(size_t) in_buff_length);
+    in_buff_pos=info->request_pos+ (uint)offset;
+    in_buff_length= MY_MIN(length, (size_t)(info->read_end-in_buff_pos));
+    memcpy(buff,info->request_pos+(uint) offset, in_buff_length);
     if (!(length-=in_buff_length))
       DBUG_RETURN(0);
     pos+=in_buff_length;

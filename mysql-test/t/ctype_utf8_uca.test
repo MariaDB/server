@@ -14,6 +14,9 @@ let $coll='utf8_unicode_520_nopad_ci';
 let $coll_pad='utf8_unicode_520_ci';
 --source include/ctype_pad_all_engines.inc
 
+SET NAMES utf8 COLLATE utf8_unicode_nopad_ci;
+--source include/ctype_like_range_mdev14350.inc
+
 
 --echo #
 --echo # End of 10.2 tests

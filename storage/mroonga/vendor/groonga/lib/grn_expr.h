@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013-2015 Brazil
+  Copyright(C) 2013-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -16,8 +16,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef GRN_EXPR_H
-#define GRN_EXPR_H
+#pragma once
 
 #include "grn_db.h"
 
@@ -40,6 +39,11 @@ typedef enum {
 
 typedef struct _grn_scan_info scan_info;
 typedef grn_bool (*grn_scan_info_each_arg_callback)(grn_ctx *ctx, grn_obj *obj, void *user_data);
+
+void grn_expr_init_from_env(void);
+
+scan_info **grn_scan_info_build(grn_ctx *ctx, grn_obj *expr, int *n,
+                                grn_operator op, grn_bool record_exist);
 
 scan_info *grn_scan_info_open(grn_ctx *ctx, int start);
 void grn_scan_info_close(grn_ctx *ctx, scan_info *si);
@@ -64,6 +68,9 @@ int grn_scan_info_get_similarity_threshold(scan_info *si);
 void grn_scan_info_set_similarity_threshold(scan_info *si, int similarity_threshold);
 grn_bool grn_scan_info_push_arg(scan_info *si, grn_obj *arg);
 grn_obj *grn_scan_info_get_arg(grn_ctx *ctx, scan_info *si, int i);
+int grn_scan_info_get_start_position(scan_info *si);
+void grn_scan_info_set_start_position(scan_info *si, int start);
+void grn_scan_info_reset_position(scan_info *si);
 
 int32_t grn_expr_code_get_weight(grn_ctx *ctx, grn_expr_code *ec, uint32_t *offset);
 grn_rc grn_expr_code_inspect_indented(grn_ctx *ctx,
@@ -72,12 +79,8 @@ grn_rc grn_expr_code_inspect_indented(grn_ctx *ctx,
                                       const char *indent);
 void grn_p_expr_code(grn_ctx *ctx, grn_expr_code *code);
 
-void grn_expr_take_obj(grn_ctx *ctx, grn_obj *expr, grn_obj *obj);
 grn_obj *grn_expr_alloc_const(grn_ctx *ctx, grn_obj *expr);
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_EXPR_H */
-

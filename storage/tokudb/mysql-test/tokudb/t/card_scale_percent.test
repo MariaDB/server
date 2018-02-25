@@ -30,20 +30,18 @@ set session tokudb_analyze_throttle=0;
 
 -- enable_query_log
 
-set global tokudb_cardinality_scale_percent = 10;
 analyze table tt;
+
+set global tokudb_cardinality_scale_percent = 10;
 show indexes from tt;
 
 set global tokudb_cardinality_scale_percent = 50;
-analyze table tt;
 show indexes from tt;
 
 set global tokudb_cardinality_scale_percent = 100;
-analyze table tt;
 show indexes from tt;
 
 set global tokudb_cardinality_scale_percent = 200;
-analyze table tt;
 show indexes from tt;
 
 -- disable_query_log

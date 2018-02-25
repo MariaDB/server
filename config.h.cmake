@@ -131,6 +131,7 @@
 #cmakedefine HAVE_CLOCK_GETTIME 1
 #cmakedefine HAVE_CRYPT 1
 #cmakedefine HAVE_CUSERID 1
+#cmakedefine HAVE_DLADDR 1
 #cmakedefine HAVE_DLERROR 1
 #cmakedefine HAVE_DLOPEN 1
 #cmakedefine HAVE_FCHMOD 1
@@ -191,7 +192,6 @@
 #cmakedefine HAVE_PREAD 1
 #cmakedefine HAVE_PAUSE_INSTRUCTION 1
 #cmakedefine HAVE_FAKE_PAUSE_INSTRUCTION 1
-#cmakedefine HAVE_HMT_PRIORITY_INSTRUCTION 1
 #cmakedefine HAVE_RDTSCLL 1
 #cmakedefine HAVE_READ_REAL_TIME 1
 #cmakedefine HAVE_PTHREAD_ATTR_CREATE 1

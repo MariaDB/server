@@ -707,7 +707,7 @@ my_context_continue(struct my_context *c)
 {
   /*
     This seems to be a common trick to run ConvertThreadToFiber() only on the
-    first occurence in a thread, in a way that works on multiple Windows
+    first occurrence in a thread, in a way that works on multiple Windows
     versions.
   */
   void *current_fiber= GetCurrentFiber();

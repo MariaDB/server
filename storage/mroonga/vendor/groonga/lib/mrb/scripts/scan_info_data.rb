@@ -12,6 +12,8 @@ module Groonga
     attr_accessor :flags
     attr_accessor :max_interval
     attr_accessor :similarity_threshold
+    attr_accessor :start_position
+    attr_accessor :weight
     def initialize(start)
       @start = start
       @end = 0
@@ -23,6 +25,8 @@ module Groonga
       @flags = ScanInfo::Flags::PUSH
       @max_interval = nil
       @similarity_threshold = nil
+      @start_position = nil
+      @weight = 0
     end
 
     def match_resolve_index
@@ -36,9 +40,12 @@ module Groonga
     end
 
     def call_relational_resolve_indexes
-      # better index resolving framework for functions should be implemented
-      @args.each do |arg|
-        call_relational_resolve_index(arg)
+      procedure, *args = *@args
+      return unless procedure.selector?
+
+      selector_op = procedure.selector_operator
+      args.each do |arg|
+        call_relational_resolve_index(arg, selector_op)
       end
     end
 
@@ -54,11 +61,11 @@ module Groonga
         match_resolve_index_expression(arg)
       when Accessor
         match_resolve_index_accessor(arg)
-      when Object
-        match_resolve_index_db_obj(arg)
+      when Indexable
+        match_resolve_index_indexable(arg)
       else
         message =
-          "The first argument of NEAR/NEAR2 must be Expression, Accessor or Object: #{arg.class}"
+          "The first argument of NEAR/NEAR2 must be Expression, Accessor or Indexable: #{arg.class}"
         raise ErrorMessage, message
       end
 
@@ -77,11 +84,11 @@ module Groonga
         match_resolve_index_expression(arg)
       when Accessor
         match_resolve_index_accessor(arg)
-      when Object
-        match_resolve_index_db_obj(arg)
+      when Indexable
+        match_resolve_index_indexable(arg)
       else
         message =
-          "The first argument of SIMILAR must be Expression, Accessor or Object: #{arg.class}"
+          "The first argument of SIMILAR must be Expression, Accessor or Indexable: #{arg.class}"
         raise ErrorMesesage, message
       end
 
@@ -96,8 +103,12 @@ module Groonga
           match_resolve_index_expression(arg)
         when Accessor
           match_resolve_index_accessor(arg)
-        when Object
-          match_resolve_index_db_obj(arg)
+        when IndexColumn
+          match_resolve_index_index_column(arg)
+        when Indexable
+          match_resolve_index_indexable(arg)
+        when Procedure
+          break
         else
           self.query = arg
         end
@@ -188,13 +199,12 @@ module Groonga
           end
           weight, offset = codes[i].weight
           i += offset
-          search_index = ScanInfoSearchIndex.new(index_info.index,
-                                                 index_info.section_id,
-                                                 weight,
-                                                 scorer,
-                                                 expression,
-                                                 scorer_args_expr_offset)
-          @search_indexes << search_index
+          put_search_index(index_info.index,
+                           index_info.section_id,
+                           weight,
+                           scorer,
+                           expression,
+                           scorer_args_expr_offset)
         end
       when Table
         raise ErrorMessage, "invalid match target: <#{value.name}>"
@@ -258,8 +268,12 @@ module Groonga
       put_search_index(index_info.index, index_info.section_id, expr_code.weight)
     end
 
-    def match_resolve_index_db_obj(db_obj)
-      index_info = db_obj.find_index(op)
+    def match_resolve_index_index_column(index)
+      put_search_index(index, 0, 1)
+    end
+
+    def match_resolve_index_indexable(indexable)
+      index_info = indexable.find_index(op)
       return if index_info.nil?
       put_search_index(index_info.index, index_info.section_id, 1)
     end
@@ -275,32 +289,35 @@ module Groonga
       end
     end
 
-    def call_relational_resolve_index(object)
+    def call_relational_resolve_index(object, selector_op)
       case object
       when Accessor
-        call_relational_resolve_index_accessor(object)
+        call_relational_resolve_index_accessor(object, selector_op)
       when Bulk
         self.query = object
-      else
-        call_relational_resolve_index_db_obj(object)
+      when Indexable
+        call_relational_resolve_index_indexable(object, selector_op)
       end
     end
 
-    def call_relational_resolve_index_db_obj(db_obj)
-      index_info = db_obj.find_index(op)
+    def call_relational_resolve_index_indexable(indexable, selector_op)
+      index_info = indexable.find_index(selector_op)
       return if index_info.nil?
       put_search_index(index_info.index, index_info.section_id, 1)
     end
 
-    def call_relational_resolve_index_accessor(accessor)
+    def call_relational_resolve_index_accessor(accessor, selector_op)
       self.flags |= ScanInfo::Flags::ACCESSOR
-      index_info = accessor.find_index(op)
+      index_info = accessor.find_index(selector_op)
       return if index_info.nil?
       put_search_index(index_info.index, index_info.section_id, 1)
     end
 
-    def put_search_index(index, section_id, weight)
-      search_index = ScanInfoSearchIndex.new(index, section_id, weight)
+    def put_search_index(index, section_id, weight, *args)
+      search_index = ScanInfoSearchIndex.new(index,
+                                             section_id,
+                                             weight + @weight,
+                                             *args)
       @search_indexes << search_index
     end
   end

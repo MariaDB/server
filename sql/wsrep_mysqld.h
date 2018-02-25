@@ -48,7 +48,7 @@ struct wsrep_thd_shadow {
   enum wsrep_exec_mode wsrep_exec_mode;
   Vio                  *vio;
   ulong                tx_isolation;
-  char                 *db;
+  const char           *db;
   size_t               db_length;
   my_hrtime_t          user_time;
   longlong             row_count_func;

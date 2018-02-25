@@ -144,6 +144,7 @@ typedef struct st_heap_share
   uint key_version;                     /* Updated on key change */
   uint file_version;                    /* Update on clear */
   uint reclength;			/* Length of one record */
+  uint visible;                         /* Offset to the visible/deleted mark */
   uint changed;
   uint keys,max_key_length;
   uint currently_disabled_keys;    /* saved value from "keys" when disabled */

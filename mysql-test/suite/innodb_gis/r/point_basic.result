@@ -1526,7 +1526,7 @@ show warnings;
 Level	Code	Message
 Warning	150	Alter  table '`test`.`child`' with foreign key constraint failed. There is no index in the referenced table where the referenced columns appear as the first columns near 'FOREIGN KEY(p) REFERENCES parent(p)'.
 Error	1005	Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint
+Warning	1215	Cannot add foreign key constraint for `#sql-temporary`
 ALTER TABLE parent DROP INDEX idx1;
 ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
 Got one of the listed errors
@@ -1534,7 +1534,7 @@ show warnings;
 Level	Code	Message
 Warning	150	Alter  table '`test`.`child`' with foreign key constraint failed. There is no index in the referenced table where the referenced columns appear as the first columns near 'FOREIGN KEY(p) REFERENCES parent(p)'.
 Error	1005	Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint
+Warning	1215	Cannot add foreign key constraint for `#sql-temporary`
 ALTER TABLE child DROP INDEX idx2;
 ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
 Got one of the listed errors
@@ -1542,7 +1542,7 @@ show warnings;
 Level	Code	Message
 Warning	150	Alter  table '`test`.`child`' with foreign key constraint failed. There is only prefix index in the referenced table where the referenced columns appear as the first columns near 'FOREIGN KEY(p) REFERENCES parent(p)'.
 Error	1005	Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint
+Warning	1215	Cannot add foreign key constraint for `#sql-temporary`
 DROP TABLE child, parent;
 #
 # Bug#28763: Selecting geometry fields in UNION caused server crash.

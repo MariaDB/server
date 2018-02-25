@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2015 Brazil
+  Copyright(C) 2015-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -16,8 +16,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef GRN_EXPR_CODE_H
-#define GRN_EXPR_CODE_H
+#pragma once
 
 #include "grn_db.h"
 
@@ -32,6 +31,3 @@ unsigned int grn_expr_code_n_used_codes(grn_ctx *ctx,
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_EXPR_CODE_H */
-

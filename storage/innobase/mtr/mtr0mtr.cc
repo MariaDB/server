@@ -492,7 +492,7 @@ mtr_write_log(
 @param sync		true if it is a synchronous mini-transaction
 @param read_only	true if read only mini-transaction */
 void
-mtr_t::start(trx_t* trx, bool sync, bool read_only)
+mtr_t::start(bool sync, bool read_only)
 {
 	UNIV_MEM_INVALID(this, sizeof(*this));
 
@@ -517,7 +517,6 @@ mtr_t::start(trx_t* trx, bool sync, bool read_only)
 	m_impl.m_undo_space = NULL;
 	m_impl.m_sys_space = NULL;
 	m_impl.m_flush_observer = NULL;
-	m_impl.m_trx = trx;
 
 	ut_d(m_impl.m_magic_n = MTR_MAGIC_N);
 }

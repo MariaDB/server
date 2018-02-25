@@ -5,7 +5,6 @@
 # 2010-01-21 OBN - Added 
 #
 source include/not_embedded.inc;
-source include/have_semisync.inc;
 select @@global.rpl_semi_sync_slave_trace_level;
 SET @start_global_value = @@global.rpl_semi_sync_slave_trace_level;
 

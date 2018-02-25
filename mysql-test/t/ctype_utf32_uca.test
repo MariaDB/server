@@ -260,6 +260,11 @@ let $coll='utf32_unicode_520_nopad_ci';
 let $coll_pad='utf32_unicode_520_ci';
 --source include/ctype_pad_all_engines.inc
 
+SET NAMES utf8, collation_connection=utf32_unicode_520_nopad_ci;
+--source include/ctype_like_range_mdev14350.inc
+SET NAMES utf8;
+
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

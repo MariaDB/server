@@ -367,8 +367,12 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     print_version(); exit(0);
     break;
   case OPT_MYSQL_PROTOCOL:
-    opt_protocol= find_type_or_exit(argument, &sql_protocol_typelib,
-                                    opt->name);
+    if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
+                                              opt->name)) <= 0)
+    {
+      sf_leaking_memory= 1; /* no memory leak reports here */
+      exit(1);
+    }
     break;
   }
 
@@ -537,7 +541,7 @@ static int process_selected_tables(char *db, char **table_names, int tables)
 {
   int view;
   char *table;
-  uint table_len;
+  size_t table_len;
   DBUG_ENTER("process_selected_tables");
 
   if (use_db(db))
@@ -665,7 +669,7 @@ static int process_all_tables_in_db(char *database)
     size_t tot_length = 0;
 
     char *views, *views_end;
-    uint tot_views_length = 0;
+    size_t tot_views_length = 0;
 
     while ((row = mysql_fetch_row(res)))
     {
@@ -962,7 +966,7 @@ static int handle_request_for_tables(char *tables, size_t length,
   }
   if (verbose >= 3)
     puts(query);
-  if (mysql_real_query(sock, query, query_length))
+  if (mysql_real_query(sock, query, (ulong)query_length))
   {
     sprintf(message, "when executing '%s%s... %s'", op, tab_view, options);
     DBerror(sock, message);
@@ -973,7 +977,7 @@ static int handle_request_for_tables(char *tables, size_t length,
   if (opt_flush_tables)
   {
     query_length= sprintf(query, "FLUSH TABLES %s", table_name);
-    if (mysql_real_query(sock, query, query_length))
+    if (mysql_real_query(sock, query, (ulong)query_length))
     {
       DBerror(sock, query);
       my_free(query);

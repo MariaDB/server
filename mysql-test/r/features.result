@@ -8,6 +8,7 @@ Feature_delay_key_write	0
 Feature_dynamic_columns	0
 Feature_fulltext	0
 Feature_gis	0
+Feature_invisible_columns	0
 Feature_locale	0
 Feature_subquery	0
 Feature_timezone	0

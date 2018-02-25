@@ -12,5 +12,5 @@ memos	CREATE TABLE `memos` (
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='ENGINE "InnoDB"'
 SELECT mroonga_command("dump --dump_plugins no --dump_schema no");
 mroonga_command("dump --dump_plugins no --dump_schema no")
-column_create memos-content index COLUMN_INDEX|WITH_WEIGHT|WITH_POSITION memos
+column_create memos#content index COLUMN_INDEX|WITH_WEIGHT|WITH_POSITION memos
 DROP TABLE memos;

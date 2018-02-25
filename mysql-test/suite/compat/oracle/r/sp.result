@@ -8,7 +8,7 @@ END;
 /
 SHOW CREATE FUNCTION f1;
 Function	f1
-sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER
+sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
 Create Function	CREATE DEFINER="root"@"localhost" FUNCTION "f1"() RETURN int(11)
 AS
 BEGIN
@@ -29,7 +29,7 @@ END;
 /
 SHOW CREATE PROCEDURE p1;
 Procedure	p1
-sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER
+sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
 Create Procedure	CREATE DEFINER="root"@"localhost" PROCEDURE "p1"()
 AS
 BEGIN
@@ -2404,3 +2404,94 @@ t1	CREATE TABLE "t1" (
   "aa_timestamp5" timestamp(5) NULL DEFAULT NULL,
   "aa_date0" datetime DEFAULT NULL
 )
+#
+#  MDEV-11160 "Incorrect column name" when "CREATE TABLE t1 AS SELECT spvar"
+#
+CREATE TABLE t1 (x INT);
+INSERT INTO t1 VALUES (10);
+CREATE VIEW v1 AS SELECT x+1 AS a,x+1 AS b FROM t1;
+CREATE PROCEDURE p1
+AS
+a INT := 1;
+b INT := 2;
+BEGIN
+CREATE TABLE t2 AS SELECT a,b FROM v1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1();
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "a" int(11) DEFAULT NULL,
+  "b" int(11) DEFAULT NULL
+)
+a	b
+1	2
+DROP PROCEDURE p1;
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-14228 MariaDB crashes with function
+#
+CREATE TABLE t1 (c VARCHAR(16), KEY(c));
+INSERT INTO t1 VALUES ('foo');
+CREATE FUNCTION f1() RETURN VARCHAR(16)
+IS
+v VARCHAR2(16);
+BEGIN
+FOR v IN (SELECT DISTINCT c FROM t1)
+LOOP
+IF (v = 'bar') THEN
+SELECT 1 INTO @a;
+END IF;
+END LOOP;
+RETURN 'qux';
+END $$
+SELECT f1();
+ERROR HY000: Illegal parameter data types row and varchar for operation '='
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURN VARCHAR(16)
+IS
+v t1%ROWTYPE;
+BEGIN
+IF v = 'bar' THEN
+NULL;
+END IF;
+RETURN 'qux';
+END $$
+SELECT f1();
+ERROR HY000: Illegal parameter data types row and varchar for operation '='
+DROP FUNCTION f1;
+CREATE FUNCTION f1() RETURN VARCHAR(16)
+IS
+v ROW(a INT);
+BEGIN
+IF v = 'bar' THEN
+NULL;
+END IF;
+RETURN 'qux';
+END $$
+SELECT f1();
+ERROR HY000: Illegal parameter data types row and varchar for operation '='
+DROP FUNCTION f1;
+DROP TABLE t1;
+DECLARE
+v ROW(a INT);
+BEGIN
+SELECT v IN ('a','b');
+END $$
+ERROR HY000: Illegal parameter data types row and varchar for operation 'in'
+DECLARE
+v ROW(a INT);
+BEGIN
+SELECT 'a' IN (v,'b');
+END $$
+ERROR HY000: Illegal parameter data types varchar and row for operation 'in'
+DECLARE
+v ROW(a INT);
+BEGIN
+SELECT 'a' IN ('b',v);
+END $$
+ERROR HY000: Illegal parameter data types varchar and row for operation 'in'

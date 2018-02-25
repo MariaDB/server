@@ -41,7 +41,6 @@
 #include "sp_head.h"
 #include "pfs_digest.h"
 
-using std::min;
 /**
   @page PAGE_PERFORMANCE_SCHEMA The Performance Schema main page
   MySQL PERFORMANCE_SCHEMA implementation.
@@ -1240,9 +1239,9 @@ static enum_operation_type socket_operation_map[]=
 static int build_prefix(const LEX_CSTRING *prefix, const char *category,
                         char *output, int *output_length)
 {
-  int len= strlen(category);
+  size_t len= strlen(category);
   char *out_ptr= output;
-  int prefix_length= prefix->length;
+  size_t prefix_length= prefix->length;
 
   if (unlikely((prefix_length + len + 1) >=
                PFS_MAX_FULL_PREFIX_NAME_LENGTH))
@@ -1292,7 +1291,7 @@ static int build_prefix(const LEX_CSTRING *prefix, const char *category,
   {                                                                   \
     DBUG_ASSERT(info->m_key != NULL);                                 \
     DBUG_ASSERT(info->m_name != NULL);                                \
-    len= strlen(info->m_name);                                        \
+    len= (int)strlen(info->m_name);                                        \
     full_length= prefix_length + len;                                 \
     if (likely(full_length <= PFS_MAX_INFO_NAME_LENGTH))              \
     {                                                                 \
@@ -1404,7 +1403,7 @@ static void register_stage_v1(const char *category,
     info= *info_array;
     DBUG_ASSERT(info != NULL);
     DBUG_ASSERT(info->m_name != NULL);
-    len= strlen(info->m_name);
+    len= (int)strlen(info->m_name);
     full_length= prefix_length + len;
     if (likely(full_length <= PFS_MAX_INFO_NAME_LENGTH))
     {
@@ -1448,7 +1447,7 @@ static void register_statement_v1(const char *category,
     if (info->m_name == NULL)
       continue;
 
-    len= strlen(info->m_name);
+    len= (int)strlen(info->m_name);
     full_length= prefix_length + len;
     if (likely(full_length <= PFS_MAX_INFO_NAME_LENGTH))
     {
@@ -1790,7 +1789,7 @@ static void create_file_v1(PSI_file_key key, const char *name, File file)
     return;
   }
 
-  uint len= strlen(name);
+  uint len= (uint)strlen(name);
   PFS_file *pfs_file= find_or_create_file(pfs_thread, klass, name, len, true);
 
   file_handle_array[index]= pfs_file;
@@ -2022,7 +2021,7 @@ static void set_thread_account_v1(const char *user, int user_len,
   DBUG_ASSERT((host != NULL) || (host_len == 0));
   DBUG_ASSERT(host_len >= 0);
 
-  host_len= min<size_t>(host_len, sizeof(pfs->m_hostname));
+  host_len= MY_MIN(host_len, static_cast<int>(sizeof(pfs->m_hostname)));
 
   if (unlikely(pfs == NULL))
     return;
@@ -3965,7 +3964,7 @@ static PSI_file* end_file_open_wait_v1(PSI_file_locker *locker,
       PFS_file_class *klass= reinterpret_cast<PFS_file_class*> (state->m_class);
       PFS_thread *thread= reinterpret_cast<PFS_thread*> (state->m_thread);
       const char *name= state->m_name;
-      uint len= strlen(name);
+      uint len= (uint)strlen(name);
       PFS_file *pfs_file= find_or_create_file(thread, klass, name, len, true);
       state->m_file= reinterpret_cast<PSI_file*> (pfs_file);
     }
@@ -3997,7 +3996,7 @@ static void end_file_open_wait_and_bind_to_descriptor_v1
     PFS_file_class *klass= reinterpret_cast<PFS_file_class*> (state->m_class);
     PFS_thread *thread= reinterpret_cast<PFS_thread*> (state->m_thread);
     const char *name= state->m_name;
-    uint len= strlen(name);
+    uint len= (uint)strlen(name);
     pfs_file= find_or_create_file(thread, klass, name, len, true);
     state->m_file= reinterpret_cast<PSI_file*> (pfs_file);
   }
@@ -4190,7 +4189,7 @@ static void start_file_close_wait_v1(PSI_file_locker *locker,
   case PSI_FILE_DELETE:
     thread= reinterpret_cast<PFS_thread*> (state->m_thread);
     name= state->m_name;
-    len= strlen(name);
+    len= (uint)strlen(name);
     pfs_file= find_or_create_file(thread, NULL, name, len, false);
     state->m_file= reinterpret_cast<PSI_file*> (pfs_file);
     break;

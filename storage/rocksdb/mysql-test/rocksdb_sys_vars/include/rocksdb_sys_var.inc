@@ -10,6 +10,7 @@
 --eval SET @start_global_value = @@global.$sys_var
 if (!$suppress_default_value)
 {
+  --replace_regex /[a-f0-9]{40}/#/
   SELECT @start_global_value;
   if ($session)
   {

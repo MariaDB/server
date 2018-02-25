@@ -50,7 +50,7 @@ if (!$mysql_errname)
   # SHOW TABLE STATUS shows the auto-increment value in column 11, 
   # that's all we need here and further
   --source mask_engine.inc
-  --replace_column 3 # 4 # 5 # 6 # 7 # 8 # 9 # 10 # 12 # 13 # 14 # 15 # 16 # 17 # 18 #
+  --replace_column 3 # 4 # 5 # 6 # 7 # 8 # 9 # 10 # 12 # 13 # 14 # 15 # 16 # 17 # 18 # 19 #
   SHOW TABLE STATUS FROM test LIKE 't1';
 
   # Mix of automatic and explicit values
@@ -58,7 +58,7 @@ if (!$mysql_errname)
   INSERT INTO t1 (a,b) VALUES (6,'g'),(7,'h');
   SELECT LAST_INSERT_ID();
 
-  --replace_column 2 # 3 # 4 # 5 # 6 # 7 # 8 # 9 # 10 # 12 # 13 # 14 # 15 # 16 # 17 # 18 #
+  --replace_column 2 # 3 # 4 # 5 # 6 # 7 # 8 # 9 # 10 # 12 # 13 # 14 # 15 # 16 # 17 # 18 # 19 #
   SHOW TABLE STATUS FROM test LIKE 't1';
 
 
@@ -66,21 +66,21 @@ if (!$mysql_errname)
   SELECT a,b FROM t1 ORDER BY a;
   SELECT LAST_INSERT_ID();
 
-  --replace_column 2 # 3 # 4 # 5 # 6 # 7 # 8 # 9 # 10 # 12 # 13 # 14 # 15 # 16 # 17 # 18 #
+  --replace_column 2 # 3 # 4 # 5 # 6 # 7 # 8 # 9 # 10 # 12 # 13 # 14 # 15 # 16 # 17 # 18 # 19 #
   SHOW TABLE STATUS FROM test LIKE 't1';
 
   # Creating a gap in the sequence
 
   INSERT INTO t1 (a,b) VALUES (20,'k');
 
-  --replace_column 2 # 3 # 4 # 5 # 6 # 7 # 8 # 9 # 10 # 12 # 13 # 14 # 15 # 16 # 17 # 18 #
+  --replace_column 2 # 3 # 4 # 5 # 6 # 7 # 8 # 9 # 10 # 12 # 13 # 14 # 15 # 16 # 17 # 18 # 19 #
   SHOW TABLE STATUS FROM test LIKE 't1';
 
   INSERT INTO t1 (a,b) VALUES (NULL,'l');
   SELECT a,b FROM t1 ORDER BY a;
   SELECT LAST_INSERT_ID();
 
-  --replace_column 2 # 3 # 4 # 5 # 6 # 7 # 8 # 9 # 10 # 12 # 13 # 14 # 15 # 16 # 17 # 18 #
+  --replace_column 2 # 3 # 4 # 5 # 6 # 7 # 8 # 9 # 10 # 12 # 13 # 14 # 15 # 16 # 17 # 18 # 19 #
   SHOW TABLE STATUS FROM test LIKE 't1';
 
   # Negative values: we will try to insert one just to check that it does not cause a crash,

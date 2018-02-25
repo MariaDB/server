@@ -42,11 +42,30 @@ int wsrep_init_vars()
   return 0;
 }
 
+/* This is intentionally declared as a weak global symbol, so that
+linking will succeed even if the server is built with a dynamically
+linked InnoDB. */
+ulong innodb_lock_schedule_algorithm __attribute__((weak));
+
 bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 {
   if (var_type == OPT_GLOBAL) {
     // FIXME: this variable probably should be changed only per session
     thd->variables.wsrep_on = global_system_variables.wsrep_on;
+  }
+
+  return false;
+}
+
+bool wsrep_on_check(sys_var *self, THD* thd, set_var* var)
+{
+  bool new_wsrep_on= (bool)var->save_result.ulonglong_value;
+
+  if (new_wsrep_on && innodb_lock_schedule_algorithm != 0) {
+    my_message(ER_WRONG_ARGUMENTS, " WSREP (galera) can't be enabled "
+	    "if innodb_lock_schedule_algorithm=VATS. Please configure"
+	    " innodb_lock_schedule_algorithm=FCFS and restart.", MYF(0));
+    return true;
   }
   return false;
 }
@@ -327,8 +346,9 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
   if (wsrep_inited == 1)
     wsrep_deinit(false);
 
-  char* tmp= strdup(wsrep_provider); // wsrep_init() rewrites provider 
+  char* tmp= strdup(wsrep_provider); // wsrep_init() rewrites provider
                                      //when fails
+
   if (wsrep_init())
   {
     my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp, my_error, "wsrep_init failed");
@@ -588,9 +608,8 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
   if (new_wsrep_desync) {
     ret = wsrep->desync (wsrep);
     if (ret != WSREP_OK) {
-      WSREP_WARN ("SET desync failed %d for schema: %s, query: %s", ret,
-                  (thd->db ? thd->db : "(null)"),
-                  thd->query());
+      WSREP_WARN ("SET desync failed %d for schema: %s, query: %s",
+                  ret, thd->get_db(), thd->query());
       my_error (ER_CANNOT_USER, MYF(0), "'desync'", thd->query());
       return true;
     }
@@ -598,8 +617,7 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
     ret = wsrep->resync (wsrep);
     if (ret != WSREP_OK) {
       WSREP_WARN ("SET resync failed %d for schema: %s, query: %s", ret,
-                  (thd->db ? thd->db : "(null)"),
-                  thd->query());
+                  thd->get_db(), thd->query());
       my_error (ER_CANNOT_USER, MYF(0), "'resync'", thd->query());
       return true;
     }

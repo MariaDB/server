@@ -26,7 +26,8 @@ enum partition_type {
   NOT_A_PARTITION= 0,
   RANGE_PARTITION,
   HASH_PARTITION,
-  LIST_PARTITION
+  LIST_PARTITION,
+  VERSIONING_PARTITION
 };
 
 enum partition_state {
@@ -89,8 +90,21 @@ typedef struct p_elem_val
 
 struct st_ddl_log_memory_entry;
 
-class partition_element :public Sql_alloc {
+enum stat_trx_field
+{
+  STAT_TRX_END= 0
+};
+
+class partition_element :public Sql_alloc
+{
 public:
+  enum elem_type
+  {
+    CONVENTIONAL= 0,
+    CURRENT,
+    HISTORY
+  };
+
   List<partition_element> subpartitions;
   List<part_elem_value> list_val_list;
   ha_rows part_max_rows;
@@ -109,6 +123,21 @@ public:
   bool has_null_value;
   bool signed_flag;                          // Range value signed
   bool max_value;                            // MAXVALUE range
+  uint32 id;
+  bool empty;
+
+  // TODO: subclass partition_element by partitioning type to avoid such semantic
+  // mixup
+  elem_type type()
+  {
+    return (elem_type)(int(signed_flag) << 1 | int(max_value));
+  }
+
+  void type(elem_type val)
+  {
+    max_value= (bool)(val & 1);
+    signed_flag= (bool)(val & 2);
+  }
 
   partition_element()
   : part_max_rows(0), part_min_rows(0), range_value(0),
@@ -117,9 +146,10 @@ public:
     data_file_name(NULL), index_file_name(NULL),
     engine_type(NULL), connect_string(null_clex_str), part_state(PART_NORMAL),
     nodegroup_id(UNDEF_NODEGROUP), has_null_value(FALSE),
-    signed_flag(FALSE), max_value(FALSE)
-  {
-  }
+    signed_flag(FALSE), max_value(FALSE),
+    id(UINT_MAX32),
+    empty(true)
+  {}
   partition_element(partition_element *part_elem)
   : part_max_rows(part_elem->part_max_rows),
     part_min_rows(part_elem->part_min_rows),
@@ -132,10 +162,35 @@ public:
     connect_string(null_clex_str),
     part_state(part_elem->part_state),
     nodegroup_id(part_elem->nodegroup_id),
-    has_null_value(FALSE)
-  {
-  }
+    has_null_value(FALSE),
+    id(part_elem->id),
+    empty(part_elem->empty)
+  {}
   ~partition_element() {}
+
+  part_column_list_val& get_col_val(uint idx)
+  {
+    DBUG_ASSERT(type() == CONVENTIONAL || list_val_list.elements == 1);
+    part_elem_value *ev= list_val_list.head();
+    DBUG_ASSERT(ev);
+    DBUG_ASSERT(ev->col_val_array);
+    return ev->col_val_array[idx];
+  }
+
+  bool find_engine_flag(uint32 flag)
+  {
+    if (ha_check_storage_engine_flag(engine_type, flag))
+      return true;
+
+    List_iterator_fast<partition_element> it(subpartitions);
+    while (partition_element *element= it++)
+    {
+      if (element->find_engine_flag(flag))
+        return true;
+    }
+
+    return false;
+  }
 };
 
 #endif /* PARTITION_ELEMENT_INCLUDED */

@@ -24,13 +24,11 @@ The transaction
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#include "read0read.h"
-
 /**********************************************************************//**
 Determines if a transaction is in the given state.
-The caller must hold trx_sys->mutex, or it must be the thread
+The caller must hold trx_sys.mutex, or it must be the thread
 that is serving a running transaction.
-A running RW transaction must be in trx_sys->rw_trx_list.
+A running RW transaction must be in trx_sys.rw_trx_hash.
 @return TRUE if trx->state == state */
 UNIV_INLINE
 bool
@@ -71,8 +69,6 @@ trx_state_eq(
 		     || state == TRX_STATE_FORCED_ROLLBACK
 		     || (relaxed
 			 && thd_get_error_number(trx->mysql_thd)));
-
-		ut_ad(!trx->in_rw_trx_list);
 
 		return(true);
 	}
@@ -211,74 +207,6 @@ ok:
 
 	trx->ddl = true;
 	trx->dict_operation = op;
-}
-
-/**
-Increase the reference count. If the transaction is in state
-TRX_STATE_COMMITTED_IN_MEMORY then the transaction is considered
-committed and the reference count is not incremented.
-@param trx Transaction that is being referenced
-@param do_ref_count Increment the reference iff this is true
-@return transaction instance if it is not committed */
-UNIV_INLINE
-trx_t*
-trx_reference(
-	trx_t*		trx,
-	bool		do_ref_count)
-{
-	trx_mutex_enter(trx);
-
-	if (trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY)) {
-		trx_mutex_exit(trx);
-		trx = NULL;
-	} else if (do_ref_count) {
-		ut_ad(trx->n_ref >= 0);
-		++trx->n_ref;
-		trx_mutex_exit(trx);
-	} else {
-		trx_mutex_exit(trx);
-	}
-
-	return(trx);
-}
-
-/**
-Release the transaction. Decrease the reference count.
-@param trx Transaction that is being released */
-UNIV_INLINE
-void
-trx_release_reference(
-	trx_t*		trx)
-{
-	trx_mutex_enter(trx);
-
-	ut_ad(trx->n_ref > 0);
-	--trx->n_ref;
-
-	trx_mutex_exit(trx);
-}
-
-
-/**
-@param trx		Get the active view for this transaction, if one exists
-@return the transaction's read view or NULL if one not assigned. */
-UNIV_INLINE
-ReadView*
-trx_get_read_view(
-	trx_t*		trx)
-{
-	return(!MVCC::is_view_active(trx->read_view) ? NULL : trx->read_view);
-}
-
-/**
-@param trx		Get the active view for this transaction, if one exists
-@return the transaction's read view or NULL if one not assigned. */
-UNIV_INLINE
-const ReadView*
-trx_get_read_view(
-	const trx_t*	trx)
-{
-	return(!MVCC::is_view_active(trx->read_view) ? NULL : trx->read_view);
 }
 
 /**

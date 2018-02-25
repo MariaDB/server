@@ -92,9 +92,6 @@ static void CALLBACK work_callback(PTP_CALLBACK_INSTANCE instance, PVOID context
 static void CALLBACK shm_read_callback(PTP_CALLBACK_INSTANCE instance,
   PVOID Context, PTP_WAIT wait,TP_WAIT_RESULT wait_result);
 
-static void CALLBACK shm_close_callback(PTP_CALLBACK_INSTANCE instance,
-  PVOID Context, PTP_WAIT wait,TP_WAIT_RESULT wait_result);
-
 static void pre_callback(PVOID context, PTP_CALLBACK_INSTANCE instance);
 
 /* Get current time as Windows time */
@@ -151,8 +148,8 @@ TP_connection_win::TP_connection_win(CONNECT *c) :
   timeout(ULONGLONG_MAX), 
   callback_instance(0),
   io(0),
-  shm_read(0),
   timer(0),
+  shm_read(0),
   work(0)
 {
 }

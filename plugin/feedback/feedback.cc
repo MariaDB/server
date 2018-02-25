@@ -93,7 +93,7 @@ static COND* make_cond(THD *thd, TABLE_LIST *tables, LEX_STRING *filter)
 {
   Item_cond_or *res= NULL;
   Name_resolution_context nrc;
-  const char *db= tables->db, *table= tables->alias;
+  const char *db= tables->db.str, *table= tables->alias.str;
   LEX_CSTRING *field= &tables->table->field[0]->field_name;
   CHARSET_INFO *cs= &my_charset_latin1;
 

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -33,9 +33,9 @@
 #include "sql_signal.h"
 
 
-void LEX::parse_error()
+void LEX::parse_error(uint err_number)
 {
-  thd->parse_error();
+  thd->parse_error(err_number);
 }
 
 
@@ -196,8 +196,9 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
   lex_start(thd);
   context->init();
   if ((!(table_ident= new Table_ident(thd,
+                                      &table->s->db,
                                       &table->s->table_name,
-                                      &table->s->db, TRUE))) ||
+                                      TRUE))) ||
       (!(table_list= select_lex->add_table_to_list(thd,
                                                    table_ident,
                                                    NULL,
@@ -257,7 +258,7 @@ st_parsing_options::reset()
 
 bool Lex_input_stream::init(THD *thd,
 			    char* buff,
-			    unsigned int length)
+			    size_t length)
 {
   DBUG_EXECUTE_IF("bug42064_simulate_oom",
                   DBUG_SET("+d,simulate_out_of_memory"););
@@ -268,12 +269,12 @@ bool Lex_input_stream::init(THD *thd,
                   DBUG_SET("-d,bug42064_simulate_oom");); 
 
   if (m_cpp_buf == NULL)
-    return TRUE;
+    return true;
 
   m_thd= thd;
   reset(buff, length);
 
-  return FALSE;
+  return false;
 }
 
 
@@ -286,7 +287,7 @@ bool Lex_input_stream::init(THD *thd,
 */
 
 void
-Lex_input_stream::reset(char *buffer, unsigned int length)
+Lex_input_stream::reset(char *buffer, size_t length)
 {
   yylineno= 1;
   yylval= NULL;
@@ -333,7 +334,7 @@ void Lex_input_stream::body_utf8_start(THD *thd, const char *begin_ptr)
   DBUG_ASSERT(begin_ptr);
   DBUG_ASSERT(m_cpp_buf <= begin_ptr && begin_ptr <= m_cpp_buf + m_buf_length);
 
-  uint body_utf8_length= get_body_utf8_maximum_length(thd);
+  size_t body_utf8_length= get_body_utf8_maximum_length(thd);
 
   m_body_utf8= (char *) thd->alloc(body_utf8_length + 1);
   m_body_utf8_ptr= m_body_utf8;
@@ -343,7 +344,7 @@ void Lex_input_stream::body_utf8_start(THD *thd, const char *begin_ptr)
 }
 
 
-uint Lex_input_stream::get_body_utf8_maximum_length(THD *thd)
+size_t Lex_input_stream::get_body_utf8_maximum_length(THD *thd)
 {
   /*
     String literals can grow during escaping:
@@ -674,6 +675,8 @@ void lex_start(THD *thd)
 void LEX::start(THD *thd_arg)
 {
   DBUG_ENTER("LEX::start");
+  DBUG_PRINT("info", ("This: %p thd_arg->lex: %p thd_arg->stmt_lex: %p",
+             this, thd_arg->lex, thd_arg->stmt_lex));
 
   thd= unit.thd= thd_arg;
   
@@ -681,6 +684,7 @@ void LEX::start(THD *thd_arg)
 
   context_stack.empty();
   unit.init_query();
+  current_select_number= 1;
   select_lex.linkage= UNSPECIFIED_TYPE;
   /* 'parent_lex' is used in init_query() so it must be before it. */
   select_lex.parent_lex= this;
@@ -737,6 +741,7 @@ void LEX::start(THD *thd_arg)
   spcont= NULL;
   proc_list.first= 0;
   escape_used= FALSE;
+  default_used= FALSE;
   query_tables= 0;
   reset_query_tables_list(FALSE);
   expr_allows_subselect= TRUE;
@@ -770,6 +775,8 @@ void LEX::start(THD *thd_arg)
   frame_top_bound= NULL;
   frame_bottom_bound= NULL;
   win_spec= NULL;
+
+  vers_conditions.empty();
 
   is_lex_started= TRUE;
   DBUG_VOID_RETURN;
@@ -827,6 +834,7 @@ void lex_end_stage2(LEX *lex)
 
   /* Reset LEX_MASTER_INFO */
   lex->mi.reset(lex->sql_command == SQLCOM_CHANGE_MASTER);
+  delete_dynamic(&lex->delete_gtid_domain);
 
   DBUG_VOID_RETURN;
 }
@@ -1339,6 +1347,8 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       return WITH_CUBE_SYM;
     case ROLLUP_SYM:
       return WITH_ROLLUP_SYM;
+    case SYSTEM:
+      return WITH_SYSTEM_SYM;
     default:
       /*
         Save the token following 'WITH'
@@ -1347,6 +1357,27 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       lip->yylval= NULL;
       lip->lookahead_token= token;
       return WITH;
+    }
+    break;
+  case FOR_SYM:
+    /*
+     * Additional look-ahead to resolve doubtful cases like:
+     * SELECT ... FOR UPDATE
+     * SELECT ... FOR SYSTEM_TIME ... .
+     */
+    token= lex_one_token(yylval, thd);
+    lip->add_digest_token(token, yylval);
+    switch(token) {
+    case SYSTEM_TIME_SYM:
+      return FOR_SYSTEM_TIME_SYM;
+    default:
+      /*
+        Save the token following 'FOR_SYM'
+      */
+      lip->lookahead_yylval= lip->yylval;
+      lip->yylval= NULL;
+      lip->lookahead_token= token;
+      return FOR_SYM;
     }
     break;
   case VALUES:
@@ -2123,7 +2154,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 }
 
 
-void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, uint *prefix_length)
+void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, size_t * prefix_length)
 {
   /*
     TODO:
@@ -2131,14 +2162,15 @@ void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, uint *prefix_length)
     that can be considered white-space.
   */
 
-  *prefix_length= 0;
+  size_t plen= 0;
   while ((str->length > 0) && (my_isspace(cs, str->str[0])))
   {
-    (*prefix_length)++;
+    plen++;
     str->length --;
     str->str ++;
   }
-
+  if (prefix_length)
+    *prefix_length= plen;
   /*
     FIXME:
     Also, parsing backward is not safe with multi bytes characters
@@ -2244,6 +2276,7 @@ void st_select_lex::init_query()
   window_funcs.empty();
   tvc= 0;
   in_tvc= false;
+  versioned_tables= 0;
 }
 
 void st_select_lex::init_select()
@@ -2253,7 +2286,8 @@ void st_select_lex::init_select()
   group_list.empty();
   if (group_list_ptrs)
     group_list_ptrs->clear();
-  type= db= 0;
+  type= 0;
+  db= null_clex_str;
   having= 0;
   table_join_options= 0;
   in_sum_expr= with_wild= 0;
@@ -2285,6 +2319,7 @@ void st_select_lex::init_select()
   in_funcs.empty();
   curr_tvc_name= 0;
   in_tvc= false;
+  versioned_tables= 0;
 }
 
 /*
@@ -2425,10 +2460,8 @@ void st_select_lex_node::move_as_slave(st_select_lex_node *new_master)
     prev= &curr->next;
   }
   else
-  {
     prev= &new_master->slave;
-    new_master->slave= this;
-  }
+  *prev= this;
   next= 0;
   master= new_master;
 }
@@ -3021,10 +3054,9 @@ void Query_tables_list::destroy_query_tables_list()
 */
 
 LEX::LEX()
-  : explain(NULL),
-    result(0), arena_for_set_stmt(0), mem_root_for_set_stmt(0),
+  : explain(NULL), result(0), arena_for_set_stmt(0), mem_root_for_set_stmt(0),
     option_type(OPT_DEFAULT), context_analysis_only(0), sphead(0),
-    is_lex_started(0), limit_rows_examined_cnt(ULONGLONG_MAX)
+    default_used(0), is_lex_started(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 
   init_dynamic_array2(&plugins, sizeof(plugin_ref), plugins_static_buffer,
@@ -3032,6 +3064,10 @@ LEX::LEX()
                       INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
   reset_query_tables_list(TRUE);
   mi.init();
+  init_dynamic_array2(&delete_gtid_domain, sizeof(ulong*),
+                      gtid_domain_static_buffer,
+                      initial_gtid_domain_buffer_size,
+                      initial_gtid_domain_buffer_size, 0);
 }
 
 
@@ -3257,8 +3293,7 @@ uint8 LEX::get_effective_with_check(TABLE_LIST *view)
   case of success
 */
 
-bool
-LEX::copy_db_to(const char **p_db, size_t *p_db_length) const
+bool LEX::copy_db_to(LEX_CSTRING *to)
 {
   if (sphead && sphead->m_name.str)
   {
@@ -3267,12 +3302,10 @@ LEX::copy_db_to(const char **p_db, size_t *p_db_length) const
       It is safe to assign the string by-pointer, both sphead and
       its statements reside in the same memory root.
     */
-    *p_db= sphead->m_db.str;
-    if (p_db_length)
-      *p_db_length= sphead->m_db.length;
+    *to= sphead->m_db;
     return FALSE;
   }
-  return thd->copy_db_to(p_db, p_db_length);
+  return thd->copy_db_to(to);
 }
 
 /**
@@ -3748,6 +3781,7 @@ void st_select_lex::fix_prepare_information(THD *thd, Item **conds,
   DBUG_ENTER("st_select_lex::fix_prepare_information");
   if (!thd->stmt_arena->is_conventional() && first_execution)
   {
+    Query_arena_stmt on_stmt_arena(thd);
     first_execution= 0;
     if (group_list.first)
     {
@@ -3841,7 +3875,7 @@ void st_select_lex::alloc_index_hints (THD *thd)
   RETURN VALUE
     0 on success, non-zero otherwise
 */
-bool st_select_lex::add_index_hint (THD *thd, const char *str, uint length)
+bool st_select_lex::add_index_hint (THD *thd, const char *str, size_t length)
 {
   return index_hints->push_front(new (thd->mem_root) 
                                  Index_hint(current_index_hint_type,
@@ -4821,8 +4855,8 @@ bool LEX::set_arena_for_set_stmt(Query_arena *backup)
     mem_root_for_set_stmt= new MEM_ROOT();
     if (!(mem_root_for_set_stmt))
       DBUG_RETURN(1);
-    init_sql_alloc(mem_root_for_set_stmt, ALLOC_ROOT_SET, ALLOC_ROOT_SET,
-                   MYF(MY_THREAD_SPECIFIC));
+    init_sql_alloc(mem_root_for_set_stmt, "set_stmt",
+                   ALLOC_ROOT_SET, ALLOC_ROOT_SET, MYF(MY_THREAD_SPECIFIC));
   }
   if (!(arena_for_set_stmt= new(mem_root_for_set_stmt)
         Query_arena_memroot(mem_root_for_set_stmt,
@@ -5594,6 +5628,35 @@ sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,
 }
 
 
+bool LEX::sp_for_loop_implicit_cursor_statement(THD *thd,
+                                                Lex_for_loop_bounds_st *bounds,
+                                                sp_lex_cursor *cur)
+{
+  Item *item;
+  DBUG_ASSERT(sphead);
+  LEX_CSTRING name= {STRING_WITH_LEN("[implicit_cursor]") };
+  if (sp_declare_cursor(thd, &name, cur, NULL, true))
+    return true;
+  DBUG_ASSERT(thd->lex == this);
+  if (!(bounds->m_index= new (thd->mem_root) sp_assignment_lex(thd, this)))
+    return true;
+  bounds->m_index->sp_lex_in_use= true;
+  sphead->reset_lex(thd, bounds->m_index);
+  DBUG_ASSERT(thd->lex != this);
+  if (!(item= new (thd->mem_root) Item_field(thd,
+                                             thd->lex->current_context(),
+                                             NullS, NullS, &name)))
+    return true;
+  bounds->m_index->set_item_and_free_list(item, NULL);
+  if (thd->lex->sphead->restore_lex(thd))
+    return true;
+  DBUG_ASSERT(thd->lex == this);
+  bounds->m_direction= 1;
+  bounds->m_upper_bound= NULL;
+  bounds->m_implicit_cursor= true;
+  return false;
+}
+
 sp_variable *
 LEX::sp_add_for_loop_cursor_variable(THD *thd,
                                      const LEX_CSTRING *name,
@@ -5805,7 +5868,7 @@ bool LEX::sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &loop)
 {
   sp_instr_cfetch *instr=
     new (thd->mem_root) sp_instr_cfetch(sphead->instructions(),
-                                        spcont, loop.m_cursor_offset);
+                                        spcont, loop.m_cursor_offset, false);
   if (instr == NULL || sphead->add_instr(instr))
     return true;
   instr->add_to_varlist(loop.m_index);
@@ -5972,7 +6035,7 @@ sp_name *LEX::make_sp_name(THD *thd, const LEX_CSTRING *name)
   sp_name *res;
   LEX_CSTRING db;
   if (check_routine_name(name) ||
-      copy_db_to(&db.str, &db.length) ||
+      copy_db_to(&db) ||
       (!(res= new (thd->mem_root) sp_name(&db, name, false))))
     return NULL;
   return res;
@@ -6452,6 +6515,11 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
 Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
                                  const char *start, const char *end)
 {
+  if (!thd->m_parser_state->m_lip.stmt_prepare_mode)
+  {
+    thd->parse_error(ER_SYNTAX_ERROR, start);
+    return NULL;
+  }
   if (!parsing_options.allows_variable)
   {
     my_error(ER_VIEW_SELECT_VARIABLE, MYF(0));
@@ -7181,7 +7249,7 @@ Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
     if (no_top_clones)
       return cond;
     cond->clear_extraction_flag();
-    return cond->build_clone(thd, thd->mem_root);
+    return cond->build_clone(thd);
   }
   if (cond->type() == Item::COND_ITEM)
   {
@@ -7267,6 +7335,20 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
 }
 
 
+Query_tables_backup::Query_tables_backup(THD* _thd) :
+  thd(_thd)
+{
+  thd->lex->reset_n_backup_query_tables_list(&backup);
+  thd->lex->sql_command= backup.sql_command;
+}
+
+
+Query_tables_backup::~Query_tables_backup()
+{
+  thd->lex->restore_backup_query_tables_list(&backup);
+}
+
+
 bool LEX::sp_add_cfetch(THD *thd, const LEX_CSTRING *name)
 {
   uint offset;
@@ -7278,7 +7360,8 @@ bool LEX::sp_add_cfetch(THD *thd, const LEX_CSTRING *name)
     return true;
   }
   i= new (thd->mem_root)
-    sp_instr_cfetch(sphead->instructions(), spcont, offset);
+    sp_instr_cfetch(sphead->instructions(), spcont, offset,
+                    !(thd->variables.sql_mode & MODE_ORACLE));
   if (i == NULL || sphead->add_instr(i))
     return true;
   return false;
@@ -7397,3 +7480,24 @@ Item *LEX::make_item_func_replace(THD *thd,
     new (thd->mem_root) Item_func_replace_oracle(thd, org, find, replace) :
     new (thd->mem_root) Item_func_replace(thd, org, find, replace);
 }
+
+
+bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name)
+{
+  DBUG_ASSERT(field_name.str);
+  Item_field *fld= new (thd->mem_root) Item_field(thd, &context,
+                                                  table->db.str, table->alias.str, &field_name);
+  if (!fld || item_list.push_back(fld))
+    return true;
+
+  if (thd->lex->view_list.elements)
+  {
+    LEX_CSTRING *l;
+    if (!(l= thd->make_clex_string(field_name.str, field_name.length)))
+      return true;
+    thd->lex->view_list.push_back(l);
+  }
+
+  return false;
+}
+

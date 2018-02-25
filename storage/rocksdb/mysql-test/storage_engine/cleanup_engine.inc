@@ -12,14 +12,14 @@
 --let $datadir= `SELECT @@datadir`
 
 --error 0,1
---file_exists $datadir/.rocksdb/*
+--file_exists $datadir/\#rocksdb/*
 if (!$mysql_errno)
 {
   --enable_reconnect
   --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
   --shutdown_server
   --source include/wait_until_disconnected.inc
-  --rmdir $datadir/.rocksdb
+  --rmdir $datadir/\#rocksdb
   --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
   --source include/wait_until_connected_again.inc
 }

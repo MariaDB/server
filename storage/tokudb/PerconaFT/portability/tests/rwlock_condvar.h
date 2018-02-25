@@ -107,10 +107,10 @@ get_waitstate(void)
 #endif
 
 int toku_cv_fair_rwlock_init (toku_cv_fair_rwlock_t *rwlock) {
-    rwlock->state=0;
+    rwlock->state = 0;
     rwlock->waiters_head = NULL;
     rwlock->waiters_tail = NULL;
-    toku_mutex_init(&rwlock->mutex, NULL);
+    toku_mutex_init(toku_uninstrumented, &rwlock->mutex, nullptr);
     return 0;
 }
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -64,23 +64,6 @@ Gets the size of a lock struct.
 ulint
 lock_get_size(void);
 /*===============*/
-/*********************************************************************//**
-Creates the lock system at database start. */
-void
-lock_sys_create(
-/*============*/
-	ulint	n_cells);	/*!< in: number of slots in lock hash table */
-/** Resize the lock hash table.
-@param[in]	n_cells	number of slots in lock hash table */
-void
-lock_sys_resize(
-	ulint	n_cells);
-
-/*********************************************************************//**
-Closes the lock system at database shutdown. */
-void
-lock_sys_close(void);
-/*================*/
 /*********************************************************************//**
 Gets the heap_no of the smallest user record on a page.
 @return heap_no of smallest user record, or PAGE_HEAP_NO_SUPREMUM */
@@ -296,7 +279,7 @@ lock_rec_insert_check_and_lock(
 	dict_index_t*	index,	/*!< in: index */
 	que_thr_t*	thr,	/*!< in: query thread */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
-	ibool*		inherit)/*!< out: set to TRUE if the new
+	bool*		inherit)/*!< out: set to true if the new
 				inserted record maybe should inherit
 				LOCK_GAP type locks from the successor
 				record */
@@ -511,18 +494,6 @@ void
 lock_trx_release_locks(
 /*===================*/
 	trx_t*	trx);	/*!< in/out: transaction */
-/*********************************************************************//**
-Removes locks on a table to be dropped or truncated.
-If remove_also_table_sx_locks is TRUE then table-level S and X locks are
-also removed in addition to other table-level and record-level locks.
-No lock, that is going to be removed, is allowed to be a wait lock. */
-void
-lock_remove_all_on_table(
-/*=====================*/
-	dict_table_t*	table,			/*!< in: table to be dropped
-						or truncated */
-	ibool		remove_also_table_sx_locks);/*!< in: also removes
-						table S and X locks */
 
 /*********************************************************************//**
 Calculates the fold value of a page file address: used in inserting or
@@ -566,33 +537,9 @@ lock_rec_find_set_bit(
 				bit set */
 
 /*********************************************************************//**
-Gets the source table of an ALTER TABLE transaction.  The table must be
-covered by an IX or IS table lock.
-@return the source table of transaction, if it is covered by an IX or
-IS table lock; dest if there is no source table, and NULL if the
-transaction is locking more than two tables or an inconsistency is
-found */
-dict_table_t*
-lock_get_src_table(
-/*===============*/
-	trx_t*		trx,	/*!< in: transaction */
-	dict_table_t*	dest,	/*!< in: destination of ALTER TABLE */
-	lock_mode*	mode);	/*!< out: lock mode of the source table */
-/*********************************************************************//**
-Determine if the given table is exclusively "owned" by the given
-transaction, i.e., transaction holds LOCK_IX and possibly LOCK_AUTO_INC
-on the table.
-@return TRUE if table is only locked by trx, with LOCK_IX, and
-possibly LOCK_AUTO_INC */
-ibool
-lock_is_table_exclusive(
-/*====================*/
-	const dict_table_t*	table,	/*!< in: table */
-	const trx_t*		trx);	/*!< in: transaction */
-/*********************************************************************//**
 Checks if a lock request lock1 has to wait for request lock2.
-@return TRUE if lock1 has to wait for lock2 to be removed */
-ibool
+@return whether lock1 has to wait for lock2 to be removed */
+bool
 lock_has_to_wait(
 /*=============*/
 	const lock_t*	lock1,	/*!< in: waiting lock */
@@ -609,7 +556,7 @@ lock_report_trx_id_insanity(
 	const rec_t*	rec,		/*!< in: user record */
 	dict_index_t*	index,		/*!< in: index */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec, index) */
-	trx_id_t	max_trx_id);	/*!< in: trx_sys_get_max_trx_id() */
+	trx_id_t	max_trx_id);	/*!< in: trx_sys.get_max_trx_id() */
 /*********************************************************************//**
 Prints info of locks for all transactions.
 @return FALSE if not able to obtain lock mutex and exits without
@@ -641,7 +588,7 @@ lock_print_info_all_transactions(
 Return approximate number or record locks (bits set in the bitmap) for
 this transaction. Since delete-marked records may be removed, the
 record count will not be precise.
-The caller must be holding lock_sys->mutex. */
+The caller must be holding lock_sys.mutex. */
 ulint
 lock_number_of_rows_locked(
 /*=======================*/
@@ -650,7 +597,7 @@ lock_number_of_rows_locked(
 
 /*********************************************************************//**
 Return the number of table locks for a transaction.
-The caller must be holding lock_sys->mutex. */
+The caller must be holding lock_sys.mutex. */
 ulint
 lock_number_of_tables_locked(
 /*=========================*/
@@ -827,7 +774,6 @@ Set the lock system timeout event. */
 void
 lock_set_timeout_event();
 /*====================*/
-#ifdef UNIV_DEBUG
 /*********************************************************************//**
 Checks that a transaction id is sensible, i.e., not in the future.
 @return true if ok */
@@ -837,8 +783,8 @@ lock_check_trx_id_sanity(
 	trx_id_t	trx_id,		/*!< in: trx id */
 	const rec_t*	rec,		/*!< in: user record */
 	dict_index_t*	index,		/*!< in: index */
-	const ulint*	offsets)	/*!< in: rec_get_offsets(rec, index) */
-	MY_ATTRIBUTE((warn_unused_result));
+	const ulint*	offsets);	/*!< in: rec_get_offsets(rec, index) */
+#ifdef UNIV_DEBUG
 /*******************************************************************//**
 Check if the transaction holds any locks on the sys tables
 or its records.
@@ -934,11 +880,12 @@ struct lock_op_t{
 typedef ib_mutex_t LockMutex;
 
 /** The lock system struct */
-struct lock_sys_t{
-	char		pad1[CACHE_LINE_SIZE];	/*!< padding to prevent other
-						memory update hotspots from
-						residing on the same memory
-						cache line */
+class lock_sys_t
+{
+  bool m_initialised;
+
+public:
+	MY_ALIGNED(CACHE_LINE_SIZE)
 	LockMutex	mutex;			/*!< Mutex protecting the
 						locks */
 	hash_table_t*	rec_hash;		/*!< hash table of the record
@@ -948,13 +895,13 @@ struct lock_sys_t{
 	hash_table_t*	prdt_page_hash;		/*!< hash table of the page
 						lock */
 
-	char		pad2[CACHE_LINE_SIZE];	/*!< Padding */
+	MY_ALIGNED(CACHE_LINE_SIZE)
 	LockMutex	wait_mutex;		/*!< Mutex protecting the
 						next two fields */
 	srv_slot_t*	waiting_threads;	/*!< Array  of user threads
 						suspended while waiting for
 						locks within InnoDB, protected
-						by the lock_sys->wait_mutex;
+						by the lock_sys.wait_mutex;
 						os_event_set() and
 						os_event_reset() on
 						waiting_threads[]->event
@@ -963,12 +910,7 @@ struct lock_sys_t{
 	srv_slot_t*	last_slot;		/*!< highest slot ever used
 						in the waiting_threads array,
 						protected by
-						lock_sys->wait_mutex */
-	ibool		rollback_complete;
-						/*!< TRUE if rollback of all
-						recovered transactions is
-						complete. Protected by
-						lock_sys->mutex */
+						lock_sys.wait_mutex */
 
 	ulint		n_lock_max_wait_time;	/*!< Max wait time */
 
@@ -980,6 +922,38 @@ struct lock_sys_t{
 
 	bool		timeout_thread_active;	/*!< True if the timeout thread
 						is running */
+
+
+  /**
+    Constructor.
+
+    Some members may require late initialisation, thus we just mark object as
+    uninitialised. Real initialisation happens in create().
+  */
+  lock_sys_t(): m_initialised(false) {}
+
+
+  bool is_initialised() { return m_initialised; }
+
+
+  /**
+    Creates the lock system at database start.
+
+    @param[in] n_cells number of slots in lock hash table
+  */
+  void create(ulint n_cells);
+
+
+  /**
+    Resize the lock hash table.
+
+    @param[in] n_cells number of slots in lock hash table
+  */
+  void resize(ulint n_cells);
+
+
+  /** Closes the lock system at database shutdown. */
+  void close();
 };
 
 /*************************************************************//**
@@ -1024,36 +998,36 @@ lock_rec_trx_wait(
 	ulint		type);
 
 /** The lock system */
-extern lock_sys_t*	lock_sys;
+extern lock_sys_t lock_sys;
 
-/** Test if lock_sys->mutex can be acquired without waiting. */
+/** Test if lock_sys.mutex can be acquired without waiting. */
 #define lock_mutex_enter_nowait() 		\
-	(lock_sys->mutex.trylock(__FILE__, __LINE__))
+	(lock_sys.mutex.trylock(__FILE__, __LINE__))
 
-/** Test if lock_sys->mutex is owned. */
-#define lock_mutex_own() (lock_sys->mutex.is_owned())
+/** Test if lock_sys.mutex is owned. */
+#define lock_mutex_own() (lock_sys.mutex.is_owned())
 
-/** Acquire the lock_sys->mutex. */
+/** Acquire the lock_sys.mutex. */
 #define lock_mutex_enter() do {			\
-	mutex_enter(&lock_sys->mutex);		\
+	mutex_enter(&lock_sys.mutex);		\
 } while (0)
 
-/** Release the lock_sys->mutex. */
+/** Release the lock_sys.mutex. */
 #define lock_mutex_exit() do {			\
-	lock_sys->mutex.exit();			\
+	lock_sys.mutex.exit();			\
 } while (0)
 
-/** Test if lock_sys->wait_mutex is owned. */
-#define lock_wait_mutex_own() (lock_sys->wait_mutex.is_owned())
+/** Test if lock_sys.wait_mutex is owned. */
+#define lock_wait_mutex_own() (lock_sys.wait_mutex.is_owned())
 
-/** Acquire the lock_sys->wait_mutex. */
+/** Acquire the lock_sys.wait_mutex. */
 #define lock_wait_mutex_enter() do {		\
-	mutex_enter(&lock_sys->wait_mutex);	\
+	mutex_enter(&lock_sys.wait_mutex);	\
 } while (0)
 
-/** Release the lock_sys->wait_mutex. */
+/** Release the lock_sys.wait_mutex. */
 #define lock_wait_mutex_exit() do {		\
-	lock_sys->wait_mutex.exit();		\
+	lock_sys.wait_mutex.exit();		\
 } while (0)
 
 #ifdef WITH_WSREP

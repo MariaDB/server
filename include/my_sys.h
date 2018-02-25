@@ -152,9 +152,12 @@ typedef struct my_aio_result {
 /* Extra length needed for filename if one calls my_create_backup_name */
 #define MY_BACKUP_NAME_EXTRA_LENGTH 17
 
+char *guess_malloc_library();
+
 /* If we have our own safemalloc (for debugging) */
 #if defined(SAFEMALLOC)
 void sf_report_leaked_memory(my_thread_id id);
+int sf_sanity();
 extern my_thread_id (*sf_malloc_dbug_id)(void);
 #define SAFEMALLOC_REPORT_MEMORY(X) sf_report_leaked_memory(X)
 #else
@@ -548,12 +551,13 @@ static inline int my_b_get(IO_CACHE *info)
   return _my_b_get(info);
 }
 
-/* my_b_write_byte dosn't have any err-check */
-static inline void my_b_write_byte(IO_CACHE *info, uchar chr)
+static inline my_bool my_b_write_byte(IO_CACHE *info, uchar chr)
 {
   if (info->write_pos >= info->write_end)
-    my_b_flush_io_cache(info, 1);
+    if (my_b_flush_io_cache(info, 1))
+      return 1;
   *info->write_pos++= chr;
+  return 0;
 }
 
 /**
@@ -821,9 +825,9 @@ extern int end_io_cache(IO_CACHE *info);
 extern void my_b_seek(IO_CACHE *info,my_off_t pos);
 extern size_t my_b_gets(IO_CACHE *info, char *to, size_t max_length);
 extern my_off_t my_b_filelength(IO_CACHE *info);
-extern size_t my_b_write_backtick_quote(IO_CACHE *info, const char *str,
-                                        size_t len);
-extern size_t my_b_printf(IO_CACHE *info, const char* fmt, ...);
+extern my_bool my_b_write_backtick_quote(IO_CACHE *info, const char *str,
+                                         size_t len);
+extern my_bool my_b_printf(IO_CACHE *info, const char* fmt, ...);
 extern size_t my_b_vprintf(IO_CACHE *info, const char* fmt, va_list ap);
 extern my_bool open_cached_file(IO_CACHE *cache,const char *dir,
 				 const char *prefix, size_t cache_size,
@@ -889,8 +893,9 @@ extern void my_free_lock(void *ptr);
 #define alloc_root_inited(A) ((A)->min_malloc != 0)
 #define ALLOC_ROOT_MIN_BLOCK_SIZE (MALLOC_OVERHEAD + sizeof(USED_MEM) + 8)
 #define clear_alloc_root(A) do { (A)->free= (A)->used= (A)->pre_alloc= 0; (A)->min_malloc=0;} while(0)
-extern void init_alloc_root(MEM_ROOT *mem_root, size_t block_size,
-			    size_t pre_alloc_size, myf my_flags);
+extern void init_alloc_root(MEM_ROOT *mem_root, const char *name,
+                            size_t block_size, size_t pre_alloc_size,
+                            myf my_flags);
 extern void *alloc_root(MEM_ROOT *mem_root, size_t Size);
 extern void *multi_alloc_root(MEM_ROOT *mem_root, ...);
 extern void free_root(MEM_ROOT *root, myf MyFLAGS);
@@ -1042,9 +1047,9 @@ extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length);
 
-extern void thd_increment_bytes_sent(void *thd, ulong length);
-extern void thd_increment_bytes_received(void *thd, ulong length);
-extern void thd_increment_net_big_packet_count(void *thd, ulong length);
+extern void thd_increment_bytes_sent(void *thd, size_t length);
+extern void thd_increment_bytes_received(void *thd, size_t length);
+extern void thd_increment_net_big_packet_count(void *thd, size_t length);
 
 #ifdef __WIN__
 extern my_bool have_tcpip;		/* Is set if tcpip is used */

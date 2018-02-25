@@ -2635,7 +2635,7 @@ SELECT t1.*, t2.* FROM t1 JOIN t2 ON t1.i1 = t2.i2
 LEFT JOIN t3 ON t2.i2 = t3.i3
 ORDER BY t1.i1 LIMIT 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t3	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
+1	SIMPLE	t3	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	5	100.00	Using index
 1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.i1	1	100.00	Using index
 Warnings:
@@ -2948,6 +2948,52 @@ ORDER BY NULL, @a0 := 3, @a1 := 3, @a2 := 3, @a3 := 3, @a4 := 3,
 1
 1
 2
+#
+# mdev-6706: semi-join with duplicate weedout + ORDER BY
+#
+CREATE TABLE t1 (f1 VARCHAR(3)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo');
+CREATE TABLE t2 (f2 VARCHAR(3)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('bar'),('baz');
+CREATE TABLE t3
+(i3_key INT, f3_key VARCHAR(3), f3 VARCHAR(3), KEY(f3_key,i3_key))
+ENGINE=MyISAM;
+INSERT INTO t3 VALUES (0,'qux','qux'),(8,'bar','bar');
+SELECT CONCAT( f1, f2 ) AS field FROM t1, t2
+WHERE f1 = ANY ( SELECT f1
+FROM t1
+LEFT JOIN ( t3 AS t3a, t3 AS t3b )
+ON ( t3b.f3_key = t3a.f3 )
+WHERE t3a.f3 < f1 OR t3b.f3 != f1 );
+field
+foobar
+foobaz
+SELECT CONCAT( f1, f2 ) AS field FROM t1, t2
+WHERE f1 = ANY ( SELECT f1
+FROM t1
+LEFT JOIN ( t3 AS t3a, t3 AS t3b )
+ON ( t3b.f3_key = t3a.f3 )
+WHERE t3a.f3 < f1 OR t3b.f3 != f1 )
+ORDER BY field;
+field
+foobar
+foobaz
+EXPLAIN EXTENDED SELECT CONCAT( f1, f2 ) AS field FROM t1, t2
+WHERE f1 = ANY ( SELECT f1
+FROM t1
+LEFT JOIN ( t3 AS t3a, t3 AS t3b )
+ON ( t3b.f3_key = t3a.f3 )
+WHERE t3a.f3 < f1 OR t3b.f3 != f1 )
+ORDER BY field;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	Using temporary; Using filesort
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t3a	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary
+1	PRIMARY	t3b	ref	f3_key	f3_key	6	test.t3a.f3	1	100.00	Using where; End temporary
+Warnings:
+Note	1003	select concat('foo',`test`.`t2`.`f2`) AS `field` from `test`.`t2` semi join ((`test`.`t3` `t3a` join `test`.`t3` `t3b`)) where `test`.`t3a`.`f3` < 'foo' or `test`.`t3b`.`f3` <> 'foo' order by concat('foo',`test`.`t2`.`f2`)
+DROP TABLE t1,t2,t3;
 End of 5.5 tests
 #
 # MDEV-5884: EXPLAIN UPDATE ... ORDER BY LIMIT shows wrong #rows
@@ -3159,3 +3205,51 @@ pk
 2
 3
 DROP TABLE t1;
+#
+# MDEV-13994: Bad join results with orderby_uses_equalities=on
+#
+CREATE TABLE books (
+id int(16) NOT NULL AUTO_INCREMENT,
+library_id int(16) NOT NULL DEFAULT 0,
+wings_id int(12) NOT NULL DEFAULT 0,
+scheduled_for_removal int(1) DEFAULT 0,
+PRIMARY KEY (id),
+KEY library_idx (library_id)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+INSERT INTO books VALUES (32625,8663,707,0),(32624,8663,505,1);
+CREATE TABLE wings (
+id int(11) NOT NULL AUTO_INCREMENT,
+department_id int(11) DEFAULT NULL,
+PRIMARY KEY (id)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+INSERT INTO wings VALUES (505,11745),(707,11768);
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='orderby_uses_equalities=off';
+SELECT wings.id as wing_id, wings.department_id FROM wings
+WHERE wings.id IN ( SELECT books.wings_id FROM books
+WHERE books.library_id = 8663 AND
+books.scheduled_for_removal=0 )
+ORDER BY wings.id;
+wing_id	department_id
+707	11768
+SET optimizer_switch='orderby_uses_equalities=on';
+SELECT wings.id as wing_id, wings.department_id FROM wings
+WHERE wings.id IN ( SELECT books.wings_id FROM books
+WHERE books.library_id = 8663 AND
+books.scheduled_for_removal=0 )
+ORDER BY wings.id;
+wing_id	department_id
+707	11768
+explain extended SELECT wings.id as wing_id, wings.department_id FROM wings
+WHERE wings.id IN ( SELECT books.wings_id FROM books
+WHERE books.library_id = 8663 AND
+books.scheduled_for_removal=0 )
+ORDER BY wings.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	1	100.00	Using temporary; Using filesort
+1	PRIMARY	wings	eq_ref	PRIMARY	PRIMARY	4	test.books.wings_id	1	100.00	
+2	MATERIALIZED	books	ref	library_idx	library_idx	4	const	1	100.00	Using where
+Warnings:
+Note	1003	select `test`.`wings`.`id` AS `wing_id`,`test`.`wings`.`department_id` AS `department_id` from `test`.`wings` semi join (`test`.`books`) where `test`.`books`.`library_id` = 8663 and `test`.`books`.`scheduled_for_removal` = 0 and `test`.`wings`.`id` = `test`.`books`.`wings_id` order by `test`.`wings`.`id`
+set optimizer_switch= @save_optimizer_switch;
+DROP TABLE books, wings;

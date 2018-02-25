@@ -204,7 +204,7 @@ static my_bool print_win_error_msg(DWORD error, my_bool verbose)
                     NULL))
   {
     if (verbose)
-      printf("Win32 error code %d: %s", error, s);
+      printf("Win32 error code %lu: %s", error, s);
     else
       puts(s);
     LocalFree(s);

@@ -26,12 +26,15 @@
 
 #define MALLOC_FLAG(A) ((A & 1) ? MY_THREAD_SPECIFIC : 0)
 
+#define TRASH_MEM(X) TRASH_FREE(((char*)(X) + ((X)->size-(X)->left)), (X)->left)
+
 /*
   Initialize memory root
 
   SYNOPSIS
     init_alloc_root()
       mem_root       - memory root to initialize
+      name           - name of memroot (for debugging)
       block_size     - size of chunks (blocks) used for memory allocation
                        (It is external size of chunk i.e. it should include
                         memory required for internal structures, thus it
@@ -51,13 +54,13 @@
     Because of this, we store in MY_THREAD_SPECIFIC as bit 1 in block_size
 */
 
-void init_alloc_root(MEM_ROOT *mem_root, size_t block_size,
+void init_alloc_root(MEM_ROOT *mem_root, const char *name, size_t block_size,
 		     size_t pre_alloc_size __attribute__((unused)),
                      myf my_flags)
 {
   DBUG_ENTER("init_alloc_root");
-  DBUG_PRINT("enter",("root: %p  prealloc: %zu", mem_root,
-                      pre_alloc_size));
+  DBUG_PRINT("enter",("root: %p  name: %s  prealloc: %zu", mem_root,
+                      name, pre_alloc_size));
 
   mem_root->free= mem_root->used= mem_root->pre_alloc= 0;
   mem_root->min_malloc= 32;
@@ -69,18 +72,20 @@ void init_alloc_root(MEM_ROOT *mem_root, size_t block_size,
   mem_root->block_num= 4;			/* We shift this with >>2 */
   mem_root->first_block_usage= 0;
   mem_root->total_alloc= 0;
+  mem_root->name= name;
 
 #if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
   if (pre_alloc_size)
   {
     if ((mem_root->free= mem_root->pre_alloc=
-	 (USED_MEM*) my_malloc(pre_alloc_size+ ALIGN_SIZE(sizeof(USED_MEM)),
-			       MYF(my_flags))))
+         (USED_MEM*) my_malloc(pre_alloc_size + ALIGN_SIZE(sizeof(USED_MEM)),
+                               MYF(my_flags))))
     {
       mem_root->free->size= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM));
       mem_root->total_alloc= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM));
       mem_root->free->left= pre_alloc_size;
       mem_root->free->next= 0;
+      TRASH_MEM(mem_root->free);
     }
   }
 #endif
@@ -152,6 +157,7 @@ void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
         mem->left= pre_alloc_size;
         mem->next= *prev;
         *prev= mem_root->pre_alloc= mem;
+        TRASH_MEM(mem);
       }
       else
       {
@@ -172,7 +178,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
 #if defined(HAVE_valgrind) && defined(EXTRA_DEBUG)
   reg1 USED_MEM *next;
   DBUG_ENTER("alloc_root");
-  DBUG_PRINT("enter",("root: %p", mem_root));
+  DBUG_PRINT("enter",("root: %p  name: %s", mem_root, mem_root->name));
 
   DBUG_ASSERT(alloc_root_inited(mem_root));
 
@@ -207,7 +213,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   reg1 USED_MEM *next= 0;
   reg2 USED_MEM **prev;
   DBUG_ENTER("alloc_root");
-  DBUG_PRINT("enter",("root: %p", mem_root));
+  DBUG_PRINT("enter",("root: %p  name: %s", mem_root, mem_root->name));
   DBUG_ASSERT(alloc_root_inited(mem_root));
 
   DBUG_EXECUTE_IF("simulate_out_of_memory",
@@ -255,6 +261,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     next->size= get_size;
     next->left= get_size-ALIGN_SIZE(sizeof(USED_MEM));
     *prev=next;
+    TRASH_MEM(next);
   }
 
   point= (uchar*) ((char*) next+ (next->size-next->left));
@@ -298,6 +305,10 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
   char **ptr, *start, *res;
   size_t tot_length, length;
   DBUG_ENTER("multi_alloc_root");
+  /*
+    We  don't need to do DBUG_PRINT here as it will be done when alloc_root
+    is called
+  */
 
   va_start(args, root);
   tot_length= 0;
@@ -323,9 +334,9 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
   DBUG_RETURN((void*) start);
 }
 
-#define TRASH_MEM(X) TRASH(((char*)(X) + ((X)->size-(X)->left)), (X)->left)
 
-/* Mark all data in blocks free for reusage */
+#if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
+/** Mark all data in blocks free for reusage */
 
 static inline void mark_blocks_free(MEM_ROOT* root)
 {
@@ -355,6 +366,7 @@ static inline void mark_blocks_free(MEM_ROOT* root)
   root->first_block_usage= 0;
   root->block_num= 4;
 }
+#endif
 
 
 /*
@@ -380,7 +392,8 @@ void free_root(MEM_ROOT *root, myf MyFlags)
 {
   reg1 USED_MEM *next,*old;
   DBUG_ENTER("free_root");
-  DBUG_PRINT("enter",("root: %p  flags: %u", root, (uint) MyFlags));
+  DBUG_PRINT("enter",("root: %p  name: %s  flags: %u", root, root->name,
+                      (uint) MyFlags));
 
 #if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
   /*

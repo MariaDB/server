@@ -861,9 +861,9 @@ _id
 8
 9
 DELETE FROM t1 WHERE _id < 8;
-SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Dynamic	2	#	#	#	#	140	#	#	#	#	#	#		
+SELECT table_name, engine, version, row_format, Table_rows, Data_free, create_options, table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' and TABLE_NAME='t1';
+table_name	engine	version	row_format	Table_rows	Data_free	create_options	table_comment
+t1	MyISAM	10	Dynamic	2	140		
 CHECK TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -873,9 +873,9 @@ test.t1	optimize	status	OK
 CHECK TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
-SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Dynamic	2	#	#	#	#	0	#	#	#	#	#	#		
+SELECT table_name, engine, version, row_format, Table_rows, Data_free, create_options, table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' and TABLE_NAME='t1';
+table_name	engine	version	row_format	Table_rows	Data_free	create_options	table_comment
+t1	MyISAM	10	Dynamic	2	0		
 SELECT _id FROM t1;
 _id
 8
@@ -920,9 +920,9 @@ _id
 8
 9
 DELETE FROM t1 WHERE _id < 8;
-SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Dynamic	2	#	#	#	#	140	#	#	#	#	#	#		
+SELECT table_name, engine, version, row_format, Table_rows, Data_free, create_options, table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' and TABLE_NAME='t1';
+table_name	engine	version	row_format	Table_rows	Data_free	create_options	table_comment
+t1	MyISAM	10	Dynamic	2	140		
 CHECK TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -932,9 +932,9 @@ test.t1	repair	status	OK
 CHECK TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
-SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Dynamic	2	#	#	#	#	140	#	#	#	#	#	#		
+SELECT table_name, engine, version, row_format, Table_rows, Data_free, create_options, table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' and TABLE_NAME='t1';
+table_name	engine	version	row_format	Table_rows	Data_free	create_options	table_comment
+t1	MyISAM	10	Dynamic	2	140		
 SELECT _id FROM t1;
 _id
 8
@@ -961,9 +961,9 @@ a
 3
 DROP TABLE t1;
 CREATE TABLE t1 (c1 TEXT) AVG_ROW_LENGTH=70100 MAX_ROWS=4100100100;
-SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Dynamic	X	X	X	72057594037927935	X	X	X	X	X	X	latin1_swedish_ci	X	max_rows=4100100100 avg_row_length=70100	
+SELECT table_name, engine, version, row_format, max_data_length, max_index_length, create_options, table_comment FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' and TABLE_NAME='t1';
+table_name	engine	version	row_format	max_data_length	max_index_length	create_options	table_comment
+t1	MyISAM	10	Dynamic	72057594037927935	17179868160	max_rows=4100100100 avg_row_length=70100	
 DROP TABLE t1;
 CREATE TABLE t1 (c1 TEXT NOT NULL, KEY c1 (c1(10))) ENGINE=MyISAM;
 INSERT INTO t1 VALUES
@@ -1845,28 +1845,28 @@ a
 DROP TABLE t1;
 CREATE TABLE t1 (c1 INT, c2 INT, UNIQUE INDEX (c1), INDEX (c2)) ENGINE=MYISAM;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Fixed	0	#	#	#	1024	#	#	#	#	#	#	#		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	0	#	#	#	1024	#	#	#	#	#	#	#			#	N
 INSERT INTO t1 VALUES (1,1);
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Fixed	1	#	#	#	3072	#	#	#	#	#	#	#		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	1	#	#	#	3072	#	#	#	#	#	#	#			#	N
 ALTER TABLE t1 DISABLE KEYS;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Fixed	1	#	#	#	3072	#	#	#	#	#	#	#		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	1	#	#	#	3072	#	#	#	#	#	#	#			#	N
 ALTER TABLE t1 ENABLE KEYS;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Fixed	1	#	#	#	3072	#	#	#	#	#	#	#		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	1	#	#	#	3072	#	#	#	#	#	#	#			#	N
 ALTER TABLE t1 DISABLE KEYS;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Fixed	1	#	#	#	3072	#	#	#	#	#	#	#		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	1	#	#	#	3072	#	#	#	#	#	#	#			#	N
 ALTER TABLE t1 ENABLE KEYS;
 SHOW TABLE STATUS LIKE 't1';
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Fixed	1	#	#	#	3072	#	#	#	#	#	#	#		
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	1	#	#	#	3072	#	#	#	#	#	#	#			#	N
 # Enable keys with parallel repair
 SET @@myisam_repair_threads=2;
 ALTER TABLE t1 DISABLE KEYS;

@@ -2,7 +2,6 @@ bin_PROGRAMS =
 
 NONEXISTENT_CXX_SOURCE = nonexistent.cpp
 
-if !PLATFORM_WIN32
 bin_PROGRAMS +=					\
 	groonga-suggest-create-dataset
 
@@ -11,8 +10,6 @@ bin_PROGRAMS +=					\
 	groonga-suggest-learner			\
 	groonga-suggest-httpd
 noinst_LTLIBRARIES = libutil.la
-endif
-
 endif
 
 EXTRA_DIST =					\

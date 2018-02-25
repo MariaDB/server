@@ -323,24 +323,11 @@ unsigned int my_aes_ctx_size(enum my_aes_mode)
   return MY_AES_CTX_SIZE;
 }
 
-#ifdef HAVE_YASSL
-#include <random.hpp>
-int my_random_bytes(uchar* buf, int num)
-{
-  TaoCrypt::RandomNumberGenerator rand;
-  rand.GenerateBlock((TaoCrypt::byte*) buf, num);
-  return MY_AES_OK;
-}
-#else
-
 int my_random_bytes(uchar *buf, int num)
 {
-  RAND_METHOD *rand = RAND_OpenSSL();
-  if (rand == NULL || rand->bytes(buf, num) != 1)
+  if (RAND_bytes(buf, num) != 1)
     return MY_AES_OPENSSL_ERROR;
   return MY_AES_OK;
 }
-#endif
 
 }
-

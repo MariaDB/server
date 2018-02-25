@@ -99,3 +99,19 @@ DROP TABLE t1;
 
 --let $binlog_file = LAST
 source include/show_binlog_events.inc;
+
+--echo #
+--echo #MDEV-14467 Item_param: replace {INT|DECIMAL|REAL|STRING|TIME}_VALUE with Type_handler
+--echo #
+
+FLUSH LOGS;
+CREATE TABLE t1 (a INT);
+EXECUTE IMMEDIATE 'INSERT INTO t1 SELECT 1 LIMIT ?' USING 10;
+EXECUTE IMMEDIATE 'INSERT INTO t1 SELECT 1 LIMIT ?' USING 10.1;
+EXECUTE IMMEDIATE 'INSERT INTO t1 SELECT 1 LIMIT ?' USING 10.1e0;
+EXECUTE IMMEDIATE 'INSERT INTO t1 SELECT 1 LIMIT ?' USING '10';
+EXECUTE IMMEDIATE 'INSERT INTO t1 SELECT 1 LIMIT ?' USING TIME'10:10:10';
+DROP TABLE t1;
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;

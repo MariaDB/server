@@ -514,7 +514,7 @@ ha_tina::ha_tina(handlerton *hton, TABLE_SHARE *table_arg)
   buffer.set((char*)byte_buffer, IO_SIZE, &my_charset_bin);
   chain= chain_buffer;
   file_buff= new Transparent_file();
-  init_alloc_root(&blobroot, BLOB_MEMROOT_ALLOC_SIZE, 0, MYF(0));
+  init_alloc_root(&blobroot, "ha_tina", BLOB_MEMROOT_ALLOC_SIZE, 0, MYF(0));
 }
 
 
@@ -976,7 +976,7 @@ int ha_tina::open(const char *name, int mode, uint open_options)
   */
   thr_lock_data_init(&share->lock, &lock, (void*) this);
   ref_length= sizeof(my_off_t);
-  init_alloc_root(&blobroot, BLOB_MEMROOT_ALLOC_SIZE, 0, MYF(0));
+  init_alloc_root(&blobroot, "ha_tina", BLOB_MEMROOT_ALLOC_SIZE, 0, MYF(0));
 
   share->lock.get_status= tina_get_status;
   share->lock.update_status= tina_update_status;

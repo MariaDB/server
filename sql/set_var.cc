@@ -324,14 +324,14 @@ do {                                                \
       sval.length= sval.str ? strlen(sval.str) : 0; \
       break;                                        \
     case SHOW_LEX_STRING:                           \
-      sval= *(LEX_STRING *) value;                  \
+      sval= *(LEX_CSTRING *) value;                  \
       break
 
 longlong sys_var::val_int(bool *is_null,
                           THD *thd, enum_var_type type,
                           const LEX_CSTRING *base)
 {
-  LEX_STRING sval;
+  LEX_CSTRING sval;
   AutoWLock lock(&PLock_global_system_variables);
   const uchar *value= value_ptr(thd, type, base);
   *is_null= false;
@@ -357,13 +357,13 @@ longlong sys_var::val_int(bool *is_null,
 
 String *sys_var::val_str_nolock(String *str, THD *thd, const uchar *value)
 {
-  static LEX_STRING bools[]=
+  static LEX_CSTRING bools[]=
   {
-    { C_STRING_WITH_LEN("OFF") },
-    { C_STRING_WITH_LEN("ON") }
+    { STRING_WITH_LEN("OFF") },
+    { STRING_WITH_LEN("ON") }
   };
 
-  LEX_STRING sval;
+  LEX_CSTRING sval;
   switch (show_type())
   {
     case_get_string_as_lex_string;
@@ -395,7 +395,7 @@ String *sys_var::val_str(String *str,
 double sys_var::val_real(bool *is_null,
                          THD *thd, enum_var_type type, const LEX_CSTRING *base)
 {
-  LEX_STRING sval;
+  LEX_CSTRING sval;
   AutoWLock lock(&PLock_global_system_variables);
   const uchar *value= value_ptr(thd, type, base);
   *is_null= false;
@@ -597,10 +597,10 @@ int mysql_del_sys_var_chain(sys_var *first)
 {
   int result= 0;
 
-  mysql_rwlock_wrlock(&LOCK_system_variables_hash);
+  mysql_prlock_wrlock(&LOCK_system_variables_hash);
   for (sys_var *var= first; var; var= var->next)
     result|= my_hash_delete(&system_variable_hash, (uchar*) var);
-  mysql_rwlock_unlock(&LOCK_system_variables_hash);
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
 
   return result;
 }
@@ -673,7 +673,7 @@ SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type scope)
     0           Unknown variable (error message is given)
 */
 
-sys_var *intern_find_sys_var(const char *str, uint length)
+sys_var *intern_find_sys_var(const char *str, size_t length)
 {
   sys_var *var;
 
@@ -853,7 +853,7 @@ set_var::set_var(THD *thd, enum_var_type type_arg, sys_var *var_arg,
     // names are utf8
     if (!(value= new (thd->mem_root) Item_string_sys(thd,
                                                      item->field_name.str,
-                                                     item->field_name.length)))
+                                                     (uint)item->field_name.length)))
       value=value_arg;                        /* Give error message later */
   }
   else
@@ -1082,7 +1082,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
 
   cond= make_cond_for_info_schema(thd, cond, tables);
   thd->count_cuted_fields= CHECK_FIELD_WARN;
-  mysql_rwlock_rdlock(&LOCK_system_variables_hash);
+  mysql_prlock_rdlock(&LOCK_system_variables_hash);
 
   for (uint i= 0; i < system_variable_hash.records; i++)
   {
@@ -1245,7 +1245,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
   }
   res= 0;
 end:
-  mysql_rwlock_unlock(&LOCK_system_variables_hash);
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
   thd->count_cuted_fields= save_count_cuted_fields;
   return res;
 }
@@ -1323,7 +1323,7 @@ resolve_engine_list_item(THD *thd, plugin_ref *list, uint32 *idx,
 {
   LEX_CSTRING item_str;
   plugin_ref ref;
-  uint32_t i;
+  uint32 i;
   THD *thd_or_null = (temp_copy ? thd : NULL);
 
   item_str.str= pos;

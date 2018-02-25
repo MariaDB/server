@@ -22,7 +22,6 @@
 #ifndef _m_string_h
 #define _m_string_h
 
-#include "my_global.h"                          /* HAVE_* */
 #include "my_decimal_limits.h"
 
 #ifndef __USE_GNU
@@ -64,15 +63,6 @@
 #if defined(__cplusplus)
 extern "C" {
 #endif
-
-/*
-  my_str_malloc(), my_str_realloc() and my_str_free() are assigned to
-  implementations in strings/alloc.c, but can be overridden in
-  the calling program.
- */
-extern void *(*my_str_malloc)(size_t);
-extern void *(*my_str_realloc)(void *, size_t);
-extern void (*my_str_free)(void *);
 
 #ifdef DBUG_OFF
 #if defined(HAVE_STPCPY) && MY_GNUC_PREREQ(3, 4) && !defined(__INTEL_COMPILER)
@@ -211,6 +201,7 @@ extern ulonglong strtoull(const char *str, char **ptr, int base);
 #define STRING_WITH_LEN(X) (X), ((size_t) (sizeof(X) - 1))
 #define USTRING_WITH_LEN(X) ((uchar*) X), ((size_t) (sizeof(X) - 1))
 #define C_STRING_WITH_LEN(X) ((char *) (X)), ((size_t) (sizeof(X) - 1))
+#define LEX_STRING_WITH_LEN(X) (X).str, (X).length
 
 typedef struct st_mysql_const_lex_string LEX_CSTRING;
 

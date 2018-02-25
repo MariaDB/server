@@ -54,10 +54,10 @@ struct sql_digest_storage
     reset(NULL, 0);
   }
 
-  inline void reset(unsigned char *token_array, uint length)
+  inline void reset(unsigned char *token_array, size_t length)
   {
     m_token_array= token_array;
-    m_token_array_length= length;
+    m_token_array_length= (uint)length;
     reset();
   }
 

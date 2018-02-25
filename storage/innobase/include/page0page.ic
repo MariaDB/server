@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -192,13 +192,11 @@ page_header_get_offs(
 	const page_t*	page,	/*!< in: page */
 	ulint		field)	/*!< in: PAGE_FREE, ... */
 {
-	ulint	offs;
-
 	ut_ad((field == PAGE_FREE)
 	      || (field == PAGE_LAST_INSERT)
 	      || (field == PAGE_HEAP_TOP));
 
-	offs = page_header_get_field(page, field);
+	uint16_t offs = page_header_get_field(page, field);
 
 	ut_ad((field != PAGE_HEAP_TOP) || offs);
 
@@ -275,31 +273,6 @@ page_rec_get_heap_no(
 	} else {
 		return(rec_get_heap_no_old(rec));
 	}
-}
-
-/** Determine whether a page is an index root page.
-@param[in]	page	page frame
-@return true if the page is a root page of an index */
-UNIV_INLINE
-bool
-page_is_root(
-	const page_t*	page)
-{
-#if FIL_PAGE_PREV % 8
-# error FIL_PAGE_PREV must be 64-bit aligned
-#endif
-#if FIL_PAGE_NEXT != FIL_PAGE_PREV + 4
-# error FIL_PAGE_NEXT must be adjacent to FIL_PAGE_PREV
-#endif
-#if FIL_NULL != 0xffffffff
-# error FIL_NULL != 0xffffffff
-#endif
-	/* Check that this is an index page and both the PREV and NEXT
-	pointers are FIL_NULL, because the root page does not have any
-	siblings. */
-	return(fil_page_index_page_check(page)
-	       && *reinterpret_cast<const ib_uint64_t*>(page + FIL_PAGE_PREV)
-	       == IB_UINT64_MAX);
 }
 
 /** Determine whether an index page record is a user record.
@@ -1116,7 +1089,7 @@ page_get_instant(const page_t* page)
 		ut_ad(i <= PAGE_NO_DIRECTION || !page_is_comp(page));
 		break;
 	case FIL_PAGE_RTREE:
-		ut_ad(i == PAGE_NO_DIRECTION || i == 0);
+		ut_ad(i <= PAGE_NO_DIRECTION);
 		break;
 	default:
 		ut_ad(!"invalid page type");

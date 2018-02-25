@@ -31,7 +31,6 @@ Created 5/7/1996 Heikki Tuuri
 #define lock_t ib_lock_t
 
 struct lock_t;
-struct lock_sys_t;
 struct lock_table_t;
 
 /* Basic lock modes */

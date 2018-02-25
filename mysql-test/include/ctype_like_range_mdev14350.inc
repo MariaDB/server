@@ -1,0 +1,14 @@
+--echo #
+--echo # MDEV-14350 Index use with collation utf8mb4_unicode_nopad_ci on LIKE pattern with wrong results
+--echo #
+
+CREATE OR REPLACE TABLE t1 AS SELECT SPACE(50) AS a, SPACE (50) AS b;
+ALTER TABLE t1 ADD KEY(a), ADD KEY(b);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ('111', '111');
+INSERT INTO t1 VALUES ('222', '222');
+INSERT INTO t1 VALUES ('333', '333');
+INSERT INTO t1 VALUES ('444', '444');
+SELECT * FROM t1 WHERE a LIKE '111%';
+SELECT * FROM t1 IGNORE INDEX (a) WHERE a LIKE '111%';
+DROP TABLE t1;

@@ -35,6 +35,7 @@
 #include "sql_priv.h"
 #include "sql_class.h"                          // set_var.h: THD
 #include "sys_vars.ic"
+#include "my_sys.h"
 
 #include "events.h"
 #include <thr_alarm.h>
@@ -61,6 +62,8 @@
 #include "sql_repl.h"
 #include "opt_range.h"
 #include "rpl_parallel.h"
+#include "semisync_master.h"
+#include "semisync_slave.h"
 #include <ssl_compat.h>
 
 /*
@@ -387,6 +390,22 @@ static Sys_var_charptr Sys_my_bind_addr(
        READ_ONLY GLOBAL_VAR(my_bind_addr_str), CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(0));
 
+const char *Sys_var_vers_asof::asof_keywords[]= {"DEFAULT", NULL};
+static Sys_var_vers_asof Sys_vers_asof_timestamp(
+       "system_versioning_asof", "Default value for the FOR SYSTEM_TIME AS OF clause",
+       SESSION_VAR(vers_asof_timestamp.type), NO_CMD_LINE,
+       Sys_var_vers_asof::asof_keywords, DEFAULT(SYSTEM_TIME_UNSPECIFIED));
+
+static const char *vers_alter_history_keywords[]= {"ERROR", "KEEP",/* "SURVIVE", "DROP",*/ NULL};
+static Sys_var_enum Sys_vers_alter_history(
+       "system_versioning_alter_history", "Versioning ALTER TABLE mode. "
+       "ERROR: Fail ALTER with error; " /* TODO: fail only when history non-empty */
+       "KEEP: Keep historical system rows and subject them to ALTER; "
+       /*"SURVIVE: Keep historical system rows intact; "
+       "DROP: Drop historical system rows while processing ALTER"*/,
+       SESSION_VAR(vers_alter_history), CMD_LINE(REQUIRED_ARG),
+       vers_alter_history_keywords, DEFAULT(VERS_ALTER_HISTORY_ERROR));
+
 static Sys_var_ulonglong Sys_binlog_cache_size(
        "binlog_cache_size", "The size of the transactional cache for "
        "updates to transactional engines for the binary log. "
@@ -573,8 +592,7 @@ static Sys_var_mybool Sys_explicit_defaults_for_timestamp(
        "explicit_defaults_for_timestamp",
        "This option causes CREATE TABLE to create all TIMESTAMP columns "
        "as NULL with DEFAULT NULL attribute, Without this option, "
-       "TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses. "
-       "The old behavior is deprecated.",
+       "TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses.",
        READ_ONLY GLOBAL_VAR(opt_explicit_defaults_for_timestamp),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
@@ -2455,7 +2473,7 @@ export const char *optimizer_switch_names[]=
   "exists_to_in",
   "orderby_uses_equalities",
   "condition_pushdown_for_derived",
-  "split_grouping_derived",
+  "split_materialized",
   "default", 
   NullS
 };
@@ -2795,7 +2813,7 @@ static Sys_var_enum Sys_thread_handling(
 #ifdef HAVE_QUERY_CACHE
 static bool fix_query_cache_size(sys_var *self, THD *thd, enum_var_type type)
 {
-  ulong new_cache_size= query_cache.resize((ulong)query_cache_size);
+  size_t new_cache_size= query_cache.resize((size_t)query_cache_size);
   /*
      Note: query_cache_size is a global variable reflecting the
      requested cache size. See also query_cache_size_arg
@@ -2803,7 +2821,7 @@ static bool fix_query_cache_size(sys_var *self, THD *thd, enum_var_type type)
   if (query_cache_size != new_cache_size)
     push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_QC_RESIZE, ER_THD(thd, ER_WARN_QC_RESIZE),
-                        query_cache_size, new_cache_size);
+                        query_cache_size, (ulong)new_cache_size);
 
   query_cache_size= new_cache_size;
 
@@ -2834,7 +2852,7 @@ static Sys_var_ulong Sys_query_cache_limit(
 static bool fix_qcache_min_res_unit(sys_var *self, THD *thd, enum_var_type type)
 {
   query_cache_min_res_unit=
-    query_cache.set_min_res_unit(query_cache_min_res_unit);
+    (ulong)query_cache.set_min_res_unit(query_cache_min_res_unit);
   return false;
 }
 static Sys_var_ulong Sys_query_cache_min_res_unit(
@@ -3040,8 +3058,174 @@ static Sys_var_replicate_events_marked_for_skip Replicate_events_marked_for_skip
    "the slave).",
    GLOBAL_VAR(opt_replicate_events_marked_for_skip), CMD_LINE(REQUIRED_ARG),
    replicate_events_marked_for_skip_names, DEFAULT(RPL_SKIP_REPLICATE));
-#endif
 
+/* new options for semisync */
+
+static bool fix_rpl_semi_sync_master_enabled(sys_var *self, THD *thd,
+                                             enum_var_type type)
+{
+  if (rpl_semi_sync_master_enabled)
+  {
+    if (repl_semisync_master.enable_master() != 0)
+      rpl_semi_sync_master_enabled= false;
+    else if (ack_receiver.start())
+    {
+      repl_semisync_master.disable_master();
+      rpl_semi_sync_master_enabled= false;
+    }
+  }
+  else
+  {
+    if (repl_semisync_master.disable_master() != 0)
+      rpl_semi_sync_master_enabled= true;
+    if (!rpl_semi_sync_master_enabled)
+      ack_receiver.stop();
+  }
+  return false;
+}
+
+static bool fix_rpl_semi_sync_master_timeout(sys_var *self, THD *thd,
+                                             enum_var_type type)
+{
+  repl_semisync_master.set_wait_timeout(rpl_semi_sync_master_timeout);
+  return false;
+}
+
+static bool fix_rpl_semi_sync_master_trace_level(sys_var *self, THD *thd,
+                                                 enum_var_type type)
+{
+  repl_semisync_master.set_trace_level(rpl_semi_sync_master_trace_level);
+  ack_receiver.set_trace_level(rpl_semi_sync_master_trace_level);
+  return false;
+}
+
+static bool fix_rpl_semi_sync_master_wait_point(sys_var *self, THD *thd,
+                                                enum_var_type type)
+{
+  repl_semisync_master.set_wait_point(rpl_semi_sync_master_wait_point);
+  return false;
+}
+
+static bool fix_rpl_semi_sync_master_wait_no_slave(sys_var *self, THD *thd,
+                                                   enum_var_type type)
+{
+  repl_semisync_master.check_and_switch();
+  return false;
+}
+
+static Sys_var_mybool Sys_semisync_master_enabled(
+       "rpl_semi_sync_master_enabled",
+       "Enable semi-synchronous replication master (disabled by default).",
+       GLOBAL_VAR(rpl_semi_sync_master_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_master_enabled));
+
+static Sys_var_ulong Sys_semisync_master_timeout(
+       "rpl_semi_sync_master_timeout",
+       "The timeout value (in ms) for semi-synchronous replication in the "
+       "master",
+       GLOBAL_VAR(rpl_semi_sync_master_timeout),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,~0L),DEFAULT(10000),BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_master_timeout));
+
+static Sys_var_mybool Sys_semisync_master_wait_no_slave(
+       "rpl_semi_sync_master_wait_no_slave",
+       "Wait until timeout when no semi-synchronous replication slave "
+       "available (enabled by default).",
+       GLOBAL_VAR(rpl_semi_sync_master_wait_no_slave),
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_master_wait_no_slave));
+
+static Sys_var_ulong Sys_semisync_master_trace_level(
+       "rpl_semi_sync_master_trace_level",
+       "The tracing level for semi-sync replication.",
+       GLOBAL_VAR(rpl_semi_sync_master_trace_level),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,~0L),DEFAULT(32),BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_master_trace_level));
+
+static const char *repl_semisync_wait_point[]=
+{"AFTER_SYNC", "AFTER_COMMIT", NullS};
+
+static Sys_var_enum Sys_semisync_master_wait_point(
+       "rpl_semi_sync_master_wait_point",
+       "Should transaction wait for semi-sync ack after having synced binlog, "
+       "or after having committed in storage engine.",
+       GLOBAL_VAR(rpl_semi_sync_master_wait_point), CMD_LINE(REQUIRED_ARG),
+       repl_semisync_wait_point, DEFAULT(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_master_wait_point));
+
+static bool fix_rpl_semi_sync_slave_enabled(sys_var *self, THD *thd,
+                                            enum_var_type type)
+{
+  repl_semisync_slave.set_slave_enabled(rpl_semi_sync_slave_enabled != 0);
+  return false;
+}
+
+static bool fix_rpl_semi_sync_slave_trace_level(sys_var *self, THD *thd,
+                                                enum_var_type type)
+{
+  repl_semisync_slave.set_trace_level(rpl_semi_sync_slave_trace_level);
+  return false;
+}
+
+static bool fix_rpl_semi_sync_slave_delay_master(sys_var *self, THD *thd,
+                                                 enum_var_type type)
+{
+  repl_semisync_slave.set_delay_master(rpl_semi_sync_slave_delay_master);
+  return false;
+}
+
+static bool fix_rpl_semi_sync_slave_kill_conn_timeout(sys_var *self, THD *thd,
+                                                      enum_var_type type)
+{
+  repl_semisync_slave.
+    set_kill_conn_timeout(rpl_semi_sync_slave_kill_conn_timeout);
+  return false;
+}
+
+static Sys_var_mybool Sys_semisync_slave_enabled(
+       "rpl_semi_sync_slave_enabled",
+       "Enable semi-synchronous replication slave (disabled by default).",
+       GLOBAL_VAR(rpl_semi_sync_slave_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_slave_enabled));
+
+static Sys_var_ulong Sys_semisync_slave_trace_level(
+       "rpl_semi_sync_slave_trace_level",
+       "The tracing level for semi-sync replication.",
+       GLOBAL_VAR(rpl_semi_sync_slave_trace_level),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,~0L),DEFAULT(32),BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_slave_trace_level));
+
+static Sys_var_mybool Sys_semisync_slave_delay_master(
+       "rpl_semi_sync_slave_delay_master",
+       "Only write master info file when ack is needed.",
+       GLOBAL_VAR(rpl_semi_sync_slave_delay_master),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_slave_delay_master));
+
+static Sys_var_uint  Sys_semisync_slave_kill_conn_timeout(
+       "rpl_semi_sync_slave_kill_conn_timeout",
+       "Timeout for the mysql connection used to kill the slave io_thread's "
+       "connection on master. This timeout comes into play when stop slave "
+       "is executed.",
+       GLOBAL_VAR(rpl_semi_sync_slave_kill_conn_timeout),
+       CMD_LINE(OPT_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(5), BLOCK_SIZE(1),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(fix_rpl_semi_sync_slave_kill_conn_timeout));
+#endif /* HAVE_REPLICATION */
 
 static Sys_var_ulong Sys_slow_launch_time(
        "slow_launch_time",
@@ -3076,7 +3260,8 @@ export sql_mode_t expand_sql_mode(sql_mode_t sql_mode)
     sql_mode|= (MODE_PIPES_AS_CONCAT | MODE_ANSI_QUOTES |
                 MODE_IGNORE_SPACE |
                 MODE_NO_KEY_OPTIONS | MODE_NO_TABLE_OPTIONS |
-                MODE_NO_FIELD_OPTIONS | MODE_NO_AUTO_CREATE_USER);
+                MODE_NO_FIELD_OPTIONS | MODE_NO_AUTO_CREATE_USER |
+                MODE_SIMULTANEOUS_ASSIGNMENT);
   if (sql_mode & MODE_MSSQL)
     sql_mode|= (MODE_PIPES_AS_CONCAT | MODE_ANSI_QUOTES |
                 MODE_IGNORE_SPACE |
@@ -3145,7 +3330,7 @@ static const char *sql_mode_names[]=
   "STRICT_ALL_TABLES", "NO_ZERO_IN_DATE", "NO_ZERO_DATE",
   "ALLOW_INVALID_DATES", "ERROR_FOR_DIVISION_BY_ZERO", "TRADITIONAL",
   "NO_AUTO_CREATE_USER", "HIGH_NOT_PRECEDENCE", "NO_ENGINE_SUBSTITUTION",
-  "PAD_CHAR_TO_FULL_LENGTH", "EMPTY_STRING_IS_NULL",
+  "PAD_CHAR_TO_FULL_LENGTH", "EMPTY_STRING_IS_NULL", "SIMULTANEOUS_ASSIGNMENT",
   0
 };
 
@@ -3572,27 +3757,6 @@ static Sys_var_charptr Sys_version_source_revision(
        CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(SOURCE_REVISION));
 
-static char *guess_malloc_library()
-{
-  if (strcmp(MALLOC_LIBRARY, "system") == 0)
-  {
-#ifdef HAVE_DLOPEN
-    typedef int (*mallctl_type)(const char*, void*, size_t*, void*, size_t);
-    mallctl_type mallctl_func;
-    mallctl_func= (mallctl_type)dlsym(RTLD_DEFAULT, "mallctl");
-    if (mallctl_func)
-    {
-      static char buf[128];
-      char *ver;
-      size_t len = sizeof(ver);
-      mallctl_func("version", &ver, &len, NULL, 0);
-      strxnmov(buf, sizeof(buf)-1, "jemalloc ", ver, NULL);
-      return buf;
-    }
-#endif
-  }
-  return const_cast<char*>(MALLOC_LIBRARY);
-}
 static char *malloc_library;
 static Sys_var_charptr Sys_malloc_library(
        "version_malloc_library", "Version of the used malloc library",
@@ -4472,14 +4636,13 @@ static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type)
     oldval=    logger.get_log_file_handler()->is_open();
     log_type=  QUERY_LOG_GENERAL;
   }
-  else if (self == &Sys_slow_query_log)
+  else
   {
+    DBUG_ASSERT(self == &Sys_slow_query_log);
     newvalptr= &global_system_variables.sql_log_slow;
     oldval=    logger.get_slow_log_file_handler()->is_open();
     log_type=  QUERY_LOG_SLOW;
   }
-  else
-    DBUG_ASSERT(FALSE);
 
   newval= *newvalptr;
   if (oldval == newval)
@@ -4873,6 +5036,14 @@ static Sys_var_ulonglong Sys_read_binlog_speed_limit(
        GLOBAL_VAR(opt_read_binlog_speed_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, ULONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
 
+static Sys_var_charptr Sys_slave_transaction_retry_errors(
+       "slave_transaction_retry_errors", "Tells the slave thread to retry "
+       "transaction for replication when a query event returns an error from "
+       "the provided list. Deadlock and elapsed lock wait timeout errors are "
+       "automatically added to this list",
+       READ_ONLY GLOBAL_VAR(opt_slave_transaction_retry_errors), CMD_LINE(REQUIRED_ARG),
+       IN_SYSTEM_CHARSET, DEFAULT(0));
+
 static Sys_var_ulonglong Sys_relay_log_space_limit(
        "relay_log_space_limit", "Maximum space to use for all relay logs",
        READ_ONLY GLOBAL_VAR(relay_log_space_limit), CMD_LINE(REQUIRED_ARG),
@@ -4907,10 +5078,19 @@ static Sys_var_uint Sys_sync_masterinfo_period(
 #ifdef HAVE_REPLICATION
 static Sys_var_ulong Sys_slave_trans_retries(
        "slave_transaction_retries", "Number of times the slave SQL "
-       "thread will retry a transaction in case it failed with a deadlock "
-       "or elapsed lock wait timeout, before giving up and stopping",
+       "thread will retry a transaction in case it failed with a deadlock, "
+       "elapsed lock wait timeout or listed in "
+       "slave_transaction_retry_errors, before giving up and stopping",
        GLOBAL_VAR(slave_trans_retries), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(10), BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_slave_trans_retry_interval(
+       "slave_transaction_retry_interval", "Interval of the slave SQL "
+       "thread will retry a transaction in case it failed with a deadlock "
+       "or elapsed lock wait timeout or listed in "
+       "slave_transaction_retry_errors",
+       GLOBAL_VAR(slave_trans_retry_interval), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 3600), DEFAULT(0), BLOCK_SIZE(1));
 #endif
 
 static bool check_locale(sys_var *self, THD *thd, set_var *var)
@@ -5147,7 +5327,8 @@ static Sys_var_mybool Sys_wsrep_on (
        "wsrep_on", "To enable wsrep replication ",
        SESSION_VAR(wsrep_on), 
        CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_on_check),
        ON_UPDATE(wsrep_on_update));
 
 static Sys_var_charptr Sys_wsrep_start_position (
@@ -5366,7 +5547,9 @@ static Sys_var_enum Sys_plugin_maturity(
        "The lowest desirable plugin maturity. "
        "Plugins less mature than that will not be installed or loaded",
        READ_ONLY GLOBAL_VAR(plugin_maturity), CMD_LINE(REQUIRED_ARG),
-       plugin_maturity_names, DEFAULT(MariaDB_PLUGIN_MATURITY_UNKNOWN));
+       plugin_maturity_names,
+       DEFAULT(SERVER_MATURITY_LEVEL > 0 ?
+               SERVER_MATURITY_LEVEL - 1 : SERVER_MATURITY_LEVEL));
 
 static Sys_var_ulong Sys_deadlock_search_depth_short(
        "deadlock_search_depth_short",
@@ -5831,10 +6014,11 @@ static Sys_var_mybool Sys_session_track_state_change(
 
 #endif //EMBEDDED_LIBRARY
 
-static Sys_var_ulong Sys_in_subquery_conversion_threshold(
-       "in_subquery_conversion_threshold",
+#ifndef DBUG_OFF
+static Sys_var_uint Sys_in_subquery_conversion_threshold(
+       "in_predicate_conversion_threshold",
        "The minimum number of scalar elements in the value list of "
        "IN predicate that triggers its conversion to IN subquery",
        SESSION_VAR(in_subquery_conversion_threshold), CMD_LINE(OPT_ARG),
-       VALID_RANGE(0, ULONG_MAX), DEFAULT(1000), BLOCK_SIZE(1));
-
+       VALID_RANGE(0, UINT_MAX), DEFAULT(IN_SUBQUERY_CONVERSION_THRESHOLD), BLOCK_SIZE(1));
+#endif

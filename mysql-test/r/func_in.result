@@ -896,3 +896,16 @@ EXECUTE stmt;
 a	b
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
+#
+# MDEV-15340 Wrong result HOUR(case_expression_with_time_and_datetime)
+#
+SELECT
+TIME'00:00:00'='' AS c1_true,
+TIME'00:00:00' IN ('', TIME'10:20:30') AS c2_true,
+TIME'00:00:00' NOT IN ('', TIME'10:20:30') AS c3_false;
+c1_true	c2_true	c3_false
+1	1	0
+Warnings:
+Warning	1292	Truncated incorrect time value: ''
+Warning	1292	Truncated incorrect time value: ''
+Warning	1292	Truncated incorrect time value: ''

@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -814,7 +814,8 @@ os_file_get_block_size(
 #ifdef _WIN32
 
 	fblock_size = 0;
-
+	BOOL result = false;
+	size_t len = 0;
 	// Open volume for this file, find out it "physical bytes per sector"
 
 	HANDLE volume_handle = INVALID_HANDLE_VALUE;
@@ -825,7 +826,7 @@ os_file_get_block_size(
 		goto end;
 	}
 
-	size_t len = strlen(volume);
+	len = strlen(volume);
 	if (volume[len - 1] == '\\') {
 		// Trim trailing backslash from volume name.
 		volume[len - 1] = 0;
@@ -849,7 +850,7 @@ os_file_get_block_size(
 	storage_query.PropertyId = StorageAccessAlignmentProperty;
 	storage_query.QueryType  = PropertyStandardQuery;
 
-	BOOL result = os_win32_device_io_control(volume_handle,
+	result = os_win32_device_io_control(volume_handle,
 		IOCTL_STORAGE_QUERY_PROPERTY,
 		&storage_query,
 		sizeof(storage_query),
@@ -1305,11 +1306,8 @@ os_file_make_new_pathname(
 	new_path = static_cast<char*>(ut_malloc_nokey(new_path_len));
 	memcpy(new_path, old_path, dir_len);
 
-	ut_snprintf(new_path + dir_len,
-		    new_path_len - dir_len,
-		    "%c%s.ibd",
-		    OS_PATH_SEPARATOR,
-		    base_name);
+	snprintf(new_path + dir_len, new_path_len - dir_len,
+		 "%c%s.ibd", OS_PATH_SEPARATOR, base_name);
 
 	return(new_path);
 }
@@ -3403,16 +3401,6 @@ static void __stdcall win_free_syncio_event(void *data) {
 
 
 /*
-Initialize tls index.for event handle used for synchronized IO on files that
-might be opened with FILE_FLAG_OVERLAPPED.
-*/
-static void win_init_syncio_event() {
-	fls_sync_io = FlsAlloc(win_free_syncio_event);
-	ut_a(fls_sync_io != FLS_OUT_OF_INDEXES);
-}
-
-
-/*
 Retrieve per-thread event for doing synchronous io on asyncronously opened files
 */
 static HANDLE win_get_syncio_event()
@@ -3517,46 +3505,6 @@ struct WinIoInit
 /* Ensures proper initialization and shutdown */
 static WinIoInit win_io_init;
 
-/** Check if the file system supports sparse files.
-@param[in]	 name		File name
-@return true if the file system supports sparse files */
-static
-bool
-os_is_sparse_file_supported_win32(const char* filename)
-{
-	char	volname[MAX_PATH];
-	BOOL	result = GetVolumePathName(filename, volname, MAX_PATH);
-
-	if (!result) {
-
-		ib::error()
-			<< "os_is_sparse_file_supported: "
-			<< "Failed to get the volume path name for: "
-			<< filename
-			<< "- OS error number " << GetLastError();
-
-		return(false);
-	}
-
-	DWORD	flags;
-
-	result = GetVolumeInformation(
-		volname, NULL, MAX_PATH, NULL, NULL,
-		&flags, NULL, MAX_PATH);
-
-
-	if (!result) {
-		ib::error()
-			<< "os_is_sparse_file_supported: "
-			<< "Failed to get the volume info for: "
-			<< volname
-			<< "- OS error number " << GetLastError();
-
-		return(false);
-	}
-
-	return(flags & FILE_SUPPORTS_SPARSE_FILES) ? true : false;
-}
 
 /** Free storage space associated with a section of the file.
 @param[in]	fh		Open file handle
@@ -3853,7 +3801,7 @@ os_file_create_simple_func(
 		ib::info()
 			<< "Read only mode set. Unable to"
 			" open file '" << name << "' in RW mode, "
-			<< "trying RO mode", name;
+			<< "trying RO mode";
 
 		access = GENERIC_READ;
 
@@ -4548,7 +4496,7 @@ bool
 os_file_close_func(
 	os_file_t	file)
 {
-	ut_a(file > 0);
+	ut_a(file);
 
 	if (CloseHandle(file)) {
 		return(true);
@@ -4997,7 +4945,7 @@ os_file_write_func(
 	if ((ulint) n_bytes != n && !os_has_said_disk_full) {
 
 		ib::error()
-			<< "Write to file " << name << "failed at offset "
+			<< "Write to file " << name << " failed at offset "
 			<< offset << ", " << n
 			<< " bytes should have been written,"
 			" only " << n_bytes << " were written."

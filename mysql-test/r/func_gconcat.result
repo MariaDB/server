@@ -1254,3 +1254,129 @@ DROP TABLE t1;
 #
 # End of 10.2 tests
 #
+#
+# Start of 10.3 tests
+#
+drop table if exists t1, t2;
+create table t1 (grp int, a bigint unsigned, c char(10) , d char(10) not null);
+insert into t1 values (1,1,NULL,"a");
+insert into t1 values (1,10,"b","a");
+insert into t1 values (1,11,"c","a");
+insert into t1 values (2,2,"c","a");
+insert into t1 values (2,3,"b","b");
+insert into t1 values (3,4,"E","a");
+insert into t1 values (3,5,"C","b");
+insert into t1 values (3,6,"D","c");
+insert into t1 values (3,7,"E","c");
+select grp,group_concat(c) from t1 group by grp;
+grp	group_concat(c)
+1	b,c
+2	c,b
+3	E,C,D,E
+select grp,group_concat(c limit 1  ) from t1 group by grp;
+grp	group_concat(c limit 1  )
+1	b
+2	c
+3	E
+select grp,group_concat(c limit 1,1 ) from t1 group by grp;
+grp	group_concat(c limit 1,1 )
+1	c
+2	b
+3	C
+select grp,group_concat(c limit 1,10 ) from t1 group by grp;
+grp	group_concat(c limit 1,10 )
+1	c
+2	b
+3	C,D,E
+select grp,group_concat(c limit 1000) from t1 group by grp;
+grp	group_concat(c limit 1000)
+1	b,c
+2	c,b
+3	E,C,D,E
+select group_concat(grp limit 0) from t1;
+group_concat(grp limit 0)
+
+select group_concat(grp limit "sdjadjs") from t1
+--error ER_PARSE_ERROR
+select grp,group_concat(c limit 5.5) from t1 group by grp ;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"sdjadjs") from t1
+--error ER_PARSE_ERROR
+select grp,group_concat(c limit 5.5) f' at line 1
+select grp,group_concat(distinct c limit 1,10 ) from t1 group by grp;
+grp	group_concat(distinct c limit 1,10 )
+1	c
+2	b
+3	C,D
+select grp,group_concat(c order by a) from t1 group by grp;
+grp	group_concat(c order by a)
+1	b,c
+2	c,b
+3	E,C,D,E
+select grp,group_concat(c order by a limit 2 ) from t1 group by grp;
+grp	group_concat(c order by a limit 2 )
+1	b,c
+2	c,b
+3	E,C
+select grp,group_concat(c order by a limit 1,1 ) from t1 group by grp;
+grp	group_concat(c order by a limit 1,1 )
+1	c
+2	b
+3	C
+select grp,group_concat(c order by c) from t1 group by grp;
+grp	group_concat(c order by c)
+1	b,c
+2	b,c
+3	C,D,E,E
+select grp,group_concat(c order by c limit 2) from t1 group by grp;
+grp	group_concat(c order by c limit 2)
+1	b,c
+2	b,c
+3	C,D
+select grp,group_concat(c order by c desc) from t1 group by grp;
+grp	group_concat(c order by c desc)
+1	c,b
+2	c,b
+3	E,E,D,C
+select grp,group_concat(c order by c desc limit 2) from t1 group by grp;
+grp	group_concat(c order by c desc limit 2)
+1	c,b
+2	c,b
+3	E,E
+drop table t1;
+create table t2 (a int, b varchar(10));
+insert into t2 values(1,'a'),(1,'b'),(NULL,'c'),(2,'x'),(2,'y');
+select group_concat(a,b limit 2) from t2;
+group_concat(a,b limit 2)
+1a,1b
+set @x=4;
+prepare STMT from 'select group_concat(b limit ?) from t2';
+execute STMT using @x;
+group_concat(b limit ?)
+a,b,c,x
+set @x=2;
+execute STMT using @x;
+group_concat(b limit ?)
+a,b
+set @x=1000;
+execute STMT using @x;
+group_concat(b limit ?)
+a,b,c,x,y
+set @x=0;
+execute STMT using @x;
+group_concat(b limit ?)
+
+set @x="adasfa";
+execute STMT using @x;
+ERROR HY000: Limit only accepts integer values
+set @x=-1;
+execute STMT using @x;
+ERROR HY000: Incorrect arguments to EXECUTE
+set @x=4;
+prepare STMT from 'select group_concat(a,b limit ?) from t2';
+execute STMT using @x;
+group_concat(a,b limit ?)
+1a,1b,2x,2y
+drop table t2;
+#
+# End of 10.3 tests
+#

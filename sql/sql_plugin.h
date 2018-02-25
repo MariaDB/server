@@ -24,7 +24,8 @@
 #define SHOW_always_last SHOW_KEY_CACHE_LONG, \
             SHOW_LONG_STATUS, SHOW_DOUBLE_STATUS, \
             SHOW_HAVE, SHOW_MY_BOOL, SHOW_HA_ROWS, SHOW_SYS, \
-            SHOW_LONG_NOFLUSH, SHOW_LONGLONG_STATUS, SHOW_LEX_STRING
+            SHOW_LONG_NOFLUSH, SHOW_LONGLONG_STATUS, SHOW_UINT32_STATUS, \
+            SHOW_LEX_STRING
 #include "mariadb.h"
 #undef SHOW_always_last
 
@@ -155,7 +156,7 @@ typedef int (*plugin_type_init)(struct st_plugin_int *);
 extern I_List<i_string> *opt_plugin_load_list_ptr;
 extern char *opt_plugin_dir_ptr;
 extern MYSQL_PLUGIN_IMPORT char opt_plugin_dir[FN_REFLEN];
-extern const LEX_STRING plugin_type_names[];
+extern const LEX_CSTRING plugin_type_names[];
 extern ulong plugin_maturity;
 extern TYPELIB plugin_maturity_values;
 extern const char *plugin_maturity_names[];

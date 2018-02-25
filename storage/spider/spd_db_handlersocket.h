@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2014 Kentoku Shiba
+/* Copyright (C) 2012-2017 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #define SPIDER_HS_CONN dena::hstcpcli_ptr
 #define SPIDER_HS_CONN_CREATE dena::hstcpcli_i::create
@@ -94,7 +94,9 @@ public:
     ha_spider *spider,
     spider_string *str,
     const char *alias,
-    uint alias_length
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields
   );
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int open_item_sum_func(
@@ -102,13 +104,36 @@ public:
     ha_spider *spider,
     spider_string *str,
     const char *alias,
-    uint alias_length
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields
   );
 #endif
   int append_escaped_util(
     spider_string *to,
     String *from
   );
+  int append_escaped_util(
+    spider_string *to,
+    String *from
+  );
+#ifdef SPIDER_HAS_GROUP_BY_HANDLER
+  int append_from_and_tables(
+    spider_fields *fields,
+    spider_string *str
+  );
+  int reappend_tables(
+    spider_fields *fields,
+    SPIDER_LINK_IDX_CHAIN *link_idx_chain,
+    spider_string *str
+  );
+  int append_where(
+    spider_string *str
+  );
+  int append_having(
+    spider_string *str
+  );
+#endif
 };
 
 class spider_db_handlersocket_row: public spider_db_row
@@ -167,7 +192,7 @@ public:
   SPIDER_HS_STRING_REF        hs_row;
   uint                        field_count;
   int                         store_error_num;
-  spider_db_handlersocket_result();
+  spider_db_handlersocket_result(SPIDER_DB_CONN *in_db_conn);
   ~spider_db_handlersocket_result();
   bool has_result();
   void free_result();
@@ -355,6 +380,17 @@ public:
     Time_zone *time_zone,
     int *need_mon
   );
+  int show_master_status(
+    SPIDER_TRX *trx,
+    SPIDER_SHARE *share,
+    int all_link_idx,
+    int *need_mon,
+    TABLE *table,
+    spider_string *str,
+    int mode,
+    SPIDER_DB_RESULT **res1,
+    SPIDER_DB_RESULT **res2
+  );
   int append_sql(
     char *sql,
     ulong sql_length,
@@ -505,6 +541,11 @@ public:
   );
   ~spider_handlersocket_handler();
   int init();
+  int append_index_hint(
+    spider_string *str,
+    int link_idx,
+    ulong sql_type
+  );
   int append_table_name_with_adjusting(
     spider_string *str,
     int link_idx,
@@ -849,6 +890,13 @@ public:
   bool need_lock_before_set_sql_for_exec(
     ulong sql_type
   );
+#ifdef SPIDER_HAS_GROUP_BY_HANDLER
+  int set_sql_for_exec(
+    ulong sql_type,
+    int link_idx,
+    SPIDER_LINK_IDX_CHAIN *link_idx_chain
+  );
+#endif
   int set_sql_for_exec(
     ulong sql_type,
     int link_idx
@@ -960,4 +1008,52 @@ public:
     int link_idx,
     ulong sql_type
   );
+#ifdef SPIDER_HAS_GROUP_BY_HANDLER
+  int append_from_and_tables_part(
+    spider_fields *fields,
+    ulong sql_type
+  );
+  int reappend_tables_part(
+    spider_fields *fields,
+    ulong sql_type
+  );
+  int append_where_part(
+    ulong sql_type
+  );
+  int append_having_part(
+    ulong sql_type
+  );
+  int append_item_type_part(
+    Item *item,
+    const char *alias,
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields,
+    ulong sql_type
+  );
+  int append_list_item_select_part(
+    List<Item> *select,
+    const char *alias,
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields,
+    ulong sql_type
+  );
+  int append_group_by_part(
+    ORDER *order,
+    const char *alias,
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields,
+    ulong sql_type
+  );
+  int append_order_by_part(
+    ORDER *order,
+    const char *alias,
+    uint alias_length,
+    bool use_fields,
+    spider_fields *fields,
+    ulong sql_type
+  );
+#endif
 };

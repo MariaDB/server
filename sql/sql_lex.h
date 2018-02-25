@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+   Copyright (c) 2010, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
 #include "sql_trigger.h"
 #include "sp.h"                       // enum stored_procedure_type
 #include "sql_tvc.h"
+#include "item.h"
 
 /* YACC and LEX Definitions */
 
@@ -205,7 +206,7 @@ struct LEX_TYPE
 #ifdef MYSQL_SERVER
 
 extern const LEX_STRING  empty_lex_str;
-extern const LEX_CSTRING empty_clex_str;
+extern MYSQL_PLUGIN_IMPORT const LEX_CSTRING empty_clex_str;
 extern const LEX_CSTRING star_clex_str;
 extern const LEX_CSTRING param_clex_str;
 
@@ -223,6 +224,13 @@ enum enum_sp_data_access
   SP_NO_SQL,
   SP_READS_SQL_DATA,
   SP_MODIFIES_SQL_DATA
+};
+
+enum enum_sp_aggregate_type
+{
+  DEFAULT_AGGREGATE= 0,
+  NOT_AGGREGATE,
+  GROUP_AGGREGATE
 };
 
 const LEX_STRING sp_data_access_name[]=
@@ -412,7 +420,7 @@ public:
   LEX_CSTRING key_name;
 
   Index_hint (enum index_hint_type type_arg, index_clause_map clause_arg,
-              const char *str, uint length) :
+              const char *str, size_t length) :
     type(type_arg), clause(clause_arg)
   {
     key_name.str= str;
@@ -574,11 +582,15 @@ public:
   */
   uint8 uncacheable;
   enum sub_select_type linkage;
+  bool is_linkage_set() const
+  {
+    return linkage == UNION_TYPE || linkage == INTERSECT_TYPE || linkage == EXCEPT_TYPE;
+  }
   bool no_table_names_allowed; /* used for global order by */
 
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return (void*) alloc_root(mem_root, (uint) size); }
-  static void operator delete(void *ptr,size_t size) { TRASH(ptr, size); }
+  static void operator delete(void *ptr,size_t size) { TRASH_FREE(ptr, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root) {}
 
   // Ensures that at least all members used during cleanup() are initialized.
@@ -734,7 +746,7 @@ public:
   /* thread handler */
   THD *thd;
   /*
-    SELECT_LEX for hidden SELECT in onion which process global
+    SELECT_LEX for hidden SELECT in union which process global
     ORDER BY and LIMIT
   */
   st_select_lex *fake_select_lex;
@@ -825,7 +837,7 @@ class st_select_lex: public st_select_lex_node
 {
 public:
   Name_resolution_context context;
-  const char *db;
+  LEX_CSTRING db;
   Item *where, *having;                         /* WHERE & HAVING clauses */
   Item *prep_where; /* saved WHERE clause for prepared statement processing */
   Item *prep_having;/* saved HAVING clause for prepared statement processing */
@@ -833,7 +845,13 @@ public:
   Item *cond_pushed_into_having; /* condition pushed into the select's HAVING */
   /* Saved values of the WHERE and HAVING clauses*/
   Item::cond_result cond_value, having_value;
-  /* point on lex in which it was created, used in view subquery detection */
+  /*
+    Point to the LEX in which it was created, used in view subquery detection.
+
+    TODO: make also st_select_lex::parent_stmt_lex (see THD::stmt_lex)
+    and use st_select_lex::parent_lex & st_select_lex::parent_stmt_lex
+    instead of global (from THD) references where it is possible.
+  */
   LEX *parent_lex;
   enum olap_type olap;
   /* FROM clause - points to the beginning of the TABLE_LIST::next_local list. */
@@ -1032,6 +1050,13 @@ public:
   table_value_constr *tvc;
   bool in_tvc;
 
+  /** System Versioning */
+public:
+  uint versioned_tables;
+  int vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr);
+  /* push new Item_field into item_list */
+  bool vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name);
+
   void init_query();
   void init_select();
   st_select_lex_unit* master_unit() { return (st_select_lex_unit*) master; }
@@ -1150,7 +1175,7 @@ public:
    Add a index hint to the tagged list of hints. The type and clause of the
    hint will be the current ones (set by set_index_hint()) 
   */
-  bool add_index_hint (THD *thd, const char *str, uint length);
+  bool add_index_hint (THD *thd, const char *str, size_t length);
 
   /* make a list to hold index hints */
   void alloc_index_hints (THD *thd);
@@ -1289,6 +1314,7 @@ struct st_sp_chistics
   enum enum_sp_suid_behaviour suid;
   bool detistic;
   enum enum_sp_data_access daccess;
+  enum enum_sp_aggregate_type agg_type;
   void init() { bzero(this, sizeof(*this)); }
   void set(const st_sp_chistics &other) { *this= other; }
   bool read_from_mysql_proc_row(THD *thd, TABLE *table);
@@ -1965,6 +1991,18 @@ private:
 };
 
 
+class Query_tables_backup
+{
+  THD *thd;
+  Query_tables_list backup;
+
+public:
+  Query_tables_backup(THD *_thd);
+  ~Query_tables_backup();
+  const Query_tables_list& get() const { return backup; }
+};
+
+
 /*
   st_parsing_options contains the flags for constructions that are
   allowed in the current statement.
@@ -2037,9 +2075,9 @@ public:
      @retval FALSE OK
      @retval TRUE  Error
   */
-  bool init(THD *thd, char *buff, unsigned int length);
+  bool init(THD *thd, char *buff, size_t length);
 
-  void reset(char *buff, unsigned int length);
+  void reset(char *buff, size_t length);
 
   /**
     Set the echo mode.
@@ -2312,16 +2350,16 @@ public:
   }
 
   /** Get the utf8-body length. */
-  uint get_body_utf8_length()
+  size_t get_body_utf8_length()
   {
-    return (uint) (m_body_utf8_ptr - m_body_utf8);
+    return (size_t) (m_body_utf8_ptr - m_body_utf8);
   }
 
   /**
     Get the maximum length of the utf8-body buffer.
     The utf8 body can grow because of the character set conversion and escaping.
   */
-  uint get_body_utf8_maximum_length(THD *thd);
+  size_t get_body_utf8_maximum_length(THD *thd);
 
   void body_utf8_start(THD *thd, const char *begin_ptr);
   void body_utf8_append(const char *ptr);
@@ -2381,7 +2419,7 @@ private:
   const char *m_buf;
 
   /** Length of the raw buffer. */
-  uint m_buf_length;
+  size_t m_buf_length;
 
   /** Echo the parsed stream to the pre-processed buffer. */
   bool m_echo;
@@ -2673,7 +2711,10 @@ struct LEX: public Query_tables_list
   DYNAMIC_ARRAY plugins;
   plugin_ref plugins_static_buffer[INITIAL_LEX_PLUGIN_LIST_SIZE];
 
-  uint number_of_selects; // valid only for view
+  /** SELECT of CREATE VIEW statement */
+  LEX_STRING create_view_select;
+
+  uint current_select_number; // valid for statment LEX (not view)
 
   /** Start of 'ON table', in trigger statements.  */
   const char* raw_trg_on_table_name_begin;
@@ -2701,7 +2742,6 @@ struct LEX: public Query_tables_list
 private:
   Query_arena_memroot *arena_for_set_stmt;
   MEM_ROOT *mem_root_for_set_stmt;
-  void parse_error();
   bool sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
                                    class sp_label **splabel);
   bool sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive);
@@ -2715,6 +2755,7 @@ private:
   bool sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop);
 
 public:
+  void parse_error(uint err_number= ER_SYNTAX_ERROR);
   inline bool is_arena_for_set_stmt() {return arena_for_set_stmt != 0;}
   bool set_arena_for_set_stmt(Query_arena *backup);
   void reset_arena_for_set_stmt(Query_arena *backup);
@@ -2722,7 +2763,7 @@ public:
 
   List<Item_func_set_user_var> set_var_list; // in-query assignment list
   List<Item_param>    param_list;
-  List<LEX_STRING>    view_list; // view list (list of field names in view)
+  List<LEX_CSTRING>   view_list; // view list (list of field names in view)
   List<LEX_CSTRING>   with_column_list; // list of column names in with_list_element
   List<LEX_STRING>   *column_list; // list of column names (in ANALYZE)
   List<LEX_STRING>   *index_list;  // list of index names (in ANALYZE)
@@ -2928,6 +2969,7 @@ public:
   st_alter_tablespace *alter_tablespace_info;
   
   bool escape_used;
+  bool default_used;    /* using default() function */
   bool is_lex_started; /* If lex_start() did run. For debugging. */
 
   /*
@@ -2948,6 +2990,13 @@ public:
   */
   Item *limit_rows_examined;
   ulonglong limit_rows_examined_cnt;
+  /**
+    Holds a set of domain_ids for deletion at FLUSH..DELETE_DOMAIN_ID
+  */
+  DYNAMIC_ARRAY delete_gtid_domain;
+  static const ulong initial_gtid_domain_buffer_size= 16;
+  ulong gtid_domain_static_buffer[initial_gtid_domain_buffer_size];
+
   inline void set_limit_rows_examined()
   {
     if (limit_rows_examined)
@@ -2964,6 +3013,9 @@ public:
   Window_frame_bound *frame_top_bound;
   Window_frame_bound *frame_bottom_bound;
   Window_spec *win_spec;
+
+  /* System Versioning */
+  vers_select_conds_t vers_conditions;
 
   inline void free_set_stmt_mem_root()
   {
@@ -3081,7 +3133,7 @@ public:
     context_stack.pop();
   }
 
-  bool copy_db_to(const char **p_db, size_t *p_db_length) const;
+  bool copy_db_to(LEX_CSTRING *to);
 
   Name_resolution_context *current_context()
   {
@@ -3472,6 +3524,9 @@ public:
                                                uint coffset,
                                                sp_assignment_lex *param_lex,
                                                Item_args *parameters);
+  bool sp_for_loop_implicit_cursor_statement(THD *thd,
+                                             Lex_for_loop_bounds_st *bounds,
+                                             sp_lex_cursor *cur);
   bool sp_for_loop_cursor_condition_test(THD *thd, const Lex_for_loop_st &loop);
   bool sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &);
 
@@ -3599,6 +3654,8 @@ public:
     alter_info.check_constraint_list.push_back(constr);
     return false;
   }
+  bool add_alter_list(const char *par_name, Virtual_column_info *expr,
+                      bool par_exists);
   void set_command(enum_sql_command command,
                    DDL_options_st options)
   {
@@ -3666,6 +3723,11 @@ public:
 
   bool add_grant_command(THD *thd, enum_sql_command sql_command_arg,
                          stored_procedure_type type_arg);
+
+  Vers_parse_info &vers_get_info()
+  {
+    return create_info.vers_info;
+  }
 };
 
 
@@ -3812,7 +3874,7 @@ public:
      @retval FALSE OK
      @retval TRUE  Error
   */
-  bool init(THD *thd, char *buff, unsigned int length)
+  bool init(THD *thd, char *buff, size_t length)
   {
     return m_lip.init(thd, buff, length);
   }
@@ -3944,10 +4006,9 @@ int init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex);
 extern int MYSQLlex(union YYSTYPE *yylval, THD *thd);
 extern int ORAlex(union YYSTYPE *yylval, THD *thd);
 
-extern void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str,
-                            uint *prefix_removed);
+extern void trim_whitespace(CHARSET_INFO *cs, LEX_CSTRING *str, size_t * prefix_length = 0);
 
-extern bool is_lex_native_function(const LEX_CSTRING *name);
+extern bool is_lex_native_function(const LEX_CSTRING *name); 
 extern bool is_native_function(THD *thd, const LEX_CSTRING *name);
 extern bool is_native_function_with_warn(THD *thd, const LEX_CSTRING *name);
 

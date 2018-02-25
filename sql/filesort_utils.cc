@@ -105,7 +105,7 @@ uchar **Filesort_buffer::alloc_sort_buffer(uint num_records,
   DBUG_EXECUTE_IF("alloc_sort_buffer_fail",
                   DBUG_SET("+d,simulate_out_of_memory"););
 
-  buff_size= num_records * (record_length + sizeof(uchar*));
+  buff_size= ((size_t)num_records) * (record_length + sizeof(uchar*));
   set_if_bigger(buff_size, record_length * MERGEBUFF2); 
 
   if (!m_idx_array.is_null())

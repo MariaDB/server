@@ -1,0 +1,17 @@
+DROP TABLE IF EXISTS logs;
+CREATE TABLE logs (
+id INT PRIMARY KEY,
+record JSON,
+message VARCHAR(255) GENERATED ALWAYS AS (json_extract(`record`, '$.message')) VIRTUAL
+) ENGINE=Mroonga DEFAULT CHARSET=utf8mb4 COMMENT = 'ENGINE "InnoDB"';
+INSERT INTO logs(id, record)
+VALUES (1, '{"level": "info", "message": "start server"}');
+ALTER TABLE logs ADD FULLTEXT INDEX (message);
+INSERT INTO logs(id, record)
+VALUES (2, '{"level": "info", "message": "start server"}');
+INSERT INTO logs(id, record)
+VALUES (3, '{"level": "warn", "message": "abort server"}');
+SELECT * FROM logs WHERE MATCH(message) AGAINST('+start' IN BOOLEAN MODE);
+id	record	message
+2	{"level": "info", "message": "start server"}	"start server"
+DROP TABLE logs;

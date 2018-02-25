@@ -5,6 +5,12 @@ CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
 SET GLOBAL innodb_disallow_writes=ON;
 INSERT INTO t1 VALUES (1);;
 connection node_1a;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+0
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+0
 SET GLOBAL innodb_disallow_writes=OFF;
 connection node_1;
 SELECT COUNT(*) = 1 FROM t1;

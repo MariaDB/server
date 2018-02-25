@@ -110,7 +110,7 @@ IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
 ENDIF()
 
 # Enable InnoDB's UNIV_DEBUG in debug builds
-SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DUNIV_DEBUG -DUNIV_SYNC_DEBUG")
+SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DUNIV_DEBUG")
 
 OPTION(WITH_INNODB_AHI "Include innodb_adaptive_hash_index" ON)
 OPTION(WITH_INNODB_ROOT_GUESS "Cache index root block descriptors" ON)
@@ -156,6 +156,11 @@ IF(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE)
 ENDIF()
 
 IF(NOT MSVC)
+  CHECK_FUNCTION_EXISTS(posix_memalign HAVE_POSIX_MEMALIGN)
+  IF(HAVE_POSIX_MEMALIGN)
+    ADD_DEFINITIONS(-DHAVE_POSIX_MEMALIGN)
+  ENDIF()
+
 # Only use futexes on Linux if GCC atomics are available
 IF(NOT MSVC AND NOT CMAKE_CROSSCOMPILING)
   CHECK_C_SOURCE_RUNS(
@@ -226,13 +231,6 @@ IF(CMAKE_CXX_COMPILER_ID MATCHES "SunPro"
 	# -xO3
 	SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_SOURCE_DIR}/rem/rem0rec.cc
     PROPERTIES COMPILE_FLAGS -xO3)
-ENDIF()
-
-# Removing compiler optimizations for innodb/mem/* files on 64-bit Windows
-# due to 64-bit compiler error, See MySQL Bug #19424, #36366, #34297
-IF (MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
-	SET_SOURCE_FILES_PROPERTIES(mem/mem0mem.cc mem/mem0pool.cc
-				    PROPERTIES COMPILE_FLAGS -Od)
 ENDIF()
 
 # Avoid generating Hardware Capabilities due to crc32 instructions

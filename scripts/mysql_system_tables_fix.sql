@@ -74,7 +74,7 @@ ALTER TABLE tables_priv
     COLLATE utf8_general_ci DEFAULT '' NOT NULL,
   MODIFY Table_priv set('Select','Insert','Update','Delete','Create',
                         'Drop','Grant','References','Index','Alter',
-                        'Create View','Show view','Trigger')
+                        'Create View','Show view','Trigger','Delete versioning rows')
     COLLATE utf8_general_ci DEFAULT '' NOT NULL,
   COMMENT='Table privileges';
 
@@ -449,7 +449,8 @@ ALTER TABLE proc MODIFY name char(64) DEFAULT '' NOT NULL,
                             'HIGH_NOT_PRECEDENCE',
                             'NO_ENGINE_SUBSTITUTION',
                             'PAD_CHAR_TO_FULL_LENGTH',
-                            'EMPTY_STRING_IS_NULL'
+                            'EMPTY_STRING_IS_NULL',
+                            'SIMULTANEOUS_ASSIGNMENT'
                             ) DEFAULT '' NOT NULL,
                  DEFAULT CHARACTER SET utf8;
 
@@ -519,6 +520,10 @@ ALTER TABLE proc MODIFY body_utf8 longblob DEFAULT NULL;
 ALTER TABLE proc MODIFY comment
                         text collate utf8_bin NOT NULL;
 
+# MDEV-7773: Stored Aggregate Functions
+ALTER TABLE proc ADD aggregate enum('NONE', 'GROUP') DEFAULT 'NONE' NOT NULL
+                     AFTER body_utf8;
+
 #
 # EVENT privilege
 #
@@ -574,7 +579,8 @@ ALTER TABLE event MODIFY sql_mode
                             'HIGH_NOT_PRECEDENCE',
                             'NO_ENGINE_SUBSTITUTION',
                             'PAD_CHAR_TO_FULL_LENGTH',
-                            'EMPTY_STRING_IS_NULL'
+                            'EMPTY_STRING_IS_NULL',
+                            'SIMULTANEOUS_ASSIGNMENT'
                             ) DEFAULT '' NOT NULL AFTER on_completion;
 ALTER TABLE event MODIFY name char(64) CHARACTER SET utf8 NOT NULL default '';
 
@@ -640,6 +646,23 @@ ALTER TABLE user ADD Create_tablespace_priv enum('N','Y') COLLATE utf8_general_c
 ALTER TABLE user MODIFY Create_tablespace_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER Trigger_priv;
 
 UPDATE user SET Create_tablespace_priv = Super_priv WHERE @hadCreateTablespacePriv = 0;
+
+#
+# System versioning
+#
+
+ALTER TABLE user change Truncate_versioning_priv Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
+ALTER TABLE db change Truncate_versioning_priv Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
+
+SET @had_user_delete_history_priv := 0;
+SELECT @had_user_delete_history_priv :=1 FROM user WHERE Delete_history_priv LIKE '%';
+
+ALTER TABLE user add Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Create_tablespace_priv;
+ALTER TABLE user modify Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
+ALTER TABLE db add Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N' after Trigger_priv;
+ALTER TABLE db modify Delete_history_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL DEFAULT 'N';
+
+UPDATE user SET Delete_history_priv = Super_priv WHERE @had_user_delete_history_priv = 0;
 
 ALTER TABLE user ADD plugin char(64) DEFAULT '',  ADD authentication_string TEXT;
 ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;

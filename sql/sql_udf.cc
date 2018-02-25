@@ -52,7 +52,7 @@ static bool initialized = 0;
 static MEM_ROOT mem;
 static HASH udf_hash;
 static mysql_rwlock_t THR_LOCK_udf;
-
+static LEX_CSTRING MYSQL_FUNC_NAME= {STRING_WITH_LEN("func") };
 
 static udf_func *add_udf(LEX_CSTRING *name, Item_result ret,
                          const char *dl, Item_udftype typ);
@@ -142,7 +142,6 @@ void udf_init()
   TABLE *table;
   int error;
   DBUG_ENTER("ufd_init");
-  char db[]= "mysql"; /* A subject to casednstr, can't be constant */
 
   if (initialized || opt_noacl)
     DBUG_VOID_RETURN;
@@ -153,7 +152,7 @@ void udf_init()
 
   mysql_rwlock_init(key_rwlock_THR_LOCK_udf, &THR_LOCK_udf);
 
-  init_sql_alloc(&mem, UDF_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(&mem, "udf", UDF_ALLOC_BLOCK_SIZE, 0, MYF(0));
   THD *new_thd = new THD(0);
   if (!new_thd ||
       my_hash_init(&udf_hash,system_charset_info,32,0,0,get_hash_key, NULL, 0))
@@ -167,9 +166,9 @@ void udf_init()
   initialized = 1;
   new_thd->thread_stack= (char*) &new_thd;
   new_thd->store_globals();
-  new_thd->set_db(db, sizeof(db)-1);
+  new_thd->set_db(&MYSQL_SCHEMA_NAME);
 
-  tables.init_one_table(db, sizeof(db)-1, "func", 4, "func", TL_READ);
+  tables.init_one_table(&new_thd->db, &MYSQL_FUNC_NAME, 0, TL_READ);
 
   if (open_and_lock_tables(new_thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {
@@ -313,7 +312,7 @@ static void del_udf(udf_func *udf)
       doesn't use it anymore
     */
     const char *name= udf->name.str;
-    uint name_length=udf->name.length;
+    size_t name_length=udf->name.length;
     udf->name.str= "*";
     udf->name.length=1;
     my_hash_update(&udf_hash,(uchar*) udf,(uchar*) name,name_length);
@@ -348,7 +347,7 @@ void free_udf(udf_func *udf)
 
 /* This is only called if using_udf_functions != 0 */
 
-udf_func *find_udf(const char *name,uint length,bool mark_used)
+udf_func *find_udf(const char *name,size_t length,bool mark_used)
 {
   udf_func *udf=0;
   DBUG_ENTER("find_udf");
@@ -433,7 +432,7 @@ static int mysql_drop_function_internal(THD *thd, udf_func *udf, TABLE *table)
   DBUG_ENTER("mysql_drop_function_internal");
 
   const char *exact_name_str= udf->name.str;
-  uint exact_name_len= udf->name.length;
+  size_t exact_name_len= udf->name.length;
 
   del_udf(udf);
   /*
@@ -504,8 +503,7 @@ int mysql_create_function(THD *thd,udf_func *udf)
   if (check_ident_length(&udf->name))
     DBUG_RETURN(1);
 
-  tables.init_one_table(STRING_WITH_LEN("mysql"), STRING_WITH_LEN("func"),
-                        "func", TL_WRITE);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_FUNC_NAME, 0, TL_WRITE);
   table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
 
   mysql_rwlock_wrlock(&THR_LOCK_udf);
@@ -623,8 +621,7 @@ int mysql_drop_function(THD *thd, const LEX_CSTRING *udf_name)
     DBUG_RETURN(1);
   }
 
-  tables.init_one_table(STRING_WITH_LEN("mysql"), STRING_WITH_LEN("func"),
-                        "func", TL_WRITE);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_FUNC_NAME, 0, TL_WRITE);
   table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT);
 
   mysql_rwlock_wrlock(&THR_LOCK_udf);

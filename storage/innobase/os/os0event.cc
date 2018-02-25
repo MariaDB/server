@@ -35,9 +35,6 @@ Created 2012-09-23 Sunny Bains
 
 #include <list>
 
-/** The number of microsecnds in a second. */
-static const ulint MICROSECS_IN_A_SECOND = 1000000;
-
 #ifdef _WIN32
 /** Native condition variable. */
 typedef CONDITION_VARIABLE	os_cond_t;
@@ -381,13 +378,8 @@ os_event::wait_time_low(
 
 		tv.tv_usec += time_in_usec;
 
-		if ((ulint) tv.tv_usec >= MICROSECS_IN_A_SECOND) {
-			tv.tv_sec += tv.tv_usec / MICROSECS_IN_A_SECOND;
-			tv.tv_usec %= MICROSECS_IN_A_SECOND;
-		}
-
-		abstime.tv_sec  = tv.tv_sec;
-		abstime.tv_nsec = tv.tv_usec * 1000;
+		abstime.tv_sec = tv.tv_sec + tv.tv_usec / 1000000;
+		abstime.tv_nsec = tv.tv_usec % 1000000 * 1000;
 	} else {
 		abstime.tv_nsec = 999999999;
 		abstime.tv_sec = (time_t) ULINT_MAX;

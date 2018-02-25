@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -138,10 +138,13 @@ inline void* aligned_malloc(size_t size, size_t align) {
     void *result;
 #ifdef _MSC_VER
     result = _aligned_malloc(size, align);
-#else
+#elif defined (HAVE_POSIX_MEMALIGN)
     if(posix_memalign(&result, align, size)) {
 	    result = 0;
     }
+#else
+    /* Use unaligned malloc as fallback */
+    result = malloc(size);
 #endif
     return result;
 }
@@ -439,9 +442,6 @@ static
 bool
 buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
 	MY_ATTRIBUTE((nonnull));
-
-/* prototypes for new functions added to ha_innodb.cc */
-trx_t* innobase_get_trx();
 
 /********************************************************************//**
 Gets the smallest oldest_modification lsn for any page in the pool. Returns
@@ -1173,6 +1173,57 @@ buf_page_is_corrupted(
 }
 
 #ifndef UNIV_INNOCHECKSUM
+
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE) &&  defined(MADV_DODUMP)
+/** Enable buffers to be dumped to core files
+
+A convience function, not called anyhwere directly however
+it is left available for gdb or any debugger to call
+in the event that you want all of the memory to be dumped
+to a core file.
+
+Returns number of errors found in madvise calls. */
+int
+buf_madvise_do_dump()
+{
+	int ret= 0;
+	buf_pool_t*	buf_pool;
+	ulint		n;
+	buf_chunk_t*	chunk;
+
+	/* mirrors allocation in log_sys_init() */
+	if (log_sys->buf)
+	{
+		ret+= madvise(log_sys->first_in_use ? log_sys->buf
+						    : log_sys->buf - log_sys->buf_size,
+			      log_sys->buf_size,
+			      MADV_DODUMP);
+	}
+	/* mirrors recv_sys_init() */
+	if (recv_sys->buf)
+	{
+		ret+= madvise(recv_sys->buf, recv_sys->len, MADV_DODUMP);
+	}
+
+	buf_pool_mutex_enter_all();
+
+	for (int i= 0; i < srv_buf_pool_instances; i++)
+	{
+		buf_pool = buf_pool_from_array(i);
+		chunk = buf_pool->chunks;
+
+		for (int n = buf_pool->n_chunks; n--; chunk++)
+		{
+			ret+= madvise(chunk->mem, chunk->mem_size(), MADV_DODUMP);
+		}
+	}
+
+	buf_pool_mutex_exit_all();
+
+	return ret;
+}
+#endif
+
 /** Dump a page to stderr.
 @param[in]	read_buf	database page
 @param[in]	page_size	page size */
@@ -1502,7 +1553,7 @@ buf_chunk_init(
 	DBUG_EXECUTE_IF("ib_buf_chunk_init_fails", return(NULL););
 
 	chunk->mem = buf_pool->allocator.allocate_large(mem_size,
-							&chunk->mem_pfx);
+							&chunk->mem_pfx, true);
 
 	if (UNIV_UNLIKELY(chunk->mem == NULL)) {
 
@@ -1796,7 +1847,8 @@ buf_pool_init_instance(
 					}
 
 					buf_pool->allocator.deallocate_large(
-						chunk->mem, &chunk->mem_pfx);
+						chunk->mem, &chunk->mem_pfx, chunk->mem_size(),
+						true);
 				}
 				ut_free(buf_pool->chunks);
 				buf_pool_mutex_exit(buf_pool);
@@ -1943,7 +1995,7 @@ buf_pool_free_instance(
 		}
 
 		buf_pool->allocator.deallocate_large(
-			chunk->mem, &chunk->mem_pfx);
+			chunk->mem, &chunk->mem_pfx, true);
 	}
 
 	for (ulint i = BUF_FLUSH_LRU; i < BUF_FLUSH_N_TYPES; ++i) {
@@ -2205,7 +2257,7 @@ buf_resize_status(
 
 	va_start(ap, fmt);
 
-	ut_vsnprintf(
+	vsnprintf(
 		export_vars.innodb_buffer_pool_resize_status,
 		sizeof(export_vars.innodb_buffer_pool_resize_status),
 		fmt, ap);
@@ -2706,9 +2758,9 @@ withdraw_retry:
 		}
 
 		lock_mutex_enter();
-		trx_sys_mutex_enter();
+		mutex_enter(&trx_sys.mutex);
 		bool	found = false;
-		for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys->mysql_trx_list);
+		for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys.mysql_trx_list);
 		     trx != NULL;
 		     trx = UT_LIST_GET_NEXT(mysql_trx_list, trx)) {
 			if (trx->state != TRX_STATE_NOT_STARTED
@@ -2730,7 +2782,7 @@ withdraw_retry:
 					stderr, trx);
 			}
 		}
-		trx_sys_mutex_exit();
+		mutex_exit(&trx_sys.mutex);
 		lock_mutex_exit();
 
 		withdraw_started = ut_time();
@@ -2819,7 +2871,7 @@ withdraw_retry:
 				}
 
 				buf_pool->allocator.deallocate_large(
-					chunk->mem, &chunk->mem_pfx);
+					chunk->mem, &chunk->mem_pfx, true);
 
 				sum_freed += chunk->size;
 
@@ -3006,7 +3058,7 @@ calc_buf_pool_size:
 
 		/* normalize lock_sys */
 		srv_lock_table_size = 5 * (srv_buf_pool_size / UNIV_PAGE_SIZE);
-		lock_sys_resize(srv_lock_table_size);
+		lock_sys.resize(srv_lock_table_size);
 
 		/* normalize btr_search_sys */
 		btr_search_sys_resize(
@@ -3131,11 +3183,26 @@ buf_pool_clear_hash_index()
 				see the comments in buf0buf.h */
 
 				if (!index) {
+# if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+					ut_a(!block->n_pointers);
+# endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 					continue;
 				}
 
-				ut_ad(buf_block_get_state(block)
-                                      == BUF_BLOCK_FILE_PAGE);
+				ut_d(buf_page_state state
+				     = buf_block_get_state(block));
+				/* Another thread may have set the
+				state to BUF_BLOCK_REMOVE_HASH in
+				buf_LRU_block_remove_hashed().
+
+				The state change in buf_page_realloc()
+				is not observable here, because in
+				that case we would have !block->index.
+
+				In the end, the entire adaptive hash
+				index will be removed. */
+				ut_ad(state == BUF_BLOCK_FILE_PAGE
+				      || state == BUF_BLOCK_REMOVE_HASH);
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 				block->n_pointers = 0;
 # endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
@@ -4291,10 +4358,8 @@ loop:
 		case BUF_GET_IF_IN_POOL_OR_WATCH:
 		case BUF_PEEK_IF_IN_POOL:
 		case BUF_EVICT_IF_IN_POOL:
-#ifdef UNIV_SYNC_DEBUG
 			ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X));
 			ut_ad(!rw_lock_own(hash_lock, RW_LOCK_S));
-#endif /* UNIV_SYNC_DEBUG */
 			return(NULL);
 		}
 
@@ -4352,11 +4417,7 @@ loop:
 				<< ". The most probable cause"
 				" of this error may be that the"
 				" table has been corrupted."
-				" You can try to fix this"
-				" problem by using"
-				" innodb_force_recovery."
-				" Please see " REFMAN " for more"
-				" details. Aborting...";
+				" See https://mariadb.com/kb/en/library/xtradbinnodb-recovery-modes/";
 		}
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
@@ -4584,6 +4645,8 @@ evict_from_pool:
 				buf_block_unfix(fix_block);
 				buf_pool_mutex_exit(buf_pool);
 				rw_lock_x_unlock(&fix_block->lock);
+
+				*err = DB_PAGE_CORRUPTED;
 				return NULL;
 			}
 		}
@@ -5657,7 +5720,7 @@ buf_page_monitor(
 	case FIL_PAGE_TYPE_INSTANT:
 	case FIL_PAGE_INDEX:
 	case FIL_PAGE_RTREE:
-		level = btr_page_get_level_low(frame);
+		level = btr_page_get_level(frame);
 
 		/* Check if it is an index page for insert buffer */
 		if (fil_page_get_type(frame) == FIL_PAGE_INDEX

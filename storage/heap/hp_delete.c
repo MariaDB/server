@@ -45,7 +45,7 @@ int heap_delete(HP_INFO *info, const uchar *record)
   info->update=HA_STATE_DELETED;
   *((uchar**) pos)=share->del_link;
   share->del_link=pos;
-  pos[share->reclength]=0;		/* Record deleted */
+  pos[share->visible]=0;		/* Record deleted */
   share->deleted++;
   share->key_version++;
 #if !defined(DBUG_OFF) && defined(EXTRA_HEAP_DEBUG)
@@ -68,7 +68,7 @@ int hp_rb_delete_key(HP_INFO *info, register HP_KEYDEF *keyinfo,
 		   const uchar *record, uchar *recpos, int flag)
 {
   heap_rb_param custom_arg;
-  ulong old_allocated;
+  size_t old_allocated;
   int res;
 
   if (flag) 

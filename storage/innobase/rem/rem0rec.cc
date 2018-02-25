@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -240,7 +240,7 @@ rec_get_n_extern_new(
 /** Get the length of added field count in a REC_STATUS_COLUMNS_ADDED record.
 @param[in]	n_add_field	number of added fields, minus one
 @return	storage size of the field count, in bytes */
-static inline unsigned rec_get_n_add_field_len(unsigned n_add_field)
+static inline unsigned rec_get_n_add_field_len(ulint n_add_field)
 {
 	ut_ad(n_add_field < REC_MAX_N_FIELDS);
 	return n_add_field < 0x80 ? 1 : 2;
@@ -268,7 +268,7 @@ static inline unsigned rec_get_n_add_field(const byte*& header)
 @param[in,out]	header	variable header of a REC_STATUS_COLUMNS_ADDED record
 @param[in]	n_add	number of added fields, minus 1
 @return	record header before the number of added fields */
-static inline void rec_set_n_add_field(byte*& header, unsigned n_add)
+static inline void rec_set_n_add_field(byte*& header, ulint n_add)
 {
 	ut_ad(n_add < REC_MAX_N_FIELDS);
 
@@ -344,9 +344,6 @@ ordinary:
 		/* We would have !index->is_instant() when rolling back
 		an instant ADD COLUMN operation. */
 		nulls -= REC_N_NEW_EXTRA_BYTES;
-		if (rec_offs_n_fields(offsets) <= n_fields) {
-			goto ordinary;
-		}
 		/* fall through */
 	case REC_LEAF_TEMP_COLUMNS_ADDED:
 		ut_ad(index->is_instant());
@@ -1157,21 +1154,18 @@ rec_get_converted_size_comp_prefix_low(
 
 		if (fixed_len) {
 #ifdef UNIV_DEBUG
-			ulint	mbminlen = DATA_MBMINLEN(col->mbminmaxlen);
-			ulint	mbmaxlen = DATA_MBMAXLEN(col->mbminmaxlen);
-
 			ut_ad(len <= fixed_len);
 
 			if (dict_index_is_spatial(index)) {
 				ut_ad(type->mtype == DATA_SYS_CHILD
-				      || !mbmaxlen
-				      || len >= mbminlen * (fixed_len
-							    / mbmaxlen));
+				      || !col->mbmaxlen
+				      || len >= col->mbminlen
+				      * fixed_len / col->mbmaxlen);
 			} else {
 				ut_ad(type->mtype != DATA_SYS_CHILD);
-				ut_ad(!mbmaxlen
-				      || len >= mbminlen * (fixed_len
-							    / mbmaxlen));
+				ut_ad(!col->mbmaxlen
+				      || len >= col->mbminlen
+				      * fixed_len / col->mbmaxlen);
 			}
 
 			/* dict_index_add_col() should guarantee this */
@@ -1570,15 +1564,11 @@ rec_convert_dtuple_to_rec_comp(
 		0..127.  The length will be encoded in two bytes when
 		it is 128 or more, or when the field is stored externally. */
 		if (fixed_len) {
-#ifdef UNIV_DEBUG
-			ulint	mbminlen = DATA_MBMINLEN(col->mbminmaxlen);
-			ulint	mbmaxlen = DATA_MBMAXLEN(col->mbminmaxlen);
-
 			ut_ad(len <= fixed_len);
-			ut_ad(!mbmaxlen || len >= mbminlen
-			      * (fixed_len / mbmaxlen));
+			ut_ad(!col->mbmaxlen
+			      || len >= col->mbminlen
+			      * fixed_len / col->mbmaxlen);
 			ut_ad(!dfield_is_ext(field));
-#endif /* UNIV_DEBUG */
 		} else if (dfield_is_ext(field)) {
 			ut_ad(DATA_BIG_COL(col));
 			ut_ad(len <= REC_ANTELOPE_MAX_INDEX_COL_LEN
@@ -1851,6 +1841,7 @@ rec_copy_prefix_to_buf(
 	ulint		null_mask;
 	bool		is_rtr_node_ptr = false;
 
+	ut_ad(n_fields <= index->n_fields || dict_index_is_ibuf(index));
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	UNIV_PREFETCH_RW(*buf);
 
@@ -1863,21 +1854,11 @@ rec_copy_prefix_to_buf(
 	}
 
 	switch (rec_get_status(rec)) {
-	case REC_STATUS_COLUMNS_ADDED:
-		/* We would have !index->is_instant() when rolling back
-		an instant ADD COLUMN operation. */
-		ut_ad(index->is_instant() || page_rec_is_default_row(rec));
-		if (n_fields >= index->n_core_fields) {
-			ut_ad(index->is_instant());
-			ut_ad(n_fields <= index->n_fields);
-			nulls = &rec[-REC_N_NEW_EXTRA_BYTES];
-			const ulint n_rec = n_fields + 1
-				+ rec_get_n_add_field(nulls);
-			const uint n_nullable = index->get_n_nullable(n_rec);
-			lens = --nulls - UT_BITS_IN_BYTES(n_nullable);
-			break;
-		}
-		/* fall through */
+	case REC_STATUS_INFIMUM:
+	case REC_STATUS_SUPREMUM:
+		/* infimum or supremum record: no sense to copy anything */
+		ut_error;
+		return(NULL);
 	case REC_STATUS_ORDINARY:
 		ut_ad(n_fields <= index->n_core_fields);
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
@@ -1897,11 +1878,15 @@ rec_copy_prefix_to_buf(
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
 		lens = nulls - index->n_core_null_bytes;
 		break;
-	case REC_STATUS_INFIMUM:
-	case REC_STATUS_SUPREMUM:
-		/* infimum or supremum record: no sense to copy anything */
-		ut_error;
-		return(NULL);
+	case REC_STATUS_COLUMNS_ADDED:
+		/* We would have !index->is_instant() when rolling back
+		an instant ADD COLUMN operation. */
+		ut_ad(index->is_instant() || page_rec_is_default_row(rec));
+		nulls = &rec[-REC_N_NEW_EXTRA_BYTES];
+		const ulint n_rec = index->n_core_fields + 1
+			+ rec_get_n_add_field(nulls);
+		const uint n_nullable = index->get_n_nullable(n_rec);
+		lens = --nulls - UT_BITS_IN_BYTES(n_nullable);
 	}
 
 	UNIV_PREFETCH_R(lens);
@@ -2492,8 +2477,6 @@ rec_get_trx_id(
 	const rec_t*		rec,
 	const dict_index_t*	index)
 {
-	const page_t*	page
-		= page_align(rec);
 	ulint		trx_id_col
 		= dict_index_get_sys_col_pos(index, DATA_TRX_ID);
 	const byte*	trx_id;
@@ -2504,11 +2487,7 @@ rec_get_trx_id(
 	ulint* offsets = offsets_;
 
 	ut_ad(trx_id_col <= MAX_REF_PARTS);
-	ut_ad(fil_page_index_page_check(page));
-	ut_ad(mach_read_from_8(page + PAGE_HEADER + PAGE_INDEX_ID)
-	      == index->id);
 	ut_ad(dict_index_is_clust(index));
-	ut_ad(page_rec_is_leaf(rec));
 	ut_ad(trx_id_col > 0);
 	ut_ad(trx_id_col != ULINT_UNDEFINED);
 

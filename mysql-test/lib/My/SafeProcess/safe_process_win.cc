@@ -75,7 +75,7 @@ static void message(const char* fmt, ...)
 
 static void die(const char* fmt, ...)
 {
-  DWORD last_err= GetLastError();
+  int last_err= GetLastError();
   va_list args;
   fprintf(stderr, "%s: FATAL ERROR, ", safe_process_name);
   va_start(args, fmt);
@@ -106,7 +106,7 @@ static void die(const char* fmt, ...)
 DWORD get_parent_pid(DWORD pid)
 {
   HANDLE snapshot;
-  DWORD parent_pid= -1;
+  DWORD parent_pid= 0;
   PROCESSENTRY32 pe32;
   pe32.dwSize= sizeof(PROCESSENTRY32);
 
@@ -127,7 +127,7 @@ DWORD get_parent_pid(DWORD pid)
   } while(Process32Next( snapshot, &pe32));
   CloseHandle(snapshot);
 
-  if (parent_pid == -1)
+  if (parent_pid == 0)
     die("Could not find parent pid");
 
   return parent_pid;
@@ -163,7 +163,7 @@ int main(int argc, const char** argv )
   PROCESS_INFORMATION process_info= {0};
   BOOL nocore= FALSE;
 
-  sprintf(safe_process_name, "safe_process[%d]", pid);
+  sprintf(safe_process_name, "safe_process[%lu]", pid);
 
   /* Create an event for the signal handler */
   if ((shutdown_event=
@@ -298,7 +298,7 @@ int main(int argc, const char** argv )
   BOOL process_created= FALSE;
   BOOL jobobject_assigned= FALSE;
 
-  for (int i=0; i < sizeof(create_flags)/sizeof(create_flags[0]); i++)
+  for (size_t i=0; i < sizeof(create_flags)/sizeof(create_flags[0]); i++)
   { 
     process_created= CreateProcess(NULL, (LPSTR)child_args,
                     NULL,

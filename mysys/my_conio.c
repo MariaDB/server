@@ -47,7 +47,7 @@ static HANDLE my_coninpfh= 0;     /* console input */
 static
 int my_pthread_auto_mutex_lock(HANDLE* ph, const char* name, int id, int time)
 {
-  int res;
+  DWORD res;
   char tname[FN_REFLEN];
   
   sprintf(tname, "%s-%08X", name, id);
@@ -203,7 +203,7 @@ char* my_cgets(char *buffer, size_t clen, size_t* plen)
       if (*plen > 0 && buffer[*plen - 1] == '\r')
       {
         char tmp[3];
-        int  tmplen= sizeof(tmp);
+        DWORD  tmplen= (DWORD)sizeof(tmp);
 
         *plen= *plen - 1;
         /* read /n left in the buffer */

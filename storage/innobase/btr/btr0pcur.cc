@@ -132,8 +132,7 @@ btr_pcur_store_position(
 		we do not store the modify_clock, but always do a search
 		if we restore the cursor position */
 
-		ut_a(btr_page_get_next(page, mtr) == FIL_NULL);
-		ut_a(btr_page_get_prev(page, mtr) == FIL_NULL);
+		ut_a(!page_has_siblings(page));
 		ut_ad(page_is_leaf(page));
 		ut_ad(page_get_page_no(page) == index->page);
 
@@ -353,7 +352,11 @@ btr_pcur_restore_position_func(
 	}
 
 	btr_pcur_open_with_no_init_func(index, tuple, mode, latch_mode,
-					cursor, 0, file, line, mtr);
+					cursor,
+#ifdef BTR_CUR_HASH_ADAPT
+					NULL,
+#endif /* BTR_CUR_HASH_ADAPT */
+					file, line, mtr);
 
 	/* Restore the old search mode */
 	cursor->search_mode = old_mode;

@@ -30,7 +30,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 /* Incremental page filter context */
 typedef struct {
-	byte		*delta_buf_base;
+	ulint		delta_buf_size;
 	byte		*delta_buf;
 	ulint		 npages;
 } xb_wf_incremental_ctxt_t;

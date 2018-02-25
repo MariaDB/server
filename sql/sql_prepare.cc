@@ -167,20 +167,6 @@ public:
   uint param_count;
   uint last_errno;
   uint flags;
-  /*
-    The value of thd->select_number at the end of the PREPARE phase.
-
-    The issue is: each statement execution opens VIEWs, which may cause 
-    select_lex objects to be created, and select_number values to be assigned.
-
-    On the other hand, PREPARE assigns select_number values for triggers and
-    subqueries.
-
-    In order for select_number values from EXECUTE not to conflict with
-    select_number values from PREPARE, we keep the number and set it at each
-    execution.
-  */
-  uint select_number_after_prepare;
   char last_error[MYSQL_ERRMSG_SIZE];
   my_bool iterations;
   my_bool start_param;
@@ -229,7 +215,7 @@ private:
   MEM_ROOT main_mem_root;
   sql_mode_t m_sql_mode;
 private:
-  bool set_db(const char *db, uint db_length);
+  bool set_db(const LEX_CSTRING *db);
   bool set_parameters(String *expanded_query,
                       uchar *packet, uchar *packet_end);
   bool execute(String *expanded_query, bool open_cursor);
@@ -489,24 +475,23 @@ static ulong get_param_length(uchar **packet, ulong len)
     (i.e. when input types altered) and for all subsequent executions
     we don't read any values for this.
 
-  @param  param             parameter item
   @param  pos               input data buffer
   @param  len               length of data in the buffer
 */
 
-static void set_param_tiny(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_tiny(uchar **pos, ulong len)
 {
 #ifndef EMBEDDED_LIBRARY
   if (len < 1)
     return;
 #endif
   int8 value= (int8) **pos;
-  param->set_int(param->unsigned_flag ? (longlong) ((uint8) value) :
-                                        (longlong) value, 4);
+  set_int(unsigned_flag ? (longlong) ((uint8) value) :
+                          (longlong) value, 4);
   *pos+= 1;
 }
 
-static void set_param_short(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_short(uchar **pos, ulong len)
 {
   int16 value;
 #ifndef EMBEDDED_LIBRARY
@@ -516,12 +501,12 @@ static void set_param_short(Item_param *param, uchar **pos, ulong len)
 #else
   shortget(value, *pos);
 #endif
-  param->set_int(param->unsigned_flag ? (longlong) ((uint16) value) :
-                                        (longlong) value, 6);
+  set_int(unsigned_flag ? (longlong) ((uint16) value) :
+                          (longlong) value, 6);
   *pos+= 2;
 }
 
-static void set_param_int32(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_int32(uchar **pos, ulong len)
 {
   int32 value;
 #ifndef EMBEDDED_LIBRARY
@@ -531,12 +516,12 @@ static void set_param_int32(Item_param *param, uchar **pos, ulong len)
 #else
   longget(value, *pos);
 #endif
-  param->set_int(param->unsigned_flag ? (longlong) ((uint32) value) :
-                                        (longlong) value, 11);
+  set_int(unsigned_flag ? (longlong) ((uint32) value) :
+                          (longlong) value, 11);
   *pos+= 4;
 }
 
-static void set_param_int64(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_int64(uchar **pos, ulong len)
 {
   longlong value;
 #ifndef EMBEDDED_LIBRARY
@@ -546,11 +531,11 @@ static void set_param_int64(Item_param *param, uchar **pos, ulong len)
 #else
   longlongget(value, *pos);
 #endif
-  param->set_int(value, 21);
+  set_int(value, 21);
   *pos+= 8;
 }
 
-static void set_param_float(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_float(uchar **pos, ulong len)
 {
   float data;
 #ifndef EMBEDDED_LIBRARY
@@ -560,11 +545,11 @@ static void set_param_float(Item_param *param, uchar **pos, ulong len)
 #else
   floatget(data, *pos);
 #endif
-  param->set_double((double) data);
+  set_double((double) data);
   *pos+= 4;
 }
 
-static void set_param_double(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_double(uchar **pos, ulong len)
 {
   double data;
 #ifndef EMBEDDED_LIBRARY
@@ -574,14 +559,14 @@ static void set_param_double(Item_param *param, uchar **pos, ulong len)
 #else
   doubleget(data, *pos);
 #endif
-  param->set_double((double) data);
+  set_double((double) data);
   *pos+= 8;
 }
 
-static void set_param_decimal(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_decimal(uchar **pos, ulong len)
 {
   ulong length= get_param_length(pos, len);
-  param->set_decimal((char*)*pos, length);
+  set_decimal((char*)*pos, length);
   *pos+= length;
 }
 
@@ -597,7 +582,7 @@ static void set_param_decimal(Item_param *param, uchar **pos, ulong len)
   @todo
     Add warning 'Data truncated' here
 */
-static void set_param_time(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_time(uchar **pos, ulong len)
 {
   MYSQL_TIME tm;
   ulong length= get_param_length(pos, len);
@@ -624,11 +609,11 @@ static void set_param_time(Item_param *param, uchar **pos, ulong len)
   }
   else
     set_zero_time(&tm, MYSQL_TIMESTAMP_TIME);
-  param->set_time(&tm, MYSQL_TIMESTAMP_TIME, MAX_TIME_FULL_WIDTH);
+  set_time(&tm, MYSQL_TIMESTAMP_TIME, MAX_TIME_FULL_WIDTH);
   *pos+= length;
 }
 
-static void set_param_datetime(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_datetime(uchar **pos, ulong len)
 {
   MYSQL_TIME tm;
   ulong length= get_param_length(pos, len);
@@ -654,13 +639,12 @@ static void set_param_datetime(Item_param *param, uchar **pos, ulong len)
   }
   else
     set_zero_time(&tm, MYSQL_TIMESTAMP_DATETIME);
-  param->set_time(&tm, MYSQL_TIMESTAMP_DATETIME,
-                  MAX_DATETIME_WIDTH * MY_CHARSET_BIN_MB_MAXLEN);
+  set_time(&tm, MYSQL_TIMESTAMP_DATETIME, MAX_DATETIME_WIDTH);
   *pos+= length;
 }
 
 
-static void set_param_date(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_date(uchar **pos, ulong len)
 {
   MYSQL_TIME tm;
   ulong length= get_param_length(pos, len);
@@ -679,8 +663,7 @@ static void set_param_date(Item_param *param, uchar **pos, ulong len)
   }
   else
     set_zero_time(&tm, MYSQL_TIMESTAMP_DATE);
-  param->set_time(&tm, MYSQL_TIMESTAMP_DATE,
-                  MAX_DATE_WIDTH * MY_CHARSET_BIN_MB_MAXLEN);
+  set_time(&tm, MYSQL_TIMESTAMP_DATE, MAX_DATE_WIDTH);
   *pos+= length;
 }
 
@@ -689,7 +672,7 @@ static void set_param_date(Item_param *param, uchar **pos, ulong len)
   @todo
     Add warning 'Data truncated' here
 */
-void set_param_time(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_time(uchar **pos, ulong len)
 {
   MYSQL_TIME tm= *((MYSQL_TIME*)*pos);
   tm.hour+= tm.day * 24;
@@ -701,145 +684,81 @@ void set_param_time(Item_param *param, uchar **pos, ulong len)
     tm.minute= 59;
     tm.second= 59;
   }
-  param->set_time(&tm, MYSQL_TIMESTAMP_TIME,
-                  MAX_TIME_WIDTH * MY_CHARSET_BIN_MB_MAXLEN);
-
+  set_time(&tm, MYSQL_TIMESTAMP_TIME, MAX_TIME_WIDTH);
 }
 
-void set_param_datetime(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_datetime(uchar **pos, ulong len)
 {
   MYSQL_TIME tm= *((MYSQL_TIME*)*pos);
   tm.neg= 0;
-
-  param->set_time(&tm, MYSQL_TIMESTAMP_DATETIME,
-                  MAX_DATETIME_WIDTH * MY_CHARSET_BIN_MB_MAXLEN);
+  set_time(&tm, MYSQL_TIMESTAMP_DATETIME, MAX_DATETIME_WIDTH);
 }
 
-void set_param_date(Item_param *param, uchar **pos, ulong len)
+void Item_param::set_param_date(uchar **pos, ulong len)
 {
   MYSQL_TIME *to= (MYSQL_TIME*)*pos;
-
-  param->set_time(to, MYSQL_TIMESTAMP_DATE,
-                  MAX_DATE_WIDTH * MY_CHARSET_BIN_MB_MAXLEN);
+  set_time(to, MYSQL_TIMESTAMP_DATE, MAX_DATE_WIDTH);
 }
 #endif /*!EMBEDDED_LIBRARY*/
 
 
-static void set_param_str_or_null(Item_param *param, uchar **pos, ulong len,
-                                  bool empty_string_is_null)
+void Item_param::set_param_str(uchar **pos, ulong len)
 {
   ulong length= get_param_length(pos, len);
-  if (length == 0 && empty_string_is_null)
-    param->set_null();
+  if (length == 0 && m_empty_string_is_null)
+    set_null();
   else
   {
     if (length > len)
       length= len;
-    param->set_str((const char *) *pos, length);
+    /*
+      We use &my_charset_bin here. Conversion and setting real character
+      sets will be done in Item_param::convert_str_value(), after the
+      original value is appended to the query used for logging.
+    */
+    set_str((const char *) *pos, length, &my_charset_bin, &my_charset_bin);
     *pos+= length;
   }
 }
 
 
-static void set_param_str(Item_param *param, uchar **pos, ulong len)
-{
-  set_param_str_or_null(param, pos, len, false);
-}
-
-
-/*
-  set_param_str_empty_is_null : bind empty string as null value
-  when sql_mode=MODE_EMPTY_STRING_IS_NULL
-*/
-static void set_param_str_empty_is_null(Item_param *param, uchar **pos,
-                                        ulong len)
-{
-  set_param_str_or_null(param, pos, len, true);
-}
-
-
 #undef get_param_length
 
-static void setup_one_conversion_function(THD *thd, Item_param *param,
-                                          uchar param_type)
+
+void Item_param::setup_conversion(THD *thd, uchar param_type)
 {
-  switch (param_type) {
-  case MYSQL_TYPE_TINY:
-    param->set_param_func= set_param_tiny;
-    break;
-  case MYSQL_TYPE_SHORT:
-    param->set_param_func= set_param_short;
-    break;
-  case MYSQL_TYPE_LONG:
-    param->set_param_func= set_param_int32;
-    break;
-  case MYSQL_TYPE_LONGLONG:
-    param->set_param_func= set_param_int64;
-    break;
-  case MYSQL_TYPE_FLOAT:
-    param->set_param_func= set_param_float;
-    break;
-  case MYSQL_TYPE_DOUBLE:
-    param->set_param_func= set_param_double;
-    break;
-  case MYSQL_TYPE_DECIMAL:
-  case MYSQL_TYPE_NEWDECIMAL:
-    param->set_param_func= set_param_decimal;
-    break;
-  case MYSQL_TYPE_TIME:
-    param->set_param_func= set_param_time;
-    break;
-  case MYSQL_TYPE_DATE:
-    param->set_param_func= set_param_date;
-    break;
-  case MYSQL_TYPE_DATETIME:
-  case MYSQL_TYPE_TIMESTAMP:
-    param->set_param_func= set_param_datetime;
-    break;
-  case MYSQL_TYPE_TINY_BLOB:
-  case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_LONG_BLOB:
-  case MYSQL_TYPE_BLOB:
-    param->set_param_func= set_param_str;
-    param->value.cs_info.character_set_of_placeholder= &my_charset_bin;
-    param->value.cs_info.character_set_client=
-      thd->variables.character_set_client;
-    DBUG_ASSERT(thd->variables.character_set_client);
-    param->value.cs_info.final_character_set_of_str_value= &my_charset_bin;
-    break;
-  default:
-    /*
-      The client library ensures that we won't get any other typecodes
-      except typecodes above and typecodes for string types. Marking
-      label as 'default' lets us to handle malformed packets as well.
-    */
-    {
-      CHARSET_INFO *fromcs= thd->variables.character_set_client;
-      CHARSET_INFO *tocs= thd->variables.collation_connection;
-      uint32 dummy_offset;
+  const Type_handler *h=
+    Type_handler::get_handler_by_field_type((enum_field_types) param_type);
+  /*
+    The client library ensures that we won't get any unexpected typecodes
+    in the bound parameter. Translating unknown typecodes to
+    &type_handler_string lets us to handle malformed packets as well.
+  */
+  if (!h)
+    h= &type_handler_string;
+  set_handler(h);
+  h->Item_param_setup_conversion(thd, this);
+}
 
-      param->value.cs_info.character_set_of_placeholder= fromcs;
-      param->value.cs_info.character_set_client= fromcs;
 
-      /*
-        Setup source and destination character sets so that they
-        are different only if conversion is necessary: this will
-        make later checks easier.
-      */
-      param->value.cs_info.final_character_set_of_str_value=
-        String::needs_conversion(0, fromcs, tocs, &dummy_offset) ?
-        tocs : fromcs;
+void Item_param::setup_conversion_blob(THD *thd)
+{
+  value.cs_info.character_set_of_placeholder= &my_charset_bin;
+  value.cs_info.character_set_client= thd->variables.character_set_client;
+  DBUG_ASSERT(thd->variables.character_set_client);
+  value.cs_info.final_character_set_of_str_value= &my_charset_bin;
+  m_empty_string_is_null= thd->variables.sql_mode & MODE_EMPTY_STRING_IS_NULL;
+}
 
-      param->set_param_func=
-        (thd->variables.sql_mode & MODE_EMPTY_STRING_IS_NULL) ?
-        set_param_str_empty_is_null : set_param_str;
-      /*
-        Exact value of max_length is not known unless data is converted to
-        charset of connection, so we have to set it later.
-      */
-    }
-  }
-  param->set_handler_by_field_type((enum enum_field_types) param_type);
+
+void Item_param::setup_conversion_string(THD *thd, CHARSET_INFO *fromcs)
+{
+  value.cs_info.set(thd, fromcs);
+  m_empty_string_is_null= thd->variables.sql_mode & MODE_EMPTY_STRING_IS_NULL;
+  /*
+    Exact value of max_length is not known unless data is converted to
+    charset of connection, so we have to set it later.
+  */
 }
 
 #ifndef EMBEDDED_LIBRARY
@@ -903,14 +822,13 @@ static bool insert_params_with_log(Prepared_statement *stmt, uchar *null_array,
       {
         if (read_pos >= data_end)
           DBUG_RETURN(1);
-        param->set_param_func(param, &read_pos, (uint) (data_end - read_pos));
+        param->set_param_func(&read_pos, (uint) (data_end - read_pos));
         if (param->has_no_value())
           DBUG_RETURN(1);
 
         if (param->limit_clause_param && !param->has_int_value())
         {
-          param->set_int(param->val_int(), MY_INT64_NUM_DECIMAL_DIGITS);
-          if (!param->unsigned_flag && param->value.integer < 0)
+          if (param->set_limit_clause_param(param->val_int()))
             DBUG_RETURN(1);
         }
       }
@@ -958,7 +876,7 @@ static bool insert_params(Prepared_statement *stmt, uchar *null_array,
       {
         if (read_pos >= data_end)
           DBUG_RETURN(1);
-        param->set_param_func(param, &read_pos, (uint) (data_end - read_pos));
+        param->set_param_func(&read_pos, (uint) (data_end - read_pos));
         if (param->has_no_value())
           DBUG_RETURN(1);
       }
@@ -1002,7 +920,7 @@ static bool insert_bulk_params(Prepared_statement *stmt,
       case STMT_INDICATOR_NONE:
         if ((*read_pos) >= data_end)
           DBUG_RETURN(1);
-        param->set_param_func(param, read_pos, (uint) (data_end - (*read_pos)));
+        param->set_param_func(read_pos, (uint) (data_end - (*read_pos)));
         if (param->has_no_value())
           DBUG_RETURN(1);
         if (param->convert_str_value(stmt->thd))
@@ -1048,7 +966,7 @@ static bool set_conversion_functions(Prepared_statement *stmt,
     typecode= sint2korr(read_pos);
     read_pos+= 2;
     (**it).unsigned_flag= MY_TEST(typecode & signed_bit);
-    setup_one_conversion_function(thd, *it, (uchar) (typecode & 0xff));
+    (*it)->setup_conversion(thd, (uchar) (typecode & 0xff));
   }
   *data= read_pos;
   DBUG_RETURN(0);
@@ -1103,7 +1021,7 @@ static bool emb_insert_params(Prepared_statement *stmt, String *expanded_query)
   for (; it < end; ++it, ++client_param)
   {
     Item_param *param= *it;
-    setup_one_conversion_function(thd, param, client_param->buffer_type);
+    param->setup_conversion(thd, client_param->buffer_type);
     if (!param->has_long_data_value())
     {
       if (*client_param->is_null)
@@ -1112,7 +1030,7 @@ static bool emb_insert_params(Prepared_statement *stmt, String *expanded_query)
       {
         uchar *buff= (uchar*) client_param->buffer;
         param->unsigned_flag= client_param->is_unsigned;
-        param->set_param_func(param, &buff,
+        param->set_param_func(&buff,
                               client_param->length ?
                               *client_param->length :
                               client_param->buffer_length);
@@ -1139,7 +1057,7 @@ static bool emb_insert_params_with_log(Prepared_statement *stmt, String *query)
   for (; it < end; ++it, ++client_param)
   {
     Item_param *param= *it;
-    setup_one_conversion_function(thd, param, client_param->buffer_type);
+    param->setup_conversion(thd, client_param->buffer_type);
     if (!param->has_long_data_value())
     {
       if (*client_param->is_null)
@@ -1148,7 +1066,7 @@ static bool emb_insert_params_with_log(Prepared_statement *stmt, String *query)
       {
         uchar *buff= (uchar*)client_param->buffer;
         param->unsigned_flag= client_param->is_unsigned;
-        param->set_param_func(param, &buff,
+        param->set_param_func(&buff,
                               client_param->length ?
                               *client_param->length :
                               client_param->buffer_length);
@@ -1281,12 +1199,6 @@ insert_params_from_actual_params_with_log(Prepared_statement *stmt,
   {
     Item_param *param= *it;
     Item *ps_param= param_it++;
-    /*
-      We have to call the setup_one_conversion_function() here to set
-      the parameter's members that might be needed further
-      (e.g. value.cs_info.character_set_client is used in the query_val_str()).
-    */
-    setup_one_conversion_function(thd, param, param->field_type());
     if (ps_param->save_in_param(thd, param))
       DBUG_RETURN(1);
 
@@ -1380,7 +1292,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
     {
       my_error(ER_DELAYED_NOT_SUPPORTED, MYF(0), (table_list->view ?
                                                   table_list->view_name.str :
-                                                  table_list->table_name));
+                                                  table_list->table_name.str));
       goto error;
     }
     while ((values= its++))
@@ -1392,7 +1304,7 @@ static bool mysql_test_insert(Prepared_statement *stmt,
         goto error;
       }
       if (setup_fields(thd, Ref_ptr_array(),
-                       *values, MARK_COLUMNS_NONE, 0, NULL, 0))
+                       *values, COLUMNS_READ, 0, NULL, 0))
         goto error;
     }
   }
@@ -1464,7 +1376,7 @@ static int mysql_test_update(Prepared_statement *stmt,
 
   if (!table_list->single_table_updatable())
   {
-    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
+    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
     goto error;
   }
 
@@ -1498,7 +1410,7 @@ static int mysql_test_update(Prepared_statement *stmt,
   table_list->register_want_access(SELECT_ACL);
 #endif
   if (setup_fields(thd, Ref_ptr_array(),
-                   stmt->lex->value_list, MARK_COLUMNS_NONE, 0, NULL, 0) ||
+                   stmt->lex->value_list, COLUMNS_READ, 0, NULL, 0) ||
       check_unique_table(thd, table_list))
     goto error;
   /* TODO: here we should send types of placeholders to the client. */
@@ -1542,7 +1454,7 @@ static bool mysql_test_delete(Prepared_statement *stmt,
 
   if (!table_list->single_table_updatable())
   {
-    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "DELETE");
+    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "DELETE");
     goto error;
   }
   if (!table_list->table || !table_list->table->is_created())
@@ -1590,8 +1502,6 @@ static int mysql_test_select(Prepared_statement *stmt,
   lex->select_lex.context.resolve_in_select_list= TRUE;
 
   ulong privilege= lex->exchange ? SELECT_ACL | FILE_ACL : SELECT_ACL;
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-    goto error;
   if (tables)
   {
     if (check_table_access(thd, privilege, tables, FALSE, UINT_MAX, FALSE))
@@ -1673,7 +1583,7 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
                                      DT_PREPARE | DT_CREATE))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
-                           *values, MARK_COLUMNS_NONE, 0, NULL, 0));
+                           *values, COLUMNS_READ, 0, NULL, 0));
 }
 
 
@@ -1856,9 +1766,6 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
   TABLE_LIST *tables= lex->create_last_non_select_table->next_global;
 
   if (create_table_precheck(thd, tables, create_table))
-    DBUG_RETURN(TRUE);
-
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
     DBUG_RETURN(TRUE);
 
   if (select_lex->item_list.elements)
@@ -2251,9 +2158,6 @@ static bool mysql_test_insert_select(Prepared_statement *stmt,
   if (insert_precheck(stmt->thd, tables))
     return 1;
 
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-    return 1;
-
   /* store it, because mysql_insert_select_prepare_tester change it */
   first_local_table= lex->select_lex.table_list.first;
   DBUG_ASSERT(first_local_table != 0);
@@ -2304,10 +2208,8 @@ static int mysql_test_handler_read(Prepared_statement *stmt,
   if (!stmt->is_sql_prepare())
   {
     if (!lex->result && !(lex->result= new (stmt->mem_root) select_send(thd)))
-    {
-      my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(select_send));
       DBUG_RETURN(1);
-    }
+
     if (send_prep_stmt(stmt, ha_table->fields.elements) ||
         lex->result->send_result_set_metadata(ha_table->fields, Protocol::SEND_EOF) ||
         thd->protocol->flush())
@@ -2357,6 +2259,9 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   /* Reset warning count for each query that uses tables */
   if (tables)
     thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
+
+  if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
+    goto error;
 
   if (sql_command_flags[sql_command] & CF_HA_CLOSE)
     mysql_ha_rm_tables(thd, tables);
@@ -2850,6 +2755,25 @@ void mysql_sql_stmt_prepare(THD *thd)
     DBUG_VOID_RETURN;
   }
 
+  /*
+    Make sure we call Prepared_statement::prepare() with an empty
+    THD::change_list. It can be non-empty as LEX::get_dynamic_sql_string()
+    calls fix_fields() for the Item containing the PS source,
+    e.g. on character set conversion:
+
+    SET NAMES utf8;
+    DELIMITER $$
+    CREATE PROCEDURE p1()
+    BEGIN
+      PREPARE stmt FROM CONCAT('SELECT ',CONVERT(RAND() USING latin1));
+      EXECUTE stmt;
+    END;
+    $$
+    DELIMITER ;
+    CALL p1();
+  */
+  Item_change_list_savepoint change_list_savepoint(thd);
+
   if (stmt->prepare(query.str, (uint) query.length))
   {
     /* Statement map deletes the statement on erase */
@@ -2860,6 +2784,7 @@ void mysql_sql_stmt_prepare(THD *thd)
     SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
     my_ok(thd, 0L, 0L, "Statement prepared");
   }
+  change_list_savepoint.rollback(thd);
 
   DBUG_VOID_RETURN;
 }
@@ -2891,7 +2816,28 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
   // See comments on thd->free_list in mysql_sql_stmt_execute()
   Item *free_list_backup= thd->free_list;
   thd->free_list= NULL;
+  /*
+    Make sure we call Prepared_statement::execute_immediate()
+    with an empty THD::change_list. It can be non empty as the above
+    LEX::prepared_stmt_params_fix_fields() and LEX::get_dynamic_str_string()
+    call fix_fields() for the PS source and PS parameter Items and
+    can do Item tree changes, e.g. on character set conversion:
+
+    - Example #1: Item tree changes in get_dynamic_str_string()
+    SET NAMES utf8;
+    CREATE PROCEDURE p1()
+      EXECUTE IMMEDIATE CONCAT('SELECT ',CONVERT(RAND() USING latin1));
+    CALL p1();
+
+    - Example #2: Item tree changes in prepared_stmt_param_fix_fields():
+    SET NAMES utf8;
+    CREATE PROCEDURE p1(a VARCHAR(10) CHARACTER SET utf8)
+      EXECUTE IMMEDIATE 'SELECT ?' USING CONCAT(a, CONVERT(RAND() USING latin1));
+    CALL p1('x');
+  */
+  Item_change_list_savepoint change_list_savepoint(thd);
   (void) stmt->execute_immediate(query.str, (uint) query.length);
+  change_list_savepoint.rollback(thd);
   thd->free_items();
   thd->free_list= free_list_backup;
 
@@ -3289,7 +3235,27 @@ void mysql_sql_stmt_execute(THD *thd)
   */
   Item *free_list_backup= thd->free_list;
   thd->free_list= NULL; // Hide the external (e.g. "SET STATEMENT") Items
+  /*
+    Make sure we call Prepared_statement::execute_loop() with an empty
+    THD::change_list. It can be non-empty because the above
+    LEX::prepared_stmt_params_fix_fields() calls fix_fields() for
+    the PS parameter Items and can do some Item tree changes,
+    e.g. on character set conversion:
+
+    SET NAMES utf8;
+    DELIMITER $$
+    CREATE PROCEDURE p1(a VARCHAR(10) CHARACTER SET utf8)
+    BEGIN
+      PREPARE stmt FROM 'SELECT ?';
+      EXECUTE stmt USING CONCAT(a, CONVERT(RAND() USING latin1));
+    END;
+    $$
+    DELIMITER ;
+    CALL p1('x');
+  */
+  Item_change_list_savepoint change_list_savepoint(thd);
   (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
+  change_list_savepoint.rollback(thd);
   thd->free_items();    // Free items created by execute_loop()
   /*
     Now restore the "external" (e.g. "SET STATEMENT") Item list.
@@ -3719,8 +3685,10 @@ Prepared_statement::Prepared_statement(THD *thd_arg)
   read_types(0),
   m_sql_mode(thd->variables.sql_mode)
 {
-  init_sql_alloc(&main_mem_root, thd_arg->variables.query_alloc_block_size,
-                 thd_arg->variables.query_prealloc_size, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(&main_mem_root, "Prepared_statement",
+                 thd_arg->variables.query_alloc_block_size,
+                 thd_arg->variables.query_prealloc_size,
+                 MYF(MY_THREAD_SPECIFIC));
   *last_error= '\0';
 }
 
@@ -3814,9 +3782,9 @@ void Prepared_statement::cleanup_stmt()
   DBUG_ENTER("Prepared_statement::cleanup_stmt");
   DBUG_PRINT("enter",("stmt: %p", this));
   lex->restore_set_statement_var();
+  thd->rollback_item_tree_changes();
   cleanup_items(free_list);
   thd->cleanup_after_query();
-  thd->rollback_item_tree_changes();
 
   DBUG_VOID_RETURN;
 }
@@ -3837,24 +3805,22 @@ bool Prepared_statement::set_name(LEX_CSTRING *name_arg)
   a prepared statement since it affects execution environment:
   privileges, @@character_set_database, and other.
 
-  @return Returns an error if out of memory.
+  @return 1 if out of memory.
 */
 
 bool
-Prepared_statement::set_db(const char *db_arg, uint db_length_arg)
+Prepared_statement::set_db(const LEX_CSTRING *db_arg)
 {
   /* Remember the current database. */
-  if (db_arg && db_length_arg)
+  if (db_arg->length)
   {
-    db= this->strmake(db_arg, db_length_arg);
-    db_length= db_length_arg;
+    if (!(db.str= this->strmake(db_arg->str, db_arg->length)))
+      return 1;
+    db.length= db_arg->length;
   }
   else
-  {
-    db= NULL;
-    db_length= 0;
-  }
-  return db_arg != NULL && db == NULL;
+    db= null_clex_str;
+  return 0;
 }
 
 /**************************************************************************
@@ -3901,8 +3867,9 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
 
   if (! (lex= new (mem_root) st_lex_local))
     DBUG_RETURN(TRUE);
+  stmt_lex= lex;
 
-  if (set_db(thd->db, thd->db_length))
+  if (set_db(&thd->db))
     DBUG_RETURN(TRUE);
 
   /*
@@ -3957,7 +3924,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     If called from a stored procedure, ensure that we won't rollback
     external changes when cleaning up after validation.
   */
-  DBUG_ASSERT(thd->change_list.is_empty());
+  DBUG_ASSERT(thd->Item_change_list::is_empty());
 
   /*
     Marker used to release metadata locks acquired while the prepared
@@ -4006,8 +3973,6 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     trans_rollback_implicit(thd);
     thd->mdl_context.release_transactional_locks();
   }
-  
-  select_number_after_prepare= thd->select_number;
 
   /* Preserve CHANGE MASTER attributes */
   lex_end_stage1(lex);
@@ -4144,7 +4109,6 @@ Prepared_statement::execute_loop(String *expanded_query,
   */
   DBUG_ASSERT(thd->free_list == NULL);
 
-  thd->select_number= select_number_after_prepare;
   /* Check if we got an error when sending long data */
   if (state == Query_arena::STMT_ERROR)
   {
@@ -4287,7 +4251,6 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
 #ifdef DBUG_ASSERT_EXISTS
   Item *free_list_state= thd->free_list;
 #endif
-  thd->select_number= select_number_after_prepare;
   thd->set_bulk_execution((void *)this);
   /* Check if we got an error when sending long data */
   if (state == Query_arena::STMT_ERROR)
@@ -4434,7 +4397,7 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
   bool error;
   Query_arena *save_stmt_arena= thd->stmt_arena;
   Item_change_list save_change_list;
-  thd->change_list.move_elements_to(&save_change_list);
+  thd->Item_change_list::move_elements_to(&save_change_list);
 
   state= STMT_CONVENTIONAL_EXECUTION;
 
@@ -4453,7 +4416,7 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
   thd->restore_backup_statement(this, &stmt_backup);
   thd->stmt_arena= save_stmt_arena;
 
-  save_change_list.move_elements_to(&thd->change_list);
+  save_change_list.move_elements_to(thd);
 
   /* Items and memory will freed in destructor */
 
@@ -4480,7 +4443,7 @@ Prepared_statement::reprepare()
   char saved_cur_db_name_buf[SAFE_NAME_LEN+1];
   LEX_STRING saved_cur_db_name=
     { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
-  LEX_CSTRING stmt_db_name= { db, db_length };
+  LEX_CSTRING stmt_db_name= db;
   bool cur_db_changed;
   bool error;
 
@@ -4603,8 +4566,7 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
   /* Swap names, the old name is allocated in the wrong memory root */
   swap_variables(LEX_CSTRING, name, copy->name);
   /* Ditto */
-  swap_variables(char *, db, copy->db);
-  swap_variables(size_t, db_length, copy->db_length);
+  swap_variables(LEX_CSTRING, db, copy->db);
 
   DBUG_ASSERT(param_count == copy->param_count);
   DBUG_ASSERT(thd == copy->thd);
@@ -4646,7 +4608,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     { saved_cur_db_name_buf, sizeof(saved_cur_db_name_buf) };
   bool cur_db_changed;
 
-  LEX_CSTRING stmt_db_name= { db, db_length };
+  LEX_CSTRING stmt_db_name= db;
 
   status_var_increment(thd->status_var.com_stmt_execute);
 
@@ -4681,7 +4643,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     If the free_list is not empty, we'll wrongly free some externally
     allocated items when cleaning up after execution of this statement.
   */
-  DBUG_ASSERT(thd->change_list.is_empty());
+  DBUG_ASSERT(thd->Item_change_list::is_empty());
 
   /* 
    The only case where we should have items in the thd->free_list is
@@ -4747,7 +4709,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
       PSI_statement_locker *parent_locker;
       MYSQL_QUERY_EXEC_START(thd->query(),
                              thd->thread_id,
-                             (char *) (thd->db ? thd->db : ""),
+                             thd->get_db(),
                              &thd->security_ctx->priv_user[0],
                              (char *) thd->security_ctx->host_or_ip,
                              1);
@@ -4806,7 +4768,19 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
   if (error == 0 && this->lex->sql_command == SQLCOM_CALL)
   {
     if (is_sql_prepare())
+    {
+      /*
+        Here we have the diagnostics area status already set to DA_OK.
+        sent_out_parameters() can raise errors when assigning OUT parameters:
+          DECLARE a DATETIME;
+          EXECUTE IMMEDIATE 'CALL p1(?)' USING a;
+        when the procedure p1 assigns a DATETIME-incompatible value (e.g. 10)
+        to the out parameter. Allow to overwrite status (to DA_ERROR).
+      */
+      thd->get_stmt_da()->set_overwrite_status(true);
       thd->protocol_text.send_out_parameters(&this->lex->param_list);
+      thd->get_stmt_da()->set_overwrite_status(false);
+    }
     else
       thd->protocol->send_out_parameters(&this->lex->param_list);
   }
@@ -5370,7 +5344,8 @@ bool Protocol_local::send_result_set_metadata(List<Item> *columns, uint)
 {
   DBUG_ASSERT(m_rset == 0 && !alloc_root_inited(&m_rset_root));
 
-  init_sql_alloc(&m_rset_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(&m_rset_root, "send_result_set_metadata",
+                 MEM_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
 
   if (! (m_rset= new (&m_rset_root) List<Ed_row>))
     return TRUE;

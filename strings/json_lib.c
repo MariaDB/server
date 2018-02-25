@@ -501,7 +501,7 @@ static int skip_num_constant(json_engine_t *j)
   for (;;)
   {
     j->num_flags|= json_num_state_flags[state];
-    if ((c_len= json_next_char(&j->s)) > 0)
+    if ((c_len= json_next_char(&j->s)) > 0 && j->s.c_next < 128)
     {
       if ((state= json_num_states[state][json_num_chr_map[j->s.c_next]]) > 0)
       {
@@ -1386,7 +1386,7 @@ int json_find_paths_next(json_engine_t *je, json_find_paths_t *state)
           if (!json_key_matches(je, &key_name))
             continue;
         }
-        if (cur_step - state->paths[p_c].last_step == state->cur_depth)
+        if ((uint) (cur_step - state->paths[p_c].last_step) == state->cur_depth)
           path_found= TRUE;
         else
         {
@@ -1419,7 +1419,7 @@ int json_find_paths_next(json_engine_t *je, json_find_paths_t *state)
             cur_step->n_item == state->array_counters[state->cur_depth])
         {
           /* Array item matches. */
-          if (cur_step - state->paths[p_c].last_step == state->cur_depth)
+          if ((uint) (cur_step - state->paths[p_c].last_step) == state->cur_depth)
             path_found= TRUE;
           else
           {

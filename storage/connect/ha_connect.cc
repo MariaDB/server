@@ -1755,11 +1755,13 @@ bool ha_connect::CheckVirtualIndex(TABLE_SHARE *s)
 
 bool ha_connect::IsPartitioned(void)
 {
+#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (tshp)
     return tshp->partition_info_str_len > 0;
   else if (table && table->part_info)
     return true;
   else
+#endif
     return false;
 
 } // end of IsPartitioned
@@ -3010,7 +3012,9 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
           return NULL;
 
         if (!x) {
+					const char *p;
 					char *s = (ishav) ? havg : body;
+					uint	j, k, n;
 
           // Append the value to the filter
           switch (args[i]->field_type()) {
@@ -3066,16 +3070,38 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
                     strcat(s, "'}");
                     break;
                   default:
-                    strcat(s, "'");
-                    strncat(s, res->ptr(), res->length());
-                    strcat(s, "'");
-                  } // endswitch field type
+										j = strlen(s);
+										s[j++] = '\'';
+										p = res->ptr();
+										n = res->length();
+
+										for (k = 0; k < n; k++) {
+											if (p[k] == '\'')
+												s[j++] = '\'';
+
+											s[j++] = p[k];
+										} // endfor k
+
+										s[j++] = '\'';
+										s[j] = 0;
+								} // endswitch field type
 
               } else {
-                strcat(s, "'");
-                strncat(s, res->ptr(), res->length());
-                strcat(s, "'");
-              } // endif tty
+								j = strlen(s);
+								s[j++] = '\'';
+								p = res->ptr();
+								n = res->length();
+
+								for (k = 0; k < n; k++) {
+									if (p[k] == '\'')
+										s[j++] = '\'';
+
+									s[j++] = p[k];
+								} // endfor k
+
+								s[j++] = '\'';
+								s[j] = 0;
+							} // endif tty
 
               break;
             default:
@@ -5560,7 +5586,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					int      rc;
 					PJDBCDEF jdef = new(g) JDBCDEF();
 
-					jdef->SetName(create_info->alias);
+					jdef->SetName(create_info->alias.str);
 					sjp = (PJPARM)PlugSubAlloc(g, NULL, sizeof(JDBCPARM));
 					sjp->Driver = driver;
 					//		sjp->Properties = prop;
@@ -5604,7 +5630,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					PMYDEF  mydef = new(g) MYSQLDEF();
 
 					dsn = strz(g, create_info->connect_string);
-					mydef->SetName(create_info->alias);
+					mydef->SetName(create_info->alias.str);
 
 					if (!mydef->ParseURL(g, dsn, false)) {
 						if (mydef->GetHostname())
@@ -5646,7 +5672,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			case TAB_TBL:
 			case TAB_XCL:
 			case TAB_OCCUR:
-				if (!src && !stricmp(tab, create_info->alias) &&
+				if (!src && !stricmp(tab, create_info->alias.str) &&
 					(!db || !stricmp(db, table_s->db.str)))
 					sprintf(g->Message, "A %s table cannot refer to itself", topt->type);
 				else
@@ -6142,8 +6168,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   TABLE  *st= table;                       // Probably unuseful
   THD    *thd= ha_thd();
   LEX_CSTRING cnc = table_arg->s->connect_string;
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
+#ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *part_info= table_arg->part_info;
+#else
+#define part_info 0
 #endif   // WITH_PARTITION_STORAGE_ENGINE
   xp= GetUser(thd, xp);
   PGLOBAL g= xp->g;
@@ -6217,7 +6245,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     dbf= (GetTypeID(options->type) == TAB_DBF && !options->catfunc);
 
   // Can be null in ALTER TABLE
-  if (create_info->alias)
+  if (create_info->alias.str)
     // Check whether a table is defined on itself
     switch (type) {
       case TAB_PRX:
@@ -6228,7 +6256,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           strcpy(g->Message, "Cannot check looping reference");
           push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
         } else if (options->tabname) {
-          if (!stricmp(options->tabname, create_info->alias) &&
+          if (!stricmp(options->tabname, create_info->alias.str) &&
              (!options->dbname || 
               !stricmp(options->dbname, table_arg->s->db.str))) {
             sprintf(g->Message, "A %s table cannot refer to itself",
@@ -6245,9 +6273,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
 				// fall through
       case TAB_MYSQL:
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
         if (!part_info)
-#endif   // WITH_PARTITION_STORAGE_ENGINE
        {const char *src= options->srcdef;
 				PCSZ host, db, tab= options->tabname;
         int  port;
@@ -6261,7 +6287,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           char   *dsn= strz(g, create_info->connect_string);
           PMYDEF  mydef= new(g) MYSQLDEF();
 
-          mydef->SetName(create_info->alias);
+          mydef->SetName(create_info->alias.str);
 
           if (!mydef->ParseURL(g, dsn, false)) {
             if (mydef->GetHostname())
@@ -6511,7 +6537,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       } else
         lwt[i]= tolower(options->type[i]);
 
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
     if (part_info) {
       char *p;
 
@@ -6521,7 +6546,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       strcat(strcat(strcpy(buf, p), "."), lwt);
       *p= 0;
     } else {
-#endif   // WITH_PARTITION_STORAGE_ENGINE
       strcat(strcat(strcpy(buf, GetTableName()), "."), lwt);
       sprintf(g->Message, "No file name. Table will use %s", buf);
   
@@ -6529,9 +6553,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
   
       strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
     } // endif part_info
-#endif   // WITH_PARTITION_STORAGE_ENGINE
 
     PlugSetPath(fn, buf, dbpath);
 
@@ -6596,11 +6618,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
         "Unexpected command in create, please contact CONNECT team");
 
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
     if (part_info && !inward)
       strncpy(partname, decode(g, strrchr(name, '#') + 1), sizeof(partname) - 1);
 //    strcpy(partname, part_info->curr_part_elem->partition_name);
-#endif   // WITH_PARTITION_STORAGE_ENGINE
 
     if (g->Alchecked == 0 &&
         (!IsFileType(type) || FileExists(options->filename, false))) {
@@ -6636,12 +6656,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 					my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
 					rc = HA_ERR_INTERNAL_ERROR;
 				} else if (cat) {
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
           if (part_info)
             strncpy(partname, 
                     decode(g, strrchr(name, (inward ? slash : '#')) + 1),
 										sizeof(partname) - 1);
-#endif   // WITH_PARTITION_STORAGE_ENGINE
 
           if ((rc= optimize(table->in_use, NULL))) {
             htrc("Create rc=%d %s\n", rc, g->Message);

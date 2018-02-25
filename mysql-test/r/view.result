@@ -152,14 +152,14 @@ v4	VIEW
 v5	VIEW
 v6	VIEW
 show table status;
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Fixed	5	9	45	#	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL		
-v1	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	#	NULL	NULL	NULL	VIEW
-v2	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	#	NULL	NULL	NULL	VIEW
-v3	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	#	NULL	NULL	NULL	VIEW
-v4	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	#	NULL	NULL	NULL	VIEW
-v5	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	#	NULL	NULL	NULL	VIEW
-v6	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	#	NULL	NULL	NULL	VIEW
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	5	9	45	#	1024	0	NULL	#	#	#	latin1_swedish_ci	NULL			#	N
+v1	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	#	NULL	NULL	NULL	VIEW	#	NULL
+v2	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	#	NULL	NULL	NULL	VIEW	#	NULL
+v3	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	#	NULL	NULL	NULL	VIEW	#	NULL
+v4	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	#	NULL	NULL	NULL	VIEW	#	NULL
+v5	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	#	NULL	NULL	NULL	VIEW	#	NULL
+v6	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	#	NULL	NULL	NULL	VIEW	#	NULL
 drop view v1,v2,v3,v4,v5,v6;
 create view v1 (c,d,e,f) as select a,b,
 a in (select a+2 from t1), a = all (select a from t1) from t1;
@@ -838,9 +838,9 @@ drop function x1;
 select * from v1;
 ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 show table status;
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL		
-v1	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	NULL	NULL	NULL	NULL	View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			#	N
+v1	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	NULL	NULL	NULL	NULL	View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them	#	NULL
 Warnings:
 Warning	1356	View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 drop view v1;
@@ -851,9 +851,9 @@ alter table t1 change a aa int;
 select * from v1;
 ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 show table status;
-Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL		
-v1	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	NULL	NULL	NULL	NULL	View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			#	N
+v1	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	NULL	NULL	NULL	NULL	View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them	#	NULL
 Warnings:
 Warning	1356	View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 show create view v1;
@@ -2934,10 +2934,10 @@ CREATE TABLE t1 (s1 int);
 CREATE VIEW v1 AS SELECT * FROM t1;
 EXPLAIN SELECT * FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	const row not found
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
 EXPLAIN SELECT * FROM v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	const row not found
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
 INSERT INTO t1 VALUES (1), (3), (2);
 EXPLAIN SELECT * FROM t1 t WHERE t.s1+1 < (SELECT MAX(t1.s1) FROM t1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -4609,7 +4609,7 @@ WHERE t4.a >= t1.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DEPENDENT SUBQUERY	t3	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
+2	DEPENDENT SUBQUERY	t3	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 2	DEPENDENT SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
@@ -4625,7 +4625,7 @@ WHERE t4.a >= v1.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DEPENDENT SUBQUERY	t3	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
+2	DEPENDENT SUBQUERY	t3	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 2	DEPENDENT SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'v1.a' of SELECT #2 was resolved in SELECT #1
@@ -4657,7 +4657,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 2	DEPENDENT SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
-2	DEPENDENT SUBQUERY	t1	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
+2	DEPENDENT SUBQUERY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 Warnings:
 Note	1276	Field or reference 'test.t4.b' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select 0 AS `c`,`test`.`t4`.`a` AS `a`,`test`.`t4`.`b` AS `b`,`test`.`t4`.`c` AS `c` from `test`.`t4` where `test`.`t4`.`c` <= <expr_cache><`test`.`t4`.`b`>((/* select#2 */ select 0 from dual where 7 > `test`.`t4`.`b`))
@@ -4674,7 +4674,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 2	DEPENDENT SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
-2	DEPENDENT SUBQUERY	t1	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
+2	DEPENDENT SUBQUERY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 Warnings:
 Note	1276	Field or reference 'v4.b' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select 0 AS `c`,`test`.`t4`.`a` AS `a`,`test`.`t4`.`b` AS `b`,`test`.`t4`.`c` AS `c` from `test`.`t4` where `test`.`t4`.`c` <= <expr_cache><`test`.`t4`.`b`>((/* select#2 */ select 0 from dual where 7 > `test`.`t4`.`b`))
@@ -5166,7 +5166,7 @@ CREATE TABLE t4 (i4 INT);
 INSERT INTO t4 VALUES (1),(2);
 DROP VIEW IF EXISTS v1;
 Warnings:
-Note	4090	Unknown VIEW: 'test.v1'
+Note	4092	Unknown VIEW: 'test.v1'
 CREATE VIEW v1 AS select coalesce(j1,i3) AS v1_field1 from t2 join t3 left join t1 on ( i1 = i2 );
 CREATE VIEW v2 AS select v1_field1 from t4 join v1;
 prepare my_stmt from "select v1_field1 from v2";
@@ -5227,114 +5227,6 @@ execute stmt1;
 deallocate prepare stmt1;
 drop view v1,v2;
 drop table t1,t2;
-#
-# MDEV-6251: SIGSEGV in query optimizer (in set_check_materialized 
-# with MERGE view)
-#
-CREATE TABLE t1 (a1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
-CREATE TABLE t2 (b1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
-CREATE TABLE t3 (c1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
-CREATE TABLE t4 (d1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
-CREATE TABLE t5 (e1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
-CREATE TABLE t6 (f1 INT(11) NOT NULL DEFAULT NULL AUTO_INCREMENT PRIMARY KEY);
-CREATE OR REPLACE view v1 AS
-SELECT 1
-FROM t1 a_alias_1
-LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-;
-SELECT 1
-FROM ((  SELECT 1
-FROM t1 a_alias_1
-LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t1)
-LEFT OUTER JOIN ((  SELECT 1
-FROM t1 a_alias_1
-LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t2) ON 1=1
-LEFT OUTER JOIN ((  SELECT 1
-FROM t1 a_alias_1
-LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t3) ON 1=1
-LEFT OUTER JOIN ((  SELECT 1
-FROM t1 a_alias_1
-LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t4) ON 1=1
-LEFT OUTER JOIN ((  SELECT 1
-FROM t1 a_alias_1
-LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t5) ON 1=1
-LEFT OUTER JOIN ((  SELECT 1
-FROM t1 a_alias_1
-LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t6) ON 1=1
-LEFT OUTER JOIN ((  SELECT 1
-FROM t1 a_alias_1
-LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t7) ON 1=1
-LEFT OUTER JOIN ((  SELECT 1
-FROM t1 a_alias_1
-LEFT JOIN (t2 b_alias_1 JOIN t1 a_alias_2) ON b_alias_1.b1 = a_alias_1.a1 AND a_alias_2.a1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_1 ON c_alias_1.c1 = a_alias_1.a1
-LEFT JOIN t4 d_alias_1 ON d_alias_1.d1 = a_alias_1.a1
-LEFT JOIN t3 c_alias_2 ON c_alias_2.c1 = a_alias_1.a1
-LEFT JOIN t5 e_alias_1 ON e_alias_1.e1 = a_alias_1.a1
-LEFT JOIN t6 f_alias_1 ON f_alias_1.f1 = a_alias_1.a1
-) t8) ON 1=1
-;
-1
-SELECT 1
-FROM (v1 t1)
-LEFT OUTER JOIN (v1 t2) ON 1=1
-LEFT OUTER JOIN (v1 t3) ON 1=1
-LEFT OUTER JOIN (v1 t4) ON 1=1
-LEFT OUTER JOIN (v1 t5) ON 1=1
-LEFT OUTER JOIN (v1 t6) ON 1=1
-LEFT OUTER JOIN (v1 t7) ON 1=1
-LEFT OUTER JOIN (v1 t8) ON 1=1
-;
-1
-drop view v1;
-drop table t1,t2,t3,t4,t5,t6;
 # -----------------------------------------------------------------
 # -- End of 5.3 tests.
 # -----------------------------------------------------------------
@@ -5621,6 +5513,20 @@ PREPARE stmt FROM 'REPLACE INTO v2 SELECT a FROM t3';
 ERROR HY000: Can not insert into join view 'test.v2' without fields list
 drop view v1,v2;
 drop table t3;
+#
+# MDEV-14619: VIEW and GROUP_CONCAT
+#
+CREATE TABLE t1 (str text);
+INSERT INTO t1 VALUES ("My"),("SQL");
+CREATE VIEW v1 AS SELECT GROUP_CONCAT(str  SEPARATOR  '\\') FROM t1;
+SELECT * FROM v1;
+GROUP_CONCAT(str  SEPARATOR  '\\')
+My\SQL
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select group_concat(`t1`.`str` separator '\\') AS `GROUP_CONCAT(str  SEPARATOR  '\\')` from `t1`	latin1	latin1_swedish_ci
+drop view v1;
+drop table t1;
 # -----------------------------------------------------------------
 # -- End of 5.5 tests.
 # -----------------------------------------------------------------

@@ -133,6 +133,19 @@ public:
 
 extern TYPELIB slave_parallel_mode_typelib;
 
+typedef struct st_rows_event_tracker
+{
+  char binlog_file_name[FN_REFLEN];
+  my_off_t first_seen;
+  my_off_t last_seen;
+  bool stmt_end_seen;
+  void update(const char* file_name, my_off_t pos,
+              const char* buf,
+              const Format_description_log_event *fdle);
+  void reset();
+  bool check_and_report(const char* file_name, my_off_t pos);
+} Rows_event_tracker;
+
 /*****************************************************************************
   Replication IO Thread
 
@@ -301,6 +314,14 @@ class Master_info : public Slave_reporting_capability
   uint64 gtid_reconnect_event_skip_count;
   /* gtid_event_seen is false until we receive first GTID event from master. */
   bool gtid_event_seen;
+  /**
+    The struct holds some history of Rows- log-event reading/queuing
+    by the receiver thread. Its fields are updated per each such event
+    at time of queue_event(), and they are checked to detect
+    the Rows- event group integrity violation at time of first non-Rows-
+    event gets handled.
+  */
+  Rows_event_tracker rows_event_tracker;
   bool in_start_all_slaves, in_stop_all_slaves;
   bool in_flush_all_relay_logs;
   uint users;                                   /* Active user for object */
@@ -311,6 +332,11 @@ class Master_info : public Slave_reporting_capability
 
   /* The parallel replication mode. */
   enum_slave_parallel_mode parallel_mode;
+  /*
+    semi_ack is used to identify if the current binlog event needs an
+    ACK from slave, or if delay_master is enabled.
+  */
+  int semi_ack;
 };
 
 int init_master_info(Master_info* mi, const char* master_info_fname,

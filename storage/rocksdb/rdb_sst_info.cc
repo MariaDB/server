@@ -109,6 +109,9 @@ Rdb_sst_file_ordered::Rdb_sst_file::put(const rocksdb::Slice &key,
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
+#ifdef _MSC_VER
+#pragma warning (disable : 4996)
+#endif
   return m_sst_file_writer->Add(key, value);
 }
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, 2017, MariaDB Corporation.
+Copyright (C) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -438,7 +438,7 @@ btr_defragment_merge_pages(
 	page_t* from_page = buf_block_get_frame(from_block);
 	page_t* to_page = buf_block_get_frame(to_block);
 	ulint space = dict_index_get_space(index);
-	ulint level = btr_page_get_level(from_page, mtr);
+	ulint level = btr_page_get_level(from_page);
 	ulint n_recs = page_get_n_recs(from_page);
 	ulint new_data_size = page_get_data_size(to_page);
 	ulint max_ins_size =
@@ -623,7 +623,7 @@ btr_defragment_n_pages(
 	}
 
 	first_page = buf_block_get_frame(block);
-	level = btr_page_get_level(first_page, mtr);
+	level = btr_page_get_level(first_page);
 	const page_size_t page_size(dict_table_page_size(index->table));
 
 	if (level != 0) {
@@ -650,7 +650,7 @@ btr_defragment_n_pages(
 	}
 
 	if (n_pages == 1) {
-		if (btr_page_get_prev(first_page, mtr) == FIL_NULL) {
+		if (!page_has_prev(first_page)) {
 			/* last page in the index */
 			if (dict_index_get_page(index)
 			    == page_get_page_no(first_page))

@@ -70,6 +70,7 @@
 #include "rocksdb/utilities/memory_util.h"
 #include "rocksdb/utilities/sim_cache.h"
 #include "util/stop_watch.h"
+#include "./rdb_source_revision.h"
 
 /* MyRocks includes */
 #include "./event_listener.h"
@@ -110,6 +111,10 @@ bool thd_binlog_filter_ok(const MYSQL_THD thd);
 }
 
 MYSQL_PLUGIN_IMPORT bool my_disable_leak_check;
+
+// Needed in rocksdb_init_func
+void ignore_db_dirs_append(const char *dirname_arg);
+
 
 namespace myrocks {
 
@@ -369,11 +374,11 @@ static my_bool rocksdb_pause_background_work = 0;
 static mysql_mutex_t rdb_sysvars_mutex;
 
 static void rocksdb_set_pause_background_work(
-    my_core::THD *const thd MY_ATTRIBUTE((__unused__)),
-    struct st_mysql_sys_var *const var MY_ATTRIBUTE((__unused__)),
-    void *const var_ptr MY_ATTRIBUTE((__unused__)), const void *const save) {
+    my_core::THD *const,
+    struct st_mysql_sys_var *const,
+    void *const, const void *const save) {
   RDB_MUTEX_LOCK_CHECK(rdb_sysvars_mutex);
-  const bool pause_requested = *static_cast<const bool *>(save);
+  const my_bool pause_requested = *static_cast<const my_bool *>(save);
   if (rocksdb_pause_background_work != pause_requested) {
     if (pause_requested) {
       rdb->PauseBackgroundWork();
@@ -490,6 +495,7 @@ static uint32_t rocksdb_table_stats_sampling_pct;
 static my_bool rocksdb_enable_bulk_load_api = 1;
 static my_bool rocksdb_print_snapshot_conflict_queries = 0;
 static my_bool rocksdb_large_prefix = 0;
+static char* rocksdb_git_hash;
 
 char *compression_types_val=
   const_cast<char*>(get_rocksdb_supported_compression_types());
@@ -645,6 +651,11 @@ static MYSQL_SYSVAR_BOOL(enable_bulk_load_api, rocksdb_enable_bulk_load_api,
                          PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
                          "Enables using SstFileWriter for bulk loading",
                          nullptr, nullptr, rocksdb_enable_bulk_load_api);
+
+static MYSQL_SYSVAR_STR(git_hash, rocksdb_git_hash,
+                        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+                        "Git revision of the RocksDB library used by MyRocks",
+                        nullptr, nullptr, ROCKSDB_GIT_HASH);
 
 static MYSQL_THDVAR_STR(tmpdir, PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
                         "Directory for temporary files during DDL operations.",
@@ -1446,7 +1457,7 @@ static MYSQL_SYSVAR_UINT(
 static MYSQL_SYSVAR_STR(datadir, rocksdb_datadir,
                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
                         "RocksDB data directory", nullptr, nullptr,
-                        "./.rocksdb");
+                        "./#rocksdb");
 
 static MYSQL_SYSVAR_STR(supported_compression_types,
   compression_types_val,
@@ -1629,6 +1640,7 @@ static struct st_mysql_sys_var *rocksdb_system_variables[] = {
     MYSQL_SYSVAR(table_stats_sampling_pct),
 
     MYSQL_SYSVAR(large_prefix),
+    MYSQL_SYSVAR(git_hash),
     nullptr};
 
 static rocksdb::WriteOptions
@@ -2228,7 +2240,8 @@ public:
   }
 
   void set_sync(bool sync) override {
-    m_rocksdb_tx->GetWriteOptions()->sync = sync;
+    if (m_rocksdb_tx)
+      m_rocksdb_tx->GetWriteOptions()->sync = sync;
   }
 
   void release_lock(rocksdb::ColumnFamilyHandle *const column_family,
@@ -3142,10 +3155,20 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
          - For a COMMIT statement that finishes a multi-statement transaction
          - For a statement that has its own transaction
       */
+
+      //  First, commit without syncing. This establishes the commit order
+      tx->set_sync(false);
       if (tx->commit()) {
         DBUG_RETURN(HA_ERR_ROCKSDB_COMMIT_FAILED);
       }
       thd_wakeup_subsequent_commits(thd, 0);
+
+      if (rocksdb_flush_log_at_trx_commit == FLUSH_LOG_SYNC)
+      {
+        rocksdb::Status s= rdb->FlushWAL(true);
+        if (!s.ok())
+          DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+      }
     } else {
       /*
         We get here when committing a statement within a transaction.
@@ -3934,6 +3957,7 @@ static rocksdb::Status check_rocksdb_options_compatibility(
   return status;
 }
 
+
 /*
   Storage Engine initialization function, invoked when plugin is loaded.
 */
@@ -3961,6 +3985,11 @@ static int rocksdb_init_func(void *const p) {
                    MY_MUTEX_INIT_FAST);
   mysql_mutex_init(rdb_mem_cmp_space_mutex_key, &rdb_mem_cmp_space_mutex,
                    MY_MUTEX_INIT_FAST);
+
+  const char* initial_rocksdb_datadir_for_ignore_dirs= rocksdb_datadir;
+  if (!strncmp(rocksdb_datadir, "./", 2))
+    initial_rocksdb_datadir_for_ignore_dirs += 2;
+  ignore_db_dirs_append(initial_rocksdb_datadir_for_ignore_dirs);
 
 #if defined(HAVE_PSI_INTERFACE)
   rdb_collation_exceptions =
@@ -5698,6 +5727,41 @@ int ha_rocksdb::open(const char *const name, int mode, uint test_if_locked) {
 
   setup_field_converters();
 
+  /*
+    MariaDB: adjust field->part_of_key for PK columns. We can only do it here
+    because SE API is just relying on the HA_PRIMARY_KEY_IN_READ_INDEX which
+    does not allow to distinguish between unpack'able and non-unpack'able
+    columns. 
+    Upstream uses handler->init_with_fields() but we don't have that call.
+  */
+  {
+    if (!has_hidden_pk(table)) {
+      KEY *const pk_info = &table->key_info[table->s->primary_key];
+      for (uint kp = 0; kp < pk_info->user_defined_key_parts; kp++) {
+        if (!m_pk_descr->can_unpack(kp)) {
+          //
+          uint field_index= pk_info->key_part[kp].field->field_index;
+          table->field[field_index]->part_of_key.clear_all();
+          table->field[field_index]->part_of_key.set_bit(table->s->primary_key);
+        }
+      }
+    }
+
+    for (uint key= 0; key < table->s->keys; key++) {
+      KEY *const key_info = &table->key_info[key];
+      if (key ==  table->s->primary_key)
+        continue;
+      for (uint kp = 0; kp < key_info->usable_key_parts; kp++) {
+        uint field_index= key_info->key_part[kp].field->field_index;
+        if (m_key_descr_arr[key]->can_unpack(kp)) {
+          table->field[field_index]->part_of_key.set_bit(key);
+        } else {
+          table->field[field_index]->part_of_key.clear_bit(key);
+        }
+      }
+    }
+  }
+
   info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
 
   /*
@@ -5912,12 +5976,36 @@ rdb_is_index_collation_supported(const my_core::Field *const field) {
   const my_core::enum_field_types type = field->real_type();
   /* Handle [VAR](CHAR|BINARY) or TEXT|BLOB */
   if (type == MYSQL_TYPE_VARCHAR || type == MYSQL_TYPE_STRING ||
-      type == MYSQL_TYPE_BLOB) {
-    return RDB_INDEX_COLLATIONS.find(field->charset()->number) !=
-           RDB_INDEX_COLLATIONS.end();
+      type == MYSQL_TYPE_BLOB)  {
+
+    return (RDB_INDEX_COLLATIONS.find(field->charset()->number) !=
+            RDB_INDEX_COLLATIONS.end()) ||
+            rdb_is_collation_supported(field->charset());
   }
   return true;
 }
+
+
+static bool
+rdb_field_uses_nopad_collation(const my_core::Field *const field) {
+  const my_core::enum_field_types type = field->real_type();
+  /* Handle [VAR](CHAR|BINARY) or TEXT|BLOB */
+  if (type == MYSQL_TYPE_VARCHAR || type == MYSQL_TYPE_STRING ||
+      type == MYSQL_TYPE_BLOB) {
+
+    /*
+      This is technically a NOPAD collation but it's a binary collation
+      that we can handle.
+    */
+    if (RDB_INDEX_COLLATIONS.find(field->charset()->number) !=
+           RDB_INDEX_COLLATIONS.end())
+      return false;
+
+    return (field->charset()->state & MY_CS_NOPAD);
+  }
+  return false;
+}
+
 
 /*
   Create structures needed for storing data in rocksdb. This is called when the
@@ -6027,8 +6115,7 @@ int ha_rocksdb::create_cfs(
   for (uint i = 0; i < tbl_def_arg->m_key_count; i++) {
     rocksdb::ColumnFamilyHandle *cf_handle;
 
-    if (rocksdb_strict_collation_check &&
-        !is_hidden_pk(i, table_arg, tbl_def_arg) &&
+    if (!is_hidden_pk(i, table_arg, tbl_def_arg) &&
         tbl_def_arg->base_tablename().find(tmp_file_prefix) != 0) {
       if (!tsys_set)
       {
@@ -6040,21 +6127,28 @@ int ha_rocksdb::create_cfs(
       for (uint part = 0; part < table_arg->key_info[i].ext_key_parts; 
            part++)
       {
-        if (!rdb_is_index_collation_supported(
+        /* MariaDB: disallow NOPAD collations */
+        if (rdb_field_uses_nopad_collation(
+              table_arg->key_info[i].key_part[part].field))
+        {
+          my_error(ER_MYROCKS_CANT_NOPAD_COLLATION, MYF(0));
+          DBUG_RETURN(HA_EXIT_FAILURE);
+        }
+
+        if (rocksdb_strict_collation_check &&
+            !rdb_is_index_collation_supported(
                 table_arg->key_info[i].key_part[part].field) &&
             !rdb_collation_exceptions->matches(tablename_sys)) {
-          std::string collation_err;
-          for (const auto &coll : RDB_INDEX_COLLATIONS) {
-            if (collation_err != "") {
-              collation_err += ", ";
-            }
-            collation_err += get_charset_name(coll);
-          }
-          my_error(ER_UNSUPPORTED_COLLATION, MYF(0),
-                   tbl_def_arg->full_tablename().c_str(),
-                   table_arg->key_info[i].key_part[part].field->field_name.str,
-                   collation_err.c_str());
-          DBUG_RETURN(HA_EXIT_FAILURE);
+
+          char buf[1024];
+          my_snprintf(buf, sizeof(buf),
+                      "Indexed column %s.%s uses a collation that does not "
+                      "allow index-only access in secondary key and has "
+                      "reduced disk space efficiency in primary key.",
+                       tbl_def_arg->full_tablename().c_str(),
+                       table_arg->key_info[i].key_part[part].field->field_name.str);
+
+          my_error(ER_INTERNAL_ERROR, MYF(ME_JUST_WARNING), buf);
         }
       }
     }
@@ -6062,7 +6156,7 @@ int ha_rocksdb::create_cfs(
     // Internal consistency check to make sure that data in TABLE and
     // Rdb_tbl_def structures matches. Either both are missing or both are
     // specified. Yes, this is critical enough to make it into SHIP_ASSERT.
-    SHIP_ASSERT(!table_arg->part_info == tbl_def_arg->base_partition().empty());
+    SHIP_ASSERT(IF_PARTITIONING(!table_arg->part_info,true) == tbl_def_arg->base_partition().empty());
 
     // Generate the name for the column family to use.
     bool per_part_match_found = false;
@@ -8301,7 +8395,7 @@ const std::string ha_rocksdb::generate_cf_name(const uint index,
       key_comment, table_arg, tbl_def_arg, per_part_match_found,
       RDB_CF_NAME_QUALIFIER);
 
-  if (table_arg->part_info != nullptr && !*per_part_match_found) {
+  if (IF_PARTITIONING(table_arg->part_info,nullptr) != nullptr && !*per_part_match_found) {
     // At this point we tried to search for a custom CF name for a partition,
     // but none was specified. Therefore default one will be used.
     return "";
@@ -12263,6 +12357,7 @@ void rocksdb_set_update_cf_options(THD *const /* unused */,
   // Basic sanity checking and parsing the options into a map. If this fails
   // then there's no point to proceed.
   if (!Rdb_cf_options::parse_cf_options(val, &option_map)) {
+    my_free(*reinterpret_cast<char**>(var_ptr));
     *reinterpret_cast<char**>(var_ptr) = nullptr;
 
     // NO_LINT_DEBUG
@@ -12331,6 +12426,7 @@ void rocksdb_set_update_cf_options(THD *const /* unused */,
   // the CF options. This will results in consistent behavior and avoids
   // dealing with cases when only a subset of CF-s was successfully updated.
   if (val) {
+    my_free(*reinterpret_cast<char**>(var_ptr));
     *reinterpret_cast<char**>(var_ptr) = my_strdup(val,  MYF(0));
   } else {
     *reinterpret_cast<char**>(var_ptr) = nullptr;
@@ -12425,6 +12521,7 @@ void print_keydup_error(TABLE *table, KEY *key, myf errflag,
   its name generation.
 */
 
+
 struct st_mysql_storage_engine rocksdb_storage_engine = {
     MYSQL_HANDLERTON_INTERFACE_VERSION};
 
@@ -12441,7 +12538,7 @@ maria_declare_plugin(rocksdb_se){
     myrocks::rocksdb_status_vars,      /* status variables */
     myrocks::rocksdb_system_variables, /* system variables */
   "1.0",                                        /* string version */
-  MariaDB_PLUGIN_MATURITY_ALPHA                 /* maturity */
+  myrocks::MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 },
     myrocks::rdb_i_s_cfstats, myrocks::rdb_i_s_dbstats,
     myrocks::rdb_i_s_perf_context, myrocks::rdb_i_s_perf_context_global,

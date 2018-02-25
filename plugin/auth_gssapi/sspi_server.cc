@@ -108,7 +108,7 @@ static int get_client_name_from_context(CtxtHandle *ctxt,
   sspi_ret= ImpersonateSecurityContext(ctxt);
   if (sspi_ret == SEC_E_OK)
   {
-    ULONG len= name_len;
+    ULONG len= (ULONG)name_len;
     if (!GetUserNameEx(NameSamCompatible, name, &len))
     {
       log_error(GetLastError(), "GetUserNameEx");
@@ -163,7 +163,7 @@ int auth_server(MYSQL_PLUGIN_VIO *vio, const char *user, size_t user_len, int co
   }
   sspi_ret= AcquireCredentialsHandle(
     srv_principal_name,
-    srv_mech_name,
+    (LPSTR)srv_mech_name,
     SECPKG_CRED_INBOUND,
     NULL,
     NULL,
@@ -282,12 +282,12 @@ int plugin_init()
   {
     srv_principal_name= get_default_principal_name();
   }
-  my_printf_error(0, "SSPI: using principal name '%s', mech '%s'",
+  my_printf_error(ER_UNKNOWN_ERROR, "SSPI: using principal name '%s', mech '%s'",
                   ME_ERROR_LOG | ME_NOTE, srv_principal_name, srv_mech_name);
 
   ret = AcquireCredentialsHandle(
     srv_principal_name,
-    srv_mech_name,
+    (LPSTR)srv_mech_name,
     SECPKG_CRED_INBOUND,
     NULL,
     NULL,

@@ -409,6 +409,23 @@ Table_open_cache_overflows	5
 FLUSH TABLES;
 FLUSH STATUS;
 SET @@global.table_open_cache= @old_table_open_cache;
+#
+# MDEV-14505 - Threads_running becomes scalability bottleneck
+#
+# Session status for Threads_running is currently always 1.
+SHOW STATUS LIKE 'Threads_running';
+Variable_name	Value
+Threads_running	1
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='THREADS_RUNNING';
+VARIABLE_VALUE
+1
+FLUSH STATUS;
+SHOW STATUS LIKE 'Threads_running';
+Variable_name	Value
+Threads_running	1
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='THREADS_RUNNING';
+VARIABLE_VALUE
+1
 connection default;
 set @@global.concurrent_insert= @old_concurrent_insert;
 SET GLOBAL log_output = @old_log_output;

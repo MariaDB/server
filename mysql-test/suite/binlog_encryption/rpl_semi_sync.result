@@ -4,6 +4,7 @@ connection master;
 call mtr.add_suppression("Timeout waiting for reply of binlog");
 call mtr.add_suppression("Read semi-sync reply");
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
+call mtr.add_suppression("mysqld: Got an error reading communication packets");
 connection slave;
 call mtr.add_suppression("Master server does not support semi-sync");
 call mtr.add_suppression("Semi-sync slave .* reply");
@@ -176,7 +177,7 @@ Variable_name	Value
 Rpl_semi_sync_master_yes_tx	14
 show status like 'Rpl_semi_sync_master_clients';
 Variable_name	Value
-Rpl_semi_sync_master_clients	1
+Rpl_semi_sync_master_clients	0
 [ semi-sync replication of these transactions will fail ]
 insert into t1 values (500);
 [ master status should be OFF ]
@@ -321,7 +322,6 @@ connection slave;
 include/stop_slave.inc
 reset slave;
 connection master;
-kill query _tid;
 connection slave;
 include/start_slave.inc
 connection master;
@@ -353,7 +353,6 @@ include/stop_slave.inc
 reset slave;
 connection master;
 reset master;
-kill query _tid;
 set sql_log_bin=0;
 grant replication slave on *.* to rpl@127.0.0.1 identified by 'rpl_password';
 flush privileges;
@@ -404,7 +403,6 @@ SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	OFF
 connection master;
-kill query _tid;
 [ Semi-sync status on master should be ON ]
 show status like 'Rpl_semi_sync_master_clients';
 Variable_name	Value

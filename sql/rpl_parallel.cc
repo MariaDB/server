@@ -255,10 +255,8 @@ signal_error_to_sql_driver_thread(THD *thd, rpl_group_info *rgi, int err)
   rgi->rli->abort_slave= true;
   rgi->rli->stop_for_until= false;
   mysql_mutex_lock(rgi->rli->relay_log.get_log_lock());
+  rgi->rli->relay_log.signal_relay_log_update();
   mysql_mutex_unlock(rgi->rli->relay_log.get_log_lock());
-  rgi->rli->relay_log.lock_binlog_end_pos();
-  rgi->rli->relay_log.signal_update();
-  rgi->rli->relay_log.unlock_binlog_end_pos();
 }
 
 
@@ -823,7 +821,7 @@ do_retry:
     for (;;)
     {
       old_offset= cur_offset;
-      ev= Log_event::read_log_event(&rlog, 0, description_event,
+      ev= Log_event::read_log_event(&rlog, description_event,
                                     opt_slave_sql_verify_checksum);
       cur_offset= my_b_tell(&rlog);
 
@@ -1395,7 +1393,7 @@ handle_rpl_parallel_thread(void *arg)
   thd->clear_error();
   thd->catalog= 0;
   thd->reset_query();
-  thd->reset_db(NULL, 0);
+  thd->reset_db(&null_clex_str);
   thd_proc_info(thd, "Slave worker thread exiting");
   thd->temporary_tables= 0;
 
@@ -1624,10 +1622,19 @@ int rpl_parallel_resize_pool_if_no_slaves(void)
 }
 
 
+/**
+   Resize pool if not active or busy (in which case we may be in
+   resize to 0
+*/
+
 int
 rpl_parallel_activate_pool(rpl_parallel_thread_pool *pool)
 {
-  if (!pool->count)
+  bool resize;
+  mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
+  resize= !pool->count || pool->busy;
+  mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
+  if (resize)
     return rpl_parallel_change_thread_count(pool, opt_slave_parallel_threads,
                                             0);
   return 0;

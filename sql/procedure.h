@@ -59,7 +59,11 @@ public:
     DBUG_ASSERT(0); // impossible
     return mark_unsupported_function("proc", arg, VCOL_IMPOSSIBLE);
   }
-  Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return type_handler()->Item_get_date(this, ltime, fuzzydate);
+  }
+  Item* get_copy(THD *thd) { return 0; }
 };
 
 class Item_proc_real :public Item_proc

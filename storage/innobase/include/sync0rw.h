@@ -501,13 +501,13 @@ bool
 rw_lock_lock_word_decr(
 /*===================*/
 	rw_lock_t*	lock,		/*!< in/out: rw-lock */
-	ulint		amount,		/*!< in: amount to decrement */
-	lint		threshold);	/*!< in: threshold of judgement */
+	int32_t		amount,		/*!< in: amount to decrement */
+	int32_t		threshold);	/*!< in: threshold of judgement */
 #ifdef UNIV_DEBUG
 /******************************************************************//**
 Checks if the thread has locked the rw-lock in the specified mode, with
 the pass value == 0. */
-ibool
+bool
 rw_lock_own(
 /*========*/
 	rw_lock_t*	lock,		/*!< in: rw-lock */
@@ -571,10 +571,10 @@ struct rw_lock_t
 #endif /* UNIV_DEBUG */
 {
 	/** Holds the state of the lock. */
-	volatile lint	lock_word;
+	int32_t	lock_word;
 
 	/** 1: there are waiters */
-	volatile uint32_t	waiters;
+	int32_t	waiters;
 
 	/** number of granted SX locks. */
 	volatile ulint	sx_recursive;
@@ -603,9 +603,6 @@ struct rw_lock_t
 	/** File name where lock created */
 	const char*	cfile_name;
 
-	/** last s-lock file/line is not guaranteed to be correct */
-	const char*	last_s_file_name;
-
 	/** File name where last x-locked */
 	const char*	last_x_file_name;
 
@@ -614,9 +611,6 @@ struct rw_lock_t
 
 	/** If 1 then the rw-lock is a block lock */
 	unsigned	is_block_lock:1;
-
-	/** Line number where last time s-locked */
-	unsigned	last_s_line:14;
 
 	/** Line number where last time x-locked */
 	unsigned	last_x_line:14;

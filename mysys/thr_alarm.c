@@ -36,13 +36,6 @@
 #define ETIME ETIMEDOUT
 #endif
 
-uint thr_client_alarm;
-static int alarm_aborted=1;			/* No alarm thread */
-my_bool thr_alarm_inited= 0, my_disable_thr_alarm= 0;
-volatile my_bool alarm_thread_running= 0;
-time_t next_alarm_expire_time= ~ (time_t) 0;
-static sig_handler process_alarm_part2(int sig);
-
 #ifdef DBUG_OFF
 #define reset_index_in_queue(alarm_data)
 #else
@@ -55,8 +48,15 @@ static sig_handler process_alarm_part2(int sig);
 #define one_signal_hand_sigmask(A,B,C)
 #endif
 
+my_bool thr_alarm_inited= 0, my_disable_thr_alarm= 0;
 
 #if !defined(__WIN__)
+
+uint thr_client_alarm;
+static int alarm_aborted=1;			/* No alarm thread */
+volatile my_bool alarm_thread_running= 0;
+time_t next_alarm_expire_time= ~ (time_t) 0;
+static sig_handler process_alarm_part2(int sig);
 
 static mysql_mutex_t LOCK_alarm;
 static mysql_cond_t COND_alarm;
@@ -274,7 +274,7 @@ void thr_end_alarm(thr_alarm_t *alarmed)
 /*
   Come here when some alarm in queue is due.
   Mark all alarms with are finnished in list.
-  Shedule alarms to be sent again after 1-10 sec (many alarms at once)
+  Schedule alarms to be sent again after 1-10 sec (many alarms at once)
   If alarm_aborted is set then all alarms are given and resent
   every second.
 */
@@ -426,7 +426,7 @@ void end_thr_alarm(my_bool free_structures)
   if (alarm_aborted != 1)			/* If memory not freed */
   {
     mysql_mutex_lock(&LOCK_alarm);
-    DBUG_PRINT("info",("Resheduling %d waiting alarms",alarm_queue.elements));
+    DBUG_PRINT("info",("Rescheduling %d waiting alarms",alarm_queue.elements));
     alarm_aborted= -1;				/* mark aborted */
     if (alarm_queue.elements || (alarm_thread_running && free_structures))
     {

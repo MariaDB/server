@@ -446,10 +446,6 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
                                  Item_in_subselect *subq_pred, bool *remove);
 static TABLE_LIST *alloc_join_nest(THD *thd);
 static uint get_tmp_table_rec_length(Ref_ptr_array p_list, uint elements);
-static double get_tmp_table_lookup_cost(THD *thd, double row_count,
-                                        uint row_size);
-static double get_tmp_table_write_cost(THD *thd, double row_count,
-                                       uint row_size);
 bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables);
 static SJ_MATERIALIZATION_INFO *
 at_sjmat_pos(const JOIN *join, table_map remaining_tables, const JOIN_TAB *tab,
@@ -1501,6 +1497,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     {
       TABLE_LIST *outer_tbl= subq_pred->emb_on_expr_nest;
       TABLE_LIST *wrap_nest;
+      LEX_CSTRING sj_wrap_name= { STRING_WITH_LEN("(sj-wrap)") };
       /*
         We're dealing with
 
@@ -1526,7 +1523,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       }
       wrap_nest->embedding= outer_tbl->embedding;
       wrap_nest->join_list= outer_tbl->join_list;
-      wrap_nest->alias= (char*) "(sj-wrap)";
+      wrap_nest->alias= sj_wrap_name;
 
       wrap_nest->nested_join->join_list.empty();
       wrap_nest->nested_join->join_list.push_back(outer_tbl, thd->mem_root);
@@ -1565,6 +1562,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 
   TABLE_LIST *sj_nest;
   NESTED_JOIN *nested_join;
+  LEX_CSTRING sj_nest_name= { STRING_WITH_LEN("(sj-nest)") };
   if (!(sj_nest= alloc_join_nest(thd)))
   {
     DBUG_RETURN(TRUE);
@@ -1573,7 +1571,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 
   sj_nest->join_list= emb_join_list;
   sj_nest->embedding= emb_tbl_nest;
-  sj_nest->alias= (char*) "(sj-nest)";
+  sj_nest->alias= sj_nest_name;
   sj_nest->sj_subq_pred= subq_pred;
   sj_nest->original_subq_pred_used_tables= subq_pred->used_tables() |
                                            subq_pred->left_expr->used_tables();
@@ -1631,7 +1629,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 
   // The subqueries were replaced for Item_int(1) earlier
   subq_pred->reset_strategy(SUBS_SEMI_JOIN);       // for subsequent executions
-  /*TODO: also reset the 'with_subselect' there. */
+  /*TODO: also reset the 'm_with_subquery' there. */
 
   /* n. Adjust the parent_join->table_count counter */
   uint table_no= parent_join->table_count;
@@ -1846,13 +1844,15 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 
 const int SUBQERY_TEMPTABLE_NAME_MAX_LEN= 20;
 
-static void create_subquery_temptable_name(char *to, uint number)
+static void create_subquery_temptable_name(LEX_STRING *str, uint number)
 {
+  char *to= str->str;
   DBUG_ASSERT(number < 10000);       
   to= strmov(to, "<subquery");
   to= int10_to_str((int) number, to, 10);
   to[0]= '>';
   to[1]= 0;
+  str->length= (size_t) (to - str->str)+1;
 }
 
 
@@ -1880,7 +1880,7 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
   TABLE_LIST *tl;
   bool optimization_delayed= TRUE;
   TABLE_LIST *jtbm;
-  char *tbl_alias;
+  LEX_STRING tbl_alias;
   THD *thd= parent_join->thd;
   DBUG_ENTER("convert_subq_to_jtbm");
 
@@ -1889,7 +1889,7 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
 
   *remove_item= TRUE;
 
-  if (!(tbl_alias= (char*)thd->calloc(SUBQERY_TEMPTABLE_NAME_MAX_LEN)) ||
+  if (!(tbl_alias.str= (char*)thd->calloc(SUBQERY_TEMPTABLE_NAME_MAX_LEN)) ||
       !(jtbm= alloc_join_nest(thd))) //todo: this is not a join nest!
   {
     DBUG_RETURN(TRUE);
@@ -1929,9 +1929,10 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
 
     jtbm->jtbm_table_no= parent_join->table_count;
 
-    create_subquery_temptable_name(tbl_alias, 
+    create_subquery_temptable_name(&tbl_alias,
                                    subq_pred->unit->first_select()->select_number);
-    jtbm->alias= tbl_alias;
+    jtbm->alias.str=    tbl_alias.str;
+    jtbm->alias.length= tbl_alias.length;
     parent_join->table_count++;
     DBUG_RETURN(thd->is_fatal_error);
   }
@@ -1951,9 +1952,10 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
 
   DBUG_EXECUTE("where", print_where(conds,"SJ-EXPR", QT_ORDINARY););
   
-  create_subquery_temptable_name(tbl_alias, hash_sj_engine->materialize_join->
+  create_subquery_temptable_name(&tbl_alias, hash_sj_engine->materialize_join->
                                               select_lex->select_number);
-  jtbm->alias= tbl_alias;
+  jtbm->alias.str=    tbl_alias.str;
+  jtbm->alias.length= tbl_alias.length;
 
   parent_lex->have_merged_subqueries= TRUE;
 
@@ -2468,7 +2470,7 @@ static uint get_tmp_table_rec_length(Ref_ptr_array p_items, uint elements)
   @return  the cost of one lookup
 */
 
-static double
+double
 get_tmp_table_lookup_cost(THD *thd, double row_count, uint row_size)
 {
   if (row_count * row_size > thd->variables.max_heap_table_size)
@@ -2488,7 +2490,7 @@ get_tmp_table_lookup_cost(THD *thd, double row_count, uint row_size)
   @return  the cost of writing one row
 */
 
-static double
+double
 get_tmp_table_write_cost(THD *thd, double row_count, uint row_size)
 {
   double lookup_cost= get_tmp_table_lookup_cost(thd, row_count, row_size);
@@ -2666,7 +2668,8 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
     LooseScan detector in best_access_path)
   */
   remaining_tables &= ~new_join_tab->table->map;
-  table_map dups_producing_tables;
+  table_map dups_producing_tables, UNINIT_VAR(prev_dups_producing_tables),
+    UNINIT_VAR(prev_sjm_lookup_tables);
 
   if (idx == join->const_tables)
     dups_producing_tables= 0;
@@ -2677,7 +2680,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
   if ((emb_sj_nest= new_join_tab->emb_sj_nest))
     dups_producing_tables |= emb_sj_nest->sj_inner_tables;
 
-  Semi_join_strategy_picker **strategy;
+  Semi_join_strategy_picker **strategy, **prev_strategy= 0;
   if (idx == join->const_tables)
   {
     /* First table, initialize pickers */
@@ -2729,23 +2732,54 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
                 3. We have no clue what to do about fanount of semi-join Y.
         */
         if ((dups_producing_tables & handled_fanout) ||
-            (read_time < *current_read_time && 
+            (read_time < *current_read_time &&
              !(handled_fanout & pos->inner_tables_handled_with_other_sjs)))
         {
-          /* Mark strategy as used */ 
-          (*strategy)->mark_used();
-          pos->sj_strategy= sj_strategy;
-          if (sj_strategy == SJ_OPT_MATERIALIZE)
-            join->sjm_lookup_tables |= handled_fanout;
+          DBUG_ASSERT(pos->sj_strategy != sj_strategy);
+          /*
+            If the strategy choosen first time or
+            the strategy replace strategy which was used to exectly the same
+            tables
+          */
+          if (pos->sj_strategy == SJ_OPT_NONE ||
+              handled_fanout ==
+                (prev_dups_producing_tables ^ dups_producing_tables))
+          {
+            prev_strategy= strategy;
+            if (pos->sj_strategy == SJ_OPT_NONE)
+            {
+              prev_dups_producing_tables= dups_producing_tables;
+              prev_sjm_lookup_tables= join->sjm_lookup_tables;
+            }
+            /* Mark strategy as used */
+            (*strategy)->mark_used();
+            pos->sj_strategy= sj_strategy;
+            if (sj_strategy == SJ_OPT_MATERIALIZE)
+              join->sjm_lookup_tables |= handled_fanout;
+            else
+              join->sjm_lookup_tables &= ~handled_fanout;
+            *current_read_time= read_time;
+            *current_record_count= rec_count;
+            dups_producing_tables &= ~handled_fanout;
+            //TODO: update bitmap of semi-joins that were handled together with
+            // others.
+            if (is_multiple_semi_joins(join, join->positions, idx,
+                                       handled_fanout))
+              pos->inner_tables_handled_with_other_sjs |= handled_fanout;
+          }
           else
-            join->sjm_lookup_tables &= ~handled_fanout;
-          *current_read_time= read_time;
-          *current_record_count= rec_count;
-          dups_producing_tables &= ~handled_fanout;
-          //TODO: update bitmap of semi-joins that were handled together with
-          // others.
-          if (is_multiple_semi_joins(join, join->positions, idx, handled_fanout))
-            pos->inner_tables_handled_with_other_sjs |= handled_fanout;
+          {
+            /* Conflict fall to most general variant */
+            (*prev_strategy)->set_empty();
+            dups_producing_tables= prev_dups_producing_tables;
+            join->sjm_lookup_tables= prev_sjm_lookup_tables;
+            // mark it 'none' to avpoid loops
+            pos->sj_strategy= SJ_OPT_NONE;
+            // next skip to last;
+            strategy= pickers +
+              (sizeof(pickers)/sizeof(Semi_join_strategy_picker*) - 3);
+            continue;
+          }
         }
         else
         {
@@ -3677,6 +3711,7 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
   sjm->sjm_table_param.init();
   sjm->sjm_table_param.bit_fields_as_long= TRUE;
   SELECT_LEX *subq_select= emb_sj_nest->sj_subq_pred->unit->first_select();
+  const LEX_CSTRING sj_materialize_name= { STRING_WITH_LEN("sj-materialize") };
   Ref_ptr_array p_items= subq_select->ref_pointer_array;
   for (uint i= 0; i < subq_select->item_list.elements; i++)
     sjm->sjm_table_cols.push_back(p_items[i], thd->mem_root);
@@ -3690,7 +3725,7 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
                                      1, /*save_sum_fields*/
                                      thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS, 
                                      HA_POS_ERROR /*rows_limit */, 
-                                     (char*)"sj-materialize")))
+                                     &sj_materialize_name)))
     DBUG_RETURN(TRUE); /* purecov: inspected */
   sjm->table->map=  emb_sj_nest->nested_join->used_tables;
   sjm->table->file->extra(HA_EXTRA_WRITE_CACHE);
@@ -4094,7 +4129,8 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     using_unique_constraint= TRUE;
 
   /* STEP 3: Allocate memory for temptable description */
-  init_sql_alloc(&own_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
+  init_sql_alloc(&own_root, "SJ_TMP_TABLE",
+                 TABLE_ALLOC_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
   if (!multi_alloc_root(&own_root,
                         &table, sizeof(*table),
                         &share, sizeof(*share),
@@ -5307,6 +5343,7 @@ TABLE *create_dummy_tmp_table(THD *thd)
   sjm_table_param.init();
   sjm_table_param.field_count= 1;
   List<Item> sjm_table_cols;
+  const LEX_CSTRING dummy_name= { STRING_WITH_LEN("dummy") };
   Item *column_item= new (thd->mem_root) Item_int(thd, 1);
   if (!column_item)
     DBUG_RETURN(NULL);
@@ -5319,7 +5356,7 @@ TABLE *create_dummy_tmp_table(THD *thd)
                                 thd->variables.option_bits |
                                 TMP_TABLE_ALL_COLUMNS, 
                                 HA_POS_ERROR /*rows_limit */, 
-                                (char*)"dummy", TRUE /* Do not open */)))
+                                &dummy_name, TRUE /* Do not open */)))
   {
     DBUG_RETURN(NULL);
   }

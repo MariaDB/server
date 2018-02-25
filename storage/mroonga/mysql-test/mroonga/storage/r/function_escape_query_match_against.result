@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS memos;
+SET GLOBAL mroonga_default_parser = TokenDelimit;
+SET NAMES utf8mb4;
+CREATE TABLE memos (
+id INT PRIMARY KEY,
+content TEXT,
+FULLTEXT INDEX (content)
+) DEFAULT CHARSET=utf8mb4;
+INSERT INTO memos VALUES(1, "(Groonga) Installed!");
+INSERT INTO memos VALUES(2, "(Mroonga) Installed!");
+INSERT INTO memos VALUES(3, "(Groonga) Upgraded!");
+SELECT * FROM memos
+WHERE MATCH(content) AGAINST(mroonga_escape("(groonga)") IN BOOLEAN MODE);
+id	content
+1	(Groonga) Installed!
+3	(Groonga) Upgraded!
+DROP TABLE memos;
+SET GLOBAL mroonga_default_parser = TokenBigram;

@@ -6,16 +6,11 @@
 # Exit immediately on any error
 set -e
 
-# On Buildbot, don't run the mysql-test-run test suite as part of build.
-# It takes a lot of time, and we will do a better test anyway in
-# Buildbot, running the test suite from installed .debs on a clean VM.
-# On Travis-CI we want to simulate the full build, including tests.
-# Also on Travis-CI it is useful not to override the DEB_BUILD_OPTIONS
-# at this stage at all.
-if [[ ! $TRAVIS ]]
-then
-  export DEB_BUILD_OPTIONS="nocheck"
-fi
+# This file is invocated from Buildbot and Travis-CI to build deb packages.
+# As both of those CI systems have many parallel jobs that include different
+# parts of the test suite, we don't need to run the mysql-test-run at all when
+# building the deb packages here.
+export DEB_BUILD_OPTIONS="nocheck $DEB_BUILD_OPTIONS"
 
 # Travis-CI optimizations
 if [[ $TRAVIS ]]
@@ -26,13 +21,19 @@ then
   # Don't include test suite package on Travis-CI to make the build time shorter
   sed '/Package: mariadb-test-data/,+28d' -i debian/control
   sed '/Package: mariadb-test/,+36d' -i debian/control
+
+  # Don't build the test package at all to save time and disk space
+  sed 's|DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test|DINSTALL_MYSQLTESTDIR=false|' -i debian/rules
+
+  # Also skip building RocksDB and TokuDB to save even more time and disk space
+  sed 's|-DDEB|-DWITHOUT_TOKUDB_STORAGE_ENGINE=true -DWITHOUT_MROONGA_STORAGE_ENGINE=true -DWITHOUT_ROCKSDB_STORAGE_ENGINE=true -DDEB|' -i debian/rules
 fi
 
 
 # Look up distro-version specific stuff
 #
 # Always keep the actual packaging as up-to-date as possible following the latest
-# Debian policy and targetting Debian Sid. Then case-by-case run in autobake-deb.sh
+# Debian policy and targeting Debian Sid. Then case-by-case run in autobake-deb.sh
 # tests for backwards compatibility and strip away parts on older builders.
 
 # If iproute2 is not available (before Debian Jessie and Ubuntu Trusty)
@@ -74,18 +75,30 @@ fi
 
 # Convert gcc version to numberical value. Format is Mmmpp where M is Major
 # version, mm is minor version and p is patch.
-GCCVERSION=$(gcc -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$/&00/')
+# -dumpfullversion & -dumpversion to make it uniform across old and new (>=7)
+GCCVERSION=$(gcc -dumpfullversion -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' \
+                                                     -e 's/\.\([0-9]\)/0\1/g'     \
+						     -e 's/^[0-9]\{3,4\}$/&00/')
 # Don't build rocksdb package if gcc version is less than 4.8 or we are running on
 # x86 32 bit.
-if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]]
+if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]] || [[ $TRAVIS ]]
 then
-  sed '/Package: mariadb-plugin-rocksdb/,+11d' -i debian/control
-fi
-if [[ $GCCVERSION -lt 40800 ]]
-then
-  sed '/Package: mariadb-plugin-aws-key-management-10.2/,+13d' -i debian/control
+  sed '/Package: mariadb-plugin-rocksdb/,+14d' -i debian/control
 fi
 
+# AWS SDK requires c++11 -capable compiler
+# Minimal supported versions are g++ 4.8 and clang 3.3.
+if [[ $GCCVERSION -lt 40800 ]] || [[ $TRAVIS ]]
+then
+  sed '/Package: mariadb-plugin-aws-key-management/,+14d' -i debian/control
+fi
+
+# Mroonga, TokuDB never built on Travis CI anyway, see build flags above
+if [[ $TRAVIS ]]
+then
+  sed -i -e "/Package: mariadb-plugin-tokudb/,+17d" debian/control
+  sed -i -e "/Package: mariadb-plugin-mroonga/,+16d" debian/control
+fi
 
 # Adjust changelog, add new version
 echo "Incrementing changelog and starting build scripts"
@@ -101,12 +114,20 @@ dch -b -D ${CODENAME} -v "${UPSTREAM}${PATCHLEVEL}~${CODENAME}" "Automatic build
 
 echo "Creating package version ${UPSTREAM}${PATCHLEVEL}~${CODENAME} ... "
 
+# On Travis CI, use -b to build binary only packages as there is no need to
+# waste time on generating the source package.
+if [[ $TRAVIS ]]
+then
+  BUILDPACKAGE_FLAGS="-b"
+fi
+
 # Build the package
 # Pass -I so that .git and other unnecessary temporary and source control files
 # will be ignored by dpkg-source when creating the tar.gz source package.
-# Use -b to build binary only packages as there is no need to waste time on
-# generating the source package.
-fakeroot dpkg-buildpackage -us -uc -I -b
+fakeroot dpkg-buildpackage -us -uc -I $BUILDPACKAGE_FLAGS
+
+# If the step above fails due to missing dependencies, you can manually run
+#   sudo mk-build-deps debian/control -r -i
 
 # Don't log package contents on Travis-CI to save time and log size
 if [[ ! $TRAVIS ]]

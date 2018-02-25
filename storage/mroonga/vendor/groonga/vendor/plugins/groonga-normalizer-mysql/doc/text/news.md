@@ -1,5 +1,16 @@
 # News
 
+## 1.1.1: 2016-04-29
+
+### Improvements
+
+  * Supported Ubuntu 15.10 and Ubuntu 16.04
+  * Dropped Debian 7.0
+
+### Fixes
+
+  * Fixed to install license information when cmake is used.
+
 ## 1.1.0: 2015-05-29
 
 ### Fixes
@@ -13,7 +24,7 @@
 
 ## 1.0.9: 2015-03-29
 
-### Improves
+### Improvements
 
   * Added `NormalizerMySQLUnicode520CI`
   * Added `NormalizerMySQLUnicode520CIExceptKanaCIKanaWithVoicedSoundMark`

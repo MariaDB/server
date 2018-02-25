@@ -115,7 +115,7 @@ void unregister_slave(THD* thd, bool only_mine, bool need_mutex)
     1	Error.   Error message sent to client
 */
 
-int register_slave(THD* thd, uchar* packet, uint packet_length)
+int register_slave(THD* thd, uchar* packet, size_t packet_length)
 {
   int res;
   SLAVE_INFO *si;

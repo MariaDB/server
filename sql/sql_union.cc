@@ -68,14 +68,14 @@ void select_unit::change_select()
   curr_sel= current_select_number;
   /* New SELECT processing starts */
   DBUG_ASSERT(table->file->inited == 0);
-  switch (thd->lex->current_select->linkage)
+  step= thd->lex->current_select->linkage;
+  switch (step)
   {
   case INTERSECT_TYPE:
     intersect_mark->value= prev_step= curr_step;
     curr_step= current_select_number;
-    /* fall through */
+    break;
   case EXCEPT_TYPE:
-    step= thd->lex->current_select->linkage;
     break;
   default:
     step= UNION_TYPE;
@@ -303,7 +303,8 @@ int select_union_recursive::send_data(List<Item> &values)
 {
   int rc= select_unit::send_data(values);
 
-  if (write_err != HA_ERR_FOUND_DUPP_KEY && 
+  if (rc == 0 &&
+      write_err != HA_ERR_FOUND_DUPP_KEY &&
       write_err != HA_ERR_FOUND_DUPP_UNIQUE)
   { 
     int err;
@@ -362,7 +363,7 @@ bool select_unit::flush()
 bool
 select_unit::create_result_table(THD *thd_arg, List<Item> *column_types,
                                   bool is_union_distinct, ulonglong options,
-                                  const char *alias,
+                                 const LEX_CSTRING *alias,
                                   bool bit_fields_as_long, bool create_table,
                                   bool keep_row_order,
                                   uint hidden)
@@ -396,7 +397,7 @@ select_union_recursive::create_result_table(THD *thd_arg,
                                             List<Item> *column_types,
                                             bool is_union_distinct,
                                             ulonglong options,
-                                            const char *alias,
+                                            const LEX_CSTRING *alias,
                                             bool bit_fields_as_long,
                                             bool create_table,
                                             bool keep_row_order,
@@ -404,14 +405,14 @@ select_union_recursive::create_result_table(THD *thd_arg,
 {
   if (select_unit::create_result_table(thd_arg, column_types,
                                        is_union_distinct, options,
-                                       "", bit_fields_as_long,
+                                       &empty_clex_str, bit_fields_as_long,
                                        create_table, keep_row_order,
                                        hidden))
     return true;
   
   if (! (incr_table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                       (ORDER*) 0, false, 1,
-                                      options, HA_POS_ERROR, "",
+                                      options, HA_POS_ERROR, &empty_clex_str,
                                       !create_table, keep_row_order)))
     return true;
 
@@ -644,6 +645,7 @@ bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
                                       bool is_union_select)
 {
   DBUG_ENTER("st_select_lex_unit::prepare_join");
+  TABLE_LIST *derived= sl->master_unit()->derived;
   bool can_skip_order_by;
   sl->options|=  SELECT_NO_UNLOCK;
   JOIN *join= new JOIN(thd_arg, sl->item_list,
@@ -659,7 +661,7 @@ bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
 
   saved_error= join->prepare(sl->table_list.first,
                              sl->with_wild,
-                             sl->where,
+                             (derived && derived->merged ? NULL : sl->where),
                              (can_skip_order_by ? 0 :
                               sl->order_list.elements) +
                              sl->group_list.elements,
@@ -802,7 +804,7 @@ bool st_select_lex_unit::join_union_item_types(THD *thd_arg,
     /* Error's in 'new' will be detected after loop */
     types.push_back(new (thd_arg->mem_root)
                     Item_type_holder(thd_arg,
-                                     &item_tmp->name,
+                                     item_tmp,
                                      holders[pos].type_handler(),
                                      &holders[pos]/*Type_all_attributes*/,
                                      holders[pos].get_maybe_null()));
@@ -1008,7 +1010,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
           goto err;
         if (union_result->create_result_table(thd, &types,
                                               MY_TEST(union_distinct),
-                                              create_options, derived->alias,
+                                              create_options, &derived->alias,
                                               false,
                                               instantiate_tmp_table, false,
                                               0))
@@ -1130,7 +1132,7 @@ cont:
       bool error=
         union_result->create_result_table(thd, &types,
                                           MY_TEST(union_distinct),
-                                          create_options, "", false,
+                                          create_options, &empty_clex_str, false,
                                           instantiate_tmp_table, false,
                                           hidden);
       if (intersect_mark)
@@ -1145,8 +1147,10 @@ cont:
       save_maybe_null= result_table_list.maybe_null_exec;
     }
     bzero((char*) &result_table_list, sizeof(result_table_list));
-    result_table_list.db= (char*) "";
-    result_table_list.table_name= result_table_list.alias= (char*) "union";
+    result_table_list.db.str= (char*) "";
+    result_table_list.db.length= 0;
+    result_table_list.table_name.str= result_table_list.alias.str= "union";
+    result_table_list.table_name.length= result_table_list.alias.length= sizeof("union")-1;
     result_table_list.table= table= union_result->table;
     if (fake_select_lex && !fake_select_lex->first_cond_optimization)
     {
@@ -1359,6 +1363,17 @@ bool st_select_lex_unit::exec()
 
   if (saved_error)
     DBUG_RETURN(saved_error);
+
+  if (union_result)
+  {
+    union_result->init();
+    if (uncacheable & UNCACHEABLE_DEPENDENT &&
+        union_result->table && union_result->table->is_created())
+    {
+      union_result->table->file->ha_delete_all_rows();
+      union_result->table->file->ha_enable_indexes(HA_KEY_SWITCH_ALL);
+    }
+  }
 
   if (uncacheable || !item || !item->assigned() || describe)
   {
@@ -1656,6 +1671,20 @@ bool st_select_lex_unit::exec_recursive()
    
   for (st_select_lex *sl= start ; sl != end; sl= sl->next_select())
   {
+    if (with_element->level)
+    {
+      for (TABLE_LIST *derived= with_element->derived_with_rec_ref.first;
+           derived;
+           derived= derived->next_with_rec_ref)
+      {
+        if (derived->is_materialized_derived())
+	{
+          if (derived->table->is_created())
+            derived->table->file->ha_delete_all_rows();
+          derived->table->reginfo.join_tab->preread_init_done= false;
+        }
+      }
+    }
     thd->lex->current_select= sl;
     if (sl->tvc)
       sl->tvc->exec(sl);
@@ -1699,12 +1728,13 @@ bool st_select_lex_unit::exec_recursive()
     if (!with_element->rec_result->first_rec_table_to_update)
       with_element->rec_result->first_rec_table_to_update= rec_table;
     if (with_element->level == 1 && rec_table->reginfo.join_tab)
-      rec_table->reginfo.join_tab->preread_init_done= true;  
+      rec_table->reginfo.join_tab->preread_init_done= true;
   }
   for (Item_subselect *sq= with_element->sq_with_rec_ref.first;
        sq;
        sq= sq->next_with_rec_ref)
   {
+    sq->reset();
     sq->engine->force_reexecution();
   }   
 
@@ -1717,7 +1747,7 @@ err:
 
 bool st_select_lex_unit::cleanup()
 {
-  int error= 0;
+  bool error= 0;
   DBUG_ENTER("st_select_lex_unit::cleanup");
 
   if (cleaned)
@@ -1782,22 +1812,6 @@ void st_select_lex_unit::reinit_exec_mechanism()
 {
   prepared= optimized= optimized_2= executed= 0;
   optimize_started= 0;
-#ifndef DBUG_OFF
-  if (is_unit_op())
-  {
-    List_iterator_fast<Item> it(item_list);
-    Item *field;
-    while ((field= it++))
-    {
-      /*
-	we can't cleanup here, because it broke link to temporary table field,
-	but have to drop fixed flag to allow next fix_field of this field
-	during re-executing
-      */
-      field->fixed= 0;
-    }
-  }
-#endif
   if (with_element && with_element->is_recursive)
     with_element->reset_recursive_for_exec();
 }

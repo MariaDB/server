@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -483,7 +483,7 @@ ibuf_size_update(
 	ibuf->free_list_len = flst_get_len(root + PAGE_HEADER
 					   + PAGE_BTR_IBUF_FREE_LIST);
 
-	ibuf->height = 1 + btr_page_get_level_low(root);
+	ibuf->height = 1 + btr_page_get_level(root);
 
 	/* the '1 +' is the ibuf header page */
 	ibuf->size = ibuf->seg_size - (1 + ibuf->free_list_len);
@@ -3323,8 +3323,7 @@ ibuf_get_entry_counter_func(
 		return(ULINT_UNDEFINED);
 	} else if (!page_rec_is_infimum(rec)) {
 		return(ibuf_get_entry_counter_low(mtr, rec, space, page_no));
-	} else if (only_leaf
-		   || fil_page_get_prev(page_align(rec)) == FIL_NULL) {
+	} else if (only_leaf || !page_has_prev(page_align(rec))) {
 		/* The parent node pointer did not contain the
 		searched for (space, page_no), which means that the
 		search ended on the correct page regardless of the
@@ -4494,7 +4493,7 @@ ibuf_merge_or_delete_for_page(
 			return;
 		}
 
-		space = fil_space_acquire(page_id.space());
+		space = fil_space_acquire_silent(page_id.space());
 
 		if (UNIV_UNLIKELY(!space)) {
 			/* Do not try to read the bitmap page from the

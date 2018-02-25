@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 --source include/have_innodb.inc
 --source include/not_embedded.inc
@@ -27,13 +27,11 @@ CREATE TABLE diaries (
   title TEXT,
   body TEXT
 ) DEFAULT CHARSET UTF8 COMMENT = 'ENGINE "InnoDB"';
-SHOW CREATE TABLE diaries;
 
 INSERT INTO diaries (title, body) VALUES ("survey", "will start groonga!");
 SELECT * FROM diaries;
 
 ALTER TABLE diaries DROP COLUMN body;
-SHOW CREATE TABLE diaries;
 SELECT * FROM diaries;
 
 INSERT INTO diaries (title) values ("groonga (1)");

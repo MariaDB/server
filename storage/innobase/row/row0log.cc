@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -71,6 +71,7 @@ enum row_op {
 /** Log block for modifications during online ALTER TABLE */
 struct row_log_buf_t {
 	byte*		block;	/*!< file block buffer */
+	size_t		size; /*!< length of block in bytes */
 	ut_new_pfx_t	block_pfx; /*!< opaque descriptor of "block". Set
 				by ut_allocator::allocate_large() and fed to
 				ut_allocator::deallocate_large(). */
@@ -265,6 +266,7 @@ row_log_block_allocate(
 		if (log_buf.block == NULL) {
 			DBUG_RETURN(false);
 		}
+		log_buf.size = srv_sort_buf_size;
 	}
 	DBUG_RETURN(true);
 }
@@ -279,7 +281,7 @@ row_log_block_free(
 	DBUG_ENTER("row_log_block_free");
 	if (log_buf.block != NULL) {
 		ut_allocator<byte>(mem_key_row_log_buf).deallocate_large(
-			log_buf.block, &log_buf.block_pfx);
+			log_buf.block, &log_buf.block_pfx, log_buf.size);
 		log_buf.block = NULL;
 	}
 	DBUG_VOID_RETURN;
@@ -853,6 +855,18 @@ row_log_table_low_redundant(
 		}
 	}
 
+	dfield_t* db_trx_id = dtuple_get_nth_field(tuple, index->n_uniq);
+	ut_ad(dfield_get_len(db_trx_id) == DATA_TRX_ID_LEN);
+	ut_ad(dfield_get_len(db_trx_id + 1) == DATA_ROLL_PTR_LEN);
+
+	if (trx_read_trx_id(static_cast<const byte*>
+			    (dfield_get_data(db_trx_id)))
+	    < index->online_log->min_trx) {
+		dfield_set_data(db_trx_id, reset_trx_id, DATA_TRX_ID_LEN);
+		dfield_set_data(db_trx_id + 1, reset_trx_id + DATA_TRX_ID_LEN,
+				DATA_ROLL_PTR_LEN);
+	}
+
 	rec_comp_status_t status = index->is_instant()
 		? REC_STATUS_COLUMNS_ADDED : REC_STATUS_ORDINARY;
 
@@ -1057,7 +1071,16 @@ row_log_table_low(
 
 		memcpy(b, rec - rec_extra_size - omit_size, rec_extra_size);
 		b += rec_extra_size;
+		ulint len;
+		ulint trx_id_offs = rec_get_nth_field_offs(
+			offsets, index->n_uniq, &len);
+		ut_ad(len == DATA_TRX_ID_LEN);
 		memcpy(b, rec, rec_offs_data_size(offsets));
+		if (trx_read_trx_id(b + trx_id_offs)
+		    < index->online_log->min_trx) {
+			memcpy(b + trx_id_offs,
+			       reset_trx_id, sizeof reset_trx_id);
+		}
 		b += rec_offs_data_size(offsets);
 
 		row_log_table_close(index, b, mrec_size, avail_size);
@@ -1279,7 +1302,7 @@ row_log_table_get_pk(
 			dict_field_t*	ifield;
 			dfield_t*	dfield;
 			ulint		prtype;
-			ulint		mbminmaxlen;
+			ulint		mbminlen, mbmaxlen;
 
 			ifield = dict_index_get_nth_field(new_index, new_i);
 			dfield = dtuple_get_nth_field(tuple, new_i);
@@ -1308,7 +1331,8 @@ err_exit:
 					goto func_exit;
 				}
 
-				mbminmaxlen = col->mbminmaxlen;
+				mbminlen = col->mbminlen;
+				mbmaxlen = col->mbmaxlen;
 				prtype = col->prtype;
 			} else {
 				/* No matching column was found in the old
@@ -1318,7 +1342,8 @@ err_exit:
 
 				dfield_copy(dfield, dtuple_get_nth_field(
 						    log->add_cols, col_no));
-				mbminmaxlen = dfield->type.mbminmaxlen;
+				mbminlen = dfield->type.mbminlen;
+				mbmaxlen = dfield->type.mbmaxlen;
 				prtype = dfield->type.prtype;
 			}
 
@@ -1327,7 +1352,7 @@ err_exit:
 
 			if (ifield->prefix_len) {
 				ulint	len = dtype_get_at_most_n_mbchars(
-					prtype, mbminmaxlen,
+					prtype, mbminlen, mbmaxlen,
 					ifield->prefix_len,
 					dfield_get_len(dfield),
 					static_cast<const char*>(
@@ -1674,13 +1699,10 @@ row_log_table_apply_insert_low(
 		return(error);
 	}
 
-	do {
-		n_index++;
+	ut_ad(dict_index_is_clust(index));
 
-		if (!(index = dict_table_get_next_index(index))) {
-			break;
-		}
-
+	for (n_index += index->type != DICT_CLUSTERED;
+	     (index = dict_table_get_next_index(index)); n_index++) {
 		if (index->type & DICT_FTS) {
 			continue;
 		}
@@ -1691,12 +1713,13 @@ row_log_table_apply_insert_low(
 			index, offsets_heap, heap, entry,
 			thr_get_trx(thr)->id, thr, false);
 
-		/* Report correct index name for duplicate key error. */
-		if (error == DB_DUPLICATE_KEY) {
-			thr_get_trx(thr)->error_key_num = n_index;
+		if (error != DB_SUCCESS) {
+			if (error == DB_DUPLICATE_KEY) {
+				thr_get_trx(thr)->error_key_num = n_index;
+			}
+			break;
 		}
-
-	} while (error == DB_SUCCESS);
+	}
 
 	return(error);
 }
@@ -2276,15 +2299,14 @@ func_exit_committed:
 		dtuple_big_rec_free(big_rec);
 	}
 
-	while ((index = dict_table_get_next_index(index)) != NULL) {
-		if (error != DB_SUCCESS) {
-			break;
-		}
-
-		n_index++;
-
+	for (n_index += index->type != DICT_CLUSTERED;
+	     (index = dict_table_get_next_index(index)); n_index++) {
 		if (index->type & DICT_FTS) {
 			continue;
+		}
+
+		if (error != DB_SUCCESS) {
+			break;
 		}
 
 		if (!row_upd_changes_ord_field_binary(

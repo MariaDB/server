@@ -68,15 +68,12 @@ TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA==
 select * from t1;
 
 
-# Test that mysqlbinlog stops with an error message when the
-# --base64-output=never flag is used on a binlog with base64 events.
+# New mysqlbinlog supports --base64-output=never
 --echo ==== Test --base64-output=never on a binlog with row events ====
 
 # mysqlbinlog should fail
---replace_regex /#[0-9][0-9][0-9][0-9][0-9][0-9] .*/<#>/   /SET \@\@session.pseudo_thread_id.*/<#>/
-error 1;
-exec $MYSQL_BINLOG --base64-output=never suite/binlog/std_data/bug32407.001;
-# the above line should output the query log event and then stop
+--replace_regex /#[0-9][0-9][0-9][0-9][0-9][0-9] \N*/<#>/   /SET \@\@session.pseudo_thread_id.*/<#>/
+exec $MYSQL_BINLOG --base64-output=never --print-row-count=0 --print-row-event-positions=0 suite/binlog/std_data/bug32407.001;
 
 
 # Test that the following fails cleanly: "First, read a

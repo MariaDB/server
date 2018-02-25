@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1108,7 +1108,7 @@ fsp_fill_free_list(
 			skip_resize = !srv_sys_space.can_auto_extend_last_file();
 			break;
 		case SRV_TMP_SPACE_ID:
-			skip_resize = srv_tmp_space.can_auto_extend_last_file();
+			skip_resize = !srv_tmp_space.can_auto_extend_last_file();
 			break;
 		}
 
@@ -2446,8 +2446,6 @@ fseg_alloc_free_page_low(
 	ut_ad(mach_read_from_4(seg_inode + FSEG_MAGIC_N)
 	      == FSEG_MAGIC_N_VALUE);
 	ut_ad(!((page_offset(seg_inode) - FSEG_ARR_OFFSET) % FSEG_INODE_SIZE));
-	ut_ad(space->purpose == FIL_TYPE_TEMPORARY
-	      || space->purpose == FIL_TYPE_TABLESPACE);
 	seg_id = mach_read_from_8(seg_inode + FSEG_ID);
 
 	ut_ad(seg_id);

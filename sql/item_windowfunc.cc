@@ -334,8 +334,8 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
       return TRUE;
   }
   Type_std_attributes::set(args[0]);
-  for (uint i= 0; i < arg_count && !with_subselect; i++)
-    with_subselect= with_subselect || args[i]->with_subselect;
+  for (uint i= 0; i < arg_count && !m_with_subquery; i++)
+    m_with_subquery|= args[i]->with_subquery();
 
   Item *item2= args[0]->real_item();
   if (item2->type() == Item::FIELD_ITEM)
@@ -440,6 +440,17 @@ Item_sum_hybrid_simple::val_str(String *str)
   return retval;
 }
 
+bool Item_sum_hybrid_simple::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (null_value)
+    return 0;
+  bool retval= value->get_date(ltime, fuzzydate);
+  if ((null_value= value->null_value))
+    DBUG_ASSERT(retval == true);
+  return retval;
+}
+
 Field *Item_sum_hybrid_simple::create_tmp_field(bool group, TABLE *table)
 {
   DBUG_ASSERT(0);
@@ -536,5 +547,10 @@ void Item_window_func::print(String *str, enum_query_type query_type)
 {
   window_func()->print(str, query_type);
   str->append(" over ");
+#ifndef DBUG_OFF
+  if (!window_spec) // one can call dbug_print_item() anytime in gdb
+    str->append(window_name);
+  else
+#endif
   window_spec->print(str, query_type);
 }

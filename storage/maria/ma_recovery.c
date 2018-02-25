@@ -3295,7 +3295,7 @@ static LSN parse_checkpoint_record(LSN lsn)
   {
     char name[FN_REFLEN];
     LSN first_log_write_lsn;
-    uint name_len;
+    size_t name_len;
     uint16 sid= uint2korr(ptr);
     ptr+= 2;
     DBUG_ASSERT(sid > 0);

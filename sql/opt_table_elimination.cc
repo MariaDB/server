@@ -1810,6 +1810,7 @@ static void mark_as_eliminated(JOIN *join, TABLE_LIST *tbl)
     {
       DBUG_PRINT("info", ("Eliminated table %s", table->alias.c_ptr()));
       tab->type= JT_CONST;
+      tab->table->const_table= 1;
       join->eliminated_tables |= table->map;
       join->const_table_map|= table->map;
       set_position(join, join->const_tables++, tab, (KEYUSE*)0);

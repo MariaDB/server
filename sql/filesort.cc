@@ -25,9 +25,6 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "filesort.h"
-#ifdef HAVE_STDDEF_H
-#include <stddef.h>			/* for macro offsetof */
-#endif
 #include <m_ctype.h>
 #include "sql_sort.h"
 #include "probes_mysql.h"
@@ -71,7 +68,7 @@ static void unpack_addon_fields(struct st_sort_addon_field *addon_field,
                                 uchar *buff, uchar *buff_end);
 static bool check_if_pq_applicable(Sort_param *param, SORT_INFO *info,
                                    TABLE *table,
-                                   ha_rows records, ulong memory_available);
+                                   ha_rows records, size_t memory_available);
 
 void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
                                    ulong max_length_for_sort_data,
@@ -92,7 +89,10 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
                                   table->field, sort_length, &addon_buf);
   }
   if (addon_field)
-    res_length= addon_buf.length;
+  {
+    DBUG_ASSERT(addon_buf.length < UINT_MAX32);
+    res_length= (uint)addon_buf.length;
+  }
   else
   {
     res_length= ref_length;
@@ -102,7 +102,7 @@ void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
     */
     sort_length+= ref_length;
   }
-  rec_length= sort_length + addon_buf.length;
+  rec_length= sort_length + (uint)addon_buf.length;
   max_rows= maxrows;
 }
 
@@ -713,6 +713,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   handler *file;
   MY_BITMAP *save_read_set, *save_write_set, *save_vcol_set;
   Item *sort_cond;
+  ha_rows retval;
   DBUG_ENTER("find_all_keys");
   DBUG_PRINT("info",("using: %s",
                      (select ? select->quick ? "ranges" : "where":
@@ -770,7 +771,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   if (quick_select)
   {
     if (select->quick->reset())
-      DBUG_RETURN(HA_POS_ERROR);
+      goto err;
   }
 
   DEBUG_SYNC(thd, "after_index_merge_phase1");
@@ -807,7 +808,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
         (void) file->extra(HA_EXTRA_NO_CACHE);
         file->ha_rnd_end();
       }
-      DBUG_RETURN(HA_POS_ERROR);		/* purecov: inspected */
+      goto err;                               /* purecov: inspected */
     }
 
     bool write_record= false;
@@ -829,11 +830,11 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
         MY_BITMAP *tmp_write_set= sort_form->write_set;
         MY_BITMAP *tmp_vcol_set= sort_form->vcol_set;
 
-        if (select->cond->with_subselect)
+        if (select->cond->with_subquery())
           sort_form->column_bitmaps_set(save_read_set, save_write_set,
                                         save_vcol_set);
         write_record= (select->skip_record(thd) > 0);
-        if (select->cond->with_subselect)
+        if (select->cond->with_subquery())
           sort_form->column_bitmaps_set(tmp_read_set,
                                         tmp_write_set,
                                         tmp_vcol_set);
@@ -855,7 +856,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
         if (idx == param->max_keys_per_buffer)
         {
           if (write_keys(param, fs_info, idx, buffpek_pointers, tempfile))
-             DBUG_RETURN(HA_POS_ERROR);
+            goto err;
 	  idx= 0;
 	  indexpos++;
         }
@@ -881,11 +882,11 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
       file->ha_rnd_end();
   }
 
-  if (thd->is_error())
-    DBUG_RETURN(HA_POS_ERROR);
-  
   /* Signal we should use orignal column read and write maps */
   sort_form->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
+
+  if (thd->is_error())
+    DBUG_RETURN(HA_POS_ERROR);
 
   DBUG_PRINT("test",("error: %d  indexpos: %d",error,indexpos));
   if (error != HA_ERR_END_OF_FILE)
@@ -896,11 +897,15 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   if (indexpos && idx &&
       write_keys(param, fs_info, idx, buffpek_pointers, tempfile))
     DBUG_RETURN(HA_POS_ERROR);			/* purecov: inspected */
-  const ha_rows retval=
-    my_b_inited(tempfile) ?
-    (ha_rows) (my_b_tell(tempfile)/param->rec_length) : idx;
+  retval= (my_b_inited(tempfile) ?
+           (ha_rows) (my_b_tell(tempfile)/param->rec_length) :
+           idx);
   DBUG_PRINT("info", ("find_all_keys return %llu", (ulonglong) retval));
   DBUG_RETURN(retval);
+
+err:
+  sort_form->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
+  DBUG_RETURN(HA_POS_ERROR);
 } /* find_all_keys */
 
 
@@ -998,7 +1003,8 @@ Type_handler_string_result::make_sort_key(uchar *to, Item *item,
   if (maybe_null)
     *to++= 1;
   char *tmp_buffer= param->tmp_buffer ? param->tmp_buffer : (char*) to;
-  String tmp(tmp_buffer, param->sort_length, cs);
+  String tmp(tmp_buffer, param->tmp_buffer ? param->sort_length :
+                                             sort_field->length, cs);
   String *res= item->str_result(&tmp);
   if (!res)
   {
@@ -1023,8 +1029,8 @@ Type_handler_string_result::make_sort_key(uchar *to, Item *item,
 
   if (use_strnxfrm(cs))
   {
-    uint tmp_length __attribute__((unused));
-    tmp_length= cs->coll->strnxfrm(cs, to, sort_field->length,
+    IF_DBUG(size_t tmp_length= ,)
+    cs->coll->strnxfrm(cs, to, sort_field->length,
                                    item->max_char_length() *
                                    cs->strxfrm_multiply,
                                    (uchar*) res->ptr(), res->length(),
@@ -1343,10 +1349,10 @@ static bool save_index(Sort_param *param, uint count,
     false - PQ will be slower than merge-sort, or there is not enough memory.
 */
 
-bool check_if_pq_applicable(Sort_param *param,
+static bool check_if_pq_applicable(Sort_param *param,
                             SORT_INFO *filesort_info,
                             TABLE *table, ha_rows num_rows,
-                            ulong memory_available)
+                            size_t memory_available)
 {
   DBUG_ENTER("check_if_pq_applicable");
 
@@ -1368,7 +1374,7 @@ bool check_if_pq_applicable(Sort_param *param,
     DBUG_RETURN(false);
   }
 
-  ulong num_available_keys=
+  size_t num_available_keys=
     memory_available / (param->rec_length + sizeof(char*));
   // We need 1 extra record in the buffer, when using PQ.
   param->max_keys_per_buffer= (uint) param->max_rows + 1;
@@ -1398,7 +1404,7 @@ bool check_if_pq_applicable(Sort_param *param,
   // Try to strip off addon fields.
   if (param->addon_field)
   {
-    const ulong row_length=
+    const size_t row_length=
       param->sort_length + param->ref_length + sizeof(char*);
     num_available_keys= memory_available / row_length;
 
@@ -1408,7 +1414,7 @@ bool check_if_pq_applicable(Sort_param *param,
       const double sort_merge_cost=
         get_merge_many_buffs_cost_fast(num_rows,
                                        num_available_keys,
-                                       row_length);
+                                       (uint)row_length);
       /*
         PQ has cost:
         (insert + qsort) * log(queue size) / TIME_FOR_COMPARE_ROWID +
@@ -1880,7 +1886,7 @@ Type_handler_string_result::sortlength(THD *thd,
   set_if_smaller(sortorder->length, thd->variables.max_sort_length);
   if (use_strnxfrm((cs= item->collation.collation)))
   {
-    sortorder->length= cs->coll->strnxfrmlen(cs, sortorder->length);
+    sortorder->length= (uint)cs->coll->strnxfrmlen(cs, sortorder->length);
   }
   else if (cs == &my_charset_bin)
   {
@@ -1963,7 +1969,7 @@ sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
       if (use_strnxfrm((cs=sortorder->field->sort_charset())))
       {
         *multi_byte_charset= true;
-        sortorder->length= cs->coll->strnxfrmlen(cs, sortorder->length);
+        sortorder->length= (uint)cs->coll->strnxfrmlen(cs, sortorder->length);
       }
       if (sortorder->field->maybe_null())
 	length++;				// Place for NULL marker

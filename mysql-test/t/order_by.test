@@ -1958,6 +1958,44 @@ UNION
     ORDER BY NULL, @a0 := 3, @a1 := 3, @a2 := 3, @a3 := 3, @a4 := 3,
              @a5 := 3, @a6 := 3, @a7 := 3, @a8 := 3, @a9 := 3, @a10 := 3 );
 
+
+--echo #
+--echo # mdev-6706: semi-join with duplicate weedout + ORDER BY
+--echo #
+
+CREATE TABLE t1 (f1 VARCHAR(3)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo');
+
+CREATE TABLE t2 (f2 VARCHAR(3)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('bar'),('baz');
+
+CREATE TABLE t3
+(i3_key INT, f3_key VARCHAR(3), f3 VARCHAR(3), KEY(f3_key,i3_key))
+ ENGINE=MyISAM;
+INSERT INTO t3 VALUES (0,'qux','qux'),(8,'bar','bar');
+
+let $q1=
+SELECT CONCAT( f1, f2 ) AS field FROM t1, t2
+WHERE f1 = ANY ( SELECT f1
+                 FROM t1
+                 LEFT JOIN ( t3 AS t3a, t3 AS t3b )
+                 ON ( t3b.f3_key = t3a.f3 )
+                 WHERE t3a.f3 < f1 OR t3b.f3 != f1 );
+let $q2=
+SELECT CONCAT( f1, f2 ) AS field FROM t1, t2
+WHERE f1 = ANY ( SELECT f1
+                 FROM t1
+                 LEFT JOIN ( t3 AS t3a, t3 AS t3b )
+                 ON ( t3b.f3_key = t3a.f3 )
+                 WHERE t3a.f3 < f1 OR t3b.f3 != f1 )
+ORDER BY field;
+
+eval $q1;
+eval $q2;
+eval EXPLAIN EXTENDED $q2;
+
+DROP TABLE t1,t2,t3;
+
 --echo End of 5.5 tests
 
 --echo #
@@ -2106,3 +2144,46 @@ INSERT INTO t1 VALUES (1),(2),(3);
 SELECT DISTINCT pk FROM t1 GROUP BY 'foo';
 SELECT DISTINCT pk FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-13994: Bad join results with orderby_uses_equalities=on
+--echo #
+
+CREATE TABLE books (
+  id int(16) NOT NULL AUTO_INCREMENT,
+  library_id int(16) NOT NULL DEFAULT 0,
+  wings_id int(12) NOT NULL DEFAULT 0,
+  scheduled_for_removal int(1) DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY library_idx (library_id)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+
+INSERT INTO books VALUES (32625,8663,707,0),(32624,8663,505,1);
+
+CREATE TABLE wings (
+  id int(11) NOT NULL AUTO_INCREMENT,
+  department_id int(11) DEFAULT NULL,
+  PRIMARY KEY (id)
+) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
+
+INSERT INTO wings VALUES (505,11745),(707,11768);
+
+let $q=
+SELECT wings.id as wing_id, wings.department_id FROM wings
+  WHERE wings.id IN ( SELECT books.wings_id FROM books
+                        WHERE books.library_id = 8663 AND
+                              books.scheduled_for_removal=0 )
+ORDER BY wings.id;
+
+SET @save_optimizer_switch=@@optimizer_switch;
+
+SET optimizer_switch='orderby_uses_equalities=off';
+eval $q;
+
+SET optimizer_switch='orderby_uses_equalities=on';
+eval $q;
+eval explain extended $q;
+
+set optimizer_switch= @save_optimizer_switch;
+
+DROP TABLE books, wings;

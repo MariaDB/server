@@ -1,0 +1,50 @@
+create table t (a int) with system versioning;
+insert into t values (1);
+update t set a=2;
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+
+insert into t values (3);
+
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+--replace_result InnoDB INNODB_OR_MYISAM MyISAM INNODB_OR_MYISAM
+show create table t;
+select * from t;
+select a from t for system_time all;
+
+rmdir $targetdir;
+
+create or replace table t (
+  a int,
+  s bigint unsigned as row start invisible,
+  e bigint unsigned as row end invisible,
+  period for system_time(s, e)
+) with system versioning engine=innodb;
+insert into t values (1);
+update t set a=2;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+
+insert into t values (3);
+
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+show create table t;
+select * from t;
+select a from t for system_time all;
+
+drop table t;
+rmdir $targetdir;

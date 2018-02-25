@@ -82,6 +82,7 @@ eval CREATE TABLE t3(a INT, b INT, PRIMARY KEY(a) COMMENT "$pk_cf")
 perl;
 my $fn = $ENV{'ROCKSDB_INFILE'};
 open(my $fh, '>', $fn) || die "perl open($fn): $!";
+binmode $fh;
 my $max = 5000000;
 my $sign = 1;
 for (my $ii = 0; $ii < $max; $ii++)

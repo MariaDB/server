@@ -168,11 +168,6 @@ IF(WITH_WSREP)
   SETA(CPACK_RPM_server_PACKAGE_REQUIRES
     "galera" "rsync" "lsof" "grep" "gawk" "iproute"
     "coreutils" "findutils" "tar")
-  IF (RPM MATCHES "sles11")
-    SETA(CPACK_RPM_server_PACKAGE_REQUIRES "util-linux")
-  ELSE()
-    SETA(CPACK_RPM_server_PACKAGE_REQUIRES "which")
-  ENDIF()
 ENDIF()
 
 SET(CPACK_RPM_server_PRE_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-prein.sh)
@@ -201,7 +196,7 @@ ALTERNATIVE_NAME("server" "mysql-server")
 ALTERNATIVE_NAME("test"   "mysql-test")
 
 # Argh! Different distributions call packages differently, to be a drop-in
-# replacement we have to fake distribution-speficic dependencies
+# replacement we have to fake distribution-specificic dependencies
 
 IF(RPM MATCHES "(rhel|centos)6")
   ALTERNATIVE_NAME("client" "mysql")
@@ -292,4 +287,3 @@ IF(compat53 AND compat101)
 ENDIF()
 
 ENDIF(RPM)
-

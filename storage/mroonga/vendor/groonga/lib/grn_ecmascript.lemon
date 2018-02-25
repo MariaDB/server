@@ -2,6 +2,9 @@
 %name grn_expr_parser
 %token_prefix GRN_EXPR_TOKEN_
 %include {
+#ifdef assert
+#  undef assert
+#endif
 #define assert GRN_ASSERT
 }
 
@@ -17,23 +20,27 @@
 %syntax_error {
   {
     grn_ctx *ctx = efsi->ctx;
-    if (ctx->rc == GRN_SUCCESS) {
-      grn_obj message;
-      GRN_TEXT_INIT(&message, 0);
-      GRN_TEXT_PUT(ctx, &message, efsi->str, efsi->cur - efsi->str);
+    grn_obj message;
+    GRN_TEXT_INIT(&message, 0);
+    GRN_TEXT_PUT(ctx, &message, efsi->str, efsi->cur - efsi->str);
+    GRN_TEXT_PUTC(ctx, &message, '|');
+    if (efsi->cur < efsi->str_end) {
+      GRN_TEXT_PUTC(ctx, &message, efsi->cur[0]);
       GRN_TEXT_PUTC(ctx, &message, '|');
-      if (efsi->cur < efsi->str_end) {
-        GRN_TEXT_PUTC(ctx, &message, efsi->cur[0]);
-        GRN_TEXT_PUTC(ctx, &message, '|');
-        GRN_TEXT_PUT(ctx, &message,
-                     efsi->cur + 1, efsi->str_end - (efsi->cur + 1));
-      } else {
-        GRN_TEXT_PUTC(ctx, &message, '|');
-      }
+      GRN_TEXT_PUT(ctx, &message,
+                   efsi->cur + 1, efsi->str_end - (efsi->cur + 1));
+    } else {
+      GRN_TEXT_PUTC(ctx, &message, '|');
+    }
+    if (ctx->rc == GRN_SUCCESS) {
       ERR(GRN_SYNTAX_ERROR, "Syntax error: <%.*s>",
           (int)GRN_TEXT_LEN(&message), GRN_TEXT_VALUE(&message));
-      GRN_OBJ_FIN(ctx, &message);
+    } else {
+      ERR(ctx->rc, "Syntax error: <%.*s>: %s",
+          (int)GRN_TEXT_LEN(&message), GRN_TEXT_VALUE(&message),
+          ctx->errbuf);
     }
+    GRN_OBJ_FIN(ctx, &message);
   }
 }
 
@@ -55,10 +62,19 @@ query ::= query LOGICAL_AND_NOT query_element.{
 query ::= query LOGICAL_OR query_element.{
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_OR, 2);
 }
+query ::= query NEGATIVE query_element.{
+  int weight;
+  GRN_INT32_POP(&efsi->weight_stack, weight);
+  grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_ADJUST, 2);
+}
 
 query_element ::= QSTRING.
 query_element ::= PARENL query PARENR.
 
+query_element ::= ADJUST query_element.{
+  int weight;
+  GRN_INT32_POP(&efsi->weight_stack, weight);
+}
 query_element ::= RELATIVE_OP query_element.{
   int mode;
   GRN_INT32_POP(&efsi->mode_stack, mode);
@@ -199,7 +215,13 @@ relational_expression ::= relational_expression MATCH shift_expression. {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_MATCH, 2);
 }
 relational_expression ::= relational_expression NEAR shift_expression. {
-  grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_NEAR, 2);
+  {
+    int max_interval;
+    GRN_INT32_POP(&efsi->max_interval_stack, max_interval);
+    grn_expr_append_const_int(efsi->ctx, efsi->e, max_interval,
+                              GRN_OP_PUSH, 1);
+  }
+  grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_NEAR, 3);
 }
 relational_expression ::= relational_expression NEAR2 shift_expression. {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_NEAR2, 2);
@@ -263,12 +285,12 @@ unary_expression ::= INCR unary_expression. {
   grn_expr_dfi *dfi_;
   unsigned int const_p;
 
-  DFI_POP(e, dfi_);
+  dfi_ = grn_expr_dfi_pop(e);
   const_p = CONSTP(dfi_->code->value);
-  DFI_PUT(e, dfi_->type, dfi_->domain, dfi_->code);
+  grn_expr_dfi_put(ctx, e, dfi_->type, dfi_->domain, dfi_->code);
   if (const_p) {
     ERR(GRN_SYNTAX_ERROR,
-        "constant can't be incremented (%.*s)",
+        "constant can't be incremented: <%.*s>",
         (int)(efsi->str_end - efsi->str), efsi->str);
   } else {
     grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_INCR, 1);
@@ -280,12 +302,12 @@ unary_expression ::= DECR unary_expression. {
   grn_expr_dfi *dfi_;
   unsigned int const_p;
 
-  DFI_POP(e, dfi_);
+  dfi_ = grn_expr_dfi_pop(e);
   const_p = CONSTP(dfi_->code->value);
-  DFI_PUT(e, dfi_->type, dfi_->domain, dfi_->code);
+  grn_expr_dfi_put(ctx, e, dfi_->type, dfi_->domain, dfi_->code);
   if (const_p) {
     ERR(GRN_SYNTAX_ERROR,
-        "constant can't be decremented (%.*s)",
+        "constant can't be decremented: <%.*s>",
         (int)(efsi->str_end - efsi->str), efsi->str);
   } else {
     grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_DECR, 1);
@@ -323,12 +345,12 @@ postfix_expression ::= lefthand_side_expression INCR. {
   grn_expr_dfi *dfi_;
   unsigned int const_p;
 
-  DFI_POP(e, dfi_);
+  dfi_ = grn_expr_dfi_pop(e);
   const_p = CONSTP(dfi_->code->value);
-  DFI_PUT(e, dfi_->type, dfi_->domain, dfi_->code);
+  grn_expr_dfi_put(ctx, e, dfi_->type, dfi_->domain, dfi_->code);
   if (const_p) {
     ERR(GRN_SYNTAX_ERROR,
-        "constant can't be incremented (%.*s)",
+        "constant can't be incremented: <%.*s>",
         (int)(efsi->str_end - efsi->str), efsi->str);
   } else {
     grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_INCR_POST, 1);
@@ -340,12 +362,12 @@ postfix_expression ::= lefthand_side_expression DECR. {
   grn_expr_dfi *dfi_;
   unsigned int const_p;
 
-  DFI_POP(e, dfi_);
+  dfi_ = grn_expr_dfi_pop(e);
   const_p = CONSTP(dfi_->code->value);
-  DFI_PUT(e, dfi_->type, dfi_->domain, dfi_->code);
+  grn_expr_dfi_put(ctx, e, dfi_->type, dfi_->domain, dfi_->code);
   if (const_p) {
     ERR(GRN_SYNTAX_ERROR,
-        "constant can't be decremented (%.*s)",
+        "constant can't be decremented: <%.*s>",
         (int)(efsi->str_end - efsi->str), efsi->str);
   } else {
     grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_DECR_POST, 1);
@@ -383,13 +405,72 @@ element_list ::= assignment_expression.
 element_list ::= elision assignment_expression.
 element_list ::= element_list elision assignment_expression.
 
-object_literal ::= BRACEL property_name_and_value_list BRACER.
+object_literal ::= BRACEL property_name_and_value_list BRACER. {
+  grn_ctx *ctx = efsi->ctx;
+  grn_expr_take_obj(ctx, efsi->e, (grn_obj *)(efsi->object_literal));
+  grn_expr_append_obj(ctx, efsi->e, (grn_obj *)(efsi->object_literal),
+                      GRN_OP_PUSH, 1);
+  efsi->object_literal = NULL;
+}
 
-property_name_and_value_list ::= .
+property_name_and_value_list ::= . {
+  grn_ctx *ctx = efsi->ctx;
+
+  efsi->object_literal =
+    grn_hash_create(ctx, NULL, GRN_TABLE_MAX_KEY_SIZE, sizeof(grn_obj),
+                    GRN_OBJ_KEY_VAR_SIZE|GRN_OBJ_TEMPORARY|GRN_HASH_TINY);
+  if (!efsi->object_literal) {
+    ERR(GRN_NO_MEMORY_AVAILABLE,
+        "couldn't create hash table for parsing object literal: <%.*s>",
+        (int)(efsi->str_end - efsi->str), efsi->str);
+  }
+}
+property_name_and_value_list ::= property_name_and_value.
 property_name_and_value_list ::= property_name_and_value_list COMMA property_name_and_value.
 
-property_name_and_value ::= property_name COLON assignment_expression.
-property_name ::= IDENTIFIER|STRING|DECIMAL.
+property_name_and_value ::= property_name COLON assignment_expression. {
+  grn_ctx *ctx = efsi->ctx;
+  grn_expr *e = (grn_expr *)(efsi->e);
+  grn_obj *property = e->codes[e->codes_curr - 3].value;
+  grn_obj *value = e->codes[e->codes_curr - 1].value;
+
+  if (!efsi->object_literal) {
+     efsi->object_literal =
+       grn_hash_create(ctx, NULL, GRN_TABLE_MAX_KEY_SIZE, sizeof(grn_obj),
+                       GRN_OBJ_KEY_VAR_SIZE|GRN_OBJ_TEMPORARY|GRN_HASH_TINY);
+  }
+
+  if (!efsi->object_literal) {
+    ERR(GRN_NO_MEMORY_AVAILABLE,
+        "couldn't create hash table for parsing object literal: <%.*s>",
+        (int)(efsi->str_end - efsi->str), efsi->str);
+  } else {
+    grn_obj *buf;
+    int added;
+    if (grn_hash_add(ctx, (grn_hash *)efsi->object_literal,
+                     GRN_TEXT_VALUE(property), GRN_TEXT_LEN(property),
+                     (void **)&buf, &added)) {
+      if (added) {
+        GRN_OBJ_INIT(buf, value->header.type, 0, value->header.domain);
+        GRN_TEXT_PUT(ctx, buf, GRN_TEXT_VALUE(value), GRN_TEXT_LEN(value));
+        grn_expr_dfi_pop(e);
+        e->codes_curr -= 3;
+      } else {
+        ERR(GRN_INVALID_ARGUMENT,
+            "duplicated property name: <%.*s>",
+            (int)GRN_TEXT_LEN(property),
+            GRN_TEXT_VALUE(property));
+      }
+    } else {
+      ERR(GRN_NO_MEMORY_AVAILABLE,
+          "failed to add a property to object literal: <%.*s>",
+          (int)GRN_TEXT_LEN(property),
+          GRN_TEXT_VALUE(property));
+    }
+  }
+}
+
+property_name ::= STRING.
 
 member_expression_part ::= BRACKETL expression BRACKETR. {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_GET_MEMBER, 2);
@@ -404,67 +485,84 @@ argument_list(A) ::= argument_list(B) COMMA assignment_expression. { A = B + 1; 
 output_columns(N_STACKED_COLUMNS) ::= . {
   N_STACKED_COLUMNS = 0;
 }
-output_columns(N_STACKED_COLUMNS) ::= output_column(IGNORED). {
-  if (IGNORED) {
-    N_STACKED_COLUMNS = 0;
-  } else {
-    N_STACKED_COLUMNS = 1;
-  }
+output_columns(N_STACKED_COLUMNS) ::= output_column(SUB_N_STACKED_COLUMNS). {
+  N_STACKED_COLUMNS = SUB_N_STACKED_COLUMNS;
+}
+/* Accept "column1,,,,,,column2" */
+output_columns(N_STACKED_COLUMNS) ::=
+   output_columns(SUB_N_STACKED_COLUMNS) COMMA. {
+  N_STACKED_COLUMNS = SUB_N_STACKED_COLUMNS;
 }
 output_columns(N_STACKED_COLUMNS) ::=
-   output_columns(SUB_N_STACKED_COLUMNS) COMMA output_column(IGNORED). {
-  if (IGNORED) {
+   output_columns(SUB_N_STACKED_COLUMNS) COMMA
+   output_column(NEW_N_STACKED_COLUMNS). {
+  if (SUB_N_STACKED_COLUMNS == 0) {
+    N_STACKED_COLUMNS = NEW_N_STACKED_COLUMNS;
+  } else if (NEW_N_STACKED_COLUMNS == 0) {
     N_STACKED_COLUMNS = SUB_N_STACKED_COLUMNS;
   } else {
-    if (SUB_N_STACKED_COLUMNS == 1) {
+    if (NEW_N_STACKED_COLUMNS == 1) {
       grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_COMMA, 2);
     }
     N_STACKED_COLUMNS = 1;
   }
 }
 
-output_column(IGNORED) ::= STAR. {
+output_column(N_STACKED_COLUMNS) ::= STAR. {
   grn_ctx *ctx = efsi->ctx;
   grn_obj *expr = efsi->e;
-  grn_expr *e = (grn_expr *)expr;
   grn_obj *variable = grn_expr_get_var_by_offset(ctx, expr, 0);
   if (variable) {
     grn_id table_id = GRN_OBJ_GET_DOMAIN(variable);
     grn_obj *table = grn_ctx_at(ctx, table_id);
     grn_obj columns_buffer;
+    int n_columns;
     grn_obj **columns;
-    int i, n_columns;
 
     GRN_PTR_INIT(&columns_buffer, GRN_OBJ_VECTOR, GRN_ID_NIL);
     grn_obj_columns(ctx, table, "*", strlen("*"), &columns_buffer);
     n_columns = GRN_BULK_VSIZE(&columns_buffer) / sizeof(grn_obj *);
     columns = (grn_obj **)GRN_BULK_HEAD(&columns_buffer);
 
-    for (i = 0; i < n_columns; i++) {
-      if (i > 0) {
-        grn_expr_append_op(ctx, expr, GRN_OP_COMMA, 2);
+    if (n_columns == 0) {
+      /* do nothing */
+    } else if (n_columns == 1) {
+      grn_obj *column = columns[0];
+      grn_expr_append_const(ctx, expr, column, GRN_OP_GET_VALUE, 1);
+      if (column->header.type == GRN_ACCESSOR) {
+        grn_expr_take_obj(ctx, expr, column);
       }
-      grn_expr_append_const(ctx, expr, columns[i], GRN_OP_GET_VALUE, 1);
-      GRN_PTR_PUT(ctx, &e->objs, columns[i]);
+    } else {
+      grn_expr *e = (grn_expr *)expr;
+      grn_bool have_column;
+      int i;
+
+      have_column = (e->codes_curr > 0);
+      for (i = 0; i < n_columns; i++) {
+        grn_obj *column = columns[i];
+        grn_expr_append_const(ctx, expr, column, GRN_OP_GET_VALUE, 1);
+        if (have_column || i > 0) {
+          grn_expr_append_op(ctx, expr, GRN_OP_COMMA, 2);
+        }
+        if (column->header.type == GRN_ACCESSOR) {
+          grn_expr_take_obj(ctx, expr, column);
+        }
+      }
     }
 
     GRN_OBJ_FIN(ctx, &columns_buffer);
 
-    if (n_columns > 0) {
-      IGNORED = GRN_FALSE;
-    } else {
-      IGNORED = GRN_TRUE;
-    }
+    N_STACKED_COLUMNS = n_columns;
   } else {
     /* TODO: report error */
-    IGNORED = GRN_TRUE;
+    N_STACKED_COLUMNS = 0;
   }
 }
-output_column(IGNORED) ::= NONEXISTENT_COLUMN. {
-  IGNORED = GRN_TRUE;
+output_column(N_STACKED_COLUMNS) ::= NONEXISTENT_COLUMN. {
+  N_STACKED_COLUMNS = 0;
 }
-output_column(IGNORED) ::= assignment_expression. {
-  IGNORED = GRN_FALSE;
+output_column(N_STACKED_COLUMNS) ::= assignment_expression. {
+  N_STACKED_COLUMNS = 1;
 }
 
 adjuster ::= .

@@ -54,8 +54,8 @@ public:
     Item_bool_func::fix_length_and_dec();
     maybe_null= 1;
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_valid>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_valid>(thd, this); }
 };
 
 
@@ -70,8 +70,8 @@ public:
     Item_bool_func(thd, js, i_path) {}
   const char *func_name() const { return "json_exists"; }
   void fix_length_and_dec();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_exists>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_exists>(thd, this); }
   longlong val_int();
 };
 
@@ -89,8 +89,8 @@ public:
   void fix_length_and_dec();
   String *val_str(String *);
   virtual bool check_and_get_value(json_engine_t *je, String *res, int *error);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_value>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_value>(thd, this); }
 };
 
 
@@ -102,8 +102,8 @@ public:
   bool is_json_type() { return true; }
   const char *func_name() const { return "json_query"; }
   bool check_and_get_value(json_engine_t *je, String *res, int *error);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_query>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_query>(thd, this); }
 };
 
 
@@ -117,8 +117,8 @@ public:
   const char *func_name() const { return "json_quote"; }
   void fix_length_and_dec();
   String *val_str(String *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_quote>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_quote>(thd, this); }
 };
 
 
@@ -132,8 +132,8 @@ public:
   const char *func_name() const { return "json_unquote"; }
   void fix_length_and_dec();
   String *val_str(String *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_unquote>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_unquote>(thd, this); }
 };
 
 
@@ -168,8 +168,8 @@ public:
   longlong val_int();
   double val_real();
   uint get_n_paths() const { return arg_count - 1; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_extract>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_extract>(thd, this); }
 };
 
 
@@ -187,8 +187,8 @@ public:
   const char *func_name() const { return "json_contains"; }
   void fix_length_and_dec();
   longlong val_int();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_contains>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_contains>(thd, this); }
 };
 
 
@@ -210,8 +210,8 @@ public:
   void fix_length_and_dec();
   void cleanup();
   longlong val_int();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_contains_path>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_contains_path>(thd, this); }
 };
 
 
@@ -229,8 +229,8 @@ public:
   bool is_json_type() { return true; }
   void fix_length_and_dec();
   const char *func_name() const { return "json_array"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_array>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_array>(thd, this); }
 };
 
 
@@ -246,8 +246,8 @@ public:
   String *val_str(String *);
   uint get_n_paths() const { return arg_count/2; }
   const char *func_name() const { return "json_array_append"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_array_append>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_array_append>(thd, this); }
 };
 
 
@@ -258,8 +258,8 @@ public:
     Item_func_json_array_append(thd, list) {}
   String *val_str(String *);
   const char *func_name() const { return "json_array_insert"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_array_insert>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_array_insert>(thd, this); }
 };
 
 
@@ -273,8 +273,8 @@ public:
   String *val_str(String *);
   bool is_json_type() { return true; }
   const char *func_name() const { return "json_object"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_object>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_object>(thd, this); }
 };
 
 
@@ -288,8 +288,8 @@ public:
   String *val_str(String *);
   bool is_json_type() { return true; }
   const char *func_name() const { return "json_merge"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_merge>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_merge>(thd, this); }
 };
 
 
@@ -311,8 +311,8 @@ public:
   const char *func_name() const { return "json_length"; }
   void fix_length_and_dec();
   longlong val_int();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_length>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_length>(thd, this); }
 };
 
 
@@ -327,8 +327,8 @@ public:
   const char *func_name() const { return "json_depth"; }
   void fix_length_and_dec() { max_length= 10; }
   longlong val_int();
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_depth>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_depth>(thd, this); }
 };
 
 
@@ -341,8 +341,8 @@ public:
   const char *func_name() const { return "json_type"; }
   void fix_length_and_dec();
   String *val_str(String *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_type>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_type>(thd, this); }
 };
 
 
@@ -364,8 +364,8 @@ public:
     return mode_insert ?
              (mode_replace ? "json_set" : "json_insert") : "json_update";
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_insert>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_insert>(thd, this); }
 };
 
 
@@ -380,8 +380,8 @@ public:
   String *val_str(String *);
   uint get_n_paths() const { return arg_count - 1; }
   const char *func_name() const { return "json_remove"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_remove>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_remove>(thd, this); }
 };
 
 
@@ -397,8 +397,8 @@ public:
   const char *func_name() const { return "json_keys"; }
   void fix_length_and_dec();
   String *val_str(String *);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_keys>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_keys>(thd, this); }
 };
 
 
@@ -422,8 +422,8 @@ public:
   void fix_length_and_dec();
   String *val_str(String *);
   uint get_n_paths() const { return arg_count > 4 ? arg_count - 4 : 0; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_search>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_search>(thd, this); }
 };
 
 
@@ -451,8 +451,8 @@ public:
   String *val_str(String *str);
   String *val_json(String *str);
   bool is_json_type() { return true; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_json_format>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_json_format>(thd, this); }
 };
 
 

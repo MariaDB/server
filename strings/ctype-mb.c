@@ -528,12 +528,12 @@ uint my_instr_mb(CHARSET_INFO *cs,
         if (nmatch)
         {
           match[0].beg= 0;
-          match[0].end= (size_t) (b-b0);
+          match[0].end= (uint) (b-b0);
           match[0].mb_len= res;
           if (nmatch > 1)
           {
             match[1].beg= match[0].end;
-            match[1].end= match[0].end+s_length;
+            match[1].end= (uint)(match[0].end+s_length);
             match[1].mb_len= 0;	/* Not computed */
           }
         }
@@ -799,9 +799,9 @@ fill_max_and_min:
         'a\0\0... is the smallest possible string when we have space expand
         a\ff\ff... is the biggest possible string
       */
-      *min_length= ((cs->state & MY_CS_BINSORT) ? (size_t) (min_str - min_org) :
-                    res_length);
-      *max_length= res_length;
+      *min_length= (cs->state & (MY_CS_BINSORT | MY_CS_NOPAD)) ?
+                    (size_t) (min_str - min_org) :
+                    res_length;
       /* Create min key  */
       do
       {
@@ -1002,9 +1002,9 @@ my_like_range_generic(CHARSET_INFO *cs,
         a\min\min... is the smallest possible string
         a\max\max... is the biggest possible string
       */
-      *min_length= ((cs->state & MY_CS_BINSORT) ?
+      *min_length= (cs->state & (MY_CS_BINSORT | MY_CS_NOPAD)) ?
                     (size_t) (min_str - min_org) :
-                    res_length);
+                    res_length;
       *max_length= res_length;
       goto pad_min_max;
     }

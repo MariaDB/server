@@ -122,7 +122,7 @@ void wsrep_post_commit(THD* thd, bool all)
   case LOCAL_COMMIT:
     {
       DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
-      if (wsrep->post_commit(wsrep, &thd->wsrep_ws_handle))
+      if (wsrep && wsrep->post_commit(wsrep, &thd->wsrep_ws_handle))
       {
         DBUG_PRINT("wsrep", ("set committed fail"));
         WSREP_WARN("set committed fail: %llu %d",
@@ -254,12 +254,11 @@ static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
   if ((all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
       (thd->variables.wsrep_on && thd->wsrep_conflict_state != MUST_REPLAY))
   {
-    if (wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
+    if (wsrep && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
     {
       DBUG_PRINT("wsrep", ("setting rollback fail"));
       WSREP_ERROR("settting rollback fail: thd: %llu, schema: %s, SQL: %s",
-                  (long long)thd->real_id, (thd->db ? thd->db : "(null)"),
-                  thd->query());
+                  (long long)thd->real_id, thd->get_db(), thd->query());
     }
     wsrep_cleanup_transaction(thd);
   }
@@ -296,11 +295,11 @@ int wsrep_commit(handlerton *hton, THD *thd, bool all)
         possible changes to clean state.
       */
       if (WSREP_PROVIDER_EXISTS) {
-        if (wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
+        if (wsrep && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
         {
           DBUG_PRINT("wsrep", ("setting rollback fail"));
           WSREP_ERROR("settting rollback fail: thd: %llu, schema: %s, SQL: %s",
-                      (long long)thd->real_id, (thd->db ? thd->db : "(null)"),
+                      (long long)thd->real_id, thd->get_db(),
                       thd->query());
         }
       }
@@ -374,6 +373,11 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
 
   mysql_mutex_lock(&LOCK_wsrep_replaying);
 
+  DBUG_PRINT("info", ("wsrep_replaying: %d  wsrep_conflict_state: %d  killed: %d  shutdown_in_progress: %d",
+                      (int) wsrep_replaying, (int) thd->wsrep_conflict_state,
+                      (int) thd->killed,
+                      (int) shutdown_in_progress));
+
   while (wsrep_replaying > 0                       &&
          thd->wsrep_conflict_state == NO_CONFLICT  &&
          thd->killed == NOT_KILLED            &&
@@ -437,6 +441,9 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
     }
   }
 
+  DBUG_PRINT("info", ("rcode: %d  wsrep_conflict_state: %d",
+                      rcode, thd->wsrep_conflict_state));
+
   if (data_len == 0)
   {
     if (thd->get_stmt_da()->is_ok()              &&
@@ -468,12 +475,12 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
 	       "QUERY: %s\n"
 	       " => Skipping replication",
 	       (longlong) thd->thread_id, data_len,
-               (thd->db ? thd->db : "(null)"), thd->query());
+               thd->get_db(), thd->query());
     rcode = WSREP_TRX_FAIL;
   }
   else if (!rcode)
   {
-    if (WSREP_OK == rcode)
+    if (WSREP_OK == rcode && wsrep)
       rcode = wsrep->pre_commit(wsrep,
                                 (wsrep_conn_id_t)thd->thread_id,
                                 &thd->wsrep_ws_handle,
@@ -482,10 +489,12 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
                                  0ULL : WSREP_FLAG_PA_UNSAFE),
                                 &thd->wsrep_trx_meta);
 
+    DBUG_PRINT("info", ("rcode after pre_commit: %d", rcode));
+
     if (rcode == WSREP_TRX_MISSING) {
       WSREP_WARN("Transaction missing in provider, thd: %lld  schema: %s  SQL: %s",
                  (longlong) thd->thread_id,
-                 (thd->db ? thd->db : "(null)"), thd->query());
+                 thd->get_db(), thd->query());
       rcode = WSREP_TRX_FAIL;
     } else if (rcode == WSREP_BF_ABORT) {
       WSREP_DEBUG("thd: %lld  seqno: %lld  BF aborted by provider, will replay",
@@ -509,6 +518,12 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
   }
 
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+
+  DEBUG_SYNC(thd, "wsrep_after_replication");
+
+  DBUG_PRINT("info", ("rcode: %d  wsrep_conflict_state: %d",
+                      rcode, thd->wsrep_conflict_state));
+
   switch(rcode) {
   case 0:
     /*

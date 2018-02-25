@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,19 +32,9 @@ Created 12/27/1996 Heikki Tuuri
 #include "btr0types.h"
 #include "dict0types.h"
 #include "trx0types.h"
-#include <stack>
 #include "btr0pcur.h"
 #include "que0types.h"
 #include "pars0types.h"
-
-/** The std::deque to store cascade update nodes, that uses mem_heap_t
-as allocator. */
-typedef std::deque<upd_node_t*, mem_heap_allocator<upd_node_t*> >
-	deque_mem_heap_t;
-
-/** Double-ended queue of update nodes to be processed for cascade
-operations */
-typedef deque_mem_heap_t upd_cascade_t;
 
 /*********************************************************************//**
 Creates an update vector object.
@@ -136,8 +126,7 @@ row_upd_rec_sys_fields(
 	dict_index_t*	index,	/*!< in: clustered index */
 	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	const trx_t*	trx,	/*!< in: transaction */
-	roll_ptr_t	roll_ptr);/*!< in: roll ptr of the undo log record,
-				  can be 0 during IMPORT */
+	roll_ptr_t	roll_ptr);/*!< in: DB_ROLL_PTR to the undo log */
 /*********************************************************************//**
 Sets the trx id or roll ptr field of a clustered index entry. */
 void
@@ -464,6 +453,7 @@ struct upd_t{
 					virtual column update now */
 	ulint		n_fields;	/*!< number of update fields */
 	upd_field_t*	fields;		/*!< array of update fields */
+	byte		vers_sys_value[8]; /*!< buffer for updating system fields */
 
 	/** Append an update field to the end of array
 	@param[in]	field	an update field */
@@ -484,6 +474,17 @@ struct upd_t{
 		return(false);
 	}
 
+	/** Determine if the update affects a system versioned column. */
+	bool affects_versioned() const
+	{
+		for (ulint i = 0; i < n_fields; i++) {
+			if (fields[i].new_val.type.vers_sys_field()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 #ifdef UNIV_DEBUG
         bool validate() const
         {
@@ -500,12 +501,19 @@ struct upd_t{
 
 };
 
+/** Kinds of update operation */
+enum delete_mode_t {
+	NO_DELETE = 0,		/*!< this operation does not delete */
+	PLAIN_DELETE,		/*!< ordinary delete */
+	VERSIONED_DELETE	/*!< update old and insert a new row */
+};
+
 /* Update node structure which also implements the delete operation
 of a row */
 
 struct upd_node_t{
 	que_common_t	common;	/*!< node type: QUE_NODE_UPDATE */
-	ibool		is_delete;/* TRUE if delete, FALSE if update */
+	delete_mode_t	is_delete;	/*!< kind of DELETE */
 	ibool		searched_update;
 				/* TRUE if searched update, FALSE if
 				positioned */
@@ -515,38 +523,12 @@ struct upd_node_t{
 	dict_foreign_t*	foreign;/* NULL or pointer to a foreign key
 				constraint if this update node is used in
 				doing an ON DELETE or ON UPDATE operation */
-
-	bool		cascade_top;
-				/*!< true if top level in cascade */
-
-	upd_cascade_t*	cascade_upd_nodes;
-				/*!< Queue of update nodes to handle the
-				cascade of update and delete operations in an
-				iterative manner.  Their parent/child
-				relations are properly maintained. All update
-				nodes point to this same queue.  All these
-				nodes are allocated in heap pointed to by
-				upd_node_t::cascade_heap. */
-
-	upd_cascade_t*	new_upd_nodes;
-				/*!< Intermediate list of update nodes in a
-				cascading update/delete operation.  After
-				processing one update node, this will be
-				concatenated to cascade_upd_nodes.  This extra
-				list is needed so that retry because of
-				DB_LOCK_WAIT works corrrectly. */
-
-	upd_cascade_t*	processed_cascades;
-				/*!< List of processed update nodes in a
-				cascading update/delete operation.  All the
-				cascade nodes are stored here, so that memory
-				can be freed. */
-
+	upd_node_t*	cascade_node;/* NULL or an update node template which
+				is used to implement ON DELETE/UPDATE CASCADE
+				or ... SET NULL for foreign keys */
 	mem_heap_t*	cascade_heap;
-				/*!< NULL or a mem heap where cascade_upd_nodes
-				are created.  This heap is owned by the node
-				that has cascade_top=true. */
-
+				/*!< NULL or a mem heap where cascade
+				node is created.*/
 	sel_node_t*	select;	/*!< query graph subtree implementing a base
 				table cursor: the rows returned will be
 				updated */
@@ -593,25 +575,8 @@ struct upd_node_t{
 	sym_node_t*	table_sym;/* table node in symbol table */
 	que_node_t*	col_assign_list;
 				/* column assignment list */
-
-	doc_id_t	fts_doc_id;
-				/* The FTS doc id of the row that is now
-				pointed to by the pcur. */
-
-	doc_id_t	fts_next_doc_id;
-				/* The new fts doc id that will be used
-				in update operation */
-
 	ulint		magic_n;
 
-#ifndef DBUG_OFF
-	/** Print information about this object into the trace log file. */
-	void dbug_trace();
-
-	/** Ensure that the member cascade_upd_nodes has only one update node
-	for each of the tables.  This is useful for testing purposes. */
-	void check_cascade_only_once();
-#endif /* !DBUG_OFF */
 };
 
 #define	UPD_NODE_MAGIC_N	1579975

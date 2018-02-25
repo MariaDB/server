@@ -146,8 +146,12 @@ const char *my_open_parent_dir_nosymlinks(const char *pathname, int *pdfd);
   return NOAT;
 #endif
 
+#ifndef _WIN32
 #define CREATE_NOSYMLINK_FUNCTION(PROTO,AT,NOAT)                        \
 static int PROTO { NOSYMLINK_FUNCTION_BODY(AT,NOAT) }
+#else
+#define CREATE_NOSYMLINK_FUNCTION(PROTO,AT,NOAT)
+#endif
 
 #ifdef _WIN32
 #include <sys/stat.h>

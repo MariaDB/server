@@ -100,6 +100,11 @@ let $coll='utf8mb4_unicode_520_nopad_ci';
 let $coll_pad='utf8mb4_unicode_520_ci';
 --source include/ctype_pad_all_engines.inc
 
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_520_nopad_ci;
+--source include/ctype_like_range_mdev14350.inc
+SET NAMES utf8mb4;
+
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

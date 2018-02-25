@@ -16,5 +16,18 @@ LIBS =						\
 
 function_plugins_LTLIBRARIES =
 function_plugins_LTLIBRARIES += vector.la
+function_plugins_LTLIBRARIES += string.la
+function_plugins_LTLIBRARIES += number.la
+function_plugins_LTLIBRARIES += time.la
+function_plugins_LTLIBRARIES += index_column.la
+function_plugins_LTLIBRARIES += math.la
 
 include vector_sources.am
+include string_sources.am
+include number_sources.am
+include time_sources.am
+include index_column_sources.am
+include math_sources.am
+
+number_la_LIBADD = -lm
+math_la_LIBADD = -lm

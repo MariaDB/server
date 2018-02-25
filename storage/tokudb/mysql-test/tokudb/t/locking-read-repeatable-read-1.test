@@ -1,0 +1,23 @@
+source include/have_tokudb.inc;
+source include/count_sessions.inc;
+create table t (a int primary key, b int) ENGINE=TokuDB;
+insert into t values (1,0);
+set session transaction isolation level repeatable read;
+begin;
+# t1 select in share mode
+select * from t where a=1 lock in share mode;
+# t2 update
+connect(conn1,localhost,root);
+set session transaction isolation level repeatable read;
+begin;
+# t2 select for update, should hang until t1 commits
+send update t set b=b+1 where a=1;
+--error ER_LOCK_WAIT_TIMEOUT
+reap;
+# t2 update
+connection default;
+commit;
+disconnect conn1;
+drop table t;
+
+source include/wait_until_count_sessions.inc;

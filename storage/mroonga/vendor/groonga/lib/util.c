@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2010-2015 Brazil
+/*
+  Copyright(C) 2010-2017 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -21,6 +22,7 @@
 #include "grn_util.h"
 #include "grn_string.h"
 #include "grn_expr.h"
+#include "grn_load.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -80,11 +82,20 @@ grn_inspect_name(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
   int name_size;
 
   name_size = grn_obj_name(ctx, obj, NULL, 0);
-  if (name_size) {
+  if (name_size > 0) {
     grn_bulk_space(ctx, buf, name_size);
     grn_obj_name(ctx, obj, GRN_BULK_CURR(buf) - name_size, name_size);
   } else {
-    GRN_TEXT_PUTS(ctx, buf, "(nil)");
+    grn_id id;
+
+    id = grn_obj_id(ctx, obj);
+    if (id == GRN_ID_NIL) {
+      GRN_TEXT_PUTS(ctx, buf, "(nil)");
+    } else {
+      GRN_TEXT_PUTS(ctx, buf, "(anonymous:");
+      grn_text_lltoa(ctx, buf, id);
+      GRN_TEXT_PUTS(ctx, buf, ")");
+    }
   }
 
   return buf;
@@ -237,6 +248,39 @@ grn_inspect_type(grn_ctx *ctx, grn_obj *buf, unsigned char type)
   return buf;
 }
 
+
+grn_obj *
+grn_inspect_query_log_flags(grn_ctx *ctx, grn_obj *buffer, unsigned int flags)
+{
+  grn_bool have_content = GRN_FALSE;
+
+  if (flags == GRN_QUERY_LOG_NONE) {
+    GRN_TEXT_PUTS(ctx, buffer, "NONE");
+    return buffer;
+  }
+
+#define CHECK_FLAG(NAME) do {                   \
+    if (flags & GRN_QUERY_LOG_ ## NAME) {       \
+      if (have_content) {                       \
+        GRN_TEXT_PUTS(ctx, buffer, "|");        \
+      }                                         \
+      GRN_TEXT_PUTS(ctx, buffer, #NAME);        \
+      have_content = GRN_TRUE;                  \
+    }                                           \
+  } while (GRN_FALSE)
+
+  CHECK_FLAG(COMMAND);
+  CHECK_FLAG(RESULT_CODE);
+  CHECK_FLAG(DESTINATION);
+  CHECK_FLAG(CACHE);
+  CHECK_FLAG(SIZE);
+  CHECK_FLAG(SCORE);
+
+#undef CHECK_FALG
+
+  return buffer;
+}
+
 static grn_rc
 grn_proc_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
 {
@@ -270,6 +314,9 @@ grn_proc_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
     break;
   case GRN_PROC_SCORER :
     GRN_TEXT_PUTS(ctx, buf, "scorer");
+    break;
+  case GRN_PROC_WINDOW_FUNCTION :
+    GRN_TEXT_PUTS(ctx, buf, "window-function");
     break;
   }
   GRN_TEXT_PUTS(ctx, buf, " ");
@@ -368,6 +415,30 @@ grn_expr_inspect(grn_ctx *ctx, grn_obj *buffer, grn_obj *expr)
 }
 
 static grn_rc
+grn_ptr_inspect(grn_ctx *ctx, grn_obj *buffer, grn_obj *ptr)
+{
+  size_t size;
+
+  GRN_TEXT_PUTS(ctx, buffer, "#<ptr:");
+
+  size = GRN_BULK_VSIZE(ptr);
+  if (size == 0) {
+    GRN_TEXT_PUTS(ctx, buffer, "(empty)");
+  } else if (size >= sizeof(grn_obj *)) {
+    grn_obj *content = GRN_PTR_VALUE(ptr);
+    grn_inspect(ctx, buffer, content);
+    if (size > sizeof(grn_obj *)) {
+      grn_text_printf(ctx, buffer,
+                      " (and more data: %" GRN_FMT_SIZE ")",
+                      size - sizeof(grn_obj *));
+    }
+  }
+  GRN_TEXT_PUTS(ctx, buffer, ">");
+
+  return GRN_SUCCESS;
+}
+
+static grn_rc
 grn_pvector_inspect(grn_ctx *ctx, grn_obj *buffer, grn_obj *pvector)
 {
   int i, n;
@@ -426,7 +497,117 @@ grn_vector_inspect(grn_ctx *ctx, grn_obj *buffer, grn_obj *vector)
 static grn_rc
 grn_accessor_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
 {
-  return grn_column_name_(ctx, obj, buf);
+  grn_accessor *accessor = (grn_accessor *)obj;
+
+  GRN_TEXT_PUTS(ctx, buf, "#<accessor ");
+  for (; accessor; accessor = accessor->next) {
+    grn_bool show_obj_name = GRN_FALSE;
+    grn_bool show_obj_domain_name = GRN_FALSE;
+
+    if (accessor != (grn_accessor *)obj) {
+      GRN_TEXT_PUTS(ctx, buf, ".");
+    }
+    switch (accessor->action) {
+    case GRN_ACCESSOR_GET_ID :
+      GRN_TEXT_PUT(ctx,
+                   buf,
+                   GRN_COLUMN_NAME_ID,
+                   GRN_COLUMN_NAME_ID_LEN);
+      show_obj_name = GRN_TRUE;
+      break;
+    case GRN_ACCESSOR_GET_KEY :
+      GRN_TEXT_PUT(ctx,
+                   buf,
+                   GRN_COLUMN_NAME_KEY,
+                   GRN_COLUMN_NAME_KEY_LEN);
+      show_obj_name = GRN_TRUE;
+      break;
+    case GRN_ACCESSOR_GET_VALUE :
+      GRN_TEXT_PUT(ctx,
+                   buf,
+                   GRN_COLUMN_NAME_VALUE,
+                   GRN_COLUMN_NAME_VALUE_LEN);
+      show_obj_name = GRN_TRUE;
+      break;
+    case GRN_ACCESSOR_GET_SCORE :
+      GRN_TEXT_PUT(ctx,
+                   buf,
+                   GRN_COLUMN_NAME_SCORE,
+                   GRN_COLUMN_NAME_SCORE_LEN);
+      break;
+    case GRN_ACCESSOR_GET_NSUBRECS :
+      GRN_TEXT_PUT(ctx,
+                   buf,
+                   GRN_COLUMN_NAME_NSUBRECS,
+                   GRN_COLUMN_NAME_NSUBRECS_LEN);
+      break;
+    case GRN_ACCESSOR_GET_MAX :
+      GRN_TEXT_PUT(ctx,
+                   buf,
+                   GRN_COLUMN_NAME_MAX,
+                   GRN_COLUMN_NAME_MAX_LEN);
+      break;
+    case GRN_ACCESSOR_GET_MIN :
+      GRN_TEXT_PUT(ctx,
+                   buf,
+                   GRN_COLUMN_NAME_MIN,
+                   GRN_COLUMN_NAME_MIN_LEN);
+      break;
+    case GRN_ACCESSOR_GET_SUM :
+      GRN_TEXT_PUT(ctx,
+                   buf,
+                   GRN_COLUMN_NAME_SUM,
+                   GRN_COLUMN_NAME_SUM_LEN);
+      break;
+    case GRN_ACCESSOR_GET_AVG :
+      GRN_TEXT_PUT(ctx,
+                   buf,
+                   GRN_COLUMN_NAME_AVG,
+                   GRN_COLUMN_NAME_AVG_LEN);
+      break;
+    case GRN_ACCESSOR_GET_COLUMN_VALUE :
+      grn_column_name_(ctx, accessor->obj, buf);
+      show_obj_domain_name = GRN_TRUE;
+      break;
+    case GRN_ACCESSOR_GET_DB_OBJ :
+      grn_text_printf(ctx, buf, "(_db)");
+      break;
+    case GRN_ACCESSOR_LOOKUP :
+      grn_text_printf(ctx, buf, "(_lookup)");
+      break;
+    case GRN_ACCESSOR_FUNCALL :
+      grn_text_printf(ctx, buf, "(_funcall)");
+      break;
+    default :
+      grn_text_printf(ctx, buf, "(unknown:%u)", accessor->action);
+      break;
+    }
+
+    if (show_obj_name || show_obj_domain_name) {
+      grn_obj *target = accessor->obj;
+      char name[GRN_TABLE_MAX_KEY_SIZE];
+      int name_size;
+
+      if (show_obj_domain_name) {
+        target = grn_ctx_at(ctx, target->header.domain);
+      }
+
+      name_size = grn_obj_name(ctx,
+                               target,
+                               name,
+                               GRN_TABLE_MAX_KEY_SIZE);
+      GRN_TEXT_PUTS(ctx, buf, "(");
+      if (name_size == 0) {
+        GRN_TEXT_PUTS(ctx, buf, "anonymous");
+      } else {
+        GRN_TEXT_PUT(ctx, buf, name, name_size);
+      }
+      GRN_TEXT_PUTS(ctx, buf, ")");
+    }
+  }
+  GRN_TEXT_PUTS(ctx, buf, ">");
+
+  return GRN_SUCCESS;
 }
 
 static grn_rc
@@ -480,7 +661,6 @@ grn_column_inspect_common(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
     GRN_TEXT_PUTS(ctx, buf, " range:");
     if (range) {
       grn_inspect_name(ctx, buf, range);
-      grn_obj_unlink(ctx, range);
     } else {
       grn_text_lltoa(ctx, buf, range_id);
     }
@@ -515,6 +695,9 @@ grn_store_inspect_body(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
     break;
   case GRN_OBJ_COMPRESS_LZ4 :
     GRN_TEXT_PUTS(ctx, buf, "lz4");
+    break;
+  case GRN_OBJ_COMPRESS_ZSTD :
+    GRN_TEXT_PUTS(ctx, buf, "zstd");
     break;
   default:
     break;
@@ -631,7 +814,6 @@ grn_table_key_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
   domain = grn_ctx_at(ctx, domain_id);
   if (domain) {
     grn_inspect_name(ctx, buf, domain);
-    grn_obj_unlink(ctx, domain);
   } else if (domain_id) {
     grn_text_lltoa(ctx, buf, domain_id);
   } else {
@@ -657,13 +839,43 @@ grn_table_columns_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
           if (col) {
             if (i++ > 0) { GRN_TEXT_PUTS(ctx, buf, ", "); }
             grn_column_name_(ctx, col, buf);
-            grn_obj_unlink(ctx, col);
           }
         });
     }
     grn_hash_close(ctx, cols);
   }
   GRN_TEXT_PUTS(ctx, buf, "]");
+
+  return GRN_SUCCESS;
+}
+
+static grn_rc
+grn_table_ids_and_values_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
+{
+  int i = 0;
+  grn_obj value;
+
+  GRN_VALUE_FIX_SIZE_INIT(&value, 0, grn_obj_get_range(ctx, obj));
+
+  GRN_TEXT_PUTS(ctx, buf, "ids&values:[");
+  GRN_TABLE_EACH_BEGIN(ctx, obj, cursor, id) {
+    void *value_buffer;
+    int value_size;
+
+    if (i++ > 0) {
+      GRN_TEXT_PUTS(ctx, buf, ", ");
+    }
+
+    GRN_TEXT_PUTS(ctx, buf, "\n  ");
+    grn_text_lltoa(ctx, buf, id);
+    GRN_TEXT_PUTS(ctx, buf, ":");
+    value_size = grn_table_cursor_get_value(ctx, cursor, &value_buffer);
+    grn_bulk_write_from(ctx, &value, value_buffer, 0, value_size);
+    grn_inspect(ctx, buf, &value);
+  } GRN_TABLE_EACH_END(ctx, cursor);
+  GRN_TEXT_PUTS(ctx, buf, "\n]");
+
+  GRN_OBJ_FIN(ctx, &value);
 
   return GRN_SUCCESS;
 }
@@ -700,7 +912,6 @@ grn_table_default_tokenizer_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
                                        GRN_INFO_DEFAULT_TOKENIZER, NULL);
   if (default_tokenizer) {
     grn_inspect_name(ctx, buf, default_tokenizer);
-    grn_obj_unlink(ctx, default_tokenizer);
   } else {
     GRN_TEXT_PUTS(ctx, buf, "(nil)");
   }
@@ -717,7 +928,6 @@ grn_table_normalizer_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
   normalizer = grn_obj_get_info(ctx, obj, GRN_INFO_NORMALIZER, NULL);
   if (normalizer) {
     grn_inspect_name(ctx, buf, normalizer);
-    grn_obj_unlink(ctx, normalizer);
   } else {
     GRN_TEXT_PUTS(ctx, buf, "(nil)");
   }
@@ -729,6 +939,10 @@ static grn_rc
 grn_table_keys_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
 {
   grn_table_cursor *tc;
+  int max_n_keys = 10;
+
+  /* TODO */
+  /* max_n_keys = grn_atoi(grn_getenv("GRN_INSPECT_TABLE_MAX_N_KEYS")); */
 
   GRN_TEXT_PUTS(ctx, buf, "keys:[");
   tc = grn_table_cursor_open(ctx, obj, NULL, 0, NULL, 0,
@@ -739,6 +953,10 @@ grn_table_keys_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
     grn_obj key;
     GRN_OBJ_INIT(&key, GRN_BULK, 0, obj->header.domain);
     while ((id = grn_table_cursor_next(ctx, tc))) {
+      if (max_n_keys > 0 && i >= max_n_keys) {
+        GRN_TEXT_PUTS(ctx, buf, ", ...");
+        break;
+      }
       if (i++ > 0) { GRN_TEXT_PUTS(ctx, buf, ", "); }
       grn_table_get_key2(ctx, obj, id, &key);
       grn_inspect(ctx, buf, &key);
@@ -829,7 +1047,11 @@ grn_table_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
 
   if (obj->header.type == GRN_TABLE_NO_KEY) {
     GRN_TEXT_PUTS(ctx, buf, " ");
-    grn_table_ids_inspect(ctx, buf, obj);
+    if (range) {
+      grn_table_ids_and_values_inspect(ctx, buf, obj);
+    } else {
+      grn_table_ids_inspect(ctx, buf, obj);
+    }
   } else {
     GRN_TEXT_PUTS(ctx, buf, " ");
     grn_table_default_tokenizer_inspect(ctx, buf, obj);
@@ -868,6 +1090,22 @@ grn_db_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
   grn_text_lltoa(ctx, buf, grn_table_size(ctx, obj));
 
   GRN_TEXT_PUTS(ctx, buf, ">");
+
+  return GRN_SUCCESS;
+}
+
+static grn_rc
+grn_time_inspect(grn_ctx *ctx, grn_obj *buffer, grn_obj *obj)
+{
+  int64_t time_raw;
+  int64_t sec;
+  int32_t usec;
+
+  time_raw = GRN_TIME_VALUE(obj);
+  GRN_TIME_UNPACK(time_raw, sec, usec);
+  grn_text_printf(ctx, buffer,
+                  "%" GRN_FMT_INT64D ".%d",
+                  sec, usec);
 
   return GRN_SUCCESS;
 }
@@ -1029,7 +1267,6 @@ grn_record_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
               grn_obj_get_value(ctx, col, id, &value);
               grn_inspect(ctx, buf, &value);
               GRN_OBJ_FIN(ctx, &value);
-              grn_obj_unlink(ctx, col);
             }
           });
       }
@@ -1041,10 +1278,6 @@ grn_record_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
   }
 
   GRN_TEXT_PUTS(ctx, buf, ">");
-
-  if (table) {
-    grn_obj_unlink(ctx, table);
-  }
 
   return GRN_SUCCESS;
 }
@@ -1098,6 +1331,9 @@ grn_inspect(grn_ctx *ctx, grn_obj *buffer, grn_obj *obj)
     break;
   case GRN_BULK :
     switch (obj->header.domain) {
+    case GRN_DB_TIME :
+      grn_time_inspect(ctx, buffer, obj);
+      return buffer;
     case GRN_DB_TOKYO_GEO_POINT :
     case GRN_DB_WGS84_GEO_POINT :
       grn_geo_point_inspect(ctx, buffer, obj);
@@ -1112,7 +1348,6 @@ grn_inspect(grn_ctx *ctx, grn_obj *buffer, grn_obj *obj)
       domain = grn_ctx_at(ctx, obj->header.domain);
       if (domain) {
         grn_id type = domain->header.type;
-        grn_obj_unlink(ctx, domain);
         switch (type) {
         case GRN_TABLE_HASH_KEY :
         case GRN_TABLE_PAT_KEY :
@@ -1126,13 +1361,12 @@ grn_inspect(grn_ctx *ctx, grn_obj *buffer, grn_obj *obj)
     }
     break;
   case GRN_PTR :
-    /* TODO */
+    grn_ptr_inspect(ctx, buffer, obj);
     break;
   case GRN_UVECTOR :
     domain = grn_ctx_at(ctx, obj->header.domain);
     if (domain) {
       grn_id type = domain->header.type;
-      grn_obj_unlink(ctx, domain);
       switch (type) {
       case GRN_TABLE_HASH_KEY :
       case GRN_TABLE_PAT_KEY :
@@ -1249,6 +1483,30 @@ grn_inspect_indented(grn_ctx *ctx, grn_obj *buffer, grn_obj *obj,
   return buffer;
 }
 
+grn_obj *
+grn_inspect_limited(grn_ctx *ctx, grn_obj *buffer, grn_obj *obj)
+{
+  grn_obj sub_buffer;
+  unsigned int max_size = GRN_CTX_MSGSIZE / 2;
+
+  GRN_TEXT_INIT(&sub_buffer, 0);
+  grn_inspect(ctx, &sub_buffer, obj);
+  if (GRN_TEXT_LEN(&sub_buffer) > max_size) {
+    GRN_TEXT_PUT(ctx, buffer, GRN_TEXT_VALUE(&sub_buffer), max_size);
+    GRN_TEXT_PUTS(ctx, buffer, "...(");
+    grn_text_lltoa(ctx, buffer, GRN_TEXT_LEN(&sub_buffer));
+    GRN_TEXT_PUTS(ctx, buffer, ")");
+  } else {
+    GRN_TEXT_PUT(ctx,
+                 buffer,
+                 GRN_TEXT_VALUE(&sub_buffer),
+                 GRN_TEXT_LEN(&sub_buffer));
+  }
+  GRN_OBJ_FIN(ctx, &sub_buffer);
+
+  return buffer;
+}
+
 void
 grn_p(grn_ctx *ctx, grn_obj *obj)
 {
@@ -1257,7 +1515,7 @@ grn_p(grn_ctx *ctx, grn_obj *obj)
   GRN_TEXT_INIT(&buffer, 0);
   grn_inspect(ctx, &buffer, obj);
   printf("%.*s\n", (int)GRN_TEXT_LEN(&buffer), GRN_TEXT_VALUE(&buffer));
-  grn_obj_unlink(ctx, &buffer);
+  GRN_OBJ_FIN(ctx, &buffer);
 }
 
 void
@@ -1268,7 +1526,7 @@ grn_p_geo_point(grn_ctx *ctx, grn_geo_point *point)
   GRN_WGS84_GEO_POINT_INIT(&obj, 0);
   GRN_GEO_POINT_SET(ctx, &obj, point->latitude, point->longitude);
   grn_p(ctx, &obj);
-  grn_obj_unlink(ctx, &obj);
+  GRN_OBJ_FIN(ctx, &obj);
 }
 
 void
@@ -1279,7 +1537,7 @@ grn_p_ii_values(grn_ctx *ctx, grn_obj *ii)
   GRN_TEXT_INIT(&buffer, 0);
   grn_ii_inspect_values(ctx, (grn_ii *)ii, &buffer);
   printf("%.*s\n", (int)GRN_TEXT_LEN(&buffer), GRN_TEXT_VALUE(&buffer));
-  grn_obj_unlink(ctx, &buffer);
+  GRN_OBJ_FIN(ctx, &buffer);
 }
 
 void
@@ -1290,63 +1548,19 @@ grn_p_expr_code(grn_ctx *ctx, grn_expr_code *code)
   GRN_TEXT_INIT(&buffer, 0);
   grn_expr_code_inspect_indented(ctx, &buffer, code, "");
   printf("%.*s\n", (int)GRN_TEXT_LEN(&buffer), GRN_TEXT_VALUE(&buffer));
-  grn_obj_unlink(ctx, &buffer);
+  GRN_OBJ_FIN(ctx, &buffer);
 }
 
-#ifdef WIN32
-static char *win32_base_dir = NULL;
-const char *
-grn_win32_base_dir(void)
+void
+grn_p_record(grn_ctx *ctx, grn_obj *table, grn_id id)
 {
-  if (!win32_base_dir) {
-    HMODULE dll;
-    const wchar_t *dll_filename = GRN_DLL_FILENAME;
-    wchar_t absolute_dll_filename[MAX_PATH];
-    DWORD absolute_dll_filename_size;
-    dll = GetModuleHandleW(dll_filename);
-    absolute_dll_filename_size = GetModuleFileNameW(dll,
-                                                    absolute_dll_filename,
-                                                    MAX_PATH);
-    if (absolute_dll_filename_size == 0) {
-      win32_base_dir = grn_strdup_raw(".");
-    } else {
-      DWORD ansi_dll_filename_size;
-      ansi_dll_filename_size =
-        WideCharToMultiByte(CP_ACP, 0,
-                            absolute_dll_filename, absolute_dll_filename_size,
-                            NULL, 0, NULL, NULL);
-      if (ansi_dll_filename_size == 0) {
-        win32_base_dir = grn_strdup_raw(".");
-      } else {
-        char *path;
-        win32_base_dir = malloc(ansi_dll_filename_size + 1);
-        WideCharToMultiByte(CP_ACP, 0,
-                            absolute_dll_filename, absolute_dll_filename_size,
-                            win32_base_dir, ansi_dll_filename_size,
-                            NULL, NULL);
-        win32_base_dir[ansi_dll_filename_size] = '\0';
-        if ((path = strrchr(win32_base_dir, '\\'))) {
-          *path = '\0';
-        }
-        path = strrchr(win32_base_dir, '\\');
-        if (path && (strcasecmp(path + 1, "bin") == 0 ||
-                     strcasecmp(path + 1, "lib") == 0)) {
-          *path = '\0';
-        } else {
-          path = win32_base_dir + strlen(win32_base_dir);
-          *path = '\0';
-        }
-        for (path = win32_base_dir; *path; path++) {
-          if (*path == '\\') {
-            *path = '/';
-          }
-        }
-      }
-    }
-  }
-  return win32_base_dir;
+  grn_obj record;
+
+  GRN_RECORD_INIT(&record, 0, grn_obj_id(ctx, table));
+  GRN_RECORD_SET(ctx, &record, id);
+  grn_p(ctx, &record);
+  GRN_OBJ_FIN(ctx, &record);
 }
-#endif
 
 #ifdef WIN32
 int
@@ -1385,3 +1599,45 @@ grn_mkstemp(char *path_template)
 # endif /* HAVE_MKSTEMP */
 }
 #endif /* WIN32 */
+
+grn_bool
+grn_path_exist(const char *path)
+{
+  struct stat status;
+  return stat(path, &status) == 0;
+}
+
+/* todo : refine */
+/*
+ * grn_tokenize splits a string into at most buf_size tokens and
+ * returns the number of tokens. The ending address of each token is
+ * written into tokbuf. Delimiters are ' ' and ','.
+ * Then, the address to the remaining is set to rest.
+ */
+int
+grn_tokenize(const char *str, size_t str_len,
+             const char **tokbuf, int buf_size,
+             const char **rest)
+{
+  const char **tok = tokbuf, **tok_end = tokbuf + buf_size;
+  if (buf_size > 0) {
+    const char *str_end = str + str_len;
+    while (str < str_end && (' ' == *str || ',' == *str)) { str++; }
+    for (;;) {
+      if (str == str_end) {
+        *tok++ = str;
+        break;
+      }
+      if (' ' == *str || ',' == *str) {
+        /* *str = '\0'; */
+        *tok++ = str;
+        if (tok == tok_end) { break; }
+        do { str++; } while (str < str_end && (' ' == *str || ',' == *str));
+      } else {
+        str++;
+      }
+    }
+  }
+  if (rest) { *rest = str; }
+  return tok - tokbuf;
+}

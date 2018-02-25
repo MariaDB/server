@@ -26,7 +26,20 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <psapi.h>
+
+#ifdef _MSC_VER
+/* Silence warning in OS header dbghelp.h */
+#pragma warning(push)
+#pragma warning(disable : 4091)
+#endif
+
 #include <dbghelp.h>
+
+#ifdef _MSC_VER
+/* Silence warning in OS header dbghelp.h */
+#pragma warning(pop)
+#endif
+
 #include <tlhelp32.h>
 #include <vector>
 
@@ -59,23 +72,24 @@ void dump_single_process(DWORD pid)
   char path[MAX_PATH];
   char working_dir[MAX_PATH];
   char tmpname[MAX_PATH];
+  char *filename= 0;
 
   process= OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
   if (!process)
   {
-    fprintf(stderr, "safe_kill : cannot open process pid=%u to create dump, last error %u\n",
+    fprintf(stderr, "safe_kill : cannot open process pid=%lu to create dump, last error %lu\n",
       pid, GetLastError());
     goto exit;
   }
 
   if (QueryFullProcessImageName(process, 0, path, &size) == 0)
   {
-    fprintf(stderr, "safe_kill : cannot read process path for pid %u, last error %u\n",
+    fprintf(stderr, "safe_kill : cannot read process path for pid %lu, last error %lu\n",
       pid, GetLastError());
     goto exit;
   }
 
-  char *filename= strrchr(path, '\\');
+  filename= strrchr(path, '\\');
   if (filename)
   {
     filename++;
@@ -102,17 +116,17 @@ void dump_single_process(DWORD pid)
   {
     if (!GetTempFileName(".", filename, 0, tmpname))
     {
-      fprintf(stderr, "GetTempFileName failed, last error %u", GetLastError());
+      fprintf(stderr, "GetTempFileName failed, last error %lu", GetLastError());
       goto exit;
     }
-    strncat(tmpname, ".dmp", sizeof(tmpname));
+    strncat_s(tmpname, ".dmp", sizeof(tmpname));
     filename= tmpname;
   }
 
   
   if (!GetCurrentDirectory(MAX_PATH, working_dir))
   {
-    fprintf(stderr, "GetCurrentDirectory failed, last error %u", GetLastError());
+    fprintf(stderr, "GetCurrentDirectory failed, last error %lu", GetLastError());
     goto exit;
   }
 
@@ -121,14 +135,14 @@ void dump_single_process(DWORD pid)
 
   if (file == INVALID_HANDLE_VALUE)
   {
-    fprintf(stderr, "safe_kill : CreateFile() failed for file %s, working dir %s, last error = %u\n",
+    fprintf(stderr, "safe_kill : CreateFile() failed for file %s, working dir %s, last error = %lu\n",
       filename, working_dir, GetLastError());
     goto exit;
   }
 
   if (!MiniDumpWriteDump(process, pid, file, MiniDumpNormal, 0, 0, 0))
   {
-    fprintf(stderr, "Failed to write minidump to %s, working dir %s, last error %u\n",
+    fprintf(stderr, "Failed to write minidump to %s, working dir %s, last error %lu\n",
       filename, working_dir, GetLastError());
     goto exit;
   }
@@ -200,7 +214,7 @@ int main(int argc, const char** argv )
 
     if (!GetExitCodeProcess(process,&exit_code))
     {
-       fprintf(stderr,  "GetExitCodeProcess failed, pid= %d, err= %d\n",
+       fprintf(stderr,  "GetExitCodeProcess failed, pid= %lu, err= %lu\n",
          pid, GetLastError());
        exit(1);
     }
@@ -218,7 +232,7 @@ int main(int argc, const char** argv )
       Sleep(100);
     else
     {
-      fprintf(stderr, "Failed to open shutdown_event '%s', error: %d\n",
+      fprintf(stderr, "Failed to open shutdown_event '%s', error: %lu\n",
               safe_process_name, GetLastError());
       exit(3);
     }
@@ -226,7 +240,7 @@ int main(int argc, const char** argv )
 
   if(SetEvent(shutdown_event) == 0)
   {
-    fprintf(stderr, "Failed to signal shutdown_event '%s', error: %d\n",
+    fprintf(stderr, "Failed to signal shutdown_event '%s', error: %lu\n",
             safe_process_name, GetLastError());
     CloseHandle(shutdown_event);
     exit(4);

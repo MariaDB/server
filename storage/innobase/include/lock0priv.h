@@ -111,7 +111,7 @@ operator<<(std::ostream& out, const lock_rec_t& lock)
 	return(lock.print(out));
 }
 
-/** Lock struct; protected by lock_sys->mutex */
+/** Lock struct; protected by lock_sys.mutex */
 struct lock_t {
 	trx_t*		trx;		/*!< transaction owning the
 					lock */
@@ -721,7 +721,7 @@ public:
 		as a victim, and we got the lock immediately: no need to
 		wait then */
 	dberr_t add_to_waitq(
-		const lock_t*	wait_for,
+		lock_t*	wait_for,
 		const lock_prdt_t*
 				prdt = NULL);
 
@@ -731,21 +731,22 @@ public:
 	@param[in] owns_trx_mutex	true if caller owns the trx_t::mutex
 	@param[in] add_to_hash		add the lock to hash table
 	@param[in] prdt			Predicate lock (optional)
+	@param[in,out] c_lock		Conflicting lock request or NULL
+					in Galera conflicting lock is selected
+					as deadlock victim if requester
+					is BF transaction.
 	@return new lock instance */
 	lock_t* create(
 		trx_t*		trx,
 		bool		owns_trx_mutex,
 		bool		add_to_hash,
 		const lock_prdt_t*
-				prdt = NULL);
+				prdt = NULL
+#ifdef WITH_WSREP
+		,lock_t*	c_lock = NULL
+#endif /* WITH_WSREP */
+	) const;
 
-	lock_t* create(
-		lock_t* const	c_lock,
-		trx_t*		trx,
-		bool		owns_trx_mutex,
-		bool		add_to_hash,
-		const lock_prdt_t*
-				prdt = NULL);
 	/**
 	Check of the lock is on m_rec_id.
 	@param[in] lock			Lock to compare with
@@ -837,7 +838,7 @@ private:
 	@param[in,out] lock	Newly created record lock to add to the
 				rec hash and the transaction lock list
 	@param[in] add_to_hash	If the lock should be added to the hash table */
-	void lock_add(lock_t* lock, bool add_to_hash);
+	void lock_add(lock_t* lock, bool add_to_hash) const;
 
 	/**
 	Check and resolve any deadlocks

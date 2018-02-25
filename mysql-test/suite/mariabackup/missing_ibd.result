@@ -1,0 +1,6 @@
+create table t1(c1 int) engine=InnoDB;
+INSERT INTO t1 VALUES(1);
+# xtrabackup backup
+select * from t1;
+ERROR 42S02: Table 'test.t1' doesn't exist in engine
+drop table t1;

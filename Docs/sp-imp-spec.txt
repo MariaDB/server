@@ -103,7 +103,7 @@
     - Statements:
         The Lex in THD is replaced by a new Lex structure and the statement,
         is parsed as usual. A sp_instr_stmt is created, containing the new
-        Lex, and added to added to the instructions in  sphead.
+        Lex, and added to the instructions in  sphead.
         Afterwards, the procedure's Lex is restored in THD.
     - SET var:
         Setting a local variable generates a sp_instr_set instruction,
@@ -169,7 +169,7 @@
 
   - Parsing CREATE FUNCTION ...
 
-    Creating a functions is essensially the same thing as for a PROCEDURE,
+    Creating a functions is essentially the same thing as for a PROCEDURE,
     with the addition that a FUNCTION has a return type and a RETURN
     statement, but no OUT or INOUT parameters.
 
@@ -189,7 +189,7 @@
     additional requirement. They will be called in expressions with the same
     syntax as UDFs, so UDFs and stored FUNCTIONs share the namespace. Thus,
     we must make sure that we do not have UDFs and FUNCTIONs with the same
-    name (even if they are storded in different places).
+    name (even if they are stored in different places).
 
     This means that we can reparse the procedure as many time as we want.
     The first time, the resulting Lex is used to store the procedure in
@@ -225,7 +225,7 @@
 
     sql_parse.cc:mysql_execute_command() then uses sp.cc:sp_find() to
     get the sp_head for the procedure (which may have been read from the
-    database or feetched from the in-memory cache) and calls the sp_head's
+    database or fetched from the in-memory cache) and calls the sp_head's
     method execute().
     Note: It's important that substatements called by the procedure do not
           do send_ok(). Fortunately, there is a flag in THD->net to disable
@@ -323,7 +323,7 @@
       One "obvious" solution would be to simply push "mysql.proc" to the list
       of tables used by the query, but this implies a "join" with this table
       if the query is a select, so it doesn't work (and we can't exclude this
-      table easily; since a priviledged used might in fact want to search
+      table easily; since a privileged used might in fact want to search
       the proc table).
       Another solution would of course be to allow the opening and closing
       of the mysql.proc table during a query execution, but this it not
@@ -400,7 +400,7 @@
     instruction.
 
     Calling and returning from a CONTINUE handler poses some special
-    problems. Since we need to return to the point after its invokation,
+    problems. Since we need to return to the point after its invocation,
     we push the return location on a stack in the sp_rcontext (this is
     done by the exectution loop). The handler then ends with a special
     instruction, sp_instr_hreturn, which returns to this location.
@@ -545,7 +545,7 @@
        Cons: Uses more memory, each SP read from table once per thread.
 
     Unfortunately, we cannot use alternative 1 for the time being, as most
-    of the datastructures to be cached (lex and items) are not reentrant
+    of the data structures to be cached (lex and items) are not reentrant
     and thread-safe. (Things are modifed at execution, we have THD pointers
     stored everywhere, etc.)
     This leaves us with alternative 2, one cache per thread; or actually

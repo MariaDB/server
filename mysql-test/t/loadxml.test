@@ -143,3 +143,22 @@ LOAD XML INFILE '../../std_data/loaddata/mdev12696.xml' INTO TABLE v1 (c1);
 LOAD XML INFILE '../../std_data/loaddata/mdev12696.xml' INTO TABLE v1 (c2);
 DROP VIEW v1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-14628 Wrong autoinc value assigned by LOAD XML in the NO_AUTO_VALUE_ON_ZERO mode
+--echo #
+
+SET sql_mode=NO_AUTO_VALUE_ON_ZERO;
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT);
+LOAD XML INFILE '../../std_data/loaddata/mdev14628a.xml' INTO TABLE t1 ROWS IDENTIFIED BY '<row>';
+SELECT * FROM t1 ORDER BY b;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+SET sql_mode='';
+CREATE  TABLE t1 (id INT, g GEOMETRY NOT NULL);
+--error ER_WARN_NULL_TO_NOTNULL
+LOAD XML INFILE '../../std_data/loaddata/mdev14628b.xml' INTO TABLE t1 ROWS IDENTIFIED BY '<row>';
+SELECT * FROM t1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;

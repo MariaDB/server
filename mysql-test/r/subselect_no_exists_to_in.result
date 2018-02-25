@@ -388,10 +388,10 @@ Warnings:
 Note	1003	/* select#1 */ select 'joce' AS `pseudo`,(/* select#2 */ select 'test' from `test`.`t8` where 1) AS `(SELECT email FROM t8 WHERE pseudo=(SELECT pseudo FROM t8 WHERE pseudo='joce'))` from `test`.`t8` where 1
 SELECT pseudo FROM t8 WHERE pseudo=(SELECT pseudo,email FROM
 t8 WHERE pseudo='joce');
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data types varchar and row for operation '='
 SELECT pseudo FROM t8 WHERE pseudo=(SELECT * FROM t8 WHERE
 pseudo='joce');
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data types varchar and row for operation '='
 SELECT pseudo FROM t8 WHERE pseudo=(SELECT pseudo FROM t8 WHERE pseudo='joce');
 pseudo
 joce
@@ -1165,20 +1165,20 @@ drop table t1;
 CREATE TABLE t1 (a int(1));
 EXPLAIN EXTENDED SELECT (SELECT RAND() FROM t1) FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
-2	UNCACHEABLE SUBQUERY	t1	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	UNCACHEABLE SUBQUERY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 Warnings:
 Note	1003	/* select#1 */ select (/* select#2 */ select rand() from `test`.`t1`) AS `(SELECT RAND() FROM t1)` from `test`.`t1`
 EXPLAIN EXTENDED SELECT (SELECT ENCRYPT('test') FROM t1) FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
-2	UNCACHEABLE SUBQUERY	t1	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	UNCACHEABLE SUBQUERY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 Warnings:
 Note	1003	/* select#1 */ select (/* select#2 */ select encrypt('test') from `test`.`t1`) AS `(SELECT ENCRYPT('test') FROM t1)` from `test`.`t1`
 EXPLAIN EXTENDED SELECT (SELECT BENCHMARK(1,1) FROM t1) FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
-2	UNCACHEABLE SUBQUERY	t1	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	UNCACHEABLE SUBQUERY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 Warnings:
 Note	1003	/* select#1 */ select (/* select#2 */ select benchmark(1,1) from `test`.`t1`) AS `(SELECT BENCHMARK(1,1) FROM t1)` from `test`.`t1`
 drop table t1;
@@ -1648,7 +1648,7 @@ a
 explain extended select * from t3 where a >= all (select b from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
+2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a` from `test`.`t3` where <not>(<in_optimizer>(`test`.`t3`.`a`,(/* select#2 */ select max(NULL) from `test`.`t2`) > <cache>(`test`.`t3`.`a`)))
 select * from t3 where a >= some (select b from t2);
@@ -1656,7 +1656,7 @@ a
 explain extended select * from t3 where a >= some (select b from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
+2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a` from `test`.`t3` where <nop>(<in_optimizer>(`test`.`t3`.`a`,(/* select#2 */ select min(NULL) from `test`.`t2`) <= <cache>(`test`.`t3`.`a`)))
 select * from t3 where a >= all (select b from t2 group by 1);
@@ -1667,7 +1667,7 @@ a
 explain extended select * from t3 where a >= all (select b from t2 group by 1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
+2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a` from `test`.`t3` where <not>(<in_optimizer>(`test`.`t3`.`a`,(/* select#2 */ select max(NULL) from `test`.`t2`) > <cache>(`test`.`t3`.`a`)))
 select * from t3 where a >= some (select b from t2 group by 1);
@@ -1675,7 +1675,7 @@ a
 explain extended select * from t3 where a >= some (select b from t2 group by 1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	0	0.00	const row not found
+2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a` from `test`.`t3` where <nop>(<in_optimizer>(`test`.`t3`.`a`,(/* select#2 */ select min(NULL) from `test`.`t2`) <= <cache>(`test`.`t3`.`a`)))
 select * from t3 where NULL >= any (select b from t2);
@@ -2868,13 +2868,13 @@ drop table t1, t2;
 create table t1 (a int, b int);
 insert into t1 values (1,2);
 select 1 = (select * from t1);
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data types int and row for operation '='
 select (select * from t1) = 1;
-ERROR 21000: Operand should contain 2 column(s)
+ERROR HY000: Illegal parameter data types row and int for operation '='
 select (1,2) = (select a from t1);
-ERROR 21000: Operand should contain 2 column(s)
+ERROR HY000: Illegal parameter data types row and int for operation '='
 select (select a from t1) = (1,2);
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Illegal parameter data types int and row for operation '='
 select (1,2,3) = (select * from t1);
 ERROR 21000: Operand should contain 3 column(s)
 select (select * from t1) = (1,2,3);
@@ -3737,7 +3737,7 @@ from t1' at line 1
 explain select * from t1 where not exists
 ((select t11.i from t1 t11) union (select t12.i from t1 t12));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	const row not found
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -6120,7 +6120,7 @@ FROM t1 AS sq4_alias1
 WHERE (sq4_alias1.col_varchar_key + NULL) IS NULL OR
 sq4_alias1.col_varchar_key = @var3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	sq4_alias1	system	NULL	NULL	NULL	NULL	0	const row not found
+1	SIMPLE	sq4_alias1	system	NULL	NULL	NULL	NULL	0	Const row not found
 SELECT @var3:=12, sq4_alias1.*
 FROM t1 AS sq4_alias1
 WHERE (sq4_alias1.col_varchar_key + NULL) IS NULL OR
@@ -6134,7 +6134,7 @@ FROM t1 AS sq4_alias1
 WHERE (sq4_alias1.col_varchar_key + NULL) IS NULL OR
 sq4_alias1.col_varchar_key = @var3 ) AS alias3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	const row not found
+1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	Const row not found
 2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 SELECT * FROM ( SELECT @var3:=12, sq4_alias1.*
 FROM t1 AS sq4_alias1
@@ -6720,7 +6720,7 @@ CREATE TABLE t2 (b INT);
 EXPLAIN
 SELECT SUM(a) AS f1, a AS f2 FROM (t1, t2) HAVING f2 >= ALL (SELECT 4 UNION SELECT 5) AND f1 = 7;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	0	const row not found
+1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	0	Const row not found
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -7214,6 +7214,32 @@ NULL
 # SELECT (SELECT MAX(sq.f2) FROM t1) FROM (SELECT * FROM t2) AS sq WHERE f2 = 2;
 #
 drop table t1, t2;
+#
+# MDEV-13933: Wrong results in COUNT() query with EXISTS and exists_to_in
+# (5.5 test)
+#
+SET @optimiser_switch_save= @@optimizer_switch;
+CREATE TABLE t1 (a INT NOT NULL);
+INSERT INTO t1 VALUES (1),(1),(1),(5),(5);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (5),(1);
+CREATE TABLE t3 (c INT, KEY(c));
+INSERT INTO t3 VALUES (5),(5);
+SET optimizer_switch='semijoin=on';
+select t1.a from t1 where t1.a in (select `test`.`t2`.`b` from `test`.`t2`)
+and t1.a in (select `test`.`t3`.`c` from `test`.`t3`);
+a
+5
+5
+SET optimizer_switch='semijoin=off';
+select t1.a from t1 where t1.a in (select `test`.`t2`.`b` from `test`.`t2`)
+and t1.a in (select `test`.`t3`.`c` from `test`.`t3`);
+a
+5
+5
+SET @@optimizer_switch= @optimiser_switch_save;
+DROP TABLE t1, t2, t3;
+End of 5.5 tests
 # End of 10.0 tests
 #
 # MDEV-9487: Server crashes in Time_and_counter_tracker::incr_loops

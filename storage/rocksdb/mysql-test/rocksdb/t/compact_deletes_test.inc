@@ -44,7 +44,7 @@ perl;
   print "wait_for_delete: $ENV{no_more_deletes}\n";
   while ($retry++ < $num_retries) {
     $total_d=$total_e=0;
-    for $f (<$ENV{MYSQLTEST_VARDIR}/mysqld.1/data/.rocksdb/*.sst>) {
+    for $f (<$ENV{MYSQLTEST_VARDIR}/mysqld.1/data/#rocksdb/*.sst>) {
       # excluding system cf
       $filename= "$ENV{MARIAROCKS_SST_DUMP} --command=scan --output_hex --file=$f";
       open(D, '-|', $filename) || die("Can't open file $filename: $!");

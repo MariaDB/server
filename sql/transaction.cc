@@ -21,10 +21,9 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "transaction.h"
-#include "rpl_handler.h"
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_acl.h"
-
+#include "semisync_master.h"
 
 #ifndef EMBEDDED_LIBRARY
 /**
@@ -318,9 +317,17 @@ bool trans_commit(THD *thd)
       transaction, so the hooks for rollback will be called.
     */
   if (res)
-    (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+  {
+#ifdef HAVE_REPLICATION
+    repl_semisync_master.wait_after_rollback(thd, FALSE);
+#endif
+  }
   else
-    (void) RUN_HOOK(transaction, after_commit, (thd, FALSE));
+  {
+#ifdef HAVE_REPLICATION
+    repl_semisync_master.wait_after_commit(thd, FALSE);
+#endif
+  }
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   thd->transaction.all.reset();
   thd->lex->start_transaction_opt= 0;
@@ -413,7 +420,9 @@ bool trans_rollback(THD *thd)
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   res= ha_rollback_trans(thd, TRUE);
-  (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+#ifdef HAVE_REPLICATION
+  repl_semisync_master.wait_after_rollback(thd, FALSE);
+#endif
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   /* Reset the binlog transaction marker */
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
@@ -526,9 +535,17 @@ bool trans_commit_stmt(THD *thd)
       transaction, so the hooks for rollback will be called.
     */
   if (res)
-    (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+  {
+#ifdef HAVE_REPLICATION
+    repl_semisync_master.wait_after_rollback(thd, FALSE);
+#endif
+  }
   else
-    (void) RUN_HOOK(transaction, after_commit, (thd, FALSE));
+  {
+#ifdef HAVE_REPLICATION
+    repl_semisync_master.wait_after_commit(thd, FALSE);
+#endif
+  }
 
   thd->transaction.stmt.reset();
 
@@ -567,7 +584,9 @@ bool trans_rollback_stmt(THD *thd)
       trans_reset_one_shot_chistics(thd);
   }
 
-  (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+#ifdef HAVE_REPLICATION
+  repl_semisync_master.wait_after_rollback(thd, FALSE);
+#endif
 
   thd->transaction.stmt.reset();
 
@@ -611,12 +630,8 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
       !opt_using_transactions)
     DBUG_RETURN(FALSE);
 
-  enum xa_states xa_state= thd->transaction.xid_state.xa_state;
-  if (xa_state != XA_NOTR && xa_state != XA_ACTIVE)
-  {
-    my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
+  if (thd->transaction.xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(TRUE);
-  }
 
   sv= find_savepoint(thd, name);
 
@@ -634,7 +649,7 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
   }
 
   newsv->name= strmake_root(&thd->transaction.mem_root, name.str, name.length);
-  newsv->length= name.length;
+  newsv->length= (uint)name.length;
 
   /*
     if we'll get an error here, don't add new savepoint to the list.
@@ -691,12 +706,8 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
     DBUG_RETURN(TRUE);
   }
 
-  enum xa_states xa_state= thd->transaction.xid_state.xa_state;
-  if (xa_state != XA_NOTR)
-  {
-    my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
+  if (thd->transaction.xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(TRUE);
-  }
 
   /**
     Checking whether it is safe to release metadata locks acquired after

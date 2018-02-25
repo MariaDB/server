@@ -518,7 +518,6 @@ void **thd_ha_data(const void* thd, const struct handlerton *hton);
 void thd_storage_lock_wait(void* thd, long long value);
 int thd_tx_isolation(const void* thd);
 int thd_tx_is_read_only(const void* thd);
-int thd_rpl_is_parallel(const void* thd);
 int mysql_tmpfile(const char *prefix);
 unsigned long thd_get_thread_id(const void* thd);
 void thd_get_xid(const void* thd, MYSQL_XID *xid);
@@ -544,8 +543,7 @@ struct mysql_event_general
   unsigned long long general_time;
   unsigned long long general_rows;
   unsigned long long query_id;
-  const char *database;
-  unsigned int database_length;
+  MYSQL_CONST_LEX_STRING database;
 };
 struct mysql_event_connection
 {
@@ -564,8 +562,7 @@ struct mysql_event_connection
   unsigned int host_length;
   const char *ip;
   unsigned int ip_length;
-  const char *database;
-  unsigned int database_length;
+  MYSQL_CONST_LEX_STRING database;
 };
 struct mysql_event_table
 {
@@ -578,15 +575,11 @@ struct mysql_event_table
   const char *proxy_user;
   const char *host;
   const char *ip;
-  const char *database;
-  unsigned int database_length;
-  const char *table;
-  unsigned int table_length;
+  MYSQL_CONST_LEX_STRING database;
+  MYSQL_CONST_LEX_STRING table;
+  MYSQL_CONST_LEX_STRING new_database;
+  MYSQL_CONST_LEX_STRING new_table;
   int read_only;
-  const char *new_database;
-  unsigned int new_database_length;
-  const char *new_table;
-  unsigned int new_table_length;
   unsigned long long query_id;
 };
 struct st_mysql_audit

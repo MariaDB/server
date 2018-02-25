@@ -116,8 +116,16 @@ SHOW CREATE TABLE tr;
 ERROR 42S02: Table 'test.tr' doesn't exist in engine
 SHOW CREATE TABLE tc;
 ERROR 42S02: Table 'test.tc' doesn't exist in engine
+SELECT * FROM tc;
+ERROR 42S02: Table 'test.tc' doesn't exist in engine
 SHOW CREATE TABLE td;
-ERROR 42S02: Table 'test.td' doesn't exist in engine
+Table	Create Table
+td	CREATE TABLE `td` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+SELECT * FROM td;
+a
 SHOW CREATE TABLE tz;
 Table	Create Table
 tz	CREATE TABLE `tz` (
@@ -132,8 +140,7 @@ a
 42
 SHOW CREATE TABLE tp;
 ERROR 42S02: Table 'test.tp' doesn't exist in engine
-FOUND 4 /InnoDB: Table `test`.`t[cp]` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=(129|289|3873|1232[13]) SYS_TABLES\.N_COLS=2147483649/ in mysqld.1.err
-FOUND 2 /InnoDB: Refusing to load '\..test.td\.ibd' \(id=3, flags=0x1?[2ae]1\); dictionary contains id=3, flags=0x10[01][2ae]1\b/ in mysqld.1.err
+FOUND 5 /InnoDB: Table `test`.`t[cp]` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=(129|289|3873|1232[13]) SYS_TABLES\.N_COLS=2147483649/ in mysqld.1.err
 FOUND 2 /InnoDB: Table `test`\.`tr` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=65 SYS_TABLES\.MIX_LEN=4294967295\b/ in mysqld.1.err
 Restoring SYS_TABLES clustered index root page (8)
 SHOW CREATE TABLE tr;

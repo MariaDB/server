@@ -48,7 +48,7 @@ static mysql_cond_t  COND_checkpoint;
 static MA_SERVICE_THREAD_CONTROL checkpoint_control=
   {0, FALSE, FALSE, &LOCK_checkpoint, &COND_checkpoint};
 /* is ulong like pagecache->blocks_changed */
-static ulong pages_to_flush_before_next_checkpoint;
+static uint pages_to_flush_before_next_checkpoint;
 static PAGECACHE_FILE *dfiles, /**< data files to flush in background */
   *dfiles_end; /**< list of data files ends here */
 static PAGECACHE_FILE *kfiles, /**< index files to flush in background */
@@ -265,7 +265,7 @@ static int really_execute_checkpoint(void)
   ptr= record_pieces[3].str;
   pages_to_flush_before_next_checkpoint= uint4korr(ptr);
   DBUG_PRINT("checkpoint",("%u pages to flush before next checkpoint",
-                           (uint)pages_to_flush_before_next_checkpoint));
+                          pages_to_flush_before_next_checkpoint));
 
   /* compute log's low-water mark */
   {
@@ -562,9 +562,7 @@ pthread_handler_t ma_checkpoint_background(void *arg)
   DBUG_PRINT("info",("Maria background checkpoint thread starts"));
   DBUG_ASSERT(interval > 0);
 
-#ifdef HAVE_PSI_THREAD_INTERFACE
-  PSI_THREAD_CALL(set_thread_user_host)(0,0,0,0);
-#endif
+  PSI_CALL_set_thread_user_host(0,0,0,0);
 
   /*
     Recovery ended with all tables closed and a checkpoint: no need to take
@@ -640,7 +638,7 @@ pthread_handler_t ma_checkpoint_background(void *arg)
     case 1:
       /* set up parameters for background page flushing */
       filter_param.up_to_lsn= last_checkpoint_lsn;
-      pages_bunch_size= pages_to_flush_before_next_checkpoint / interval;
+      pages_bunch_size= pages_to_flush_before_next_checkpoint / (uint)interval;
       dfile= dfiles;
       kfile= kfiles;
       /* fall through */
@@ -752,7 +750,7 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
   char *ptr;
   uint error= 1, sync_error= 0, nb, nb_stored, i;
   my_bool unmark_tables= TRUE;
-  uint total_names_length;
+  size_t total_names_length;
   LIST *pos; /**< to iterate over open tables */
   struct st_state_copy {
     uint index;
@@ -983,7 +981,7 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
     DBUG_PRINT("info", ("ignore_share: %d", ignore_share));
     if (!ignore_share)
     {
-      uint open_file_name_len= share->open_file_name.length + 1;
+      size_t open_file_name_len= share->open_file_name.length + 1;
       /* remember the descriptors for background flush */
       *(dfiles_end++)= dfile;
       *(kfiles_end++)= kfile;

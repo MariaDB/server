@@ -574,7 +574,7 @@ FT_INFO * maria_ft_init_boolean_search(MARIA_HA *info, uint keynr,
   bzero(& ftb->no_dupes, sizeof(TREE));
   ftb->last_word= 0;
 
-  init_alloc_root(&ftb->mem_root, 1024, 1024, 0);
+  init_alloc_root(&ftb->mem_root, "fulltext", 1024, 1024, 0);
   ftb->queue.max_elements= 0;
   if (!(ftbe=(FTB_EXPR *)alloc_root(&ftb->mem_root, sizeof(FTB_EXPR))))
     goto err;

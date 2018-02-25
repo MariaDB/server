@@ -7,9 +7,9 @@
 
 @DPATCH@
 
---- mysql-dfsg-5.1-5.1.23rc.orig/scripts/mysql_install_db.sh	2008-01-29 22:41:20.000000000 +0100
-+++ mysql-dfsg-5.1-5.1.23rc/scripts/mysql_install_db.sh	2008-02-28 10:08:11.000000000 +0100
-@@ -372,7 +372,7 @@ then
+--- mysql-dfsg-5.1-5.1.23rc.orig/scripts/mysql_install_db.sh   2008-01-29 22:41:20.000000000 +0100
++++ mysql-dfsg-5.1-5.1.23rc/scripts/mysql_install_db.sh        2008-02-28 10:08:11.000000000 +0100
+@@ -407,7 +407,7 @@ then
  fi
  
  # Create database directories

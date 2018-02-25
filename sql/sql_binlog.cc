@@ -140,7 +140,7 @@ void mysql_client_binlog_statement(THD* thd)
     my_error(ER_SYNTAX_ERROR, MYF(0));
     DBUG_VOID_RETURN;
   }
-  size_t decoded_len= my_base64_needed_decoded_length(coded_len);
+  size_t decoded_len= my_base64_needed_decoded_length((int)coded_len);
 
   /*
     option_bits will be changed when applying the event. But we don't expect

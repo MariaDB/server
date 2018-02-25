@@ -617,7 +617,7 @@ Event_queue::get_top_for_execution_if_time(THD *thd,
 
     top= (Event_queue_element*) queue_top(&queue);
 
-    thd->set_current_time(); /* Get current time */
+    thd->set_start_time(); /* Get current time */
 
     next_activation_at= top->execute_at;
     if (next_activation_at > thd->query_start())
@@ -637,7 +637,7 @@ Event_queue::get_top_for_execution_if_time(THD *thd,
     }
 
     if (!(*event_name= new Event_queue_element_for_exec()) ||
-        (*event_name)->init(top->dbname, top->name))
+        (*event_name)->init(&top->dbname, &top->name))
     {
       ret= TRUE;
       break;

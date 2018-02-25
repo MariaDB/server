@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013-2015 Brazil
+  Copyright(C) 2013-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -27,6 +27,7 @@
 
 #include "../grn_mrb.h"
 #include "mrb_ctx.h"
+#include "mrb_bulk.h"
 #include "mrb_converter.h"
 
 static mrb_value
@@ -195,10 +196,62 @@ ctx_set_error_message(mrb_state *mrb, mrb_value self)
 
   mrb_get_args(mrb, "S", &error_message);
   grn_ctx_log(ctx, "%.*s",
-              RSTRING_LEN(error_message),
+              (int)RSTRING_LEN(error_message),
               RSTRING_PTR(error_message));
 
   return error_message;
+}
+
+static mrb_value
+ctx_clear_error(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+
+  ERRCLR(ctx);
+
+  return mrb_nil_value();
+}
+
+static mrb_value
+ctx_get_command_version(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+
+  return mrb_fixnum_value(grn_ctx_get_command_version(ctx));
+}
+
+static mrb_value
+ctx_set_command_version(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  mrb_int command_version;
+
+  mrb_get_args(mrb, "i", &command_version);
+  grn_ctx_set_command_version(ctx, command_version);
+
+  return mrb_fixnum_value(command_version);
+}
+
+static mrb_value
+ctx_get_output(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+
+  return grn_mrb_value_from_bulk(mrb, ctx->impl->output.buf);
+}
+
+static mrb_value
+ctx_set_output(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  mrb_value mrb_value_;
+
+  mrb_get_args(mrb, "S", &mrb_value_);
+  GRN_TEXT_SET(ctx, ctx->impl->output.buf,
+               RSTRING_PTR(mrb_value_),
+               RSTRING_LEN(mrb_value_));
+
+  return mrb_value_;
 }
 
 static mrb_value
@@ -209,13 +262,24 @@ ctx_get_database(mrb_state *mrb, mrb_value self)
   return grn_mrb_value_from_grn_obj(mrb, grn_ctx_db(ctx));
 }
 
+static mrb_value
+ctx_is_opened(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  mrb_int mrb_id;
+
+  mrb_get_args(mrb, "i", &mrb_id);
+
+  return mrb_bool_value(grn_ctx_is_opened(ctx, mrb_id));
+}
+
 void
 grn_mrb_ctx_check(mrb_state *mrb)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   grn_mrb_data *data = &(ctx->impl->mrb);
   struct RClass *module = data->module;
-  struct RClass *error_class;
+  struct RClass *error_class = NULL;
 #define MESSAGE_SIZE 4096
   char message[MESSAGE_SIZE];
 
@@ -662,12 +726,55 @@ grn_mrb_ctx_check(mrb_state *mrb)
                  "normalizer error: <%s>(%d)",
                  ctx->errbuf, ctx->rc);
     break;
-  default:
+  case GRN_TOKEN_FILTER_ERROR:
+    error_class = mrb_class_get_under(mrb, module, "TokenFilterError");
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "token filter error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
+    break;
+  case GRN_COMMAND_ERROR:
+    error_class = mrb_class_get_under(mrb, module, "CommandError");
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "command error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
+    break;
+  case GRN_PLUGIN_ERROR:
+    error_class = mrb_class_get_under(mrb, module, "PluginError");
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "plugin error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
+    break;
+  case GRN_SCORER_ERROR:
+    error_class = mrb_class_get_under(mrb, module, "ScorerError");
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "scorer error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
+    break;
+  case GRN_CANCEL:
+    error_class = mrb_class_get_under(mrb, module, "Cancel");
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "cancel: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
+    break;
+  case GRN_WINDOW_FUNCTION_ERROR:
+    error_class = mrb_class_get_under(mrb, module, "WindowFunctionError");
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "window function error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
+    break;
+  case GRN_ZSTD_ERROR:
+    error_class = mrb_class_get_under(mrb, module, "ZstdError");
+    grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
+                 "Zstandard error: <%s>(%d)",
+                 ctx->errbuf, ctx->rc);
+    break;
+  }
+
+  if (!error_class) {
     error_class = mrb_class_get_under(mrb, module, "Error");
     grn_snprintf(message, MESSAGE_SIZE, MESSAGE_SIZE,
                  "unsupported error: <%s>(%d)",
                  ctx->errbuf, ctx->rc);
-    break;
   }
 #undef MESSAGE_SIZE
 
@@ -711,8 +818,21 @@ grn_mrb_ctx_init(grn_ctx *ctx)
                     MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "error_message=", ctx_set_error_message,
                     MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, klass, "clear_error", ctx_clear_error, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "command_version",
+                    ctx_get_command_version, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "command_version=",
+                    ctx_set_command_version, MRB_ARGS_REQ(1));
+
+  mrb_define_method(mrb, klass, "output",
+                    ctx_get_output, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "output=",
+                    ctx_set_output, MRB_ARGS_REQ(1));
 
   mrb_define_method(mrb, klass, "database", ctx_get_database,
                     MRB_ARGS_NONE());
+
+  mrb_define_method(mrb, klass, "opened?", ctx_is_opened,
+                    MRB_ARGS_REQ(1));
 }
 #endif

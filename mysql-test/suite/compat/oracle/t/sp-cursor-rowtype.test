@@ -1444,3 +1444,39 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+
+--echo #
+--echo # MDEV-14388 Server crashes in handle_select / val_uint in ORACLE mode
+--echo #
+
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (0),(1),(2),(3);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN INT is
+BEGIN
+  FOR v1 in (SELECT id FROM t1)
+  LOOP
+    NULL;
+  END LOOP;
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+SELECT f1();
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN INT IS
+  CURSOR cur IS SELECT id FROM t1;
+  rec cur%ROWTYPE;
+BEGIN
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+SELECT f1();
+DROP FUNCTION f1;
+DROP TABLE t1;

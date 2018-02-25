@@ -92,8 +92,25 @@ enum enum_slave_run_triggers_for_rbr { SLAVE_RUN_TRIGGERS_FOR_RBR_NO,
                                        SLAVE_RUN_TRIGGERS_FOR_RBR_LOGGING};
 enum enum_slave_type_conversions { SLAVE_TYPE_CONVERSIONS_ALL_LOSSY,
                                    SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY};
-enum enum_mark_columns
-{ MARK_COLUMNS_NONE, MARK_COLUMNS_READ, MARK_COLUMNS_WRITE};
+
+/*
+  MARK_COLUMNS_READ:  A column is goind to be read.
+  MARK_COLUMNS_WRITE: A column is going to be written to.
+  MARK_COLUMNS_READ:  A column is goind to be read.
+                      A bit in read set is set to inform handler that the field
+                      is to be read. If field list contains duplicates, then
+                      thd->dup_field is set to point to the last found
+                      duplicate.
+  MARK_COLUMNS_WRITE: A column is going to be written to.
+                      A bit is set in write set to inform handler that it needs
+                      to update this field in write_row and update_row.
+*/
+enum enum_column_usage
+{ COLUMNS_READ, COLUMNS_WRITE, MARK_COLUMNS_READ, MARK_COLUMNS_WRITE};
+
+static inline bool should_mark_column(enum_column_usage column_usage)
+{ return column_usage >= MARK_COLUMNS_READ; }
+
 enum enum_filetype { FILETYPE_CSV, FILETYPE_XML };
 
 enum enum_binlog_row_image {
@@ -140,6 +157,7 @@ enum enum_binlog_row_image {
 #define MODE_NO_ENGINE_SUBSTITUTION     (1ULL << 30)
 #define MODE_PAD_CHAR_TO_FULL_LENGTH    (1ULL << 31)
 #define MODE_EMPTY_STRING_IS_NULL       (1ULL << 32)
+#define MODE_SIMULTANEOUS_ASSIGNMENT    (1ULL << 33)
 
 /* Bits for different old style modes */
 #define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	(1 << 0)
@@ -148,7 +166,6 @@ enum enum_binlog_row_image {
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];
-extern LEX_STRING EMPTY_STR;
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;
 
 extern bool volatile shutdown_in_progress;
@@ -195,7 +212,7 @@ typedef struct st_user_var_events
 {
   user_var_entry *user_var_event;
   char *value;
-  ulong length;
+  size_t length;
   Item_result type;
   uint charset_number;
   bool unsigned_flag;
@@ -284,8 +301,9 @@ class Alter_column :public Sql_alloc {
 public:
   const char *name;
   Virtual_column_info *default_value;
-  Alter_column(const char *par_name, Virtual_column_info *expr)
-    :name(par_name), default_value(expr) {}
+  bool alter_if_exists;
+  Alter_column(const char *par_name, Virtual_column_info *expr, bool par_exists)
+    :name(par_name), default_value(expr), alter_if_exists(par_exists) {}
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
     @sa comment for Key_part_spec::clone
@@ -304,22 +322,25 @@ public:
   LEX_CSTRING name;
   engine_option_value *option_list;
   bool generated;
+  bool invisible;
 
   Key(enum Keytype type_par, const LEX_CSTRING *name_arg,
       ha_key_alg algorithm_arg, bool generated_arg, DDL_options_st ddl_options)
     :DDL_options(ddl_options),
      type(type_par), key_create_info(default_key_create_info),
-    name(*name_arg), option_list(NULL), generated(generated_arg)
+    name(*name_arg), option_list(NULL), generated(generated_arg),
+    invisible(false)
   {
     key_create_info.algorithm= algorithm_arg;
-  } 
+  }
   Key(enum Keytype type_par, const LEX_CSTRING *name_arg,
       KEY_CREATE_INFO *key_info_arg,
       bool generated_arg, List<Key_part_spec> *cols,
       engine_option_value *create_opt, DDL_options_st ddl_options)
     :DDL_options(ddl_options),
      type(type_par), key_create_info(*key_info_arg), columns(*cols),
-    name(*name_arg), option_list(create_opt), generated(generated_arg)
+    name(*name_arg), option_list(create_opt), generated(generated_arg),
+    invisible(false)
   {}
   Key(const Key &rhs, MEM_ROOT *mem_root);
   virtual ~Key() {}
@@ -341,11 +362,13 @@ public:
   LEX_CSTRING ref_db;
   LEX_CSTRING ref_table;
   List<Key_part_spec> ref_columns;
-  uint delete_opt, update_opt, match_opt;
+  enum enum_fk_option delete_opt, update_opt;
+  enum fk_match_opt match_opt;
   Foreign_key(const LEX_CSTRING *name_arg, List<Key_part_spec> *cols,
 	      const LEX_CSTRING *ref_db_arg, const LEX_CSTRING *ref_table_arg,
               List<Key_part_spec> *ref_cols,
-	      uint delete_opt_arg, uint update_opt_arg, uint match_opt_arg,
+              enum_fk_option delete_opt_arg, enum_fk_option update_opt_arg,
+              fk_match_opt match_opt_arg,
 	      DDL_options ddl_options)
     :Key(FOREIGN_KEY, name_arg, &default_key_create_info, 0, cols, NULL,
          ddl_options),
@@ -370,8 +393,9 @@ public:
 typedef struct st_mysql_lock
 {
   TABLE **table;
-  uint table_count,lock_count;
   THR_LOCK_DATA **locks;
+  uint table_count,lock_count;
+  uint flags;
 } MYSQL_LOCK;
 
 
@@ -439,7 +463,7 @@ typedef enum enum_diag_condition_item_name
   Name of each diagnostic condition item.
   This array is indexed by Diag_condition_item_name.
 */
-extern const LEX_STRING Diag_condition_item_names[];
+extern const LEX_CSTRING Diag_condition_item_names[];
 
 /**
   These states are bit coded with HARD. For each state there must be a pair
@@ -701,7 +725,10 @@ typedef struct system_variables
   uint idle_write_transaction_timeout;
   uint column_compression_threshold;
   uint column_compression_zlib_level;
-  ulong in_subquery_conversion_threshold;
+  uint in_subquery_conversion_threshold;
+
+  vers_asof_timestamp_t vers_asof_timestamp;
+  ulong vers_alter_history;
 } SV;
 
 /**
@@ -767,7 +794,6 @@ typedef struct system_status_var
   ulong ha_savepoint_rollback_count;
   ulong ha_external_lock_count;
 
-  ulong net_big_packet_count;
   ulong opened_tables;
   ulong opened_shares;
   ulong opened_views;               /* +1 opening a view */
@@ -791,6 +817,7 @@ typedef struct system_status_var
   ulong feature_dynamic_columns;    /* +1 when creating a dynamic column */
   ulong feature_fulltext;	    /* +1 when MATCH is used */
   ulong feature_gis;                /* +1 opening a table with GIS features */
+  ulong feature_invisible_columns;     /* +1 opening a table with invisible column */
   ulong feature_locale;		    /* +1 when LOCALE is set */
   ulong feature_subquery;	    /* +1 when subqueries are used */
   ulong feature_timezone;	    /* +1 when XPATH is used */
@@ -828,6 +855,7 @@ typedef struct system_status_var
   ulonglong table_open_cache_overflows;
   double last_query_cost;
   double cpu_time, busy_time;
+  uint32 threads_running;
   /* Don't initialize */
   /* Memory used for thread local storage */
   int64 max_local_memory_used;
@@ -942,6 +970,11 @@ public:
 
   enum_state state;
 
+protected:
+  friend class sp_head;
+  bool is_stored_procedure;
+
+public:
   /* We build without RTTI, so dynamic_cast can't be used. */
   enum Type
   {
@@ -949,7 +982,8 @@ public:
   };
 
   Query_arena(MEM_ROOT *mem_root_arg, enum enum_state state_arg) :
-    free_list(0), mem_root(mem_root_arg), state(state_arg)
+    free_list(0), mem_root(mem_root_arg), state(state_arg),
+    is_stored_procedure(state_arg == STMT_INITIALIZED_FOR_SP ? true : false)
   { INIT_ARENA_DBUG_INFO; }
   /*
     This constructor is used only when Query_arena is created as
@@ -969,6 +1003,8 @@ public:
   { return state == STMT_PREPARED || state == STMT_EXECUTED; }
   inline bool is_conventional() const
   { return state == STMT_CONVENTIONAL_EXECUTION; }
+  inline bool is_sp_execute() const
+  { return is_stored_procedure; }
 
   inline void* alloc(size_t size) { return alloc_root(mem_root,size); }
   inline void* calloc(size_t size)
@@ -984,7 +1020,7 @@ public:
   { return strmake_root(mem_root,str,size); }
   inline void *memdup(const void *str, size_t size)
   { return memdup_root(mem_root,str,size); }
-  inline void *memdup_w_gap(const void *str, size_t size, uint gap)
+  inline void *memdup_w_gap(const void *str, size_t size, size_t gap)
   {
     void *ptr;
     if ((ptr= alloc_root(mem_root,size+gap)))
@@ -1010,6 +1046,22 @@ public:
   {}
 
   virtual ~Query_arena_memroot() {}
+};
+
+
+class Query_arena_stmt
+{
+  THD *thd;
+  Query_arena backup;
+  Query_arena *arena;
+
+public:
+  Query_arena_stmt(THD *_thd);
+  ~Query_arena_stmt();
+  bool arena_replaced()
+  {
+    return arena != NULL;
+  }
 };
 
 
@@ -1042,21 +1094,25 @@ public:
   */
    ulong id;
 
-  /*
-    MARK_COLUMNS_NONE:  Means mark_used_colums is not set and no indicator to
-                        handler of fields used is set
-    MARK_COLUMNS_READ:  Means a bit in read set is set to inform handler
-	                that the field is to be read. If field list contains
-                        duplicates, then thd->dup_field is set to point
-                        to the last found duplicate.
-    MARK_COLUMNS_WRITE: Means a bit is set in write set to inform handler
-			that it needs to update this field in write_row
-                        and update_row.
-  */
-  enum enum_mark_columns mark_used_columns;
+  enum enum_column_usage column_usage;
 
   LEX_CSTRING name; /* name for named prepared statements */
   LEX *lex;                                     // parse tree descriptor
+  /*
+    LEX which represents current statement (conventional, SP or PS)
+
+    For example during view parsing THD::lex will point to the views LEX and
+    THD::stmt_lex will point to LEX of the statement where the view will be
+    included
+
+    Currently it is used to have always correct select numbering inside
+    statement (LEX::current_select_number) without storing and restoring a
+    global counter which was THD::select_number.
+
+    TODO: make some unified statement representation (now SP has different)
+    to store such data like LEX::current_select_number.
+  */
+  LEX *stmt_lex;
   /*
     Points to the query associated with this statement. It's const, but
     we need to declare it char * because all table handlers are written
@@ -1107,18 +1163,13 @@ public:
   /**
     Name of the current (default) database.
 
-    If there is the current (default) database, "db" contains its name. If
-    there is no current (default) database, "db" is NULL and "db_length" is
-    0. In other words, "db", "db_length" must either be NULL, or contain a
+    If there is the current (default) database, "db.str" contains its name. If
+    there is no current (default) database, "db.str" is NULL and "db.length" is
+    0. In other words, db must either be NULL, or contain a
     valid database name.
-
-    @note this attribute is set and alloced by the slave SQL thread (for
-    the THD of that thread); that thread is (and must remain, for now) the
-    only responsible for freeing this member.
   */
 
-  char *db;
-  size_t db_length;
+  LEX_CSTRING db;
 
   /* This is set to 1 of last call to send_result_to_client() was ok */
   my_bool query_cache_is_applicable;
@@ -1214,6 +1265,29 @@ typedef struct st_xid_state {
   /* Error reported by the Resource Manager (RM) to the Transaction Manager. */
   uint rm_error;
   XID_cache_element *xid_cache_element;
+
+  /**
+    Check that XA transaction has an uncommitted work. Report an error
+    to the user in case when there is an uncommitted work for XA transaction.
+
+    @return  result of check
+      @retval  false  XA transaction is NOT in state IDLE, PREPARED
+                      or ROLLBACK_ONLY.
+      @retval  true   XA transaction is in state IDLE or PREPARED
+                      or ROLLBACK_ONLY.
+  */
+
+  bool check_has_uncommitted_xa() const
+  {
+    if (xa_state == XA_IDLE ||
+        xa_state == XA_PREPARED ||
+        xa_state == XA_ROLLBACK_ONLY)
+    {
+      my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
+      return true;
+    }
+    return false;
+  }
 } XID_STATE;
 
 void xid_cache_init(void);
@@ -1287,7 +1361,40 @@ public:
 */
 
 struct Item_change_record;
-typedef I_List<Item_change_record> Item_change_list;
+class Item_change_list
+{
+  I_List<Item_change_record> change_list;
+public:
+  void nocheck_register_item_tree_change(Item **place, Item *old_value,
+                                         MEM_ROOT *runtime_memroot);
+  void check_and_register_item_tree_change(Item **place, Item **new_value,
+                                           MEM_ROOT *runtime_memroot);
+  void rollback_item_tree_changes();
+  void move_elements_to(Item_change_list *to)
+  {
+    change_list.move_elements_to(&to->change_list);
+  }
+  bool is_empty() { return change_list.is_empty(); }
+};
+
+
+class Item_change_list_savepoint: public Item_change_list
+{
+public:
+  Item_change_list_savepoint(Item_change_list *list)
+  {
+    list->move_elements_to(this);
+  }
+  void rollback(Item_change_list *list)
+  {
+    list->rollback_item_tree_changes();
+    move_elements_to(list);
+  }
+  ~Item_change_list_savepoint()
+  {
+    DBUG_ASSERT(is_empty());
+  }
+};
 
 
 /**
@@ -1564,7 +1671,8 @@ enum enum_thread_type
   SYSTEM_THREAD_EVENT_WORKER= 16,
   SYSTEM_THREAD_BINLOG_BACKGROUND= 32,
   SYSTEM_THREAD_SLAVE_BACKGROUND= 64,
-  SYSTEM_THREAD_GENERIC= 128
+  SYSTEM_THREAD_GENERIC= 128,
+  SYSTEM_THREAD_SEMISYNC_MASTER_BACKGROUND= 256
 };
 
 inline char const *
@@ -1580,6 +1688,7 @@ show_system_thread(enum_thread_type thread)
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_EVENT_SCHEDULER);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_EVENT_WORKER);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_SLAVE_BACKGROUND);
+    RETURN_NAME_AS_STRING(SYSTEM_THREAD_SEMISYNC_MASTER_BACKGROUND);
   default:
     sprintf(buf, "<UNKNOWN SYSTEM THREAD: %d>", thread);
     return buf;
@@ -1760,8 +1869,9 @@ private:
 
 class Locked_tables_list
 {
-private:
+public:
   MEM_ROOT m_locked_tables_root;
+private:
   TABLE_LIST *m_locked_tables;
   TABLE_LIST **m_locked_tables_last;
   /** An auxiliary array used only in reopen_tables(). */
@@ -1780,7 +1890,8 @@ public:
     m_reopen_array(NULL),
     m_locked_tables_count(0)
   {
-    init_sql_alloc(&m_locked_tables_root, MEM_ROOT_BLOCK_SIZE, 0,
+    init_sql_alloc(&m_locked_tables_root, "Locked_tables_list",
+                   MEM_ROOT_BLOCK_SIZE, 0,
                    MYF(MY_THREAD_SPECIFIC));
   }
   void unlock_locked_tables(THD *thd);
@@ -2043,19 +2154,23 @@ struct wait_for_commit
   Structure to store the start time for a query
 */
 
-typedef struct
+struct QUERY_START_TIME_INFO
 {
   my_time_t start_time;
-  ulong      start_time_sec_part;
+  ulong     start_time_sec_part;
   ulonglong start_utime, utime_after_lock;
-} QUERY_START_TIME_INFO;
+
+  void backup_query_start_time(QUERY_START_TIME_INFO *backup)
+  {
+    *backup= *this;
+  }
+  void restore_query_start_time(QUERY_START_TIME_INFO *backup)
+  {
+    *this= *backup;
+  }
+};
 
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
-
-class THD;
-#ifndef DBUG_OFF
-void dbug_serve_apcs(THD *thd, int n_calls);
-#endif 
 
 /**
   @class THD
@@ -2064,8 +2179,17 @@ void dbug_serve_apcs(THD *thd, int n_calls);
 */
 
 class THD :public Statement,
+           /*
+             This is to track items changed during execution of a prepared
+             statement/stored procedure. It's created by
+             nocheck_register_item_tree_change() in memory root of THD,
+             and freed in rollback_item_tree_changes().
+             For conventional execution it's always empty.
+           */
+           public Item_change_list,
            public MDL_context_owner,
-           public Open_tables_state
+           public Open_tables_state,
+           public QUERY_START_TIME_INFO
 {
 private:
   inline bool is_stmt_prepare() const
@@ -2158,12 +2282,16 @@ public:
     Protects THD data accessed from other threads:
     - thd->query and thd->query_length (used by SHOW ENGINE
       INNODB STATUS and SHOW PROCESSLIST
-    - thd->db and thd->db_length (used in SHOW PROCESSLIST)
-    - thd->mysys_var (used by KILL statement and shutdown).
+    - thd->db (used in SHOW PROCESSLIST)
     Is locked when THD is deleted.
   */
   mysql_mutex_t LOCK_thd_data;
-  /* Protect kill information */
+  /*
+    Protects:
+    - kill information
+    - mysys_var (used by KILL statement and shutdown).
+    - Also ensures that THD is not deleted while mutex is hold
+  */
   mysql_mutex_t LOCK_thd_kill;
 
   /* all prepared statements and cursors of this connection */
@@ -2257,7 +2385,8 @@ public:
 
   /* Needed by MariaDB semi sync replication */
   Trans_binlog_info *semisync_info;
-
+  /* If this is a semisync slave connection. */
+  bool semi_sync_slave;
   ulonglong client_capabilities;  /* What the client supports */
   ulong max_client_packet_length;
 
@@ -2285,12 +2414,12 @@ public:
   uint32     file_id;			// for LOAD DATA INFILE
   /* remote (peer) port */
   uint16     peer_port;
-  my_time_t  start_time;             // start_time and its sec_part 
-  ulong      start_time_sec_part;    // are almost always used separately
   my_hrtime_t user_time;
   // track down slow pthread_create
   ulonglong  prior_thr_create_utime, thr_create_utime;
-  ulonglong  start_utime, utime_after_lock, utime_after_query;
+  ulonglong  utime_after_query;
+  my_time_t  system_time;
+  ulong      system_time_sec_part;
 
   // Process indicator
   struct {
@@ -2527,7 +2656,8 @@ public:
     {
       bzero((char*)this, sizeof(*this));
       xid_state.xid.null();
-      init_sql_alloc(&mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
+      init_sql_alloc(&mem_root, "THD::transactions",
+                     ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
                      MYF(MY_THREAD_SPECIFIC));
     }
   } transaction;
@@ -2539,14 +2669,6 @@ public:
 #ifdef SIGNAL_WITH_VIO_CLOSE
   Vio* active_vio;
 #endif
-  /*
-    This is to track items changed during execution of a prepared
-    statement/stored procedure. It's created by
-    nocheck_register_item_tree_change() in memory root of THD, and freed in
-    rollback_item_tree_changes(). For conventional execution it's always
-    empty.
-  */
-  Item_change_list change_list;
 
   /*
     A permanent memory area of the statement. For conventional
@@ -2884,7 +3006,6 @@ public:
   uint	     tmp_table, global_disable_checkpoint;
   uint	     server_status,open_options;
   enum enum_thread_type system_thread;
-  uint       select_number;             //number of select (used for EXPLAIN)
   /*
     Current or next transaction isolation level.
     When a connection is established, the value is taken from
@@ -3143,11 +3264,20 @@ public:
   /* Debug Sync facility. See debug_sync.cc. */
   struct st_debug_sync_control *debug_sync_control;
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-  THD(my_thread_id id, bool is_wsrep_applier= false);
+  /**
+    @param id                thread identifier
+    @param is_wsrep_applier  thread type
+    @param skip_lock         instruct whether @c LOCK_global_system_variables
+                             is already locked, to not acquire it then.
+  */
+  THD(my_thread_id id, bool is_wsrep_applier= false, bool skip_lock= false);
 
   ~THD();
-
-  void init(void);
+  /**
+    @param skip_lock         instruct whether @c LOCK_global_system_variables
+                             is already locked, to not acquire it then.
+  */
+  void init(bool skip_lock= false);
   /*
     Initialize memory roots necessary for query processing and (!)
     pre-allocate memory for it. We can't do that in THD constructor because
@@ -3182,7 +3312,13 @@ public:
   }
   void close_active_vio();
 #endif
-  void awake(killed_state state_to_set);
+  void awake_no_mutex(killed_state state_to_set);
+  void awake(killed_state state_to_set)
+  {
+    mysql_mutex_lock(&LOCK_thd_kill);
+    awake_no_mutex(state_to_set);
+    mysql_mutex_unlock(&LOCK_thd_kill);
+  }
  
   /** Disconnect the associated communication endpoint. */
   void disconnect();
@@ -3292,27 +3428,50 @@ public:
   inline my_time_t query_start() { query_start_used=1; return start_time; }
   inline ulong query_start_sec_part()
   { query_start_sec_part_used=1; return start_time_sec_part; }
-  inline void set_current_time()
+  MYSQL_TIME query_start_TIME();
+
+private:
+  bool system_time_ge(my_time_t secs, ulong usecs)
+  {
+    return (system_time == secs && system_time_sec_part >= usecs) ||
+        system_time > secs;
+  }
+
+  void set_system_time()
   {
     my_hrtime_t hrtime= my_hrtime();
-    start_time= hrtime_to_my_time(hrtime);
-    start_time_sec_part= hrtime_sec_part(hrtime);
-#ifdef HAVE_PSI_THREAD_INTERFACE
-    PSI_THREAD_CALL(set_thread_start_time)(start_time);
-#endif
+    my_time_t secs= hrtime_to_my_time(hrtime);
+    ulong usecs= hrtime_sec_part(hrtime);
+    if (system_time_ge(secs, usecs))
+    {
+      if (++system_time_sec_part == HRTIME_RESOLUTION)
+      {
+        ++system_time;
+        system_time_sec_part= 0;
+      }
+    }
+    else
+    {
+      system_time= secs;
+      system_time_sec_part= usecs;
+    }
   }
+
+public:
   inline void set_start_time()
   {
+    set_system_time();
     if (user_time.val)
     {
       start_time= hrtime_to_my_time(user_time);
       start_time_sec_part= hrtime_sec_part(user_time);
-#ifdef HAVE_PSI_THREAD_INTERFACE
-      PSI_THREAD_CALL(set_thread_start_time)(start_time);
-#endif
     }
     else
-      set_current_time();
+    {
+      start_time= system_time;
+      start_time_sec_part= system_time_sec_part;
+    }
+    PSI_CALL_set_thread_start_time(start_time);
   }
   inline void set_time()
   {
@@ -3334,20 +3493,6 @@ public:
     utime_after_lock= microsecond_interval_timer();
     MYSQL_SET_STATEMENT_LOCK_TIME(m_statement_psi,
                                   (utime_after_lock - start_utime));
-  }
-  void get_time(QUERY_START_TIME_INFO *time_info)
-  {
-    time_info->start_time=          start_time;
-    time_info->start_time_sec_part= start_time_sec_part;
-    time_info->start_utime=         start_utime;
-    time_info->utime_after_lock=    utime_after_lock;
-  }
-  void set_time(QUERY_START_TIME_INFO *time_info)
-  {
-    start_time=          time_info->start_time;
-    start_time_sec_part= time_info->start_time_sec_part;
-    start_utime=         time_info->start_utime;
-    utime_after_lock=    time_info->utime_after_lock;
   }
   ulonglong current_utime()  { return microsecond_interval_timer(); }
 
@@ -3446,12 +3591,12 @@ public:
   {
     return !stmt_arena->is_stmt_prepare();
   }
-  inline void* trans_alloc(unsigned int size)
+  inline void* trans_alloc(size_t size)
   {
     return alloc_root(&transaction.mem_root,size);
   }
 
-  LEX_STRING *make_lex_string(LEX_STRING *lex_str, const char* str, uint length)
+  LEX_STRING *make_lex_string(LEX_STRING *lex_str, const char* str, size_t length)
   {
     if (!(lex_str->str= strmake_root(mem_root, str, length)))
     {
@@ -3461,7 +3606,7 @@ public:
     lex_str->length= length;
     return lex_str;
   }
-  LEX_CSTRING *make_lex_string(LEX_CSTRING *lex_str, const char* str, uint length)
+  LEX_CSTRING *make_lex_string(LEX_CSTRING *lex_str, const char* str, size_t length)
   {
     if (!(lex_str->str= strmake_root(mem_root, str, length)))
     {
@@ -3472,22 +3617,7 @@ public:
     return lex_str;
   }
 
-  LEX_STRING *make_lex_string(const char* str, uint length)
-  {
-    LEX_STRING *lex_str;
-    char *tmp;
-    if (!(lex_str= (LEX_STRING *) alloc_root(mem_root, sizeof(LEX_STRING) +
-                                             length+1)))
-      return 0;
-    tmp= (char*) (lex_str+1);
-    lex_str->str= tmp;
-    memcpy(tmp, str, length);
-    tmp[length]= 0;
-    lex_str->length= length;
-    return lex_str;
-  }
-
-  LEX_CSTRING *make_clex_string(const char* str, uint length)
+  LEX_CSTRING *make_clex_string(const char* str, size_t length)
   {
     LEX_CSTRING *lex_str;
     char *tmp;
@@ -3503,7 +3633,7 @@ public:
   }
 
   // Allocate LEX_STRING for character set conversion
-  bool alloc_lex_string(LEX_STRING *dst, uint length)
+  bool alloc_lex_string(LEX_STRING *dst, size_t length)
   {
     if ((dst->str= (char*) alloc(length)))
       return false;
@@ -3511,7 +3641,7 @@ public:
     return true;     // EOM
   }
   bool convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
-		      const char *from, uint from_length,
+		      const char *from, size_t from_length,
 		      CHARSET_INFO *from_cs);
   /*
     Convert a strings between character sets.
@@ -3519,7 +3649,7 @@ public:
     dstcs and srccs cannot be &my_charset_bin.
   */
   bool convert_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
-                   CHARSET_INFO *srccs, const char *src, uint src_length,
+                   CHARSET_INFO *srccs, const char *src, size_t src_length,
                    String_copier *status);
 
   /*
@@ -3528,7 +3658,7 @@ public:
   */
   bool convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                           CHARSET_INFO *srccs,
-                          const char *src, uint src_length);
+                          const char *src, size_t src_length);
 
   /*
     If either "dstcs" or "srccs" is &my_charset_bin,
@@ -3536,7 +3666,7 @@ public:
     Otherwise, performs Unicode conversion using convert_fix().
   */
   bool copy_fix(CHARSET_INFO *dstcs, LEX_STRING *dst,
-                CHARSET_INFO *srccs, const char *src, uint src_length,
+                CHARSET_INFO *srccs, const char *src, size_t src_length,
                 String_copier *status);
 
   /*
@@ -3544,7 +3674,7 @@ public:
     in case of bad byte sequences or Unicode conversion problems.
   */
   bool copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
-                       CHARSET_INFO *srccs, const char *src, uint src_length);
+                       CHARSET_INFO *srccs, const char *src, size_t src_length);
 
   bool convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs);
 
@@ -3566,8 +3696,8 @@ public:
                                     CHARSET_INFO *cs);
   Item *make_string_literal_concat(Item *item1, const LEX_CSTRING &str);
   void add_changed_table(TABLE *table);
-  void add_changed_table(const char *key, long key_length);
-  CHANGED_TABLE_LIST * changed_table_dup(const char *key, long key_length);
+  void add_changed_table(const char *key, size_t key_length);
+  CHANGED_TABLE_LIST * changed_table_dup(const char *key, size_t key_length);
   int send_explain_fields(select_result *result, uint8 explain_flags,
                           bool is_analyze);
   void make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
@@ -3689,10 +3819,14 @@ public:
 
   void change_item_tree(Item **place, Item *new_value)
   {
+    DBUG_ENTER("THD::change_item_tree");
+    DBUG_PRINT("enter", ("Register: %p (%p) <- %p",
+                       *place, place, new_value));
     /* TODO: check for OOM condition here */
     if (!stmt_arena->is_conventional())
       nocheck_register_item_tree_change(place, *place, mem_root);
     *place= new_value;
+    DBUG_VOID_RETURN;
   }
   /**
     Make change in item tree after checking whether it needs registering
@@ -3714,11 +3848,6 @@ public:
     */
     memcpy((char*) place, new_value, sizeof(*new_value));
   }
-  void nocheck_register_item_tree_change(Item **place, Item *old_value,
-                                         MEM_ROOT *runtime_memroot);
-  void check_and_register_item_tree_change(Item **place, Item **new_value,
-                                           MEM_ROOT *runtime_memroot);
-  void rollback_item_tree_changes();
 
   /*
     Cleanup statement parse state (parse tree, lex) and execution
@@ -3934,74 +4063,33 @@ public:
       @retval FALSE Success
       @retval TRUE  Out-of-memory error
   */
-  bool set_db(const char *new_db, size_t new_db_len)
-  {
-    /*
-      Acquiring mutex LOCK_thd_data as we either free the memory allocated
-      for the database and reallocating the memory for the new db or memcpy
-      the new_db to the db.
-    */
-    mysql_mutex_lock(&LOCK_thd_data);
-    /* Do not reallocate memory if current chunk is big enough. */
-    if (db && new_db && db_length >= new_db_len)
-      memcpy(db, new_db, new_db_len+1);
-    else
-    {
-      my_free(db);
-      if (new_db)
-        db= my_strndup(new_db, new_db_len, MYF(MY_WME | ME_FATALERROR));
-      else
-        db= NULL;
-    }
-    db_length= db ? new_db_len : 0;
-    bool result= new_db && !db;
-    mysql_mutex_unlock(&LOCK_thd_data);
-#ifdef HAVE_PSI_THREAD_INTERFACE
-    if (result)
-      PSI_THREAD_CALL(set_thread_db)(new_db, (int) new_db_len);
-#endif
-    return result;
-  }
+  bool set_db(const LEX_CSTRING *new_db);
 
-  /**
-    Set the current database; use shallow copy of C-string.
+  /** Set the current database, without copying */
+  void reset_db(const LEX_CSTRING *new_db);
 
-    @param new_db     a pointer to the new database name.
-    @param new_db_len length of the new database name.
-
-    @note This operation just sets {db, db_length}. Switching the current
-    database usually involves other actions, like switching other database
-    attributes including security context. In the future, this operation
-    will be made private and more convenient interface will be provided.
-  */
-  void reset_db(char *new_db, size_t new_db_len)
-  {
-    if (new_db != db || new_db_len != db_length)
-    {
-      mysql_mutex_lock(&LOCK_thd_data);
-      db= new_db;
-      db_length= new_db_len;
-      mysql_mutex_unlock(&LOCK_thd_data);
-#ifdef HAVE_PSI_THREAD_INTERFACE
-      PSI_THREAD_CALL(set_thread_db)(new_db, (int) new_db_len);
-#endif
-    }
-  }
   /*
     Copy the current database to the argument. Use the current arena to
     allocate memory for a deep copy: current database may be freed after
     a statement is parsed but before it's executed.
+
+    Can only be called by owner of thd (no mutex protection)
   */
-  bool copy_db_to(const char **p_db, size_t *p_db_length)
+  bool copy_db_to(LEX_CSTRING *to)
   {
-    if (db == NULL)
+    if (db.str == NULL)
     {
       my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
       return TRUE;
     }
-    *p_db= strmake(db, db_length);
-    *p_db_length= db_length;
-    return FALSE;
+    to->str= strmake(db.str, db.length);
+    to->length= db.length;
+    return to->str == NULL;                     /* True on error */
+  }
+  /* Get db name or "". Use for printing current db */
+  const char *get_db()
+  {
+    return db.str ? db.str : "";
   }
   thd_scheduler event_scheduler;
 
@@ -4088,7 +4176,12 @@ public:
     Lex_input_stream *lip= &m_parser_state->m_lip;
     if (!yytext)
     {
-      if (!(yytext= lip->get_tok_start()))
+      if (lip->lookahead_token >= 0)
+        yytext= lip->get_tok_start_prev();
+      else
+        yytext= lip->get_tok_start();
+
+      if (!yytext)
         yytext= "";
     }
     /* Push an error into the error stack */
@@ -4104,6 +4197,11 @@ public:
   {
     parse_error(ER_SYNTAX_ERROR);
   }
+#ifdef mysqld_error_find_printf_error_used
+  void parse_error(const char *t)
+  {
+  }
+#endif
 private:
   /*
     Only the implementation of the SIGNAL and RESIGNAL statements
@@ -4183,12 +4281,12 @@ public:
     Assign a new value to thd->query and thd->query_id and mysys_var.
     Protected with LOCK_thd_data mutex.
   */
-  void set_query(char *query_arg, uint32 query_length_arg,
+  void set_query(char *query_arg, size_t query_length_arg,
                  CHARSET_INFO *cs_arg)
   {
     set_query(CSET_STRING(query_arg, query_length_arg, cs_arg));
   }
-  void set_query(char *query_arg, uint32 query_length_arg) /*Mutex protected*/
+  void set_query(char *query_arg, size_t query_length_arg) /*Mutex protected*/
   {
     set_query(CSET_STRING(query_arg, query_length_arg, charset()));
   }
@@ -4198,9 +4296,7 @@ public:
     set_query_inner(string_arg);
     mysql_mutex_unlock(&LOCK_thd_data);
 
-#ifdef HAVE_PSI_THREAD_INTERFACE
-    PSI_THREAD_CALL(set_thread_info)(query(), query_length());
-#endif
+    PSI_CALL_set_thread_info(query(), query_length());
   }
   void reset_query()               /* Mutex protected */
   { set_query(CSET_STRING()); }
@@ -4258,7 +4354,7 @@ public:
     {
       Security_context *sctx= &main_security_ctx;
       sql_print_warning(ER_THD(this, ER_NEW_ABORTING_CONNECTION),
-                        thread_id, (db ? db : "unconnected"),
+                        thread_id, (db.str ? db.str : "unconnected"),
                         sctx->user ? sctx->user : "unauthenticated",
                         sctx->host_or_ip, reason);
     }
@@ -4384,7 +4480,8 @@ public:
                                    const char *path,
                                    const char *db,
                                    const char *table_name,
-                                   bool open_in_engine);
+                                   bool open_in_engine,
+                                   bool open_internal_tables);
 
   TABLE *find_temporary_table(const char *db, const char *table_name);
   TABLE *find_temporary_table(const TABLE_LIST *tl);
@@ -4394,14 +4491,14 @@ public:
   TMP_TABLE_SHARE *find_tmp_table_share(const char *db,
                                         const char *table_name);
   TMP_TABLE_SHARE *find_tmp_table_share(const TABLE_LIST *tl);
-  TMP_TABLE_SHARE *find_tmp_table_share(const char *key, uint key_length);
+  TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length);
 
   bool open_temporary_table(TABLE_LIST *tl);
   bool open_temporary_tables(TABLE_LIST *tl);
 
   bool close_temporary_tables();
-  bool rename_temporary_table(TABLE *table, const char *db,
-                              const char *table_name);
+  bool rename_temporary_table(TABLE *table, const LEX_CSTRING *db,
+                              const LEX_CSTRING *table_name);
   bool drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table);
   bool rm_temporary_table(handlerton *hton, const char *path);
   void mark_tmp_tables_as_free_for_reuse();
@@ -4506,6 +4603,7 @@ public:
 
   /* Handling of timeouts for commands */
   thr_timer_t query_timer;
+
 public:
   void set_query_timer()
   {
@@ -4589,7 +4687,7 @@ public:
   void set_local_lex(sp_lex_local *sublex)
   {
     DBUG_ASSERT(lex->sphead);
-    lex= sublex;
+    lex= stmt_lex= sublex;
     /* Reset part of parser state which needs this. */
     m_parser_state->m_yacc.reset_before_substatement();
   }
@@ -4606,6 +4704,10 @@ public:
     See also sp_head::merge_lex().
   */
   bool restore_from_local_lex_to_old_lex(LEX *oldlex);
+
+  Item *sp_fix_func_item(Item **it_addr);
+  Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
+  bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
 
   inline void prepare_logs_for_admin_command()
   {
@@ -5003,6 +5105,7 @@ class select_insert :public select_result_interceptor {
   ulonglong autoinc_value_of_last_inserted_row; // autogenerated or not
   COPY_INFO info;
   bool insert_into_view;
+  bool versioned_write;
   select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
 		TABLE *table_par, List<Item> *fields_par,
 		List<Item> *update_fields, List<Item> *update_values,
@@ -5023,7 +5126,6 @@ class select_insert :public select_result_interceptor {
 
 
 class select_create: public select_insert {
-  ORDER *group;
   TABLE_LIST *create_table;
   Table_specification_st *create_info;
   TABLE_LIST *select_tables;
@@ -5063,6 +5165,12 @@ public:
   const THD *get_thd(void) { return thd; }
   const HA_CREATE_INFO *get_create_info() { return create_info; };
   int prepare2(void) { return 0; }
+
+private:
+  TABLE *create_table_from_items(THD *thd,
+                                  List<Item> *items,
+                                  MYSQL_LOCK **lock,
+                                  TABLEOP_HOOKS *hooks);
 };
 
 #include <myisam.h>
@@ -5203,10 +5311,11 @@ public:
 
   select_unit(THD *thd_arg):
     select_result_interceptor(thd_arg),
-    curr_step(0), prev_step(0), curr_sel(UINT_MAX),
-    step(UNION_TYPE), intersect_mark(0), write_err(0), table(0),
-    records(0)
-  { tmp_table_param.init(); }
+    intersect_mark(0), table(0)
+  {
+    init();
+    tmp_table_param.init();
+  }
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   /**
     Do prepare() and prepare2() if they have been postponed until
@@ -5224,12 +5333,20 @@ public:
   void cleanup();
   virtual bool create_result_table(THD *thd, List<Item> *column_types,
                                    bool is_distinct, ulonglong options,
-                                   const char *alias, 
+                                   const LEX_CSTRING *alias,
                                    bool bit_fields_as_long,
                                    bool create_table,
                                    bool keep_row_order,
                                    uint hidden);
   TMP_TABLE_PARAM *get_tmp_table_param() { return &tmp_table_param; }
+  void init()
+  {
+    curr_step= prev_step= 0;
+    curr_sel= UINT_MAX;
+    step= UNION_TYPE;
+    write_err= 0;
+    records= 0;
+  }
   void change_select();
 };
 
@@ -5250,7 +5367,7 @@ class select_union_recursive :public select_unit
   int send_data(List<Item> &items);
   bool create_result_table(THD *thd, List<Item> *column_types,
                            bool is_distinct, ulonglong options,
-                           const char *alias, 
+                           const LEX_CSTRING *alias,
                            bool bit_fields_as_long,
                            bool create_table,
                            bool keep_row_order,
@@ -5417,7 +5534,7 @@ public:
   { tmp_table_param.init(); }
   bool create_result_table(THD *thd, List<Item> *column_types,
                            bool is_distinct, ulonglong options,
-                           const char *alias, 
+                           const LEX_CSTRING *alias,
                            bool bit_fields_as_long,
                            bool create_table,
                            bool keep_row_order,
@@ -5472,8 +5589,6 @@ public:
     select_subselect(thd_arg, item_arg) {}
   int send_data(List<Item> &items);
 };
-
-
 
 
 /*
@@ -5636,7 +5751,7 @@ class user_var_entry
   user_var_entry() {}                         /* Remove gcc warning */
   LEX_CSTRING name;
   char *value;
-  ulong length;
+  size_t length;
   query_id_t update_query_id, used_query_id;
   Item_result type;
   bool unsigned_flag;
@@ -5691,7 +5806,7 @@ class multi_update :public select_result_interceptor
 {
   TABLE_LIST *all_tables; /* query/update command tables */
   List<TABLE_LIST> *leaves;     /* list of leves of join table tree */
-  TABLE_LIST *update_tables, *table_being_updated;
+  TABLE_LIST *update_tables;
   TABLE **tmp_tables, *main_table, *table_to_update;
   TMP_TABLE_PARAM *tmp_table_param;
   ha_rows updated, found;
@@ -5717,6 +5832,12 @@ class multi_update :public select_result_interceptor
   
   /* Need this to protect against multiple prepare() calls */
   bool prepared;
+
+  // For System Versioning (may need to insert new fields to a table).
+  ha_rows updated_sys_ver;
+
+  bool has_vers_fields;
+
 public:
   multi_update(THD *thd_arg, TABLE_LIST *ut, List<TABLE_LIST> *leaves_list,
 	       List<Item> *fields, List<Item> *values,
@@ -6113,7 +6234,7 @@ void thd_exit_cond(MYSQL_THD thd, const PSI_stage_info *stage,
 #define THD_EXIT_COND(P1, P2) \
   thd_exit_cond(P1, P2, __func__, __FILE__, __LINE__)
 
-inline bool binlog_should_compress(ulong len)
+inline bool binlog_should_compress(size_t len)
 {
   return opt_bin_log_compress &&
     len >= opt_bin_log_compress_min_len;
@@ -6214,26 +6335,6 @@ public:
   }
 };
 
-/* Functions to compare if two lex strings are equal */
-inline bool lex_string_cmp(CHARSET_INFO *charset,
-                           const LEX_CSTRING *a,
-                           const LEX_CSTRING *b)
-{
-  return my_strcasecmp(charset, a->str, b->str);
-}
-
-/*
-  Compare if two LEX_CSTRING are equal. Assumption is that
-  character set is ASCII (like for plugin names)
-*/
-inline bool lex_string_eq(const LEX_CSTRING *a,
-                          const LEX_CSTRING *b)
-{
-  if (a->length != b->length)
-    return 1;                                   /* Different */
-  return strcasecmp(a->str, b->str) != 0;
-}
-
 class Type_holder: public Sql_alloc,
                    public Item_args,
                    public Type_handler_hybrid_field_type,
@@ -6292,6 +6393,70 @@ public:
 };
 
 
-#endif /* MYSQL_SERVER */
+/*
+  A helper class to set THD flags to emit warnings/errors in case of
+  overflow/type errors during assigning values into the SP variable fields.
+  Saves original flags values in constructor.
+  Restores original flags in destructor.
+*/
+class Sp_eval_expr_state
+{
+  THD *m_thd;
+  enum_check_fields m_count_cuted_fields;
+  bool m_abort_on_warning;
+  bool m_stmt_modified_non_trans_table;
+  void start()
+  {
+    m_thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
+    m_thd->abort_on_warning= m_thd->is_strict_mode();
+    m_thd->transaction.stmt.modified_non_trans_table= false;
+  }
+  void stop()
+  {
+    m_thd->count_cuted_fields= m_count_cuted_fields;
+    m_thd->abort_on_warning= m_abort_on_warning;
+    m_thd->transaction.stmt.modified_non_trans_table=
+      m_stmt_modified_non_trans_table;
+  }
+public:
+  Sp_eval_expr_state(THD *thd)
+   :m_thd(thd),
+    m_count_cuted_fields(thd->count_cuted_fields),
+    m_abort_on_warning(thd->abort_on_warning),
+    m_stmt_modified_non_trans_table(thd->transaction.stmt.
+                                    modified_non_trans_table)
+  {
+    start();
+  }
+  ~Sp_eval_expr_state()
+  {
+    stop();
+  }
+};
 
+
+#ifndef DBUG_OFF
+void dbug_serve_apcs(THD *thd, int n_calls);
+#endif 
+
+class ScopedStatementReplication
+{
+public:
+  ScopedStatementReplication(THD *thd) : thd(thd)
+  {
+    if (thd)
+      saved_binlog_format= thd->set_current_stmt_binlog_format_stmt();
+  }
+  ~ScopedStatementReplication()
+  {
+    if (thd)
+      thd->restore_stmt_binlog_format(saved_binlog_format);
+  }
+
+private:
+  enum_binlog_format saved_binlog_format;
+  THD *thd;
+};
+
+#endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -62,12 +62,6 @@ float my_log2f(float n)
 #if defined _WIN32
 # define posix_fadvise(fd, offset, len, advice) /* nothing */
 #endif /* _WIN32 */
-
-/** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */
-const byte reset_trx_id[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN] = {
-	0, 0, 0, 0, 0, 0,
-	0x80, 0, 0, 0, 0, 0, 0
-};
 
 /* Whether to disable file system cache */
 char	srv_disable_sort_file_cache;
@@ -456,8 +450,8 @@ row_merge_buf_redundant_convert(
 	const page_size_t&	page_size,
 	mem_heap_t*		heap)
 {
-	ut_ad(DATA_MBMINLEN(field->type.mbminmaxlen) == 1);
-	ut_ad(DATA_MBMAXLEN(field->type.mbminmaxlen) > 1);
+	ut_ad(field->type.mbminlen == 1);
+	ut_ad(field->type.mbmaxlen > 1);
 
 	byte*		buf = (byte*) mem_heap_alloc(heap, len);
 	ulint		field_len = row_field->len;
@@ -599,7 +593,8 @@ row_merge_buf_add(
 
 			field->type.mtype = ifield->col->mtype;
 			field->type.prtype = ifield->col->prtype;
-			field->type.mbminmaxlen = DATA_MBMINMAXLEN(0, 0);
+			field->type.mbminlen = 0;
+			field->type.mbmaxlen = 0;
 			field->type.len = ifield->col->len;
 		} else {
 			/* Use callback to get the virtual column value */
@@ -750,7 +745,7 @@ row_merge_buf_add(
 		if (ifield->prefix_len) {
 			len = dtype_get_at_most_n_mbchars(
 				col->prtype,
-				col->mbminmaxlen,
+				col->mbminlen, col->mbmaxlen,
 				ifield->prefix_len,
 				len,
 				static_cast<char*>(dfield_get_data(field)));
@@ -762,8 +757,7 @@ row_merge_buf_add(
 
 		fixed_len = ifield->fixed_len;
 		if (fixed_len && !dict_table_is_comp(index->table)
-		    && DATA_MBMINLEN(col->mbminmaxlen)
-		    != DATA_MBMAXLEN(col->mbminmaxlen)) {
+		    && col->mbminlen != col->mbmaxlen) {
 			/* CHAR in ROW_FORMAT=REDUNDANT is always
 			fixed-length, but in the temporary file it is
 			variable-length for variable-length character
@@ -773,14 +767,11 @@ row_merge_buf_add(
 
 		if (fixed_len) {
 #ifdef UNIV_DEBUG
-			ulint	mbminlen = DATA_MBMINLEN(col->mbminmaxlen);
-			ulint	mbmaxlen = DATA_MBMAXLEN(col->mbminmaxlen);
-
 			/* len should be between size calcualted base on
 			mbmaxlen and mbminlen */
 			ut_ad(len <= fixed_len);
-			ut_ad(!mbmaxlen || len >= mbminlen
-			      * (fixed_len / mbmaxlen));
+			ut_ad(!col->mbmaxlen || len >= col->mbminlen
+			      * (fixed_len / col->mbmaxlen));
 
 			ut_ad(!dfield_is_ext(field));
 #endif /* UNIV_DEBUG */
@@ -1707,7 +1698,8 @@ row_merge_read_clustered_index(
 	ut_stage_alter_t*	stage,
 	double 			pct_cost,
 	row_merge_block_t*	crypt_block,
-	struct TABLE*		eval_table)
+	struct TABLE*		eval_table,
+	bool			drop_historical)
 {
 	dict_index_t*		clust_index;	/* Clustered index */
 	mem_heap_t*		row_heap;	/* Heap memory to create
@@ -1741,6 +1733,10 @@ row_merge_read_clustered_index(
 	double 			curr_progress = 0.0;
 	ib_uint64_t		read_rows = 0;
 	ib_uint64_t		table_total_rows = 0;
+	char			new_sys_trx_start[8];
+	char			new_sys_trx_end[8];
+	byte			any_autoinc_data[8] = {0};
+	bool			vers_update_trt = false;
 
 	DBUG_ENTER("row_merge_read_clustered_index");
 
@@ -1915,6 +1911,9 @@ row_merge_read_clustered_index(
 		prev_fields = NULL;
 	}
 
+	mach_write_to_8(new_sys_trx_start, trx->id);
+	mach_write_to_8(new_sys_trx_end, TRX_ID_MAX);
+
 	/* Scan the clustered index. */
 	for (;;) {
 		const rec_t*	rec;
@@ -1984,7 +1983,8 @@ row_merge_read_clustered_index(
 			}
 
 			if (dbug_run_purge
-			    || dict_index_get_lock(clust_index)->waiters) {
+			    || my_atomic_load32_explicit(&clust_index->lock.waiters,
+							 MY_MEMORY_ORDER_RELAXED)) {
 				/* There are waiters on the clustered
 				index tree lock, likely the purge
 				thread. Store and restore the cursor
@@ -2092,16 +2092,16 @@ end_of_index:
 			ONLINE_INDEX_COMPLETE state between the time
 			the DML thread has updated the clustered index
 			but has not yet accessed secondary index. */
-			ut_ad(MVCC::is_view_active(trx->read_view));
+			ut_ad(trx->read_view.is_open());
 			ut_ad(rec_trx_id != trx->id);
 
-			if (!trx->read_view->changes_visible(
+			if (!trx->read_view.changes_visible(
 				    rec_trx_id, old_table->name)) {
 				rec_t*	old_vers;
 
 				row_vers_build_for_consistent_read(
 					rec, &mtr, clust_index, &offsets,
-					trx->read_view, &row_heap,
+					&trx->read_view, &row_heap,
 					row_heap, &old_vers, NULL);
 
 				if (!old_vers) {
@@ -2238,9 +2238,33 @@ end_of_index:
 			ut_ad(add_autoinc
 			      < dict_table_get_n_user_cols(new_table));
 
-			const dfield_t*	dfield;
+			bool history_row = false;
+			if (new_table->versioned()) {
+				const dfield_t* dfield = dtuple_get_nth_field(
+				    row, new_table->vers_end);
+				history_row = dfield->vers_history_row();
+			}
+
+			dfield_t*	dfield;
 
 			dfield = dtuple_get_nth_field(row, add_autoinc);
+
+			if (new_table->versioned()) {
+				if (history_row) {
+					if (dfield_get_type(dfield)->prtype & DATA_NOT_NULL) {
+						err = DB_UNSUPPORTED;
+						my_error(ER_UNSUPPORTED_EXTENSION, MYF(0),
+							 old_table->name.m_name);
+						goto func_exit;
+					}
+					dfield_set_null(dfield);
+				} else {
+					// set not null
+					ulint len = dfield_get_type(dfield)->len;
+					dfield_set_data(dfield, any_autoinc_data, len);
+				}
+			}
+
 			if (dfield_is_null(dfield)) {
 				goto write_buffers;
 			}
@@ -2284,6 +2308,21 @@ end_of_index:
 			default:
 				ut_ad(0);
 			}
+		}
+
+		if (old_table->versioned()) {
+			if ((!new_table->versioned() || drop_historical)
+			    && clust_index->vers_history_row(rec, offsets)) {
+				continue;
+			}
+		} else if (new_table->versioned()) {
+			dfield_t* start =
+			    dtuple_get_nth_field(row, new_table->vers_start);
+			dfield_t* end =
+			    dtuple_get_nth_field(row, new_table->vers_end);
+			dfield_set_data(start, new_sys_trx_start, 8);
+			dfield_set_data(end, new_sys_trx_end, 8);
+			vers_update_trt = true;
 		}
 
 write_buffers:
@@ -2825,6 +2864,15 @@ wait_again:
 				0, new_table,
 				old_table->name.m_name, max_doc_id);
 		}
+	}
+
+	if (vers_update_trt) {
+		trx_mod_table_time_t& time =
+			trx->mod_tables
+				.insert(trx_mod_tables_t::value_type(
+					const_cast<dict_table_t*>(new_table), 0))
+				.first->second;
+		time.set_versioned(0);
 	}
 
 	trx->op_info = "";
@@ -4469,8 +4517,8 @@ row_merge_is_index_usable(
 	return(!dict_index_is_corrupted(index)
 	       && (dict_table_is_temporary(index->table)
 		   || index->trx_id == 0
-		   || !MVCC::is_view_active(trx->read_view)
-		   || trx->read_view->changes_visible(
+		   || !trx->read_view.is_open()
+		   || trx->read_view.changes_visible(
 			   index->trx_id,
 			   index->table->name)));
 }
@@ -4546,6 +4594,7 @@ this function and it will be passed to other functions for further accounting.
 @param[in]	add_v		new virtual columns added along with indexes
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
+@param[in]	drop_historical	whether to drop historical system rows
 @return DB_SUCCESS or error code */
 dberr_t
 row_merge_build_indexes(
@@ -4564,11 +4613,13 @@ row_merge_build_indexes(
 	bool			skip_pk_sort,
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
-	struct TABLE*		eval_table)
+	struct TABLE*		eval_table,
+	bool			drop_historical)
 {
 	merge_file_t*		merge_files;
 	row_merge_block_t*	block;
 	ut_new_pfx_t		block_pfx;
+	size_t			block_size;
 	ut_new_pfx_t		crypt_pfx;
 	row_merge_block_t*	crypt_block = NULL;
 	ulint			i;
@@ -4604,15 +4655,18 @@ row_merge_build_indexes(
 
 	/* This will allocate "3 * srv_sort_buf_size" elements of type
 	row_merge_block_t. The latter is defined as byte. */
-	block = alloc.allocate_large(3 * srv_sort_buf_size, &block_pfx);
+	block_size = 3 * srv_sort_buf_size;
+	block = alloc.allocate_large(block_size, &block_pfx);
 
 	if (block == NULL) {
 		DBUG_RETURN(DB_OUT_OF_MEMORY);
 	}
 
+	TRASH_ALLOC(&crypt_pfx, sizeof crypt_pfx);
+
 	if (log_tmp_is_encrypted()) {
 		crypt_block = static_cast<row_merge_block_t*>(
-			alloc.allocate_large(3 * srv_sort_buf_size,
+			alloc.allocate_large(block_size,
 					     &crypt_pfx));
 
 		if (crypt_block == NULL) {
@@ -4712,8 +4766,8 @@ row_merge_build_indexes(
 			"Table %s is encrypted but encryption service or"
 			" used key_id is not available. "
 			" Can't continue reading table.",
-			!old_table->is_readable() ? old_table->name :
-				new_table->name);
+			!old_table->is_readable() ? old_table->name.m_name :
+				new_table->name.m_name);
 		goto func_exit;
 	}
 
@@ -4724,7 +4778,7 @@ row_merge_build_indexes(
 		fts_sort_idx, psort_info, merge_files, key_numbers,
 		n_indexes, add_cols, add_v, col_map, add_autoinc,
 		sequence, block, skip_pk_sort, &tmpfd, stage,
-		pct_cost, crypt_block, eval_table);
+		pct_cost, crypt_block, eval_table, drop_historical);
 
 	stage->end_phase_read_pk();
 
@@ -4983,10 +5037,10 @@ func_exit:
 
 	ut_free(merge_files);
 
-	alloc.deallocate_large(block, &block_pfx);
+	alloc.deallocate_large(block, &block_pfx, block_size);
 
 	if (crypt_block) {
-		alloc.deallocate_large(crypt_block, &crypt_pfx);
+		alloc.deallocate_large(crypt_block, &crypt_pfx, block_size);
 	}
 
 	DICT_TF2_FLAG_UNSET(new_table, DICT_TF2_FTS_ADD_DOC_ID);
@@ -5034,7 +5088,7 @@ func_exit:
 		ut_ad(need_flush_observer);
 
 		DBUG_EXECUTE_IF("ib_index_build_fail_before_flush",
-			error = DB_FAIL;
+			error = DB_INTERRUPTED;
 		);
 
 		if (error != DB_SUCCESS) {

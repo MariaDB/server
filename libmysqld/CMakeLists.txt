@@ -90,7 +90,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/scheduler.cc ../sql/sql_audit.cc
            ../sql/sql_alter.cc ../sql/sql_partition_admin.cc
            ../sql/event_parse_data.cc
-           ../sql/sql_signal.cc ../sql/rpl_handler.cc
+           ../sql/sql_signal.cc
            ../sql/sys_vars.cc
            ${CMAKE_BINARY_DIR}/sql/sql_builtin.cc
            ../sql/mdl.cc ../sql/transaction.cc
@@ -119,6 +119,9 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/session_tracker.cc
            ../sql/proxy_protocol.cc
            ../sql/sql_tvc.cc ../sql/sql_tvc.h
+           ../sql/opt_split.cc
+           ../sql/item_vers.cc
+           ../sql/vtmd.cc
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )
@@ -135,7 +138,7 @@ IF(WIN32)
   SET(COMPONENT_MYSQLSERVER "Embedded")
   SET(COMPONENT_LIBMYSQLD "Embedded")
 ELSE()
-  SET(MYSQLSERVER_OUTPUT_NAME mysqld)
+  SET(MYSQLSERVER_OUTPUT_NAME mariadbd)
   SET(COMPONENT_MYSQLSERVER "Development")
   SET(COMPONENT_LIBMYSQLD "Server")
 ENDIF()
@@ -163,7 +166,9 @@ ENDFOREACH()
 
 MERGE_LIBRARIES(mysqlserver STATIC ${EMBEDDED_LIBS} 
   OUTPUT_NAME ${MYSQLSERVER_OUTPUT_NAME} COMPONENT ${COMPONENT_MYSQLSERVER})
-
+IF(UNIX)
+  INSTALL_SYMLINK(libmysqld.a mysqlserver ${INSTALL_LIBDIR} ${COMPONENT_MYSQLSERVER})
+ENDIF()
 INSTALL(FILES embedded_priv.h DESTINATION ${INSTALL_INCLUDEDIR}/server/private COMPONENT  ${COMPONENT_MYSQLSERVER})
 
 
@@ -435,8 +440,9 @@ IF(NOT DISABLE_SHARED)
     # Name the shared library, handle versioning (provides same api as client
     # library hence the same version)
     SET_TARGET_PROPERTIES(libmysqld PROPERTIES 
-      OUTPUT_NAME mysqld 
+      OUTPUT_NAME mariadbd
       SOVERSION "${SHARED_LIB_MAJOR_VERSION}")
+    INSTALL_SYMLINK(libmysqld.so libmysqld ${INSTALL_LIBDIR} ${COMPONENT_LIBMYSQLD})
     # Clean direct output flags, as 2 targets have the same base name
     # libmysqld
     SET_TARGET_PROPERTIES(libmysqld PROPERTIES CLEAN_DIRECT_OUTPUT 1)

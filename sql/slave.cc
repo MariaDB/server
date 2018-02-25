@@ -41,9 +41,8 @@
 #include <sql_common.h>
 #include <errmsg.h>
 #include <ssl_compat.h>
-#include <mysqld_error.h>
+#include "unireg.h"
 #include <mysys_err.h>
-#include "rpl_handler.h"
 #include <signal.h>
 #include <mysql.h>
 #include <myisam.h>
@@ -61,6 +60,7 @@
 #include "debug_sync.h"
 #include "rpl_parallel.h"
 #include "sql_show.h"
+#include "semisync_slave.h"
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
@@ -72,6 +72,9 @@
 bool use_slave_mask = 0;
 MY_BITMAP slave_error_mask;
 char slave_skip_error_names[SHOW_VAR_FUNC_BUFF_SIZE];
+uint *slave_transaction_retry_errors;
+uint slave_transaction_retry_error_length= 0;
+char slave_transaction_retry_error_names[SHOW_VAR_FUNC_BUFF_SIZE];
 
 char* slave_load_tmpdir = 0;
 Master_info *active_mi= 0;
@@ -156,7 +159,8 @@ static bool wait_for_relay_log_space(Relay_log_info* rli);
 static bool io_slave_killed(Master_info* mi);
 static bool sql_slave_killed(rpl_group_info *rgi);
 static int init_slave_thread(THD*, Master_info *, SLAVE_THD_TYPE);
-static void print_slave_skip_errors(void);
+static void make_slave_skip_errors_printable(void);
+static void make_slave_transaction_retry_errors_printable(void);
 static int safe_connect(THD* thd, MYSQL* mysql, Master_info* mi);
 static int safe_reconnect(THD*, MYSQL*, Master_info*, bool);
 static int connect_to_master(THD*, MYSQL*, Master_info*, bool, bool);
@@ -306,9 +310,9 @@ build_gtid_pos_create_query(THD *thd, String *query,
 {
   bool err= false;
   err|= query->append(gtid_pos_table_definition1);
-  err|= append_identifier(thd, query, table_name->str, table_name->length);
+  err|= append_identifier(thd, query, table_name);
   err|= query->append(gtid_pos_table_definition2);
-  err|= append_identifier(thd, query, engine_name->str, engine_name->length);
+  err|= append_identifier(thd, query, engine_name);
   return err;
 }
 
@@ -327,7 +331,7 @@ gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_CSTRING *table_name)
     return 1;
   }
 
-  thd->set_db("mysql", 5);
+  thd->set_db(&MYSQL_SCHEMA_NAME);
   thd->clear_error();
   ulonglong thd_saved_option= thd->variables.option_bits;
   /* This query shuold not be binlogged. */
@@ -512,9 +516,7 @@ handle_slave_background(void *arg __attribute__((unused)))
       THD *to_kill= p->to_kill;
       kill_list= p->next;
 
-      mysql_mutex_lock(&to_kill->LOCK_thd_data);
       to_kill->awake(KILL_CONNECTION);
-      mysql_mutex_unlock(&to_kill->LOCK_thd_data);
       mysql_mutex_lock(&to_kill->LOCK_wakeup_ready);
       to_kill->rgi_slave->killed_for_retry=
         rpl_group_info::RETRY_KILL_KILLED;
@@ -635,7 +637,6 @@ start_slave_background_thread()
     sql_print_error("Failed to create thread while initialising slave");
     return 1;
   }
-
   mysql_mutex_lock(&LOCK_slave_background);
   while (!slave_background_thread_gtid_loaded)
     mysql_cond_wait(&COND_slave_background, &LOCK_slave_background);
@@ -704,15 +705,6 @@ int init_slave()
     delete active_mi;
     active_mi= 0;
     goto err;
-  }
-
-  /*
-    If --slave-skip-errors=... was not used, the string value for the
-    system variable has not been set up yet. Do it now.
-  */
-  if (!use_slave_mask)
-  {
-    print_slave_skip_errors();
   }
 
   /*
@@ -812,12 +804,12 @@ int init_recovery(Master_info* mi, const char** errmsg)
   DBUG_RETURN(0);
 }
 
- 
+
 /**
   Convert slave skip errors bitmap into a printable string.
 */
 
-static void print_slave_skip_errors(void)
+static void make_slave_skip_errors_printable(void)
 {
   /*
     To be safe, we want 10 characters of room in the buffer for a number
@@ -826,7 +818,7 @@ static void print_slave_skip_errors(void)
     plus a NUL terminator. That is a max 6 digit number.
   */
   const size_t MIN_ROOM= 10;
-  DBUG_ENTER("print_slave_skip_errors");
+  DBUG_ENTER("make_slave_skip_errors_printable");
   DBUG_ASSERT(sizeof(slave_skip_error_names) > MIN_ROOM);
   DBUG_ASSERT(MAX_SLAVE_ERROR <= 999999); // 6 digits
 
@@ -848,14 +840,14 @@ static void print_slave_skip_errors(void)
   else
   {
     char *buff= slave_skip_error_names;
-    char *bend= buff + sizeof(slave_skip_error_names);
+    char *bend= buff + sizeof(slave_skip_error_names) - MIN_ROOM;
     int  errnum;
 
     for (errnum= 0; errnum < MAX_SLAVE_ERROR; errnum++)
     {
       if (bitmap_is_set(&slave_error_mask, errnum))
       {
-        if (buff + MIN_ROOM >= bend)
+        if (buff >= bend)
           break; /* purecov: tested */
         buff= int10_to_str(errnum, buff, 10);
         *buff++= ',';
@@ -885,24 +877,24 @@ static void print_slave_skip_errors(void)
     Called from get_options() in mysqld.cc on start-up
 */
 
-void init_slave_skip_errors(const char* arg)
+bool init_slave_skip_errors(const char* arg)
 {
   const char *p;
   DBUG_ENTER("init_slave_skip_errors");
 
+  if (!arg || !*arg)                            // No errors defined
+    goto end;
+
   if (my_bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR,0))
-  {
-    fprintf(stderr, "Badly out of memory, please check your system status\n");
-    exit(1);
-  }
-  use_slave_mask = 1;
+    DBUG_RETURN(1);
+
+  use_slave_mask= 1;
   for (;my_isspace(system_charset_info,*arg);++arg)
     /* empty */;
   if (!my_strnncoll(system_charset_info,(uchar*)arg,4,(const uchar*)"all",4))
   {
     bitmap_set_all(&slave_error_mask);
-    print_slave_skip_errors();
-    DBUG_VOID_RETURN;
+    goto end;
   }
   for (p= arg ; *p; )
   {
@@ -914,10 +906,108 @@ void init_slave_skip_errors(const char* arg)
     while (!my_isdigit(system_charset_info,*p) && *p)
       p++;
   }
-  /* Convert slave skip errors bitmap into a printable string. */
-  print_slave_skip_errors();
+
+end:
+  make_slave_skip_errors_printable();
+  DBUG_RETURN(0);
+}
+
+/**
+  Make printable version if slave_transaction_retry_errors
+  This is never empty as at least ER_LOCK_DEADLOCK and ER_LOCK_WAIT_TIMEOUT
+  will be there
+*/
+
+static void make_slave_transaction_retry_errors_printable(void)
+{
+  /*
+    To be safe, we want 10 characters of room in the buffer for a number
+    plus terminators. Also, we need some space for constant strings.
+    10 characters must be sufficient for a number plus {',' | '...'}
+    plus a NUL terminator. That is a max 6 digit number.
+  */
+  const size_t MIN_ROOM= 10;
+  char *buff= slave_transaction_retry_error_names;
+  char *bend= buff + sizeof(slave_transaction_retry_error_names) - MIN_ROOM;
+  uint  i;
+  DBUG_ENTER("make_slave_transaction_retry_errors_printable");
+  DBUG_ASSERT(sizeof(slave_transaction_retry_error_names) > MIN_ROOM);
+
+  /* Make @@slave_transaction_retry_errors show a human-readable value */
+  opt_slave_transaction_retry_errors= slave_transaction_retry_error_names;
+
+  for (i= 0; i < slave_transaction_retry_error_length && buff < bend; i++)
+  {
+    buff= int10_to_str(slave_transaction_retry_errors[i], buff, 10);
+    *buff++= ',';
+  }
+  if (buff != slave_transaction_retry_error_names)
+    buff--; // Remove last ','
+  if (i < slave_transaction_retry_error_length)
+  {
+    /* Couldn't show all errors */
+    buff= strmov(buff, "..."); /* purecov: tested */
+  }
+  *buff=0;
+  DBUG_PRINT("exit", ("error_names: '%s'",
+                      slave_transaction_retry_error_names));
   DBUG_VOID_RETURN;
 }
+
+
+bool init_slave_transaction_retry_errors(const char* arg)
+{
+  const char *p;
+  long err_code;
+  uint i;
+  DBUG_ENTER("init_slave_transaction_retry_errors");
+
+  /* Handle empty strings */
+  if (!arg)
+    arg= "";
+
+  slave_transaction_retry_error_length= 2;
+  for (;my_isspace(system_charset_info,*arg);++arg)
+    /* empty */;
+  for (p= arg; *p; )
+  {
+    if (!(p= str2int(p, 10, 0, LONG_MAX, &err_code)))
+      break;
+    slave_transaction_retry_error_length++;
+    while (!my_isdigit(system_charset_info,*p) && *p)
+      p++;
+  }
+
+  if (!(slave_transaction_retry_errors=
+        (uint *) my_once_alloc(sizeof(int) *
+                               slave_transaction_retry_error_length,
+                               MYF(MY_WME))))
+    DBUG_RETURN(1);
+
+  /*
+    Temporary error codes:
+    currently, InnoDB deadlock detected by InnoDB or lock
+    wait timeout (innodb_lock_wait_timeout exceeded
+  */
+  slave_transaction_retry_errors[0]= ER_LOCK_DEADLOCK;
+  slave_transaction_retry_errors[1]= ER_LOCK_WAIT_TIMEOUT;
+
+  /* Add user codes after this */
+  for (p= arg, i= 2; *p; )
+  {
+    if (!(p= str2int(p, 10, 0, LONG_MAX, &err_code)))
+      break;
+    if (err_code > 0 && err_code < ER_ERROR_LAST)
+      slave_transaction_retry_errors[i++]= (uint) err_code;
+    while (!my_isdigit(system_charset_info,*p) && *p)
+      p++;
+  }
+  slave_transaction_retry_error_length= i;
+
+  make_slave_transaction_retry_errors_printable();
+  DBUG_RETURN(0);
+}
+
 
 int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
 {
@@ -987,7 +1077,7 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
 
     mysql_mutex_unlock(log_lock);
   }
-  DBUG_RETURN(retval); 
+  DBUG_RETURN(retval);
 }
 
 
@@ -1070,7 +1160,7 @@ terminate_slave_thread(THD *thd,
     int error __attribute__((unused));
     DBUG_PRINT("loop", ("killing slave thread"));
 
-    mysql_mutex_lock(&thd->LOCK_thd_data);
+    mysql_mutex_lock(&thd->LOCK_thd_kill);
 #ifndef DONT_USE_THR_ALARM
     /*
       Error codes from pthread_kill are:
@@ -1080,9 +1170,9 @@ terminate_slave_thread(THD *thd,
     int err __attribute__((unused))= pthread_kill(thd->real_id, thr_client_alarm);
     DBUG_ASSERT(err != EINVAL);
 #endif
-    thd->awake(NOT_KILLED);
+    thd->awake_no_mutex(NOT_KILLED);
 
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    mysql_mutex_unlock(&thd->LOCK_thd_kill);
 
     /*
       There is a small chance that slave thread might miss the first
@@ -1500,7 +1590,7 @@ const char *print_slave_db_safe(const char* db)
 int init_strvar_from_file(char *var, int max_size, IO_CACHE *f,
                                  const char *default_val)
 {
-  uint length;
+  size_t length;
   DBUG_ENTER("init_strvar_from_file");
 
   if ((length=my_b_gets(f,var, max_size)))
@@ -2110,7 +2200,7 @@ when it try to get the value of TIME_ZONE global variable from master.";
                       if (++dbug_count < 3)
                         goto heartbeat_network_error;
                     });
-    if (mysql_real_query(mysql, query, strlen(query)))
+    if (mysql_real_query(mysql, query, (ulong)strlen(query)))
     {
       if (check_io_slave_killed(mi, NULL))
         goto slave_killed_err;
@@ -2158,7 +2248,7 @@ when it try to get the value of TIME_ZONE global variable from master.";
       Once the first FD will be received its alg descriptor will replace
       the being queried one.
     */
-    rc= mysql_real_query(mysql, query, strlen(query));
+    rc= mysql_real_query(mysql, query,(ulong)strlen(query));
     if (rc != 0)
     {
       if (check_io_slave_killed(mi, NULL))
@@ -2736,7 +2826,7 @@ int register_slave_on_master(MYSQL* mysql, Master_info *mi,
                              bool *suppress_warnings)
 {
   uchar buf[1024], *pos= buf;
-  uint report_host_len=0, report_user_len=0, report_password_len=0;
+  size_t report_host_len=0, report_user_len=0, report_password_len=0;
   DBUG_ENTER("register_slave_on_master");
 
   *suppress_warnings= FALSE;
@@ -2744,7 +2834,7 @@ int register_slave_on_master(MYSQL* mysql, Master_info *mi,
     report_host_len= strlen(report_host);
   if (report_host_len > HOSTNAME_LENGTH)
   {
-    sql_print_warning("The length of report_host is %d. "
+    sql_print_warning("The length of report_host is %zu. "
                       "It is larger than the max length(%d), so this "
                       "slave cannot be registered to the master.",
                       report_host_len, HOSTNAME_LENGTH);
@@ -2755,7 +2845,7 @@ int register_slave_on_master(MYSQL* mysql, Master_info *mi,
     report_user_len= strlen(report_user);
   if (report_user_len > USERNAME_LENGTH)
   {
-    sql_print_warning("The length of report_user is %d. "
+    sql_print_warning("The length of report_user is %zu. "
                       "It is larger than the max length(%d), so this "
                       "slave cannot be registered to the master.",
                       report_user_len, USERNAME_LENGTH);
@@ -2766,7 +2856,7 @@ int register_slave_on_master(MYSQL* mysql, Master_info *mi,
     report_password_len= strlen(report_password);
   if (report_password_len > MAX_PASSWORD_LENGTH)
   {
-    sql_print_warning("The length of report_password is %d. "
+    sql_print_warning("The length of report_password is %zu. "
                       "It is larger than the max length(%d), so this "
                       "slave cannot be registered to the master.",
                       report_password_len, MAX_PASSWORD_LENGTH);
@@ -2787,7 +2877,7 @@ int register_slave_on_master(MYSQL* mysql, Master_info *mi,
   /* The master will fill in master_id */
   int4store(pos, 0);                    pos+= 4;
 
-  if (simple_command(mysql, COM_REGISTER_SLAVE, buf, (size_t) (pos- buf), 0))
+  if (simple_command(mysql, COM_REGISTER_SLAVE, buf, (ulong) (pos- buf), 0))
   {
     if (mysql_errno(mysql) == ER_NET_READ_INTERRUPTED)
     {
@@ -3054,7 +3144,7 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
                           mem_root);
     field_list->push_back(new (mem_root)
                           Item_empty_string(thd, "Gtid_Slave_Pos",
-                                            gtid_pos_length),
+                                            (uint)gtid_pos_length),
                           mem_root);
   }
   DBUG_VOID_RETURN;
@@ -3496,11 +3586,9 @@ static int request_dump(THD *thd, MYSQL* mysql, Master_info* mi,
   if (opt_log_slave_updates && opt_replicate_annotate_row_events)
     binlog_flags|= BINLOG_SEND_ANNOTATE_ROWS_EVENT;
 
-  if (RUN_HOOK(binlog_relay_io,
-               before_request_transmit,
-               (thd, mi, binlog_flags)))
+  if (repl_semisync_slave.request_transmit(mi))
     DBUG_RETURN(1);
-  
+
   // TODO if big log files: Change next to int8store()
   int4store(buf, (ulong) mi->master_log_pos);
   int2store(buf + 4, binlog_flags);
@@ -3571,7 +3659,8 @@ static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings,
         we suppress prints to .err file as long as the reconnect
         happens without problems
       */
-      *suppress_warnings= TRUE;
+      *suppress_warnings=
+        global_system_variables.log_warnings < 2 ? TRUE : FALSE;
     }
     else
     {
@@ -3598,14 +3687,20 @@ static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings,
   DBUG_RETURN(len - 1);
 }
 
-/*
+
+/**
   Check if the current error is of temporary nature of not.
   Some errors are temporary in nature, such as
   ER_LOCK_DEADLOCK and ER_LOCK_WAIT_TIMEOUT.
+
+  @retval 0 if fatal error
+  @retval 1 temporary error, do retry
 */
+
 int
 has_temporary_error(THD *thd)
 {
+  uint current_errno;
   DBUG_ENTER("has_temporary_error");
 
   DBUG_EXECUTE_IF("all_errors_are_temporary_errors",
@@ -3623,14 +3718,12 @@ has_temporary_error(THD *thd)
   if (!thd->is_error())
     DBUG_RETURN(0);
 
-  /*
-    Temporary error codes:
-    currently, InnoDB deadlock detected by InnoDB or lock
-    wait timeout (innodb_lock_wait_timeout exceeded
-  */
-  if (thd->get_stmt_da()->sql_errno() == ER_LOCK_DEADLOCK ||
-      thd->get_stmt_da()->sql_errno() == ER_LOCK_WAIT_TIMEOUT)
-    DBUG_RETURN(1);
+  current_errno= thd->get_stmt_da()->sql_errno();
+  for (uint i= 0; i < slave_transaction_retry_error_length; i++)
+  {
+    if (current_errno == slave_transaction_retry_errors[i])
+      DBUG_RETURN(1);
+  }
 
   DBUG_RETURN(0);
 }
@@ -4281,8 +4374,9 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
             exec_res= 0;
             serial_rgi->cleanup_context(thd, 1);
             /* chance for concurrent connection to get more locks */
-            slave_sleep(thd, MY_MIN(serial_rgi->trans_retries,
+            slave_sleep(thd, MY_MAX(MY_MIN(serial_rgi->trans_retries,
                                     MAX_SLAVE_RETRY_PAUSE),
+                                    slave_trans_retry_interval),
                        sql_slave_killed, serial_rgi);
             serial_rgi->trans_retries++;
             mysql_mutex_lock(&rli->data_lock); // because of SHOW STATUS
@@ -4367,7 +4461,7 @@ static bool check_io_slave_killed(Master_info *mi, const char *info)
   @param[in]     mysql               MySQL connection.
   @param[in]     mi                  Master connection information.
   @param[in,out] retry_count         Number of attempts to reconnect.
-  @param[in]     suppress_warnings   TRUE when a normal net read timeout 
+  @param[in]     suppress_warnings   TRUE when a normal net read timeout
                                      has caused to reconnecting.
   @param[in]     messages            Messages to print/log, see 
                                      reconnect_messages[] array.
@@ -4496,6 +4590,7 @@ pthread_handler_t handle_slave_io(void *arg)
   mi->abort_slave = 0;
   mysql_mutex_unlock(&mi->run_lock);
   mysql_cond_broadcast(&mi->start_cond);
+  mi->rows_event_tracker.reset();
 
   DBUG_PRINT("master_info",("log_file_name: '%s'  position: %llu",
                             mi->master_log_name, mi->master_log_pos));
@@ -4520,7 +4615,8 @@ pthread_handler_t handle_slave_io(void *arg)
   }
 
 
-  if (RUN_HOOK(binlog_relay_io, thread_start, (thd, mi)))
+  if (DBUG_EVALUATE_IF("failed_slave_start", 1, 0)
+      || repl_semisync_slave.slave_start(mi))
   {
     mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4578,6 +4674,10 @@ connected:
     */
     mi->gtid_reconnect_event_skip_count= mi->events_queued_since_last_gtid;
     mi->gtid_event_seen= false;
+    /*
+      Reset stale state of the rows-event group tracker at reconnect.
+    */
+    mi->rows_event_tracker.reset();
   }
 
 #ifdef ENABLED_DEBUG_SYNC
@@ -4710,9 +4810,10 @@ Stopping slave I/O thread due to out-of-memory error from master");
       retry_count=0;                    // ok event, reset retry counter
       THD_STAGE_INFO(thd, stage_queueing_master_event_to_the_relay_log);
       event_buf= (const char*)mysql->net.read_pos + 1;
-      if (RUN_HOOK(binlog_relay_io, after_read_event,
-                   (thd, mi,(const char*)mysql->net.read_pos + 1,
-                    event_len, &event_buf, &event_len)))
+      mi->semi_ack= 0;
+      if (repl_semisync_slave.
+          slave_read_sync_header((const char*)mysql->net.read_pos + 1, event_len,
+                                 &(mi->semi_ack), &event_buf, &event_len))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4761,9 +4862,6 @@ Stopping slave I/O thread due to out-of-memory error from master");
         tokenamount -= network_read_len;
       }
 
-      /* XXX: 'synced' should be updated by queue_event to indicate
-         whether event has been synced to disk */
-      bool synced= 0;
       if (queue_event(mi, event_buf, event_len))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_RELAY_LOG_WRITE_FAILURE, NULL,
@@ -4772,8 +4870,8 @@ Stopping slave I/O thread due to out-of-memory error from master");
         goto err;
       }
 
-      if (RUN_HOOK(binlog_relay_io, after_queue_event,
-                   (thd, mi, event_buf, event_len, synced)))
+      if (rpl_semi_sync_slave_status && (mi->semi_ack & SEMI_SYNC_NEED_ACK) &&
+          repl_semisync_slave.slave_reply(mi))
       {
         mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
@@ -4782,7 +4880,16 @@ Stopping slave I/O thread due to out-of-memory error from master");
       }
 
       if (mi->using_gtid == Master_info::USE_GTID_NO &&
-          flush_master_info(mi, TRUE, TRUE))
+          /*
+            If rpl_semi_sync_slave_delay_master is enabled, we will flush
+            master info only when ack is needed. This may lead to at least one
+            group transaction delay but affords better performance improvement.
+          */
+          (!repl_semisync_slave.get_slave_enabled() ||
+           (!(mi->semi_ack & SEMI_SYNC_SLAVE_DELAY_SYNC) ||
+            (mi->semi_ack & (SEMI_SYNC_NEED_ACK)))) &&
+          (DBUG_EVALUATE_IF("failed_flush_master_info", 1, 0) ||
+           flush_master_info(mi, TRUE, TRUE)))
       {
         sql_print_error("Failed to flush master info file");
         goto err;
@@ -4836,9 +4943,9 @@ err:
                           IO_RPL_LOG_NAME, mi->master_log_pos,
                           tmp.c_ptr_safe());
   }
-  RUN_HOOK(binlog_relay_io, thread_stop, (thd, mi));
+  repl_semisync_slave.slave_stop(mi);
   thd->reset_query();
-  thd->reset_db(NULL, 0);
+  thd->reset_db(&null_clex_str);
   if (mysql)
   {
     /*
@@ -4870,9 +4977,7 @@ err_during_init:
   // TODO: make rpl_status part of Master_info
   change_rpl_status(RPL_ACTIVE_SLAVE,RPL_IDLE_SLAVE);
 
-  mysql_mutex_lock(&LOCK_thread_count);
-  thd->unlink();
-  mysql_mutex_unlock(&LOCK_thread_count);
+  thd->assert_not_linked();
   delete thd;
   thread_safe_decrement32(&service_thread_count);
   signal_thd_deleted();
@@ -5426,7 +5531,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   */
   thd->catalog= 0;
   thd->reset_query();
-  thd->reset_db(NULL, 0);
+  thd->reset_db(&null_clex_str);
   if (rli->mi->using_gtid != Master_info::USE_GTID_NO)
   {
     ulong domain_count;
@@ -5551,11 +5656,7 @@ err_during_init:
 
   rpl_parallel_resize_pool_if_no_slaves();
 
-  /* TODO: Check if this lock is needed */
-  mysql_mutex_lock(&LOCK_thread_count);
   delete serial_rgi;
-  mysql_mutex_unlock(&LOCK_thread_count);
-
   delete thd;
   thread_safe_decrement32(&service_thread_count);
   signal_thd_deleted();
@@ -5982,7 +6083,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   char* new_buf = NULL;
   char new_buf_arr[4096];
   bool is_malloc = false;
-
+  bool is_rows_event= false;
   /*
     FD_q must have been prepared for the first R_a event
     inside get_master_version_and_clock()
@@ -6164,7 +6265,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
         mysql_mutex_unlock(log_lock);
         goto err;
       }
-      rli->relay_log.signal_update();
+      rli->relay_log.signal_relay_log_update();
       mysql_mutex_unlock(log_lock);
 
       mi->gtid_reconnect_event_skip_count= 0;
@@ -6416,11 +6517,11 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     got_gtid_event= true;
     if (mi->using_gtid == Master_info::USE_GTID_NO)
       goto default_action;
-    if (unlikely(!mi->gtid_event_seen))
+    if (unlikely(mi->gtid_reconnect_event_skip_count))
     {
-      mi->gtid_event_seen= true;
-      if (mi->gtid_reconnect_event_skip_count)
+      if (likely(!mi->gtid_event_seen))
       {
+        mi->gtid_event_seen= true;
         /*
           If we are reconnecting, and we need to skip a partial event group
           already queued to the relay log before the reconnect, then we check
@@ -6449,13 +6550,45 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
           rpl_slave_state_tostring_helper(&error_msg, &event_gtid, &first);
           goto err;
         }
+        if (global_system_variables.log_warnings > 1)
+        {
+          bool first= true;
+          StringBuffer<1024> gtid_text;
+          rpl_slave_state_tostring_helper(&gtid_text, &mi->last_queued_gtid,
+                                          &first);
+          sql_print_information("Slave IO thread is reconnected to "
+                                "receive Gtid_log_event %s. It is to skip %llu "
+                                "already received events including the gtid one",
+                                gtid_text.ptr(),
+                                mi->events_queued_since_last_gtid);
+        }
+        goto default_action;
+      }
+      else
+      {
+        bool first;
+        StringBuffer<1024> gtid_text;
+
+        gtid_text.append(STRING_WITH_LEN("Last received gtid: "));
+        first= true;
+        rpl_slave_state_tostring_helper(&gtid_text, &mi->last_queued_gtid,
+                                          &first);
+        gtid_text.append(STRING_WITH_LEN(", currently received: "));
+        first= true;
+        rpl_slave_state_tostring_helper(&gtid_text, &event_gtid, &first);
+
+        error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
+        sql_print_error("Slave IO thread has received a new Gtid_log_event "
+                        "while skipping already logged events "
+                        "after reconnect. %s. %llu remains to be skipped. "
+                        "The number of originally read events was %llu",
+                        gtid_text.ptr(),
+                        mi->gtid_reconnect_event_skip_count,
+                        mi->events_queued_since_last_gtid);
+        goto err;
       }
     }
-
-    if (unlikely(mi->gtid_reconnect_event_skip_count))
-    {
-      goto default_action;
-    }
+    mi->gtid_event_seen= true;
 
     /*
       We have successfully queued to relay log everything before this GTID, so
@@ -6522,8 +6655,34 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
         goto err;
       }
     }
-    buf = new_buf;
     is_compress_event = true;
+    buf = new_buf;
+    /*
+      As we are uncertain about compressed V2 rows events, we don't track
+      them
+    */
+    if (LOG_EVENT_IS_ROW_V2((Log_event_type) buf[EVENT_TYPE_OFFSET]))
+      goto default_action;
+    /* fall through */
+  case WRITE_ROWS_EVENT_V1:
+  case UPDATE_ROWS_EVENT_V1:
+  case DELETE_ROWS_EVENT_V1:
+  case WRITE_ROWS_EVENT:
+  case UPDATE_ROWS_EVENT:
+  case DELETE_ROWS_EVENT:
+    {
+      is_rows_event= true;
+      mi->rows_event_tracker.update(mi->master_log_name,
+                                    mi->master_log_pos,
+                                    buf,
+                                    mi->rli.relay_log.
+                                    description_event_for_queue);
+
+      DBUG_EXECUTE_IF("simulate_stmt_end_rows_event_loss",
+                      {
+                        mi->rows_event_tracker.stmt_end_seen= false;
+                      });
+    }
     goto default_action;
 
 #ifndef DBUG_OFF
@@ -6579,6 +6738,21 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       inc_pos= event_len;
 
     break;
+  }
+
+  /*
+    Integrity of Rows- event group check.
+    A sequence of Rows- events must end with STMT_END_F flagged one.
+    Even when Heartbeat event interrupts Rows- events flow this must indicate a
+    malfunction e.g logging on the master.
+  */
+  if (((uchar) buf[EVENT_TYPE_OFFSET] != HEARTBEAT_LOG_EVENT) &&
+      !is_rows_event &&
+      mi->rows_event_tracker.check_and_report(mi->master_log_name,
+                                              mi->master_log_pos))
+  {
+    error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
+    goto err;
   }
 
   /*
@@ -6709,7 +6883,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       if (got_gtid_event)
         rli->ign_gtids.update(&event_gtid);
     }
-    rli->relay_log.signal_update(); // the slave SQL thread needs to re-check
+    // the slave SQL thread needs to re-check
+    rli->relay_log.signal_relay_log_update();
     DBUG_PRINT("info", ("master_log_pos: %lu, event originating from %u server, ignored",
                         (ulong) mi->master_log_pos, uint4korr(buf + SERVER_ID_OFFSET)));
   }
@@ -6749,6 +6924,21 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
         The whole of the current event group is queued. So in case of
         reconnect we can start from after the current GTID.
       */
+      if (mi->gtid_reconnect_event_skip_count)
+      {
+        bool first= true;
+        StringBuffer<1024> gtid_text;
+
+        rpl_slave_state_tostring_helper(&gtid_text, &mi->last_queued_gtid,
+                                        &first);
+        sql_print_error("Slave IO thread received a terminal event from "
+                        "group %s whose retrieval was interrupted "
+                        "with reconnect. We still had %llu events to read. "
+                        "The number of originally read events was %llu",
+                        gtid_text.ptr(),
+                        mi->gtid_reconnect_event_skip_count,
+                        mi->events_queued_since_last_gtid);
+      }
       mi->gtid_current_pos.update(&mi->last_queued_gtid);
       mi->events_queued_since_last_gtid= 0;
 
@@ -7219,7 +7409,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
       MYSQL_BIN_LOG::open() will write the buffered description event.
     */
     old_pos= rli->event_relay_log_pos;
-    if ((ev= Log_event::read_log_event(cur_log,0,
+    if ((ev= Log_event::read_log_event(cur_log,
                                        rli->relay_log.description_event_for_exec,
                                        opt_slave_sql_verify_checksum)))
 
@@ -7746,6 +7936,92 @@ bool rpl_master_erroneous_autoinc(THD *thd)
     return rpl_master_has_bug(thd->rgi_slave->rli, 33029, FALSE, NULL, NULL);
   }
   return FALSE;
+}
+
+
+static bool get_row_event_stmt_end(const char* buf,
+                                   const Format_description_log_event *fdle)
+{
+  uint8 const common_header_len= fdle->common_header_len;
+  Log_event_type event_type= (Log_event_type)(uchar)buf[EVENT_TYPE_OFFSET];
+
+  uint8 const post_header_len= fdle->post_header_len[event_type-1];
+  const char *flag_start= buf + common_header_len;
+  /*
+    The term 4 below signifies that master is of 'an intermediate source', see
+    Rows_log_event::Rows_log_event.
+  */
+  flag_start += RW_MAPID_OFFSET + ((post_header_len == 6) ? 4 :  RW_FLAGS_OFFSET);
+
+  return (uint2korr(flag_start) & Rows_log_event::STMT_END_F) != 0;
+}
+
+
+/*
+  Reset log event tracking data.
+*/
+
+void Rows_event_tracker::reset()
+{
+  binlog_file_name[0]= 0;
+  first_seen= last_seen= 0;
+  stmt_end_seen= false;
+}
+
+
+/*
+  Update  log event tracking data.
+
+  The first- and last- seen event binlog position get memorized, as
+  well as the end-of-statement status of the last one.
+*/
+
+void Rows_event_tracker::update(const char* file_name, my_off_t pos,
+                                const char* buf,
+                                const Format_description_log_event *fdle)
+{
+  if (!first_seen)
+  {
+    first_seen= pos;
+    strmake(binlog_file_name, file_name, sizeof(binlog_file_name) - 1);
+  }
+  last_seen= pos;
+  DBUG_ASSERT(stmt_end_seen == 0);              // We can only have one
+  stmt_end_seen= get_row_event_stmt_end(buf, fdle);
+};
+
+
+/**
+  The function is called at next event reading
+  after a sequence of Rows- log-events. It checks the end-of-statement status
+  of the past sequence to report on any isssue.
+  In the positive case the tracker gets reset.
+
+  @return true  when the Rows- event group integrity found compromised,
+                false otherwise.
+*/
+bool Rows_event_tracker::check_and_report(const char* file_name,
+                                          my_off_t pos)
+{
+  if (last_seen)
+  {
+    // there was at least one "block" event previously
+    if (!stmt_end_seen)
+    {
+        sql_print_error("Slave IO thread did not receive an expected "
+                        "Rows-log end-of-statement for event starting "
+                        "at log '%s' position %llu "
+                        "whose last block was seen at log '%s' position %llu. "
+                        "The end-of-statement should have been delivered "
+                        "before the current one at log '%s' position %llu",
+                        binlog_file_name, first_seen,
+                        binlog_file_name, last_seen, file_name, pos);
+        return true;
+    }
+    reset();
+  }
+
+  return false;
 }
 
 /**

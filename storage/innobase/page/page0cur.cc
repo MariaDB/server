@@ -2,6 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -520,7 +521,7 @@ up_rec_match:
 				ulint   rec_info = rec_get_info_bits(mid_rec,
                                                      rec_offs_comp(offsets));
 				ut_ad(rec_info & REC_INFO_MIN_REC_FLAG);
-				ut_ad(btr_page_get_prev(page, &mtr) == FIL_NULL);
+				ut_ad(!page_has_prev(page));
 				mtr_commit(&mtr);
 #endif
 
@@ -734,9 +735,7 @@ up_slot_match:
 					  mid_rec,
 					  dict_table_is_comp(index->table))
 				  & REC_INFO_MIN_REC_FLAG)) {
-			ut_ad(mach_read_from_4(FIL_PAGE_PREV
-					       + page_align(mid_rec))
-			      == FIL_NULL);
+			ut_ad(!page_has_prev(page_align(mid_rec)));
 			ut_ad(!page_rec_is_leaf(mid_rec)
 			      || rec_is_default_row(mid_rec, index));
 			cmp = 1;
@@ -1279,7 +1278,7 @@ page_cur_insert_rec_low(
 	      == (ibool) !!page_is_comp(page));
 	ut_ad(fil_page_index_page_check(page));
 	ut_ad(mach_read_from_8(page + PAGE_HEADER + PAGE_INDEX_ID) == index->id
-	      || recv_recovery_is_on()
+	      || index->is_dummy
 	      || (mtr ? mtr->is_inside_ibuf() : dict_index_is_ibuf(index)));
 
 	ut_ad(!page_rec_is_supremum(current_rec));
@@ -1506,8 +1505,8 @@ page_cur_insert_rec_zip(
 	ut_ad(page_is_comp(page));
 	ut_ad(fil_page_index_page_check(page));
 	ut_ad(mach_read_from_8(page + PAGE_HEADER + PAGE_INDEX_ID) == index->id
-	      || (mtr ? mtr->is_inside_ibuf() : dict_index_is_ibuf(index))
-	      || recv_recovery_is_on());
+	      || index->is_dummy
+	      || (mtr ? mtr->is_inside_ibuf() : dict_index_is_ibuf(index)));
 	ut_ad(!page_get_instant(page));
 	ut_ad(!page_cur_is_after_last(cursor));
 #ifdef UNIV_ZIP_DEBUG
@@ -1626,6 +1625,7 @@ page_cur_insert_rec_zip(
 			because the MLOG_COMP_REC_INSERT should only
 			be logged after a successful operation. */
 			ut_ad(!recv_recovery_is_on());
+			ut_ad(!index->is_dummy);
 		} else if (recv_recovery_is_on()) {
 			/* This should be followed by
 			MLOG_ZIP_PAGE_COMPRESS_NO_DATA,
@@ -1967,6 +1967,8 @@ page_parse_copy_rec_list_to_created_page(
 	page_t*		page;
 	page_zip_des_t*	page_zip;
 
+	ut_ad(index->is_dummy);
+
 	if (ptr + 4 > end_ptr) {
 
 		return(NULL);
@@ -1992,8 +1994,7 @@ page_parse_copy_rec_list_to_created_page(
 	page_copy_rec_list_end_to_created_page() which was logged by.
 	page_copy_rec_list_to_created_page_write_log().
 	For other pages, this field must be zero-initialized. */
-	ut_ad(!page_get_instant(block->frame)
-	      || (page_is_root(block->frame) && index->is_dummy));
+	ut_ad(!page_get_instant(block->frame) || page_is_root(block->frame));
 
 	while (ptr < rec_end) {
 		ptr = page_cur_parse_insert_rec(TRUE, ptr, end_ptr,
@@ -2320,8 +2321,8 @@ page_cur_delete_rec(
 	ut_ad(!!page_is_comp(page) == dict_table_is_comp(index->table));
 	ut_ad(fil_page_index_page_check(page));
 	ut_ad(mach_read_from_8(page + PAGE_HEADER + PAGE_INDEX_ID) == index->id
-	      || (mtr ? mtr->is_inside_ibuf() : dict_index_is_ibuf(index))
-	      || recv_recovery_is_on());
+	      || index->is_dummy
+	      || (mtr ? mtr->is_inside_ibuf() : dict_index_is_ibuf(index)));
 	ut_ad(mtr == NULL || mtr->is_named_space(index->space));
 
 	/* The record must not be the supremum or infimum record. */

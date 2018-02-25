@@ -97,7 +97,7 @@ set @@global.rocksdb_compact_cf = 'rev:cf2';
 set @@global.rocksdb_compact_cf = 'default';
 
 perl;
-$size+=-s $_ for (<$ENV{MYSQLTEST_VARDIR}/mysqld.1/data/.rocksdb/*.sst>);
+$size+=-s $_ for (<$ENV{MYSQLTEST_VARDIR}/mysqld.1/data/\#rocksdb/*.sst>);
 $filename= "$ENV{MYSQLTEST_VARDIR}/tmp/size_output";
 open(F, '>', $filename) || die("Can't open file $filename: $!");
 print F $size;
@@ -121,7 +121,7 @@ let $wait_condition = select count(*) = 0
 
 # Check that space is reclaimed
 perl;
-$size+=-s $_ for (<$ENV{MYSQLTEST_VARDIR}/mysqld.1/data/.rocksdb/*.sst>);
+$size+=-s $_ for (<$ENV{MYSQLTEST_VARDIR}/mysqld.1/data/\#rocksdb/*.sst>);
 $filename= "$ENV{MYSQLTEST_VARDIR}/tmp/size_output";
 open(F, '<', $filename) || die("Can't open file $filename: $!");
 $old=<F>;

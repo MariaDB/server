@@ -2,14 +2,7 @@ call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the
 SELECT @@innodb_page_size;
 @@innodb_page_size
 65536
-SET GLOBAL innodb_file_per_table=ON;
-SET @@innodb_strict_mode=ON;
-SELECT @@innodb_file_per_table;
-@@innodb_file_per_table
-1
-SELECT @@innodb_strict_mode;
-@@innodb_strict_mode
-1
+SET innodb_strict_mode=ON;
 CREATE TABLE tab5(col1 CHAR (255), col2 CHAR (255), col3 CHAR(255),col4 CHAR(255), col5 CHAR(255),
 col6   CHAR(255), col7 CHAR(255),  col8 CHAR(255), col9 CHAR(255),col10 CHAR(255), col11  CHAR(255),
 col12 CHAR(255), col13 CHAR(255),col14 CHAR(255),col15 CHAR(255),col16  CHAR(255), col17 CHAR(255),
@@ -536,11 +529,9 @@ FLUSH TABLE t;
 ANALYZE TABLE t;
 Table	Op	Msg_type	Msg_text
 test.t	analyze	status	OK
-SELECT stat_value FROM mysql.innodb_index_stats where database_name = 'test' and table_name= 't' and stat_name='n_leaf_pages';
-stat_value
-4
-SELECT clustered_index_size from mysql.innodb_table_stats where database_name = 'test' and table_name= 't';
-clustered_index_size
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t';
+clust_index_size
 5
 DROP TABLE t;
 CREATE TABLE t(col BLOB) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
@@ -558,11 +549,9 @@ FLUSH TABLE t;
 ANALYZE TABLE t;
 Table	Op	Msg_type	Msg_text
 test.t	analyze	status	OK
-SELECT stat_value FROM mysql.innodb_index_stats where database_name = 'test' and table_name= 't' and stat_name='n_leaf_pages';
-stat_value
-3
-SELECT clustered_index_size from mysql.innodb_table_stats where database_name = 'test' and table_name= 't';
-clustered_index_size
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t';
+clust_index_size
 4
 DROP TABLE t;
 CREATE TABLE t(col BLOB) ENGINE=InnoDB ROW_FORMAT=COMPACT;
@@ -580,11 +569,8 @@ FLUSH TABLE t;
 ANALYZE TABLE t;
 Table	Op	Msg_type	Msg_text
 test.t	analyze	status	OK
-SELECT stat_value FROM mysql.innodb_index_stats where database_name = 'test' and table_name= 't' and stat_name='n_leaf_pages';
-stat_value
-3
-SELECT clustered_index_size from mysql.innodb_table_stats where database_name = 'test' and table_name= 't';
-clustered_index_size
+SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
+WHERE name = 'test/t';
+clust_index_size
 4
 DROP TABLE t;
-# Success

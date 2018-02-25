@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,7 +27,6 @@ Created 5/27/1996 Heikki Tuuri
 #include "ha_prototypes.h"
 
 #include "que0que.h"
-#include "usr0sess.h"
 #include "trx0trx.h"
 #include "trx0roll.h"
 #include "row0undo.h"
@@ -482,20 +481,17 @@ que_graph_free_recursive(
 	case QUE_NODE_UPDATE:
 		upd = static_cast<upd_node_t*>(node);
 
-		DBUG_PRINT("que_graph_free_recursive",
-			   ("QUE_NODE_UPDATE: %p, processed_cascades: %p",
-			    upd, upd->processed_cascades));
-
 		if (upd->in_mysql_interface) {
 
 			btr_pcur_free_for_mysql(upd->pcur);
 			upd->in_mysql_interface = FALSE;
 		}
 
-		if (upd->cascade_top) {
+		que_graph_free_recursive(upd->cascade_node);
+
+		if (upd->cascade_heap) {
 			mem_heap_free(upd->cascade_heap);
 			upd->cascade_heap = NULL;
-			upd->cascade_top = false;
 		}
 
 		que_graph_free_recursive(upd->select);
@@ -1030,6 +1026,7 @@ que_thr_step(
 	} else if (type == QUE_NODE_SELECT) {
 		thr = row_sel_step(thr);
 	} else if (type == QUE_NODE_INSERT) {
+		trx_start_if_not_started_xa(thr_get_trx(thr), true);
 		thr = row_ins_step(thr);
 	} else if (type == QUE_NODE_UPDATE) {
 		trx_start_if_not_started_xa(thr_get_trx(thr), true);

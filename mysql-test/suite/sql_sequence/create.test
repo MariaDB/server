@@ -362,6 +362,7 @@ CREATE SEQUENCE t1 start with 1 minvalue 1 maxvalue 10 increment by 1 cache 10 e
 select next value for t1;
 select previous value for t1;
 CREATE TEMPORARY SEQUENCE t1 start with 100 minvalue 100 maxvalue 200 increment by 1 cache 10 engine=innodb;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
 select previous value for t1;
 select next value for t1;
 select previous value for t1;
@@ -449,3 +450,11 @@ create temporary table s (i int);
 --error ER_UNKNOWN_SEQUENCES
 drop temporary sequence s;
 drop table s;
+
+--echo #
+--echo # MDEV-15115 Assertion failure in CREATE SEQUENCE...ROW_FORMAT=REDUNDANT
+--echo #
+CREATE SEQUENCE seq1 ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+DROP SEQUENCE seq1;
+CREATE TEMPORARY SEQUENCE seq1 ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+DROP TEMPORARY SEQUENCE seq1;

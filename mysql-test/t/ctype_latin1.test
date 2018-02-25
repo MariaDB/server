@@ -411,6 +411,9 @@ let $coll='latin1_nopad_bin';
 let $coll_pad='latin1_bin';
 --source include/ctype_pad_all_engines.inc
 
+SET NAMES latin1;
+--source include/ctype_like_range_mdev14350.inc
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

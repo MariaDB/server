@@ -427,7 +427,7 @@ void table_events_waits_common::make_row(bool thread_own_wait,
     return;
 
   base= base_name(wait->m_source_file);
-  m_row.m_source_length= my_snprintf(m_row.m_source, sizeof(m_row.m_source),
+  m_row.m_source_length= (uint)my_snprintf(m_row.m_source, sizeof(m_row.m_source),
                                      "%s:%d", base, wait->m_source_line);
   if (m_row.m_source_length > sizeof(m_row.m_source))
     m_row.m_source_length= sizeof(m_row.m_source);
@@ -662,7 +662,7 @@ int table_events_waits_common::read_row_values(TABLE *table,
         break;
       case 16: /* OPERATION */
         operation= &operation_names_map[(int) m_row.m_operation - 1];
-        set_field_varchar_utf8(f, operation->str, operation->length);
+        set_field_varchar_utf8(f, operation->str, (uint)operation->length);
         break;
       case 17: /* NUMBER_OF_BYTES */
         if ((m_row.m_operation == OPERATION_TYPE_FILEREAD) ||

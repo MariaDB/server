@@ -1,4 +1,5 @@
 # Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2011, 2018, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -62,7 +63,7 @@ IF(FEATURE_SET)
     SET(WITH_NONE ON)
   ENDIF()
   
-  IF(num GREATER FEATURE_SET_xsmall)
+  IF(num GREATER FEATURE_SET_xsmall AND NOT WIN32)
     SET(WITH_EMBEDDED_SERVER ON CACHE BOOL "")
   ENDIF()
   IF(num GREATER FEATURE_SET_small)
@@ -88,7 +89,9 @@ ENDIF()
 OPTION(ENABLED_LOCAL_INFILE "" ON)
 SET(WITH_INNODB_SNAPPY OFF CACHE STRING "")
 IF(WIN32)
-  SET(WITH_LIBARCHIVE STATIC CACHE STRING "")
+  SET(INSTALL_MYSQLTESTDIR "" CACHE STRING "")
+  SET(INSTALL_SQLBENCHDIR  "" CACHE STRING "")
+  SET(INSTALL_SUPPORTFILESDIR ""  CACHE STRING "")
 ELSEIF(RPM)
   SET(WITH_SSL system CACHE STRING "")
   SET(WITH_ZLIB system CACHE STRING "")
@@ -128,6 +131,8 @@ IF(UNIX)
       CHECK_INCLUDE_FILES(libaio.h HAVE_LIBAIO_H)
       CHECK_LIBRARY_EXISTS(aio io_queue_init "" HAVE_LIBAIO)
       IF(NOT HAVE_LIBAIO_H OR NOT HAVE_LIBAIO)
+        UNSET(HAVE_LIBAIO_H CACHE)
+        UNSET(HAVE_LIBAIO CACHE)
         MESSAGE(FATAL_ERROR "
         aio is required on Linux, you need to install the required library:
 

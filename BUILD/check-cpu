@@ -40,6 +40,12 @@ check_compiler_cpu_flags () {
     cc_major=$1
     cc_minor=$2
     cc_patch=$3
+    if test -z "$cc_minor"; then
+      cc_minor="0";
+    fi
+    if test -z "$cc_patch"; then
+      cc_minor="0";
+    fi
     cc_comp=`expr $cc_major '*' 100 '+' $cc_minor`
   fi
 

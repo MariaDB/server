@@ -227,7 +227,7 @@ private:
   QUERY_PROFILE(PROFILING *profiling_arg, const char *status_arg);
   ~QUERY_PROFILE();
 
-  void set_query_source(char *query_source_arg, uint query_length_arg);
+  void set_query_source(char *query_source_arg, size_t query_length_arg);
 
   /* Add a profile status change to the current profile. */
   void new_status(const char *status_arg,
@@ -275,7 +275,7 @@ public:
 
     This must be called exactly once per descrete statement.
   */
-  void set_query_source(char *query_source_arg, uint query_length_arg)
+  void set_query_source(char *query_source_arg, size_t query_length_arg)
   {
     if (unlikely(current))
       current->set_query_source(query_source_arg, query_length_arg);

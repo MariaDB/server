@@ -69,7 +69,7 @@ Connection::Connection(MYSQL_PLUGIN_VIO *vio): m_vio(vio), m_error(0)
 
 int Connection::write(const Blob &blob)
 {
-  m_error= m_vio->write_packet(m_vio, blob.ptr(), blob.len());
+  m_error= m_vio->write_packet(m_vio, blob.ptr(), (int)blob.len());
 
 #ifndef DBUG_OFF
   if (m_error)
@@ -392,8 +392,8 @@ char* wchar_to_utf8(const wchar_t *string, size_t *len)
   int res= WideCharToMultiByte(CP_UTF8,              // convert to UTF-8
                                0,                    // conversion flags
                                string,               // input buffer
-                               str_len,              // its length
-                               buf, buf_len,         // output buffer and its size
+                               (int)str_len,         // its length
+                               buf, (int)buf_len,         // output buffer and its size
                                NULL, NULL);          // default character (not used)
 
   if (res)
@@ -460,8 +460,8 @@ wchar_t* utf8_to_wchar(const char *string, size_t *len)
   res= MultiByteToWideChar(CP_UTF8,            // convert from UTF-8
                            0,                  // conversion flags
                            string,             // input buffer
-                           buf_len,            // its size
-                           buf, buf_len);      // output buffer and its size
+                           (int)buf_len,            // its size
+                           buf, (int)buf_len);      // output buffer and its size
   if (res)
   {
     buf[res]= '\0';
@@ -504,7 +504,7 @@ const char* get_last_error_message(Error_message_buf buf)
   buf[0]= '\0';
   FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
 		NULL, error, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		(LPTSTR)buf, sizeof(buf), NULL );
+		(LPTSTR)buf, ERRMSG_BUFSIZE , NULL );
 
   return buf;
 }

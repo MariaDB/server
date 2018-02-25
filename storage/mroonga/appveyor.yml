@@ -1,54 +1,63 @@
 version: "{build}"
 clone_depth: 10
+environment:
+  global:
+    MARIADB_VERSION: 10.1.26
+  matrix:
+    - CMAKE_GENERATOR_NAME: "Visual Studio 14 2015"
+    - CMAKE_GENERATOR_NAME: "Visual Studio 14 2015 Win64"
+
 install:
   - cd ..
   - choco install -y curl 7zip.commandline
-  - curl -O http://mirror.jmu.edu/pub/mariadb/mariadb-10.0.20/source/mariadb-10.0.20.tar.gz
-  - 7z x mariadb-10.0.20.tar.gz
-  - 7z x mariadb-10.0.20.tar > nul
-  - cd mariadb-10.0.20
+  - curl -O http://mirror.jmu.edu/pub/mariadb/mariadb-%MARIADB_VERSION%/source/mariadb-%MARIADB_VERSION%.tar.gz
+  - 7z x mariadb-%MARIADB_VERSION%.tar.gz
+  - 7z x mariadb-%MARIADB_VERSION%.tar > nul
+  - cd mariadb-%MARIADB_VERSION%
   - rmdir /S /Q storage\mroonga\
   - move ..\mroonga storage\mroonga
-  - git clone --quiet --depth 1 https://github.com/groonga/groonga.git ..\groonga
-  - cd ..\groonga
-  - git submodule update --init
-  - cd ..\mariadb-10.0.20
+  - git clone --quiet --depth 1 --recursive https://github.com/groonga/groonga.git ..\groonga
   - rmdir /S /Q ..\groonga\test\
+  - cd ..\groonga\vendor
+  - c:\Ruby22-x64\bin\ruby -v download_lz4.rb
+  - c:\Ruby22-x64\bin\ruby -v download_mecab.rb
+  - cd ..\..\mariadb-%MARIADB_VERSION%
   - mkdir storage\mroonga\vendor
   - move ..\groonga storage\mroonga\vendor\groonga
   - git clone --quiet --depth 1 https://github.com/groonga/groonga-normalizer-mysql.git storage\mroonga\vendor\groonga\vendor\plugins\groonga-normalizer-mysql
 build_script:
   - "echo # > win\\packaging\\CMakeLists.txt"
-  - cmake . -G "Visual Studio 12 Win64"
+  - cmake . -G "%CMAKE_GENERATOR_NAME%"
       -DCMAKE_BUILD_TYPE=Debug
-      -DWITHOUT_ARCHIVE=ON
-      -DWITHOUT_BLACKHOLE=ON
-      -DWITHOUT_CASSANDRA=ON
-      -DWITHOUT_CONNECT=ON
-      -DWITHOUT_CSV=ON
-      -DWITHOUT_EXAMPLE=ON
-      -DWITHOUT_FEDERATED=ON
-      -DWITHOUT_FEDERATEDX=ON
-      -DWITHOUT_HEAP=ON
-      -DWITHOUT_INNOBASE=ON
-      -DWITHOUT_MYISAM=ON
-      -DWITHOUT_MYISAMMRG=ON
-      -DWITHOUT_OQGRAPH=ON
-      -DWITHOUT_PERFSCHEMA=OFF
-      -DWITHOUT_SEQUENCE=ON
-      -DWITHOUT_SPHINX=ON
-      -DWITHOUT_SPIDER=ON
-      -DWITHOUT_TEST_SQL_DISCOVERY=ON
-      -DWITHOUT_TOKUDB=ON
-      -DWITHOUT_XTRADB=ON
+      -DPLUGIN_ARCHIVE=NO
+      -DPLUGIN_BLACKHOLE=NO
+      -DPLUGIN_CASSANDRA=NO
+      -DPLUGIN_CONNECT=NO
+      -DPLUGIN_CSV=NO
+      -DPLUGIN_EXAMPLE=NO
+      -DPLUGIN_FEDERATED=NO
+      -DPLUGIN_FEDERATEDX=NO
+      -DPLUGIN_HEAP=NO
+      -DPLUGIN_INNOBASE=NO
+      -DPLUGIN_MYISAM=NO
+      -DPLUGIN_MYISAMMRG=NO
+      -DPLUGIN_OQGRAPH=NO
+      -DPLUGIN_PERFSCHEMA=NO
+      -DPLUGIN_SEQUENCE=NO
+      -DPLUGIN_SPHINX=NO
+      -DPLUGIN_SPIDER=NO
+      -DPLUGIN_TEST_SQL_DISCOVERY=NO
+      -DPLUGIN_TOKUDB=NO
+      -DPLUGIN_XTRADB=NO
       -DWITH_UNIT_TESTS=OFF
+      -DWITH_MARIABACKUP=OFF
+      -DGRN_WITH_BUNDLED_MECAB=ON
   - cmake --build . --config Debug
 
 notifications:
   - provider: Email
     to:
       - groonga-mysql-commit@lists.sourceforge.jp
-      - kou@clear-code.com
     on_build_status_changed: true
 
 test: off

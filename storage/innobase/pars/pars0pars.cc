@@ -1085,7 +1085,7 @@ pars_update_statement_start(
 
 	node = upd_node_create(pars_sym_tab_global->heap);
 
-	node->is_delete = is_delete;
+	node->is_delete = is_delete ? PLAIN_DELETE : NO_DELETE;
 
 	node->table_sym = table_sym;
 	node->col_assign_list = col_assign_list;
@@ -1250,9 +1250,9 @@ pars_update_statement(
 	node->select = sel_node;
 
 	ut_a(!node->is_delete || (node->col_assign_list == NULL));
-	ut_a(node->is_delete || (node->col_assign_list != NULL));
+	ut_a(node->is_delete == PLAIN_DELETE || node->col_assign_list != NULL);
 
-	if (node->is_delete) {
+	if (node->is_delete == PLAIN_DELETE) {
 		node->cmpl_info = 0;
 	} else {
 		pars_process_assign_list(node);

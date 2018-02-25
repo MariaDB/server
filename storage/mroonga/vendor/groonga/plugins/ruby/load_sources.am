@@ -1,3 +1,0 @@
-load_la_SOURCES =				\
-	ruby_plugin.h				\
-	load.c

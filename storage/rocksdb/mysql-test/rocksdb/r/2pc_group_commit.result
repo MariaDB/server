@@ -14,16 +14,16 @@ SET GLOBAL rocksdb_flush_log_at_trx_commit=1;
 select variable_value into @b1 from information_schema.global_status where variable_name='Binlog_commits';
 select variable_value into @b2 from information_schema.global_status where variable_name='Binlog_group_commits';
 select variable_value into @b3 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
-select IF(variable_value - @b1 = 1000, 'OK', 'FAIL') as Binlog_commits 
+select IF(variable_value - @b1 = 1000, 'OK', variable_value - @b1 = 1000) as Binlog_commits 
 from information_schema.global_status where variable_name='Binlog_commits';
 Binlog_commits
 OK
-select IF(variable_value - @b2 = 1000, 'OK', 'FAIL') as Binlog_group_commits 
+select IF(variable_value - @b2 = 1000, 'OK', variable_value - @b2 = 1000) as Binlog_group_commits 
 from information_schema.global_status where variable_name='Binlog_group_commits';
 Binlog_group_commits
 OK
 # Prepare operations sync, commits don't. We expect slightly more than 1K syncs:
-select IF(variable_value - @b3 between 1000 and 1500, 'OK', 'FAIL') as Rocksdb_wal_synced 
+select IF(variable_value - @b3 between 1000 and 1500, 'OK', variable_value - @b3 between 1000 and 1500) as Rocksdb_wal_synced 
 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
 Rocksdb_wal_synced
 OK
@@ -33,17 +33,17 @@ OK
 select variable_value into @b1 from information_schema.global_status where variable_name='Binlog_commits';
 select variable_value into @b2 from information_schema.global_status where variable_name='Binlog_group_commits';
 select variable_value into @b3 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
-select IF(variable_value - @b1 = 10000, 'OK', 'FAIL') as Binlog_commits 
+select IF(variable_value - @b1 = 10000, 'OK', variable_value - @b1 = 10000) as Binlog_commits 
 from information_schema.global_status where variable_name='Binlog_commits';
 Binlog_commits
 OK
-select IF(variable_value - @b2 between 100 and 5000, 'OK', 'FAIL') as Binlog_group_commits 
+select IF(variable_value - @b2 between 100 and 5000, 'OK', variable_value - @b2 between 100 and 5000) as Binlog_group_commits 
 from information_schema.global_status where variable_name='Binlog_group_commits';
 Binlog_group_commits
 OK
-select IF(variable_value - @b3 between 1 and 9000, 'OK', 'FAIL')
+select IF(variable_value - @b3 between 1 and 9000, 'OK', variable_value - @b3 between 1 and 9000)
 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
-IF(variable_value - @b3 between 1 and 9000, 'OK', 'FAIL')
+IF(variable_value - @b3 between 1 and 9000, 'OK', variable_value - @b3 between 1 and 9000)
 OK
 ## 
 # 2PC enabled, MyRocks durability disabled, single thread
@@ -53,17 +53,17 @@ SET GLOBAL rocksdb_flush_log_at_trx_commit=0;
 select variable_value into @b1 from information_schema.global_status where variable_name='Binlog_commits';
 select variable_value into @b2 from information_schema.global_status where variable_name='Binlog_group_commits';
 select variable_value into @b3 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
-select IF(variable_value - @b1 = 1000, 'OK', 'FAIL') as Binlog_commits 
+select IF(variable_value - @b1 = 1000, 'OK', variable_value - @b1 = 1000) as Binlog_commits 
 from information_schema.global_status where variable_name='Binlog_commits';
 Binlog_commits
 OK
-select IF(variable_value - @b2 = 1000, 'OK', 'FAIL') as Binlog_group_commits 
+select IF(variable_value - @b2 = 1000, 'OK', variable_value - @b2 = 1000) as Binlog_group_commits 
 from information_schema.global_status where variable_name='Binlog_group_commits';
 Binlog_group_commits
 OK
-select IF(variable_value - @b3 < 10, 'OK', 'FAIL')
+select IF(variable_value - @b3 < 10, 'OK', variable_value - @b3 < 10)
 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
-IF(variable_value - @b3 < 10, 'OK', 'FAIL')
+IF(variable_value - @b3 < 10, 'OK', variable_value - @b3 < 10)
 OK
 ## 
 # 2PC enabled, MyRocks durability disabled, concurrent workload
@@ -71,17 +71,17 @@ OK
 select variable_value into @b1 from information_schema.global_status where variable_name='Binlog_commits';
 select variable_value into @b2 from information_schema.global_status where variable_name='Binlog_group_commits';
 select variable_value into @b3 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
-select IF(variable_value - @b1 = 10000, 'OK', 'FAIL') as Binlog_commits 
+select IF(variable_value - @b1 = 10000, 'OK', variable_value - @b1 = 10000) as Binlog_commits 
 from information_schema.global_status where variable_name='Binlog_commits';
 Binlog_commits
 OK
-select IF(variable_value - @b2 < 8000, 'OK', 'FAIL') as Binlog_group_commits 
+select IF(variable_value - @b2 < 8000, 'OK', variable_value - @b2 < 8000) as Binlog_group_commits 
 from information_schema.global_status where variable_name='Binlog_group_commits';
 Binlog_group_commits
 OK
-select IF(variable_value - @b3 < 10, 'OK', 'FAIL')
+select IF(variable_value - @b3 < 10, 'OK', variable_value - @b3 < 10)
 from information_schema.global_status where variable_name='Rocksdb_wal_synced';
-IF(variable_value - @b3 < 10, 'OK', 'FAIL')
+IF(variable_value - @b3 < 10, 'OK', variable_value - @b3 < 10)
 OK
 SET GLOBAL rocksdb_enable_2pc= @save_rocksdb_enable_2pc;
 SET GLOBAL rocksdb_flush_log_at_trx_commit= @save_rocksdb_flush_log_at_trx_commit;

@@ -306,7 +306,7 @@ row_undo_mod_clust(
 		/* We may have to modify tree structure: do a pessimistic
 		descent down the index tree */
 
-		mtr_start_trx(&mtr, thr_get_trx(thr));
+		mtr.start();
 		if (index->table->is_temporary()) {
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
 		} else {
@@ -366,7 +366,7 @@ row_undo_mod_clust(
 
 	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_UPD_DEL_REC) {
 
-		mtr_start_trx(&mtr, thr_get_trx(thr));
+		mtr.start();
 		if (index->table->is_temporary()) {
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
 		} else {
@@ -384,7 +384,7 @@ row_undo_mod_clust(
 			/* We may have to modify tree structure: do a
 			pessimistic descent down the index tree */
 
-			mtr_start_trx(&mtr, thr_get_trx(thr));
+			mtr.start();
 			if (index->table->is_temporary()) {
 				mtr.set_log_mode(MTR_LOG_NO_REDO);
 			} else {
@@ -498,7 +498,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	which cannot be purged yet, requires its existence. If some requires,
 	we should delete mark the record. */
 
-	mtr_start_trx(&mtr_vers, thr_get_trx(thr));
+	mtr_vers.start();
 
 	success = btr_pcur_restore_position(BTR_SEARCH_LEAF, &(node->pcur),
 					    &mtr_vers);
@@ -624,13 +624,13 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 
 	ut_ad(trx->id != 0);
 
-	/* FIXME: Currently we do a 2-pass search for the undo due to
-	avoid undel-mark a wrong rec in rolling back in partial update.
-	Later, we could log some info in secondary index updates to avoid
-	this. */
 	if (dict_index_is_spatial(index)) {
+		/* FIXME: Currently we do a 2-pass search for the undo
+		due to avoid undel-mark a wrong rec in rolling back in
+		partial update.  Later, we could log some info in
+		secondary index updates to avoid this. */
 		ut_ad(mode & BTR_MODIFY_LEAF);
-		mode |=  BTR_RTREE_DELETE_MARK;
+		mode |= BTR_RTREE_DELETE_MARK;
 	}
 
 try_again:
@@ -1144,6 +1144,8 @@ row_undo_mod_parse_undo_rec(
 		return;
 	}
 
+	ut_ad(!node->table->skip_alter_undo);
+
 	if (UNIV_UNLIKELY(!fil_table_accessible(node->table))) {
 close_table:
 		/* Normally, tables should not disappear or become
@@ -1192,7 +1194,16 @@ close_table:
 	if (!row_undo_search_clust_to_pcur(node)) {
 		/* As long as this rolling-back transaction exists,
 		the PRIMARY KEY value pointed to by the undo log
-		record must exist. But, it is possible that the record
+		record should exist.
+
+		However, if InnoDB is killed during a rollback, or
+		shut down during the rollback of recovered
+		transactions, then after restart we may try to roll
+		back some of the same undo log records again, because
+		trx_roll_try_truncate() is not being invoked after
+		every undo log record.
+
+		It is also possible that the record
 		was not modified yet (the DB_ROLL_PTR does not match
 		node->roll_ptr) and thus there is nothing to roll back.
 
@@ -1200,8 +1211,11 @@ close_table:
 		record after successfully acquiring an exclusive lock
 		on the the clustered index record. That lock will not
 		be released before the transaction is committed or
-		fully rolled back. */
-		ut_ad(node->pcur.btr_cur.low_match == node->ref->n_fields);
+		fully rolled back. (Exception: if the server was
+		killed, restarted, and shut down again before the
+		rollback of the recovered transaction was completed,
+		it is possible that the transaction was partially
+		rolled back and locks released.) */
 		goto close_table;
 	}
 

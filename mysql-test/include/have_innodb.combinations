@@ -6,6 +6,7 @@ innodb-cmpmem
 innodb-cmp-per-index
 innodb-trx
 innodb-locks
+innodb-lock-waits
 innodb-buffer-pool-stats
 innodb-buffer-page
 innodb-buffer-page-lru
@@ -24,6 +25,7 @@ innodb-cmpmem
 innodb-cmp-per-index
 innodb-trx
 innodb-locks
+innodb-lock-waits
 innodb-metrics
 innodb-buffer-pool-stats
 innodb-buffer-page

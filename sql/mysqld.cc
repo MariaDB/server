@@ -46,7 +46,6 @@
 #include "sql_servers.h"  // servers_free, servers_init
 #include "init.h"         // unireg_init
 #include "derror.h"       // init_errmessage
-#include "derror.h"       // init_errmessage
 #include "des_key_file.h" // load_des_key_file
 #include "sql_manager.h"  // stop_handle_manager, start_handle_manager
 #include "sql_expression_cache.h" // subquery_cache_miss, subquery_cache_hit
@@ -97,8 +96,10 @@
 #include "set_var.h"
 
 #include "rpl_injector.h"
+#include "semisync_master.h"
+#include "semisync_slave.h"
 
-#include "rpl_handler.h"
+#include "transaction.h"
 
 #ifdef HAVE_SYS_PRCTL_H
 #include <sys/prctl.h>
@@ -444,6 +445,7 @@ my_bool opt_replicate_annotate_row_events= 0;
 my_bool opt_mysql56_temporal_format=0, strict_password_validation= 1;
 my_bool opt_explicit_defaults_for_timestamp= 0;
 char *opt_slave_skip_errors;
+char *opt_slave_transaction_retry_errors;
 
 /*
   Legacy global handlerton. These will be removed (please do not add more).
@@ -491,7 +493,6 @@ uint protocol_version;
 uint lower_case_table_names;
 ulong tc_heuristic_recover= 0;
 int32 thread_count, service_thread_count;
-int32 thread_running;
 int32 slave_open_temp_tables;
 ulong thread_created;
 ulong back_log, connect_timeout, concurrency, server_id;
@@ -499,6 +500,7 @@ ulong what_to_log;
 ulong slow_launch_time;
 ulong open_files_limit, max_binlog_size;
 ulong slave_trans_retries;
+ulong slave_trans_retry_interval;
 uint  slave_net_timeout;
 ulong slave_exec_mode_options;
 ulong slave_run_triggers_for_rbr= 0;
@@ -557,7 +559,7 @@ ulong max_prepared_stmt_count;
   statements.
 */
 ulong prepared_stmt_count=0;
-my_thread_id global_thread_id= 1;
+my_thread_id global_thread_id= 0;
 ulong current_pid;
 ulong slow_launch_threads = 0;
 uint sync_binlog_period= 0, sync_relaylog_period= 0,
@@ -623,7 +625,7 @@ char mysql_real_data_home[FN_REFLEN],
      *opt_init_file, *opt_tc_log_file;
 char *lc_messages_dir_ptr= lc_messages_dir, *log_error_file_ptr;
 char mysql_unpacked_real_data_home[FN_REFLEN];
-int mysql_unpacked_real_data_home_len;
+size_t mysql_unpacked_real_data_home_len;
 uint mysql_real_data_home_len, mysql_data_home_len= 1;
 uint reg_ext_length;
 const key_map key_map_empty(0);
@@ -764,6 +766,9 @@ mysql_mutex_t LOCK_stats, LOCK_global_user_client_stats,
 /* This protects against changes in master_info_index */
 mysql_mutex_t LOCK_active_mi;
 
+/* This protects connection id.*/
+mysql_mutex_t LOCK_thread_id;
+
 /**
   The below lock protects access to two global server variables:
   max_prepared_stmt_count and prepared_stmt_count. These variables
@@ -776,7 +781,7 @@ mysql_mutex_t LOCK_prepared_stmt_count;
 mysql_mutex_t LOCK_des_key_file;
 #endif
 mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
-mysql_rwlock_t LOCK_system_variables_hash;
+mysql_prlock_t LOCK_system_variables_hash;
 mysql_cond_t COND_thread_count, COND_start_thread;
 pthread_t signal_thread;
 pthread_attr_t connection_attrib;
@@ -909,7 +914,7 @@ PSI_mutex_key key_LOCK_des_key_file;
 
 PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
-  m_key_LOCK_binlog_end_pos,
+  key_LOCK_binlog_end_pos,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
   key_LOCK_connection_count, key_LOCK_crypt, key_LOCK_delayed_create,
   key_LOCK_delayed_insert, key_LOCK_delayed_status, key_LOCK_error_log,
@@ -931,8 +936,11 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_thread_count, key_LOCK_thread_cache,
   key_PARTITION_LOCK_auto_inc;
 PSI_mutex_key key_RELAYLOG_LOCK_index;
+PSI_mutex_key key_LOCK_relaylog_end_pos;
+PSI_mutex_key key_LOCK_thread_id;
 PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
   key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool, key_LOCK_parallel_entry;
+PSI_mutex_key key_LOCK_binlog;
 
 PSI_mutex_key key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
@@ -944,6 +952,10 @@ PSI_mutex_key key_LOCK_after_binlog_sync;
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered,
   key_LOCK_slave_background;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
+PSI_mutex_key key_LOCK_ack_receiver;
+
+PSI_mutex_key key_TABLE_SHARE_LOCK_rotation;
+PSI_cond_key key_TABLE_SHARE_COND_rotation;
 
 static PSI_mutex_info all_server_mutexes[]=
 {
@@ -962,12 +974,14 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_BINLOG_LOCK_index, "MYSQL_BIN_LOG::LOCK_index", 0},
   { &key_BINLOG_LOCK_xid_list, "MYSQL_BIN_LOG::LOCK_xid_list", 0},
   { &key_BINLOG_LOCK_binlog_background_thread, "MYSQL_BIN_LOG::LOCK_binlog_background_thread", 0},
-  { &m_key_LOCK_binlog_end_pos, "MYSQL_BIN_LOG::LOCK_binlog_end_pos", 0 },
+  { &key_LOCK_binlog_end_pos, "MYSQL_BIN_LOG::LOCK_binlog_end_pos", 0 },
   { &key_RELAYLOG_LOCK_index, "MYSQL_RELAY_LOG::LOCK_index", 0},
+  { &key_LOCK_relaylog_end_pos, "MYSQL_RELAY_LOG::LOCK_binlog_end_pos", 0},
   { &key_delayed_insert_mutex, "Delayed_insert::mutex", 0},
   { &key_hash_filo_lock, "hash_filo::lock", 0},
   { &key_LOCK_active_mi, "LOCK_active_mi", PSI_FLAG_GLOBAL},
   { &key_LOCK_connection_count, "LOCK_connection_count", PSI_FLAG_GLOBAL},
+  { &key_LOCK_thread_id, "LOCK_thread_id", PSI_FLAG_GLOBAL},
   { &key_LOCK_crypt, "LOCK_crypt", PSI_FLAG_GLOBAL},
   { &key_LOCK_delayed_create, "LOCK_delayed_create", PSI_FLAG_GLOBAL},
   { &key_LOCK_delayed_insert, "LOCK_delayed_insert", PSI_FLAG_GLOBAL},
@@ -1006,6 +1020,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_structure_guard_mutex, "Query_cache::structure_guard_mutex", 0},
   { &key_TABLE_SHARE_LOCK_ha_data, "TABLE_SHARE::LOCK_ha_data", 0},
   { &key_TABLE_SHARE_LOCK_share, "TABLE_SHARE::LOCK_share", 0},
+  { &key_TABLE_SHARE_LOCK_rotation, "TABLE_SHARE::LOCK_rotation", 0},
   { &key_LOCK_error_messages, "LOCK_error_messages", PSI_FLAG_GLOBAL},
   { &key_LOCK_prepare_ordered, "LOCK_prepare_ordered", PSI_FLAG_GLOBAL},
   { &key_LOCK_after_binlog_sync, "LOCK_after_binlog_sync", PSI_FLAG_GLOBAL},
@@ -1020,14 +1035,16 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_binlog_state, "LOCK_binlog_state", 0},
   { &key_LOCK_rpl_thread, "LOCK_rpl_thread", 0},
   { &key_LOCK_rpl_thread_pool, "LOCK_rpl_thread_pool", 0},
-  { &key_LOCK_parallel_entry, "LOCK_parallel_entry", 0}
+  { &key_LOCK_parallel_entry, "LOCK_parallel_entry", 0},
+  { &key_LOCK_ack_receiver, "Ack_receiver::mutex", 0},
+  { &key_LOCK_binlog, "LOCK_binlog", 0}
 };
 
 PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
   key_rwlock_LOCK_sys_init_connect, key_rwlock_LOCK_sys_init_slave,
   key_rwlock_LOCK_system_variables_hash, key_rwlock_query_cache_query_lock,
-  key_LOCK_SEQUENCE;
-
+  key_LOCK_SEQUENCE,
+  key_rwlock_LOCK_vers_stats, key_rwlock_LOCK_stat_serial;
 
 static PSI_rwlock_info all_server_rwlocks[]=
 {
@@ -1040,14 +1057,17 @@ static PSI_rwlock_info all_server_rwlocks[]=
   { &key_rwlock_LOCK_sys_init_slave, "LOCK_sys_init_slave", PSI_FLAG_GLOBAL},
   { &key_LOCK_SEQUENCE, "LOCK_SEQUENCE", 0},
   { &key_rwlock_LOCK_system_variables_hash, "LOCK_system_variables_hash", PSI_FLAG_GLOBAL},
-  { &key_rwlock_query_cache_query_lock, "Query_cache_query::lock", 0}
+  { &key_rwlock_query_cache_query_lock, "Query_cache_query::lock", 0},
+  { &key_rwlock_LOCK_vers_stats, "Vers_field_stats::lock", 0},
+  { &key_rwlock_LOCK_stat_serial, "TABLE_SHARE::LOCK_stat_serial", 0}
 };
 
 #ifdef HAVE_MMAP
 PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;
 #endif /* HAVE_MMAP */
 
-PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
+PSI_cond_key key_BINLOG_COND_xid_list,
+  key_BINLOG_COND_bin_log_updated, key_BINLOG_COND_relay_log_updated,
   key_BINLOG_COND_binlog_background_thread,
   key_BINLOG_COND_binlog_background_thread_end,
   key_COND_cache_status_changed, key_COND_manager,
@@ -1061,9 +1081,10 @@ PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_rpl_group_info_sleep_cond,
   key_TABLE_SHARE_cond, key_user_level_lock_cond,
   key_COND_thread_count, key_COND_thread_cache, key_COND_flush_thread_cache,
-  key_COND_start_thread,
+  key_COND_start_thread, key_COND_binlog_send,
   key_BINLOG_COND_queue_busy;
-PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
+PSI_cond_key key_RELAYLOG_COND_relay_log_updated,
+  key_RELAYLOG_COND_bin_log_updated, key_COND_wakeup_ready,
   key_COND_wait_commit;
 PSI_cond_key key_RELAYLOG_COND_queue_busy;
 PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
@@ -1072,6 +1093,7 @@ PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
   key_COND_parallel_entry, key_COND_group_commit_orderer,
   key_COND_prepare_ordered, key_COND_slave_background;
 PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
+PSI_cond_key key_COND_ack_receiver;
 
 static PSI_cond_info all_server_conds[]=
 {
@@ -1084,12 +1106,13 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_pool, "TC_LOG_MMAP::COND_pool", 0},
   { &key_TC_LOG_MMAP_COND_queue_busy, "TC_LOG_MMAP::COND_queue_busy", 0},
 #endif /* HAVE_MMAP */
+  { &key_BINLOG_COND_bin_log_updated, "MYSQL_BIN_LOG::COND_bin_log_updated", 0}, { &key_BINLOG_COND_relay_log_updated, "MYSQL_BIN_LOG::COND_relay_log_updated", 0},
   { &key_BINLOG_COND_xid_list, "MYSQL_BIN_LOG::COND_xid_list", 0},
-  { &key_BINLOG_update_cond, "MYSQL_BIN_LOG::update_cond", 0},
   { &key_BINLOG_COND_binlog_background_thread, "MYSQL_BIN_LOG::COND_binlog_background_thread", 0},
   { &key_BINLOG_COND_binlog_background_thread_end, "MYSQL_BIN_LOG::COND_binlog_background_thread_end", 0},
   { &key_BINLOG_COND_queue_busy, "MYSQL_BIN_LOG::COND_queue_busy", 0},
-  { &key_RELAYLOG_update_cond, "MYSQL_RELAY_LOG::update_cond", 0},
+  { &key_RELAYLOG_COND_relay_log_updated, "MYSQL_RELAY_LOG::COND_relay_log_updated", 0},
+  { &key_RELAYLOG_COND_bin_log_updated, "MYSQL_RELAY_LOG::COND_bin_log_updated", 0},
   { &key_RELAYLOG_COND_queue_busy, "MYSQL_RELAY_LOG::COND_queue_busy", 0},
   { &key_COND_wakeup_ready, "THD::COND_wakeup_ready", 0},
   { &key_COND_wait_commit, "wait_for_commit::COND_wait_commit", 0},
@@ -1123,13 +1146,17 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_slave_background, "COND_slave_background", 0},
   { &key_COND_start_thread, "COND_start_thread", PSI_FLAG_GLOBAL},
   { &key_COND_wait_gtid, "COND_wait_gtid", 0},
-  { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0}
+  { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0},
+  { &key_COND_ack_receiver, "Ack_receiver::cond", 0},
+  { &key_COND_binlog_send, "COND_binlog_send", 0},
+  { &key_TABLE_SHARE_COND_rotation, "TABLE_SHARE::COND_rotation", 0}
 };
 
 PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand,
   key_thread_slave_background, key_rpl_parallel_thread;
+PSI_thread_key key_thread_ack_receiver;
 
 static PSI_thread_info all_server_threads[]=
 {
@@ -1156,6 +1183,7 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_one_connection, "one_connection", 0},
   { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL},
   { &key_thread_slave_background, "slave_background", PSI_FLAG_GLOBAL},
+  { &key_thread_ack_receiver, "Ack_receiver", PSI_FLAG_GLOBAL},
   { &key_rpl_parallel_thread, "rpl_parallel_thread", 0}
 };
 
@@ -1222,7 +1250,7 @@ void net_after_header_psi(struct st_net *net, void *user_data,
   {
     thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
                                                 stmt_info_new_packet.m_key,
-                                                thd->db, thd->db_length,
+                                                thd->get_db(), thd->db.length,
                                                 thd->charset());
 
     THD_STAGE_INFO(thd, stage_init);
@@ -1351,7 +1379,7 @@ private:
 
 void Buffered_logs::init()
 {
-  init_alloc_root(&m_root, 1024, 0, MYF(0));
+  init_alloc_root(&m_root, "Buffered_logs", 1024, 0, MYF(0));
 }
 
 void Buffered_logs::cleanup()
@@ -1633,13 +1661,11 @@ static void close_connections(void)
   {
     if (mysql_socket_getfd(base_ip_sock) != INVALID_SOCKET)
     {
-      (void) mysql_socket_shutdown(base_ip_sock, SHUT_RDWR);
       (void) mysql_socket_close(base_ip_sock);
       base_ip_sock= MYSQL_INVALID_SOCKET;
     }
     if (mysql_socket_getfd(extra_ip_sock) != INVALID_SOCKET)
     {
-      (void) mysql_socket_shutdown(extra_ip_sock, SHUT_RDWR);
       (void) mysql_socket_close(extra_ip_sock);
       extra_ip_sock= MYSQL_INVALID_SOCKET;
     }
@@ -1671,7 +1697,6 @@ static void close_connections(void)
 #ifdef HAVE_SYS_UN_H
   if (mysql_socket_getfd(unix_sock) != INVALID_SOCKET)
   {
-    (void) mysql_socket_shutdown(unix_sock, SHUT_RDWR);
     (void) mysql_socket_close(unix_sock);
     (void) unlink(mysqld_unix_port);
     unix_sock= MYSQL_INVALID_SOCKET;
@@ -1708,7 +1733,7 @@ static void close_connections(void)
 #endif
     tmp->set_killed(KILL_SERVER_HARD);
     MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (tmp));
-    mysql_mutex_lock(&tmp->LOCK_thd_data);
+    mysql_mutex_lock(&tmp->LOCK_thd_kill);
     if (tmp->mysys_var)
     {
       tmp->mysys_var->abort=1;
@@ -1731,13 +1756,14 @@ static void close_connections(void)
       }
       mysql_mutex_unlock(&tmp->mysys_var->mutex);
     }
-    mysql_mutex_unlock(&tmp->LOCK_thd_data);
+    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
   }
   mysql_mutex_unlock(&LOCK_thread_count); // For unlink from list
 
   Events::deinit();
   slave_prepare_for_shutdown();
   mysql_bin_log.stop_background_thread();
+  ack_receiver.stop();
 
   /*
     Give threads time to die.
@@ -2049,8 +2075,8 @@ pthread_handler_t kill_server_thread(void *arg __attribute__((unused)))
 extern "C" sig_handler print_signal_warning(int sig)
 {
   if (global_system_variables.log_warnings)
-    sql_print_warning("Got signal %d from thread %ld", sig,
-                      (ulong) my_thread_id());
+    sql_print_warning("Got signal %d from thread %u", sig,
+                      (uint)my_thread_id());
 #ifdef SIGNAL_HANDLER_RESET_ON_DELIVERY
   my_sigset(sig,print_signal_warning);		/* int. thread system calls */
 #endif
@@ -2167,6 +2193,9 @@ static void mysqld_exit(int exit_code)
             (long) global_status_var.global_memory_used);
   if (!opt_debugging && !my_disable_leak_check && exit_code == 0)
   {
+#ifdef SAFEMALLOC
+    sf_report_leaked_memory(0);
+#endif
     DBUG_SLOW_ASSERT(global_status_var.global_memory_used == 0);
   }
   cleanup_tls();
@@ -2216,7 +2245,9 @@ void clean_up(bool print_message)
   ha_end();
   if (tc_log)
     tc_log->close();
-  delegates_destroy();
+#ifdef HAVE_REPLICATION
+  semi_sync_master_deinit();
+#endif
   xid_cache_free();
   tdc_deinit();
   mdl_destroy();
@@ -2338,6 +2369,7 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_crypt);
   mysql_mutex_destroy(&LOCK_user_conn);
   mysql_mutex_destroy(&LOCK_connection_count);
+  mysql_mutex_destroy(&LOCK_thread_id);
   mysql_mutex_destroy(&LOCK_stats);
   mysql_mutex_destroy(&LOCK_global_user_client_stats);
   mysql_mutex_destroy(&LOCK_global_table_stats);
@@ -2357,7 +2389,7 @@ static void clean_up_mutexes()
   mysql_rwlock_destroy(&LOCK_sys_init_connect);
   mysql_rwlock_destroy(&LOCK_sys_init_slave);
   mysql_mutex_destroy(&LOCK_global_system_variables);
-  mysql_rwlock_destroy(&LOCK_system_variables_hash);
+  mysql_prlock_destroy(&LOCK_system_variables_hash);
   mysql_mutex_destroy(&LOCK_short_uuid_generator);
   mysql_mutex_destroy(&LOCK_prepared_stmt_count);
   mysql_mutex_destroy(&LOCK_error_messages);
@@ -2478,10 +2510,9 @@ static void set_user(const char *user, struct passwd *user_info_arg)
   allow_coredumps();
 }
 
-
+#if !defined(__WIN__)
 static void set_effective_user(struct passwd *user_info_arg)
 {
-#if !defined(__WIN__)
   DBUG_ASSERT(user_info_arg != 0);
   if (setregid((gid_t)-1, user_info_arg->pw_gid) == -1)
   {
@@ -2494,9 +2525,8 @@ static void set_effective_user(struct passwd *user_info_arg)
     unireg_abort(1);
   }
   allow_coredumps();
-#endif
 }
-
+#endif
 
 /** Change root user if started with @c --chroot . */
 static void set_root(const char *path)
@@ -2711,7 +2741,7 @@ static void network_init(void)
 
 #ifdef _WIN32
   /* create named pipe */
-  if (Service.IsNT() && mysqld_unix_port[0] && !opt_bootstrap &&
+  if (mysqld_unix_port[0] && !opt_bootstrap &&
       opt_enable_named_pipe)
   {
 
@@ -2901,16 +2931,17 @@ void unlink_thd(THD *thd)
   DBUG_ENTER("unlink_thd");
   DBUG_PRINT("enter", ("thd: %p", thd));
 
+  thd->cleanup();
+  thd->add_status_to_global();
+  unlink_not_visible_thd(thd);
+
   /*
     Do not decrement when its wsrep system thread. wsrep_applier is set for
     applier as well as rollbacker threads.
   */
   if (IF_WSREP(!thd->wsrep_applier, 1))
     dec_connection_count(thd->scheduler);
-  thd->cleanup();
-  thd->add_status_to_global();
 
-  unlink_not_visible_thd(thd);
   thd->free_connection();
 
   DBUG_VOID_RETURN;
@@ -2948,13 +2979,11 @@ static bool cache_thread(THD *thd)
     DBUG_PRINT("info", ("Adding thread to cache"));
     cached_thread_count++;
 
-#ifdef HAVE_PSI_THREAD_INTERFACE
     /*
       Delete the instrumentation for the job that just completed,
       before parking this pthread in the cache (blocked on COND_thread_cache).
     */
-    PSI_THREAD_CALL(delete_current_thread)();
-#endif
+    PSI_CALL_delete_current_thread();
 
 #ifndef DBUG_OFF
     while (_db_is_pushed_())
@@ -3001,15 +3030,13 @@ static bool cache_thread(THD *thd)
       */
       thd->store_globals();
 
-#ifdef HAVE_PSI_THREAD_INTERFACE
       /*
         Create new instrumentation for the new THD job,
         and attach it to this running pthread.
       */
-      PSI_thread *psi= PSI_THREAD_CALL(new_thread)(key_thread_one_connection,
+      PSI_thread *psi= PSI_CALL_new_thread(key_thread_one_connection,
                                                    thd, thd->thread_id);
-      PSI_THREAD_CALL(set_thread)(psi);
-#endif
+      PSI_CALL_set_thread(psi);
 
       /* reset abort flag for the thread */
       thd->mysys_var->abort= 0;
@@ -3540,10 +3567,8 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       if (!abort_loop)
       {
 	abort_loop=1;				// mark abort for threads
-#ifdef HAVE_PSI_THREAD_INTERFACE
         /* Delete the instrumentation for the signal thread */
-        PSI_THREAD_CALL(delete_current_thread)();
-#endif
+        PSI_CALL_delete_current_thread();
 #ifdef USE_ONE_SIGNAL_HAND
 	pthread_t tmp;
         if ((error= mysql_thread_create(0, /* Not instrumented */
@@ -3660,23 +3685,10 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
 
 
 extern "C" void *my_str_malloc_mysqld(size_t size);
-extern "C" void my_str_free_mysqld(void *ptr);
-extern "C" void *my_str_realloc_mysqld(void *ptr, size_t size);
 
 void *my_str_malloc_mysqld(size_t size)
 {
   return my_malloc(size, MYF(MY_FAE));
-}
-
-
-void my_str_free_mysqld(void *ptr)
-{
-  my_free(ptr);
-}
-
-void *my_str_realloc_mysqld(void *ptr, size_t size)
-{
-  return my_realloc(ptr, size, MYF(MY_FAE));
 }
 
 
@@ -3735,14 +3747,8 @@ check_enough_stack_size(int recurse_level)
 }
 
 
-/*
-   Initialize my_str_malloc() and my_str_free()
-*/
 static void init_libstrings()
 {
-  my_str_malloc= &my_str_malloc_mysqld;
-  my_str_free= &my_str_free_mysqld;
-  my_str_realloc= &my_str_realloc_mysqld;
 #ifndef EMBEDDED_LIBRARY
   my_string_stack_guard= check_enough_stack_size;
 #endif
@@ -3753,7 +3759,7 @@ ulonglong my_pcre_frame_size;
 static void init_pcre()
 {
   pcre_malloc= pcre_stack_malloc= my_str_malloc_mysqld;
-  pcre_free= pcre_stack_free= my_str_free_mysqld;
+  pcre_free= pcre_stack_free= my_free;
   pcre_stack_guard= check_enough_stack_size_slow;
   /* See http://pcre.org/original/doc/html/pcrestack.html */
   my_pcre_frame_size= -pcre_exec(NULL, NULL, NULL, -999, -999, 0, NULL, 0);
@@ -4235,10 +4241,12 @@ static int init_common_variables()
     constructor (called before main()).
   */
   mysql_bin_log.set_psi_keys(key_BINLOG_LOCK_index,
-                             key_BINLOG_update_cond,
+                             key_BINLOG_COND_relay_log_updated,
+                             key_BINLOG_COND_bin_log_updated,
                              key_file_binlog,
                              key_file_binlog_index,
-                             key_BINLOG_COND_queue_busy);
+                             key_BINLOG_COND_queue_busy,
+                             key_LOCK_binlog_end_pos);
 #endif
 
   /*
@@ -4252,7 +4260,7 @@ static int init_common_variables()
   /* TODO: remove this when my_time_t is 64 bit compatible */
   if (!IS_TIME_T_VALID_FOR_TIMESTAMP(server_start_time))
   {
-    sql_print_error("This MySQL server doesn't support dates later then 2038");
+    sql_print_error("This MySQL server doesn't support dates later than 2038");
     exit(1);
   }
 
@@ -4710,6 +4718,8 @@ static int init_common_variables()
     return 1;
   }
 
+  global_system_variables.in_subquery_conversion_threshold= IN_SUBQUERY_CONVERSION_THRESHOLD;
+
   return 0;
 }
 
@@ -4735,7 +4745,7 @@ static int init_thread_environment()
                    &LOCK_global_system_variables, MY_MUTEX_INIT_FAST);
   mysql_mutex_record_order(&LOCK_active_mi, &LOCK_global_system_variables);
   mysql_mutex_record_order(&LOCK_status, &LOCK_thread_count);
-  mysql_rwlock_init(key_rwlock_LOCK_system_variables_hash,
+  mysql_prlock_init(key_rwlock_LOCK_system_variables_hash,
                     &LOCK_system_variables_hash);
   mysql_mutex_init(key_LOCK_prepared_stmt_count,
                    &LOCK_prepared_stmt_count, MY_MUTEX_INIT_FAST);
@@ -4745,6 +4755,8 @@ static int init_thread_environment()
                    &LOCK_short_uuid_generator, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_connection_count,
                    &LOCK_connection_count, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_thread_id,
+                   &LOCK_thread_id, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_stats, &LOCK_stats, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_global_user_client_stats,
                    &LOCK_global_user_client_stats, MY_MUTEX_INIT_FAST);
@@ -5131,13 +5143,6 @@ static int init_server_components()
 
   xid_cache_init();
 
-  /*
-    initialize delegates for extension observers, errors have already
-    been reported in the function
-  */
-  if (delegates_init())
-    unireg_abort(1);
-
   /* need to configure logging before initializing storage engines */
   if (!opt_bin_log_used && !WSREP_ON)
   {
@@ -5168,6 +5173,13 @@ static int init_server_components()
                         "--log-slave-updates would lead to infinite loops in "
                         "this server. However this will be ignored as the "
                         "--log-bin option is not defined.");
+  }
+
+  if (repl_semisync_master.init_object() ||
+      repl_semisync_slave.init_object())
+  {
+    sql_print_error("Could not initialize semisync.");
+    unireg_abort(1);
   }
 #endif
 
@@ -5285,10 +5297,7 @@ static int init_server_components()
     {
       unireg_abort(1);
     }
-  }
 
-  if (opt_bin_log)
-  {
     log_bin_basename=
       rpl_make_log_name(opt_bin_logname, pidfile_name,
                         opt_bin_logname ? "" : "-bin");
@@ -5674,8 +5683,8 @@ static void test_lc_time_sz()
   DBUG_ENTER("test_lc_time_sz");
   for (MY_LOCALE **loc= my_locales; *loc; loc++)
   {
-    uint max_month_len= 0;
-    uint max_day_len = 0;
+    size_t max_month_len= 0;
+    size_t max_day_len= 0;
     for (const char **month= (*loc)->month_names->type_names; *month; month++)
     {
       set_if_bigger(max_month_len,
@@ -5822,8 +5831,8 @@ int mysqld_main(int argc, char **argv)
       */
       init_server_psi_keys();
       /* Instrument the main thread */
-      PSI_thread *psi= PSI_THREAD_CALL(new_thread)(key_thread_main, NULL, 0);
-      PSI_THREAD_CALL(set_thread)(psi);
+      PSI_thread *psi= PSI_CALL_new_thread(key_thread_main, NULL, 0);
+      PSI_CALL_set_thread(psi);
 
       /*
         Now that some instrumentation is in place,
@@ -5942,9 +5951,6 @@ int mysqld_main(int argc, char **argv)
 #ifdef __WIN__
   if (!opt_console)
   {
-    if (reopen_fstreams(log_error_file, stdout, stderr))
-      unireg_abort(1);
-    setbuf(stderr, NULL);
     FreeConsole();				// Remove window
   }
 
@@ -6106,12 +6112,14 @@ int mysqld_main(int argc, char **argv)
                           mysqld_port, MYSQL_COMPILATION_COMMENT);
   }
 
+#ifndef _WIN32
   // try to keep fd=0 busy
-  if (!freopen(IF_WIN("NUL","/dev/null"), "r", stdin))
+  if (!freopen("/dev/null", "r", stdin))
   {
     // fall back on failure
     fclose(stdin);
   }
+#endif
 
 #if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
   Service.SetRunning();
@@ -6145,13 +6153,11 @@ int mysqld_main(int argc, char **argv)
   mysql_mutex_unlock(&LOCK_start_thread);
 #endif /* __WIN__ */
 
-#ifdef HAVE_PSI_THREAD_INTERFACE
   /*
     Disable the main thread instrumentation,
     to avoid recording events during the shutdown.
   */
-  PSI_THREAD_CALL(delete_current_thread)();
-#endif
+  PSI_CALL_delete_current_thread();
 
   /* Wait until cleanup is done */
   mysql_mutex_lock(&LOCK_thread_count);
@@ -6160,7 +6166,7 @@ int mysqld_main(int argc, char **argv)
   mysql_mutex_unlock(&LOCK_thread_count);
 
 #if defined(__WIN__) && !defined(EMBEDDED_LIBRARY)
-  if (Service.IsNT() && start_mode)
+  if (start_mode)
     Service.Stop();
   else
   {
@@ -6185,10 +6191,10 @@ int mysqld_main(int argc, char **argv)
 ****************************************************************************/
 
 #if defined(__WIN__) && !defined(EMBEDDED_LIBRARY)
-int mysql_service(void *p)
+void  mysql_service(void *p)
 {
   if (my_thread_init())
-    return 1;
+    abort();
   
   if (use_opt_args)
     win_main(opt_argc, opt_argv);
@@ -6196,7 +6202,6 @@ int mysql_service(void *p)
     win_main(Service.my_argc, Service.my_argv);
 
   my_thread_end();
-  return 0;
 }
 
 
@@ -6247,7 +6252,7 @@ default_service_handling(char **argv,
      the option name) should be quoted if it contains a string.  
     */
     *pos++= ' ';
-    if (opt_delim= strchr(extra_opt, '='))
+    if ((opt_delim= strchr(extra_opt, '=')))
     {
       size_t length= ++opt_delim - extra_opt;
       pos= strnmov(pos, extra_opt, length);
@@ -6303,87 +6308,86 @@ int mysqld_main(int argc, char **argv)
     return 1;
   }
 
-  if (Service.GetOS())	/* true NT family */
-  {
-    char file_path[FN_REFLEN];
-    my_path(file_path, argv[0], "");		      /* Find name in path */
-    fn_format(file_path,argv[0],file_path,"",
-	      MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_RESOLVE_SYMLINKS);
 
-    if (argc == 2)
-    {
-      if (!default_service_handling(argv, MYSQL_SERVICENAME, MYSQL_SERVICENAME,
-				   file_path, "", NULL))
-	return 0;
-      if (Service.IsService(argv[1]))        /* Start an optional service */
-      {
-	/*
-	  Only add the service name to the groups read from the config file
-	  if it's not "MySQL". (The default service name should be 'mysqld'
-	  but we started a bad tradition by calling it MySQL from the start
-	  and we are now stuck with it.
-	*/
-	if (my_strcasecmp(system_charset_info, argv[1],"mysql"))
-	  load_default_groups[load_default_groups_sz-2]= argv[1];
-        start_mode= 1;
-        Service.Init(argv[1], mysql_service);
-        return 0;
-      }
-    }
-    else if (argc == 3) /* install or remove any optional service */
-    {
-      if (!default_service_handling(argv, argv[2], argv[2], file_path, "",
-                                    NULL))
-	return 0;
-      if (Service.IsService(argv[2]))
-      {
-	/*
-	  mysqld was started as
-	  mysqld --defaults-file=my_path\my.ini service-name
-	*/
-	use_opt_args=1;
-	opt_argc= 2;				// Skip service-name
-	opt_argv=argv;
-	start_mode= 1;
-	if (my_strcasecmp(system_charset_info, argv[2],"mysql"))
-	  load_default_groups[load_default_groups_sz-2]= argv[2];
-	Service.Init(argv[2], mysql_service);
-	return 0;
-      }
-    }
-    else if (argc == 4 || argc == 5)
+  char file_path[FN_REFLEN];
+  my_path(file_path, argv[0], "");		      /* Find name in path */
+  fn_format(file_path,argv[0],file_path,"",   MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_RESOLVE_SYMLINKS);
+
+  if (argc == 2)
+  {
+    if (!default_service_handling(argv, MYSQL_SERVICENAME, MYSQL_SERVICENAME,
+      file_path, "", NULL))
+      return 0;
+
+    if (Service.IsService(argv[1]))        /* Start an optional service */
     {
       /*
-        This may seem strange, because we handle --local-service while
-        preserving 4.1's behavior of allowing any one other argument that is
-        passed to the service on startup. (The assumption is that this is
-        --defaults-file=file, but that was not enforced in 4.1, so we don't
-        enforce it here.)
+      Only add the service name to the groups read from the config file
+      if it's not "MySQL". (The default service name should be 'mysqld'
+      but we started a bad tradition by calling it MySQL from the start
+      and we are now stuck with it.
       */
-      const char *extra_opt= NullS;
-      const char *account_name = NullS;
-      int index;
-      for (index = 3; index < argc; index++)
-      {
-        if (!strcmp(argv[index], "--local-service"))
-          account_name= "NT AUTHORITY\\LocalService";
-        else
-          extra_opt= argv[index];
-      }
-
-      if (argc == 4 || account_name)
-        if (!default_service_handling(argv, argv[2], argv[2], file_path,
-                                      extra_opt, account_name))
-          return 0;
-    }
-    else if (argc == 1 && Service.IsService(MYSQL_SERVICENAME))
-    {
-      /* start the default service */
+      if (my_strcasecmp(system_charset_info, argv[1],"mysql"))
+        load_default_groups[load_default_groups_sz-2]= argv[1];
       start_mode= 1;
-      Service.Init(MYSQL_SERVICENAME, mysql_service);
+      Service.Init(argv[1], mysql_service);
       return 0;
     }
   }
+  else if (argc == 3) /* install or remove any optional service */
+  {
+    if (!default_service_handling(argv, argv[2], argv[2], file_path, "",
+                                  NULL))
+      return 0;
+    if (Service.IsService(argv[2]))
+    {
+      /*
+       mysqld was started as
+       mysqld --defaults-file=my_path\my.ini service-name
+      */
+      use_opt_args=1;
+      opt_argc= 2;				// Skip service-name
+      opt_argv=argv;
+      start_mode= 1;
+      if (my_strcasecmp(system_charset_info, argv[2],"mysql"))
+        load_default_groups[load_default_groups_sz-2]= argv[2];
+      Service.Init(argv[2], mysql_service);
+      return 0;
+    }
+  }
+  else if (argc == 4 || argc == 5)
+  {
+    /*
+      This may seem strange, because we handle --local-service while
+      preserving 4.1's behavior of allowing any one other argument that is
+      passed to the service on startup. (The assumption is that this is
+      --defaults-file=file, but that was not enforced in 4.1, so we don't
+      enforce it here.)
+    */
+    const char *extra_opt= NullS;
+    const char *account_name = NullS;
+    int index;
+    for (index = 3; index < argc; index++)
+    {
+      if (!strcmp(argv[index], "--local-service"))
+        account_name= "NT AUTHORITY\\LocalService";
+      else
+        extra_opt= argv[index];
+    }
+
+    if (argc == 4 || account_name)
+      if (!default_service_handling(argv, argv[2], argv[2], file_path,
+                                    extra_opt, account_name))
+        return 0;
+  }
+  else if (argc == 1 && Service.IsService(MYSQL_SERVICENAME))
+  {
+    /* start the default service */
+    start_mode= 1;
+    Service.Init(MYSQL_SERVICENAME, mysql_service);
+    return 0;
+  }
+
   /* Start as standalone server */
   Service.my_argc=argc;
   Service.my_argv=argv;
@@ -7317,7 +7321,7 @@ struct my_option my_long_options[]=
    "The value has to be a multiple of 256.",
    &opt_binlog_rows_event_max_size, &opt_binlog_rows_event_max_size,
    0, GET_ULONG, REQUIRED_ARG,
-   /* def_value */ 8192, /* min_value */  256, /* max_value */ ULONG_MAX,
+   /* def_value */ 8192, /* min_value */  256, /* max_value */ UINT_MAX32-1,
    /* sub_size */     0, /* block_size */ 256,
    /* app_type */ 0
   },
@@ -7759,6 +7763,7 @@ struct my_option my_long_options[]=
   MYSQL_SUGGEST_ANALOG_OPTION("max-binlog-dump-events", "--debug-max-binlog-dump-events"),
   MYSQL_SUGGEST_ANALOG_OPTION("sporadic-binlog-dump-fail", "--debug-sporadic-binlog-dump-fail"),
   MYSQL_COMPATIBILITY_OPTION("new"),
+  MYSQL_COMPATIBILITY_OPTION("show_compatibility_56"),
 
   /* The following options were added after 5.6.10 */
   MYSQL_TO_BE_IMPLEMENTED_OPTION("rpl-stop-slave-timeout"),
@@ -8231,6 +8236,27 @@ static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
+#define SHOW_FNAME(name)                        \
+    rpl_semi_sync_master_show_##name
+
+#define DEF_SHOW_FUNC(name, show_type)                                       \
+    static  int SHOW_FNAME(name)(MYSQL_THD thd, SHOW_VAR *var, char *buff)   \
+    {                                                                        \
+      repl_semisync_master.set_export_stats();                                 \
+      var->type= show_type;                                                  \
+      var->value= (char *)&rpl_semi_sync_master_##name;                      \
+      return 0;                                                              \
+    }
+
+DEF_SHOW_FUNC(status, SHOW_BOOL)
+DEF_SHOW_FUNC(clients, SHOW_LONG)
+DEF_SHOW_FUNC(wait_sessions, SHOW_LONG)
+DEF_SHOW_FUNC(trx_wait_time, SHOW_LONGLONG)
+DEF_SHOW_FUNC(trx_wait_num, SHOW_LONGLONG)
+DEF_SHOW_FUNC(net_wait_time, SHOW_LONGLONG)
+DEF_SHOW_FUNC(net_wait_num, SHOW_LONGLONG)
+DEF_SHOW_FUNC(avg_net_wait_time, SHOW_LONG)
+DEF_SHOW_FUNC(avg_trx_wait_time, SHOW_LONG)
 
 #ifdef HAVE_YASSL
 
@@ -8491,6 +8517,7 @@ SHOW_VAR status_vars[]= {
   {"Feature_dynamic_columns",  (char*) offsetof(STATUS_VAR, feature_dynamic_columns), SHOW_LONG_STATUS},
   {"Feature_fulltext",         (char*) offsetof(STATUS_VAR, feature_fulltext), SHOW_LONG_STATUS},
   {"Feature_gis",              (char*) offsetof(STATUS_VAR, feature_gis), SHOW_LONG_STATUS},
+  {"Feature_invisible_columns",   (char*) offsetof(STATUS_VAR, feature_invisible_columns), SHOW_LONG_STATUS},
   {"Feature_locale",           (char*) offsetof(STATUS_VAR, feature_locale), SHOW_LONG_STATUS},
   {"Feature_subquery",         (char*) offsetof(STATUS_VAR, feature_subquery), SHOW_LONG_STATUS},
   {"Feature_timezone",         (char*) offsetof(STATUS_VAR, feature_timezone), SHOW_LONG_STATUS},
@@ -8501,7 +8528,7 @@ SHOW_VAR status_vars[]= {
   {"Handler_commit",           (char*) offsetof(STATUS_VAR, ha_commit_count), SHOW_LONG_STATUS},
   {"Handler_delete",           (char*) offsetof(STATUS_VAR, ha_delete_count), SHOW_LONG_STATUS},
   {"Handler_discover",         (char*) offsetof(STATUS_VAR, ha_discover_count), SHOW_LONG_STATUS},
-  {"Handler_external_lock",    (char*) offsetof(STATUS_VAR, ha_external_lock_count), SHOW_LONGLONG_STATUS},
+  {"Handler_external_lock",    (char*) offsetof(STATUS_VAR, ha_external_lock_count), SHOW_LONG_STATUS},
   {"Handler_icp_attempts",     (char*) offsetof(STATUS_VAR, ha_icp_attempts), SHOW_LONG_STATUS},
   {"Handler_icp_match",        (char*) offsetof(STATUS_VAR, ha_icp_match), SHOW_LONG_STATUS},
   {"Handler_mrr_init",         (char*) offsetof(STATUS_VAR, ha_mrr_init_count),  SHOW_LONG_STATUS},
@@ -8548,6 +8575,26 @@ SHOW_VAR status_vars[]= {
   {"Rows_sent",                (char*) offsetof(STATUS_VAR, rows_sent), SHOW_LONGLONG_STATUS},
   {"Rows_read",                (char*) offsetof(STATUS_VAR, rows_read), SHOW_LONGLONG_STATUS},
   {"Rows_tmp_read",            (char*) offsetof(STATUS_VAR, rows_tmp_read), SHOW_LONGLONG_STATUS},
+#ifdef HAVE_REPLICATION
+  {"Rpl_semi_sync_master_status", (char*) &SHOW_FNAME(status), SHOW_FUNC},
+  {"Rpl_semi_sync_master_clients", (char*) &SHOW_FNAME(clients), SHOW_FUNC},
+  {"Rpl_semi_sync_master_yes_tx", (char*) &rpl_semi_sync_master_yes_transactions, SHOW_LONG},
+  {"Rpl_semi_sync_master_no_tx", (char*) &rpl_semi_sync_master_no_transactions, SHOW_LONG},
+  {"Rpl_semi_sync_master_wait_sessions", (char*) &SHOW_FNAME(wait_sessions), SHOW_FUNC},
+  {"Rpl_semi_sync_master_no_times", (char*) &rpl_semi_sync_master_off_times, SHOW_LONG},
+  {"Rpl_semi_sync_master_timefunc_failures", (char*) &rpl_semi_sync_master_timefunc_fails, SHOW_LONG},
+  {"Rpl_semi_sync_master_wait_pos_backtraverse", (char*) &rpl_semi_sync_master_wait_pos_backtraverse, SHOW_LONG},
+  {"Rpl_semi_sync_master_tx_wait_time", (char*) &SHOW_FNAME(trx_wait_time), SHOW_FUNC},
+  {"Rpl_semi_sync_master_tx_waits", (char*) &SHOW_FNAME(trx_wait_num), SHOW_FUNC},
+  {"Rpl_semi_sync_master_tx_avg_wait_time", (char*) &SHOW_FNAME(avg_trx_wait_time), SHOW_FUNC},
+  {"Rpl_semi_sync_master_net_wait_time", (char*) &SHOW_FNAME(net_wait_time), SHOW_FUNC},
+  {"Rpl_semi_sync_master_net_waits", (char*) &SHOW_FNAME(net_wait_num), SHOW_FUNC},
+  {"Rpl_semi_sync_master_net_avg_wait_time", (char*) &SHOW_FNAME(avg_net_wait_time), SHOW_FUNC},
+  {"Rpl_semi_sync_master_request_ack", (char*) &rpl_semi_sync_master_request_ack, SHOW_LONGLONG},
+  {"Rpl_semi_sync_master_get_ack", (char*)&rpl_semi_sync_master_get_ack, SHOW_LONGLONG},
+  {"Rpl_semi_sync_slave_status", (char*) &rpl_semi_sync_slave_status, SHOW_BOOL},
+  {"Rpl_semi_sync_slave_send_ack", (char*) &rpl_semi_sync_slave_send_ack, SHOW_LONGLONG},
+#endif /* HAVE_REPLICATION */
 #ifdef HAVE_QUERY_CACHE
   {"Qcache_free_blocks",       (char*) &query_cache.free_memory_blocks, SHOW_LONG_NOFLUSH},
   {"Qcache_free_memory",       (char*) &query_cache.free_memory, SHOW_LONG_NOFLUSH},
@@ -8640,7 +8687,7 @@ SHOW_VAR status_vars[]= {
   {"Threads_cached",           (char*) &cached_thread_count,    SHOW_LONG_NOFLUSH},
   {"Threads_connected",        (char*) &connection_count,       SHOW_INT},
   {"Threads_created",	       (char*) &thread_created,		SHOW_LONG_NOFLUSH},
-  {"Threads_running",          (char*) &thread_running,         SHOW_INT},
+  {"Threads_running",          (char*) offsetof(STATUS_VAR, threads_running), SHOW_UINT32_STATUS},
   {"Transactions_multi_engine", (char*) &transactions_multi_engine, SHOW_LONG},
   {"Rpl_transactions_multi_engine", (char*) &rpl_transactions_multi_engine, SHOW_LONG},
   {"Transactions_gtid_foreign_engine", (char*) &transactions_gtid_foreign_engine, SHOW_LONG},
@@ -8708,7 +8755,7 @@ static int option_cmp(my_option *a, my_option *b)
 static void print_help()
 {
   MEM_ROOT mem_root;
-  init_alloc_root(&mem_root, 4096, 4096, MYF(0));
+  init_alloc_root(&mem_root, "help", 4096, 4096, MYF(0));
 
   pop_dynamic(&all_options);
   add_many_options(&all_options, pfs_early_options,
@@ -8817,7 +8864,7 @@ static int mysql_init_variables(void)
   kill_in_progress= 0;
   cleanup_done= 0;
   test_flags= select_errors= dropping_tables= ha_open_options=0;
-  thread_count= thread_running= kill_cached_threads= wake_thread= 0;
+  thread_count= kill_cached_threads= wake_thread= 0;
   service_thread_count= 0;
   slave_open_temp_tables= 0;
   cached_thread_count= 0;
@@ -8862,7 +8909,7 @@ static int mysql_init_variables(void)
   denied_connections= 0;
   executed_events= 0;
   global_query_id= 1;
-  global_thread_id= 1;
+  global_thread_id= 0;
   strnmov(server_version, MYSQL_SERVER_VERSION, sizeof(server_version)-1);
   threads.empty();
   thread_cache.empty();
@@ -9044,12 +9091,12 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
                       opt->name);
     break;
   case OPT_MYSQL_COMPATIBILITY:
-    sql_print_warning("'%s' is MySQL 5.6 compatible option. Not used or needed "
-                      "in MariaDB.", opt->name);
+    sql_print_warning("'%s' is MySQL 5.6 / 5.7 compatible option. Not used or "
+                      "needed in MariaDB.", opt->name);
     break;
   case OPT_MYSQL_TO_BE_IMPLEMENTED:
-    sql_print_warning("'%s' is MySQL 5.6 compatible option. To be implemented "
-                      "in later versions.", opt->name);
+    sql_print_warning("'%s' is MySQL 5.6 / 5.7 compatible option. To be "
+                      "implemented in later versions.", opt->name);
     break;
   case 'a':
     SYSVAR_AUTOSIZE(global_system_variables.sql_mode, MODE_ANSI);
@@ -9637,8 +9684,10 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     flush_time= 0;
 
 #ifdef HAVE_REPLICATION
-  if (opt_slave_skip_errors)
-    init_slave_skip_errors(opt_slave_skip_errors);
+  if (init_slave_skip_errors(opt_slave_skip_errors))
+    return 1;
+  if (init_slave_transaction_retry_errors(opt_slave_transaction_retry_errors))
+    return 1;
 #endif
 
   if (global_system_variables.max_join_size == HA_POS_ERROR)
@@ -9805,7 +9854,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   /* Ensure that some variables are not set higher than needed */
   if (thread_cache_size > max_connections)
     SYSVAR_AUTOSIZE(thread_cache_size, max_connections);
-  
+
   return 0;
 }
 
@@ -9953,7 +10002,7 @@ static int fix_paths(void)
 
   my_realpath(mysql_unpacked_real_data_home, mysql_real_data_home, MYF(0));
   mysql_unpacked_real_data_home_len= 
-    (int) strlen(mysql_unpacked_real_data_home);
+  strlen(mysql_unpacked_real_data_home);
   if (mysql_unpacked_real_data_home[mysql_unpacked_real_data_home_len-1] == FN_LIBCHAR)
     --mysql_unpacked_real_data_home_len;
 
@@ -10283,6 +10332,10 @@ PSI_stage_info stage_waiting_for_insert= { 0, "Waiting for INSERT", 0};
 PSI_stage_info stage_waiting_for_master_to_send_event= { 0, "Waiting for master to send event", 0};
 PSI_stage_info stage_waiting_for_master_update= { 0, "Waiting for master update", 0};
 PSI_stage_info stage_waiting_for_relay_log_space= { 0, "Waiting for the slave SQL thread to free enough relay log space", 0};
+PSI_stage_info stage_waiting_for_semi_sync_ack_from_slave=
+{ 0, "Waiting for semi-sync ACK from slave", 0};
+PSI_stage_info stage_waiting_for_semi_sync_slave={ 0, "Waiting for semi-sync slave connection", 0};
+PSI_stage_info stage_reading_semi_sync_ack={ 0, "Reading semi-sync ACK from slave", 0};
 PSI_stage_info stage_waiting_for_slave_mutex_on_exit= { 0, "Waiting for slave mutex on exit", 0};
 PSI_stage_info stage_waiting_for_slave_thread_to_start= { 0, "Waiting for slave thread to start", 0};
 PSI_stage_info stage_waiting_for_table_flush= { 0, "Waiting for table flush", 0};
@@ -10443,6 +10496,9 @@ PSI_stage_info *all_server_stages[]=
   & stage_gtid_wait_other_connection,
   & stage_slave_background_process_request,
   & stage_slave_background_wait_request,
+  & stage_waiting_for_semi_sync_ack_from_slave,
+  & stage_waiting_for_semi_sync_slave,
+  & stage_reading_semi_sync_ack,
   & stage_waiting_for_deadlock_kill
 };
 
@@ -10539,3 +10595,96 @@ void init_server_psi_keys(void)
 }
 
 #endif /* HAVE_PSI_INTERFACE */
+
+
+/*
+  Connection ID allocation.
+
+  We need to maintain thread_ids in the 32bit range,
+  because this is how it is passed to the client in the protocol.
+
+  The idea is to maintain a id range, initially set to
+ (0,UINT32_MAX). Whenever new id is needed, we increment the
+  lower limit and return its new value.
+
+  On "overflow", if id can not be generated anymore(i.e lower == upper -1),
+  we recalculate the range boundaries.
+  To do that, we first collect thread ids that are in use, by traversing
+  THD list, and find largest region within (0,UINT32_MAX), that is still free.
+
+*/
+
+static my_thread_id thread_id_max= UINT_MAX32;
+
+#include <vector>
+#include <algorithm>
+
+/*
+  Find largest unused thread_id range.
+
+  i.e for every number N within the returned range,
+  there is no existing connection with thread_id equal to N.
+
+  The range is exclusive, lower bound is always >=0 and
+  upper bound <=MAX_UINT32.
+
+  @param[out] low  - lower bound for the range
+  @param[out] high - upper bound for the range
+*/
+static void recalculate_thread_id_range(my_thread_id *low, my_thread_id *high)
+{
+  std::vector<my_thread_id> ids;
+
+  // Add sentinels
+  ids.push_back(0);
+  ids.push_back(UINT_MAX32);
+
+  mysql_mutex_lock(&LOCK_thread_count);
+
+  I_List_iterator<THD> it(threads);
+  THD *thd;
+  while ((thd=it++))
+    ids.push_back(thd->thread_id);
+
+  mysql_mutex_unlock(&LOCK_thread_count);
+
+  std::sort(ids.begin(), ids.end());
+  my_thread_id max_gap= 0;
+  for (size_t i= 0; i < ids.size() - 1; i++)
+  {
+    my_thread_id gap= ids[i+1] - ids[i];
+    if (gap > max_gap)
+    {
+      *low= ids[i];
+      *high= ids[i+1];
+      max_gap= gap;
+    }
+  }
+
+  if (max_gap < 2)
+  {
+    /* Can't find free id. This is not really possible,
+      we'd need 2^32 connections for this to happen.*/
+    sql_print_error("Cannot find free connection id.");
+    abort();
+  }
+}
+
+
+my_thread_id next_thread_id(void)
+{
+  my_thread_id retval;
+  DBUG_EXECUTE_IF("thread_id_overflow", global_thread_id= thread_id_max-2;);
+
+  mysql_mutex_lock(&LOCK_thread_id);
+
+  if (unlikely(global_thread_id == thread_id_max - 1))
+  {
+    recalculate_thread_id_range(&global_thread_id, &thread_id_max);
+  }
+
+  retval= ++global_thread_id;
+
+  mysql_mutex_unlock(&LOCK_thread_id);
+  return retval;
+}

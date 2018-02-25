@@ -72,5 +72,25 @@ SELECT * FROM t2;
 #Cleanup
 DROP TABLE t1, t2;
 
+# MDEV-14593 human-readable XA RECOVER 
+
+create table t1 (a int);
+
+--write_file $MYSQLTEST_VARDIR/tmp/mdev-14593.sql
+DELIMITER /
+XA START 'tr1', 'bq'/
+INSERT INTO t1 VALUES (0)/
+XA END 'tr1', 'bq'/
+XA PREPARE 'tr1', 'bq'/
+XA RECOVER/
+XA ROLLBACK 'tr1', 'bq'/
+EOF
+--exec $MYSQL test --binary-as-hex < $MYSQLTEST_VARDIR/tmp/mdev-14593.sql 2>&1
+remove_file $MYSQLTEST_VARDIR/tmp/mdev-14593.sql;
+
+
+#Cleanup
+DROP TABLE t1;
+
 # Wait till all disconnects are completed
  --source include/wait_until_count_sessions.inc

@@ -146,8 +146,8 @@ public:
     return "row_number";
   }
 
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_sum_row_number>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_sum_row_number>(thd, this); }
 };
 
 
@@ -221,8 +221,8 @@ public:
     }
     Item_sum_int::cleanup();
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_sum_rank>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_sum_rank>(thd, this); }
 };
 
 
@@ -291,8 +291,8 @@ class Item_sum_dense_rank: public Item_sum_int
     }
     Item_sum_int::cleanup();
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_sum_dense_rank>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_sum_dense_rank>(thd, this); }
 };
 
 class Item_sum_hybrid_simple : public Item_sum,
@@ -319,6 +319,7 @@ class Item_sum_hybrid_simple : public Item_sum,
   my_decimal *val_decimal(my_decimal *);
   void reset_field();
   String *val_str(String *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
   void update_field();
@@ -354,8 +355,8 @@ class Item_sum_first_value : public Item_sum_hybrid_simple
     return "first_value";
   }
 
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_sum_first_value>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_sum_first_value>(thd, this); }
 };
 
 /*
@@ -380,8 +381,8 @@ class Item_sum_last_value : public Item_sum_hybrid_simple
     return "last_value";
   }
 
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_sum_last_value>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_sum_last_value>(thd, this); }
 };
 
 class Item_sum_nth_value : public Item_sum_hybrid_simple
@@ -400,8 +401,8 @@ class Item_sum_nth_value : public Item_sum_hybrid_simple
     return "nth_value";
   }
 
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_sum_nth_value>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_sum_nth_value>(thd, this); }
 };
 
 class Item_sum_lead : public Item_sum_hybrid_simple
@@ -420,8 +421,8 @@ class Item_sum_lead : public Item_sum_hybrid_simple
     return "lead";
   }
 
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_sum_lead>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_sum_lead>(thd, this); }
 };
 
 class Item_sum_lag : public Item_sum_hybrid_simple
@@ -440,8 +441,8 @@ class Item_sum_lag : public Item_sum_hybrid_simple
     return "lag";
   }
 
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_sum_lag>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_sum_lag>(thd, this); }
 };
 
 /*
@@ -532,8 +533,8 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
   }
 
   void setup_window_func(THD *thd, Window_spec *window_spec);
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_sum_percent_rank>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_sum_percent_rank>(thd, this); }
 
  private:
   longlong cur_rank;   // Current rank of the current row.
@@ -619,8 +620,8 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
                     // requires.
   }
   
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_sum_cume_dist>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_sum_cume_dist>(thd, this); }
 
   ulonglong get_row_number()
   {
@@ -694,8 +695,8 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
 
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_sum_ntile>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_sum_ntile>(thd, this); }
 
  private:
   longlong get_num_quantiles() { return args[0]->val_int(); }
@@ -825,8 +826,8 @@ public:
                     // requires.
   }
 
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_sum_percentile_disc>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_sum_percentile_disc>(thd, this); }
   void setup_window_func(THD *thd, Window_spec *window_spec);
   void setup_hybrid(THD *thd, Item *item);
   bool fix_fields(THD *thd, Item **ref);
@@ -955,8 +956,8 @@ public:
                     // requires.
   }
 
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_sum_percentile_cont>(thd, mem_root, this); }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_sum_percentile_cont>(thd, this); }
   void setup_window_func(THD *thd, Window_spec *window_spec);
   void setup_hybrid(THD *thd, Item *item);
   bool fix_fields(THD *thd, Item **ref);
@@ -1265,6 +1266,29 @@ public:
     return res;
   }
 
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    bool res;
+    if (force_return_blank)
+    {
+      null_value= true;
+      res= true;
+    }
+    else if (read_value_from_result_field)
+    {
+      if ((null_value= result_field->is_null()))
+        res= true;
+      else
+        res= result_field->get_date(ltime, fuzzydate);
+    }
+    else
+    {
+      res= window_func()->get_date(ltime, fuzzydate);
+      null_value= window_func()->null_value;
+    }
+    return res;
+  }
+
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                               List<Item> &fields, uint flags);
 
@@ -1281,7 +1305,7 @@ public:
   
   void print(String *str, enum_query_type query_type);
 
- Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+ Item *get_copy(THD *thd) { return 0; }
 
 };
 

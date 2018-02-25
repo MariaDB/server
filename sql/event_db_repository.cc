@@ -41,38 +41,38 @@ static
 const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
 {
   {
-    { C_STRING_WITH_LEN("db") },
-    { C_STRING_WITH_LEN("char(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("db") },
+    { STRING_WITH_LEN("char(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("name") },
-    { C_STRING_WITH_LEN("char(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("name") },
+    { STRING_WITH_LEN("char(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("body") },
-    { C_STRING_WITH_LEN("longblob") },
+    { STRING_WITH_LEN("body") },
+    { STRING_WITH_LEN("longblob") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("definer") },
-    { C_STRING_WITH_LEN("char(") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("definer") },
+    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("execute_at") },
-    { C_STRING_WITH_LEN("datetime") },
+    { STRING_WITH_LEN("execute_at") },
+    { STRING_WITH_LEN("datetime") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("interval_value") },
-    { C_STRING_WITH_LEN("int(11)") },
+    { STRING_WITH_LEN("interval_value") },
+    { STRING_WITH_LEN("int(11)") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("interval_field") },
-    { C_STRING_WITH_LEN("enum('YEAR','QUARTER','MONTH','DAY',"
+    { STRING_WITH_LEN("interval_field") },
+    { STRING_WITH_LEN("enum('YEAR','QUARTER','MONTH','DAY',"
     "'HOUR','MINUTE','WEEK','SECOND','MICROSECOND','YEAR_MONTH','DAY_HOUR',"
     "'DAY_MINUTE','DAY_SECOND','HOUR_MINUTE','HOUR_SECOND','MINUTE_SECOND',"
     "'DAY_MICROSECOND','HOUR_MICROSECOND','MINUTE_MICROSECOND',"
@@ -80,43 +80,43 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("created") },
-    { C_STRING_WITH_LEN("timestamp") },
+    { STRING_WITH_LEN("created") },
+    { STRING_WITH_LEN("timestamp") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("modified") },
-    { C_STRING_WITH_LEN("timestamp") },
+    { STRING_WITH_LEN("modified") },
+    { STRING_WITH_LEN("timestamp") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("last_executed") },
-    { C_STRING_WITH_LEN("datetime") },
+    { STRING_WITH_LEN("last_executed") },
+    { STRING_WITH_LEN("datetime") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("starts") },
-    { C_STRING_WITH_LEN("datetime") },
+    { STRING_WITH_LEN("starts") },
+    { STRING_WITH_LEN("datetime") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("ends") },
-    { C_STRING_WITH_LEN("datetime") },
+    { STRING_WITH_LEN("ends") },
+    { STRING_WITH_LEN("datetime") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("status") },
-    { C_STRING_WITH_LEN("enum('ENABLED','DISABLED','SLAVESIDE_DISABLED')") },
+    { STRING_WITH_LEN("status") },
+    { STRING_WITH_LEN("enum('ENABLED','DISABLED','SLAVESIDE_DISABLED')") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("on_completion") },
-    { C_STRING_WITH_LEN("enum('DROP','PRESERVE')") },
+    { STRING_WITH_LEN("on_completion") },
+    { STRING_WITH_LEN("enum('DROP','PRESERVE')") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("sql_mode") },
-    { C_STRING_WITH_LEN("set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES',"
+    { STRING_WITH_LEN("sql_mode") },
+    { STRING_WITH_LEN("set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES',"
     "'IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY',"
     "'NO_UNSIGNED_SUBTRACTION',"
     "'NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB',"
@@ -124,45 +124,48 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
     "'ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES',"
     "'STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES',"
     "'ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER',"
-    "'HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH')") },
+    "'HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH',"
+    "'EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT')") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("comment") },
-    { C_STRING_WITH_LEN("char(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("comment") },
+    { STRING_WITH_LEN("char(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("originator") },
-    { C_STRING_WITH_LEN("int(10)") },
+    { STRING_WITH_LEN("originator") },
+    { STRING_WITH_LEN("int(10)") },
     {NULL, 0}
   },
   {
-    { C_STRING_WITH_LEN("time_zone") },
-    { C_STRING_WITH_LEN("char(64)") },
-    { C_STRING_WITH_LEN("latin1") }
+    { STRING_WITH_LEN("time_zone") },
+    { STRING_WITH_LEN("char(64)") },
+    { STRING_WITH_LEN("latin1") }
   },
   {
-    { C_STRING_WITH_LEN("character_set_client") },
-    { C_STRING_WITH_LEN("char(32)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("character_set_client") },
+    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("collation_connection") },
-    { C_STRING_WITH_LEN("char(32)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("collation_connection") },
+    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("db_collation") },
-    { C_STRING_WITH_LEN("char(32)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("db_collation") },
+    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("body_utf8") },
-    { C_STRING_WITH_LEN("longblob") },
+    { STRING_WITH_LEN("body_utf8") },
+    { STRING_WITH_LEN("longblob") },
     { NULL, 0 }
   }
 };
+
+static LEX_CSTRING MYSQL_EVENT_NAME= { STRING_WITH_LEN("event") };
 
 static const TABLE_FIELD_DEF
 event_table_def= {ET_FIELD_COUNT, event_table_fields, 0, (uint*) 0};
@@ -538,7 +541,7 @@ Event_db_repository::fill_schema_events(THD *thd, TABLE_LIST *i_s_table,
   DBUG_ENTER("Event_db_repository::fill_schema_events");
   DBUG_PRINT("info",("db=%s", db? db:"(null)"));
 
-  event_table.init_one_table("mysql", 5, "event", 5, "event", TL_READ);
+  event_table.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, TL_READ);
 
   if (open_system_tables_for_read(thd, &event_table, &open_tables_backup))
     DBUG_RETURN(TRUE);
@@ -600,7 +603,7 @@ Event_db_repository::open_event_table(THD *thd, enum thr_lock_type lock_type,
   TABLE_LIST tables;
   DBUG_ENTER("Event_db_repository::open_event_table");
 
-  tables.init_one_table("mysql", 5, "event", 5, "event", lock_type);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, lock_type);
 
   if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
     DBUG_RETURN(TRUE);
@@ -1066,7 +1069,7 @@ Event_db_repository::load_named_event(THD *thd, const LEX_CSTRING *dbname,
   DBUG_PRINT("enter",("thd: %p  name: %*s", thd,
                       (int) name->length, name->str));
 
-  event_table.init_one_table("mysql", 5, "event", 5, "event", TL_READ);
+  event_table.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, TL_READ);
 
   /* Reset sql_mode during data dictionary operations. */
   thd->variables.sql_mode= 0;
@@ -1183,48 +1186,11 @@ Event_db_repository::check_system_tables(THD *thd)
 {
   TABLE_LIST tables;
   int ret= FALSE;
-  const unsigned int event_priv_column_position= 29;
-
   DBUG_ENTER("Event_db_repository::check_system_tables");
   DBUG_PRINT("enter", ("thd: %p", thd));
 
-  /* Check mysql.db */
-  tables.init_one_table("mysql", 5, "db", 2, "db", TL_READ);
-
-  if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
-  {
-    ret= 1;
-    sql_print_error("Cannot open mysql.db");
-  }
-  else
-  {
-    if (table_intact.check(tables.table, &mysql_db_table_def))
-      ret= 1;
-
-    close_mysql_tables(thd);
-  }
-  /* Check mysql.user */
-  tables.init_one_table("mysql", 5, "user", 4, "user", TL_READ);
-
-  if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
-  {
-    ret= 1;
-    sql_print_error("Cannot open mysql.user");
-  }
-  else
-  {
-    if (tables.table->s->fields < event_priv_column_position ||
-        strncmp(tables.table->field[event_priv_column_position]->field_name.str,
-                STRING_WITH_LEN("Event_priv")))
-    {
-      sql_print_error("mysql.user has no `Event_priv` column at position %d",
-                      event_priv_column_position);
-      ret= 1;
-    }
-    close_mysql_tables(thd);
-  }
   /* Check mysql.event */
-  tables.init_one_table("mysql", 5, "event", 5, "event", TL_READ);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_EVENT_NAME, 0, TL_READ);
 
   if (open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {

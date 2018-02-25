@@ -94,5 +94,7 @@ time_zone_transition	Time_zone_id	NULL	NULL
 time_zone_transition	Transition_time	NULL	NULL
 time_zone_transition_type	Time_zone_id	NULL	NULL
 time_zone_transition_type	Transition_type_id	NULL	NULL
+transaction_registry	commit_id	NULL	NULL
+transaction_registry	transaction_id	NULL	NULL
 user	Host	NULL	NULL
 user	User	NULL	NULL

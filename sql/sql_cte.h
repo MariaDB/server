@@ -146,7 +146,9 @@ public:
   select_union_recursive *rec_result;
 
   /* List of Item_subselects containing recursive references to this CTE */
-  SQL_I_List<Item_subselect> sq_with_rec_ref; 
+  SQL_I_List<Item_subselect> sq_with_rec_ref;
+  /* List of derived tables containing recursive references to this CTE */
+  SQL_I_List<TABLE_LIST> derived_with_rec_ref;
 
   With_element(LEX_CSTRING *name,
                List <LEX_CSTRING> list,
@@ -158,7 +160,7 @@ public:
       query_name(name), column_list(list), spec(unit),
       is_recursive(false), with_anchor(false),
       level(0), rec_result(NULL)
-  {}
+  { unit->with_element= this; }
 
   bool check_dependencies_in_spec();
   

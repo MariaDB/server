@@ -60,6 +60,59 @@ a
 20
 disconnect con1;
 connection default;
+xa start 'tr1';
+insert t1 values (40);
+xa end 'tr1';
+xa prepare 'tr1';
+xa recover format='SQL';
+formatID	gtrid_length	bqual_length	data
+1	3	0	'tr1'
+xa rollback 'tr1';
+xa start 'tr1', 'bq';
+insert t1 values (40);
+xa end 'tr1', 'bq';
+xa prepare 'tr1', 'bq';
+xa recover format='SQL';
+formatID	gtrid_length	bqual_length	data
+1	3	2	'tr1','bq'
+xa rollback 'tr1', 'bq';
+xa start 'tr1', 'bq', 3;
+insert t1 values (40);
+xa end 'tr1', 'bq', 3;
+xa prepare 'tr1', 'bq', 3;
+xa recover format='SQL';
+formatID	gtrid_length	bqual_length	data
+3	3	2	'tr1','bq',3
+xa rollback 'tr1', 'bq', 3;
+xa start 'tr1#$';
+insert t1 values (40);
+xa end 'tr1#$';
+xa prepare 'tr1#$';
+xa recover format='SQL';
+formatID	gtrid_length	bqual_length	data
+1	5	0	X'7472312324'
+xa rollback 'tr1#$';
+xa start 'tr1#$', 'bq';
+insert t1 values (40);
+xa end 'tr1#$', 'bq';
+xa prepare 'tr1#$', 'bq';
+xa recover format='SQL';
+formatID	gtrid_length	bqual_length	data
+1	5	2	X'7472312324',X'6271'
+xa rollback 'tr1#$', 'bq';
+xa start 'tr1#$', 'bq', 3;
+insert t1 values (40);
+xa end 'tr1#$', 'bq', 3;
+xa prepare 'tr1#$', 'bq', 3;
+xa recover format='RAW';
+formatID	gtrid_length	bqual_length	data
+3	5	2	tr1#$bq
+xa recover format='PLAIN';
+ERROR HY000: Unknown XA RECOVER format name: 'PLAIN'
+xa recover format='SQL';
+formatID	gtrid_length	bqual_length	data
+3	5	2	X'7472312324',X'6271',3
+xa rollback 'tr1#$', 'bq', 3;
 drop table t1;
 drop table if exists t1;
 create table t1(a int, b int, c varchar(20), primary key(a)) engine = innodb;
@@ -226,6 +279,17 @@ XA COMMIT 'a';
 SELECT * FROM t1;
 a
 1
+DROP TABLE t1;
+#
+# MDEV-14609 XA Transction unable to ROLLBACK TO SAVEPOINT
+#
+CREATE TABLE t1 (c1 INT) ENGINE=INNODB;
+XA START 'xa1';
+SAVEPOINT savepoint1;
+INSERT INTO t1 (c1) VALUES (1),(2),(3),(4);
+ROLLBACK TO SAVEPOINT savepoint1;
+XA END 'xa1';
+XA ROLLBACK 'xa1';
 DROP TABLE t1;
 #
 # Bug#12352846 - TRANS_XA_START(THD*):

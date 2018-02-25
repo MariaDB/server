@@ -33,6 +33,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
   uint keys= create_info->keys;
   ulong min_records= create_info->min_records;
   ulong max_records= create_info->max_records;
+  uint visible_offset;
   DBUG_ENTER("heap_create");
 
   if (!create_info->internal_table)
@@ -58,9 +59,9 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     
     /*
       We have to store sometimes uchar* del_link in records,
-      so the record length should be at least sizeof(uchar*)
+      so the visible_offset must be least at sizeof(uchar*)
     */
-    set_if_bigger(reclength, sizeof (uchar*));
+    visible_offset= MY_MAX(reclength, sizeof (char*));
     
     for (i= key_segs= max_length= 0, keyinfo= keydef; i < keys; i++, keyinfo++)
     {
@@ -154,7 +155,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     share->keydef= (HP_KEYDEF*) (share + 1);
     share->key_stat_version= 1;
     keyseg= (HA_KEYSEG*) (share->keydef + keys);
-    init_block(&share->block, reclength + 1, min_records, max_records);
+    init_block(&share->block, visible_offset + 1, min_records, max_records);
 	/* Fix keys */
     memcpy(share->keydef, keydef, (size_t) (sizeof(keydef[0]) * keys));
     for (i= 0, keyinfo= share->keydef; i < keys; i++, keyinfo++)
@@ -196,6 +197,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     share->max_table_size= create_info->max_table_size;
     share->data_length= share->index_length= 0;
     share->reclength= reclength;
+    share->visible= visible_offset;
     share->blength= 1;
     share->keys= keys;
     share->max_key_length= max_length;

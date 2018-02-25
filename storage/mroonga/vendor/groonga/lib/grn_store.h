@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2012 Brazil
+/*
+  Copyright(C) 2009-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -14,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_STORE_H
-#define GRN_STORE_H
+
+#pragma once
 
 #include "grn.h"
 #include "grn_ctx.h"
@@ -83,6 +84,7 @@ GRN_API grn_ja *grn_ja_create(grn_ctx *ctx, const char *path,
                               uint32_t max_element_size, uint32_t flags);
 grn_ja *grn_ja_open(grn_ctx *ctx, const char *path);
 grn_rc grn_ja_info(grn_ctx *ctx, grn_ja *ja, unsigned int *max_element_size);
+grn_column_flags grn_ja_get_flags(grn_ctx *ctx, grn_ja *ja);
 GRN_API grn_rc grn_ja_close(grn_ctx *ctx, grn_ja *ja);
 grn_rc grn_ja_remove(grn_ctx *ctx, const char *path);
 grn_rc grn_ja_put(grn_ctx *ctx, grn_ja *ja, grn_id id,
@@ -102,8 +104,77 @@ GRN_API uint32_t grn_ja_size(grn_ctx *ctx, grn_ja *ja, grn_id id);
 
 void grn_ja_check(grn_ctx *ctx, grn_ja *ja);
 
-/*
+#define GRN_JA_READER_INITIAL_REF_SEG_IDS_SIZE 16
 
+/*
+ * grn_ja_reader is designed to improve the performance of sequential access.
+ */
+typedef struct {
+  grn_ja *ja;                /* Target jagged array (without ref. count). */
+  uint32_t einfo_seg_id;     /* ID of the current header segment. */
+  void *einfo_seg_addr;      /* Address of the current header segment. */
+  void *einfo;               /* Header of the current value. */
+  grn_bool ref_avail;        /* grn_ja_reader_ref() is available or not. */
+  uint32_t ref_seg_id;       /* ID of the current referenced segment. */
+  void *ref_seg_addr;        /* Address of the current referenced segment. */
+  uint32_t *ref_seg_ids;     /* IDs of referenced segments. */
+  uint32_t nref_seg_ids;     /* Number of referenced segments. */
+  uint32_t ref_seg_ids_size; /* Maximum number of referenced segments. */
+  uint32_t body_seg_id;      /* ID of the current body segment. */
+  uint32_t body_seg_offset;  /* Offset in the current body segment. */
+  void *body_seg_addr;       /* Address of the current body segment. */
+  uint32_t value_size;       /* Size of the current value. */
+  uint32_t packed_size;      /* Compressed size of the current value. */
+  void *packed_buf;          /* Buffer for decompression. */
+  uint32_t packed_buf_size;  /* Size of the buffer for decompression. */
+  void *stream;              /* Stream of a compression library. */
+} grn_ja_reader;
+
+/*
+ * grn_ja_reader_init() initializes a reader.
+ * An initialized reader must be finalized by grn_ja_reader_fin().
+ */
+grn_rc grn_ja_reader_init(grn_ctx *ctx, grn_ja_reader *reader, grn_ja *ja);
+
+/* grn_ja_reader_fin() finalizes a reader. */
+grn_rc grn_ja_reader_fin(grn_ctx *ctx, grn_ja_reader *reader);
+
+/*
+ * grn_ja_reader_open() creates a reader.
+ * A created reader must be destroyed by grn_ja_reader_close().
+ */
+grn_rc grn_ja_reader_open(grn_ctx *ctx, grn_ja *ja, grn_ja_reader **reader);
+
+/* grn_ja_reader_close() destroys a reader. */
+grn_rc grn_ja_reader_close(grn_ctx *ctx, grn_ja_reader *reader);
+
+/*
+ * grn_ja_reader_seek() prepares to access a value specified by `id`.
+ * On success, `reader->value_size` is set.
+ */
+grn_rc grn_ja_reader_seek(grn_ctx *ctx, grn_ja_reader *reader, grn_id id);
+
+/*
+ * grn_ja_reader_ref() gets the address to the current value.
+ * This function is available if `reader->ref_avail` is true.
+ */
+grn_rc grn_ja_reader_ref(grn_ctx *ctx, grn_ja_reader *reader, void **addr);
+
+/* grn_ja_reader_unref() frees refereces returned by grn_ja_reader_ref(). */
+grn_rc grn_ja_reader_unref(grn_ctx *ctx, grn_ja_reader *reader);
+
+/* grn_ja_reader_read() reads the current value to `buf`. */
+grn_rc grn_ja_reader_read(grn_ctx *ctx, grn_ja_reader *reader, void *buf);
+
+/*
+ * grn_ja_reader_pread() reads a part of the current value to `buf`.
+ * If `offset` and `size` are invalid, the behavior is undefined.
+ * FIXME: Compressed values are not supported yet.
+ */
+grn_rc grn_ja_reader_pread(grn_ctx *ctx, grn_ja_reader *reader,
+                           size_t offset, size_t size, void *buf);
+
+/*
 typedef struct _grn_vgram_vnode
 {
   struct _grn_vgram_vnode *car;
@@ -143,5 +214,3 @@ grn_rc grn_vgram_buf_close(grn_vgram_buf *b);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_STORE_H */

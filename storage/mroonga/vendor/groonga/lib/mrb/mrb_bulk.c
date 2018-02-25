@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2014-2015 Brazil
+  Copyright(C) 2014-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -17,6 +17,7 @@
 */
 
 #include "../grn_ctx_impl.h"
+#include <string.h>
 
 #ifdef GRN_WITH_MRUBY
 #include <mruby.h>
@@ -72,13 +73,30 @@ grn_mrb_value_to_bulk(mrb_state *mrb, mrb_value mrb_value_, grn_obj *bulk)
     GRN_FLOAT_SET(ctx, bulk, mrb_float(mrb_value_));
     break;
   case MRB_TT_STRING :
-    grn_obj_reinit(ctx, bulk, GRN_DB_TEXT, 0);
+    grn_obj_reinit(ctx, bulk, GRN_DB_TEXT,
+                   bulk->header.impl_flags & GRN_OBJ_DO_SHALLOW_COPY);
     GRN_TEXT_SET(ctx, bulk, RSTRING_PTR(mrb_value_), RSTRING_LEN(mrb_value_));
     break;
   default :
-    mrb_raisef(mrb, E_ARGUMENT_ERROR,
-               "unsupported object to convert to bulk: %S",
-               mrb_value_);
+    {
+      struct RClass *klass;
+
+      klass = mrb_class(mrb, mrb_value_);
+      if (klass == ctx->impl->mrb.builtin.time_class) {
+        mrb_value mrb_sec;
+        mrb_value mrb_usec;
+
+        mrb_sec = mrb_funcall(mrb, mrb_value_, "to_i", 0);
+        mrb_usec = mrb_funcall(mrb, mrb_value_, "usec", 0);
+        grn_obj_reinit(ctx, bulk, GRN_DB_TIME, 0);
+        GRN_TIME_SET(ctx, bulk,
+                     GRN_TIME_PACK(mrb_fixnum(mrb_sec), mrb_fixnum(mrb_usec)));
+      } else {
+        mrb_raisef(mrb, E_ARGUMENT_ERROR,
+                   "unsupported object to convert to bulk: %S",
+                    mrb_value_);
+      }
+    }
     break;
   }
 
@@ -91,7 +109,46 @@ grn_mrb_value_from_bulk(mrb_state *mrb, grn_obj *bulk)
   mrb_value mrb_value_;
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
 
+  if (!bulk) {
+    return mrb_nil_value();
+  }
+
   switch (bulk->header.domain) {
+  case GRN_DB_BOOL :
+    {
+      grn_bool value;
+      value = GRN_BOOL_VALUE(bulk);
+      mrb_value_ = mrb_bool_value(value);
+    }
+    break;
+  case GRN_DB_INT8 :
+    {
+      int8_t value;
+      value = GRN_INT8_VALUE(bulk);
+      mrb_value_ = mrb_fixnum_value(value);
+    }
+    break;
+  case GRN_DB_UINT8 :
+    {
+      uint8_t value;
+      value = GRN_UINT8_VALUE(bulk);
+      mrb_value_ = mrb_fixnum_value(value);
+    }
+    break;
+  case GRN_DB_INT16 :
+    {
+      int16_t value;
+      value = GRN_INT16_VALUE(bulk);
+      mrb_value_ = mrb_fixnum_value(value);
+    }
+    break;
+  case GRN_DB_UINT16 :
+    {
+      uint16_t value;
+      value = GRN_UINT16_VALUE(bulk);
+      mrb_value_ = mrb_fixnum_value(value);
+    }
+    break;
   case GRN_DB_INT32 :
     {
       int32_t value;
@@ -103,37 +160,70 @@ grn_mrb_value_from_bulk(mrb_state *mrb, grn_obj *bulk)
     {
       int64_t value;
       value = GRN_UINT32_VALUE(bulk);
-      if (!FIXABLE(value)) {
-        mrb_raisef(mrb, E_RANGE_ERROR,
-                   "can't handle large number: <%S>: max: <%S>",
-                   mrb_fixnum_value(value), /* TODO: This will cause overflow */
-                   mrb_fixnum_value(MRB_INT_MAX));
+      if (FIXABLE(value)) {
+        mrb_value_ = mrb_fixnum_value(value);
+      } else {
+        mrb_value_ = mrb_float_value(mrb, value);
       }
-      mrb_value_ = mrb_fixnum_value(value);
+    }
+    break;
+  case GRN_DB_INT64 :
+    {
+      int64_t value;
+      value = GRN_INT64_VALUE(bulk);
+      if (FIXABLE(value)) {
+        mrb_value_ = mrb_fixnum_value(value);
+      } else {
+        mrb_value_ = mrb_float_value(mrb, value);
+      }
+    }
+    break;
+  case GRN_DB_UINT64 :
+    {
+      uint64_t value;
+      value = GRN_UINT64_VALUE(bulk);
+      if (FIXABLE(value)) {
+        mrb_value_ = mrb_fixnum_value(value);
+      } else {
+        mrb_value_ = mrb_float_value(mrb, value);
+      }
+    }
+    break;
+  case GRN_DB_FLOAT :
+    {
+      double value;
+      value = GRN_FLOAT_VALUE(bulk);
+      mrb_value_ = mrb_float_value(mrb, value);
     }
     break;
   case GRN_DB_TIME :
     {
       int64_t value;
-      int32_t sec;
+      int64_t sec;
       int32_t usec;
+      mrb_value mrb_sec;
 
       value = GRN_TIME_VALUE(bulk);
       GRN_TIME_UNPACK(value, sec, usec);
+      if (sec > MRB_INT_MAX) {
+        mrb_sec = mrb_float_value(mrb, sec);
+      } else {
+        mrb_sec = mrb_fixnum_value(sec);
+      }
       mrb_value_ = mrb_funcall(mrb,
                                mrb_obj_value(ctx->impl->mrb.builtin.time_class),
                                "at",
                                2,
-                               mrb_fixnum_value(sec),
+                               mrb_sec,
                                mrb_fixnum_value(usec));
     }
     break;
   case GRN_DB_SHORT_TEXT :
   case GRN_DB_TEXT :
   case GRN_DB_LONG_TEXT :
-    mrb_value_ = mrb_str_new_static(mrb,
-                                    GRN_TEXT_VALUE(bulk),
-                                    GRN_TEXT_LEN(bulk));
+    mrb_value_ = mrb_str_new(mrb,
+                             GRN_TEXT_VALUE(bulk),
+                             GRN_TEXT_LEN(bulk));
     break;
   default :
     {
@@ -198,6 +288,24 @@ grn_mrb_bulk_cast(mrb_state *mrb, grn_obj *from, grn_obj *to, grn_id domain_id)
 }
 
 static mrb_value
+mrb_grn_bulk_s_is_true(mrb_state *mrb, mrb_value klass)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  mrb_value mrb_value_;
+  grn_obj bulk;
+  grn_bool is_true;
+
+  mrb_get_args(mrb, "o", &mrb_value_);
+
+  GRN_TEXT_INIT(&bulk, GRN_OBJ_DO_SHALLOW_COPY);
+  grn_mrb_value_to_bulk(mrb, mrb_value_, &bulk);
+  is_true = grn_obj_is_true(ctx, &bulk);
+  GRN_OBJ_FIN(ctx, &bulk);
+
+  return mrb_bool_value(is_true);
+}
+
+static mrb_value
 mrb_grn_bulk_initialize(mrb_state *mrb, mrb_value self)
 {
   mrb_value mrb_bulk_ptr;
@@ -247,6 +355,10 @@ grn_mrb_bulk_init(grn_ctx *ctx)
 
   klass = mrb_define_class_under(mrb, module, "Bulk", mrb->object_class);
   MRB_SET_INSTANCE_TT(klass, MRB_TT_DATA);
+
+  mrb_define_singleton_method(mrb, (struct RObject *)klass, "true?",
+                              mrb_grn_bulk_s_is_true, MRB_ARGS_REQ(1));
+
   mrb_define_method(mrb, klass, "initialize",
                     mrb_grn_bulk_initialize, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, klass, "domain",

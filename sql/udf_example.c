@@ -112,6 +112,11 @@
 **
 */
 
+#ifdef _WIN32
+/* Silence warning about deprecated functions , gethostbyname etc*/
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#endif
+
 #ifdef STANDARD
 /* STANDARD is defined, don't use any mysql functions */
 #include <stdlib.h>
@@ -139,10 +144,6 @@ typedef long long longlong;
 #include <mysql.h>
 #include <ctype.h>
 
-#ifdef _WIN32
-/* inet_aton needs winsock library */
-#pragma comment(lib, "ws2_32")
-#endif
 
 #ifdef HAVE_DLOPEN
 

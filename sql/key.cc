@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,9 +21,6 @@
 #include "sql_priv.h"
 #include "key.h"                                // key_rec_cmp
 #include "field.h"                              // Field
-
-using std::min;
-using std::max;
 
 /*
   Search after a key that starts with 'field'
@@ -65,7 +63,8 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
        i < (int) key_count ;
        i++, key_info++)
   {
-    if (key_info->key_part[0].offset == fieldpos)
+    if (key_info->key_part[0].offset == fieldpos &&
+            key_info->key_part[0].field->type() != MYSQL_TYPE_BIT)
     {                                  		/* Found key. Calc keylength */
       *key_length= *keypart= 0;
       return i;                                 /* Use this key */
@@ -84,7 +83,8 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
 	 j < key_info->user_defined_key_parts ;
 	 j++, key_part++)
     {
-      if (key_part->offset == fieldpos)
+      if (key_part->offset == fieldpos &&
+            key_part->field->type() != MYSQL_TYPE_BIT)
       {
         *keypart= j;
         return i;                               /* Use this key */
@@ -135,7 +135,7 @@ void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
           Don't copy data for null values
           The -1 below is to subtract the null byte which is already handled
         */
-        length= min<uint>(key_length, key_part->store_length-1);
+        length= MY_MIN(key_length, uint(key_part->store_length)-1);
         if (with_zerofill)
           bzero((char*) to_key, length);
         continue;
@@ -145,7 +145,7 @@ void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
         key_part->key_part_flag & HA_VAR_LENGTH_PART)
     {
       key_length-= HA_KEY_BLOB_LENGTH;
-      length= min<uint>(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       uint bytes= key_part->field->get_key_image(to_key, length, Field::itRAW);
       if (with_zerofill && bytes < length)
         bzero((char*) to_key + bytes, length - bytes);
@@ -153,7 +153,7 @@ void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
     }
     else
     {
-      length= min<uint>(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       Field *field= key_part->field;
       CHARSET_INFO *cs= field->charset();
       uint bytes= field->get_key_image(to_key, length, Field::itRAW);
@@ -205,7 +205,7 @@ void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
           Don't copy data for null bytes
           The -1 below is to subtract the null byte which is already handled
         */
-        length= min<uint>(key_length, key_part->store_length-1);
+        length= MY_MIN(key_length, uint(key_part->store_length)-1);
         continue;
       }
     }
@@ -247,7 +247,7 @@ void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
       my_ptrdiff_t ptrdiff= to_record - field->table->record[0];
       field->move_field_offset(ptrdiff);
       key_length-= HA_KEY_BLOB_LENGTH;
-      length= min<uint>(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       old_map= dbug_tmp_use_all_columns(field->table, field->table->write_set);
       field->set_key_image(from_key, length);
       dbug_tmp_restore_column_map(field->table->write_set, old_map);
@@ -256,7 +256,7 @@ void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
     }
     else
     {
-      length= min<uint>(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       /* skip the byte with 'uneven' bits, if used */
       memcpy(to_record + key_part->offset, from_key + used_uneven_bits
              , (size_t) length - used_uneven_bits);
@@ -314,12 +314,12 @@ bool key_cmp_if_same(TABLE *table,const uchar *key,uint idx,uint key_length)
 	return 1;
       continue;
     }
-    length= min((uint) (key_end-key), store_length);
+    length= MY_MIN((uint) (key_end-key), store_length);
     if (!(key_part->key_type & (FIELDFLAG_NUMBER+FIELDFLAG_BINARY+
                                 FIELDFLAG_PACK)))
     {
       CHARSET_INFO *cs= key_part->field->charset();
-      uint char_length= key_part->length / cs->mbmaxlen;
+      size_t char_length= key_part->length / cs->mbmaxlen;
       const uchar *pos= table->record[0] + key_part->offset;
       if (length > char_length)
       {
@@ -385,14 +385,14 @@ void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
         which can break a multi-byte characters in the middle.
         Align, returning not more than "char_length" characters.
       */
-      uint charpos, char_length= max_length / cs->mbmaxlen;
+      size_t charpos, char_length= max_length / cs->mbmaxlen;
       if ((charpos= my_charpos(cs, tmp.ptr(),
                                tmp.ptr() + tmp.length(),
                                char_length)) < tmp.length())
         tmp.length(charpos);
     }
     if (max_length < field->pack_length())
-      tmp.length(min(tmp.length(),max_length));
+      tmp.length(MY_MIN(tmp.length(),max_length));
     ErrConvString err(&tmp);
     to->append(err.ptr());
   }
@@ -427,6 +427,8 @@ void key_unpack(String *to, TABLE *table, KEY *key)
        key_part < key_part_end;
        key_part++)
   {
+    if (key_part->field->invisible > INVISIBLE_USER)
+      continue;
     if (to->length())
       to->append('-');
     if (key_part->null_bit)
@@ -697,7 +699,7 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
   {
     uchar *pos= (uchar*)key;
     CHARSET_INFO *UNINIT_VAR(cs);
-    uint UNINIT_VAR(length), UNINIT_VAR(pack_length);
+    size_t UNINIT_VAR(length), UNINIT_VAR(pack_length);
     bool is_string= TRUE;
 
     key+= key_part->length;
@@ -754,7 +756,7 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
     {
       if (cs->mbmaxlen > 1)
       {
-        uint char_length= my_charpos(cs, pos + pack_length,
+        size_t char_length= my_charpos(cs, pos + pack_length,
                                      pos + pack_length + length,
                                      length / cs->mbmaxlen);
         set_if_smaller(length, char_length);
@@ -801,7 +803,7 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
     uchar *pos1= (uchar*)key1;
     uchar *pos2= (uchar*)key2;
     CHARSET_INFO *UNINIT_VAR(cs);
-    uint UNINIT_VAR(length1), UNINIT_VAR(length2), UNINIT_VAR(pack_length);
+    size_t UNINIT_VAR(length1), UNINIT_VAR(length2), UNINIT_VAR(pack_length);
     bool is_string= TRUE;
 
     key1+= key_part->length;
@@ -865,13 +867,13 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
         Compare the strings taking into account length in characters
         and collation
       */
-      uint byte_len1= length1, byte_len2= length2;
+      size_t byte_len1= length1, byte_len2= length2;
       if (cs->mbmaxlen > 1)
       {
-        uint char_length1= my_charpos(cs, pos1 + pack_length,
+        size_t char_length1= my_charpos(cs, pos1 + pack_length,
                                       pos1 + pack_length + length1,
                                       length1 / cs->mbmaxlen);
-        uint char_length2= my_charpos(cs, pos2 + pack_length,
+        size_t char_length2= my_charpos(cs, pos2 + pack_length,
                                       pos2 + pack_length + length2,
                                       length2 / cs->mbmaxlen);
         set_if_smaller(length1, char_length1);

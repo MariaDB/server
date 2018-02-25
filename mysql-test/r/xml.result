@@ -1274,6 +1274,18 @@ c1	c2
 2	b2
 DROP TABLE t1;
 #
+# MDEV-15118 ExtractValue(xml,something_complex) does not work
+#
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES (CONCAT('<a>aaa</a>'));
+SELECT ExtractValue(a, '/a') AS a FROM t1;
+a
+aaa
+SELECT ExtractValue(a, FROM_BASE64(TO_BASE64('/a'))) AS a FROM t1;
+a
+aaa
+DROP TABLE t1;
+#
 # End of 10.0 tests
 #
 #

@@ -5,16 +5,14 @@ MACRO(SKIP_ROCKSDB_PLUGIN msg)
   RETURN()
 ENDMACRO()
 
-IF(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/Makefile AND GIT_EXECUTABLE)
-  EXECUTE_PROCESS(COMMAND "${GIT_EXECUTABLE}" submodule init
-                  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
-  EXECUTE_PROCESS(COMMAND "${GIT_EXECUTABLE}" submodule update
-                  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
-ENDIF()
-
 IF (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/Makefile")
   SKIP_ROCKSDB_PLUGIN("Missing Makefile in rocksdb directory. Try \"git submodule update\".")
 ENDIF()
+
+CHECK_LIBRARY_EXISTS(rt timer_delete "" HAVE_TIMER_DELETE)
+IF (HAVE_TIMER_DELETE)
+  ADD_DEFINITIONS(-DHAVE_TIMER_DELETE)
+ENDIF(HAVE_TIMER_DELETE)
 
 CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 IF(HAVE_SCHED_GETCPU)
@@ -59,6 +57,10 @@ ELSEIF (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     SKIP_ROCKSDB_PLUGIN("${OLD_COMPILER_MSG}")
   ENDIF()
   SET(CXX11_FLAGS "-std=c++11 -stdlib=libstdc++")
+  IF(MSVC)
+    # clang-cl does not work yet
+    SKIP_ROCKSDB_PLUGIN("Clang-cl is not supported")
+  ENDIF()
 ELSEIF(MSVC)
   IF (MSVC_VERSION LESS 1900)
     SKIP_ROCKSDB_PLUGIN("${OLD_COMPILER_MSG}")
@@ -210,6 +212,8 @@ TARGET_LINK_LIBRARIES(sst_dump rocksdblib)
 MYSQL_ADD_EXECUTABLE(mysql_ldb tools/mysql_ldb.cc COMPONENT rocksdb-engine)
 TARGET_LINK_LIBRARIES(mysql_ldb rocksdb_tools rocksdb_aux_lib)
 
+INSTALL_SCRIPT(myrocks_hotbackup COMPONENT rocksdb-engine)
+
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   SET_TARGET_PROPERTIES(rocksdb_tools sst_dump mysql_ldb PROPERTIES COMPILE_FLAGS -frtti)
 ENDIF()
@@ -218,7 +222,26 @@ IF(MSVC)
   # additional const qualifiers to parameters of the overriden virtual functions
   # This creates a lot of warnings, that we silence here.
   ADD_DEFINITIONS(/wd4373)
-
   # Some checks in C++ runtime that make debug build much slower
   ADD_DEFINITIONS(-D_ITERATOR_DEBUG_LEVEL=0)
+
+    # Temporarily disable "conversion from size_t .." warnings
+  IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
+  ENDIF()
+ENDIF()
+
+IF(GIT_EXECUTABLE)
+  EXECUTE_PROCESS(
+    COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/rocksdb
+       OUTPUT_VARIABLE OUT RESULT_VARIABLE RES)
+  IF(RES EQUAL 0)
+    STRING(REGEX REPLACE "\n$" "" ROCKSDB_GIT_HASH "${OUT}")
+  ENDIF()
+ENDIF()
+IF(ROCKSDB_GIT_HASH OR
+  (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rdb_source_revision.h))
+  CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/rdb_source_revision.h.in
+               ${CMAKE_CURRENT_BINARY_DIR}/rdb_source_revision.h )
 ENDIF()

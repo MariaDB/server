@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -705,6 +705,10 @@ row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 		    == row_get_rec_roll_ptr(rec, index, offsets)) {
 			ut_ad(!rec_get_deleted_flag(rec,
 						    rec_offs_comp(offsets)));
+			DBUG_LOG("purge", "reset DB_TRX_ID="
+				 << ib::hex(row_get_rec_trx_id(
+						    rec, index, offsets)));
+
 			mtr->set_named_space(index->space);
 			if (page_zip_des_t* page_zip
 			    = buf_block_get_page_zip(
@@ -718,13 +722,8 @@ row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 				byte*	ptr = rec_get_nth_field(
 					rec, offsets, trx_id_pos, &len);
 				ut_ad(len == DATA_TRX_ID_LEN);
-				memset(ptr, 0, DATA_TRX_ID_LEN
-				       + DATA_ROLL_PTR_LEN);
-				ptr[DATA_TRX_ID_LEN] = 1U
-					<< (ROLL_PTR_INSERT_FLAG_POS - CHAR_BIT
-					    * (DATA_ROLL_PTR_LEN - 1));
-				mlog_log_string(ptr, DATA_TRX_ID_LEN
-						+ DATA_ROLL_PTR_LEN, mtr);
+				mlog_write_string(ptr, reset_trx_id,
+						  sizeof reset_trx_id, mtr);
 			}
 		}
 	}
@@ -748,6 +747,7 @@ row_purge_upd_exist_or_extern_func(
 	mem_heap_t*	heap;
 
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S));
+	ut_ad(!node->table->skip_alter_undo);
 
 	if (node->rec_type == TRX_UNDO_UPD_DEL_REC
 	    || (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
@@ -817,7 +817,7 @@ skip_secondaries:
 						 &is_insert, &rseg_id,
 						 &page_no, &offset);
 
-			rseg = trx_sys->rseg_array[rseg_id];
+			rseg = trx_sys.rseg_array[rseg_id];
 
 			ut_a(rseg != NULL);
 			ut_ad(rseg->id == rseg_id);
@@ -905,12 +905,14 @@ row_purge_parse_undo_rec(
 	node->rec_type = type;
 
 	switch (type) {
+	case TRX_UNDO_RENAME_TABLE:
+		return false;
 	case TRX_UNDO_INSERT_DEFAULT:
 	case TRX_UNDO_INSERT_REC:
 		break;
 	default:
 #ifdef UNIV_DEBUG
-		ut_ad(0);
+		ut_ad(!"unknown undo log record type");
 		return false;
 	case TRX_UNDO_UPD_DEL_REC:
 	case TRX_UNDO_UPD_EXIST_REC:
@@ -1002,7 +1004,7 @@ err_exit:
 
 	if (!(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
 		ptr = trx_undo_rec_get_partial_row(
-			ptr, clust_index, &node->row,
+			ptr, clust_index, node->update, &node->row,
 			type == TRX_UNDO_UPD_DEL_REC,
 			node->heap);
 	}
@@ -1029,6 +1031,7 @@ row_purge_record_func(
 	bool		purged		= true;
 
 	ut_ad(!node->found_clust);
+	ut_ad(!node->table->skip_alter_undo);
 
 	clust_index = dict_table_get_first_index(node->table);
 

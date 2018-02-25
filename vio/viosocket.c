@@ -83,6 +83,16 @@ int vio_errno(Vio *vio __attribute__((unused)))
   return socket_errno;
 }
 
+static int vio_set_linger(my_socket s, unsigned short timeout_sec)
+{
+  struct linger s_linger;
+  int ret;
+  s_linger.l_onoff = 1;
+  s_linger.l_linger = timeout_sec;
+  ret = setsockopt(s, SOL_SOCKET, SO_LINGER, (const char *)&s_linger, (int)sizeof(s_linger));
+  return ret;
+}
+
 
 /**
   Attempt to wait for an I/O event on a socket.
@@ -115,6 +125,7 @@ int vio_socket_io_wait(Vio *vio, enum enum_vio_io_event event)
   case  0:
     /* The wait timed out. */
     ret= -1;
+    vio_set_linger(vio->mysql_socket.fd, 0);
     break;
   default:
     /* A positive value indicates an I/O event. */
@@ -400,43 +411,6 @@ int vio_socket_timeout(Vio *vio,
 {
   int ret= 0;
   DBUG_ENTER("vio_socket_timeout");
-
-#if defined(_WIN32)
-  {
-    int optname;
-    DWORD timeout= 0;
-    const char *optval= (const char *) &timeout;
-
-    /*
-      The default socket timeout value is zero, which means an infinite
-      timeout. Values less than 500 milliseconds are interpreted to be of
-      500 milliseconds. Hence, the VIO behavior for zero timeout, which is
-      intended to cause the send or receive operation to fail immediately
-      if no data is available, is not supported on WIN32 and neither is
-      necessary as it's not possible to set the VIO timeout value to zero.
-
-      Assert that the VIO timeout is either positive or set to infinite.
-    */
-    DBUG_ASSERT(which || vio->read_timeout);
-    DBUG_ASSERT(!which || vio->write_timeout);
-
-    if (which)
-    {
-      optname= SO_SNDTIMEO;
-      if (vio->write_timeout > 0)
-        timeout= vio->write_timeout;
-    }
-    else
-    {
-      optname= SO_RCVTIMEO;
-      if (vio->read_timeout > 0)
-        timeout= vio->read_timeout;
-    }
-
-    ret= mysql_socket_setsockopt(vio->mysql_socket, SOL_SOCKET, optname,
-	                             optval, sizeof(timeout));
-  }
-#else
   /*
     The MSG_DONTWAIT trick is not used with SSL sockets as the send and
     receive I/O operations are wrapped through SSL-specific functions
@@ -457,7 +431,6 @@ int vio_socket_timeout(Vio *vio,
     if (new_mode != old_mode)
       ret= vio_blocking(vio, new_mode, &not_used);
   }
-#endif
 
   DBUG_RETURN(ret);
 }
@@ -630,8 +603,6 @@ int vio_close(Vio *vio)
       vio->type == VIO_TYPE_SSL);
 
     DBUG_ASSERT(mysql_socket_getfd(vio->mysql_socket) >= 0);
-    if (mysql_socket_shutdown(vio->mysql_socket, SHUT_RDWR))
-      r= -1;
     if (mysql_socket_close(vio->mysql_socket))
       r= -1;
   }
@@ -682,18 +653,15 @@ my_socket vio_fd(Vio* vio)
   @param src_length [in] length of the src.
   @param dst        [out] a buffer to store normalized IP address
                           (sockaddr_storage).
-  @param dst_length [out] actual length of the normalized IP address.
+  @param dst_length [out] optional - actual length of the normalized IP address.
 */
 
-void vio_get_normalized_ip(const struct sockaddr *src,
-                                  int src_length,
-                                  struct sockaddr *dst,
-                                  int *dst_length)
+void vio_get_normalized_ip(const struct sockaddr *src, size_t src_length,
+                                  struct sockaddr *dst)
 {
   switch (src->sa_family) {
   case AF_INET:
     memcpy(dst, src, src_length);
-    *dst_length= src_length;
     break;
 
 #ifdef HAVE_IPV6
@@ -712,9 +680,7 @@ void vio_get_normalized_ip(const struct sockaddr *src,
         be converted to the IPv4 form.
       */
 
-      *dst_length= sizeof (struct sockaddr_in);
-
-      memset(dst_ip4, 0, *dst_length);
+      memset(dst_ip4, 0, sizeof (struct sockaddr_in));
       dst_ip4->sin_family= AF_INET;
       dst_ip4->sin_port= src_addr6->sin6_port;
 
@@ -728,9 +694,7 @@ void vio_get_normalized_ip(const struct sockaddr *src,
     else
     {
       /* This is a "native" IPv6 address. */
-
       memcpy(dst, src, src_length);
-      *dst_length= src_length;
     }
 
     break;
@@ -761,17 +725,15 @@ void vio_get_normalized_ip(const struct sockaddr *src,
   @retval FALSE on success.
 */
 
-my_bool vio_get_normalized_ip_string(const struct sockaddr *addr,
-                                     int addr_length,
+my_bool vio_get_normalized_ip_string(const struct sockaddr *addr, size_t addr_length,
                                      char *ip_string,
                                      size_t ip_string_size)
 {
   struct sockaddr_storage norm_addr_storage;
   struct sockaddr *norm_addr= (struct sockaddr *) &norm_addr_storage;
-  int norm_addr_length;
   int err_code;
 
-  vio_get_normalized_ip(addr, addr_length, norm_addr, &norm_addr_length);
+  vio_get_normalized_ip(addr, addr_length, norm_addr);
 
   err_code= vio_getnameinfo(norm_addr, ip_string, ip_string_size, NULL, 0,
                             NI_NUMERICHOST);
@@ -810,9 +772,7 @@ my_bool vio_peer_addr(Vio *vio, char *ip_buffer, uint16 *port,
       address.
     */
     struct in_addr *ip4= &((struct sockaddr_in *) &(vio->remote))->sin_addr;
-
     vio->remote.ss_family= AF_INET;
-    vio->addrLen= sizeof (struct sockaddr_in);
 
     ip4->s_addr= htonl(INADDR_LOOPBACK);
 
@@ -829,7 +789,6 @@ my_bool vio_peer_addr(Vio *vio, char *ip_buffer, uint16 *port,
     struct sockaddr_storage addr_storage;
     struct sockaddr *addr= (struct sockaddr *) &addr_storage;
     size_socket addr_length= sizeof (addr_storage);
-
     /* Get sockaddr by socked fd. */
 
     err_code= mysql_socket_getpeername(vio->mysql_socket, addr, &addr_length);
@@ -843,7 +802,7 @@ my_bool vio_peer_addr(Vio *vio, char *ip_buffer, uint16 *port,
     /* Normalize IP address. */
 
     vio_get_normalized_ip(addr, addr_length,
-                          (struct sockaddr *) &vio->remote, &vio->addrLen);
+                          (struct sockaddr *) &vio->remote);
 
     /* Get IP address & port number. */
 
@@ -884,7 +843,7 @@ static my_bool socket_peek_read(Vio *vio, uint *bytes)
 {
   my_socket sd= mysql_socket_getfd(vio->mysql_socket);
 #if defined(_WIN32)
-  int len;
+  u_long len;
   if (ioctlsocket(sd, FIONREAD, &len))
     return TRUE;
   *bytes= len;
@@ -1354,7 +1313,7 @@ int vio_getnameinfo(const struct sockaddr *sa,
   }
 
   return getnameinfo(sa, sa_length,
-                     hostname, hostname_size,
-                     port, port_size,
+                     hostname, (uint)hostname_size,
+                     port, (uint)port_size,
                      flags);
 }

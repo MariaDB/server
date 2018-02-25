@@ -441,7 +441,7 @@ log_online_open_bitmap_file_read_only(
 
 	xb_ad(name[0] != '\0');
 
-	ut_snprintf(bitmap_file->name, FN_REFLEN, "%s%s", srv_data_home, name);
+	snprintf(bitmap_file->name, FN_REFLEN, "%s%s", srv_data_home, name);
 	bitmap_file->file = os_file_create_simple_no_error_handling(
 		0, bitmap_file->name,
 		OS_FILE_OPEN, OS_FILE_READ_ONLY, true, &success);

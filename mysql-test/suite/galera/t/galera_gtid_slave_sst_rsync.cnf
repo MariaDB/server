@@ -1,0 +1,18 @@
+!include ../galera_2nodes_as_slave.cnf
+
+[mysqld]
+log-bin=mysqld-bin
+log-slave-updates
+binlog-format=ROW
+wsrep_sst_method=rsync
+[mysqld.1]
+gtid-domain-id=1
+[mysqld.2]
+gtid-domain-id=2
+wsrep_gtid_mode=1
+wsrep_gtid_domain_id=2
+[mysqld.3]
+gtid-domain-id=2
+wsrep_gtid_mode=1
+wsrep_gtid_domain_id=2
+

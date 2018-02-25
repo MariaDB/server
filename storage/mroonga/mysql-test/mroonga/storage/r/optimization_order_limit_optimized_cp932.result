@@ -1,0 +1,22 @@
+DROP TABLE IF EXISTS memos;
+FLUSH STATUS;
+SET NAMES CP932;
+CREATE TABLE memos (
+識別子 INT UNSIGNED,
+内容 TEXT,
+FULLTEXT INDEX(内容),
+KEY(識別子)
+) DEFAULT CHARSET CP932;
+INSERT INTO memos VALUES(2, "明日は山登り。");
+INSERT INTO memos VALUES(3, "今日はサボテンをもらった。");
+INSERT INTO memos VALUES(1, "今日は天気がよくてよかった。");
+SELECT * FROM memos
+WHERE MATCH(内容) AGAINST("今日" IN BOOLEAN MODE)
+ORDER BY 識別子
+LIMIT 1;
+識別子	内容
+1	今日は天気がよくてよかった。
+SHOW STATUS LIKE 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	1
+DROP TABLE memos;

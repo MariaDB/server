@@ -116,7 +116,7 @@ static char *mysql_ha_hash_get_key(SQL_HANDLER *table, size_t *key_len,
                                    my_bool first __attribute__((unused)))
 {
   *key_len= table->handler_name.length + 1 ; /* include '\0' in comparisons */
-  return table->handler_name.str;
+  return (char*) table->handler_name.str;
 }
 
 
@@ -139,6 +139,48 @@ static void mysql_ha_hash_free(SQL_HANDLER *table)
   delete table;
 }
 
+static void mysql_ha_close_childs(THD *thd, TABLE_LIST *current_table_list,
+                                  TABLE_LIST **next_global)
+{
+  TABLE_LIST *table_list;
+  DBUG_ENTER("mysql_ha_close_childs");
+  DBUG_PRINT("info",("current_table_list: %p", current_table_list));
+  DBUG_PRINT("info",("next_global: %p", *next_global));
+  for (table_list = *next_global; table_list; table_list = *next_global)
+  {
+    *next_global = table_list->next_global;
+    DBUG_PRINT("info",("table_name: %s.%s", table_list->table->s->db.str,
+                       table_list->table->s->table_name.str));
+    DBUG_PRINT("info",("parent_l: %p", table_list->parent_l));
+    if (table_list->parent_l == current_table_list)
+    {
+      DBUG_PRINT("info",("found child"));
+      TABLE *table = table_list->table;
+      if (table)
+      {
+        table->open_by_handler= 0;
+        if (!table->s->tmp_table)
+        {
+          (void) close_thread_table(thd, &table);
+          thd->mdl_context.release_lock(table_list->mdl_request.ticket);
+        }
+        else
+        {
+          thd->mark_tmp_table_as_free_for_reuse(table);
+        }
+      }
+      mysql_ha_close_childs(thd, table_list, next_global);
+    }
+    else
+    {
+      /* the end of child tables */
+      *next_global = table_list;
+      break;
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+
 /**
   Close a HANDLER table.
 
@@ -155,11 +197,16 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
 {
   THD *thd= handler->thd;
   TABLE *table= handler->table;
+  TABLE_LIST *current_table_list= NULL, *next_global;
 
   /* check if table was already closed */
   if (!table)
     return;
 
+  if ((next_global= table->file->get_next_global_for_child()))
+    current_table_list= next_global->parent_l;
+
+  table->open_by_handler= 0;
   if (!table->s->tmp_table)
   {
     /* Non temporary table. */
@@ -170,15 +217,17 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
     }
 
     table->file->ha_index_or_rnd_end();
-    table->open_by_handler= 0;
     close_thread_table(thd, &table);
+    if (current_table_list)
+      mysql_ha_close_childs(thd, current_table_list, &next_global);
     thd->mdl_context.release_lock(handler->mdl_request.ticket);
   }
   else
   {
     /* Must be a temporary table */
     table->file->ha_index_or_rnd_end();
-    table->open_by_handler= 0;
+    if (current_table_list)
+      mysql_ha_close_childs(thd, current_table_list, &next_global);
     thd->mark_tmp_table_as_free_for_reuse(table);
   }
   my_free(handler->lock);
@@ -217,7 +266,7 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
   Query_arena backup_arena;
   DBUG_ENTER("mysql_ha_open");
   DBUG_PRINT("enter",("'%s'.'%s' as '%s'  reopen: %d",
-                      tables->db, tables->table_name, tables->alias,
+                      tables->db.str, tables->table_name.str, tables->alias.str,
                       reopen != 0));
 
   if (thd->locked_tables_mode)
@@ -249,12 +298,12 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
   }
   else if (! reopen) /* Otherwise we have 'tables' already. */
   {
-    if (my_hash_search(&thd->handler_tables_hash, (uchar*) tables->alias,
-                       strlen(tables->alias) + 1))
+    if (my_hash_search(&thd->handler_tables_hash, (uchar*) tables->alias.str,
+                       tables->alias.length + 1))
     {
-      DBUG_PRINT("info",("duplicate '%s'", tables->alias));
+      DBUG_PRINT("info",("duplicate '%s'", tables->alias.str));
       DBUG_PRINT("exit",("ERROR"));
-      my_error(ER_NONUNIQ_TABLE, MYF(0), tables->alias);
+      my_error(ER_NONUNIQ_TABLE, MYF(0), tables->alias.str);
       DBUG_RETURN(TRUE);
     }
   }
@@ -281,7 +330,7 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     right from the start as open_tables() can't handle properly
     back-off for such locks.
   */
-  tables->mdl_request.init(MDL_key::TABLE, tables->db, tables->table_name,
+  tables->mdl_request.init(MDL_key::TABLE, tables->db.str, tables->table_name.str,
                            MDL_SHARED_READ, MDL_TRANSACTION);
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
@@ -309,29 +358,39 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     goto err;
   }
 
-  if (tables->mdl_request.ticket &&
-      thd->mdl_context.has_lock(mdl_savepoint, tables->mdl_request.ticket))
+  DBUG_PRINT("info",("clone_tickets start"));
+  for (TABLE_LIST *table_list= tables; table_list;
+    table_list= table_list->next_global)
   {
+    DBUG_PRINT("info",("table_list %s.%s", table_list->table->s->db.str,
+      table_list->table->s->table_name.str));
+  if (table_list->mdl_request.ticket &&
+      thd->mdl_context.has_lock(mdl_savepoint, table_list->mdl_request.ticket))
+  {
+      DBUG_PRINT("info",("clone_tickets"));
     /* The ticket returned is within a savepoint. Make a copy.  */
-    error= thd->mdl_context.clone_ticket(&tables->mdl_request);
-    tables->table->mdl_ticket= tables->mdl_request.ticket;
+    error= thd->mdl_context.clone_ticket(&table_list->mdl_request);
+    table_list->table->mdl_ticket= table_list->mdl_request.ticket;
     if (error)
       goto err;
   }
+  }
+  DBUG_PRINT("info",("clone_tickets end"));
 
   if (! reopen)
   {
     /* copy data to sql_handler */
     if (!(sql_handler= new SQL_HANDLER(thd)))
       goto err;
-    init_alloc_root(&sql_handler->mem_root, 1024, 0, MYF(MY_THREAD_SPECIFIC));
+    init_alloc_root(&sql_handler->mem_root, "sql_handler", 1024, 0,
+                    MYF(MY_THREAD_SPECIFIC));
 
-    sql_handler->db.length= strlen(tables->db);
-    sql_handler->table_name.length= strlen(tables->table_name);
-    sql_handler->handler_name.length= strlen(tables->alias);
+    sql_handler->db.length= tables->db.length;
+    sql_handler->table_name.length= tables->table_name.length;
+    sql_handler->handler_name.length= tables->alias.length;
 
     if (!(my_multi_malloc(MY_WME,
-                          &sql_handler->db.str,
+                          &sql_handler->base_data,
                           (uint) sql_handler->db.length + 1,
                           &sql_handler->table_name.str,
                           (uint) sql_handler->table_name.length + 1,
@@ -339,12 +398,12 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
                           (uint) sql_handler->handler_name.length + 1,
                           NullS)))
       goto err;
-    sql_handler->base_data= sql_handler->db.str;  // Free this
-    memcpy(sql_handler->db.str, tables->db, sql_handler->db.length +1);
-    memcpy(sql_handler->table_name.str, tables->table_name,
-           sql_handler->table_name.length+1);
-    memcpy(sql_handler->handler_name.str, tables->alias,
-           sql_handler->handler_name.length +1);
+    sql_handler->db.str= sql_handler->base_data;
+    memcpy((char*) sql_handler->db.str, tables->db.str, tables->db.length +1);
+    memcpy((char*) sql_handler->table_name.str, tables->table_name.str,
+           tables->table_name.length+1);
+    memcpy((char*) sql_handler->handler_name.str, tables->alias.str,
+           tables->alias.length +1);
 
     /* add to hash */
     if (my_hash_insert(&thd->handler_tables_hash, (uchar*) sql_handler))
@@ -378,26 +437,37 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
 
   /* Restore the state. */
   thd->set_open_tables(backup_open_tables);
+  DBUG_PRINT("info",("set_lock_duration start"));
   if (sql_handler->mdl_request.ticket)
   {
     thd->mdl_context.set_lock_duration(sql_handler->mdl_request.ticket,
                                        MDL_EXPLICIT);
     thd->mdl_context.set_needs_thr_lock_abort(TRUE);
   }
+  for (TABLE_LIST *table_list= tables->next_global; table_list;
+    table_list= table_list->next_global)
+  {
+    DBUG_PRINT("info",("table_list %s.%s", table_list->table->s->db.str,
+      table_list->table->s->table_name.str));
+    if (table_list->mdl_request.ticket)
+    {
+      thd->mdl_context.set_lock_duration(table_list->mdl_request.ticket,
+                                         MDL_EXPLICIT);
+      thd->mdl_context.set_needs_thr_lock_abort(TRUE);
+    }
+  }
+  DBUG_PRINT("info",("set_lock_duration end"));
 
-  /*
-    Assert that the above check prevents opening of views and merge tables.
-    For temporary tables, TABLE::next can be set even if only one table
-    was opened for HANDLER as it is used to link them together.
-  */
-  DBUG_ASSERT(sql_handler->table->next == NULL ||
-              sql_handler->table->s->tmp_table);
   /*
     If it's a temp table, don't reset table->query_id as the table is
     being used by this handler. For non-temp tables we use this flag
     in asserts.
   */
-  table->open_by_handler= 1;
+  for (TABLE_LIST *table_list= tables; table_list;
+    table_list= table_list->next_global)
+  {
+    table_list->table->open_by_handler= 1;
+  }
 
   /* Safety, cleanup the pointer to satisfy MDL assertions. */
   tables->mdl_request.ticket= NULL;
@@ -451,7 +521,7 @@ bool mysql_ha_close(THD *thd, TABLE_LIST *tables)
   SQL_HANDLER *handler;
   DBUG_ENTER("mysql_ha_close");
   DBUG_PRINT("enter",("'%s'.'%s' as '%s'",
-                      tables->db, tables->table_name, tables->alias));
+                      tables->db.str, tables->table_name.str, tables->alias.str));
 
   if (thd->locked_tables_mode)
   {
@@ -460,15 +530,15 @@ bool mysql_ha_close(THD *thd, TABLE_LIST *tables)
   }
   if ((my_hash_inited(&thd->handler_tables_hash)) &&
       (handler= (SQL_HANDLER*) my_hash_search(&thd->handler_tables_hash,
-                                              (uchar*) tables->alias,
-                                              strlen(tables->alias) + 1)))
+                                              (const uchar*) tables->alias.str,
+                                              tables->alias.length + 1)))
   {
     mysql_ha_close_table(handler);
     my_hash_delete(&thd->handler_tables_hash, (uchar*) handler);
   }
   else
   {
-    my_error(ER_UNKNOWN_TABLE, MYF(0), tables->alias, "HANDLER");
+    my_error(ER_UNKNOWN_TABLE, MYF(0), tables->alias.str, "HANDLER");
     DBUG_PRINT("exit",("ERROR"));
     DBUG_RETURN(TRUE);
   }
@@ -495,13 +565,13 @@ bool mysql_ha_close(THD *thd, TABLE_LIST *tables)
    @return handler
 */  
 
-SQL_HANDLER *mysql_ha_find_handler(THD *thd, const char *name)
+static SQL_HANDLER *mysql_ha_find_handler(THD *thd, const LEX_CSTRING *name)
 {
   SQL_HANDLER *handler;
   if ((my_hash_inited(&thd->handler_tables_hash)) &&
       (handler= (SQL_HANDLER*) my_hash_search(&thd->handler_tables_hash,
-                                              (uchar*) name,
-                                              strlen(name) + 1)))
+                                              (const uchar*) name->str,
+                                              name->length + 1)))
   {
     DBUG_PRINT("info-in-hash",("'%s'.'%s' as '%s' table: %p",
                                handler->db.str,
@@ -511,9 +581,8 @@ SQL_HANDLER *mysql_ha_find_handler(THD *thd, const char *name)
     {
       /* The handler table has been closed. Re-open it. */
       TABLE_LIST tmp;
-      tmp.init_one_table(handler->db.str, handler->db.length,
-                         handler->table_name.str, handler->table_name.length,
-                         handler->handler_name.str, TL_READ);
+      tmp.init_one_table(&handler->db, &handler->table_name,
+                         &handler->handler_name, TL_READ);
 
       if (mysql_ha_open(thd, &tmp, handler))
       {
@@ -524,7 +593,7 @@ SQL_HANDLER *mysql_ha_find_handler(THD *thd, const char *name)
   }
   else
   {
-    my_error(ER_UNKNOWN_TABLE, MYF(0), name, "HANDLER");
+    my_error(ER_UNKNOWN_TABLE, MYF(0), name->str, "HANDLER");
     return 0;
   }
   return handler;
@@ -687,7 +756,7 @@ bool mysql_ha_read(THD *thd, TABLE_LIST *tables,
   MDL_deadlock_and_lock_abort_error_handler sql_handler_lock_error;
   DBUG_ENTER("mysql_ha_read");
   DBUG_PRINT("enter",("'%s'.'%s' as '%s'",
-                      tables->db, tables->table_name, tables->alias));
+                      tables->db.str, tables->table_name.str, tables->alias.str));
 
   if (thd->locked_tables_mode)
   {
@@ -696,7 +765,7 @@ bool mysql_ha_read(THD *thd, TABLE_LIST *tables,
   }
 
 retry:
-  if (!(handler= mysql_ha_find_handler(thd, tables->alias)))
+  if (!(handler= mysql_ha_find_handler(thd, &tables->alias)))
     goto err0;
 
   table= handler->table;
@@ -707,8 +776,14 @@ retry:
   {
     int lock_error;
 
-    if (handler->lock->lock_count > 0)
-      handler->lock->locks[0]->type= handler->lock->locks[0]->org_type;
+    THR_LOCK_DATA **pos,**end;
+    for (pos= handler->lock->locks,
+           end= handler->lock->locks + handler->lock->lock_count;
+         pos < end;
+         pos++)
+    {
+      pos[0]->type= pos[0]->org_type;
+    }
 
     /* save open_tables state */
     TABLE* backup_open_tables= thd->open_tables;
@@ -875,7 +950,7 @@ retry:
         if (error != HA_ERR_RECORD_CHANGED && error != HA_ERR_WRONG_COMMAND)
           sql_print_error("mysql_ha_read: Got error %d when reading "
                           "table '%s'",
-                          error, tables->table_name);
+                          error, tables->table_name.str);
         table->file->print_error(error,MYF(0));
         table->file->ha_index_or_rnd_end();
         goto err;
@@ -932,7 +1007,7 @@ SQL_HANDLER *mysql_ha_read_prepare(THD *thd, TABLE_LIST *tables,
 {
   SQL_HANDLER *handler;
   DBUG_ENTER("mysql_ha_read_prepare");
-  if (!(handler= mysql_ha_find_handler(thd, tables->alias)))
+  if (!(handler= mysql_ha_find_handler(thd, &tables->alias)))
     DBUG_RETURN(0);
   tables->table= handler->table;         // This is used by fix_fields
   if (mysql_ha_fix_cond_and_key(handler, mode, keyname, key_expr, cond, 1))
@@ -968,7 +1043,7 @@ static SQL_HANDLER *mysql_ha_find_match(THD *thd, TABLE_LIST *tables)
     {
       if (tables->is_anonymous_derived_table())
         continue;
-      if ((! *tables->db ||
+      if ((! tables->db.str[0] ||
           ! my_strcasecmp(&my_charset_latin1, hash_tables->db.str,
                           tables->get_db_name())) &&
           ! my_strcasecmp(&my_charset_latin1, hash_tables->table_name.str,

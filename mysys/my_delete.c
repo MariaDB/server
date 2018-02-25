@@ -83,7 +83,7 @@ static int my_win_unlink(const char *name)
 {
   HANDLE handle= INVALID_HANDLE_VALUE;
   DWORD attributes;
-  DWORD last_error;
+  uint last_error;
   char unique_filename[MAX_PATH + 35];
   unsigned long long tsc; /* time stamp counter, for unique filename*/
 
@@ -148,7 +148,7 @@ static int my_win_unlink(const char *name)
     name, tsc);
   if (!MoveFile(name, unique_filename)) 
   {
-    DBUG_PRINT("warning",  ("moving %s to unique filename failed, error %u\n",
+    DBUG_PRINT("warning",  ("moving %s to unique filename failed, error %lu\n",
     name,GetLastError()));
   }
 

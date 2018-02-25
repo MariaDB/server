@@ -89,6 +89,21 @@ ST_AsGeoJSON(ST_GeomFromText("POINT(10 11)"), 100, 1)
 SELECT ST_AsGeoJSON(ST_GeomFromText("POINT(10 11)"), 100, 5);
 ST_AsGeoJSON(ST_GeomFromText("POINT(10 11)"), 100, 5)
 {"bbox": [10, 11, 10, 11], "type": "Point", "coordinates": [10, 11]}
+SELECT st_astext(st_geomfromgeojson('{"type": "MultiLineString","coordinates": []}')) as a;
+a
+NULL
+Warnings:
+Warning	4076	Incorrect GeoJSON format - empty 'coordinates' array.
+SELECT st_astext(st_geomfromgeojson('{"type": "Polygon","coordinates": []}')) as a;
+a
+NULL
+Warnings:
+Warning	4076	Incorrect GeoJSON format - empty 'coordinates' array.
+SELECT st_astext(st_geomfromgeojson('{"type": "MultiPolygon","coordinates": []}')) as a;
+a
+NULL
+Warnings:
+Warning	4076	Incorrect GeoJSON format - empty 'coordinates' array.
 #
 # End of 10.2 tests
 #

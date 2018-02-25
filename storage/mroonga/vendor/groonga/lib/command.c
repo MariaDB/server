@@ -122,9 +122,8 @@ grn_command_input_at(grn_ctx *ctx,
 
   GRN_API_ENTER;
   if (input->arguments) {
-    uint32_t size;
     argument = (grn_obj *)grn_hash_get_value_(ctx, input->arguments,
-                                              offset + 1, &size);
+                                              offset + 1, NULL);
   }
   GRN_API_RETURN(argument);
 }

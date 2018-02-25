@@ -676,3 +676,17 @@ EXECUTE stmt;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15340 Wrong result HOUR(case_expression_with_time_and_datetime)
+--echo #
+
+# This is to make sure that TIME_FUZZY_DATE is always passed to str_to_time(),
+# so empty strings are compared as TIME'00:00:00' all around the code:
+# when using Arg_comparator (e.g. in binary comparison operators), and
+# when not using it (e.g. in IN predicate).
+
+SELECT
+  TIME'00:00:00'='' AS c1_true,
+  TIME'00:00:00' IN ('', TIME'10:20:30') AS c2_true,
+  TIME'00:00:00' NOT IN ('', TIME'10:20:30') AS c3_false;

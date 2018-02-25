@@ -31260,7 +31260,7 @@ static my_bool
 my_uca_alloc_contractions(MY_CONTRACTIONS *contractions,
                           MY_CHARSET_LOADER *loader, size_t n)
 {
-  uint size= n * sizeof(MY_CONTRACTION);
+  size_t size= n * sizeof(MY_CONTRACTION);
   if (!(contractions->item= (loader->once_alloc)(size)) ||
       !(contractions->flags= (char *) (loader->once_alloc)(MY_UCA_CNT_FLAG_SIZE)))
     return 1;
@@ -34005,7 +34005,7 @@ apply_one_rule(MY_CHARSET_LOADER *loader,
   {
     MY_CONTRACTIONS *contractions= &dst->contractions;
     to= my_uca_init_one_contraction(contractions,
-                                    r->curr, nshift, r->with_context);
+                                    r->curr, (uint)nshift, r->with_context);
     /* Store weights of the "reset to" character */
     dst->contractions.nitems--; /* Temporarily hide - it's incomplete */
     rc= my_char_weight_put(dst,
@@ -34034,7 +34034,7 @@ apply_one_rule(MY_CHARSET_LOADER *loader,
 
 /**
   Check if collation rules are valid,
-  i.e. characters are not outside of the collation suported range.
+  i.e. characters are not outside of the collation supported range.
 */
 static int
 check_rules(MY_CHARSET_LOADER *loader,
@@ -34170,7 +34170,7 @@ init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules,
   memcpy(dst->weights, src->weights, npages * sizeof(uint16 *));
 
   /*
-    Calculate maximum lenghts for the pages which will be overwritten.
+    Calculate maximum lengths for the pages which will be overwritten.
     Mark pages that will be otherwriten as NULL.
     We'll allocate their own memory.
   */
@@ -34188,7 +34188,7 @@ init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules,
       {
         /*
           Not an expansion and not a contraction.
-          The page correspoding to r->curr[0] in "dst"
+          The page corresponding to r->curr[0] in "dst"
           will need at least the same amount of weights
           that r->base[0] has in "src".
         */
@@ -34202,9 +34202,9 @@ init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules,
       ncontractions++;
   }
 
-  ncontractions += src->contractions.nitems;
+  ncontractions += (int)src->contractions.nitems;
 
-  if ((my_uca_generate_pages(loader, dst, src, npages)))
+  if ((my_uca_generate_pages(loader, dst, src, (uint)npages)))
     return TRUE;
 
   if (ncontractions)

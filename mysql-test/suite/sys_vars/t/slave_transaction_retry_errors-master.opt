@@ -1,0 +1,1 @@
+--slave_transaction_retry_errors="10,20,   5000, 400"

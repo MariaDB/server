@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013 Brazil
+  Copyright(C) 2013-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -16,14 +16,16 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef GRN_MRB_CONVERTER_H
-#define GRN_MRB_CONVERTER_H
+#pragma once
 
 #include "../grn_ctx.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define GRN_MRB_DATA_PTR(mrb_object)                            \
+  (mrb_nil_p((mrb_object)) ? NULL : DATA_PTR((mrb_object)))
 
 void grn_mrb_converter_init(grn_ctx *ctx);
 
@@ -46,6 +48,10 @@ void grn_mrb_value_to_raw_data(mrb_state *mrb,
                                grn_mrb_value_to_raw_data_buffer *buffer,
                                void **raw_value,
                                unsigned int *raw_value_size);
+mrb_value grn_mrb_value_from_raw_data(mrb_state *mrb,
+                                      grn_id domain,
+                                      void *raw_value,
+                                      unsigned int raw_value_size);
 
 struct RClass *grn_mrb_class_from_grn_obj(mrb_state *mrb, grn_obj *object);
 mrb_value      grn_mrb_value_from_grn_obj(mrb_state *mrb, grn_obj *object);
@@ -56,5 +62,3 @@ grn_id grn_mrb_value_to_grn_type(mrb_state *mrb, mrb_value value);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_MRB_CONVERTER_H */

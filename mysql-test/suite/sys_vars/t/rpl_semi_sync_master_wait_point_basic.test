@@ -1,5 +1,4 @@
 source include/not_embedded.inc;
-source include/have_semisync.inc;
 select @@global.rpl_semi_sync_master_wait_point;
 SET @start_global_value = @@global.rpl_semi_sync_master_wait_point;
 

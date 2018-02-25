@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 --source include/have_innodb.inc
 --source ../../include/mroonga/have_mroonga.inc
@@ -29,7 +29,11 @@ insert into t1 values (2, "ka ki ku ke ko");
 insert into t1 values (3, "aa ii ii ii oo");
 insert into t1 values (4, "sa si su se so");
 insert into t1 values (5, "ta ti ii ii to");
-insert into t2 (c1,c2) select c1,c2 from t1;
+insert into t2 values (1, "aa ii uu ee oo");
+insert into t2 values (2, "ka ki ku ke ko");
+insert into t2 values (3, "aa ii ii ii oo");
+insert into t2 values (4, "sa si su se so");
+insert into t2 values (5, "ta ti ii ii to");
 select * from t1;
 select * from t2;
 select * from t1 where c1=3;

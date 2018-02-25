@@ -66,6 +66,8 @@ char *opt_plugin_dir_ptr;
 char opt_plugin_dir[FN_REFLEN];
 ulong plugin_maturity;
 
+static LEX_CSTRING MYSQL_PLUGIN_NAME= {STRING_WITH_LEN("plugin") };
+
 /*
   not really needed now, this map will become essential when we add more
   maturity levels. We cannot change existing maturity constants,
@@ -80,18 +82,18 @@ uint plugin_maturity_map[]=
   When you ad a new plugin type, add both a string and make sure that the
   init and deinit array are correctly updated.
 */
-const LEX_STRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
+const LEX_CSTRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
-  { C_STRING_WITH_LEN("UDF") },
-  { C_STRING_WITH_LEN("STORAGE ENGINE") },
-  { C_STRING_WITH_LEN("FTPARSER") },
-  { C_STRING_WITH_LEN("DAEMON") },
-  { C_STRING_WITH_LEN("INFORMATION SCHEMA") },
-  { C_STRING_WITH_LEN("AUDIT") },
-  { C_STRING_WITH_LEN("REPLICATION") },
-  { C_STRING_WITH_LEN("AUTHENTICATION") },
-  { C_STRING_WITH_LEN("PASSWORD VALIDATION") },
-  { C_STRING_WITH_LEN("ENCRYPTION") }
+  { STRING_WITH_LEN("UDF") },
+  { STRING_WITH_LEN("STORAGE ENGINE") },
+  { STRING_WITH_LEN("FTPARSER") },
+  { STRING_WITH_LEN("DAEMON") },
+  { STRING_WITH_LEN("INFORMATION SCHEMA") },
+  { STRING_WITH_LEN("AUDIT") },
+  { STRING_WITH_LEN("REPLICATION") },
+  { STRING_WITH_LEN("AUTHENTICATION") },
+  { STRING_WITH_LEN("PASSWORD VALIDATION") },
+  { STRING_WITH_LEN("ENCRYPTION") }
 };
 
 extern int initialize_schema_table(st_plugin_int *plugin);
@@ -238,7 +240,7 @@ ulong dlopen_count;
   the following variables/structures
 */
 static MEM_ROOT plugin_vars_mem_root;
-static uint global_variables_dynamic_size= 0;
+static size_t global_variables_dynamic_size= 0;
 static HASH bookmark_hash;
 
 
@@ -488,6 +490,11 @@ static st_plugin_dl *plugin_dl_insert_or_reuse(struct st_plugin_dl *plugin_dl)
                                            sizeof(struct st_plugin_dl));
   DBUG_RETURN(tmp);
 }
+#else
+static struct st_plugin_dl *plugin_dl_find(const LEX_STRING *)
+{
+  return 0;
+}
 #endif /* HAVE_DLOPEN */
 
 
@@ -728,7 +735,8 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, int report)
 {
 #ifdef HAVE_DLOPEN
   char dlpath[FN_REFLEN];
-  uint plugin_dir_len, dummy_errors, i;
+  size_t plugin_dir_len,i;
+  uint dummy_errors;
   struct st_plugin_dl *tmp= 0, plugin_dl;
   void *sym;
   st_ptr_backup tmp_backup[array_elements(list_of_services)];
@@ -1155,6 +1163,7 @@ static bool plugin_add(MEM_ROOT *tmp_root,
       report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, ENOEXEC, buf);
       goto err;
     }
+
     if (plugin_maturity_map[plugin->maturity] < plugin_maturity)
     {
       char buf[256];
@@ -1167,6 +1176,14 @@ static bool plugin_add(MEM_ROOT *tmp_root,
       report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, EPERM, buf);
       goto err;
     }
+    else if (plugin_maturity_map[plugin->maturity] < SERVER_MATURITY_LEVEL)
+    {
+      sql_print_warning("Plugin '%s' is of maturity level %s while the server is %s",
+        tmp.name.str,
+        plugin_maturity_names[plugin->maturity],
+        plugin_maturity_names[SERVER_MATURITY_LEVEL]);
+    }
+
     tmp.plugin= plugin;
     tmp.ref_count= 0;
     tmp.state= PLUGIN_IS_UNINITIALIZED;
@@ -1176,7 +1193,7 @@ static bool plugin_add(MEM_ROOT *tmp_root,
       goto err;
     if (my_hash_insert(&plugin_hash[plugin->type], (uchar*)tmp_plugin_ptr))
       tmp_plugin_ptr->state= PLUGIN_IS_FREED;
-    init_alloc_root(&tmp_plugin_ptr->mem_root, 4096, 4096, MYF(0));
+    init_alloc_root(&tmp_plugin_ptr->mem_root, "plugin", 4096, 4096, MYF(0));
 
     if (name->str)
       DBUG_RETURN(FALSE); // all done
@@ -1421,10 +1438,10 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
 
   mysql_mutex_unlock(&LOCK_plugin);
 
-  mysql_rwlock_wrlock(&LOCK_system_variables_hash);
+  mysql_prlock_wrlock(&LOCK_system_variables_hash);
   if (test_plugin_options(tmp_root, plugin, argc, argv))
     state= PLUGIN_IS_DISABLED;
-  mysql_rwlock_unlock(&LOCK_system_variables_hash);
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
 
   if (options_only || state == PLUGIN_IS_DISABLED)
   {
@@ -1507,14 +1524,14 @@ uchar *get_bookmark_hash_key(const uchar *buff, size_t *length,
   return (uchar*) var->key;
 }
 
-static inline void convert_dash_to_underscore(char *str, int len)
+static inline void convert_dash_to_underscore(char *str, size_t len)
 {
   for (char *p= str; p <= str+len; p++)
     if (*p == '-')
       *p= '_';
 }
 
-static inline void convert_underscore_to_dash(char *str, int len)
+static inline void convert_underscore_to_dash(char *str, size_t len)
 {
   for (char *p= str; p <= str+len; p++)
     if (*p == '_')
@@ -1566,9 +1583,9 @@ int plugin_init(int *argc, char **argv, int flags)
 
   dlopen_count =0;
 
-  init_alloc_root(&plugin_mem_root, 4096, 4096, MYF(0));
-  init_alloc_root(&plugin_vars_mem_root, 4096, 4096, MYF(0));
-  init_alloc_root(&tmp_root, 4096, 4096, MYF(0));
+  init_alloc_root(&plugin_mem_root, "plugin", 4096, 4096, MYF(0));
+  init_alloc_root(&plugin_vars_mem_root, "plugin_vars", 4096, 4096, MYF(0));
+  init_alloc_root(&tmp_root, "plugin_tmp", 4096, 4096, MYF(0));
 
   if (my_hash_init(&bookmark_hash, &my_charset_bin, 32, 0, 0,
                    get_bookmark_hash_key, NULL, HASH_UNIQUE))
@@ -1808,11 +1825,9 @@ static void plugin_load(MEM_ROOT *tmp_root)
 
   new_thd->thread_stack= (char*) &tables;
   new_thd->store_globals();
-  new_thd->db= my_strdup("mysql", MYF(0));
-  new_thd->db_length= 5;
+  new_thd->db= MYSQL_SCHEMA_NAME;
   bzero((char*) &new_thd->net, sizeof(new_thd->net));
-  tables.init_one_table(STRING_WITH_LEN("mysql"), STRING_WITH_LEN("plugin"),
-                        "plugin", TL_READ);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PLUGIN_NAME, 0, TL_READ);
   tables.open_strategy= TABLE_LIST::OPEN_NORMAL;
 
   result= open_and_lock_tables(new_thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT);
@@ -1866,6 +1881,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
   table->m_needs_reopen= TRUE;                  // Force close to free memory
   close_mysql_tables(new_thd);
 end:
+  new_thd->db= null_clex_str;                 // Avoid free on thd->db
   delete new_thd;
   DBUG_VOID_RETURN;
 }
@@ -2160,7 +2176,7 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
   { MYSQL_AUDIT_GENERAL_CLASSMASK };
   DBUG_ENTER("mysql_install_plugin");
 
-  tables.init_one_table("mysql", 5, "plugin", 6, "plugin", TL_WRITE);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PLUGIN_NAME, 0, TL_WRITE);
   if (!opt_noacl && check_table_access(thd, INSERT_ACL, &tables, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);
 
@@ -2303,7 +2319,7 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
   { MYSQL_AUDIT_GENERAL_CLASSMASK };
   DBUG_ENTER("mysql_uninstall_plugin");
 
-  tables.init_one_table("mysql", 5, "plugin", 6, "plugin", TL_WRITE);
+  tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PLUGIN_NAME, 0, TL_WRITE);
 
   if (!opt_noacl && check_table_access(thd, DELETE_ACL, &tables, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);
@@ -2833,11 +2849,11 @@ sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
 
   if (!locked)
     mysql_mutex_lock(&LOCK_plugin);
-  mysql_rwlock_rdlock(&LOCK_system_variables_hash);
+  mysql_prlock_rdlock(&LOCK_system_variables_hash);
   if ((var= intern_find_sys_var(str, length)) &&
       (pi= var->cast_pluginvar()))
   {
-    mysql_rwlock_unlock(&LOCK_system_variables_hash);
+    mysql_prlock_unlock(&LOCK_system_variables_hash);
     LEX *lex= thd ? thd->lex : 0;
     if (!(plugin= intern_plugin_lock(lex, plugin_int_to_ref(pi->plugin))))
       var= NULL; /* failed to lock it, it must be uninstalling */
@@ -2850,7 +2866,7 @@ sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
     }
   }
   else
-    mysql_rwlock_unlock(&LOCK_system_variables_hash);
+    mysql_prlock_unlock(&LOCK_system_variables_hash);
   if (!locked)
     mysql_mutex_unlock(&LOCK_plugin);
 
@@ -2875,7 +2891,7 @@ static st_bookmark *find_bookmark(const char *plugin, const char *name,
                                   int flags)
 {
   st_bookmark *result= NULL;
-  uint namelen, length, pluginlen= 0;
+  size_t namelen, length, pluginlen= 0;
   char *varname, *p;
 
   if (!(flags & PLUGIN_VAR_THDLOCAL))
@@ -2931,7 +2947,7 @@ static size_t var_storage_size(int flags)
 static st_bookmark *register_var(const char *plugin, const char *name,
                                  int flags)
 {
-  uint length= strlen(plugin) + strlen(name) + 3, size, offset, new_size;
+  size_t length= strlen(plugin) + strlen(name) + 3, size, offset, new_size;
   st_bookmark *result;
   char *varname, *p;
 
@@ -2950,7 +2966,7 @@ static st_bookmark *register_var(const char *plugin, const char *name,
                                       sizeof(struct st_bookmark) + length-1);
     varname[0]= plugin_var_bookmark_key(flags);
     memcpy(result->key, varname, length);
-    result->name_len= length - 2;
+    result->name_len= (uint)(length - 2);
     result->offset= -1;
 
     DBUG_ASSERT(size && !(size & (size-1))); /* must be power of 2 */
@@ -2983,10 +2999,10 @@ static st_bookmark *register_var(const char *plugin, const char *name,
       global_variables_dynamic_size= new_size;
     }
 
-    global_system_variables.dynamic_variables_head= offset;
-    max_system_variables.dynamic_variables_head= offset;
-    global_system_variables.dynamic_variables_size= offset + size;
-    max_system_variables.dynamic_variables_size= offset + size;
+    global_system_variables.dynamic_variables_head= (uint)offset;
+    max_system_variables.dynamic_variables_head= (uint)offset;
+    global_system_variables.dynamic_variables_size= (uint)(offset + size);
+    max_system_variables.dynamic_variables_size= (uint)(offset + size);
     global_system_variables.dynamic_variables_version++;
     max_system_variables.dynamic_variables_version++;
 
@@ -3080,9 +3096,9 @@ static uchar *intern_sys_var_ptr(THD* thd, int offset, bool global_lock)
   if (!thd->variables.dynamic_variables_ptr ||
       (uint)offset > thd->variables.dynamic_variables_head)
   {
-    mysql_rwlock_rdlock(&LOCK_system_variables_hash);
+    mysql_prlock_rdlock(&LOCK_system_variables_hash);
     sync_dynamic_session_variables(thd, global_lock);
-    mysql_rwlock_unlock(&LOCK_system_variables_hash);
+    mysql_prlock_unlock(&LOCK_system_variables_hash);
   }
   DBUG_RETURN((uchar*)thd->variables.dynamic_variables_ptr + offset);
 }
@@ -3197,7 +3213,7 @@ static void cleanup_variables(struct system_variables *vars)
   st_bookmark *v;
   uint idx;
 
-  mysql_rwlock_rdlock(&LOCK_system_variables_hash);
+  mysql_prlock_rdlock(&LOCK_system_variables_hash);
   for (idx= 0; idx < bookmark_hash.records; idx++)
   {
     v= (st_bookmark*) my_hash_element(&bookmark_hash, idx);
@@ -3216,7 +3232,7 @@ static void cleanup_variables(struct system_variables *vars)
       *ptr= NULL;
     }
   }
-  mysql_rwlock_unlock(&LOCK_system_variables_hash);
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
 
   DBUG_ASSERT(vars->table_plugin == NULL);
   DBUG_ASSERT(vars->tmp_table_plugin == NULL);
@@ -3683,9 +3699,9 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
                              my_option *options)
 {
   const char *plugin_name= tmp->plugin->name;
-  const LEX_STRING plugin_dash = { C_STRING_WITH_LEN("plugin-") };
-  uint plugin_name_len= strlen(plugin_name);
-  uint optnamelen;
+  const LEX_CSTRING plugin_dash = { STRING_WITH_LEN("plugin-") };
+  size_t plugin_name_len= strlen(plugin_name);
+  size_t optnamelen;
   const int max_comment_len= 180;
   char *comment= (char *) alloc_root(mem_root, max_comment_len + 1);
   char *optname;
@@ -4010,7 +4026,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
   my_option *opts= NULL;
   int error= 1;
   struct st_bookmark *var;
-  uint len=0, count= EXTRA_OPTIONS;
+  size_t len=0, count= EXTRA_OPTIONS;
   st_ptr_backup *tmp_backup= 0;
   DBUG_ENTER("test_plugin_options");
   DBUG_ASSERT(tmp->plugin && tmp->name.str);
@@ -4271,10 +4287,10 @@ int thd_key_create(MYSQL_THD_KEY_T *key)
              PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_NOCMDOPT;
   char namebuf[256];
   snprintf(namebuf, sizeof(namebuf), "%u", thd_key_no++);
-  mysql_rwlock_wrlock(&LOCK_system_variables_hash);
+  mysql_prlock_wrlock(&LOCK_system_variables_hash);
   // non-letters in the name as an extra safety
   st_bookmark *bookmark= register_var("\a\v\a\t\a\r", namebuf, flags);
-  mysql_rwlock_unlock(&LOCK_system_variables_hash);
+  mysql_prlock_unlock(&LOCK_system_variables_hash);
   if (bookmark)
   {
     *key= bookmark->offset;

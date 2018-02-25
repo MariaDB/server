@@ -1,0 +1,17 @@
+--source include/have_rocksdb.inc
+
+
+--echo # 
+--echo # RocksDB plugin adds #rocksdb to ignore_db_dirs
+--echo # 
+
+select @@ignore_db_dirs;
+
+--let $_mysqld_option=--ignore-db-dirs=aa --ignore-db-dirs=bbb
+--source include/restart_mysqld_with_option.inc
+
+select @@ignore_db_dirs;
+
+--let $_mysqld_option=--ignore-db-dirs=#rocksdb
+--source include/restart_mysqld_with_option.inc
+

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -87,6 +87,9 @@ static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_REBUILD
 	/*
 	| Alter_inplace_info::ALTER_STORED_COLUMN_TYPE
 	*/
+	| Alter_inplace_info::ALTER_COLUMN_UNVERSIONED
+	| Alter_inplace_info::ALTER_ADD_SYSTEM_VERSIONING
+	| Alter_inplace_info::ALTER_DROP_SYSTEM_VERSIONING
 	;
 
 /** Operations that require changes to data */
@@ -355,7 +358,7 @@ my_error_innodb(
 		break;
 	case DB_TOO_BIG_INDEX_COL:
 		my_error(ER_INDEX_COLUMN_TOO_LONG, MYF(0),
-			 DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(flags));
+			 (ulong) DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(flags));
 		break;
 	case DB_TOO_MANY_CONCURRENT_TRXS:
 		my_error(ER_TOO_MANY_CONCURRENT_TRXS, MYF(0));
@@ -631,6 +634,11 @@ instant_alter_column_possible(
 	const Alter_inplace_info*	ha_alter_info,
 	const TABLE*			table)
 {
+	// Making table system-versioned instantly is not implemented yet.
+	if (ha_alter_info->handler_flags & Alter_inplace_info::ALTER_ADD_SYSTEM_VERSIONING) {
+		return false;
+	}
+
 	if (~ha_alter_info->handler_flags
 	    & Alter_inplace_info::ADD_STORED_BASE_COLUMN) {
 		return false;
@@ -687,6 +695,13 @@ ha_innobase::check_if_supported_inplace_alter(
 	Alter_inplace_info*	ha_alter_info)
 {
 	DBUG_ENTER("check_if_supported_inplace_alter");
+
+	if ((table->versioned(VERS_TIMESTAMP) || altered_table->versioned(VERS_TIMESTAMP))
+	    && innobase_need_rebuild(ha_alter_info, table)) {
+		ha_alter_info->unsupported_reason =
+			"Not implemented for system-versioned tables";
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+	}
 
 	/* Before 10.2.2 information about virtual columns was not stored in
 	system tables. We need to do a full alter to rebuild proper 10.2.2+
@@ -1162,6 +1177,7 @@ next_column:
 		/* If the table already contains fulltext indexes,
 		refuse to rebuild the table natively altogether. */
 		if (m_prebuilt->table->fts) {
+cannot_create_many_fulltext_index:
 			ha_alter_info->unsupported_reason = innobase_get_err_msg(
 				ER_INNODB_FT_LIMIT);
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
@@ -1191,6 +1207,7 @@ next_column:
 
 		We could also do ADD SPATIAL INDEX by implementing
 		row_log_apply() for it. */
+		bool add_fulltext = false;
 
 		for (uint i = 0; i < ha_alter_info->index_add_count; i++) {
 			const KEY* key =
@@ -1202,18 +1219,28 @@ next_column:
 						  | HA_PACK_KEY
 						  | HA_GENERATED_KEY
 						  | HA_BINARY_PACK_KEY)));
+				if (add_fulltext) {
+					goto cannot_create_many_fulltext_index;
+				}
+				add_fulltext = true;
 				ha_alter_info->unsupported_reason = innobase_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FTS);
 				online = false;
-				break;
 			}
-			if (key->flags & HA_SPATIAL) {
+			if (online && (key->flags & HA_SPATIAL)) {
 				ha_alter_info->unsupported_reason = innobase_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
 				online = false;
-				break;
 			}
 		}
+	}
+
+	// FIXME: implement Online DDL for system-versioned tables
+	if ((table->versioned(VERS_TRX_ID) || altered_table->versioned(VERS_TRX_ID))
+	    && innobase_need_rebuild(ha_alter_info, table)) {
+		ha_alter_info->unsupported_reason =
+			"Not implemented for system-versioned tables";
+		online = false;
 	}
 
 	DBUG_RETURN(online
@@ -1356,7 +1383,6 @@ innobase_set_foreign_key_option(
 	ut_ad(!foreign->type);
 
 	switch (fk_key->delete_opt) {
-	// JAN: TODO: ? MySQL 5.7 used enum fk_option directly from sql_lex.h
 	case FK_OPTION_NO_ACTION:
 	case FK_OPTION_RESTRICT:
 	case FK_OPTION_SET_DEFAULT:
@@ -1367,6 +1393,8 @@ innobase_set_foreign_key_option(
 		break;
 	case FK_OPTION_SET_NULL:
 		foreign->type = DICT_FOREIGN_ON_DELETE_SET_NULL;
+		break;
+	case FK_OPTION_UNDEF:
 		break;
 	}
 
@@ -1381,6 +1409,8 @@ innobase_set_foreign_key_option(
 		break;
 	case FK_OPTION_SET_NULL:
 		foreign->type |= DICT_FOREIGN_ON_UPDATE_SET_NULL;
+		break;
+	case FK_OPTION_UNDEF:
 		break;
 	}
 
@@ -1892,8 +1922,7 @@ innobase_col_to_mysql(
 #ifdef UNIV_DEBUG
 	case DATA_MYSQL:
 		ut_ad(flen >= len);
-		ut_ad(DATA_MBMAXLEN(col->mbminmaxlen)
-		      >= DATA_MBMINLEN(col->mbminmaxlen));
+		ut_ad(col->mbmaxlen >= col->mbminlen);
 		memcpy(dest, data, len);
 		break;
 
@@ -2109,7 +2138,7 @@ innobase_check_index_keys(
 
 			if (0 == strcmp(key.name.str, key2.name.str)) {
 				my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
-					 key.name);
+					 key.name.str);
 
 				return(ER_WRONG_NAME_FOR_INDEX);
 			}
@@ -2172,8 +2201,8 @@ innobase_check_index_keys(
 			}
 #endif /* MYSQL_RENAME_INDEX */
 
-			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), key.name);
-
+			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
+                                 key.name.str);
 			return(ER_WRONG_NAME_FOR_INDEX);
 		}
 
@@ -4251,6 +4280,7 @@ innobase_add_instant_try(
 
 	buf_block_t* block = btr_pcur_get_block(&pcur);
 	ut_ad(page_is_leaf(block->frame));
+	ut_ad(!page_has_prev(block->frame));
 	ut_ad(!buf_block_get_page_zip(block));
 	const rec_t* rec = btr_pcur_get_rec(&pcur);
 	que_thr_t* thr = pars_complete_graph_for_exec(
@@ -4258,7 +4288,8 @@ innobase_add_instant_try(
 
 	if (rec_is_default_row(rec, index)) {
 		ut_ad(page_rec_is_user_rec(rec));
-		if (page_rec_is_last(rec, block->frame)) {
+		if (!page_has_next(block->frame)
+		    && page_rec_is_last(rec, block->frame)) {
 			goto empty_table;
 		}
 		/* Extend the record with the instantly added columns. */
@@ -4715,7 +4746,7 @@ prepare_inplace_alter_table_dict(
 	index_def_t*		index_defs;	/* index definitions */
 	dict_table_t*		user_table;
 	dict_index_t*		fts_index	= NULL;
-	ulint			new_clustered	= 0;
+	bool			new_clustered	= false;
 	dberr_t			error;
 	ulint			num_fts_index;
 	dict_add_v_col_t*	add_v = NULL;
@@ -4792,7 +4823,7 @@ prepare_inplace_alter_table_dict(
 		fts_doc_id_col, add_fts_doc_id, add_fts_doc_id_idx,
 		old_table);
 
-	new_clustered = DICT_CLUSTERED & index_defs[0].ind_type;
+	new_clustered = (DICT_CLUSTERED & index_defs[0].ind_type) != 0;
 
 	/* The primary index would be rebuilt if a FTS Doc ID
 	column is to be added, and the primary index definition
@@ -4970,6 +5001,18 @@ new_clustered_failed:
 
 			if (is_unsigned) {
 				field_type |= DATA_UNSIGNED;
+			}
+
+			if (altered_table->versioned()) {
+				if (i == altered_table->s->row_start_field) {
+					field_type |= DATA_VERS_START;
+				} else if (i ==
+					   altered_table->s->row_end_field) {
+					field_type |= DATA_VERS_END;
+				} else if (!(field->flags
+					     & VERS_UPDATE_UNVERSIONED_FLAG)) {
+					field_type |= DATA_VERSIONED;
+				}
 			}
 
 			if (dtype_is_string_type(col_type)) {
@@ -5214,8 +5257,10 @@ new_clustered_failed:
 				     = user_table->indexes.start);
 				DBUG_ASSERT(col->mtype == old_col->mtype);
 				DBUG_ASSERT(col->prtype == old_col->prtype);
-				DBUG_ASSERT(col->mbminmaxlen
-					    == old_col->mbminmaxlen);
+				DBUG_ASSERT(col->mbminlen
+					    == old_col->mbminlen);
+				DBUG_ASSERT(col->mbmaxlen
+					    == old_col->mbmaxlen);
 				DBUG_ASSERT(col->len >= old_col->len);
 				DBUG_ASSERT(old_col->is_instant()
 					    == (dict_col_get_clust_pos(
@@ -5291,35 +5336,18 @@ new_clustered_failed:
 		ctx->prepare_instant();
 	}
 
-	if (!ctx->is_instant()) {
-		if (num_fts_index > 1) {
-			my_error(ER_INNODB_FT_LIMIT, MYF(0));
-			goto error_handled;
-		}
-
-		if (!ctx->online) {
-			/* This is not an online operation (LOCK=NONE). */
-		} else if (ctx->add_autoinc == ULINT_UNDEFINED
-			   && num_fts_index == 0
-			   && (!innobase_need_rebuild(ha_alter_info, old_table)
-			       || !innobase_fulltext_exist(altered_table))) {
-			/* InnoDB can perform an online operation
-			(LOCK=NONE). */
-		} else {
-			size_t query_length;
-			/* This should have been blocked in
-			check_if_supported_inplace_alter(). */
-			ut_ad(0);
-			my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-				 innobase_get_stmt_unsafe(
-					 ctx->prebuilt->trx->mysql_thd,
-					 &query_length));
-			goto error_handled;
-		}
-	}
-
 	if (ctx->need_rebuild()) {
 not_instant_add_column:
+		DBUG_ASSERT(ctx->need_rebuild());
+		DBUG_ASSERT(!ctx->is_instant());
+		DBUG_ASSERT(num_fts_index <= 1);
+		DBUG_ASSERT(!ctx->online || num_fts_index == 0);
+		DBUG_ASSERT(!ctx->online
+			    || ctx->add_autoinc == ULINT_UNDEFINED);
+		DBUG_ASSERT(!ctx->online
+			    || !innobase_need_rebuild(ha_alter_info, old_table)
+			    || !innobase_fulltext_exist(altered_table));
+
 		uint32_t		key_id	= FIL_DEFAULT_ENCRYPTION_KEY;
 		fil_encryption_t	mode	= FIL_ENCRYPTION_DEFAULT;
 
@@ -5419,7 +5447,7 @@ new_table_failed:
 			ut_ad(index->trx_id == ctx->trx->id);
 
 			if (index->type & DICT_FTS) {
-				DBUG_ASSERT(num_fts_index);
+				DBUG_ASSERT(num_fts_index == 1);
 				DBUG_ASSERT(!fts_index);
 				DBUG_ASSERT(index->type == DICT_FTS);
 				fts_index = ctx->add_index[a];
@@ -5504,7 +5532,7 @@ error_handling_drop_uncached:
 			/* If ADD INDEX with LOCK=NONE has been
 			requested, allocate a modification log. */
 			if (index->type & DICT_FTS) {
-				DBUG_ASSERT(num_fts_index);
+				DBUG_ASSERT(num_fts_index == 1);
 				DBUG_ASSERT(!fts_index);
 				DBUG_ASSERT(index->type == DICT_FTS);
 				fts_index = ctx->add_index[a];
@@ -5540,7 +5568,7 @@ error_handling_drop_uncached:
 	if (ctx->online && ctx->num_to_add_index) {
 		/* Assign a consistent read view for
 		row_merge_read_clustered_index(). */
-		trx_assign_read_view(ctx->prebuilt->trx);
+		ctx->prebuilt->trx->read_view.open(ctx->prebuilt->trx);
 	}
 
 	if (fts_index) {
@@ -7070,7 +7098,8 @@ ok_exit:
 		ctx->add_index, ctx->add_key_numbers, ctx->num_to_add_index,
 		altered_table, ctx->add_cols, ctx->col_map,
 		ctx->add_autoinc, ctx->sequence, ctx->skip_pk_sort,
-		ctx->m_stage, add_v, eval_table);
+		ctx->m_stage, add_v, eval_table,
+		ha_alter_info->handler_flags & Alter_inplace_info::ALTER_DROP_HISTORICAL);
 
 #ifndef DBUG_OFF
 oom:
@@ -8972,7 +9001,7 @@ alter_stats_rebuild(
 # define DBUG_INJECT_CRASH(prefix, count)			\
 do {								\
 	char buf[32];						\
-	ut_snprintf(buf, sizeof buf, prefix "_%u", count);	\
+	snprintf(buf, sizeof buf, prefix "_%u", count);	\
 	DBUG_EXECUTE_IF(buf, DBUG_SUICIDE(););			\
 } while (0)
 #else
@@ -9254,7 +9283,7 @@ ha_innobase::commit_inplace_alter_table(
 			/* Generate a dynamic dbug text. */
 			char buf[32];
 
-			ut_snprintf(buf, sizeof buf,
+			snprintf(buf, sizeof buf,
 				    "ib_commit_inplace_fail_%u",
 				    failure_inject_count++);
 

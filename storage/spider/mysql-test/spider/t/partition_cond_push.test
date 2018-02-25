@@ -1,0 +1,219 @@
+--source ../include/partition_cond_push_init.inc
+if (!$HAVE_PARTITION)
+{
+  --source ../include/partition_cond_push_deinit.inc
+  skip Test requires partitioning;
+}
+
+--echo
+--echo drop and create databases
+--connection master_1
+--disable_warnings
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SET @old_log_output = @@global.log_output;
+    SET GLOBAL log_output = 'TABLE,FILE';
+  }
+  DROP DATABASE IF EXISTS auto_test_remote;
+  CREATE DATABASE auto_test_remote;
+  USE auto_test_remote;
+  --connection child2_2
+  if ($USE_GENERAL_LOG)
+  {
+    SET @old_log_output = @@global.log_output;
+    SET GLOBAL log_output = 'TABLE,FILE';
+  }
+  DROP DATABASE IF EXISTS auto_test_remote2;
+  CREATE DATABASE auto_test_remote2;
+  USE auto_test_remote2;
+  --connection child2_3
+  if ($USE_GENERAL_LOG)
+  {
+    SET @old_log_output = @@global.log_output;
+    SET GLOBAL log_output = 'TABLE,FILE';
+  }
+  DROP DATABASE IF EXISTS auto_test_remote3;
+  CREATE DATABASE auto_test_remote3;
+  USE auto_test_remote3;
+}
+--enable_warnings
+
+--echo
+--echo create table and insert
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    echo CHILD2_1_DROP_TABLES;
+    echo CHILD2_1_CREATE_TABLES;
+  }
+  --disable_warnings
+  eval $CHILD2_1_DROP_TABLES;
+  --enable_warnings
+  eval $CHILD2_1_CREATE_TABLES;
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+  }
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  --connection child2_2
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    echo CHILD2_2_DROP_TABLES;
+    echo CHILD2_2_CREATE_TABLES;
+  }
+  --disable_warnings
+  eval $CHILD2_2_DROP_TABLES;
+  --enable_warnings
+  eval $CHILD2_2_CREATE_TABLES;
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+  }
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  --connection child2_3
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    echo CHILD2_3_DROP_TABLES;
+    echo CHILD2_3_CREATE_TABLES;
+  }
+  --disable_warnings
+  eval $CHILD2_3_DROP_TABLES;
+  --enable_warnings
+  eval $CHILD2_3_CREATE_TABLES;
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+  }
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+--disable_warnings
+DROP TABLE IF EXISTS tbl_a;
+DROP TABLE IF EXISTS tbl_b;
+--enable_warnings
+--disable_query_log
+echo CREATE TABLE tbl_a (
+    value int NOT NULL
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
+eval CREATE TABLE tbl_a (
+    value int NOT NULL
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+--enable_query_log
+INSERT INTO tbl_a (value) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+INSERT INTO tbl_a (value) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19);
+INSERT INTO tbl_a (value) VALUES (20),(21),(22),(23),(24),(25),(26),(27),(28),(29);
+
+--echo
+--echo select test
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT value FROM tbl_a WHERE value < 100;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    eval $CHILD2_1_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  --connection child2_2
+  if ($USE_GENERAL_LOG)
+  {
+    eval $CHILD2_2_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_2_SELECT_TABLES;
+  --connection child2_3
+  if ($USE_GENERAL_LOG)
+  {
+    eval $CHILD2_3_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_3_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo deinit
+--disable_warnings
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  DROP DATABASE IF EXISTS auto_test_remote;
+  if ($USE_GENERAL_LOG)
+  {
+    SET GLOBAL log_output = @old_log_output;
+  }
+  --connection child2_2
+  DROP DATABASE IF EXISTS auto_test_remote2;
+  if ($USE_GENERAL_LOG)
+  {
+    SET GLOBAL log_output = @old_log_output;
+  }
+  --connection child2_3
+  DROP DATABASE IF EXISTS auto_test_remote3;
+  if ($USE_GENERAL_LOG)
+  {
+    SET GLOBAL log_output = @old_log_output;
+  }
+}
+--enable_warnings
+--source ../include/partition_cond_push_deinit.inc
+--echo
+--echo end of test

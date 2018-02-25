@@ -77,7 +77,7 @@ MOVEBACK_LOG="${MYSQL_TMP_DIR}/myrocks_hotbackup_moveback_log"
 
 echo "myrocks_hotbackup move-back phase"
 $MYSQL_MYROCKS_HOTBACKUP --move_back --datadir=$dest_data_dir \
-  --rocksdb_datadir=$dest_data_dir/.rocksdb \
-  --rocksdb_waldir=$dest_data_dir/.rocksdb \
+  --rocksdb_datadir=$dest_data_dir/\#rocksdb \
+  --rocksdb_waldir=$dest_data_dir/\#rocksdb \
   --backup_dir=$backup_dir > $MOVEBACK_LOG 2>&1
 

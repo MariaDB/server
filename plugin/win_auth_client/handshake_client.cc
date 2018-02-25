@@ -160,7 +160,7 @@ int Handshake_client::write_packet(Blob &data)
       Store in byte 255 the number of 512b blocks that are needed to
       keep all the data.
     */
-    unsigned block_count= data.len()/512 + ((data.len() % 512) ? 1 : 0);
+    unsigned block_count= (uint)(data.len()/512) + ((data.len() % 512) ? 1 : 0);
 
 #if !defined(DBUG_OFF) && defined(WINAUTH_USE_DBUG_LIB)
 

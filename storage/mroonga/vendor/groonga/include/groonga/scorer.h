@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2015 Brazil
+  Copyright(C) 2015-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GROONGA_SCORER_H
-#define GROONGA_SCORER_H
+
+#pragma once
 
 #include <groonga/plugin.h>
 
@@ -74,7 +74,7 @@ typedef double grn_scorer_score_func(grn_ctx *ctx,
 
 /*
   grn_scorer_register() registers a plugin to the database which is
-  associated with `ctx'. `plugin_name_ptr' and `plugin_name_length' specify the
+  associated with `ctx'. `scorer_name_ptr' and `scorer_name_length' specify the
   plugin name. Alphabetic letters ('A'-'Z' and 'a'-'z'), digits ('0'-'9') and
   an underscore ('_') are capable characters.
 
@@ -84,12 +84,10 @@ typedef double grn_scorer_score_func(grn_ctx *ctx,
   code on failure.
  */
 GRN_PLUGIN_EXPORT grn_rc grn_scorer_register(grn_ctx *ctx,
-                                             const char *plugin_name_ptr,
-                                             int plugin_name_length,
+                                             const char *scorer_name_ptr,
+                                             int scorer_name_length,
                                              grn_scorer_score_func *score);
 
 #ifdef __cplusplus
 }  /* extern "C" */
 #endif  /* __cplusplus */
-
-#endif  /* GROONGA_SCORER_H */

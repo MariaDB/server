@@ -9,6 +9,6 @@ copy_file std_data/bad_row_type.frm $datadir/test/bad_row_type.frm;
 
 select * from bad_row_type;
 show create table bad_row_type;
-replace_column 12 x 13 x;
+replace_column 12 x 13 x 19 x;
 show table status like 'bad_row_type';
 drop table bad_row_type;

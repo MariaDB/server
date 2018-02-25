@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -155,12 +155,20 @@ trx_undo_rec_get_partial_row(
 				used, as we do NOT copy the data in the
 				record! */
 	dict_index_t*	index,	/*!< in: clustered index */
+	const upd_t*	update,	/*!< in: updated columns */
 	dtuple_t**	row,	/*!< out, own: partial row */
 	ibool		ignore_prefix, /*!< in: flag to indicate if we
 				expect blob prefixes in undo. Used
 				only in the assertion. */
 	mem_heap_t*	heap)	/*!< in: memory heap from which the memory
 				needed is allocated */
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+/** Report a RENAME TABLE operation.
+@param[in,out]	trx	transaction
+@param[in]	table	table that is being renamed
+@return	DB_SUCCESS or error code */
+dberr_t
+trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /***********************************************************************//**
 Writes information to an undo log about an insert, update, or a delete marking
@@ -188,10 +196,8 @@ trx_undo_report_row_operation(
 					marking, the record in the clustered
 					index; NULL if insert */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec) */
-	roll_ptr_t*	roll_ptr)	/*!< out: rollback pointer to the
-					inserted undo log record,
-					0 if BTR_NO_UNDO_LOG
-					flag was specified */
+	roll_ptr_t*	roll_ptr)	/*!< out: DB_ROLL_PTR to the
+					undo log record */
 	MY_ATTRIBUTE((nonnull(1,2,8), warn_unused_result));
 
 /** status bit used for trx_undo_prev_version_build() */
@@ -238,25 +244,22 @@ trx_undo_prev_version_build(
 				into this function by purge thread or not.
 				And if we read "after image" of undo log */
 
-/***********************************************************//**
-Parses a redo log record of adding an undo log record.
-@return end of log record or NULL */
+/** Parse MLOG_UNDO_INSERT for crash-upgrade from MariaDB 10.2.
+@param[in]	ptr	log record
+@param[in]	end_ptr	end of log record buffer
+@param[in,out]	page	page or NULL
+@return	end of log record
+@retval	NULL	if the log record is incomplete */
 byte*
 trx_undo_parse_add_undo_rec(
-/*========================*/
-	byte*	ptr,	/*!< in: buffer */
-	byte*	end_ptr,/*!< in: buffer end */
-	page_t*	page);	/*!< in: page or NULL */
-/***********************************************************//**
-Parses a redo log record of erasing of an undo page end.
-@return end of log record or NULL */
-byte*
-trx_undo_parse_erase_page_end(
-/*==========================*/
-	byte*	ptr,	/*!< in: buffer */
-	byte*	end_ptr,/*!< in: buffer end */
-	page_t*	page,	/*!< in: page or NULL */
-	mtr_t*	mtr);	/*!< in: mtr or NULL */
+	const byte*	ptr,
+	const byte*	end_ptr,
+	page_t*		page);
+/** Erase the unused undo log page end.
+@param[in,out]	undo_page	undo log page
+@return whether the page contained something */
+bool
+trx_undo_erase_page_end(page_t* undo_page);
 
 /** Read from an undo log record a non-virtual column value.
 @param[in,out]	ptr		pointer to remaining part of the undo record
@@ -307,7 +310,8 @@ trx_undo_read_v_idx(
 compilation info multiplied by 16 is ORed to this value in an undo log
 record */
 
-#define TRX_UNDO_INSERT_DEFAULT	10	/* insert a "default value"
+#define	TRX_UNDO_RENAME_TABLE	9	/*!< RENAME TABLE */
+#define	TRX_UNDO_INSERT_DEFAULT	10	/*!< insert a "default value"
 					pseudo-record for instant ALTER */
 #define	TRX_UNDO_INSERT_REC	11	/* fresh insert into clustered index */
 #define	TRX_UNDO_UPD_EXIST_REC	12	/* update of a non-delete-marked

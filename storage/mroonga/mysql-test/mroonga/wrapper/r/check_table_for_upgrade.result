@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS memos;
+SET NAMES utf8;
+CREATE TABLE memos (
+id int NOT NULL PRIMARY KEY,
+content text,
+FULLTEXT INDEX (content)
+) COMMENT='engine "InnoDB"';
+INSERT INTO memos VALUES (1, 'Hello MySQL');
+INSERT INTO memos VALUES (2, 'Hello Mroonga');
+CHECK TABLE memos FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.memos	check	status	OK
+FLUSH TABLES;
+SELECT * FROM memos
+WHERE MATCH(content) AGAINST('+mroonga' IN BOOLEAN MODE);
+id	content
+2	Hello Mroonga
+DROP TABLE memos;

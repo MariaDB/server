@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2009, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -87,6 +87,68 @@ static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
   return extra2_write(pos, type, reinterpret_cast<LEX_CSTRING *>(str));
 }
 
+static uchar *extra2_write_field_properties(uchar *pos,
+                   List<Create_field> &create_fields)
+{
+  List_iterator<Create_field> it(create_fields);
+  *pos++= EXTRA2_FIELD_FLAGS;
+  /*
+   always first 2  for field visibility
+  */
+  pos= extra2_write_len(pos, create_fields.elements);
+  while (Create_field *cf= it++)
+  {
+    uchar flags= cf->invisible;
+    if (cf->flags & VERS_UPDATE_UNVERSIONED_FLAG)
+      flags|= VERS_OPTIMIZED_UPDATE;
+    *pos++= flags;
+  }
+  return pos;
+}
+
+static const bool ROW_START = true;
+static const bool ROW_END = false;
+
+static inline
+uint16
+vers_get_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields, bool row_start)
+{
+  DBUG_ASSERT(create_info->versioned());
+
+  List_iterator<Create_field> it(create_fields);
+  Create_field *sql_field = NULL;
+
+  const LString_i row_field= row_start ? create_info->vers_info.as_row.start
+                                   : create_info->vers_info.as_row.end;
+  DBUG_ASSERT(row_field);
+
+  for (unsigned field_no = 0; (sql_field = it++); ++field_no)
+  {
+    if (row_field == sql_field->field_name)
+    {
+      DBUG_ASSERT(field_no <= uint16(~0U));
+      return uint16(field_no);
+    }
+  }
+
+  DBUG_ASSERT(0); /* Not Reachable */
+  return 0;
+}
+
+static inline
+bool has_extra2_field_flags(List<Create_field> &create_fields)
+{
+  List_iterator<Create_field> it(create_fields);
+  while (Create_field *f= it++)
+  {
+    if (f->invisible)
+      return true;
+    if (f->flags & VERS_UPDATE_UNVERSIONED_FLAG)
+      return true;
+  }
+  return false;
+}
+
 /**
   Create a frm (table definition) file
 
@@ -102,7 +164,7 @@ static uchar *extra2_write(uchar *pos, enum extra2_frm_value_type type,
   or null LEX_CUSTRING (str==0) in case of an error.
 */
 
-LEX_CUSTRING build_frm_image(THD *thd, const char *table,
+LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
                               HA_CREATE_INFO *create_info,
                               List<Create_field> &create_fields,
                               uint keys, KEY *key_info, handler *db_file)
@@ -110,12 +172,13 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   LEX_CSTRING str_db_type;
   uint reclength, key_info_length, i;
   ulong key_buff_length;
-  ulong filepos, data_offset;
+  size_t filepos;
+  ulong data_offset;
   uint options_len;
   uint gis_extra2_len= 0;
   uchar fileinfo[FRM_HEADER_SIZE],forminfo[FRM_FORMINFO_SIZE];
   const partition_info *part_info= IF_PARTITIONING(thd->work_part_info, 0);
-  int error;
+  bool error;
   uchar *frm_ptr, *pos;
   LEX_CUSTRING frm= {0,0};
   StringBuffer<MAX_FIELD_WIDTH> vcols;
@@ -138,7 +201,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     create_info->expression_length= vcols.length() + FRM_VCOL_NEW_BASE_SIZE;
 
   error= pack_header(thd, forminfo, create_fields, create_info,
-                     data_offset, db_file);
+                     (ulong)data_offset, db_file);
   if (error)
     DBUG_RETURN(frm);
 
@@ -147,7 +210,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   /* Calculate extra data segment length */
   str_db_type= *hton_name(create_info->db_type);
   /* str_db_type */
-  create_info->extra_size= (2 + str_db_type.length +
+  create_info->extra_size= (uint)(2 + str_db_type.length +
                             2 + create_info->connect_string.length);
   /*
     Partition:
@@ -158,12 +221,12 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   */
   create_info->extra_size+= 6;
   if (part_info)
-    create_info->extra_size+= part_info->part_info_len;
+    create_info->extra_size+= (uint)part_info->part_info_len;
 
   for (i= 0; i < keys; i++)
   {
     if (key_info[i].parser_name)
-      create_info->extra_size+= key_info[i].parser_name->length + 1;
+      create_info->extra_size+= (uint)key_info[i].parser_name->length + 1;
   }
 
   options_len= engine_table_options_frm_length(create_info->option_list,
@@ -175,7 +238,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   DBUG_PRINT("info", ("Options length: %u", options_len));
 
   if (validate_comment_length(thd, &create_info->comment, TABLE_COMMENT_MAXLEN,
-                              ER_TOO_LONG_TABLE_COMMENT, table))
+                              ER_TOO_LONG_TABLE_COMMENT, table->str))
      DBUG_RETURN(frm);
   /*
     If table comment is longer than TABLE_COMMENT_INLINE_MAXLEN bytes,
@@ -185,7 +248,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   if (create_info->comment.length > TABLE_COMMENT_INLINE_MAXLEN)
   {
     forminfo[46]=255;
-    create_info->extra_size+= 2 + create_info->comment.length;
+    create_info->extra_size+= 2 + (uint)create_info->comment.length;
   }
   else
   {
@@ -209,7 +272,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   prepare_frm_header(thd, reclength, fileinfo, create_info, keys, key_info);
 
   /* one byte for a type, one or three for a length */
-  uint extra2_size= 1 + 1 + create_info->tabledef_version.length;
+  size_t extra2_size= 1 + 1 + create_info->tabledef_version.length;
   if (options_len)
     extra2_size+= 1 + (options_len > 255 ? 3 : 1) + options_len;
 
@@ -219,6 +282,22 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   if (gis_extra2_len)
     extra2_size+= 1 + (gis_extra2_len > 255 ? 3 : 1) + gis_extra2_len;
 
+  if (create_info->versioned())
+  {
+    extra2_size+= 1 + 1 + 2 * sizeof(uint16);
+  }
+
+  if (create_info->vtmd())
+  {
+    extra2_size+= 1 + 1 + 1;
+  }
+
+  bool has_extra2_field_flags_= has_extra2_field_flags(create_fields);
+  if (has_extra2_field_flags_)
+  {
+    extra2_size+= 1 + (create_fields.elements > 255 ? 3 : 1) +
+        create_fields.elements;
+  }
 
   key_buff_length= uint4korr(fileinfo+47);
 
@@ -239,7 +318,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   if (frm.length > FRM_MAX_SIZE ||
       create_info->expression_length > UINT_MAX32)
   {
-    my_error(ER_TABLE_DEFINITION_TOO_BIG, MYF(0), table);
+    my_error(ER_TABLE_DEFINITION_TOO_BIG, MYF(0), table->str);
     DBUG_RETURN(frm);
   }
 
@@ -275,11 +354,39 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   }
 #endif /*HAVE_SPATIAL*/
 
+  if (create_info->versioned())
+  {
+    *pos++= EXTRA2_PERIOD_FOR_SYSTEM_TIME;
+    *pos++= 2 * sizeof(uint16);
+    int2store(pos, vers_get_field(create_info, create_fields, ROW_START));
+    pos+= sizeof(uint16);
+    int2store(pos, vers_get_field(create_info, create_fields, ROW_END));
+    pos+= sizeof(uint16);
+  }
+
+  if (create_info->vtmd())
+  {
+    *pos++= EXTRA2_VTMD;
+    *pos++= 1;
+    *pos++= 1;
+  }
+
+  if (has_extra2_field_flags_)
+    pos= extra2_write_field_properties(pos, create_fields);
+
   int4store(pos, filepos); // end of the extra2 segment
   pos+= 4;
 
   DBUG_ASSERT(pos == frm_ptr + uint2korr(fileinfo+6));
   key_info_length= pack_keys(pos, keys, key_info, data_offset);
+  if (key_info_length > UINT_MAX16)
+  {
+    my_printf_error(ER_CANT_CREATE_TABLE,
+                    "Cannot create table %`s: index information is too long. "
+                    "Decrease number of indexes or use shorter index names or shorter comments.",
+                    MYF(0), table->str);
+    goto err;
+  }
 
   int2store(forminfo+2, frm.length - filepos);
   int4store(fileinfo+10, frm.length);
@@ -664,10 +771,10 @@ static bool pack_header(THD *thd, uchar *forminfo,
         {
           char *dst;
           const char *src= field->save_interval->type_names[pos];
-          uint hex_length;
+          size_t hex_length;
           length= field->save_interval->type_lengths[pos];
           hex_length= length * 2;
-          field->interval->type_lengths[pos]= hex_length;
+          field->interval->type_lengths[pos]= (uint)hex_length;
           field->interval->type_names[pos]= dst=
             (char*) thd->alloc(hex_length + 1);
           octet2hex(dst, src, length);
@@ -791,7 +898,8 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
                         ulong data_offset)
 {
   uchar *buff= *buff_arg;
-  uint int_count, comment_length= 0;
+  uint int_count;
+  size_t comment_length= 0;
   Create_field *field;
   DBUG_ENTER("pack_fields");
 
@@ -960,7 +1068,8 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
                                 field->unireg_check,
                                 field->save_interval ? field->save_interval
                                                      : field->interval,
-                                &field->field_name);
+                                &field->field_name,
+                                field->flags);
     if (!regfield)
     {
       error= 1;

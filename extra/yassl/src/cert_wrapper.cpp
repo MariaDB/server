@@ -299,10 +299,10 @@ int CertManager::Validate()
         ASN1_STRING beforeDate, afterDate;
         beforeDate.data= (unsigned char *) cert.GetBeforeDate();
         beforeDate.type= cert.GetBeforeDateType();
-        beforeDate.length= strlen((char *) beforeDate.data) + 1;
+        beforeDate.length= (int)strlen((char *) beforeDate.data) + 1;
         afterDate.data= (unsigned char *) cert.GetAfterDate();
         afterDate.type= cert.GetAfterDateType();
-        afterDate.length= strlen((char *) afterDate.data) + 1;
+        afterDate.length= (int)strlen((char *) afterDate.data) + 1;
         peerX509_ = NEW_YS X509(cert.GetIssuer(), iSz, cert.GetCommonName(),
                                 sSz, &beforeDate, &afterDate,
                                 cert.GetIssuerCnStart(), cert.GetIssuerCnLength(),
@@ -348,10 +348,10 @@ int CertManager::SetPrivateKey(const x509& key)
         ASN1_STRING beforeDate, afterDate;
         beforeDate.data= (unsigned char *) cd.GetBeforeDate();
         beforeDate.type= cd.GetBeforeDateType();
-        beforeDate.length= strlen((char *) beforeDate.data) + 1;
+        beforeDate.length= (int)strlen((char *) beforeDate.data) + 1;
         afterDate.data= (unsigned char *) cd.GetAfterDate();
         afterDate.type= cd.GetAfterDateType();
-        afterDate.length= strlen((char *) afterDate.data) + 1;
+        afterDate.length= (int)strlen((char *) afterDate.data) + 1;
         selfX509_ = NEW_YS X509(cd.GetIssuer(), iSz, cd.GetCommonName(),
                                 sSz, &beforeDate, &afterDate,
                                 cd.GetIssuerCnStart(), cd.GetIssuerCnLength(),

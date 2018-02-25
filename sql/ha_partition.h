@@ -67,6 +67,21 @@ public:
   }
 };
 
+class ha_partition;
+
+/* Partition Full Text Search info */
+struct st_partition_ft_info
+{
+  struct _ft_vft        *please;
+  st_partition_ft_info  *next;
+  ha_partition          *file;
+  FT_INFO               **part_ft_info;
+};
+
+
+#ifdef HAVE_PSI_MUTEX_INTERFACE
+extern PSI_mutex_key key_partition_auto_inc_mutex;
+#endif
 
 /**
   Partition specific Handler_share.
@@ -85,27 +100,116 @@ public:
   HASH partition_name_hash;
   /** Storage for each partitions Handler_share */
   Parts_share_refs partitions_share_refs;
-  Partition_share() {}
+  Partition_share()
+    : auto_inc_initialized(false),
+    next_auto_inc_val(0),
+    partition_name_hash_initialized(false),
+    partition_names(NULL)
+  {
+    mysql_mutex_init(key_partition_auto_inc_mutex,
+                    &auto_inc_mutex,
+                    MY_MUTEX_INIT_FAST);
+  }
+
   ~Partition_share()
   {
-    DBUG_ENTER("Partition_share::~Partition_share");
     mysql_mutex_destroy(&auto_inc_mutex);
+    if (partition_names)
+    {
+      my_free(partition_names);
+    }
     if (partition_name_hash_initialized)
+    {
       my_hash_free(&partition_name_hash);
-    DBUG_VOID_RETURN;
+    }
   }
+  
   bool init(uint num_parts);
-  void lock_auto_inc()
+
+  /**
+    Release reserved auto increment values not used.
+    @param thd             Thread.
+    @param table_share     Table Share
+    @param next_insert_id  Next insert id (first non used auto inc value).
+    @param max_reserved    End of reserved auto inc range.
+  */
+  void release_auto_inc_if_possible(THD *thd, TABLE_SHARE *table_share,
+                                    const ulonglong next_insert_id,
+                                    const ulonglong max_reserved);
+
+  /** lock mutex protecting auto increment value next_auto_inc_val. */
+  inline void lock_auto_inc()
   {
     mysql_mutex_lock(&auto_inc_mutex);
   }
-  void unlock_auto_inc()
+  /** unlock mutex protecting auto increment value next_auto_inc_val. */
+  inline void unlock_auto_inc()
   {
     mysql_mutex_unlock(&auto_inc_mutex);
   }
+  /**
+    Populate partition_name_hash with partition and subpartition names
+    from part_info.
+    @param part_info  Partition info containing all partitions metadata.
+
+    @return Operation status.
+      @retval false Success.
+      @retval true  Failure.
+  */
+  bool populate_partition_name_hash(partition_info *part_info);
+  /** Get partition name.
+
+  @param part_id  Partition id (for subpartitioned table only subpartition
+                  names will be returned.)
+
+  @return partition name or NULL if error.
+  */
+  const char *get_partition_name(size_t part_id) const;
+private:
+  const uchar **partition_names;
+  /**
+    Insert [sub]partition name into  partition_name_hash
+    @param name        Partition name.
+    @param part_id     Partition id.
+    @param is_subpart  True if subpartition else partition.
+
+    @return Operation status.
+      @retval false Success.
+      @retval true  Failure.
+  */
+  bool insert_partition_name_in_hash(const char *name,
+                                     uint part_id,
+                                     bool is_subpart);
 };
 
+typedef struct st_partition_key_multi_range
+{
+  uint id;
+  uchar *key[2];
+  uint length[2];
+  KEY_MULTI_RANGE key_multi_range;
+  range_id_t ptr;
+  st_partition_key_multi_range *next;
+} PARTITION_KEY_MULTI_RANGE;
 
+
+typedef struct st_partition_part_key_multi_range
+{
+  PARTITION_KEY_MULTI_RANGE *partition_key_multi_range;
+  st_partition_part_key_multi_range *next;
+} PARTITION_PART_KEY_MULTI_RANGE;
+
+
+class ha_partition;
+typedef struct st_partition_part_key_multi_range_hld
+{
+  ha_partition *partition;
+  uint32 part_id;
+  PARTITION_PART_KEY_MULTI_RANGE *partition_part_key_multi_range;
+} PARTITION_PART_KEY_MULTI_RANGE_HLD;
+
+
+extern "C" int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
 extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
 
 class ha_partition :public handler
@@ -115,16 +219,17 @@ private:
   {
     partition_index_read= 0,
     partition_index_first= 1,
-    partition_index_first_unordered= 2,
     partition_index_last= 3,
     partition_index_read_last= 4,
     partition_read_range = 5,
-    partition_no_index_scan= 6
+    partition_no_index_scan= 6,
+    partition_read_multi_range = 7,
+    partition_ft_read= 8
   };
   /* Data for the partition handler */
   int  m_mode;                          // Open mode
   uint m_open_test_lock;                // Open test_if_locked
-  uchar *m_file_buffer;                 // Content of the .par file 
+  uchar *m_file_buffer;                 // Content of the .par file
   char *m_name_buffer_ptr;		// Pointer to first partition name
   MEM_ROOT m_mem_root;
   plugin_ref *m_engine_array;           // Array of types of the handlers
@@ -137,6 +242,8 @@ private:
   partition_info *m_part_info;          // local reference to partition
   Field **m_part_field_array;           // Part field array locally to save acc
   uchar *m_ordered_rec_buffer;          // Row and key buffer for ord. idx scan
+  st_partition_ft_info *ft_first;
+  st_partition_ft_info *ft_current;
   /*
     Current index.
     When used in key_rec_cmp: If clustered pk, index compare
@@ -153,10 +260,10 @@ private:
     Length of an element in m_ordered_rec_buffer. The elements are composed of
 
       [part_no] [table->record copy] [underlying_table_rowid]
-    
+
     underlying_table_rowid is only stored when the table has no extended keys.
   */
-  uint m_priority_queue_rec_len;
+  size_t m_priority_queue_rec_len;
 
   /*
     If true, then sorting records by key value also sorts them by their
@@ -201,14 +308,16 @@ private:
   bool m_create_handler;                 // Handler used to create table
   bool m_is_sub_partitioned;             // Is subpartitioned
   bool m_ordered_scan_ongoing;
+  bool m_rnd_init_and_first;
+  bool m_ft_init_and_first;
 
-  /* 
+  /*
     If set, this object was created with ha_partition::clone and doesn't
     "own" the m_part_info structure.
   */
   ha_partition *m_is_clone_of;
   MEM_ROOT *m_clone_mem_root;
-  
+
   /*
     We keep track if all underlying handlers are MyISAM since MyISAM has a
     great number of extra flags not needed by other handlers.
@@ -253,6 +362,12 @@ private:
   ha_rows   m_bulk_inserted_rows;
   /** used for prediction of start_bulk_insert rows */
   enum_monotonicity_info m_part_func_monotonicity_info;
+  part_id_range m_direct_update_part_spec;
+  bool                m_pre_calling;
+  bool                m_pre_call_use_parallel;
+  /* Keep track of bulk access requests */
+  bool                bulk_access_executing;
+
   /** keep track of locked partitions */
   MY_BITMAP m_locked_partitions;
   /** Stores shared auto_increment etc. */
@@ -270,7 +385,24 @@ private:
   /** partitions that returned HA_ERR_KEY_NOT_FOUND. */
   MY_BITMAP m_key_not_found_partitions;
   bool m_key_not_found;
+  List<String> *m_partitions_to_open;
+  MY_BITMAP m_opened_partitions;
+  /** This is one of the m_file-s that it guaranteed to be opened. */
+  /**  It is set in open_read_partitions() */
+  handler *m_file_sample;
 public:
+  handler **get_child_handlers()
+  {
+    return m_file;
+  }
+  virtual part_id_range *get_part_spec()
+  {
+    return &m_part_spec;
+  }
+  virtual uint get_no_current_part_id()
+  {
+    return NO_CURRENT_PART_ID;
+  }
   Partition_share *get_part_share() { return part_share; }
   handler *clone(const char *name, MEM_ROOT *mem_root);
   virtual void set_part_info(partition_info *part_info)
@@ -278,6 +410,9 @@ public:
      m_part_info= part_info;
      m_is_sub_partitioned= part_info->is_sub_partitioned();
   }
+
+  virtual void return_record_by_parent();
+
   /*
     -------------------------------------------------------------------------
     MODULE create/delete handler object
@@ -296,6 +431,7 @@ public:
                  ha_partition *clone_arg,
                  MEM_ROOT *clone_mem_root_arg);
    ~ha_partition();
+   void ha_partition_init();
   /*
     A partition handler has no characteristics in itself. It only inherits
     those from the underlying handlers. Here we set-up those constants to
@@ -422,8 +558,7 @@ public:
   virtual THR_LOCK_DATA **store_lock(THD * thd, THR_LOCK_DATA ** to,
 				     enum thr_lock_type lock_type);
   virtual int external_lock(THD * thd, int lock_type);
-  LEX_CSTRING *engine_name()
-  { return hton_name(table->part_info->default_engine_type); }
+  LEX_CSTRING *engine_name() { return hton_name(partition_ht()); }
   /*
     When table is locked a statement is started by calling start_stmt
     instead of external_lock
@@ -479,8 +614,23 @@ public:
     number of calls to write_row.
   */
   virtual int write_row(uchar * buf);
+  virtual bool start_bulk_update();
+  virtual int exec_bulk_update(ha_rows *dup_key_found);
+  virtual int end_bulk_update();
+  virtual int bulk_update_row(const uchar *old_data, const uchar *new_data,
+                              ha_rows *dup_key_found);
   virtual int update_row(const uchar * old_data, const uchar * new_data);
+  virtual int direct_update_rows_init();
+  virtual int pre_direct_update_rows_init();
+  virtual int direct_update_rows(ha_rows *update_rows);
+  virtual int pre_direct_update_rows();
+  virtual bool start_bulk_delete();
+  virtual int end_bulk_delete();
   virtual int delete_row(const uchar * buf);
+  virtual int direct_delete_rows_init();
+  virtual int pre_direct_delete_rows_init();
+  virtual int direct_delete_rows(ha_rows *delete_rows);
+  virtual int pre_direct_delete_rows();
   virtual int delete_all_rows(void);
   virtual int truncate();
   virtual void start_bulk_insert(ha_rows rows, uint flags);
@@ -599,20 +749,16 @@ public:
   virtual int index_last(uchar * buf);
   virtual int index_next_same(uchar * buf, const uchar * key, uint keylen);
 
+  int index_read_last_map(uchar *buf,
+                          const uchar *key,
+                          key_part_map keypart_map);
+
   /*
     read_first_row is virtual method but is only implemented by
     handler.cc, no storage engine has implemented it so neither
     will the partition handler.
-    
-    virtual int read_first_row(uchar *buf, uint primary_key);
-  */
 
-  /*
-    We don't implement multi read range yet, will do later.
-    virtual int read_multi_range_first(KEY_MULTI_RANGE **found_range_p,
-    KEY_MULTI_RANGE *ranges, uint range_count,
-    bool sorted, HANDLER_BUFFER *buffer);
-    virtual int read_multi_range_next(KEY_MULTI_RANGE **found_range_p);
+    virtual int read_first_row(uchar *buf, uint primary_key);
   */
 
 
@@ -621,12 +767,59 @@ public:
 			       bool eq_range, bool sorted);
   virtual int read_range_next();
 
+
+  HANDLER_BUFFER *m_mrr_buffer;
+  uint *m_mrr_buffer_size;
+  uchar *m_mrr_full_buffer;
+  uint m_mrr_full_buffer_size;
+  uint m_mrr_new_full_buffer_size;
+  MY_BITMAP m_mrr_used_partitions;
+  uint *m_stock_range_seq;
+  uint m_current_range_seq;
+  uint m_mrr_mode;
+  uint m_mrr_n_ranges;
+  range_id_t *m_range_info;
+  bool m_multi_range_read_first;
+  uint m_mrr_range_init_flags;
+  uint m_mrr_range_length;
+  PARTITION_KEY_MULTI_RANGE *m_mrr_range_first;
+  PARTITION_KEY_MULTI_RANGE *m_mrr_range_current;
+  uint *m_part_mrr_range_length;
+  PARTITION_PART_KEY_MULTI_RANGE **m_part_mrr_range_first;
+  PARTITION_PART_KEY_MULTI_RANGE **m_part_mrr_range_current;
+  PARTITION_PART_KEY_MULTI_RANGE_HLD *m_partition_part_key_multi_range_hld;
+  range_seq_t m_seq;
+  RANGE_SEQ_IF *m_seq_if;
+  RANGE_SEQ_IF m_part_seq_if;
+
+  virtual int multi_range_key_create_key(
+    RANGE_SEQ_IF *seq,
+    range_seq_t seq_it
+  );
+  virtual ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
+                                              void *seq_init_param,
+                                              uint n_ranges, uint *bufsz,
+                                              uint *mrr_mode,
+                                              Cost_estimate *cost);
+  virtual ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
+                                        uint key_parts, uint *bufsz,
+                                        uint *mrr_mode, Cost_estimate *cost);
+  virtual int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
+                                    uint n_ranges, uint mrr_mode,
+                                    HANDLER_BUFFER *buf);
+  virtual int multi_range_read_next(range_id_t *range_info);
+  virtual int multi_range_read_explain_info(uint mrr_mode, char *str,
+                                            size_t size);
+  uint last_part() { return m_last_part; }
+
 private:
   bool init_record_priority_queue();
   void destroy_record_priority_queue();
   int common_index_read(uchar * buf, bool have_start_key);
   int common_first_last(uchar * buf);
   int partition_scan_set_up(uchar * buf, bool idx_read_flag);
+  bool check_parallel_search();
+  int handle_pre_scan(bool reverse_order, bool use_parallel);
   int handle_unordered_next(uchar * buf, bool next_same);
   int handle_unordered_scan_next_partition(uchar * buf);
   int handle_ordered_index_scan(uchar * buf, bool reverse_order);
@@ -647,6 +840,9 @@ public:
   virtual int info(uint);
   void get_dynamic_partition_info(PARTITION_STATS *stat_info,
                                   uint part_id);
+  void set_partitions_to_open(List<String> *partition_names);
+  int change_partitions_to_open(List<String> *partition_names);
+  int open_read_partitions(char *name_buff, size_t name_buff_size);
   virtual int extra(enum ha_extra_function operation);
   virtual int extra_opt(enum ha_extra_function operation, ulong cachesize);
   virtual int reset(void);
@@ -667,12 +863,13 @@ private:
                                           Query_cache_block_table
                                           **block_table,
                                           handler *file, uint *n);
-  static const uint NO_CURRENT_PART_ID;
+  static const uint NO_CURRENT_PART_ID= NOT_A_PARTITION_ID;
   int loop_extra(enum ha_extra_function operation);
   int loop_extra_alter(enum ha_extra_function operations);
   void late_extra_cache(uint partition_id);
   void late_extra_no_cache(uint partition_id);
   void prepare_extra_cache(uint cachesize);
+  handler *get_open_file_sample() const { return m_file_sample; }
 public:
 
   /*
@@ -916,7 +1113,7 @@ public:
     special file for handling names of partitions, engine types.
     HA_REC_NOT_IN_SEQ is always set for partition handler since we cannot
     guarantee that the records will be returned in sequence.
-    HA_CAN_GEOMETRY, HA_CAN_FULLTEXT, HA_CAN_SQL_HANDLER, HA_DUPLICATE_POS,
+    HA_DUPLICATE_POS,
     HA_CAN_INSERT_DELAYED, HA_PRIMARY_KEY_REQUIRED_FOR_POSITION is disabled
     until further investigated.
   */
@@ -991,14 +1188,14 @@ public:
     wrapper function for handlerton alter_table_flags, since
     the ha_partition_hton cannot know all its capabilities
   */
-  virtual uint alter_table_flags(uint flags);
+  virtual ulonglong alter_table_flags(ulonglong flags);
   /*
     unireg.cc will call the following to make sure that the storage engine
     can handle the data it is about to send.
 
     The maximum supported values is the minimum of all handlers in the table
   */
-  uint min_of_the_max_uint(uint (handler::*operator_func)(void) const) const; 
+  uint min_of_the_max_uint(uint (handler::*operator_func)(void) const) const;
   virtual uint max_supported_record_length() const;
   virtual uint max_supported_keys() const;
   virtual uint max_supported_key_parts() const;
@@ -1043,6 +1240,8 @@ public:
     auto_increment_column_changed
      -------------------------------------------------------------------------
   */
+  virtual bool need_info_for_auto_inc();
+  virtual bool can_use_for_auto_inc_init();
   virtual void get_auto_increment(ulonglong offset, ulonglong increment,
                                   ulonglong nb_desired_values,
                                   ulonglong *first_value,
@@ -1050,16 +1249,17 @@ public:
   virtual void release_auto_increment();
 private:
   virtual int reset_auto_increment(ulonglong value);
+  void update_next_auto_inc_val();
   virtual void lock_auto_increment()
   {
     /* lock already taken */
     if (auto_increment_safe_stmt_log_lock)
       return;
-    DBUG_ASSERT(!auto_increment_lock);
-    if(table_share->tmp_table == NO_TMP_TABLE)
+    if (table_share->tmp_table == NO_TMP_TABLE)
     {
-      auto_increment_lock= TRUE;
       part_share->lock_auto_inc();
+      DBUG_ASSERT(!auto_increment_lock);
+      auto_increment_lock= TRUE;
     }
   }
   virtual void unlock_auto_increment()
@@ -1069,10 +1269,10 @@ private:
       It will be set to false and thus unlocked at the end of the statement by
       ha_partition::release_auto_increment.
     */
-    if(auto_increment_lock && !auto_increment_safe_stmt_log_lock)
+    if (auto_increment_lock && !auto_increment_safe_stmt_log_lock)
     {
-      part_share->unlock_auto_inc();
       auto_increment_lock= FALSE;
+      part_share->unlock_auto_inc();
     }
   }
   virtual void set_auto_increment_if_higher(Field *field)
@@ -1080,7 +1280,8 @@ private:
     ulonglong nr= (((Field_num*) field)->unsigned_flag ||
                    field->val_int() > 0) ? field->val_int() : 0;
     lock_auto_increment();
-    DBUG_ASSERT(part_share->auto_inc_initialized);
+    DBUG_ASSERT(part_share->auto_inc_initialized ||
+                !can_use_for_auto_inc_init());
     /* must check when the mutex is taken */
     if (nr >= part_share->next_auto_inc_val)
       part_share->next_auto_inc_val= nr + 1;
@@ -1129,14 +1330,15 @@ public:
     -------------------------------------------------------------------------
     MODULE fulltext index
     -------------------------------------------------------------------------
-    Fulltext stuff not yet.
-    -------------------------------------------------------------------------
-    virtual int ft_init() { return HA_ERR_WRONG_COMMAND; }
-    virtual FT_INFO *ft_init_ext(uint flags,uint inx,const uchar *key,
-    uint keylen)
-    { return NULL; }
-    virtual int ft_read(uchar *buf) { return HA_ERR_WRONG_COMMAND; }
   */
+    void ft_close_search(FT_INFO *handler);
+    virtual int ft_init();
+    virtual int pre_ft_init();
+    virtual void ft_end();
+    virtual int pre_ft_end();
+    virtual FT_INFO *ft_init_ext(uint flags, uint inx, String *key);
+    virtual int ft_read(uchar *buf);
+    virtual int pre_ft_read(bool use_parallel);
 
   /*
      -------------------------------------------------------------------------
@@ -1198,6 +1400,16 @@ public:
     virtual bool is_crashed() const;
     virtual int check_for_upgrade(HA_CHECK_OPT *check_opt);
 
+  /*
+    -------------------------------------------------------------------------
+    MODULE condition pushdown
+    -------------------------------------------------------------------------
+  */
+    virtual const COND *cond_push(const COND *cond);
+    virtual void cond_pop();
+    virtual void clear_top_table_fields();
+    virtual int info_push(uint info_type, void *info);
+
     private:
     int handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt, uint flags);
     int handle_opt_part(THD *thd, HA_CHECK_OPT *check_opt, uint part_id,
@@ -1225,6 +1437,7 @@ public:
   /* Enabled keycache for performance reasons, WL#4571 */
     virtual int assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt);
     virtual int preload_keys(THD* thd, HA_CHECK_OPT* check_opt);
+    virtual TABLE_LIST *get_next_global_for_child();
 
   /*
     -------------------------------------------------------------------------
@@ -1271,7 +1484,26 @@ public:
     return h;
   }
 
-  friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
-};
+  ha_rows part_records(void *_part_elem)
+  {
+    partition_element *part_elem= reinterpret_cast<partition_element *>(_part_elem);
+    DBUG_ASSERT(m_part_info);
+    uint32 sub_factor= m_part_info->num_subparts ? m_part_info->num_subparts : 1;
+    uint32 part_id= part_elem->id * sub_factor;
+    uint32 part_id_end= part_id + sub_factor;
+    DBUG_ASSERT(part_id_end <= m_tot_parts);
+    ha_rows part_recs= 0;
+    for (; part_id < part_id_end; ++part_id)
+    {
+      handler *file= m_file[part_id];
+      DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), part_id));
+      file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK | HA_STATUS_OPEN);
+      part_recs+= file->stats.records;
+    }
+    return part_recs;
+  }
 
+  friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
+  friend int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
+};
 #endif /* HA_PARTITION_INCLUDED */

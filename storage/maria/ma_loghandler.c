@@ -5373,7 +5373,7 @@ static void  translog_relative_LSN_encode(struct st_translog_parts *parts,
   /* collect all LSN(s) in one chunk if it (they) is (are) divided */
   if (part->length < lsns_len)
   {
-    uint copied= part->length;
+    size_t copied= part->length;
     LEX_CUSTRING *next_part;
     DBUG_PRINT("info", ("Using buffer:%p", compressed_LSNs));
     memcpy(buffer, part->str, part->length);
@@ -5394,7 +5394,7 @@ static void  translog_relative_LSN_encode(struct st_translog_parts *parts,
       }
       else
       {
-        uint len= lsns_len - copied;
+        size_t len= lsns_len - copied;
         memcpy(buffer + copied, next_part->str, len);
         copied= lsns_len;
         next_part->str+= len;
@@ -5430,11 +5430,12 @@ static void  translog_relative_LSN_encode(struct st_translog_parts *parts,
       ref= lsn_korr(src_ptr);
       dst_ptr= translog_put_LSN_diff(base_lsn, ref, dst_ptr);
     }
-    part->length= (uint)((compressed_LSNs +
+    part->length= (size_t)((compressed_LSNs +
                           (MAX_NUMBER_OF_LSNS_PER_RECORD *
                            COMPRESSED_LSN_MAX_STORE_SIZE)) -
                          dst_ptr);
-    parts->record_length-= (economy= lsns_len - part->length);
+    economy= lsns_len - (uint)part->length;
+    parts->record_length-= economy;
     DBUG_PRINT("info", ("new length of LSNs: %lu  economy: %d",
                         (ulong)part->length, economy));
     parts->total_record_length-= economy;
@@ -6302,7 +6303,7 @@ my_bool translog_write_record(LSN *lsn,
 #ifndef DBUG_OFF
   {
     uint i;
-    uint len= 0;
+    size_t len= 0;
 #ifdef HAVE_valgrind
     ha_checksum checksum= 0;
 #endif
@@ -6342,7 +6343,6 @@ my_bool translog_write_record(LSN *lsn,
                                       short_trid, &parts, trn, hook_arg);
       break;
     case LOGRECTYPE_NOT_ALLOWED:
-      DBUG_ASSERT(0);
     default:
       DBUG_ASSERT(0);
       rc= 1;

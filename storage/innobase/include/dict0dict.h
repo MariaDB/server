@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -181,18 +181,6 @@ dict_col_get_mbmaxlen(
 /*==================*/
 	const dict_col_t*	col)	/*!< in: column */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
-Sets the minimum and maximum number of bytes per character. */
-UNIV_INLINE
-void
-dict_col_set_mbminmaxlen(
-/*=====================*/
-	dict_col_t*	col,		/*!< in/out: column */
-	ulint		mbminlen,	/*!< in: minimum multi-byte
-					character size, in bytes */
-	ulint		mbmaxlen)	/*!< in: minimum multi-byte
-					character size, in bytes */
-	MY_ATTRIBUTE((nonnull));
 /*********************************************************************//**
 Gets the column data type. */
 UNIV_INLINE
@@ -414,7 +402,7 @@ dict_table_rename_in_cache(
 					/*!< in: in ALTER TABLE we want
 					to preserve the original table name
 					in constraints which reference it */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+	MY_ATTRIBUTE((nonnull));
 
 /** Removes an index from the dictionary cache.
 @param[in,out]	table	table whose index to remove
@@ -929,7 +917,7 @@ dict_index_get_min_size(
 Check whether the table uses the compact page format.
 @return TRUE if table uses the compact page format */
 UNIV_INLINE
-ibool
+bool
 dict_table_is_comp(
 /*===============*/
 	const dict_table_t*	table)	/*!< in: table */
@@ -1275,7 +1263,7 @@ Returns TRUE if the index contains a column or a prefix of that column.
 @param[in]	n		column number
 @param[in]	is_virtual	whether it is a virtual col
 @return TRUE if contains the column or its prefix */
-ibool
+bool
 dict_index_contains_col_or_prefix(
 /*==============================*/
 	const dict_index_t*	index,	/*!< in: index */

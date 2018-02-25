@@ -127,9 +127,12 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const char *funcname,
     many cases.
   */
   set_handler(items[0]->type_handler()->type_handler_for_comparison());
+  m_vers_trx_id= items[0]->vers_trx_id();
   for (uint i= 1 ; i < nitems ; i++)
   {
     unsigned_count+= items[i]->unsigned_flag;
+    if (!m_vers_trx_id)
+      m_vers_trx_id= items[i]->vers_trx_id();
     if (aggregate_for_comparison(items[i]->type_handler()->
                                  type_handler_for_comparison()))
     {
@@ -421,7 +424,7 @@ void Item_func::convert_const_compared_to_int_field(THD *thd)
         args[field= 1]->real_item()->type() == FIELD_ITEM)
     {
       Item_field *field_item= (Item_field*) (args[field]->real_item());
-      if ((field_item->field_type() ==  MYSQL_TYPE_LONGLONG ||
+      if (((field_item->field_type() == MYSQL_TYPE_LONGLONG && !field_item->vers_trx_id()) ||
            field_item->field_type() ==  MYSQL_TYPE_YEAR))
         convert_const_to_int(thd, field_item, &args[!field]);
     }
@@ -1223,6 +1226,7 @@ bool Item_in_optimizer::is_top_level_item()
 void Item_in_optimizer::fix_after_pullout(st_select_lex *new_parent,
                                           Item **ref, bool merge)
 {
+  DBUG_ASSERT(fixed);
   /* This will re-calculate attributes of our Item_in_subselect: */
   Item_bool_func::fix_after_pullout(new_parent, ref, merge);
 
@@ -1243,6 +1247,33 @@ bool Item_in_optimizer::eval_not_null_tables(void *opt_arg)
     not_null_tables_cache= args[0]->not_null_tables();
   }
   return FALSE;
+}
+
+
+void Item_in_optimizer::print(String *str, enum_query_type query_type)
+{
+   restore_first_argument();
+   Item_func::print(str, query_type);
+}
+
+
+/**
+  "Restore" first argument before fix_fields() call (after it is harmless).
+
+  @Note: Main pointer to left part of IN/ALL/ANY subselect is subselect's
+  lest_expr (see Item_in_optimizer::fix_left) so changes made during
+  fix_fields will be rolled back there which can make
+  Item_in_optimizer::args[0] unusable on second execution before fix_left()
+  call. This call fix the pointer.
+*/
+
+void Item_in_optimizer::restore_first_argument()
+{
+  if (args[1]->type() == Item::SUBSELECT_ITEM &&
+      ((Item_subselect *)args[1])->is_in_predicate())
+  {
+    args[0]= ((Item_in_subselect *)args[1])->left_expr;
+  }
 }
 
 
@@ -1365,7 +1396,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   }
   if (args[1]->maybe_null)
     maybe_null=1;
-  with_subselect= 1;
+  m_with_subquery= true;
   with_sum_func= with_sum_func || args[1]->with_sum_func;
   with_field= with_field || args[1]->with_field;
   used_tables_and_const_cache_join(args[1]);
@@ -1419,6 +1450,7 @@ bool Item_in_optimizer::invisible_mode()
 Item *Item_in_optimizer::expr_cache_insert_transformer(THD *thd, uchar *unused)
 {
   DBUG_ENTER("Item_in_optimizer::expr_cache_insert_transformer");
+  DBUG_ASSERT(fixed);
 
   if (invisible_mode())
     DBUG_RETURN(this);
@@ -1443,6 +1475,7 @@ Item *Item_in_optimizer::expr_cache_insert_transformer(THD *thd, uchar *unused)
 
 void Item_in_optimizer::get_cache_parameters(List<Item> &parameters)
 {
+  DBUG_ASSERT(fixed);
   /* Add left expression to the list of the parameters of the subquery */
   if (!invisible_mode())
   {
@@ -1680,6 +1713,7 @@ Item *Item_in_optimizer::transform(THD *thd, Item_transformer transformer,
 {
   Item *new_item;
 
+  DBUG_ASSERT(fixed);
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
   DBUG_ASSERT(arg_count == 2);
 
@@ -1731,6 +1765,7 @@ Item *Item_in_optimizer::transform(THD *thd, Item_transformer transformer,
 
 bool Item_in_optimizer::is_expensive_processor(void *arg)
 {
+  DBUG_ASSERT(fixed);
   return args[0]->is_expensive_processor(arg) ||
          args[1]->is_expensive_processor(arg);
 }
@@ -1738,6 +1773,7 @@ bool Item_in_optimizer::is_expensive_processor(void *arg)
 
 bool Item_in_optimizer::is_expensive()
 {
+  DBUG_ASSERT(fixed);
   return args[0]->is_expensive() || args[1]->is_expensive();
 }
 
@@ -1836,6 +1872,19 @@ bool Item_func_opt_neg::eq(const Item *item, bool binary_cmp) const
     if (!args[i]->eq(item_func->arguments()[i], binary_cmp))
       return 0;
   return 1;
+}
+
+
+bool Item_func_interval::fix_fields(THD *thd, Item **ref)
+{
+  if (Item_long_func::fix_fields(thd, ref))
+    return true;
+  for (uint i= 0 ; i < row->cols(); i++)
+  {
+    if (row->element_index(i)->check_cols(1))
+      return true;
+  }
+  return false;
 }
 
 
@@ -2322,9 +2371,25 @@ Item_func_ifnull::str_op(String *str)
 bool Item_func_ifnull::date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
-  if (!args[0]->get_date_with_conversion(ltime, fuzzydate & ~TIME_FUZZY_DATES))
-    return (null_value= false);
-  return (null_value= args[1]->get_date_with_conversion(ltime, fuzzydate & ~TIME_FUZZY_DATES));
+  for (uint i= 0; i < 2; i++)
+  {
+    Datetime dt(current_thd, args[i], fuzzydate & ~TIME_FUZZY_DATES);
+    if (!(dt.copy_to_mysql_time(ltime, mysql_timestamp_type())))
+      return (null_value= false);
+  }
+  return (null_value= true);
+}
+
+
+bool Item_func_ifnull::time_op(MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(fixed == 1);
+  for (uint i= 0; i < 2; i++)
+  {
+    if (!Time(args[i]).copy_to_mysql_time(ltime))
+      return (null_value= false);
+  }
+  return (null_value= true);
 }
 
 
@@ -2667,7 +2732,9 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
     Therefore, after equal field propagation args[0] and args[2] can point
     to different items.
   */
-  if ((query_type & QT_ITEM_ORIGINAL_FUNC_NULLIF) || args[0] == args[2])
+  if ((query_type & QT_ITEM_ORIGINAL_FUNC_NULLIF) ||
+      (arg_count == 2) ||
+      (args[0] == args[2]))
   {
     /*
       If QT_ITEM_ORIGINAL_FUNC_NULLIF is requested,
@@ -2685,10 +2752,14 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
       - one "a" for comparison
       - another "a" for the returned value!
     */
-    DBUG_ASSERT(args[0] == args[2] || current_thd->lex->context_analysis_only);
+    DBUG_ASSERT(arg_count == 2 ||
+                args[0] == args[2] || current_thd->lex->context_analysis_only);
     str->append(func_name());
     str->append('(');
-    args[2]->print(str, query_type);
+    if (arg_count == 2)
+      args[0]->print(str, query_type);
+    else
+      args[2]->print(str, query_type);
     str->append(',');
     args[1]->print(str, query_type);
     str->append(')');
@@ -2798,7 +2869,19 @@ Item_func_nullif::date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
   DBUG_ASSERT(fixed == 1);
   if (!compare())
     return (null_value= true);
-  return (null_value= args[2]->get_date(ltime, fuzzydate));
+  Datetime dt(current_thd, args[2], fuzzydate);
+  return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
+}
+
+
+bool
+Item_func_nullif::time_op(MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (!compare())
+    return (null_value= true);
+  return (null_value= Time(args[2]).copy_to_mysql_time(ltime));
+
 }
 
 
@@ -2939,7 +3022,18 @@ bool Item_func_case::date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
   Item *item= find_item();
   if (!item)
     return (null_value= true);
-  return (null_value= item->get_date_with_conversion(ltime, fuzzydate));
+  Datetime dt(current_thd, item, fuzzydate);
+  return (null_value= dt.copy_to_mysql_time(ltime, mysql_timestamp_type()));
+}
+
+
+bool Item_func_case::time_op(MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(fixed == 1);
+  Item *item= find_item();
+  if (!item)
+    return (null_value= true);
+  return (null_value= Time(item).copy_to_mysql_time(ltime));
 }
 
 
@@ -3349,7 +3443,20 @@ bool Item_func_coalesce::date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
   DBUG_ASSERT(fixed == 1);
   for (uint i= 0; i < arg_count; i++)
   {
-    if (!args[i]->get_date_with_conversion(ltime, fuzzydate & ~TIME_FUZZY_DATES))
+    Datetime dt(current_thd, args[i], fuzzydate & ~TIME_FUZZY_DATES);
+    if (!dt.copy_to_mysql_time(ltime, mysql_timestamp_type()))
+      return (null_value= false);
+  }
+  return (null_value= true);
+}
+
+
+bool Item_func_coalesce::time_op(MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(fixed == 1);
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (!Time(args[i]).copy_to_mysql_time(ltime))
       return (null_value= false);
   }
   return (null_value= true);
@@ -4623,7 +4730,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
   
     with_sum_func|=    item->with_sum_func;
     with_field|=       item->with_field;
-    with_subselect|=   item->has_subquery();
+    m_with_subquery|=  item->with_subquery();
     with_window_func|= item->with_window_func;
     maybe_null|=       item->maybe_null;
   }
@@ -4937,20 +5044,20 @@ void Item_cond::neg_arguments(THD *thd)
      0 if an error occured
 */ 
 
-Item *Item_cond::build_clone(THD *thd, MEM_ROOT *mem_root)
+Item *Item_cond::build_clone(THD *thd)
 {
   List_iterator_fast<Item> li(list);
   Item *item;
-  Item_cond *copy= (Item_cond *) get_copy(thd, mem_root);
+  Item_cond *copy= (Item_cond *) get_copy(thd);
   if (!copy)
     return 0;
   copy->list.empty();
   while ((item= li++))
   {
-    Item *arg_clone= item->build_clone(thd, mem_root);
+    Item *arg_clone= item->build_clone(thd);
     if (!arg_clone)
       return 0;
-    if (copy->list.push_back(arg_clone, mem_root))
+    if (copy->list.push_back(arg_clone, thd->mem_root))
       return 0;
   }
   return copy;
@@ -5290,7 +5397,6 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
   return FALSE;
 }
 
-
 bool Item_func_like::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
@@ -5485,7 +5591,7 @@ void Regexp_processor_pcre::pcre_exec_warn(int rc) const
   switch (rc)
   {
   case PCRE_ERROR_NULL:
-    errmsg= "pcre_exec: null arguement passed";
+    errmsg= "pcre_exec: null argument passed";
     break;
   case PCRE_ERROR_BADOPTION:
     errmsg= "pcre_exec: bad option";
@@ -5588,9 +5694,9 @@ int Regexp_processor_pcre::pcre_exec_with_warn(const pcre *code,
 }
 
 
-bool Regexp_processor_pcre::exec(const char *str, int length, int offset)
+bool Regexp_processor_pcre::exec(const char *str, size_t length, size_t offset)
 {
-  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, &m_pcre_extra, str, length, offset, 0,
+  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, &m_pcre_extra, str, (int)length, (int)offset, 0,
                                       m_SubStrVec, array_elements(m_SubStrVec));
   return false;
 }
@@ -6627,7 +6733,7 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
     used_tables_cache|= item->used_tables();
     tmp_table_map= item->not_null_tables();
     not_null_tables_cache|= tmp_table_map;
-    DBUG_ASSERT(!item->with_sum_func && !item->with_subselect);
+    DBUG_ASSERT(!item->with_sum_func && !item->with_subquery());
     if (item->maybe_null)
       maybe_null= 1;
     if (!item->get_item_equal())
@@ -6960,20 +7066,20 @@ longlong Item_func_dyncol_exists::val_int()
       null_value= 1;
       return 1;
     }
-    if (my_charset_same(nm->charset(), &my_charset_utf8_general_ci))
+    if (my_charset_same(nm->charset(), DYNCOL_UTF))
     {
       buf.str= (char *) nm->ptr();
       buf.length= nm->length();
     }
     else
     {
-      uint strlen= nm->length() * my_charset_utf8_general_ci.mbmaxlen + 1;
+      uint strlen= nm->length() * DYNCOL_UTF->mbmaxlen + 1;
       uint dummy_errors;
       buf.str= (char *) current_thd->alloc(strlen);
       if (buf.str)
       {
         buf.length=
-          copy_and_convert(buf.str, strlen, &my_charset_utf8_general_ci,
+          copy_and_convert(buf.str, strlen, DYNCOL_UTF,
                            nm->ptr(), nm->length(), nm->charset(),
                            &dummy_errors);
       }

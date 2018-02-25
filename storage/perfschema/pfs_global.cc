@@ -219,6 +219,6 @@ uint pfs_get_socket_address(char *host,
   }
 
   /* Return actual IP address string length */
-  return (strlen((const char*)host));
+  return ((uint)strlen((const char*)host));
 }
 

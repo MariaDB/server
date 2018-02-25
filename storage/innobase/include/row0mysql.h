@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -219,30 +219,32 @@ row_lock_table_autoinc_for_mysql(
 					table handle */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/*********************************************************************//**
-Sets a table lock on the table mentioned in prebuilt.
+/** Lock a table.
+@param[in,out]	prebuilt	table handle
 @return error code or DB_SUCCESS */
 dberr_t
-row_lock_table_for_mysql(
-/*=====================*/
-	row_prebuilt_t*	prebuilt,	/*!< in: prebuilt struct in the MySQL
-					table handle */
-	dict_table_t*	table,		/*!< in: table to lock, or NULL
-					if prebuilt->table should be
-					locked as
-					prebuilt->select_lock_type */
-	ulint		mode)		/*!< in: lock mode of table
-					(ignored if table==NULL) */
-	MY_ATTRIBUTE((nonnull(1)));
+row_lock_table(row_prebuilt_t* prebuilt);
+
+/** System Versioning: row_insert_for_mysql() modes */
+enum ins_mode_t {
+	/* plain row (without versioning) */
+	ROW_INS_NORMAL = 0,
+	/* row_start = TRX_ID, row_end = MAX */
+	ROW_INS_VERSIONED,
+	/* row_end = TRX_ID */
+	ROW_INS_HISTORICAL
+};
 
 /** Does an insert for MySQL.
 @param[in]	mysql_rec	row in the MySQL format
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
+@param[in]	ins_mode	what row type we're inserting
 @return error code or DB_SUCCESS*/
 dberr_t
 row_insert_for_mysql(
 	const byte*		mysql_rec,
-	row_prebuilt_t*		prebuilt)
+	row_prebuilt_t*		prebuilt,
+	ins_mode_t		ins_mode)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
@@ -266,7 +268,8 @@ row_get_prebuilt_update_vector(
 @param[in,out]	prebuilt	prebuilt struct in MySQL handle
 @return error code or DB_SUCCESS */
 dberr_t
-row_update_for_mysql(row_prebuilt_t* prebuilt)
+row_update_for_mysql(
+	row_prebuilt_t*		prebuilt)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** This can only be used when srv_locks_unsafe_for_binlog is TRUE or this
@@ -307,6 +310,18 @@ row_create_update_node_for_mysql(
 /*=============================*/
 	dict_table_t*	table,	/*!< in: table to update */
 	mem_heap_t*	heap);	/*!< in: mem heap from which allocated */
+
+/**********************************************************************//**
+Does a cascaded delete or set null in a foreign key operation.
+@return error code or DB_SUCCESS */
+dberr_t
+row_update_cascade_for_mysql(
+/*=========================*/
+        que_thr_t*      thr,    /*!< in: query thread */
+        upd_node_t*     node,   /*!< in: update node used in the cascade
+                                or set null operation */
+        dict_table_t*   table)  /*!< in: table where we do the operation */
+        MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
 Locks the data dictionary exclusively for performing a table create or other
 data dictionary modification operation. */
@@ -420,6 +435,10 @@ ulint
 row_get_background_drop_list_len_low(void);
 /*======================================*/
 
+/** Drop garbage tables during recovery. */
+void
+row_mysql_drop_garbage_tables();
+
 /*********************************************************************//**
 Sets an exclusive lock on a table.
 @return error code or DB_SUCCESS */
@@ -502,18 +521,6 @@ row_rename_table_for_mysql(
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
 	bool		commit)		/*!< in: whether to commit trx */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/** Renames a partitioned table for MySQL.
-@param[in]	old_name	Old table name.
-@param[in]	new_name	New table name.
-@param[in,out]	trx		Transaction.
-@return error code or DB_SUCCESS */
-dberr_t
-row_rename_partitions_for_mysql(
-	const char*	old_name,
-	const char*	new_name,
-	trx_t*		trx)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*********************************************************************//**
@@ -668,6 +675,8 @@ struct row_prebuilt_t {
 					not to be confused with InnoDB
 					externally stored columns
 					(VARCHAR can be off-page too) */
+	unsigned	versioned_write:1;/*!< whether this is
+					a versioned write */
 	mysql_row_templ_t* mysql_template;/*!< template used to transform
 					rows fast between MySQL and Innobase
 					formats; memory for this template
@@ -844,6 +853,20 @@ struct row_prebuilt_t {
 
 	/** The MySQL table object */
 	TABLE*		m_mysql_table;
+
+	/** Get template by dict_table_t::cols[] number */
+	const mysql_row_templ_t* get_template_by_col(ulint col) const
+	{
+		ut_ad(col < n_template);
+		ut_ad(mysql_template);
+		for (ulint i = col; i < n_template; ++i) {
+			const mysql_row_templ_t* templ = &mysql_template[i];
+			if (!templ->is_virtual && templ->col_no == col) {
+				return templ;
+			}
+		}
+		return NULL;
+	}
 };
 
 /** Callback for row_mysql_sys_index_iterate() */

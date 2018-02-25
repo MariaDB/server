@@ -547,14 +547,12 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
   } // endif dladdr
 #endif // 0
 
-  // Is the library already loaded?
-  if (!Hdll && !(Hdll = dlopen(soname, RTLD_NOLOAD)))
-    // Load the desired shared library
-    if (!(Hdll = dlopen(soname, RTLD_LAZY))) {
-      error = dlerror();
-      sprintf(g->Message, MSG(SHARED_LIB_ERR), soname, SVP(error));
-      return NULL;
-      } // endif Hdll
+  // Load the desired shared library
+  if (!Hdll && !(Hdll = dlopen(soname, RTLD_LAZY))) {
+    error = dlerror();
+    sprintf(g->Message, MSG(SHARED_LIB_ERR), soname, SVP(error));
+    return NULL;
+    } // endif Hdll
 
   // The exported name is always in uppercase
   for (int i = 0; ; i++) {

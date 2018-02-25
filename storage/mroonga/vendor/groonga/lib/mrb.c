@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013-2015 Brazil
+  Copyright(C) 2013-2017 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -38,6 +38,7 @@
 #define E_LOAD_ERROR (mrb_class_get(mrb, "LoadError"))
 
 static char grn_mrb_ruby_scripts_dir[GRN_ENV_BUFFER_SIZE];
+static grn_bool grn_mrb_order_by_estimated_size_enable = GRN_FALSE;
 
 void
 grn_mrb_init_from_env(void)
@@ -45,28 +46,45 @@ grn_mrb_init_from_env(void)
   grn_getenv("GRN_RUBY_SCRIPTS_DIR",
              grn_mrb_ruby_scripts_dir,
              GRN_ENV_BUFFER_SIZE);
+  {
+    char grn_order_by_estimated_size_enable_env[GRN_ENV_BUFFER_SIZE];
+    grn_getenv("GRN_ORDER_BY_ESTIMATED_SIZE_ENABLE",
+               grn_order_by_estimated_size_enable_env,
+               GRN_ENV_BUFFER_SIZE);
+    if (strcmp(grn_order_by_estimated_size_enable_env, "yes") == 0) {
+      grn_mrb_order_by_estimated_size_enable = GRN_TRUE;
+    } else {
+      grn_mrb_order_by_estimated_size_enable = GRN_FALSE;
+    }
+  }
+}
+
+grn_bool
+grn_mrb_is_order_by_estimated_size_enabled(void)
+{
+  return grn_mrb_order_by_estimated_size_enable;
 }
 
 #ifdef GRN_WITH_MRUBY
 # ifdef WIN32
-static char *win32_ruby_scripts_dir = NULL;
-static char win32_ruby_scripts_dir_buffer[PATH_MAX];
+static char *windows_ruby_scripts_dir = NULL;
+static char windows_ruby_scripts_dir_buffer[PATH_MAX];
 static const char *
 grn_mrb_get_default_system_ruby_scripts_dir(void)
 {
-  if (!win32_ruby_scripts_dir) {
+  if (!windows_ruby_scripts_dir) {
     const char *base_dir;
     const char *relative_path = GRN_RELATIVE_RUBY_SCRIPTS_DIR;
     size_t base_dir_length;
 
-    base_dir = grn_win32_base_dir();
+    base_dir = grn_windows_base_dir();
     base_dir_length = strlen(base_dir);
-    grn_strcpy(win32_ruby_scripts_dir_buffer, PATH_MAX, base_dir);
-    grn_strcat(win32_ruby_scripts_dir_buffer, PATH_MAX, "/");
-    grn_strcat(win32_ruby_scripts_dir_buffer, PATH_MAX, relative_path);
-    win32_ruby_scripts_dir = win32_ruby_scripts_dir_buffer;
+    grn_strcpy(windows_ruby_scripts_dir_buffer, PATH_MAX, base_dir);
+    grn_strcat(windows_ruby_scripts_dir_buffer, PATH_MAX, "/");
+    grn_strcat(windows_ruby_scripts_dir_buffer, PATH_MAX, relative_path);
+    windows_ruby_scripts_dir = windows_ruby_scripts_dir_buffer;
   }
-  return win32_ruby_scripts_dir;
+  return windows_ruby_scripts_dir;
 }
 
 # else /* WIN32 */
@@ -94,7 +112,7 @@ grn_mrb_is_absolute_path(const char *path)
     return GRN_TRUE;
   }
 
-  if (isalpha(path[0]) && path[1] == ':' && path[2] == '/') {
+  if (isalpha((unsigned char)path[0]) && path[1] == ':' && path[2] == '/') {
     return GRN_TRUE;
   }
 
@@ -159,12 +177,9 @@ grn_mrb_load(grn_ctx *ctx, const char *path)
 
   file = grn_fopen(expanded_path, "r");
   if (!file) {
-    char message[BUFFER_SIZE];
     mrb_value exception;
-    grn_snprintf(message, BUFFER_SIZE, BUFFER_SIZE,
-                 "fopen: failed to open mruby script file: <%s>",
-                 expanded_path);
-    SERR(message);
+    SERR("fopen: failed to open mruby script file: <%s>",
+         expanded_path);
     exception = mrb_exc_new(mrb, E_LOAD_ERROR,
                             ctx->errbuf, strlen(ctx->errbuf));
     mrb->exc = mrb_obj_ptr(exception);
@@ -192,6 +207,7 @@ grn_mrb_load(grn_ctx *ctx, const char *path)
     {
       struct RProc *proc;
       proc = mrb_generate_code(mrb, parser);
+      proc->target_class = mrb->object_class;
       result = mrb_toplevel_run(mrb, proc);
     }
     mrb_parser_free(parser);
@@ -200,86 +216,5 @@ grn_mrb_load(grn_ctx *ctx, const char *path)
   }
 
   return result;
-}
-
-mrb_value
-grn_mrb_eval(grn_ctx *ctx, const char *script, int script_length)
-{
-  grn_mrb_data *data = &(ctx->impl->mrb);
-  mrb_state *mrb = data->state;
-  mrb_value result;
-  struct mrb_parser_state *parser;
-
-  if (!mrb) {
-    return mrb_nil_value();
-  }
-
-  if (script_length < 0) {
-    script_length = strlen(script);
-  }
-  parser = mrb_parse_nstring(mrb, script, script_length, NULL);
-  {
-    struct RProc *proc;
-    struct RClass *eval_context_class;
-    mrb_value eval_context;
-
-    proc = mrb_generate_code(mrb, parser);
-    eval_context_class = mrb_class_get_under(mrb, data->module, "EvalContext");
-    eval_context = mrb_obj_new(mrb, eval_context_class, 0, NULL);
-    result = mrb_context_run(mrb, proc, eval_context, 0);
-  }
-  mrb_parser_free(parser);
-
-  return result;
-}
-
-grn_rc
-grn_mrb_to_grn(grn_ctx *ctx, mrb_value mrb_object, grn_obj *grn_object)
-{
-  grn_rc rc = GRN_SUCCESS;
-  grn_mrb_data *data = &(ctx->impl->mrb);
-  mrb_state *mrb = data->state;
-
-  switch (mrb_type(mrb_object)) {
-  case MRB_TT_FALSE :
-    if (mrb_nil_p(mrb_object)) {
-      grn_obj_reinit(ctx, grn_object, GRN_DB_VOID, 0);
-    } else {
-      grn_obj_reinit(ctx, grn_object, GRN_DB_BOOL, 0);
-      GRN_BOOL_SET(ctx, grn_object, GRN_FALSE);
-    }
-    break;
-  case MRB_TT_TRUE :
-    grn_obj_reinit(ctx, grn_object, GRN_DB_BOOL, 0);
-    GRN_BOOL_SET(ctx, grn_object, GRN_TRUE);
-    break;
-  case MRB_TT_FIXNUM :
-    grn_obj_reinit(ctx, grn_object, GRN_DB_INT32, 0);
-    GRN_INT32_SET(ctx, grn_object, mrb_fixnum(mrb_object));
-    break;
-  case MRB_TT_STRING :
-    grn_obj_reinit(ctx, grn_object, GRN_DB_TEXT, 0);
-    GRN_TEXT_SET(ctx, grn_object,
-                 RSTRING_PTR(mrb_object),
-                 RSTRING_LEN(mrb_object));
-    break;
-  case MRB_TT_SYMBOL :
-    {
-      const char *name;
-      int name_length;
-
-      grn_obj_reinit(ctx, grn_object, GRN_DB_TEXT, 0);
-      GRN_BULK_REWIND(grn_object);
-      GRN_TEXT_PUTC(ctx, grn_object, ':');
-      name = mrb_sym2name_len(mrb, mrb_symbol(mrb_object), &name_length);
-      GRN_TEXT_PUT(ctx, grn_object, name, name_length);
-    }
-    break;
-  default :
-    rc = GRN_INVALID_ARGUMENT;
-    break;
-  }
-
-  return rc;
 }
 #endif

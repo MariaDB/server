@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -35,15 +35,10 @@ Created 10/25/1995 Heikki Tuuri
 #include "page0size.h"
 #include "ibuf0types.h"
 
-#include <list>
-#include <vector>
-
 // Forward declaration
 struct trx_t;
 class page_id_t;
 class truncate_t;
-
-typedef std::list<char*, ut_allocator<char*> >	space_name_list_t;
 
 /** Structure containing encryption specification */
 struct fil_space_crypt_t;
@@ -885,6 +880,15 @@ fil_create_directory_for_tablename(
 /*===============================*/
 	const char*	name);	/*!< in: name in the standard
 				'databasename/tablename' format */
+/** Write redo log for renaming a file.
+@param[in]	space_id	tablespace id
+@param[in]	old_name	tablespace file name
+@param[in]	new_name	tablespace file name after renaming */
+void
+fil_name_write_rename(
+	ulint		space_id,
+	const char*	old_name,
+	const char*	new_name);
 /********************************************************//**
 Recreates table indexes by applying
 TRUNCATE log record during recovery.
@@ -942,10 +946,14 @@ fil_table_accessible(const dict_table_t* table)
 
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
-@param[in]	drop_ahi	whether to drop the adaptive hash index
 @return	DB_SUCCESS or error */
 dberr_t
-fil_delete_tablespace(ulint id, bool drop_ahi = false);
+fil_delete_tablespace(
+	ulint id
+#ifdef BTR_CUR_HASH_ADAPT
+	, bool drop_ahi = false /*!< whether to drop the adaptive hash index */
+#endif /* BTR_CUR_HASH_ADAPT */
+	);
 
 /** Truncate the tablespace to needed size.
 @param[in]	space_id	id of tablespace to truncate
@@ -1160,27 +1168,24 @@ fil_file_readdir_next_file(
 	os_file_dir_t	dir,	/*!< in: directory stream */
 	os_file_stat_t*	info);	/*!< in/out: buffer where the
 				info is returned */
-/*******************************************************************//**
-Returns true if a matching tablespace exists in the InnoDB tablespace memory
-cache. Note that if we have not done a crash recovery at the database startup,
-there may be many tablespaces which are not yet in the memory cache.
+/** Determine if a matching tablespace exists in the InnoDB tablespace
+memory cache. Note that if we have not done a crash recovery at the database
+startup, there may be many tablespaces which are not yet in the memory cache.
+@param[in]	id		Tablespace ID
+@param[in]	name		Tablespace name used in fil_space_create().
+@param[in]	print_error_if_does_not_exist
+				Print detailed error information to the
+error log if a matching tablespace is not found from memory.
+@param[in]	heap		Heap memory
+@param[in]	table_flags	table flags
 @return true if a matching tablespace exists in the memory cache */
 bool
 fil_space_for_table_exists_in_mem(
-/*==============================*/
-	ulint		id,		/*!< in: space id */
-	const char*	name,		/*!< in: table name in the standard
-					'databasename/tablename' format */
+	ulint		id,
+	const char*	name,
 	bool		print_error_if_does_not_exist,
-					/*!< in: print detailed error
-					information to the .err log if a
-					matching tablespace is not found from
-					memory */
-	bool		adjust_space,	/*!< in: whether to adjust space id
-					when find table space mismatch */
-	mem_heap_t*	heap,		/*!< in: heap memory */
-	table_id_t	table_id,	/*!< in: table id */
-	ulint		table_flags);	/*!< in: table flags */
+	mem_heap_t*	heap,
+	ulint		table_flags);
 
 /** Try to extend a tablespace if it is smaller than the specified size.
 @param[in,out]	space	tablespace
@@ -1502,18 +1507,6 @@ This call is made from external to this module, so the mutex is not owned.
 ulint
 fil_space_get_id_by_name(
 	const char*	tablespace);
-
-/**
-Iterate over all the spaces in the space list and fetch the
-tablespace names. It will return a copy of the name that must be
-freed by the caller using: delete[].
-@return DB_SUCCESS if all OK. */
-dberr_t
-fil_get_space_names(
-/*================*/
-	space_name_list_t&	space_name_list)
-				/*!< in/out: Vector for collecting the names. */
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** Generate redo log for swapping two .ibd files
 @param[in]	old_table	old table

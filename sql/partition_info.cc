@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,6 +21,8 @@
 #endif
 
 #include "mariadb.h"
+#include <my_global.h>
+#include <tztime.h>
 #include "sql_priv.h"
 // Required to get server definitions for mysql/plugin.h right
 #include "sql_plugin.h"
@@ -30,6 +32,9 @@
 #include "sql_parse.h"
 #include "sql_acl.h"                          // *_ACL
 #include "sql_base.h"                         // fill_record
+#include "sql_statistics.h"                   // vers_stat_end
+#include "vers_utils.h"
+#include "lock.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -42,13 +47,12 @@ partition_info *partition_info::get_clone(THD *thd)
 
   List_iterator<partition_element> part_it(partitions);
   partition_element *part;
-  partition_info *clone= new (mem_root) partition_info();
+  partition_info *clone= new (mem_root) partition_info(*this);
   if (!clone)
   {
     mem_alloc_error(sizeof(partition_info));
     DBUG_RETURN(NULL);
   }
-  memcpy(clone, this, sizeof(partition_info));
   memset(&(clone->read_partitions), 0, sizeof(clone->read_partitions));
   memset(&(clone->lock_partitions), 0, sizeof(clone->lock_partitions));
   clone->bitmaps_are_initialized= FALSE;
@@ -114,6 +118,19 @@ partition_info *partition_info::get_clone(THD *thd)
       part_clone->list_val_list.push_back(new_val, mem_root);
     }
   }
+  if (part_type == VERSIONING_PARTITION && vers_info)
+  {
+    // clone Vers_part_info; set now_part, hist_part
+    clone->vers_info= new (mem_root) Vers_part_info(*vers_info);
+    List_iterator<partition_element> it(clone->partitions);
+    while ((part= it++))
+    {
+      if (vers_info->now_part && part->id == vers_info->now_part->id)
+        clone->vers_info->now_part= part;
+      else if (vers_info->hist_part && part->id == vers_info->hist_part->id)
+        clone->vers_info->hist_part= part;
+    } // while ((part= it++))
+  } // if (part_type == VERSIONING_PARTITION ...
   DBUG_RETURN(clone);
 }
 
@@ -128,8 +145,7 @@ partition_info *partition_info::get_clone(THD *thd)
     @retval false Partition not found
 */
 
-bool partition_info::add_named_partition(const char *part_name,
-                                         uint length)
+bool partition_info::add_named_partition(const char *part_name, size_t length)
 {
   HASH *part_name_hash;
   PART_NAME_DEF *part_def;
@@ -180,8 +196,7 @@ bool partition_info::add_named_partition(const char *part_name,
   @param part_elem  Partition element that matched.
 */
 
-bool partition_info::set_named_partition_bitmap(const char *part_name,
-                                                uint length)
+bool partition_info::set_named_partition_bitmap(const char *part_name, size_t length)
 {
   DBUG_ENTER("partition_info::set_named_partition_bitmap");
   bitmap_clear_all(&read_partitions);
@@ -200,13 +215,55 @@ bool partition_info::set_named_partition_bitmap(const char *part_name,
     @param table_list  Table list pointing to table to prune.
 
   @return Operation status
+    @retval false Success
+    @retval true  Failure
+*/
+bool partition_info::set_read_partitions(List<char> *partition_names)
+{
+  DBUG_ENTER("partition_info::set_read_partitions");
+  if (!partition_names || !partition_names->elements)
+  {
+    DBUG_RETURN(true);
+  }
+
+  uint num_names= partition_names->elements;
+  List_iterator<char> partition_names_it(*partition_names);
+  uint i= 0;
+  /*
+    TODO: When adding support for FK in partitioned tables, the referenced
+    table must probably lock all partitions for read, and also write depending
+    of ON DELETE/UPDATE.
+  */
+  bitmap_clear_all(&read_partitions);
+
+  /* No check for duplicate names or overlapping partitions/subpartitions. */
+
+  DBUG_PRINT("info", ("Searching through partition_name_hash"));
+  do
+  {
+    char *part_name= partition_names_it++;
+    if (add_named_partition(part_name, strlen(part_name)))
+      DBUG_RETURN(true);
+  } while (++i < num_names);
+  DBUG_RETURN(false);
+}
+
+
+
+/**
+  Prune away partitions not mentioned in the PARTITION () clause,
+  if used.
+
+    @param partition_names  list of names of partitions.
+
+  @return Operation status
     @retval true  Failure
     @retval false Success
 */
-bool partition_info::prune_partition_bitmaps(TABLE_LIST *table_list)
+bool partition_info::prune_partition_bitmaps(List<String> *partition_names)
 {
-  List_iterator<String> partition_names_it(*(table_list->partition_names));
-  uint num_names= table_list->partition_names->elements;
+  List_iterator<String> partition_names_it(*(partition_names));
+  uint num_names= partition_names->elements;
   uint i= 0;
   DBUG_ENTER("partition_info::prune_partition_bitmaps");
 
@@ -236,8 +293,7 @@ bool partition_info::prune_partition_bitmaps(TABLE_LIST *table_list)
 /**
   Set read/lock_partitions bitmap over non pruned partitions
 
-  @param table_list   Possible TABLE_LIST which can contain
-                      list of partition names to query
+  @param partition_names   list of partition names to query
 
   @return Operation status
     @retval FALSE  OK
@@ -247,7 +303,7 @@ bool partition_info::prune_partition_bitmaps(TABLE_LIST *table_list)
   @note OK to call multiple times without the need for free_bitmaps.
 */
 
-bool partition_info::set_partition_bitmaps(TABLE_LIST *table_list)
+bool partition_info::set_partition_bitmaps(List<String> *partition_names)
 {
   DBUG_ENTER("partition_info::set_partition_bitmaps");
 
@@ -256,16 +312,15 @@ bool partition_info::set_partition_bitmaps(TABLE_LIST *table_list)
   if (!bitmaps_are_initialized)
     DBUG_RETURN(TRUE);
 
-  if (table_list &&
-      table_list->partition_names &&
-      table_list->partition_names->elements)
+  if (partition_names &&
+      partition_names->elements)
   {
     if (table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION)
     {
         my_error(ER_PARTITION_CLAUSE_ON_NONPARTITIONED, MYF(0));
         DBUG_RETURN(true);
     }
-    if (prune_partition_bitmaps(table_list))
+    if (prune_partition_bitmaps(partition_names))
       DBUG_RETURN(TRUE);
   }
   else
@@ -276,6 +331,27 @@ bool partition_info::set_partition_bitmaps(TABLE_LIST *table_list)
   bitmap_copy(&lock_partitions, &read_partitions);
   DBUG_ASSERT(bitmap_get_first_set(&lock_partitions) != MY_BIT_NONE);
   DBUG_RETURN(FALSE);
+}
+
+
+/**
+  Set read/lock_partitions bitmap over non pruned partitions
+
+  @param table_list   Possible TABLE_LIST which can contain
+                      list of partition names to query
+
+  @return Operation status
+    @retval FALSE  OK
+    @retval TRUE   Failed to allocate memory for bitmap or list of partitions
+                   did not match
+
+  @note OK to call multiple times without the need for free_bitmaps.
+*/
+bool partition_info::set_partition_bitmaps_from_table(TABLE_LIST *table_list)
+{
+  List<String> *partition_names= table_list ?
+                                   NULL : table_list->partition_names;
+  return set_partition_bitmaps(partition_names);
 }
 
 
@@ -341,7 +417,7 @@ char *partition_info::create_default_partition_names(THD *thd, uint part_no,
 char *partition_info::create_default_subpartition_name(THD *thd, uint subpart_no,
                                                const char *part_name)
 {
-  uint size_alloc= strlen(part_name) + MAX_PART_NAME_SIZE;
+  size_t size_alloc= strlen(part_name) + MAX_PART_NAME_SIZE;
   char *ptr= (char*) thd->calloc(size_alloc);
   DBUG_ENTER("create_default_subpartition_name");
 
@@ -780,6 +856,115 @@ bool partition_info::has_unique_name(partition_element *element)
   DBUG_RETURN(TRUE);
 }
 
+bool partition_info::vers_init_info(THD * thd)
+{
+  part_type= VERSIONING_PARTITION;
+  list_of_part_fields= TRUE;
+  column_list= TRUE;
+  num_columns= 1;
+  vers_info= new (thd->mem_root) Vers_part_info;
+  if (!vers_info)
+  {
+    mem_alloc_error(sizeof(Vers_part_info));
+    return true;
+  }
+  return false;
+}
+
+void partition_info::vers_set_hist_part(THD *thd)
+{
+  if (vers_info->limit)
+  {
+    ha_partition *hp= (ha_partition*)(table->file);
+    partition_element *next= NULL;
+    List_iterator<partition_element> it(partitions);
+    while (next != vers_info->hist_part)
+      next= it++;
+    ha_rows records= hp->part_records(next);
+    while ((next= it++) != vers_info->now_part)
+    {
+      ha_rows next_records= hp->part_records(next);
+      if (next_records == 0)
+        break;
+      vers_info->hist_part= next;
+      records= next_records;
+    }
+    if (records > vers_info->limit)
+    {
+      if (next == vers_info->now_part)
+        goto warn;
+      vers_info->hist_part= next;
+    }
+    return;
+  }
+
+  if (vers_info->interval.is_set())
+  {
+    if (vers_info->hist_part->range_value > thd->system_time)
+      return;
+
+    partition_element *next= NULL;
+    List_iterator<partition_element> it(partitions);
+    while (next != vers_info->hist_part)
+      next= it++;
+
+    while ((next= it++) != vers_info->now_part)
+    {
+      vers_info->hist_part= next;
+      if (next->range_value > thd->system_time)
+        return;
+    }
+    goto warn;
+  }
+  return;
+warn:
+  my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
+           table->s->db.str, table->s->error_table_name(),
+           vers_info->hist_part->partition_name);
+}
+
+
+bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
+{
+  if (!table->versioned())
+  {
+    // frm must be corrupted, normally CREATE/ALTER TABLE checks for that
+    my_error(ER_FILE_CORRUPT, MYF(0), table->s->path.str);
+    return true;
+  }
+
+  DBUG_ASSERT(part_type == VERSIONING_PARTITION);
+  DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
+  DBUG_ASSERT(num_columns == 1);
+
+  if (!alter_add)
+  {
+    Field *row_end= table->vers_end_field();
+    part_field_list.push_back(row_end->field_name.str, thd->mem_root);
+    DBUG_ASSERT(part_field_list.elements == 1);
+    // needed in handle_list_of_fields()
+    row_end->flags|= GET_FIXED_FIELDS_FLAG;
+  }
+
+  if (alter_add)
+  {
+    List_iterator<partition_element> it(partitions);
+    partition_element *el;
+    for(uint32 id= 0; ((el= it++)); id++)
+    {
+      DBUG_ASSERT(el->type() != partition_element::CONVENTIONAL);
+      /* Newly added element is inserted before AS_OF_NOW. */
+      if (el->id == UINT_MAX32 || el->type() == partition_element::CURRENT)
+      {
+        el->id= id;
+        if (el->type() == partition_element::CURRENT)
+          break;
+      }
+    }
+  }
+  return false;
+}
+
 
 /*
   Check that the partition/subpartition is setup to use the correct
@@ -942,394 +1127,6 @@ error:
 }
 
 
-/*
-  This routine allocates an array for all range constants to achieve a fast
-  check what partition a certain value belongs to. At the same time it does
-  also check that the range constants are defined in increasing order and
-  that the expressions are constant integer expressions.
-
-  SYNOPSIS
-    check_range_constants()
-    thd                          Thread object
-
-  RETURN VALUE
-    TRUE                An error occurred during creation of range constants
-    FALSE               Successful creation of range constant mapping
-
-  DESCRIPTION
-    This routine is called from check_partition_info to get a quick error
-    before we came too far into the CREATE TABLE process. It is also called
-    from fix_partition_func every time we open the .frm file. It is only
-    called for RANGE PARTITIONed tables.
-*/
-
-bool partition_info::check_range_constants(THD *thd)
-{
-  partition_element* part_def;
-  bool first= TRUE;
-  uint i;
-  List_iterator<partition_element> it(partitions);
-  int result= TRUE;
-  DBUG_ENTER("partition_info::check_range_constants");
-  DBUG_PRINT("enter", ("RANGE with %d parts, column_list = %u", num_parts,
-                                                         column_list));
-
-  if (column_list)
-  {
-    part_column_list_val *loc_range_col_array;
-    part_column_list_val *UNINIT_VAR(current_largest_col_val);
-    uint num_column_values= part_field_list.elements;
-    uint size_entries= sizeof(part_column_list_val) * num_column_values;
-    range_col_array= (part_column_list_val*) thd->calloc(num_parts *
-                                                         size_entries);
-    if (unlikely(range_col_array == NULL))
-    {
-      mem_alloc_error(num_parts * size_entries);
-      goto end;
-    }
-    loc_range_col_array= range_col_array;
-    i= 0;
-    do
-    {
-      part_def= it++;
-      {
-        List_iterator<part_elem_value> list_val_it(part_def->list_val_list);
-        part_elem_value *range_val= list_val_it++;
-        part_column_list_val *col_val= range_val->col_val_array;
-
-        if (fix_column_value_functions(thd, range_val, i))
-          goto end;
-        memcpy(loc_range_col_array, (const void*)col_val, size_entries);
-        loc_range_col_array+= num_column_values;
-        if (!first)
-        {
-          if (compare_column_values((const void*)current_largest_col_val,
-                                    (const void*)col_val) >= 0)
-            goto range_not_increasing_error;
-        }
-        current_largest_col_val= col_val;
-      }
-      first= FALSE;
-    } while (++i < num_parts);
-  }
-  else
-  {
-    longlong UNINIT_VAR(current_largest);
-    longlong part_range_value;
-    bool signed_flag= !part_expr->unsigned_flag;
-
-    range_int_array= (longlong*) thd->alloc(num_parts * sizeof(longlong));
-    if (unlikely(range_int_array == NULL))
-    {
-      mem_alloc_error(num_parts * sizeof(longlong));
-      goto end;
-    }
-    i= 0;
-    do
-    {
-      part_def= it++;
-      if ((i != (num_parts - 1)) || !defined_max_value)
-      {
-        part_range_value= part_def->range_value;
-        if (!signed_flag)
-          part_range_value-= 0x8000000000000000ULL;
-      }
-      else
-        part_range_value= LONGLONG_MAX;
-
-      if (!first)
-      {
-        if (unlikely(current_largest > part_range_value) ||
-            (unlikely(current_largest == part_range_value) &&
-            (part_range_value < LONGLONG_MAX ||
-             i != (num_parts - 1) ||
-             !defined_max_value)))
-          goto range_not_increasing_error;
-      }
-      range_int_array[i]= part_range_value;
-      current_largest= part_range_value;
-      first= FALSE;
-    } while (++i < num_parts);
-  }
-  result= FALSE;
-end:
-  DBUG_RETURN(result);
-
-range_not_increasing_error:
-  my_error(ER_RANGE_NOT_INCREASING_ERROR, MYF(0));
-  goto end;
-}
-
-
-/*
-  Support routines for check_list_constants used by qsort to sort the
-  constant list expressions. One routine for integers and one for
-  column lists.
-
-  SYNOPSIS
-    list_part_cmp()
-      a                First list constant to compare with
-      b                Second list constant to compare with
-
-  RETURN VALUE
-    +1                 a > b
-    0                  a  == b
-    -1                 a < b
-*/
-
-extern "C"
-int partition_info_list_part_cmp(const void* a, const void* b)
-{
-  longlong a1= ((LIST_PART_ENTRY*)a)->list_value;
-  longlong b1= ((LIST_PART_ENTRY*)b)->list_value;
-  if (a1 < b1)
-    return -1;
-  else if (a1 > b1)
-    return +1;
-  else
-    return 0;
-}
-
-
-int partition_info::list_part_cmp(const void* a, const void* b)
-{
-  return partition_info_list_part_cmp(a, b);
-}
-
-
-/*
-  Compare two lists of column values in RANGE/LIST partitioning
-  SYNOPSIS
-    compare_column_values()
-    first                    First column list argument
-    second                   Second column list argument
-  RETURN VALUES
-    0                        Equal
-    -1                       First argument is smaller
-    +1                       First argument is larger
-*/
-
-extern "C"
-int partition_info_compare_column_values(const void *first_arg,
-                                         const void *second_arg)
-{
-  const part_column_list_val *first= (part_column_list_val*)first_arg;
-  const part_column_list_val *second= (part_column_list_val*)second_arg;
-  partition_info *part_info= first->part_info;
-  Field **field;
-
-  for (field= part_info->part_field_array; *field;
-       field++, first++, second++)
-  {
-    if (first->max_value || second->max_value)
-    {
-      if (first->max_value && second->max_value)
-        return 0;
-      if (second->max_value)
-        return -1;
-      else
-        return +1;
-    }
-    if (first->null_value || second->null_value)
-    {
-      if (first->null_value && second->null_value)
-        continue;
-      if (second->null_value)
-        return +1;
-      else
-        return -1;
-    }
-    int res= (*field)->cmp((const uchar*)first->column_value,
-                           (const uchar*)second->column_value);
-    if (res)
-      return res;
-  }
-  return 0;
-}
-
-
-int partition_info::compare_column_values(const void *first_arg,
-                                          const void *second_arg)
-{
-  return partition_info_compare_column_values(first_arg, second_arg);
-}
-
-
-/*
-  This routine allocates an array for all list constants to achieve a fast
-  check what partition a certain value belongs to. At the same time it does
-  also check that there are no duplicates among the list constants and that
-  that the list expressions are constant integer expressions.
-
-  SYNOPSIS
-    check_list_constants()
-    thd                            Thread object
-
-  RETURN VALUE
-    TRUE                  An error occurred during creation of list constants
-    FALSE                 Successful creation of list constant mapping
-
-  DESCRIPTION
-    This routine is called from check_partition_info to get a quick error
-    before we came too far into the CREATE TABLE process. It is also called
-    from fix_partition_func every time we open the .frm file. It is only
-    called for LIST PARTITIONed tables.
-*/
-
-bool partition_info::check_list_constants(THD *thd)
-{
-  uint i, size_entries, num_column_values;
-  uint list_index= 0;
-  part_elem_value *list_value;
-  bool result= TRUE;
-  longlong type_add, calc_value;
-  void *curr_value;
-  void *UNINIT_VAR(prev_value);
-  partition_element* part_def;
-  bool found_null= FALSE;
-  qsort_cmp compare_func;
-  void *ptr;
-  List_iterator<partition_element> list_func_it(partitions);
-  DBUG_ENTER("partition_info::check_list_constants");
-
-  DBUG_ASSERT(part_type == LIST_PARTITION);
-
-  num_list_values= 0;
-  /*
-    We begin by calculating the number of list values that have been
-    defined in the first step.
-
-    We use this number to allocate a properly sized array of structs
-    to keep the partition id and the value to use in that partition.
-    In the second traversal we assign them values in the struct array.
-
-    Finally we sort the array of structs in order of values to enable
-    a quick binary search for the proper value to discover the
-    partition id.
-    After sorting the array we check that there are no duplicates in the
-    list.
-  */
-
-  i= 0;
-  do
-  {
-    part_def= list_func_it++;
-    if (part_def->has_null_value)
-    {
-      if (found_null)
-      {
-        my_error(ER_MULTIPLE_DEF_CONST_IN_LIST_PART_ERROR, MYF(0));
-        goto end;
-      }
-      has_null_value= TRUE;
-      has_null_part_id= i;
-      found_null= TRUE;
-    }
-    num_list_values+= part_def->list_val_list.elements;
-  } while (++i < num_parts);
-  list_func_it.rewind();
-  num_column_values= part_field_list.elements;
-  size_entries= column_list ?
-        (num_column_values * sizeof(part_column_list_val)) :
-        sizeof(LIST_PART_ENTRY);
-  if (unlikely(!(ptr= thd->calloc((num_list_values+1) * size_entries))))
-    goto end;
-  if (column_list)
-  {
-    part_column_list_val *loc_list_col_array;
-    loc_list_col_array= (part_column_list_val*)ptr;
-    list_col_array= (part_column_list_val*)ptr;
-    compare_func= partition_info_compare_column_values;
-    i= 0;
-    do
-    {
-      part_def= list_func_it++;
-      if (part_def->max_value)
-      {
-        // DEFAULT is not a real value so let's exclude it from sorting.
-        DBUG_ASSERT(num_list_values);
-        num_list_values--;
-        continue;
-      }
-      List_iterator<part_elem_value> list_val_it2(part_def->list_val_list);
-      while ((list_value= list_val_it2++))
-      {
-        part_column_list_val *col_val= list_value->col_val_array;
-        if (unlikely(fix_column_value_functions(thd, list_value, i)))
-        {
-          DBUG_RETURN(TRUE);
-        }
-        memcpy(loc_list_col_array, (const void*)col_val, size_entries);
-        loc_list_col_array+= num_column_values;
-      }
-    } while (++i < num_parts);
-  }
-  else
-  {
-    compare_func= partition_info_list_part_cmp;
-    list_array= (LIST_PART_ENTRY*)ptr;
-    i= 0;
-    /*
-      Fix to be able to reuse signed sort functions also for unsigned
-      partition functions.
-    */
-    type_add= (longlong)(part_expr->unsigned_flag ?
-                                       0x8000000000000000ULL :
-                                       0ULL);
-
-    do
-    {
-      part_def= list_func_it++;
-      if (part_def->max_value && part_type == LIST_PARTITION)
-      {
-        // DEFAULT is not a real value so let's exclude it from sorting.
-        DBUG_ASSERT(num_list_values);
-        num_list_values--;
-        continue;
-      }
-      List_iterator<part_elem_value> list_val_it2(part_def->list_val_list);
-      while ((list_value= list_val_it2++))
-      {
-        calc_value= list_value->value - type_add;
-        list_array[list_index].list_value= calc_value;
-        list_array[list_index++].partition_id= i;
-      }
-    } while (++i < num_parts);
-  }
-  DBUG_ASSERT(fixed);
-  if (num_list_values)
-  {
-    bool first= TRUE;
-    /*
-      list_array and list_col_array are unions, so this works for both
-      variants of LIST partitioning.
-    */
-    my_qsort((void*)list_array, num_list_values, size_entries,
-             compare_func);
-
-    i= 0;
-    do
-    {
-      DBUG_ASSERT(i < num_list_values);
-      curr_value= column_list ? (void*)&list_col_array[num_column_values * i] :
-                                (void*)&list_array[i];
-      if (likely(first || compare_func(curr_value, prev_value)))
-      {
-        prev_value= curr_value;
-        first= FALSE;
-      }
-      else
-      {
-        my_error(ER_MULTIPLE_DEF_CONST_IN_LIST_PART_ERROR, MYF(0));
-        goto end;
-      }
-    } while (++i < num_list_values);
-  }
-  result= FALSE;
-end:
-  DBUG_RETURN(result);
-}
-
 /**
   Check if we allow DATA/INDEX DIRECTORY, if not warn and set them to NULL.
 
@@ -1380,12 +1177,14 @@ static void warn_if_dir_in_part_elem(THD *thd, partition_element *part_elem)
 
 bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
                                           handler *file, HA_CREATE_INFO *info,
-                                          bool add_or_reorg_part)
+                                          partition_info *add_or_reorg_part)
 {
   handlerton *table_engine= default_engine_type;
   uint i, tot_partitions;
   bool result= TRUE, table_engine_set;
   const char *same_name;
+  uint32 hist_parts= 0;
+  uint32 now_parts= 0;
   DBUG_ENTER("partition_info::check_partition_info");
   DBUG_ASSERT(default_engine_type != partition_hton);
 
@@ -1427,7 +1226,8 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
   }
   if (unlikely(is_sub_partitioned() &&
               (!(part_type == RANGE_PARTITION || 
-                 part_type == LIST_PARTITION))))
+                 part_type == LIST_PARTITION ||
+                 part_type == VERSIONING_PARTITION))))
   {
     /* Only RANGE and LIST partitioning can be subpartitioned */
     my_error(ER_SUBPARTITION_ERROR, MYF(0));
@@ -1488,6 +1288,19 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
   {
     my_error(ER_SAME_NAME_PARTITION, MYF(0), same_name);
     goto end;
+  }
+
+  if (part_type == VERSIONING_PARTITION)
+  {
+    DBUG_ASSERT(vers_info);
+    if (num_parts < 2 || !vers_info->now_part)
+    {
+      DBUG_ASSERT(info);
+      DBUG_ASSERT(info->alias.str);
+      my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias.str);
+      goto end;
+    }
+    DBUG_ASSERT(num_parts == partitions.elements);
   }
   i= 0;
   {
@@ -1569,6 +1382,18 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
           }
         }
       }
+      if (part_type == VERSIONING_PARTITION)
+      {
+        if (part_elem->type() == partition_element::HISTORY)
+        {
+          hist_parts++;
+        }
+        else
+        {
+          DBUG_ASSERT(part_elem->type() == partition_element::CURRENT);
+          now_parts++;
+        }
+      }
     } while (++i < num_parts);
     if (!table_engine_set &&
         num_parts_not_set != 0 &&
@@ -1586,6 +1411,24 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
     goto end;
   }
 
+  if (hist_parts > 1)
+  {
+    if (vers_info->limit == 0 && !vers_info->interval.is_set())
+    {
+      push_warning_printf(thd,
+        Sql_condition::WARN_LEVEL_WARN,
+        WARN_VERS_PARAMETERS,
+        ER_THD(thd, WARN_VERS_PARAMETERS),
+        "no rotation condition for multiple HISTORY partitions.");
+    }
+  }
+  if (unlikely(now_parts > 1))
+  {
+    my_error(ER_VERS_WRONG_PARTS, MYF(0), info->alias.str);
+    goto end;
+  }
+
+
   DBUG_ASSERT(table_engine != partition_hton &&
               default_engine_type == table_engine);
   if (eng_type)
@@ -1600,12 +1443,13 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
 
   if (add_or_reorg_part)
   {
-    if (unlikely((part_type == RANGE_PARTITION &&
-                  check_range_constants(thd)) ||
-                 (part_type == LIST_PARTITION &&
-                  check_list_constants(thd))))
+    if (unlikely(part_type == VERSIONING_PARTITION &&
+                 vers_setup_expression(thd, add_or_reorg_part->partitions.elements)))
+      goto end;
+    if (check_constants(thd, this))
       goto end;
   }
+
   result= FALSE;
 end:
   DBUG_RETURN(result);
@@ -1630,8 +1474,8 @@ void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
   THD *thd= current_thd;
 
   bzero(&table_list, sizeof(table_list));
-  table_list.db= table_arg->s->db.str;
-  table_list.table_name= table_arg->s->table_name.str;
+  table_list.db= table_arg->s->db;
+  table_list.table_name= table_arg->s->table_name;
 
   if (check_single_table_access(thd,
                                 SELECT_ACL, &table_list, TRUE))
@@ -2350,8 +2194,7 @@ bool partition_info::fix_column_value_functions(THD *thd,
         sql_mode_t save_sql_mode;
         bool save_got_warning;
 
-        if (!(column_item= get_column_item(column_item,
-                                           field)))
+        if (!(column_item= get_column_item(column_item, field)))
         {
           result= TRUE;
           goto end;
@@ -2364,6 +2207,7 @@ bool partition_info::fix_column_value_functions(THD *thd,
             thd->got_warning)
         {
           my_error(ER_WRONG_TYPE_COLUMN_VALUE_ERROR, MYF(0));
+          thd->variables.sql_mode= save_sql_mode;
           result= TRUE;
           goto end;
         }
@@ -2383,6 +2227,7 @@ bool partition_info::fix_column_value_functions(THD *thd,
 end:
   DBUG_RETURN(result);
 }
+
 
 /**
   Fix partition data from parser.
@@ -2474,6 +2319,8 @@ bool partition_info::fix_parser_data(THD *thd)
     part_elem= it++;
     List_iterator<part_elem_value> list_val_it(part_elem->list_val_list);
     num_elements= part_elem->list_val_list.elements;
+    if (!num_elements && error_if_requires_values())
+      DBUG_RETURN(true);
     DBUG_ASSERT(part_type == RANGE_PARTITION ?
                 num_elements == 1U : TRUE);
 
@@ -2815,6 +2662,30 @@ bool partition_info::has_same_partitioning(partition_info *new_part_info)
 }
 
 
+bool partition_info::vers_trx_id_to_ts(THD* thd, Field* in_trx_id, Field_timestamp& out_ts)
+{
+  DBUG_ASSERT(table);
+  handlerton *hton= plugin_hton(table->s->db_plugin);
+  DBUG_ASSERT(hton);
+  ulonglong trx_id= in_trx_id->val_int();
+  TR_table trt(thd);
+  bool found= trt.query(trx_id);
+  if (!found)
+  {
+    push_warning_printf(thd,
+      Sql_condition::WARN_LEVEL_WARN,
+      WARN_VERS_TRX_MISSING,
+      ER_THD(thd, WARN_VERS_TRX_MISSING),
+      trx_id);
+    return true;
+  }
+  MYSQL_TIME ts;
+  trt[TR_table::FLD_COMMIT_TS]->get_date(&ts, 0);
+  out_ts.store_time_dec(&ts, 6);
+  return false;
+}
+
+
 void partition_info::print_debug(const char *str, uint *value)
 {
   DBUG_ENTER("print_debug");
@@ -2875,3 +2746,20 @@ bool check_partition_dirs(partition_info *part_info)
 }
 
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
+
+bool partition_info::error_if_requires_values() const
+{
+  switch (part_type) {
+  case NOT_A_PARTITION:
+  case HASH_PARTITION:
+  case VERSIONING_PARTITION:
+    break;
+  case RANGE_PARTITION:
+    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "RANGE", "LESS THAN");
+    return true;
+  case LIST_PARTITION:
+    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "LIST", "IN");
+    return true;
+  }
+  return false;
+}

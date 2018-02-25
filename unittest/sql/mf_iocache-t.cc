@@ -138,7 +138,7 @@ void temp_io_cache()
   res= reinit_io_cache(&info, READ_CACHE, 0, 0, 0);
   ok(res == 0, "reinit READ_CACHE" INFO_TAIL);
 
-  res= my_pread(info.file, buf, 50, 50, MYF(MY_NABP));
+  res= (int)my_pread(info.file, buf, 50, 50, MYF(MY_NABP));
   ok(res == 0 && data_bad(buf, 50) == encrypt_tmp_files,
      "file must be %sreadable", encrypt_tmp_files ?"un":"");
 
@@ -176,7 +176,7 @@ void mdev9044()
   res= reinit_io_cache(&info, READ_CACHE, 0, 0, 0);
   ok(res == 0, "reinit READ_CACHE" INFO_TAIL);
 
-  res= my_b_fill(&info);
+  res= (int)my_b_fill(&info);
   ok(res == 0, "fill" INFO_TAIL);
 
   res= reinit_io_cache(&info, READ_CACHE, 0, 0, 0);

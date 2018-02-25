@@ -29,7 +29,6 @@ Created 9/7/2013 Jimmy Yang
 #include "lock0priv.h"
 #include "lock0prdt.h"
 #include "ha_prototypes.h"
-#include "usr0sess.h"
 #include "trx0purge.h"
 #include "dict0mem.h"
 #include "dict0boot.h"
@@ -290,7 +289,7 @@ Checks if some other transaction has a conflicting predicate
 lock request in the queue, so that we have to wait.
 @return	lock or NULL */
 static
-const lock_t*
+lock_t*
 lock_prdt_other_has_conflicting(
 /*============================*/
 	ulint			mode,	/*!< in: LOCK_S or LOCK_X,
@@ -305,10 +304,10 @@ lock_prdt_other_has_conflicting(
 {
 	ut_ad(lock_mutex_own());
 
-	for (const lock_t* lock = lock_rec_get_first(
+	for (lock_t* lock = lock_rec_get_first(
 		lock_hash_get(mode), block, PRDT_HEAPNO);
 	     lock != NULL;
-	     lock = lock_rec_get_next_const(PRDT_HEAPNO, lock)) {
+	     lock = lock_rec_get_next(PRDT_HEAPNO, lock)) {
 
 		if (lock->trx == trx) {
 			continue;
@@ -540,7 +539,7 @@ lock_prdt_insert_check_and_lock(
 	lock_t*		lock;
 
 	/* Only need to check locks on prdt_hash */
-	lock = lock_rec_get_first(lock_sys->prdt_hash, block, PRDT_HEAPNO);
+	lock = lock_rec_get_first(lock_sys.prdt_hash, block, PRDT_HEAPNO);
 
 	if (lock == NULL) {
 		lock_mutex_exit();
@@ -565,7 +564,7 @@ lock_prdt_insert_check_and_lock(
 
 	const ulint	mode = LOCK_X | LOCK_PREDICATE | LOCK_INSERT_INTENTION;
 
-	const lock_t*	wait_for = lock_prdt_other_has_conflicting(
+	lock_t*	wait_for = lock_prdt_other_has_conflicting(
 		mode, block, prdt, trx);
 
 	if (wait_for != NULL) {
@@ -627,7 +626,7 @@ lock_prdt_update_parent(
 
 	/* Get all locks in parent */
 	for (lock = lock_rec_get_first_on_page_addr(
-			lock_sys->prdt_hash, space, page_no);
+			lock_sys.prdt_hash, space, page_no);
 	     lock;
 	     lock = lock_rec_get_next_on_page(lock)) {
 		lock_prdt_t*	lock_prdt;
@@ -817,8 +816,8 @@ lock_prdt_lock(
 	ut_ad(type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE));
 
 	hash_table_t*	hash = type_mode == LOCK_PREDICATE
-		? lock_sys->prdt_hash
-		: lock_sys->prdt_page_hash;
+		? lock_sys.prdt_hash
+		: lock_sys.prdt_page_hash;
 
 	/* Another transaction cannot have an implicit lock on the record,
 	because when we come here, we already have modified the clustered
@@ -854,7 +853,7 @@ lock_prdt_lock(
 
 			if (lock == NULL) {
 
-				const lock_t*	wait_for;
+				lock_t*	wait_for;
 
 				wait_for = lock_prdt_other_has_conflicting(
 					prdt_mode, block, prdt, trx);
@@ -924,7 +923,7 @@ lock_place_prdt_page_lock(
 	lock_mutex_enter();
 
 	const lock_t*	lock = lock_rec_get_first_on_page_addr(
-		lock_sys->prdt_page_hash, space, page_no);
+		lock_sys.prdt_page_hash, space, page_no);
 
 	const ulint	mode = LOCK_S | LOCK_PRDT_PAGE;
 	trx_t*		trx = thr_get_trx(thr);
@@ -978,7 +977,7 @@ lock_test_prdt_page_lock(
 	lock_mutex_enter();
 
 	lock = lock_rec_get_first_on_page_addr(
-		lock_sys->prdt_page_hash, space, page_no);
+		lock_sys.prdt_page_hash, space, page_no);
 
 	lock_mutex_exit();
 
@@ -998,13 +997,13 @@ lock_prdt_rec_move(
 {
 	lock_t* lock;
 
-	if (!lock_sys->prdt_hash) {
+	if (!lock_sys.prdt_hash) {
 		return;
 	}
 
 	lock_mutex_enter();
 
-	for (lock = lock_rec_get_first(lock_sys->prdt_hash,
+	for (lock = lock_rec_get_first(lock_sys.prdt_hash,
 				       donator, PRDT_HEAPNO);
 	     lock != NULL;
 	     lock = lock_rec_get_next(PRDT_HEAPNO, lock)) {

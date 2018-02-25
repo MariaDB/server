@@ -330,8 +330,12 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
 #endif
     break;
   case OPT_MYSQL_PROTOCOL:
-    opt_protocol= find_type_or_exit(argument, &sql_protocol_typelib,
-                                    opt->name);
+    if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
+                                              opt->name)) <= 0)
+    {
+      sf_leaking_memory= 1; /* no memory leak reports here */
+      exit(1);
+    }
     break;
   case '#':
     DBUG_PUSH(argument ? argument : "d:t:o");
@@ -657,7 +661,7 @@ static int
 list_table_status(MYSQL *mysql,const char *db,const char *wild)
 {
   char query[NAME_LEN + 100];
-  int len;
+  size_t len;
   MYSQL_RES *result;
   MYSQL_ROW row;
 
@@ -904,7 +908,7 @@ static void print_res_header(MYSQL_RES *result)
 
 static void print_res_top(MYSQL_RES *result)
 {
-  uint i,length;
+  size_t i,length;
   MYSQL_FIELD *field;
 
   putchar('+');
@@ -912,7 +916,7 @@ static void print_res_top(MYSQL_RES *result)
   while((field = mysql_fetch_field(result)))
   {
     if ((length= strlen(field->name)) > field->max_length)
-      field->max_length=length;
+      field->max_length=(ulong)length;
     else
       length=field->max_length;
     for (i=length+2 ; i--> 0 ; )

@@ -7,31 +7,22 @@ VAGRANTFILE_API_VERSION = "2"
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   vms = [
     {
-      :id => "centos-5-i386",
-      :box_url => "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_centos-5.11-i386_chef-provisionerless.box",
-    },
-    {
-      :id => "centos-5-x86_64",
-      :box_url => "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_centos-5.11_chef-provisionerless.box",
-    },
-    {
       :id => "centos-6-i386",
-      :box_url => "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_centos-6.6-i386_chef-provisionerless.box",
+      :box => "bento/centos-6.9-i386",
     },
     {
       :id => "centos-6-x86_64",
-      :box_url => "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_centos-6.6_chef-provisionerless.box",
+      :box => "bento/centos-6.9",
     },
     {
       :id => "centos-7-x86_64",
-      :box_url => "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_centos-7.1_chef-provisionerless.box",
+      :box => "bento/centos-7.4",
     },
   ]
 
   vms.each do |vm|
     config.vm.define(vm[:id]) do |node|
-      node.vm.box = vm[:id]
-      node.vm.box_url = vm[:box_url]
+      node.vm.box = vm[:box]
       node.vm.provision(:shell, :path => "build-rpm.sh")
       node.vm.provider("virtualbox") do |virtual_box|
         system_n_cpus = 1
@@ -44,6 +35,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
           vm_n_cpus = 1
         end
         virtual_box.cpus = vm_n_cpus
+        virtual_box.memory = (ENV["VM_MEMORY"] || 1024).to_i
       end
     end
   end

@@ -4,6 +4,8 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
+FLUSH TABLES;
+
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 let MYSQLD_DATADIR=`select @@datadir`;
 

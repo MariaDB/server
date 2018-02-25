@@ -1,0 +1,42 @@
+--source include/have_innodb.inc
+
+set system_versioning_alter_history=keep;
+
+create or replace table t (a int, b int) engine=innodb;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t add system versioning, lock=none;
+alter table t add system versioning, lock=shared;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t drop column b, lock=none;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t drop column b, algorithm=inplace;
+alter table t add index idx(a), lock=none;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t drop system versioning, lock=none;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t drop system versioning, algorithm=inplace;
+
+
+create or replace table t (a int, b int) engine=innodb;
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t
+  add s bigint unsigned as row start,
+  add e bigint unsigned as row end,
+  add period for system_time(s, e),
+  add system versioning,
+  lock=none;
+alter table t
+  add s bigint unsigned as row start,
+  add e bigint unsigned as row end,
+  add period for system_time(s, e),
+  add system versioning;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t drop column b, lock=none;
+alter table t add index idx(a), lock=none;
+alter table t drop column s, drop column e;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t drop system versioning, lock=none;
+
+drop table t;

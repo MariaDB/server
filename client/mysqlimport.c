@@ -249,8 +249,12 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     break;
 #endif
   case OPT_MYSQL_PROTOCOL:
-    opt_protocol= find_type_or_exit(argument, &sql_protocol_typelib,
-                                    opt->name);
+    if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
+                                              opt->name)) <= 0)
+    {
+      sf_leaking_memory= 1; /* no memory leak reports here */
+      exit(1);
+    }
     break;
   case '#':
     DBUG_PUSH(argument ? argument : "d:t:o");
@@ -409,7 +413,7 @@ static void lock_table(MYSQL *mysql, int tablecount, char **raw_tablename)
     dynstr_append(&query, tablename);
     dynstr_append(&query, " WRITE,");
   }
-  if (mysql_real_query(mysql, query.str, query.length-1))
+  if (mysql_real_query(mysql, query.str, (ulong)query.length-1))
     db_error(mysql); /* We shall countinue here, if --force was given */
 }
 

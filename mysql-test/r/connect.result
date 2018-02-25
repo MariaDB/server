@@ -32,6 +32,7 @@ time_zone_leap_second
 time_zone_name
 time_zone_transition
 time_zone_transition_type
+transaction_registry
 user
 connect  con2,localhost,root,,test;
 show tables;
@@ -79,6 +80,7 @@ time_zone_leap_second
 time_zone_name
 time_zone_transition
 time_zone_transition_type
+transaction_registry
 user
 connect  con4,localhost,test,gambling,test;
 show tables;
@@ -138,6 +140,7 @@ time_zone_leap_second
 time_zone_name
 time_zone_transition
 time_zone_transition_type
+transaction_registry
 user
 connect  con6,localhost,test,gambling3,test;
 show tables;

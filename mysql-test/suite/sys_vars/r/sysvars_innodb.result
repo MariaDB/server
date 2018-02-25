@@ -4,7 +4,8 @@ variable_name not in (
 'innodb_disallow_writes',           # only available WITH_WSREP
 'innodb_numa_interleave',           # only available WITH_NUMA
 'innodb_sched_priority_cleaner',    # linux only
-'innodb_use_native_aio')            # default value depends on OS
+'innodb_use_native_aio',            # default value depends on OS
+'innodb_buffer_pool_load_pages_abort')            # debug build only, and is only for testing
 order by variable_name;
 VARIABLE_NAME	INNODB_ADAPTIVE_FLUSHING
 SESSION_VALUE	NULL
@@ -1334,7 +1335,7 @@ NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	fcfs,vats
-READ_ONLY	NO
+READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	INNODB_LOCK_WAIT_TIMEOUT
 SESSION_VALUE	50
@@ -1996,12 +1997,12 @@ READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	INNODB_SPIN_WAIT_DELAY
 SESSION_VALUE	NULL
-GLOBAL_VALUE	6
+GLOBAL_VALUE	4
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	6
+DEFAULT_VALUE	4
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Maximum delay between polling for a spin lock (6 by default)
+VARIABLE_COMMENT	Maximum delay between polling for a spin lock (4 by default)
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	6000
 NUMERIC_BLOCK_SIZE	0
@@ -2402,7 +2403,7 @@ READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	NONE
 VARIABLE_NAME	INNODB_VERSION
 SESSION_VALUE	NULL
-GLOBAL_VALUE	5.7.20
+GLOBAL_VALUE	5.7.21
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	NULL
 VARIABLE_SCOPE	GLOBAL

@@ -1,12 +1,11 @@
 -- source include/have_innodb.inc
 -- source include/have_file_key_management_plugin.inc
-# embedded does not support restart
--- source include/not_embedded.inc
 
-call mtr.add_suppression("trying to do an operation on a dropped tablespace .*");
-
+--disable_query_log
 let $encrypt_tables = `SELECT @@innodb_encrypt_tables`;
 let $threads = `SELECT @@innodb_encryption_threads`;
+let $key_id = `SELECT @@innodb_default_encryption_key_id`;
+--enable_query_log
 
 SET GLOBAL innodb_encrypt_tables = OFF;
 SET GLOBAL innodb_encryption_threads = 4;
@@ -19,21 +18,20 @@ CREATE TABLE t4 (pk INT PRIMARY KEY AUTO_INCREMENT, c VARCHAR(256)) ENGINE=INNOD
 
 --disable_warnings
 --disable_query_log
-set autocommit=0;
-let $i = 400;
+begin;
+let $i = 10;
 while ($i)
 {
 INSERT INTO t1 values(NULL, substring(MD5(RAND()), -128));
 dec $i;
 }
-commit;
-set autocommit=1;
---enable_warnings
---enable_query_log
 
 INSERT INTO t2 select * from t1;
 INSERT INTO t3 select * from t1;
 INSERT INTO t4 select * from t1;
+commit;
+--enable_warnings
+--enable_query_log
 
 SET GLOBAL innodb_encrypt_tables = on;
 
@@ -54,7 +52,7 @@ while ($cnt)
 }
 if (!$success)
 {
-    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SELECT NAME,ENCRYPTION_SHCEME,MIN_KEY_VERSION, ROTATING_OR_FLUSHING FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
     SHOW STATUS LIKE 'innodb_encryption%';
     -- die Timeout waiting for encryption threads
 }
@@ -84,7 +82,7 @@ while ($cnt)
 }
 if (!$success)
 {
-    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SELECT NAME,ENCRYPTION_SHCEME,MIN_KEY_VERSION, ROTATING_OR_FLUSHING FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
     SHOW STATUS LIKE 'innodb_encryption%';
     -- die Timeout waiting for encryption threads
 }
@@ -113,7 +111,7 @@ while ($cnt)
 }
 if (!$success)
 {
-    SELECT * FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
+    SELECT NAME,ENCRYPTION_SHCEME,MIN_KEY_VERSION, ROTATING_OR_FLUSHING FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION;
     SHOW STATUS LIKE 'innodb_encryption%';
     -- die Timeout waiting for encryption threads
 }
@@ -125,12 +123,11 @@ SELECT COUNT(1) FROM t3;
 SELECT COUNT(1) FROM t4;
 SELECT COUNT(1) FROM t5;
 
+drop table t1,t2,t3,t4, t5;
+
 # reset system
 --disable_query_log
 EVAL SET GLOBAL innodb_encrypt_tables = $encrypt_tables;
 EVAL SET GLOBAL innodb_encryption_threads = $threads;
+EVAL set GLOBAL innodb_default_encryption_key_id = $key_id;
 --enable_query_log
-
-drop table t1,t2,t3,t4, t5;
-
-set GLOBAL innodb_default_encryption_key_id=1;

@@ -35,7 +35,8 @@
 */
 class Item_row: public Item,
                 private Item_args,
-                private Used_tables_and_const_cache
+                private Used_tables_and_const_cache,
+                private With_subquery_cache
 {
   table_map not_null_tables_cache;
   /**
@@ -52,6 +53,7 @@ public:
     not_null_tables_cache(0), with_null(0)
   { }
 
+  bool with_subquery() const { DBUG_ASSERT(fixed); return m_with_subquery; }
   enum Type type() const { return ROW_ITEM; };
   const Type_handler *type_handler() const { return &type_handler_row; }
   void illegal_method_call(const char *);
@@ -80,6 +82,11 @@ public:
     illegal_method_call((const char*)"val_decimal");
     return 0;
   };
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    illegal_method_call((const char*)"get_date");
+    return true;
+  }
   bool fix_fields(THD *thd, Item **ref);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   void cleanup();
@@ -128,9 +135,9 @@ public:
   }
 
   bool check_vcol_func_processor(void *arg) {return FALSE; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_row>(thd, mem_root, this); }
-  Item *build_clone(THD *thd, MEM_ROOT *mem_root);
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_row>(thd, this); }
+  Item *build_clone(THD *thd);
 };
 
 #endif /* ITEM_ROW_INCLUDED */

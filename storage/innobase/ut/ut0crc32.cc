@@ -86,19 +86,9 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #include "univ.i"
 #include "ut0crc32.h"
 
-/** Pointer to CRC32 calculation function. */
-ut_crc32_func_t	ut_crc32;
-
-/** Pointer to CRC32 calculation function, which uses big-endian byte order
-when converting byte strings to integers internally. */
-ut_crc32_func_t	ut_crc32_legacy_big_endian;
-
-/** Pointer to CRC32-byte-by-byte calculation function (byte order agnostic,
-but very slow). */
-ut_crc32_func_t	ut_crc32_byte_by_byte;
-
-/** Text description of CRC32 implementation */
-const char*	ut_crc32_implementation;
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
 
 /** Swap the byte order of an 8 byte integer.
 @param[in]	i	8-byte integer
@@ -133,9 +123,16 @@ ut_crc32_power8(
 {
 	return crc32c_vpmsum(0, buf, len);
 }
+
+ut_crc32_func_t	ut_crc32 = ut_crc32_power8;
+const char*	ut_crc32_implementation = "Using POWER8 crc32 instructions";
+#else
+uint32_t ut_crc32_sw(const byte* buf, ulint len);
+ut_crc32_func_t	ut_crc32 = ut_crc32_sw;
+const char*	ut_crc32_implementation = "Using generic crc32 instructions";
 #endif
 
-#if defined(__GNUC__) && defined(__x86_64__)
+#if (defined(__GNUC__) && defined(__x86_64__)) || defined(_MSC_VER)
 /********************************************************************//**
 Fetches CPU info */
 static
@@ -150,10 +147,29 @@ ut_cpuid(
 	uint32_t*	features_edx)	/*!< out: CPU features edx */
 {
 	uint32_t	sig;
+#ifdef _MSC_VER
+	int data[4];
+	__cpuid(data, 0);
+	/* ebx */
+	vend[0] = data[1];
+	/* edx */
+	vend[1] = data[3];
+	/* ecx */
+	vend[2] = data[2];
+
+	__cpuid(data, 1);
+	/* eax */
+	sig = data[0];
+	/* ecx */
+	*features_ecx = data[2];
+	/* edx */
+	*features_edx = data[3];
+#else
 	asm("cpuid" : "=b" (vend[0]), "=c" (vend[2]), "=d" (vend[1]) : "a" (0));
 	asm("cpuid" : "=a" (sig), "=c" (*features_ecx), "=d" (*features_edx)
 	    : "a" (1)
 	    : "ebx");
+#endif
 
 	*model = ((sig >> 4) & 0xF);
 	*family = ((sig >> 8) & 0xF);
@@ -180,11 +196,15 @@ ut_crc32_8_hw(
 	const byte**	data,
 	ulint*		len)
 {
+#ifdef _MSC_VER
+	*crc = _mm_crc32_u8(*crc, (*data)[0]);
+#else
 	asm("crc32b %1, %0"
 	    /* output operands */
 	    : "+r" (*crc)
 	    /* input operands */
 	    : "rm" ((*data)[0]));
+#endif
 
 	(*data)++;
 	(*len)--;
@@ -201,12 +221,22 @@ ut_crc32_64_low_hw(
 	uint64_t	data)
 {
 	uint64_t	crc_64bit = crc;
-
+#ifdef _MSC_VER
+#ifdef _M_X64
+	crc_64bit = _mm_crc32_u64(crc_64bit, data);
+#elif defined(_M_IX86)
+	crc = _mm_crc32_u32(crc, static_cast<uint32_t>(data));
+	crc_64bit = _mm_crc32_u32(crc, static_cast<uint32_t>(data >> 32));
+#else
+#error Not Supported processors type.
+#endif
+#else
 	asm("crc32q %1, %0"
 	    /* output operands */
 	    : "+r" (crc_64bit)
 	    /* input operands */
 	    : "rm" (data));
+#endif
 
 	return(static_cast<uint32_t>(crc_64bit));
 }
@@ -234,37 +264,6 @@ ut_crc32_64_hw(
 	/*
 	data_int = ut_crc32_swap_byteorder(data_int);
 	*/
-#endif /* WORDS_BIGENDIAN */
-
-	*crc = ut_crc32_64_low_hw(*crc, data_int);
-
-	*data += 8;
-	*len -= 8;
-}
-
-/** Calculate CRC32 over 64-bit byte string using a hardware/CPU instruction.
-The byte string is converted to a 64-bit integer using big endian byte order.
-@param[in,out]	crc	crc32 checksum so far when this function is called,
-when the function ends it will contain the new checksum
-@param[in,out]	data	data to be checksummed, the pointer will be advanced
-with 8 bytes
-@param[in,out]	len	remaining bytes, it will be decremented with 8 */
-inline
-void
-ut_crc32_64_legacy_big_endian_hw(
-	uint32_t*	crc,
-	const byte**	data,
-	ulint*		len)
-{
-	uint64_t	data_int = *reinterpret_cast<const uint64_t*>(*data);
-
-#ifndef WORDS_BIGENDIAN
-	data_int = ut_crc32_swap_byteorder(data_int);
-#else
-	/* Currently we only support x86_64 (little endian) CPUs. In case
-	some big endian CPU supports a CRC32 instruction, then maybe we will
-	NOT need a byte order swap here. */
-#error Dont know how to handle big endian CPUs
 #endif /* WORDS_BIGENDIAN */
 
 	*crc = ut_crc32_64_low_hw(*crc, data_int);
@@ -359,77 +358,7 @@ ut_crc32_hw(
 
 	return(~crc);
 }
-
-/** Calculates CRC32 using hardware/CPU instructions.
-This function uses big endian byte ordering when converting byte sequence to
-integers.
-@param[in]	buf	data over which to calculate CRC32
-@param[in]	len	data length
-@return CRC-32C (polynomial 0x11EDC6F41) */
-uint32_t
-ut_crc32_legacy_big_endian_hw(
-	const byte*	buf,
-	ulint		len)
-{
-	uint32_t	crc = 0xFFFFFFFFU;
-
-	/* Calculate byte-by-byte up to an 8-byte aligned address. After
-	this consume the input 8-bytes at a time. */
-	while (len > 0 && (reinterpret_cast<uintptr_t>(buf) & 7) != 0) {
-		ut_crc32_8_hw(&crc, &buf, &len);
-	}
-
-	while (len >= 128) {
-		/* This call is repeated 16 times. 16 * 8 = 128. */
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-	}
-
-	while (len >= 8) {
-		ut_crc32_64_legacy_big_endian_hw(&crc, &buf, &len);
-	}
-
-	while (len > 0) {
-		ut_crc32_8_hw(&crc, &buf, &len);
-	}
-
-	return(~crc);
-}
-
-/** Calculates CRC32 using hardware/CPU instructions.
-This function processes one byte at a time (very slow) and thus it does
-not depend on the byte order of the machine.
-@param[in]	buf	data over which to calculate CRC32
-@param[in]	len	data length
-@return CRC-32C (polynomial 0x11EDC6F41) */
-uint32_t
-ut_crc32_byte_by_byte_hw(
-	const byte*	buf,
-	ulint		len)
-{
-	uint32_t	crc = 0xFFFFFFFFU;
-
-	while (len > 0) {
-		ut_crc32_8_hw(&crc, &buf, &len);
-	}
-
-	return(~crc);
-}
-#endif /* defined(__GNUC__) && defined(__x86_64__) */
+#endif /* defined(__GNUC__) && defined(__x86_64__) || (_WIN64) */
 
 /* CRC32 software implementation. */
 
@@ -624,7 +553,7 @@ integers.
 @param[in]	len	data length
 @return CRC-32C (polynomial 0x11EDC6F41) */
 uint32_t
-ut_crc32_legacy_big_endian_sw(
+ut_crc32_legacy_big_endian(
 	const byte*	buf,
 	ulint		len)
 {
@@ -669,28 +598,6 @@ ut_crc32_legacy_big_endian_sw(
 	return(~crc);
 }
 
-/** Calculates CRC32 in software, without using CPU instructions.
-This function processes one byte at a time (very slow) and thus it does
-not depend on the byte order of the machine.
-@param[in]	buf	data over which to calculate CRC32
-@param[in]	len	data length
-@return CRC-32C (polynomial 0x11EDC6F41) */
-uint32_t
-ut_crc32_byte_by_byte_sw(
-	const byte*	buf,
-	ulint		len)
-{
-	uint32_t	crc = 0xFFFFFFFFU;
-
-	ut_a(ut_crc32_slice8_table_initialized);
-
-	while (len > 0) {
-		ut_crc32_8_sw(&crc, &buf, &len);
-	}
-
-	return(~crc);
-}
-
 /********************************************************************//**
 Initializes the data structures used by ut_crc32*(). Does not do any
 allocations, would not hurt if called twice, but would be pointless. */
@@ -699,12 +606,8 @@ ut_crc32_init()
 /*===========*/
 {
 	ut_crc32_slice8_table_init();
-	ut_crc32 = ut_crc32_sw;
-	ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_sw;
-	ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_sw;
-	ut_crc32_implementation = "Using generic crc32 instructions";
 
-#if defined(__GNUC__) && defined(__x86_64__)
+#if (defined(__GNUC__) && defined(__x86_64__)) || defined(_MSC_VER)
 	uint32_t	vend[3];
 	uint32_t	model;
 	uint32_t	family;
@@ -734,14 +637,7 @@ ut_crc32_init()
 
 	if (features_ecx & 1 << 20) {
 		ut_crc32 = ut_crc32_hw;
-		ut_crc32_legacy_big_endian = ut_crc32_legacy_big_endian_hw;
-		ut_crc32_byte_by_byte = ut_crc32_byte_by_byte_hw;
 		ut_crc32_implementation = "Using SSE2 crc32 instructions";
 	}
-
-#elif defined(HAVE_CRC32_VPMSUM)
-	ut_crc32 = ut_crc32_power8;
-	ut_crc32_implementation = "Using POWER8 crc32 instructions";
 #endif
-
 }

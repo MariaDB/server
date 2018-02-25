@@ -91,6 +91,7 @@ use My::Platform;
 use My::SafeProcess;
 use My::ConfigFactory;
 use My::Options;
+use My::Tee;
 use My::Find;
 use My::SysInfo;
 use My::CoreDump;
@@ -197,6 +198,7 @@ my @DEFAULT_SUITES= qw(
     sql_sequence-
     unit-
     vcol-
+    versioning-
     wsrep-
     galera-
   );
@@ -220,6 +222,7 @@ our @opt_extra_mysqld_opt;
 our @opt_mysqld_envs;
 
 my $opt_stress;
+my $opt_tail_lines= 20;
 
 my $opt_dry_run;
 
@@ -328,6 +331,8 @@ my %mysqld_logs;
 my $opt_debug_sync_timeout= 300; # Default timeout for WAIT_FOR actions.
 my $warn_seconds = 60;
 
+my $rebootstrap_re= '--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)|data[-_]file[-_]path';
+
 sub testcase_timeout ($) {
   my ($tinfo)= @_;
   if (exists $tinfo->{'case-timeout'}) {
@@ -385,6 +390,11 @@ sub main {
   initialize_servers();
   init_timers();
 
+  unless (IS_WINDOWS) {
+    binmode(STDOUT,":via(My::Tee)") or die "binmode(STDOUT, :via(My::Tee)):$!";
+    binmode(STDERR,":via(My::Tee)") or die "binmode(STDERR, :via(My::Tee)):$!";
+  }
+
   mtr_report("Checking supported features...");
 
   executable_setup();
@@ -432,16 +442,21 @@ sub main {
   my $num_tests= @$tests;
   if ( $opt_parallel eq "auto" ) {
     # Try to find a suitable value for number of workers
-    my $sys_info= My::SysInfo->new();
-
-    $opt_parallel= $sys_info->num_cpus();
-    for my $limit (2000, 1500, 1000, 500){
-      $opt_parallel-- if ($sys_info->min_bogomips() < $limit);
+    if (IS_WINDOWS)
+    {
+      $opt_parallel= $ENV{NUMBER_OF_PROCESSORS} || 1;
+    }
+    else
+    {
+      my $sys_info= My::SysInfo->new();
+      $opt_parallel= $sys_info->num_cpus();
+      for my $limit (2000, 1500, 1000, 500){
+        $opt_parallel-- if ($sys_info->min_bogomips() < $limit);
+      }
     }
     my $max_par= $ENV{MTR_MAX_PARALLEL} || 8;
     $opt_parallel= $max_par if ($opt_parallel > $max_par);
     $opt_parallel= $num_tests if ($opt_parallel > $num_tests);
-    $opt_parallel= 1 if (IS_WINDOWS and $sys_info->isvm());
     $opt_parallel= 1 if ($opt_parallel < 1);
     mtr_report("Using parallel: $opt_parallel");
   }
@@ -1204,6 +1219,7 @@ sub command_line_setup {
 	     'report-times'             => \$opt_report_times,
 	     'result-file'              => \$opt_resfile,
 	     'stress=s'                 => \$opt_stress,
+	     'tail-lines=i'             => \$opt_tail_lines,
              'dry-run'                  => \$opt_dry_run,
 
              'help|h'                   => \$opt_usage,
@@ -1585,6 +1601,7 @@ sub command_line_setup {
        $opt_manual_debug || $opt_dbx || $opt_client_dbx || $opt_manual_dbx || 
        $opt_debugger || $opt_client_debugger )
   {
+    $ENV{ASAN_OPTIONS}= 'abort_on_error=1:'.($ENV{ASAN_OPTIONS} || '');
     if ( using_extern() )
     {
       mtr_error("Can't use --extern when using debugger");
@@ -2790,10 +2807,12 @@ sub mysql_server_start($) {
     {
       # Some InnoDB options are incompatible with the default bootstrap.
       # If they are used, re-bootstrap
-      if ( $extra_opts and
-           "@$extra_opts" =~ /--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)/ )
+      my @rebootstrap_opts;
+      @rebootstrap_opts = grep {/$rebootstrap_re/o} @$extra_opts if $extra_opts;
+      if (@rebootstrap_opts)
       {
-        mysql_install_db($mysqld, undef, $extra_opts);
+        mtr_verbose("Re-bootstrap with @rebootstrap_opts");
+        mysql_install_db($mysqld, undef, \@rebootstrap_opts);
       }
       else {
         # Copy datadir from installed system db
@@ -3172,6 +3191,9 @@ sub mysql_install_db {
       mtr_appendfile_to_file("$sql_dir/mysql_performance_tables.sql",
                             $bootstrap_sql_file);
 
+      # Don't install anonymous users
+      mtr_tofile($bootstrap_sql_file, "set \@skip_auth_anonymous=1;\n");
+
       # Add the mysql system tables initial data
       # for a production system
       mtr_appendfile_to_file("$sql_dir/mysql_system_tables_data.sql",
@@ -3205,10 +3227,6 @@ sub mysql_install_db {
       mtr_tofile($bootstrap_sql_file,
            sql_to_bootstrap($text));
     }
-
-    # Remove anonymous users
-    mtr_tofile($bootstrap_sql_file,
-         "DELETE FROM mysql.user where user= '';\n");
 
     # Create mtr database
     mtr_tofile($bootstrap_sql_file,
@@ -3755,14 +3773,32 @@ sub run_testcase ($$) {
   $ENV{'MTR_TEST_NAME'} = $tinfo->{name};
   resfile_report_test($tinfo) if $opt_resfile;
 
-  # Allow only alpanumerics pluss _ - + . in combination names,
-  # or anything beginning with -- (the latter comes from --combination)
-  my $combination= $tinfo->{combination};
-  if ($combination && $combination !~ /^\w[-\w\.\+]*$/
-                   && $combination !~ /^--/)
+  for my $key (grep { /^MTR_COMBINATION/ } keys %ENV)
   {
-    mtr_error("Combination '$combination' contains illegal characters");
+    delete $ENV{$key};
   }
+
+  if (ref $tinfo->{combinations} eq 'ARRAY')
+  {
+    for (my $i = 0; $i < @{$tinfo->{combinations}}; ++$i )
+    {
+      my $combination = $tinfo->{combinations}->[$i];
+      # Allow only alphanumerics plus _ - + . in combination names,
+      # or anything beginning with -- (the latter comes from --combination)
+      if ($combination && $combination !~ /^\w[-\w\.\+]*$/
+                      && $combination !~ /^--/)
+      {
+        mtr_error("Combination '$combination' contains illegal characters");
+      }
+      $ENV{"MTR_COMBINATION_". uc(${combination})} = 1;
+    }
+    $ENV{"MTR_COMBINATIONS"} = join(',', @{$tinfo->{combinations}});
+  }
+  elsif (exists $tinfo->{combinations})
+  {
+    die 'Unexpected type of $tinfo->{combinations}';
+  }
+
   # -------------------------------------------------------
   # Init variables that can change between each test case
   # -------------------------------------------------------
@@ -4418,7 +4454,7 @@ sub extract_warning_lines ($$) {
      qr|feedback plugin: failed to retrieve the MAC address|,
      qr|Plugin 'FEEDBACK' init function returned error|,
      qr|Plugin 'FEEDBACK' registration as a INFORMATION SCHEMA failed|,
-     qr|'log-bin-use-v1-row-events' is MySQL 5.6 compatible option|,
+     qr|'log-bin-use-v1-row-events' is MySQL .* compatible option|,
      qr|InnoDB: Setting thread \d+ nice to \d+ failed, current nice \d+, errno 13|, # setpriority() fails under valgrind
      qr|Failed to setup SSL|,
      qr|SSL error: Failed to set ciphers to use|,
@@ -4870,7 +4906,7 @@ sub report_failure_and_restart ($) {
 	    $tinfo->{comment}.=
 	      "The result from queries just before the failure was:".
 	      "\n< snip >\n".
-	      mtr_lastlinesfromfile($log_file_name, 20)."\n";
+	      mtr_lastlinesfromfile($log_file_name, $opt_tail_lines)."\n";
 	  }
 	}
       }
@@ -5017,7 +5053,7 @@ sub mysqld_start ($$) {
   my $args;
   mtr_init_args(\$args);
 
-  if ( $opt_valgrind_mysqld )
+  if ( $opt_valgrind_mysqld and not $opt_gdb and not $opt_manual_gdb )
   {
     valgrind_arguments($args, \$exe);
   }
@@ -5543,7 +5579,7 @@ sub start_mysqltest ($) {
   mtr_add_arg($args, "--test-file=%s", $tinfo->{'path'});
 
   # Number of lines of resut to include in failure report
-  mtr_add_arg($args, "--tail-lines=20");
+  mtr_add_arg($args, "--tail-lines=%d", $opt_tail_lines);
 
   if ( defined $tinfo->{'result_file'} ) {
     mtr_add_arg($args, "--result-file=%s", $tinfo->{'result_file'});
@@ -5606,11 +5642,20 @@ sub gdb_arguments {
   unlink($gdb_init_file);
 
   # Put $args into a single string
-  my $str= join(" ", @$$args);
   $input = $input ? "< $input" : "";
 
-  # write init file for mysqld or client
-  mtr_tofile($gdb_init_file, "set args $str $input\n");
+  if ($type ne 'client' and $opt_valgrind_mysqld) {
+    my $v = $$exe;
+    my $vargs = [];
+    valgrind_arguments($vargs, \$v);
+    mtr_tofile($gdb_init_file, <<EOF);
+shell @My::SafeProcess::safe_process_cmd --parent-pid=`pgrep -x gdb` -- $v --vgdb-error=0 @$vargs @$$args &
+shell sleep 1
+target remote | /usr/lib64/valgrind/../../bin/vgdb
+EOF
+  } else {
+    mtr_tofile($gdb_init_file, "set args @$$args $input\n");
+  }
 
   if ( $opt_manual_gdb )
   {
@@ -6191,6 +6236,8 @@ Misc options
                         phases of test execution.
   stress=ARGS           Run stress test, providing options to
                         mysql-stress-test.pl. Options are separated by comma.
+  tail-lines=N          Number of lines of the result to include in a failure
+                        report.
 
 Some options that control enabling a feature for normal test runs,
 can be turned off by prepending 'no' to the option, e.g. --notimer.
@@ -6229,7 +6276,8 @@ sub xterm_stat {
     my $done = $num_tests - $left;
     my $spent = time - $^T;
 
-    printf "\e];mtr: spent %s on %d tests. %s (%d tests) left\a",
+    syswrite STDOUT, sprintf
+           "\e];mtr: spent %s on %d tests. %s (%d tests) left\a",
            time_format($spent), $done,
            time_format($spent/$done * $left), $left;
   }

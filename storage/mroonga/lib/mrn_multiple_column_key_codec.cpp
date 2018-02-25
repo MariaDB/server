@@ -288,6 +288,7 @@ namespace mrn {
           decode_long_long_int(current_grn_key, &grn_time);
           TimeConverter time_converter;
           MYSQL_TIME mysql_time;
+          mysql_time.neg = FALSE;
           mysql_time.time_type = MYSQL_TIMESTAMP_DATETIME;
           time_converter.grn_time_to_mysql_time(grn_time, &mysql_time);
           long long int mysql_datetime_packed =
@@ -521,6 +522,14 @@ namespace mrn {
     case MYSQL_TYPE_VARCHAR_COMPRESSED:
     case MYSQL_TYPE_BLOB_COMPRESSED:
       DBUG_ASSERT(0);
+#ifdef MRN_HAVE_MYSQL_TYPE_JSON
+    case MYSQL_TYPE_JSON:
+      // TODO
+      DBUG_PRINT("info", ("mroonga: MYSQL_TYPE_JSON"));
+      *data_type = TYPE_BYTE_SEQUENCE;
+      *data_size = key_part->length;
+      break;
+#endif
     }
     DBUG_VOID_RETURN;
   }

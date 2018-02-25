@@ -136,7 +136,7 @@ int writefrm(const char *path, const char *db, const char *table,
   }
   else
   {
-    error= mysql_file_write(file, frmdata, len, MYF(MY_WME | MY_NABP));
+    error= (int)mysql_file_write(file, frmdata, len, MYF(MY_WME | MY_NABP));
 
     if (!error && !tmp_table && opt_sync_frm)
         error= mysql_file_sync(file, MYF(MY_WME)) ||

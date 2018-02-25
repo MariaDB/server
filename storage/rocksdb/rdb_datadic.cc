@@ -538,7 +538,7 @@ const std::string Rdb_key_def::parse_comment_for_qualifier(
   // NOTE: this means if you specify a qualifier for a specific partition it
   // will take precedence the 'table level' qualifier if one exists.
   std::string search_str_part;
-  if (table_arg->part_info != nullptr) {
+  if (IF_PARTITIONING(table_arg->part_info,nullptr) != nullptr) {
     std::string partition_name = tbl_def_arg->base_partition();
     DBUG_ASSERT(!partition_name.empty());
     search_str_part = gen_qualifier_for_table(qualifier, partition_name);
@@ -1461,7 +1461,8 @@ int Rdb_key_def::unpack_record(TABLE *const table, uchar *const buf,
     if (has_covered_bitmap && field->real_type() == MYSQL_TYPE_VARCHAR &&
         !m_pack_info[i].m_covered) {
       covered_column = curr_bitmap_pos < MAX_REF_PARTS &&
-                       bitmap_is_set(&covered_bitmap, curr_bitmap_pos++);
+                       bitmap_is_set(&covered_bitmap, curr_bitmap_pos);
+      curr_bitmap_pos++;
     }
     if (fpi->m_unpack_func && covered_column) {
       /* It is possible to unpack this column. Do it. */
@@ -2921,7 +2922,7 @@ std::array<const Rdb_collation_codec *, MY_ALL_CHARSETS_SIZE>
     rdb_collation_data;
 mysql_mutex_t rdb_collation_data_mutex;
 
-static bool rdb_is_collation_supported(const my_core::CHARSET_INFO *const cs) {
+bool rdb_is_collation_supported(const my_core::CHARSET_INFO *const cs) {
   return cs->strxfrm_multiply==1 && cs->mbmaxlen == 1 &&
          !(cs->state & (MY_CS_BINSORT | MY_CS_NOPAD));
 }
@@ -4260,7 +4261,7 @@ bool Rdb_binlog_manager::read(char *const binlog_name,
     std::string value;
     rocksdb::Status status = m_dict->get_value(m_key_slice, &value);
     if (status.ok()) {
-      if (!unpack_value((const uchar *)value.c_str(), binlog_name, binlog_pos,
+      if (!unpack_value((const uchar *)value.c_str(), value.size(), binlog_name, binlog_pos,
                         binlog_gtid))
         ret = true;
     }
@@ -4330,35 +4331,60 @@ Rdb_binlog_manager::pack_value(uchar *const buf, const char *const binlog_name,
   @return     true on error
 */
 bool Rdb_binlog_manager::unpack_value(const uchar *const value,
+                                      size_t value_size_arg,
                                       char *const binlog_name,
                                       my_off_t *const binlog_pos,
                                       char *const binlog_gtid) const {
   uint pack_len = 0;
+  intmax_t value_size= value_size_arg;
 
   DBUG_ASSERT(binlog_pos != nullptr);
 
+  if ((value_size -= Rdb_key_def::VERSION_SIZE) < 0)
+    return true;
   // read version
   const uint16_t version = rdb_netbuf_to_uint16(value);
+
   pack_len += Rdb_key_def::VERSION_SIZE;
   if (version != Rdb_key_def::BINLOG_INFO_INDEX_NUMBER_VERSION)
+    return true;
+
+  if ((value_size -= sizeof(uint16)) < 0)
     return true;
 
   // read binlog file name length
   const uint16_t binlog_name_len = rdb_netbuf_to_uint16(value + pack_len);
   pack_len += sizeof(uint16);
+
+  if (binlog_name_len >= (FN_REFLEN+1))
+    return true;
+
+  if ((value_size -= binlog_name_len) < 0)
+    return true;
+
   if (binlog_name_len) {
     // read and set binlog name
     memcpy(binlog_name, value + pack_len, binlog_name_len);
     binlog_name[binlog_name_len] = '\0';
     pack_len += binlog_name_len;
 
+    if ((value_size -= sizeof(uint32)) < 0)
+      return true;
     // read and set binlog pos
     *binlog_pos = rdb_netbuf_to_uint32(value + pack_len);
     pack_len += sizeof(uint32);
 
+    if ((value_size -= sizeof(uint16)) < 0)
+      return true;
     // read gtid length
     const uint16_t binlog_gtid_len = rdb_netbuf_to_uint16(value + pack_len);
     pack_len += sizeof(uint16);
+
+    if (binlog_gtid_len >= GTID_BUF_LEN)
+      return true;
+    if ((value_size -= binlog_gtid_len) < 0)
+      return true;
+
     if (binlog_gtid && binlog_gtid_len > 0) {
       // read and set gtid
       memcpy(binlog_gtid, value + pack_len, binlog_gtid_len);

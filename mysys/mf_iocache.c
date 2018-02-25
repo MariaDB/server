@@ -115,6 +115,7 @@ init_functions(IO_CACHE* info)
     DBUG_ASSERT(!(info->myflags & MY_ENCRYPT));
     info->read_function = info->share ? _my_b_cache_read_r : _my_b_cache_read;
     info->write_function = info->share ? _my_b_cache_write_r : _my_b_cache_write;
+    info->myflags&= ~MY_FULL_IO;
     break;
   case TYPE_NOT_SET:
     DBUG_ASSERT(0);
@@ -271,7 +272,7 @@ int init_io_cache(IO_CACHE *info, File file, size_t cachesize,
   else
   {
     /* Clear mutex so that safe_mutex will notice that it's not initialized */
-    bzero((char*) &info->append_buffer_lock, sizeof(info));
+    bzero((char*) &info->append_buffer_lock, sizeof(info->append_buffer_lock));
   }
 #endif
 
@@ -455,6 +456,8 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
     {
       info->read_end=info->write_pos;
       info->end_of_file=my_b_tell(info);
+      /* Ensure we will read all data */
+      info->myflags|= MY_FULL_IO;
       /*
         Trigger a new seek only if we have a valid
         file handle.
@@ -469,6 +472,7 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
 	info->seek_not_done=1;
       }
       info->end_of_file = ~(my_off_t) 0;
+      info->myflags&= ~MY_FULL_IO;
     }
     pos=info->request_pos+(seek_offset-info->pos_in_file);
     if (type == WRITE_CACHE)
@@ -508,7 +512,7 @@ my_bool reinit_io_cache(IO_CACHE *info, enum cache_type type,
           info->read_end= info->buffer;
           _my_b_encr_read(info, 0, 0); /* prefill the buffer */
           info->write_pos= info->read_pos;
-          info->pos_in_file+= info->buffer_length;
+          info->seek_not_done=1;
         }
       }
       else
@@ -553,7 +557,7 @@ int _my_b_read(IO_CACHE *info, uchar *Buffer, size_t Count)
   }
   res= info->read_function(info, Buffer, Count);
   if (res && info->error >= 0)
-    info->error+= left_length; /* update number or read bytes */
+    info->error+= (int)left_length; /* update number or read bytes */
   return res;
 }
 
@@ -1917,13 +1921,12 @@ int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
     {
       if (append_cache)
       {
-
         if (mysql_file_write(info->file, info->write_buffer, length,
                              info->myflags | MY_NABP))
+        {
           info->error= -1;
-        else
-          info->error= 0;
-
+          DBUG_RETURN(-1);
+        }
         info->end_of_file+= info->write_pos - info->append_read_pos;
         info->append_read_pos= info->write_buffer;
         DBUG_ASSERT(info->end_of_file == mysql_file_tell(info->file, MYF(0)));

@@ -15,6 +15,7 @@
 
 #include "mariadb.h"
 #include "sql_priv.h"
+#include "mysqld.h"
 #include "sql_audit.h"
 
 extern int initialize_audit_plugin(st_plugin_int *plugin);

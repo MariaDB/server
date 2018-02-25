@@ -40,7 +40,7 @@ select * from mysql.slave_gtid_info;
 --write_file $MYSQL_TMP_DIR/truncate_tail_wal.sh
 #!/bin/bash
 
-F=`ls -t $slave_data_dir/.rocksdb/*.log | head -n 1`
+F=`ls -t $slave_data_dir/\#rocksdb/*.log | head -n 1`
 SIZE=`stat -c %s $F`
 NEW_SIZE=`expr $SIZE - 10`
 truncate -s $NEW_SIZE $F
@@ -116,7 +116,7 @@ connection slave;
 #!/bin/bash
 
 # expected to be around 950 bytes
-F=`ls -t $slave_data_dir/.rocksdb/*.log | head -n 1`
+F=`ls -t $slave_data_dir/\#rocksdb/*.log | head -n 1`
 SIZE=`stat -c %s $F`
 OFFSET=$(( $SIZE-500 ))
 dd bs=1 if=/dev/zero of=$F count=100 seek=$OFFSET conv=notrunc

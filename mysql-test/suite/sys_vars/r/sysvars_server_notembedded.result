@@ -8,6 +8,7 @@ where variable_name not like 'aria%' and
 variable_name not like 'debug%' and
 variable_name not like 'wsrep%' and
 variable_name not in (
+'in_predicate_conversion_threshold',
 'have_openssl',
 'have_symlink',
 'hostname',
@@ -15,6 +16,7 @@ variable_name not in (
 'lower_case_file_system',
 'lower_case_table_names',
 'open_files_limit',
+'plugin_maturity',
 'rand_seed1',
 'rand_seed2',
 'system_time_zone',
@@ -927,7 +929,7 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	This option causes CREATE TABLE to create all TIMESTAMP columns as NULL with DEFAULT NULL attribute, Without this option, TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses. The old behavior is deprecated.
+VARIABLE_COMMENT	This option causes CREATE TABLE to create all TIMESTAMP columns as NULL with DEFAULT NULL attribute, Without this option, TIMESTAMP columns are NOT NULL and have implicit DEFAULT clauses.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
@@ -1564,20 +1566,6 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
-VARIABLE_NAME	IN_SUBQUERY_CONVERSION_THRESHOLD
-SESSION_VALUE	1000
-GLOBAL_VALUE	1000
-GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	1000
-VARIABLE_SCOPE	SESSION
-VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	The minimum number of scalar elements in the value list of IN predicate that triggers its conversion to IN subquery
-NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	18446744073709551615
-NUMERIC_BLOCK_SIZE	1
-ENUM_VALUE_LIST	NULL
-READ_ONLY	NO
-COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	IN_TRANSACTION
 SESSION_VALUE	0
 GLOBAL_VALUE	NULL
@@ -2895,17 +2883,17 @@ ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_SWITCH
-SESSION_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_grouping_derived=on
-GLOBAL_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_grouping_derived=on
+SESSION_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on
+GLOBAL_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_grouping_derived=on
+DEFAULT_VALUE	index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on,orderby_uses_equalities=on,condition_pushdown_for_derived=on,split_materialized=on
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	FLAGSET
 VARIABLE_COMMENT	Fine-tune the optimizer behavior
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,engine_condition_pushdown,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,condition_pushdown_for_derived,split_grouping_derived,default
+ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge_intersection,index_merge_sort_intersection,engine_condition_pushdown,index_condition_pushdown,derived_merge,derived_with_keys,firstmatch,loosescan,materialization,in_to_exists,semijoin,partial_match_rowid_merge,partial_match_table_scan,subquery_cache,mrr,mrr_cost_based,mrr_sort_keys,outer_join_with_cache,semijoin_with_cache,join_cache_incremental,join_cache_hashed,join_cache_bka,optimize_join_buffer_size,table_elimination,extended_keys,exists_to_in,orderby_uses_equalities,condition_pushdown_for_derived,split_materialized,default
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_USE_CONDITION_SELECTIVITY
@@ -3396,20 +3384,6 @@ NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
-READ_ONLY	YES
-COMMAND_LINE_ARGUMENT	REQUIRED
-VARIABLE_NAME	PLUGIN_MATURITY
-SESSION_VALUE	NULL
-GLOBAL_VALUE	unknown
-GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	unknown
-VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	The lowest desirable plugin maturity. Plugins less mature than that will not be installed or loaded
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	unknown,experimental,alpha,beta,gamma,stable
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	PORT
@@ -4014,6 +3988,132 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	RPL_SEMI_SYNC_MASTER_ENABLED
+SESSION_VALUE	NULL
+GLOBAL_VALUE	OFF
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	OFF
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Enable semi-synchronous replication master (disabled by default).
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	RPL_SEMI_SYNC_MASTER_TIMEOUT
+SESSION_VALUE	NULL
+GLOBAL_VALUE	10000
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	10000
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	The timeout value (in ms) for semi-synchronous replication in the master
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	RPL_SEMI_SYNC_MASTER_TRACE_LEVEL
+SESSION_VALUE	NULL
+GLOBAL_VALUE	32
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	32
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	The tracing level for semi-sync replication.
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	RPL_SEMI_SYNC_MASTER_WAIT_NO_SLAVE
+SESSION_VALUE	NULL
+GLOBAL_VALUE	ON
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	ON
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Wait until timeout when no semi-synchronous replication slave available (enabled by default).
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	RPL_SEMI_SYNC_MASTER_WAIT_POINT
+SESSION_VALUE	NULL
+GLOBAL_VALUE	AFTER_COMMIT
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	AFTER_COMMIT
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	Should transaction wait for semi-sync ack after having synced binlog, or after having committed in storage engine.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	AFTER_SYNC,AFTER_COMMIT
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	RPL_SEMI_SYNC_SLAVE_DELAY_MASTER
+SESSION_VALUE	NULL
+GLOBAL_VALUE	OFF
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	OFF
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Only write master info file when ack is needed.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	RPL_SEMI_SYNC_SLAVE_ENABLED
+SESSION_VALUE	NULL
+GLOBAL_VALUE	OFF
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	OFF
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	Enable semi-synchronous replication slave (disabled by default).
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	RPL_SEMI_SYNC_SLAVE_KILL_CONN_TIMEOUT
+SESSION_VALUE	NULL
+GLOBAL_VALUE	5
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	5
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Timeout for the mysql connection used to kill the slave io_thread's connection on master. This timeout comes into play when stop slave is executed.
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	RPL_SEMI_SYNC_SLAVE_TRACE_LEVEL
+SESSION_VALUE	NULL
+GLOBAL_VALUE	32
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	32
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	The tracing level for semi-sync replication.
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SECURE_AUTH
 SESSION_VALUE	NULL
 GLOBAL_VALUE	ON
@@ -4399,9 +4499,37 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	10
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Number of times the slave SQL thread will retry a transaction in case it failed with a deadlock or elapsed lock wait timeout, before giving up and stopping
+VARIABLE_COMMENT	Number of times the slave SQL thread will retry a transaction in case it failed with a deadlock, elapsed lock wait timeout or listed in slave_transaction_retry_errors, before giving up and stopping
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	4294967295
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	SLAVE_TRANSACTION_RETRY_ERRORS
+SESSION_VALUE	NULL
+GLOBAL_VALUE	1213,1205
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Tells the slave thread to retry transaction for replication when a query event returns an error from the provided list. Deadlock and elapsed lock wait timeout errors are automatically added to this list
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	SLAVE_TRANSACTION_RETRY_INTERVAL
+SESSION_VALUE	NULL
+GLOBAL_VALUE	0
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	0
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Interval of the slave SQL thread will retry a transaction in case it failed with a deadlock or elapsed lock wait timeout or listed in slave_transaction_retry_errors
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	3600
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
@@ -4571,7 +4699,7 @@ VARIABLE_COMMENT	Sets the sql mode
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,IGNORE_BAD_TABLE_OPTIONS,ONLY_FULL_GROUP_BY,NO_UNSIGNED_SUBTRACTION,NO_DIR_IN_CREATE,POSTGRESQL,ORACLE,MSSQL,DB2,MAXDB,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,MYSQL323,MYSQL40,ANSI,NO_AUTO_VALUE_ON_ZERO,NO_BACKSLASH_ESCAPES,STRICT_TRANS_TABLES,STRICT_ALL_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ALLOW_INVALID_DATES,ERROR_FOR_DIVISION_BY_ZERO,TRADITIONAL,NO_AUTO_CREATE_USER,HIGH_NOT_PRECEDENCE,NO_ENGINE_SUBSTITUTION,PAD_CHAR_TO_FULL_LENGTH,EMPTY_STRING_IS_NULL
+ENUM_VALUE_LIST	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,IGNORE_BAD_TABLE_OPTIONS,ONLY_FULL_GROUP_BY,NO_UNSIGNED_SUBTRACTION,NO_DIR_IN_CREATE,POSTGRESQL,ORACLE,MSSQL,DB2,MAXDB,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,MYSQL323,MYSQL40,ANSI,NO_AUTO_VALUE_ON_ZERO,NO_BACKSLASH_ESCAPES,STRICT_TRANS_TABLES,STRICT_ALL_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ALLOW_INVALID_DATES,ERROR_FOR_DIVISION_BY_ZERO,TRADITIONAL,NO_AUTO_CREATE_USER,HIGH_NOT_PRECEDENCE,NO_ENGINE_SUBSTITUTION,PAD_CHAR_TO_FULL_LENGTH,EMPTY_STRING_IS_NULL,SIMULTANEOUS_ASSIGNMENT
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SQL_NOTES
@@ -4882,6 +5010,34 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	SYSTEM_VERSIONING_ALTER_HISTORY
+SESSION_VALUE	ERROR
+GLOBAL_VALUE	ERROR
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	ERROR
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	Versioning ALTER TABLE mode. ERROR: Fail ALTER with error; KEEP: Keep historical system rows and subject them to ALTER; 
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	ERROR,KEEP
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	SYSTEM_VERSIONING_ASOF
+SESSION_VALUE	DEFAULT
+GLOBAL_VALUE	DEFAULT
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	DEFAULT
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	Default value for the FOR SYSTEM_TIME AS OF clause
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	DEFAULT
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	TABLE_DEFINITION_CACHE
 SESSION_VALUE	NULL
 GLOBAL_VALUE	400

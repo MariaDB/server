@@ -691,13 +691,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 1	PRIMARY	<derived3>	ref	key0	key0	5	c.h_id	2	100.00	
 1	PRIMARY	<derived3>	ref	key0	key0	5	c.w_id	2	100.00	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
 3	DERIVED	folks	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
 4	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 4	RECURSIVE UNION	p	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where; Using join buffer (flat, BNL join)
 5	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
 5	RECURSIVE UNION	p	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where; Using join buffer (flat, BNL join)
 NULL	UNION RESULT	<union3,4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
 Warnings:
 Note	1003	with recursive ancestor_couple_ids as (/* select#2 */ select `a`.`father` AS `h_id`,`a`.`mother` AS `w_id` from `coupled_ancestors` `a` where `a`.`father` is not null and `a`.`mother` is not null), coupled_ancestors as (/* select#3 */ select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where `test`.`folks`.`name` = 'Me' union all /* select#4 */ select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `fa` where `test`.`p`.`id` = `fa`.`h_id` union all /* select#5 */ select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `ma` where `test`.`p`.`id` = `ma`.`w_id`)/* select#1 */ select `h`.`name` AS `name`,`h`.`dob` AS `dob`,`w`.`name` AS `name`,`w`.`dob` AS `dob` from `ancestor_couple_ids` `c` join `coupled_ancestors` `h` join `coupled_ancestors` `w` where `h`.`id` = `c`.`h_id` and `w`.`id` = `c`.`w_id`
 # simple mutual recursion
@@ -2904,6 +2904,172 @@ n
 2
 3
 #
+# mdev-14629: a user-defined variable is defined by the recursive CTE
+#
+set @var=
+(
+with recursive cte_tab(a) as (
+select 1
+union
+select a+1 from cte_tab
+where a<3)
+select count(*) from cte_tab
+);
+select @var;
+@var
+3
+create table t1(a int, b int);
+insert into t1 values (3,8),(1,5),(5,7),(7,4),(4,3);
+set @var=
+(
+with recursive summ(a,s) as (
+select 1, 0 union
+select t1.b, t1.b+summ.s from summ, t1
+where summ.a=t1.a)
+select s from summ
+order by a desc
+limit 1
+);
+select @var;
+@var
+27
+set @var=
+(
+with recursive
+cte_1 as (
+select 1
+union
+select * from cte_2),
+cte_2 as (
+select * from cte_1
+union
+select a from t1, cte_2
+where t1.a=cte_2.a)
+select * from cte_2
+limit 1
+);
+ERROR HY000: Unacceptable mutual recursion with anchored table 'cte_1'
+drop table t1;
+#
+# mdev-14777: crash caused by the same as in mdev-14755
+#
+CREATE TABLE t1 (i1 int NOT NULL, i2 int);
+CREATE TABLE t2 (d1 int NOT NULL PRIMARY KEY);
+CREATE TABLE t3 (i int );
+insert into t1 select seq,seq from seq_1_to_100000;
+insert into t2 select seq from  seq_1000_to_100000;
+insert into t3 select seq from seq_1_to_1000;
+SELECT *
+FROM
+(
+SELECT *
+FROM
+(
+WITH RECURSIVE rt AS
+(
+SELECT i2 P, i1 C FROM t1 WHERE i1 IN (SELECT d1 FROM t2)
+UNION
+SELECT t1.i2 P, rt.C C FROM t1, rt
+)
+SELECT C,P
+FROM ( SELECT P,C FROM rt WHERE NOT EXISTS (SELECT 1 FROM t1) ) Y
+) X
+WHERE 1 = 1
+) K, t3;
+C	P	i
+drop table t1,t2,t3;
+#
+# mdev-14879: subquery with recursive reference in WHERE of CTE
+#
+create table flights
+(departure varchar(32),
+arrival varchar(32),
+carrier varchar(20),
+flight_number char(7));
+insert into flights values
+('Seattle', 'Frankfurt', 'Lufthansa', 'LH 491'),
+('Seattle', 'Chicago', 'American', 'AA 2573'),
+('Seattle', 'Los Angeles', 'Alaska Air', 'AS 410'),
+('Chicago', 'New York', 'American', 'AA 375'),
+('Chicago', 'Montreal', 'Air Canada', 'AC 3053'),
+('Los Angeles', 'New York', 'Delta', 'DL 1197'),
+('Moscow', 'Tokyo', 'Aeroflot', 'SU 264'),
+('New York', 'Paris', 'Air France', 'AF 23'),
+('Frankfurt', 'Moscow', 'Lufthansa', 'LH 1444'),
+('Tokyo', 'Seattle', 'ANA', 'NH 178'),
+('Los Angeles', 'Tokyo', 'ANA', 'NH 175'),
+('Moscow', 'Los Angeles', 'Aeroflot', 'SU 106'),
+('Montreal', 'Paris', 'Air Canada', 'AC 870'),
+('Cairo', 'Paris', 'Air France', 'AF 503'),
+('New York', 'Seattle', 'American', 'AA 45'),
+('Paris', 'Chicago', 'Air France', 'AF 6734');
+with recursive destinations (city) as
+( select a.arrival from flights a where a.departure='Cairo'
+  union
+select b.arrival from destinations r, flights b where r.city=b.departure)
+select * from destinations;
+city
+Paris
+Chicago
+New York
+Montreal
+Seattle
+Frankfurt
+Los Angeles
+Moscow
+Tokyo
+set standard_compliant_cte=0;
+with recursive destinations (city, legs) as
+(
+select a.arrival, 1 from flights a where a.departure='Cairo'
+  union
+select b.arrival, r.legs + 1 from destinations r, flights b
+where r.city=b.departure and b.arrival not in (select city from destinations)
+)
+select * from destinations;
+city	legs
+Paris	1
+Chicago	2
+New York	3
+Montreal	3
+Seattle	4
+Frankfurt	5
+Los Angeles	5
+Moscow	6
+Tokyo	6
+explain extended with recursive destinations (city, legs) as
+(
+select a.arrival, 1 from flights a where a.departure='Cairo'
+  union
+select b.arrival, r.legs + 1 from destinations r, flights b
+where r.city=b.departure and b.arrival not in (select city from destinations)
+)
+select * from destinations;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	16	100.00	
+2	DERIVED	a	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where
+3	RECURSIVE UNION	b	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where
+3	RECURSIVE UNION	<derived2>	ref	key0	key0	35	test.b.departure	2	100.00	
+4	DEPENDENT SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	with recursive destinations as (/* select#2 */ select `test`.`a`.`arrival` AS `city`,1 AS `legs` from `test`.`flights` `a` where `test`.`a`.`departure` = 'Cairo' union /* select#3 */ select `test`.`b`.`arrival` AS `arrival`,`r`.`legs` + 1 AS `r.legs + 1` from `destinations` `r` join `test`.`flights` `b` where `r`.`city` = `test`.`b`.`departure` and !<in_optimizer>(`test`.`b`.`arrival`,<exists>(/* select#4 */ select `destinations`.`city` from `destinations` where trigcond(`test`.`b`.`arrival` = `destinations`.`city` or `destinations`.`city` is null) having trigcond(`destinations`.`city` is null))))/* select#1 */ select `destinations`.`city` AS `city`,`destinations`.`legs` AS `legs` from `destinations`
+set standard_compliant_cte=default;
+drop table flights;
+#
+# MDEV-15162: Setting user variable in recursive CTE
+#
+SET @c=1;
+WITH RECURSIVE cte AS
+(SELECT 5
+UNION
+SELECT @c:=@c+1 FROM cte WHERE @c<3)
+SELECT * FROM cte;
+5
+5
+2
+3
+#
 # MDEV-14217 [db crash] Recursive CTE when SELECT includes new field
 #
 CREATE TEMPORARY TABLE a_tbl (
@@ -2926,3 +3092,249 @@ ERROR 21000: The used SELECT statements have a different number of columns
 DROP TABLE a_tbl;
 WITH RECURSIVE x AS (SELECT 1,2 UNION ALL SELECT 1 FROM x) SELECT * FROM x;
 ERROR 21000: The used SELECT statements have a different number of columns
+#
+# MDEV-15162: Setting user variable in recursive CTE
+#
+SET @c=1;
+WITH RECURSIVE cte AS
+(SELECT 5
+UNION
+SELECT @c:=@c+1 FROM cte WHERE @c<3)
+SELECT * FROM cte;
+5
+5
+2
+3
+#
+# MDEV-14883: recursive references in operands of INTERSECT / EXCEPT
+#
+create table flights
+(departure varchar(32),
+arrival varchar(32),
+carrier varchar(20),
+flight_number char(7));
+insert into flights values
+('Seattle', 'Frankfurt', 'Lufthansa', 'LH 491'),
+('Seattle', 'Amsterdam', 'KLM', 'KL 6032'),
+('Seattle', 'Chicago', 'American', 'AA 2573'),
+('Seattle', 'Los Angeles', 'Alaska Air', 'AS 410'),
+('Chicago', 'New York', 'American', 'AA 375'),
+('Chicago', 'Montreal', 'Air Canada', 'AC 3053'),
+('Los Angeles', 'New York', 'Delta', 'DL 1197'),
+('New York', 'London', 'British Airways', 'BA 1511'),
+('London', 'Moscow', 'British Airways', 'BA 233'),
+('Moscow', 'Tokyo', 'Aeroflot', 'SU 264'),
+('Moscow', 'Dubai', 'Emirates', 'EK 2421'),
+('Dubai', 'Tokyo', 'Emirates', 'EK 318'),
+('Dubai', 'Bangkok', 'Emirates', 'EK 2142'),
+('Beijing', 'Bangkok', 'Air China', 'CA 757'),
+('Beijing', 'Tokyo', 'Air China', 'CA 6653'),
+('Moscow', 'Bangkok', 'Aeroflot', 'SU 270'),
+('New York', 'Reykjavik', 'Icelandair', 'FL 416'),
+('New York', 'Paris', 'Air France', 'AF 23'),
+('Amsterdam', 'Moscow', 'KLM', 'KL 903'),
+('Frankfurt', 'Dubai', 'Lufthansa', 'LH 630'),
+('Frankfurt', 'Moscow', 'Lufthansa', 'LH 1444'),
+('Reykjavik', 'London', 'British Airways', 'BA 2229'),
+('Frankfurt', 'Beijing', 'Air China', 'CA 966'),
+('Tokyo', 'Seattle', 'ANA', 'NH 178'),
+('Los Angeles', 'Tokyo', 'ANA', 'NH 175'),
+('Moscow', 'Los Angeles', 'Aeroflot', 'SU 106'),
+('Montreal', 'Paris', 'Air Canada', 'AC 870'),
+('London', 'Delhi', 'British Airways', 'BA 143'),
+('Delhi', 'Bangkok', 'Air India', 'AI 306'),
+('Delhi', 'Dubai', 'Air India', 'AI 995'),
+('Dubai', 'Cairo', 'Emirates', 'EK 927'),
+('Cairo', 'Paris', 'Air France', 'AF 503'),
+('Amsterdam', 'New York', 'Delta', 'DL 47'),
+('New York', 'Seattle', 'American', 'AA 45'),
+('Paris', 'Chicago', 'Air France', 'AF 6734');
+create table distances
+(city1 varchar(32),
+city2 varchar(32),
+dist int);
+insert into distances values
+('Seattle', 'Frankfurt', 5080),
+('Seattle', 'Amsterdam', 4859),
+('Seattle', 'Chicago', 1733),
+('Seattle', 'Los Angeles', 960),
+('Chicago', 'New York', 712),
+('Chicago', 'Montreal', 746),
+('Los Angeles', 'New York', 2446),
+('New York', 'London', 3459),
+('London', 'Moscow', 1554),
+('Moscow', 'Tokyo', 4647),
+('Moscow', 'Dubai', 2298),
+('Dubai', 'Tokyo', 4929),
+('Dubai', 'Bangkok', 3050),
+('Beijing', 'Bangkok', 2046),
+('Beijing', 'Tokyo', 1301),
+('Moscow', 'Bangkok', 4390),
+('New York', 'Reykjavik', 2613),
+('New York', 'Paris', 3625),
+('Amsterdam', 'Moscow', 1334),
+('Frankfurt', 'Dubai', 3003),
+('Frankfurt', 'Moscow', 1256),
+('Reykjavik', 'London', 1173),
+('Frankfurt', 'Beijing', 4836),
+('Tokyo', 'Seattle', 4783),
+('Los Angeles', 'Tokyo', 5479),
+('Moscow', 'Los Angeles', 6071),
+('Moscow', 'Reykjavik', 2052),
+('Montreal', 'Paris', 3425),
+('London', 'Delhi', 4159),
+('London', 'Paris', 214),
+('Delhi', 'Bangkok', 1810),
+('Delhi', 'Dubai', 1369),
+('Delhi', 'Beijing', 2350),
+('Dubai', 'Cairo', 1501),
+('Cairo', 'Paris', 1992),
+('Amsterdam', 'New York', 3643),
+('New York', 'Seattle', 2402),
+('Paris', 'Chicago', 4136),
+('Paris', 'Los Angeles', 5647);
+with recursive destinations (city) as
+(
+select a.arrival from flights a where a.departure = 'Seattle'
+  union
+select b.arrival from destinations r, flights b where r.city = b.departure
+)
+select * from destinations;
+city
+Frankfurt
+Amsterdam
+Chicago
+Los Angeles
+New York
+Montreal
+Moscow
+Dubai
+Beijing
+Tokyo
+London
+Bangkok
+Reykjavik
+Paris
+Seattle
+Cairo
+Delhi
+with recursive destinations (city) as
+(
+select a.arrival from flights a, distances d
+where a.departure = 'Seattle' and
+a.departure = d.city1 and a.arrival = d.city2 and
+d.dist < 4000
+union
+select b.arrival from destinations r, flights b, distances d
+where r.city = b.departure and
+b.departure = d.city1 and b.arrival = d.city2 and
+d.dist < 4000
+)
+select * from destinations;
+city
+Chicago
+Los Angeles
+New York
+Montreal
+London
+Reykjavik
+Paris
+Seattle
+Moscow
+Dubai
+Bangkok
+Cairo
+set standard_compliant_cte=0;
+with recursive legs_to_destinations
+(departure, arrival, dist, leg_no, acc_mileage) as
+(
+select a.departure, a.arrival, d.dist, 1, d.dist
+from flights a, distances d
+where a.departure = 'Seattle' and
+a.departure = d.city1 and a.arrival = d.city2 and
+d.dist < 4000
+union all
+select b.departure, b.arrival, d.dist, r.leg_no + 1, r.acc_mileage + d.dist
+from legs_to_destinations r, flights b, distances d
+where r.arrival = b.departure and
+b.departure = d.city1 and b.arrival = d.city2 and
+d.dist < 4000 and
+b.arrival not in (select arrival from legs_to_destinations)
+)
+select * from legs_to_destinations;
+departure	arrival	dist	leg_no	acc_mileage
+Seattle	Chicago	1733	1	1733
+Seattle	Los Angeles	960	1	960
+Chicago	New York	712	2	2445
+Chicago	Montreal	746	2	2479
+Los Angeles	New York	2446	2	3406
+New York	London	3459	3	6865
+New York	London	3459	3	5904
+New York	Reykjavik	2613	3	6019
+New York	Reykjavik	2613	3	5058
+New York	Paris	3625	3	7031
+New York	Paris	3625	3	6070
+Montreal	Paris	3425	3	5904
+New York	Seattle	2402	3	5808
+New York	Seattle	2402	3	4847
+London	Moscow	1554	4	7458
+London	Moscow	1554	4	8419
+Moscow	Dubai	2298	5	10717
+Moscow	Dubai	2298	5	9756
+Dubai	Bangkok	3050	6	12806
+Dubai	Bangkok	3050	6	13767
+Dubai	Cairo	1501	6	11257
+Dubai	Cairo	1501	6	12218
+set standard_compliant_cte=default;
+with recursive destinations (city) as
+(
+select a.arrival from flights a, distances d
+where a.departure = 'Seattle' and
+a.departure = d.city1 and a.arrival = d.city2 and
+d.dist < 4000
+union
+select b.arrival from destinations r, flights b
+where r.city = b.departure
+intersect
+select city2 from destinations s, distances d
+where s.city = d.city1 and d.dist < 4000
+)
+select * from destinations;
+city
+Chicago
+Los Angeles
+New York
+Montreal
+London
+Reykjavik
+Paris
+Seattle
+Moscow
+Dubai
+Bangkok
+Cairo
+with recursive destinations (city) as
+(
+select a.arrival from flights a where a.departure = 'Seattle'
+  union
+select * from
+(
+select b.arrival from destinations r, flights b
+where r.city = b.departure
+except
+select arrival from flights
+where arrival in
+('New York', 'London', 'Moscow', 'Dubai', 'Cairo', 'Tokyo')
+) t
+)
+select * from destinations;
+city
+Frankfurt
+Amsterdam
+Chicago
+Los Angeles
+Montreal
+Beijing
+Bangkok
+Paris
+drop table flights, distances;

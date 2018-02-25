@@ -43,13 +43,14 @@ struct tokutxn;
 #if defined(ENABLED_DEBUG_SYNC)
 
 /*
-  the below macros are defined in my_global.h, which is included in m_string.h,
+  the below macros are defined in my_global.h
   the same macros are defined in TokuSetupCompiler.cmake as compiler options,
   undefine them here to avoid build errors
 */
 #undef __STDC_FORMAT_MACROS
 #undef __STDC_LIMIT_MACROS
 
+#include "my_global.h"
 #include "m_string.h"
 #include "debug_sync.h"
 

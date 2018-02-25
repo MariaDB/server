@@ -35,7 +35,6 @@
 
 #include <my_user.h>
 
-
 sp_cache **Sp_handler_procedure::get_cache(THD *thd) const
 {
   return &thd->sp_proc_cache;
@@ -93,79 +92,79 @@ static const
 TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
 {
   {
-    { C_STRING_WITH_LEN("db") },
-    { C_STRING_WITH_LEN("char(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("db") },
+    { STRING_WITH_LEN("char(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("name") },
-    { C_STRING_WITH_LEN("char(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("name") },
+    { STRING_WITH_LEN("char(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("type") },
-    { C_STRING_WITH_LEN("enum('FUNCTION','PROCEDURE')") },
+    { STRING_WITH_LEN("type") },
+    { STRING_WITH_LEN("enum('FUNCTION','PROCEDURE')") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("specific_name") },
-    { C_STRING_WITH_LEN("char(64)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("specific_name") },
+    { STRING_WITH_LEN("char(64)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("language") },
-    { C_STRING_WITH_LEN("enum('SQL')") },
+    { STRING_WITH_LEN("language") },
+    { STRING_WITH_LEN("enum('SQL')") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("sql_data_access") },
-    { C_STRING_WITH_LEN("enum('CONTAINS_SQL','NO_SQL','READS_SQL_DATA','MODIFIES_SQL_DATA')") },
+    { STRING_WITH_LEN("sql_data_access") },
+    { STRING_WITH_LEN("enum('CONTAINS_SQL','NO_SQL','READS_SQL_DATA','MODIFIES_SQL_DATA')") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("is_deterministic") },
-    { C_STRING_WITH_LEN("enum('YES','NO')") },
+    { STRING_WITH_LEN("is_deterministic") },
+    { STRING_WITH_LEN("enum('YES','NO')") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("security_type") },
-    { C_STRING_WITH_LEN("enum('INVOKER','DEFINER')") },
+    { STRING_WITH_LEN("security_type") },
+    { STRING_WITH_LEN("enum('INVOKER','DEFINER')") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("param_list") },
-    { C_STRING_WITH_LEN("blob") },
+    { STRING_WITH_LEN("param_list") },
+    { STRING_WITH_LEN("blob") },
     { NULL, 0 }
   },
 
   {
-    { C_STRING_WITH_LEN("returns") },
-    { C_STRING_WITH_LEN("longblob") },
+    { STRING_WITH_LEN("returns") },
+    { STRING_WITH_LEN("longblob") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("body") },
-    { C_STRING_WITH_LEN("longblob") },
+    { STRING_WITH_LEN("body") },
+    { STRING_WITH_LEN("longblob") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("definer") },
-    { C_STRING_WITH_LEN("char(") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("definer") },
+    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("created") },
-    { C_STRING_WITH_LEN("timestamp") },
+    { STRING_WITH_LEN("created") },
+    { STRING_WITH_LEN("timestamp") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("modified") },
-    { C_STRING_WITH_LEN("timestamp") },
+    { STRING_WITH_LEN("modified") },
+    { STRING_WITH_LEN("timestamp") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("sql_mode") },
-    { C_STRING_WITH_LEN("set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES',"
+    { STRING_WITH_LEN("sql_mode") },
+    { STRING_WITH_LEN("set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES',"
     "'IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY',"
     "'NO_UNSIGNED_SUBTRACTION',"
     "'NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB',"
@@ -174,32 +173,37 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
     "'STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES',"
     "'ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER',"
     "'HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH',"
-    "'EMPTY_STRING_IS_NULL')") },
+    "'EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT')") },
     { NULL, 0 }
   },
   {
-    { C_STRING_WITH_LEN("comment") },
-    { C_STRING_WITH_LEN("text") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("comment") },
+    { STRING_WITH_LEN("text") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("character_set_client") },
-    { C_STRING_WITH_LEN("char(32)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("character_set_client") },
+    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("collation_connection") },
-    { C_STRING_WITH_LEN("char(32)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("collation_connection") },
+    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("db_collation") },
-    { C_STRING_WITH_LEN("char(32)") },
-    { C_STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("db_collation") },
+    { STRING_WITH_LEN("char(32)") },
+    { STRING_WITH_LEN("utf8") }
   },
   {
-    { C_STRING_WITH_LEN("body_utf8") },
-    { C_STRING_WITH_LEN("longblob") },
+    { STRING_WITH_LEN("body_utf8") },
+    { STRING_WITH_LEN("longblob") },
+    { NULL, 0 }
+  },
+  {
+    { STRING_WITH_LEN("aggregate") },
+    { STRING_WITH_LEN("enum('NONE','GROUP')") },
     { NULL, 0 }
   }
 };
@@ -450,7 +454,7 @@ TABLE *open_proc_table_for_read(THD *thd, Open_tables_backup *backup)
 
   DBUG_ENTER("open_proc_table_for_read");
 
-  table.init_one_table("mysql", 5, "proc", 4, "proc", TL_READ);
+  table.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PROC_NAME, NULL, TL_READ);
 
   if (open_system_tables_for_read(thd, &table, backup))
     DBUG_RETURN(NULL);
@@ -485,7 +489,7 @@ static TABLE *open_proc_table_for_update(THD *thd)
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
   DBUG_ENTER("open_proc_table_for_update");
 
-  table_list.init_one_table("mysql", 5, "proc", 4, "proc", TL_WRITE);
+  table_list.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_PROC_NAME, NULL, TL_WRITE);
 
   if (!(table= open_system_table_for_update(thd, &table_list)))
     DBUG_RETURN(NULL);
@@ -582,6 +586,22 @@ bool st_sp_chistics::read_from_mysql_proc_row(THD *thd, TABLE *table)
                                                                   &str))
     return true;
   suid= str.str[0] == 'I' ? SP_IS_NOT_SUID : SP_IS_SUID;
+
+  if (table->field[MYSQL_PROC_FIELD_AGGREGATE]->val_str_nopad(thd->mem_root,
+                                                              &str))
+    return true;
+
+  switch (str.str[0]) {
+  case 'N':
+    agg_type= NOT_AGGREGATE;
+    break;
+  case 'G':
+    agg_type= GROUP_AGGREGATE;
+    break;
+  default:
+    agg_type= DEFAULT_AGGREGATE;
+  }
+
 
   if (table->field[MYSQL_PROC_FIELD_COMMENT]->val_str_nopad(thd->mem_root,
                                                             &comment))
@@ -808,7 +828,6 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
   else
   {
     sp= thd->lex->sphead;
-    sp->set_select_number(thd->select_number);
   }
 
   thd->pop_internal_handler();
@@ -1183,6 +1202,13 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
       table->field[MYSQL_PROC_FIELD_NAME]->
         store(sp->m_name, system_charset_info);
 
+    if (sp->agg_type() != DEFAULT_AGGREGATE)
+    {
+      store_failed= store_failed ||
+        table->field[MYSQL_PROC_FIELD_AGGREGATE]->
+          store((longlong)sp->agg_type(),TRUE);
+    }
+
     store_failed= store_failed ||
       table->field[MYSQL_PROC_MYSQL_TYPE]->
         store((longlong) type(), true);
@@ -1317,8 +1343,8 @@ log:
   {
     thd->clear_error();
 
-    String log_query;
-    log_query.set_charset(system_charset_info);
+    StringBuffer<128> log_query(thd->variables.character_set_client);
+    DBUG_ASSERT(log_query.charset()->mbminlen == 1);
 
     if (show_create_sp(thd, &log_query,
                        sp->m_explicit_name ? sp->m_db : null_clex_str,
@@ -1494,6 +1520,9 @@ Sp_handler::sp_update_routine(THD *thd, const Database_qualified_name *name,
     if (chistics->comment.str)
       table->field[MYSQL_PROC_FIELD_COMMENT]->store(chistics->comment,
 						    system_charset_info);
+    if (chistics->agg_type != DEFAULT_AGGREGATE)
+      table->field[MYSQL_PROC_FIELD_AGGREGATE]->
+         store((longlong)chistics->agg_type, TRUE);
     if ((ret= table->file->ha_update_row(table->record[1],table->record[0])) &&
         ret != HA_ERR_RECORD_IS_THE_SAME)
       ret= SP_WRITE_ROW_FAILED;
@@ -1888,16 +1917,16 @@ Sp_handler::sp_exist_routines(THD *thd, TABLE_LIST *routines) const
     sp_name *name;
     LEX_CSTRING lex_db;
     LEX_CSTRING lex_name;
-    thd->make_lex_string(&lex_db, routine->db, strlen(routine->db));
-    thd->make_lex_string(&lex_name, routine->table_name,
-                         strlen(routine->table_name));
+    thd->make_lex_string(&lex_db, routine->db.str, routine->db.length);
+    thd->make_lex_string(&lex_name, routine->table_name.str,
+                         routine->table_name.length);
     name= new sp_name(&lex_db, &lex_name, true);
     sp_object_found= sp_find_routine(thd, name, false) != NULL;
     thd->get_stmt_da()->clear_warning_info(thd->query_id);
     if (! sp_object_found)
     {
       my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "FUNCTION or PROCEDURE",
-               routine->table_name);
+               routine->table_name.str);
       DBUG_RETURN(TRUE);
     }
   }
@@ -2238,11 +2267,14 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
                            sql_mode_t sql_mode) const
 {
   sql_mode_t old_sql_mode= thd->variables.sql_mode;
+  size_t agglen= (chistics.agg_type == GROUP_AGGREGATE)? 10 : 0;
+  LEX_CSTRING tmp;
+
   /* Make some room to begin with */
   if (buf->alloc(100 + db.length + 1 + name.length +
                  params.length + returns.length +
-		 chistics.comment.length + 10 /* length of " DEFINER= "*/ +
-                 USER_HOST_BUFF_SIZE))
+                 chistics.comment.length + 10 /* length of " DEFINER= "*/ +
+                 agglen + USER_HOST_BUFF_SIZE))
     return true;
 
   thd->variables.sql_mode= sql_mode;
@@ -2250,19 +2282,22 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
   if (ddl_options.or_replace())
     buf->append(STRING_WITH_LEN("OR REPLACE "));
   append_definer(thd, buf, &definer.user, &definer.host);
-  buf->append(type_lex_cstring());
+  if (chistics.agg_type == GROUP_AGGREGATE)
+    buf->append(STRING_WITH_LEN("AGGREGATE "));
+  tmp= type_lex_cstring();
+  buf->append(&tmp);
   buf->append(STRING_WITH_LEN(" "));
   if (ddl_options.if_not_exists())
     buf->append(STRING_WITH_LEN("IF NOT EXISTS "));
 
   if (db.length > 0)
   {
-    append_identifier(thd, buf, db.str, db.length);
+    append_identifier(thd, buf, &db);
     buf->append('.');
   }
-  append_identifier(thd, buf, name.str, name.length);
+  append_identifier(thd, buf, &name);
   buf->append('(');
-  buf->append(params);
+  buf->append(&params);
   buf->append(')');
   if (type() == TYPE_ENUM_FUNCTION)
   {
@@ -2270,7 +2305,7 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
       buf->append(STRING_WITH_LEN(" RETURN "));
     else
       buf->append(STRING_WITH_LEN(" RETURNS "));
-    buf->append(returns);
+    buf->append(&returns);
   }
   buf->append('\n');
   switch (chistics.daccess) {
@@ -2292,7 +2327,7 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
     buf->append(STRING_WITH_LEN("    DETERMINISTIC\n"));
   append_suid(buf, chistics.suid);
   append_comment(buf, chistics.comment);
-  buf->append(body);
+  buf->append(body.str, body.length);           // Not \0 terminated
   thd->variables.sql_mode= old_sql_mode;
   return false;
 }

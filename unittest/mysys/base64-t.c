@@ -48,7 +48,7 @@ main(int argc __attribute__((unused)),char *argv[])
     }
 
     /* Encode */
-    needed_length= my_base64_needed_encoded_length(src_len);
+    needed_length= my_base64_needed_encoded_length((int)src_len);
     str= (char *) malloc(needed_length);
     for (k= 0; k < needed_length; k++)
       str[k]= 0xff; /* Fill memory to check correct NUL termination */
@@ -58,7 +58,7 @@ main(int argc __attribute__((unused)),char *argv[])
        "my_base64_needed_encoded_length: size %d", i);
 
     /* Decode */
-    dst= (char *) malloc(my_base64_needed_decoded_length(strlen(str)));
+    dst= (char *) malloc(my_base64_needed_decoded_length((int)strlen(str)));
     dst_len= my_base64_decode(str, strlen(str), dst, NULL, 0);
     ok(dst_len == src_len, "Comparing lengths");
 
@@ -90,6 +90,9 @@ main(int argc __attribute__((unused)),char *argv[])
       diag("src length: %.8x, dst length: %.8x\n",
            (uint) src_len, (uint) dst_len);
     }
+    free(dst);
+    free(str);
+    free(src);
   }
   my_end(0);
   return exit_status();

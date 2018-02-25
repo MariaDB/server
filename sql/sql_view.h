@@ -53,7 +53,7 @@ extern TYPELIB updatable_views_with_limit_typelib;
 
 bool check_duplicate_names(THD *thd, List<Item>& item_list,
                            bool gen_unique_view_names);
-bool mysql_rename_view(THD *thd, const char *new_db, const char *new_name,
+bool mysql_rename_view(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *new_name,
                        TABLE_LIST *view);
 
 void make_valid_column_names(THD *thd, List<Item> &item_list);

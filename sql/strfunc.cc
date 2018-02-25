@@ -45,7 +45,7 @@
 
 static const char field_separator=',';
 
-ulonglong find_set(TYPELIB *lib, const char *str, uint length, CHARSET_INFO *cs,
+ulonglong find_set(TYPELIB *lib, const char *str, size_t length, CHARSET_INFO *cs,
                    char **err_pos, uint *err_len, bool *set_warning)
 {
   CHARSET_INFO *strip= cs ? cs : &my_charset_latin1;
@@ -111,7 +111,7 @@ ulonglong find_set(TYPELIB *lib, const char *str, uint length, CHARSET_INFO *cs,
   > 0 position in TYPELIB->type_names +1
 */
 
-uint find_type(const TYPELIB *lib, const char *find, uint length,
+uint find_type(const TYPELIB *lib, const char *find, size_t length,
                bool part_match)
 {
   uint found_count=0, found_pos=0;
@@ -152,13 +152,13 @@ uint find_type(const TYPELIB *lib, const char *find, uint length,
     >0  Offset+1 in typelib for matched string
 */
 
-uint find_type2(const TYPELIB *typelib, const char *x, uint length,
+uint find_type2(const TYPELIB *typelib, const char *x, size_t length,
                 CHARSET_INFO *cs)
 {
   int pos;
   const char *j;
   DBUG_ENTER("find_type2");
-  DBUG_PRINT("enter",("x: '%.*s'  lib: %p", length, x, typelib));
+  DBUG_PRINT("enter",("x: '%.*s'  lib: %p", (int)length, x, typelib));
 
   if (!typelib->count)
   {
@@ -265,8 +265,8 @@ uint check_word(TYPELIB *lib, const char *val, const char *end,
 */
 
 
-uint strconvert(CHARSET_INFO *from_cs, const char *from, uint from_length,
-                CHARSET_INFO *to_cs, char *to, uint to_length, uint *errors)
+uint strconvert(CHARSET_INFO *from_cs, const char *from, size_t from_length,
+                CHARSET_INFO *to_cs, char *to, size_t to_length, uint *errors)
 {
   int cnvres;
   my_wc_t wc;

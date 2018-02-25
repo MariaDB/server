@@ -14,6 +14,7 @@ call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`.`td` because it
 call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation");
 call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified");
 call mtr.add_suppression("InnoDB: If you are installing InnoDB, remember that you must create directories yourself");
+call mtr.add_suppression("InnoDB: adjusting FSP_SPACE_FLAGS of tablespace");
 FLUSH TABLES;
 --enable_query_log
 
@@ -136,7 +137,9 @@ SHOW CREATE TABLE tr;
 --error ER_NO_SUCH_TABLE_IN_ENGINE
 SHOW CREATE TABLE tc;
 --error ER_NO_SUCH_TABLE_IN_ENGINE
+SELECT * FROM tc;
 SHOW CREATE TABLE td;
+SELECT * FROM td;
 # This table was converted to NO_ROLLBACK due to the SYS_TABLES.TYPE change.
 SHOW CREATE TABLE tz;
 BEGIN;
@@ -150,8 +153,6 @@ SHOW CREATE TABLE tp;
 
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 --let SEARCH_PATTERN= InnoDB: Table `test`.`t[cp]` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=(129|289|3873|1232[13]) SYS_TABLES\.N_COLS=2147483649
---source include/search_pattern_in_file.inc
---let SEARCH_PATTERN= InnoDB: Refusing to load '\..test.td\.ibd' \(id=3, flags=0x1?[2ae]1\); dictionary contains id=3, flags=0x10[01][2ae]1\b
 --source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN= InnoDB: Table `test`\.`tr` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=65 SYS_TABLES\.MIX_LEN=4294967295\b
 --source include/search_pattern_in_file.inc

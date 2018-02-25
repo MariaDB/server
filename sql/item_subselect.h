@@ -182,6 +182,7 @@ public:
     return null_value;
   }
   bool fix_fields(THD *thd, Item **ref);
+  bool with_subquery() const { DBUG_ASSERT(fixed); return true; }
   bool mark_as_dependent(THD *thd, st_select_lex *select, Item *item);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   void recalc_used_tables(st_select_lex *new_parent, bool after_pullout);
@@ -263,8 +264,8 @@ public:
   void register_as_with_rec_ref(With_element *with_elem);
   void init_expr_cache_tracker(THD *thd);
   
-  Item* build_clone(THD *thd, MEM_ROOT *mem_root) { return 0; }
-  Item* get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
+  Item* build_clone(THD *thd) { return 0; }
+  Item* get_copy(THD *thd) { return 0; }
 
   bool wrap_tvc_in_derived_table(THD *thd, st_select_lex *tvc_sl);
 
@@ -400,6 +401,8 @@ public:
   String *val_str(String*);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool();
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  { return get_date_from_int(ltime, fuzzydate); }
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
   void print(String *str, enum_query_type query_type);

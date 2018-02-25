@@ -166,7 +166,7 @@ static my_bool
 tz_load(const char *name, TIME_ZONE_INFO *sp, MEM_ROOT *storage)
 {
   uchar *p;
-  int read_from_file;
+  ssize_t read_from_file;
   uint i;
   MYSQL_FILE *file;
 
@@ -187,7 +187,7 @@ tz_load(const char *name, TIME_ZONE_INFO *sp, MEM_ROOT *storage)
     uint ttisgmtcnt;
     char *tzinfo_buf;
 
-    read_from_file= mysql_file_fread(file, u.buf, sizeof(u.buf), MYF(MY_WME));
+    read_from_file= (ssize_t)mysql_file_fread(file, u.buf, sizeof(u.buf), MYF(MY_WME));
 
     if (mysql_file_fclose(file, MYF(MY_WME)) != 0)
       return 1;
@@ -1333,7 +1333,7 @@ Time_zone_offset::Time_zone_offset(long tz_offset_arg):
 {
   uint hours= abs((int)(offset / SECS_PER_HOUR));
   uint minutes= abs((int)(offset % SECS_PER_HOUR / SECS_PER_MIN));
-  ulong length= my_snprintf(name_buff, sizeof(name_buff), "%s%02d:%02d",
+  size_t length= my_snprintf(name_buff, sizeof(name_buff), "%s%02d:%02d",
                             (offset>=0) ? "+" : "-", hours, minutes);
   name.set(name_buff, length, &my_charset_latin1);
 }
@@ -1476,18 +1476,13 @@ static bool time_zone_tables_exist= 1;
   for dynamical loading of time zone descriptions.
 */
 
-static const LEX_STRING tz_tables_names[MY_TZ_TABLES_COUNT]=
+static const LEX_CSTRING tz_tables_names[MY_TZ_TABLES_COUNT]=
 {
-  { C_STRING_WITH_LEN("time_zone_name")},
-  { C_STRING_WITH_LEN("time_zone")},
-  { C_STRING_WITH_LEN("time_zone_transition_type")},
-  { C_STRING_WITH_LEN("time_zone_transition")}
+  { STRING_WITH_LEN("time_zone_name")},
+  { STRING_WITH_LEN("time_zone")},
+  { STRING_WITH_LEN("time_zone_transition_type")},
+  { STRING_WITH_LEN("time_zone_transition")}
 };
-
-/* Name of database to which those tables belong. */
-
-static const LEX_STRING tz_tables_db_name= { C_STRING_WITH_LEN("mysql")};
-
 
 class Tz_names_entry: public Sql_alloc
 {
@@ -1540,10 +1535,8 @@ tz_init_table_list(TABLE_LIST *tz_tabs)
 
   for (int i= 0; i < MY_TZ_TABLES_COUNT; i++)
   {
-    tz_tabs[i].alias= tz_tabs[i].table_name= tz_tables_names[i].str;
-    tz_tabs[i].table_name_length= tz_tables_names[i].length;
-    tz_tabs[i].db= tz_tables_db_name.str;
-    tz_tabs[i].db_length= tz_tables_db_name.length;
+    tz_tabs[i].alias= tz_tabs[i].table_name= tz_tables_names[i];
+    tz_tabs[i].db= MYSQL_SCHEMA_NAME;
     tz_tabs[i].lock_type= TL_READ;
 
     if (i != MY_TZ_TABLES_COUNT - 1)
@@ -1606,9 +1599,9 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
   THD *thd;
   TABLE_LIST tz_tables[1+MY_TZ_TABLES_COUNT];
   TABLE *table;
+  const LEX_CSTRING tmp_table_name= { STRING_WITH_LEN("time_zone_leap_second") };
   Tz_names_entry *tmp_tzname;
   my_bool return_val= 1;
-  char db[]= "mysql";
   int res;
   DBUG_ENTER("my_tz_init");
 
@@ -1638,7 +1631,7 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
     my_hash_free(&tz_names);
     goto end;
   }
-  init_sql_alloc(&tz_storage, 32 * 1024, 0, MYF(0));
+  init_sql_alloc(&tz_storage, "timezone_storage", 32 * 1024, 0, MYF(0));
   mysql_mutex_init(key_tz_LOCK, &tz_LOCK, MY_MUTEX_INIT_FAST);
   tz_inited= 1;
 
@@ -1669,13 +1662,10 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
     leap seconds shared by all time zones.
   */
 
-  thd->set_db(db, sizeof(db)-1);
+  thd->set_db(&MYSQL_SCHEMA_NAME);
   bzero((char*) &tz_tables[0], sizeof(TABLE_LIST));
-  tz_tables[0].alias= tz_tables[0].table_name=
-    (char*)"time_zone_leap_second";
-  tz_tables[0].table_name_length= 21;
-  tz_tables[0].db= db;
-  tz_tables[0].db_length= sizeof(db)-1;
+  tz_tables[0].alias= tz_tables[0].table_name= tmp_table_name;
+  tz_tables[0].db= MYSQL_SCHEMA_NAME;
   tz_tables[0].lock_type= TL_READ;
 
   tz_init_table_list(tz_tables+1);
@@ -2564,7 +2554,8 @@ scan_tz_dir(char * name_end, uint symlink_recursion_level, uint verbose)
       }
       else if (MY_S_ISREG(cur_dir->dir_entry[i].mystat->st_mode))
       {
-        init_alloc_root(&tz_storage, 32768, 0, MYF(MY_THREAD_SPECIFIC));
+        init_alloc_root(&tz_storage, "timezone_storage", 32768, 0,
+                        MYF(MY_THREAD_SPECIFIC));
         if (!tz_load(fullname, &tz_info, &tz_storage))
           print_tz_as_sql(root_name_end + 1, &tz_info);
         else
@@ -2738,7 +2729,7 @@ main(int argc, char **argv)
       First argument is timezonefile.
       The second is timezonename if opt_leap is not given
     */
-    init_alloc_root(&tz_storage, 32768, 0, MYF(0));
+    init_alloc_root(&tz_storage, "timezone_storage", 32768, 0, MYF(0));
 
     if (tz_load(argv[0], &tz_info, &tz_storage))
     {
@@ -2812,7 +2803,7 @@ main(int argc, char **argv)
 
   MY_INIT(argv[0]);
 
-  init_alloc_root(&tz_storage, 32768, MYF(0));
+  init_alloc_root(&tz_storage, "timezone_storage", 32768, MYF(0));
 
   /* let us set some well known timezone */
   setenv("TZ", "MET", 1);

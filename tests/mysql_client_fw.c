@@ -1177,6 +1177,15 @@ static my_bool thread_query(const char *query)
 }
 
 
+static int mysql_query_or_error(MYSQL *mysql, const char *query)
+{
+  int rc= mysql_query(mysql, query);
+  if (rc)
+    fprintf(stderr, "ERROR %d: %s", mysql_errno(mysql), mysql_error(mysql));
+  return rc;
+}
+
+
 /*
   Read and parse arguments and MySQL options from my.cnf
 */

@@ -19,7 +19,7 @@ UPDATE t1 SET f2 = 'CDE' WHERE f1 = 'XYZ' AND f1017 = 'XYZ';
 COMMIT;
 connection node_1;
 COMMIT;
-ERROR 40001: wsrep aborted transaction
+ERROR 40001: Deadlock: wsrep aborted transaction
 ROLLBACK;
 connection node_2;
 ROLLBACK;

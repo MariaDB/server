@@ -303,13 +303,25 @@ static void test_indexer(DB *src, DB **dbs)
     r = indexer->set_poll_function(indexer, poll_print, NULL);
     CKERR(r);
 
-    // start threads doing additional inserts - no lock issues since indexer already created
-    r = toku_pthread_create(&client_threads[0], 0, client, (void *)&client_specs[0]);  CKERR(r);
-    r = toku_pthread_create(&client_threads[1], 0, client, (void *)&client_specs[1]);  CKERR(r);
-//    r = toku_pthread_create(&client_threads[2], 0, client, (void *)&client_specs[2]);  CKERR(r);
+    // start threads doing additional inserts - no lock issues since indexer
+    // already created
+    r = toku_pthread_create(toku_uninstrumented,
+                            &client_threads[0],
+                            nullptr,
+                            client,
+                            static_cast<void *>(&client_specs[0]));
+    CKERR(r);
+    r = toku_pthread_create(toku_uninstrumented,
+                            &client_threads[1],
+                            nullptr,
+                            client,
+                            static_cast<void *>(&client_specs[1]));
+    CKERR(r);
+    //    r = toku_pthread_create(toku_uninstrumented, &client_threads[2], 0,
+    //    client, (void *)&client_specs[2]);  CKERR(r);
 
     struct timeval start, now;
-    if ( verbose ) {
+    if (verbose) {
         printf("test_indexer build\n");
         gettimeofday(&start,0);
     }

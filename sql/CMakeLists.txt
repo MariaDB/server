@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2010, 2016, MariaDB Corporation
+# Copyright (c) 2010, 2018, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@ ELSE()
 ENDIF()
 
 INCLUDE_DIRECTORIES(
-${CMAKE_SOURCE_DIR}/include 
+${CMAKE_SOURCE_DIR}/include
 ${CMAKE_SOURCE_DIR}/sql 
 ${PCRE_INCLUDES}
 ${ZLIB_INCLUDE_DIR}
@@ -110,7 +110,7 @@ SET (SQL_SOURCE
                debug_sync.cc
                sql_repl.cc sql_select.cc sql_show.cc sql_state.c
                group_by_handler.cc
-               sql_statistics.cc sql_string.cc 
+               sql_statistics.cc sql_string.cc lex_string.h
                sql_table.cc sql_test.cc sql_trigger.cc sql_udf.cc sql_union.cc
                sql_update.cc sql_view.cc strfunc.cc table.cc thr_malloc.cc 
                sql_time.cc tztime.cc unireg.cc item_xmlfunc.cc 
@@ -122,7 +122,7 @@ SET (SQL_SOURCE
                rpl_rli.cc rpl_mi.cc sql_servers.cc sql_audit.cc
                sql_connect.cc scheduler.cc sql_partition_admin.cc
                sql_profile.cc event_parse_data.cc sql_alter.cc
-               sql_signal.cc rpl_handler.cc mdl.cc sql_admin.cc
+               sql_signal.cc mdl.cc sql_admin.cc
                transaction.cc sys_vars.cc sql_truncate.cc datadict.cc
                sql_reload.cc item_inetfunc.cc
 
@@ -138,17 +138,22 @@ SET (SQL_SOURCE
                my_apc.cc mf_iocache_encr.cc item_jsonfunc.cc
                my_json_writer.cc
                rpl_gtid.cc rpl_parallel.cc
+               semisync.cc semisync_master.cc semisync_slave.cc
+               semisync_master_ack_receiver.cc
                sql_type.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc
+               item_vers.cc
                sql_sequence.cc sql_sequence.h ha_sequence.h
                sql_tvc.cc sql_tvc.h
+               opt_split.cc
 	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc temporary_tables.cc
                proxy_protocol.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
+               vtmd.cc
 			   )
   
 IF (CMAKE_SYSTEM_NAME MATCHES "Linux" OR

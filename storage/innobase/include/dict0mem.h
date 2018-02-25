@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -298,7 +298,7 @@ result in recursive cascading calls. This defines the maximum number of
 such cascading deletes/updates allowed. When exceeded, the delete from
 parent table will fail, and user has to drop excessive foreign constraint
 before proceeds. */
-#define FK_MAX_CASCADE_DEL		255
+#define FK_MAX_CASCADE_DEL		15
 
 /**********************************************************************//**
 Creates a table memory object.
@@ -617,11 +617,10 @@ struct dict_col_t{
 					the string, MySQL uses 1 or 2
 					bytes to store the string length) */
 
-	unsigned	mbminmaxlen:5;	/*!< minimum and maximum length of a
-					character, in bytes;
-					DATA_MBMINMAXLEN(mbminlen,mbmaxlen);
-					mbminlen=DATA_MBMINLEN(mbminmaxlen);
-					mbmaxlen=DATA_MBMINLEN(mbminmaxlen) */
+	unsigned	mbminlen:3;	/*!< minimum length of a
+					character, in bytes */
+	unsigned	mbmaxlen:3;	/*!< maximum length of a
+					character, in bytes */
 	/*----------------------*/
 	/* End of definitions copied from dtype_t */
 	/* @} */
@@ -652,6 +651,22 @@ struct dict_col_t{
 	bool is_virtual() const { return prtype & DATA_VIRTUAL; }
 	/** @return whether NULL is an allowed value for this column */
 	bool is_nullable() const { return !(prtype & DATA_NOT_NULL); }
+
+	/** @return whether this is system field */
+	bool vers_sys_field() const { return prtype & DATA_VERSIONED; }
+	/** @return whether this is system versioned */
+	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
+	/** @return whether this is the system version start */
+	bool vers_sys_start() const
+	{
+		return (prtype & DATA_VERSIONED) == DATA_VERS_START;
+	}
+	/** @return whether this is the system version end */
+	bool vers_sys_end() const
+	{
+		return (prtype & DATA_VERSIONED) == DATA_VERS_END;
+	}
+
 	/** @return whether this is an instantly-added column */
 	bool is_instant() const
 	{
@@ -1064,8 +1079,12 @@ struct dict_index_t{
 	/** @return whether instant ADD COLUMN is in effect */
 	inline bool is_instant() const;
 
-	/** @return whether the index is the clustered index */
-	bool is_clust() const { return type & DICT_CLUSTERED; }
+	/** @return whether the index is the primary key index
+	(not the clustered index of the change buffer) */
+	bool is_primary() const
+	{
+		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
+	}
 
 	/** Determine how many fields of a given prefix can be set NULL.
 	@param[in]	n_prefix	number of fields in the prefix
@@ -1091,7 +1110,7 @@ struct dict_index_t{
 	@param[out]	len	value length (in bytes), or UNIV_SQL_NULL
 	@return	default value
 	@retval	NULL	if the default value is SQL NULL (len=UNIV_SQL_NULL) */
-	const byte* instant_field_value(uint n, ulint* len) const
+	const byte* instant_field_value(ulint n, ulint* len) const
 	{
 		DBUG_ASSERT(is_instant() || id == DICT_INDEXES_ID);
 		DBUG_ASSERT(n + (id == DICT_INDEXES_ID) >= n_core_fields);
@@ -1107,7 +1126,7 @@ struct dict_index_t{
 	Protected by index root page x-latch or table X-lock. */
 	void remove_instant()
 	{
-		DBUG_ASSERT(is_clust());
+		DBUG_ASSERT(is_primary());
 		if (!is_instant()) {
 			return;
 		}
@@ -1117,6 +1136,20 @@ struct dict_index_t{
 		n_core_fields = n_fields;
 		n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 	}
+
+	/** Check if record in clustered index is historical row.
+	@param[in]	rec	clustered row
+	@param[in]	offsets	offsets
+	@return true if row is historical */
+	bool
+	vers_history_row(const rec_t* rec, const ulint* offsets);
+
+	/** Check if record in secondary index is historical row.
+	@param[in]	rec	record in a secondary index
+	@param[out]	history_row true if row is historical
+	@return true on error */
+	bool
+	vers_history_row(const rec_t* rec, bool &history_row);
 };
 
 /** The status of online index creation */
@@ -1512,6 +1545,29 @@ struct dict_table_t {
 	/** Add the table definition to the data dictionary cache */
 	void add_to_cache();
 
+	bool versioned() const { return vers_start || vers_end; }
+	bool versioned_by_id() const
+	{
+		return vers_start && cols[vers_start].mtype == DATA_INT;
+	}
+
+	void inc_fk_checks()
+	{
+#ifdef UNIV_DEBUG
+		lint fk_checks=
+#endif
+		my_atomic_addlint(&n_foreign_key_checks_running, 1);
+		ut_ad(fk_checks >= 0);
+	}
+	void dec_fk_checks()
+	{
+#ifdef UNIV_DEBUG
+		lint fk_checks=
+#endif
+		my_atomic_addlint(&n_foreign_key_checks_running, -1);
+		ut_ad(fk_checks > 0);
+	}
+
 	/** Id of the table. */
 	table_id_t				id;
 
@@ -1555,6 +1611,13 @@ struct dict_table_t {
 	7 whether the aux FTS tables names are in hex.
 	Use DICT_TF2_FLAG_IS_SET() to parse this flag. */
 	unsigned				flags2:DICT_TF2_BITS;
+
+	/** TRUE if the table is an intermediate table during copy alter
+	operation or a partition/subpartition which is required for copying
+	data and skip the undo log for insertion of row in the table.
+	This variable will be set and unset during extra(), or during the
+	process of altering partitions */
+	unsigned                                skip_alter_undo:1;
 
 	/*!< whether this is in a single-table tablespace and the .ibd
 	file is missing or page decryption failed and page is corrupted */
@@ -1625,7 +1688,10 @@ struct dict_table_t {
 
 	/** Virtual column names */
 	const char*				v_col_names;
-
+	unsigned	vers_start:10;
+				/*!< System Versioning: row start col index */
+	unsigned	vers_end:10;
+				/*!< System Versioning: row end col index */
 	bool		is_system_db;
 				/*!< True if the table belongs to a system
 				database (mysql, information_schema or
@@ -1762,7 +1828,7 @@ struct dict_table_t {
 	/** How many rows are modified since last stats recalc. When a row is
 	inserted, updated, or deleted, we add 1 to this number; we calculate
 	new estimates for the table and the indexes if the table has changed
-	too much, see row_update_statistics_if_needed(). The counter is reset
+	too much, see dict_stats_update_if_needed(). The counter is reset
 	to zero at statistics calculation. This counter is not protected by
 	any latch, because this is only used for heuristics. */
 	ib_uint64_t				stat_modified_counter;
@@ -1842,7 +1908,7 @@ struct dict_table_t {
 	ulong					n_waiting_or_granted_auto_inc_locks;
 
 	/** The transaction that currently holds the the AUTOINC lock on this
-	table. Protected by lock_sys->mutex. */
+	table. Protected by lock_sys.mutex. */
 	const trx_t*				autoinc_trx;
 
 	/* @} */
@@ -1857,7 +1923,7 @@ struct dict_table_t {
 
 	/** Count of the number of record locks on this table. We use this to
 	determine whether we can evict the table from the dictionary cache.
-	It is protected by lock_sys->mutex. */
+	It is protected by lock_sys.mutex. */
 	ulint					n_rec_locks;
 
 #ifndef DBUG_ASSERT_EXISTS
@@ -1869,7 +1935,7 @@ private:
 	ulint					n_ref_count;
 
 public:
-	/** List of locks on the table. Protected by lock_sys->mutex. */
+	/** List of locks on the table. Protected by lock_sys.mutex. */
 	table_lock_list_t			locks;
 
 	/** Timestamp of the last modification of this table. */
@@ -2030,6 +2096,19 @@ dict_col_get_spatial_status(
 	}
 
 	return(spatial_status);
+}
+
+/** Clear defragmentation summary. */
+inline void dict_stats_empty_defrag_summary(dict_index_t* index)
+{
+	index->stat_defrag_n_pages_freed = 0;
+}
+
+/** Clear defragmentation related index stats. */
+inline void dict_stats_empty_defrag_stats(dict_index_t* index)
+{
+	index->stat_defrag_modified_counter = 0;
+	index->stat_defrag_n_page_split = 0;
 }
 
 #include "dict0mem.ic"

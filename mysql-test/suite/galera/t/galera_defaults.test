@@ -56,6 +56,7 @@ ORDER BY VARIABLE_NAME;
 	$wsrep_provider_options =~ s/evs\.evict = .*?;/<EVS_EVICT>;/sgio;
 	$wsrep_provider_options =~ s/signal = .*?;\s*//sgio;
 	$wsrep_provider_options =~ s/dbug = .*?;\s*//sgio;
+	$wsrep_provider_options =~ s/repl.proto_max = .*?;\s*/<REPL_PROTO_MAX>;/sgio;
 	print $wsrep_provider_options."\n";
 EOF
 

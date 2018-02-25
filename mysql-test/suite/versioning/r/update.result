@@ -1,0 +1,243 @@
+create table t1(
+x int unsigned,
+y int unsigned,
+sys_trx_start SYS_DATATYPE as row start invisible,
+sys_trx_end SYS_DATATYPE as row end invisible,
+period for system_time (sys_trx_start, sys_trx_end))
+with system versioning;
+insert into t1(x, y) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000), (6, 6000), (7, 7000), (8, 8000), (9, 9000);
+select x, y from t1;
+x	y
+1	1000
+2	2000
+3	3000
+4	4000
+5	5000
+6	6000
+7	7000
+8	8000
+9	9000
+update t1 set y = y + 1 where x > 7;
+select x, y from t1;
+x	y
+1	1000
+2	2000
+3	3000
+4	4000
+5	5000
+6	6000
+7	7000
+8	8001
+9	9001
+select x, y from t1 for system_time all;
+x	y
+1	1000
+2	2000
+3	3000
+4	4000
+5	5000
+6	6000
+7	7000
+8	8001
+9	9001
+8	8000
+9	9000
+drop table t1;
+create table t1 (
+id bigint primary key,
+x int,
+y int without system versioning,
+sys_trx_start SYS_DATATYPE as row start invisible,
+sys_trx_end SYS_DATATYPE as row end invisible,
+period for system_time (sys_trx_start, sys_trx_end))
+with system versioning;
+insert into t1 values(1, 1, 1);
+set @ins_t= now(6);
+select sys_trx_start into @tmp1 from t1;
+update t1 set x= 11, y= 11 where id = 1;
+select @tmp1 < sys_trx_start as A1, x, y from t1;
+A1	x	y
+1	11	11
+select sys_trx_start into @tmp1 from t1;
+update t1 set y= 1 where id = 1;
+select @tmp1 = sys_trx_start as A2, x from t1;
+A2	x
+1	11
+drop table t1;
+create table t1 (
+x int,
+y int,
+sys_trx_start SYS_DATATYPE as row start invisible,
+sys_trx_end SYS_DATATYPE as row end invisible,
+period for system_time (sys_trx_start, sys_trx_end)
+) with system versioning;
+insert into t1 (x, y) values (1, 1), (2, 1), (3, 1), (4, 1), (5, 1);
+start transaction;
+update t1 set y= y + 1 where x = 3;
+update t1 set y= y + 1 where x = 2;
+update t1 set y= y + 1 where x = 3;
+update t1 set y= y + 1 where x > 3;
+update t1 set y= y + 1 where x > 4;
+commit;
+select x, y, sys_trx_end = MAXVAL as current from t1 for system_time all;
+x	y	current
+1	1	1
+2	2	1
+3	3	1
+4	2	1
+5	3	1
+3	1	0
+2	1	0
+3	2	0
+4	1	0
+5	1	0
+5	2	0
+drop table t1;
+create table t1 (
+id int primary key auto_increment,
+x int,
+sys_trx_start SYS_DATATYPE as row start invisible,
+sys_trx_end SYS_DATATYPE as row end invisible,
+period for system_time (sys_trx_start, sys_trx_end))
+with system versioning;
+set @t0= now(6);
+insert into t1 (x) values (1);
+set @t1= now(6);
+update t1 set x= 2 where id = 1;
+set @t2= now(6);
+update t1 set x= 3 where id = 1;
+select x from t1 for system_time as of timestamp @t0;
+x
+select x from t1 for system_time as of timestamp @t1;
+x
+1
+select x from t1 for system_time as of timestamp @t2;
+x
+2
+select x from t1 for system_time as of timestamp now(6);
+x
+3
+drop table t1;
+create table t1(
+x int unsigned,
+sys_trx_end SYS_DATATYPE as row end invisible,
+sys_trx_start SYS_DATATYPE as row start invisible,
+y int unsigned,
+period for system_time (sys_trx_start, sys_trx_end),
+primary key(x, y))
+with system versioning;
+insert into t1(x, y) values (1, 1000), (3, 3000), (4, 4000), (5, 5000);
+insert into t1(x, y) values(3, 3000) on duplicate key update y = y+1;
+insert into t1(x, y) values(4, 4444) on duplicate key update y = y+1;
+select x, y from t1 for system_time all;
+x	y
+1	1000
+3	3000
+3	3001
+4	4000
+4	4444
+5	5000
+select x, y from t1;
+x	y
+1	1000
+3	3001
+4	4000
+4	4444
+5	5000
+drop table t1;
+create table t1 (
+x int unsigned,
+y int unsigned,
+sys_trx_start SYS_DATATYPE as row start invisible,
+sys_trx_end SYS_DATATYPE as row end invisible,
+period for system_time (sys_trx_start, sys_trx_end))
+with system versioning;
+create table t2 like t1;
+insert into t1(x, y) values (1, 1000), (2, 2000), (3, 3000), (4, 4000), (5, 5000), (6, 6000), (7, 7000), (8, 8000), (9, 9000);
+insert into t2(x, y) values (1, 1010), (2, 2010), (3, 3010), (4, 4010), (5, 5010), (6, 6010), (7, 7010), (8, 8010), (9, 9010);
+update t1, t2 set t1.y = t1.x + t1.y, t2.y = t2.x + t2.y where t1.x > 7 and t2.x < 7;
+select x, y from t1 for system_time all;
+x	y
+1	1000
+2	2000
+3	3000
+4	4000
+5	5000
+6	6000
+7	7000
+8	8008
+9	9009
+8	8000
+9	9000
+select x, y from t1;
+x	y
+1	1000
+2	2000
+3	3000
+4	4000
+5	5000
+6	6000
+7	7000
+8	8008
+9	9009
+select x, y from t2 for system_time all;
+x	y
+1	1011
+2	2012
+3	3013
+4	4014
+5	5015
+6	6016
+7	7010
+8	8010
+9	9010
+1	1010
+2	2010
+3	3010
+4	4010
+5	5010
+6	6010
+select x, y from t2;
+x	y
+1	1011
+2	2012
+3	3013
+4	4014
+5	5015
+6	6016
+7	7010
+8	8010
+9	9010
+drop table t1;
+drop table t2;
+create table t1 (
+id bigint primary key without system versioning,
+name varchar(128),
+salary bigint without system versioning,
+sys_trx_start SYS_DATATYPE as row start invisible,
+sys_trx_end SYS_DATATYPE as row end invisible,
+period for system_time (sys_trx_start, sys_trx_end))
+with system versioning;
+create table t2 like t1;
+insert into t1 values (1, "Jeremy", 3000);
+insert into t2 values (1, "Jeremy", 4000);
+select sys_trx_start into @tmp1 from t1;
+select sys_trx_start into @tmp2 from t2;
+update t1, t2 set t1.name= "Jerry", t2.name= "Jerry" where t1.id = t2.id and t1.name = "Jeremy";
+select @tmp1 < sys_trx_start as A1, name from t1;
+A1	name
+1	Jerry
+select @tmp2 < sys_trx_start as A2, name from t2;
+A2	name
+1	Jerry
+select sys_trx_start into @tmp1 from t1;
+select sys_trx_start into @tmp2 from t2;
+update t1, t2 set t1.salary= 2500, t2.salary= 2500 where t1.id = t2.id and t1.name = "Jerry";
+select @tmp1 = sys_trx_start as B1, salary from t1;
+B1	salary
+1	2500
+select @tmp2 = sys_trx_start as B2, salary from t2;
+B2	salary
+1	2500
+drop table t1;
+drop table t2;

@@ -39,6 +39,18 @@ drop view v1;
 drop table t1,t2,t3,t4;
 
 --echo #
+--echo # MDEV-14862: Server crashes in Bitmap<64u>::merge / add_key_field
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 (b INT) ENGINE=InnoDB;
+DELETE FROM v1 WHERE a IN ( SELECT a FROM t2 );
+DELETE FROM v1 WHERE (a,a) IN ( SELECT a,a FROM t2 );
+drop view v1;
+drop table t1,t2;
+
+--echo #
 --echo # MDEV-10232 Scalar result of subquery changes after adding an outer select stmt
 --echo #
 

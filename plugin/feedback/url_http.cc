@@ -40,9 +40,9 @@ class Url_http: public Url {
   bool ssl;
   LEX_STRING proxy_host, proxy_port;
 
-  int use_proxy()
+  bool use_proxy()
   {
-    return proxy_host.length;
+    return proxy_host.length != 0;
   }
 
   Url_http(LEX_STRING &url_arg, LEX_STRING &host_arg,
@@ -166,7 +166,7 @@ int Url_http::send(const char* data, size_t data_length)
 {
   my_socket fd= INVALID_SOCKET;
   char buf[1024];
-  uint len= 0;
+  size_t len= 0;
 
   addrinfo *addrs, *addr, filter= {0, AF_UNSPEC, SOCK_STREAM, 6, 0, 0, 0, 0};
   int res= use_proxy() ?
@@ -186,7 +186,7 @@ int Url_http::send(const char* data, size_t data_length)
     if (fd == INVALID_SOCKET)
       continue;
 
-    if (connect(fd, addr->ai_addr, addr->ai_addrlen) == 0)
+    if (connect(fd, addr->ai_addr, (int) addr->ai_addrlen) == 0)
       break;
 
     closesocket(fd);

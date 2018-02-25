@@ -1746,7 +1746,7 @@ drop procedure bug15091;
 drop function if exists bug16896;
 --enable_warnings
 
---error ER_PARSE_ERROR
+--error ER_INVALID_AGGREGATE_FUNCTION
 create aggregate function bug16896() returns int return 1;
 
 #

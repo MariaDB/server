@@ -68,7 +68,6 @@ mysql_pfs_key_t	redo_rseg_mutex_key;
 mysql_pfs_key_t	noredo_rseg_mutex_key;
 mysql_pfs_key_t page_zip_stat_per_index_mutex_key;
 # ifdef UNIV_DEBUG
-mysql_pfs_key_t	sync_thread_mutex_key;
 mysql_pfs_key_t	rw_lock_debug_mutex_key;
 # endif /* UNIV_DEBUG */
 mysql_pfs_key_t rtr_active_mutex_key;
@@ -96,6 +95,7 @@ mysql_pfs_key_t	sync_array_mutex_key;
 mysql_pfs_key_t	thread_mutex_key;
 mysql_pfs_key_t zip_pad_mutex_key;
 mysql_pfs_key_t row_drop_list_mutex_key;
+mysql_pfs_key_t	rw_trx_hash_element_mutex_key;
 #endif /* UNIV_PFS_MUTEX */
 #ifdef UNIV_PFS_RWLOCK
 mysql_pfs_key_t	btr_search_latch_key;
@@ -117,7 +117,7 @@ mysql_pfs_key_t	trx_purge_latch_key;
 #endif /* UNIV_PFS_RWLOCK */
 
 /** For monitoring active mutexes */
-MutexMonitor*	mutex_monitor;
+MutexMonitor	mutex_monitor;
 
 /**
 Prints wait info of the sync system.
@@ -148,13 +148,13 @@ sync_print_wait_info(FILE* file)
 		" %.2f RW-excl, %.2f RW-sx\n",
 		(double) rw_lock_stats.rw_s_spin_round_count /
 		(rw_lock_stats.rw_s_spin_wait_count
-		 ? rw_lock_stats.rw_s_spin_wait_count : 1),
+		 ? rw_lock_stats.rw_s_spin_wait_count : 1LL),
 		(double) rw_lock_stats.rw_x_spin_round_count /
 		(rw_lock_stats.rw_x_spin_wait_count
-		 ? rw_lock_stats.rw_x_spin_wait_count : 1),
+		 ? rw_lock_stats.rw_x_spin_wait_count : 1LL),
 		(double) rw_lock_stats.rw_sx_spin_round_count /
 		(rw_lock_stats.rw_sx_spin_wait_count
-		 ? rw_lock_stats.rw_sx_spin_wait_count : 1));
+		 ? rw_lock_stats.rw_sx_spin_wait_count : 1LL));
 }
 
 /**

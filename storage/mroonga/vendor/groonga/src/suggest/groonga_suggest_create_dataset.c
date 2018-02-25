@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2010-2013 Brazil
+/* Copyright(C) 2010-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,13 +15,13 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
+/* For grn_str_getopt() */
+#include <grn_str.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <groonga.h>
-
-/* For grn_str_getopt() */
-#include <grn_str.h>
 
 typedef enum {
   MODE_NONE,
@@ -151,26 +151,29 @@ main(int argc, char **argv)
     grn_obj text;
     GRN_TEXT_INIT(&text, 0);
 #define SEND(string) send_command(ctx, &text, string, dataset_name)
-    SEND("register suggest/suggest");
+    SEND("plugin_register suggest/suggest");
     SEND("table_create event_type TABLE_HASH_KEY ShortText");
     {
       grn_obj query;
       GRN_TEXT_INIT(&query, 0);
       GRN_TEXT_PUTS(ctx, &query,
-                    "table_create bigram TABLE_PAT_KEY|KEY_NORMALIZE ShortText "
+                    "table_create bigram TABLE_PAT_KEY ShortText "
                     "--default_tokenizer ");
       if (default_tokenizer) {
         GRN_TEXT_PUTS(ctx, &query, default_tokenizer);
       } else {
         GRN_TEXT_PUTS(ctx, &query, DEFAULT_DEFAULT_TOKENIZER);
       }
+      GRN_TEXT_PUTS(ctx, &query, " --normalizer NormalizerAuto");
       GRN_TEXT_PUTC(ctx, &query, '\0');
       SEND(GRN_TEXT_VALUE(&query));
       GRN_OBJ_FIN(ctx, &query);
     }
-    SEND("table_create kana TABLE_PAT_KEY|KEY_NORMALIZE ShortText");
-    SEND("table_create item_${DATASET} TABLE_PAT_KEY|KEY_NORMALIZE "
-         "ShortText --default_tokenizer TokenDelimit");
+    SEND("table_create kana TABLE_PAT_KEY ShortText "
+         "--normalizer NormalizerAuto");
+    SEND("table_create item_${DATASET} TABLE_PAT_KEY "
+         "ShortText --default_tokenizer TokenDelimit "
+         "--normalizer NormalizerAuto");
     SEND("column_create bigram item_${DATASET}_key "
          "COLUMN_INDEX|WITH_POSITION item_${DATASET} _key");
     SEND("column_create item_${DATASET} kana COLUMN_VECTOR kana");

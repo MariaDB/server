@@ -73,9 +73,9 @@ LEX_USER *create_definer(THD *thd, LEX_CSTRING *user_name, LEX_CSTRING *host_nam
 LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock=true);
 bool sp_process_definer(THD *thd);
 bool check_string_byte_length(const LEX_CSTRING *str, uint err_msg,
-                              uint max_byte_length);
+                              size_t max_byte_length);
 bool check_string_char_length(const LEX_CSTRING *str, uint err_msg,
-                              uint max_char_length, CHARSET_INFO *cs,
+                              size_t max_char_length, CHARSET_INFO *cs,
                               bool no_error);
 bool check_ident_length(const LEX_CSTRING *ident);
 CHARSET_INFO* merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl);
@@ -87,7 +87,7 @@ bool mysql_test_parse_for_slave(THD *thd,char *inBuf,uint length);
 bool sqlcom_can_generate_row_events(const THD *thd);
 bool is_update_query(enum enum_sql_command command);
 bool is_log_table_write_query(enum enum_sql_command command);
-bool alloc_query(THD *thd, const char *packet, uint packet_length);
+bool alloc_query(THD *thd, const char *packet, size_t packet_length);
 void mysql_init_select(LEX *lex);
 void mysql_parse(THD *thd, char *rawbuf, uint length,
                  Parser_state *parser_state, bool is_com_multi,
@@ -107,9 +107,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                       bool is_com_multi, bool is_next_command);
 void log_slow_statement(THD *thd);
 bool append_file_to_dir(THD *thd, const char **filename_ptr,
-                        const char *table_name);
-bool append_file_to_dir(THD *thd, const char **filename_ptr,
-                        const char *table_name);
+                        const LEX_CSTRING *table_name);
 void execute_init_command(THD *thd, LEX_STRING *init_command,
                           mysql_rwlock_t *var_lock);
 bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *group, bool asc);
@@ -131,7 +129,7 @@ bool check_stack_overrun(THD *thd, long margin, uchar *dummy);
 extern const char* any_db;
 extern uint sql_command_flags[];
 extern uint server_command_flags[];
-extern const LEX_STRING command_name[];
+extern const LEX_CSTRING command_name[];
 extern uint server_command_flags[];
 
 /* Inline functions */
@@ -149,8 +147,9 @@ inline bool check_identifier_name(LEX_CSTRING *str)
 bool check_one_table_access(THD *thd, ulong privilege, TABLE_LIST *tables);
 bool check_single_table_access(THD *thd, ulong privilege,
 			   TABLE_LIST *tables, bool no_errors);
-bool check_routine_access(THD *thd,ulong want_access,const char *db,
-                          const char *name,
+bool check_routine_access(THD *thd,ulong want_access,
+                          const LEX_CSTRING *db,
+                          const LEX_CSTRING *name,
                           const Sp_handler *sph, bool no_errors);
 bool check_some_access(THD *thd, ulong want_access, TABLE_LIST *table);
 bool check_some_routine_access(THD *thd, const char *db, const char *name,
@@ -165,8 +164,9 @@ inline bool check_one_table_access(THD *thd, ulong privilege, TABLE_LIST *tables
 inline bool check_single_table_access(THD *thd, ulong privilege,
 			   TABLE_LIST *tables, bool no_errors)
 { return false; }
-inline bool check_routine_access(THD *thd,ulong want_access, const char *db,
-                                 const char *name,
+inline bool check_routine_access(THD *thd,ulong want_access,
+                                 const LEX_CSTRING *db,
+                                 const LEX_CSTRING *name,
                                  const Sp_handler *sph, bool no_errors)
 { return false; }
 inline bool check_some_access(THD *thd, ulong want_access, TABLE_LIST *table)

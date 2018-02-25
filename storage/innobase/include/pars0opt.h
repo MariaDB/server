@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,7 +29,6 @@ Created 12/21/1997 Heikki Tuuri
 
 #include "univ.i"
 #include "que0types.h"
-#include "usr0types.h"
 #include "pars0sym.h"
 #include "dict0types.h"
 #include "row0sel.h"

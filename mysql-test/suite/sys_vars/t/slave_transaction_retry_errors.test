@@ -1,0 +1,19 @@
+--source include/not_embedded.inc
+#
+# only global
+#
+select @@global.slave_transaction_retry_errors;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.slave_transaction_retry_errors;
+show global variables like 'slave_transaction_retry_errors';
+show session variables like 'slave_transaction_retry_errors';
+select * from information_schema.global_variables where variable_name='slave_transaction_retry_errors';
+select * from information_schema.session_variables where variable_name='slave_transaction_retry_errors';
+
+#
+# show that it's read-only
+#
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global slave_transaction_retry_errors=1;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set session slave_transaction_retry_errors=1;

@@ -32,15 +32,19 @@ then
   configure="$configure --verbose"
 fi
 
+commands=""
 # git clean -fdX removes all ignored (build) files
-commands="\
+if test -d .git
+then
+    commands="\
 git clean -fdX
 cd ./libmariadb
 git submodule update
 cd ../storage/rocksdb/rocksdb
 git submodule update
-cd ../../..
-
+cd ../../.."
+fi
+commands="$commands
 path=`dirname $0`
 . \"$path/autorun.sh\""
 

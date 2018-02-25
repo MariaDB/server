@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2016, MariaDB Corporation. All rights Reserved.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -88,6 +88,5 @@ Save defragmentation stats for a given index.
 dberr_t
 dict_stats_save_defrag_stats(
 /*============================*/
-	dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
+	dict_index_t*	index);	/*!< in: index */
 #endif /* dict0defrag_bg_h */

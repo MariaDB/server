@@ -445,13 +445,13 @@ uint Explain_union::make_union_table_name(char *buf)
     default:
       DBUG_ASSERT(0);
   }
-  memcpy(buf, type.str, (len= type.length));
+  memcpy(buf, type.str, (len= (uint)type.length));
 
   for (; childno < union_members.elements() && len + lastop + 5 < NAME_LEN;
        childno++)
   {
     len+= lastop;
-    lastop= my_snprintf(buf + len, NAME_LEN - len,
+    lastop= (uint)my_snprintf(buf + len, NAME_LEN - len,
                         "%u,", union_members.at(childno));
   }
 
@@ -974,6 +974,7 @@ Explain_aggr_filesort::Explain_aggr_filesort(MEM_ROOT *mem_root,
   for (ORDER *ord= filesort->order; ord; ord= ord->next)
   {
     sort_items.push_back(ord->item[0], mem_root);
+    sort_directions.push_back(&ord->direction, mem_root);
   }
   filesort->tracker= &tracker;
 }
@@ -987,10 +988,13 @@ void Explain_aggr_filesort::print_json_members(Json_writer *writer,
   str.length(0);
   
   List_iterator_fast<Item> it(sort_items);
-  Item *item;
+  List_iterator_fast<ORDER::enum_order> it_dir(sort_directions);
+  Item* item;
+  ORDER::enum_order *direction;
   bool first= true;
   while ((item= it++))
   {
+    direction= it_dir++;
     if (first)
       first= false;
     else
@@ -998,6 +1002,8 @@ void Explain_aggr_filesort::print_json_members(Json_writer *writer,
       str.append(", ");
     }
     append_item_to_str(&str, item);
+    if (*direction == ORDER::ORDER_DESC)
+      str.append(" desc");
   }
 
   writer->add_member("sort_key").add_str(str.c_ptr_safe());
@@ -1813,9 +1819,9 @@ const char * extra_tag_text[]=
 
   "Using join buffer", // special handling 
 
-  "const row not found",
-  "unique row not found",
-  "Impossible ON condition"
+  "Const row not found",
+  "Unique row not found",
+  "Impossible ON condition",
 };
 
 

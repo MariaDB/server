@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2013 Brazil
+/*
+  Copyright(C) 2009-2017 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -280,7 +281,7 @@ grn_geo_table_sort_detect_far_point(grn_ctx *ctx, grn_obj *table, grn_obj *index
   while ((tid = grn_pat_cursor_next(ctx, pc))) {
     grn_ii_cursor *ic = grn_ii_cursor_open(ctx, (grn_ii *)index, tid, 0, 0, 1, 0);
     if (ic) {
-      grn_ii_posting *posting;
+      grn_posting *posting;
       grn_gton(geo_key_prev, &point, sizeof(grn_geo_point));
       grn_pat_get_key(ctx, pat, tid, &point, sizeof(grn_geo_point));
       grn_gton(geo_key_curr, &point, sizeof(grn_geo_point));
@@ -553,7 +554,7 @@ grn_geo_table_sort_collect_points(grn_ctx *ctx, grn_obj *table, grn_obj *index,
         if (ic) {
           double d;
           grn_geo_point pos;
-          grn_ii_posting *posting;
+          grn_posting *posting;
           grn_pat_get_key(ctx, pat, tid, &pos, sizeof(grn_geo_point));
           d = grn_geo_distance_rectangle_raw(ctx, base_point, &pos);
           inspect_tid(ctx, tid, &pos, d);
@@ -686,25 +687,65 @@ grn_geo_table_sort_by_distance(grn_ctx *ctx,
 
 int
 grn_geo_table_sort(grn_ctx *ctx, grn_obj *table, int offset, int limit,
-                   grn_obj *result, grn_table_sort_key *keys, int n_keys)
+                   grn_obj *result, grn_obj *column, grn_obj *geo_point)
 {
   grn_obj *index;
-  int i = 0, e = offset + limit;
-  grn_bool accessorp = GRN_ACCESSORP(keys->key);
-  if (n_keys == 2 && (index = find_geo_sort_index(ctx, keys->key))) {
+  int i = 0;
+
+  GRN_API_ENTER;
+
+  if (offset < 0 || limit < 0) {
+    unsigned int size;
+    grn_rc rc;
+    size = grn_table_size(ctx, table);
+    rc = grn_normalize_offset_and_limit(ctx, size, &offset, &limit);
+    if (rc != GRN_SUCCESS) {
+      ERR(rc,
+          "[sort][geo] failed to normalize offset and limit: "
+          "offset:%d limit:%d table-size:%u",
+          offset, limit, size);
+      GRN_API_RETURN(i);
+    }
+  }
+
+  if ((index = find_geo_sort_index(ctx, column))) {
     grn_id tid;
-    grn_obj *arg = keys[1].key;
     grn_pat *pat = (grn_pat *)grn_ctx_at(ctx, index->header.domain);
-    grn_id domain = pat->obj.header.domain;
-    grn_pat_cursor *pc = grn_pat_cursor_open(ctx, pat, NULL, 0,
-                                             GRN_BULK_HEAD(arg), GRN_BULK_VSIZE(arg),
-                                             0, -1, GRN_CURSOR_PREFIX);
+    grn_id domain;
+    grn_pat_cursor *pc;
+    if (!pat) {
+      char index_name[GRN_TABLE_MAX_KEY_SIZE];
+      int index_name_size;
+      char lexicon_name[GRN_TABLE_MAX_KEY_SIZE];
+      int lexicon_name_size;
+      index_name_size = grn_obj_name(ctx,
+                                     index,
+                                     index_name,
+                                     GRN_TABLE_MAX_KEY_SIZE);
+      lexicon_name_size = grn_table_get_key(ctx,
+                                            grn_ctx_db(ctx),
+                                            index->header.domain,
+                                            lexicon_name,
+                                            GRN_TABLE_MAX_KEY_SIZE);
+      ERR(GRN_OBJECT_CORRUPT,
+          "[sort][geo] lexicon is broken: <%.*s>: <%.*s>(%d)",
+          index_name_size, index_name,
+          lexicon_name_size, lexicon_name,
+          index->header.domain);
+      GRN_API_RETURN(i);
+    }
+    domain = pat->obj.header.domain;
+    pc = grn_pat_cursor_open(ctx, pat, NULL, 0,
+                             GRN_BULK_HEAD(geo_point),
+                             GRN_BULK_VSIZE(geo_point),
+                             0, -1, GRN_CURSOR_PREFIX);
     if (pc) {
       if (domain != GRN_DB_TOKYO_GEO_POINT && domain != GRN_DB_WGS84_GEO_POINT) {
+        int e = offset + limit;
         while (i < e && (tid = grn_pat_cursor_next(ctx, pc))) {
           grn_ii_cursor *ic = grn_ii_cursor_open(ctx, (grn_ii *)index, tid, 0, 0, 1, 0);
           if (ic) {
-            grn_ii_posting *posting;
+            grn_posting *posting;
             while (i < e && (posting = grn_ii_cursor_next(ctx, ic))) {
               if (offset <= i) {
                 grn_id *v;
@@ -717,15 +758,17 @@ grn_geo_table_sort(grn_ctx *ctx, grn_obj *table, int offset, int limit,
           }
         }
       } else {
-        grn_geo_point *base_point = (grn_geo_point *)GRN_BULK_HEAD(arg);
+        grn_geo_point *base_point = (grn_geo_point *)GRN_BULK_HEAD(geo_point);
         i = grn_geo_table_sort_by_distance(ctx, table, index, pat,
-                                           pc, accessorp, base_point,
+                                           pc,
+                                           GRN_ACCESSORP(column),
+                                           base_point,
                                            offset, limit, result);
       }
       grn_pat_cursor_close(ctx, pc);
     }
   }
-  return i;
+  GRN_API_RETURN(i);
 }
 
 grn_rc
@@ -789,7 +832,7 @@ grn_selector_geo_in_circle(grn_ctx *ctx, grn_obj *table, grn_obj *index,
     point_column = args[1];
     column_name_size = grn_obj_name(ctx, point_column,
                                     column_name, GRN_TABLE_MAX_KEY_SIZE);
-    ERR(GRN_INVALID_ARGUMENT,
+    ERR(GRN_FUNCTION_NOT_IMPLEMENTED,
         "geo_in_circle(): index for <%.*s> is missing",
         column_name_size, column_name);
     return ctx->rc;
@@ -852,6 +895,27 @@ grn_geo_select_in_circle(grn_ctx *ctx, grn_obj *index,
   grn_geo_point *center, on_circle;
   grn_geo_distance_raw_func distance_raw_func;
   pat = grn_ctx_at(ctx, index->header.domain);
+  if (!pat) {
+    char index_name[GRN_TABLE_MAX_KEY_SIZE];
+    int index_name_size;
+    char lexicon_name[GRN_TABLE_MAX_KEY_SIZE];
+    int lexicon_name_size;
+    index_name_size = grn_obj_name(ctx,
+                                   index,
+                                   index_name,
+                                   GRN_TABLE_MAX_KEY_SIZE);
+    lexicon_name_size = grn_table_get_key(ctx,
+                                          grn_ctx_db(ctx),
+                                          index->header.domain,
+                                          lexicon_name,
+                                          GRN_TABLE_MAX_KEY_SIZE);
+    ERR(GRN_OBJECT_CORRUPT,
+        "geo_in_circle(): lexicon is broken: <%.*s>: <%.*s>(%d)",
+        index_name_size, index_name,
+        lexicon_name_size, lexicon_name,
+        index->header.domain);
+    goto exit;
+  }
   domain = pat->header.domain;
   if (domain != GRN_DB_TOKYO_GEO_POINT && domain != GRN_DB_WGS84_GEO_POINT) {
     char name[GRN_TABLE_MAX_KEY_SIZE];
@@ -1024,6 +1088,29 @@ in_rectangle_data_fill(grn_ctx *ctx, grn_obj *index,
   const char *domain_name;
 
   data->pat = grn_ctx_at(ctx, index->header.domain);
+  if (!data->pat) {
+    char index_name[GRN_TABLE_MAX_KEY_SIZE];
+    int index_name_size;
+    char lexicon_name[GRN_TABLE_MAX_KEY_SIZE];
+    int lexicon_name_size;
+    index_name_size = grn_obj_name(ctx,
+                                   index,
+                                   index_name,
+                                   GRN_TABLE_MAX_KEY_SIZE);
+    lexicon_name_size = grn_table_get_key(ctx,
+                                          grn_ctx_db(ctx),
+                                          index->header.domain,
+                                          lexicon_name,
+                                          GRN_TABLE_MAX_KEY_SIZE);
+    ERR(GRN_OBJECT_CORRUPT,
+        "%s: lexicon lexicon is broken: <%.*s>: <%.*s>(%d)",
+        process_name,
+        index_name_size, index_name,
+        lexicon_name_size, lexicon_name,
+        index->header.domain);
+    return;
+  }
+
   domain = data->pat->header.domain;
   if (domain != GRN_DB_TOKYO_GEO_POINT && domain != GRN_DB_WGS84_GEO_POINT) {
     char name[GRN_TABLE_MAX_KEY_SIZE];
@@ -1243,7 +1330,8 @@ in_rectangle_data_prepare(grn_ctx *ctx, grn_obj *index,
                           in_rectangle_data *data)
 {
   if (!index) {
-    ERR(GRN_INVALID_ARGUMENT, "%s: index column is missing", process_name);
+    ERR(GRN_FUNCTION_NOT_IMPLEMENTED,
+        "%s: index column is missing", process_name);
     goto exit;
   }
 
@@ -1788,7 +1876,7 @@ grn_geo_cursor_entry_next(grn_ctx *ctx,
   return GRN_TRUE;
 }
 
-typedef grn_bool (*grn_geo_cursor_callback)(grn_ctx *ctx, grn_ii_posting *posting, void *user_data);
+typedef grn_bool (*grn_geo_cursor_callback)(grn_ctx *ctx, grn_posting *posting, void *user_data);
 
 static void
 grn_geo_cursor_each(grn_ctx *ctx, grn_obj *geo_cursor,
@@ -1799,7 +1887,7 @@ grn_geo_cursor_each(grn_ctx *ctx, grn_obj *geo_cursor,
   grn_table_cursor *pat_cursor;
   grn_ii *ii;
   grn_ii_cursor *ii_cursor;
-  grn_ii_posting *posting = NULL;
+  grn_posting *posting = NULL;
   grn_geo_point *current, *top_left, *bottom_right;
   grn_id index_id;
 
@@ -1886,10 +1974,10 @@ grn_geo_cursor_each(grn_ctx *ctx, grn_obj *geo_cursor,
 }
 
 static grn_bool
-grn_geo_cursor_next_callback(grn_ctx *ctx, grn_ii_posting *posting,
+grn_geo_cursor_next_callback(grn_ctx *ctx, grn_posting *posting,
                              void *user_data)
 {
-  grn_ii_posting **return_posting = user_data;
+  grn_posting **return_posting = user_data;
   *return_posting = posting;
   return GRN_FALSE;
 }
@@ -1897,7 +1985,7 @@ grn_geo_cursor_next_callback(grn_ctx *ctx, grn_ii_posting *posting,
 grn_posting *
 grn_geo_cursor_next(grn_ctx *ctx, grn_obj *geo_cursor)
 {
-  grn_ii_posting *posting = NULL;
+  grn_posting *posting = NULL;
   grn_geo_cursor_each(ctx, geo_cursor, grn_geo_cursor_next_callback, &posting);
   return (grn_posting *)posting;
 }
@@ -1925,7 +2013,7 @@ typedef struct {
 } grn_geo_select_in_rectangle_data;
 
 static grn_bool
-grn_geo_select_in_rectangle_callback(grn_ctx *ctx, grn_ii_posting *posting,
+grn_geo_select_in_rectangle_callback(grn_ctx *ctx, grn_posting *posting,
                                      void *user_data)
 {
   grn_geo_select_in_rectangle_data *data = user_data;

@@ -419,7 +419,6 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
   {
     sys_var *svar;
     LEX_CSTRING var;
-    uint not_used;
 
     lasts= (char *) memchr(token, separator, rest);
 
@@ -433,7 +432,7 @@ bool Session_sysvars_tracker::vars_list::parse_var_list(THD *thd,
       var.length= rest;
 
     /* Remove leading/trailing whitespace. */
-    trim_whitespace(char_set, &var, &not_used);
+    trim_whitespace(char_set, &var);
 
     if(!strcmp(var.str, "*"))
     {
@@ -501,7 +500,6 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
   for (;;)
   {
     LEX_CSTRING var;
-    uint not_used;
 
     lasts= (char *) memchr(token, separator, rest);
 
@@ -515,7 +513,7 @@ bool Session_sysvars_tracker::check_var_list(THD *thd,
       var.length= rest;
 
     /* Remove leading/trailing whitespace. */
-    trim_whitespace(char_set, &var, &not_used);
+    trim_whitespace(char_set, &var);
 
     if(!strcmp(var.str, "*") &&
        !find_sys_var_ex(thd, var.str, var.length, throw_error, true))
@@ -974,7 +972,7 @@ bool Current_schema_tracker::store(THD *thd, String *buf)
     It saves length of database name and name of database name +
     length of saved length of database length.
   */
-  length= db_length= thd->db_length;
+  length= db_length= thd->db.length;
   length += net_length_size(length);
 
   compile_time_assert(SESSION_TRACK_SCHEMA < 251);
@@ -991,7 +989,7 @@ bool Current_schema_tracker::store(THD *thd, String *buf)
   buf->q_net_store_length(length);
 
   /* Length and current schema name */
-  buf->q_net_store_data((const uchar *)thd->db, thd->db_length);
+  buf->q_net_store_data((const uchar *)thd->db.str, thd->db.length);
 
   reset();
 

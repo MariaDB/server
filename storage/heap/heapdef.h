@@ -83,7 +83,6 @@ extern uchar *hp_search_next(HP_INFO *info, HP_KEYDEF *keyinfo,
 			    const uchar *key, HASH_INFO *pos);
 extern ulong hp_hashnr(HP_KEYDEF *keyinfo,const uchar *key);
 extern ulong hp_rec_hashnr(HP_KEYDEF *keyinfo,const uchar *rec);
-extern ulong hp_mask(ulong hashnr,ulong buffmax,ulong maxlength);
 extern void hp_movelink(HASH_INFO *pos,HASH_INFO *next_link,
 			 HASH_INFO *newlink);
 extern int hp_rec_key_cmp(HP_KEYDEF *keydef,const uchar *rec1,
@@ -111,3 +110,22 @@ void init_heap_psi_keys();
 #endif /* HAVE_PSI_INTERFACE */
 
 C_MODE_END
+
+/*
+  Calculate position number for hash value.
+  SYNOPSIS
+    hp_mask()
+      hashnr     Hash value
+      buffmax    Value such that
+                 2^(n-1) < maxlength <= 2^n = buffmax
+      maxlength
+
+  RETURN
+    Array index, in [0..maxlength)
+*/
+
+static inline ulong hp_mask(ulong hashnr, ulong buffmax, ulong maxlength)
+{
+  if ((hashnr & (buffmax-1)) < maxlength) return (hashnr & (buffmax-1));
+  return (hashnr & ((buffmax >> 1) -1));
+}

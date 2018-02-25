@@ -65,6 +65,12 @@ set global rpl_semi_sync_master_enabled=1e1;
 ERROR 42000: Incorrect argument type to variable 'rpl_semi_sync_master_enabled'
 set global rpl_semi_sync_master_enabled="some text";
 ERROR 42000: Variable 'rpl_semi_sync_master_enabled' can't be set to the value of 'some text'
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+disconnect con1;
+disconnect con2;
+connection default;
+SET @@global.rpl_semi_sync_master_enabled = 1;
 SET @@global.rpl_semi_sync_master_enabled = @start_global_value;
 select @@global.rpl_semi_sync_master_enabled;
 @@global.rpl_semi_sync_master_enabled

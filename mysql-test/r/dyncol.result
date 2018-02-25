@@ -1873,6 +1873,26 @@ SELECT COLUMN_JSON(COLUMN_CREATE('a',1 AS DECIMAL,'b',1 AS DECIMAL));
 COLUMN_JSON(COLUMN_CREATE('a',1 AS DECIMAL,'b',1 AS DECIMAL))
 {"a":1,"b":1}
 #
+# MDEV-7533: COLUMN_JSON() doesn't escape control characters
+# in string values
+#
+SELECT COLUMN_JSON(COLUMN_CREATE('test','"\\\t\n\Z')) AS json;
+json
+{"test":"\"\\\u0009\u000A\u001A"}
+SELECT COLUMN_JSON(COLUMN_CREATE('test','First line\nSecond line')) AS json;
+json
+{"test":"First line\u000ASecond line"}
+#
+# MDEV-15230: column_json breaks cyrillic in 10.1.31
+#
+set names utf8;
+create table t1 (b blob);
+insert into t1 values (column_create('description',column_create('title','Описание')));
+select column_json(b) from t1;
+column_json(b)
+{"description":{"title":"Описание"}}
+drop table t1;
+#
 # end of 10.0 tests
 #
 #

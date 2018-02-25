@@ -1,0 +1,16 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+SET GLOBAL innodb_stats_persistent= ON;
+CREATE TABLE t1 (t TEXT) ENGINE=InnoDB STATS_PERSISTENT=1;
+--connect (con1,localhost,root,,test)
+SET DEBUG_SYNC='ib_trunc_table_trunc_completing SIGNAL committed WAIT_FOR ever';
+--send
+TRUNCATE TABLE t1;
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR committed';
+--source include/restart_mysqld.inc
+--disconnect con1
+SELECT COUNT(*) FROM t1;
+DROP TABLE t1;

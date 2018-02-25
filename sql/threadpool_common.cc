@@ -84,17 +84,13 @@ struct Worker_thread_context
 
   void save()
   {
-#ifdef HAVE_PSI_THREAD_INTERFACE
-    psi_thread = PSI_THREAD_CALL(get_thread)();
-#endif
+    psi_thread = PSI_CALL_get_thread();
     mysys_var= (st_my_thread_var *)pthread_getspecific(THR_KEY_mysys);
   }
 
   void restore()
   {
-#ifdef HAVE_PSI_THREAD_INTERFACE
-    PSI_THREAD_CALL(set_thread)(psi_thread);
-#endif
+    PSI_CALL_set_thread(psi_thread);
     pthread_setspecific(THR_KEY_mysys,mysys_var);
     pthread_setspecific(THR_THD, 0);
   }
@@ -144,9 +140,7 @@ static void thread_attach(THD* thd)
   pthread_setspecific(THR_KEY_mysys,thd->mysys_var);
   thd->thread_stack=(char*)&thd;
   thd->store_globals();
-#ifdef HAVE_PSI_THREAD_INTERFACE
-  PSI_THREAD_CALL(set_thread)(thd->event_scheduler.m_psi);
-#endif
+  PSI_CALL_set_thread(thd->event_scheduler.m_psi);
   mysql_socket_set_thread_owner(thd->net.vio->mysql_socket);
 }
 
@@ -250,14 +244,12 @@ static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
   }
   delete connect;
   add_to_active_threads(thd);
-  thd->mysys_var= mysys_var;
+  thd->set_mysys_var(mysys_var);
   thd->event_scheduler.data= scheduler_data;
 
   /* Create new PSI thread for use with the THD. */
-#ifdef HAVE_PSI_THREAD_INTERFACE
   thd->event_scheduler.m_psi=
-    PSI_THREAD_CALL(new_thread)(key_thread_one_connection, thd, thd->thread_id);
-#endif
+    PSI_CALL_new_thread(key_thread_one_connection, thd, thd->thread_id);
 
 
   /* Login. */
@@ -477,11 +469,11 @@ void tp_timeout_handler(TP_connection *c)
   if (c->state != TP_STATE_IDLE)
     return;
   THD *thd=c->thd;
-  mysql_mutex_lock(&thd->LOCK_thd_data);
-  thd->set_killed(KILL_WAIT_TIMEOUT);
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+  thd->set_killed_no_mutex(KILL_WAIT_TIMEOUT);
   c->priority= TP_PRIORITY_HIGH;
   post_kill_notification(thd);
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 
 

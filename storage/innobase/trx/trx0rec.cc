@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,7 +31,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "mtr0log.h"
 #include "dict0dict.h"
 #include "ut0mem.h"
-#include "read0read.h"
 #include "row0ext.h"
 #include "row0upd.h"
 #include "que0que.h"
@@ -65,47 +64,30 @@ trx_undof_page_add_undo_rec_log(
 	ulint	new_free,	/*!< in: end offset of the entry */
 	mtr_t*	mtr)		/*!< in: mtr */
 {
-	byte*		log_ptr;
-	const byte*	log_end;
-	ulint		len;
-
-	log_ptr = mlog_open(mtr, 11 + 13 + MLOG_BUF_MARGIN);
-
-	if (log_ptr == NULL) {
-
-		return;
-	}
-
-	log_end = &log_ptr[11 + 13 + MLOG_BUF_MARGIN];
-	log_ptr = mlog_write_initial_log_record_fast(
-		undo_page, MLOG_UNDO_INSERT, log_ptr, mtr);
-	len = new_free - old_free - 4;
-
-	mach_write_to_2(log_ptr, len);
-	log_ptr += 2;
-
-	if (log_ptr + len <= log_end) {
-		memcpy(log_ptr, undo_page + old_free + 2, len);
-		mlog_close(mtr, log_ptr + len);
-	} else {
-		mlog_close(mtr, log_ptr);
-		mlog_catenate_string(mtr, undo_page + old_free + 2, len);
-	}
+	ut_ad(old_free >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
+	ut_ad(new_free >= old_free);
+	ut_ad(new_free < UNIV_PAGE_SIZE);
+	ut_ad(mach_read_from_2(undo_page
+			       + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE)
+	      == new_free);
+	mlog_write_ulint(undo_page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE,
+			 new_free, MLOG_2BYTES, mtr);
+	mlog_log_string(undo_page + old_free, new_free - old_free, mtr);
 }
 
-/***********************************************************//**
-Parses a redo log record of adding an undo log record.
-@return end of log record or NULL */
+/** Parse MLOG_UNDO_INSERT for crash-upgrade from MariaDB 10.2.
+@param[in]	ptr	log record
+@param[in]	end_ptr	end of log record buffer
+@param[in,out]	page	page or NULL
+@return	end of log record
+@retval	NULL	if the log record is incomplete */
 byte*
 trx_undo_parse_add_undo_rec(
-/*========================*/
-	byte*	ptr,	/*!< in: buffer */
-	byte*	end_ptr,/*!< in: buffer end */
-	page_t*	page)	/*!< in: page or NULL */
+	const byte*	ptr,
+	const byte*	end_ptr,
+	page_t*		page)
 {
 	ulint	len;
-	byte*	rec;
-	ulint	first_free;
 
 	if (end_ptr < ptr + 2) {
 
@@ -120,23 +102,20 @@ trx_undo_parse_add_undo_rec(
 		return(NULL);
 	}
 
-	if (page == NULL) {
+	if (page) {
+		ulint first_free = mach_read_from_2(page + TRX_UNDO_PAGE_HDR
+						    + TRX_UNDO_PAGE_FREE);
+		byte* rec = page + first_free;
 
-		return(ptr + len);
+		mach_write_to_2(rec, first_free + 4 + len);
+		mach_write_to_2(rec + 2 + len, first_free);
+
+		mach_write_to_2(page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE,
+				first_free + 4 + len);
+		memcpy(rec + 2, ptr, len);
 	}
 
-	first_free = mach_read_from_2(page + TRX_UNDO_PAGE_HDR
-				      + TRX_UNDO_PAGE_FREE);
-	rec = page + first_free;
-
-	mach_write_to_2(rec, first_free + 4 + len);
-	mach_write_to_2(rec + 2 + len, first_free);
-
-	mach_write_to_2(page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE,
-			first_free + 4 + len);
-	ut_memcpy(rec + 2, ptr, len);
-
-	return(ptr + len);
+	return(const_cast<byte*>(ptr + len));
 }
 
 /**********************************************************************//**
@@ -975,6 +954,7 @@ trx_undo_page_report_modify(
 				  dict_index_get_sys_col_pos(
 					  index, DATA_ROLL_PTR), &flen);
 	ut_ad(flen == DATA_ROLL_PTR_LEN);
+	ut_ad(memcmp(field, field_ref_zero, DATA_ROLL_PTR_LEN));
 
 	ptr += mach_u64_write_compressed(ptr, trx_read_roll_ptr(field));
 
@@ -1211,14 +1191,43 @@ trx_undo_page_report_modify(
 
 			const dict_col_t*	col
 				= dict_table_get_nth_col(table, col_no);
-			const char* col_name = dict_table_get_col_name(table,
-				col_no);
 
 			if (!col->ord_part) {
 				continue;
 			}
 
-			if (update) {
+			const ulint pos = dict_index_get_nth_col_pos(
+				index, col_no, NULL);
+			/* All non-virtual columns must be present in
+			the clustered index. */
+			ut_ad(pos != ULINT_UNDEFINED);
+
+			const bool is_ext = rec_offs_nth_extern(offsets, pos);
+			const spatial_status_t spatial_status = is_ext
+				? dict_col_get_spatial_status(col)
+				: SPATIAL_NONE;
+
+			switch (spatial_status) {
+			case SPATIAL_UNKNOWN:
+				ut_ad(0);
+				/* fall through */
+			case SPATIAL_MIXED:
+			case SPATIAL_ONLY:
+				/* Externally stored spatially indexed
+				columns will be (redundantly) logged
+				again, because we did not write the
+				MBR yet, that is, the previous call to
+				trx_undo_page_report_modify_ext()
+				was with SPATIAL_UNKNOWN. */
+				break;
+			case SPATIAL_NONE:
+				if (!update) {
+					/* This is a DELETE operation. */
+					break;
+				}
+				/* Avoid redundantly logging indexed
+				columns that were updated. */
+
 				for (i = 0; i < update->n_fields; i++) {
 					const ulint field_no
 						= upd_get_nth_field(update, i)
@@ -1233,28 +1242,10 @@ trx_undo_page_report_modify(
 			}
 
 			if (true) {
-				ulint			pos;
-				spatial_status_t	spatial_status;
-
-				spatial_status = SPATIAL_NONE;
-
 				/* Write field number to undo log */
 				if (trx_undo_left(undo_page, ptr) < 5 + 15) {
 
 					return(0);
-				}
-
-				pos = dict_index_get_nth_col_pos(index,
-								 col_no,
-								 NULL);
-				if (pos == ULINT_UNDEFINED) {
-					ib::error() << "Column " << col_no
-						    << " name " << col_name
-						    << " not found from index " << index->name
-						    << " table. " << table->name.m_name
-						    << " Table has " << dict_table_get_n_cols(table)
-						    << " and index has " << dict_index_get_n_fields(index)
-						    << " fields.";
 				}
 
 				ptr += mach_write_compressed(ptr, pos);
@@ -1263,7 +1254,7 @@ trx_undo_page_report_modify(
 				field = rec_get_nth_cfield(
 					rec, index, offsets, pos, &flen);
 
-				if (rec_offs_nth_extern(offsets, pos)) {
+				if (is_ext) {
 					const dict_col_t*	col =
 						dict_index_get_nth_col(
 							index, pos);
@@ -1272,10 +1263,6 @@ trx_undo_page_report_modify(
 							table, col);
 
 					ut_a(prefix_len < sizeof ext_buf);
-
-					spatial_status =
-						dict_col_get_spatial_status(
-							col);
 
 					/* If there is a spatial index on it,
 					log its MBR */
@@ -1675,6 +1662,7 @@ trx_undo_rec_get_partial_row(
 				used, as we do NOT copy the data in the
 				record! */
 	dict_index_t*	index,	/*!< in: clustered index */
+	const upd_t*	update,	/*!< in: updated columns */
 	dtuple_t**	row,	/*!< out, own: partial row */
 	ibool		ignore_prefix, /*!< in: flag to indicate if we
 				expect blob prefixes in undo. Used
@@ -1704,6 +1692,16 @@ trx_undo_rec_get_partial_row(
 	}
 
 	dtuple_init_v_fld(*row);
+
+	for (const upd_field_t* uf = update->fields, * const ue
+		     = update->fields + update->n_fields;
+	     uf != ue; uf++) {
+		if (uf->old_v_val) {
+			continue;
+		}
+		ulint c = dict_index_get_nth_col(index, uf->field_no)->ind;
+		*dtuple_get_nth_field(*row, c) = uf->new_val;
+	}
 
 	end_ptr = ptr + mach_read_from_2(ptr);
 	ptr += 2;
@@ -1750,6 +1748,13 @@ trx_undo_rec_get_partial_row(
 			col = dict_index_get_nth_col(index, field_no);
 			col_no = dict_col_get_no(col);
 			dfield = dtuple_get_nth_field(*row, col_no);
+			ut_ad(dfield->type.mtype == DATA_MISSING
+			      || dict_col_type_assert_equal(col,
+							    &dfield->type));
+			ut_ad(dfield->type.mtype == DATA_MISSING
+			      || dfield->len == len
+			      || (len != UNIV_SQL_NULL
+				  && len >= UNIV_EXTERN_STORAGE_FIELD));
 			dict_col_copy_type(
 				dict_table_get_nth_col(index->table, col_no),
 				dfield_get_type(dfield));
@@ -1821,49 +1826,122 @@ trx_undo_rec_get_partial_row(
 	return(const_cast<byte*>(ptr));
 }
 
-/***********************************************************************//**
-Erases the unused undo log page end.
-@return TRUE if the page contained something, FALSE if it was empty */
-static MY_ATTRIBUTE((nonnull))
-ibool
-trx_undo_erase_page_end(
-/*====================*/
-	page_t*	undo_page,	/*!< in/out: undo page whose end to erase */
-	mtr_t*	mtr)		/*!< in/out: mini-transaction */
+/** Erase the unused undo log page end.
+@param[in,out]	undo_page	undo log page
+@return whether the page contained something */
+bool
+trx_undo_erase_page_end(page_t* undo_page)
 {
 	ulint	first_free;
 
 	first_free = mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
 				      + TRX_UNDO_PAGE_FREE);
-	memset(undo_page + first_free, 0xff,
+	memset(undo_page + first_free, 0,
 	       (UNIV_PAGE_SIZE - FIL_PAGE_DATA_END) - first_free);
 
-	mlog_write_initial_log_record(undo_page, MLOG_UNDO_ERASE_END, mtr);
 	return(first_free != TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
 }
 
-/***********************************************************//**
-Parses a redo log record of erasing of an undo page end.
-@return end of log record or NULL */
-byte*
-trx_undo_parse_erase_page_end(
-/*==========================*/
-	byte*	ptr,	/*!< in: buffer */
-	byte*	end_ptr MY_ATTRIBUTE((unused)), /*!< in: buffer end */
-	page_t*	page,	/*!< in: page or NULL */
-	mtr_t*	mtr)	/*!< in: mtr or NULL */
+/** Report a RENAME TABLE operation.
+@param[in,out]	trx	transaction
+@param[in]	table	table that is being renamed
+@param[in,out]	block	undo page
+@param[in,out]	mtr	mini-transaction
+@return	byte offset of the undo log record
+@retval	0	in case of failure */
+static
+ulint
+trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
+			    buf_block_t* block, mtr_t* mtr)
 {
-	ut_ad(ptr != NULL);
-	ut_ad(end_ptr != NULL);
+	byte*	ptr_first_free  = TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
+		+ block->frame;
+	ulint	first_free = mach_read_from_2(ptr_first_free);
+	ut_ad(first_free >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
+	ut_ad(first_free <= UNIV_PAGE_SIZE);
+	byte* start = block->frame + first_free;
+	size_t len = strlen(table->name.m_name);
+	const size_t fixed = 2 + 1 + 11 + 11 + 2;
+	ut_ad(len <= NAME_LEN * 2 + 1);
+	/* The -10 is used in trx_undo_left() */
+	compile_time_assert((NAME_LEN * 1) * 2 + fixed
+			    + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE
+			    < UNIV_PAGE_SIZE_MIN - 10 - FIL_PAGE_DATA_END);
 
-	if (page == NULL) {
-
-		return(ptr);
+	if (trx_undo_left(block->frame, start) < fixed + len) {
+		ut_ad(first_free > TRX_UNDO_PAGE_HDR
+		      + TRX_UNDO_PAGE_HDR_SIZE);
+		return 0;
 	}
 
-	trx_undo_erase_page_end(page, mtr);
+	byte* ptr = start + 2;
+	*ptr++ = TRX_UNDO_RENAME_TABLE;
+	ptr += mach_u64_write_much_compressed(ptr, trx->undo_no);
+	ptr += mach_u64_write_much_compressed(ptr, table->id);
+	memcpy(ptr, table->name.m_name, len);
+	ptr += len;
+	mach_write_to_2(ptr, first_free);
+	ptr += 2;
+	ulint offset = page_offset(ptr);
+	mach_write_to_2(start, offset);
+	mach_write_to_2(ptr_first_free, offset);
 
-	return(ptr);
+	trx_undof_page_add_undo_rec_log(block->frame, first_free, offset, mtr);
+	return first_free;
+}
+
+/** Report a RENAME TABLE operation.
+@param[in,out]	trx	transaction
+@param[in]	table	table that is being renamed
+@return	DB_SUCCESS or error code */
+dberr_t
+trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
+{
+	ut_ad(!trx->read_only);
+	ut_ad(trx->id);
+	ut_ad(!table->is_temporary());
+
+	mtr_t		mtr;
+	dberr_t		err;
+	mtr.start();
+	mutex_enter(&trx->undo_mutex);
+	if (buf_block_t* block = trx_undo_assign(trx, &err, &mtr)) {
+		trx_undo_t*	undo = trx->rsegs.m_redo.undo;
+		ut_ad(err == DB_SUCCESS);
+		ut_ad(undo);
+		for (ut_d(int loop_count = 0);;) {
+			ut_ad(++loop_count < 2);
+			ut_ad(undo->last_page_no == block->page.id.page_no());
+
+			if (ulint offset = trx_undo_page_report_rename(
+				    trx, table, block, &mtr)) {
+				undo->withdraw_clock = buf_withdraw_clock;
+				undo->empty = FALSE;
+				undo->top_page_no = undo->last_page_no;
+				undo->top_offset  = offset;
+				undo->top_undo_no = trx->undo_no++;
+				undo->guess_block = block;
+
+				trx->undo_rseg_space
+					= trx->rsegs.m_redo.rseg->space;
+				err = DB_SUCCESS;
+				break;
+			} else {
+				mtr.commit();
+				mtr.start();
+				block = trx_undo_add_page(trx, undo, &mtr);
+				if (!block) {
+					err = DB_OUT_OF_FILE_SPACE;
+					break;
+				}
+			}
+		}
+
+		mtr.commit();
+	}
+
+	mutex_exit(&trx->undo_mutex);
+	return err;
 }
 
 /***********************************************************************//**
@@ -1892,14 +1970,10 @@ trx_undo_report_row_operation(
 					marking, the record in the clustered
 					index; NULL if insert */
 	const ulint*	offsets,	/*!< in: rec_get_offsets(rec) */
-	roll_ptr_t*	roll_ptr)	/*!< out: rollback pointer to the
-					inserted undo log record,
-					0 if BTR_NO_UNDO_LOG
-					flag was specified */
+	roll_ptr_t*	roll_ptr)	/*!< out: DB_ROLL_PTR to the
+					undo log record */
 {
 	trx_t*		trx;
-	ulint		page_no;
-	buf_block_t*	undo_block;
 	mtr_t		mtr;
 #ifdef UNIV_DEBUG
 	int		loop_count	= 0;
@@ -1919,7 +1993,7 @@ trx_undo_report_row_operation(
 	mtr.start();
 	trx_undo_t**	pundo;
 	trx_rseg_t*	rseg;
-	const bool	is_temp	= dict_table_is_temporary(index->table);
+	const bool	is_temp	= index->table->is_temporary();
 
 	if (is_temp) {
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
@@ -1929,42 +2003,24 @@ trx_undo_report_row_operation(
 	} else {
 		ut_ad(!trx->read_only);
 		ut_ad(trx->id);
-		if (UNIV_LIKELY(!clust_entry || clust_entry->info_bits
-				!= REC_INFO_DEFAULT_ROW)) {
-			/* Keep INFORMATION_SCHEMA.TABLES.UPDATE_TIME
-			up-to-date for persistent tables outside
-			instant ADD COLUMN. */
-			trx->mod_tables.insert(index->table);
-		} else {
-			ut_ad(index->is_instant());
-		}
-
 		pundo = &trx->rsegs.m_redo.undo;
 		rseg = trx->rsegs.m_redo.rseg;
 	}
 
 	mutex_enter(&trx->undo_mutex);
-	dberr_t	err = *pundo ? DB_SUCCESS : trx_undo_assign_undo(
-		trx, rseg, pundo);
-	trx_undo_t*	undo = *pundo;
+	dberr_t		err;
+	buf_block_t*	undo_block = trx_undo_assign_low(trx, rseg, pundo,
+							 &err, &mtr);
+	trx_undo_t*	undo	= *pundo;
 
-	ut_ad((err == DB_SUCCESS) == (undo != NULL));
-	if (undo == NULL) {
+	ut_ad((err == DB_SUCCESS) == (undo_block != NULL));
+	if (undo_block == NULL) {
 		goto err_exit;
 	}
 
-	page_no = undo->last_page_no;
-
-	undo_block = buf_page_get_gen(
-		page_id_t(undo->space, page_no), univ_page_size, RW_X_LATCH,
-		buf_pool_is_obsolete(undo->withdraw_clock)
-		? NULL : undo->guess_block, BUF_GET, __FILE__, __LINE__,
-		&mtr, &err);
-
-	buf_block_dbg_add_level(undo_block, SYNC_TRX_UNDO_PAGE);
+	ut_ad(undo != NULL);
 
 	do {
-		ut_ad(page_no == undo_block->page.id.page_no());
 		page_t*	undo_page = buf_block_get_frame(undo_block);
 		ulint	offset = !rec
 			? trx_undo_page_report_insert(
@@ -1974,13 +2030,7 @@ trx_undo_report_row_operation(
 				cmpl_info, clust_entry, &mtr);
 
 		if (UNIV_UNLIKELY(offset == 0)) {
-			/* The record did not fit on the page. We erase the
-			end segment of the undo log page and write a log
-			record of it: this is to ensure that in the debug
-			version the replicate page constructed using the log
-			records stays identical to the original page */
-
-			if (!trx_undo_erase_page_end(undo_page, &mtr)) {
+			if (!trx_undo_erase_page_end(undo_page)) {
 				/* The record did not fit on an empty
 				undo page. Discard the freshly allocated
 				page and return an error. */
@@ -1994,8 +2044,8 @@ trx_undo_report_row_operation(
 				first, because it may be holding lower-level
 				latches, such as SYNC_FSP and SYNC_FSP_PAGE. */
 
-				mtr_commit(&mtr);
-				mtr.start(trx);
+				mtr.commit();
+				mtr.start();
 				if (is_temp) {
 					mtr.set_log_mode(MTR_LOG_NO_REDO);
 				}
@@ -2015,7 +2065,7 @@ trx_undo_report_row_operation(
 			mtr_commit(&mtr);
 
 			undo->empty = FALSE;
-			undo->top_page_no = page_no;
+			undo->top_page_no = undo_block->page.id.page_no();
 			undo->top_offset  = offset;
 			undo->top_undo_no = trx->undo_no++;
 			undo->guess_block = undo_block;
@@ -2024,24 +2074,44 @@ trx_undo_report_row_operation(
 
 			mutex_exit(&trx->undo_mutex);
 
+			if (!is_temp) {
+				const undo_no_t limit = undo->top_undo_no;
+				/* Determine if this is the first time
+				when this transaction modifies a
+				system-versioned column in this table. */
+				trx_mod_table_time_t& time
+					= trx->mod_tables.insert(
+						trx_mod_tables_t::value_type(
+							index->table, limit))
+					.first->second;
+				ut_ad(time.valid(limit));
+
+				if (!time.is_versioned()
+				    && index->table->versioned_by_id()
+				    && (!rec /* INSERT */
+					|| !update /* DELETE */
+					|| update->affects_versioned())) {
+					time.set_versioned(limit);
+				}
+			}
+
 			*roll_ptr = trx_undo_build_roll_ptr(
-				!rec, rseg->id, page_no, offset);
+				!rec, rseg->id, undo->top_page_no, offset);
 			return(DB_SUCCESS);
 		}
 
-		ut_ad(page_no == undo->last_page_no);
+		ut_ad(undo_block->page.id.page_no() == undo->last_page_no);
 
 		/* We have to extend the undo log by one page */
 
 		ut_ad(++loop_count < 2);
-		mtr.start(trx);
+		mtr.start();
 
 		if (is_temp) {
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
 		}
 
 		undo_block = trx_undo_add_page(trx, undo, &mtr);
-		page_no = undo->last_page_no;
 
 		DBUG_EXECUTE_IF("ib_err_ins_undo_page_add_failure",
 				undo_block = NULL;);
@@ -2090,9 +2160,11 @@ trx_undo_get_undo_rec_low(
 
 	trx_undo_decode_roll_ptr(roll_ptr, &is_insert, &rseg_id, &page_no,
 				 &offset);
+	ut_ad(page_no > FSP_FIRST_INODE_PAGE_NO);
+	ut_ad(offset >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
 	rseg = is_temp
-		? trx_sys->temp_rsegs[rseg_id]
-		: trx_sys->rseg_array[rseg_id];
+		? trx_sys.temp_rsegs[rseg_id]
+		: trx_sys.rseg_array[rseg_id];
 	ut_ad(is_temp == !rseg->is_persistent());
 
 	mtr_start(&mtr);
@@ -2132,14 +2204,14 @@ trx_undo_get_undo_rec(
 {
 	bool		missing_history;
 
-	rw_lock_s_lock(&purge_sys->latch);
+	rw_lock_s_lock(&purge_sys.latch);
 
-	missing_history = purge_sys->view.changes_visible(trx_id, name);
+	missing_history = purge_sys.view.changes_visible(trx_id, name);
 	if (!missing_history) {
 		*undo_rec = trx_undo_get_undo_rec_low(roll_ptr, is_temp, heap);
 	}
 
-	rw_lock_s_unlock(&purge_sys->latch);
+	rw_lock_s_unlock(&purge_sys.latch);
 
 	return(missing_history);
 }
@@ -2201,7 +2273,7 @@ trx_undo_prev_version_build(
 	bool		dummy_extern;
 	byte*		buf;
 
-	ut_ad(!rw_lock_own(&purge_sys->latch, RW_LOCK_S));
+	ut_ad(!rw_lock_own(&purge_sys.latch, RW_LOCK_S));
 	ut_ad(mtr_memo_contains_page_flagged(index_mtr, index_rec,
 					     MTR_MEMO_PAGE_S_FIX
 					     | MTR_MEMO_PAGE_X_FIX));
@@ -2219,6 +2291,8 @@ trx_undo_prev_version_build(
 
 	const bool is_temp = dict_table_is_temporary(index->table);
 	rec_trx_id = row_get_rec_trx_id(rec, index, offsets);
+
+	ut_ad(!index->table->skip_alter_undo);
 
 	if (trx_undo_get_undo_rec(
 		    roll_ptr, is_temp, heap, rec_trx_id, index->table->name,
@@ -2249,12 +2323,12 @@ trx_undo_prev_version_build(
 					       &info_bits);
 
 	/* (a) If a clustered index record version is such that the
-	trx id stamp in it is bigger than purge_sys->view, then the
+	trx id stamp in it is bigger than purge_sys.view, then the
 	BLOBs in that version are known to exist (the purge has not
 	progressed that far);
 
 	(b) if the version is the first version such that trx id in it
-	is less than purge_sys->view, and it is not delete-marked,
+	is less than purge_sys.view, and it is not delete-marked,
 	then the BLOBs in that version are known to exist (the purge
 	cannot have purged the BLOBs referenced by that version
 	yet).
@@ -2293,19 +2367,19 @@ trx_undo_prev_version_build(
 		the BLOB. */
 
 		/* the row_upd_changes_disowned_external(update) call could be
-		omitted, but the synchronization on purge_sys->latch is likely
+		omitted, but the synchronization on purge_sys.latch is likely
 		more expensive. */
 
 		if ((update->info_bits & REC_INFO_DELETED_FLAG)
 		    && row_upd_changes_disowned_external(update)) {
 			bool	missing_extern;
 
-			rw_lock_s_lock(&purge_sys->latch);
+			rw_lock_s_lock(&purge_sys.latch);
 
-			missing_extern = purge_sys->view.changes_visible(
+			missing_extern = purge_sys.view.changes_visible(
 				trx_id,	index->table->name);
 
-			rw_lock_s_unlock(&purge_sys->latch);
+			rw_lock_s_unlock(&purge_sys.latch);
 
 			if (missing_extern) {
 				/* treat as a fresh insert, not to

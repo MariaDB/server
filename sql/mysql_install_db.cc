@@ -442,7 +442,6 @@ static int set_directory_permissions(const char *dir, const char *os_user)
   ACL* pOldDACL;
   SECURITY_DESCRIPTOR* pSD= NULL; 
   EXPLICIT_ACCESS ea={0};
-  BOOL isWellKnownSID= FALSE;
   WELL_KNOWN_SID_TYPE wellKnownSidType = WinNullSid;
   PSID pSid= NULL;
 
@@ -509,7 +508,7 @@ static int set_directory_permissions(const char *dir, const char *os_user)
   ea.grfInheritance= CONTAINER_INHERIT_ACE|OBJECT_INHERIT_ACE; 
   ea.Trustee.TrusteeType= TRUSTEE_IS_UNKNOWN; 
   ACL* pNewDACL= 0; 
-  DWORD err= SetEntriesInAcl(1,&ea,pOldDACL,&pNewDACL); 
+  SetEntriesInAcl(1,&ea,pOldDACL,&pNewDACL);
   if (pNewDACL)
   {
     SetSecurityInfo(hDir,SE_FILE_OBJECT,DACL_SECURITY_INFORMATION,NULL, NULL,
@@ -521,28 +520,6 @@ static int set_directory_permissions(const char *dir, const char *os_user)
     LocalFree((HLOCAL) pNewDACL);
   CloseHandle(hDir); 
   return 0;
-}
-
-
-/* 
-  Give directory permissions for special service user NT SERVICE\servicename
-  this user is available only on Win7 and later.
-*/
-
-void grant_directory_permissions_to_service()
-{
-  char service_user[MAX_PATH+ 12];
-  OSVERSIONINFO info;
-  info.dwOSVersionInfoSize= sizeof(info);
-  GetVersionEx(&info);
-  if (info.dwMajorVersion >6 || 
-    (info.dwMajorVersion== 6 && info.dwMinorVersion > 0)
-    && opt_service)
-  {
-    my_snprintf(service_user,sizeof(service_user), "NT SERVICE\\%s", 
-      opt_service);
-    set_directory_permissions(opt_datadir, service_user);
-  }
 }
 
 
@@ -668,7 +645,6 @@ static int create_db_instance()
   if (opt_service && opt_service[0])
   {
     ret= register_service();
-    grant_directory_permissions_to_service();
     if (ret)
       goto end;
   }

@@ -61,16 +61,6 @@ UNIV_INLINE
 ulint
 ut_rnd_gen_ulint(void);
 /*==================*/
-/********************************************************//**
-Generates a random integer from a given interval.
-@return the 'random' number */
-UNIV_INLINE
-ulint
-ut_rnd_interval(
-/*============*/
-	ulint	low,	/*!< in: low limit; can generate also this value */
-	ulint	high);	/*!< in: high limit; can generate also this value */
-
 /*******************************************************//**
 The following function generates a hash value for a ulint integer
 to a hash table of size table_size, which should be a prime or some

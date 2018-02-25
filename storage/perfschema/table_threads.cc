@@ -228,7 +228,7 @@ int table_threads::read_row_values(TABLE *table,
       case 7: /* PROCESSLIST_COMMAND */
         if (m_row.m_processlist_id != 0)
           set_field_varchar_utf8(f, command_name[m_row.m_command].str,
-                                 command_name[m_row.m_command].length);
+                                 (uint)command_name[m_row.m_command].length);
         else
           f->set_null();
         break;
@@ -257,8 +257,8 @@ int table_threads::read_row_values(TABLE *table,
              changed to less than or equal to 64 characters.
            */
           set_field_varchar_utf8(f, m_row.m_processlist_state_ptr,
-                                 std::min<uint>(m_row.m_processlist_state_length,
-                                                f->char_length()));
+                                 MY_MIN(m_row.m_processlist_state_length,
+                                        f->char_length()));
         }
         else
           f->set_null();

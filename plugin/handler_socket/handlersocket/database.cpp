@@ -297,9 +297,9 @@ dbcontext::init_thread(const void *stack_bottom, volatile int& shutdown_flag)
       #else
       thd->options |= OPTION_BIN_LOG;
       #endif
-      safeFree(thd->db);
-      thd->db = 0;
-      thd->db = my_strdup("handlersocket", MYF(0));
+      safeFree((char*) thd->db.str);
+      thd->db.str= my_strdup("handlersocket", MYF(0));
+      thd->db.length= sizeof("handlersocket")-1;
     }
     thd->variables.option_bits |= OPTION_TABLE_LOCK;
     my_pthread_setspecific_ptr(THR_THD, thd);
@@ -1005,8 +1005,9 @@ dbcontext::cmd_open(dbcallback_i& cb, const cmd_open_args& arg)
     bool refresh = true;
     const thr_lock_type lock_type = for_write_flag ? TL_WRITE : TL_READ;
     #if MYSQL_VERSION_ID >= 50505
-    tables.init_one_table(arg.dbn, strlen(arg.dbn), arg.tbl, strlen(arg.tbl),
-      arg.tbl, lock_type);
+    LEX_CSTRING db_name=  { arg.dbn, strlen(arg.dbn) };
+    LEX_CSTRING tbl_name= { arg.tbl, strlen(arg.tbl) };
+    tables.init_one_table(&db_name, &tbl_name, 0, lock_type);
     tables.mdl_request.init(MDL_key::TABLE, arg.dbn, arg.tbl,
       for_write_flag ? MDL_SHARED_WRITE : MDL_SHARED_READ, MDL_TRANSACTION);
     Open_table_context ot_act(thd, 0);

@@ -44,10 +44,9 @@ SET DEBUG_DBUG='+d,innodb_alter_commit_crash_after_commit';
 ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
 ERROR HY000: Lost connection to MySQL server during query
 # Restart mysqld after the crash and reconnect.
-# Manual *.frm recovery begin.
-# Manual recovery end
-FLUSH TABLES;
-# Drop the orphaned original table.
+SELECT * FROM information_schema.innodb_sys_tables
+WHERE table_id = ID;
+TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
 # Files in datadir after manual recovery.
 t1.frm
 t1.ibd
@@ -83,12 +82,9 @@ SET DEBUG_DBUG='+d,innodb_alter_commit_crash_before_commit';
 ALTER TABLE t2 ADD PRIMARY KEY (f2, f1);
 ERROR HY000: Lost connection to MySQL server during query
 # Startup the server after the crash
-# Read and remember the temporary table name
-# Manual *.frm recovery begin. The dictionary was not updated
-# and the files were not renamed. The rebuilt table
-# was left behind on purpose, to faciliate data recovery.
-# Manual recovery end
-# Drop the orphaned rebuilt table.
+SELECT * FROM information_schema.innodb_sys_tables
+WHERE name LIKE 'test/#sql-%';
+TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
 SHOW TABLES;
 Tables_in_test
 t2
@@ -123,10 +119,9 @@ SET DEBUG_DBUG='+d,innodb_alter_commit_crash_after_commit';
 ALTER TABLE t1 ADD INDEX (b), CHANGE c d int, ALGORITHM=INPLACE;
 ERROR HY000: Lost connection to MySQL server during query
 # Restart mysqld after the crash and reconnect.
-# Manual *.frm recovery begin.
-# Manual recovery end
-FLUSH TABLES;
-# Drop the orphaned original table.
+SELECT * FROM information_schema.innodb_sys_tables
+WHERE table_id = ID;
+TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
 # Files in datadir after manual recovery.
 t1.frm
 t1.ibd

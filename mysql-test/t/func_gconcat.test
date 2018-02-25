@@ -915,3 +915,76 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+#
+# MDEV-11297: Add support for LIMIT clause in GROUP_CONCAT()
+#
+--disable_warnings
+drop table if exists t1, t2;
+--enable_warnings
+
+create table t1 (grp int, a bigint unsigned, c char(10) , d char(10) not null);
+insert into t1 values (1,1,NULL,"a");
+insert into t1 values (1,10,"b","a");
+insert into t1 values (1,11,"c","a");
+insert into t1 values (2,2,"c","a");
+insert into t1 values (2,3,"b","b");
+insert into t1 values (3,4,"E","a");
+insert into t1 values (3,5,"C","b");
+insert into t1 values (3,6,"D","c");
+insert into t1 values (3,7,"E","c");
+
+
+select grp,group_concat(c) from t1 group by grp;
+select grp,group_concat(c limit 1  ) from t1 group by grp;
+select grp,group_concat(c limit 1,1 ) from t1 group by grp;
+select grp,group_concat(c limit 1,10 ) from t1 group by grp;
+select grp,group_concat(c limit 1000) from t1 group by grp;
+select group_concat(grp limit 0) from t1;
+--error ER_PARSE_ERROR
+select group_concat(grp limit "sdjadjs") from t1
+--error ER_PARSE_ERROR
+select grp,group_concat(c limit 5.5) from t1 group by grp ;
+select grp,group_concat(distinct c limit 1,10 ) from t1 group by grp;
+select grp,group_concat(c order by a) from t1 group by grp;
+select grp,group_concat(c order by a limit 2 ) from t1 group by grp;
+select grp,group_concat(c order by a limit 1,1 ) from t1 group by grp;
+select grp,group_concat(c order by c) from t1 group by grp;
+select grp,group_concat(c order by c limit 2) from t1 group by grp;
+select grp,group_concat(c order by c desc) from t1 group by grp;
+select grp,group_concat(c order by c desc limit 2) from t1 group by grp;
+
+drop table t1;
+
+create table t2 (a int, b varchar(10));
+insert into t2 values(1,'a'),(1,'b'),(NULL,'c'),(2,'x'),(2,'y');
+select group_concat(a,b limit 2) from t2;
+
+set @x=4;
+prepare STMT from 'select group_concat(b limit ?) from t2';
+execute STMT using @x;
+set @x=2;
+execute STMT using @x;
+set @x=1000;
+execute STMT using @x;
+set @x=0;
+execute STMT using @x;
+set @x="adasfa";
+--error ER_INVALID_VALUE_TO_LIMIT
+execute STMT using @x;
+set @x=-1;
+--error ER_WRONG_ARGUMENTS
+execute STMT using @x;
+set @x=4;
+prepare STMT from 'select group_concat(a,b limit ?) from t2';
+execute STMT using @x;
+drop table t2;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

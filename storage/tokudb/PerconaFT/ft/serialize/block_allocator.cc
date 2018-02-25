@@ -40,6 +40,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #include <string.h>
 
+#include "toku_portability.h"
 #include "portability/memory.h"
 #include "portability/toku_assert.h"
 #include "portability/toku_stdint.h"

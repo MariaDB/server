@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2014 Brazil
+  Copyright(C) 2014-2015 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -32,7 +32,7 @@ static struct mrb_data_type mrb_grn_array_type = {
 };
 
 static mrb_value
-mrb_grn_array_singleton_create(mrb_state *mrb, mrb_value klass)
+mrb_grn_array_class_create(mrb_state *mrb, mrb_value klass)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   char *name;
@@ -82,9 +82,9 @@ grn_mrb_array_init(grn_ctx *ctx)
   klass = mrb_define_class_under(mrb, module, "Array", table_class);
   MRB_SET_INSTANCE_TT(klass, MRB_TT_DATA);
 
-  mrb_define_singleton_method(mrb, (struct RObject *)klass, "create",
-                              mrb_grn_array_singleton_create,
-                              MRB_ARGS_REQ(2));
+  mrb_define_class_method(mrb, klass, "create",
+                          mrb_grn_array_class_create,
+                          MRB_ARGS_REQ(2));
 
   mrb_define_method(mrb, klass, "initialize",
                     mrb_grn_array_initialize, MRB_ARGS_REQ(1));

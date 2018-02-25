@@ -49,9 +49,9 @@ ENDIF()
 SET(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING
    "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel")
 
-# MAX_INDEXES - Set the maximum number of indexes per table, default 64U
+# MAX_INDEXES - Set the maximum number of indexes per table, default 64
 IF (NOT MAX_INDEXES)
-  SET(MAX_INDEXES 64U)
+  SET(MAX_INDEXES 64)
 ENDIF(NOT MAX_INDEXES)
 
 IF (${MAX_INDEXES} GREATER 128)
@@ -162,6 +162,7 @@ INCLUDE(plugin)
 INCLUDE(install_macros)
 INCLUDE(systemd)
 INCLUDE(mysql_add_executable)
+INCLUDE(compile_flags)
 INCLUDE(crc32-vpmsum)
 
 # Handle options
@@ -182,7 +183,8 @@ OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system librar
 INCLUDE(check_compiler_flag)
 
 OPTION(WITH_ASAN "Enable address sanitizer" OFF)
-IF (WITH_ASAN)
+
+IF (WITH_ASAN AND NOT MSVC)
   # gcc 4.8.1 and new versions of clang
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=address -fPIC"
     DEBUG RELWITHDEBINFO)

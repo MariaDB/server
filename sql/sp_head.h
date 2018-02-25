@@ -164,7 +164,10 @@ public:
     /*
       Marks routines that have column type references: DECLARE a t1.a%TYPE;
     */
-    HAS_COLUMN_TYPE_REFS= 8192
+    HAS_COLUMN_TYPE_REFS= 8192,
+    /* Set if has FETCH GROUP NEXT ROW instr. Used to ensure that only
+       functions with AGGREGATE keyword use the instr. */
+    HAS_AGGREGATE_INSTR= 16384
   };
 
   const Sp_handler *m_handler;
@@ -197,6 +200,7 @@ public:
   enum_sp_suid_behaviour suid() const { return m_chistics.suid; }
   bool detistic() const { return m_chistics.detistic; }
   enum_sp_data_access daccess() const { return m_chistics.daccess; }
+  enum_sp_aggregate_type agg_type() const { return m_chistics.agg_type; }
   /**
     Is this routine being executed?
   */
@@ -209,7 +213,7 @@ public:
   ulong sp_cache_version() const { return m_sp_cache_version; }
 
   /** Set the value of the SP cache version.  */
-  void set_sp_cache_version(ulong version_arg)
+  void set_sp_cache_version(ulong version_arg) const
   {
     m_sp_cache_version= version_arg;
   }
@@ -231,7 +235,7 @@ private:
     is obsolete and should not be used --
     sp_cache_flush_obsolete() will purge it.
   */
-  ulong m_sp_cache_version;
+  mutable ulong m_sp_cache_version;
   Stored_program_creation_ctx *m_creation_ctx;
   /**
     Boolean combination of (1<<flag), where flag is a member of
@@ -239,7 +243,6 @@ private:
   */
   uint32 unsafe_flags;
 
-  uint m_select_number;
 public:
   inline Stored_program_creation_ctx *get_creation_ctx()
   {
@@ -343,7 +346,8 @@ public:
                   GRANT_INFO *grant_info);
 
   bool
-  execute_function(THD *thd, Item **args, uint argcount, Field *return_fld);
+  execute_function(THD *thd, Item **args, uint argcount, Field *return_fld,
+                   sp_rcontext **nctx, Query_arena *call_arena);
 
   bool
   execute_procedure(THD *thd, List<Item> *args);
@@ -719,10 +723,14 @@ public:
                                           const LEX_CSTRING &table);
 
   void set_chistics(const st_sp_chistics &chistics);
+  inline void set_chistics_agg_type(enum enum_sp_aggregate_type type)
+  {
+    m_chistics.agg_type= type;
+  }
   void set_info(longlong created, longlong modified,
 		const st_sp_chistics &chistics, sql_mode_t sql_mode);
 
-  void set_definer(const char *definer, uint definerlen)
+  void set_definer(const char *definer, size_t definerlen)
   {
     AUTHID tmp;
     tmp.parse(definer, definerlen);
@@ -821,8 +829,6 @@ public:
   }
 
   sp_pcontext *get_parse_context() { return m_pcont; }
-
-  void set_select_number(uint num) { m_select_number= num; }
 
   bool check_execute_access(THD *thd) const;
 
@@ -1795,8 +1801,8 @@ class sp_instr_cfetch : public sp_instr
 
 public:
 
-  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c)
-    : sp_instr(ip, ctx), m_cursor(c)
+  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c, bool error_on_no_data)
+    : sp_instr(ip, ctx), m_cursor(c), m_error_on_no_data(error_on_no_data)
   {
     m_varlist.empty();
   }
@@ -1817,8 +1823,35 @@ private:
 
   uint m_cursor;
   List<sp_variable> m_varlist;
+  bool m_error_on_no_data;
 
 }; // class sp_instr_cfetch : public sp_instr
+
+/*
+This class is created for the special fetch instruction
+FETCH GROUP NEXT ROW, used in the user-defined aggregate
+functions
+*/
+
+class sp_instr_agg_cfetch : public sp_instr
+{
+  sp_instr_agg_cfetch(const sp_instr_cfetch &); /**< Prevent use of these */
+  void operator=(sp_instr_cfetch &);
+
+public:
+
+  sp_instr_agg_cfetch(uint ip, sp_pcontext *ctx)
+    : sp_instr(ip, ctx){}
+
+  virtual ~sp_instr_agg_cfetch()
+  {}
+
+  virtual int execute(THD *thd, uint *nextp);
+
+  virtual void print(String *str){};
+}; // class sp_instr_agg_cfetch : public sp_instr
+
+
 
 
 class sp_instr_error : public sp_instr
@@ -1904,16 +1937,9 @@ set_routine_security_ctx(THD *thd, sp_head *sp, Security_context **save_ctx);
 
 TABLE_LIST *
 sp_add_to_query_tables(THD *thd, LEX *lex,
-		       const char *db, const char *name,
+		       const LEX_CSTRING *db, const LEX_CSTRING *name,
                        thr_lock_type locktype,
                        enum_mdl_type mdl_type);
-
-Item *
-sp_prepare_func_item(THD* thd, Item **it_addr, uint cols= 1);
-
-bool
-sp_eval_expr(THD *thd, Item *result_item, Field *result_field,
-             Item **expr_item_ptr);
 
 /**
   @} (end of group Stored_Routines)

@@ -1,6 +1,6 @@
 NGINX_DIR = $(top_builddir)/vendor/nginx-$(NGINX_VERSION)
 
-EXTRA_DIST = 					\
+EXTRA_DIST =					\
 	nginx-module				\
 	configure
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -188,19 +188,19 @@ bool
 fil_validate_skip(void)
 /*===================*/
 {
-	/** The fil_validate() call skip counter. Use a signed type
-	because of the race condition below. */
+	/** The fil_validate() call skip counter. */
 	static int fil_validate_count = FIL_VALIDATE_SKIP;
 
-	/* There is a race condition below, but it does not matter,
-	because this call is only for heuristic purposes. We want to
-	reduce the call frequency of the costly fil_validate() check
-	in debug builds. */
-	if (--fil_validate_count > 0) {
+	/* We want to reduce the call frequency of the costly fil_validate()
+	check in debug builds. */
+	int count = my_atomic_add32_explicit(&fil_validate_count, -1,
+					     MY_MEMORY_ORDER_RELAXED);
+	if (count > 0) {
 		return(true);
 	}
 
-	fil_validate_count = FIL_VALIDATE_SKIP;
+	my_atomic_store32_explicit(&fil_validate_count, FIL_VALIDATE_SKIP,
+				   MY_MEMORY_ORDER_RELAXED);
 	return(fil_validate());
 }
 #endif /* UNIV_DEBUG */
@@ -566,7 +566,6 @@ bool
 fil_node_open_file(
 	fil_node_t*	node)
 {
-	os_offset_t	size_bytes;
 	bool		success;
 	bool		read_only_mode;
 	fil_space_t*	space = node->space;
@@ -611,7 +610,7 @@ retry:
 			return(false);
 		}
 
-		size_bytes = os_file_get_size(node->handle);
+		os_offset_t size_bytes = os_file_get_size(node->handle);
 		ut_a(size_bytes != (os_offset_t) -1);
 
 		ut_a(space->purpose != FIL_TYPE_LOG);
@@ -625,6 +624,7 @@ retry:
 				<< " is only " << size_bytes
 				<< " bytes, should be at least " << min_size;
 			os_file_close(node->handle);
+			node->handle = OS_FILE_CLOSED;
 			return(false);
 		}
 
@@ -662,10 +662,12 @@ retry:
 
 		ut_free(buf2);
 		os_file_close(node->handle);
+		node->handle = OS_FILE_CLOSED;
 
 		if (!fsp_flags_is_valid(flags, space->id)) {
 			ulint cflags = fsp_flags_convert_from_101(flags);
-			if (cflags == ULINT_UNDEFINED) {
+			if (cflags == ULINT_UNDEFINED
+			    || (cflags ^ space->flags) & ~FSP_FLAGS_MEM_MASK) {
 				ib::error()
 					<< "Expected tablespace flags "
 					<< ib::hex(space->flags)
@@ -694,20 +696,17 @@ retry:
 		space->free_len = free_len;
 
 		if (first_time_open) {
-			ulint	extent_size;
-
-			extent_size = psize * FSP_EXTENT_SIZE;
-
-			/* After apply-incremental, tablespaces are not extended
-			to a whole megabyte. Do not cut off valid data. */
-
 			/* Truncate the size to a multiple of extent size. */
-			if (size_bytes >= extent_size) {
-				size_bytes = ut_2pow_round(size_bytes,
-							   extent_size);
+			ulint	mask = psize * FSP_EXTENT_SIZE - 1;
+
+			if (size_bytes <= mask) {
+				/* .ibd files start smaller than an
+				extent size. Do not truncate valid data. */
+			} else {
+				size_bytes &= ~os_offset_t(mask);
 			}
 
-			node->size = static_cast<ulint>(size_bytes / psize);
+			node->size = ulint(size_bytes / psize);
 			space->size += node->size;
 		}
 	}
@@ -2113,7 +2112,7 @@ fil_write_flushed_lsn(
 {
 	byte*	buf1;
 	byte*	buf;
-	dberr_t	err;
+	dberr_t	err = DB_TABLESPACE_NOT_FOUND;
 
 	buf1 = static_cast<byte*>(ut_malloc_nokey(2 * UNIV_PAGE_SIZE));
 	buf = static_cast<byte*>(ut_align(buf1, UNIV_PAGE_SIZE));
@@ -2331,7 +2330,7 @@ fil_op_write_log(
 @param[in,out]	mtr		mini-transaction */
 static
 void
-fil_name_write_rename(
+fil_name_write_rename_low(
 	ulint		space_id,
 	ulint		first_page_no,
 	const char*	old_name,
@@ -2343,6 +2342,23 @@ fil_name_write_rename(
 	fil_op_write_log(
 		MLOG_FILE_RENAME2,
 		space_id, first_page_no, old_name, new_name, 0, mtr);
+}
+
+/** Write redo log for renaming a file.
+@param[in]	space_id	tablespace id
+@param[in]	old_name	tablespace file name
+@param[in]	new_name	tablespace file name after renaming */
+void
+fil_name_write_rename(
+	ulint		space_id,
+	const char*	old_name,
+	const char*	new_name)
+{
+	mtr_t	mtr;
+	mtr.start();
+	fil_name_write_rename_low(space_id, 0, old_name, new_name, &mtr);
+	mtr.commit();
+	log_write_up_to(mtr.commit_lsn(), true);
 }
 
 /** Write MLOG_FILE_NAME for a file.
@@ -2907,7 +2923,10 @@ fil_close_tablespace(
 	completely and permanently. The flag stop_new_ops also prevents
 	fil_flush() from being applied to this tablespace. */
 
-	buf_LRU_flush_or_remove_pages(id, trx);
+	{
+		FlushObserver observer(id, trx, NULL);
+		buf_LRU_flush_or_remove_pages(id, &observer);
+	}
 
 	/* If the free is successful, the X lock will be released before
 	the space memory data structure is freed. */
@@ -2961,10 +2980,14 @@ fil_table_accessible(const dict_table_t* table)
 
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
-@param[in]	drop_ahi	whether to drop the adaptive hash index
 @return	DB_SUCCESS or error */
 dberr_t
-fil_delete_tablespace(ulint id, bool drop_ahi)
+fil_delete_tablespace(
+	ulint id
+#ifdef BTR_CUR_HASH_ADAPT
+	, bool drop_ahi /*!< whether to drop the adaptive hash index */
+#endif /* BTR_CUR_HASH_ADAPT */
+	)
 {
 	char*		path = 0;
 	fil_space_t*	space = 0;
@@ -3007,7 +3030,11 @@ fil_delete_tablespace(ulint id, bool drop_ahi)
 	To deal with potential read requests, we will check the
 	::stop_new_ops flag in fil_io(). */
 
-	buf_LRU_flush_or_remove_pages(id, NULL, drop_ahi);
+	buf_LRU_flush_or_remove_pages(id, NULL
+#ifdef BTR_CUR_HASH_ADAPT
+				      , drop_ahi
+#endif /* BTR_CUR_HASH_ADAPT */
+				      );
 
 	/* If it is a delete then also delete any generated files, otherwise
 	when we drop the database the remove directory will fail. */
@@ -3287,7 +3314,11 @@ fil_discard_tablespace(
 {
 	dberr_t	err;
 
-	switch (err = fil_delete_tablespace(id, true)) {
+	switch (err = fil_delete_tablespace(id
+#ifdef BTR_CUR_HASH_ADAPT
+					    , true
+#endif /* BTR_CUR_HASH_ADAPT */
+					    )) {
 	case DB_SUCCESS:
 		break;
 
@@ -3580,12 +3611,7 @@ func_exit:
 	ut_ad(strchr(new_file_name, OS_PATH_SEPARATOR) != NULL);
 
 	if (!recv_recovery_on) {
-		mtr_t		mtr;
-
-		mtr.start();
-		fil_name_write_rename(
-			id, 0, old_file_name, new_file_name, &mtr);
-		mtr.commit();
+		fil_name_write_rename(id, old_file_name, new_file_name);
 		log_mutex_enter();
 	}
 
@@ -4201,7 +4227,8 @@ skip_validate:
 			err = DB_ERROR;
 		}
 
-		if (purpose != FIL_TYPE_IMPORT && !srv_read_only_mode) {
+		if (err == DB_SUCCESS && validate
+		    && purpose != FIL_TYPE_IMPORT && !srv_read_only_mode) {
 			df_remote.close();
 			df_dict.close();
 			df_default.close();
@@ -4615,7 +4642,9 @@ fsp_flags_try_adjust(ulint space_id, ulint flags)
 {
 	ut_ad(!srv_read_only_mode);
 	ut_ad(fsp_flags_is_valid(flags, space_id));
-
+	if (!fil_space_get_size(space_id)) {
+		return;
+	}
 	mtr_t	mtr;
 	mtr.start();
 	if (buf_block_t* b = buf_page_get(
@@ -4648,9 +4677,7 @@ startup, there may be many tablespaces which are not yet in the memory cache.
 @param[in]	print_error_if_does_not_exist
 				Print detailed error information to the
 error log if a matching tablespace is not found from memory.
-@param[in]	adjust_space	Whether to adjust space id on mismatch
 @param[in]	heap		Heap memory
-@param[in]	table_id	table id
 @param[in]	table_flags	table flags
 @return true if a matching tablespace exists in the memory cache */
 bool
@@ -4658,9 +4685,7 @@ fil_space_for_table_exists_in_mem(
 	ulint		id,
 	const char*	name,
 	bool		print_error_if_does_not_exist,
-	bool		adjust_space,
 	mem_heap_t*	heap,
-	table_id_t	table_id,
 	ulint		table_flags)
 {
 	fil_space_t*	fnamespace;
@@ -4684,41 +4709,6 @@ fil_space_for_table_exists_in_mem(
 	if (!space) {
 	} else if (!valid || space == fnamespace) {
 		/* Found with the same file name, or got a flag mismatch. */
-		goto func_exit;
-	} else if (adjust_space
-		   && row_is_mysql_tmp_table_name(space->name)
-		   && !row_is_mysql_tmp_table_name(name)) {
-		/* Info from fnamespace comes from the ibd file
-		itself, it can be different from data obtained from
-		System tables since renaming files is not
-		transactional. We shall adjust the ibd file name
-		according to system table info. */
-		mutex_exit(&fil_system->mutex);
-
-		DBUG_EXECUTE_IF("ib_crash_before_adjust_fil_space",
-				DBUG_SUICIDE(););
-
-		const char*	tmp_name = dict_mem_create_temporary_tablename(
-			heap, name, table_id);
-
-		fil_rename_tablespace(
-			fnamespace->id,
-			UT_LIST_GET_FIRST(fnamespace->chain)->name,
-			tmp_name, NULL);
-
-		DBUG_EXECUTE_IF("ib_crash_after_adjust_one_fil_space",
-				DBUG_SUICIDE(););
-
-		fil_rename_tablespace(
-			id, UT_LIST_GET_FIRST(space->chain)->name,
-			name, NULL);
-
-		DBUG_EXECUTE_IF("ib_crash_after_adjust_fil_space",
-				DBUG_SUICIDE(););
-
-		mutex_enter(&fil_system->mutex);
-		fnamespace = fil_space_get_by_name(name);
-		ut_ad(space == fnamespace);
 		goto func_exit;
 	}
 
@@ -5994,17 +5984,6 @@ fil_tablespace_iterate(
 		innodb_data_file_key, filepath,
 		OS_FILE_OPEN, OS_FILE_READ_WRITE, srv_read_only_mode, &success);
 
-	DBUG_EXECUTE_IF("fil_tablespace_iterate_failure",
-	{
-		static bool once;
-
-		if (!once || ut_rnd_interval(0, 10) == 5) {
-			once = true;
-			success = false;
-			os_file_close(file);
-		}
-	});
-
 	if (!success) {
 		/* The following call prints an error message */
 		os_file_get_last_error(true);
@@ -6157,51 +6136,6 @@ fil_delete_file(
 	}
 }
 
-/**
-Iterate over all the spaces in the space list and fetch the
-tablespace names. It will return a copy of the name that must be
-freed by the caller using: delete[].
-@return DB_SUCCESS if all OK. */
-dberr_t
-fil_get_space_names(
-/*================*/
-	space_name_list_t&	space_name_list)
-				/*!< in/out: List to append to */
-{
-	fil_space_t*	space;
-	dberr_t		err = DB_SUCCESS;
-
-	mutex_enter(&fil_system->mutex);
-
-	for (space = UT_LIST_GET_FIRST(fil_system->space_list);
-	     space != NULL;
-	     space = UT_LIST_GET_NEXT(space_list, space)) {
-
-		if (space->purpose == FIL_TYPE_TABLESPACE) {
-			ulint	len;
-			char*	name;
-
-			len = ::strlen(space->name);
-			name = UT_NEW_ARRAY_NOKEY(char, len + 1);
-
-			if (name == 0) {
-				/* Caller to free elements allocated so far. */
-				err = DB_OUT_OF_MEMORY;
-				break;
-			}
-
-			memcpy(name, space->name, len);
-			name[len] = 0;
-
-			space_name_list.push_back(name);
-		}
-	}
-
-	mutex_exit(&fil_system->mutex);
-
-	return(err);
-}
-
 /** Generate redo log for swapping two .ibd files
 @param[in]	old_table	old table
 @param[in]	new_table	new table
@@ -6257,7 +6191,7 @@ fil_mtr_rename_log(
 			return(err);
 		}
 
-		fil_name_write_rename(
+		fil_name_write_rename_low(
 			old_table->space, 0, old_path, tmp_path, mtr);
 
 		ut_free(tmp_path);
@@ -6288,7 +6222,7 @@ fil_mtr_rename_log(
 			}
 		}
 
-		fil_name_write_rename(
+		fil_name_write_rename_low(
 			new_table->space, 0, new_path, old_path, mtr);
 
 		ut_free(new_path);
