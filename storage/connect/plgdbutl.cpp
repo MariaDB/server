@@ -519,7 +519,7 @@ bool EvalLikePattern(LPCSTR sp, LPCSTR tp)
   {
   LPSTR p;
   char  c;
-  int   n;
+  ssize_t   n;
   bool  b, t = false;
 
   if (trace(2))

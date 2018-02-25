@@ -165,7 +165,7 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
 			}; // endswitch s[i]
 
 		if (!jsp)
-			sprintf(g->Message, "Invalid Json string '%.*s'", 50, s);
+			sprintf(g->Message, "Invalid Json string '%.*s'", MY_MIN(len, 50), s);
 		else if (ptyp && pretty == 3) {
 			*ptyp = 3;     // Not recognized pretty
 
@@ -1016,6 +1016,20 @@ PJAR JOBJECT::GetKeyList(PGLOBAL g)
 } // end of GetKeyList
 
 /***********************************************************************/
+/* Return all values as an array.                                      */
+/***********************************************************************/
+PJAR JOBJECT::GetValList(PGLOBAL g)
+{
+	PJAR jarp = new(g) JARRAY();
+
+	for (PJPR jpp = First; jpp; jpp = jpp->Next)
+		jarp->AddValue(g, jpp->GetVal());
+
+	jarp->InitArray(g);
+	return jarp;
+} // end of GetValList
+
+/***********************************************************************/
 /* Get the value corresponding to the given key.                       */
 /***********************************************************************/
 PJVAL JOBJECT::GetValue(const char* key)
@@ -1325,7 +1339,7 @@ bool JARRAY::IsNull(void)
 JVALUE::JVALUE(PJSON jsp) : JSON()
 {
 	if (jsp->GetType() == TYPE_JVAL) {
-		Jsp = NULL;
+		Jsp = jsp->GetJsp();
 		Value = jsp->GetValue();
 	} else {
 		Jsp = jsp; 

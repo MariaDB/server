@@ -220,7 +220,7 @@ DllExport BOOL    PlugIsAbsolutePath(LPCSTR path);
 DllExport bool    AllocSarea(PGLOBAL, uint);
 DllExport void    FreeSarea(PGLOBAL);
 DllExport BOOL    PlugSubSet(PGLOBAL, void *, uint);
-DllExport void   *PlugSubAlloc(PGLOBAL, void *, size_t);
+					void   *PlugSubAlloc(PGLOBAL, void *, size_t);	 // Does throw
 DllExport char   *PlugDup(PGLOBAL g, const char *str);
 DllExport void   *MakePtr(void *, OFFSET);
 DllExport void    htrc(char const *fmt, ...);

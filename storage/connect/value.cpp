@@ -1374,7 +1374,7 @@ bool TYPVAL<PSZ>::SetValue_char(const char *cp, int n)
 	} else if (cp != Strp) {
 		const char *p = cp + n - 1;
 
-		for (p; p >= cp; p--, n--)
+		for (; p >= cp; p--, n--)
 			if (*p && *p != ' ')
 				break;
 
@@ -1747,7 +1747,7 @@ DECVAL::DECVAL(PSZ s) : TYPVAL<PSZ>(s)
   if (s) {
     char *p = strchr(Strp, '.');
 
-    Prec = (p) ? Len - (p - Strp) : 0;
+    Prec = (p) ? (int)(Len - (p - Strp)) : 0;
     } // endif s
 
   Type = TYPE_DECIM;
@@ -2656,7 +2656,7 @@ bool DTVAL::SetValue_char(const char *p, int n)
 			// Trim trailing blanks
 			for (p2 = p + n -1; p < p2 && *p2 == ' '; p2--);
 
-			if ((rc = (n = p2 - p + 1) > Len))
+			if ((rc = (n = (int)(p2 - p + 1)) > Len))
 				n = Len;
 
 			memcpy(Sdate, p, n);

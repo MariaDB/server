@@ -1351,7 +1351,7 @@ int BLKFAM::GetPos(void)
 /***********************************************************************/
 int BLKFAM::GetNextPos(void)
   {
-  return Fpos + NxtLine - CurLine;
+  return (int)(Fpos + NxtLine - CurLine);
   } // end of GetNextPos
 
 /***********************************************************************/
@@ -1396,7 +1396,8 @@ int BLKFAM::SkipRecord(PGLOBAL, bool header)
 /***********************************************************************/
 int BLKFAM::ReadBuffer(PGLOBAL g)
   {
-  int i, n, rc = RC_OK;
+  int i, rc = RC_OK;
+  size_t n;
 
   /*********************************************************************/
   /*  Sequential reading when Placed is not true.                      */
@@ -1458,7 +1459,7 @@ int BLKFAM::ReadBuffer(PGLOBAL g)
   // Read the entire next block
   n = fread(To_Buf, 1, (size_t)BlkLen, Stream);
 
-  if (n == BlkLen) {
+  if ((size_t) n == (size_t) BlkLen) {
 //  ReadBlks++;
     num_read++;
     Rbuf = (CurBlk == Block - 1) ? Last : Nrec;
@@ -1497,7 +1498,7 @@ int BLKFAM::ReadBuffer(PGLOBAL g)
 
  fin:
   // Store the current record file position for Delete and Update
-  Fpos = BlkPos[CurBlk] + CurLine - To_Buf;
+  Fpos = (int)(BlkPos[CurBlk] + CurLine - To_Buf);
   return rc;
   } // end of ReadBuffer
 
@@ -1524,7 +1525,7 @@ int BLKFAM::WriteBuffer(PGLOBAL g)
 
     //  Now start the writing process.
     NxtLine = CurLine + strlen(CurLine);
-    BlkLen = NxtLine - To_Buf;
+    BlkLen = (int)(NxtLine - To_Buf);
 
     if (fwrite(To_Buf, 1, BlkLen, Stream) != (size_t)BlkLen) {
       sprintf(g->Message, MSG(FWRITE_ERROR), strerror(errno));

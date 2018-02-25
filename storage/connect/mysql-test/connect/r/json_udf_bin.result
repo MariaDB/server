@@ -272,10 +272,9 @@ Json_Serialize(Jbin_Array('a','b','c'))
 ["a","b","c"]
 SELECT Json_Serialize(Jbin_Array_Add(Jbin_File('not_exist.json'), 'd'));
 Json_Serialize(Jbin_Array_Add(Jbin_File('not_exist.json'), 'd'))
-Null json tree
+[null,"d"]
 Warnings:
 Warning	1105	Open(map) error 2 on not_exist.json
-Warning	1105	First argument is not an array
 # This does not modify the file
 SELECT Json_Serialize(Jbin_Array_Add(Jbin_File('bt1.json'), 'd'));
 Json_Serialize(Jbin_Array_Add(Jbin_File('bt1.json'), 'd'))

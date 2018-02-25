@@ -248,7 +248,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
 
 			while (true) {
 				p2 = strchr(p1, '\'');
-				len = MY_MAX(len, p2 - p1);
+				len = MY_MAX(len, (int)(p2 - p1));
 				if (*++p2 != ',') break;
 				p1 = p2 + 2;
 			} // endwhile
