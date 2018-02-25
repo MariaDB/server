@@ -1312,7 +1312,7 @@ Log_event::Log_event(const char* buf,
   thd = 0;
 #endif
   when = uint4korr(buf);
-  when_sec_part= 0;
+  when_sec_part= ~0UL;
   server_id = uint4korr(buf + SERVER_ID_OFFSET);
   data_written= uint4korr(buf + EVENT_LEN_OFFSET);
   if (description_event->binlog_version==1)
@@ -5090,7 +5090,7 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
   }
 
   end=int10_to_str((long) when, strmov(buff,"SET TIMESTAMP="),10);
-  if (when_sec_part)
+  if (when_sec_part && when_sec_part <= TIME_MAX_SECOND_PART)
   {
     *end++= '.';
     end=int10_to_str(when_sec_part, end, 10);

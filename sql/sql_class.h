@@ -3434,8 +3434,8 @@ public:
     ulong sec_part;
   } system_time;
 
-  ulong systime_sec_part() { return system_time.sec_part; }
-  my_time_t systime() { return system_time.sec; }
+  ulong systime_sec_part() { query_start_sec_part_used=1; return system_time.sec_part; }
+  my_time_t systime() { query_start_used=1; return system_time.sec; }
 
 private:
   void set_system_time()
@@ -3457,6 +3457,25 @@ private:
       else
       {
         system_time.sec++;
+        system_time.sec_part= 0;
+      }
+    }
+  }
+
+  void set_system_time_from_user_time(bool with_sec_part)
+  {
+    if (with_sec_part)
+    {
+      system_time.sec= start_time;
+      system_time.sec_part= start_time_sec_part;
+    }
+    else
+    {
+      if (system_time.sec == start_time)
+        system_time.sec_part++;
+      else
+      {
+        system_time.sec= start_time;
         system_time.sec_part= 0;
       }
     }
@@ -3488,10 +3507,21 @@ public:
     user_time= t;
     set_time();
   }
+  /*
+    this is only used by replication and BINLOG command.
+    usecs > TIME_MAX_SECOND_PART means "was not in binlog"
+  */
   inline void set_time(my_time_t t, ulong sec_part)
   {
-    my_hrtime_t hrtime= { hrtime_from_time(t) + sec_part };
-    set_time(hrtime);
+    start_time= t;
+    start_time_sec_part= sec_part > TIME_MAX_SECOND_PART ? 0 : sec_part;
+    user_time.val= hrtime_from_time(start_time) + start_time_sec_part;
+    if (slave_thread)
+      set_system_time_from_user_time(sec_part <= TIME_MAX_SECOND_PART);
+    else // BINLOG command
+      set_system_time();
+    PSI_CALL_set_thread_start_time(start_time);
+    start_utime= utime_after_lock= microsecond_interval_timer();
   }
   void set_time_after_lock()
   {
