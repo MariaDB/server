@@ -412,4 +412,3 @@ void SIDBLK::ReadColumn(PGLOBAL)
 //  } // endif Sname
 
   } // end of ReadColumn
-

@@ -537,7 +537,7 @@ int ZBKFAM::ReadBuffer(PGLOBAL g)
     while (*NxtLine++ != '\n') ;
 
     // Set caller line buffer
-    n = NxtLine - CurLine - Ending;
+    n = (int)(NxtLine - CurLine - Ending);
     memcpy(Tdbp->GetLine(), CurLine, n);
     Tdbp->GetLine()[n] = '\0';
     return RC_OK;
@@ -588,7 +588,7 @@ int ZBKFAM::ReadBuffer(PGLOBAL g)
     for (NxtLine = CurLine; *NxtLine++ != '\n';) ;
 
     // Set caller line buffer
-    n = NxtLine - CurLine - Ending;
+    n = (int)(NxtLine - CurLine - Ending);
     memcpy(Tdbp->GetLine(), CurLine, n);
     Tdbp->GetLine()[n] = '\0';
     Rbuf = (CurBlk == Block - 1) ? Last : Nrec;
@@ -1087,7 +1087,7 @@ bool ZLBFAM::SetPos(PGLOBAL g, int pos __attribute__((unused)))
 /***********************************************************************/
 int ZLBFAM::ReadBuffer(PGLOBAL g)
   {
-  int   n;
+  size_t   n;
   void *rdbuf;
 
   /*********************************************************************/
@@ -1299,7 +1299,7 @@ int ZLBFAM::WriteBuffer(PGLOBAL g)
   else
     NxtLine = CurLine + Lrecl;
 
-  BlkLen = NxtLine - To_Buf;
+  BlkLen = (int)(NxtLine - To_Buf);
 
   if (WriteCompressedBuffer(g)) {
     Closing = TRUE;      // To tell CloseDB about a Write error

@@ -84,7 +84,7 @@ BYTE OpBmp(PGLOBAL g, OPVAL opc)
     case OP_EXIST: bt = 0x00; break;
     default:
       sprintf(g->Message, MSG(BAD_FILTER_OP), opc);
-			throw (int)TYPE_ARRAY;
+			throw (int)TYPE_FILTER;
 	} // endswitch opc
 
   return bt;
@@ -1707,7 +1707,7 @@ PFIL PrepareFilter(PGLOBAL g, PFIL fp, bool having)
         break;  // Remove eventual ending separator(s)
 
 //  if (fp->Convert(g, having))
-//		(int)throw TYPE_ARRAY;
+//			throw (int)TYPE_FILTER;
 
     filp = fp;
     fp = fp->Next;

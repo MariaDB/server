@@ -1,0 +1,31 @@
+let datadir= `select @@datadir`;
+--copy_file $MTR_SUITE_DIR/std_data/boys.txt $datadir/test/boys.txt
+
+create table t1 (
+  #linenum int(6) not null default 0 special=rowid,
+  name char(12) not null,
+  city char(11) not null,
+  birth date not null date_format='DD/MM/YYYY',
+  hired date not null date_format='DD/MM/YYYY' flag=36,
+  agehired int(3) as (floor(datediff(hired,birth)/365.25))
+  )
+engine=CONNECT table_type=FIX file_name='boys.txt' mapped=YES lrecl=47 ending=1;
+select * from t1;
+drop table t1;
+
+--error ER_NULL_COLUMN_IN_INDEX
+create table t1 (
+  #linenum int(6) not null default 0 special=rowid,
+  name char(12) not null,
+  city char(11) not null,
+  birth date not null date_format='DD/MM/YYYY',
+  hired date not null date_format='DD/MM/YYYY' flag=36,
+  agehired int(3) as (floor(datediff(hired,birth)/365.25)),
+  index (agehired)
+  )
+engine=CONNECT table_type=FIX file_name='boys.txt' mapped=YES lrecl=47 ending=1;
+
+#
+# Clean up
+#
+--remove_file $datadir/test/boys.txt

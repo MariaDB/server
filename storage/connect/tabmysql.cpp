@@ -124,8 +124,8 @@ bool MYSQLDEF::GetServerInfo(PGLOBAL g, const char *server_name)
     DBUG_RETURN(true);
     } // endif server
 
-  DBUG_PRINT("info", ("get_server_by_name returned server at %lx",
-                      (size_t) server));
+  DBUG_PRINT("info", ("get_server_by_name returned server at %p",
+                     server));
 
   // TODO: We need to examine which of these can really be NULL
   Hostname = PlugDup(g, server->host);
@@ -681,7 +681,7 @@ bool TDBMYSQL::MakeCommand(PGLOBAL g)
       strlwr(strcpy(name, Name));     // Not a keyword
 
     if ((p = strstr(qrystr, name))) {
-      Query->Set(Qrystr, p - qrystr);
+      Query->Set(Qrystr, (uint)(p - qrystr));
 
       if (qtd && *(p-1) == ' ') {
         Query->Append('`');

@@ -1,0 +1,29 @@
+create table t1 (
+#linenum int(6) not null default 0 special=rowid,
+name char(12) not null,
+city char(11) not null,
+birth date not null date_format='DD/MM/YYYY',
+hired date not null date_format='DD/MM/YYYY' flag=36,
+agehired int(3) as (floor(datediff(hired,birth)/365.25))
+)
+engine=CONNECT table_type=FIX file_name='boys.txt' mapped=YES lrecl=47 ending=1;
+select * from t1;
+name	city	birth	hired	agehired
+John	Boston	1986-01-25	2010-06-02	24
+Henry	Boston	1987-06-07	2008-04-01	20
+George	San Jose	1981-08-10	2010-06-02	28
+Sam	Chicago	1979-11-22	2007-10-10	27
+James	Dallas	1992-05-13	2009-12-14	17
+Bill	Boston	1986-09-11	2008-02-10	21
+drop table t1;
+create table t1 (
+#linenum int(6) not null default 0 special=rowid,
+name char(12) not null,
+city char(11) not null,
+birth date not null date_format='DD/MM/YYYY',
+hired date not null date_format='DD/MM/YYYY' flag=36,
+agehired int(3) as (floor(datediff(hired,birth)/365.25)),
+index (agehired)
+)
+engine=CONNECT table_type=FIX file_name='boys.txt' mapped=YES lrecl=47 ending=1;
+ERROR 42000: Table handler doesn't support NULL in given index. Please change column 'agehired' to be NOT NULL or use another handler

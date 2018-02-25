@@ -289,7 +289,7 @@ void TDBODBC::SetFile(PGLOBAL g, PCSZ fn)
     sprintf(Connect, MulConn, fn);
     } // endif MultConn
 
-  DBQ = (PSZ)fn;
+  DBQ = PlugDup(g, fn);
   } // end of SetFile
 
 /***********************************************************************/
