@@ -1,6 +1,6 @@
 --source include/have_stat_tables.inc
---source include/master-slave.inc
 --source include/have_binlog_format_row.inc
+--source include/master-slave.inc
 
 --echo #
 --echo # Bug mdev-485: unexpected failure with replication of DROP/ALTER table

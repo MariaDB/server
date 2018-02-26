@@ -515,19 +515,8 @@ static void run_test (int iter) {
 
     // if requesting crash, randomly do other non-committed acts, then "drop_dead"
     if (iter > 0) {
-        if (verbose) printf("dying\n");
-#if 0
-	// separate thread will perform random acts on other dictionaries (not 0)
-	r = toku_pthread_create(&thread, 0, random_acts, (void *) dictionaries);
-	CKERR(r);
-	// this thead will scribble over dictionary 0 before crash to verify that
-	// post-checkpoint inserts are not in the database
-	DB* db = dictionaries[0].db;
-	if (iter & 1)
-	    scribble(db, iter);
-	else
-	    thin_out(db, iter);
-#endif
+        if (verbose)
+            printf("dying\n");
 	uint32_t delay = myrandom();
 	delay &= 0xFFF;       // select lower 12 bits, shifted up 8 for random number ...
 	delay = delay << 8;   // ... uniformly distributed between 0 and 1M ...

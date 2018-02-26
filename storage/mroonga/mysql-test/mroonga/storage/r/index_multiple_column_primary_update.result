@@ -1,32 +1,27 @@
-drop table if exists listing;
-set names utf8;
-create table scores (
-name char(30) not null,
-score int not null,
-primary key (name, score)
-) default charset utf8;
-show create table scores;
-Table	Create Table
-scores	CREATE TABLE `scores` (
-  `name` char(30) NOT NULL,
-  `score` int(11) NOT NULL,
-  PRIMARY KEY (`name`,`score`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
-insert into scores (name, score) values("Taro Yamada", 29);
-insert into scores (name, score) values("Taro Yamada", -12);
-insert into scores (name, score) values("Jiro Yamada", 27);
-insert into scores (name, score) values("Taro Yamada", 10);
-select * from scores;
+DROP TABLE IF EXISTS scores;
+SET NAMES utf8;
+CREATE TABLE scores (
+name char(30) NOT NULL,
+score int NOT NULL,
+PRIMARY KEY (name, score)
+) DEFAULT CHARSET=utf8;
+INSERT INTO scores (name, score) VALUES ("Taro Yamada", 29);
+INSERT INTO scores (name, score) VALUES ("Taro Yamada", -12);
+INSERT INTO scores (name, score) VALUES ("Jiro Yamada", 27);
+INSERT INTO scores (name, score) VALUES ("Taro Yamada", 10);
+SELECT * FROM scores;
 name	score
 Jiro Yamada	27
 Taro Yamada	-12
 Taro Yamada	10
 Taro Yamada	29
-update scores set name = "Taro Yamada" where name = "Jiro Yamada" and score = 27;
+UPDATE scores SET name = "Taro Yamada"
+  WHERE name = "Jiro Yamada" AND score = 27;
 Warnings:
 Warning	1265	data truncated for primary key column: <name>
-select * from scores where name = "Taro Yamada" and (score >= -12 and score < 29);
+SELECT * FROM scores
+WHERE name = "Taro Yamada" AND (score >= -12 AND score < 29);
 name	score
 Taro Yamada	-12
 Taro Yamada	10
-drop table scores;
+DROP TABLE scores;

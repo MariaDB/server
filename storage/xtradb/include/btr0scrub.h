@@ -154,13 +154,10 @@ btr_scrub_start_space(
 	ulint space,              /*!< in: space */
 	btr_scrub_t* scrub_data); /*!< in/out: scrub data */
 
-/****************************************************************
-Complete iterating a space
-* @return true if space was scrubbed */
+/** Complete iterating a space.
+@param[in,out]	scrub_data	 scrub data */
 UNIV_INTERN
-bool
-btr_scrub_complete_space(
-/*=====================*/
-	btr_scrub_t* scrub_data); /*!< in/out: scrub data */
+void
+btr_scrub_complete_space(btr_scrub_t* scrub_data);
 
 #endif

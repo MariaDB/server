@@ -184,12 +184,7 @@ trx_sys_flush_max_trx_id(void)
 	mtr_t		mtr;
 	trx_sysf_t*	sys_header;
 
-#ifndef WITH_WSREP
-       /* wsrep_fake_trx_id  violates this assert
-        * Copied from trx_sys_get_new_trx_id
-        */
 	ut_ad(mutex_own(&trx_sys->mutex));
-#endif /* WITH_WSREP */
 
 	if (!srv_read_only_mode) {
 		mtr_start(&mtr);
@@ -348,6 +343,7 @@ static inline void read_wsrep_xid_uuid(const XID* xid, unsigned char* buf)
 @param[in]	xid		Transaction XID
 @param[in,out]	sys_header	sys_header
 @param[in]	mtr		minitransaction */
+UNIV_INTERN
 void
 trx_sys_update_wsrep_checkpoint(
 	const XID*	xid,
@@ -406,8 +402,9 @@ trx_sys_update_wsrep_checkpoint(
 }
 
 /** Read WSREP XID from sys_header of TRX_SYS_PAGE_NO = 5.
-@param[out]	xid	Transaction XID 
+@param[out]	xid	Transaction XID
 @retval true if found, false if not */
+UNIV_INTERN
 bool
 trx_sys_read_wsrep_checkpoint(XID* xid)
 {
@@ -1344,8 +1341,7 @@ trx_sys_close(void)
 	ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == trx_sys->n_prepared_trx
 	     || srv_read_only_mode
 	     || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO
-	     || (IS_XTRABACKUP() && srv_apply_log_only));
-
+	     || srv_apply_log_only);
 
 	while ((trx = UT_LIST_GET_FIRST(trx_sys->rw_trx_list)) != NULL) {
 		trx_free_prepared(trx);
@@ -1376,7 +1372,7 @@ trx_sys_close(void)
 		UT_LIST_REMOVE(view_list, trx_sys->view_list, prev_view);
 	}
 
-	if (!IS_XTRABACKUP() || !srv_apply_log_only) {
+	if (!srv_apply_log_only) {
 		ut_a(UT_LIST_GET_LEN(trx_sys->view_list) == 0);
 		ut_a(UT_LIST_GET_LEN(trx_sys->ro_trx_list) == 0);
 		ut_a(UT_LIST_GET_LEN(trx_sys->rw_trx_list) == 0);
@@ -1428,7 +1424,7 @@ ulint
 trx_sys_any_active_transactions(void)
 /*=================================*/
 {
-	if (IS_XTRABACKUP() && srv_apply_log_only) {
+	if (srv_apply_log_only) {
 		return(0);
 	}
 	mutex_enter(&trx_sys->mutex);

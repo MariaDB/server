@@ -1,0 +1,10 @@
+SELECT mroonga_snippet_html('Mroonga has two running modes.
+
+One is "storage mode", that is the default mode, and we use Groonga for both storing data and searching. With this mode, you can have full benefits of Groonga described above, like fast data update, lock-free full text search and geolocation search. But it does not support transactions.
+
+Another one is "wrapper mode", that adds full text search function on other storage engines like MyISAM or InnoDB. With this mode, you can use Groonga''s fast full text search with having the benefits of the storage engine, ex. transaction in InnoDB. But you cannot have benefits from Groonga''s read-lock free characteristic. And you might have the performance bottle neck in the storage engine in updating data.',
+'lock') as snippet;
+snippet
+<div class="snippet">ng. With this mode, you can have full benefits of Groonga described above, like fast data update, <span class="keyword">lock</span>-free full text search and geolocation search. But it does not support transactions.
+
+Another one </div><div class="snippet">f the storage engine, ex. transaction in InnoDB. But you cannot have benefits from Groonga's read-<span class="keyword">lock</span> free characteristic. And you might have the performance bottle neck in the storage engine in upda</div>

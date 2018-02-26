@@ -1595,7 +1595,14 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 drop table t1;
 create table t1 (v varchar(65535));
-ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 65535. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
+Warnings:
+Note	1246	Converting column 'v' from VARCHAR to TEXT
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `v` text
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
+drop table t1;
 set @save_concurrent_insert=@@concurrent_insert;
 set global concurrent_insert=1;
 create table t1 (a int) ROW_FORMAT=FIXED;
@@ -2688,6 +2695,17 @@ select count(*) from t1;
 count(*)
 13
 drop table t1;
+#
+# MDEV-14690: Assertion `page_link == &fake_link' failed in
+# pagecache_write_part
+#
+CREATE TABLE t1 (a CHAR(8), b CHAR(8), c CHAR(8) NOT NULL DEFAULT '', f FLOAT, KEY(f)) ENGINE=Aria;
+INSERT INTO t1 (a) VALUES ('foo');
+DELETE FROM t1 WHERE c < 'bar';
+ALTER TABLE t1 DISABLE KEYS;
+INSERT INTO t1 (b) VALUES ('');
+ALTER TABLE t1 ENABLE KEYS;
+DROP TABLE t1;
 #
 # BUG#47444 - --myisam_repair_threads > 1 can result in all index
 #             cardinalities=1

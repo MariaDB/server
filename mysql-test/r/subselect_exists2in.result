@@ -934,5 +934,42 @@ f2
 foo
 set optimizer_switch= @optimizer_switch_save;
 DROP TABLE t1;
+#
+# MDEV-14164: Unknown column error when adding aggregate to function
+# in oracle style procedure FOR loop
+#
+CREATE TABLE t1(id INT, val INT);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE cur1 CURSOR FOR SELECT * FROM (
+SELECT DISTINCT id FROM t1) a
+WHERE NOT EXISTS (SELECT * FROM ( SELECT id FROM t1) b
+WHERE a.id=b.id);
+OPEN cur1;
+CLOSE cur1;
+OPEN cur1;
+CLOSE cur1;
+END;
+//
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+CREATE TABLE t1(id INT, val INT);
+CREATE PROCEDURE p1()
+BEGIN
+SELECT * FROM (SELECT DISTINCT id FROM t1) a
+WHERE NOT a.id IN (SELECT b.id FROM t1 b);
+SELECT * FROM (SELECT DISTINCT id FROM t1) a
+WHERE NOT EXISTS (SELECT * FROM t1 b WHERE a.id=b.id);
+END;
+//
+CALL p1();
+id
+id
+CALL p1();
+id
+id
+DROP PROCEDURE p1;
+DROP TABLE t1;
 # End of 10.0 tests
 set optimizer_switch=default;

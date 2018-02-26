@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 --source ../../include/mroonga/have_mroonga.inc
 
@@ -24,9 +24,8 @@ CREATE TABLE diaries (
   id INT PRIMARY KEY AUTO_INCREMENT,
   title TEXT,
   tags TEXT,
-  FULLTEXT INDEX tags_index (tags) COMMENT 'parser "TokenDelimit"'
+  FULLTEXT INDEX tags_index (tags) COMMENT 'tokenizer "TokenDelimit"'
 ) DEFAULT CHARSET=UTF8;
-SHOW CREATE TABLE diaries;
 
 INSERT INTO diaries (title, tags) VALUES ("Hello groonga!", "groonga install");
 INSERT INTO diaries (title, tags) VALUES ("Hello mroonga!", "mroonga install");

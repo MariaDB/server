@@ -6,16 +6,6 @@ body TEXT,
 FULLTEXT INDEX title_index (title),
 FULLTEXT INDEX body_index (body)
 ) COMMENT = 'ENGINE "InnoDB"' DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `body` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `title_index` (`title`),
-  FULLTEXT KEY `body_index` (`body`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='ENGINE "InnoDB"'
 INSERT INTO diaries (title, body) VALUES ("survey", "will start groonga!");
 INSERT INTO diaries (title, body) VALUES ("groonga (1)", "starting groonga...");
 INSERT INTO diaries (title, body) VALUES ("groonga (2)", "started groonga.");

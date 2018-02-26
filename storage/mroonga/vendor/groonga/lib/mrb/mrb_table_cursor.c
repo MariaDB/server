@@ -24,6 +24,7 @@
 #include <mruby/data.h>
 #include <mruby/string.h>
 #include <mruby/hash.h>
+#include <mruby/variable.h>
 
 #include "mrb_ctx.h"
 #include "mrb_bulk.h"
@@ -38,7 +39,7 @@ static struct mrb_data_type mrb_grn_table_cursor_type = {
 };
 
 static mrb_value
-mrb_grn_table_cursor_singleton_open_raw(mrb_state *mrb, mrb_value klass)
+mrb_grn_table_cursor_class_open_raw(mrb_state *mrb, mrb_value klass)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   mrb_value mrb_table;
@@ -93,7 +94,13 @@ mrb_grn_table_cursor_singleton_open_raw(mrb_state *mrb, mrb_value klass)
   grn_mrb_value_to_raw_data_buffer_fin(mrb, &max_buffer);
   grn_mrb_ctx_check(mrb);
 
-  return mrb_funcall(mrb, klass, "new", 1, mrb_cptr_value(mrb, table_cursor));
+  {
+    mrb_value mrb_table_cursor;
+    mrb_table_cursor = mrb_funcall(mrb, klass,
+                                   "new", 1, mrb_cptr_value(mrb, table_cursor));
+    mrb_iv_set(mrb, mrb_table_cursor, mrb_intern_lit(mrb, "@table"), mrb_table);
+    return mrb_table_cursor;
+  }
 }
 
 static mrb_value
@@ -149,6 +156,28 @@ mrb_grn_table_cursor_count(mrb_state *mrb, mrb_value self)
   return mrb_fixnum_value(n_records);
 }
 
+static mrb_value
+mrb_grn_table_cursor_get_key(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  mrb_value mrb_table;
+  grn_obj *table;
+  grn_id domain;
+  void *key;
+  int key_size;
+
+  mrb_table = mrb_iv_get(mrb, self, mrb_intern_lit(mrb, "@table"));
+  table = DATA_PTR(mrb_table);
+  if (table->header.type == GRN_DB) {
+    domain = GRN_DB_SHORT_TEXT;
+  } else {
+    domain = table->header.domain;
+  }
+  key_size = grn_table_cursor_get_key(ctx, DATA_PTR(self), &key);
+
+  return grn_mrb_value_from_raw_data(mrb, domain, key, key_size);
+}
+
 void
 grn_mrb_table_cursor_init(grn_ctx *ctx)
 {
@@ -160,9 +189,9 @@ grn_mrb_table_cursor_init(grn_ctx *ctx)
   klass = mrb_define_class_under(mrb, module, "TableCursor", mrb->object_class);
   MRB_SET_INSTANCE_TT(klass, MRB_TT_DATA);
 
-  mrb_define_singleton_method(mrb, (struct RObject *)klass, "open_raw",
-                              mrb_grn_table_cursor_singleton_open_raw,
-                              MRB_ARGS_ARG(1, 1));
+  mrb_define_class_method(mrb, klass, "open_raw",
+                          mrb_grn_table_cursor_class_open_raw,
+                          MRB_ARGS_ARG(1, 1));
 
   mrb_define_method(mrb, klass, "initialize",
                     mrb_grn_table_cursor_initialize, MRB_ARGS_REQ(1));
@@ -172,5 +201,8 @@ grn_mrb_table_cursor_init(grn_ctx *ctx)
                     mrb_grn_table_cursor_next, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "count",
                     mrb_grn_table_cursor_count, MRB_ARGS_NONE());
+
+  mrb_define_method(mrb, klass, "key",
+                    mrb_grn_table_cursor_get_key, MRB_ARGS_NONE());
 }
 #endif

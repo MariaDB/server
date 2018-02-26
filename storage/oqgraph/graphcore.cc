@@ -891,18 +891,18 @@ namespace open_query
           boost::unordered_map<Vertex, Vertex> p;
           boost::unordered_map<Vertex, EdgeWeight> d;
           boost::queue<Vertex> Q;
-          reverse_graph<Graph> r(share->g);
+          const reverse_graph<Graph> r(share->g);
           p[ *dest ]= *dest;
           d[ *dest ] = EdgeWeight();
           switch (ALGORITHM & op)
           {
           case DIJKSTRAS:
-            dijkstra_shortest_paths_no_init(share->g, *dest,
+            dijkstra_shortest_paths_no_init(r, *dest,
                 make_lazy_property_map(p, identity_initializer<Vertex>()),
                 make_lazy_property_map(d, value_initializer<EdgeWeight>(
                     (std::numeric_limits<EdgeWeight>::max)())),
-                get(edge_weight, share->g),
-                get(vertex_index, share->g),
+                get(edge_weight, r),
+                get(vertex_index, r),
                 std::less<EdgeWeight>(),
                 closed_plus<EdgeWeight>(),
                 EdgeWeight(),
@@ -913,10 +913,10 @@ namespace open_query
                             static_cast<stack_cursor*>(cursor)
                         )
                 ),
-                make_two_bit_judy_map(get(vertex_index, share->g)));
+                make_two_bit_judy_map(get(vertex_index, r)));
             break;
           case BREADTH_FIRST:
-            breadth_first_visit(share->g, *dest, Q,
+            breadth_first_visit(r, *dest, Q,
                 make_bfs_visitor(
                     std::make_pair(
                         record_predecessors(
@@ -935,7 +935,7 @@ namespace open_query
                         )
                     ))
                 ),
-                make_two_bit_judy_map(get(vertex_index, share->g)));
+                make_two_bit_judy_map(get(vertex_index, r)));
             break;
           default:
             abort();

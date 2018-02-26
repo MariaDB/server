@@ -729,6 +729,7 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
 {
   MI_KEYDEF *keyinfo;
   MI_COLUMNDEF *recinfo= 0;
+  char readlink_buf[FN_REFLEN], name_buff[FN_REFLEN];
   uint recs;
   uint i;
 
@@ -783,6 +784,30 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
     (void) mi_extra(file, HA_EXTRA_NO_WAIT_LOCK, 0);
 
   info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
+
+  /*
+    Set data_file_name and index_file_name to point at the symlink value
+    if table is symlinked (Ie;  Real name is not same as generated name)
+  */
+  fn_format(name_buff, file->filename, "", MI_NAME_DEXT,
+            MY_APPEND_EXT | MY_UNPACK_FILENAME);
+  if (my_is_symlink(name_buff))
+  {
+    my_readlink(readlink_buf, name_buff, MYF(0));
+    data_file_name= strdup_root(&table->mem_root, readlink_buf);
+  }
+  else
+    data_file_name= 0;
+  fn_format(name_buff, file->filename, "", MI_NAME_IEXT,
+            MY_APPEND_EXT | MY_UNPACK_FILENAME);
+  if (my_is_symlink(name_buff))
+  {
+    my_readlink(readlink_buf, name_buff, MYF(0));
+    index_file_name= strdup_root(&table->mem_root, readlink_buf);
+  }
+  else
+    index_file_name= 0;
+
   if (!(test_if_locked & HA_OPEN_WAIT_IF_LOCKED))
     (void) mi_extra(file, HA_EXTRA_WAIT_LOCK, 0);
   if (!table->s->db_record_offset)
@@ -1847,7 +1872,6 @@ void ha_myisam::position(const uchar *record)
 int ha_myisam::info(uint flag)
 {
   MI_ISAMINFO misam_info;
-  char name_buff[FN_REFLEN];
 
   if (!table)
     return 1;
@@ -1895,27 +1919,6 @@ int ha_myisam::info(uint flag)
              sizeof(table->key_info[0].rec_per_key[0])*share->key_parts);
     if (table_share->tmp_table == NO_TMP_TABLE)
       mysql_mutex_unlock(&table_share->LOCK_share);
-
-   /*
-     Set data_file_name and index_file_name to point at the symlink value
-     if table is symlinked (Ie;  Real name is not same as generated name)
-   */
-    char buf[FN_REFLEN];
-    data_file_name= index_file_name= 0;
-    fn_format(name_buff, file->filename, "", MI_NAME_DEXT,
-              MY_APPEND_EXT | MY_UNPACK_FILENAME);
-    if (my_is_symlink(name_buff))
-    {
-      my_readlink(buf, name_buff, MYF(0));
-      data_file_name= ha_thd()->strdup(buf);
-    }
-    fn_format(name_buff, file->filename, "", MI_NAME_IEXT,
-              MY_APPEND_EXT | MY_UNPACK_FILENAME);
-    if (my_is_symlink(name_buff))
-    {
-      my_readlink(buf, name_buff, MYF(0));
-      index_file_name= ha_thd()->strdup(buf);
-    }
   }
   if (flag & HA_STATUS_ERRKEY)
   {
@@ -2261,6 +2264,17 @@ ha_myisam::check_if_supported_inplace_alter(TABLE *new_table,
 }
 
 
+static bool directories_differ(const char *d1, const char *d2)
+{
+  if (!d1 && !d2)
+    return false;
+  if (!d1 || !d2)
+    return true;
+  size_t l1= dirname_length(d1), l2= dirname_length(d2);
+  return l1 != l2 || strncmp(d1, d2, l1);
+}
+
+
 bool ha_myisam::check_if_incompatible_data(HA_CREATE_INFO *create_info,
 					   uint table_changes)
 {
@@ -2268,8 +2282,8 @@ bool ha_myisam::check_if_incompatible_data(HA_CREATE_INFO *create_info,
 
   if ((create_info->used_fields & HA_CREATE_USED_AUTO &&
        create_info->auto_increment_value != stats.auto_increment_value) ||
-      create_info->data_file_name != data_file_name ||
-      create_info->index_file_name != index_file_name ||
+      directories_differ(create_info->data_file_name, data_file_name) ||
+      directories_differ(create_info->index_file_name, index_file_name) ||
       table_changes == IS_EQUAL_NO ||
       table_changes & IS_EQUAL_PACK_LENGTH) // Not implemented yet
     return COMPATIBLE_DATA_NO;

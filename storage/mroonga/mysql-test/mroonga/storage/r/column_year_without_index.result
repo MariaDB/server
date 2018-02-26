@@ -4,14 +4,6 @@ id INT PRIMARY KEY AUTO_INCREMENT,
 title TEXT,
 party_year YEAR
 ) DEFAULT CHARSET UTF8;
-SHOW CREATE TABLE aniversary_memos;
-Table	Create Table
-aniversary_memos	CREATE TABLE `aniversary_memos` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
-  `party_year` year(4) DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO aniversary_memos (title, party_year)
 VALUES ("We need a big cake!", "11");
 INSERT INTO aniversary_memos (title, party_year)

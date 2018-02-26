@@ -2,13 +2,21 @@ module Groonga
   class Logger
     class Level
       @@names = {}
-      def self.find(name)
-        @@names[name]
+      @@levels = {}
+      class << self
+        def find(name_or_level)
+          if name_or_level.is_a?(Integer)
+            @@levels[name_or_level]
+          else
+            @@names[name_or_level]
+          end
+        end
       end
 
       attr_reader :name
       def initialize(name, level)
         @@names[name] = self
+        @@levels[level] = self
         @name  = name
         @level = level
       end

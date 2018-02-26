@@ -1,39 +1,15 @@
-drop table if exists articles2;
-drop table if exists articles;
-drop table if exists comments2;
-drop table if exists comments;
-create table comments(
-comment int unsigned,
-content text not null,
-primary key(comment)
+DROP TABLE IF EXISTS articles;
+DROP TABLE IF EXISTS comments;
+CREATE TABLE comments (
+comment int unsigned PRIMARY KEY,
+content text NOT NULL
 );
-create table articles(
-content text not null,
+CREATE TABLE articles (
+content text NOT NULL,
 comment int unsigned,
 FOREIGN KEY (comment) REFERENCES comments (comment)
 );
-insert into comments (comment, content) values
-(1, 'aaa bbb'),(2, 'ccc ddd'),(3, 'eee fff');
-insert into articles (content, comment) values
-('111aaa', 1),('222bbb', 2),('222ccc', 2);
-select comment, content from comments;
-comment	content
-1	aaa bbb
-2	ccc ddd
-3	eee fff
-select content, comment from articles;
-content	comment
-111aaa	1
-222bbb	2
-222ccc	2
-show create table comments;
-Table	Create Table
-comments	CREATE TABLE `comments` (
-  `comment` int(10) unsigned NOT NULL DEFAULT '0',
-  `content` text NOT NULL,
-  PRIMARY KEY (`comment`)
-) ENGINE=Mroonga DEFAULT CHARSET=latin1
-show create table articles;
+SHOW CREATE TABLE articles;
 Table	Create Table
 articles	CREATE TABLE `articles` (
   `content` text NOT NULL,
@@ -41,107 +17,6 @@ articles	CREATE TABLE `articles` (
   KEY `comment` (`comment`),
   CONSTRAINT `comment` FOREIGN KEY (`comment`) REFERENCES `test`.`comments` (`comment`) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE=Mroonga DEFAULT CHARSET=latin1
-select * from information_schema.referential_constraints;
-CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	UNIQUE_CONSTRAINT_CATALOG	UNIQUE_CONSTRAINT_SCHEMA	UNIQUE_CONSTRAINT_NAME	MATCH_OPTION	UPDATE_RULE	DELETE_RULE	TABLE_NAME	REFERENCED_TABLE_NAME
-def	test	comment	def	test	PRIMARY	NONE	RESTRICT	RESTRICT	articles	comments
-rename table comments to comments2;
-rename table articles to articles2;
-create table comments(
-comment int unsigned,
-content text not null,
-primary key(comment)
-);
-create table articles(
-content text not null,
-comment int unsigned,
-FOREIGN KEY (comment) REFERENCES comments (comment)
-);
-insert into comments (comment, content) values
-(1, 'ab'),(2, 'cd'),(3, 'ef');
-insert into articles (content, comment) values
-('1a', 1),('2b', 2),('2c', 2);
-select comment, content from comments;
-comment	content
-1	ab
-2	cd
-3	ef
-select content, comment from articles;
-content	comment
-1a	1
-2b	2
-2c	2
-select comment, content from comments2;
-comment	content
-1	aaa bbb
-2	ccc ddd
-3	eee fff
-select content, comment from articles2;
-content	comment
-111aaa	1
-222bbb	2
-222ccc	2
-show create table comments;
-Table	Create Table
-comments	CREATE TABLE `comments` (
-  `comment` int(10) unsigned NOT NULL DEFAULT '0',
-  `content` text NOT NULL,
-  PRIMARY KEY (`comment`)
-) ENGINE=Mroonga DEFAULT CHARSET=latin1
-show create table articles;
-Table	Create Table
-articles	CREATE TABLE `articles` (
-  `content` text NOT NULL,
-  `comment` int(10) unsigned DEFAULT NULL,
-  KEY `comment` (`comment`),
-  CONSTRAINT `comment` FOREIGN KEY (`comment`) REFERENCES `test`.`comments` (`comment`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE=Mroonga DEFAULT CHARSET=latin1
-show create table comments2;
-Table	Create Table
-comments2	CREATE TABLE `comments2` (
-  `comment` int(10) unsigned NOT NULL DEFAULT '0',
-  `content` text NOT NULL,
-  PRIMARY KEY (`comment`)
-) ENGINE=Mroonga DEFAULT CHARSET=latin1
-show create table articles2;
-Table	Create Table
-articles2	CREATE TABLE `articles2` (
-  `content` text NOT NULL,
-  `comment` int(10) unsigned DEFAULT NULL,
-  KEY `comment` (`comment`),
-  CONSTRAINT `comment` FOREIGN KEY (`comment`) REFERENCES `test`.`comments2` (`comment`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE=Mroonga DEFAULT CHARSET=latin1
-select * from information_schema.referential_constraints;
-CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	UNIQUE_CONSTRAINT_CATALOG	UNIQUE_CONSTRAINT_SCHEMA	UNIQUE_CONSTRAINT_NAME	MATCH_OPTION	UPDATE_RULE	DELETE_RULE	TABLE_NAME	REFERENCED_TABLE_NAME
-def	test	comment	def	test	PRIMARY	NONE	RESTRICT	RESTRICT	articles	comments
-def	test	comment	def	test	PRIMARY	NONE	RESTRICT	RESTRICT	articles2	comments2
-alter table articles drop foreign key comment;
-show create table articles;
-Table	Create Table
-articles	CREATE TABLE `articles` (
-  `content` text NOT NULL,
-  `comment` int(10) unsigned DEFAULT NULL,
-  KEY `comment` (`comment`)
-) ENGINE=Mroonga DEFAULT CHARSET=latin1
-select content, comment from articles;
-content	comment
-1a	1
-2b	2
-2c	2
-alter table articles add FOREIGN KEY (comment) REFERENCES comments (comment);
-show create table articles;
-Table	Create Table
-articles	CREATE TABLE `articles` (
-  `content` text NOT NULL,
-  `comment` int(10) unsigned DEFAULT NULL,
-  KEY `comment` (`comment`),
-  CONSTRAINT `comment` FOREIGN KEY (`comment`) REFERENCES `test`.`comments` (`comment`) ON DELETE RESTRICT ON UPDATE RESTRICT
-) ENGINE=Mroonga DEFAULT CHARSET=latin1
-select content, comment from articles;
-content	comment
-1a	1
-2b	2
-2c	2
-drop table articles2;
-drop table articles;
-drop table comments2;
-drop table comments;
+SELECT * FROM information_schema.referential_constraints;
+DROP TABLE articles;
+DROP TABLE comments;

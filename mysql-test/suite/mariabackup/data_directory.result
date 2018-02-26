@@ -1,0 +1,13 @@
+CREATE TABLE t(a INT) ENGINE=InnoDB DATA DIRECTORY='table_data_dir';
+INSERT INTO t VALUES(1);
+# xtrabackup backup
+# xtrabackup prepare
+DROP TABLE t;
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+SELECT * FROM t;
+a
+1
+DROP TABLE t;

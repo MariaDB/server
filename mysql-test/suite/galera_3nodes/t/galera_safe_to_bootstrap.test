@@ -108,7 +108,7 @@ SET SESSION wsrep_on = OFF;
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --source include/wait_condition.inc
 
---source include/kill_galera.inc
+--source ../galera/include/kill_galera.inc
 
 #
 # Only node #1 should have safe_to_bootstrap: 1

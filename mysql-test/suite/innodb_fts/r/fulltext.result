@@ -1,4 +1,3 @@
-drop table if exists t1,t2,t3;
 CREATE TABLE t1 (a VARCHAR(200), b TEXT, FULLTEXT (a,b)) ENGINE = InnoDB;
 INSERT INTO t1 VALUES('MySQL has now support', 'for full-text search'),
 ('Full-text indexes', 'are called collections'),
@@ -637,3 +636,58 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 End of 5.1 tests
+CREATE TABLE z(a INTEGER) engine=innodb;
+CREATE TABLE q(b TEXT CHARSET latin1, fulltext(b)) engine=innodb;
+EXPLAIN SELECT 1 FROM q WHERE (SELECT MATCH(b) AGAINST ('*') FROM z);
+ERROR 42000: syntax error, unexpected $end, expecting FTS_TERM or FTS_NUMB or '*'
+SELECT 1 FROM q WHERE (SELECT MATCH(b) AGAINST ('*') FROM z);
+ERROR 42000: syntax error, unexpected $end, expecting FTS_TERM or FTS_NUMB or '*'
+EXPLAIN SELECT MATCH(b) AGAINST ('*') FROM z;
+ERROR 42S22: Unknown column 'b' in 'field list'
+SELECT MATCH(b) AGAINST ('*') FROM z;
+ERROR 42S22: Unknown column 'b' in 'field list'
+EXPLAIN SELECT MATCH(a) AGAINST ('*') FROM z;
+ERROR HY000: Can't find FULLTEXT index matching the column list
+SELECT MATCH(a) AGAINST ('*') FROM z;
+ERROR HY000: Can't find FULLTEXT index matching the column list
+EXPLAIN SELECT MATCH(b) AGAINST ('*') FROM q;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	q	ALL	NULL	NULL	NULL	NULL	1	
+SELECT MATCH(b) AGAINST ('*') FROM q;
+ERROR 42000: syntax error, unexpected $end, expecting FTS_TERM or FTS_NUMB or '*'
+DROP TABLE z, q;
+create table t (
+FTS_DOC_ID BIGINT UNSIGNED PRIMARY KEY, t TEXT, FULLTEXT KEY (t)
+) ENGINE=InnoDB;
+INSERT INTO t values (1, 'foo bar'), (2, 'foo bar'), (3, 'foo');
+SELECT * FROM t WHERE MATCH(t) AGAINST ('foo bar' IN BOOLEAN MODE)
+LIMIT 0;
+FTS_DOC_ID	t
+SELECT * FROM t WHERE MATCH(t) AGAINST ('foo bar' IN BOOLEAN MODE)
+LIMIT 1;
+FTS_DOC_ID	t
+1	foo bar
+SELECT * FROM t WHERE MATCH(t) AGAINST ('foo bar' IN BOOLEAN MODE)
+LIMIT 2;
+FTS_DOC_ID	t
+1	foo bar
+2	foo bar
+SELECT * FROM t WHERE MATCH(t) AGAINST ('foo bar' IN BOOLEAN MODE)
+LIMIT 3;
+FTS_DOC_ID	t
+1	foo bar
+2	foo bar
+3	foo
+SELECT * FROM t WHERE MATCH(t) AGAINST ('foo bar' IN BOOLEAN MODE)
+LIMIT 4;
+FTS_DOC_ID	t
+1	foo bar
+2	foo bar
+3	foo
+SELECT * FROM t WHERE MATCH(t) AGAINST ('foo bar' IN BOOLEAN MODE)
+LIMIT 5;
+FTS_DOC_ID	t
+1	foo bar
+2	foo bar
+3	foo
+DROP TABLE t;

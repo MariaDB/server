@@ -94,7 +94,7 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
 		return NULL;
 	}	// endif Multiple
 
-	pjdc = new(g) JSONDISC(g, (int*)length);
+	pjdc = new(g) JSONDISC(g, length);
 
 	if (!(n = pjdc->GetColumns(g, db, dsn, topt)))
 		return NULL;
@@ -157,7 +157,7 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
 /***********************************************************************/
 /*  Class used to get the columns of a JSON table.                     */
 /***********************************************************************/
-JSONDISC::JSONDISC(PGLOBAL g, int *lg)
+JSONDISC::JSONDISC(PGLOBAL g, uint *lg)
 {
 	length = lg;
 	jcp = fjcp = pjcp = NULL;

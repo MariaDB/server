@@ -1,5 +1,5 @@
 /*
-  Copyright(C) 2015 Brazil
+  Copyright(C) 2015-2017 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -15,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GROONGA_PORTABILITY_H
-#define GROONGA_PORTABILITY_H
+
+#pragma once
 
 #ifdef WIN32
 # ifdef __cplusplus
@@ -118,11 +118,38 @@
 #endif /* WIN32 */
 
 #ifdef WIN32
-# define grn_snprintf(dest, dest_size, n, format, ...)          \
-  _snprintf_s((dest), (dest_size), (n) - 1, (format), __VA_ARGS__)
+# define grn_strcasecmp(string1, string2)       \
+  _stricmp((string1), (string2))
 #else /* WIN32 */
-# define grn_snprintf(dest, dest_size, n, format, ...)          \
-  snprintf((dest), (n), (format), __VA_ARGS__)
+# define grn_strcasecmp(string1, string2)       \
+  strcasecmp((string1), (string2))
+#endif /* WIN32 */
+
+#ifdef WIN32
+# define grn_strncasecmp(string1, string2, n)   \
+  _strnicmp((string1), (string2), (n))
+#else /* WIN32 */
+# define grn_strncasecmp(string1, string2, n)   \
+  strncasecmp((string1), (string2), (n))
+#endif /* WIN32 */
+
+#ifdef WIN32
+# define grn_snprintf(dest, dest_size, n, ...) do {             \
+    _snprintf_s((dest), (dest_size), (n) - 1, __VA_ARGS__);     \
+  } while (GRN_FALSE)
+#else /* WIN32 */
+# define grn_snprintf(dest, dest_size, n, ...)  \
+  snprintf((dest), (n), __VA_ARGS__)
+#endif /* WIN32 */
+
+#ifdef WIN32
+# define grn_vsnprintf(dest, dest_size, format, args) do {      \
+    vsnprintf((dest), (dest_size), (format), (args));           \
+    (dest)[(dest_size) - 1] = '\0';                             \
+  } while (GRN_FALSE)
+#else /* WIN32 */
+# define grn_vsnprintf(dest, dest_size, format, args)           \
+  vsnprintf((dest), (dest_size), (format), (args))
 #endif /* WIN32 */
 
 #ifdef WIN32
@@ -155,4 +182,20 @@
 # define grn_close(fd) close((fd))
 #endif /* WIN32 */
 
-#endif /* GROONGA_PORTABILITY_H */
+#ifdef WIN32
+# define grn_fileno(stream) _fileno((stream))
+#else /* WIN32 */
+# define grn_fileno(stream) fileno((stream))
+#endif /* WIN32 */
+
+#ifdef WIN32
+# define grn_isatty(stream) _isatty((stream))
+#else /* WIN32 */
+# define grn_isatty(stream) isatty((stream))
+#endif /* WIN32 */
+
+#ifdef WIN32
+# define grn_getpid() _getpid()
+#else /* WIN32 */
+# define grn_getpid() getpid()
+#endif /* WIN32 */

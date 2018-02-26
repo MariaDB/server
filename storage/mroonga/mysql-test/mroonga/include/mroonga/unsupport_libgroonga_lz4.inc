@@ -12,11 +12,11 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 --source ../../include/mroonga/check_libgroonga_support_lz4.inc
 
 if ($libgroonga_support_lz4) {
   --source ../../include/mroonga/have_mroonga_deinit.inc
-  skip "This test is for libgroonga doesn't support lz4";
+  --skip This test is for libgroonga doesn't support lz4
 }

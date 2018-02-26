@@ -11,8 +11,8 @@
 # check if START SLAVE, RESET SLAVE, CHANGE MASTER reset Last_slave_error and
 # Last_slave_errno in SHOW SLAVE STATUS (1st and 3rd commands did not: bug 986)
 
--- source include/master-slave.inc
 source include/have_innodb.inc;
+source include/master-slave.inc;
 
 --disable_query_log
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");

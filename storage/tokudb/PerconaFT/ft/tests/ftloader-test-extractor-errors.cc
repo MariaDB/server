@@ -141,7 +141,7 @@ static void test_extractor(int nrows, int nrowsets, bool expect_fail, const char
     // setup error injection
     toku_set_func_malloc(my_malloc);
     toku_set_func_realloc(my_realloc);
-    ft_loader_set_os_fwrite(bad_fwrite);
+    toku_set_func_fwrite(bad_fwrite);
     toku_set_func_write(bad_write);
     toku_set_func_pwrite(bad_pwrite);
     ft_loader_set_poll_function(&loader->poll_callback, loader_poll_callback, NULL);
@@ -157,7 +157,7 @@ static void test_extractor(int nrows, int nrowsets, bool expect_fail, const char
 
     toku_set_func_malloc(NULL);
     toku_set_func_realloc(NULL);
-    ft_loader_set_os_fwrite(NULL);
+    toku_set_func_fwrite(nullptr);
     toku_set_func_write(NULL);
     toku_set_func_pwrite(NULL);
 

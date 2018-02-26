@@ -15,15 +15,20 @@ INSERT INTO bugs (id, priority) VALUES (2, 3);
 INSERT INTO bugs (id, priority) VALUES (3, -2);
 SELECT mroonga_command("dump --dump_plugins no --dump_records no");
 mroonga_command("dump --dump_plugins no --dump_records no")
-table_create priorities TABLE_PAT_KEY Int32
-column_create priorities id COLUMN_SCALAR Int32
-
 table_create bugs TABLE_PAT_KEY UInt32
 column_create bugs id COLUMN_SCALAR UInt32
 
+table_create mroonga_operations TABLE_NO_KEY
+column_create mroonga_operations record COLUMN_SCALAR UInt32
+column_create mroonga_operations table COLUMN_SCALAR ShortText
+column_create mroonga_operations type COLUMN_SCALAR ShortText
+
+table_create priorities TABLE_PAT_KEY Int32
+column_create priorities id COLUMN_SCALAR Int32
+
 column_create bugs priority COLUMN_SCALAR priorities
 
-column_create priorities bugs_priority_index COLUMN_INDEX|WITH_POSITION bugs priority
+column_create priorities bugs_priority_index COLUMN_INDEX bugs priority
 SELECT *
 FROM bugs
 WHERE priority = 3;

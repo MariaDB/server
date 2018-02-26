@@ -5,15 +5,6 @@ name text,
 location geometry NOT NULL,
 spatial key location_index (location)
 ) comment = 'engine "innodb"';
-show create table shops;
-Table	Create Table
-shops	CREATE TABLE `shops` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` text,
-  `location` geometry NOT NULL,
-  PRIMARY KEY (`id`),
-  SPATIAL KEY `location_index` (`location`)
-) ENGINE=Mroonga DEFAULT CHARSET=latin1 COMMENT='engine "innodb"'
 insert into shops (name, location)
 values ('nezu-no-taiyaki',
 ST_GeomFromText('POINT(139.762573 35.720253)'));

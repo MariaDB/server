@@ -117,9 +117,20 @@ run_test (void) {
 
     toku_pthread_t fetch_tid;
     fetch_called = false;
-    r = toku_pthread_create(&fetch_tid, NULL, run_expensive_fetch, NULL); 
+    r = toku_pthread_create(
+        toku_uninstrumented, &fetch_tid, nullptr, run_expensive_fetch, nullptr);
     sleep(1);
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, sleep_fetch, def_pf_req_callback, def_pf_callback, false, NULL);
+    r = toku_cachetable_get_and_pin(f1,
+                                    make_blocknum(1),
+                                    1,
+                                    &v1,
+                                    &s1,
+                                    wc,
+                                    sleep_fetch,
+                                    def_pf_req_callback,
+                                    def_pf_callback,
+                                    false,
+                                    NULL);
     assert_zero(r);
     assert(fetch_called);
     r = toku_test_cachetable_unpin(f1, make_blocknum(1), 1, CACHETABLE_CLEAN, make_pair_attr(8));
@@ -141,9 +152,20 @@ run_test (void) {
 
     toku_pthread_t pf_tid;
     pf_called = false;
-    r = toku_pthread_create(&pf_tid, NULL, run_expensive_pf, NULL); 
+    r = toku_pthread_create(
+        toku_uninstrumented, &pf_tid, nullptr, run_expensive_pf, nullptr);
     sleep(1);
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, sleep_fetch, def_pf_req_callback, def_pf_callback, false, NULL);
+    r = toku_cachetable_get_and_pin(f1,
+                                    make_blocknum(1),
+                                    1,
+                                    &v1,
+                                    &s1,
+                                    wc,
+                                    sleep_fetch,
+                                    def_pf_req_callback,
+                                    def_pf_callback,
+                                    false,
+                                    NULL);
     assert_zero(r);
     assert(pf_called);
     r = toku_test_cachetable_unpin(f1, make_blocknum(1), 1, CACHETABLE_CLEAN, make_pair_attr(8));

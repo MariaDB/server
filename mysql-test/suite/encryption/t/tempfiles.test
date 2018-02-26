@@ -11,6 +11,8 @@ source include/have_binlog_format_row.inc;
 # engine. But there's no need to run it twice for InnoDB and XtraDB.
 source include/have_xtradb.inc;
 
+select @@encrypt_tmp_files;
+
 #
 # MyISAM messing around with IO_CACHE::file
 #
@@ -31,6 +33,7 @@ update t1 set c=v, t=v;
 select sql_big_result t,count(t) from t1 group by t limit 10;
 drop table t1;
 
+reset master;
 set global binlog_cache_size=8192;
 
 connect con1, localhost, root;
@@ -48,7 +51,6 @@ commit;
 start transaction;
 insert t1 select repeat(seq, 1000) from seq_1_to_8;
 commit;
-drop table t1;
 
 disconnect con1;
 connect con2, localhost, root;
@@ -58,17 +60,27 @@ connect con2, localhost, root;
 # Start a transaction, write until the cache goes to disk,
 # create a savepoint, write more blocks to disk, rollback to savepoint.
 #
-create table t1 (a text) engine=innodb;
+create table t2 (a text) engine=innodb;
 start transaction;
-insert t1 select repeat(seq, 1000) from seq_1_to_15;
+insert t2 select repeat(seq, 1000) from seq_1_to_15;
 savepoint foo;
-insert t1 select repeat(seq, 1000) from seq_16_to_30;
+insert t2 select repeat(seq, 1000) from seq_16_to_30;
 rollback to savepoint foo;
-insert t1 select repeat(seq, 1000) from seq_31_to_40;
+insert t2 select repeat(seq, 1000) from seq_31_to_40;
 commit;
-drop table t1;
 
 disconnect con2;
 connection default;
 
+flush binary logs;
+
+drop table t1, t2;
+
 set global binlog_cache_size=default;
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 | $MYSQL;
+
+select left(a, 10) from t1;
+select left(a, 10) from t2;
+drop table t1, t2;

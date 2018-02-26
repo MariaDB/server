@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1916,8 +1917,7 @@ fts_query_fetch_document(
 		if (dfield_is_ext(dfield)) {
 			data = btr_copy_externally_stored_field(
 				&cur_len, data, phrase->zip_size,
-				dfield_get_len(dfield), phrase->heap,
-				NULL);
+				dfield_get_len(dfield), phrase->heap);
 		} else {
 			cur_len = dfield_get_len(dfield);
 		}
@@ -3633,6 +3633,10 @@ fts_query_free(
 		fts_doc_ids_free(query->deleted);
 	}
 
+	if (query->intersection) {
+		fts_query_free_doc_ids(query, query->intersection);
+	}
+
 	if (query->doc_ids) {
 		fts_query_free_doc_ids(query, query->doc_ids);
 	}
@@ -3656,8 +3660,6 @@ fts_query_free(
 
 		rbt_free(query->word_freqs);
 	}
-
-	ut_a(!query->intersection);
 
 	if (query->word_map) {
 		rbt_free(query->word_map);
@@ -3760,10 +3762,19 @@ fts_query_str_preprocess(
 	str_len = query_len * charset->casedn_multiply + 1;
 	str_ptr = static_cast<byte*>(ut_malloc(str_len));
 
-	*result_len = innobase_fts_casedn_str(
-		charset, const_cast<char*>(reinterpret_cast<const char*>(
-			query_str)), query_len,
-		reinterpret_cast<char*>(str_ptr), str_len);
+	/* For binary collations, a case sensitive search is
+	performed. Hence don't convert to lower case. */
+	if (my_binary_compare(charset)) {
+		memcpy(str_ptr, query_str, query_len);
+		str_ptr[query_len]= 0;
+		*result_len= query_len;
+	} else {
+		*result_len = innobase_fts_casedn_str(
+				charset, const_cast<char*>
+				(reinterpret_cast<const char*>( query_str)),
+				query_len,
+				reinterpret_cast<char*>(str_ptr), str_len);
+	}
 
 	ut_ad(*result_len < str_len);
 

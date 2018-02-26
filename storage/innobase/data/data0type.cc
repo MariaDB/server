@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -49,8 +50,10 @@ ulint
 dtype_get_at_most_n_mbchars(
 /*========================*/
 	ulint		prtype,		/*!< in: precise type */
-	ulint		mbminmaxlen,	/*!< in: minimum and maximum length of
-					a multi-byte character */
+	ulint		mbminlen,	/*!< in: minimum length of
+					a multi-byte character, in bytes */
+	ulint		mbmaxlen,	/*!< in: maximum length of
+					a multi-byte character, in bytes */
 	ulint		prefix_len,	/*!< in: length of the requested
 					prefix, in characters, multiplied by
 					dtype_get_mbmaxlen(dtype) */
@@ -58,9 +61,6 @@ dtype_get_at_most_n_mbchars(
 	const char*	str)		/*!< in: the string whose prefix
 					length is being determined */
 {
-	ulint	mbminlen = DATA_MBMINLEN(mbminmaxlen);
-	ulint	mbmaxlen = DATA_MBMAXLEN(mbminmaxlen);
-
 	ut_a(data_len != UNIV_SQL_NULL);
 	ut_ad(!mbmaxlen || !(prefix_len % mbmaxlen));
 

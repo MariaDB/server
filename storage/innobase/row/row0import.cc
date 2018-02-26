@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1258,7 +1258,8 @@ row_import::match_table_columns(
 				err = DB_ERROR;
 			}
 
-			if (cfg_col->mbminmaxlen != col->mbminmaxlen) {
+			if (cfg_col->mbminlen != col->mbminlen
+			    || cfg_col->mbmaxlen != col->mbmaxlen) {
 				ib_errf(thd,
 					 IB_LOG_LEVEL_ERROR,
 					 ER_TABLE_SCHEMA_MISMATCH,
@@ -1601,18 +1602,16 @@ PageConverter::PageConverter(
 	:
 	AbstractCallback(trx),
 	m_cfg(cfg),
+	m_index(cfg->m_indexes),
+	m_current_lsn(log_get_lsn()),
 	m_page_zip_ptr(0),
-	m_heap(0) UNIV_NOTHROW
+	m_rec_iter(),
+	m_offsets_(), m_offsets(m_offsets_),
+	m_heap(0),
+	m_cluster_index(dict_table_get_first_index(cfg->m_table)) UNIV_NOTHROW
 {
-	m_index = m_cfg->m_indexes;
-
-	m_current_lsn = log_get_lsn();
 	ut_a(m_current_lsn > 0);
-
-	m_offsets = m_offsets_;
 	rec_offs_init(m_offsets_);
-
-	m_cluster_index = dict_table_get_first_index(m_cfg->m_table);
 }
 
 /**
@@ -1770,7 +1769,7 @@ PageConverter::adjust_cluster_record(
 
 		row_upd_rec_sys_fields(
 			rec, m_page_zip_ptr, m_cluster_index, m_offsets,
-			m_trx, 0);
+			m_trx, roll_ptr_t(1) << 55);
 	}
 
 	return(err);
@@ -1792,16 +1791,12 @@ PageConverter::update_records(
 
 	m_rec_iter.open(block);
 
+	if (!page_is_leaf(block->frame)) {
+		return DB_SUCCESS;
+	}
+
 	while (!m_rec_iter.end()) {
-
 		rec_t*	rec = m_rec_iter.current();
-
-		/* FIXME: Move out of the loop */
-
-		if (rec_get_status(rec) == REC_STATUS_NODE_PTR) {
-			break;
-		}
-
 		ibool	deleted = rec_get_deleted_flag(rec, comp);
 
 		/* For the clustered index we have to adjust the BLOB
@@ -2107,7 +2102,7 @@ PageConverter::operator() (
 		we can work on them */
 
 		if ((err = update_page(block, page_type)) != DB_SUCCESS) {
-			return(err);
+			break;
 		}
 
 		/* Note: For compressed pages this function will write to the
@@ -2144,9 +2139,15 @@ PageConverter::operator() (
 			"%s: Page %lu at offset " UINT64PF " looks corrupted.",
 			m_filepath, (ulong) (offset / m_page_size), offset);
 
-		return(DB_CORRUPTION);
+		err = DB_CORRUPTION;
 	}
 
+	/* If we already had and old page with matching number
+	in the buffer pool, evict it now, because
+	we no longer evict the pages on DISCARD TABLESPACE. */
+	buf_page_get_gen(get_space_id(), get_zip_size(), block->page.offset,
+			 RW_NO_LATCH, NULL, BUF_EVICT_IF_IN_POOL,
+			 __FILE__, __LINE__, NULL);
 	return(err);
 }
 
@@ -2876,7 +2877,9 @@ row_import_read_columns(
 		col->len = mach_read_from_4(ptr);
 		ptr += sizeof(ib_uint32_t);
 
-		col->mbminmaxlen = mach_read_from_4(ptr);
+		ulint mbminmaxlen = mach_read_from_4(ptr);
+		col->mbmaxlen = mbminmaxlen / 5;
+		col->mbminlen = mbminmaxlen % 5;
 		ptr += sizeof(ib_uint32_t);
 
 		col->ind = mach_read_from_4(ptr);
@@ -3720,8 +3723,7 @@ row_import_for_mysql(
 	The only dirty pages generated should be from the pessimistic purge
 	of delete marked records that couldn't be purged in Phase I. */
 
-	buf_LRU_flush_or_remove_pages(
-		prebuilt->table->space, BUF_REMOVE_FLUSH_WRITE, trx);
+	buf_LRU_flush_or_remove_pages(prebuilt->table->space, trx);
 
 	if (trx_is_interrupted(trx)) {
 		ib_logf(IB_LOG_LEVEL_INFO, "Phase III - Flush interrupted");

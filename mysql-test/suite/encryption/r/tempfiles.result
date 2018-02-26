@@ -1,3 +1,6 @@
+select @@encrypt_tmp_files;
+@@encrypt_tmp_files
+1
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES(1),(2);
 DELETE FROM t1 WHERE a=1;
@@ -25,6 +28,7 @@ h	10
 i	10
 j	10
 drop table t1;
+reset master;
 set global binlog_cache_size=8192;
 create table t1 (a text) engine=innodb;
 start transaction;
@@ -33,14 +37,67 @@ commit;
 start transaction;
 insert t1 select repeat(seq, 1000) from seq_1_to_8;
 commit;
-drop table t1;
-create table t1 (a text) engine=innodb;
+create table t2 (a text) engine=innodb;
 start transaction;
-insert t1 select repeat(seq, 1000) from seq_1_to_15;
+insert t2 select repeat(seq, 1000) from seq_1_to_15;
 savepoint foo;
-insert t1 select repeat(seq, 1000) from seq_16_to_30;
+insert t2 select repeat(seq, 1000) from seq_16_to_30;
 rollback to savepoint foo;
-insert t1 select repeat(seq, 1000) from seq_31_to_40;
+insert t2 select repeat(seq, 1000) from seq_31_to_40;
 commit;
-drop table t1;
+flush binary logs;
+drop table t1, t2;
 set global binlog_cache_size=default;
+select left(a, 10) from t1;
+left(a, 10)
+1111111111
+2222222222
+3333333333
+4444444444
+5555555555
+6666666666
+7777777777
+8888888888
+9999999999
+1010101010
+1111111111
+1212121212
+1313131313
+1414141414
+1515151515
+1111111111
+2222222222
+3333333333
+4444444444
+5555555555
+6666666666
+7777777777
+8888888888
+select left(a, 10) from t2;
+left(a, 10)
+1111111111
+2222222222
+3333333333
+4444444444
+5555555555
+6666666666
+7777777777
+8888888888
+9999999999
+1010101010
+1111111111
+1212121212
+1313131313
+1414141414
+1515151515
+3131313131
+3232323232
+3333333333
+3434343434
+3535353535
+3636363636
+3737373737
+3838383838
+3939393939
+4040404040
+drop table t1, t2;

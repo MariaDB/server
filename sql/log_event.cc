@@ -2469,8 +2469,8 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
     case 2:
       {
         strmake(typestr, "ENUM(2 bytes)", typestr_length);
-      if (!ptr)
-        goto return_null;
+        if (!ptr)
+          goto return_null;
 
         int32 i32= uint2korr(ptr);
         my_b_printf(file, "%d", i32);
@@ -4184,8 +4184,13 @@ bool test_if_equal_repl_errors(int expected_error, int actual_error)
     return 1;
   switch (expected_error) {
   case ER_DUP_ENTRY:
+  case ER_DUP_ENTRY_WITH_KEY_NAME:
+  case ER_DUP_KEY:
   case ER_AUTOINC_READ_FAILED:
-    return (actual_error == ER_AUTOINC_READ_FAILED ||
+    return (actual_error == ER_DUP_ENTRY ||
+            actual_error == ER_DUP_ENTRY_WITH_KEY_NAME ||
+            actual_error == ER_DUP_KEY ||
+            actual_error == ER_AUTOINC_READ_FAILED ||
             actual_error == HA_ERR_AUTOINC_ERANGE);
   case ER_UNKNOWN_TABLE:
     return actual_error == ER_IT_IS_A_VIEW;
@@ -7857,21 +7862,6 @@ User_var_log_event(const char* buf, uint event_len,
       we keep the flags set to UNDEF_F.
     */
     uint bytes_read= ((val + val_len) - buf_start);
-#ifndef DBUG_OFF
-    bool old_pre_checksum_fd= description_event->is_version_before_checksum(
-        &description_event->server_version_split);
-#endif
-    DBUG_ASSERT((bytes_read == data_written -
-                 (old_pre_checksum_fd ||
-                  (description_event->checksum_alg ==
-                   BINLOG_CHECKSUM_ALG_OFF)) ?
-                 0 : BINLOG_CHECKSUM_LEN)
-                ||
-                (bytes_read == data_written -1 -
-                 (old_pre_checksum_fd ||
-                  (description_event->checksum_alg ==
-                   BINLOG_CHECKSUM_ALG_OFF)) ?
-                 0 : BINLOG_CHECKSUM_LEN));
     if ((data_written - bytes_read) > 0)
     {
       flags= (uint) *(buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE +

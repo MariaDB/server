@@ -32,12 +32,12 @@
 #                                Configuring the environment
 ########################################################################################
 --echo =====Configuring the enviroment=======;
---source include/master-slave.inc
 --source include/not_embedded.inc
 --source include/not_valgrind.inc
 --source include/have_debug.inc
 --source include/have_innodb.inc
 --source include/not_crashrep.inc
+--source include/master-slave.inc
 
 call mtr.add_suppression('Attempting backtrace');
 call mtr.add_suppression("Recovery from master pos .* and file master-bin.000001");

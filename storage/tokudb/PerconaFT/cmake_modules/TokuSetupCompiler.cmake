@@ -53,7 +53,13 @@ macro(set_cflags_if_supported)
   endforeach(flag)
 endmacro(set_cflags_if_supported)
 
+if (NOT DEFINED MYSQL_PROJECT_NAME_DOCSTRING)
+  set (OPTIONAL_CFLAGS "${OPTIONAL_CFLAGS} -Wmissing-format-attribute")
+endif()
+
 ## disable some warnings
+## missing-format-attribute causes warnings in some MySQL include files
+## if the library is built as a part of TokuDB MySQL storage engine
 set_cflags_if_supported(
   -Wno-missing-field-initializers
   -Wstrict-null-sentinel
@@ -61,7 +67,7 @@ set_cflags_if_supported(
   -Wswitch
   -Wtrampolines
   -Wlogical-op
-  -Wmissing-format-attribute
+  ${OPTIONAL_CFLAGS}
   -Wno-error=missing-format-attribute
   -Wno-error=address-of-array-temporary
   -Wno-error=tautological-constant-out-of-range-compare
@@ -143,8 +149,8 @@ set_cflags_if_supported(
   -Wmissing-prototypes
   -Wmissing-declarations
   -Wpointer-arith
-  -Wmissing-format-attribute
   -Wshadow
+  ${OPTIONAL_CFLAGS}
   ## other flags to try:
   #-Wunsafe-loop-optimizations
   #-Wpointer-arith

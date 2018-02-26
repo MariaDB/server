@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES UTF8;
+CREATE TABLE diaries (
+title TEXT,
+FULLTEXT KEY (title)
+) DEFAULT CHARSET=utf8;
+INSERT INTO diaries VALUES('It is Groonga');
+INSERT INTO diaries VALUES('It is Mroonga');
+SELECT mroonga_command('select',
+'table', 'diaries',
+'filter', 'title @ "Groonga"');
+mroonga_command('select',
+'table', 'diaries',
+'filter', 'title @ "Groonga"')
+[[[1],[["_id","UInt32"],["title","LongText"]],[1,"It is Groonga"]]]
+DROP TABLE diaries;

@@ -83,53 +83,56 @@ ydb_db_layer_get_status(YDB_DB_LAYER_STATUS statp) {
     *statp = ydb_db_layer_status;
 }
 
-void create_iname_hint(const char *dname, char *hint) {
+void create_iname_hint(DB_ENV *env, const char *dname, char *hint) {
     //Requires: size of hint array must be > strlen(dname)
     //Copy alphanumeric characters only.
     //Replace strings of non-alphanumeric characters with a single underscore.
-    bool underscored = false;
-    while (*dname) {
-        if (isalnum(*dname)) {
-            char c = *dname++;
-            *hint++ = c;
-            underscored = false;
+    if (env->get_dir_per_db(env) && !toku_os_is_absolute_name(dname)) {
+        assert(dname);
+        if (*dname == '.')
+            ++dname;
+        if (*dname == '/')
+            ++dname;
+        bool underscored = false;
+        bool dbdir_is_parsed = false;
+        // Do not change the first '/' because this is
+        // delimiter which splits name into database dir
+        // and table dir.
+        while (*dname) {
+            if (isalnum(*dname) || (*dname == '/' && !dbdir_is_parsed)) {
+                char c = *dname++;
+                *hint++ = c;
+                if (c == '/')
+                    dbdir_is_parsed = true;
+                underscored = false;
+            } else if (!dbdir_is_parsed) {
+                char c = *dname++;
+                *hint++ = c;
+            } else {
+                if (!underscored)
+                    *hint++ = '_';
+                dname++;
+                underscored = true;
+            }
         }
-        else {
-            if (!underscored)
-                *hint++ = '_';
-            dname++;
-            underscored = true;
+        *hint = '\0';
+    } else {
+        bool underscored = false;
+        while (*dname) {
+            if (isalnum(*dname)) {
+                char c = *dname++;
+                *hint++ = c;
+                underscored = false;
+            }
+            else {
+                if (!underscored)
+                    *hint++ = '_';
+                dname++;
+                underscored = true;
+            }
         }
+        *hint = '\0';
     }
-    *hint = '\0';
-}
-
-void create_iname_hint_for_dbdir(const char *dname, char *hint) {
-    assert(dname);
-    if (*dname == '.')
-        ++dname;
-    if (*dname == '/')
-        ++dname;
-    bool underscored = false;
-    bool dbdir_is_parsed = false;
-    // Do not change the first '/' because this is
-    // delimiter which splits name into database dir
-    // and table dir.
-    while (*dname) {
-        if (isalnum(*dname) || (*dname == '/' && !dbdir_is_parsed)) {
-            char c = *dname++;
-            *hint++ = c;
-            if (c == '/')
-                dbdir_is_parsed = true;
-            underscored = false;
-        } else {
-            if (!underscored)
-                *hint++ = '_';
-            dname++;
-            underscored = true;
-        }
-    }
-    *hint = '\0';
 }
 
 // n < 0  means to ignore mark and ignore n
@@ -187,10 +190,7 @@ std::unique_ptr<char[], decltype(&toku_free)> generate_iname_for_rename_or_open(
     } else if (is_open)
         id1 = toku_sync_fetch_and_add(&nontransactional_open_id, 1);
 
-    if (env->get_dir_per_db(env) && !toku_os_is_absolute_name(dname))
-        create_iname_hint_for_dbdir(dname, hint);
-    else
-        create_iname_hint(dname, hint);
+    create_iname_hint(env, dname, hint);
 
     result.reset(create_iname(env, id1, id2, hint, NULL, -1));
 
@@ -1221,15 +1221,18 @@ load_inames(DB_ENV * env, DB_TXN * txn, int N, DB * dbs[/*N*/], const char * new
     for (i = 0; i < N; i++) {
         char * dname = dbs[i]->i->dname;
         toku_fill_dbt(&dname_dbt, dname, strlen(dname)+1);
+
         // now create new iname
         char hint[strlen(dname) + 1];
-        if (env->get_dir_per_db(env) && !toku_os_is_absolute_name(dname))
-            create_iname_hint_for_dbdir(dname, hint);
-        else
-            create_iname_hint(dname, hint);
-        const char *new_iname = create_iname(env, xid.parent_id64, xid.child_id64, hint, mark, i);               // allocates memory for iname_in_env
+        create_iname_hint(env, dname, hint);
+
+        // allocates memory for iname_in_env
+        const char *new_iname =
+            create_iname(env, xid.parent_id64, xid.child_id64, hint, mark, i);
         new_inames_in_env[i] = new_iname;
-        toku_fill_dbt(&iname_dbt, new_iname, strlen(new_iname) + 1);      // iname_in_env goes in directory
+
+        // iname_in_env goes in directory
+        toku_fill_dbt(&iname_dbt, new_iname, strlen(new_iname) + 1);
         rval = toku_db_put(env->i->directory, txn, &dname_dbt, &iname_dbt, 0, true);
         if (rval) break;
     }

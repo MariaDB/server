@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS memos;
+SET SESSION binlog_format = 'ROW';
+CREATE TABLE memos (
+title varchar(20) PRIMARY KEY,
+content varchar(140) NOT NULL
+) COLLATE=utf8mb4_general_ci
+DEFAULT CHARSET=utf8mb4;
+INSERT INTO memos (title, content) VALUES ('Mroonga', 'Mroonga is great!');
+SELECT * FROM memos;
+title	content
+Mroonga	Mroonga is great!
+UPDATE memos SET content = 'Mroonga is very great!' WHERE title = 'Mroonga';
+SELECT * FROM memos;
+title	content
+Mroonga	Mroonga is very great!
+DROP TABLE memos;

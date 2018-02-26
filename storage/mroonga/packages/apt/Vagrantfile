@@ -7,30 +7,43 @@ VAGRANTFILE_API_VERSION = "2"
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   vms = [
     {
-      :id => "debian-wheezy-i386",
-      :box_url => "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_debian-7.8-i386_chef-provisionerless.box",
-    },
-    {
-      :id => "debian-wheezy-amd64",
-      :box_url => "http://opscode-vm-bento.s3.amazonaws.com/vagrant/virtualbox/opscode_debian-7.8_chef-provisionerless.box",
-    },
-    {
       :id => "debian-jessie-i386",
-      :box_url => "http://packages.groonga.org/tmp/opscode_debian-8.0-i386_chef-provisionerless.box",
+      :box => "bento/debian-8.9-i386",
     },
     {
       :id => "debian-jessie-amd64",
-      :box_url => "http://packages.groonga.org/tmp/opscode_debian-8.0_chef-provisionerless.box",
+      :box => "bento/debian-8.9",
+    },
+    {
+      :id => "debian-stretch-i386",
+      :box => "bento/debian-9.1-i386",
+    },
+    {
+      :id => "debian-stretch-amd64",
+      :box => "bento/debian-9.1",
     },
   ]
 
   vms.each do |vm|
     config.vm.define(vm[:id]) do |node|
-      node.vm.box = vm[:id]
-      node.vm.box_url = vm[:box_url]
+      # Use official box
+      node.vm.box = vm[:box] if vm[:box]
+      # Use box and box_url until official box is released
+      node.vm.box = vm[:id] if vm[:box_url]
+      node.vm.box_url = vm[:box_url] if vm[:box_url]
       node.vm.provision(:shell, :path => "build-deb.sh")
       node.vm.provider("virtualbox") do |virtual_box|
-        virtual_box.memory = 768
+        system_n_cpus = 1
+        if File.exist?("/proc/cpuinfo")
+          system_n_cpus = File.readlines("/proc/cpuinfo").grep(/^processor/).size
+        end
+        if system_n_cpus > 1
+          vm_n_cpus = system_n_cpus / 2
+        else
+          vm_n_cpus = 1
+        end
+        virtual_box.cpus = (ENV["VM_CPUS"] || vm_n_cpus).to_i
+        virtual_box.memory = (ENV["VM_MEMORY"] || 768).to_i
       end
     end
   end

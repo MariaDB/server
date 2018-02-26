@@ -219,6 +219,13 @@ set_field_to_null_with_conversions(Field *field, bool no_conversions)
 }
 
 
+static int copy_timestamp_fields(Field *from, Field *to)
+{
+  DBUG_ASSERT(from->type() == MYSQL_TYPE_TIMESTAMP);
+  DBUG_ASSERT(to->type() == MYSQL_TYPE_TIMESTAMP);
+  return ((Field_timestamp*)to)->store_timestamp((Field_timestamp*)from);
+}
+
 static void do_skip(Copy_field *copy __attribute__((unused)))
 {
 }
@@ -417,6 +424,12 @@ static void do_field_decimal(Copy_field *copy)
 }
 
 
+static void do_field_timestamp(Copy_field *copy)
+{
+  copy_timestamp_fields(copy->from_field, copy->to_field);
+}
+
+
 static void do_field_temporal(Copy_field *copy)
 {
   MYSQL_TIME ltime;
@@ -594,7 +607,7 @@ void Copy_field::set(uchar *to,Field *from)
 {
   from_ptr=from->ptr;
   to_ptr=to;
-  from_length=from->pack_length();
+  from_length=from->pack_length_in_rec();
   if (from->maybe_null())
   {
     from_null_ptr=from->null_ptr;
@@ -642,9 +655,9 @@ void Copy_field::set(Field *to,Field *from,bool save)
   from_field=from;
   to_field=to;
   from_ptr=from->ptr;
-  from_length=from->pack_length();
+  from_length=from->pack_length_in_rec();
   to_ptr=  to->ptr;
-  to_length=to_field->pack_length();
+  to_length=to_field->pack_length_in_rec();
 
   // set up null handling
   from_null_ptr=to_null_ptr=0;
@@ -724,7 +737,9 @@ Copy_field::get_copy_func(Field *to,Field *from)
           ((to->table->in_use->variables.sql_mode &
             (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE)) &&
              mysql_type_to_time_type(to->type()) != MYSQL_TIMESTAMP_TIME))
-        return do_field_temporal;
+        return (from->type() == MYSQL_TYPE_TIMESTAMP &&
+                to->type() == MYSQL_TYPE_TIMESTAMP)
+                ? do_field_timestamp : do_field_temporal;
       /* Do binary copy */
     }
     // Check if identical fields
@@ -923,6 +938,10 @@ int field_conv_incompatible(Field *to, Field *from)
   {
     my_decimal buff;
     return to->store_decimal(from->val_decimal(&buff));
+  }
+  if (from->type() == MYSQL_TYPE_TIMESTAMP && to->type() == MYSQL_TYPE_TIMESTAMP)
+  {
+    return copy_timestamp_fields(from, to);
   }
   if (from->cmp_type() == TIME_RESULT)
   {

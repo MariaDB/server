@@ -1182,6 +1182,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  DELAYED_SYM
 %token  DELAY_KEY_WRITE_SYM
 %token  DELETE_SYM                    /* SQL-2003-R */
+%token  DELETE_DOMAIN_ID_SYM
 %token  DESC                          /* SQL-2003-N */
 %token  DESCRIBE                      /* SQL-2003-R */
 %token  DES_KEY_FILE
@@ -1951,6 +1952,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         parse_vcol_expr vcol_opt_specifier vcol_opt_attribute
         vcol_opt_attribute_list vcol_attribute
         explainable_command
+        opt_delete_gtid_domain
 END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
@@ -4678,17 +4680,11 @@ size_number:
               switch (end_ptr[0])
               {
                 case 'g':
-                case 'G':
-                  text_shift_number+=10;
-                  /* fall through */
+                case 'G': text_shift_number+=30; break;
                 case 'm':
-                case 'M':
-                  text_shift_number+=10;
-                  /* fall through */
+                case 'M': text_shift_number+=20; break;
                 case 'k':
-                case 'K':
-                  text_shift_number+=10;
-                  break;
+                case 'K': text_shift_number+=10; break;
                 default:
                   my_yyabort_error((ER_WRONG_SIZE_NUMBER, MYF(0)));
               }
@@ -5101,12 +5097,8 @@ opt_part_values:
             partition_info *part_info= lex->part_info;
             if (! lex->is_partition_management())
             {
-              if (part_info->part_type == RANGE_PARTITION)
-                my_yyabort_error((ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0),
-                                  "RANGE", "LESS THAN"));
-              if (part_info->part_type == LIST_PARTITION)
-                my_yyabort_error((ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0),
-                                  "LIST", "IN"));
+              if (part_info->error_if_requires_values())
+                 MYSQL_YYABORT;
             }
             else
               part_info->part_type= HASH_PARTITION;
@@ -12768,7 +12760,7 @@ flush_option:
           { Lex->type|= REFRESH_GENERAL_LOG; }
         | SLOW LOGS_SYM
           { Lex->type|= REFRESH_SLOW_LOG; }
-        | BINARY LOGS_SYM
+        | BINARY LOGS_SYM opt_delete_gtid_domain
           { Lex->type|= REFRESH_BINARY_LOG; }
         | RELAY LOGS_SYM optional_connection_name
           {
@@ -12823,6 +12815,24 @@ flush_option:
 opt_table_list:
           /* empty */  {}
         | table_list {}
+        ;
+
+opt_delete_gtid_domain:
+          /* empty */ {}
+        | DELETE_DOMAIN_ID_SYM '=' '(' delete_domain_id_list ')'
+          {}
+        ;
+delete_domain_id_list:
+          /* Empty */
+        | delete_domain_id
+        | delete_domain_id_list ',' delete_domain_id
+        ;
+
+delete_domain_id:
+          ulong_num
+          {
+            insert_dynamic(&Lex->delete_gtid_domain, (uchar*) &($1));
+          }
         ;
 
 optional_flush_tables_arguments:

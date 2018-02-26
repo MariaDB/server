@@ -1,13 +1,5 @@
 drop table if exists t1, t2, t3;
 create table t1 (c1 int primary key, c2 text, fulltext index ft (c2));
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `c1` int(11) NOT NULL,
-  `c2` text,
-  PRIMARY KEY (`c1`),
-  FULLTEXT KEY `ft` (`c2`)
-) ENGINE=Mroonga DEFAULT CHARSET=latin1
 insert into t1 values (1, "hoge hoge");
 insert into t1 values (2, "fuga fuga");
 insert into t1 values (3, "moge moge");

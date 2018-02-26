@@ -1,0 +1,35 @@
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+temperature DECIMAL(6, 3)
+) ENGINE InnoDB DEFAULT CHARSET UTF8;
+SHOW CREATE TABLE diaries;
+Table	Create Table
+diaries	CREATE TABLE `diaries` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `temperature` decimal(6,3) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
+INSERT INTO diaries (temperature) VALUES (21.281);
+SELECT * FROM diaries;
+id	temperature
+1	21.281
+ALTER TABLE diaries ENGINE = mroonga;
+SELECT * FROM diaries;
+id	temperature
+1	21.281
+INSERT INTO diaries (temperature) VALUES (14.213);
+INSERT INTO diaries (temperature) VALUES (17.821);
+SELECT * FROM diaries;
+id	temperature
+1	21.281
+2	14.213
+3	17.821
+SHOW CREATE TABLE diaries;
+Table	Create Table
+diaries	CREATE TABLE `diaries` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `temperature` decimal(6,3) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=Mroonga AUTO_INCREMENT=4 DEFAULT CHARSET=utf8
+DROP TABLE diaries;

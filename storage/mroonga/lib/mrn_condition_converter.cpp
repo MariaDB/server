@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013-2014 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2013-2017 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -175,7 +175,7 @@ namespace mrn {
 
     bool convertable = false;
 
-    enum_field_types field_type = field_item->field_type();
+    enum_field_types field_type = field_item->field->real_type();
     NormalizedType normalized_type = normalize_field_type(field_type);
     switch (normalized_type) {
     case STRING_TYPE:
@@ -185,7 +185,12 @@ namespace mrn {
       }
       break;
     case INT_TYPE:
-      convertable = value_item->type() == Item::INT_ITEM;
+      if (field_type == MYSQL_TYPE_ENUM) {
+        convertable = (value_item->type() == Item::STRING_ITEM ||
+                       value_item->type() == Item::INT_ITEM);
+      } else {
+        convertable = value_item->type() == Item::INT_ITEM;
+      }
       break;
     case TIME_TYPE:
       if (is_valid_time_value(field_item, value_item)) {
@@ -206,7 +211,7 @@ namespace mrn {
 
     bool convertable = false;
 
-    enum_field_types field_type = field_item->field_type();
+    enum_field_types field_type = field_item->field->type();
     NormalizedType normalized_type = normalize_field_type(field_type);
     switch (normalized_type) {
     case STRING_TYPE:
@@ -251,7 +256,7 @@ namespace mrn {
 
     bool error;
     Item *real_value_item = value_item->real_item();
-    switch (field_item->field_type()) {
+    switch (field_item->field->type()) {
     case MYSQL_TYPE_TIME:
       error = real_value_item->get_time(mysql_time);
       break;
@@ -352,6 +357,11 @@ namespace mrn {
     case MYSQL_TYPE_GEOMETRY:
       type = UNSUPPORTED_TYPE;
       break;
+#ifdef MRN_HAVE_MYSQL_TYPE_JSON
+    case MYSQL_TYPE_JSON:
+      type = STRING_TYPE;
+      break;
+#endif
     }
 
     DBUG_RETURN(type);
@@ -404,11 +414,11 @@ namespace mrn {
     DBUG_RETURN(have);
   }
 
-  const Item_func *ConditionConverter::find_match_against(const Item *item) {
+  unsigned int ConditionConverter::count_match_against(const Item *item) {
     MRN_DBUG_ENTER_METHOD();
 
     if (!item) {
-      DBUG_RETURN(NULL);
+      DBUG_RETURN(0);
     }
 
     switch (item->type()) {
@@ -416,14 +426,13 @@ namespace mrn {
       if (is_storage_mode_) {
         Item_cond *cond_item = (Item_cond *)item;
         if (cond_item->functype() == Item_func::COND_AND_FUNC) {
+          unsigned int n_match_againsts = 0;
           List_iterator<Item> iterator(*((cond_item)->argument_list()));
           const Item *sub_item;
           while ((sub_item = iterator++)) {
-            const Item_func *match_against = find_match_against(sub_item);
-            if (match_against) {
-              DBUG_RETURN(match_against);
-            }
+            n_match_againsts += count_match_against(sub_item);
           }
+          DBUG_RETURN(n_match_againsts);
         }
       }
       break;
@@ -432,7 +441,7 @@ namespace mrn {
         const Item_func *func_item = (const Item_func *)item;
         switch (func_item->functype()) {
         case Item_func::FT_FUNC:
-          DBUG_RETURN(func_item);
+          DBUG_RETURN(1);
           break;
         default:
           break;
@@ -443,7 +452,7 @@ namespace mrn {
       break;
     }
 
-    DBUG_RETURN(NULL);
+    DBUG_RETURN(0);
   }
 
   void ConditionConverter::convert(const Item *where, grn_obj *expression) {
@@ -560,7 +569,7 @@ namespace mrn {
                                              grn_obj *expression) {
     MRN_DBUG_ENTER_METHOD();
 
-    enum_field_types field_type = field_item->field_type();
+    enum_field_types field_type = field_item->field->real_type();
     NormalizedType normalized_type = normalize_field_type(field_type);
 
     switch (normalized_type) {
@@ -574,7 +583,21 @@ namespace mrn {
       break;
     case INT_TYPE:
       grn_obj_reinit(ctx_, &value_, GRN_DB_INT64, 0);
-      GRN_INT64_SET(ctx_, &value_, const_item->val_int());
+      if (field_type == MYSQL_TYPE_ENUM) {
+        if (const_item->type() == Item::STRING_ITEM) {
+          String *string;
+          string = const_item->val_str(NULL);
+          Field_enum *enum_field = static_cast<Field_enum *>(field_item->field);
+          int enum_value = find_type(string->c_ptr(),
+                                     enum_field->typelib,
+                                     FIND_TYPE_BASIC);
+          GRN_INT64_SET(ctx_, &value_, enum_value);
+        } else {
+          GRN_INT64_SET(ctx_, &value_, const_item->val_int());
+        }
+      } else {
+        GRN_INT64_SET(ctx_, &value_, const_item->val_int());
+      }
       break;
     case TIME_TYPE:
       grn_obj_reinit(ctx_, &value_, GRN_DB_TIME, 0);

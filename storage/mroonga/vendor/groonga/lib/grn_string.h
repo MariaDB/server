@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2012 Brazil
+  Copyright(C) 2012-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -17,24 +17,12 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#ifndef GRN_STRING_H
-#define GRN_STRING_H
+#pragma once
 
-#ifndef GRN_H
-# include "grn.h"
-#endif /* GRN_H */
-
-#ifndef GRN_CTX_H
-# include "grn_ctx.h"
-#endif /* GRN_CTX_H */
-
-#ifndef GRN_DB_H
-# include "grn_db.h"
-#endif /* GRN_DB_H */
-
-#ifndef GRN_STR_H
-# include "grn_str.h"
-#endif /* GRN_STR_H */
+#include "grn.h"
+#include "grn_ctx.h"
+#include "grn_db.h"
+#include "grn_str.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,5 +49,3 @@ grn_rc grn_string_inspect(grn_ctx *ctx, grn_obj *buffer, grn_obj *string);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_STRING_H */

@@ -2727,7 +2727,7 @@ static my_bool translog_recover_page_up_to_sector(uchar *page, uint16 offset)
   DBUG_PRINT("enter", ("offset: %u  first chunk: %u",
                        (uint) offset, (uint) chunk_offset));
 
-  while (page[chunk_offset] != TRANSLOG_FILLER && chunk_offset < offset)
+  while (chunk_offset < offset && page[chunk_offset] != TRANSLOG_FILLER)
   {
     uint16 chunk_length;
     if ((chunk_length=
@@ -6342,7 +6342,6 @@ my_bool translog_write_record(LSN *lsn,
                                       short_trid, &parts, trn, hook_arg);
       break;
     case LOGRECTYPE_NOT_ALLOWED:
-      DBUG_ASSERT(0);
     default:
       DBUG_ASSERT(0);
       rc= 1;

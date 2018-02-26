@@ -54,3 +54,8 @@ galera_pc_ignore_sb : MDEV-13549 Galera test failures 10.1
 galera_lock_table : MDEV-13549 Galera test failures 10.1
 MW-284 : MDEV-13549 Galera test failures 10.1
 galera_as_slave : MDEV-13549 Galera test failures 10.1
+MW-328C: MDEV-13549 Galera test failures 10.1
+MW-328A: MDEV-13549 Galera test failures 10.1
+MW-328B: MDEV-13549 Galera test failures 10.1
+MW-328: MDEV-13549 Galera test failures 10.1
+galera_suspend_slave: MDEV-13549 Galera test failures 10.1

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4042,7 +4042,7 @@ ibuf_insert_to_index_page_low(
 		(ulong) zip_size, (ulong) old_bits);
 
 	fputs("InnoDB: Submit a detailed bug report"
-	      " to http://bugs.mysql.com\n", stderr);
+	      " to https://jira.mariadb.org/\n", stderr);
 	ut_ad(0);
 	DBUG_RETURN(NULL);
 }
@@ -4104,7 +4104,7 @@ ibuf_insert_to_index_page(
 		      "InnoDB: but the number of fields does not match!\n",
 		      stderr);
 dump:
-		buf_page_print(page, 0, BUF_PAGE_PRINT_NO_CRASH);
+		buf_page_print(page, 0);
 
 		dtuple_print(stderr, entry);
 		ut_ad(0);
@@ -4115,7 +4115,7 @@ dump:
 		      " Please run CHECK TABLE on\n"
 		      "InnoDB: your tables.\n"
 		      "InnoDB: Submit a detailed bug report to"
-		      " http://bugs.mysql.com!\n", stderr);
+		      " https://jira.mariadb.org/\n", stderr);
 
 		DBUG_VOID_RETURN;
 	}
@@ -4291,7 +4291,7 @@ ibuf_set_del_mark(
 		fprintf(stderr, "\nspace %u offset %u"
 			" (%u records, index id %llu)\n"
 			"InnoDB: Submit a detailed bug report"
-			" to http://bugs.mysql.com\n",
+			" to https://jira.mariadb.org/\n",
 			(unsigned) buf_block_get_space(block),
 			(unsigned) buf_block_get_page_no(block),
 			(unsigned) page_get_n_recs(page),
@@ -4355,7 +4355,7 @@ ibuf_delete(
 			fprintf(stderr, "\nspace %u offset %u"
 				" (%u records, index id %llu)\n"
 				"InnoDB: Submit a detailed bug report"
-				" to http://bugs.mysql.com\n",
+				" to https://jira.mariadb.org/\n",
 				(unsigned) buf_block_get_space(block),
 				(unsigned) buf_block_get_page_no(block),
 				(unsigned) page_get_n_recs(page),
@@ -4426,7 +4426,7 @@ ibuf_restore_pos(
 	} else {
 		fprintf(stderr,
 			"InnoDB: ERROR: Submit the output to"
-			" http://bugs.mysql.com\n"
+			" https://jira.mariadb.org/\n"
 			"InnoDB: ibuf cursor restoration fails!\n"
 			"InnoDB: ibuf record inserted to page %lu:%lu\n",
 			(ulong) space, (ulong) page_no);
@@ -4645,7 +4645,7 @@ ibuf_merge_or_delete_for_page(
 		function. When the counter is > 0, that prevents tablespace
 		from being dropped. */
 
-		space = fil_space_acquire(space_id);
+		space = fil_space_acquire_silent(space_id);
 
 		if (UNIV_UNLIKELY(!space)) {
 			/* Do not try to read the bitmap page from space;
@@ -4723,15 +4723,13 @@ ibuf_merge_or_delete_for_page(
 				fputs("InnoDB: cannot retrieve bitmap page\n",
 				      stderr);
 			} else {
-				buf_page_print(bitmap_page, 0,
-					       BUF_PAGE_PRINT_NO_CRASH);
+				buf_page_print(bitmap_page, 0);
 			}
 			ibuf_mtr_commit(&mtr);
 
 			fputs("\nInnoDB: Dump of the page:\n", stderr);
 
-			buf_page_print(block->frame, 0,
-				       BUF_PAGE_PRINT_NO_CRASH);
+			buf_page_print(block->frame, 0);
 
 			fprintf(stderr,
 				"InnoDB: Error: corruption in the tablespace."
@@ -4747,7 +4745,7 @@ ibuf_merge_or_delete_for_page(
 				"InnoDB: to determine if they are corrupt"
 				" after this.\n\n"
 				"InnoDB: Please submit a detailed bug report"
-				" to http://bugs.mysql.com\n\n",
+				" to https://jira.mariadb.org/\n\n",
 				(ulong) page_no,
 				(ulong)
 				fil_page_get_type(block->frame));
@@ -5180,7 +5178,20 @@ ibuf_check_bitmap_on_import(
 		return(DB_TABLE_NOT_FOUND);
 	}
 
-	size = fil_space_get_size(space_id);
+	mtr_t	mtr;
+	mtr_start(&mtr);
+	{
+		buf_block_t* sp = buf_page_get(space_id, zip_size, 0,
+					       RW_S_LATCH, &mtr);
+		if (sp) {
+			size = mach_read_from_4(
+				FSP_HEADER_OFFSET + FSP_FREE_LIMIT
+				+ sp->frame);
+		} else {
+			size = 0;
+		}
+	}
+	mtr_commit(&mtr);
 
 	if (size == 0) {
 		return(DB_TABLE_NOT_FOUND);
@@ -5191,7 +5202,6 @@ ibuf_check_bitmap_on_import(
 	page_size = zip_size ? zip_size : UNIV_PAGE_SIZE;
 
 	for (page_no = 0; page_no < size; page_no += page_size) {
-		mtr_t	mtr;
 		page_t*	bitmap_page;
 		ulint	i;
 

@@ -47,13 +47,10 @@ public:
   Item_row(THD *thd, List<Item> &list):
   Item(thd), Item_args(thd, list), not_null_tables_cache(0), with_null(0)
   { }
-  Item_row(THD *thd, Item_row *item):
-    Item(thd),
-    Item_args(item),
-    Used_tables_and_const_cache(item),
-    not_null_tables_cache(0),
-    with_null(0)
-  {}
+  Item_row(THD *thd, Item_row *row):
+    Item(thd), Item_args(thd, static_cast<Item_args*>(row)), Used_tables_and_const_cache(),
+    not_null_tables_cache(0), with_null(0)
+  { }
 
   enum Type type() const { return ROW_ITEM; };
   void illegal_method_call(const char *);
@@ -83,7 +80,7 @@ public:
     return 0;
   };
   bool fix_fields(THD *thd, Item **ref);
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   void cleanup();
   void split_sum_func(THD *thd, Item **ref_pointer_array, List<Item> &fields,
                       uint flags);

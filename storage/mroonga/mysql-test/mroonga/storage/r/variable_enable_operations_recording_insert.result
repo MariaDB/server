@@ -1,0 +1,32 @@
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+title TEXT
+) DEFAULT CHARSET=utf8;
+SELECT mroonga_command('truncate mroonga_operations');
+mroonga_command('truncate mroonga_operations')
+true
+INSERT INTO diaries VALUES("Unlogged: Research for Mroonga");
+SELECT mroonga_command('load --table mroonga_operations --values "[{}]"');
+mroonga_command('load --table mroonga_operations --values "[{}]"')
+1
+SELECT mroonga_command('select mroonga_operations --output_columns _id');
+mroonga_command('select mroonga_operations --output_columns _id')
+[[[1],[["_id","UInt32"]],[2]]]
+SET GLOBAL mroonga_enable_operations_recording = false;
+FLUSH TABLES;
+SELECT mroonga_command('truncate mroonga_operations');
+mroonga_command('truncate mroonga_operations')
+true
+INSERT INTO diaries VALUES("Logged: Research for Mroonga");
+SELECT mroonga_command('load --table mroonga_operations --values "[{}]"');
+mroonga_command('load --table mroonga_operations --values "[{}]"')
+1
+SELECT mroonga_command('select mroonga_operations --output_columns _id');
+mroonga_command('select mroonga_operations --output_columns _id')
+[[[1],[["_id","UInt32"]],[1]]]
+DROP TABLE diaries;
+SELECT mroonga_command('truncate mroonga_operations');
+mroonga_command('truncate mroonga_operations')
+true
+SET GLOBAL mroonga_enable_operations_recording = default;
+FLUSH TABLES;

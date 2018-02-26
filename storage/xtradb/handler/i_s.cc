@@ -6363,6 +6363,7 @@ i_s_sys_tables_fill_table_stats(
 	}
 
 	heap = mem_heap_create(1000);
+	rw_lock_s_lock(&dict_operation_lock);
 	mutex_enter(&dict_sys->mutex);
 	mtr_start(&mtr);
 
@@ -6389,9 +6390,11 @@ i_s_sys_tables_fill_table_stats(
 					    err_msg);
 		}
 
+		rw_lock_s_unlock(&dict_operation_lock);
 		mem_heap_empty(heap);
 
 		/* Get the next record */
+		rw_lock_s_lock(&dict_operation_lock);
 		mutex_enter(&dict_sys->mutex);
 		mtr_start(&mtr);
 		rec = dict_getnext_system(&pcur, &mtr);
@@ -6399,6 +6402,7 @@ i_s_sys_tables_fill_table_stats(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys->mutex);
+	rw_lock_s_unlock(&dict_operation_lock);
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
@@ -7690,8 +7694,6 @@ i_s_dict_fill_sys_tablespaces(
 {
 	Field**	fields;
 	ulint	atomic_blobs	= FSP_FLAGS_HAS_ATOMIC_BLOBS(flags);
-	ulint	page_size	= fsp_flags_get_page_size(flags);
-	ulint	zip_size	= fsp_flags_get_zip_size(flags);
 	const char* file_format;
 	const char* row_format;
 
@@ -7708,13 +7710,11 @@ i_s_dict_fill_sys_tablespaces(
 
 	fields = table_to_fill->field;
 
-	OK(fields[SYS_TABLESPACES_SPACE]->store(
-		static_cast<double>(space)));
+	OK(fields[SYS_TABLESPACES_SPACE]->store(space, true));
 
 	OK(field_store_string(fields[SYS_TABLESPACES_NAME], name));
 
-	OK(fields[SYS_TABLESPACES_FLAGS]->store(
-		static_cast<double>(flags)));
+	OK(fields[SYS_TABLESPACES_FLAGS]->store(flags, true));
 
 	OK(field_store_string(fields[SYS_TABLESPACES_FILE_FORMAT],
 			      file_format));
@@ -7722,11 +7722,18 @@ i_s_dict_fill_sys_tablespaces(
 	OK(field_store_string(fields[SYS_TABLESPACES_ROW_FORMAT],
 			      row_format));
 
-	OK(fields[SYS_TABLESPACES_PAGE_SIZE]->store(
-		static_cast<double>(page_size)));
+	ulint cflags = fsp_flags_is_valid(flags, space)
+		? flags : fsp_flags_convert_from_101(flags);
+	if (cflags != ULINT_UNDEFINED) {
+		OK(fields[SYS_TABLESPACES_PAGE_SIZE]->store(
+			   fsp_flags_get_page_size(cflags), true));
 
-	OK(fields[SYS_TABLESPACES_ZIP_PAGE_SIZE]->store(
-		static_cast<double>(zip_size)));
+		OK(fields[SYS_TABLESPACES_ZIP_PAGE_SIZE]->store(
+			   fsp_flags_get_zip_size(cflags), true));
+	} else {
+		fields[SYS_TABLESPACES_PAGE_SIZE]->set_null();
+		fields[SYS_TABLESPACES_ZIP_PAGE_SIZE]->set_null();
+	}
 
 	OK(schema_table_store_record(thd, table_to_fill));
 

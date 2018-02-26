@@ -331,9 +331,10 @@ CREATE INDEX t1e ON t1 (e(767));
 UPDATE t1 SET a=@c,b=@c,c=@c,d=@c,e=@c,f=@c,g=@c,h=@c,i=@c,j=@c,
 k=@c,l=@c,m=@c,n=@c,o=@c,p=@c,q=@c,r=@c,s=@c,t=@c,u=@c;
 CREATE INDEX t1f ON t1 (f(767));
+BEGIN;
 UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d,f=@d,g=@d,h=@d,i=@d,j=@d,
 k=@d,l=@d,m=@d,n=@d,o=@d,p=@d,q=@d,r=@d,s=@d,t=@d,u=@d;
-ERROR HY000: Undo log record is too big.
+ROLLBACK;
 BEGIN;
 UPDATE t1 SET a=@d,b=@d,c=@d,d=@d,e=@d;
 UPDATE t1 SET f=@d,g=@d,h=@d,i=@d,j=@d,k=@d,l=@d,m=@d,
@@ -366,8 +367,9 @@ UPDATE t1 SET r=@e;
 CREATE INDEX t1s ON t1 (s(767));
 UPDATE t1 SET s=@e;
 CREATE INDEX t1t ON t1 (t(767));
+BEGIN;
 UPDATE t1 SET t=@e;
-ERROR HY000: Undo log record is too big.
+ROLLBACK;
 CREATE INDEX t1u ON t1 (u(767));
 ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
 CREATE INDEX t1ut ON t1 (u(767), t(767));
@@ -546,11 +548,11 @@ PRIMARY KEY (b(10), a), INDEX (c(767)), INDEX(b(767))
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
 INSERT INTO bug12547647 VALUES (5,REPEAT('khdfo5AlOq',1900),REPEAT('g',7751));
 COMMIT;
+BEGIN;
 UPDATE bug12547647 SET c = REPEAT('b',16928);
-ERROR HY000: Undo log record is too big.
 SHOW WARNINGS;
 Level	Code	Message
-Error	1713	Undo log record is too big.
+ROLLBACK;
 DROP TABLE bug12547647;
 SET SESSION innodb_strict_mode = off;
 CREATE TABLE t1(

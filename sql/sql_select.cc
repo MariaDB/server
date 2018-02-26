@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016 Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016 MariaDB
+   Copyright (c) 2009, 2018 MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -291,6 +291,11 @@ JOIN_TAB *next_depth_first_tab(JOIN* join, JOIN_TAB* tab);
 
 static JOIN_TAB *next_breadth_first_tab(JOIN_TAB *first_top_tab,
                                         uint n_top_tabs_count, JOIN_TAB *tab);
+static bool
+find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
+                   ORDER *order, List<Item> &fields, List<Item> &all_fields,
+                   bool is_group_field, bool add_to_all_fields);
+
 static double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                                      table_map rem_tables);
 
@@ -343,7 +348,6 @@ bool dbug_user_var_equals_int(THD *thd, const char *name, int value)
   return FALSE;
 }
 #endif 
-
 
 /**
   This handles SELECT with and without UNION.
@@ -708,6 +712,9 @@ JOIN::prepare(Item ***rref_pointer_array,
   join_list= &select_lex->top_join_list;
   union_part= unit_arg->is_union();
 
+  // simple check that we got usable conds
+  dbug_print_item(conds);
+
   if (select_lex->handle_derived(thd->lex, DT_PREPARE))
     DBUG_RETURN(1);
 
@@ -797,7 +804,7 @@ JOIN::prepare(Item ***rref_pointer_array,
                               wild_num)) ||
       select_lex->setup_ref_array(thd, real_og_num) ||
       setup_fields(thd, (*rref_pointer_array), fields_list, MARK_COLUMNS_READ,
-		   &all_fields, 1) ||
+		   &all_fields, &select_lex->pre_fix, 1) ||
       setup_without_group(thd, (*rref_pointer_array), tables_list,
 			  select_lex->leaf_tables, fields_list,
 			  all_fields, &conds, order, group_list,
@@ -810,9 +817,15 @@ JOIN::prepare(Item ***rref_pointer_array,
   if (skip_order_by && select_lex !=
                        select_lex->master_unit()->global_parameters())
   {
-    if (setup_order(thd, (*rref_pointer_array), tables_list, fields_list,
-                    all_fields, select_lex->order_list.first))
-      DBUG_RETURN(-1);
+    thd->where= "order clause";
+    for (ORDER *order= select_lex->order_list.first; order; order= order->next)
+    {
+      /* Don't add the order items to all fields. Just resolve them to ensure
+         the query is valid, we'll drop them immediately after. */
+      if (find_order_in_list(thd, *rref_pointer_array, tables_list, order,
+                             fields_list, all_fields, false, false))
+        DBUG_RETURN(-1);
+    }
     select_lex->order_list.empty();
   }
 
@@ -2323,8 +2336,11 @@ bool JOIN::shrink_join_buffers(JOIN_TAB *jt,
                                ulonglong curr_space,
                                ulonglong needed_space)
 {
+  JOIN_TAB *tab;
   JOIN_CACHE *cache;
-  for (JOIN_TAB *tab= join_tab+const_tables; tab < jt; tab++)
+  for (tab= first_linear_tab(this, WITHOUT_BUSH_ROOTS, WITHOUT_CONST_TABLES);
+       tab != jt;
+       tab= next_linear_tab(this, tab, WITHOUT_BUSH_ROOTS))
   {
     cache= tab->cache;
     if (cache)
@@ -2462,6 +2478,17 @@ void JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
                              bool need_tmp_table, bool need_order, 
                              bool distinct)
 {
+  /*
+    If there is SELECT in this statemet with the same number it must be the
+    same SELECT
+  */
+  DBUG_ASSERT(select_lex->select_number == UINT_MAX ||
+              select_lex->select_number == INT_MAX ||
+              !output ||
+              !output->get_select(select_lex->select_number) ||
+              output->get_select(select_lex->select_number)->select_lex ==
+                select_lex);
+
   if (select_lex->select_number != UINT_MAX && 
       select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
       have_query_plan != JOIN::QEP_NOT_PRESENT_YET && 
@@ -7874,9 +7901,11 @@ best_extension_by_limited_search(JOIN      *join,
       best_access_path(join, s, remaining_tables, idx, disable_jbuf,
                        record_count, join->positions + idx, &loose_scan_pos);
 
-      /* Compute the cost of extending the plan with 's' */
-
-      current_record_count= record_count * position->records_read;
+      /* Compute the cost of extending the plan with 's', avoid overflow */
+      if (position->records_read < DBL_MAX / record_count)
+        current_record_count= record_count * position->records_read;
+      else
+        current_record_count= DBL_MAX;
       current_read_time=read_time + position->read_time +
                         current_record_count / (double) TIME_FOR_COMPARE;
 
@@ -10437,7 +10466,7 @@ void JOIN::drop_unused_derived_keys()
       tmp_tbl->use_index(tab->ref.key);
     if (tmp_tbl->s->keys)
     {
-      if (tab->ref.key >= 0)
+      if (tab->ref.key >= 0 && tab->ref.key < MAX_KEY)
         tab->ref.key= 0;
       else
         tmp_tbl->s->keys= 0;
@@ -12256,8 +12285,8 @@ static void update_depend_map(JOIN *join)
     uint i;
     for (i=0 ; i < ref->key_parts ; i++,item++)
       depend_map|=(*item)->used_tables();
-    ref->depend_map=depend_map & ~OUTER_REF_TABLE_BIT;
     depend_map&= ~OUTER_REF_TABLE_BIT;
+    ref->depend_map= depend_map;
     for (JOIN_TAB **tab=join->map2table;
          depend_map ;
          tab++,depend_map>>=1 )
@@ -12632,7 +12661,7 @@ public:
   }
   static void operator delete(void *ptr __attribute__((unused)),
                               size_t size __attribute__((unused)))
-  { TRASH(ptr, size); }
+  { TRASH_FREE(ptr, size); }
 
   Item *and_level;
   Item_bool_func2 *cmp_func;
@@ -14639,10 +14668,23 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
     nested_join= table->nested_join;
     if (table->sj_on_expr && !in_sj)
     {
-       /*
-         If this is a semi-join that is not contained within another semi-join, 
-         leave it intact (otherwise it is flattened)
-       */
+      /*
+        If this is a semi-join that is not contained within another semi-join
+        leave it intact (otherwise it is flattened)
+      */
+      /*
+        Make sure that any semi-join appear in
+        the join->select_lex->sj_nests list only once
+      */
+      List_iterator_fast<TABLE_LIST> sj_it(join->select_lex->sj_nests);
+      TABLE_LIST *sj_nest;
+      while ((sj_nest= sj_it++))
+      {
+        if (table == sj_nest)
+          break;
+      }
+      if (sj_nest)
+        continue;
       join->select_lex->sj_nests.push_back(table, join->thd->mem_root);
 
       /* 
@@ -15618,9 +15660,10 @@ COND *
 Item_func_isnull::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                                   bool top_level_arg)
 {
-  if (args[0]->type() == Item::FIELD_ITEM)
+  Item *real_item= args[0]->real_item();
+  if (real_item->type() == Item::FIELD_ITEM)
   {
-    Field *field= ((Item_field*) args[0])->field;
+    Field *field= ((Item_field*) real_item)->field;
 
     if (((field->type() == MYSQL_TYPE_DATE) ||
          (field->type() == MYSQL_TYPE_DATETIME)) &&
@@ -16826,7 +16869,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
         field->set_notnull();
         memcpy(field->ptr,
                orig_field->ptr_in_record(orig_field->table->s->default_values),
-               field->pack_length());
+               field->pack_length_in_rec());
       }
     } 
 
@@ -22118,7 +22161,10 @@ cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
     SELECT list)
   @param[in,out] all_fields         All select, group and order by fields
   @param[in] is_group_field         True if order is a GROUP field, false if
-    ORDER by field
+                                    ORDER by field
+  @param[in] add_to_all_fields      If the item is to be added to all_fields and
+                                    ref_pointer_array, this flag can be set to
+                                    false to stop the automatic insertion.
 
   @retval
     FALSE if OK
@@ -22129,7 +22175,7 @@ cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
 static bool
 find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
                    ORDER *order, List<Item> &fields, List<Item> &all_fields,
-                   bool is_group_field)
+                   bool is_group_field, bool add_to_all_fields)
 {
   Item *order_item= *order->item; /* The item from the GROUP/ORDER caluse. */
   Item::Type order_item_type;
@@ -22253,6 +22299,9 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
        thd->is_error()))
     return TRUE; /* Wrong field. */
 
+  if (!add_to_all_fields)
+    return FALSE;
+
   uint el= all_fields.elements;
   DBUG_ASSERT(all_fields.elements <=
               thd->lex->current_select->ref_pointer_array_size);
@@ -22283,13 +22332,13 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
 */
 
 int setup_order(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
-		List<Item> &fields, List<Item> &all_fields, ORDER *order)
+                List<Item> &fields, List<Item> &all_fields, ORDER *order)
 {
   thd->where="order clause";
   for (; order; order=order->next)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, order, fields,
-			   all_fields, FALSE))
+                           all_fields, FALSE, true))
       return 1;
   }
   return 0;
@@ -22341,7 +22390,7 @@ setup_group(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
   for (ord= order; ord; ord= ord->next)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, ord, fields,
-			   all_fields, TRUE))
+                           all_fields, TRUE, true))
       return 1;
     (*ord->item)->marker= UNDEF_POS;		/* Mark found */
     if ((*ord->item)->with_sum_func)
@@ -22660,6 +22709,7 @@ get_sort_by_table(ORDER *a,ORDER *b, List<TABLE_LIST> &tables,
   if (!map || (map & (RAND_TABLE_BIT | OUTER_REF_TABLE_BIT)))
     DBUG_RETURN(0);
 
+  map&= ~const_tables;
   while ((table= ti++) && !(map & table->table->map)) ;
   if (map != table->table->map)
     DBUG_RETURN(0);				// More than one table
@@ -24586,6 +24636,11 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
   {
     explain= new (output->mem_root) Explain_select(output->mem_root, 
                                                    thd->lex->analyze_stmt);
+    if (!explain)
+      DBUG_RETURN(1); // EoM
+#ifndef DBUG_OFF
+    explain->select_lex= select_lex;
+#endif
     join->select_lex->set_explain_type(true);
 
     explain->select_id= join->select_lex->select_number;

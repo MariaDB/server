@@ -98,8 +98,8 @@
   rnd_next signals that it has reached the end of its data. Calls to
   ha_connect::extra() are hints as to what will be occuring to the request.
 
-  Author  Olivier Bertrand
-*/
+	Author  Olivier Bertrand
+	*/
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation        // gcc: Class implementation
@@ -425,7 +425,7 @@ handlerton *connect_hton= NULL;
 /*  Function to export session variable values to other source files.  */
 /***********************************************************************/
 uint GetTraceValue(void)
-	{return connect_hton ? THDVAR(current_thd, xtrace) : 0;}
+	{return (uint)(connect_hton ? THDVAR(current_thd, xtrace) : 0);}
 bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
 int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
@@ -1107,55 +1107,55 @@ PCSZ GetListOption(PGLOBAL g, PCSZ opname, PCSZ oplist, PCSZ def)
   if (!oplist)
     return (char*)def;
 
-  char  key[16], val[256];
-  char *pv, *pn, *pk= (char*)oplist;
-	PCSZ  opval= def;
-  int   n;
+	char  key[16], val[256];
+	char *pv, *pn, *pk = (char*)oplist;
+	PCSZ  opval = def;
+	int   n;
 
 	while (*pk == ' ')
 		pk++;
 
-  for (; pk; pk= pn) {
-    pn= strchr(pk, ',');
-    pv= strchr(pk, '=');
+	for (; pk; pk = pn) {
+		pn = strchr(pk, ',');
+		pv = strchr(pk, '=');
 
-    if (pv && (!pn || pv < pn)) {
+		if (pv && (!pn || pv < pn)) {
 			n = MY_MIN(static_cast<size_t>(pv - pk), sizeof(key) - 1);
 			memcpy(key, pk, n);
 
 			while (n && key[n - 1] == ' ')
 				n--;
 
-      key[n]= 0;
+			key[n] = 0;
 
-      while(*(++pv) == ' ') ;
+			while (*(++pv) == ' ');
 
-			n= MY_MIN((pn ? pn - pv : strlen(pv)), sizeof(val) - 1);
-      memcpy(val, pv, n);
+			n = MY_MIN((pn ? pn - pv : strlen(pv)), sizeof(val) - 1);
+			memcpy(val, pv, n);
 
 			while (n && val[n - 1] == ' ')
 				n--;
 
-			val[n]= 0;
-    } else {
-			n= MY_MIN((pn ? pn - pk : strlen(pk)), sizeof(key) - 1);
-      memcpy(key, pk, n);
+			val[n] = 0;
+		} else {
+			n = MY_MIN((pn ? pn - pk : strlen(pk)), sizeof(key) - 1);
+			memcpy(key, pk, n);
 
 			while (n && key[n - 1] == ' ')
 				n--;
 
-			key[n]= 0;
-      val[0]= 0;
-    } // endif pv
+			key[n] = 0;
+			val[0] = 0;
+		} // endif pv
 
-    if (!stricmp(opname, key)) {
-      opval= PlugDup(g, val);
-      break;
-    } else if (!pn)
-      break;
+		if (!stricmp(opname, key)) {
+			opval = PlugDup(g, val);
+			break;
+		} else if (!pn)
+			break;
 
-		while (*(++pn) == ' ') ;
-    } // endfor pk
+		while (*(++pn) == ' ');
+	} // endfor pk
 
   return opval;
 } // end of GetListOption
@@ -4391,53 +4391,59 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
 						my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--secure-file-priv");
 						return true;
 					} // endif path
-				}
+
+				}	// endif !quick
+
 			} else
         return false;
 
-      /* Fall through to check FILE_ACL */
-    case TAB_ODBC:
-		case TAB_JDBC:
+			// Fall through
 		case TAB_MYSQL:
-		case TAB_MONGO:
 		case TAB_DIR:
-    case TAB_MAC:
-    case TAB_WMI:
 		case TAB_ZIP:
 		case TAB_OEM:
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
-      return false;
-#endif
-      /*
-        If table or table->mdl_ticket is NULL - it's a DLL, e.g. CREATE TABLE.
-        if the table has an MDL_EXCLUSIVE lock - it's a DDL too, e.g. the
-        insert step of CREATE ... SELECT.
+			return false;
+			#endif
 
-        Otherwise it's a DML, the table was normally opened, locked,
-        privilege were already checked, and table->grant.privilege is set.
-        With SQL SECURITY DEFINER, table->grant.privilege has definer's privileges.
+			/*
+			Check FILE_ACL
+			If table or table->mdl_ticket is NULL - it's a DLL, e.g. CREATE TABLE.
+			if the table has an MDL_EXCLUSIVE lock - it's a DDL too, e.g. the
+			insert step of CREATE ... SELECT.
+			
+			Otherwise it's a DML, the table was normally opened, locked,
+			privilege were already checked, and table->grant.privilege is set.
+			With SQL SECURITY DEFINER, table->grant.privilege has definer's privileges.
+			
+			Unless we're in prelocking mode, in this case table->grant.privilege
+			is only checked in start_stmt(), not in external_lock().
+			*/
+			if (!table || !table->mdl_ticket || table->mdl_ticket->get_type() == MDL_EXCLUSIVE)
+			  return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
 
-        Unless we're in prelocking mode, in this case table->grant.privilege
-        is only checked in start_stmt(), not in external_lock().
-      */
-      if (!table || !table->mdl_ticket || table->mdl_ticket->get_type() == MDL_EXCLUSIVE)
-        return check_access(thd, FILE_ACL, db, NULL, NULL, 0, 0);
-      if ((!quick && thd->lex->requires_prelocking()) || table->grant.privilege & FILE_ACL)
-        return false;
-      status_var_increment(thd->status_var.access_denied_errors);
-      my_error(access_denied_error_code(thd->password), MYF(0),
-               thd->security_ctx->priv_user, thd->security_ctx->priv_host,
-               (thd->password ?  ER(ER_YES) : ER(ER_NO)));
-      return true;
+			if ((!quick && thd->lex->requires_prelocking()) || table->grant.privilege & FILE_ACL)
+			  return false;
 
-    // This is temporary until a solution is found
+			status_var_increment(thd->status_var.access_denied_errors);
+			my_error(access_denied_error_code(thd->password), MYF(0),
+			         thd->security_ctx->priv_user, thd->security_ctx->priv_host,
+			         (thd->password ?  ER(ER_YES) : ER(ER_NO)));
+			return true;
+    case TAB_ODBC:
+		case TAB_JDBC:
+		case TAB_MONGO:
+    case TAB_MAC:
+    case TAB_WMI:
+			return false;
     case TAB_TBL:
     case TAB_XCL:
     case TAB_PRX:
     case TAB_OCCUR:
     case TAB_PIVOT:
     case TAB_VIR:
-      return false;
+			// This is temporary until a solution is found
+			return false;
     } // endswitch type
 
   my_printf_error(ER_UNKNOWN_ERROR, "check_privileges failed", MYF(0));
@@ -5629,7 +5635,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // JAVA_SUPPORT
 			case TAB_DBF:
 				dbf = true;
-				// Passthru
+				// fall through
 			case TAB_CSV:
 				if (!fn && fnc != FNC_NO)
 					sprintf(g->Message, "Missing %s file name", topt->type);

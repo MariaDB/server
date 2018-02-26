@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013-2015 Brazil
+  Copyright(C) 2013-2017 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -28,6 +28,7 @@
 #include <mruby/hash.h>
 
 #include "../grn_expr.h"
+#include "../grn_proc.h"
 #include "../grn_util.h"
 #include "../grn_mrb.h"
 #include "mrb_accessor.h"
@@ -104,11 +105,11 @@ mrb_grn_scan_info_put_index(mrb_state *mrb, mrb_value self)
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   scan_info *si;
   mrb_value mrb_index;
-  int sid;
-  int32_t weight;
+  mrb_int sid;
+  mrb_int weight;
   mrb_value mrb_scorer;
   mrb_value mrb_scorer_args_expr;
-  int32_t scorer_args_expr_offset;
+  mrb_int scorer_args_expr_offset;
   grn_obj *index;
   grn_obj *scorer = NULL;
   grn_obj *scorer_args_expr = NULL;
@@ -151,7 +152,7 @@ mrb_grn_scan_info_set_op(mrb_state *mrb, mrb_value self)
   mrb_value mrb_op;
   grn_operator op;
 
-  mrb_get_args(mrb, "o", &mrb_op, &op);
+  mrb_get_args(mrb, "o", &mrb_op);
   si = DATA_PTR(self);
   op = grn_mrb_value_to_operator(mrb, mrb_op);
   grn_scan_info_set_op(si, op);
@@ -162,7 +163,7 @@ static mrb_value
 mrb_grn_scan_info_set_end(mrb_state *mrb, mrb_value self)
 {
   scan_info *si;
-  int end;
+  mrb_int end;
 
   mrb_get_args(mrb, "i", &end);
   si = DATA_PTR(self);
@@ -190,7 +191,7 @@ static mrb_value
 mrb_grn_scan_info_set_flags(mrb_state *mrb, mrb_value self)
 {
   scan_info *si;
-  int flags;
+  mrb_int flags;
 
   mrb_get_args(mrb, "i", &flags);
   si = DATA_PTR(self);
@@ -238,7 +239,7 @@ static mrb_value
 mrb_grn_scan_info_set_max_interval(mrb_state *mrb, mrb_value self)
 {
   scan_info *si;
-  int max_interval;
+  mrb_int max_interval;
 
   mrb_get_args(mrb, "i", &max_interval);
   si = DATA_PTR(self);
@@ -261,7 +262,7 @@ static mrb_value
 mrb_grn_scan_info_set_similarity_threshold(mrb_state *mrb, mrb_value self)
 {
   scan_info *si;
-  int similarity_threshold;
+  mrb_int similarity_threshold;
 
   mrb_get_args(mrb, "i", &similarity_threshold);
   si = DATA_PTR(self);
@@ -285,7 +286,7 @@ mrb_grn_scan_info_get_arg(mrb_state *mrb, mrb_value self)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   scan_info *si;
-  int index;
+  mrb_int index;
   grn_obj *arg;
 
   mrb_get_args(mrb, "i", &index);
@@ -309,6 +310,39 @@ mrb_grn_scan_info_push_arg(mrb_state *mrb, mrb_value self)
   success = grn_scan_info_push_arg(si, DATA_PTR(mrb_arg));
 
   return mrb_bool_value(success);
+}
+
+static mrb_value
+mrb_grn_scan_info_get_start_position(mrb_state *mrb, mrb_value self)
+{
+  scan_info *si;
+  int start_position;
+
+  si = DATA_PTR(self);
+  start_position = grn_scan_info_get_start_position(si);
+  return mrb_fixnum_value(start_position);
+}
+
+static mrb_value
+mrb_grn_scan_info_set_start_position(mrb_state *mrb, mrb_value self)
+{
+  scan_info *si;
+  mrb_int start_position;
+
+  mrb_get_args(mrb, "i", &start_position);
+  si = DATA_PTR(self);
+  grn_scan_info_set_start_position(si, start_position);
+  return self;
+}
+
+static mrb_value
+mrb_grn_scan_info_reset_position(mrb_state *mrb, mrb_value self)
+{
+  scan_info *si;
+
+  si = DATA_PTR(self);
+  grn_scan_info_reset_position(si);
+  return self;
 }
 
 static mrb_value
@@ -346,6 +380,13 @@ mrb_grn_expr_code_inspect(mrb_state *mrb, mrb_value self)
                                "inspect",
                                0));
   }
+
+  mrb_str_cat_lit(mrb, inspected, ", n_args=");
+  mrb_str_concat(mrb, inspected,
+                 mrb_funcall(mrb,
+                             mrb_fixnum_value(code->nargs),
+                             "inspect",
+                             0));
 
   mrb_str_cat_lit(mrb, inspected, ", modify=");
   mrb_str_concat(mrb, inspected,
@@ -404,6 +445,15 @@ mrb_grn_expr_code_get_value(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
+mrb_grn_expr_code_get_n_args(mrb_state *mrb, mrb_value self)
+{
+  grn_expr_code *expr_code;
+
+  expr_code = DATA_PTR(self);
+  return mrb_fixnum_value(expr_code->nargs);
+}
+
+static mrb_value
 mrb_grn_expr_code_get_op(mrb_state *mrb, mrb_value self)
 {
   grn_expr_code *expr_code;
@@ -422,7 +472,16 @@ mrb_grn_expr_code_get_flags(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
-mrb_grn_expression_singleton_create(mrb_state *mrb, mrb_value klass)
+mrb_grn_expr_code_get_modify(mrb_state *mrb, mrb_value self)
+{
+  grn_expr_code *expr_code;
+
+  expr_code = DATA_PTR(self);
+  return mrb_fixnum_value(expr_code->modify);
+}
+
+static mrb_value
+mrb_grn_expression_class_create(mrb_state *mrb, mrb_value klass)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   mrb_value mrb_expr;
@@ -468,6 +527,15 @@ mrb_grn_expression_initialize(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
+mrb_grn_expression_is_empty(mrb_state *mrb, mrb_value self)
+{
+  grn_expr *expr;
+
+  expr = DATA_PTR(self);
+  return mrb_bool_value(expr->codes_curr == 0);
+}
+
+static mrb_value
 mrb_grn_expression_codes(mrb_state *mrb, mrb_value self)
 {
   grn_expr *expr;
@@ -485,18 +553,63 @@ mrb_grn_expression_codes(mrb_state *mrb, mrb_value self)
 }
 
 static mrb_value
-mrb_grn_expression_get_var_by_offset(mrb_state *mrb, mrb_value self)
+mrb_grn_expression_array_reference(mrb_state *mrb, mrb_value self)
 {
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   grn_obj *expr;
-  mrb_int offset;
+  mrb_value mrb_key;
   grn_obj *var;
 
-  mrb_get_args(mrb, "i", &offset);
+  mrb_get_args(mrb, "o", &mrb_key);
 
   expr = DATA_PTR(self);
-  var = grn_expr_get_var_by_offset(ctx, expr, offset);
+  switch (mrb_type(mrb_key)) {
+  case MRB_TT_SYMBOL :
+    {
+      const char *name;
+      mrb_int name_length;
+
+      name = mrb_sym2name_len(mrb, mrb_symbol(mrb_key), &name_length);
+      var = grn_expr_get_var(ctx, expr, name, name_length);
+    }
+    break;
+  case MRB_TT_STRING :
+    var = grn_expr_get_var(ctx, expr,
+                           RSTRING_PTR(mrb_key), RSTRING_LEN(mrb_key));
+    break;
+  case MRB_TT_FIXNUM :
+    var = grn_expr_get_var_by_offset(ctx, expr, mrb_fixnum(mrb_key));
+    break;
+  default :
+    mrb_raisef(mrb, E_ARGUMENT_ERROR,
+               "key must be Symbol, String or Fixnum: %S",
+               mrb_key);
+    break;
+  }
+
   return grn_mrb_value_from_grn_obj(mrb, var);
+}
+
+static mrb_value
+mrb_grn_expression_set_condition(mrb_state *mrb, mrb_value self)
+{
+  grn_ctx *ctx = (grn_ctx *)mrb->ud;
+  grn_obj *expr;
+  mrb_value mrb_condition;
+  grn_obj *condition_ptr;
+
+  mrb_get_args(mrb, "o", &mrb_condition);
+
+  expr = DATA_PTR(self);
+  condition_ptr = grn_expr_get_or_add_var(ctx,
+                                          expr,
+                                          GRN_SELECT_INTERNAL_VAR_CONDITION,
+                                          GRN_SELECT_INTERNAL_VAR_CONDITION_LEN);
+  GRN_OBJ_FIN(ctx, condition_ptr);
+  GRN_PTR_INIT(condition_ptr, 0, GRN_DB_OBJECT);
+  GRN_PTR_SET(ctx, condition_ptr, GRN_MRB_DATA_PTR(mrb_condition));
+
+  return mrb_nil_value();
 }
 
 static mrb_value
@@ -536,6 +649,14 @@ mrb_grn_expression_allocate_constant(mrb_state *mrb, mrb_value self)
     GRN_TEXT_SET(ctx, grn_object,
                  RSTRING_PTR(mrb_object), RSTRING_LEN(mrb_object));
     break;
+  case MRB_TT_TRUE:
+    grn_object = grn_expr_alloc_const(ctx, expr);
+    if (!grn_object) {
+      grn_mrb_ctx_check(mrb);
+    }
+    GRN_BOOL_INIT(grn_object, 0);
+    GRN_BOOL_SET(ctx, grn_object, GRN_TRUE);
+    break;
   default:
     mrb_raisef(mrb, E_ARGUMENT_ERROR, "unsupported type: %S", mrb_object);
     break;
@@ -561,7 +682,12 @@ mrb_grn_expression_parse(mrb_state *mrb, mrb_value self)
   mrb_get_args(mrb, "s|H", &query, &query_size, &mrb_options);
 
   if (!mrb_nil_p(mrb_options)) {
+    mrb_value mrb_default_column;
     mrb_value mrb_flags;
+
+    mrb_default_column =
+      grn_mrb_options_get_lit(mrb, mrb_options, "default_column");
+    default_column = GRN_MRB_DATA_PTR(mrb_default_column);
 
     mrb_flags = grn_mrb_options_get_lit(mrb, mrb_options, "flags");
     if (!mrb_nil_p(mrb_flags)) {
@@ -585,7 +711,7 @@ mrb_grn_expression_append_object(mrb_state *mrb, mrb_value self)
   grn_obj *object;
   mrb_value mrb_op;
   grn_operator op;
-  int n_args;
+  mrb_int n_args;
 
   expr = DATA_PTR(self);
   mrb_get_args(mrb, "ooi", &mrb_object, &mrb_op, &n_args);
@@ -606,7 +732,7 @@ mrb_grn_expression_append_constant(mrb_state *mrb, mrb_value self)
   mrb_value mrb_constant;
   mrb_value mrb_op;
   grn_operator op;
-  int n_args;
+  mrb_int n_args;
 
   expr = DATA_PTR(self);
   mrb_get_args(mrb, "ooi", &mrb_constant, &mrb_op, &n_args);
@@ -700,7 +826,7 @@ mrb_grn_expression_append_operator(mrb_state *mrb, mrb_value self)
   grn_ctx *ctx = (grn_ctx *)mrb->ud;
   grn_obj *expr;
   mrb_value mrb_op;
-  int n_args;
+  mrb_int n_args;
   grn_operator op;
 
   expr = DATA_PTR(self);
@@ -755,6 +881,12 @@ grn_mrb_expr_init(grn_ctx *ctx)
                     mrb_grn_scan_info_get_arg, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, klass, "push_arg",
                     mrb_grn_scan_info_push_arg, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, klass, "start_position",
+                    mrb_grn_scan_info_get_start_position, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "start_position=",
+                    mrb_grn_scan_info_set_start_position, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, klass, "reset_position",
+                    mrb_grn_scan_info_reset_position, MRB_ARGS_NONE());
 
   klass = mrb_define_class_under(mrb, module,
                                  "ExpressionCode", mrb->object_class);
@@ -767,10 +899,14 @@ grn_mrb_expr_init(grn_ctx *ctx)
                     mrb_grn_expr_code_get_weight, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "value",
                     mrb_grn_expr_code_get_value, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "n_args",
+                    mrb_grn_expr_code_get_n_args, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "op",
                     mrb_grn_expr_code_get_op, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "flags",
                     mrb_grn_expr_code_get_flags, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "modify",
+                    mrb_grn_expr_code_get_modify, MRB_ARGS_NONE());
 
   {
     struct RClass *expression_code_class = klass;
@@ -783,16 +919,35 @@ grn_mrb_expr_init(grn_ctx *ctx)
   klass = mrb_define_class_under(mrb, module, "Expression", object_class);
   MRB_SET_INSTANCE_TT(klass, MRB_TT_DATA);
 
-  mrb_define_singleton_method(mrb, (struct RObject *)klass, "create",
-                              mrb_grn_expression_singleton_create,
-                              MRB_ARGS_REQ(1));
+#define DEFINE_FLAG(name)                               \
+  mrb_define_const(mrb, klass,                          \
+                   #name,                               \
+                   mrb_fixnum_value(GRN_EXPR_ ## name))
+
+  DEFINE_FLAG(SYNTAX_QUERY);
+  DEFINE_FLAG(SYNTAX_SCRIPT);
+  DEFINE_FLAG(SYNTAX_OUTPUT_COLUMNS);
+  DEFINE_FLAG(ALLOW_PRAGMA);
+  DEFINE_FLAG(ALLOW_COLUMN);
+  DEFINE_FLAG(ALLOW_UPDATE);
+  DEFINE_FLAG(ALLOW_LEADING_NOT);
+
+#undef DEFINE_FLAG
+
+  mrb_define_class_method(mrb, klass, "create",
+                          mrb_grn_expression_class_create,
+                          MRB_ARGS_REQ(1));
 
   mrb_define_method(mrb, klass, "initialize",
                     mrb_grn_expression_initialize, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, klass, "empty?",
+                    mrb_grn_expression_is_empty, MRB_ARGS_NONE());
   mrb_define_method(mrb, klass, "codes",
                     mrb_grn_expression_codes, MRB_ARGS_NONE());
-  mrb_define_method(mrb, klass, "get_var_by_offset",
-                    mrb_grn_expression_get_var_by_offset, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, klass, "[]",
+                    mrb_grn_expression_array_reference, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, klass, "condition=",
+                    mrb_grn_expression_set_condition, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, klass, "take_object",
                     mrb_grn_expression_take_object, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, klass, "allocate_constant",
@@ -809,9 +964,44 @@ grn_mrb_expr_init(grn_ctx *ctx)
                     mrb_grn_expression_append_operator, MRB_ARGS_REQ(2));
 }
 
+grn_obj *
+grn_mrb_expr_rewrite(grn_ctx *ctx, grn_obj *expr)
+{
+  grn_mrb_data *data = &(ctx->impl->mrb);
+  mrb_state *mrb = data->state;
+  mrb_value mrb_expression;
+  mrb_value mrb_rewritten_expression;
+  grn_obj *rewritten_expression = NULL;
+  int arena_index;
+
+  arena_index = mrb_gc_arena_save(mrb);
+
+  mrb_expression = grn_mrb_value_from_grn_obj(mrb, expr);
+  mrb_rewritten_expression = mrb_funcall(mrb, mrb_expression, "rewrite", 0);
+  if (mrb_nil_p(mrb_rewritten_expression)) {
+    goto exit;
+  }
+
+  if (mrb_type(mrb_rewritten_expression) == MRB_TT_EXCEPTION) {
+    mrb->exc = mrb_obj_ptr(mrb_rewritten_expression);
+    mrb_print_error(mrb);
+    goto exit;
+  }
+
+  rewritten_expression = DATA_PTR(mrb_rewritten_expression);
+
+exit:
+  mrb_gc_arena_restore(mrb, arena_index);
+
+  return rewritten_expression;
+}
+
 scan_info **
-grn_mrb_scan_info_build(grn_ctx *ctx, grn_obj *expr, int *n,
-                        grn_operator op, uint32_t size)
+grn_mrb_scan_info_build(grn_ctx *ctx,
+                        grn_obj *expr,
+                        int *n,
+                        grn_operator op,
+                        grn_bool record_exist)
 {
   grn_mrb_data *data = &(ctx->impl->mrb);
   mrb_state *mrb = data->state;
@@ -826,7 +1016,7 @@ grn_mrb_scan_info_build(grn_ctx *ctx, grn_obj *expr, int *n,
   mrb_expression = grn_mrb_value_from_grn_obj(mrb, expr);
   mrb_sis = mrb_funcall(mrb, mrb_expression, "build_scan_info", 2,
                         grn_mrb_value_from_operator(mrb, op),
-                        mrb_fixnum_value(size));
+                        mrb_bool_value(record_exist));
 
   if (mrb_nil_p(mrb_sis)) {
     goto exit;

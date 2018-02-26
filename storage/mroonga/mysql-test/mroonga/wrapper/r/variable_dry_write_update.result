@@ -4,14 +4,6 @@ id int primary key auto_increment,
 body text,
 fulltext index body_index (body)
 ) default charset utf8 COMMENT = 'engine "innodb"';
-show create table diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `body` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `body_index` (`body`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='engine "innodb"'
 insert into diaries (body) values ("will start groonga!");
 set mroonga_dry_write=true;
 update diaries set body = "starting groonga..." where id = 1;

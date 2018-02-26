@@ -1,18 +1,18 @@
 %define mariadb_epoch_default   1
-%define mariadb_version_default 5.5.41
+%define mariadb_version_default 5.5.56
 %define mariadb_release_default 2
-%define mariadb_dist_default    .el7_0
-%define mariadb_download_base_url_default http://vault.centos.org/7.1.1503/os/Source/SPackages
+%define mariadb_dist_default    .el7
+%define mariadb_download_base_url_default http://vault.centos.org/7.4.1708/os/Source/SPackages/
 %define mariadb_spec_file_default mariadb.spec
 
-%{!?mariadb_epoch:%define mariadb_epoch %{mariadb_epoch_default}}
-%{!?mariadb_version:%define mariadb_version %{mariadb_version_default}}
-%{!?mariadb_release:%define mariadb_release %{mariadb_release_default}}
-%{!?mariadb_dist:%define mariadb_dist %{mariadb_dist_default}}
-%{!?mariadb_download_base_url:%define mariadb_download_base_url %{mariadb_download_base_url_default}}
-%{!?mariadb_spec_file:%define mariadb_spec_file %{mariadb_spec_file_default}}
+%define _mariadb_epoch %{?mariadb_epoch:%{mariadb_epoch}}%{!?mariadb_epoch:%{mariadb_epoch_default}}
+%define _mariadb_version %{?mariadb_version:%{mariadb_version}}%{!?mariadb_version:%{mariadb_version_default}}
+%define _mariadb_release %{?mariadb_release:%{mariadb_release}}%{!?mariadb_release:%{mariadb_release_default}}
+%define _mariadb_dist %{?mariadb_dist:%{mariadb_dist}}%{!?mariadb_dist:%{mariadb_dist_default}}
+%define _mariadb_download_base_url %{?mariadb_download_base_url:%{mariadb_download_base_url}}%{!?mariadb_download_base_url:%{mariadb_download_base_url_default}}
+%define _mariadb_spec_file %{?mariadb_spec_file:%{mariadb_spec_file}}%{!?mariadb_spec_file:%{mariadb_spec_file_default}}
 
-%define mariadb_package_version %{mariadb_epoch}:%{mariadb_version}-%{mariadb_release}%{mariadb_dist}
+%define _mariadb_package_version %{_mariadb_epoch}:%{_mariadb_version}-%{_mariadb_release}%{_mariadb_dist}
 
 %define groonga_required_version @REQUIRED_GROONGA_VERSION@
 
@@ -30,9 +30,9 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-%(%{__id_u} -n)
 BuildRequires:	groonga-devel >= %{groonga_required_version}
 BuildRequires:	groonga-normalizer-mysql-devel
 BuildRequires:	wget
-BuildRequires:	mariadb-devel = %{mariadb_package_version}
-Requires:	mariadb-server = %{mariadb_package_version}
-Requires:	mariadb = %{mariadb_package_version}
+BuildRequires:	mariadb-devel = %{_mariadb_package_version}
+Requires:	mariadb-server = %{_mariadb_package_version}
+Requires:	mariadb = %{_mariadb_package_version}
 Requires:	groonga-libs >= %{groonga_required_version}
 Requires:	groonga-normalizer-mysql
 
@@ -53,21 +53,21 @@ Documentation for Mroonga
 %prep
 %setup -q -n mroonga-%{version}
 
-mariadb_full_version=%{mariadb_version}-%{mariadb_release}%{mariadb_dist}
+mariadb_full_version=%{_mariadb_version}-%{_mariadb_release}%{_mariadb_dist}
 srpm=mariadb-${mariadb_full_version}.src.rpm
 if [ ! -f ../../SRPMS/$srpm ]; then
-  wget --continue -O ../../SRPMS/$srpm %{mariadb_download_base_url}/$srpm
+  wget --continue -O ../../SRPMS/$srpm %{_mariadb_download_base_url}/$srpm
   rpm -Uvh ../../SRPMS/$srpm
   rm ../../SRPMS/$srpm
 fi
 
 %build
-mariadb_source=../mariadb-%{mariadb_version}
+mariadb_source=../mariadb-%{_mariadb_version}
 if [ ! -d ${mariadb_source} ]; then
   rpmbuild -bc                                  \
     --define 'runselftest 0'                    \
     --define 'optflags -O0'                     \
-    ../../SPECS/%{mariadb_spec_file}
+    ../../SPECS/%{_mariadb_spec_file}
 fi
 %configure                                      \
   --disable-static                              \
@@ -86,7 +86,7 @@ mv $RPM_BUILD_ROOT%{_datadir}/doc/mroonga/ mysql-mroonga-doc/
 rm -rf $RPM_BUILD_ROOT
 
 %post
-if /usr/bin/mysql -u root -e "quit"; then
+if /usr/bin/mysql -u root -e "quit" > /dev/null 2>&1; then
   password_option=""
 else
   password_option="-p"
@@ -128,7 +128,7 @@ eval $command || \
 %preun
 uninstall_sql=%{_datadir}/mroonga/uninstall.sql
 
-if mysql -u root -e "quit"; then
+if mysql -u root -e "quit" > /dev/null 2>&1; then
   password_option=""
 else
   password_option="-p"
@@ -154,6 +154,84 @@ fi
 %doc mysql-mroonga-doc/*
 
 %changelog
+* Thu Oct 12 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.07-1
+- new upstream release.
+
+* Fri Sep 15 2017 Kouhei Sutou <kou@clear-code.com> - 7.06-2
+- rebuild against the latest MariaDB.
+
+* Tue Aug 29 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.06-1
+- new upstream release.
+
+* Sat Jul 29 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.05-1
+- new upstream release.
+
+* Thu Jun 29 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.04-1
+- new upstream release.
+
+* Mon May 29 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.03-1
+- new upstream release.
+
+* Sat Apr 29 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.02-1
+- new upstream release.
+
+* Wed Mar 29 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.01-1
+- new upstream release.
+
+* Thu Feb 09 2017 Kentaro Hayashi <hayashi@clear-code.com> - 7.00-1
+- new upstream release.
+
+* Sat Oct 29 2016 Kentaro Hayashi <hayashi@clear-code.com> - 6.10-1
+- new upstream release.
+
+* Thu Sep 29 2016 Kentaro Hayashi <hayashi@clear-code.com> - 6.09-1
+- new upstream release.
+
+* Mon Aug 29 2016 Kentaro Hayashi <hayashi@clear-code.com> - 6.08-1
+- new upstream release.
+
+* Fri Jul 29 2016 Kentaro Hayashi <hayashi@clear-code.com> - 6.07-1
+- new upstream release.
+
+* Thu Jun 30 2016 Masafumi Yokoyama <yokoyama@clear-code.com> - 6.06-1
+- new upstream release.
+
+* Wed Jun 29 2016 Kentaro Hayashi <hayashi@clear-code.com> - 6.05-1
+- new upstream release.
+
+* Sun May 29 2016 Kentaro Hayashi <hayashi@clear-code.com> - 6.03-1
+- new upstream release.
+
+* Fri Apr 29 2016 HAYASHI Kentaro <hayashi@clear-code.com> - 6.02-1
+- new upstream release.
+
+* Tue Mar 29 2016 Masafumi Yokoyama <yokoyama@clear-code.com> - 6.01-1
+- new upstream release.
+
+* Mon Feb 29 2016 Kouhei Sutou <kou@clear-code.com> - 6.00-1
+- new upstream release.
+
+* Tue Dec 29 2015 Kouhei Sutou <kou@clear-code.com> - 5.11-1
+- new upstream release.
+
+* Wed Dec 16 2015 Kouhei Sutou <kou@clear-code.com> - 5.10-2
+- rebuild against MariaDB on CentOS 7.2. Reported by Larry Kim. Thanks!!!
+
+* Sun Nov 29 2015 Kouhei Sutou <kou@clear-code.com> - 5.10-1
+- new upstream release.
+
+* Thu Oct 29 2015 Kouhei Sutou <kou@cozmixng.org> - 5.09-1
+- new upstream release.
+
+* Tue Sep 29 2015 Kouhei Sutou <kou@clear-code.com> - 5.08-1
+- new upstream release.
+
+* Mon Aug 31 2015 Kouhei Sutou <kou@clear-code.com> - 5.06-1
+- new upstream release.
+
+* Wed Jul 29 2015 Masafumi Yokoyama <yokoyama@clear-code.com> - 5.05-1
+- new upstream release.
+
 * Mon Jun 29 2015 Masafumi Yokoyama <myokoym@gmail.com> - 5.04-1
 - new upstream release.
 

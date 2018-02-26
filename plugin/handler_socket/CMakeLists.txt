@@ -8,6 +8,12 @@ ENDIF()
 #Remove -fno-implicit-templates from compiler flags(handlersocket would not work  with  it)
 STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag(" -Wdeprecated-declarations" HAVE_CXX_WDEPRECATED_DECLARATIONS)
+IF (HAVE_CXX_WDEPRECATED_DECLARATIONS)
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
+ENDIF()
+
 INCLUDE_DIRECTORIES(libhsclient)
 
 # Handlersocket client library. We do not distribute it, 

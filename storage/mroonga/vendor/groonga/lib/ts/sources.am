@@ -1,0 +1,25 @@
+libgrnts_la_SOURCES =				\
+	ts_buf.c				\
+	ts_buf.h				\
+	ts_cursor.c				\
+	ts_cursor.h				\
+	ts_expr.c				\
+	ts_expr.h				\
+	ts_expr_builder.c			\
+	ts_expr_builder.h			\
+	ts_expr_node.c				\
+	ts_expr_node.h				\
+	ts_expr_parser.c			\
+	ts_expr_parser.h			\
+	ts_log.h				\
+	ts_op.c					\
+	ts_op.h					\
+	ts_plan.c				\
+	ts_plan.h				\
+	ts_sorter.c				\
+	ts_sorter.h				\
+	ts_str.c				\
+	ts_str.h				\
+	ts_types.h				\
+	ts_util.c				\
+	ts_util.h

@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (c1 int, _id int);
+SET sql_mode="";
+INSERT INTO t1 (c1,_id) VALUES (1,1);
+Warnings:
+Warning	1265	Data truncated for column '_id' at row 1
+SET sql_mode="STRICT_ALL_TABLES";
+INSERT INTO t1 (c1,_id) VALUES (4,1);
+ERROR 01000: Data truncated for column '_id' at row 1
+SELECT * FROM t1;
+c1	_id
+1	1
+DROP TABLE t1;

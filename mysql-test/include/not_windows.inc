@@ -1,4 +1,4 @@
---require r/not_windows.require
-disable_query_log;
-select convert(@@version_compile_os using latin1) NOT IN ("Win32","Win64","Windows") as "TRUE";
-enable_query_log;
+#
+# suite.pm will make sure that all tests including this file
+# will be skipped unless this is on Windows
+#

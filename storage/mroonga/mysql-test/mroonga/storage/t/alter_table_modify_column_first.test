@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 --source include/not_embedded.inc
 --source ../../include/mroonga/have_mroonga.inc
@@ -23,15 +23,15 @@ DROP TABLE IF EXISTS diaries;
 
 CREATE TABLE diaries (
   id INT PRIMARY KEY AUTO_INCREMENT,
-  title TEXT,
-  body TEXT
+  title VARCHAR(40),
+  body VARCHAR(140)
 ) DEFAULT CHARSET UTF8;
 SHOW CREATE TABLE diaries;
 
 INSERT INTO diaries (title, body) values ("groonga (1)", "starting groonga.");
 SELECT * FROM diaries;
 
-ALTER TABLE diaries MODIFY body TEXT FIRST;
+ALTER TABLE diaries MODIFY body VARCHAR(140) FIRST;
 SHOW CREATE TABLE diaries;
 
 INSERT INTO diaries (title, body) values ("groonga (2)", "started groonga.");

@@ -1,0 +1,18 @@
+CREATE TABLE t1 ENGINE=InnoDB select 1 as a, 1 as b union select 2, 2;
+ALTER TABLE t1 add primary key(a);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION rollback;
+WHILE 1 DO
+start transaction;
+update t1 set b=connection_id() where a=1;
+commit;
+END WHILE;
+END|
+call p1;
+call p1;
+call p1;
+call p1;
+checking error log for 'BF lock wait long' message for 10 times every 10 seconds ...
+drop table t1;
+drop procedure p1;

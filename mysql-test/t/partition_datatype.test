@@ -217,11 +217,13 @@ select * from t1 where a = 'bbbb';
 drop table t1;
 -- error ER_PARTITION_FIELDS_TOO_LONG
 create table t1 (a varchar(3070)) partition by key (a);
--- error ER_TOO_BIG_ROWSIZE
+-- error ER_PARTITION_FIELDS_TOO_LONG
+create table t1 (a varchar(65532) not null) partition by key (a);
+-- error ER_BLOB_FIELD_IN_PART_FUNC_ERROR
 create table t1 (a varchar(65533)) partition by key (a);
--- error ER_TOO_BIG_ROWSIZE
+-- error ER_BLOB_FIELD_IN_PART_FUNC_ERROR
 create table t1 (a varchar(65534) not null) partition by key (a);
--- error ER_TOO_BIG_ROWSIZE
+-- error ER_BLOB_FIELD_IN_PART_FUNC_ERROR
 create table t1 (a varchar(65535)) partition by key (a);
 
 #

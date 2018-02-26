@@ -13,3 +13,6 @@ EXPORTS
   mroonga_escape
   mroonga_escape_init
   mroonga_escape_deinit
+  mroonga_normalize
+  mroonga_normalize_init
+  mroonga_normalize_deinit

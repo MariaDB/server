@@ -44,6 +44,9 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "memory.h"
 #include <toku_pthread.h>
 
+toku_instr_key *queue_result_mutex_key;
+toku_instr_key *queue_result_cond_key;
+
 struct qitem;
 
 struct qitem {
@@ -81,11 +84,11 @@ int toku_queue_create (QUEUE *q, uint64_t weight_limit)
     if (result==NULL) return get_error_errno();
     result->contents_weight = 0;
     result->weight_limit    = weight_limit;
-    result->head            = NULL;
-    result->tail            = NULL;
-    result->eof             = false;
-    toku_mutex_init(&result->mutex, NULL);
-    toku_cond_init(&result->cond, NULL);
+    result->head = NULL;
+    result->tail = NULL;
+    result->eof = false;
+    toku_mutex_init(*queue_result_mutex_key, &result->mutex, nullptr);
+    toku_cond_init(*queue_result_cond_key, &result->cond, nullptr);
     *q = result;
     return 0;
 }

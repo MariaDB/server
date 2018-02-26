@@ -1472,19 +1472,33 @@ end:
       bool save_tx_read_only= thd->tx_read_only;
       thd->tx_read_only= false;
 
-      if (WSREP(thd))
-      {
+      /*
+         This code is processing event execution and does not have client
+         connection. Here, event execution will now execute a prepared
+         DROP EVENT statement, but thd->lex->sql_command is set to
+         SQLCOM_CREATE_PROCEDURE
+         DROP EVENT will be logged in binlog, and we have to
+         replicate it to make all nodes have consistent event definitions
+         Wsrep DDL replication is triggered inside Events::drop_event(),
+         and here we need to prepare the THD so that DDL replication is
+         possible, essentially it requires setting sql_command to
+         SQLCOMM_DROP_EVENT, we will switch sql_command for the duration
+         of DDL replication only.
+      */
+      const enum_sql_command sql_command_save= thd->lex->sql_command;
+      const bool sql_command_set= WSREP(thd);
+
+      if (sql_command_set)
         thd->lex->sql_command = SQLCOM_DROP_EVENT;
-        WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
-      }
 
       ret= Events::drop_event(thd, dbname, name, FALSE);
 
-      WSREP_TO_ISOLATION_END;
+      if (sql_command_set)
+      {
+        WSREP_TO_ISOLATION_END;
+        thd->lex->sql_command = sql_command_save;
+      }
 
-#ifdef WITH_WSREP
-  error:
-#endif
       thd->tx_read_only= save_tx_read_only;
       thd->security_ctx->master_access= saved_master_access;
     }

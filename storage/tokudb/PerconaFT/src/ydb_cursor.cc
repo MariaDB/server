@@ -110,12 +110,14 @@ c_get_wrapper_callback(DBT const *key, DBT const *val, void *extra) {
     return r;
 }
 
-static inline uint32_t 
-get_cursor_prelocked_flags(uint32_t flags, DBC* dbc) {
+static inline uint32_t get_cursor_prelocked_flags(uint32_t flags, DBC *dbc) {
     uint32_t lock_flags = flags & (DB_PRELOCKED | DB_PRELOCKED_WRITE);
 
-    //DB_READ_UNCOMMITTED and DB_READ_COMMITTED transactions 'own' all read locks for user-data dictionaries.
-    if (dbc_struct_i(dbc)->iso != TOKU_ISO_SERIALIZABLE) {
+    // DB_READ_UNCOMMITTED and DB_READ_COMMITTED transactions 'own' all read
+    // locks for user-data dictionaries.
+    if (dbc_struct_i(dbc)->iso != TOKU_ISO_SERIALIZABLE &&
+        !(dbc_struct_i(dbc)->iso == TOKU_ISO_SNAPSHOT &&
+          dbc_struct_i(dbc)->locking_read)) {
         lock_flags |= DB_PRELOCKED;
     }
     return lock_flags;
@@ -671,37 +673,44 @@ int toku_c_close(DBC *c) {
     return 0;
 }
 
-static int
-c_set_bounds(DBC *dbc, const DBT *left_key, const DBT *right_key, bool pre_acquire, int out_of_range_error) {
+static int c_set_bounds(DBC *dbc,
+                        const DBT *left_key,
+                        const DBT *right_key,
+                        bool pre_acquire,
+                        int out_of_range_error) {
     if (out_of_range_error != DB_NOTFOUND &&
-        out_of_range_error != TOKUDB_OUT_OF_RANGE &&
-        out_of_range_error != 0) {
-        return toku_ydb_do_error(
-            dbc->dbp->dbenv,
-            EINVAL,
-            "Invalid out_of_range_error [%d] for %s\n",
-            out_of_range_error,
-            __FUNCTION__ 
-            );
+        out_of_range_error != TOKUDB_OUT_OF_RANGE && out_of_range_error != 0) {
+        return toku_ydb_do_error(dbc->dbp->dbenv,
+                                 EINVAL,
+                                 "Invalid out_of_range_error [%d] for %s\n",
+                                 out_of_range_error,
+                                 __FUNCTION__);
     }
-    if (left_key == toku_dbt_negative_infinity() && right_key == toku_dbt_positive_infinity()) {
+    if (left_key == toku_dbt_negative_infinity() &&
+        right_key == toku_dbt_positive_infinity()) {
         out_of_range_error = 0;
     }
     DB *db = dbc->dbp;
     DB_TXN *txn = dbc_struct_i(dbc)->txn;
     HANDLE_PANICKED_DB(db);
-    toku_ft_cursor_set_range_lock(dbc_ftcursor(dbc), left_key, right_key,
-                                   (left_key == toku_dbt_negative_infinity()),
-                                   (right_key == toku_dbt_positive_infinity()),
-                                   out_of_range_error);
+    toku_ft_cursor_set_range_lock(dbc_ftcursor(dbc),
+                                  left_key,
+                                  right_key,
+                                  (left_key == toku_dbt_negative_infinity()),
+                                  (right_key == toku_dbt_positive_infinity()),
+                                  out_of_range_error);
     if (!db->i->lt || !txn || !pre_acquire)
         return 0;
-    //READ_UNCOMMITTED and READ_COMMITTED transactions do not need read locks.
-    if (!dbc_struct_i(dbc)->rmw && dbc_struct_i(dbc)->iso != TOKU_ISO_SERIALIZABLE)
+    // READ_UNCOMMITTED and READ_COMMITTED transactions do not need read locks.
+    if (!dbc_struct_i(dbc)->rmw &&
+        dbc_struct_i(dbc)->iso != TOKU_ISO_SERIALIZABLE &&
+        !(dbc_struct_i(dbc)->iso == TOKU_ISO_SNAPSHOT &&
+          dbc_struct_i(dbc)->locking_read))
         return 0;
 
-    toku::lock_request::type lock_type = dbc_struct_i(dbc)->rmw ?
-        toku::lock_request::type::WRITE : toku::lock_request::type::READ;
+    toku::lock_request::type lock_type = dbc_struct_i(dbc)->rmw
+                                             ? toku::lock_request::type::WRITE
+                                             : toku::lock_request::type::READ;
     int r = toku_db_get_range_lock(db, txn, left_key, right_key, lock_type);
     return r;
 }
@@ -783,18 +792,20 @@ toku_c_get(DBC* c, DBT* key, DBT* val, uint32_t flag) {
     return r;
 }
 
-int 
-toku_db_cursor_internal(DB * db, DB_TXN * txn, DBC *c, uint32_t flags, int is_temporary_cursor) {
+int toku_db_cursor_internal(DB *db,
+                            DB_TXN *txn,
+                            DBC *c,
+                            uint32_t flags,
+                            int is_temporary_cursor) {
     HANDLE_PANICKED_DB(db);
     HANDLE_DB_ILLEGAL_WORKING_PARENT_TXN(db, txn);
-    DB_ENV* env = db->dbenv;
+    DB_ENV *env = db->dbenv;
 
-    if (flags & ~(DB_SERIALIZABLE | DB_INHERIT_ISOLATION | DB_RMW | DBC_DISABLE_PREFETCHING)) {
+    if (flags &
+        ~(DB_SERIALIZABLE | DB_INHERIT_ISOLATION | DB_LOCKING_READ | DB_RMW |
+          DBC_DISABLE_PREFETCHING)) {
         return toku_ydb_do_error(
-            env, 
-            EINVAL, 
-            "Invalid flags set for toku_db_cursor\n"
-            );
+            env, EINVAL, "Invalid flags set for toku_db_cursor\n");
     }
 
 #define SCRS(name) c->name = name
@@ -819,8 +830,8 @@ toku_db_cursor_internal(DB * db, DB_TXN * txn, DBC *c, uint32_t flags, int is_te
     c->dbp = db;
 
     dbc_struct_i(c)->txn = txn;
-    dbc_struct_i(c)->skey_s = (struct simple_dbt){0,0};
-    dbc_struct_i(c)->sval_s = (struct simple_dbt){0,0};
+    dbc_struct_i(c)->skey_s = (struct simple_dbt){0, 0};
+    dbc_struct_i(c)->sval_s = (struct simple_dbt){0, 0};
     if (is_temporary_cursor) {
         dbc_struct_i(c)->skey = &db->i->skey;
         dbc_struct_i(c)->sval = &db->i->sval;
@@ -831,28 +842,27 @@ toku_db_cursor_internal(DB * db, DB_TXN * txn, DBC *c, uint32_t flags, int is_te
     if (flags & DB_SERIALIZABLE) {
         dbc_struct_i(c)->iso = TOKU_ISO_SERIALIZABLE;
     } else {
-        dbc_struct_i(c)->iso = txn ? db_txn_struct_i(txn)->iso : TOKU_ISO_SERIALIZABLE;
+        dbc_struct_i(c)->iso =
+            txn ? db_txn_struct_i(txn)->iso : TOKU_ISO_SERIALIZABLE;
     }
     dbc_struct_i(c)->rmw = (flags & DB_RMW) != 0;
-    enum cursor_read_type read_type = C_READ_ANY; // default, used in serializable and read uncommitted
+    dbc_struct_i(c)->locking_read = (flags & DB_LOCKING_READ) != 0;
+    enum cursor_read_type read_type =
+        C_READ_ANY;  // default, used in serializable and read uncommitted
     if (txn) {
         if (dbc_struct_i(c)->iso == TOKU_ISO_READ_COMMITTED ||
-            dbc_struct_i(c)->iso == TOKU_ISO_SNAPSHOT)
-        {
+            dbc_struct_i(c)->iso == TOKU_ISO_SNAPSHOT) {
             read_type = C_READ_SNAPSHOT;
-        }
-        else if (dbc_struct_i(c)->iso == TOKU_ISO_READ_COMMITTED_ALWAYS) {
+        } else if (dbc_struct_i(c)->iso == TOKU_ISO_READ_COMMITTED_ALWAYS) {
             read_type = C_READ_COMMITTED;
         }
     }
-    int r = toku_ft_cursor_create(
-        db->i->ft_handle, 
-        dbc_ftcursor(c),
-        txn ? db_txn_struct_i(txn)->tokutxn : NULL,
-        read_type,
-        ((flags & DBC_DISABLE_PREFETCHING) != 0),
-        is_temporary_cursor != 0
-        );
+    int r = toku_ft_cursor_create(db->i->ft_handle,
+                                  dbc_ftcursor(c),
+                                  txn ? db_txn_struct_i(txn)->tokutxn : NULL,
+                                  read_type,
+                                  ((flags & DBC_DISABLE_PREFETCHING) != 0),
+                                  is_temporary_cursor != 0);
     if (r != 0) {
         invariant(r == TOKUDB_MVCC_DICTIONARY_TOO_NEW);
     }

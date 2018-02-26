@@ -1,0 +1,11 @@
+set global query_cache_size= 16*1024*1024;
+set global query_cache_type= 1;
+create table t1 (i int) engine=innodb;
+create table t2 (i int) engine=federated 
+CONNECTION="mysql://root@localhost:MASTER_MYPORT/test/t1";
+select * from t2;
+i
+drop table t2;
+drop table t1;
+set global query_cache_type= default;
+set global query_cache_size= default;

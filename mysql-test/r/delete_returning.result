@@ -199,3 +199,15 @@ i
 2
 DROP PROCEDURE p1;
 DROP TABLE t1;
+#
+# MDEV-13776: DELETE ... RETURNING with sql_mode='ONLY_FULL_GROUP_BY'
+#
+set @sql_mode_save= @@sql_mode;
+set sql_mode='ONLY_FULL_GROUP_BY';
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUE(1),(2),(3);
+DELETE FROM t1 WHERE id > 2 RETURNING *;
+id
+3
+set sql_mode=@sql_mode_save;
+DROP TABLE t1;

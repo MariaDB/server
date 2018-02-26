@@ -584,12 +584,12 @@ REPEAT("a", 4000) ,  REPEAT("a", 255)
 CREATE INDEX prefix_idx3 ON worklog5743(col_3_text (3072));
 CREATE INDEX prefix_idx4 ON worklog5743(col_4_blob (3072));
 CREATE INDEX prefix_idx5 ON worklog5743(col_5_text (3072));
+BEGIN;
 UPDATE worklog5743 SET col_1_varbinary = REPEAT("c", 4000)
 WHERE col_1_varbinary = REPEAT("a", 4000) AND col_2_varchar = REPEAT("o", 4000);
-ERROR HY000: Undo log record is too big.
 SHOW WARNINGS;
 Level	Code	Message
-Error	1713	Undo log record is too big.
+ROLLBACK;
 DROP TABLE worklog5743;
 CREATE TABLE worklog5743 (
 col_1_varbinary VARBINARY (4000) , col_2_varchar VARCHAR (4000) ,
@@ -627,13 +627,13 @@ REPEAT("a", 4000) , REPEAT("o", 4000), REPEAT("a", 4000),
 REPEAT("a", 4000) , REPEAT("a", 255)
 );
 ROLLBACK;
+BEGIN;
 UPDATE worklog5743 SET col_1_varbinary = REPEAT("c", 4000)
 WHERE col_1_varbinary = REPEAT("a", 4000)
 AND col_2_varchar = REPEAT("o", 4000);
-ERROR HY000: Undo log record is too big.
 SHOW WARNINGS;
 Level	Code	Message
-Error	1713	Undo log record is too big.
+ROLLBACK;
 SELECT col_1_varbinary = REPEAT("c", 4000) FROM worklog5743
 WHERE col_1_varbinary = REPEAT("c", 4000) AND col_2_varchar = REPEAT("o", 4000);
 col_1_varbinary = REPEAT("c", 4000)

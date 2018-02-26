@@ -248,7 +248,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
 
 			while (true) {
 				p2 = strchr(p1, '\'');
-				len = MY_MAX(len, p2 - p1);
+				len = MY_MAX(len, (int)(p2 - p1));
 				if (*++p2 != ',') break;
 				p1 = p2 + 2;
 			} // endwhile
@@ -933,8 +933,9 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
 
     crp->Prec = (crp->Type == TYPE_DOUBLE || crp->Type == TYPE_DECIM)
               ? fld->decimals : 0;
-    crp->Length = MY_MAX(fld->length, fld->max_length);
-    crp->Clen = GetTypeSize(crp->Type, crp->Length);
+    CHARSET_INFO *cs= get_charset(fld->charsetnr, MYF(0));
+    crp->Clen = GetTypeSize(crp->Type, fld->length);
+    crp->Length = fld->length / (cs ? cs->mbmaxlen : 1);
     uns = (fld->flags & (UNSIGNED_FLAG | ZEROFILL_FLAG)) ? true : false;
 
     if (!(crp->Kdata = AllocValBlock(g, NULL, crp->Type, m_Rows,

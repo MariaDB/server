@@ -82,10 +82,6 @@ Created 10/8/1995 Heikki Tuuri
 /* prototypes for new functions added to ha_innodb.cc */
 ibool	innobase_get_slow_log();
 
-#ifdef WITH_WSREP
-extern int wsrep_debug;
-extern int wsrep_trx_is_aborting(void *thd_ptr);
-#endif
 /* The following counter is incremented whenever there is some user activity
 in the server */
 UNIV_INTERN ulint	srv_activity_count	= 0;
@@ -478,6 +474,9 @@ UNIV_INTERN my_bool	srv_print_all_deadlocks = FALSE;
 
 /* Produce a stacktrace on long semaphore wait */
 UNIV_INTERN my_bool     srv_use_stacktrace = FALSE;
+
+/** Print lock wait timeout info to mysqld stderr */
+my_bool	srv_print_lock_wait_timeout_info = FALSE;
 
 /** Enable INFORMATION_SCHEMA.innodb_cmp_per_index */
 UNIV_INTERN my_bool	srv_cmp_per_index_enabled = FALSE;
@@ -2060,6 +2059,10 @@ srv_export_innodb_status(void)
 	export_vars.innodb_pages_page_compression_error = srv_stats.pages_page_compression_error;
 	export_vars.innodb_pages_decrypted = srv_stats.pages_decrypted;
 	export_vars.innodb_pages_encrypted = srv_stats.pages_encrypted;
+	export_vars.innodb_n_merge_blocks_encrypted = srv_stats.n_merge_blocks_encrypted;
+	export_vars.innodb_n_merge_blocks_decrypted = srv_stats.n_merge_blocks_decrypted;
+	export_vars.innodb_n_rowlog_blocks_encrypted = srv_stats.n_rowlog_blocks_encrypted;
+	export_vars.innodb_n_rowlog_blocks_decrypted = srv_stats.n_rowlog_blocks_decrypted;
 
 	export_vars.innodb_defragment_compression_failures =
 		btr_defragment_compression_failures;
@@ -2132,6 +2135,9 @@ srv_export_innodb_status(void)
 	export_vars.innodb_scrub_page_split_failures_unknown =
 		scrub_stat.page_split_failures_unknown;
 	}
+
+	export_vars.innodb_buffered_aio_submitted =
+		srv_stats.n_aio_submitted;
 
 	mutex_exit(&srv_innodb_monitor_mutex);
 }
@@ -2357,7 +2363,7 @@ loop:
 				" was greater\n"
 				"InnoDB: than the new log sequence number " LSN_PF "!\n"
 				"InnoDB: Please submit a bug report"
-				" to http://bugs.mysql.com\n",
+				" to https://jira.mariadb.org\n",
 				old_lsn, new_lsn);
 			ut_ad(0);
 		}
@@ -2466,7 +2472,7 @@ srv_get_active_thread_type(void)
 {
 	srv_thread_type ret = SRV_NONE;
 
-	if (srv_read_only_mode) {
+	if (srv_read_only_mode || srv_apply_log_only) {
 		return(SRV_NONE);
 	}
 

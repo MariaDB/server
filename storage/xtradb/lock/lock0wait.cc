@@ -33,6 +33,20 @@ Created 25/5/2010 Sunny Bains
 #include "srv0start.h"
 #include "ha_prototypes.h"
 #include "lock0priv.h"
+#include "lock0iter.h"
+
+#include <sstream>
+
+extern "C"
+LEX_STRING* thd_query_string(MYSQL_THD thd);
+
+struct blocking_trx_info {
+	uint64_t trx_id;
+	uint32_t thread_id;
+	int64_t query_id;
+};
+
+static const size_t MAX_BLOCKING_TRX_IN_REPORT = 10;
 
 #include <mysql/service_wsrep.h>
 
@@ -187,26 +201,69 @@ lock_wait_table_reserve_slot(
 	return(NULL);
 }
 
+/** Print lock wait timeout info to stderr. It's supposed this function
+is executed in trx's THD thread as it calls some non-thread-safe
+functions to get some info from THD.
+@param[in]	trx	requested trx
+@param[in]	blocking	blocking info array
+@param[in]	blocking_count	blocking info array size */
+void
+print_lock_wait_timeout(
+	const trx_t &trx,
+	blocking_trx_info *blocking,
+	size_t blocking_count)
+{
+	std::ostringstream outs;
+
+	outs << "Lock wait timeout info:\n";
+	outs << "Requested thread id: " <<
+		thd_get_thread_id(trx.mysql_thd) <<
+		"\n";
+	outs << "Requested trx id: " << trx.id << "\n";
+	outs << "Requested query: " <<
+		thd_query_string(trx.mysql_thd)->str << "\n";
+
+	outs << "Total blocking transactions count: " <<
+		blocking_count <<
+		"\n";
+
+	for (size_t i = 0; i < blocking_count; ++i) {
+		outs << "Blocking transaction number: " << (i + 1) << "\n";
+		outs << "Blocking thread id: " <<
+			blocking[i].thread_id <<
+			"\n";
+		outs << "Blocking query id: " <<
+			blocking[i].query_id <<
+			"\n";
+		outs << "Blocking trx id: " << blocking[i].trx_id << "\n";
+	}
+	ut_print_timestamp(stderr);
+	fprintf(stderr, " %s", outs.str().c_str());
+}
+
 #ifdef WITH_WSREP
 /*********************************************************************//**
 check if lock timeout was for priority thread, 
 as a side effect trigger lock monitor
+@param[in]    trx    transaction owning the lock
+@param[in]    locked true if trx and lock_sys_mutex is ownd
 @return        false for regular lock timeout */
-static ibool
+static
+bool
 wsrep_is_BF_lock_timeout(
-/*====================*/
-    trx_t* trx) /* in: trx to check for lock priority */
+	const trx_t*	trx,
+	bool		locked = true)
 {
-       if (wsrep_on(trx->mysql_thd) &&
-           wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
-               fprintf(stderr, "WSREP: BF lock wait long\n");
-                srv_print_innodb_monitor       = TRUE;
-                srv_print_innodb_lock_monitor  = TRUE;
-                os_event_set(srv_monitor_event);
-                return TRUE;
-       }
-       return FALSE;
- }
+	if (wsrep_on_trx(trx)
+	    && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+		fprintf(stderr, "WSREP: BF lock wait long for trx " TRX_ID_FMT "\n", trx->id);
+		srv_print_innodb_monitor	= TRUE;
+		srv_print_innodb_lock_monitor	= TRUE;
+		os_event_set(srv_monitor_event);
+		return true;
+	}
+	return false;
+}
 #endif /* WITH_WSREP */
 
 /***************************************************************//**
@@ -232,6 +289,8 @@ lock_wait_suspend_thread(
 	ulint		sec;
 	ulint		ms;
 	ulong		lock_wait_timeout;
+	blocking_trx_info blocking[MAX_BLOCKING_TRX_IN_REPORT];
+	size_t blocking_count = 0;
 
 	trx = thr_get_trx(thr);
 
@@ -402,15 +461,17 @@ lock_wait_suspend_thread(
 	if (lock_wait_timeout < 100000000
 	    && wait_time > (double) lock_wait_timeout) {
 #ifdef WITH_WSREP
-                if (!wsrep_on(trx->mysql_thd) ||
-                    (!wsrep_is_BF_lock_timeout(trx) &&
-                     trx->error_state != DB_DEADLOCK)) {
+		if (!wsrep_on_trx(trx) ||
+		    (!wsrep_is_BF_lock_timeout(trx) &&
+		     trx->error_state != DB_DEADLOCK)) {
 #endif /* WITH_WSREP */
 
-		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
+			trx->error_state = DB_LOCK_WAIT_TIMEOUT;
+			if (srv_print_lock_wait_timeout_info)
+				print_lock_wait_timeout(*trx, blocking, blocking_count);
 
 #ifdef WITH_WSREP
-                }
+		}
 #endif /* WITH_WSREP */
 		MONITOR_INC(MONITOR_TIMEOUT);
 	}

@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -94,8 +94,10 @@ row_sel_sec_rec_is_for_blob(
 /*========================*/
 	ulint		mtype,		/*!< in: main type */
 	ulint		prtype,		/*!< in: precise type */
-	ulint		mbminmaxlen,	/*!< in: minimum and maximum length of
-					a multi-byte character */
+	ulint		mbminlen,	/*!< in: minimum length of
+					a character, in bytes */
+	ulint		mbmaxlen,	/*!< in: maximum length of
+					a character, in bytes */
 	const byte*	clust_field,	/*!< in: the locally stored part of
 					the clustered index column, including
 					the BLOB pointer; the clustered
@@ -134,8 +136,7 @@ row_sel_sec_rec_is_for_blob(
 
 	len = btr_copy_externally_stored_field_prefix(buf, prefix_len,
 						      zip_size,
-						      clust_field, clust_len,
-						      NULL);
+						      clust_field, clust_len);
 
 	if (UNIV_UNLIKELY(len == 0)) {
 		/* The BLOB was being deleted as the server crashed.
@@ -146,7 +147,7 @@ row_sel_sec_rec_is_for_blob(
 		return(FALSE);
 	}
 
-	len = dtype_get_at_most_n_mbchars(prtype, mbminmaxlen,
+	len = dtype_get_at_most_n_mbchars(prtype, mbminlen, mbmaxlen,
 					  prefix_len, len, (const char*) buf);
 
 	return(!cmp_data_data(mtype, prtype, buf, len, sec_field, sec_len));
@@ -230,14 +231,14 @@ row_sel_sec_rec_is_for_clust_rec(
 			}
 
 			len = dtype_get_at_most_n_mbchars(
-				col->prtype, col->mbminmaxlen,
+				col->prtype, col->mbminlen, col->mbmaxlen,
 				ifield->prefix_len, len, (char*) clust_field);
 
 			if (rec_offs_nth_extern(clust_offs, clust_pos)
 			    && len < sec_len) {
 				if (!row_sel_sec_rec_is_for_blob(
 					    col->mtype, col->prtype,
-					    col->mbminmaxlen,
+					    col->mbminlen, col->mbmaxlen,
 					    clust_field, clust_len,
 					    sec_field, sec_len,
 					    ifield->prefix_len,
@@ -454,7 +455,7 @@ row_sel_fetch_columns(
 				data = btr_rec_copy_externally_stored_field(
 					rec, offsets,
 					dict_table_zip_size(index->table),
-					field_no, &len, heap, NULL);
+					field_no, &len, heap);
 
 				/* data == NULL means that the
 				externally stored field was not
@@ -1401,7 +1402,7 @@ table_loop:
 
 	/* Open a cursor to index, or restore an open cursor position */
 
-	mtr_start_trx(&mtr, thr_get_trx(thr));
+	mtr_start(&mtr);
 
 	if (consistent_read && plan->unique_search && !plan->pcur_is_open
 	    && !plan->must_get_clust
@@ -1441,7 +1442,7 @@ table_loop:
 		plan_reset_cursor(plan);
 
 		mtr_commit(&mtr);
-		mtr_start_trx(&mtr, thr_get_trx(thr));
+		mtr_start(&mtr);
 	}
 
 	if (search_latch_locked) {
@@ -1539,6 +1540,7 @@ rec_loop:
 			switch (err) {
 			case DB_SUCCESS_LOCKED_REC:
 				err = DB_SUCCESS;
+				/* fall through */
 			case DB_SUCCESS:
 				break;
 			default:
@@ -1597,6 +1599,7 @@ skip_lock:
 		switch (err) {
 		case DB_SUCCESS_LOCKED_REC:
 			err = DB_SUCCESS;
+			/* fall through */
 		case DB_SUCCESS:
 			break;
 		default:
@@ -2722,6 +2725,7 @@ row_sel_field_store_in_mysql_format_func(
 	case DATA_SYS:
 		/* These column types should never be shipped to MySQL. */
 		ut_ad(0);
+		/* fall through */
 
 	case DATA_CHAR:
 	case DATA_FIXBINARY:
@@ -2756,8 +2760,6 @@ row_sel_field_store_in_mysql_format_func(
 @param[in]	field_no		templ->rec_field_no or
 					templ->clust_rec_field_no
 					or templ->icp_rec_field_no
-					or sec field no if clust_templ_for_sec
-					is TRUE
 @param[in]	templ			row template
 */
 static MY_ATTRIBUTE((warn_unused_result))
@@ -2811,7 +2813,7 @@ row_sel_store_mysql_field_func(
 		data = btr_rec_copy_externally_stored_field(
 			rec, offsets,
 			dict_table_zip_size(prebuilt->table),
-			field_no, &len, heap, NULL);
+			field_no, &len, heap);
 
 		if (UNIV_UNLIKELY(!data)) {
 			/* The externally stored field was not written
@@ -2910,10 +2912,6 @@ be needed in the query.
 @param[in]	rec_clust		TRUE if the rec in the clustered index
 @param[in]	index			index of rec
 @param[in]	offsets			array returned by rec_get_offsets(rec)
-@param[in]	clust_templ_for_sec	TRUE if rec belongs to secondary index
-					but the prebuilt->template is in
-					clustered index format and it is
-					used only for end range comparison
 @return TRUE on success, FALSE if not all columns could be retrieved */
 static MY_ATTRIBUTE((warn_unused_result))
 ibool
@@ -3096,7 +3094,7 @@ row_sel_get_clust_rec_for_mysql(
 			trx_print(stderr, trx, 600);
 			fputs("\n"
 			      "InnoDB: Submit a detailed bug report"
-			      " to http://bugs.mysql.com\n", stderr);
+			      " to https://jira.mariadb.org/\n", stderr);
 			ut_ad(0);
 		}
 
@@ -3933,7 +3931,7 @@ row_search_for_mysql(
 		}
 	}
 
-	mtr_start_trx(&mtr, trx);
+	mtr_start(&mtr);
 
 	/*-------------------------------------------------------------*/
 	/* PHASE 2: Try fast adaptive hash index search if possible */
@@ -4064,7 +4062,7 @@ release_search_latch_if_needed:
 			}
 
 			mtr_commit(&mtr);
-			mtr_start_trx(&mtr, trx);
+			mtr_start(&mtr);
 		}
 	}
 
@@ -4220,6 +4218,7 @@ wait_table_again:
 			switch (err) {
 			case DB_SUCCESS_LOCKED_REC:
 				err = DB_SUCCESS;
+				/* fall through */
 			case DB_SUCCESS:
 				break;
 			default:
@@ -4310,6 +4309,7 @@ rec_loop:
 			switch (err) {
 			case DB_SUCCESS_LOCKED_REC:
 				err = DB_SUCCESS;
+				/* fall through */
 			case DB_SUCCESS:
 				break;
 			default:
@@ -4345,8 +4345,7 @@ rec_loop:
 wrong_offs:
 		if (srv_force_recovery == 0 || moves_up == FALSE) {
 			ut_print_timestamp(stderr);
-			buf_page_print(page_align(rec), 0,
-				       BUF_PAGE_PRINT_NO_CRASH);
+			buf_page_print(page_align(rec), 0);
 			fprintf(stderr,
 				"\nInnoDB: rec address %p,"
 				" buf block fix count %lu\n",
@@ -4591,6 +4590,7 @@ no_gap_lock:
 				prebuilt->new_rec_locks = 1;
 			}
 			err = DB_SUCCESS;
+			/* fall through */
 		case DB_SUCCESS:
 			break;
 		case DB_LOCK_WAIT:
@@ -5138,7 +5138,7 @@ next_rec:
 		mtr_commit(&mtr);
 		mtr_has_extra_clust_latch = FALSE;
 
-		mtr_start_trx(&mtr, trx);
+		mtr_start(&mtr);
 		if (sel_restore_position_for_mysql(&same_user_rec,
 						   BTR_SEARCH_LEAF,
 						   pcur, moves_up, &mtr)) {
@@ -5205,7 +5205,7 @@ lock_table_wait:
 		/* It was a lock wait, and it ended */
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
-		mtr_start_trx(&mtr, trx);
+		mtr_start(&mtr);
 
 		/* Table lock waited, go try to obtain table lock
 		again */

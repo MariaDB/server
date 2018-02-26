@@ -17,10 +17,6 @@
 
 # This is a reference script for mysqldump-based state snapshot tansfer
 
-# This variable is not used in mysqldump sst, so better initialize it
-# to avoid shell's "parameter not set" message.
-WSREP_SST_OPT_CONF=""
-
 . $(dirname $0)/wsrep_sst_common
 PATH=$PATH:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -57,10 +53,10 @@ then
 fi
 
 # Check client version
-if ! $MYSQL_CLIENT --version | grep 'Distrib 10.1' >/dev/null
+if ! $MYSQL_CLIENT --version | grep 'Distrib 10\.[1-9]' >/dev/null
 then
     $MYSQL_CLIENT --version >&2
-    wsrep_log_error "this operation requires MySQL client version 10 or newer"
+    wsrep_log_error "this operation requires MySQL client version 10.1 or newer"
     exit $EINVAL
 fi
 
@@ -117,8 +113,8 @@ GTID_BINLOG_STATE=$(echo "SHOW GLOBAL VARIABLES LIKE 'gtid_binlog_state'" |\
 $MYSQL_CLIENT $AUTH -S$WSREP_SST_OPT_SOCKET --disable-reconnect --connect_timeout=10 |\
 tail -1 | awk -F ' ' '{ print $2 }')
 
-MYSQL="$MYSQL_CLIENT --defaults-extra-file=$WSREP_SST_OPT_CONF "\
-"$AUTH -h${WSREP_SST_OPT_HOST_UNESCAPED:-$WSREP_SST_OPT_HOST} "\
+MYSQL="$MYSQL_CLIENT $WSREP_SST_OPT_CONF "\
+"$AUTH -h${WSREP_SST_OPT_HOST_UNESCAPED} "\
 "-P$WSREP_SST_OPT_PORT --disable-reconnect --connect_timeout=10"
 
 # Check if binary logging is enabled on the joiner node.

@@ -31,7 +31,7 @@ if ($shutdown_timeout == 0)
 --exec echo "wait" > $_expect_file_name
 
 # Send shutdown to the connected server and give
-# it 10 seconds to die before zapping it
+# it an opted number of seconds to die before zapping it
 shutdown_server $server_shutdown_timeout;
 
 # Write file to make mysql-test-run.pl start up the server again

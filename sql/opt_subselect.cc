@@ -1612,6 +1612,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
        sj-nest.
   */
   st_select_lex *subq_lex= subq_pred->unit->first_select();
+  DBUG_ASSERT(subq_lex->next_select() == NULL);
   nested_join->join_list.empty();
   List_iterator_fast<TABLE_LIST> li(subq_lex->top_join_list);
   TABLE_LIST *tl;
@@ -1664,7 +1665,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     {
       tl->jtbm_table_no= table_no;
       Item *dummy= tl->jtbm_subselect;
-      tl->jtbm_subselect->fix_after_pullout(parent_lex, &dummy);
+      tl->jtbm_subselect->fix_after_pullout(parent_lex, &dummy, true);
       DBUG_ASSERT(dummy == tl->jtbm_subselect);
     }
     SELECT_LEX *old_sl= tl->select_lex;
@@ -1715,7 +1716,8 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 
   if (subq_pred->left_expr->cols() == 1)
   {
-    nested_join->sj_outer_expr_list.push_back(subq_pred->left_expr,
+    /* add left = select_list_element */
+    nested_join->sj_outer_expr_list.push_back(&subq_pred->left_expr,
                                               thd->mem_root);
     /*
       Create Item_func_eq. Note that
@@ -1729,25 +1731,61 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     Item_func_eq *item_eq=
       new (thd->mem_root) Item_func_eq(thd, subq_pred->left_expr_orig,
                                        subq_lex->ref_pointer_array[0]);
+    if (!item_eq)
+      DBUG_RETURN(TRUE);
     if (subq_pred->left_expr_orig != subq_pred->left_expr)
       thd->change_item_tree(item_eq->arguments(), subq_pred->left_expr);
     item_eq->in_equality_no= 0;
     sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
   }
-  else
+  else if (subq_pred->left_expr->type() == Item::ROW_ITEM)
   {
+    /*
+      disassemple left expression and add
+      left1 = select_list_element1 and left2 = select_list_element2 ...
+    */
     for (uint i= 0; i < subq_pred->left_expr->cols(); i++)
     {
-      nested_join->sj_outer_expr_list.push_back(subq_pred->left_expr->
-                                                element_index(i),
+      nested_join->sj_outer_expr_list.push_back(subq_pred->left_expr->addr(i),
                                                 thd->mem_root);
-      Item_func_eq *item_eq= 
+      Item_func_eq *item_eq=
         new (thd->mem_root)
-        Item_func_eq(thd, subq_pred->left_expr->element_index(i),
+        Item_func_eq(thd, subq_pred->left_expr_orig->element_index(i),
                      subq_lex->ref_pointer_array[i]);
+      if (!item_eq)
+        DBUG_RETURN(TRUE);
+      DBUG_ASSERT(subq_pred->left_expr->element_index(i)->fixed);
+      if (subq_pred->left_expr_orig->element_index(i) !=
+          subq_pred->left_expr->element_index(i))
+        thd->change_item_tree(item_eq->arguments(),
+                              subq_pred->left_expr->element_index(i));
       item_eq->in_equality_no= i;
       sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
     }
+  }
+  else
+  {
+    /*
+      add row operation
+      left = (select_list_element1, select_list_element2, ...)
+    */
+    Item_row *row= new (thd->mem_root) Item_row(thd, subq_lex->pre_fix);
+    /* fix fields on subquery was call so they should be the same */
+    DBUG_ASSERT(subq_pred->left_expr->cols() == row->cols());
+    if (!row)
+      DBUG_RETURN(TRUE);
+    nested_join->sj_outer_expr_list.push_back(&subq_pred->left_expr);
+    Item_func_eq *item_eq=
+      new (thd->mem_root) Item_func_eq(thd, subq_pred->left_expr_orig, row);
+    if (!item_eq)
+      DBUG_RETURN(TRUE);
+    for (uint i= 0; i < row->cols(); i++)
+    {
+      if (row->element_index(i) != subq_lex->ref_pointer_array[i])
+        thd->change_item_tree(row->addr(i), subq_lex->ref_pointer_array[i]);
+    }
+    item_eq->in_equality_no= 0;
+    sj_nest->sj_on_expr= and_items(thd, sj_nest->sj_on_expr, item_eq);
   }
   /*
     Fix the created equality and AND
@@ -1768,7 +1806,8 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     Walk through sj nest's WHERE and ON expressions and call
     item->fix_table_changes() for all items.
   */
-  sj_nest->sj_on_expr->fix_after_pullout(parent_lex, &sj_nest->sj_on_expr);
+  sj_nest->sj_on_expr->fix_after_pullout(parent_lex, &sj_nest->sj_on_expr,
+                                         TRUE);
   fix_list_after_tbl_changes(parent_lex, &sj_nest->nested_join->join_list);
 
 
@@ -1927,7 +1966,7 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
   DBUG_ASSERT(parent_join->table_count < MAX_TABLES);
 
   Item *conds= hash_sj_engine->semi_join_conds;
-  conds->fix_after_pullout(parent_lex, &conds);
+  conds->fix_after_pullout(parent_lex, &conds, TRUE);
 
   DBUG_EXECUTE("where", print_where(conds,"SJ-EXPR", QT_ORDINARY););
   
@@ -1979,7 +2018,7 @@ void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist)
   while ((table= it++))
   {
     if (table->on_expr)
-      table->on_expr->fix_after_pullout(new_parent, &table->on_expr);
+      table->on_expr->fix_after_pullout(new_parent, &table->on_expr, TRUE);
     if (table->nested_join)
       fix_list_after_tbl_changes(new_parent, &table->nested_join->join_list);
   }
@@ -2665,7 +2704,8 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
     LooseScan detector in best_access_path)
   */
   remaining_tables &= ~new_join_tab->table->map;
-  table_map dups_producing_tables;
+  table_map dups_producing_tables, prev_dups_producing_tables,
+            prev_sjm_lookup_tables;
 
   if (idx == join->const_tables)
     dups_producing_tables= 0;
@@ -2676,7 +2716,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
   if ((emb_sj_nest= new_join_tab->emb_sj_nest))
     dups_producing_tables |= emb_sj_nest->sj_inner_tables;
 
-  Semi_join_strategy_picker **strategy;
+  Semi_join_strategy_picker **strategy, **prev_strategy;
   if (idx == join->const_tables)
   {
     /* First table, initialize pickers */
@@ -2728,23 +2768,54 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
                 3. We have no clue what to do about fanount of semi-join Y.
         */
         if ((dups_producing_tables & handled_fanout) ||
-            (read_time < *current_read_time && 
+            (read_time < *current_read_time &&
              !(handled_fanout & pos->inner_tables_handled_with_other_sjs)))
         {
-          /* Mark strategy as used */ 
-          (*strategy)->mark_used();
-          pos->sj_strategy= sj_strategy;
-          if (sj_strategy == SJ_OPT_MATERIALIZE)
-            join->sjm_lookup_tables |= handled_fanout;
+          DBUG_ASSERT(pos->sj_strategy != sj_strategy);
+          /*
+            If the strategy choosen first time or
+            the strategy replace strategy which was used to exectly the same
+            tables
+          */
+          if (pos->sj_strategy == SJ_OPT_NONE ||
+              handled_fanout ==
+                (prev_dups_producing_tables ^ dups_producing_tables))
+          {
+            prev_strategy= strategy;
+            if (pos->sj_strategy == SJ_OPT_NONE)
+            {
+              prev_dups_producing_tables= dups_producing_tables;
+              prev_sjm_lookup_tables= join->sjm_lookup_tables;
+            }
+            /* Mark strategy as used */
+            (*strategy)->mark_used();
+            pos->sj_strategy= sj_strategy;
+            if (sj_strategy == SJ_OPT_MATERIALIZE)
+              join->sjm_lookup_tables |= handled_fanout;
+            else
+              join->sjm_lookup_tables &= ~handled_fanout;
+            *current_read_time= read_time;
+            *current_record_count= rec_count;
+            dups_producing_tables &= ~handled_fanout;
+            //TODO: update bitmap of semi-joins that were handled together with
+            // others.
+            if (is_multiple_semi_joins(join, join->positions, idx,
+                                       handled_fanout))
+              pos->inner_tables_handled_with_other_sjs |= handled_fanout;
+          }
           else
-            join->sjm_lookup_tables &= ~handled_fanout;
-          *current_read_time= read_time;
-          *current_record_count= rec_count;
-          dups_producing_tables &= ~handled_fanout;
-          //TODO: update bitmap of semi-joins that were handled together with
-          // others.
-          if (is_multiple_semi_joins(join, join->positions, idx, handled_fanout))
-            pos->inner_tables_handled_with_other_sjs |= handled_fanout;
+          {
+            /* Conflict fall to most general variant */
+            (*prev_strategy)->set_empty();
+            dups_producing_tables= prev_dups_producing_tables;
+            join->sjm_lookup_tables= prev_sjm_lookup_tables;
+            // mark it 'none' to avpoid loops
+            pos->sj_strategy= SJ_OPT_NONE;
+            // next skip to last;
+            strategy= pickers +
+              (sizeof(pickers)/sizeof(Semi_join_strategy_picker*) - 3);
+            continue;
+          }
         }
         else
         {
@@ -3302,8 +3373,8 @@ void restore_prev_sj_state(const table_map remaining_tables,
 ulonglong get_bound_sj_equalities(TABLE_LIST *sj_nest, 
                                   table_map remaining_tables)
 {
-  List_iterator<Item> li(sj_nest->nested_join->sj_outer_expr_list);
-  Item *item;
+  List_iterator<Item_ptr> li(sj_nest->nested_join->sj_outer_expr_list);
+  Item **item;
   uint i= 0;
   ulonglong res= 0;
   while ((item= li++))
@@ -3314,7 +3385,7 @@ ulonglong get_bound_sj_equalities(TABLE_LIST *sj_nest,
          class and see if there is an element that is bound?
       (this is an optional feature)
     */
-    if (!(item->used_tables() & remaining_tables))
+    if (!(item[0]->used_tables() & remaining_tables))
     {
       res |= 1ULL << i;
     }

@@ -8,17 +8,6 @@ fulltext index (title, content),
 fulltext index (title),
 fulltext index (content)
 ) default charset utf8;
-show create table diaries;
-Table	Create Table
-diaries	CREATE TABLE `diaries` (
-  `id` int(11) NOT NULL,
-  `title` varchar(255) DEFAULT NULL,
-  `content` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `title` (`title`,`content`),
-  FULLTEXT KEY `title_2` (`title`),
-  FULLTEXT KEY `content` (`content`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8
 insert into diaries values(1, "Hello", "はじめました。");
 insert into diaries values(2, "天気", "明日の富士山の天気について");
 insert into diaries values(3, "富士山", "今日もきれい。");

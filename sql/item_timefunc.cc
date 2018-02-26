@@ -1793,9 +1793,18 @@ overflow:
 
   ltime->hour= TIME_MAX_HOUR+1;
   check_time_range(ltime, decimals, &unused);
-  make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                               err->ptr(), err->length(),
-                               MYSQL_TIMESTAMP_TIME, NullS);
+  if (!err)
+  {
+    ErrConvInteger err2(sec, unsigned_flag);
+    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                                 &err2, MYSQL_TIMESTAMP_TIME, NullS);
+  }
+  else
+  {
+    ErrConvString err2(err);
+    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                                 &err2, MYSQL_TIMESTAMP_TIME, NullS);
+  }
   return 0;
 }
 
@@ -2396,7 +2405,7 @@ String *Item_char_typecast::copy(String *str, CHARSET_INFO *strcs)
   if (copier.copy_with_warn(cast_cs, &tmp_value, strcs,
                             str->ptr(), str->length(), cast_length))
   {
-    null_value= 1; // In strict mode: malformed data or could not convert
+    null_value= 1; // EOM
     return 0;
   }
   check_truncation_with_warn(str, copier.source_end_pos() - str->ptr());

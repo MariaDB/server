@@ -6,28 +6,15 @@ title VARCHAR(64),
 content TEXT,
 FULLTEXT INDEX(content)
 ) DEFAULT CHARSET=utf8 COMMENT='engine "InnoDB"';
-SHOW CREATE TABLE memos;
-Table	Create Table
-memos	CREATE TABLE `memos` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` varchar(64) DEFAULT NULL,
-  `content` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `content` (`content`)
-) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='engine "InnoDB"'
 INSERT INTO memos (title, content) VALUES ("Hello", "I start to write memos!");
 INSERT INTO memos (title, content) VALUES ("groonga", "I start to use groonga!");
 INSERT INTO memos (title, content) VALUES ("mroonga", "I use mroonga too!");
 ALTER TABLE memos COMMENT='engine "MyISAM"';
-SHOW CREATE TABLE memos;
-Table	Create Table
-memos	CREATE TABLE `memos` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` varchar(64) DEFAULT NULL,
-  `content` text,
-  PRIMARY KEY (`id`),
-  FULLTEXT KEY `content` (`content`)
-) ENGINE=Mroonga AUTO_INCREMENT=4 DEFAULT CHARSET=utf8 COMMENT='engine "MyISAM"'
+SELECT table_name, table_comment
+FROM information_schema.tables
+WHERE table_name = 'memos';
+table_name	table_comment
+memos	engine "MyISAM"
 SELECT * FROM memos;
 id	title	content
 1	Hello	I start to write memos!

@@ -1,8 +1,8 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -98,8 +98,10 @@ row_sel_sec_rec_is_for_blob(
 /*========================*/
 	ulint		mtype,		/*!< in: main type */
 	ulint		prtype,		/*!< in: precise type */
-	ulint		mbminmaxlen,	/*!< in: minimum and maximum length of
-					a multi-byte character */
+	ulint		mbminlen,	/*!< in: minimum length of
+					a character, in bytes */
+	ulint		mbmaxlen,	/*!< in: maximum length of
+					a character, in bytes */
 	const byte*	clust_field,	/*!< in: the locally stored part of
 					the clustered index column, including
 					the BLOB pointer; the clustered
@@ -138,8 +140,7 @@ row_sel_sec_rec_is_for_blob(
 
 	len = btr_copy_externally_stored_field_prefix(buf, prefix_len,
 						      zip_size,
-						      clust_field, clust_len,
-						      NULL);
+						      clust_field, clust_len);
 
 	if (UNIV_UNLIKELY(len == 0)) {
 		/* The BLOB was being deleted as the server crashed.
@@ -150,7 +151,7 @@ row_sel_sec_rec_is_for_blob(
 		return(FALSE);
 	}
 
-	len = dtype_get_at_most_n_mbchars(prtype, mbminmaxlen,
+	len = dtype_get_at_most_n_mbchars(prtype, mbminlen, mbmaxlen,
 					  prefix_len, len, (const char*) buf);
 
 	return(!cmp_data_data(mtype, prtype, buf, len, sec_field, sec_len));
@@ -234,14 +235,14 @@ row_sel_sec_rec_is_for_clust_rec(
 			}
 
 			len = dtype_get_at_most_n_mbchars(
-				col->prtype, col->mbminmaxlen,
+				col->prtype, col->mbminlen, col->mbmaxlen,
 				ifield->prefix_len, len, (char*) clust_field);
 
 			if (rec_offs_nth_extern(clust_offs, clust_pos)
 			    && len < sec_len) {
 				if (!row_sel_sec_rec_is_for_blob(
 					    col->mtype, col->prtype,
-					    col->mbminmaxlen,
+					    col->mbminlen, col->mbmaxlen,
 					    clust_field, clust_len,
 					    sec_field, sec_len,
 					    ifield->prefix_len,
@@ -458,7 +459,7 @@ row_sel_fetch_columns(
 				data = btr_rec_copy_externally_stored_field(
 					rec, offsets,
 					dict_table_zip_size(index->table),
-					field_no, &len, heap, NULL);
+					field_no, &len, heap);
 
 				/* data == NULL means that the
 				externally stored field was not
@@ -1406,7 +1407,7 @@ table_loop:
 
 	/* Open a cursor to index, or restore an open cursor position */
 
-	mtr_start_trx(&mtr, thr_get_trx(thr));
+	mtr_start(&mtr);
 
 	if (consistent_read && plan->unique_search && !plan->pcur_is_open
 	    && !plan->must_get_clust
@@ -1447,7 +1448,7 @@ table_loop:
 		plan_reset_cursor(plan);
 
 		mtr_commit(&mtr);
-		mtr_start_trx(&mtr, thr_get_trx(thr));
+		mtr_start(&mtr);
 	}
 
 	if (search_latch_locked) {
@@ -1545,6 +1546,7 @@ rec_loop:
 			switch (err) {
 			case DB_SUCCESS_LOCKED_REC:
 				err = DB_SUCCESS;
+				/* fall through */
 			case DB_SUCCESS:
 				break;
 			default:
@@ -1603,6 +1605,7 @@ skip_lock:
 		switch (err) {
 		case DB_SUCCESS_LOCKED_REC:
 			err = DB_SUCCESS;
+			/* fall through */
 		case DB_SUCCESS:
 			break;
 		default:
@@ -2569,31 +2572,30 @@ row_sel_store_row_id_to_prebuilt(
 	(dest,templ,src,len)
 #endif /* UNIV_DEBUG */
 
-/**************************************************************//**
-Stores a non-SQL-NULL field in the MySQL format. The counterpart of this
-function is row_mysql_store_col_in_innobase_format() in row0mysql.cc. */
+/** Stores a non-SQL-NULL field in the MySQL format. The counterpart of this
+function is row_mysql_store_col_in_innobase_format() in row0mysql.cc.
+@param[in,out]	dest		buffer where to store; NOTE
+				that BLOBs are not in themselves stored
+				here: the caller must allocate and copy
+				the BLOB into buffer before, and pass
+				the pointer to the BLOB in 'data'
+@param[in]	templ		MySQL column template. Its following fields
+				are referenced: type, is_unsigned, mysql_col_len,
+				mbminlen, mbmaxlen
+@param[in]	index		InnoDB index
+@param[in]	field_no	templ->rec_field_no or templ->clust_rec_field_no
+				or templ->icp_rec_field_no
+@param[in]	data		data to store
+@param[in]	len		length of the data
+*/
 static MY_ATTRIBUTE((nonnull))
 void
 row_sel_field_store_in_mysql_format_func(
-/*=====================================*/
-	byte*		dest,	/*!< in/out: buffer where to store; NOTE
-				that BLOBs are not in themselves
-				stored here: the caller must allocate
-				and copy the BLOB into buffer before,
-				and pass the pointer to the BLOB in
-				'data' */
+	byte*		dest,
 	const mysql_row_templ_t* templ,
-				/*!< in: MySQL column template.
-				Its following fields are referenced:
-				type, is_unsigned, mysql_col_len,
-				mbminlen, mbmaxlen */
 #ifdef UNIV_DEBUG
 	const dict_index_t* index,
-				/*!< in: InnoDB index */
 	ulint		field_no,
-				/*!< in: templ->rec_field_no or
-				templ->clust_rec_field_no or
-				templ->icp_rec_field_no */
 #endif /* UNIV_DEBUG */
 	const byte*	data,	/*!< in: data to store */
 	ulint		len)	/*!< in: length of the data */
@@ -2736,6 +2738,7 @@ row_sel_field_store_in_mysql_format_func(
 	case DATA_SYS:
 		/* These column types should never be shipped to MySQL. */
 		ut_ad(0);
+		/* fall through */
 
 	case DATA_CHAR:
 	case DATA_FIXBINARY:
@@ -2746,7 +2749,7 @@ row_sel_field_store_in_mysql_format_func(
 #endif /* UNIV_DEBUG */
 		ut_ad(field->prefix_len
 		      ? field->prefix_len == len
-		      : templ->mysql_col_len == len);
+		      : (templ->mysql_col_len == len));
 		memcpy(dest, data, len);
 	}
 }
@@ -2770,8 +2773,6 @@ row_sel_field_store_in_mysql_format_func(
 @param[in]	field_no		templ->rec_field_no or
 					templ->clust_rec_field_no
 					or templ->icp_rec_field_no
-					or sec field no if clust_templ_for_sec
-					is TRUE
 @param[in]	templ			row template
 */
 static MY_ATTRIBUTE((warn_unused_result))
@@ -2828,7 +2829,7 @@ row_sel_store_mysql_field_func(
 		data = btr_rec_copy_externally_stored_field(
 			rec, offsets,
 			dict_table_zip_size(prebuilt->table),
-			field_no, &len, heap, NULL);
+			field_no, &len, heap);
 
 		if (UNIV_UNLIKELY(!data)) {
 			/* The externally stored field was not written
@@ -2953,6 +2954,7 @@ row_sel_store_mysql_rec(
 			= rec_clust
 			? templ->clust_rec_field_no
 			: templ->rec_field_no;
+
 		/* We should never deliver column prefixes to MySQL,
 		except for evaluating innobase_index_cond() and if the prefix
 		index is longer than the actual row data. */
@@ -3110,7 +3112,7 @@ row_sel_get_clust_rec_for_mysql(
 			trx_print(stderr, trx, 600);
 			fputs("\n"
 			      "InnoDB: Submit a detailed bug report"
-			      " to http://bugs.mysql.com\n", stderr);
+			      " to https://jira.mariadb.org/\n", stderr);
 			ut_ad(0);
 		}
 
@@ -3349,6 +3351,36 @@ row_sel_copy_cached_field_for_mysql(
 	}
 
 	ut_memcpy(buf, cache, len);
+}
+
+/** Copy used fields from cached row.
+Copy cache record field by field, don't touch fields that
+are not covered by current key.
+@param[out]     buf             Where to copy the MySQL row.
+@param[in]      cached_rec      What to copy (in MySQL row format).
+@param[in]      prebuilt        prebuilt struct. */
+void
+row_sel_copy_cached_fields_for_mysql(
+        byte*           buf,
+        const byte*     cached_rec,
+        row_prebuilt_t* prebuilt)
+{
+        const mysql_row_templ_t*templ;
+        ulint                   i;
+        for (i = 0; i < prebuilt->n_template; i++) {
+                templ = prebuilt->mysql_template + i;
+
+                row_sel_copy_cached_field_for_mysql(
+                        buf, cached_rec, templ);
+                /* Copy NULL bit of the current field from cached_rec
+                to buf */
+                if (templ->mysql_null_bit_mask) {
+                        buf[templ->mysql_null_byte_offset]
+                                ^= (buf[templ->mysql_null_byte_offset]
+                                    ^ cached_rec[templ->mysql_null_byte_offset])
+                                & (byte) templ->mysql_null_bit_mask;
+                }
+        }
 }
 
 /********************************************************************//**
@@ -3902,7 +3934,7 @@ row_search_for_mysql(
 		}
 	}
 
-	mtr_start_trx(&mtr, trx);
+	mtr_start(&mtr);
 
 	/*-------------------------------------------------------------*/
 	/* PHASE 2: Try fast adaptive hash index search if possible */
@@ -4186,6 +4218,7 @@ wait_table_again:
 			switch (err) {
 			case DB_SUCCESS_LOCKED_REC:
 				err = DB_SUCCESS;
+				/* fall through */
 			case DB_SUCCESS:
 				break;
 			default:
@@ -4281,6 +4314,7 @@ rec_loop:
 			switch (err) {
 			case DB_SUCCESS_LOCKED_REC:
 				err = DB_SUCCESS;
+				/* fall through */
 			case DB_SUCCESS:
 				break;
 			default:
@@ -4323,8 +4357,7 @@ wrong_offs:
 		if ((srv_force_recovery == 0 || moves_up == FALSE)
 		    && srv_pass_corrupt_table <= 1) {
 			ut_print_timestamp(stderr);
-			buf_page_print(page_align(rec), 0,
-				       BUF_PAGE_PRINT_NO_CRASH);
+			buf_page_print(page_align(rec), 0);
 			fprintf(stderr,
 				"\nInnoDB: rec address %p,"
 				" buf block fix count %lu\n",
@@ -4569,6 +4602,7 @@ no_gap_lock:
 				prebuilt->new_rec_locks = 1;
 			}
 			err = DB_SUCCESS;
+			/* fall through */
 		case DB_SUCCESS:
 			break;
 		case DB_LOCK_WAIT:
@@ -5126,7 +5160,7 @@ next_rec:
 		mtr_commit(&mtr);
 		mtr_has_extra_clust_latch = FALSE;
 
-		mtr_start_trx(&mtr, trx);
+		mtr_start(&mtr);
 		if (sel_restore_position_for_mysql(&same_user_rec,
 						   BTR_SEARCH_LEAF,
 						   pcur, moves_up, &mtr)) {
@@ -5193,7 +5227,7 @@ lock_table_wait:
 		/* It was a lock wait, and it ended */
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
-		mtr_start_trx(&mtr, trx);
+		mtr_start(&mtr);
 
 		/* Table lock waited, go try to obtain table lock
 		again */

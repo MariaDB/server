@@ -18,8 +18,8 @@
 # and replication is started from it.
 #
 
---source include/master-slave.inc
 --source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
 
 --connection slave
 # Make sure the slave is stopped while we are messing with master.

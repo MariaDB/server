@@ -112,12 +112,17 @@ int test_main(int UU(argc), char *const UU(argv[])) {
     acquire_lock(txn1, magic_key);
 
     acquire_lock_extra e1(txn2, magic_key);
-    r = toku_pthread_create(&thread1, NULL, acquire_lock_thread, &e1); CKERR(r);
+    r = toku_pthread_create(
+        toku_uninstrumented, &thread1, nullptr, acquire_lock_thread, &e1);
+    CKERR(r);
     acquire_lock_extra e2(txn3, magic_key);
-    r = toku_pthread_create(&thread2, NULL, acquire_lock_thread, &e2); CKERR(r);
+    r = toku_pthread_create(
+        toku_uninstrumented, &thread2, nullptr, acquire_lock_thread, &e2);
+    CKERR(r);
 
     sleep(1);
-    r = env->iterate_pending_lock_requests(env, iterate_callback, NULL); CKERR(r);
+    r = env->iterate_pending_lock_requests(env, iterate_callback, NULL);
+    CKERR(r);
     invariant(iterate_callback_called == 2);
 
     void *v;

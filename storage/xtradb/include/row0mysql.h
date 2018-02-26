@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -590,18 +590,6 @@ UNIV_INTERN
 void
 row_mysql_close(void);
 /*=================*/
-
-/*********************************************************************//**
-Reassigns the table identifier of a table.
-@return	error code or DB_SUCCESS */
-UNIV_INTERN
-dberr_t
-row_mysql_table_id_reassign(
-/*========================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	trx_t*		trx,	/*!< in/out: transaction */
-	table_id_t*	new_id) /*!< out: new table id */
-        MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /* A struct describing a place for an individual column in the MySQL
 row format which is presented to the table handler in ha_innobase.

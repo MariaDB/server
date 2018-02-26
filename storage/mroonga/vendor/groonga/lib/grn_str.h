@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2012 Brazil
+/*
+  Copyright(C) 2009-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -14,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GRN_STR_H
-#define GRN_STR_H
+
+#pragma once
 
 #include "grn.h"
 #include <groonga/nfkc.h>
@@ -74,14 +75,6 @@ grn_rc grn_substring(grn_ctx *ctx, char **str, char **str_end, int start, int en
 GRN_API int grn_charlen_(grn_ctx *ctx, const char *str, const char *end, grn_encoding encoding);
 GRN_API grn_str *grn_str_open_(grn_ctx *ctx, const char *str, unsigned int str_len, int flags, grn_encoding encoding);
 
-#define GRN_BULK_INCR_LEN(buf,len) do {\
-  if (GRN_BULK_OUTP(buf)) {\
-    (buf)->u.b.curr += (len);\
-  } else {\
-    (buf)->header.flags += (grn_obj_flags)(len);\
-  }\
-} while (0)
-
 #define GRN_BULK_SET_CURR(buf,p) do {\
   if (GRN_BULK_OUTP(buf)) {\
     (buf)->u.b.curr = (char *)(p);\
@@ -121,5 +114,3 @@ grn_bool grn_bulk_is_zero(grn_ctx *ctx, grn_obj *obj);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GRN_STR_H */

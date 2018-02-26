@@ -239,33 +239,61 @@ test_evictions (void) {
     // make the forward fast scanner
     myargs[0].fast = true;
     myargs[0].fwd = true;
-    { int chk_r = toku_pthread_create(&mytids[0], NULL, scan_db, &myargs[0]); CKERR(chk_r); }
+    {
+        int chk_r = toku_pthread_create(
+            toku_uninstrumented, &mytids[0], nullptr, scan_db, &myargs[0]);
+        CKERR(chk_r);
+    }
 
     // make the forward slow scanner
     myargs[1].fast = false;
     myargs[1].fwd = true;
-    { int chk_r = toku_pthread_create(&mytids[1], NULL, scan_db, &myargs[1]); CKERR(chk_r); }
+    {
+        int chk_r = toku_pthread_create(
+            toku_uninstrumented, &mytids[1], nullptr, scan_db, &myargs[1]);
+        CKERR(chk_r);
+    }
 
     // make the backward fast scanner
     myargs[2].fast = true;
     myargs[2].fwd = false;
-    { int chk_r = toku_pthread_create(&mytids[2], NULL, scan_db, &myargs[2]); CKERR(chk_r); }
+    {
+        int chk_r = toku_pthread_create(
+            toku_uninstrumented, &mytids[2], nullptr, scan_db, &myargs[2]);
+        CKERR(chk_r);
+    }
 
     // make the backward slow scanner
     myargs[3].fast = false;
     myargs[3].fwd = false;
-    { int chk_r = toku_pthread_create(&mytids[3], NULL, scan_db, &myargs[3]); CKERR(chk_r); }
+    {
+        int chk_r = toku_pthread_create(
+            toku_uninstrumented, &mytids[3], nullptr, scan_db, &myargs[3]);
+        CKERR(chk_r);
+    }
 
     // make the guy that updates the db
-    { int chk_r = toku_pthread_create(&mytids[4], NULL, update_db, &myargs[4]); CKERR(chk_r); }
+    {
+        int chk_r = toku_pthread_create(
+            toku_uninstrumented, &mytids[4], nullptr, update_db, &myargs[4]);
+        CKERR(chk_r);
+    }
 
     // make the guy that does point queries
-    { int chk_r = toku_pthread_create(&mytids[5], NULL, ptquery_db, &myargs[5]); CKERR(chk_r); }
+    {
+        int chk_r = toku_pthread_create(
+            toku_uninstrumented, &mytids[5], nullptr, ptquery_db, &myargs[5]);
+        CKERR(chk_r);
+    }
 
     // make the guy that sleeps
-    { int chk_r = toku_pthread_create(&mytids[6], NULL, test_time, NULL); CKERR(chk_r); }
-    
-    for (uint32_t i = 0; i < sizeof(myargs)/sizeof(myargs[0]); i++) {
+    {
+        int chk_r = toku_pthread_create(
+            toku_uninstrumented, &mytids[6], nullptr, test_time, nullptr);
+        CKERR(chk_r);
+    }
+
+    for (uint32_t i = 0; i < sizeof(myargs) / sizeof(myargs[0]); i++) {
         void *ret;
         r = toku_pthread_join(mytids[i], &ret); assert_zero(r);
     }

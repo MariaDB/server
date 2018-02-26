@@ -417,8 +417,10 @@ static size_t serialize_ft_min_size(uint32_t version) {
     switch (version) {
         case FT_LAYOUT_VERSION_29:
             size += sizeof(uint64_t);  // logrows in ft
+            // fallthrough
         case FT_LAYOUT_VERSION_28:
             size += sizeof(uint32_t);  // fanout in ft
+            // fallthrough
         case FT_LAYOUT_VERSION_27:
         case FT_LAYOUT_VERSION_26:
         case FT_LAYOUT_VERSION_25:
@@ -427,10 +429,12 @@ static size_t serialize_ft_min_size(uint32_t version) {
         case FT_LAYOUT_VERSION_22:
         case FT_LAYOUT_VERSION_21:
             size += sizeof(MSN);  // max_msn_in_ft
+            // fallthrough
         case FT_LAYOUT_VERSION_20:
         case FT_LAYOUT_VERSION_19:
             size += 1;            // compression method
             size += sizeof(MSN);  // highest_unused_msn_for_upgrade
+            // fallthrough
         case FT_LAYOUT_VERSION_18:
             size += sizeof(uint64_t);  // time_of_last_optimize_begin
             size += sizeof(uint64_t);  // time_of_last_optimize_end
@@ -438,9 +442,11 @@ static size_t serialize_ft_min_size(uint32_t version) {
             size += sizeof(MSN);  // msn_at_start_of_last_completed_optimize
             size -= 8;            // removed num_blocks_to_upgrade_14
             size -= 8;            // removed num_blocks_to_upgrade_13
+            // fallthrough
         case FT_LAYOUT_VERSION_17:
             size += 16;
             invariant(sizeof(STAT64INFO_S) == 16);
+            // fallthrough
         case FT_LAYOUT_VERSION_16:
         case FT_LAYOUT_VERSION_15:
             size += 4;  // basement node size
@@ -448,8 +454,10 @@ static size_t serialize_ft_min_size(uint32_t version) {
                         // num_blocks_to_upgrade, now one int each for upgrade
                         // from 13, 14
             size += 8;  // time of last verification
+            // fallthrough
         case FT_LAYOUT_VERSION_14:
             size += 8;  // TXNID that created
+            // fallthrough
         case FT_LAYOUT_VERSION_13:
             size += (4  // build_id
                      +
@@ -459,7 +467,7 @@ static size_t serialize_ft_min_size(uint32_t version) {
                      +
                      8  // time_of_last_modification
                      );
-        // fall through
+            // fallthrough
         case FT_LAYOUT_VERSION_12:
             size += (+8  // "tokudata"
                      +

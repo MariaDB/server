@@ -47,7 +47,7 @@ typedef struct _jncol {
 class JSONDISC : public BLOCK {
 public:
 	// Constructor
-	JSONDISC(PGLOBAL g, int *lg);
+	JSONDISC(PGLOBAL g, uint *lg);
 
 	// Functions
 	int  GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt);
@@ -66,7 +66,7 @@ public:
 	PJOB    row;
 	PCSZ    sep;
 	char    colname[65], fmt[129], buf[16];
-	int    *length;
+	uint   *length;
 	int     i, n, bf, ncol, lvl;
 	bool    all;
 }; // end of JSONDISC

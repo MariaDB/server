@@ -1029,6 +1029,8 @@ std::string
 lock_get_info(
 	const lock_t*);
 
+#define wsrep_on_trx(trx) ((trx)->mysql_thd && wsrep_on((trx)->mysql_thd))
+
 #ifndef UNIV_NONINL
 #include "lock0lock.ic"
 #endif

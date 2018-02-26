@@ -1160,8 +1160,7 @@ out:
     @retval FALSE The statement isn't updating any relevant tables.
 */
 
-static my_bool deny_updates_if_read_only_option(THD *thd,
-                                                TABLE_LIST *all_tables)
+static bool deny_updates_if_read_only_option(THD *thd, TABLE_LIST *all_tables)
 {
   DBUG_ENTER("deny_updates_if_read_only_option");
 
@@ -1170,11 +1169,7 @@ static my_bool deny_updates_if_read_only_option(THD *thd,
 
   LEX *lex= thd->lex;
 
-  const my_bool user_is_super=
-    ((ulong)(thd->security_ctx->master_access & SUPER_ACL) ==
-     (ulong)SUPER_ACL);
-
-  if (user_is_super)
+  if (thd->security_ctx->master_access & SUPER_ACL)
     DBUG_RETURN(FALSE);
 
   if (!(sql_command_flags[lex->sql_command] & CF_CHANGES_DATA))
@@ -1184,28 +1179,26 @@ static my_bool deny_updates_if_read_only_option(THD *thd,
   if (lex->sql_command == SQLCOM_UPDATE_MULTI)
     DBUG_RETURN(FALSE);
 
+  if (lex->sql_command == SQLCOM_CREATE_DB ||
+      lex->sql_command == SQLCOM_DROP_DB)
+    DBUG_RETURN(TRUE);
+
   /*
     a table-to-be-created is not in the temp table list yet,
     so CREATE TABLE needs a special treatment
   */
-  const bool update_real_tables= lex->sql_command == SQLCOM_CREATE_TABLE ?
-        !lex->tmp_table() : some_non_temp_table_to_be_updated(thd, all_tables);
+  if (lex->sql_command == SQLCOM_CREATE_TABLE)
+    DBUG_RETURN(!lex->tmp_table());
 
-  const bool create_or_drop_databases=
-    (lex->sql_command == SQLCOM_CREATE_DB) ||
-    (lex->sql_command == SQLCOM_DROP_DB);
+  /*
+    a table-to-be-dropped might not exist (DROP TEMPORARY TABLE IF EXISTS),
+    cannot use the temp table list either.
+  */
+  if (lex->sql_command == SQLCOM_DROP_TABLE && lex->tmp_table())
+    DBUG_RETURN(FALSE);
 
-  if (update_real_tables || create_or_drop_databases)
-  {
-      /*
-        An attempt was made to modify one or more non-temporary tables.
-      */
-      DBUG_RETURN(TRUE);
-  }
-
-
-  /* Assuming that only temporary tables are modified. */
-  DBUG_RETURN(FALSE);
+  /* Now, check thd->temporary_tables list */
+  DBUG_RETURN(some_non_temp_table_to_be_updated(thd, all_tables));
 }
 
 
@@ -1964,11 +1957,12 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
   THD_STAGE_INFO(thd, stage_cleaning_up);
   thd->reset_query();
-  thd->set_examined_row_count(0);                   // For processlist
-  thd->set_command(COM_SLEEP);
 
   /* Performance Schema Interface instrumentation, end */
   MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+  thd->set_examined_row_count(0);                   // For processlist
+  thd->set_command(COM_SLEEP);
+
   thd->m_statement_psi= NULL;
   thd->m_digest= NULL;
 
@@ -3310,7 +3304,7 @@ mysql_execute_command(THD *thd)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     {
       partition_info *part_info= thd->lex->part_info;
-      if (part_info && !(part_info= thd->lex->part_info->get_clone(thd)))
+      if (part_info && !(part_info= part_info->get_clone(thd)))
       {
         res= -1;
         goto end_with_restore_list;
@@ -3780,7 +3774,7 @@ end_with_restore_list:
     if (up_result != 2)
       break;
   }
-    /* Fall through */
+  /* fall through */
   case SQLCOM_UPDATE_MULTI:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
@@ -3891,7 +3885,7 @@ end_with_restore_list:
       DBUG_PRINT("debug", ("Just after generate_incident()"));
     }
 #endif
-  /* fall through */
+    /* fall through */
   case SQLCOM_INSERT:
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
@@ -4571,7 +4565,6 @@ end_with_restore_list:
     if (res)
       break;
 
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     switch (lex->sql_command) {
     case SQLCOM_CREATE_EVENT:
     {
@@ -4605,7 +4598,6 @@ end_with_restore_list:
                                    lex->spname->m_name);
     break;
   case SQLCOM_DROP_EVENT:
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     if (!(res= Events::drop_event(thd,
                                   lex->spname->m_db, lex->spname->m_name,
                                   lex->if_exists())))
@@ -5048,14 +5040,19 @@ end_with_restore_list:
       thd->print_aborted_warning(3, "RELEASE");
     }
 #ifdef WITH_WSREP
-    if (WSREP(thd) && (thd->wsrep_conflict_state != NO_CONFLICT &&
-                       thd->wsrep_conflict_state != REPLAYING))
-    {
-      DBUG_ASSERT(thd->is_error()); // the error is already issued
-    }
-    else
+    if (WSREP(thd)) {
+
+      if (thd->wsrep_conflict_state == NO_CONFLICT ||
+          thd->wsrep_conflict_state == REPLAYING)
+      {
+        my_ok(thd);
+      }
+    } else {
 #endif /* WITH_WSREP */
-      my_ok(thd);
+	my_ok(thd);
+#ifdef WITH_WSREP
+    }
+#endif /* WITH_WSREP */
     break;
   }
   case SQLCOM_ROLLBACK:
@@ -5092,13 +5089,16 @@ end_with_restore_list:
     if (tx_release)
       thd->set_killed(KILL_CONNECTION);
 #ifdef WITH_WSREP
-    if (WSREP(thd) && thd->wsrep_conflict_state != NO_CONFLICT)
-    {
-      DBUG_ASSERT(thd->is_error()); // the error is already issued
-    }
-    else
+    if (WSREP(thd)) {
+      if (thd->wsrep_conflict_state == NO_CONFLICT) {
+        my_ok(thd);
+      }
+    } else {
 #endif /* WITH_WSREP */
-      my_ok(thd);
+	my_ok(thd);
+#ifdef WITH_WSREP
+    }
+#endif /* WITH_WSREP */
    break;
   }
   case SQLCOM_RELEASE_SAVEPOINT:
@@ -5503,7 +5503,6 @@ end_with_restore_list:
         Note: SQLCOM_CREATE_VIEW also handles 'ALTER VIEW' commands
         as specified through the thd->lex->create_view_mode flag.
       */
-      WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
       res= mysql_create_view(thd, first_table, thd->lex->create_view_mode);
       break;
     }
@@ -5519,7 +5518,6 @@ end_with_restore_list:
   case SQLCOM_CREATE_TRIGGER:
   {
     /* Conditionally writes to binlog. */
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     res= mysql_create_or_drop_trigger(thd, all_tables, 1);
 
     break;
@@ -5527,7 +5525,6 @@ end_with_restore_list:
   case SQLCOM_DROP_TRIGGER:
   {
     /* Conditionally writes to binlog. */
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     res= mysql_create_or_drop_trigger(thd, all_tables, 0);
     break;
   }
@@ -5592,13 +5589,11 @@ end_with_restore_list:
       my_ok(thd);
     break;
   case SQLCOM_INSTALL_PLUGIN:
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     if (! (res= mysql_install_plugin(thd, &thd->lex->comment,
                                      &thd->lex->ident)))
       my_ok(thd);
     break;
   case SQLCOM_UNINSTALL_PLUGIN:
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     if (! (res= mysql_uninstall_plugin(thd, &thd->lex->comment,
                                        &thd->lex->ident)))
       my_ok(thd);
@@ -5726,6 +5721,25 @@ finish:
     }
     if (thd->is_error() || (thd->variables.option_bits & OPTION_MASTER_SQL_ERROR))
       trans_rollback_stmt(thd);
+#ifdef WITH_WSREP
+    if (thd->spcont &&
+             (thd->wsrep_conflict_state == MUST_ABORT ||
+              thd->wsrep_conflict_state == ABORTED    ||
+              thd->wsrep_conflict_state == CERT_FAILURE))
+    {
+      /*
+        The error was cleared, but THD was aborted by wsrep and
+        wsrep_conflict_state is still set accordingly. This
+        situation is expected if we are running a stored procedure
+        that declares a handler that catches ER_LOCK_DEADLOCK error.
+        In which case the error may have been cleared in method
+        sp_rcontext::handle_sql_condition().
+      */
+      trans_rollback_stmt(thd);
+      thd->wsrep_conflict_state= NO_CONFLICT;
+      thd->killed= NOT_KILLED;
+    }
+#endif /* WITH_WSREP */
     else
     {
       /* If commit fails, we should be able to reset the OK status. */
@@ -6889,7 +6903,12 @@ void THD::reset_for_next_command(bool do_clear_error)
     clear_error(1);
 
   thd->free_list= 0;
-  thd->select_number= 1;
+  /*
+    We also assign thd->stmt_lex in lex_start(), but during bootstrap this
+    code is executed first.
+  */
+  thd->stmt_lex= &main_lex; thd->stmt_lex->current_select_number= 1;
+  DBUG_PRINT("info", ("Lex %p stmt_lex: %p", thd->lex, thd->stmt_lex));
   /*
     Those two lines below are theoretically unneeded as
     THD::cleanup_after_query() should take care of this already.
@@ -7007,7 +7026,7 @@ mysql_new_select(LEX *lex, bool move_down)
 
   if (!(select_lex= new (thd->mem_root) SELECT_LEX()))
     DBUG_RETURN(1);
-  select_lex->select_number= ++thd->select_number;
+  select_lex->select_number= ++thd->stmt_lex->current_select_number;
   select_lex->parent_lex= lex; /* Used in init_query. */
   select_lex->init_query();
   select_lex->init_select();

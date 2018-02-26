@@ -1,13 +1,13 @@
 DROP TABLE IF EXISTS diaries;
 CREATE TABLE diaries (
 id INT PRIMARY KEY AUTO_INCREMENT,
-title TEXT
+title VARCHAR(40)
 ) DEFAULT CHARSET UTF8;
 SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `title` text,
+  `title` varchar(40) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=Mroonga DEFAULT CHARSET=utf8
 INSERT INTO diaries (title) VALUES ("survey");
@@ -15,7 +15,7 @@ SELECT * FROM diaries;
 id	title
 1	survey
 ALTER TABLE diaries
-ADD COLUMN body TEXT FIRST,
+ADD COLUMN body VARCHAR(140) FIRST,
 ADD COLUMN published BOOLEAN AFTER id,
 ADD COLUMN created_at DATETIME;
 UPDATE diaries SET body = "will start groonga!";
@@ -34,10 +34,10 @@ started groonga.	3	0	groonga (2)	2014-02-09 12:19:00
 SHOW CREATE TABLE diaries;
 Table	Create Table
 diaries	CREATE TABLE `diaries` (
-  `body` text,
+  `body` varchar(140) DEFAULT NULL,
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `published` tinyint(1) DEFAULT NULL,
-  `title` text,
+  `title` varchar(40) DEFAULT NULL,
   `created_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=Mroonga AUTO_INCREMENT=4 DEFAULT CHARSET=utf8

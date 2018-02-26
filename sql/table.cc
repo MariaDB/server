@@ -1340,9 +1340,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   extra_rec_buf_length= uint2korr(frm_image+59);
   rec_buff_length= ALIGN_SIZE(share->reclength + 1 + extra_rec_buf_length);
   share->rec_buff_length= rec_buff_length;
-  if (!(record= (uchar *) alloc_root(&share->mem_root,
-                                     rec_buff_length)))
+  if (!(record= (uchar *) alloc_root(&share->mem_root, rec_buff_length)))
     goto err;                          /* purecov: inspected */
+  MEM_NOACCESS(record, rec_buff_length);
+  MEM_UNDEFINED(record, share->reclength);
   share->default_values= record;
   memcpy(record, frm_image + record_offset, share->reclength);
 
@@ -2685,6 +2686,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   if (!(record= (uchar*) alloc_root(&outparam->mem_root,
                                    share->rec_buff_length * records)))
     goto err;                                   /* purecov: inspected */
+  MEM_NOACCESS(record, share->rec_buff_length * records);
 
   if (records == 0)
   {
@@ -2699,6 +2701,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     else
       outparam->record[1]= outparam->record[0];   // Safety
   }
+  MEM_UNDEFINED(outparam->record[0], share->reclength);
+  MEM_UNDEFINED(outparam->record[1], share->reclength);
 
   if (!(field_ptr = (Field **) alloc_root(&outparam->mem_root,
                                           (uint) ((share->fields+1)*
@@ -4260,6 +4264,9 @@ bool TABLE_LIST::create_field_translation(THD *thd)
   Query_arena *arena, backup;
   bool res= FALSE;
   DBUG_ENTER("TABLE_LIST::create_field_translation");
+  DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
+                      (alias ? alias : "<NULL>"),
+                       get_unit()));
 
   if (thd->stmt_arena->is_conventional() ||
       thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
@@ -4715,20 +4722,29 @@ void TABLE_LIST::cleanup_items()
 
 int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
 {
-  if (check_option && check_option->val_int() == 0)
+  if (check_option)
   {
-    TABLE_LIST *main_view= top_table();
-    if (ignore_failure)
+    Counting_error_handler ceh;
+    thd->push_internal_handler(&ceh);
+    bool res= check_option->val_int() == 0;
+    thd->pop_internal_handler();
+    if (ceh.errors)
+      return(VIEW_CHECK_ERROR);
+    if (res)
     {
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_VIEW_CHECK_FAILED,
-                          ER_THD(thd, ER_VIEW_CHECK_FAILED),
-                          main_view->view_db.str, main_view->view_name.str);
-      return(VIEW_CHECK_SKIP);
+      TABLE_LIST *main_view= top_table();
+      if (ignore_failure)
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_VIEW_CHECK_FAILED,
+                            ER_THD(thd, ER_VIEW_CHECK_FAILED),
+                            main_view->view_db.str, main_view->view_name.str);
+        return(VIEW_CHECK_SKIP);
+      }
+      my_error(ER_VIEW_CHECK_FAILED, MYF(0), main_view->view_db.str,
+               main_view->view_name.str);
+      return(VIEW_CHECK_ERROR);
     }
-    my_error(ER_VIEW_CHECK_FAILED, MYF(0), main_view->view_db.str,
-             main_view->view_name.str);
-    return(VIEW_CHECK_ERROR);
   }
   return(VIEW_CHECK_OK);
 }
@@ -5339,7 +5355,8 @@ Item *Field_iterator_table::create_item(THD *thd)
 
   Item_field *item= new (thd->mem_root) Item_field(thd, &select->context, *ptr);
   if (item && thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
-      !thd->lex->in_sum_func && select->cur_pos_in_select_list != UNDEF_POS)
+      !thd->lex->in_sum_func && select->cur_pos_in_select_list != UNDEF_POS &&
+      select->join)
   {
     select->join->non_agg_fields.push_back(item);
     item->marker= select->cur_pos_in_select_list;
@@ -6327,6 +6344,14 @@ void TABLE::create_key_part_by_field(KEY_PART_INFO *key_part_info,
     might be reused.
   */
   key_part_info->store_length= key_part_info->length;
+  /*
+    For BIT fields null_bit is not set to 0 even if the field is defined
+    as NOT NULL, look at Field_bit::Field_bit
+  */
+  if (!field->real_maybe_null())
+  {
+    key_part_info->null_bit= 0;
+  }
 
   /*
      The total store length of the key part is the raw length of the field +

@@ -1,5 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009 Brazil
+/*
+  Copyright(C) 2009-2016 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -14,8 +15,8 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
-#ifndef GROONGA_NFKC_H
-#define GROONGA_NFKC_H
+
+#pragma once
 
 #include <groonga.h>
 
@@ -23,10 +24,8 @@
 extern "C" {
 #endif
 
-GRN_API grn_char_type grn_nfkc_char_type(const unsigned char *str);
+GRN_API grn_char_type grn_nfkc_char_type(const unsigned char *utf8);
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* GROONGA_NFKC_H */

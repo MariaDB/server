@@ -1,13 +1,14 @@
 SUBDIRS =					\
 	command_line				\
 	context					\
+	expression_tree				\
 	initialize				\
-	logger
+	logger					\
+	query_logger
 
 include sources.am
 
 EXTRA_DIST =					\
-	test/empty.rb				\
 	$(RUBY_SCRIPT_FILES)
 
 if WITH_MRUBY

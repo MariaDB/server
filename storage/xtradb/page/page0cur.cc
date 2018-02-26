@@ -903,7 +903,7 @@ page_cur_parse_insert_rec(
 		ut_print_buf(stderr, ptr2, 300);
 		putc('\n', stderr);
 
-		buf_page_print(page, 0, 0);
+		buf_page_print(page, 0);
 
 		ut_error;
 	}

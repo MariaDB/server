@@ -1716,6 +1716,22 @@ SET sql_mode=DEFAULT;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-13530 VARBINARY doesn't convert to to BLOB for sizes 65533, 65534 and 65535
+--echo #
+
+CREATE TABLE t1 (c1 VARCHAR(21844) CHARACTER SET utf8);
+DESCRIBE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(21845) CHARACTER SET utf8);
+DESCRIBE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 VARCHAR(21846) CHARACTER SET utf8);
+DESCRIBE t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 
@@ -1854,6 +1870,18 @@ let $ctype_unescape_combinations=selected;
 --source include/ctype_unescape.inc
 
 --echo #
+--echo # MDEV-12681 Wrong VIEW results for CHAR(0xDF USING latin1)
+--echo #
+
+SET NAMES utf8;
+SELECT CHAR(0xDF USING latin1);
+CREATE OR REPLACE VIEW v1 AS SELECT CHAR(0xDF USING latin1) AS c;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+
+--echo #
 --echo # End of 10.0 tests
 --echo #
 
@@ -1982,6 +2010,18 @@ SET @@SQL_MODE=default;
 #SELECT body_utf8 FROM mysql.proc WHERE name='f1';
 #DROP FUNCTION f1;
 #SET NAMES utf8;
+
+--echo #
+--echo # MDEV-10191 non convertible chars convert() resulted in Null instead "?" on Windows
+--echo #
+
+SET sql_mode='STRICT_TRANS_TABLES';
+SELECT CONVERT(_utf8 0xC499 USING latin1);
+SELECT CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1);
+
+SET sql_mode=default;
+SELECT CONVERT(_utf8 0xC499 USING latin1);
+SELECT CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1);
 
 
 --echo #

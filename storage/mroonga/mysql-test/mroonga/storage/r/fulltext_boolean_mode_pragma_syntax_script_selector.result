@@ -1,0 +1,25 @@
+DROP TABLE IF EXISTS items;
+DROP TABLE IF EXISTS readings;
+SET NAMES utf8;
+CREATE TABLE readings (
+reading VARCHAR(255) PRIMARY KEY
+) DEFAULT CHARSET=utf8
+COLLATE=utf8_bin
+COMMENT='default_tokenizer "TokenDelimit"';
+CREATE TABLE items (
+name VARCHAR(255) PRIMARY KEY,
+readings TEXT COMMENT 'flags "COLUMN_VECTOR", type "readings"',
+FULLTEXT INDEX items_index(readings) COMMENT 'table "readings"'
+) DEFAULT CHARSET=utf8;
+INSERT INTO items VALUES("日本", "ニホン ニッポン");
+INSERT INTO items VALUES("ローマ字", "ローマジ");
+INSERT INTO items VALUES("漢字", "カンジ");
+SELECT *, MATCH(readings)
+AGAINST("*SS sub_filter(readings, 'prefix_rk_search(_key, \"niho\")')" in BOOLEAN MODE) AS score
+FROM items
+WHERE MATCH(readings)
+AGAINST("*SS sub_filter(readings, 'prefix_rk_search(_key, \"niho\")')" in BOOLEAN MODE);
+name	readings	score
+日本	ニホン ニッポン	1
+DROP TABLE items;
+DROP TABLE readings;

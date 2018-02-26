@@ -15,7 +15,8 @@
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/../../lib
-  ${MRUBY_INCLUDE_DIRS})
+  ${MRUBY_INCLUDE_DIRS}
+  ${MESSAGE_PACK_INCLUDE_DIRS})
 
 read_file_list(${CMAKE_CURRENT_SOURCE_DIR}/create_dataset_sources.am
   GROONGA_SUGGEST_CREATE_DATASET_SOURCES)

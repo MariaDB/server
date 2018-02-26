@@ -1,4 +1,4 @@
-# Copyright (c) 2006, 2015, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2006, 2017, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -85,6 +85,12 @@ SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DUNIV_DEBUG -DUNIV_SYNC_DEB
 CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 
 IF(NOT MSVC)
+
+  CHECK_FUNCTION_EXISTS(posix_memalign HAVE_POSIX_MEMALIGN)
+  IF(HAVE_POSIX_MEMALIGN)
+    ADD_DEFINITIONS(-DHAVE_POSIX_MEMALIGN)
+  ENDIF()
+
   # either define HAVE_IB_GCC_ATOMIC_BUILTINS or not
   # workaround for old gcc on x86, gcc atomic ops only work under -march=i686
   IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "i686" AND CMAKE_COMPILER_IS_GNUCC AND
@@ -514,3 +520,4 @@ MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
   MODULE_OUTPUT_NAME ha_innodb
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${LIBSYSTEMD} ${LINKER_SCRIPT})
 
+ADD_DEPENDENCIES(innobase GenError)

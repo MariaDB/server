@@ -98,7 +98,7 @@ public:
   virtual String *val_str_ascii(String *buffer);
 
 protected:
-  virtual bool calc_value(String *arg, String *buffer) = 0;
+  virtual bool calc_value(const String *arg, String *buffer) = 0;
 };
 
 
@@ -125,7 +125,7 @@ public:
   }
 
 protected:
-  virtual bool calc_value(String *arg, String *buffer);
+  virtual bool calc_value(const String *arg, String *buffer);
 };
 
 
@@ -157,7 +157,7 @@ public:
   }
 
 protected:
-  virtual bool calc_value(String *arg, String *buffer);
+  virtual bool calc_value(const String *arg, String *buffer);
 };
 
 

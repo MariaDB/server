@@ -559,7 +559,13 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
   bool is_xidlist_idle_nolock();
-
+#ifdef WITH_WSREP
+  /*
+   When this mariadb node is slave and galera enabled. So in this case
+   we write the gtid in wsrep_run_commit itself.
+  */
+  inline bool is_gtid_cached(THD *thd);
+#endif
 public:
   /*
     A list of struct xid_count_per_binlog is used to keep track of how many
@@ -755,7 +761,7 @@ public:
   int update_log_index(LOG_INFO* linfo, bool need_update_threads);
   int rotate(bool force_rotate, bool* check_purge);
   void checkpoint_and_purge(ulong binlog_id);
-  int rotate_and_purge(bool force_rotate);
+  int rotate_and_purge(bool force_rotate, DYNAMIC_ARRAY* drop_gtid_domain= NULL);
   /**
      Flush binlog cache and synchronize to disk.
 
@@ -1164,5 +1170,10 @@ static inline TC_LOG *get_tc_log_implementation()
     return &mysql_bin_log;
   return &tc_log_mmap;
 }
+
+
+class Gtid_list_log_event;
+const char *
+get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list);
 
 #endif /* LOG_H */

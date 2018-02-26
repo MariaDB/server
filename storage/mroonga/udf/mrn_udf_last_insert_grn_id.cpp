@@ -2,7 +2,7 @@
 /*
   Copyright(C) 2010 Tetsuro IKEDA
   Copyright(C) 2010-2013 Kentoku SHIBA
-  Copyright(C) 2011-2013 Kouhei Sutou <kou@clear-code.com>
+  Copyright(C) 2011-2017 Kouhei Sutou <kou@clear-code.com>
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -23,20 +23,21 @@
 #include <mrn_windows.hpp>
 #include <mrn_table.hpp>
 #include <mrn_macro.hpp>
+#include <mrn_current_thread.hpp>
 
 MRN_BEGIN_DECLS
 
-MRN_API my_bool last_insert_grn_id_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+MRN_API my_bool last_insert_grn_id_init(UDF_INIT *init, UDF_ARGS *args, char *message)
 {
   if (args->arg_count != 0) {
     strcpy(message, "last_insert_grn_id must not have arguments");
     return 1;
   }
-  initid->maybe_null = 0;
+  init->maybe_null = 0;
   return 0;
 }
 
-MRN_API longlong last_insert_grn_id(UDF_INIT *initid, UDF_ARGS *args, char *is_null, char *error)
+MRN_API longlong last_insert_grn_id(UDF_INIT *init, UDF_ARGS *args, char *is_null, char *error)
 {
   THD *thd = current_thd;
   st_mrn_slot_data *slot_data = mrn_get_slot_data(thd, false);
@@ -47,7 +48,7 @@ MRN_API longlong last_insert_grn_id(UDF_INIT *initid, UDF_ARGS *args, char *is_n
   return last_insert_record_id;
 }
 
-MRN_API void last_insert_grn_id_deinit(UDF_INIT *initid)
+MRN_API void last_insert_grn_id_deinit(UDF_INIT *init)
 {
 }
 

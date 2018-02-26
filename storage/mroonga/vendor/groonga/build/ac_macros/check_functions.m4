@@ -2,8 +2,6 @@
 
 AC_CHECK_FUNCS(_gmtime64_s)
 AC_CHECK_FUNCS(_localtime64_s)
-AC_CHECK_FUNCS(_stricmp)
-AC_CHECK_FUNCS(_strnicmp)
 AC_CHECK_FUNCS(_strtoui64)
 AC_CHECK_FUNCS(gmtime_r)
 AC_CHECK_FUNCS(localtime_r)

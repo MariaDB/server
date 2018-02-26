@@ -1466,11 +1466,9 @@ static double my_strtod_int(const char *s00, char **se, int *error, char *buf, s
     esign= 0;
     if (++s < end)
       switch (c= *s) {
-      case '-':
-        esign= 1;
-	/* fall through */
-      case '+':
-        c= *++s;
+      case '-': esign= 1;
+        /* fall through */
+      case '+': c= *++s;
       }
     if (s < end && c >= '0' && c <= '9')
     {

@@ -98,18 +98,23 @@ static struct my_option my_long_options[] =
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
-void cleanup_and_exit(int exit_code)
+static void cleanup_and_exit(int exit_code) __attribute__ ((noreturn));
+static void cleanup_and_exit(int exit_code)
 {
   my_end(0);
   exit(exit_code);
 }
 
-static void usage(my_bool version)
+static void version()
 {
-  printf("%s  Ver 1.6 for %s at %s\n",my_progname,SYSTEM_TYPE,
-	 MACHINE_TYPE);
-  if (version)
-    return;
+  printf("%s  Ver 1.6 for %s at %s\n",my_progname,SYSTEM_TYPE, MACHINE_TYPE);
+}
+
+
+static void usage() __attribute__ ((noreturn));
+static void usage()
+{
+  version();
   puts("This software comes with ABSOLUTELY NO WARRANTY. This is free software,\nand you are welcome to modify and redistribute it under the GPL license\n");
   puts("Prints all arguments that is give to some program using the default files");
   printf("Usage: %s [OPTIONS] [groups]\n", my_progname);
@@ -133,12 +138,13 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
       cleanup_and_exit(0);
     case 'I':
     case '?':
-      usage(0);
+      usage();
     case 'v':
       verbose++;
       break;
     case 'V':
-      usage(1);
+      version();
+      /* fall through */
     case '#':
       DBUG_PUSH(argument ? argument : default_dbug_option);
       break;
@@ -186,7 +192,7 @@ int main(int argc, char **argv)
     nargs+= array_elements(mysqld_groups);
 
   if (nargs < 2)
-    usage(0);
+    usage();
 
   load_default_groups=(char**) my_malloc(nargs*sizeof(char*), MYF(MY_WME));
   if (!load_default_groups)

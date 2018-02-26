@@ -253,16 +253,21 @@ toku_indexer_create_indexer(DB_ENV *env,
     indexer->set_error_callback    = toku_indexer_set_error_callback;
     indexer->set_poll_function     = toku_indexer_set_poll_function;
     indexer->build                 = build_index;
-    indexer->close                 = close_indexer;
-    indexer->abort                 = abort_indexer;
+    indexer->close = close_indexer;
+    indexer->abort = abort_indexer;
 
-    toku_mutex_init(&indexer->i->indexer_lock, NULL);
-    toku_mutex_init(&indexer->i->indexer_estimate_lock, NULL);
+    toku_mutex_init(
+        *indexer_i_indexer_lock_mutex_key, &indexer->i->indexer_lock, nullptr);
+    toku_mutex_init(*indexer_i_indexer_estimate_lock_mutex_key,
+                    &indexer->i->indexer_estimate_lock,
+                    nullptr);
     toku_init_dbt(&indexer->i->position_estimate);
 
     //
-    // create and close a dummy loader to get redirection going for the hot indexer
-    // This way, if the hot index aborts, but other transactions have references to the
+    // create and close a dummy loader to get redirection going for the hot
+    // indexer
+    // This way, if the hot index aborts, but other transactions have references
+    // to the
     // underlying FT, then those transactions can do dummy operations on the FT
     // while the DB gets redirected back to an empty dictionary
     //

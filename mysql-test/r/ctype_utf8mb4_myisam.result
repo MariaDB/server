@@ -1930,7 +1930,7 @@ Warnings:
 Warning	1300	Invalid utf8mb4 character string: 'FD'
 select convert(char(0xff,0x8f) using utf8mb4);
 convert(char(0xff,0x8f) using utf8mb4)
-NULL
+??
 Warnings:
 Warning	1300	Invalid utf8mb4 character string: '\xFF\x8F'
 select hex(convert(char(2557 using latin1) using utf8mb4));
@@ -2099,7 +2099,7 @@ Warnings:
 Warning	1300	Invalid utf8mb4 character string: 'FF'
 select hex(convert(0xFF using utf8mb4));
 hex(convert(0xFF using utf8mb4))
-NULL
+3F
 Warnings:
 Warning	1300	Invalid utf8mb4 character string: '\xFF'
 select hex(_utf8mb4 0x616263FF);

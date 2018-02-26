@@ -207,7 +207,7 @@ zmq_send_to_httpd(void *zmq_send_sock, void *data, size_t size)
   zmq_msg_t msg;
   if (!zmq_msg_init_size(&msg, size)) {
     memcpy((void *)zmq_msg_data(&msg), data, size);
-    if (zmq_msg_send(&msg, zmq_send_sock, 0)) {
+    if (zmq_msg_send(&msg, zmq_send_sock, 0) == -1) {
       print_error("zmq_send() error");
       return -1;
     }
@@ -481,7 +481,7 @@ recv_event_loop(msgpack_zone *mempool, void *zmq_sock, grn_ctx *ctx)
       if (zmq_msg_init(&msg)) {
         print_error("cannot init zmq message.");
       } else {
-        if (zmq_msg_recv(&msg, zmq_sock, 0)) {
+        if (zmq_msg_recv(&msg, zmq_sock, 0) == -1) {
           print_error("cannot recv zmq message.");
         } else {
           msgpack_object obj;

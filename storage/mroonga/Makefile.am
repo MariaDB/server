@@ -1,9 +1,9 @@
+ACLOCAL_AMFLAGS = -I m4 ${ACLOCAL_ARGS}
 AUTOMAKE_OPTIONS = 1.9.7
 
 LOCALES = ja
 
 AM_CPPFLAGS = $(MYSQL_INCLUDES) $(GROONGA_CFLAGS) -I$(top_srcdir)/lib
-ACLOCAL_AMFLAGS = $$ACLOCAL_ARGS
 
 include sources.am
 
@@ -49,7 +49,13 @@ tag:
 	cd $(top_srcdir) && \
 	  git tag v$(VERSION) -a -m 'Mroonga $(VERSION)!!!'
 
-update-latest-release: misc
+ensure-cutter-source-path:
+	@if test -z "$(CUTTER_SOURCE_PATH)"; then \
+	  echo "\$$(CUTTER_SOURCE_PATH) is missing"; \
+	  exit 1; \
+	fi
+
+update-latest-release: ensure-cutter-source-path
 	@if test -z "$(OLD_RELEASE)"; then	\
 	  echo "\$$(OLD_RELEASE) is missing";	\
 	  exit 1;				\
@@ -63,17 +69,40 @@ update-latest-release: misc
 	  exit 1;					\
 	fi
 	cd $(top_srcdir) &&				\
-	  misc/update-latest-release.rb			\
+	  "$(CUTTER_SOURCE_PATH)/misc/update-latest-release.rb"	\
 	  $(PACKAGE) $(OLD_RELEASE) $(OLD_RELEASE_DATE)	\
 	  $(VERSION) $(NEW_RELEASE_DATE)		\
 	  packages/rpm/centos/mariadb-mroonga.spec.in	\
+	  packages/rpm/centos/mariadb-10.1-mroonga.spec.in	\
+	  packages/rpm/centos/mariadb-10.2-mroonga.spec.in	\
 	  packages/rpm/centos/mysql55-mroonga.spec.in	\
 	  packages/rpm/centos/mysql56-community-mroonga.spec.in	\
-	  packages/debian/changelog			\
+	  packages/rpm/centos/mysql57-community-mroonga.spec.in	\
+	  packages/rpm/centos/percona-server-56-mroonga.spec.in	\
+	  packages/rpm/centos/percona-server-57-mroonga.spec.in	\
 	  doc/source/install/*.rst			\
 	  doc/locale/*/LC_MESSAGES/install.po		\
-	  $(MROONGA_GITHUB_COM_PATH)/index.html		\
-	  $(MROONGA_GITHUB_COM_PATH)/ja/index.html
+	  $(MROONGA_GITHUB_COM_PATH)/_config.yml
+	cd $(top_srcdir) &&				\
+	  "$(CUTTER_SOURCE_PATH)/misc/update-latest-release.rb"	\
+	  $(PACKAGE)-5.5 $(OLD_RELEASE) $(OLD_RELEASE_DATE)	\
+	  $(VERSION) $(NEW_RELEASE_DATE)		\
+	  packages/debian-5.5/changelog
+	cd $(top_srcdir) &&				\
+	  "$(CUTTER_SOURCE_PATH)/misc/update-latest-release.rb"	\
+	  $(PACKAGE)-5.6 $(OLD_RELEASE) $(OLD_RELEASE_DATE)	\
+	  $(VERSION) $(NEW_RELEASE_DATE)		\
+	  packages/debian-5.6/changelog
+	cd $(top_srcdir) &&				\
+	  "$(CUTTER_SOURCE_PATH)/misc/update-latest-release.rb"	\
+	  $(PACKAGE)-5.7 $(OLD_RELEASE) $(OLD_RELEASE_DATE)	\
+	  $(VERSION) $(NEW_RELEASE_DATE)		\
+	  packages/debian-5.7/changelog
+	cd $(top_srcdir) &&				\
+	  "$(CUTTER_SOURCE_PATH)/misc/update-latest-release.rb"	\
+	  $(PACKAGE)-mariadb-10.0 $(OLD_RELEASE) $(OLD_RELEASE_DATE)	\
+	  $(VERSION) $(NEW_RELEASE_DATE)		\
+	  packages/debian-mariadb-10.0/changelog
 
 update-po:
 	@for lang in $(LOCALES); do						\
@@ -144,10 +173,3 @@ upload-to-github:
 
 echo-cutter:
 	echo $(CUTTER)
-
-misc:
-	@if test -z "$(CUTTER_SOURCE_PATH)"; then \
-	  echo "\$$(CUTTER_SOURCE_PATH) is missing"; \
-	  exit 1; \
-	fi
-	ln -s "$(CUTTER_SOURCE_PATH)/misc" misc

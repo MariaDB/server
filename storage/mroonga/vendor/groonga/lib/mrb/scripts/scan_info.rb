@@ -30,6 +30,9 @@ module Groonga
                   search_index.scorer_args_expr,
                   search_index.scorer_args_expr_offset || 0)
       end
+      if data.start_position
+        self.start_position = data.start_position
+      end
     end
   end
 end
