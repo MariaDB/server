@@ -12,8 +12,7 @@ eval create table t (
 
 insert t values (1, 2);
 replace t values (1, 3);
-select *, row_end>TIMESTAMP'2038-01-01 00:00:00' as current from t for system_time all
-order by x;
+select *, current_row(row_end) as current from t for system_time all order by x;
 drop table t;
 
 --replace_result $sys_datatype_expl SYS_DATATYPE
@@ -27,8 +26,7 @@ eval create table t (
 
 insert t values (1, 2);
 replace t values (1, 3);
-select *, row_end>TIMESTAMP'2038-01-01 00:00:00' as current from t for system_time all
-order by x;
+select *, current_row(row_end) as current from t for system_time all order by x;
 drop table t;
 
 --source suite/versioning/common_finish.inc
