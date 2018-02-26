@@ -2095,7 +2095,7 @@ public:
   ulong start_time_sec_part;
   sql_mode_t sql_mode;
   bool auto_increment_field_not_null;
-  bool query_start_used, ignore, log_query, query_start_sec_part_used;
+  bool ignore, log_query, query_start_sec_part_used;
   bool stmt_depends_on_first_successful_insert_id_in_prev_stmt;
   ulonglong first_successful_insert_id_in_prev_stmt;
   ulonglong forced_insert_id;
@@ -2706,7 +2706,6 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
     goto err;
   memcpy(row->record, table->record[0], table->s->reclength);
   row->start_time=                thd->start_time;
-  row->query_start_used=          thd->query_start_used;
   row->start_time_sec_part=       thd->start_time_sec_part;
   row->query_start_sec_part_used= thd->query_start_sec_part_used;
   /*
@@ -3294,7 +3293,6 @@ bool Delayed_insert::handle_inserts(void)
       set_delayed_insert_blobs(table);
 
     thd.start_time=row->start_time;
-    thd.query_start_used=row->query_start_used;
     thd.start_time_sec_part=row->start_time_sec_part;
     thd.query_start_sec_part_used=row->query_start_sec_part_used;
     /*

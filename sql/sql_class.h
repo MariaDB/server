@@ -3116,7 +3116,7 @@ public:
     Reset to FALSE when we leave the sub-statement mode.
   */
   bool       is_fatal_sub_stmt_error;
-  bool	     query_start_used, rand_used, time_zone_used;
+  bool	     rand_used, time_zone_used;
   bool       query_start_sec_part_used;
   /* for IS NULL => = last_insert_id() fix in remove_eq_conds() */
   bool       substitute_null_with_insert_id;
@@ -3429,7 +3429,7 @@ public:
   const Type_handler *type_handler_for_date() const;
   bool timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
                          ulong sec_part, ulonglong fuzzydate);
-  inline my_time_t query_start() { query_start_used=1; return start_time; }
+  inline my_time_t query_start() { return start_time; }
   inline ulong query_start_sec_part()
   { query_start_sec_part_used=1; return start_time_sec_part; }
   MYSQL_TIME query_start_TIME();
@@ -3441,7 +3441,7 @@ public:
   } system_time;
 
   ulong systime_sec_part() { query_start_sec_part_used=1; return system_time.sec_part; }
-  my_time_t systime() { query_start_used=1; return system_time.sec; }
+  my_time_t systime() { return system_time.sec; }
 
 private:
   void set_system_time()
