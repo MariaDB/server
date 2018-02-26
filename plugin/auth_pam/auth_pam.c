@@ -19,6 +19,9 @@
 #include <mysql/plugin_auth.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <errno.h>
 #include <security/pam_appl.h>
 #include <security/pam_modules.h>
 
@@ -129,6 +132,7 @@ typedef const void** pam_get_item_3_arg;
 
 static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 {
+  MYSQL_PLUGIN_VIO_INFO vio_info;
   pam_handle_t *pamh = NULL;
   int status;
   const char *new_username= NULL;
@@ -150,6 +154,37 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   PAM_DEBUG((stderr, "PAM: pam_start(%s, %s)\n", service, info->user_name));
   DO( pam_start(service, info->user_name, &pam_start_arg, &pamh) );
 
+  vio->info(vio, &vio_info);
+  if (vio_info.protocol == MYSQL_VIO_TCP)
+  {
+    int err_code;
+    char ip_str[INET6_ADDRSTRLEN];
+    const char *ip_str_ptr;
+    struct sockaddr_storage addr;
+    socklen_t addr_length= sizeof (addr);
+    /* Get sockaddr by socked fd. */
+
+    err_code= getpeername(vio_info.socket,  (struct sockaddr*) &addr, &addr_length);
+
+    if (err_code)
+    {
+      PAM_DEBUG((stderr, "getpeername() gave error: %d", errno));
+    }
+    else
+    {
+      struct sockaddr_in *s4= (struct sockaddr_in *) &addr;
+      struct sockaddr_in6 *s6= (struct sockaddr_in6 *) &addr;
+      ip_str_ptr= inet_ntop(addr.ss_family,
+                            addr.ss_family==AF_INET ? (const void *) &s4->sin_addr : (const void *) &s6->sin6_addr,
+                            ip_str,
+                            sizeof(ip_str));
+      if (ip_str_ptr)
+      {
+        PAM_DEBUG((stderr, "PAM: pam_set_item(PAM_RHOST, %s)\n", ip_str_ptr));
+        DO( pam_set_item(pamh, PAM_RHOST, ip_str_ptr) );
+      }
+    }
+  }
   PAM_DEBUG((stderr, "PAM: pam_authenticate(0)\n"));
   DO( pam_authenticate (pamh, 0) );
 
@@ -220,7 +255,7 @@ maria_declare_plugin(pam)
   0x0100,
   NULL,
   vars,
-  "1.0",
+  "1.1.0",
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
