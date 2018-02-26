@@ -2594,7 +2594,7 @@ size_t Query_cache::init_cache()
 {
   size_t mem_bin_count, num, step;
   size_t mem_bin_size, prev_size, inc;
-  size_t additional_data_size, max_mem_bin_size, approx_additional_data_size;
+  size_t max_mem_bin_size, approx_additional_data_size;
   int align;
 
   DBUG_ENTER("Query_cache::init_cache");
