@@ -765,7 +765,6 @@ struct TABLE_SHARE
    */
 
   vers_sys_type_t versioned;
-  bool vtmd;
   uint16 row_start_field;
   uint16 row_end_field;
 
@@ -1525,12 +1524,6 @@ public:
   {
     DBUG_ASSERT(versioned() || !vers_write);
     return versioned(type) ? vers_write : false;
-  }
-
-  bool vers_vtmd() const
-  {
-    DBUG_ASSERT(s);
-    return s->versioned && s->vtmd;
   }
 
   Field *vers_start_field() const
@@ -2397,8 +2390,6 @@ struct TABLE_LIST
 
   /* System Versioning */
   vers_select_conds_t vers_conditions;
-  bool vers_vtmd_name(String &out) const;
-  bool vers_force_alias;
 
   /**
      @brief

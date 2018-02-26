@@ -2647,30 +2647,6 @@ bool partition_info::has_same_partitioning(partition_info *new_part_info)
 }
 
 
-bool partition_info::vers_trx_id_to_ts(THD* thd, Field* in_trx_id, Field_timestamp& out_ts)
-{
-  DBUG_ASSERT(table);
-  handlerton *hton= plugin_hton(table->s->db_plugin);
-  DBUG_ASSERT(hton);
-  ulonglong trx_id= in_trx_id->val_int();
-  TR_table trt(thd);
-  bool found= trt.query(trx_id);
-  if (!found)
-  {
-    push_warning_printf(thd,
-      Sql_condition::WARN_LEVEL_WARN,
-      WARN_VERS_TRX_MISSING,
-      ER_THD(thd, WARN_VERS_TRX_MISSING),
-      trx_id);
-    return true;
-  }
-  MYSQL_TIME ts;
-  trt[TR_table::FLD_COMMIT_TS]->get_date(&ts, 0);
-  out_ts.store_time_dec(&ts, 6);
-  return false;
-}
-
-
 void partition_info::print_debug(const char *str, uint *value)
 {
   DBUG_ENTER("print_debug");

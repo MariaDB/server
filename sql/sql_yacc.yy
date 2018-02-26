@@ -13832,21 +13832,13 @@ show_param:
             Lex->set_command(SQLCOM_SHOW_CREATE_DB, $3);
             Lex->name= $4;
           }
-        | CREATE TABLE_SYM table_ident opt_for_system_time_clause
+        | CREATE TABLE_SYM table_ident
           {
             LEX *lex= Lex;
             lex->sql_command = SQLCOM_SHOW_CREATE;
             if (!lex->select_lex.add_table_to_list(thd, $3, NULL,0))
               MYSQL_YYABORT;
             lex->create_info.storage_media= HA_SM_DEFAULT;
-
-            if (lex->vers_conditions.type != SYSTEM_TIME_UNSPECIFIED &&
-                lex->vers_conditions.type != SYSTEM_TIME_AS_OF)
-            {
-              my_yyabort_error((ER_VERS_RANGE_PROHIBITED, MYF(0)));
-            }
-            if ($4)
-              Lex->last_table()->vers_conditions= Lex->vers_conditions;
           }
         | CREATE VIEW_SYM table_ident
           {

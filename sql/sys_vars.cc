@@ -396,13 +396,11 @@ static Sys_var_vers_asof Sys_vers_asof_timestamp(
        SESSION_VAR(vers_asof_timestamp.type), NO_CMD_LINE,
        Sys_var_vers_asof::asof_keywords, DEFAULT(SYSTEM_TIME_UNSPECIFIED));
 
-static const char *vers_alter_history_keywords[]= {"ERROR", "KEEP",/* "SURVIVE", "DROP",*/ NULL};
+static const char *vers_alter_history_keywords[]= {"ERROR", "KEEP", NullS};
 static Sys_var_enum Sys_vers_alter_history(
        "system_versioning_alter_history", "Versioning ALTER TABLE mode. "
        "ERROR: Fail ALTER with error; " /* TODO: fail only when history non-empty */
-       "KEEP: Keep historical system rows and subject them to ALTER; "
-       /*"SURVIVE: Keep historical system rows intact; "
-       "DROP: Drop historical system rows while processing ALTER"*/,
+       "KEEP: Keep historical system rows and subject them to ALTER; ",
        SESSION_VAR(vers_alter_history), CMD_LINE(REQUIRED_ARG),
        vers_alter_history_keywords, DEFAULT(VERS_ALTER_HISTORY_ERROR));
 

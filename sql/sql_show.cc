@@ -62,7 +62,6 @@
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
 #endif
-#include "vtmd.h"
 #include "transaction.h"
 
 enum enum_i_s_events_fields
@@ -1369,14 +1368,6 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   TABLE_LIST archive;
-  bool versioned= table_list->vers_conditions;
-  if (versioned)
-  {
-    DBUG_ASSERT(table_list->vers_conditions == SYSTEM_TIME_AS_OF);
-    VTMD_table vtmd(*table_list);
-    if (vtmd.setup_select(thd))
-      goto exit;
-  }
 
   if (mysqld_show_create_get_fields(thd, table_list, &field_list, &buffer))
     goto exit;
@@ -1418,13 +1409,6 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   my_eof(thd);
 
 exit:
-  if (versioned)
-  {
-    /* If commit fails, we should be able to reset the OK status. */
-    thd->get_stmt_da()->set_overwrite_status(true);
-    trans_commit_stmt(thd);
-    thd->get_stmt_da()->set_overwrite_status(false);
-  }
   close_thread_tables(thd);
   /* Release any metadata locks taken during SHOW CREATE. */
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
@@ -2150,7 +2134,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   }
   else
   {
-    if (lower_case_table_names == 2 || table_list->vers_force_alias)
+    if (lower_case_table_names == 2)
     {
       alias.str= table->alias.c_ptr();
       alias.length= table->alias.length();
@@ -4380,7 +4364,7 @@ int schema_tables_add(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
     @retval       2           Not fatal error; Safe to ignore this file list
 */
 
-int
+static int
 make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
                      LEX *lex, LOOKUP_FIELD_VALUES *lookup_field_vals,
                      LEX_CSTRING *db_name)
@@ -5032,60 +5016,6 @@ public:
   }
 };
 
-static bool get_all_archive_tables(THD *thd,
-                                   Dynamic_array<String> &all_archive_tables)
-{
-  if (thd->variables.vers_alter_history != VERS_ALTER_HISTORY_SURVIVE)
-    return false;
-
-  Dynamic_array<LEX_CSTRING *> all_db;
-  LOOKUP_FIELD_VALUES lookup_field_values= {
-    {C_STRING_WITH_LEN("%")}, {NULL, 0}, true, false};
-  if (make_db_list(thd, &all_db, &lookup_field_values))
-    return true;
-
-  LEX_STRING information_schema= {C_STRING_WITH_LEN("information_schema")};
-  for (size_t i= 0; i < all_db.elements(); i++)
-  {
-    LEX_CSTRING db= *all_db.at(i);
-    if (db.length == information_schema.length &&
-        !memcmp(db.str, information_schema.str, db.length))
-    {
-      all_db.del(i);
-      break;
-    }
-  }
-
-  for (size_t i= 0; i < all_db.elements(); i++)
-  {
-    LEX_CSTRING db_name= *all_db.at(i);
-    Dynamic_array<String> archive_tables;
-    if (VTMD_table::get_archive_tables(thd, db_name.str, db_name.length,
-                                       archive_tables))
-      return true;
-    for (size_t i= 0; i < archive_tables.elements(); i++)
-      if (all_archive_tables.push(archive_tables.at(i)))
-        return true;
-  }
-
-  return false;
-}
-
-static bool is_archive_table(const Dynamic_array<String> &all_archive_tables,
-                             const LEX_CSTRING candidate)
-{
-  for (size_t i= 0; i < all_archive_tables.elements(); i++)
-  {
-    const String &archive_table= all_archive_tables.at(i);
-    if (candidate.length == archive_table.length() &&
-        !memcmp(candidate.str, archive_table.ptr(), candidate.length))
-    {
-      return true;
-    }
-  }
-  return false;
-}
-
 /**
   @brief          Fill I_S tables whose data are retrieved
                   from frm files and storage engine
@@ -5127,7 +5057,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #endif
   uint table_open_method= tables->table_open_method;
   bool can_deadlock;
-  Dynamic_array<String> all_archive_tables;
   MEM_ROOT tmp_mem_root;
   DBUG_ENTER("get_all_tables");
 
@@ -5187,9 +5116,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   if (make_db_list(thd, &db_names, &plan->lookup_field_vals))
     goto err;
 
-  if (get_all_archive_tables(thd, all_archive_tables))
-    goto err;
-
   /* Use tmp_mem_root to allocate data for opened tables */
   init_alloc_root(&tmp_mem_root, "get_all_tables", SHOW_ALLOC_BLOCK_SIZE,
                   SHOW_ALLOC_BLOCK_SIZE, MY_THREAD_SPECIFIC);
@@ -5218,9 +5144,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
       {
         LEX_CSTRING *table_name= table_names.at(i);
         DBUG_ASSERT(table_name->length <= NAME_LEN);
-
-        if (is_archive_table(all_archive_tables, *table_name))
-          continue;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
         if (!(thd->col_access & TABLE_ACLS))

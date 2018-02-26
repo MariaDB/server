@@ -111,7 +111,6 @@
 
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
-#include "vtmd.h"
 
 static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                               Parser_state *parser_state,
@@ -3181,11 +3180,6 @@ bool Sql_cmd_call::execute(THD *thd)
 
     if (do_execute_sp(thd, sp))
       return true;
-
-    if (sp->sp_cache_version() == 0)
-    {
-      sp_cache_flush(thd->sp_proc_cache, sp);
-    }
 
     /*
       Disable slow log for the above call(), if calls are disabled.
@@ -6457,21 +6451,6 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
       param->select_limit=
         new (thd->mem_root) Item_int(thd,
                                      (ulonglong) thd->variables.select_limit);
-  }
-
-  if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
-  {
-    for (TABLE_LIST *table= all_tables; table; table= table->next_local)
-    {
-      if (table->vers_conditions)
-      {
-        VTMD_exists vtmd(*table);
-        if (vtmd.check_exists(thd))
-          return 1;
-        if (vtmd.exists && vtmd.setup_select(thd))
-          return 1;
-      }
-    }
   }
 
   if (!(res= open_and_lock_tables(thd, all_tables, TRUE, 0)))

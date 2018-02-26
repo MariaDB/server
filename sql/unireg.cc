@@ -287,11 +287,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
     extra2_size+= 1 + 1 + 2 * sizeof(uint16);
   }
 
-  if (create_info->vtmd())
-  {
-    extra2_size+= 1 + 1 + 1;
-  }
-
   bool has_extra2_field_flags_= has_extra2_field_flags(create_fields);
   if (has_extra2_field_flags_)
   {
@@ -362,13 +357,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
     pos+= sizeof(uint16);
     int2store(pos, vers_get_field(create_info, create_fields, ROW_END));
     pos+= sizeof(uint16);
-  }
-
-  if (create_info->vtmd())
-  {
-    *pos++= EXTRA2_VTMD;
-    *pos++= 1;
-    *pos++= 1;
   }
 
   if (has_extra2_field_flags_)

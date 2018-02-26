@@ -7844,8 +7844,8 @@ WARN_VERS_PARAMETERS
 ER_VERS_DROP_PARTITION_INTERVAL
         eng "Can only drop oldest partitions when rotating by INTERVAL"
 
-WARN_VERS_TRX_MISSING
-        eng "VTQ missing transaction ID %lu"
+ER_UNUSED_25
+        eng "You should never see it"
 
 WARN_VERS_PART_NON_HISTORICAL
         eng "Partition %`s contains non-historical data"
@@ -7859,8 +7859,8 @@ ER_VERS_ALTER_ENGINE_PROHIBITED
 ER_VERS_RANGE_PROHIBITED
         eng "SYSTEM_TIME range selector is prohibited"
 
-ER_VERS_VTMD_ERROR
-        eng "VTMD error: %s"
+ER_UNUSED_26
+        eng "You should never see it"
 
 ER_VERS_TABLE_MUST_HAVE_COLUMNS
         eng "Table %`s must have at least one versioned column"
@@ -7889,8 +7889,8 @@ ER_VERS_ALTER_SYSTEM_FIELD
 ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION
         eng "Can not DROP SYSTEM VERSIONING for table %`s partitioned BY SYSTEM_TIME"
 
-ER_NOT_LOG_TABLE
-        eng "Table %`s.%`s is not a log table"
+ER_UNUSED_27
+        eng "You should never see it"
 
 ER_VERS_TRT_IS_DISABLED
         eng "Transaction registry is disabled"

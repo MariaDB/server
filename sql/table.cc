@@ -1198,8 +1198,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint ext_key_parts= 0;
   plugin_ref se_plugin= 0;
   const uchar *system_period= 0;
-  bool vtmd_used= false;
-  share->vtmd= false;
   bool vers_can_native= false;
   const uchar *extra2_field_flags= 0;
   size_t extra2_field_flags_length= 0;
@@ -1301,17 +1299,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (system_period || length != 2 * sizeof(uint16))
           goto err;
         system_period = extra2;
-        break;
-      case EXTRA2_VTMD:
-        if (vtmd_used)
-          goto err;
-        share->vtmd= *extra2;
-        if (share->vtmd)
-        {
-          share->table_category= TABLE_CATEGORY_LOG;
-          share->no_replicate= true;
-        }
-        vtmd_used= true;
         break;
       case EXTRA2_FIELD_FLAGS:
         if (extra2_field_flags)
@@ -7784,28 +7771,6 @@ void TABLE::vers_update_end()
                                         in_use->systime_sec_part()))
     DBUG_ASSERT(0);
 }
-
-
-bool TABLE_LIST::vers_vtmd_name(String& out) const
-{
-  static const char *vtmd_suffix= "_vtmd";
-  static const size_t vtmd_suffix_len= strlen(vtmd_suffix);
-  if (table_name.length > NAME_CHAR_LEN - vtmd_suffix_len)
-  {
-    my_printf_error(ER_VERS_VTMD_ERROR, "Table name is longer than %d characters", MYF(0),
-                    int(NAME_CHAR_LEN - vtmd_suffix_len));
-    return true;
-  }
-  out.set(table_name.str, table_name.length, table_alias_charset);
-  if (out.append(vtmd_suffix, vtmd_suffix_len + 1))
-  {
-    my_message(ER_VERS_VTMD_ERROR, "Failed allocate VTMD name", MYF(0));
-    return true;
-  }
-  out.length(out.length() - 1);
-  return false;
-}
-
 
 /**
    Reset markers that fields are being updated

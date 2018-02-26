@@ -41,18 +41,6 @@ public:
       ALTER_COLUMN_ORDER);
   }
 
-  bool partition_modifying() const
-  {
-    return partition_flags & (
-      ALTER_PARTITION_DROP |
-      ALTER_PARTITION_COALESCE |
-      ALTER_PARTITION_REORGANIZE |
-      ALTER_PARTITION_REMOVE |
-      ALTER_PARTITION_TABLE_REORG |
-      ALTER_PARTITION_EXCHANGE |
-      ALTER_PARTITION_TRUNCATE);
-  }
-
   /**
      The different values of the ALGORITHM clause.
      Describes which algorithm to use when altering the table.

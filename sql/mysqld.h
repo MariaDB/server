@@ -202,9 +202,7 @@ struct vers_asof_timestamp_t
 enum vers_alter_history_enum
 {
   VERS_ALTER_HISTORY_ERROR= 0,
-  VERS_ALTER_HISTORY_KEEP,
-  VERS_ALTER_HISTORY_SURVIVE,
-  VERS_ALTER_HISTORY_DROP
+  VERS_ALTER_HISTORY_KEEP
 };
 /* System Versioning end */
 
