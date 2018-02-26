@@ -61,6 +61,10 @@ begin
 end~~
 delimiter ;~~
 
+create function check_result (cond boolean)
+    returns char(50) deterministic
+    return if(cond = 1, '[CORRECT]', '[WRONG]');
+
 let $default_engine= `select @@default_storage_engine`;
 let $non_default_engine= `select if(@@default_storage_engine = 'InnoDB', 'MyISAM', 'InnoDB')`;
 let $sys_datatype_expl= timestamp(6);
@@ -69,12 +73,24 @@ let $sys_datatype_max= TIMESTAMP'2038-01-19 03:14:07.999999';
 
 if ($MTR_COMBINATION_MYISAM)
 {
+  set @MTR_COMBINATION_MYISAM= 1;
   --let $MTR_COMBINATION_TIMESTAMP= 1
+}
+if ($MTR_COMBINATION_TIMESTAMP)
+{
+  set @MTR_COMBINATION_TIMESTAMP= 1;
 }
 if ($MTR_COMBINATION_TRX_ID)
 {
+  set @MTR_COMBINATION_TRX_ID= 1;
   let $sys_datatype_expl= bigint(20) unsigned;
   let $sys_datatype_expl_uc= BIGINT(20) UNSIGNED;
   let $sys_datatype_max= 18446744073709551615;
 }
+
+eval create or replace function current_row(sys_trx_end $sys_datatype_expl)
+returns int
+deterministic
+  return sys_trx_end = $sys_datatype_max;
+
 --enable_query_log
