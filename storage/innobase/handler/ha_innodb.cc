@@ -9163,6 +9163,7 @@ ha_innobase::delete_row(
 	/* This is a delete */
 	m_prebuilt->upd_node->is_delete = table->versioned_write(VERS_TRX_ID)
 		&& table->vers_end_field()->is_max()
+		&& trx->id != table->vers_start_id()
 		? VERSIONED_DELETE
 		: PLAIN_DELETE;
 
