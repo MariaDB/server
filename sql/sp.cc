@@ -2962,7 +2962,7 @@ Sp_handler::sp_load_for_information_schema(THD *thd, TABLE *proc_table,
   defstr.set_charset(creation_ctx->get_client_cs());
   if (show_create_sp(thd, &defstr,
                      sp_name_obj.m_db, sp_name_obj.m_name,
-                     params, returns, empty_body_lex_cstring(),
+                     params, returns, empty_body_lex_cstring(sql_mode),
                      Sp_chistics(), definer, DDL_options(), sql_mode))
     return 0;
 
@@ -2976,3 +2976,18 @@ Sp_handler::sp_load_for_information_schema(THD *thd, TABLE *proc_table,
   return sp;
 }
 
+
+LEX_CSTRING Sp_handler_procedure::empty_body_lex_cstring(sql_mode_t mode) const
+{
+  static LEX_CSTRING m_empty_body_std= {C_STRING_WITH_LEN("BEGIN END")};
+  static LEX_CSTRING m_empty_body_ora= {C_STRING_WITH_LEN("AS BEGIN NULL; END")};
+  return mode & MODE_ORACLE ? m_empty_body_ora : m_empty_body_std;
+}
+
+
+LEX_CSTRING Sp_handler_function::empty_body_lex_cstring(sql_mode_t mode) const
+{
+  static LEX_CSTRING m_empty_body_std= {C_STRING_WITH_LEN("RETURN NULL")};
+  static LEX_CSTRING m_empty_body_ora= {C_STRING_WITH_LEN("AS BEGIN RETURN NULL; END")};
+  return mode & MODE_ORACLE ? m_empty_body_ora : m_empty_body_std;
+}

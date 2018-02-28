@@ -146,7 +146,7 @@ public:
   }
   virtual stored_procedure_type type() const= 0;
   virtual LEX_CSTRING type_lex_cstring() const= 0;
-  virtual LEX_CSTRING empty_body_lex_cstring() const
+  virtual LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const
   {
     static LEX_CSTRING m_empty_body= {C_STRING_WITH_LEN("???")};
     DBUG_ASSERT(0);
@@ -244,11 +244,7 @@ public:
     static LEX_CSTRING m_type_str= {C_STRING_WITH_LEN("PROCEDURE")};
     return m_type_str;
   }
-  LEX_CSTRING empty_body_lex_cstring() const
-  {
-    static LEX_CSTRING m_empty_body= {C_STRING_WITH_LEN("BEGIN END")};
-    return m_empty_body;
-  }
+  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const;
   const char *show_create_routine_col1_caption() const
   {
     return "Procedure";
@@ -298,11 +294,7 @@ public:
     static LEX_CSTRING m_type_str= {C_STRING_WITH_LEN("FUNCTION")};
     return m_type_str;
   }
-  LEX_CSTRING empty_body_lex_cstring() const
-  {
-    static LEX_CSTRING m_empty_body= {C_STRING_WITH_LEN("RETURN NULL")};
-    return m_empty_body;
-  }
+  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const;
   const char *show_create_routine_col1_caption() const
   {
     return "Function";
@@ -371,7 +363,7 @@ public:
     static LEX_CSTRING m_type_str= {C_STRING_WITH_LEN("PACKAGE")};
     return m_type_str;
   }
-  LEX_CSTRING empty_body_lex_cstring() const
+  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const
   {
     static LEX_CSTRING m_empty_body= {C_STRING_WITH_LEN("BEGIN END")};
     return m_empty_body;
@@ -404,7 +396,7 @@ public:
     static LEX_CSTRING m_type_str= {C_STRING_WITH_LEN("PACKAGE BODY")};
     return m_type_str;
   }
-  LEX_CSTRING empty_body_lex_cstring() const
+  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const
   {
     static LEX_CSTRING m_empty_body= {C_STRING_WITH_LEN("BEGIN END")};
     return m_empty_body;
