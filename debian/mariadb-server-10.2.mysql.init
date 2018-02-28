@@ -143,7 +143,6 @@ case "${1:-''}" in
     shutdown_out=`$MYADMIN shutdown 2>&1`; r=$?
     set -e
     if [ "$r" -ne 0 ]; then
-      log_end_msg 1
       [ "$VERBOSE" != "no" ] && log_failure_msg "Error: $shutdown_out"
       log_daemon_msg "Killing MariaDB database server by signal" "mysqld"
       killall -15 mysqld
