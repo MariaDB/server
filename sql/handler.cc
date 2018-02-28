@@ -7128,7 +7128,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     return true;
   }
 
-  if (vers_info.check_with_conditions(create_table.table_name.str))
+  if (vers_info.check_conditions(create_table.table_name.str, create_table.db))
     return true;
 
   bool native= vers_native(thd);
@@ -7241,7 +7241,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
 
   if (alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING)
   {
-    if (check_with_conditions(table_name))
+    if (check_conditions(table_name, share->db))
       return true;
     bool native= create_info->vers_native(thd);
     if (check_sys_fields(table_name, alter_info, native))
@@ -7318,7 +7318,8 @@ bool Vers_parse_info::need_check(const Alter_info *alter_info) const
          alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING || *this;
 }
 
-bool Vers_parse_info::check_with_conditions(const char *table_name) const
+bool Vers_parse_info::check_conditions(const char *table_name,
+                                       const LString_fs db) const
 {
   if (!as_row.start || !as_row.end)
   {
@@ -7339,6 +7340,11 @@ bool Vers_parse_info::check_with_conditions(const char *table_name) const
     return true;
   }
 
+  if (db == MYSQL_SCHEMA_NAME)
+  {
+    my_error(ER_VERS_DB_PROHIBITED, MYF(0), MYSQL_SCHEMA_NAME.str);
+    return true;
+  }
   return false;
 }
 

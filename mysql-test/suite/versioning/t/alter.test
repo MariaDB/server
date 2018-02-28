@@ -439,5 +439,13 @@ alter table t drop column sys_trx_end, drop period for system_time;
 --error ER_VERS_ALREADY_VERSIONED
 alter table t add period for system_time(sys_trx_start, sys_trx_end);
 
+--echo # MDEV-14790 System versioning for system tables does not work as expected
+use mysql;
+--error ER_VERS_DB_PROHIBITED
+create or replace table t (x int) with system versioning;
+--error ER_VERS_DB_PROHIBITED
+alter table user add system versioning;
+use test;
+
 drop database test;
 create database test;
