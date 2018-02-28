@@ -178,6 +178,7 @@ int Explain_query::send_explain(THD *thd)
   else
     result->send_eof();
 
+  delete result;
   return res;
 }
 
