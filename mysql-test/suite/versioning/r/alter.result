@@ -517,5 +517,12 @@ alter table t drop column sys_trx_end, drop period for system_time;
 ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN `row_start`, DROP COLUMN `row_end`'
 alter table t add period for system_time(sys_trx_start, sys_trx_end);
 ERROR HY000: Table `t` is already system-versioned
+# MDEV-14790 System versioning for system tables does not work as expected
+use mysql;
+create or replace table t (x int) with system versioning;
+ERROR HY000: System versioning prohibited in `mysql` database
+alter table user add system versioning;
+ERROR HY000: System versioning prohibited in `mysql` database
+use test;
 drop database test;
 create database test;
