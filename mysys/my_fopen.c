@@ -320,6 +320,8 @@ FILE *my_fdopen(File Filedes, const char *name, int Flags, myf MyFlags)
     r+ == O_RDWR  
     w+ == O_RDWR|O_TRUNC|O_CREAT  
     a+ == O_RDWR|O_APPEND|O_CREAT
+    b  == FILE_BINARY
+    e  == O_CLOEXEC
 */
 
 static void make_ftype(register char * to, register int flag)
