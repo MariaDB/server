@@ -181,6 +181,7 @@
 #cmakedefine HAVE_MEMCPY 1
 #cmakedefine HAVE_MEMMOVE 1
 #cmakedefine HAVE_MKSTEMP 1
+#cmakedefine HAVE_MKOSTEMP 1
 #cmakedefine HAVE_MLOCKALL 1
 #cmakedefine HAVE_MMAP 1
 #cmakedefine HAVE_MMAP64 1
