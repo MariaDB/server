@@ -22,7 +22,9 @@
 #include <paths.h>
 #endif
 
-
+#ifdef HAVE_MKOSTEMP
+#define mkstemp(A) mkostemp(A, O_CLOEXEC)
+#endif
 
 /*
   @brief
