@@ -365,6 +365,12 @@ static int get_default_values()
     }
     /* Now open the file and read the defaults we want. */
     file= fopen(defaults_file, "r");
+    if (file == NULL)
+    {
+      fprintf(stderr, "ERROR: failed to open file %s: %s.\n", defaults_file,
+              strerror(errno));
+      goto exit;
+    }
     while (fgets(line, FN_REFLEN, file) != NULL)
     {
       char *value= 0;
