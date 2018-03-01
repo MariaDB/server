@@ -1,4 +1,4 @@
-#!/bin/bash -ue
+#!/bin/sh -ue
 
 # Copyright (C) 2010-2014 Codership Oy
 #

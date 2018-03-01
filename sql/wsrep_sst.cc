@@ -1281,13 +1281,12 @@ static int sst_donate_other (const char*   method,
                  WSREP_SST_OPT_SOCKET" '%s' "
                  WSREP_SST_OPT_DATA" '%s' "
                  " %s "
-                 WSREP_SST_OPT_CONF_SUFFIX" '%s' "
                  " %s '%s' "
                  WSREP_SST_OPT_GTID" '%s:%lld' "
                  WSREP_SST_OPT_GTID_DOMAIN_ID" '%d'"
                  "%s",
                  method, addr, mysqld_unix_port, mysql_real_data_home,
-                 wsrep_defaults_file, wsrep_defaults_group_suffix,
+                 wsrep_defaults_file,
                  binlog_opt, binlog_opt_val,
                  uuid, (long long) seqno, wsrep_gtid_domain_id,
                  bypass ? " " WSREP_SST_OPT_BYPASS : "");
