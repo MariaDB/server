@@ -3854,7 +3854,7 @@ static Sys_var_mybool Sys_wsrep_on (
        "wsrep_on", "To enable wsrep replication ",
        SESSION_VAR(wsrep_on), 
        CMD_LINE(OPT_ARG), DEFAULT(TRUE), 
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_has_super),
        ON_UPDATE(wsrep_on_update));
 
 static Sys_var_charptr Sys_wsrep_start_position (
