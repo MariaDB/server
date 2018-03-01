@@ -1184,10 +1184,10 @@ try_again:
 	}
 
 	if (create_mode == OS_FILE_CREATE) {
-		file = open(name, create_flag, S_IRUSR | S_IWUSR
+		file = open(name, create_flag | O_CLOEXEC, S_IRUSR | S_IWUSR
 			    | S_IRGRP | S_IWGRP);
 	} else {
-		file = open(name, create_flag);
+		file = open(name, create_flag | O_CLOEXEC);
 	}
 
 	if (file == -1) {
@@ -1631,7 +1631,7 @@ try_again:
 	}
 #endif /* O_SYNC */
 
-	file = open(name, create_flag, os_innodb_umask);
+	file = open(name, create_flag | O_CLOEXEC, os_innodb_umask);
 
 	if (file == -1) {
 		*success = FALSE;
