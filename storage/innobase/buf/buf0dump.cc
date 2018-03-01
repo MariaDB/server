@@ -275,7 +275,7 @@ buf_dump(
 	buf_dump_status(STATUS_INFO, "Dumping buffer pool(s) to %s",
 			full_filename);
 
-	f = fopen(tmp_filename, "w");
+	f = fopen(tmp_filename, "w" STR_O_CLOEXEC);
 	if (f == NULL) {
 		buf_dump_status(STATUS_ERR,
 				"Cannot open '%s' for writing: %s",
@@ -516,7 +516,7 @@ buf_load()
 	buf_load_status(STATUS_INFO,
 			"Loading buffer pool(s) from %s", full_filename);
 
-	f = fopen(full_filename, "r");
+	f = fopen(full_filename, "r" STR_O_CLOEXEC);
 	if (f == NULL) {
 		buf_load_status(STATUS_INFO,
 				"Cannot open '%s' for reading: %s",

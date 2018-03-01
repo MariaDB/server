@@ -1043,7 +1043,7 @@ char*
 RemoteDatafile::read_link_file(
 	const char*	link_filepath)
 {
-	FILE* file = fopen(link_filepath, "r+b");
+	FILE* file = fopen(link_filepath, "r+b" STR_O_CLOEXEC);
 	if (file == NULL) {
 		return(NULL);
 	}
