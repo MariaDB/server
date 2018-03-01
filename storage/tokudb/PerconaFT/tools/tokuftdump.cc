@@ -1103,8 +1103,13 @@ static void run_iteractive_loop(int fd, FT ft, CACHEFILE cf) {
             uint64_t offset = getuint64(fields[1]);
             uint64_t size = getuint64(fields[2]);
             FILE *outfp = stdout;
-            if (nfields >= 4)
+            if (nfields >= 4) {
                 outfp = fopen(fields[3], "w");
+            	if (!outfp) {
+                	fprintf(stderr, "Can not open file %s: %s\n", fields[3], strerror(errno));
+                	continue;
+		}
+            }
             dump_file(fd, offset, size, outfp);
         } else if (strcmp(fields[0], "setfile") == 0 && nfields == 3) {
             uint64_t offset = getuint64(fields[1]);
