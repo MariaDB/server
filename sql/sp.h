@@ -122,6 +122,16 @@ public:
   static const Sp_handler *handler(enum enum_sql_command cmd);
   static const Sp_handler *handler(stored_procedure_type type);
   static const Sp_handler *handler(MDL_key::enum_mdl_namespace ns);
+  /*
+    Return a handler only those SP objects that store
+    definitions in the mysql.proc system table
+  */
+  static const Sp_handler *handler_mysql_proc(stored_procedure_type type)
+  {
+    const Sp_handler *sph= handler(type);
+    return sph ? sph->sp_handler_mysql_proc() : NULL;
+  }
+
   static bool eq_routine_name(const LEX_CSTRING &name1,
                               const LEX_CSTRING &name2)
   {
@@ -146,13 +156,14 @@ public:
   }
   virtual stored_procedure_type type() const= 0;
   virtual LEX_CSTRING type_lex_cstring() const= 0;
-  virtual LEX_CSTRING empty_body_lex_cstring() const
+  virtual LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const
   {
     static LEX_CSTRING m_empty_body= {STRING_WITH_LEN("???")};
     DBUG_ASSERT(0);
     return m_empty_body;
   }
   virtual MDL_key::enum_mdl_namespace get_mdl_type() const= 0;
+  virtual const Sp_handler *sp_handler_mysql_proc() const { return this; }
   virtual sp_cache **get_cache(THD *) const { return NULL; }
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   virtual HASH *get_priv_hash() const { return NULL; }
@@ -244,11 +255,7 @@ public:
     static LEX_CSTRING m_type_str= { STRING_WITH_LEN("PROCEDURE")};
     return m_type_str;
   }
-  LEX_CSTRING empty_body_lex_cstring() const
-  {
-    static LEX_CSTRING m_empty_body= { STRING_WITH_LEN("BEGIN END")};
-    return m_empty_body;
-  }
+  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const;
   const char *show_create_routine_col1_caption() const
   {
     return "Procedure";
@@ -298,11 +305,7 @@ public:
     static LEX_CSTRING m_type_str= { STRING_WITH_LEN("FUNCTION")};
     return m_type_str;
   }
-  LEX_CSTRING empty_body_lex_cstring() const
-  {
-    static LEX_CSTRING m_empty_body= { STRING_WITH_LEN("RETURN NULL")};
-    return m_empty_body;
-  }
+  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const;
   const char *show_create_routine_col1_caption() const
   {
     return "Function";
@@ -371,7 +374,7 @@ public:
     static LEX_CSTRING m_type_str= {C_STRING_WITH_LEN("PACKAGE")};
     return m_type_str;
   }
-  LEX_CSTRING empty_body_lex_cstring() const
+  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const
   {
     static LEX_CSTRING m_empty_body= {C_STRING_WITH_LEN("BEGIN END")};
     return m_empty_body;
@@ -404,7 +407,7 @@ public:
     static LEX_CSTRING m_type_str= {C_STRING_WITH_LEN("PACKAGE BODY")};
     return m_type_str;
   }
-  LEX_CSTRING empty_body_lex_cstring() const
+  LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const
   {
     static LEX_CSTRING m_empty_body= {C_STRING_WITH_LEN("BEGIN END")};
     return m_empty_body;
@@ -442,6 +445,7 @@ public:
     DBUG_ASSERT(0);
     return MDL_key::TRIGGER;
   }
+  const Sp_handler *sp_handler_mysql_proc() const { return NULL; }
 };
 
 

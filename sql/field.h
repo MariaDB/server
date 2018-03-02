@@ -4429,6 +4429,12 @@ public:
   bool is_column_type_ref() const { return m_column_type_ref != 0; }
   bool is_table_rowtype_ref() const { return m_table_rowtype_ref != 0; }
   bool is_cursor_rowtype_ref() const { return m_cursor_rowtype_ref; }
+  bool is_explicit_data_type() const
+  {
+    return !is_column_type_ref() &&
+           !is_table_rowtype_ref() &&
+           !is_cursor_rowtype_ref();
+  }
   Qualified_column_ident *column_type_ref() const
   {
     return m_column_type_ref;

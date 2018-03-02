@@ -58,6 +58,7 @@
 #include "sp_head.h"
 #include "sp_rcontext.h"
 #include "sp_cache.h"
+#include "sql_show.h"                           // append_identifier
 #include "transaction.h"
 #include "sql_select.h" /* declares create_tmp_table() */
 #include "debug_sync.h"
@@ -7775,6 +7776,22 @@ void Database_qualified_name::copy(MEM_ROOT *mem_root,
   m_db.str= strmake_root(mem_root, db.str, db.length);
   m_name.length= name.length;
   m_name.str= strmake_root(mem_root, name.str, name.length);
+}
+
+
+bool Table_ident::append_to(THD *thd, String *str) const
+{
+  return (db.length &&
+          (append_identifier(thd, str, db.str, db.length) ||
+           str->append('.'))) ||
+         append_identifier(thd, str, table.str, table.length);
+}
+
+
+bool Qualified_column_ident::append_to(THD *thd, String *str) const
+{
+  return Table_ident::append_to(thd, str) || str->append('.') ||
+         append_identifier(thd, str, m_column.str, m_column.length);
 }
 
 

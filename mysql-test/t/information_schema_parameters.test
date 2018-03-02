@@ -249,3 +249,28 @@ WHERE SPECIFIC_SCHEMA = 'i_s_parameters_test' AND SPECIFIC_NAME = 'test_func5';
 
 # Cleanup
 DROP DATABASE i_s_parameters_test;
+USE test;
+
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-15416 Crash when reading I_S.PARAMETERS
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(a0 TYPE OF t1.a,
+                    a1 TYPE OF test.t1.a,
+                    b0 ROW TYPE OF t1,
+                    b1 ROW TYPE OF test.t1,
+                    c ROW(a INT,b DOUBLE))
+BEGIN
+END;
+$$
+DELIMITER ;$$
+--vertical_results
+SELECT *, '--------' FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME = 'p1';
+--horizontal_results
+DROP PROCEDURE p1;

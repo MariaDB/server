@@ -5753,6 +5753,7 @@ public:
     db= *db_name;
   }
   bool resolve_table_rowtype_ref(THD *thd, Row_definition_list &defs);
+  bool append_to(THD *thd, String *to) const;
 };
 
 
@@ -5777,6 +5778,7 @@ public:
     m_column(*column)
   { }
   bool resolve_type_ref(THD *thd, Column_definition *def);
+  bool append_to(THD *thd, String *to) const;
 };
 
 
