@@ -46,7 +46,7 @@
     a name that does not already exist.
 
     When passing O_TEMPORARY flag in "mode" the file should
-    be automatically deleted
+    be automatically deleted (Windows only)
 
     The implementation using mkstemp should be considered the
     reference implementation when adding a new or modifying an
@@ -123,8 +123,6 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
 #else
     org_file=mkstemp(to);
 #endif
-    if (mode & O_TEMPORARY)
-      (void) my_delete(to, MYF(MY_WME | ME_NOINPUT));
     file=my_register_filename(org_file, to, FILE_BY_MKSTEMP,
 			      EE_CANTCREATEFILE, MyFlags);
     /* If we didn't manage to register the name, remove the temp file */
