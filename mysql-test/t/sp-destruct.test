@@ -285,3 +285,38 @@ create database mysqltest1;
 create procedure mysqltest1.foo() select "foo";
 update mysql.proc set name='' where db='mysqltest1';
 drop database mysqltest1;
+
+
+--echo #
+--echo # MDEV-15444 Querying I_S.PARAMETERS can crash with a corrupted mysql.proc
+--echo #
+
+CREATE OR REPLACE FUNCTION f1 (a INT) RETURNS INT RETURN 10;
+CREATE OR REPLACE FUNCTION f2 (a INT) RETURNS INT RETURN 10;
+
+# Get the current data type for mysql.proc.type
+--vertical_results
+SELECT
+  @type0:=COLUMN_TYPE AS t0,
+  @type1:=REPLACE(COLUMN_TYPE,')',',''XXX'')') AS t1
+   FROM INFORMATION_SCHEMA.COLUMNS
+WHERE table_schema='mysql' AND table_name='proc' AND column_name='type';
+--horizontal_results
+
+# Change mysql.proc.type and update the record for 'f1'
+EXECUTE IMMEDIATE CONCAT('ALTER TABLE mysql.proc MODIFY type ', @type1);
+SHOW COLUMNS IN mysql.proc LIKE 'type';
+UPDATE mysql.proc SET type='XXX' WHERE name='f1' AND db='test';
+
+# Check the I_S query
+--vertical_results
+SELECT * FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_SCHEMA='test';
+--horizontal_results
+
+# Restore the record for 'f1' and restore mysql.proc.type
+UPDATE mysql.proc SET type='FUNCTION' WHERE name='f1' AND db='test';
+EXECUTE IMMEDIATE CONCAT('ALTER TABLE mysql.proc MODIFY type ', @type0);
+SHOW COLUMNS IN mysql.proc LIKE 'type';
+
+DROP FUNCTION f1;
+DROP FUNCTION f2;
