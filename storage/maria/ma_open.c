@@ -314,13 +314,13 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
                     });
     DEBUG_SYNC_C("mi_open_kfile");
     if ((kfile=mysql_file_open(key_file_kfile, name_buff,
-                               (open_mode=O_RDWR) | O_SHARE | O_NOFOLLOW,
+                               (open_mode=O_RDWR) | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
                                MYF(MY_NOSYMLINKS))) < 0)
     {
       if ((errno != EROFS && errno != EACCES) ||
 	  mode != O_RDONLY ||
 	  (kfile=mysql_file_open(key_file_kfile, name_buff,
-                                 (open_mode=O_RDONLY) | O_SHARE | O_NOFOLLOW,
+                                 (open_mode=O_RDONLY) | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
                                  MYF(MY_NOSYMLINKS))) < 0)
 	goto err;
     }
