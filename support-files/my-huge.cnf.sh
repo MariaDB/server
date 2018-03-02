@@ -125,7 +125,6 @@ server-id	= 1
 # You can set .._buffer_pool_size up to 50 - 80 %
 # of RAM but beware of setting memory usage too high
 #innodb_buffer_pool_size = 384M
-#innodb_additional_mem_pool_size = 20M
 # Set .._log_file_size to 25 % of buffer pool size
 #innodb_log_file_size = 100M
 #innodb_log_buffer_size = 8M
