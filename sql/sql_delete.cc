@@ -318,8 +318,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_ASSERT(table);
 
     DBUG_ASSERT(!conds || thd->stmt_arena->is_stmt_execute());
-    if (select_lex->vers_setup_conds(thd, table_list, &conds))
+    if (select_lex->vers_setup_conds(thd, table_list))
       DBUG_RETURN(TRUE);
+
+    DBUG_ASSERT(!conds);
+    conds= table_list->on_expr;
+    table_list->on_expr= NULL;
 
     // trx_sees() in InnoDB reads row_start
     if (!table->versioned(VERS_TIMESTAMP))
@@ -941,7 +945,7 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
       my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
       DBUG_RETURN(true);
     }
-    if (select_lex->vers_setup_conds(thd, table_list, conds))
+    if (select_lex->vers_setup_conds(thd, table_list))
       DBUG_RETURN(true);
   }
   if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num)) ||

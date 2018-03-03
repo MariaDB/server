@@ -182,6 +182,8 @@ create or replace table t1 (a int) with system versioning;
 insert into t1 values (1);
 insert into t1 values (2);
 insert into t1 values (3);
+explain extended
+select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
 select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
 
 create or replace table t1 (x int) with system versioning;
@@ -269,7 +271,9 @@ create or replace table t2 (b int);
 create or replace view v1 as select a, row_start, row_end from t1 where a > round(rand()*1000);
 select * from v1 natural join t2;
 
---echo ### Issue #406, MDEV-14633 Assertion on TRT read
+--echo #
+--echo # Issue #406, MDEV-14633 Assertion on TRT read
+--echo #
 create or replace table t1 (pk int primary key, i int, t time, key (i)) with system versioning;
 insert into t1 values (1, 10, '15:01:53'), (2, 20, '00:00:00');
 delete from t1;
@@ -277,7 +281,9 @@ delete from t1;
 select * from t1 where t = '00:00:00' and i > 0 and row_end <> '2012-12-12 00:00:00';
 --enable_warnings
 
---echo ### MDEV-14816 Assertion `join->best_read < double(1.797...e+308L)' failed in bool greedy_search
+--echo #
+--echo # MDEV-14816 Assertion `join->best_read < double(1.797...e+308L)' failed in bool greedy_search
+--echo #
 create or replace table t1 (f1 int) with system versioning;
 create or replace table t2 (f2 int) with system versioning;
 create or replace table t3 (f3 int);
@@ -291,13 +297,31 @@ select * from
     left join t2 as t2a left join (t3 as t3a inner join t1) on t2a.f2 = t3a.f3  on t1a.f1 = t2a.f2
     left join (t2 join t3 inner join t4) on t2a.f2 = t1a.f1;
 
---echo ### MDEV-15004 parser greedily parses AS OF TIMESTAMP
+--echo #
+--echo # MDEV-15004 parser greedily parses AS OF TIMESTAMP
+--echo #
 --error ER_WRONG_VALUE
 select timestamp'2016-02-30 08:07:06';
 --error ER_WRONG_VALUE
 select * from t1 for system_time as of timestamp'2016-02-30 08:07:06';
 select timestamp('2003-12-31 12:00:00','12:00:00');
 select * from t1 for system_time as of timestamp('2003-12-31 12:00:00','12:00:00');
+
+
+--echo #
+--echo # MDEV-15391 Server crashes in JOIN::fix_all_splittings_in_plan or Assertion `join->best_read < double(1.79...e+308L)' failed [tempesta-tech#475]
+--echo #
+create or replace table t1 (f1 int) with system versioning;
+insert t1 values (1),(2);
+create or replace table t2 (f2 int);
+create or replace table t3 (f3 int);
+create or replace table t4 (f4 int) with system versioning;
+select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
+insert t2 values (1),(2);
+insert t3 values (1),(2);
+insert t4 values (1),(2);
+explain extended
+select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
 
 drop view v1;
 drop table t1, t2, t3, t4;

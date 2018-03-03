@@ -1044,7 +1044,7 @@ public:
   /** System Versioning */
 public:
   uint versioned_tables;
-  int vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr);
+  int vers_setup_conds(THD *thd, TABLE_LIST *tables);
   /* push new Item_field into item_list */
   bool vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name);
 
