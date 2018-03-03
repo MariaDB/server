@@ -9229,7 +9229,7 @@ history_point:
           {
             $$= Vers_history_point(VERS_TIMESTAMP, $1);
           }
-        | opt_history_unit simple_expr
+        | opt_history_unit bit_expr
           {
             $$= Vers_history_point($1, $2);
           }
@@ -9255,13 +9255,11 @@ system_time_expr:
           {
             Lex->vers_conditions.init(SYSTEM_TIME_ALL);
           }
-        | FROM history_point
-          TO_SYM history_point
+        | FROM history_point TO_SYM history_point
           {
             Lex->vers_conditions.init(SYSTEM_TIME_FROM_TO, $2, $4);
           }
-        | BETWEEN_SYM history_point
-          AND_SYM history_point
+        | BETWEEN_SYM history_point AND_SYM history_point
           {
             Lex->vers_conditions.init(SYSTEM_TIME_BETWEEN, $2, $4);
           }
