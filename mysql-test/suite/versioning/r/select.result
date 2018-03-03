@@ -157,17 +157,17 @@ Note	1003	select `test`.`t1`.`x` AS `IJ2_x1`,`test`.`t1`.`y` AS `y1`,`test`.`t2`
 explain extended select * from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`x` AS `LJ2_x1`,`test`.`t1`.`y` AS `y1`,`test`.`t2`.`x` AS `x2`,`test`.`t2`.`y` AS `y2` from `test`.`t1` FOR SYSTEM_TIME ALL left join `test`.`t2` FOR SYSTEM_TIME ALL on(`test`.`t2`.`x` = `test`.`t1`.`x` and `test`.`t1`.`row_end` > @`t0` and `test`.`t1`.`row_start` <= @`t0` and `test`.`t2`.`row_end` > @`t0` and `test`.`t2`.`row_start` <= @`t0`) where 1
+Note	1003	select `test`.`t1`.`x` AS `LJ2_x1`,`test`.`t1`.`y` AS `y1`,`test`.`t2`.`x` AS `x2`,`test`.`t2`.`y` AS `y2` from `test`.`t1` FOR SYSTEM_TIME ALL left join `test`.`t2` FOR SYSTEM_TIME ALL on(`test`.`t2`.`x` = `test`.`t1`.`x` and `test`.`t2`.`row_end` > @`t0` and `test`.`t2`.`row_start` <= @`t0`) where `test`.`t1`.`row_end` > @`t0` and `test`.`t1`.`row_start` <= @`t0`
 explain extended select * from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`x` AS `RJ2_x1`,`test`.`t1`.`y` AS `y1`,`test`.`t2`.`x` AS `x2`,`test`.`t2`.`y` AS `y2` from `test`.`t2` FOR SYSTEM_TIME ALL left join `test`.`t1` FOR SYSTEM_TIME ALL on(`test`.`t1`.`x` = `test`.`t2`.`x` and `test`.`t1`.`row_end` > @`t0` and `test`.`t1`.`row_start` <= @`t0` and `test`.`t2`.`row_end` > @`t0` and `test`.`t2`.`row_start` <= @`t0`) where 1
+Note	1003	select `test`.`t1`.`x` AS `RJ2_x1`,`test`.`t1`.`y` AS `y1`,`test`.`t2`.`x` AS `x2`,`test`.`t2`.`y` AS `y2` from `test`.`t2` FOR SYSTEM_TIME ALL left join `test`.`t1` FOR SYSTEM_TIME ALL on(`test`.`t1`.`x` = `test`.`t2`.`x` and `test`.`t1`.`row_end` > @`t0` and `test`.`t1`.`row_start` <= @`t0`) where `test`.`t2`.`row_end` > @`t0` and `test`.`t2`.`row_start` <= @`t0`
 select * from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
 IJ2_x1	y1	x2	y2
@@ -473,6 +473,15 @@ select timestamp('2003-12-31 12:00:00','12:00:00');
 timestamp('2003-12-31 12:00:00','12:00:00')
 2004-01-01 00:00:00
 select * from t1 for system_time as of timestamp('2003-12-31 12:00:00','12:00:00');
+f1
+# MDEV-15391 Server crashes in JOIN::fix_all_splittings_in_plan or
+# Assertion `join->best_read < double(1.79...e+308L)' failed [tempesta-tech#475]
+create or replace table t1 (f1 int) with system versioning;
+insert into t1 values (1),(2);
+create or replace table t2 (f2 int);
+create or replace table t3 (f3 int);
+create or replace table t4 (f4 int) with system versioning;
+select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
 f1
 drop view v1;
 drop table t1, t2, t3, t4;

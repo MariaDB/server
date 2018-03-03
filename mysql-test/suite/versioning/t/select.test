@@ -299,6 +299,16 @@ select * from t1 for system_time as of timestamp'2016-02-30 08:07:06';
 select timestamp('2003-12-31 12:00:00','12:00:00');
 select * from t1 for system_time as of timestamp('2003-12-31 12:00:00','12:00:00');
 
+
+--echo # MDEV-15391 Server crashes in JOIN::fix_all_splittings_in_plan or
+--echo # Assertion `join->best_read < double(1.79...e+308L)' failed [tempesta-tech#475]
+create or replace table t1 (f1 int) with system versioning;
+insert into t1 values (1),(2);
+create or replace table t2 (f2 int);
+create or replace table t3 (f3 int);
+create or replace table t4 (f4 int) with system versioning;
+select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
+
 drop view v1;
 drop table t1, t2, t3, t4;
 
