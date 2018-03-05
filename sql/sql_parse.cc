@@ -8006,8 +8006,16 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                       (longlong) thd->thread_id, is_autocommit,
                       thd->wsrep_retry_counter, 
                       thd->variables.wsrep_retry_autocommit, thd->query());
-          my_message(ER_LOCK_DEADLOCK, "Deadlock: wsrep aborted transaction",
-                     MYF(0));
+          /*
+            mariaDB code use here:
+            my_message(ER_LOCK_DEADLOCK, "Deadlock: wsrep aborted transaction",
+                   MYF(0));
+            But, this breaks many mtr tests where victim deadlock may be
+            randomly reported by native deadlock error or this mesage.
+            Fixed this, temporarily, to use native ER_LOCK_DEADLOCK
+            error, juts to get the tests passing
+          */
+          my_error(ER_LOCK_DEADLOCK, MYF(0));
           thd->reset_killed();
           thd->set_wsrep_conflict_state(NO_CONFLICT);
           if (thd->wsrep_conflict_state() != REPLAYING)
