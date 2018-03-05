@@ -282,6 +282,11 @@ trx_rseg_update_wsrep_checkpoint(
 	mtr_t*		mtr);
 
 /** Update WSREP checkpoint XID in first rollback segment header.
+This function should be called only from innodbase_wsrep_set_checkopoint()
+when it is guaranteed that there are no wsrep transactions committing.
+If the UUID part of the wsrep XID does not match to the UUIDs of XIDs already
+stored into rollback segments, all the remaining XIDs will be reset to empty
+value.
 @param[in]	xid		WSREP XID */
 void trx_rseg_update_wsrep_checkpoint(const XID* xid);
 
