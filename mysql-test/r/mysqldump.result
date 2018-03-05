@@ -4478,6 +4478,14 @@ TRUNCATE mysql.event;
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 #
+# MDEV-13336: add ignore-database option
+#           with --all-databases
+#
+DROP DATABASE test;
+SHOW DATABASES LIKE 'test';
+Database (test)
+CREATE DATABASE test;
+#
 # Bug#31113 mysqldump 5.1 can't handle a dash ("-") in database names
 #
 create database `test-database`;
