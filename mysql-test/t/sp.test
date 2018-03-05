@@ -9840,3 +9840,13 @@ call p3();
 drop procedure p1;
 drop procedure p2;
 drop procedure p3;
+
+--echo #
+--echo # MDEV-15328: MariaDB 10.2.13 Crashes upon CALL PROCEDURE PARAM
+--echo # LAST_INSERT_ID ()
+--echo # (part 1, part 2 is in query_cache.test)
+--echo #
+
+CREATE PROCEDURE foo ( IN i INT UNSIGNED ) BEGIN END;
+CALL foo( LAST_INSERT_ID() );
+DROP PROCEDURE foo;
