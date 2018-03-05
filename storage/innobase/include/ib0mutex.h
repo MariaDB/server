@@ -527,7 +527,8 @@ struct TTASEventMutex {
 	int32 state() const
 		UNIV_NOTHROW
 	{
-		return(m_lock_word);
+		return(my_atomic_load32_explicit(&m_lock_word,
+						 MY_MEMORY_ORDER_RELAXED));
 	}
 
 	/** The event that the mutex will wait in sync0arr.cc
