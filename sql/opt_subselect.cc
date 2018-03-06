@@ -873,8 +873,10 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
      Make sure that create_tmp_table will not fail due to too long keys.
      See MDEV-7122. This check is performed inside create_tmp_table also and
      we must do it so that we know the table has keys created.
+     Make sure that the length of the key for the temp_table is atleast
+     greater than 0.
   */
-  if (total_key_length > tmp_table_max_key_length() ||
+  if (!total_key_length || total_key_length > tmp_table_max_key_length() ||
       elements > tmp_table_max_key_parts())
     DBUG_RETURN(FALSE);
 
