@@ -281,15 +281,14 @@ trx_rseg_update_wsrep_checkpoint(
 	const XID*	xid,
 	mtr_t*		mtr);
 
-/** Update WSREP checkpoint XID in first rollback segment header.
+/** Update WSREP checkpoint XID in first rollback segment header
+as part of wsrep_set_SE_checkpoint() when it is guaranteed that there
+are no wsrep transactions committing.
+If the UUID part of the WSREP XID does not match to the UUIDs of XIDs already
+stored into rollback segments, the WSREP XID in all the remaining rollback
+segments will be reset.
 @param[in]	xid		WSREP XID */
 void trx_rseg_update_wsrep_checkpoint(const XID* xid);
-
-/** Read the WSREP XID information in rollback segment header.
-@param[in]	rseg_header	Rollback segment header
-@param[out]	xid		Transaction XID
-@return	whether the WSREP XID was present */
-bool trx_rseg_read_wsrep_checkpoint(const trx_rsegf_t* rseg_header, XID& xid);
 
 /** Recover the latest WSREP checkpoint XID.
 @param[out]	xid	WSREP XID

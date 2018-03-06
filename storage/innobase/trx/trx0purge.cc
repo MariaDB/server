@@ -254,12 +254,10 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		mlog_write_ulint(
 			rseg_header + TRX_RSEG_HISTORY_SIZE,
 			hist_size + undo->size, MLOG_4BYTES, mtr);
-	}
 
-	/* This field now also serves as an identifier for the latest
-	binlog and WSREP XID information. */
-	mlog_write_ull(rseg_header + TRX_RSEG_MAX_TRX_ID,
-		       trx_sys.get_max_trx_id(), mtr);
+		mlog_write_ull(rseg_header + TRX_RSEG_MAX_TRX_ID,
+			       trx_sys.get_max_trx_id(), mtr);
+	}
 
 	/* Before any transaction-generating background threads or the
 	purge have been started, recv_recovery_rollback_active() can

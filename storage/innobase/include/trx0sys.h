@@ -849,7 +849,7 @@ public:
   XID recovered_wsrep_xid;
 #endif
   /** Latest recovered binlog offset */
-  int64_t recovered_binlog_offset;
+  uint64_t recovered_binlog_offset;
   /** Latest recovred binlog file name */
   char recovered_binlog_filename[TRX_SYS_MYSQL_LOG_NAME_LEN];
 
