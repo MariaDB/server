@@ -15785,6 +15785,10 @@ innobase_map_isolation_level(
 /*=========================*/
 	enum_tx_isolation	iso)	/*!< in: MySQL isolation level code */
 {
+	if (UNIV_UNLIKELY(srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN)
+	    || UNIV_UNLIKELY(srv_read_only_mode)) {
+		return TRX_ISO_READ_UNCOMMITTED;
+	}
 	switch (iso) {
 	case ISO_REPEATABLE_READ:	return(TRX_ISO_REPEATABLE_READ);
 	case ISO_READ_COMMITTED:	return(TRX_ISO_READ_COMMITTED);
