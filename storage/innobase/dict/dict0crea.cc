@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -326,10 +327,8 @@ dict_build_table_def_step(
 
 		mtr_commit(&mtr);
 	} else {
-		/* Create in the system tablespace: disallow Barracuda
-		features by keeping only the first bit which says whether
-		the row format is redundant or compact */
-		table->flags &= DICT_TF_COMPACT;
+		/* Create in the system tablespace */
+		ut_ad(table->space == TRX_SYS_SPACE);
 	}
 
 	row = dict_create_sys_tables_tuple(table, node->heap);

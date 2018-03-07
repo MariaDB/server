@@ -22,9 +22,6 @@ Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=4.
 Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_per_table.
 Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
 create table t1(a int primary key) engine=innodb row_format=dynamic;
-Warnings:
-Warning	1478	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_per_table.
-Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
 create table t2(a int primary key) engine=innodb row_format=redundant;
 create table t3(a int primary key) engine=innodb row_format=compact;
 create table t4(a int primary key) engine=innodb key_block_size=9;
@@ -75,7 +72,7 @@ SELECT table_schema, table_name, row_format, data_length, index_length FROM info
 table_schema	table_name	row_format	data_length	index_length
 mysqltest_innodb_zip	t0	Compact	{valid}	0
 mysqltest_innodb_zip	t00	Compact	{valid}	0
-mysqltest_innodb_zip	t1	Compact	{valid}	0
+mysqltest_innodb_zip	t1	Dynamic	{valid}	0
 mysqltest_innodb_zip	t10	Dynamic	{valid}	0
 mysqltest_innodb_zip	t11	Compressed	1024	0
 mysqltest_innodb_zip	t12	Compressed	1024	0
@@ -295,19 +292,16 @@ Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_per_table.
 Error	1005	Can't create table `mysqltest_innodb_zip`.`t6` (errno: 140 "Wrong create options")
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 create table t7 (id int primary key) engine = innodb row_format = dynamic;
-ERROR HY000: Can't create table `mysqltest_innodb_zip`.`t7` (errno: 140 "Wrong create options")
 show warnings;
 Level	Code	Message
-Warning	1478	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_per_table.
-Error	1005	Can't create table `mysqltest_innodb_zip`.`t7` (errno: 140 "Wrong create options")
-Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 create table t8 (id int primary key) engine = innodb row_format = compact;
 create table t9 (id int primary key) engine = innodb row_format = redundant;
 SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql';
 table_schema	table_name	row_format	data_length	index_length
+mysqltest_innodb_zip	t7	Dynamic	{valid}	0
 mysqltest_innodb_zip	t8	Compact	{valid}	0
 mysqltest_innodb_zip	t9	Redundant	{valid}	0
-drop table t8, t9;
+drop table t7, t8, t9;
 set global innodb_file_per_table = on;
 set global innodb_file_format = `0`;
 create table t1 (id int primary key) engine = innodb key_block_size = 1;
@@ -339,19 +333,16 @@ Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED requires innodb_file_format > Antelop
 Error	1005	Can't create table `mysqltest_innodb_zip`.`t6` (errno: 140 "Wrong create options")
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 create table t7 (id int primary key) engine = innodb row_format = dynamic;
-ERROR HY000: Can't create table `mysqltest_innodb_zip`.`t7` (errno: 140 "Wrong create options")
 show warnings;
 Level	Code	Message
-Warning	1478	InnoDB: ROW_FORMAT=DYNAMIC requires innodb_file_format > Antelope.
-Error	1005	Can't create table `mysqltest_innodb_zip`.`t7` (errno: 140 "Wrong create options")
-Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 create table t8 (id int primary key) engine = innodb row_format = compact;
 create table t9 (id int primary key) engine = innodb row_format = redundant;
 SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql';
 table_schema	table_name	row_format	data_length	index_length
+mysqltest_innodb_zip	t7	Dynamic	{valid}	0
 mysqltest_innodb_zip	t8	Compact	{valid}	0
 mysqltest_innodb_zip	t9	Redundant	{valid}	0
-drop table t8, t9;
+drop table t7, t8, t9;
 set global innodb_file_per_table=1;
 set global innodb_file_format=Antelope;
 set global innodb_file_per_table=on;
