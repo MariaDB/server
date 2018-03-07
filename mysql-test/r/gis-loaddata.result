@@ -1,0 +1,25 @@
+#
+# MDEV-15497 Wrong empty value in a GEOMETRY column on LOAD DATA
+#
+SET sql_mode='';
+CREATE TABLE t1 (id INT, a GEOMETRY NOT NULL);
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1;
+ERROR 22004: Column set to default value; NULL supplied to NOT NULL column 'a' at row 1
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
+ERROR 22004: Column set to default value; NULL supplied to NOT NULL column 'a' at row 1
+DROP TABLE t1;
+CREATE TABLE t1 (id INT, a GEOMETRY);
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1;
+Warnings:
+Warning	1261	Row 1 doesn't contain data for all columns
+SELECT * FROM t1;
+id	a
+1	NULL
+TRUNCATE TABLE t1;
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
+Warnings:
+Warning	1261	Row 1 doesn't contain data for all columns
+SELECT * FROM t1;
+id	a
+1	NULL
+DROP TABLE t1;

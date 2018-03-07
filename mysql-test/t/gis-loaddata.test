@@ -1,0 +1,21 @@
+--echo #
+--echo # MDEV-15497 Wrong empty value in a GEOMETRY column on LOAD DATA
+--echo #
+
+SET sql_mode='';
+
+CREATE TABLE t1 (id INT, a GEOMETRY NOT NULL);
+--error ER_WARN_NULL_TO_NOTNULL
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1;
+--error ER_WARN_NULL_TO_NOTNULL
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (id INT, a GEOMETRY);
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
+SELECT * FROM t1;
+DROP TABLE t1;

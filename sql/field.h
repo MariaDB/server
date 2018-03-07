@@ -1161,6 +1161,9 @@ public:
   { return null_ptr != 0 || table->maybe_null; }
   // Set to NULL on LOAD DATA or LOAD XML
   virtual bool load_data_set_null(THD *thd);
+  // Reset when a LOAD DATA file ended unexpectedly
+  virtual bool load_data_set_no_data(THD *thd, bool fixed_format);
+  void load_data_set_value(const char *pos, uint length, CHARSET_INFO *cs);
 
   /* @return true if this field is NULL-able (even if temporarily) */
   inline bool real_maybe_null(void) const { return null_ptr != 0; }
@@ -2520,6 +2523,7 @@ public:
     return get_equal_const_item_datetime(thd, ctx, const_item);
   }
   bool load_data_set_null(THD *thd);
+  bool load_data_set_no_data(THD *thd, bool fixed_format);
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -3725,6 +3729,7 @@ public:
    */
   int reset(void) { return Field_blob::reset() || !maybe_null(); }
   bool load_data_set_null(THD *thd);
+  bool load_data_set_no_data(THD *thd, bool fixed_format);
 
   geometry_type get_geometry_type() { return geom_type; };
   static geometry_type geometry_type_merge(geometry_type, geometry_type);

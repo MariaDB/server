@@ -976,26 +976,15 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     {
       Field *field= sql_field->field;
       table->auto_increment_field_not_null= auto_increment_field_not_null;
-      /*
-        No fields specified in fields_vars list can be null in this format.
-        Mark field as not null, we should do this for each row because of
-        restore_record...
-      */
-      field->set_notnull();
-
       if (pos == read_info.row_end)
       {
+        if (field->load_data_set_no_data(thd, true))
+          DBUG_RETURN(1);
         thd->cuted_fields++;			/* Not enough fields */
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_WARN_TOO_FEW_RECORDS,
                             ER_THD(thd, ER_WARN_TOO_FEW_RECORDS),
                             thd->get_stmt_da()->current_row_for_warning());
-        /*
-          Timestamp fields that are NOT NULL are autoupdated if there is no
-          corresponding value in the data file.
-        */
-        if (!field->maybe_null() && field->type() == FIELD_TYPE_TIMESTAMP)
-          field->set_time();
       }
       else
       {
@@ -1005,13 +994,11 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
 	    field->field_length)
 	  length=field->field_length;
 	save_chr=pos[length]; pos[length]='\0'; // Safeguard aganst malloc
-        field->store((char*) pos,length,read_info.read_charset);
+        field->load_data_set_value((char*) pos,length,read_info.read_charset);
 	pos[length]=save_chr;
 	if ((pos+=length) > read_info.row_end)
 	  pos= read_info.row_end;	/* Fills rest with space */
       }
-      /* Do not auto-update this field. */
-      field->set_has_explicit_value();
     }
     if (pos != read_info.row_end)
     {
@@ -1162,12 +1149,8 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       else
       {
         Field *field= real_item->field;
-        field->set_notnull();
         read_info.row_end[0]=0;			// Safe to change end marker
-        if (field == table->next_number_field)
-          table->auto_increment_field_not_null= TRUE;
-        field->store((char*) pos, length, read_info.read_charset);
-        field->set_has_explicit_value();
+        field->load_data_set_value((char*) pos, length, read_info.read_charset);
       }
     }
 
@@ -1202,15 +1185,8 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         else
         {
           Field *field= real_item->field;
-          if (field->reset())
-          {
-            my_error(ER_WARN_NULL_TO_NOTNULL, MYF(0),field->field_name.str,
-                     thd->get_stmt_da()->current_row_for_warning());
+          if (field->load_data_set_no_data(thd, false))
             DBUG_RETURN(1);
-          }
-          if (!field->maybe_null() && field->type() == FIELD_TYPE_TIMESTAMP)
-            field->set_time();
-          field->set_has_explicit_value();
           /*
             TODO: We probably should not throw warning for each field.
             But how about intention to always have the same number
@@ -1363,11 +1339,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       {
 
         Field *field= ((Item_field *)item)->field;
-        field->set_notnull();
-        if (field == table->next_number_field)
-          table->auto_increment_field_not_null= TRUE;
-        field->store((char *) tag->value.ptr(), tag->value.length(), cs);
-        field->set_has_explicit_value();
+        field->load_data_set_value(tag->value.ptr(), tag->value.length(), cs);
       }
     }
     

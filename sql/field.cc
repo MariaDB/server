@@ -1253,6 +1253,26 @@ warn:
 }
 
 
+/**
+  If a field does not have a corresponding data, it's behavior can vary:
+  - In case of the fixed file format
+    it's set to the default value for the data type,
+    such as 0 for numbers or '' for strings.
+  - In case of a non-fixed format
+    it's set to NULL for nullable fields, and
+    it's set to the default value for the data type for NOT NULL fields.
+  This seems to be by design.
+*/
+bool Field::load_data_set_no_data(THD *thd, bool fixed_format)
+{
+  reset();                  // Do not use the DEFAULT value
+  if (fixed_format)
+    set_notnull();
+  set_has_explicit_value(); // Do not auto-update this field
+  return false;
+}
+
+
 bool Field::load_data_set_null(THD *thd)
 {
   reset();
@@ -1264,6 +1284,21 @@ bool Field::load_data_set_null(THD *thd)
   }
   set_has_explicit_value(); // Do not auto-update this field
   return false;
+}
+
+
+void Field::load_data_set_value(const char *pos, uint length,
+                                CHARSET_INFO *cs)
+{
+  /*
+    Mark field as not null, we should do this for each row because of
+    restore_record...
+  */
+  set_notnull();
+  if (this == table->next_number_field)
+    table->auto_increment_field_not_null= true;
+  store(pos, length, cs);
+  set_has_explicit_value(); // Do not auto-update this field
 }
 
 
@@ -5314,6 +5349,22 @@ int Field_timestamp::set_time()
 }
 
 
+bool Field_timestamp::load_data_set_no_data(THD *thd, bool fixed_format)
+{
+  if (!maybe_null())
+  {
+    /*
+      Timestamp fields that are NOT NULL are autoupdated if there is no
+      corresponding value in the data file.
+    */
+    set_time();
+    set_has_explicit_value();
+    return false;
+  }
+  return Field::load_data_set_no_data(thd, fixed_format);
+}
+
+
 bool Field_timestamp::load_data_set_null(THD *thd)
 {
   if (!maybe_null())
@@ -8924,6 +8975,12 @@ bool Field_geom::can_optimize_range(const Item_bool_func *cond,
                                     bool is_eq_func) const
 {
   return item->cmp_type() == STRING_RESULT;
+}
+
+
+bool Field_geom::load_data_set_no_data(THD *thd, bool fixed_format)
+{
+  return Field_geom::load_data_set_null(thd);
 }
 
 
