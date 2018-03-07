@@ -119,11 +119,7 @@ wsrep_seqno_t wsrep_xid_seqno(
 	const XID*	xid)
 {
 	if (wsrep_is_wsrep_xid(xid)) {
-		wsrep_seqno_t seqno;
-		memcpy(&seqno, xid->data + WSREP_XID_SEQNO_OFFSET,
-		       sizeof(wsrep_seqno_t));
-
-		return(seqno);
+		return sint8korr(xid->data + WSREP_XID_SEQNO_OFFSET);
 	} else {
 		return(WSREP_SEQNO_UNDEFINED);
 	}

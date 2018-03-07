@@ -39,7 +39,7 @@ void wsrep_xid_init(XID* xid, const wsrep_uuid_t& uuid, wsrep_seqno_t seqno)
   memset(xid->data, 0, sizeof(xid->data));
   memcpy(xid->data, WSREP_XID_PREFIX, WSREP_XID_PREFIX_LEN);
   memcpy(xid->data + WSREP_XID_UUID_OFFSET,  &uuid,  sizeof(wsrep_uuid_t));
-  memcpy(xid->data + WSREP_XID_SEQNO_OFFSET, &seqno, sizeof(wsrep_seqno_t));
+  int8store(xid->data + WSREP_XID_SEQNO_OFFSET,seqno);
 }
 
 int wsrep_is_wsrep_xid(const XID* xid)
@@ -59,18 +59,28 @@ const wsrep_uuid_t* wsrep_xid_uuid(const XID& xid)
     return &WSREP_UUID_UNDEFINED;
 }
 
+const unsigned char* wsrep_xid_uuid(const xid_t* xid)
+{
+  DBUG_ASSERT(xid);
+  return wsrep_xid_uuid(*xid)->data;
+}
+
 wsrep_seqno_t wsrep_xid_seqno(const XID& xid)
 {
   if (wsrep_is_wsrep_xid(&xid))
   {
-    wsrep_seqno_t seqno;
-    memcpy(&seqno, xid.data + WSREP_XID_SEQNO_OFFSET, sizeof(wsrep_seqno_t));
-    return seqno;
+    return sint8korr(xid.data + WSREP_XID_SEQNO_OFFSET);
   }
   else
   {
     return WSREP_SEQNO_UNDEFINED;
   }
+}
+
+wsrep_seqno_t wsrep_xid_seqno(const xid_t* xid)
+{
+  DBUG_ASSERT(xid);
+  return wsrep_xid_seqno(*xid);
 }
 
 static my_bool set_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
