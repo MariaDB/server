@@ -580,3 +580,37 @@ SELECT HEX(a) FROM t1;
 HEX(a)
 C3A4
 DROP TABLE t1;
+#
+# MDEV-15497 Wrong empty value in a GEOMETRY column on LOAD DATA
+#
+SET sql_mode='';
+CREATE TABLE t1 (a CHAR(1), b CHAR(1) NOT NULL);
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1;
+Warnings:
+Warning	1261	Row 1 doesn't contain data for all columns
+SELECT * FROM t1;
+a	b
+1	
+TRUNCATE TABLE t1;
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
+Warnings:
+Warning	1261	Row 1 doesn't contain data for all columns
+SELECT * FROM t1;
+a	b
+1	
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(1), b CHAR(1));
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1;
+Warnings:
+Warning	1261	Row 1 doesn't contain data for all columns
+SELECT * FROM t1;
+a	b
+1	NULL
+TRUNCATE TABLE t1;
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
+Warnings:
+Warning	1261	Row 1 doesn't contain data for all columns
+SELECT * FROM t1;
+a	b
+1	
+DROP TABLE t1;
