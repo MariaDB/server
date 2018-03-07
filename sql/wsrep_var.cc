@@ -27,8 +27,6 @@
 #include <cstdlib>
 
 
-static long wsrep_prev_slave_threads = wsrep_slave_threads;
-
 int wsrep_init_vars()
 {
   wsrep_provider        = my_strdup(WSREP_NONE, MYF(MY_WME));
@@ -581,8 +579,7 @@ void wsrep_node_address_init (const char* value)
 
 static void wsrep_slave_count_change_update ()
 {
-  wsrep_slave_count_change += (wsrep_slave_threads - wsrep_prev_slave_threads);
-  wsrep_prev_slave_threads = wsrep_slave_threads;
+  wsrep_slave_count_change = (wsrep_slave_threads - wsrep_running_threads + 2);
 }
 
 bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
