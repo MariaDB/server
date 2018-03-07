@@ -1242,10 +1242,11 @@ void wsrep_deinit(bool free_options)
     char* p = wsrep_provider_capabilities;
     wsrep_provider_capabilities = NULL;
     free(p);
-  }
-  if (free_options && wsrep_provider_capabilities != NULL)
-  {
-    wsrep_sst_auth_free();
+    
+    if (free_options)
+    {
+      wsrep_sst_auth_free();
+    }
   }
 }
 
