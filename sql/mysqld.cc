@@ -5300,6 +5300,30 @@ static int init_server_components()
     }
   }
 
+  if (strlen(wsrep_provider)== 0 ||
+      !strcmp(wsrep_provider, WSREP_NONE))
+  {
+    // enable normal operation in case no provider is specified
+    wsrep_ready_set(TRUE);
+    global_system_variables.wsrep_on = 0;
+#ifdef OUT
+    wsrep_init_args args;
+    args.logger_cb = wsrep_log_cb;
+    args.options = (wsrep_provider_options) ?
+            wsrep_provider_options : "";
+    int rcode = wsrep->init(wsrep, &args);
+    if (rcode)
+    {
+      DBUG_PRINT("wsrep",("wsrep::init() failed: %d", rcode));
+      WSREP_ERROR("wsrep::init() failed: %d, must shutdown", rcode);
+      wsrep->free(wsrep);
+      free(wsrep);
+      wsrep = NULL;
+    }
+    return rcode;
+#endif
+  }
+
   if (opt_bin_log)
   {
     if (mysql_bin_log.open_index_file(opt_binlog_index_name, opt_bin_logname,
