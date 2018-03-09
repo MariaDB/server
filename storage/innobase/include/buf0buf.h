@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1271,9 +1271,9 @@ buf_page_init_for_read(
 	bool			unzip);
 
 /** Complete a read or write request of a file page to or from the buffer pool.
-@param[in,out]		bpage		Page to complete
-@param[in]		evict		whether or not to evict the page
-					from LRU list.
+@param[in,out]	bpage	page to complete
+@param[in]	dblwr	whether the doublewrite buffer was used (on write)
+@param[in]	evict	whether or not to evict the page from LRU list
 @return whether the operation succeeded
 @retval	DB_SUCCESS		always when writing, or if a read page was OK
 @retval	DB_PAGE_CORRUPTED	if the checksum fails on a page read
@@ -1282,7 +1282,7 @@ buf_page_init_for_read(
 				not match */
 UNIV_INTERN
 dberr_t
-buf_page_io_complete(buf_page_t* bpage, bool evict = false)
+buf_page_io_complete(buf_page_t* bpage, bool dblwr = false, bool evict = false)
 	MY_ATTRIBUTE((nonnull));
 
 /********************************************************************//**

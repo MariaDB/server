@@ -776,12 +776,10 @@ buf_flush_relocate_on_flush_list(
 	buf_flush_list_mutex_exit(buf_pool);
 }
 
-/********************************************************************//**
-Updates the flush system data structures when a write is completed. */
-void
-buf_flush_write_complete(
-/*=====================*/
-	buf_page_t*	bpage)	/*!< in: pointer to the block in question */
+/** Update the flush system data structures when a write is completed.
+@param[in,out]	bpage	flushed page
+@param[in]	dblwr	whether the doublewrite buffer was used */
+void buf_flush_write_complete(buf_page_t* bpage, bool dblwr)
 {
 	buf_flush_t	flush_type;
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -804,7 +802,9 @@ buf_flush_write_complete(
 		os_event_set(buf_pool->no_flush[flush_type]);
 	}
 
-	buf_dblwr_update(bpage, flush_type);
+	if (dblwr) {
+		buf_dblwr_update(bpage, flush_type);
+	}
 }
 
 /** Calculate the checksum of a page from compressed table and update
@@ -1076,15 +1076,9 @@ buf_flush_write_block_low(
 
 	frame = buf_page_encrypt_before_write(space, bpage, frame);
 
-	/* Disable use of double-write buffer for temporary tablespace.
-	Given the nature and load of temporary tablespace doublewrite buffer
-	adds an overhead during flushing. */
-
-	if (space->purpose == FIL_TYPE_TEMPORARY
-	    || space->atomic_write_supported
-	    || !srv_use_doublewrite_buf
-	    || buf_dblwr == NULL) {
-
+	ut_ad(space->purpose == FIL_TYPE_TABLESPACE
+	      || space->atomic_write_supported);
+	if (!space->use_doublewrite()) {
 		ulint	type = IORequest::WRITE | IORequest::DO_NOT_WAKE;
 
 		IORequest	request(type, bpage);
@@ -1124,7 +1118,7 @@ buf_flush_write_block_low(
 #endif
 		/* true means we want to evict this page from the
 		LRU list as well. */
-		buf_page_io_complete(bpage, true);
+		buf_page_io_complete(bpage, space->use_doublewrite(), true);
 
 		ut_ad(err == DB_SUCCESS);
 	}
