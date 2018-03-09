@@ -2,8 +2,8 @@
 --source include/no_protocol.inc
 --source include/not_embedded.inc
 
-SELECT @@session.character_set_client, @@session.character_set_results, @@session.character_set_connection;
-SET @@session.session_track_system_variables='character_set_client,character_set_results,character_set_connection';
+SELECT @@session.character_set_connection;
+SET @@session.session_track_system_variables='character_set_connection';
 
 --echo # tracking info on
 --enable_session_track_info
