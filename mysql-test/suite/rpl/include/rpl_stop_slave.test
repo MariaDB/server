@@ -6,7 +6,7 @@
 #
 # USEAGE: 
 # --let $tmp_table_stm= a SQL statement 
-# --source extra/rpl_tests/rpl_stop_slave.test
+# --source suite/rpl/include/rpl_stop_slave.test
 #
 
 if (!$tmp_table_stm)

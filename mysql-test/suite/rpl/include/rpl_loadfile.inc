@@ -18,7 +18,7 @@
 -- source include/have_binlog_format_mixed_or_row.inc
 -- source include/master-slave.inc
 
--- source extra/rpl_tests/rpl_loadfile.test
+-- source suite/rpl/include/rpl_loadfile.test
 
 #  BUG#39701: Mixed binlog format does not switch to row mode on LOAD_FILE
 #

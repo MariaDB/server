@@ -15,5 +15,5 @@
 -- source include/have_binlog_format_mixed_or_statement.inc
 -- source include/master-slave.inc
 
--- source extra/rpl_tests/rpl_show_relaylog_events.inc
+-- source include/rpl_show_relaylog_events.inc
 --source include/rpl_end.inc

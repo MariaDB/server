@@ -11,6 +11,6 @@
 --source include/master-slave.inc
 
 connection master;
-source extra/rpl_tests/rpl_parallel_load_tokudb.test;
+source suite/rpl/include/rpl_parallel_load_tokudb.test;
 
 --source include/rpl_end.inc

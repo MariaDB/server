@@ -248,7 +248,7 @@ call mtr.add_suppression("Unsafe statement written to the binary log using state
 
 --let $verbose= 1
 --let $commands= configure
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --echo #########################################################################
 --echo #         1 - MIXING TRANSACTIONAL and NON-TRANSACTIONAL TABLES
@@ -266,16 +266,16 @@ connection master;
 --echo #      --> MIXED "B T C" entries, format S.
 --echo #
 --let $commands= T
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= T-trig
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= T-func
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= T-proc
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -289,16 +289,16 @@ connection master;
 --echo #        --> MIXED empty.
 --echo #
 --let $commands= eT
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= Te
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= Te-trig
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= Te-func
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --echo
 --echo
@@ -311,16 +311,16 @@ connection master;
 --echo #      --> MIXED "B N C" entry, format S.
 --echo #
 --let $commands= N
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= N-trig
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= N-func
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= N-proc
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -334,16 +334,16 @@ connection master;
 --echo #        --> MIXED "B N C" entry, format S.
 --echo #
 --let $commands= eN
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= Ne
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= Ne-trig
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= Ne-func
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --echo
 --echo
@@ -357,28 +357,28 @@ connection master;
 --echo #      --> MIXED "B N T B T C" entries, format R.
 --echo #
 --let $commands= tN
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= nT
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= NT
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= NT-trig
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= NT-func
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= TN
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= TN-trig
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= TN-func
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -392,22 +392,22 @@ connection master;
 --echo #      --> ROW   "B N C" entry, format R.
 --echo #      --> MIXED "B N C" entry, format R.
 --let $commands= tNe
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= nTe
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= NeT-trig
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= NeT-func
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= TeN-trig
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= TeN-func
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --echo
 --echo
@@ -420,52 +420,52 @@ connection master;
 --echo #     --> MIXED "B T T C" entries, format S
 --echo #
 --let $commands= B T T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T T-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T T-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T T-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig T-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig T-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig T-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func T-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func T-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func T-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc T-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc T-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc T-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -479,28 +479,28 @@ connection master;
 --echo #       --> MIXED "B T C" entries, format S.
 --echo #
 --let $commands= B T eT C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T Te C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T Te-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T Te-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B eT T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B Te T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B Te-trig T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B Te-func T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -514,52 +514,52 @@ connection master;
 --echo #     --> MIXED empty.
 --echo #
 --let $commands= B T T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T T-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T T-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T T-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig T-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig T-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig T-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func T-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func T-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func T-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc T-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc T-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc T-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -573,28 +573,28 @@ connection master;
 --echo #       --> MIXED empty.
 --echo #
 --let $commands= B T eT R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T Te R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T Te-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T Te-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B eT T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B Te T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B Te-trig T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B Te-func T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -608,52 +608,52 @@ connection master;
 --echo #     --> MIXED "B N C B N C" entries, format S.
 --echo #
 --let $commands= B N N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N N-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N N-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N N-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig N-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig N-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig N-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func N-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func N-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func N-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc N-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc N-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc N-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -667,28 +667,28 @@ connection master;
 --echo #     --> MIXED "B N C B N C" entries, format S.
 --echo #
 --let $commands= B N eN C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N Ne C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N Ne-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N Ne-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B eN N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B Ne N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B Ne-trig N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B Ne-func N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -702,52 +702,52 @@ connection master;
 --echo #      --> MIXED "B N C B N C" entries, format S.
 --echo #
 --let $commands= B N N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N N-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N N-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N N-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig N-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig N-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig N-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func N-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func N-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func N-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc N-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc N-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc N-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -761,28 +761,28 @@ connection master;
 --echo #     --> MIXED "B N C B N C" entries, format S.
 --echo #
 --let $commands= B N eN R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N Ne R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N Ne-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N Ne-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B eN N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B Ne N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B Ne-trig N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B Ne-func N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -796,52 +796,52 @@ connection master;
 --echo #       --> MIXED "B N C B T C" entries, format R in N and S in T.
 --echo #
 --let $commands= B T N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T N-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T N-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T N-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig N-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig N-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig N-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func N-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func N-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func N-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc N-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc N-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc N-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -859,16 +859,16 @@ connection master;
 --echo #       --> MIXED "B N C B T C" entries, format R in N and S in T.
 --echo #
 --let $commands= B eT N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B Te N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T eN C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T Ne C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -882,52 +882,52 @@ connection master;
 --echo #     --> MIXED "B N C" entry, format R.
 --echo #
 --let $commands= B T N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T N-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T N-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T N-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig N-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig N-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-trig N-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func N-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func N-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-func N-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc N-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc N-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T-proc N-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -945,16 +945,16 @@ connection master;
 --echo #       --> MIXED "B N C" entry, format R.
 --echo #
 --let $commands= B eT N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B Te N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T eN R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T Ne R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 
@@ -969,52 +969,52 @@ connection master;
 --echo #     --> MIXED "B N C B T C" entries, format S.
 --echo #
 --let $commands= B N T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N T-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N T-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N T-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig T-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig T-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig T-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func T-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func T-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func T-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc T-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc T-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc T-proc C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -1029,52 +1029,52 @@ connection master;
 --echo #
 
 --let $commands= B N T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N T-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N T-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N T-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig T-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig T-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-trig T-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func T-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func T-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-func T-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc T-proc R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc T-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N-proc T-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -1089,28 +1089,28 @@ connection master;
 --echo #      --> MIXED "B N C B T T C" entries, format R in N/T and format S in T.
 --echo #
 --let $commands= B tN T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B nT T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NT T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NT-trig T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NT-func T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TN T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TN-trig T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TN-func T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -1125,22 +1125,22 @@ connection master;
 --echo #        --> MIXED "B N C B T T C" entries, format R in N/T and format S in T.
   --echo #  
 --let $commands= B tNe T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B nTe T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NeT-trig T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NeT-func T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TeN-trig T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TeN-func T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -1155,28 +1155,28 @@ connection master;
 --echo #      --> MIXED "B N C" entry, format R.
 --echo #
 --let $commands= B tN T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B nT T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NT T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NT-trig T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NT-func T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TN T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TN-trig T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TN-func T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -1191,22 +1191,22 @@ connection master;
 --echo #        --> MIXED "B N C" entry, format R.
 --echo #
 --let $commands= B tNe T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B nTe T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NeT-trig T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NeT-func T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TeN-trig T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TeN-func T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -1220,28 +1220,28 @@ connection master;
 --echo #      --> MIXED "B N C B T T C" entries, format R in N/T and format S in T.
 --echo #
 --let $commands= B T tN C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T nT C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T NT C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T NT-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T NT-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T TN C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T TN-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T TN-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -1255,22 +1255,22 @@ connection master;
 --echo #        --> MIXED "B N C B T C" entry, format R.
 --echo #
 --let $commands= B T tNe C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T nTe C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T NeT-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T NeT-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T TeN-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T TeN-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --echo
 --echo
@@ -1283,28 +1283,28 @@ connection master;
 --echo #        --> MIXED "B N C" entry, format R.
 --echo #
 --let $commands= B T tN R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T nT R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T NT R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T NT-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T NT-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T TN R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T TN-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T TN-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -1318,22 +1318,22 @@ connection master;
 --echo #        --> MIXED "B N C" entry, format R.
 --echo #
 --let $commands= B T tNe R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T nTe R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T NeT-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T NeT-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T TeN-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T TeN-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -1349,28 +1349,28 @@ connection master;
 --echo #      --> MIXED "B N C B N C B T C" entries, format R.
 --echo #
 --let $commands= B tN N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B nT N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NT N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NT-trig N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NT-func N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TN N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TN-trig N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TN-func N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -1386,22 +1386,22 @@ connection master;
 --echo #      --> MIXED "B N C B N C B T C" entries, format R.
 --echo #
 --let $commands= B tNe N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B nTe N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NeT-trig N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NeT-func N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TeN-trig N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TeN-func N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --echo
 --echo
@@ -1416,28 +1416,28 @@ connection master;
 --echo #    --> MIXED "B N C B N C" entries, format R.
 --echo #
 --let $commands= B tN N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B nT N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NT N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NT-trig N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NT-func N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TN N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TN-trig N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TN-func N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -1453,22 +1453,22 @@ connection master;
 --echo #      --> MIXED "B N C B N C" entries, format R.
 --echo #
 --let $commands= B tNe N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B nTe N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NeT-trig N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B NeT-func N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TeN-trig N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B TeN-func N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -1484,28 +1484,28 @@ connection master;
 --echo #
 
 --let $commands= B N tN C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N nT C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N NT C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N NT-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N NT-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N TN C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N TN-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N TN-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 
@@ -1521,22 +1521,22 @@ connection master;
 --echo #      --> MIXED "B N C B N C" entries, format S in first N and format R in the other.
 --echo #
 --let $commands= B N tNe C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N nTe C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N NeT-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N NeT-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N TeN-trig C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N TeN-func C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -1552,28 +1552,28 @@ connection master;
 --echo #
 
 --let $commands= B N tN R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N nT R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N NT R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N NT-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N NT-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N TN R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N TN-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N TN-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo
@@ -1588,58 +1588,58 @@ connection master;
 --echo #      --> MIXED "B N C B N C" entries, format S in first N and format R in the other.
 --echo #
 --let $commands= B N tNe R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N nTe R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N NeT-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N NeT-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N TeN-trig R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N TeN-func R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --echo ###################################################################################
 --echo #                               2 - SAVEPOINT
 --echo ###################################################################################
 --let $commands= B T Sn T Rn C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N T Sn T Rn C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T N Sn T Rn C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T Sn N T Rn C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --echo ###################################################################################
 --echo #                            3 - CREATE TABLE...SELECT
 --echo ###################################################################################
 --let $commands= CSe-T->T CS-T->T drop-CS
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= CSe-N->N CS-N->N drop-CS
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= CSe-T->N CS-T->N drop-CS
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= CSe-N->T CS-N->T drop-CS
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= CSe-N->T CS-N->T drop-CS
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= CSe-N->T CS-N->T drop-CS
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo ###################################################################################
@@ -1647,153 +1647,153 @@ connection master;
 --echo ###################################################################################
 
 --let $commands= CS-T->T
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-T B T IS-T<-N T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-T B T ISe-T<-N T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-T B IS-T<-N T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-T B ISe-T<-N T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= drop-CS
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= CS-T->T
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-T B T IS-T<-T T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-T B T ISe-T<-T T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-T B IS-T<-T T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-T B ISe-T<-T T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= drop-CS
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= CS-N->N
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-N B T IS-N<-T T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-N B T ISe-N<-T T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-N B IS-N<-T T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-N B ISe-N<-T T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= drop-CS
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= CS-N->N
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-N B T IS-N<-N T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-N B T ISe-N<-N T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-N B IS-N<-N T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= trunc-CS-N B ISe-N<-N T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= drop-CS
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo ###################################################################################
 --echo #                         5 - ROLLBACK TEMPORARY TABLE
 --echo ###################################################################################
 --let $commands= B T CT R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= drop-CT
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T Sn T CT Rn R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= drop-CT
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B T CT T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= drop-CT
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B tN CT T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= drop-CT
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B CT T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= drop-CT
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B N CT T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= drop-CT
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo ###################################################################################
 --echo #                            5 - SET WITH ROW CHANGES
 --echo ###################################################################################
 --let $commands= set-T
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= set-N
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= set-NT
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B set-N set-T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B set-T set-N C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B set-N set-T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B set-T set-N R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B set-NT set-T C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B set-T set-NT C
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B set-NT set-T R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 --let $commands= B set-T set-NT R
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc
 
 
 --echo ###################################################################################
@@ -1813,4 +1813,4 @@ if (`select @@session.binlog_direct_non_transactional_updates = 0 || @@session.b
 --echo #                                        CLEAN
 --echo ###################################################################################
 --let $commands= clean
---source extra/rpl_tests/rpl_mixing_engines.inc
+--source suite/rpl/include/rpl_mixing_engines.inc

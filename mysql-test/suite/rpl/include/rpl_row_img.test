@@ -20,7 +20,7 @@
 #     -- let $server_2_engine= MyISAM
 #     -- let $server_3_engine= InnoDB
 #
-#     -- source extra/rpl_tests/rpl_row_img.test
+#     -- source suite/rpl/include/rpl_row_img.test
 # 
 
 -- connection server_1

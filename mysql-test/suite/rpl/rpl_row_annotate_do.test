@@ -13,4 +13,4 @@
 ###############################################################################
 
 --source include/have_binlog_format_row.inc
---source extra/rpl_tests/rpl_row_annotate.test
+--source include/rpl_row_annotate.test

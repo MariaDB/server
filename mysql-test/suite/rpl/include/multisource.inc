@@ -4,7 +4,7 @@
 # Please check all dependent tests after modifying it
 #
 # Usage:
-# --source extra/rpl_tests/multisource.inc
+# --source suite/rpl/include/multisource.inc
 #
 # By default, the script expects the length of the 2nd binary log to be
 # $binlog_start_pos + length(Gtid_list event) + 2 x length(Binlog_checkpoint event)

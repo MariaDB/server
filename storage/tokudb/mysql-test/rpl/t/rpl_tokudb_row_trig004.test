@@ -13,6 +13,6 @@
 -- source include/have_tokudb.inc
 -- source include/master-slave.inc
 let $engine_type=TOKUDB;
--- source extra/rpl_tests/rpl_trig004.test
+-- source suite/rpl/include/rpl_trig004.test
 
 -- source include/rpl_end.inc

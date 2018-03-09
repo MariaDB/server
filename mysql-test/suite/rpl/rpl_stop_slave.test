@@ -30,14 +30,14 @@ source include/start_slave.inc;
 --echo # CREATE TEMPORARY TABLE with InnoDB engine
 --echo # -----------------------------------------
 let $tmp_table_stm= CREATE TEMPORARY TABLE tt1(c1 INT) ENGINE = InnoDB;
-source extra/rpl_tests/rpl_stop_slave.test;
+source include/rpl_stop_slave.test;
 
 --echo
 --echo # CREATE TEMPORARY TABLE ... SELECT with InnoDB engine
 --echo # ----------------------------------------------------
 let $tmp_table_stm= CREATE TEMPORARY TABLE tt1(c1 INT) ENGINE = InnoDB
                     SELECT c1 FROM t2;
-source extra/rpl_tests/rpl_stop_slave.test;
+source include/rpl_stop_slave.test;
 
 # Don't need to verify 'CREATE TEMPORARY TABLE' with MyIASM engine, as it
 # never is binlogged into a transaction since 5.5.

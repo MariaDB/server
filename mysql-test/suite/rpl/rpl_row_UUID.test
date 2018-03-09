@@ -4,5 +4,5 @@
 -- source include/have_binlog_format_row.inc
 -- source include/master-slave.inc
 let $engine_type=myisam;
---source extra/rpl_tests/rpl_row_UUID.test
+--source include/rpl_row_UUID.test
 --source include/rpl_end.inc
