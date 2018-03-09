@@ -1870,6 +1870,7 @@ not guaranteed that the actual number is that big, though)
 @param[in]	lsn_limit	in the case of BUF_FLUSH_LIST all blocks whose
 oldest_modification is smaller than this should be flushed (if their number
 does not exceed min_n), otherwise ignored */
+static
 void
 buf_flush_batch(
 	buf_pool_t*		buf_pool,
@@ -1909,6 +1910,7 @@ Gather the aggregated stats for both flush list and LRU list flushing.
 @param page_count_flush	number of pages flushed from the end of the flush_list
 @param page_count_LRU	number of pages flushed from the end of the LRU list
 */
+static
 void
 buf_flush_stats(
 /*============*/
@@ -1925,6 +1927,7 @@ buf_flush_stats(
 
 /******************************************************************//**
 Start a buffer flush batch for LRU or flush list */
+static
 ibool
 buf_flush_start(
 /*============*/
@@ -1956,22 +1959,8 @@ buf_flush_start(
 }
 
 /******************************************************************//**
-Gather the aggregated stats for both flush list and LRU list flushing */
-void
-buf_flush_common(
-/*=============*/
-	buf_flush_t	flush_type,	/*!< in: type of flush */
-	ulint		page_count)	/*!< in: number of pages flushed */
-{
-	buf_dblwr_flush_buffered_writes();
-
-	ut_a(flush_type == BUF_FLUSH_LRU || flush_type == BUF_FLUSH_LIST);
-
-	srv_stats.buf_pool_flushed.add(page_count);
-}
-
-/******************************************************************//**
 End a buffer flush batch for LRU or flush list */
+static
 void
 buf_flush_end(
 /*==========*/
