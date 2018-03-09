@@ -6093,8 +6093,9 @@ database_corrupted:
 		}
 	}
 
+	BPageMutex* block_mutex = buf_page_get_mutex(bpage);
 	buf_pool_mutex_enter(buf_pool);
-	mutex_enter(buf_page_get_mutex(bpage));
+	mutex_enter(block_mutex);
 
 #ifdef UNIV_IBUF_COUNT_DEBUG
 	if (io_type == BUF_IO_WRITE || uncompressed) {
@@ -6112,8 +6113,7 @@ database_corrupted:
 	buf_page_set_io_fix(bpage, BUF_IO_NONE);
 	buf_page_monitor(bpage, io_type);
 
-	switch (io_type) {
-	case BUF_IO_READ:
+	if (io_type == BUF_IO_READ) {
 		/* NOTE that the call to ibuf may have moved the ownership of
 		the x-latch to this OS thread: do not let this confuse you in
 		debugging! */
@@ -6127,11 +6127,8 @@ database_corrupted:
 					     BUF_IO_READ);
 		}
 
-		mutex_exit(buf_page_get_mutex(bpage));
-
-		break;
-
-	case BUF_IO_WRITE:
+		mutex_exit(block_mutex);
+	} else {
 		/* Write means a flush operation: call the completion
 		routine in the flush system */
 
@@ -6154,18 +6151,11 @@ database_corrupted:
 			evict = true;
 		}
 
+		mutex_exit(block_mutex);
+
 		if (evict) {
-			mutex_exit(buf_page_get_mutex(bpage));
 			buf_LRU_free_page(bpage, true);
-		} else {
-			mutex_exit(buf_page_get_mutex(bpage));
 		}
-
-
-		break;
-
-	default:
-		ut_error;
 	}
 
 	DBUG_PRINT("ib_buf", ("%s page %u:%u",
