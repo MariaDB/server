@@ -1,0 +1,47 @@
+SELECT @@session.character_set_client, @@session.character_set_results, @@session.character_set_connection;
+@@session.character_set_client	@@session.character_set_results	@@session.character_set_connection
+latin1	latin1	latin1
+SET @@session.session_track_system_variables='character_set_client,character_set_results,character_set_connection';
+# tracking info on
+SET NAMES 'utf8';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- character_set_client
+-- utf8
+-- character_set_connection
+-- utf8
+-- character_set_results
+-- utf8
+
+SET NAMES 'big5';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- character_set_client
+-- big5
+-- character_set_connection
+-- big5
+-- character_set_results
+-- big5
+
+# tracking info on once
+SET NAMES 'utf8';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- character_set_client
+-- utf8
+-- character_set_connection
+-- utf8
+-- character_set_results
+-- utf8
+
+SET NAMES 'big5';
+# tracking info on
+SET NAMES 'utf8';
+-- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
+-- character_set_client
+-- utf8
+-- character_set_connection
+-- utf8
+-- character_set_results
+-- utf8
+
+# tracking info off once
+SET NAMES 'big5';
+SET @@session.session_track_system_variables= default;

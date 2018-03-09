@@ -1,3 +1,5 @@
+--source include/not_embedded.inc
+
 FLUSH STATUS;
 
 --disable_result_log
