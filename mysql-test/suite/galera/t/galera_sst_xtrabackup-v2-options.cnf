@@ -1,9 +1,14 @@
 !include ../galera_2nodes.cnf
 
 [mysqld]
-wsrep_sst_method=xtrabackup-v2
+wsrep_sst_method=mariabackup
 wsrep_sst_auth="root:"
 wsrep_debug=ON
+
+[mariabackup]
+# TODO: figure out which options mariabackup supports
+# as a reference, old xtrabackup option configuration is
+# below
 
 [xtrabackup]
 backup-locks
@@ -12,6 +17,7 @@ compact
 # compression requires qpress from the Percona repositories
 # compress
 # compress-threads=2
+
 encryption=AES256
 encrypt-key=4FA92C5873672E20FB163A0BCB2BB4A4
 galera-info
@@ -19,6 +25,10 @@ history=backup
 parallel=2
 
 [SST]
-encrypt=1
-encrypt-algo=AES256
-encrypt-key=4FA92C5873672E20FB163A0BCB2BB4A4
+# TODO: SST encryption does not work or needs to be configured
+#       differently for mariabackup
+#       commented out for now
+
+#encrypt=1
+#encrypt-algo=AES256
+#encrypt-key=4FA92C5873672E20FB163A0BCB2BB4A4

@@ -25,6 +25,9 @@ return "No scritps" unless $cpath;
 my ($epath) = grep { -f "$_/my_print_defaults"; } "$::bindir/extra", $::path_client_bindir;
 return "No my_print_defaults" unless $epath;
 
+my ($mpath) = grep { -f "$_/mariabackup"; } "$::bindir/extra/mariabackup", $::path_client_bindir;
+return "No mariabackup" unless $mpath;
+
 push @::global_suppressions,
   (
      qr(WSREP: wsrep_sst_receive_address is set to '127.0.0.1),
@@ -81,6 +84,7 @@ push @::global_suppressions,
 $ENV{PATH}="$epath:$ENV{PATH}";
 $ENV{PATH}="$spath:$ENV{PATH}" unless $epath eq $spath;
 $ENV{PATH}="$cpath:$ENV{PATH}" unless $cpath eq $spath;
+$ENV{PATH}="$mpath:$ENV{PATH}" unless $mpath eq $spath;
 
 bless { };
 

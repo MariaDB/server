@@ -1,6 +1,6 @@
 #
-# This test checks that various options can be passed to xtrabackup via the my.cnf file
-# Initial SST happens via xtrabackup, so there is not much to do in the body of the test
+# This test checks that various options can be passed to mariabackup via the my.cnf file
+# Initial SST happens via mariabackup, so there is not much to do in the body of the test
 #
 
 --source include/big_test.inc
