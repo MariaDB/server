@@ -3,4 +3,4 @@
 
 -- source include/not_embedded.inc
 -- source include/have_binlog_format_mixed_or_statement.inc
--- source extra/binlog_tests/ctype_cp932.test
+-- source include/ctype_cp932.test

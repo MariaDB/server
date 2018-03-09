@@ -6,10 +6,10 @@
 --source include/have_binlog_format_statement.inc
 
 set binlog_format=statement;
-source extra/binlog_tests/database.test;
+source include/database.test;
 set binlog_format=mixed;
-source extra/binlog_tests/database.test;
+source include/database.test;
 set binlog_format=row;
-source extra/binlog_tests/database.test;
+source include/database.test;
 
 show databases;

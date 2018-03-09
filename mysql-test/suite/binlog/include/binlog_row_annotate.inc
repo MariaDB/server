@@ -5,7 +5,7 @@
 #
 # Usage:
 # --let use_remote_mysqlbinlog= 1 # optional
-# --source extra/binlog_tests/binlog_row_annotate.inc
+# --source suite/binlog/include/binlog_row_annotate.inc
 #
 # By default, the script uses mysqlbinlog both with direct access to files
 # and via connection to the server. In some cases, direct access to files

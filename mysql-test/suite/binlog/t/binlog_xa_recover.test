@@ -1,1 +1,1 @@
---source extra/binlog_tests/binlog_xa_recover.inc
+--source include/binlog_xa_recover.inc

@@ -1,1 +1,1 @@
---source extra/binlog_tests/binlog_write_error.inc
+--source suite/binlog/include/binlog_write_error.inc
