@@ -8,7 +8,7 @@ set @optimizer_switch_for_subselect_test='materialization=off,semijoin=off,subqu
 set join_cache_level=1;
 set @join_cache_level_for_subselect_test=@@join_cache_level;
 
---source t/subselect.test
+--source subselect.test
 
 set @optimizer_switch_for_subselect_test=null; 
 

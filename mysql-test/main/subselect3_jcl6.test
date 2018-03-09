@@ -13,7 +13,7 @@ show variables like 'join_cache_level';
 
 set @join_cache_level_for_subselect3_test=@@join_cache_level;
 
---source t/subselect3.test
+--source subselect3.test
 
 set join_cache_level=default;
 show variables like 'join_cache_level';

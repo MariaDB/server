@@ -8,7 +8,7 @@ set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 set join_cache_level=1;
 set @join_cache_level_for_subselect_test=@@join_cache_level;
 
---source t/subselect.test
+--source subselect.test
 
 set optimizer_switch=default;
 select @@optimizer_switch like '%materialization=on%';

@@ -14,7 +14,7 @@ show variables like 'join_cache_level';
 set @optimizer_switch_for_join_nested_test=@@optimizer_switch;
 set @join_cache_level_for_join_nested_test=@@join_cache_level;
 
---source t/join_nested.test
+--source join_nested.test
 
 #
 # BUG#35835: queries with nested outer joins with BKA enabled

@@ -4,7 +4,7 @@
 select @@optimizer_switch like '%exists_to_in=off%';
 set optimizer_switch='exists_to_in=off';
 
---source t/subselect.test
+--source subselect.test
 
 set optimizer_switch=default;
 select @@optimizer_switch like '%exists_to_in=off%';
