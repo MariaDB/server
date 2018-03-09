@@ -384,6 +384,7 @@ enum enum_commands {
   Q_RESULT_FORMAT_VERSION,
   Q_MOVE_FILE, Q_REMOVE_FILES_WILDCARD, Q_SEND_EVAL,
   Q_ENABLE_PREPARE_WARNINGS, Q_DISABLE_PREPARE_WARNINGS,
+  Q_RESET_CONNECTION,
   Q_UNKNOWN,			       /* Unknown command.   */
   Q_COMMENT,			       /* Comments, ignored. */
   Q_COMMENT_WITH_COMMAND,
@@ -491,6 +492,7 @@ const char *command_names[]=
   "send_eval",
   "enable_prepare_warnings",
   "disable_prepare_warnings",
+  "reset_connection",
 
   0
 };
@@ -6503,6 +6505,29 @@ void do_delimiter(struct st_command* command)
 }
 
 
+/*
+  do_reset_connection
+
+  DESCRIPTION
+  Reset the current session.
+*/
+
+static void do_reset_connection()
+{
+  MYSQL *mysql = cur_con->mysql;
+
+  DBUG_ENTER("do_reset_connection");
+  if (mysql_reset_connection(mysql))
+    die("reset connection failed: %s", mysql_error(mysql));
+  if (cur_con->stmt)
+  {
+    mysql_stmt_close(cur_con->stmt);
+    cur_con->stmt= NULL;
+  }
+  DBUG_VOID_RETURN;
+}
+
+
 my_bool match_delimiter(int c, const char *delim, uint length)
 {
   uint i;
@@ -9542,6 +9567,9 @@ int main(int argc, char **argv)
         break;
       case Q_PING:
         handle_command_error(command, mysql_ping(cur_con->mysql), -1);
+        break;
+      case Q_RESET_CONNECTION:
+        do_reset_connection();
         break;
       case Q_SEND_SHUTDOWN:
         handle_command_error(command,
