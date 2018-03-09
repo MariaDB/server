@@ -48,14 +48,14 @@ delimiter ; # Reset delimiter
 #
 # Bug #11523: \d works differently than delimiter
 #
-source t/mysql_delimiter_source.sql
+source ./main/mysql_delimiter_source.sql
 delimiter ; # Reset delimiter
 
 #
 # Bug #19799: delimiter command not working correctly when sourcing a sql file
 #             with Windows style line endings.
 #
-source t/mysql_delimiter_19799.sql
+source ./main/mysql_delimiter_19799.sql
 use test//
 show tables//
 delimiter ; # Reset delimiter

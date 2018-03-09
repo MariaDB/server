@@ -5995,7 +5995,7 @@ path-to-testcase
 Examples:
 
 alias
-main.alias              'main' is the name of the suite for the 't' directory.
+main.alias              'main' is the name of the main test suite
 rpl.rpl_invoked_features,mix,innodb
 suite/rpl/t/rpl.rpl_invoked_features
 

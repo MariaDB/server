@@ -2,7 +2,7 @@
 #
 # Check if the variable MY_PERROR is set
 #
---require r/have_perror.require
+--require include/have_perror.require
 disable_query_log;
 eval select LENGTH("$MY_PERROR") > 0 as "have_perror";
 enable_query_log;

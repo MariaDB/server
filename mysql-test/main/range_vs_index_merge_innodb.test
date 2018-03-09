@@ -2,6 +2,6 @@
 
 SET SESSION STORAGE_ENGINE='InnoDB';
 
---source t/index_intersect.test
+--source range_vs_index_merge.test
 
 SET SESSION STORAGE_ENGINE=DEFAULT;

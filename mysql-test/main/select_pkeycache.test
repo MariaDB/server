@@ -5,4 +5,4 @@
 # The result is expected the same as for select.test
 #
 
---source t/select.test
+--source select.test

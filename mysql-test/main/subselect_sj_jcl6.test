@@ -16,7 +16,7 @@ show variables like 'join_cache_level';
 set @optimizer_switch_for_subselect_sj_test=@@optimizer_switch;
 set @join_cache_level_for_subselect_sj_test=@@join_cache_level;
 
---source t/subselect_sj.test
+--source subselect_sj.test
 
 --echo #
 --echo # BUG#49129: Wrong result with IN-subquery with join_cache_level=6 and firstmatch=off

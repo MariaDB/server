@@ -45,7 +45,7 @@ sub skip_combinations {
 
   $skip{'include/not_windows.inc'} = 'Requires not Windows' if IS_WINDOWS;
 
-  $skip{'t/plugin_loaderr.test'} = 'needs compiled-in innodb'
+  $skip{'main/plugin_loaderr.test'} = 'needs compiled-in innodb'
             unless $::mysqld_variables{'innodb'} eq "ON";
 
   # disable tests that use ipv6, if unsupported
@@ -59,11 +59,11 @@ sub skip_combinations {
   }
   $skip{'include/check_ipv6.inc'} = 'No IPv6' unless ipv6_ok();
 
-  $skip{'t/openssl_6975.test'} = 'no or too old openssl'
+  $skip{'main/openssl_6975.test'} = 'no or too old openssl'
     unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
        and $1 ge "1.0.1d";
 
-  $skip{'t/ssl_7937.combinations'} = [ 'x509v3' ]
+  $skip{'main/ssl_7937.combinations'} = [ 'x509v3' ]
     unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
        and $1 ge "1.0.2";
 
