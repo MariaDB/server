@@ -1,5 +1,0 @@
-!include ../my.cnf
-
-[mysqld.2]
-# Needed because depending on load on test machine the master restart can take long.
-master_retry_count = 120

@@ -1,6 +1,6 @@
 # suite/funcs_1/datadict/basics_mixed1.inc
 #
-# Auxiliary script to be sourced by suite/funcs_1/t/is_basics_mixed.test
+# Auxiliary script to be sourced by suite/funcs_1/is_basics_mixed.test
 #
 # Author:
 # 2008-01-23 mleich WL#4203 Reorganize and fix the data dictionary tests of

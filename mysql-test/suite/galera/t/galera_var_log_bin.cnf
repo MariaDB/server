@@ -1,5 +1,0 @@
-!include ../galera_2nodes.cnf
-
-[mysqld]
-log-bin
-

@@ -1,7 +1,7 @@
 # suite/funcs_1/storedproc/param_check.inc
 #
 # Auxiliary routine to be sourced by
-# suite/funcs_1/t/storedproc.test
+# suite/funcs_1/storedproc.test
 #
 # Purpose:
 #    The assignment of float values to objects of type DECIMAL causes

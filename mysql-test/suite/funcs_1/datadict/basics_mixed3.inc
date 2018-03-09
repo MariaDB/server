@@ -1,6 +1,6 @@
 #### suite/funcs_1/datadict/basics_mixed3.inc
 #
-# Auxiliary routine to be sourced by suite/funcs_1/t/is_basics_mixed.test
+# Auxiliary routine to be sourced by suite/funcs_1/is_basics_mixed.test
 #
 # Check if INFORMATION_SCHEMA tables contain a schema_name like 'db_data%'.
 #

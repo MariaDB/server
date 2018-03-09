@@ -73,7 +73,7 @@ ORDER BY schema_name;
 #
 # Note: Check of content within information_schema.schemata about the databases
 #       information_schema and mysql is in
-#       suite/funcs_1/t/is_schemata_is_mysql.test.
+#       suite/funcs_1/is_schemata_is_mysql.test.
 #
 --disable_warnings
 DROP DATABASE IF EXISTS db_datadict_1;

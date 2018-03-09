@@ -41,7 +41,7 @@ if ($have_bug_32285)
 #     SQL requirements.
 
 # FIXME (mleich)
-#   - Alter all object names so that they follow the v/t/..<number> scheme or
+#   - Alter all object names so that they follow the v/..<number> scheme or
 #     apply another method which prevents that customer data might be
 #     accidently modified
 #   - Remove any reference to the preloaded tables tb1 - tb4, if they could

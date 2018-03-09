@@ -12,11 +12,11 @@ sub cassandra_running() {
 
 sub skip_combinations {
   my %skip;
-  $skip{'t/pam.test'} = 'No pam setup for mtr'
+  $skip{'pam.test'} = 'No pam setup for mtr'
              unless -e '/etc/pam.d/mariadb_mtr';
-  $skip{'t/cassandra.test'} = 'Cassandra is not running'
+  $skip{'cassandra.test'} = 'Cassandra is not running'
              unless cassandra_running();
-  $skip{'t/cassandra_qcache.test'} = $skip{'t/cassandra.test'};
+  $skip{'cassandra_qcache.test'} = $skip{'cassandra.test'};
   %skip;
 }
 

@@ -1,8 +1,8 @@
 # suite/funcs_1/datadict/table_constraints.inc
 #
 # Auxiliary script to be sourced by
-#    suite/funcs_1/t/is_table_constraints_mysql.test
-#    suite/funcs_1/t/is_table_constraints_is.test
+#    suite/funcs_1/is_table_constraints_mysql.test
+#    suite/funcs_1/is_table_constraints_is.test
 #
 # The variable
 #    $table_schema    database to be inspected

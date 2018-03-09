@@ -1,6 +1,6 @@
 # ==== Purpose ====
 #
-# Auxiliary file used by suite/rpl/t/rpl_test_framework.test
+# Auxiliary file used by suite/rpl/rpl_test_framework.test
 #
 # The purpose is to check that the sync chain generated in
 # rpl_change_topology.inc (invoked from rpl_init.inc) is correct. This
