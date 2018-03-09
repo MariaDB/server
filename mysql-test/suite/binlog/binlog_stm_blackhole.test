@@ -3,4 +3,4 @@
 
 -- source include/not_embedded.inc
 -- source include/have_binlog_format_statement.inc
--- source extra/binlog_tests/blackhole.test
+-- source include/blackhole.test

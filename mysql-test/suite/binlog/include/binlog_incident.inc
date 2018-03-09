@@ -9,7 +9,7 @@
 # --let $binlog_start_pos= <binlog position> # optional
 # --let $binlog_file= <binlog filename>      # optional
 #
-# --source extra/binlog_tests/binlog_incident.inc
+# --source suite/binlog/include/binlog_incident.inc
 #
 # The script uses MYSQLBINLOG to verify certain results.
 # By default, it uses binary logs directly. If it is undesirable,

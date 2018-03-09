@@ -5,7 +5,7 @@
 #
 # Usage:
 # --let $use_remote_mysqlbinlog= 1 # optional
-# --source extra/binlog_tests/binlog_mysqlbinlog-cp932.inc
+# --source suite/binlog/include/binlog_mysqlbinlog-cp932.inc
 #
 # By default, the script calls mysqlbinlog to read binary logs directly. 
 # If it is undesirable, this behavior can be overridden by setting 

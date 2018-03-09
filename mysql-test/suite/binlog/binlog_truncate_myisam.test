@@ -7,11 +7,11 @@ let $engine = MyISAM;
 SET BINLOG_FORMAT=ROW;
 RESET MASTER;
 
-source extra/binlog_tests/binlog_truncate.test;
+source include/binlog_truncate.test;
 
 SET BINLOG_FORMAT=STATEMENT;
 RESET MASTER;
 
-source extra/binlog_tests/binlog_truncate.test;
+source include/binlog_truncate.test;
 
 SET BINLOG_FORMAT=@old_binlog_format;
