@@ -1,2 +1,2 @@
---source extra/rpl_tests/rpl_sync.inc
+--source include/rpl_sync_test.inc
 

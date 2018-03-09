@@ -6,7 +6,7 @@
 # Usage:
 #
 # --let $use_remote_mysqlbinlog= 1 # optional
-# --source extra/rpl_tests/rpl_skip_replication.inc
+# --source suite/rpl/include/rpl_skip_replication.inc
 #
 # The script uses MYSQLBINLOG to verify certain results.
 # By default, it uses binary logs directly. If it is undesirable,

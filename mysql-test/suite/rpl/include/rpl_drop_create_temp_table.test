@@ -64,7 +64,7 @@
 #
 #
 # This test uses the commands available at:
-#   extra/rpl_tests/rpl_drop_create_temp_table.inc
+#   suite/rpl/include/rpl_drop_create_temp_table.inc
 #
 ###############################################################################
 
@@ -77,7 +77,7 @@ call mtr.add_suppression("Unsafe statement written to the binary log using state
 
 --let $tot_table= 2
 SET @commands= 'configure';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 --echo #########################################################################
 --echo #           1 - Tables dropped by "DROP TEMPORARY TABLE"
@@ -89,195 +89,195 @@ connection master;
 --echo #1) Generates in the binlog what follows:
 --echo #
 SET @commands= 'Drop-Temp-T-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-Temp-N-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-Temp-Xe-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-Temp-If-Xe-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-Temp-TXe-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-Temp-If-TXe-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-Temp-NXe-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-Temp-If-NXe-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-Temp-TN-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-Temp-TT-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-Temp-NN-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 --echo
 --echo #
 --echo #2) Generates in the binlog what follows:
 --echo #
 SET @commands= 'B T Drop-Temp-T-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-T-Temp N Drop-Temp-T-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-N-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-N-Temp N Drop-Temp-N-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-Xe-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-Xe-Temp N Drop-Temp-Xe-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-If-Xe-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-If-Xe-Temp N Drop-Temp-If-Xe-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-TXe-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-TXe-Temp N Drop-Temp-TXe-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-If-TXe-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-If-TXe-Temp N Drop-Temp-If-TXe-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-NXe-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-NXe-Temp N Drop-Temp-NXe-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-If-NXe-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-If-NXe-Temp N Drop-Temp-If-NXe-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-TN-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-TN-Temp N Drop-Temp-TN-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-TT-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-TT-Temp N Drop-Temp-TT-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-NN-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-NN-Temp N Drop-Temp-NN-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-NN-Temp N Drop-Temp-NN-Temp Ne C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-NN-Temp N Drop-Temp-NN-Temp Te C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-NN-Temp N Drop-Temp-NN-Temp NeT-trig C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 --echo
 --echo #
 --echo #3) Generates in the binlog what follows:
 --echo #
 SET @commands= 'B T Drop-Temp-T-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-T-Temp N Drop-Temp-T-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-N-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-N-Temp N Drop-Temp-N-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-Xe-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-Xe-Temp N Drop-Temp-Xe-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-If-Xe-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-If-Xe-Temp N Drop-Temp-If-Xe-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-TXe-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-TXe-Temp N Drop-Temp-TXe-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-If-TXe-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-If-TXe-Temp N Drop-Temp-If-TXe-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-NXe-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-NXe-Temp N Drop-Temp-NXe-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-If-NXe-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-If-NXe-Temp N Drop-Temp-If-NXe-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-TN-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-TN-Temp N Drop-Temp-TN-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-TT-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-TT-Temp N Drop-Temp-TT-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-NN-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-NN-Temp N Drop-Temp-NN-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-NN-Temp N Drop-Temp-NN-Temp Ne R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-NN-Temp N Drop-Temp-NN-Temp Te R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Temp-NN-Temp N Drop-Temp-NN-Temp NeT-trig R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 --echo #########################################################################
 --echo #                   2 - Tables dropped by "DROP TABLE"
@@ -289,86 +289,86 @@ connection master;
 --echo #1) Generates in the binlog what follows:
 --echo #
 SET @commands= 'Drop-T';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-N';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-Xe';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-If-Xe';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-TXe';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-If-TXe';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-NXe';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-If-NXe';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-TN';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-TT';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-NN';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-N-TN-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-TN-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 --echo
 --echo #
 --echo #2) Generates in the binlog what follows:
 --echo #
 SET @commands= 'B T Drop-T';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-N';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-Xe';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-If-Xe';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-TXe';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-If-TXe';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-NXe';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-If-NXe';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-TN';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-TT';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-NN';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-N-TN-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B T Drop-TN-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 --echo #########################################################################
 --echo #                      3 - CREATE TEMPORARY TABLE
@@ -380,48 +380,48 @@ connection master;
 --echo #1) Generates in the binlog what follows:
 --echo #
 SET @commands= 'Drop-Temp-N-Temp Create-N-Temp Drop-Temp-N-Temp Drop-Temp-N-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'Drop-Temp-T-Temp Create-T-Temp Drop-Temp-T-Temp Drop-Temp-T-Temp';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 --echo
 --echo #
 --echo #2) Generates in the binlog what follows:
 --echo #
 SET @commands= 'B T Drop-Temp-N-Temp Create-N-Temp Drop-Temp-N-Temp Drop-Temp-N-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B Drop-Temp-T-Temp Create-T-Temp Drop-Temp-T-Temp Drop-Temp-T-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B Drop-Temp-T-Temp Create-T-Temp Drop-Temp-T-Temp Drop-Temp-T-Temp Ne C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B Drop-Temp-T-Temp Create-T-Temp Drop-Temp-T-Temp Drop-Temp-T-Temp Te C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B Drop-Temp-T-Temp Create-T-Temp Drop-Temp-T-Temp Drop-Temp-T-Temp NeT-trig C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 --echo
 --echo #
 --echo #3) Generates in the binlog what follows:
 --echo #
 SET @commands= 'B T Drop-Temp-N-Temp Create-N-Temp Drop-Temp-N-Temp Drop-Temp-N-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B Drop-Temp-T-Temp Create-T-Temp Drop-Temp-T-Temp Drop-Temp-T-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B Drop-Temp-T-Temp Create-T-Temp Drop-Temp-T-Temp Drop-Temp-T-Temp Ne R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B Drop-Temp-T-Temp Create-T-Temp Drop-Temp-T-Temp Drop-Temp-T-Temp Te R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B Drop-Temp-T-Temp Create-T-Temp Drop-Temp-T-Temp Drop-Temp-T-Temp NeT-trig R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 --echo #########################################################################
 --echo #                     4 -  CHANGING TEMPORARY TABLES
@@ -433,25 +433,25 @@ connection master;
 --echo #1) Generates in the binlog what follows:
 --echo #
 SET @commands= 'B N N-Temp N-SELECT-N-Temp N-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B N N-Temp T-SELECT-N-Temp N-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B N N-Temp N-SELECT-T-Temp N-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B N N-Temp T-SELECT-T-Temp N-Temp C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B N N-Temp T-SELECT-T-Temp N-Temp Ne C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B N N-Temp T-SELECT-T-Temp N-Temp Te C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B N N-Temp T-SELECT-T-Temp N-Temp NeT-trig C';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 --echo
 --echo
@@ -459,25 +459,25 @@ SET @commands= 'B N N-Temp T-SELECT-T-Temp N-Temp NeT-trig C';
 --echo #2) Generates in the binlog what follows:
 --echo #
 SET @commands= 'B N N-Temp N-SELECT-N-Temp N-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B N N-Temp T-SELECT-N-Temp N-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B N N-Temp N-SELECT-T-Temp N-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B N N-Temp T-SELECT-T-Temp N-Temp R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B N N-Temp T-SELECT-T-Temp N-Temp Ne R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B N N-Temp T-SELECT-T-Temp N-Temp Te R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 SET @commands= 'B N N-Temp T-SELECT-T-Temp N-Temp NeT-trig R';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
 
 --echo ###################################################################################
 --echo #                               CHECK CONSISTENCY
@@ -499,4 +499,4 @@ if (`select @@session.binlog_format != 'STATEMENT'`)
 --echo #                           CLEAN
 --echo #########################################################################
 SET @commands= 'clean';
---source extra/rpl_tests/rpl_drop_create_temp_table.inc
+--source suite/rpl/include/rpl_drop_create_temp_table.inc

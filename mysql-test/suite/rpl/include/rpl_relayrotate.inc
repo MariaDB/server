@@ -14,5 +14,5 @@
 -- source include/master-slave.inc
 
 let $engine_type=innodb;
--- source extra/rpl_tests/rpl_relayrotate.test
+-- source suite/rpl/include/rpl_relayrotate.test
 --source include/rpl_end.inc

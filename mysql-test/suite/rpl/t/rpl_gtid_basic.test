@@ -1,4 +1,4 @@
---source extra/rpl_tests/rpl_gtid_basic.inc
+--source include/rpl_gtid_basic.inc
 
 --echo #
 --echo # Start of 10.2 tests

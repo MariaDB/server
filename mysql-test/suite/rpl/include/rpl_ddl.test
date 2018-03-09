@@ -1,4 +1,4 @@
-################# extra/rpl_tests/rpl_ddl.test ########################
+################# suite/rpl/include/rpl_ddl.test ########################
 #                                                                     #
 # DDL statements (sometimes with implicit COMMIT) and other stuff     #
 # executed on the master and it's propagation into the slave.         #

@@ -49,7 +49,7 @@
 # let $CRC_ARG_sel_retval= <stmt>;
 # let $CRC_ARG_sel_sidef= <stmt>;
 # let $CRC_ARG_desc= <desc>;
-# source extra/rpl_tests/create_recursive_construct.inc;
+# source suite/rpl/include/create_recursive_construct.inc;
 # let $my_stmt_sidef= $CRC_RET_stmt_sidef;
 # let $my_value= $CRC_RET_value;
 # let $my_sel_sidef= $CRC_RET_sel_sidef;

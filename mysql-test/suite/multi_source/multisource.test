@@ -1,1 +1,1 @@
---source extra/rpl_tests/multisource.inc
+--source suite/rpl/include/multisource.inc

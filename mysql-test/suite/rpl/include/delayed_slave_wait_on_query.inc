@@ -14,7 +14,7 @@
 # ==== Usage ====
 #
 # --let $query_number= 4
-# --source extra/rpl_tests/delayed_slave_wait_on_query.inc
+# --source suite/rpl/include/delayed_slave_wait_on_query.inc
 #
 # Parameters:
 # $query_number

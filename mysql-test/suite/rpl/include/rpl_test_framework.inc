@@ -31,7 +31,7 @@
 # --let $rpl_topology= <topology specification>
 # --let $masters= <list of masters>
 # [--let $rpl_diff_servers= <list of servers>]
-# --source extra/rpl_tests/rpl_test_framework.inc
+# --source suite/rpl/include/rpl_test_framework.inc
 #
 # Parameters:
 #   $next_number

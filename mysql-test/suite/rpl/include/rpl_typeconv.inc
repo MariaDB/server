@@ -36,22 +36,22 @@ SELECT @@global.slave_type_conversions;
 # Checking strict interpretation of type conversions
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='';
-source extra/rpl_tests/type_conversions.test;
+source suite/rpl/include/type_conversions.test;
 
 # Checking lossy integer type conversions
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_NON_LOSSY';
-source extra/rpl_tests/type_conversions.test;
+source suite/rpl/include/type_conversions.test;
 
 # Checking non-lossy integer type conversions
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY';
-source extra/rpl_tests/type_conversions.test;
+source suite/rpl/include/type_conversions.test;
 
 # Checking all type conversions
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY,ALL_NON_LOSSY';
-source extra/rpl_tests/type_conversions.test;
+source suite/rpl/include/type_conversions.test;
 
 connection slave;
 --echo **** Result of conversions ****
