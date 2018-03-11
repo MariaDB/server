@@ -174,9 +174,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.06.0006 February 02, 2018";
+       char version[]= "Version 1.06.0007 March 11, 2018";
 #if defined(__WIN__)
-       char compver[]= "Version 1.06.0006 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.06.0007 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -288,10 +288,15 @@ static MYSQL_THDVAR_SET(
 	0,                         // def (NO)
 	&xtrace_typelib);          // typelib
 
-																	 // Getting exact info values
+// Getting exact info values
 static MYSQL_THDVAR_BOOL(exact_info, PLUGIN_VAR_RQCMDARG,
        "Getting exact info values",
        NULL, NULL, 0);
+
+// Enabling cond_push
+static MYSQL_THDVAR_BOOL(cond_push, PLUGIN_VAR_RQCMDARG,
+	"Enabling cond_push",
+	NULL, NULL, 1);							// YES by default
 
 /**
   Temporary file usage:
@@ -427,6 +432,7 @@ handlerton *connect_hton= NULL;
 uint GetTraceValue(void)
 	{return (uint)(connect_hton ? THDVAR(current_thd, xtrace) : 0);}
 bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
+bool CondPushEnabled(void) {return THDVAR(current_thd, cond_push);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
 int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
 TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
@@ -3196,7 +3202,7 @@ const COND *ha_connect::cond_push(const COND *cond)
 {
   DBUG_ENTER("ha_connect::cond_push");
 
-  if (tdbp) {
+  if (tdbp && CondPushEnabled()) {
     PGLOBAL& g= xp->g;
     AMT      tty= tdbp->GetAmType();
     bool     x= (tty == TYPE_AM_MYX || tty == TYPE_AM_XDBC);
@@ -7243,7 +7249,8 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
 	MYSQL_SYSVAR(enable_mongo),
 #endif   // JAVA_SUPPORT || CMGO_SUPPORT   
-NULL
+	MYSQL_SYSVAR(cond_push),
+	NULL
 };
 
 maria_declare_plugin(connect)
@@ -7256,10 +7263,10 @@ maria_declare_plugin(connect)
   PLUGIN_LICENSE_GPL,
   connect_init_func,                            /* Plugin Init */
   connect_done_func,                            /* Plugin Deinit */
-  0x0106,                                       /* version number (1.05) */
+  0x0107,                                       /* version number (1.05) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.06.0006",                                  /* string version */
+  "1.06.0007",                                  /* string version */
 	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;
