@@ -5105,20 +5105,17 @@ static my_bool discover_handlerton(THD *thd, plugin_ref plugin,
 int ha_discover_table(THD *thd, TABLE_SHARE *share)
 {
   DBUG_ENTER("ha_discover_table");
-  int found;
 
   DBUG_ASSERT(share->error == OPEN_FRM_OPEN_ERROR);   // share is not OK yet
 
-  if (!engines_with_discover)
-    found= FALSE;
-  else if (share->db_plugin)
-    found= discover_handlerton(thd, share->db_plugin, share);
-  else
-    found= plugin_foreach(thd, discover_handlerton,
-                        MYSQL_STORAGE_ENGINE_PLUGIN, share);
-  
-  if (!found)
-    open_table_error(share, OPEN_FRM_OPEN_ERROR, ENOENT); // not found
+  if (engines_with_discover)
+  {
+      if (share->db_plugin)
+          (void) discover_handlerton(thd, share->db_plugin, share);
+      else
+          (void) plugin_foreach(thd, discover_handlerton,
+                                MYSQL_STORAGE_ENGINE_PLUGIN, share);
+  }
 
   DBUG_RETURN(share->error != OPEN_FRM_OK);
 }
@@ -5154,44 +5151,6 @@ static my_bool discover_existence(THD *thd, plugin_ref plugin,
 
   return ht->discover_table_existence(ht, args->db, args->table_name);
 }
-
-class Table_exists_error_handler : public Internal_error_handler
-{
-public:
-  Table_exists_error_handler()
-    : m_handled_errors(0), m_unhandled_errors(0)
-  {}
-
-  bool handle_condition(THD *thd,
-                        uint sql_errno,
-                        const char* sqlstate,
-                        Sql_condition::enum_warning_level *level,
-                        const char* msg,
-                        Sql_condition ** cond_hdl)
-  {
-    *cond_hdl= NULL;
-    if (sql_errno == ER_NO_SUCH_TABLE ||
-        sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE ||
-        sql_errno == ER_WRONG_OBJECT)
-    {
-      m_handled_errors++;
-      return TRUE;
-    }
-
-    if (*level == Sql_condition::WARN_LEVEL_ERROR)
-      m_unhandled_errors++;
-    return FALSE;
-  }
-
-  bool safely_trapped_errors()
-  {
-    return ((m_handled_errors > 0) && (m_unhandled_errors == 0));
-  }
-
-private:
-  int m_handled_errors;
-  int m_unhandled_errors;
-};
 
 /**
   Check if a given table exists, without doing a full discover, if possible
@@ -5294,11 +5253,11 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_n
     if (!hton)
       flags|= GTS_NOLOCK;
 
-    Table_exists_error_handler no_such_table_handler;
-    thd->push_internal_handler(&no_such_table_handler);
     table.init_one_table(db, table_name, 0, TL_READ);
     TABLE_SHARE *share= tdc_acquire_share(thd, &table, flags);
-    thd->pop_internal_handler();
+
+    if (!share)
+      DBUG_RETURN(FALSE);
 
     if (hton && share)
     {
@@ -5306,8 +5265,6 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_n
       tdc_release_share(share);
     }
 
-    // the table doesn't exist if we've caught ER_NO_SUCH_TABLE and nothing else
-    DBUG_RETURN(!no_such_table_handler.safely_trapped_errors());
   }
 
   DBUG_RETURN(FALSE);
