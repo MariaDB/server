@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -361,27 +361,6 @@ thd_trx_is_read_only(
 /*=================*/
 	THD*	thd);	/*!< in/out: thread handle */
 
-#if 0
-/**
-Check if the transaction can be rolled back
-@param[in] requestor	Session requesting the lock
-@param[in] holder	Session that holds the lock
-@return the session that will be rolled back, null don't care */
-
-THD*
-thd_trx_arbitrate(THD* requestor, THD* holder);
-
-/**
-@param[in] thd		Session to check
-@return the priority */
-
-int
-thd_trx_priority(THD* thd);
-
-#else
-static inline THD* thd_trx_arbitrate(THD*, THD*) { return NULL; }
-static inline int thd_trx_priority(THD*) { return 0; }
-#endif
 /******************************************************************//**
 Check if the transaction is an auto-commit transaction. TRUE also
 implies that it is a SELECT (read-only) transaction.

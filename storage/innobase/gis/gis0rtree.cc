@@ -34,7 +34,7 @@ Created 2013/03/27 Allen Lai and Jimmy Yang
 #include "rem0cmp.h"
 #include "lock0lock.h"
 #include "ibuf0ibuf.h"
-#include "trx0trx.h"
+#include "trx0undo.h"
 #include "srv0mon.h"
 #include "gis0geo.h"
 
