@@ -4437,17 +4437,12 @@ row_search_mvcc(
 	naturally moves upward (in fetch next) in alphabetical order,
 	otherwise downward */
 
-	if (direction == 0) {
-
-		if (mode == PAGE_CUR_GE
-		    || mode == PAGE_CUR_G
+	if (UNIV_UNLIKELY(direction == 0)) {
+		if (mode == PAGE_CUR_GE || mode == PAGE_CUR_G
 		    || mode >= PAGE_CUR_CONTAIN) {
-
 			moves_up = TRUE;
 		}
-
 	} else if (direction == ROW_SEL_NEXT) {
-
 		moves_up = TRUE;
 	}
 
@@ -5681,15 +5676,6 @@ normal_return:
 	que_thr_stop_for_mysql_no_error(thr, trx);
 
 	mtr.commit();
-
-	/* Rollback blocking transactions from hit list for high priority
-	transaction, if any. We should not be holding latches here as
-	we are going to rollback the blocking transactions. */
-	if (!trx->hit_list.empty()) {
-
-		ut_ad(trx_is_high_priority(trx));
-		trx_kill_blocking(trx);
-	}
 
 	DEBUG_SYNC_C("row_search_for_mysql_before_return");
 

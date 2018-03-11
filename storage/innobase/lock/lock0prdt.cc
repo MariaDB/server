@@ -38,6 +38,7 @@ Created 9/7/2013 Jimmy Yang
 #include "ut0vec.h"
 #include "btr0btr.h"
 #include "dict0boot.h"
+#include "que0que.h"
 #include <set>
 
 /*********************************************************************//**
@@ -495,9 +496,18 @@ lock_prdt_add_to_queue(
 		}
 	}
 
-	RecLock	rec_lock(index, block, PRDT_HEAPNO, type_mode);
+	lock = lock_rec_create(
+#ifdef WITH_WSREP
+		NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
+#endif
+		type_mode, block, PRDT_HEAPNO, index, trx,
+		caller_owns_trx_mutex);
 
-	return(rec_lock.create(trx, caller_owns_trx_mutex, true, prdt));
+	if (lock->type_mode & LOCK_PREDICATE) {
+		lock_prdt_set_prdt(lock, prdt);
+	}
+
+	return lock;
 }
 
 /*********************************************************************//**
@@ -565,7 +575,7 @@ lock_prdt_insert_check_and_lock(
 
 	const ulint	mode = LOCK_X | LOCK_PREDICATE | LOCK_INSERT_INTENTION;
 
-	lock_t*	wait_for = lock_prdt_other_has_conflicting(
+	const lock_t*	wait_for = lock_prdt_other_has_conflicting(
 		mode, block, prdt, trx);
 
 	if (wait_for != NULL) {
@@ -574,16 +584,17 @@ lock_prdt_insert_check_and_lock(
 		/* Allocate MBR on the lock heap */
 		lock_init_prdt_from_mbr(prdt, mbr, 0, trx->lock.lock_heap);
 
-		RecLock	rec_lock(thr, index, block, PRDT_HEAPNO, mode);
-
 		/* Note that we may get DB_SUCCESS also here! */
-
 		trx_mutex_enter(trx);
 
-		err = rec_lock.add_to_waitq(wait_for, prdt);
+		err = lock_rec_enqueue_waiting(
+#ifdef WITH_WSREP
+			NULL, /* FIXME: replicate SPATIAL INDEX locks */
+#endif
+			LOCK_X | LOCK_PREDICATE | LOCK_INSERT_INTENTION,
+			block, PRDT_HEAPNO, index, thr, prdt);
 
 		trx_mutex_exit(trx);
-
 	} else {
 		err = DB_SUCCESS;
 	}
@@ -831,13 +842,14 @@ lock_prdt_lock(
 	lock_t*		lock = lock_rec_get_first_on_page(hash, block);
 
 	if (lock == NULL) {
-
-		RecLock	rec_lock(index, block, PRDT_HEAPNO, prdt_mode);
-
-		lock = rec_lock.create(trx, false, true);
+		lock = lock_rec_create(
+#ifdef WITH_WSREP
+			NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
+#endif
+			mode | type_mode, block, PRDT_HEAPNO,
+			index, trx, FALSE);
 
 		status = LOCK_REC_SUCCESS_CREATED;
-
 	} else {
 		trx_mutex_enter(trx);
 
@@ -861,12 +873,14 @@ lock_prdt_lock(
 
 				if (wait_for != NULL) {
 
-					RecLock	rec_lock(
-						thr, index, block, PRDT_HEAPNO,
-						prdt_mode, prdt);
-
-					err = rec_lock.add_to_waitq(wait_for);
-
+					err = lock_rec_enqueue_waiting(
+#ifdef WITH_WSREP
+						NULL, /* FIXME: replicate
+						      SPATIAL INDEX locks */
+#endif
+						mode | type_mode,
+						block, PRDT_HEAPNO,
+						index, thr, prdt);
 				} else {
 
 					lock_prdt_add_to_queue(
@@ -947,10 +961,12 @@ lock_place_prdt_page_lock(
 	}
 
 	if (lock == NULL) {
-		RecID	rec_id(space, page_no, PRDT_HEAPNO);
-		RecLock	rec_lock(index, rec_id, mode);
-
-		rec_lock.create(trx, false, true);
+		lock = lock_rec_create_low(
+#ifdef WITH_WSREP
+			NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
+#endif
+			mode, space, page_no, NULL, PRDT_HEAPNO,
+			index, trx, FALSE);
 
 #ifdef PRDT_DIAG
 		printf("GIS_DIAGNOSTIC: page lock %d\n", (int) page_no);

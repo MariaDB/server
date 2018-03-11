@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -35,6 +35,7 @@ Created 2/2/1994 Heikki Tuuri
 #include "lock0lock.h"
 #include "fut0lst.h"
 #include "btr0sea.h"
+#include "trx0sys.h"
 
 /*			THE INDEX PAGE
 			==============

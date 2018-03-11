@@ -2804,8 +2804,7 @@ online_retry_drop_indexes_with_trx(
 	dict_table_t*	table,	/*!< in/out: table */
 	trx_t*		trx)	/*!< in/out: transaction */
 {
-	ut_ad(trx_state_eq(trx, TRX_STATE_NOT_STARTED)
-	      || trx_state_eq(trx, TRX_STATE_FORCED_ROLLBACK));
+	ut_ad(trx_state_eq(trx, TRX_STATE_NOT_STARTED));
 
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 

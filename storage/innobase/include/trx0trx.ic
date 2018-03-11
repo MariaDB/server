@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -64,11 +64,8 @@ trx_state_eq(
 		return(state == trx->state);
 
 	case TRX_STATE_NOT_STARTED:
-	case TRX_STATE_FORCED_ROLLBACK:
-
 		/* These states are not allowed for running transactions. */
 		ut_a(state == TRX_STATE_NOT_STARTED
-		     || state == TRX_STATE_FORCED_ROLLBACK
 		     || (relaxed
 			 && thd_get_error_number(trx->mysql_thd)));
 
@@ -279,68 +276,4 @@ trx_get_read_view(
 	const trx_t*	trx)
 {
 	return(!MVCC::is_view_active(trx->read_view) ? NULL : trx->read_view);
-}
-
-/**
-@param[in] trx		Transaction to check
-@return true if the transaction is a high priority transaction.*/
-UNIV_INLINE
-bool
-trx_is_high_priority(const trx_t* trx)
-{
-	if (trx->mysql_thd == NULL) {
-		return(false);
-	}
-
-	return(thd_trx_priority(trx->mysql_thd) > 0);
-}
-
-/**
-@param[in] requestor	Transaction requesting the lock
-@param[in] holder	Transaction holding the lock
-@return the transaction that will be rolled back, null don't care */
-UNIV_INLINE
-const trx_t*
-trx_arbitrate(const trx_t* requestor, const trx_t* holder)
-{
-	ut_ad(!trx_is_autocommit_non_locking(holder));
-	ut_ad(!trx_is_autocommit_non_locking(requestor));
-
-	/* Note: Background stats collection transactions also acquire
-	locks on user tables. They don't have an associated MySQL session
-	instance. */
-
-	if (requestor->mysql_thd == NULL) {
-
-		ut_ad(!trx_is_high_priority(requestor));
-
-		if (trx_is_high_priority(holder)) {
-			return(requestor);
-		} else {
-			return(NULL);
-		}
-
-	} else if (holder->mysql_thd == NULL) {
-
-		ut_ad(!trx_is_high_priority(holder));
-
-		if (trx_is_high_priority(requestor)) {
-			return(holder);
-		}
-
-		return(NULL);
-	}
-
-	const THD*	victim = thd_trx_arbitrate(
-		requestor->mysql_thd, holder->mysql_thd);
-
-	ut_ad(victim == NULL
-	      || victim == requestor->mysql_thd
-	      || victim == holder->mysql_thd);
-
-	if (victim != NULL) {
-		return(victim == requestor->mysql_thd ? requestor : holder);
-	}
-
-	return(NULL);
 }

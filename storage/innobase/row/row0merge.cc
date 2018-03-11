@@ -36,6 +36,7 @@ Completed by Sunny Bains and Marko Makela
 #include "row0ext.h"
 #include "row0log.h"
 #include "row0ins.h"
+#include "row0row.h"
 #include "row0sel.h"
 #include "log0crypt.h"
 #include "dict0crea.h"
@@ -45,6 +46,7 @@ Completed by Sunny Bains and Marko Makela
 #include "ut0sort.h"
 #include "row0ftsort.h"
 #include "row0import.h"
+#include "row0vers.h"
 #include "handler0alter.h"
 #include "btr0bulk.h"
 #include "fsp0sysspace.h"
@@ -3586,8 +3588,6 @@ row_merge_lock_table(
 
 	trx->op_info = "setting table lock for creating or dropping index";
 	trx->ddl = true;
-	/* Trx for DDL should not be forced to rollback for now */
-	trx->in_innodb |= TRX_FORCE_ROLLBACK_DISABLE;
 
 	return(lock_table_for_trx(table, trx, mode));
 }

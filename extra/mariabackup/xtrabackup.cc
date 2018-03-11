@@ -69,6 +69,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include <row0mysql.h>
 #include <row0quiesce.h>
 #include <srv0start.h>
+#include "trx0sys.h"
 #include <buf0dblwr.h>
 
 #include <list>

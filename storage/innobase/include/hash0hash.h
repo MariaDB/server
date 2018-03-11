@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -122,7 +123,6 @@ do {\
 	}\
 } while (0)
 
-#ifdef WITH_WSREP
 /*******************************************************************//**
 Inserts a struct to the head of hash table. */
 
@@ -148,7 +148,6 @@ do {							\
 		cell3333->node = DATA;			\
 	}						\
 } while (0)
-#endif /*WITH_WSREP */
 #ifdef UNIV_HASH_DEBUG
 # define HASH_ASSERT_VALID(DATA) ut_a((void*) (DATA) != (void*) -1)
 # define HASH_INVALIDATE(DATA, NAME) *(void**) (&DATA->NAME) = (void*) -1

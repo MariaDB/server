@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,7 +36,8 @@ Created 2013-04-12 Sunny Bains
 #include "srv0start.h"
 #include "row0trunc.h"
 #include "os0file.h"
-#include <vector>
+#include "que0que.h"
+#include "trx0undo.h"
 
 /* FIXME: For temporary tables, use a simple approach of btr_free()
 and btr_create() of each index tree. */
