@@ -525,8 +525,7 @@ void Item_bool_rowready_func2::fix_length_and_dec()
 int Arg_comparator::set_compare_func(Item_func_or_sum *item, Item_result type)
 {
   owner= item;
-  func= comparator_matrix[type]
-                         [is_owner_equal_func()];
+  func= comparator_matrix[type][is_owner_equal_func()];
 
   switch (type) {
   case TIME_RESULT:
@@ -708,7 +707,7 @@ int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
   @return cache item or original value.
 */
 
-Item** Arg_comparator::cache_converted_constant(THD *thd_arg, Item **value,
+Item** Arg_comparator::cache_converted_constant(THD *thd, Item **value,
                                                 Item **cache_item,
                                                 Item_result type)
 {
@@ -717,12 +716,12 @@ Item** Arg_comparator::cache_converted_constant(THD *thd_arg, Item **value,
     Also, get_datetime_value creates Item_cache internally.
     Unless fixed, we should not do it here.
   */
-  if (!thd_arg->lex->is_ps_or_view_context_analysis() &&
+  if (!thd->lex->is_ps_or_view_context_analysis() &&
       (*value)->const_item() && type != (*value)->result_type() &&
       type != TIME_RESULT)
   {
-    Item_cache *cache= Item_cache::get_cache(thd_arg, *value, type);
-    cache->setup(thd_arg, *value);
+    Item_cache *cache= Item_cache::get_cache(thd, *value, type);
+    cache->setup(thd, *value);
     *cache_item= cache;
     return cache_item;
   }
@@ -2172,7 +2171,7 @@ void Item_func_between::fix_length_and_dec()
   if (m_compare_type ==  TIME_RESULT)
     compare_as_dates= find_date_time_item(args, 3, 0);
 
-  /* See the comment about the similar block in Item_bool_func2 */
+  /* See the comment for Item_func::convert_const_compared_to_int_field */
   if (args[0]->real_item()->type() == FIELD_ITEM &&
       !thd->lex->is_ps_or_view_context_analysis())
   {
@@ -4286,7 +4285,7 @@ void Item_func_in::fix_length_and_dec()
       values on the right can be compared as integers and adjust the 
       comparison type accordingly.
 
-      See the comment about the similar block in Item_bool_func2
+      And see the comment for Item_func::convert_const_compared_to_int_field
     */  
     if (args[0]->real_item()->type() == FIELD_ITEM &&
         !thd->lex->is_view_context_analysis() && m_compare_type != INT_RESULT)
