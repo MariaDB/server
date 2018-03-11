@@ -17,6 +17,7 @@
 --source ../../include/mroonga/have_mroonga.inc
 
 # show variables like 'groonga%';
+--replace_regex /[0-9]+\.[0-9]+/X.YY/
 show variables like 'mroonga_version';
 
 --source ../../include/mroonga/have_mroonga_deinit.inc
