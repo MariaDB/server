@@ -22,6 +22,8 @@
   For engines that want to support galera.
 */
 
+#include <wsrep_api.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -67,11 +69,7 @@ enum wsrep_trx_status {
 };
 
 struct xid_t;
-struct wsrep;
 struct wsrep_ws_handle;
-struct wsrep_buf;
-/* must match to typedef in wsrep/wsrep_api.h */
-typedef int64_t wsrep_seqno_t;
 
 extern struct wsrep_service_st {
   struct wsrep *              (*get_wsrep_func)();

@@ -186,17 +186,6 @@ static bool trx_rseg_init_wsrep_xid(const page_t* page, XID& xid)
 	memcpy(xid.data,
 	       TRX_SYS + TRX_SYS_WSREP_XID_INFO
 	       + TRX_SYS_WSREP_XID_DATA + page, XIDDATASIZE);
-
-	/* Wsrep XID seqno part in TRX_SYS page was written in host byte
-	order. However, in the XID which gets written to the rollback
-	segment header the byte order is little endian. On big endian
-	machines swap the seqno part byte order. */
-#ifdef WORDS_BIGENDIAN
-	wsrep_seqno_t seqno;
-	memcpy(&seqno, xid.data + 24, sizeof seqno);
-	mach_swap_byte_order(xid.data + 24, &seqno, sizeof seqno);
-#endif /* WORDS_BIGENDIAN */
-
 	return true;
 }
 
@@ -216,6 +205,11 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid)
 		if (rseg_id == 0) {
 			found = trx_rseg_init_wsrep_xid(sys->frame, xid);
 			ut_ad(!found || xid.formatID == 1);
+                        if (found) {
+				max_xid_seqno = wsrep_xid_seqno(&xid);
+				memcpy(wsrep_uuid, wsrep_xid_uuid(&xid),
+				       sizeof wsrep_uuid);
+			}
 		}
 
 		const uint32_t page_no = trx_sysf_rseg_get_page_no(
