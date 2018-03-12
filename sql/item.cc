@@ -9543,12 +9543,6 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
   return 0;
 }
 
-Item_cache* Item_cache::get_cache(THD *thd, const Item *item)
-{
-  return get_cache(thd, item, item->cmp_type());
-}
-
-
 /**
   Get a cache item of given type.
 
@@ -9559,12 +9553,12 @@ Item_cache* Item_cache::get_cache(THD *thd, const Item *item)
 */
 
 Item_cache* Item_cache::get_cache(THD *thd, const Item *item,
-                                  const Item_result type)
+                         const Item_result type, const enum_field_types f_type)
 {
   MEM_ROOT *mem_root= thd->mem_root;
   switch (type) {
   case INT_RESULT:
-    return new (mem_root) Item_cache_int(thd, item->field_type());
+    return new (mem_root) Item_cache_int(thd, f_type);
   case REAL_RESULT:
     return new (mem_root) Item_cache_real(thd);
   case DECIMAL_RESULT:
@@ -9574,7 +9568,7 @@ Item_cache* Item_cache::get_cache(THD *thd, const Item *item,
   case ROW_RESULT:
     return new (mem_root) Item_cache_row(thd);
   case TIME_RESULT:
-    return new (mem_root) Item_cache_temporal(thd, item->field_type());
+    return new (mem_root) Item_cache_temporal(thd, f_type);
   }
   return 0;                                     // Impossible
 }

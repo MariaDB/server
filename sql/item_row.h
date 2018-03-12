@@ -90,8 +90,7 @@ public:
   Item_result cmp_type() const { return ROW_RESULT; }
   enum_field_types field_type() const
   {
-    DBUG_ASSERT(0);
-    return MYSQL_TYPE_DOUBLE;
+    return MYSQL_TYPE_NULL;
   }
   void update_used_tables()
   {
