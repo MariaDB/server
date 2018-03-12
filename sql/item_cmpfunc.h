@@ -113,8 +113,6 @@ public:
   int compare_e_json_str();
   int compare_e_str_json();
 
-  Item** cache_converted_constant(THD *thd, Item **value, Item **cache,
-                                  Item_result type);
   static arg_cmp_func comparator_matrix [6][2];
   inline bool is_owner_equal_func()
   {
@@ -1069,7 +1067,7 @@ class Item_func_nullif :public Item_func_hybrid_field_type
     The left "a" is in a comparison and can be replaced by:
     - Item_func::convert_const_compared_to_int_field()
     - agg_item_set_converter() in set_cmp_func()
-    - Arg_comparator::cache_converted_constant() in set_cmp_func()
+    - cache_converted_constant() in set_cmp_func()
 
     Both "a"s are subject to equal fields propagation and can be replaced by:
     - Item_field::propagate_equal_fields(ANY_SUBST) for the left "a"

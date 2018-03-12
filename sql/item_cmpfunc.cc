@@ -34,6 +34,8 @@
 #include "sql_time.h"                  // make_truncated_value_warning
 #include "sql_base.h"                  // dynamic_column_error_message
 
+static Item** cache_converted_constant(THD *thd, Item **value,
+                Item **cache_item, Item_result type,enum_field_types f_type);
 
 /**
   find an temporal type (item) that others will be converted to
@@ -707,9 +709,8 @@ int Arg_comparator::set_cmp_func(Item_func_or_sum *owner_arg,
   @return cache item or original value.
 */
 
-Item** Arg_comparator::cache_converted_constant(THD *thd, Item **value,
-                                                Item **cache_item,
-                                                Item_result type)
+static Item** cache_converted_constant(THD *thd, Item **value,
+                                       Item **cache_item, Item_result type)
 {
   /*
     Don't need cache if doing context analysis only.
