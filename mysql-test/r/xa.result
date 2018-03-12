@@ -282,7 +282,6 @@ INSERT INTO t1 SELECT * FROM t2;
 connection default;
 REPLACE INTO t2 SELECT * FROM t2;
 connection con1;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 disconnect con1;
 connect  con2,localhost,root,,test;
 INSERT INTO t3 VALUES (1);
