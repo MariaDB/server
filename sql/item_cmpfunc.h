@@ -1558,12 +1558,11 @@ class Item_func_case :public Item_func_hybrid_field_type
   int first_expr_num, else_expr_num;
   enum Item_result left_cmp_type;
   String tmp_value;
-  uint ncases;
+  uint nwhens;
   Item_result cmp_type;
   DTCollation cmp_collation;
   cmp_item *cmp_items[6]; /* For all result types */
   cmp_item *case_item;
-  Item **arg_buffer;
   uint m_found_types;
 public:
   Item_func_case(THD *thd, List<Item> &list, Item *first_expr_arg,
@@ -1593,7 +1592,6 @@ public:
     if (clone)
     {
       clone->case_item= 0;
-      clone->arg_buffer= 0;
       bzero(&clone->cmp_items, sizeof(cmp_items));
     }
     return clone;
