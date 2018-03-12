@@ -151,13 +151,9 @@ bool Item::get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate)
   if (get_date(ltime, fuzzydate | time_flag))
     return true;
   if (ltime->time_type == MYSQL_TIMESTAMP_TIME &&
-      !(fuzzydate & TIME_TIME_ONLY))
-  {
-    MYSQL_TIME tmp;
-    if (time_to_datetime_with_warn(thd, ltime, &tmp, fuzzydate))
-      return null_value= true;
-    *ltime= tmp;
-  }
+      !(fuzzydate & TIME_TIME_ONLY) &&
+      convert_time_to_datetime(thd, ltime, fuzzydate))
+    return true;
   return false;
 }
 

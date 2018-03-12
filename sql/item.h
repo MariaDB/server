@@ -27,6 +27,7 @@
 #include "sql_const.h"                 /* RAND_TABLE_BIT, MAX_FIELD_NAME */
 #include "field.h"                              /* Derivation */
 #include "sql_type.h"
+#include "sql_time.h"
 
 C_MODE_START
 #include <ma_dyncol.h>
@@ -1361,6 +1362,14 @@ public:
   bool get_time(MYSQL_TIME *ltime)
   { return get_date(ltime, TIME_TIME_ONLY | TIME_INVALID_DATES); }
   // Get date with automatic TIME->DATETIME conversion
+  bool convert_time_to_datetime(THD *thd, MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    MYSQL_TIME tmp;
+    if (time_to_datetime_with_warn(thd, ltime, &tmp, fuzzydate))
+      return null_value= true;
+    *ltime= tmp;
+    return false;
+  }
   bool get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate);
   /*
     Get time with automatic DATE/DATETIME to TIME conversion.
