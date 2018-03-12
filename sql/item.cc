@@ -9853,9 +9853,18 @@ Item *Item_cache_temporal::convert_to_basic_const_item(THD *thd)
   else
   {
     MYSQL_TIME ltime;
-    unpack_time(val_datetime_packed(), &ltime);
-    new_item= (Item*) new (thd->mem_root) Item_datetime_literal(thd, &ltime,
-                                                                decimals);
+    if (Item_cache_temporal::field_type() == MYSQL_TYPE_TIME)
+    {
+      unpack_time(val_time_packed(), &ltime);
+      new_item= (Item*) new (thd->mem_root) Item_time_literal(thd, &ltime,
+                                                              decimals);
+    }
+    else
+    {
+      unpack_time(val_datetime_packed(), &ltime);
+      new_item= (Item*) new (thd->mem_root) Item_datetime_literal(thd, &ltime,
+                                                                  decimals);
+    }
   }
   return new_item;
 }
