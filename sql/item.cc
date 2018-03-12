@@ -9361,13 +9361,16 @@ void resolve_const_item(THD *thd, Item **ref, Item *comp_item)
   switch (res_type) {
   case TIME_RESULT:
   {
-    bool is_null;
-    Item **ref_copy= ref;
-    /* the following call creates a constant and puts it in new_item */
     enum_field_types type= item->field_type_for_temporal_comparison(comp_item);
-    get_datetime_value(thd, &ref_copy, &new_item, type, &is_null);
-    if (is_null)
+    longlong value= item->val_temporal_packed(type);
+    if (item->null_value)
       new_item= new (mem_root) Item_null(thd, name);
+    else
+    {
+      Item_cache_temporal *cache= new (mem_root) Item_cache_temporal(thd, type);
+      cache->store_packed(value, item);
+      new_item= cache;
+    }
     break;
   }
   case STRING_RESULT:
@@ -9702,8 +9705,7 @@ Item_cache_temporal::Item_cache_temporal(THD *thd,
 longlong Item_cache_temporal::val_datetime_packed()
 {
   DBUG_ASSERT(fixed == 1);
-  if (Item_cache_temporal::field_type() == MYSQL_TYPE_TIME)
-    return Item::val_datetime_packed(); // TIME-to-DATETIME conversion needed
+  DBUG_ASSERT(Item_cache_temporal::field_type() != MYSQL_TYPE_TIME);
   if ((!value_cached && !cache_value()) || null_value)
   {
     null_value= TRUE;
@@ -9716,8 +9718,7 @@ longlong Item_cache_temporal::val_datetime_packed()
 longlong Item_cache_temporal::val_time_packed()
 {
   DBUG_ASSERT(fixed == 1);
-  if (Item_cache_temporal::field_type() != MYSQL_TYPE_TIME)
-    return Item::val_time_packed(); // DATETIME-to-TIME conversion needed
+  DBUG_ASSERT(Item_cache_temporal::field_type() == MYSQL_TYPE_TIME);
   if ((!value_cached && !cache_value()) || null_value)
   {
     null_value= TRUE;
@@ -9775,18 +9776,26 @@ double Item_cache_temporal::val_real()
 }
 
 
-bool  Item_cache_temporal::cache_value()
+bool Item_cache_temporal::cache_value()
 {
   if (!example)
     return false;
-
   value_cached= true;
- 
+
   MYSQL_TIME ltime;
-  if (example->get_date_result(&ltime, 0))
-    value=0;
-  else
+  uint fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES;
+  if (Item_cache_temporal::field_type() == MYSQL_TYPE_TIME)
+    fuzzydate|= TIME_TIME_ONLY;
+
+  value= 0;
+  if (!example->get_date_result(&ltime, fuzzydate))
+  {
+    if (ltime.time_type == MYSQL_TIMESTAMP_TIME &&
+        !(fuzzydate & TIME_TIME_ONLY) &&
+        convert_time_to_datetime(current_thd, &ltime, fuzzydate))
+      return true;
     value= pack_time(&ltime);
+  }
   null_value= example->null_value;
   return true;
 }
@@ -9806,11 +9815,15 @@ bool Item_cache_temporal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   ltime->time_type= mysql_type_to_time_type(field_type());
   if (ltime->time_type == MYSQL_TIMESTAMP_TIME)
   {
-    ltime->hour+= (ltime->month*32+ltime->day)*24;
-    ltime->month= ltime->day= 0;
+    if (fuzzydate & TIME_TIME_ONLY)
+    {
+      ltime->hour+= (ltime->month*32+ltime->day)*24;
+      ltime->month= ltime->day= 0;
+    }
+    else if (convert_time_to_datetime(current_thd, ltime, fuzzydate))
+      return true;
   }
   return 0;
- 
 }
 
 

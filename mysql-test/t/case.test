@@ -287,3 +287,22 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.1 test
 --echo #
+
+#
+# caching of first argument in CASE/IN for temporal types
+#
+#
+
+# should not convert all values to time
+select case 'foo' when time'10:00:00' then 'never' when '0' then 'bug' else 'ok' end;
+select 'foo' in (time'10:00:00','0');
+
+create table t1 (a time);
+insert t1 values (100000), (102030), (203040);
+# only one warning, TIME('foo') should be cached
+select case 'foo' when a then 'never' when '0' then 'bug' else 'ok' end from t1;
+select 'foo' in (a,'0') from t1;
+drop table t1;
+
+# first comparison should be as date, second as time
+select case '20:10:05' when date'2020-10-10' then 'never' when time'20:10:5' then 'ok' else 'bug' end;

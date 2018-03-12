@@ -403,3 +403,37 @@ DROP TABLE t1;
 #
 # End of 10.1 test
 #
+select case 'foo' when time'10:00:00' then 'never' when '0' then 'bug' else 'ok' end;
+case 'foo' when time'10:00:00' then 'never' when '0' then 'bug' else 'ok' end
+ok
+Warnings:
+Warning	1292	Truncated incorrect time value: 'foo'
+select 'foo' in (time'10:00:00','0');
+'foo' in (time'10:00:00','0')
+0
+Warnings:
+Warning	1292	Truncated incorrect time value: 'foo'
+create table t1 (a time);
+insert t1 values (100000), (102030), (203040);
+select case 'foo' when a then 'never' when '0' then 'bug' else 'ok' end from t1;
+case 'foo' when a then 'never' when '0' then 'bug' else 'ok' end
+ok
+ok
+ok
+Warnings:
+Warning	1292	Truncated incorrect time value: 'foo'
+Warning	1292	Truncated incorrect time value: 'foo'
+Warning	1292	Truncated incorrect time value: 'foo'
+select 'foo' in (a,'0') from t1;
+'foo' in (a,'0')
+0
+0
+0
+Warnings:
+Warning	1292	Truncated incorrect time value: 'foo'
+Warning	1292	Truncated incorrect time value: 'foo'
+Warning	1292	Truncated incorrect time value: 'foo'
+drop table t1;
+select case '20:10:05' when date'2020-10-10' then 'never' when time'20:10:5' then 'ok' else 'bug' end;
+case '20:10:05' when date'2020-10-10' then 'never' when time'20:10:5' then 'ok' else 'bug' end
+bug

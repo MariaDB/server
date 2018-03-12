@@ -25,6 +25,6 @@ id	title	average	max
 SELECT * FROM running_records
 WHERE average BETWEEN "-838:59:59" AND "01:00:00";
 id	title	average	max
-3	record failure	-838:59:59	-838:59:59
 1	normal condition	01:00:00	01:05:00
+3	record failure	-838:59:59	-838:59:59
 DROP TABLE running_records;

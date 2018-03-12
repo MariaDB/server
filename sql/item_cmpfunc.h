@@ -1267,19 +1267,15 @@ public:
 /*
   Class to represent a vector of constant DATE/DATETIME values.
   Values are obtained with help of the get_datetime_value() function.
-  If the left item is a constant one then its value is cached in the
-  lval_cache variable.
 */
 class in_datetime :public in_longlong
 {
 public:
   /* An item used to issue warnings. */
   Item *warn_item;
-  /* Cache for the left item. */
-  Item *lval_cache;
 
   in_datetime(THD *thd, Item *warn_item_arg, uint elements)
-    :in_longlong(thd, elements), warn_item(warn_item_arg), lval_cache(0) {};
+    :in_longlong(thd, elements), warn_item(warn_item_arg) {}
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
   Item *create_item(THD *thd);
@@ -1441,8 +1437,6 @@ public:
 /*
   Compare items in the DATETIME context.
   Values are obtained with help of the get_datetime_value() function.
-  If the left item is a constant one then its value is cached in the
-  lval_cache variable.
 */
 class cmp_item_datetime : public cmp_item_scalar
 {
@@ -1450,11 +1444,9 @@ class cmp_item_datetime : public cmp_item_scalar
 public:
   /* Item used for issuing warnings. */
   Item *warn_item;
-  /* Cache for the left item. */
-  Item *lval_cache;
 
   cmp_item_datetime(Item *warn_item_arg)
-    : warn_item(warn_item_arg), lval_cache(0) {}
+    : warn_item(warn_item_arg) {}
   void store_value(Item *item);
   int cmp(Item *arg);
   int compare(cmp_item *ci);
@@ -2622,7 +2614,7 @@ inline bool is_cond_or(Item *item)
 
 Item *and_expressions(Item *a, Item *b, Item **org_item);
 
-longlong get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
+longlong get_datetime_value(Item ***item_arg, Item **cache_arg,
                             enum_field_types f_type, bool *is_null);
 
 
