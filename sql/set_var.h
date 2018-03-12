@@ -430,7 +430,9 @@ sql_mode_t expand_sql_mode(sql_mode_t sql_mode);
 bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode, LEX_STRING *ls);
 int default_regex_flags_pcre(const THD *thd);
 
-extern sys_var *Sys_autocommit_ptr, *Sys_last_gtid_ptr;
+extern sys_var *Sys_autocommit_ptr, *Sys_last_gtid_ptr,
+  *Sys_character_set_client_ptr, *Sys_character_set_connection_ptr,
+  *Sys_character_set_results_ptr;
 
 CHARSET_INFO *get_old_charset_by_name(const char *old_name);
 

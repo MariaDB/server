@@ -1016,24 +1016,12 @@ int set_var_collation_client::update(THD *thd)
 #ifndef EMBEDDED_LIBRARY
   if (thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->is_enabled())
   {
-    sys_var *svar;
-    mysql_mutex_lock(&LOCK_plugin);
-    if ((svar= find_sys_var_ex(thd, "character_set_client",
-                               sizeof("character_set_client") - 1,
-                               false, true)))
-      thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
-        mark_as_changed(thd, (LEX_CSTRING*)svar);
-    if ((svar= find_sys_var_ex(thd, "character_set_results",
-                             sizeof("character_set_results") - 1,
-                               false, true)))
-      thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
-        mark_as_changed(thd, (LEX_CSTRING*)svar);
-    if ((svar= find_sys_var_ex(thd, "character_set_connection",
-                                sizeof("character_set_connection") - 1,
-                               false, true)))
-      thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
-        mark_as_changed(thd, (LEX_CSTRING*)svar);
-    mysql_mutex_unlock(&LOCK_plugin);
+    thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+      mark_as_changed(thd, (LEX_CSTRING*)Sys_character_set_client_ptr);
+    thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+      mark_as_changed(thd, (LEX_CSTRING*)Sys_character_set_results_ptr);
+    thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+      mark_as_changed(thd, (LEX_CSTRING*)Sys_character_set_connection_ptr);
   }
   thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
 #endif //EMBEDDED_LIBRARY

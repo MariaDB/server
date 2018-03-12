@@ -673,6 +673,8 @@ static Sys_var_struct Sys_character_set_client(
        offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_cs_client),
        ON_UPDATE(fix_thd_charset));
+// for check changing
+export sys_var *Sys_character_set_client_ptr= &Sys_character_set_client;
 
 static Sys_var_struct Sys_character_set_connection(
        "character_set_connection", "The character set used for "
@@ -682,6 +684,8 @@ static Sys_var_struct Sys_character_set_connection(
        offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_charset_not_null),
        ON_UPDATE(fix_thd_charset));
+// for check changing
+export sys_var *Sys_character_set_connection_ptr= &Sys_character_set_connection;
 
 static Sys_var_struct Sys_character_set_results(
        "character_set_results", "The character set used for returning "
@@ -689,6 +693,8 @@ static Sys_var_struct Sys_character_set_results(
        SESSION_VAR(character_set_results), NO_CMD_LINE,
        offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_charset));
+// for check changing
+export sys_var *Sys_character_set_results_ptr= &Sys_character_set_results;
 
 static Sys_var_struct Sys_character_set_filesystem(
        "character_set_filesystem", "The filesystem character set",
