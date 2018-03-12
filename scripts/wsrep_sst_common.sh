@@ -50,7 +50,7 @@ case "$1" in
             remain=${WSREP_SST_OPT_ADDR#*:}
             ;;
         esac
-        readonly WSREP_SST_OPT_PORT=${remain%%/*}
+        readonly WSREP_SST_OPT_ADDR_PORT=${remain%%/*}
         remain=${remain#*/}
         readonly WSREP_SST_OPT_MODULE=${remain%%/*}
         readonly WSREP_SST_OPT_PATH=${WSREP_SST_OPT_ADDR#*/}
