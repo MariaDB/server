@@ -433,10 +433,15 @@ fil_space_set_imported(
 	mutex_enter(&fil_system->mutex);
 
 	fil_space_t*	space = fil_space_get_by_id(id);
+	const fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
 
 	ut_ad(space->purpose == FIL_TYPE_IMPORT);
 	space->purpose = FIL_TYPE_TABLESPACE;
-
+	space->atomic_write_supported = node->atomic_write
+		&& srv_use_atomic_writes
+		&& my_test_if_atomic_write(node->handle,
+					   int(page_size_t(space->flags)
+					       .physical()));
 	mutex_exit(&fil_system->mutex);
 }
 
@@ -574,7 +579,7 @@ fil_node_open_file(
 	ut_a(node->n_pending == 0);
 	ut_a(!node->is_open());
 
-	read_only_mode = !fsp_is_system_temporary(space->id)
+	read_only_mode = space->purpose != FIL_TYPE_TEMPORARY
 		&& srv_read_only_mode;
 
 	const bool first_time_open = node->size == 0;
@@ -582,8 +587,8 @@ fil_node_open_file(
 	if (first_time_open
 	    || (space->purpose == FIL_TYPE_TABLESPACE
 		&& node == UT_LIST_GET_FIRST(space->chain)
-		&& !undo::Truncate::was_tablespace_truncated(space->id)
-		&& srv_startup_is_before_trx_rollback_phase)) {
+		&& srv_startup_is_before_trx_rollback_phase
+		&& !undo::Truncate::was_tablespace_truncated(space->id))) {
 		/* We do not know the size of the file yet. First we
 		open the file in the normal mode, no async I/O here,
 		for simplicity. Then do some checks, and close the
@@ -732,6 +737,11 @@ retry:
 
                 if (first_time_open) {
 			/*
+			For the temporary tablespace and during the
+			non-redo-logged adjustments in
+			IMPORT TABLESPACE, we do not care about
+			the atomicity of writes.
+
 			Atomic writes is supported if the file can be used
 			with atomic_writes (not log file), O_DIRECT is
 			used (tested in ha_innodb.cc) and the file is
@@ -739,12 +749,14 @@ retry:
 			for the given block size
 			*/
 			space->atomic_write_supported
-				= srv_use_atomic_writes
-				&& node->atomic_write
-				&& my_test_if_atomic_write(
-					node->handle,
-					int(page_size_t(space->flags)
-					    .physical()));
+				= space->purpose == FIL_TYPE_TEMPORARY
+				|| space->purpose == FIL_TYPE_IMPORT
+				|| (node->atomic_write
+				    && srv_use_atomic_writes
+				    && my_test_if_atomic_write(
+					    node->handle,
+					    int(page_size_t(space->flags)
+						.physical())));
                 }
         }
 
@@ -1552,6 +1564,13 @@ fil_space_create(
 
 	if (space->purpose == FIL_TYPE_TEMPORARY) {
 		ut_d(space->latch.set_temp_fsp());
+		/* SysTablespace::open_or_create() would pass
+		size!=0 to fil_node_create(), so first_time_open
+		would not hold in fil_node_open_file(), and we
+		must assign this manually. We do not care about
+		the durability or atomicity of writes to the
+		temporary tablespace files. */
+		space->atomic_write_supported = true;
 	}
 
 	HASH_INSERT(fil_space_t, hash, fil_system->spaces, id, space);
@@ -5315,8 +5334,9 @@ fil_aio_wait(
 	mutex_enter(&fil_system->mutex);
 
 	fil_node_complete_io(node, type);
-	const fil_type_t	purpose		= node->space->purpose;
-	const ulint		space_id	= node->space->id;
+	const fil_type_t	purpose	= node->space->purpose;
+	const ulint		space_id= node->space->id;
+	const bool		dblwr	= node->space->use_doublewrite();
 
 	mutex_exit(&fil_system->mutex);
 
@@ -5346,7 +5366,7 @@ fil_aio_wait(
 		}
 
 		ulint offset = bpage->id.page_no();
-		dberr_t err = buf_page_io_complete(bpage);
+		dberr_t err = buf_page_io_complete(bpage, dblwr);
 		if (err == DB_SUCCESS) {
 			return;
 		}

@@ -356,13 +356,6 @@ myisam_recover
 # and speed up some things.
 #skip-innodb
 
-# Additional memory pool that is used by InnoDB to store metadata
-# information.  If InnoDB requires more memory for this purpose it will
-# start to allocate it from the OS.  As this is fast enough on most
-# recent operating systems, you normally do not need to change this
-# value. SHOW INNODB STATUS will display the current amount used.
-innodb_additional_mem_pool_size = 16M
-
 # InnoDB, unlike MyISAM, uses a buffer pool to cache both indexes and
 # row data. The bigger you set this the less disk I/O is needed to
 # access data in tables. On a dedicated database server you may set this

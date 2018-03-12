@@ -39,8 +39,8 @@
 # you can put MariaDB-only options here
 [mariadb]
 
-# This group is only read by MariaDB-10.1 servers.
+# This group is only read by MariaDB-10.2 servers.
 # If you use the same .cnf file for MariaDB of different versions,
 # use this group for options that older servers don't understand
-[mariadb-10.1]
+[mariadb-10.2]
 

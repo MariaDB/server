@@ -1489,8 +1489,12 @@ private:
 		}
 
 		/* Avoid excessive mutex acquire/release */
-		if (trx->in_depth++) {
-			/* The transaction is already inside InnoDB. */
+		++trx->in_depth;
+
+		/* If trx->in_depth is greater than 1 then
+		transaction is already in InnoDB. */
+		if (trx->in_depth > 1) {
+
 			return;
 		}
 
@@ -1518,7 +1522,10 @@ private:
 
 		ut_ad(trx->in_depth > 0);
 
-		if (--trx->in_depth) {
+		--trx->in_depth;
+
+		if (trx->in_depth > 0) {
+
 			return;
 		}
 

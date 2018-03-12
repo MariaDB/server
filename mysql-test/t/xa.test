@@ -441,6 +441,42 @@ connection default;
 DROP TABLE t1, t2;
 disconnect con2;
 
-# Wait till all disconnects are completed
+
+#
+# MDEV 15217 Assertion `thd->transaction.xid_state.xid.is_null()' failed in trans_xa_start.
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2);
+CREATE TABLE t3 (i INT) ENGINE=InnoDB;
+ 
+XA BEGIN 'xid1';
+REPLACE INTO t1 SELECT * FROM t2;
+
+--connect (con1,localhost,root,,test)
+XA BEGIN 'xid2';
+--send
+INSERT INTO t1 SELECT * FROM t2;
+
+--connection default
+REPLACE INTO t2 SELECT * FROM t2;
+
+--connection con1
+--error ER_LOCK_DEADLOCK
+--reap
+--disconnect con1
+
+--connect (con2,localhost,root,,test)
+INSERT INTO t3 VALUES (1);
+XA BEGIN 'xid3';
+
+
+#Cleanup
+--disconnect con2
+--connection default
+XA END 'xid1';
+XA ROLLBACK 'xid1';
+DROP TABLE t1, t2, t3;
+
 --source include/wait_until_count_sessions.inc
 
