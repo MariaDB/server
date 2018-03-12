@@ -22,7 +22,7 @@ innodb_lock_schedule_algorithm=FCFS
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
-
+wsrep-on=1
 log-slave-updates
 
 innodb-autoinc-lock-mode=2
@@ -46,6 +46,7 @@ innodb_lock_schedule_algorithm=FCFS
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
+wsrep-on=1
 
 log-slave-updates
 
@@ -70,6 +71,7 @@ innodb_lock_schedule_algorithm=FCFS
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
+wsrep-on=1
 
 log-slave-updates
 
