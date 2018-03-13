@@ -158,6 +158,10 @@ typedef std::map<
 
 static recv_spaces_t	recv_spaces;
 
+/** Backup function checks whether the space id belongs to
+the skip table list given in the mariabackup option. */
+bool(*check_if_backup_includes)(ulint space_id);
+
 /** Process a file name from a MLOG_FILE_* record.
 @param[in,out]	name		file name
 @param[in]	len		length of the file name
@@ -173,6 +177,14 @@ fil_name_process(
 	ulint	space_id,
 	bool	deleted)
 {
+	if (srv_operation == SRV_OPERATION_BACKUP) {
+		return true;
+	}
+
+	ut_ad(srv_operation == SRV_OPERATION_NORMAL
+	      || srv_operation == SRV_OPERATION_RESTORE
+	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+
 	bool	processed = true;
 
 	/* We will also insert space=NULL into the map, so that
@@ -557,7 +569,6 @@ recv_sys_init()
 
 	recv_sys->addr_hash = hash_create(size / 512);
 	recv_sys->progress_time = ut_time();
-
 	recv_max_page_lsn = 0;
 
 	/* Call the constructor for recv_sys_t::dblwr member */
@@ -2297,30 +2308,14 @@ recv_report_corrupt_log(
 	return(true);
 }
 
-/** Whether to store redo log records to the hash table */
-enum store_t {
-	/** Do not store redo log records. */
-	STORE_NO,
-	/** Store redo log records. */
-	STORE_YES,
-	/** Store redo log records if the tablespace exists. */
-	STORE_IF_EXISTS
-};
-
 /** Parse log records from a buffer and optionally store them to a
 hash table to wait merging to file pages.
 @param[in]	checkpoint_lsn	the LSN of the latest checkpoint
 @param[in]	store		whether to store page operations
 @param[in]	apply		whether to apply the records
-@param[out]	err		DB_SUCCESS or error code
 @return whether MLOG_CHECKPOINT record was seen the first time,
 or corruption was noticed */
-static MY_ATTRIBUTE((warn_unused_result))
-bool
-recv_parse_log_recs(
-	lsn_t		checkpoint_lsn,
-	store_t		store,
-	bool		apply)
+bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t store, bool apply)
 {
 	byte*		ptr;
 	byte*		end_ptr;
@@ -2460,11 +2455,14 @@ loop:
 			}
 			/* fall through */
 		case MLOG_INDEX_LOAD:
-			/* Mariabackup FIXME: Report an error
-			when encountering MLOG_INDEX_LOAD on
-			--prepare or already on --backup. */
-			ut_a(type != MLOG_INDEX_LOAD
-			     || srv_operation == SRV_OPERATION_NORMAL);
+			if (type == MLOG_INDEX_LOAD) {
+				if (check_if_backup_includes
+				    && !check_if_backup_includes(space)) {
+					ut_ad(srv_operation
+					      == SRV_OPERATION_BACKUP);
+					return true;
+				}
+			}
 			/* fall through */
 		case MLOG_FILE_NAME:
 		case MLOG_FILE_DELETE:
@@ -2652,17 +2650,13 @@ loop:
 	goto loop;
 }
 
-/*******************************************************//**
-Adds data from a new log block to the parsing buffer of recv_sys if
+/** Adds data from a new log block to the parsing buffer of recv_sys if
 recv_sys->parse_start_lsn is non-zero.
+@param[in]	log_block	log block to add
+@param[in]	scanned_lsn	lsn of how far we were able to find
+				data in this log block
 @return true if more data added */
-static
-bool
-recv_sys_add_to_parsing_buf(
-/*========================*/
-	const byte*	log_block,	/*!< in: log block */
-	lsn_t		scanned_lsn)	/*!< in: lsn of how far we were able
-					to find data in this log block */
+bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn)
 {
 	ulint	more_len;
 	ulint	data_len;
@@ -2727,12 +2721,8 @@ recv_sys_add_to_parsing_buf(
 	return(true);
 }
 
-/*******************************************************//**
-Moves the parsing buffer data left to the buffer start. */
-static
-void
-recv_sys_justify_left_parsing_buf(void)
-/*===================================*/
+/** Moves the parsing buffer data left to the buffer start. */
+void recv_sys_justify_left_parsing_buf()
 {
 	ut_memmove(recv_sys->buf, recv_sys->buf + recv_sys->recovered_offset,
 		   recv_sys->len - recv_sys->recovered_offset);

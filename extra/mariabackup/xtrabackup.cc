@@ -449,6 +449,43 @@ void mdl_lock_all()
 	}
 	datafiles_iter_free(it);
 }
+
+/** Check if the space id belongs to the table which name should
+be skipped based on the --tables, --tables-file and --table-exclude
+options.
+@param[in]	space_id	space id to check
+@return true if the space id belongs to skip table/database list. */
+static bool backup_includes(space_id_t space_id)
+{
+	datafiles_iter_t *it = datafiles_iter_new(fil_system);
+	if (!it)
+		return true;
+
+	while (fil_node_t *node = datafiles_iter_next(it)){
+		if (space_id == 0
+		    || (node->space->id == space_id
+			&& !check_if_skip_table(node->space->name))) {
+
+			msg("mariabackup: Unsupported redo log detected "
+			"and it belongs to %s\n",
+			space_id ? node->name: "the InnoDB system tablespace");
+
+			msg("mariabackup: ALTER TABLE or OPTIMIZE TABLE "
+			"was being executed during the backup.\n");
+
+			if (!opt_lock_ddl_per_table) {
+				msg("mariabackup: Use --lock-ddl-per-table "
+				"parameter to lock all the table before "
+				"backup operation.\n");
+			}
+
+			return false;
+		}
+	}
+
+	return true;
+}
+
 /* ======== Date copying thread context ======== */
 
 typedef struct {
@@ -2341,8 +2378,8 @@ lsn_t
 xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
 {
 	lsn_t	scanned_lsn	= start_lsn;
-
 	const byte* log_block = log_sys->buf;
+	bool more_data = false;
 
 	for (ulint scanned_checkpoint = 0;
 	     scanned_lsn < end_lsn;
@@ -2357,7 +2394,14 @@ xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
 		}
 
 		scanned_checkpoint = checkpoint;
+
 		ulint	data_len = log_block_get_data_len(log_block);
+
+		more_data = recv_sys_add_to_parsing_buf(
+				log_block,
+				scanned_lsn + data_len);
+
+		recv_sys->scanned_lsn = scanned_lsn + data_len;
 
 		if (data_len == OS_FILE_LOG_BLOCK_SIZE) {
 			/* We got a full log block. */
@@ -2373,6 +2417,15 @@ xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
 			break;
 		}
 	}
+
+	if (more_data && recv_parse_log_recs(0, STORE_NO, false)) {
+
+		msg("mariabackup: copying the log failed \n");
+
+		return(0);
+	}
+
+	recv_sys_justify_left_parsing_buf();
 
 	log_sys->log.scanned_lsn = scanned_lsn;
 
@@ -2407,9 +2460,12 @@ xtrabackup_copy_logfile(copy_logfile copy)
 	lsn_t	start_lsn;
 	lsn_t	end_lsn;
 
+	recv_sys->parse_start_lsn = log_copy_scanned_lsn;
+	recv_sys->scanned_lsn = log_copy_scanned_lsn;
+	recv_sys->recovered_lsn = log_copy_scanned_lsn;
+
 	start_lsn = ut_uint64_align_down(log_copy_scanned_lsn,
 					 OS_FILE_LOG_BLOCK_SIZE);
-
 	/* When copying the first or last part of the log, retry a few
 	times to ensure that all log up to the last checkpoint will be
 	read. */
@@ -3569,8 +3625,6 @@ xtrabackup_backup_func()
 		    "or RENAME TABLE during the backup, inconsistent backup will be "
 		    "produced.\n");
 
-
-
 	/* initialize components */
         if(innodb_init_param()) {
 fail:
@@ -3842,6 +3896,14 @@ reread_log_header:
 				 &io_watching_thread_id);
 	}
 
+	/* Populate fil_system with tablespaces to copy */
+	err = xb_load_tablespaces();
+	if (err != DB_SUCCESS) {
+		msg("mariabackup: error: xb_load_tablespaces() failed with"
+		    " error %s.\n", ut_strerr(err));
+		goto fail;
+	}
+
 	/* copy log file by current position */
 	log_copy_scanned_lsn = checkpoint_lsn_start;
 	if (xtrabackup_copy_logfile(COPY_FIRST))
@@ -3850,14 +3912,6 @@ reread_log_header:
 	log_copying_stop = os_event_create(0);
 	log_copying_running = true;
 	os_thread_create(log_copying_thread, NULL, &log_copying_thread_id);
-
-	/* Populate fil_system with tablespaces to copy */
-	err = xb_load_tablespaces();
-	if (err != DB_SUCCESS) {
-		msg("mariabackup: error: xb_load_tablespaces() failed with"
-		    " error code %u\n", err);
-		goto fail;
-	}
 
 	/* FLUSH CHANGED_PAGE_BITMAPS call */
 	if (!flush_changed_page_bitmaps()) {
@@ -5072,6 +5126,7 @@ handle_options(int argc, char **argv, char ***argv_client, char ***argv_server)
 	srv_operation = SRV_OPERATION_RESTORE;
 
 	files_charset_info = &my_charset_utf8_general_ci;
+	check_if_backup_includes = backup_includes;
 
 	setup_error_messages();
 	sys_var_init();

@@ -122,6 +122,41 @@ recv_sys_var_init(void);
 void
 recv_apply_hashed_log_recs(bool last_batch);
 
+/** Whether to store redo log records to the hash table */
+enum store_t {
+	/** Do not store redo log records. */
+	STORE_NO,
+	/** Store redo log records. */
+	STORE_YES,
+	/** Store redo log records if the tablespace exists. */
+	STORE_IF_EXISTS
+};
+
+
+/** Adds data from a new log block to the parsing buffer of recv_sys if
+recv_sys->parse_start_lsn is non-zero.
+@param[in]	log_block	log block to add
+@param[in]	scanned_lsn	lsn of how far we were able to find
+				data in this log block
+@return true if more data added */
+bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn);
+
+/** Parse log records from a buffer and optionally store them to a
+hash table to wait merging to file pages.
+@param[in]	checkpoint_lsn	the LSN of the latest checkpoint
+@param[in]	store		whether to store page operations
+@param[in]	apply		whether to apply the records
+@return whether MLOG_CHECKPOINT record was seen the first time,
+or corruption was noticed */
+bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t store, bool apply);
+
+/** Moves the parsing buffer data left to the buffer start. */
+void recv_sys_justify_left_parsing_buf();
+
+/** Backup function checks whether the space id belongs to
+the skip table list given in the mariabackup option. */
+extern bool(*check_if_backup_includes)(ulint space_id);
+
 /** Block of log record data */
 struct recv_data_t{
 	recv_data_t*	next;	/*!< pointer to the next block or NULL */
