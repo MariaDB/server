@@ -1,0 +1,11 @@
+--- default_row_format_create.result
++++ default_row_format_create,dynamic.result
+@@ -1,7 +1,7 @@
+ CREATE TABLE t1(c1 TEXT,c2 BLOB) ENGINE=InnoDB;
+ SHOW TABLE STATUS LIKE 't1';
+ Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
+-t1	InnoDB	#	Compact	#	#	#	#	#	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL		
++t1	InnoDB	#	Dynamic	#	#	#	#	#	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL		
+ DROP TABLE t1;
+ CREATE TABLE t1(c1 TEXT,c2 BLOB) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ SHOW TABLE STATUS LIKE 't1';

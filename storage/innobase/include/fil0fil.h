@@ -36,9 +36,10 @@ Created 10/25/1995 Heikki Tuuri
 #include "ibuf0types.h"
 
 #include <list>
-#include <vector>
 
 // Forward declaration
+extern ibool srv_use_doublewrite_buf;
+extern struct buf_dblwr_t* buf_dblwr;
 struct trx_t;
 class page_id_t;
 class truncate_t;
@@ -199,6 +200,13 @@ struct fil_space_t {
 	bool is_stopping() const
 	{
 		return stop_new_ops || is_being_truncated;
+	}
+
+	/** @return whether doublewrite buffering is needed */
+	bool use_doublewrite() const
+	{
+		return !atomic_write_supported
+			&& srv_use_doublewrite_buf && buf_dblwr;
 	}
 };
 

@@ -1462,6 +1462,7 @@ void THD::cleanup(void)
   close_temporary_tables();
 
   transaction.xid_state.xa_state= XA_NOTR;
+  transaction.xid_state.rm_error= 0;
   trans_rollback(this);
   xid_cache_delete(this, &transaction.xid_state);
 
