@@ -2719,25 +2719,6 @@ buf_flush_page_cleaner_init(void)
 }
 
 /**
-Close page_cleaner. */
-static
-void
-buf_flush_page_cleaner_close(void)
-{
-	ut_ad(!page_cleaner.is_running);
-
-	/* waiting for all worker threads exit */
-	while (page_cleaner.n_workers) {
-		os_thread_sleep(10000);
-	}
-
-	mutex_destroy(&page_cleaner.mutex);
-
-	os_event_destroy(page_cleaner.is_finished);
-	os_event_destroy(page_cleaner.is_requested);
-}
-
-/**
 Requests for all slots to flush all buffer pool instances.
 @param min_n	wished minimum mumber of blocks flushed
 		(it is not guaranteed that the actual number is that big)
@@ -3438,9 +3419,17 @@ thread_exit:
 	and no more access to page_cleaner structure by them.
 	Wakes worker threads up just to make them exit. */
 	page_cleaner.is_running = false;
-	os_event_set(page_cleaner.is_requested);
 
-	buf_flush_page_cleaner_close();
+	/* waiting for all worker threads exit */
+	while (page_cleaner.n_workers) {
+		os_event_set(page_cleaner.is_requested);
+		os_thread_sleep(10000);
+	}
+
+	mutex_destroy(&page_cleaner.mutex);
+
+	os_event_destroy(page_cleaner.is_finished);
+	os_event_destroy(page_cleaner.is_requested);
 
 	buf_page_cleaner_is_active = false;
 
