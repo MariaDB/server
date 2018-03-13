@@ -3078,21 +3078,24 @@ public:
   {
     safe_to_cache_query= 0;
 
-    /*
-      There are no sense to mark select_lex and union fields of LEX,
-      but we should merk all subselects as uncacheable from current till
-      most upper
-    */
-    SELECT_LEX *sl;
-    SELECT_LEX_UNIT *un;
-    for (sl= current_select, un= sl->master_unit();
-	 un != &unit;
-	 sl= sl->outer_select(), un= sl->master_unit())
+    if (current_select) // initialisation SP variables has no SELECT
     {
-      sl->uncacheable|= cause;
-      un->uncacheable|= cause;
+      /*
+        There are no sense to mark select_lex and union fields of LEX,
+        but we should merk all subselects as uncacheable from current till
+        most upper
+      */
+      SELECT_LEX *sl;
+      SELECT_LEX_UNIT *un;
+      for (sl= current_select, un= sl->master_unit();
+          un != &unit;
+          sl= sl->outer_select(), un= sl->master_unit())
+      {
+        sl->uncacheable|= cause;
+        un->uncacheable|= cause;
+      }
+      select_lex.uncacheable|= cause;
     }
-    select_lex.uncacheable|= cause;
   }
   void set_trg_event_type_for_tables();
 

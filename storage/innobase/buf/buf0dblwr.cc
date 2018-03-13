@@ -107,9 +107,6 @@ buf_dblwr_sync_datafiles()
 	/* Wait that all async writes to tablespaces have been posted to
 	the OS */
 	os_aio_wait_until_no_pending_writes();
-
-	/* Now we flush the data to disk (for example, with fsync) */
-	fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
 }
 
 /****************************************************************//**
@@ -724,12 +721,9 @@ buf_dblwr_update(
 	const buf_page_t*	bpage,	/*!< in: buffer block descriptor */
 	buf_flush_t		flush_type)/*!< in: flush type */
 {
-	if (!srv_use_doublewrite_buf
-	    || buf_dblwr == NULL
-	    || fsp_is_system_temporary(bpage->id.space())) {
-		return;
-	}
-
+	ut_ad(srv_use_doublewrite_buf);
+	ut_ad(buf_dblwr);
+	ut_ad(!fsp_is_system_temporary(bpage->id.space()));
 	ut_ad(!srv_read_only_mode);
 
 	switch (flush_type) {
@@ -957,6 +951,8 @@ buf_dblwr_flush_buffered_writes()
 	if (!srv_use_doublewrite_buf || buf_dblwr == NULL) {
 		/* Sync the writes to the disk. */
 		buf_dblwr_sync_datafiles();
+		/* Now we flush the data to disk (for example, with fsync) */
+		fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
 		return;
 	}
 
@@ -992,7 +988,6 @@ try_again:
 		goto try_again;
 	}
 
-	ut_a(!buf_dblwr->batch_running);
 	ut_ad(buf_dblwr->first_free == buf_dblwr->b_reserved);
 
 	/* Disallow anyone else to post to doublewrite buffer or to

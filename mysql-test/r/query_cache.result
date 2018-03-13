@@ -2168,6 +2168,25 @@ show status like "Qcache_hits";
 Variable_name	Value
 Qcache_hits	1
 drop table t1;
+#
+# MDEV-15328: MariaDB 10.2.13 Crashes upon CALL PROCEDURE PARAM
+# LAST_INSERT_ID ()
+# (part 2, part 1 is in sp.test)
+#
+create table t1 (a int);
+insert into t1 values (1);
+CREATE FUNCTION foo (i INT UNSIGNED ) RETURNS int deterministic  RETURN 1;
+show status like "Qcache_queries_in_cache";
+Variable_name	Value
+Qcache_queries_in_cache	0
+SELECT foo( LAST_INSERT_ID() ) from t1;
+foo( LAST_INSERT_ID() )
+1
+show status like "Qcache_queries_in_cache";
+Variable_name	Value
+Qcache_queries_in_cache	0
+DROP FUNCTION foo;
+drop table t1;
 restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size= default;

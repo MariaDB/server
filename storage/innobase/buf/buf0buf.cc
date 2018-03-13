@@ -5930,9 +5930,9 @@ buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 }
 
 /** Complete a read or write request of a file page to or from the buffer pool.
-@param[in,out]		bpage		Page to complete
-@param[in]		evict		whether or not to evict the page
-					from LRU list.
+@param[in,out]	bpage	page to complete
+@param[in]	dblwr	whether the doublewrite buffer was used (on write)
+@param[in]	evict	whether or not to evict the page from LRU list
 @return whether the operation succeeded
 @retval	DB_SUCCESS		always when writing, or if a read page was OK
 @retval	DB_TABLESPACE_DELETED	if the tablespace does not exist
@@ -5942,7 +5942,7 @@ buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 				not match */
 UNIV_INTERN
 dberr_t
-buf_page_io_complete(buf_page_t* bpage, bool evict)
+buf_page_io_complete(buf_page_t* bpage, bool dblwr, bool evict)
 {
 	enum buf_io_fix	io_type;
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -6136,8 +6136,9 @@ database_corrupted:
 		}
 	}
 
+	BPageMutex* block_mutex = buf_page_get_mutex(bpage);
 	buf_pool_mutex_enter(buf_pool);
-	mutex_enter(buf_page_get_mutex(bpage));
+	mutex_enter(block_mutex);
 
 #ifdef UNIV_IBUF_COUNT_DEBUG
 	if (io_type == BUF_IO_WRITE || uncompressed) {
@@ -6155,8 +6156,7 @@ database_corrupted:
 	buf_page_set_io_fix(bpage, BUF_IO_NONE);
 	buf_page_monitor(bpage, io_type);
 
-	switch (io_type) {
-	case BUF_IO_READ:
+	if (io_type == BUF_IO_READ) {
 		/* NOTE that the call to ibuf may have moved the ownership of
 		the x-latch to this OS thread: do not let this confuse you in
 		debugging! */
@@ -6170,15 +6170,12 @@ database_corrupted:
 					     BUF_IO_READ);
 		}
 
-		mutex_exit(buf_page_get_mutex(bpage));
-
-		break;
-
-	case BUF_IO_WRITE:
+		mutex_exit(block_mutex);
+	} else {
 		/* Write means a flush operation: call the completion
 		routine in the flush system */
 
-		buf_flush_write_complete(bpage);
+		buf_flush_write_complete(bpage, dblwr);
 
 		if (uncompressed) {
 			rw_lock_sx_unlock_gen(&((buf_block_t*) bpage)->lock,
@@ -6197,18 +6194,11 @@ database_corrupted:
 			evict = true;
 		}
 
+		mutex_exit(block_mutex);
+
 		if (evict) {
-			mutex_exit(buf_page_get_mutex(bpage));
 			buf_LRU_free_page(bpage, true);
-		} else {
-			mutex_exit(buf_page_get_mutex(bpage));
 		}
-
-
-		break;
-
-	default:
-		ut_error;
 	}
 
 	DBUG_PRINT("ib_buf", ("%s page %u:%u",

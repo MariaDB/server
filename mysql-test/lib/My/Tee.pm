@@ -1,4 +1,5 @@
 package My::Tee;
+use IO::Handle;
 
 # see PerlIO::via
 
@@ -16,6 +17,7 @@ sub WRITE
 {
  my ($obj, $buf, $fh) = @_;
  print $fh $buf;
+ $fh->flush;
  print $copyfh $buf;
  return length($buf);
 }

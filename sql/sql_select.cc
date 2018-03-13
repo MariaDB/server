@@ -19265,7 +19265,7 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
       skip_over= FALSE;
     }
 
-    if (join_tab->keep_current_rowid)
+    if (join_tab->keep_current_rowid && !error)
       join_tab->table->file->position(join_tab->table->record[0]);
     
     rc= evaluate_join_record(join, join_tab, error);
