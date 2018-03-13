@@ -598,7 +598,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       types= first_sl->item_list;
     else if (sl == first_sl)
     {
-      if (is_recursive)
+      if (with_element)
       {
         if (derived->with->rename_columns_of_derived_unit(thd, this))
 	  goto err; 
