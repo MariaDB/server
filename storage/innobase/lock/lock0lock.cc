@@ -3766,12 +3766,15 @@ UNIV_INLINE
 lock_t*
 lock_table_create(
 /*==============*/
-	lock_t*		c_lock,	/*!< in: conflicting lock or NULL */
 	dict_table_t*	table,	/*!< in/out: database table
 				in dictionary cache */
 	ulint		type_mode,/*!< in: lock mode possibly ORed with
 				LOCK_WAIT */
-	trx_t*		trx)	/*!< in: trx */
+	trx_t*		trx	/*!< in: trx */
+#ifdef WITH_WSREP
+	, lock_t*	c_lock = NULL	/*!< in: conflicting lock */
+#endif
+	)
 {
 	lock_t*		lock;
 
@@ -3871,18 +3874,6 @@ lock_table_create(
 	MONITOR_INC(MONITOR_NUM_TABLELOCK);
 
 	return(lock);
-}
-UNIV_INLINE
-lock_t*
-lock_table_create(
-/*==============*/
-	dict_table_t*	table,	/*!< in/out: database table
-				in dictionary cache */
-	ulint		type_mode,/*!< in: lock mode possibly ORed with
-				LOCK_WAIT */
-	trx_t*		trx)	/*!< in: trx */
-{
-	return (lock_table_create(NULL, table, type_mode, trx));
 }
 
 /*************************************************************//**
@@ -4026,11 +4017,14 @@ static
 dberr_t
 lock_table_enqueue_waiting(
 /*=======================*/
-	lock_t*		c_lock,	/*!< in: conflicting lock or NULL */
 	ulint		mode,	/*!< in: lock mode this transaction is
 				requesting */
 	dict_table_t*	table,	/*!< in/out: table */
-	que_thr_t*	thr)	/*!< in: query thread */
+	que_thr_t*	thr	/*!< in: query thread */
+#ifdef WITH_WSREP
+	, lock_t*	c_lock	/*!< in: conflicting lock or NULL */
+#endif
+)
 {
 	trx_t*		trx;
 	lock_t*		lock;
@@ -4060,7 +4054,11 @@ lock_table_enqueue_waiting(
 #endif /* WITH_WSREP */
 
 	/* Enqueue the lock request that will wait to be granted */
-	lock = lock_table_create(c_lock, table, mode | LOCK_WAIT, trx);
+	lock = lock_table_create(table, mode | LOCK_WAIT, trx
+#ifdef WITH_WSREP
+				 , c_lock
+#endif
+				 );
 
 	const trx_t*	victim_trx =
 			DeadlockChecker::check_and_resolve(lock, trx);
@@ -4215,9 +4213,13 @@ lock_table(
 	mode: this trx may have to wait */
 
 	if (wait_for != NULL) {
-		err = lock_table_enqueue_waiting(wait_for, mode | flags, table, thr);
+		err = lock_table_enqueue_waiting(mode | flags, table, thr
+#ifdef WITH_WSREP
+						 , wait_for
+#endif
+						 );
 	} else {
-		lock_table_create(wait_for, table, mode | flags, trx);
+		lock_table_create(table, mode | flags, trx);
 
 		ut_a(!flags || mode == LOCK_S || mode == LOCK_X);
 
