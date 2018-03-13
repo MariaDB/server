@@ -123,6 +123,10 @@ LENGTH(l)
 11197
 INSERT INTO t1 (a) SELECT NULL FROM t1;
 INSERT INTO t1 (a) SELECT NULL FROM t1;
+INSERT INTO t1 (a) SELECT NULL FROM t1;
+INSERT INTO t1 (a) SELECT NULL FROM t1;
+INSERT INTO t1 (a) SELECT NULL FROM t1;
+INSERT INTO t1 (a) SELECT NULL FROM t1;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -138,6 +142,18 @@ test.t1	analyze	status	OK
 SELECT OTHER_INDEX_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE NAME='test/t1';
 OTHER_INDEX_SIZE
+1
+SELECT NAME, SUBSYSTEM FROM INFORMATION_SCHEMA.INNODB_METRICS
+WHERE NAME="buffer_LRU_batch_evict_total_pages" AND COUNT > 0;
+NAME	SUBSYSTEM
+buffer_LRU_batch_evict_total_pages	buffer
+SELECT NAME, SUBSYSTEM FROM INFORMATION_SCHEMA.INNODB_METRICS
+WHERE NAME="buffer_LRU_batch_flush_total_pages" AND COUNT > 0;
+NAME	SUBSYSTEM
+buffer_LRU_batch_flush_total_pages	buffer
+SELECT (variable_value > 0) FROM information_schema.global_status
+WHERE LOWER(variable_name) LIKE 'INNODB_BUFFER_POOL_PAGES_FLUSHED';
+(variable_value > 0)
 1
 # Note: The OTHER_INDEX_SIZE does not cover any SPATIAL INDEX.
 # To test that all indexes were emptied, replace DROP TABLE
