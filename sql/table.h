@@ -1839,7 +1839,6 @@ public:
 struct vers_select_conds_t
 {
   vers_system_time_t type;
-  bool from_query:1;
   bool used:1;
   Vers_history_point start;
   Vers_history_point end;
@@ -1847,7 +1846,7 @@ struct vers_select_conds_t
   void empty()
   {
     type= SYSTEM_TIME_UNSPECIFIED;
-    used= from_query= false;
+    used= false;
     start.empty();
     end.empty();
   }
@@ -1857,9 +1856,18 @@ struct vers_select_conds_t
             Vers_history_point _end= Vers_history_point())
   {
     type= _type;
-    used= from_query= false;
+    used= false;
     start= _start;
     end= _end;
+  }
+
+  vers_select_conds_t& operator= (const vers_select_conds_t& src)
+  {
+    type= src.type;
+    used= src.used;
+    start= src.start;
+    end= src.end;
+    return *this;
   }
 
   void print(String *str, enum_query_type query_type);
@@ -1879,10 +1887,6 @@ struct vers_select_conds_t
     return type != SYSTEM_TIME_UNSPECIFIED;
   }
   void resolve_units(bool timestamps_only);
-  bool user_defined() const
-  {
-    return !from_query && type != SYSTEM_TIME_UNSPECIFIED;
-  }
 };
 
 /*
