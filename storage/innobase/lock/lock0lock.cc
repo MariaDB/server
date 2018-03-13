@@ -80,15 +80,9 @@ lock_rec_has_to_wait_in_queue(
 /*==========================*/
 	const lock_t*	wait_lock);	/*!< in: waiting record lock */
 
-/*************************************************************//**
-Grants a lock to a waiting lock request and releases the waiting transaction.
-The caller must hold lock_sys->mutex. */
-static
-void
-lock_grant(
-/*=======*/
-	lock_t*	lock,	/*!< in/out: waiting lock request */
-	bool	owns_trx_mutex);    /*!< in: whether lock->trx->mutex is owned */
+/** Grant a lock to a waiting lock request and release the waiting transaction
+after lock_reset_lock_and_trx_wait() has been called. */
+static void lock_grant_after_reset(lock_t* lock);
 
 extern "C" void thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd);
 extern "C" int thd_need_wait_reports(const MYSQL_THD thd);
@@ -689,6 +683,12 @@ lock_reset_lock_and_trx_wait(
 
 	lock->trx->lock.wait_lock = NULL;
 	lock->type_mode &= ~LOCK_WAIT;
+}
+
+static inline void lock_grant_have_trx_mutex(lock_t* lock)
+{
+	lock_reset_lock_and_trx_wait(lock);
+	lock_grant_after_reset(lock);
 }
 
 /*********************************************************************//**
@@ -1772,7 +1772,7 @@ lock_rec_insert_by_trx_age(
 		cell->node = in_lock;
 		in_lock->hash = node;
 		if (lock_get_wait(in_lock)) {
-			lock_grant(in_lock, true);
+			lock_grant_have_trx_mutex(in_lock);
 			return DB_SUCCESS_LOCKED_REC;
 		}
 		return DB_SUCCESS;
@@ -1786,7 +1786,7 @@ lock_rec_insert_by_trx_age(
 	in_lock->hash = next;
 
 	if (lock_get_wait(in_lock) && !lock_rec_has_to_wait_in_queue(in_lock)) {
-		lock_grant(in_lock, true);
+		lock_grant_have_trx_mutex(in_lock);
 		if (cell->node != in_lock) {
 			// Move it to the front of the queue
 			node->hash = in_lock->hash;
@@ -2380,24 +2380,12 @@ lock_rec_has_to_wait_in_queue(
 	return(NULL);
 }
 
-/*************************************************************//**
-Grants a lock to a waiting lock request and releases the waiting transaction.
-The caller must hold lock_sys->mutex but not lock->trx->mutex. */
-static
-void
-lock_grant(
-/*=======*/
-	lock_t*	lock,	/*!< in/out: waiting lock request */
-	bool	owns_trx_mutex)    /*!< in: whether lock->trx->mutex is owned */
+/** Grant a lock to a waiting lock request and release the waiting transaction
+after lock_reset_lock_and_trx_wait() has been called. */
+static void lock_grant_after_reset(lock_t* lock)
 {
 	ut_ad(lock_mutex_own());
-	ut_ad(trx_mutex_own(lock->trx) == owns_trx_mutex);
-
-	lock_reset_lock_and_trx_wait(lock);
-
-	if (!owns_trx_mutex) {
-		trx_mutex_enter(lock->trx);
-	}
+	ut_ad(trx_mutex_own(lock->trx));
 
 	if (lock_get_mode(lock) == LOCK_AUTO_INC) {
 		dict_table_t*	table = lock->un_member.tab_lock.table;
@@ -2429,10 +2417,15 @@ lock_grant(
 			lock_wait_release_thread_if_suspended(thr);
 		}
 	}
+}
 
-	if (!owns_trx_mutex) {
-		trx_mutex_exit(lock->trx);
-	}
+/** Grant a lock to a waiting lock request and release the waiting transaction. */
+static void lock_grant(lock_t* lock)
+{
+	lock_reset_lock_and_trx_wait(lock);
+	trx_mutex_enter(lock->trx);
+	lock_grant_after_reset(lock);
+	trx_mutex_exit(lock->trx);
 }
 
 /*************************************************************//**
@@ -2472,17 +2465,13 @@ lock_rec_cancel(
 
 static
 void
-lock_grant_and_move_on_page(
-	hash_table_t*	lock_hash,
-	ulint			space,
-	ulint			page_no)
+lock_grant_and_move_on_page(ulint rec_fold, ulint space, ulint page_no)
 {
 	lock_t*		lock;
-	lock_t*		previous;
-	ulint		rec_fold = lock_rec_fold(space, page_no);
-
-	previous = (lock_t *) hash_get_nth_cell(lock_hash,
-							hash_calc_hash(rec_fold, lock_hash))->node;
+	lock_t*		previous = static_cast<lock_t*>(
+		hash_get_nth_cell(lock_sys->rec_hash,
+				  hash_calc_hash(rec_fold, lock_sys->rec_hash))
+		->node);
 	if (previous == NULL) {
 		return;
 	}
@@ -2502,14 +2491,13 @@ lock_grant_and_move_on_page(
 	ut_ad(previous->hash == lock || previous == lock);
 	/* Grant locks if there are no conflicting locks ahead.
 	 Move granted locks to the head of the list. */
-	for (;lock != NULL;) {
+	while (lock) {
 		/* If the lock is a wait lock on this page, and it does not need to wait. */
-		if ((lock->un_member.rec_lock.space == space)
-			&& (lock->un_member.rec_lock.page_no == page_no)
-			&& lock_get_wait(lock)
-			&& !lock_rec_has_to_wait_in_queue(lock)) {
-
-			lock_grant(lock, false);
+		if (lock_get_wait(lock)
+		    && lock->un_member.rec_lock.space == space
+		    && lock->un_member.rec_lock.page_no == page_no
+		    && !lock_rec_has_to_wait_in_queue(lock)) {
+			lock_grant(lock);
 
 			if (previous != NULL) {
 				/* Move the lock to the head of the list. */
@@ -2528,32 +2516,19 @@ lock_grant_and_move_on_page(
 	}
 }
 
-/*************************************************************//**
-Removes a record lock request, waiting or granted, from the queue and
-grants locks to other transactions in the queue if they now are entitled
-to a lock. NOTE: all record locks contained in in_lock are removed. */
-static
-void
-lock_rec_dequeue_from_page(
-/*=======================*/
-	lock_t*		in_lock)	/*!< in: record lock object: all
-					record locks which are contained in
-					this lock object are removed;
-					transactions waiting behind will
-					get their lock requests granted,
-					if they are now qualified to it */
+/** Remove a record lock request, waiting or granted, from the queue and
+grant locks to other transactions in the queue if they now are entitled
+to a lock. NOTE: all record locks contained in in_lock are removed.
+@param[in,out]	in_lock		record lock */
+static void lock_rec_dequeue_from_page(lock_t* in_lock)
 {
 	ulint		space;
 	ulint		page_no;
-	lock_t*		lock;
-	trx_lock_t*	trx_lock;
 	hash_table_t*	lock_hash;
 
 	ut_ad(lock_mutex_own());
 	ut_ad(lock_get_type_low(in_lock) == LOCK_REC);
 	/* We may or may not be holding in_lock->trx->mutex here. */
-
-	trx_lock = &in_lock->trx->lock;
 
 	space = in_lock->un_member.rec_lock.space;
 	page_no = in_lock->un_member.rec_lock.page_no;
@@ -2562,38 +2537,36 @@ lock_rec_dequeue_from_page(
 
 	lock_hash = lock_hash_get(in_lock->type_mode);
 
-	HASH_DELETE(lock_t, hash, lock_hash,
-		    lock_rec_fold(space, page_no), in_lock);
+	ulint rec_fold = lock_rec_fold(space, page_no);
 
-	UT_LIST_REMOVE(trx_lock->trx_locks, in_lock);
+	HASH_DELETE(lock_t, hash, lock_hash, rec_fold, in_lock);
+	UT_LIST_REMOVE(in_lock->trx->lock.trx_locks, in_lock);
 
 	MONITOR_INC(MONITOR_RECLOCK_REMOVED);
 	MONITOR_DEC(MONITOR_NUM_RECLOCK);
 
 	if (innodb_lock_schedule_algorithm
-		== INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS ||
-		thd_is_replication_slave_thread(in_lock->trx->mysql_thd)) {
-
+	    == INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS
+	    || lock_hash != lock_sys->rec_hash
+	    || thd_is_replication_slave_thread(in_lock->trx->mysql_thd)) {
 		/* Check if waiting locks in the queue can now be granted:
 		grant locks if there are no conflicting locks ahead. Stop at
 		the first X lock that is waiting or has been granted. */
 
-		for (lock = lock_rec_get_first_on_page_addr(lock_hash, space,
-							    page_no);
-			 lock != NULL;
-			 lock = lock_rec_get_next_on_page(lock)) {
+		for (lock_t* lock = lock_rec_get_first_on_page_addr(
+			     lock_hash, space, page_no);
+		     lock != NULL;
+		     lock = lock_rec_get_next_on_page(lock)) {
 
 			if (lock_get_wait(lock)
-				&& !lock_rec_has_to_wait_in_queue(lock)) {
-
+			    && !lock_rec_has_to_wait_in_queue(lock)) {
 				/* Grant the lock */
 				ut_ad(lock->trx != in_lock->trx);
-
-				lock_grant(lock, false);
+				lock_grant(lock);
 			}
 		}
 	} else {
-		lock_grant_and_move_on_page(lock_hash, space, page_no);
+		lock_grant_and_move_on_page(rec_fold, space, page_no);
 	}
 }
 
@@ -4322,7 +4295,7 @@ lock_table_dequeue(
 
 			/* Grant the lock */
 			ut_ad(in_lock->trx != lock->trx);
-			lock_grant(lock, false);
+			lock_grant(lock);
 		}
 	}
 }
@@ -4424,7 +4397,7 @@ lock_grant_and_move_on_rec(
 			&& lock_get_wait(lock)
 			&& !lock_rec_has_to_wait_in_queue(lock)) {
 
-			lock_grant(lock, false);
+			lock_grant(lock);
 
 			if (previous != NULL) {
 				/* Move the lock to the head of the list. */
@@ -4516,7 +4489,7 @@ released:
 
 				/* Grant the lock */
 				ut_ad(trx != lock->trx);
-				lock_grant(lock, false);
+				lock_grant(lock);
 			}
 		}
 	} else {
