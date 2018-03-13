@@ -305,8 +305,8 @@ private:
 	/** This is to avoid malloc/free calls. */
 	static state_t		s_states[MAX_STACK_SIZE];
 
-       /** Set if thd_rpl_deadlock_check() should be called for waits. */
-       bool m_report_waiters;
+	/** Set if thd_rpl_deadlock_check() should be called for waits. */
+	const bool m_report_waiters;
 };
 
 /** Counter to mark visited nodes during deadlock search. */
@@ -7611,7 +7611,6 @@ DeadlockChecker::search()
 	const lock_t*	lock = get_first_lock(&heap_no);
 
 	for (;;) {
-
 		/* We should never visit the same sub-tree more than once. */
 		ut_ad(lock == NULL || !is_visited(lock));
 
@@ -7626,7 +7625,9 @@ DeadlockChecker::search()
 
 		if (lock == NULL) {
 			break;
-		} else if (lock == m_wait_lock) {
+		}
+
+		if (lock == m_wait_lock) {
 
 			/* We can mark this subtree as searched */
 			ut_ad(lock->trx->lock.deadlock_mark <= m_mark_start);
@@ -7641,62 +7642,58 @@ DeadlockChecker::search()
 
 			/* Backtrack */
 			lock = NULL;
+			continue;
+		}
 
-		} else if (!lock_has_to_wait(m_wait_lock, lock)) {
-
+		if (!lock_has_to_wait(m_wait_lock, lock)) {
 			/* No conflict, next lock */
 			lock = get_next_lock(lock, heap_no);
+			continue;
+		}
 
-		} else if (lock->trx == m_start) {
-
+		if (lock->trx == m_start) {
 			/* Found a cycle. */
-
 			notify(lock);
+			return select_victim();
+		}
 
-			return(select_victim());
-
-		} else if (is_too_deep()) {
-
+		if (is_too_deep()) {
 			/* Search too deep to continue. */
 			m_too_deep = true;
-			return(m_start);
+			return m_start;
+		}
 
-		} else {
-			/* We do not need to report autoinc locks to the upper
-			layer. These locks are released before commit, so they
-			can not cause deadlocks with binlog-fixed commit
-			order. */
-			if (m_report_waiters &&
-			    (lock_get_type_low(lock) != LOCK_TABLE ||
-			     lock_get_mode(lock) != LOCK_AUTO_INC)) {
-				thd_rpl_deadlock_check(m_start->mysql_thd,
-						       lock->trx->mysql_thd);
+		/* We do not need to report autoinc locks to the upper
+		layer. These locks are released before commit, so they
+		can not cause deadlocks with binlog-fixed commit
+		order. */
+		if (m_report_waiters
+		    && (lock_get_type_low(lock) != LOCK_TABLE
+			|| lock_get_mode(lock) != LOCK_AUTO_INC)) {
+			thd_rpl_deadlock_check(m_start->mysql_thd,
+					       lock->trx->mysql_thd);
+		}
+
+		if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
+			/* Another trx ahead has requested a lock in an
+			incompatible mode, and is itself waiting for a lock. */
+
+			++m_cost;
+
+			if (!push(lock, heap_no)) {
+				m_too_deep = true;
+				return m_start;
 			}
 
-			if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
+			m_wait_lock = lock->trx->lock.wait_lock;
 
-				/* Another trx ahead has requested a lock in an
-				incompatible mode, and is itself waiting for a lock. */
+			lock = get_first_lock(&heap_no);
 
-				++m_cost;
-
-				if (!push(lock, heap_no)) {
-					m_too_deep = true;
-					return(m_start);
-				}
-
-
-				m_wait_lock = lock->trx->lock.wait_lock;
-
-				lock = get_first_lock(&heap_no);
-
-				if (is_visited(lock)) {
-					lock = get_next_lock(lock, heap_no);
-				}
-
-			} else {
+			if (is_visited(lock)) {
 				lock = get_next_lock(lock, heap_no);
 			}
+		} else {
+			lock = get_next_lock(lock, heap_no);
 		}
 	}
 
@@ -7783,17 +7780,13 @@ DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 	trx_mutex_exit(trx);
 
 	const trx_t*	victim_trx;
-	THD*		start_mysql_thd;
-	bool report_waits = false;
-
-	start_mysql_thd = trx->mysql_thd;
-
-	if (start_mysql_thd && thd_need_wait_reports(start_mysql_thd))
-		report_waits = true;
+	const bool	report_waiters = trx->mysql_thd
+		&& thd_need_wait_reports(trx->mysql_thd);
 
 	/* Try and resolve as many deadlocks as possible. */
 	do {
-		DeadlockChecker	checker(trx, lock, s_lock_mark_counter, report_waits);
+		DeadlockChecker	checker(trx, lock, s_lock_mark_counter,
+					report_waiters);
 
 		victim_trx = checker.search();
 
