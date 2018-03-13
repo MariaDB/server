@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2016, MariaDB Corporation
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -715,7 +715,7 @@ public:
 	@param[in, out] wait_for	The lock that the the joining
 					transaction is waiting for
 	@param[in] prdt			Predicate [optional]
-	@return DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED, or
+	@return DB_LOCK_WAIT, DB_DEADLOCK, or
 		DB_SUCCESS_LOCKED_REC; DB_SUCCESS_LOCKED_REC means that
 		there was a deadlock, but another transaction was chosen
 		as a victim, and we got the lock immediately: no need to
@@ -843,7 +843,7 @@ private:
 	/**
 	Check and resolve any deadlocks
 	@param[in, out] lock		The lock being acquired
-	@return DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED, or
+	@return DB_LOCK_WAIT, DB_DEADLOCK, or
 		DB_SUCCESS_LOCKED_REC; DB_SUCCESS_LOCKED_REC means that
 		there was a deadlock, but another transaction was chosen
 		as a victim, and we got the lock immediately: no need to

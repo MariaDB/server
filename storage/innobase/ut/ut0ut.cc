@@ -582,8 +582,6 @@ ut_strerr(
 		return("Rollback");
 	case DB_DUPLICATE_KEY:
 		return("Duplicate key");
-	case DB_QUE_THR_SUSPENDED:
-		return("The queue thread has been suspended");
 	case DB_MISSING_HISTORY:
 		return("Required history data has been deleted");
 	case DB_CLUSTER_NOT_FOUND:

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -502,7 +503,7 @@ lock_prdt_add_to_queue(
 /*********************************************************************//**
 Checks if locks of other transactions prevent an immediate insert of
 a predicate record.
-@return	DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return	DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_prdt_insert_check_and_lock(
 /*============================*/
@@ -785,7 +786,7 @@ lock_init_prdt_from_mbr(
 
 /*********************************************************************//**
 Acquire a predicate lock on a block
-@return	DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return	DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_prdt_lock(
 /*===========*/
@@ -900,7 +901,7 @@ lock_prdt_lock(
 
 /*********************************************************************//**
 Acquire a "Page" lock on a block
-@return	DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return	DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_place_prdt_page_lock(
 /*======================*/
@@ -1049,4 +1050,3 @@ lock_prdt_page_free_from_discard(
 		lock = next_lock;
 	}
 }
-
