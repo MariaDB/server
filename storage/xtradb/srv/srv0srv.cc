@@ -565,16 +565,6 @@ static ulint		srv_n_system_rows_read_old	= 0;
 UNIV_INTERN ulint	srv_truncated_status_writes	= 0;
 UNIV_INTERN ulint	srv_available_undo_logs         = 0;
 
-UNIV_INTERN ib_uint64_t srv_page_compression_saved      = 0;
-UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect512       = 0;
-UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect4096      = 0;
-UNIV_INTERN ib_uint64_t srv_index_pages_written         = 0;
-UNIV_INTERN ib_uint64_t srv_non_index_pages_written     = 0;
-UNIV_INTERN ib_uint64_t srv_pages_page_compressed       = 0;
-UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op     = 0;
-UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op_saved     = 0;
-UNIV_INTERN ib_uint64_t srv_index_page_decompressed     = 0;
-
 /* Ensure status variables are on separate cache lines */
 
 #define CACHE_ALIGNED MY_ATTRIBUTE((aligned (CACHE_LINE_SIZE)))
