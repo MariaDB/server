@@ -960,6 +960,8 @@ bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
       ltime->day= 0;
       return 0;
     }
+    else if (ltime->neg)
+      goto invalid_date;
 
     if (int_type != INTERVAL_DAY)
       ltime->time_type= MYSQL_TIMESTAMP_DATETIME; // Return full date
