@@ -2001,7 +2001,7 @@ RecLock::check_deadlock_result(const trx_t* victim_trx, lock_t* lock)
 /**
 Check and resolve any deadlocks
 @param[in, out] lock		The lock being acquired
-@return DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED, or
+@return DB_LOCK_WAIT, DB_DEADLOCK, or
 	DB_SUCCESS_LOCKED_REC; DB_SUCCESS_LOCKED_REC means that
 	there was a deadlock, but another transaction was chosen
 	as a victim, and we got the lock immediately: no need to
@@ -2099,7 +2099,7 @@ queue is itself waiting roll it back, also do a deadlock check and resolve.
 @param[in, out] wait_for	The lock that the joining transaction is
 				waiting for
 @param[in] prdt			Predicate [optional]
-@return DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED, or
+@return DB_LOCK_WAIT, DB_DEADLOCK, or
 	DB_SUCCESS_LOCKED_REC; DB_SUCCESS_LOCKED_REC means that
 	there was a deadlock, but another transaction was chosen
 	as a victim, and we got the lock immediately: no need to
@@ -2382,8 +2382,7 @@ This is the general, and slower, routine for locking a record. This is a
 low-level function which does NOT look at implicit locks! Checks lock
 compatibility within explicit locks. This function sets a normal next-key
 lock, or in the case of a page supremum record, a gap type lock.
-@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC, DB_LOCK_WAIT, DB_DEADLOCK,
-or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC, DB_LOCK_WAIT, or DB_DEADLOCK */
 static
 dberr_t
 lock_rec_lock_slow(
@@ -2469,8 +2468,7 @@ possible, enqueues a waiting lock request. This is a low-level function
 which does NOT look at implicit locks! Checks lock compatibility within
 explicit locks. This function sets a normal next-key lock, or in the case
 of a page supremum record, a gap type lock.
-@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC, DB_LOCK_WAIT, DB_DEADLOCK,
-or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC, DB_LOCK_WAIT, or DB_DEADLOCK */
 static
 dberr_t
 lock_rec_lock(
@@ -4482,7 +4480,7 @@ lock_table_remove_low(
 /*********************************************************************//**
 Enqueues a waiting request for a table lock which cannot be granted
 immediately. Checks for deadlocks.
-@return DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED, or
+@return DB_LOCK_WAIT, DB_DEADLOCK, or
 DB_SUCCESS; DB_SUCCESS means that there was a deadlock, but another
 transaction was chosen as a victim, and we got the lock immediately:
 no need to wait then */
@@ -4504,16 +4502,7 @@ lock_table_enqueue_waiting(
 
 	trx = thr_get_trx(thr);
 	ut_ad(trx_mutex_own(trx));
-
-	/* Test if there already is some other reason to suspend thread:
-	we do not enqueue a lock request if the query thread should be
-	stopped anyway */
-
-	if (que_thr_stop(thr)) {
-		ut_error;
-
-		return(DB_QUE_THR_SUSPENDED);
-	}
+	ut_a(!que_thr_stop(thr));
 
 	switch (trx_get_dict_operation(trx)) {
 	case TRX_DICT_OP_NONE:
@@ -4619,7 +4608,7 @@ lock_table_other_has_incompatible(
 /*********************************************************************//**
 Locks the specified database table in the mode given. If the lock cannot
 be granted immediately, the query thread is put to wait.
-@return DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_table(
 /*=======*/
@@ -4841,32 +4830,8 @@ run_again:
 	} else {
 		que_thr_stop_for_mysql(thr);
 
-		if (err != DB_QUE_THR_SUSPENDED) {
-			bool	was_lock_wait;
-
-			was_lock_wait = row_mysql_handle_errors(
-				&err, trx, thr, NULL);
-
-			if (was_lock_wait) {
-				goto run_again;
-			}
-		} else {
-			que_thr_t*	run_thr;
-			que_node_t*	parent;
-
-			parent = que_node_get_parent(thr);
-
-			run_thr = que_fork_start_command(
-				static_cast<que_fork_t*>(parent));
-
-			ut_a(run_thr == thr);
-
-			/* There was a lock wait but the thread was not
-			in a ready to run or running state. */
-			trx->error_state = DB_LOCK_WAIT;
-
+		if (row_mysql_handle_errors(&err, trx, thr, NULL)) {
 			goto run_again;
-
 		}
 	}
 
@@ -6534,7 +6499,7 @@ a record. If they do, first tests if the query thread should anyway
 be suspended for some reason; if not, then puts the transaction and
 the query thread to the lock wait state and inserts a waiting request
 for a gap x-lock to the lock queue.
-@return DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_rec_insert_check_and_lock(
 /*===========================*/
@@ -6775,7 +6740,7 @@ first tests if the query thread should anyway be suspended for some
 reason; if not, then puts the transaction and the query thread to the
 lock wait state and inserts a waiting request for a record x-lock to the
 lock queue.
-@return DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_clust_rec_modify_check_and_lock(
 /*=================================*/
@@ -6833,7 +6798,7 @@ lock_clust_rec_modify_check_and_lock(
 /*********************************************************************//**
 Checks if locks of other transactions prevent an immediate modify (delete
 mark or delete unmark) of a secondary index record.
-@return DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_sec_rec_modify_check_and_lock(
 /*===============================*/
@@ -6918,8 +6883,7 @@ lock_sec_rec_modify_check_and_lock(
 /*********************************************************************//**
 Like lock_clust_rec_read_check_and_lock(), but reads a
 secondary index record.
-@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC, DB_LOCK_WAIT, DB_DEADLOCK,
-or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_sec_rec_read_check_and_lock(
 /*=============================*/
@@ -6997,8 +6961,7 @@ if the query thread should anyway be suspended for some reason; if not, then
 puts the transaction and the query thread to the lock wait state and inserts a
 waiting request for a record lock to the lock queue. Sets the requested mode
 lock on the record.
-@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC, DB_LOCK_WAIT, DB_DEADLOCK,
-or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_clust_rec_read_check_and_lock(
 /*===============================*/
@@ -7072,7 +7035,7 @@ waiting request for a record lock to the lock queue. Sets the requested mode
 lock on the record. This is an alternative version of
 lock_clust_rec_read_check_and_lock() that does not require the parameter
 "offsets".
-@return DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_clust_rec_read_check_and_lock_alt(
 /*===================================*/
