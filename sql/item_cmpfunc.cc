@@ -745,46 +745,6 @@ static Item** cache_converted_constant(THD *thd, Item **value,
 }
 
 
-/**
-  Retrieves correct DATETIME value from given item.
-
-  @param[in]     thd         thread handle
-  @param[in,out] item_arg    item to retrieve DATETIME value from
-  @param[in,out] cache_arg   pointer to place to store the caching item to
-  @param[in]     warn_item   item for issuing the conversion warning
-  @param[out]    is_null     TRUE <=> the item_arg is null
-
-  @details
-    Retrieves the correct DATETIME value from given item for comparison by the
-    compare_datetime() function.
-
-    If the value should be compared as time (TIME_RESULT), it's retrieved as
-    MYSQL_TIME. Otherwise it's read as a number/string and converted to time.
-    Constant items are cached, so the convertion is only done once for them.
-
-    Note the f_type behavior: if the item can be compared as time, then
-    f_type is this item's field_type(). Otherwise it's field_type() of
-    warn_item (which is the other operand of the comparison operator).
-    This logic provides correct string/number to date/time conversion
-    depending on the other operand (when comparing a string with a date, it's
-    parsed as a date, when comparing a string with a time it's parsed as a time)
-
-    If the item is a constant it is replaced by the Item_cache_int, that
-    holds the packed datetime value.
-
-  @return
-    MYSQL_TIME value, packed in a longlong, suitable for comparison.
-*/
-
-longlong get_datetime_value(Item *item, enum_field_types f_type, bool *is_null)
-{
-  longlong value= item->val_temporal_packed(f_type);
-  if ((*is_null= item->null_value))
-    return ~(ulonglong) 0;
-  return value;
-}
-
-
 /*
   Compare items values as dates.
 
@@ -793,8 +753,7 @@ longlong get_datetime_value(Item *item, enum_field_types f_type, bool *is_null)
 
   DESCRIPTION
     Compare items values as DATE/DATETIME for both EQUAL_FUNC and from other
-    comparison functions. The correct DATETIME values are obtained
-    with help of the get_datetime_value() function.
+    comparison functions.
 
   RETURN
       -1   a < b or at least one item is null
@@ -804,20 +763,19 @@ longlong get_datetime_value(Item *item, enum_field_types f_type, bool *is_null)
 
 int Arg_comparator::compare_temporal(enum_field_types type)
 {
-  bool a_is_null, b_is_null;
   longlong a_value, b_value;
 
   if (set_null)
     owner->null_value= 1;
 
   /* Get DATE/DATETIME/TIME value of the 'a' item. */
-  a_value= get_datetime_value(*a, type, &a_is_null);
-  if (a_is_null)
+  a_value= (*a)->val_temporal_packed(type);
+  if ((*a)->null_value)
     return -1;
 
   /* Get DATE/DATETIME/TIME value of the 'b' item. */
-  b_value= get_datetime_value(*b, type, &b_is_null);
-  if (b_is_null)
+  b_value= (*b)->val_temporal_packed(type);
+  if ((*b)->null_value)
     return -1;
 
   /* Here we have two not-NULL values. */
@@ -830,16 +788,15 @@ int Arg_comparator::compare_temporal(enum_field_types type)
 
 int Arg_comparator::compare_e_temporal(enum_field_types type)
 {
-  bool a_is_null, b_is_null;
   longlong a_value, b_value;
 
   /* Get DATE/DATETIME/TIME value of the 'a' item. */
-  a_value= get_datetime_value(*a, type, &a_is_null);
+  a_value= (*a)->val_temporal_packed(type);
 
   /* Get DATE/DATETIME/TIME value of the 'b' item. */
-  b_value= get_datetime_value(*b, type, &b_is_null);
-  return a_is_null || b_is_null ? a_is_null == b_is_null
-                                : a_value == b_value;
+  b_value= (*b)->val_temporal_packed(type);
+  return (*a)->null_value || (*b)->null_value ?
+         (*a)->null_value == (*b)->null_value : a_value == b_value;
 }
 
 int Arg_comparator::compare_string()
@@ -2163,9 +2120,7 @@ void Item_func_between::fix_length_and_dec()
 
   /*
     When comparing as date/time, we need to convert non-temporal values
-    (e.g.  strings) to MYSQL_TIME. get_datetime_value() does it
-    automatically when one of the operands is a date/time.  But here we
-    may need to compare two strings as dates (str1 BETWEEN str2 AND date).
+    (e.g.  strings) to MYSQL_TIME.
     For this to work, we need to know what date/time type we compare
     strings as.
   */
@@ -2197,23 +2152,22 @@ longlong Item_func_between::val_int()
   case TIME_RESULT:
   {
     longlong value, a, b;
-    bool value_is_null, a_is_null, b_is_null;
 
     enum_field_types f_type= field_type_for_temporal_comparison(compare_as_dates);
-    value= get_datetime_value(args[0], f_type, &value_is_null);
+    value= args[0]->val_temporal_packed(f_type);
 
-    if ((null_value= value_is_null))
+    if ((null_value= args[0]->null_value))
       return 0;
 
-    a= get_datetime_value(args[1], f_type, &a_is_null);
-    b= get_datetime_value(args[2], f_type, &b_is_null);
+    a= args[1]->val_temporal_packed(f_type);
+    b= args[2]->val_temporal_packed(f_type);
 
-    if (!a_is_null && !b_is_null)
+    if (!args[1]->null_value && !args[2]->null_value)
       return (longlong) ((value >= a && value <= b) != negated);
-    if (a_is_null && b_is_null)
+    if (args[1]->null_value && args[2]->null_value)
       null_value=1;
-    else if (a_is_null)
-      null_value= value <= b;			// not null if false range.
+    else if (args[1]->null_value)
+      null_value= value <= b;                   // not null if false range.
     else
       null_value= value >= a;
     break;
@@ -3777,9 +3731,8 @@ void in_datetime::set(uint pos,Item *item)
 
 uchar *in_datetime::get_value(Item *item)
 {
-  bool is_null;
   enum_field_types f_type= item->field_type_for_temporal_comparison(warn_item);
-  tmp.val= get_datetime_value(item, f_type, &is_null);
+  tmp.val= item->val_temporal_packed(f_type);
   if (item->null_value)
     return 0;
   tmp.unsigned_flag= 1L;
@@ -4040,9 +3993,8 @@ cmp_item* cmp_item_decimal::make_same()
 
 void cmp_item_datetime::store_value(Item *item)
 {
-  bool is_null;
   enum_field_types f_type= item->field_type_for_temporal_comparison(warn_item);
-  value= get_datetime_value(item, f_type, &is_null);
+  value= item->val_temporal_packed(f_type);
   m_null_value= item->null_value;
 }
 

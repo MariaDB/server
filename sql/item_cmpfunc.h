@@ -1266,7 +1266,6 @@ public:
 
 /*
   Class to represent a vector of constant DATE/DATETIME values.
-  Values are obtained with help of the get_datetime_value() function.
 */
 class in_datetime :public in_longlong
 {
@@ -1436,7 +1435,6 @@ public:
 
 /*
   Compare items in the DATETIME context.
-  Values are obtained with help of the get_datetime_value() function.
 */
 class cmp_item_datetime : public cmp_item_scalar
 {
@@ -2613,10 +2611,6 @@ inline bool is_cond_or(Item *item)
 }
 
 Item *and_expressions(Item *a, Item *b, Item **org_item);
-
-longlong get_datetime_value(Item ***item_arg, Item **cache_arg,
-                            enum_field_types f_type, bool *is_null);
-
 
 class Comp_creator
 {
