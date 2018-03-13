@@ -8337,6 +8337,14 @@ drop procedure p1;
 drop procedure p2;
 drop procedure p3;
 #
+# MDEV-15328: MariaDB 10.2.13 Crashes upon CALL PROCEDURE PARAM
+# LAST_INSERT_ID ()
+# (part 1, part 2 is in query_cache.test)
+#
+CREATE PROCEDURE foo ( IN i INT UNSIGNED ) BEGIN END;
+CALL foo( LAST_INSERT_ID() );
+DROP PROCEDURE foo;
+#
 # Start of 10.3 tests
 #
 #
