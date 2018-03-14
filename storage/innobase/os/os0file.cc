@@ -3578,7 +3578,7 @@ os_aio_native_aio_supported(void)
 
 		strcpy(name + dirnamelen, "ib_logfile0");
 
-		fd = ::open(name, O_RDONLY);
+		fd = ::open(name, O_RDONLY | O_CLOEXEC);
 
 		if (fd == -1) {
 
