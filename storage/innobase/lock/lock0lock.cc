@@ -643,44 +643,8 @@ lock_reset_lock_and_trx_wait(
 {
 	ut_ad(lock_get_wait(lock));
 	ut_ad(lock_mutex_own());
-
-	if (lock->trx->lock.wait_lock &&
-	    lock->trx->lock.wait_lock != lock) {
-		const char*	stmt=NULL;
-		const char*	stmt2=NULL;
-		size_t		stmt_len;
-		trx_id_t trx_id = 0;
-		stmt = lock->trx->mysql_thd
-			? innobase_get_stmt_unsafe(
-				lock->trx->mysql_thd, &stmt_len)
-			: NULL;
-
-		if (lock->trx->lock.wait_lock &&
-			lock->trx->lock.wait_lock->trx) {
-			trx_id = lock->trx->lock.wait_lock->trx->id;
-			stmt2 = lock->trx->lock.wait_lock->trx->mysql_thd
-				? innobase_get_stmt_unsafe(
-					lock->trx->lock.wait_lock
-					->trx->mysql_thd, &stmt_len)
-				: NULL;
-		}
-
-		ib::error() <<
-			"Trx id " << ib::hex(lock->trx->id)
-				  << " is waiting a lock "
-				  << " for this trx id " << ib::hex(trx_id)
-				  << " wait_lock " << lock->trx->lock.wait_lock;
-		if (stmt) {
-			ib::info() << " SQL1: " << stmt;
-		}
-
-		if (stmt2) {
-			ib::info() << " SQL2: " << stmt2;
-		}
-
-		ut_ad(0);
-	}
-
+	ut_ad(lock->trx->lock.wait_lock == NULL
+	      || lock->trx->lock.wait_lock == lock);
 	lock->trx->lock.wait_lock = NULL;
 	lock->type_mode &= ~LOCK_WAIT;
 }
