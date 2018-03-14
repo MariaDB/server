@@ -145,6 +145,6 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
 #error No implementation found for create_temp_file
 #endif
   if (file >= 0)
-    thread_safe_increment(my_tmp_file_created,&THR_LOCK_open);
+    statistic_increment(my_tmp_file_created,&THR_LOCK_open);
   DBUG_RETURN(file);
 }
