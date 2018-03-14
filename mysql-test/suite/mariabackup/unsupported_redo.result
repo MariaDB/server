@@ -23,24 +23,11 @@ CREATE TABLE t2(i int) ENGINE INNODB;
 ALTER TABLE t21 FORCE, ALGORITHM=INPLACE;
 # Create partial backup (excluding table t21), Ignore the
 # unsupported redo log for the table t21.
-t1.frm
 t1.ibd
-t2.frm
 t2.ibd
-# After partial restore operation, t21 files will be missing but t21
-# table information will be present in dictionary. It will
-# restrict creating the table t21 in the future test. To avoid
-# that, take the copy of t21 files and drop the table later.
 # Prepare the full backup
-# shutdown server
-# remove datadir
-# xtrabackup move back
-# restart server
-SHOW TABLES;
-Tables_in_test
-t1
-t2
+t1.ibd
+t2.ibd
 DROP TABLE t1;
 DROP TABLE t2;
-# Move the t21 files into data directory
 DROP TABLE t21;
