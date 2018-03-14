@@ -639,7 +639,7 @@ UNIV_INLINE
 void
 lock_reset_lock_and_trx_wait(
 /*=========================*/
-	lock_t*	lock)	/*!< in/out: record lock */
+	lock_t* lock)	/*!< in/out: record lock */
 {
 	ut_ad(lock_get_wait(lock));
 	ut_ad(lock_mutex_own());
@@ -1624,13 +1624,6 @@ lock_rec_create_low(
 
 			if (holds_trx_mutex) {
 				trx_mutex_enter(trx);
-			}
-
-			/* trx might not wait for c_lock, but some other lock
-			   does not matter if wait_lock was released above
-			 */
-			if (c_lock->trx->lock.wait_lock == c_lock) {
-				lock_reset_lock_and_trx_wait(lock);
 			}
 
 			trx_mutex_exit(c_lock->trx);
