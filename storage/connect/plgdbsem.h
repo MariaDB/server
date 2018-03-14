@@ -362,7 +362,8 @@ enum COLUSE {U_P         = 0x01,      /* the projection list.          */
              U_IS_NULL   = 0x80,      /* The column has a null value   */
              U_SPECIAL   = 0x100,     /* The column is special         */
              U_UNSIGNED  = 0x200,     /* The column type is unsigned   */
-             U_ZEROFILL  = 0x400};    /* The column is zero filled     */
+             U_ZEROFILL  = 0x400,     /* The column is zero filled     */
+						 U_UUID      = 0x800};    /* The column is a UUID          */
 
 /***********************************************************************/
 /*  DB description class and block pointer definitions.                */

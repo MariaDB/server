@@ -605,6 +605,10 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 	else if (Quoted)
 		Quote = Jcp->GetQuoteChar();
 
+	if (Mode != MODE_READ && Mode != MODE_READX)
+		if (Jcp->SetUUID(g, this))
+			PushWarning(g, this, 1);
+
 	Use = USE_OPEN;       // Do it now in case we are recursively called
 
 	/*********************************************************************/
@@ -970,6 +974,7 @@ void TDBJDBC::CloseDB(PGLOBAL g)
 JDBCCOL::JDBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
 	     : EXTCOL(cdp, tdbp, cprec, i, am)
 {
+	uuid = false;
 } // end of JDBCCOL constructor
 
 /***********************************************************************/
@@ -977,6 +982,7 @@ JDBCCOL::JDBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
 /***********************************************************************/
 JDBCCOL::JDBCCOL(void) : EXTCOL()
 {
+	uuid = false;
 } // end of JDBCCOL constructor
 
 /***********************************************************************/
@@ -985,12 +991,11 @@ JDBCCOL::JDBCCOL(void) : EXTCOL()
 /***********************************************************************/
 JDBCCOL::JDBCCOL(JDBCCOL *col1, PTDB tdbp) : EXTCOL(col1, tdbp)
 {
+	uuid = col1->uuid;
 } // end of JDBCCOL copy constructor
 
 /***********************************************************************/
-/*  ReadColumn: when SQLFetch is used there is nothing to do as the    */
-/*  column buffer was bind to the record set. This is also the case    */
-/*  when calculating MaxSize (Bufp is NULL even when Rows is not).     */
+/*  ReadColumn: retrieve the column value via the JDBC driver.         */
 /***********************************************************************/
 void JDBCCOL::ReadColumn(PGLOBAL g)
 {
