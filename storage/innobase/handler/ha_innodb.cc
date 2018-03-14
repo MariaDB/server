@@ -1411,7 +1411,11 @@ innobase_mysql_tmpfile(void)
 			}	
 		}
 #else
+#ifdef F_DUPFD_CLOEXEC
+		fd2 = fcntl(fd, F_DUPFD_CLOEXEC, 0);
+#else
 		fd2 = dup(fd);
+#endif
 #endif
 		if (fd2 < 0) {
 			DBUG_PRINT("error",("Got error %d on dup",fd2));
