@@ -35,9 +35,8 @@ those functions in lock/ */
 #endif
 
 #include "univ.i"
-#include "dict0types.h"
 #include "hash0hash.h"
-#include "trx0types.h"
+#include "trx0trx.h"
 
 #ifndef UINT32_MAX
 #define UINT32_MAX             (4294967295U)
@@ -643,6 +642,28 @@ lock_rec_set_nth_bit(
 	lock_t*	lock,	/*!< in: record lock */
 	ulint	i);	/*!< in: index of the bit */
 
+/** Reset the nth bit of a record lock.
+@param[in,out] lock record lock
+@param[in] i index of the bit that will be reset
+@return previous value of the bit */
+inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
+{
+	ut_ad(lock_get_type_low(lock) == LOCK_REC);
+	ut_ad(i < lock->un_member.rec_lock.n_bits);
+
+	byte*	b = reinterpret_cast<byte*>(&lock[1]) + (i >> 3);
+	byte	mask = byte(1U << (i & 7));
+	byte	bit = *b & mask;
+	*b &= ~mask;
+
+	if (bit != 0) {
+		ut_ad(lock->trx->lock.n_rec_locks > 0);
+		--lock->trx->lock.n_rec_locks;
+	}
+
+	return(bit);
+}
+
 /*********************************************************************//**
 Gets the first or next record lock on a page.
 @return next lock, NULL if none exists */
@@ -769,6 +790,33 @@ lock_table_has(
 	const trx_t*		trx,	/*!< in: transaction */
 	const dict_table_t*	table,	/*!< in: table */
 	enum lock_mode		mode);	/*!< in: lock mode */
+
+/** Set the wait status of a lock.
+@param[in,out]	lock	lock that will be waited for
+@param[in,out]	trx	transaction that will wait for the lock */
+inline void lock_set_lock_and_trx_wait(lock_t* lock, trx_t* trx)
+{
+	ut_ad(lock);
+	ut_ad(lock->trx == trx);
+	ut_ad(trx->lock.wait_lock == NULL);
+	ut_ad(lock_mutex_own());
+	ut_ad(trx_mutex_own(trx));
+
+	trx->lock.wait_lock = lock;
+	lock->type_mode |= LOCK_WAIT;
+}
+
+/** Reset the wait status of a lock.
+@param[in,out]	lock	lock that was possibly being waited for */
+inline void lock_reset_lock_and_trx_wait(lock_t* lock)
+{
+	ut_ad(lock_get_wait(lock));
+	ut_ad(lock_mutex_own());
+	ut_ad(lock->trx->lock.wait_lock == NULL
+	      || lock->trx->lock.wait_lock == lock);
+	lock->trx->lock.wait_lock = NULL;
+	lock->type_mode &= ~LOCK_WAIT;
+}
 
 #include "lock0priv.ic"
 

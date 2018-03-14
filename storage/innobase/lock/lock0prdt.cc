@@ -1028,7 +1028,8 @@ lock_prdt_rec_move(
 		const ulint     type_mode = lock->type_mode;
 		lock_prdt_t*	lock_prdt = lock_get_prdt_from_lock(lock);
 
-		lock_rec_trx_wait(lock, PRDT_HEAPNO, type_mode);
+		lock_rec_reset_nth_bit(lock, PRDT_HEAPNO);
+		lock_reset_lock_and_trx_wait(lock);
 
 		lock_prdt_add_to_queue(
 			type_mode, receiver, lock->index, lock->trx,
