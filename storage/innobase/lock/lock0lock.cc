@@ -898,7 +898,7 @@ UNIV_INLINE
 void
 lock_reset_lock_and_trx_wait(
 /*=========================*/
-	lock_t*	lock)	/*!< in/out: record lock */
+	lock_t* lock)	/*!< in/out: record lock */
 {
 	ut_ad(lock_get_wait(lock));
 	ut_ad(lock_mutex_own());
@@ -2214,13 +2214,6 @@ lock_rec_create(
 
 			if (caller_owns_trx_mutex) {
 				trx_mutex_enter(trx);
-			}
-
-			/* trx might not wait for c_lock, but some other lock
-			   does not matter if wait_lock was released above
-			 */
-			if (c_lock->trx->lock.wait_lock == c_lock) {
-				lock_reset_lock_and_trx_wait(lock);
 			}
 
 			trx_mutex_exit(c_lock->trx);
@@ -4970,19 +4963,18 @@ lock_table_create(
 	UT_LIST_ADD_LAST(trx_locks, trx->lock.trx_locks, lock);
 
 #ifdef WITH_WSREP
-	if (wsrep_thd_is_wsrep(trx->mysql_thd)) {
-		if (c_lock && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+	if (c_lock) {
+		if (wsrep_thd_is_wsrep(trx->mysql_thd)
+		    && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 			UT_LIST_INSERT_AFTER(
 				un_member.tab_lock.locks, table->locks, c_lock, lock);
 		} else {
 			UT_LIST_ADD_LAST(un_member.tab_lock.locks, table->locks, lock);
 		}
 
-		if (c_lock) {
-			trx_mutex_enter(c_lock->trx);
-		}
+		trx_mutex_enter(c_lock->trx);
 
-		if (c_lock && c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
+		if (c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 
 			c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
 
@@ -4991,36 +4983,21 @@ lock_table_create(
 				wsrep_print_wait_locks(c_lock->trx->lock.wait_lock);
 			}
 
-			/* have to release trx mutex for the duration of
-			victim lock release. This will eventually call
-			lock_grant, which wants to grant trx mutex again
-			*/
-			/* caller has trx_mutex, have to release for lock cancel */
+			/* The lock release will call lock_grant(),
+			which would acquire trx->mutex again. */
 			trx_mutex_exit(trx);
 			lock_cancel_waiting_and_release(c_lock->trx->lock.wait_lock);
 			trx_mutex_enter(trx);
-
-			/* trx might not wait for c_lock, but some other lock
-			does not matter if wait_lock was released above
-			*/
-			if (c_lock->trx->lock.wait_lock == c_lock) {
-				lock_reset_lock_and_trx_wait(lock);
-			}
 
 			if (wsrep_debug) {
 				fprintf(stderr, "WSREP: c_lock canceled " TRX_ID_FMT "\n",
 					c_lock->trx->id);
 			}
 		}
-		if (c_lock) {
-			trx_mutex_exit(c_lock->trx);
-		}
-	} else {
+		trx_mutex_exit(c_lock->trx);
+	} else
 #endif /* WITH_WSREP */
 	UT_LIST_ADD_LAST(un_member.tab_lock.locks, table->locks, lock);
-#ifdef WITH_WSREP
-	}
-#endif /* WITH_WSREP */
 
 	if (UNIV_UNLIKELY(type_mode & LOCK_WAIT)) {
 
