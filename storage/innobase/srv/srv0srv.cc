@@ -1798,6 +1798,13 @@ loop:
 		}
 	}
 
+	if (difftime(current_time, srv_last_monitor_time) > 60) {
+		/* We referesh InnoDB Monitor values so that averages are
+		printed from at most 60 last seconds */
+
+		srv_refresh_innodb_monitor_stats();
+	}
+
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		goto exit_func;
 	}
@@ -1867,16 +1874,6 @@ loop:
 		}
 
 		old_lsn = new_lsn;
-	}
-
-	if (difftime(time(NULL),
-		     my_atomic_load32_explicit(&srv_last_monitor_time,
-					       MY_MEMORY_ORDER_RELAXED))
-	    > 60) {
-		/* We referesh InnoDB Monitor values so that averages are
-		printed from at most 60 last seconds */
-
-		srv_refresh_innodb_monitor_stats();
 	}
 
 	/* Update the statistics collected for deciding LRU
