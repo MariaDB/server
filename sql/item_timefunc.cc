@@ -702,7 +702,7 @@ static bool get_interval_info(const char *str,uint length,CHARSET_INFO *cs,
 {
   const char *end=str+length;
   uint i;
-  long msec_length= 0;
+  long field_length= 0;
 
   while (str != end && !my_isdigit(cs,*str))
     str++;
@@ -713,7 +713,8 @@ static bool get_interval_info(const char *str,uint length,CHARSET_INFO *cs,
     const char *start= str;
     for (value= 0; str != end && my_isdigit(cs, *str); str++)
       value= value*10 + *str - '0';
-    msec_length= 6 - (str - start);
+    if ((field_length= str - start) >= 20)
+      return true;
     values[i]= value;
     while (str != end && !my_isdigit(cs,*str))
       str++;
@@ -728,8 +729,13 @@ static bool get_interval_info(const char *str,uint length,CHARSET_INFO *cs,
     }
   }
 
-  if (transform_msec && msec_length > 0)
-    values[count - 1] *= (long) log_10_int[msec_length];
+  if (transform_msec && field_length > 0)
+  {
+    if (field_length < 6)
+      values[count - 1] *= (long) log_10_int[6 - field_length];
+    else if (field_length > 6)
+      values[count - 1] /= (long) log_10_int[field_length - 6];
+  }
 
   return (str != end);
 }
