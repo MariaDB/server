@@ -31,7 +31,7 @@ use Getopt::Long;
 # Checking script is run from the correct location
 if (! -f "mysql-test-run.pl") {
    print("\nERROR: This script should be run from the \'\<INSTALL_DIR\>/mysql-test\' directory.\n");
-   error(1);
+   die;
 }
 
 $runlog="rr_trx.log";
@@ -118,11 +118,11 @@ if (!-f $testsuitedir.'init_'.$engine_lower.'.txt') {
    print("\nERROR: config file 'init_".$engine_lower.".txt' missing."); 
    $missing=1;
 }
-if (!-f $testsuitedir.'t/init_'.$engine_lower.'.test') { 
+if (!-f $testsuitedir.'init_'.$engine_lower.'.test') { 
    print("\nERROR: config file 'init_".$engine_lower.".test' missing."); 
    $missing=1;
 }
-if (!-f $testsuitedir.'r/init_'.$engine_lower.'.result') {
+if (!-f $testsuitedir.'init_'.$engine_lower.'.result') {
    print("\nERROR: config file 'init_".$engine_lower.".result' missing."); 
    $missing=1;
 }
@@ -316,9 +316,9 @@ In order to add support for a new engine, you will need to modify scripts as fol
       include specifc values required to be passed as startup parameters to the MySQL server by
       specifying them using "--mysqld" options (see InnoDB example).
    3) Copy the 'init_innodb.txt' file to 'init_<engine>.txt file and change its content to be "init_<engine>".
-   4) In the 't' directory copy the "init_innodb.test" file to "init_\<engine\>.test" and change the value of
+   4) Copy the "init_innodb.test" file to "init_\<engine\>.test" and change the value of
       the '\$engine' variable to \<engine\>.
-   5) In the 'r' directory copy "the init_innodb.result" file to "init_\<engine\>.result" and change refrences
+   5) Copy "the init_innodb.result" file to "init_\<engine\>.result" and change refrences
       to 'InnoDB' to \<engine\>.
 
 EOF
