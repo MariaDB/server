@@ -27,8 +27,8 @@ Build-Depends: bison,
                libjemalloc-dev (>= 3.0.0~) [linux-any]
 Standards-Version: 3.8.2
 Homepage: http://mariadb.org/
-Vcs-Git: https://github.com/MariaDB/server.git
 Vcs-Browser: https://github.com/MariaDB/server/
+Vcs-Git: https://github.com/MariaDB/server.git
 
 Package: libmariadbclient18
 Architecture: any

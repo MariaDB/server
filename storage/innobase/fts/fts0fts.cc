@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4628,6 +4628,7 @@ begin_sync:
 			ib_vector_get(cache->indexes, i));
 
 		if (index_cache->index->to_be_dropped
+		    || index_cache->index->table->to_be_dropped
 		    || fts_sync_index_check(index_cache)) {
 			continue;
 		}
@@ -4638,17 +4639,6 @@ begin_sync:
 end_sync:
 	if (error == DB_SUCCESS && !sync->interrupted) {
 		error = fts_sync_commit(sync);
-		if (error == DB_SUCCESS) {
-			for (i = 0; i < ib_vector_size(cache->indexes); ++i) {
-				fts_index_cache_t*      index_cache;
-				index_cache = static_cast<fts_index_cache_t*>(
-					ib_vector_get(cache->indexes, i));
-				if (index_cache->index->index_fts_syncing) {
-					index_cache->index->index_fts_syncing
-								= false;
-				}
-			}
-		}
 	}  else {
 		fts_sync_rollback(sync);
 	}
@@ -4657,12 +4647,9 @@ end_sync:
 	/* Clear fts syncing flags of any indexes incase sync is
 	interrupeted */
 	for (i = 0; i < ib_vector_size(cache->indexes); ++i) {
-		fts_index_cache_t*      index_cache;
-		index_cache = static_cast<fts_index_cache_t*>(
-                      ib_vector_get(cache->indexes, i));
-		if (index_cache->index->index_fts_syncing == true) {
-			index_cache->index->index_fts_syncing = false;
-                  }
+		static_cast<fts_index_cache_t*>(
+			ib_vector_get(cache->indexes, i))
+			->index->index_fts_syncing = false;
 	}
 
 	sync->interrupted = false;
