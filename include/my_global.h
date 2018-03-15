@@ -591,6 +591,11 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #ifndef O_CLOEXEC
 #define O_CLOEXEC       0
 #endif
+#ifdef __GLIBC__
+#define STR_O_CLOEXEC "e"
+#else
+#define STR_O_CLOEXEC ""
+#endif
 #ifndef SOCK_CLOEXEC
 #define SOCK_CLOEXEC    0
 #endif
