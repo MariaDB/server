@@ -2666,9 +2666,7 @@ int main(int argc, char** argv)
   tzset(); // set tzname
 
   init_alloc_root(&s_mem_root, 16384, 0, MYF(0));
-  if (load_defaults("my", load_groups, &argc, &argv))
-    exit(1);
-
+  load_defaults_or_exit("my", load_groups, &argc, &argv);
   defaults_argv= argv;
 
   if (!(binlog_filter= new Rpl_filter))

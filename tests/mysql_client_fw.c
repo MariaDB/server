@@ -1409,8 +1409,7 @@ int main(int argc, char **argv)
   for (i= 0; i < argc; i++)
     original_argv[i]= strdup(argv[i]);
 
-  if (load_defaults("my", client_test_load_default_groups, &argc, &argv))
-    exit(1);
+  load_defaults_or_exit("my", client_test_load_default_groups, &argc, &argv);
 
   get_options(&argc, &argv);
   /* Set main opt_count. */

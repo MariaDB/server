@@ -47,7 +47,7 @@ int main(int argc, char **argv)
 
   maria_data_root= (char *)".";
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
-  load_defaults("my", load_default_groups, &argc, &argv);
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   default_argv= argv;
   get_options(&argc, &argv);
 

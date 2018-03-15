@@ -631,7 +631,7 @@ int my_load_defaults(const char *conf_file, const char **groups,
       if (!my_getopt_is_args_separator((*argv)[i])) /* skip arguments separator */
         printf("%s ", (*argv)[i]);
     puts("");
-    exit(0);
+    DBUG_RETURN(4);
   }
 
   if (default_directories)
@@ -641,7 +641,7 @@ int my_load_defaults(const char *conf_file, const char **groups,
 
  err:
   fprintf(stderr,"Fatal error in defaults handling. Program aborted\n");
-  return 2;
+  DBUG_RETURN(2);
 }
 
 
