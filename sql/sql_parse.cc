@@ -7193,7 +7193,6 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
           thd->wsrep_conflict_state == CERT_FAILURE)
       {
         thd->reset_for_next_command();
-        thd->reset_killed();
         if (is_autocommit                           &&
             thd->lex->sql_command != SQLCOM_SELECT  &&
             (thd->wsrep_retry_counter < thd->variables.wsrep_retry_autocommit))
@@ -7221,17 +7220,18 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                       thd->thread_id, is_autocommit, thd->wsrep_retry_counter, 
                       thd->variables.wsrep_retry_autocommit, thd->query());
           my_error(ER_LOCK_DEADLOCK, MYF(0), "wsrep aborted transaction");
-          thd->reset_killed();
           thd->wsrep_conflict_state= NO_CONFLICT;
           if (thd->wsrep_conflict_state != REPLAYING)
             thd->wsrep_retry_counter= 0;             //  reset
         }
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+        thd->reset_killed();
       }
       else
       {
         set_if_smaller(thd->wsrep_retry_counter, 0); // reset; eventually ok
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       }
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     }
 
     /* If retry is requested clean up explain structure */

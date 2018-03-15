@@ -13,7 +13,6 @@ MW-336 : MDEV-13549 Galera test failures
 galera_gra_log : MDEV-13549 Galera test failures
 galera_flush_local : MDEV-13549 Galera test failures
 galera_flush :  MDEV-13549 Galera test failures
-MW-329 : MDEV-13549 Galera test failures
 galera_account_management : MariaDB 10.0 does not support ALTER USER
 galera_binlog_row_image : MariaDB 10.0 does not support binlog_row_image
 galera_binlog_rows_query_log_events: MariaDB does not support binlog_rows_query_log_events
@@ -48,16 +47,11 @@ galera_toi_ddl_nonconflicting : MDEV-13549 Galera test failures
 galera_parallel_simple : MDEV-13549 Galera test failures
 galera_admin : MDEV-13549 Galera test failures
 galera_var_max_ws_rows :  MDEV-13549 Galera test failures 10.1
-MW-286 : MDEV-13549 Galera test failures 10.1
 galera_as_master: MDEV-13549 Galera test failures 10.1
 galera_pc_ignore_sb : MDEV-13549 Galera test failures 10.1
 galera_lock_table : MDEV-13549 Galera test failures 10.1
 MW-284 : MDEV-13549 Galera test failures 10.1
 galera_as_slave : MDEV-13549 Galera test failures 10.1
-MW-328C : MDEV-13549 Galera test failures 10.1
-MW-328A : MDEV-13549 Galera test failures 10.1
-MW-328B : MDEV-13549 Galera test failures 10.1
-MW-328 : MDEV-13549 Galera test failures 10.1
 galera_suspend_slave : MDEV-13549 Galera test failures 10.1
 galera_gtid : MDEV-13549 Galera test failures 10.1
 galera_gtid_slave : MDEV-13549 Galera test failures 10.1
