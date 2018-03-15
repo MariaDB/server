@@ -732,9 +732,9 @@ static bool get_interval_info(const char *str,uint length,CHARSET_INFO *cs,
   if (transform_msec && field_length > 0)
   {
     if (field_length < 6)
-      values[count - 1] *= (long) log_10_int[6 - field_length];
+      values[count - 1] *= log_10_int[6 - field_length];
     else if (field_length > 6)
-      values[count - 1] /= (long) log_10_int[field_length - 6];
+      values[count - 1] /= log_10_int[field_length - 6];
   }
 
   return (str != end);
