@@ -33,7 +33,6 @@ galera_ist_mysqldump : MDEV-13549 Galera test failures
 mysql-wsrep#31 :  MDEV-13549 Galera test failures
 galera_migrate : MariaDB 10.0 does not support START SLAVE USER
 galera_concurrent_ctas : MDEV-13549 Galera test failures
-galera_bf_abort_for_update : MDEV-13549 Galera test failures
 galera_wsrep_desync_wsrep_on : MDEV-13549 Galera test failures
 galera_ssl_upgrade : MDEV-13549 Galera test failures
 mysql-wsrep#33 : MDEV-13549 Galera test failures
