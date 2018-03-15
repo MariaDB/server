@@ -9040,7 +9040,7 @@ ha_innobase::unlock_row(void)
 	But there are some calls to this function from the SQL layer when the
 	transaction is in state TRX_STATE_NOT_STARTED.  The check on
 	prebuilt->select_lock_type above gets around this issue. */
-	ut_ad(trx_state_eq(prebuilt->trx, TRX_STATE_ACTIVE));
+	ut_ad(trx_state_eq(prebuilt->trx, TRX_STATE_ACTIVE, true));
 
 	switch (prebuilt->row_read_type) {
 	case ROW_READ_WITH_LOCKS:
