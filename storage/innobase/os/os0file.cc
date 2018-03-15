@@ -1215,19 +1215,16 @@ AIO::release_with_mutex(Slot* slot)
 	release();
 }
 
-/** Creates a temporary file.  This function is like tmpfile(3), but
-the temporary file is created in the given parameter path. If the path
-is NULL then it will create the file in the MySQL server configuration
+/** Create a temporary file. This function is like tmpfile(3), but
+the temporary file is created in the in the mysql server configuration
 parameter (--tmpdir).
-@param[in]	path	location for creating temporary file
-@@return temporary file handle, or NULL on error */
+@return temporary file handle, or NULL on error */
 FILE*
-os_file_create_tmpfile(
-	const char*	path)
+os_file_create_tmpfile()
 {
 	FILE*	file	= NULL;
 	WAIT_ALLOW_WRITES();
-	int	fd	= innobase_mysql_tmpfile(path);
+	int	fd	= innobase_mysql_tmpfile(NULL);
 
 	if (fd >= 0) {
 		file = fdopen(fd, "w+b");

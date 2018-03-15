@@ -1754,7 +1754,7 @@ innobase_start_or_create_for_mysql()
 		} else {
 
 			srv_monitor_file_name = NULL;
-			srv_monitor_file = os_file_create_tmpfile(NULL);
+			srv_monitor_file = os_file_create_tmpfile();
 
 			if (!srv_monitor_file && err == DB_SUCCESS) {
 				err = DB_ERROR;
@@ -1764,7 +1764,7 @@ innobase_start_or_create_for_mysql()
 		mutex_create(LATCH_ID_SRV_MISC_TMPFILE,
 			     &srv_misc_tmpfile_mutex);
 
-		srv_misc_tmpfile = os_file_create_tmpfile(NULL);
+		srv_misc_tmpfile = os_file_create_tmpfile();
 
 		if (!srv_misc_tmpfile && err == DB_SUCCESS) {
 			err = DB_ERROR;
