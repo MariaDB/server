@@ -5585,7 +5585,7 @@ bool Item_user_var_as_out_param::get_date(MYSQL_TIME *ltime, ulonglong fuzzy)
 }
 
 
-void Item_user_var_as_out_param::print_for_load(THD *thd, String *str)
+void Item_user_var_as_out_param::print_for_load(THD *thd, String *str) const
 {
   str->append('@');
   append_identifier(thd, str, &org_name);

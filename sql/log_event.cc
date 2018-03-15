@@ -6832,7 +6832,7 @@ bool Load_log_event::write_data_body()
   Load_log_event::Load_log_event()
 */
 
-Load_log_event::Load_log_event(THD *thd_arg, sql_exchange *ex,
+Load_log_event::Load_log_event(THD *thd_arg, const sql_exchange *ex,
 			       const char *db_arg, const char *table_name_arg,
 			       List<Item> &fields_arg,
                                bool is_concurrent_arg,
@@ -6856,15 +6856,15 @@ Load_log_event::Load_log_event(THD *thd_arg, sql_exchange *ex,
   db_len = (uint32) strlen(db);
   table_name_len = (uint32) strlen(table_name);
   fname_len = (fname) ? (uint) strlen(fname) : 0;
-  sql_ex.field_term = (char*) ex->field_term->ptr();
+  sql_ex.field_term = ex->field_term->ptr();
   sql_ex.field_term_len = (uint8) ex->field_term->length();
-  sql_ex.enclosed = (char*) ex->enclosed->ptr();
+  sql_ex.enclosed = ex->enclosed->ptr();
   sql_ex.enclosed_len = (uint8) ex->enclosed->length();
-  sql_ex.line_term = (char*) ex->line_term->ptr();
+  sql_ex.line_term = ex->line_term->ptr();
   sql_ex.line_term_len = (uint8) ex->line_term->length();
-  sql_ex.line_start = (char*) ex->line_start->ptr();
+  sql_ex.line_start = ex->line_start->ptr();
   sql_ex.line_start_len = (uint8) ex->line_start->length();
-  sql_ex.escaped = (char*) ex->escaped->ptr();
+  sql_ex.escaped = ex->escaped->ptr();
   sql_ex.escaped_len = (uint8) ex->escaped->length();
   sql_ex.opt_flags = 0;
   sql_ex.cached_new_format = -1;

@@ -2945,7 +2945,7 @@ sql_exchange::sql_exchange(const char *name, bool flag,
   cs= NULL;
 }
 
-bool sql_exchange::escaped_given(void)
+bool sql_exchange::escaped_given(void) const
 {
   return escaped != &default_escaped;
 }

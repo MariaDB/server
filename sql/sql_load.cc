@@ -280,7 +280,7 @@ static int read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                           bool ignore_check_option_errors);
 
 #ifndef EMBEDDED_LIBRARY
-static bool write_execute_load_query_log_event(THD *, sql_exchange*, const
+static bool write_execute_load_query_log_event(THD *, const sql_exchange*, const
            char*, const char*, bool, enum enum_duplicates, bool, bool, int);
 #endif /* EMBEDDED_LIBRARY */
 
@@ -305,7 +305,7 @@ static bool write_execute_load_query_log_event(THD *, sql_exchange*, const
     TRUE - error / FALSE - success
 */
 
-int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
+int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 	        List<Item> &fields_vars, List<Item> &set_fields,
                 List<Item> &set_values,
                 enum enum_duplicates handle_duplicates, bool ignore,
@@ -803,7 +803,7 @@ err:
 #ifndef EMBEDDED_LIBRARY
 
 /* Not a very useful function; just to avoid duplication of code */
-static bool write_execute_load_query_log_event(THD *thd, sql_exchange* ex,
+static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
                                                const char* db_arg,  /* table's database */
                                                const char* table_name_arg,
                                                bool is_concurrent,

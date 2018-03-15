@@ -2514,7 +2514,7 @@ public:
   String field_lens_buf;
   String fields_buf;
 
-  Load_log_event(THD* thd, sql_exchange* ex, const char* db_arg,
+  Load_log_event(THD* thd, const sql_exchange* ex, const char* db_arg,
 		 const char* table_name_arg,
 		 List<Item>& fields_arg,
                  bool is_concurrent_arg,

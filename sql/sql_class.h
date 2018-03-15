@@ -4832,7 +4832,7 @@ public:
   CHARSET_INFO *cs;
   sql_exchange(const char *name, bool dumpfile_flag,
                enum_filetype filetype_arg= FILETYPE_CSV);
-  bool escaped_given(void);
+  bool escaped_given(void) const;
 };
 
 /*
