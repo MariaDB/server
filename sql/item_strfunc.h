@@ -35,7 +35,7 @@ protected:
      character set. No memory is allocated.
      @retval A pointer to the str_value member.
    */
-  String *make_empty_result()
+  virtual String *make_empty_result()
   {
     /*
       Reset string length to an empty string. We don't use str_value.set() as
@@ -500,11 +500,18 @@ class Item_func_substr_oracle :public Item_func_substr
 protected:
   longlong get_position()
   { longlong pos= args[1]->val_int(); return pos == 0 ? 1 : pos; }
+  String *make_empty_result()
+  { null_value= 1; return NULL; }
 public:
   Item_func_substr_oracle(THD *thd, Item *a, Item *b):
     Item_func_substr(thd, a, b) {}
   Item_func_substr_oracle(THD *thd, Item *a, Item *b, Item *c):
     Item_func_substr(thd, a, b, c) {}
+  void fix_length_and_dec()
+  {
+    Item_func_substr::fix_length_and_dec();
+    maybe_null= true;
+  }
   const char *func_name() const { return "substr_oracle"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_substr_oracle>(thd, this); }
