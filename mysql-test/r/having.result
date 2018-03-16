@@ -723,4 +723,18 @@ SELECT * FROM t1 JOIN t2 ON c1 = c2 HAVING c2 > 'a' ORDER BY c2 LIMIT 1;
 c1	c2
 x	x
 DROP TABLE t1,t2;
+#
+# MDEV-6736: Valgrind warnings 'Invalid read' in subselect_engine::calc_const_tables with SQ 
+# in WHERE and HAVING, ORDER BY, materialization+semijoin
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (3),(8);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2),(1);
+SELECT a FROM t1
+WHERE 9 IN ( SELECT MIN( a ) FROM t1 )
+HAVING a <> ( SELECT COUNT(*) FROM t2 ) 
+ORDER BY a;
+a
+DROP TABLE t1,t2;
 End of 10.0 tests

@@ -11476,13 +11476,15 @@ void JOIN_TAB::cleanup()
       }
       else
       {
+        TABLE_LIST *tmp= table->pos_in_table_list;
         end_read_record(&read_record);
-        table->pos_in_table_list->jtbm_subselect->cleanup();
+        tmp->jtbm_subselect->cleanup();
         /* 
           The above call freed the materializedd temptable. Set it to NULL so
           that we don't attempt to touch it if JOIN_TAB::cleanup() is invoked
           multiple times (it may be)
         */
+        tmp->table= NULL;
         table=NULL;
       }
       DBUG_VOID_RETURN;
