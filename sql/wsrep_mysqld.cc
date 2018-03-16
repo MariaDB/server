@@ -2381,7 +2381,7 @@ extern "C" void wsrep_thd_set_query_state(
 
 void wsrep_thd_set_conflict_state(THD *thd, enum wsrep_conflict_state state)
 {
-  thd->wsrep_conflict_state= state;
+  if (WSREP(thd)) thd->wsrep_conflict_state= state;
 }
 
 

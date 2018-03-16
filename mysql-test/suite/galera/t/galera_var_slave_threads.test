@@ -6,7 +6,6 @@
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
-CALL mtr.add_suppression("WSREP: Refusing exit for the last slave thread.");
 --let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
 
 --connection node_1
@@ -14,7 +13,7 @@ CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=InnoDB;
 CREATE TABLE t2 (f1 INT AUTO_INCREMENT PRIMARY KEY) Engine=InnoDB;
 
 --connection node_2
-
+CALL mtr.add_suppression("WSREP: Refusing exit for the last slave thread.");
 # Setting wsrep_slave_threads to zero triggers a warning
 SET GLOBAL wsrep_slave_threads = 0;
 SHOW WARNINGS;
@@ -22,8 +21,6 @@ SELECT @@wsrep_slave_threads = 1;
 
 SET GLOBAL wsrep_slave_threads = 1;
 # There is a separate wsrep_aborter thread at all times
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST
-  WHERE USER = 'system user' AND STATE NOT LIKE 'InnoDB%';
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 #
@@ -31,17 +28,13 @@ SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' A
 #
 
 SET GLOBAL wsrep_slave_threads = 64;
---sleep 0.5
 
 --connection node_1
 INSERT INTO t1 VALUES (1);
 
 --connection node_2
-SELECT COUNT(*) FROM t1;
-
-SELECT COUNT(*) - @@wsrep_slave_threads FROM INFORMATION_SCHEMA.PROCESSLIST
-  WHERE USER = 'system user' AND STATE NOT LIKE 'InnoDB%';
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--source include/wait_condition.inc
 
 #
 # Reduce the number of slave threads. The change is not immediate -- a thread will only exit after a replication event
@@ -62,8 +55,8 @@ while ($count)
 --connection node_2
 SELECT COUNT(*) FROM t2;
 
-SELECT COUNT(*) - @@wsrep_slave_threads FROM INFORMATION_SCHEMA.PROCESSLIST
-  WHERE USER = 'system user' AND STATE NOT LIKE 'InnoDB%';
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%')
+--source include/wait_condition.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 
@@ -81,7 +74,23 @@ CREATE TABLE t1 (i INT AUTO_INCREMENT PRIMARY KEY) ENGINE=INNODB;
 
 --connection node_2
 SET GLOBAL wsrep_slave_threads = 4;
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%')
+--source include/wait_condition.inc
+
 SET GLOBAL wsrep_slave_threads = 1;
+
+--connection node_1
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
+INSERT INTO t1 VALUES (DEFAULT);
 DROP TABLE t1;
+
+--connection node_2
+#
+# make sure that we are left with exactly one applier thread before we leaving the test
+#
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%')
+--source include/wait_condition.inc
+SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 --echo # End of tests

@@ -9,18 +9,15 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
-MW-336 : MDEV-13549 Galera test failures
 galera_gra_log : MDEV-13549 Galera test failures
 galera_flush_local : MDEV-13549 Galera test failures
 galera_flush :  MDEV-13549 Galera test failures
-MW-329 : MDEV-13549 Galera test failures
 galera_account_management : MariaDB 10.0 does not support ALTER USER
 galera_binlog_row_image : MariaDB 10.0 does not support binlog_row_image
 galera_binlog_rows_query_log_events: MariaDB does not support binlog_rows_query_log_events
 GAL-419 : MDEV-13549 Galera test failures
 galera_toi_ddl_fk_insert : MDEV-13549 Galera test failures
 galera_var_notify_cmd : MDEV-13549 Galera test failures
-galera_var_slave_threads : MDEV-13549 Galera test failures
 mysql-wsrep#90 : MDEV-13549 Galera test failures
 galera_as_master_gtid : Requires MySQL GTID
 galera_as_master_gtid_change_master : Requires MySQL GTID
@@ -34,7 +31,6 @@ galera_ist_mysqldump : MDEV-13549 Galera test failures
 mysql-wsrep#31 :  MDEV-13549 Galera test failures
 galera_migrate : MariaDB 10.0 does not support START SLAVE USER
 galera_concurrent_ctas : MDEV-13549 Galera test failures
-galera_bf_abort_for_update : MDEV-13549 Galera test failures
 galera_wsrep_desync_wsrep_on : MDEV-13549 Galera test failures
 galera_ssl_upgrade : MDEV-13549 Galera test failures
 mysql-wsrep#33 : MDEV-13549 Galera test failures
@@ -47,8 +43,6 @@ lp1376747 : MDEV-13549 Galera test failures
 galera_toi_ddl_nonconflicting : MDEV-13549 Galera test failures
 galera_parallel_simple : MDEV-13549 Galera test failures
 galera_admin : MDEV-13549 Galera test failures
-galera_var_max_ws_rows :  MDEV-13549 Galera test failures 10.1
-MW-286 : MDEV-13549 Galera test failures 10.1
 galera_as_master: MDEV-13549 Galera test failures 10.1
 galera_pc_ignore_sb : MDEV-13549 Galera test failures 10.1
 galera_lock_table : MDEV-13549 Galera test failures 10.1

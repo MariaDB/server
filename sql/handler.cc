@@ -5676,29 +5676,6 @@ bool handler::check_table_binlog_row_based_internal(bool binlog_row)
 {
   THD *thd= table->in_use;
 
-#ifdef WITH_WSREP
-  /* only InnoDB tables will be replicated through binlog emulation */
-  if (binlog_row &&
-      ((WSREP_EMULATE_BINLOG(thd) &&
-       table->file->partition_ht()->db_type != DB_TYPE_INNODB) ||
-       (thd->wsrep_ignore_table == true)))
-    return 0;
-
-  /* enforce wsrep_max_ws_rows */
-  if (WSREP(thd) && table->s->tmp_table == NO_TMP_TABLE)
-  {
-    thd->wsrep_affected_rows++;
-    if (wsrep_max_ws_rows &&
-        thd->wsrep_exec_mode != REPL_RECV &&
-        thd->wsrep_affected_rows > wsrep_max_ws_rows)
-    {
-      trans_rollback_stmt(thd) || trans_rollback(thd);
-      my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
-      return ER_ERROR_DURING_COMMIT;
-    }
-  }
-#endif
-
   return (table->s->cached_row_logging_check &&
           thd->is_current_stmt_binlog_format_row() &&
           /*
@@ -5809,8 +5786,6 @@ static int write_locked_table_maps(THD *thd)
 
 typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 
-static int check_wsrep_max_ws_rows();
-
 static int binlog_log_row_internal(TABLE* table,
                                    const uchar *before_record,
                                    const uchar *after_record,
@@ -5838,13 +5813,6 @@ static int binlog_log_row_internal(TABLE* table,
     bool const has_trans= thd->lex->sql_command == SQLCOM_CREATE_TABLE ||
       table->file->has_transactions();
     error= (*log_func)(thd, table, has_trans, before_record, after_record);
-
-    /*
-      Now that the record has been logged, increment wsrep_affected_rows and
-      also check whether its within the allowable limits (wsrep_max_ws_rows).
-    */
-    if (error == 0)
-      error= check_wsrep_max_ws_rows();
   }
   return error ? HA_ERR_RBR_LOGGING_FAILED : 0;
 }
@@ -5854,6 +5822,30 @@ static inline int binlog_log_row(TABLE* table,
                                  const uchar *after_record,
                                  Log_func *log_func)
 {
+  THD *const thd= table->in_use;
+
+#ifdef WITH_WSREP
+  /* only InnoDB tables will be replicated through binlog emulation */
+  if ((WSREP_EMULATE_BINLOG(thd) &&
+       table->file->partition_ht()->db_type != DB_TYPE_INNODB) ||
+       (thd->wsrep_ignore_table == true))
+    return 0;
+
+  /* enforce wsrep_max_ws_rows */
+  if (WSREP(thd) && table->s->tmp_table == NO_TMP_TABLE)
+  {
+    thd->wsrep_affected_rows++;
+    if (wsrep_max_ws_rows &&
+        thd->wsrep_exec_mode != REPL_RECV &&
+        thd->wsrep_affected_rows > wsrep_max_ws_rows)
+    {
+      trans_rollback_stmt(thd) || trans_rollback(thd);
+      my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
+      return ER_ERROR_DURING_COMMIT;
+    }
+  }
+#endif
+
   if (!table->file->check_table_binlog_row_based(1))
     return 0;
   return binlog_log_row_internal(table, before_record, after_record, log_func);
@@ -5960,30 +5952,6 @@ int handler::ha_reset()
   cancel_pushed_idx_cond();
   /* Reset information about pushed index conditions */
   DBUG_RETURN(reset());
-}
-
-
-static int check_wsrep_max_ws_rows()
-{
-#ifdef WITH_WSREP
-  if (wsrep_max_ws_rows)
-  {
-    THD *thd= current_thd;
-
-    if (!WSREP(thd))
-      return 0;
-
-    thd->wsrep_affected_rows++;
-    if (thd->wsrep_exec_mode != REPL_RECV &&
-        thd->wsrep_affected_rows > wsrep_max_ws_rows)
-    {
-      trans_rollback_stmt(thd) || trans_rollback(thd);
-      my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
-      return ER_ERROR_DURING_COMMIT;
-    }
-  }
-#endif /* WITH_WSREP */
-  return 0;
 }
 
 

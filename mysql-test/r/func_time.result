@@ -2905,6 +2905,30 @@ NULL
 Warnings:
 Warning	1441	Datetime function: datetime field overflow
 #
+# MDEV-13202 Assertion `ltime->neg == 0' failed in date_to_datetime
+#
+CREATE TABLE t1 (i INT, d DATE);
+INSERT INTO t1 VALUES (1, '1970-01-01');
+SELECT MAX(NULLIF(i,1)) FROM t1 ORDER BY DATE_SUB(d,INTERVAL 17300000 HOUR);
+MAX(NULLIF(i,1))
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+DROP TABLE t1;
+CREATE TABLE t1 (i INT, d DATE);
+INSERT INTO t1 VALUES (1, '1970-01-01');
+SELECT CONCAT(DATE_SUB(d, INTERVAL 17300000 HOUR)) FROM t1;
+CONCAT(DATE_SUB(d, INTERVAL 17300000 HOUR))
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+DROP TABLE t1;
+SELECT CONCAT(DATE_SUB(TIMESTAMP'1970-01-01 00:00:00', INTERVAL 17300000 HOUR));
+CONCAT(DATE_SUB(TIMESTAMP'1970-01-01 00:00:00', INTERVAL 17300000 HOUR))
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+#
 # End of 10.0 tests
 #
 #
