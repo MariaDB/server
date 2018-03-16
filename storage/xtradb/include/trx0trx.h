@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -744,11 +744,13 @@ lock_rec_convert_impl_to_expl()) will access transactions associated
 to other connections. The locks of transactions are protected by
 lock_sys->mutex and sometimes by trx->mutex. */
 
-typedef enum {
+enum trx_abort_t {
 	TRX_SERVER_ABORT = 0,
-	TRX_WSREP_ABORT  = 1,
-	TRX_REPLICATION_ABORT = 2
-} trx_abort_t;
+#ifdef WITH_WSREP
+	TRX_WSREP_ABORT,
+#endif
+	TRX_REPLICATION_ABORT
+};
 
 struct trx_t{
 	ulint		magic_n;
