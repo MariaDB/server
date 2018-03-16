@@ -480,10 +480,12 @@ static bool backup_includes(space_id_t space_id)
 				"backup operation.\n");
 			}
 
+			datafiles_iter_free(it);
 			return false;
 		}
 	}
 
+	datafiles_iter_free(it);
 	return true;
 }
 
