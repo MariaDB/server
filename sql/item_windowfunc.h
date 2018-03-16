@@ -792,6 +792,8 @@ public:
     case Item_sum::DENSE_RANK_FUNC:
     case Item_sum::PERCENT_RANK_FUNC:
     case Item_sum::CUME_DIST_FUNC:
+    case Item_sum::LAG_FUNC:
+    case Item_sum::LEAD_FUNC:
       return true;
     default: 
       return false;
