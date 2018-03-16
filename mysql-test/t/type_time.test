@@ -724,5 +724,28 @@ SELECT MAX(a), MAX(COALESCE(a)) FROM t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-15321: different results when using value of optimizer_use_condition_selectivity=4 and =1
+--echo #
+
+SET @save_old_mode=@@old_mode;
+SET @@old_mode=zero_date_time_cast;
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('0000-00-00 10:20:30'),('0000-00-00 10:20:31');
+INSERT INTO t1 VALUES ('0000-00-01 10:20:30'),('0000-00-01 10:20:31');
+INSERT INTO t1 VALUES ('31 10:20:30'),('32 10:20:30'),('33 10:20:30'),('34 10:20:30');
+
+SET @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+SET @@optimizer_use_condition_selectivity=1;
+SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=8;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=8;
+
+SET @@optimizer_use_condition_selectivity=4;
+SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=8;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=8;
+drop table t1;
+SET @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set @@old_mode= @save_old_mode;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
