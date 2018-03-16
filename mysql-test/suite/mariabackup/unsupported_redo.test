@@ -11,7 +11,11 @@ let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
 let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
 
 CREATE TABLE t1(i INT PRIMARY KEY auto_increment, a int) ENGINE INNODB;
-alter table t1 FORCE, algorithm=inplace;
+
+SET GLOBAL INNODB_FAST_SHUTDOWN = 0;
+--source include/restart_mysqld.inc
+
+ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
 
 # Below mariabackup operation may complete successfully if checkpoint happens
 # after the alter table command.
@@ -35,14 +39,16 @@ INSERT INTO t1(a) select 1 union select 2 union select 3;
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
 --enable_result_log
 
-alter table t1 force, algorithm=inplace;
+SET GLOBAL INNODB_FAST_SHUTDOWN = 0;
+--source include/restart_mysqld.inc
+ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
 
 --disable_result_log
 --error 1
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$incremental_dir --incremental-basedir=$basedir;
 --enable_result_log
 
-drop table t1;
+DROP TABLE t1;
 rmdir $basedir;
 rmdir $incremental_dir;
 
@@ -55,6 +61,9 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/bk;
 
 CREATE TABLE t2(i int) ENGINE INNODB;
+
+SET GLOBAL INNODB_FAST_SHUTDOWN = 0;
+--source include/restart_mysqld.inc
 ALTER TABLE t21 FORCE, ALGORITHM=INPLACE;
 
 --echo # Create partial backup (excluding table t21), Ignore the
