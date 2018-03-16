@@ -61,4 +61,9 @@ a	b
 3	4
 select * from t for system_time as of timestamp now(6) where b is NULL;
 a	b
+create or replace table t (x int with system versioning, y int);
+select * from information_schema.columns where table_name='t';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
+def	test	t	x	1	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references		NEVER	NULL
+def	test	t	y	2	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)		WITHOUT SYSTEM VERSIONING	select,insert,update,references		NEVER	NULL
 drop table t;

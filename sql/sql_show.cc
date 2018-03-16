@@ -6070,6 +6070,12 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
         buf.append(STRING_WITH_LEN(", "));
       buf.append(STRING_WITH_LEN("INVISIBLE"),cs);
     }
+    if (field->vers_update_unversioned())
+    {
+      if (buf.length())
+        buf.append(STRING_WITH_LEN(", "));
+      buf.append(STRING_WITH_LEN("WITHOUT SYSTEM VERSIONING"), cs);
+    }
     table->field[17]->store(buf.ptr(), buf.length(), cs);
     table->field[19]->store(field->comment.str, field->comment.length, cs);
     if (schema_table_store_record(thd, table))
