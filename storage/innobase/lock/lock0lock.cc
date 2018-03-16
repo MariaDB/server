@@ -7977,26 +7977,19 @@ lock_trx_handle_wait(
 /*=================*/
 	trx_t*	trx)	/*!< in/out: trx lock state */
 {
-	dberr_t	err;
-
-	lock_mutex_enter();
-
-	trx_mutex_enter(trx);
+	ut_ad(lock_mutex_own());
+	ut_ad(trx_mutex_own(trx));
 
 	if (trx->lock.was_chosen_as_deadlock_victim) {
-		err = DB_DEADLOCK;
-	} else if (trx->lock.wait_lock != NULL) {
-		lock_cancel_waiting_and_release(trx->lock.wait_lock);
-		err = DB_LOCK_WAIT;
-	} else {
+		return DB_DEADLOCK;
+	}
+	if (!trx->lock.wait_lock) {
 		/* The lock was probably granted before we got here. */
-		err = DB_SUCCESS;
+		return DB_SUCCESS;
 	}
 
-	lock_mutex_exit();
-	trx_mutex_exit(trx);
-
-	return(err);
+	lock_cancel_waiting_and_release(trx->lock.wait_lock);
+	return DB_LOCK_WAIT;
 }
 
 /*********************************************************************//**

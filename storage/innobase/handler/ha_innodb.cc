@@ -4915,8 +4915,31 @@ static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels)
 
 	if (trx_t* trx = thd_to_trx(thd)) {
 		ut_ad(trx->mysql_thd == thd);
+
+		switch (trx->abort_type) {
+		case TRX_WSREP_ABORT:
+			break;
+		case TRX_SERVER_ABORT:
+			if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+				lock_mutex_enter();
+			}
+			/* fall through */
+		case TRX_REPLICATION_ABORT:
+			trx_mutex_enter(trx);
+		}
 		/* Cancel a pending lock request if there are any */
 		lock_trx_handle_wait(trx);
+		switch (trx->abort_type) {
+		case TRX_WSREP_ABORT:
+			break;
+		case TRX_SERVER_ABORT:
+			if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+				lock_mutex_exit();
+			}
+			/* fall through */
+		case TRX_REPLICATION_ABORT:
+			trx_mutex_exit(trx);
+		}
 	}
 
 	DBUG_VOID_RETURN;
