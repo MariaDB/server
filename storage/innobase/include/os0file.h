@@ -535,14 +535,11 @@ struct os_file_stat_t {
 };
 
 /** Create a temporary file. This function is like tmpfile(3), but
-the temporary file is created in the given parameter path. If the path
-is null then it will create the file in the mysql server configuration
+the temporary file is created in the in the mysql server configuration
 parameter (--tmpdir).
-@param[in]	path	location for creating temporary file
 @return temporary file handle, or NULL on error */
 FILE*
-os_file_create_tmpfile(
-	const char*	path);
+os_file_create_tmpfile();
 
 /** The os_file_opendir() function opens a directory stream corresponding to the
 directory named by the dirname argument. The directory stream is positioned
