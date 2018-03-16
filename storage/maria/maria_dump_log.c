@@ -133,7 +133,7 @@ int main(int argc, char **argv)
   uchar buffer[TRANSLOG_PAGE_SIZE];
   MY_INIT(argv[0]);
 
-  load_defaults("my", load_default_groups, &argc, &argv);
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   default_argv= argv;
   get_options(&argc, &argv);
 

@@ -45,6 +45,13 @@ extern void free_defaults(char **argv);
 extern void my_print_default_files(const char *conf_file);
 extern void print_defaults(const char *conf_file, const char **groups);
 
+
+/** Simplify load_defaults() common use */
+#define load_defaults_or_exit(A, B, C, D) switch (load_defaults(A, B, C, D)) { \
+                                          case 0: break; \
+                                          case 4: my_end(0); exit(0); \
+                                          default: my_end(0); exit(1); }
+
 C_MODE_END
 
 #endif /* MY_DEFAULT_INCLUDED */

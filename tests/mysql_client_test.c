@@ -7109,11 +7109,7 @@ static void test_embedded_start_stop()
     MY_INIT(argv[0]);
 
     /* Load the client defaults from the .cnf file[s]. */
-    if (load_defaults("my", client_test_load_default_groups, &argc, &argv))
-    {
-      myerror("load_defaults failed"); 
-      exit(1);
-    }
+    load_defaults_or_exit("my", client_test_load_default_groups, &argc, &argv);
 
     /* Parse the options (including the ones given from defaults files). */
     get_options(&argc, &argv);
@@ -7161,12 +7157,7 @@ static void test_embedded_start_stop()
 
   MY_INIT(argv[0]);
 
-  if (load_defaults("my", client_test_load_default_groups, &argc, &argv))
-  {
-    myerror("load_defaults failed \n "); 
-    exit(1);
-  }
-
+  load_defaults_or_exit("my", client_test_load_default_groups, &argc, &argv);
   get_options(&argc, &argv);
 
   /* Must start the main embedded server again after the test. */

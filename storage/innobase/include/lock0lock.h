@@ -781,9 +781,7 @@ the wait lock.
 dberr_t
 lock_trx_handle_wait(
 /*=================*/
-	trx_t*	trx,	/*!< in/out: trx lock state */
-	bool	lock_mutex_taken,
-	bool	trx_mutex_taken);
+	trx_t*	trx);	/*!< in/out: trx lock state */
 /*********************************************************************//**
 Get the number of locks on a table.
 @return number of locks */

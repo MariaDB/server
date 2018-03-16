@@ -1254,7 +1254,9 @@ innobase_close_connection(
 	THD*		thd);		/*!< in: MySQL thread handle for
 					which to close the connection */
 
-static void innobase_kill_query(handlerton *hton, THD* thd, enum thd_kill_levels level);
+/** Cancel any pending lock request associated with the current THD.
+@sa THD::awake() @sa ha_kill_query() */
+static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels);
 static void innobase_commit_ordered(handlerton *hton, THD* thd, bool all);
 
 /*****************************************************************//**
@@ -5299,21 +5301,11 @@ innobase_close_connection(
 
 UNIV_INTERN void lock_cancel_waiting_and_release(lock_t* lock);
 
-/*****************************************************************//**
-Cancel any pending lock request associated with the current THD. */
-static
-void
-innobase_kill_query(
-/*================*/
-	handlerton*	hton,		/*!< in: innobase handlerton */
-	THD*		thd,		/*!< in: MySQL thread being killed */
-	enum thd_kill_levels level)	/*!< in: kill level */
+/** Cancel any pending lock request associated with the current THD.
+@sa THD::awake() @sa ha_kill_query() */
+static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels)
 {
-	trx_t*	trx;
-
 	DBUG_ENTER("innobase_kill_query");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
 #ifdef WITH_WSREP
 	wsrep_thd_LOCK(thd);
 	if (wsrep_thd_get_conflict_state(thd) != NO_CONFLICT) {
@@ -5329,43 +5321,10 @@ innobase_kill_query(
 	wsrep_thd_UNLOCK(thd);
 #endif /* WITH_WSREP */
 
-	trx = thd_to_trx(thd);
-
-	if (trx != NULL) {
+	if (trx_t* trx = thd_to_trx(thd)) {
+		ut_ad(trx->mysql_thd == thd);
 		/* Cancel a pending lock request if there are any */
-		bool lock_mutex_taken = false;
-		bool trx_mutex_taken = false;
-
-		if (trx->lock.wait_lock) {
-			WSREP_DEBUG("Killing victim trx %p BF %d trx BF %d trx_id " IB_ID_FMT " ABORT %d thd %p"
-				" current_thd %p BF %d",
-				trx, wsrep_thd_is_BF(trx->mysql_thd, FALSE),
-				wsrep_thd_is_BF(thd, FALSE),
-				trx->id, trx->abort_type,
-				trx->mysql_thd,
-				current_thd,
-				wsrep_thd_is_BF(current_thd, FALSE));
-		}
-
-		if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE) && trx->abort_type != TRX_WSREP_ABORT) {
-			lock_mutex_enter();
-			lock_mutex_taken = true;
-		}
-
-		if (trx->abort_type != TRX_WSREP_ABORT) {
-			trx_mutex_enter(trx);
-			trx_mutex_taken = true;
-		}
-
-		lock_trx_handle_wait(trx, true, true);
-
-		if (lock_mutex_taken) {
-			lock_mutex_exit();
-		}
-
-		if (trx_mutex_taken) {
-			trx_mutex_exit(trx);
-		}
+		lock_trx_handle_wait(trx);
 	}
 
 	DBUG_VOID_RETURN;
@@ -9392,8 +9351,8 @@ ha_innobase::unlock_row(void)
 	transaction is in state TRX_STATE_NOT_STARTED.  The check on
 	m_prebuilt->select_lock_type above gets around this issue. */
 
-	ut_ad(trx_state_eq(m_prebuilt->trx, TRX_STATE_ACTIVE)
-	      || trx_state_eq(m_prebuilt->trx, TRX_STATE_FORCED_ROLLBACK));
+	ut_ad(trx_state_eq(m_prebuilt->trx, TRX_STATE_ACTIVE, true)
+	      || trx_state_eq(m_prebuilt->trx, TRX_STATE_FORCED_ROLLBACK, true));
 
 	switch (m_prebuilt->row_read_type) {
 	case ROW_READ_WITH_LOCKS:
@@ -20063,7 +20022,7 @@ wsrep_innobase_kill_one_trx(
                                             thd_get_thread_id(thd)));
 			WSREP_DEBUG("kill query for: %ld",
 				thd_get_thread_id(thd));
-			/* Note that innobase_kill_connection will take lock_mutex
+			/* Note that innobase_kill_query will take lock_mutex
 			and trx_mutex */
 			wsrep_thd_UNLOCK(thd);
 			wsrep_thd_awake(thd, signal);
@@ -20140,12 +20099,10 @@ wsrep_abort_transaction(
 	if (victim_trx) {
 		lock_mutex_enter();
 		trx_mutex_enter(victim_trx);
-		victim_trx->abort_type = TRX_WSREP_ABORT;
 		int rcode = wsrep_innobase_kill_one_trx(bf_thd, bf_trx,
                                                         victim_trx, signal);
-		trx_mutex_exit(victim_trx);
 		lock_mutex_exit();
-		victim_trx->abort_type = TRX_SERVER_ABORT;
+		trx_mutex_exit(victim_trx);
 		wsrep_srv_conc_cancel_wait(victim_trx);
 		DBUG_RETURN(rcode);
 	} else {

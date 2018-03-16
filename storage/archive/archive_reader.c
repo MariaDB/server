@@ -408,8 +408,7 @@ static void print_version(void)
 
 static void get_options(int *argc, char ***argv)
 {
-  if (load_defaults("my", load_default_groups, argc, argv))
-    exit(1);
+  load_defaults_or_exit("my", load_default_groups, argc, argv);
   default_argv= *argv;
 
   handle_options(argc, argv, my_long_options, get_one_option);

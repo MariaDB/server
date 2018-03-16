@@ -1282,10 +1282,8 @@ wsrep_kill_victim(
 					   << wsrep_thd_query(lock->trx->mysql_thd);
 			}
 
-			lock->trx->abort_type = TRX_WSREP_ABORT;
 			wsrep_innobase_kill_one_trx(trx->mysql_thd,
 				(const trx_t*) trx, lock->trx, TRUE);
-			lock->trx->abort_type = TRX_SERVER_ABORT;
 		}
 	}
 }
@@ -2936,20 +2934,7 @@ lock_grant_and_move_on_page(
 			&& lock_get_wait(lock)
 			&& !lock_rec_has_to_wait_in_queue(lock)) {
 
-			bool exit_trx_mutex = false;
-
-			if (lock->trx->abort_type != TRX_SERVER_ABORT) {
-				ut_ad(trx_mutex_own(lock->trx));
-				trx_mutex_exit(lock->trx);
-				exit_trx_mutex = true;
-			}
-
 			lock_grant(lock, false);
-
-			if (exit_trx_mutex) {
-				ut_ad(!trx_mutex_own(lock->trx));
-				trx_mutex_enter(lock->trx);
-			}
 
 			if (previous != NULL) {
 				/* Move the lock to the head of the list. */
@@ -3030,20 +3015,7 @@ lock_rec_dequeue_from_page(
 				/* Grant the lock */
 				ut_ad(lock->trx != in_lock->trx);
 
-				bool exit_trx_mutex = false;
-
-				if (lock->trx->abort_type != TRX_SERVER_ABORT) {
-					ut_ad(trx_mutex_own(lock->trx));
-					trx_mutex_exit(lock->trx);
-					exit_trx_mutex = true;
-				}
-
 				lock_grant(lock, false);
-
-				if (exit_trx_mutex) {
-					ut_ad(!trx_mutex_own(lock->trx));
-					trx_mutex_enter(lock->trx);
-				}
 			}
 		}
 	} else {
@@ -4270,58 +4242,50 @@ lock_table_create(
 	UT_LIST_ADD_LAST(trx->lock.trx_locks, lock);
 
 #ifdef WITH_WSREP
-	if (c_lock && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
-		ut_list_insert(table->locks, c_lock, lock, TableLockGetNode());
-		if (wsrep_debug) {
-			ib::info() << "table lock BF conflict for " <<
-				ib::hex(c_lock->trx->id);
-			ib::info() << " SQL: "
-				   << wsrep_thd_query(c_lock->trx->mysql_thd);
-		}
-	} else {
-		ut_list_append(table->locks, lock, TableLockGetNode());
-	}
 	if (c_lock) {
-		ut_ad(!trx_mutex_own(c_lock->trx));
+		if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+			ut_list_insert(table->locks, c_lock, lock,
+				       TableLockGetNode());
+			if (wsrep_debug) {
+				ib::info() << "table lock BF conflict for "
+					   << ib::hex(c_lock->trx->id)
+					   << " SQL: "
+					   << wsrep_thd_query(
+						   c_lock->trx->mysql_thd);
+			}
+		} else {
+			ut_list_append(table->locks, lock, TableLockGetNode());
+		}
+
 		trx_mutex_enter(c_lock->trx);
-	}
 
-	if (c_lock && c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
-		c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
+		if (c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
+			c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
 
-		if (wsrep_debug) {
-			wsrep_print_wait_locks(c_lock);
+			if (wsrep_debug) {
+				wsrep_print_wait_locks(c_lock);
+			}
+
+			/* The lock release will call lock_grant(),
+			which would acquire trx->mutex again. */
+			trx_mutex_exit(trx);
+			lock_cancel_waiting_and_release(
+				c_lock->trx->lock.wait_lock);
+			trx_mutex_enter(trx);
+
+			if (wsrep_debug) {
+				ib::info() << "WSREP: c_lock canceled "
+					   << ib::hex(c_lock->trx->id)
+					   << " SQL: "
+					   << wsrep_thd_query(
+						   c_lock->trx->mysql_thd);
+			}
 		}
 
-		/* have to release trx mutex for the duration of
-		   victim lock release. This will eventually call
-		   lock_grant, which wants to grant trx mutex again
-		*/
-		/* caller has trx_mutex, have to release for lock cancel */
-		trx_mutex_exit(trx);
-		lock_cancel_waiting_and_release(c_lock->trx->lock.wait_lock);
-		trx_mutex_enter(trx);
-
-		/* trx might not wait for c_lock, but some other lock
-		does not matter if wait_lock was released above
-		*/
-		if (c_lock->trx->lock.wait_lock == c_lock) {
-			lock_reset_lock_and_trx_wait(lock);
-		}
-
-		if (wsrep_debug) {
-			ib::info() << "WSREP: c_lock canceled " << ib::hex(c_lock->trx->id);
-			ib::info() << " SQL: "
-					   << wsrep_thd_query(c_lock->trx->mysql_thd);
-		}
-	}
-
-	if (c_lock) {
 		trx_mutex_exit(c_lock->trx);
-	}
-#else
-	ut_list_append(table->locks, lock, TableLockGetNode());
+	} else
 #endif /* WITH_WSREP */
+	ut_list_append(table->locks, lock, TableLockGetNode());
 
 	if (type_mode & LOCK_WAIT) {
 
@@ -7586,6 +7550,23 @@ lock_trx_release_locks(
 	mem_heap_empty(trx->lock.lock_heap);
 }
 
+static inline dberr_t lock_trx_handle_wait_low(trx_t* trx)
+{
+	ut_ad(lock_mutex_own());
+	ut_ad(trx_mutex_own(trx));
+
+	if (trx->lock.was_chosen_as_deadlock_victim) {
+		return DB_DEADLOCK;
+	}
+	if (!trx->lock.wait_lock) {
+		/* The lock was probably granted before we got here. */
+		return DB_SUCCESS;
+	}
+
+	lock_cancel_waiting_and_release(trx->lock.wait_lock);
+	return DB_LOCK_WAIT;
+}
+
 /*********************************************************************//**
 Check whether the transaction has already been rolled back because it
 was selected as a deadlock victim, or if it has to wait then cancel
@@ -7594,71 +7575,14 @@ the wait lock.
 dberr_t
 lock_trx_handle_wait(
 /*=================*/
-	trx_t*	trx,	/*!< in/out: trx lock state */
-	bool	lock_mutex_taken,
-	bool	trx_mutex_taken)
+	trx_t*	trx)	/*!< in/out: trx lock state */
 {
-	dberr_t	err=DB_SUCCESS;
-	bool take_lock_mutex = false;
-	bool take_trx_mutex = false;
-
-	if (!lock_mutex_taken) {
-		ut_ad(!lock_mutex_own());
-		lock_mutex_enter();
-		take_lock_mutex = true;
-	}
-
-	if (!trx_mutex_taken) {
-		ut_ad(!trx_mutex_own(trx));
-		trx_mutex_enter(trx);
-		take_trx_mutex = true;
-	}
-
-	if (trx->lock.was_chosen_as_deadlock_victim) {
-		err = DB_DEADLOCK;
-	} else if (trx->lock.wait_lock != NULL) {
-		bool take_wait_trx_mutex = false;
-		trx_t* wait_trx = trx->lock.wait_lock->trx;
-
-		/* We take trx mutex for waiting trx if we have not yet
-		already taken it or we know that waiting trx and parameter
-		trx are not same and we are not already holding trx mutex. */
-		if ((wait_trx && wait_trx == trx && !take_trx_mutex && !trx_mutex_taken) ||
-		    (wait_trx && wait_trx != trx && wait_trx->abort_type == TRX_SERVER_ABORT)) {
-			ut_ad(!trx_mutex_own(wait_trx));
-			trx_mutex_enter(wait_trx);
-			take_wait_trx_mutex = true;
-		}
-
-		ut_ad(trx_mutex_own(wait_trx));
-
-		lock_cancel_waiting_and_release(trx->lock.wait_lock);
-
-		if (wait_trx && take_wait_trx_mutex) {
-			ut_ad(trx_mutex_own(wait_trx));
-			trx_mutex_exit(wait_trx);
-		}
-
-		err = DB_LOCK_WAIT;
-	} else {
-		/* The lock was probably granted before we got here. */
-		err = DB_SUCCESS;
-	}
-
-	if (take_lock_mutex) {
-		ut_ad(lock_mutex_own());
-		lock_mutex_exit();
-	}
-
-	if (take_trx_mutex) {
-		ut_ad(trx_mutex_own(trx));
-		trx_mutex_exit(trx);
-	}
-
-	ut_ad(err == DB_SUCCESS || err == DB_LOCK_WAIT
-	      || err == DB_DEADLOCK);
-
-	return(err);
+	lock_mutex_enter();
+	trx_mutex_enter(trx);
+	dberr_t err = lock_trx_handle_wait_low(trx);
+	lock_mutex_exit();
+	trx_mutex_exit(trx);
+	return err;
 }
 
 /*********************************************************************//**

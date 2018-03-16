@@ -443,9 +443,7 @@ int parse_args(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	if (load_defaults("my", load_default_groups, &argc, &argv)) {
-		exit(EXIT_FAILURE);
-	}
+	load_defaults_or_exit("my", load_default_groups, &argc, &argv);
 
 	if (handle_options(&argc, &argv, my_long_options, get_one_option)) {
 		exit(EXIT_FAILURE);
