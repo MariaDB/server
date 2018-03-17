@@ -16,28 +16,6 @@
 
 # This is a common command line parser to be sourced by other SST scripts
 
-# Close file descriptors numbered above 2 just in case mysqld or the
-# wsrep_provider left a file descriptor open. We don't want a broken SST
-# script or called program from overwriting a tablespace because
-# its file descriptor was left open.
-if [ -d /proc/self/fd ]; then
-  for fd in /proc/self/fd/*; do
-    fd=${fd##*/}
-    # While bash would support the below syntax other sh's don't
-    #[ $fd -gt 2 ] && exec {fd}>&-
-    [ $fd -gt 2 ] && eval "exec ${fd}>&-" 2> /dev/null
-  done
-else
-  upper_no_file=$(ulimit -n)
-  [ "$upper_no_file" = "unlimited" ] || [ -z "$upper_no_file" ] && upper_no_file=1024
-
-  while [ $upper_no_file -gt 2 ]
-  do
-     eval "exec ${upper_no_file}>&-"
-     upper_no_file=$(( "$upper_no_file" - 1 ))
-  done
-fi
-
 set -u
 
 WSREP_SST_OPT_BYPASS=0
