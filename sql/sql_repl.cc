@@ -2546,6 +2546,7 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
   linfo->pos= my_b_tell(log);
   info->last_pos= my_b_tell(log);
 
+  log->end_of_file= end_pos;
   while (linfo->pos < end_pos)
   {
     if (should_stop(info))
