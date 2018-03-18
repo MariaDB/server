@@ -59,7 +59,9 @@ const char *globerrs[GLOBERRS]=
   "Can't change permissions of the file '%s' (Errcode: %M)",
   "Can't seek in file '%s' (Errcode: %M)",
   "Can't change mode for file '%s' to 0x%lx (Errcode: %M)",
-  "Warning: Can't copy ownership for file '%s' (Errcode: %M)"
+  "Warning: Can't copy ownership for file '%s' (Errcode: %M)",
+  "File '%s' (fileno: %d) was marked as closed, but was really open",
+  "File '%s' (fileno: %d) was marked as open, but was really closed"
 };
 
 void init_glob_errs(void)
@@ -109,6 +111,8 @@ void init_glob_errs()
   EE(EE_CANT_SEEK)      = "Can't seek in file '%s' (Errcode: %M)";
   EE(EE_CANT_CHMOD)    = "Can't change mode for file '%s' to 0x%lx (Errcode: %M)";
   EE(EE_CANT_COPY_OWNERSHIP)= "Warning: Can't copy ownership for file '%s' (Errcode: %M)";
+  EE(EE_FILE_OPEN) = "File '%s' (fileno: %d) was marked as closed, but was really open";
+  EE(EE_FILE_NOT_OPEN) = "File '%s' (fileno: %d) was marked as open, but was really closed";
 }
 #endif
 

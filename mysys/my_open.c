@@ -171,12 +171,31 @@ void my_print_open_files(void)
 {
   if (my_file_opened | my_stream_opened)
   {
+    MY_STAT stat_area;
     uint i;
+    int stat_result;
     for (i= 0 ; i < my_file_limit ; i++)
     {
+#ifndef __WIN__
+      stat_result= my_fstat(i, &stat_area, MYF(0));
+#else
+      stat_result= my_fstat(my_file_info[i].fhandle, &stat_area, MYF(0));
+#endif
       if (my_file_info[i].type != UNOPEN)
       {
-        fprintf(stderr, EE(EE_FILE_NOT_CLOSED), my_file_info[i].name, i);
+        if (stat_result == 0)
+        {
+          fprintf(stderr, EE(EE_FILE_NOT_CLOSED), my_file_info[i].name, i);
+        }
+        else
+        {
+          fprintf(stderr, EE(EE_FILE_NOT_OPEN), my_file_info[i].name, i);
+        }
+        fputc('\n', stderr);
+      }
+      else if (stat_result == 0)
+      {
+        fprintf(stderr, EE(EE_FILE_OPEN), my_file_info[i].name, i);
         fputc('\n', stderr);
       }
     }
