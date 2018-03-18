@@ -253,10 +253,43 @@ void mdev10259()
 
 }
 
+void mdev14014()
+{
+  int res;
+  uchar buf_o[200];
+  uchar buf_i[200];
+  memset(buf_i,    0, sizeof( buf_i));
+  memset(buf_o, FILL, sizeof(buf_o));
+
+  diag("MDEV-14014 Dump thread reads past last 'officially' written byte");
+
+  init_io_cache_encryption();
+
+  res= open_cached_file(&info, 0, 0, CACHE_SIZE, 0);
+  ok(res == 0, "open_cached_file" INFO_TAIL);
+
+  res= my_b_write(&info, buf_o, sizeof(buf_o));
+  ok(res == 0, "buffer is written" INFO_TAIL);
+
+  res= my_b_flush_io_cache(&info, 1);
+  ok(res == 0, "flush" INFO_TAIL);
+
+  res= reinit_io_cache(&info, READ_CACHE, 0, 0, 0);
+  ok(res == 0, "reinit READ_CACHE" INFO_TAIL);
+
+  info.end_of_file= 100;
+  res= my_b_read(&info, buf_i, sizeof(buf_i));
+  ok(res == 1 && buf_i[100] == 0 && buf_i[200-1] == 0,
+     "short read leaves buf_i[100..200-1] == 0");
+
+  close_cached_file(&info);
+}
+
+
 int main(int argc __attribute__((unused)),char *argv[])
 {
   MY_INIT(argv[0]);
-  plan(46);
+  plan(51);
 
   /* temp files with and without encryption */
   encrypt_tmp_files= 1;
@@ -271,6 +304,8 @@ int main(int argc __attribute__((unused)),char *argv[])
   encrypt_tmp_files= 1;
   mdev10259();
   encrypt_tmp_files= 0;
+
+  mdev14014();
 
   my_end(0);
   return exit_status();
