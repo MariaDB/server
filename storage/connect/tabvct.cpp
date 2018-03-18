@@ -304,7 +304,7 @@ bool TDBVCT::IsUsingTemp(PGLOBAL)
 /***********************************************************************/
 bool TDBVCT::OpenDB(PGLOBAL g)
   {
-  if (trace)
+  if (trace(1))
     htrc("VCT OpenDB: tdbp=%p tdb=R%d use=%d key=%p mode=%d\n",
          this, Tdb_No, Use, To_Key_Col, Mode);
 
@@ -364,7 +364,7 @@ bool TDBVCT::OpenDB(PGLOBAL g)
 /***********************************************************************/
 int TDBVCT::ReadDB(PGLOBAL g)
   {
-  if (trace)
+  if (trace(1))
     htrc("VCT ReadDB: R%d Mode=%d CurBlk=%d CurNum=%d key=%p link=%p Kindex=%p\n",
          GetTdb_No(), Mode, Txfp->CurBlk, Txfp->CurNum,
          To_Key_Col, To_Link, To_Kindex);
@@ -546,7 +546,7 @@ void VCTCOL::ReadColumn(PGLOBAL g)
   assert (!To_Kcol);
 #endif
 
-  if (trace > 1)
+  if (trace(2))
     htrc("VCT ReadColumn: col %s R%d coluse=%.4X status=%.4X buf_type=%d\n",
          Name, To_Tdb->GetTdb_No(), ColUse, Status, Buf_Type);
 
@@ -574,7 +574,7 @@ void VCTCOL::WriteColumn(PGLOBAL)
   {
   PTXF txfp = ((PTDBVCT)To_Tdb)->Txfp;;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("VCT WriteColumn: col %s R%d coluse=%.4X status=%.4X buf_type=%d\n",
          Name, To_Tdb->GetTdb_No(), ColUse, Status, Buf_Type);
 
