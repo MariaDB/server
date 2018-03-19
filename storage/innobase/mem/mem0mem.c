@@ -404,6 +404,8 @@ mem_heap_create_block(
 		heap->total_size += len;
 	}
 
+	UNIV_MEM_FREE(block + 1, len - MEM_BLOCK_HEADER_SIZE);
+
 	ut_ad((ulint)MEM_BLOCK_HEADER_SIZE < len);
 
 	return(block);
