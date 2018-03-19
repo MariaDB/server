@@ -1175,6 +1175,7 @@ srv_refresh_innodb_monitor_stats(void)
 	if (difftime(current_time, srv_last_monitor_time) > 60) {
 		/* We referesh InnoDB Monitor values so that averages are
 		printed from at most 60 last seconds */
+		mutex_exit(&srv_innodb_monitor_mutex);
 		return;
 	}
 
