@@ -1170,7 +1170,15 @@ srv_refresh_innodb_monitor_stats(void)
 {
 	mutex_enter(&srv_innodb_monitor_mutex);
 
-	srv_last_monitor_time = time(NULL);
+	time_t current_time = time(NULL);
+
+	if (difftime(current_time, srv_last_monitor_time) > 60) {
+		/* We referesh InnoDB Monitor values so that averages are
+		printed from at most 60 last seconds */
+		return;
+	}
+
+	srv_last_monitor_time = current_time;
 
 	os_aio_refresh_stats();
 
@@ -1792,12 +1800,7 @@ loop:
 		}
 	}
 
-	if (difftime(current_time, srv_last_monitor_time) > 60) {
-		/* We referesh InnoDB Monitor values so that averages are
-		printed from at most 60 last seconds */
-
-		srv_refresh_innodb_monitor_stats();
-	}
+	srv_refresh_innodb_monitor_stats();
 
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		goto exit_func;
