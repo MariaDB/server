@@ -476,7 +476,7 @@ extern uint	srv_fast_shutdown;	/*!< If this is 1, do not do a
 
 /** Signal to shut down InnoDB (NULL if shutdown was signaled, or if
 running in innodb_read_only mode, srv_read_only_mode) */
-extern volatile st_my_thread_var *srv_running;
+extern st_my_thread_var *srv_running;
 
 extern ibool	srv_innodb_status;
 

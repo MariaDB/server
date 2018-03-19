@@ -305,7 +305,7 @@ is_partition(
 
 /** Signal to shut down InnoDB (NULL if shutdown was signaled, or if
 running in innodb_read_only mode, srv_read_only_mode) */
-volatile st_my_thread_var *srv_running;
+st_my_thread_var *srv_running;
 /** Service thread that waits for the server shutdown and stops purge threads.
 Purge workers have THDs that are needed to calculate virtual columns.
 This THDs must be destroyed rather early in the server shutdown sequence.
@@ -335,10 +335,13 @@ thd_destructor_proxy(void *)
 	my_atomic_storeptr_explicit(&srv_running, myvar,
 				    MY_MEMORY_ORDER_RELAXED);
 	/* wait until the server wakes the THD to abort and die */
-	while (!srv_running->abort)
+	while (!my_atomic_loadptr_explicit(&srv_running,
+					   MY_MEMORY_ORDER_RELAXED)
+			->abort)
 		mysql_cond_wait(&thd_destructor_cond, &thd_destructor_mutex);
 	mysql_mutex_unlock(&thd_destructor_mutex);
-	srv_running = NULL;
+	my_atomic_storeptr_explicit(&srv_running, NULL,
+				    MY_MEMORY_ORDER_RELAXED);
 
 	while (srv_fast_shutdown == 0 &&
 	       (trx_sys_any_active_transactions() ||
@@ -4429,10 +4432,12 @@ innobase_end(handlerton*, ha_panic_function)
 		hash_table_free(innobase_open_tables);
 		innobase_open_tables = NULL;
 
-		if (!abort_loop && srv_running) {
+		st_my_thread_var* running = my_atomic_loadptr_explicit(
+			&srv_running, MY_MEMORY_ORDER_RELAXED);
+		if (!abort_loop && running) {
 			// may be UNINSTALL PLUGIN statement
-			srv_running->abort = 1;
-			mysql_cond_broadcast(srv_running->current_cond);
+			running->abort = 1;
+			mysql_cond_broadcast(running->current_cond);
 		}
 
 		if (!srv_read_only_mode) {
@@ -17766,7 +17771,9 @@ fast_shutdown_validate(
 
 	uint new_val = *reinterpret_cast<uint*>(save);
 
-	if (srv_fast_shutdown && !new_val && !srv_running) {
+	if (srv_fast_shutdown && !new_val
+	    && !my_atomic_loadptr_explicit(&srv_running,
+					   MY_MEMORY_ORDER_RELAXED)) {
 		return(1);
 	}
 

@@ -1170,8 +1170,7 @@ srv_refresh_innodb_monitor_stats(void)
 {
 	mutex_enter(&srv_innodb_monitor_mutex);
 
-	my_atomic_store32_explicit(&srv_last_monitor_time, time(NULL),
-				   MY_MEMORY_ORDER_RELAXED);
+	srv_last_monitor_time = time(NULL);
 
 	os_aio_refresh_stats();
 
@@ -1225,14 +1224,10 @@ srv_printf_innodb_monitor(
 	by zero if two users happen to call SHOW ENGINE INNODB STATUS at the
 	same time */
 
-	time_elapsed =
-		difftime(current_time,
-			 my_atomic_load32_explicit(&srv_last_monitor_time,
-						   MY_MEMORY_ORDER_RELAXED))
+	time_elapsed = difftime(current_time, srv_last_monitor_time)
 		+ 0.001;
 
-	my_atomic_store32_explicit(&srv_last_monitor_time, time(NULL),
-				   MY_MEMORY_ORDER_RELAXED);
+	srv_last_monitor_time = time(NULL);
 
 	fputs("\n=====================================\n", file);
 
@@ -1735,8 +1730,7 @@ DECLARE_THREAD(srv_monitor_thread)(void*)
 	pfs_register_thread(srv_monitor_thread_key);
 #endif /* UNIV_PFS_THREAD */
 
-	my_atomic_store32_explicit(&srv_last_monitor_time, ut_time(),
-				   MY_MEMORY_ORDER_RELAXED);
+	srv_last_monitor_time = ut_time();
 	last_monitor_time = ut_time();
 	mutex_skipped = 0;
 	last_srv_print_monitor = srv_print_innodb_monitor;
@@ -2944,7 +2938,8 @@ srv_purge_wakeup()
 
 			srv_release_threads(SRV_WORKER, n_workers);
 		}
-	} while (!srv_running
+	} while (!my_atomic_loadptr_explicit(&srv_running,
+					     MY_MEMORY_ORDER_RELAXED)
 		 && (srv_sys.n_threads_active[SRV_WORKER]
 		     || srv_sys.n_threads_active[SRV_PURGE]));
 }
