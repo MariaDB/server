@@ -216,7 +216,20 @@ buf_dump(
 	buf_dump_status(STATUS_NOTICE, "Dumping buffer pool(s) to %s",
 			full_filename);
 
-	f = fopen(tmp_filename, "w");
+#if defined(__GLIBC__) || defined(__WIN__) || O_CLOEXEC == 0
+	f = fopen(tmp_filename, "w" STR_O_CLOEXEC);
+#else
+	{
+		int	fd;
+		fd = open(tmp_filename, O_CREAT | O_TRUNC | O_CLOEXEC | O_WRONLY, 0640);
+		if (fd >= 0) {
+			f = fdopen(fd, "w");
+		}
+		else {
+			f = NULL;
+		}
+	}
+#endif
 	if (f == NULL) {
 		buf_dump_status(STATUS_ERR,
 				"Cannot open '%s' for writing: %s",
