@@ -29,6 +29,10 @@
 #endif
 
 #ifdef HAVE_ORACLE_OCI
+#if (defined(WIN32) || defined(_WIN32) || defined(WINDOWS) || defined(_WINDOWS))
+#include <Shlwapi.h>
+#define strcasestr StrStr
+#endif
 #include <oci.h>
 #include "spd_err.h"
 #include "spd_param.h"
@@ -3817,7 +3821,7 @@ int spider_db_oracle_util::open_item_func(
       {
         Item_func_conv_charset *item_func_conv_charset =
           (Item_func_conv_charset *)item_func;
-        CHARSET_INFO *conv_charset = item_func_conv_charset->conv_charset;
+        CHARSET_INFO *conv_charset = item_func_conv_charset->collation.collation;
         uint cset_length = strlen(conv_charset->csname);
         if (str->reserve(SPIDER_SQL_USING_LEN + cset_length))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
