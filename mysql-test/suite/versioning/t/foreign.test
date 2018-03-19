@@ -266,4 +266,55 @@ delete from a;
 
 drop table b, a;
 
+--echo ###############################################
+--echo # CASCADE UPDATE foreign not system versioned #
+--echo ###############################################
+create or replace table parent (
+	id smallint unsigned not null auto_increment,
+	value int unsigned not null,
+	primary key (id, value)
+) engine = innodb;
+
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table child (
+  id mediumint unsigned not null auto_increment primary key,
+  parent_id smallint unsigned not null,
+  parent_value int unsigned not null,
+  sys_start $sys_datatype_expl as row start invisible,
+  sys_end $sys_datatype_expl as row end invisible,
+  period for system_time(sys_start, sys_end),
+  constraint `fk_child_parent`
+    foreign key (parent_id, parent_value) references parent (id, value)
+    on delete cascade
+    on update cascade
+) engine = innodb with system versioning;
+
+create or replace table subchild (
+  id int not null auto_increment primary key,
+  parent_id smallint unsigned not null,
+  parent_value int unsigned not null,
+  constraint `fk_subchild_child_parent`
+    foreign key (parent_id, parent_value) references child (parent_id, parent_value)
+    on delete cascade
+    on update cascade
+) engine=innodb;
+
+insert into parent (value) values (23);
+select id, value from parent into @id, @value;
+insert into child values (default, @id, @value);
+insert into subchild values (default, @id, @value);
+
+select parent_id from subchild;
+update parent set id = 11, value = value + 1;
+select parent_id from subchild;
+select * from child;
+
+delete from parent;
+select count(*) from child;
+select * from child for system_time all;
+select count(*) from subchild;
+
+drop table subchild, child, parent;
+
+
 --source suite/versioning/common_finish.inc

@@ -82,6 +82,7 @@ parent_id
 select * from child for system_time all;
 parent_id
 1
+1
 2
 drop table child;
 drop table parent;
@@ -160,6 +161,7 @@ NULL
 select *, current_row(sys_end) as current_row from child for system_time all order by sys_end;
 parent_id	current_row
 1	0
+1	0
 NULL	1
 delete from child;
 insert into parent values(1);
@@ -171,7 +173,9 @@ NULL
 select *, current_row(sys_end) as current_row from child for system_time all order by sys_end;
 parent_id	current_row
 1	0
+1	0
 NULL	0
+1	0
 NULL	1
 drop table child;
 drop table parent;
@@ -231,3 +235,58 @@ insert into b(cola, v_cola) values (10,2);
 delete from a;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`b`, CONSTRAINT `v_cola_fk` FOREIGN KEY (`v_cola`) REFERENCES `a` (`v_cola`))
 drop table b, a;
+###############################################
+# CASCADE UPDATE foreign not system versioned #
+###############################################
+create or replace table parent (
+id smallint unsigned not null auto_increment,
+value int unsigned not null,
+primary key (id, value)
+) engine = innodb;
+create or replace table child (
+id mediumint unsigned not null auto_increment primary key,
+parent_id smallint unsigned not null,
+parent_value int unsigned not null,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time(sys_start, sys_end),
+constraint `fk_child_parent`
+    foreign key (parent_id, parent_value) references parent (id, value)
+on delete cascade
+on update cascade
+) engine = innodb with system versioning;
+create or replace table subchild (
+id int not null auto_increment primary key,
+parent_id smallint unsigned not null,
+parent_value int unsigned not null,
+constraint `fk_subchild_child_parent`
+    foreign key (parent_id, parent_value) references child (parent_id, parent_value)
+on delete cascade
+on update cascade
+) engine=innodb;
+insert into parent (value) values (23);
+select id, value from parent into @id, @value;
+insert into child values (default, @id, @value);
+insert into subchild values (default, @id, @value);
+select parent_id from subchild;
+parent_id
+1
+update parent set id = 11, value = value + 1;
+select parent_id from subchild;
+parent_id
+11
+select * from child;
+id	parent_id	parent_value
+1	11	24
+delete from parent;
+select count(*) from child;
+count(*)
+0
+select * from child for system_time all;
+id	parent_id	parent_value
+1	1	23
+1	11	24
+select count(*) from subchild;
+count(*)
+0
+drop table subchild, child, parent;
