@@ -44,9 +44,7 @@ Created 2012-02-08 by Sunny Bains.
 
 #include <vector>
 
-/** The size of the buffer to use for IO. Note: os_file_read() doesn't expect
-reads to fail. If you set the buffer size to be greater than a multiple of the
-file size then it will assert. TODO: Fix this limitation of the IO functions.
+/** The size of the buffer to use for IO.
 @param n - page size of the tablespace.
 @retval number of pages */
 #define IO_BUFFER_SIZE(n)	((1024 * 1024) / n)
@@ -3427,7 +3425,8 @@ fil_iterate(
 			? iter.crypt_io_buffer : io_buffer;
 		byte* const writeptr = readptr;
 
-		if (!os_file_read(iter.file, readptr, offset, n_bytes)) {
+		if (!os_file_read_no_error_handling(iter.file, readptr,
+						    offset, n_bytes)) {
 			ib_logf(IB_LOG_LEVEL_ERROR, "os_file_read() failed");
 			return DB_IO_ERROR;
 		}
@@ -3713,7 +3712,7 @@ fil_tablespace_iterate(
 
 	/* Read the first page and determine the page and zip size. */
 
-	if (!os_file_read(file, page, 0, UNIV_PAGE_SIZE)) {
+	if (!os_file_read_no_error_handling(file, page, 0, UNIV_PAGE_SIZE)) {
 
 		err = DB_IO_ERROR;
 
