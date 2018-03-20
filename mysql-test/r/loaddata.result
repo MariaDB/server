@@ -614,3 +614,24 @@ SELECT * FROM t1;
 a	b
 1	
 DROP TABLE t1;
+#
+# MDEV-15597 Add class Load_data_outvar and avoid using Item::STRING_ITEM for Item_user_var_as_out_param detection
+#
+SET sql_mode=NO_AUTO_VALUE_ON_ZERO;
+CREATE TABLE t1 (id integer not null auto_increment primary key);
+LOAD DATA INFILE '../../std_data/loaddata/nl.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
+Warnings:
+Warning	1261	Row 1 doesn't contain data for all columns
+SELECT * FROM t1;
+id
+0
+DROP TABLE t1;
+SET sql_mode='';
+CREATE TABLE t1 (id integer not null auto_increment primary key);
+LOAD DATA INFILE '../../std_data/loaddata/nl.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
+Warnings:
+Warning	1261	Row 1 doesn't contain data for all columns
+SELECT * FROM t1;
+id
+1
+DROP TABLE t1;

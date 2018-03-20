@@ -3252,6 +3252,31 @@ void Item_field::reset_field(Field *f)
 }
 
 
+void Item_field::load_data_print_for_log_event(THD *thd, String *to) const
+{
+  append_identifier(thd, to, name.str, name.length);
+}
+
+
+bool Item_field::load_data_set_no_data(THD *thd, const Load_data_param *param)
+{
+  if (field->load_data_set_no_data(thd, param->is_fixed_length()))
+    return true;
+  /*
+    TODO: We probably should not throw warning for each field.
+    But how about intention to always have the same number
+    of warnings in THD::cuted_fields (and get rid of cuted_fields
+    in the end ?)
+  */
+  thd->cuted_fields++;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_WARN_TOO_FEW_RECORDS,
+                      ER_THD(thd, ER_WARN_TOO_FEW_RECORDS),
+                      thd->get_stmt_da()->current_row_for_warning());
+  return false;
+}
+
+
 bool Item_field::enumerate_field_refs_processor(void *arg)
 {
   Field_enumerator *fe= (Field_enumerator*)arg;

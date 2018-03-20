@@ -1887,6 +1887,20 @@ public:
   {
     return 0;
   }
+
+  virtual Load_data_outvar *get_load_data_outvar()
+  {
+    return 0;
+  }
+  Load_data_outvar *get_load_data_outvar_or_error()
+  {
+    Load_data_outvar *dst= get_load_data_outvar();
+    if (dst)
+      return dst;
+    my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), name.str);
+    return NULL;
+  }
+
   /**
     Test whether an expression is expensive to compute. Used during
     optimization to avoid computing expensive expressions during this
@@ -2819,7 +2833,8 @@ public:
 };
 
 
-class Item_field :public Item_ident
+class Item_field :public Item_ident,
+                  public Load_data_outvar
 {
 protected:
   void set_field(Field *field);
@@ -2866,6 +2881,30 @@ public:
   bool val_bool_result();
   bool is_null_result();
   bool send(Protocol *protocol, st_value *buffer);
+  Load_data_outvar *get_load_data_outvar()
+  {
+    return this;
+  }
+  bool load_data_set_null(THD *thd, const Load_data_param *param)
+  {
+    return field->load_data_set_null(thd);
+  }
+  bool load_data_set_value(THD *thd, const char *pos, uint length,
+                           const Load_data_param *param)
+  {
+    field->load_data_set_value(pos, length, param->charset());
+    return false;
+  }
+  bool load_data_set_no_data(THD *thd, const Load_data_param *param);
+  void load_data_print_for_log_event(THD *thd, String *to) const;
+  bool load_data_add_outvar(THD *thd, Load_data_param *param) const
+  {
+    return param->add_outvar_field(thd, field);
+  }
+  uint load_data_fixed_length() const
+  {
+    return field->field_length;
+  }
   void reset_field(Field *f);
   bool fix_fields(THD *, Item **);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
@@ -4754,6 +4793,10 @@ public:
   void cleanup();
   Item_field *field_for_view_update()
     { return (*ref)->field_for_view_update(); }
+  Load_data_outvar *get_load_data_outvar()
+  {
+    return (*ref)->get_load_data_outvar();
+  }
   virtual Ref_Type ref_type() { return REF; }
 
   // Row emulation: forwarding of ROW-related calls to ref

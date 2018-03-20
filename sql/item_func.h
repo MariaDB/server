@@ -2486,7 +2486,8 @@ public:
   in List<Item> and desire to place this code somewhere near other functions
   working with user variables.
 */
-class Item_user_var_as_out_param :public Item
+class Item_user_var_as_out_param :public Item,
+                                  public Load_data_outvar
 {
   LEX_CSTRING org_name;
   user_var_entry *entry;
@@ -2498,6 +2499,35 @@ public:
     org_name= *a;
     set_name(thd, a->str, a->length, system_charset_info);
   }
+  Load_data_outvar *get_load_data_outvar()
+  {
+    return this;
+  }
+  bool load_data_set_null(THD *thd, const Load_data_param *param)
+  {
+    set_null_value(param->charset());
+    return false;
+  }
+  bool load_data_set_no_data(THD *thd, const Load_data_param *param)
+  {
+    set_null_value(param->charset());
+    return false;
+  }
+  bool load_data_set_value(THD *thd, const char *pos, uint length,
+                           const Load_data_param *param)
+  {
+    set_value(pos, length, param->charset());
+    return false;
+  }
+  void load_data_print_for_log_event(THD *thd, String *to) const;
+  bool load_data_add_outvar(THD *thd, Load_data_param *param) const
+  {
+    return param->add_outvar_user_var(thd);
+  }
+  uint load_data_fixed_length() const
+  {
+    return 0;
+  }
   /* We should return something different from FIELD_ITEM here */
   enum Type type() const { return STRING_ITEM;}
   double val_real();
@@ -2507,7 +2537,6 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_buffer);
   /* fix_fields() binds variable name with its entry structure */
   bool fix_fields(THD *thd, Item **ref);
-  void print_for_load(THD *thd, String *str) const;
   void set_null_value(CHARSET_INFO* cs);
   void set_value(const char *str, uint length, CHARSET_INFO* cs);
   const Type_handler *type_handler() const { return &type_handler_double; }

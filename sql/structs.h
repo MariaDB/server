@@ -729,4 +729,40 @@ struct Lex_string_with_pos_st: public LEX_CSTRING
 };
 
 
+class Load_data_param
+{
+protected:
+  CHARSET_INFO *m_charset;   // Character set of the file
+  ulonglong m_fixed_length;  // Sum of target field lengths for fixed format
+  bool m_is_fixed_length;
+  bool m_use_blobs;
+public:
+  Load_data_param(CHARSET_INFO *cs, bool is_fixed_length):
+    m_charset(cs),
+    m_fixed_length(0),
+    m_is_fixed_length(is_fixed_length),
+    m_use_blobs(false)
+  { }
+  bool add_outvar_field(THD *thd, const Field *field);
+  bool add_outvar_user_var(THD *thd);
+  CHARSET_INFO *charset() const { return m_charset; }
+  bool is_fixed_length() const { return m_is_fixed_length; }
+  bool use_blobs() const { return m_use_blobs; }
+};
+
+
+class Load_data_outvar
+{
+public:
+  virtual ~Load_data_outvar() {}
+  virtual bool load_data_set_null(THD *thd, const Load_data_param *param)= 0;
+  virtual bool load_data_set_value(THD *thd, const char *pos, uint length,
+                                   const Load_data_param *param)= 0;
+  virtual bool load_data_set_no_data(THD *thd, const Load_data_param *param)= 0;
+  virtual void load_data_print_for_log_event(THD *thd, class String *to) const= 0;
+  virtual bool load_data_add_outvar(THD *thd, Load_data_param *param) const= 0;
+  virtual uint load_data_fixed_length() const= 0;
+};
+
+
 #endif /* STRUCTS_INCLUDED */
