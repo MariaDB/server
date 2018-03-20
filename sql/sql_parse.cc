@@ -893,7 +893,6 @@ void cleanup_items(Item *item)
 #ifdef WITH_WSREP
 static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 {
-  bool has_tables = false;
   for (const TABLE_LIST *table= tables; table; table= table->next_global)
   {
     TABLE_CATEGORY c;
@@ -906,9 +905,8 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
     {
       return false;
     }
-    has_tables = true;
   }
-  return has_tables;
+  return true;
 }
 #endif /* WITH_WSREP */
 #ifndef EMBEDDED_LIBRARY
