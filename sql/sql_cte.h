@@ -321,6 +321,7 @@ public:
   }
 
   void set_owner(st_select_lex_unit *unit) { owner= unit; }
+  st_select_lex_unit *get_owner() const { return owner; }
 
   With_clause *pop() { return embedding_with_clause; }
       
