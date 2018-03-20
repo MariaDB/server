@@ -763,11 +763,28 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
   if (outer_slex)
   {
     TABLE_LIST* derived= master_unit()->derived;
+    if (derived && derived->with &&
+      derived->vers_outer_cte_table(derived, outer_slex))
+    {
+      my_error(ER_VERS_MULTIPLE_CTE, MYF(0), derived->table_name.str);
+      DBUG_RETURN(-1);
+    }
     // inner SELECT may not be a derived table (derived == NULL)
     while (derived && outer_slex && !derived->vers_conditions)
     {
       derived= outer_slex->master_unit()->derived;
-      outer_slex= outer_slex->outer_select();
+      if (derived && derived->with)
+      {
+        if (derived->vers_outer_cte_table(derived, outer_slex))
+        {
+          my_error(ER_VERS_MULTIPLE_CTE, MYF(0), derived->table_name.str);
+          DBUG_RETURN(-1);
+        }
+      }
+      else
+      {
+        outer_slex= outer_slex->outer_select();
+      }
     }
     if (derived && outer_slex)
     {

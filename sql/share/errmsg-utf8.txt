@@ -7916,3 +7916,6 @@ ER_UPDATED_COLUMN_ONLY_ONCE
 
 ER_VERS_DB_PROHIBITED
       eng "System versioning prohibited in %`s database"
+
+ER_VERS_MULTIPLE_CTE
+        eng "Multiple %`s prohibited in historical CTE query"

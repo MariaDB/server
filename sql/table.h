@@ -2401,8 +2401,9 @@ struct TABLE_LIST
 
   /* System Versioning */
   vers_select_conds_t vers_conditions;
-  bool vers_vtmd_name(String &out) const;
   bool vers_force_alias;
+  bool vers_vtmd_name(String &out) const;
+  bool vers_outer_cte_table(TABLE_LIST *& cte_table, SELECT_LEX *& outer_slex);
 
   /**
      @brief
