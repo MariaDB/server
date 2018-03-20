@@ -35,6 +35,8 @@
 # define MEM_CHECK_DEFINED(a,len) VALGRIND_CHECK_MEM_IS_DEFINED(a,len)
 #elif defined(__SANITIZE_ADDRESS__)
 # include <sanitizer/asan_interface.h>
+/* How to do manual poisoning:
+https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
 # define MEM_UNDEFINED(a,len) ASAN_UNPOISON_MEMORY_REGION(a,len)
 # define MEM_NOACCESS(a,len) ASAN_POISON_MEMORY_REGION(a,len)
 # define MEM_CHECK_ADDRESSABLE(a,len) ((void) 0)
