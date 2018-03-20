@@ -1349,7 +1349,8 @@ READ_INFO::READ_INFO(THD *thd, File file_par,
   set_if_bigger(length,line_start.length());
   stack= stack_pos= (int*) thd->alloc(sizeof(int) * length);
 
-  if (data.reserve(m_fixed_length))
+  DBUG_ASSERT(m_fixed_length < UINT_MAX32);
+  if (data.reserve((size_t) m_fixed_length))
     error=1; /* purecov: inspected */
   else
   {
