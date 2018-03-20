@@ -19,3 +19,4 @@ VARIABLE_VALUE > 0
 DROP PROCEDURE proc_insert;
 DROP TABLE t1;
 CALL mtr.add_suppression("conflict state 3 after post commit");
+set global innodb_status_output=Default;
