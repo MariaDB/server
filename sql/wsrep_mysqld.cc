@@ -1362,7 +1362,6 @@ void wsrep_shutdown_replication()
 
   /* wait until appliers have stopped */
   wsrep_wait_appliers_close(NULL);
-
   node_uuid= WSREP_UUID_UNDEFINED;
 
   if (current_thd)
@@ -1409,7 +1408,9 @@ bool wsrep_start_replication()
     initialization must be postponed until plugin init has been done and
     before wsrep schema is initialized.
    */
-  if (!wsrep_before_SE()) {
+  if (!wsrep_before_SE())
+  {
+    WSREP_DEBUG("thd pool init for mysqldump SST");
     DBUG_ASSERT(!wsrep_thd_pool);
     wsrep_thd_pool= new Wsrep_thd_pool(WSREP_THD_POOL_SIZE);
   }
@@ -3176,18 +3177,30 @@ static void wsrep_close_thread(THD *thd)
 {
   thd->set_killed(KILL_CONNECTION);
   MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (thd));
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
   if (thd->mysys_var)
   {
     thd->mysys_var->abort=1;
     mysql_mutex_lock(&thd->mysys_var->mutex);
     if (thd->mysys_var->current_cond)
     {
-      mysql_mutex_lock(thd->mysys_var->current_mutex);
-      mysql_cond_broadcast(thd->mysys_var->current_cond);
-      mysql_mutex_unlock(thd->mysys_var->current_mutex);
+      uint i;
+      for (i=0; i < 2; i++)
+      {
+        int ret= mysql_mutex_trylock(thd->mysys_var->current_mutex);
+        mysql_cond_broadcast(thd->mysys_var->current_cond);
+        if (!ret)
+        {
+          /* Thread has surely got the signal, unlock and abort */
+          mysql_mutex_unlock(thd->mysys_var->current_mutex);
+          break;
+        }
+        sleep(1);
+      }
     }
     mysql_mutex_unlock(&thd->mysys_var->mutex);
   }
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 
 
@@ -3229,19 +3242,18 @@ int wsrep_wait_committing_connections_close(int wait_time)
   return 0;
 }
 
-
 void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
 {
+
+  kill_cached_threads++;
+  flush_thread_cache();
+
+  /* OLD ... */
+  THD *tmp;
+  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
   /*
     First signal all threads that it's time to die
   */
-
-  THD *tmp;
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-
-  bool kill_cached_threads_saved= kill_cached_threads;
-  kill_cached_threads= true; // prevent future threads caching
-  mysql_cond_broadcast(&COND_thread_cache); // tell cached threads to die
 
   I_List_iterator<THD> it(threads);
   while ((tmp=it++))
@@ -3267,14 +3279,17 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
 
     if (is_replaying_connection(tmp))
     {
+      WSREP_DEBUG("killed client was replaying");
       tmp->set_killed(KILL_CONNECTION);
       continue;
     }
 
     /* replicated transactions must be skipped */
     if (abort_replicated(tmp))
+    {
+      WSREP_DEBUG("killed client has replicated");
       continue;
-
+    }
     WSREP_DEBUG("closing connection %lld", (longlong) tmp->thread_id);
     wsrep_close_thread(tmp);
   }
@@ -3283,9 +3298,8 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
   /*
     Sleep for couple of seconds to give threads time to die.
    */
-  int max_sleeps= 200;
-  while (--max_sleeps > 0 && thread_count > 0)
-    my_sleep(10000);
+  for (int i= 0; *(volatile int32*) &thread_count && i < 1000; i++)
+    my_sleep(20000);
 
   mysql_mutex_lock(&LOCK_thread_count);
   /*
@@ -3312,11 +3326,11 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
 
   while (wait_to_end && have_client_connections(except_caller_thd))
   {
-    mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
+    struct timespec abstime;
+    set_timespec(abstime, 5);
+    mysql_cond_timedwait(&COND_thread_count, &LOCK_thread_count, &abstime);
     DBUG_PRINT("quit",("One thread died (count=%u)", thread_count));
   }
-
-  kill_cached_threads= kill_cached_threads_saved;
 
   mysql_mutex_unlock(&LOCK_thread_count);
 

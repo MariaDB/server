@@ -1604,7 +1604,6 @@ ATTRIBUTE_NORETURN static void mysqld_exit(int exit_code);
 static void delete_pid_file(myf flags);
 static void end_ssl();
 
-
 #ifndef EMBEDDED_LIBRARY
 /****************************************************************************
 ** Code to end mysqld
@@ -2921,6 +2920,14 @@ void signal_thd_deleted()
   if (!thread_count && !service_thread_count)
   {
     /* Signal close_connections() that all THD's are freed */
+    mysql_mutex_lock(&LOCK_thread_count);
+    mysql_cond_broadcast(&COND_thread_count);
+    mysql_mutex_unlock(&LOCK_thread_count);
+  }
+  else
+  {
+    /* Naah, I signal anyways */
+    WSREP_DEBUG("forced signal for COND_thread_count");
     mysql_mutex_lock(&LOCK_thread_count);
     mysql_cond_broadcast(&COND_thread_count);
     mysql_mutex_unlock(&LOCK_thread_count);

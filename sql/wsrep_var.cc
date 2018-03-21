@@ -26,7 +26,6 @@
 #include <cstdio>
 #include <cstdlib>
 
-
 int wsrep_init_vars()
 {
   wsrep_provider        = my_strdup(WSREP_NONE, MYF(MY_WME));
@@ -482,8 +481,6 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
 
   wsrep_stop_replication(thd);
 
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
 
   if (wsrep_start_replication())
   {
@@ -491,6 +488,8 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
     wsrep_create_appliers(wsrep_slave_threads);
   }
 
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
   return false;
 }
 

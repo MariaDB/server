@@ -300,7 +300,7 @@ void wsrep_sst_received (THD*                thd,
       does THD pool initialization, which will lock this lock in
       THD allocation.
      */
-    if (thd) mysql_mutex_unlock(&LOCK_global_system_variables);
+    //if (thd) mysql_mutex_unlock(&LOCK_global_system_variables);
     wsrep_init_schema();
     /*
       Logical SST methods (mysqldump etc) don't update InnoDB sys header.
@@ -315,7 +315,7 @@ void wsrep_sst_received (THD*                thd,
     }
     wsrep_verify_SE_checkpoint(uuid, seqno);
     wsrep_init_SR();
-    if (thd) mysql_mutex_lock(&LOCK_global_system_variables);
+    //if (thd) mysql_mutex_lock(&LOCK_global_system_variables);
 
     /*
       Both wsrep_init_SR() and wsrep_recover_view() may use
@@ -907,6 +907,11 @@ static int sst_donate_mysqldump (const char*         addr,
     return -ENOMEM;
   }
 
+  /*
+    we enable new client connections so that mysqldump donation can connect in,
+    but we reject local connections from modifyingcdata during SST, to keep
+    data intact
+  */
   if (!bypass && wsrep_sst_donor_rejects_queries) sst_reject_queries(TRUE);
 
   make_wsrep_defaults_file();
@@ -939,7 +944,6 @@ static int sst_donate_mysqldump (const char*         addr,
   wsrep_gtid_t const state_id = { *uuid, (ret ? WSREP_SEQNO_UNDEFINED : seqno)};
 
   wsrep->sst_sent (wsrep, &state_id, ret);
-
   return ret;
 }
 

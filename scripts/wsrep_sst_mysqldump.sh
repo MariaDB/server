@@ -25,6 +25,7 @@ EINVAL=22
 local_ip()
 {
     [ "$1" = "127.0.0.1" ]      && return 0
+    [ "$1" = "127.0.0.2" ]      && return 0
     [ "$1" = "localhost" ]      && return 0
     [ "$1" = "[::1]" ]          && return 0
     [ "$1" = "$(hostname -s)" ] && return 0

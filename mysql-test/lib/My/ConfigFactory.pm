@@ -206,7 +206,11 @@ my @mysqld_rules=
  { '#user' => sub { return shift->{ARGS}->{user} || ""; } },
  { '#password' => sub { return shift->{ARGS}->{password} || ""; } },
  { 'server-id' => \&fix_server_id, },
- { 'bind-address' => \&fix_bind_address },
+   #
+   # bind-address is commented out here, because this would bind bind
+   # only 127.0.0.1 for mysqld, and in galera mtr testing we will need
+   # also 127.0.0.2 for sst address
+# { 'bind-address' => \&fix_bind_address },
   );
 
 if (IS_WINDOWS)
