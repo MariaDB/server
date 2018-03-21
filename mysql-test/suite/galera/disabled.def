@@ -49,4 +49,4 @@ galera_suspend_slave : MDEV-13549 Galera test failures 10.1
 galera_gtid : MDEV-13549 Galera test failures 10.1
 galera_gtid_slave : MDEV-13549 Galera test failures 10.1
 galera_unicode_identifiers : MDEV-13549 Galera test failures 10.1
-galera_var_reject_queries : MW-245 FIXME: fails on buildbot
+galera.galera_gcs_fc_limit : MDEV-13549 Galera test failures 10.1
