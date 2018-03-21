@@ -41,6 +41,9 @@ SHOW TABLE STATUS LIKE 'tab';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
 tab	InnoDB	#	Compact	#	#	#	#	#	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL		
 ALTER TABLE tab DISCARD TABLESPACE;
+call mtr.add_suppression("InnoDB: Tried to read .* bytes at offset 0");
+ALTER TABLE tab IMPORT TABLESPACE;
+ERROR HY000: Internal error: Cannot reset LSNs in table `test`.`tab` : I/O error
 ALTER TABLE tab IMPORT TABLESPACE;
 SELECT * FROM tab;
 a

@@ -56,3 +56,4 @@ galera_ist_progress: MDEV-15236 galera_ist_progress fails when trying to read tr
 galera_gtid : MDEV-13549 Galera test failures 10.1
 galera_gtid_slave : MDEV-13549 Galera test failures 10.1
 galera_unicode_identifiers : MDEV-13549 Galera test failures 10.1
+galera.galera_gcs_fc_limit : MDEV-13549 Galera test failures 10.1

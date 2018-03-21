@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -3169,15 +3169,21 @@ try_again:
 	overlapped.hEvent = win_get_syncio_event();
 	ret = ReadFile(file, buf, n, NULL, &overlapped);
 	if (ret) {
-		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, FALSE);
-	}
-	else if(GetLastError() == ERROR_IO_PENDING) {
-		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, TRUE);
+		ret = GetOverlappedResult(file, &overlapped, &len, FALSE);
+	} else if (GetLastError() == ERROR_IO_PENDING) {
+		ret = GetOverlappedResult(file, &overlapped, &len, TRUE);
         }
 	MONITOR_ATOMIC_DEC_LOW(MONITOR_OS_PENDING_READS, monitor);
 
-	if (ret && len == n) {
+	if (!ret) {
+	} else if (len == n) {
 		return(TRUE);
+	} else {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Tried to read " ULINTPF " bytes at offset "
+			UINT64PF ". Was only able to read %lu.",
+			n, offset, ret);
+		return FALSE;
 	}
 #else /* __WIN__ */
 	ibool	retry;
@@ -3204,6 +3210,7 @@ try_again:
 			"Tried to read " ULINTPF " bytes at offset "
 			UINT64PF ". Was only able to read %ld.",
 			n, offset, (lint) ret);
+		return FALSE;
 	}
 #endif /* __WIN__ */
 	retry = os_file_handle_error(NULL, "read", __FILE__, __LINE__);
@@ -3272,15 +3279,21 @@ try_again:
 	overlapped.hEvent = win_get_syncio_event();
 	ret = ReadFile(file, buf, n, NULL, &overlapped);
 	if (ret) {
-		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, FALSE);
-	}
-	else if(GetLastError() == ERROR_IO_PENDING) {
-		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, TRUE);
+		ret = GetOverlappedResult(file, &overlapped, &len, FALSE);
+	} else if (GetLastError() == ERROR_IO_PENDING) {
+		ret = GetOverlappedResult(file, &overlapped, &len, TRUE);
 	}
 	MONITOR_ATOMIC_DEC_LOW(MONITOR_OS_PENDING_READS, monitor);
 
-	if (ret && len == n) {
+	if (!ret) {
+	} else if (len == n) {
 		return(TRUE);
+	} else {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Tried to read " ULINTPF " bytes at offset "
+			UINT64PF ". Was only able to read %lu.",
+			n, offset, len);
+		return FALSE;
 	}
 #else /* __WIN__ */
 	ibool	retry;
@@ -3303,6 +3316,7 @@ try_again:
 			"Tried to read " ULINTPF " bytes at offset "
 			UINT64PF ". Was only able to read %ld.",
 			n, offset, (lint) ret);
+		return FALSE;
 	}
 #endif /* __WIN__ */
 	retry = os_file_handle_error_no_exit(NULL, "read", FALSE, __FILE__, __LINE__);
@@ -3383,10 +3397,9 @@ retry:
 	overlapped.hEvent = win_get_syncio_event();
 	ret = WriteFile(file, buf, n, NULL, &overlapped);
 	if (ret) {
-		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, FALSE);
-	}
-	else if ( GetLastError() == ERROR_IO_PENDING) {
-		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, TRUE);
+		ret = GetOverlappedResult(file, &overlapped, &len, FALSE);
+	} else if (GetLastError() == ERROR_IO_PENDING) {
+		ret = GetOverlappedResult(file, &overlapped, &len, TRUE);
 	}
 
 	MONITOR_ATOMIC_DEC_LOW(MONITOR_OS_PENDING_WRITES, monitor);
@@ -6588,8 +6601,7 @@ os_file_trim(
 	DWORD tmp;
 	if (ret) {
 		ret = GetOverlappedResult(slot->file, &overlapped, &tmp, FALSE);
-	}
-	else if (GetLastError() == ERROR_IO_PENDING) {
+	} else if (GetLastError() == ERROR_IO_PENDING) {
 		ret = GetOverlappedResult(slot->file, &overlapped, &tmp, TRUE);
 	}
 	if (!ret) {

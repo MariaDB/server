@@ -701,28 +701,50 @@ static
 bool
 os_aio_validate();
 
+/** Handle errors for file operations.
+@param[in]	name		name of a file or NULL
+@param[in]	operation	operation
+@param[in]	should_abort	whether to abort on an unknown error
+@param[in]	on_error_silent	whether to suppress reports of non-fatal errors
+@return true if we should retry the operation */
+static MY_ATTRIBUTE((warn_unused_result))
+bool
+os_file_handle_error_cond_exit(
+	const char*	name,
+	const char*	operation,
+	bool		should_abort,
+	bool		on_error_silent);
+
 /** Does error handling when a file operation fails.
-@param[in]	name		File name or NULL
-@param[in]	operation	Name of operation e.g., "read", "write"
+@param[in]	name		name of a file or NULL
+@param[in]	operation	operation name that failed
 @return true if we should retry the operation */
 static
 bool
 os_file_handle_error(
 	const char*	name,
-	const char*	operation);
+	const char*	operation)
+{
+	/* Exit in case of unknown error */
+	return(os_file_handle_error_cond_exit(name, operation, true, false));
+}
 
-/**
-Does error handling when a file operation fails.
-@param[in]	name		File name or NULL
-@param[in]	operation	Name of operation e.g., "read", "write"
-@param[in]	silent	if true then don't print any message to the log.
+/** Does error handling when a file operation fails.
+@param[in]	name		name of a file or NULL
+@param[in]	operation	operation name that failed
+@param[in]	on_error_silent	if true then don't print any message to the log.
 @return true if we should retry the operation */
 static
 bool
 os_file_handle_error_no_exit(
 	const char*	name,
 	const char*	operation,
-	bool		silent);
+	bool		on_error_silent)
+{
+	/* Don't exit in case of unknown error */
+	return(os_file_handle_error_cond_exit(
+			name, operation, false, on_error_silent));
+}
 
 /** Does simulated AIO. This function should be called by an i/o-handler
 thread.
@@ -5077,52 +5099,31 @@ os_file_read_page(
 	ut_ad(type.validate());
 	ut_ad(n > 0);
 
-	for (;;) {
-		ssize_t	n_bytes;
+	ssize_t	n_bytes = os_file_pread(type, file, buf, n, offset, &err);
 
-		n_bytes = os_file_pread(type, file, buf, n, offset, &err);
-
-		if (o != NULL) {
-			*o = n_bytes;
-		}
-
-		if (err != DB_SUCCESS && !exit_on_err) {
-
-			return(err);
-
-		} else if ((ulint) n_bytes == n) {
-			return(DB_SUCCESS);
-		}
-
-		ib::error() << "Tried to read " << n
-			<< " bytes at offset " << offset
-			<< ", but was only able to read " << n_bytes;
-
-		if (exit_on_err) {
-
-			if (!os_file_handle_error(NULL, "read")) {
-				/* Hard error */
-				break;
-			}
-
-		} else if (!os_file_handle_error_no_exit(NULL, "read", false)) {
-
-			/* Hard error */
-			break;
-		}
-
-		if (n_bytes > 0 && (ulint) n_bytes < n) {
-			n -= (ulint) n_bytes;
-			offset += (ulint) n_bytes;
-			buf = reinterpret_cast<uchar*>(buf) + (ulint) n_bytes;
-		}
+	if (o) {
+		*o = n_bytes;
 	}
 
-	ib::fatal()
-		<< "Cannot read from file. OS error number "
-		<< errno << ".";
+	if (ulint(n_bytes) == n || (err != DB_SUCCESS && !exit_on_err)) {
+		return err;
+	}
 
-	return(err);
+	ib::error() << "Tried to read " << n << " bytes at offset "
+		    << offset << ", but was only able to read " << n_bytes;
+
+	if (!os_file_handle_error_cond_exit(
+		    NULL, "read", exit_on_err, false)) {
+		ib::fatal()
+			<< "Cannot read from file. OS error number "
+			<< errno << ".";
+	}
+
+	if (err == DB_SUCCESS) {
+		err = DB_IO_ERROR;
+	}
+
+	return err;
 }
 
 /** Retrieves the last error number if an error occurs in a file io function.
@@ -5226,37 +5227,6 @@ os_file_handle_error_cond_exit(
 	}
 
 	return(false);
-}
-
-/** Does error handling when a file operation fails.
-@param[in]	name		name of a file or NULL
-@param[in]	operation	operation name that failed
-@return true if we should retry the operation */
-static
-bool
-os_file_handle_error(
-	const char*	name,
-	const char*	operation)
-{
-	/* Exit in case of unknown error */
-	return(os_file_handle_error_cond_exit(name, operation, true, false));
-}
-
-/** Does error handling when a file operation fails.
-@param[in]	name		name of a file or NULL
-@param[in]	operation	operation name that failed
-@param[in]	on_error_silent	if true then don't print any message to the log.
-@return true if we should retry the operation */
-static
-bool
-os_file_handle_error_no_exit(
-	const char*	name,
-	const char*	operation,
-	bool		on_error_silent)
-{
-	/* Don't exit in case of unknown error */
-	return(os_file_handle_error_cond_exit(
-			name, operation, false, on_error_silent));
 }
 
 #ifndef _WIN32
