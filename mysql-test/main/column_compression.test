@@ -79,3 +79,15 @@ INSERT INTO t1 VALUES(REPEAT('a', 255));
 SET column_compression_threshold=DEFAULT;
 SELECT a, LENGTH(a) FROM t1;
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-14929 - AddressSanitizer: memcpy-param-overlap in
+--echo #              Field_longstr::compress
+--echo #
+CREATE TABLE t1(b BLOB COMPRESSED);
+INSERT INTO t1 VALUES('foo'),('bar');
+SET SESSION optimizer_switch = 'derived_merge=off';
+SELECT * FROM ( SELECT * FROM t1 ) AS sq ORDER BY b;
+SET SESSION optimizer_switch=DEFAULT;
+DROP TABLE t1;

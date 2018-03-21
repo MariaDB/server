@@ -8699,17 +8699,22 @@ int Field_blob_compressed::store(const char *from, size_t length,
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   uint to_length= (uint)MY_MIN(max_data_length(), field_charset->mbmaxlen * length + 1);
+  String tmp(from, length, cs);
   int rc;
 
-  if (value.alloc(to_length))
-  {
-    set_ptr((uint32) 0, NULL);
-    return -1;
-  }
+  if (from >= value.ptr() && from <= value.end() && tmp.copy(from, length, cs))
+    goto oom;
 
-  rc= compress((char*) value.ptr(), &to_length, from, (uint)length, cs);
+  if (value.alloc(to_length))
+    goto oom;
+
+  rc= compress((char*) value.ptr(), &to_length, tmp.ptr(), (uint) length, cs);
   set_ptr(to_length, (uchar*) value.ptr());
   return rc;
+
+oom:
+  set_ptr((uint32) 0, NULL);
+  return -1;
 }
 
 

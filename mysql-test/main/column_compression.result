@@ -1360,3 +1360,16 @@ SELECT a, LENGTH(a) FROM t1;
 a	LENGTH(a)
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	255
 DROP TABLE t1;
+#
+# MDEV-14929 - AddressSanitizer: memcpy-param-overlap in
+#              Field_longstr::compress
+#
+CREATE TABLE t1(b BLOB COMPRESSED);
+INSERT INTO t1 VALUES('foo'),('bar');
+SET SESSION optimizer_switch = 'derived_merge=off';
+SELECT * FROM ( SELECT * FROM t1 ) AS sq ORDER BY b;
+b
+bar
+foo
+SET SESSION optimizer_switch=DEFAULT;
+DROP TABLE t1;
