@@ -29,6 +29,15 @@ enum wsrep_conflict_state wsrep_thd_conflict_state(THD *, my_bool)
 int wsrep_is_wsrep_xid(const XID*)
 { return 0; }
 
+long long wsrep_xid_seqno(const XID* x)
+{ return -1; }
+
+const unsigned char* wsrep_xid_uuid(const XID*)
+{
+    static const unsigned char uuid[16] = {0};
+    return uuid;
+}
+
 bool wsrep_prepare_key(const uchar*, size_t, const uchar*, size_t, struct wsrep_buf*, size_t*)
 { return 0; }
 

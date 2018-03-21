@@ -39,7 +39,7 @@ Created 3/26/1996 Heikki Tuuri
 
 #ifdef UNIV_DEBUG
 /** The latest known WSREP XID sequence number */
-static wsrep_seqno_t wsrep_seqno = -1;
+static long long wsrep_seqno = -1;
 #endif /* UNIV_DEBUG */
 /** The latest known WSREP XID UUID */
 static unsigned char wsrep_uuid[16];
@@ -58,7 +58,7 @@ trx_rseg_update_wsrep_checkpoint(
 
 #ifdef UNIV_DEBUG
 	/* Check that seqno is monotonically increasing */
-	wsrep_seqno_t xid_seqno = wsrep_xid_seqno(xid);
+	long long xid_seqno = wsrep_xid_seqno(xid);
 	const byte* xid_uuid = wsrep_xid_uuid(xid);
 
 	if (!memcmp(xid_uuid, wsrep_uuid, sizeof wsrep_uuid)) {
@@ -227,7 +227,7 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid)
 		}
 
 		XID tmp_xid;
-		wsrep_seqno_t tmp_seqno = 0;
+		long long tmp_seqno = 0;
 		if (trx_rseg_read_wsrep_checkpoint(rseg_header, tmp_xid)
 		    && (tmp_seqno = wsrep_xid_seqno(&tmp_xid))
 		    > max_xid_seqno) {

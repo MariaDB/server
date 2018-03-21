@@ -22,8 +22,6 @@
   For engines that want to support galera.
 */
 
-#include <wsrep_api.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -69,7 +67,9 @@ enum wsrep_trx_status {
 };
 
 struct xid_t;
+struct wsrep;
 struct wsrep_ws_handle;
+struct wsrep_buf;
 
 extern struct wsrep_service_st {
   struct wsrep *              (*get_wsrep_func)();
@@ -84,7 +84,7 @@ extern struct wsrep_service_st {
   void                        (*wsrep_aborting_thd_enqueue_func)(THD *thd);
   bool                        (*wsrep_consistency_check_func)(THD *thd);
   int                         (*wsrep_is_wsrep_xid_func)(const struct xid_t *xid);
-  wsrep_seqno_t               (*wsrep_xid_seqno_func)(const struct xid_t *xid);
+  long long                   (*wsrep_xid_seqno_func)(const struct xid_t *xid);
   const unsigned char*        (*wsrep_xid_uuid_func)(const struct xid_t *xid);
   void                        (*wsrep_lock_rollback_func)();
   int                         (*wsrep_on_func)(MYSQL_THD);
@@ -186,7 +186,7 @@ enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd);
 enum wsrep_query_state wsrep_thd_query_state(THD *thd);
 enum wsrep_trx_status wsrep_run_wsrep_commit(THD *thd, bool all);
 int wsrep_is_wsrep_xid(const struct xid_t* xid);
-wsrep_seqno_t wsrep_xid_seqno(const struct xid_t* xid);
+long long wsrep_xid_seqno(const struct xid_t* xid);
 const unsigned char* wsrep_xid_uuid(const struct xid_t* xid);
 int wsrep_on(MYSQL_THD thd);
 int wsrep_thd_retry_counter(THD *thd);

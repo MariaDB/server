@@ -328,7 +328,6 @@ bool wsrep_node_is_synced();
 #define WSREP_FORMAT(my_format) ((ulong)my_format)
 #define WSREP_PROVIDER_EXISTS (0)
 #define wsrep_emulate_bin_log (0)
-#define wsrep_xid_seqno(X) (0)
 #define wsrep_to_isolation (0)
 #define wsrep_init() (1)
 #define wsrep_prepend_PATH(X)

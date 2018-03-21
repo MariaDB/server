@@ -40,6 +40,10 @@ IF(NOT HAVE_SYSTEM_REGEX)
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/pcre)
 ENDIF()
 
+IF(WITH_WSREP)
+  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/wsrep)
+ENDIF()
+
 ADD_DEFINITIONS(-UMYSQL_SERVER)
 ########################################################################
 # xtrabackup binary

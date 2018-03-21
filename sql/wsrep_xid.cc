@@ -91,7 +91,7 @@ wsrep_seqno_t wsrep_xid_seqno(const XID& xid)
   return ret;
 }
 
-wsrep_seqno_t wsrep_xid_seqno(const xid_t* xid)
+long long wsrep_xid_seqno(const xid_t* xid)
 {
   DBUG_ASSERT(xid);
   return wsrep_xid_seqno(*xid);

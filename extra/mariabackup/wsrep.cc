@@ -49,6 +49,8 @@ permission notice:
 #include "common.h"
 #ifdef WITH_WSREP
 
+#include <wsrep_api.h>
+
 /*! Name of file where Galera info is stored on recovery */
 #define XB_GALERA_INFO_FILENAME "xtrabackup_galera_info"
 
@@ -62,7 +64,7 @@ xb_write_galera_info(bool incremental_prepare)
 	FILE*		fp;
 	XID		xid;
 	char		uuid_str[40];
-	wsrep_seqno_t	seqno;
+	long long	seqno;
 	MY_STAT		statinfo;
 
 	/* Do not overwrite existing an existing file to be compatible with
