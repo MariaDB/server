@@ -84,6 +84,8 @@ extern struct wsrep_service_st {
   void                        (*wsrep_aborting_thd_enqueue_func)(THD *thd);
   bool                        (*wsrep_consistency_check_func)(THD *thd);
   int                         (*wsrep_is_wsrep_xid_func)(const struct xid_t *xid);
+  long long                   (*wsrep_xid_seqno_func)(const struct xid_t *xid);
+  const unsigned char*        (*wsrep_xid_uuid_func)(const struct xid_t *xid);
   void                        (*wsrep_lock_rollback_func)();
   int                         (*wsrep_on_func)(MYSQL_THD);
   void                        (*wsrep_post_commit_func)(THD* thd, bool all);
@@ -125,6 +127,8 @@ extern struct wsrep_service_st {
 #define wsrep_aborting_thd_enqueue(T) wsrep_service->wsrep_aborting_thd_enqueue_func(T)
 #define wsrep_consistency_check(T) wsrep_service->wsrep_consistency_check_func(T)
 #define wsrep_is_wsrep_xid(X) wsrep_service->wsrep_is_wsrep_xid_func(X)
+#define wsrep_xid_seqno(X) wsrep_service->wsrep_xid_seqno_func(X)
+#define wsrep_xid_uuid(X) wsrep_service->wsrep_xid_uuid_func(X)
 #define wsrep_lock_rollback() wsrep_service->wsrep_lock_rollback_func()
 #define wsrep_on(X) wsrep_service->wsrep_on_func(X)
 #define wsrep_post_commit(T,A) wsrep_service->wsrep_post_commit_func(T,A)
@@ -182,6 +186,8 @@ enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd);
 enum wsrep_query_state wsrep_thd_query_state(THD *thd);
 enum wsrep_trx_status wsrep_run_wsrep_commit(THD *thd, bool all);
 int wsrep_is_wsrep_xid(const struct xid_t* xid);
+long long wsrep_xid_seqno(const struct xid_t* xid);
+const unsigned char* wsrep_xid_uuid(const struct xid_t* xid);
 int wsrep_on(MYSQL_THD thd);
 int wsrep_thd_retry_counter(THD *thd);
 int wsrep_trx_is_aborting(MYSQL_THD thd);

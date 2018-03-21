@@ -35,6 +35,7 @@ Created 3/26/1996 Heikki Tuuri
 #include <algorithm>
 
 #ifdef WITH_WSREP
+#include <mysql/service_wsrep.h>
 
 #ifdef UNIV_DEBUG
 /** The latest known WSREP XID sequence number */
@@ -42,24 +43,6 @@ static long long wsrep_seqno = -1;
 #endif /* UNIV_DEBUG */
 /** The latest known WSREP XID UUID */
 static unsigned char wsrep_uuid[16];
-
-/** Read WSREP XID UUID.
-@param[in] xid WSREP XID
-@return Pointer to the first byte of the UUID.
-*/
-
-static inline const byte* read_wsrep_xid_uuid(const XID* xid)
-{
-	return reinterpret_cast<const byte*>(xid->data + 8);
-}
-
-/** Read WSREP XID seqno */
-static inline long long read_wsrep_xid_seqno(const XID* xid)
-{
-	long long seqno;
-	memcpy(&seqno, xid->data + 24, sizeof(long long));
-	return seqno;
-}
 
 /** Update the WSREP XID information in rollback segment header.
 @param[in,out]	rseg_header	rollback segment header
@@ -71,12 +54,12 @@ trx_rseg_update_wsrep_checkpoint(
 	const XID*	xid,
 	mtr_t*		mtr)
 {
-	ut_ad(xid->formatID == 1);
+	ut_ad(wsrep_is_wsrep_xid(xid));
 
 #ifdef UNIV_DEBUG
 	/* Check that seqno is monotonically increasing */
-	long long xid_seqno = read_wsrep_xid_seqno(xid);
-	const byte* xid_uuid = read_wsrep_xid_uuid(xid);
+	long long xid_seqno = wsrep_xid_seqno(xid);
+	const byte* xid_uuid = wsrep_xid_uuid(xid);
 
 	if (!memcmp(xid_uuid, wsrep_uuid, sizeof wsrep_uuid)) {
 		ut_ad(xid_seqno > wsrep_seqno);
@@ -125,7 +108,7 @@ void trx_rseg_update_wsrep_checkpoint(const XID* xid)
 
 	trx_rseg_update_wsrep_checkpoint(rseg_header, xid, &mtr);
 
-	const byte* xid_uuid = read_wsrep_xid_uuid(xid);
+	const byte* xid_uuid = wsrep_xid_uuid(xid);
 	if (memcmp(wsrep_uuid, xid_uuid, sizeof wsrep_uuid)) {
 		memcpy(wsrep_uuid, xid_uuid, sizeof wsrep_uuid);
 
@@ -222,6 +205,11 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid)
 		if (rseg_id == 0) {
 			found = trx_rseg_init_wsrep_xid(sys->frame, xid);
 			ut_ad(!found || xid.formatID == 1);
+                        if (found) {
+				max_xid_seqno = wsrep_xid_seqno(&xid);
+				memcpy(wsrep_uuid, wsrep_xid_uuid(&xid),
+				       sizeof wsrep_uuid);
+			}
 		}
 
 		const uint32_t page_no = trx_sysf_rseg_get_page_no(
@@ -241,12 +229,12 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid)
 		XID tmp_xid;
 		long long tmp_seqno = 0;
 		if (trx_rseg_read_wsrep_checkpoint(rseg_header, tmp_xid)
-		    && (tmp_seqno = read_wsrep_xid_seqno(&tmp_xid))
+		    && (tmp_seqno = wsrep_xid_seqno(&tmp_xid))
 		    > max_xid_seqno) {
 			found = true;
 			max_xid_seqno = tmp_seqno;
 			xid = tmp_xid;
-			memcpy(wsrep_uuid, read_wsrep_xid_uuid(&tmp_xid),
+			memcpy(wsrep_uuid, wsrep_xid_uuid(&tmp_xid),
 			       sizeof wsrep_uuid);
 		}
 	}

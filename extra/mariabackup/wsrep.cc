@@ -44,118 +44,15 @@ permission notice:
 #include <my_base.h>
 #include <handler.h>
 #include <trx0rseg.h>
+#include <mysql/service_wsrep.h>
 
 #include "common.h"
 #ifdef WITH_WSREP
-#define WSREP_XID_PREFIX "WSREPXid"
-#define WSREP_XID_PREFIX_LEN MYSQL_XID_PREFIX_LEN
-#define WSREP_XID_UUID_OFFSET 8
-#define WSREP_XID_SEQNO_OFFSET (WSREP_XID_UUID_OFFSET + sizeof(wsrep_uuid_t))
-#define WSREP_XID_GTRID_LEN (WSREP_XID_SEQNO_OFFSET + sizeof(wsrep_seqno_t))
 
-/*! undefined seqno */
-#define WSREP_SEQNO_UNDEFINED (-1)
+#include <wsrep_api.h>
 
 /*! Name of file where Galera info is stored on recovery */
 #define XB_GALERA_INFO_FILENAME "xtrabackup_galera_info"
-
-/* Galera UUID type - for all unique IDs */
-typedef struct wsrep_uuid {
-    unsigned char data[16];
-} wsrep_uuid_t;
-
-/* sequence number of a writeset, etc. */
-typedef long long  wsrep_seqno_t;
-
-/* Undefined UUID */
-static const wsrep_uuid_t WSREP_UUID_UNDEFINED = {{0,}};
-
-/***********************************************************************//**
-Check if a given WSREP XID is valid.
-
-@return true if valid.
-*/
-static
-bool
-wsrep_is_wsrep_xid(
-/*===============*/
-	const void*	xid_ptr)
-{
-	const XID*	xid = reinterpret_cast<const XID*>(xid_ptr);
-
-	return((xid->formatID      == 1                   &&
-		xid->gtrid_length  == WSREP_XID_GTRID_LEN &&
-		xid->bqual_length  == 0                   &&
-		!memcmp(xid->data, WSREP_XID_PREFIX, WSREP_XID_PREFIX_LEN)));
-}
-
-/***********************************************************************//**
-Retrieve binary WSREP UUID from XID.
-
-@return binary WSREP UUID represenataion, if UUID is valid, or
-	WSREP_UUID_UNDEFINED otherwise.
-*/
-static
-const wsrep_uuid_t*
-wsrep_xid_uuid(
-/*===========*/
-	const XID*	xid)
-{
-	if (wsrep_is_wsrep_xid(xid)) {
-		return(reinterpret_cast<const wsrep_uuid_t*>
-		       (xid->data + WSREP_XID_UUID_OFFSET));
-	} else {
-		return(&WSREP_UUID_UNDEFINED);
-	}
-}
-
-/***********************************************************************//**
-Retrieve WSREP seqno from XID.
-
-@return WSREP seqno, if it is valid, or WSREP_SEQNO_UNDEFINED otherwise.
-*/
-wsrep_seqno_t wsrep_xid_seqno(
-/*==========================*/
-	const XID*	xid)
-{
-	if (wsrep_is_wsrep_xid(xid)) {
-		wsrep_seqno_t seqno;
-		memcpy(&seqno, xid->data + WSREP_XID_SEQNO_OFFSET,
-		       sizeof(wsrep_seqno_t));
-
-		return(seqno);
-	} else {
-		return(WSREP_SEQNO_UNDEFINED);
-	}
-}
-
-/***********************************************************************//**
-Write UUID to string.
-
-@return length of UUID string representation or -EMSGSIZE if string is too
-short.
-*/
-static
-int
-wsrep_uuid_print(
-/*=============*/
-	const wsrep_uuid_t*	uuid,
-	char*			str,
-	size_t			str_len)
-{
-	if (str_len > 36) {
-		const unsigned char* u = uuid->data;
-		return snprintf(str, str_len,
-				"%02x%02x%02x%02x-%02x%02x-%02x%02x-"
-				"%02x%02x-%02x%02x%02x%02x%02x%02x",
-				u[ 0], u[ 1], u[ 2], u[ 3], u[ 4], u[ 5], u[ 6],
-				u[ 7], u[ 8], u[ 9], u[10], u[11], u[12], u[13],
-				u[14], u[15]);
-	}
-	else {
-		return -EMSGSIZE;
-	}
-}
 
 /***********************************************************************
 Store Galera checkpoint info in the 'xtrabackup_galera_info' file, if that
@@ -167,7 +64,7 @@ xb_write_galera_info(bool incremental_prepare)
 	FILE*		fp;
 	XID		xid;
 	char		uuid_str[40];
-	wsrep_seqno_t	seqno;
+	long long	seqno;
 	MY_STAT		statinfo;
 
 	/* Do not overwrite existing an existing file to be compatible with
@@ -186,7 +83,9 @@ xb_write_galera_info(bool incremental_prepare)
 		return;
 	}
 
-	if (wsrep_uuid_print(wsrep_xid_uuid(&xid), uuid_str,
+	wsrep_uuid_t uuid;
+	memcpy(uuid.data, wsrep_xid_uuid(&xid), sizeof(uuid.data));
+	if (wsrep_uuid_print(&uuid, uuid_str,
 			     sizeof(uuid_str)) < 0) {
 		return;
 	}
