@@ -8241,6 +8241,19 @@ Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` where coalesce(`test`.`t1`.`c`,0) = '3 ' and coalesce(`test`.`t1`.`d`,0) = '3 '
 DROP TABLE t1;
 #
+# MDEV-15005 ASAN: stack-buffer-overflow in my_strnncollsp_simple
+#
+SET NAMES latin1;
+SELECT CONVERT(1, CHAR) IN ('100', 10, '101');
+CONVERT(1, CHAR) IN ('100', 10, '101')
+0
+SELECT CONVERT(1, CHAR) IN ('100', 10, '1');
+CONVERT(1, CHAR) IN ('100', 10, '1')
+1
+SELECT CONVERT(1, CHAR) IN ('100', '10', '1');
+CONVERT(1, CHAR) IN ('100', '10', '1')
+1
+#
 # End of 10.1 tests
 #
 #

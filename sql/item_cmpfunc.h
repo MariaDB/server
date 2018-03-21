@@ -1383,6 +1383,13 @@ public:
   {
     value_res= item->val_str(&value);
     m_null_value= item->null_value;
+    // Make sure to cache the result String inside "value"
+    if (value_res && value_res != &value)
+    {
+      if (value.copy(*value_res))
+        value.set("", 0, item->collation.collation);
+      value_res= &value;
+    }
   }
   int cmp(Item *arg)
   {

@@ -47,15 +47,14 @@ SET @@session.wsrep_dirty_reads=OFF;
 --error ER_UNKNOWN_COM_ERROR
 SELECT i, variable_name, variable_value FROM t1, information_schema.session_variables WHERE variable_name LIKE "wsrep_dirty_reads" AND i = 1;
 
+--error ER_UNKNOWN_COM_ERROR
 SELECT 1;
 
 --error ER_UNKNOWN_COM_ERROR
 USE information_schema;
 
---error ER_UNKNOWN_COM_ERROR
 SELECT * FROM information_schema.session_variables WHERE variable_name LIKE "wsrep_dirty_reads";
 
---error ER_UNKNOWN_COM_ERROR
 SELECT COUNT(*) >= 10 FROM performance_schema.events_statements_history;
 
 --disable_query_log

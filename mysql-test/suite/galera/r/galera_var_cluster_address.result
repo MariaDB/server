@@ -4,7 +4,8 @@ connection node_2;
 SET GLOBAL wsrep_cluster_address = 'foo://';
 SET SESSION wsrep_sync_wait=0;
 SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS;
-ERROR 08S01: WSREP has not yet prepared node for application use
+COUNT(*) > 0
+1
 SHOW STATUS LIKE 'wsrep_ready';
 Variable_name	Value
 wsrep_ready	OFF

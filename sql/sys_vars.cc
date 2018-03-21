@@ -1,7 +1,7 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2017, MariaDB Corporation.
+   Copyright (c) 2012, 2018, MariaDB Corporation.
 
-   This program is free software; you can redistribute it and/or modify
+     This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; version 2 of the License.
 
@@ -5076,6 +5076,14 @@ static Sys_var_mybool Sys_wsrep_desync (
        &PLock_wsrep_desync, NOT_IN_BINLOG,
        ON_CHECK(wsrep_desync_check),
        ON_UPDATE(wsrep_desync_update));
+
+static const char *wsrep_reject_queries_names[]= { "NONE", "ALL", "ALL_KILL", NullS };
+static Sys_var_enum Sys_wsrep_reject_queries(
+       "wsrep_reject_queries", "Variable to set to reject queries",
+       GLOBAL_VAR(wsrep_reject_queries), CMD_LINE(OPT_ARG),
+       wsrep_reject_queries_names, DEFAULT(WSREP_REJECT_NONE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(wsrep_reject_queries_update));
 
 static const char *wsrep_binlog_format_names[]=
        {"MIXED", "STATEMENT", "ROW", "NONE", NullS};
