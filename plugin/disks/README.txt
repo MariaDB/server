@@ -57,31 +57,16 @@ tables; disks and mounts.
   ...
 
 
-Building
---------
-- Ensure that the directory information_schema_disks is in the top-level
-  directory of the server.
-- Add
-
-  ADD_SUBDIRECTORY(information_schema_disks)
-
-  to the top-level CMakeLists.txt
-
-> Invoke make
-
-  $ make
-
 Installation
 ------------
-- Copy information_schema_disks/libinformation_schema_disks.so to the plugin
-  directory of the server:
 
-  $ cd information_schema_disks
-  $ sudo cp libinformation_schema_disks.so plugin-directory-of-server
+- Use "install plugin" or "install soname" command:
 
-- Using mysql, install the plugin:
+  MariaDB [(none)]> install plugin disks soname 'disks.so';
 
-  MariaDB [(none)]> install plugin disks soname 'libinformation_schema_disks.so';
+  or
+
+  MariaDB [(none)]> install soname 'disks.so';
 
 Usage
 -----
