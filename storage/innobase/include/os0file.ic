@@ -372,9 +372,9 @@ pfs_os_file_read_no_error_handling_int_fd_func(
 			locker, n,
 			__FILE__, __LINE__);
 	}
-	ulint fulfilled;
+
 	bool success = DB_SUCCESS == os_file_read_no_error_handling_func(
-		type, OS_FILE_FROM_FD(file), buf, offset, n, &fulfilled);
+		type, OS_FILE_FROM_FD(file), buf, offset, n, NULL);
 
 	if (locker != NULL) {
 		PSI_FILE_CALL(end_file_wait)(locker, n);
