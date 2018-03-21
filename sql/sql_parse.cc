@@ -913,21 +913,6 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 #endif /* WITH_WSREP */
 #ifndef EMBEDDED_LIBRARY
 
-#ifdef WITH_WSREP
-static bool wsrep_node_is_ready(THD *thd)
-{
-  if (thd->variables.wsrep_on && !thd->wsrep_applier &&
-      (!wsrep_ready || wsrep_reject_queries != WSREP_REJECT_NONE))
-  {
-    my_message(ER_UNKNOWN_COM_ERROR,
-               "WSREP has not yet prepared node for application use",
-               MYF(0));
-    return false;
-  }
-  return true;
-}
-#endif
-
 /**
   Read one command from connection and execute it (query or simple command).
   This function is called in loop from thread function.
