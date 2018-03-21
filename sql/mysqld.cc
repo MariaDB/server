@@ -2322,7 +2322,7 @@ void clean_up(bool print_message)
   my_free(const_cast<char*>(relay_log_index));
 #endif
   free_list(opt_plugin_load_list_ptr);
-  cleanup_proxy_protocol_networks();
+  destroy_proxy_protocol_networks();
 
   /*
     The following lines may never be executed as the main thread may have
@@ -2718,7 +2718,7 @@ static void network_init(void)
   if (MYSQL_CALLBACK_ELSE(thread_scheduler, init, (), 0))
     unireg_abort(1);			/* purecov: inspected */
 
-  if (set_proxy_protocol_networks(my_proxy_protocol_networks))
+  if (init_proxy_protocol_networks(my_proxy_protocol_networks))
     unireg_abort(1);
 
   set_ports();

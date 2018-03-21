@@ -4416,7 +4416,22 @@ static Sys_var_charptr Sys_license(
        READ_ONLY GLOBAL_VAR(license), NO_CMD_LINE, IN_SYSTEM_CHARSET,
        DEFAULT(STRINGIFY_ARG(LICENSE)));
 
+#include <proxy_protocol.h>
 char *my_proxy_protocol_networks;
+static bool check_proxy_protocol_networks(sys_var *, THD *, set_var *var)
+{
+  if (!var->value)
+    return false;
+  return !proxy_protocol_networks_valid(var->save_result.string_value.str);
+}
+
+
+static bool fix_proxy_protocol_networks(sys_var *, THD *, enum_var_type)
+{
+  return (bool)set_proxy_protocol_networks(my_proxy_protocol_networks);
+}
+
+
 static Sys_var_charptr Sys_proxy_protocol_networks(
     "proxy_protocol_networks", "Enable proxy protocol for these source "
     "networks. The syntax is a comma separated list of IPv4 and IPv6 "
@@ -4424,8 +4439,10 @@ static Sys_var_charptr Sys_proxy_protocol_networks(
     "a single host. \"*\" represents all networks and must the only "
     "directive on the line. String \"localhost\" represents non-TCP "
     "local connections (Unix domain socket, Windows named pipe or shared memory).",
-    READ_ONLY GLOBAL_VAR(my_proxy_protocol_networks),
-    CMD_LINE(REQUIRED_ARG), IN_FS_CHARSET, DEFAULT(""));
+    GLOBAL_VAR(my_proxy_protocol_networks), CMD_LINE(REQUIRED_ARG),
+    IN_FS_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+    ON_CHECK(check_proxy_protocol_networks), ON_UPDATE(fix_proxy_protocol_networks));
+
 
 static bool check_log_path(sys_var *self, THD *thd, set_var *var)
 {
