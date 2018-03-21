@@ -45,7 +45,7 @@ typedef struct {
 static ds_ctxt_t *buffer_init(const char *root);
 static ds_file_t *buffer_open(ds_ctxt_t *ctxt, const char *path,
 			      MY_STAT *mystat);
-static int buffer_write(ds_file_t *file, const void *buf, size_t len);
+static int buffer_write(ds_file_t *file, const uchar *buf, size_t len);
 static int buffer_close(ds_file_t *file);
 static void buffer_deinit(ds_ctxt_t *ctxt);
 
@@ -119,7 +119,7 @@ buffer_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
 }
 
 static int
-buffer_write(ds_file_t *file, const void *buf, size_t len)
+buffer_write(ds_file_t *file, const uchar *buf, size_t len)
 {
 	ds_buffer_file_t	*buffer_file;
 

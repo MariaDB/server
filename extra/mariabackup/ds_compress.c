@@ -65,7 +65,7 @@ extern ulonglong	xtrabackup_compress_chunk_size;
 static ds_ctxt_t *compress_init(const char *root);
 static ds_file_t *compress_open(ds_ctxt_t *ctxt, const char *path,
 				MY_STAT *mystat);
-static int compress_write(ds_file_t *file, const void *buf, size_t len);
+static int compress_write(ds_file_t *file, const uchar *buf, size_t len);
 static int compress_close(ds_file_t *file);
 static void compress_deinit(ds_ctxt_t *ctxt);
 
@@ -178,7 +178,7 @@ err:
 
 static
 int
-compress_write(ds_file_t *file, const void *buf, size_t len)
+compress_write(ds_file_t *file, const uchar *buf, size_t len)
 {
 	ds_compress_file_t	*comp_file;
 	ds_compress_ctxt_t	*comp_ctxt;
