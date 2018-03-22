@@ -14,7 +14,7 @@ while ($mysql_errno)
   # Strangely enough, the server might return "Too many connections"
   # while being shutdown, thus 1040 is an "allowed" error
   # See BUG#36228
-  --error 0,1040,1053,1205,2002,2003,2005,2006,2013,1927
+  --error 0,ER_CON_COUNT_ERROR,ER_SERVER_SHUTDOWN,ER_LOCK_WAIT_TIMEOUT,ER_CONNECTION_KILLED,2002,2003,2005,2006,2013
   show status;
 
   dec $counter;
