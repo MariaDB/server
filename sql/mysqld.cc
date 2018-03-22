@@ -4287,11 +4287,20 @@ static int init_common_variables()
 
   /* connections and databases needs lots of files */
   {
-    uint files, wanted_files, max_open_files;
+    uint files, wanted_files, max_open_files, min_tc_size, extra_files,
+      min_connections;
+    ulong org_max_connections, org_tc_size;
 
+    /* Number of files reserved for temporary files */
+    extra_files= 30;
+    min_connections= 10;
     /* MyISAM requires two file handles per table. */
-    wanted_files= (10 + max_connections + extra_max_connections +
+    wanted_files= (extra_files + max_connections + extra_max_connections +
                    tc_size * 2);
+    min_tc_size= MY_MIN(tc_size, TABLE_OPEN_CACHE_MIN);
+    org_max_connections= max_connections;
+    org_tc_size= tc_size;
+
     /*
       We are trying to allocate no less than max_connections*5 file
       handles (i.e. we are trying to set the limit so that they will
@@ -4303,41 +4312,52 @@ static int init_common_variables()
       requested (value of wanted_files).
     */
     max_open_files= MY_MAX(MY_MAX(wanted_files,
-                            (max_connections + extra_max_connections)*5),
-                        open_files_limit);
+                                  (max_connections + extra_max_connections)*5),
+                           open_files_limit);
     files= my_set_max_open_files(max_open_files);
+    SYSVAR_AUTOSIZE_IF_CHANGED(open_files_limit, files, ulong);
 
-    if (files < wanted_files)
-    {
-      if (!open_files_limit)
-      {
-        /*
-          If we have requested too much file handles than we bring
-          max_connections in supported bounds.
-        */
-        SYSVAR_AUTOSIZE(max_connections,
-           (ulong) MY_MIN(files-10-TABLE_OPEN_CACHE_MIN*2, max_connections));
-        /*
-          Decrease tc_size according to max_connections, but
-          not below TABLE_OPEN_CACHE_MIN.  Outer MY_MIN() ensures that we
-          never increase tc_size automatically (that could
-          happen if max_connections is decreased above).
-        */
-        SYSVAR_AUTOSIZE(tc_size, 
-                        (ulong) MY_MIN(MY_MAX((files - 10 - max_connections) / 2,
-                                              TABLE_OPEN_CACHE_MIN), tc_size));
-	DBUG_PRINT("warning",
-		   ("Changed limits: max_open_files: %u  max_connections: %ld  table_cache: %ld",
-		    files, max_connections, tc_size));
-	if (global_system_variables.log_warnings > 1)
-	  sql_print_warning("Changed limits: max_open_files: %u  max_connections: %ld  table_cache: %ld",
-			files, max_connections, tc_size);
-      }
-      else if (global_system_variables.log_warnings)
-	sql_print_warning("Could not increase number of max_open_files to more than %u (request: %u)", files, wanted_files);
-    }
-    SYSVAR_AUTOSIZE(open_files_limit, files);
+    if (files < wanted_files && global_system_variables.log_warnings)
+      sql_print_warning("Could not increase number of max_open_files to more than %u (request: %u)", files, wanted_files);
+
+    /*
+      If we have requested too much file handles than we bring
+      max_connections in supported bounds. Still leave at least
+      'min_connections' connections
+    */
+    SYSVAR_AUTOSIZE_IF_CHANGED(max_connections,
+                               (ulong) MY_MAX(MY_MIN(files- extra_files-
+                                                     min_tc_size*2,
+                                                     max_connections),
+                                              min_connections),
+                               ulong);
+
+    /*
+      Decrease tc_size according to max_connections, but
+      not below min_tc_size.  Outer MY_MIN() ensures that we
+      never increase tc_size automatically (that could
+      happen if max_connections is decreased above).
+    */
+    SYSVAR_AUTOSIZE_IF_CHANGED(tc_size,
+                               (ulong) MY_MIN(MY_MAX((files - extra_files -
+                                                      max_connections) / 2,
+                                                     min_tc_size),
+                                              tc_size), ulong);
+    DBUG_PRINT("warning",
+               ("Current limits: max_open_files: %u  max_connections: %ld  table_cache: %ld",
+                files, max_connections, tc_size));
+    if (global_system_variables.log_warnings > 1 &&
+        (max_connections < org_max_connections ||
+         tc_size < org_tc_size))
+      sql_print_warning("Changed limits: max_open_files: %u  max_connections: %lu (was %lu)  table_cache: %lu (was %lu)",
+			files, max_connections, org_max_connections,
+                        tc_size, org_tc_size);
   }
+  /*
+    Max_connections and tc_cache are now set.
+    Now we can fix other variables depending on this variable.
+  */
+
   unireg_init(opt_specialflag); /* Set up extern variabels */
   if (!(my_default_lc_messages=
         my_locale_by_name(lc_messages)))

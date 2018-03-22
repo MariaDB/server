@@ -9408,7 +9408,7 @@ DELIMITER ;|
 set @tmp_toc= @@table_open_cache;
 set @tmp_tdc= @@table_definition_cache;
 
-set global table_open_cache=1;
+set global table_open_cache=10;
 set global table_definition_cache=1;
 call p1();
 

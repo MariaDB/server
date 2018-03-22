@@ -7946,7 +7946,7 @@ CLOSE cur1;
 end|
 set @tmp_toc= @@table_open_cache;
 set @tmp_tdc= @@table_definition_cache;
-set global table_open_cache=1;
+set global table_open_cache=10;
 set global table_definition_cache=1;
 Warnings:
 Warning	1292	Truncated incorrect table_definition_cache value: '1'

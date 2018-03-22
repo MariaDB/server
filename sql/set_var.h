@@ -394,6 +394,16 @@ int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free);
     set_sys_var_value_origin(&VAR, sys_var::AUTO);      \
   } while(0)
 
+#define SYSVAR_AUTOSIZE_IF_CHANGED(VAR,VAL,TYPE)        \
+  do {                                                  \
+    TYPE tmp= (VAL);                                    \
+    if (VAR != tmp)                                     \
+    {                                                   \
+      VAR= (VAL);                                       \
+      set_sys_var_value_origin(&VAR, sys_var::AUTO);    \
+    }                                                   \
+  } while(0)
+
 void set_sys_var_value_origin(void *ptr, enum sys_var::where here);
 
 enum sys_var::where get_sys_var_value_origin(void *ptr);

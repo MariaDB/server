@@ -1216,9 +1216,9 @@ DROP TABLE t1;
 --echo #
 --echo # BUG#48438 - crash with error in unioned query against merge table and view...
 --echo #
-SET GLOBAL table_open_cache=3;
+SET GLOBAL table_open_cache=10;
 CREATE TABLE t1(a INT);
-SELECT 1 FROM t1 AS a1, t1 AS a2, t1 AS a3, t1 AS a4 FOR UPDATE;
+SELECT 1 FROM t1 AS a1, t1 AS a2, t1 AS a3, t1 AS a4, t1 AS a5, t1 AS a6, t1 AS a7, t1 AS a8, t1 AS a9, t1 AS a10, t1 AS a11 FOR UPDATE;
 SELECT TABLE_ROWS, DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES
   WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
 DROP TABLE t1;

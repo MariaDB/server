@@ -147,7 +147,7 @@ drop table t1;
 CREATE USER mysqltest_u1@localhost;
 GRANT USAGE ON *.* TO mysqltest_u1@localhost;
 
-SET GLOBAL max_connections = 3;
+SET GLOBAL max_connections = 10;
 SET GLOBAL event_scheduler = ON;
 
 # -- Waiting for Event Scheduler to start...
@@ -188,6 +188,13 @@ SET GLOBAL event_scheduler = ON;
 SELECT user FROM information_schema.processlist ORDER BY id;
 user
 event_scheduler
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
+mysqltest_u1
 mysqltest_u1
 mysqltest_u1
 mysqltest_u1

@@ -1438,9 +1438,9 @@ sync-master-info 10000
 sync-relay-log 10000
 sync-relay-log-info 10000
 sysdate-is-now FALSE
-table-cache 431
+table-cache 421
 table-definition-cache 400
-table-open-cache 431
+table-open-cache 421
 tc-heuristic-recover OFF
 thread-cache-size 0
 thread-pool-idle-timeout 60
