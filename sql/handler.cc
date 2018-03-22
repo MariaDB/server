@@ -5822,9 +5822,9 @@ static inline int binlog_log_row(TABLE* table,
                                  const uchar *after_record,
                                  Log_func *log_func)
 {
+#ifdef WITH_WSREP
   THD *const thd= table->in_use;
 
-#ifdef WITH_WSREP
   /* only InnoDB tables will be replicated through binlog emulation */
   if ((WSREP_EMULATE_BINLOG(thd) &&
        table->file->partition_ht()->db_type != DB_TYPE_INNODB) ||
