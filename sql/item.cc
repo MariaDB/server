@@ -9707,7 +9707,6 @@ Item_cache_temporal::Item_cache_temporal(THD *thd,
 longlong Item_cache_temporal::val_datetime_packed()
 {
   DBUG_ASSERT(fixed == 1);
-  DBUG_ASSERT(Item_cache_temporal::field_type() != MYSQL_TYPE_TIME);
   if ((!value_cached && !cache_value()) || null_value)
   {
     null_value= TRUE;
