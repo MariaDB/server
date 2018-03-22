@@ -1505,14 +1505,12 @@ srv_undo_tablespaces_init(
 
 		if (backup_mode) {
 			ut_ad(!create_new_db);
-			/* MDEV-13561 FIXME: Determine srv_undo_space_id_start
-			from the undo001 file. */
-			srv_undo_space_id_start = 1;
-
 			for (i = 0; i < n_undo_tablespaces; i++) {
 				undo_tablespace_ids[i]
 					= i + srv_undo_space_id_start;
 			}
+
+			prev_space_id = srv_undo_space_id_start - 1;
 		}
 	}
 
