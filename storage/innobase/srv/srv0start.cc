@@ -2839,7 +2839,8 @@ srv_shutdown_bg_undo_sources()
 void
 innodb_shutdown()
 {
-	ut_ad(!my_atomic_loadptr_explicit(&srv_running,
+	ut_ad(!my_atomic_loadptr_explicit(reinterpret_cast<void**>
+					  (&srv_running),
 					  MY_MEMORY_ORDER_RELAXED));
 	ut_ad(!srv_undo_sources);
 

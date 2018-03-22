@@ -527,7 +527,8 @@ struct TTASEventMutex {
 	int32 state() const
 		UNIV_NOTHROW
 	{
-		return(my_atomic_load32_explicit(&m_lock_word,
+		return(my_atomic_load32_explicit(const_cast<int32*>
+						 (&m_lock_word),
 						 MY_MEMORY_ORDER_RELAXED));
 	}
 
