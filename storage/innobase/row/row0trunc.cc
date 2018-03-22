@@ -2177,23 +2177,22 @@ truncate_t::fixup_tables_in_non_system_tablespace()
 			"residing in file-per-table tablespace with "
 			"id (" << (*it)->m_space_id << ")";
 
-		if (!fil_space_get((*it)->m_space_id)) {
+		fil_space_t* space = fil_space_get((*it)->m_space_id);
 
+		if (!space) {
 			/* Create the database directory for name,
 			if it does not exist yet */
 			fil_create_directory_for_tablename(
 				(*it)->m_tablename);
 
-			err = fil_ibd_create(
-				(*it)->m_space_id,
-				(*it)->m_tablename,
-				(*it)->m_dir_path,
-				(*it)->m_tablespace_flags,
-				FIL_IBD_FILE_INITIAL_SIZE,
-				(*it)->m_encryption,
-				(*it)->m_key_id);
-
-			if (err != DB_SUCCESS) {
+			space = fil_ibd_create((*it)->m_space_id,
+					       (*it)->m_tablename,
+					       (*it)->m_dir_path,
+					       (*it)->m_tablespace_flags,
+					       FIL_IBD_FILE_INITIAL_SIZE,
+					       (*it)->m_encryption,
+					       (*it)->m_key_id, &err);
+			if (!space) {
 				/* If checkpoint is not yet done
 				and table is dropped and then we might
 				still have REDO entries for this table
@@ -2206,8 +2205,6 @@ truncate_t::fixup_tables_in_non_system_tablespace()
 				break;
 			}
 		}
-
-		ut_ad(fil_space_get((*it)->m_space_id));
 
 		err = fil_recreate_tablespace(
 			(*it)->m_space_id,

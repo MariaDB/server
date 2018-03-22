@@ -1081,8 +1081,10 @@ fil_make_filepath(
 must be >= FIL_IBD_FILE_INITIAL_SIZE
 @param[in]	mode		MariaDB encryption mode
 @param[in]	key_id		MariaDB encryption key_id
-@return DB_SUCCESS or error code */
-dberr_t
+@param[out]	err		DB_SUCCESS or error code
+@return	the created tablespace
+@retval	NULL	on error */
+fil_space_t*
 fil_ibd_create(
 	ulint		space_id,
 	const char*	name,
@@ -1090,8 +1092,9 @@ fil_ibd_create(
 	ulint		flags,
 	ulint		size,
 	fil_encryption_t mode,
-	uint32_t	key_id)
-	MY_ATTRIBUTE((nonnull(2), warn_unused_result));
+	uint32_t	key_id,
+	dberr_t*	err)
+	MY_ATTRIBUTE((nonnull(2,8), warn_unused_result));
 
 /** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.
 (Typically when upgrading from MariaDB 10.1.0..10.1.20.)

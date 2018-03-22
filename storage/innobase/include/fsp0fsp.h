@@ -381,11 +381,11 @@ fsp_header_init_fields(
 	ulint	flags);		/*!< in: tablespace flags (FSP_SPACE_FLAGS):
 				0, or table->flags if newer than COMPACT */
 /** Initialize a tablespace header.
-@param[in]	space_id	space id
-@param[in]	size		current size in blocks
-@param[in,out]	mtr		mini-transaction */
-void
-fsp_header_init(ulint space_id, ulint size, mtr_t* mtr);
+@param[in,out]	space	tablespace
+@param[in]	size	current size in blocks
+@param[in,out]	mtr	mini-transaction */
+void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
+	MY_ATTRIBUTE((nonnull));
 
 /**********************************************************************//**
 Creates a new segment.

@@ -402,21 +402,23 @@ dict_build_table_def_step(
 		- page 3 will contain the root of the clustered index of
 		the table we create here. */
 
-		dberr_t err = fil_ibd_create(
+		dberr_t err;
+		fil_space_t* space = fil_ibd_create(
 			space_id, table->name.m_name, filepath, fsp_flags,
 			FIL_IBD_FILE_INITIAL_SIZE,
-			node->mode, node->key_id);
+			node->mode, node->key_id, &err);
 
 		ut_free(filepath);
 
-		if (err != DB_SUCCESS) {
-			return(err);
+		if (!space) {
+			ut_ad(err != DB_SUCCESS);
+			return err;
 		}
 
 		mtr_t mtr;
 		mtr.start();
-		mtr.set_named_space(table->space);
-		fsp_header_init(table->space, FIL_IBD_FILE_INITIAL_SIZE, &mtr);
+		mtr.set_named_space(space);
+		fsp_header_init(space, FIL_IBD_FILE_INITIAL_SIZE, &mtr);
 		mtr.commit();
 	} else {
 		ut_ad(dict_tf_get_rec_format(table->flags)

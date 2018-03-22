@@ -720,24 +720,16 @@ fsp_header_init_fields(
 }
 
 /** Initialize a tablespace header.
-@param[in]	space_id	space id
-@param[in]	size		current size in blocks
-@param[in,out]	mtr		mini-transaction */
-void
-fsp_header_init(ulint space_id, ulint size, mtr_t* mtr)
+@param[in,out]	space	tablespace
+@param[in]	size	current size in blocks
+@param[in,out]	mtr	mini-transaction */
+void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
 {
-	fsp_header_t*	header;
-	buf_block_t*	block;
-	page_t*		page;
-
-	ut_ad(mtr);
-
-	fil_space_t*		space	= mtr_x_lock_space(space_id, mtr);
-
-	const page_id_t		page_id(space_id, 0);
+	const page_id_t		page_id(space->id, 0);
 	const page_size_t	page_size(space->flags);
 
-	block = buf_page_create(page_id, page_size, mtr);
+	mtr_x_lock(&space->latch, mtr);
+	buf_block_t* block = buf_page_create(page_id, page_size, mtr);
 	buf_page_get(page_id, page_size, RW_SX_LATCH, mtr);
 	buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 
@@ -748,40 +740,41 @@ fsp_header_init(ulint space_id, ulint size, mtr_t* mtr)
 	/* The prior contents of the file page should be ignored */
 
 	fsp_init_file_page(space, block, mtr);
-	page = buf_block_get_frame(block);
 
-	mlog_write_ulint(page + FIL_PAGE_TYPE, FIL_PAGE_TYPE_FSP_HDR,
+	mlog_write_ulint(block->frame + FIL_PAGE_TYPE, FIL_PAGE_TYPE_FSP_HDR,
 			 MLOG_2BYTES, mtr);
 
-	header = FSP_HEADER_OFFSET + page;
-
-	mlog_write_ulint(header + FSP_SPACE_ID, space_id, MLOG_4BYTES, mtr);
-	mlog_write_ulint(header + FSP_NOT_USED, 0, MLOG_4BYTES, mtr);
-
-	mlog_write_ulint(header + FSP_SIZE, size, MLOG_4BYTES, mtr);
-	mlog_write_ulint(header + FSP_FREE_LIMIT, 0, MLOG_4BYTES, mtr);
-	mlog_write_ulint(header + FSP_SPACE_FLAGS,
+	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_SPACE_ID + block->frame,
+			 space->id, MLOG_4BYTES, mtr);
+	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_NOT_USED + block->frame, 0,
+			 MLOG_4BYTES, mtr);
+	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_SIZE + block->frame, size,
+			 MLOG_4BYTES, mtr);
+	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_FREE_LIMIT + block->frame, 0,
+			 MLOG_4BYTES, mtr);
+	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + block->frame,
 			 space->flags & ~FSP_FLAGS_MEM_MASK,
 			 MLOG_4BYTES, mtr);
-	mlog_write_ulint(header + FSP_FRAG_N_USED, 0, MLOG_4BYTES, mtr);
+	mlog_write_ulint(FSP_HEADER_OFFSET + FSP_FRAG_N_USED + block->frame, 0,
+			 MLOG_4BYTES, mtr);
 
-	flst_init(header + FSP_FREE, mtr);
-	flst_init(header + FSP_FREE_FRAG, mtr);
-	flst_init(header + FSP_FULL_FRAG, mtr);
-	flst_init(header + FSP_SEG_INODES_FULL, mtr);
-	flst_init(header + FSP_SEG_INODES_FREE, mtr);
+	flst_init(FSP_HEADER_OFFSET + FSP_FREE + block->frame, mtr);
+	flst_init(FSP_HEADER_OFFSET + FSP_FREE_FRAG + block->frame, mtr);
+	flst_init(FSP_HEADER_OFFSET + FSP_FULL_FRAG + block->frame, mtr);
+	flst_init(FSP_HEADER_OFFSET + FSP_SEG_INODES_FULL + block->frame, mtr);
+	flst_init(FSP_HEADER_OFFSET + FSP_SEG_INODES_FREE + block->frame, mtr);
 
-	mlog_write_ull(header + FSP_SEG_ID, 1, mtr);
+	mlog_write_ull(FSP_HEADER_OFFSET + FSP_SEG_ID + block->frame, 1, mtr);
 
-	fsp_fill_free_list(!is_system_tablespace(space_id),
-			   space, header, mtr);
+	fsp_fill_free_list(!is_system_tablespace(space->id),
+			   space, FSP_HEADER_OFFSET + block->frame, mtr);
 
 	/* Write encryption metadata to page 0 if tablespace is
 	encrypted or encryption is disabled by table option. */
 	if (space->crypt_data &&
 	    (space->crypt_data->should_encrypt() ||
 	     space->crypt_data->not_encrypted())) {
-		space->crypt_data->write_page0(space, page, mtr);
+		space->crypt_data->write_page0(space, block->frame, mtr);
 	}
 }
 

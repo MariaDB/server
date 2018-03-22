@@ -1695,15 +1695,15 @@ trx_undo_truncate_tablespace(
 	undo::Truncate*	undo_trunc)
 
 {
-	bool	success = true;
-	ulint	space_id = undo_trunc->get_marked_space_id();
+	fil_space_t* space = fil_space_acquire(
+		undo_trunc->get_marked_space_id());
+	if (!space) return false;
 
 	/* Step-1: Truncate tablespace. */
-	success = fil_truncate_tablespace(
-		space_id, SRV_UNDO_TABLESPACE_SIZE_IN_PAGES);
-
-	if (!success) {
-		return(success);
+	if (!fil_truncate_tablespace(
+		    space->id, SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)) {
+		fil_space_release(space);
+		return false;
 	}
 
 	/* Step-2: Re-initialize tablespace header.
@@ -1712,14 +1712,14 @@ trx_undo_truncate_tablespace(
 	mtr_t		mtr;
 	mtr_start(&mtr);
 	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-	fsp_header_init(space_id, SRV_UNDO_TABLESPACE_SIZE_IN_PAGES, &mtr);
+	fsp_header_init(space, SRV_UNDO_TABLESPACE_SIZE_IN_PAGES, &mtr);
 	mtr_commit(&mtr);
 
 	/* Step-3: Re-initialize rollback segment header that resides
 	in truncated tablespaced. */
 	mtr_start(&mtr);
 	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-	mtr_x_lock(fil_space_get_latch(space_id, NULL), &mtr);
+	mtr_x_lock(&space->latch, &mtr);
 	buf_block_t* sys_header = trx_sysf_get(&mtr);
 
 	for (ulint i = 0; i < undo_trunc->rsegs_size(); ++i) {
@@ -1728,9 +1728,10 @@ trx_undo_truncate_tablespace(
 		trx_rseg_t*	rseg = undo_trunc->get_ith_rseg(i);
 
 		rseg->page_no = trx_rseg_header_create(
-			space_id, rseg->id, sys_header, &mtr);
+			space->id, rseg->id, sys_header, &mtr);
 
-		rseg_header = trx_rsegf_get_new(space_id, rseg->page_no, &mtr);
+		rseg_header = trx_rsegf_get_new(space->id, rseg->page_no,
+						&mtr);
 
 		/* Before re-initialization ensure that we free the existing
 		structure. There can't be any active transactions. */
@@ -1765,6 +1766,7 @@ trx_undo_truncate_tablespace(
 		rseg->needs_purge = false;
 	}
 	mtr_commit(&mtr);
+	fil_space_release(space);
 
-	return(success);
+	return true;
 }

@@ -1039,17 +1039,13 @@ srv_undo_tablespaces_init(bool create_new_db)
 	if (create_new_db) {
 		mtr_t	mtr;
 
-		mtr_start(&mtr);
-
-		/* The undo log tablespace */
 		for (i = 0; i < n_undo_tablespaces; ++i) {
-
-			fsp_header_init(
-				undo_tablespace_ids[i],
-				SRV_UNDO_TABLESPACE_SIZE_IN_PAGES, &mtr);
+			mtr.start();
+			fsp_header_init(fil_space_get(undo_tablespace_ids[i]),
+					SRV_UNDO_TABLESPACE_SIZE_IN_PAGES,
+					&mtr);
+			mtr.commit();
 		}
-
-		mtr_commit(&mtr);
 	}
 
 	if (!undo::Truncate::s_fix_up_spaces.empty()) {
@@ -1077,10 +1073,9 @@ srv_undo_tablespaces_init(bool create_new_db)
 
 			undo::Truncate::add_space_to_trunc_list(*it);
 
-			fsp_header_init(
-				*it, SRV_UNDO_TABLESPACE_SIZE_IN_PAGES, &mtr);
-
-			mtr_x_lock(fil_space_get_latch(*it, NULL), &mtr);
+			fsp_header_init(fil_space_get(*it),
+					SRV_UNDO_TABLESPACE_SIZE_IN_PAGES,
+					&mtr);
 
 			for (ulint i = 0; i < TRX_SYS_N_RSEGS; i++) {
 				if (trx_sysf_rseg_get_space(sys_header, i)
@@ -1187,7 +1182,7 @@ srv_open_tmp_tablespace(bool create_new_db)
 		mtr_t mtr;
 		mtr.start();
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
-		fsp_header_init(SRV_TMP_SPACE_ID,
+		fsp_header_init(fil_system.temp_space,
 				srv_tmp_space.get_sum_of_sizes(),
 				&mtr);
 		mtr.commit();
@@ -2129,11 +2124,10 @@ files_checked:
 		ut_a(!srv_read_only_mode);
 
 		mtr_start(&mtr);
-
-		fsp_header_init(0, sum_of_new_sizes, &mtr);
-
+		ut_ad(fil_system.sys_space->id == 0);
 		compile_time_assert(TRX_SYS_SPACE == 0);
 		compile_time_assert(IBUF_SPACE_ID == 0);
+		fsp_header_init(fil_system.sys_space, sum_of_new_sizes, &mtr);
 
 		ulint ibuf_root = btr_create(
 			DICT_CLUSTERED | DICT_IBUF,
