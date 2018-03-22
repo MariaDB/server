@@ -1471,16 +1471,16 @@ btr_free(
 ib_uint64_t
 btr_read_autoinc(dict_index_t* index)
 {
-	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->is_primary());
 	ut_ad(index->table->persistent_autoinc);
-	ut_ad(!dict_table_is_temporary(index->table));
+	ut_ad(!index->table->is_temporary());
 
-	if (fil_space_t* space = fil_space_acquire(index->space)) {
+	if (fil_space_t* space = fil_space_acquire(index->table->space)) {
 		mtr_t		mtr;
 		mtr.start();
 		ib_uint64_t	autoinc;
 		if (buf_block_t* block = buf_page_get(
-			    page_id_t(index->space, index->page),
+			    page_id_t(space->id, index->page),
 			    page_size_t(space->flags),
 			    RW_S_LATCH, &mtr)) {
 			autoinc = page_get_autoinc(block->frame);
@@ -1510,11 +1510,11 @@ btr_read_autoinc_with_fallback(const dict_table_t* table, unsigned col_no)
 	dict_index_t*	index = dict_table_get_first_index(table);
 
 	if (index == NULL) {
-	} else if (fil_space_t* space = fil_space_acquire(index->space)) {
+	} else if (fil_space_t* space = fil_space_acquire(table->space)) {
 		mtr_t		mtr;
 		mtr.start();
 		buf_block_t*	block = buf_page_get(
-			page_id_t(index->space, index->page),
+			page_id_t(space->id, index->page),
 			page_size_t(space->flags),
 			RW_S_LATCH, &mtr);
 
@@ -1537,7 +1537,7 @@ btr_read_autoinc_with_fallback(const dict_table_t* table, unsigned col_no)
 				index = dict_table_get_next_index(index);
 			}
 
-			if (index != NULL && index->space == space->id) {
+			if (index) {
 				autoinc = row_search_max_autoinc(index);
 			}
 		}
@@ -1557,16 +1557,16 @@ btr_read_autoinc_with_fallback(const dict_table_t* table, unsigned col_no)
 void
 btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
 {
-	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->is_primary());
 	ut_ad(index->table->persistent_autoinc);
-	ut_ad(!dict_table_is_temporary(index->table));
+	ut_ad(!index->table->is_temporary());
 
-	if (fil_space_t* space = fil_space_acquire(index->space)) {
+	if (fil_space_t* space = fil_space_acquire(index->table->space)) {
 		mtr_t		mtr;
 		mtr.start();
 		mtr.set_named_space(space);
 		page_set_autoinc(buf_page_get(
-					 page_id_t(index->space, index->page),
+					 page_id_t(space->id, index->page),
 					 page_size_t(space->flags),
 					 RW_SX_LATCH, &mtr),
 				 index, autoinc, &mtr, reset);
@@ -4984,7 +4984,7 @@ btr_validate_level(
 	}
 #endif
 
-	fil_space_t*		space	= fil_space_get(index->space);
+	fil_space_t*		space	= fil_space_get(index->table->space);
 	const page_size_t	table_page_size(
 		dict_table_page_size(index->table));
 	const page_size_t	space_page_size(space->flags);
@@ -5011,8 +5011,8 @@ btr_validate_level(
 			ret = false;
 		}
 
-		ut_a(index->space == block->page.id.space());
-		ut_a(index->space == page_get_space_id(page));
+		ut_a(index->table->space == block->page.id.space());
+		ut_a(block->page.id.space() == page_get_space_id(page));
 #ifdef UNIV_ZIP_DEBUG
 		page_zip = buf_block_get_page_zip(block);
 		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
@@ -5041,7 +5041,7 @@ btr_validate_level(
 
 			while (left_page_no != FIL_NULL) {
 				page_id_t	left_page_id(
-					index->space, left_page_no);
+					index->table->space, left_page_no);
 				/* To obey latch order of tree blocks,
 				we should release the right_block once to
 				obtain lock of the uncle block. */
@@ -5078,7 +5078,7 @@ loop:
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-	ut_a(block->page.id.space() == index->space);
+	ut_a(block->page.id.space() == index->table->space);
 
 	if (fseg_page_is_free(space, block->page.id.page_no())) {
 
@@ -5121,7 +5121,7 @@ loop:
 		savepoint = mtr_set_savepoint(&mtr);
 
 		right_block = btr_block_get(
-			page_id_t(index->space, right_page_no),
+			page_id_t(index->table->space, right_page_no),
 			table_page_size,
 			RW_SX_LATCH, index, &mtr);
 
@@ -5298,13 +5298,13 @@ loop:
 					&mtr, savepoint, right_block);
 
 				btr_block_get(
-					page_id_t(index->space,
+					page_id_t(index->table->space,
 						  parent_right_page_no),
 					table_page_size,
 					RW_SX_LATCH, index, &mtr);
 
 				right_block = btr_block_get(
-					page_id_t(index->space,
+					page_id_t(index->table->space,
 						  right_page_no),
 					table_page_size,
 					RW_SX_LATCH, index, &mtr);
@@ -5382,14 +5382,14 @@ node_ptr_fails:
 				if (parent_right_page_no != FIL_NULL) {
 					btr_block_get(
 						page_id_t(
-							index->space,
+							index->table->space,
 							parent_right_page_no),
 						table_page_size,
 						RW_SX_LATCH, index, &mtr);
 				}
 			} else if (parent_page_no != FIL_NULL) {
 				btr_block_get(
-					page_id_t(index->space,
+					page_id_t(index->table->space,
 						  parent_page_no),
 					table_page_size,
 					RW_SX_LATCH, index, &mtr);
@@ -5397,7 +5397,7 @@ node_ptr_fails:
 		}
 
 		block = btr_block_get(
-			page_id_t(index->space, right_page_no),
+			page_id_t(index->table->space, right_page_no),
 			table_page_size,
 			RW_SX_LATCH, index, &mtr);
 

@@ -1709,8 +1709,7 @@ page_zip_fields_decode(
 
 	table = dict_mem_table_create("ZIP_DUMMY", DICT_HDR_SPACE, n, 0,
 				      DICT_TF_COMPACT, 0);
-	index = dict_mem_index_create("ZIP_DUMMY", "ZIP_DUMMY",
-				      DICT_HDR_SPACE, 0, n);
+	index = dict_mem_index_create("ZIP_DUMMY", "ZIP_DUMMY", 0, n);
 	index->table = table;
 	index->n_uniq = unsigned(n);
 	/* avoid ut_ad(index->cached) in dict_index_get_n_unique_in_tree */

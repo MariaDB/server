@@ -723,9 +723,6 @@ dict_mem_index_create(
 /*==================*/
 	const char*	table_name,	/*!< in: table name */
 	const char*	index_name,	/*!< in: index name */
-	ulint		space,		/*!< in: space where the index tree is
-					placed, ignored if the index is of
-					the clustered type */
 	ulint		type,		/*!< in: DICT_UNIQUE,
 					DICT_CLUSTERED, ... ORed */
 	ulint		n_fields)	/*!< in: number of fields */
@@ -741,7 +738,7 @@ dict_mem_index_create(
 		mem_heap_zalloc(heap, sizeof(*index)));
 
 	dict_mem_fill_index_struct(index, heap, table_name, index_name,
-				   space, type, n_fields);
+				   type, n_fields);
 
 	dict_index_zip_pad_mutex_create_lazy(index);
 

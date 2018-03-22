@@ -4469,7 +4469,7 @@ row_merge_create_index(
 	a lower level the space id where to store the table. */
 
 	index = dict_mem_index_create(table->name.m_name, index_def->name,
-				      0, index_def->ind_type, n_fields);
+				      index_def->ind_type, n_fields);
 
 	index->table = table;
 	index->set_committed(index_def->rebuild);
@@ -4556,12 +4556,12 @@ row_merge_write_redo(
 	mtr_t	mtr;
 	byte*	log_ptr;
 
-	ut_ad(!dict_table_is_temporary(index->table));
+	ut_ad(!index->table->is_temporary());
 	mtr.start();
 	log_ptr = mlog_open(&mtr, 11 + 8);
 	log_ptr = mlog_write_initial_log_record_low(
 		MLOG_INDEX_LOAD,
-		index->space, index->page, log_ptr, &mtr);
+		index->table->space, index->page, log_ptr, &mtr);
 	mach_write_to_8(log_ptr, index->id);
 	mlog_close(&mtr, log_ptr + 8);
 	mtr.commit();

@@ -1974,7 +1974,7 @@ pars_create_index(
 		ind_type = ind_type | DICT_CLUSTERED;
 	}
 
-	index = dict_mem_index_create(table_sym->name, index_sym->name, 0,
+	index = dict_mem_index_create(table_sym->name, index_sym->name,
 				      ind_type, n_fields);
 	column = column_list;
 

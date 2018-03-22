@@ -2797,7 +2797,7 @@ row_ins_sec_mtr_start_and_check_if_aborted(
 	ulint		search_mode)
 {
 	ut_ad(!dict_index_is_clust(index));
-	ut_ad(mtr->is_named_space(index->space));
+	ut_ad(mtr->is_named_space(index->table->space));
 
 	const mtr_log_t	log_mode = mtr->get_log_mode();
 
@@ -3309,7 +3309,7 @@ row_ins_sec_index_entry(
 	if (err == DB_FAIL) {
 		mem_heap_empty(heap);
 
-		if (index->space == IBUF_SPACE_ID
+		if (index->table->space == IBUF_SPACE_ID
 		    && !(index->type & (DICT_UNIQUE | DICT_SPATIAL))) {
 			ibuf_free_excess_pages();
 		}

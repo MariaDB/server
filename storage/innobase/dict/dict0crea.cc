@@ -539,7 +539,7 @@ dict_create_sys_indexes_tuple(
 		entry, DICT_COL__SYS_INDEXES__SPACE);
 
 	ptr = static_cast<byte*>(mem_heap_alloc(heap, 4));
-	mach_write_to_4(ptr, index->space);
+	mach_write_to_4(ptr, table->space);
 
 	dfield_set_data(dfield, ptr, 4);
 
@@ -728,7 +728,6 @@ dict_build_index_def_step(
 	/* Inherit the space id from the table; we store all indexes of a
 	table in the same tablespace */
 
-	index->space = table->space;
 	node->page_no = FIL_NULL;
 	row = dict_create_sys_indexes_tuple(index, node->heap);
 	node->ind_row = row;
@@ -764,11 +763,6 @@ dict_build_index_def(
 	      || dict_index_is_clust(index));
 
 	dict_hdr_get_new_id(NULL, &index->id, NULL, table, false);
-
-	/* Inherit the space id from the table; we store all indexes of a
-	table in the same tablespace */
-
-	index->space = table->space;
 
 	/* Note that the index was created by this transaction. */
 	index->trx_id = trx->id;
@@ -841,7 +835,7 @@ dict_create_index_tree_step(
 		index->set_modified(mtr);
 
 		node->page_no = btr_create(
-			index->type, index->space,
+			index->type, index->table->space,
 			dict_table_page_size(index->table),
 			index->id, index, NULL, &mtr);
 
@@ -896,7 +890,7 @@ dict_create_index_tree_in_mem(
 	ut_ad(!dict_table_is_discarded(index->table));
 
 	page_no = btr_create(
-		index->type, index->space,
+		index->type, index->table->space,
 		dict_table_page_size(index->table),
 		index->id, index, NULL, &mtr);
 
@@ -995,7 +989,7 @@ dict_drop_index_tree_in_mem(
 	ut_ad(dict_table_is_temporary(index->table));
 
 	ulint			root_page_no = page_no;
-	ulint			space = index->space;
+	ulint			space = index->table->space;
 	bool			found;
 	const page_size_t	page_size(fil_space_get_page_size(space,
 								  &found));
@@ -1107,7 +1101,7 @@ dict_truncate_index_tree_in_mem(
 {
 	mtr_t		mtr;
 	bool		truncate;
-	ulint		space = index->space;
+	ulint		space = index->table->space;
 
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(dict_table_is_temporary(index->table));

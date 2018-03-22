@@ -1318,8 +1318,6 @@ row_import::set_root_by_name() UNIV_NOTHROW
 		/* We've already checked that it exists. */
 		ut_a(index != 0);
 
-		/* Set the root page number and space id. */
-		index->space = m_table->space;
 		index->page = cfg_index->m_page_no;
 	}
 }
@@ -1379,7 +1377,6 @@ row_import::set_root_by_heuristic() UNIV_NOTHROW
 
 			cfg_index[i].m_srv_index = index;
 
-			index->space = m_table->space;
 			index->page = cfg_index[i].m_page_no;
 
 			++i;
@@ -2054,7 +2051,6 @@ row_import_discard_changes(
 		index = UT_LIST_GET_NEXT(indexes, index)) {
 
 		index->page = FIL_NULL;
-		index->space = FIL_NULL;
 	}
 
 	table->file_unreadable = true;
@@ -2156,7 +2152,6 @@ row_import_adjust_root_pages_of_secondary_indexes(
 		ut_a(!dict_index_is_clust(index));
 
 		if (!(index->type & DICT_CORRUPT)
-		    && index->space != FIL_NULL
 		    && index->page != FIL_NULL) {
 
 			/* Update the Btree segment headers for index node and
@@ -3129,7 +3124,7 @@ row_import_update_index_root(
 
 		mach_write_to_4(
 			reinterpret_cast<byte*>(&space),
-			reset ? FIL_NULL : index->space);
+			reset ? FIL_NULL : index->table->space);
 
 		mach_write_to_8(
 			reinterpret_cast<byte*>(&index_id),

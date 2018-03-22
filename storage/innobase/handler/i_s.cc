@@ -6611,6 +6611,7 @@ i_s_dict_fill_sys_indexes(
 /*======================*/
 	THD*		thd,		/*!< in: thread */
 	table_id_t	table_id,	/*!< in: table id */
+	ulint		space_id,	/*!< in: tablespace id */
 	dict_index_t*	index,		/*!< in: populated dict_index_t
 					struct with index info */
 	TABLE*		table_to_fill)	/*!< in/out: fill this table */
@@ -6627,20 +6628,25 @@ i_s_dict_fill_sys_indexes(
 
 	OK(fields[SYS_INDEX_TABLE_ID]->store(longlong(table_id), true));
 
-	OK(fields[SYS_INDEX_TYPE]->store(index->type));
+	OK(fields[SYS_INDEX_TYPE]->store(index->type, true));
 
 	OK(fields[SYS_INDEX_NUM_FIELDS]->store(index->n_fields));
 
 	/* FIL_NULL is ULINT32_UNDEFINED */
 	if (index->page == FIL_NULL) {
-		OK(fields[SYS_INDEX_PAGE_NO]->store(-1));
+		fields[SYS_INDEX_PAGE_NO]->set_null();
 	} else {
-		OK(fields[SYS_INDEX_PAGE_NO]->store(index->page));
+		OK(fields[SYS_INDEX_PAGE_NO]->store(index->page, true));
 	}
 
-	OK(fields[SYS_INDEX_SPACE]->store(index->space));
+	if (space_id == ULINT_UNDEFINED) {
+		fields[SYS_INDEX_SPACE]->set_null();
+	} else {
+		OK(fields[SYS_INDEX_SPACE]->store(space_id, true));
+	}
 
-	OK(fields[SYS_INDEX_MERGE_THRESHOLD]->store(index->merge_threshold));
+	OK(fields[SYS_INDEX_MERGE_THRESHOLD]->store(index->merge_threshold,
+						    true));
 
 	OK(schema_table_store_record(thd, table_to_fill));
 
@@ -6682,19 +6688,27 @@ i_s_sys_indexes_fill_table(
 	while (rec) {
 		const char*	err_msg;
 		table_id_t	table_id;
+		ulint		space_id;
 		dict_index_t	index_rec;
 
 		/* Populate a dict_index_t structure with information from
 		a SYS_INDEXES row */
 		err_msg = dict_process_sys_indexes_rec(heap, rec, &index_rec,
 						       &table_id);
-
+		const byte* field = rec_get_nth_field_old(
+			rec, DICT_FLD__SYS_INDEXES__SPACE, &space_id);
+		space_id = space_id == 4 ? mach_read_from_4(field)
+			: ULINT_UNDEFINED;
 		mtr_commit(&mtr);
 		mutex_exit(&dict_sys->mutex);
 
 		if (!err_msg) {
-			i_s_dict_fill_sys_indexes(thd, table_id, &index_rec,
-						 tables->table);
+			if (int err = i_s_dict_fill_sys_indexes(
+				    thd, table_id, space_id, &index_rec,
+				    tables->table)) {
+				mem_heap_free(heap);
+				DBUG_RETURN(err);
+			}
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",

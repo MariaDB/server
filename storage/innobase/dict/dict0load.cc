@@ -2255,7 +2255,6 @@ dict_load_index_low(
 	index_id_t	id;
 	ulint		n_fields;
 	ulint		type;
-	ulint		space;
 	unsigned	merge_threshold;
 
 	if (allocate) {
@@ -2354,13 +2353,6 @@ err_len:
 	}
 
 	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_INDEXES__SPACE, &len);
-	if (len != 4) {
-		goto err_len;
-	}
-	space = mach_read_from_4(field);
-
-	field = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_INDEXES__PAGE_NO, &len);
 	if (len != 4) {
 		goto err_len;
@@ -2368,12 +2360,12 @@ err_len:
 
 	if (allocate) {
 		*index = dict_mem_index_create(table_name, name_buf,
-					       space, type, n_fields);
+					       type, n_fields);
 	} else {
 		ut_a(*index);
 
 		dict_mem_fill_index_struct(*index, NULL, NULL, name_buf,
-					   space, type, n_fields);
+					   type, n_fields);
 	}
 
 	(*index)->id = id;

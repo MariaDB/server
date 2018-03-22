@@ -1173,22 +1173,7 @@ dict_index_get_space(
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
-	return(index->space);
-}
-
-/*********************************************************************//**
-Sets the space id of the root of the index tree. */
-UNIV_INLINE
-void
-dict_index_set_space(
-/*=================*/
-	dict_index_t*	index,	/*!< in/out: index */
-	ulint		space)	/*!< in: space id */
-{
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	index->space = unsigned(space);
+	return(index->table->space);
 }
 
 /*********************************************************************//**

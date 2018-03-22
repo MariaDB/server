@@ -3017,8 +3017,7 @@ dict_index_build_internal_clust(
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
 	/* Create a new index object with certainly enough fields */
-	new_index = dict_mem_index_create(table->name.m_name,
-					  index->name, table->space,
+	new_index = dict_mem_index_create(table->name.m_name, index->name,
 					  index->type,
 					  index->n_fields + table->n_cols);
 
@@ -3185,7 +3184,7 @@ dict_index_build_internal_non_clust(
 
 	/* Create a new index */
 	new_index = dict_mem_index_create(
-		table->name.m_name, index->name, index->space, index->type,
+		table->name.m_name, index->name, index->type,
 		index->n_fields + 1 + clust_index->n_uniq);
 
 	/* Copy other relevant data from the old index
@@ -3275,7 +3274,7 @@ dict_index_build_internal_fts(
 
 	/* Create a new index */
 	new_index = dict_mem_index_create(
-		table->name.m_name, index->name, index->space, index->type,
+		table->name.m_name, index->name, index->type,
 		index->n_fields);
 
 	/* Copy other relevant data from the old index struct to the new
@@ -6265,7 +6264,7 @@ dict_ind_init()
 			       DATA_ENGLISH | DATA_NOT_NULL, 8);
 
 	dict_ind_redundant = dict_mem_index_create("SYS_DUMMY1", "SYS_DUMMY1",
-						   DICT_HDR_SPACE, 0, 1);
+						   0, 1);
 	dict_index_add_col(dict_ind_redundant, table,
 			   dict_table_get_nth_col(table, 0), 0);
 	dict_ind_redundant->table = table;

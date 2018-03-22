@@ -1820,7 +1820,7 @@ fts_create_one_common_table(
 
 		dict_index_t*	index = dict_mem_index_create(
 			fts_table_name, "FTS_COMMON_TABLE_IND",
-			new_table->space, DICT_UNIQUE|DICT_CLUSTERED, 1);
+			DICT_UNIQUE|DICT_CLUSTERED, 1);
 
 		if (!is_config) {
 			dict_mem_index_add_field(index, "doc_id", 0);
@@ -1945,9 +1945,8 @@ fts_create_common_tables(
 		goto func_exit;
 	}
 
-	index = dict_mem_index_create(
-		name, FTS_DOC_ID_INDEX_NAME, table->space,
-		DICT_UNIQUE, 1);
+	index = dict_mem_index_create(name, FTS_DOC_ID_INDEX_NAME,
+				      DICT_UNIQUE, 1);
 	dict_mem_index_add_field(index, FTS_DOC_ID_COL_NAME, 0);
 
 	op = trx_get_dict_operation(trx);
@@ -2038,7 +2037,7 @@ fts_create_one_index_table(
 
 	if (error == DB_SUCCESS) {
 		dict_index_t*	index = dict_mem_index_create(
-			table_name, "FTS_INDEX_TABLE_IND", new_table->space,
+			table_name, "FTS_INDEX_TABLE_IND",
 			DICT_UNIQUE|DICT_CLUSTERED, 2);
 		dict_mem_index_add_field(index, "word", 0);
 		dict_mem_index_add_field(index, "first_doc_id", 0);

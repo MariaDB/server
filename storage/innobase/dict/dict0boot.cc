@@ -357,7 +357,6 @@ dict_boot(void)
 	mem_heap_empty(heap);
 
 	index = dict_mem_index_create("SYS_TABLES", "CLUST_IND",
-				      DICT_HDR_SPACE,
 				      DICT_UNIQUE | DICT_CLUSTERED, 1);
 
 	dict_mem_index_add_field(index, "NAME", 0);
@@ -375,8 +374,7 @@ dict_boot(void)
 		table->indexes.start->n_nullable);
 
 	/*-------------------------*/
-	index = dict_mem_index_create("SYS_TABLES", "ID_IND",
-				      DICT_HDR_SPACE, DICT_UNIQUE, 1);
+	index = dict_mem_index_create("SYS_TABLES", "ID_IND", DICT_UNIQUE, 1);
 	dict_mem_index_add_field(index, "ID", 0);
 
 	index->id = DICT_TABLE_IDS_ID;
@@ -407,7 +405,6 @@ dict_boot(void)
 	mem_heap_empty(heap);
 
 	index = dict_mem_index_create("SYS_COLUMNS", "CLUST_IND",
-				      DICT_HDR_SPACE,
 				      DICT_UNIQUE | DICT_CLUSTERED, 2);
 
 	dict_mem_index_add_field(index, "TABLE_ID", 0);
@@ -433,6 +430,8 @@ dict_boot(void)
 	dict_mem_table_add_col(table, heap, "NAME", DATA_BINARY, 0, 0);
 	dict_mem_table_add_col(table, heap, "N_FIELDS", DATA_INT, 0, 4);
 	dict_mem_table_add_col(table, heap, "TYPE", DATA_INT, 0, 4);
+	/* SYS_INDEXES.SPACE is redundant and not being read;
+	SYS_TABLES.SPACE is being used instead. */
 	dict_mem_table_add_col(table, heap, "SPACE", DATA_INT, 0, 4);
 	dict_mem_table_add_col(table, heap, "PAGE_NO", DATA_INT, 0, 4);
 	dict_mem_table_add_col(table, heap, "MERGE_THRESHOLD", DATA_INT, 0, 4);
@@ -452,7 +451,6 @@ dict_boot(void)
 	mem_heap_empty(heap);
 
 	index = dict_mem_index_create("SYS_INDEXES", "CLUST_IND",
-				      DICT_HDR_SPACE,
 				      DICT_UNIQUE | DICT_CLUSTERED, 2);
 
 	dict_mem_index_add_field(index, "TABLE_ID", 0);
@@ -484,7 +482,6 @@ dict_boot(void)
 	mem_heap_free(heap);
 
 	index = dict_mem_index_create("SYS_FIELDS", "CLUST_IND",
-				      DICT_HDR_SPACE,
 				      DICT_UNIQUE | DICT_CLUSTERED, 2);
 
 	dict_mem_index_add_field(index, "INDEX_ID", 0);

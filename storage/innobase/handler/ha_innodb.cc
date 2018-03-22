@@ -11282,7 +11282,7 @@ create_index(
 
 	if (ind_type != 0)
 	{
-		index = dict_mem_index_create(table_name, key->name.str, 0,
+		index = dict_mem_index_create(table_name, key->name.str,
 					      ind_type,
 					      key->user_defined_key_parts);
 
@@ -11324,7 +11324,7 @@ create_index(
 	/* We pass 0 as the space id, and determine at a lower level the space
 	id where to store the table */
 
-	index = dict_mem_index_create(table_name, key->name.str, 0,
+	index = dict_mem_index_create(table_name, key->name.str,
 				      ind_type, key->user_defined_key_parts);
 
 	for (ulint i = 0; i < key->user_defined_key_parts; i++) {
@@ -11425,7 +11425,7 @@ create_clustered_index_when_no_primary(
 	id where to store the table */
 	index = dict_mem_index_create(table_name,
 				      innobase_index_reserve_name,
-				      0, DICT_CLUSTERED, 0);
+				      DICT_CLUSTERED, 0);
 
 	error = row_create_index_for_mysql(index, trx, NULL);
 

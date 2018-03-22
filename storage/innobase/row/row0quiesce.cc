@@ -145,7 +145,7 @@ row_quiesce_write_indexes(
 		mach_write_to_8(ptr, index->id);
 		ptr += sizeof(index_id_t);
 
-		mach_write_to_4(ptr, index->space);
+		mach_write_to_4(ptr, table->space);
 		ptr += sizeof(ib_uint32_t);
 
 		mach_write_to_4(ptr, index->page);

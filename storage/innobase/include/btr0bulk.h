@@ -285,7 +285,7 @@ public:
 	{
 		ut_ad(m_flush_observer != NULL);
 #ifdef UNIV_DEBUG
-		fil_space_inc_redo_skipped_count(m_index->space);
+		fil_space_inc_redo_skipped_count(m_index->table->space);
 #endif /* UNIV_DEBUG */
 	}
 
@@ -296,7 +296,7 @@ public:
 		UT_DELETE(m_page_bulks);
 
 #ifdef UNIV_DEBUG
-		fil_space_dec_redo_skipped_count(m_index->space);
+		fil_space_dec_redo_skipped_count(m_index->table->space);
 #endif /* UNIV_DEBUG */
 	}
 

@@ -3219,7 +3219,6 @@ row_discard_tablespace(
 		     index = UT_LIST_GET_NEXT(indexes, index)) {
 
 			index->page = FIL_NULL;
-			index->space = FIL_NULL;
 		}
 
 		/* If the tablespace did not already exist or we couldn't

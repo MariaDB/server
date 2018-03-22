@@ -399,9 +399,6 @@ dict_mem_fill_index_struct(
 	mem_heap_t*	heap,		/*!< in: memory heap */
 	const char*	table_name,	/*!< in: table name */
 	const char*	index_name,	/*!< in: index name */
-	ulint		space,		/*!< in: space where the index tree is
-					placed, ignored if the index is of
-					the clustered type */
 	ulint		type,		/*!< in: DICT_UNIQUE,
 					DICT_CLUSTERED, ... ORed */
 	ulint		n_fields);	/*!< in: number of fields */
@@ -413,9 +410,6 @@ dict_mem_index_create(
 /*==================*/
 	const char*	table_name,	/*!< in: table name */
 	const char*	index_name,	/*!< in: index name */
-	ulint		space,		/*!< in: space where the index tree is
-					placed, ignored if the index is of
-					the clustered type */
 	ulint		type,		/*!< in: DICT_UNIQUE,
 					DICT_CLUSTERED, ... ORed */
 	ulint		n_fields);	/*!< in: number of fields */
@@ -885,8 +879,6 @@ struct dict_index_t{
 	id_name_t	name;	/*!< index name */
 	const char*	table_name;/*!< table name */
 	dict_table_t*	table;	/*!< back pointer to table */
-	unsigned	space:32;
-				/*!< space where the index tree is placed */
 	unsigned	page:32;/*!< index tree root page number */
 	unsigned	merge_threshold:6;
 				/*!< In the pessimistic delete, if the page
@@ -1950,7 +1942,7 @@ public:
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const
 {
-	mtr.set_named_space(space);
+	mtr.set_named_space(table->space);
 }
 
 inline bool dict_index_t::is_readable() const

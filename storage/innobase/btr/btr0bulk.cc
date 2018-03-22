@@ -67,7 +67,8 @@ PageBulk::init()
 
 		ulint	n_reserved;
 		bool	success;
-		success = fsp_reserve_free_extents(&n_reserved, m_index->space,
+		success = fsp_reserve_free_extents(&n_reserved,
+						   m_index->table->space,
 						   1, FSP_NORMAL, &alloc_mtr);
 		if (!success) {
 			mtr_commit(&alloc_mtr);
@@ -80,7 +81,7 @@ PageBulk::init()
 					   &alloc_mtr, mtr);
 
 		if (n_reserved > 0) {
-			fil_space_release_free_extents(m_index->space,
+			fil_space_release_free_extents(m_index->table->space,
 						       n_reserved);
 		}
 

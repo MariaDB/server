@@ -423,7 +423,7 @@ btr_pessimistic_scrub(
 	* so that splitting won't fail due to this */
 	ulint n_extents = 3;
 	ulint n_reserved = 0;
-	if (!fsp_reserve_free_extents(&n_reserved, index->space,
+	if (!fsp_reserve_free_extents(&n_reserved, index->table->space,
 				      n_extents, FSP_NORMAL, mtr)) {
 		log_scrub_failure(index, scrub_data, block,
 				  DB_OUT_OF_FILE_SPACE);
@@ -523,7 +523,8 @@ btr_pessimistic_scrub(
 	}
 
 	if (n_reserved > 0) {
-		fil_space_release_free_extents(index->space, n_reserved);
+		fil_space_release_free_extents(index->table->space,
+					       n_reserved);
 	}
 
 	scrub_data->scrub_stat.page_splits++;
@@ -798,7 +799,7 @@ btr_scrub_page(
 		return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;
 	}
 
-	if (scrub_data->current_index->space != scrub_data->space) {
+	if (scrub_data->current_index->table->space != scrub_data->space) {
 		/* this is truncate table */
 		mtr_commit(mtr);
 		return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;

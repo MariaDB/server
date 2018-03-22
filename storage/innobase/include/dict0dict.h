@@ -1443,15 +1443,6 @@ dict_index_get_space(
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
-Sets the space id of the root of the index tree. */
-UNIV_INLINE
-void
-dict_index_set_space(
-/*=================*/
-	dict_index_t*	index,	/*!< in/out: index */
-	ulint		space)	/*!< in: space id */
-	MY_ATTRIBUTE((nonnull));
-/*********************************************************************//**
 Gets the page number of the root of the index tree.
 @return page number */
 UNIV_INLINE
