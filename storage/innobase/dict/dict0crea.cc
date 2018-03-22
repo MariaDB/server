@@ -1032,26 +1032,27 @@ dict_recreate_index_tree(
 	ut_a(!dict_table_is_comp(dict_sys->sys_indexes));
 
 	ulint		len;
-	rec_t*		rec = btr_pcur_get_rec(pcur);
+	const rec_t*	rec = btr_pcur_get_rec(pcur);
 
 	const byte*	ptr = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_INDEXES__PAGE_NO, &len);
 
 	ut_ad(len == 4);
 
-	ulint	root_page_no = mtr_read_ulint(ptr, MLOG_4BYTES, mtr);
-
 	ptr = rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__SPACE, &len);
 	ut_ad(len == 4);
 
 	ut_a(table->space == mtr_read_ulint(ptr, MLOG_4BYTES, mtr));
 
-	ulint			space = table->space;
-	bool			found;
-	const page_size_t	page_size(fil_space_get_page_size(space,
-								  &found));
+	mutex_enter(&fil_system.mutex);
+	fil_space_t* space = fil_space_get_by_id(table->space);
+	/* TRUNCATE TABLE is protected by an exclusive table lock.
+	The table cannot be dropped or the tablespace discarded
+	while we are holding the transactional table lock. Thus,
+	there is no need to invoke fil_space_acquire(). */
+	mutex_exit(&fil_system.mutex);
 
-	if (!found) {
+	if (!space) {
 		/* It is a single table tablespae and the .ibd file is
 		missing: do nothing. */
 
@@ -1085,15 +1086,13 @@ dict_recreate_index_tree(
 	     index != NULL;
 	     index = UT_LIST_GET_NEXT(indexes, index)) {
 		if (index->id == index_id) {
-			if (index->type & DICT_FTS) {
-				return(FIL_NULL);
-			} else {
-				root_page_no = btr_create(
-					type, space, page_size, index_id,
-					index, NULL, mtr);
-				index->page = (unsigned int) root_page_no;
-				return(root_page_no);
-			}
+			ulint root_page_no = (index->type & DICT_FTS)
+				? FIL_NULL
+				: btr_create(type, space->id,
+					     page_size_t(space->flags),
+					     index_id, index, NULL, mtr);
+			index->page = unsigned(root_page_no);
+			return root_page_no;
 		}
 	}
 
