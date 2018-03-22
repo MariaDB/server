@@ -1,0 +1,13 @@
+# Create 2 UNDO TABLESPACE(UNDO003, UNDO004)
+CREATE TABLE t1(a varchar(60)) ENGINE INNODB;
+start transaction;
+INSERT INTO t1 VALUES(1);
+# xtrabackup backup
+# Display undo log files from target directory
+undo003
+undo004
+# xtrabackup prepare
+# Display undo log files from targer directory
+undo003
+undo004
+DROP TABLE t1;
