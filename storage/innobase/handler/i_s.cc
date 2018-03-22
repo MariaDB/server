@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -8658,12 +8658,6 @@ i_s_tablespaces_encryption_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	mem_heap_t*	heap;
-	mtr_t		mtr;
-	bool		found_space_0 = false;
-
 	DBUG_ENTER("i_s_tablespaces_encryption_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
@@ -8672,68 +8666,24 @@ i_s_tablespaces_encryption_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	heap = mem_heap_create(1000);
-	mutex_enter(&dict_sys->mutex);
-	mtr_start(&mtr);
+	mutex_enter(&fil_system->mutex);
 
-	rec = dict_startscan_system(&pcur, &mtr, SYS_TABLESPACES);
-
-	while (rec) {
-		const char*	err_msg;
-		ulint		space_id;
-		const char*	name;
-		ulint		flags;
-
-		/* Extract necessary information from a SYS_TABLESPACES row */
-		err_msg = dict_process_sys_tablespaces(
-			heap, rec, &space_id, &name, &flags);
-
-		mtr_commit(&mtr);
-		mutex_exit(&dict_sys->mutex);
-
-		if (space_id == 0) {
-			found_space_0 = true;
+	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system->space_list);
+	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
+		if (space->purpose == FIL_TYPE_TABLESPACE) {
+			space->n_pending_ops++;
+			mutex_exit(&fil_system->mutex);
+			if (int err = i_s_dict_fill_tablespaces_encryption(
+				    thd, space, tables->table)) {
+				fil_space_release(space);
+				DBUG_RETURN(err);
+			}
+			mutex_enter(&fil_system->mutex);
+			space->n_pending_ops--;
 		}
-
-		fil_space_t* space = fil_space_acquire_silent(space_id);
-
-		if (!err_msg && space) {
-			i_s_dict_fill_tablespaces_encryption(
-				thd, space, tables->table);
-		} else {
-			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-					    ER_CANT_FIND_SYSTEM_REC, "%s",
-					    err_msg);
-		}
-
-		if (space) {
-			fil_space_release(space);
-		}
-
-		mem_heap_empty(heap);
-
-		/* Get the next record */
-		mutex_enter(&dict_sys->mutex);
-		mtr_start(&mtr);
-		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
-	mtr_commit(&mtr);
-	mutex_exit(&dict_sys->mutex);
-	mem_heap_free(heap);
-
-	if (found_space_0 == false) {
-		/* space 0 does for what ever unknown reason not show up
-		* in iteration above, add it manually */
-
-		fil_space_t* space = fil_space_acquire_silent(0);
-
-		i_s_dict_fill_tablespaces_encryption(
-			thd, space, tables->table);
-
-		fil_space_release(space);
-	}
-
+	mutex_exit(&fil_system->mutex);
 	DBUG_RETURN(0);
 }
 /*******************************************************************//**
@@ -8979,12 +8929,6 @@ i_s_tablespaces_scrubbing_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	mem_heap_t*	heap;
-	mtr_t		mtr;
-	bool		found_space_0 = false;
-
 	DBUG_ENTER("i_s_tablespaces_scrubbing_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
@@ -8993,67 +8937,24 @@ i_s_tablespaces_scrubbing_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	heap = mem_heap_create(1000);
-	mutex_enter(&dict_sys->mutex);
-	mtr_start(&mtr);
+	mutex_enter(&fil_system->mutex);
 
-	rec = dict_startscan_system(&pcur, &mtr, SYS_TABLESPACES);
-
-	while (rec) {
-		const char*	err_msg;
-		ulint		space_id;
-		const char*	name;
-		ulint		flags;
-
-		/* Extract necessary information from a SYS_TABLESPACES row */
-		err_msg = dict_process_sys_tablespaces(
-			heap, rec, &space_id, &name, &flags);
-
-		mtr_commit(&mtr);
-		mutex_exit(&dict_sys->mutex);
-
-		if (space_id == 0) {
-			found_space_0 = true;
+	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system->space_list);
+	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
+		if (space->purpose == FIL_TYPE_TABLESPACE) {
+			space->n_pending_ops++;
+			mutex_exit(&fil_system->mutex);
+			if (int err = i_s_dict_fill_tablespaces_scrubbing(
+				    thd, space, tables->table)) {
+				fil_space_release(space);
+				DBUG_RETURN(err);
+			}
+			mutex_enter(&fil_system->mutex);
+			space->n_pending_ops--;
 		}
-
-		fil_space_t* space = fil_space_acquire_silent(space_id);
-
-		if (!err_msg && space) {
-			i_s_dict_fill_tablespaces_scrubbing(
-				thd, space, tables->table);
-		} else {
-			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-					    ER_CANT_FIND_SYSTEM_REC, "%s",
-					    err_msg);
-		}
-
-		if (space) {
-			fil_space_release(space);
-		}
-
-		mem_heap_empty(heap);
-
-		/* Get the next record */
-		mutex_enter(&dict_sys->mutex);
-		mtr_start(&mtr);
-		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
-	mtr_commit(&mtr);
-	mutex_exit(&dict_sys->mutex);
-	mem_heap_free(heap);
-
-	if (found_space_0 == false) {
-		/* space 0 does for what ever unknown reason not show up
-		* in iteration above, add it manually */
-		fil_space_t* space = fil_space_acquire_silent(0);
-
-		i_s_dict_fill_tablespaces_scrubbing(
-			thd, space, tables->table);
-
-		fil_space_release(space);
-	}
-
+	mutex_exit(&fil_system->mutex);
 	DBUG_RETURN(0);
 }
 /*******************************************************************//**
