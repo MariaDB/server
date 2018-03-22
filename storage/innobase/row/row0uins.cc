@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -81,7 +81,7 @@ row_undo_ins_remove_clust_rec(
 		ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 	}
 
 	/* This is similar to row_undo_mod_clust(). The DDL thread may
@@ -199,7 +199,7 @@ retry:
 	if (index->table->is_temporary()) {
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 	}
 
 	success = btr_pcur_restore_position(
@@ -238,7 +238,7 @@ func_exit:
 			      == FIL_PAGE_TYPE_INSTANT
 			      || mach_read_from_2(page_type)
 			      == FIL_PAGE_INDEX);
-			mtr.set_named_space(index->space);
+			index->set_modified(mtr);
 			mlog_write_ulint(page_type, FIL_PAGE_INDEX,
 					 MLOG_2BYTES, &mtr);
 			byte* instant = PAGE_INSTANT + PAGE_HEADER + root;

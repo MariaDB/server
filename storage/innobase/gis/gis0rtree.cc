@@ -1894,16 +1894,16 @@ rtr_estimate_n_rows_in_range(
 	page_t*		page;
 	ulint		n_recs;
 
-	mtr_start(&mtr);
-	mtr.set_named_space(dict_index_get_space(index));
-	mtr_s_lock(dict_index_get_lock(index), &mtr);
+	mtr.start();
+	index->set_modified(mtr);
+	mtr_s_lock(&index->lock, &mtr);
 
 	block = btr_block_get(page_id, page_size, RW_S_LATCH, index, &mtr);
 	page = buf_block_get_frame(block);
 	n_recs = page_header_get_field(page, PAGE_N_RECS);
 
 	if (n_recs == 0) {
-		mtr_commit(&mtr);
+		mtr.commit();
 		return(HA_POS_ERROR);
 	}
 
@@ -1987,7 +1987,7 @@ rtr_estimate_n_rows_in_range(
 		rec = page_rec_get_next(rec);
 	}
 
-	mtr_commit(&mtr);
+	mtr.commit();
 	mem_heap_free(heap);
 
 	if (!isfinite(area)) {

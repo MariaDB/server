@@ -1060,6 +1060,10 @@ struct dict_index_t{
 		uncommitted = !committed;
 	}
 
+	/** Notify that the index pages are going to be modified.
+	@param[in,out]	mtr	mini-transaction */
+	inline void set_modified(mtr_t& mtr) const;
+
 	/** @return whether this index is readable
 	@retval	true	normally
 	@retval	false	if this is a single-table tablespace
@@ -1943,6 +1947,11 @@ public:
 	columns */
 	dict_vcol_templ_t*			vc_templ;
 };
+
+inline void dict_index_t::set_modified(mtr_t& mtr) const
+{
+	mtr.set_named_space(space);
+}
 
 inline bool dict_index_t::is_readable() const
 {

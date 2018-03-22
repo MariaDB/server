@@ -822,14 +822,7 @@ dict_create_index_tree_step(
 	the index and its root address is written to the index entry in
 	sys_indexes */
 
-	mtr_start(&mtr);
-
-	const bool	missing = !index->is_readable()
-		|| dict_table_is_discarded(index->table);
-
-	if (!missing) {
-		mtr.set_named_space(index->space);
-	}
+	mtr.start();
 
 	search_tuple = dict_create_search_tuple(node->ind_row, node->heap);
 
@@ -842,9 +835,11 @@ dict_create_index_tree_step(
 
 	dberr_t		err = DB_SUCCESS;
 
-	if (missing) {
+	if (!index->is_readable() || dict_table_is_discarded(index->table)) {
 		node->page_no = FIL_NULL;
 	} else {
+		index->set_modified(mtr);
+
 		node->page_no = btr_create(
 			index->type, index->space,
 			dict_table_page_size(index->table),
@@ -865,7 +860,7 @@ dict_create_index_tree_step(
 
 	btr_pcur_close(&pcur);
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	return(err);
 }

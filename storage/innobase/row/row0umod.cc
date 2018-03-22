@@ -276,7 +276,7 @@ row_undo_mod_clust(
 	if (index->table->is_temporary()) {
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 	}
 
 	online = dict_index_is_online_ddl(index);
@@ -310,7 +310,7 @@ row_undo_mod_clust(
 		if (index->table->is_temporary()) {
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
 		} else {
-			mtr.set_named_space(index->space);
+			index->set_modified(mtr);
 		}
 
 		err = row_undo_mod_clust_low(
@@ -370,7 +370,7 @@ row_undo_mod_clust(
 		if (index->table->is_temporary()) {
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
 		} else {
-			mtr.set_named_space(index->space);
+			index->set_modified(mtr);
 		}
 
 		/* It is not necessary to call row_log_table,
@@ -388,7 +388,7 @@ row_undo_mod_clust(
 			if (index->table->is_temporary()) {
 				mtr.set_log_mode(MTR_LOG_NO_REDO);
 			} else {
-				mtr.set_named_space(index->space);
+				index->set_modified(mtr);
 			}
 
 			err = row_undo_mod_remove_clust_low(

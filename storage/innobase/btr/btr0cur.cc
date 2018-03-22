@@ -7073,7 +7073,7 @@ struct btr_blob_log_check_t {
 		const mtr_log_t log_mode = m_mtr->get_log_mode();
 		m_mtr->start();
 		m_mtr->set_log_mode(log_mode);
-		m_mtr->set_named_space(index->space);
+		index->set_modified(*m_mtr);
 		m_mtr->set_flush_observer(observer);
 
 		if (m_op == BTR_STORE_INSERT_BULK) {
@@ -7276,8 +7276,8 @@ btr_store_big_rec_extern_fields(
 				rec_page_no = rec_block->page.id.page_no();
 			}
 
-			mtr_start(&mtr);
-			mtr.set_named_space(index->space);
+			mtr.start();
+			index->set_modified(mtr);
 			mtr.set_log_mode(btr_mtr->get_log_mode());
 			mtr.set_flush_observer(btr_mtr->get_flush_observer());
 
@@ -7293,7 +7293,7 @@ btr_store_big_rec_extern_fields(
 			mtr_t	*alloc_mtr;
 
 			if (op == BTR_STORE_INSERT_BULK) {
-				mtr_start(&mtr_bulk);
+				mtr_bulk.start();
 				mtr_bulk.set_spaces(mtr);
 				alloc_mtr = &mtr_bulk;
 			} else {
@@ -7304,7 +7304,7 @@ btr_store_big_rec_extern_fields(
 						      FSP_BLOB, alloc_mtr,
 						      1)) {
 
-				mtr_commit(alloc_mtr);
+				alloc_mtr->commit();
 				error = DB_OUT_OF_FILE_SPACE;
 				goto func_exit;
 			}
@@ -7315,7 +7315,7 @@ btr_store_big_rec_extern_fields(
 			alloc_mtr->release_free_extents(r_extents);
 
 			if (op == BTR_STORE_INSERT_BULK) {
-				mtr_commit(&mtr_bulk);
+				mtr_bulk.commit();
 			}
 
 			ut_a(block != NULL);
@@ -7542,7 +7542,7 @@ next_zip_page:
 
 				prev_page_no = page_no;
 
-				mtr_commit(&mtr);
+				mtr.commit();
 
 				if (extern_len == 0) {
 					break;

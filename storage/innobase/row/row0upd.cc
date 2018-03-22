@@ -2319,7 +2319,7 @@ row_upd_sec_index_entry(
 		flags = BTR_NO_LOCKING_FLAG;
 		break;
 	default:
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 		/* fall through */
 	case IBUF_SPACE_ID:
 		flags = index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
@@ -2881,7 +2881,7 @@ row_upd_clust_rec(
 		flags |= BTR_NO_LOCKING_FLAG;
 		mtr->set_log_mode(MTR_LOG_NO_REDO);
 	} else {
-		mtr->set_named_space(index->space);
+		index->set_modified(*mtr);
 	}
 
 	/* NOTE: this transaction has an s-lock or x-lock on the record and
@@ -3072,7 +3072,7 @@ row_upd_clust_step(
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
 		flags = node->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 	}
 
 	/* If the restoration does not succeed, then the same
@@ -3124,7 +3124,7 @@ row_upd_clust_step(
 		mtr.commit();
 
 		mtr.start();
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 
 		success = btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur,
 						    &mtr);

@@ -799,7 +799,7 @@ DECLARE_THREAD(btr_defragment_thread)(void*)
 		mtr_start(&mtr);
 		cursor = btr_pcur_get_btr_cur(pcur);
 		index = btr_cur_get_index(cursor);
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 		/* To follow the latching order defined in WL#6326, acquire index->lock X-latch.
 		This entitles us to acquire page latches in any order for the index. */
 		mtr_x_lock(&index->lock, &mtr);

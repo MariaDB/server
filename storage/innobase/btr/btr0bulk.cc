@@ -62,8 +62,8 @@ PageBulk::init()
 		because we don't guarantee pages are committed following
 		the allocation order, and we will always generate redo log
 		for page allocation, even when creating a new tablespace. */
-		mtr_start(&alloc_mtr);
-		alloc_mtr.set_named_space(dict_index_get_space(m_index));
+		alloc_mtr.start();
+		m_index->set_modified(alloc_mtr);
 
 		ulint	n_reserved;
 		bool	success;
@@ -84,7 +84,7 @@ PageBulk::init()
 						       n_reserved);
 		}
 
-		mtr_commit(&alloc_mtr);
+		alloc_mtr.commit();
 
 		new_page = buf_block_get_frame(new_block);
 		new_page_zip = buf_block_get_page_zip(new_block);
@@ -963,9 +963,9 @@ BtrBulk::finish(dberr_t	err)
 					       root_page_no, m_root_level,
 					       m_flush_observer);
 
-		mtr_start(&mtr);
-		mtr.set_named_space(dict_index_get_space(m_index));
-		mtr_x_lock(dict_index_get_lock(m_index), &mtr);
+		mtr.start();
+		m_index->set_modified(mtr);
+		mtr_x_lock(&m_index->lock, &mtr);
 
 		ut_ad(last_page_no != FIL_NULL);
 		last_block = btr_block_get(page_id, page_size,
@@ -977,7 +977,7 @@ BtrBulk::finish(dberr_t	err)
 		/* Copy last page to root page. */
 		err = root_page_bulk.init();
 		if (err != DB_SUCCESS) {
-			mtr_commit(&mtr);
+			mtr.commit();
 			return(err);
 		}
 		root_page_bulk.copyIn(first_rec);
@@ -988,7 +988,7 @@ BtrBulk::finish(dberr_t	err)
 		/* Do not flush the last page. */
 		last_block->page.flush_observer = NULL;
 
-		mtr_commit(&mtr);
+		mtr.commit();
 
 		err = pageCommit(&root_page_bulk, NULL, false);
 		ut_ad(err == DB_SUCCESS);
