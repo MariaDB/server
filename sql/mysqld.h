@@ -316,6 +316,7 @@ extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
 extern PSI_mutex_key key_LOCK_des_key_file;
 #endif
 
+extern PSI_mutex_key key_LOCK_temporary_tables;
 extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_BINLOG_LOCK_binlog_background_thread,
   key_LOCK_binlog_end_pos,

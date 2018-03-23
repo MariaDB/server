@@ -15,6 +15,7 @@ EVENTS
 FILES
 GEOMETRY_COLUMNS
 GLOBAL_STATUS
+GLOBAL_TEMPORARY_TABLES
 GLOBAL_VARIABLES
 INDEX_STATISTICS
 INNODB_BUFFER_PAGE
@@ -94,6 +95,7 @@ EVENTS	EVENT_SCHEMA
 FILES	TABLE_SCHEMA
 GEOMETRY_COLUMNS	F_TABLE_SCHEMA
 GLOBAL_STATUS	VARIABLE_NAME
+GLOBAL_TEMPORARY_TABLES	TABLE_SCHEMA
 GLOBAL_VARIABLES	VARIABLE_NAME
 INDEX_STATISTICS	TABLE_SCHEMA
 INNODB_BUFFER_PAGE	POOL_ID
@@ -173,6 +175,7 @@ EVENTS	EVENT_SCHEMA
 FILES	TABLE_SCHEMA
 GEOMETRY_COLUMNS	F_TABLE_SCHEMA
 GLOBAL_STATUS	VARIABLE_NAME
+GLOBAL_TEMPORARY_TABLES	TABLE_SCHEMA
 GLOBAL_VARIABLES	VARIABLE_NAME
 INDEX_STATISTICS	TABLE_SCHEMA
 INNODB_BUFFER_PAGE	POOL_ID
@@ -257,6 +260,7 @@ EVENTS	information_schema.EVENTS	1
 FILES	information_schema.FILES	1
 GEOMETRY_COLUMNS	information_schema.GEOMETRY_COLUMNS	1
 GLOBAL_STATUS	information_schema.GLOBAL_STATUS	1
+GLOBAL_TEMPORARY_TABLES	information_schema.GLOBAL_TEMPORARY_TABLES	1
 GLOBAL_VARIABLES	information_schema.GLOBAL_VARIABLES	1
 INDEX_STATISTICS	information_schema.INDEX_STATISTICS	1
 INNODB_BUFFER_PAGE	information_schema.INNODB_BUFFER_PAGE	1
@@ -326,6 +330,7 @@ Database: information_schema
 | FILES                                 |
 | GEOMETRY_COLUMNS                      |
 | GLOBAL_STATUS                         |
+| GLOBAL_TEMPORARY_TABLES               |
 | GLOBAL_VARIABLES                      |
 | INDEX_STATISTICS                      |
 | INNODB_BUFFER_PAGE                    |
@@ -395,6 +400,7 @@ Database: INFORMATION_SCHEMA
 | FILES                                 |
 | GEOMETRY_COLUMNS                      |
 | GLOBAL_STATUS                         |
+| GLOBAL_TEMPORARY_TABLES               |
 | GLOBAL_VARIABLES                      |
 | INDEX_STATISTICS                      |
 | INNODB_BUFFER_PAGE                    |
@@ -453,5 +459,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	64
+information_schema	65
 mysql	31

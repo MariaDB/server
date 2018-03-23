@@ -1,0 +1,134 @@
+connect stcon1,localhost,root,,test;
+connect stcon2,localhost,root,,test;
+connection stcon1;
+drop table if exists t1,t2,t3;
+drop database if exists tempdb;
+create database if not exists tempdb;
+use test;
+create temporary table t1 (t int) ENGINE = MyISAM;
+create temporary table t2 (t int) ENGINE = MyISAM;
+create temporary table tempdb.t3(t int) ENGINE=MyISAM;
+create temporary table tempdb.t4(t int) ENGINE=MyISAM;
+show create table t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values (1),(1),(1),(1);
+insert into t2 values (2),(2),(2);
+insert into tempdb.t3 values (3),(3);
+select * from information_schema.global_temporary_tables;
+SESSION_ID	TABLE_SCHEMA	TABLE_NAME	ENGINE	NAME	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	INDEX_LENGTH	CREATE_TIME	UPDATE_TIME
+10	tempdb	t3	MyISAM	#sql2a41_a_2	2	7	14	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+10	tempdb	t4	MyISAM	#sql2a41_a_3	0	0	0	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+10	test	t1	MyISAM	#sql2a41_a_0	4	7	28	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+10	test	t2	MyISAM	#sql2a41_a_1	3	7	21	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+select * from information_schema.global_temporary_tables where table_schema="tempdb";
+SESSION_ID	TABLE_SCHEMA	TABLE_NAME	ENGINE	NAME	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	INDEX_LENGTH	CREATE_TIME	UPDATE_TIME
+10	tempdb	t3	MyISAM	#sql2a41_a_2	2	7	14	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+10	tempdb	t4	MyISAM	#sql2a41_a_3	0	0	0	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+select * from information_schema.global_temporary_tables where table_schema="test";
+SESSION_ID	TABLE_SCHEMA	TABLE_NAME	ENGINE	NAME	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	INDEX_LENGTH	CREATE_TIME	UPDATE_TIME
+10	test	t1	MyISAM	#sql2a41_a_0	4	7	28	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+10	test	t2	MyISAM	#sql2a41_a_1	3	7	21	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+connection stcon2;
+drop table if exists tempdb.t2;
+create temporary table t1(t int) ENGINE=MyISAM;
+create temporary table tempdb.t2(t int) ENGINE=MyISAM;
+show create table t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+insert into t1 values (1);
+insert into tempdb.t2 values (2),(2),(2),(2),(2);
+select * from information_schema.global_temporary_tables;
+SESSION_ID	TABLE_SCHEMA	TABLE_NAME	ENGINE	NAME	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	INDEX_LENGTH	CREATE_TIME	UPDATE_TIME
+10	tempdb	t3	MyISAM	#sql2a41_a_2	2	7	14	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+10	tempdb	t4	MyISAM	#sql2a41_a_3	0	0	0	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+10	test	t1	MyISAM	#sql2a41_a_0	4	7	28	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+10	test	t2	MyISAM	#sql2a41_a_1	3	7	21	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+11	tempdb	t2	MyISAM	#sql2a41_b_1	5	7	35	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+11	test	t1	MyISAM	#sql2a41_b_0	1	7	7	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+drop table tempdb.t2;
+drop table t1;
+disconnect stcon2;
+connection stcon1;
+select * from information_schema.global_temporary_tables;
+SESSION_ID	TABLE_SCHEMA	TABLE_NAME	ENGINE	NAME	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	INDEX_LENGTH	CREATE_TIME	UPDATE_TIME
+10	tempdb	t3	MyISAM	#sql2a41_a_2	2	7	14	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+10	tempdb	t4	MyISAM	#sql2a41_a_3	0	0	0	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+10	test	t1	MyISAM	#sql2a41_a_0	4	7	28	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+10	test	t2	MyISAM	#sql2a41_a_1	3	7	21	1024	2018-04-06 21:10:31	2018-04-06 21:10:31
+drop table t1,t2;
+drop table tempdb.t3;
+drop database tempdb;
+connection default;
+disconnect stcon1;
+connect stcon1,localhost,root,,test;
+connect stcon2,localhost,root,,test;
+connection stcon1;
+drop table if exists t1,t2,t3;
+drop database if exists tempdb;
+create database if not exists tempdb;
+use test;
+create temporary table t1 (t int) ENGINE = InnoDB;
+create temporary table t2 (t int) ENGINE = InnoDB;
+create temporary table tempdb.t3(t int) ENGINE=InnoDB;
+create temporary table tempdb.t4(t int) ENGINE=InnoDB;
+show create table t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+insert into t1 values (1),(1),(1),(1);
+insert into t2 values (2),(2),(2);
+insert into tempdb.t3 values (3),(3);
+select * from information_schema.global_temporary_tables;
+SESSION_ID	TABLE_SCHEMA	TABLE_NAME	ENGINE	NAME	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	INDEX_LENGTH	CREATE_TIME	UPDATE_TIME
+12	tempdb	t3	InnoDB	#sql2a41_c_4	2	8192	16384	0	NULL	NULL
+12	tempdb	t4	InnoDB	#sql2a41_c_5	0	0	16384	0	NULL	NULL
+12	test	t1	InnoDB	#sql2a41_c_2	4	4096	16384	0	NULL	NULL
+12	test	t2	InnoDB	#sql2a41_c_3	3	5461	16384	0	NULL	NULL
+select * from information_schema.global_temporary_tables where table_schema="tempdb";
+SESSION_ID	TABLE_SCHEMA	TABLE_NAME	ENGINE	NAME	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	INDEX_LENGTH	CREATE_TIME	UPDATE_TIME
+12	tempdb	t3	InnoDB	#sql2a41_c_4	2	8192	16384	0	NULL	NULL
+12	tempdb	t4	InnoDB	#sql2a41_c_5	0	0	16384	0	NULL	NULL
+select * from information_schema.global_temporary_tables where table_schema="test";
+SESSION_ID	TABLE_SCHEMA	TABLE_NAME	ENGINE	NAME	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	INDEX_LENGTH	CREATE_TIME	UPDATE_TIME
+12	test	t1	InnoDB	#sql2a41_c_2	4	4096	16384	0	NULL	NULL
+12	test	t2	InnoDB	#sql2a41_c_3	3	5461	16384	0	NULL	NULL
+connection stcon2;
+drop table if exists tempdb.t2;
+create temporary table t1(t int) ENGINE=InnoDB;
+create temporary table tempdb.t2(t int) ENGINE=InnoDB;
+show create table t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+insert into t1 values (1);
+insert into tempdb.t2 values (2),(2),(2),(2),(2);
+select * from information_schema.global_temporary_tables;
+SESSION_ID	TABLE_SCHEMA	TABLE_NAME	ENGINE	NAME	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	INDEX_LENGTH	CREATE_TIME	UPDATE_TIME
+12	tempdb	t3	InnoDB	#sql2a41_c_4	2	8192	16384	0	NULL	NULL
+12	tempdb	t4	InnoDB	#sql2a41_c_5	0	0	16384	0	NULL	NULL
+12	test	t1	InnoDB	#sql2a41_c_2	4	4096	16384	0	NULL	NULL
+12	test	t2	InnoDB	#sql2a41_c_3	3	5461	16384	0	NULL	NULL
+13	tempdb	t2	InnoDB	#sql2a41_d_5	5	3276	16384	0	NULL	NULL
+13	test	t1	InnoDB	#sql2a41_d_4	1	16384	16384	0	NULL	NULL
+drop table tempdb.t2;
+drop table t1;
+disconnect stcon2;
+connection stcon1;
+select * from information_schema.global_temporary_tables;
+SESSION_ID	TABLE_SCHEMA	TABLE_NAME	ENGINE	NAME	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	INDEX_LENGTH	CREATE_TIME	UPDATE_TIME
+12	tempdb	t3	InnoDB	#sql2a41_c_4	2	8192	16384	0	NULL	NULL
+12	tempdb	t4	InnoDB	#sql2a41_c_5	0	0	16384	0	NULL	NULL
+12	test	t1	InnoDB	#sql2a41_c_2	4	4096	16384	0	NULL	NULL
+12	test	t2	InnoDB	#sql2a41_c_3	3	5461	16384	0	NULL	NULL
+drop table t1,t2;
+drop table tempdb.t3;
+drop database tempdb;
+connection default;
+disconnect stcon1;
