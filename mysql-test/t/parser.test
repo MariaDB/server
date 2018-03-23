@@ -1349,3 +1349,26 @@ DROP TABLE raw;
 
 CREATE TABLE varchar2 (varchar2 int);
 DROP TABLE varchar2;
+
+
+--echo #
+--echo # MDEV-15620 Crash when using "SET @@NEW.a=expr" inside a trigger
+--echo #
+
+CREATE TABLE t1 (a INT);
+--error ER_UNKNOWN_STRUCTURED_VARIABLE
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET @@NEW.a=0;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15615 Unexpected syntax error instead of "Unknown system variable" inside an SP
+--echo #
+
+DELIMITER $$;
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+BEGIN NOT ATOMIC
+  DECLARE a INT;
+  SET GLOBAL a=10;
+END;
+$$
+DELIMITER ;$$

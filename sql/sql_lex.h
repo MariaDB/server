@@ -155,15 +155,6 @@ extern uint binlog_unsafe_map[256];
 void binlog_unsafe_map_init();
 #endif
 
-/**
-  used by the parser to store internal variable name
-*/
-struct sys_var_with_base
-{
-  sys_var *var;
-  LEX_CSTRING base_name;
-};
-
 struct LEX_TYPE
 {
   enum enum_field_types type;
@@ -1337,8 +1328,6 @@ struct st_trg_chistics: public st_trg_execution_order
   const char *ordering_clause_end;
 
 };
-
-extern sys_var *trg_new_row_fake_var;
 
 enum xa_option_words {XA_NONE, XA_JOIN, XA_RESUME, XA_ONE_PHASE,
                       XA_SUSPEND, XA_FOR_MIGRATE};
@@ -3220,9 +3209,20 @@ public:
                                 enum sub_select_type type,
                                 bool is_top_level);
   bool setup_select_in_parentheses();
-  bool set_trigger_new_row(LEX_CSTRING *name, Item *val);
-  bool set_system_variable(struct sys_var_with_base *tmp,
-                           enum enum_var_type var_type, Item *val);
+  bool set_trigger_new_row(const LEX_CSTRING *name, Item *val);
+  bool set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
+                         Item *val);
+  bool set_system_variable(enum_var_type var_type, sys_var *var,
+                           const LEX_CSTRING *base_name, Item *val);
+  bool set_system_variable(enum_var_type var_type, const LEX_CSTRING *name,
+                           Item *val);
+  bool set_system_variable(THD *thd, enum_var_type var_type,
+                           const LEX_CSTRING *name1,
+                           const LEX_CSTRING *name2,
+                           Item *val);
+  bool set_default_system_variable(enum_var_type var_type,
+                                   const LEX_CSTRING *name,
+                                   Item *val);
   bool set_user_variable(THD *thd, const LEX_CSTRING *name, Item *val);
   void set_stmt_init();
   sp_name *make_sp_name(THD *thd, const LEX_CSTRING *name);
@@ -3265,14 +3265,7 @@ public:
     sp_pcontext *not_used_ctx;
     return find_variable(name, &not_used_ctx, rh);
   }
-  bool init_internal_variable(struct sys_var_with_base *variable,
-                             const LEX_CSTRING *name);
-  bool init_internal_variable(struct sys_var_with_base *variable,
-                              const LEX_CSTRING *dbname,
-                              const LEX_CSTRING *name);
-  bool init_default_internal_variable(struct sys_var_with_base *variable,
-                                      LEX_CSTRING name);
-  bool set_variable(struct sys_var_with_base *variable, Item *item);
+  bool set_variable(const LEX_CSTRING *name, Item *item);
   bool set_variable(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
                     Item *item);
   void sp_variable_declarations_init(THD *thd, int nvars);
@@ -3464,7 +3457,7 @@ public:
                         const LEX_CSTRING *var_name,
                         const LEX_CSTRING *field_name);
 
-  bool is_trigger_new_or_old_reference(const LEX_CSTRING *name);
+  bool is_trigger_new_or_old_reference(const LEX_CSTRING *name) const;
 
   Item *create_and_link_Item_trigger_field(THD *thd, const LEX_CSTRING *name,
                                            bool new_row);

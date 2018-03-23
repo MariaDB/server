@@ -171,7 +171,6 @@ void ORAerror(THD *thd, const char *s)
   LEX_CSTRING lex_str;
   LEX_SYMBOL symbol;
   Lex_string_with_metadata_st lex_string_with_metadata;
-  struct sys_var_with_base variable;
   Lex_string_with_pos_st lex_string_with_pos;
   Lex_spblock_st spblock;
   Lex_spblock_handlers_st spblock_handlers;
@@ -1270,9 +1269,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         collation_name_or_default
         opt_load_data_charset
         UNDERSCORE_CHARSET
-
-%type <variable> internal_variable_name
-                 internal_variable_name_directly_assignable
 
 %type <select_lex> subselect
         get_select_lex get_select_lex_derived
@@ -14809,9 +14805,9 @@ simple_ident_q2:
             if (lex->is_trigger_new_or_old_reference(&$2))
             {
               bool new_row= ($2.str[0]=='N' || $2.str[0]=='n');
-              if (!($$= Lex->create_and_link_Item_trigger_field(thd,
-                                                               &$4,
-                                                               new_row)))
+              if (!($$= lex->create_and_link_Item_trigger_field(thd,
+                                                                &$4,
+                                                                new_row)))
                 MYSQL_YYABORT;
             }
             else
@@ -15659,7 +15655,7 @@ set:
         ;
 
 set_assign:
-          internal_variable_name_directly_assignable SET_VAR
+          ident_directly_assignable SET_VAR
           {
             LEX *lex=Lex;
             lex->set_stmt_init();
@@ -15685,6 +15681,25 @@ set_assign:
             DBUG_ASSERT(lex->var_list.is_empty());
             if (lex->set_variable(&$1, &$3, $6) ||
                 lex->sphead->restore_lex(thd))
+              MYSQL_YYABORT;
+          }
+        | colon_with_pos ident '.' ident SET_VAR
+          {
+            LEX *lex= Lex;
+            if (!lex->is_trigger_new_or_old_reference(&$2))
+            {
+              thd->parse_error(ER_SYNTAX_ERROR, $1);
+              MYSQL_YYABORT;
+            }
+            lex->set_stmt_init();
+            lex->var_list.empty();
+            sp_create_assignment_lex(thd, yychar == YYEMPTY);
+          }
+          set_expr_or_default
+          {
+            LEX_CSTRING tmp= { $2.str, $2.length };
+            if (Lex->set_trigger_field(&tmp, &$4, $7) ||
+                sp_create_assignment_instr(thd, yychar == YYEMPTY))
               MYSQL_YYABORT;
           }
         ;
@@ -15798,25 +15813,20 @@ opt_var_ident_type:
 
 /* Option values with preceding option_type. */
 option_value_following_option_type:
-          internal_variable_name equal set_expr_or_default
+          ident equal set_expr_or_default
           {
-            LEX *lex= Lex;
-
-            if ($1.var && $1.var != trg_new_row_fake_var)
-            {
-              /* It is a system variable. */
-              if (lex->set_system_variable(&$1, lex->option_type, $3))
-                MYSQL_YYABORT;
-            }
-            else
-            {
-              /*
-                Not in trigger assigning value to new row,
-                and option_type preceding local variable is illegal.
-              */
-              thd->parse_error();
+            if (Lex->set_system_variable(Lex->option_type, &$1, $3))
               MYSQL_YYABORT;
-            }
+          }
+        | ident '.' ident equal set_expr_or_default
+          {
+            if (Lex->set_system_variable(thd, Lex->option_type, &$1, &$3, $5))
+              MYSQL_YYABORT;
+          }
+        | DEFAULT '.' ident equal set_expr_or_default
+          {
+            if (Lex->set_default_system_variable(Lex->option_type, &$3, $5))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -15824,9 +15834,7 @@ option_value_following_option_type:
 option_value_no_option_type:
           ident equal set_expr_or_default
           {
-            struct sys_var_with_base var;
-            if (Lex->init_internal_variable(&var, &$1) ||
-                Lex->set_variable(&var, $3))
+            if (Lex->set_variable(&$1, $3))
               MYSQL_YYABORT;
           }
         | ident '.' ident equal set_expr_or_default
@@ -15837,9 +15845,7 @@ option_value_no_option_type:
           }
         | DEFAULT '.' ident equal set_expr_or_default
           {
-            struct sys_var_with_base var;
-            if (Lex->init_default_internal_variable(&var, $3) ||
-                Lex->set_variable(&var, $5))
+            if (Lex->set_default_system_variable(Lex->option_type, &$3, $5))
               MYSQL_YYABORT;
           }
         | '@' ident_or_text equal expr
@@ -15847,16 +15853,19 @@ option_value_no_option_type:
             if (Lex->set_user_variable(thd, &$2, $4))
               MYSQL_YYABORT;
           }
-        | '@' '@' opt_var_ident_type internal_variable_name equal set_expr_or_default
+        | '@' '@' opt_var_ident_type ident equal set_expr_or_default
           {
-            struct sys_var_with_base tmp= $4;
-            /* Lookup if necessary: must be a system variable. */
-            if (tmp.var == NULL)
-            {
-              if (find_sys_var_null_base(thd, &tmp))
-                MYSQL_YYABORT;
-            }
-            if (Lex->set_system_variable(&tmp, $3, $6))
+            if (Lex->set_system_variable($3, &$4, $6))
+              MYSQL_YYABORT;
+          }
+        | '@' '@' opt_var_ident_type ident '.' ident equal set_expr_or_default
+          {
+            if (Lex->set_system_variable(thd, $3, &$4, &$6, $8))
+              MYSQL_YYABORT;
+          }
+        | '@' '@' opt_var_ident_type DEFAULT '.' ident equal set_expr_or_default
+          {
+            if (Lex->set_default_system_variable($3, &$6, $8))
               MYSQL_YYABORT;
           }
         | charset old_or_new_charset_name_or_default
@@ -15954,48 +15963,6 @@ option_value_no_option_type:
           }
         ;
 
-
-internal_variable_name:
-          ident
-          {
-            if (Lex->init_internal_variable(&$$, &$1))
-              MYSQL_YYABORT;
-          }
-        | ident '.' ident
-          {
-            if (Lex->init_internal_variable(&$$, &$1, &$3))
-              MYSQL_YYABORT;
-          }
-        | DEFAULT '.' ident
-          {
-            if (Lex->init_default_internal_variable(&$$, $3))
-              MYSQL_YYABORT;
-          }
-        ;
-
-
-internal_variable_name_directly_assignable:
-          ident_directly_assignable
-          {
-            if (Lex->init_internal_variable(&$$, &$1))
-              MYSQL_YYABORT;
-          }
-        | DEFAULT '.' ident
-          {
-            if (Lex->init_default_internal_variable(&$$, $3))
-              MYSQL_YYABORT;
-          }
-        | colon_with_pos ident_directly_assignable '.' ident
-          {
-            if (!Lex->is_trigger_new_or_old_reference(&$2))
-            {
-              thd->parse_error();
-              MYSQL_YYABORT;
-            }
-            if (Lex->init_internal_variable(&$$, &$2, &$4))
-              MYSQL_YYABORT;
-          }
-        ;
 
 transaction_characteristics:
           transaction_access_mode

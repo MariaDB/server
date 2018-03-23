@@ -41,12 +41,6 @@ void LEX::parse_error(uint err_number)
 
 static int lex_one_token(YYSTYPE *yylval, THD *thd);
 
-/*
-  We are using pointer to this variable for distinguishing between assignment
-  to NEW row field (when parsing trigger definition) and structured variable.
-*/
-
-sys_var *trg_new_row_fake_var= (sys_var*) 0x01;
 
 /**
   LEX_STRING constant for null-string to be used in parser and other places.
@@ -5253,36 +5247,7 @@ LEX::find_variable(const LEX_CSTRING *name,
 }
 
 
-bool LEX::init_internal_variable(struct sys_var_with_base *variable,
-                                 const LEX_CSTRING *name)
-{
-  sp_variable *spv;
-  const Sp_rcontext_handler *rh;
-
-  /* Best effort lookup for system variable. */
-  if (!(spv= find_variable(name, &rh)))
-  {
-    struct sys_var_with_base tmp= {NULL, *name};
-
-    /* Not an SP local variable */
-    if (find_sys_var_null_base(thd, &tmp))
-      return true;
-
-    *variable= tmp;
-    return false;
-  }
-
-  /*
-    Possibly an SP local variable (or a shadowed sysvar).
-    Will depend on the context of the SET statement.
-  */
-  variable->var= NULL;
-  variable->base_name= *name;
-  return false;
-}
-
-
-bool LEX::is_trigger_new_or_old_reference(const LEX_CSTRING *name)
+bool LEX::is_trigger_new_or_old_reference(const LEX_CSTRING *name) const
 {
   return sphead && sphead->m_handler->type() == TYPE_ENUM_TRIGGER &&
          name->length == 3 &&
@@ -5290,68 +5255,6 @@ bool LEX::is_trigger_new_or_old_reference(const LEX_CSTRING *name)
           !my_strcasecmp(system_charset_info, name->str, "OLD"));
 }
 
-
-bool LEX::init_internal_variable(struct sys_var_with_base *variable,
-                                 const LEX_CSTRING *dbname,
-                                 const LEX_CSTRING *name)
-{
-  if (check_reserved_words(dbname))
-  {
-    my_error(ER_UNKNOWN_STRUCTURED_VARIABLE, MYF(0),
-             (int) dbname->length, dbname->str);
-    return true;
-  }
-  if (is_trigger_new_or_old_reference(dbname))
-  {
-    if (dbname->str[0]=='O' || dbname->str[0]=='o')
-    {
-      my_error(ER_TRG_CANT_CHANGE_ROW, MYF(0), "OLD", "");
-      return true;
-    }
-    if (trg_chistics.event == TRG_EVENT_DELETE)
-    {
-      my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE");
-      return true;
-    }
-    if (trg_chistics.action_time == TRG_ACTION_AFTER)
-    {
-      my_error(ER_TRG_CANT_CHANGE_ROW, MYF(0), "NEW", "after ");
-      return true;
-    }
-    /* This special combination will denote field of NEW row */
-    variable->var= trg_new_row_fake_var;
-    variable->base_name= *name;
-    return false;
-  }
-
-  sys_var *tmp= find_sys_var_ex(thd, name->str, name->length, true, false);
-  if (!tmp)
-  {
-    my_error(ER_UNKNOWN_STRUCTURED_VARIABLE, MYF(0),
-             (int) dbname->length, dbname->str);
-    return true;
-  }
-  if (!tmp->is_struct())
-    my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), name->str);
-  variable->var= tmp;
-  variable->base_name= *dbname;
-  return false;
-}
-
-
-bool LEX::init_default_internal_variable(struct sys_var_with_base *variable,
-                                         LEX_CSTRING name)
-{
-  sys_var *tmp= find_sys_var(thd, name.str, name.length);
-  if (!tmp)
-    return true;
-  if (!tmp->is_struct())
-    my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), name.str);
-  variable->var= tmp;
-  variable->base_name.str=    (char*) "default";
-  variable->base_name.length= 7;
-  return false;
-}
 
 void LEX::sp_variable_declarations_init(THD *thd, int nvars)
 {
@@ -6994,38 +6897,6 @@ bool LEX::set_user_variable(THD *thd, const LEX_CSTRING *name, Item *val)
 }
 
 
-/*
-  Perform assignment for a trigger, a system variable, or an SP variable.
-  "variable" be previously set by init_internal_variable(variable, name).
-*/
-bool LEX::set_variable(struct sys_var_with_base *variable, Item *item)
-{
-  if (variable->var == trg_new_row_fake_var)
-  {
-    /* We are in trigger and assigning value to field of new row */
-    return set_trigger_new_row(&variable->base_name, item);
-  }
-  if (variable->var)
-  {
-    /* It is a system variable. */
-    return set_system_variable(variable, option_type, item);
-  }
-
-  /*
-    spcont and spv should not be NULL, as the variable
-    was previously checked by init_internal_variable().
-  */
-  DBUG_ASSERT(spcont);
-  const Sp_rcontext_handler *rh;
-  sp_pcontext *ctx;
-  sp_variable *spv= find_variable(&variable->base_name, &ctx, &rh);
-  DBUG_ASSERT(spv);
-  DBUG_ASSERT(ctx);
-  DBUG_ASSERT(rh);
-  return sphead->set_local_variable(thd, ctx, rh, spv, item, this, true);
-}
-
-
 Item *LEX::create_item_ident_nosp(THD *thd, LEX_CSTRING *name)
 {
   if (current_select->parsing_place != IN_HAVING ||
@@ -7084,6 +6955,17 @@ Item *LEX::create_item_ident_sp(THD *thd, LEX_CSTRING *name,
 }
 
 
+
+bool LEX::set_variable(const LEX_CSTRING *name, Item *item)
+{
+  sp_pcontext *ctx;
+  const Sp_rcontext_handler *rh;
+  sp_variable *spv= find_variable(name, &ctx, &rh);
+  return spv ? sphead->set_local_variable(thd, ctx, rh, spv, item, this, true) :
+               set_system_variable(option_type, name, item);
+}
+
+
 /**
   Generate instructions for:
     SET x.y= expr;
@@ -7111,10 +6993,76 @@ bool LEX::set_variable(const LEX_CSTRING *name1,
                                                 item, this);
   }
 
-  // A trigger field or a system variable
-  sys_var_with_base sysvar;
-  return init_internal_variable(&sysvar, name1, name2) ||
-         set_variable(&sysvar, item);
+  if (is_trigger_new_or_old_reference(name1))
+    return set_trigger_field(name1, name2, item);
+
+  return set_system_variable(thd, option_type, name1, name2, item);
+}
+
+
+bool LEX::set_default_system_variable(enum_var_type var_type,
+                                      const LEX_CSTRING *name,
+                                      Item *val)
+{
+  static LEX_CSTRING default_base_name= {STRING_WITH_LEN("default")};
+  sys_var *var= find_sys_var(thd, name->str, name->length);
+  if (!var)
+    return true;
+  if (!var->is_struct())
+    my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), name->str);
+  return set_system_variable(var_type, var, &default_base_name, val);
+}
+
+
+bool LEX::set_system_variable(enum_var_type var_type,
+                              const LEX_CSTRING *name,
+                              Item *val)
+{
+  sys_var *var= find_sys_var(thd, name->str, name->length);
+  DBUG_ASSERT(thd->is_error() || var != NULL);
+  return var ? set_system_variable(var_type, var, &null_clex_str, val) : true;
+}
+
+
+bool LEX::set_system_variable(THD *thd, enum_var_type var_type,
+                              const LEX_CSTRING *name1,
+                              const LEX_CSTRING *name2,
+                              Item *val)
+{
+  sys_var *tmp;
+  if (check_reserved_words(name1) ||
+      !(tmp= find_sys_var_ex(thd, name2->str, name2->length, true, false)))
+  {
+    my_error(ER_UNKNOWN_STRUCTURED_VARIABLE, MYF(0),
+             (int) name1->length, name1->str);
+    return true;
+  }
+  if (!tmp->is_struct())
+    my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), name2->str);
+  return set_system_variable(var_type, tmp, name1, val);
+}
+
+
+bool LEX::set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
+                            Item *val)
+{
+  DBUG_ASSERT(is_trigger_new_or_old_reference(name1));
+  if (name1->str[0]=='O' || name1->str[0]=='o')
+  {
+    my_error(ER_TRG_CANT_CHANGE_ROW, MYF(0), "OLD", "");
+    return true;
+  }
+  if (trg_chistics.event == TRG_EVENT_DELETE)
+  {
+    my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE");
+    return true;
+  }
+  if (trg_chistics.action_time == TRG_ACTION_AFTER)
+  {
+    my_error(ER_TRG_CANT_CHANGE_ROW, MYF(0), "NEW", "after ");
+    return true;
+  }
+  return set_trigger_new_row(name2, val);
 }
 
 

@@ -288,27 +288,28 @@ int LEX::case_stmt_action_then()
 */
 
 bool
-LEX::set_system_variable(struct sys_var_with_base *tmp,
-                         enum enum_var_type var_type, Item *val)
+LEX::set_system_variable(enum enum_var_type var_type,
+                         sys_var *sysvar, const LEX_CSTRING *base_name,
+                         Item *val)
 {
-  set_var *var;
+  set_var *setvar;
 
   /* No AUTOCOMMIT from a stored function or trigger. */
-  if (spcont && tmp->var == Sys_autocommit_ptr)
+  if (spcont && sysvar == Sys_autocommit_ptr)
     sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
 
   if (val && val->type() == Item::FIELD_ITEM &&
       ((Item_field*)val)->table_name)
   {
-    my_error(ER_WRONG_TYPE_FOR_VAR, MYF(0), tmp->var->name.str);
+    my_error(ER_WRONG_TYPE_FOR_VAR, MYF(0), sysvar->name.str);
     return TRUE;
   }
 
-  if (! (var= new (thd->mem_root)
-         set_var(thd, var_type, tmp->var, &tmp->base_name, val)))
+  if (!(setvar= new (thd->mem_root) set_var(thd, var_type, sysvar,
+                                            base_name, val)))
     return TRUE;
 
-  return var_list.push_back(var, thd->mem_root);
+  return var_list.push_back(setvar, thd->mem_root);
 }
 
 
@@ -322,7 +323,7 @@ LEX::set_system_variable(struct sys_var_with_base *tmp,
   @return TRUE if error, FALSE otherwise.
 */
 
-bool LEX::set_trigger_new_row(LEX_CSTRING *name, Item *val)
+bool LEX::set_trigger_new_row(const LEX_CSTRING *name, Item *val)
 {
   Item_trigger_field *trg_fld;
   sp_instr_set_trigger_field *sp_fld;
@@ -778,7 +779,6 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   LEX_CSTRING lex_str;
   LEX_SYMBOL symbol;
   Lex_string_with_metadata_st lex_string_with_metadata;
-  struct sys_var_with_base variable;
   Lex_string_with_pos_st lex_string_with_pos;
   Lex_spblock_st spblock;
   Lex_spblock_handlers_st spblock_handlers;
@@ -1868,8 +1868,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         collation_name_or_default
         opt_load_data_charset
         UNDERSCORE_CHARSET
-
-%type <variable> internal_variable_name
 
 %type <select_lex> subselect
         get_select_lex get_select_lex_derived
@@ -15960,25 +15958,20 @@ opt_var_ident_type:
 
 /* Option values with preceding option_type. */
 option_value_following_option_type:
-          internal_variable_name equal set_expr_or_default
+          ident equal set_expr_or_default
           {
-            LEX *lex= Lex;
-
-            if ($1.var && $1.var != trg_new_row_fake_var)
-            {
-              /* It is a system variable. */
-              if (lex->set_system_variable(&$1, lex->option_type, $3))
-                MYSQL_YYABORT;
-            }
-            else
-            {
-              /*
-                Not in trigger assigning value to new row,
-                and option_type preceding local variable is illegal.
-              */
-              thd->parse_error();
+            if (Lex->set_system_variable(Lex->option_type, &$1, $3))
               MYSQL_YYABORT;
-            }
+          }
+        | ident '.' ident equal set_expr_or_default
+          {
+            if (Lex->set_system_variable(thd, Lex->option_type, &$1, &$3, $5))
+              MYSQL_YYABORT;
+          }
+        | DEFAULT '.' ident equal set_expr_or_default
+          {
+            if (Lex->set_default_system_variable(Lex->option_type, &$3, $5))
+              MYSQL_YYABORT;
           }
         ;
 
@@ -15986,9 +15979,7 @@ option_value_following_option_type:
 option_value_no_option_type:
           ident equal set_expr_or_default
           {
-            struct sys_var_with_base var;
-            if (Lex->init_internal_variable(&var, &$1) ||
-                Lex->set_variable(&var, $3))
+            if (Lex->set_variable(&$1, $3))
               MYSQL_YYABORT;
           }
         | ident '.' ident equal set_expr_or_default
@@ -15999,9 +15990,7 @@ option_value_no_option_type:
           }
         | DEFAULT '.' ident equal set_expr_or_default
           {
-            struct sys_var_with_base var;
-            if (Lex->init_default_internal_variable(&var, $3) ||
-                Lex->set_variable(&var, $5))
+            if (Lex->set_default_system_variable(Lex->option_type, &$3, $5))
               MYSQL_YYABORT;
           }
         | '@' ident_or_text equal expr
@@ -16009,16 +15998,19 @@ option_value_no_option_type:
             if (Lex->set_user_variable(thd, &$2, $4))
               MYSQL_YYABORT;
           }
-        | '@' '@' opt_var_ident_type internal_variable_name equal set_expr_or_default
+        | '@' '@' opt_var_ident_type ident equal set_expr_or_default
           {
-            struct sys_var_with_base tmp= $4;
-            /* Lookup if necessary: must be a system variable. */
-            if (tmp.var == NULL)
-            {
-              if (find_sys_var_null_base(thd, &tmp))
-                MYSQL_YYABORT;
-            }
-            if (Lex->set_system_variable(&tmp, $3, $6))
+            if (Lex->set_system_variable($3, &$4, $6))
+              MYSQL_YYABORT;
+          }
+        | '@' '@' opt_var_ident_type ident '.' ident equal set_expr_or_default
+          {
+            if (Lex->set_system_variable(thd, $3, &$4, &$6, $8))
+              MYSQL_YYABORT;
+          }
+        | '@' '@' opt_var_ident_type DEFAULT '.' ident equal set_expr_or_default
+          {
+            if (Lex->set_default_system_variable($3, &$6, $8))
               MYSQL_YYABORT;
           }
         | charset old_or_new_charset_name_or_default
@@ -16113,25 +16105,6 @@ option_value_no_option_type:
             lex->autocommit= TRUE;
             if (lex->sphead)
               lex->sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
-          }
-        ;
-
-
-internal_variable_name:
-          ident
-          {
-            if (Lex->init_internal_variable(&$$, &$1))
-              MYSQL_YYABORT;
-          }
-        | ident '.' ident
-          {
-            if (Lex->init_internal_variable(&$$, &$1, &$3))
-              MYSQL_YYABORT;
-          }
-        | DEFAULT '.' ident
-          {
-            if (Lex->init_default_internal_variable(&$$, $3))
-              MYSQL_YYABORT;
           }
         ;
 
