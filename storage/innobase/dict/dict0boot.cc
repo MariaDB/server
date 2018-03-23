@@ -283,7 +283,6 @@ dict_boot(void)
 	dict_hdr_t*	dict_hdr;
 	mem_heap_t*	heap;
 	mtr_t		mtr;
-	dberr_t		error;
 
 	/* Be sure these constants do not ever change.  To avoid bloat,
 	only check the *NUM_FIELDS* in each table */
@@ -356,34 +355,27 @@ dict_boot(void)
 	dict_sys->sys_tables = table;
 	mem_heap_empty(heap);
 
-	index = dict_mem_index_create("SYS_TABLES", "CLUST_IND",
+	index = dict_mem_index_create(table, "CLUST_IND",
 				      DICT_UNIQUE | DICT_CLUSTERED, 1);
 
 	dict_mem_index_add_field(index, "NAME", 0);
 
 	index->id = DICT_TABLES_ID;
-
-	error = dict_index_add_to_cache(table, index,
-					mtr_read_ulint(dict_hdr
-						       + DICT_HDR_TABLES,
-						       MLOG_4BYTES, &mtr),
-					FALSE);
-	ut_a(error == DB_SUCCESS);
+	index = dict_index_add_to_cache(
+		index, mach_read_from_4(dict_hdr + DICT_HDR_TABLES));
+	ut_a(index);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
 		table->indexes.start->n_nullable);
 
 	/*-------------------------*/
-	index = dict_mem_index_create("SYS_TABLES", "ID_IND", DICT_UNIQUE, 1);
+	index = dict_mem_index_create(table, "ID_IND", DICT_UNIQUE, 1);
 	dict_mem_index_add_field(index, "ID", 0);
 
 	index->id = DICT_TABLE_IDS_ID;
-	error = dict_index_add_to_cache(table, index,
-					mtr_read_ulint(dict_hdr
-						       + DICT_HDR_TABLE_IDS,
-						       MLOG_4BYTES, &mtr),
-					FALSE);
-	ut_a(error == DB_SUCCESS);
+	index = dict_index_add_to_cache(
+		index, mach_read_from_4(dict_hdr + DICT_HDR_TABLE_IDS));
+	ut_a(index);
 
 	/*-------------------------*/
 	table = dict_mem_table_create("SYS_COLUMNS", DICT_HDR_SPACE,
@@ -404,19 +396,16 @@ dict_boot(void)
 	dict_sys->sys_columns = table;
 	mem_heap_empty(heap);
 
-	index = dict_mem_index_create("SYS_COLUMNS", "CLUST_IND",
+	index = dict_mem_index_create(table, "CLUST_IND",
 				      DICT_UNIQUE | DICT_CLUSTERED, 2);
 
 	dict_mem_index_add_field(index, "TABLE_ID", 0);
 	dict_mem_index_add_field(index, "POS", 0);
 
 	index->id = DICT_COLUMNS_ID;
-	error = dict_index_add_to_cache(table, index,
-					mtr_read_ulint(dict_hdr
-						       + DICT_HDR_COLUMNS,
-						       MLOG_4BYTES, &mtr),
-					FALSE);
-	ut_a(error == DB_SUCCESS);
+	index = dict_index_add_to_cache(
+		index, mach_read_from_4(dict_hdr + DICT_HDR_COLUMNS));
+	ut_a(index);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
 		table->indexes.start->n_nullable);
@@ -450,19 +439,16 @@ dict_boot(void)
 	dict_sys->sys_indexes = table;
 	mem_heap_empty(heap);
 
-	index = dict_mem_index_create("SYS_INDEXES", "CLUST_IND",
+	index = dict_mem_index_create(table, "CLUST_IND",
 				      DICT_UNIQUE | DICT_CLUSTERED, 2);
 
 	dict_mem_index_add_field(index, "TABLE_ID", 0);
 	dict_mem_index_add_field(index, "ID", 0);
 
 	index->id = DICT_INDEXES_ID;
-	error = dict_index_add_to_cache(table, index,
-					mtr_read_ulint(dict_hdr
-						       + DICT_HDR_INDEXES,
-						       MLOG_4BYTES, &mtr),
-					FALSE);
-	ut_a(error == DB_SUCCESS);
+	index = dict_index_add_to_cache(
+		index, mach_read_from_4(dict_hdr + DICT_HDR_INDEXES));
+	ut_a(index);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
 		table->indexes.start->n_nullable);
@@ -481,19 +467,16 @@ dict_boot(void)
 	dict_sys->sys_fields = table;
 	mem_heap_free(heap);
 
-	index = dict_mem_index_create("SYS_FIELDS", "CLUST_IND",
+	index = dict_mem_index_create(table, "CLUST_IND",
 				      DICT_UNIQUE | DICT_CLUSTERED, 2);
 
 	dict_mem_index_add_field(index, "INDEX_ID", 0);
 	dict_mem_index_add_field(index, "POS", 0);
 
 	index->id = DICT_FIELDS_ID;
-	error = dict_index_add_to_cache(table, index,
-					mtr_read_ulint(dict_hdr
-						       + DICT_HDR_FIELDS,
-						       MLOG_4BYTES, &mtr),
-					FALSE);
-	ut_a(error == DB_SUCCESS);
+	index = dict_index_add_to_cache(
+		index, mach_read_from_4(dict_hdr + DICT_HDR_FIELDS));
+	ut_a(index);
 	ut_ad(!table->is_instant());
 	table->indexes.start->n_core_null_bytes = UT_BITS_IN_BYTES(
 		table->indexes.start->n_nullable);

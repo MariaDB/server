@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1974,7 +1975,7 @@ pars_create_index(
 		ind_type = ind_type | DICT_CLUSTERED;
 	}
 
-	index = dict_mem_index_create(table_sym->name, index_sym->name,
+	index = dict_mem_index_create(NULL, index_sym->name,
 				      ind_type, n_fields);
 	column = column_list;
 
@@ -1987,7 +1988,8 @@ pars_create_index(
 		column = static_cast<sym_node_t*>(que_node_get_next(column));
 	}
 
-	node = ind_create_graph_create(index, pars_sym_tab_global->heap, NULL);
+	node = ind_create_graph_create(index, table_sym->name,
+				       pars_sym_tab_global->heap);
 
 	table_sym->resolved = TRUE;
 	table_sym->token_type = SYM_TABLE;

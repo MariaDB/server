@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -50,6 +50,7 @@ tab_create_graph_create(
 
 /** Creates an index create graph.
 @param[in]	index	index to create, built as a memory data structure
+@param[in]	table	table name
 @param[in,out]	heap	heap where created
 @param[in]	add_v	new virtual columns added in the same clause with
 			add index
@@ -57,8 +58,9 @@ tab_create_graph_create(
 ind_node_t*
 ind_create_graph_create(
 	dict_index_t*		index,
+	const char*		table,
 	mem_heap_t*		heap,
-	const dict_add_v_col_t*	add_v);
+	const dict_add_v_col_t*	add_v = NULL);
 
 /***********************************************************//**
 Creates a table. This is a high-level function used in SQL execution graphs.
@@ -316,6 +318,7 @@ struct ind_node_t{
 	dict_index_t*	index;		/*!< index to create, built as a
 					memory data structure with
 					dict_mem_... functions */
+	const char*	table_name;	/*!< table name */
 	ins_node_t*	ind_def;	/*!< child node which does the insert of
 					the index definition; the row to be
 					inserted is built by the parent node  */

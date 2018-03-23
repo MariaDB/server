@@ -125,14 +125,12 @@ static bool	innodb_index_stats_not_found_reported = false;
 /*******************************************************************//**
 Tries to find column names for the index and sets the col field of the
 index.
-@param[in]	table	table
 @param[in]	index	index
 @param[in]	add_v	new virtual columns added along with an add index call
-@return TRUE if the column names were found */
+@return whether the column names were found */
 static
-ibool
+bool
 dict_index_find_cols(
-	const dict_table_t*	table,
 	dict_index_t*		index,
 	const dict_add_v_col_t*	add_v);
 /*******************************************************************//**
@@ -143,7 +141,6 @@ static
 dict_index_t*
 dict_index_build_internal_clust(
 /*============================*/
-	const dict_table_t*	table,	/*!< in: table */
 	dict_index_t*		index);	/*!< in: user representation of
 					a clustered index */
 /*******************************************************************//**
@@ -154,7 +151,6 @@ static
 dict_index_t*
 dict_index_build_internal_non_clust(
 /*================================*/
-	const dict_table_t*	table,	/*!< in: table */
 	dict_index_t*		index);	/*!< in: user representation of
 					a non-clustered index */
 /**********************************************************************//**
@@ -164,7 +160,6 @@ static
 dict_index_t*
 dict_index_build_internal_fts(
 /*==========================*/
-	dict_table_t*	table,	/*!< in: table */
 	dict_index_t*	index);	/*!< in: user representation of an FTS index */
 
 /**********************************************************************//**
@@ -1568,7 +1563,6 @@ dict_table_rename_in_cache(
 {
 	dberr_t		err;
 	dict_foreign_t*	foreign;
-	dict_index_t*	index;
 	ulint		fold;
 	char		old_name[MAX_FULL_NAME_LEN + 1];
 	os_file_type_t	ftype;
@@ -1715,14 +1709,6 @@ dict_table_rename_in_cache(
 	/* Add table to hash table of tables */
 	HASH_INSERT(dict_table_t, name_hash, dict_sys->table_hash, fold,
 		    table);
-
-	/* Update the table_name field in indexes */
-	for (index = dict_table_get_first_index(table);
-	     index != NULL;
-	     index = dict_table_get_next_index(index)) {
-
-		index->table_name = table->name.m_name;
-	}
 
 	if (!rename_also_foreigns) {
 		/* In ALTER TABLE we think of the rename table operation
@@ -2391,45 +2377,26 @@ add_field_size:
 	return(FALSE);
 }
 
-/** Adds an index to the dictionary cache.
-@param[in,out]	table	table on which the index is
-@param[in,out]	index	index; NOTE! The index memory
-			object is freed in this function!
-@param[in]	page_no	root page number of the index
-@param[in]	strict	TRUE=refuse to create the index
-			if records could be too big to fit in
-			an B-tree page
-@return DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION */
-dberr_t
-dict_index_add_to_cache(
-	dict_table_t*	table,
-	dict_index_t*	index,
-	ulint		page_no,
-	ibool		strict)
-{
-	return(dict_index_add_to_cache_w_vcol(
-		table, index, NULL, page_no, strict));
-}
-
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
-@param[in,out]	table	table on which the index is
-@param[in,out]	index	index; NOTE! The index memory
+@param[in]	index	index; NOTE! The index memory
 			object is freed in this function!
-@param[in]	add_v	new virtual column that being added along with
-			an add index call
 @param[in]	page_no	root page number of the index
 @param[in]	strict	TRUE=refuse to create the index
 			if records could be too big to fit in
 			an B-tree page
-@return DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION */
-dberr_t
-dict_index_add_to_cache_w_vcol(
-	dict_table_t*		table,
+@param[out]	err	DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION
+@param[in]	add_v	new virtual column that being added along with
+			an add index call
+@return	the added index
+@retval	NULL	on error */
+dict_index_t*
+dict_index_add_to_cache(
 	dict_index_t*		index,
-	const dict_add_v_col_t* add_v,
 	ulint			page_no,
-	ibool			strict)
+	bool			strict,
+	dberr_t*		err,
+	const dict_add_v_col_t* add_v)
 {
 	dict_index_t*	new_index;
 	ulint		n_ord;
@@ -2444,24 +2411,25 @@ dict_index_add_to_cache_w_vcol(
 
 	ut_d(mem_heap_validate(index->heap));
 	ut_a(!dict_index_is_clust(index)
-	     || UT_LIST_GET_LEN(table->indexes) == 0);
-	ut_ad(dict_index_is_clust(index) || !table->no_rollback());
+	     || UT_LIST_GET_LEN(index->table->indexes) == 0);
+	ut_ad(dict_index_is_clust(index) || !index->table->no_rollback());
 
-	if (!dict_index_find_cols(table, index, add_v)) {
+	if (!dict_index_find_cols(index, add_v)) {
 
 		dict_mem_index_free(index);
-		return(DB_CORRUPTION);
+		if (err) *err = DB_CORRUPTION;
+		return NULL;
 	}
 
 	/* Build the cache internal representation of the index,
 	containing also the added system fields */
 
 	if (dict_index_is_clust(index)) {
-		new_index = dict_index_build_internal_clust(table, index);
+		new_index = dict_index_build_internal_clust(index);
 	} else {
 		new_index = (index->type & DICT_FTS)
-			? dict_index_build_internal_fts(table, index)
-			: dict_index_build_internal_non_clust(table, index);
+			? dict_index_build_internal_fts(index)
+			: dict_index_build_internal_non_clust(index);
 		new_index->n_core_null_bytes = UT_BITS_IN_BYTES(
 			new_index->n_nullable);
 	}
@@ -2477,16 +2445,17 @@ dict_index_add_to_cache_w_vcol(
 	new_index->disable_ahi = index->disable_ahi;
 #endif
 
-	if (dict_index_too_big_for_tree(table, new_index, strict)) {
+	if (dict_index_too_big_for_tree(index->table, new_index, strict)) {
 
 		if (strict) {
 			dict_mem_index_free(new_index);
 			dict_mem_index_free(index);
-			return(DB_TOO_BIG_RECORD);
+			if (err) *err = DB_TOO_BIG_RECORD;
+			return NULL;
 		} else if (current_thd != NULL) {
 			/* Avoid the warning to be printed
 			during recovery. */
-			ib_warn_row_too_big((const dict_table_t*)table);
+			ib_warn_row_too_big(index->table);
 		}
 	}
 
@@ -2548,9 +2517,7 @@ dict_index_add_to_cache_w_vcol(
 
 	/* Add the new index as the last index for the table */
 
-	UT_LIST_ADD_LAST(table->indexes, new_index);
-	new_index->table = table;
-	new_index->table_name = table->name.m_name;
+	UT_LIST_ADD_LAST(new_index->table->indexes, new_index);
 #ifdef BTR_CUR_ADAPT
 	new_index->search_info = btr_search_info_create(new_index->heap);
 #endif /* BTR_CUR_ADAPT */
@@ -2562,8 +2529,8 @@ dict_index_add_to_cache_w_vcol(
 	new_index->n_core_fields = new_index->n_fields;
 
 	dict_mem_index_free(index);
-
-	return(DB_SUCCESS);
+	if (err) *err = DB_SUCCESS;
+	return new_index;
 }
 
 /**********************************************************************//**
@@ -2696,18 +2663,17 @@ index.
 @param[in]	table	table
 @param[in,out]	index	index
 @param[in]	add_v	new virtual columns added along with an add index call
-@return TRUE if the column names were found */
+@return whether the column names were found */
 static
-ibool
+bool
 dict_index_find_cols(
-	const dict_table_t*	table,
 	dict_index_t*		index,
 	const dict_add_v_col_t*	add_v)
 {
 	std::vector<ulint, ut_allocator<ulint> >	col_added;
 	std::vector<ulint, ut_allocator<ulint> >	v_col_added;
 
-	ut_ad(table != NULL && index != NULL);
+	const dict_table_t* table = index->table;
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 	ut_ad(mutex_own(&dict_sys->mutex));
 
@@ -2864,8 +2830,7 @@ void
 dict_index_copy(
 /*============*/
 	dict_index_t*		index1,	/*!< in: index to copy to */
-	dict_index_t*		index2,	/*!< in: index to copy from */
-	const dict_table_t*	table,	/*!< in: table */
+	const dict_index_t*	index2,	/*!< in: index to copy from */
 	ulint			start,	/*!< in: first position to copy */
 	ulint			end)	/*!< in: last position to copy */
 {
@@ -2878,7 +2843,7 @@ dict_index_copy(
 
 		field = dict_index_get_nth_field(index2, i);
 
-		dict_index_add_col(index1, table, field->col,
+		dict_index_add_col(index1, index2->table, field->col,
 				   field->prefix_len);
 	}
 }
@@ -2999,25 +2964,23 @@ static
 dict_index_t*
 dict_index_build_internal_clust(
 /*============================*/
-	const dict_table_t*	table,	/*!< in: table */
 	dict_index_t*		index)	/*!< in: user representation of
 					a clustered index */
 {
+	dict_table_t*	table = index->table;
 	dict_index_t*	new_index;
 	dict_field_t*	field;
 	ulint		trx_id_pos;
 	ulint		i;
 	ibool*		indexed;
 
-	ut_ad(table && index);
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(!dict_index_is_ibuf(index));
 
 	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
 	/* Create a new index object with certainly enough fields */
-	new_index = dict_mem_index_create(table->name.m_name, index->name,
+	new_index = dict_mem_index_create(index->table, index->name,
 					  index->type,
 					  index->n_fields + table->n_cols);
 
@@ -3029,7 +2992,7 @@ dict_index_build_internal_clust(
 	new_index->id = index->id;
 
 	/* Copy the fields of index */
-	dict_index_copy(new_index, index, table, 0, index->n_fields);
+	dict_index_copy(new_index, index, 0, index->n_fields);
 
 	if (dict_index_is_unique(index)) {
 		/* Only the fields defined so far are needed to identify
@@ -3159,13 +3122,13 @@ static
 dict_index_t*
 dict_index_build_internal_non_clust(
 /*================================*/
-	const dict_table_t*	table,	/*!< in: table */
 	dict_index_t*		index)	/*!< in: user representation of
 					a non-clustered index */
 {
 	dict_field_t*	field;
 	dict_index_t*	new_index;
 	dict_index_t*	clust_index;
+	dict_table_t*	table = index->table;
 	ulint		i;
 	ibool*		indexed;
 
@@ -3173,7 +3136,6 @@ dict_index_build_internal_non_clust(
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
 	/* The clustered index should be the first in the list of indexes */
 	clust_index = UT_LIST_GET_FIRST(table->indexes);
@@ -3184,7 +3146,7 @@ dict_index_build_internal_non_clust(
 
 	/* Create a new index */
 	new_index = dict_mem_index_create(
-		table->name.m_name, index->name, index->type,
+		index->table, index->name, index->type,
 		index->n_fields + 1 + clust_index->n_uniq);
 
 	/* Copy other relevant data from the old index
@@ -3195,7 +3157,7 @@ dict_index_build_internal_non_clust(
 	new_index->id = index->id;
 
 	/* Copy fields from index to new_index */
-	dict_index_copy(new_index, index, table, 0, index->n_fields);
+	dict_index_copy(new_index, index, 0, index->n_fields);
 
 	/* Remember the table columns already contained in new_index */
 	indexed = static_cast<ibool*>(
@@ -3262,20 +3224,16 @@ static
 dict_index_t*
 dict_index_build_internal_fts(
 /*==========================*/
-	dict_table_t*	table,	/*!< in: table */
 	dict_index_t*	index)	/*!< in: user representation of an FTS index */
 {
 	dict_index_t*	new_index;
 
-	ut_ad(table && index);
 	ut_ad(index->type == DICT_FTS);
 	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
 	/* Create a new index */
-	new_index = dict_mem_index_create(
-		table->name.m_name, index->name, index->type,
-		index->n_fields);
+	new_index = dict_mem_index_create(index->table, index->name,
+					  index->type, index->n_fields);
 
 	/* Copy other relevant data from the old index struct to the new
 	struct: it inherits the values */
@@ -3285,10 +3243,12 @@ dict_index_build_internal_fts(
 	new_index->id = index->id;
 
 	/* Copy fields from index to new_index */
-	dict_index_copy(new_index, index, table, 0, index->n_fields);
+	dict_index_copy(new_index, index, 0, index->n_fields);
 
 	new_index->n_uniq = 0;
 	new_index->cached = TRUE;
+
+	dict_table_t* table = index->table;
 
 	if (table->fts->cache == NULL) {
 		table->fts->cache = fts_cache_create(table);
@@ -6263,11 +6223,9 @@ dict_ind_init()
 	dict_mem_table_add_col(table, NULL, NULL, DATA_CHAR,
 			       DATA_ENGLISH | DATA_NOT_NULL, 8);
 
-	dict_ind_redundant = dict_mem_index_create("SYS_DUMMY1", "SYS_DUMMY1",
-						   0, 1);
+	dict_ind_redundant = dict_mem_index_create(table, "SYS_DUMMY1", 0, 1);
 	dict_index_add_col(dict_ind_redundant, table,
 			   dict_table_get_nth_col(table, 0), 0);
-	dict_ind_redundant->table = table;
 	/* avoid ut_ad(index->cached) in dict_index_get_n_unique_in_tree */
 	dict_ind_redundant->cached = TRUE;
 }

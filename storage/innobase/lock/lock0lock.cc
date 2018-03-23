@@ -4469,7 +4469,7 @@ lock_rec_print(FILE* file, const lock_t* lock)
 		(ulong) space, (ulong) page_no,
 		(ulong) lock_rec_get_n_bits(lock),
 		lock->index->name());
-	ut_print_name(file, lock->trx, lock->index->table_name);
+	ut_print_name(file, lock->trx, lock->index->table->name.m_name);
 	fprintf(file, " trx id " TRX_ID_FMT, trx_get_id_for_print(lock->trx));
 
 	if (lock_get_mode(lock) == LOCK_S) {

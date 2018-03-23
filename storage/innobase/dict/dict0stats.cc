@@ -451,8 +451,6 @@ dict_stats_table_clone_create(
 
 		idx->name = mem_heap_strdup(heap, index->name);
 
-		idx->table_name = t->name.m_name;
-
 		idx->table = t;
 
 		idx->type = index->type;

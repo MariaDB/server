@@ -10979,9 +10979,7 @@ create_table_info_t::create_table_def()
 
 		/* Raise error if the Doc ID column is of wrong type or name */
 		if (doc_id_col == ULINT_UNDEFINED) {
-
-			err = DB_ERROR;
-			goto error_ret;
+			DBUG_RETURN(HA_ERR_GENERIC);
 		} else {
 			has_doc_id_col = TRUE;
 		}
@@ -11113,9 +11111,7 @@ err_col:
 			dict_mem_table_free(table);
 			mem_heap_free(heap);
 			ut_ad(trx_state_eq(m_trx, TRX_STATE_NOT_STARTED));
-
-			err = DB_ERROR;
-			goto error_ret;
+			DBUG_RETURN(HA_ERR_GENERIC);
 		}
 
 		if (!is_virtual) {
@@ -11225,7 +11221,18 @@ err_col:
 	DBUG_EXECUTE_IF("ib_create_err_tablespace_exist",
 			err = DB_TABLESPACE_EXISTS;);
 
-	if (err == DB_DUPLICATE_KEY || err == DB_TABLESPACE_EXISTS) {
+	switch (err) {
+	case DB_SUCCESS:
+		ut_ad(table);
+		m_table = table;
+		if (m_flags2 & DICT_TF2_FTS) {
+			fts_optimize_add_table(table);
+		}
+		DBUG_RETURN(0);
+	default:
+		break;
+	case DB_DUPLICATE_KEY:
+	case DB_TABLESPACE_EXISTS:
 		char display_name[FN_REFLEN];
 		char* buf_end = innobase_convert_identifier(
 			display_name, sizeof(display_name) - 1,
@@ -11239,13 +11246,7 @@ err_col:
 			 : ER_TABLESPACE_EXISTS, MYF(0), display_name);
 	}
 
-	if (err == DB_SUCCESS && (m_flags2 & DICT_TF2_FTS)) {
-		fts_optimize_add_table(table);
-	}
-
-error_ret:
-	DBUG_RETURN(convert_error_code_to_mysql(err, m_flags, m_thd));
-}
+	DBUG_RETURN(convert_error_code_to_mysql(err, m_flags, m_thd));}
 
 /*****************************************************************//**
 Creates an index in an InnoDB database. */
@@ -11256,8 +11257,7 @@ create_index(
 	trx_t*		trx,		/*!< in: InnoDB transaction handle */
 	const TABLE*	form,		/*!< in: information on table
 					columns and indexes */
-	ulint		flags,		/*!< in: InnoDB table flags */
-	const char*	table_name,	/*!< in: table name */
+	dict_table_t*	table,		/*!< in,out: table */
 	uint		key_num)	/*!< in: index number */
 {
 	dict_index_t*	index;
@@ -11282,7 +11282,7 @@ create_index(
 
 	if (ind_type != 0)
 	{
-		index = dict_mem_index_create(table_name, key->name.str,
+		index = dict_mem_index_create(table, key->name.str,
 					      ind_type,
 					      key->user_defined_key_parts);
 
@@ -11303,8 +11303,7 @@ create_index(
 		DBUG_RETURN(convert_error_code_to_mysql(
 				    row_create_index_for_mysql(
 					    index, trx, NULL),
-				    flags, NULL));
-
+				    table->flags, NULL));
 	}
 
 	ind_type = 0;
@@ -11324,7 +11323,7 @@ create_index(
 	/* We pass 0 as the space id, and determine at a lower level the space
 	id where to store the table */
 
-	index = dict_mem_index_create(table_name, key->name.str,
+	index = dict_mem_index_create(table, key->name.str,
 				      ind_type, key->user_defined_key_parts);
 
 	for (ulint i = 0; i < key->user_defined_key_parts; i++) {
@@ -11374,7 +11373,7 @@ create_index(
 					" prefix index field, on an"
 					" inappropriate data type. Table"
 					" name %s, column name %s.",
-					table_name,
+					form->s->table_name.str,
 					key_part->field->field_name.str);
 
 				prefix_len = 0;
@@ -11400,36 +11399,11 @@ create_index(
 
 	error = convert_error_code_to_mysql(
 		row_create_index_for_mysql(index, trx, field_lengths),
-		flags, NULL);
+		table->flags, NULL);
 
 	my_free(field_lengths);
 
 	DBUG_RETURN(error);
-}
-
-/*****************************************************************//**
-Creates an index to an InnoDB table when the user has defined no
-primary index. */
-inline
-int
-create_clustered_index_when_no_primary(
-/*===================================*/
-	trx_t*		trx,		/*!< in: InnoDB transaction handle */
-	ulint		flags,		/*!< in: InnoDB table flags */
-	const char*	table_name)	/*!< in: table name */
-{
-	dict_index_t*	index;
-	dberr_t		error;
-
-	/* We pass 0 as the space id, and determine at a lower level the space
-	id where to store the table */
-	index = dict_mem_index_create(table_name,
-				      innobase_index_reserve_name,
-				      DICT_CLUSTERED, 0);
-
-	error = row_create_index_for_mysql(index, trx, NULL);
-
-	return(convert_error_code_to_mysql(error, flags, NULL));
 }
 
 /** Return a display name for the row format
@@ -12450,7 +12424,6 @@ create_table_info_t::create_table()
 	int		error;
 	int		primary_key_no;
 	uint		i;
-	dict_table_t*	innobase_table = NULL;
 	const char*	stmt;
 	size_t		stmt_len;
 
@@ -12476,9 +12449,12 @@ create_table_info_t::create_table()
 		/* Create an index which is used as the clustered index;
 		order the rows by their row id which is internally generated
 		by InnoDB */
-
-		error = create_clustered_index_when_no_primary(
-			m_trx, m_flags, m_table_name);
+		dict_index_t* index = dict_mem_index_create(
+			m_table, innobase_index_reserve_name,
+			DICT_CLUSTERED, 0);
+		error = convert_error_code_to_mysql(
+			row_create_index_for_mysql(index, m_trx, NULL),
+			m_table->flags, m_thd);
 		if (error) {
 			DBUG_RETURN(error);
 		}
@@ -12487,7 +12463,7 @@ create_table_info_t::create_table()
 	if (primary_key_no != -1) {
 		/* In InnoDB the clustered index must always be created
 		first */
-		if ((error = create_index(m_trx, m_form, m_flags, m_table_name,
+		if ((error = create_index(m_trx, m_form, m_table,
 					  (uint) primary_key_no))) {
 			DBUG_RETURN(error);
 		}
@@ -12497,11 +12473,6 @@ create_table_info_t::create_table()
 	this table. */
 	if (m_flags2 & DICT_TF2_FTS) {
 		fts_doc_id_index_enum	ret;
-
-		innobase_table = dict_table_open_on_name(
-			m_table_name, TRUE, FALSE, DICT_ERR_IGNORE_NONE);
-
-		ut_a(innobase_table);
 
 		/* Check whether there already exists FTS_DOC_ID_INDEX */
 		ret = innobase_fts_check_doc_id_index_in_def(
@@ -12521,13 +12492,12 @@ create_table_info_t::create_table()
 					    " make sure it is of correct"
 					    " type\n",
 					    FTS_DOC_ID_INDEX_NAME,
-					    innobase_table->name.m_name);
+					    m_table->name.m_name);
 
-			if (innobase_table->fts) {
-				fts_free(innobase_table);
+			if (m_table->fts) {
+				fts_free(m_table);
 			}
 
-			dict_table_close(innobase_table, TRUE, FALSE);
 			my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0),
 				 FTS_DOC_ID_INDEX_NAME);
 			error = -1;
@@ -12538,12 +12508,10 @@ create_table_info_t::create_table()
 		}
 
 		dberr_t	err = fts_create_common_tables(
-			m_trx, innobase_table, m_table_name,
+			m_trx, m_table,
 			(ret == FTS_EXIST_DOC_ID_INDEX));
 
 		error = convert_error_code_to_mysql(err, 0, NULL);
-
-		dict_table_close(innobase_table, TRUE, FALSE);
 
 		if (error) {
 			trx_rollback_to_savepoint(m_trx, NULL);
@@ -12557,24 +12525,20 @@ create_table_info_t::create_table()
 	}
 
 	for (i = 0; i < m_form->s->keys; i++) {
-
-		if (i != static_cast<uint>(primary_key_no)) {
-
-			if ((error = create_index(m_trx, m_form, m_flags,
-						  m_table_name, i))) {
-				DBUG_RETURN(error);
-			}
+		if (i != uint(primary_key_no)
+		    && (error = create_index(m_trx, m_form, m_table, i))) {
+			DBUG_RETURN(error);
 		}
 	}
 
 	/* Cache all the FTS indexes on this table in the FTS specific
 	structure. They are used for FTS indexed column update handling. */
 	if (m_flags2 & DICT_TF2_FTS) {
-		fts_t*          fts = innobase_table->fts;
+		fts_t*          fts = m_table->fts;
 
 		ut_a(fts != NULL);
 
-		dict_table_get_all_fts_indexes(innobase_table, fts->indexes);
+		dict_table_get_all_fts_indexes(m_table, fts->indexes);
 	}
 
 	stmt = innobase_get_stmt_unsafe(m_thd, &stmt_len);
@@ -12623,13 +12587,6 @@ create_table_info_t::create_table()
 		if (error) {
 			DBUG_RETURN(error);
 		}
-	}
-
-	innobase_table = dict_table_open_on_name(
-		m_table_name, TRUE, FALSE, DICT_ERR_IGNORE_NONE);
-
-	if (innobase_table != NULL) {
-		dict_table_close(innobase_table, TRUE, FALSE);
 	}
 
 	DBUG_RETURN(0);

@@ -4468,10 +4468,8 @@ row_merge_create_index(
 	a persistent operation. We pass 0 as the space id, and determine at
 	a lower level the space id where to store the table. */
 
-	index = dict_mem_index_create(table->name.m_name, index_def->name,
+	index = dict_mem_index_create(table, index_def->name,
 				      index_def->ind_type, n_fields);
-
-	index->table = table;
 	index->set_committed(index_def->rebuild);
 
 	for (i = 0; i < n_fields; i++) {

@@ -113,7 +113,6 @@ dict_load_index_low(
 	byte*		table_id,	/*!< in/out: table id (8 bytes),
 					an "in" value if allocate=TRUE
 					and "out" when allocate=FALSE */
-	const char*	table_name,	/*!< in: table name */
 	mem_heap_t*	heap,		/*!< in/out: temporary memory heap */
 	const rec_t*	rec,		/*!< in: SYS_INDEXES record */
 	ibool		allocate,	/*!< in: TRUE=allocate *index,
@@ -450,8 +449,7 @@ dict_process_sys_indexes_rec(
 	buf = static_cast<byte*>(mem_heap_alloc(heap, 8));
 
 	/* Parse the record, and get "dict_index_t" struct filled */
-	err_msg = dict_load_index_low(buf, NULL,
-				      heap, rec, FALSE, &index);
+	err_msg = dict_load_index_low(buf, heap, rec, FALSE, &index);
 
 	*table_id = mach_read_from_8(buf);
 
@@ -2240,7 +2238,6 @@ dict_load_index_low(
 	byte*		table_id,	/*!< in/out: table id (8 bytes),
 					an "in" value if allocate=TRUE
 					and "out" when allocate=FALSE */
-	const char*	table_name,	/*!< in: table name */
 	mem_heap_t*	heap,		/*!< in/out: temporary memory heap */
 	const rec_t*	rec,		/*!< in: SYS_INDEXES record */
 	ibool		allocate,	/*!< in: TRUE=allocate *index,
@@ -2359,12 +2356,11 @@ err_len:
 	}
 
 	if (allocate) {
-		*index = dict_mem_index_create(table_name, name_buf,
-					       type, n_fields);
+		*index = dict_mem_index_create(NULL, name_buf, type, n_fields);
 	} else {
 		ut_a(*index);
 
-		dict_mem_fill_index_struct(*index, NULL, NULL, name_buf,
+		dict_mem_fill_index_struct(*index, NULL, name_buf,
 					   type, n_fields);
 	}
 
@@ -2471,8 +2467,7 @@ dict_load_indexes(
 			}
 		}
 
-		err_msg = dict_load_index_low(
-			buf, table->name.m_name, heap, rec, TRUE, &index);
+		err_msg = dict_load_index_low(buf, heap, rec, TRUE, &index);
 		ut_ad((index == NULL && err_msg != NULL)
 		      || (index != NULL && err_msg == NULL));
 
@@ -2603,17 +2598,15 @@ corrupted:
 			dict_mem_index_free(index);
 		} else {
 			dict_load_fields(index, heap);
-
-			error = dict_index_add_to_cache(
-				table, index, index->page, FALSE);
+			index->table = table;
 
 			/* The data dictionary tables should never contain
 			invalid index definitions.  If we ignored this error
 			and simply did not load this index definition, the
 			.frm file would disagree with the index definitions
 			inside InnoDB. */
-			if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
-
+			if (!dict_index_add_to_cache(
+				    index, index->page, false, &error)) {
 				goto func_exit;
 			}
 		}

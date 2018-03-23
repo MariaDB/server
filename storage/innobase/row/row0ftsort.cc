@@ -70,15 +70,15 @@ integer value)
 dict_index_t*
 row_merge_create_fts_sort_index(
 /*============================*/
-	dict_index_t*		index,	/*!< in: Original FTS index
-					based on which this sort index
-					is created */
-	const dict_table_t*	table,	/*!< in: table that FTS index
-					is being created on */
-	ibool*			opt_doc_id_size)
-					/*!< out: whether to use 4 bytes
-					instead of 8 bytes integer to
-					store Doc ID during sort */
+	dict_index_t*	index,	/*!< in: Original FTS index
+				based on which this sort index
+				is created */
+	dict_table_t*	table,	/*!< in,out: table that FTS index
+				is being created on */
+	ibool*		opt_doc_id_size)
+				/*!< out: whether to use 4 bytes
+				instead of 8 bytes integer to
+				store Doc ID during sort */
 {
 	dict_index_t*   new_index;
 	dict_field_t*   field;
@@ -86,11 +86,9 @@ row_merge_create_fts_sort_index(
 	CHARSET_INFO*	charset;
 
 	// FIXME: This name shouldn't be hard coded here.
-	new_index = dict_mem_index_create(
-		index->table->name.m_name, "tmp_fts_idx", DICT_FTS, 3);
+	new_index = dict_mem_index_create(table, "tmp_fts_idx", DICT_FTS, 3);
 
 	new_index->id = index->id;
-	new_index->table = (dict_table_t*) table;
 	new_index->n_uniq = FTS_NUM_FIELDS_SORT;
 	new_index->n_def = FTS_NUM_FIELDS_SORT;
 	new_index->cached = TRUE;

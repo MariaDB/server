@@ -688,7 +688,7 @@ public:
 	:m_thd(thd),
 	m_form(form),
 	m_create_info(create_info),
-	m_table_name(table_name),
+	m_table_name(table_name), m_table(NULL),
 	m_remote_path(remote_path),
 	m_innodb_file_per_table(srv_file_per_table)
 	{}
@@ -798,6 +798,8 @@ private:
 
 	/** Table name */
 	char*		m_table_name;
+	/** Table */
+	dict_table_t*	m_table;
 
 	/** Remote path (DATA DIRECTORY) or zero length-string */
 	char*		m_remote_path;

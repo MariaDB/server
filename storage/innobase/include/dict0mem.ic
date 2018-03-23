@@ -37,7 +37,6 @@ dict_mem_fill_index_struct(
 /*=======================*/
 	dict_index_t*	index,		/*!< out: index to be filled */
 	mem_heap_t*	heap,		/*!< in: memory heap */
-	const char*	table_name,	/*!< in: table name */
 	const char*	index_name,	/*!< in: index name */
 	ulint		type,		/*!< in: DICT_UNIQUE,
 					DICT_CLUSTERED, ... ORed */
@@ -60,7 +59,6 @@ dict_mem_fill_index_struct(
 	index->type = unsigned(type);
 	index->page = FIL_NULL;
 	index->merge_threshold = DICT_INDEX_MERGE_THRESHOLD_DEFAULT;
-	index->table_name = table_name;
 	index->n_fields = (unsigned int) n_fields;
 	index->n_core_fields = (unsigned int) n_fields;
 	/* The '1 +' above prevents allocation

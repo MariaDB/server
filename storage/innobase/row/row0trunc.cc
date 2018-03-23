@@ -1324,10 +1324,7 @@ row_truncate_fts(
 
 	fts_table.data_dir_path = table->data_dir_path;
 
-	dberr_t		err;
-
-	err = fts_create_common_tables(
-		trx, &fts_table, table->name.m_name, TRUE);
+	dberr_t err = fts_create_common_tables(trx, &fts_table, true);
 
 	for (ulint i = 0;
 	     i < ib_vector_size(table->fts->indexes) && err == DB_SUCCESS;
@@ -1338,8 +1335,7 @@ row_truncate_fts(
 		fts_index = static_cast<dict_index_t*>(
 			ib_vector_getp(table->fts->indexes, i));
 
-		err = fts_create_index_tables_low(
-			trx, fts_index, table->name.m_name, new_id);
+		err = fts_create_index_tables(trx, fts_index, new_id);
 	}
 
 	DBUG_EXECUTE_IF("ib_err_trunc_during_fts_trunc",

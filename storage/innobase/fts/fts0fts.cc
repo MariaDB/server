@@ -1819,7 +1819,7 @@ fts_create_one_common_table(
 	if (error == DB_SUCCESS) {
 
 		dict_index_t*	index = dict_mem_index_create(
-			fts_table_name, "FTS_COMMON_TABLE_IND",
+			new_table, "FTS_COMMON_TABLE_IND",
 			DICT_UNIQUE|DICT_CLUSTERED, 1);
 
 		if (!is_config) {
@@ -1863,16 +1863,14 @@ CREATE TABLE $FTS_PREFIX_BEING_DELETED_CACHE
 CREATE TABLE $FTS_PREFIX_CONFIG
 	(key CHAR(50), value CHAR(200), UNIQUE CLUSTERED INDEX on key)
 @param[in,out]	trx			transaction
-@param[in]	table			table with FTS index
-@param[in]	name			table name normalized
+@param[in,out]	table			table with FTS index
 @param[in]	skip_doc_id_index	Skip index on doc id
 @return DB_SUCCESS if succeed */
 dberr_t
 fts_create_common_tables(
-	trx_t*			trx,
-	const dict_table_t*	table,
-	const char*		name,
-	bool			skip_doc_id_index)
+	trx_t*		trx,
+	dict_table_t*	table,
+	bool		skip_doc_id_index)
 {
 	dberr_t		error;
 	que_t*		graph;
@@ -1945,7 +1943,7 @@ fts_create_common_tables(
 		goto func_exit;
 	}
 
-	index = dict_mem_index_create(name, FTS_DOC_ID_INDEX_NAME,
+	index = dict_mem_index_create(table, FTS_DOC_ID_INDEX_NAME,
 				      DICT_UNIQUE, 1);
 	dict_mem_index_add_field(index, FTS_DOC_ID_COL_NAME, 0);
 
@@ -2037,7 +2035,7 @@ fts_create_one_index_table(
 
 	if (error == DB_SUCCESS) {
 		dict_index_t*	index = dict_mem_index_create(
-			table_name, "FTS_INDEX_TABLE_IND",
+			new_table, "FTS_INDEX_TABLE_IND",
 			DICT_UNIQUE|DICT_CLUSTERED, 2);
 		dict_mem_index_add_field(index, "word", 0);
 		dict_mem_index_add_field(index, "first_doc_id", 0);
@@ -2060,18 +2058,24 @@ fts_create_one_index_table(
 	return(new_table);
 }
 
-/** Create auxiliary index tables for an FTS index.
-@param[in,out]	trx		transaction
-@param[in]	index		the index instance
-@param[in]	table_name	table name
-@param[in]	table_id	the table id
+/** Creates the column specific ancillary tables needed for supporting an
+FTS index on the given table. row_mysql_lock_data_dictionary must have
+been called before this.
+
+All FTS AUX Index tables have the following schema.
+CREAT TABLE $FTS_PREFIX_INDEX_[1-6](
+	word		VARCHAR(FTS_MAX_WORD_LEN),
+	first_doc_id	INT NOT NULL,
+	last_doc_id	UNSIGNED NOT NULL,
+	doc_count	UNSIGNED INT NOT NULL,
+	ilist		VARBINARY NOT NULL,
+	UNIQUE CLUSTERED INDEX ON (word, first_doc_id))
+@param[in,out]	trx	dictionary transaction
+@param[in]	index	fulltext index
+@param[in]	id	table id
 @return DB_SUCCESS or error code */
 dberr_t
-fts_create_index_tables_low(
-	trx_t*			trx,
-	const dict_index_t*	index,
-	const char*		table_name,
-	table_id_t		table_id)
+fts_create_index_tables(trx_t* trx, const dict_index_t* index, table_id_t id)
 {
 	ulint		i;
 	fts_table_t	fts_table;
@@ -2080,8 +2084,8 @@ fts_create_index_tables_low(
 
 	fts_table.type = FTS_INDEX_TABLE;
 	fts_table.index_id = index->id;
-	fts_table.table_id = table_id;
-	fts_table.parent = table_name;
+	fts_table.table_id = id;
+	fts_table.parent = index->table->name.m_name;
 	fts_table.table = index->table;
 
 	/* aux_idx_tables vector is used for dropping FTS AUX INDEX
@@ -2134,41 +2138,6 @@ fts_create_index_tables_low(
 	return(error);
 }
 
-/** Creates the column specific ancillary tables needed for supporting an
-FTS index on the given table. row_mysql_lock_data_dictionary must have
-been called before this.
-
-All FTS AUX Index tables have the following schema.
-CREAT TABLE $FTS_PREFIX_INDEX_[1-6](
-	word		VARCHAR(FTS_MAX_WORD_LEN),
-	first_doc_id	INT NOT NULL,
-	last_doc_id	UNSIGNED NOT NULL,
-	doc_count	UNSIGNED INT NOT NULL,
-	ilist		VARBINARY NOT NULL,
-	UNIQUE CLUSTERED INDEX ON (word, first_doc_id))
-@param[in,out]	trx	transaction
-@param[in]	index	index instance
-@return DB_SUCCESS or error code */
-dberr_t
-fts_create_index_tables(
-	trx_t*			trx,
-	const dict_index_t*	index)
-{
-	dberr_t		err;
-	dict_table_t*	table;
-
-	table = dict_table_get_low(index->table_name);
-	ut_a(table != NULL);
-
-	err = fts_create_index_tables_low(
-		trx, index, table->name.m_name, table->id);
-
-	if (err == DB_SUCCESS) {
-		trx_commit(trx);
-	}
-
-	return(err);
-}
 #if 0
 /******************************************************************//**
 Return string representation of state. */
@@ -3836,7 +3805,7 @@ fts_doc_fetch_by_doc_id(
 	pars_info_bind_function(info, "my_func", callback, arg);
 
 	select_str = fts_get_select_columns_str(index, info, info->heap);
-	pars_info_bind_id(info, TRUE, "table_name", index->table_name);
+	pars_info_bind_id(info, TRUE, "table_name", index->table->name.m_name);
 
 	if (!get_doc || !get_doc->get_document_graph) {
 		if (option == FTS_FETCH_DOC_BY_ID_EQUAL) {

@@ -721,7 +721,7 @@ Creates an index memory object.
 dict_index_t*
 dict_mem_index_create(
 /*==================*/
-	const char*	table_name,	/*!< in: table name */
+	dict_table_t*	table,		/*!< in: table */
 	const char*	index_name,	/*!< in: index name */
 	ulint		type,		/*!< in: DICT_UNIQUE,
 					DICT_CLUSTERED, ... ORed */
@@ -730,15 +730,16 @@ dict_mem_index_create(
 	dict_index_t*	index;
 	mem_heap_t*	heap;
 
-	ut_ad(table_name && index_name);
+	ut_ad(!table || table->magic_n == DICT_TABLE_MAGIC_N);
+	ut_ad(index_name);
 
 	heap = mem_heap_create(DICT_HEAP_SIZE);
 
 	index = static_cast<dict_index_t*>(
 		mem_heap_zalloc(heap, sizeof(*index)));
+	index->table = table;
 
-	dict_mem_fill_index_struct(index, heap, table_name, index_name,
-				   type, n_fields);
+	dict_mem_fill_index_struct(index, heap, index_name, type, n_fields);
 
 	dict_index_zip_pad_mutex_create_lazy(index);
 

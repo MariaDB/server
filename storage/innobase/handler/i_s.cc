@@ -1723,7 +1723,7 @@ i_s_cmp_per_index_fill_low(
 			char	db_utf8[MAX_DB_UTF8_LEN];
 			char	table_utf8[MAX_TABLE_UTF8_LEN];
 
-			dict_fs2utf8(index->table_name,
+			dict_fs2utf8(index->table->name.m_name,
 				     db_utf8, sizeof(db_utf8),
 				     table_utf8, sizeof(table_utf8));
 
@@ -4922,8 +4922,8 @@ i_s_innodb_buffer_page_fill(
 				    page_info->index_id)) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
-					index->table_name,
-					strlen(index->table_name),
+					index->table->name.m_name,
+					strlen(index->table->name.m_name),
 					thd);
 
 				ret = fields[IDX_BUFFER_PAGE_TABLE_NAME]
@@ -5641,8 +5641,8 @@ i_s_innodb_buf_page_lru_fill(
 				    page_info->index_id)) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
-					index->table_name,
-					strlen(index->table_name),
+					index->table->name.m_name,
+					strlen(index->table->name.m_name),
 					thd);
 
 				ret = fields[IDX_BUF_LRU_PAGE_TABLE_NAME]

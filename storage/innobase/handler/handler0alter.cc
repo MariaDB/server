@@ -4682,10 +4682,10 @@ innodb_v_adjust_idx_col(
 @param[in,out]	trx	dictionary transaction
 @param[in,out]	index	index being created
 @param[in]	add_v	virtual columns that are being added, or NULL
-@return DB_SUCCESS or error code */
+@return the created index */
 MY_ATTRIBUTE((nonnull(1,2), warn_unused_result))
 static
-dberr_t
+dict_index_t*
 create_index_dict(
 	trx_t*			trx,
 	dict_index_t*		index,
@@ -4694,7 +4694,8 @@ create_index_dict(
 	DBUG_ENTER("create_index_dict");
 
 	mem_heap_t* heap = mem_heap_create(512);
-	ind_node_t* node = ind_create_graph_create(index, heap, add_v);
+	ind_node_t* node = ind_create_graph_create(
+		index, index->table->name.m_name, heap, add_v);
 	que_thr_t* thr = pars_complete_graph_for_exec(node, trx, heap, NULL);
 
 	que_fork_start_command(
@@ -4702,9 +4703,11 @@ create_index_dict(
 
 	que_run_threads(thr);
 
+	index = node->index;
+
 	que_graph_free((que_t*) que_node_get_parent(thr));
 
-	DBUG_RETURN(trx->error_state);
+	DBUG_RETURN(trx->error_state == DB_SUCCESS ? index : NULL);
 }
 
 /** Update internal structures with concurrent writes blocked,
@@ -5198,9 +5201,10 @@ new_clustered_failed:
 		DBUG_ASSERT(ctx->new_table->n_cols > ctx->old_table->n_cols);
 
 		for (uint a = 0; a < ctx->num_to_add_index; a++) {
-			error = dict_index_add_to_cache_w_vcol(
-				ctx->new_table, ctx->add_index[a], add_v,
-				FIL_NULL, false);
+			ctx->add_index[a]->table = ctx->new_table;
+			ctx->add_index[a] = dict_index_add_to_cache(
+				ctx->add_index[a], FIL_NULL, false,
+				&error, add_v);
 			ut_a(error == DB_SUCCESS);
 		}
 		DBUG_ASSERT(ha_alter_info->key_count
@@ -5423,17 +5427,15 @@ new_table_failed:
 		for (ulint a = 0; a < ctx->num_to_add_index; a++) {
 			dict_index_t*& index = ctx->add_index[a];
 			const bool has_new_v_col = index->has_new_v_col;
-			error = create_index_dict(ctx->trx, index, add_v);
-			if (error != DB_SUCCESS) {
+			index = create_index_dict(ctx->trx, index, add_v);
+			if (!index) {
+				error = ctx->trx->error_state;
+				ut_ad(error != DB_SUCCESS);
 				while (++a < ctx->num_to_add_index) {
 					dict_mem_index_free(ctx->add_index[a]);
 				}
 				goto error_handling;
 			}
-
-			index = dict_table_get_index_on_name(
-				ctx->new_table, index_defs[a].name, true);
-			ut_a(index);
 
 			index->parser = index_defs[a].parser;
 			index->has_new_v_col = has_new_v_col;
@@ -5505,18 +5507,16 @@ new_table_failed:
 		for (ulint a = 0; a < ctx->num_to_add_index; a++) {
 			dict_index_t*& index = ctx->add_index[a];
 			const bool has_new_v_col = index->has_new_v_col;
-			error = create_index_dict(ctx->trx, index, add_v);
-			if (error != DB_SUCCESS) {
+			index = create_index_dict(ctx->trx, index, add_v);
+			if (!index) {
+				error = ctx->trx->error_state;
+				ut_ad(error != DB_SUCCESS);
 error_handling_drop_uncached:
 				while (++a < ctx->num_to_add_index) {
 					dict_mem_index_free(ctx->add_index[a]);
 				}
 				goto error_handling;
 			}
-
-			index = dict_table_get_index_on_name(
-				ctx->new_table, index_defs[a].name, false);
-			ut_a(index);
 
 			index->parser = index_defs[a].parser;
 			index->has_new_v_col = has_new_v_col;
@@ -5597,10 +5597,8 @@ op_ok:
 			DBUG_ASSERT(ctx->new_table->fts_doc_id_index != NULL);
 		}
 
-		/* This function will commit the transaction and reset
-		the trx_t::dict_operation flag on success. */
-
-		error = fts_create_index_tables(ctx->trx, fts_index);
+		error = fts_create_index_tables(ctx->trx, fts_index,
+						ctx->new_table->id);
 
 		DBUG_EXECUTE_IF("innodb_test_fail_after_fts_index_table",
 				error = DB_LOCK_WAIT_TIMEOUT;
@@ -5610,13 +5608,13 @@ op_ok:
 			goto error_handling;
 		}
 
+		trx_commit(ctx->trx);
 		trx_start_for_ddl(ctx->trx, op);
 
 		if (!ctx->new_table->fts
 		    || ib_vector_size(ctx->new_table->fts->indexes) == 0) {
 			error = fts_create_common_tables(
-				ctx->trx, ctx->new_table,
-				user_table->name.m_name, TRUE);
+				ctx->trx, ctx->new_table, true);
 
 			DBUG_EXECUTE_IF(
 				"innodb_test_fail_after_fts_common_table",

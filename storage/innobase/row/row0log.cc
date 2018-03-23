@@ -2870,7 +2870,7 @@ all_done:
 			    buf, ofs, srv_sort_buf_size)) {
 			ib::error()
 				<< "Unable to read temporary file"
-				" for table " << index->table_name;
+				" for table " << index->table->name;
 			goto corruption;
 		}
 

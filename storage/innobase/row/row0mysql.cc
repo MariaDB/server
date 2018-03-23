@@ -2509,28 +2509,15 @@ row_create_index_for_mysql(
 	dberr_t		err;
 	ulint		i;
 	ulint		len;
-	char*		table_name;
-	char*		index_name;
-	dict_table_t*	table = NULL;
-	ibool		is_fts;
+	dict_table_t*	table = index->table;
 
 	trx->op_info = "creating index";
-
-	/* Copy the table name because we may want to drop the
-	table later, after the index object is freed (inside
-	que_run_threads()) and thus index->table_name is not available. */
-	table_name = mem_strdup(index->table_name);
-	index_name = mem_strdup(index->name);
-
-	is_fts = (index->type == DICT_FTS);
 
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
-	table = dict_table_open_on_name(table_name, TRUE, TRUE,
-					DICT_ERR_IGNORE_NONE);
 
-	if (!dict_table_is_temporary(table)) {
+	if (!table->is_temporary()) {
 		trx_start_if_not_started_xa(trx, true);
 	}
 
@@ -2563,13 +2550,14 @@ row_create_index_for_mysql(
 	/* For temp-table we avoid insertion into SYSTEM TABLES to
 	maintain performance and so we have separate path that directly
 	just updates dictonary cache. */
-	if (!dict_table_is_temporary(table)) {
+	if (!table->is_temporary()) {
 		/* Note that the space id where we store the index is
 		inherited from the table in dict_build_index_def_step()
 		in dict0crea.cc. */
 
 		heap = mem_heap_create(512);
-		node = ind_create_graph_create(index, heap, NULL);
+		node = ind_create_graph_create(index, table->name.m_name,
+					       heap);
 
 		thr = pars_complete_graph_for_exec(node, trx, heap, NULL);
 
@@ -2581,50 +2569,36 @@ row_create_index_for_mysql(
 
 		err = trx->error_state;
 
+		index = node->index;
+
+		ut_ad(!index == (err != DB_SUCCESS));
+
 		que_graph_free((que_t*) que_node_get_parent(thr));
+
+		if (index && (index->type & DICT_FTS)) {
+			err = fts_create_index_tables(trx, index, table->id);
+		}
 	} else {
 		dict_build_index_def(table, index, trx);
 
-		index_id_t index_id = index->id;
-
 		/* add index to dictionary cache and also free index object. */
-		err = dict_index_add_to_cache(
-			table, index, FIL_NULL, trx_is_strict(trx));
+		index = dict_index_add_to_cache(
+			index, FIL_NULL, trx_is_strict(trx), &err);
+		if (index) {
+			ut_ad(!index->is_instant());
+			index->n_core_null_bytes = UT_BITS_IN_BYTES(
+				index->n_nullable);
 
-		if (err != DB_SUCCESS) {
-			goto error_handling;
-		}
+			err = dict_create_index_tree_in_mem(index, trx);
 
-		/* as above function has freed index object re-load it
-		now from dictionary cache using index_id */
-		index = dict_index_get_if_in_cache_low(index_id);
-		ut_a(index != NULL);
-		index->table = table;
-		ut_ad(!index->is_instant());
-		index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
-
-		err = dict_create_index_tree_in_mem(index, trx);
-
-		if (err != DB_SUCCESS) {
-			dict_index_remove_from_cache(table, index);
+			if (err != DB_SUCCESS) {
+				dict_index_remove_from_cache(table, index);
+			}
 		}
 	}
-
-	/* Create the index specific FTS auxiliary tables. */
-	if (err == DB_SUCCESS && is_fts) {
-		dict_index_t*	idx;
-
-		idx = dict_table_get_index_on_name(table, index_name);
-
-		ut_ad(idx);
-		err = fts_create_index_tables_low(
-			trx, idx, table->name.m_name, table->id);
-	}
-
-error_handling:
-	dict_table_close(table, TRUE, FALSE);
 
 	if (err != DB_SUCCESS) {
+error_handling:
 		/* We have special error handling here */
 
 		trx->error_state = DB_SUCCESS;
@@ -2634,7 +2608,7 @@ error_handling:
 			trx_rollback_to_savepoint(trx, NULL);
 		}
 
-		row_drop_table_for_mysql(table_name, trx, FALSE, true);
+		row_drop_table_for_mysql(table->name.m_name, trx, FALSE, true);
 
 		if (trx_is_started(trx)) {
 
@@ -2645,9 +2619,6 @@ error_handling:
 	}
 
 	trx->op_info = "";
-
-	ut_free(table_name);
-	ut_free(index_name);
 
 	return(err);
 }
