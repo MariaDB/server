@@ -49,7 +49,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "os0once.h"
 #include "ut0new.h"
 #include "fil0fil.h"
-#include <my_crypt.h>
 #include "fil0crypt.h"
 #include <set>
 #include <algorithm>
@@ -315,14 +314,6 @@ dict_mem_table_create(
 	ulint		n_v_cols,	/*!< in: number of virtual columns */
 	ulint		flags,		/*!< in: table flags */
 	ulint		flags2);	/*!< in: table flags2 */
-/**********************************************************************//**
-Determines if a table belongs to a system database
-@return */
-UNIV_INTERN
-bool
-dict_mem_table_is_system(
-/*==================*/
-	char	*name);		/*!< in: table name */
 /****************************************************************//**
 Free a table memory object. */
 void
