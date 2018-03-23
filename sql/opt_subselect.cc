@@ -1008,6 +1008,10 @@ bool check_for_outer_joins(List<TABLE_LIST> *join_list)
 void find_and_block_conversion_to_sj(Item *to_find,
 				     List_iterator_fast<Item_in_subselect> &li)
 {
+  if (to_find->type() == Item::FUNC_ITEM &&
+     ((Item_func*)to_find)->functype() == Item_func::IN_OPTIMIZER_FUNC)
+    to_find= ((Item_in_optimizer*)to_find)->get_wrapped_in_subselect_item();
+
   if (to_find->type() != Item::SUBSELECT_ITEM ||
       ((Item_subselect *) to_find)->substype() != Item_subselect::IN_SUBS)
     return;
