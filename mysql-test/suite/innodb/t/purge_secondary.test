@@ -129,17 +129,16 @@ INSERT INTO t1 (a) SELECT NULL FROM t1;
 INSERT INTO t1 (a) SELECT NULL FROM t1;
 INSERT INTO t1 (a) SELECT NULL FROM t1;
 INSERT INTO t1 (a) SELECT NULL FROM t1;
-INSERT INTO t1 (a) SELECT NULL FROM t1;
-INSERT INTO t1 (a) SELECT NULL FROM t1;
-
-SELECT NAME, SUBSYSTEM FROM INFORMATION_SCHEMA.INNODB_METRICS
-WHERE NAME="buffer_LRU_batch_evict_total_pages" AND COUNT > 0;
+UPDATE t1 SET c=true, l=ST_linefromtext('linestring(0 0,1 1,2 2)');
 
 SELECT NAME, SUBSYSTEM FROM INFORMATION_SCHEMA.INNODB_METRICS
 WHERE NAME="buffer_LRU_batch_flush_total_pages" AND COUNT > 0;
 
 SELECT (variable_value > 0) FROM information_schema.global_status
 WHERE LOWER(variable_name) LIKE 'INNODB_BUFFER_POOL_PAGES_FLUSHED';
+
+SELECT NAME, SUBSYSTEM FROM INFORMATION_SCHEMA.INNODB_METRICS
+WHERE NAME="buffer_LRU_batch_evict_total_pages" AND COUNT > 0;
 
 --echo # Note: The OTHER_INDEX_SIZE does not cover any SPATIAL INDEX.
 --echo # To test that all indexes were emptied, replace DROP TABLE
