@@ -19,6 +19,8 @@ if (`SELECT COUNT(*)=1 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsre
   if (`SELECT @@GLOBAL.WSREP_ON`)
   {
     --source include/galera_wait_ready.inc
+    --disable_query_log
+    --disable_result_log
   }
 }
 

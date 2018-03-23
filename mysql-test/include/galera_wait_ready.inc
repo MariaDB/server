@@ -14,6 +14,7 @@ while ($not_synced)
   dec $counter;
   if (!$counter)
   {
+    SHOW STATUS LIKE 'wsrep%';
     --die Server failed to sync in time
   }
   --sleep 5
