@@ -3441,23 +3441,6 @@ wait_suspend_loop:
 
 		mutex_exit(&log_sys->mutex);
 
-		fil_flush_file_spaces(FIL_TABLESPACE);
-		fil_flush_file_spaces(FIL_LOG);
-
-		/* The call fil_write_flushed_lsn_to_data_files() will
-		bypass the buffer pool: therefore it is essential that
-		the buffer pool has been completely flushed to disk! */
-
-		if (!buf_all_freed()) {
-			if (srv_print_verbose_log && count > 600) {
-				ib_logf(IB_LOG_LEVEL_INFO,
-					"Waiting for dirty buffer pages"
-					" to be flushed");
-				count = 0;
-			}
-
-			goto loop;
-		}
 	} else {
 		lsn = srv_start_lsn;
 	}
@@ -3468,8 +3451,7 @@ wait_suspend_loop:
 	srv_thread_type	type = srv_get_active_thread_type();
 	ut_a(type == SRV_NONE);
 
-	bool	freed = buf_all_freed();
-	ut_a(freed);
+	buf_all_freed();
 
 	ut_a(lsn == log_sys->lsn);
 
@@ -3498,9 +3480,6 @@ wait_suspend_loop:
 	/* Make some checks that the server really is quiet */
 	type = srv_get_active_thread_type();
 	ut_a(type == SRV_NONE);
-
-	freed = buf_all_freed();
-	ut_a(freed);
 
 	ut_a(lsn == log_sys->lsn);
 }
