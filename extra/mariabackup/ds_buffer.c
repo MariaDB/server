@@ -142,7 +142,7 @@ buffer_write(ds_file_t *file, const uchar *buf, size_t len)
 
 				buffer_file->pos = 0;
 
-				buf = (const char *) buf + bytes;
+				buf += bytes;
 				len -= bytes;
 			} else {
 				/* We don't have any buffered bytes, just write
