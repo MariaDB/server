@@ -5186,7 +5186,7 @@ fil_io(
 			break;
 
 		} else {
-			if (space->id != srv_sys_space.space_id()
+			if (space->id != TRX_SYS_SPACE
 			    && UT_LIST_GET_LEN(space->chain) == 1
 			    && (srv_is_tablespace_truncated(space->id)
 				|| space->is_being_truncated
@@ -5238,7 +5238,7 @@ fil_io(
 	/* Check that at least the start offset is within the bounds of a
 	single-table tablespace, including rollback tablespaces. */
 	if (node->size <= cur_page_no
-	    && space->id != srv_sys_space.space_id()
+	    && space->id != TRX_SYS_SPACE
 	    && fil_type_is_data(space->purpose)) {
 
 		if (req_type.ignore_missing()) {
