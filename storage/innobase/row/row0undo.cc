@@ -349,8 +349,7 @@ row_undo_step(
 
 	ut_ad(que_node_get_type(node) == QUE_NODE_UNDO);
 
-	if (UNIV_UNLIKELY(trx == trx_roll_crash_recv_trx)
-	    && trx_roll_must_shutdown()) {
+	if (trx && trx_roll_crash_recv_trx && UNIV_UNLIKELY(trx_roll_must_shutdown())) {
 		/* Shutdown has been initiated. */
 		trx->error_state = DB_INTERRUPTED;
 		return(NULL);
