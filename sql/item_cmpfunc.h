@@ -345,6 +345,7 @@ public:
   bool is_null();
   longlong val_int();
   void cleanup();
+  enum Functype functype() const   { return IN_OPTIMIZER_FUNC; }
   const char *func_name() const { return "<in_optimizer>"; }
   Item_cache **get_cache() { return &cache; }
   void keep_top_level_cache();
@@ -362,6 +363,8 @@ public:
   void reset_cache() { cache= NULL; }
   virtual void print(String *str, enum_query_type query_type);
   void restore_first_argument();
+  Item* get_wrapped_in_subselect_item()
+  { return args[1]; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_in_optimizer>(thd, mem_root, this); }
 };

@@ -49,7 +49,7 @@ int wsrep_check_opts()
         (!strcasecmp(my_bind_addr_str, "127.0.0.1") ||
          !strcasecmp(my_bind_addr_str, "localhost")))
     {
-      WSREP_ERROR("wsrep_sst_method is set to 'mysqldump' yet "
+      WSREP_WARN("wsrep_sst_method is set to 'mysqldump' yet "
                   "mysqld bind_address is set to '%s', which makes it "
                   "impossible to receive state transfer from another "
                   "node, since mysqld won't accept such connections. "
@@ -57,7 +57,6 @@ int wsrep_check_opts()
                   "set bind_address to allow mysql client connections "
                   "from other cluster members (e.g. 0.0.0.0).",
                   my_bind_addr_str);
-      return 1;
     }
   }
   else

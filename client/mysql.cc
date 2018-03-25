@@ -1229,15 +1229,17 @@ int main(int argc,char *argv[])
   window_resize(0);
 #endif
 
-  put_info("Welcome to the MariaDB monitor.  Commands end with ; or \\g.",
-	   INFO_INFO);
-  my_snprintf((char*) glob_buffer.ptr(), glob_buffer.alloced_length(),
-	  "Your %s connection id is %lu\nServer version: %s\n",
-          mysql_get_server_name(&mysql),
-	  mysql_thread_id(&mysql), server_version_string(&mysql));
-  put_info((char*) glob_buffer.ptr(),INFO_INFO);
-
-  put_info(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"), INFO_INFO);
+  if (!status.batch)
+  {
+    put_info("Welcome to the MariaDB monitor.  Commands end with ; or \\g.",
+             INFO_INFO);
+    my_snprintf((char*) glob_buffer.ptr(), glob_buffer.alloced_length(),
+            "Your %s connection id is %lu\nServer version: %s\n",
+            mysql_get_server_name(&mysql),
+            mysql_thread_id(&mysql), server_version_string(&mysql));
+    put_info((char*) glob_buffer.ptr(),INFO_INFO);
+    put_info(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"), INFO_INFO);
+  }
 
 #ifdef HAVE_READLINE
   initialize_readline((char*) my_progname);

@@ -382,7 +382,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
     if (!wsrep_before_SE())
     {
         WSREP_DEBUG("[debug]: closing client connections for PRIM");
-        wsrep_close_client_connections(TRUE);
+        wsrep_close_client_connections(FALSE);
     }
 
     ssize_t const req_len= wsrep_sst_prepare (sst_req);

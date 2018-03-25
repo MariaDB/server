@@ -3606,6 +3606,13 @@ extern ST_SCHEMA_TABLE schema_tables[];
 bool schema_table_store_record(THD *thd, TABLE *table)
 {
   int error;
+
+  if (thd->killed)
+  {
+    thd->send_kill_message();
+    return 1;
+  }
+
   if ((error= table->file->ha_write_tmp_row(table->record[0])))
   {
     TMP_TABLE_PARAM *param= table->pos_in_table_list->schema_table_param;

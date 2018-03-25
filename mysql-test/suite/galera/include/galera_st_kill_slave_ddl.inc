@@ -1,3 +1,5 @@
+source include/maybe_debug.inc;
+if ($have_debug) {
 --echo Performing State Transfer on a server that has been killed and restarted
 --echo while a DDL was in progress on it
 
@@ -121,3 +123,4 @@ COMMIT;
 SET AUTOCOMMIT=ON;
 
 SET GLOBAL debug_dbug = $debug_orig;
+}

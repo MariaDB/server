@@ -144,12 +144,26 @@ get_transfer()
         wsrep_log_info "Using netcat as streamer"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
             if nc -h 2>&1 | grep -q ncat;then 
+                # Ncat
                 tcmd="nc -l ${TSST_PORT}"
-            else 
+            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                # Debian netcat
                 tcmd="nc -dl ${TSST_PORT}"
+            else
+                # traditional netcat
+                tcmd="nc -l -p ${TSST_PORT}"
             fi
         else
-            tcmd="nc ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            if nc -h 2>&1 | grep -q ncat;then
+                # Ncat
+                tcmd="nc ${REMOTEIP} ${TSST_PORT}"
+            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                # Debian netcat
+                tcmd="nc ${REMOTEIP} ${TSST_PORT}"
+            else
+                # traditional netcat
+                tcmd="nc -q0 ${REMOTEIP} ${TSST_PORT}"
+            fi
         fi
     else
         tfmt='socat'

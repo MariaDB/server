@@ -268,13 +268,26 @@ get_transfer()
         wsrep_log_info "Using netcat as streamer"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
             if nc -h 2>&1 | grep -q ncat; then
+                # Ncat
                 tcmd="nc $sockopt -l ${TSST_PORT}"
-            else 
+            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                # Debian netcat
                 tcmd="nc $sockopt -dl ${TSST_PORT}"
+            else
+                # traditional netcat
+                tcmd="nc $sockopt -l -p ${TSST_PORT}"
             fi
         else
-            # netcat doesn't understand [] around IPv6 address
-            tcmd="nc ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            if nc -h 2>&1 | grep -q ncat;then
+                # Ncat
+                tcmd="nc ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                # Debian netcat
+                tcmd="nc ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            else
+                # traditional netcat
+                tcmd="nc -q0 ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            fi
         fi
     else
         tfmt='socat'

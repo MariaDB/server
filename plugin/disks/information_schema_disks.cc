@@ -19,7 +19,8 @@
 #include <mntent.h>
 #include <sql_class.h>
 #include <table.h>
-#include <innodb_priv.h>
+
+bool schema_table_store_record(THD *thd, TABLE *table);
 
 namespace
 {
@@ -133,21 +134,21 @@ int disks_table_init(void *ptr)
 extern "C"
 {
 
-mysql_declare_plugin(disks_library)
+maria_declare_plugin(disks)
 {
     MYSQL_INFORMATION_SCHEMA_PLUGIN,
     &disks_table_info,                 /* type-specific descriptor */
     "DISKS",                           /* table name */
-    "MariaDB",                         /* author */
+    "Johan Wikman",                    /* author */
     "Disk space information",          /* description */
     PLUGIN_LICENSE_GPL,                /* license type */
     disks_table_init,                  /* init function */
-    NULL,
+    NULL,                              /* deinit function */
     0x0100,                            /* version = 1.0 */
     NULL,                              /* no status variables */
     NULL,                              /* no system variables */
-    NULL,                              /* no reserved information */
-    0                                  /* no flags */
+    "1.0",                             /* String version representation */
+    MariaDB_PLUGIN_MATURITY_BETA       /* Maturity (see include/mysql/plugin.h)*/
 }
 mysql_declare_plugin_end;
 

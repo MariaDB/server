@@ -1827,7 +1827,7 @@ Item_in_subselect::single_value_transformer(JOIN *join)
   Item* join_having= join->having ? join->having : join->tmp_having;
   if (!(join_having || select_lex->with_sum_func ||
         select_lex->group_list.elements) &&
-      select_lex->table_list.elements == 0 &&
+      select_lex->table_list.elements == 0 && !join->conds &&
       !select_lex->master_unit()->is_union())
   {
     Item *where_item= (Item*) select_lex->item_list.head();

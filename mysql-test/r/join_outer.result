@@ -2438,11 +2438,27 @@ CREATE TABLE t1 (b1 BIT NOT NULL);
 INSERT INTO t1 VALUES (0),(1);
 CREATE TABLE t2 (b2 BIT NOT NULL);
 INSERT INTO t2 VALUES (0),(1);
-SET SESSION JOIN_CACHE_LEVEL = 3;
+set @save_join_cache_level= @@join_cache_level;
+SET  @@join_cache_level = 3;
 SELECT t1.b1+'0' , t2.b2 + '0' FROM t1 LEFT JOIN t2 ON b1 = b2;
 t1.b1+'0'	t2.b2 + '0'
 0	0
 1	1
 DROP TABLE t1, t2;
+set @join_cache_level= @save_join_cache_level;
+#
+# MDEV-14779: using left join causes incorrect results with materialization and derived tables
+#
+create table t1(id  int);
+insert into t1 values (1),(2);
+create table t2(sid int, id int);
+insert into t2 values (1,1),(2,2);
+select * from t1 t
+left join (select * from t2 where sid in (select max(sid) from t2 where 0=1 group by id)) r
+on t.id=r.id ;
+id	sid	id
+1	NULL	NULL
+2	NULL	NULL
+drop table t1, t2;
 # end of 5.5 tests
 SET optimizer_switch=@save_optimizer_switch;

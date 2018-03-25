@@ -9,3 +9,4 @@ wsrep_debug=ON
 tkey=@ENV.MYSQL_TEST_DIR/std_data/galera-key.pem
 tcert=@ENV.MYSQL_TEST_DIR/std_data/galera-cert.pem
 encrypt=3
+transferfmt=@ENV.MTR_GALERA_TFMT

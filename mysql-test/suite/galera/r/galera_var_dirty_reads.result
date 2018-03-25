@@ -33,9 +33,9 @@ SET @@session.wsrep_dirty_reads=OFF;
 SELECT i, variable_name, variable_value FROM t1, information_schema.session_variables WHERE variable_name LIKE "wsrep_dirty_reads" AND i = 1;
 ERROR 08S01: WSREP has not yet prepared node for application use
 SELECT 1;
-ERROR 08S01: WSREP has not yet prepared node for application use
+1
+1
 USE information_schema;
-ERROR 08S01: WSREP has not yet prepared node for application use
 SELECT * FROM information_schema.session_variables WHERE variable_name LIKE "wsrep_dirty_reads";
 VARIABLE_NAME	VARIABLE_VALUE
 WSREP_DIRTY_READS	OFF

@@ -51,7 +51,7 @@ INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
 --let $value = query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1)
 --connection node_3
 --disable_query_log
---eval SELECT "$value" IN ("Error 'WSREP has not yet prepared node for application use' on query. Default database: 'test'. Query: 'BEGIN'", "Node has dropped from cluster") AS expected_error
+--eval SELECT "$value" IN ("Error 'Unknown command' on query. Default database: 'test'. Query: 'BEGIN'", "Node has dropped from cluster") AS expected_error
 --enable_query_log
 
 # Step #4. Bring back the async slave and restart replication
@@ -85,9 +85,8 @@ DROP TABLE t1;
 STOP SLAVE;
 RESET SLAVE ALL;
 
-CALL mtr.add_suppression("Slave SQL: Error 'WSREP has not yet prepared node for application use' on query");
-CALL mtr.add_suppression("Slave: WSREP has not yet prepared node for application use Error_code: 1047");
-CALL mtr.add_suppression("TORDERED} returned -107 \\(Transport endpoint is not connected\\)");
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown command' on query");
+CALL mtr.add_suppression("Slave: Unknown command Error_code: 1047");
 CALL mtr.add_suppression("Transport endpoint is not connected");
 CALL mtr.add_suppression("Slave SQL: Error in Xid_log_event: Commit could not be completed, 'Deadlock found when trying to get lock; try restarting transaction', Error_code: 1213");
 CALL mtr.add_suppression("Slave SQL: Node has dropped from cluster, Error_code: 1047");

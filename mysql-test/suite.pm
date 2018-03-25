@@ -34,6 +34,9 @@ sub skip_combinations {
   die "unknown value max-binlog-stmt-cache-size=$longsysvar" unless $val_map{$longsysvar};
   $skip{'include/word_size.combinations'} = [ $val_map{$longsysvar} ];
 
+  $skip{'include/maybe_debug.combinations'} =
+    [ defined $::mysqld_variables{'debug-dbug'} ? 'release' : 'debug' ];
+
   # as a special case, disable certain include files as a whole
   $skip{'include/not_embedded.inc'} = 'Not run for embedded server'
              if $::opt_embedded_server;

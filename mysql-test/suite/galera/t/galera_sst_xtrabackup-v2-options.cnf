@@ -22,3 +22,4 @@ parallel=2
 encrypt=1
 encrypt-algo=AES256
 encrypt-key=4FA92C5873672E20FB163A0BCB2BB4A4
+transferfmt=@ENV.MTR_GALERA_TFMT

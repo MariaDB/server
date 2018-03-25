@@ -60,7 +60,7 @@ MYSQL_ADD_EXECUTABLE(mariabackup
   datasink.c
   ds_buffer.c
   ds_compress.c
-  ds_local.c
+  ds_local.cc
   ds_stdout.c
   ds_tmpfile.c
   ds_xbstream.c
@@ -97,7 +97,7 @@ ENDIF()
 ########################################################################
 MYSQL_ADD_EXECUTABLE(mbstream
   ds_buffer.c
-  ds_local.c
+  ds_local.cc
   ds_stdout.c
   datasink.c
   xbstream.c
@@ -111,6 +111,7 @@ TARGET_LINK_LIBRARIES(mbstream
   mysys
   crc
 )
+ADD_DEPENDENCIES(mbstream GenError)
 
 IF(MSVC)
   SET_TARGET_PROPERTIES(mbstream PROPERTIES LINK_FLAGS setargv.obj)
