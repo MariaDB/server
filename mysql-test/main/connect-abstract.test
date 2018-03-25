@@ -1,0 +1,6 @@
+--source include/linux.inc
+--source include/not_embedded.inc
+
+connect(con1,localhost,root,,test,,$ABSTRACT_SOCKET);
+select 1;
+disconnect con1;
