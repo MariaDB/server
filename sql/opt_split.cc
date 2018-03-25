@@ -866,8 +866,8 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
   TABLE *best_table= 0;
   double best_rec_per_key= DBL_MAX;
   SplM_plan_info *spl_plan= 0;
-  uint best_key;
-  uint best_key_parts;
+  uint best_key= 0;
+  uint best_key_parts= 0;
 
   /*
     Check whether there are keys that can be used to join T employing splitting

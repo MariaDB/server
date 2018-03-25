@@ -2414,7 +2414,7 @@ Item *Item_sum_min::copy_or_same(THD* thd)
 
 bool Item_sum_min::add()
 {
-  Item *tmp_item;
+  Item *UNINIT_VAR(tmp_item);
   DBUG_ENTER("Item_sum_min::add");
   DBUG_PRINT("enter", ("this: %p", this));
 
