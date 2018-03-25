@@ -1,0 +1,9 @@
+
+!include include/default_my.cnf
+
+[mysqld.1]
+socket=       @ENV.ABSTRACT_SOCKET
+
+# Using @OPT.port here for uniqueness
+[ENV]
+ABSTRACT_SOCKET= @mtr-test-abstract-socket-@OPT.port

@@ -6010,9 +6010,10 @@ void do_connect(struct st_command *command)
   {
     /*
       If the socket is specified just as a name without path
+      or an abstract socket indicator ('@'), then
       append tmpdir in front
     */
-    if (*ds_sock.str != FN_LIBCHAR)
+    if (*ds_sock.str != FN_LIBCHAR && *ds_sock.str != '@')
     {
       char buff[FN_REFLEN];
       fn_format(buff, ds_sock.str, TMPDIR, "", 0);
