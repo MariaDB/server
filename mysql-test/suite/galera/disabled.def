@@ -50,3 +50,5 @@ galera_gtid : MDEV-13549 Galera test failures 10.1
 galera_gtid_slave : MDEV-13549 Galera test failures 10.1
 galera_unicode_identifiers : MDEV-13549 Galera test failures 10.1
 galera.galera_gcs_fc_limit : MDEV-13549 Galera test failures 10.1
+galera.MW-329 : wsrep_local_replays not stable
+galera.MW-328A : have_deadlocks test not stable
