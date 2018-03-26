@@ -111,8 +111,7 @@ SELECT COUNT(*) FROM t4;
 --let SEARCH_PATTERN=mysql
 --echo # t4 yes on expecting NOT FOUND
 -- let SEARCH_FILE=$t4_IBD
---echo # MDEV-15527 FIXME: Enable this test!
-#-- source include/search_pattern_in_file.inc
+-- source include/search_pattern_in_file.inc
 
 DROP PROCEDURE innodb_insert_proc;
 DROP TABLE t1,t2,t3,t4;
