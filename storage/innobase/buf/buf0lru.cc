@@ -224,14 +224,12 @@ buf_LRU_evict_from_unzip_LRU(
 /** Attempts to drop page hash index on a batch of pages belonging to a
 particular space id.
 @param[in]	space_id	space id
-@param[in]	page_size	page size
 @param[in]	arr		array of page_no
 @param[in]	count		number of entries in array */
 static
 void
 buf_LRU_drop_page_hash_batch(
 	ulint			space_id,
-	const page_size_t&	page_size,
 	const ulint*		arr,
 	ulint			count)
 {
@@ -247,7 +245,7 @@ buf_LRU_drop_page_hash_batch(
 		in the tablespace, and a previous DROP TABLE would have
 		already removed the AHI entries. */
 		btr_search_drop_page_hash_when_freed(
-			page_id_t(space_id, *arr), page_size);
+			page_id_t(space_id, *arr));
 	}
 }
 
@@ -263,15 +261,6 @@ buf_LRU_drop_page_hash_for_tablespace(
 	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
 	ulint		id)		/*!< in: space id */
 {
-	bool			found;
-	const page_size_t	page_size(fil_space_get_page_size(id, &found));
-
-	if (!found) {
-		/* Somehow, the tablespace does not exist.  Nothing to drop. */
-		ut_ad(0);
-		return;
-	}
-
 	ulint*	page_arr = static_cast<ulint*>(ut_malloc_nokey(
 			sizeof(ulint) * BUF_LRU_DROP_SEARCH_SIZE));
 
@@ -338,8 +327,7 @@ next_page:
 		the latching order. */
 		buf_pool_mutex_exit(buf_pool);
 
-		buf_LRU_drop_page_hash_batch(
-			id, page_size, page_arr, num_entries);
+		buf_LRU_drop_page_hash_batch(id, page_arr, num_entries);
 
 		num_entries = 0;
 
@@ -371,7 +359,7 @@ next_page:
 	buf_pool_mutex_exit(buf_pool);
 
 	/* Drop any remaining batch of search hashed pages. */
-	buf_LRU_drop_page_hash_batch(id, page_size, page_arr, num_entries);
+	buf_LRU_drop_page_hash_batch(id, page_arr, num_entries);
 	ut_free(page_arr);
 }
 #endif /* BTR_CUR_HASH_ADAPT */

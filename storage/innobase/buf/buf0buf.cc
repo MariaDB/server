@@ -4247,6 +4247,10 @@ buf_page_get_gen(
 		replace any old pages, which were not evicted during DISCARD.
 		Skip the assertion on space_page_size. */
 		break;
+	case BUF_PEEK_IF_IN_POOL:
+		/* In this mode, the caller may pass a dummy page size,
+		because it does not really matter. */
+		break;
 	default:
 		ut_error;
 	case BUF_GET_NO_LATCH:
@@ -4254,7 +4258,6 @@ buf_page_get_gen(
 		/* fall through */
 	case BUF_GET:
 	case BUF_GET_IF_IN_POOL:
-	case BUF_PEEK_IF_IN_POOL:
 	case BUF_GET_IF_IN_POOL_OR_WATCH:
 	case BUF_GET_POSSIBLY_FREED:
 		bool			found;
