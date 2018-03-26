@@ -294,7 +294,8 @@ field_store_index_name(
 	int	ret;
 
 	ut_ad(index_name != NULL);
-	ut_ad(field->real_type() == MYSQL_TYPE_VARCHAR);
+	ut_ad(field->real_type() == MYSQL_TYPE_VARCHAR ||
+              field->real_type() == MYSQL_TYPE_NULL);
 
 	/* Since TEMP_INDEX_PREFIX is not a valid UTF8, we need to convert
 	it to something else. */

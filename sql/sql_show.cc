@@ -8071,6 +8071,50 @@ ST_SCHEMA_TABLE *get_schema_table(enum enum_schema_tables schema_table_idx)
   return &schema_tables[schema_table_idx];
 }
 
+static void
+mark_all_fields_used_in_query(THD *thd,
+                              ST_FIELD_INFO *schema_fields,
+                              MY_BITMAP *bitmap,
+                              Item *all_items)
+{
+  Item *item;
+  DBUG_ENTER("mark_all_fields_used_in_query");
+
+  /* If not SELECT command, return all columns */
+  if (thd->lex->sql_command != SQLCOM_SELECT &&
+      thd->lex->sql_command != SQLCOM_SET_OPTION)
+  {
+    bitmap_set_all(bitmap);
+    DBUG_VOID_RETURN;
+  }
+
+  for (item= all_items ; item ; item= item->next)
+  {
+    if (item->type() == Item::FIELD_ITEM)
+    {
+      ST_FIELD_INFO *fields= schema_fields;
+      uint count;
+      Item_field *item_field= (Item_field*) item;
+
+      /* item_field can be '*' as this function is called before fix_fields */
+      if (item_field->field_name.str == star_clex_str.str)
+      {
+        bitmap_set_all(bitmap);
+        break;
+      }
+      for (count=0; fields->field_name; fields++, count++)
+      {
+        if (!my_strcasecmp(system_charset_info, fields->field_name,
+                           item_field->field_name.str))
+        {
+          bitmap_set_bit(bitmap, count);
+          break;
+        }
+      }
+    }
+  }
+  DBUG_VOID_RETURN;
+}
 
 /**
   Create information_schema table using schema_table data.
@@ -8095,17 +8139,34 @@ ST_SCHEMA_TABLE *get_schema_table(enum enum_schema_tables schema_table_idx)
 
 TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
 {
-  int field_count= 0;
-  Item *item;
+  uint field_count;
+  Item *item, *all_items;
   TABLE *table;
   List<Item> field_list;
   ST_SCHEMA_TABLE *schema_table= table_list->schema_table;
   ST_FIELD_INFO *fields_info= schema_table->fields_info;
+  ST_FIELD_INFO *fields;
   CHARSET_INFO *cs= system_charset_info;
   MEM_ROOT *mem_root= thd->mem_root;
+  MY_BITMAP bitmap;
+  my_bitmap_map *buf;
   DBUG_ENTER("create_schema_table");
 
-  for (; fields_info->field_name; fields_info++)
+  for (field_count= 0, fields= fields_info; fields->field_name; fields++)
+    field_count++;
+  if (!(buf= (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count))))
+    DBUG_RETURN(NULL);
+  my_bitmap_init(&bitmap, buf, field_count, 0);
+
+  if (!thd->stmt_arena->is_conventional() &&
+      thd->mem_root != thd->stmt_arena->mem_root)
+    all_items= thd->stmt_arena->free_list;
+  else
+    all_items= thd->free_list;
+
+  mark_all_fields_used_in_query(thd, fields_info, &bitmap, all_items);
+
+  for (field_count=0; fields_info->field_name; fields_info++)
   {
     size_t field_name_length= strlen(fields_info->field_name);
     switch (fields_info->field_type) {
@@ -8182,25 +8243,43 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
     case MYSQL_TYPE_MEDIUM_BLOB:
     case MYSQL_TYPE_LONG_BLOB:
     case MYSQL_TYPE_BLOB:
-      if (!(item= new (mem_root)
-            Item_blob(thd, fields_info->field_name,
-                      fields_info->field_length)))
+      if (bitmap_is_set(&bitmap, field_count))
       {
-        DBUG_RETURN(0);
+        if (!(item= new (mem_root)
+              Item_blob(thd, fields_info->field_name,
+                        fields_info->field_length)))
+        {
+          DBUG_RETURN(0);
+        }
+      }
+      else
+      {
+        if (!(item= new (mem_root)
+              Item_empty_string(thd, "", 0, cs)))
+        {
+          DBUG_RETURN(0);
+        }
+        item->set_name(thd, fields_info->field_name,
+                       field_name_length, cs);
       }
       break;
     default:
+    {
+      bool show_field;
       /* Don't let unimplemented types pass through. Could be a grave error. */
       DBUG_ASSERT(fields_info->field_type == MYSQL_TYPE_STRING);
 
+      show_field= bitmap_is_set(&bitmap, field_count);
       if (!(item= new (mem_root)
-            Item_empty_string(thd, "", fields_info->field_length, cs)))
+            Item_empty_string(thd, "",
+                              show_field ? fields_info->field_length : 0, cs)))
       {
         DBUG_RETURN(0);
       }
       item->set_name(thd, fields_info->field_name,
                      field_name_length, cs);
       break;
+    }
     }
     field_list.push_back(item, thd->mem_root);
     item->maybe_null= (fields_info->field_flags & MY_I_S_MAYBE_NULL);
