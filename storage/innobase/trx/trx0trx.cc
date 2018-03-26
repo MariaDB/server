@@ -678,6 +678,8 @@ trx_resurrect_table_locks(
 
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
 	      trx_state_eq(trx, TRX_STATE_PREPARED));
+	ut_ad(undo->rseg == trx->rsegs.m_redo.rseg);
+
 	if (undo->empty) {
 
 		return;
@@ -688,7 +690,8 @@ trx_resurrect_table_locks(
 	/* trx_rseg_mem_create() may have acquired an X-latch on this
 	page, so we cannot acquire an S-latch. */
 	undo_page = trx_undo_page_get(
-		page_id_t(undo->rseg->space, undo->top_page_no), &mtr);
+		page_id_t(trx->rsegs.m_redo.rseg->space->id,
+			  undo->top_page_no), &mtr);
 
 	undo_rec = undo_page + undo->top_offset;
 
@@ -796,7 +799,7 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
   if (!undo->empty)
   {
     trx->undo_no= undo->top_undo_no + 1;
-    trx->undo_rseg_space= undo->rseg->space;
+    trx->undo_rseg_space= undo->rseg->space->id;
   }
 
   trx->rsegs.m_redo.rseg= rseg;
@@ -901,8 +904,7 @@ trx_lists_init_at_db_start()
 					}
 
 					trx->undo_no = undo->top_undo_no + 1;
-					trx->undo_rseg_space =
-						undo->rseg->space;
+					trx->undo_rseg_space = rseg->space->id;
 				}
 				trx_resurrect_table_locks(trx, undo);
 			}
@@ -935,7 +937,7 @@ trx_assign_rseg_low()
 	}
 
 	/* The first slot is always assigned to the system tablespace. */
-	ut_ad(trx_sys.rseg_array[0]->space == TRX_SYS_SPACE);
+	ut_ad(trx_sys.rseg_array[0]->space == fil_system.sys_space);
 
 	/* Choose a rollback segment evenly distributed between 0 and
 	innodb_undo_logs-1 in a round-robin fashion, skipping those
@@ -977,14 +979,14 @@ trx_assign_rseg_low()
 
 			ut_ad(rseg->is_persistent());
 
-			if (rseg->space != TRX_SYS_SPACE) {
+			if (rseg->space != fil_system.sys_space) {
 				ut_ad(srv_undo_tablespaces > 1);
 				if (rseg->skip_allocation) {
 					continue;
 				}
 			} else if (trx_rseg_t* next
 				   = trx_sys.rseg_array[slot]) {
-				if (next->space != TRX_SYS_SPACE
+				if (next->space != fil_system.sys_space
 				    && srv_undo_tablespaces > 0) {
 					/** If dedicated
 					innodb_undo_tablespaces have

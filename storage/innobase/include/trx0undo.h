@@ -159,7 +159,7 @@ trx_undo_get_next_rec(
 @return undo log record, the page latched, NULL if none */
 trx_undo_rec_t*
 trx_undo_get_first_rec(
-	ulint			space,
+	fil_space_t*		space,
 	ulint			page_no,
 	ulint			offset,
 	ulint			mode,

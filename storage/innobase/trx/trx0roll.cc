@@ -924,7 +924,7 @@ trx_roll_pop_top_rec(
 	ut_ad(mutex_own(&trx->undo_mutex));
 
 	page_t*	undo_page = trx_undo_page_get_s_latched(
-		page_id_t(undo->rseg->space, undo->top_page_no), mtr);
+		page_id_t(undo->rseg->space->id, undo->top_page_no), mtr);
 
 	ulint	offset = undo->top_offset;
 
@@ -1035,10 +1035,10 @@ trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 	}
 
 	ut_ad(trx_roll_check_undo_rec_ordering(
-		undo_no, undo->rseg->space, trx));
+		undo_no, undo->rseg->space->id, trx));
 
 	trx->undo_no = undo_no;
-	trx->undo_rseg_space = undo->rseg->space;
+	trx->undo_rseg_space = undo->rseg->space->id;
 	mutex_exit(&trx->undo_mutex);
 
 	trx_undo_rec_t*	undo_rec_copy = trx_undo_rec_copy(undo_rec, heap);

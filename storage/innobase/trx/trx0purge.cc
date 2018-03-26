@@ -115,8 +115,8 @@ inline bool TrxUndoRsegsIterator::set_next()
 
 	/* We assume in purge of externally stored fields that space id is
 	in the range of UNDO tablespace space ids */
-	ut_a(purge_sys.rseg->space == TRX_SYS_SPACE
-	     || srv_is_undo_tablespace(purge_sys.rseg->space));
+	ut_ad(purge_sys.rseg->space->id == TRX_SYS_SPACE
+	      || srv_is_undo_tablespace(purge_sys.rseg->space->id));
 
 	ut_a(purge_sys.tail.commit <= purge_sys.rseg->last_commit);
 
@@ -361,7 +361,7 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 
 	rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
 	undo_page = trx_undo_page_get(
-		page_id_t(rseg->space, hdr_addr.page), &mtr);
+		page_id_t(rseg->space->id, hdr_addr.page), &mtr);
 
 	/* Mark the last undo log totally purged, so that if the
 	system crashes, the tail of the undo log will not get accessed
@@ -384,7 +384,7 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 		rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
 
 		undo_page = trx_undo_page_get(
-			page_id_t(rseg->space, hdr_addr.page), &mtr);
+			page_id_t(rseg->space->id, hdr_addr.page), &mtr);
 	}
 
 	/* The page list may now be inconsistent, but the length field
@@ -461,7 +461,7 @@ func_exit:
 		return;
 	}
 
-	undo_page = trx_undo_page_get(page_id_t(rseg.space, hdr_addr.page),
+	undo_page = trx_undo_page_get(page_id_t(rseg.space->id, hdr_addr.page),
 				      &mtr);
 
 	log_hdr = undo_page + hdr_addr.boffset;
@@ -828,7 +828,8 @@ trx_purge_mark_undo_for_truncate(
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
 		if (trx_rseg_t* rseg = trx_sys.rseg_array[i]) {
 			ut_ad(rseg->is_persistent());
-			if (rseg->space == undo_trunc->get_marked_space_id()) {
+			if (rseg->space->id
+			    == undo_trunc->get_marked_space_id()) {
 
 				/* Once set this rseg will not be allocated
 				to new booting transaction but we will wait
@@ -870,7 +871,7 @@ trx_purge_cleanse_purge_queue(
 		     it2 != it->end();
 		     ++it2) {
 
-			if ((*it2)->space
+			if ((*it2)->space->id
 				== undo_trunc->get_marked_space_id()) {
 				it->erase(it2);
 				break;
@@ -1099,7 +1100,7 @@ trx_purge_rseg_get_next_history_log(
 	mtr_start(&mtr);
 
 	undo_page = trx_undo_page_get_s_latched(
-		page_id_t(rseg->space, rseg->last_page_no), &mtr);
+		page_id_t(rseg->space->id, rseg->last_page_no), &mtr);
 
 	log_hdr = undo_page + rseg->last_offset;
 
@@ -1127,7 +1128,7 @@ trx_purge_rseg_get_next_history_log(
 	/* Read the previous log header. */
 	mtr_start(&mtr);
 
-	log_hdr = trx_undo_page_get_s_latched(page_id_t(rseg->space,
+	log_hdr = trx_undo_page_get_s_latched(page_id_t(rseg->space->id,
 							prev_log_addr.page),
 					      &mtr)
 		+ prev_log_addr.boffset;
@@ -1243,7 +1244,7 @@ trx_purge_get_next_rec(
 	ut_ad(purge_sys.next_stored);
 	ut_ad(purge_sys.tail.trx_no() < purge_sys.view.low_limit_no());
 
-	space = purge_sys.rseg->space;
+	space = purge_sys.rseg->space->id;
 	page_no = purge_sys.page_no;
 	offset = purge_sys.offset;
 

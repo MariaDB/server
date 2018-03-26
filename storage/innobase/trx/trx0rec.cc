@@ -1923,7 +1923,7 @@ trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 				undo->guess_block = block;
 
 				trx->undo_rseg_space
-					= trx->rsegs.m_redo.rseg->space;
+					= trx->rsegs.m_redo.rseg->space->id;
 				err = DB_SUCCESS;
 				break;
 			} else {
@@ -2070,7 +2070,7 @@ trx_undo_report_row_operation(
 			undo->top_undo_no = trx->undo_no++;
 			undo->guess_block = undo_block;
 
-			trx->undo_rseg_space = rseg->space;
+			trx->undo_rseg_space = rseg->space->id;
 
 			mutex_exit(&trx->undo_mutex);
 
@@ -2124,7 +2124,7 @@ trx_undo_report_row_operation(
 		" log pages. Please add new data file to the tablespace or"
 		" check if filesystem is full or enable auto-extension for"
 		" the tablespace",
-		undo->rseg->space == TRX_SYS_SPACE
+		undo->rseg->space == fil_system.sys_space
 		? "system" : is_temp ? "temporary" : "undo");
 
 	/* Did not succeed: out of space */
@@ -2170,7 +2170,7 @@ trx_undo_get_undo_rec_low(
 	mtr_start(&mtr);
 
 	undo_page = trx_undo_page_get_s_latched(
-		page_id_t(rseg->space, page_no), &mtr);
+		page_id_t(rseg->space->id, page_no), &mtr);
 
 	undo_rec = trx_undo_rec_copy(undo_page + offset, heap);
 
