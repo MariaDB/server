@@ -782,9 +782,9 @@ trx_undo_add_page(trx_t* trx, trx_undo_t* undo, mtr_t* mtr)
 	mutex_enter(&rseg->mutex);
 
 	header_page = trx_undo_page_get(
-		page_id_t(undo->space, undo->hdr_page_no), mtr);
+		page_id_t(undo->rseg->space, undo->hdr_page_no), mtr);
 
-	if (!fsp_reserve_free_extents(&n_reserved, undo->space, 1,
+	if (!fsp_reserve_free_extents(&n_reserved, undo->rseg->space, 1,
 				      FSP_UNDO, mtr)) {
 		goto func_exit;
 	}
@@ -794,7 +794,7 @@ trx_undo_add_page(trx_t* trx, trx_undo_t* undo, mtr_t* mtr)
 		+ header_page,
 		undo->top_page_no + 1, FSP_UP, TRUE, mtr, mtr);
 
-	fil_space_release_free_extents(undo->space, n_reserved);
+	fil_space_release_free_extents(undo->rseg->space, n_reserved);
 
 	if (!new_block) {
 		goto func_exit;
@@ -884,7 +884,7 @@ trx_undo_free_last_page(trx_undo_t* undo, mtr_t* mtr)
 	ut_ad(undo->size > 0);
 
 	undo->last_page_no = trx_undo_free_page(
-		undo->rseg, FALSE, undo->space,
+		undo->rseg, FALSE, undo->rseg->space,
 		undo->hdr_page_no, undo->last_page_no, mtr);
 
 	undo->size--;
@@ -909,7 +909,8 @@ trx_undo_truncate_end(trx_undo_t* undo, undo_no_t limit, bool is_temp)
 
 		trx_undo_rec_t* trunc_here = NULL;
 		page_t*		undo_page = trx_undo_page_get(
-			page_id_t(undo->space, undo->last_page_no), &mtr);
+			page_id_t(undo->rseg->space, undo->last_page_no),
+			&mtr);
 		trx_undo_rec_t* rec = trx_undo_page_get_last_rec(
 			undo_page, undo->hdr_page_no, undo->hdr_offset);
 		while (rec) {
@@ -1049,7 +1050,7 @@ trx_undo_seg_free(
 
 		mutex_enter(&(rseg->mutex));
 
-		seg_header = trx_undo_page_get(page_id_t(undo->space,
+		seg_header = trx_undo_page_get(page_id_t(undo->rseg->space,
 							 undo->hdr_page_no),
 					       &mtr)
 			+ TRX_UNDO_SEG_HDR;
@@ -1215,7 +1216,6 @@ trx_undo_mem_create(
 
 	undo->rseg = rseg;
 
-	undo->space = rseg->space;
 	undo->hdr_page_no = page_no;
 	undo->hdr_offset = offset;
 	undo->last_page_no = page_no;
@@ -1340,7 +1340,7 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 	ut_ad(undo->size == 1);
 	ut_ad(undo->id < TRX_RSEG_N_SLOTS);
 
-	buf_block_t*	block = buf_page_get(page_id_t(undo->space,
+	buf_block_t*	block = buf_page_get(page_id_t(undo->rseg->space,
 						       undo->hdr_page_no),
 					     univ_page_size, RW_X_LATCH, mtr);
 	if (!block) {
@@ -1401,7 +1401,7 @@ trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 
 	if (undo) {
 		return buf_page_get_gen(
-			page_id_t(undo->space, undo->last_page_no),
+			page_id_t(undo->rseg->space, undo->last_page_no),
 			univ_page_size, RW_X_LATCH,
 			buf_pool_is_obsolete(undo->withdraw_clock)
 			? NULL : undo->guess_block,
@@ -1458,7 +1458,7 @@ trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 
 	if (*undo) {
 		return buf_page_get_gen(
-			page_id_t((*undo)->space, (*undo)->last_page_no),
+			page_id_t(rseg->space, (*undo)->last_page_no),
 			univ_page_size, RW_X_LATCH,
 			buf_pool_is_obsolete((*undo)->withdraw_clock)
 			? NULL : (*undo)->guess_block,
@@ -1508,7 +1508,7 @@ trx_undo_set_state_at_finish(
 	ut_a(undo->id < TRX_RSEG_N_SLOTS);
 
 	undo_page = trx_undo_page_get(
-		page_id_t(undo->space, undo->hdr_page_no), mtr);
+		page_id_t(undo->rseg->space, undo->hdr_page_no), mtr);
 
 	seg_hdr = undo_page + TRX_UNDO_SEG_HDR;
 	page_hdr = undo_page + TRX_UNDO_PAGE_HDR;
@@ -1552,7 +1552,7 @@ trx_undo_set_state_at_prepare(
 	ut_a(undo->id < TRX_RSEG_N_SLOTS);
 
 	undo_page = trx_undo_page_get(
-		page_id_t(undo->space, undo->hdr_page_no), mtr);
+		page_id_t(undo->rseg->space, undo->hdr_page_no), mtr);
 
 	seg_hdr = undo_page + TRX_UNDO_SEG_HDR;
 

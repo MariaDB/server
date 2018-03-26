@@ -2124,7 +2124,7 @@ trx_undo_report_row_operation(
 		" log pages. Please add new data file to the tablespace or"
 		" check if filesystem is full or enable auto-extension for"
 		" the tablespace",
-		undo->space == TRX_SYS_SPACE
+		undo->rseg->space == TRX_SYS_SPACE
 		? "system" : is_temp ? "temporary" : "undo");
 
 	/* Did not succeed: out of space */

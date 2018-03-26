@@ -688,7 +688,7 @@ trx_resurrect_table_locks(
 	/* trx_rseg_mem_create() may have acquired an X-latch on this
 	page, so we cannot acquire an S-latch. */
 	undo_page = trx_undo_page_get(
-		page_id_t(undo->space, undo->top_page_no), &mtr);
+		page_id_t(undo->rseg->space, undo->top_page_no), &mtr);
 
 	undo_rec = undo_page + undo->top_offset;
 

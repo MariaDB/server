@@ -361,8 +361,6 @@ struct trx_undo_t {
 					id */
 	trx_rseg_t*	rseg;		/*!< rseg where the undo log belongs */
 	/*-----------------------------*/
-	ulint		space;		/*!< space id where the undo log
-					placed */
 	ulint		hdr_page_no;	/*!< page number of the header page in
 					the undo log */
 	ulint		hdr_offset;	/*!< header offset of the undo log on
