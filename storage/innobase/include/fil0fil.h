@@ -901,34 +901,6 @@ fil_name_write_rename(
 	ulint		space_id,
 	const char*	old_name,
 	const char*	new_name);
-/********************************************************//**
-Recreates table indexes by applying
-TRUNCATE log record during recovery.
-@return DB_SUCCESS or error code */
-dberr_t
-fil_recreate_table(
-/*===============*/
-	ulint			space_id,	/*!< in: space id */
-	ulint			format_flags,	/*!< in: page format */
-	ulint			flags,		/*!< in: tablespace flags */
-	const char*		name,		/*!< in: table name */
-	truncate_t&		truncate);	/*!< in/out: The information of
-						TRUNCATE log record */
-/********************************************************//**
-Recreates the tablespace and table indexes by applying
-TRUNCATE log record during recovery.
-@return DB_SUCCESS or error code */
-dberr_t
-fil_recreate_tablespace(
-/*====================*/
-	ulint			space_id,	/*!< in: space id */
-	ulint			format_flags,	/*!< in: page format */
-	ulint			flags,		/*!< in: tablespace flags */
-	const char*		name,		/*!< in: table name */
-	truncate_t&		truncate,	/*!< in/out: The information of
-						TRUNCATE log record */
-	lsn_t			recv_lsn);	/*!< in: the end LSN of
-						the log record */
 /** Replay a file rename operation if possible.
 @param[in]	space_id	tablespace identifier
 @param[in]	first_page_no	first page number in the file
@@ -986,17 +958,6 @@ dberr_t
 fil_prepare_for_truncate(
 /*=====================*/
 	ulint	id);			/*!< in: space id */
-
-/** Reinitialize the original tablespace header with the same space id
-for single tablespace
-@param[in]	table		table belongs to the tablespace
-@param[in]	size            size in blocks
-@param[in]	trx		Transaction covering truncate */
-void
-fil_reinit_space_header_for_table(
-	dict_table_t*	table,
-	ulint		size,
-	trx_t*		trx);
 
 /*******************************************************************//**
 Closes a single-table tablespace. The tablespace must be cached in the

@@ -190,7 +190,7 @@ public:
 	@param[in,out]	mtr			mini-transaction covering the
 	create index
 	@return root page no or FIL_NULL on failure */
-	ulint create_index(
+	inline ulint create_index(
 		const char*		table_name,
 		ulint			space_id,
 		const page_size_t&	page_size,
@@ -208,7 +208,7 @@ public:
 	@param[in]	flags		tablespace flags
 	@param[in]	format_flags	page format flags
 	@return DB_SUCCESS or error code. */
-	dberr_t create_indexes(
+	inline dberr_t create_indexes(
 		const char*		table_name,
 		ulint			space_id,
 		const page_size_t&	page_size,

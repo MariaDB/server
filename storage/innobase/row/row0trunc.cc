@@ -24,17 +24,16 @@ TRUNCATE implementation
 Created 2013-04-12 Sunny Bains
 *******************************************************/
 
-#include "row0mysql.h"
+#include "row0trunc.h"
+#include "btr0sea.h"
 #include "pars0pars.h"
 #include "dict0crea.h"
-#include "dict0boot.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
 #include "lock0lock.h"
 #include "fts0fts.h"
 #include "fsp0sysspace.h"
-#include "srv0start.h"
-#include "row0trunc.h"
+#include "ibuf0ibuf.h"
 #include "os0file.h"
 #include "que0que.h"
 #include "trx0undo.h"
@@ -1681,6 +1680,67 @@ row_truncate_sanity_checks(
 	return(DB_SUCCESS);
 }
 
+/** Reinitialize the original tablespace header with the same space id
+for single tablespace
+@param[in]      table		table belongs to tablespace
+@param[in]      size            size in blocks
+@param[in]      trx             Transaction covering truncate */
+static void
+fil_reinit_space_header_for_table(
+	dict_table_t*	table,
+	ulint		size,
+	trx_t*		trx)
+{
+	ulint	id = table->space;
+
+	ut_a(!is_system_tablespace(id));
+
+	/* Invalidate in the buffer pool all pages belonging
+	to the tablespace. The buffer pool scan may take long
+	time to complete, therefore we release dict_sys->mutex
+	and the dict operation lock during the scan and aquire
+	it again after the buffer pool scan.*/
+
+	/* Release the lock on the indexes too. So that
+	they won't violate the latch ordering. */
+	dict_table_x_unlock_indexes(table);
+	row_mysql_unlock_data_dictionary(trx);
+
+	/* Lock the search latch in shared mode to prevent user
+	from disabling AHI during the scan */
+	btr_search_s_lock_all();
+	DEBUG_SYNC_C("buffer_pool_scan");
+	buf_LRU_flush_or_remove_pages(id, NULL);
+	btr_search_s_unlock_all();
+
+	row_mysql_lock_data_dictionary(trx);
+
+	dict_table_x_lock_indexes(table);
+
+	/* Remove all insert buffer entries for the tablespace */
+	ibuf_delete_for_discarded_space(id);
+
+	mutex_enter(&fil_system.mutex);
+	fil_space_t* space = fil_space_get_by_id(id);
+	/* TRUNCATE TABLE is protected by an exclusive table lock.
+	The table cannot be dropped or the tablespace discarded
+	while we are holding the transactional table lock. Thus,
+	there is no need to invoke fil_space_acquire(). */
+	mutex_exit(&fil_system.mutex);
+
+	mtr_t	mtr;
+
+	mtr.start();
+	mtr.set_named_space(space);
+	mtr_x_lock(&space->latch, &mtr);
+
+	ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+	space->size = UT_LIST_GET_FIRST(space->chain)->size = size;
+	fsp_header_init(space, size, &mtr);
+
+	mtr.commit();
+}
+
 /**
 Truncates a table for MySQL.
 @param table		table being truncated
@@ -2090,6 +2150,226 @@ row_truncate_table_for_mysql(
 	return(row_truncate_complete(table, trx, fsp_flags, logger, err));
 }
 
+/********************************************************//**
+Recreates table indexes by applying
+TRUNCATE log record during recovery.
+@return DB_SUCCESS or error code */
+static
+dberr_t
+fil_recreate_table(
+/*===============*/
+	ulint		format_flags,	/*!< in: page format */
+	const char*	name,		/*!< in: table name */
+	truncate_t&	truncate)	/*!< in: The information of
+					TRUNCATE log record */
+{
+	ut_ad(!truncate_t::s_fix_up_active);
+	truncate_t::s_fix_up_active = true;
+
+	/* Step-1: Scan for active indexes from REDO logs and drop
+	all the indexes using low level function that take root_page_no
+	and space-id. */
+	truncate.drop_indexes(TRX_SYS_SPACE);
+
+	/* Step-2: Scan for active indexes and re-create them. */
+	dberr_t err = truncate.create_indexes(
+		name, TRX_SYS_SPACE, univ_page_size,
+		fil_system.sys_space->flags, format_flags);
+	if (err != DB_SUCCESS) {
+		ib::info() << "Recovery failed for TRUNCATE TABLE '"
+			<< name << "' within the system tablespace";
+	}
+
+	truncate_t::s_fix_up_active = false;
+
+	return(err);
+}
+
+/********************************************************//**
+Recreates the tablespace and table indexes by applying
+TRUNCATE log record during recovery.
+@return DB_SUCCESS or error code */
+static
+dberr_t
+fil_recreate_tablespace(
+/*====================*/
+	ulint		space_id,	/*!< in: space id */
+	ulint		format_flags,	/*!< in: page format */
+	ulint		flags,		/*!< in: tablespace flags */
+	const char*	name,		/*!< in: table name */
+	truncate_t&	truncate,	/*!< in: The information of
+					TRUNCATE log record */
+	lsn_t		recv_lsn)	/*!< in: the end LSN of
+						the log record */
+{
+	dberr_t		err = DB_SUCCESS;
+	mtr_t		mtr;
+
+	ut_ad(!truncate_t::s_fix_up_active);
+	truncate_t::s_fix_up_active = true;
+
+	/* Step-1: Invalidate buffer pool pages belonging to the tablespace
+	to re-create. */
+	buf_LRU_flush_or_remove_pages(space_id, NULL);
+
+	/* Remove all insert buffer entries for the tablespace */
+	ibuf_delete_for_discarded_space(space_id);
+
+	/* Step-2: truncate tablespace (reset the size back to original or
+	default size) of tablespace. */
+	err = truncate.truncate(
+		space_id, truncate.get_dir_path(), name, flags, true);
+
+	if (err != DB_SUCCESS) {
+
+		ib::info() << "Cannot access .ibd file for table '"
+			<< name << "' with tablespace " << space_id
+			<< " while truncating";
+		return(DB_ERROR);
+	}
+
+	fil_space_t* space = fil_space_acquire(space_id);
+	if (!space) {
+		ib::info() << "Missing .ibd file for table '" << name
+			<< "' with tablespace " << space_id;
+		return(DB_ERROR);
+	}
+
+	const page_size_t page_size(space->flags);
+
+	/* Step-3: Initialize Header. */
+	if (page_size.is_compressed()) {
+		byte*	buf;
+		page_t*	page;
+
+		buf = static_cast<byte*>(ut_zalloc_nokey(3 * UNIV_PAGE_SIZE));
+
+		/* Align the memory for file i/o */
+		page = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
+
+		flags |= FSP_FLAGS_PAGE_SSIZE();
+
+		fsp_header_init_fields(page, space_id, flags);
+
+		mach_write_to_4(
+			page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, space_id);
+
+		page_zip_des_t  page_zip;
+		page_zip_set_size(&page_zip, page_size.physical());
+		page_zip.data = page + UNIV_PAGE_SIZE;
+
+#ifdef UNIV_DEBUG
+		page_zip.m_start =
+#endif /* UNIV_DEBUG */
+		page_zip.m_end = page_zip.m_nonempty = page_zip.n_blobs = 0;
+		buf_flush_init_for_writing(NULL, page, &page_zip, 0);
+
+		err = fil_io(IORequestWrite, true, page_id_t(space_id, 0),
+			     page_size, 0, page_size.physical(), page_zip.data,
+			     NULL);
+
+		ut_free(buf);
+
+		if (err != DB_SUCCESS) {
+			ib::info() << "Failed to clean header of the"
+				" table '" << name << "' with tablespace "
+				<< space_id;
+			goto func_exit;
+		}
+	}
+
+	mtr_start(&mtr);
+	/* Don't log the operation while fixing up table truncate operation
+	as crash at this level can still be sustained with recovery restarting
+	from last checkpoint. */
+	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
+
+	/* Initialize the first extent descriptor page and
+	the second bitmap page for the new tablespace. */
+	fsp_header_init(space, FIL_IBD_FILE_INITIAL_SIZE, &mtr);
+	mtr_commit(&mtr);
+
+	/* Step-4: Re-Create Indexes to newly re-created tablespace.
+	This operation will restore tablespace back to what it was
+	when it was created during CREATE TABLE. */
+	err = truncate.create_indexes(
+		name, space_id, page_size, flags, format_flags);
+	if (err != DB_SUCCESS) {
+		goto func_exit;
+	}
+
+	/* Step-5: Write new created pages into ibd file handle and
+	flush it to disk for the tablespace, in case i/o-handler thread
+	deletes the bitmap page from buffer. */
+	mtr_start(&mtr);
+
+	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
+
+	for (ulint page_no = 0;
+	     page_no < UT_LIST_GET_FIRST(space->chain)->size; ++page_no) {
+
+		const page_id_t	cur_page_id(space_id, page_no);
+
+		buf_block_t*	block = buf_page_get(cur_page_id, page_size,
+						     RW_X_LATCH, &mtr);
+
+		byte*	page = buf_block_get_frame(block);
+
+		if (!FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
+			ut_ad(!page_size.is_compressed());
+
+			buf_flush_init_for_writing(
+				block, page, NULL, recv_lsn);
+
+			err = fil_io(IORequestWrite, true, cur_page_id,
+				     page_size, 0, srv_page_size, page, NULL);
+		} else {
+			ut_ad(page_size.is_compressed());
+
+			/* We don't want to rewrite empty pages. */
+
+			if (fil_page_get_type(page) != 0) {
+				page_zip_des_t*  page_zip =
+					buf_block_get_page_zip(block);
+
+				buf_flush_init_for_writing(
+					block, page, page_zip, recv_lsn);
+
+				err = fil_io(IORequestWrite, true,
+					     cur_page_id,
+					     page_size, 0,
+					     page_size.physical(),
+					     page_zip->data, NULL);
+			} else {
+#ifdef UNIV_DEBUG
+				const byte*	data = block->page.zip.data;
+
+				/* Make sure that the page is really empty */
+				for (ulint i = 0;
+				     i < page_size.physical();
+				     ++i) {
+
+					ut_a(data[i] == 0);
+				}
+#endif /* UNIV_DEBUG */
+			}
+		}
+
+		if (err != DB_SUCCESS) {
+			ib::info() << "Cannot write page " << page_no
+				<< " into a .ibd file for table '"
+				<< name << "' with tablespace " << space_id;
+		}
+	}
+
+	mtr_commit(&mtr);
+
+	truncate_t::s_fix_up_active = false;
+func_exit:
+	fil_space_release(space);
+	return(err);
+}
+
 /**
 Fix the table truncate by applying information parsed from TRUNCATE log.
 Fix-up includes re-creating table (drop and re-create indexes)
@@ -2112,9 +2392,7 @@ truncate_t::fixup_tables_in_system_tablespace()
 				"residing in the system tablespace.";
 
 			err = fil_recreate_table(
-				(*it)->m_space_id,
 				(*it)->m_format_flags,
-				(*it)->m_tablespace_flags,
 				(*it)->m_tablename,
 				**it);
 
@@ -2686,7 +2964,7 @@ create the index
 @param[in,out]	mtr			mini-transaction covering the
 create index
 @return root page no or FIL_NULL on failure */
-ulint
+inline ulint
 truncate_t::create_index(
 	const char*		table_name,
 	ulint			space_id,
@@ -2821,7 +3099,7 @@ truncate_t::drop_indexes(
 @param[in]	flags		tablespace flags
 @param[in]	format_flags	page format flags
 @return DB_SUCCESS or error code. */
-dberr_t
+inline dberr_t
 truncate_t::create_indexes(
 	const char*		table_name,
 	ulint			space_id,
