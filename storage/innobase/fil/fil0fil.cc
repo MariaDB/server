@@ -2998,54 +2998,6 @@ fil_space_dec_redo_skipped_count(
 #endif /* UNIV_DEBUG */
 
 /*******************************************************************//**
-Discards a single-table tablespace. The tablespace must be cached in the
-memory cache. Discarding is like deleting a tablespace, but
-
- 1. We do not drop the table from the data dictionary;
-
- 2. We remove all insert buffer entries for the tablespace immediately;
-    in DROP TABLE they are only removed gradually in the background;
-
- 3. Free all the pages in use by the tablespace.
-@return DB_SUCCESS or error */
-dberr_t
-fil_discard_tablespace(
-/*===================*/
-	ulint	id)	/*!< in: space id */
-{
-	dberr_t	err;
-
-	switch (err = fil_delete_tablespace(id
-#ifdef BTR_CUR_HASH_ADAPT
-					    , true
-#endif /* BTR_CUR_HASH_ADAPT */
-					    )) {
-	case DB_SUCCESS:
-		break;
-
-	case DB_IO_ERROR:
-		ib::warn() << "While deleting tablespace " << id
-			<< " in DISCARD TABLESPACE. File rename/delete"
-			" failed: " << ut_strerr(err);
-		break;
-
-	case DB_TABLESPACE_NOT_FOUND:
-		ib::warn() << "Cannot delete tablespace " << id
-			<< " in DISCARD TABLESPACE: " << ut_strerr(err);
-		break;
-
-	default:
-		ut_error;
-	}
-
-	/* Remove all insert buffer entries for the tablespace */
-
-	ibuf_delete_for_discarded_space(id);
-
-	return(err);
-}
-
-/*******************************************************************//**
 Allocates and builds a file name from a path, a table or tablespace name
 and a suffix. The string must be freed by caller with ut_free().
 @param[in] path NULL or the direcory path or the full path and filename.

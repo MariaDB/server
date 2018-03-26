@@ -17,6 +17,7 @@ call mtr.add_suppression("Could not find a valid tablespace file for");
 call mtr.add_suppression("InnoDB: Failed to find tablespace for table `test`\.`\(t\|x\.\.d\)` in the cache");
 call mtr.add_suppression("InnoDB: Cannot delete tablespace [0-9]+.*not found");
 call mtr.add_suppression("Table .* in the InnoDB data dictionary has tablespace id .*, but tablespace with that id or name does not exist");
+call mtr.add_suppression("InnoDB: ALTER TABLE `test`.`t` DISCARD TABLESPACE failed to find tablespace");
 --enable_query_log
 
 let $MYSQLD_DATADIR=`select @@datadir`;

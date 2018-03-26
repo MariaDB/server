@@ -969,26 +969,6 @@ fil_close_tablespace(
 	trx_t*	trx,	/*!< in/out: Transaction covering the close */
 	ulint	id);	/*!< in: space id */
 
-/*******************************************************************//**
-Discards a single-table tablespace. The tablespace must be cached in the
-memory cache. Discarding is like deleting a tablespace, but
-
- 1. We do not drop the table from the data dictionary;
-
- 2. We remove all insert buffer entries for the tablespace immediately;
-    in DROP TABLE they are only removed gradually in the background;
-
- 3. When the user does IMPORT TABLESPACE, the tablespace will have the
-    same id as it originally had.
-
- 4. Free all the pages in use by the tablespace if rename=true.
-@return DB_SUCCESS or error */
-dberr_t
-fil_discard_tablespace(
-/*===================*/
-	ulint	id)	/*!< in: space id */
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Test if a tablespace file can be renamed to a new filepath by checking
 if that the old filepath exists and the new filepath does not exist.
 @param[in]	space_id	tablespace id

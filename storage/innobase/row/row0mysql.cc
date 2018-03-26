@@ -3167,49 +3167,44 @@ row_discard_tablespace(
 	}
 
 	/* Discard the physical file that is used for the tablespace. */
-
-	err = fil_discard_tablespace(table->space);
-
+	err = fil_delete_tablespace(table->space
+#ifdef BTR_CUR_HASH_ADAPT
+				   , true
+#endif /* BTR_CUR_HASH_ADAPT */
+				   );
 	switch (err) {
-	case DB_SUCCESS:
 	case DB_IO_ERROR:
-	case DB_TABLESPACE_NOT_FOUND:
-		/* All persistent operations successful, update the
-		data dictionary memory cache. */
-
-		table->file_unreadable = true;
-
-		table->flags2 |= DICT_TF2_DISCARDED;
-
-		dict_table_change_id_in_cache(table, new_id);
-
-		/* Reset the root page numbers. */
-
-		for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
-		     index != 0;
-		     index = UT_LIST_GET_NEXT(indexes, index)) {
-
-			index->page = FIL_NULL;
-		}
-
-		/* If the tablespace did not already exist or we couldn't
-		write to it, we treat that as a successful DISCARD. It is
-		unusable anyway. */
-
-		err = DB_SUCCESS;
+		ib::warn() << "ALTER TABLE " << table->name
+			<< " DISCARD TABLESPACE failed to delete file";
 		break;
-
+	case DB_TABLESPACE_NOT_FOUND:
+		ib::warn() << "ALTER TABLE " << table->name
+			<< " DISCARD TABLESPACE failed to find tablespace";
+		break;
+	case DB_SUCCESS:
+		break;
 	default:
-		/* We need to rollback the disk changes, something failed. */
-
-		trx->error_state = DB_SUCCESS;
-
-		trx_rollback_to_savepoint(trx, NULL);
-
-		trx->error_state = DB_SUCCESS;
+		ut_error;
 	}
 
-	return(err);
+	/* All persistent operations successful, update the
+	data dictionary memory cache. */
+
+	table->file_unreadable = true;
+	table->flags2 |= DICT_TF2_DISCARDED;
+	dict_table_change_id_in_cache(table, new_id);
+
+	/* Reset the root page numbers. */
+
+	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
+	     index != 0;
+	     index = UT_LIST_GET_NEXT(indexes, index)) {
+		index->page = FIL_NULL;
+	}
+	/* If the tablespace did not already exist or we couldn't
+	write to it, we treat that as a successful DISCARD. It is
+	unusable anyway. */
+	return DB_SUCCESS;
 }
 
 /*********************************************************************//**
