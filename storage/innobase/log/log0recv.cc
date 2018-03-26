@@ -1702,9 +1702,7 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 
 	ut_ad(recv_needed_recovery);
 
-	DBUG_PRINT("ib_log",
-		   ("Applying log to page %u:%u",
-		    recv_addr->space, recv_addr->page_no));
+	DBUG_LOG("ib_log", "Applying log to page " << block->page.id);
 
 	recv_addr->state = RECV_BEING_PROCESSED;
 
@@ -1749,6 +1747,7 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 	start_lsn = end_lsn = 0;
 
 	recv = UT_LIST_GET_FIRST(recv_addr->rec_list);
+	fil_space_t* space = fil_space_acquire(block->page.id.space());
 
 	while (recv) {
 		end_lsn = recv->end_lsn;
@@ -1775,13 +1774,6 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 		with LSN less than recorded LSN is skipped.
 		Note: We can't skip complete recv_addr as same page may have
 		valid REDO records post truncate those needs to be applied. */
-		bool	skip_recv = false;
-		if (srv_was_tablespace_truncated(fil_space_get(recv_addr->space))) {
-			lsn_t	init_lsn =
-				truncate_t::get_truncated_tablespace_init_lsn(
-				recv_addr->space);
-			skip_recv = (recv->start_lsn < init_lsn);
-		}
 
 		/* Ignore applying the redo logs for tablespace that is
 		truncated. Post recovery there is fixup action that will
@@ -1791,8 +1783,11 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 		was re-inited and that would lead to an error while applying
 		such action. */
 		if (recv->start_lsn >= page_lsn
-		    && !srv_is_tablespace_truncated(recv_addr->space)
-		    && !skip_recv) {
+		    && !srv_is_tablespace_truncated(space->id)
+		    && !(srv_was_tablespace_truncated(space)
+			 && recv->start_lsn
+			 < truncate_t::get_truncated_tablespace_init_lsn(
+				 space->id))) {
 
 			lsn_t	end_lsn;
 
@@ -1802,17 +1797,15 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 				start_lsn = recv->start_lsn;
 			}
 
-			DBUG_PRINT("ib_log",
-				   ("apply " LSN_PF ":"
-				    " %s len " ULINTPF " page %u:%u",
-				    recv->start_lsn,
-				    get_mlog_string(recv->type), recv->len,
-				    recv_addr->space,
-				    recv_addr->page_no));
+			DBUG_LOG("ib_log", "apply " << recv->start_lsn << ": "
+				 << get_mlog_string(recv->type)
+				 << " len " << recv->len
+				 << " page " << block->page.id);
 
 			recv_parse_or_apply_log_rec_body(
 				recv->type, buf, buf + recv->len,
-				recv_addr->space, recv_addr->page_no,
+				block->page.id.space(),
+				block->page.id.page_no(),
 				true, block, &mtr);
 
 			end_lsn = recv->start_lsn + recv->len;
@@ -1833,6 +1826,8 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 
 		recv = UT_LIST_GET_NEXT(rec_list, recv);
 	}
+
+	fil_space_release(space);
 
 #ifdef UNIV_ZIP_DEBUG
 	if (fil_page_index_page_check(page)) {
