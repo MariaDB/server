@@ -1728,7 +1728,7 @@ trx_undo_truncate_tablespace(
 		trx_rseg_t*	rseg = undo_trunc->get_ith_rseg(i);
 
 		rseg->page_no = trx_rseg_header_create(
-			space->id, rseg->id, sys_header, &mtr);
+			space, rseg->id, sys_header, &mtr);
 
 		rseg_header = trx_rsegf_get_new(space->id, rseg->page_no,
 						&mtr);

@@ -261,17 +261,15 @@ void trx_rseg_format_upgrade(trx_rsegf_t* rseg_header, mtr_t* mtr)
 	mlog_log_string(b, len, mtr);
 }
 
-/** Creates a rollback segment header.
-This function is called only when a new rollback segment is created in
-the database.
-@param[in]	space		space id
+/** Create a rollback segment header.
+@param[in]	space		system, undo, or temporary tablespace
 @param[in]	rseg_id		rollback segment identifier
 @param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
 @param[in,out]	mtr		mini-transaction
 @return page number of the created segment, FIL_NULL if fail */
 ulint
 trx_rseg_header_create(
-	ulint			space,
+	const fil_space_t*	space,
 	ulint			rseg_id,
 	buf_block_t*		sys_header,
 	mtr_t*			mtr)
@@ -280,13 +278,12 @@ trx_rseg_header_create(
 	trx_rsegf_t*	rsegf;
 	buf_block_t*	block;
 
-	ut_ad(mtr);
-	ut_ad(mtr_memo_contains(mtr, fil_space_get_latch(space, NULL),
-				MTR_MEMO_X_LOCK));
-	ut_ad(!sys_header == (space == SRV_TMP_SPACE_ID));
+	ut_ad(mtr_memo_contains(mtr, &space->latch, MTR_MEMO_X_LOCK));
+	ut_ad(!sys_header == (space == fil_system.temp_space));
 
 	/* Allocate a new file segment for the rollback segment */
-	block = fseg_create(space, 0, TRX_RSEG + TRX_RSEG_FSEG_HEADER, mtr);
+	block = fseg_create(space->id, 0, TRX_RSEG + TRX_RSEG_FSEG_HEADER,
+			    mtr);
 
 	if (block == NULL) {
 		/* No space left */
@@ -299,7 +296,7 @@ trx_rseg_header_create(
 	page_no = block->page.id.page_no();
 
 	/* Get the rollback segment file page */
-	rsegf = trx_rsegf_get_new(space, page_no, mtr);
+	rsegf = trx_rsegf_get_new(space->id, page_no, mtr);
 
 	mlog_write_ulint(rsegf + TRX_RSEG_FORMAT, 0, MLOG_4BYTES, mtr);
 
@@ -322,7 +319,7 @@ trx_rseg_header_create(
 				 + TRX_SYS_RSEG_SPACE
 				 + rseg_id * TRX_SYS_RSEG_SLOT_SIZE
 				 + sys_header->frame,
-				 space, MLOG_4BYTES, mtr);
+				 space->id, MLOG_4BYTES, mtr);
 		mlog_write_ulint(TRX_SYS + TRX_SYS_RSEGS
 				 + TRX_SYS_RSEG_PAGE_NO
 				 + rseg_id * TRX_SYS_RSEG_SLOT_SIZE
@@ -603,17 +600,14 @@ trx_rseg_create(ulint space_id)
 
 	/* To obey the latching order, acquire the file space
 	x-latch before the trx_sys.mutex. */
-#ifdef UNIV_DEBUG
-	const fil_space_t*	space =
-#endif /* UNIV_DEBUG */
-		mtr_x_lock_space(space_id, &mtr);
+	const fil_space_t*	space = mtr_x_lock_space(space_id, &mtr);
 	ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
 
 	if (buf_block_t* sys_header = trx_sysf_get(&mtr)) {
 		ulint	rseg_id = trx_sys_rseg_find_free(sys_header);
 		ulint	page_no = rseg_id == ULINT_UNDEFINED
 			? FIL_NULL
-			: trx_rseg_header_create(space_id, rseg_id, sys_header,
+			: trx_rseg_header_create(space, rseg_id, sys_header,
 						 &mtr);
 		if (page_no != FIL_NULL) {
 			ut_ad(trx_sysf_rseg_get_space(sys_header, rseg_id)
@@ -643,7 +637,7 @@ trx_temp_rseg_create()
 		mtr_x_lock(&fil_system.temp_space->latch, &mtr);
 
 		ulint page_no = trx_rseg_header_create(
-			SRV_TMP_SPACE_ID, i, NULL, &mtr);
+			fil_system.temp_space, i, NULL, &mtr);
 		trx_rseg_t* rseg = trx_rseg_mem_create(
 			i, SRV_TMP_SPACE_ID, page_no);
 		ut_ad(!rseg->is_persistent());

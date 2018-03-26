@@ -71,17 +71,15 @@ UNIV_INLINE
 ulint
 trx_rsegf_undo_find_free(const trx_rsegf_t* rsegf);
 
-/** Creates a rollback segment header.
-This function is called only when a new rollback segment is created in
-the database.
-@param[in]	space		space id
+/** Create a rollback segment header.
+@param[in]	space		system, undo, or temporary tablespace
 @param[in]	rseg_id		rollback segment identifier
 @param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
 @param[in,out]	mtr		mini-transaction
 @return page number of the created segment, FIL_NULL if fail */
 ulint
 trx_rseg_header_create(
-	ulint			space,
+	const fil_space_t*	space,
 	ulint			rseg_id,
 	buf_block_t*		sys_header,
 	mtr_t*			mtr);
