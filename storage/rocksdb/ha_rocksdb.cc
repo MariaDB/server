@@ -4417,6 +4417,49 @@ static int rocksdb_done_func(void *const p) {
   }
 
   /*
+    MariaDB: When the plugin is unloaded with UNINSTALL SONAME command, some
+    connections may still have Rdb_transaction objects.
+
+    These objects are not genuine transactions (as SQL layer makes sure that
+    a plugin that is being unloaded has no open tables), they are empty
+    Rdb_transaction objects that were left there to save on object
+    creation/deletion.
+
+    Go through the list and delete them.
+  */
+  {
+    class Rdb_trx_deleter: public Rdb_tx_list_walker {
+    public:
+      std::set<Rdb_transaction*> rdb_trxs;
+
+      void process_tran(const Rdb_transaction *const tx) override {
+        /*
+          Check if the transaction is really empty. We only check
+          non-WriteBatch-based transactions, because there is no easy way to
+          check WriteBatch-based transactions.
+        */
+        if (!tx->is_writebatch_trx()) {
+          const auto tx_impl = static_cast<const Rdb_transaction_impl *>(tx);
+          DBUG_ASSERT(tx_impl);
+          if (tx_impl->get_rdb_trx())
+            DBUG_ASSERT(0);
+        }
+        rdb_trxs.insert((Rdb_transaction*)tx);
+      };
+    } deleter;
+
+    Rdb_transaction::walk_tx_list(&deleter);
+
+    for (std::set<Rdb_transaction*>::iterator it= deleter.rdb_trxs.begin();
+         it != deleter.rdb_trxs.end();
+         ++it)
+    {
+      // When a transaction is deleted, it removes itself from s_tx_list.
+      delete *it;
+    }
+  }
+
+  /*
     destructors for static objects can be called at _exit(),
     but we want to free the memory at dlclose()
   */

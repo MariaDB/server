@@ -1,0 +1,12 @@
+#
+# MDEV-14843: Assertion `s_tx_list.size() == 0' failed in myrocks::Rdb_transaction::term_mutex
+#
+INSTALL SONAME 'ha_rocksdb';
+CREATE TABLE t1 (i INT) ENGINE=RocksDB;
+insert into t1 values (1);
+connect  con1,localhost,root,,;
+connection con1;
+insert into test.t1 values (1);
+connection default;
+DROP TABLE t1;
+UNINSTALL SONAME 'ha_rocksdb';
