@@ -2046,44 +2046,6 @@ trx_print(
 		      n_rec_locks, n_trx_locks, heap_size);
 }
 
-#ifdef UNIV_DEBUG
-/**********************************************************************//**
-Asserts that a transaction has been started.
-The caller must hold trx_sys.mutex.
-@return TRUE if started */
-ibool
-trx_assert_started(
-/*===============*/
-	const trx_t*	trx)	/*!< in: transaction */
-{
-	ut_ad(mutex_own(&trx_sys.mutex));
-
-	/* Non-locking autocommits should not hold any locks and this
-	function is only called from the locking code. */
-	check_trx_state(trx);
-
-	/* trx->state can change from or to NOT_STARTED while we are holding
-	trx_sys.mutex for non-locking autocommit selects but not for other
-	types of transactions. It may change from ACTIVE to PREPARED. Unless
-	we are holding lock_sys.mutex, it may also change to COMMITTED. */
-
-	switch (trx->state) {
-	case TRX_STATE_PREPARED:
-		return(TRUE);
-
-	case TRX_STATE_ACTIVE:
-	case TRX_STATE_COMMITTED_IN_MEMORY:
-		return(TRUE);
-
-	case TRX_STATE_NOT_STARTED:
-		break;
-	}
-
-	ut_error;
-	return(FALSE);
-}
-#endif /* UNIV_DEBUG */
-
 /*******************************************************************//**
 Compares the "weight" (or size) of two transactions. Transactions that
 have edited non-transactional tables are considered heavier than ones

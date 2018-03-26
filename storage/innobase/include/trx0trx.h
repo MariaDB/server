@@ -379,17 +379,6 @@ trx_state_eq(
 				trx->state == TRX_STATE_NOT_STARTED
 				after an error has been reported */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-# ifdef UNIV_DEBUG
-/**********************************************************************//**
-Asserts that a transaction has been started.
-The caller must hold trx_sys.mutex.
-@return TRUE if started */
-ibool
-trx_assert_started(
-/*===============*/
-	const trx_t*	trx)	/*!< in: transaction */
-	MY_ATTRIBUTE((warn_unused_result));
-# endif /* UNIV_DEBUG */
 
 /**********************************************************************//**
 Determines if the currently running transaction has been interrupted.

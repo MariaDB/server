@@ -1233,7 +1233,6 @@ lock_sec_rec_some_has_impl(
 	const page_t*	page = page_align(rec);
 
 	ut_ad(!lock_mutex_own());
-	ut_ad(!mutex_own(&trx_sys.mutex));
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(page_rec_is_user_rec(rec));
 	ut_ad(rec_offs_validate(rec, index, offsets));
@@ -4871,17 +4870,18 @@ lock_table_queue_validate(
 	const lock_t*	lock;
 
 	ut_ad(lock_mutex_own());
-	ut_ad(mutex_own(&trx_sys.mutex));
 
 	for (lock = UT_LIST_GET_FIRST(table->locks);
 	     lock != NULL;
 	     lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock)) {
 
-		/* lock->trx->state cannot change from or to NOT_STARTED
-		while we are holding the trx_sys.mutex. It may change
-		from ACTIVE to PREPARED, but it may not change to
-		COMMITTED, because we are holding the lock_sys.mutex. */
-		ut_ad(trx_assert_started(lock->trx));
+		/* Transaction state may change from ACTIVE to PREPARED.
+		State change to COMMITTED is not possible while we are
+		holding lock_sys.mutex: it is done by lock_trx_release_locks()
+		under lock_sys.mutex protection.
+		Transaction in NOT_STARTED state cannot hold locks, and
+		lock->trx->state can only move to NOT_STARTED from COMMITTED. */
+		check_trx_state(lock->trx);
 
 		if (!lock_get_wait(lock)) {
 
@@ -4931,7 +4931,6 @@ lock_rec_queue_validate(
 
 	if (!locked_lock_trx_sys) {
 		lock_mutex_enter();
-		mutex_enter(&trx_sys.mutex);
 	}
 
 	if (!page_rec_is_user_rec(rec)) {
@@ -5059,7 +5058,6 @@ lock_rec_queue_validate(
 func_exit:
 	if (!locked_lock_trx_sys) {
 		lock_mutex_exit();
-		mutex_exit(&trx_sys.mutex);
 	}
 
 	return(TRUE);
@@ -5087,7 +5085,6 @@ lock_rec_validate_page(
 	ut_ad(!lock_mutex_own());
 
 	lock_mutex_enter();
-	mutex_enter(&trx_sys.mutex);
 loop:
 	lock = lock_rec_get_first_on_page_addr(
 		lock_sys.rec_hash,
@@ -5145,7 +5142,6 @@ loop:
 
 function_exit:
 	lock_mutex_exit();
-	mutex_exit(&trx_sys.mutex);
 
 	if (heap != NULL) {
 		mem_heap_free(heap);
@@ -5166,7 +5162,6 @@ lock_rec_validate(
 					(space, page_no) */
 {
 	ut_ad(lock_mutex_own());
-	ut_ad(mutex_own(&trx_sys.mutex));
 
 	for (const lock_t* lock = static_cast<const lock_t*>(
 			HASH_GET_FIRST(lock_sys.rec_hash, start));
@@ -5248,7 +5243,6 @@ static my_bool lock_validate_table_locks(rw_trx_hash_element_t *element,
                                          void *arg)
 {
   ut_ad(lock_mutex_own());
-  ut_ad(mutex_own(&trx_sys.mutex)); /* Do we really need this. */
   mutex_enter(&element->mutex);
   if (element->trx)
   {
@@ -5283,7 +5277,6 @@ lock_validate()
 	page_addr_set	pages;
 
 	lock_mutex_enter();
-	mutex_enter(&trx_sys.mutex);
 
 	/* Validate table locks */
 	trx_sys.rw_trx_hash.iterate(reinterpret_cast<my_hash_walk_action>
@@ -5306,7 +5299,6 @@ lock_validate()
 		}
 	}
 
-	mutex_exit(&trx_sys.mutex);
 	lock_mutex_exit();
 
 	for (page_addr_set::const_iterator it = pages.begin();
