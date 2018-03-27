@@ -3437,27 +3437,13 @@ String *Item_func_set_collation::val_str(String *str)
 
 void Item_func_set_collation::fix_length_and_dec()
 {
-  CHARSET_INFO *set_collation;
-  const char *colname;
-  String tmp, *str= args[1]->val_str(&tmp);
-  colname= str->c_ptr();
-  if (colname == binary_keyword)
-    set_collation= get_charset_by_csname(args[0]->collation.collation->csname,
-					 MY_CS_BINSORT,MYF(0));
-  else
-  {
-    if (!(set_collation= mysqld_collation_get_by_name(colname)))  
-      return;
-  }
-
-  if (!set_collation || 
-      !my_charset_same(args[0]->collation.collation,set_collation))
+  if (!my_charset_same(args[0]->collation.collation, m_set_collation))
   {
     my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-             colname, args[0]->collation.collation->csname);
+             m_set_collation->name, args[0]->collation.collation->csname);
     return;
   }
-  collation.set(set_collation, DERIVATION_EXPLICIT,
+  collation.set(m_set_collation, DERIVATION_EXPLICIT,
                 args[0]->collation.repertoire);
   max_length= args[0]->max_length;
 }
@@ -3465,22 +3451,8 @@ void Item_func_set_collation::fix_length_and_dec()
 
 bool Item_func_set_collation::eq(const Item *item, bool binary_cmp) const
 {
-  /* Assume we don't have rtti */
-  if (this == item)
-    return 1;
-  if (item->type() != FUNC_ITEM)
-    return 0;
-  Item_func *item_func=(Item_func*) item;
-  if (arg_count != item_func->argument_count() ||
-      functype() != item_func->functype())
-    return 0;
-  Item_func_set_collation *item_func_sc=(Item_func_set_collation*) item;
-  if (collation.collation != item_func_sc->collation.collation)
-    return 0;
-  for (uint i=0; i < arg_count ; i++)
-    if (!args[i]->eq(item_func_sc->args[i], binary_cmp))
-      return 0;
-  return 1;
+  return Item_func::eq(item, binary_cmp) &&
+         collation.collation == item->collation.collation;
 }
 
 
@@ -3488,9 +3460,7 @@ void Item_func_set_collation::print(String *str, enum_query_type query_type)
 {
   args[0]->print_parenthesised(str, query_type, precedence());
   str->append(STRING_WITH_LEN(" collate "));
-  DBUG_ASSERT(args[1]->basic_const_item() &&
-              args[1]->type() == Item::STRING_ITEM);
-  ((Item_string *)args[1])->print_value(str);
+  str->append(m_set_collation->name);
 }
 
 String *Item_func_charset::val_str(String *str)

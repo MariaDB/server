@@ -302,7 +302,7 @@ static TYPELIB tc_heuristic_recover_typelib=
   tc_heuristic_recover_names, NULL
 };
 
-const char *first_keyword= "first", *binary_keyword= "BINARY";
+const char *first_keyword= "first";
 const char *my_localhost= "localhost", *delayed_user= "DELAYED";
 const char *quoted_string= "%`s";
 

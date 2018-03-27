@@ -10064,15 +10064,9 @@ column_default_non_parenthesized_expr:
 
 simple_expr:
           column_default_non_parenthesized_expr
-        | simple_expr COLLATE_SYM ident_or_text %prec NEG
+        | simple_expr COLLATE_SYM collation_name %prec NEG
           {
-            Item *i1= new (thd->mem_root) Item_string(thd, $3.str,
-                                                      $3.length,
-                                                      thd->charset());
-            if (i1 == NULL)
-              MYSQL_YYABORT;
-            $$= new (thd->mem_root) Item_func_set_collation(thd, $1, i1);
-            if ($$ == NULL)
+            if (!($$= new (thd->mem_root) Item_func_set_collation(thd, $1, $3)))
               MYSQL_YYABORT;
           }
         | '(' parenthesized_expr ')' { $$= $2; }

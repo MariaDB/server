@@ -1355,9 +1355,10 @@ public:
 
 class Item_func_set_collation :public Item_str_func
 {
+  CHARSET_INFO *m_set_collation;
 public:
-  Item_func_set_collation(THD *thd, Item *a, Item *b):
-    Item_str_func(thd, a, b) {}
+  Item_func_set_collation(THD *thd, Item *a, CHARSET_INFO *set_collation):
+    Item_str_func(thd, a), m_set_collation(set_collation) {}
   String *val_str(String *);
   void fix_length_and_dec();
   bool eq(const Item *item, bool binary_cmp) const;
