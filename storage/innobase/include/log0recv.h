@@ -291,6 +291,9 @@ struct recv_sys_t{
 
 	recv_dblwr_t	dblwr;
 
+	/** Lastly added LSN to the hash table of log records. */
+	lsn_t		last_stored_lsn;
+
 	/** Determine whether redo log recovery progress should be reported.
 	@param[in]	time	the current time
 	@return	whether progress should be reported

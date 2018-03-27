@@ -141,12 +141,23 @@ struct file_name_t {
 	std::string	name;
 	/** Tablespace object (NULL if not valid or not found) */
 	fil_space_t*	space;
-	/** Whether the tablespace has been deleted */
-	bool		deleted;
+
+	/** Tablespace status. */
+	enum fil_status {
+		/** Normal tablespace */
+		NORMAL,
+		/** Deleted tablespace */
+		DELETED,
+		/** Missing tablespace */
+		MISSING
+	};
+
+	/** Status of the tablespace */
+	fil_status	status;
 
 	/** Constructor */
-	file_name_t(std::string name_, bool deleted_) :
-		name(name_), space(NULL), deleted (deleted_) {}
+	file_name_t(std::string name_, bool deleted) :
+		name(name_), space(NULL), status(deleted ? DELETED: NORMAL) {}
 };
 
 /** Map of dirty tablespaces during recovery */
@@ -202,8 +213,8 @@ fil_name_process(
 	if (deleted) {
 		/* Got MLOG_FILE_DELETE */
 
-		if (!p.second && !f.deleted) {
-			f.deleted = true;
+		if (!p.second && f.status != file_name_t::DELETED) {
+			f.status = file_name_t::DELETED;
 			if (f.space != NULL) {
 				fil_space_free(space_id, false);
 				f.space = NULL;
@@ -226,7 +237,7 @@ fil_name_process(
 			if (f.space == NULL || f.space == space) {
 				f.name = fname.name;
 				f.space = space;
-				f.deleted = false;
+				f.status = file_name_t::NORMAL;
 			} else {
 				ib::error() << "Tablespace " << space_id
 					<< " has been found in two places: '"
@@ -2905,6 +2916,12 @@ recv_scan_log_recs(
 
 		if (*store_to_hash != STORE_NO
 		    && mem_heap_get_size(recv_sys->heap) > available_memory) {
+
+			DBUG_PRINT("ib_log", ("Ran out of memory and last "
+					      "stored lsn " LSN_PF,
+					      recv_sys->recovered_lsn));
+
+			recv_sys->last_stored_lsn = recv_sys->recovered_lsn;
 			*store_to_hash = STORE_NO;
 		}
 
@@ -3037,15 +3054,99 @@ recv_init_missing_space(dberr_t err, const recv_spaces_t::const_iterator& i)
 	return(err);
 }
 
+/** Report the missing tablespace and discard the redo logs for the deleted
+tablespace.
+@param[in]	rescan			rescan of redo logs is needed
+					if hash table ran out of memory
+@param[out]	missing_tablespace	missing tablespace exists or not
+@return error code or DB_SUCCESS. */
+static MY_ATTRIBUTE((warn_unused_result))
+dberr_t
+recv_validate_tablespace(bool rescan, bool& missing_tablespace)
+{
+	dberr_t err = DB_SUCCESS;
+
+	for (ulint h = 0; h < hash_get_n_cells(recv_sys->addr_hash); h++) {
+
+		for (recv_addr_t* recv_addr = static_cast<recv_addr_t*>(
+				HASH_GET_FIRST(recv_sys->addr_hash, h));
+				recv_addr != 0;
+				recv_addr = static_cast<recv_addr_t*>(
+					HASH_GET_NEXT(addr_hash, recv_addr))) {
+
+			const ulint space = recv_addr->space;
+
+			if (is_predefined_tablespace(space)) {
+				continue;
+			}
+
+			recv_spaces_t::iterator i
+				= recv_spaces.find(space);
+			ut_ad(i != recv_spaces.end());
+
+			switch(i->second.status) {
+			case file_name_t::MISSING:
+				err = recv_init_missing_space(err, i);
+				i->second.status = file_name_t::DELETED;
+			case file_name_t::DELETED:
+				recv_addr->state = RECV_DISCARDED;
+			case file_name_t::NORMAL:
+				break;
+			default:
+				ut_ad(0);
+			}
+		}
+	}
+
+	if (err != DB_SUCCESS) {
+		return(err);
+	}
+
+	/* When rescan is not needed then recv_sys->addr_hash will have
+	all space id belongs to redo log. If rescan is needed and
+	innodb_force_recovery > 0 then InnoDB can ignore missing tablespace. */
+	for (recv_spaces_t::iterator i = recv_spaces.begin();
+	     i != recv_spaces.end(); i++) {
+
+		if (i->second.status != file_name_t::MISSING) {
+			continue;
+		}
+
+		missing_tablespace = true;
+
+		if (srv_force_recovery > 0) {
+			ib::warn() << "Tablespace " << i->first
+				<<" was not found at " << i->second.name
+				<<", and innodb_force_recovery was set."
+				<<" All redo log for this tablespace"
+				<<" will be ignored!";
+			continue;
+		}
+
+		if (!rescan) {
+			ib::info() << "Tablespace " << i->first
+				<< " was not found at '"
+				<< i->second.name << "', but there"
+				<<" were no modifications either.";
+		}
+	}
+
+	if (!rescan || srv_force_recovery > 0) {
+		missing_tablespace = false;
+	}
+
+	return DB_SUCCESS;
+}
+
 /** Check if all tablespaces were found for crash recovery.
+@param[in]	rescan			rescan of redo logs is needed
+@param[out]	missing_tablespace	missing table exists
 @return error code or DB_SUCCESS */
 static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
-recv_init_crash_recovery_spaces()
+recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 {
-	typedef std::set<ulint>	space_set_t;
 	bool		flag_deleted	= false;
-	space_set_t	missing_spaces;
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad(recv_needed_recovery);
@@ -3053,9 +3154,9 @@ recv_init_crash_recovery_spaces()
 	for (recv_spaces_t::iterator i = recv_spaces.begin();
 	     i != recv_spaces.end(); i++) {
 		ut_ad(!is_predefined_tablespace(i->first));
-		ut_ad(!i->second.deleted || !i->second.space);
+		ut_ad(i->second.status != file_name_t::DELETED || !i->second.space);
 
-		if (i->second.deleted) {
+		if (i->second.status == file_name_t::DELETED) {
 			/* The tablespace was deleted,
 			so we can ignore any redo log for it. */
 			flag_deleted = true;
@@ -3071,84 +3172,18 @@ recv_init_crash_recovery_spaces()
 			recv_sys->found_corrupt_log = true;
 			return(DB_CORRUPTION);
 		} else {
-			missing_spaces.insert(i->first);
+			i->second.status = file_name_t::MISSING;
 			flag_deleted = true;
 		}
 
-		ut_ad(i->second.deleted || i->second.name != "");
+		ut_ad(i->second.status == file_name_t::DELETED || i->second.name != "");
 	}
 
 	if (flag_deleted) {
-		dberr_t err = DB_SUCCESS;
-
-		for (ulint h = 0;
-		     h < hash_get_n_cells(recv_sys->addr_hash);
-		     h++) {
-			for (recv_addr_t* recv_addr
-				     = static_cast<recv_addr_t*>(
-					     HASH_GET_FIRST(
-						     recv_sys->addr_hash, h));
-			     recv_addr != 0;
-			     recv_addr = static_cast<recv_addr_t*>(
-				     HASH_GET_NEXT(addr_hash, recv_addr))) {
-				const ulint space = recv_addr->space;
-
-				if (is_predefined_tablespace(space)) {
-					continue;
-				}
-
-				recv_spaces_t::iterator i
-					= recv_spaces.find(space);
-				ut_ad(i != recv_spaces.end());
-
-				if (i->second.deleted) {
-					ut_ad(missing_spaces.find(space)
-					      == missing_spaces.end());
-					recv_addr->state = RECV_DISCARDED;
-					continue;
-				}
-
-				space_set_t::iterator m = missing_spaces.find(
-					space);
-
-				if (m != missing_spaces.end()) {
-					missing_spaces.erase(m);
-					err = recv_init_missing_space(err, i);
-					recv_addr->state = RECV_DISCARDED;
-					/* All further redo log for this
-					tablespace should be removed. */
-					i->second.deleted = true;
-				}
-			}
-		}
-
-		if (err != DB_SUCCESS) {
-			return(err);
-		}
+		return recv_validate_tablespace(rescan, missing_tablespace);
 	}
 
-	for (space_set_t::const_iterator m = missing_spaces.begin();
-	     m != missing_spaces.end(); m++) {
-		recv_spaces_t::iterator i = recv_spaces.find(*m);
-		ut_ad(i != recv_spaces.end());
-
-		ib::info() << "Tablespace " << i->first
-			<< " was not found at '" << i->second.name
-			<< "', but there were no modifications either.";
-	}
-
-	if (srv_operation == SRV_OPERATION_NORMAL) {
-		buf_dblwr_process();
-	}
-
-	if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
-		/* Spawn the background thread to flush dirty pages
-		from the buffer pools. */
-		recv_writer_thread_active = true;
-		os_thread_create(recv_writer_thread, 0, 0);
-	}
-
-	return(DB_SUCCESS);
+	return DB_SUCCESS;
 }
 
 /** Start recovering from a redo log checkpoint.
@@ -3324,12 +3359,56 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	log_sys->lsn = recv_sys->recovered_lsn;
 
 	if (recv_needed_recovery) {
-		err = recv_init_crash_recovery_spaces();
+		bool missing_tablespace = false;
+
+		err = recv_init_crash_recovery_spaces(
+			rescan, missing_tablespace);
 
 		if (err != DB_SUCCESS) {
 			log_mutex_exit();
 			return(err);
 		}
+
+		/* If there is any missing tablespace and rescan is needed
+		then there is a possiblity that hash table will not contain
+		all space ids redo logs. Rescan the remaining unstored
+		redo logs for the validation of missing tablespace. */
+		while (missing_tablespace) {
+			DBUG_PRINT("ib_log", ("Rescan of redo log to validate "
+					      "the missing tablespace. Scan "
+					      "from last stored LSN " LSN_PF,
+					      recv_sys->last_stored_lsn));
+
+			lsn_t recent_stored_lsn = recv_sys->last_stored_lsn;
+			rescan = recv_group_scan_log_recs(
+				group, checkpoint_lsn,
+				&recent_stored_lsn, false);
+
+			ut_ad(!recv_sys->found_corrupt_fs);
+
+			missing_tablespace = false;
+
+			err = recv_sys->found_corrupt_log
+				? DB_ERROR
+				: recv_validate_tablespace(
+					rescan, missing_tablespace);
+
+			if (err != DB_SUCCESS) {
+				log_mutex_exit();
+				return err;
+			}
+		}
+
+		if (srv_operation == SRV_OPERATION_NORMAL) {
+			buf_dblwr_process();
+		}
+
+		ut_ad(srv_force_recovery <= SRV_FORCE_NO_UNDO_LOG_SCAN);
+
+		/* Spawn the background thread to flush dirty pages
+		from the buffer pools. */
+		recv_writer_thread_active = true;
+		os_thread_create(recv_writer_thread, 0, 0);
 
 		if (rescan) {
 			contiguous_lsn = checkpoint_lsn;
