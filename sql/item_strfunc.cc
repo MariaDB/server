@@ -2116,6 +2116,7 @@ void Item_func_trim::print(String *str, enum_query_type query_type)
     return;
   }
   str->append(Item_func_trim::func_name());
+  str->append(func_name_ext());
   str->append('(');
   str->append(mode_name());
   str->append(' ');
