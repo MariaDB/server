@@ -2815,69 +2815,6 @@ try_to_extend:
 	return(false);
 }
 
-/** Calculate how many KiB of new data we will be able to insert to the
-tablespace without running out of space.
-@param[in]	space_id	tablespace ID
-@return available space in KiB
-@retval UINTMAX_MAX if unknown */
-uintmax_t
-fsp_get_available_space_in_free_extents(
-	ulint	space_id)
-{
-	FilSpace	space(space_id);
-	if (space() == NULL) {
-		return(UINTMAX_MAX);
-	}
-
-	return(fsp_get_available_space_in_free_extents(space));
-}
-
-/** Calculate how many KiB of new data we will be able to insert to the
-tablespace without running out of space. Start with a space object that has
-been acquired by the caller who holds it for the calculation,
-@param[in]	space		tablespace object from fil_space_acquire()
-@return available space in KiB */
-uintmax_t
-fsp_get_available_space_in_free_extents(
-	const fil_space_t*	space)
-{
-	ut_ad(space->n_pending_ops > 0);
-
-	ulint	size_in_header = space->size_in_header;
-	if (size_in_header < FSP_EXTENT_SIZE) {
-		return(0);		/* TODO: count free frag pages and
-					return a value based on that */
-	}
-
-	/* Below we play safe when counting free extents above the free limit:
-	some of them will contain extent descriptor pages, and therefore
-	will not be free extents */
-	ut_ad(size_in_header >= space->free_limit);
-	ulint	n_free_up =
-		(size_in_header - space->free_limit) / FSP_EXTENT_SIZE;
-
-	page_size_t	page_size(space->flags);
-	if (n_free_up > 0) {
-		n_free_up--;
-		n_free_up -= n_free_up / (page_size.physical()
-					  / FSP_EXTENT_SIZE);
-	}
-
-	/* We reserve 1 extent + 0.5 % of the space size to undo logs
-	and 1 extent + 0.5 % to cleaning operations; NOTE: this source
-	code is duplicated in the function above! */
-
-	ulint	reserve = 2 + ((size_in_header / FSP_EXTENT_SIZE) * 2) / 200;
-	ulint	n_free = space->free_len + n_free_up;
-
-	if (reserve > n_free) {
-		return(0);
-	}
-
-	return(static_cast<uintmax_t>(n_free - reserve)
-	       * FSP_EXTENT_SIZE * (page_size.physical() / 1024));
-}
-
 /********************************************************************//**
 Marks a page used. The page must reside within the extents of the given
 segment. */

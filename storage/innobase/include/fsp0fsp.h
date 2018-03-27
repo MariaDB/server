@@ -527,24 +527,6 @@ fsp_reserve_free_extents(
 	mtr_t*		mtr,
 	ulint		n_pages = 2);
 
-/** Calculate how many KiB of new data we will be able to insert to the
-tablespace without running out of space.
-@param[in]	space_id	tablespace ID
-@return available space in KiB
-@retval UINTMAX_MAX if unknown */
-uintmax_t
-fsp_get_available_space_in_free_extents(
-	ulint		space_id);
-
-/** Calculate how many KiB of new data we will be able to insert to the
-tablespace without running out of space. Start with a space object that has
-been acquired by the caller who holds it for the calculation,
-@param[in]	space		tablespace object from fil_space_acquire()
-@return available space in KiB */
-uintmax_t
-fsp_get_available_space_in_free_extents(
-	const fil_space_t*	space);
-
 /**********************************************************************//**
 Frees a single page of a segment. */
 void

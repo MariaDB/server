@@ -13823,6 +13823,50 @@ innodb_rec_per_key(
 	return(rec_per_key);
 }
 
+/** Calculate how many KiB of new data we will be able to insert to the
+tablespace without running out of space. Start with a space object that has
+been acquired by the caller who holds it for the calculation,
+@param[in]	space		tablespace object from fil_space_acquire()
+@return available space in KiB */
+static uintmax_t
+fsp_get_available_space_in_free_extents(const fil_space_t& space)
+{
+	ut_ad(space.n_pending_ops > 0);
+
+	ulint	size_in_header = space.size_in_header;
+	if (size_in_header < FSP_EXTENT_SIZE) {
+		return 0;		/* TODO: count free frag pages and
+					return a value based on that */
+	}
+
+	/* Below we play safe when counting free extents above the free limit:
+	some of them will contain extent descriptor pages, and therefore
+	will not be free extents */
+	ut_ad(size_in_header >= space.free_limit);
+	ulint	n_free_up =
+		(size_in_header - space.free_limit) / FSP_EXTENT_SIZE;
+
+	const ulint size = page_size_t(space.flags).physical();
+	if (n_free_up > 0) {
+		n_free_up--;
+		n_free_up -= n_free_up / (size / FSP_EXTENT_SIZE);
+	}
+
+	/* We reserve 1 extent + 0.5 % of the space size to undo logs
+	and 1 extent + 0.5 % to cleaning operations; NOTE: this source
+	code is duplicated in the function above! */
+
+	ulint	reserve = 2 + ((size_in_header / FSP_EXTENT_SIZE) * 2) / 200;
+	ulint	n_free = space.free_len + n_free_up;
+
+	if (reserve > n_free) {
+		return(0);
+	}
+
+	return(static_cast<uintmax_t>(n_free - reserve)
+	       * FSP_EXTENT_SIZE * (size / 1024));
+}
+
 /*********************************************************************//**
 Returns statistics information of the table to the MySQL interpreter,
 in various fields of the handle object.
@@ -13949,67 +13993,23 @@ ha_innobase::info_low(
 			m_prebuilt->autoinc_last_value = 0;
 		}
 
-		const page_size_t&	page_size
-			= dict_table_page_size(ib_table);
-
 		stats.records = (ha_rows) n_rows;
 		stats.deleted = 0;
-		stats.data_file_length
-			= ((ulonglong) stat_clustered_index_size)
-			* page_size.physical();
-		stats.index_file_length
-			= ((ulonglong) stat_sum_of_other_index_sizes)
-			* page_size.physical();
-
-		/* Since fsp_get_available_space_in_free_extents() is
-		acquiring latches inside InnoDB, we do not call it if we
-		are asked by MySQL to avoid locking. Another reason to
-		avoid the call is that it uses quite a lot of CPU.
-		See Bug#38185. */
-		if (flag & HA_STATUS_NO_LOCK
-		    || !(flag & HA_STATUS_VARIABLE_EXTRA)) {
-			/* We do not update delete_length if no
-			locking is requested so the "old" value can
-			remain. delete_length is initialized to 0 in
-			the ha_statistics' constructor. Also we only
-			need delete_length to be set when
-			HA_STATUS_VARIABLE_EXTRA is set */
-		} else if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
-			/* Avoid accessing the tablespace if
-			innodb_crash_recovery is set to a high value. */
-			stats.delete_length = 0;
-		} else {
-			uintmax_t   avail_space;
-
-			avail_space = fsp_get_available_space_in_free_extents(
-				ib_table->space);
-
-			if (avail_space == UINTMAX_MAX) {
-				THD*	thd;
-				char	errbuf[MYSYS_STRERROR_SIZE];
-
-				thd = ha_thd();
-
-				push_warning_printf(
-					thd,
-					Sql_condition::WARN_LEVEL_WARN,
-					ER_CANT_GET_STAT,
-					"InnoDB: Trying to get the free"
-					" space for table %s but its"
-					" tablespace has been discarded or"
-					" the .ibd file is missing. Setting"
-					" the free space to zero."
-					" (errno: %d - %s)",
-					ib_table->name.m_name, errno,
-					my_strerror(errbuf, sizeof(errbuf),
-						    errno));
-
-				stats.delete_length = 0;
-			} else {
-				stats.delete_length = avail_space * 1024;
-			}
+		if (fil_space_t* space = fil_space_acquire_silent(
+			    ib_table->space)) {
+			const ulint size = page_size_t(space->flags)
+				.physical();
+			stats.data_file_length
+				= ulonglong(stat_clustered_index_size)
+				* size;
+			stats.index_file_length
+				= ulonglong(stat_sum_of_other_index_sizes)
+				* size;
+			stats.delete_length = 1024
+				* fsp_get_available_space_in_free_extents(
+					*space);
+			fil_space_release(space);
 		}
-
 		stats.check_time = 0;
 		stats.mrr_length_per_rec= (uint)ref_length +  8; // 8 = max(sizeof(void *));
 
@@ -14701,9 +14701,13 @@ ha_innobase::update_table_comment(
 #define SSTR( x ) reinterpret_cast< std::ostringstream & >(		\
         ( std::ostringstream() << std::dec << x ) ).str()
 
-	fk_str.append("InnoDB free: ");
-	fk_str.append(SSTR(fsp_get_available_space_in_free_extents(
-				m_prebuilt->table->space)));
+	if (fil_space_t* space = fil_space_acquire_silent(
+		    m_prebuilt->table->space)) {
+		fk_str.append("InnoDB free: ");
+		fk_str.append(SSTR(fsp_get_available_space_in_free_extents(
+					   *space)));
+		fil_space_release(space);
+	}
 
 	fk_str.append(dict_print_info_on_foreign_keys(
 			FALSE, m_prebuilt->trx,
