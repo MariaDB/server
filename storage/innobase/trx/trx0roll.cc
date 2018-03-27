@@ -737,8 +737,10 @@ trx_roll_must_shutdown()
 
 	ib_time_t time = ut_time();
 	mutex_enter(&recv_sys->mutex);
+	bool report = recv_sys->report(time);
+	mutex_exit(&recv_sys->mutex);
 
-	if (recv_sys->report(time)) {
+	if (report) {
 		trx_roll_count_callback_arg arg;
 
 		/* Get number of recovered active transactions and number of
@@ -752,8 +754,6 @@ trx_roll_must_shutdown()
 		sd_notifyf(0, "STATUS=To roll back: " UINT32PF " transactions,"
 			   " " UINT64PF " rows", arg.n_trx, arg.n_rows);
 	}
-
-	mutex_exit(&recv_sys->mutex);
 	return false;
 }
 
