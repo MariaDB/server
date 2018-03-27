@@ -26,3 +26,13 @@ connection default;
 # Cleanup
 DROP TABLE t1;
 UNINSTALL SONAME 'ha_rocksdb';
+
+--echo #
+--echo # MDEV-15686: Loading MyRocks plugin back after it has been unloaded causes a crash
+--echo #
+call mtr.add_suppression("Plugin 'ROCKSDB.*' init function returned error.");
+call mtr.add_suppression("Plugin 'ROCKSDB.*' registration as a INFORMATION SCHEMA failed.");
+call mtr.add_suppression("Plugin 'ROCKSDB' registration as a STORAGE ENGINE failed");
+
+--error ER_INTERNAL_ERROR
+INSTALL SONAME 'ha_rocksdb';

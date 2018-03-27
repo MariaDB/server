@@ -10,3 +10,11 @@ insert into test.t1 values (1);
 connection default;
 DROP TABLE t1;
 UNINSTALL SONAME 'ha_rocksdb';
+#
+# MDEV-15686: Loading MyRocks plugin back after it has been unloaded causes a crash
+#
+call mtr.add_suppression("Plugin 'ROCKSDB.*' init function returned error.");
+call mtr.add_suppression("Plugin 'ROCKSDB.*' registration as a INFORMATION SCHEMA failed.");
+call mtr.add_suppression("Plugin 'ROCKSDB' registration as a STORAGE ENGINE failed");
+INSTALL SONAME 'ha_rocksdb';
+ERROR HY000: Internal error: Loading MyRocks plugin after it has been unloaded is not supported. Please restart mysqld
