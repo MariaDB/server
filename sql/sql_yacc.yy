@@ -15984,7 +15984,6 @@ option_value_no_option_type:
           }
         | ident '.' ident equal set_expr_or_default
           {
-            DBUG_ASSERT(Lex->var_list.is_empty());
             if (Lex->set_variable(&$1, &$3, $5))
               MYSQL_YYABORT;
           }

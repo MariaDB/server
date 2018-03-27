@@ -1821,3 +1821,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select @@FOObar.KEY_BUFfer_size AS "@@FOObar.KEY_BUFfer_size" from DUAL  where rand() > @@fooBAR.key_buffer_size
+#
+# MDEV-15316 Assertion `(thd->lex)->var_list.is_empty()' failed in MYSQLparse
+#
+SET GLOBAL mc.key_cache_age_threshold=100, mc.key_cache_block_size=1024;
+SET GLOBAL mc.key_buffer_size= 0 /*cleanup*/;
