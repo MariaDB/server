@@ -267,18 +267,8 @@ public:
 		m_fold = src.fold();
 	}
 
-	/** Reset the values from a (space, page_no).
-	@param[in]	space	tablespace id
-	@param[in]	page_no	page number */
-	inline void reset(ulint space, ulint page_no)
-	{
-		m_space = static_cast<ib_uint32_t>(space);
-		m_page_no = static_cast<ib_uint32_t>(page_no);
-		m_fold = ULINT_UNDEFINED;
-
-		ut_ad(space <= 0xFFFFFFFFU);
-		ut_ad(page_no <= 0xFFFFFFFFU);
-	}
+	/** Reset the object. */
+	void reset() { m_space= ~0U; m_page_no= ~0U; m_fold= ULINT_UNDEFINED; }
 
 	/** Reset the page number only.
 	@param[in]	page_no	page number */

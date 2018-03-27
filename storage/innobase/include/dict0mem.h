@@ -306,8 +306,7 @@ dict_table_t*
 dict_mem_table_create(
 /*==================*/
 	const char*	name,		/*!< in: table name */
-	ulint		space,		/*!< in: space where the clustered index
-					of the table is placed */
+	fil_space_t*	space,		/*!< in: tablespace */
 	ulint		n_cols,		/*!< in: total number of columns
 					including virtual and non-virtual
 					columns */
@@ -543,36 +542,6 @@ public:
 private:
 	/** The name in internal representation */
 	const char*	m_name;
-};
-
-/** Table name wrapper for pretty-printing */
-struct table_name_t
-{
-	/** The name in internal representation */
-	char*	m_name;
-
-	/** @return the end of the schema name */
-	const char* dbend() const
-	{
-		const char* sep = strchr(m_name, '/');
-		ut_ad(sep);
-		return sep;
-	}
-
-	/** @return the length of the schema name, in bytes */
-	size_t dblen() const { return dbend() - m_name; }
-
-	/** Determine the filename-safe encoded table name.
-	@return	the filename-safe encoded table name */
-	const char* basename() const { return dbend() + 1; }
-
-	/** The start of the table basename suffix for partitioned tables */
-	static const char part_suffix[4];
-
-	/** Determine the partition or subpartition name suffix.
-	@return the partition name
-	@retval	NULL	if the table is not partitioned */
-	const char* part() const { return strstr(basename(), part_suffix); }
 };
 
 /** Data structure for a column in a table */
@@ -1494,6 +1463,7 @@ struct dict_table_t {
 			page cannot be read or decrypted */
 	bool is_readable() const
 	{
+		ut_ad(file_unreadable || space);
 		return(UNIV_LIKELY(!file_unreadable));
 	}
 
@@ -1573,8 +1543,10 @@ struct dict_table_t {
 	/** NULL or the directory path specified by DATA DIRECTORY. */
 	char*					data_dir_path;
 
-	/** Space where the clustered index of the table is placed. */
-	uint32_t				space;
+	/** The tablespace of the table */
+	fil_space_t*				space;
+	/** Tablespace ID */
+	ulint					space_id;
 
 	/** Stores information about:
 	1 row format (redundant or compact),

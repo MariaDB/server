@@ -746,7 +746,7 @@ rtr_adjust_upper_level(
 	parent_prdt.op = 0;
 
 	lock_prdt_update_parent(block, new_block, &prdt, &new_prdt,
-				&parent_prdt, dict_index_get_space(index),
+				&parent_prdt, index->table->space->id,
 				page_cursor->block->page.id.page_no());
 
 	mem_heap_free(heap);
@@ -1269,7 +1269,7 @@ after_insert:
 	/* Check any predicate locks need to be moved/copied to the
 	new page */
 	lock_prdt_update_split(block, new_block, &prdt, &new_prdt,
-			       dict_index_get_space(cursor->index), page_no);
+			       cursor->index->table->space->id, page_no);
 
 	/* Adjust the upper level. */
 	rtr_adjust_upper_level(cursor, flags, block, new_block,
@@ -1886,9 +1886,6 @@ rtr_estimate_n_rows_in_range(
 		 * (range_mbr.ymax - range_mbr.ymin);
 
 	/* Get index root page. */
-	page_size_t	page_size(dict_table_page_size(index->table));
-	page_id_t	page_id(dict_index_get_space(index),
-				dict_index_get_page(index));
 	mtr_t		mtr;
 	buf_block_t*	block;
 	page_t*		page;
@@ -1898,7 +1895,10 @@ rtr_estimate_n_rows_in_range(
 	index->set_modified(mtr);
 	mtr_s_lock(&index->lock, &mtr);
 
-	block = btr_block_get(page_id, page_size, RW_S_LATCH, index, &mtr);
+	block = btr_block_get(
+		page_id_t(index->table->space->id, index->page),
+		page_size_t(index->table->space->flags),
+		RW_S_LATCH, index, &mtr);
 	page = buf_block_get_frame(block);
 	n_recs = page_header_get_field(page, PAGE_N_RECS);
 

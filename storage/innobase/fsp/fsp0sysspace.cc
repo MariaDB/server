@@ -50,14 +50,6 @@ SysTablespace srv_tmp_space;
 at a time. We have to make this public because it is a config variable. */
 ulong sys_tablespace_auto_extend_increment;
 
-#ifdef UNIV_DEBUG
-/** Control if extra debug checks need to be done for temporary tablespace.
-Default = true that is disable such checks.
-This variable is not exposed to end-user but still kept as variable for
-developer to enable it during debug. */
-bool srv_skip_temp_table_checks_debug = true;
-#endif /* UNIV_DEBUG */
-
 /** Convert a numeric string that optionally ends in G or M or K,
     to a number containing megabytes.
 @param[in]	str	String with a quantity in bytes

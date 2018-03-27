@@ -1010,7 +1010,7 @@ buf_flush_write_block_low(
 	      || space->purpose == FIL_TYPE_IMPORT
 	      || space->purpose == FIL_TYPE_TABLESPACE);
 	ut_ad((space->purpose == FIL_TYPE_TEMPORARY)
-	      == fsp_is_system_temporary(space->id));
+	      == (space == fil_system.temp_space));
 	page_t*	frame = NULL;
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -3727,17 +3727,17 @@ buf_flush_get_dirty_pages_count(
 }
 
 /** FlushObserver constructor
-@param[in]	space_id	table space id
+@param[in]	space		tablespace
 @param[in]	trx		trx instance
 @param[in]	stage		performance schema accounting object,
 used by ALTER TABLE. It is passed to log_preflush_pool_modified_pages()
 for accounting. */
 FlushObserver::FlushObserver(
-	ulint			space_id,
+	fil_space_t*		space,
 	trx_t*			trx,
 	ut_stage_alter_t*	stage)
 	:
-	m_space_id(space_id),
+	m_space(space),
 	m_trx(trx),
 	m_stage(stage),
 	m_interrupted(false)
@@ -3756,7 +3756,7 @@ FlushObserver::FlushObserver(
 /** FlushObserver deconstructor */
 FlushObserver::~FlushObserver()
 {
-	ut_ad(buf_flush_get_dirty_pages_count(m_space_id, this) == 0);
+	ut_ad(buf_flush_get_dirty_pages_count(m_space->id, this) == 0);
 
 	UT_DELETE(m_flushed);
 	UT_DELETE(m_removed);
@@ -3820,10 +3820,10 @@ FlushObserver::flush()
 
 	if (!m_interrupted && m_stage) {
 		m_stage->begin_phase_flush(buf_flush_get_dirty_pages_count(
-						   m_space_id, this));
+						   m_space->id, this));
 	}
 
-	buf_LRU_flush_or_remove_pages(m_space_id, this);
+	buf_LRU_flush_or_remove_pages(m_space->id, this);
 
 	/* Wait for all dirty pages were flushed. */
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {

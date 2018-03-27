@@ -262,17 +262,17 @@ void trx_rseg_format_upgrade(trx_rsegf_t* rseg_header, mtr_t* mtr)
 }
 
 /** Create a rollback segment header.
-@param[in]	space		system, undo, or temporary tablespace
+@param[in,out]	space		system, undo, or temporary tablespace
 @param[in]	rseg_id		rollback segment identifier
 @param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
 @param[in,out]	mtr		mini-transaction
 @return page number of the created segment, FIL_NULL if fail */
 ulint
 trx_rseg_header_create(
-	const fil_space_t*	space,
-	ulint			rseg_id,
-	buf_block_t*		sys_header,
-	mtr_t*			mtr)
+	fil_space_t*	space,
+	ulint		rseg_id,
+	buf_block_t*	sys_header,
+	mtr_t*		mtr)
 {
 	ulint		page_no;
 	trx_rsegf_t*	rsegf;
@@ -282,8 +282,7 @@ trx_rseg_header_create(
 	ut_ad(!sys_header == (space == fil_system.temp_space));
 
 	/* Allocate a new file segment for the rollback segment */
-	block = fseg_create(space->id, 0, TRX_RSEG + TRX_RSEG_FSEG_HEADER,
-			    mtr);
+	block = fseg_create(space, 0, TRX_RSEG + TRX_RSEG_FSEG_HEADER, mtr);
 
 	if (block == NULL) {
 		/* No space left */

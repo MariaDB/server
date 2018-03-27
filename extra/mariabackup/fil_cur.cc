@@ -307,9 +307,9 @@ read_retry:
 	cursor->buf_offset = offset;
 	cursor->buf_page_no = (ulint)(offset / cursor->page_size.physical());
 
-	FilSpace space(cursor->space_id);
+	fil_space_t* space = fil_space_get(cursor->space_id);
 
-	if (!space()) {
+	if (!space) {
 		return(XB_FIL_CUR_ERROR);
 	}
 

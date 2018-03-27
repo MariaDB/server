@@ -986,14 +986,8 @@ ulint
 dict_table_extent_size(
 	const dict_table_t*	table);
 
-/** Get the table page size.
-@param[in]	table	table
-@return compressed page size, or 0 if not compressed */
-UNIV_INLINE
-const page_size_t
-dict_table_page_size(
-	const dict_table_t*	table)
-	MY_ATTRIBUTE((warn_unused_result));
+/** Get the table page size. */
+#define dict_table_page_size(table) page_size_t(table->space->flags)
 
 /*********************************************************************//**
 Obtain exclusive locks on all index trees of the table. This is to prevent
@@ -1419,15 +1413,6 @@ dict_index_build_data_tuple(
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*********************************************************************//**
-Gets the space id of the root of the index tree.
-@return space id */
-UNIV_INLINE
-ulint
-dict_index_get_space(
-/*=================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
 Gets the page number of the root of the index tree.
 @return page number */
 UNIV_INLINE
@@ -1819,18 +1804,10 @@ dict_set_corrupted_index_cache_only(
 Flags a table with specified space_id corrupted in the table dictionary
 cache.
 @return TRUE if successful */
-ibool
-dict_set_corrupted_by_space(
-/*========================*/
-	ulint		space_id);	/*!< in: space ID */
+bool dict_set_corrupted_by_space(const fil_space_t* space);
 
-/** Flag a table with specified space_id encrypted in the data dictionary
-cache
-@param[in]	space_id	Tablespace id */
-UNIV_INTERN
-void
-dict_set_encrypted_by_space(
-	ulint	space_id);
+/** Flag a table encrypted in the data dictionary cache. */
+void dict_set_encrypted_by_space(const fil_space_t* space);
 
 /** Sets merge_threshold in the SYS_INDEXES
 @param[in,out]	index		index

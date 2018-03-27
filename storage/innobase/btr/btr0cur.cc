@@ -651,13 +651,11 @@ btr_cur_optimistic_latch_leaves(
 		rw_lock_s_unlock(&block->lock);
 
 		if (left_page_no != FIL_NULL) {
-			const page_id_t	page_id(
-				dict_index_get_space(cursor->index),
-				left_page_no);
-
 			cursor->left_block = btr_block_get(
-				page_id,
-				dict_table_page_size(cursor->index->table),
+				page_id_t(cursor->index->table->space->id,
+					  left_page_no),
+				page_size_t(cursor->index->table->space
+					    ->flags),
 				mode, cursor->index, mtr);
 		} else {
 			cursor->left_block = NULL;
@@ -1223,11 +1221,10 @@ btr_cur_search_to_nth_level_func(
 
 	page_cursor = btr_cur_get_page_cur(cursor);
 
-	const ulint		space = dict_index_get_space(index);
-	const page_size_t	page_size(dict_table_page_size(index->table));
+	const page_size_t	page_size(index->table->space->flags);
 
 	/* Start with the root page. */
-	page_id_t		page_id(space, dict_index_get_page(index));
+	page_id_t		page_id(index->table->space->id, index->page);
 
 	if (root_leaf_rw_latch == RW_X_LATCH) {
 		node_ptr_max_size = dict_index_node_ptr_max_size(index);
@@ -1777,7 +1774,7 @@ need_opposite_intention:
 
 			lock_intention = BTR_INTENTION_BOTH;
 
-			page_id.reset(space, dict_index_get_page(index));
+			page_id.set_page_no(index->page);
 			up_match = 0;
 			low_match = 0;
 			height = ULINT_UNDEFINED;
@@ -1993,8 +1990,7 @@ need_opposite_intention:
 				ulint	idx = n_blocks
 					- (leftmost_from_level - 1);
 
-				page_id.reset(
-					space,
+				page_id.set_page_no(
 					tree_blocks[idx]->page.id.page_no());
 
 				for (ulint i = n_blocks
@@ -2028,8 +2024,7 @@ need_opposite_intention:
 		}
 
 		/* Go to the child node */
-		page_id.reset(
-			space,
+		page_id.set_page_no(
 			btr_node_ptr_get_child_page_no(node_ptr, offsets));
 
 		n_blocks++;
@@ -2337,9 +2332,8 @@ btr_cur_open_at_index_side_func(
 	page_cursor = btr_cur_get_page_cur(cursor);
 	cursor->index = index;
 
-	page_id_t		page_id(dict_index_get_space(index),
-					dict_index_get_page(index));
-	const page_size_t&	page_size = dict_table_page_size(index->table);
+	page_id_t		page_id(index->table->space->id, index->page);
+	const page_size_t	page_size(index->table->space->flags);
 
 	if (root_leaf_rw_latch == RW_X_LATCH) {
 		node_ptr_max_size = dict_index_node_ptr_max_size(index);
@@ -2695,9 +2689,8 @@ btr_cur_open_at_rnd_pos_func(
 	page_cursor = btr_cur_get_page_cur(cursor);
 	cursor->index = index;
 
-	page_id_t		page_id(dict_index_get_space(index),
-					dict_index_get_page(index));
-	const page_size_t&	page_size = dict_table_page_size(index->table);
+	page_id_t		page_id(index->table->space->id, index->page);
+	const page_size_t	page_size(index->table->space->flags);
 	dberr_t			err = DB_SUCCESS;
 
 	if (root_leaf_rw_latch == RW_X_LATCH) {
@@ -3471,10 +3464,7 @@ btr_cur_pessimistic_insert(
 
 		if (big_rec_vec == NULL) {
 
-			if (n_reserved > 0) {
-				fil_space_release_free_extents(
-					index->table->space, n_reserved);
-			}
+			index->table->space->release_free_extents(n_reserved);
 			return(DB_TOO_BIG_RECORD);
 		}
 	}
@@ -3547,11 +3537,7 @@ btr_cur_pessimistic_insert(
 		}
 	}
 
-	if (n_reserved > 0) {
-		fil_space_release_free_extents(index->table->space,
-					       n_reserved);
-	}
-
+	index->table->space->release_free_extents(n_reserved);
 	*big_rec = big_rec_vec;
 
 	return(DB_SUCCESS);
@@ -4585,11 +4571,7 @@ btr_cur_pessimistic_update(
 			ut_a(!page_zip
 			     || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
-			if (n_reserved > 0) {
-				fil_space_release_free_extents(
-					index->table->space, n_reserved);
-			}
-
+			index->table->space->release_free_extents(n_reserved);
 			err = DB_TOO_BIG_RECORD;
 			goto err_exit;
 		}
@@ -4859,13 +4841,8 @@ return_after_reservations:
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-	if (n_reserved > 0) {
-		fil_space_release_free_extents(index->table->space,
-					       n_reserved);
-	}
-
+	index->table->space->release_free_extents(n_reserved);
 	*big_rec = big_rec_vec;
-
 	return(err);
 }
 
@@ -5720,11 +5697,7 @@ return_after_reservations:
 		has segment header and already modified in most of cases.*/
 	}
 
-	if (n_reserved > 0) {
-		fil_space_release_free_extents(index->table->space,
-					       n_reserved);
-	}
-
+	index->table->space->release_free_extents(n_reserved);
 	return(ret);
 }
 
@@ -5835,10 +5808,8 @@ btr_estimate_n_rows_in_range_on_level(
 	average from the pages scanned so far. */
 #	define N_PAGES_READ_LIMIT	10
 
-	page_id_t		page_id(
-		dict_index_get_space(index), slot1->page_no);
-	const fil_space_t*	space = fil_space_get(index->table->space);
-	ut_ad(space);
+	const fil_space_t*	space = index->table->space;
+	page_id_t		page_id(space->id, slot1->page_no);
 	const page_size_t	page_size(space->flags);
 
 	level = slot1->page_level;
@@ -7081,19 +7052,16 @@ struct btr_blob_log_check_t {
 		m_mtr->set_flush_observer(observer);
 
 		if (m_op == BTR_STORE_INSERT_BULK) {
-			page_id_t       page_id(dict_index_get_space(index),
-						page_no);
-			page_size_t     page_size(dict_table_page_size(
-						index->table));
-			page_cur_t*	page_cur = &m_pcur->btr_cur.page_cur;
-
 			mtr_x_lock(dict_index_get_lock(index), m_mtr);
-			page_cur->block = btr_block_get(
-				page_id, page_size, RW_X_LATCH, index, m_mtr);
-			page_cur->rec = buf_block_get_frame(page_cur->block)
+			m_pcur->btr_cur.page_cur.block = btr_block_get(
+				page_id_t(index->table->space->id, page_no),
+				page_size_t(index->table->space->flags),
+				RW_X_LATCH, index, m_mtr);
+			m_pcur->btr_cur.page_cur.rec
+				= m_pcur->btr_cur.page_cur.block->frame
 				+ offs;
 
-			buf_block_buf_fix_dec(page_cur->block);
+			buf_block_buf_fix_dec(m_pcur->btr_cur.page_cur.block);
 		} else {
 			ut_ad(m_pcur->rel_pos == BTR_PCUR_ON);
 			bool ret = btr_pcur_restore_position(
@@ -7304,7 +7272,8 @@ btr_store_big_rec_extern_fields(
 				alloc_mtr = &mtr;
 			}
 
-			if (!fsp_reserve_free_extents(&r_extents, space_id, 1,
+			if (!fsp_reserve_free_extents(&r_extents,
+						      index->table->space, 1,
 						      FSP_BLOB, alloc_mtr,
 						      1)) {
 
@@ -7316,7 +7285,7 @@ btr_store_big_rec_extern_fields(
 			block = btr_page_alloc(index, hint_page_no, FSP_NO_DIR,
 					       0, alloc_mtr, &mtr);
 
-			alloc_mtr->release_free_extents(r_extents);
+			index->table->space->release_free_extents(r_extents);
 
 			if (op == BTR_STORE_INSERT_BULK) {
 				mtr_bulk.commit();
@@ -7689,7 +7658,7 @@ btr_free_externally_stored_field(
 	ut_ad(!(mach_read_from_4(field_ref + BTR_EXTERN_LEN)
 	        & ~((BTR_EXTERN_OWNER_FLAG
 	             | BTR_EXTERN_INHERITED_FLAG) << 24)));
-	ut_ad(space_id == index->table->space);
+	ut_ad(space_id == index->table->space->id);
 
 	const page_size_t	ext_page_size(dict_table_page_size(index->table));
 	const page_size_t&	rec_page_size(rec == NULL

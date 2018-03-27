@@ -4932,7 +4932,6 @@ new_clustered_failed:
 		ulint		n_cols = 0;
 		ulint		n_v_cols = 0;
 		dtuple_t*	add_cols;
-		ulint		space_id = 0;
 		ulint		z = 0;
 
 		for (uint i = 0; i < altered_table->s->fields; i++) {
@@ -4958,10 +4957,8 @@ new_clustered_failed:
 
 		DBUG_ASSERT(!add_fts_doc_id_idx || (flags2 & DICT_TF2_FTS));
 
-		/* The initial space id 0 may be overridden later if this
-		table is going to be a file_per_table tablespace. */
 		ctx->new_table = dict_mem_table_create(
-			new_table_name, space_id, n_cols + n_v_cols, n_v_cols,
+			new_table_name, NULL, n_cols + n_v_cols, n_v_cols,
 			flags, flags2);
 
 		/* The rebuilt indexed_table will use the renamed
@@ -5351,12 +5348,11 @@ not_instant_add_column:
 		uint32_t		key_id	= FIL_DEFAULT_ENCRYPTION_KEY;
 		fil_encryption_t	mode	= FIL_ENCRYPTION_DEFAULT;
 
-		if (fil_space_t* s = fil_space_acquire(user_table->space)) {
+		if (fil_space_t* s = user_table->space) {
 			if (const fil_space_crypt_t* c = s->crypt_data) {
 				key_id = c->key_id;
 				mode = c->encryption;
 			}
-			fil_space_release(s);
 		}
 
 		if (ha_alter_info->handler_flags
@@ -6183,7 +6179,7 @@ ha_innobase::prepare_inplace_alter_table(
 				     NULL,
 				     NULL);
 
-	info.set_tablespace_type(indexed_table->space != TRX_SYS_SPACE);
+	info.set_tablespace_type(indexed_table->space != fil_system.sys_space);
 
 	if (ha_alter_info->handler_flags & ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX) {
 		if (info.gcols_in_fulltext_or_spatial()) {
@@ -6196,9 +6192,7 @@ ha_innobase::prepare_inplace_alter_table(
 		if (indexed_table->corrupted) {
 			/* Handled below */
 		} else {
-			FilSpace space(indexed_table->space, true);
-
-			if (space()) {
+			if (const fil_space_t* space = indexed_table->space) {
 				String str;
 				const char* engine= table_type();
 
@@ -6210,7 +6204,7 @@ ha_innobase::prepare_inplace_alter_table(
 					" used key_id is not available. "
 					" Can't continue reading table.",
 					table_share->table_name.str,
-					space()->chain.start->name);
+					space->chain.start->name);
 
 				my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_DECRYPTION_FAILED, str.c_ptr(), engine);
 				DBUG_RETURN(true);
@@ -7333,7 +7327,8 @@ rollback_inplace_alter_table(
 		goto func_exit;
 	}
 
-	trx_start_for_ddl(ctx->trx, TRX_DICT_OP_INDEX);
+	trx_start_for_ddl(ctx->trx, ctx->need_rebuild()
+			  ? TRX_DICT_OP_TABLE : TRX_DICT_OP_INDEX);
 	row_mysql_lock_data_dictionary(ctx->trx);
 
 	if (ctx->need_rebuild()) {
@@ -9109,9 +9104,9 @@ ha_innobase::commit_inplace_alter_table(
 		/* If decryption failed for old table or new table
 		fail here. */
 		if ((!ctx->old_table->is_readable()
-		     && fil_space_get(ctx->old_table->space))
+		     && ctx->old_table->space)
 		    || (!ctx->new_table->is_readable()
-			&& fil_space_get(ctx->new_table->space))) {
+			&& ctx->new_table->space)) {
 			String str;
 			const char* engine= table_type();
 			get_error_message(HA_ERR_DECRYPTION_FAILED, &str);

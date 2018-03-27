@@ -2194,7 +2194,7 @@ buf_page_realloc(
 		memset(block->frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
 		UNIV_MEM_INVALID(block->frame, UNIV_PAGE_SIZE);
 		buf_block_set_state(block, BUF_BLOCK_REMOVE_HASH);
-		block->page.id.reset(ULINT32_UNDEFINED, ULINT32_UNDEFINED);
+		block->page.id.reset();
 
 		/* Relocate buf_pool->flush_list. */
 		if (block->page.oldest_modification) {
@@ -4005,12 +4005,15 @@ err_exit:
 		ib::info() << "Row compressed page could be encrypted"
 			" with key_version " << key_version;
 		block->page.encrypted = true;
-		dict_set_encrypted_by_space(block->page.id.space());
-	} else {
-		dict_set_corrupted_by_space(block->page.id.space());
 	}
 
 	if (space) {
+		if (encrypted) {
+			dict_set_encrypted_by_space(space);
+		} else {
+			dict_set_corrupted_by_space(space);
+		}
+
 		fil_space_release_for_io(space);
 	}
 
@@ -4409,9 +4412,16 @@ loop:
 
 			/* Try to set table as corrupted instead of
 			asserting. */
-			if (page_id.space() != TRX_SYS_SPACE &&
-			    dict_set_corrupted_by_space(page_id.space())) {
-				return (NULL);
+			if (page_id.space() == TRX_SYS_SPACE) {
+			} else if (page_id.space() == SRV_TMP_SPACE_ID) {
+			} else if (fil_space_t* space
+				   = fil_space_acquire_for_io(
+					   page_id.space())) {
+				bool set = dict_set_corrupted_by_space(space);
+				fil_space_release_for_io(space);
+				if (set) {
+					return NULL;
+				}
 			}
 
 			ib::fatal() << "Unable to read page " << page_id
@@ -4424,9 +4434,7 @@ loop:
 		}
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-		ut_a(fsp_skip_sanity_check(page_id.space())
-		     || ++buf_dbg_counter % 5771
-		     || buf_validate());
+		ut_a(++buf_dbg_counter % 5771 || buf_validate());
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 		goto loop;
 	} else {
@@ -4818,9 +4826,7 @@ evict_from_pool:
 	}
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-	ut_a(fsp_skip_sanity_check(page_id.space())
-	     || ++buf_dbg_counter % 5771
-	     || buf_validate());
+	ut_a(++buf_dbg_counter % 5771 || buf_validate());
 	ut_a(buf_block_get_state(fix_block) == BUF_BLOCK_FILE_PAGE);
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 
@@ -4967,9 +4973,7 @@ buf_page_optimistic_get(
 	mtr_memo_push(mtr, block, fix_type);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-	ut_a(fsp_skip_sanity_check(block->page.id.space())
-	     || ++buf_dbg_counter % 5771
-	     || buf_validate());
+	ut_a(++buf_dbg_counter % 5771 || buf_validate());
 	ut_a(block->page.buf_fix_count > 0);
 	ut_a(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
@@ -5172,9 +5176,7 @@ buf_page_try_get_func(
 	mtr_memo_push(mtr, block, fix_type);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
-	ut_a(fsp_skip_sanity_check(block->page.id.space())
-	     || ++buf_dbg_counter % 5771
-	     || buf_validate());
+	ut_a(++buf_dbg_counter % 5771 || buf_validate());
 	ut_a(block->page.buf_fix_count > 0);
 	ut_a(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
@@ -5801,24 +5803,22 @@ buf_page_monitor(
 	MONITOR_INC_NOCHECK(counter);
 }
 
-/********************************************************************//**
-Mark a table with the specified space pointed by bpage->id.space() corrupted.
-Also remove the bpage from LRU list.
-@param[in,out]		bpage			Block */
+/** Mark a table corrupted.
+Also remove the bpage from LRU list. */
 static
 void
-buf_mark_space_corrupt(buf_page_t* bpage)
+buf_mark_space_corrupt(buf_page_t* bpage, const fil_space_t* space)
 {
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	const ibool	uncompressed = (buf_page_get_state(bpage)
 					== BUF_BLOCK_FILE_PAGE);
-	uint32_t	space = bpage->id.space();
 
 	/* First unfix and release lock on the bpage */
 	buf_pool_mutex_enter(buf_pool);
 	mutex_enter(buf_page_get_mutex(bpage));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_READ);
 	ut_ad(bpage->buf_fix_count == 0);
+	ut_ad(bpage->id.space() == space->id);
 
 	/* Set BUF_IO_NONE before we remove the block from LRU list */
 	buf_page_set_io_fix(bpage, BUF_IO_NONE);
@@ -6041,7 +6041,7 @@ database_corrupted:
 				"buf_page_import_corrupt_failure",
 				if (!is_predefined_tablespace(
 					    bpage->id.space())) {
-					buf_mark_space_corrupt(bpage);
+					buf_mark_space_corrupt(bpage, space);
 					ib::info() << "Simulated IMPORT "
 						"corruption";
 					fil_space_release_for_io(space);
@@ -6085,7 +6085,7 @@ database_corrupted:
 						" a corrupt database page.";
 				}
 
-				buf_mark_space_corrupt(bpage);
+				buf_mark_space_corrupt(bpage, space);
 				fil_space_release_for_io(space);
 				return(err);
 			}

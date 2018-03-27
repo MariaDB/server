@@ -906,7 +906,7 @@ loop:
 				     merge_file[t_ctx.buf_used]->offset++,
 				     block[t_ctx.buf_used],
 				     crypt_block[t_ctx.buf_used],
-				     table->space)) {
+				     table->space->id)) {
 			error = DB_TEMP_FILE_WRITE_FAIL;
 			goto func_exit;
 		}
@@ -1000,7 +1000,7 @@ exit:
 						merge_file[i]->offset++,
 						block[i],
 						crypt_block[i],
-						table->space)) {
+						table->space->id)) {
 					error = DB_TEMP_FILE_WRITE_FAIL;
 					goto func_exit;
 				}
@@ -1038,7 +1038,7 @@ exit:
 				       psort_info->psort_common->dup,
 				       merge_file[i], block[i], &tmpfd[i],
 				       false, 0.0/* pct_progress */, 0.0/* pct_cost */,
-				       crypt_block[i], table->space);
+				       crypt_block[i], table->space->id);
 
 		if (error != DB_SUCCESS) {
 			close(tmpfd[i]);
@@ -1710,7 +1710,7 @@ row_fts_merge_insert(
 #ifdef UNIV_DEBUG
 	ins_ctx.aux_index_id = id;
 #endif
-	const ulint space = table->space;
+	const ulint space = table->space->id;
 
 	for (i = 0; i < fts_sort_pll_degree; i++) {
 		if (psort_info[i].merge_file[id]->n_rec == 0) {

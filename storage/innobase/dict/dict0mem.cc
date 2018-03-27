@@ -127,8 +127,7 @@ dict_table_t*
 dict_mem_table_create(
 /*==================*/
 	const char*	name,	/*!< in: table name */
-	ulint		space,	/*!< in: space where the clustered index of
-				the table is placed */
+	fil_space_t*	space,	/*!< in: tablespace */
 	ulint		n_cols,	/*!< in: total number of columns including
 				virtual and non-virtual columns */
 	ulint		n_v_cols,/*!< in: number of virtual columns */
@@ -139,6 +138,10 @@ dict_mem_table_create(
 	mem_heap_t*	heap;
 
 	ut_ad(name);
+	ut_ad(!space
+	      || space->purpose == FIL_TYPE_TABLESPACE
+	      || space->purpose == FIL_TYPE_TEMPORARY
+	      || space->purpose == FIL_TYPE_IMPORT);
 	ut_a(dict_tf2_is_valid(flags, flags2));
 	ut_a(!(flags2 & DICT_TF2_UNUSED_BIT_MASK));
 
@@ -159,7 +162,8 @@ dict_mem_table_create(
 	table->flags2 = (unsigned int) flags2;
 	table->name.m_name = mem_strdup(name);
 	table->is_system_db = dict_mem_table_is_system(table->name.m_name);
-	table->space = (unsigned int) space;
+	table->space = space;
+	table->space_id = space ? space->id : ULINT_UNDEFINED;
 	table->n_t_cols = unsigned(n_cols + DATA_N_SYS_COLS);
 	table->n_v_cols = (unsigned int) (n_v_cols);
 	table->n_cols = table->n_t_cols - table->n_v_cols;

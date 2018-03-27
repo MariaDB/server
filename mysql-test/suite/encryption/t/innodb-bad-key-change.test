@@ -46,7 +46,7 @@ SELECT * FROM t1;
 -- let $restart_parameters=--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keysbad3.txt
 -- source include/restart_mysqld.inc
 
---replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+--replace_regex /key_id [1-9][0-9]*/\1 /
 DROP TABLE t1;
 
 #

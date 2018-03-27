@@ -1756,9 +1756,9 @@ fts_create_in_mem_aux_table(
 	ulint			n_cols)
 {
 	dict_table_t*	new_table = dict_mem_table_create(
-		aux_table_name, table->space, n_cols, 0, table->flags,
-		table->space == TRX_SYS_SPACE
-		? 0 : table->space == SRV_TMP_SPACE_ID
+		aux_table_name, NULL, n_cols, 0, table->flags,
+		table->space->id == TRX_SYS_SPACE
+		? 0 : table->space->purpose == FIL_TYPE_TEMPORARY
 		? DICT_TF2_TEMPORARY : DICT_TF2_USE_FILE_PER_TABLE);
 
 	if (DICT_TF_HAS_DATA_DIR(table->flags)) {

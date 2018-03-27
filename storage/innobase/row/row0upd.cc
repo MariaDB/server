@@ -303,25 +303,19 @@ row_upd_check_references_constraints(
 			undergoing a truncate, ignore the FK check. */
 
 			if (foreign_table) {
-				mutex_enter(&fil_system.mutex);
-				const fil_space_t* space = fil_space_get_by_id(
-					foreign_table->space);
-				const bool being_truncated = space
-					&& space->is_being_truncated;
-				mutex_exit(&fil_system.mutex);
-				if (being_truncated) {
+				if (foreign_table->space
+				    && foreign_table->space
+				    ->is_being_truncated) {
 					continue;
 				}
+
+				foreign_table->inc_fk_checks();
 			}
 
 			/* NOTE that if the thread ends up waiting for a lock
 			we will release dict_operation_lock temporarily!
-			But the counter on the table protects 'foreign' from
+			But the inc_fk_checks() protects foreign_table from
 			being dropped while the check is running. */
-
-			if (foreign_table) {
-				foreign_table->inc_fk_checks();
-			}
 
 			err = row_ins_check_foreign_constraint(
 				FALSE, foreign, table, entry, thr);
@@ -2313,7 +2307,7 @@ row_upd_sec_index_entry(
 
 	mtr.start();
 
-	switch (index->table->space) {
+	switch (index->table->space->id) {
 	case SRV_TMP_SPACE_ID:
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 		flags = BTR_NO_LOCKING_FLAG;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -421,14 +421,11 @@ void
 ibuf_close(void);
 /*============*/
 
-/******************************************************************//**
-Checks the insert buffer bitmaps on IMPORT TABLESPACE.
+/** Check the insert buffer bitmaps on IMPORT TABLESPACE.
+@param[in]	trx	transaction
+@param[in,out]	space	tablespace being imported
 @return DB_SUCCESS or error code */
-dberr_t
-ibuf_check_bitmap_on_import(
-/*========================*/
-	const trx_t*	trx,		/*!< in: transaction */
-	ulint		space_id)	/*!< in: tablespace identifier */
+dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Updates free bits and buffered bits for bulk loaded page.

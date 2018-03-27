@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -47,21 +47,13 @@ row_import_for_mysql(
 						in MySQL */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/*****************************************************************//**
-Update the DICT_TF2_DISCARDED flag in SYS_TABLES.
-@return DB_SUCCESS or error code. */
-dberr_t
-row_import_update_discarded_flag(
-/*=============================*/
-	trx_t*		trx,			/*!< in/out: transaction that
-						covers the update */
-	table_id_t	table_id,		/*!< in: Table for which we want
-						to set the root table->flags2 */
-	bool		discarded,		/*!< in: set MIX_LEN column bit
-						to discarded, if true */
-	bool		dict_locked)		/*!< in: Set to true if the
-						caller already owns the
-						dict_sys_t:: mutex. */
+/** Update the DICT_TF2_DISCARDED flag in SYS_TABLES.MIX_LEN.
+@param[in,out]	trx		dictionary transaction
+@param[in]	table_id	table identifier
+@param[in]	discarded	whether to set or clear the flag
+@return DB_SUCCESS or error code */
+dberr_t row_import_update_discarded_flag(trx_t* trx, table_id_t table_id,
+					 bool discarded)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*****************************************************************//**

@@ -1096,9 +1096,9 @@ srv_undo_tablespaces_init(bool create_new_db)
 			     = undo::Truncate::s_fix_up_spaces.begin();
 		     it != undo::Truncate::s_fix_up_spaces.end();
 		     ++it) {
-			FlushObserver dummy(TRX_SYS_SPACE, NULL, NULL);
+			FlushObserver dummy(fil_system.sys_space, NULL, NULL);
 			buf_LRU_flush_or_remove_pages(TRX_SYS_SPACE, &dummy);
-			FlushObserver dummy2(*it, NULL, NULL);
+			FlushObserver dummy2(fil_space_get(*it), NULL, NULL);
 			buf_LRU_flush_or_remove_pages(*it, &dummy2);
 
 			/* Remove the truncate redo log file. */
@@ -2132,9 +2132,8 @@ files_checked:
 		fsp_header_init(fil_system.sys_space, sum_of_new_sizes, &mtr);
 
 		ulint ibuf_root = btr_create(
-			DICT_CLUSTERED | DICT_IBUF,
-			0, univ_page_size, DICT_IBUF_ID_MIN,
-			dict_ind_redundant, NULL, &mtr);
+			DICT_CLUSTERED | DICT_IBUF, fil_system.sys_space,
+			DICT_IBUF_ID_MIN, dict_ind_redundant, NULL, &mtr);
 
 		mtr_commit(&mtr);
 

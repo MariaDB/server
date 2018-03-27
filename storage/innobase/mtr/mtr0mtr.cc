@@ -652,6 +652,28 @@ mtr_t::is_named_space(ulint space) const
 	ut_error;
 	return(false);
 }
+/** Check if a tablespace is associated with the mini-transaction
+(needed for generating a MLOG_FILE_NAME record)
+@param[in]	space	tablespace
+@return whether the mini-transaction is associated with the space */
+bool mtr_t::is_named_space(const fil_space_t* space) const
+{
+	ut_ad(!m_impl.m_user_space
+	      || m_impl.m_user_space->id != TRX_SYS_SPACE);
+
+	switch (get_log_mode()) {
+	case MTR_LOG_NONE:
+	case MTR_LOG_NO_REDO:
+		return true;
+	case MTR_LOG_ALL:
+	case MTR_LOG_SHORT_INSERTS:
+		return(m_impl.m_user_space == space
+		       || is_predefined_tablespace(space->id));
+	}
+
+	ut_error;
+	return false;
+}
 #endif /* UNIV_DEBUG */
 
 /** Acquire a tablespace X-latch.
@@ -676,7 +698,7 @@ mtr_t::x_lock_space(ulint space_id, const char* file, unsigned line)
 		ut_ad(get_log_mode() != MTR_LOG_NO_REDO
 		      || space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT
-		      || space->redo_skipped_count > 0
+		      || my_atomic_loadlint(&space->redo_skipped_count) > 0
 		      || srv_is_tablespace_truncated(space->id));
 	}
 
@@ -916,29 +938,6 @@ mtr_t::Command::execute()
 	release_latches();
 
 	release_resources();
-}
-
-/** Release the free extents that was reserved using
-fsp_reserve_free_extents().  This is equivalent to calling
-fil_space_release_free_extents().  This is intended for use
-with index pages.
-@param[in]	n_reserved	number of reserved extents */
-void
-mtr_t::release_free_extents(ulint n_reserved)
-{
-	fil_space_t*	space;
-
-	if (m_impl.m_user_space != NULL) {
-		ut_ad(m_impl.m_user_space->id
-		      == m_impl.m_user_space_id);
-		space = m_impl.m_user_space;
-	} else {
-		space = fil_system.sys_space;
-	}
-
-	ut_ad(memo_contains(get_memo(), &space->latch, MTR_MEMO_X_LOCK));
-
-	space->release_free_extents(n_reserved);
 }
 
 #ifdef UNIV_DEBUG

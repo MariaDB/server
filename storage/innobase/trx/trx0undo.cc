@@ -489,6 +489,7 @@ trx_undo_page_init(
 }
 
 /** Create an undo log segment.
+@param[in,out]	space		tablespace
 @param[in,out]	rseg_hdr	rollback segment header (x-latched)
 @param[out]	id		undo slot number
 @param[out]	err		error code
@@ -497,10 +498,10 @@ trx_undo_page_init(
 @retval	NULL	on failure */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 buf_block_t*
-trx_undo_seg_create(trx_rsegf_t* rseg_hdr, ulint* id, dberr_t* err, mtr_t* mtr)
+trx_undo_seg_create(fil_space_t* space, trx_rsegf_t* rseg_hdr, ulint* id,
+		    dberr_t* err, mtr_t* mtr)
 {
 	ulint		slot_no;
-	ulint		space;
 	buf_block_t*	block;
 	ulint		n_reserved;
 	bool		success;
@@ -516,8 +517,6 @@ trx_undo_seg_create(trx_rsegf_t* rseg_hdr, ulint* id, dberr_t* err, mtr_t* mtr)
 		return NULL;
 	}
 
-	space = page_get_space_id(page_align(rseg_hdr));
-
 	success = fsp_reserve_free_extents(&n_reserved, space, 2, FSP_UNDO,
 					   mtr);
 	if (!success) {
@@ -526,11 +525,10 @@ trx_undo_seg_create(trx_rsegf_t* rseg_hdr, ulint* id, dberr_t* err, mtr_t* mtr)
 	}
 
 	/* Allocate a new file segment for the undo log */
-	block = fseg_create_general(space, 0,
-				    TRX_UNDO_SEG_HDR
-				    + TRX_UNDO_FSEG_HEADER, TRUE, mtr);
+	block = fseg_create(space, 0, TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER,
+			    mtr, true);
 
-	fil_space_release_free_extents(space, n_reserved);
+	space->release_free_extents(n_reserved);
 
 	if (block == NULL) {
 		*err = DB_OUT_OF_FILE_SPACE;
@@ -784,7 +782,7 @@ trx_undo_add_page(trx_t* trx, trx_undo_t* undo, mtr_t* mtr)
 	header_page = trx_undo_page_get(
 		page_id_t(undo->rseg->space->id, undo->hdr_page_no), mtr);
 
-	if (!fsp_reserve_free_extents(&n_reserved, undo->rseg->space->id, 1,
+	if (!fsp_reserve_free_extents(&n_reserved, undo->rseg->space, 1,
 				      FSP_UNDO, mtr)) {
 		goto func_exit;
 	}
@@ -794,7 +792,7 @@ trx_undo_add_page(trx_t* trx, trx_undo_t* undo, mtr_t* mtr)
 		+ header_page,
 		undo->top_page_no + 1, FSP_UP, TRUE, mtr, mtr);
 
-	fil_space_release_free_extents(undo->rseg->space->id, n_reserved);
+	rseg->space->release_free_extents(n_reserved);
 
 	if (!new_block) {
 		goto func_exit;
@@ -1271,10 +1269,11 @@ trx_undo_create(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 	ut_ad(mutex_own(&(rseg->mutex)));
 
 	buf_block_t*	block = trx_undo_seg_create(
+		rseg->space,
 		trx_rsegf_get(rseg->space, rseg->page_no, mtr), &id, err, mtr);
 
 	if (!block) {
-		return block;
+		return NULL;
 	}
 
 	rseg->curr_size++;
@@ -1699,7 +1698,7 @@ trx_undo_truncate_tablespace(
 
 	/* Step-1: Truncate tablespace. */
 	if (!fil_truncate_tablespace(
-		    space->id, SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)) {
+		    space, SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)) {
 		fil_space_release(space);
 		return false;
 	}

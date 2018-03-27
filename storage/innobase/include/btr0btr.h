@@ -355,8 +355,7 @@ btr_node_ptr_get_child_page_no(
 
 /** Create the root node for a new index tree.
 @param[in]	type			type of the index
-@param[in]	space			space where created
-@param[in]	page_size		page size
+@param[in,out]	space			tablespace where created
 @param[in]	index_id		index id
 @param[in]	index			index, or NULL when applying TRUNCATE
 log record during recovery
@@ -367,8 +366,7 @@ record during recovery
 ulint
 btr_create(
 	ulint			type,
-	ulint			space,
-	const page_size_t&	page_size,
+	fil_space_t*		space,
 	index_id_t		index_id,
 	dict_index_t*		index,
 	const btr_create_t*	btr_redo_create_info,

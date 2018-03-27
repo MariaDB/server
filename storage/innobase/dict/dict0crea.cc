@@ -65,6 +65,7 @@ dict_create_sys_tables_tuple(
 	ulint		type;
 
 	ut_ad(table);
+	ut_ad(!table->space || table->space->id == table->space_id);
 	ut_ad(heap);
 	ut_ad(table->n_cols >= DATA_N_SYS_COLS);
 
@@ -150,7 +151,7 @@ dict_create_sys_tables_tuple(
 		entry, DICT_COL__SYS_TABLES__SPACE);
 
 	ptr = static_cast<byte*>(mem_heap_alloc(heap, 4));
-	mach_write_to_4(ptr, table->space);
+	mach_write_to_4(ptr, table->space_id);
 
 	dfield_set_data(dfield, ptr, 4);
 	/*----------------------------------*/
@@ -356,6 +357,8 @@ dict_build_table_def_step(
 	ut_ad(mutex_own(&dict_sys->mutex));
 	dict_table_t*	table = node->table;
 	ut_ad(!table->is_temporary());
+	ut_ad(!table->space);
+	ut_ad(table->space_id == ULINT_UNDEFINED);
 	dict_table_assign_new_id(table, thr_get_trx(thr));
 
 	/* Always set this bit for all new created tables */
@@ -382,7 +385,6 @@ dict_build_table_def_step(
 		if (space_id == ULINT_UNDEFINED) {
 			return(DB_ERROR);
 		}
-		table->space = unsigned(space_id);
 
 		/* Determine the tablespace flags. */
 		bool	has_data_dir = DICT_TF_HAS_DATA_DIR(table->flags);
@@ -403,27 +405,29 @@ dict_build_table_def_step(
 		the table we create here. */
 
 		dberr_t err;
-		fil_space_t* space = fil_ibd_create(
+		table->space = fil_ibd_create(
 			space_id, table->name.m_name, filepath, fsp_flags,
 			FIL_IBD_FILE_INITIAL_SIZE,
 			node->mode, node->key_id, &err);
 
 		ut_free(filepath);
 
-		if (!space) {
+		if (!table->space) {
 			ut_ad(err != DB_SUCCESS);
 			return err;
 		}
 
+		table->space_id = space_id;
 		mtr_t mtr;
 		mtr.start();
-		mtr.set_named_space(space);
-		fsp_header_init(space, FIL_IBD_FILE_INITIAL_SIZE, &mtr);
+		mtr.set_named_space(table->space);
+		fsp_header_init(table->space, FIL_IBD_FILE_INITIAL_SIZE, &mtr);
 		mtr.commit();
 	} else {
 		ut_ad(dict_tf_get_rec_format(table->flags)
 		      != REC_FORMAT_COMPRESSED);
-		ut_ad(table->space == TRX_SYS_SPACE);
+		table->space = fil_system.sys_space;
+		table->space_id = TRX_SYS_SPACE;
 		DBUG_EXECUTE_IF("ib_ddl_crash_during_tablespace_alloc",
 				DBUG_SUICIDE(););
 	}
@@ -468,6 +472,9 @@ dict_create_sys_indexes_tuple(
 
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(index);
+	ut_ad(index->table->space || index->table->file_unreadable);
+	ut_ad(!index->table->space
+	      || index->table->space->id == index->table->space_id);
 	ut_ad(heap);
 
 	sys_indexes = dict_sys->sys_indexes;
@@ -536,7 +543,7 @@ dict_create_sys_indexes_tuple(
 		entry, DICT_COL__SYS_INDEXES__SPACE);
 
 	ptr = static_cast<byte*>(mem_heap_alloc(heap, 4));
-	mach_write_to_4(ptr, index->table->space);
+	mach_write_to_4(ptr, index->table->space_id);
 
 	dfield_set_data(dfield, ptr, 4);
 
@@ -833,7 +840,6 @@ dict_create_index_tree_step(
 
 		node->page_no = btr_create(
 			index->type, index->table->space,
-			dict_table_page_size(index->table),
 			index->id, index, NULL, &mtr);
 
 		if (node->page_no == FIL_NULL) {
@@ -867,7 +873,6 @@ dict_create_index_tree_in_mem(
 	const trx_t*	trx)	/*!< in: InnoDB transaction handle */
 {
 	mtr_t		mtr;
-	ulint		page_no = FIL_NULL;
 
 	ut_ad(mutex_own(&dict_sys->mutex));
 
@@ -879,28 +884,18 @@ dict_create_index_tree_in_mem(
 	mtr_start(&mtr);
 	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
 
-	dberr_t		err = DB_SUCCESS;
-
 	/* Currently this function is being used by temp-tables only.
 	Import/Discard of temp-table is blocked and so this assert. */
 	ut_ad(index->is_readable());
 	ut_ad(!dict_table_is_discarded(index->table));
 
-	page_no = btr_create(
-		index->type, index->table->space,
-		dict_table_page_size(index->table),
-		index->id, index, NULL, &mtr);
-
-	index->page = page_no;
-	index->trx_id = trx->id;
-
-	if (page_no == FIL_NULL) {
-		err = DB_OUT_OF_FILE_SPACE;
-	}
-
+	index->page = btr_create(index->type, index->table->space,
+				 index->id, index, NULL, &mtr);
 	mtr_commit(&mtr);
 
-	return(err);
+	index->trx_id = trx->id;
+
+	return index->page == FIL_NULL ? DB_OUT_OF_FILE_SPACE : DB_SUCCESS;
 }
 
 /** Drop the index tree associated with a row in SYS_INDEXES table.
@@ -975,31 +970,6 @@ dict_drop_index_tree(
 }
 
 /*******************************************************************//**
-Drops the index tree but don't update SYS_INDEXES table. */
-void
-dict_drop_index_tree_in_mem(
-/*========================*/
-	const dict_index_t*	index,		/*!< in: index */
-	ulint			page_no)	/*!< in: index page-no */
-{
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(dict_table_is_temporary(index->table));
-
-	ulint			root_page_no = page_no;
-	ulint			space = index->table->space;
-	bool			found;
-	const page_size_t	page_size(fil_space_get_page_size(space,
-								  &found));
-
-	/* If tree has already been freed or it is a single table
-	tablespace and the .ibd file is missing do nothing,
-	else free the all the pages */
-	if (root_page_no != FIL_NULL && found) {
-		btr_free(page_id_t(space, root_page_no), page_size);
-	}
-}
-
-/*******************************************************************//**
 Recreate the index tree associated with a row in SYS_INDEXES table.
 @return	new root page number, or FIL_NULL on failure */
 ulint
@@ -1016,6 +986,7 @@ dict_recreate_index_tree(
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_a(!dict_table_is_comp(dict_sys->sys_indexes));
+	ut_ad(!table->space || table->space->id == table->space_id);
 
 	ulint		len;
 	const rec_t*	rec = btr_pcur_get_rec(pcur);
@@ -1025,20 +996,12 @@ dict_recreate_index_tree(
 
 	ut_ad(len == 4);
 
-	ptr = rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__SPACE, &len);
+	ut_ad(table->space_id == mach_read_from_4(
+		      rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__SPACE,
+					    &len)));
 	ut_ad(len == 4);
 
-	ut_a(table->space == mtr_read_ulint(ptr, MLOG_4BYTES, mtr));
-
-	mutex_enter(&fil_system.mutex);
-	fil_space_t* space = fil_space_get_by_id(table->space);
-	/* TRUNCATE TABLE is protected by an exclusive table lock.
-	The table cannot be dropped or the tablespace discarded
-	while we are holding the transactional table lock. Thus,
-	there is no need to invoke fil_space_acquire(). */
-	mutex_exit(&fil_system.mutex);
-
-	if (!space) {
+	if (!table->space) {
 		/* It is a single table tablespae and the .ibd file is
 		missing: do nothing. */
 
@@ -1064,7 +1027,7 @@ dict_recreate_index_tree(
 	mtr_commit(mtr);
 
 	mtr_start(mtr);
-	mtr->set_named_space(space);
+	mtr->set_named_space(table->space);
 	btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur, mtr);
 
 	/* Find the index corresponding to this SYS_INDEXES record. */
@@ -1074,8 +1037,7 @@ dict_recreate_index_tree(
 		if (index->id == index_id) {
 			ulint root_page_no = (index->type & DICT_FTS)
 				? FIL_NULL
-				: btr_create(type, space->id,
-					     page_size_t(space->flags),
+				: btr_create(type, table->space,
 					     index_id, index, NULL, mtr);
 			index->page = unsigned(root_page_no);
 			return root_page_no;
@@ -1086,73 +1048,6 @@ dict_recreate_index_tree(
 		<< " of table " << table->name;
 
 	return(FIL_NULL);
-}
-
-/*******************************************************************//**
-Truncates the index tree but don't update SYSTEM TABLES.
-@return DB_SUCCESS or error */
-dberr_t
-dict_truncate_index_tree_in_mem(
-/*============================*/
-	dict_index_t*	index)		/*!< in/out: index */
-{
-	mtr_t		mtr;
-	bool		truncate;
-	ulint		space = index->table->space;
-
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(dict_table_is_temporary(index->table));
-
-	ulint		type = index->type;
-	ulint		root_page_no = index->page;
-
-	if (root_page_no == FIL_NULL) {
-
-		/* The tree has been freed. */
-		ib::warn() << "Trying to TRUNCATE a missing index of table "
-			<< index->table->name << "!";
-
-		truncate = false;
-	} else {
-		truncate = true;
-	}
-
-	bool			found;
-	const page_size_t	page_size(fil_space_get_page_size(space,
-								  &found));
-
-	if (!found) {
-
-		/* It is a single table tablespace and the .ibd file is
-		missing: do nothing */
-
-		ib::warn()
-			<< "Trying to TRUNCATE a missing .ibd file of table "
-			<< index->table->name << "!";
-	}
-
-	/* If table to truncate resides in its on own tablespace that will
-	be re-created on truncate then we can ignore freeing of existing
-	tablespace objects. */
-
-	if (truncate) {
-		btr_free(page_id_t(space, root_page_no), page_size);
-	}
-
-	mtr_start(&mtr);
-	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-
-	root_page_no = btr_create(
-		type, space, page_size, index->id, index, NULL, &mtr);
-
-	DBUG_EXECUTE_IF("ib_err_trunc_temp_recreate_index",
-			root_page_no = FIL_NULL;);
-
-	index->page = root_page_no;
-
-	mtr_commit(&mtr);
-
-	return(index->page == FIL_NULL ? DB_ERROR : DB_SUCCESS);
 }
 
 /*********************************************************************//**

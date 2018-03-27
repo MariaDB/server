@@ -1510,10 +1510,10 @@ dict_stats_analyze_index_below_cur(
 	offsets_rec = rec_get_offsets(rec, index, offsets1, false,
 				      ULINT_UNDEFINED, &heap);
 
-	page_id_t		page_id(dict_index_get_space(index),
+	page_id_t		page_id(index->table->space->id,
 					btr_node_ptr_get_child_page_no(
 						rec, offsets_rec));
-	const page_size_t	page_size(dict_table_page_size(index->table));
+	const page_size_t	page_size(index->table->space->flags);
 
 	/* assume no external pages by default - in case we quit from this
 	function without analyzing any leaf pages */
@@ -2401,10 +2401,9 @@ dict_stats_report_error(dict_table_t* table, bool defragment)
 {
 	dberr_t		err;
 
-	FilSpace space(table->space);
 	const char*	df = defragment ? " defragment" : "";
 
-	if (!space()) {
+	if (!table->space) {
 		ib::warn() << "Cannot save" << df << " statistics for table "
 			   << table->name
 			   << " because the .ibd file is missing. "
@@ -2413,7 +2412,8 @@ dict_stats_report_error(dict_table_t* table, bool defragment)
 	} else {
 		ib::warn() << "Cannot save" << df << " statistics for table "
 			   << table->name
-			   << " because file " << space()->chain.start->name
+			   << " because file "
+			   << table->space->chain.start->name
 			   << (table->corrupted
 			       ? " is corrupted."
 			       : " cannot be decrypted.");

@@ -1624,7 +1624,7 @@ dict_table_rename_in_cache(
 			return(DB_OUT_OF_MEMORY);
 		}
 
-		fil_delete_tablespace(table->space
+		fil_delete_tablespace(table->space->id
 #ifdef BTR_CUR_HASH_ADAPT
 				      , true
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -1641,8 +1641,9 @@ dict_table_rename_in_cache(
 		ut_free(filepath);
 
 	} else if (dict_table_is_file_per_table(table)) {
-		char*	new_path = NULL;
-		char*	old_path = fil_space_get_first_path(table->space);
+		char*	new_path;
+		const char* old_path = UT_LIST_GET_FIRST(table->space->chain)
+			->name;
 
 		ut_ad(!dict_table_is_temporary(table));
 
@@ -1654,7 +1655,6 @@ dict_table_rename_in_cache(
 
 			if (err != DB_SUCCESS) {
 				ut_free(new_path);
-				ut_free(old_path);
 				return(DB_TABLESPACE_EXISTS);
 			}
 		} else {
@@ -1663,31 +1663,18 @@ dict_table_rename_in_cache(
 		}
 
 		/* New filepath must not exist. */
-		err = fil_rename_tablespace_check(
-			table->space, old_path, new_path, false);
-		if (err != DB_SUCCESS) {
-			ut_free(old_path);
-			ut_free(new_path);
-			return(err);
-		}
-
-		fil_name_write_rename(table->space, old_path, new_path);
-
-		bool	success = fil_rename_tablespace(
-			table->space, old_path, new_name, new_path);
-
-		ut_free(old_path);
+		err = table->space->rename(new_name, new_path, true);
 		ut_free(new_path);
 
 		/* If the tablespace is remote, a new .isl file was created
 		If success, delete the old one. If not, delete the new one. */
 		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 			RemoteDatafile::delete_link_file(
-				success ? old_name : new_name);
+				err == DB_SUCCESS ? old_name : new_name);
 		}
 
-		if (!success) {
-			return(DB_ERROR);
+		if (err != DB_SUCCESS) {
+			return err;
 		}
 	}
 
@@ -2234,7 +2221,7 @@ dict_index_too_big_for_tree(
 
 	comp = dict_table_is_comp(table);
 
-	const page_size_t	page_size(dict_table_page_size(table));
+	const page_size_t page_size(dict_tf_get_page_size(table->flags));
 
 	if (page_size.is_compressed()
 	    && page_size.physical() < univ_page_size.physical()) {
@@ -5890,18 +5877,17 @@ dict_print_info_on_foreign_keys(
 
 /** Given a space_id of a file-per-table tablespace, search the
 dict_sys->table_LRU list and return the dict_table_t* pointer for it.
-@param	space_id	Tablespace ID
+@param	space	tablespace
 @return table if found, NULL if not */
 static
 dict_table_t*
-dict_find_single_table_by_space(
-	ulint	space_id)
+dict_find_single_table_by_space(const fil_space_t* space)
 {
 	dict_table_t*	table;
 	ulint		num_item;
 	ulint		count = 0;
 
-	ut_ad(space_id > 0);
+	ut_ad(space->id > 0);
 
 	if (dict_sys == NULL) {
 		/* This could happen when it's in redo processing. */
@@ -5916,7 +5902,7 @@ dict_find_single_table_by_space(
 	killing the server, so it worth to risk some consequences for
 	the action. */
 	while (table && count < num_item) {
-		if (table->space == space_id) {
+		if (table->space == space) {
 			if (dict_table_is_file_per_table(table)) {
 				return(table);
 			}
@@ -5933,41 +5919,28 @@ dict_find_single_table_by_space(
 /**********************************************************************//**
 Flags a table with specified space_id corrupted in the data dictionary
 cache
-@return TRUE if successful */
-ibool
-dict_set_corrupted_by_space(
-/*========================*/
-	ulint	space_id)		/*!< in: space ID */
+@return true if successful */
+bool dict_set_corrupted_by_space(const fil_space_t* space)
 {
 	dict_table_t*   table;
 
-	table = dict_find_single_table_by_space(space_id);
+	table = dict_find_single_table_by_space(space);
 
 	if (!table) {
-		return(FALSE);
+		return false;
 	}
 
 	/* mark the table->corrupted bit only, since the caller
 	could be too deep in the stack for SYS_INDEXES update */
 	table->corrupted = true;
 	table->file_unreadable = true;
-
-	return(TRUE);
+	return true;
 }
 
-
-/** Flag a table with specified space_id encrypted in the data dictionary
-cache
-@param[in]	space_id	Tablespace id */
-UNIV_INTERN
-void
-dict_set_encrypted_by_space(ulint	space_id)
+/** Flag a table encrypted in the data dictionary cache. */
+void dict_set_encrypted_by_space(const fil_space_t* space)
 {
-	dict_table_t*   table;
-
-	table = dict_find_single_table_by_space(space_id);
-
-	if (table) {
+	if (dict_table_t* table = dict_find_single_table_by_space(space)) {
 		table->file_unreadable = true;
 	}
 }
@@ -6219,7 +6192,7 @@ dict_ind_init()
 	dict_table_t*		table;
 
 	/* create dummy table and index for REDUNDANT infimum and supremum */
-	table = dict_mem_table_create("SYS_DUMMY1", DICT_HDR_SPACE, 1, 0, 0, 0);
+	table = dict_mem_table_create("SYS_DUMMY1", NULL, 1, 0, 0, 0);
 	dict_mem_table_add_col(table, NULL, NULL, DATA_CHAR,
 			       DATA_ENGLISH | DATA_NOT_NULL, 8);
 
@@ -6472,8 +6445,7 @@ dict_table_schema_check(
 		}
 	}
 
-	if (!table->is_readable() &&
-	    fil_space_get(table->space) == NULL) {
+	if (!table->is_readable() && !table->space) {
 		/* missing tablespace */
 
 		snprintf(errstr, errstr_sz,

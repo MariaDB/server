@@ -212,13 +212,6 @@ struct mtr_t {
 
 	~mtr_t() { }
 
-	/** Release the free extents that was reserved using
-	fsp_reserve_free_extents().  This is equivalent to calling
-	fil_space_release_free_extents().  This is intended for use
-	with index pages.
-	@param[in]	n_reserved	number of reserved extents */
-	void release_free_extents(ulint n_reserved);
-
 	/** Start a mini-transaction.
 	@param sync		true if it is a synchronous mini-transaction
 	@param read_only	true if read only mini-transaction */
@@ -308,7 +301,7 @@ struct mtr_t {
 	(needed for generating a MLOG_FILE_NAME record)
 	@param[in]	space_id	user or system tablespace ID
 	@return	the tablespace */
-	fil_space_t* set_named_space(ulint space_id)
+	fil_space_t* set_named_space_id(ulint space_id)
 	{
 		ut_ad(!m_impl.m_user_space_id);
 		ut_d(m_impl.m_user_space_id = space_id);
@@ -341,6 +334,11 @@ struct mtr_t {
 	@param[in]	space	tablespace
 	@return whether the mini-transaction is associated with the space */
 	bool is_named_space(ulint space) const;
+	/** Check the tablespace associated with the mini-transaction
+	(needed for generating a MLOG_FILE_NAME record)
+	@param[in]	space	tablespace
+	@return whether the mini-transaction is associated with the space */
+	bool is_named_space(const fil_space_t* space) const;
 #endif /* UNIV_DEBUG */
 
 	/** Read 1 - 4 bytes from a file page buffered in the buffer pool.

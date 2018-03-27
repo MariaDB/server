@@ -6027,7 +6027,6 @@ i_s_dict_fill_sys_tables(
 								table->flags);
 	const page_size_t&	page_size = dict_tf_get_page_size(table->flags);
 	const char*		row_format;
-	const char*		space_type;
 
 	if (!compact) {
 		row_format = "Redundant";
@@ -6037,12 +6036,6 @@ i_s_dict_fill_sys_tables(
 		row_format = "Compressed";
 	} else {
 		row_format = "Dynamic";
-	}
-
-	if (is_system_tablespace(table->space)) {
-		space_type = "System";
-	} else {
-		space_type = "Single";
 	}
 
 	DBUG_ENTER("i_s_dict_fill_sys_tables");
@@ -6057,7 +6050,7 @@ i_s_dict_fill_sys_tables(
 
 	OK(fields[SYS_TABLES_NUM_COLUMN]->store(table->n_cols));
 
-	OK(fields[SYS_TABLES_SPACE]->store(table->space));
+	OK(fields[SYS_TABLES_SPACE]->store(table->space_id, true));
 
 	OK(field_store_string(fields[SYS_TABLES_ROW_FORMAT], row_format));
 
@@ -6066,7 +6059,8 @@ i_s_dict_fill_sys_tables(
 				? page_size.physical()
 				: 0, true));
 
-	OK(field_store_string(fields[SYS_TABLES_SPACE_TYPE], space_type));
+	OK(field_store_string(fields[SYS_TABLES_SPACE_TYPE],
+			      table->space_id ? "Single" : "System"));
 
 	OK(schema_table_store_record(thd, table_to_fill));
 
@@ -6110,23 +6104,19 @@ i_s_sys_tables_fill_table(
 		/* Create and populate a dict_table_t structure with
 		information from SYS_TABLES row */
 		err_msg = dict_process_sys_tables_rec_and_mtr_commit(
-			heap, rec, &table_rec,
-			DICT_TABLE_LOAD_FROM_RECORD, &mtr);
+			heap, rec, &table_rec, false, &mtr);
 
 		mutex_exit(&dict_sys->mutex);
 
 		if (!err_msg) {
-			i_s_dict_fill_sys_tables(thd, table_rec, tables->table);
+			i_s_dict_fill_sys_tables(thd, table_rec,
+						 tables->table);
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
 					    err_msg);
 		}
 
-		/* Since dict_process_sys_tables_rec_and_mtr_commit()
-		is called with DICT_TABLE_LOAD_FROM_RECORD, the table_rec
-		is created in dict_process_sys_tables_rec(), we will
-		need to free it */
 		if (table_rec) {
 			dict_mem_table_free(table_rec);
 		}
@@ -6411,8 +6401,7 @@ i_s_sys_tables_fill_table_stats(
 		/* Fetch the dict_table_t structure corresponding to
 		this SYS_TABLES record */
 		err_msg = dict_process_sys_tables_rec_and_mtr_commit(
-			heap, rec, &table_rec,
-			DICT_TABLE_LOAD_FROM_CACHE, &mtr);
+			heap, rec, &table_rec, true, &mtr);
 
 		ulint ref_count = table_rec ? table_rec->get_ref_count() : 0;
 		mutex_exit(&dict_sys->mutex);

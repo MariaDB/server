@@ -126,7 +126,7 @@ row_sel_sec_rec_is_for_blob(
 	}
 
 	len = btr_copy_externally_stored_field_prefix(
-		buf, prefix_len, dict_tf_get_page_size(table->flags),
+		buf, prefix_len, page_size_t(table->space->flags),
 		clust_field, clust_len);
 
 	if (len == 0) {
@@ -294,8 +294,8 @@ row_sel_sec_rec_is_for_clust_rec(
 			if (rec_offs_nth_extern(clust_offs, clust_pos)) {
 				dptr = btr_copy_externally_stored_field(
 					&clust_len, dptr,
-					dict_tf_get_page_size(
-						sec_index->table->flags),
+					page_size_t(clust_index->table->space
+						    ->flags),
 					len, heap);
 			}
 
@@ -1112,13 +1112,14 @@ re_scan:
 			}
 			mutex_exit(&match->rtr_match_mutex);
 
+			/* MDEV-14059 FIXME: why re-latch the block?
+			pcur is already positioned on it! */
 			ulint		page_no = page_get_page_no(
-						btr_pcur_get_page(pcur));
-			page_id_t	page_id(dict_index_get_space(index),
-						page_no);
+				btr_pcur_get_page(pcur));
 
 			cur_block = buf_page_get_gen(
-				page_id, dict_table_page_size(index->table),
+				page_id_t(index->table->space->id, page_no),
+				page_size_t(index->table->space->flags),
 				RW_X_LATCH, NULL, BUF_GET,
 				__FILE__, __LINE__, mtr, &err);
 		} else {
@@ -4222,7 +4223,7 @@ row_search_mvcc(
 		DBUG_RETURN(DB_TABLESPACE_DELETED);
 
 	} else if (!prebuilt->table->is_readable()) {
-		DBUG_RETURN(fil_space_get(prebuilt->table->space)
+		DBUG_RETURN(prebuilt->table->space
 			    ? DB_DECRYPTION_FAILED
 			    : DB_TABLESPACE_NOT_FOUND);
 	} else if (!prebuilt->index_usable) {

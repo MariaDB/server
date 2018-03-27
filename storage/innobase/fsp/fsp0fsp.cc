@@ -176,20 +176,6 @@ fsp_get_space_header(
 	return(header);
 }
 
-#ifdef UNIV_DEBUG
-/** Skip some of the sanity checks that are time consuming even in debug mode
-and can affect frequent verification runs that are done to ensure stability of
-the product.
-@return true if check should be skipped for given space. */
-bool
-fsp_skip_sanity_check(
-	ulint	space_id)
-{
-	return(srv_skip_temp_table_checks_debug
-	       && fsp_is_system_temporary(space_id));
-}
-#endif /* UNIV_DEBUG */
-
 /**********************************************************************//**
 Gets a descriptor bit of a page.
 @return TRUE if free */
@@ -638,7 +624,7 @@ fsp_space_modify_check(
 	case MTR_LOG_NO_REDO:
 		ut_ad(space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT
-		      || space->redo_skipped_count
+		      || my_atomic_loadlint(&space->redo_skipped_count)
 		      || space->is_being_truncated
 		      || srv_is_tablespace_truncated(space->id));
 		return;
@@ -1975,22 +1961,21 @@ Creates a new segment.
 @return the block where the segment header is placed, x-latched, NULL
 if could not create segment because of lack of space */
 buf_block_t*
-fseg_create_general(
-/*================*/
-	ulint	space_id,/*!< in: space id */
+fseg_create(
+	fil_space_t* space, /*!< in,out: tablespace */
 	ulint	page,	/*!< in: page where the segment header is placed: if
 			this is != 0, the page must belong to another segment,
 			if this is 0, a new page will be allocated and it
 			will belong to the created segment */
 	ulint	byte_offset, /*!< in: byte offset of the created segment header
 			on the page */
-	ibool	has_done_reservation, /*!< in: TRUE if the caller has already
-			done the reservation for the pages with
+	mtr_t*	mtr,
+   	bool	has_done_reservation) /*!< in: whether the caller
+			has already done the reservation for the pages with
 			fsp_reserve_free_extents (at least 2 extents: one for
 			the inode and the other for the segment) then there is
 			no need to do the check for this individual
 			operation */
-	mtr_t*	mtr)	/*!< in/out: mini-transaction */
 {
 	fsp_header_t*	space_header;
 	fseg_inode_t*	inode;
@@ -2000,23 +1985,23 @@ fseg_create_general(
 	ulint		n_reserved;
 	ulint		i;
 
-	DBUG_ENTER("fseg_create_general");
+	DBUG_ENTER("fseg_create");
 
 	ut_ad(mtr);
 	ut_ad(byte_offset + FSEG_HEADER_SIZE
 	      <= UNIV_PAGE_SIZE - FIL_PAGE_DATA_END);
 
-	fil_space_t*		space = mtr_x_lock_space(space_id, mtr);
+	mtr_x_lock(&space->latch, mtr);
 	const page_size_t	page_size(space->flags);
 	ut_d(fsp_space_modify_check(space, mtr));
 
 	if (page != 0) {
-		block = buf_page_get(page_id_t(space_id, page), page_size,
+		block = buf_page_get(page_id_t(space->id, page), page_size,
 				     RW_SX_LATCH, mtr);
 
 		header = byte_offset + buf_block_get_frame(block);
 
-		const ulint	type = space_id == TRX_SYS_SPACE
+		const ulint	type = space->id == TRX_SYS_SPACE
 			&& page == TRX_SYS_PAGE_NO
 			? FIL_PAGE_TYPE_TRX_SYS
 			: FIL_PAGE_TYPE_SYS;
@@ -2025,7 +2010,7 @@ fseg_create_general(
 	}
 
 	if (!has_done_reservation
-	    && !fsp_reserve_free_extents(&n_reserved, space_id, 2,
+	    && !fsp_reserve_free_extents(&n_reserved, space, 2,
 					 FSP_NORMAL, mtr)) {
 		DBUG_RETURN(NULL);
 	}
@@ -2092,34 +2077,14 @@ fseg_create_general(
 			 page_get_page_no(page_align(inode)),
 			 MLOG_4BYTES, mtr);
 
-	mlog_write_ulint(header + FSEG_HDR_SPACE, space_id, MLOG_4BYTES, mtr);
+	mlog_write_ulint(header + FSEG_HDR_SPACE, space->id, MLOG_4BYTES, mtr);
 
 funct_exit:
 	if (!has_done_reservation) {
-
-		fil_space_release_free_extents(space_id, n_reserved);
+		space->release_free_extents(n_reserved);
 	}
 
 	DBUG_RETURN(block);
-}
-
-/**********************************************************************//**
-Creates a new segment.
-@return the block where the segment header is placed, x-latched, NULL
-if could not create segment because of lack of space */
-buf_block_t*
-fseg_create(
-/*========*/
-	ulint	space,	/*!< in: space id */
-	ulint	page,	/*!< in: page where the segment header is placed: if
-			this is != 0, the page must belong to another segment,
-			if this is 0, a new page will be allocated and it
-			will belong to the created segment */
-	ulint	byte_offset, /*!< in: byte offset of the created segment header
-			on the page */
-	mtr_t*	mtr)	/*!< in/out: mini-transaction */
-{
-	return(fseg_create_general(space, page, byte_offset, FALSE, mtr));
 }
 
 /**********************************************************************//**
@@ -2609,7 +2574,7 @@ fseg_alloc_free_page_general(
 	fil_block_check_type(iblock, FIL_PAGE_INODE, mtr);
 
 	if (!has_done_reservation
-	    && !fsp_reserve_free_extents(&n_reserved, space_id, 2,
+	    && !fsp_reserve_free_extents(&n_reserved, space, 2,
 					 FSP_NORMAL, mtr)) {
 		return(NULL);
 	}
@@ -2627,7 +2592,7 @@ fseg_alloc_free_page_general(
 	ut_ad(!has_done_reservation || block != NULL);
 
 	if (!has_done_reservation) {
-		fil_space_release_free_extents(space_id, n_reserved);
+		space->release_free_extents(n_reserved);
 	}
 
 	return(block);
@@ -2676,7 +2641,7 @@ fsp_reserve_free_pages(
 use several pages from the tablespace should call this function beforehand
 and reserve enough free extents so that they certainly will be able
 to do their operation, like a B-tree page split, fully. Reservations
-must be released with function fil_space_release_free_extents!
+must be released with function fil_space_t::release_free_extents()!
 
 The alloc_type below has the following meaning: FSP_NORMAL means an
 operation which will probably result in more space usage, like an
@@ -2702,7 +2667,7 @@ free pages available.
 				return true and the tablespace size is <
 				FSP_EXTENT_SIZE pages, then this can be 0,
 				otherwise it is n_ext
-@param[in]	space_id	tablespace identifier
+@param[in,out]	space		tablespace
 @param[in]	n_ext		number of extents to reserve
 @param[in]	alloc_type	page reservation type (FSP_BLOB, etc)
 @param[in,out]	mtr		the mini transaction
@@ -2713,7 +2678,7 @@ free pages available.
 bool
 fsp_reserve_free_extents(
 	ulint*		n_reserved,
-	ulint		space_id,
+	fil_space_t*	space,
 	ulint		n_ext,
 	fsp_reserve_t	alloc_type,
 	mtr_t*		mtr,
@@ -2731,7 +2696,7 @@ fsp_reserve_free_extents(
 	ut_ad(mtr);
 	*n_reserved = n_ext;
 
-	fil_space_t*		space = mtr_x_lock_space(space_id, mtr);
+	mtr_x_lock(&space->latch, mtr);
 	const page_size_t	page_size(space->flags);
 
 	space_header = fsp_get_space_header(space, page_size, mtr);
@@ -2803,7 +2768,7 @@ try_again:
 		ut_error;
 	}
 
-	if (fil_space_reserve_free_extents(space_id, n_free, n_ext)) {
+	if (space->reserve_free_extents(n_free, n_ext)) {
 		return(true);
 	}
 try_to_extend:

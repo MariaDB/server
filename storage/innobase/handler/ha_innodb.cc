@@ -6145,10 +6145,6 @@ no_such_table:
 
 	MONITOR_INC(MONITOR_TABLE_OPEN);
 
-	bool	no_tablespace = false;
-	bool	encrypted = false;
-	FilSpace space;
-
 	if (dict_table_is_discarded(ib_table)) {
 
 		ib_senderrf(thd,
@@ -6159,78 +6155,38 @@ no_such_table:
 		all the flags and index root page numbers to FIL_NULL that
 		should prevent any DML from running but it should allow DDL
 		operations. */
-
-		no_tablespace = false;
-
 	} else if (!ib_table->is_readable()) {
-		space = fil_space_acquire_silent(ib_table->space);
-
-		if (space()) {
-			if (space()->crypt_data && space()->crypt_data->is_encrypted()) {
-				/* This means that tablespace was found but we could not
-				decrypt encrypted page. */
-				no_tablespace = true;
-				encrypted = true;
-			} else {
-				no_tablespace = true;
-			}
-		} else {
+		const fil_space_t* space = ib_table->space;
+		if (!space) {
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_WARN,
 				ER_TABLESPACE_MISSING, norm_name);
-
-			/* This means we have no idea what happened to the tablespace
-			file, best to play it safe. */
-
-			no_tablespace = true;
 		}
-	} else {
-		no_tablespace = false;
-	}
 
-	if (!thd_tablespace_op(thd) && no_tablespace) {
-		free_share(m_share);
-		set_my_errno(ENOENT);
-		int ret_err = HA_ERR_NO_SUCH_TABLE;
+		if (!thd_tablespace_op(thd)) {
+			free_share(m_share);
+			set_my_errno(ENOENT);
+			int ret_err = HA_ERR_NO_SUCH_TABLE;
 
-		/* If table has no talespace but it has crypt data, check
-		is tablespace made unaccessible because encryption service
-		or used key_id is not available. */
-		if (encrypted) {
-			bool warning_pushed = false;
-
-			if (!encryption_key_id_exists(space()->crypt_data->key_id)) {
+			if (space && space->crypt_data
+			    && space->crypt_data->is_encrypted()) {
 				push_warning_printf(
-					thd, Sql_condition::WARN_LEVEL_WARN,
+					thd,
+					Sql_condition::WARN_LEVEL_WARN,
 					HA_ERR_DECRYPTION_FAILED,
-					"Table %s in file %s is encrypted but encryption service or"
+					"Table %s in file %s is encrypted"
+					" but encryption service or"
 					" used key_id %u is not available. "
 					" Can't continue reading table.",
 					table_share->table_name.str,
-					space()->chain.start->name,
-					space()->crypt_data->key_id);
+					space->chain.start->name,
+					space->crypt_data->key_id);
 				ret_err = HA_ERR_DECRYPTION_FAILED;
-				warning_pushed = true;
 			}
 
-			/* If table is marked as encrypted then we push
-			warning if it has not been already done as used
-			key_id might be found but it is incorrect. */
-			if (!warning_pushed) {
-				push_warning_printf(
-					thd, Sql_condition::WARN_LEVEL_WARN,
-					HA_ERR_DECRYPTION_FAILED,
-					"Table %s in file %s is encrypted but encryption service or"
-					" used key_id is not available. "
-					" Can't continue reading table.",
-					table_share->table_name.str,
-					space()->chain.start->name);
-				ret_err = HA_ERR_DECRYPTION_FAILED;
-			}
+			dict_table_close(ib_table, FALSE, FALSE);
+			DBUG_RETURN(ret_err);
 		}
-
-		dict_table_close(ib_table, FALSE, FALSE);
-		DBUG_RETURN(ret_err);
 	}
 
 	m_prebuilt = row_create_prebuilt(ib_table, table->s->reclength);
@@ -9633,9 +9589,7 @@ ha_innobase::general_fetch(
 	} else if (m_prebuilt->table->corrupted) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	} else {
-		FilSpace space(m_prebuilt->table->space, true);
-
-		DBUG_RETURN(space()
+		DBUG_RETURN(m_prebuilt->table->space
 			    ? HA_ERR_DECRYPTION_FAILED
 			    : HA_ERR_NO_SUCH_TABLE);
 	}
@@ -10930,7 +10884,6 @@ create_table_info_t::create_table_def()
 	ibool		has_doc_id_col = FALSE;
 	mem_heap_t*	heap;
 	ulint		num_v = 0;
-	ulint		space_id = 0;
 	ulint		actual_n_cols;
 	ha_table_option_struct *options= m_form->s->option_struct;
 	dberr_t		err = DB_SUCCESS;
@@ -10985,16 +10938,13 @@ create_table_info_t::create_table_def()
 		}
 	}
 
-	/* For single-table tablespaces, we pass 0 as the space id, and then
-	determine the actual space id when the tablespace is created. */
-
 	/* Adjust the number of columns for the FTS hidden field */
 	actual_n_cols = n_cols;
 	if (m_flags2 & DICT_TF2_FTS && !has_doc_id_col) {
 		actual_n_cols += 1;
 	}
 
-	table = dict_mem_table_create(m_table_name, space_id,
+	table = dict_mem_table_create(m_table_name, NULL,
 				      actual_n_cols, num_v, m_flags, m_flags2);
 
 	/* Set the hidden doc_id column. */
@@ -11202,7 +11152,8 @@ err_col:
 		dict_table_assign_new_id(table, m_trx);
 		ut_ad(dict_tf_get_rec_format(table->flags)
 		      != REC_FORMAT_COMPRESSED);
-		table->space = SRV_TMP_SPACE_ID;
+		table->space_id = SRV_TMP_SPACE_ID;
+		table->space = fil_system.temp_space;
 		table->add_to_cache();
 	} else {
 		if (err == DB_SUCCESS) {
@@ -12799,7 +12750,7 @@ ha_innobase::discard_or_import_tablespace(
 		DBUG_RETURN(HA_ERR_TABLE_NEEDS_UPGRADE);
 	}
 
-	if (dict_table->space == srv_sys_space.space_id()) {
+	if (dict_table->space == fil_system.sys_space) {
 		ib_senderrf(
 			m_prebuilt->trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 			ER_TABLE_IN_SYSTEM_TABLESPACE,
@@ -13831,8 +13782,6 @@ been acquired by the caller who holds it for the calculation,
 static uintmax_t
 fsp_get_available_space_in_free_extents(const fil_space_t& space)
 {
-	ut_ad(space.n_pending_ops > 0);
-
 	ulint	size_in_header = space.size_in_header;
 	if (size_in_header < FSP_EXTENT_SIZE) {
 		return 0;		/* TODO: count free frag pages and
@@ -13995,8 +13944,7 @@ ha_innobase::info_low(
 
 		stats.records = (ha_rows) n_rows;
 		stats.deleted = 0;
-		if (fil_space_t* space = fil_space_acquire_silent(
-			    ib_table->space)) {
+		if (fil_space_t* space = ib_table->space) {
 			const ulint size = page_size_t(space->flags)
 				.physical();
 			stats.data_file_length
@@ -14008,7 +13956,6 @@ ha_innobase::info_low(
 			stats.delete_length = 1024
 				* fsp_get_available_space_in_free_extents(
 					*space);
-			fil_space_release(space);
 		}
 		stats.check_time = 0;
 		stats.mrr_length_per_rec= (uint)ref_length +  8; // 8 = max(sizeof(void *));
@@ -14454,7 +14401,7 @@ ha_innobase::check(
 		DBUG_RETURN(HA_ADMIN_CORRUPT);
 
 	} else if (!m_prebuilt->table->is_readable() &&
-		   !fil_space_get(m_prebuilt->table->space)) {
+		   !m_prebuilt->table->space) {
 
 		ib_senderrf(
 			thd, IB_LOG_LEVEL_ERROR,
@@ -14701,12 +14648,10 @@ ha_innobase::update_table_comment(
 #define SSTR( x ) reinterpret_cast< std::ostringstream & >(		\
         ( std::ostringstream() << std::dec << x ) ).str()
 
-	if (fil_space_t* space = fil_space_acquire_silent(
-		    m_prebuilt->table->space)) {
+	if (m_prebuilt->table->space) {
 		fk_str.append("InnoDB free: ");
 		fk_str.append(SSTR(fsp_get_available_space_in_free_extents(
-					   *space)));
-		fil_space_release(space);
+					   *m_prebuilt->table->space)));
 	}
 
 	fk_str.append(dict_print_info_on_foreign_keys(

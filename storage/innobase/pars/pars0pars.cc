@@ -1915,7 +1915,7 @@ pars_create_table(
 	n_cols = que_node_list_get_len(column_defs);
 
 	table = dict_mem_table_create(
-		table_sym->name, 0, n_cols, 0, flags, flags2);
+		table_sym->name, NULL, n_cols, 0, flags, flags2);
 
 	mem_heap_t* heap = pars_sym_tab_global->heap;
 	column = column_defs;

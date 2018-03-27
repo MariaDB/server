@@ -2529,7 +2529,7 @@ write_buffers:
 						curr_progress,
 						pct_cost,
 						crypt_block,
-						new_table->space);
+						new_table->space->id);
 
 					if (row == NULL) {
 						err = clust_btr_bulk->finish(
@@ -2640,7 +2640,7 @@ write_buffers:
 						curr_progress,
 						pct_cost,
 						crypt_block,
-						new_table->space);
+						new_table->space->id);
 
 					err = btr_bulk.finish(err);
 
@@ -2674,7 +2674,7 @@ write_buffers:
 					if (!row_merge_write(
 						    file->fd, file->offset++,
 						    block, crypt_block,
-						    new_table->space)) {
+						    new_table->space->id)) {
 						err = DB_TEMP_FILE_WRITE_FAIL;
 						trx->error_key_num = i;
 						break;
@@ -4313,19 +4313,9 @@ row_make_new_pathname(
 	dict_table_t*	table,		/*!< in: table to be renamed */
 	const char*	new_name)	/*!< in: new name */
 {
-	char*	new_path;
-	char*	old_path;
-
-	ut_ad(!is_system_tablespace(table->space));
-
-	old_path = fil_space_get_first_path(table->space);
-	ut_a(old_path);
-
-	new_path = os_file_make_new_pathname(old_path, new_name);
-
-	ut_free(old_path);
-
-	return(new_path);
+	ut_ad(!is_system_tablespace(table->space->id));
+	return os_file_make_new_pathname(table->space->chain.start->name,
+					 new_name);
 }
 
 /*********************************************************************//**
@@ -4377,8 +4367,7 @@ row_merge_rename_tables_dict(
 	renamed is a single-table tablespace, which must be implicitly
 	renamed along with the table. */
 	if (err == DB_SUCCESS
-	    && dict_table_is_file_per_table(old_table)
-	    && fil_space_get(old_table->space) != NULL) {
+	    && old_table->space_id) {
 		/* Make pathname to update SYS_DATAFILES. */
 		char* tmp_path = row_make_new_pathname(old_table, tmp_name);
 
@@ -4387,7 +4376,7 @@ row_merge_rename_tables_dict(
 		pars_info_add_str_literal(info, "tmp_name", tmp_name);
 		pars_info_add_str_literal(info, "tmp_path", tmp_path);
 		pars_info_add_int4_literal(info, "old_space",
-					   (lint) old_table->space);
+					   lint(old_table->space_id));
 
 		err = que_eval_sql(info,
 				   "PROCEDURE RENAME_OLD_SPACE () IS\n"
@@ -4418,7 +4407,7 @@ row_merge_rename_tables_dict(
 					  old_table->name.m_name);
 		pars_info_add_str_literal(info, "old_path", old_path);
 		pars_info_add_int4_literal(info, "new_space",
-					   (lint) new_table->space);
+					   lint(new_table->space_id));
 
 		err = que_eval_sql(info,
 				   "PROCEDURE RENAME_NEW_SPACE () IS\n"
@@ -4436,7 +4425,7 @@ row_merge_rename_tables_dict(
 
 	if (err == DB_SUCCESS && dict_table_is_discarded(new_table)) {
 		err = row_import_update_discarded_flag(
-			trx, new_table->id, true, true);
+			trx, new_table->id, true);
 	}
 
 	trx->op_info = "";
@@ -4559,7 +4548,7 @@ row_merge_write_redo(
 	log_ptr = mlog_open(&mtr, 11 + 8);
 	log_ptr = mlog_write_initial_log_record_low(
 		MLOG_INDEX_LOAD,
-		index->table->space, index->page, log_ptr, &mtr);
+		index->table->space->id, index->page, log_ptr, &mtr);
 	mach_write_to_8(log_ptr, index->id);
 	mlog_close(&mtr, log_ptr + 8);
 	mtr.commit();
@@ -4913,7 +4902,8 @@ wait_again:
 					trx, &dup, &merge_files[i],
 					block, &tmpfd, true,
 					pct_progress, pct_cost,
-					crypt_block, new_table->space, stage);
+					crypt_block, new_table->space->id,
+					stage);
 
 			pct_progress += pct_cost;
 
@@ -4956,7 +4946,8 @@ wait_again:
 					merge_files[i].fd, block, NULL,
 					&btr_bulk,
 					merge_files[i].n_rec, pct_progress, pct_cost,
-					crypt_block, new_table->space, stage);
+					crypt_block, new_table->space->id,
+					stage);
 
 				error = btr_bulk.finish(error);
 

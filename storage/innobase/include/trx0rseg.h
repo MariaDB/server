@@ -69,17 +69,17 @@ ulint
 trx_rsegf_undo_find_free(const trx_rsegf_t* rsegf);
 
 /** Create a rollback segment header.
-@param[in]	space		system, undo, or temporary tablespace
+@param[in,out]	space		system, undo, or temporary tablespace
 @param[in]	rseg_id		rollback segment identifier
 @param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
 @param[in,out]	mtr		mini-transaction
 @return page number of the created segment, FIL_NULL if fail */
 ulint
 trx_rseg_header_create(
-	const fil_space_t*	space,
-	ulint			rseg_id,
-	buf_block_t*		sys_header,
-	mtr_t*			mtr);
+	fil_space_t*	space,
+	ulint		rseg_id,
+	buf_block_t*	sys_header,
+	mtr_t*		mtr);
 
 /** Initialize the rollback segments in memory at database startup. */
 void

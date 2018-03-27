@@ -588,7 +588,7 @@ mlog_parse_index(
 	} else {
 		n = n_uniq = 1;
 	}
-	table = dict_mem_table_create("LOG_DUMMY", DICT_HDR_SPACE, n, 0,
+	table = dict_mem_table_create("LOG_DUMMY", NULL, n, 0,
 				      comp ? DICT_TF_COMPACT : 0, 0);
 	ind = dict_mem_index_create(table, "LOG_DUMMY", 0, n);
 	ind->n_uniq = (unsigned int) n_uniq;

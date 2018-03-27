@@ -91,9 +91,9 @@ dict_load_table_one(
 
 /** Load a table definition from a SYS_TABLES record to dict_table_t.
 Do not load any columns or indexes.
-@param[in]	name	Table name
-@param[in]	rec	SYS_TABLES record
-@param[out,own]	table	table, or NULL
+@param[in]	name		Table name
+@param[in]	rec		SYS_TABLES record
+@param[out,own]	table		table, or NULL
 @return	error message
 @retval	NULL on success */
 static
@@ -384,16 +384,12 @@ dict_process_sys_tables_rec_and_mtr_commit(
 	mem_heap_t*	heap,		/*!< in/out: temporary memory heap */
 	const rec_t*	rec,		/*!< in: SYS_TABLES record */
 	dict_table_t**	table,		/*!< out: dict_table_t to fill */
-	dict_table_info_t status,	/*!< in: status bit controls
-					options such as whether we shall
-					look for dict_table_t from cache
-					first */
+	bool		cached,		/*!< in: whether to load from cache */
 	mtr_t*		mtr)		/*!< in/out: mini-transaction,
 					will be committed */
 {
 	ulint		len;
 	const char*	field;
-	const char*	err_msg = NULL;
 	table_name_t	table_name;
 
 	field = (const char*) rec_get_nth_field_old(
@@ -406,28 +402,17 @@ dict_process_sys_tables_rec_and_mtr_commit(
 	/* Get the table name */
 	table_name.m_name = mem_heap_strdupl(heap, field, len);
 
-	/* If DICT_TABLE_LOAD_FROM_CACHE is set, first check
-	whether there is cached dict_table_t struct */
-	if (status & DICT_TABLE_LOAD_FROM_CACHE) {
-
+	if (cached) {
 		/* Commit before load the table again */
 		mtr_commit(mtr);
 
 		*table = dict_table_get_low(table_name.m_name);
-
-		if (!(*table)) {
-			err_msg = "Table not found in cache";
-		}
+		return *table ? NULL : "Table not found in cache";
 	} else {
-		err_msg = dict_load_table_low(table_name, rec, table);
+		const char* err = dict_load_table_low(table_name, rec, table);
 		mtr_commit(mtr);
+		return err;
 	}
-
-	if (err_msg) {
-		return(err_msg);
-	}
-
-	return(NULL);
 }
 
 /********************************************************************//**
@@ -1440,20 +1425,19 @@ dict_check_sys_tables(
 
 		/* Now that we have the proper name for this tablespace,
 		look to see if it is already in the tablespace cache. */
-		if (fil_space_for_table_exists_in_mem(
-			    space_id, table_name.m_name,
-			    false, NULL, flags)) {
+		if (const fil_space_t* space
+		    = fil_space_for_table_exists_in_mem(
+			    space_id, table_name.m_name, false, flags)) {
 			/* Recovery can open a datafile that does not
 			match SYS_DATAFILES.  If they don't match, update
 			SYS_DATAFILES. */
 			char *dict_path = dict_get_first_path(space_id);
-			char *fil_path = fil_space_get_first_path(space_id);
-			if (dict_path && fil_path
+			const char *fil_path = space->chain.start->name;
+			if (dict_path
 			    && strcmp(dict_path, fil_path)) {
 				dict_update_filepath(space_id, fil_path);
 			}
 			ut_free(dict_path);
-			ut_free(fil_path);
 			ut_free(table_name.m_name);
 			continue;
 		}
@@ -1466,15 +1450,12 @@ dict_check_sys_tables(
 		char*	filepath = dict_get_first_path(space_id);
 
 		/* Check that the .ibd file exists. */
-		dberr_t	err = fil_ibd_open(
-			validate,
-			!srv_read_only_mode && srv_log_file_size != 0,
-			FIL_TYPE_TABLESPACE,
-			space_id, dict_tf_to_fsp_flags(flags),
-			table_name.m_name,
-			filepath);
-
-		if (err != DB_SUCCESS) {
+		if (!fil_ibd_open(
+			    validate,
+			    !srv_read_only_mode && srv_log_file_size != 0,
+			    FIL_TYPE_TABLESPACE,
+			    space_id, dict_tf_to_fsp_flags(flags),
+			    table_name, filepath)) {
 			ib::warn() << "Ignoring tablespace for "
 				<< table_name
 				<< " because it could not be opened.";
@@ -2638,9 +2619,9 @@ func_exit:
 
 /** Load a table definition from a SYS_TABLES record to dict_table_t.
 Do not load any columns or indexes.
-@param[in]	name	Table name
-@param[in]	rec	SYS_TABLES record
-@param[out,own]	table	table, or NULL
+@param[in]	name		Table name
+@param[in]	rec		SYS_TABLES record
+@param[out,own]	table		table, or NULL
 @return	error message
 @retval	NULL on success */
 static
@@ -2667,7 +2648,8 @@ dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
 	dict_table_decode_n_col(t_num, &n_cols, &n_v_col);
 
 	*table = dict_mem_table_create(
-		name.m_name, space_id, n_cols + n_v_col, n_v_col, flags, flags2);
+		name.m_name, NULL, n_cols + n_v_col, n_v_col, flags, flags2);
+	(*table)->space_id = space_id;
 	(*table)->id = table_id;
 	(*table)->file_unreadable = false;
 
@@ -2685,7 +2667,7 @@ void
 dict_save_data_dir_path(
 /*====================*/
 	dict_table_t*	table,		/*!< in/out: table */
-	char*		filepath)	/*!< in: filepath of tablespace */
+	const char*	filepath)	/*!< in: filepath of tablespace */
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_a(DICT_TF_HAS_DATA_DIR(table->flags));
@@ -2720,20 +2702,19 @@ dict_get_and_save_data_dir_path(
 	dict_table_t*	table,
 	bool		dict_mutex_own)
 {
-	ut_ad(!dict_table_is_temporary(table));
+	ut_ad(!table->is_temporary());
+	ut_ad(!table->space || table->space->id == table->space_id);
 
-	if (!table->data_dir_path && table->space) {
-		char*	path = fil_space_get_first_path(table->space);
-
+	if (!table->data_dir_path && table->space_id) {
 		if (!dict_mutex_own) {
 			dict_mutex_enter_for_mysql();
 		}
 
-		if (path == NULL) {
-			path = dict_get_first_path(table->space);
-		}
-
-		if (path != NULL) {
+		if (const char* p = table->space
+		    ? table->space->chain.start->name : NULL) {
+			table->flags |= (1 << DICT_TF_POS_DATA_DIR);
+			dict_save_data_dir_path(table, p);
+		} else if (char* path = dict_get_first_path(table->space_id)) {
 			table->flags |= (1 << DICT_TF_POS_DATA_DIR);
 			dict_save_data_dir_path(table, path);
 			ut_free(path);
@@ -2808,19 +2789,20 @@ dict_load_table(
 
 /** Opens a tablespace for dict_load_table_one()
 @param[in,out]	table		A table that refers to the tablespace to open
-@param[in]	heap		A memory heap
 @param[in]	ignore_err	Whether to ignore an error. */
 UNIV_INLINE
 void
 dict_load_tablespace(
 	dict_table_t*		table,
-	mem_heap_t*		heap,
 	dict_err_ignore_t	ignore_err)
 {
-	ut_ad(!dict_table_is_temporary(table));
+	ut_ad(!table->is_temporary());
+	ut_ad(!table->space);
+	ut_ad(table->space_id < SRV_LOG_SPACE_FIRST_ID);
+	ut_ad(fil_system.sys_space);
 
-	/* The system tablespace is always available. */
-	if (is_system_tablespace(table->space)) {
+	if (table->space_id == TRX_SYS_SPACE) {
+		table->space = fil_system.sys_space;
 		return;
 	}
 
@@ -2831,11 +2813,10 @@ dict_load_tablespace(
 		return;
 	}
 
-	char*	space_name = table->name.m_name;
-
 	/* The tablespace may already be open. */
-	if (fil_space_for_table_exists_in_mem(
-		    table->space, space_name, false, heap, table->flags)) {
+	table->space = fil_space_for_table_exists_in_mem(
+		table->space_id, table->name.m_name, false, table->flags);
+	if (table->space) {
 		return;
 	}
 
@@ -2843,12 +2824,12 @@ dict_load_tablespace(
 		ib::error() << "Failed to find tablespace for table "
 			<< table->name << " in the cache. Attempting"
 			" to load the tablespace with space id "
-			<< table->space;
+			<< table->space_id;
 	}
 
 	/* Use the remote filepath if needed. This parameter is optional
 	in the call to fil_ibd_open(). If not supplied, it will be built
-	from the space_name. */
+	from the table->name. */
 	char* filepath = NULL;
 	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 		/* This will set table->data_dir_path from either
@@ -2864,12 +2845,12 @@ dict_load_tablespace(
 
 	/* Try to open the tablespace.  We set the 2nd param (fix_dict) to
 	false because we do not have an x-lock on dict_operation_lock */
-	dberr_t err = fil_ibd_open(
-		true, false, FIL_TYPE_TABLESPACE, table->space,
+	table->space = fil_ibd_open(
+		true, false, FIL_TYPE_TABLESPACE, table->space_id,
 		dict_tf_to_fsp_flags(table->flags),
-		space_name, filepath);
+		table->name, filepath);
 
-	if (err != DB_SUCCESS) {
+	if (!table->space) {
 		/* We failed to find a sensible tablespace file */
 		table->file_unreadable = true;
 	}
@@ -2904,7 +2885,6 @@ dict_load_table_one(
 	dict_names_t&		fk_tables)
 {
 	dberr_t		err;
-	dict_table_t*	table;
 	dict_table_t*	sys_tables;
 	btr_pcur_t	pcur;
 	dict_index_t*	sys_index;
@@ -2970,6 +2950,7 @@ err_exit:
 		goto err_exit;
 	}
 
+	dict_table_t* table;
 	if (const char* err_msg = dict_load_table_low(name, rec, &table)) {
 		if (err_msg != dict_load_table_flags) {
 			ib::error() << err_msg;
@@ -2980,7 +2961,7 @@ err_exit:
 	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
 
-	dict_load_tablespace(table, heap, ignore_err);
+	dict_load_tablespace(table, ignore_err);
 
 	dict_load_columns(table, heap);
 
@@ -3033,7 +3014,7 @@ err_exit:
 	}
 
 	if (err == DB_SUCCESS && cached && table->is_readable()) {
-		if (table->space && !fil_space_get_size(table->space)) {
+		if (table->space && !fil_space_get_size(table->space->id)) {
 			table->corrupted = true;
 			table->file_unreadable = true;
 		} else if (table->supports_instant()) {

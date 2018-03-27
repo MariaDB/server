@@ -393,36 +393,21 @@ Creates a new segment.
 if could not create segment because of lack of space */
 buf_block_t*
 fseg_create(
-/*========*/
-	ulint	space_id,/*!< in: space id */
+	fil_space_t* space, /*!< in,out: tablespace */
 	ulint	page,	/*!< in: page where the segment header is placed: if
 			this is != 0, the page must belong to another segment,
 			if this is 0, a new page will be allocated and it
 			will belong to the created segment */
 	ulint	byte_offset, /*!< in: byte offset of the created segment header
 			on the page */
-	mtr_t*	mtr);	/*!< in/out: mini-transaction */
-/**********************************************************************//**
-Creates a new segment.
-@return the block where the segment header is placed, x-latched, NULL
-if could not create segment because of lack of space */
-buf_block_t*
-fseg_create_general(
-/*================*/
-	ulint	space_id,/*!< in: space id */
-	ulint	page,	/*!< in: page where the segment header is placed: if
-			this is != 0, the page must belong to another segment,
-			if this is 0, a new page will be allocated and it
-			will belong to the created segment */
-	ulint	byte_offset, /*!< in: byte offset of the created segment header
-			on the page */
-	ibool	has_done_reservation, /*!< in: TRUE if the caller has already
-			done the reservation for the pages with
+	mtr_t*	mtr,
+   	bool	has_done_reservation = false); /*!< in: whether the caller
+			has already done the reservation for the pages with
 			fsp_reserve_free_extents (at least 2 extents: one for
 			the inode and the other for the segment) then there is
 			no need to do the check for this individual
 			operation */
-	mtr_t*	mtr);	/*!< in/out: mini-transaction */
+
 /**********************************************************************//**
 Calculates the number of pages reserved by a segment, and how many pages are
 currently used.
@@ -484,7 +469,7 @@ fseg_alloc_free_page_general(
 use several pages from the tablespace should call this function beforehand
 and reserve enough free extents so that they certainly will be able
 to do their operation, like a B-tree page split, fully. Reservations
-must be released with function fil_space_release_free_extents!
+must be released with function fil_space_t::release_free_extents()!
 
 The alloc_type below has the following meaning: FSP_NORMAL means an
 operation which will probably result in more space usage, like an
@@ -510,7 +495,7 @@ free pages available.
 				return true and the tablespace size is <
 				FSP_EXTENT_SIZE pages, then this can be 0,
 				otherwise it is n_ext
-@param[in]	space_id	tablespace identifier
+@param[in,out]	space		tablespace
 @param[in]	n_ext		number of extents to reserve
 @param[in]	alloc_type	page reservation type (FSP_BLOB, etc)
 @param[in,out]	mtr		the mini transaction
@@ -521,7 +506,7 @@ free pages available.
 bool
 fsp_reserve_free_extents(
 	ulint*		n_reserved,
-	ulint		space_id,
+	fil_space_t*	space,
 	ulint		n_ext,
 	fsp_reserve_t	alloc_type,
 	mtr_t*		mtr,

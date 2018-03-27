@@ -60,10 +60,6 @@ ALTER TABLE tab IMPORT TABLESPACE;
 # Cleanup
 DROP TABLE tab;
 
-# Remove orphan files
---remove_file $MYSQLD_DATADIR/test/tab.cfg
---remove_file $MYSQLD_DATADIR/test/tab.ibd
-
 # Set the default_row_format=Compact
 SET GLOBAL innodb_default_row_format=Compact;
 

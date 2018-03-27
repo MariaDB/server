@@ -33,14 +33,6 @@ Created 2013-7-26 by Kevin Lewis
 at a time. We have to make this public because it is a config variable. */
 extern ulong sys_tablespace_auto_extend_increment;
 
-#ifdef UNIV_DEBUG
-/** Control if extra debug checks need to be done for temporary tablespace.
-Default = true that is disable such checks.
-This variable is not exposed to end-user but still kept as variable for
-developer to enable it during debug. */
-extern bool srv_skip_temp_table_checks_debug;
-#endif /* UNIV_DEBUG */
-
 /** Data structure that contains the information about shared tablespaces.
 Currently this can be the system tablespace or a temporary table tablespace */
 class SysTablespace : public Tablespace

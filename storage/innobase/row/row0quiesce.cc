@@ -145,7 +145,7 @@ row_quiesce_write_indexes(
 		mach_write_to_8(ptr, index->id);
 		ptr += sizeof(index_id_t);
 
-		mach_write_to_4(ptr, table->space);
+		mach_write_to_4(ptr, table->space->id);
 		ptr += sizeof(ib_uint32_t);
 
 		mach_write_to_4(ptr, index->page);
@@ -521,7 +521,7 @@ row_quiesce_table_start(
 
 	ut_a(trx->mysql_thd != 0);
 
-	ut_ad(fil_space_get(table->space) != NULL);
+	ut_ad(table->space != NULL);
 	ib::info() << "Sync to disk of " << table->name << " started.";
 
 	if (srv_undo_sources) {
@@ -529,7 +529,7 @@ row_quiesce_table_start(
 	}
 
 	for (ulint count = 0;
-	     ibuf_merge_space(table->space) != 0
+	     ibuf_merge_space(table->space->id) != 0
 	     && !trx_is_interrupted(trx);
 	     ++count) {
 		if (!(count % 20)) {
@@ -541,7 +541,8 @@ row_quiesce_table_start(
 	if (!trx_is_interrupted(trx)) {
 		{
 			FlushObserver observer(table->space, trx, NULL);
-			buf_LRU_flush_or_remove_pages(table->space, &observer);
+			buf_LRU_flush_or_remove_pages(table->space->id,
+						      &observer);
 		}
 
 		if (trx_is_interrupted(trx)) {
@@ -640,7 +641,7 @@ row_quiesce_set_state(
 			    ER_CANNOT_DISCARD_TEMPORARY_TABLE);
 
 		return(DB_UNSUPPORTED);
-	} else if (table->space == TRX_SYS_SPACE) {
+	} else if (table->space->id == TRX_SYS_SPACE) {
 
 		char	table_name[MAX_FULL_NAME_LEN + 1];
 

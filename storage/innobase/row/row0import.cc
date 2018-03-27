@@ -350,11 +350,11 @@ class AbstractCallback
 public:
 	/** Constructor
 	@param trx covering transaction */
-	AbstractCallback(trx_t* trx)
+	AbstractCallback(trx_t* trx, ulint space_id)
 		:
 		m_page_size(0, 0, false),
 		m_trx(trx),
-		m_space(ULINT_UNDEFINED),
+		m_space(space_id),
 		m_xdes(),
 		m_xdes_page_no(ULINT_UNDEFINED),
 		m_space_flags(ULINT_UNDEFINED) UNIV_NOTHROW { }
@@ -412,9 +412,8 @@ public:
 		os_offset_t	offset,
 		buf_block_t*	block) UNIV_NOTHROW = 0;
 
-	/**
-	@return the space id of the tablespace */
-	virtual ulint get_space_id() const UNIV_NOTHROW = 0;
+	/** @return the tablespace identifier */
+	ulint get_space_id() const { return m_space; }
 
 	bool is_interrupted() const { return trx_is_interrupted(m_trx); }
 
@@ -587,11 +586,12 @@ AbstractCallback::init(
 		return(DB_CORRUPTION);
 	}
 
-	ut_a(m_space == ULINT_UNDEFINED);
-
 	m_size  = mach_read_from_4(page + FSP_SIZE);
 	m_free_limit = mach_read_from_4(page + FSP_FREE_LIMIT);
-	m_space = mach_read_from_4(page + FSP_HEADER_OFFSET + FSP_SPACE_ID);
+	if (m_space == ULINT_UNDEFINED) {
+		m_space = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_ID
+					   + page);
+	}
 
 	return set_current_xdes(0, page);
 }
@@ -620,18 +620,11 @@ struct FetchIndexRootPages : public AbstractCallback {
 	@param table table definition in server .*/
 	FetchIndexRootPages(const dict_table_t* table, trx_t* trx)
 		:
-		AbstractCallback(trx),
+		AbstractCallback(trx, ULINT_UNDEFINED),
 		m_table(table) UNIV_NOTHROW { }
 
 	/** Destructor */
 	virtual ~FetchIndexRootPages() UNIV_NOTHROW { }
-
-	/**
-	@retval the space id of the tablespace being iterated over */
-	virtual ulint get_space_id() const UNIV_NOTHROW
-	{
-		return(m_space);
-	}
 
 	/** Called for each block as it is read from the file.
 	@param offset physical offset in the file
@@ -806,21 +799,29 @@ class PageConverter : public AbstractCallback {
 public:
 	/** Constructor
 	@param cfg config of table being imported.
+	@param space_id tablespace identifier
 	@param trx transaction covering the import */
-	PageConverter(row_import* cfg, trx_t* trx) UNIV_NOTHROW;
+	PageConverter(row_import* cfg, ulint space_id, trx_t* trx)
+		:
+		AbstractCallback(trx, space_id),
+		m_cfg(cfg),
+		m_index(cfg->m_indexes),
+		m_current_lsn(log_get_lsn()),
+		m_page_zip_ptr(0),
+		m_rec_iter(),
+		m_offsets_(), m_offsets(m_offsets_),
+		m_heap(0),
+		m_cluster_index(dict_table_get_first_index(cfg->m_table))
+	{
+		ut_ad(m_current_lsn);
+		rec_offs_init(m_offsets_);
+	}
 
 	virtual ~PageConverter() UNIV_NOTHROW
 	{
 		if (m_heap != 0) {
 			mem_heap_free(m_heap);
 		}
-	}
-
-	/**
-	@retval the server space id of the tablespace being iterated over */
-	virtual ulint get_space_id() const UNIV_NOTHROW
-	{
-		return(m_cfg->m_table->space);
 	}
 
 	/** Called for each block as it is read from the file.
@@ -1527,28 +1528,6 @@ IndexPurge::purge() UNIV_NOTHROW
 	btr_pcur_restore_position(BTR_MODIFY_LEAF, &m_pcur, &m_mtr);
 }
 
-/** Constructor
-@param cfg config of table being imported.
-@param trx transaction covering the import */
-inline
-PageConverter::PageConverter(
-	row_import*	cfg,
-	trx_t*		trx)
-	:
-	AbstractCallback(trx),
-	m_cfg(cfg),
-	m_index(cfg->m_indexes),
-	m_current_lsn(log_get_lsn()),
-	m_page_zip_ptr(0),
-	m_rec_iter(),
-	m_offsets_(), m_offsets(m_offsets_),
-	m_heap(0),
-	m_cluster_index(dict_table_get_first_index(cfg->m_table)) UNIV_NOTHROW
-{
-	ut_a(m_current_lsn > 0);
-	rec_offs_init(m_offsets_);
-}
-
 /** Adjust the BLOB reference for a single column that is externally stored
 @param rec record to update
 @param offsets column offsets for the record
@@ -2054,8 +2033,10 @@ row_import_discard_changes(
 	}
 
 	table->file_unreadable = true;
-
-	fil_close_tablespace(trx, table->space);
+	if (table->space) {
+		fil_close_tablespace(trx, table->space->id);
+		table->space = NULL;
+	}
 }
 
 /*****************************************************************//**
@@ -3087,6 +3068,8 @@ row_import_update_index_root(
 	que_t*			graph = 0;
 	dberr_t			err = DB_SUCCESS;
 
+	ut_ad(reset || table->space->id == table->space_id);
+
 	static const char	sql[] = {
 		"PROCEDURE UPDATE_INDEX_ROOT() IS\n"
 		"BEGIN\n"
@@ -3124,7 +3107,7 @@ row_import_update_index_root(
 
 		mach_write_to_4(
 			reinterpret_cast<byte*>(&space),
-			reset ? FIL_NULL : index->table->space);
+			reset ? FIL_NULL : index->table->space_id);
 
 		mach_write_to_8(
 			reinterpret_cast<byte*>(&index_id),
@@ -3227,22 +3210,13 @@ row_import_set_discarded(
 	return(FALSE);
 }
 
-/*****************************************************************//**
-Update the DICT_TF2_DISCARDED flag in SYS_TABLES.
-@return DB_SUCCESS or error code. */
-dberr_t
-row_import_update_discarded_flag(
-/*=============================*/
-	trx_t*		trx,		/*!< in/out: transaction that
-					covers the update */
-	table_id_t	table_id,	/*!< in: Table for which we want
-					to set the root table->flags2 */
-	bool		discarded,	/*!< in: set MIX_LEN column bit
-					to discarded, if true */
-	bool		dict_locked)	/*!< in: set to true if the
-					caller already owns the
-					dict_sys_t:: mutex. */
-
+/** Update the DICT_TF2_DISCARDED flag in SYS_TABLES.MIX_LEN.
+@param[in,out]	trx		dictionary transaction
+@param[in]	table_id	table identifier
+@param[in]	discarded	whether to set or clear the flag
+@return DB_SUCCESS or error code */
+dberr_t row_import_update_discarded_flag(trx_t* trx, table_id_t table_id,
+					 bool discarded)
 {
 	pars_info_t*		info;
 	discard_t		discard;
@@ -3281,7 +3255,7 @@ row_import_update_discarded_flag(
 	pars_info_bind_function(
 		info, "my_func", row_import_set_discarded, &discard);
 
-	dberr_t	err = que_eval_sql(info, sql, !dict_locked, trx);
+	dberr_t	err = que_eval_sql(info, sql, false, trx);
 
 	ut_a(discard.n_recs == 1);
 	ut_a(discard.flags2 != ULINT32_UNDEFINED);
@@ -3745,11 +3719,12 @@ row_import_for_mysql(
 	ut_ad(!srv_read_only_mode);
 	ut_ad(!dict_table_is_temporary(table));
 
-	ut_a(table->space);
+	ut_ad(table->space_id);
+	ut_ad(table->space_id < SRV_LOG_SPACE_FIRST_ID);
 	ut_ad(prebuilt->trx);
-	ut_a(!table->is_readable());
+	ut_ad(!table->is_readable());
 
-	ibuf_delete_for_discarded_space(table->space);
+	ibuf_delete_for_discarded_space(table->space_id);
 
 	trx_start_if_not_started(prebuilt->trx, true);
 
@@ -3880,7 +3855,7 @@ row_import_for_mysql(
 	/* Iterate over all the pages and do the sanity checking and
 	the conversion required to import the tablespace. */
 
-	PageConverter	converter(&cfg, trx);
+	PageConverter	converter(&cfg, table->space_id, trx);
 
 	/* Set the IO buffer size in pages. */
 
@@ -3941,18 +3916,19 @@ row_import_for_mysql(
 	have an x-lock on dict_operation_lock and dict_sys->mutex.
 	The tablespace is initially opened as a temporary one, because
 	we will not be writing any redo log for it before we have invoked
-	fil_space_set_imported() to declare it a persistent tablespace. */
+	fil_space_t::set_imported() to declare it a persistent tablespace. */
 
 	ulint	fsp_flags = dict_tf_to_fsp_flags(table->flags);
 
-	err = fil_ibd_open(
-		true, true, FIL_TYPE_IMPORT, table->space,
-		fsp_flags, table->name.m_name, filepath);
+	table->space = fil_ibd_open(
+		true, true, FIL_TYPE_IMPORT, table->space_id,
+		fsp_flags, table->name, filepath, &err);
 
+	ut_ad(!table->space == (err != DB_SUCCESS));
 	DBUG_EXECUTE_IF("ib_import_open_tablespace_failure",
-			err = DB_TABLESPACE_NOT_FOUND;);
+			err = DB_TABLESPACE_NOT_FOUND; table->space = NULL;);
 
-	if (err != DB_SUCCESS) {
+	if (!table->space) {
 		row_mysql_unlock_data_dictionary(trx);
 
 		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
@@ -4048,7 +4024,7 @@ row_import_for_mysql(
 
 	{
 		FlushObserver observer(prebuilt->table->space, trx, NULL);
-		buf_LRU_flush_or_remove_pages(prebuilt->table->space,
+		buf_LRU_flush_or_remove_pages(prebuilt->table->space_id,
 					      &observer);
 
 		if (observer.is_interrupted()) {
@@ -4059,7 +4035,7 @@ row_import_for_mysql(
 	}
 
 	ib::info() << "Phase IV - Flush complete";
-	fil_space_set_imported(prebuilt->table->space);
+	prebuilt->table->space->set_imported();
 
 	/* The dictionary latches will be released in in row_import_cleanup()
 	after the transaction commit, for both success and error. */
@@ -4073,8 +4049,7 @@ row_import_for_mysql(
 		return(row_import_error(prebuilt, trx, err));
 	}
 
-	/* Update the table's discarded flag, unset it. */
-	err = row_import_update_discarded_flag(trx, table->id, false, true);
+	err = row_import_update_discarded_flag(trx, table->id, false);
 
 	if (err != DB_SUCCESS) {
 		return(row_import_error(prebuilt, trx, err));

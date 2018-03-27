@@ -179,10 +179,11 @@ dict_hdr_create(
 	ulint		root_page_no;
 
 	ut_ad(mtr);
+	compile_time_assert(DICT_HDR_SPACE == 0);
 
 	/* Create the dictionary header file block in a new, allocated file
 	segment in the system tablespace */
-	block = fseg_create(DICT_HDR_SPACE, 0,
+	block = fseg_create(fil_system.sys_space, 0,
 			    DICT_HDR + DICT_HDR_FSEG_HEADER, mtr);
 
 	ut_a(DICT_HDR_PAGE_NO == block->page.id.page_no());
@@ -211,8 +212,8 @@ dict_hdr_create(
 	system tables */
 
 	/*--------------------------*/
-	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE, DICT_HDR_SPACE,
-				  univ_page_size, DICT_TABLES_ID,
+	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
+				  fil_system.sys_space, DICT_TABLES_ID,
 				  dict_ind_redundant, NULL, mtr);
 	if (root_page_no == FIL_NULL) {
 
@@ -222,8 +223,8 @@ dict_hdr_create(
 	mlog_write_ulint(dict_header + DICT_HDR_TABLES, root_page_no,
 			 MLOG_4BYTES, mtr);
 	/*--------------------------*/
-	root_page_no = btr_create(DICT_UNIQUE, DICT_HDR_SPACE,
-				  univ_page_size, DICT_TABLE_IDS_ID,
+	root_page_no = btr_create(DICT_UNIQUE,
+				  fil_system.sys_space, DICT_TABLE_IDS_ID,
 				  dict_ind_redundant, NULL, mtr);
 	if (root_page_no == FIL_NULL) {
 
@@ -233,8 +234,8 @@ dict_hdr_create(
 	mlog_write_ulint(dict_header + DICT_HDR_TABLE_IDS, root_page_no,
 			 MLOG_4BYTES, mtr);
 	/*--------------------------*/
-	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE, DICT_HDR_SPACE,
-				  univ_page_size, DICT_COLUMNS_ID,
+	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
+				  fil_system.sys_space, DICT_COLUMNS_ID,
 				  dict_ind_redundant, NULL, mtr);
 	if (root_page_no == FIL_NULL) {
 
@@ -244,8 +245,8 @@ dict_hdr_create(
 	mlog_write_ulint(dict_header + DICT_HDR_COLUMNS, root_page_no,
 			 MLOG_4BYTES, mtr);
 	/*--------------------------*/
-	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE, DICT_HDR_SPACE,
-				  univ_page_size, DICT_INDEXES_ID,
+	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
+				  fil_system.sys_space, DICT_INDEXES_ID,
 				  dict_ind_redundant, NULL, mtr);
 	if (root_page_no == FIL_NULL) {
 
@@ -255,8 +256,8 @@ dict_hdr_create(
 	mlog_write_ulint(dict_header + DICT_HDR_INDEXES, root_page_no,
 			 MLOG_4BYTES, mtr);
 	/*--------------------------*/
-	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE, DICT_HDR_SPACE,
-				  univ_page_size, DICT_FIELDS_ID,
+	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
+				  fil_system.sys_space, DICT_FIELDS_ID,
 				  dict_ind_redundant, NULL, mtr);
 	if (root_page_no == FIL_NULL) {
 
@@ -331,7 +332,8 @@ dict_boot(void)
 	/* Insert into the dictionary cache the descriptions of the basic
 	system tables */
 	/*-------------------------*/
-	table = dict_mem_table_create("SYS_TABLES", DICT_HDR_SPACE, 8, 0, 0, 0);
+	table = dict_mem_table_create("SYS_TABLES", fil_system.sys_space,
+				      8, 0, 0, 0);
 
 	dict_mem_table_add_col(table, heap, "NAME", DATA_BINARY, 0,
 			       MAX_FULL_NAME_LEN);
@@ -378,7 +380,7 @@ dict_boot(void)
 	ut_a(index);
 
 	/*-------------------------*/
-	table = dict_mem_table_create("SYS_COLUMNS", DICT_HDR_SPACE,
+	table = dict_mem_table_create("SYS_COLUMNS", fil_system.sys_space,
 				      7, 0, 0, 0);
 
 	dict_mem_table_add_col(table, heap, "TABLE_ID", DATA_BINARY, 0, 8);
@@ -411,7 +413,7 @@ dict_boot(void)
 		table->indexes.start->n_nullable);
 
 	/*-------------------------*/
-	table = dict_mem_table_create("SYS_INDEXES", DICT_HDR_SPACE,
+	table = dict_mem_table_create("SYS_INDEXES", fil_system.sys_space,
 				      DICT_NUM_COLS__SYS_INDEXES, 0, 0, 0);
 
 	dict_mem_table_add_col(table, heap, "TABLE_ID", DATA_BINARY, 0, 8);
@@ -454,7 +456,8 @@ dict_boot(void)
 		table->indexes.start->n_nullable);
 
 	/*-------------------------*/
-	table = dict_mem_table_create("SYS_FIELDS", DICT_HDR_SPACE, 3, 0, 0, 0);
+	table = dict_mem_table_create("SYS_FIELDS", fil_system.sys_space,
+				      3, 0, 0, 0);
 
 	dict_mem_table_add_col(table, heap, "INDEX_ID", DATA_BINARY, 0, 8);
 	dict_mem_table_add_col(table, heap, "POS", DATA_INT, 0, 4);
