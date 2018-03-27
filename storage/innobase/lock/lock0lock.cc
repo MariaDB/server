@@ -1720,7 +1720,7 @@ lock_rec_enqueue_waiting(
 	trx_t* trx = thr_get_trx(thr);
 
 	if (trx->mysql_thd && thd_lock_wait_timeout(trx->mysql_thd) == 0) {
-		//trx->error_state = DB_LOCK_WAIT_TIMEOUT;
+		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
 		return DB_LOCK_WAIT_TIMEOUT;
 	}
 
@@ -3119,19 +3119,15 @@ lock_update_merge_right(
 	lock_rec_reset_and_release_wait_low(
 		lock_sys.rec_hash, left_block, PAGE_HEAP_NO_SUPREMUM);
 
-#ifdef UNIV_DEBUG
 	/* there should exist no page lock on the left page,
 	otherwise, it will be blocked from merge */
-	ulint   space = left_block->page.id.space();
-	ulint   page_no = left_block->page.id.page_no();
-	ut_ad(lock_rec_get_first_on_page_addr(
-                lock_sys.prdt_page_hash, space, page_no) == NULL);
-#endif /* UNIV_DEBUG */
+	ut_ad(!lock_rec_get_first_on_page_addr(lock_sys.prdt_page_hash,
+					       left_block->page.id.space(),
+					       left_block->page.id.page_no()));
 
 	lock_rec_free_all_from_discard_page(left_block);
 
 	lock_mutex_exit();
-
 }
 
 /*************************************************************//**
@@ -3244,15 +3240,12 @@ lock_update_merge_left(
 	lock_rec_move(left_block, right_block,
 		      PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM);
 
-#ifdef UNIV_DEBUG
 	/* there should exist no page lock on the right page,
 	otherwise, it will be blocked from merge */
-	ulint	space = right_block->page.id.space();
-	ulint	page_no = right_block->page.id.page_no();
-	lock_t*	lock_test = lock_rec_get_first_on_page_addr(
-		lock_sys.prdt_page_hash, space, page_no);
-	ut_ad(!lock_test);
-#endif /* UNIV_DEBUG */
+	ut_ad(!lock_rec_get_first_on_page_addr(
+		      lock_sys.prdt_page_hash,
+		      right_block->page.id.space(),
+		      right_block->page.id.page_no()));
 
 	lock_rec_free_all_from_discard_page(right_block);
 

@@ -205,7 +205,7 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid)
 		if (rseg_id == 0) {
 			found = trx_rseg_init_wsrep_xid(sys->frame, xid);
 			ut_ad(!found || xid.formatID == 1);
-                        if (found) {
+			if (found) {
 				max_xid_seqno = wsrep_xid_seqno(&xid);
 				memcpy(wsrep_uuid, wsrep_xid_uuid(&xid),
 				       sizeof wsrep_uuid);

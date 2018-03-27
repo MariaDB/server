@@ -8033,29 +8033,20 @@ ha_innobase::write_row(
 	DBUG_ENTER("ha_innobase::write_row");
 
 	trx_t*		trx = thd_to_trx(m_user_thd);
-	ins_mode_t	vers_set_fields;
 
 	/* Validation checks before we commence write_row operation. */
 	if (high_level_read_only) {
 		ib_senderrf(ha_thd(), IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
-	} else if (m_prebuilt->trx != trx) {
+	}
 
-		ib::error() << "The transaction object for the table handle is"
-			" at " << static_cast<const void*>(m_prebuilt->trx)
-			<< ", but for the current thread it is at "
-			<< static_cast<const void*>(trx);
+	ut_a(m_prebuilt->trx == trx);
 
-		fputs("InnoDB: Dump of 200 bytes around m_prebuilt: ", stderr);
-		ut_print_buf(stderr, ((const byte*) m_prebuilt) - 100, 200);
-		fputs("\nInnoDB: Dump of 200 bytes around ha_data: ", stderr);
-		ut_print_buf(stderr, ((const byte*) trx) - 100, 200);
-		putc('\n', stderr);
-		ut_error;
-	} else if (!trx_is_started(trx)) {
+	if (!trx_is_started(trx)) {
 		++trx->will_lock;
 	}
 
+	ins_mode_t	vers_set_fields;
 	/* Handling of Auto-Increment Columns. */
 	if (table->next_number_field && record == table->record[0]) {
 
