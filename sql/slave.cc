@@ -5563,6 +5563,9 @@ pthread_handler_t handle_slave_sql(void *arg)
     sql_print_information("Slave SQL thread exiting, replication stopped in "
                           "log '%s' at position %llu%s", RPL_LOG_NAME,
                           rli->group_master_log_pos, tmp.c_ptr_safe());
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    WSREP_DEBUG("SQL thread %lu exec %d query state %d", thd->thread_id, thd->wsrep_exec_mode , thd->wsrep_query_state());
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
   }
 
  err_before_start:
@@ -5690,6 +5693,10 @@ err_during_init:
        wsrep_restart_slave_activated= TRUE;
      }
    }
+  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  thd->set_wsrep_query_state(QUERY_EXITING);
+  if (WSREP(thd)) wsrep->free_connection(wsrep, thd->thread_id);
+  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 #endif /* WITH_WSREP */
 
  /*
