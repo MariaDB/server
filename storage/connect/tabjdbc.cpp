@@ -572,7 +572,7 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 
 		if (Memory < 3) {
 			// Method will depend on cursor type
-			if ((Rbuf = Jcp->Rewind(Query->GetStr())) < 0)
+			if ((Rbuf = Query ? Jcp->Rewind(Query->GetStr()) : 0) < 0)
 				if (Mode != MODE_READX) {
 					Jcp->Close();
 				  return true;
