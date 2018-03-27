@@ -1094,9 +1094,11 @@ bool do_command(THD *thd)
       Bail out if DB snapshot has not been installed.
     */
     if (!thd->wsrep_applier &&
-      (!wsrep_ready || wsrep_reject_queries != WSREP_REJECT_NONE) &&
-      (server_command_flags[command] & CF_SKIP_WSREP_CHECK) == 0)
+        (!wsrep_ready || wsrep_reject_queries != WSREP_REJECT_NONE) &&
+        (server_command_flags[command] & CF_SKIP_WSREP_CHECK) == 0)
     {
+      my_message(ER_UNKNOWN_COM_ERROR,
+                 "WSREP has not yet prepared node for application use", MYF(0));
       thd->protocol->end_statement();
 
       /* Performance Schema Interface instrumentation end. */
