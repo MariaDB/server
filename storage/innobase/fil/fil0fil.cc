@@ -3514,7 +3514,8 @@ fil_ibd_open(
 		mutex_exit(&fil_system.mutex);
 
 		if (err == DB_SUCCESS && validate && !srv_read_only_mode) {
-			fsp_flags_try_adjust(id, flags & ~FSP_FLAGS_MEM_MASK);
+			fsp_flags_try_adjust(space,
+					     flags & ~FSP_FLAGS_MEM_MASK);
 		}
 
 		return err;
@@ -3816,7 +3817,8 @@ skip_validate:
 			df_remote.close();
 			df_dict.close();
 			df_default.close();
-			fsp_flags_try_adjust(id, flags & ~FSP_FLAGS_MEM_MASK);
+			fsp_flags_try_adjust(space,
+					     flags & ~FSP_FLAGS_MEM_MASK);
 		}
 	}
 
@@ -4218,28 +4220,22 @@ fil_report_missing_tablespace(
 
 /** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.
 (Typically when upgrading from MariaDB 10.1.0..10.1.20.)
-@param[in]	space_id	tablespace ID
+@param[in,out]	space		tablespace
 @param[in]	flags		desired tablespace flags */
-UNIV_INTERN
-void
-fsp_flags_try_adjust(ulint space_id, ulint flags)
+void fsp_flags_try_adjust(fil_space_t* space, ulint flags)
 {
 	ut_ad(!srv_read_only_mode);
-	ut_ad(fsp_flags_is_valid(flags, space_id));
-	mutex_enter(&fil_system.mutex);
-	fil_space_t* space = fil_space_get_space(space_id);
-	if (!space || !space->size) {
-		mutex_exit(&fil_system.mutex);
+	ut_ad(fsp_flags_is_valid(flags, space->id));
+	if (!space->size) {
 		return;
 	}
 	/* This code is executed during server startup while no
 	connections are allowed. We do not need to protect against
 	DROP TABLE by fil_space_acquire(). */
-	mutex_exit(&fil_system.mutex);
 	mtr_t	mtr;
 	mtr.start();
 	if (buf_block_t* b = buf_page_get(
-		    page_id_t(space_id, 0), page_size_t(flags),
+		    page_id_t(space->id, 0), page_size_t(flags),
 		    RW_X_LATCH, &mtr)) {
 		ulint f = fsp_header_get_flags(b->frame);
 		/* Suppress the message if only the DATA_DIR flag to differs. */
@@ -4330,7 +4326,8 @@ func_exit:
 	mutex_exit(&fil_system.mutex);
 
 	if (valid && !srv_read_only_mode) {
-		fsp_flags_try_adjust(id, expected_flags & ~FSP_FLAGS_MEM_MASK);
+		fsp_flags_try_adjust(space,
+				     expected_flags & ~FSP_FLAGS_MEM_MASK);
 	}
 
 	return(valid);

@@ -1037,11 +1037,9 @@ fil_ibd_create(
 
 /** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.
 (Typically when upgrading from MariaDB 10.1.0..10.1.20.)
-@param[in]	space_id	tablespace ID
+@param[in,out]	space		tablespace
 @param[in]	flags		desired tablespace flags */
-UNIV_INTERN
-void
-fsp_flags_try_adjust(ulint space_id, ulint flags);
+void fsp_flags_try_adjust(fil_space_t* space, ulint flags);
 
 /********************************************************************//**
 Tries to open a single-table tablespace and optionally checks the space id is

@@ -2240,8 +2240,8 @@ files_checked:
 		if (!srv_read_only_mode) {
 			const ulint flags = FSP_FLAGS_PAGE_SSIZE();
 			for (ulint id = 0; id <= srv_undo_tablespaces; id++) {
-				if (fil_space_get(id)) {
-					fsp_flags_try_adjust(id, flags);
+				if (fil_space_t* space = fil_space_get(id)) {
+					fsp_flags_try_adjust(space, flags);
 				}
 			}
 
