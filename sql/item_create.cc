@@ -2218,6 +2218,19 @@ protected:
 };
 
 
+class Create_func_ltrim_oracle : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_ltrim_oracle s_singleton;
+
+protected:
+  Create_func_ltrim_oracle() {}
+  virtual ~Create_func_ltrim_oracle() {}
+};
+
+
 class Create_func_makedate : public Create_func_arg2
 {
 public:
@@ -2655,6 +2668,19 @@ public:
 protected:
   Create_func_rtrim() {}
   virtual ~Create_func_rtrim() {}
+};
+
+
+class Create_func_rtrim_oracle : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_rtrim_oracle s_singleton;
+
+protected:
+  Create_func_rtrim_oracle() {}
+  virtual ~Create_func_rtrim_oracle() {}
 };
 
 
@@ -5821,7 +5847,16 @@ Create_func_ltrim Create_func_ltrim::s_singleton;
 Item*
 Create_func_ltrim::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_ltrim(thd, arg1);
+  return Lex_trim(TRIM_LEADING, arg1).make_item_func_trim(thd);
+}
+
+
+Create_func_ltrim_oracle Create_func_ltrim_oracle::s_singleton;
+
+Item*
+Create_func_ltrim_oracle::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_ltrim_oracle(thd, arg1);
 }
 
 
@@ -6318,7 +6353,16 @@ Create_func_rtrim Create_func_rtrim::s_singleton;
 Item*
 Create_func_rtrim::create_1_arg(THD *thd, Item *arg1)
 {
-  return new (thd->mem_root) Item_func_rtrim(thd, arg1);
+  return Lex_trim(TRIM_TRAILING, arg1).make_item_func_trim(thd);
+}
+
+
+Create_func_rtrim_oracle Create_func_rtrim_oracle::s_singleton;
+
+Item*
+Create_func_rtrim_oracle::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_rtrim_oracle(thd, arg1);
 }
 
 
@@ -6978,6 +7022,7 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("LOWER") }, BUILDER(Create_func_lcase)},
   { { STRING_WITH_LEN("LPAD") }, BUILDER(Create_func_lpad)},
   { { STRING_WITH_LEN("LTRIM") }, BUILDER(Create_func_ltrim)},
+  { { STRING_WITH_LEN("LTRIM_ORACLE") }, BUILDER(Create_func_ltrim_oracle)},
   { { STRING_WITH_LEN("MAKEDATE") }, BUILDER(Create_func_makedate)},
   { { STRING_WITH_LEN("MAKETIME") }, BUILDER(Create_func_maketime)},
   { { STRING_WITH_LEN("MAKE_SET") }, BUILDER(Create_func_make_set)},
@@ -7042,6 +7087,7 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("ROUND") }, BUILDER(Create_func_round)},
   { { STRING_WITH_LEN("RPAD") }, BUILDER(Create_func_rpad)},
   { { STRING_WITH_LEN("RTRIM") }, BUILDER(Create_func_rtrim)},
+  { { STRING_WITH_LEN("RTRIM_ORACLE") }, BUILDER(Create_func_rtrim_oracle)},
   { { STRING_WITH_LEN("SEC_TO_TIME") }, BUILDER(Create_func_sec_to_time)},
   { { STRING_WITH_LEN("SHA") }, BUILDER(Create_func_sha)},
   { { STRING_WITH_LEN("SHA1") }, BUILDER(Create_func_sha)},

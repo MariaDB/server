@@ -180,6 +180,7 @@ void ORAerror(THD *thd, const char *s)
   Lex_dyncol_type_st Lex_dyncol_type;
   Lex_for_loop_st for_loop;
   Lex_for_loop_bounds_st for_loop_bounds;
+  Lex_trim_st trim;
   struct
   {
     LEX_CSTRING name;
@@ -945,6 +946,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  TRIGGERS_SYM
 %token  TRIGGER_SYM                   /* SQL-2003-R */
 %token  TRIM                          /* SQL-2003-N */
+%token  TRIM_ORACLE
 %token  TRUE_SYM                      /* SQL-2003-R */
 %token  TRUNCATE_SYM
 %token  TYPES_SYM
@@ -1405,6 +1407,7 @@ END_OF_INPUT
 %type <spvar> sp_param_name sp_param_name_and_type
 %type <for_loop> sp_for_loop_index_and_bounds
 %type <for_loop_bounds> sp_for_loop_bounds
+%type <trim> trim_operands
 %type <num> opt_sp_for_loop_direction
 %type <spvar_mode> sp_opt_inout
 %type <index_hint> index_hint_type
@@ -9675,6 +9678,17 @@ explicit_cursor_attr:
           }
         ;
 
+trim_operands:
+          expr                     { $$.set(TRIM_BOTH, $1);         }
+        | LEADING  expr FROM expr  { $$.set(TRIM_LEADING, $2, $4);  }
+        | TRAILING expr FROM expr  { $$.set(TRIM_TRAILING, $2, $4); }
+        | BOTH     expr FROM expr  { $$.set(TRIM_BOTH, $2, $4);     }
+        | LEADING       FROM expr  { $$.set(TRIM_LEADING, $3);      }
+        | TRAILING      FROM expr  { $$.set(TRIM_TRAILING, $3);     }
+        | BOTH          FROM expr  { $$.set(TRIM_BOTH, $3);         }
+        | expr          FROM expr  { $$.set(TRIM_BOTH, $1, $3);     }
+        ;
+
 /*
   Expressions that the parser allows in a column DEFAULT clause
   without parentheses. These expressions cannot end with a COLLATE clause.
@@ -10040,52 +10054,9 @@ function_call_keyword:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | TRIM '(' expr ')'
+        | TRIM '(' trim_operands ')'
           {
-            $$= new (thd->mem_root) Item_func_trim(thd, $3);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | TRIM '(' LEADING expr FROM expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_ltrim(thd, $6, $4);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | TRIM '(' TRAILING expr FROM expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_rtrim(thd, $6, $4);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | TRIM '(' BOTH expr FROM expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_trim(thd, $6, $4);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | TRIM '(' LEADING FROM expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_ltrim(thd, $5);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | TRIM '(' TRAILING FROM expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_rtrim(thd, $5);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | TRIM '(' BOTH FROM expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_trim(thd, $5);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | TRIM '(' expr FROM expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_trim(thd, $5, $3);
-            if ($$ == NULL)
+            if (!($$= $3.make_item_func_trim(thd)))
               MYSQL_YYABORT;
           }
         | USER_SYM '(' ')'
@@ -10244,6 +10215,11 @@ function_call_nonkeyword:
           {
             $$= new (thd->mem_root) Item_func_timestamp_diff(thd, $5, $7, $3);
             if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | TRIM_ORACLE '(' trim_operands ')'
+          {
+            if (!($$= $3.make_item_func_trim_oracle(thd)))
               MYSQL_YYABORT;
           }
         | UTC_DATE_SYM optional_braces
@@ -15572,6 +15548,7 @@ keyword_sp_not_data_type:
         | TRANSACTION_SYM          {}
         | TRANSACTIONAL_SYM        {}
         | TRIGGERS_SYM             {}
+        | TRIM_ORACLE              {}
         | TIMESTAMP_ADD            {}
         | TIMESTAMP_DIFF           {}
         | TYPES_SYM                {}

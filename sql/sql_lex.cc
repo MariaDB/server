@@ -7702,3 +7702,64 @@ bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING 
   return false;
 }
 
+
+Item *Lex_trim_st::make_item_func_trim_std(THD *thd) const
+{
+  if (m_remove)
+  {
+    switch (m_spec) {
+    case TRIM_BOTH:
+      return new (thd->mem_root) Item_func_trim(thd, m_source, m_remove);
+    case TRIM_LEADING:
+      return new (thd->mem_root) Item_func_ltrim(thd, m_source, m_remove);
+    case TRIM_TRAILING:
+     return new (thd->mem_root) Item_func_rtrim(thd, m_source, m_remove);
+    }
+  }
+
+  switch (m_spec) {
+  case TRIM_BOTH:
+    return new (thd->mem_root) Item_func_trim(thd, m_source);
+  case TRIM_LEADING:
+    return new (thd->mem_root) Item_func_ltrim(thd, m_source);
+  case TRIM_TRAILING:
+   return new (thd->mem_root) Item_func_rtrim(thd, m_source);
+  }
+  DBUG_ASSERT(0);
+  return NULL;
+}
+
+
+Item *Lex_trim_st::make_item_func_trim_oracle(THD *thd) const
+{
+  if (m_remove)
+  {
+    switch (m_spec) {
+    case TRIM_BOTH:
+      return new (thd->mem_root) Item_func_trim_oracle(thd, m_source, m_remove);
+    case TRIM_LEADING:
+      return new (thd->mem_root) Item_func_ltrim_oracle(thd, m_source, m_remove);
+    case TRIM_TRAILING:
+     return new (thd->mem_root) Item_func_rtrim_oracle(thd, m_source, m_remove);
+    }
+  }
+
+  switch (m_spec) {
+  case TRIM_BOTH:
+    return new (thd->mem_root) Item_func_trim_oracle(thd, m_source);
+  case TRIM_LEADING:
+    return new (thd->mem_root) Item_func_ltrim_oracle(thd, m_source);
+  case TRIM_TRAILING:
+   return new (thd->mem_root) Item_func_rtrim_oracle(thd, m_source);
+  }
+  DBUG_ASSERT(0);
+  return NULL;
+}
+
+
+Item *Lex_trim_st::make_item_func_trim(THD *thd) const
+{
+  return (thd->variables.sql_mode & MODE_ORACLE) ?
+         make_item_func_trim_oracle(thd) :
+         make_item_func_trim_std(thd);
+}
