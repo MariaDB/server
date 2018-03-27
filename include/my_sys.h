@@ -940,6 +940,13 @@ extern int my_getncpus(void);
 typedef struct {ulonglong val;} my_hrtime_t;
 void my_time_init(void);
 extern my_hrtime_t my_hrtime(void);
+
+#ifdef _WIN32
+extern my_hrtime_t my_hrtime_coarse();
+#else
+#define my_hrtime_coarse() my_hrtime()
+#endif
+
 extern ulonglong my_interval_timer(void);
 extern ulonglong my_getcputime(void);
 
@@ -948,7 +955,7 @@ extern ulonglong my_getcputime(void);
 #define hrtime_from_time(X)             ((ulonglong)((X)*HRTIME_RESOLUTION))
 #define hrtime_to_double(X)             ((X).val/(double)HRTIME_RESOLUTION)
 #define hrtime_sec_part(X)              ((ulong)((X).val % HRTIME_RESOLUTION))
-#define my_time(X)                      hrtime_to_time(my_hrtime())
+#define my_time(X)                      hrtime_to_time(my_hrtime_coarse())
 
 #if STACK_DIRECTION < 0
 #define available_stack_size(CUR,END) (long) ((char*)(CUR) - (char*)(END))

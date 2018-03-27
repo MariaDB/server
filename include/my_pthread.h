@@ -307,7 +307,7 @@ int my_pthread_mutex_trylock(pthread_mutex_t *mutex);
 
 #ifndef set_timespec_nsec
 #define set_timespec_nsec(ABSTIME,NSEC)                                 \
-  set_timespec_time_nsec((ABSTIME), my_hrtime().val*1000 + (NSEC))
+  set_timespec_time_nsec((ABSTIME), my_hrtime_coarse().val*1000 + (NSEC))
 #endif /* !set_timespec_nsec */
 
 /* adapt for two different flavors of struct timespec */
