@@ -1719,11 +1719,6 @@ lock_rec_enqueue_waiting(
 
 	trx_t* trx = thr_get_trx(thr);
 
-	if (trx->mysql_thd && thd_lock_wait_timeout(trx->mysql_thd) == 0) {
-		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
-		return DB_LOCK_WAIT_TIMEOUT;
-	}
-
 	ut_ad(trx_mutex_own(trx));
 	ut_a(!que_thr_stop(thr));
 
@@ -1739,6 +1734,11 @@ lock_rec_enqueue_waiting(
 			<< index->table->name
 			<< ". " << BUG_REPORT_MSG;
 		ut_ad(0);
+	}
+
+	if (trx->mysql_thd && thd_lock_wait_timeout(trx->mysql_thd) == 0) {
+		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
+		return DB_LOCK_WAIT_TIMEOUT;
 	}
 
 	/* Enqueue the lock request that will wait to be granted, note that
