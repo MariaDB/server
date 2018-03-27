@@ -35,13 +35,13 @@ SELECT * FROM t3;
 SELECT * FROM t4;
 
 --connection node_3
-SHOW TABLES;
-
 --let $wait_condition = SELECT COUNT(*) = 2 FROM t1;
 --source include/wait_condition.inc
 
 --let $wait_condition = SELECT COUNT(*) = 3 FROM t4;
 --source include/wait_condition.inc
+
+SHOW TABLES;
 
 SELECT * FROM t1;
 SELECT * FROM t4;
@@ -63,3 +63,5 @@ RESET SLAVE ALL;
 
 CALL mtr.add_suppression('You need to use --log-bin to make --binlog-format work');
 
+--connection node_1
+RESET MASTER;
