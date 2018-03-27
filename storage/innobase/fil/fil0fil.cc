@@ -323,28 +323,6 @@ fil_space_get_by_id(
 }
 
 /** Look up a tablespace.
-@param[in]	name	tablespace name
-@return	tablespace
-@retval	NULL	if not found */
-fil_space_t*
-fil_space_get_by_name(const char* name)
-{
-	fil_space_t*	space;
-	ulint		fold;
-
-	ut_ad(mutex_own(&fil_system.mutex));
-
-	fold = ut_fold_string(name);
-
-	HASH_SEARCH(name_hash, fil_system.name_hash, fold,
-		    fil_space_t*, space,
-		    ut_ad(space->magic_n == FIL_SPACE_MAGIC_N),
-		    !strcmp(name, space->name));
-
-	return(space);
-}
-
-/** Look up a tablespace.
 The caller should hold an InnoDB table lock or a MDL that prevents
 the tablespace from being dropped during the operation,
 or the caller should be in single-threaded crash recovery mode
@@ -1318,13 +1296,6 @@ fil_space_detach(
 
 	HASH_DELETE(fil_space_t, hash, fil_system.spaces, space->id, space);
 
-	fil_space_t*	fnamespace = fil_space_get_by_name(space->name);
-
-	ut_a(space == fnamespace);
-
-	HASH_DELETE(fil_space_t, name_hash, fil_system.name_hash,
-		    ut_fold_string(space->name), space);
-
 	if (space->is_in_unflushed_spaces) {
 
 		ut_ad(!fil_buffering_disabled(space));
@@ -1476,18 +1447,6 @@ fil_space_create(
 
 	mutex_enter(&fil_system.mutex);
 
-	/* Look for a matching tablespace. */
-	space = fil_space_get_by_name(name);
-
-	if (space != NULL) {
-		mutex_exit(&fil_system.mutex);
-
-		ib::warn() << "Tablespace '" << name << "' exists in the"
-			" cache with id " << space->id << " != " << id;
-
-		return(NULL);
-	}
-
 	space = fil_space_get_by_id(id);
 
 	if (space != NULL) {
@@ -1552,9 +1511,6 @@ fil_space_create(
 	}
 
 	HASH_INSERT(fil_space_t, hash, fil_system.spaces, id, space);
-
-	HASH_INSERT(fil_space_t, name_hash, fil_system.name_hash,
-		    ut_fold_string(name), space);
 
 	UT_LIST_ADD_LAST(fil_system.space_list, space);
 
@@ -1889,7 +1845,6 @@ void fil_system_t::create(ulint hash_size)
 	ut_ad(!(srv_page_size % FSP_EXTENT_SIZE));
 	ut_ad(srv_page_size);
 	ut_ad(!spaces);
-	ut_ad(!name_hash);
 
 	m_initialised = true;
 
@@ -1901,7 +1856,6 @@ void fil_system_t::create(ulint hash_size)
 	mutex_create(LATCH_ID_FIL_SYSTEM, &mutex);
 
 	spaces = hash_create(hash_size);
-	name_hash = hash_create(hash_size);
 
 	fil_space_crypt_init();
 }
@@ -1918,15 +1872,12 @@ void fil_system_t::close()
 	if (is_initialised()) {
 		m_initialised = false;
 		hash_table_free(spaces);
-		hash_table_free(name_hash);
 		spaces = NULL;
-		name_hash = NULL;
 		mutex_free(&mutex);
 		fil_space_crypt_cleanup();
 	}
 
 	ut_ad(!spaces);
-	ut_ad(!name_hash);
 }
 
 /*******************************************************************//**
@@ -3197,19 +3148,6 @@ func_exit:
 		space->stop_ios = false;
 		goto func_exit;
 	}
-	if (space != fil_space_get_by_name(space->name)) {
-		ib::error() << "Cannot find " << space->name
-			<< " in tablespace memory cache";
-		space->stop_ios = false;
-		goto func_exit;
-	}
-
-	if (fil_space_get_by_name(new_name)) {
-		ib::error() << new_name
-			<< " is already in tablespace memory cache";
-		space->stop_ios = false;
-		goto func_exit;
-	}
 
 	/* We temporarily close the .ibd file because we do not trust that
 	operating systems can rename an open file. For the closing we have to
@@ -3257,8 +3195,6 @@ func_exit:
 	char*	old_file_name = node->name;
 	char*	new_space_name = mem_strdup(new_name);
 	char*	old_space_name = space->name;
-	ulint	old_fold = ut_fold_string(old_space_name);
-	ulint	new_fold = ut_fold_string(new_space_name);
 
 	ut_ad(strchr(old_file_name, OS_PATH_SEPARATOR) != NULL);
 	ut_ad(strchr(new_file_name, OS_PATH_SEPARATOR) != NULL);
@@ -3272,9 +3208,6 @@ func_exit:
 	ut_ad(log_mutex_own());
 	mutex_enter(&fil_system.mutex);
 	ut_ad(space->name == old_space_name);
-	/* We already checked these. */
-	ut_ad(space == fil_space_get_by_name(old_space_name));
-	ut_ad(!fil_space_get_by_name(new_space_name));
 	ut_ad(node->name == old_file_name);
 
 	bool	success;
@@ -3300,11 +3233,7 @@ func_exit:
 
 	ut_ad(space->name == old_space_name);
 	if (success) {
-		HASH_DELETE(fil_space_t, name_hash, fil_system.name_hash,
-			    old_fold, space);
 		space->name = new_space_name;
-		HASH_INSERT(fil_space_t, name_hash, fil_system.name_hash,
-			    new_fold, space);
 	} else {
 		/* Because nothing was renamed, we must free the new
 		names, not the old ones. */
@@ -3570,6 +3499,28 @@ fil_ibd_open(
 	const char*	path_in)
 {
 	dberr_t		err = DB_SUCCESS;
+
+	mutex_enter(&fil_system.mutex);
+	if (fil_space_t* space = fil_space_get_by_id(id)) {
+		if (strcmp(space->name, space_name)) {
+			ib::error()
+				<< "Trying to open tablespace '" << space_name
+				<< "' with id " << id
+				<< " while tablespace '"
+				<< space->name << "' exists!";
+			err = DB_TABLESPACE_EXISTS;
+		}
+
+		mutex_exit(&fil_system.mutex);
+
+		if (err == DB_SUCCESS && validate && !srv_read_only_mode) {
+			fsp_flags_try_adjust(id, flags & ~FSP_FLAGS_MEM_MASK);
+		}
+
+		return err;
+	}
+	mutex_exit(&fil_system.mutex);
+
 	bool		dict_filepath_same_as_default = false;
 	bool		link_file_found = false;
 	bool		link_file_is_bad = false;
@@ -4328,7 +4279,6 @@ fil_space_for_table_exists_in_mem(
 	mem_heap_t*	heap,
 	ulint		table_flags)
 {
-	fil_space_t*	fnamespace;
 	fil_space_t*	space;
 
 	const ulint	expected_flags = dict_tf_to_fsp_flags(table_flags);
@@ -4339,16 +4289,12 @@ fil_space_for_table_exists_in_mem(
 
 	space = fil_space_get_by_id(id);
 
-	/* Look if there is a space with the same name; the name is the
-	directory path from the datadir to the file */
-
-	fnamespace = fil_space_get_by_name(name);
 	bool valid = space && !((space->flags ^ expected_flags)
 				& ~FSP_FLAGS_MEM_MASK);
 
 	if (!space) {
-	} else if (!valid || space == fnamespace) {
-		/* Found with the same file name, or got a flag mismatch. */
+	} else if (!valid) {
+		/* Flag mismatch. */
 		goto func_exit;
 	}
 
@@ -4358,18 +4304,8 @@ fil_space_for_table_exists_in_mem(
 	}
 
 	if (space == NULL) {
-		if (fnamespace == NULL) {
-			if (print_error_if_does_not_exist) {
-				fil_report_missing_tablespace(name, id);
-			}
-		} else {
-			ib::error() << "Table " << name << " in InnoDB data"
-				" dictionary has tablespace id " << id
-				<< ", but a tablespace with that id does not"
-				" exist. There is a tablespace of name "
-				<< fnamespace->name << " and id "
-				<< fnamespace->id << ", though. Have you"
-				" deleted or moved .ibd files?";
+		if (print_error_if_does_not_exist) {
+			fil_report_missing_tablespace(name, id);
 		}
 error_exit:
 		ib::info() << TROUBLESHOOT_DATADICT_MSG;
@@ -4378,18 +4314,10 @@ error_exit:
 	}
 
 	if (0 != strcmp(space->name, name)) {
-
 		ib::error() << "Table " << name << " in InnoDB data dictionary"
 			" has tablespace id " << id << ", but the tablespace"
 			" with that id has name " << space->name << "."
 			" Have you deleted or moved .ibd files?";
-
-		if (fnamespace != NULL) {
-			ib::error() << "There is a tablespace with the right"
-				" name: " << fnamespace->name << ", but its id"
-				" is " << fnamespace->id << ".";
-		}
-
 		goto error_exit;
 	}
 

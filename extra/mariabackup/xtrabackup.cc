@@ -4212,6 +4212,16 @@ xb_space_create_file(
 	return TRUE;
 }
 
+static fil_space_t* fil_space_get_by_name(const char* name)
+{
+	ut_ad(mutex_own(&fil_system.mutex));
+	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
+	     space != NULL;
+	     space = UT_LIST_GET_NEXT(space_list, space))
+		if (!strcmp(space->name, name)) return space;
+	return NULL;
+}
+
 /***********************************************************************
 Searches for matching tablespace file for given .delta file and space_id
 in given directory. When matching tablespace found, renames it to match the

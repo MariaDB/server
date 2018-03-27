@@ -528,8 +528,6 @@ public:
 	hash_table_t*	spaces;		/*!< The hash table of spaces in the
 					system; they are hashed on the space
 					id */
-	hash_table_t*	name_hash;	/*!< hash table based on the space
-					name */
 	UT_LIST_BASE_NODE_T(fil_node_t) LRU;
 					/*!< base node for the LRU list of the
 					most recently used open files with no
@@ -1390,14 +1388,7 @@ fil_space_get_by_id(
 /*================*/
 	ulint	id);	/*!< in: space id */
 
-/** Look up a tablespace.
-@param[in]	name	tablespace name
-@return	tablespace
-@retval	NULL	if not found */
-fil_space_t*
-fil_space_get_by_name(const char* name);
-
-/*******************************************************************//**
+/** Note that a non-predefined persistent tablespace has been modified
 by redo log.
 @param[in,out]	space	tablespace */
 void
