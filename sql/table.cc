@@ -1650,6 +1650,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->virtual_fields= share->default_expressions=
     share->field_check_constraints= share->default_fields= 0;
   share->visible_fields= 0;
+  share->user_fields= 0;
   share->stored_fields= share->fields;
   if (forminfo[46] != (uchar)255)
   {
@@ -2086,6 +2087,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       status_var_increment(thd->status_var.feature_invisible_columns);
     if (!reg_field->invisible)
       share->visible_fields++;
+    if (reg_field->invisible < INVISIBLE_SYSTEM)
+      share->user_fields++;
     if (field_type == MYSQL_TYPE_BIT && !f_bit_as_char(pack_flag))
     {
       null_bits_are_used= 1;

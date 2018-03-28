@@ -296,9 +296,9 @@ create or replace table t1 (
   en bigint unsigned as row end,
   period for system_time (st, en)
 ) with system versioning engine innodb;
---error ER_VERS_FIELD_WRONG_TYPE
 create or replace table t2 with system versioning engine myisam
 as select * from t1;
+show create table t2;
 
 --replace_result $non_default_engine NON_DEFAULT_ENGINE
 eval create or replace table t1 (x27 int, id int) with system versioning engine $non_default_engine;
@@ -362,6 +362,14 @@ create or replace table t1 (x int) with system versioning;
 prepare bad from 'create or replace table t2 with system versioning as select * from t1';
 execute bad; execute bad; execute bad; execute bad; execute bad; execute bad; execute bad; execute bad;
 --echo # bad is good.
+
+--echo # MDEV-15413 Unexpected errors upon CREATE TABLE .. WITH SYSTEM VERSIONING AS SELECT ...
+create or replace table t1 with system versioning as select 1 as i;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+create or replace table t1 (i int) with system versioning as select 1 as i;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
 
 drop database test;
 create database test;

@@ -16831,10 +16831,6 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
                                           modify_item ? field :
                                           NULL);
     }
-
-    if (field->field->vers_sys_field())
-      result->invisible= field->field->invisible;
-
     if (orig_type == Item::REF_ITEM && orig_modify)
       ((Item_ref*)orig_item)->set_result_field(result);
     /*

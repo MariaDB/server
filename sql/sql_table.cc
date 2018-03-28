@@ -3459,7 +3459,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     DBUG_RETURN(TRUE);
   }
 
-  select_field_pos= alter_info->create_list.elements - select_field_count;
   null_fields= 0;
   create_info->varchar= 0;
   max_key_length= file->max_key_length();
