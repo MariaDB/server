@@ -10168,17 +10168,32 @@ Item *Item_cache_temporal::convert_to_basic_const_item(THD *thd)
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
   if (null_value)
-    new_item= (Item*) new (thd->mem_root) Item_null(thd);
+    return new (thd->mem_root) Item_null(thd);
   else
-  {
-    MYSQL_TIME ltime;
-    unpack_time(val_datetime_packed(), &ltime, MYSQL_TIMESTAMP_DATETIME);
-    new_item= (Item*) new (thd->mem_root) Item_datetime_literal(thd, &ltime,
-                                                                decimals);
-  }
+    return make_literal(thd);
   return new_item;
 }
 
+Item *Item_cache_datetime::make_literal(THD *thd)
+{
+  MYSQL_TIME ltime;
+  unpack_time(val_datetime_packed(), &ltime, MYSQL_TIMESTAMP_DATETIME);
+  return new (thd->mem_root) Item_datetime_literal(thd, &ltime, decimals);
+}
+
+Item *Item_cache_date::make_literal(THD *thd)
+{
+  MYSQL_TIME ltime;
+  unpack_time(val_datetime_packed(), &ltime, MYSQL_TIMESTAMP_DATE);
+  return new (thd->mem_root) Item_date_literal(thd, &ltime);
+}
+
+Item *Item_cache_time::make_literal(THD *thd)
+{
+  MYSQL_TIME ltime;
+  unpack_time(val_time_packed(), &ltime, MYSQL_TIMESTAMP_TIME);
+  return new (thd->mem_root) Item_time_literal(thd, &ltime, decimals);
+}
 
 bool Item_cache_real::cache_value()
 {

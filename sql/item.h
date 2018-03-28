@@ -6169,6 +6169,7 @@ public:
   */
   Item *clone_item(THD *thd);
   Item *convert_to_basic_const_item(THD *thd);
+  virtual Item *make_literal(THD *) =0;
 };
 
 
@@ -6180,6 +6181,7 @@ public:
   bool cache_value();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_cache_time>(thd, this); }
+  Item *make_literal(THD *);
 };
 
 
@@ -6190,6 +6192,7 @@ public:
    :Item_cache_temporal(thd, &type_handler_datetime2) { }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_cache_datetime>(thd, this); }
+  Item *make_literal(THD *);
 };
 
 
@@ -6200,6 +6203,7 @@ public:
    :Item_cache_temporal(thd, &type_handler_newdate) { }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_cache_date>(thd, this); }
+  Item *make_literal(THD *);
 };
 
 
