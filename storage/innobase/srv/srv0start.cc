@@ -1798,7 +1798,7 @@ innobase_start_or_create_for_mysql()
 		return(srv_init_abort(DB_ERROR));
 	}
 
-	fil_init(srv_file_per_table ? 50000 : 5000, srv_max_n_open_files);
+	fil_system.create(srv_file_per_table ? 50000 : 5000);
 
 	double	size;
 	char	unit;
@@ -1849,7 +1849,6 @@ innobase_start_or_create_for_mysql()
 	}
 #endif /* UNIV_DEBUG */
 
-	fsp_init();
 	log_sys_init();
 
 	recv_sys_init();
@@ -2903,7 +2902,7 @@ innodb_shutdown()
 	os_aio_free();
 	row_mysql_close();
 	srv_free();
-	fil_close();
+	fil_system.close();
 
 	/* 4. Free all allocated memory */
 

@@ -961,12 +961,12 @@ fil_crypt_read_crypt_data(fil_space_t* space)
 	mtr.start();
 	if (buf_block_t* block = buf_page_get(page_id_t(space->id, 0),
 					      page_size, RW_S_LATCH, &mtr)) {
-		mutex_enter(&fil_system->mutex);
+		mutex_enter(&fil_system.mutex);
 		if (!space->crypt_data) {
 			space->crypt_data = fil_space_read_crypt_data(
 				page_size, block->frame);
 		}
-		mutex_exit(&fil_system->mutex);
+		mutex_exit(&fil_system.mutex);
 	}
 	mtr.commit();
 }

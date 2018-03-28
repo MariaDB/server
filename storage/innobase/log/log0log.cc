@@ -1883,7 +1883,7 @@ logs_empty_and_mark_files_at_shutdown(void)
 loop:
 	ut_ad(lock_sys.is_initialised() || !srv_was_started);
 	ut_ad(log_sys || !srv_was_started);
-	ut_ad(fil_system || !srv_was_started);
+	ut_ad(fil_system.is_initialised() || !srv_was_started);
 	os_event_set(srv_buf_resize_event);
 
 	if (!srv_read_only_mode) {
@@ -2060,7 +2060,7 @@ wait_suspend_loop:
 
 		srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
 
-		if (fil_system) {
+		if (fil_system.is_initialised()) {
 			fil_close_all_files();
 		}
 		return;

@@ -700,26 +700,6 @@ fsp_parse_init_file_page(
 }
 
 /**********************************************************************//**
-Initializes the fsp system. */
-void
-fsp_init(void)
-/*==========*/
-{
-	/* FSP_EXTENT_SIZE must be a multiple of page & zip size */
-	ut_a(0 == (UNIV_PAGE_SIZE % FSP_EXTENT_SIZE));
-	ut_a(UNIV_PAGE_SIZE);
-
-#if UNIV_PAGE_SIZE_MAX % FSP_EXTENT_SIZE_MAX
-# error "UNIV_PAGE_SIZE_MAX % FSP_EXTENT_SIZE_MAX != 0"
-#endif
-#if UNIV_ZIP_SIZE_MIN % FSP_EXTENT_SIZE_MIN
-# error "UNIV_ZIP_SIZE_MIN % FSP_EXTENT_SIZE_MIN != 0"
-#endif
-
-	/* Does nothing at the moment */
-}
-
-/**********************************************************************//**
 Writes the space id and flags to a tablespace header.  The flags contain
 row type, physical/compressed page size, and logical/uncompressed page
 size of the tablespace. */

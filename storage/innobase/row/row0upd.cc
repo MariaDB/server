@@ -303,12 +303,12 @@ row_upd_check_references_constraints(
 			undergoing a truncate, ignore the FK check. */
 
 			if (foreign_table) {
-				mutex_enter(&fil_system->mutex);
+				mutex_enter(&fil_system.mutex);
 				const fil_space_t* space = fil_space_get_by_id(
 					foreign_table->space);
 				const bool being_truncated = space
 					&& space->is_being_truncated;
-				mutex_exit(&fil_system->mutex);
+				mutex_exit(&fil_system.mutex);
 				if (being_truncated) {
 					continue;
 				}

@@ -7172,9 +7172,9 @@ fts_drop_orphaned_tables(void)
 	users can't map them back to table names and this will create
 	unnecessary clutter. */
 
-	mutex_enter(&fil_system->mutex);
+	mutex_enter(&fil_system.mutex);
 
-	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system->space_list);
+	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
 	     space != NULL;
 	     space = UT_LIST_GET_NEXT(space_list, space)) {
 
@@ -7196,7 +7196,7 @@ fts_drop_orphaned_tables(void)
 		ib_vector_push(tables, &fts_aux_table);
 	}
 
-	mutex_exit(&fil_system->mutex);
+	mutex_exit(&fil_system.mutex);
 
 	trx = trx_allocate_for_background();
 	trx->op_info = "dropping orphaned FTS tables";

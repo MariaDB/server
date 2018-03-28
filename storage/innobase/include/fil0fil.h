@@ -143,14 +143,14 @@ struct fil_space_t {
 	dropped. An example is change buffer merge.
 	The tablespace cannot be dropped while this is nonzero,
 	or while fil_node_t::n_pending is nonzero.
-	Protected by fil_system->mutex. */
+	Protected by fil_system.mutex. */
 	ulint		n_pending_ops;
 	/** Number of pending block read or write operations
 	(when a write is imminent or a read has recently completed).
 	The tablespace object cannot be freed while this is nonzero,
 	but it can be detached from fil_system.
 	Note that fil_node_t::n_pending tracks actual pending I/O requests.
-	Protected by fil_system->mutex. */
+	Protected by fil_system.mutex. */
 	ulint		n_pending_ios;
 	hash_node_t	hash;	/*!< hash chain node */
 	hash_node_t	name_hash;/*!< hash chain the name_hash table */
@@ -213,13 +213,13 @@ struct fil_space_t {
 struct fil_node_t {
 	/** tablespace containing this file */
 	fil_space_t*	space;
-	/** file name; protected by fil_system->mutex and log_sys->mutex. */
+	/** file name; protected by fil_system.mutex and log_sys->mutex. */
 	char*		name;
 	/** file handle (valid if is_open) */
 	pfs_os_file_t	handle;
 	/** event that groups and serializes calls to fsync;
 	os_event_set() and os_event_reset() are protected by
-	fil_system_t::mutex */
+	fil_system.mutex */
 	os_event_t	sync_event;
 	/** whether the file actually is a raw device or disk partition */
 	bool		is_raw_disk;
@@ -244,7 +244,7 @@ struct fil_node_t {
 	int64_t		flush_counter;
 	/** link to other files in this tablespace */
 	UT_LIST_NODE_T(fil_node_t) chain;
-	/** link to the fil_system->LRU list (keeping track of open files) */
+	/** link to the fil_system.LRU list (keeping track of open files) */
 	UT_LIST_NODE_T(fil_node_t) LRU;
 
 	/** whether this file could use atomic write (data file) */
@@ -311,7 +311,7 @@ struct fil_addr_t {
 };
 
 /** The null file address */
-extern fil_addr_t	fil_addr_null;
+extern const fil_addr_t	fil_addr_null;
 
 #endif /* !UNIV_INNOCHECKSUM */
 
@@ -486,6 +486,36 @@ fil_space_get(
 data space) is stored here; below we talk about tablespaces, but also
 the ib_logfiles form a 'space' and it is handled here */
 struct fil_system_t {
+  /**
+    Constructor.
+
+    Some members may require late initialisation, thus we just mark object as
+    uninitialised. Real initialisation happens in create().
+  */
+  fil_system_t(): m_initialised(false)
+  {
+    UT_LIST_INIT(LRU, &fil_node_t::LRU);
+    UT_LIST_INIT(space_list, &fil_space_t::space_list);
+    UT_LIST_INIT(rotation_list, &fil_space_t::rotation_list);
+    UT_LIST_INIT(unflushed_spaces, &fil_space_t::unflushed_spaces);
+    UT_LIST_INIT(named_spaces, &fil_space_t::named_spaces);
+  }
+
+  bool is_initialised() const { return m_initialised; }
+
+  /**
+    Create the file system interface at database start.
+
+    @param[in] hash_size	hash table size
+  */
+  void create(ulint hash_size);
+
+  /** Close the file system interface at shutdown */
+  void close();
+
+private:
+  bool m_initialised;
+public:
 	ib_mutex_t	mutex;		/*!< The mutex protecting the cache */
 	hash_table_t*	spaces;		/*!< The hash table of spaces in the
 					system; they are hashed on the space
@@ -510,8 +540,6 @@ struct fil_system_t {
 					at least one file node where
 					modification_counter > flush_counter */
 	ulint		n_open;		/*!< number of files currently open */
-	ulint		max_n_open;	/*!< n_open is not allowed to exceed
-					this */
 	int64_t		modification_counter;/*!< when we write to a file we
 					increment this by one */
 	ulint		max_assigned_id;/*!< maximum space id in the existing
@@ -532,15 +560,14 @@ struct fil_system_t {
 					/*!< list of all file spaces needing
 					key rotation.*/
 
-	ibool		space_id_reuse_warned;
-					/* !< TRUE if fil_space_create()
+	bool		space_id_reuse_warned;
+					/*!< whether fil_space_create()
 					has issued a warning about
 					potential space_id reuse */
 };
 
-/** The tablespace memory cache. This variable is NULL before the module is
-initialized. */
-extern fil_system_t*	fil_system;
+/** The tablespace memory cache. */
+extern fil_system_t	fil_system;
 
 #include "fil0crypt.h"
 
@@ -687,18 +714,6 @@ fil_space_get_page_size(
 	ulint	id,
 	bool*	found);
 
-/****************************************************************//**
-Initializes the tablespace memory cache. */
-void
-fil_init(
-/*=====*/
-	ulint	hash_size,	/*!< in: hash table size */
-	ulint	max_n_open);	/*!< in: max number of open files */
-/*******************************************************************//**
-Initializes the tablespace memory cache. */
-void
-fil_close(void);
-/*===========*/
 /*******************************************************************//**
 Opens all log files and system tablespace data files. They stay open until the
 database server shutdown. This should be called at a server startup after the
@@ -799,7 +814,7 @@ Once started, the caller must keep calling this until it returns NULL.
 fil_space_acquire() and fil_space_release() are invoked here which
 blocks a concurrent operation from dropping the tablespace.
 @param[in,out]	prev_space	Pointer to the previous fil_space_t.
-If NULL, use the first fil_space_t on fil_system->space_list.
+If NULL, use the first fil_space_t on fil_system.space_list.
 @return pointer to the next fil_space_t.
 @retval NULL if this was the last  */
 fil_space_t*
@@ -812,7 +827,7 @@ Once started, the caller must keep calling this until it returns NULL.
 fil_space_acquire() and fil_space_release() are invoked here which
 blocks a concurrent operation from dropping the tablespace.
 @param[in,out]	prev_space	Pointer to the previous fil_space_t.
-If NULL, use the first fil_space_t on fil_system->space_list.
+If NULL, use the first fil_space_t on fil_system.space_list.
 @return pointer to the next fil_space_t.
 @retval NULL if this was the last*/
 fil_space_t*
@@ -1439,9 +1454,9 @@ fil_mtr_rename_log(
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Acquire the fil_system mutex. */
-#define fil_system_enter()	mutex_enter(&fil_system->mutex)
+#define fil_system_enter()	mutex_enter(&fil_system.mutex)
 /** Release the fil_system mutex. */
-#define fil_system_exit()	mutex_exit(&fil_system->mutex)
+#define fil_system_exit()	mutex_exit(&fil_system.mutex)
 
 /*******************************************************************//**
 Returns the table space by a given id, NULL if not found. */

@@ -224,7 +224,6 @@ long innobase_file_io_threads = 4;
 long innobase_read_io_threads = 4;
 long innobase_write_io_threads = 4;
 long innobase_log_buffer_size = 1024*1024L;
-long innobase_open_files = 300L;
 
 longlong innobase_page_size = (1LL << 14); /* 16KB */
 char*	innobase_buffer_pool_filename = NULL;
@@ -365,7 +364,6 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback);
 
 /* ======== Datafiles iterator ======== */
 struct datafiles_iter_t {
-	fil_system_t	*system;
 	fil_space_t	*space;
 	fil_node_t	*node;
 	ibool		started;
@@ -375,14 +373,13 @@ struct datafiles_iter_t {
 /* ======== Datafiles iterator ======== */
 static
 datafiles_iter_t *
-datafiles_iter_new(fil_system_t *f_system)
+datafiles_iter_new()
 {
 	datafiles_iter_t *it;
 
 	it = static_cast<datafiles_iter_t *>(malloc(sizeof(datafiles_iter_t)));
 	pthread_mutex_init(&it->mutex, NULL);
 
-	it->system = f_system;
 	it->space = NULL;
 	it->node = NULL;
 	it->started = FALSE;
@@ -409,7 +406,7 @@ datafiles_iter_next(datafiles_iter_t *it)
 	}
 
 	it->space = (it->space == NULL) ?
-		UT_LIST_GET_FIRST(it->system->space_list) :
+		UT_LIST_GET_FIRST(fil_system.space_list) :
 		UT_LIST_GET_NEXT(space_list, it->space);
 
 	while (it->space != NULL &&
@@ -439,7 +436,7 @@ datafiles_iter_free(datafiles_iter_t *it)
 void mdl_lock_all()
 {
 	mdl_lock_init();
-	datafiles_iter_t *it = datafiles_iter_new(fil_system);
+	datafiles_iter_t *it = datafiles_iter_new();
 	if (!it)
 		return;
 
@@ -460,7 +457,7 @@ options.
 @return true if the space id belongs to skip table/database list. */
 static bool backup_includes(space_id_t space_id)
 {
-	datafiles_iter_t *it = datafiles_iter_new(fil_system);
+	datafiles_iter_t *it = datafiles_iter_new();
 	if (!it)
 		return true;
 
@@ -1064,10 +1061,6 @@ struct my_option xb_server_options[] =
   {"innodb_max_dirty_pages_pct", OPT_INNODB_MAX_DIRTY_PAGES_PCT,
    "Percentage of dirty pages allowed in bufferpool.", (G_PTR*) &srv_max_buf_pool_modified_pct,
    (G_PTR*) &srv_max_buf_pool_modified_pct, 0, GET_ULONG, REQUIRED_ARG, 90, 0, 100, 0, 0, 0},
-  {"innodb_open_files", OPT_INNODB_OPEN_FILES,
-   "How many files at the maximum InnoDB keeps open at the same time.",
-   (G_PTR*) &innobase_open_files, (G_PTR*) &innobase_open_files, 0,
-   GET_LONG, REQUIRED_ARG, 300L, 10L, LONG_MAX, 0, 1L, 0},
   {"innodb_use_native_aio", OPT_INNODB_USE_NATIVE_AIO,
    "Use native AIO if supported on this platform.",
    (G_PTR*) &srv_use_native_aio,
@@ -1649,7 +1642,7 @@ innodb_init_param(void)
 
         srv_locks_unsafe_for_binlog = (ibool) innobase_locks_unsafe_for_binlog;
 
-	srv_max_n_open_files = (ulint) innobase_open_files;
+	srv_max_n_open_files = ULINT_UNDEFINED;
 	srv_innodb_status = (ibool) innobase_create_status_file;
 
 	srv_print_verbose_log = 1;
@@ -2698,8 +2691,7 @@ static
 void
 xb_fil_io_init()
 {
-	fil_init(srv_file_per_table ? 50000 : 5000, LONG_MAX);
-	fsp_init();
+	fil_system.create(srv_file_per_table ? 50000 : 5000);
 }
 
 static
@@ -3717,7 +3709,7 @@ xtrabackup_backup_func()
         if(innodb_init_param()) {
 fail:
 		stop_backup_threads();
-		if (fil_system) {
+		if (fil_system.is_initialised()) {
 			innodb_shutdown();
 		}
 		return(false);
@@ -4030,7 +4022,7 @@ reread_log_header:
 		mdl_lock_all();
 	}
 
-	it = datafiles_iter_new(fil_system);
+	it = datafiles_iter_new();
 	if (it == NULL) {
 		msg("mariabackup: Error: datafiles_iter_new() failed.\n");
 		goto fail;
@@ -4302,9 +4294,9 @@ exit:
 	HASH_INSERT(xb_filter_entry_t, name_hash, inc_dir_tables_hash,
 			ut_fold_string(table->name), table);
 
-	mutex_enter(&fil_system->mutex);
+	mutex_enter(&fil_system.mutex);
 	fil_space = fil_space_get_by_name(dest_space_name);
-	mutex_exit(&fil_system->mutex);
+	mutex_exit(&fil_system.mutex);
 
 	if (fil_space != NULL) {
 		if (fil_space->id == info.space_id
@@ -4339,9 +4331,9 @@ exit:
 		    "%s\n", dest_space_name);
 		exit(EXIT_FAILURE);
 	}
-	mutex_enter(&fil_system->mutex);
+	mutex_enter(&fil_system.mutex);
 	fil_space = fil_space_get_by_id(info.space_id);
-	mutex_exit(&fil_system->mutex);
+	mutex_exit(&fil_system.mutex);
 	if (fil_space != NULL) {
 		char	tmpname[FN_REFLEN];
 
@@ -4944,7 +4936,7 @@ xtrabackup_prepare_func(char** argv)
 
 		xb_filter_hash_free(inc_dir_tables_hash);
 
-		fil_close();
+		fil_system.close();
 #ifdef WITH_INNODB_DISALLOW_WRITES
 		os_event_destroy(srv_allow_writes_event);
 #endif

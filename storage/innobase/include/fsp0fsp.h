@@ -295,12 +295,6 @@ the extent are free and which contain old tuple version to clean. */
 /* @} */
 
 /**********************************************************************//**
-Initializes the file space system. */
-void
-fsp_init(void);
-/*==========*/
-
-/**********************************************************************//**
 Gets the size of the system tablespace from the tablespace header.  If
 we do not have an auto-extending data file, this should be equal to
 the size of the data files.  If there is an auto-extending data file,

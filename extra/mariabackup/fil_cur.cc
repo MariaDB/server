@@ -89,7 +89,7 @@ xb_fil_node_close_file(
 {
 	ibool	ret;
 
-	mutex_enter(&fil_system->mutex);
+	mutex_enter(&fil_system.mutex);
 
 	ut_ad(node);
 	ut_a(node->n_pending == 0);
@@ -98,7 +98,7 @@ xb_fil_node_close_file(
 
 	if (!node->is_open()) {
 
-		mutex_exit(&fil_system->mutex);
+		mutex_exit(&fil_system.mutex);
 
 		return;
 	}
@@ -108,20 +108,20 @@ xb_fil_node_close_file(
 
 	node->handle = OS_FILE_CLOSED;
 
-	ut_a(fil_system->n_open > 0);
-	fil_system->n_open--;
+	ut_a(fil_system.n_open > 0);
+	fil_system.n_open--;
 	fil_n_file_opened--;
 
 	if (node->space->purpose == FIL_TYPE_TABLESPACE &&
 	    fil_is_user_tablespace_id(node->space->id)) {
 
-		ut_a(UT_LIST_GET_LEN(fil_system->LRU) > 0);
+		ut_a(UT_LIST_GET_LEN(fil_system.LRU) > 0);
 
 		/* The node is in the LRU list, remove it */
-		UT_LIST_REMOVE(fil_system->LRU, node);
+		UT_LIST_REMOVE(fil_system.LRU, node);
 	}
 
-	mutex_exit(&fil_system->mutex);
+	mutex_exit(&fil_system.mutex);
 }
 
 /************************************************************************
@@ -175,19 +175,19 @@ xb_fil_cur_open(
 
 			return(XB_FIL_CUR_ERROR);
 		}
-		mutex_enter(&fil_system->mutex);
+		mutex_enter(&fil_system.mutex);
 
-		fil_system->n_open++;
+		fil_system.n_open++;
 		fil_n_file_opened++;
 
 		if (node->space->purpose == FIL_TYPE_TABLESPACE &&
 		    fil_is_user_tablespace_id(node->space->id)) {
 
 			/* Put the node to the LRU list */
-			UT_LIST_ADD_FIRST(fil_system->LRU, node);
+			UT_LIST_ADD_FIRST(fil_system.LRU, node);
 		}
 
-		mutex_exit(&fil_system->mutex);
+		mutex_exit(&fil_system.mutex);
 	}
 
 	ut_ad(node->is_open());
