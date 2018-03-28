@@ -5,7 +5,14 @@
 --echo # MDEV-14843: Assertion `s_tx_list.size() == 0' failed in myrocks::Rdb_transaction::term_mutex
 --echo #
 
+#
+# On Linux, wsrep plugin is always loaded so XA is enabled at this point.
+# On Windows, there is no wsrep, so we get this warning:
+#   Warning	1105	Cannot enable tc-log at run-time. XA features of ROCKSDB are disabled
+#
+--disable_warnings
 INSTALL SONAME 'ha_rocksdb';
+--enable_warnings
 
 CREATE TABLE t1 (i INT) ENGINE=RocksDB;
 insert into t1 values (1);
