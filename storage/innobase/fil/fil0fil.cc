@@ -686,7 +686,7 @@ retry:
 			ib::error()
 				<< "Expected tablespace id " << space->id
 				<< " but found " << space_id
-				<< "in the file" << node->name;
+				<< " in the file" << node->name;
 			return(false);
 		}
 
