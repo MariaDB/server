@@ -10125,7 +10125,7 @@ bool Item_cache_temporal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   if (!has_value())
   {
     bzero((char*) ltime,sizeof(*ltime));
-    return true;
+    return (null_value= true);
   }
 
   unpack_time(value, ltime, mysql_timestamp_type());
