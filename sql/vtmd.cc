@@ -35,12 +35,16 @@ VTMD_table::create(THD *thd)
     return true;
 
   Reprepare_observer *reprepare_observer= thd->m_reprepare_observer;
-  partition_info *work_part_info= thd->work_part_info;
   thd->m_reprepare_observer= NULL;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  partition_info *work_part_info= thd->work_part_info;
   thd->work_part_info= NULL;
+#endif
   bool rc= mysql_create_like_table(thd, &table, &src_table, &create_info);
   thd->m_reprepare_observer= reprepare_observer;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
   thd->work_part_info= work_part_info;
+#endif
   return rc;
 }
 

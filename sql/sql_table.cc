@@ -9204,8 +9204,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
 
     if (table_list->table->versioned(VERS_TRX_ID) &&
         alter_info->requested_algorithm ==
-        Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
-        !table_list->table->s->partition_info_str)
+            Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
+        IF_PARTITIONING(!table_list->table->s->partition_info_str, 1))
     {
       // Changle default ALGORITHM to COPY for INNODB
       alter_info->requested_algorithm= Alter_info::ALTER_TABLE_ALGORITHM_COPY;

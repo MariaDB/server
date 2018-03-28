@@ -1470,6 +1470,16 @@ open_table_get_mdl_lock(THD *thd, Open_table_context *ot_ctx,
   return FALSE;
 }
 
+/* Set all [named] partitions as used. */
+static int set_partitions_as_used(TABLE_LIST *tl, TABLE *t)
+{
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (t->part_info)
+    return t->file->change_partitions_to_open(tl->partition_names);
+#endif
+  return 0;
+}
+
 
 /**
   Open a base table.
@@ -1612,12 +1622,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       table= best_table;
       table->query_id= thd->query_id;
       DBUG_PRINT("info",("Using locked table"));
-      if (table->part_info)
-      {
-        /* Set all [named] partitions as used. */
-        part_names_error=
-          table->file->change_partitions_to_open(table_list->partition_names);
-      }
+      part_names_error= set_partitions_as_used(table_list, table);
       goto reset;
     }
     /*
@@ -1902,12 +1907,7 @@ retry_share:
   {
     DBUG_ASSERT(table->file != NULL);
     MYSQL_REBIND_TABLE(table->file);
-    if (table->part_info)
-    {
-      /* Set all [named] partitions as used. */
-      part_names_error=
-        table->file->change_partitions_to_open(table_list->partition_names);
-    }
+    part_names_error= set_partitions_as_used(table_list, table);
   }
   else
   {
@@ -1921,7 +1921,7 @@ retry_share:
                                  HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
                                  EXTRA_RECORD,
                                  thd->open_options, table, FALSE,
-                                 table_list->partition_names);
+                                 IF_PARTITIONING(table_list->partition_names,0));
 
     if (error)
     {
