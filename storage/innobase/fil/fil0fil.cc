@@ -4785,26 +4785,6 @@ func_exit:
 	return(valid);
 }
 
-/** Return the space ID based on the tablespace name.
-The tablespace must be found in the tablespace memory cache.
-This call is made from external to this module, so the mutex is not owned.
-@param[in]	tablespace	Tablespace name
-@return space ID if tablespace found, ULINT_UNDEFINED if space not. */
-ulint
-fil_space_get_id_by_name(
-	const char*	tablespace)
-{
-	mutex_enter(&fil_system->mutex);
-
-	/* Search for a space with the same name. */
-	fil_space_t*	space = fil_space_get_by_name(tablespace);
-	ulint		id = (space == NULL) ? ULINT_UNDEFINED : space->id;
-
-	mutex_exit(&fil_system->mutex);
-
-	return(id);
-}
-
 /*========== RESERVE FREE EXTENTS (for a B-tree split, for example) ===*/
 
 /*******************************************************************//**

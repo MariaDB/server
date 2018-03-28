@@ -1424,15 +1424,6 @@ char*
 fil_path_to_space_name(
 	const char*	filename);
 
-/** Returns the space ID based on the tablespace name.
-The tablespace must be found in the tablespace memory cache.
-This call is made from external to this module, so the mutex is not owned.
-@param[in]	tablespace	Tablespace name
-@return space ID if tablespace found, ULINT_UNDEFINED if space not. */
-ulint
-fil_space_get_id_by_name(
-	const char*	tablespace);
-
 /** Generate redo log for swapping two .ibd files
 @param[in]	old_table	old table
 @param[in]	new_table	new table
