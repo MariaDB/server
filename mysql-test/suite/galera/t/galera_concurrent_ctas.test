@@ -43,9 +43,9 @@ let $run=10;
 while($run)
 {
   --error 0,1
-  exec $MYSQL --user=root --host=127.0.0.1 --port=$NODE_MYPORT_1 test
-         < $MYSQLTEST_VARDIR/tmp/galera_concurrent.sql &
-       $MYSQL --user=root --host=127.0.0.1 --port=$NODE_MYPORT_2 test
+  exec $MYSQL --user=root --host=127.0.0.1 --port=$NODE_MYPORT_1 test \
+         < $MYSQLTEST_VARDIR/tmp/galera_concurrent.sql & \
+       $MYSQL --user=root --host=127.0.0.1 --port=$NODE_MYPORT_2 test \
          < $MYSQLTEST_VARDIR/tmp/galera_concurrent.sql;
   dec $run;
 }

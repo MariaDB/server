@@ -895,12 +895,11 @@ srv_undo_tablespaces_init(bool create_new_db)
 	switch (srv_operation) {
 	case SRV_OPERATION_RESTORE_DELTA:
 	case SRV_OPERATION_BACKUP:
-		/* MDEV-13561 FIXME: Determine srv_undo_space_id_start
-		from the undo001 file. */
-		srv_undo_space_id_start = 1;
 		for (i = 0; i < n_undo_tablespaces; i++) {
 			undo_tablespace_ids[i] = i + srv_undo_space_id_start;
 		}
+
+		prev_space_id = srv_undo_space_id_start - 1;
 		break;
 	case SRV_OPERATION_NORMAL:
 		if (create_new_db) {
@@ -961,7 +960,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 			undo_tablespace_ids[i]);
 
 		/* Should be no gaps in undo tablespace ids. */
-		ut_a(prev_space_id + 1 == undo_tablespace_ids[i]);
+		ut_a(!i || prev_space_id + 1 == undo_tablespace_ids[i]);
 
 		/* The system space id should not be in this array. */
 		ut_a(undo_tablespace_ids[i] != 0);
@@ -989,14 +988,14 @@ srv_undo_tablespaces_init(bool create_new_db)
 	not in use and therefore not required by recovery. We only check
 	that there are no gaps. */
 
-	for (i = prev_space_id + 1; i < TRX_SYS_N_RSEGS; ++i) {
+	for (i = prev_space_id + 1;
+	     i < srv_undo_space_id_start + TRX_SYS_N_RSEGS; ++i) {
 		char	name[OS_FILE_MAX_PATH];
 
 		snprintf(
 			name, sizeof(name),
 			"%s%cundo%03zu", srv_undo_dir, OS_PATH_SEPARATOR, i);
 
-		/* Undo space ids start from 1. */
 		err = srv_undo_tablespace_open(name, i);
 
 		if (err != DB_SUCCESS) {
@@ -2793,7 +2792,9 @@ srv_shutdown_bg_undo_sources()
 void
 innodb_shutdown()
 {
-	ut_ad(!srv_running);
+	ut_ad(!my_atomic_loadptr_explicit(reinterpret_cast<void**>
+					  (&srv_running),
+					  MY_MEMORY_ORDER_RELAXED));
 	ut_ad(!srv_undo_sources);
 
 	switch (srv_operation) {

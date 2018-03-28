@@ -172,7 +172,7 @@ PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info)
 		goto err;
 
 skipit:
-	if (trace)
+	if (trace(1))
 		htrc("MGOColumns: n=%d len=%d\n", n, length[0]);
 
 	/*********************************************************************/
@@ -276,7 +276,7 @@ int MGODISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt)
 	tdp->Wrapname = (PSZ)GetStringTableOption(g, topt, "Wrapper",
 		(tdp->Version == 2) ? "Mongo2Interface" : "Mongo3Interface");
 
-	if (trace)
+	if (trace(1))
 		htrc("Uri %s coll=%s db=%s colist=%s filter=%s lvl=%d\n",
 			tdp->Uri, tdp->Tabname, tdp->Tabschema, tdp->Colist, tdp->Filter, lvl);
 

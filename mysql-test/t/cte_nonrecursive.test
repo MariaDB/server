@@ -989,3 +989,26 @@ DEALLOCATE PREPARE stmt;
 
 DROP TABLE t1;
 DROP VIEW v1,v2;
+
+--echo #
+--echo # MDEV-15478: Lost name of a explicitly named CTE column used in
+--echo #             the non-recursive CTE defined with UNION
+--echo #
+
+CREATE TABLE t1 (x int, y int);
+INSERT INTO t1 VALUES (1,2),(2,7),(3,3);
+
+WITH cte(a) AS (SELECT 1 UNION SELECT 2) SELECT * FROM cte;
+
+WITH cte(a) AS (SELECT 1 UNION SELECT 2) SELECT a FROM cte;
+
+WITH cte(a) AS (SELECT 1 UNION ALL SELECT 1) SELECT a FROM cte;
+
+WITH cte(a) AS (SELECT x from t1 UNION SELECT 4) SELECT a FROM cte;
+
+WITH cte(a) AS (SELECT 4 UNION SELECT x FROM t1 UNION SELECT 5)
+SELECT a FROM cte;
+
+WITH cte(a,b) AS (SELECT 4,5 UNION SELECT 4,3) SELECT a,b FROM cte;
+
+DROP TABLE t1;

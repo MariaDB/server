@@ -7115,11 +7115,7 @@ static void test_embedded_start_stop()
     MY_INIT(argv[0]);
 
     /* Load the client defaults from the .cnf file[s]. */
-    if (load_defaults("my", client_test_load_default_groups, &argc, &argv))
-    {
-      myerror("load_defaults failed"); 
-      exit(1);
-    }
+    load_defaults_or_exit("my", client_test_load_default_groups, &argc, &argv);
 
     /* Parse the options (including the ones given from defaults files). */
     get_options(&argc, &argv);
@@ -7167,12 +7163,7 @@ static void test_embedded_start_stop()
 
   MY_INIT(argv[0]);
 
-  if (load_defaults("my", client_test_load_default_groups, &argc, &argv))
-  {
-    myerror("load_defaults failed \n "); 
-    exit(1);
-  }
-
+  load_defaults_or_exit("my", client_test_load_default_groups, &argc, &argv);
   get_options(&argc, &argv);
 
   /* Must start the main embedded server again after the test. */
@@ -20205,6 +20196,7 @@ static void test_proxy_header_localhost()
 /* Proxy header ignoring */
 static void test_proxy_header_ignore()
 {
+  int rc;
   MYSQL *m = mysql_client_init(NULL);
   v2_proxy_header v2_header;
   DIE_UNLESS(m != NULL);
@@ -20222,7 +20214,7 @@ static void test_proxy_header_ignore()
   mysql_close(m);
 
   /* test for connection denied with empty proxy_protocol_networks */
-  int rc = mysql_query(mysql, "select @@proxy_protocol_networks into @sv_proxy_protocol_networks");
+  rc = mysql_query(mysql, "select @@proxy_protocol_networks into @sv_proxy_protocol_networks");
   myquery(rc);
   mysql_query(mysql, "set global proxy_protocol_networks=default");
   myquery(rc);

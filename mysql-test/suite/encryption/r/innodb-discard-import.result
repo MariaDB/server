@@ -129,6 +129,6 @@ NOT FOUND /barfoo/ in t2.ibd
 # t3 yes on expecting NOT FOUND
 NOT FOUND /tmpres/ in t3.ibd
 # t4 yes on expecting NOT FOUND
-# MDEV-15527 FIXME: Enable this test!
+NOT FOUND /mysql/ in t4.ibd
 DROP PROCEDURE innodb_insert_proc;
 DROP TABLE t1,t2,t3,t4;

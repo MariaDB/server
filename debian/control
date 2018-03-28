@@ -35,8 +35,8 @@ Build-Depends: bison,
                zlib1g-dev (>= 1:1.1.3-5~)
 Standards-Version: 3.8.2
 Homepage: http://mariadb.org/
-Vcs-Git: https://github.com/MariaDB/server.git
 Vcs-Browser: https://github.com/MariaDB/server/
+Vcs-Git: https://github.com/MariaDB/server.git
 
 Package: libmariadb-dev
 Architecture: any

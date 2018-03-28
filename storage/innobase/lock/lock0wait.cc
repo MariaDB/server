@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -419,7 +419,7 @@ lock_wait_suspend_thread(
 	    && (!wsrep_on_trx(trx) ||
 	       (!wsrep_is_BF_lock_timeout(trx, false) && trx->error_state != DB_DEADLOCK))
 #endif /* WITH_WSREP */
-	    && !trx_is_high_priority(trx)) {
+	    ) {
 
 		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
 
@@ -502,7 +502,7 @@ lock_wait_check_and_cancel(
 
 		trx_mutex_enter(trx);
 
-		if (trx->lock.wait_lock != NULL && !trx_is_high_priority(trx)) {
+		if (trx->lock.wait_lock != NULL) {
 
 			ut_a(trx->lock.que_state == TRX_QUE_LOCK_WAIT);
 

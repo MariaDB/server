@@ -103,3 +103,11 @@ insert t1 values (2);
 insert t1 values (NULL);
 select * from t1;
 drop table t1;
+
+#
+# MDEV-15141 Check constraint validation on a datetime field crashes the process
+#
+create table t1 (id int auto_increment primary key, datecol datetime, check (datecol>'0001-01-01 00:00:00'));
+insert into t1 (datecol) values (now());
+insert into t1 (datecol) values (now());
+drop table t1;

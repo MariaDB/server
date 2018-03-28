@@ -7445,6 +7445,8 @@ buf_page_encrypt_before_write(
 
 		bpage->real_size = out_len;
 
+		/* Workaround for MDEV-15527. */
+		memset(tmp + out_len, 0 , srv_page_size - out_len);
 #ifdef UNIV_DEBUG
 		fil_page_type_validate(tmp);
 #endif

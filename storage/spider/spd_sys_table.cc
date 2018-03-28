@@ -40,6 +40,86 @@ extern handlerton *spider_hton_ptr;
 extern Time_zone *spd_tz_system;
 static const LEX_CSTRING empty_clex_string= {"", 0};
 
+/**
+  Insert a Spider system table row.
+
+  @param  table             The spider system table.
+  @param  do_handle_error   TRUE if an error message should be printed
+                            before returning.
+
+  @return                   Error code returned by the write.
+*/
+
+inline int spider_write_sys_table_row(TABLE *table, bool do_handle_error = TRUE)
+{
+  int error_num;
+  THD *thd = table->in_use;
+
+  tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
+  error_num = table->file->ha_write_row(table->record[0]);
+  reenable_binlog(thd);
+
+  if (error_num && do_handle_error)
+    table->file->print_error(error_num, MYF(0));
+
+  return error_num;
+}
+
+/**
+  Update a Spider system table row.
+
+  @param  table             The spider system table.
+
+  @return                   Error code returned by the update.
+*/
+
+inline int spider_update_sys_table_row(TABLE *table)
+{
+  int error_num;
+  THD *thd = table->in_use;
+
+  tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
+  error_num = table->file->ha_update_row(table->record[1], table->record[0]);
+  reenable_binlog(thd);
+
+  if (error_num)
+  {
+    if (error_num == HA_ERR_RECORD_IS_THE_SAME)
+      error_num = 0;
+    else
+      table->file->print_error(error_num, MYF(0));
+  }
+
+  return error_num;
+}
+
+/**
+  Delete a Spider system table row.
+
+  @param  table             The spider system table.
+  @param  record_number     Location of the record: 0 or 1.
+  @param  do_handle_error   TRUE if an error message should be printed
+                            before returning.
+
+  @return                   Error code returned by the update.
+*/
+
+inline int spider_delete_sys_table_row(TABLE *table, int record_number = 0,
+                                       bool do_handle_error = TRUE)
+{
+  int error_num;
+  THD *thd = table->in_use;
+
+  tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
+  error_num = table->file->ha_delete_row(table->record[record_number]);
+  reenable_binlog(thd);
+
+  if (error_num && do_handle_error)
+    table->file->print_error(error_num, MYF(0));
+
+  return error_num;
+}
+
 #if MYSQL_VERSION_ID < 50500
 TABLE *spider_open_sys_table(
   THD *thd,
@@ -1179,11 +1259,8 @@ int spider_insert_xa(
     table->use_all_columns();
     spider_store_xa_bqual_length(table, xid);
     spider_store_xa_status(table, status);
-    if ((error_num = table->file->ha_write_row(table->record[0])))
-    {
-      table->file->print_error(error_num, MYF(0));
+    if ((error_num = spider_write_sys_table_row(table)))
       DBUG_RETURN(error_num);
-    }
   } else {
     my_message(ER_SPIDER_XA_EXISTS_NUM, ER_SPIDER_XA_EXISTS_STR, MYF(0));
     DBUG_RETURN(ER_SPIDER_XA_EXISTS_NUM);
@@ -1213,11 +1290,8 @@ int spider_insert_xa_member(
     }
     table->use_all_columns();
     spider_store_xa_member_info(table, xid, conn);
-    if ((error_num = table->file->ha_write_row(table->record[0])))
-    {
-      table->file->print_error(error_num, MYF(0));
+    if ((error_num = spider_write_sys_table_row(table)))
       DBUG_RETURN(error_num);
-    }
   } else {
     my_message(ER_SPIDER_XA_MEMBER_EXISTS_NUM, ER_SPIDER_XA_MEMBER_EXISTS_STR,
       MYF(0));
@@ -1247,11 +1321,8 @@ int spider_insert_tables(
       SPIDER_LINK_STATUS_NO_CHANGE ?
       share->alter_table.tmp_link_statuses[roop_count] :
       SPIDER_LINK_STATUS_OK);
-    if ((error_num = table->file->ha_write_row(table->record[0])))
-    {
-      table->file->print_error(error_num, MYF(0));
+    if ((error_num = spider_write_sys_table_row(table)))
       DBUG_RETURN(error_num);
-    }
   }
 
   DBUG_RETURN(0);
@@ -1381,11 +1452,8 @@ int spider_log_tables_link_failed(
   if (table->field[3] == table->timestamp_field)
     table->timestamp_field->set_time();
 #endif
-  if ((error_num = table->file->ha_write_row(table->record[0])))
-  {
-    table->file->print_error(error_num, MYF(0));
+  if ((error_num = spider_write_sys_table_row(table)))
     DBUG_RETURN(error_num);
-  }
   DBUG_RETURN(0);
 }
 
@@ -1419,11 +1487,8 @@ int spider_log_xa_failed(
   if (table->field[20] == table->timestamp_field)
     table->timestamp_field->set_time();
 #endif
-  if ((error_num = table->file->ha_write_row(table->record[0])))
-  {
-    table->file->print_error(error_num, MYF(0));
+  if ((error_num = spider_write_sys_table_row(table)))
     DBUG_RETURN(error_num);
-  }
   DBUG_RETURN(0);
 }
 
@@ -1452,14 +1517,8 @@ int spider_update_xa(
     store_record(table, record[1]);
     table->use_all_columns();
     spider_store_xa_status(table, status);
-    if (
-      (error_num = table->file->ha_update_row(
-        table->record[1], table->record[0])) &&
-      error_num != HA_ERR_RECORD_IS_THE_SAME
-    ) {
-      table->file->print_error(error_num, MYF(0));
+    if ((error_num = spider_update_sys_table_row(table)))
       DBUG_RETURN(error_num);
-    }
   }
 
   DBUG_RETURN(0);
@@ -1492,14 +1551,8 @@ int spider_update_tables_name(
       store_record(table, record[1]);
       table->use_all_columns();
       spider_store_tables_name(table, to, strlen(to));
-      if (
-        (error_num = table->file->ha_update_row(
-          table->record[1], table->record[0])) &&
-        error_num != HA_ERR_RECORD_IS_THE_SAME
-      ) {
-        table->file->print_error(error_num, MYF(0));
+      if ((error_num = spider_update_sys_table_row(table)))
         DBUG_RETURN(error_num);
-      }
     }
     roop_count++;
   }
@@ -1543,11 +1596,8 @@ int spider_update_tables_priority(
             SPIDER_LINK_STATUS_NO_CHANGE ?
             alter_table->tmp_link_statuses[roop_count] :
             SPIDER_LINK_STATUS_OK);
-          if ((error_num = table->file->ha_write_row(table->record[0])))
-          {
-            table->file->print_error(error_num, MYF(0));
+          if ((error_num = spider_write_sys_table_row(table)))
             DBUG_RETURN(error_num);
-          }
           roop_count++;
         } while (roop_count < (int) alter_table->all_link_count);
         DBUG_RETURN(0);
@@ -1563,14 +1613,8 @@ int spider_update_tables_priority(
       spider_store_tables_connect_info(table, alter_table, roop_count);
       spider_store_tables_link_status(table,
         alter_table->tmp_link_statuses[roop_count]);
-      if (
-        (error_num = table->file->ha_update_row(
-          table->record[1], table->record[0])) &&
-        error_num != HA_ERR_RECORD_IS_THE_SAME
-      ) {
-        table->file->print_error(error_num, MYF(0));
+      if ((error_num = spider_update_sys_table_row(table)))
         DBUG_RETURN(error_num);
-      }
     }
   }
   while (TRUE)
@@ -1588,11 +1632,8 @@ int spider_update_tables_priority(
         table->file->print_error(error_num, MYF(0));
         DBUG_RETURN(error_num);
       }
-      if ((error_num = table->file->ha_delete_row(table->record[0])))
-      {
-        table->file->print_error(error_num, MYF(0));
+      if ((error_num = spider_delete_sys_table_row(table)))
         DBUG_RETURN(error_num);
-      }
     }
     roop_count++;
   }
@@ -1628,14 +1669,8 @@ int spider_update_tables_link_status(
     store_record(table, record[1]);
     table->use_all_columns();
     spider_store_tables_link_status(table, link_status);
-    if (
-      (error_num = table->file->ha_update_row(
-        table->record[1], table->record[0])) &&
-      error_num != HA_ERR_RECORD_IS_THE_SAME
-    ) {
-      table->file->print_error(error_num, MYF(0));
+    if ((error_num = spider_update_sys_table_row(table)))
       DBUG_RETURN(error_num);
-    }
   }
 
   DBUG_RETURN(0);
@@ -1662,11 +1697,8 @@ int spider_delete_xa(
       MYF(0));
     DBUG_RETURN(ER_SPIDER_XA_NOT_EXISTS_NUM);
   } else {
-    if ((error_num = table->file->ha_delete_row(table->record[0])))
-    {
-      table->file->print_error(error_num, MYF(0));
+    if ((error_num = spider_delete_sys_table_row(table)))
       DBUG_RETURN(error_num);
-    }
   }
 
   DBUG_RETURN(0);
@@ -1693,7 +1725,7 @@ int spider_delete_xa_member(
     DBUG_RETURN(0);
   } else {
     do {
-      if ((error_num = table->file->ha_delete_row(table->record[0])))
+      if ((error_num = spider_delete_sys_table_row(table, 0, FALSE)))
       {
         spider_sys_index_end(table);
         table->file->print_error(error_num, MYF(0));
@@ -1728,11 +1760,8 @@ int spider_delete_tables(
     if ((error_num = spider_check_sys_table(table, table_key)))
       break;
     else {
-      if ((error_num = table->file->ha_delete_row(table->record[0])))
-      {
-        table->file->print_error(error_num, MYF(0));
+      if ((error_num = spider_delete_sys_table_row(table)))
         DBUG_RETURN(error_num);
-      }
     }
     roop_count++;
   }
@@ -3123,7 +3152,7 @@ int spider_sys_replace(
   char table_key[MAX_KEY_LENGTH];
   DBUG_ENTER("spider_sys_replace");
 
-  while ((error_num = table->file->ha_write_row(table->record[0])))
+  while ((error_num = spider_write_sys_table_row(table, FALSE)))
   {
     if (
       table->file->is_fatal_error(error_num, HA_CHECK_DUP) ||
@@ -3175,13 +3204,11 @@ int spider_sys_replace(
       last_uniq_key &&
       !table->file->referenced_by_foreign_key()
     ) {
-      error_num = table->file->ha_update_row(table->record[1],
-        table->record[0]);
-      if (error_num && error_num != HA_ERR_RECORD_IS_THE_SAME)
+      if ((error_num = spider_update_sys_table_row(table)))
         goto error;
       DBUG_RETURN(0);
     } else {
-      if ((error_num = table->file->ha_delete_row(table->record[1])))
+      if ((error_num = spider_delete_sys_table_row(table, 1, FALSE)))
         goto error;
       *modified_non_trans_table = TRUE;
     }

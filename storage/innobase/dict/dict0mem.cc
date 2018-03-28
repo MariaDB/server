@@ -37,6 +37,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "ut0crc32.h"
 #include "lock0lock.h"
 #include "sync0sync.h"
+#include "row0row.h"
 #include <iostream>
 
 #define	DICT_HEAP_SIZE		100	/*!< initial memory heap size when

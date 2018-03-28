@@ -152,3 +152,7 @@ a
 1
 NULL
 drop table t1;
+create table t1 (id int auto_increment primary key, datecol datetime, check (datecol>'0001-01-01 00:00:00'));
+insert into t1 (datecol) values (now());
+insert into t1 (datecol) values (now());
+drop table t1;

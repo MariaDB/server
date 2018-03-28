@@ -2723,7 +2723,8 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
   init_dynamic_string(&ds_query, 0, (end - query) + 32, 256);
   do_eval(&ds_query, query, end, FALSE);
 
-  if (mysql_real_query(mysql, ds_query.str, (ulong)ds_query.length)) 
+  if (mysql_real_query(mysql, ds_query.str, (ulong)ds_query.length) ||
+      !(res= mysql_store_result(mysql)))
   {
     handle_error(curr_command, mysql_errno(mysql), mysql_error(mysql),
                  mysql_sqlstate(mysql), &ds_res);
@@ -2733,13 +2734,6 @@ void var_query_set(VAR *var, const char *query, const char** query_end)
     DBUG_VOID_RETURN;
   }
   
-  if (!(res= mysql_store_result(mysql)))
-  {
-    report_or_die("Query '%s' didn't return a result set", ds_query.str);
-    dynstr_free(&ds_query);
-    eval_expr(var, "", 0);
-    DBUG_VOID_RETURN;
-  }
   dynstr_free(&ds_query);
 
   if ((row= mysql_fetch_row(res)) && row[0])
@@ -7335,9 +7329,7 @@ get_one_option(int optid, const struct my_option *opt, char *argument)
 
 int parse_args(int argc, char **argv)
 {
-  if (load_defaults("my",load_default_groups,&argc,&argv))
-    exit(1);
-
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   default_argv= argv;
 
   if ((handle_options(&argc, &argv, my_long_options, get_one_option)))

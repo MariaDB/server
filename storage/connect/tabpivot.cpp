@@ -299,7 +299,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 		Qryp->Nbcol += (ndif - 2);
 		return Qryp;
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
 	} catch (const char *msg) {
 		strcpy(g->Message, msg);

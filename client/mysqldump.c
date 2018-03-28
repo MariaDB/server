@@ -981,8 +981,7 @@ static int get_options(int *argc, char ***argv)
   opt_net_buffer_length= *mysql_params->p_net_buffer_length;
 
   md_result_file= stdout;
-  if (load_defaults("my",load_default_groups,argc,argv))
-    return 1;
+  load_defaults_or_exit("my", load_default_groups, argc, argv);
   defaults_argv= *argv;
 
   if (my_hash_init(&ignore_table, charset_info, 16, 0, 0,

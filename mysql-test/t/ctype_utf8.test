@@ -2034,6 +2034,16 @@ SELECT CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1);
 
 
 --echo #
+--echo # MDEV-15005 ASAN: stack-buffer-overflow in my_strnncollsp_simple
+--echo #
+
+SET NAMES utf8;
+SELECT CONVERT(1, CHAR) IN ('100', 10, '101');
+SELECT CONVERT(1, CHAR) IN ('100', 10, '1');
+SELECT CONVERT(1, CHAR) IN ('100', '10', '1');
+
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
 

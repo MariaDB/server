@@ -392,6 +392,15 @@ SELECT * FROM t1 WHERE COALESCE(c,0)='3 ' AND COALESCE(d,0)=COALESCE(c,0);
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-15005 ASAN: stack-buffer-overflow in my_strnncollsp_simple
+--echo #
+
+SET NAMES latin1;
+SELECT CONVERT(1, CHAR) IN ('100', 10, '101');
+SELECT CONVERT(1, CHAR) IN ('100', 10, '1');
+SELECT CONVERT(1, CHAR) IN ('100', '10', '1');
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
 

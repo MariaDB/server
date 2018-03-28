@@ -149,19 +149,21 @@ bool Item::get_time_with_conversion(THD *thd, MYSQL_TIME *ltime,
         - truncate the YYYYMMDD part
         - add (MM*33+DD)*24 to hours
         - add (MM*31+DD)*24 to hours
-        Let's return NULL here, to disallow equal field propagation.
+        Let's return TRUE here, to disallow equal field propagation.
         Note, If we start to use this method in more pieces of the code other
-        than eqial field propagation, we should probably return
-        NULL only if some flag in fuzzydate is set.
+        than equal field propagation, we should probably return
+        TRUE only if some flag in fuzzydate is set.
       */
-      return (null_value= true);
+      return true;
     }
     if (datetime_to_time_with_warn(thd, ltime, &ltime2, TIME_SECOND_PART_DIGITS))
     {
       /*
-        Time difference between CURRENT_DATE and ltime
-        did not fit into the supported TIME range
+        If the time difference between CURRENT_DATE and ltime
+        did not fit into the supported TIME range, then we set the
+        difference to the maximum possible value in the supported TIME range
       */
+      DBUG_ASSERT(0);
       return (null_value= true);
     }
     *ltime= ltime2;
@@ -10042,7 +10044,7 @@ double Item_cache_temporal::val_real()
 }
 
 
-bool  Item_cache_temporal::cache_value()
+bool Item_cache_temporal::cache_value()
 {
   if (!example)
     return false;
@@ -10071,12 +10073,11 @@ bool Item_cache_temporal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   if (!has_value())
   {
     bzero((char*) ltime,sizeof(*ltime));
-    return 1;
+    return true;
   }
 
   unpack_time(value, ltime, mysql_timestamp_type());
   return 0;
- 
 }
 
 

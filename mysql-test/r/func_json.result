@@ -740,7 +740,7 @@ select json_extract('{"test":8.437e-5}','$.test');
 json_extract('{"test":8.437e-5}','$.test')
 8.437e-5
 #
-# Start of 10.3 tests
+# End of 10.2 tests
 #
 #
 # MDEV-12854 Synchronize CREATE..SELECT data type and result set metadata data type for INT functions
@@ -765,3 +765,6 @@ def					json_length	3	10	1	Y	32896	0	63
 def					json_depnth	3	10	1	N	32897	0	63
 json_length	json_depnth
 2	3
+#
+# End of 10.3 tests
+#

@@ -97,7 +97,7 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
   PJSON jsp = NULL;
   STRG  src;
 
-	if (trace)
+	if (trace(1))
 		htrc("ParseJson: s=%.10s len=%d\n", s, len);
 
   if (!s || !len) {
@@ -165,7 +165,7 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
 			}; // endswitch s[i]
 
 		if (!jsp)
-			sprintf(g->Message, "Invalid Json string '%.*s'", 50, s);
+			sprintf(g->Message, "Invalid Json string '%.*s'", MY_MIN(len, 50), s);
 		else if (ptyp && pretty == 3) {
 			*ptyp = 3;     // Not recognized pretty
 
@@ -178,7 +178,7 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
 		} // endif ptyp
 
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
 		jsp = NULL;
 	} catch (const char *msg) {
@@ -652,7 +652,7 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty)
 		} // endif's
 
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
 		str = NULL;
 	} catch (const char *msg) {
@@ -1016,6 +1016,20 @@ PJAR JOBJECT::GetKeyList(PGLOBAL g)
 } // end of GetKeyList
 
 /***********************************************************************/
+/* Return all values as an array.                                      */
+/***********************************************************************/
+PJAR JOBJECT::GetValList(PGLOBAL g)
+{
+	PJAR jarp = new(g) JARRAY();
+
+	for (PJPR jpp = First; jpp; jpp = jpp->Next)
+		jarp->AddValue(g, jpp->GetVal());
+
+	jarp->InitArray(g);
+	return jarp;
+} // end of GetValList
+
+/***********************************************************************/
 /* Get the value corresponding to the given key.                       */
 /***********************************************************************/
 PJVAL JOBJECT::GetValue(const char* key)
@@ -1224,6 +1238,7 @@ PJVAL JARRAY::AddValue(PGLOBAL g, PJVAL jvp, int *x)
 			Last->Next = jvp;
 
 		Last = jvp;
+		Last->Next = NULL;
 	} // endif x
 
   return jvp;
@@ -1317,6 +1332,24 @@ bool JARRAY::IsNull(void)
 } // end of IsNull
 
 /* -------------------------- Class JVALUE- -------------------------- */
+
+/***********************************************************************/
+/* Constructor for a JSON.                                             */
+/***********************************************************************/
+JVALUE::JVALUE(PJSON jsp) : JSON()
+{
+	if (jsp->GetType() == TYPE_JVAL) {
+		Jsp = jsp->GetJsp();
+		Value = jsp->GetValue();
+	} else {
+		Jsp = jsp; 
+		Value = NULL;
+	}	// endif Type
+
+	Next = NULL; 
+	Del = false; 
+	Size = 1;
+}	// end of JVALUE constructor
 
 /***********************************************************************/
 /* Constructor for a Value with a given string or numeric value.       */

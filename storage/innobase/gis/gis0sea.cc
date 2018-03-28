@@ -37,6 +37,7 @@ Created 2014/01/16 Jimmy Yang
 #include "ibuf0ibuf.h"
 #include "trx0trx.h"
 #include "srv0mon.h"
+#include "que0que.h"
 #include "gis0geo.h"
 
 /** Restore the stored position of a persistent cursor bufferfixing the page */

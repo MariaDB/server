@@ -74,7 +74,8 @@ public:
                   NOW_FUNC, NOW_UTC_FUNC, SYSDATE_FUNC, TRIG_COND_FUNC,
                   SUSERVAR_FUNC, GUSERVAR_FUNC, COLLATE_FUNC,
                   EXTRACT_FUNC, CHAR_TYPECAST_FUNC, FUNC_SP, UDF_FUNC,
-                  NEG_FUNC, GSYSVAR_FUNC, DYNCOL_FUNC, JSON_EXTRACT_FUNC };
+                  NEG_FUNC, GSYSVAR_FUNC, IN_OPTIMIZER_FUNC, DYNCOL_FUNC,
+                  JSON_EXTRACT_FUNC };
   enum Type type() const { return FUNC_ITEM; }
   virtual enum Functype functype() const   { return UNKNOWN_FUNC; }
   Item_func(THD *thd): Item_func_or_sum(thd)
@@ -3128,7 +3129,6 @@ public:
 Item *get_system_var(THD *thd, enum_var_type var_type,
                      const LEX_CSTRING *name, const LEX_CSTRING *component);
 extern bool check_reserved_words(const LEX_CSTRING *name);
-Item *find_date_time_item(Item **args, uint nargs, uint col);
 double my_double_round(double value, longlong dec, bool dec_unsigned,
                        bool truncate);
 bool eval_const_cond(COND *cond);

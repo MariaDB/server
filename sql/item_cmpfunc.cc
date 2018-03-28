@@ -34,7 +34,6 @@
 #include "sql_time.h"                  // make_truncated_value_warning
 #include "sql_base.h"                  // dynamic_column_error_message
 
-
 /**
   find an temporal type (item) that others will be converted to
   for the purpose of comparison.
@@ -42,7 +41,7 @@
   this is the type that will be used in warnings like
   "Incorrect <<TYPE>> value".
 */
-Item *find_date_time_item(Item **args, uint nargs, uint col)
+static Item *find_date_time_item(Item **args, uint nargs, uint col)
 {
   Item *date_arg= 0, **arg, **arg_end;
   for (arg= args, arg_end= args + nargs; arg != arg_end ; arg++)
@@ -3067,22 +3066,12 @@ bool Item_func_case::fix_fields(THD *thd, Item **ref)
 /**
   Check if (*place) and new_value points to different Items and call
   THD::change_item_tree() if needed.
-
-  This function is a workaround for implementation deficiency in
-  Item_func_case. The problem there is that the 'args' attribute contains
-  Items from different expressions.
- 
-  The function must not be used elsewhere and will be remove eventually.
 */
 
-static void change_item_tree_if_needed(THD *thd,
-                                       Item **place,
-                                       Item *new_value)
+static void change_item_tree_if_needed(THD *thd, Item **place, Item *new_value)
 {
-  if (*place == new_value)
-    return;
-
-  thd->change_item_tree(place, new_value);
+  if (new_value && *place != new_value)
+    thd->change_item_tree(place, new_value);
 }
 
 
@@ -3270,10 +3259,11 @@ Item* Item_func_case_simple::propagate_equal_fields(THD *thd,
   for (uint i= 0; i < arg_count; i++)
   {
     /*
-      Even "i" values cover items that are in a comparison context:
-        CASE x0 WHEN x1 .. WHEN x2 .. WHEN x3 ..
-      Odd "i" values cover items that are not in comparison:
-        CASE ... THEN y1 ... THEN y2 ... THEN y3 ... ELSE y4 END
+      These arguments are in comparison.
+      Allow invariants of the same value during propagation.
+      Note, as we pass ANY_SUBST, none of the WHEN arguments will be
+      replaced to zero-filled constants (only IDENTITY_SUBST allows this).
+      Such a change for WHEN arguments would require rebuilding cmp_items.
     */
     Item *new_item= 0;
     if (i == 0) // Then CASE (the switch) argument

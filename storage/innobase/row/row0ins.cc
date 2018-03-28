@@ -1875,8 +1875,6 @@ do_possible_lock_wait:
 
 		check_table->inc_fk_checks();
 
-		trx_kill_blocking(trx);
-
 		lock_wait_suspend_thread(thr);
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;

@@ -58,3 +58,11 @@ SELECT * FROM t1 IGNORE KEY (b) WHERE b='';
 SELECT * FROM t1 WHERE a=b;
 SELECT 1 FROM t1 WHERE (SELECT a FROM t1 group by c) = b;
 DROP TABLE t1;
+
+#
+# MDEV-15570 Assertion `Item_cache_temporal::field_type() != MYSQL_TYPE_TIME' failed in Item_cache_temporal::val_datetime_packed
+#
+CREATE TABLE t1 (d DATE) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('2012-12-21');
+SELECT * FROM t1 WHERE LEAST( UTC_TIME(), d );
+DROP TABLE t1;

@@ -10543,6 +10543,19 @@ CAST(_utf8 0xC499 AS CHAR CHARACTER SET latin1)
 Warnings:
 Warning	1977	Cannot convert 'utf8' character 0xC499 to 'latin1'
 #
+# MDEV-15005 ASAN: stack-buffer-overflow in my_strnncollsp_simple
+#
+SET NAMES utf8;
+SELECT CONVERT(1, CHAR) IN ('100', 10, '101');
+CONVERT(1, CHAR) IN ('100', 10, '101')
+0
+SELECT CONVERT(1, CHAR) IN ('100', 10, '1');
+CONVERT(1, CHAR) IN ('100', 10, '1')
+1
+SELECT CONVERT(1, CHAR) IN ('100', '10', '1');
+CONVERT(1, CHAR) IN ('100', '10', '1')
+1
+#
 # End of 10.1 tests
 #
 #

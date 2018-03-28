@@ -3008,9 +3008,7 @@ int main(int argc, char** argv)
   my_init_time(); // for time functions
   tzset(); // set tzname
 
-  if (load_defaults("my", load_groups, &argc, &argv))
-    exit(1);
-
+  load_defaults_or_exit("my", load_groups, &argc, &argv);
   defaults_argv= argv;
 
   if (!(binlog_filter= new Rpl_filter))

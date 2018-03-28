@@ -325,11 +325,7 @@ int main(int argc, char **argv)
   MY_INIT(argv[0]);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
 
-  if (load_defaults("my",load_default_groups,&argc,&argv))
-  {
-    my_end(0);
-    exit(1);
-  }
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   defaults_argv=argv;
   if (get_options(&argc,&argv))
   {

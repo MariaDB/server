@@ -6114,11 +6114,15 @@ public:
   sent by the user (ie: stored procedure).
 */
 #define CF_SKIP_QUESTIONS       (1U << 1)
-
+#ifdef WITH_WSREP
 /**
   Do not check that wsrep snapshot is ready before allowing this command
 */
 #define CF_SKIP_WSREP_CHECK     (1U << 2)
+#else
+#define CF_SKIP_WSREP_CHECK     0
+#endif /* WITH_WSREP */
+
 /**
   Do not allow it for COM_MULTI batch
 */

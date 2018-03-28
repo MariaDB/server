@@ -398,7 +398,7 @@ drop table t1;
 select json_extract('{"test":8.437e-5}','$.test');
 
 --echo #
---echo # Start of 10.3 tests
+--echo # End of 10.2 tests
 --echo #
 
 --echo #
@@ -420,3 +420,7 @@ SELECT
 
 --enable_ps_protocol
 --disable_metadata
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

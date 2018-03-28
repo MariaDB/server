@@ -35,6 +35,7 @@ Created 2/2/1994 Heikki Tuuri
 #include "lock0lock.h"
 #include "fut0lst.h"
 #include "btr0sea.h"
+#include "trx0sys.h"
 
 /*			THE INDEX PAGE
 			==============

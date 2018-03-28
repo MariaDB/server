@@ -119,11 +119,11 @@ MYSQL="$MYSQL_CLIENT $WSREP_SST_OPT_CONF "\
 
 # Check if binary logging is enabled on the joiner node.
 # Note: SELECT cannot be used at this point.
-LOG_BIN=$(echo "SHOW VARIABLES LIKE 'log_bin'" | $MYSQL |\
+LOG_BIN=$(echo "set statement wsrep_sync_wait=0 for SHOW VARIABLES LIKE 'log_bin'" | $MYSQL |\
 tail -1 | awk -F ' ' '{ print $2 }')
 
 # Check the joiner node's server version.
-SERVER_VERSION=$(echo "SHOW VARIABLES LIKE 'version'" | $MYSQL |\
+SERVER_VERSION=$(echo "set statement wsrep_sync_wait=0 for SHOW VARIABLES LIKE 'version'" | $MYSQL |\
 tail -1 | awk -F ' ' '{ print $2 }')
 
 RESET_MASTER=""

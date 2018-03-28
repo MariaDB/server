@@ -45,6 +45,7 @@ const byte field_ref_zero[FIELD_REF_SIZE] = {
 #include "btr0cur.h"
 #include "page0types.h"
 #include "log0recv.h"
+#include "row0row.h"
 #include "row0trunc.h"
 #include "zlib.h"
 #include "buf0buf.h"
