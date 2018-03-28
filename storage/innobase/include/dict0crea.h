@@ -68,15 +68,6 @@ dict_create_table_step(
 /*===================*/
 	que_thr_t*	thr);		/*!< in: query thread */
 
-/** Builds a tablespace to contain a table, using file-per-table=1.
-@param[in,out]	table	Table to build in its own tablespace.
-@param[in]	node	Table create node
-@return DB_SUCCESS or error code */
-dberr_t
-dict_build_tablespace_for_table(
-	dict_table_t*	table,
-	tab_node_t*	node);
-
 /** Assign a new table ID and put it into the table cache and the transaction.
 @param[in,out]	table	Table that needs an ID
 @param[in,out]	trx	Transaction */

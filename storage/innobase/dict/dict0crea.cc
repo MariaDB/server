@@ -353,47 +353,10 @@ dict_build_table_def_step(
 	que_thr_t*	thr,	/*!< in: query thread */
 	tab_node_t*	node)	/*!< in: table create node */
 {
-	dict_table_t*	table;
-	dtuple_t*	row;
-	dberr_t		err = DB_SUCCESS;
-
-	table = node->table;
-
-	trx_t*	trx = thr_get_trx(thr);
-	dict_table_assign_new_id(table, trx);
-
-	err = dict_build_tablespace_for_table(table, node);
-
-	if (err != DB_SUCCESS) {
-		return(err);
-	}
-
-	row = dict_create_sys_tables_tuple(table, node->heap);
-
-	ins_node_set_new_row(node->tab_def, row);
-
-	return(err);
-}
-
-/** Builds a tablespace to contain a table, using file-per-table=1.
-@param[in,out]	table	Table to build in its own tablespace.
-@param[in]	node	Table create node
-@return DB_SUCCESS or error code */
-dberr_t
-dict_build_tablespace_for_table(
-	dict_table_t*	table,
-	tab_node_t*	node)
-{
-	dberr_t		err	= DB_SUCCESS;
-	mtr_t		mtr;
-	ulint		space = 0;
-	bool		needs_file_per_table;
-	char*		filepath;
-
 	ut_ad(mutex_own(&dict_sys->mutex));
-
-	needs_file_per_table
-		= DICT_TF2_FLAG_IS_SET(table, DICT_TF2_USE_FILE_PER_TABLE);
+	dict_table_t*	table = node->table;
+	ut_ad(!table->is_temporary());
+	dict_table_assign_new_id(table, thr_get_trx(thr));
 
 	/* Always set this bit for all new created tables */
 	DICT_TF2_FLAG_SET(table, DICT_TF2_FTS_AUX_HEX_NAME);
@@ -401,42 +364,35 @@ dict_build_tablespace_for_table(
 			DICT_TF2_FLAG_UNSET(table,
 					    DICT_TF2_FTS_AUX_HEX_NAME););
 
-	if (needs_file_per_table) {
-		ut_ad(!dict_table_is_temporary(table));
+	if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_USE_FILE_PER_TABLE)) {
 		/* This table will need a new tablespace. */
 
 		ut_ad(DICT_TF_GET_ZIP_SSIZE(table->flags) == 0
 		      || dict_table_has_atomic_blobs(table));
 
 		/* Get a new tablespace ID */
-		dict_hdr_get_new_id(NULL, NULL, &space, table, false);
+		ulint space_id;
+		dict_hdr_get_new_id(NULL, NULL, &space_id, table, false);
 
 		DBUG_EXECUTE_IF(
 			"ib_create_table_fail_out_of_space_ids",
-			space = ULINT_UNDEFINED;
+			space_id = ULINT_UNDEFINED;
 		);
 
-		if (space == ULINT_UNDEFINED) {
+		if (space_id == ULINT_UNDEFINED) {
 			return(DB_ERROR);
 		}
-		table->space = static_cast<unsigned int>(space);
+		table->space = unsigned(space_id);
 
 		/* Determine the tablespace flags. */
 		bool	has_data_dir = DICT_TF_HAS_DATA_DIR(table->flags);
 		ulint	fsp_flags = dict_tf_to_fsp_flags(table->flags);
-
-		if (has_data_dir) {
-			ut_ad(table->data_dir_path);
-			filepath = fil_make_filepath(
-				table->data_dir_path,
-				table->name.m_name, IBD, true);
-
-		} else {
-			/* Make the tablespace file in the default dir
-			using the table name */
-			filepath = fil_make_filepath(
-				NULL, table->name.m_name, IBD, false);
-		}
+		ut_ad(!has_data_dir || table->data_dir_path);
+		char*	filepath = has_data_dir
+			? fil_make_filepath(table->data_dir_path,
+					    table->name.m_name, IBD, true)
+			: fil_make_filepath(NULL,
+					    table->name.m_name, IBD, false);
 
 		/* We create a new single-table tablespace for the table.
 		We initially let it be 4 pages:
@@ -446,39 +402,33 @@ dict_build_tablespace_for_table(
 		- page 3 will contain the root of the clustered index of
 		the table we create here. */
 
-		err = fil_ibd_create(
-			space, table->name.m_name, filepath, fsp_flags,
+		dberr_t err = fil_ibd_create(
+			space_id, table->name.m_name, filepath, fsp_flags,
 			FIL_IBD_FILE_INITIAL_SIZE,
-			node ? node->mode : FIL_ENCRYPTION_DEFAULT,
-			node ? node->key_id : FIL_DEFAULT_ENCRYPTION_KEY);
+			node->mode, node->key_id);
 
 		ut_free(filepath);
 
 		if (err != DB_SUCCESS) {
-
 			return(err);
 		}
 
-		mtr_start(&mtr);
+		mtr_t mtr;
+		mtr.start();
 		mtr.set_named_space(table->space);
-
 		fsp_header_init(table->space, FIL_IBD_FILE_INITIAL_SIZE, &mtr);
-
-		mtr_commit(&mtr);
+		mtr.commit();
 	} else {
 		ut_ad(dict_tf_get_rec_format(table->flags)
 		      != REC_FORMAT_COMPRESSED);
-		if (dict_table_is_temporary(table)) {
-			table->space = SRV_TMP_SPACE_ID;
-		} else {
-			ut_ad(table->space == srv_sys_space.space_id());
-		}
-
+		ut_ad(table->space == TRX_SYS_SPACE);
 		DBUG_EXECUTE_IF("ib_ddl_crash_during_tablespace_alloc",
 				DBUG_SUICIDE(););
 	}
 
-	return(DB_SUCCESS);
+	ins_node_set_new_row(node->tab_def,
+			     dict_create_sys_tables_tuple(table, node->heap));
+	return DB_SUCCESS;
 }
 
 /** Builds a SYS_VIRTUAL row definition to insert.

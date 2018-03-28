@@ -11197,23 +11197,14 @@ err_col:
 
 	ut_ad(trx_state_eq(m_trx, TRX_STATE_NOT_STARTED));
 
-	/* If temp table, then we avoid creation of entries in SYSTEM TABLES.
-	Given that temp table lifetime is limited to connection/server lifetime
-	on re-start we don't need to restore temp-table and so no entry is
-	needed in SYSTEM tables. */
-	if (dict_table_is_temporary(table)) {
-		/* Get a new table ID */
+	if (table->is_temporary()) {
+		/* Get a new table ID. FIXME: Make this a private
+		sequence, not shared with persistent tables! */
 		dict_table_assign_new_id(table, m_trx);
-
-		/* Create temp tablespace if configured. */
-		err = dict_build_tablespace_for_table(table, NULL);
-
-		if (err == DB_SUCCESS) {
-			table->add_to_cache();
-
-			DBUG_EXECUTE_IF("ib_ddl_crash_during_create2",
-					DBUG_SUICIDE(););
-		}
+		ut_ad(dict_tf_get_rec_format(table->flags)
+		      != REC_FORMAT_COMPRESSED);
+		table->space = SRV_TMP_SPACE_ID;
+		table->add_to_cache();
 	} else {
 		if (err == DB_SUCCESS) {
 			err = row_create_table_for_mysql(
