@@ -692,6 +692,7 @@ struct TABLE_SHARE
   uint varchar_fields;                  /* number of varchar fields */
   uint default_fields;                  /* number of default fields */
   uint visible_fields;                  /* number of visible fields */
+  uint user_fields;                     /* number of user fields */
 
   uint default_expressions;
   uint table_check_constraints, field_check_constraints;

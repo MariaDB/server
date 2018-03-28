@@ -373,14 +373,19 @@ as select x25, row_start, row_end from t1 for system_time all;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `x25` int(11) DEFAULT NULL
+  `x25` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `row_end` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
 create or replace table t2 with system versioning
 as select x25, row_start, row_end from t1;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `x25` int(11) DEFAULT NULL
+  `x25` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=NON_DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (
 x26 int,
@@ -390,7 +395,13 @@ period for system_time (st, en)
 ) with system versioning engine innodb;
 create or replace table t2 with system versioning engine myisam
 as select * from t1;
-ERROR HY000: `st` must be of type TIMESTAMP(6) for system-versioned table `t2`
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x26` int(11) DEFAULT NULL,
+  `st` bigint(20) unsigned NOT NULL DEFAULT 0,
+  `en` bigint(20) unsigned NOT NULL DEFAULT 0
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 create or replace table t1 (x27 int, id int) with system versioning engine NON_DEFAULT_ENGINE;
 create or replace table t2 (b int, id int);
 create or replace table t3 with system versioning
@@ -399,7 +410,10 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `b` int(11) DEFAULT NULL,
-  `x27` int(11) DEFAULT NULL
+  `x27` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=NON_DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 ## Errors
 create or replace temporary table t (x28 int) with system versioning;
@@ -435,8 +449,10 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `x30` int(11) DEFAULT NULL,
   `y` int(11) DEFAULT NULL,
-  `st` timestamp(6) NOT NULL INVISIBLE DEFAULT '0000-00-00 00:00:00.000000',
-  `en` timestamp(6) NOT NULL INVISIBLE DEFAULT '0000-00-00 00:00:00.000000'
+  `row_start` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `row_end` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `st` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `en` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
 create or replace table t3 (
 y int,
@@ -450,6 +466,8 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `x30` int(11) DEFAULT NULL,
   `y` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
+  `row_end` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
   `st` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
   `en` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`st`, `en`)
@@ -466,5 +484,18 @@ execute bad;
 execute bad;
 execute bad;
 # bad is good.
+# MDEV-15413 Unexpected errors upon CREATE TABLE .. WITH SYSTEM VERSIONING AS SELECT ...
+create or replace table t1 with system versioning as select 1 as i;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(1) NOT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (i int) with system versioning as select 1 as i;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 drop database test;
 create database test;

@@ -388,7 +388,7 @@ create or replace table t1 (a int) with system versioning;
 create or replace table t2 (b int);
 create or replace view v1 as select a, row_start, row_end from t1 where a > round(rand()*1000);
 select * from v1 natural join t2;
-a	b
+a	row_start	row_end	b
 ### Issue #406, MDEV-14633 Assertion on TRT read
 create or replace table t1 (pk int primary key, i int, t time, key (i)) with system versioning;
 insert into t1 values (1, 10, '15:01:53'), (2, 20, '00:00:00');
