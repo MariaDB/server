@@ -847,6 +847,11 @@ public:
 
 class Item_func_date_format :public Item_str_func
 {
+  bool check_arguments() const
+  {
+    return args[0]->check_type_can_return_date(func_name()) ||
+           check_argument_types_can_return_text(1, arg_count);
+  }
   const MY_LOCALE *locale;
   int fixed_length;
   String value;

@@ -1859,11 +1859,12 @@ void Item_func_date_format::fix_length_and_dec()
   if (!thd->variables.lc_time_names->is_ascii)
     repertoire|= MY_REPERTOIRE_EXTENDED;
   collation.set(cs, arg1->collation.derivation, repertoire);
-  if (arg1->type() == STRING_ITEM)
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> buffer;
+  String *str;
+  if (args[1]->basic_const_item() && (str= args[1]->val_str(&buffer)))
   {						// Optimize the normal case
     fixed_length=1;
-    max_length= format_length(arg1->val_str(NULL)) *
-                collation.collation->mbmaxlen;
+    max_length= format_length(str) * collation.collation->mbmaxlen;
   }
   else
   {

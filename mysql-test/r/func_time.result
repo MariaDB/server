@@ -3402,3 +3402,61 @@ CAST(LAST_DAY(TIME'00:00:00') AS TIME) AS c3;
 c1	c2	c3
 2018-02-28	00:00:00	00:00:00
 SET TIMESTAMP=DEFAULT;
+#
+# MDEV-15702 Remove the use of STRING_ITEM from Item_func_date_format::fix_length_and_dec()
+#
+SELECT DATE_FORMAT('2001-01-01',POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'date_format'
+SELECT DATE_FORMAT(POINT(1,1),'10');
+ERROR HY000: Illegal parameter data type geometry for operation 'date_format'
+SELECT DATE_FORMAT('2001-01-01',ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'date_format'
+SELECT DATE_FORMAT(ROW(1,1),'10');
+ERROR HY000: Illegal parameter data type row for operation 'date_format'
+SELECT DATE_FORMAT('2001-01-01','%Y',POINT(1,1));
+ERROR HY000: Illegal parameter data type geometry for operation 'date_format'
+SELECT DATE_FORMAT('2001-01-01','%Y',ROW(1,1));
+ERROR HY000: Illegal parameter data type row for operation 'date_format'
+SELECT DATE_FORMAT('2001-01-01','%Y',@unknown_user_variable);
+DATE_FORMAT('2001-01-01','%Y',@unknown_user_variable)
+2001
+Warnings:
+Warning	1649	Unknown locale: 'NULL'
+CREATE TABLE t1 AS SELECT
+DATE_FORMAT('2001-01-01',NULL) AS c0,
+DATE_FORMAT('2001-01-01','10') AS c1,
+DATE_FORMAT('2001-01-01',10) AS c2,
+DATE_FORMAT('2001-01-01',10.0) AS c3,
+DATE_FORMAT('2001-01-01',10e0) AS c4,
+DATE_FORMAT('2001-01-01',TIME'10:20:30') AS c5;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c0` char(0) DEFAULT NULL,
+  `c1` varchar(2) DEFAULT NULL,
+  `c2` varchar(2) DEFAULT NULL,
+  `c3` varchar(4) DEFAULT NULL,
+  `c4` varchar(2) DEFAULT NULL,
+  `c5` varchar(8) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXECUTE IMMEDIATE
+"CREATE TABLE t1 AS SELECT
+   DATE_FORMAT('2001-01-01',?) AS c0,
+   DATE_FORMAT('2001-01-01',?) AS c1,
+   DATE_FORMAT('2001-01-01',?) AS c2,
+   DATE_FORMAT('2001-01-01',?) AS c3,
+   DATE_FORMAT('2001-01-01',?) AS c4,
+   DATE_FORMAT('2001-01-01',?) AS c5"
+USING NULL, '10', 10, 10.0, 10e0, TIME'10:20:30';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c0` char(0) DEFAULT NULL,
+  `c1` varchar(2) DEFAULT NULL,
+  `c2` varchar(2) DEFAULT NULL,
+  `c3` varchar(4) DEFAULT NULL,
+  `c4` varchar(2) DEFAULT NULL,
+  `c5` varchar(100) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
