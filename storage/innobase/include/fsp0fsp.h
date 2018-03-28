@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -294,16 +294,6 @@ the extent are free and which contain old tuple version to clean. */
 #ifndef UNIV_INNOCHECKSUM
 /* @} */
 
-/**********************************************************************//**
-Gets the size of the system tablespace from the tablespace header.  If
-we do not have an auto-extending data file, this should be equal to
-the size of the data files.  If there is an auto-extending data file,
-this can be smaller.
-@return size in pages */
-ulint
-fsp_header_get_tablespace_size(void);
-/*================================*/
-
 /** Calculate the number of pages to extend a datafile.
 We extend single-table tablespaces first one extent at a time,
 but 4 at a time for bigger tablespaces. It is not enough to extend always
@@ -397,14 +387,6 @@ fsp_header_init_fields(
 void
 fsp_header_init(ulint space_id, ulint size, mtr_t* mtr);
 
-/**********************************************************************//**
-Increases the space size field of a space. */
-void
-fsp_header_inc_size(
-/*================*/
-	ulint	space_id,	/*!< in: space id */
-	ulint	size_inc,	/*!< in: size increment in pages */
-	mtr_t*	mtr);		/*!< in/out: mini-transaction */
 /**********************************************************************//**
 Creates a new segment.
 @return the block where the segment header is placed, x-latched, NULL

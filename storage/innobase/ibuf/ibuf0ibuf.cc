@@ -522,7 +522,9 @@ ibuf_init_at_db_start(void)
 
 	mtr_start(&mtr);
 
-	mtr_x_lock_space(IBUF_SPACE_ID, &mtr);
+	compile_time_assert(IBUF_SPACE_ID == TRX_SYS_SPACE);
+	compile_time_assert(IBUF_SPACE_ID == 0);
+	mtr_x_lock(&fil_system.sys_space->latch, &mtr);
 
 	mutex_enter(&ibuf_mutex);
 
@@ -1151,7 +1153,8 @@ ibuf_page_low(
 		return(FALSE);
 	}
 
-	ut_ad(fil_space_get_type(IBUF_SPACE_ID) == FIL_TYPE_TABLESPACE);
+	compile_time_assert(IBUF_SPACE_ID == 0);
+	ut_ad(fil_system.sys_space->purpose == FIL_TYPE_TABLESPACE);
 
 #ifdef UNIV_DEBUG
 	if (!x_latch) {
@@ -2028,11 +2031,9 @@ ibuf_add_free_page(void)
 	page_t*		bitmap_page;
 
 	mtr_start(&mtr);
-	fil_space_t* space = mtr.set_sys_modified();
-
 	/* Acquire the fsp latch before the ibuf header, obeying the latching
 	order */
-	mtr_x_lock(&space->latch, &mtr);
+	mtr_x_lock(&fil_system.sys_space->latch, &mtr);
 	header_page = ibuf_header_page_get(&mtr);
 
 	/* Allocate a new page: NOTE that if the page has been a part of a
@@ -2078,13 +2079,11 @@ ibuf_add_free_page(void)
 	(level 2 page) */
 
 	const page_id_t		page_id(IBUF_SPACE_ID, block->page.id.page_no());
-	const page_size_t	page_size(space->flags);
-
-	bitmap_page = ibuf_bitmap_get_map_page(page_id, page_size, &mtr);
+	bitmap_page = ibuf_bitmap_get_map_page(page_id, univ_page_size, &mtr);
 
 	mutex_exit(&ibuf_mutex);
 
-	ibuf_bitmap_page_set_bits(bitmap_page, page_id, page_size,
+	ibuf_bitmap_page_set_bits(bitmap_page, page_id, univ_page_size,
 				  IBUF_BITMAP_IBUF, TRUE, &mtr);
 
 	ibuf_mtr_commit(&mtr);
@@ -2110,13 +2109,10 @@ ibuf_remove_free_page(void)
 	log_free_check();
 
 	mtr_start(&mtr);
-	fil_space_t*		space = mtr.set_sys_modified();
-	const page_size_t	page_size(space->flags);
-
 	/* Acquire the fsp latch before the ibuf header, obeying the latching
 	order */
 
-	mtr_x_lock(&space->latch, &mtr);
+	mtr_x_lock(&fil_system.sys_space->latch, &mtr);
 	header_page = ibuf_header_page_get(&mtr);
 
 	/* Prevent pessimistic inserts to insert buffer trees for a while */
@@ -2195,12 +2191,12 @@ ibuf_remove_free_page(void)
 	/* Set the bit indicating that this page is no more an ibuf tree page
 	(level 2 page) */
 
-	bitmap_page = ibuf_bitmap_get_map_page(page_id, page_size, &mtr);
+	bitmap_page = ibuf_bitmap_get_map_page(page_id, univ_page_size, &mtr);
 
 	mutex_exit(&ibuf_mutex);
 
 	ibuf_bitmap_page_set_bits(
-		bitmap_page, page_id, page_size, IBUF_BITMAP_IBUF, FALSE,
+		bitmap_page, page_id, univ_page_size, IBUF_BITMAP_IBUF, FALSE,
 		&mtr);
 
 	ut_d(buf_page_set_file_page_was_freed(page_id));

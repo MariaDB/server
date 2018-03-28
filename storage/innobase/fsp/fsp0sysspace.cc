@@ -912,15 +912,19 @@ SysTablespace::open_or_create(
 		it->close();
 		it->m_exists = true;
 
-		if (it == begin) {
-			/* First data file. */
-
-			/* Create the tablespace entry for the multi-file
-			tablespace in the tablespace manager. */
-			space = fil_space_create(
-				name(), space_id(), flags(), is_temp
-				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
-				NULL);
+		if (it != begin) {
+		} else if (is_temp) {
+			ut_ad(!fil_system.temp_space);
+			ut_ad(space_id() == SRV_TMP_SPACE_ID);
+			space = fil_system.temp_space = fil_space_create(
+				name(), SRV_TMP_SPACE_ID, flags(),
+				FIL_TYPE_TEMPORARY, NULL);
+		} else {
+			ut_ad(!fil_system.sys_space);
+			ut_ad(space_id() == TRX_SYS_SPACE);
+			space = fil_system.sys_space = fil_space_create(
+				name(), TRX_SYS_SPACE, flags(),
+				FIL_TYPE_TABLESPACE, NULL);
 		}
 
 		ut_a(fil_validate());

@@ -2779,11 +2779,11 @@ xb_load_single_table_tablespace(
 
 		/* by opening the tablespace we forcing node and space objects
 		in the cache to be populated with fields from space header */
-		fil_space_open(space->name);
+		space->open();
 
 		if (srv_operation == SRV_OPERATION_RESTORE_DELTA
 		    || xb_close_files) {
-			fil_space_close(space->name);
+			space->close();
 		}
 	}
 

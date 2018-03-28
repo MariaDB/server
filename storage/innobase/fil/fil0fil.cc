@@ -393,28 +393,6 @@ fil_space_get_latch(
 	return(&(space->latch));
 }
 
-/** Gets the type of a file space.
-@param[in]	id	tablespace identifier
-@return file type */
-fil_type_t
-fil_space_get_type(
-	ulint	id)
-{
-	fil_space_t*	space;
-
-	ut_ad(fil_system.is_initialised());
-
-	mutex_enter(&fil_system.mutex);
-
-	space = fil_space_get_by_id(id);
-
-	ut_a(space);
-
-	mutex_exit(&fil_system.mutex);
-
-	return(space->purpose);
-}
-
 /** Note that a tablespace has been imported.
 It is initially marked as FIL_TYPE_IMPORT so that no logging is
 done during the import process when the space ID is stamped to each page.
@@ -1373,6 +1351,12 @@ fil_space_detach(
 
 		fil_node_close_to_free(fil_node, space);
 	}
+
+	if (space == fil_system.sys_space) {
+		fil_system.sys_space = NULL;
+	} else if (space == fil_system.temp_space) {
+		fil_system.temp_space = NULL;
+	}
 }
 
 /** Free a tablespace object on which fil_space_detach() was invoked.
@@ -1828,58 +1812,47 @@ fil_space_get_flags(
 	return(flags);
 }
 
-/** Open each fil_node_t of a named fil_space_t if not already open.
-@param[in]	name	Tablespace name
-@return true if all nodes are open  */
-bool
-fil_space_open(
-	const char*	name)
+/** Open each file. Only invoked on fil_system.temp_space.
+@return whether all files were opened */
+bool fil_space_t::open()
 {
 	ut_ad(fil_system.is_initialised());
 
 	mutex_enter(&fil_system.mutex);
+	ut_ad(this == fil_system.temp_space
+	      || srv_operation == SRV_OPERATION_BACKUP
+	      || srv_operation == SRV_OPERATION_RESTORE
+	      || srv_operation == SRV_OPERATION_RESTORE_DELTA);
 
-	fil_space_t*	space = fil_space_get_by_name(name);
-	fil_node_t*	node;
-
-	for (node = UT_LIST_GET_FIRST(space->chain);
+	for (fil_node_t* node = UT_LIST_GET_FIRST(chain);
 	     node != NULL;
 	     node = UT_LIST_GET_NEXT(chain, node)) {
-
-		if (!node->is_open()
-		    && !fil_node_open_file(node)) {
+		if (!node->is_open() && !fil_node_open_file(node)) {
 			mutex_exit(&fil_system.mutex);
-			return(false);
+			return false;
 		}
 	}
 
 	mutex_exit(&fil_system.mutex);
-
-	return(true);
+	return true;
 }
 
-/** Close each fil_node_t of a named fil_space_t if open.
-@param[in]	name	Tablespace name */
-void
-fil_space_close(
-	const char*	name)
+/** Close each file. Only invoked on fil_system.temp_space. */
+void fil_space_t::close()
 {
 	if (!fil_system.is_initialised()) {
 		return;
 	}
 
 	mutex_enter(&fil_system.mutex);
+	ut_ad(this == fil_system.temp_space
+	      || srv_operation == SRV_OPERATION_BACKUP
+	      || srv_operation == SRV_OPERATION_RESTORE
+	      || srv_operation == SRV_OPERATION_RESTORE_DELTA);
 
-	fil_space_t*	space = fil_space_get_by_name(name);
-	if (space == NULL) {
-		mutex_exit(&fil_system.mutex);
-		return;
-	}
-
-	for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
+	for (fil_node_t* node = UT_LIST_GET_FIRST(chain);
 	     node != NULL;
 	     node = UT_LIST_GET_NEXT(chain, node)) {
-
 		if (node->is_open()) {
 			fil_node_close_file(node);
 		}
@@ -1940,6 +1913,8 @@ void fil_system_t::close()
 	ut_a(!UT_LIST_GET_LEN(LRU));
 	ut_a(!UT_LIST_GET_LEN(unflushed_spaces));
 	ut_a(!UT_LIST_GET_LEN(space_list));
+	ut_ad(!sys_space);
+	ut_ad(!temp_space);
 
 	if (is_initialised()) {
 		m_initialised = false;
@@ -4854,32 +4829,6 @@ fil_space_release_free_extents(
 	mutex_exit(&fil_system.mutex);
 }
 
-/*******************************************************************//**
-Gets the number of reserved extents. If the database is silent, this number
-should be zero. */
-ulint
-fil_space_get_n_reserved_extents(
-/*=============================*/
-	ulint	id)		/*!< in: space id */
-{
-	fil_space_t*	space;
-	ulint		n;
-
-	ut_ad(fil_system.is_initialised());
-
-	mutex_enter(&fil_system.mutex);
-
-	space = fil_space_get_by_id(id);
-
-	ut_a(space);
-
-	n = space->n_reserved_extents;
-
-	mutex_exit(&fil_system.mutex);
-
-	return(n);
-}
-
 /*============================ FILE I/O ================================*/
 
 /********************************************************************//**
@@ -5498,6 +5447,10 @@ struct	Check {
 		Check	check;
 		ut_list_validate(space->chain, check);
 		ut_a(space->size == check.size);
+		ut_ad(space->id != TRX_SYS_SPACE
+		      || space == fil_system.sys_space);
+		ut_ad(space->id != SRV_TMP_SPACE_ID
+		      || space == fil_system.temp_space);
 		return(check.n_open);
 	}
 };

@@ -640,11 +640,7 @@ trx_temp_rseg_create()
 	for (ulong i = 0; i < TRX_SYS_N_RSEGS; i++) {
 		mtr.start();
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
-#ifdef UNIV_DEBUG
-		const fil_space_t*	space =
-#endif /* UNIV_DEBUG */
-			mtr_x_lock_space(SRV_TMP_SPACE_ID, &mtr);
-		ut_ad(space->purpose == FIL_TYPE_TEMPORARY);
+		mtr_x_lock(&fil_system.temp_space->latch, &mtr);
 
 		ulint page_no = trx_rseg_header_create(
 			SRV_TMP_SPACE_ID, i, NULL, &mtr);

@@ -1204,7 +1204,6 @@ srv_printf_innodb_monitor(
 {
 	double	time_elapsed;
 	time_t	current_time;
-	ulint	n_reserved;
 	ibool	ret;
 
 	mutex_enter(&srv_innodb_monitor_mutex);
@@ -1367,8 +1366,7 @@ srv_printf_innodb_monitor(
 	fprintf(file, ULINTPF " read views open inside InnoDB\n",
 		trx_sys.view_count());
 
-	n_reserved = fil_space_get_n_reserved_extents(0);
-	if (n_reserved > 0) {
+	if (ulint n_reserved = fil_system.sys_space->n_reserved_extents) {
 		fprintf(file,
 			ULINTPF " tablespace extents now reserved for"
 			" B-tree split operations\n",

@@ -514,8 +514,6 @@ mtr_t::start(bool sync, bool read_only)
 	m_impl.m_state = MTR_STATE_ACTIVE;
 	ut_d(m_impl.m_user_space_id = TRX_SYS_SPACE);
 	m_impl.m_user_space = NULL;
-	m_impl.m_undo_space = NULL;
-	m_impl.m_sys_space = NULL;
 	m_impl.m_flush_observer = NULL;
 
 	ut_d(m_impl.m_magic_n = MTR_MAGIC_N);
@@ -638,18 +636,8 @@ mtr_t::commit_checkpoint(
 bool
 mtr_t::is_named_space(ulint space) const
 {
-	ut_ad(!m_impl.m_sys_space
-	      || m_impl.m_sys_space->id == TRX_SYS_SPACE);
-	ut_ad(!m_impl.m_undo_space
-	      || m_impl.m_undo_space->id != TRX_SYS_SPACE);
 	ut_ad(!m_impl.m_user_space
 	      || m_impl.m_user_space->id != TRX_SYS_SPACE);
-	ut_ad(!m_impl.m_sys_space
-	      || m_impl.m_sys_space != m_impl.m_user_space);
-	ut_ad(!m_impl.m_sys_space
-	      || m_impl.m_sys_space != m_impl.m_undo_space);
-	ut_ad(!m_impl.m_user_space
-	      || m_impl.m_user_space != m_impl.m_undo_space);
 
 	switch (get_log_mode()) {
 	case MTR_LOG_NONE:
@@ -681,22 +669,15 @@ mtr_t::x_lock_space(ulint space_id, const char* file, unsigned line)
 	ut_ad(is_active());
 
 	if (space_id == TRX_SYS_SPACE) {
-		space = m_impl.m_sys_space;
-
-		if (!space) {
-			space = m_impl.m_sys_space = fil_space_get(space_id);
-		}
+		space = fil_system.sys_space;
 	} else if ((space = m_impl.m_user_space) && space_id == space->id) {
-	} else if ((space = m_impl.m_undo_space) && space_id == space->id) {
-	} else if (get_log_mode() == MTR_LOG_NO_REDO) {
+	} else {
 		space = fil_space_get(space_id);
-		ut_ad(space->purpose == FIL_TYPE_TEMPORARY
+		ut_ad(get_log_mode() != MTR_LOG_NO_REDO
+		      || space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT
 		      || space->redo_skipped_count > 0
 		      || srv_is_tablespace_truncated(space->id));
-	} else {
-		/* called from trx_rseg_create() */
-		space = m_impl.m_undo_space = fil_space_get(space_id);
 	}
 
 	ut_ad(space);
@@ -706,44 +687,6 @@ mtr_t::x_lock_space(ulint space_id, const char* file, unsigned line)
 	      || space->purpose == FIL_TYPE_IMPORT
 	      || space->purpose == FIL_TYPE_TABLESPACE);
 	return(space);
-}
-
-/** Look up the system tablespace. */
-void
-mtr_t::lookup_sys_space()
-{
-	ut_ad(!m_impl.m_sys_space);
-	m_impl.m_sys_space = fil_space_get(TRX_SYS_SPACE);
-	ut_ad(m_impl.m_sys_space);
-}
-
-/** Look up the user tablespace.
-@param[in]	space_id	tablespace ID */
-void
-mtr_t::lookup_user_space(ulint space_id)
-{
-	ut_ad(space_id != TRX_SYS_SPACE);
-	ut_ad(m_impl.m_user_space_id == space_id);
-	ut_ad(!m_impl.m_user_space);
-	m_impl.m_user_space = fil_space_get(space_id);
-	ut_ad(m_impl.m_user_space);
-}
-
-/** Set the tablespace associated with the mini-transaction
-(needed for generating a MLOG_FILE_NAME record)
-@param[in]	space	user or system tablespace */
-void
-mtr_t::set_named_space(fil_space_t* space)
-{
-	ut_ad(m_impl.m_user_space_id == TRX_SYS_SPACE);
-	ut_d(m_impl.m_user_space_id = space->id);
-	if (space->id == TRX_SYS_SPACE) {
-		ut_ad(m_impl.m_sys_space == NULL
-		      || m_impl.m_sys_space == space);
-		m_impl.m_sys_space = space;
-	} else {
-		m_impl.m_user_space = space;
-	}
 }
 
 /** Release an object in the memo stack.
@@ -985,24 +928,15 @@ mtr_t::release_free_extents(ulint n_reserved)
 {
 	fil_space_t*	space;
 
-	ut_ad(m_impl.m_undo_space == NULL);
-
 	if (m_impl.m_user_space != NULL) {
-
 		ut_ad(m_impl.m_user_space->id
 		      == m_impl.m_user_space_id);
-		ut_ad(memo_contains(get_memo(), &m_impl.m_user_space->latch,
-				    MTR_MEMO_X_LOCK));
-
 		space = m_impl.m_user_space;
 	} else {
-
-		ut_ad(m_impl.m_sys_space->id == TRX_SYS_SPACE);
-		ut_ad(memo_contains(get_memo(), &m_impl.m_sys_space->latch,
-				    MTR_MEMO_X_LOCK));
-
-		space = m_impl.m_sys_space;
+		space = fil_system.sys_space;
 	}
+
+	ut_ad(memo_contains(get_memo(), &space->latch, MTR_MEMO_X_LOCK));
 
 	space->release_free_extents(n_reserved);
 }

@@ -3489,9 +3489,12 @@ innobase_space_shutdown()
 {
 	DBUG_ENTER("innobase_space_shutdown");
 
+	if (fil_system.temp_space) {
+		fil_system.temp_space->close();
+	}
+
 	srv_sys_space.shutdown();
 	if (srv_tmp_space.get_sanity_check_status()) {
-		fil_space_close(srv_tmp_space.name());
 		srv_tmp_space.delete_files();
 	}
 	srv_tmp_space.shutdown();

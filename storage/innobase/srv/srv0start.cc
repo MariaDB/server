@@ -1173,47 +1173,30 @@ srv_open_tmp_tablespace(bool create_new_db)
 		&create_new_temp_space, 12 * 1024 * 1024);
 
 	if (err == DB_FAIL) {
-
-		ib::error() << "The " << srv_tmp_space.name()
-			<< " data file must be writable!";
-
+		ib::error() << "The innodb_temporary"
+			" data file must be writable!";
 		err = DB_ERROR;
-
 	} else if (err != DB_SUCCESS) {
-		ib::error() << "Could not create the shared "
-			<< srv_tmp_space.name() << ".";
-
+		ib::error() << "Could not create the shared innodb_temporary.";
 	} else if ((err = srv_tmp_space.open_or_create(
 			    true, create_new_db, &sum_of_new_sizes, NULL))
 		   != DB_SUCCESS) {
-
-		ib::error() << "Unable to create the shared "
-			<< srv_tmp_space.name();
-
+		ib::error() << "Unable to create the shared innodb_temporary";
+	} else if (fil_system.temp_space->open()) {
+		/* Initialize the header page */
+		mtr_t mtr;
+		mtr.start();
+		mtr.set_log_mode(MTR_LOG_NO_REDO);
+		fsp_header_init(SRV_TMP_SPACE_ID,
+				srv_tmp_space.get_sum_of_sizes(),
+				&mtr);
+		mtr.commit();
 	} else {
-
-		mtr_t	mtr;
-		ulint	size = srv_tmp_space.get_sum_of_sizes();
-
-		/* Open this shared temp tablespace in the fil_system so that
-		it stays open until shutdown. */
-		if (fil_space_open(srv_tmp_space.name())) {
-
-			/* Initialize the header page */
-			mtr_start(&mtr);
-			mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-
-			fsp_header_init(SRV_TMP_SPACE_ID, size, &mtr);
-
-			mtr_commit(&mtr);
-		} else {
-			/* This file was just opened in the code above! */
-			ib::error() << "The " << srv_tmp_space.name()
-				<< " data file cannot be re-opened"
-				" after check_file_spec() succeeded!";
-
-			err = DB_ERROR;
-		}
+		/* This file was just opened in the code above! */
+		ib::error() << "The innodb_temporary"
+			" data file cannot be re-opened"
+			" after check_file_spec() succeeded!";
+		err = DB_ERROR;
 	}
 
 	return(err);
@@ -2121,7 +2104,7 @@ files_checked:
 	shutdown */
 
 	fil_open_log_and_system_tablespace_files();
-	ut_d(fil_space_get(0)->recv_size = srv_sys_space_size_debug);
+	ut_d(fil_system.sys_space->recv_size = srv_sys_space_size_debug);
 
 	err = srv_undo_tablespaces_init(create_new_db);
 
@@ -2269,7 +2252,19 @@ files_checked:
 			if (sum_of_new_sizes > 0) {
 				/* New data file(s) were added */
 				mtr.start();
-				fsp_header_inc_size(0, sum_of_new_sizes, &mtr);
+				buf_block_t* block = buf_page_get(
+					page_id_t(0, 0), univ_page_size,
+					RW_SX_LATCH, &mtr);
+				ulint size = mach_read_from_4(
+					FSP_HEADER_OFFSET + FSP_SIZE
+					+ block->frame);
+				ut_ad(size == fil_system.sys_space
+				      ->size_in_header);
+				size += sum_of_new_sizes;
+				mlog_write_ulint(FSP_HEADER_OFFSET + FSP_SIZE
+						 + block->frame, size,
+						 MLOG_4BYTES, &mtr);
+				fil_system.sys_space->size_in_header = size;
 				mtr.commit();
 				/* Immediately write the log record about
 				increased tablespace size to disk, so that it
@@ -2279,8 +2274,20 @@ files_checked:
 			}
 		}
 
+#ifdef UNIV_DEBUG
+		{
+			mtr.start();
+			buf_block_t* block = buf_page_get(page_id_t(0, 0),
+							  univ_page_size,
+							  RW_S_LATCH, &mtr);
+			ut_ad(mach_read_from_4(FSP_SIZE + FSP_HEADER_OFFSET
+					       + block->frame)
+			      == fil_system.sys_space->size_in_header);
+			mtr.commit();
+		}
+#endif
 		const ulint	tablespace_size_in_header
-			= fsp_header_get_tablespace_size();
+			= fil_system.sys_space->size_in_header;
 		const ulint	sum_of_data_file_sizes
 			= srv_sys_space.get_sum_of_sizes();
 		/* Compare the system tablespace file size to what is
@@ -2430,10 +2437,8 @@ files_checked:
 		/* Validate a few system page types that were left
 		uninitialized by older versions of MySQL. */
 		if (!high_level_read_only) {
-			mtr_t		mtr;
 			buf_block_t*	block;
 			mtr.start();
-			mtr.set_sys_modified();
 			/* Bitmap page types will be reset in
 			buf_dblwr_check_block() without redo logging. */
 			block = buf_page_get(
