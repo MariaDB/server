@@ -19,8 +19,8 @@ SELECT @@global.gtid_binlog_state;
 @@global.gtid_binlog_state
 1-1-4,2-2-2,2-3-3
 DROP TABLE t1,t2;
-reset master;
 STOP SLAVE;
 RESET SLAVE ALL;
+reset master;
 reset master;
 reset master;
