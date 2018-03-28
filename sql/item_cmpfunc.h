@@ -2104,15 +2104,13 @@ class Item_func_case :public Item_func_case_expression
 protected:
   String tmp_value;
   DTCollation cmp_collation;
-  Item **arg_buffer;
-  bool aggregate_then_and_else_arguments(THD *thd,
-                                         Item **items, uint count,
-                                         Item **else_expr);
+  bool aggregate_then_and_else_arguments(THD *thd, uint count);
   virtual Item **else_expr_addr() const= 0;
   virtual Item *find_item()= 0;
   void print_when_then_arguments(String *str, enum_query_type query_type,
                                  Item **items, uint count);
   void print_else_argument(String *str, enum_query_type query_type, Item *item);
+  void reorder_args(uint start);
 public:
   Item_func_case(THD *thd, List<Item> &list)
    :Item_func_case_expression(thd, list)
@@ -2129,13 +2127,6 @@ public:
   enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   bool need_parentheses_in_default() { return true; }
-  Item *build_clone(THD *thd)
-  {
-    Item_func_case *clone= (Item_func_case *) Item_func::build_clone(thd);
-    if (clone)
-      clone->arg_buffer= 0;
-    return clone;
-  }
 };
 
 
@@ -2156,6 +2147,7 @@ public:
    :Item_func_case(thd, list)
   {
     DBUG_ASSERT(arg_count >= 2);
+    reorder_args(0);
   }
   void print(String *str, enum_query_type query_type);
   void fix_length_and_dec();
@@ -2200,6 +2192,7 @@ public:
     m_found_types(0)
   {
     DBUG_ASSERT(arg_count >= 3);
+    reorder_args(1);
   }
   void cleanup()
   {
@@ -2233,8 +2226,7 @@ public:
    :Item_func_case_simple(thd, list)
   { }
   const char *func_name() const { return "decode_oracle"; }
-  void print(String *str, enum_query_type query_type)
-  { Item_func::print(str, query_type); }
+  void print(String *str, enum_query_type query_type);
   void fix_length_and_dec();
   Item *find_item();
   Item *get_copy(THD *thd)

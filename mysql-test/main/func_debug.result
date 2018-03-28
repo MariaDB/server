@@ -1630,7 +1630,7 @@ c
 NULL
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
-Note	1105	DBUG: [1] arg=3 handler=1 (decimal)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 DROP TABLE t1;
 #
 # MDEV-11555 CASE with a mixture of TIME and DATETIME returns a wrong result
@@ -1649,9 +1649,9 @@ good	was_bad_now_good
 one	one
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
-Note	1105	DBUG: [1] arg=3 handler=0 (time)
+Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [0] arg=1 handler=0 (time)
-Note	1105	DBUG: [1] arg=3 handler=0 (time)
-Note	1105	DBUG: [2] arg=5 handler=2 (datetime)
+Note	1105	DBUG: [1] arg=2 handler=0 (time)
+Note	1105	DBUG: [2] arg=3 handler=2 (datetime)
 SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
 SET SESSION debug_dbug="-d,Item_func_in";
