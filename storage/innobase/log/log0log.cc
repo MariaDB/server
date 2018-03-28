@@ -226,16 +226,18 @@ log_buffer_extend(
 	log_sys->buf_free -= move_start;
 	log_sys->buf_next_to_write -= move_start;
 
+	/* free previous after getting the right address */
+	if (!log_sys->first_in_use) {
+		log_sys->buf -= log_sys->buf_size;
+	}
+	ut_free_dodump(log_sys->buf, log_sys->buf_size * 2);
+
 	/* reallocate log buffer */
 	srv_log_buffer_size = len / UNIV_PAGE_SIZE + 1;
-	ut_free(log_sys->buf_ptr);
-
 	log_sys->buf_size = LOG_BUFFER_SIZE;
 
-	log_sys->buf_ptr = static_cast<byte*>(
-		ut_zalloc_nokey(log_sys->buf_size * 2 + OS_FILE_LOG_BLOCK_SIZE));
 	log_sys->buf = static_cast<byte*>(
-		ut_align(log_sys->buf_ptr, OS_FILE_LOG_BLOCK_SIZE));
+		ut_malloc_dontdump(log_sys->buf_size * 2));
 
 	log_sys->first_in_use = true;
 
@@ -723,10 +725,8 @@ log_sys_init()
 
 	log_sys->buf_size = LOG_BUFFER_SIZE;
 
-	log_sys->buf_ptr = static_cast<byte*>(
-		ut_zalloc_nokey(log_sys->buf_size * 2 + OS_FILE_LOG_BLOCK_SIZE));
 	log_sys->buf = static_cast<byte*>(
-		ut_align(log_sys->buf_ptr, OS_FILE_LOG_BLOCK_SIZE));
+		ut_malloc_dontdump(log_sys->buf_size * 2));
 
 	log_sys->first_in_use = true;
 
@@ -1085,12 +1085,12 @@ log_buffer_switch()
 						 OS_FILE_LOG_BLOCK_SIZE);
 
 	if (log_sys->first_in_use) {
-		ut_ad(log_sys->buf == ut_align(log_sys->buf_ptr,
+		ut_ad(log_sys->buf == ut_align(log_sys->buf,
 					       OS_FILE_LOG_BLOCK_SIZE));
 		log_sys->buf += log_sys->buf_size;
 	} else {
 		log_sys->buf -= log_sys->buf_size;
-		ut_ad(log_sys->buf == ut_align(log_sys->buf_ptr,
+		ut_ad(log_sys->buf == ut_align(log_sys->buf,
 					       OS_FILE_LOG_BLOCK_SIZE));
 	}
 
@@ -1881,7 +1881,7 @@ logs_empty_and_mark_files_at_shutdown(void)
 
 	srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;
 loop:
-	ut_ad(lock_sys || !srv_was_started);
+	ut_ad(lock_sys.is_initialised() || !srv_was_started);
 	ut_ad(log_sys || !srv_was_started);
 	ut_ad(fil_system || !srv_was_started);
 	os_event_set(srv_buf_resize_event);
@@ -1890,8 +1890,8 @@ loop:
 		os_event_set(srv_error_event);
 		os_event_set(srv_monitor_event);
 		os_event_set(srv_buf_dump_event);
-		if (lock_sys) {
-			os_event_set(lock_sys->timeout_event);
+		if (lock_sys.timeout_thread_active) {
+			os_event_set(lock_sys.timeout_event);
 		}
 		if (dict_stats_event) {
 			os_event_set(dict_stats_event);
@@ -1940,7 +1940,7 @@ loop:
 		goto wait_suspend_loop;
 	} else if (srv_dict_stats_thread_active) {
 		thread_name = "dict_stats_thread";
-	} else if (lock_sys && lock_sys->timeout_thread_active) {
+	} else if (lock_sys.timeout_thread_active) {
 		thread_name = "lock_wait_timeout_thread";
 	} else if (srv_buf_dump_thread_active) {
 		thread_name = "buf_dump_thread";
@@ -2254,8 +2254,10 @@ log_shutdown()
 {
 	log_group_close_all();
 
-	ut_free(log_sys->buf_ptr);
-	log_sys->buf_ptr = NULL;
+	if (!log_sys->first_in_use) {
+		log_sys->buf -= log_sys->buf_size;
+	}
+	ut_free_dodump(log_sys->buf, log_sys->buf_size * 2);
 	log_sys->buf = NULL;
 	ut_free(log_sys->checkpoint_buf_ptr);
 	log_sys->checkpoint_buf_ptr = NULL;

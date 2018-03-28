@@ -308,7 +308,7 @@ def	information_schema	ROUTINES	ROUTINE_COMMENT	27	''	NO	longtext	4294967295	429
 def	information_schema	ROUTINES	ROUTINE_DEFINITION	16	NULL	YES	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8	utf8_general_ci	longtext					NEVER	NULL
 def	information_schema	ROUTINES	ROUTINE_NAME	4	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)					NEVER	NULL
 def	information_schema	ROUTINES	ROUTINE_SCHEMA	3	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)					NEVER	NULL
-def	information_schema	ROUTINES	ROUTINE_TYPE	5	''	NO	varchar	9	27	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(9)					NEVER	NULL
+def	information_schema	ROUTINES	ROUTINE_TYPE	5	''	NO	varchar	13	39	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(13)					NEVER	NULL
 def	information_schema	ROUTINES	SECURITY_TYPE	23	''	NO	varchar	7	21	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(7)					NEVER	NULL
 def	information_schema	ROUTINES	SPECIFIC_NAME	1	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)					NEVER	NULL
 def	information_schema	ROUTINES	SQL_DATA_ACCESS	21	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)					NEVER	NULL
@@ -820,7 +820,7 @@ NULL	information_schema	PROCESSLIST	TID	bigint	NULL	NULL	NULL	NULL	bigint(4)
 3.0000	information_schema	ROUTINES	ROUTINE_CATALOG	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
 3.0000	information_schema	ROUTINES	ROUTINE_SCHEMA	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	ROUTINES	ROUTINE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
-3.0000	information_schema	ROUTINES	ROUTINE_TYPE	varchar	9	27	utf8	utf8_general_ci	varchar(9)
+3.0000	information_schema	ROUTINES	ROUTINE_TYPE	varchar	13	39	utf8	utf8_general_ci	varchar(13)
 3.0000	information_schema	ROUTINES	DATA_TYPE	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 NULL	information_schema	ROUTINES	CHARACTER_MAXIMUM_LENGTH	int	NULL	NULL	NULL	NULL	int(21)
 NULL	information_schema	ROUTINES	CHARACTER_OCTET_LENGTH	int	NULL	NULL	NULL	NULL	int(21)

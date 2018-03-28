@@ -180,7 +180,7 @@ will mark their views as closed but not actually free their views.
 
   @param[in,out] trx transaction
 */
-void ReadView::snapshot(trx_t *trx)
+inline void ReadView::snapshot(trx_t *trx)
 {
   trx_sys.snapshot_ids(trx, &m_ids, &m_low_limit_id, &m_low_limit_no);
   std::sort(m_ids.begin(), m_ids.end());
@@ -319,7 +319,7 @@ void ReadView::close()
 */
 void trx_sys_t::clone_oldest_view()
 {
-  purge_sys->view.snapshot(0);
+  purge_sys.view.snapshot(0);
   mutex_enter(&mutex);
   /* Find oldest view. */
   for (const ReadView *v= UT_LIST_GET_FIRST(m_views); v;
@@ -331,7 +331,7 @@ void trx_sys_t::clone_oldest_view()
       ut_delay(1);
 
     if (state == READ_VIEW_STATE_OPEN)
-      purge_sys->view.copy(*v);
+      purge_sys.view.copy(*v);
   }
   mutex_exit(&mutex);
 }

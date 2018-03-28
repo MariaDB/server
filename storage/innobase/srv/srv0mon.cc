@@ -1933,7 +1933,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_row_lock_time_max */
 	case MONITOR_OVLD_LOCK_MAX_WAIT_TIME:
-		value = lock_sys->n_lock_max_wait_time / 1000;
+		value = lock_sys.n_lock_max_wait_time / 1000;
 		break;
 
 	/* innodb_row_lock_time_avg */

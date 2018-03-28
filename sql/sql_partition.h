@@ -87,12 +87,8 @@ bool check_reorganise_list(partition_info *new_part_info,
                            partition_info *old_part_info,
                            List<char> list_part_names);
 handler *get_ha_partition(partition_info *part_info);
-int get_parts_for_update(const uchar *old_data, const uchar *new_data,
-                         const uchar *rec0, partition_info *part_info,
-                         uint32 *old_part_id, uint32 *new_part_id,
-                         longlong *func_value);
-int get_part_for_delete(const uchar *buf, const uchar *rec0,
-                        partition_info *part_info, uint32 *part_id);
+int get_part_for_buf(const uchar *buf, const uchar *rec0,
+                     partition_info *part_info, uint32 *part_id);
 void prune_partition_set(const TABLE *table, part_id_range *part_spec);
 bool check_partition_info(partition_info *part_info,handlerton **eng_type,
                           TABLE *table, handler *file, HA_CREATE_INFO *info);

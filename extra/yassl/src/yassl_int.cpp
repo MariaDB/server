@@ -921,10 +921,6 @@ static bool setPrefix(opaque* sha_input, int i)
     return true;
 }
 
-
-const char handshake_order[] = "Out of order HandShake Message!";
-
-
 } // namespcae for locals
 
 

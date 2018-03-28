@@ -7788,6 +7788,10 @@ ER_WRONG_INSERT_INTO_SEQUENCE
         eng "Wrong INSERT into a SEQUENCE. One can only do single table INSERT into a sequence object (like with mysqldump).  If you want to change the SEQUENCE, use ALTER SEQUENCE instead."
 ER_SP_STACK_TRACE
         eng "At line %u in %s"
+ER_PACKAGE_ROUTINE_IN_SPEC_NOT_DEFINED_IN_BODY
+        eng "Subroutine '%-.192s' is declared in the package specification but is not defined in the package body"
+ER_PACKAGE_ROUTINE_FORWARD_DECLARATION_NOT_DEFINED
+        eng "Subroutine '%-.192s' has a forward declaration but is not defined"
 ER_COMPRESSED_COLUMN_USED_AS_KEY
   eng "Compressed column '%-.192s' can't be used in key specification"
 ER_UNKNOWN_COMPRESSION_METHOD
@@ -7837,8 +7841,8 @@ WARN_VERS_PART_FULL
 WARN_VERS_PARAMETERS
         eng "Maybe missing parameters: %s"
 
-WARN_VERS_PART_ROTATION
-        eng "Versioned table %`s.%`s: switching from partition %`s to %`s"
+ER_VERS_DROP_PARTITION_INTERVAL
+        eng "Can only drop oldest partitions when rotating by INTERVAL"
 
 WARN_VERS_TRX_MISSING
         eng "VTQ missing transaction ID %lu"
@@ -7882,8 +7886,8 @@ ER_VERS_NO_TRX_ID
 ER_VERS_ALTER_SYSTEM_FIELD
         eng "Can not change system versioning field %`s"
 
-ER_VERS_SYS_FIELD_EXISTS
-        eng "System versioning field %`s exists"
+ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION
+        eng "Can not DROP SYSTEM VERSIONING for table %`s partitioned BY SYSTEM_TIME"
 
 ER_NOT_LOG_TABLE
         eng "Table %`s.%`s is not a log table"
@@ -7897,14 +7901,14 @@ ER_VERS_DUPLICATE_ROW_START_END
 ER_VERS_ALREADY_VERSIONED
         eng "Table %`s is already system-versioned"
 
-ER_VERS_TRUNCATE_VIEW
-        eng "DELETE HISTORY from VIEW is prohibited"
+ER_UNUSED_24
+	eng "You should never see it"
 
 ER_VERS_TEMPORARY
 	eng "System versioning prohibited for TEMPORARY tables"
 
-ER_VERS_INPLACE_NOT_IMPLEMENTED
-        eng "Not implemented for system-versioned tables"
+ER_VERS_NOT_SUPPORTED
+        eng "%s is not supported for %s system-versioned tables"
 ER_INDEX_FILE_FULL
         eng "The index file for table '%-.192s' is full"
 ER_UPDATED_COLUMN_ONLY_ONCE

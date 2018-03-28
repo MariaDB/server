@@ -1161,6 +1161,9 @@ public:
   { return null_ptr != 0 || table->maybe_null; }
   // Set to NULL on LOAD DATA or LOAD XML
   virtual bool load_data_set_null(THD *thd);
+  // Reset when a LOAD DATA file ended unexpectedly
+  virtual bool load_data_set_no_data(THD *thd, bool fixed_format);
+  void load_data_set_value(const char *pos, uint length, CHARSET_INFO *cs);
 
   /* @return true if this field is NULL-able (even if temporarily) */
   inline bool real_maybe_null(void) const { return null_ptr != 0; }
@@ -2457,6 +2460,7 @@ public:
 
 class Field_timestamp :public Field_temporal {
 protected:
+  sql_mode_t sql_mode_for_timestamp(THD *thd) const;
   int store_TIME_with_warning(THD *, MYSQL_TIME *, const ErrConv *,
                               int warnings, bool have_smth_to_conv);
 public:
@@ -2519,6 +2523,7 @@ public:
     return get_equal_const_item_datetime(thd, ctx, const_item);
   }
   bool load_data_set_null(THD *thd);
+  bool load_data_set_no_data(THD *thd, bool fixed_format);
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -3724,6 +3729,7 @@ public:
    */
   int reset(void) { return Field_blob::reset() || !maybe_null(); }
   bool load_data_set_null(THD *thd);
+  bool load_data_set_no_data(THD *thd, bool fixed_format);
 
   geometry_type get_geometry_type() { return geom_type; };
   static geometry_type geometry_type_merge(geometry_type, geometry_type);
@@ -4428,6 +4434,12 @@ public:
   bool is_column_type_ref() const { return m_column_type_ref != 0; }
   bool is_table_rowtype_ref() const { return m_table_rowtype_ref != 0; }
   bool is_cursor_rowtype_ref() const { return m_cursor_rowtype_ref; }
+  bool is_explicit_data_type() const
+  {
+    return !is_column_type_ref() &&
+           !is_table_rowtype_ref() &&
+           !is_cursor_rowtype_ref();
+  }
   Qualified_column_ident *column_type_ref() const
   {
     return m_column_type_ref;

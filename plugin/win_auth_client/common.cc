@@ -504,7 +504,7 @@ const char* get_last_error_message(Error_message_buf buf)
   buf[0]= '\0';
   FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
 		NULL, error, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		(LPTSTR)buf, sizeof(buf), NULL );
+		(LPTSTR)buf, ERRMSG_BUFSIZE , NULL );
 
   return buf;
 }

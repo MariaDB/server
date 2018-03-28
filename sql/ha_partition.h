@@ -558,8 +558,7 @@ public:
   virtual THR_LOCK_DATA **store_lock(THD * thd, THR_LOCK_DATA ** to,
 				     enum thr_lock_type lock_type);
   virtual int external_lock(THD * thd, int lock_type);
-  LEX_CSTRING *engine_name()
-  { return hton_name(table->part_info->default_engine_type); }
+  LEX_CSTRING *engine_name() { return hton_name(partition_ht()); }
   /*
     When table is locked a statement is started by calling start_stmt
     instead of external_lock
@@ -1485,7 +1484,7 @@ public:
     return h;
   }
 
-  virtual ha_rows part_records(void *_part_elem)
+  ha_rows part_records(void *_part_elem)
   {
     partition_element *part_elem= reinterpret_cast<partition_element *>(_part_elem);
     DBUG_ASSERT(m_part_info);
@@ -1502,12 +1501,6 @@ public:
       part_recs+= file->stats.records;
     }
     return part_recs;
-  }
-
-  virtual handler* part_handler(uint32 part_id)
-  {
-    DBUG_ASSERT(part_id < m_tot_parts);
-    return m_file[part_id];
   }
 
   friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);

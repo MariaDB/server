@@ -58,6 +58,7 @@
 #include "sp_head.h"
 #include "sp_rcontext.h"
 #include "sp_cache.h"
+#include "sql_show.h"                           // append_identifier
 #include "transaction.h"
 #include "sql_select.h" /* declares create_tmp_table() */
 #include "debug_sync.h"
@@ -818,8 +819,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   // Must be reset to handle error with THD's created for init of mysqld
   lex->current_select= 0;
   start_utime= utime_after_query= 0;
-  system_time= 0;
-  system_time_sec_part= 0;
+  system_time.start.val= system_time.sec= system_time.sec_part= 0;
   utime_after_lock= 0L;
   progress.arena= 0;
   progress.report_to_client= 0;
@@ -922,6 +922,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
 
   sp_proc_cache= NULL;
   sp_func_cache= NULL;
+  sp_package_spec_cache= NULL;
+  sp_package_body_cache= NULL;
 
   /* For user vars replication*/
   if (opt_bin_log)
@@ -1499,6 +1501,8 @@ void THD::change_user(void)
                (my_hash_free_key) free_sequence_last, HASH_THREAD_SPECIFIC);
   sp_cache_clear(&sp_proc_cache);
   sp_cache_clear(&sp_func_cache);
+  sp_cache_clear(&sp_package_spec_cache);
+  sp_cache_clear(&sp_package_body_cache);
 }
 
 /**
@@ -1657,6 +1661,7 @@ void THD::cleanup(void)
   close_temporary_tables();
 
   transaction.xid_state.xa_state= XA_NOTR;
+  transaction.xid_state.rm_error= 0;
   trans_rollback(this);
   xid_cache_delete(this, &transaction.xid_state);
 
@@ -1689,6 +1694,8 @@ void THD::cleanup(void)
   my_hash_free(&sequences);
   sp_cache_clear(&sp_proc_cache);
   sp_cache_clear(&sp_func_cache);
+  sp_cache_clear(&sp_package_spec_cache);
+  sp_cache_clear(&sp_package_body_cache);
   auto_inc_intervals_forced.empty();
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
 
@@ -3034,7 +3041,7 @@ sql_exchange::sql_exchange(const char *name, bool flag,
   cs= NULL;
 }
 
-bool sql_exchange::escaped_given(void)
+bool sql_exchange::escaped_given(void) const
 {
   return escaped != &default_escaped;
 }
@@ -3829,7 +3836,8 @@ int select_dumpvar::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
       mvsp->type_handler() == &type_handler_row)
   {
     // SELECT INTO row_type_sp_variable
-    if (thd->spcont->get_variable(mvsp->offset)->cols() != list.elements)
+    if (mvsp->get_rcontext(thd->spcont)->get_variable(mvsp->offset)->cols() !=
+        list.elements)
       goto error;
     m_var_sp_row= mvsp;
     return 0;
@@ -4173,14 +4181,22 @@ bool my_var_user::set(THD *thd, Item *item)
   return suv->fix_fields(thd, 0) || suv->update();
 }
 
+
+sp_rcontext *my_var_sp::get_rcontext(sp_rcontext *local_ctx) const
+{
+  return m_rcontext_handler->get_rcontext(local_ctx);
+}
+
+
 bool my_var_sp::set(THD *thd, Item *item)
 {
-  return thd->spcont->set_variable(thd, offset, &item);
+  return get_rcontext(thd->spcont)->set_variable(thd, offset, &item);
 }
 
 bool my_var_sp_row_field::set(THD *thd, Item *item)
 {
-  return thd->spcont->set_variable_row_field(thd, offset, m_field_offset, &item);
+  return get_rcontext(thd->spcont)->
+           set_variable_row_field(thd, offset, m_field_offset, &item);
 }
 
 
@@ -4215,7 +4231,8 @@ int select_dumpvar::send_data(List<Item> &items)
     DBUG_RETURN(1);
   }
   if (m_var_sp_row ?
-      thd->spcont->set_variable_row(thd, m_var_sp_row->offset, items) :
+      m_var_sp_row->get_rcontext(thd->spcont)->
+        set_variable_row(thd, m_var_sp_row->offset, items) :
       send_data_to_var_list(items))
     DBUG_RETURN(1);
 
@@ -7883,6 +7900,22 @@ void Database_qualified_name::copy(MEM_ROOT *mem_root,
   m_db.str= strmake_root(mem_root, db.str, db.length);
   m_name.length= name.length;
   m_name.str= strmake_root(mem_root, name.str, name.length);
+}
+
+
+bool Table_ident::append_to(THD *thd, String *str) const
+{
+  return (db.length &&
+          (append_identifier(thd, str, db.str, db.length) ||
+           str->append('.'))) ||
+         append_identifier(thd, str, table.str, table.length);
+}
+
+
+bool Qualified_column_ident::append_to(THD *thd, String *str) const
+{
+  return Table_ident::append_to(thd, str) || str->append('.') ||
+         append_identifier(thd, str, m_column.str, m_column.length);
 }
 
 

@@ -1,0 +1,134 @@
+--source include/master-slave.inc
+
+connection master;
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  FUNCTION f1 RETURN INT;
+  PROCEDURE p1;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PACKAGE BODY pack AS
+  FUNCTION f1 RETURN INT AS
+  BEGIN
+    RETURN 10;
+  END;
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT f1();
+  END;
+END pack;
+$$
+DELIMITER ;$$
+
+sync_slave_with_master;
+connection slave;
+--vertical_results
+--replace_column 13 # 14 #
+SELECT * FROM mysql.proc WHERE db='test' AND name='pack';
+--replace_column 13 # 14 #
+SELECT * FROM mysql.proc WHERE db='test' AND name LIKE 'pack.%';
+--horizontal_results
+
+SET @@sql_mode=ORACLE;
+SELECT pack.f1();
+CALL pack.p1();
+SET @@sql_mode=DEFAULT;
+
+connection master;
+DROP PACKAGE pack;
+
+sync_slave_with_master;
+connection slave;
+SELECT COUNT(*) FROM mysql.proc WHERE db='test' AND name='pack';
+
+--echo #
+--echo # Creating a package with a COMMENT
+--echo #
+
+connection master;
+
+DELIMITER $$;
+CREATE PACKAGE p1 COMMENT 'package-p1-comment' AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY p1 COMMENT 'package-body-p1-comment' AS
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+SELECT definer, name, security_type, type, `comment` FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
+sync_slave_with_master;
+SELECT definer, name, security_type, type, `comment` FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
+
+connection master;
+DROP PACKAGE p1;
+sync_slave_with_master;
+
+
+--echo #
+--echo # Creating a package with a different DEFINER
+--echo #
+
+connection master;
+
+DELIMITER $$;
+CREATE DEFINER=xxx@localhost PACKAGE p1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=xxx@localhost PACKAGE BODY p1 AS
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
+sync_slave_with_master;
+SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
+
+connection master;
+DROP PACKAGE p1;
+sync_slave_with_master;
+
+--echo #
+--echo # Creating a package with a different DEFINER + SQL SECURITY INVOKER
+--echo #
+
+connection master;
+
+DELIMITER $$;
+CREATE DEFINER=xxx@localhost PACKAGE p1 SQL SECURITY INVOKER AS
+  PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=xxx@localhost PACKAGE BODY p1 SQL SECURITY INVOKER AS
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
+sync_slave_with_master;
+SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
+
+connection master;
+DROP PACKAGE p1;
+sync_slave_with_master;
+
+--source include/rpl_end.inc

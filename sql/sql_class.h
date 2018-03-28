@@ -381,11 +381,13 @@ public:
   LEX_CSTRING ref_db;
   LEX_CSTRING ref_table;
   List<Key_part_spec> ref_columns;
-  uint delete_opt, update_opt, match_opt;
+  enum enum_fk_option delete_opt, update_opt;
+  enum fk_match_opt match_opt;
   Foreign_key(const LEX_CSTRING *name_arg, List<Key_part_spec> *cols,
 	      const LEX_CSTRING *ref_db_arg, const LEX_CSTRING *ref_table_arg,
               List<Key_part_spec> *ref_cols,
-	      uint delete_opt_arg, uint update_opt_arg, uint match_opt_arg,
+              enum_fk_option delete_opt_arg, enum_fk_option update_opt_arg,
+              fk_match_opt match_opt_arg,
 	      DDL_options ddl_options)
     :Key(FOREIGN_KEY, name_arg, &default_key_create_info, 0, cols, NULL,
          ddl_options),
@@ -747,7 +749,6 @@ typedef struct system_variables
   uint in_subquery_conversion_threshold;
 
   vers_asof_timestamp_t vers_asof_timestamp;
-  my_bool vers_innodb_algorithm_simple;
   ulong vers_alter_history;
 } SV;
 
@@ -2438,8 +2439,6 @@ public:
   // track down slow pthread_create
   ulonglong  prior_thr_create_utime, thr_create_utime;
   ulonglong  utime_after_query;
-  my_time_t  system_time;
-  ulong      system_time_sec_part;
 
   // Process indicator
   struct {
@@ -3188,6 +3187,8 @@ public:
   sp_rcontext *spcont;		// SP runtime context
   sp_cache   *sp_proc_cache;
   sp_cache   *sp_func_cache;
+  sp_cache   *sp_package_spec_cache;
+  sp_cache   *sp_package_body_cache;
 
   /** number of name_const() substitutions, see sp_head.cc:subst_spvars() */
   uint       query_name_consts;
@@ -3455,30 +3456,56 @@ public:
   { query_start_sec_part_used=1; return start_time_sec_part; }
   MYSQL_TIME query_start_TIME();
 
-private:
-  bool system_time_ge(my_time_t secs, ulong usecs)
-  {
-    return (system_time == secs && system_time_sec_part >= usecs) ||
-        system_time > secs;
-  }
+  struct {
+    my_hrtime_t start;
+    my_time_t sec;
+    ulong sec_part;
+  } system_time;
 
+  ulong systime_sec_part() { query_start_sec_part_used=1; return system_time.sec_part; }
+  my_time_t systime() { query_start_used=1; return system_time.sec; }
+
+private:
   void set_system_time()
   {
     my_hrtime_t hrtime= my_hrtime();
-    my_time_t secs= hrtime_to_my_time(hrtime);
-    ulong usecs= hrtime_sec_part(hrtime);
-    if (system_time_ge(secs, usecs))
+    my_time_t sec= hrtime_to_my_time(hrtime);
+    ulong sec_part= hrtime_sec_part(hrtime);
+    if (sec > system_time.sec ||
+        (sec == system_time.sec && sec_part > system_time.sec_part) ||
+        hrtime.val < system_time.start.val)
     {
-      if (++system_time_sec_part == HRTIME_RESOLUTION)
-      {
-        ++system_time;
-        system_time_sec_part= 0;
-      }
+      system_time.sec= sec;
+      system_time.sec_part= sec_part;
     }
     else
     {
-      system_time= secs;
-      system_time_sec_part= usecs;
+      if (system_time.sec_part < TIME_MAX_SECOND_PART)
+        system_time.sec_part++;
+      else
+      {
+        system_time.sec++;
+        system_time.sec_part= 0;
+      }
+    }
+  }
+
+  void set_system_time_from_user_time(bool with_sec_part)
+  {
+    if (with_sec_part)
+    {
+      system_time.sec= start_time;
+      system_time.sec_part= start_time_sec_part;
+    }
+    else
+    {
+      if (system_time.sec == start_time)
+        system_time.sec_part++;
+      else
+      {
+        system_time.sec= start_time;
+        system_time.sec_part= 0;
+      }
     }
   }
 
@@ -3493,8 +3520,8 @@ public:
     }
     else
     {
-      start_time= system_time;
-      start_time_sec_part= system_time_sec_part;
+      start_time= system_time.sec;
+      start_time_sec_part= system_time.sec_part;
     }
     PSI_CALL_set_thread_start_time(start_time);
   }
@@ -3508,10 +3535,21 @@ public:
     user_time= t;
     set_time();
   }
+  /*
+    this is only used by replication and BINLOG command.
+    usecs > TIME_MAX_SECOND_PART means "was not in binlog"
+  */
   inline void set_time(my_time_t t, ulong sec_part)
   {
-    my_hrtime_t hrtime= { hrtime_from_time(t) + sec_part };
-    set_time(hrtime);
+    start_time= t;
+    start_time_sec_part= sec_part > TIME_MAX_SECOND_PART ? 0 : sec_part;
+    user_time.val= hrtime_from_time(start_time) + start_time_sec_part;
+    if (slave_thread)
+      set_system_time_from_user_time(sec_part <= TIME_MAX_SECOND_PART);
+    else // BINLOG command
+      set_system_time();
+    PSI_CALL_set_thread_start_time(start_time);
+    start_utime= utime_after_lock= microsecond_interval_timer();
   }
   void set_time_after_lock()
   {
@@ -5123,7 +5161,7 @@ public:
   CHARSET_INFO *cs;
   sql_exchange(const char *name, bool dumpfile_flag,
                enum_filetype filetype_arg= FILETYPE_CSV);
-  bool escaped_given(void);
+  bool escaped_given(void) const;
 };
 
 /*
@@ -5454,7 +5492,6 @@ class select_insert :public select_result_interceptor {
 
 
 class select_create: public select_insert {
-  ORDER *group;
   TABLE_LIST *create_table;
   Table_specification_st *create_info;
   TABLE_LIST *select_tables;
@@ -6045,6 +6082,7 @@ public:
     db= *db_name;
   }
   bool resolve_table_rowtype_ref(THD *thd, Row_definition_list &defs);
+  bool append_to(THD *thd, String *to) const;
 };
 
 
@@ -6069,6 +6107,7 @@ public:
     m_column(*column)
   { }
   bool resolve_type_ref(THD *thd, Column_definition *def);
+  bool append_to(THD *thd, String *to) const;
 };
 
 
@@ -6135,7 +6174,7 @@ class multi_update :public select_result_interceptor
 {
   TABLE_LIST *all_tables; /* query/update command tables */
   List<TABLE_LIST> *leaves;     /* list of leves of join table tree */
-  TABLE_LIST *update_tables, *table_being_updated;
+  TABLE_LIST *update_tables;
   TABLE **tmp_tables, *main_table, *table_to_update;
   TMP_TABLE_PARAM *tmp_table_param;
   ha_rows updated, found;
@@ -6196,6 +6235,7 @@ public:
 };
 
 class my_var_sp: public my_var {
+  const Sp_rcontext_handler *m_rcontext_handler;
   const Type_handler *m_type_handler;
 public:
   uint offset;
@@ -6204,13 +6244,17 @@ public:
     runtime context is used for variable handling.
   */
   sp_head *sp;
-  my_var_sp(const LEX_CSTRING *j, uint o, const Type_handler *type_handler,
+  my_var_sp(const Sp_rcontext_handler *rcontext_handler,
+            const LEX_CSTRING *j, uint o, const Type_handler *type_handler,
             sp_head *s)
-    : my_var(j, LOCAL_VAR), m_type_handler(type_handler), offset(o), sp(s) { }
+    : my_var(j, LOCAL_VAR),
+      m_rcontext_handler(rcontext_handler),
+      m_type_handler(type_handler), offset(o), sp(s) { }
   ~my_var_sp() { }
   bool set(THD *thd, Item *val);
   my_var_sp *get_my_var_sp() { return this; }
   const Type_handler *type_handler() const { return m_type_handler; }
+  sp_rcontext *get_rcontext(sp_rcontext *local_ctx) const;
 };
 
 /*
@@ -6221,9 +6265,11 @@ class my_var_sp_row_field: public my_var_sp
 {
   uint m_field_offset;
 public:
-  my_var_sp_row_field(const LEX_CSTRING *varname, const LEX_CSTRING *fieldname,
+  my_var_sp_row_field(const Sp_rcontext_handler *rcontext_handler,
+                      const LEX_CSTRING *varname, const LEX_CSTRING *fieldname,
                       uint var_idx, uint field_idx, sp_head *s)
-   :my_var_sp(varname, var_idx, &type_handler_double/*Not really used*/, s),
+   :my_var_sp(rcontext_handler, varname, var_idx,
+              &type_handler_double/*Not really used*/, s),
     m_field_offset(field_idx)
   { }
   bool set(THD *thd, Item *val);
@@ -6605,6 +6651,9 @@ public:
   Database_qualified_name(const LEX_CSTRING *db, const LEX_CSTRING *name)
    :m_db(*db), m_name(*name)
   { }
+  Database_qualified_name(const LEX_CSTRING &db, const LEX_CSTRING &name)
+   :m_db(db), m_name(name)
+  { }
   Database_qualified_name(const char *db, size_t db_length,
                           const char *name, size_t name_length)
   {
@@ -6652,6 +6701,34 @@ public:
             dot, ".",
             (int) m_name.length, m_name.str);
     DBUG_SLOW_ASSERT(ok_for_lower_case_names(m_db.str));
+    return false;
+  }
+
+  bool make_package_routine_name(MEM_ROOT *mem_root,
+                                 const LEX_CSTRING &package,
+                                 const LEX_CSTRING &routine)
+  {
+    char *tmp;
+    size_t length= package.length + 1 + routine.length + 1;
+    if (!(tmp= (char *) alloc_root(mem_root, length)))
+      return true;
+    m_name.length= my_snprintf(tmp, length, "%.*s.%.*s",
+                               (int) package.length, package.str,
+                               (int) routine.length, routine.str);
+    m_name.str= tmp;
+    return false;
+  }
+
+  bool make_package_routine_name(MEM_ROOT *mem_root,
+                                 const LEX_CSTRING &db,
+                                 const LEX_CSTRING &package,
+                                 const LEX_CSTRING &routine)
+  {
+    if (make_package_routine_name(mem_root, package, routine))
+      return true;
+    if (!(m_db.str= strmake_root(mem_root, db.str, db.length)))
+      return true;
+    m_db.length= db.length;
     return false;
   }
 };

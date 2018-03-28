@@ -614,6 +614,24 @@ select cast('-0.0' as decimal(5,1)) < 0;
 --echo #
 
 --echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-15420 Wrong result for CAST from TIME or DATETIME with zero integer part and non-zero microseconds to DECIMAL(X,Y)
+--echo #
+
+SET sql_mode=''; # Allow zero date
+SELECT
+  CAST(TIMESTAMP'0000-00-00 00:00:00.123456' AS DECIMAL(10,6)) AS c1,
+  CAST(TIME'00:00:00.123456' AS DECIMAL(10,6)) AS c2;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
 --echo # Start of 10.3 tests
 --echo #
 

@@ -1215,19 +1215,16 @@ AIO::release_with_mutex(Slot* slot)
 	release();
 }
 
-/** Creates a temporary file.  This function is like tmpfile(3), but
-the temporary file is created in the given parameter path. If the path
-is NULL then it will create the file in the MySQL server configuration
+/** Create a temporary file. This function is like tmpfile(3), but
+the temporary file is created in the in the mysql server configuration
 parameter (--tmpdir).
-@param[in]	path	location for creating temporary file
-@@return temporary file handle, or NULL on error */
+@return temporary file handle, or NULL on error */
 FILE*
-os_file_create_tmpfile(
-	const char*	path)
+os_file_create_tmpfile()
 {
 	FILE*	file	= NULL;
 	WAIT_ALLOW_WRITES();
-	int	fd	= innobase_mysql_tmpfile(path);
+	int	fd	= innobase_mysql_tmpfile(NULL);
 
 	if (fd >= 0) {
 		file = fdopen(fd, "w+b");
@@ -3401,16 +3398,6 @@ static void __stdcall win_free_syncio_event(void *data) {
 
 
 /*
-Initialize tls index.for event handle used for synchronized IO on files that
-might be opened with FILE_FLAG_OVERLAPPED.
-*/
-static void win_init_syncio_event() {
-	fls_sync_io = FlsAlloc(win_free_syncio_event);
-	ut_a(fls_sync_io != FLS_OUT_OF_INDEXES);
-}
-
-
-/*
 Retrieve per-thread event for doing synchronous io on asyncronously opened files
 */
 static HANDLE win_get_syncio_event()
@@ -3515,46 +3502,6 @@ struct WinIoInit
 /* Ensures proper initialization and shutdown */
 static WinIoInit win_io_init;
 
-/** Check if the file system supports sparse files.
-@param[in]	 name		File name
-@return true if the file system supports sparse files */
-static
-bool
-os_is_sparse_file_supported_win32(const char* filename)
-{
-	char	volname[MAX_PATH];
-	BOOL	result = GetVolumePathName(filename, volname, MAX_PATH);
-
-	if (!result) {
-
-		ib::error()
-			<< "os_is_sparse_file_supported: "
-			<< "Failed to get the volume path name for: "
-			<< filename
-			<< "- OS error number " << GetLastError();
-
-		return(false);
-	}
-
-	DWORD	flags;
-
-	result = GetVolumeInformation(
-		volname, NULL, MAX_PATH, NULL, NULL,
-		&flags, NULL, MAX_PATH);
-
-
-	if (!result) {
-		ib::error()
-			<< "os_is_sparse_file_supported: "
-			<< "Failed to get the volume info for: "
-			<< volname
-			<< "- OS error number " << GetLastError();
-
-		return(false);
-	}
-
-	return(flags & FILE_SUPPORTS_SPARSE_FILES) ? true : false;
-}
 
 /** Free storage space associated with a section of the file.
 @param[in]	fh		Open file handle
@@ -3851,7 +3798,7 @@ os_file_create_simple_func(
 		ib::info()
 			<< "Read only mode set. Unable to"
 			" open file '" << name << "' in RW mode, "
-			<< "trying RO mode", name;
+			<< "trying RO mode";
 
 		access = GENERIC_READ;
 
@@ -4546,7 +4493,7 @@ bool
 os_file_close_func(
 	os_file_t	file)
 {
-	ut_a(file > 0);
+	ut_a(file);
 
 	if (CloseHandle(file)) {
 		return(true);

@@ -2972,7 +2972,7 @@ Optimize all FTS tables.
 @return Dummy return */
 static
 os_thread_ret_t
-fts_optimize_thread(
+DECLARE_THREAD(fts_optimize_thread)(
 /*================*/
 	void*		arg)			/*!< in: work queue*/
 {

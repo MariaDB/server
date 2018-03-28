@@ -38,14 +38,14 @@
   --sort-buffer-size=# 
   Each thread that needs to do a sort allocates a buffer of
 @@ -1190,6 +1197,7 @@ The following options may be given as the first argument:
-  EMPTY_STRING_IS_NULL
+  EMPTY_STRING_IS_NULL, SIMULTANEOUS_ASSIGNMENT
   --stack-trace       Print a symbolic stack trace on failure
   (Defaults to on; use --skip-stack-trace to disable.)
 + --standalone        Dummy option to start as a standalone program (NT).
   --standard-compliant-cte 
   Allow only CTEs compliant to SQL standard
   (Defaults to on; use --skip-standard-compliant-cte to disable.)
-@@ -1261,6 +1269,11 @@ The following options may be given as the first argument:
+@@ -1257,6 +1265,11 @@ The following options may be given as the first argument:
   --thread-pool-max-threads=# 
   Maximum allowed number of worker threads in the thread
   pool
@@ -57,7 +57,7 @@
   --thread-pool-oversubscribe=# 
   How many additional active worker threads in a group are
   allowed.
-@@ -1299,8 +1312,8 @@ The following options may be given as the first argument:
+@@ -1295,8 +1308,8 @@ The following options may be given as the first argument:
   automatically convert it to an on-disk MyISAM or Aria
   table.
   -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
@@ -68,7 +68,7 @@
   --transaction-alloc-block-size=# 
   Allocation block size for transactions to be stored in
   binary log
-@@ -1434,7 +1447,6 @@ key-cache-block-size 1024
+@@ -1430,7 +1443,6 @@ key-cache-block-size 1024
  key-cache-division-limit 100
  key-cache-file-hash-size 512
  key-cache-segments 0
@@ -76,7 +76,7 @@
  lc-messages en_US
  lc-messages-dir MYSQL_SHAREDIR/
  lc-time-names en_US
-@@ -1506,6 +1518,7 @@ myisam-sort-buffer-size 134216704
+@@ -1502,6 +1514,7 @@ myisam-sort-buffer-size 134216704
  myisam-stats-method NULLS_UNEQUAL
  myisam-use-mmap FALSE
  mysql56-temporal-format TRUE
@@ -84,7 +84,7 @@
  net-buffer-length 16384
  net-read-timeout 30
  net-retry-count 10
-@@ -1616,6 +1629,8 @@ session-track-schema TRUE
+@@ -1612,6 +1625,8 @@ session-track-schema TRUE
  session-track-state-change FALSE
  session-track-system-variables autocommit,character_set_client,character_set_connection,character_set_results,time_zone
  session-track-transaction-info OFF
@@ -93,7 +93,7 @@
  show-slave-auth-info FALSE
  silent-startup FALSE
  skip-grant-tables TRUE
-@@ -1642,6 +1657,7 @@ slave-transaction-retry-interval 0
+@@ -1638,6 +1653,7 @@ slave-transaction-retry-interval 0
  slave-type-conversions 
  slow-launch-time 2
  slow-query-log FALSE
@@ -101,10 +101,10 @@
  sort-buffer-size 2097152
  sql-mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
  stack-trace TRUE
-@@ -1657,9 +1673,9 @@ sync-relay-log-info 10000
+@@ -1652,9 +1668,9 @@ sync-relay-log 10000
+ sync-relay-log-info 10000
  sysdate-is-now FALSE
  system-versioning-alter-history ERROR
- system-versioning-innodb-algorithm-simple TRUE
 -table-cache 431
 +table-cache 2000
  table-definition-cache 400
@@ -113,7 +113,7 @@
  table-open-cache-instances 8
  tc-heuristic-recover OFF
  tcp-keepalive-interval 0
-@@ -1668,6 +1684,8 @@ tcp-keepalive-time 0
+@@ -1663,6 +1679,8 @@ tcp-keepalive-time 0
  thread-cache-size 151
  thread-pool-idle-timeout 60
  thread-pool-max-threads 65536

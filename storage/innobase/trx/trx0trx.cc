@@ -883,7 +883,7 @@ trx_lists_init_at_db_start()
 {
 	ut_a(srv_is_being_started);
 	ut_ad(!srv_was_started);
-	ut_ad(!purge_sys);
+	ut_ad(!purge_sys.is_initialised());
 
 	if (srv_operation == SRV_OPERATION_RESTORE) {
 		/* mariabackup --prepare only deals with
@@ -893,12 +893,11 @@ trx_lists_init_at_db_start()
 		return;
 	}
 
-	purge_sys = UT_NEW_NOKEY(purge_sys_t());
-
 	if (srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
 		return;
 	}
 
+	purge_sys.create();
 	trx_rseg_array_init();
 
 	/* Look from the rollback segments if there exist undo logs for
@@ -1219,21 +1218,18 @@ trx_serialise(trx_t* trx)
 	ut_ad(mutex_own(&rseg->mutex));
 
 	if (rseg->last_page_no == FIL_NULL) {
-		mutex_enter(&purge_sys->pq_mutex);
+		mutex_enter(&purge_sys.pq_mutex);
 	}
 
 	trx_sys.assign_new_trx_no(trx);
 
-	/* If the rollack segment is not empty then the
+	/* If the rollback segment is not empty then the
 	new trx_t::no can't be less than any trx_t::no
 	already in the rollback segment. User threads only
 	produce events when a rollback segment is empty. */
 	if (rseg->last_page_no == FIL_NULL) {
-		TrxUndoRsegs	elem(trx->no);
-		elem.push_back(rseg);
-
-		purge_sys->purge_queue.push(elem);
-		mutex_exit(&purge_sys->pq_mutex);
+		purge_sys.purge_queue.push(TrxUndoRsegs(trx->no, *rseg));
+		mutex_exit(&purge_sys.pq_mutex);
 	}
 }
 
@@ -2098,7 +2094,7 @@ state_ok:
 
 /**********************************************************************//**
 Prints info about a transaction.
-The caller must hold lock_sys->mutex.
+The caller must hold lock_sys.mutex.
 When possible, use trx_print() instead. */
 void
 trx_print_latched(
@@ -2118,7 +2114,7 @@ trx_print_latched(
 
 /**********************************************************************//**
 Prints info about a transaction.
-Acquires and releases lock_sys->mutex. */
+Acquires and releases lock_sys.mutex. */
 void
 trx_print(
 /*======*/
@@ -2160,7 +2156,7 @@ trx_assert_started(
 	/* trx->state can change from or to NOT_STARTED while we are holding
 	trx_sys.mutex for non-locking autocommit selects but not for other
 	types of transactions. It may change from ACTIVE to PREPARED. Unless
-	we are holding lock_sys->mutex, it may also change to COMMITTED. */
+	we are holding lock_sys.mutex, it may also change to COMMITTED. */
 
 	switch (trx->state) {
 	case TRX_STATE_PREPARED:
@@ -2436,7 +2432,7 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
 /**
   Finds PREPARED XA transaction by xid.
 
-  trx may have been committed, unless the caller is holding lock_sys->mutex.
+  trx may have been committed, unless the caller is holding lock_sys.mutex.
 
   @param[in]  xid  X/Open XA transaction identifier
 

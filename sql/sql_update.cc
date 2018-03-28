@@ -948,25 +948,22 @@ update_begin:
         }
         else if (!error)
         {
-          updated++;
-
           if (has_vers_fields && table->versioned())
           {
             if (table->versioned(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
-              if ((error = vers_insert_history_row(table)))
-              {
-                restore_record(table, record[2]);
-                break;
-              }
+              error= vers_insert_history_row(table);
               restore_record(table, record[2]);
             }
-            updated_sys_ver++;
+            if (!error)
+              updated_sys_ver++;
           }
+          if (!error)
+            updated++;
         }
-        else if (!ignore ||
-                 table->file->is_fatal_error(error, HA_CHECK_ALL))
+
+        if (error && (!ignore || table->file->is_fatal_error(error, HA_CHECK_ALL)))
         {
           /*
             If (ignore && error is ignorable) we don't have to

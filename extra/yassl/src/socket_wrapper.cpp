@@ -42,7 +42,6 @@
 #endif
 
 #ifdef _WIN32
-    const int SOCKET_EINVAL = WSAEINVAL;
     const int SOCKET_EWOULDBLOCK = WSAEWOULDBLOCK;
     const int SOCKET_EAGAIN = WSAEWOULDBLOCK;
 #else

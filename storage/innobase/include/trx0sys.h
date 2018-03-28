@@ -35,7 +35,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "mem0mem.h"
 #include "mtr0mtr.h"
 #include "ut0byte.h"
-#include "mem0mem.h"
 #include "ut0lst.h"
 #include "read0types.h"
 #include "page0types.h"
@@ -591,10 +590,10 @@ public:
     the transaction may get committed before this method returns.
 
     With do_ref_count == false the caller may dereference returned trx pointer
-    only if lock_sys->mutex was acquired before calling find().
+    only if lock_sys.mutex was acquired before calling find().
 
     With do_ref_count == true caller may dereference trx even if it is not
-    holding lock_sys->mutex. Caller is responsible for calling
+    holding lock_sys.mutex. Caller is responsible for calling
     trx->release_reference() when it is done playing with trx.
 
     Ideally this method should get caller rw_trx_hash_pins along with trx
@@ -850,7 +849,7 @@ public:
   XID recovered_wsrep_xid;
 #endif
   /** Latest recovered binlog offset */
-  int64_t recovered_binlog_offset;
+  uint64_t recovered_binlog_offset;
   /** Latest recovred binlog file name */
   char recovered_binlog_filename[TRX_SYS_MYSQL_LOG_NAME_LEN];
 
@@ -997,10 +996,10 @@ public:
   bool is_initialised() { return m_initialised; }
 
 
-  /** Create the instance */
+  /** Initialise the purge subsystem. */
   void create();
 
-  /** Close the transaction system on shutdown */
+  /** Close the purge subsystem on shutdown. */
   void close();
 
   /** @return total number of active (non-prepared) transactions */

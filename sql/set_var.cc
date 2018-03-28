@@ -688,17 +688,6 @@ sys_var *intern_find_sys_var(const char *str, size_t length)
 }
 
 
-bool find_sys_var_null_base(THD *thd, struct sys_var_with_base *tmp)
-{
-  tmp->var= find_sys_var(thd, tmp->base_name.str, tmp->base_name.length);
-
-  if (tmp->var != NULL)
-    tmp->base_name= null_clex_str;
-
-  return thd->is_error();
-}
-
-
 /**
   Execute update of all variables.
 

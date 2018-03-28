@@ -53,7 +53,7 @@ alter table t
   add system versioning;
 show create table t;
 
---error ER_VERS_SYS_FIELD_EXISTS
+--error ER_MISSING
 alter table t drop system versioning;
 
 alter table t drop column trx_start, drop column trx_end;
@@ -405,7 +405,36 @@ set statement system_versioning_alter_history=keep for
 alter table t1 add column row_start timestamp(6);
 
 --echo # MDEV-14798 Add, drop system versioning semantic and syntax
-create or replace table t (a int) with system versioning;
+create or replace table t (
+  a int,
+  row_start timestamp(6) generated always as row start,
+  row_end timestamp(6) generated always as row end,
+  period for system_time(row_start, row_end)
+) with system versioning;
+show create table t;
+
+alter table t
+  drop column row_start,
+  drop column row_end,
+  drop period for system_time,
+  drop system versioning;
+show create table t;
+
+--error ER_VERS_NOT_VERSIONED
+alter table t drop period for system_time;
+
+create or replace table t (
+  a int,
+  row_start timestamp(6) generated always as row start,
+  row_end timestamp(6) generated always as row end,
+  period for system_time(row_start, row_end)
+) with system versioning;
+--error ER_MISSING
+alter table t drop period for system_time;
+--error ER_MISSING
+alter table t drop column sys_trx_start, drop period for system_time;
+--error ER_MISSING
+alter table t drop column sys_trx_end, drop period for system_time;
 
 --error ER_VERS_ALREADY_VERSIONED
 alter table t add period for system_time(sys_trx_start, sys_trx_end);

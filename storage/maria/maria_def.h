@@ -332,7 +332,10 @@ typedef struct st_maria_file_bitmap
   pgcache_page_no_t last_bitmap_page; /* Last possible bitmap page */
   my_bool changed;                     /* 1 if page needs to be written */
   my_bool changed_not_flushed;         /* 1 if some bitmap is not flushed */
+  my_bool return_first_match;          /* Shortcut find_head() */
   uint used_size;                      /* Size of bitmap head that is not 0 */
+  uint full_head_size;                 /* Where to start search for head */
+  uint full_tail_size;                 /* Where to start search for tail */
   uint flush_all_requested;            /**< If _ma_bitmap_flush_all waiting */
   uint waiting_for_flush_all_requested; /* If someone is waiting for above */
   uint non_flushable;                  /**< 0 if bitmap and log are in sync */
@@ -1202,8 +1205,8 @@ extern my_bool _ma_read_cache(MARIA_HA *, IO_CACHE *info, uchar *buff,
 extern ulonglong ma_retrieve_auto_increment(const uchar *key, uint8 key_type);
 extern my_bool _ma_alloc_buffer(uchar **old_addr, size_t *old_size,
                                 size_t new_size);
-extern ulong _ma_rec_unpack(MARIA_HA *info, uchar *to, uchar *from,
-                            ulong reclength);
+extern size_t _ma_rec_unpack(MARIA_HA *info, uchar *to, uchar *from,
+                            size_t reclength);
 extern my_bool _ma_rec_check(MARIA_HA *info, const uchar *record,
                              uchar *packpos, ulong packed_length,
                              my_bool with_checkum, ha_checksum checksum);

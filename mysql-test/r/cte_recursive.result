@@ -3105,3 +3105,236 @@ SELECT * FROM cte;
 5
 2
 3
+#
+# MDEV-14883: recursive references in operands of INTERSECT / EXCEPT
+#
+create table flights
+(departure varchar(32),
+arrival varchar(32),
+carrier varchar(20),
+flight_number char(7));
+insert into flights values
+('Seattle', 'Frankfurt', 'Lufthansa', 'LH 491'),
+('Seattle', 'Amsterdam', 'KLM', 'KL 6032'),
+('Seattle', 'Chicago', 'American', 'AA 2573'),
+('Seattle', 'Los Angeles', 'Alaska Air', 'AS 410'),
+('Chicago', 'New York', 'American', 'AA 375'),
+('Chicago', 'Montreal', 'Air Canada', 'AC 3053'),
+('Los Angeles', 'New York', 'Delta', 'DL 1197'),
+('New York', 'London', 'British Airways', 'BA 1511'),
+('London', 'Moscow', 'British Airways', 'BA 233'),
+('Moscow', 'Tokyo', 'Aeroflot', 'SU 264'),
+('Moscow', 'Dubai', 'Emirates', 'EK 2421'),
+('Dubai', 'Tokyo', 'Emirates', 'EK 318'),
+('Dubai', 'Bangkok', 'Emirates', 'EK 2142'),
+('Beijing', 'Bangkok', 'Air China', 'CA 757'),
+('Beijing', 'Tokyo', 'Air China', 'CA 6653'),
+('Moscow', 'Bangkok', 'Aeroflot', 'SU 270'),
+('New York', 'Reykjavik', 'Icelandair', 'FL 416'),
+('New York', 'Paris', 'Air France', 'AF 23'),
+('Amsterdam', 'Moscow', 'KLM', 'KL 903'),
+('Frankfurt', 'Dubai', 'Lufthansa', 'LH 630'),
+('Frankfurt', 'Moscow', 'Lufthansa', 'LH 1444'),
+('Reykjavik', 'London', 'British Airways', 'BA 2229'),
+('Frankfurt', 'Beijing', 'Air China', 'CA 966'),
+('Tokyo', 'Seattle', 'ANA', 'NH 178'),
+('Los Angeles', 'Tokyo', 'ANA', 'NH 175'),
+('Moscow', 'Los Angeles', 'Aeroflot', 'SU 106'),
+('Montreal', 'Paris', 'Air Canada', 'AC 870'),
+('London', 'Delhi', 'British Airways', 'BA 143'),
+('Delhi', 'Bangkok', 'Air India', 'AI 306'),
+('Delhi', 'Dubai', 'Air India', 'AI 995'),
+('Dubai', 'Cairo', 'Emirates', 'EK 927'),
+('Cairo', 'Paris', 'Air France', 'AF 503'),
+('Amsterdam', 'New York', 'Delta', 'DL 47'),
+('New York', 'Seattle', 'American', 'AA 45'),
+('Paris', 'Chicago', 'Air France', 'AF 6734');
+create table distances
+(city1 varchar(32),
+city2 varchar(32),
+dist int);
+insert into distances values
+('Seattle', 'Frankfurt', 5080),
+('Seattle', 'Amsterdam', 4859),
+('Seattle', 'Chicago', 1733),
+('Seattle', 'Los Angeles', 960),
+('Chicago', 'New York', 712),
+('Chicago', 'Montreal', 746),
+('Los Angeles', 'New York', 2446),
+('New York', 'London', 3459),
+('London', 'Moscow', 1554),
+('Moscow', 'Tokyo', 4647),
+('Moscow', 'Dubai', 2298),
+('Dubai', 'Tokyo', 4929),
+('Dubai', 'Bangkok', 3050),
+('Beijing', 'Bangkok', 2046),
+('Beijing', 'Tokyo', 1301),
+('Moscow', 'Bangkok', 4390),
+('New York', 'Reykjavik', 2613),
+('New York', 'Paris', 3625),
+('Amsterdam', 'Moscow', 1334),
+('Frankfurt', 'Dubai', 3003),
+('Frankfurt', 'Moscow', 1256),
+('Reykjavik', 'London', 1173),
+('Frankfurt', 'Beijing', 4836),
+('Tokyo', 'Seattle', 4783),
+('Los Angeles', 'Tokyo', 5479),
+('Moscow', 'Los Angeles', 6071),
+('Moscow', 'Reykjavik', 2052),
+('Montreal', 'Paris', 3425),
+('London', 'Delhi', 4159),
+('London', 'Paris', 214),
+('Delhi', 'Bangkok', 1810),
+('Delhi', 'Dubai', 1369),
+('Delhi', 'Beijing', 2350),
+('Dubai', 'Cairo', 1501),
+('Cairo', 'Paris', 1992),
+('Amsterdam', 'New York', 3643),
+('New York', 'Seattle', 2402),
+('Paris', 'Chicago', 4136),
+('Paris', 'Los Angeles', 5647);
+with recursive destinations (city) as
+(
+select a.arrival from flights a where a.departure = 'Seattle'
+  union
+select b.arrival from destinations r, flights b where r.city = b.departure
+)
+select * from destinations;
+city
+Frankfurt
+Amsterdam
+Chicago
+Los Angeles
+New York
+Montreal
+Moscow
+Dubai
+Beijing
+Tokyo
+London
+Bangkok
+Reykjavik
+Paris
+Seattle
+Cairo
+Delhi
+with recursive destinations (city) as
+(
+select a.arrival from flights a, distances d
+where a.departure = 'Seattle' and
+a.departure = d.city1 and a.arrival = d.city2 and
+d.dist < 4000
+union
+select b.arrival from destinations r, flights b, distances d
+where r.city = b.departure and
+b.departure = d.city1 and b.arrival = d.city2 and
+d.dist < 4000
+)
+select * from destinations;
+city
+Chicago
+Los Angeles
+New York
+Montreal
+London
+Reykjavik
+Paris
+Seattle
+Moscow
+Dubai
+Bangkok
+Cairo
+set standard_compliant_cte=0;
+with recursive legs_to_destinations
+(departure, arrival, dist, leg_no, acc_mileage) as
+(
+select a.departure, a.arrival, d.dist, 1, d.dist
+from flights a, distances d
+where a.departure = 'Seattle' and
+a.departure = d.city1 and a.arrival = d.city2 and
+d.dist < 4000
+union all
+select b.departure, b.arrival, d.dist, r.leg_no + 1, r.acc_mileage + d.dist
+from legs_to_destinations r, flights b, distances d
+where r.arrival = b.departure and
+b.departure = d.city1 and b.arrival = d.city2 and
+d.dist < 4000 and
+b.arrival not in (select arrival from legs_to_destinations)
+)
+select * from legs_to_destinations;
+departure	arrival	dist	leg_no	acc_mileage
+Seattle	Chicago	1733	1	1733
+Seattle	Los Angeles	960	1	960
+Chicago	New York	712	2	2445
+Chicago	Montreal	746	2	2479
+Los Angeles	New York	2446	2	3406
+New York	London	3459	3	6865
+New York	London	3459	3	5904
+New York	Reykjavik	2613	3	6019
+New York	Reykjavik	2613	3	5058
+New York	Paris	3625	3	7031
+New York	Paris	3625	3	6070
+Montreal	Paris	3425	3	5904
+New York	Seattle	2402	3	5808
+New York	Seattle	2402	3	4847
+London	Moscow	1554	4	7458
+London	Moscow	1554	4	8419
+Moscow	Dubai	2298	5	10717
+Moscow	Dubai	2298	5	9756
+Dubai	Bangkok	3050	6	12806
+Dubai	Bangkok	3050	6	13767
+Dubai	Cairo	1501	6	11257
+Dubai	Cairo	1501	6	12218
+set standard_compliant_cte=default;
+with recursive destinations (city) as
+(
+select a.arrival from flights a, distances d
+where a.departure = 'Seattle' and
+a.departure = d.city1 and a.arrival = d.city2 and
+d.dist < 4000
+union
+select b.arrival from destinations r, flights b
+where r.city = b.departure
+intersect
+select city2 from destinations s, distances d
+where s.city = d.city1 and d.dist < 4000
+)
+select * from destinations;
+city
+Chicago
+Los Angeles
+New York
+Montreal
+London
+Reykjavik
+Paris
+Seattle
+Moscow
+Dubai
+Bangkok
+Cairo
+with recursive destinations (city) as
+(
+select a.arrival from flights a where a.departure = 'Seattle'
+  union
+select * from
+(
+select b.arrival from destinations r, flights b
+where r.city = b.departure
+except
+select arrival from flights
+where arrival in
+('New York', 'London', 'Moscow', 'Dubai', 'Cairo', 'Tokyo')
+) t
+)
+select * from destinations;
+city
+Frankfurt
+Amsterdam
+Chicago
+Los Angeles
+Montreal
+Beijing
+Bangkok
+Paris
+drop table flights, distances;

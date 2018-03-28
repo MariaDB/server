@@ -571,7 +571,7 @@ extern uchar *mi_alloc_rec_buff(MI_INFO *, ulong, uchar **);
 #define mi_get_rec_buff_len(info,buf)                              \
         (*((uint32 *)(mi_get_rec_buff_ptr(info,buf))))
 
-extern ulong _mi_rec_unpack(MI_INFO *info, uchar *to, uchar *from,
+extern size_t _mi_rec_unpack(MI_INFO *info, uchar *to, uchar *from,
                             ulong reclength);
 extern my_bool _mi_rec_check(MI_INFO *info,const uchar *record, uchar *packpos,
                              ulong packed_length, my_bool with_checkum);

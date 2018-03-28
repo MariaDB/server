@@ -676,3 +676,43 @@ CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8);
 LOAD DATA INFILE '../../std_data/loaddata/mdev-11631.txt' INTO TABLE t1 CHARACTER SET utf8;
 SELECT HEX(a) FROM t1;
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-15497 Wrong empty value in a GEOMETRY column on LOAD DATA
+--echo #
+
+SET sql_mode='';
+
+CREATE TABLE t1 (a CHAR(1), b CHAR(1) NOT NULL);
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a CHAR(1), b CHAR(1));
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15597 Add class Load_data_outvar and avoid using Item::STRING_ITEM for Item_user_var_as_out_param detection
+--echo #
+
+SET sql_mode=NO_AUTO_VALUE_ON_ZERO;
+CREATE TABLE t1 (id integer not null auto_increment primary key);
+LOAD DATA INFILE '../../std_data/loaddata/nl.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SET sql_mode='';
+CREATE TABLE t1 (id integer not null auto_increment primary key);
+LOAD DATA INFILE '../../std_data/loaddata/nl.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
+SELECT * FROM t1;
+DROP TABLE t1;

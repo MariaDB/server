@@ -217,7 +217,6 @@ static CONTROL_FILE_ERROR create_control_file(const char *name,
 
 static int lock_control_file(const char *name)
 {
-  uint retry= 0;
   /*
     On Windows, my_lock() uses locking() which is mandatory locking and so
     prevents maria-recovery.test from copying the control file. And in case of
@@ -228,6 +227,7 @@ static int lock_control_file(const char *name)
     file under Windows.
   */
 #ifndef __WIN__
+  uint retry= 0;
   /*
     We can't here use the automatic wait in my_lock() as the alarm thread
     may not yet exists.

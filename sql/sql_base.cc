@@ -3179,6 +3179,17 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
 
   switch (mdl_type)
   {
+  case MDL_key::PACKAGE_BODY:
+    DBUG_ASSERT(rt != (Sroutine_hash_entry*)prelocking_ctx->sroutines_list.first);
+    /*
+      No need to cache the package body itself.
+      It gets cached during open_and_process_routine()
+      for the first used package routine. See the package related code
+      in the "case" below.
+    */
+    if (sp_acquire_mdl(thd, rt, ot_ctx))
+      DBUG_RETURN(TRUE);
+    break;
   case MDL_key::FUNCTION:
   case MDL_key::PROCEDURE:
     {
@@ -3193,10 +3204,12 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
       if (rt != (Sroutine_hash_entry*)prelocking_ctx->sroutines_list.first ||
           mdl_type != MDL_key::PROCEDURE)
       {
+        /*
+          TODO: If this is a package routine, we should not put MDL
+          TODO: on the routine itself. We should put only the package MDL.
+        */
         if (sp_acquire_mdl(thd, rt, ot_ctx))
           DBUG_RETURN(TRUE);
-
-        DEBUG_SYNC(thd, "after_shared_lock_pname");
 
         /* Ensures the routine is up-to-date and cached, if exists. */
         if (rt->sp_cache_routine(thd, has_prelocking_list, &sp))
@@ -3212,8 +3225,24 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
           *routine_modifies_data= sp->modifies_data();
 
           if (!has_prelocking_list)
+          {
             prelocking_strategy->handle_routine(thd, prelocking_ctx, rt, sp,
                                                 need_prelocking);
+            if (sp->m_parent)
+            {
+              /*
+                If it's a package routine, we need also to handle the
+                package body, as its initialization section can use
+                some tables and routine calls.
+                TODO: Only package public routines actually need this.
+                TODO: Skip package body handling for private routines.
+              */
+              *routine_modifies_data|= sp->m_parent->modifies_data();
+              prelocking_strategy->handle_routine(thd, prelocking_ctx, rt,
+                                                  sp->m_parent,
+                                                  need_prelocking);
+            }
+          }
         }
       }
       else
@@ -4389,12 +4418,11 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
       while ((fk= fk_list_it++))
       {
         // FK_OPTION_RESTRICT and FK_OPTION_NO_ACTION only need read access
-        static bool can_write[]= { true, false, true, true, false, true };
         uint8 op= table_list->trg_event_map;
         thr_lock_type lock_type;
 
-        if ((op & (1 << TRG_EVENT_DELETE) && can_write[fk->delete_method])
-         || (op & (1 << TRG_EVENT_UPDATE) && can_write[fk->update_method]))
+        if ((op & (1 << TRG_EVENT_DELETE) && fk_modifies_child(fk->delete_method))
+         || (op & (1 << TRG_EVENT_UPDATE) && fk_modifies_child(fk->update_method)))
           lock_type= TL_WRITE_ALLOW_WRITE;
         else
           lock_type= TL_READ;

@@ -3656,9 +3656,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (key->type == Key::FOREIGN_KEY)
     {
       fk_key_count++;
-      if (((Foreign_key *)key)->validate(alter_info->create_list))
-        DBUG_RETURN(TRUE);
       Foreign_key *fk_key= (Foreign_key*) key;
+      if (fk_key->validate(alter_info->create_list))
+        DBUG_RETURN(TRUE);
       if (fk_key->ref_columns.elements &&
 	  fk_key->ref_columns.elements != fk_key->columns.elements)
       {
@@ -4290,7 +4290,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   /* Give warnings for not supported table options */
 #if defined(WITH_ARIA_STORAGE_ENGINE)
   extern handlerton *maria_hton;
-  if (file->ht != maria_hton)
+  if (file->partition_ht() != maria_hton)
 #endif
     if (create_info->transactional)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -4455,12 +4455,8 @@ bool Column_definition::sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root)
 }
 
 
-static bool
-vers_prepare_keys(THD *thd,
-                         HA_CREATE_INFO *create_info,
-                         Alter_info *alter_info,
-                         KEY **key_info,
-                         uint key_count)
+static bool vers_prepare_keys(THD *thd, HA_CREATE_INFO *create_info,
+                         Alter_info *alter_info, KEY **key_info, uint key_count)
 {
   DBUG_ASSERT(create_info->versioned());
 
@@ -4473,6 +4469,19 @@ vers_prepare_keys(THD *thd,
   Key *key= NULL;
   while ((key=key_it++))
   {
+    if (key->type == Key::FOREIGN_KEY &&
+        create_info->vers_info.check_unit == VERS_TIMESTAMP)
+    {
+      Foreign_key *fk_key= (Foreign_key*) key;
+      enum enum_fk_option op;
+      if (fk_modifies_child(op=fk_key->update_opt) ||
+          fk_modifies_child(op=fk_key->delete_opt))
+      {
+        my_error(ER_VERS_NOT_SUPPORTED, MYF(0), fk_option_name(op)->str,
+                 "TIMESTAMP(6) AS ROW START/END");
+        return true;
+      }
+    }
     if (key->type != Key::PRIMARY && key->type != Key::UNIQUE)
       continue;
 
@@ -4640,6 +4649,12 @@ handler *mysql_create_frm_image(THD *thd,
                                         create_info, FALSE))
       goto err;
     part_info->default_engine_type= engine_type;
+
+    if (part_info->vers_info && !create_info->versioned())
+    {
+      my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name->str);
+      goto err;
+    }
 
     /*
       We reverse the partitioning parser and generate a standard format
@@ -7819,6 +7834,19 @@ blob_length_by_type(enum_field_types type)
 }
 
 
+static void append_drop_column(THD *thd, bool dont, String *str,
+                               Field *field)
+{
+  if (!dont)
+  {
+    if (str->length())
+      str->append(STRING_WITH_LEN(", "));
+    str->append(STRING_WITH_LEN("DROP COLUMN "));
+    append_identifier(thd, str, &field->field_name);
+  }
+}
+
+
 /**
   Prepare column and key definitions for CREATE TABLE in ALTER TABLE.
 
@@ -7989,6 +8017,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
       if (table->s->tmp_table == NO_TMP_TABLE)
         (void) delete_statistics_for_column(thd, table, field);
+      dropped_sys_vers_fields|= field->flags;
       drop_it.remove();
       dropped_fields= &table->tmp_set;
       bitmap_set_bit(dropped_fields, field->field_index);
@@ -8061,7 +8090,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
              field->flags & VERS_SYSTEM_FIELD &&
              field->invisible < INVISIBLE_SYSTEM)
     {
-      my_error(ER_VERS_SYS_FIELD_EXISTS, MYF(0), field->field_name.str);
+      StringBuffer<NAME_LEN*3> tmp;
+      append_drop_column(thd, false, &tmp, field);
+      my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr());
       goto err;
     }
     else if (drop && field->invisible < INVISIBLE_SYSTEM &&
@@ -8071,13 +8102,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       /* "dropping" a versioning field only hides it from the user */
       def= new (thd->mem_root) Create_field(thd, field, field);
       def->invisible= INVISIBLE_SYSTEM;
-      dropped_sys_vers_fields|= field->flags;
       alter_info->flags|= Alter_info::ALTER_CHANGE_COLUMN;
       if (field->flags & VERS_SYS_START_FLAG)
         create_info->vers_info.as_row.start= def->field_name= Vers_parse_info::default_start;
       else
         create_info->vers_info.as_row.end= def->field_name= Vers_parse_info::default_end;
       new_create_list.push_back(def, thd->mem_root);
+      dropped_sys_vers_fields|= field->flags;
       drop_it.remove();
     }
     else
@@ -8106,18 +8137,21 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
     }
   }
-  if (dropped_sys_vers_fields &&
-      ((dropped_sys_vers_fields & VERS_SYSTEM_FIELD) != VERS_SYSTEM_FIELD))
+  dropped_sys_vers_fields &= VERS_SYSTEM_FIELD;
+  if ((dropped_sys_vers_fields ||
+       alter_info->flags & Alter_info::ALTER_DROP_PERIOD) &&
+      dropped_sys_vers_fields != VERS_SYSTEM_FIELD)
   {
-    StringBuffer<NAME_LEN*2> tmp;
-    tmp.append(STRING_WITH_LEN("DROP COLUMN "));
-    if (dropped_sys_vers_fields & VERS_SYS_START_FLAG)
-      append_identifier(thd, &tmp, &table->vers_end_field()->field_name);
-    else
-      append_identifier(thd, &tmp, &table->vers_start_field()->field_name);
+    StringBuffer<NAME_LEN*3> tmp;
+    append_drop_column(thd, dropped_sys_vers_fields & VERS_SYS_START_FLAG,
+                       &tmp, table->vers_start_field());
+    append_drop_column(thd, dropped_sys_vers_fields & VERS_SYS_END_FLAG,
+                       &tmp, table->vers_end_field());
     my_error(ER_MISSING, MYF(0), table->s->table_name.str, tmp.c_ptr());
     goto err;
   }
+  alter_info->flags &=
+    ~(Alter_info::ALTER_DROP_PERIOD | Alter_info::ALTER_ADD_PERIOD);
   def_it.rewind();
   while ((def=def_it++))			// Add new columns
   {
@@ -9184,7 +9218,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
     {
       vers_survival_mod= alter_info->data_modifying() || alter_info->partition_modifying();
     }
-    else if (vers_data_mod && thd->variables.vers_alter_history == VERS_ALTER_HISTORY_ERROR)
+    else if (vers_data_mod && !thd->slave_thread &&
+      thd->variables.vers_alter_history == VERS_ALTER_HISTORY_ERROR)
     {
       my_error(ER_VERS_ALTER_NOT_ALLOWED, MYF(0),
                table_list->db.str, table_list->table_name.str);

@@ -442,7 +442,6 @@ static int set_directory_permissions(const char *dir, const char *os_user)
   ACL* pOldDACL;
   SECURITY_DESCRIPTOR* pSD= NULL; 
   EXPLICIT_ACCESS ea={0};
-  BOOL isWellKnownSID= FALSE;
   WELL_KNOWN_SID_TYPE wellKnownSidType = WinNullSid;
   PSID pSid= NULL;
 
@@ -509,7 +508,7 @@ static int set_directory_permissions(const char *dir, const char *os_user)
   ea.grfInheritance= CONTAINER_INHERIT_ACE|OBJECT_INHERIT_ACE; 
   ea.Trustee.TrusteeType= TRUSTEE_IS_UNKNOWN; 
   ACL* pNewDACL= 0; 
-  DWORD err= SetEntriesInAcl(1,&ea,pOldDACL,&pNewDACL); 
+  SetEntriesInAcl(1,&ea,pOldDACL,&pNewDACL);
   if (pNewDACL)
   {
     SetSecurityInfo(hDir,SE_FILE_OBJECT,DACL_SECURITY_INFORMATION,NULL, NULL,

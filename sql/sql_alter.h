@@ -98,6 +98,8 @@ public:
   static const ulonglong ALTER_COLUMN_UNVERSIONED    = 1ULL << 30;
   static const ulonglong ALTER_ADD_SYSTEM_VERSIONING = 1ULL << 31;
   static const ulonglong ALTER_DROP_SYSTEM_VERSIONING= 1ULL << 32;
+  static const ulonglong ALTER_ADD_PERIOD            = 1ULL << 33;
+  static const ulonglong ALTER_DROP_PERIOD           = 1ULL << 34;
 
   enum enum_enable_or_disable { LEAVE_AS_IS, ENABLE, DISABLE };
 

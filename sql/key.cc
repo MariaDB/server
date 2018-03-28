@@ -427,6 +427,8 @@ void key_unpack(String *to, TABLE *table, KEY *key)
        key_part < key_part_end;
        key_part++)
   {
+    if (key_part->field->invisible > INVISIBLE_USER)
+      continue;
     if (to->length())
       to->append('-');
     if (key_part->null_bit)

@@ -63,7 +63,7 @@ lock_rec_hash(
 	ulint	page_no)/*!< in: page number */
 {
 	return(unsigned(hash_calc_hash(lock_rec_fold(space, page_no),
-				       lock_sys->rec_hash)));
+				       lock_sys.rec_hash)));
 }
 
 /*********************************************************************//**
@@ -99,11 +99,11 @@ lock_hash_get(
 	ulint	mode)	/*!< in: lock mode */
 {
 	if (mode & LOCK_PREDICATE) {
-		return(lock_sys->prdt_hash);
+		return(lock_sys.prdt_hash);
 	} else if (mode & LOCK_PRDT_PAGE) {
-		return(lock_sys->prdt_page_hash);
+		return(lock_sys.prdt_page_hash);
 	} else {
-		return(lock_sys->rec_hash);
+		return(lock_sys.rec_hash);
 	}
 }
 

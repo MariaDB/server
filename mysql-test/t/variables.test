@@ -1540,3 +1540,10 @@ explain extended select @@VERsion from dual where rand() > @@verSION;
 explain extended select @@SESsion.SQL_mode from dual where rand() > @@sesSION.sql_MODE;
 explain extended select @@GLObal.COLLATION_connection from dual where rand() > @@gloBAL.collation_CONNECTION;
 explain extended select @@FOObar.KEY_BUFfer_size from dual where rand() > @@fooBAR.key_bufFER_SIZE;
+
+--echo #
+--echo # MDEV-15316 Assertion `(thd->lex)->var_list.is_empty()' failed in MYSQLparse
+--echo #
+
+SET GLOBAL mc.key_cache_age_threshold=100, mc.key_cache_block_size=1024;
+SET GLOBAL mc.key_buffer_size= 0 /*cleanup*/;

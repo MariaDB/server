@@ -163,14 +163,9 @@ public:
   void print_args(String *str, uint from, enum_query_type query_type);
   inline bool get_arg0_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   {
-    return (null_value=args[0]->get_date_with_conversion(ltime, fuzzy_date));
-  }
-  inline bool get_arg0_time(MYSQL_TIME *ltime)
-  {
-    null_value= args[0]->get_time(ltime);
-    DBUG_ASSERT(null_value ||
-                ltime->time_type != MYSQL_TIMESTAMP_TIME || ltime->day == 0);
-    return null_value;
+    DBUG_ASSERT(!(fuzzy_date & TIME_TIME_ONLY));
+    Datetime dt(current_thd, args[0], fuzzy_date);
+    return (null_value= dt.copy_to_mysql_time(ltime));
   }
   bool is_null() { 
     update_null_value();
@@ -450,9 +445,15 @@ class Item_func_hybrid_field_type: public Item_hybrid_func
   */
   bool date_op_with_null_check(MYSQL_TIME *ltime)
   {
-     bool rc= date_op(ltime,
-                      field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0);
+     bool rc= date_op(ltime, 0);
      DBUG_ASSERT(!rc ^ null_value);
+     return rc;
+  }
+  bool time_op_with_null_check(MYSQL_TIME *ltime)
+  {
+     bool rc= time_op(ltime);
+     DBUG_ASSERT(!rc ^ null_value);
+     DBUG_ASSERT(rc || ltime->time_type == MYSQL_TIMESTAMP_TIME);
      return rc;
   }
   String *str_op_with_null_check(String *str)
@@ -491,32 +492,30 @@ public:
   {
     return real_op();
   }
-  bool get_date_from_date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
-  {
-    return date_op(ltime,
-                   (fuzzydate |
-                   (field_type() == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0)));
-  }
 
   // Value methods that involve conversion
   String *val_str_from_decimal_op(String *str);
   String *val_str_from_real_op(String *str);
   String *val_str_from_int_op(String *str);
   String *val_str_from_date_op(String *str);
+  String *val_str_from_time_op(String *str);
 
   my_decimal *val_decimal_from_str_op(my_decimal *dec);
   my_decimal *val_decimal_from_real_op(my_decimal *dec);
   my_decimal *val_decimal_from_int_op(my_decimal *dec);
   my_decimal *val_decimal_from_date_op(my_decimal *dec);
+  my_decimal *val_decimal_from_time_op(my_decimal *dec);
 
   longlong val_int_from_str_op();
   longlong val_int_from_real_op();
   longlong val_int_from_decimal_op();
   longlong val_int_from_date_op();
+  longlong val_int_from_time_op();
 
   double val_real_from_str_op();
   double val_real_from_decimal_op();
   double val_real_from_date_op();
+  double val_real_from_time_op();
   double val_real_from_int_op();
 
   bool get_date_from_str_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
@@ -612,10 +611,17 @@ public:
 
   /**
      @brief Performs the operation that this functions implements when
-     field type is a temporal type.
+     field type is DATETIME or DATE.
      @return The result of the operation.
   */
   virtual bool date_op(MYSQL_TIME *res, ulonglong fuzzy_date)= 0;
+
+  /**
+     @brief Performs the operation that this functions implements when
+     field type is TIME.
+     @return The result of the operation.
+  */
+  virtual bool time_op(MYSQL_TIME *res)= 0;
 
 };
 
@@ -675,6 +681,11 @@ public:
   { }
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
   bool date_op(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    DBUG_ASSERT(0);
+    return true;
+  }
+  bool time_op(MYSQL_TIME *ltime)
   {
     DBUG_ASSERT(0);
     return true;
@@ -992,31 +1003,6 @@ public:
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_double_typecast>(thd, this); }
 };
-
-
-class Item_longlong_typecast :public Item_int_func
-{
-public:
-  Item_longlong_typecast(THD *thd, Item *a): Item_int_func(thd, a)
-  {
-  }
-  const char *func_name() const { return "cast_as_longlong"; }
-  const char *cast_type() const { return "longlong"; }
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
-  longlong val_int()
-  {
-    return args[0]->val_int();
-  }
-  void fix_length_and_dec_generic() {}
-  void fix_length_and_dec()
-  {
-    args[0]->type_handler()->Item_longlong_typecast_fix_length_and_dec(this);
-  }
-  bool need_parentheses_in_default() { return true; }
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_longlong_typecast>(thd, this); }
-};
-
 
 
 class Item_func_additive_op :public Item_num_op
@@ -2500,7 +2486,8 @@ public:
   in List<Item> and desire to place this code somewhere near other functions
   working with user variables.
 */
-class Item_user_var_as_out_param :public Item
+class Item_user_var_as_out_param :public Item,
+                                  public Load_data_outvar
 {
   LEX_CSTRING org_name;
   user_var_entry *entry;
@@ -2512,6 +2499,35 @@ public:
     org_name= *a;
     set_name(thd, a->str, a->length, system_charset_info);
   }
+  Load_data_outvar *get_load_data_outvar()
+  {
+    return this;
+  }
+  bool load_data_set_null(THD *thd, const Load_data_param *param)
+  {
+    set_null_value(param->charset());
+    return false;
+  }
+  bool load_data_set_no_data(THD *thd, const Load_data_param *param)
+  {
+    set_null_value(param->charset());
+    return false;
+  }
+  bool load_data_set_value(THD *thd, const char *pos, uint length,
+                           const Load_data_param *param)
+  {
+    set_value(pos, length, param->charset());
+    return false;
+  }
+  void load_data_print_for_log_event(THD *thd, String *to) const;
+  bool load_data_add_outvar(THD *thd, Load_data_param *param) const
+  {
+    return param->add_outvar_user_var(thd);
+  }
+  uint load_data_fixed_length() const
+  {
+    return 0;
+  }
   /* We should return something different from FIELD_ITEM here */
   enum Type type() const { return STRING_ITEM;}
   double val_real();
@@ -2521,7 +2537,6 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_buffer);
   /* fix_fields() binds variable name with its entry structure */
   bool fix_fields(THD *thd, Item **ref);
-  void print_for_load(THD *thd, String *str);
   void set_null_value(CHARSET_INFO* cs);
   void set_value(const char *str, uint length, CHARSET_INFO* cs);
   const Type_handler *type_handler() const { return &type_handler_double; }
@@ -2786,6 +2801,7 @@ class Item_func_sp :public Item_func,
                     public Item_sp
 {
 private:
+  const Sp_handler *m_handler;
 
   bool execute();
 
@@ -2800,10 +2816,11 @@ protected:
   } 
 public:
 
-  Item_func_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name);
+  Item_func_sp(THD *thd, Name_resolution_context *context_arg,
+               sp_name *name, const Sp_handler *sph);
 
   Item_func_sp(THD *thd, Name_resolution_context *context_arg,
-               sp_name *name, List<Item> &list);
+               sp_name *name, const Sp_handler *sph, List<Item> &list);
 
   virtual ~Item_func_sp()
   {}

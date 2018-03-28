@@ -65,7 +65,7 @@ t	CREATE TABLE `t` (
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t drop system versioning;
-ERROR HY000: System versioning field `trx_start` exists
+ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN `trx_start`'
 alter table t drop column trx_start, drop column trx_end;
 select row_start from t;
 row_start
@@ -477,7 +477,44 @@ set statement system_versioning_alter_history=keep for
 alter table t1 add column row_start timestamp(6);
 ERROR 42S21: Duplicate column name 'row_start'
 # MDEV-14798 Add, drop system versioning semantic and syntax
-create or replace table t (a int) with system versioning;
+create or replace table t (
+a int,
+row_start timestamp(6) generated always as row start,
+row_end timestamp(6) generated always as row end,
+period for system_time(row_start, row_end)
+) with system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t
+drop column row_start,
+drop column row_end,
+drop period for system_time,
+drop system versioning;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t drop period for system_time;
+ERROR HY000: Table `t` is not system-versioned
+create or replace table t (
+a int,
+row_start timestamp(6) generated always as row start,
+row_end timestamp(6) generated always as row end,
+period for system_time(row_start, row_end)
+) with system versioning;
+alter table t drop period for system_time;
+ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN `row_start`, DROP COLUMN `row_end`'
+alter table t drop column sys_trx_start, drop period for system_time;
+ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN `row_start`, DROP COLUMN `row_end`'
+alter table t drop column sys_trx_end, drop period for system_time;
+ERROR HY000: Wrong parameters for `t`: missing 'DROP COLUMN `row_start`, DROP COLUMN `row_end`'
 alter table t add period for system_time(sys_trx_start, sys_trx_end);
 ERROR HY000: Table `t` is already system-versioned
 drop database test;

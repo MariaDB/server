@@ -19549,7 +19549,9 @@ static void test_mdev4326()
   myquery(rc);
 }
 
+/* Test uses MYSQL_PROTOCOL_SOCKET, not on Windows */
 
+#ifndef _WIN32
 /**
    BUG#17512527: LIST HANDLING INCORRECT IN MYSQL_PRUNE_STMT_LIST()
 */
@@ -19590,7 +19592,7 @@ static void test_bug17512527()
   mysql_stmt_close(stmt2);
   mysql_stmt_close(stmt1);
 }
-
+#endif
 
 
 /*
@@ -20218,6 +20220,18 @@ static void test_proxy_header_ignore()
   mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, &v2_header,16);
   DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == m);
   mysql_close(m);
+
+  /* test for connection denied with empty proxy_protocol_networks */
+  int rc = mysql_query(mysql, "select @@proxy_protocol_networks into @sv_proxy_protocol_networks");
+  myquery(rc);
+  mysql_query(mysql, "set global proxy_protocol_networks=default");
+  myquery(rc);
+  m = mysql_client_init(NULL);
+  mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, &v2_header,16);
+  DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == 0);
+  mysql_close(m);
+  mysql_query(mysql, "set global proxy_protocol_networks= @sv_proxy_protocol_networks");
+  myquery(rc);
 }
 
 

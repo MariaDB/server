@@ -1216,7 +1216,7 @@ err:
 	/* Returns -1 and my_errno =HA_ERR_RECORD_DELETED if reclength isn't */
 	/* right. Returns reclength (>0) if ok */
 
-ulong _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
+size_t _mi_rec_unpack(register MI_INFO *info, register uchar *to, uchar *from,
 		     ulong found_length)
 {
   uint flag,bit,length,rec_length,min_pack_length;

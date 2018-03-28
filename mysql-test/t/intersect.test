@@ -205,4 +205,81 @@ select i from t where
 drop table t;
 
 
+--echo #
+--echo # MDEV-13749: Server crashes in _ma_unique_hash /
+--echo # JOIN_CACHE::generate_full_extensions on INTERSECT
+--echo #
+
+CREATE TABLE t1 (a varchar(32)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+('Jakarta'),('Lisbon'),('Honolulu'),('Lusaka'),('Barcelona'),('Taipei'),
+('Brussels'),('Orlando'),('Osaka'),('Quito'),('Lima'),('Tunis'),
+('Unalaska'),('Rotterdam'),('Zagreb'),('Ufa'),('Ryazan'),('Xiamen'),
+('London'),('Izmir'),('Samara'),('Bern'),('Zhengzhou'),('Vladivostok'),
+('Yangon'),('Victoria'),('Warsaw'),('Luanda'),('Leon'),('Bangkok'),
+('Wellington'),('Zibo'),('Qiqihar'),('Delhi'),('Hamburg'),('Ottawa'),
+('Vaduz');
+
+CREATE TABLE t2 (b varchar(32)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES
+('Gaza'),('Jeddah'),('Beirut'),('Incheon'),('Tbilisi'),('Izmir'),
+('Quito'),('Riga'),('Freetown'),('Zagreb'),('Caracas'),('Orlando'),
+('Kingston'),('Turin'),('Xinyang'),('Osaka'),('Albany'),('Geneva'),
+('Omsk'),('Kazan'),('Quezon'),('Indore'),('Odessa'),('Xiamen'),
+('Winnipeg'),('Yakutsk'),('Nairobi'),('Ufa'),('Helsinki'),('Vilnius'),
+('Aden'),('Liverpool'),('Honolulu'),('Frankfurt'),('Glasgow'),
+('Vienna'),('Jackson'),('Jakarta'),('Sydney'),('Oslo'),('Novgorod'),
+('Norilsk'),('Izhevsk'),('Istanbul'),('Nice');
+
+CREATE TABLE t3 (c varchar(32)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES
+('Nicosia'),('Istanbul'),('Richmond'),('Stockholm'),('Dublin'),
+('Wichita'),('Warsaw'),('Glasgow'),('Winnipeg'),('Irkutsk'),('Quito'),
+('Xiamen'),('Berlin'),('Rome'),('Denver'),('Dallas'),('Kabul'),
+('Prague'),('Izhevsk'),('Tirana'),('Sofia'),('Detroit'),('Sorbonne');
+
+select count(*) from (
+  SELECT * FROM t1 LEFT OUTER JOIN t2 LEFT OUTER JOIN t3 ON b < c ON a > b
+  INTERSECT
+  SELECT * FROM t1 LEFT OUTER JOIN t2 LEFT OUTER JOIN t3 ON b < c ON a > b
+) a;
+
+drop table t1,t2,t3;
+
+CREATE TABLE t1 (a varchar(32) not null) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+('Jakarta'),('Lisbon'),('Honolulu'),('Lusaka'),('Barcelona'),('Taipei'),
+('Brussels'),('Orlando'),('Osaka'),('Quito'),('Lima'),('Tunis'),
+('Unalaska'),('Rotterdam'),('Zagreb'),('Ufa'),('Ryazan'),('Xiamen'),
+('London'),('Izmir'),('Samara'),('Bern'),('Zhengzhou'),('Vladivostok'),
+('Yangon'),('Victoria'),('Warsaw'),('Luanda'),('Leon'),('Bangkok'),
+('Wellington'),('Zibo'),('Qiqihar'),('Delhi'),('Hamburg'),('Ottawa'),
+('Vaduz');
+
+CREATE TABLE t2 (b varchar(32) not null) ENGINE=MyISAM;
+INSERT INTO t2 VALUES
+('Gaza'),('Jeddah'),('Beirut'),('Incheon'),('Tbilisi'),('Izmir'),
+('Quito'),('Riga'),('Freetown'),('Zagreb'),('Caracas'),('Orlando'),
+('Kingston'),('Turin'),('Xinyang'),('Osaka'),('Albany'),('Geneva'),
+('Omsk'),('Kazan'),('Quezon'),('Indore'),('Odessa'),('Xiamen'),
+('Winnipeg'),('Yakutsk'),('Nairobi'),('Ufa'),('Helsinki'),('Vilnius'),
+('Aden'),('Liverpool'),('Honolulu'),('Frankfurt'),('Glasgow'),
+('Vienna'),('Jackson'),('Jakarta'),('Sydney'),('Oslo'),('Novgorod'),
+('Norilsk'),('Izhevsk'),('Istanbul'),('Nice');
+
+CREATE TABLE t3 (c varchar(32) not null) ENGINE=MyISAM;
+INSERT INTO t3 VALUES
+('Nicosia'),('Istanbul'),('Richmond'),('Stockholm'),('Dublin'),
+('Wichita'),('Warsaw'),('Glasgow'),('Winnipeg'),('Irkutsk'),('Quito'),
+('Xiamen'),('Berlin'),('Rome'),('Denver'),('Dallas'),('Kabul'),
+('Prague'),('Izhevsk'),('Tirana'),('Sofia'),('Detroit'),('Sorbonne');
+
+select count(*) from (
+  SELECT * FROM t1 LEFT OUTER JOIN t2 LEFT OUTER JOIN t3 ON b < c ON a > b
+  INTERSECT
+  SELECT * FROM t1 LEFT OUTER JOIN t2 LEFT OUTER JOIN t3 ON b < c ON a > b
+) a;
+
+drop table t1,t2,t3;
+
 --echo # End of 10.3 tests

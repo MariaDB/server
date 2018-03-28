@@ -811,7 +811,7 @@ LatchDebug::check_order(
 
 	case SYNC_TRX:
 
-		/* Either the thread must own the lock_sys->mutex, or
+		/* Either the thread must own the lock_sys.mutex, or
 		it is allowed to own only ONE trx_t::mutex. */
 
 		if (less(latches, level) != NULL) {

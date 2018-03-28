@@ -178,7 +178,7 @@ connection_queue_t;
 
 const int NQUEUES=2; /* We have high and low priority queues*/
 
-struct thread_group_t 
+struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) thread_group_t
 {
   mysql_mutex_t mutex;
   connection_queue_t queues[NQUEUES];
@@ -196,7 +196,7 @@ struct thread_group_t
   int  shutdown_pipe[2];
   bool shutdown;
   bool stalled; 
-} MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE);
+};
 
 static thread_group_t *all_groups;
 static uint group_count;
@@ -1499,7 +1499,7 @@ void TP_connection_generic::set_io_timeout(int timeout_sec)
 }
 
 
-
+#ifndef HAVE_IOCP
 /**
   Handle a (rare) special case,where connection needs to 
   migrate to a different group because group_count has changed
@@ -1534,7 +1534,7 @@ static int change_group(TP_connection_generic *c,
   mysql_mutex_unlock(&new_group->mutex);
   return ret;
 }
-
+#endif
 
 int TP_connection_generic::start_io()
 {

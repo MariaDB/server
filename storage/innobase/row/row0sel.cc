@@ -5045,10 +5045,10 @@ no_gap_lock:
 			high force recovery level set, we try to avoid crashes
 			by skipping this lookup */
 
-			if (srv_force_recovery < 5
-			    && !lock_clust_rec_cons_read_sees(
+			if (!lock_clust_rec_cons_read_sees(
 				    rec, index, offsets, &trx->read_view)) {
-
+				ut_ad(srv_force_recovery
+				      < SRV_FORCE_NO_UNDO_LOG_SCAN);
 				rec_t*	old_vers;
 				/* The following call returns 'offsets'
 				associated with 'old_vers' */

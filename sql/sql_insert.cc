@@ -1640,6 +1640,11 @@ int vers_insert_history_row(TABLE *table)
   // Set Sys_end to now()
   table->vers_update_end();
 
+  Field *row_start= table->vers_start_field();
+  Field *row_end= table->vers_end_field();
+  if (row_start->cmp(row_start->ptr, row_end->ptr) >= 0)
+    return 0;
+
   return table->file->ha_write_row(table->record[0]);
 }
 
@@ -1928,7 +1933,6 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           if (table->versioned(VERS_TRX_ID))
           {
             bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
-            table->vers_start_field()->set_notnull();
             table->vers_start_field()->store(0, false);
           }
           if ((error=table->file->ha_update_row(table->record[1],

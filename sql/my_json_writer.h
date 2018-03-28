@@ -173,6 +173,10 @@ public:
 
 class Json_writer_nesting_guard
 {
+#ifdef DBUG_OFF
+public:
+  Json_writer_nesting_guard(Json_writer *) {}
+#else
   Json_writer* writer;
   int indent_level;
 public:
@@ -185,6 +189,7 @@ public:
   {
     DBUG_ASSERT(indent_level == writer->indent_level);
   }
+#endif
 };
 
 

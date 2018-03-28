@@ -1722,12 +1722,19 @@ struct Schema_specification_st
 
 class Create_field;
 
+enum vers_sys_type_t
+{
+  VERS_UNDEFINED= 0,
+  VERS_TIMESTAMP,
+  VERS_TRX_ID
+};
+
 struct Vers_parse_info
 {
   Vers_parse_info() :
+    check_unit(VERS_UNDEFINED),
     versioned_fields(false),
-    unversioned_fields(false),
-    add_period(false)
+    unversioned_fields(false)
   {}
 
   struct start_end_t
@@ -1743,6 +1750,7 @@ struct Vers_parse_info
 
   start_end_t system_time;
   start_end_t as_row;
+  vers_sys_type_t check_unit;
 
   void set_system_time(LString start, LString end)
   {
@@ -1774,7 +1782,7 @@ protected:
   bool need_check(const Alter_info *alter_info) const;
   bool check_with_conditions(const char *table_name) const;
   bool check_sys_fields(const char *table_name, Alter_info *alter_info,
-                        bool native) const;
+                        bool native);
 
 public:
   static const LString default_start;
@@ -1791,7 +1799,6 @@ public:
   */
   bool versioned_fields : 1;
   bool unversioned_fields : 1;
-  bool add_period : 1;  // ADD PERIOD FOR SYSTEM_TIME was specified
 };
 
 /**
@@ -4603,10 +4610,6 @@ public:
 
   bool native_versioned() const
   { DBUG_ASSERT(ht); return partition_ht()->flags & HTON_NATIVE_SYS_VERSIONING; }
-  virtual ha_rows part_records(void *_part_elem)
-  { DBUG_ASSERT(0); return false; }
-  virtual handler* part_handler(uint32 part_id)
-  { DBUG_ASSERT(0); return NULL; }
   virtual void update_partition(uint	part_id)
   {}
 protected:

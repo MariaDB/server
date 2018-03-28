@@ -8,7 +8,6 @@ create table parent(
   id int unique key
 ) engine innodb;
 
---replace_result $sys_datatype_expl SYS_DATATYPE
 eval create table child(
   parent_id int,
   sys_start $sys_datatype_expl as row start invisible,
@@ -33,7 +32,7 @@ insert into child values(1);
 update parent set id=id+1;
 delete from child;
 update parent set id=id+1;
-select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+select * from child for system_time from timestamp 0 to timestamp now(6);
 
 drop table child;
 drop table parent;
@@ -46,7 +45,6 @@ create table parent(
   id int(10) unsigned unique key
 ) engine innodb;
 
---replace_result $sys_datatype_expl SYS_DATATYPE
 eval create table child(
   parent_id int(10) unsigned primary key,
   sys_start $sys_datatype_expl as row start invisible,
@@ -72,7 +70,7 @@ create table parent(
   id int unique key
 ) engine innodb;
 
---replace_result $sys_datatype_expl SYS_DATATYPE
+--disable_abort_on_error
 eval create table child(
   parent_id int,
   sys_start $sys_datatype_expl as row start invisible,
@@ -82,16 +80,14 @@ eval create table child(
     on delete cascade
     on update cascade
 ) engine innodb with system versioning;
+--enable_abort_on_error
 
+if ($MTR_COMBINATION_TRX_ID) {
 insert into parent values(1);
 insert into child values(1);
 
---echo ## FIXME: #415 update of foreign constraints is disabled
-call mtr.add_suppression("foreign key constraints in timestamp-based temporal table");
---error ER_UNSUPPORTED_EXTENSION
 delete from parent where id = 1;
 delete from child where parent_id = 1;
---echo ## FIXME END
 delete from parent where id = 1;
 select * from child;
 select * from child for system_time all;
@@ -103,9 +99,8 @@ select * from child;
 select * from child for system_time all;
 
 drop table child;
+}
 drop table parent;
-
---replace_result $sys_datatype_expl SYS_DATATYPE
 eval create or replace table parent (
   id int primary key,
   sys_start $sys_datatype_expl as row start invisible,
@@ -137,16 +132,22 @@ create or replace table parent (
 )
 engine innodb;
 
-create or replace table child (
+--disable_abort_on_error
+eval create or replace table child (
   id int primary key,
   parent_id int not null,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time(row_start, row_end),
   constraint `parent-fk`
   foreign key (parent_id) references parent (id)
       on delete cascade
       on update restrict
 ) with system versioning
 engine innodb;
+--enable_abort_on_error
 
+if ($MTR_COMBINATION_TRX_ID) {
 insert into parent (id) values (3);
 insert into child (id, parent_id) values (3, 3);
 --echo ## FIXME: #415 update of foreign constraints is disabled
@@ -154,9 +155,11 @@ delete from child;
 --echo ## FIXME END
 delete from parent;
 select * from child;
-select * from child for system_time all;
+--replace_result $sys_datatype_max MAXVAL
+eval select *, row_start < row_end, row_end < $sys_datatype_max from child for system_time all;
 
 drop table child;
+}
 drop table parent;
 
 --echo #################
@@ -167,7 +170,7 @@ create table parent(
   id int unique key
 ) engine innodb;
 
---replace_result $sys_datatype_expl SYS_DATATYPE
+--disable_abort_on_error
 eval create table child(
   parent_id int,
   sys_start $sys_datatype_expl as row start invisible,
@@ -177,7 +180,9 @@ eval create table child(
     on delete set null
     on update set null
 ) engine innodb with system versioning;
+--enable_abort_on_error
 
+if ($MTR_COMBINATION_TRX_ID) {
 insert into parent values(1);
 insert into child values(1);
 delete from child;
@@ -188,7 +193,7 @@ delete from child where parent_id = 1;
 --echo ## FIXME END
 delete from parent where id = 1;
 select * from child;
-select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+select * from child for system_time from timestamp 0 to timestamp now(6);
 delete from child;
 
 insert into parent values(1);
@@ -198,18 +203,18 @@ if (0)
 {
 update parent set id=id+1;
 select * from child;
-select * from child for system_time from timestamp '1-1-1' to timestamp now(6);
+select * from child for system_time from timestamp 0 to timestamp now(6);
 }
 ## FIXME END
 
 drop table child;
+}
 drop table parent;
 
 --echo ###########################
 --echo # Parent table is foreign #
 --echo ###########################
 
---replace_result $sys_datatype_expl SYS_DATATYPE
 eval create or replace table parent(
   id int unique key,
   sys_start $sys_datatype_expl as row start invisible,
@@ -249,7 +254,6 @@ drop table parent;
 --echo # crash on DELETE #
 --echo ###################
 
---replace_result $sys_datatype_expl SYS_DATATYPE
 eval create or replace table a (
   cola int(10) primary key,
   v_cola int(10) as (cola mod 10) virtual,
@@ -260,7 +264,6 @@ eval create or replace table a (
 
 create index v_cola on a (v_cola);
 
---replace_result $sys_datatype_expl SYS_DATATYPE
 eval create or replace table b(
   cola int(10),
   v_cola int(10),

@@ -22,44 +22,13 @@ begin
   from mysql.transaction_registry;
 end~~
 
-create function if not exists default_engine()
-returns varchar(255)
-deterministic
-begin
-  declare e varchar(255);
-  select engine from information_schema.engines where support='DEFAULT' into e;
-  return e;
-end~~
-
-create function if not exists non_default_engine()
-returns varchar(255)
-deterministic
-begin
-  if default_engine() = 'InnoDB' then
-    return 'MyISAM';
-  end if;
-  return 'InnoDB';
-end~~
-
-create function if not exists sys_datatype(engine varchar(255))
-returns varchar(255)
-deterministic
-begin
-  if engine = 'InnoDB' then
-    return 'bigint(20) unsigned';
-  elseif engine = 'MyISAM' then
-    return 'timestamp(6)';
-  end if;
-  return NULL;
-end~~
-
 create function if not exists sys_commit_ts(sys_field varchar(255))
 returns varchar(255)
 deterministic
 begin
-  if default_engine() = 'InnoDB' then
+  if @@default_storage_engine = 'InnoDB' then
     return concat('vtq_commit_ts(', sys_field, ')');
-  elseif default_engine() = 'MyISAM' then
+  elseif @@default_storage_engine = 'MyISAM' then
     return sys_field;
   end if;
   return NULL;
@@ -92,19 +61,11 @@ begin
 end~~
 delimiter ;~~
 
-let $default_engine= `select default_engine()`;
-let $non_default_engine= `select non_default_engine()`;
-let $sys_datatype= timestamp(6);
+let $default_engine= `select @@default_storage_engine`;
+let $non_default_engine= `select if(@@default_storage_engine = 'InnoDB', 'MyISAM', 'InnoDB')`;
 let $sys_datatype_expl= timestamp(6);
-let $sys_datatype_uc= TIMESTAMP(6);
 let $sys_datatype_expl_uc= TIMESTAMP(6);
-
-let $non_sys_datatype= `select sys_datatype(non_default_engine())`;
-let $non_sys_datatype_uc= `select upper(sys_datatype(non_default_engine()))`;
-let $sys_datatype_null= $sys_datatype NULL DEFAULT NULL;
-let $sys_datatype_default_null= $sys_datatype DEFAULT NULL;
-let $sys_datatype_not_null= $sys_datatype NOT NULL DEFAULT '0000-00-00 00:00:00.000000';
-let $non_sys_datatype_null= $non_sys_datatype NULL;
+let $sys_datatype_max= TIMESTAMP'2038-01-19 03:14:07.999999';
 
 if ($MTR_COMBINATION_MYISAM)
 {
@@ -114,5 +75,6 @@ if ($MTR_COMBINATION_TRX_ID)
 {
   let $sys_datatype_expl= bigint(20) unsigned;
   let $sys_datatype_expl_uc= BIGINT(20) UNSIGNED;
+  let $sys_datatype_max= 18446744073709551615;
 }
 --enable_query_log

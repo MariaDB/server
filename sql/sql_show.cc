@@ -2546,6 +2546,17 @@ static const LEX_CSTRING *view_algorithm(TABLE_LIST *table)
   }
 }
 
+
+static bool append_at_host(THD *thd, String *buffer, const LEX_CSTRING *host)
+{
+  if (!host->str || !host->str[0])
+    return false;
+  return
+    buffer->append('@') ||
+    append_identifier(thd, buffer, host);
+}
+
+
 /*
   Append DEFINER clause to the given buffer.
 
@@ -2557,17 +2568,14 @@ static const LEX_CSTRING *view_algorithm(TABLE_LIST *table)
     definer_host  [in] host name part of definer
 */
 
-void append_definer(THD *thd, String *buffer, const LEX_CSTRING *definer_user,
+bool append_definer(THD *thd, String *buffer, const LEX_CSTRING *definer_user,
                     const LEX_CSTRING *definer_host)
 {
-  buffer->append(STRING_WITH_LEN("DEFINER="));
-  append_identifier(thd, buffer, definer_user);
-  if (definer_host->str && definer_host->str[0])
-  {
-    buffer->append('@');
-    append_identifier(thd, buffer, definer_host);
-  }
-  buffer->append(' ');
+  return
+    buffer->append(STRING_WITH_LEN("DEFINER=")) ||
+    append_identifier(thd, buffer, definer_user) ||
+    append_at_host(thd, buffer, definer_host) ||
+    buffer->append(' ');
 }
 
 
@@ -5815,6 +5823,118 @@ static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
 }
 
 
+/*
+  Print DATA_TYPE independently from sql_mode.
+  It's only a brief human-readable description, without attributes,
+  so it should not be used by client programs to generate SQL scripts.
+*/
+static bool print_anchor_data_type(const Spvar_definition *def,
+                                   String *data_type)
+{
+  if (def->column_type_ref())
+    return data_type->append(STRING_WITH_LEN("TYPE OF"));
+  if (def->is_table_rowtype_ref())
+    return data_type->append(STRING_WITH_LEN("ROW TYPE OF"));
+  /*
+    "ROW TYPE OF cursor" is not possible yet.
+    May become possible when we add package-wide cursors.
+  */
+  DBUG_ASSERT(0);
+  return false;
+}
+
+
+/*
+  DTD_IDENTIFIER is the full data type description with attributes.
+  It can be used by client programs to generate SQL scripts.
+  Let's print it according to the current sql_mode.
+  It will make output in line with the value in mysql.proc.param_list,
+  so both I_S.XXX.DTD_IDENTIFIER and mysql.proc.param_list use the same notation:
+  default or Oracle, according to the sql_mode at the SP creation time. 
+  The caller must make sure to set thd->variables.sql_mode to the routine sql_mode.
+*/
+static bool print_anchor_dtd_identifier(THD *thd, const Spvar_definition *def,
+                                        String *dtd_identifier)
+{
+  if (def->column_type_ref())
+    return (thd->variables.sql_mode & MODE_ORACLE) ?
+           def->column_type_ref()->append_to(thd, dtd_identifier) ||
+           dtd_identifier->append(STRING_WITH_LEN("%TYPE")) :
+           dtd_identifier->append(STRING_WITH_LEN("TYPE OF ")) ||
+           def->column_type_ref()->append_to(thd, dtd_identifier);
+  if (def->is_table_rowtype_ref())
+    return (thd->variables.sql_mode & MODE_ORACLE) ?
+           def->table_rowtype_ref()->append_to(thd, dtd_identifier) ||
+           dtd_identifier->append(STRING_WITH_LEN("%ROWTYPE")) :
+           dtd_identifier->append(STRING_WITH_LEN("ROW TYPE OF ")) ||
+           def->table_rowtype_ref()->append_to(thd, dtd_identifier);
+  DBUG_ASSERT(0); // See comments in print_anchor_data_type()
+  return false;
+}
+
+
+/*
+  Set columns DATA_TYPE and DTD_IDENTIFIER from an SP variable definition
+*/
+static void store_variable_type(THD *thd, const sp_variable *spvar,
+                                TABLE *tmptbl,
+                                TABLE_SHARE *tmpshare,
+                                CHARSET_INFO *cs,
+                                TABLE *table, uint offset)
+{
+  if (spvar->field_def.is_explicit_data_type())
+  {
+    if (spvar->field_def.is_row())
+    {
+      // Explicit ROW
+      table->field[offset]->store(STRING_WITH_LEN("ROW"), cs);
+      table->field[offset]->set_notnull();
+      // Perhaps eventually we need to print all ROW elements in DTD_IDENTIFIER
+      table->field[offset + 8]->store(STRING_WITH_LEN("ROW"), cs);
+      table->field[offset + 8]->set_notnull();
+    }
+    else
+    {
+      // Explicit scalar data type
+      Field *field= spvar->field_def.make_field(tmpshare, thd->mem_root,
+                                                &spvar->name);
+      field->table= tmptbl;
+      tmptbl->in_use= thd;
+      store_column_type(table, field, cs, offset);
+    }
+  }
+  else
+  {
+    StringBuffer<128> data_type(cs), dtd_identifier(cs);
+
+    if (print_anchor_data_type(&spvar->field_def, &data_type))
+    {
+      table->field[offset]->store(STRING_WITH_LEN("ERROR"), cs); // EOM?
+      table->field[offset]->set_notnull();
+    }
+    else
+    {
+      DBUG_ASSERT(data_type.length());
+      table->field[offset]->store(data_type.ptr(), data_type.length(), cs);
+      table->field[offset]->set_notnull();
+    }
+
+    if (print_anchor_dtd_identifier(thd, &spvar->field_def, &dtd_identifier))
+    {
+      table->field[offset + 8]->store(STRING_WITH_LEN("ERROR"), cs); // EOM?
+      table->field[offset + 8]->set_notnull();
+    }
+    else
+    {
+      DBUG_ASSERT(dtd_identifier.length());
+      table->field[offset + 8]->store(dtd_identifier.ptr(),
+                                      dtd_identifier.length(), cs);
+      table->field[offset + 8]->set_notnull();
+    }
+  }
+}
+
+
 static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
 				    TABLE *table, bool res,
 				    const LEX_CSTRING *db_name,
@@ -6188,6 +6308,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   const Sp_handler *sph;
   bool free_sp_head;
   bool error= 0;
+  sql_mode_t sql_mode;
   DBUG_ENTER("store_schema_params");
 
   bzero((char*) &tbl, sizeof(TABLE));
@@ -6197,9 +6318,12 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
   proc_table->field[MYSQL_PROC_FIELD_DEFINER]->val_str_nopad(thd->mem_root, &definer);
-  sph= Sp_handler::handler((stored_procedure_type) proc_table->field[MYSQL_PROC_MYSQL_TYPE]->val_int());
+  sql_mode= (sql_mode_t) proc_table->field[MYSQL_PROC_FIELD_SQL_MODE]->val_int();
+  sph= Sp_handler::handler_mysql_proc((stored_procedure_type)
+                                      proc_table->field[MYSQL_PROC_MYSQL_TYPE]->
+                                      val_int());
   if (!sph)
-    sph= &sp_handler_procedure;
+    DBUG_RETURN(0);
 
   if (!full_access)
     full_access= !strcmp(sp_user, definer.str);
@@ -6213,15 +6337,15 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
     proc_table->field[MYSQL_PROC_FIELD_RETURNS]->val_str_nopad(thd->mem_root,
                                                                &returns);
   sp= sph->sp_load_for_information_schema(thd, proc_table, db, name,
-                                          params, returns,
-                                          (ulong) proc_table->
-                                          field[MYSQL_PROC_FIELD_SQL_MODE]->
-                                          val_int(),
+                                          params, returns, sql_mode,
                                           &free_sp_head);
   if (sp)
   {
     Field *field;
     LEX_CSTRING tmp_string;
+    Sql_mode_save sql_mode_backup(thd);
+    thd->variables.sql_mode= sql_mode;
+
     if (sph->type() == TYPE_ENUM_FUNCTION)
     {
       restore_record(table, s->default_values);
@@ -6280,11 +6404,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
                                                               &tmp_string);
       table->field[15]->store(tmp_string, cs);
 
-      field= spvar->field_def.make_field(&share, thd->mem_root,
-                                         &spvar->name);
-      field->table= &tbl;
-      tbl.in_use= thd;
-      store_column_type(table, field, cs, 6);
+      store_variable_type(thd, spvar, &tbl, &share, cs, table, 6);
       if (schema_table_store_record(thd, table))
       {
         error= 1;
@@ -6311,10 +6431,11 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
   proc_table->field[MYSQL_PROC_FIELD_DEFINER]->val_str_nopad(thd->mem_root, &definer);
-  sph= Sp_handler::handler((stored_procedure_type)
-                           proc_table->field[MYSQL_PROC_MYSQL_TYPE]->val_int());
+  sph= Sp_handler::handler_mysql_proc((stored_procedure_type)
+                                      proc_table->field[MYSQL_PROC_MYSQL_TYPE]->
+                                      val_int());
   if (!sph)
-    sph= &sp_handler_procedure;
+    return 0;
 
   if (!full_access)
     full_access= !strcmp(sp_user, definer.str);
@@ -7196,11 +7317,8 @@ static void store_schema_partitions_record(THD *thd, TABLE *schema_table,
 }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-static int
-get_partition_column_description(THD *thd,
-                                 partition_info *part_info,
-                                 part_elem_value *list_value,
-                                 String &tmp_str)
+static int get_partition_column_description(THD *thd, partition_info *part_info,
+                                 part_elem_value *list_value, String &tmp_str)
 {
   uint num_elements= part_info->part_field_list.elements;
   uint i;
@@ -7305,8 +7423,7 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
       table->field[7]->store(tmp_res.ptr(), tmp_res.length(), cs);
       break;
     case VERSIONING_PARTITION:
-      tmp_res.length(0);
-      tmp_res.append(STRING_WITH_LEN("SYSTEM_TIME"));
+      table->field[7]->store(STRING_WITH_LEN("SYSTEM_TIME"), cs);
       break;
     default:
       DBUG_ASSERT(0);
@@ -7374,13 +7491,9 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
           List_iterator<part_elem_value> list_val_it(part_elem->list_val_list);
           part_elem_value *list_value= list_val_it++;
           tmp_str.length(0);
-          if (get_partition_column_description(thd,
-                                               part_info,
-                                               list_value,
+          if (get_partition_column_description(thd, part_info, list_value,
                                                tmp_str))
-          {
             DBUG_RETURN(1);
-          }
           table->field[11]->store(tmp_str.ptr(), tmp_str.length(), cs);
         }
         else
@@ -7411,13 +7524,9 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
           {
             if (part_info->part_field_list.elements > 1U)
               tmp_str.append(STRING_WITH_LEN("("));
-            if (get_partition_column_description(thd,
-                                                 part_info,
-                                                 list_value,
+            if (get_partition_column_description(thd, part_info, list_value,
                                                  tmp_str))
-            {
               DBUG_RETURN(1);
-            }
             if (part_info->part_field_list.elements > 1U)
               tmp_str.append(")");
           }
@@ -7434,6 +7543,19 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
         }
         table->field[11]->store(tmp_str.ptr(), tmp_str.length(), cs);
         table->field[11]->set_notnull();
+      }
+      else if (part_info->part_type == VERSIONING_PARTITION)
+      {
+        if (part_elem == part_info->vers_info->now_part)
+        {
+          table->field[11]->store(STRING_WITH_LEN("CURRENT"), cs);
+          table->field[11]->set_notnull();
+        }
+        else if (part_info->vers_info->interval.is_set())
+        {
+          table->field[11]->store_timestamp((my_time_t)part_elem->range_value, 0);
+          table->field[11]->set_notnull();
+        }
       }
 
       if (part_elem->subpartitions.elements)
@@ -9027,7 +9149,7 @@ ST_FIELD_INFO proc_fields_info[]=
    SKIP_OPEN_TABLE},
   {"ROUTINE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Name",
    SKIP_OPEN_TABLE},
-  {"ROUTINE_TYPE", 9, MYSQL_TYPE_STRING, 0, 0, "Type", SKIP_OPEN_TABLE},
+  {"ROUTINE_TYPE", 13, MYSQL_TYPE_STRING, 0, 0, "Type", SKIP_OPEN_TABLE},
   {"DATA_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"CHARACTER_MAXIMUM_LENGTH", 21 , MYSQL_TYPE_LONG, 0, 1, 0, SKIP_OPEN_TABLE},
   {"CHARACTER_OCTET_LENGTH", 21 , MYSQL_TYPE_LONG, 0, 1, 0, SKIP_OPEN_TABLE},

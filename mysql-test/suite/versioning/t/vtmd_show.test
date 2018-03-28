@@ -1,3 +1,5 @@
+-- source include/have_innodb.inc
+
 delimiter ~~;
 create or replace procedure drop_archives (in vtmd_name varchar(64))
 begin

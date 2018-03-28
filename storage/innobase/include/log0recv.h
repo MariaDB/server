@@ -217,6 +217,7 @@ struct recv_sys_t{
 				/*!< this is TRUE when a log rec application
 				batch is running */
 	byte*		buf;	/*!< buffer for parsing log records */
+	size_t		buf_size;	/*!< size of buf */
 	ulint		len;	/*!< amount of data in buf */
 	lsn_t		parse_start_lsn;
 				/*!< this is the lsn from which we were able to

@@ -929,7 +929,6 @@ String *Item_func_hybrid_field_type::val_str_from_date_op(String *str)
   if (date_op_with_null_check(&ltime) ||
       (null_value= str->alloc(MAX_DATE_STRING_REP_LENGTH)))
     return (String *) 0;
-  ltime.time_type= mysql_timestamp_type();
   str->length(my_TIME_to_str(&ltime, const_cast<char*>(str->ptr()), decimals));
   str->set_charset(&my_charset_bin);
   DBUG_ASSERT(!null_value);
@@ -941,7 +940,6 @@ double Item_func_hybrid_field_type::val_real_from_date_op()
   MYSQL_TIME ltime;
   if (date_op_with_null_check(&ltime))
     return 0;
-  ltime.time_type= mysql_timestamp_type();
   return TIME_to_double(&ltime);
 }
 
@@ -950,7 +948,6 @@ longlong Item_func_hybrid_field_type::val_int_from_date_op()
   MYSQL_TIME ltime;
   if (date_op_with_null_check(&ltime))
     return 0;
-  ltime.time_type= mysql_timestamp_type();
   return TIME_to_ulonglong(&ltime);
 }
 
@@ -963,7 +960,40 @@ Item_func_hybrid_field_type::val_decimal_from_date_op(my_decimal *dec)
     my_decimal_set_zero(dec);
     return 0;
   }
-  ltime.time_type= mysql_timestamp_type();
+  return date2my_decimal(&ltime, dec);
+}
+
+
+String *Item_func_hybrid_field_type::val_str_from_time_op(String *str)
+{
+  MYSQL_TIME ltime;
+  if (time_op_with_null_check(&ltime) ||
+      (null_value= my_TIME_to_str(&ltime, str, decimals)))
+    return NULL;
+  return str;
+}
+
+double Item_func_hybrid_field_type::val_real_from_time_op()
+{
+  MYSQL_TIME ltime;
+  return time_op_with_null_check(&ltime) ? 0 : TIME_to_double(&ltime);
+}
+
+longlong Item_func_hybrid_field_type::val_int_from_time_op()
+{
+  MYSQL_TIME ltime;
+  return time_op_with_null_check(&ltime) ? 0 : TIME_to_ulonglong(&ltime);
+}
+
+my_decimal *
+Item_func_hybrid_field_type::val_decimal_from_time_op(my_decimal *dec)
+{
+  MYSQL_TIME ltime;
+  if (time_op_with_null_check(&ltime))
+  {
+    my_decimal_set_zero(dec);
+    return 0;
+  }
   return date2my_decimal(&ltime, dec);
 }
 
@@ -5555,7 +5585,9 @@ bool Item_user_var_as_out_param::get_date(MYSQL_TIME *ltime, ulonglong fuzzy)
 }
 
 
-void Item_user_var_as_out_param::print_for_load(THD *thd, String *str)
+void Item_user_var_as_out_param::load_data_print_for_log_event(THD *thd,
+                                                               String *str)
+                                                               const
 {
   str->append('@');
   append_identifier(thd, str, &org_name);
@@ -6265,16 +6297,17 @@ longlong Item_func_row_count::val_int()
 
 
 Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
-                           sp_name *name):
-  Item_func(thd), Item_sp(thd, context_arg, name)
+                           sp_name *name, const Sp_handler *sph):
+  Item_func(thd), Item_sp(thd, context_arg, name), m_handler(sph)
 {
   maybe_null= 1;
 }
 
 
 Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
-                           sp_name *name_arg, List<Item> &list):
-  Item_func(thd, list), Item_sp(thd, context_arg, name_arg)
+                           sp_name *name_arg, const Sp_handler *sph,
+                           List<Item> &list):
+  Item_func(thd, list), Item_sp(thd, context_arg, name_arg), m_handler(sph)
 {
   maybe_null= 1;
 }
@@ -6413,7 +6446,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
   bool res;
   DBUG_ENTER("Item_func_sp::fix_fields");
   DBUG_ASSERT(fixed == 0);
-  sp_head *sp= sp_handler_function.sp_find_routine(thd, m_name, true);
+  sp_head *sp= m_handler->sp_find_routine(thd, m_name, true);
 
   /* 
     Checking privileges to execute the function while creating view and

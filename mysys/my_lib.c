@@ -206,12 +206,12 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   ushort	mode;
   char		tmp_path[FN_REFLEN], *tmp_file,attrib;
 #ifdef _WIN64
-  __int64       handle;
+  __int64       handle= -1;
 #else
-  long		handle;
+  long		handle= -1;
 #endif
   DBUG_ENTER("my_dir");
-  DBUG_PRINT("my",("path: '%s' MyFlags: %d",path,MyFlags));
+  DBUG_PRINT("my",("path: '%s' MyFlags: %d",path,(int)MyFlags));
 
   /* Put LIB-CHAR as last path-character if not there */
   tmp_file=tmp_path;

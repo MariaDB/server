@@ -1365,7 +1365,15 @@ bool st_select_lex_unit::exec()
     DBUG_RETURN(saved_error);
 
   if (union_result)
+  {
     union_result->init();
+    if (uncacheable & UNCACHEABLE_DEPENDENT &&
+        union_result->table && union_result->table->is_created())
+    {
+      union_result->table->file->ha_delete_all_rows();
+      union_result->table->file->ha_enable_indexes(HA_KEY_SWITCH_ALL);
+    }
+  }
 
   if (uncacheable || !item || !item->assigned() || describe)
   {
@@ -1663,6 +1671,20 @@ bool st_select_lex_unit::exec_recursive()
    
   for (st_select_lex *sl= start ; sl != end; sl= sl->next_select())
   {
+    if (with_element->level)
+    {
+      for (TABLE_LIST *derived= with_element->derived_with_rec_ref.first;
+           derived;
+           derived= derived->next_with_rec_ref)
+      {
+        if (derived->is_materialized_derived())
+	{
+          if (derived->table->is_created())
+            derived->table->file->ha_delete_all_rows();
+          derived->table->reginfo.join_tab->preread_init_done= false;
+        }
+      }
+    }
     thd->lex->current_select= sl;
     if (sl->tvc)
       sl->tvc->exec(sl);
@@ -1706,7 +1728,7 @@ bool st_select_lex_unit::exec_recursive()
     if (!with_element->rec_result->first_rec_table_to_update)
       with_element->rec_result->first_rec_table_to_update= rec_table;
     if (with_element->level == 1 && rec_table->reginfo.join_tab)
-      rec_table->reginfo.join_tab->preread_init_done= true;  
+      rec_table->reginfo.join_tab->preread_init_done= true;
   }
   for (Item_subselect *sq= with_element->sq_with_rec_ref.first;
        sq;

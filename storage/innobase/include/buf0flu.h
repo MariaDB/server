@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -70,25 +70,21 @@ buf_flush_relocate_on_flush_list(
 /*=============================*/
 	buf_page_t*	bpage,	/*!< in/out: control block being moved */
 	buf_page_t*	dpage);	/*!< in/out: destination block */
-/********************************************************************//**
-Updates the flush system data structures when a write is completed. */
-void
-buf_flush_write_complete(
-/*=====================*/
-	buf_page_t*	bpage);	/*!< in: pointer to the block in question */
+/** Update the flush system data structures when a write is completed.
+@param[in,out]	bpage	flushed page
+@param[in]	dblwr	whether the doublewrite buffer was used */
+void buf_flush_write_complete(buf_page_t* bpage, bool dblwr);
 /** Initialize a page for writing to the tablespace.
 @param[in]	block		buffer block; NULL if bypassing the buffer pool
 @param[in,out]	page		page frame
 @param[in,out]	page_zip_	compressed page, or NULL if uncompressed
-@param[in]	newest_lsn	newest modification LSN to the page
-@param[in]	skip_checksum	whether to disable the page checksum */
+@param[in]	newest_lsn	newest modification LSN to the page */
 void
 buf_flush_init_for_writing(
 	const buf_block_t*	block,
 	byte*			page,
 	void*			page_zip_,
-	lsn_t			newest_lsn,
-	bool			skip_checksum = false);
+	lsn_t			newest_lsn);
 
 # if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 /********************************************************************//**
@@ -423,57 +419,6 @@ private:
 	/* True if the operation was interrupted. */
 	bool			m_interrupted;
 };
-
-/******************************************************************//**
-Start a buffer flush batch for LRU or flush list */
-ibool
-buf_flush_start(
-/*============*/
-	buf_pool_t*	buf_pool,	/*!< buffer pool instance */
-	buf_flush_t	flush_type);	/*!< in: BUF_FLUSH_LRU
-					or BUF_FLUSH_LIST */
-/******************************************************************//**
-End a buffer flush batch for LRU or flush list */
-void
-buf_flush_end(
-/*==========*/
-	buf_pool_t*	buf_pool,	/*!< buffer pool instance */
-	buf_flush_t	flush_type);	/*!< in: BUF_FLUSH_LRU
-					or BUF_FLUSH_LIST */
-/******************************************************************//**
-Gather the aggregated stats for both flush list and LRU list flushing */
-void
-buf_flush_common(
-/*=============*/
-	buf_flush_t	flush_type,	/*!< in: type of flush */
-	ulint		page_count);	/*!< in: number of pages flushed */
-
-/*******************************************************************//**
-This utility flushes dirty blocks from the end of the LRU list or flush_list.
-NOTE 1: in the case of an LRU flush the calling thread may own latches to
-pages: to avoid deadlocks, this function must be written so that it cannot
-end up waiting for these latches! NOTE 2: in the case of a flush list flush,
-the calling thread is not allowed to own any latches on pages! */
-__attribute__((nonnull))
-void
-buf_flush_batch(
-/*============*/
-	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
-	buf_flush_t	flush_type,	/*!< in: BUF_FLUSH_LRU or
-					BUF_FLUSH_LIST; if BUF_FLUSH_LIST,
-					then the caller must not own any
-					latches on pages */
-	ulint		min_n,		/*!< in: wished minimum mumber of blocks
-					flushed (it is not guaranteed that the
-					actual number is that big, though) */
-	lsn_t		lsn_limit,	/*!< in: in the case of BUF_FLUSH_LIST
-					all blocks whose oldest_modification is
-					smaller than this should be flushed
-					(if their number does not exceed
-					min_n), otherwise ignored */
-	flush_counters_t*	n);	/*!< out: flushed/evicted page
-					counts  */
-
 
 #include "buf0flu.ic"
 

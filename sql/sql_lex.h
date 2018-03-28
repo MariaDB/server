@@ -155,15 +155,6 @@ extern uint binlog_unsafe_map[256];
 void binlog_unsafe_map_init();
 #endif
 
-/**
-  used by the parser to store internal variable name
-*/
-struct sys_var_with_base
-{
-  sys_var *var;
-  LEX_CSTRING base_name;
-};
-
 struct LEX_TYPE
 {
   enum enum_field_types type;
@@ -1338,8 +1329,6 @@ struct st_trg_chistics: public st_trg_execution_order
 
 };
 
-extern sys_var *trg_new_row_fake_var;
-
 enum xa_option_words {XA_NONE, XA_JOIN, XA_RESUME, XA_ONE_PHASE,
                       XA_SUSPEND, XA_FOR_MIGRATE};
 
@@ -2343,6 +2332,19 @@ public:
     return m_cpp_ptr;
   }
 
+  /**
+    Get the current stream pointer, in the pre-processed buffer,
+    with traling spaces removed.
+  */
+  const char *get_cpp_ptr_rtrim()
+  {
+    const char *p;
+    for (p= m_cpp_ptr;
+         p > m_cpp_buf && my_isspace(system_charset_info, p[-1]);
+         p--)
+    { }
+    return p;
+  }
   /** Get the utf8-body string. */
   const char *get_body_utf8_str()
   {
@@ -3065,21 +3067,24 @@ public:
   {
     safe_to_cache_query= 0;
 
-    /*
-      There are no sense to mark select_lex and union fields of LEX,
-      but we should merk all subselects as uncacheable from current till
-      most upper
-    */
-    SELECT_LEX *sl;
-    SELECT_LEX_UNIT *un;
-    for (sl= current_select, un= sl->master_unit();
-	 un != &unit;
-	 sl= sl->outer_select(), un= sl->master_unit())
+    if (current_select) // initialisation SP variables has no SELECT
     {
-      sl->uncacheable|= cause;
-      un->uncacheable|= cause;
+      /*
+        There are no sense to mark select_lex and union fields of LEX,
+        but we should merk all subselects as uncacheable from current till
+        most upper
+      */
+      SELECT_LEX *sl;
+      SELECT_LEX_UNIT *un;
+      for (sl= current_select, un= sl->master_unit();
+          un != &unit;
+          sl= sl->outer_select(), un= sl->master_unit())
+      {
+        sl->uncacheable|= cause;
+        un->uncacheable|= cause;
+      }
+      select_lex.uncacheable|= cause;
     }
-    select_lex.uncacheable|= cause;
   }
   void set_trg_event_type_for_tables();
 
@@ -3204,23 +3209,29 @@ public:
                                 enum sub_select_type type,
                                 bool is_top_level);
   bool setup_select_in_parentheses();
-  bool set_trigger_new_row(LEX_CSTRING *name, Item *val);
-  bool set_system_variable(struct sys_var_with_base *tmp,
-                           enum enum_var_type var_type, Item *val);
+  bool set_trigger_new_row(const LEX_CSTRING *name, Item *val);
+  bool set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
+                         Item *val);
+  bool set_system_variable(enum_var_type var_type, sys_var *var,
+                           const LEX_CSTRING *base_name, Item *val);
+  bool set_system_variable(enum_var_type var_type, const LEX_CSTRING *name,
+                           Item *val);
+  bool set_system_variable(THD *thd, enum_var_type var_type,
+                           const LEX_CSTRING *name1,
+                           const LEX_CSTRING *name2,
+                           Item *val);
+  bool set_default_system_variable(enum_var_type var_type,
+                                   const LEX_CSTRING *name,
+                                   Item *val);
   bool set_user_variable(THD *thd, const LEX_CSTRING *name, Item *val);
   void set_stmt_init();
   sp_name *make_sp_name(THD *thd, const LEX_CSTRING *name);
   sp_name *make_sp_name(THD *thd, const LEX_CSTRING *name1,
                                   const LEX_CSTRING *name2);
+  sp_name *make_sp_name_package_routine(THD *thd, const LEX_CSTRING *name);
   sp_head *make_sp_head(THD *thd, const sp_name *name, const Sp_handler *sph);
   sp_head *make_sp_head_no_recursive(THD *thd, const sp_name *name,
-                                     const Sp_handler *sph)
-  {
-    if (!sphead)
-      return make_sp_head(thd, name, sph);
-    my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0), sph->type_str());
-    return NULL;
-  }
+                                     const Sp_handler *sph);
   sp_head *make_sp_head_no_recursive(THD *thd,
                                      DDL_options_st options, sp_name *name,
                                      const Sp_handler *sph)
@@ -3231,18 +3242,30 @@ public:
   }
   bool sp_body_finalize_function(THD *);
   bool sp_body_finalize_procedure(THD *);
+  sp_package *create_package_start(THD *thd,
+                                   enum_sql_command command,
+                                   const Sp_handler *sph,
+                                   const sp_name *name,
+                                   DDL_options_st options);
+  bool create_package_finalize(THD *thd,
+                               const sp_name *name,
+                               const sp_name *name2,
+                               const char *body_start,
+                               const char *body_end);
   bool call_statement_start(THD *thd, sp_name *name);
   bool call_statement_start(THD *thd, const LEX_CSTRING *name);
   bool call_statement_start(THD *thd, const LEX_CSTRING *name1,
                                       const LEX_CSTRING *name2);
-  bool init_internal_variable(struct sys_var_with_base *variable,
-                             const LEX_CSTRING *name);
-  bool init_internal_variable(struct sys_var_with_base *variable,
-                              const LEX_CSTRING *dbname,
-                              const LEX_CSTRING *name);
-  bool init_default_internal_variable(struct sys_var_with_base *variable,
-                                      LEX_CSTRING name);
-  bool set_variable(struct sys_var_with_base *variable, Item *item);
+  sp_variable *find_variable(const LEX_CSTRING *name,
+                             sp_pcontext **ctx,
+                             const Sp_rcontext_handler **rh) const;
+  sp_variable *find_variable(const LEX_CSTRING *name,
+                             const Sp_rcontext_handler **rh) const
+  {
+    sp_pcontext *not_used_ctx;
+    return find_variable(name, &not_used_ctx, rh);
+  }
+  bool set_variable(const LEX_CSTRING *name, Item *item);
   bool set_variable(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
                     Item *item);
   void sp_variable_declarations_init(THD *thd, int nvars);
@@ -3318,6 +3341,7 @@ public:
   /*
     Create an Item corresponding to a ROW field valiable:  var.field
       @param THD        - THD, for mem_root
+      @param rh [OUT]   - the rcontext handler (local vs package variables)
       @param var        - the ROW variable name
       @param field      - the ROW variable field name
       @param spvar      - the variable that was previously found by name
@@ -3326,6 +3350,7 @@ public:
       @param end        - end in the query (for binary log)
   */
   Item_splocal *create_item_spvar_row_field(THD *thd,
+                                            const Sp_rcontext_handler *rh,
                                             const LEX_CSTRING *var,
                                             const LEX_CSTRING *field,
                                             sp_variable *spvar,
@@ -3419,6 +3444,8 @@ public:
   Item *make_item_func_replace(THD *thd, Item *org, Item *find, Item *replace);
   Item *make_item_func_substr(THD *thd, Item *a, Item *b, Item *c);
   Item *make_item_func_substr(THD *thd, Item *a, Item *b);
+  my_var *create_outvar(THD *thd, const LEX_CSTRING *name);
+
   /*
     Create a my_var instance for a ROW field variable that was used
     as an OUT SP parameter: CALL p1(var.field);
@@ -3430,7 +3457,7 @@ public:
                         const LEX_CSTRING *var_name,
                         const LEX_CSTRING *field_name);
 
-  bool is_trigger_new_or_old_reference(const LEX_CSTRING *name);
+  bool is_trigger_new_or_old_reference(const LEX_CSTRING *name) const;
 
   Item *create_and_link_Item_trigger_field(THD *thd, const LEX_CSTRING *name,
                                            bool new_row);
@@ -3479,6 +3506,7 @@ public:
   bool sp_block_with_exceptions_finalize_exceptions(THD *thd,
                                                   uint executable_section_ip,
                                                   uint exception_count);
+  bool sp_block_with_exceptions_add_empty(THD *thd);
   bool sp_exit_statement(THD *thd, Item *when);
   bool sp_exit_statement(THD *thd, const LEX_CSTRING *label_name, Item *item);
   bool sp_leave_statement(THD *thd, const LEX_CSTRING *label_name);
@@ -3728,6 +3756,7 @@ public:
   {
     return create_info.vers_info;
   }
+  sp_package *get_sp_package() const;
 };
 
 

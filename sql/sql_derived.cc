@@ -1010,6 +1010,20 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
 }
 
 
+void TABLE_LIST::register_as_derived_with_rec_ref(With_element *rec_elem)
+{
+  rec_elem->derived_with_rec_ref.link_in_list(this, &this->next_with_rec_ref);
+  is_derived_with_recursive_reference= true;
+  get_unit()->uncacheable|= UNCACHEABLE_DEPENDENT;
+}
+
+
+bool TABLE_LIST::is_nonrecursive_derived_with_rec_ref()
+{
+  return is_derived_with_recursive_reference;
+}
+
+
 /**
   @brief
     Fill the recursive with table 

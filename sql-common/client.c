@@ -96,6 +96,7 @@ my_bool	net_flush(NET *net);
 #ifndef _WIN32
 #include <errno.h>
 #define SOCKET_ERROR -1
+#define INVALID_SOCKET -1
 #endif
 
 #ifdef __WIN__
@@ -258,7 +259,6 @@ HANDLE create_named_pipe(MYSQL *mysql, uint connect_timeout, char **arg_host,
   char pipe_name[1024];
   DWORD dwMode;
   int i;
-  my_bool testing_named_pipes=0;
   char *host= *arg_host, *unix_socket= *arg_unix_socket;
 
   if ( ! unix_socket || (unix_socket)[0] == 0x00)
@@ -369,7 +369,7 @@ HANDLE create_shared_memory(MYSQL *mysql,NET *net, uint connect_timeout)
   char *shared_memory_base_name = mysql->options.shared_memory_base_name;
   static const char *name_prefixes[] = {"","Global\\"};
   const char *prefix;
-  int i;
+  uint i;
 
   /*
     If this is NULL, somebody freed the MYSQL* options.  mysql_close()
@@ -915,13 +915,6 @@ static int cli_report_progress(MYSQL *mysql, char *pkt, uint length)
   return 0;
 }
 
-#ifdef __WIN__
-static my_bool is_NT(void)
-{
-  char *os=getenv("OS");
-  return (os && !strcmp(os, "Windows_NT")) ? 1 : 0;
-}
-#endif
 
 /**************************************************************************
   Shut down connection
@@ -3215,7 +3208,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   {
     my_socket sock= socket(AF_UNIX, SOCK_STREAM, 0);
     DBUG_PRINT("info", ("Using socket"));
-    if (sock == SOCKET_ERROR)
+    if (sock == INVALID_SOCKET)
     {
       set_mysql_extended_error(mysql, CR_SOCKET_CREATE_ERROR,
                                unknown_sqlstate,
@@ -3262,7 +3255,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   if (!net->vio &&
       (mysql->options.protocol == MYSQL_PROTOCOL_PIPE ||
        (host && !strcmp(host,LOCAL_HOST_NAMEDPIPE)) ||
-       (! have_tcpip && (unix_socket || !host && is_NT()))))
+       (! have_tcpip && (unix_socket || !host ))))
   {
     if ((hPipe= create_named_pipe(mysql, mysql->options.connect_timeout,
                                   (char**) &host, (char**) &unix_socket)) ==
@@ -3296,7 +3289,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     struct addrinfo *res_lst, hints, *t_res;
     int gai_errno;
     char port_buf[NI_MAXSERV];
-    my_socket sock= SOCKET_ERROR;
+    my_socket sock= INVALID_SOCKET;
     int saved_error= 0, status= -1;
 
     unix_socket=0;				/* This is not used */
@@ -3344,7 +3337,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
                           t_res->ai_family, t_res->ai_socktype,
                           t_res->ai_protocol));
       sock= socket(t_res->ai_family, t_res->ai_socktype, t_res->ai_protocol);
-      if (sock == SOCKET_ERROR)
+      if (sock == INVALID_SOCKET)
       {
         saved_error= socket_errno;
         continue;
@@ -3386,7 +3379,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
 
     freeaddrinfo(res_lst);
 
-    if (sock == SOCKET_ERROR)
+    if (sock == INVALID_SOCKET)
     {
       set_mysql_extended_error(mysql, CR_IPSOCK_ERROR, unknown_sqlstate,
                                 ER(CR_IPSOCK_ERROR), saved_error);

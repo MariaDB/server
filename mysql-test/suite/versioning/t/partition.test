@@ -1,6 +1,7 @@
 -- source include/have_partition.inc
 -- source suite/versioning/common.inc
 
+set system_versioning_alter_history=keep;
 --echo # Check conventional partitioning on temporal tables
 
 create table t1 (x int)
@@ -32,14 +33,14 @@ eval alter table t1 engine=$non_default_engine;
 
 --echo ## CREATE TABLE
 
---error ER_VERS_ENGINE_UNSUPPORTED
+--error ER_VERS_NOT_VERSIONED
 create or replace table t1 (x int)
 partition by system_time (
     partition p0 history,
     partition pn current);
 
 create or replace table t1 (x int);
---error ER_VERS_ENGINE_UNSUPPORTED,ER_VERS_ENGINE_UNSUPPORTED
+--error ER_VERS_NOT_VERSIONED
 alter table t1
 partition by system_time (
     partition p0 history,
@@ -95,7 +96,7 @@ alter table t1 add partition (
 alter table t1 add partition (
     partition p1 history);
 
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
 insert into t1 values (1), (2);
@@ -122,7 +123,6 @@ alter table t1 add partition (partition px history);
 
 
 --echo ## INSERT, UPDATE, DELETE
-
 create or replace table t1 (x int)
 with system versioning
 partition by system_time (
@@ -138,10 +138,6 @@ prepare select_pn from @str;
 
 execute select_p0;
 execute select_pn;
-
---echo ## pruning check
---replace_regex /\d/N/ /ALL/system/ /Using where//
-explain partitions select * from t1;
 
 set @str= concat('select row_start from t1 partition (pn) into @ts0');
 prepare stmt from @str; execute stmt; drop prepare stmt;
@@ -206,20 +202,20 @@ partition by system_time limit 2 (
     partition p1 history,
     partition pn current);
 
---replace_result $default_engine DEFAULT_ENGINE $sys_datatype SYS_DATATYPE
+--replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
 --error ER_DROP_PARTITION_NON_EXISTENT
 alter table t1 drop partition non_existent;
 
-insert into t1 values (1), (2), (3);
+insert into t1 values (1), (2), (3), (4), (5), (6);
 select * from t1 partition (pn);
---echo ### warn about partition switching
+delete from t1 where x < 4;
 delete from t1;
 select * from t1 partition (p0);
 select * from t1 partition (p1);
 
-insert into t1 values (4), (5);
+insert into t1 values (7), (8);
 --echo ### warn about full partition
 delete from t1;
 select * from t1 partition (p1) order by x;
@@ -241,6 +237,20 @@ partition by system_time interval 0 second (
     partition p1 history,
     partition pn current);
 
+--error ER_PARSE_ERROR
+create or replace table t1 (x int)
+with system versioning
+partition by system_time interval 1 second starts 12345 (
+    partition p0 history,
+    partition p1 history,
+    partition pn current);
+
+--error ER_PARSE_ERROR
+create table t1 (i int) with system versioning
+  partition by system_time interval 6 day limit 98
+  (partition p0 history, partition ver_pn current);
+
+--echo ### ha_partition::update_row() check
 create or replace table t1 (x int)
 with system versioning
 partition by system_time interval 1 second (
@@ -248,14 +258,29 @@ partition by system_time interval 1 second (
     partition p1 history,
     partition pn current);
 
-insert into t1 values (1), (2), (3);
+insert into t1 values (1), (2), (3), (4);
 select * from t1 partition (pn);
-delete from t1;
-select * from t1 partition (p0);
+delete from t1 where x < 3;
 
 --sleep 2
-insert into t1 values (4);
 delete from t1;
+
+select * from t1 partition (p0) order by x;
+select * from t1 partition (p1) order by x;
+
+--echo ### ha_partition::write_row() check
+create or replace table t1 (x int)
+with system versioning
+partition by system_time interval 1 second (
+    partition p0 history,
+    partition p1 history,
+    partition pn current);
+
+insert into t1 values (1);
+update t1 set x= 2;
+sleep 2;
+update t1 set x= 3;
+select * from t1 partition (p0);
 select * from t1 partition (p1);
 
 --echo ## Subpartitions
@@ -272,7 +297,9 @@ insert into t1 (x) values (1), (2), (3), (4), (5);
 select * from t1 partition (pnsp0);
 select * from t1 partition (pnsp1);
 
---echo ### warn about partition switching and about full partition
+--echo ### warn about full partition
+delete from t1 where x < 3;
+delete from t1;
 delete from t1;
 select * from t1 partition (p0sp0);
 select * from t1 partition (p0sp1);
@@ -367,6 +394,93 @@ lock table t1 write;
 alter table t1 add partition (partition p1 history);
 insert into t1 values (1);
 unlock tables;
+
+--error ER_DATA_OUT_OF_RANGE
+create or replace table t1 (pk int) with system versioning
+partition by system_time interval 10 year (
+  partition p1 history,
+  partition p2 history,
+  partition pn current
+);
+
+# INTERVAL and ALTER TABLE
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 hour (
+    partition p0 history, partition pn current);
+
+set @ts=(select partition_description from information_schema.partitions
+  where table_schema='test' and table_name='t1' and partition_name='p0');
+
+alter table t1 add column b int;
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+alter table t1 add partition (partition p1 history, partition p2 history);
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+alter table t1 drop partition p0;
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+--error ER_VERS_DROP_PARTITION_INTERVAL
+alter table t1 drop partition p2;
+select partition_name,partition_ordinal_position,partition_method,timediff(partition_description, @ts) from information_schema.partitions where table_schema='test' and table_name='t1';
+
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 second
+    subpartition by key (i) subpartitions 2
+    (partition p1 history, partition pn current);
+insert t1 values (1); delete from t1;
+sleep 1;
+insert t1 values (2); delete from t1;
+alter table t1 add partition (partition p0 history, partition p2 history);
+select subpartition_name,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
+
+--echo ## pruning check
+set @ts=(select partition_description from information_schema.partitions
+  where table_schema='test' and table_name='t1' and partition_name='p0' limit 1);
+insert into t1 values (4),(5);
+--sorted_result
+select * from t1;
+explain partitions select * from t1;
+--replace_column 10 #
+explain partitions select * from t1 for system_time as of from_unixtime(@ts);
+set @ts=(select row_end from t1 for system_time all where i=1);
+select * from t1 for system_time all where row_end = @ts;
+--replace_column 5 # 10 # 11 #
+explain partitions select * from t1 for system_time all where row_end = @ts;
+
+--echo #
+--echo # MDEV-15103 Assertion in ha_partition::part_records() for updating VIEW
+--echo #
+create or replace table t1 (pk int primary key, f int) with system versioning
+partition by system_time limit 100 (partition p1 history, partition pn current);
+insert into t1 values (1,10), (2,20);
+create or replace view v1 as select * from t1;
+update v1 set f= 30;
+
+--echo #
+--echo # MDEV-15168 Unexpected ER_VERS_ENGINE_UNSUPPORTED upon dropping versioning on a partitioned table
+--echo #
+create or replace table t (a int) with system versioning
+  partition by system_time (partition p1 history, partition pn current);
+--error ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION
+alter table t drop system versioning;
+
+--echo # MDEV-15191 Assertion `bit < (map)->n_bits' failed in bitmap_is_set upon INSERT
+create or replace table t1 (i int) with system versioning;
+insert into t1 values (1), (2);
+update t1 set i= 3;
+alter table t1 partition by system_time interval 1 month (partition p1 history, partition pn current);
+lock table t1 write;
+alter table t1 add partition (partition p2 history);
+insert into t1 values (4);
+unlock tables;
+
+--echo # MDEV-15036 Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())' in Diagnostics_area::set_ok_status or unexpected ER_RANGE_NOT_INCREASING_ERROR
+create or replace table t1 (a int) with system versioning
+partition by system_time limit 2 (
+    partition p1 history, partition p2 history,
+    partition p3 history, partition pn current);
+insert into t1 values (1),(2),(3);
+update t1 set a = 4;
+delete from t1;
+delete from t1 where a is not null;
 
 --echo # Test cleanup
 drop database test;

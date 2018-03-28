@@ -57,10 +57,12 @@ not vtq_trx_sees(@tx0, @tx1) as B,
 vtq_trx_sees_eq(@tx1, @tx1) as C,
 not vtq_trx_sees(@tx1, @tx1) as D,
 vtq_trx_sees(@tx2, 0) as E,
-vtq_trx_sees(0, @tx2) is null as F,
-vtq_trx_sees(-1, @tx2) as H;
-A	B	C	D	E	F	H
-1	1	1	1	1	1	1
+vtq_trx_sees(-1, @tx2) as F;
+A	B	C	D	E	F
+1	1	1	1	1	1
+select vtq_trx_sees(0, @tx2);
+vtq_trx_sees(0, @tx2)
+NULL
 set transaction isolation level read uncommitted;
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx3;

@@ -575,15 +575,6 @@ struct TABLE_STATISTICS_CB
   bool histograms_are_read;   
 };
 
-class Vers_min_max_stats;
-
-enum vers_sys_type_t
-{
-  VERS_UNDEFINED= 0,
-  VERS_TIMESTAMP,
-  VERS_TRX_ID
-};
-
 /**
   This structure is shared between different table objects. There is one
   instance of table share per one table in the database.
@@ -777,27 +768,6 @@ struct TABLE_SHARE
   bool vtmd;
   uint16 row_start_field;
   uint16 row_end_field;
-  uint32 hist_part_id;
-  Vers_min_max_stats** stat_trx;
-  ulonglong stat_serial; // guards check_range_constants() updates
-
-  bool busy_rotation;
-  mysql_mutex_t LOCK_rotation;
-  mysql_cond_t COND_rotation;
-  mysql_rwlock_t LOCK_stat_serial;
-
-  void vers_init()
-  {
-    hist_part_id= UINT_MAX32;
-    busy_rotation= false;
-    stat_trx= NULL;
-    stat_serial= 0;
-    mysql_mutex_init(key_TABLE_SHARE_LOCK_rotation, &LOCK_rotation, MY_MUTEX_INIT_FAST);
-    mysql_cond_init(key_TABLE_SHARE_COND_rotation, &COND_rotation, NULL);
-    mysql_rwlock_init(key_rwlock_LOCK_stat_serial, &LOCK_stat_serial);
-  }
-
-  void vers_destroy();
 
   Field *vers_start_field()
   {
@@ -807,12 +777,6 @@ struct TABLE_SHARE
   Field *vers_end_field()
   {
     return field[row_end_field];
-  }
-
-  void vers_wait_rotation()
-  {
-    while (busy_rotation)
-      mysql_cond_wait(&COND_rotation, &LOCK_rotation);
   }
 
   /**
@@ -1649,6 +1613,7 @@ typedef struct st_foreign_key_info
 } FOREIGN_KEY_INFO;
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
+bool fk_modifies_child(enum_fk_option opt);
 
 #define MY_I_S_MAYBE_NULL 1U
 #define MY_I_S_UNSIGNED   2U
@@ -1841,6 +1806,84 @@ class SJ_MATERIALIZATION_INFO;
 class Index_hint;
 class Item_in_subselect;
 
+/* trivial class, for %union in sql_yacc.yy */
+struct vers_history_point_t
+{
+  vers_sys_type_t unit;
+  Item *item;
+};
+
+class Vers_history_point : public vers_history_point_t
+{
+  void fix_item();
+
+public:
+  Vers_history_point() { empty(); }
+  Vers_history_point(vers_sys_type_t unit_arg, Item *item_arg)
+  {
+    unit= unit_arg;
+    item= item_arg;
+    fix_item();
+  }
+  Vers_history_point(vers_history_point_t p)
+  {
+    unit= p.unit;
+    item= p.item;
+    fix_item();
+  }
+  void empty() { unit= VERS_UNDEFINED; item= NULL; }
+  void print(String *str, enum_query_type, const char *prefix, size_t plen);
+  void resolve_unit(bool timestamps_only);
+};
+
+struct vers_select_conds_t
+{
+  vers_system_time_t type;
+  bool from_query:1;
+  bool used:1;
+  Vers_history_point start;
+  Vers_history_point end;
+
+  void empty()
+  {
+    type= SYSTEM_TIME_UNSPECIFIED;
+    used= from_query= false;
+    start.empty();
+    end.empty();
+  }
+
+  void init(vers_system_time_t _type,
+            Vers_history_point _start= Vers_history_point(),
+            Vers_history_point _end= Vers_history_point())
+  {
+    type= _type;
+    used= from_query= false;
+    start= _start;
+    end= _end;
+  }
+
+  void print(String *str, enum_query_type query_type);
+
+  bool init_from_sysvar(THD *thd);
+
+  bool operator== (vers_system_time_t b)
+  {
+    return type == b;
+  }
+  bool operator!= (vers_system_time_t b)
+  {
+    return type != b;
+  }
+  operator bool() const
+  {
+    return type != SYSTEM_TIME_UNSPECIFIED;
+  }
+  void resolve_units(bool timestamps_only);
+  bool user_defined() const
+  {
+    return !from_query && type != SYSTEM_TIME_UNSPECIFIED;
+  }
+};
 
 /*
   Table reference in the FROM clause.
@@ -1878,50 +1921,6 @@ class Item_in_subselect;
 */
 
 /** last_leaf_for_name_resolutioning support. */
-struct vers_select_conds_t
-{
-  vers_system_time_t type;
-  vers_sys_type_t unit_start, unit_end;
-  bool from_query:1;
-  bool used:1;
-  Item *start, *end;
-
-  void empty()
-  {
-    type= SYSTEM_TIME_UNSPECIFIED;
-    unit_start= unit_end= VERS_UNDEFINED;
-    used= from_query= false;
-    start= end= NULL;
-  }
-
-  Item *fix_dec(Item *item);
-
-  void init(vers_system_time_t t, vers_sys_type_t u_start= VERS_UNDEFINED,
-            Item * s= NULL, vers_sys_type_t u_end= VERS_UNDEFINED,
-            Item * e= NULL);
-
-  void print(String *str, enum_query_type query_type);
-
-  bool init_from_sysvar(THD *thd);
-
-  bool operator== (vers_system_time_t b)
-  {
-    return type == b;
-  }
-  bool operator!= (vers_system_time_t b)
-  {
-    return type != b;
-  }
-  operator bool() const
-  {
-    return type != SYSTEM_TIME_UNSPECIFIED;
-  }
-  void resolve_units(bool timestamps_only);
-  bool user_defined() const
-  {
-    return !from_query && type != SYSTEM_TIME_UNSPECIFIED;
-  }
-};
 
 struct LEX;
 class Index_hint;
@@ -1938,10 +1937,10 @@ struct TABLE_LIST
     Prepare TABLE_LIST that consists of one table instance to use in
     open_and_lock_tables
   */
-inline void init_one_table(const LEX_CSTRING *db_arg,
-                           const LEX_CSTRING *table_name_arg,
-                           const LEX_CSTRING *alias_arg,
-                           enum thr_lock_type lock_type_arg)
+  inline void init_one_table(const LEX_CSTRING *db_arg,
+                             const LEX_CSTRING *table_name_arg,
+                             const LEX_CSTRING *alias_arg,
+                             enum thr_lock_type lock_type_arg)
   {
     bzero((char*) this, sizeof(*this));
     DBUG_ASSERT(!db_arg->str || strlen(db_arg->str) == db_arg->length);
@@ -2131,7 +2130,9 @@ inline void init_one_table(const LEX_CSTRING *db_arg,
   st_select_lex_unit *derived;		/* SELECT_LEX_UNIT of derived table */
   With_element *with;          /* With element defining this table (if any) */
   /* Bitmap of the defining with element */
-  table_map with_internal_reference_map; 
+  table_map with_internal_reference_map;
+  TABLE_LIST * next_with_rec_ref;
+  bool is_derived_with_recursive_reference;
   bool block_handle_derived;
   ST_SCHEMA_TABLE *schema_table;        /* Information_schema table */
   st_select_lex	*schema_select_lex;
@@ -2508,6 +2509,8 @@ inline void init_one_table(const LEX_CSTRING *db_arg,
   bool is_with_table();
   bool is_recursive_with_table();
   bool is_with_table_recursive_reference();
+  void register_as_derived_with_rec_ref(With_element *rec_elem);
+  bool is_nonrecursive_derived_with_rec_ref();
   bool fill_recursive(THD *thd);
 
   inline void set_view()

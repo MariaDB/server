@@ -438,6 +438,7 @@ static const char *syslog_facility_names[]=
   "LOG_LOCAL4", "LOG_LOCAL5", "LOG_LOCAL6", "LOG_LOCAL7",
   0
 };
+#ifndef _WIN32
 static unsigned int syslog_facility_codes[]=
 {
   LOG_USER, LOG_MAIL, LOG_DAEMON, LOG_AUTH,
@@ -452,6 +453,7 @@ static unsigned int syslog_facility_codes[]=
   LOG_LOCAL0, LOG_LOCAL1, LOG_LOCAL2, LOG_LOCAL3,
   LOG_LOCAL4, LOG_LOCAL5, LOG_LOCAL6, LOG_LOCAL7,
 };
+#endif
 static TYPELIB syslog_facility_typelib=
 {
     array_elements(syslog_facility_names) - 1, "syslog_facility_typelib",
@@ -469,11 +471,13 @@ static const char *syslog_priority_names[]=
   0
 };
 
+#ifndef _WIN32
 static unsigned int syslog_priority_codes[]=
 {
   LOG_EMERG, LOG_ALERT, LOG_CRIT, LOG_ERR,
   LOG_WARNING, LOG_NOTICE, LOG_INFO, LOG_DEBUG,
 };
+#endif
 
 static TYPELIB syslog_priority_typelib=
 {
@@ -2106,6 +2110,7 @@ struct mysql_event_general_v8
 
 static void auditing_v8(MYSQL_THD thd, struct mysql_event_general_v8 *ev_v8)
 {
+#ifdef __linux__
 #ifdef DBUG_OFF
   #ifdef __x86_64__
   static const int cmd_off= 4200;
@@ -2127,7 +2132,7 @@ static void auditing_v8(MYSQL_THD thd, struct mysql_event_general_v8 *ev_v8)
   static const int db_len_off= 68;
   #endif /*x86_64*/
 #endif /*DBUG_OFF*/
-
+#endif /* __linux__ */
   struct mysql_event_general event;
 
   if (ev_v8->event_class != MYSQL_AUDIT_GENERAL_CLASS)

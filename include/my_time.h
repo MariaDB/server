@@ -117,7 +117,7 @@ longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
                             ulonglong flags, int *was_cut);
 
 static inline
-longlong double_to_datetime(double nr, MYSQL_TIME *ltime, uint flags, int *cut)
+longlong double_to_datetime(double nr, MYSQL_TIME *ltime, ulonglong flags, int *cut)
 {
   if (nr < 0 || nr > LONGLONG_MAX)
     nr= (double)LONGLONG_MAX;
@@ -236,7 +236,7 @@ static inline void my_timeval_trunc(struct timeval *tv, uint decimals)
   order of elements in 'interval_type_to_name' and 'interval_names' 
   arrays 
   
-  See also interval_type_to_name, get_interval_value, interval_names
+  See also interval_type_to_name, get_interval_value, interval_names, append_interval
 */
 
 enum interval_type

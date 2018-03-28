@@ -699,7 +699,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	if ((table->versioned(VERS_TIMESTAMP) || altered_table->versioned(VERS_TIMESTAMP))
 	    && innobase_need_rebuild(ha_alter_info, table)) {
 		ha_alter_info->unsupported_reason =
-			innobase_get_err_msg(ER_VERS_INPLACE_NOT_IMPLEMENTED);
+			"Not implemented for system-versioned tables";
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
@@ -1239,7 +1239,7 @@ cannot_create_many_fulltext_index:
 	if ((table->versioned(VERS_TRX_ID) || altered_table->versioned(VERS_TRX_ID))
 	    && innobase_need_rebuild(ha_alter_info, table)) {
 		ha_alter_info->unsupported_reason =
-			innobase_get_err_msg(ER_VERS_INPLACE_NOT_IMPLEMENTED);
+			"Not implemented for system-versioned tables";
 		online = false;
 	}
 
@@ -1383,7 +1383,6 @@ innobase_set_foreign_key_option(
 	ut_ad(!foreign->type);
 
 	switch (fk_key->delete_opt) {
-	// JAN: TODO: ? MySQL 5.7 used enum fk_option directly from sql_lex.h
 	case FK_OPTION_NO_ACTION:
 	case FK_OPTION_RESTRICT:
 	case FK_OPTION_SET_DEFAULT:
@@ -1394,6 +1393,8 @@ innobase_set_foreign_key_option(
 		break;
 	case FK_OPTION_SET_NULL:
 		foreign->type = DICT_FOREIGN_ON_DELETE_SET_NULL;
+		break;
+	case FK_OPTION_UNDEF:
 		break;
 	}
 
@@ -1408,6 +1409,8 @@ innobase_set_foreign_key_option(
 		break;
 	case FK_OPTION_SET_NULL:
 		foreign->type |= DICT_FOREIGN_ON_UPDATE_SET_NULL;
+		break;
+	case FK_OPTION_UNDEF:
 		break;
 	}
 

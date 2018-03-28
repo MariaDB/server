@@ -432,9 +432,6 @@ void TABLE_SHARE::destroy()
   DBUG_ENTER("TABLE_SHARE::destroy");
   DBUG_PRINT("info", ("db: %s table: %s", db.str, table_name.str));
 
-  if (versioned)
-    vers_destroy();
-
   if (ha_share)
   {
     delete ha_share;
@@ -1798,7 +1795,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start, row_end));
     versioned= VERS_TIMESTAMP;
     vers_can_native= plugin_hton(se_plugin)->flags & HTON_NATIVE_SYS_VERSIONING;
-    vers_init();
     row_start_field= row_start;
     row_end_field= row_end;
   } // if (system_period == NULL)
@@ -2735,6 +2731,9 @@ static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
   // ... engine
   if (create_info->db_type && create_info->db_type != engine)
     return 1;
+  // ... WITH SYSTEM VERSIONING
+  if (create_info->versioned())
+    return 1;
 
   return 0;
 }
@@ -3525,38 +3524,6 @@ partititon_err:
 
   if (share->no_replicate || !binlog_filter->db_ok(share->db.str))
     share->can_do_row_logging= 0;   // No row based replication
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (outparam->part_info &&
-    outparam->part_info->part_type == VERSIONING_PARTITION)
-  {
-    Query_arena *backup_stmt_arena_ptr= thd->stmt_arena;
-    Query_arena backup_arena;
-    Query_arena part_func_arena(&outparam->mem_root,
-                                Query_arena::STMT_INITIALIZED);
-    if (!work_part_info_used)
-    {
-      thd->set_n_backup_active_arena(&part_func_arena, &backup_arena);
-      thd->stmt_arena= &part_func_arena;
-    }
-
-    bool err= outparam->part_info->vers_setup_stats(thd, is_create_table);
-
-    if (!work_part_info_used)
-    {
-      thd->stmt_arena= backup_stmt_arena_ptr;
-      thd->restore_active_arena(&part_func_arena, &backup_arena);
-    }
-
-    if (err)
-    {
-      outparam->file->ha_close();
-      error= OPEN_FRM_OPEN_ERROR;
-      error_reported= true;
-      goto err;
-    }
-  }
-#endif
 
   /* Increment the opened_tables counter, only when open flags set. */
   if (db_stat)
@@ -7804,14 +7771,12 @@ void TABLE::vers_update_fields()
   {
     if (!vers_write)
       return;
-    vers_start_field()->set_notnull();
-    if (vers_start_field()->store_timestamp(in_use->system_time,
-                                            in_use->system_time_sec_part))
+    if (vers_start_field()->store_timestamp(in_use->systime(),
+                                            in_use->systime_sec_part()))
       DBUG_ASSERT(0);
   }
   else
   {
-    vers_start_field()->set_notnull();
     if (!vers_write)
       return;
   }
@@ -7822,9 +7787,8 @@ void TABLE::vers_update_fields()
 
 void TABLE::vers_update_end()
 {
-  vers_end_field()->set_notnull();
-  if (vers_end_field()->store_timestamp(in_use->system_time,
-                                        in_use->system_time_sec_part))
+  if (vers_end_field()->store_timestamp(in_use->systime(),
+                                        in_use->systime_sec_part()))
     DBUG_ASSERT(0);
 }
 
@@ -8378,7 +8342,6 @@ bool TABLE_LIST::is_with_table()
   return derived && derived->with_element;
 }
 
-
 uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 {
   return use_ext_keys &&
@@ -8595,18 +8558,10 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
   return names + opt;
 }
 
-void TABLE_SHARE::vers_destroy()
+bool fk_modifies_child(enum_fk_option opt)
 {
-  mysql_mutex_destroy(&LOCK_rotation);
-  mysql_cond_destroy(&COND_rotation);
-  mysql_rwlock_destroy(&LOCK_stat_serial);
-  if (stat_trx)
-  {
-    for (Vers_min_max_stats** p= stat_trx; *p; ++p)
-    {
-      delete *p;
-    }
-  }
+  static bool can_write[]= { false, false, true, true, false, true };
+  return can_write[opt];
 }
 
 enum TR_table::enabled TR_table::use_transaction_registry= TR_table::MAYBE;
@@ -8674,9 +8629,9 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
   if (!table && open())
     return true;
 
-  timeval start_time= {thd->system_time, long(thd->system_time_sec_part)};
+  timeval start_time= {thd->systime(), long(thd->systime_sec_part())};
   thd->set_start_time();
-  timeval end_time= {thd->system_time, long(thd->system_time_sec_part)};
+  timeval end_time= {thd->systime(), long(thd->systime_sec_part())};
   store(FLD_TRX_ID, start_id);
   store(FLD_COMMIT_ID, end_id);
   store(FLD_BEGIN_TS, start_time);
@@ -8747,27 +8702,41 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
                           1 /* use_record_cache */, true /* print_error */,
                           false /* disable_rr_cache */);
 
-  // With PK by transaction_id the records are ordered by PK
+  // With PK by transaction_id the records are ordered by PK, so we have to
+  // scan TRT fully and collect min (backwards == true)
+  // or max (backwards == false) stats.
   bool found= false;
+  MYSQL_TIME found_ts;
   while (!(error= info.read_record()) && !thd->killed && !thd->is_error())
   {
-    if (select->skip_record(thd) > 0)
+    int res= select->skip_record(thd);
+    if (res > 0)
     {
-      if (backwards)
-        return true;
-      found= true;
-      // TODO: (performance) make ORDER DESC and break after first found.
-      // Otherwise it is O(n) scan (+copy)!
-      store_record(table, record[1]);
-    }
-    else
-    {
-      if (found)
-        restore_record(table, record[1]);
-      if (!backwards)
+      MYSQL_TIME commit_ts;
+      if ((*this)[FLD_COMMIT_TS]->get_date(&commit_ts, 0))
+      {
+        found= false;
         break;
+      }
+      int c;
+      if (!found || ((c= my_time_compare(&commit_ts, &found_ts)) &&
+        (backwards ? c < 0 : c > 0)))
+      {
+        found_ts= commit_ts;
+        found= true;
+        // TODO: (performance) make ORDER DESC and break after first found.
+        // Otherwise it is O(n) scan (+copy)!
+        store_record(table, record[1]);
+      }
     }
-  }
+    else if (res < 0)
+    {
+      found= false;
+      break;
+    }
+ }
+  if (found)
+    restore_record(table, record[1]);
   return found;
 }
 #undef newx
@@ -8925,27 +8894,45 @@ bool TR_table::check(bool error)
 void vers_select_conds_t::resolve_units(bool timestamps_only)
 {
   DBUG_ASSERT(type != SYSTEM_TIME_UNSPECIFIED);
-  DBUG_ASSERT(start);
-  if (unit_start == VERS_UNDEFINED)
+  DBUG_ASSERT(start.item);
+  start.resolve_unit(timestamps_only);
+  end.resolve_unit(timestamps_only);
+}
+
+void Vers_history_point::resolve_unit(bool timestamps_only)
+{
+  if (item && unit == VERS_UNDEFINED)
   {
-    if (start->type() == Item::FIELD_ITEM)
-      unit_start= VERS_TIMESTAMP;
+    if (item->type() == Item::FIELD_ITEM || timestamps_only)
+      unit= VERS_TIMESTAMP;
+    else if (item->result_type() == INT_RESULT ||
+             item->result_type() == REAL_RESULT)
+      unit= VERS_TRX_ID;
     else
-      unit_start= (!timestamps_only && (start->result_type() == INT_RESULT ||
-        start->result_type() == REAL_RESULT)) ?
-          VERS_TRX_ID : VERS_TIMESTAMP;
-  }
-  if (end && unit_end == VERS_UNDEFINED)
-  {
-    if (start->type() == Item::FIELD_ITEM)
-      unit_start= VERS_TIMESTAMP;
-    else
-      unit_end= (!timestamps_only && (end->result_type() == INT_RESULT ||
-        end->result_type() == REAL_RESULT)) ?
-          VERS_TRX_ID : VERS_TIMESTAMP;
+      unit= VERS_TIMESTAMP;
   }
 }
 
+void Vers_history_point::fix_item()
+{
+  if (item && item->decimals == 0 && item->type() == Item::FUNC_ITEM &&
+      ((Item_func*)item)->functype() == Item_func::NOW_FUNC)
+    item->decimals= 6;
+}
+
+void Vers_history_point::print(String *str, enum_query_type query_type,
+                               const char *prefix, size_t plen)
+{
+  const static LEX_CSTRING unit_type[]=
+  {
+    { STRING_WITH_LEN("") },
+    { STRING_WITH_LEN("TIMESTAMP ") },
+    { STRING_WITH_LEN("TRANSACTION ") }
+  };
+  str->append(prefix, plen);
+  str->append(unit_type + unit);
+  item->print(str, query_type);
+}
 
 Field *TABLE::find_field_by_name(LEX_CSTRING *str) const
 {

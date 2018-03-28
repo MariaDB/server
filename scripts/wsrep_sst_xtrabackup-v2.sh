@@ -638,17 +638,8 @@ wait_for_listen()
 
     for i in {1..300}
     do
-        if [ "`uname`" = "FreeBSD" ] ; then
-            get_listening_on_port_cmd="sockstat -l -P tcp -p $PORT"
-        else
-            get_listening_on_port_cmd="ss -p state listening ( sport = :$PORT )"
-        fi
-        $get_listening_on_port_cmd | grep -qE 'socat|nc' && break
-        #
-        # MariaDB 10.3 version of this loop body, commented out for now
-        #
-        #LSOF_OUT=$(lsof -sTCP:LISTEN -i TCP:${PORT} -a -c nc -c socat -F c)
-        #[ -n "${LSOF_OUT}" ] && break
+        LSOF_OUT=$(lsof -sTCP:LISTEN -i TCP:${PORT} -a -c nc -c socat -F c 2> /dev/null || :)
+        [ -n "${LSOF_OUT}" ] && break
         sleep 0.2
     done
 

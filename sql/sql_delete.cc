@@ -310,20 +310,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   {
     if (table_list->is_view_or_derived())
     {
-      my_error(ER_VERS_TRUNCATE_VIEW, MYF(0));
+      my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
       DBUG_RETURN(true);
     }
 
     TABLE *table= table_list->table;
     DBUG_ASSERT(table);
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (table->part_info)
-    {
-      my_error(ER_NOT_ALLOWED_COMMAND, MYF(0));
-      DBUG_RETURN(true);
-    }
-#endif
 
     DBUG_ASSERT(!conds || thd->stmt_arena->is_stmt_execute());
     if (select_lex->vers_setup_conds(thd, table_list, &conds))
@@ -920,14 +912,14 @@ got_error:
     wild_num            - number of wildcards used in optional SELECT clause 
     field_list          - list of items in optional SELECT clause
     conds		- conditions
-l
+
   RETURN VALUE
     FALSE OK
     TRUE  error
 */
-  int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
-                           uint wild_num, List<Item> &field_list, Item **conds,
-                           bool *delete_while_scanning)
+int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
+                         uint wild_num, List<Item> &field_list, Item **conds,
+                         bool *delete_while_scanning)
 {
   Item *fake_conds= 0;
   SELECT_LEX *select_lex= &thd->lex->select_lex;
@@ -946,7 +938,7 @@ l
   {
     if (table_list->is_view())
     {
-      my_error(ER_VERS_TRUNCATE_VIEW, MYF(0));
+      my_error(ER_IT_IS_A_VIEW, MYF(0), table_list->table_name.str);
       DBUG_RETURN(true);
     }
     if (select_lex->vers_setup_conds(thd, table_list, conds))

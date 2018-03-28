@@ -302,7 +302,7 @@ static TYPELIB tc_heuristic_recover_typelib=
   tc_heuristic_recover_names, NULL
 };
 
-const char *first_keyword= "first", *binary_keyword= "BINARY";
+const char *first_keyword= "first";
 const char *my_localhost= "localhost", *delayed_user= "DELAYED";
 const char *quoted_string= "%`s";
 
@@ -2329,7 +2329,7 @@ void clean_up(bool print_message)
   my_free(const_cast<char*>(relay_log_index));
 #endif
   free_list(opt_plugin_load_list_ptr);
-  cleanup_proxy_protocol_networks();
+  destroy_proxy_protocol_networks();
 
   /*
     The following lines may never be executed as the main thread may have
@@ -2517,10 +2517,9 @@ static void set_user(const char *user, struct passwd *user_info_arg)
   allow_coredumps();
 }
 
-
+#if !defined(__WIN__)
 static void set_effective_user(struct passwd *user_info_arg)
 {
-#if !defined(__WIN__)
   DBUG_ASSERT(user_info_arg != 0);
   if (setregid((gid_t)-1, user_info_arg->pw_gid) == -1)
   {
@@ -2533,9 +2532,8 @@ static void set_effective_user(struct passwd *user_info_arg)
     unireg_abort(1);
   }
   allow_coredumps();
-#endif
 }
-
+#endif
 
 /** Change root user if started with @c --chroot . */
 static void set_root(const char *path)
@@ -2727,7 +2725,7 @@ static void network_init(void)
   if (MYSQL_CALLBACK_ELSE(thread_scheduler, init, (), 0))
     unireg_abort(1);			/* purecov: inspected */
 
-  if (set_proxy_protocol_networks(my_proxy_protocol_networks))
+  if (init_proxy_protocol_networks(my_proxy_protocol_networks))
     unireg_abort(1);
 
   set_ports();
@@ -3006,6 +3004,10 @@ static bool cache_thread(THD *thd)
     while (_db_is_pushed_())
       _db_pop_();
 #endif
+
+    /* Clear warnings. */
+    if (!thd->get_stmt_da()->is_warning_info_empty())
+      thd->get_stmt_da()->clear_warning_info(thd->query_id);
 
     set_timespec(abstime, THREAD_CACHE_TIMEOUT);
     while (!abort_loop && ! wake_thread && ! kill_cached_threads)
@@ -3846,6 +3848,8 @@ SHOW_VAR com_status_vars[]= {
   {"create_event",         STMT_STATUS(SQLCOM_CREATE_EVENT)},
   {"create_function",      STMT_STATUS(SQLCOM_CREATE_SPFUNCTION)},
   {"create_index",         STMT_STATUS(SQLCOM_CREATE_INDEX)},
+  {"create_package",       STMT_STATUS(SQLCOM_CREATE_PACKAGE)},
+  {"create_package_body",  STMT_STATUS(SQLCOM_CREATE_PACKAGE_BODY)},
   {"create_procedure",     STMT_STATUS(SQLCOM_CREATE_PROCEDURE)},
   {"create_role",          STMT_STATUS(SQLCOM_CREATE_ROLE)},
   {"create_sequence",      STMT_STATUS(SQLCOM_CREATE_SEQUENCE)},
@@ -3865,6 +3869,8 @@ SHOW_VAR com_status_vars[]= {
   {"drop_function",        STMT_STATUS(SQLCOM_DROP_FUNCTION)},
   {"drop_index",           STMT_STATUS(SQLCOM_DROP_INDEX)},
   {"drop_procedure",       STMT_STATUS(SQLCOM_DROP_PROCEDURE)},
+  {"drop_package",         STMT_STATUS(SQLCOM_DROP_PACKAGE)},
+  {"drop_package_body",    STMT_STATUS(SQLCOM_DROP_PACKAGE_BODY)},
   {"drop_role",            STMT_STATUS(SQLCOM_DROP_ROLE)},
   {"drop_server",          STMT_STATUS(SQLCOM_DROP_SERVER)},
   {"drop_sequence",        STMT_STATUS(SQLCOM_DROP_SEQUENCE)},
@@ -3921,6 +3927,8 @@ SHOW_VAR com_status_vars[]= {
   {"show_create_db",       STMT_STATUS(SQLCOM_SHOW_CREATE_DB)},
   {"show_create_event",    STMT_STATUS(SQLCOM_SHOW_CREATE_EVENT)},
   {"show_create_func",     STMT_STATUS(SQLCOM_SHOW_CREATE_FUNC)},
+  {"show_create_package",  STMT_STATUS(SQLCOM_SHOW_CREATE_PACKAGE)},
+  {"show_create_package_body",STMT_STATUS(SQLCOM_SHOW_CREATE_PACKAGE_BODY)},
   {"show_create_proc",     STMT_STATUS(SQLCOM_SHOW_CREATE_PROC)},
   {"show_create_table",    STMT_STATUS(SQLCOM_SHOW_CREATE)},
   {"show_create_trigger",  STMT_STATUS(SQLCOM_SHOW_CREATE_TRIGGER)},
@@ -3942,6 +3950,11 @@ SHOW_VAR com_status_vars[]= {
   {"show_keys",            STMT_STATUS(SQLCOM_SHOW_KEYS)},
   {"show_master_status",   STMT_STATUS(SQLCOM_SHOW_MASTER_STAT)},
   {"show_open_tables",     STMT_STATUS(SQLCOM_SHOW_OPEN_TABLES)},
+  {"show_package_status",  STMT_STATUS(SQLCOM_SHOW_STATUS_PACKAGE)},
+#ifndef DBUG_OFF
+  {"show_package_body_code",   STMT_STATUS(SQLCOM_SHOW_PACKAGE_BODY_CODE)},
+#endif
+  {"show_package_body_status", STMT_STATUS(SQLCOM_SHOW_STATUS_PACKAGE_BODY)},
   {"show_plugins",         STMT_STATUS(SQLCOM_SHOW_PLUGINS)},
   {"show_privileges",      STMT_STATUS(SQLCOM_SHOW_PRIVILEGES)},
 #ifndef DBUG_OFF
@@ -6150,12 +6163,14 @@ int mysqld_main(int argc, char **argv)
                           mysqld_port, MYSQL_COMPILATION_COMMENT);
   }
 
+#ifndef _WIN32
   // try to keep fd=0 busy
-  if (!freopen(IF_WIN("NUL","/dev/null"), "r", stdin))
+  if (!freopen("/dev/null", "r", stdin))
   {
     // fall back on failure
     fclose(stdin);
   }
+#endif
 
 #if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
   Service.SetRunning();
@@ -6227,10 +6242,10 @@ int mysqld_main(int argc, char **argv)
 ****************************************************************************/
 
 #if defined(__WIN__) && !defined(EMBEDDED_LIBRARY)
-int mysql_service(void *p)
+void  mysql_service(void *p)
 {
   if (my_thread_init())
-    return 1;
+    abort();
   
   if (use_opt_args)
     win_main(opt_argc, opt_argv);
@@ -6238,7 +6253,6 @@ int mysql_service(void *p)
     win_main(Service.my_argc, Service.my_argv);
 
   my_thread_end();
-  return 0;
 }
 
 
@@ -6289,7 +6303,7 @@ default_service_handling(char **argv,
      the option name) should be quoted if it contains a string.  
     */
     *pos++= ' ';
-    if (opt_delim= strchr(extra_opt, '='))
+    if ((opt_delim= strchr(extra_opt, '=')))
     {
       size_t length= ++opt_delim - extra_opt;
       pos= strnmov(pos, extra_opt, length);

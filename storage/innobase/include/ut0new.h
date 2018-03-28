@@ -129,6 +129,10 @@ InnoDB:
 #include <string.h> /* strlen(), strrchr(), strncmp() */
 
 #include "my_global.h" /* needed for headers from mysql/psi/ */
+#if !defined(DBUG_OFF) && defined(HAVE_MADVISE)
+#include <sys/mman.h>
+#endif
+
 /* JAN: TODO: missing 5.7 header */
 #ifdef HAVE_MYSQL_MEMORY_H
 #include "mysql/psi/mysql_memory.h" /* PSI_MEMORY_CALL() */
@@ -234,6 +238,42 @@ struct ut_new_pfx_t {
 #endif
 };
 
+static void ut_allocate_trace_dontdump(void *		ptr,
+			size_t	bytes,
+			bool		dontdump,
+			ut_new_pfx_t*	pfx,
+			const char*	file)
+{
+	ut_a(ptr != NULL);
+
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DONTDUMP)
+	if (dontdump && madvise(ptr, bytes, MADV_DONTDUMP)) {
+		ib::warn() << "Failed to set memory to DONTDUMP: "
+			   << strerror(errno)
+			   << " ptr " << ptr
+			   << " size " << bytes;
+	}
+#endif
+	if (pfx != NULL) {
+#ifdef UNIV_PFS_MEMORY
+		allocate_trace(bytes, file, pfx);
+#endif /* UNIV_PFS_MEMORY */
+		pfx->m_size = bytes;
+	}
+}
+
+static void ut_dodump(void* ptr, size_t m_size)
+{
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DODUMP)
+	if (ptr && madvise(ptr, m_size, MADV_DODUMP)) {
+		ib::warn() << "Failed to set memory to DODUMP: "
+			   << strerror(errno)
+			   << " ptr " << ptr
+			   << " size " << m_size;
+	}
+#endif
+}
+
 /** Allocator class for allocating memory from inside std::* containers.
 @tparam	T		type of allocated object
 @tparam oom_fatal	whether to commit suicide when running out of memory */
@@ -294,6 +334,7 @@ public:
 	@param[in]	file		file name of the caller
 	@param[in]	set_to_zero	if true, then the returned memory is
 	initialized with 0x0 bytes.
+	@param[in]	throw_on_error	if true, raize exception if too big
 	@return pointer to the allocated memory */
 	pointer
 	allocate(
@@ -566,6 +607,8 @@ public:
 	/** Allocate a large chunk of memory that can hold 'n_elements'
 	objects of type 'T' and trace the allocation.
 	@param[in]	n_elements	number of elements
+	@param[in]	dontdump	if true, advise the OS is not to core
+	dump this memory.
 	@param[out]	pfx		storage for the description of the
 	allocated memory. The caller must provide space for this one and keep
 	it until the memory is no longer needed and then pass it to
@@ -574,7 +617,8 @@ public:
 	pointer
 	allocate_large(
 		size_type	n_elements,
-		ut_new_pfx_t*	pfx)
+		ut_new_pfx_t*	pfx,
+		bool		dontdump = false)
 	{
 		if (n_elements == 0 || n_elements > max_size()) {
 			return(NULL);
@@ -585,13 +629,11 @@ public:
 		pointer	ptr = reinterpret_cast<pointer>(
 			os_mem_alloc_large(&n_bytes));
 
-#ifdef UNIV_PFS_MEMORY
-		if (ptr != NULL) {
-			allocate_trace(n_bytes, NULL, pfx);
+		if (ptr == NULL) {
+			return NULL;
 		}
-#else
-		pfx->m_size = n_bytes;
-#endif /* UNIV_PFS_MEMORY */
+
+		ut_allocate_trace_dontdump(ptr, n_bytes, dontdump, pfx, NULL);
 
 		return(ptr);
 	}
@@ -600,17 +642,26 @@ public:
 	deallocation.
 	@param[in,out]	ptr	pointer to memory to free
 	@param[in]	pfx	descriptor of the memory, as returned by
-	allocate_large(). */
+	allocate_large().
+	@param[in]      dodump  if true, advise the OS to include this
+	memory again if a core dump occurs. */
 	void
 	deallocate_large(
 		pointer			ptr,
-		const ut_new_pfx_t*	pfx)
+		const ut_new_pfx_t*	pfx,
+		size_t			size,
+		bool			dodump = false)
 	{
+		if (dodump) {
+			ut_dodump(ptr, size);
+		}
 #ifdef UNIV_PFS_MEMORY
-		deallocate_trace(pfx);
+		if (pfx) {
+			deallocate_trace(pfx);
+		}
 #endif /* UNIV_PFS_MEMORY */
 
-		os_mem_free_large(ptr, pfx->m_size);
+		os_mem_free_large(ptr, size);
 	}
 
 #ifdef UNIV_PFS_MEMORY
@@ -842,6 +893,10 @@ ut_delete_array(
 	ut_allocator<byte>(key).allocate( \
 		n_bytes, NULL, __FILE__, false, false))
 
+#define ut_malloc_dontdump(n_bytes) static_cast<void*>( \
+	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).allocate_large( \
+		n_bytes, true))
+
 #define ut_zalloc(n_bytes, key)		static_cast<void*>( \
 	ut_allocator<byte>(key).allocate( \
 		n_bytes, NULL, __FILE__, true, false))
@@ -865,6 +920,10 @@ ut_delete_array(
 #define ut_free(ptr)	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).deallocate( \
 	reinterpret_cast<byte*>(ptr))
 
+#define ut_free_dodump(ptr, size) static_cast<void*>( \
+	ut_allocator<byte>(PSI_NOT_INSTRUMENTED).deallocate_large( \
+		ptr, NULL, size, true))
+
 #else /* UNIV_PFS_MEMORY */
 
 /* Fallbacks when memory tracing is disabled at compile time. */
@@ -887,6 +946,14 @@ ut_delete_array(
 
 #define ut_malloc_nokey(n_bytes)	::malloc(n_bytes)
 
+static inline void *ut_malloc_dontdump(size_t n_bytes)
+{
+	void *ptr = os_mem_alloc_large(&n_bytes);
+
+	ut_allocate_trace_dontdump(ptr, n_bytes, true, NULL, NULL);
+	return ptr;
+}
+
 #define ut_zalloc_nokey(n_bytes)	::calloc(1, n_bytes)
 
 #define ut_zalloc_nokey_nofatal(n_bytes)	::calloc(1, n_bytes)
@@ -894,6 +961,12 @@ ut_delete_array(
 #define ut_realloc(ptr, n_bytes)	::realloc(ptr, n_bytes)
 
 #define ut_free(ptr)			::free(ptr)
+
+static inline void ut_free_dodump(void *ptr, size_t size)
+{
+	ut_dodump(ptr, size);
+	os_mem_free_large(ptr, size);
+}
 
 #endif /* UNIV_PFS_MEMORY */
 

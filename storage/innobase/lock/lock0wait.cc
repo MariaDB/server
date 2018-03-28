@@ -46,7 +46,7 @@ lock_wait_table_print(void)
 {
 	ut_ad(lock_wait_mutex_own());
 
-	const srv_slot_t*	slot = lock_sys->waiting_threads;
+	const srv_slot_t*	slot = lock_sys.waiting_threads;
 
 	for (ulint i = 0; i < OS_THREAD_MAX_N; i++, ++slot) {
 
@@ -72,7 +72,7 @@ lock_wait_table_release_slot(
 	srv_slot_t*	slot)		/*!< in: slot to release */
 {
 #ifdef UNIV_DEBUG
-	srv_slot_t*	upper = lock_sys->waiting_threads + OS_THREAD_MAX_N;
+	srv_slot_t*	upper = lock_sys.waiting_threads + OS_THREAD_MAX_N;
 #endif /* UNIV_DEBUG */
 
 	lock_wait_mutex_enter();
@@ -83,7 +83,7 @@ lock_wait_table_release_slot(
 	ut_ad(slot->thr->slot == slot);
 
 	/* Must be within the array boundaries. */
-	ut_ad(slot >= lock_sys->waiting_threads);
+	ut_ad(slot >= lock_sys.waiting_threads);
 	ut_ad(slot < upper);
 
 	/* Note: When we reserve the slot we use the trx_t::mutex to update
@@ -102,23 +102,23 @@ lock_wait_table_release_slot(
 	lock_mutex_exit();
 
 	/* Scan backwards and adjust the last free slot pointer. */
-	for (slot = lock_sys->last_slot;
-	     slot > lock_sys->waiting_threads && !slot->in_use;
+	for (slot = lock_sys.last_slot;
+	     slot > lock_sys.waiting_threads && !slot->in_use;
 	     --slot) {
 		/* No op */
 	}
 
 	/* Either the array is empty or the last scanned slot is in use. */
-	ut_ad(slot->in_use || slot == lock_sys->waiting_threads);
+	ut_ad(slot->in_use || slot == lock_sys.waiting_threads);
 
-	lock_sys->last_slot = slot + 1;
+	lock_sys.last_slot = slot + 1;
 
 	/* The last slot is either outside of the array boundary or it's
 	on an empty slot. */
-	ut_ad(lock_sys->last_slot == upper || !lock_sys->last_slot->in_use);
+	ut_ad(lock_sys.last_slot == upper || !lock_sys.last_slot->in_use);
 
-	ut_ad(lock_sys->last_slot >= lock_sys->waiting_threads);
-	ut_ad(lock_sys->last_slot <= upper);
+	ut_ad(lock_sys.last_slot >= lock_sys.waiting_threads);
+	ut_ad(lock_sys.last_slot <= upper);
 
 	lock_wait_mutex_exit();
 }
@@ -140,7 +140,7 @@ lock_wait_table_reserve_slot(
 	ut_ad(lock_wait_mutex_own());
 	ut_ad(trx_mutex_own(thr_get_trx(thr)));
 
-	slot = lock_sys->waiting_threads;
+	slot = lock_sys.waiting_threads;
 
 	for (i = OS_THREAD_MAX_N; i--; ++slot) {
 		if (!slot->in_use) {
@@ -158,12 +158,12 @@ lock_wait_table_reserve_slot(
 			slot->suspend_time = ut_time();
 			slot->wait_timeout = wait_timeout;
 
-			if (slot == lock_sys->last_slot) {
-				++lock_sys->last_slot;
+			if (slot == lock_sys.last_slot) {
+				++lock_sys.last_slot;
 			}
 
-			ut_ad(lock_sys->last_slot
-			      <= lock_sys->waiting_threads + OS_THREAD_MAX_N);
+			ut_ad(lock_sys.last_slot
+			      <= lock_sys.waiting_threads + OS_THREAD_MAX_N);
 
 			return(slot);
 		}
@@ -184,7 +184,7 @@ lock_wait_table_reserve_slot(
 check if lock timeout was for priority thread,
 as a side effect trigger lock monitor
 @param[in]    trx    transaction owning the lock
-@param[in]    locked true if trx and lock_sys_mutex is ownd
+@param[in]    locked true if trx and lock_sys.mutex is ownd
 @return	false for regular lock timeout */
 static
 bool
@@ -396,11 +396,11 @@ lock_wait_suspend_thread(
 
 		/* Only update the variable if we successfully
 		retrieved the start and finish times. See Bug#36819. */
-		if (diff_time > lock_sys->n_lock_max_wait_time
+		if (diff_time > lock_sys.n_lock_max_wait_time
 		    && start_time != -1
 		    && finish_time != -1) {
 
-			lock_sys->n_lock_max_wait_time = diff_time;
+			lock_sys.n_lock_max_wait_time = diff_time;
 		}
 
 		/* Record the lock wait time for this thread */
@@ -532,7 +532,7 @@ os_thread_ret_t
 DECLARE_THREAD(lock_wait_timeout_thread)(void*)
 {
 	int64_t		sig_count = 0;
-	os_event_t	event = lock_sys->timeout_event;
+	os_event_t	event = lock_sys.timeout_event;
 
 	ut_ad(!srv_read_only_mode);
 
@@ -558,8 +558,8 @@ DECLARE_THREAD(lock_wait_timeout_thread)(void*)
 		/* Check all slots for user threads that are waiting
 	       	on locks, and if they have exceeded the time limit. */
 
-		for (slot = lock_sys->waiting_threads;
-		     slot < lock_sys->last_slot;
+		for (slot = lock_sys.waiting_threads;
+		     slot < lock_sys.last_slot;
 		     ++slot) {
 
 			/* We are doing a read without the lock mutex
@@ -578,7 +578,7 @@ DECLARE_THREAD(lock_wait_timeout_thread)(void*)
 
 	} while (srv_shutdown_state < SRV_SHUTDOWN_CLEANUP);
 
-	lock_sys->timeout_thread_active = false;
+	lock_sys.timeout_thread_active = false;
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */

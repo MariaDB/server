@@ -146,7 +146,9 @@ public:
   select_union_recursive *rec_result;
 
   /* List of Item_subselects containing recursive references to this CTE */
-  SQL_I_List<Item_subselect> sq_with_rec_ref; 
+  SQL_I_List<Item_subselect> sq_with_rec_ref;
+  /* List of derived tables containing recursive references to this CTE */
+  SQL_I_List<TABLE_LIST> derived_with_rec_ref;
 
   With_element(LEX_CSTRING *name,
                List <LEX_CSTRING> list,

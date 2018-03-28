@@ -367,6 +367,39 @@ typedef enum monotonicity_info
 
 class sp_rcontext;
 
+class Sp_rcontext_handler
+{
+public:
+  virtual ~Sp_rcontext_handler() {}
+  virtual const LEX_CSTRING *get_name_prefix() const= 0;
+  virtual sp_rcontext *get_rcontext(sp_rcontext *ctx) const= 0;
+};
+
+
+class Sp_rcontext_handler_local: public Sp_rcontext_handler
+{
+public:
+  const LEX_CSTRING *get_name_prefix() const;
+  sp_rcontext *get_rcontext(sp_rcontext *ctx) const;
+};
+
+
+class Sp_rcontext_handler_package_body: public Sp_rcontext_handler
+{
+public:
+  const LEX_CSTRING *get_name_prefix() const;
+  sp_rcontext *get_rcontext(sp_rcontext *ctx) const;
+};
+
+
+extern MYSQL_PLUGIN_IMPORT
+  Sp_rcontext_handler_local sp_rcontext_handler_local;
+
+
+extern MYSQL_PLUGIN_IMPORT
+  Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
+
+
 
 class Item_equal;
 
@@ -683,13 +716,6 @@ protected:
     if ((null_value= item->null_value))
       value= NULL;
     return value;
-  }
-  bool get_date_with_conversion_from_item(Item *item,
-                                          MYSQL_TIME *ltime,
-                                          ulonglong fuzzydate)
-  {
-    DBUG_ASSERT(fixed == 1);
-    return (null_value= item->get_date_with_conversion(ltime, fuzzydate));
   }
   /*
     This method is used if the item was not null but convertion to
@@ -1386,17 +1412,16 @@ public:
   bool get_date_from_decimal(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_date_from_string(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_time(MYSQL_TIME *ltime)
-  { return get_date(ltime, TIME_TIME_ONLY | TIME_INVALID_DATES); }
-  // Get date with automatic TIME->DATETIME conversion
-  bool get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  { return get_date(ltime, Time::flags_for_get_date()); }
   /*
-    Get time with automatic DATE/DATETIME to TIME conversion.
+    Get time with automatic DATE/DATETIME to TIME conversion,
+    by subtracting CURRENT_DATE.
 
-    Performce a reserve operation to get_date_with_conversion().
+    Performce a reverse operation to CAST(time AS DATETIME)
     Suppose:
     - we have a set of items (typically with the native MYSQL_TYPE_TIME type)
       whose item->get_date() return TIME1 value, and
-    - item->get_date_with_conversion() for the same Items return DATETIME1,
+    - CAST(AS DATETIME) for the same Items return DATETIME1,
       after applying time-to-datetime conversion to TIME1.
 
     then all items (typically of the native MYSQL_TYPE_{DATE|DATETIME} types)
@@ -1425,22 +1450,21 @@ public:
   // Get a DATE or DATETIME value in numeric packed format for comparison
   virtual longlong val_datetime_packed()
   {
-    MYSQL_TIME ltime;
     ulonglong fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES;
-    return get_date_with_conversion(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
+    Datetime dt(current_thd, this, fuzzydate);
+    return dt.is_valid_datetime() ? pack_time(dt.get_mysql_time()) : 0;
   }
   // Get a TIME value in numeric packed format for comparison
   virtual longlong val_time_packed()
   {
-    MYSQL_TIME ltime;
-    ulonglong fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES | TIME_TIME_ONLY;
-    return get_date(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
+    Time tm(this, Time::comparison_flags_for_get_date());
+    return tm.is_valid_time() ? pack_time(tm.get_mysql_time()) : 0;
   }
   longlong val_datetime_packed_result();
   longlong val_time_packed_result()
   {
     MYSQL_TIME ltime;
-    ulonglong fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES | TIME_TIME_ONLY;
+    ulonglong fuzzydate= Time::comparison_flags_for_get_date();
     return get_date_result(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
   }
 
@@ -1863,6 +1887,20 @@ public:
   {
     return 0;
   }
+
+  virtual Load_data_outvar *get_load_data_outvar()
+  {
+    return 0;
+  }
+  Load_data_outvar *get_load_data_outvar_or_error()
+  {
+    Load_data_outvar *dst= get_load_data_outvar();
+    if (dst)
+      return dst;
+    my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), name.str);
+    return NULL;
+  }
+
   /**
     Test whether an expression is expensive to compute. Used during
     optimization to avoid computing expensive expressions during this
@@ -2393,13 +2431,20 @@ class Item_splocal :public Item_sp_variable,
                     public Type_handler_hybrid_field_type
 {
 protected:
+  const Sp_rcontext_handler *m_rcontext_handler;
+
   uint m_var_idx;
 
   Type m_type;
 
   bool append_value_for_log(THD *thd, String *str);
+
+  sp_rcontext *get_rcontext(sp_rcontext *local_ctx) const;
+  Item_field *get_variable(sp_rcontext *ctx) const;
+
 public:
-  Item_splocal(THD *thd, const LEX_CSTRING *sp_var_name, uint sp_var_idx,
+  Item_splocal(THD *thd, const Sp_rcontext_handler *rh,
+               const LEX_CSTRING *sp_var_name, uint sp_var_idx,
                const Type_handler *handler,
                uint pos_in_q= 0, uint len_in_q= 0);
 
@@ -2461,10 +2506,11 @@ class Item_splocal_with_delayed_data_type: public Item_splocal
 {
 public:
   Item_splocal_with_delayed_data_type(THD *thd,
+                                      const Sp_rcontext_handler *rh,
                                       const LEX_CSTRING *sp_var_name,
                                       uint sp_var_idx,
                                       uint pos_in_q, uint len_in_q)
-   :Item_splocal(thd, sp_var_name, sp_var_idx, &type_handler_null,
+   :Item_splocal(thd, rh, sp_var_name, sp_var_idx, &type_handler_null,
                  pos_in_q, len_in_q)
   { }
 };
@@ -2483,13 +2529,13 @@ protected:
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
 public:
   Item_splocal_row_field(THD *thd,
+                         const Sp_rcontext_handler *rh,
                          const LEX_CSTRING *sp_var_name,
                          const LEX_CSTRING *sp_field_name,
                          uint sp_var_idx, uint sp_field_idx,
                          const Type_handler *handler,
                          uint pos_in_q= 0, uint len_in_q= 0)
-   :Item_splocal(thd, sp_var_name, sp_var_idx, handler,
-                 pos_in_q, len_in_q),
+   :Item_splocal(thd, rh, sp_var_name, sp_var_idx, handler, pos_in_q, len_in_q),
     m_field_name(*sp_field_name),
     m_field_idx(sp_field_idx)
   { }
@@ -2507,12 +2553,13 @@ class Item_splocal_row_field_by_name :public Item_splocal_row_field
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
 public:
   Item_splocal_row_field_by_name(THD *thd,
+                                 const Sp_rcontext_handler *rh,
                                  const LEX_CSTRING *sp_var_name,
                                  const LEX_CSTRING *sp_field_name,
                                  uint sp_var_idx,
                                  const Type_handler *handler,
                                  uint pos_in_q= 0, uint len_in_q= 0)
-   :Item_splocal_row_field(thd, sp_var_name, sp_field_name,
+   :Item_splocal_row_field(thd, rh, sp_var_name, sp_field_name,
                            sp_var_idx, 0 /* field index will be set later */,
                            handler, pos_in_q, len_in_q)
   { }
@@ -2786,7 +2833,8 @@ public:
 };
 
 
-class Item_field :public Item_ident
+class Item_field :public Item_ident,
+                  public Load_data_outvar
 {
 protected:
   void set_field(Field *field);
@@ -2833,6 +2881,30 @@ public:
   bool val_bool_result();
   bool is_null_result();
   bool send(Protocol *protocol, st_value *buffer);
+  Load_data_outvar *get_load_data_outvar()
+  {
+    return this;
+  }
+  bool load_data_set_null(THD *thd, const Load_data_param *param)
+  {
+    return field->load_data_set_null(thd);
+  }
+  bool load_data_set_value(THD *thd, const char *pos, uint length,
+                           const Load_data_param *param)
+  {
+    field->load_data_set_value(pos, length, param->charset());
+    return false;
+  }
+  bool load_data_set_no_data(THD *thd, const Load_data_param *param);
+  void load_data_print_for_log_event(THD *thd, String *to) const;
+  bool load_data_add_outvar(THD *thd, Load_data_param *param) const
+  {
+    return param->add_outvar_field(thd, field);
+  }
+  uint load_data_fixed_length() const
+  {
+    return field->field_length;
+  }
   void reset_field(Field *f);
   bool fix_fields(THD *, Item **);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
@@ -4239,13 +4311,6 @@ public:
   { return  val_decimal_from_date(decimal_value); }
   int save_in_field(Field *field, bool no_conversions)
   { return save_date_in_field(field, no_conversions); }
-  void set_time(MYSQL_TIME *ltime)
-  {
-    cached_time= *ltime;
-  }
-  bool operator>(const MYSQL_TIME &ltime) const;
-  bool operator<(const MYSQL_TIME &ltime) const;
-  bool operator==(const MYSQL_TIME &ltime) const;
 };
 
 
@@ -4728,6 +4793,10 @@ public:
   void cleanup();
   Item_field *field_for_view_update()
     { return (*ref)->field_for_view_update(); }
+  Load_data_outvar *get_load_data_outvar()
+  {
+    return (*ref)->get_load_data_outvar();
+  }
   virtual Ref_Type ref_type() { return REF; }
 
   // Row emulation: forwarding of ROW-related calls to ref

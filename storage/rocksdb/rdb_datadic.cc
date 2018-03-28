@@ -538,7 +538,7 @@ const std::string Rdb_key_def::parse_comment_for_qualifier(
   // NOTE: this means if you specify a qualifier for a specific partition it
   // will take precedence the 'table level' qualifier if one exists.
   std::string search_str_part;
-  if (table_arg->part_info != nullptr) {
+  if (IF_PARTITIONING(table_arg->part_info,nullptr) != nullptr) {
     std::string partition_name = tbl_def_arg->base_partition();
     DBUG_ASSERT(!partition_name.empty());
     search_str_part = gen_qualifier_for_table(qualifier, partition_name);

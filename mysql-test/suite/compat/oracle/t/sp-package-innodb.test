@@ -1,0 +1,62 @@
+-- source include/have_innodb.inc
+
+SET default_storage_engine=InnoDB;
+
+SET sql_mode=ORACLE;
+
+CREATE TABLE t1 (a INT, routine TEXT);
+SELECT ENGINE FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+INSERT INTO t1 VALUES (10,'none');
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  a INT;
+  PROCEDURE p1 AS
+  BEGIN
+    a:=a+1;
+    INSERT INTO t1 VALUES (a,'p1');
+  END;
+BEGIN
+  SELECT MAX(t1.a) FROM t1 INTO a;
+  a:=a+1;
+  INSERT INTO t1 VALUES (a,'pkg1 initialization');
+END;
+$$
+DELIMITER ;$$
+CALL pkg1.p1;
+SELECT * FROM t1 ORDER BY a;
+DELETE FROM t1;
+
+--source sp-cache-invalidate.inc
+START TRANSACTION;
+CALL pkg1.p1;
+SELECT * FROM t1 ORDER BY a;
+ROLLBACK;
+SELECT * FROM t1 ORDER BY a;
+DELETE FROM t1;
+
+--source sp-cache-invalidate.inc
+INSERT INTO t1 VALUES (20,'none');
+START TRANSACTION;
+CALL pkg1.p1;
+SELECT * FROM t1 ORDER BY a;
+COMMIT;
+SELECT * FROM t1 ORDER BY a;
+DELETE FROM t1;
+
+--source sp-cache-invalidate.inc
+INSERT INTO t1 VALUES (20,'none');
+START TRANSACTION;
+CALL pkg1.p1;
+SELECT * FROM t1 ORDER BY a;
+ROLLBACK;
+SELECT * FROM t1 ORDER BY a;
+DELETE FROM t1;
+
+DROP PACKAGE pkg1;
+DROP TABLE t1;

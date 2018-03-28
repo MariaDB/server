@@ -4458,6 +4458,7 @@ begin_sync:
 			ib_vector_get(cache->indexes, i));
 
 		if (index_cache->index->to_be_dropped
+		    || index_cache->index->table->to_be_dropped
 		    || fts_sync_index_check(index_cache)) {
 			continue;
 		}
@@ -4476,10 +4477,9 @@ end_sync:
 	/* Clear fts syncing flags of any indexes incase sync is
 	interrupeted */
 	for (i = 0; i < ib_vector_size(cache->indexes); ++i) {
-		fts_index_cache_t*      index_cache;
-		index_cache = static_cast<fts_index_cache_t*>(
-                      ib_vector_get(cache->indexes, i));
-		index_cache->index->index_fts_syncing = false;
+		static_cast<fts_index_cache_t*>(
+			ib_vector_get(cache->indexes, i))
+			->index->index_fts_syncing = false;
 	}
 
 	sync->interrupted = false;

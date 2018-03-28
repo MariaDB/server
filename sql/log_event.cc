@@ -1312,7 +1312,7 @@ Log_event::Log_event(const char* buf,
   thd = 0;
 #endif
   when = uint4korr(buf);
-  when_sec_part= 0;
+  when_sec_part= ~0UL;
   server_id = uint4korr(buf + SERVER_ID_OFFSET);
   data_written= uint4korr(buf + EVENT_LEN_OFFSET);
   if (description_event->binlog_version==1)
@@ -5090,7 +5090,7 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
   }
 
   end=int10_to_str((long) when, strmov(buff,"SET TIMESTAMP="),10);
-  if (when_sec_part)
+  if (when_sec_part && when_sec_part <= TIME_MAX_SECOND_PART)
   {
     *end++= '.';
     end=int10_to_str(when_sec_part, end, 10);
@@ -6840,7 +6840,7 @@ bool Load_log_event::write_data_body()
   Load_log_event::Load_log_event()
 */
 
-Load_log_event::Load_log_event(THD *thd_arg, sql_exchange *ex,
+Load_log_event::Load_log_event(THD *thd_arg, const sql_exchange *ex,
 			       const char *db_arg, const char *table_name_arg,
 			       List<Item> &fields_arg,
                                bool is_concurrent_arg,
@@ -6864,15 +6864,15 @@ Load_log_event::Load_log_event(THD *thd_arg, sql_exchange *ex,
   db_len = (uint32) strlen(db);
   table_name_len = (uint32) strlen(table_name);
   fname_len = (fname) ? (uint) strlen(fname) : 0;
-  sql_ex.field_term = (char*) ex->field_term->ptr();
+  sql_ex.field_term = ex->field_term->ptr();
   sql_ex.field_term_len = (uint8) ex->field_term->length();
-  sql_ex.enclosed = (char*) ex->enclosed->ptr();
+  sql_ex.enclosed = ex->enclosed->ptr();
   sql_ex.enclosed_len = (uint8) ex->enclosed->length();
-  sql_ex.line_term = (char*) ex->line_term->ptr();
+  sql_ex.line_term = ex->line_term->ptr();
   sql_ex.line_term_len = (uint8) ex->line_term->length();
-  sql_ex.line_start = (char*) ex->line_start->ptr();
+  sql_ex.line_start = ex->line_start->ptr();
   sql_ex.line_start_len = (uint8) ex->line_start->length();
-  sql_ex.escaped = (char*) ex->escaped->ptr();
+  sql_ex.escaped = ex->escaped->ptr();
   sql_ex.escaped_len = (uint8) ex->escaped->length();
   sql_ex.opt_flags = 0;
   sql_ex.cached_new_format = -1;
@@ -13586,9 +13586,6 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     // check whether master table is unversioned
     if (row_end->val_int() == 0)
     {
-      // row_start initialized with NULL when came from plain table.
-      // Set it notnull() because record_compare() count NULLs.
-      table->vers_start_field()->set_notnull();
       bitmap_set_bit(table->write_set, row_end->field_index);
       // Plain source table may have a PRIMARY KEY. And row_end is always
       // a part of PRIMARY KEY. Set it to max value for engine to find it in
