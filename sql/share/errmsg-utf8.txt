@@ -7889,8 +7889,8 @@ ER_VERS_ALTER_SYSTEM_FIELD
 ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION
         eng "Can not DROP SYSTEM VERSIONING for table %`s partitioned BY SYSTEM_TIME"
 
-ER_UNUSED_27
-        eng "You should never see it"
+ER_VERS_DB_NOT_SUPPORTED
+      eng "System versioning tables in the %`s database are not suported"
 
 ER_VERS_TRT_IS_DISABLED
         eng "Transaction registry is disabled"
