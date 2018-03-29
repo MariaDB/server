@@ -360,17 +360,22 @@ buf_dump(
 
 		for (bpage = UT_LIST_GET_FIRST(buf_pool->LRU), j = 0;
 		     bpage != NULL && j < n_pages;
-		     bpage = UT_LIST_GET_NEXT(LRU, bpage), j++) {
+		     bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
 
 			ut_a(buf_page_in_file(bpage));
+			if (bpage->id.space() >= SRV_LOG_SPACE_FIRST_ID) {
+				/* Ignore the innodb_temporary tablespace. */
+				continue;
+			}
 
-			dump[j] = BUF_DUMP_CREATE(bpage->id.space(),
-						  bpage->id.page_no());
+			dump[j++] = BUF_DUMP_CREATE(bpage->id.space(),
+						    bpage->id.page_no());
 		}
 
-		ut_a(j == n_pages);
-
 		buf_pool_mutex_exit(buf_pool);
+
+		ut_a(j <= n_pages);
+		n_pages = j;
 
 		for (j = 0; j < n_pages && !SHOULD_QUIT(); j++) {
 			ret = fprintf(f, ULINTPF "," ULINTPF "\n",
@@ -669,6 +674,11 @@ buf_load()
 
 		/* space_id for this iteration of the loop */
 		const ulint	this_space_id = BUF_DUMP_SPACE(dump[i]);
+
+		if (this_space_id >= SRV_LOG_SPACE_FIRST_ID) {
+			/* Ignore the innodb_temporary tablespace. */
+			continue;
+		}
 
 		if (this_space_id != cur_space_id) {
 			if (space != NULL) {
