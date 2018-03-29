@@ -38,3 +38,21 @@ execute stmt;
 select * from s2;
 DROP SEQUENCE s1, s2;
 
+#
+# MDEV-15117 Server crashes in in open_and_process_table or ASAN
+# heap-use-after-free in is_temporary_table upon creating/flushing sequences
+#
+
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+--connect (con1,localhost,root,,test)
+--send CREATE TABLE s2 LIKE s1;
+--connection default
+FLUSH TABLES;
+
+# Cleanup
+--connection con1
+--reap
+--disconnect con1
+--connection default
+
+DROP TABLE s1,s2;
