@@ -282,6 +282,7 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
   Reprepare_observer *save_reprepare_observer;
   sequence_definition *seq= lex->create_info.seq_create_info;
   bool temporary_table= table_list->table != 0;
+  TABLE_LIST *org_next_global= table_list->next_global;
   DBUG_ENTER("sequence_insert");
 
   /* If not temporary table */
@@ -289,6 +290,7 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
   {
     /* Table was locked as part of create table. Free it but keep MDL locks */
     close_thread_tables(thd);
+    table_list->next_global= 0;                 // Close LIKE TABLE
     table_list->lock_type= TL_WRITE_DEFAULT;
     table_list->updating=  1;
     /*
@@ -311,6 +313,7 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
     table_list->open_strategy= save_open_strategy;
     thd->open_options&= ~HA_OPEN_FOR_CREATE;
     thd->m_reprepare_observer= save_reprepare_observer;
+    table_list->next_global= org_next_global;
     if (error)
       DBUG_RETURN(TRUE); /* purify inspected */
   }

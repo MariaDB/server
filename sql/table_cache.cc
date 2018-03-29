@@ -448,6 +448,7 @@ static TABLE *tc_acquire_table(THD *thd, TDC_element *element)
 void tc_release_table(TABLE *table)
 {
   uint32 i= table->instance;
+  DBUG_ENTER("tc_release_table");
   DBUG_ASSERT(table->in_use);
   DBUG_ASSERT(table->file);
 
@@ -466,6 +467,7 @@ void tc_release_table(TABLE *table)
     tc[i].free_tables.push_back(table);
     mysql_mutex_unlock(&tc[i].LOCK_table_cache);
   }
+  DBUG_VOID_RETURN;
 }
 
 
