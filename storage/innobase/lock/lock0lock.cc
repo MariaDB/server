@@ -1983,8 +1983,11 @@ lock_rec_lock(
       /* Do nothing if the trx already has a strong enough lock on rec */
       if (!lock_rec_has_expl(mode, block, heap_no, trx))
       {
-        if (lock_t *c_lock= lock_rec_other_has_conflicting(mode, block,
-                                                           heap_no, trx))
+        if (
+#ifdef WITH_WSREP
+	    lock_t *c_lock=
+#endif
+	    lock_rec_other_has_conflicting(mode, block, heap_no, trx))
         {
           /*
             If another transaction has a non-gap conflicting
