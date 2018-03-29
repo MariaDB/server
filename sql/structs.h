@@ -723,6 +723,37 @@ public:
 };
 
 
+enum trim_spec { TRIM_LEADING, TRIM_TRAILING, TRIM_BOTH };
+
+struct Lex_trim_st
+{
+public:
+  Item *m_remove;
+  Item *m_source;
+  trim_spec m_spec;
+  void set(trim_spec spec, Item *remove, Item *source)
+  {
+    m_spec= spec;
+    m_remove= remove;
+    m_source= source;
+  }
+  void set(trim_spec spec, Item *source)
+  {
+    set(spec, NULL, source);
+  }
+  Item *make_item_func_trim_std(THD *thd) const;
+  Item *make_item_func_trim_oracle(THD *thd) const;
+  Item *make_item_func_trim(THD *thd) const;
+};
+
+
+class Lex_trim: public Lex_trim_st
+{
+public:
+  Lex_trim(trim_spec spec, Item *source) { set(spec, source); }
+};
+
+
 struct Lex_string_with_pos_st: public LEX_CSTRING
 {
   const char *m_pos;

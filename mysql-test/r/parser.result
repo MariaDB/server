@@ -1336,6 +1336,11 @@ CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET @@NEW.a=0;
 ERROR HY000: Unknown structured system variable or ROW routine variable 'NEW'
 DROP TABLE t1;
 #
+# MDEV-15664 sql_mode=ORACLE: Make TRIM return NULL instead of empty string
+#
+CREATE TABLE trim_oracle (trim_oracle int);
+DROP TABLE trim_oracle;
+#
 # MDEV-15615 Unexpected syntax error instead of "Unknown system variable" inside an SP
 #
 BEGIN NOT ATOMIC
