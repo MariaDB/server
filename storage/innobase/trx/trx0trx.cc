@@ -238,7 +238,7 @@ struct TrxFactory {
 	static void destroy(trx_t* trx)
 	{
 		ut_a(trx->magic_n == TRX_MAGIC_N);
-		ut_ad(!trx->in_mysql_trx_list);
+		ut_ad(!trx->mysql_thd);
 
 		ut_a(trx->lock.wait_lock == NULL);
 		ut_a(trx->lock.wait_thr == NULL);
@@ -302,8 +302,6 @@ struct TrxFactory {
 		ut_ad(trx->dict_operation == TRX_DICT_OP_NONE);
 
 		ut_ad(trx->mysql_thd == 0);
-
-		ut_ad(!trx->in_mysql_trx_list);
 
 		ut_a(trx->lock.wait_thr == NULL);
 		ut_a(trx->lock.wait_lock == NULL);
@@ -475,10 +473,7 @@ trx_allocate_for_mysql(void)
 	trx = trx_create();
 
 	mutex_enter(&trx_sys.mutex);
-
-	ut_d(trx->in_mysql_trx_list = TRUE);
 	UT_LIST_ADD_FIRST(trx_sys.mysql_trx_list, trx);
-
 	mutex_exit(&trx_sys.mutex);
 
 	return(trx);
@@ -586,13 +581,10 @@ trx_disconnect_from_mysql(
 	trx_t*	trx,
 	bool	prepared)
 {
+	ut_ad(trx->mysql_thd);
 	trx->read_view.close();
 
 	mutex_enter(&trx_sys.mutex);
-
-	ut_ad(trx->in_mysql_trx_list);
-	ut_d(trx->in_mysql_trx_list = FALSE);
-
 	UT_LIST_REMOVE(trx_sys.mysql_trx_list, trx);
 
 	if (prepared) {
@@ -604,7 +596,6 @@ trx_disconnect_from_mysql(
 		/* todo/fixme: suggest to do it at innodb prepare */
 		trx->will_lock = 0;
 	}
-
 	mutex_exit(&trx_sys.mutex);
 }
 
@@ -1060,11 +1051,6 @@ trx_start_low(
 
 	ut_a(ib_vector_is_empty(trx->autoinc_locks));
 	ut_a(trx->lock.table_locks.empty());
-
-	/* If this transaction came from trx_allocate_for_mysql(),
-	trx->in_mysql_trx_list would hold. In that case, the trx->state
-	change must be protected by the trx_sys.mutex, so that
-	lock_print_info_all_transactions() will have a consistent view. */
 
 	/* No other thread can access this trx object through rw_trx_hash, thus
 	we don't need trx_sys.mutex protection for that purpose. Still this
@@ -1541,7 +1527,7 @@ trx_commit_in_memory(
 	DBUG_LOG("trx", "Commit in memory: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
 
-	/* trx->in_mysql_trx_list would hold between
+	/* trx->mysql_thd != 0 would hold between
 	trx_allocate_for_mysql() and trx_free_for_mysql(). It does not
 	hold for recovered transactions or system transactions. */
 	assert_trx_is_free(trx);

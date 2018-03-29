@@ -4674,7 +4674,7 @@ struct	PrintNotStarted {
 
 	void	operator()(const trx_t* trx)
 	{
-		ut_ad(trx->in_mysql_trx_list);
+		ut_ad(trx->mysql_thd);
 		ut_ad(mutex_own(&trx_sys.mutex));
 
 		/* See state transitions and locking rules in trx0trx.h */

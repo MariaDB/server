@@ -1504,7 +1504,7 @@ dict_create_or_check_foreign_constraint_tables(void)
 		return(DB_READ_ONLY);
 	}
 
-	trx = trx_allocate_for_mysql();
+	trx = trx_create();
 
 	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 
@@ -1588,7 +1588,7 @@ dict_create_or_check_foreign_constraint_tables(void)
 
 	row_mysql_unlock_data_dictionary(trx);
 
-	trx_free_for_mysql(trx);
+	trx_free_for_background(trx);
 
 	srv_file_per_table = srv_file_per_table_backup;
 
@@ -1634,7 +1634,7 @@ dict_create_or_check_sys_virtual()
 		return(DB_READ_ONLY);
 	}
 
-	trx = trx_allocate_for_mysql();
+	trx = trx_create();
 
 	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 
@@ -1692,7 +1692,7 @@ dict_create_or_check_sys_virtual()
 
 	row_mysql_unlock_data_dictionary(trx);
 
-	trx_free_for_mysql(trx);
+	trx_free_for_background(trx);
 
 	srv_file_per_table = srv_file_per_table_backup;
 
@@ -2289,7 +2289,7 @@ dict_create_or_check_sys_tablespace(void)
 		return(DB_READ_ONLY);
 	}
 
-	trx = trx_allocate_for_mysql();
+	trx = trx_create();
 
 	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 
@@ -2356,7 +2356,7 @@ dict_create_or_check_sys_tablespace(void)
 
 	row_mysql_unlock_data_dictionary(trx);
 
-	trx_free_for_mysql(trx);
+	trx_free_for_background(trx);
 
 	srv_file_per_table = srv_file_per_table_backup;
 

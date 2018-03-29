@@ -2320,7 +2320,7 @@ dict_stats_save_index_stat(
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
 
-	ut_ad(!trx || trx->internal || trx->in_mysql_trx_list);
+	ut_ad(!trx || trx->internal || trx->mysql_thd);
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 

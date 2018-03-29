@@ -201,11 +201,11 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 	switch (trx->state) {
 	case TRX_STATE_NOT_STARTED:
 		trx->will_lock = 0;
-		ut_ad(trx->in_mysql_trx_list);
+		ut_ad(trx->mysql_thd);
 		return(DB_SUCCESS);
 
 	case TRX_STATE_ACTIVE:
-		ut_ad(trx->in_mysql_trx_list);
+		ut_ad(trx->mysql_thd);
 		assert_trx_nonlocking_or_in_list(trx);
 		return(trx_rollback_for_mysql_low(trx));
 
@@ -282,7 +282,7 @@ trx_rollback_last_sql_stat_for_mysql(
 	here, because the statement rollback should be invoked for a
 	running active MySQL transaction that is associated with the
 	current thread. */
-	ut_ad(trx->in_mysql_trx_list);
+	ut_ad(trx->mysql_thd);
 
 	switch (trx->state) {
 	case TRX_STATE_NOT_STARTED:
@@ -404,7 +404,7 @@ trx_rollback_to_savepoint_for_mysql_low(
 	dberr_t	err;
 
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
-	ut_ad(trx->in_mysql_trx_list);
+	ut_ad(trx->mysql_thd);
 
 	/* Free all savepoints strictly later than savep. */
 
@@ -461,7 +461,7 @@ trx_rollback_to_savepoint_for_mysql(
 	here, because the savepoint rollback should be invoked for a
 	running active MySQL transaction that is associated with the
 	current thread. */
-	ut_ad(trx->in_mysql_trx_list);
+	ut_ad(trx->mysql_thd);
 
 	savep = trx_savepoint_find(trx, savepoint_name);
 
@@ -554,7 +554,7 @@ trx_release_savepoint_for_mysql(
 
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE, true)
 	      || trx_state_eq(trx, TRX_STATE_PREPARED, true));
-	ut_ad(trx->in_mysql_trx_list);
+	ut_ad(trx->mysql_thd);
 
 	savep = trx_savepoint_find(trx, savepoint_name);
 

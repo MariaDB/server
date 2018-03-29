@@ -521,7 +521,7 @@ The tranasction must be in the mysql_trx_list. */
 			trx_state_t	t_state = (t)->state;		\
 			ut_ad((t)->read_only);				\
 			ut_ad(!(t)->is_recovered);			\
-			ut_ad((t)->in_mysql_trx_list);			\
+			ut_ad((t)->mysql_thd);				\
 			ut_ad(t_state == TRX_STATE_NOT_STARTED		\
 			      || t_state == TRX_STATE_ACTIVE);		\
 		} else {						\
@@ -854,7 +854,7 @@ public:
 	do we remove it from the read-only list and put it on the read-write
 	list. During this switch we assign it a rollback segment.
 
-	When a transaction is NOT_STARTED, it can be in_mysql_trx_list if
+	When a transaction is NOT_STARTED, it can be in mysql_trx_list if
 	it is a user transaction. It cannot be in rw_trx_hash.
 
 	ACTIVE->PREPARED->COMMITTED is only possible when trx is in rw_trx_hash.
@@ -976,11 +976,6 @@ public:
 	UT_LIST_NODE_T(trx_t)
 			mysql_trx_list;	/*!< list of transactions created for
 					MySQL; protected by trx_sys.mutex */
-#ifdef UNIV_DEBUG
-	bool		in_mysql_trx_list;
-					/*!< true if in
-					trx_sys.mysql_trx_list */
-#endif /* UNIV_DEBUG */
 	/*------------------------------*/
 	dberr_t		error_state;	/*!< 0 if no error, otherwise error
 					number; NOTE That ONLY the thread
