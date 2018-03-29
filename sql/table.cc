@@ -1650,6 +1650,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->virtual_fields= share->default_expressions=
     share->field_check_constraints= share->default_fields= 0;
   share->visible_fields= 0;
+  share->user_fields= 0;
   share->stored_fields= share->fields;
   if (forminfo[46] != (uchar)255)
   {
@@ -2086,6 +2087,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       status_var_increment(thd->status_var.feature_invisible_columns);
     if (!reg_field->invisible)
       share->visible_fields++;
+    if (reg_field->invisible < INVISIBLE_SYSTEM)
+      share->user_fields++;
     if (field_type == MYSQL_TYPE_BIT && !f_bit_as_char(pack_flag))
     {
       null_bits_are_used= 1;
@@ -6416,11 +6419,9 @@ void TABLE::mark_columns_needed_for_delete()
   if (need_signal)
     file->column_bitmaps_signal();
 
-  /*
-     For System Versioning we have to write and read Sys_end.
-  */
   if (s->versioned)
   {
+    bitmap_set_bit(read_set, s->vers_start_field()->field_index);
     bitmap_set_bit(read_set, s->vers_end_field()->field_index);
     bitmap_set_bit(write_set, s->vers_end_field()->field_index);
   }
@@ -8924,7 +8925,46 @@ void Vers_history_point::print(String *str, enum_query_type query_type,
   };
   str->append(prefix, plen);
   str->append(unit_type + unit);
-  item->print(str, query_type);
+  if (item->need_parentheses_in_default())
+  {
+    str->append('(');
+    item->print(str, query_type);
+    str->append(')');
+  }
+  else
+  {
+    item->print(str, query_type);
+  }
+}
+
+bool TABLE_LIST::vers_outer_cte_table(TABLE_LIST *& cte_table, SELECT_LEX *& slex_out)
+{
+  uint cte_tables= 0;
+  TABLE_LIST *outer_cte= NULL;
+  SELECT_LEX *outer_slex;
+  for (SELECT_LEX *sl= with->get_owner()->get_owner()->first_select();
+        sl; sl= sl->next_select())
+  {
+    for (TABLE_LIST *tbl= sl->table_list.first; tbl; tbl= tbl->next_local)
+    {
+      if (tbl->with == with)
+      {
+        cte_tables++;
+        if (tbl->vers_conditions)
+        {
+          if (outer_cte || cte_tables > 1)
+            return true;
+          outer_cte= tbl;
+          outer_slex= sl;
+        }
+        if (outer_cte && cte_tables > 1)
+          return true;
+      }
+    }
+  }
+  cte_table= outer_cte;
+  slex_out= outer_slex;
+  return false;
 }
 
 Field *TABLE::find_field_by_name(LEX_CSTRING *str) const

@@ -1,19 +1,23 @@
 -- source include/have_innodb.inc
 -- source include/not_embedded.inc
+-- let $MTR_COMBINATION_TRX_ID= 1
+-- source suite/versioning/common.inc
+
+set default_storage_engine= innodb;
 
 create or replace table t1 (
   x int,
   sys_trx_start bigint(20) unsigned as row start invisible,
   sys_trx_end bigint(20) unsigned as row end invisible,
   period for system_time (sys_trx_start, sys_trx_end)
-) with system versioning engine innodb;
+) with system versioning;
 
 insert into t1 (x) values (1);
 
 --echo # ALTER ADD SYSTEM VERSIONING should write to mysql.transaction_registry
 set @@system_versioning_alter_history=keep;
 
-create or replace table t1 (x int) engine innodb;
+create or replace table t1 (x int);
 insert into t1 values (1);
 alter table t1
   add column s bigint unsigned as row start,
@@ -24,7 +28,7 @@ alter table t1
 select s from t1 into @trx_start;
 select count(*) = 1 from mysql.transaction_registry where transaction_id = @trx_start;
 
-create or replace table t1 (x int) engine innodb;
+create or replace table t1 (x int);
 select count(*) from mysql.transaction_registry into @tmp;
 alter table t1
   add column s bigint unsigned as row start,
@@ -34,7 +38,7 @@ alter table t1
   algorithm=inplace;
 select count(*) = @tmp from mysql.transaction_registry;
 
-create or replace table t1 (x int) engine innodb;
+create or replace table t1 (x int);
 insert into t1 values (1);
 alter table t1
   add column s bigint unsigned as row start,
@@ -45,7 +49,7 @@ alter table t1
 select s from t1 into @trx_start;
 select count(*) = 1 from mysql.transaction_registry where transaction_id = @trx_start;
 
-create or replace table t1 (x int) engine innodb;
+create or replace table t1 (x int);
 select count(*) from mysql.transaction_registry into @tmp;
 alter table t1
   add column s bigint unsigned as row start,
@@ -62,7 +66,7 @@ create or replace table t1 (
   sys_start bigint unsigned as row start invisible,
   sys_end bigint unsigned as row end invisible,
   period for system_time (sys_start, sys_end)
-) engine innodb with system versioning;
+) with system versioning;
 insert into t1 values (1);
 alter table t1 drop column sys_start, drop column sys_end;
 select row_end = 18446744073709551615 as transaction_based from t1 for system_time all;
@@ -73,7 +77,7 @@ create or replace table t1 (
   sys_start bigint(20) unsigned as row start invisible,
   sys_end bigint(20) unsigned as row end invisible,
   period for system_time (sys_start, sys_end)
-) with system versioning engine innodb;
+) with system versioning;
 
 set transaction isolation level read committed;
 start transaction;
@@ -116,4 +120,26 @@ select * from t1 for system_time as of timestamp @ts2;
 select * from t1 for system_time as of transaction @trx_id3;
 select * from t1 for system_time as of timestamp @ts3;
 
-drop table t1;
+--echo # MDEV-15427 IB: TRX_ID based operations inside transaction generate history
+create or replace table t1(
+  x int(10),
+  row_start bigint(20) unsigned as row start invisible,
+  row_end bigint(20) unsigned as row end invisible,
+  period for system_time(row_start, row_end)
+) with system versioning;
+
+begin;
+insert into t1 (x) values (1);
+delete from t1;
+commit;
+select * from t1 for system_time all;
+
+insert into t1 (x) values (2);
+begin;
+update t1 set x= 3;
+update t1 set x= 4;
+commit;
+select *, check_row(row_start, row_end) as row_type from t1 for system_time all;
+
+drop database test;
+create database test;

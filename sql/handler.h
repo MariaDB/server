@@ -1774,13 +1774,13 @@ protected:
   bool is_end(const char *name) const;
   bool is_start(const Create_field &f) const;
   bool is_end(const Create_field &f) const;
-  bool fix_implicit(THD *thd, Alter_info *alter_info, int *added= NULL);
+  bool fix_implicit(THD *thd, Alter_info *alter_info);
   operator bool() const
   {
     return as_row.start || as_row.end || system_time.start || system_time.end;
   }
   bool need_check(const Alter_info *alter_info) const;
-  bool check_with_conditions(const char *table_name) const;
+  bool check_conditions(const char *table_name, const LString_fs db) const;
   bool check_sys_fields(const char *table_name, Alter_info *alter_info,
                         bool native);
 
@@ -1881,7 +1881,8 @@ struct Table_scope_and_contents_source_st
                          const TABLE_LIST &create_table,
                          const TABLE_LIST *select_table= NULL,
                          List<Item> *items= NULL,
-                         bool *versioned_write= NULL);
+                         bool *versioned_write= NULL,
+                         List<Create_field> *create_list= NULL);
 
   bool vers_native(THD *thd) const;
 

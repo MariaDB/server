@@ -6881,7 +6881,7 @@ static bool vers_create_sys_field(THD *thd, const char *field_name,
 const LString Vers_parse_info::default_start= "row_start";
 const LString Vers_parse_info::default_end= "row_end";
 
-bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info, int *added)
+bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
 {
   // If user specified some of these he must specify the others too. Do nothing.
   if (*this)
@@ -6897,8 +6897,7 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info, int *added)
   {
     return true;
   }
-  if (added)
-    *added+= 2;
+
   return false;
 }
 
@@ -6931,7 +6930,8 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   const TABLE_LIST &create_table,
   const TABLE_LIST *select_tables,
   List<Item> *items,
-  bool *versioned_write)
+  bool *versioned_write,
+  List<Create_field> *create_list)
 {
   DBUG_ASSERT(!(alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING));
   int vers_tables= 0;
@@ -7034,50 +7034,12 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     }
   } // while (Create_field *f= it++)
 
-  /* Assign selected system fields to explicit system fields if any */
-  if (vers_tables)
-  {
-    it.rewind();
-    while (Create_field *f= it++)
-    {
-      uint flags_left= VERS_SYSTEM_FIELD;
-      if (flags_left && (vers_info.is_start(*f) || vers_info.is_end(*f)) && !f->field)
-      {
-        uint sys_flag= f->flags & flags_left;
-        flags_left-= sys_flag;
-        List_iterator_fast<Item> it2(*items);
-        while (Item *item= it2++)
-        {
-          if (item->type() != Item::FIELD_ITEM)
-            continue;
-          Field *fld= static_cast<Item_field *>(item)->field;
-          DBUG_ASSERT(fld);
-          if ((fld->flags & sys_flag) &&
-            LString_i(f->field_name) == fld->field_name)
-          {
-            f->field= fld;
-            *versioned_write= false;
-          }
-        } // while (item)
-      } // if (flags_left ...
-    } // while (Create_field *f= it++)
-  } // if (vers_tables)
-
-  int added= 0;
-  if (vers_info.fix_implicit(thd, alter_info, &added))
+  if (create_list)
+    alter_info->create_list.disjoin(create_list);
+  if (vers_info.fix_implicit(thd, alter_info))
     return true;
-
-  DBUG_ASSERT(added >= 0);
-  if (vers_tables)
-  {
-    DBUG_ASSERT(items);
-    while (added--)
-    {
-      Item_default_value *item= new (thd->mem_root)
-        Item_default_value(thd, thd->lex->current_context());
-      items->push_back(item, thd->mem_root);
-    }
-  }
+  if (create_list)
+    alter_info->create_list.append(create_list);
 
   int plain_cols= 0; // columns don't have WITH or WITHOUT SYSTEM VERSIONING
   int vers_cols= 0; // columns have WITH SYSTEM VERSIONING
@@ -7104,7 +7066,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     return true;
   }
 
-  if (vers_info.check_with_conditions(create_table.table_name.str))
+  if (vers_info.check_conditions(create_table.table_name.str, create_table.db))
     return true;
 
   bool native= vers_native(thd);
@@ -7217,7 +7179,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
 
   if (alter_info->flags & Alter_info::ALTER_ADD_SYSTEM_VERSIONING)
   {
-    if (check_with_conditions(table_name))
+    if (check_conditions(table_name, share->db))
       return true;
     bool native= create_info->vers_native(thd);
     if (check_sys_fields(table_name, alter_info, native))
@@ -7294,7 +7256,8 @@ bool Vers_parse_info::need_check(const Alter_info *alter_info) const
          alter_info->flags & Alter_info::ALTER_DROP_SYSTEM_VERSIONING || *this;
 }
 
-bool Vers_parse_info::check_with_conditions(const char *table_name) const
+bool Vers_parse_info::check_conditions(const char *table_name,
+                                       const LString_fs db) const
 {
   if (!as_row.start || !as_row.end)
   {
@@ -7315,6 +7278,11 @@ bool Vers_parse_info::check_with_conditions(const char *table_name) const
     return true;
   }
 
+  if (db == MYSQL_SCHEMA_NAME)
+  {
+    my_error(ER_VERS_DB_PROHIBITED, MYF(0), MYSQL_SCHEMA_NAME.str);
+    return true;
+  }
   return false;
 }
 

@@ -3454,3 +3454,57 @@ error_handling:
 
 	DBUG_RETURN(thr);
 }
+
+/** Write query start time as SQL field data to a buffer. Needed by InnoDB.
+@param	thd	Thread object
+@param	buf	Buffer to hold start time data */
+void thd_get_query_start_data(THD *thd, char *buf);
+
+/** Appends row_start or row_end field to update vector and sets a
+CURRENT_TIMESTAMP/trx->id value to it.
+Supposed to be called only by make_versioned_update() and
+make_versioned_delete().
+@param[in]	trx	transaction
+@param[in]	vers_sys_idx	table->row_start or table->row_end */
+void upd_node_t::make_versioned_helper(const trx_t* trx, ulint idx)
+{
+	ut_ad(in_mysql_interface); // otherwise needs to recalculate
+				   // node->cmpl_info
+	ut_ad(idx == table->vers_start || idx == table->vers_end);
+
+	dict_index_t* clust_index = dict_table_get_first_index(table);
+
+	update->n_fields++;
+	upd_field_t* ufield =
+		upd_get_nth_field(update, upd_get_n_fields(update) - 1);
+	const dict_col_t* col = dict_table_get_nth_col(table, idx);
+
+	upd_field_set_field_no(ufield, dict_col_get_clust_pos(col, clust_index),
+			       clust_index);
+
+	char* where = reinterpret_cast<char*>(update->vers_sys_value);
+	if (col->vers_native()) {
+		mach_write_to_8(where, trx->id);
+	} else {
+		thd_get_query_start_data(trx->mysql_thd, where);
+	}
+
+	dfield_set_data(&ufield->new_val, update->vers_sys_value, col->len);
+}
+
+/** Also set row_start = CURRENT_TIMESTAMP/trx->id
+@param[in]	trx	transaction */
+void upd_node_t::make_versioned_update(const trx_t* trx)
+{
+	make_versioned_helper(trx, table->vers_start);
+}
+
+/** Only set row_end = CURRENT_TIMESTAMP/trx->id.
+Do not touch other fields at all.
+@param[in]	trx	transaction */
+void upd_node_t::make_versioned_delete(const trx_t* trx)
+{
+	update->n_fields = 0;
+	is_delete = VERSIONED_DELETE;
+	make_versioned_helper(trx, table->vers_end);
+}

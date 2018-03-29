@@ -7913,3 +7913,9 @@ ER_INDEX_FILE_FULL
         eng "The index file for table '%-.192s' is full"
 ER_UPDATED_COLUMN_ONLY_ONCE
         eng "The column %`s.%`s cannot be changed more than once in a single UPDATE statement"
+
+ER_VERS_DB_PROHIBITED
+      eng "System versioning prohibited in %`s database"
+
+ER_VERS_MULTIPLE_CTE
+        eng "Multiple %`s prohibited in historical CTE query"

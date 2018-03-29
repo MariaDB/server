@@ -11791,9 +11791,10 @@ table_primary_ident:
                                                 Select->pop_index_hints(),
                                                 $3)))
               MYSQL_YYABORT;
-            Select->add_joined_table($$);
+            TABLE_LIST *tl= $$;
+            Select->add_joined_table(tl);
             if ($4)
-              $$->vers_conditions= Lex->vers_conditions;
+              tl->vers_conditions= Lex->vers_conditions;
           }
         ;
 

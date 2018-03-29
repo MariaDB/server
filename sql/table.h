@@ -692,6 +692,7 @@ struct TABLE_SHARE
   uint varchar_fields;                  /* number of varchar fields */
   uint default_fields;                  /* number of default fields */
   uint visible_fields;                  /* number of visible fields */
+  uint user_fields;                     /* number of user fields */
 
   uint default_expressions;
   uint table_check_constraints, field_check_constraints;
@@ -1839,7 +1840,6 @@ public:
 struct vers_select_conds_t
 {
   vers_system_time_t type;
-  bool from_query:1;
   bool used:1;
   Vers_history_point start;
   Vers_history_point end;
@@ -1847,7 +1847,7 @@ struct vers_select_conds_t
   void empty()
   {
     type= SYSTEM_TIME_UNSPECIFIED;
-    used= from_query= false;
+    used= false;
     start.empty();
     end.empty();
   }
@@ -1857,9 +1857,18 @@ struct vers_select_conds_t
             Vers_history_point _end= Vers_history_point())
   {
     type= _type;
-    used= from_query= false;
+    used= false;
     start= _start;
     end= _end;
+  }
+
+  vers_select_conds_t& operator= (const vers_select_conds_t& src)
+  {
+    type= src.type;
+    used= src.used;
+    start= src.start;
+    end= src.end;
+    return *this;
   }
 
   void print(String *str, enum_query_type query_type);
@@ -1879,10 +1888,6 @@ struct vers_select_conds_t
     return type != SYSTEM_TIME_UNSPECIFIED;
   }
   void resolve_units(bool timestamps_only);
-  bool user_defined() const
-  {
-    return !from_query && type != SYSTEM_TIME_UNSPECIFIED;
-  }
 };
 
 /*
@@ -2397,8 +2402,9 @@ struct TABLE_LIST
 
   /* System Versioning */
   vers_select_conds_t vers_conditions;
-  bool vers_vtmd_name(String &out) const;
   bool vers_force_alias;
+  bool vers_vtmd_name(String &out) const;
+  bool vers_outer_cte_table(TABLE_LIST *& cte_table, SELECT_LEX *& outer_slex);
 
   /**
      @brief

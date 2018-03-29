@@ -474,11 +474,16 @@ struct upd_t{
 		return(false);
 	}
 
-	/** Determine if the update affects a system versioned column. */
+	/** Determine if the update affects a system versioned column or row_end. */
 	bool affects_versioned() const
 	{
 		for (ulint i = 0; i < n_fields; i++) {
-			if (fields[i].new_val.type.vers_sys_field()) {
+			dtype_t type = fields[i].new_val.type;
+			if (type.is_versioned()) {
+				return true;
+			}
+			// versioned DELETE is UPDATE SET row_end=NOW
+			if (type.vers_sys_end()) {
 				return true;
 			}
 		}
@@ -563,6 +568,8 @@ struct upd_node_t{
 	dtuple_t*	row;	/*!< NULL, or a copy (also fields copied to
 				heap) of the row to update; this must be reset
 				to NULL after a successful update */
+	dtuple_t*	historical_row;	/*!< historical row used in
+				CASCADE UPDATE/SET NULL */
 	row_ext_t*	ext;	/*!< NULL, or prefixes of the externally
 				stored columns in the old row */
 	dtuple_t*	upd_row;/* NULL, or a copy of the updated row */
@@ -577,6 +584,22 @@ struct upd_node_t{
 				/* column assignment list */
 	ulint		magic_n;
 
+	/** Also set row_start = CURRENT_TIMESTAMP/trx->id
+	@param[in]	trx	transaction */
+	void make_versioned_update(const trx_t* trx);
+	/** Only set row_end = CURRENT_TIMESTAMP/trx->id.
+	Do not touch other fields at all.
+	@param[in]	trx	transaction */
+	void make_versioned_delete(const trx_t* trx);
+
+private:
+	/** Appends row_start or row_end field to update vector and sets a
+	CURRENT_TIMESTAMP/trx->id value to it.
+	Supposed to be called only by make_versioned_update() and
+	make_versioned_delete().
+	@param[in]	trx	transaction
+	@param[in]	vers_sys_idx	table->row_start or table->row_end */
+	void make_versioned_helper(const trx_t* trx, ulint idx);
 };
 
 #define	UPD_NODE_MAGIC_N	1579975

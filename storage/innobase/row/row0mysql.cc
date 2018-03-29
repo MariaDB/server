@@ -1868,50 +1868,15 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 
 	ut_ad(!prebuilt->versioned_write || node->table->versioned());
 
-	bool vers_set_fields = prebuilt->versioned_write
-		&& (node->is_delete ? node->is_delete == VERSIONED_DELETE
-		    : node->update->affects_versioned());
+	if (prebuilt->versioned_write) {
+		if (node->is_delete == VERSIONED_DELETE) {
+			node->make_versioned_delete(trx);
+		} else if (node->update->affects_versioned()) {
+			node->make_versioned_update(trx);
+		}
+	}
 
 	for (;;) {
-		if (vers_set_fields) {
-			/* System Versioning: modify update vector to set
-			row_start (or row_end in case of DELETE)
-			to current trx_id. */
-			dict_table_t* table = node->table;
-			dict_index_t* clust_index = dict_table_get_first_index(table);
-			upd_t* uvect = node->update;
-			upd_field_t* ufield;
-			dict_col_t* col;
-			unsigned col_idx;
-			if (node->is_delete) {
-				ufield = &uvect->fields[0];
-				uvect->n_fields = 0;
-				node->is_delete = VERSIONED_DELETE;
-				col_idx = table->vers_end;
-			} else {
-				ut_ad(uvect->n_fields < table->n_cols);
-				ufield = &uvect->fields[uvect->n_fields];
-				col_idx = table->vers_start;
-			}
-			col = &table->cols[col_idx];
-			UNIV_MEM_INVALID(ufield, sizeof *ufield);
-			{
-				ulint field_no = dict_col_get_clust_pos(col, clust_index);
-				ut_ad(field_no != ULINT_UNDEFINED);
-				ufield->field_no = field_no;
-			}
-			ufield->orig_len = 0;
-			ufield->exp = NULL;
-
-			mach_write_to_8(node->update->vers_sys_value, trx->id);
-			dfield_t* dfield = &ufield->new_val;
-			dfield_set_data(dfield, node->update->vers_sys_value, 8);
-			dict_col_copy_type(col, &dfield->type);
-
-			uvect->n_fields++;
-			ut_ad(node->in_mysql_interface); // otherwise needs to recalculate node->cmpl_info
-		}
-
 		thr->run_node = node;
 		thr->prev_node = node;
 		thr->fk_cascade_depth = 0;
@@ -2171,6 +2136,71 @@ row_mysql_unfreeze_data_dictionary(
 	trx->dict_operation_lock_mode = 0;
 }
 
+/** Write query start time as SQL field data to a buffer. Needed by InnoDB.
+@param	thd	Thread object
+@param	buf	Buffer to hold start time data */
+void thd_get_query_start_data(THD *thd, char *buf);
+
+/** Function restores btr_pcur_t, creates dtuple_t from rec_t,
+sets row_end = CURRENT_TIMESTAMP/trx->id, inserts it to a table and updates
+table statistics.
+This is used in UPDATE CASCADE/SET NULL of a system versioning table.
+@param[in]	thr	current query thread
+@param[in]	node	a node which just updated a row in a foreign table
+@return DB_SUCCESS or some error */
+static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
+{
+	const trx_t* trx = thr_get_trx(thr);
+	dict_table_t* table = node->table;
+	ut_ad(table->versioned());
+
+	dtuple_t* row = node->historical_row;
+	ut_ad(row);
+	node->historical_row = NULL;
+
+	ins_node_t* insert_node =
+		ins_node_create(INS_DIRECT, table, thr->prebuilt->heap);
+
+	ins_node_set_new_row(insert_node, row);
+
+	dfield_t* row_end = dtuple_get_nth_field(row, table->vers_end);
+	char* where = static_cast<char*>(dfield_get_data(row_end));
+	if (dict_table_get_nth_col(table, table->vers_end)->vers_native()) {
+		mach_write_to_8(where, trx->id);
+	} else {
+		thd_get_query_start_data(trx->mysql_thd, where);
+	}
+
+	for (;;) {
+		thr->run_node = insert_node;
+		thr->prev_node = insert_node;
+
+		row_ins_step(thr);
+
+		switch (trx->error_state) {
+		case DB_LOCK_WAIT:
+			que_thr_stop_for_mysql(thr);
+			lock_wait_suspend_thread(thr);
+
+			if (trx->error_state == DB_SUCCESS) {
+				continue;
+			}
+
+			/* fall through */
+		default:
+			/* Other errors are handled for the parent node. */
+			thr->fk_cascade_depth = 0;
+			return trx->error_state;
+
+		case DB_SUCCESS:
+			srv_stats.n_rows_inserted.inc(
+				static_cast<size_t>(trx->id));
+			dict_stats_update_if_needed(table);
+			return DB_SUCCESS;
+		}
+	}
+}
+
 /**********************************************************************//**
 Does a cascaded delete or set null in a foreign key operation.
 @return error code or DB_SUCCESS */
@@ -2190,53 +2220,21 @@ row_update_cascade_for_mysql(
                 return(DB_FOREIGN_EXCEED_MAX_CASCADE);
         }
 
-	trx_t* trx = thr_get_trx(thr);
+	const trx_t* trx = thr_get_trx(thr);
 
-	bool vers_set_fields = node->table->versioned()
-				  && (node->is_delete == PLAIN_DELETE
-				      || node->update->affects_versioned());
+	if (table->versioned()) {
+		if (node->is_delete == PLAIN_DELETE) {
+			node->make_versioned_delete(trx);
+		} else if (node->update->affects_versioned()) {
+			dberr_t err = row_update_vers_insert(thr, node);
+			if (err != DB_SUCCESS) {
+				return err;
+			}
+			node->make_versioned_update(trx);
+		}
+	}
 
 	for (;;) {
-		if (vers_set_fields) {
-			// FIXME: code duplication with row_update_for_mysql()
-			/* System Versioning: modify update vector to set
-			row_start (or row_end in case of DELETE)
-			to current trx_id. */
-			dict_table_t* table = node->table;
-			dict_index_t* clust_index = dict_table_get_first_index(table);
-			upd_t* uvect = node->update;
-			upd_field_t* ufield;
-			dict_col_t* col;
-			unsigned col_idx;
-			if (node->is_delete) {
-				ufield = &uvect->fields[0];
-				uvect->n_fields = 0;
-				node->is_delete = VERSIONED_DELETE;
-				col_idx = table->vers_end;
-			} else {
-				ut_ad(uvect->n_fields < table->n_cols);
-				ufield = &uvect->fields[uvect->n_fields];
-				col_idx = table->vers_start;
-			}
-			col = &table->cols[col_idx];
-			UNIV_MEM_INVALID(ufield, sizeof *ufield);
-			{
-				ulint field_no = dict_col_get_clust_pos(col, clust_index);
-				ut_ad(field_no != ULINT_UNDEFINED);
-				ufield->field_no = field_no;
-			}
-			ufield->orig_len = 0;
-			ufield->exp = NULL;
-
-			mach_write_to_8(node->update->vers_sys_value, trx->id);
-			dfield_t* dfield = &ufield->new_val;
-			dfield_set_data(dfield, node->update->vers_sys_value, 8);
-			dict_col_copy_type(col, &dfield->type);
-
-			uvect->n_fields++;
-			ut_ad(node->in_mysql_interface); // otherwise needs to recalculate node->cmpl_info
-		}
-
 		thr->run_node = node;
 		thr->prev_node = node;
 

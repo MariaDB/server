@@ -542,8 +542,6 @@ struct dtype_t{
 	unsigned	mbmaxlen:3;	/*!< maximum length of a character,
 					in bytes */
 
-	/** @return whether this is system field */
-	bool vers_sys_field() const { return prtype & DATA_VERSIONED; }
 	/** @return whether this is system versioned user field */
 	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
 	/** @return whether this is the system field start */
