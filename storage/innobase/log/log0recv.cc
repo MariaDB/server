@@ -3003,12 +3003,11 @@ recv_validate_tablespace(bool rescan, bool& missing_tablespace)
 	dberr_t err = DB_SUCCESS;
 
 	for (ulint h = 0; h < hash_get_n_cells(recv_sys->addr_hash); h++) {
-
 		for (recv_addr_t* recv_addr = static_cast<recv_addr_t*>(
-				HASH_GET_FIRST(recv_sys->addr_hash, h));
-				recv_addr != 0;
-				recv_addr = static_cast<recv_addr_t*>(
-					HASH_GET_NEXT(addr_hash, recv_addr))) {
+			     HASH_GET_FIRST(recv_sys->addr_hash, h));
+		     recv_addr != 0;
+		     recv_addr = static_cast<recv_addr_t*>(
+			     HASH_GET_NEXT(addr_hash, recv_addr))) {
 
 			const ulint space = recv_addr->space;
 
@@ -3016,21 +3015,21 @@ recv_validate_tablespace(bool rescan, bool& missing_tablespace)
 				continue;
 			}
 
-			recv_spaces_t::iterator i
-				= recv_spaces.find(space);
+			recv_spaces_t::iterator i = recv_spaces.find(space);
 			ut_ad(i != recv_spaces.end());
 
-			switch(i->second.status) {
+			switch (i->second.status) {
 			case file_name_t::MISSING:
 				err = recv_init_missing_space(err, i);
 				i->second.status = file_name_t::DELETED;
+				/* fall through */
 			case file_name_t::DELETED:
 				recv_addr->state = RECV_DISCARDED;
+				/* fall through */
 			case file_name_t::NORMAL:
-				break;
-			default:
-				ut_ad(0);
+				continue;
 			}
+			ut_ad(0);
 		}
 	}
 

@@ -484,7 +484,7 @@ err_with_reopen:
       old locks. This should always succeed (unless some external process
       has removed the tables)
     */
-    thd->locked_tables_list.reopen_tables(thd);
+    result= thd->locked_tables_list.reopen_tables(thd);
     /*
       Since downgrade_lock() won't do anything with shared
       metadata lock it is much simpler to go through all open tables rather

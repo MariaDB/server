@@ -3957,13 +3957,24 @@ static rocksdb::Status check_rocksdb_options_compatibility(
   return status;
 }
 
+bool prevent_myrocks_loading= false;
+
 
 /*
   Storage Engine initialization function, invoked when plugin is loaded.
 */
 
 static int rocksdb_init_func(void *const p) {
+
   DBUG_ENTER_FUNC();
+
+  if (prevent_myrocks_loading)
+  {
+    my_error(ER_INTERNAL_ERROR, MYF(0),
+             "Loading MyRocks plugin after it has been unloaded is not "
+             "supported. Please restart mysqld");
+    DBUG_RETURN(1);
+  }
 
   // Validate the assumption about the size of ROCKSDB_SIZEOF_HIDDEN_PK_COLUMN.
   static_assert(sizeof(longlong) == 8, "Assuming that longlong is 8 bytes.");
@@ -4505,11 +4516,26 @@ static int rocksdb_done_func(void *const p) {
   }
 #endif /* HAVE_purify */
 
-  rocksdb_db_options = nullptr;
-  rocksdb_tbl_options = nullptr;
+  /*
+    MariaDB: don't clear rocksdb_db_options and rocksdb_tbl_options.
+    MyRocks' plugin variables refer to them.
+
+    The plugin cannot be loaded again (see prevent_myrocks_loading) but plugin
+    variables are processed before myrocks::rocksdb_init_func is invoked, so
+    they must point to valid memory.
+  */
+  //rocksdb_db_options = nullptr;
+  rocksdb_db_options->statistics = nullptr;
+  //rocksdb_tbl_options = nullptr;
   rocksdb_stats = nullptr;
 
   my_error_unregister(HA_ERR_ROCKSDB_FIRST, HA_ERR_ROCKSDB_LAST);
+
+  /*
+    Prevent loading the plugin after it has been loaded and then unloaded. This
+    doesn't work currently.
+  */
+  prevent_myrocks_loading= true;
 
   DBUG_RETURN(error);
 }
@@ -10031,6 +10057,7 @@ int ha_rocksdb::external_lock(THD *const thd, int lock_type) {
       thd->lex->sql_command != SQLCOM_LOCK_TABLES &&  // (*)
       thd->lex->sql_command != SQLCOM_ANALYZE &&   // (**)
       thd->lex->sql_command != SQLCOM_OPTIMIZE &&  // (**)
+      thd->lex->sql_command != SQLCOM_FLUSH &&  // (**)
       my_core::thd_binlog_filter_ok(thd)) {
     my_error(ER_REQUIRE_ROW_BINLOG_FORMAT, MYF(0));
     DBUG_RETURN(HA_ERR_UNSUPPORTED);

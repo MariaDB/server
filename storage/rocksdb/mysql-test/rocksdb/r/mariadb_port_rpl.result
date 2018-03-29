@@ -1,0 +1,14 @@
+#
+# MDEV-15472: Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())' failure ...
+#
+select @@log_bin;
+@@log_bin
+1
+select @@binlog_format;
+@@binlog_format
+ROW
+CREATE OR REPLACE TABLE t1 (i INT) ENGINE=RocksDB;
+LOCK TABLE t1 WRITE;
+FLUSH TABLES;
+UNLOCK TABLES;
+DROP TABLE t1;
