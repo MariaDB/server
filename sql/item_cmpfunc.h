@@ -1404,10 +1404,9 @@ protected:
   uchar *get_value_internal(Item *item, enum_field_types f_type);
 public:
   /* Cache for the left item. */
-  Item *lval_cache;
 
   in_temporal(THD *thd, uint elements)
-    :in_longlong(thd, elements), lval_cache(0) {};
+    :in_longlong(thd, elements) {};
   Item *create_item(THD *thd);
   void value_to_item(uint pos, Item *item)
   {
@@ -1615,11 +1614,7 @@ protected:
   longlong value;
   void store_value_internal(Item *item, enum_field_types type);
 public:
-  /* Cache for the left item. */
-  Item *lval_cache;
-
-  cmp_item_temporal()
-    :lval_cache(0) {}
+  cmp_item_temporal() {}
   int compare(cmp_item *ci);
 };
 

@@ -422,12 +422,16 @@ ok
 ok
 Warnings:
 Warning	1292	Truncated incorrect time value: 'foo'
+Warning	1292	Truncated incorrect time value: 'foo'
+Warning	1292	Truncated incorrect time value: 'foo'
 select 'foo' in (a,'0') from t1;
 'foo' in (a,'0')
 0
 0
 0
 Warnings:
+Warning	1292	Truncated incorrect time value: 'foo'
+Warning	1292	Truncated incorrect time value: 'foo'
 Warning	1292	Truncated incorrect time value: 'foo'
 drop table t1;
 select case '20:10:05' when date'2020-10-10' then 'never' when time'20:10:5' then 'ok' else 'bug' end;

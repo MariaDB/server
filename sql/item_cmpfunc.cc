@@ -707,62 +707,6 @@ Item** Arg_comparator::cache_converted_constant(THD *thd_arg, Item **value,
 }
 
 
-/**
-  Retrieves correct DATETIME value from given item.
-
-  @param[in]     thd         thread handle
-  @param[in,out] item_arg    item to retrieve DATETIME value from
-  @param[in,out] cache_arg   pointer to place to store the caching item to
-  @param[in]     warn_item   item for issuing the conversion warning
-  @param[out]    is_null     TRUE <=> the item_arg is null
-
-  @details
-    Retrieves the correct DATETIME value from given item for comparison by the
-    compare_datetime() function.
-
-    If the value should be compared as time (TIME_RESULT), it's retrieved as
-    MYSQL_TIME. Otherwise it's read as a number/string and converted to time.
-    Constant items are cached, so the convertion is only done once for them.
-
-    Note the f_type behavior: if the item can be compared as time, then
-    f_type is this item's field_type(). Otherwise it's field_type() of
-    warn_item (which is the other operand of the comparison operator).
-    This logic provides correct string/number to date/time conversion
-    depending on the other operand (when comparing a string with a date, it's
-    parsed as a date, when comparing a string with a time it's parsed as a time)
-
-    If the item is a constant it is replaced by the Item_cache_int, that
-    holds the packed datetime value.
-
-  @return
-    MYSQL_TIME value, packed in a longlong, suitable for comparison.
-*/
-
-longlong
-get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
-                   enum_field_types f_type, bool *is_null)
-{
-  longlong UNINIT_VAR(value);
-  Item *item= **item_arg;
-  value= item->val_temporal_packed(f_type);
-  if ((*is_null= item->null_value))
-    return ~(ulonglong) 0;
-  if (cache_arg && item->const_item() &&
-      !(item->type() == Item::CACHE_ITEM && item->cmp_type() == TIME_RESULT))
-  {
-    if (!thd)
-      thd= current_thd;
-    const Type_handler *h= Type_handler::get_handler_by_field_type(f_type);
-    Item_cache *tmp_cache= h->Item_get_cache(thd, item);
-    Item_cache_temporal *cache= static_cast<Item_cache_temporal*>(tmp_cache);
-    cache->store_packed(value, item);
-    *cache_arg= cache;
-    *item_arg= cache_arg;
-  }
-  return value;
-}
-
-
 int Arg_comparator::compare_time()
 {
   longlong val1= (*a)->val_time_packed();
@@ -3710,9 +3654,7 @@ void in_time::set(uint pos,Item *item)
 
 uchar *in_temporal::get_value_internal(Item *item, enum_field_types f_type)
 {
-  bool is_null;
-  Item **tmp_item= lval_cache ? &lval_cache : &item;
-  tmp.val= get_datetime_value(0, &tmp_item, &lval_cache, f_type, &is_null);
+  tmp.val= item->val_temporal_packed(f_type);
   if (item->null_value)
     return 0;
   tmp.unsigned_flag= 1L;
@@ -4071,9 +4013,7 @@ cmp_item* cmp_item_decimal::make_same()
 void cmp_item_temporal::store_value_internal(Item *item,
                                              enum_field_types f_type)
 {
-  bool is_null;
-  Item **tmp_item= lval_cache ? &lval_cache : &item;
-  value= get_datetime_value(0, &tmp_item, &lval_cache, f_type, &is_null);
+  value= item->val_temporal_packed(f_type);
   m_null_value= item->null_value;
 }
 
