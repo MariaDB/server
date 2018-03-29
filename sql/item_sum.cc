@@ -313,6 +313,8 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
     }
   }
   aggr_sel->set_agg_func_used(true);
+  if (sum_func() == SP_AGGREGATE_FUNC)
+    aggr_sel->set_custom_agg_func_used(true);
   update_used_tables();
   thd->lex->in_sum_func= in_sum_func;
   return FALSE;

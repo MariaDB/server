@@ -2266,6 +2266,7 @@ void st_select_lex::init_query()
   select_list_tables= 0;
   m_non_agg_field_used= false;
   m_agg_func_used= false;
+  m_custom_agg_func_used= false;
   window_specs.empty();
   window_funcs.empty();
   tvc= 0;
@@ -2305,6 +2306,7 @@ void st_select_lex::init_select()
   merged_into= 0;
   m_non_agg_field_used= false;
   m_agg_func_used= false;
+  m_custom_agg_func_used= false;
   name_visibility_map= 0;
   with_dep= 0;
   join= 0;

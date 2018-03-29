@@ -4,6 +4,7 @@ flush status;
 show status like "feature%";
 Variable_name	Value
 Feature_check_constraint	0
+Feature_custom_aggregate_functions	0
 Feature_delay_key_write	0
 Feature_dynamic_columns	0
 Feature_fulltext	0

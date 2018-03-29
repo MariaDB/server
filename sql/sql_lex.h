@@ -1221,9 +1221,11 @@ public:
   */
   bool non_agg_field_used() const { return m_non_agg_field_used; }
   bool agg_func_used()      const { return m_agg_func_used; }
+  bool custom_agg_func_used() const { return m_custom_agg_func_used; }
 
   void set_non_agg_field_used(bool val) { m_non_agg_field_used= val; }
   void set_agg_func_used(bool val)      { m_agg_func_used= val; }
+  void set_custom_agg_func_used(bool val) { m_custom_agg_func_used= val; }
   inline void set_with_clause(With_clause *with_clause);
   With_clause *get_with_clause()
   {
@@ -1267,6 +1269,7 @@ public:
 private:
   bool m_non_agg_field_used;
   bool m_agg_func_used;
+  bool m_custom_agg_func_used;
 
   /* current index hint kind. used in filling up index_hints */
   enum index_hint_type current_index_hint_type;

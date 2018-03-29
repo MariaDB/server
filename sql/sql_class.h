@@ -814,6 +814,8 @@ typedef struct system_status_var
   ulong filesort_pq_sorts_;
 
   /* Features used */
+  ulong feature_custom_aggregate_functions; /* +1 when custom aggregate
+                                            functions are used */
   ulong feature_dynamic_columns;    /* +1 when creating a dynamic column */
   ulong feature_fulltext;	    /* +1 when MATCH is used */
   ulong feature_gis;                /* +1 opening a table with GIS features */

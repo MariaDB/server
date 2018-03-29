@@ -3255,6 +3255,8 @@ bool JOIN::make_aggr_tables_info()
     /* Count that we're using window functions. */
     status_var_increment(thd->status_var.feature_window_functions);
   }
+  if (select_lex->custom_agg_func_used())
+    status_var_increment(thd->status_var.feature_custom_aggregate_functions);
 
   fields= curr_fields_list;
   // Reset before execution
