@@ -10056,6 +10056,7 @@ int ha_rocksdb::external_lock(THD *const thd, int lock_type) {
       thd->lex->sql_command != SQLCOM_LOCK_TABLES &&  // (*)
       thd->lex->sql_command != SQLCOM_ANALYZE &&   // (**)
       thd->lex->sql_command != SQLCOM_OPTIMIZE &&  // (**)
+      thd->lex->sql_command != SQLCOM_FLUSH &&  // (**)
       my_core::thd_binlog_filter_ok(thd)) {
     my_error(ER_REQUIRE_ROW_BINLOG_FORMAT, MYF(0));
     DBUG_RETURN(HA_ERR_UNSUPPORTED);
