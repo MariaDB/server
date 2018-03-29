@@ -3721,17 +3721,16 @@ public:
     @param length     - length of the string
     @param repertoire - the repertoire of the string
   */
-  Item *make_string_literal(const char *str, size_t length,
-                            uint repertoire);
-  Item *make_string_literal(const Lex_string_with_metadata_st &str)
+  Item_basic_constant *make_string_literal(const char *str, size_t length,
+                                           uint repertoire);
+  Item_basic_constant *make_string_literal(const Lex_string_with_metadata_st &str)
   {
     uint repertoire= str.repertoire(variables.character_set_client);
     return make_string_literal(str.str, str.length, repertoire);
   }
-  Item *make_string_literal_nchar(const Lex_string_with_metadata_st &str);
-  Item *make_string_literal_charset(const Lex_string_with_metadata_st &str,
-                                    CHARSET_INFO *cs);
-  Item *make_string_literal_concat(Item *item1, const LEX_CSTRING &str);
+  Item_basic_constant *make_string_literal_nchar(const Lex_string_with_metadata_st &str);
+  Item_basic_constant *make_string_literal_charset(const Lex_string_with_metadata_st &str,
+                                                   CHARSET_INFO *cs);
   void add_changed_table(TABLE *table);
   void add_changed_table(const char *key, size_t key_length);
   CHANGED_TABLE_LIST * changed_table_dup(const char *key, size_t key_length);

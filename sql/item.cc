@@ -4043,6 +4043,23 @@ Item *Item_null::clone_item(THD *thd)
   return new (thd->mem_root) Item_null(thd, name.str);
 }
 
+
+Item_basic_constant *
+Item_null::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
+{
+  DBUG_ASSERT(thd->variables.sql_mode & MODE_EMPTY_STRING_IS_NULL);
+  if (str->length)
+  {
+    CHARSET_INFO *cs= thd->variables.collation_connection;
+    uint repertoire= my_string_repertoire(cs, str->str, str->length);
+    return new (thd->mem_root) Item_string(thd,
+                                           str->str, (uint) str->length, cs,
+                                           DERIVATION_COERCIBLE, repertoire);
+  }
+  return this;
+}
+
+
 /*********************** Item_param related ******************************/
 
 Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
@@ -6995,6 +7012,41 @@ Item *Item_string::clone_item(THD *thd)
   return new (thd->mem_root)
     Item_string(thd, name.str, str_value.ptr(),
                 str_value.length(), collation.collation);
+}
+
+
+Item_basic_constant *
+Item_string::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
+{
+  append(str->str, (uint32) str->length);
+  if (!(collation.repertoire & MY_REPERTOIRE_EXTENDED))
+  {
+    // If the string has been pure ASCII so far, check the new part.
+    CHARSET_INFO *cs= thd->variables.collation_connection;
+    collation.repertoire|= my_string_repertoire(cs, str->str, str->length);
+  }
+  return this;
+}
+
+
+/*
+  If "this" is a reasonably short pure ASCII string literal,
+  try to parse known ODBC-style date, time or timestamp literals,
+  e.g:
+  SELECT {d'2001-01-01'};
+  SELECT {t'10:20:30'};
+  SELECT {ts'2001-01-01 10:20:30'};
+*/
+Item *Item_string::make_odbc_literal(THD *thd, const LEX_CSTRING *typestr)
+{
+  enum_field_types type= odbc_temporal_literal_type(typestr);
+  Item *res= type == MYSQL_TYPE_STRING ? this :
+             create_temporal_literal(thd, val_str(NULL), type, false);
+  /*
+    create_temporal_literal() returns NULL if failed to parse the string,
+    or the string format did not match the type, e.g.:  {d'2001-01-01 10:10:10'}
+  */
+  return res ? res : this;
 }
 
 

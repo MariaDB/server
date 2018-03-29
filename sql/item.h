@@ -1554,6 +1554,10 @@ public:
   virtual Item *copy_andor_structure(THD *thd) { return this; }
   virtual Item *real_item() { return this; }
   virtual Item *get_tmp_table_item(THD *thd) { return copy_or_same(thd); }
+  virtual Item *make_odbc_literal(THD *thd, const LEX_CSTRING *typestr)
+  {
+    return this;
+  }
 
   static CHARSET_INFO *default_charset();
 
@@ -2329,6 +2333,12 @@ public:
   void set_used_tables(table_map map) { used_table_map= map; }
   table_map used_tables() const { return used_table_map; }
   bool check_vcol_func_processor(void *arg) { return FALSE;}
+  virtual Item_basic_constant *make_string_literal_concat(THD *thd,
+                                                          const LEX_CSTRING *)
+  {
+    DBUG_ASSERT(0);
+    return this;
+  }
   /* to prevent drop fixed flag (no need parent cleanup call) */
   void cleanup()
   {
@@ -3169,6 +3179,8 @@ public:
 
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
+  Item_basic_constant *make_string_literal_concat(THD *thd,
+                                                  const LEX_CSTRING *);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_null>(thd, this); }
 };
@@ -3956,7 +3968,10 @@ public:
     }
     return MYSQL_TYPE_STRING; // Not a temporal literal
   }
-  
+  Item_basic_constant *make_string_literal_concat(THD *thd,
+                                                  const LEX_CSTRING *);
+  Item *make_odbc_literal(THD *thd, const LEX_CSTRING *typestr);
+
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_string>(thd, this); }
 

@@ -198,6 +198,7 @@ void ORAerror(THD *thd, const char *s)
   Item *item;
   Item_num *item_num;
   Item_param *item_param;
+  Item_basic_constant *item_basic_constant;
   Key_part_spec *key_part;
   LEX *lex;
   sp_assignment_lex *assignment_lex;
@@ -1156,7 +1157,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         replace_lock_option opt_low_priority insert_lock_option load_data_lock
 
 %type <item>
-        literal text_literal insert_ident order_ident temporal_literal
+        literal insert_ident order_ident temporal_literal
         simple_ident expr sum_expr in_sum_expr
         variable variable_aux bool_pri
         predicate bit_expr parenthesized_expr
@@ -1188,6 +1189,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <item_num>
         NUM_literal
+
+%type <item_basic_constant> text_literal
 
 %type <item_list>
         expr_list opt_udf_expr_list udf_expr_list when_list when_list_opt_else
@@ -9727,27 +9730,8 @@ column_default_non_parenthesized_expr:
           }
         | '{' ident expr '}'
           {
-            $$= NULL;
-            /*
-              If "expr" is reasonably short pure ASCII string literal,
-              try to parse known ODBC style date, time or timestamp literals,
-              e.g:
-              SELECT {d'2001-01-01'};
-              SELECT {t'10:20:30'};
-              SELECT {ts'2001-01-01 10:20:30'};
-            */
-            if ($3->type() == Item::STRING_ITEM)
-            {
-              Item_string *item= (Item_string *) $3;
-              enum_field_types type= item->odbc_temporal_literal_type(&$2);
-              if (type != MYSQL_TYPE_STRING)
-              {
-                $$= create_temporal_literal(thd, item->val_str(NULL),
-                                            type, false);
-              }
-            }
-            if ($$ == NULL)
-              $$= $3;
+            if (!($$= $3->make_odbc_literal(thd, &$2)))
+              MYSQL_YYABORT;
           }
         | MATCH ident_list_arg AGAINST '(' bit_expr fulltext_options ')'
           {
@@ -14404,7 +14388,7 @@ text_literal:
           }
         | text_literal TEXT_STRING_literal
           {
-            if (!($$= thd->make_string_literal_concat($1, $2)))
+            if (!($$= $1->make_string_literal_concat(thd, &$2)))
               MYSQL_YYABORT;
           }
         ;
