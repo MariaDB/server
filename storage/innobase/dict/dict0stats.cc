@@ -299,7 +299,7 @@ dict_stats_exec_sql(
 	}
 
 	if (trx == NULL) {
-		trx = trx_allocate_for_background();
+		trx = trx_create();
 		trx_started = true;
 
 		if (srv_read_only_mode) {
@@ -2505,7 +2505,7 @@ dict_stats_save(
 		return(ret);
 	}
 
-	trx_t*	trx = trx_allocate_for_background();
+	trx_t*	trx = trx_create();
 	trx_start_internal(trx);
 
 	dict_index_t*	index;
@@ -2984,7 +2984,7 @@ dict_stats_fetch_from_ps(
 	stats. */
 	dict_stats_empty_table(table, true);
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 
 	/* Use 'read-uncommitted' so that the SELECTs we execute
 	do not get blocked in case some user has locked the rows we

@@ -1595,7 +1595,7 @@ row_fts_merge_insert(
 	/* We use the insert query graph as the dummy graph
 	needed in the row module call */
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx_start_if_not_started(trx, true);
 
 	trx->op_info = "inserting index entries";

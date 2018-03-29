@@ -422,7 +422,7 @@ dict_table_try_drop_aborted(
 {
 	trx_t*		trx;
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx->op_info = "try to drop any indexes after an aborted index creation";
 	row_mysql_lock_data_dictionary(trx);
 	trx_set_dict_operation(trx, TRX_DICT_OP_INDEX);
@@ -2034,7 +2034,7 @@ dict_table_remove_from_cache_low(
 		/* When evicting the table definition,
 		drop the orphan indexes from the data dictionary
 		and free the index pages. */
-		trx_t* trx = trx_allocate_for_background();
+		trx_t* trx = trx_create();
 
 		ut_ad(mutex_own(&dict_sys->mutex));
 		ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));

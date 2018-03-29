@@ -394,9 +394,7 @@ trx_pool_close()
 }
 
 /** @return a trx_t instance from trx_pools. */
-static
-trx_t*
-trx_create_low()
+trx_t *trx_create()
 {
 	trx_t*	trx = trx_pools->get();
 
@@ -466,20 +464,6 @@ trx_free(trx_t*& trx)
 }
 
 /********************************************************************//**
-Creates a transaction object for background operations by the master thread.
-@return own: transaction object */
-trx_t*
-trx_allocate_for_background(void)
-/*=============================*/
-{
-	trx_t*	trx;
-
-	trx = trx_create_low();
-
-	return(trx);
-}
-
-/********************************************************************//**
 Creates a transaction object for MySQL.
 @return own: transaction object */
 trx_t*
@@ -488,7 +472,7 @@ trx_allocate_for_mysql(void)
 {
 	trx_t*	trx;
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 
 	mutex_enter(&trx_sys.mutex);
 
@@ -541,18 +525,6 @@ trx_validate_state_before_free(trx_t* trx)
 
 	trx->dict_operation = TRX_DICT_OP_NONE;
 	assert_trx_is_inactive(trx);
-}
-
-/** Free and initialize a transaction object instantinated during recovery.
-@param trx trx object to free and initialize during recovery */
-void
-trx_free_resurrected(trx_t* trx)
-{
-	trx_validate_state_before_free(trx);
-
-	trx_init(trx);
-
-	trx_free(trx);
 }
 
 /** Free a transaction that was allocated by background or user threads.
@@ -785,7 +757,7 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
     return;
   }
 
-  trx_t *trx= trx_allocate_for_background();
+  trx_t *trx= trx_create();
   trx->state= state;
   ut_d(trx->start_file= __FILE__);
   ut_d(trx->start_line= __LINE__);

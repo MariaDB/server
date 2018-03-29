@@ -88,17 +88,9 @@ Creates a transaction object for MySQL.
 trx_t*
 trx_allocate_for_mysql(void);
 /*========================*/
-/********************************************************************//**
-Creates a transaction object for background operations by the master thread.
-@return own: transaction object */
-trx_t*
-trx_allocate_for_background(void);
-/*=============================*/
 
-/** Frees and initialize a transaction object instantinated during recovery.
-@param trx trx object to free and initialize during recovery */
-void
-trx_free_resurrected(trx_t* trx);
+/** @return a trx_t instance from trx_pools. */
+trx_t *trx_create();
 
 /** Free a transaction that was allocated by background or user threads.
 @param trx trx object to free */

@@ -2717,7 +2717,7 @@ row_drop_table_for_mysql_in_background(
 	dberr_t	error;
 	trx_t*	trx;
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 
 	/* If the original transaction was dropping a table referenced by
 	foreign keys, we must set the following to be able to drop the
@@ -2832,7 +2832,7 @@ row_mysql_drop_garbage_tables()
 	mem_heap_t*	heap = mem_heap_create(FN_REFLEN);
 	btr_pcur_t	pcur;
 	mtr_t		mtr;
-	trx_t*		trx = trx_allocate_for_background();
+	trx_t*		trx = trx_create();
 	trx->op_info = "dropping garbage tables";
 	row_mysql_lock_data_dictionary(trx);
 
@@ -4702,7 +4702,7 @@ funct_exit:
 	    && table != NULL && (table->space != 0)) {
 
 		char*	orig_name = table->name.m_name;
-		trx_t*	trx_bg = trx_allocate_for_background();
+		trx_t*	trx_bg = trx_create();
 
 		/* If the first fts_rename fails, the trx would
 		be rolled back and committed, we can't use it any more,

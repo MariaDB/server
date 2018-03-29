@@ -472,7 +472,7 @@ fts_load_user_stopword(
 	trx_t*		trx;
 	ibool		has_lock = fts->fts_status & TABLE_DICT_LOCKED;
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx->op_info = "Load user stopword table into FTS cache";
 
 	if (!has_lock) {
@@ -2672,7 +2672,7 @@ retry:
 
 	fts_table.parent = table->name.m_name;
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	if (srv_read_only_mode) {
 		trx_start_internal_read_only(trx);
 	} else {
@@ -2801,7 +2801,7 @@ fts_update_sync_doc_id(
 	}
 
 	if (!trx) {
-		trx = trx_allocate_for_background();
+		trx = trx_create();
 		trx_start_internal(trx);
 
 		trx->op_info = "setting last FTS document id";
@@ -3042,7 +3042,7 @@ fts_commit_table(
 	ib_rbt_t*		rows;
 	dberr_t			error = DB_SUCCESS;
 	fts_cache_t*		cache = ftt->table->fts->cache;
-	trx_t*			trx = trx_allocate_for_background();
+	trx_t*			trx = trx_create();
 
 	trx_start_internal(trx);
 
@@ -3784,7 +3784,7 @@ fts_doc_fetch_by_doc_id(
 	const char*	select_str;
 	doc_id_t	write_doc_id;
 	dict_index_t*	index;
-	trx_t*		trx = trx_allocate_for_background();
+	trx_t*		trx = trx_create();
 	que_t*          graph;
 
 	trx->op_info = "fetching indexed FTS document";
@@ -4126,7 +4126,7 @@ fts_sync_begin(
 
 	sync->start_time = ut_time();
 
-	sync->trx = trx_allocate_for_background();
+	sync->trx = trx_create();
 	trx_start_internal(sync->trx);
 
 	if (fts_enable_diag_print) {
@@ -5001,7 +5001,7 @@ fts_get_rows_count(
 	ulint		count = 0;
 	char		table_name[MAX_FULL_NAME_LEN];
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx->op_info = "fetching FT table rows count";
 
 	info = pars_info_create();
@@ -5072,7 +5072,7 @@ fts_update_max_cache_size(
 	trx_t*		trx;
 	fts_table_t	fts_table;
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 
 	FTS_INIT_FTS_TABLE(&fts_table, "CONFIG", FTS_COMMON_TABLE, sync->table);
 
@@ -6376,7 +6376,7 @@ fts_rename_aux_tables_to_hex_format_low(
 				continue;
 			}
 
-			trx_bg = trx_allocate_for_background();
+			trx_bg = trx_create();
 			trx_bg->op_info = "Revert half done rename";
 			trx_bg->dict_operation_lock_mode = RW_X_LATCH;
 			trx_start_for_ddl(trx_bg, TRX_DICT_OP_TABLE);
@@ -6618,7 +6618,7 @@ fts_rename_aux_tables_to_hex_format(
 	dict_table_t*	parent_table)
 {
 	dberr_t err;
-	trx_t*	trx_rename = trx_allocate_for_background();
+	trx_t*	trx_rename = trx_create();
 	trx_rename->op_info = "Rename aux tables to hex format";
 	trx_rename->dict_operation_lock_mode = RW_X_LATCH;
 	trx_start_for_ddl(trx_rename, TRX_DICT_OP_TABLE);
@@ -6637,7 +6637,7 @@ fts_rename_aux_tables_to_hex_format(
 
 		/* Corrupting the fts index related to parent table. */
 		trx_t*	trx_corrupt;
-		trx_corrupt = trx_allocate_for_background();
+		trx_corrupt = trx_create();
 		trx_corrupt->dict_operation_lock_mode = RW_X_LATCH;
 		trx_start_for_ddl(trx_corrupt, TRX_DICT_OP_TABLE);
 		fts_parent_all_index_set_corrupt(trx_corrupt, parent_table);
@@ -6697,7 +6697,7 @@ fts_drop_obsolete_aux_table_from_vector(
 		fts_aux_table_t*	aux_drop_table;
 		aux_drop_table = static_cast<fts_aux_table_t*>(
 			ib_vector_get(tables, count));
-		trx_t*	trx_drop = trx_allocate_for_background();
+		trx_t*	trx_drop = trx_create();
 		trx_drop->op_info = "Drop obsolete aux tables";
 		trx_drop->dict_operation_lock_mode = RW_X_LATCH;
 		trx_start_for_ddl(trx_drop, TRX_DICT_OP_TABLE);
@@ -7166,7 +7166,7 @@ fts_drop_orphaned_tables(void)
 
 	mutex_exit(&fil_system.mutex);
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx->op_info = "dropping orphaned FTS tables";
 	row_mysql_lock_data_dictionary(trx);
 
@@ -7322,7 +7322,7 @@ fts_load_stopword(
 	}
 
 	if (!trx) {
-		trx = trx_allocate_for_background();
+		trx = trx_create();
 		if (srv_read_only_mode) {
 			trx_start_internal_read_only(trx);
 		} else {

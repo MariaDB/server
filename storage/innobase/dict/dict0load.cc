@@ -894,7 +894,7 @@ dict_update_filepath(
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx->op_info = "update filepath";
 	trx->dict_operation_lock_mode = RW_X_LATCH;
 	trx_start_for_ddl(trx, TRX_DICT_OP_INDEX);
@@ -963,7 +963,7 @@ dict_replace_tablespace_and_filepath(
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(filepath);
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx->op_info = "insert tablespace and filepath";
 	trx->dict_operation_lock_mode = RW_X_LATCH;
 	trx_start_for_ddl(trx, TRX_DICT_OP_INDEX);

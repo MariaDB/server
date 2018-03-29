@@ -138,7 +138,7 @@ purge_graph_build()
 {
 	ut_a(srv_n_purge_threads > 0);
 
-	trx_t* trx = trx_allocate_for_background();
+	trx_t* trx = trx_create();
 	ut_ad(!trx->id);
 	trx->start_time = ut_time();
 	trx->state = TRX_STATE_ACTIVE;

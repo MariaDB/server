@@ -2944,7 +2944,7 @@ i_s_fts_deleted_generic_fill(
 
 	deleted = fts_doc_ids_create();
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx->op_info = "Select for FTS DELETE TABLE";
 
 	FTS_INIT_FTS_TABLE(&fts_table,
@@ -3477,7 +3477,7 @@ i_s_fts_index_table_fill_selected(
 	        fts_result_cache_limit = 8192;
 	);
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 
 	trx->op_info = "fetching FTS index nodes";
 
@@ -3972,7 +3972,7 @@ i_s_fts_config_fill(
 		DBUG_RETURN(0);
 	}
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx->op_info = "Select for FTS CONFIG TABLE";
 
 	FTS_INIT_FTS_TABLE(&fts_table, "CONFIG", FTS_COMMON_TABLE, user_table);

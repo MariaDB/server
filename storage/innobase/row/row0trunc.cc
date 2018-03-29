@@ -1402,7 +1402,7 @@ row_truncate_update_sys_tables_during_fix_up(
 	ibool			reserve_dict_mutex,
 	bool			mark_index_corrupted)
 {
-	trx_t*		trx = trx_allocate_for_background();
+	trx_t*		trx = trx_create();
 
 	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 
