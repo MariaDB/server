@@ -226,6 +226,12 @@ ELSE()
    ADD_DEFINITIONS(-DMUTEX_SYS)
 ENDIF()
 
+OPTION(WITH_INNODB_DISALLOW_WRITES "InnoDB freeze writes patch from Google" ${WITH_WSREP})
+IF (WITH_INNODB_DISALLOW_WRITES)
+  ADD_DEFINITIONS(-DWITH_INNODB_DISALLOW_WRITES)
+ENDIF()
+
+
 # Include directories under innobase
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
 		    ${CMAKE_SOURCE_DIR}/storage/innobase/handler)
