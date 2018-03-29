@@ -1504,7 +1504,8 @@ innobase_start_or_create_for_mysql()
 	}
 
 	high_level_read_only = srv_read_only_mode
-		|| srv_force_recovery > SRV_FORCE_NO_TRX_UNDO;
+		|| srv_force_recovery > SRV_FORCE_NO_TRX_UNDO
+		|| srv_sys_space.created_new_raw();
 
 	/* Reset the start state. */
 	srv_start_state = SRV_START_STATE_NONE;
