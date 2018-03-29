@@ -99,7 +99,7 @@ extern	char *strmake(char *dst,const char *src,size_t length);
 #define strmake_buf(D,S)        strmake(D, S, sizeof(D) - 1)
 #else
 #define strmake_buf(D,S) ({                             \
-  compile_time_assert(sizeof(D) != sizeof(char*));      \
+  typeof (D) __x __attribute__((unused)) = { 2 };       \
   strmake(D, S, sizeof(D) - 1);                         \
   })
 #endif
