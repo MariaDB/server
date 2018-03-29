@@ -4666,7 +4666,7 @@ lock_print_info_summary(
 	return(TRUE);
 }
 
-/** Functor to print not-started transaction from the mysql_trx_list. */
+/** Functor to print not-started transaction from the trx_list. */
 
 struct	PrintNotStarted {
 
@@ -4674,12 +4674,12 @@ struct	PrintNotStarted {
 
 	void	operator()(const trx_t* trx)
 	{
-		ut_ad(trx->mysql_thd);
 		ut_ad(mutex_own(&trx_sys.mutex));
 
 		/* See state transitions and locking rules in trx0trx.h */
 
-		if (trx_state_eq(trx, TRX_STATE_NOT_STARTED)) {
+		if (trx->mysql_thd
+		    && trx_state_eq(trx, TRX_STATE_NOT_STARTED)) {
 
 			fputs("---", m_file);
 			trx_print_latched(m_file, trx, 600);
@@ -4806,7 +4806,7 @@ lock_print_info_all_transactions(
 
 	PrintNotStarted	print_not_started(file);
 	mutex_enter(&trx_sys.mutex);
-	ut_list_map(trx_sys.mysql_trx_list, print_not_started);
+	ut_list_map(trx_sys.trx_list, print_not_started);
 	mutex_exit(&trx_sys.mutex);
 
 	trx_sys.rw_trx_hash.iterate_no_dups(

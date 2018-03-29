@@ -808,20 +808,11 @@ class trx_sys_t
   bool m_initialised;
 
 public:
-	MY_ALIGNED(CACHE_LINE_SIZE) mutable
-	TrxSysMutex	mutex;		/*!< mutex protecting most fields in
-					this structure except when noted
-					otherwise */
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	trx_ut_list_t	mysql_trx_list;	/*!< List of transactions created
-					for MySQL. All user transactions are
-					on mysql_trx_list. The rw_trx_hash
-					can contain system transactions and
-					recovered transactions that will not
-					be in the mysql_trx_list.
-					mysql_trx_list may additionally contain
-					transactions that have not yet been
-					started in InnoDB. */
+  /** Mutex protecting trx_list. */
+  MY_ALIGNED(CACHE_LINE_SIZE) mutable TrxSysMutex mutex;
+
+  /** List of all transactions. */
+  MY_ALIGNED(CACHE_LINE_SIZE) trx_ut_list_t trx_list;
 
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	/** Temporary rollback segments */

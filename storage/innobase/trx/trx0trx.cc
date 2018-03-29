@@ -423,6 +423,10 @@ trx_t *trx_create()
 	trx->wsrep_event = NULL;
 #endif /* WITH_WSREP */
 
+	mutex_enter(&trx_sys.mutex);
+	UT_LIST_ADD_FIRST(trx_sys.trx_list, trx);
+	mutex_exit(&trx_sys.mutex);
+
 	return(trx);
 }
 
@@ -433,6 +437,10 @@ static
 void
 trx_free(trx_t*& trx)
 {
+	mutex_enter(&trx_sys.mutex);
+	UT_LIST_REMOVE(trx_sys.trx_list, trx);
+	mutex_exit(&trx_sys.mutex);
+
 	assert_trx_is_free(trx);
 
 	trx_sys.rw_trx_hash.put_pins(trx);
@@ -459,24 +467,6 @@ trx_free(trx_t*& trx)
 	trx_pools->mem_free(trx);
 
 	trx = NULL;
-}
-
-/********************************************************************//**
-Creates a transaction object for MySQL.
-@return own: transaction object */
-trx_t*
-trx_allocate_for_mysql(void)
-/*========================*/
-{
-	trx_t*	trx;
-
-	trx = trx_create();
-
-	mutex_enter(&trx_sys.mutex);
-	UT_LIST_ADD_FIRST(trx_sys.mysql_trx_list, trx);
-	mutex_exit(&trx_sys.mutex);
-
-	return(trx);
 }
 
 /** Check state of transaction before freeing it.
@@ -567,62 +557,30 @@ trx_free_at_shutdown(trx_t *trx)
 	trx_free(trx);
 }
 
-/** Disconnect a transaction from MySQL and optionally mark it as if
-it's been recovered. For the marking the transaction must be in prepared state.
-The recovery-marked transaction is going to survive "alone" so its association
-with the mysql handle is destroyed now rather than when it will be
-finally freed.
-@param[in,out]	trx		transaction
-@param[in]	prepared	boolean value to specify whether trx is
-				for recovery or not. */
-inline
-void
-trx_disconnect_from_mysql(
-	trx_t*	trx,
-	bool	prepared)
+
+/**
+  Disconnect a prepared transaction from MySQL
+  @param[in,out] trx transaction
+*/
+void trx_disconnect_prepared(trx_t *trx)
 {
-	ut_ad(trx->mysql_thd);
-	trx->read_view.close();
-
-	mutex_enter(&trx_sys.mutex);
-	UT_LIST_REMOVE(trx_sys.mysql_trx_list, trx);
-
-	if (prepared) {
-
-		ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
-
-		trx->is_recovered = true;
-	        trx->mysql_thd = NULL;
-		/* todo/fixme: suggest to do it at innodb prepare */
-		trx->will_lock = 0;
-	}
-	mutex_exit(&trx_sys.mutex);
+  ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
+  ut_ad(trx->mysql_thd);
+  trx->read_view.close();
+  trx->is_recovered= true;
+  trx->mysql_thd= NULL;
+  /* todo/fixme: suggest to do it at innodb prepare */
+  trx->will_lock= 0;
 }
 
-/** Disconnect a transaction from MySQL.
-@param[in,out]	trx	transaction */
-inline
-void
-trx_disconnect_plain(trx_t*	trx)
+/**
+  Free a transaction object for MySQL
+  @param[in,out] trx transaction
+*/
+void trx_free_for_mysql(trx_t *trx)
 {
-	trx_disconnect_from_mysql(trx, false);
-}
-
-/** Disconnect a prepared transaction from MySQL.
-@param[in,out]	trx	transaction */
-void
-trx_disconnect_prepared(trx_t*	trx)
-{
-	trx_disconnect_from_mysql(trx, true);
-}
-
-/** Free a transaction object for MySQL.
-@param[in,out]	trx	transaction */
-void
-trx_free_for_mysql(trx_t*	trx)
-{
-	trx_disconnect_plain(trx);
-	trx_free_for_background(trx);
+  ut_ad(trx->mysql_thd);
+  trx_free_for_background(trx);
 }
 
 /****************************************************************//**
@@ -1054,7 +1012,7 @@ trx_start_low(
 
 	/* No other thread can access this trx object through rw_trx_hash, thus
 	we don't need trx_sys.mutex protection for that purpose. Still this
-	trx can be found through trx_sys.mysql_trx_list, which means state
+	trx can be found through trx_sys.trx_list, which means state
 	change must be protected by e.g. trx->mutex.
 
 	For now we update it without mutex protection, because original code
@@ -1397,7 +1355,7 @@ trx_commit_in_memory(
 		there is an inherent race here around state transition during
 		printouts. We ignore this race for the sake of efficiency.
 		However, the trx_sys_t::mutex will protect the trx_t instance
-		and it cannot be removed from the mysql_trx_list and freed
+		and it cannot be removed from the trx_list and freed
 		without first acquiring the trx_sys_t::mutex. */
 
 		ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
@@ -1527,9 +1485,6 @@ trx_commit_in_memory(
 	DBUG_LOG("trx", "Commit in memory: " << trx);
 	trx->state = TRX_STATE_NOT_STARTED;
 
-	/* trx->mysql_thd != 0 would hold between
-	trx_allocate_for_mysql() and trx_free_for_mysql(). It does not
-	hold for recovered transactions or system transactions. */
 	assert_trx_is_free(trx);
 
 	trx_init(trx);

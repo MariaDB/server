@@ -2741,7 +2741,7 @@ innobase_trx_allocate(
 	DBUG_ASSERT(thd != NULL);
 	DBUG_ASSERT(EQ_CURRENT_THD(thd));
 
-	trx = trx_allocate_for_mysql();
+	trx = trx_create();
 
 	trx->mysql_thd = thd;
 

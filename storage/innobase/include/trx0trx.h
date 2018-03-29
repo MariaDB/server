@@ -82,12 +82,6 @@ const dict_index_t*
 trx_get_error_info(
 /*===============*/
 	const trx_t*	trx);	/*!< in: trx object */
-/********************************************************************//**
-Creates a transaction object for MySQL.
-@return own: transaction object */
-trx_t*
-trx_allocate_for_mysql(void);
-/*========================*/
 
 /** @return a trx_t instance from trx_pools. */
 trx_t *trx_create();
@@ -105,11 +99,6 @@ trx_free_at_shutdown(trx_t *trx);
 @param[in,out]	trx	transaction */
 void
 trx_free_for_mysql(trx_t*	trx);
-
-/** Disconnect a transaction from MySQL.
-@param[in,out]	trx	transaction */
-void
-trx_disconnect_plain(trx_t*	trx);
 
 /** Disconnect a prepared transaction from MySQL.
 @param[in,out]	trx	transaction */
@@ -514,7 +503,7 @@ transaction pool.
 /*******************************************************************//**
 Assert that an autocommit non-locking select cannot be in the
 rw_trx_hash and that it is a read-only transaction.
-The tranasction must be in the mysql_trx_list. */
+The transaction must have mysql_thd assigned. */
 # define assert_trx_nonlocking_or_in_list(t)				\
 	do {								\
 		if (trx_is_autocommit_non_locking(t)) {			\
@@ -532,7 +521,7 @@ The tranasction must be in the mysql_trx_list. */
 /*******************************************************************//**
 Assert that an autocommit non-locking slect cannot be in the
 rw_trx_hash and that it is a read-only transaction.
-The tranasction must be in the mysql_trx_list. */
+The transaction must have mysql_thd assigned. */
 # define assert_trx_nonlocking_or_in_list(trx) ((void)0)
 #endif /* UNIV_DEBUG */
 
@@ -733,9 +722,8 @@ and lock_trx_release_locks() [invoked by trx_commit()].
 * trx_print_low() may access transactions not associated with the current
 thread. The caller must be holding lock_sys.mutex.
 
-* When a transaction handle is in the trx_sys.mysql_trx_list or
-trx_sys.trx_list, some of its fields must not be modified without
-holding trx_sys.mutex exclusively.
+* When a transaction handle is in the trx_sys.trx_list, some of its fields
+must not be modified without holding trx->mutex.
 
 * The locking code (in particular, lock_deadlock_recursive() and
 lock_rec_convert_impl_to_expl()) will access transactions associated
@@ -854,8 +842,8 @@ public:
 	do we remove it from the read-only list and put it on the read-write
 	list. During this switch we assign it a rollback segment.
 
-	When a transaction is NOT_STARTED, it can be in mysql_trx_list if
-	it is a user transaction. It cannot be in rw_trx_hash.
+	When a transaction is NOT_STARTED, it can be in trx_list. It cannot be
+	in rw_trx_hash.
 
 	ACTIVE->PREPARED->COMMITTED is only possible when trx is in rw_trx_hash.
 	The transition ACTIVE->PREPARED is protected by trx_sys.mutex.
@@ -973,9 +961,8 @@ public:
 					statement uses, except those
 					in consistent read */
 	/*------------------------------*/
-	UT_LIST_NODE_T(trx_t)
-			mysql_trx_list;	/*!< list of transactions created for
-					MySQL; protected by trx_sys.mutex */
+	UT_LIST_NODE_T(trx_t) trx_list;	/*!< list of all transactions;
+					protected by trx_sys.mutex */
 	/*------------------------------*/
 	dberr_t		error_state;	/*!< 0 if no error, otherwise error
 					number; NOTE That ONLY the thread

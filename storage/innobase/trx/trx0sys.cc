@@ -217,7 +217,7 @@ trx_sys_t::create()
 	ut_ad(!is_initialised());
 	m_initialised = true;
 	mutex_create(LATCH_ID_TRX_SYS, &mutex);
-	UT_LIST_INIT(mysql_trx_list, &trx_t::mysql_trx_list);
+	UT_LIST_INIT(trx_list, &trx_t::trx_list);
 	UT_LIST_INIT(m_views, &ReadView::m_view_list);
 	my_atomic_store32(&rseg_history_len, 0);
 
@@ -345,47 +345,26 @@ trx_sys_t::close()
 		}
 	}
 
-	ut_a(UT_LIST_GET_LEN(mysql_trx_list) == 0);
+	ut_a(UT_LIST_GET_LEN(trx_list) == 0);
 	ut_ad(UT_LIST_GET_LEN(m_views) == 0);
 	mutex_free(&mutex);
 	m_initialised = false;
 }
 
-
-static my_bool active_count_callback(rw_trx_hash_element_t *element,
-                                     uint32_t *count)
-{
-  mutex_enter(&element->mutex);
-  if (trx_t *trx= element->trx)
-  {
-    mutex_enter(&trx->mutex);
-    if (trx_state_eq(trx, TRX_STATE_ACTIVE))
-      ++*count;
-    mutex_exit(&trx->mutex);
-  }
-  mutex_exit(&element->mutex);
-  return 0;
-}
-
-
 /** @return total number of active (non-prepared) transactions */
 ulint trx_sys_t::any_active_transactions()
 {
-	uint32_t total_trx = 0;
+  uint32_t total_trx= 0;
 
-	trx_sys.rw_trx_hash.iterate_no_dups(
-				reinterpret_cast<my_hash_walk_action>
-				(active_count_callback), &total_trx);
-
-	mutex_enter(&mutex);
-	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys.mysql_trx_list);
-	     trx != NULL;
-	     trx = UT_LIST_GET_NEXT(mysql_trx_list, trx)) {
-		if (trx->state != TRX_STATE_NOT_STARTED && !trx->id) {
-			total_trx++;
-		}
-	}
-	mutex_exit(&mutex);
-
-	return(total_trx);
+  mutex_enter(&mutex);
+  for (trx_t* trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
+       trx != NULL;
+       trx= UT_LIST_GET_NEXT(trx_list, trx))
+  {
+    if (trx->state == TRX_STATE_COMMITTED_IN_MEMORY ||
+        (trx->state == TRX_STATE_ACTIVE && trx->id))
+      total_trx++;
+  }
+  mutex_exit(&mutex);
+  return total_trx;
 }

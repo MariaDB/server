@@ -2872,8 +2872,8 @@ innodb_shutdown()
 	if (log_sys) {
 		log_shutdown();
 	}
-	trx_sys.close();
 	purge_sys.close();
+	trx_sys.close();
 	if (buf_dblwr) {
 		buf_dblwr_free();
 	}

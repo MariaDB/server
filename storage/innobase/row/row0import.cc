@@ -3728,7 +3728,7 @@ row_import_for_mysql(
 
 	trx_start_if_not_started(prebuilt->trx, true);
 
-	trx = trx_allocate_for_mysql();
+	trx = trx_create();
 
 	/* So that the table is not DROPped during recovery. */
 	trx_set_dict_operation(trx, TRX_DICT_OP_INDEX);

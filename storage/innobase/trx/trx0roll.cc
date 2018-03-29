@@ -759,14 +759,14 @@ trx_roll_must_shutdown()
 
 
 static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
-                                               trx_ut_list_t *trx_list)
+                                               std::vector<trx_t*> *trx_list)
 {
   mutex_enter(&element->mutex);
   if (trx_t *trx= element->trx)
   {
     mutex_enter(&trx->mutex);
     if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_ACTIVE))
-      UT_LIST_ADD_FIRST(*trx_list, trx);
+      trx_list->push_back(trx);
     mutex_exit(&trx->mutex);
   }
   mutex_exit(&element->mutex);
@@ -791,10 +791,9 @@ static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
 
 void trx_rollback_recovered(bool all)
 {
-  trx_ut_list_t trx_list;
+  std::vector<trx_t*> trx_list;
 
   ut_a(srv_force_recovery < SRV_FORCE_NO_TRX_UNDO);
-  UT_LIST_INIT(trx_list, &trx_t::mysql_trx_list);
 
   /*
     Collect list of recovered ACTIVE transaction ids first. Once collected, no
@@ -805,9 +804,10 @@ void trx_rollback_recovered(bool all)
                                       (trx_rollback_recovered_callback),
                                       &trx_list);
 
-  while (trx_t *trx= UT_LIST_GET_FIRST(trx_list))
+  while (!trx_list.empty())
   {
-    UT_LIST_REMOVE(trx_list, trx);
+    trx_t *trx= trx_list.back();
+    trx_list.pop_back();
 
 #ifdef UNIV_DEBUG
     ut_ad(trx);
