@@ -1819,30 +1819,11 @@ int Field::store(const char *to, size_t length, CHARSET_INFO *cs,
 }
 
 
-static int timestamp_to_TIME(THD *thd, MYSQL_TIME *ltime, my_time_t ts,
-                             ulong sec_part, ulonglong fuzzydate)
-{
-  thd->time_zone_used= 1;
-  if (ts == 0 && sec_part == 0)
-  {
-    if (fuzzydate & TIME_NO_ZERO_DATE)
-      return 1;
-    set_zero_time(ltime, MYSQL_TIMESTAMP_DATETIME);
-  }
-  else
-  {
-    thd->variables.time_zone->gmt_sec_to_TIME(ltime, ts);
-    ltime->second_part= sec_part;
-  }
-  return 0;
-}
-
-
 int Field::store_timestamp(my_time_t ts, ulong sec_part)
 {
   MYSQL_TIME ltime;
   THD *thd= get_thd();
-  timestamp_to_TIME(thd, &ltime, ts, sec_part, 0);
+  thd->timestamp_to_TIME(&ltime, ts, sec_part, 0);
   return store_time_dec(&ltime, decimals());
 }
 
@@ -5316,7 +5297,7 @@ bool Field_timestamp::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   ulong sec_part;
   my_time_t ts= get_timestamp(&sec_part);
-  return timestamp_to_TIME(get_thd(), ltime, ts, sec_part, fuzzydate);
+  return get_thd()->timestamp_to_TIME(ltime, ts, sec_part, fuzzydate);
 }
 
 
