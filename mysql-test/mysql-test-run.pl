@@ -1133,7 +1133,7 @@ sub command_line_setup {
              'debug'                    => \$opt_debug,
              'debug-common'             => \$opt_debug_common,
              'debug-server'             => \$opt_debug_server,
-             'gdb'                      => \$opt_gdb,
+             'gdb:s'                    => sub { $opt_gdb = $_[1] || '#' },
              'client-gdb'               => \$opt_client_gdb,
              'manual-gdb'               => \$opt_manual_gdb,
              'manual-lldb'              => \$opt_manual_lldb,
@@ -5654,7 +5654,11 @@ shell sleep 1
 target remote | /usr/lib64/valgrind/../../bin/vgdb
 EOF
   } else {
-    mtr_tofile($gdb_init_file, "set args @$$args $input\n");
+    mtr_tofile($gdb_init_file,
+      join("\n",
+        "set args @$$args $input",
+        split /;/, $opt_gdb
+        ));
   }
 
   if ( $opt_manual_gdb )
