@@ -833,7 +833,7 @@ discard:
         trx_free_at_shutdown(trx);
       }
       else
-        trx_free_for_background(trx);
+        trx_free(trx);
     }
   }
 }

@@ -86,19 +86,15 @@ trx_get_error_info(
 /** @return a trx_t instance from trx_pools. */
 trx_t *trx_create();
 
-/** Free a transaction that was allocated by background or user threads.
-@param trx trx object to free */
-void
-trx_free_for_background(trx_t* trx);
+/**
+  Release a trx_t instance back to the pool.
+  @param trx the instance to release.
+*/
+void trx_free(trx_t*& trx);
 
 /** At shutdown, frees a transaction object. */
 void
 trx_free_at_shutdown(trx_t *trx);
-
-/** Free a transaction object for MySQL.
-@param[in,out]	trx	transaction */
-void
-trx_free_for_mysql(trx_t*	trx);
 
 /** Disconnect a prepared transaction from MySQL.
 @param[in,out]	trx	transaction */

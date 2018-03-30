@@ -2967,7 +2967,7 @@ i_s_fts_deleted_generic_fill(
 		BREAK_IF(ret = schema_table_store_record(thd, table));
 	}
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	fts_doc_ids_free(deleted);
 
@@ -3534,7 +3534,7 @@ i_s_fts_index_table_fill_selected(
 	que_graph_free(graph);
 	mutex_exit(&dict_sys->mutex);
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	if (fetch.total_memory >= fts_result_cache_limit) {
 		error = DB_FTS_EXCEED_RESULT_CACHE_LIMIT;
@@ -4023,7 +4023,7 @@ i_s_fts_config_fill(
 
 	fts_sql_commit(trx);
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	dict_table_close(user_table, FALSE, FALSE);
 

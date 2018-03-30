@@ -193,7 +193,7 @@ void purge_sys_t::close()
 	ut_ad(!trx->id);
 	ut_ad(trx->state == TRX_STATE_ACTIVE);
 	trx->state = TRX_STATE_NOT_STARTED;
-	trx_free_for_background(trx);
+	trx_free(trx);
 	rw_lock_free(&latch);
 	/* rw_lock_free() already called latch.~rw_lock_t(); tame the
 	debug assertions when the destructor will be called once more. */

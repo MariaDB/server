@@ -1028,7 +1028,7 @@ fts_table_fetch_doc_ids(
 	}
 
 	if (alloc_bk_trx) {
-		trx_free_for_background(trx);
+		trx_free(trx);
 	}
 
 	return(error);
@@ -1740,7 +1740,7 @@ fts_optimize_free(
 	mem_heap_t*	heap = static_cast<mem_heap_t*>(optim->self_heap->arg);
 
 	trx_commit_for_mysql(optim->trx);
-	trx_free_for_background(optim->trx);
+	trx_free(optim->trx);
 
 	fts_doc_ids_free(optim->to_delete);
 	fts_optimize_graph_free(&optim->graph);

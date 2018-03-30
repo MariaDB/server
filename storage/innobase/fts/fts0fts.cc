@@ -552,7 +552,7 @@ cleanup:
 		mutex_exit(&dict_sys->mutex);
 	}
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 	return(ret);
 }
 
@@ -2758,7 +2758,7 @@ func_exit:
 		}
 	}
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	return(error);
 }
@@ -2839,7 +2839,7 @@ fts_update_sync_doc_id(
 
 			fts_sql_rollback(trx);
 		}
-		trx_free_for_background(trx);
+		trx_free(trx);
 	}
 
 	return(error);
@@ -3084,7 +3084,7 @@ fts_commit_table(
 
 	fts_sql_commit(trx);
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	return(error);
 }
@@ -3875,7 +3875,7 @@ fts_doc_fetch_by_doc_id(
 
 	error = fts_eval_sql(trx, graph);
 	fts_sql_commit(trx);
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	if (!get_doc) {
 		fts_que_graph_free(graph);
@@ -4271,7 +4271,7 @@ fts_sync_commit(
 
 	/* Avoid assertion in trx_free(). */
 	trx->dict_operation_lock_mode = 0;
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	return(error);
 }
@@ -4325,7 +4325,7 @@ fts_sync_rollback(
 
 	/* Avoid assertion in trx_free(). */
 	trx->dict_operation_lock_mode = 0;
-	trx_free_for_background(trx);
+	trx_free(trx);
 }
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
@@ -5055,7 +5055,7 @@ fts_get_rows_count(
 
 	fts_que_graph_free(graph);
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	return(count);
 }
@@ -5081,7 +5081,7 @@ fts_update_max_cache_size(
 
 	fts_sql_commit(trx);
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 }
 #endif /* FTS_CACHE_SIZE_DEBUG */
 
@@ -6394,14 +6394,14 @@ fts_rename_aux_tables_to_hex_format_low(
 					<< table->name << ". Please revert"
 					" manually.";
 				fts_sql_rollback(trx_bg);
-				trx_free_for_background(trx_bg);
+				trx_free(trx_bg);
 				/* Continue to clear aux tables' flags2 */
 				not_rename = true;
 				continue;
 			}
 
 			fts_sql_commit(trx_bg);
-			trx_free_for_background(trx_bg);
+			trx_free(trx_bg);
 		}
 
 		DICT_TF2_FLAG_UNSET(parent_table, DICT_TF2_FTS_AUX_HEX_NAME);
@@ -6643,12 +6643,12 @@ fts_rename_aux_tables_to_hex_format(
 		fts_parent_all_index_set_corrupt(trx_corrupt, parent_table);
 		trx_corrupt->dict_operation_lock_mode = 0;
 		fts_sql_commit(trx_corrupt);
-		trx_free_for_background(trx_corrupt);
+		trx_free(trx_corrupt);
 	} else {
 		fts_sql_commit(trx_rename);
 	}
 
-	trx_free_for_background(trx_rename);
+	trx_free(trx_rename);
 	ib_vector_reset(aux_tables);
 }
 
@@ -6726,7 +6726,7 @@ fts_drop_obsolete_aux_table_from_vector(
 			fts_sql_commit(trx_drop);
 		}
 
-		trx_free_for_background(trx_drop);
+		trx_free(trx_drop);
 	}
 }
 
@@ -7221,7 +7221,7 @@ fts_drop_orphaned_tables(void)
 
 	row_mysql_unlock_data_dictionary(trx);
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	if (heap != NULL) {
 		mem_heap_free(heap);
@@ -7402,7 +7402,7 @@ cleanup:
 			fts_sql_rollback(trx);
 		}
 
-		trx_free_for_background(trx);
+		trx_free(trx);
 	}
 
 	if (!cache->stopword_info.cached_stopword) {

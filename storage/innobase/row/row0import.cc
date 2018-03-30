@@ -2063,7 +2063,7 @@ row_import_cleanup(
 
 	row_mysql_unlock_data_dictionary(trx);
 
-	trx_free_for_mysql(trx);
+	trx_free(trx);
 
 	prebuilt->trx->op_info = "";
 

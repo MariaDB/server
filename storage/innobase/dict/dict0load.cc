@@ -914,7 +914,7 @@ dict_update_filepath(
 
 	trx_commit_for_mysql(trx);
 	trx->dict_operation_lock_mode = 0;
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	if (err == DB_SUCCESS) {
 		/* We just updated SYS_DATAFILES due to the contents in
@@ -976,7 +976,7 @@ dict_replace_tablespace_and_filepath(
 
 	trx_commit_for_mysql(trx);
 	trx->dict_operation_lock_mode = 0;
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	return(err);
 }

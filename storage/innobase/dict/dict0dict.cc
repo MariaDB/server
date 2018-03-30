@@ -444,7 +444,7 @@ dict_table_try_drop_aborted(
 	}
 
 	row_mysql_unlock_data_dictionary(trx);
-	trx_free_for_background(trx);
+	trx_free(trx);
 }
 
 /**********************************************************************//**
@@ -2046,7 +2046,7 @@ dict_table_remove_from_cache_low(
 		row_merge_drop_indexes_dict(trx, table->id);
 		trx_commit_for_mysql(trx);
 		trx->dict_operation_lock_mode = 0;
-		trx_free_for_background(trx);
+		trx_free(trx);
 	}
 
 	/* Free virtual column template if any */

@@ -4244,7 +4244,7 @@ innobase_end(handlerton*, ha_panic_function)
 		if (thd) { // may be UNINSTALL PLUGIN statement
 		 	trx_t* trx = thd_to_trx(thd);
 		 	if (trx) {
-		 		trx_free_for_mysql(trx);
+				trx_free(trx);
 		 	}
 		}
 
@@ -5013,7 +5013,7 @@ innobase_close_connection(
 		} else {
 rollback_and_free:
 			innobase_rollback_trx(trx);
-			trx_free_for_mysql(trx);
+			trx_free(trx);
 		}
 	}
 
@@ -12582,7 +12582,7 @@ create_table_info_t::create_table_update_dict()
 		if (!innobase_fts_load_stopword(innobase_table, NULL, m_thd)) {
 			dict_table_close(innobase_table, FALSE, FALSE);
 			srv_active_wake_master_thread();
-			trx_free_for_mysql(m_trx);
+			trx_free(m_trx);
 			DBUG_RETURN(-1);
 		}
 	}
@@ -12707,14 +12707,14 @@ ha_innobase::create(
 
 	srv_active_wake_master_thread();
 
-	trx_free_for_mysql(trx);
+	trx_free(trx);
 
 	DBUG_RETURN(error);
 
 cleanup:
 	trx_rollback_for_mysql(trx);
 	row_mysql_unlock_data_dictionary(trx);
-	trx_free_for_mysql(trx);
+	trx_free(trx);
 
 	DBUG_RETURN(error);
 }
@@ -13076,7 +13076,7 @@ ha_innobase::delete_table(
 
 	innobase_commit_low(trx);
 
-	trx_free_for_mysql(trx);
+	trx_free(trx);
 
 	DBUG_RETURN(convert_error_code_to_mysql(err, 0, NULL));
 }
@@ -13149,7 +13149,7 @@ innobase_drop_database(
 
 	innobase_commit_low(trx);
 
-	trx_free_for_mysql(trx);
+	trx_free(trx);
 }
 
 /*********************************************************************//**
@@ -13276,7 +13276,7 @@ ha_innobase::rename_table(
 
 	innobase_commit_low(trx);
 
-	trx_free_for_mysql(trx);
+	trx_free(trx);
 
 	if (error == DB_SUCCESS) {
 		char	norm_from[MAX_FULL_NAME_LEN];
@@ -17102,7 +17102,7 @@ innobase_commit_by_xid(
 		ut_ad(trx->mysql_thd == NULL);
 		trx_deregister_from_2pc(trx);
 		ut_ad(!trx->will_lock);    /* trx cache requirement */
-		trx_free_for_background(trx);
+		trx_free(trx);
 
 		return(XA_OK);
 	} else {
@@ -17132,7 +17132,7 @@ innobase_rollback_by_xid(
 		int ret = innobase_rollback_trx(trx);
 		trx_deregister_from_2pc(trx);
 		ut_ad(!trx->will_lock);
-		trx_free_for_background(trx);
+		trx_free(trx);
 
 		return(ret);
 	} else {

@@ -1821,7 +1821,7 @@ exit:
 	error = ins_ctx.btr_bulk->finish(error);
 	UT_DELETE(ins_ctx.btr_bulk);
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	mem_heap_free(heap);
 

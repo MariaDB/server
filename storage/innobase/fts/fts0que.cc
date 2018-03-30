@@ -4120,7 +4120,7 @@ fts_query(
 func_exit:
 	fts_query_free(&query);
 
-	trx_free_for_background(query_trx);
+	trx_free(query_trx);
 
 	return(error);
 }

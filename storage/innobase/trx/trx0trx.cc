@@ -431,49 +431,10 @@ trx_t *trx_create()
 }
 
 /**
-Release a trx_t instance back to the pool.
-@param trx the instance to release. */
-static
-void
-trx_free(trx_t*& trx)
-{
-	mutex_enter(&trx_sys.mutex);
-	UT_LIST_REMOVE(trx_sys.trx_list, trx);
-	mutex_exit(&trx_sys.mutex);
-
-	assert_trx_is_free(trx);
-
-	trx_sys.rw_trx_hash.put_pins(trx);
-	trx->mysql_thd = 0;
-	trx->mysql_log_file_name = 0;
-
-	// FIXME: We need to avoid this heap free/alloc for each commit.
-	if (trx->autoinc_locks != NULL) {
-		ut_ad(ib_vector_is_empty(trx->autoinc_locks));
-		/* We allocated a dedicated heap for the vector. */
-		ib_vector_free(trx->autoinc_locks);
-		trx->autoinc_locks = NULL;
-	}
-
-	trx->mod_tables.clear();
-
-	ut_ad(!trx->read_view.is_open());
-	trx->read_view.close();
-
-	/* trx locking state should have been reset before returning trx
-	to pool */
-	ut_ad(trx->will_lock == 0);
-
-	trx_pools->mem_free(trx);
-
-	trx = NULL;
-}
-
-/** Check state of transaction before freeing it.
-@param trx trx object to validate */
-static
-void
-trx_validate_state_before_free(trx_t* trx)
+  Release a trx_t instance back to the pool.
+  @param trx the instance to release.
+*/
+void trx_free(trx_t*& trx)
 {
 	ut_ad(!trx->declared_to_be_inside_innodb);
 	ut_ad(!trx->n_mysql_tables_in_use);
@@ -510,16 +471,37 @@ trx_validate_state_before_free(trx_t* trx)
 
 	trx->dict_operation = TRX_DICT_OP_NONE;
 	assert_trx_is_inactive(trx);
-}
 
-/** Free a transaction that was allocated by background or user threads.
-@param trx trx object to free */
-void
-trx_free_for_background(trx_t* trx)
-{
-	trx_validate_state_before_free(trx);
+	mutex_enter(&trx_sys.mutex);
+	UT_LIST_REMOVE(trx_sys.trx_list, trx);
+	mutex_exit(&trx_sys.mutex);
 
-	trx_free(trx);
+	assert_trx_is_free(trx);
+
+	trx_sys.rw_trx_hash.put_pins(trx);
+	trx->mysql_thd = 0;
+	trx->mysql_log_file_name = 0;
+
+	// FIXME: We need to avoid this heap free/alloc for each commit.
+	if (trx->autoinc_locks != NULL) {
+		ut_ad(ib_vector_is_empty(trx->autoinc_locks));
+		/* We allocated a dedicated heap for the vector. */
+		ib_vector_free(trx->autoinc_locks);
+		trx->autoinc_locks = NULL;
+	}
+
+	trx->mod_tables.clear();
+
+	ut_ad(!trx->read_view.is_open());
+	trx->read_view.close();
+
+	/* trx locking state should have been reset before returning trx
+	to pool */
+	ut_ad(trx->will_lock == 0);
+
+	trx_pools->mem_free(trx);
+
+	trx = NULL;
 }
 
 /** At shutdown, frees a transaction object. */
@@ -571,16 +553,6 @@ void trx_disconnect_prepared(trx_t *trx)
   trx->mysql_thd= NULL;
   /* todo/fixme: suggest to do it at innodb prepare */
   trx->will_lock= 0;
-}
-
-/**
-  Free a transaction object for MySQL
-  @param[in,out] trx transaction
-*/
-void trx_free_for_mysql(trx_t *trx)
-{
-  ut_ad(trx->mysql_thd);
-  trx_free_for_background(trx);
 }
 
 /****************************************************************//**
