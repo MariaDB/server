@@ -218,7 +218,6 @@ trx_sys_t::create()
 	m_initialised = true;
 	mutex_create(LATCH_ID_TRX_SYS, &mutex);
 	UT_LIST_INIT(trx_list, &trx_t::trx_list);
-	UT_LIST_INIT(m_views, &ReadView::m_view_list);
 	my_atomic_store32(&rseg_history_len, 0);
 
 	rw_trx_hash.init();
@@ -346,7 +345,6 @@ trx_sys_t::close()
 	}
 
 	ut_a(UT_LIST_GET_LEN(trx_list) == 0);
-	ut_ad(UT_LIST_GET_LEN(m_views) == 0);
 	mutex_free(&mutex);
 	m_initialised = false;
 }

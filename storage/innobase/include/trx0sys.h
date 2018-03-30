@@ -802,9 +802,6 @@ class trx_sys_t
   */
   MY_ALIGNED(CACHE_LINE_SIZE) int32 rseg_history_len;
 
-  /** Active views. */
-  MY_ALIGNED(CACHE_LINE_SIZE) UT_LIST_BASE_NODE_T(ReadView) m_views;
-
   bool m_initialised;
 
 public:
@@ -1051,27 +1048,27 @@ public:
 
 
   /**
-    Registers view in MVCC.
+    Registers transaction in trx_sys.
 
-    @param view    view owned by the caller
+    @param trx transaction
   */
-  void register_view(ReadView *view)
+  void register_trx(trx_t *trx)
   {
     mutex_enter(&mutex);
-    UT_LIST_ADD_FIRST(m_views, view);
+    UT_LIST_ADD_FIRST(trx_list, trx);
     mutex_exit(&mutex);
   }
 
 
   /**
-    Deregisters view in MVCC.
+    Deregisters transaction in trx_sys.
 
-    @param view    view owned by the caller
+    @param trx transaction
   */
-  void deregister_view(ReadView *view)
+  void deregister_trx(trx_t *trx)
   {
     mutex_enter(&mutex);
-    UT_LIST_REMOVE(m_views, view);
+    UT_LIST_REMOVE(trx_list, trx);
     mutex_exit(&mutex);
   }
 
@@ -1092,10 +1089,10 @@ public:
     size_t count= 0;
 
     mutex_enter(&mutex);
-    for (const ReadView* view= UT_LIST_GET_FIRST(m_views); view;
-         view= UT_LIST_GET_NEXT(m_view_list, view))
+    for (const trx_t *trx= UT_LIST_GET_FIRST(trx_list); trx;
+         trx= UT_LIST_GET_NEXT(trx_list, trx))
     {
-      if (view->get_state() == READ_VIEW_STATE_OPEN)
+      if (trx->read_view.get_state() == READ_VIEW_STATE_OPEN)
         ++count;
     }
     mutex_exit(&mutex);

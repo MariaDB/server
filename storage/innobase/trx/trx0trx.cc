@@ -423,9 +423,7 @@ trx_t *trx_create()
 	trx->wsrep_event = NULL;
 #endif /* WITH_WSREP */
 
-	mutex_enter(&trx_sys.mutex);
-	UT_LIST_ADD_FIRST(trx_sys.trx_list, trx);
-	mutex_exit(&trx_sys.mutex);
+	trx_sys.register_trx(trx);
 
 	return(trx);
 }
@@ -472,9 +470,7 @@ void trx_free(trx_t*& trx)
 	trx->dict_operation = TRX_DICT_OP_NONE;
 	assert_trx_is_inactive(trx);
 
-	mutex_enter(&trx_sys.mutex);
-	UT_LIST_REMOVE(trx_sys.trx_list, trx);
-	mutex_exit(&trx_sys.mutex);
+	trx_sys.deregister_trx(trx);
 
 	assert_trx_is_free(trx);
 
@@ -491,9 +487,6 @@ void trx_free(trx_t*& trx)
 	}
 
 	trx->mod_tables.clear();
-
-	ut_ad(!trx->read_view.is_open());
-	trx->read_view.close();
 
 	/* trx locking state should have been reset before returning trx
 	to pool */
@@ -1308,7 +1301,7 @@ trx_commit_in_memory(
 				the transaction did not modify anything */
 {
 	trx->must_flush_log_later = false;
-	trx->read_view.unuse();
+	trx->read_view.close();
 
 	if (trx_is_autocommit_non_locking(trx)) {
 		ut_ad(trx->id == 0);
