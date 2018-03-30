@@ -252,21 +252,21 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
   if (is_infoschema_db(db))
     return TABLE_CATEGORY_INFORMATION;
 
-  if (lex_string_eq(&PERFORMANCE_SCHEMA_DB_NAME, db) == 0)
+  if (lex_string_eq(&PERFORMANCE_SCHEMA_DB_NAME, db))
     return TABLE_CATEGORY_PERFORMANCE;
 
-  if (lex_string_eq(&MYSQL_SCHEMA_NAME, db) == 0)
+  if (lex_string_eq(&MYSQL_SCHEMA_NAME, db))
   {
     if (is_system_table_name(name->str, name->length))
       return TABLE_CATEGORY_SYSTEM;
 
-    if (lex_string_eq(&GENERAL_LOG_NAME, name) == 0)
+    if (lex_string_eq(&GENERAL_LOG_NAME, name))
       return TABLE_CATEGORY_LOG;
 
-    if (lex_string_eq(&SLOW_LOG_NAME, name) == 0)
+    if (lex_string_eq(&SLOW_LOG_NAME, name))
       return TABLE_CATEGORY_LOG;
 
-    if (lex_string_eq(&TRANSACTION_REG_NAME, name) == 0)
+    if (lex_string_eq(&TRANSACTION_REG_NAME, name))
       return TABLE_CATEGORY_LOG;
   }
 
