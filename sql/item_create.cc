@@ -2195,13 +2195,30 @@ class Create_func_lpad : public Create_native_func
 {
 public:
   virtual Item *create_native(THD *thd, LEX_CSTRING *name,
-                              List<Item> *item_list);
-
+                              List<Item> *item_list)
+  {
+    return thd->variables.sql_mode & MODE_ORACLE ?
+           create_native_oracle(thd, name, item_list) :
+           create_native_std(thd, name, item_list);
+  }
   static Create_func_lpad s_singleton;
 
 protected:
   Create_func_lpad() {}
   virtual ~Create_func_lpad() {}
+  Item *create_native_std(THD *thd, LEX_CSTRING *name, List<Item> *items);
+  Item *create_native_oracle(THD *thd, LEX_CSTRING *name, List<Item> *items);
+};
+
+
+class Create_func_lpad_oracle : public Create_func_lpad
+{
+public:
+  Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
+  {
+    return create_native_oracle(thd, name, item_list);
+  }
+  static Create_func_lpad_oracle s_singleton;
 };
 
 
@@ -2648,13 +2665,30 @@ class Create_func_rpad : public Create_native_func
 {
 public:
   virtual Item *create_native(THD *thd, LEX_CSTRING *name,
-                              List<Item> *item_list);
-
+                              List<Item> *item_list)
+  {
+    return thd->variables.sql_mode & MODE_ORACLE ?
+           create_native_oracle(thd, name, item_list) :
+           create_native_std(thd, name, item_list);
+  }
   static Create_func_rpad s_singleton;
 
 protected:
   Create_func_rpad() {}
   virtual ~Create_func_rpad() {}
+  Item *create_native_std(THD *thd, LEX_CSTRING *name, List<Item> *items);
+  Item *create_native_oracle(THD *thd, LEX_CSTRING *name, List<Item> *items);
+};
+
+
+class Create_func_rpad_oracle : public Create_func_rpad
+{
+public:
+  Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
+  {
+    return create_native_oracle(thd, name, item_list);
+  }
+  static Create_func_rpad_oracle s_singleton;
 };
 
 
@@ -5810,9 +5844,11 @@ Create_func_log2::create_1_arg(THD *thd, Item *arg1)
 
 Create_func_lpad Create_func_lpad::s_singleton;
 
+Create_func_lpad_oracle Create_func_lpad_oracle::s_singleton;
+
 Item*
-Create_func_lpad::create_native(THD *thd, LEX_CSTRING *name,
-                                List<Item> *item_list)
+Create_func_lpad::create_native_std(THD *thd, LEX_CSTRING *name,
+                                    List<Item> *item_list)
 {
   Item *func= NULL;
   int arg_count= item_list ? item_list->elements : 0;
@@ -5839,6 +5875,34 @@ Create_func_lpad::create_native(THD *thd, LEX_CSTRING *name,
   }
 
   return func;
+}
+
+
+Item*
+Create_func_lpad::create_native_oracle(THD *thd, LEX_CSTRING *name,
+                                       List<Item> *item_list)
+{
+  int arg_count= item_list ? item_list->elements : 0;
+  switch (arg_count) {
+  case 2:
+  {
+    Item *param_1= item_list->pop();
+    Item *param_2= item_list->pop();
+    return new (thd->mem_root) Item_func_lpad_oracle(thd, param_1, param_2);
+  }
+  case 3:
+  {
+    Item *param_1= item_list->pop();
+    Item *param_2= item_list->pop();
+    Item *param_3= item_list->pop();
+    return new (thd->mem_root) Item_func_lpad_oracle(thd, param_1,
+                                                     param_2, param_3);
+  }
+  default:
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    break;
+  }
+  return NULL;
 }
 
 
@@ -6316,9 +6380,11 @@ Create_func_round::create_native(THD *thd, LEX_CSTRING *name,
 
 Create_func_rpad Create_func_rpad::s_singleton;
 
+Create_func_rpad_oracle Create_func_rpad_oracle::s_singleton;
+
 Item*
-Create_func_rpad::create_native(THD *thd, LEX_CSTRING *name,
-                                List<Item> *item_list)
+Create_func_rpad::create_native_std(THD *thd, LEX_CSTRING *name,
+                                    List<Item> *item_list)
 {
   Item *func= NULL;
   int arg_count= item_list ? item_list->elements : 0;
@@ -6345,6 +6411,34 @@ Create_func_rpad::create_native(THD *thd, LEX_CSTRING *name,
   }
 
   return func;
+}
+
+
+Item*
+Create_func_rpad::create_native_oracle(THD *thd, LEX_CSTRING *name,
+                                       List<Item> *item_list)
+{
+  int arg_count= item_list ? item_list->elements : 0;
+  switch (arg_count) {
+  case 2:
+  {
+    Item *param_1= item_list->pop();
+    Item *param_2= item_list->pop();
+    return new (thd->mem_root) Item_func_rpad_oracle(thd, param_1, param_2);
+  }
+  case 3:
+  {
+    Item *param_1= item_list->pop();
+    Item *param_2= item_list->pop();
+    Item *param_3= item_list->pop();
+    return new (thd->mem_root) Item_func_rpad_oracle(thd, param_1,
+                                                     param_2, param_3);
+  }
+  default:
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    break;
+  }
+  return NULL;
 }
 
 
@@ -7021,6 +7115,7 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("LOG2") }, BUILDER(Create_func_log2)},
   { { STRING_WITH_LEN("LOWER") }, BUILDER(Create_func_lcase)},
   { { STRING_WITH_LEN("LPAD") }, BUILDER(Create_func_lpad)},
+  { { STRING_WITH_LEN("LPAD_ORACLE") }, BUILDER(Create_func_lpad_oracle)},
   { { STRING_WITH_LEN("LTRIM") }, BUILDER(Create_func_ltrim)},
   { { STRING_WITH_LEN("LTRIM_ORACLE") }, BUILDER(Create_func_ltrim_oracle)},
   { { STRING_WITH_LEN("MAKEDATE") }, BUILDER(Create_func_makedate)},
@@ -7086,6 +7181,7 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("REVERSE") }, BUILDER(Create_func_reverse)},
   { { STRING_WITH_LEN("ROUND") }, BUILDER(Create_func_round)},
   { { STRING_WITH_LEN("RPAD") }, BUILDER(Create_func_rpad)},
+  { { STRING_WITH_LEN("RPAD_ORACLE") }, BUILDER(Create_func_rpad_oracle)},
   { { STRING_WITH_LEN("RTRIM") }, BUILDER(Create_func_rtrim)},
   { { STRING_WITH_LEN("RTRIM_ORACLE") }, BUILDER(Create_func_rtrim_oracle)},
   { { STRING_WITH_LEN("SEC_TO_TIME") }, BUILDER(Create_func_sec_to_time)},
