@@ -4148,22 +4148,6 @@ fil_file_readdir_next_file(
 	return(-1);
 }
 
-/*******************************************************************//**
-Report that a tablespace for a table was not found. */
-static
-void
-fil_report_missing_tablespace(
-/*===========================*/
-	const char*	name,			/*!< in: table name */
-	ulint		space_id)		/*!< in: table's space id */
-{
-	ib::error() << "Table " << name
-		<< " in the InnoDB data dictionary has tablespace id "
-		<< space_id << ","
-		" but tablespace with that id or name does not exist. Have"
-		" you deleted or moved .ibd files?";
-}
-
 /** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.
 (Typically when upgrading from MariaDB 10.1.0..10.1.20.)
 @param[in,out]	space		tablespace
@@ -4220,62 +4204,49 @@ fil_space_for_table_exists_in_mem(
 	bool		print_error_if_does_not_exist,
 	ulint		table_flags)
 {
-	fil_space_t*	space;
-
 	const ulint	expected_flags = dict_tf_to_fsp_flags(table_flags);
 
 	mutex_enter(&fil_system.mutex);
-
-	/* Look if there is a space with the same id */
-
-	space = fil_space_get_by_id(id);
-
-	bool valid = space && !((space->flags ^ expected_flags)
-				& ~FSP_FLAGS_MEM_MASK);
-
-	if (!space) {
-	} else if (!valid) {
-		/* Flag mismatch. */
-		goto func_exit;
-	}
-
-	if (!print_error_if_does_not_exist) {
-		valid = false;
-		goto func_exit;
-	}
-
-	if (space == NULL) {
-		if (print_error_if_does_not_exist) {
-			fil_report_missing_tablespace(name, id);
+	if (fil_space_t* space = fil_space_get_by_id(id)) {
+		if ((space->flags ^ expected_flags) & ~FSP_FLAGS_MEM_MASK) {
+			goto func_exit;
 		}
-error_exit:
-		ib::info() << TROUBLESHOOT_DATADICT_MSG;
-		valid = false;
-		goto func_exit;
-	}
 
-	if (0 != strcmp(space->name, name)) {
-		ib::error() << "Table " << name << " in InnoDB data dictionary"
-			" has tablespace id " << id << ", but the tablespace"
-			" with that id has name " << space->name << "."
-			" Have you deleted or moved .ibd files?";
-		goto error_exit;
-	}
+		if (strcmp(space->name, name)) {
+			ib::error() << "Table " << name
+				<< " in InnoDB data dictionary"
+				" has tablespace id " << id
+				<< ", but the tablespace"
+				" with that id has name " << space->name << "."
+				" Have you deleted or moved .ibd files?";
+			goto error_exit;
+		}
 
-func_exit:
-	if (valid) {
 		/* Adjust the flags that are in FSP_FLAGS_MEM_MASK.
 		FSP_SPACE_FLAGS will not be written back here. */
 		space->flags = expected_flags;
+		mutex_exit(&fil_system.mutex);
+		if (!srv_read_only_mode) {
+			fsp_flags_try_adjust(space, expected_flags
+					     & ~FSP_FLAGS_MEM_MASK);
+		}
+		return space;
 	}
+
+	if (print_error_if_does_not_exist) {
+		ib::error() << "Table " << name
+			    << " in the InnoDB data dictionary"
+			" has tablespace id " << id
+			    << ", but tablespace with that id"
+			" or name does not exist. Have"
+			" you deleted or moved .ibd files?";
+error_exit:
+		ib::info() << TROUBLESHOOT_DATADICT_MSG;
+	}
+
+func_exit:
 	mutex_exit(&fil_system.mutex);
-
-	if (valid && !srv_read_only_mode) {
-		fsp_flags_try_adjust(space,
-				     expected_flags & ~FSP_FLAGS_MEM_MASK);
-	}
-
-	return valid ? space : NULL;
+	return NULL;
 }
 
 /*============================ FILE I/O ================================*/
