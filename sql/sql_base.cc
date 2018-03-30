@@ -8198,8 +8198,6 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
       if (vers_sys_field)
         continue;
     }
-    if (only_unvers_fields && !rfield->vers_update_unversioned())
-      only_unvers_fields= false;
 
     if (rfield->stored_in_db())
     {
@@ -8208,6 +8206,8 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
         my_message(ER_UNKNOWN_ERROR, ER_THD(thd, ER_UNKNOWN_ERROR), MYF(0));
         goto err;
       }
+      if (only_unvers_fields && !rfield->vers_update_unversioned())
+        only_unvers_fields= false;
       /*
         In sql MODE_SIMULTANEOUS_ASSIGNMENT,
         move field pointer on value stored in record[1]
