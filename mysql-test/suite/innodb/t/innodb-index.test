@@ -1,4 +1,6 @@
 -- source include/have_innodb.inc
+# Embedded server tests do not support restarting.
+-- source include/not_embedded.inc
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 

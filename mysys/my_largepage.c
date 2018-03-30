@@ -15,7 +15,7 @@
 
 #include "mysys_priv.h"
 
-#ifdef HAVE_LARGE_PAGES
+#ifdef HAVE_LINUX_LARGE_PAGES
 
 #ifdef HAVE_SYS_IPC_H
 #include <sys/ipc.h>
@@ -163,4 +163,4 @@ my_bool my_large_free_int(uchar *ptr)
 }
 #endif /* HAVE_DECL_SHM_HUGETLB */
 
-#endif /* HAVE_LARGE_PAGES */
+#endif /* HAVE_LINUX_LARGE_PAGES */

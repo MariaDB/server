@@ -177,7 +177,7 @@ extern void *my_memdup(const void *from,size_t length,myf MyFlags);
 extern char *my_strdup(const char *from,myf MyFlags);
 extern char *my_strndup(const char *from, size_t length, myf MyFlags);
 
-#ifdef HAVE_LARGE_PAGES
+#ifdef HAVE_LINUX_LARGE_PAGES
 extern uint my_get_large_page_size(void);
 extern uchar * my_large_malloc(size_t size, myf my_flags);
 extern void my_large_free(uchar *ptr);
@@ -185,7 +185,7 @@ extern void my_large_free(uchar *ptr);
 #define my_get_large_page_size() (0)
 #define my_large_malloc(A,B) my_malloc_lock((A),(B))
 #define my_large_free(A) my_free_lock((A))
-#endif /* HAVE_LARGE_PAGES */
+#endif /* HAVE_LINUX_LARGE_PAGES */
 
 void my_init_atomic_write(void);
 #ifdef __linux__
@@ -243,7 +243,7 @@ extern int sf_leaking_memory; /* set to 1 to disable memleak detection */
 extern void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
                               const char *, const char *, const unsigned int);
 
-#ifdef HAVE_LARGE_PAGES
+#ifdef HAVE_LINUX_LARGE_PAGES
 extern my_bool my_use_large_pages;
 extern uint    my_large_page_size;
 #endif
