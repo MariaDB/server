@@ -36,7 +36,7 @@ x
 # Engine change native <-> non-native versioning prohibited
 create or replace table t1 (i int) engine=DEFAULT_ENGINE with system versioning partition by hash(i);
 alter table t1 engine=NON_DEFAULT_ENGINE;
-ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change to/from native system versioning engine is prohibited.
+ERROR HY000: Not allowed for system-versioned `test`.`t1`. Change to/from native system versioning engine is not supported.
 ## CREATE TABLE
 create or replace table t1 (x int)
 partition by system_time (

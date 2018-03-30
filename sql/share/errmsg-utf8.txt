@@ -7854,10 +7854,10 @@ ER_VERS_ALTER_NOT_ALLOWED
         eng "Not allowed for system-versioned %`s.%`s. Change @@system_versioning_alter_history to proceed with ALTER."
 
 ER_VERS_ALTER_ENGINE_PROHIBITED
-        eng "Not allowed for system-versioned %`s.%`s. Change to/from native system versioning engine is prohibited."
+        eng "Not allowed for system-versioned %`s.%`s. Change to/from native system versioning engine is not supported."
 
 ER_VERS_RANGE_PROHIBITED
-        eng "SYSTEM_TIME range selector is prohibited"
+        eng "SYSTEM_TIME range selector is not allowed"
 
 ER_UNUSED_26
         eng "You should never see it"
@@ -7905,7 +7905,7 @@ ER_UNUSED_24
 	eng "You should never see it"
 
 ER_VERS_TEMPORARY
-	eng "System versioning prohibited for TEMPORARY tables"
+	eng "TEMPORARY tables do not support system versioning"
 
 ER_VERS_NOT_SUPPORTED
         eng "%s is not supported for %s system-versioned tables"
