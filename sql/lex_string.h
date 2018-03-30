@@ -47,4 +47,13 @@ static inline bool lex_string_eq(const LEX_CSTRING *a, const LEX_CSTRING *b)
   return strcasecmp(a->str, b->str) == 0;
 }
 
+/*
+  Compare if two LEX_CSTRING are equal in system character set
+  (field names, user variables, etc - but *not* table names)
+*/
+static inline bool lex_string_syseq(const LEX_CSTRING *a, const LEX_CSTRING *b)
+{
+  return lex_string_cmp(system_charset_info, a, b) == 0;
+}
+
 #endif /* LEX_STRING_INCLUDED */

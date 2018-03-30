@@ -6825,12 +6825,12 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info)
 bool Vers_parse_info::is_start(const char *name) const
 {
   DBUG_ASSERT(name);
-  return as_row.start && as_row.start == LString_i(name);
+  return as_row.start && as_row.start.streq(name);
 }
 bool Vers_parse_info::is_end(const char *name) const
 {
   DBUG_ASSERT(name);
-  return as_row.end && as_row.end == LString_i(name);
+  return as_row.end && as_row.end.streq(name);
 }
 bool Vers_parse_info::is_start(const Create_field &f) const
 {
@@ -7014,8 +7014,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
       continue;
 
     DBUG_ASSERT(versioned_write);
-    if (vers_info.is_start(*f) &&
-      vers_info.default_start == f->field_name)
+    if (vers_info.is_start(*f) && vers_info.default_start.streq(f->field_name))
     {
       if (vers_info.as_row.start)
         it.remove();
@@ -7026,8 +7025,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
       }
       continue;
     }
-    if (vers_info.is_end(*f) &&
-      vers_info.default_end == f->field_name)
+    if (vers_info.is_end(*f) && vers_info.default_end.streq(f->field_name))
     {
       if (vers_info.as_row.end)
         it.remove();
@@ -7059,7 +7057,7 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
           Field *fld= static_cast<Item_field *>(item)->field;
           DBUG_ASSERT(fld);
           if ((fld->flags & sys_flag) &&
-            LString_i(f->field_name) == fld->field_name)
+              lex_string_syseq(&f->field_name, &fld->field_name))
           {
             f->field= fld;
             *versioned_write= false;
@@ -7207,7 +7205,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
         if (f->versioning == Column_definition::WITHOUT_VERSIONING)
           f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
 
-        if (f->change.str && (start == f->change || end == f->change))
+        if (f->change.str && (start.streq(f->change) || end.streq(f->change)))
         {
           my_error(ER_VERS_ALTER_SYSTEM_FIELD, MYF(0), f->change.str);
           return true;
@@ -7315,7 +7313,8 @@ bool Vers_parse_info::check_with_conditions(const char *table_name) const
     return true;
   }
 
-  if (as_row.start != system_time.start || as_row.end != system_time.end)
+  if (!as_row.start.streq(system_time.start) ||
+      !as_row.end.streq(system_time.end))
   {
     my_error(ER_VERS_PERIOD_COLUMNS, MYF(0), as_row.start.str, as_row.end.str);
     return true;

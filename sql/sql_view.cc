@@ -612,8 +612,8 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
         const LString_i field_name= fld->field->field_name;
         if (s->tmp_table ||
             (s->versioned &&
-             (field_name == s->vers_start_field()->field_name ||
-              field_name == s->vers_end_field()->field_name)))
+             (field_name.streq(s->vers_start_field()->field_name) ||
+              field_name.streq(s->vers_end_field()->field_name))))
         {
           continue;
         }
@@ -2040,8 +2040,8 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
       TABLE_SHARE *s= fld->context->table_list->table->s;
       LString_i field_name= fld->field_name;
       if (s->versioned &&
-          (field_name == s->vers_start_field()->field_name ||
-           field_name == s->vers_end_field()->field_name))
+          (field_name.streq(s->vers_start_field()->field_name) ||
+           field_name.streq(s->vers_end_field()->field_name)))
         continue;
       list->push_back(fld, thd->mem_root);
     }

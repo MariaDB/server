@@ -124,7 +124,7 @@ vers_get_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields, b
 
   for (unsigned field_no = 0; (sql_field = it++); ++field_no)
   {
-    if (row_field == sql_field->field_name)
+    if (row_field.streq(sql_field->field_name))
     {
       DBUG_ASSERT(field_no <= uint16(~0U));
       return uint16(field_no);

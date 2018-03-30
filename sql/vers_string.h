@@ -103,13 +103,9 @@ public:
     Storage(_str, strlen(_str), Compare::charset())
   {
   }
-  bool operator== (const XString& b) const
+  bool streq(const XString& b) const
   {
     return Storage::length() == b.length() && 0 == Compare()(this->lex_cstring(), b.lex_cstring());
-  }
-  bool operator!= (const XString& b) const
-  {
-    return !(*this == b);
   }
   operator const char* () const
   {
