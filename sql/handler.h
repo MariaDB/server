@@ -1960,8 +1960,8 @@ protected:
                         bool native);
 
 public:
-  static const LString default_start;
-  static const LString default_end;
+  static const LString_i default_start;
+  static const LString_i default_end;
 
   bool fix_alter_info(THD *thd, Alter_info *alter_info,
                        HA_CREATE_INFO *create_info, TABLE *table);

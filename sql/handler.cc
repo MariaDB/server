@@ -6884,8 +6884,8 @@ static bool vers_create_sys_field(THD *thd, const char *field_name,
   return false;
 }
 
-const LString Vers_parse_info::default_start= "row_start";
-const LString Vers_parse_info::default_end= "row_end";
+const LString_i Vers_parse_info::default_start= "row_start";
+const LString_i Vers_parse_info::default_end= "row_end";
 
 bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info, int *added)
 {
@@ -7190,8 +7190,8 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     create_info->options|= HA_VERSIONED_TABLE;
 
     DBUG_ASSERT(share->vers_start_field() && share->vers_end_field());
-    LString start(share->vers_start_field()->field_name);
-    LString end(share->vers_end_field()->field_name);
+    LString_i start(share->vers_start_field()->field_name);
+    LString_i end(share->vers_end_field()->field_name);
     DBUG_ASSERT(start.ptr() && end.ptr());
 
     as_row= start_end_t(start, end);
