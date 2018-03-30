@@ -911,7 +911,6 @@ dict_drop_index_tree(
 {
 	const byte*	ptr;
 	ulint		len;
-	ulint		space;
 	ulint		root_page_no;
 
 	ut_ad(mutex_own(&dict_sys->mutex));
@@ -938,35 +937,36 @@ dict_drop_index_tree(
 
 	ut_ad(len == 4);
 
-	space = mtr_read_ulint(ptr, MLOG_4BYTES, mtr);
+	ulint space_id = mach_read_from_4(ptr);
 
 	ptr = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_INDEXES__ID, &len);
 
 	ut_ad(len == 8);
 
-	bool			found;
-	const page_size_t	page_size(fil_space_get_page_size(space,
-								  &found));
-
-	if (!found) {
-		/* It is a single table tablespace and the .ibd file is
-		missing: do nothing */
-
-		return(false);
-	}
-
 	/* If tablespace is scheduled for truncate, do not try to drop
 	the indexes in that tablespace. There is a truncate fixup action
 	which will take care of it. */
-	if (srv_is_tablespace_truncated(space)) {
-		return(false);
+	if (srv_is_tablespace_truncated(space_id)) {
+		return false;
 	}
 
-	btr_free_if_exists(page_id_t(space, root_page_no), page_size,
-			   mach_read_from_8(ptr), mtr);
+	/* We cannot use fil_space_acquire_silent() here,
+	because it would return NULL due to the pending
+	DROP or TRUNCATE operation. */
+	mutex_enter(&fil_system.mutex);
 
-	return(true);
+	if (fil_space_t* space = fil_space_get_by_id(space_id)) {
+		space->n_pending_ops++;
+		mutex_exit(&fil_system.mutex);
+		btr_free_if_exists(space, root_page_no,
+				   mach_read_from_8(ptr), mtr);
+		fil_space_release(space);
+		return true;
+	}
+
+	mutex_exit(&fil_system.mutex);
+	return false;
 }
 
 /*******************************************************************//**

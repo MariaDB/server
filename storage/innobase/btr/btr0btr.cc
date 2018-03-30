@@ -1140,8 +1140,8 @@ btr_free_root_invalidate(
 }
 
 /** Prepare to free a B-tree.
-@param[in]	page_id		page id
-@param[in]	page_size	page size
+@param[in,out]	space		tablespace
+@param[in]	page		root page number
 @param[in]	index_id	PAGE_INDEX_ID contents
 @param[in,out]	mtr		mini-transaction
 @return root block, to invoke btr_free_but_not_root() and btr_free_root()
@@ -1149,32 +1149,32 @@ btr_free_root_invalidate(
 static MY_ATTRIBUTE((warn_unused_result))
 buf_block_t*
 btr_free_root_check(
-	const page_id_t&	page_id,
-	const page_size_t&	page_size,
-	index_id_t		index_id,
-	mtr_t*			mtr)
+	fil_space_t*	space,
+	ulint		page,
+	index_id_t	index_id,
+	mtr_t*		mtr)
 {
-	ut_ad(page_id.space() != SRV_TMP_SPACE_ID);
+	ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
 	ut_ad(index_id != BTR_FREED_INDEX_ID);
 
-	buf_block_t*	block = buf_page_get(
-		page_id, page_size, RW_X_LATCH, mtr);
-
-	if (block) {
+	if (buf_block_t* block = buf_page_get(
+		    page_id_t(space->id, page), page_size_t(space->flags),
+		    RW_X_LATCH, mtr)) {
 		buf_block_dbg_add_level(block, SYNC_TREE_NODE);
 
-		if (fil_page_index_page_check(block->frame)
-			&& index_id == btr_page_get_index_id(block->frame)) {
-			/* This should be a root page.
-			It should not be possible to reassign the same
-			index_id for some other index in the tablespace. */
-			ut_ad(page_is_root(block->frame));
-		} else {
-			block = NULL;
+		if (!fil_page_index_page_check(block->frame)
+		    || index_id != btr_page_get_index_id(block->frame)) {
+			return NULL;
 		}
+
+		/* This should be a root page.
+		It should not be possible to reassign the same
+		index_id for some other index in the tablespace. */
+		ut_ad(page_is_root(block->frame));
+		return block;
 	}
 
-	return(block);
+	return NULL;
 }
 
 /** Create the root node for a new index tree.
@@ -1348,29 +1348,26 @@ btr_create(
 
 /** Free a B-tree except the root page. The root page MUST be freed after
 this by calling btr_free_root.
+@param[in,out]	space		tablespace, or NULL
 @param[in,out]	block		root page
 @param[in]	log_mode	mtr logging mode */
 static
 void
 btr_free_but_not_root(
+	fil_space_t*	space,
 	buf_block_t*	block,
 	mtr_log_t	log_mode)
 {
 	ibool	finished;
 	mtr_t	mtr;
-
-	ut_ad(page_is_root(block->frame));
-leaf_loop:
-	mtr_start(&mtr);
-	mtr_set_log_mode(&mtr, log_mode);
-	mtr.set_named_space_id(block->page.id.space());
-
 	page_t*	root = block->frame;
 
-	if (!root) {
-		mtr_commit(&mtr);
-		return;
-	}
+	ut_ad(page_is_root(root));
+	ut_ad(!space || block->page.id.space() == space->id);
+leaf_loop:
+	mtr.start();
+	mtr.set_log_mode(log_mode);
+	if (space) mtr.set_named_space(space);
 
 #ifdef UNIV_BTR_DEBUG
 	ut_a(btr_root_fseg_validate(FIL_PAGE_DATA + PAGE_BTR_SEG_LEAF
@@ -1384,18 +1381,15 @@ leaf_loop:
 
 	finished = fseg_free_step(root + PAGE_HEADER + PAGE_BTR_SEG_LEAF,
 				  true, &mtr);
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	if (!finished) {
-
 		goto leaf_loop;
 	}
 top_loop:
-	mtr_start(&mtr);
-	mtr_set_log_mode(&mtr, log_mode);
-	mtr.set_named_space_id(block->page.id.space());
-
-	root = block->frame;
+	mtr.start();
+	mtr.set_log_mode(log_mode);
+	if (space) mtr.set_named_space(space);
 
 #ifdef UNIV_BTR_DEBUG
 	ut_a(btr_root_fseg_validate(FIL_PAGE_DATA + PAGE_BTR_SEG_TOP
@@ -1404,7 +1398,7 @@ top_loop:
 
 	finished = fseg_free_step_not_header(
 		root + PAGE_HEADER + PAGE_BTR_SEG_TOP, true, &mtr);
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	if (!finished) {
 		goto top_loop;
@@ -1412,29 +1406,25 @@ top_loop:
 }
 
 /** Free a persistent index tree if it exists.
-@param[in]	page_id		root page id
-@param[in]	page_size	page size
+@param[in,out]	space		tablespace
+@param[in]	page		root page number
 @param[in]	index_id	PAGE_INDEX_ID contents
 @param[in,out]	mtr		mini-transaction */
 void
 btr_free_if_exists(
-	const page_id_t&	page_id,
-	const page_size_t&	page_size,
-	index_id_t		index_id,
-	mtr_t*			mtr)
+	fil_space_t*	space,
+	ulint		page,
+	index_id_t	index_id,
+	mtr_t*		mtr)
 {
-	buf_block_t* root = btr_free_root_check(
-		page_id, page_size, index_id, mtr);
-
-	if (root == NULL) {
-		return;
+	if (buf_block_t* root = btr_free_root_check(space, page, index_id,
+						    mtr)) {
+		ut_ad(page_is_root(root->frame));
+		btr_free_but_not_root(space, root, mtr->get_log_mode());
+		mtr->set_named_space(space);
+		btr_free_root(root, mtr);
+		btr_free_root_invalidate(root, mtr);
 	}
-
-	ut_ad(page_is_root(root->frame));
-	btr_free_but_not_root(root, mtr->get_log_mode());
-	mtr->set_named_space_id(page_id.space());
-	btr_free_root(root, mtr);
-	btr_free_root_invalidate(root, mtr);
 }
 
 /** Free an index tree in a temporary tablespace or during TRUNCATE TABLE.
@@ -1449,13 +1439,10 @@ btr_free(
 	mtr.start();
 	mtr.set_log_mode(MTR_LOG_NO_REDO);
 
-	buf_block_t*	block = buf_page_get(
-		page_id, page_size, RW_X_LATCH, &mtr);
-
-	if (block) {
+	if (buf_block_t* block = buf_page_get(page_id, page_size, RW_X_LATCH,
+					      &mtr)) {
 		ut_ad(page_is_root(block->frame));
-
-		btr_free_but_not_root(block, MTR_LOG_NO_REDO);
+		btr_free_but_not_root(NULL, block, MTR_LOG_NO_REDO);
 		btr_free_root(block, &mtr);
 	}
 	mtr.commit();

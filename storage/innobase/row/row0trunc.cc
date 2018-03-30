@@ -3021,10 +3021,8 @@ void truncate_t::drop_indexes(fil_space_t* space) const
 		}
 
 		if (root_page_no != FIL_NULL) {
-			const page_id_t	root_page_id(space->id, root_page_no);
-
-			btr_free_if_exists(
-				root_page_id, page_size, it->m_id, &mtr);
+			btr_free_if_exists(space, root_page_no, it->m_id,
+					   &mtr);
 		}
 
 		/* If tree is already freed then we might return immediately

@@ -373,16 +373,16 @@ btr_create(
 	mtr_t*			mtr);
 
 /** Free a persistent index tree if it exists.
-@param[in]	page_id		root page id
-@param[in]	page_size	page size
+@param[in,out]	space		tablespace
+@param[in]	page		root page number
 @param[in]	index_id	PAGE_INDEX_ID contents
 @param[in,out]	mtr		mini-transaction */
 void
 btr_free_if_exists(
-	const page_id_t&	page_id,
-	const page_size_t&	page_size,
-	index_id_t		index_id,
-	mtr_t*			mtr);
+	fil_space_t*	space,
+	ulint		page,
+	index_id_t	index_id,
+	mtr_t*		mtr);
 
 /** Free an index tree in a temporary tablespace or during TRUNCATE TABLE.
 @param[in]	page_id		root page id
