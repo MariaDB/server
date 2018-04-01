@@ -86,11 +86,30 @@ then
   sed '/Package: mariadb-plugin-rocksdb/,+14d' -i debian/control
 fi
 
-# AWS SDK requires c++11 -capable compiler
+# AWS SDK requires c++11 -capable compiler.
 # Minimal supported versions are g++ 4.8 and clang 3.3.
-if [[ $GCCVERSION -lt 40800 ]] || [[ $TRAVIS ]]
+# AWS SDK also requires the build machine to have network access and git, so
+# it cannot be part of the base version included in Linux distros, but a pure
+# custom built plugin.
+if [[ $GCCVERSION -gt 40800 ]] && [[ ! $TRAVIS ]] && ping -c 1 github.com
 then
-  sed '/Package: mariadb-plugin-aws-key-management/,+14d' -i debian/control
+  cat <<EOF >> debian/control
+
+Package: mariadb-plugin-aws-key-management
+Architecture: any
+Breaks: mariadb-aws-key-management-10.1,
+        mariadb-aws-key-management-10.2
+Replaces: mariadb-aws-key-management-10.1,
+          mariadb-aws-key-management-10.2
+Depends: libcurl3,
+         mariadb-server-10.3,
+         \${misc:Depends},
+         \${shlibs:Depends}
+Description: Amazon Web Service Key Management Service Plugin for MariaDB
+ This encryption key management plugin gives an interface to the Amazon Web
+ Services Key Management Service for managing encryption keys used for MariaDB
+ data-at-rest encryption.
+EOF
 fi
 
 # Mroonga, TokuDB never built on Travis CI anyway, see build flags above
