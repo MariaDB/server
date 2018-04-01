@@ -8924,7 +8924,16 @@ void Vers_history_point::print(String *str, enum_query_type query_type,
   };
   str->append(prefix, plen);
   str->append(unit_type + unit);
-  item->print(str, query_type);
+  if (item->need_parentheses_in_default())
+  {
+    str->append('(');
+    item->print(str, query_type);
+    str->append(')');
+  }
+  else
+  {
+    item->print(str, query_type);
+  }
 }
 
 Field *TABLE::find_field_by_name(LEX_CSTRING *str) const
