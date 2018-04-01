@@ -534,7 +534,7 @@ Description: Connect storage engine for MariaDB
  This package contains the Connect plugin for MariaDB.
 
 Package: mariadb-plugin-rocksdb
-Architecture: any
+Architecture: amd64 arm64 mips64el ppc64el
 Depends: mariadb-server-10.3 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
