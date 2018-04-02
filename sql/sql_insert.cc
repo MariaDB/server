@@ -4140,6 +4140,7 @@ TABLE *select_create::create_table_from_items(THD *thd,
   uint select_field_count= items->elements;
   /* Add selected items to field list */
   List_iterator_fast<Item> it(*items);
+  List<Create_field> create_list;
   Item *item;
   DBUG_ENTER("create_table_from_items");
 
@@ -4187,11 +4188,13 @@ TABLE *select_create::create_table_from_items(THD *thd,
 
     if (item->maybe_null)
       cr_field->flags &= ~NOT_NULL_FLAG;
-    alter_info->create_list.push_back(cr_field, thd->mem_root);
+    create_list.push_back(cr_field, thd->mem_root);
   }
 
+  alter_info->create_list.append(&create_list);
+
   if (create_info->vers_fix_system_fields(thd, alter_info, *create_table,
-    select_tables, items, &versioned_write))
+    select_tables, items, &versioned_write, &create_list))
   {
     DBUG_RETURN(NULL);
   }
@@ -4431,18 +4434,19 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
     *m_plock= extra_lock;
   }
 
-  if (table->s->fields < values.elements)
+  if (table->s->user_fields < values.elements)
   {
     my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
     DBUG_RETURN(-1);
   }
 
   /* First field to copy */
-  field= table->field+table->s->fields - values.elements;
+  field= table->field+table->s->user_fields - values.elements;
 
   /* Mark all fields that are given values */
   for (Field **f= field ; *f ; f++)
-    bitmap_set_bit(table->write_set, (*f)->field_index);
+    if ((*f)->invisible < INVISIBLE_SYSTEM)
+      bitmap_set_bit(table->write_set, (*f)->field_index);
 
   table->next_number_field=table->found_next_number_field;
 

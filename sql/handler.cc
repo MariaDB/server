@@ -6887,7 +6887,7 @@ static bool vers_create_sys_field(THD *thd, const char *field_name,
 const LString Vers_parse_info::default_start= "row_start";
 const LString Vers_parse_info::default_end= "row_end";
 
-bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info, int *added)
+bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
 {
   // If user specified some of these he must specify the others too. Do nothing.
   if (*this)
@@ -6903,8 +6903,7 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info, int *added)
   {
     return true;
   }
-  if (added)
-    *added+= 2;
+
   return false;
 }
 
@@ -6937,7 +6936,8 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   const TABLE_LIST &create_table,
   const TABLE_LIST *select_tables,
   List<Item> *items,
-  bool *versioned_write)
+  bool *versioned_write,
+  List<Create_field> *create_list)
 {
   DBUG_ASSERT(!(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING));
   int vers_tables= 0;
@@ -7040,50 +7040,12 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
     }
   } // while (Create_field *f= it++)
 
-  /* Assign selected system fields to explicit system fields if any */
-  if (vers_tables)
-  {
-    it.rewind();
-    while (Create_field *f= it++)
-    {
-      uint flags_left= VERS_SYSTEM_FIELD;
-      if (flags_left && (vers_info.is_start(*f) || vers_info.is_end(*f)) && !f->field)
-      {
-        uint sys_flag= f->flags & flags_left;
-        flags_left-= sys_flag;
-        List_iterator_fast<Item> it2(*items);
-        while (Item *item= it2++)
-        {
-          if (item->type() != Item::FIELD_ITEM)
-            continue;
-          Field *fld= static_cast<Item_field *>(item)->field;
-          DBUG_ASSERT(fld);
-          if ((fld->flags & sys_flag) &&
-            LString_i(f->field_name) == fld->field_name)
-          {
-            f->field= fld;
-            *versioned_write= false;
-          }
-        } // while (item)
-      } // if (flags_left ...
-    } // while (Create_field *f= it++)
-  } // if (vers_tables)
-
-  int added= 0;
-  if (vers_info.fix_implicit(thd, alter_info, &added))
+  if (create_list)
+    alter_info->create_list.disjoin(create_list);
+  if (vers_info.fix_implicit(thd, alter_info))
     return true;
-
-  DBUG_ASSERT(added >= 0);
-  if (vers_tables)
-  {
-    DBUG_ASSERT(items);
-    while (added--)
-    {
-      Item_default_value *item= new (thd->mem_root)
-        Item_default_value(thd, thd->lex->current_context());
-      items->push_back(item, thd->mem_root);
-    }
-  }
+  if (create_list)
+    alter_info->create_list.append(create_list);
 
   int plain_cols= 0; // columns don't have WITH or WITHOUT SYSTEM VERSIONING
   int vers_cols= 0; // columns have WITH SYSTEM VERSIONING
