@@ -1,0 +1,24 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+--disable_warnings
+drop table if exists s1, t1, t2;
+--enable_warnings
+
+#
+# MDEV-14831 CREATE OR REPLACE SEQUENCE under LOCK TABLE corrupts the
+# sequence, causes ER_KEY_NOT_FOUND
+#
+CREATE SEQUENCE s1;
+create table t1 (a int);
+create table t2 (a int);
+LOCK TABLE s1 WRITE, t1 write;
+create or replace sequence s1;
+select * from s1;
+select * from t1;
+--error ER_TABLE_NOT_LOCKED
+select * from t2;
+unlock tables;
+select * from t1;
+select * from t2;
+drop tables s1, t1, t2;

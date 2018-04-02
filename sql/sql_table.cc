@@ -5221,6 +5221,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   if (thd->locked_tables_mode && pos_in_locked_tables &&
       create_info->or_replace())
   {
+    DBUG_ASSERT(thd->variables.option_bits & OPTION_TABLE_LOCK);
     /*
       Add back the deleted table and re-created table as a locked table
       This should always work as we have a meta lock on the table.

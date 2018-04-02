@@ -2443,7 +2443,7 @@ Locked_tables_list::reopen_tables(THD *thd)
       break something else.
     */
     lock= mysql_lock_tables(thd, m_reopen_array, reopen_count,
-                            MYSQL_OPEN_REOPEN);
+                            MYSQL_OPEN_REOPEN | MYSQL_LOCK_USE_MALLOC);
     thd->in_lock_tables= 0;
     if (lock == NULL || (merged_lock=
                          mysql_lock_merge(thd->lock, lock)) == NULL)
