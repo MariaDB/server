@@ -274,51 +274,17 @@ bool prepare_sequence_fields(THD *thd, List<Create_field> *fields)
     There is also a MDL lock on the table.
 */
 
-bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
+bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
 {
   int error;
   TABLE *table;
-  TABLE_LIST::enum_open_strategy save_open_strategy;
   Reprepare_observer *save_reprepare_observer;
   sequence_definition *seq= lex->create_info.seq_create_info;
-  bool temporary_table= table_list->table != 0;
-  TABLE_LIST *org_next_global= table_list->next_global;
+  bool temporary_table= org_table_list->table != 0;
+  Open_tables_backup open_tables_backup;
+  Query_tables_list query_tables_list_backup;
+  TABLE_LIST table_list;                        // For sequence table
   DBUG_ENTER("sequence_insert");
-
-  /* If not temporary table */
-  if (!temporary_table)
-  {
-    /* Table was locked as part of create table. Free it but keep MDL locks */
-    close_thread_tables(thd);
-    table_list->next_global= 0;                 // Close LIKE TABLE
-    table_list->lock_type= TL_WRITE_DEFAULT;
-    table_list->updating=  1;
-    /*
-      The FOR CREATE flag is needed to ensure that ha_open() doesn't try to
-      read the not yet existing row in the sequence table
-    */
-    thd->open_options|= HA_OPEN_FOR_CREATE;
-    save_open_strategy= table_list->open_strategy;
-    /*
-      We have to reset the reprepare observer to be able to open the
-      table under prepared statements.
-    */
-    save_reprepare_observer= thd->m_reprepare_observer;
-    thd->m_reprepare_observer= 0;
-    table_list->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
-    table_list->open_type= OT_BASE_ONLY;
-    error= open_and_lock_tables(thd, table_list, FALSE,
-                                MYSQL_LOCK_IGNORE_TIMEOUT |
-                                MYSQL_OPEN_HAS_MDL_LOCK);
-    table_list->open_strategy= save_open_strategy;
-    thd->open_options&= ~HA_OPEN_FOR_CREATE;
-    thd->m_reprepare_observer= save_reprepare_observer;
-    table_list->next_global= org_next_global;
-    if (error)
-      DBUG_RETURN(TRUE); /* purify inspected */
-  }
-
-  table= table_list->table;
 
   /*
     seq is 0 if sequence was created with CREATE TABLE instead of
@@ -327,16 +293,81 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
   if (!seq)
   {
     if (!(seq= new (thd->mem_root) sequence_definition))
-      DBUG_RETURN(TRUE);                        // EOM
+      DBUG_RETURN(TRUE);
   }
+
+  /* If not temporary table */
+  if (!temporary_table)
+  {
+    /*
+      The following code works like open_system_tables_for_read() and
+      close_system_tables()
+      The idea is:
+      - Copy the table_list object for the sequence that was created
+      - Backup the current state of open tables and create a new
+        environment for open tables without any tables opened
+     - open the newly sequence table for write
+     This is safe as the sequence table has a mdl lock thanks to the
+     create sequence statement that is calling this function
+    */
+
+    table_list.init_one_table(org_table_list->db, org_table_list->db_length,
+                              org_table_list->table_name,
+                              org_table_list->table_name_length,
+                              NULL, TL_WRITE_DEFAULT);
+    table_list.updating=  1;
+    table_list.open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
+    table_list.open_type= OT_BASE_ONLY;
+
+    DBUG_ASSERT(!thd->locked_tables_mode ||
+                (thd->variables.option_bits & OPTION_TABLE_LOCK));
+    lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
+    thd->reset_n_backup_open_tables_state(&open_tables_backup);
+
+    /*
+      The FOR CREATE flag is needed to ensure that ha_open() doesn't try to
+      read the not yet existing row in the sequence table
+    */
+    thd->open_options|= HA_OPEN_FOR_CREATE;
+    /*
+      We have to reset the reprepare observer to be able to open the
+      table under prepared statements.
+    */
+    save_reprepare_observer= thd->m_reprepare_observer;
+    thd->m_reprepare_observer= 0;
+    lex->sql_command= SQLCOM_CREATE_SEQUENCE;
+    error= open_and_lock_tables(thd, &table_list, FALSE,
+                                MYSQL_LOCK_IGNORE_TIMEOUT |
+                                MYSQL_OPEN_HAS_MDL_LOCK);
+    thd->open_options&= ~HA_OPEN_FOR_CREATE;
+    thd->m_reprepare_observer= save_reprepare_observer;
+    if (error)
+    {
+      lex->restore_backup_query_tables_list(&query_tables_list_backup);
+      thd->restore_backup_open_tables_state(&open_tables_backup);
+      DBUG_RETURN(error);
+    }
+    table= table_list.table;
+  }
+  else
+    table= org_table_list->table;
 
   seq->reserved_until= seq->start;
   error= seq->write_initial_sequence(table);
 
   trans_commit_stmt(thd);
   trans_commit_implicit(thd);
+
   if (!temporary_table)
+  {
     close_thread_tables(thd);
+    lex->restore_backup_query_tables_list(&query_tables_list_backup);
+    thd->restore_backup_open_tables_state(&open_tables_backup);
+
+    /* OPTION_TABLE_LOCK was reset in trans_commit_implicit */
+    if (thd->locked_tables_mode)
+      thd->variables.option_bits|= OPTION_TABLE_LOCK;
+  }
   DBUG_RETURN(error);
 }
 

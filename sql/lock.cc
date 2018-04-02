@@ -746,6 +746,7 @@ static int unlock_external(THD *thd, TABLE **table,uint count)
            - GET_LOCK_UNLOCK      : If we should send TL_IGNORE to store lock
            - GET_LOCK_STORE_LOCKS : Store lock info in TABLE
            - GET_LOCK_SKIP_SEQUENCES : Ignore sequences (for temporary unlock)
+           - GET_LOCK_ON_THD      : Store lock in thd->mem_root
 */
 
 MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
