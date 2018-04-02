@@ -568,7 +568,7 @@ int init_proxy_protocol_networks(const char *spec)
 #ifdef HAVE_PSI_INTERFACE
   static PSI_rwlock_key psi_rwlock_key;
   static PSI_rwlock_info psi_rwlock_info={ &psi_rwlock_key, "rwlock", 0 };
-  mysql_rwlock_register("proxy_protocol", &psi_rwlock_info, 1);
+  mysql_rwlock_register("proxy_proto", &psi_rwlock_info, 1);
 #endif
 
   mysql_rwlock_init(psi_rwlock_key, &lock);
