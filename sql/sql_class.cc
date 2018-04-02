@@ -819,6 +819,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   statement_id_counter= 0UL;
   // Must be reset to handle error with THD's created for init of mysqld
   lex->current_select= 0;
+  stmt_lex= 0;
   start_utime= utime_after_query= 0;
   system_time.start.val= system_time.sec= system_time.sec_part= 0;
   utime_after_lock= 0L;
