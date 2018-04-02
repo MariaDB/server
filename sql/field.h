@@ -1221,7 +1221,7 @@ public:
   void make_sort_key(uchar *buff, uint length);
   virtual void make_field(Send_field *);
   virtual void sort_string(uchar *buff,uint length)=0;
-  virtual bool optimize_range(uint idx, uint part);
+  virtual bool optimize_range(uint idx, uint part) const;
   virtual void free() {}
   virtual Field *make_new_field(MEM_ROOT *root, TABLE *new_table,
                                 bool keep_type);
@@ -1678,9 +1678,6 @@ public:
            !((flags & UNSIGNED_FLAG) && !(from->flags & UNSIGNED_FLAG)) &&
            decimals() == from->decimals();
   }
-  int store_decimal(const my_decimal *);
-  my_decimal *val_decimal(my_decimal *);
-  bool val_bool() { return val_int() != 0; }
   uint is_equal(Create_field *new_field);
   uint row_pack_length() const { return pack_length(); }
   uint32 pack_length_from_metadata(uint field_metadata) {
@@ -1689,12 +1686,10 @@ public:
                           field_metadata, length));
     return length;
   }
-  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   double pos_in_interval(Field *min, Field *max)
   {
     return pos_in_interval_val_real(min, max);
   }
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
 };
 
 
@@ -1954,15 +1949,35 @@ public:
 };
 
 
-class Field_tiny :public Field_num {
+class Field_int :public Field_num
+{
+protected:
+  String *val_str_from_long(String *val_buffer, uint max_char_length,
+                            int radix, long nr);
+public:
+  Field_int(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
+            uchar null_bit_arg, enum utype unireg_check_arg,
+            const LEX_CSTRING *field_name_arg, bool zero_arg, bool unsigned_arg)
+    :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+               unireg_check_arg, field_name_arg, 0, zero_arg, unsigned_arg)
+    {}
+  int store_decimal(const my_decimal *);
+  my_decimal *val_decimal(my_decimal *);
+  bool val_bool() { return val_int() != 0; }
+  int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+};
+
+
+class Field_tiny :public Field_int
+{
 public:
   Field_tiny(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	     uchar null_bit_arg,
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
 	     bool zero_arg, bool unsigned_arg)
-    :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-	       unireg_check_arg, field_name_arg,
-	       0, zero_arg,unsigned_arg)
+    :Field_int(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+               unireg_check_arg, field_name_arg, zero_arg, unsigned_arg)
     {}
   const Type_handler *type_handler() const { return &type_handler_tiny; }
   enum ha_base_keytype key_type() const
@@ -1998,21 +2013,21 @@ public:
 };
 
 
-class Field_short :public Field_num {
+class Field_short :public Field_int
+{
 public:
   Field_short(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	      uchar null_bit_arg,
 	      enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
 	      bool zero_arg, bool unsigned_arg)
-    :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-	       unireg_check_arg, field_name_arg,
-	       0, zero_arg,unsigned_arg)
+    :Field_int(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+               unireg_check_arg, field_name_arg, zero_arg, unsigned_arg)
     {}
   Field_short(uint32 len_arg,bool maybe_null_arg,
               const LEX_CSTRING *field_name_arg,
 	      bool unsigned_arg)
-    :Field_num((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0,0,
-	       NONE, field_name_arg, 0, 0, unsigned_arg)
+    :Field_int((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0,0,
+               NONE, field_name_arg, 0, unsigned_arg)
     {}
   const Type_handler *type_handler() const { return &type_handler_short; }
   enum ha_base_keytype key_type() const
@@ -2039,15 +2054,15 @@ public:
   { return unpack_int16(to, from, from_end); }
 };
 
-class Field_medium :public Field_num {
+class Field_medium :public Field_int
+{
 public:
   Field_medium(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	      uchar null_bit_arg,
 	      enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
 	      bool zero_arg, bool unsigned_arg)
-    :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-	       unireg_check_arg, field_name_arg,
-	       0, zero_arg,unsigned_arg)
+    :Field_int(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+               unireg_check_arg, field_name_arg, zero_arg, unsigned_arg)
     {}
   const Type_handler *type_handler() const { return &type_handler_int24; }
   enum ha_base_keytype key_type() const
@@ -2073,21 +2088,21 @@ public:
 };
 
 
-class Field_long :public Field_num {
+class Field_long :public Field_int
+{
 public:
   Field_long(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	     uchar null_bit_arg,
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
 	     bool zero_arg, bool unsigned_arg)
-    :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-	       unireg_check_arg, field_name_arg,
-	       0, zero_arg,unsigned_arg)
+    :Field_int(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+               unireg_check_arg, field_name_arg, zero_arg, unsigned_arg)
     {}
   Field_long(uint32 len_arg,bool maybe_null_arg,
              const LEX_CSTRING *field_name_arg,
 	     bool unsigned_arg)
-    :Field_num((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0,0,
-	       NONE, field_name_arg,0,0,unsigned_arg)
+    :Field_int((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0,0,
+               NONE, field_name_arg, 0, unsigned_arg)
     {}
   const Type_handler *type_handler() const { return &type_handler_long; }
   enum ha_base_keytype key_type() const
@@ -2119,21 +2134,21 @@ public:
 };
 
 
-class Field_longlong :public Field_num {
+class Field_longlong :public Field_int
+{
 public:
   Field_longlong(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	      uchar null_bit_arg,
 	      enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
 	      bool zero_arg, bool unsigned_arg)
-    :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-	       unireg_check_arg, field_name_arg,
-	       0, zero_arg,unsigned_arg)
+    :Field_int(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+               unireg_check_arg, field_name_arg, zero_arg, unsigned_arg)
     {}
   Field_longlong(uint32 len_arg,bool maybe_null_arg,
 		 const LEX_CSTRING *field_name_arg,
                  bool unsigned_arg)
-    :Field_num((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0,0,
-	       NONE, field_name_arg,0,0,unsigned_arg)
+    :Field_int((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0,0,
+                NONE, field_name_arg, 0, unsigned_arg)
     {}
   const Type_handler *type_handler() const { return &type_handler_longlong; }
   enum ha_base_keytype key_type() const
@@ -3807,7 +3822,7 @@ public:
   { return (field_metadata & 0x00ff); }
   uint row_pack_length() const { return pack_length(); }
   virtual bool zero_pack() const { return 0; }
-  bool optimize_range(uint idx, uint part) { return 0; }
+  bool optimize_range(uint idx, uint part) const { return 0; }
   bool eq_def(const Field *field) const;
   bool has_charset(void) const { return TRUE; }
   /* enum and set are sorted as integers */
