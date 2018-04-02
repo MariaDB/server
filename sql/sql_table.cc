@@ -3439,8 +3439,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       DBUG_RETURN(TRUE);
   }
 
-  select_field_pos= alter_info->create_list.elements - select_field_count;
-
   for (field_no=0; (sql_field=it++) ; field_no++)
   {
     /*
@@ -3483,7 +3481,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  If this was a CREATE ... SELECT statement, accept a field
 	  redefinition if we are changing a field in the SELECT part
 	*/
-	if (field_no < select_field_pos || dup_no >= select_field_pos)
+	if (field_no < select_field_pos || dup_no >= select_field_pos ||
+            dup_field->invisible >= INVISIBLE_SYSTEM)
 	{
 	  my_error(ER_DUP_FIELDNAME, MYF(0), sql_field->field_name.str);
 	  DBUG_RETURN(TRUE);

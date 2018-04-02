@@ -396,7 +396,7 @@ create or replace table t1 (a int) with system versioning;
 create or replace table t2 (b int);
 create or replace view v1 as select a, row_start, row_end from t1 where a > round(rand()*1000);
 select * from v1 natural join t2;
-a	b
+a	row_start	row_end	b
 #
 # Issue #406, MDEV-14633 Assertion on TRT read
 #

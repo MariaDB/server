@@ -16517,11 +16517,7 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
       item->result_field= new_field;
     else
       new_field->field_name= *name;
-    new_field->flags|= (org_field->flags & (
-      NO_DEFAULT_VALUE_FLAG |
-      VERS_SYS_START_FLAG |
-      VERS_SYS_END_FLAG |
-      VERS_UPDATE_UNVERSIONED_FLAG));
+    new_field->flags|= org_field->flags & NO_DEFAULT_VALUE_FLAG;
     if (org_field->maybe_null() || (item && item->maybe_null))
       new_field->flags&= ~NOT_NULL_FLAG;	// Because of outer join
     if (org_field->type() == MYSQL_TYPE_VAR_STRING ||
@@ -16785,9 +16781,6 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
                                           modify_item ? field :
                                           NULL);
     }
-
-    if (field->field->vers_sys_field())
-      result->invisible= field->field->invisible;
 
     if (orig_type == Item::REF_ITEM && orig_modify)
       ((Item_ref*)orig_item)->set_result_field(result);
