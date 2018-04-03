@@ -351,15 +351,9 @@ insert into t1 values ('85984',GeomFromText('MULTIPOLYGON(((-115.006363
 36.248666,-115.263639 36.247466,-115.263839 36.252766,-115.261439
 36.252666,-115.261439 36.247366,-115.247239 36.247066)))'));
 
-# Expected results are 115.2970604672862 and 36.23335610879993, but IA64 returns
-# slightly different values due to fused multiply-add instructions.
---replace_result 115.29706047613604 115.2970604672862 36.23335611157958 36.23335610879993
 select object_id, geometrytype(geo), ISSIMPLE(GEO), ASTEXT(centroid(geo)) from
 t1 where object_id=85998;
 
-# Expected result is 36.34725218253213, but IA64 returns 36.34725217627852
-# due to fused multiply-add instructions.
---replace_result 36.34725217627852 36.34725218253213 -114.86854470090232 -114.86854472054372
 select object_id, geometrytype(geo), ISSIMPLE(GEO), ASTEXT(centroid(geo)) from
 t1 where object_id=85984;
 
@@ -825,7 +819,6 @@ SELECT ISCLOSED(CONVERT(CONCAT('     ', 0x2), BINARY(20)));
 --echo # BUG#12537203 - CRASH WHEN SUBSELECTING GLOBAL VARIABLES IN 
 --echo # GEOMETRY FUNCTION ARGUMENTS
 --echo #
---replace_regex /non geometric .* value/non geometric '' value/
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT GEOMETRYCOLLECTION((SELECT @@OLD));
 

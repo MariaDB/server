@@ -69,19 +69,15 @@ select astext(ST_Intersection(GeomFromText('LINESTRING(0 0, 50 45, 40 50, 0 0)')
 select astext(ST_Intersection(GeomFromText('LINESTRING(0 0, 50 45, 40 50)'), GeomFromText('LINESTRING(50 5, 55 10, 0 45)')));
 select astext(ST_Intersection(GeomFromText('POLYGON((0 0, 50 45, 40 50, 0 0))'), GeomFromText('POINT(20 20)')));
 select astext(ST_Intersection(GeomFromText('POLYGON((0 0, 50 45, 40 50, 0 0))'), GeomFromText('LINESTRING(-10 -10, 200 200)')));
---replace_result 7.999999999999999 8
 select astext(ST_Intersection(GeomFromText('POLYGON((0 0, 50 45, 40 50, 0 0))'), GeomFromText('LINESTRING(-10 -10, 200 200, 199 201, -11 -9)')));
---replace_result 7.999999999999999 8
 select astext(ST_UNION(GeomFromText('POLYGON((0 0, 50 45, 40 50, 0 0))'), GeomFromText('LINESTRING(-10 -10, 200 200, 199 201, -11 -9)')));
 
 select astext(ST_intersection(geomfromtext('polygon((0 0, 1 0, 0 1, 0 0))'), geomfromtext('polygon((0 0, 1 1, 0 2, 0 0))')));
 
 select astext(ST_symdifference(geomfromtext('polygon((0 0, 1 0, 0 1, 0 0))'), geomfromtext('polygon((0 0, 1 1, 0 2, 0 0))')));
---replace_result 7.999999999999999 8
 select astext(ST_UNION(GeomFromText('POLYGON((0 0, 50 45, 40 50, 0 0))'), GeomFromText('LINESTRING(-10 -10, 200 200, 199 201, -11 -9)')));
 
 # Buffer() tests
---replace_result 0012045437948276 00120454379482759
 select astext(ST_buffer(geometryfromtext('point(1 1)'), 1));
 create table t1(geom geometrycollection);
 insert into t1 values (geomfromtext('POLYGON((0 0, 10 10, 0 8, 0 0))'));
@@ -91,7 +87,6 @@ select ST_NUMPOINTS(ST_EXTERIORRING(ST_buffer(geom,2))) from t1;
 
 set @geom=geomfromtext('LINESTRING(2 1, 4 2, 2 3, 2 5)');
 set @buff=ST_buffer(@geom,1);
---replace_result 40278744502097 40278744502096
 select ST_NUMPOINTS(ST_EXTERIORRING(@buff));
 
 # cleanup
@@ -248,7 +243,6 @@ SELECT AsText(ST_UNION(POLYGONFROMTEXT('POLYGON((12 9, 3 6, 3 0, 12 9))'), POLYG
 
 #bug 841622 Assertion `t->rp->type == Gcalc_function::shape_line' failed in Gcalc_operation_reducer::end_line in maria-5.3-gis
 
---replace_result 276 278
 SELECT ST_NUMPOINTS(ST_EXTERIORRING(ST_BUFFER(ST_UNION(
   MULTILINESTRINGFROMTEXT('MULTILINESTRING((3 4, 2 5, 7 6, 1 8),(0 0 ,1 6 ,0 1, 8 9, 2 4, 6 1, 3 5, 4 8), (9 3, 5 4, 1 8, 4 2, 5 8, 3 0))' ) ,
   MULTILINESTRINGFROMTEXT('MULTILINESTRING((3 4, 3 1, 2 7, 4 2, 6 2, 1 5))')

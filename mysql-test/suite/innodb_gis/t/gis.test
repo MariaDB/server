@@ -366,15 +366,9 @@ insert into t1 values ('85984',ST_GeomFromText('MULTIPOLYGON(((-115.006363
 36.248666,-115.263639 36.247466,-115.263839 36.252766,-115.261439
 36.252666,-115.261439 36.247366,-115.247239 36.247066)))'));
 
-# Expected result is 115.31877315203187, but IA64 returns 115.31877315203188
-# due to fused multiply-add instructions.
---replace_result 115.29706047613604 115.2970604672862 36.23335611157958 36.23335610879993
 select object_id, ST_geometrytype(geo), ST_ISSIMPLE(GEO), ST_ASTEXT(ST_centroid(geo)) from
 t1 where object_id=85998;
 
-# Expected result is 36.3310176346905, but IA64 returns 36.3310176346904
-# due to fused multiply-add instructions.
---replace_result 114.86854470090232 114.86854472054372 36.34725217627852 36.34725218253213
 select object_id, ST_geometrytype(geo), ST_ISSIMPLE(GEO), ST_ASTEXT(ST_centroid(geo)) from
 t1 where object_id=85984;
 
