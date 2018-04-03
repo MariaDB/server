@@ -1373,3 +1373,16 @@ bar
 foo
 SET SESSION optimizer_switch=DEFAULT;
 DROP TABLE t1;
+#
+# MDEV-15762 - VARCHAR(0) COMPRESSED crashes the server
+#
+CREATE TABLE t1(a VARCHAR(0) COMPRESSED);
+INSERT INTO t1 VALUES('a');
+ERROR 22001: Data too long for column 'a' at row 1
+INSERT INTO t1 VALUES(' ');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SELECT LENGTH(a) FROM t1;
+LENGTH(a)
+0
+DROP TABLE t1;

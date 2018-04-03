@@ -7958,12 +7958,6 @@ int Field_longstr::compress(char *to, uint *to_length,
   char *buf= 0;
   int rc= 0;
 
-  if (length == 0)
-  {
-    *to_length= 0;
-    return 0;
-  }
-
   if (String::needs_conversion_on_storage(length, cs, field_charset) ||
       *to_length <= length)
   {
@@ -7981,10 +7975,11 @@ int Field_longstr::compress(char *to, uint *to_length,
                                     (*to_length - 1) / field_charset->mbmaxlen);
     rc= check_conversion_status(&copier, end, cs, true);
     from= buf;
-    DBUG_ASSERT(length > 0);
   }
 
-  if (length >= thd->variables.column_compression_threshold &&
+  if (length == 0)
+    *to_length= 0;
+  else if (length >= thd->variables.column_compression_threshold &&
       (*to_length= compression_method()->compress(thd, to, from, length)))
     status_var_increment(thd->status_var.column_compressions);
   else
