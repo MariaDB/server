@@ -572,6 +572,17 @@ N	AVG
 0	NULL
 drop table t1;
 #
+# MDEV-15630 uuid() function evaluates at wrong time in query
+#
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT COUNT(1), UUID() as uid FROM t1 GROUP BY uid;
+COUNT(1)	uid
+1	xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+1	xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+1	xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+DROP TABLE t1;
+#
 # End of 5.5 tests
 #
 SELECT NAME_CONST('a', -(1 OR 2)) OR 1;
