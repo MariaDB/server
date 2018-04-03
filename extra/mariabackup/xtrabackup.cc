@@ -502,7 +502,7 @@ static os_event_t dbug_start_query_thread(
 		mysql_thread_id(par->con), wait_state);
 	for (;;) {
 		MYSQL_RES *result = xb_mysql_query(mysql_connection,q, true, true);
-		while (MYSQL_ROW row = mysql_fetch_row(result)) {
+		if (mysql_fetch_row(result)) {
 			goto end;
 		}
 		msg_ts("Waiting for query '%s' on connection %lu to "
