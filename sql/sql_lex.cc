@@ -7011,7 +7011,10 @@ bool LEX::set_default_system_variable(enum_var_type var_type,
   if (!var)
     return true;
   if (!var->is_struct())
+  {
     my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), name->str);
+    return true;
+  }
   return set_system_variable(var_type, var, &default_base_name, val);
 }
 
@@ -7040,7 +7043,10 @@ bool LEX::set_system_variable(THD *thd, enum_var_type var_type,
     return true;
   }
   if (!tmp->is_struct())
+  {
     my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), name2->str);
+    return true;
+  }
   return set_system_variable(var_type, tmp, name1, val);
 }
 
