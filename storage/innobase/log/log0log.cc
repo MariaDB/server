@@ -1085,16 +1085,16 @@ log_buffer_switch()
 						 OS_FILE_LOG_BLOCK_SIZE);
 
 	if (log_sys->first_in_use) {
+		log_sys->first_in_use = false;
 		ut_ad(log_sys->buf == ut_align(log_sys->buf_ptr,
 					       OS_FILE_LOG_BLOCK_SIZE));
 		log_sys->buf += log_sys->buf_size;
 	} else {
+		log_sys->first_in_use = true;
 		log_sys->buf -= log_sys->buf_size;
 		ut_ad(log_sys->buf == ut_align(log_sys->buf_ptr,
 					       OS_FILE_LOG_BLOCK_SIZE));
 	}
-
-	log_sys->first_in_use = !log_sys->first_in_use;
 
 	/* Copy the last block to new buf */
 	ut_memcpy(log_sys->buf,
@@ -1235,6 +1235,9 @@ loop:
 	log_group_set_fields(&log_sys->log, log_sys->write_lsn);
 
 	log_mutex_exit();
+	/* Erase the end of the last log block. */
+	memset(write_buf + end_offset, 0, ~end_offset & OS_FILE_LOG_BLOCK_SIZE);
+
 	/* Calculate pad_size if needed. */
 	pad_size = 0;
 	if (write_ahead_size > OS_FILE_LOG_BLOCK_SIZE) {
@@ -1251,12 +1254,9 @@ loop:
 			/* The first block in the unit was initialized
 			after the last writing.
 			Needs to be written padded data once. */
-			pad_size = write_ahead_size - end_offset_in_unit;
-
-			if (area_end + pad_size > log_sys->buf_size) {
-				pad_size = log_sys->buf_size - area_end;
-			}
-
+			pad_size = std::min(
+				ulint(write_ahead_size) - end_offset_in_unit,
+				log_sys->buf_size - area_end);
 			::memset(write_buf + area_end, 0, pad_size);
 		}
 	}
