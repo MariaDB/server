@@ -373,10 +373,10 @@ Description: MariaDB database regression test suite (metapackage depending on th
 Package: mariadb-connect-engine-10.0
 Section: database
 Architecture: any
-Depends: libxml2, mariadb-server-10.0|mariadb-galera-server-10.0, unixODBC
+Depends: libxml2, mariadb-server-10.0|mariadb-galera-server-10.0, unixodbc
 Build-depends: libxml2-dev,
                mariadb-server-10.0|mariadb-galera-server-10.0,
-               unixODBC-dev
+               unixodbc-dev
 Description: Connect storage engine for MariaDB
  Connect engine supports a number of file formats (dbf, xml, txt, bin, etc),
  connections to ODBC tables and remote MySQL tables, as well as a number of
