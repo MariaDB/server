@@ -1386,3 +1386,11 @@ SELECT LENGTH(a) FROM t1;
 LENGTH(a)
 0
 DROP TABLE t1;
+#
+# MDEV-15763 - VARCHAR(1) COMPRESSED crashes the server
+#
+CREATE TABLE t1(a VARCHAR(1) COMPRESSED);
+SET column_compression_threshold=0;
+INSERT INTO t1 VALUES('a');
+SET column_compression_threshold=DEFAULT;
+DROP TABLE t1;
