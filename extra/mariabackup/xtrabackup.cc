@@ -2555,7 +2555,6 @@ xtrabackup_copy_logfile(copy_logfile copy)
 
 	recv_sys->parse_start_lsn = log_copy_scanned_lsn;
 	recv_sys->scanned_lsn = log_copy_scanned_lsn;
-	recv_sys->recovered_lsn = log_copy_scanned_lsn;
 
 	start_lsn = ut_uint64_align_down(log_copy_scanned_lsn,
 					 OS_FILE_LOG_BLOCK_SIZE);
@@ -4082,6 +4081,8 @@ reread_log_header:
 
 	/* copy log file by current position */
 	log_copy_scanned_lsn = checkpoint_lsn_start;
+	recv_sys->recovered_lsn = log_copy_scanned_lsn;
+
 	if (xtrabackup_copy_logfile(COPY_FIRST))
 		goto fail;
 
