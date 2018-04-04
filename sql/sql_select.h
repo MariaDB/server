@@ -1438,6 +1438,9 @@ public:
   
   enum { QEP_NOT_PRESENT_YET, QEP_AVAILABLE, QEP_DELETED} have_query_plan;
 
+  // if keep_current_rowid=true, whether they should be saved in temporary table
+  bool tmp_table_keep_current_rowid;
+
   /*
     Additional WHERE and HAVING predicates to be considered for IN=>EXISTS
     subquery transformation of a JOIN object.
@@ -1543,6 +1546,7 @@ public:
     pushdown_query= 0;
     original_join_tab= 0;
     explain= NULL;
+    tmp_table_keep_current_rowid= 0;
 
     all_fields= fields_arg;
     if (&fields_list != &fields_arg)      /* Avoid valgrind-warning */
@@ -1776,6 +1780,7 @@ private:
   void cleanup_item_list(List<Item> &items) const;
   bool add_having_as_table_cond(JOIN_TAB *tab);
   bool make_aggr_tables_info();
+  bool add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *fields);
 };
 
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};

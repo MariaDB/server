@@ -1765,6 +1765,7 @@ public:
   Field *create_tmp_field(bool group, TABLE *table)
   { return create_table_field_from_handler(table); }
   String *val_str(String *str);
+  enum Functype functype() const { return  TEMPTABLE_ROWID; }
   const char *func_name() const { return "<rowid>"; }
   void fix_length_and_dec();
   Item *get_copy(THD *thd)

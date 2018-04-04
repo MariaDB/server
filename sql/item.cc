@@ -6797,6 +6797,11 @@ fast_field_copier Item_field::setup_fast_field_copier(Field *to)
   return to->get_fast_field_copier(field);
 }
 
+void Item_field::save_in_result_field(bool no_conversions)
+{
+  bool unused;
+  save_field_in_field(field, &unused, result_field, no_conversions);
+}
 
 /**
   Set a field's value from a item.

@@ -2671,6 +2671,25 @@ bool JOIN::add_having_as_table_cond(JOIN_TAB *tab)
 }
 
 
+bool JOIN::add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *table_fields)
+{
+  /*
+    this will not walk into semi-join materialization nests but this is ok
+    because we will never need to save current rowids for those.
+  */
+  for (JOIN_TAB *tab=join_tab; tab < cur; tab++)
+  {
+    if (!tab->keep_current_rowid)
+      continue;
+    Item *item= new (thd->mem_root) Item_temptable_rowid(tab->table);
+    item->fix_fields(thd, 0);
+    table_fields->push_back(item, thd->mem_root);
+    cur->tmp_table_param->func_count++;
+  }
+  return 0;
+}
+
+
 /**
   Set info for aggregation tables
 
@@ -3278,6 +3297,8 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
 
   if (!(tab->tmp_table_param= new TMP_TABLE_PARAM(tmp_table_param)))
     DBUG_RETURN(true);
+  if (tmp_table_keep_current_rowid)
+    add_fields_for_current_rowid(tab, table_fields);
   tab->tmp_table_param->skip_create_table= true;
   TABLE* table= create_tmp_table(thd, tab->tmp_table_param, *table_fields,
                                  table_group, distinct,
@@ -3672,7 +3693,7 @@ bool JOIN::prepare_result(List<Item> **columns_list)
       select_lex->handle_derived(thd->lex, DT_CREATE))
     goto err;
 
-  if (result->prepare2())
+  if (result->prepare2(this))
     goto err;
 
   if ((select_lex->options & OPTION_SCHEMA_TABLE) &&
@@ -3809,7 +3830,7 @@ void JOIN::exec_inner()
     }
     columns_list= &procedure_fields_list;
   }
-  if (result->prepare2())
+  if (result->prepare2(this))
     DBUG_VOID_RETURN;
 
   if (!tables_list && (table_count || !select_lex->with_sum_func) &&
@@ -26225,7 +26246,7 @@ bool JOIN::change_result(select_result *new_result, select_result *old_result)
   {
     result= new_result;
     if (result->prepare(fields_list, select_lex->master_unit()) ||
-        result->prepare2())
+        result->prepare2(this))
       DBUG_RETURN(true); /* purecov: inspected */
     DBUG_RETURN(false);
   }

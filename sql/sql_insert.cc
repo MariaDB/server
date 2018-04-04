@@ -3786,7 +3786,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     0   OK
 */
 
-int select_insert::prepare2(void)
+int select_insert::prepare2(JOIN *)
 {
   DBUG_ENTER("select_insert::prepare2");
   if (thd->lex->current_select->options & OPTION_BUFFER_RESULT &&

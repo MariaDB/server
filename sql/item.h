@@ -2997,8 +2997,7 @@ public:
                                          cond_equal_ref);
   }
   bool is_result_field() { return false; }
-  void set_result_field(Field *field_arg) {}
-  void save_in_result_field(bool no_conversions) { }
+  void save_in_result_field(bool no_conversions);
   Item *get_tmp_table_item(THD *thd);
   bool collect_item_field_processor(void * arg);
   bool add_field_to_set_processor(void * arg);

@@ -914,3 +914,49 @@ update t1 set c1=NULL;
 update t1, t2 set t1.c1=t2.c3 where t1.c3=t2.c3 order by t1.c3 desc limit 2;
 select * from t1;
 drop table t1, t2;
+
+#
+# MDEV-14551 Can't find record in table on multi-table update with ORDER BY
+#
+
+# simple test with multi-update and Using temporary:
+create table t1 (i int) engine=memory;
+insert t1 values (1),(2);
+create table t2 (f int) engine=myisam;
+insert t2 values (1),(2);
+explain update t1, t2 set f = 126 order by f limit 2;
+update t1, t2 set f = 126 order by f limit 2;
+select * from t2;
+drop table t1, t2;
+
+# test with DuplicateElimination
+# (so that keep_current_rowid is set for DuplicateElimination too)
+create table t0(a int);
+insert t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int, c int, key(a));
+insert t1 select a,a,a from t0;
+create table t2 as select * from t1;
+create table t3 as select * from t1;
+select * from t1, t2 where t1.a=t2.a and t1.b in (select b from t3 where t3.c<=t2.c) order by t2.c, t1.c limit 5;
+set optimizer_switch='firstmatch=off';
+explain update t1, t2 set t2.c=1 where t1.a=t2.a and t1.b in (select b from t3 where t3.c< t2.c) order by t2.c, t1.c limit 10;
+update t1, t2 set t2.c=1 where t1.a=t2.a and t1.b in (select b from t3 where t3.c<=t2.c) order by t2.c, t1.c limit 5;
+select * from t2;
+set optimizer_switch=default;
+drop table t0,t1,t2,t3;
+
+# test WITH CHECK OPTION
+create table t0 (x int);
+create table t1 (a int);
+create table t2 (b int, c int default 0);
+insert t0 (x) values (0),(10);
+insert t1 (a) values (1), (2);
+insert t2 (b) values (1), (2);
+create view v1 as select t2.b,t2.c from t1, t2
+  where t1.a=t2.b and t2.b < 3 with check option;
+select * from t0 join v1 on (x=c);
+explain update v1,t0 set c=1 where b=1 and x=c order by x,b limit 1;
+update v1,t0 set c=1 where b<3 and x=c order by x,b limit 1;
+select * from v1;
+drop view v1;
+drop table t0, t1,t2;
