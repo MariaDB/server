@@ -9,7 +9,6 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
-galera_gra_log : MDEV-13549 Galera test failures
 galera_flush :  MDEV-13549 Galera test failures
 galera_account_management : MariaDB 10.0 does not support ALTER USER
 galera_binlog_row_image : MariaDB 10.0 does not support binlog_row_image
