@@ -2166,6 +2166,51 @@ DROP TABLE t1,t2;
 SET  sql_mode = DEFAULT;
 
 --echo #
+--echo # MDEV-15579: incorrect removal of sub-formulas to be pushed
+--echo #             into WHERE of materialized derived with GROUP BY
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, c INT, d INT);
+CREATE TABLE t2 (x INT, y INT, z INT);
+
+INSERT INTO t1 VALUES (1,1,66,1), (1,1,56,2), (3,2,42,3);
+INSERT INTO t2 VALUES (1,1,66), (1,12,32);
+
+LET $query=
+SELECT *
+FROM t2,
+(
+  SELECT a, b, max(c) AS max_c
+  FROM t1
+  GROUP BY a
+  HAVING max_c > 37
+) AS v1
+WHERE (v1.a=1) AND (v1.b=v1.a) AND
+      (v1.a=t2.x) AND (v1.max_c>30);
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT *
+FROM t2,
+(
+  SELECT a, b, d, max(c) AS max_c
+  FROM t1
+  GROUP BY a,d
+  HAVING max_c > 37
+) AS v1
+WHERE (v1.a=1) AND (v1.b=v1.a) AND (v1.b=v1.d) AND
+      (v1.a=t2.x) AND (v1.max_c>30);
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1,t2;
+
+# Start of 10.3 tests
+
+--echo #
 --echo # MDEV-10855: Pushdown into derived with window functions 
 --echo #
 

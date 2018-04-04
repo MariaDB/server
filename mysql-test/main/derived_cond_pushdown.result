@@ -12604,6 +12604,165 @@ EXPLAIN
 DROP TABLE t1,t2;
 SET  sql_mode = DEFAULT;
 #
+# MDEV-15579: incorrect removal of sub-formulas to be pushed
+#             into WHERE of materialized derived with GROUP BY
+#
+CREATE TABLE t1 (a INT, b INT, c INT, d INT);
+CREATE TABLE t2 (x INT, y INT, z INT);
+INSERT INTO t1 VALUES (1,1,66,1), (1,1,56,2), (3,2,42,3);
+INSERT INTO t2 VALUES (1,1,66), (1,12,32);
+SELECT *
+FROM t2,
+(
+SELECT a, b, max(c) AS max_c
+FROM t1
+GROUP BY a
+HAVING max_c > 37
+) AS v1
+WHERE (v1.a=1) AND (v1.b=v1.a) AND
+(v1.a=t2.x) AND (v1.max_c>30);
+x	y	z	a	b	max_c
+1	1	66	1	1	66
+1	12	32	1	1	66
+EXPLAIN SELECT *
+FROM t2,
+(
+SELECT a, b, max(c) AS max_c
+FROM t1
+GROUP BY a
+HAVING max_c > 37
+) AS v1
+WHERE (v1.a=1) AND (v1.b=v1.a) AND
+(v1.a=t2.x) AND (v1.max_c>30);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+EXPLAIN FORMAT=JSON SELECT *
+FROM t2,
+(
+SELECT a, b, max(c) AS max_c
+FROM t1
+GROUP BY a
+HAVING max_c > 37
+) AS v1
+WHERE (v1.a=1) AND (v1.b=v1.a) AND
+(v1.a=t2.x) AND (v1.max_c>30);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "t2.x = 1"
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "<derived2>",
+        "access_type": "ALL",
+        "rows": 3,
+        "filtered": 100,
+        "attached_condition": "v1.a = 1 and v1.b = 1 and v1.max_c > 30"
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "max_c > 37 and max_c > 30 and t1.b = 1",
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 3,
+            "filtered": 100,
+            "attached_condition": "t1.a = 1"
+          }
+        }
+      }
+    }
+  }
+}
+SELECT *
+FROM t2,
+(
+SELECT a, b, d, max(c) AS max_c
+FROM t1
+GROUP BY a,d
+HAVING max_c > 37
+) AS v1
+WHERE (v1.a=1) AND (v1.b=v1.a) AND (v1.b=v1.d) AND
+(v1.a=t2.x) AND (v1.max_c>30);
+x	y	z	a	b	d	max_c
+1	1	66	1	1	1	66
+1	12	32	1	1	1	66
+EXPLAIN SELECT *
+FROM t2,
+(
+SELECT a, b, d, max(c) AS max_c
+FROM t1
+GROUP BY a,d
+HAVING max_c > 37
+) AS v1
+WHERE (v1.a=1) AND (v1.b=v1.a) AND (v1.b=v1.d) AND
+(v1.a=t2.x) AND (v1.max_c>30);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+EXPLAIN FORMAT=JSON SELECT *
+FROM t2,
+(
+SELECT a, b, d, max(c) AS max_c
+FROM t1
+GROUP BY a,d
+HAVING max_c > 37
+) AS v1
+WHERE (v1.a=1) AND (v1.b=v1.a) AND (v1.b=v1.d) AND
+(v1.a=t2.x) AND (v1.max_c>30);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "t2.x = 1"
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "<derived2>",
+        "access_type": "ALL",
+        "rows": 3,
+        "filtered": 100,
+        "attached_condition": "v1.a = 1 and v1.b = 1 and v1.d = 1 and v1.max_c > 30"
+      },
+      "buffer_type": "flat",
+      "buffer_size": "256Kb",
+      "join_type": "BNL",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "max_c > 37 and max_c > 30 and t1.b = 1",
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 3,
+            "filtered": 100,
+            "attached_condition": "t1.a = 1 and t1.d = 1"
+          }
+        }
+      }
+    }
+  }
+}
+DROP TABLE t1,t2;
+#
 # MDEV-10855: Pushdown into derived with window functions 
 #
 set @save_optimizer_switch= @@optimizer_switch;

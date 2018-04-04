@@ -868,6 +868,76 @@ stop_query_killer()
 	os_event_wait_time(kill_query_thread_stopped, 60000);
 }
 
+
+/*
+Killing connections that wait for MDL lock.
+If lock-ddl-per-table is used, there can be some DDL statements
+
+FLUSH TABLES would hang infinitely, if DDL statements are waiting for
+MDL lock, which mariabackup currently holds. Therefore we start killing
+those  statements from a dedicated thread, until FLUSH TABLES WITH READ LOCK
+succeeds.
+*/
+
+static os_event_t mdl_killer_stop_event;
+static os_event_t mdl_killer_finished_event;
+
+static
+os_thread_ret_t
+DECLARE_THREAD(kill_mdl_waiters_thread(void *))
+{
+	MYSQL	*mysql;
+	if ((mysql = xb_mysql_connect()) == NULL) {
+		msg("Error: kill mdl waiters thread failed to connect\n");
+		goto stop_thread;
+	}
+
+	for(;;){
+		if (os_event_wait_time(mdl_killer_stop_event, 1000) == 0)
+			break;
+
+		MYSQL_RES *result = xb_mysql_query(mysql,
+			"SELECT ID, COMMAND FROM INFORMATION_SCHEMA.PROCESSLIST "
+			" WHERE State='Waiting for table metadata lock'",
+			true, true);
+		while (MYSQL_ROW row = mysql_fetch_row(result))
+		{
+			char query[64];
+			msg_ts("Killing MDL waiting query '%s' on connection '%s'\n",
+				row[1], row[0]);
+			snprintf(query, sizeof(query), "KILL QUERY %s", row[0]);
+			xb_mysql_query(mysql, query, true);
+		}
+	}
+
+	mysql_close(mysql);
+
+stop_thread:
+	msg_ts("Kill mdl waiters thread stopped\n");
+	os_event_set(mdl_killer_finished_event);
+	os_thread_exit();
+	return os_thread_ret_t(0);
+}
+
+
+static void start_mdl_waiters_killer()
+{
+	mdl_killer_stop_event = os_event_create(0);
+	mdl_killer_finished_event = os_event_create(0);
+	os_thread_create(kill_mdl_waiters_thread, 0, 0);
+}
+
+
+/* Tell MDL killer to stop and finish for its completion*/
+static void stop_mdl_waiters_killer()
+{
+	os_event_set(mdl_killer_stop_event);
+	os_event_wait(mdl_killer_finished_event);
+
+	os_event_destroy(mdl_killer_stop_event);
+	os_event_destroy(mdl_killer_finished_event);
+}
+
 /*********************************************************************//**
 Function acquires either a backup tables lock, if supported
 by the server, or a global read lock (FLUSH TABLES WITH READ LOCK)
@@ -888,6 +958,10 @@ lock_tables(MYSQL *connection)
 		msg_ts("Executing LOCK TABLES FOR BACKUP...\n");
 		xb_mysql_query(connection, "LOCK TABLES FOR BACKUP", false);
 		return(true);
+	}
+
+	if (opt_lock_ddl_per_table) {
+		start_mdl_waiters_killer();
 	}
 
 	if (!opt_lock_wait_timeout && !opt_kill_long_queries_timeout) {
@@ -929,6 +1003,10 @@ lock_tables(MYSQL *connection)
 	}
 
 	xb_mysql_query(connection, "FLUSH TABLES WITH READ LOCK", false);
+
+	if (opt_lock_ddl_per_table) {
+		stop_mdl_waiters_killer();
+	}
 
 	if (opt_kill_long_queries_timeout) {
 		stop_query_killer();
@@ -1647,25 +1725,6 @@ mdl_lock_init()
   }
 }
 
-#ifndef DBUG_OFF
-/* Test  that table is really locked, if lock_ddl_per_table is set.
-   The test is executed in DBUG_EXECUTE_IF block inside mdl_lock_table().
-*/
-static void check_mdl_lock_works(const char *table_name)
-{
-  MYSQL *test_con=  xb_mysql_connect();
-  char *query;
-  xb_a(asprintf(&query,
-		"SET STATEMENT max_statement_time=1 FOR ALTER TABLE %s FORCE",
-		table_name));
-  int err = mysql_query(test_con, query);
-  DBUG_ASSERT(err);
-  int err_no = mysql_errno(test_con);
-  DBUG_ASSERT(err_no == ER_STATEMENT_TIMEOUT);
-  mysql_close(test_con);
-  free(query);
-}
-#endif
 void
 mdl_lock_table(ulint space_id)
 {
@@ -1681,13 +1740,10 @@ mdl_lock_table(ulint space_id)
   while (MYSQL_ROW row = mysql_fetch_row(mysql_result)) {
     std::string full_table_name =  ut_get_name(0,row[0]);
     std::ostringstream lock_query;
-    lock_query << "SELECT * FROM " << full_table_name  << " LIMIT 0";
+    lock_query << "SELECT 1 FROM " << full_table_name  << " LIMIT 0";
 
     msg_ts("Locking MDL for %s\n", full_table_name.c_str());
     xb_mysql_query(mdl_con, lock_query.str().c_str(), false, false);
-
-    DBUG_EXECUTE_IF("check_mdl_lock_works",
-      check_mdl_lock_works(full_table_name.c_str()););
   }
 
   pthread_mutex_unlock(&mdl_lock_con_mutex);

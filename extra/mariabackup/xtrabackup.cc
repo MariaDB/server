@@ -433,6 +433,91 @@ datafiles_iter_free(datafiles_iter_t *it)
 	free(it);
 }
 
+#ifndef DBUG_OFF
+struct dbug_thread_param_t
+{
+	MYSQL *con;
+	const char *query;
+	int expect_err;
+	int expect_errno;
+	os_event_t done_event;
+};
+
+
+/* Thread procedure used in dbug_start_query_thread. */
+extern "C"
+os_thread_ret_t
+DECLARE_THREAD(dbug_execute_in_new_connection)(void *arg)
+{
+	mysql_thread_init();
+	dbug_thread_param_t *par= (dbug_thread_param_t *)arg;
+	int err = mysql_query(par->con, par->query);
+	int err_no = mysql_errno(par->con);
+	DBUG_ASSERT(par->expect_err == err);
+	if (err && par->expect_errno)
+		DBUG_ASSERT(err_no == par->expect_errno);
+	mysql_close(par->con);
+	mysql_thread_end();
+	os_event_t done = par->done_event;
+	delete par;
+	os_event_set(done);
+	os_thread_exit();
+	return os_thread_ret_t(0);
+}
+
+/*
+Execute query from a new connection, in own thread.
+
+@param query - query to be executed
+@param wait_state - if not NULL, wait until query from new connection
+	reaches this state (value of column State in I_S.PROCESSLIST)
+@param expected_err - if 0, query is supposed to finish successfully,
+	otherwise query should return error.
+@param expected_errno - if not 0, and query finished with error,
+	expected mysql_errno()
+*/
+static os_event_t dbug_start_query_thread(
+	const char *query,
+	const char *wait_state,
+	int expected_err,
+	int expected_errno)
+
+{
+	dbug_thread_param_t *par = new dbug_thread_param_t;
+	par->query = query;
+	par->expect_err = expected_err;
+	par->expect_errno = expected_errno;
+	par->done_event = os_event_create(0);
+	par->con =  xb_mysql_connect();
+	os_thread_create(dbug_execute_in_new_connection, par, 0);
+
+	if (!wait_state)
+		return par->done_event;
+
+	char q[256];
+	snprintf(q, sizeof(q),
+		"SELECT 1 FROM INFORMATION_SCHEMA.PROCESSLIST where ID=%lu"
+		" AND Command='Query' AND State='%s'",
+		mysql_thread_id(par->con), wait_state);
+	for (;;) {
+		MYSQL_RES *result = xb_mysql_query(mysql_connection,q, true, true);
+		if (mysql_fetch_row(result)) {
+			goto end;
+		}
+		msg_ts("Waiting for query '%s' on connection %lu to "
+			" reach state '%s'", query, mysql_thread_id(par->con),
+			wait_state);
+		my_sleep(1000);
+	}
+end:
+	msg_ts("query '%s' on connection %lu reached state '%s'", query,
+	mysql_thread_id(par->con), wait_state);
+	return par->done_event;
+}
+
+os_event_t dbug_alter_thread_done;
+#endif
+
 void mdl_lock_all()
 {
 	mdl_lock_init();
@@ -448,6 +533,11 @@ void mdl_lock_all()
 		mdl_lock_table(node->space->id);
 	}
 	datafiles_iter_free(it);
+
+	DBUG_EXECUTE_IF("check_mdl_lock_works",
+		dbug_alter_thread_done =
+		  dbug_start_query_thread("ALTER TABLE test.t ADD COLUMN mdl_lock_column int",
+			 "Waiting for table metadata lock",1, ER_QUERY_INTERRUPTED););
 }
 
 /** Check if the space id belongs to the table which name should
@@ -2460,7 +2550,6 @@ xtrabackup_copy_logfile(copy_logfile copy)
 
 	recv_sys->parse_start_lsn = log_copy_scanned_lsn;
 	recv_sys->scanned_lsn = log_copy_scanned_lsn;
-	recv_sys->recovered_lsn = log_copy_scanned_lsn;
 
 	start_lsn = ut_uint64_align_down(log_copy_scanned_lsn,
 					 OS_FILE_LOG_BLOCK_SIZE);
@@ -3984,6 +4073,8 @@ reread_log_header:
 
 	/* copy log file by current position */
 	log_copy_scanned_lsn = checkpoint_lsn_start;
+	recv_sys->recovered_lsn = log_copy_scanned_lsn;
+
 	if (xtrabackup_copy_logfile(COPY_FIRST))
 		goto fail;
 
@@ -4070,6 +4161,11 @@ reread_log_header:
 
 		backup_release();
 
+		DBUG_EXECUTE_IF("check_mdl_lock_works",
+			os_event_wait(dbug_alter_thread_done);
+			os_event_destroy(dbug_alter_thread_done);
+		);
+
 		if (ok) {
 			backup_finish();
 		}
@@ -4077,10 +4173,6 @@ reread_log_header:
 
 	if (!ok) {
 		goto fail;
-	}
-
-	if (opt_lock_ddl_per_table) {
-		mdl_unlock_all();
 	}
 
 	xtrabackup_destroy_datasinks();
