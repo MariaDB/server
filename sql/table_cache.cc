@@ -747,7 +747,7 @@ TDC_element *tdc_lock_share(THD *thd, const char *db, const char *table_name)
   char key[MAX_DBKEY_LENGTH];
 
   DBUG_ENTER("tdc_lock_share");
-  if (fix_thd_pins(thd))
+  if (unlikely(fix_thd_pins(thd)))
     DBUG_RETURN((TDC_element*) MY_ERRPTR);
 
   element= (TDC_element *) lf_hash_search(&tdc_hash, thd->tdc_hash_pins,
@@ -756,7 +756,7 @@ TDC_element *tdc_lock_share(THD *thd, const char *db, const char *table_name)
   if (element)
   {
     mysql_mutex_lock(&element->LOCK_table_share);
-    if (!element->share || element->share->error)
+    if (unlikely(!element->share || element->share->error))
     {
       mysql_mutex_unlock(&element->LOCK_table_share);
       element= 0;
@@ -838,7 +838,7 @@ retry:
     /* note that tdc_acquire_share() *always* uses discovery */
     open_table_def(thd, share, flags | GTS_USE_DISCOVERY);
 
-    if (share->error)
+    if (unlikely(share->error))
     {
       free_table_share(share);
       lf_hash_delete(&tdc_hash, thd->tdc_hash_pins, key, key_length);
@@ -894,7 +894,7 @@ retry:
      We found an existing table definition. Return it if we didn't get
      an error when reading the table definition from file.
   */
-  if (share->error)
+  if (unlikely(share->error))
   {
     open_table_error(share, share->error, share->open_errno);
     goto err;

@@ -69,7 +69,7 @@ Sql_cmd_get_diagnostics::execute(THD *thd)
   const char *sqlstate= new_stmt_da.get_sqlstate();
 
   /* In case of a fatal error, set it into the original DA.*/
-  if (thd->is_fatal_error)
+  if (unlikely(thd->is_fatal_error))
   {
     save_stmt_da->set_error_status(sql_errno, message, sqlstate, NULL);
     DBUG_RETURN(true);
@@ -81,7 +81,7 @@ Sql_cmd_get_diagnostics::execute(THD *thd)
                              message);
 
   /* Appending might have failed. */
-  if (! (rv= thd->is_error()))
+  if (unlikely(!(rv= thd->is_error())))
     thd->get_stmt_da()->set_ok_status(0, 0, NULL);
 
   DBUG_RETURN(rv);

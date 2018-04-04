@@ -83,7 +83,7 @@ bool init_read_record_idx(READ_RECORD *info, THD *thd, TABLE *table,
 
   table->status=0;			/* And it's always found */
   if (!table->file->inited &&
-      (error= table->file->ha_index_init(idx, 1)))
+      unlikely(error= table->file->ha_index_init(idx, 1)))
   {
     if (print_error)
       table->file->print_error(error, MYF(0));
@@ -235,7 +235,7 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
     reinit_io_cache(info->io_cache,READ_CACHE,0L,0,0);
     info->ref_pos=table->file->ref;
     if (!table->file->inited)
-      if (table->file->ha_rnd_init_with_error(0))
+      if (unlikely(table->file->ha_rnd_init_with_error(0)))
         DBUG_RETURN(1);
 
     /*
@@ -272,7 +272,7 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   else if (filesort && filesort->record_pointers)
   {
     DBUG_PRINT("info",("using record_pointers"));
-    if (table->file->ha_rnd_init_with_error(0))
+    if (unlikely(table->file->ha_rnd_init_with_error(0)))
       DBUG_RETURN(1);
     info->cache_pos= filesort->record_pointers;
     info->cache_end= (info->cache_pos+ 
@@ -285,7 +285,7 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
     int error;
     info->read_record_func= rr_index_first;
     if (!table->file->inited &&
-        (error= table->file->ha_index_init(table->file->keyread, 1)))
+        unlikely((error= table->file->ha_index_init(table->file->keyread, 1))))
     {
       if (print_error)
         table->file->print_error(error, MYF(0));
@@ -296,7 +296,7 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   {
     DBUG_PRINT("info",("using rr_sequential"));
     info->read_record_func= rr_sequential;
-    if (table->file->ha_rnd_init_with_error(1))
+    if (unlikely(table->file->ha_rnd_init_with_error(1)))
       DBUG_RETURN(1);
     /* We can use record cache if we don't update dynamic length tables */
     if (!table->no_cache &&
@@ -642,7 +642,7 @@ static int rr_from_cache(READ_RECORD *info)
   {
     if (info->cache_pos != info->cache_end)
     {
-      if (info->cache_pos[info->error_offset])
+      if (unlikely(info->cache_pos[info->error_offset]))
       {
 	shortget(error,info->cache_pos);
 	if (info->print_error)
@@ -688,7 +688,8 @@ static int rr_from_cache(READ_RECORD *info)
       record=uint3korr(position);
       position+=3;
       record_pos=info->cache+record*info->reclength;
-      if ((error=(int16) info->table->file->ha_rnd_pos(record_pos,info->ref_pos)))
+      if (unlikely((error= (int16) info->table->file->
+                    ha_rnd_pos(record_pos,info->ref_pos))))
       {
 	record_pos[info->error_offset]=1;
 	shortstore(record_pos,error);

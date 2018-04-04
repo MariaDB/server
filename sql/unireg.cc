@@ -194,7 +194,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
   error= pack_vcols(&vcols, create_fields, create_info->check_constraint_list);
   thd->variables.sql_mode= save_sql_mode;
 
-  if (error)
+  if (unlikely(error))
     DBUG_RETURN(frm);
 
   if (vcols.length())
@@ -202,7 +202,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
 
   error= pack_header(thd, forminfo, create_fields, create_info,
                      (ulong)data_offset, db_file);
-  if (error)
+  if (unlikely(error))
     DBUG_RETURN(frm);
 
   reclength= uint2korr(forminfo+266);

@@ -140,7 +140,8 @@ void insert_into_hash(hash_lex_struct *root, const char *name,
   if (root->first_char>(*name))
   {
     size_t new_size= root->last_char-(*name)+1;
-    if (new_size<real_size) printf("error!!!!\n");
+    if (unlikely(new_size<real_size))
+      printf("error!!!!\n");
     tails= root->char_tails;
     tails= (hash_lex_struct*)realloc((char*)tails,
 				       sizeof(hash_lex_struct)*new_size);
@@ -155,7 +156,8 @@ void insert_into_hash(hash_lex_struct *root, const char *name,
   if (root->last_char<(*name))
   {
     size_t new_size= (*name)-root->first_char+1;
-    if (new_size<real_size) printf("error!!!!\n");
+    if (unlikely(new_size<real_size))
+      printf("error!!!!\n");
     tails= root->char_tails;
     tails= (hash_lex_struct*)realloc((char*)tails,
 				    sizeof(hash_lex_struct)*new_size);

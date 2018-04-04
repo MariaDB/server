@@ -252,7 +252,7 @@ void udf_init()
       }
     }
   }
-  if (error > 0)
+  if (unlikely(error > 0))
     sql_print_error("Got unknown error: %d", my_errno);
   end_read_record(&read_record_info);
   table->m_needs_reopen= TRUE;                  // Force close to free memory
@@ -453,7 +453,7 @@ static int mysql_drop_function_internal(THD *thd, udf_func *udf, TABLE *table)
                                           HA_READ_KEY_EXACT))
   {
     int error;
-    if ((error= table->file->ha_delete_row(table->record[0])))
+    if (unlikely((error= table->file->ha_delete_row(table->record[0]))))
       table->file->print_error(error, MYF(0));
   }
   DBUG_RETURN(0);
@@ -513,7 +513,7 @@ int mysql_create_function(THD *thd,udf_func *udf)
   {
     if (thd->lex->create_info.or_replace())
     {
-      if ((error= mysql_drop_function_internal(thd, u_d, table)))
+      if (unlikely((error= mysql_drop_function_internal(thd, u_d, table))))
         goto err;
     }
     else if (thd->lex->create_info.if_not_exists())
@@ -569,7 +569,7 @@ int mysql_create_function(THD *thd,udf_func *udf)
   /* create entry in mysql.func table */
 
   /* Allow creation of functions even if we can't open func table */
-  if (!table)
+  if (unlikely(!table))
     goto err;
   table->use_all_columns();
   restore_record(table, s->default_values);	// Default values for fields
@@ -578,9 +578,9 @@ int mysql_create_function(THD *thd,udf_func *udf)
   table->field[2]->store(u_d->dl,(uint) strlen(u_d->dl), system_charset_info);
   if (table->s->fields >= 4)			// If not old func format
     table->field[3]->store((longlong) u_d->type, TRUE);
-  error = table->file->ha_write_row(table->record[0]);
+  error= table->file->ha_write_row(table->record[0]);
 
-  if (error)
+  if (unlikely(error))
   {
     my_error(ER_ERROR_ON_WRITE, MYF(0), "mysql.func", error);
     del_udf(u_d);
@@ -591,7 +591,7 @@ done:
   mysql_rwlock_unlock(&THR_LOCK_udf);
 
   /* Binlog the create function. */
-  if (write_bin_log(thd, TRUE, thd->query(), thd->query_length()))
+  if (unlikely(write_bin_log(thd, TRUE, thd->query(), thd->query_length())))
     DBUG_RETURN(1);
 
   DBUG_RETURN(0);

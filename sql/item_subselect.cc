@@ -710,7 +710,7 @@ bool Item_subselect::exec()
     Do not execute subselect in case of a fatal error
     or if the query has been killed.
   */
-  if (thd->is_error() || thd->killed)
+  if (unlikely(thd->is_error() || thd->killed))
     DBUG_RETURN(true);
 
   DBUG_ASSERT(!thd->lex->context_analysis_only);
@@ -1417,14 +1417,14 @@ void Item_exists_subselect::print(String *str, enum_query_type query_type)
 
 bool Item_in_subselect::test_limit(st_select_lex_unit *unit_arg)
 {
-  if (unit_arg->fake_select_lex &&
-      unit_arg->fake_select_lex->test_limit())
+  if (unlikely(unit_arg->fake_select_lex &&
+               unit_arg->fake_select_lex->test_limit()))
     return(1);
 
   SELECT_LEX *sl= unit_arg->first_select();
   for (; sl; sl= sl->next_select())
   {
-    if (sl->test_limit())
+    if (unlikely(sl->test_limit()))
       return(1);
   }
   return(0);
@@ -3935,7 +3935,8 @@ int subselect_uniquesubquery_engine::scan_table()
   for (;;)
   {
     error=table->file->ha_rnd_next(table->record[0]);
-    if (error) {
+    if (unlikely(error))
+    {
       if (error == HA_ERR_RECORD_DELETED)
       {
         error= 0;
@@ -4076,8 +4077,8 @@ int subselect_uniquesubquery_engine::exec()
                                         make_prev_keypart_map(tab->
                                                               ref.key_parts),
                                         HA_READ_KEY_EXACT);
-  if (error &&
-      error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
+  if (unlikely(error &&
+               error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE))
     error= report_error(table, error);
   else
   {
@@ -4115,7 +4116,8 @@ int subselect_uniquesubquery_engine::index_lookup()
                                         HA_READ_KEY_EXACT);
   DBUG_PRINT("info", ("lookup result: %i", error));
 
-  if (error && error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
+  if (unlikely(error && error != HA_ERR_KEY_NOT_FOUND &&
+               error != HA_ERR_END_OF_FILE))
   {
     /*
       TIMOUR: I don't understand at all when do we need to call report_error.
@@ -4246,8 +4248,8 @@ int subselect_indexsubquery_engine::exec()
                                         make_prev_keypart_map(tab->
                                                               ref.key_parts),
                                         HA_READ_KEY_EXACT);
-  if (error &&
-      error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
+  if (unlikely(error &&
+               error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE))
     error= report_error(table, error);
   else
   {
@@ -4269,7 +4271,7 @@ int subselect_indexsubquery_engine::exec()
         error= table->file->ha_index_next_same(table->record[0],
                                                tab->ref.key_buff,
                                                tab->ref.key_length);
-        if (error && error != HA_ERR_END_OF_FILE)
+        if (unlikely(error && error != HA_ERR_END_OF_FILE))
         {
           error= report_error(table, error);
           break;
@@ -4282,7 +4284,7 @@ int subselect_indexsubquery_engine::exec()
         *tab->ref.null_ref_key= 1;
         null_finding= 1;
         /* Check if there exists a row with a null value in the index */
-        if ((error= (safe_index_read(tab) == 1)))
+        if (unlikely((error= (safe_index_read(tab) == 1))))
           break;
       }
     }
@@ -5425,8 +5427,8 @@ int subselect_hash_sj_engine::exec()
   DBUG_ASSERT(materialize_join->optimization_state == JOIN::OPTIMIZATION_DONE &&
               !is_materialized);
   materialize_join->exec();
-  if ((res= MY_TEST(materialize_join->error || thd->is_fatal_error ||
-                    thd->is_error())))
+  if (unlikely((res= MY_TEST(materialize_join->error || thd->is_fatal_error ||
+                             thd->is_error()))))
     goto err;
 
   /*
@@ -5784,14 +5786,14 @@ Ordered_key::cmp_keys_by_row_data(ha_rows a, ha_rows b)
   rowid_a= row_num_to_rowid + a * rowid_length;
   rowid_b= row_num_to_rowid + b * rowid_length;
   /* Fetch the rows for comparison. */
-  if ((error= tbl->file->ha_rnd_pos(tbl->record[0], rowid_a)))
+  if (unlikely((error= tbl->file->ha_rnd_pos(tbl->record[0], rowid_a))))
   {
     /* purecov: begin inspected */
     tbl->file->print_error(error, MYF(ME_FATALERROR));  // Sets fatal_error
     return 0;
     /* purecov: end */
   }
-  if ((error= tbl->file->ha_rnd_pos(tbl->record[1], rowid_b)))
+  if (unlikely((error= tbl->file->ha_rnd_pos(tbl->record[1], rowid_b))))
   {
     /* purecov: begin inspected */
     tbl->file->print_error(error, MYF(ME_FATALERROR));  // Sets fatal_error
@@ -5873,7 +5875,7 @@ int Ordered_key::cmp_key_with_search_key(rownum_t row_num)
   int __attribute__((unused)) error;
   int cmp_res;
 
-  if ((error= tbl->file->ha_rnd_pos(tbl->record[0], cur_rowid)))
+  if (unlikely((error= tbl->file->ha_rnd_pos(tbl->record[0], cur_rowid))))
   {
     /* purecov: begin inspected */
     tbl->file->print_error(error, MYF(ME_FATALERROR));  // Sets fatal_error
@@ -6222,7 +6224,7 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
   DBUG_ASSERT(cur_keyid == merge_keys_count);
 
   /* Populate the indexes with data from the temporary table. */
-  if (tmp_table->file->ha_rnd_init_with_error(1))
+  if (unlikely(tmp_table->file->ha_rnd_init_with_error(1)))
     return TRUE;
   tmp_table->file->extra_opt(HA_EXTRA_CACHE,
                              current_thd->variables.read_buff_size);
@@ -6230,7 +6232,7 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
   while (TRUE)
   {
     error= tmp_table->file->ha_rnd_next(tmp_table->record[0]);
-    if (error == HA_ERR_RECORD_DELETED)
+    if (unlikely(error == HA_ERR_RECORD_DELETED))
     {
       /* We get this for duplicate records that should not be in tmp_table. */
       continue;
@@ -6240,7 +6242,7 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
       cause to stop the iteration than EOF.
     */
     DBUG_ASSERT(!error || error == HA_ERR_END_OF_FILE);
-    if (error == HA_ERR_END_OF_FILE)
+    if (unlikely(error == HA_ERR_END_OF_FILE))
     {
       DBUG_ASSERT(cur_rownum == tmp_table->file->stats.records);
       break;
@@ -6460,7 +6462,7 @@ bool subselect_rowid_merge_engine::partial_match()
   DBUG_ASSERT(!pq.elements);
 
   /* All data accesses during execution are via handler::ha_rnd_pos() */
-  if (tmp_table->file->ha_rnd_init_with_error(0))
+  if (unlikely(tmp_table->file->ha_rnd_init_with_error(0)))
   {
     res= FALSE;
     goto end;
@@ -6666,7 +6668,7 @@ bool subselect_table_scan_engine::partial_match()
   int error;
   bool res;
 
-  if (tmp_table->file->ha_rnd_init_with_error(1))
+  if (unlikely(tmp_table->file->ha_rnd_init_with_error(1)))
   {
     res= FALSE;
     goto end;
@@ -6677,7 +6679,8 @@ bool subselect_table_scan_engine::partial_match()
   for (;;)
   {
     error= tmp_table->file->ha_rnd_next(tmp_table->record[0]);
-    if (error) {
+    if (unlikely(error))
+    {
       if (error == HA_ERR_RECORD_DELETED)
       {
         error= 0;

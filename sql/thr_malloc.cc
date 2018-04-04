@@ -27,7 +27,7 @@ extern "C" {
   void sql_alloc_error_handler(void)
   {
     THD *thd= current_thd;
-    if (thd)
+    if (likely(thd))
     {
       if (! thd->is_error())
       {

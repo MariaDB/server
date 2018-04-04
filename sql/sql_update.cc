@@ -231,7 +231,7 @@ static void prepare_record_for_error_message(int error, TABLE *table)
     Get the number of the offended index.
     We will see MAX_KEY if the engine cannot determine the affected index.
   */
-  if ((keynr= table->file->get_dup_key(error)) >= MAX_KEY)
+  if (unlikely((keynr= table->file->get_dup_key(error)) >= MAX_KEY))
     DBUG_VOID_RETURN;
 
   /* Create unique_map with all fields used by that index. */
@@ -471,8 +471,8 @@ int mysql_update(THD *thd,
   set_statistics_for_table(thd, table);
 
   select= make_select(table, 0, 0, conds, (SORT_INFO*) 0, 0, &error);
-  if (error || !limit || thd->is_error() ||
-      (select && select->check_quick(thd, safe_update, limit)))
+  if (unlikely(error || !limit || thd->is_error() ||
+               (select && select->check_quick(thd, safe_update, limit))))
   {
     query_plan.set_impossible_where();
     if (thd->lex->describe || thd->lex->analyze_stmt)
@@ -506,7 +506,7 @@ int mysql_update(THD *thd,
       goto err;
     }
   }
-  if (init_ftfuncs(thd, select_lex, 1))
+  if (unlikely(init_ftfuncs(thd, select_lex, 1)))
     goto err;
 
   table->mark_columns_needed_for_update();
@@ -724,7 +724,7 @@ int mysql_update(THD *thd,
         error= init_read_record_idx(&info, thd, table, 1, query_plan.index,
                                     reverse);
 
-      if (error)
+      if (unlikely(error))
       {
         close_cached_file(&tempfile);
         goto err;
@@ -733,7 +733,7 @@ int mysql_update(THD *thd,
       THD_STAGE_INFO(thd, stage_searching_rows_for_update);
       ha_rows tmp_limit= limit;
 
-      while (!(error=info.read_record()) && !thd->killed)
+      while (likely(!(error=info.read_record())) && likely(!thd->killed))
       {
         explain->buf_tracker.on_record_read();
         thd->inc_examined_row_count(1);
@@ -744,8 +744,8 @@ int mysql_update(THD *thd,
 
           explain->buf_tracker.on_record_after_where();
 	  table->file->position(table->record[0]);
-	  if (my_b_write(&tempfile,table->file->ref,
-			 table->file->ref_length))
+	  if (unlikely(my_b_write(&tempfile,table->file->ref,
+                                  table->file->ref_length)))
 	  {
 	    error=1; /* purecov: inspected */
 	    break; /* purecov: inspected */
@@ -763,7 +763,7 @@ int mysql_update(THD *thd,
             error since in this case the transaction might have been
             rolled back already.
           */
-          if (error < 0)
+          if (unlikely(error < 0))
           {
             /* Fatal error from select->skip_record() */
             error= 1;
@@ -773,7 +773,7 @@ int mysql_update(THD *thd,
             table->file->unlock_row();
         }
       }
-      if (thd->killed && !error)
+      if (unlikely(thd->killed) && !error)
 	error= 1;				// Aborted
       limit= tmp_limit;
       table->file->try_semi_consistent_read(0);
@@ -790,14 +790,15 @@ int mysql_update(THD *thd,
       }
       else
       {
-	select= new SQL_SELECT;
+	if (!(select= new SQL_SELECT))
+          goto err;
 	select->head=table;
       }
 
-      if (reinit_io_cache(&tempfile,READ_CACHE,0L,0,0))
-	error=1; /* purecov: inspected */
-      select->file=tempfile;			// Read row ptrs from this file
-      if (error >= 0)
+      if (unlikely(reinit_io_cache(&tempfile,READ_CACHE,0L,0,0)))
+	error= 1; /* purecov: inspected */
+      select->file= tempfile;			// Read row ptrs from this file
+       if (unlikely(error >= 0))
 	goto err;
 
       table->file->ha_end_keyread();
@@ -831,7 +832,7 @@ update_begin:
     /* Direct updating is supported */
     DBUG_PRINT("info", ("Using direct update"));
     table->reset_default_fields();
-    if (!(error= table->file->ha_direct_update_rows(&updated)))
+    if (unlikely(!(error= table->file->ha_direct_update_rows(&updated))))
       error= -1;
     found= updated;
     goto update_end;
@@ -942,11 +943,11 @@ update_begin:
           error= table->file->ha_update_row(table->record[1],
                                             table->record[0]);
         }
-        if (error == HA_ERR_RECORD_IS_THE_SAME)
+        if (unlikely(error == HA_ERR_RECORD_IS_THE_SAME))
         {
           error= 0;
         }
-        else if (!error)
+        else if (likely(!error))
         {
           if (has_vers_fields && table->versioned())
           {
@@ -956,14 +957,15 @@ update_begin:
               error= vers_insert_history_row(table);
               restore_record(table, record[2]);
             }
-            if (!error)
+            if (likely(!error))
               updated_sys_ver++;
           }
-          if (!error)
+          if (likely(!error))
             updated++;
         }
 
-        if (error && (!ignore || table->file->is_fatal_error(error, HA_CHECK_ALL)))
+        if (unlikely(error) &&
+            (!ignore || table->file->is_fatal_error(error, HA_CHECK_ALL)))
         {
           /*
             If (ignore && error is ignorable) we don't have to
@@ -982,8 +984,8 @@ update_begin:
       }
 
       if (table->triggers &&
-          table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                            TRG_ACTION_AFTER, TRUE))
+          unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
+                                                     TRG_ACTION_AFTER, TRUE)))
       {
         error= 1;
         break;
@@ -1036,7 +1038,7 @@ update_begin:
       Don't try unlocking the row if skip_record reported an error since in
       this case the transaction might have been rolled back already.
     */
-    else if (!thd->is_error())
+    else if (likely(!thd->is_error()))
       table->file->unlock_row();
     else
     {
@@ -1044,7 +1046,7 @@ update_begin:
       break;
     }
     thd->get_stmt_da()->inc_current_row_for_warning();
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
     {
       error= 1;
       break;
@@ -1069,7 +1071,7 @@ update_begin:
                   };);
   error= (killed_status == NOT_KILLED)?  error : 1;
   
-  if (error &&
+  if (likely(error) &&
       will_batch &&
       (loc_error= table->file->exec_bulk_update(&dup_key_found)))
     /*
@@ -1127,12 +1129,12 @@ update_end:
     Sometimes we want to binlog even if we updated no rows, in case user used
     it to be sure master and slave are in same state.
   */
-  if ((error < 0) || thd->transaction.stmt.modified_non_trans_table)
+  if (likely(error < 0) || thd->transaction.stmt.modified_non_trans_table)
   {
     if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
       int errcode= 0;
-      if (error < 0)
+      if (likely(error < 0))
         thd->clear_error();
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
@@ -1161,7 +1163,7 @@ update_end:
   id= thd->arg_of_last_insert_id_function ?
     thd->first_successful_insert_id_in_prev_stmt : 0;
 
-  if (error < 0 && !thd->lex->analyze_stmt)
+  if (likely(error < 0) && likely(!thd->lex->analyze_stmt))
   {
     char buff[MYSQL_ERRMSG_SIZE];
     if (!table->versioned(VERS_TIMESTAMP))
@@ -1187,7 +1189,7 @@ update_end:
   *found_return= found;
   *updated_return= updated;
   
-  if (thd->lex->analyze_stmt)
+  if (unlikely(thd->lex->analyze_stmt))
     goto emit_explain_and_leave;
 
   DBUG_RETURN((error >= 0 || thd->is_error()) ? 1 : 0);
@@ -1207,7 +1209,7 @@ produce_explain_and_leave:
     We come here for various "degenerate" query plans: impossible WHERE,
     no-partitions-used, impossible-range, etc.
   */
-  if (!query_plan.save_explain_update_data(query_plan.mem_root, thd))
+  if (unlikely(!query_plan.save_explain_update_data(query_plan.mem_root, thd)))
     goto err;
 
 emit_explain_and_leave:
@@ -1863,7 +1865,7 @@ int multi_update::prepare(List<Item> &not_used_values,
       bitmap_union(table->read_set, &table->tmp_set);
     }
   }
-  if (error)
+  if (unlikely(error))
     DBUG_RETURN(1);    
 
   /*
@@ -1907,14 +1909,14 @@ int multi_update::prepare(List<Item> &not_used_values,
 					      table_count);
   values_for_table= (List_item **) thd->alloc(sizeof(List_item *) *
 					      table_count);
-  if (thd->is_fatal_error)
+  if (unlikely(thd->is_fatal_error))
     DBUG_RETURN(1);
   for (i=0 ; i < table_count ; i++)
   {
     fields_for_table[i]= new List_item;
     values_for_table[i]= new List_item;
   }
-  if (thd->is_fatal_error)
+  if (unlikely(thd->is_fatal_error))
     DBUG_RETURN(1);
 
   /* Split fields into fields_for_table[] and values_by_table[] */
@@ -1926,7 +1928,7 @@ int multi_update::prepare(List<Item> &not_used_values,
     fields_for_table[offset]->push_back(item, thd->mem_root);
     values_for_table[offset]->push_back(value, thd->mem_root);
   }
-  if (thd->is_fatal_error)
+  if (unlikely(thd->is_fatal_error))
     DBUG_RETURN(1);
 
   /* Allocate copy fields */
@@ -2058,7 +2060,8 @@ multi_update::initialize_tables(JOIN *join)
   TABLE_LIST *table_ref;
   DBUG_ENTER("initialize_tables");
 
-  if ((thd->variables.option_bits & OPTION_SAFE_UPDATES) && error_if_full_join(join))
+  if (unlikely((thd->variables.option_bits & OPTION_SAFE_UPDATES) &&
+               error_if_full_join(join)))
     DBUG_RETURN(1);
   main_table=join->join_tab->table;
   table_to_update= 0;
@@ -2295,7 +2298,8 @@ int multi_update::send_data(List<Item> &not_used_values)
       {
 	int error;
 
-        if (table->default_field && table->update_default_fields(1, ignore))
+        if (table->default_field &&
+            unlikely(table->update_default_fields(1, ignore)))
           DBUG_RETURN(1);
 
         if ((error= cur_table->view_check_option(thd, ignore)) !=
@@ -2304,10 +2308,10 @@ int multi_update::send_data(List<Item> &not_used_values)
           found--;
           if (error == VIEW_CHECK_SKIP)
             continue;
-          else if (error == VIEW_CHECK_ERROR)
+          else if (unlikely(error == VIEW_CHECK_ERROR))
             DBUG_RETURN(1);
         }
-        if (!updated++)
+        if (unlikely(!updated++))
         {
           /*
             Inform the main table that we are going to update the table even
@@ -2316,8 +2320,8 @@ int multi_update::send_data(List<Item> &not_used_values)
           */
           main_table->file->extra(HA_EXTRA_PREPARE_FOR_UPDATE);
         }
-        if ((error=table->file->ha_update_row(table->record[1],
-                                              table->record[0])) &&
+        if (unlikely((error=table->file->ha_update_row(table->record[1],
+                                                       table->record[0]))) &&
             error != HA_ERR_RECORD_IS_THE_SAME)
         {
           updated--;
@@ -2340,7 +2344,7 @@ int multi_update::send_data(List<Item> &not_used_values)
         }
         else
         {
-          if (error == HA_ERR_RECORD_IS_THE_SAME)
+          if (unlikely(error == HA_ERR_RECORD_IS_THE_SAME))
           {
             error= 0;
             updated--;
@@ -2372,8 +2376,8 @@ int multi_update::send_data(List<Item> &not_used_values)
         }
       }
       if (table->triggers &&
-          table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                            TRG_ACTION_AFTER, TRUE))
+          unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
+                                                     TRG_ACTION_AFTER, TRUE)))
         DBUG_RETURN(1);
     }
     else
@@ -2409,18 +2413,23 @@ int multi_update::send_data(List<Item> &not_used_values)
 
       /* Write row, ignoring duplicated updates to a row */
       error= tmp_table->file->ha_write_tmp_row(tmp_table->record[0]);
-      if (error != HA_ERR_FOUND_DUPP_KEY && error != HA_ERR_FOUND_DUPP_UNIQUE)
+      found++;
+      if (unlikely(error))
       {
-        if (error &&
-            create_internal_tmp_table_from_heap(thd, tmp_table,
-                                         tmp_table_param[offset].start_recinfo,
-                                         &tmp_table_param[offset].recinfo,
-                                         error, 1, NULL))
+        found--;
+        if (error != HA_ERR_FOUND_DUPP_KEY &&
+            error != HA_ERR_FOUND_DUPP_UNIQUE)
         {
-          do_update= 0;
-          DBUG_RETURN(1);			// Not a table_is_full error
+          if (create_internal_tmp_table_from_heap(thd, tmp_table,
+                                                  tmp_table_param[offset].start_recinfo,
+                                                  &tmp_table_param[offset].recinfo,
+                                                  error, 1, NULL))
+          {
+            do_update= 0;
+            DBUG_RETURN(1);			// Not a table_is_full error
+          }
+          found++;
         }
-        found++;
       }
     }
   }
@@ -2431,8 +2440,8 @@ int multi_update::send_data(List<Item> &not_used_values)
 void multi_update::abort_result_set()
 {
   /* the error was handled or nothing deleted and no side effects return */
-  if (error_handled ||
-      (!thd->transaction.stmt.modified_non_trans_table && !updated))
+  if (unlikely(error_handled ||
+               (!thd->transaction.stmt.modified_non_trans_table && !updated)))
     return;
 
   /* Something already updated so we have to invalidate cache */
@@ -2522,7 +2531,7 @@ int multi_update::do_updates()
     org_updated= updated;
     tmp_table= tmp_tables[cur_table->shared];
     tmp_table->file->extra(HA_EXTRA_CACHE);	// Change to read cache
-    if ((local_error= table->file->ha_rnd_init(0)))
+    if (unlikely((local_error= table->file->ha_rnd_init(0))))
     {
       err_table= table;
       goto err;
@@ -2545,7 +2554,7 @@ int multi_update::do_updates()
     check_opt_it.rewind();
     while(TABLE *tbl= check_opt_it++)
     {
-      if ((local_error= tbl->file->ha_rnd_init(1)))
+      if (unlikely((local_error= tbl->file->ha_rnd_init(1))))
       {
         err_table= tbl;
         goto err;
@@ -2569,7 +2578,7 @@ int multi_update::do_updates()
     }
     copy_field_end=copy_field_ptr;
 
-    if ((local_error= tmp_table->file->ha_rnd_init(1)))
+    if (unlikely((local_error= tmp_table->file->ha_rnd_init(1))))
     {
       err_table= tmp_table;
       goto err;
@@ -2584,7 +2593,8 @@ int multi_update::do_updates()
         thd->fatal_error();
 	goto err2;
       }
-      if ((local_error= tmp_table->file->ha_rnd_next(tmp_table->record[0])))
+      if (unlikely((local_error=
+                    tmp_table->file->ha_rnd_next(tmp_table->record[0]))))
       {
 	if (local_error == HA_ERR_END_OF_FILE)
 	  break;
@@ -2600,9 +2610,10 @@ int multi_update::do_updates()
       uint field_num= 0;
       do
       {
-        if ((local_error=
-             tbl->file->ha_rnd_pos(tbl->record[0],
-                                   (uchar *) tmp_table->field[field_num]->ptr)))
+        if (unlikely((local_error=
+                      tbl->file->ha_rnd_pos(tbl->record[0],
+                                            (uchar *) tmp_table->
+                                            field[field_num]->ptr))))
         {
           err_table= tbl;
           goto err;
@@ -2611,8 +2622,8 @@ int multi_update::do_updates()
       } while ((tbl= check_opt_it++));
 
       if (table->vfield &&
-          table->update_virtual_fields(table->file,
-                                       VCOL_UPDATE_INDEXED_FOR_UPDATE))
+          unlikely(table->update_virtual_fields(table->file,
+                                                VCOL_UPDATE_INDEXED_FOR_UPDATE)))
         goto err2;
 
       table->status|= STATUS_UPDATED;
@@ -2646,7 +2657,7 @@ int multi_update::do_updates()
         {
           if (error == VIEW_CHECK_SKIP)
             continue;
-          else if (error == VIEW_CHECK_ERROR)
+          else if (unlikely(error == VIEW_CHECK_ERROR))
           {
             thd->fatal_error();
             goto err2;
@@ -2655,8 +2666,9 @@ int multi_update::do_updates()
         if (has_vers_fields && table->versioned())
           table->vers_update_fields();
 
-        if ((local_error=table->file->ha_update_row(table->record[1],
-                                                    table->record[0])) &&
+        if (unlikely((local_error=
+                      table->file->ha_update_row(table->record[1],
+                                                 table->record[0]))) &&
             local_error != HA_ERR_RECORD_IS_THE_SAME)
 	{
 	  if (!ignore ||
@@ -2691,8 +2703,8 @@ int multi_update::do_updates()
       }
 
       if (table->triggers &&
-          table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
-                                            TRG_ACTION_AFTER, TRUE))
+          unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
+                                                     TRG_ACTION_AFTER, TRUE)))
         goto err2;
     }
 
@@ -2762,7 +2774,7 @@ bool multi_update::send_eof()
      error takes into account killed status gained in do_updates()
   */
   int local_error= thd->is_error();
-  if (!local_error)
+  if (likely(!local_error))
     local_error = (table_count) ? do_updates() : 0;
   /*
     if local_error is not set ON until after do_updates() then
@@ -2792,12 +2804,13 @@ bool multi_update::send_eof()
   thd->transaction.all.m_unsafe_rollback_flags|=
     (thd->transaction.stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 
-  if (local_error == 0 || thd->transaction.stmt.modified_non_trans_table)
+  if (likely(local_error == 0 ||
+             thd->transaction.stmt.modified_non_trans_table))
   {
     if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
       int errcode= 0;
-      if (local_error == 0)
+      if (likely(local_error == 0))
         thd->clear_error();
       else
         errcode= query_error_code(thd, killed_status == NOT_KILLED);
@@ -2824,10 +2837,10 @@ bool multi_update::send_eof()
   DBUG_ASSERT(trans_safe || !updated || 
               thd->transaction.stmt.modified_non_trans_table);
 
-  if (local_error != 0)
+  if (likely(local_error != 0))
     error_handled= TRUE; // to force early leave from ::abort_result_set()
 
-  if (local_error > 0) // if the above log write did not fail ...
+  if (unlikely(local_error > 0)) // if the above log write did not fail ...
   {
     /* Safety: If we haven't got an error before (can happen in do_updates) */
     my_message(ER_UNKNOWN_ERROR, "An error occurred in multi-table update",

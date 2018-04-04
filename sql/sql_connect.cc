@@ -167,7 +167,7 @@ int check_for_max_user_connections(THD *thd, USER_CONN *uc)
   error= 0;
 
 end:
-  if (error)
+  if (unlikely(error))
   {
     uc->connections--; // no need for decrease_user_connections() here
     /*
@@ -178,7 +178,7 @@ end:
     thd->user_connect= NULL;
   }
   mysql_mutex_unlock(&LOCK_user_conn);
-  if (error)
+  if (unlikely(error))
   {
     inc_host_errors(thd->main_security_ctx.ip, &errors);
   }
@@ -1049,7 +1049,7 @@ static int check_connection(THD *thd)
   vio_keepalive(net->vio, TRUE);
   vio_set_keepalive_options(net->vio, &opt_vio_keepalive);
 
-  if (thd->packet.alloc(thd->variables.net_buffer_length))
+  if (unlikely(thd->packet.alloc(thd->variables.net_buffer_length)))
   {
     /*
       Important note:
@@ -1139,7 +1139,7 @@ bool login_connection(THD *thd)
   error= check_connection(thd);
   thd->protocol->end_statement();
 
-  if (error)
+  if (unlikely(error))
   {						// Wrong permissions
 #ifdef _WIN32
     if (vio_type(net->vio) == VIO_TYPE_NAMEDPIPE)
@@ -1206,13 +1206,13 @@ void end_connection(THD *thd)
     thd->user_connect= NULL;
   }
 
-  if (thd->killed || (net->error && net->vio != 0))
+  if (unlikely(thd->killed) || (net->error && net->vio != 0))
   {
     statistic_increment(aborted_threads,&LOCK_status);
     status_var_increment(thd->status_var.lost_connections);
   }
 
-  if (!thd->killed && (net->error && net->vio != 0))
+  if (likely(!thd->killed) && (net->error && net->vio != 0))
     thd->print_aborted_warning(1, thd->get_stmt_da()->is_error()
              ? thd->get_stmt_da()->message() : ER_THD(thd, ER_UNKNOWN_ERROR));
 }
@@ -1241,7 +1241,7 @@ void prepare_new_connection_state(THD* thd)
   if (opt_init_connect.length && !(sctx->master_access & SUPER_ACL))
   {
     execute_init_command(thd, &opt_init_connect, &LOCK_sys_init_connect);
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
     {
       Host_errors errors;
       thd->set_killed(KILL_CONNECTION);
@@ -1330,9 +1330,9 @@ bool thd_prepare_connection(THD *thd)
 bool thd_is_connection_alive(THD *thd)
 {
   NET *net= &thd->net;
-  if (!net->error &&
-      net->vio != 0 &&
-      thd->killed < KILL_CONNECTION)
+  if (likely(!net->error &&
+             net->vio != 0 &&
+             thd->killed < KILL_CONNECTION))
     return TRUE;
   return FALSE;
 }
@@ -1510,7 +1510,7 @@ THD *CONNECT::create_thd(THD *thd)
   res= my_net_init(&thd->net, vio, thd, MYF(MY_THREAD_SPECIFIC));
   vio= 0;                              // Vio now handled by thd
 
-  if (res || thd->is_error())
+  if (unlikely(res || thd->is_error()))
   {
     if (!thd_reused)
       delete thd;

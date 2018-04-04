@@ -1698,17 +1698,19 @@ bool check_partition_dirs(partition_info *part_info)
       partition_element *subpart_elem;
       while ((subpart_elem= sub_it++))
       {
-        if (error_if_data_home_dir(subpart_elem->data_file_name,
-                                   "DATA DIRECTORY") ||
-            error_if_data_home_dir(subpart_elem->index_file_name,
-                                   "INDEX DIRECTORY"))
+        if (unlikely(error_if_data_home_dir(subpart_elem->data_file_name,
+                                            "DATA DIRECTORY")) ||
+            unlikely(error_if_data_home_dir(subpart_elem->index_file_name,
+                                            "INDEX DIRECTORY")))
         return 1;
       }
     }
     else
     {
-      if (error_if_data_home_dir(part_elem->data_file_name, "DATA DIRECTORY") ||
-          error_if_data_home_dir(part_elem->index_file_name, "INDEX DIRECTORY"))
+      if (unlikely(error_if_data_home_dir(part_elem->data_file_name,
+                                          "DATA DIRECTORY")) ||
+          unlikely(error_if_data_home_dir(part_elem->index_file_name,
+                                          "INDEX DIRECTORY")))
         return 1;
     }
   }
@@ -2304,7 +2306,7 @@ bool partition_info::fix_parser_data(THD *thd)
     part_elem= it++;
     List_iterator<part_elem_value> list_val_it(part_elem->list_val_list);
     num_elements= part_elem->list_val_list.elements;
-    if (!num_elements && error_if_requires_values())
+    if (unlikely(!num_elements && error_if_requires_values()))
       DBUG_RETURN(true);
     DBUG_ASSERT(part_type == RANGE_PARTITION ?
                 num_elements == 1U : TRUE);

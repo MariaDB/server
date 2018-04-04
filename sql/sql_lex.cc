@@ -189,14 +189,14 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
   thd->lex= lex;
   lex_start(thd);
   context->init();
-  if ((!(table_ident= new Table_ident(thd,
-                                      &table->s->db,
-                                      &table->s->table_name,
-                                      TRUE))) ||
-      (!(table_list= select_lex->add_table_to_list(thd,
-                                                   table_ident,
-                                                   NULL,
-                                                   0))))
+  if (unlikely((!(table_ident= new Table_ident(thd,
+                                               &table->s->db,
+                                               &table->s->table_name,
+                                               TRUE)))) ||
+      (unlikely(!(table_list= select_lex->add_table_to_list(thd,
+                                                            table_ident,
+                                                            NULL,
+                                                            0)))))
     return TRUE;
   context->resolve_in_table_list_only(table_list);
   lex->use_only_table_context= TRUE;
@@ -2854,7 +2854,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
       return false;
    }
   Item **array= static_cast<Item**>(arena->alloc(sizeof(Item*) * n_elems));
-  if (array != NULL)
+  if (likely(array != NULL))
     ref_pointer_array= Ref_ptr_array(array, n_elems);
 
   return array == NULL;
@@ -4907,14 +4907,14 @@ bool LEX::set_arena_for_set_stmt(Query_arena *backup)
   if (!mem_root_for_set_stmt)
   {
     mem_root_for_set_stmt= new MEM_ROOT();
-    if (!(mem_root_for_set_stmt))
+    if (unlikely(!(mem_root_for_set_stmt)))
       DBUG_RETURN(1);
     init_sql_alloc(mem_root_for_set_stmt, "set_stmt",
                    ALLOC_ROOT_SET, ALLOC_ROOT_SET, MYF(MY_THREAD_SPECIFIC));
   }
-  if (!(arena_for_set_stmt= new(mem_root_for_set_stmt)
-        Query_arena_memroot(mem_root_for_set_stmt,
-                            Query_arena::STMT_INITIALIZED)))
+  if (unlikely(!(arena_for_set_stmt= new(mem_root_for_set_stmt)
+                 Query_arena_memroot(mem_root_for_set_stmt,
+                                     Query_arena::STMT_INITIALIZED))))
     DBUG_RETURN(1);
   DBUG_PRINT("info", ("mem_root: %p  arena: %p",
                       mem_root_for_set_stmt,
@@ -5027,6 +5027,8 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
   Explain_union *eu= 
     new (output->mem_root) Explain_union(output->mem_root, 
                                          thd->lex->analyze_stmt);
+  if (unlikely(!eu))
+    return 0;
 
   if (with_element && with_element->is_recursive)
     eu->is_recursive_cte= true;
@@ -5161,9 +5163,9 @@ bool LEX::add_unit_in_brackets(SELECT_LEX *nselect)
   /* add SELECT list*/
   Item *item= new (thd->mem_root)
     Item_field(thd, context, NULL, NULL, &star_clex_str);
-  if (item == NULL)
+  if (unlikely(item == NULL))
     DBUG_RETURN(TRUE);
-  if (add_item_to_list(thd, item))
+  if (unlikely(add_item_to_list(thd, item)))
     DBUG_RETURN(TRUE);
   (dummy_select->with_wild)++;
 
@@ -5176,20 +5178,21 @@ bool LEX::add_unit_in_brackets(SELECT_LEX *nselect)
 
   SELECT_LEX_UNIT *unit= nselect->master_unit();
   Table_ident *ti= new (thd->mem_root) Table_ident(unit);
-  if (ti == NULL)
+  if (unlikely(ti == NULL))
     DBUG_RETURN(TRUE);
   char buff[10];
   LEX_CSTRING alias;
   alias.length= my_snprintf(buff, sizeof(buff),
                             "__%u", dummy_select->select_number);
   alias.str= thd->strmake(buff, alias.length);
-  if (!alias.str)
+  if (unlikely(!alias.str))
     DBUG_RETURN(TRUE);
 
   TABLE_LIST *table_list;
-  if (!(table_list= dummy_select->add_table_to_list(thd, ti, &alias,
-                                                    0, TL_READ,
-                                                    MDL_SHARED_READ)))
+  if (unlikely(!(table_list=
+                 dummy_select->add_table_to_list(thd, ti, &alias,
+                                                 0, TL_READ,
+                                                 MDL_SHARED_READ))))
     DBUG_RETURN(TRUE);
   context->resolve_in_table_list_only(table_list);
   dummy_select->add_joined_table(table_list);
@@ -5326,7 +5329,7 @@ bool LEX::sp_variable_declarations_set_default(THD *thd, int nvars,
                                                Item *dflt_value_item)
 {
   if (!dflt_value_item &&
-      !(dflt_value_item= new (thd->mem_root) Item_null(thd)))
+      unlikely(!(dflt_value_item= new (thd->mem_root) Item_null(thd))))
     return true;
 
   for (uint i= 0 ; i < (uint) nvars ; i++)
@@ -5340,7 +5343,7 @@ bool LEX::sp_variable_declarations_set_default(THD *thd, int nvars,
                                    spcont, &sp_rcontext_handler_local,
                                    spvar->offset, dflt_value_item,
                                    this, last);
-    if (is == NULL || sphead->add_instr(is))
+    if (unlikely(is == NULL || sphead->add_instr(is)))
       return true;
   }
   return false;
@@ -5364,7 +5367,8 @@ LEX::sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
     }
     spvar->field_def.field_name= spvar->name;
   }
-  if (sp_variable_declarations_set_default(thd, nvars, default_value))
+  if (unlikely(sp_variable_declarations_set_default(thd, nvars,
+                                                    default_value)))
     return true;
   spcont->declare_var_boundary(0);
   return sphead->restore_lex(thd);
@@ -5465,7 +5469,8 @@ LEX::sp_variable_declarations_table_rowtype_finalize(THD *thd, int nvars,
                                                      Item *def)
 {
   Table_ident *table_ref;
-  if (!(table_ref= new (thd->mem_root) Table_ident(thd, &db, &table, false)))
+  if (unlikely(!(table_ref=
+                 new (thd->mem_root) Table_ident(thd, &db, &table, false))))
     return true;
   // Loop through all variables in the same declaration
   for (uint i= 0 ; i < (uint) nvars; i++)
@@ -5505,7 +5510,7 @@ LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
 
     sphead->fill_spvar_definition(thd, &spvar->field_def, &spvar->name);
   }
-  if (sp_variable_declarations_set_default(thd, nvars, def))
+  if (unlikely(sp_variable_declarations_set_default(thd, nvars, def)))
     return true;
   // Make sure sp_rcontext is created using the invoker security context:
   sphead->m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
@@ -5628,7 +5633,7 @@ sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,
   spvar->field_def.set_handler(&type_handler_longlong);
   type_handler_longlong.Column_definition_prepare_stage2(&spvar->field_def,
                                                          NULL, HA_CAN_GEOMETRY);
-  if (!value && !(value= new (thd->mem_root) Item_null(thd)))
+  if (!value && unlikely(!(value= new (thd->mem_root) Item_null(thd))))
     return NULL;
 
   spvar->default_value= value;
@@ -5637,7 +5642,7 @@ sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,
                                  spcont, &sp_rcontext_handler_local,
                                  spvar->offset, value,
                                  this, true);
-  if (is == NULL || sphead->add_instr(is))
+  if (unlikely(is == NULL || sphead->add_instr(is)))
     return NULL;
   spcont->declare_var_boundary(0);
   return spvar;
@@ -5654,14 +5659,16 @@ bool LEX::sp_for_loop_implicit_cursor_statement(THD *thd,
   if (sp_declare_cursor(thd, &name, cur, NULL, true))
     return true;
   DBUG_ASSERT(thd->lex == this);
-  if (!(bounds->m_index= new (thd->mem_root) sp_assignment_lex(thd, this)))
+  if (unlikely(!(bounds->m_index=
+                 new (thd->mem_root) sp_assignment_lex(thd, this))))
     return true;
   bounds->m_index->sp_lex_in_use= true;
   sphead->reset_lex(thd, bounds->m_index);
   DBUG_ASSERT(thd->lex != this);
-  if (!(item= new (thd->mem_root) Item_field(thd,
-                                             thd->lex->current_context(),
-                                             NullS, NullS, &name)))
+  if (unlikely(!(item=
+                 new (thd->mem_root) Item_field(thd,
+                                                thd->lex->current_context(),
+                                                NullS, NullS, &name))))
     return true;
   bounds->m_index->set_item_and_free_list(item, NULL);
   if (thd->lex->sphead->restore_lex(thd))
@@ -5686,13 +5693,14 @@ LEX::sp_add_for_loop_cursor_variable(THD *thd,
     return NULL;
   spcont->declare_var_boundary(1);
   sphead->fill_spvar_definition(thd, &spvar->field_def, &spvar->name);
-  if (!(spvar->default_value= new (thd->mem_root) Item_null(thd)))
+  if (unlikely(!(spvar->default_value= new (thd->mem_root) Item_null(thd))))
     return NULL;
 
   spvar->field_def.set_cursor_rowtype_ref(coffset);
 
-  if (sphead->add_for_loop_open_cursor(thd, spcont, spvar, pcursor, coffset,
-                                       param_lex, parameters))
+  if (unlikely(sphead->add_for_loop_open_cursor(thd, spcont, spvar, pcursor,
+                                                coffset,
+                                                param_lex, parameters)))
     return NULL;
 
   spcont->declare_var_boundary(0);
@@ -5715,7 +5723,7 @@ bool LEX::sp_for_loop_condition(THD *thd, const Lex_for_loop_st &loop)
     args[i]= new (thd->mem_root)
               Item_splocal(thd, &sp_rcontext_handler_local,
                            &src->name, src->offset, src->type_handler());
-    if (args[i] == NULL)
+    if (unlikely(args[i] == NULL))
       return true;
 #ifdef DBUG_ASSERT_EXISTS
     args[i]->m_sp= sphead;
@@ -5725,7 +5733,7 @@ bool LEX::sp_for_loop_condition(THD *thd, const Lex_for_loop_st &loop)
   Item *expr= loop.m_direction > 0 ?
     (Item *) new (thd->mem_root) Item_func_le(thd, args[0], args[1]) :
     (Item *) new (thd->mem_root) Item_func_ge(thd, args[0], args[1]);
-  return !expr || sp_while_loop_expression(thd, expr);
+  return unlikely(!expr) || unlikely(sp_while_loop_expression(thd, expr));
 }
 
 
@@ -5737,7 +5745,7 @@ bool LEX::sp_for_loop_intrange_condition_test(THD *thd,
 {
   spcont->set_for_loop(loop);
   sphead->reset_lex(thd);
-  if (thd->lex->sp_for_loop_condition(thd, loop))
+  if (unlikely(thd->lex->sp_for_loop_condition(thd, loop)))
     return true;
   return thd->lex->sphead->restore_lex(thd);
 }
@@ -5752,8 +5760,10 @@ bool LEX::sp_for_loop_cursor_condition_test(THD *thd,
   sphead->reset_lex(thd);
   cursor_name= spcont->find_cursor(loop.m_cursor_offset);
   DBUG_ASSERT(cursor_name);
-  if (!(expr= new (thd->mem_root) Item_func_cursor_found(thd, cursor_name,
-                                                         loop.m_cursor_offset)))
+  if (unlikely(!(expr=
+                 new (thd->mem_root)
+                 Item_func_cursor_found(thd, cursor_name,
+                                        loop.m_cursor_offset))))
     return true;
   if (thd->lex->sp_while_loop_expression(thd, expr))
     return true;
@@ -5765,13 +5775,16 @@ bool LEX::sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
                                             const LEX_CSTRING *index,
                                             const Lex_for_loop_bounds_st &bounds)
 {
-  if (!(loop->m_index=
-        bounds.m_index->sp_add_for_loop_variable(thd, index,
-                                                 bounds.m_index->get_item())))
+  if (unlikely(!(loop->m_index=
+                 bounds.m_index->
+                 sp_add_for_loop_variable(thd, index,
+                                          bounds.m_index->get_item()))))
     return true;
-  if (!(loop->m_upper_bound=
-        bounds.m_upper_bound->sp_add_for_loop_upper_bound(thd,
-                                           bounds.m_upper_bound->get_item())))
+  if (unlikely(!(loop->m_upper_bound=
+                 bounds.m_upper_bound->
+                 sp_add_for_loop_upper_bound(thd,
+                                             bounds.
+                                             m_upper_bound->get_item()))))
      return true;
   loop->m_direction= bounds.m_direction;
   loop->m_implicit_cursor= 0;
@@ -5824,8 +5837,9 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
     thd->parse_error();
     return true;
   }
-  if (!(pcursor= spcont->find_cursor_with_error(&name, &coffs, false)) ||
-      pcursor->check_param_count_with_error(param_count))
+  if (unlikely(!(pcursor= spcont->find_cursor_with_error(&name, &coffs,
+                                                         false)) ||
+               pcursor->check_param_count_with_error(param_count)))
     return true;
 
   if (!(loop->m_index= sp_add_for_loop_cursor_variable(thd, index,
@@ -5850,18 +5864,19 @@ bool LEX::sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop)
     Item_splocal(thd, &sp_rcontext_handler_local,
                       &loop.m_index->name, loop.m_index->offset,
                       loop.m_index->type_handler());
-  if (splocal == NULL)
+  if (unlikely(splocal == NULL))
     return true;
 #ifdef DBUG_ASSERT_EXISTS
   splocal->m_sp= sphead;
 #endif
   Item_int *inc= new (thd->mem_root) Item_int(thd, loop.m_direction);
-  if (!inc)
+  if (unlikely(!inc))
     return true;
   Item *expr= new (thd->mem_root) Item_func_plus(thd, splocal, inc);
-  if (!expr ||
-      sphead->set_local_variable(thd, spcont, &sp_rcontext_handler_local,
-                                 loop.m_index, expr, this, true))
+  if (unlikely(!expr) ||
+      unlikely(sphead->set_local_variable(thd, spcont,
+                                          &sp_rcontext_handler_local,
+                                          loop.m_index, expr, this, true)))
     return true;
   return false;
 }
@@ -5873,8 +5888,8 @@ bool LEX::sp_for_loop_intrange_finalize(THD *thd, const Lex_for_loop_st &loop)
 
   // Generate FOR LOOP index increment in its own lex
   DBUG_ASSERT(this != thd->lex);
-  if (thd->lex->sp_for_loop_increment(thd, loop) ||
-      thd->lex->sphead->restore_lex(thd))
+  if (unlikely(thd->lex->sp_for_loop_increment(thd, loop) ||
+               thd->lex->sphead->restore_lex(thd)))
     return true;
 
   // Generate a jump to the beginning of the loop
@@ -5888,7 +5903,7 @@ bool LEX::sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &loop)
   sp_instr_cfetch *instr=
     new (thd->mem_root) sp_instr_cfetch(sphead->instructions(),
                                         spcont, loop.m_cursor_offset, false);
-  if (instr == NULL || sphead->add_instr(instr))
+  if (unlikely(instr == NULL) || unlikely(sphead->add_instr(instr)))
     return true;
   instr->add_to_varlist(loop.m_index);
   // Generate a jump to the beginning of the loop
@@ -5911,7 +5926,7 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
   }
   cursor_stmt->set_cursor_name(name);
 
-  if (spcont->add_cursor(name, param_ctx, cursor_stmt))
+  if (unlikely(spcont->add_cursor(name, param_ctx, cursor_stmt)))
     return true;
 
   if (add_cpush_instr)
@@ -5919,7 +5934,7 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
     i= new (thd->mem_root)
          sp_instr_cpush(sphead->instructions(), spcont, cursor_stmt,
                         spcont->current_cursor_count() - 1);
-    return i == NULL || sphead->add_instr(i);
+    return unlikely(i == NULL) || unlikely(sphead->add_instr(i));
   }
   return false;
 }
@@ -5954,15 +5969,17 @@ bool LEX::sp_handler_declaration_init(THD *thd, int type)
   sp_instr_hpush_jump *i=
     new (thd->mem_root) sp_instr_hpush_jump(sphead->instructions(), spcont, h);
 
-  if (i == NULL || sphead->add_instr(i))
+  if (unlikely(i == NULL) || unlikely(sphead->add_instr(i)))
     return true;
 
   /* For continue handlers, mark end of handler scope. */
   if (type == sp_handler::CONTINUE &&
-      sphead->push_backpatch(thd, i, spcont->last_label()))
+      unlikely(sphead->push_backpatch(thd, i, spcont->last_label())))
     return true;
 
-  if (sphead->push_backpatch(thd, i, spcont->push_label(thd, &empty_clex_str, 0)))
+  if (unlikely(sphead->push_backpatch(thd, i,
+                                      spcont->push_label(thd, &empty_clex_str,
+                                                         0))))
     return true;
 
   return false;
@@ -5977,16 +5994,16 @@ bool LEX::sp_handler_declaration_finalize(THD *thd, int type)
   if (type == sp_handler::CONTINUE)
   {
     i= new (thd->mem_root) sp_instr_hreturn(sphead->instructions(), spcont);
-    if (i == NULL ||
-        sphead->add_instr(i))
+    if (unlikely(i == NULL) ||
+        unlikely(sphead->add_instr(i)))
       return true;
   }
   else
   {  /* EXIT or UNDO handler, just jump to the end of the block */
     i= new (thd->mem_root) sp_instr_hreturn(sphead->instructions(), spcont);
-    if (i == NULL ||
-        sphead->add_instr(i) ||
-        sphead->push_backpatch(thd, i, spcont->last_label())) /* Block end */
+    if (unlikely(i == NULL) ||
+        unlikely(sphead->add_instr(i)) ||
+        unlikely(sphead->push_backpatch(thd, i, spcont->last_label()))) /* Block end */
       return true;
   }
   sphead->backpatch(hlab);
@@ -6014,16 +6031,16 @@ bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
   {
     i= new (thd->mem_root)
       sp_instr_hpop(sp->instructions(), ctx, spblock.hndlrs);
-    if (i == NULL ||
-        sp->add_instr(i))
+    if (unlikely(i == NULL) ||
+        unlikely(sp->add_instr(i)))
       return true;
   }
   if (spblock.curs)
   {
     i= new (thd->mem_root)
       sp_instr_cpop(sp->instructions(), ctx, spblock.curs);
-    if (i == NULL ||
-        sp->add_instr(i))
+    if (unlikely(i == NULL) ||
+        unlikely(sp->add_instr(i)))
       return true;
   }
   spcont= ctx->pop_context();
@@ -6036,11 +6053,11 @@ bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
                             const LEX_CSTRING *end_label)
 {
   sp_label *splabel;
-  if (sp_block_finalize(thd, spblock, &splabel))
+  if (unlikely(sp_block_finalize(thd, spblock, &splabel)))
     return true;
-  if (end_label->str &&
-      lex_string_cmp(system_charset_info,
-                     end_label, &splabel->name) != 0)
+  if (unlikely(end_label->str &&
+               lex_string_cmp(system_charset_info,
+                              end_label, &splabel->name) != 0))
   {
     my_error(ER_SP_LABEL_MISMATCH, MYF(0), end_label->str);
     return true;
@@ -6053,9 +6070,9 @@ sp_name *LEX::make_sp_name(THD *thd, const LEX_CSTRING *name)
 {
   sp_name *res;
   LEX_CSTRING db;
-  if (check_routine_name(name) ||
-      copy_db_to(&db) ||
-      (!(res= new (thd->mem_root) sp_name(&db, name, false))))
+  if (unlikely(check_routine_name(name)) ||
+      unlikely(copy_db_to(&db)) ||
+      unlikely((!(res= new (thd->mem_root) sp_name(&db, name, false)))))
     return NULL;
   return res;
 }
@@ -6077,7 +6094,7 @@ sp_name *LEX::make_sp_name(THD *thd, const LEX_CSTRING *name)
 sp_name *LEX::make_sp_name_package_routine(THD *thd, const LEX_CSTRING *name)
 {
   sp_name *res= make_sp_name(thd, name);
-  if (res && strchr(res->m_name.str, '.'))
+  if (likely(res) && unlikely(strchr(res->m_name.str, '.')))
   {
     my_error(ER_SP_WRONG_NAME, MYF(0), res->m_name.str);
     res= NULL;
@@ -6091,15 +6108,16 @@ sp_name *LEX::make_sp_name(THD *thd, const LEX_CSTRING *name1,
 {
   sp_name *res;
   LEX_CSTRING norm_name1;
-  if (!name1->str ||
-      !thd->make_lex_string(&norm_name1, name1->str, name1->length) ||
-      check_db_name((LEX_STRING *) &norm_name1))
+  if (unlikely(!name1->str) ||
+      unlikely(!thd->make_lex_string(&norm_name1, name1->str,
+                                     name1->length)) ||
+      unlikely(check_db_name((LEX_STRING *) &norm_name1)))
   {
     my_error(ER_WRONG_DB_NAME, MYF(0), name1->str);
     return NULL;
   }
-  if (check_routine_name(name2) ||
-      (!(res= new (thd->mem_root) sp_name(&norm_name1, name2, true))))
+  if (unlikely(check_routine_name(name2)) ||
+      unlikely(!(res= new (thd->mem_root) sp_name(&norm_name1, name2, true))))
     return NULL;
   return res;
 }
@@ -6112,7 +6130,7 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
   sp_head *sp;
 
   /* Order is important here: new - reset - init */
-  if ((sp= new sp_head(package, sph)))
+  if (likely((sp= new sp_head(package, sph))))
   {
     sp->reset_thd_mem_root(thd);
     sp->init(this);
@@ -6264,13 +6282,13 @@ bool LEX::sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive)
   if ((n= spcont->diff_handlers(ctx, exclusive)))
   {
     sp_instr_hpop *hpop= new (thd->mem_root) sp_instr_hpop(ip++, spcont, n);
-    if (hpop == NULL || sphead->add_instr(hpop))
+    if (unlikely(hpop == NULL) || unlikely(sphead->add_instr(hpop)))
       return true;
   }
   if ((n= spcont->diff_cursors(ctx, exclusive)))
   {
     sp_instr_cpop *cpop= new (thd->mem_root) sp_instr_cpop(ip++, spcont, n);
-    if (cpop == NULL || sphead->add_instr(cpop))
+    if (unlikely(cpop == NULL) || unlikely(sphead->add_instr(cpop)))
       return true;
   }
   return false;
@@ -6280,7 +6298,7 @@ bool LEX::sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive)
 bool LEX::sp_leave_statement(THD *thd, const LEX_CSTRING *label_name)
 {
   sp_label *lab= spcont->find_label(label_name);
-  if (!lab)
+  if (unlikely(!lab))
   {
     my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "LEAVE", label_name->str);
     return true;
@@ -6320,7 +6338,7 @@ bool LEX::sp_push_goto_label(THD *thd, const LEX_CSTRING *label_name)
   sp_label *lab= spcont->find_goto_label(label_name, false);
   if (lab)
   {
-    if  (lab->ip != 0)
+    if (unlikely(lab->ip != 0))
     {
       my_error(ER_SP_LABEL_REDEFINE, MYF(0), label_name->str);
       return true;
@@ -6364,9 +6382,9 @@ bool LEX::sp_exit_block(THD *thd, sp_label *lab, Item *when)
                            sp_instr_jump_if_not(sphead->instructions(),
                                                 spcont,
                                                 when, thd->lex);
-  if (i == NULL ||
-      sphead->add_instr(i) ||
-      sp_exit_block(thd, lab))
+  if (unlikely(i == NULL) ||
+      unlikely(sphead->add_instr(i)) ||
+      unlikely(sp_exit_block(thd, lab)))
     return true;
   i->backpatch(sphead->instructions(), spcont);
   return false;
@@ -6376,7 +6394,7 @@ bool LEX::sp_exit_block(THD *thd, sp_label *lab, Item *when)
 bool LEX::sp_exit_statement(THD *thd, Item *item)
 {
   sp_label *lab= spcont->find_label_current_loop_start();
-  if (!lab)
+  if (unlikely(!lab))
   {
     my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "EXIT", "");
     return true;
@@ -6389,7 +6407,7 @@ bool LEX::sp_exit_statement(THD *thd, Item *item)
 bool LEX::sp_exit_statement(THD *thd, const LEX_CSTRING *label_name, Item *item)
 {
   sp_label *lab= spcont->find_label(label_name);
-  if (!lab || lab->type != sp_label::ITERATION)
+  if (unlikely(!lab || lab->type != sp_label::ITERATION))
   {
     my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "EXIT", label_name->str);
     return true;
@@ -6401,7 +6419,7 @@ bool LEX::sp_exit_statement(THD *thd, const LEX_CSTRING *label_name, Item *item)
 bool LEX::sp_iterate_statement(THD *thd, const LEX_CSTRING *label_name)
 {
   sp_label *lab= spcont->find_label(label_name);
-  if (!lab || lab->type != sp_label::ITERATION)
+  if (unlikely(!lab || lab->type != sp_label::ITERATION))
   {
     my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "ITERATE", label_name->str);
     return true;
@@ -6437,9 +6455,9 @@ bool LEX::sp_continue_loop(THD *thd, sp_label *lab, Item *when)
                            sp_instr_jump_if_not(sphead->instructions(),
                                                 spcont,
                                                 when, thd->lex);
-  if (i == NULL ||
-      sphead->add_instr(i) ||
-      sp_continue_loop(thd, lab))
+  if (unlikely(i == NULL) ||
+      unlikely(sphead->add_instr(i)) ||
+      unlikely(sp_continue_loop(thd, lab)))
     return true;
   i->backpatch(sphead->instructions(), spcont);
   return false;
@@ -6449,7 +6467,7 @@ bool LEX::sp_continue_loop(THD *thd, sp_label *lab, Item *when)
 bool LEX::sp_continue_statement(THD *thd, Item *when)
 {
   sp_label *lab= spcont->find_label_current_loop_start();
-  if (!lab)
+  if (unlikely(!lab))
   {
     my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "CONTINUE", "");
     return true;
@@ -6537,11 +6555,11 @@ bool LEX::sp_while_loop_expression(THD *thd, Item *expr)
 {
   sp_instr_jump_if_not *i= new (thd->mem_root)
     sp_instr_jump_if_not(sphead->instructions(), spcont, expr, this);
-  return i == NULL ||
-         /* Jumping forward */
-         sphead->push_backpatch(thd, i, spcont->last_label()) ||
-         sphead->new_cont_backpatch(i) ||
-         sphead->add_instr(i);
+  return (unlikely(i == NULL) ||
+          /* Jumping forward */
+          unlikely(sphead->push_backpatch(thd, i, spcont->last_label())) ||
+          unlikely(sphead->new_cont_backpatch(i)) ||
+          unlikely(sphead->add_instr(i)));
 }
 
 
@@ -6550,8 +6568,8 @@ bool LEX::sp_while_loop_finalize(THD *thd)
   sp_label *lab= spcont->last_label();  /* Jumping back */
   sp_instr_jump *i= new (thd->mem_root)
     sp_instr_jump(sphead->instructions(), spcont, lab->ip);
-  if (i == NULL ||
-      sphead->add_instr(i))
+  if (unlikely(i == NULL) ||
+      unlikely(sphead->add_instr(i)))
     return true;
   sphead->do_cont_backpatch();
   return false;
@@ -6564,13 +6582,13 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
 {
   Item_trigger_field *trg_fld;
 
-  if (trg_chistics.event == TRG_EVENT_INSERT && !new_row)
+  if (unlikely(trg_chistics.event == TRG_EVENT_INSERT && !new_row))
   {
     my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "OLD", "on INSERT");
     return NULL;
   }
 
-  if (trg_chistics.event == TRG_EVENT_DELETE && new_row)
+  if (unlikely(trg_chistics.event == TRG_EVENT_DELETE && new_row))
   {
     my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE");
     return NULL;
@@ -6592,8 +6610,8 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
     Let us add this item to list of all Item_trigger_field objects
     in trigger.
   */
-  if (trg_fld)
-      trg_table_fields.link_in_list(trg_fld, &trg_fld->next_trg_field);
+  if (likely(trg_fld))
+    trg_table_fields.link_in_list(trg_fld, &trg_fld->next_trg_field);
 
   return trg_fld;
 }
@@ -6619,12 +6637,12 @@ Item *LEX::make_item_colon_ident_ident(THD *thd,
 Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
                                  const char *start, const char *end)
 {
-  if (!thd->m_parser_state->m_lip.stmt_prepare_mode)
+  if (unlikely(!thd->m_parser_state->m_lip.stmt_prepare_mode))
   {
     thd->parse_error(ER_SYNTAX_ERROR, start);
     return NULL;
   }
-  if (!parsing_options.allows_variable)
+  if (unlikely(!parsing_options.allows_variable))
   {
     my_error(ER_VIEW_SELECT_VARIABLE, MYF(0));
     return NULL;
@@ -6633,7 +6651,7 @@ Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
   Query_fragment pos(thd, sphead, start, end);
   Item_param *item= new (thd->mem_root) Item_param(thd, name,
                                                    pos.pos(), pos.length());
-  if (!item || param_list.push_back(item, thd->mem_root))
+  if (unlikely(!item) || unlikely(param_list.push_back(item, thd->mem_root)))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return NULL;
@@ -6677,7 +6695,7 @@ Item *LEX::create_item_ident_nospvar(THD *thd,
     return create_and_link_Item_trigger_field(thd, b, new_row);
   }
 
-  if (current_select->no_table_names_allowed)
+  if (unlikely(current_select->no_table_names_allowed))
   {
     my_error(ER_TABLENAME_NOT_ALLOWED_HERE, MYF(0), a->str, thd->where);
     return NULL;
@@ -6699,7 +6717,7 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
                                                const char *start,
                                                const char *end)
 {
-  if (!parsing_options.allows_variable)
+  if (unlikely(!parsing_options.allows_variable))
   {
     my_error(ER_VIEW_SELECT_VARIABLE, MYF(0));
     return NULL;
@@ -6710,24 +6728,24 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
   if (spv->field_def.is_table_rowtype_ref() ||
       spv->field_def.is_cursor_rowtype_ref())
   {
-    if (!(item= new (thd->mem_root)
-                Item_splocal_row_field_by_name(thd, rh, a, b, spv->offset,
-                                               &type_handler_null,
-                                               pos.pos(), pos.length())))
+    if (unlikely(!(item= new (thd->mem_root)
+                   Item_splocal_row_field_by_name(thd, rh, a, b, spv->offset,
+                                                  &type_handler_null,
+                                                  pos.pos(), pos.length()))))
       return NULL;
   }
   else
   {
     uint row_field_offset;
     const Spvar_definition *def;
-    if (!(def= spv->find_row_field(a, b, &row_field_offset)))
+    if (unlikely(!(def= spv->find_row_field(a, b, &row_field_offset))))
       return NULL;
 
-    if (!(item= new (thd->mem_root)
-                Item_splocal_row_field(thd, rh, a, b,
-                                       spv->offset, row_field_offset,
-                                       def->type_handler(),
-                                       pos.pos(), pos.length())))
+    if (unlikely(!(item= new (thd->mem_root)
+                   Item_splocal_row_field(thd, rh, a, b,
+                                          spv->offset, row_field_offset,
+                                          def->type_handler(),
+                                          pos.pos(), pos.length()))))
       return NULL;
   }
 #ifdef DBUG_ASSERT_EXISTS
@@ -6742,7 +6760,7 @@ my_var *LEX::create_outvar(THD *thd, const LEX_CSTRING *name)
 {
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
-  if ((spv= find_variable(name, &rh)))
+  if (likely((spv= find_variable(name, &rh))))
     return result ? new (thd->mem_root)
                     my_var_sp(rh, name, spv->offset,
                               spv->type_handler(), sphead) :
@@ -6758,7 +6776,7 @@ my_var *LEX::create_outvar(THD *thd,
 {
   const Sp_rcontext_handler *rh;
   sp_variable *t;
-  if (!(t= find_variable(a, &rh)))
+  if (unlikely(!(t= find_variable(a, &rh))))
   {
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), a->str);
     return NULL;
@@ -6776,10 +6794,10 @@ my_var *LEX::create_outvar(THD *thd,
 Item *LEX::create_item_func_nextval(THD *thd, Table_ident *table_ident)
 {
   TABLE_LIST *table;
-  if (!(table= current_select->add_table_to_list(thd, table_ident, 0,
-                                                 TL_OPTION_SEQUENCE,
-                                                 TL_WRITE_ALLOW_WRITE,
-                                                 MDL_SHARED_WRITE)))
+  if (unlikely(!(table= current_select->add_table_to_list(thd, table_ident, 0,
+                                                          TL_OPTION_SEQUENCE,
+                                                          TL_WRITE_ALLOW_WRITE,
+                                                          MDL_SHARED_WRITE))))
     return NULL;
   return new (thd->mem_root) Item_func_nextval(thd, table);
 }
@@ -6788,10 +6806,10 @@ Item *LEX::create_item_func_nextval(THD *thd, Table_ident *table_ident)
 Item *LEX::create_item_func_lastval(THD *thd, Table_ident *table_ident)
 {
   TABLE_LIST *table;
-  if (!(table= current_select->add_table_to_list(thd, table_ident, 0,
-                                                 TL_OPTION_SEQUENCE,
-                                                 TL_READ,
-                                                 MDL_SHARED_READ)))
+  if (unlikely(!(table= current_select->add_table_to_list(thd, table_ident, 0,
+                                                          TL_OPTION_SEQUENCE,
+                                                          TL_READ,
+                                                          MDL_SHARED_READ))))
     return NULL;
   return new (thd->mem_root) Item_func_lastval(thd, table);
 }
@@ -6802,7 +6820,8 @@ Item *LEX::create_item_func_nextval(THD *thd,
                                     const LEX_CSTRING *name)
 {
   Table_ident *table_ident;
-  if (!(table_ident= new (thd->mem_root) Table_ident(thd, db, name, false)))
+  if (unlikely(!(table_ident=
+                 new (thd->mem_root) Table_ident(thd, db, name, false))))
     return NULL;
   return create_item_func_nextval(thd, table_ident);
 }
@@ -6813,7 +6832,8 @@ Item *LEX::create_item_func_lastval(THD *thd,
                                     const LEX_CSTRING *name)
 {
   Table_ident *table_ident;
-  if (!(table_ident= new (thd->mem_root) Table_ident(thd, db, name, false)))
+  if (unlikely(!(table_ident=
+                 new (thd->mem_root) Table_ident(thd, db, name, false))))
     return NULL;
   return create_item_func_lastval(thd, table_ident);
 }
@@ -6824,10 +6844,10 @@ Item *LEX::create_item_func_setval(THD *thd, Table_ident *table_ident,
                                    bool is_used)
 {
   TABLE_LIST *table;
-  if (!(table= current_select->add_table_to_list(thd, table_ident, 0,
-                                                 TL_OPTION_SEQUENCE,
-                                                 TL_WRITE_ALLOW_WRITE,
-                                                 MDL_SHARED_WRITE)))
+  if (unlikely(!(table= current_select->add_table_to_list(thd, table_ident, 0,
+                                                          TL_OPTION_SEQUENCE,
+                                                          TL_WRITE_ALLOW_WRITE,
+                                                          MDL_SHARED_WRITE))))
     return NULL;
   return new (thd->mem_root) Item_func_setval(thd, table, nextval, round,
                                               is_used);
@@ -6923,16 +6943,17 @@ Item *LEX::create_item_limit(THD *thd, const Lex_ident_cli_st *ca)
 
   Query_fragment pos(thd, sphead, ca->pos(), ca->end());
   Item_splocal *item;
-  if (!(item= new (thd->mem_root) Item_splocal(thd, rh, &sa,
-                                               spv->offset, spv->type_handler(),
-                                               pos.pos(), pos.length())))
+  if (unlikely(!(item= new (thd->mem_root)
+                 Item_splocal(thd, rh, &sa,
+                              spv->offset, spv->type_handler(),
+                              pos.pos(), pos.length()))))
     return NULL;
 #ifdef DBUG_ASSERT_EXISTS
   item->m_sp= sphead;
 #endif
   safe_to_cache_query= 0;
 
-  if (item->type() != Item::INT_ITEM)
+  if (unlikely(item->type() != Item::INT_ITEM))
   {
     my_error(ER_WRONG_SPVAR_TYPE_IN_LIMIT, MYF(0));
     return NULL;
@@ -6953,7 +6974,7 @@ Item *LEX::create_item_limit(THD *thd,
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
   Lex_ident_sys sa(thd, ca), sb(thd, cb);
-  if (sa.is_null() || sb.is_null())
+  if (unlikely(sa.is_null() || sb.is_null()))
     return NULL; // EOM
   if (!(spv= find_variable(&sa, &rh)))
   {
@@ -6963,10 +6984,10 @@ Item *LEX::create_item_limit(THD *thd,
   // Qualified %TYPE variables are not possible
   DBUG_ASSERT(!spv->field_def.column_type_ref());
   Item_splocal *item;
-  if (!(item= create_item_spvar_row_field(thd, rh, &sa, &sb, spv,
-                                          ca->pos(), cb->end())))
+  if (unlikely(!(item= create_item_spvar_row_field(thd, rh, &sa, &sb, spv,
+                                                   ca->pos(), cb->end()))))
     return NULL;
-  if (item->type() != Item::INT_ITEM)
+  if (unlikely(item->type() != Item::INT_ITEM))
   {
     my_error(ER_WRONG_SPVAR_TYPE_IN_LIMIT, MYF(0));
     return NULL;
@@ -6980,10 +7001,12 @@ bool LEX::set_user_variable(THD *thd, const LEX_CSTRING *name, Item *val)
 {
   Item_func_set_user_var *item;
   set_var_user *var;
-  if (!(item= new (thd->mem_root) Item_func_set_user_var(thd, name,  val)) ||
-      !(var= new (thd->mem_root) set_var_user(item)))
+  if (unlikely(!(item= new (thd->mem_root) Item_func_set_user_var(thd, name,
+                                                                  val))) ||
+      unlikely(!(var= new (thd->mem_root) set_var_user(item))))
     return true;
-  var_list.push_back(var, thd->mem_root);
+  if (unlikely(var_list.push_back(var, thd->mem_root)))
+    return true;
   return false;
 }
 
@@ -7030,7 +7053,7 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
       new (thd->mem_root) Item_splocal(thd, rh, name,
                                        spv->offset, spv->type_handler(),
                                        pos.pos(), pos.length());
-    if (splocal == NULL)
+    if (unlikely(splocal == NULL))
       return NULL;
 #ifdef DBUG_ASSERT_EXISTS
     splocal->m_sp= sphead;
@@ -7103,7 +7126,7 @@ bool LEX::set_default_system_variable(enum_var_type var_type,
   sys_var *var= find_sys_var(thd, name->str, name->length);
   if (!var)
     return true;
-  if (!var->is_struct())
+  if (unlikely(!var->is_struct()))
   {
     my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), name->str);
     return true;
@@ -7118,7 +7141,7 @@ bool LEX::set_system_variable(enum_var_type var_type,
 {
   sys_var *var= find_sys_var(thd, name->str, name->length);
   DBUG_ASSERT(thd->is_error() || var != NULL);
-  return var ? set_system_variable(var_type, var, &null_clex_str, val) : true;
+  return likely(var) ? set_system_variable(var_type, var, &null_clex_str, val) : true;
 }
 
 
@@ -7128,14 +7151,15 @@ bool LEX::set_system_variable(THD *thd, enum_var_type var_type,
                               Item *val)
 {
   sys_var *tmp;
-  if (check_reserved_words(name1) ||
-      !(tmp= find_sys_var_ex(thd, name2->str, name2->length, true, false)))
+  if (unlikely(check_reserved_words(name1)) ||
+      unlikely(!(tmp= find_sys_var_ex(thd, name2->str, name2->length, true,
+                                      false))))
   {
     my_error(ER_UNKNOWN_STRUCTURED_VARIABLE, MYF(0),
              (int) name1->length, name1->str);
     return true;
   }
-  if (!tmp->is_struct())
+  if (unlikely(!tmp->is_struct()))
   {
     my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), name2->str);
     return true;
@@ -7148,17 +7172,17 @@ bool LEX::set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
                             Item *val)
 {
   DBUG_ASSERT(is_trigger_new_or_old_reference(name1));
-  if (name1->str[0]=='O' || name1->str[0]=='o')
+  if (unlikely(name1->str[0]=='O' || name1->str[0]=='o'))
   {
     my_error(ER_TRG_CANT_CHANGE_ROW, MYF(0), "OLD", "");
     return true;
   }
-  if (trg_chistics.event == TRG_EVENT_DELETE)
+  if (unlikely(trg_chistics.event == TRG_EVENT_DELETE))
   {
     my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE");
     return true;
   }
-  if (trg_chistics.action_time == TRG_ACTION_AFTER)
+  if (unlikely(trg_chistics.action_time == TRG_ACTION_AFTER))
   {
     my_error(ER_TRG_CANT_CHANGE_ROW, MYF(0), "NEW", "after ");
     return true;
@@ -7466,7 +7490,7 @@ Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
     }
     else
       new_cond= new (thd->mem_root) Item_cond_or(thd);
-    if (!new_cond)
+    if (unlikely(!new_cond))
       return 0;		
     List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
     Item *item;
@@ -7480,7 +7504,7 @@ Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
       }
       Item *fix= build_cond_for_grouping_fields(thd, item,
 						no_top_clones & cond_and);
-      if (!fix)
+      if (unlikely(!fix))
       {
 	if (cond_and)
 	  continue;
@@ -7513,12 +7537,12 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
                                 size_t var_name_length, ulonglong value)
 {
   sys_var *sysvar;
-  if (thd->lex->sql_command == SQLCOM_CREATE_VIEW)
+  if (unlikely(thd->lex->sql_command == SQLCOM_CREATE_VIEW))
   {
     my_error(ER_VIEW_SELECT_CLAUSE, MYF(0), "[NO]WAIT");
     return 1;
   }
-  if (thd->lex->sphead)
+  if (unlikely(thd->lex->sphead))
   {
     my_error(ER_SP_BADSTATEMENT, MYF(0), "[NO]WAIT");
     return 1;
@@ -7529,7 +7553,8 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
     set_var *var= new (thd->mem_root) set_var(thd, OPT_SESSION, sysvar,
                                               &null_clex_str, item);
 
-    if (!item || !var || thd->lex->stmt_var_list.push_back(var, thd->mem_root))
+    if (unlikely(!item) || unlikely(!var) ||
+        unlikely(thd->lex->stmt_var_list.push_back(var, thd->mem_root)))
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       return 1;
@@ -7552,7 +7577,7 @@ bool LEX::sp_add_cfetch(THD *thd, const LEX_CSTRING *name)
   i= new (thd->mem_root)
     sp_instr_cfetch(sphead->instructions(), spcont, offset,
                     !(thd->variables.sql_mode & MODE_ORACLE));
-  if (i == NULL || sphead->add_instr(i))
+  if (unlikely(i == NULL) || unlikely(sphead->add_instr(i)))
     return true;
   return false;
 }
@@ -7562,10 +7587,10 @@ bool LEX::create_or_alter_view_finalize(THD *thd, Table_ident *table_ident)
 {
   sql_command= SQLCOM_CREATE_VIEW;
   /* first table in list is target VIEW name */
-  if (!select_lex.add_table_to_list(thd, table_ident, NULL,
-                                    TL_OPTION_UPDATING,
-                                    TL_IGNORE,
-                                    MDL_EXCLUSIVE))
+  if (unlikely(!select_lex.add_table_to_list(thd, table_ident, NULL,
+                                             TL_OPTION_UPDATING,
+                                             TL_IGNORE,
+                                             MDL_EXCLUSIVE)))
     return true;
   query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
   return false;
@@ -7576,13 +7601,13 @@ bool LEX::add_alter_view(THD *thd, uint16 algorithm,
                          enum_view_suid suid,
                          Table_ident *table_ident)
 {
-  if (sphead)
+  if (unlikely(sphead))
   {
     my_error(ER_SP_BADSTATEMENT, MYF(0), "ALTER VIEW");
     return true;
   }
-  if (!(create_view= new (thd->mem_root)
-                     Create_view_info(VIEW_ALTER, algorithm, suid)))
+  if (unlikely(!(create_view= new (thd->mem_root)
+                 Create_view_info(VIEW_ALTER, algorithm, suid))))
     return true;
   return create_or_alter_view_finalize(thd, table_ident);
 }
@@ -7592,13 +7617,13 @@ bool LEX::add_create_view(THD *thd, DDL_options_st ddl,
                           uint16 algorithm, enum_view_suid suid,
                           Table_ident *table_ident)
 {
-  if (set_create_options_with_check(ddl))
+  if (unlikely(set_create_options_with_check(ddl)))
     return true;
-  if (!(create_view= new (thd->mem_root)
-                     Create_view_info(ddl.or_replace() ?
-                                      VIEW_CREATE_OR_REPLACE :
-                                      VIEW_CREATE_NEW,
-                                      algorithm, suid)))
+  if (unlikely(!(create_view= new (thd->mem_root)
+                 Create_view_info(ddl.or_replace() ?
+                                  VIEW_CREATE_OR_REPLACE :
+                                  VIEW_CREATE_NEW,
+                                  algorithm, suid))))
     return true;
   return create_or_alter_view_finalize(thd, table_ident);
 }
@@ -7610,10 +7635,10 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
   const Sp_handler *sph= &sp_handler_procedure;
   sql_command= SQLCOM_CALL;
   value_list.empty();
-  if (sph->sp_resolve_package_routine(thd, thd->lex->sphead,
-                                      name, &sph, &pkgname))
+  if (unlikely(sph->sp_resolve_package_routine(thd, thd->lex->sphead,
+                                               name, &sph, &pkgname)))
     return true;
-  if (!(m_sql_cmd= new (thd->mem_root) Sql_cmd_call(name, sph)))
+  if (unlikely(!(m_sql_cmd= new (thd->mem_root) Sql_cmd_call(name, sph))))
     return true;
   sph->add_used_routine(this, thd, name);
   if (pkgname.m_name.length)
@@ -7625,7 +7650,7 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
 bool LEX::call_statement_start(THD *thd, const LEX_CSTRING *name)
 {
   sp_name *spname= make_sp_name(thd, name);
-  return !spname || call_statement_start(thd, spname);
+  return unlikely(!spname) || call_statement_start(thd, spname);
 }
 
 
@@ -7633,7 +7658,7 @@ bool LEX::call_statement_start(THD *thd, const LEX_CSTRING *name1,
                                          const LEX_CSTRING *name2)
 {
   sp_name *spname= make_sp_name(thd, name1, name2);
-  return !spname || call_statement_start(thd, spname);
+  return unlikely(!spname) || call_statement_start(thd, spname);
 }
 
 
@@ -7650,12 +7675,13 @@ sp_package *LEX::create_package_start(THD *thd,
                                       DDL_options_st options)
 {
   sp_package *pkg;
-  if (sphead)
+
+  if (unlikely(sphead))
   {
     my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0), sph->type_str());
     return NULL;
   }
-  if (set_command_with_check(command, options))
+  if (unlikely(set_command_with_check(command, options)))
     return NULL;
   if (sph->type() == TYPE_ENUM_PACKAGE_BODY)
   {
@@ -7677,7 +7703,7 @@ sp_package *LEX::create_package_start(THD *thd,
     sp_head *spec;
     int ret= sp_handler_package_spec.
                sp_cache_routine_reentrant(thd, name_arg, &spec);
-    if (!spec)
+    if (unlikely(!spec))
     {
       if (!ret)
         my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
@@ -7685,7 +7711,7 @@ sp_package *LEX::create_package_start(THD *thd,
       return 0;
     }
   }
-  if (!(pkg= new sp_package(this, name_arg, sph)))
+  if (unlikely(!(pkg= new sp_package(this, name_arg, sph))))
     return NULL;
   pkg->reset_thd_mem_root(thd);
   pkg->init(this);
@@ -7713,7 +7739,8 @@ bool LEX::create_package_finalize(THD *thd,
     return true;
   }
   sphead->m_body.length= body_end - body_start;
-  if (!(sphead->m_body.str= thd->strmake(body_start, sphead->m_body.length)))
+  if (unlikely(!(sphead->m_body.str= thd->strmake(body_start,
+                                                  sphead->m_body.length))))
     return true;
 
   size_t not_used;
@@ -7770,20 +7797,24 @@ Item *LEX::make_item_func_replace(THD *thd,
 }
 
 
-bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name)
+bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table,
+                                 const LEX_CSTRING field_name)
 {
   DBUG_ASSERT(field_name.str);
   Item_field *fld= new (thd->mem_root) Item_field(thd, &context,
-                                                  table->db.str, table->alias.str, &field_name);
-  if (!fld || item_list.push_back(fld))
+                                                  table->db.str,
+                                                  table->alias.str,
+                                                  &field_name);
+  if (unlikely(!fld) || unlikely(item_list.push_back(fld)))
     return true;
 
   if (thd->lex->view_list.elements)
   {
     LEX_CSTRING *l;
-    if (!(l= thd->make_clex_string(field_name.str, field_name.length)))
+    if (unlikely(!(l= thd->make_clex_string(field_name.str,
+                                            field_name.length))) ||
+        unlikely(thd->lex->view_list.push_back(l)))
       return true;
-    thd->lex->view_list.push_back(l);
   }
 
   return false;

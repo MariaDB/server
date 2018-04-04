@@ -1377,7 +1377,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       errors are not catchable by SQL handlers) or the connection has been
       killed during execution.
     */
-    if (!thd->is_fatal_error && !thd->killed_errno() &&
+    if (likely(!thd->is_fatal_error) && likely(!thd->killed_errno()) &&
         ctx->handle_sql_condition(thd, &ip, i))
     {
       err_status= FALSE;
@@ -1386,7 +1386,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     /* Reset sp_rcontext::end_partial_result_set flag. */
     ctx->end_partial_result_set= FALSE;
 
-  } while (!err_status && !thd->killed && !thd->is_fatal_error &&
+  } while (!err_status && likely(!thd->killed) &&
+           likely(!thd->is_fatal_error) &&
            !thd->spcont->pause_state);
 
 #if defined(ENABLED_PROFILING)
@@ -3311,7 +3312,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
   if (open_tables)
     res= instr->exec_open_and_lock_tables(thd, m_lex->query_tables);
 
-  if (!res)
+  if (likely(!res))
   {
     res= instr->exec_core(thd, nextp);
     DBUG_PRINT("info",("exec_core returned: %d", res));
@@ -3371,7 +3372,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     Update the state of the active arena if no errors on
     open_tables stage.
   */
-  if (!res || !thd->is_error() ||
+  if (likely(!res) || likely(!thd->is_error()) ||
       (thd->get_stmt_da()->sql_errno() != ER_CANT_REOPEN_TABLE &&
        thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE &&
        thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE_IN_ENGINE &&
@@ -3542,7 +3543,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
     thd->set_query(query_backup);
     thd->query_name_consts= 0;
 
-    if (!thd->is_error())
+    if (likely(!thd->is_error()))
     {
       res= 0;
       thd->get_stmt_da()->reset_diagnostics_area();

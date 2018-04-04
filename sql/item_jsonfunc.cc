@@ -173,7 +173,7 @@ static int json_nice(json_engine_t *je, String *nice_js,
           key_end= je->s.c_str;
         } while (json_read_keyname_chr(je) == 0);
         
-        if (je->s.error)
+        if (unlikely(je->s.error))
           goto error;
 
         if (!first_value)
@@ -492,7 +492,7 @@ continue_search:
   if (json_read_value(&je))
     goto err_return;
 
-  if (check_and_get_value(&je, str, &error))
+  if (unlikely(check_and_get_value(&je, str, &error)))
   {
     if (error)
       goto err_return;
@@ -623,7 +623,7 @@ String *Item_func_json_unquote::val_str(String *str)
   if (!(js= read_json(&je)))
     return NULL;
 
-  if (je.s.error || je.value_type != JSON_VALUE_STRING)
+  if (unlikely(je.s.error) || je.value_type != JSON_VALUE_STRING)
     return js;
 
   str->length(0);
@@ -835,7 +835,7 @@ String *Item_func_json_extract::read_json(String *str,
     }
   }
 
-  if (je.s.error)
+  if (unlikely(je.s.error))
     goto error;
 
   if (!not_first_value)
@@ -994,7 +994,7 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
         k_end= value->s.c_str;
       } while (json_read_keyname_chr(value) == 0);
 
-      if (value->s.error || json_read_value(value))
+      if (unlikely(value->s.error) || json_read_value(value))
         return FALSE;
 
       if (set_js)
@@ -1037,7 +1037,7 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
             return FALSE;
           return TRUE;
         }
-        if (value->s.error || js->s.error ||
+        if (unlikely(value->s.error) || unlikely(js->s.error) ||
             (!v_scalar && json_skip_to_level(js, c_level)))
           return FALSE;
       }
@@ -1165,7 +1165,7 @@ longlong Item_func_json_contains::val_int()
     goto error;
 
   result= check_contains(&je, &ve);
-  if (je.s.error || ve.s.error)
+  if (unlikely(je.s.error || ve.s.error))
     goto error;
 
   return result;
@@ -1385,7 +1385,7 @@ longlong Item_func_json_contains_path::val_int()
     }
   }
 
-  if (je.s.error == 0)
+  if (likely(je.s.error == 0))
     return result;
 
   report_json_error(js, &je, 0);
@@ -1749,7 +1749,7 @@ String *Item_func_json_array_insert::val_str(String *str)
         goto js_error;
     }
 
-    if (je.s.error)
+    if (unlikely(je.s.error))
       goto js_error;
 
     str->length(0);
@@ -1881,7 +1881,7 @@ static int do_merge(String *str, json_engine_t *je1, json_engine_t *je2)
         key_end= je1->s.c_str;
       } while (json_read_keyname_chr(je1) == 0);
 
-      if (je1->s.error)
+      if (unlikely(je1->s.error))
         return 1;
 
       if (first_key)
@@ -1916,7 +1916,7 @@ static int do_merge(String *str, json_engine_t *je1, json_engine_t *je2)
           return ires;
         goto merged_j1;
       }
-      if (je2->s.error)
+      if (unlikely(je2->s.error))
         return 2;
 
       key_start= je1->s.c_str;
@@ -1946,7 +1946,7 @@ merged_j1:
         key_end= je2->s.c_str;
       } while (json_read_keyname_chr(je2) == 0);
 
-      if (je2->s.error)
+      if (unlikely(je2->s.error))
         return 1;
 
       *je1= sav_je1;
@@ -1957,7 +1957,7 @@ merged_j1:
         json_string_set_str(&key_name, key_start, key_end);
         if (!json_key_matches(je1, &key_name))
         {
-          if (je1->s.error || json_skip_key(je1))
+          if (unlikely(je1->s.error || json_skip_key(je1)))
             return 2;
           continue;
         }
@@ -1967,7 +1967,7 @@ merged_j1:
         goto continue_j2;
       }
 
-      if (je1->s.error)
+      if (unlikely(je1->s.error))
         return 2;
 
       if (first_key)
@@ -2008,7 +2008,7 @@ continue_j2:
         empty_array= 0;
       }
 
-      if (je1->s.error)
+      if (unlikely(je1->s.error))
         return 1;
 
       end1= je1->s.c_str - je1->sav_c_len;
@@ -2206,7 +2206,7 @@ longlong Item_func_json_length::val_int()
     while (json_scan_next(&je) == 0) {}
   }
 
-  if (!je.s.error)
+  if (likely(!je.s.error))
     return length;
 
 err_return:
@@ -2260,7 +2260,7 @@ longlong Item_func_json_depth::val_int()
     }
   } while (json_scan_next(&je) == 0);
 
-  if (!je.s.error)
+  if (likely(!je.s.error))
     return depth;
 
   report_json_error(js, &je, 0);
@@ -2475,7 +2475,7 @@ String *Item_func_json_insert::val_str(String *str)
         }
       }
 
-      if (je.s.error)
+      if (unlikely(je.s.error))
         goto js_error;
 
       if (!mode_insert)
@@ -2513,7 +2513,7 @@ String *Item_func_json_insert::val_str(String *str)
         }
       }
 
-      if (je.s.error)
+      if (unlikely(je.s.error))
         goto js_error;
 
       if (!mode_insert)
@@ -2686,7 +2686,7 @@ String *Item_func_json_remove::val_str(String *str)
         }
       }
 
-      if (je.s.error)
+      if (unlikely(je.s.error))
         goto js_error;
 
       continue;
@@ -2718,7 +2718,7 @@ String *Item_func_json_remove::val_str(String *str)
         }
       }
 
-      if (je.s.error)
+      if (unlikely(je.s.error))
         goto js_error;
 
       continue;
@@ -2883,7 +2883,7 @@ skip_search:
       {
         key_end= je.s.c_str;
       } while (json_read_keyname_chr(&je) == 0);
-      if (je.s.error)
+      if (unlikely(je.s.error))
         goto err_return;
       key_len= (int)(key_end - key_start);
 
@@ -2907,7 +2907,7 @@ skip_search:
     }
   }
 
-  if (je.s.error || str->append("]", 1))
+  if (unlikely(je.s.error || str->append("]", 1)))
     goto err_return;
 
   null_value= 0;
@@ -3091,7 +3091,7 @@ String *Item_func_json_search::val_str(String *str)
     }
   }
 
-  if (je.s.error)
+  if (unlikely(je.s.error))
     goto js_error;
 
 end:

@@ -219,8 +219,11 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
   DBUG_ENTER("Sql_cmd_alter_table::execute");
 
-  if (thd->is_fatal_error) /* out of memory creating a copy of alter_info */
+  if (unlikely(thd->is_fatal_error))
+  {
+    /* out of memory creating a copy of alter_info */
     DBUG_RETURN(TRUE);
+  }
   /*
     We also require DROP priv for ALTER TABLE ... DROP PARTITION, as well
     as for RENAME TO, as being done by SQLCOM_RENAME_TABLE

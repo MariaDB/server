@@ -1874,7 +1874,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
     free_root(tmp_root, MYF(MY_MARK_BLOCKS_FREE));
     mysql_mutex_unlock(&LOCK_plugin);
   }
-  if (error > 0)
+  if (unlikely(error > 0))
     sql_print_error(ER_THD(new_thd, ER_GET_ERRNO), my_errno,
                            table->file->table_type());
   end_read_record(&read_record_info);
@@ -2154,7 +2154,7 @@ static bool finalize_install(THD *thd, TABLE *table, const LEX_CSTRING *name,
                          files_charset_info);
   error= table->file->ha_write_row(table->record[0]);
   reenable_binlog(thd);
-  if (error)
+  if (unlikely(error))
   {
     table->file->print_error(error, MYF(0));
     tmp->state= PLUGIN_IS_DELETED;
@@ -2219,7 +2219,7 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
 
   mysql_mutex_lock(&LOCK_plugin);
   error= plugin_add(thd->mem_root, name, &dl, REPORT_TO_USER);
-  if (error)
+  if (unlikely(error))
     goto err;
 
   if (name->str)
@@ -2235,7 +2235,7 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
     }
   }
 
-  if (error)
+  if (unlikely(error))
   {
     reap_needed= true;
     reap_plugins();
@@ -2298,7 +2298,7 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
     tmp_disable_binlog(thd);
     error= table->file->ha_delete_row(table->record[0]);
     reenable_binlog(thd);
-    if (error)
+    if (unlikely(error))
     {
       table->file->print_error(error, MYF(0));
       return 1;
@@ -2761,7 +2761,7 @@ static int check_func_set(THD *thd, struct st_mysql_sys_var *var,
       goto err;
     result= find_set(typelib, str, length, NULL,
                      &error, &error_len, &not_used);
-    if (error_len)
+    if (unlikely(error_len))
       goto err;
   }
   else
@@ -2880,7 +2880,7 @@ sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
   if (!locked)
     mysql_mutex_unlock(&LOCK_plugin);
 
-  if (!throw_error && !var)
+  if (unlikely(!throw_error && !var))
     my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0),
              (int) (length ? length : strlen(str)), (char*) str);
   DBUG_RETURN(var);
@@ -4131,7 +4131,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
     error= handle_options(argc, &argv, opts, mark_changed);
     (*argc)++; /* add back one for the program name */
 
-    if (error)
+    if (unlikely(error))
     {
        sql_print_error("Parsing options for plugin '%s' failed.",
                        tmp->name.str);

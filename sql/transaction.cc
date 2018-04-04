@@ -656,7 +656,7 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
     we'll lose a little bit of memory in transaction mem_root, but it'll
     be free'd when transaction ends anyway
   */
-  if (ha_savepoint(thd, newsv))
+  if (unlikely(ha_savepoint(thd, newsv)))
     DBUG_RETURN(TRUE);
 
   newsv->prev= thd->transaction.savepoints;

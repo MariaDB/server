@@ -4352,7 +4352,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     }
   }
 
-  if (thd->is_fatal_error)			// If end of memory
+  if (unlikely(thd->is_fatal_error))            // If end of memory
     goto err;
   share->db_record_offset= 1;
   table->no_rows= 1;              		// We don't need the data
@@ -4361,10 +4361,11 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   recinfo++;
   if (share->db_type() == TMP_ENGINE_HTON)
   {
-    if (create_internal_tmp_table(table, keyinfo, start_recinfo, &recinfo, 0))
+    if (unlikely(create_internal_tmp_table(table, keyinfo, start_recinfo,
+                                           &recinfo, 0)))
       goto err;
   }
-  if (open_tmp_table(table))
+  if (unlikely(open_tmp_table(table)))
     goto err;
 
   thd->mem_root= mem_root_save;
@@ -4476,7 +4477,7 @@ int SJ_TMP_TABLE::sj_weedout_check_row(THD *thd)
   }
 
   error= tmp_table->file->ha_write_tmp_row(tmp_table->record[0]);
-  if (error)
+  if (unlikely(error))
   {
     /* create_internal_tmp_table_from_heap will generate error if needed */
     if (!tmp_table->file->is_fatal_error(error, HA_CHECK_DUP))
@@ -5297,7 +5298,8 @@ enum_nested_loop_state join_tab_execution_startup(JOIN_TAB *tab)
       hash_sj_engine->materialize_join->exec();
       hash_sj_engine->is_materialized= TRUE; 
 
-      if (hash_sj_engine->materialize_join->error || tab->join->thd->is_fatal_error)
+      if (unlikely(hash_sj_engine->materialize_join->error) ||
+          unlikely(tab->join->thd->is_fatal_error))
         DBUG_RETURN(NESTED_LOOP_ERROR);
     }
   }

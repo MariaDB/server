@@ -402,9 +402,10 @@ public:
     if (ALIGN_SIZE(arg_length+1) < Alloced_length)
     {
       char *new_ptr;
-      if (!(new_ptr=(char*)
-            my_realloc(Ptr, arg_length,MYF((thread_specific ?
-                                            MY_THREAD_SPECIFIC : 0)))))
+      if (unlikely(!(new_ptr=(char*)
+                     my_realloc(Ptr,
+                                arg_length,MYF((thread_specific ?
+                                                MY_THREAD_SPECIFIC : 0))))))
       {
 	Alloced_length = 0;
 	real_alloc(arg_length);
@@ -455,7 +456,7 @@ public:
             CHARSET_INFO *fromcs, const char *src, size_t src_length,
             size_t nchars, String_copier *copier)
   {
-    if (alloc(tocs->mbmaxlen * src_length))
+    if (unlikely(alloc(tocs->mbmaxlen * src_length)))
       return true;
     str_length= copier->well_formed_copy(tocs, Ptr, Alloced_length,
                                          fromcs, src, (uint)src_length, (uint)nchars);
@@ -511,7 +512,7 @@ public:
     }
     else
     {
-      if (realloc_with_extra(str_length + 1))
+      if (unlikely(realloc_with_extra(str_length + 1)))
 	return 1;
       Ptr[str_length++]=chr;
     }
@@ -521,8 +522,8 @@ public:
   {
     for (const char *src_end= src + srclen ; src != src_end ; src++)
     {
-      if (append(_dig_vec_lower[((uchar) *src) >> 4]) ||
-          append(_dig_vec_lower[((uchar) *src) & 0x0F]))
+      if (unlikely(append(_dig_vec_lower[((uchar) *src) >> 4])) ||
+          unlikely(append(_dig_vec_lower[((uchar) *src) & 0x0F])))
         return true;
     }
     return false;
@@ -638,7 +639,7 @@ public:
     uint32 new_length= arg_length + str_length;
     if (new_length > Alloced_length)
     {
-      if (realloc(new_length + step_alloc))
+      if (unlikely(realloc(new_length + step_alloc)))
         return 0;
     }
     uint32 old_length= str_length;
@@ -650,7 +651,8 @@ public:
   inline bool append(const char *s, uint32 arg_length, uint32 step_alloc)
   {
     uint32 new_length= arg_length + str_length;
-    if (new_length > Alloced_length && realloc(new_length + step_alloc))
+    if (new_length > Alloced_length &&
+        unlikely(realloc(new_length + step_alloc)))
       return TRUE;
     memcpy(Ptr+str_length, s, arg_length);
     str_length+= arg_length;

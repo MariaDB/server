@@ -678,7 +678,7 @@ file '%s')", fname);
   mi->rli.is_relay_log_recovery= FALSE;
   // now change cache READ -> WRITE - must do this before flush_master_info
   reinit_io_cache(&mi->file, WRITE_CACHE, 0L, 0, 1);
-  if ((error= MY_TEST(flush_master_info(mi, TRUE, TRUE))))
+  if (unlikely((error= MY_TEST(flush_master_info(mi, TRUE, TRUE)))))
     sql_print_error("Failed to flush master info file");
   mysql_mutex_unlock(&mi->data_lock);
   DBUG_RETURN(error);
@@ -1649,7 +1649,7 @@ bool Master_info_index::start_all_slaves(THD *thd)
     error= start_slave(thd, mi, 1);
     mi->release();
     mysql_mutex_lock(&LOCK_active_mi);
-    if (error)
+    if (unlikely(error))
     {
       my_error(ER_CANT_START_STOP_SLAVE, MYF(0),
                "START",
@@ -1722,7 +1722,7 @@ bool Master_info_index::stop_all_slaves(THD *thd)
     error= stop_slave(thd, mi, 1);
     mi->release();
     mysql_mutex_lock(&LOCK_active_mi);
-    if (error)
+    if (unlikely(error))
     {
       my_error(ER_CANT_START_STOP_SLAVE, MYF(0),
                "STOP",
@@ -2021,7 +2021,7 @@ bool Master_info_index::flush_all_relay_logs()
     mi->release();
     mysql_mutex_lock(&LOCK_active_mi);
 
-    if (error)
+    if (unlikely(error))
     {
       result= true;
       break;

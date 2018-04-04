@@ -309,7 +309,7 @@ void dbug_serve_apcs(THD *thd, int n_calls)
     thd_proc_info(thd, "show_explain_trap");
     my_sleep(30000);
     thd_proc_info(thd, save_proc_info);
-    if (thd->check_killed())
+    if (unlikely(thd->check_killed()))
       break;
   }
 }
@@ -386,7 +386,7 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
   res|= thd->is_error();
   if (unlikely(res))
     result->abort_result_set();
-  if (thd->killed == ABORT_QUERY && !thd->no_errors)
+  if (unlikely(thd->killed == ABORT_QUERY && !thd->no_errors))
   {
     /*
       If LIMIT ROWS EXAMINED interrupted query execution, issue a warning,
@@ -1140,7 +1140,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
 			  having->check_cols(1)));
     select_lex->having_fix_field= 0;
 
-    if (having_fix_rc || thd->is_error())
+    if (unlikely(having_fix_rc || thd->is_error()))
       DBUG_RETURN(-1);				/* purecov: inspected */
     thd->lex->allow_sum_func= save_allow_sum_func;
 
@@ -1285,7 +1285,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   }
   
   procedure= setup_procedure(thd, proc_param, result, fields_list, &error);
-  if (error)
+  if (unlikely(error))
     goto err;					/* purecov: inspected */
   if (procedure)
   {
@@ -1682,7 +1682,7 @@ JOIN::optimize_inner()
       DBUG_RETURN(1);
   }
      
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
   {
     error= 1;
     DBUG_PRINT("error",("Error from optimize_cond"));
@@ -1693,7 +1693,7 @@ JOIN::optimize_inner()
     having= optimize_cond(this, having, join_list, TRUE,
                           &having_value, &having_equal);
 
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
     {
       error= 1;
       DBUG_PRINT("error",("Error from optimize_cond"));
@@ -1835,7 +1835,7 @@ JOIN::optimize_inner()
     group_list= remove_const(this, group_list, conds,
                              rollup.state == ROLLUP::STATE_NONE,
                              &simple_group);
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
     {
       error= 1;
       DBUG_RETURN(1);
@@ -1845,8 +1845,9 @@ JOIN::optimize_inner()
   /* Calculate how to do the join */
   THD_STAGE_INFO(thd, stage_statistics);
   result->prepare_to_read_rows();
-  if (make_join_statistics(this, select_lex->leaf_tables, &keyuse) ||
-      thd->is_fatal_error)
+  if (unlikely(make_join_statistics(this, select_lex->leaf_tables,
+                                    &keyuse)) ||
+      unlikely(thd->is_fatal_error))
   {
     DBUG_PRINT("error",("Error: make_join_statistics() failed"));
     DBUG_RETURN(1);
@@ -1875,7 +1876,7 @@ int JOIN::optimize_stage2()
   if (subq_exit_fl)
     goto setup_subq_exit;
 
-  if (thd->check_killed())
+  if (unlikely(thd->check_killed()))
     DBUG_RETURN(1);
   
   /* Generate an execution plan from the found optimal join order. */
@@ -1951,7 +1952,7 @@ int JOIN::optimize_stage2()
 
   select= make_select(*table, const_table_map,
                       const_table_map, conds, (SORT_INFO*) 0, 1, &error);
-  if (error)
+  if (unlikely(error))
   {						/* purecov: inspected */
     error= -1;					/* purecov: inspected */
     DBUG_PRINT("error",("Error: make_select() failed"));
@@ -1974,7 +1975,7 @@ int JOIN::optimize_stage2()
   {
     conds= substitute_for_best_equal_field(thd, NO_PARTICULAR_TAB, conds,
                                            cond_equal, map2table);
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
     {
       error= 1;
       DBUG_PRINT("error",("Error from substitute_for_best_equal"));
@@ -2000,7 +2001,7 @@ int JOIN::optimize_stage2()
                                                          *tab->on_expr_ref,
                                                          tab->cond_equal,
                                                          map2table);
-      if (thd->is_error())
+      if (unlikely(thd->is_error()))
       {
         error= 1;
         DBUG_PRINT("error",("Error from substitute_for_best_equal"));
@@ -2030,7 +2031,7 @@ int JOIN::optimize_stage2()
       {
         ref_item= substitute_for_best_equal_field(thd, tab, ref_item,
                                                   equals, map2table);
-        if (thd->is_fatal_error)
+        if (unlikely(thd->is_fatal_error))
           DBUG_RETURN(1);
 
         if (first_inner)
@@ -2100,7 +2101,7 @@ int JOIN::optimize_stage2()
   {
     ORDER *org_order= order;
     order=remove_const(this, order,conds,1, &simple_order);
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
     {
       error= 1;
       DBUG_RETURN(1);
@@ -2262,7 +2263,7 @@ int JOIN::optimize_stage2()
     group_list= remove_const(this, group_list, conds,
                              rollup.state == ROLLUP::STATE_NONE,
                              &simple_group);
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
     {
       error= 1;
       DBUG_RETURN(1);
@@ -2283,7 +2284,7 @@ int JOIN::optimize_stage2()
   {
     group_list= procedure->group= remove_const(this, procedure->group, conds,
 					       1, &simple_group);
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
     {
       error= 1;
       DBUG_RETURN(1);
@@ -3120,7 +3121,7 @@ bool JOIN::make_aggr_tables_info()
                                 !join_tab ||
                                 !join_tab-> is_using_agg_loose_index_scan()))
       DBUG_RETURN(true);
-    if (setup_sum_funcs(thd, sum_funcs) || thd->is_fatal_error)
+    if (unlikely(setup_sum_funcs(thd, sum_funcs) || thd->is_fatal_error))
       DBUG_RETURN(true);
   }
   if (group_list || order)
@@ -3835,7 +3836,7 @@ void JOIN::exec_inner()
       }
       else
         send_records= 0;
-      if (!error)
+      if (likely(!error))
       {
         join_free();                      // Unlock all cursors
         error= (int) result->send_eof();
@@ -3861,7 +3862,7 @@ void JOIN::exec_inner()
   /* 
     We've called exec_const_cond->val_int(). This may have caused an error.
   */
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
   {
     error= thd->is_error();
     DBUG_VOID_RETURN;
@@ -3906,7 +3907,7 @@ void JOIN::exec_inner()
     while ((cur_const_item= const_item_it++))
     {
       cur_const_item->val_str(); // This caches val_str() to Item::str_value
-      if (thd->is_error())
+      if (unlikely(thd->is_error()))
       {
         error= thd->is_error();
         DBUG_VOID_RETURN;
@@ -3940,7 +3941,7 @@ void JOIN::exec_inner()
   join_examined_rows= 0;
 
   /* XXX: When can we have here thd->is_error() not zero? */
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
   {
     error= thd->is_error();
     DBUG_VOID_RETURN;
@@ -4148,7 +4149,7 @@ mysql_select(THD *thd,
     join->having_history= (join->having?join->having:join->tmp_having);
   }
 
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
     goto err;
 
   join->exec();
@@ -4182,17 +4183,20 @@ static ha_rows get_quick_record_count(THD *thd, SQL_SELECT *select,
   int error;
   DBUG_ENTER("get_quick_record_count");
   uchar buff[STACK_BUFF_ALLOC];
-  if (check_stack_overrun(thd, STACK_MIN_SIZE, buff))
+  if (unlikely(check_stack_overrun(thd, STACK_MIN_SIZE, buff)))
     DBUG_RETURN(0);                           // Fatal error flag is set
   if (select)
   {
     select->head=table;
     table->reginfo.impossible_range=0;
-    if ((error= select->test_quick_select(thd, *(key_map *)keys,(table_map) 0,
-                                          limit, 0, FALSE, 
-                                          TRUE /* remove_where_parts*/)) == 1)
+    if (likely((error=
+                select->test_quick_select(thd, *(key_map *)keys,
+                                          (table_map) 0,
+                                          limit, 0, FALSE,
+                                          TRUE /* remove_where_parts*/)) ==
+               1))
       DBUG_RETURN(select->quick->records);
-    if (error == -1)
+    if (unlikely(error == -1))
     {
       table->reginfo.impossible_range=1;
       DBUG_RETURN(0);
@@ -4299,7 +4303,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
     DBUG_EXECUTE_IF("bug11747970_raise_error",
                     { join->thd->set_killed(KILL_QUERY_HARD); });
-    if (error)
+    if (unlikely(error))
     {
       table->file->print_error(error, MYF(0));
       goto error;
@@ -8555,7 +8559,7 @@ best_extension_by_limited_search(JOIN      *join,
                         dbug_serve_apcs(thd, 1);
                  );
 
-  if (thd->check_killed())  // Abort
+  if (unlikely(thd->check_killed()))  // Abort
     DBUG_RETURN(TRUE);
 
   DBUG_EXECUTE("opt", print_plan(join, idx, read_time, record_count, idx,
@@ -9815,7 +9819,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
                            keyinfo->key_part[i].length,
                            keyuse->val,
                            FALSE);
-	if (thd->is_fatal_error)
+	if (unlikely(thd->is_fatal_error))
 	  DBUG_RETURN(TRUE);
 	tmp.copy();
         j->ref.const_ref_part_map |= key_part_map(1) << i ;
@@ -11293,9 +11297,9 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
         DBUG_RETURN(NESTED_LOOP_OK);
     }
     fill_record(thd, table, table->field, sjm->sjm_table_cols, TRUE, FALSE);
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
       DBUG_RETURN(NESTED_LOOP_ERROR); /* purecov: inspected */
-    if ((error= table->file->ha_write_tmp_row(table->record[0])))
+    if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
     {
       /* create_myisam_from_heap will generate error if needed */
       if (table->file->is_fatal_error(error, HA_CHECK_DUP) &&
@@ -13103,7 +13107,7 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
   if (prev_ptr == &first_order)			// Nothing to sort/group
     *simple_order=1;
 #ifndef DBUG_OFF
-  if (join->thd->is_error())
+  if (unlikely(join->thd->is_error()))
     DBUG_PRINT("error",("Error from remove_const"));
 #endif
   DBUG_PRINT("exit",("simple_order: %d",(int) *simple_order));
@@ -13209,7 +13213,7 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
     bool send_error= FALSE;
     if (send_row)
       send_error= result->send_data(fields) > 0;
-    if (!send_error)
+    if (likely(!send_error))
       result->send_eof();				// Should be safe
   }
   DBUG_RETURN(0);
@@ -17239,9 +17243,9 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
                          item->marker == 4  || param->bit_fields_as_long,
                          force_copy_fields);
 
-      if (!new_field)
+      if (unlikely(!new_field))
       {
-	if (thd->is_fatal_error)
+	if (unlikely(thd->is_fatal_error))
 	  goto err;				// Got OOM
 	continue;				// Some kind of const item
       }
@@ -17753,7 +17757,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     }
   }
 
-  if (thd->is_fatal_error)				// If end of memory
+  if (unlikely(thd->is_fatal_error))             // If end of memory
     goto err;					 /* purecov: inspected */
   share->db_record_offset= 1;
   table->used_for_duplicate_elimination= (param->sum_func_count == 0 &&
@@ -17959,9 +17963,10 @@ bool Virtual_tmp_table::sp_set_all_fields_from_item(THD *thd, Item *value)
 bool open_tmp_table(TABLE *table)
 {
   int error;
-  if ((error= table->file->ha_open(table, table->s->table_name.str, O_RDWR,
-                                   HA_OPEN_TMP_TABLE |
-                                   HA_OPEN_INTERNAL_TABLE)))
+  if (unlikely((error= table->file->ha_open(table, table->s->table_name.str,
+                                            O_RDWR,
+                                            HA_OPEN_TMP_TABLE |
+                                            HA_OPEN_INTERNAL_TABLE))))
   {
     table->file->print_error(error, MYF(0)); /* purecov: inspected */
     table->db_stat= 0;
@@ -18155,14 +18160,14 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       }
     }
 
-    if ((error= maria_create(share->table_name.str,
-                             file_type,
-                             share->keys, &keydef,
-                             (uint) (*recinfo-start_recinfo),
-                             start_recinfo,
-                             share->uniques, &uniquedef,
-                             &create_info,
-                             create_flags)))
+    if (unlikely((error= maria_create(share->table_name.str,
+                                      file_type,
+                                      share->keys, &keydef,
+                                      (uint) (*recinfo-start_recinfo),
+                                      start_recinfo,
+                                      share->uniques, &uniquedef,
+                                      &create_info,
+                                      create_flags))))
     {
       table->file->print_error(error,MYF(0));	/* purecov: inspected */
       table->db_stat=0;
@@ -18310,15 +18315,17 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
   bzero((char*) &create_info,sizeof(create_info));
   create_info.data_file_length= table->in_use->variables.tmp_disk_table_size;
 
-  if ((error=mi_create(share->table_name.str, share->keys, &keydef,
-		       (uint) (*recinfo-start_recinfo),
-		       start_recinfo,
-		       share->uniques, &uniquedef,
-		       &create_info,
-		       HA_CREATE_TMP_TABLE | HA_CREATE_INTERNAL_TABLE |
-                       ((share->db_create_options & HA_OPTION_PACK_RECORD) ?
-                        HA_PACK_RECORD : 0)
-                      )))
+  if (unlikely((error= mi_create(share->table_name.str, share->keys, &keydef,
+                                 (uint) (*recinfo-start_recinfo),
+                                 start_recinfo,
+                                 share->uniques, &uniquedef,
+                                 &create_info,
+                                 HA_CREATE_TMP_TABLE |
+                                 HA_CREATE_INTERNAL_TABLE |
+                                 ((share->db_create_options &
+                                   HA_OPTION_PACK_RECORD) ?
+                                  HA_PACK_RECORD : 0)
+                                 ))))
   {
     table->file->print_error(error,MYF(0));	/* purecov: inspected */
     table->db_stat=0;
@@ -18372,11 +18379,11 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   share= *table->s;
   new_table.s= &share;
   new_table.s->db_plugin= ha_lock_engine(thd, TMP_ENGINE_HTON);
-  if (!(new_table.file= get_new_handler(&share, &new_table.mem_root,
-                                        new_table.s->db_type())))
+  if (unlikely(!(new_table.file= get_new_handler(&share, &new_table.mem_root,
+                                                 new_table.s->db_type()))))
     DBUG_RETURN(1);				// End of memory
 
-  if (new_table.file->set_ha_share_ref(&share.ha_share))
+  if (unlikely(new_table.file->set_ha_share_ref(&share.ha_share)))
   {
     delete new_table.file;
     DBUG_RETURN(1);
@@ -18419,7 +18426,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
     DBUG_EXECUTE_IF("raise_error", write_err= HA_ERR_FOUND_DUPP_KEY ;);
     if (write_err)
       goto err;
-    if (thd->check_killed())
+    if (unlikely(thd->check_killed()))
     {
       thd->send_kill_message();
       goto err_killed;
@@ -18428,7 +18435,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   if (!new_table.no_rows && new_table.file->ha_end_bulk_insert())
     goto err;
   /* copy row that filled HEAP table */
-  if ((write_err=new_table.file->ha_write_tmp_row(table->record[0])))
+  if (unlikely((write_err=new_table.file->ha_write_tmp_row(table->record[0]))))
   {
     if (new_table.file->is_fatal_error(write_err, HA_CHECK_DUP) ||
 	!ignore_last_dupp_key_error)
@@ -18717,7 +18724,7 @@ do_select(JOIN *join, Procedure *procedure)
       (the join condition and piece of where clause 
       relevant to this join table).
     */
-    if (join->thd->is_error())
+    if (unlikely(join->thd->is_error()))
       error= NESTED_LOOP_ERROR;
   }
   else
@@ -18735,13 +18742,14 @@ do_select(JOIN *join, Procedure *procedure)
       error= NESTED_LOOP_NO_MORE_ROWS;
     else
       error= join->first_select(join,join_tab,0);
-    if (error >= NESTED_LOOP_OK && join->thd->killed != ABORT_QUERY)
+    if (error >= NESTED_LOOP_OK && likely(join->thd->killed != ABORT_QUERY))
       error= join->first_select(join,join_tab,1);
   }
 
   join->thd->limit_found_rows= join->send_records - join->duplicate_rows;
 
-  if (error == NESTED_LOOP_NO_MORE_ROWS || join->thd->killed == ABORT_QUERY)
+  if (error == NESTED_LOOP_NO_MORE_ROWS ||
+      unlikely(join->thd->killed == ABORT_QUERY))
     error= NESTED_LOOP_OK;
 
   /*
@@ -18788,7 +18796,7 @@ do_select(JOIN *join, Procedure *procedure)
       Sic: this branch works even if rc != 0, e.g. when
       send_data above returns an error.
     */
-    if (join->result->send_eof())
+    if (unlikely(join->result->send_eof()))
       rc= 1;                                  // Don't send error
     DBUG_PRINT("info",("%ld records output", (long) join->send_records));
   }
@@ -18808,7 +18816,7 @@ do_select(JOIN *join, Procedure *procedure)
 int rr_sequential_and_unpack(READ_RECORD *info)
 {
   int error;
-  if ((error= rr_sequential(info)))
+  if (unlikely((error= rr_sequential(info))))
     return error;
   
   for (Copy_field *cp= info->copy_field; cp != info->copy_field_end; cp++)
@@ -18979,7 +18987,7 @@ sub_select_cache(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
       rc= sub_select(join, join_tab, end_of_records);
     DBUG_RETURN(rc);
   }
-  if (join->thd->check_killed())
+  if (unlikely(join->thd->check_killed()))
   {
     /* The user has aborted the execution of the query */
     join->thd->send_kill_message();
@@ -19215,10 +19223,10 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
 
     error= info->read_record();
 
-    if (skip_over && !error) 
+    if (skip_over && likely(!error))
     {
-      if(!key_cmp(join_tab->table->key_info[join_tab->loosescan_key].key_part,
-                  join_tab->loosescan_buf, join_tab->loosescan_key_len))
+      if (!key_cmp(join_tab->table->key_info[join_tab->loosescan_key].key_part,
+                   join_tab->loosescan_buf, join_tab->loosescan_key_len))
       {
         /* 
           This is the LooseScan action: skip over records with the same key
@@ -19230,7 +19238,7 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
       skip_over= FALSE;
     }
 
-    if (join_tab->keep_current_rowid && !error)
+    if (join_tab->keep_current_rowid && likely(!error))
       join_tab->table->file->position(join_tab->table->record[0]);
     
     rc= evaluate_join_record(join, join_tab, error);
@@ -19275,11 +19283,12 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
               " cond: %p error: %d  alias %s",
               join, join_tab, select_cond, error,
               join_tab->table->alias.ptr()));
-  if (error > 0 || (join->thd->is_error()))     // Fatal error
+
+  if (error > 0 || unlikely(join->thd->is_error())) // Fatal error
     DBUG_RETURN(NESTED_LOOP_ERROR);
   if (error < 0)
     DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
-  if (join->thd->check_killed())			// Aborted by user
+  if (unlikely(join->thd->check_killed()))       // Aborted by user
   {
     join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);            /* purecov: inspected */
@@ -19292,7 +19301,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
     select_cond_result= MY_TEST(select_cond->val_int());
 
     /* check for errors evaluating the condition */
-    if (join->thd->is_error())
+    if (unlikely(join->thd->is_error()))
       DBUG_RETURN(NESTED_LOOP_ERROR);
   }
 
@@ -19422,7 +19431,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
         join->return_tab= return_tab;
 
       /* check for errors evaluating the condition */
-      if (join->thd->is_error())
+      if (unlikely(join->thd->is_error()))
         DBUG_RETURN(NESTED_LOOP_ERROR);
 
       if (join->return_tab < join_tab)
@@ -19571,10 +19580,11 @@ int safe_index_read(JOIN_TAB *tab)
 {
   int error;
   TABLE *table= tab->table;
-  if ((error= table->file->ha_index_read_map(table->record[0],
-                                             tab->ref.key_buff,
-                                             make_prev_keypart_map(tab->ref.key_parts),
-                                             HA_READ_KEY_EXACT)))
+  if (unlikely((error=
+                table->file->ha_index_read_map(table->record[0],
+                                               tab->ref.key_buff,
+                                               make_prev_keypart_map(tab->ref.key_parts),
+                                               HA_READ_KEY_EXACT))))
     return report_error(table, error);
   return 0;
 }
@@ -19622,7 +19632,7 @@ join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos)
   }
   else if (tab->type == JT_SYSTEM)
   {
-    if ((error=join_read_system(tab)))
+    if (unlikely((error=join_read_system(tab))))
     {						// Info for DESCRIBE
       tab->info= ET_CONST_ROW_NOT_FOUND;
       /* Mark for EXPLAIN that the row was not found */
@@ -19648,7 +19658,7 @@ join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos)
     }
     error=join_read_const(tab);
     table->file->ha_end_keyread();
-    if (error)
+    if (unlikely(error))
     {
       tab->info= ET_UNIQUE_ROW_NOT_FOUND;
       /* Mark for EXPLAIN that the row was not found */
@@ -19726,8 +19736,9 @@ join_read_system(JOIN_TAB *tab)
   int error;
   if (table->status & STATUS_GARBAGE)		// If first read
   {
-    if ((error= table->file->ha_read_first_row(table->record[0],
-                                               table->s->primary_key)))
+    if (unlikely((error=
+                  table->file->ha_read_first_row(table->record[0],
+                                                 table->s->primary_key))))
     {
       if (error != HA_ERR_END_OF_FILE)
 	return report_error(table, error);
@@ -19772,7 +19783,7 @@ join_read_const(JOIN_TAB *tab)
                                                 make_prev_keypart_map(tab->ref.key_parts),
                                                 HA_READ_KEY_EXACT);
     }
-    if (error)
+    if (unlikely(error))
     {
       table->status= STATUS_NOT_FOUND;
       mark_as_null_row(tab->table);
@@ -19828,7 +19839,7 @@ int join_read_key2(THD *thd, JOIN_TAB *tab, TABLE *table, TABLE_REF *table_ref)
   if (!table->file->inited)
   {
     error= table->file->ha_index_init(table_ref->key, tab ? tab->sorted : TRUE);
-    if (error)
+    if (unlikely(error))
     {
       (void) report_error(table, error);
       return 1;
@@ -19868,10 +19879,11 @@ int join_read_key2(THD *thd, JOIN_TAB *tab, TABLE *table, TABLE_REF *table_ref)
                                   table_ref->key_buff,
                                   make_prev_keypart_map(table_ref->key_parts),
                                   HA_READ_KEY_EXACT);
-    if (error && error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
+    if (unlikely(error) &&
+        error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
       return report_error(table, error);
 
-    if (! error)
+    if (likely(!error))
     {
       table_ref->has_record= TRUE;
       table_ref->use_count= 1;
@@ -19932,16 +19944,19 @@ join_read_always_key(JOIN_TAB *tab)
   /* Initialize the index first */
   if (!table->file->inited)
   {
-    if ((error= table->file->ha_index_init(tab->ref.key, tab->sorted)))
+    if (unlikely((error= table->file->ha_index_init(tab->ref.key,
+                                                    tab->sorted))))
     {
       (void) report_error(table, error);
       return 1;
     }
   }
 
-  if (cp_buffer_from_ref(tab->join->thd, table, &tab->ref))
+  if (unlikely(cp_buffer_from_ref(tab->join->thd, table, &tab->ref)))
     return -1;
-  if ((error= table->file->prepare_index_key_scan_map(tab->ref.key_buff, make_prev_keypart_map(tab->ref.key_parts)))) 
+  if (unlikely((error=
+                table->file->prepare_index_key_scan_map(tab->ref.key_buff,
+                                                        make_prev_keypart_map(tab->ref.key_parts)))))
   {
     report_error(table,error);
     return -1;
@@ -19971,23 +19986,26 @@ join_read_last_key(JOIN_TAB *tab)
   TABLE *table= tab->table;
 
   if (!table->file->inited &&
-      (error= table->file->ha_index_init(tab->ref.key, tab->sorted)))
+      unlikely((error= table->file->ha_index_init(tab->ref.key, tab->sorted))))
   {
     (void) report_error(table, error);
     return 1;
   }
 
-  if (cp_buffer_from_ref(tab->join->thd, table, &tab->ref))
+  if (unlikely(cp_buffer_from_ref(tab->join->thd, table, &tab->ref)))
     return -1;
-  if ((error= table->file->prepare_index_key_scan_map(tab->ref.key_buff, make_prev_keypart_map(tab->ref.key_parts)))) 
+  if (unlikely((error=
+                table->file->prepare_index_key_scan_map(tab->ref.key_buff,
+                                                        make_prev_keypart_map(tab->ref.key_parts)))) )
   {
     report_error(table,error);
     return -1;
   }
-  if ((error= table->file->ha_index_read_map(table->record[0],
-                                            tab->ref.key_buff,
-                                     make_prev_keypart_map(tab->ref.key_parts),
-                                            HA_READ_PREFIX_LAST)))
+  if (unlikely((error=
+                table->file->ha_index_read_map(table->record[0],
+                                               tab->ref.key_buff,
+                                               make_prev_keypart_map(tab->ref.key_parts),
+                                               HA_READ_PREFIX_LAST))))
   {
     if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
       return report_error(table, error);
@@ -20012,9 +20030,9 @@ join_read_next_same(READ_RECORD *info)
   TABLE *table= info->table;
   JOIN_TAB *tab=table->reginfo.join_tab;
 
-  if ((error= table->file->ha_index_next_same(table->record[0],
-                                              tab->ref.key_buff,
-                                              tab->ref.key_length)))
+  if (unlikely((error= table->file->ha_index_next_same(table->record[0],
+                                                       tab->ref.key_buff,
+                                                       tab->ref.key_length))))
   {
     if (error != HA_ERR_END_OF_FILE)
       return report_error(table, error);
@@ -20032,7 +20050,7 @@ join_read_prev_same(READ_RECORD *info)
   TABLE *table= info->table;
   JOIN_TAB *tab=table->reginfo.join_tab;
 
-  if ((error= table->file->ha_index_prev(table->record[0])))
+  if (unlikely((error= table->file->ha_index_prev(table->record[0]))))
     return report_error(table, error);
   if (key_cmp_if_same(table, tab->ref.key_buff, tab->ref.key,
                       tab->ref.key_length))
@@ -20055,7 +20073,7 @@ join_init_quick_read_record(JOIN_TAB *tab)
 
 int read_first_record_seq(JOIN_TAB *tab)
 {
-  if (tab->read_record.table->file->ha_rnd_init_with_error(1))
+  if (unlikely(tab->read_record.table->file->ha_rnd_init_with_error(1)))
     return 1;
   return tab->read_record.read_record();
 }
@@ -20178,9 +20196,10 @@ join_read_first(JOIN_TAB *tab)
   tab->read_record.record=table->record[0];
   if (!table->file->inited)
     error= table->file->ha_index_init(tab->index, tab->sorted);
-  if (!error)
+  if (likely(!error))
     error= table->file->prepare_index_scan();
-  if (error || (error=tab->table->file->ha_index_first(tab->table->record[0])))
+  if (unlikely(error) ||
+      unlikely(error= tab->table->file->ha_index_first(tab->table->record[0])))
   {
     if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
       report_error(table, error);
@@ -20194,7 +20213,7 @@ static int
 join_read_next(READ_RECORD *info)
 {
   int error;
-  if ((error= info->table->file->ha_index_next(info->record)))
+  if (unlikely((error= info->table->file->ha_index_next(info->record))))
     return report_error(info->table, error);
 
   return 0;
@@ -20218,9 +20237,10 @@ join_read_last(JOIN_TAB *tab)
   tab->read_record.record=table->record[0];
   if (!table->file->inited)
     error= table->file->ha_index_init(tab->index, 1);
-  if (!error)
+  if (likely(!error))
     error= table->file->prepare_index_scan();
-  if (error || (error= tab->table->file->ha_index_last(tab->table->record[0])))
+  if (unlikely(error) ||
+      unlikely(error= tab->table->file->ha_index_last(tab->table->record[0])))
     DBUG_RETURN(report_error(table, error));
 
   DBUG_RETURN(0);
@@ -20231,7 +20251,7 @@ static int
 join_read_prev(READ_RECORD *info)
 {
   int error;
-  if ((error= info->table->file->ha_index_prev(info->record)))
+  if (unlikely((error= info->table->file->ha_index_prev(info->record))))
     return report_error(info->table, error);
   return 0;
 }
@@ -20252,7 +20272,7 @@ join_ft_read_first(JOIN_TAB *tab)
 
   table->file->ft_init();
 
-  if ((error= table->file->ha_ft_read(table->record[0])))
+  if (unlikely((error= table->file->ha_ft_read(table->record[0]))))
     return report_error(table, error);
   return 0;
 }
@@ -20261,7 +20281,7 @@ static int
 join_ft_read_next(READ_RECORD *info)
 {
   int error;
-  if ((error= info->table->file->ha_ft_read(info->table->record[0])))
+  if (unlikely((error= info->table->file->ha_ft_read(info->table->record[0]))))
     return report_error(info->table, error);
   return 0;
 }
@@ -20291,7 +20311,7 @@ int
 join_read_next_same_or_null(READ_RECORD *info)
 {
   int error;
-  if ((error= join_read_next_same(info)) >= 0)
+  if (unlikely((error= join_read_next_same(info)) >= 0))
     return error;
   JOIN_TAB *tab= info->table->reginfo.join_tab;
 
@@ -20363,7 +20383,7 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     {
       int error;
       /* result < 0 if row was not accepted and should not be counted */
-      if ((error= join->result->send_data(*fields)))
+      if (unlikely((error= join->result->send_data(*fields))))
       {
         if (error > 0)
           DBUG_RETURN(NESTED_LOOP_ERROR);
@@ -20512,7 +20532,7 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	    if (join->do_send_rows)
             {
 	      error=join->result->send_data(*fields);
-              if (error < 0)
+              if (unlikely(error < 0))
               {
                 /* Duplicate row, don't count */
                 join->duplicate_rows++;
@@ -20522,13 +20542,13 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	    join->send_records++;
             join->group_sent= true;
 	  }
-	  if (join->rollup.state != ROLLUP::STATE_NONE && error <= 0)
+	  if (unlikely(join->rollup.state != ROLLUP::STATE_NONE && error <= 0))
 	  {
 	    if (join->rollup_send_data((uint) (idx+1)))
 	      error= 1;
 	  }
 	}
-	if (error > 0)
+	if (unlikely(error > 0))
           DBUG_RETURN(NESTED_LOOP_ERROR);        /* purecov: inspected */
 	if (end_of_records)
 	  DBUG_RETURN(NESTED_LOOP_OK);
@@ -20598,14 +20618,14 @@ end_write(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     if (copy_funcs(join_tab->tmp_table_param->items_to_copy, join->thd))
       DBUG_RETURN(NESTED_LOOP_ERROR);           /* purecov: inspected */
 
-    if (!join_tab->having || join_tab->having->val_int())
+    if (likely(!join_tab->having || join_tab->having->val_int()))
     {
       int error;
       join->found_records++;
       if ((error= table->file->ha_write_tmp_row(table->record[0])))
       {
-        if (!table->file->is_fatal_error(error, HA_CHECK_DUP))
-	  goto end;
+        if (likely(!table->file->is_fatal_error(error, HA_CHECK_DUP)))
+	  goto end;                             // Ignore duplicate keys
         bool is_duplicate;
 	if (create_internal_tmp_table_from_heap(join->thd, table, 
                                                 join_tab->tmp_table_param->start_recinfo,
@@ -20628,7 +20648,7 @@ end_write(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     }
   }
 end:
-  if (join->thd->check_killed())
+  if (unlikely(join->thd->check_killed()))
   {
     join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);             /* purecov: inspected */
@@ -20687,8 +20707,8 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   {						/* Update old record */
     restore_record(table,record[1]);
     update_tmptable_sum_func(join->sum_funcs,table);
-    if ((error= table->file->ha_update_tmp_row(table->record[1],
-                                               table->record[0])))
+    if (unlikely((error= table->file->ha_update_tmp_row(table->record[1],
+                                                        table->record[0]))))
     {
       table->file->print_error(error,MYF(0));	/* purecov: inspected */
       DBUG_RETURN(NESTED_LOOP_ERROR);            /* purecov: inspected */
@@ -20697,9 +20717,10 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   }
 
   init_tmptable_sum_functions(join->sum_funcs);
-  if (copy_funcs(join_tab->tmp_table_param->items_to_copy, join->thd))
+  if (unlikely(copy_funcs(join_tab->tmp_table_param->items_to_copy,
+                          join->thd)))
     DBUG_RETURN(NESTED_LOOP_ERROR);           /* purecov: inspected */
-  if ((error= table->file->ha_write_tmp_row(table->record[0])))
+  if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))))
   {
     if (create_internal_tmp_table_from_heap(join->thd, table,
                                        join_tab->tmp_table_param->start_recinfo,
@@ -20707,7 +20728,7 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
                                             error, 0, NULL))
       DBUG_RETURN(NESTED_LOOP_ERROR);            // Not a table_is_full error
     /* Change method to update rows */
-    if ((error= table->file->ha_index_init(0, 0)))
+    if (unlikely((error= table->file->ha_index_init(0, 0))))
     {
       table->file->print_error(error, MYF(0));
       DBUG_RETURN(NESTED_LOOP_ERROR);
@@ -20717,7 +20738,7 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   }
   join_tab->send_records++;
 end:
-  if (join->thd->check_killed())
+  if (unlikely(join->thd->check_killed()))
   {
     join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);             /* purecov: inspected */
@@ -20744,30 +20765,30 @@ end_unique_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   if (copy_funcs(join_tab->tmp_table_param->items_to_copy, join->thd))
     DBUG_RETURN(NESTED_LOOP_ERROR);           /* purecov: inspected */
 
-  if (!(error= table->file->ha_write_tmp_row(table->record[0])))
+  if (likely(!(error= table->file->ha_write_tmp_row(table->record[0]))))
     join_tab->send_records++;			// New group
   else
   {
-    if ((int) table->file->get_dup_key(error) < 0)
+    if (unlikely((int) table->file->get_dup_key(error) < 0))
     {
       table->file->print_error(error,MYF(0));	/* purecov: inspected */
       DBUG_RETURN(NESTED_LOOP_ERROR);            /* purecov: inspected */
     }
-    if (table->file->ha_rnd_pos(table->record[1],table->file->dup_ref))
+    if (unlikely(table->file->ha_rnd_pos(table->record[1],table->file->dup_ref)))
     {
       table->file->print_error(error,MYF(0));	/* purecov: inspected */
       DBUG_RETURN(NESTED_LOOP_ERROR);            /* purecov: inspected */
     }
     restore_record(table,record[1]);
     update_tmptable_sum_func(join->sum_funcs,table);
-    if ((error= table->file->ha_update_tmp_row(table->record[1],
-                                               table->record[0])))
+    if (unlikely((error= table->file->ha_update_tmp_row(table->record[1],
+                                                        table->record[0]))))
     {
       table->file->print_error(error,MYF(0));	/* purecov: inspected */
       DBUG_RETURN(NESTED_LOOP_ERROR);            /* purecov: inspected */
     }
   }
-  if (join->thd->check_killed())
+  if (unlikely(join->thd->check_killed()))
   {
     join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);             /* purecov: inspected */
@@ -20815,17 +20836,18 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	if (!join_tab->having || join_tab->having->val_int())
 	{
           int error= table->file->ha_write_tmp_row(table->record[0]);
-          if (error && 
+          if (unlikely(error) &&
               create_internal_tmp_table_from_heap(join->thd, table,
                                           join_tab->tmp_table_param->start_recinfo,
                                           &join_tab->tmp_table_param->recinfo,
                                                    error, 0, NULL))
 	    DBUG_RETURN(NESTED_LOOP_ERROR);
         }
-        if (join->rollup.state != ROLLUP::STATE_NONE)
+        if (unlikely(join->rollup.state != ROLLUP::STATE_NONE))
 	{
-          if (join->rollup_write_data((uint) (idx+1),
-                                      join_tab->tmp_table_param, table))
+          if (unlikely(join->rollup_write_data((uint) (idx+1),
+                                               join_tab->tmp_table_param,
+                                               table)))
           {
 	    DBUG_RETURN(NESTED_LOOP_ERROR);
           }
@@ -20844,21 +20866,23 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     if (idx < (int) join->send_group_parts)
     {
       copy_fields(join_tab->tmp_table_param);
-      if (copy_funcs(join_tab->tmp_table_param->items_to_copy, join->thd))
+      if (unlikely(copy_funcs(join_tab->tmp_table_param->items_to_copy,
+                              join->thd)))
 	DBUG_RETURN(NESTED_LOOP_ERROR);
-      if (init_sum_functions(join->sum_funcs, join->sum_funcs_end[idx+1]))
+      if (unlikely(init_sum_functions(join->sum_funcs,
+                                      join->sum_funcs_end[idx+1])))
 	DBUG_RETURN(NESTED_LOOP_ERROR);
-      if (join->procedure)
+      if (unlikely(join->procedure))
 	join->procedure->add();
       goto end;
     }
   }
-  if (update_sum_func(join->sum_funcs))
+  if (unlikely(update_sum_func(join->sum_funcs)))
     DBUG_RETURN(NESTED_LOOP_ERROR);
-  if (join->procedure)
+  if (unlikely(join->procedure))
     join->procedure->add();
 end:
-  if (join->thd->check_killed())
+  if (unlikely(join->thd->check_killed()))
   {
     join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);             /* purecov: inspected */
@@ -22308,7 +22332,8 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
     {
       DBUG_ASSERT(tab->type == JT_REF || tab->type == JT_EQ_REF);
       // Update ref value
-      if ((cp_buffer_from_ref(thd, table, &tab->ref) && thd->is_fatal_error))
+      if (unlikely(cp_buffer_from_ref(thd, table, &tab->ref) &&
+                   thd->is_fatal_error))
         goto err;                                   // out of memory
     }
   }
@@ -22316,7 +22341,7 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
  
   /* Fill schema tables with data before filesort if it's necessary */
   if ((join->select_lex->options & OPTION_SCHEMA_TABLE) &&
-      get_schema_tables_result(join, PROCESSED_BY_CREATE_SORT_INDEX))
+      unlikely(get_schema_tables_result(join, PROCESSED_BY_CREATE_SORT_INDEX)))
     goto err;
 
   if (table->s->tmp_table)
@@ -22484,19 +22509,19 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
   int error;
   DBUG_ENTER("remove_dup_with_compare");
 
-  if (file->ha_rnd_init_with_error(1))
+  if (unlikely(file->ha_rnd_init_with_error(1)))
     DBUG_RETURN(1);
 
   error= file->ha_rnd_next(record);
   for (;;)
   {
-    if (thd->check_killed())
+    if (unlikely(thd->check_killed()))
     {
       thd->send_kill_message();
       error=0;
       goto err;
     }
-    if (error)
+    if (unlikely(error))
     {
       if (error == HA_ERR_RECORD_DELETED)
       {
@@ -22509,12 +22534,12 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
     }
     if (having && !having->val_int())
     {
-      if ((error= file->ha_delete_row(record)))
+      if (unlikely((error= file->ha_delete_row(record))))
 	goto err;
       error= file->ha_rnd_next(record);
       continue;
     }
-    if (copy_blobs(first_field))
+    if (unlikely(copy_blobs(first_field)))
     {
       my_message(ER_OUTOFMEMORY, ER_THD(thd,ER_OUTOFMEMORY),
                  MYF(ME_FATALERROR));
@@ -22527,7 +22552,7 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
     bool found=0;
     for (;;)
     {
-      if ((error= file->ha_rnd_next(record)))
+      if (unlikely((error= file->ha_rnd_next(record))))
       {
 	if (error == HA_ERR_RECORD_DELETED)
 	  continue;
@@ -22537,20 +22562,20 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
       }
       if (compare_record(table, first_field) == 0)
       {
-	if ((error= file->ha_delete_row(record)))
+	if (unlikely((error= file->ha_delete_row(record))))
 	  goto err;
       }
       else if (!found)
       {
 	found=1;
-        if ((error= file->remember_rnd_pos()))
+        if (unlikely((error= file->remember_rnd_pos())))
           goto err;
       }
     }
     if (!found)
       break;					// End of file
     /* Restart search on saved row */
-    if ((error= file->restart_rnd_next(record)))
+    if (unlikely((error= file->restart_rnd_next(record))))
       goto err;
   }
 
@@ -22586,39 +22611,40 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
   Field **ptr;
   DBUG_ENTER("remove_dup_with_hash_index");
 
-  if (!my_multi_malloc(MYF(MY_WME),
-		       &key_buffer,
-		       (uint) ((key_length + extra_length) *
-			       (long) file->stats.records),
-		       &field_lengths,
-		       (uint) (field_count*sizeof(*field_lengths)),
-		       NullS))
+  if (unlikely(!my_multi_malloc(MYF(MY_WME),
+                                &key_buffer,
+                                (uint) ((key_length + extra_length) *
+                                        (long) file->stats.records),
+                                &field_lengths,
+                                (uint) (field_count*sizeof(*field_lengths)),
+                                NullS)))
     DBUG_RETURN(1);
 
   for (ptr= first_field, field_length=field_lengths ; *ptr ; ptr++)
     (*field_length++)= (*ptr)->sort_length();
 
-  if (my_hash_init(&hash, &my_charset_bin, (uint) file->stats.records, 0, 
-                   key_length, (my_hash_get_key) 0, 0, 0))
+  if (unlikely(my_hash_init(&hash, &my_charset_bin,
+                            (uint) file->stats.records, 0,
+                            key_length, (my_hash_get_key) 0, 0, 0)))
   {
     my_free(key_buffer);
     DBUG_RETURN(1);
   }
 
-  if ((error= file->ha_rnd_init(1)))
+  if (unlikely((error= file->ha_rnd_init(1))))
     goto err;
 
   key_pos=key_buffer;
   for (;;)
   {
     uchar *org_key_pos;
-    if (thd->check_killed())
+    if (unlikely(thd->check_killed()))
     {
       thd->send_kill_message();
       error=0;
       goto err;
     }
-    if ((error= file->ha_rnd_next(record)))
+    if (unlikely((error= file->ha_rnd_next(record))))
     {
       if (error == HA_ERR_RECORD_DELETED)
 	continue;
@@ -22628,7 +22654,7 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
     }
     if (having && !having->val_int())
     {
-      if ((error= file->ha_delete_row(record)))
+      if (unlikely((error= file->ha_delete_row(record))))
 	goto err;
       continue;
     }
@@ -22645,7 +22671,7 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
     if (my_hash_search(&hash, org_key_pos, key_length))
     {
       /* Duplicated found ; Remove the row */
-      if ((error= file->ha_delete_row(record)))
+      if (unlikely((error= file->ha_delete_row(record))))
 	goto err;
     }
     else
@@ -22666,7 +22692,7 @@ err:
   my_hash_free(&hash);
   file->extra(HA_EXTRA_NO_CACHE);
   (void) file->ha_rnd_end();
-  if (error)
+  if (unlikely(error))
     file->print_error(error,MYF(0));
   DBUG_RETURN(1);
 }
@@ -24162,7 +24188,7 @@ copy_funcs(Item **func_ptr, const THD *thd)
       TODO: change it for a real status check when Item::val_xxx()
       are extended to return status code.
     */  
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
       return TRUE;
   }
   return FALSE;
@@ -24196,7 +24222,7 @@ static bool add_ref_to_table_cond(THD *thd, JOIN_TAB *join_tab)
                               value),
               thd->mem_root);
   }
-  if (thd->is_fatal_error)
+  if (unlikely(thd->is_fatal_error))
     DBUG_RETURN(TRUE);
   if (!cond->fixed)
   {
@@ -24688,7 +24714,8 @@ int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg, TABL
           item->save_in_result_field(1);
       }
       copy_sum_funcs(sum_funcs_end[i+1], sum_funcs_end[i]);
-      if ((write_error= table_arg->file->ha_write_tmp_row(table_arg->record[0])))
+      if (unlikely((write_error=
+                    table_arg->file->ha_write_tmp_row(table_arg->record[0]))))
       {
 	if (create_internal_tmp_table_from_heap(thd, table_arg, 
                                                 tmp_table_param_arg->start_recinfo,
@@ -24786,7 +24813,7 @@ int print_explain_message_line(select_result_sink *result,
   else
     item_list.push_back(item_null, mem_root);
 
-  if (thd->is_fatal_error || result->send_data(item_list))
+  if (unlikely(thd->is_fatal_error) || unlikely(result->send_data(item_list)))
     return 1;
   return 0;
 }
@@ -27017,19 +27044,19 @@ ulong check_selectivity(THD *thd,
   }
   it.rewind();
 
-  if (file->ha_rnd_init_with_error(1))
+  if (unlikely(file->ha_rnd_init_with_error(1)))
     DBUG_RETURN(0);
   do
   {
     error= file->ha_rnd_next(record);
 
-    if (thd->killed)
+    if (unlikely(thd->killed))
     {
       thd->send_kill_message();
       count= 0;
       goto err;
     }
-    if (error)
+    if (unlikely(error))
     {
       if (error == HA_ERR_RECORD_DELETED)
         continue;
@@ -27184,11 +27211,11 @@ AGGR_OP::end_send()
     else
       error= join_tab->read_record.read_record();
 
-    if (error > 0 || (join->thd->is_error()))   // Fatal error
+    if (unlikely(error > 0 || (join->thd->is_error())))   // Fatal error
       rc= NESTED_LOOP_ERROR;
     else if (error < 0)
       break;
-    else if (join->thd->killed)		  // Aborted by user
+    else if (unlikely(join->thd->killed))		  // Aborted by user
     {
       join->thd->send_kill_message();
       rc= NESTED_LOOP_KILLED;

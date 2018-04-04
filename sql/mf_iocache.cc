@@ -58,12 +58,12 @@ int _my_b_net_read(IO_CACHE *info, uchar *Buffer, size_t)
   if (!info->end_of_file)
     DBUG_RETURN(1);	/* because my_b_get (no _) takes 1 byte at a time */
   read_length= my_net_read_packet(net, 0);
-  if (read_length == packet_error)
+  if (unlikely(read_length == packet_error))
   {
     info->error= -1;
     DBUG_RETURN(1);
   }
-  if (read_length == 0)
+  if (unlikely(read_length == 0))
   {
     info->end_of_file= 0;			/* End of file from client */
     DBUG_RETURN(1);

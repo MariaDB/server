@@ -267,7 +267,7 @@ end:
     tdc_release_share(table->s);
   }
   /* In case of a temporary table there will be no metadata lock. */
-  if (error && has_mdl_lock)
+  if (unlikely(error) && has_mdl_lock)
     thd->mdl_context.release_transactional_locks();
 
   DBUG_RETURN(error);
@@ -525,7 +525,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         If open_and_lock_tables() failed, close_thread_tables() will close
         the table and table->table can therefore be invalid.
       */
-      if (open_error)
+      if (unlikely(open_error))
         table->table= NULL;
 
       /*
@@ -533,7 +533,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         so any errors opening the table are logical errors.
         In these cases it does not make sense to try to repair.
       */
-      if (open_error && thd->locked_tables_mode)
+      if (unlikely(open_error) && thd->locked_tables_mode)
       {
         result_code= HA_ADMIN_FAILED;
         goto send_result;
@@ -828,7 +828,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                                       repair_table_use_frm, FALSE);
       thd->open_options&= ~extra_open_options;
 
-      if (!open_error)
+      if (unlikely(!open_error))
       {
         TABLE *tab= table->table;
         Field **field_ptr= tab->field;

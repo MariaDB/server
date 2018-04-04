@@ -779,7 +779,6 @@ void Repl_semi_sync_master::dump_end(THD* thd)
 int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
                                       my_off_t trx_wait_binlog_pos)
 {
-
   DBUG_ENTER("Repl_semi_sync_master::commit_trx");
 
   if (get_master_enabled() && trx_wait_binlog_name)
@@ -788,15 +787,16 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
     struct timespec abstime;
     int wait_result;
     PSI_stage_info old_stage;
+    THD *thd= current_thd;
 
     set_timespec(start_ts, 0);
 
-    DEBUG_SYNC(current_thd, "rpl_semisync_master_commit_trx_before_lock");
+    DEBUG_SYNC(thd, "rpl_semisync_master_commit_trx_before_lock");
     /* Acquire the mutex. */
     lock();
 
     /* This must be called after acquired the lock */
-    THD_ENTER_COND(NULL, &COND_binlog_send, &LOCK_binlog,
+    THD_ENTER_COND(thd, &COND_binlog_send, &LOCK_binlog,
                    & stage_waiting_for_semi_sync_ack_from_slave,
                    & old_stage);
 
@@ -809,7 +809,7 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
                             trx_wait_binlog_name, (ulong)trx_wait_binlog_pos,
                             (int)is_on()));
 
-    while (is_on() && !thd_killed(current_thd))
+    while (is_on() && !thd_killed(thd))
     {
       if (m_reply_file_name_inited)
       {
@@ -924,7 +924,7 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
       m_active_tranxs may be NULL if someone disabled semi sync during
       cond_timewait()
     */
-    assert(thd_killed(current_thd) || !m_active_tranxs ||
+    assert(thd_killed(thd) || !m_active_tranxs ||
            !m_active_tranxs->is_tranx_end_pos(trx_wait_binlog_name,
                                              trx_wait_binlog_pos));
 
@@ -937,7 +937,7 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
 
     /* The lock held will be released by thd_exit_cond, so no need to
        call unlock() here */
-    THD_EXIT_COND(NULL, & old_stage);
+    THD_EXIT_COND(thd, &old_stage);
   }
 
   DBUG_RETURN(0);

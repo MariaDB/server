@@ -443,13 +443,13 @@ static bool
 error_if_in_trans_or_substatement(THD *thd, int in_substatement_error,
                                   int in_transaction_error)
 {
-  if (thd->in_sub_stmt)
+  if (unlikely(thd->in_sub_stmt))
   {
     my_error(in_substatement_error, MYF(0));
     return true;
   }
 
-  if (thd->in_active_multi_stmt_transaction())
+  if (unlikely(thd->in_active_multi_stmt_transaction()))
   {
     my_error(in_transaction_error, MYF(0));
     return true;
@@ -470,6 +470,8 @@ static bool check_has_super(sys_var *self, THD *thd, set_var *var)
 #endif
   return false;
 }
+
+
 static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
 {
   if (check_has_super(self, thd, var))
@@ -529,9 +531,9 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
     return true;
   }
 
-  if (error_if_in_trans_or_substatement(thd,
-         ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_FORMAT,
-         ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_FORMAT))
+  if (unlikely(error_if_in_trans_or_substatement(thd,
+                                                 ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_FORMAT,
+                                                 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_FORMAT)))
     return true;
 
   return false;
@@ -566,9 +568,9 @@ static bool binlog_direct_check(sys_var *self, THD *thd, set_var *var)
   if (var->type == OPT_GLOBAL)
     return false;
 
-  if (error_if_in_trans_or_substatement(thd,
-          ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_DIRECT,
-          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_DIRECT))
+  if (unlikely(error_if_in_trans_or_substatement(thd,
+                                                 ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_DIRECT,
+                                                 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_DIRECT)))
      return true;
 
   return false;
@@ -1606,9 +1608,9 @@ static bool check_gtid_seq_no(sys_var *self, THD *thd, set_var *var)
 
   if (check_has_super(self, thd, var))
     return true;
-  if (error_if_in_trans_or_substatement(thd,
-          ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
-          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO))
+  if (unlikely(error_if_in_trans_or_substatement(thd,
+                                                 ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
+                                                 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO)))
     return true;
 
   domain_id= thd->variables.gtid_domain_id;
@@ -4035,15 +4037,15 @@ static bool check_sql_log_bin(sys_var *self, THD *thd, set_var *var)
   if (check_has_super(self, thd, var))
     return TRUE;
 
-  if (var->type == OPT_GLOBAL)
+  if (unlikely(var->type == OPT_GLOBAL))
   {
     my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0), self->name.str, "SESSION");
     return TRUE;
   }
 
-  if (error_if_in_trans_or_substatement(thd,
-          ER_STORED_FUNCTION_PREVENTS_SWITCH_SQL_LOG_BIN,
-          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SQL_LOG_BIN))
+  if (unlikely(error_if_in_trans_or_substatement(thd,
+                                                 ER_STORED_FUNCTION_PREVENTS_SWITCH_SQL_LOG_BIN,
+                                                 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SQL_LOG_BIN)))
     return TRUE;
 
   return FALSE;
@@ -4176,9 +4178,9 @@ static bool check_skip_replication(sys_var *self, THD *thd, set_var *var)
     Rows_log_event without Table_map_log_event or transactional updates without
     the COMMIT).
   */
-  if (error_if_in_trans_or_substatement(thd,
-          ER_STORED_FUNCTION_PREVENTS_SWITCH_SKIP_REPLICATION,
-          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SKIP_REPLICATION))
+  if (unlikely(error_if_in_trans_or_substatement(thd,
+                                                 ER_STORED_FUNCTION_PREVENTS_SWITCH_SKIP_REPLICATION,
+                                                 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SKIP_REPLICATION)))
     return 1;
 
   return 0;

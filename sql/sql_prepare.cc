@@ -380,16 +380,18 @@ static bool send_prep_stmt(Prepared_statement *stmt, uint columns)
     XXX: fix this nasty upcast from List<Item_param> to List<Item>
   */
   error= my_net_write(net, buff, sizeof(buff));
-  if (stmt->param_count && ! error)
+  if (stmt->param_count && likely(!error))
   {
     error= thd->protocol_text.send_result_set_metadata((List<Item> *)
                                           &stmt->lex->param_list,
                                           Protocol::SEND_EOF);
   }
 
-  if (!error)
+  if (likely(!error))
+  {
     /* Flag that a response has already been sent */
     thd->get_stmt_da()->disable_status();
+  }
 
   DBUG_RETURN(error);
 }
@@ -3550,7 +3552,7 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
 #else
   param->set_longdata(thd->extra_data, thd->extra_length);
 #endif
-  if (thd->get_stmt_da()->is_error())
+  if (unlikely(thd->get_stmt_da()->is_error()))
   {
     stmt->state= Query_arena::STMT_ERROR;
     stmt->last_errno= thd->get_stmt_da()->sql_errno();
@@ -3596,7 +3598,7 @@ bool Select_fetch_protocol_binary::send_eof()
     Don't send EOF if we're in error condition (which implies we've already
     sent or are sending an error)
   */
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
     return true;
 
   ::my_eof(thd);
@@ -3682,7 +3684,7 @@ Execute_sql_statement::execute_server_code(THD *thd)
 
   error= parse_sql(thd, &parser_state, NULL) || thd->is_error();
 
-  if (error)
+  if (unlikely(error))
     goto end;
 
   thd->lex->set_trg_event_type_for_tables();
@@ -3693,7 +3695,7 @@ Execute_sql_statement::execute_server_code(THD *thd)
   thd->m_statement_psi= parent_locker;
 
   /* report error issued during command execution */
-  if (error == 0 && thd->spcont == NULL)
+  if (likely(error == 0) && thd->spcont == NULL)
     general_log_write(thd, COM_STMT_EXECUTE,
                       thd->query(), thd->query_length());
 
@@ -3945,9 +3947,9 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   lex_start(thd);
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_PREPARE;
 
-  error= parse_sql(thd, & parser_state, NULL) ||
-    thd->is_error() ||
-    init_param_array(this);
+  error= (parse_sql(thd, & parser_state, NULL) ||
+          thd->is_error() ||
+          init_param_array(this));
 
   lex->set_trg_event_type_for_tables();
 
@@ -3979,10 +3981,10 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
    Item_null objects.
   */
 
-  if (error == 0)
+  if (likely(error == 0))
     error= check_prepared_statement(this);
 
-  if (error)
+  if (unlikely(error))
   {
     /*
       let the following code know we're not in PS anymore,
@@ -4021,7 +4023,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   thd->restore_backup_statement(this, &stmt_backup);
   thd->stmt_arena= old_stmt_arena;
 
-  if (error == 0)
+  if (likely(error == 0))
   {
     setup_set_params();
     lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_PREPARE;
@@ -4151,7 +4153,7 @@ Prepared_statement::execute_loop(String *expanded_query,
   DBUG_ASSERT(thd->free_list == NULL);
 
   /* Check if we got an error when sending long data */
-  if (state == Query_arena::STMT_ERROR)
+  if (unlikely(state == Query_arena::STMT_ERROR))
   {
     my_message(last_errno, last_error, MYF(0));
     return TRUE;
@@ -4215,8 +4217,9 @@ reexecute:
   }
 #endif /* WITH_WSREP */
 
-  if ((sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
-      error && !thd->is_fatal_error && !thd->killed &&
+  if (unlikely(error) &&
+      (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
+      !thd->is_fatal_error && !thd->killed &&
       reprepare_observer.is_invalidated() &&
       reprepare_attempt++ < MAX_REPREPARE_ATTEMPTS)
   {
@@ -4225,7 +4228,7 @@ reexecute:
 
     error= reprepare();
 
-    if (! error)                                /* Success */
+    if (likely(!error))                         /* Success */
       goto reexecute;
   }
   reset_stmt_params(this);
@@ -4238,7 +4241,7 @@ my_bool bulk_parameters_set(THD *thd)
   DBUG_ENTER("bulk_parameters_set");
   Prepared_statement *stmt= (Prepared_statement *) thd->bulk_param;
 
-  if (stmt && stmt->set_bulk_parameters(FALSE))
+  if (stmt && unlikely(stmt->set_bulk_parameters(FALSE)))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(FALSE);
 }
@@ -4410,8 +4413,9 @@ reexecute:
     }
 #endif /* WITH_WSREP */
 
-    if ((sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
-        error && !thd->is_fatal_error && !thd->killed &&
+    if (unlikely(error) &&
+        (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
+        !thd->is_fatal_error && !thd->killed &&
         reprepare_observer.is_invalidated() &&
         reprepare_attempt++ < MAX_REPREPARE_ATTEMPTS)
     {
@@ -4420,7 +4424,7 @@ reexecute:
 
       error= reprepare();
 
-      if (! error)                                /* Success */
+      if (likely(!error))                                /* Success */
         goto reexecute;
     }
   }
@@ -4495,8 +4499,8 @@ Prepared_statement::reprepare()
 
   status_var_increment(thd->status_var.com_stmt_reprepare);
 
-  if (mysql_opt_change_db(thd, &stmt_db_name, &saved_cur_db_name, TRUE,
-                          &cur_db_changed))
+  if (unlikely(mysql_opt_change_db(thd, &stmt_db_name, &saved_cur_db_name,
+                                   TRUE, &cur_db_changed)))
     return TRUE;
 
   sql_mode_t save_sql_mode= thd->variables.sql_mode;
@@ -4509,7 +4513,7 @@ Prepared_statement::reprepare()
   if (cur_db_changed)
     mysql_change_db(thd, (LEX_CSTRING*) &saved_cur_db_name, TRUE);
 
-  if (! error)
+  if (likely(!error))
   {
     swap_prepared_statement(&copy);
     swap_parameter_array(param_array, copy.param_array, param_count);
@@ -4808,7 +4812,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
   if (state == Query_arena::STMT_PREPARED && !qc_executed)
     state= Query_arena::STMT_EXECUTED;
 
-  if (error == 0 && this->lex->sql_command == SQLCOM_CALL)
+  if (likely(error == 0) && this->lex->sql_command == SQLCOM_CALL)
   {
     if (is_sql_prepare())
     {
@@ -4843,7 +4847,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     sub-statements inside stored procedures are not logged into
     the general log.
   */
-  if (error == 0 && thd->spcont == NULL)
+  if (likely(error == 0 && thd->spcont == NULL))
     general_log_write(thd, COM_STMT_EXECUTE, thd->query(), thd->query_length());
 
 error:
@@ -4871,7 +4875,7 @@ bool Prepared_statement::execute_immediate(const char *query, uint query_len)
 
   set_sql_prepare();
   name= execute_immediate_stmt_name;      // for DBUG_PRINT etc
-  if (prepare(query, query_len))
+  if (unlikely(prepare(query, query_len)))
     DBUG_RETURN(true);
 
   if (param_count != thd->lex->prepared_stmt_params.elements)
@@ -5244,7 +5248,7 @@ Protocol_local::store_string(const char *str, size_t length,
       src_cs != &my_charset_bin &&
       dst_cs != &my_charset_bin)
   {
-    if (convert->copy(str, length, src_cs, dst_cs, &error_unused))
+    if (unlikely(convert->copy(str, length, src_cs, dst_cs, &error_unused)))
       return TRUE;
     str= convert->ptr();
     length= convert->length();

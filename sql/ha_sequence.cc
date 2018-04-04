@@ -81,7 +81,7 @@ int ha_sequence::open(const char *name, int mode, uint flags)
   DBUG_ASSERT(table->s == table_share && file);
 
   file->table= table;
-  if (!(error= file->open(name, mode, flags)))
+  if (likely(!(error= file->open(name, mode, flags))))
   {
     /*
       Allocate ref in table's mem_root. We can't use table's ref
@@ -111,7 +111,7 @@ int ha_sequence::open(const char *name, int mode, uint flags)
     /* Don't try to read the inital row the call is part of create code */
     if (!(flags & (HA_OPEN_FOR_CREATE | HA_OPEN_FOR_REPAIR)))
     {
-      if ((error= table->s->sequence->read_initial_values(table)))
+      if (unlikely((error= table->s->sequence->read_initial_values(table))))
         file->ha_close();
     }
     else
@@ -216,7 +216,7 @@ int ha_sequence::write_row(uchar *buf)
     if (tmp_seq.check_and_adjust(0))
       DBUG_RETURN(HA_ERR_SEQUENCE_INVALID_DATA);
     sequence->copy(&tmp_seq);
-    if (!(error= file->write_row(buf)))
+    if (likely(!(error= file->write_row(buf))))
       sequence->initialized= SEQUENCE::SEQ_READY_TO_USE;
     DBUG_RETURN(error);
   }
@@ -255,7 +255,7 @@ int ha_sequence::write_row(uchar *buf)
     sequence->write_lock(table);
   }
 
-  if (!(error= file->update_first_row(buf)))
+  if (likely(!(error= file->update_first_row(buf))))
   {
     Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
     if (!sequence_locked)

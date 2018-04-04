@@ -1477,7 +1477,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
                                     &lex.trg_chistics.anchor_trigger_name,
                                     trigger);
 
-        if (parse_error)
+        if (unlikely(parse_error))
         {
           LEX_CSTRING *name;
 
@@ -1491,10 +1491,10 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           DBUG_ASSERT(lex.sphead == 0);
           lex_end(&lex);
 
-          if ((name= error_handler.get_trigger_name()))
+          if (likely((name= error_handler.get_trigger_name())))
           {
-            if (!(make_lex_string(&trigger->name, name->str,
-                                  name->length, &table->mem_root)))
+            if (unlikely(!(make_lex_string(&trigger->name, name->str,
+                                           name->length, &table->mem_root))))
               goto err_with_lex_cleanup;
           }
           trigger->definer= ((!trg_definer || !trg_definer->length) ?
@@ -1615,7 +1615,7 @@ err_with_lex_cleanup:
   }
 
 error:
-  if (!thd->is_error())
+    if (unlikely(!thd->is_error()))
   {
     /*
       We don't care about this error message much because .TRG files will
@@ -1891,7 +1891,7 @@ change_table_name_in_triggers(THD *thd,
 
   thd->variables.sql_mode= save_sql_mode;
 
-  if (thd->is_fatal_error)
+  if (unlikely(thd->is_fatal_error))
     return TRUE; /* OOM */
 
   if (save_trigger_file(thd, new_db_name, new_table_name))
@@ -2103,9 +2103,9 @@ bool Table_triggers_list::change_table_name(THD *thd, const LEX_CSTRING *db,
         goto end;
       }
     }
-    if (table.triggers->change_table_name_in_triggers(thd, db, new_db,
-                                                      old_alias,
-                                                      new_table))
+    if (unlikely(table.triggers->change_table_name_in_triggers(thd, db, new_db,
+                                                               old_alias,
+                                                               new_table)))
     {
       result= 1;
       goto end;
@@ -2249,7 +2249,7 @@ add_tables_and_routines_for_triggers(THD *thd,
         {
           sp_head *trigger= triggers->body;
 
-          if (!triggers->body)                  // Parse error
+          if (unlikely(!triggers->body))                  // Parse error
             continue;
 
           MDL_key key(MDL_key::TRIGGER, trigger->m_db.str, trigger->m_name.str);

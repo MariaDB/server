@@ -820,7 +820,7 @@ int check_signed_flag(partition_info *part_info)
 */
 
 static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
-                          bool is_sub_part, bool is_create_table_ind)
+                                 bool is_sub_part, bool is_create_table_ind)
 {
   partition_info *part_info= table->part_info;
   bool result= TRUE;
@@ -857,7 +857,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     const nesting_map saved_allow_sum_func= thd->lex->allow_sum_func;
     thd->lex->allow_sum_func= 0;
 
-    if (!(error= func_expr->fix_fields(thd, (Item**)&func_expr)))
+    if (likely(!(error= func_expr->fix_fields(thd, (Item**)&func_expr))))
       func_expr->walk(&Item::vcol_in_partition_func_processor, 0, NULL);
 
     /*
@@ -901,7 +901,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
                    ER_THD(thd, ER_WRONG_EXPR_IN_PARTITION_FUNC_ERROR));
   }
 
-  if ((!is_sub_part) && (error= check_signed_flag(part_info)))
+  if (unlikely((!is_sub_part) && (error= check_signed_flag(part_info))))
     goto end;
   result= set_up_field_array(thd, table, is_sub_part);
 end:
@@ -2823,10 +2823,9 @@ static inline int part_val_int(Item *item_expr, longlong *result)
   *result= item_expr->val_int();
   if (item_expr->null_value)
   {
-    if (current_thd->is_error())
+    if (unlikely(current_thd->is_error()))
       return TRUE;
-    else
-      *result= LONGLONG_MIN;
+    *result= LONGLONG_MIN;
   }
   return FALSE;
 }
@@ -3534,7 +3533,7 @@ int get_partition_id_range(partition_info *part_info,
   bool unsigned_flag= part_info->part_expr->unsigned_flag;
   DBUG_ENTER("get_partition_id_range");
 
-  if (error)
+  if (unlikely(error))
     DBUG_RETURN(HA_ERR_NO_PARTITION_FOUND);
 
   if (part_info->part_expr->null_value)
@@ -4112,7 +4111,7 @@ bool verify_data_with_partition(TABLE *table, TABLE *part_table,
 
   do
   {
-    if ((error= file->ha_rnd_next(table->record[0])))
+    if (unlikely((error= file->ha_rnd_next(table->record[0]))))
     {
       if (error == HA_ERR_RECORD_DELETED)
         continue;
@@ -4122,8 +4121,8 @@ bool verify_data_with_partition(TABLE *table, TABLE *part_table,
         file->print_error(error, MYF(0));
       break;
     }
-    if ((error= part_info->get_partition_id(part_info, &found_part_id,
-                                            &func_value)))
+    if (unlikely((error= part_info->get_partition_id(part_info, &found_part_id,
+                                                     &func_value))))
     {
       part_table->file->print_error(error, MYF(0));
       break;
@@ -4141,9 +4140,7 @@ err:
   part_info->table->move_fields(part_info->full_part_field_array, old_rec,
                 table->record[0]);
   part_table->record[0]= old_rec;
-  if (error)
-    DBUG_RETURN(TRUE);
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(unlikely(error) ? TRUE : FALSE);
 }
 
 
@@ -6001,9 +5998,11 @@ static bool mysql_change_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
 
   /* TODO: test if bulk_insert would increase the performance */
 
-  if ((error= file->ha_change_partitions(lpt->create_info, path, &lpt->copied,
-                                         &lpt->deleted, lpt->pack_frm_data,
-                                         lpt->pack_frm_len)))
+  if (unlikely((error= file->ha_change_partitions(lpt->create_info, path,
+                                                  &lpt->copied,
+                                                  &lpt->deleted,
+                                                  lpt->pack_frm_data,
+                                                  lpt->pack_frm_len))))
   {
     file->print_error(error, MYF(error != ER_OUTOFMEMORY ? 0 : ME_FATALERROR));
   }
@@ -6041,7 +6040,7 @@ static bool mysql_rename_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
   DBUG_ENTER("mysql_rename_partitions");
 
   build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
-  if ((error= lpt->table->file->ha_rename_partitions(path)))
+  if (unlikely((error= lpt->table->file->ha_rename_partitions(path))))
   {
     if (error != 1)
       lpt->table->file->print_error(error, MYF(0));
@@ -6778,14 +6777,14 @@ static void alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
     Diagnostics_area *stmt_da= NULL;
     Diagnostics_area tmp_stmt_da(true);
 
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
     {
       /* reopen might fail if we have a previous error, use a temporary da. */
       stmt_da= thd->get_stmt_da();
       thd->set_stmt_da(&tmp_stmt_da);
     }
 
-    if (thd->locked_tables_list.reopen_tables(thd, false))
+    if (unlikely(thd->locked_tables_list.reopen_tables(thd, false)))
       sql_print_warning("We failed to reacquire LOCKs in ALTER TABLE");
 
     if (stmt_da)
@@ -6984,14 +6983,14 @@ err_exclusive_lock:
     Diagnostics_area *stmt_da= NULL;
     Diagnostics_area tmp_stmt_da(true);
 
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
     {
       /* reopen might fail if we have a previous error, use a temporary da. */
       stmt_da= thd->get_stmt_da();
       thd->set_stmt_da(&tmp_stmt_da);
     }
 
-    if (thd->locked_tables_list.reopen_tables(thd, false))
+    if (unlikely(thd->locked_tables_list.reopen_tables(thd, false)))
       sql_print_warning("We failed to reacquire LOCKs in ALTER TABLE");
 
     if (stmt_da)

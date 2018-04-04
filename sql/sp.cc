@@ -2275,7 +2275,7 @@ bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
   {
     Sroutine_hash_entry *rn=
       (Sroutine_hash_entry *)arena->alloc(sizeof(Sroutine_hash_entry));
-    if (!rn)              // OOM. Error will be reported using fatal_error().
+    if (unlikely(!rn)) // OOM. Error will be reported using fatal_error().
       return FALSE;
     rn->mdl_request.init(key, MDL_SHARED, MDL_TRANSACTION);
     if (my_hash_insert(&prelocking_ctx->sroutines, (uchar *)rn))
@@ -2787,7 +2787,7 @@ int Sp_handler::sp_cache_routine(THD *thd,
         an error with it's return value without calling my_error(), we
         set the generic "mysql.proc table corrupt" error here.
       */
-      if (! thd->is_error())
+      if (!thd->is_error())
       {
         my_error(ER_SP_PROC_TABLE_CORRUPT, MYF(0),
                  ErrConvDQName(name).ptr(), ret);

@@ -126,7 +126,7 @@ int select_unit::send_data(List<Item> &values)
   }
   else
     fill_record(thd, table, table->field, values, TRUE, FALSE);
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
   {
     rc= 1;
     goto end;
@@ -146,7 +146,8 @@ int select_unit::send_data(List<Item> &values)
   {
     case UNION_TYPE:
     {
-      if ((write_err= table->file->ha_write_tmp_row(table->record[0])))
+      if (unlikely((write_err=
+                    table->file->ha_write_tmp_row(table->record[0]))))
       {
         if (write_err == HA_ERR_FOUND_DUPP_KEY)
         {
@@ -235,7 +236,7 @@ int select_unit::send_data(List<Item> &values)
   rc= 0;
 
 end:
-  if (not_reported_error)
+  if (unlikely(not_reported_error))
   {
     DBUG_ASSERT(rc);
     table->file->print_error(not_reported_error, MYF(0));
@@ -267,13 +268,12 @@ bool select_unit::send_eof()
   handler *file= table->file;
   int error;
 
-  if (file->ha_rnd_init_with_error(1))
+  if (unlikely(file->ha_rnd_init_with_error(1)))
     return 1;
 
   do
   {
-    error= file->ha_rnd_next(table->record[0]);
-    if (error)
+    if (unlikely(error= file->ha_rnd_next(table->record[0])))
     {
       if (error == HA_ERR_END_OF_FILE)
       {
@@ -289,10 +289,10 @@ bool select_unit::send_eof()
     }
     if (table->field[0]->val_int() != curr_step)
       error= file->ha_delete_tmp_row(table->record[0]);
-  } while (!error);
+  } while (likely(!error));
   file->ha_rnd_end();
 
-  if (error)
+  if (unlikely(error))
     table->file->print_error(error, MYF(0));
 
   return(MY_TEST(error));
@@ -325,7 +325,7 @@ int select_union_recursive::send_data(List<Item> &values)
 bool select_unit::flush()
 {
   int error;
-  if ((error=table->file->extra(HA_EXTRA_NO_CACHE)))
+  if (unlikely((error=table->file->extra(HA_EXTRA_NO_CACHE))))
   {
     table->file->print_error(error, MYF(0));
     return 1;
@@ -552,7 +552,7 @@ int select_union_direct::send_data(List<Item> &items)
 
   send_records++;
   fill_record(thd, table, table->field, items, true, false);
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
     return true; /* purecov: inspected */
 
   return result->send_data(unit->item_list);
@@ -675,7 +675,7 @@ bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
   sl->with_wild= 0;
   last_procedure= join->procedure;
 
-  if (saved_error || (saved_error= thd_arg->is_fatal_error))
+  if (unlikely(saved_error || (saved_error= thd_arg->is_fatal_error)))
     DBUG_RETURN(true);
   /*
     Remove all references from the select_lex_units to the subqueries that
@@ -806,7 +806,7 @@ bool st_select_lex_unit::join_union_item_types(THD *thd_arg,
                                      &holders[pos]/*Type_all_attributes*/,
                                      holders[pos].get_maybe_null()));
   }
-  if (thd_arg->is_fatal_error)
+  if (unlikely(thd_arg->is_fatal_error))
     DBUG_RETURN(true); // out of memory
   DBUG_RETURN(false);
 }
@@ -1134,7 +1134,7 @@ cont:
                                           hidden);
       if (intersect_mark)
         types.pop();
-      if (error)
+      if (unlikely(error))
         goto err;
     }
     if (fake_select_lex && !fake_select_lex->first_cond_optimization)
@@ -1171,7 +1171,7 @@ cont:
       if (arena)
         thd->restore_active_arena(arena, &backup_arena);
 
-      if (saved_error)
+      if (unlikely(saved_error))
         goto err;
 
       if (fake_select_lex != NULL &&
@@ -1320,7 +1320,7 @@ bool st_select_lex_unit::optimize()
 	saved_error= sl->join->optimize();
       }
 
-      if (saved_error)
+      if (unlikely(saved_error))
       {
 	thd->lex->current_select= lex_select_save;
 	DBUG_RETURN(saved_error);
@@ -1358,7 +1358,7 @@ bool st_select_lex_unit::exec()
   if (!saved_error && !was_executed)
     save_union_explain(thd->lex->explain);
 
-  if (saved_error)
+  if (unlikely(saved_error))
     DBUG_RETURN(saved_error);
 
   if (union_result)
@@ -1423,7 +1423,7 @@ bool st_select_lex_unit::exec()
 	  saved_error= sl->join->optimize();
 	}
       }
-      if (!saved_error)
+      if (likely(!saved_error))
       {
 	records_at_start= table->file->stats.records;
 	if (sl->tvc)
@@ -1434,7 +1434,7 @@ bool st_select_lex_unit::exec()
 	{
           // This is UNION DISTINCT, so there should be a fake_select_lex
           DBUG_ASSERT(fake_select_lex != NULL);
-	  if (table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL))
+	  if (unlikely(table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL)))
 	    DBUG_RETURN(TRUE);
 	  table->no_keyread=1;
 	}
@@ -1443,7 +1443,7 @@ bool st_select_lex_unit::exec()
 	offset_limit_cnt= (ha_rows)(sl->offset_limit ?
                                     sl->offset_limit->val_uint() :
                                     0);
-	if (!saved_error)
+	if (likely(!saved_error))
 	{
 	  examined_rows+= thd->get_examined_row_count();
           thd->set_examined_row_count(0);
@@ -1454,7 +1454,7 @@ bool st_select_lex_unit::exec()
 	  }
 	}
       }
-      if (saved_error)
+      if (unlikely(saved_error))
       {
 	thd->lex->current_select= lex_select_save;
 	DBUG_RETURN(saved_error);
@@ -1463,7 +1463,7 @@ bool st_select_lex_unit::exec()
       {
         /* Needed for the following test and for records_at_start in next loop */
         int error= table->file->info(HA_STATUS_VARIABLE);
-        if(error)
+        if (unlikely(error))
         {
           table->file->print_error(error, MYF(0));
           DBUG_RETURN(1);
@@ -1509,7 +1509,8 @@ bool st_select_lex_unit::exec()
     */
     thd->lex->limit_rows_examined_cnt= ULONGLONG_MAX;
 
-    if (fake_select_lex != NULL && !thd->is_fatal_error)    // Check if EOM
+    // Check if EOM
+    if (fake_select_lex != NULL && likely(!thd->is_fatal_error))
     {
        /* Send result to 'result' */
        saved_error= true;
@@ -1528,8 +1529,9 @@ bool st_select_lex_unit::exec()
           don't let it allocate the join. Perhaps this is because we need
           some special parameter values passed to join constructor?
 	*/
-	if (!(fake_select_lex->join= new JOIN(thd, item_list,
-					      fake_select_lex->options, result)))
+	if (unlikely(!(fake_select_lex->join=
+                       new JOIN(thd, item_list, fake_select_lex->options,
+                                result))))
 	{
 	  fake_select_lex->table_list.empty();
 	  goto err;
@@ -1595,7 +1597,7 @@ bool st_select_lex_unit::exec()
       }
 
       fake_select_lex->table_list.empty();
-      if (!saved_error)
+      if (likely(!saved_error))
       {
 	thd->limit_found_rows = (ulonglong)table->file->stats.records + add_rows;
         thd->inc_examined_row_count(examined_rows);
@@ -1671,7 +1673,7 @@ bool st_select_lex_unit::exec_recursive()
     if (with_element->with_anchor)
       end= with_element->first_recursive;
   }
-  else if ((saved_error= incr_table->file->ha_delete_all_rows()))
+  else if (unlikely((saved_error= incr_table->file->ha_delete_all_rows())))
     goto err;
 
   for (st_select_lex *sl= start ; sl != end; sl= sl->next_select())
@@ -1698,17 +1700,17 @@ bool st_select_lex_unit::exec_recursive()
       sl->join->exec();
       saved_error= sl->join->error;
     }
-    if (!saved_error)
+    if (likely(!saved_error))
     {
        examined_rows+= thd->get_examined_row_count();
        thd->set_examined_row_count(0);
-       if (union_result->flush())
+       if (unlikely(union_result->flush()))
        {
 	 thd->lex->current_select= lex_select_save;
 	 DBUG_RETURN(1);
        }
     }
-    if (saved_error)
+    if (unlikely(saved_error))
     {
       thd->lex->current_select= lex_select_save;
       goto err;

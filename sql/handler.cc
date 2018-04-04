@@ -698,7 +698,7 @@ int ha_end()
     So if flag is equal to HA_PANIC_CLOSE, the deallocate
     the errors.
   */
-  if (ha_finish_errors())
+  if (unlikely(ha_finish_errors()))
     error= 1;
 
   DBUG_RETURN(error);
@@ -1197,7 +1197,7 @@ int ha_prepare(THD *thd)
       handlerton *ht= ha_info->ht();
       if (ht->prepare)
       {
-        if (prepare_or_error(ht, thd, all))
+        if (unlikely(prepare_or_error(ht, thd, all)))
         {
           ha_rollback_trans(thd, all);
           error=1;
@@ -1475,7 +1475,7 @@ int ha_commit_trans(THD *thd, bool all)
       Sic: we know that prepare() is not NULL since otherwise
       trans->no_2pc would have been set.
     */
-    if (prepare_or_error(ht, thd, all))
+    if (unlikely(prepare_or_error(ht, thd, all)))
       goto err;
 
     need_prepare_ordered|= (ht->prepare_ordered != NULL);
@@ -2525,7 +2525,7 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
   dummy_table.s= &dummy_share;
 
   path= get_canonical_filename(file, path, tmp_path);
-  if ((error= file->ha_delete_table(path)))
+  if (unlikely((error= file->ha_delete_table(path))))
   {
     /*
       it's not an error if the table doesn't exist in the engine.
@@ -2681,7 +2681,7 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
 
   set_partitions_to_open(partitions_to_open);
 
-  if ((error=open(name,mode,test_if_locked)))
+  if (unlikely((error=open(name,mode,test_if_locked))))
   {
     if ((error == EACCES || error == EROFS) && mode == O_RDWR &&
 	(table->db_stat & HA_TRY_READ_ONLY))
@@ -2690,7 +2690,7 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
       error=open(name,O_RDONLY,test_if_locked);
     }
   }
-  if (error)
+  if (unlikely(error))
   {
     my_errno= error;                            /* Safeguard */
     DBUG_PRINT("error",("error: %d  errno: %d",error,errno));
@@ -2967,7 +2967,7 @@ bool handler::ha_was_semi_consistent_read()
 int handler::ha_rnd_init_with_error(bool scan)
 {
   int error;
-  if (!(error= ha_rnd_init(scan)))
+  if (likely(!(error= ha_rnd_init(scan))))
     return 0;
   table->file->print_error(error, MYF(0));
   return error;
@@ -2994,23 +2994,23 @@ int handler::read_first_row(uchar * buf, uint primary_key)
   if (stats.deleted < 10 || primary_key >= MAX_KEY ||
       !(index_flags(primary_key, 0, 0) & HA_READ_ORDER))
   {
-    if (!(error= ha_rnd_init(1)))
+    if (likely(!(error= ha_rnd_init(1))))
     {
       while ((error= ha_rnd_next(buf)) == HA_ERR_RECORD_DELETED)
         /* skip deleted row */;
       const int end_error= ha_rnd_end();
-      if (!error)
+      if (likely(!error))
         error= end_error;
     }
   }
   else
   {
     /* Find the first row through the primary key */
-    if (!(error= ha_index_init(primary_key, 0)))
+    if (likely(!(error= ha_index_init(primary_key, 0))))
     {
       error= ha_index_first(buf);
       const int end_error= ha_index_end();
-      if (!error)
+      if (likely(!error))
         error= end_error;
     }
   }
@@ -3430,7 +3430,7 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
     *nb_reserved_values= 1;
   }
 
-  if (error)
+  if (unlikely(error))
   {
     if (error == HA_ERR_END_OF_FILE || error == HA_ERR_KEY_NOT_FOUND)
       /* No entry found, that's fine */;
@@ -3818,7 +3818,7 @@ void handler::print_error(int error, myf errflag)
     }
   }
   DBUG_ASSERT(textno > 0);
-  if (fatal_error)
+  if (unlikely(fatal_error))
   {
     /* Ensure this becomes a true error */
     errflag&= ~(ME_JUST_WARNING | ME_JUST_INFO);
@@ -3945,7 +3945,7 @@ int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
   if (table->s->frm_version < FRM_VER_TRUE_VARCHAR)
     return HA_ADMIN_NEEDS_ALTER;
 
-  if ((error= check_collation_compatibility()))
+  if (unlikely((error= check_collation_compatibility())))
     return error;
     
   return check_for_upgrade(check_opt);
@@ -4023,7 +4023,8 @@ uint handler::get_dup_key(int error)
               m_lock_type != F_UNLCK);
   DBUG_ENTER("handler::get_dup_key");
   table->file->errkey  = (uint) -1;
-  if (error == HA_ERR_FOUND_DUPP_KEY || error == HA_ERR_FOREIGN_DUPLICATE_KEY ||
+  if (error == HA_ERR_FOUND_DUPP_KEY ||
+      error == HA_ERR_FOREIGN_DUPLICATE_KEY ||
       error == HA_ERR_FOUND_DUPP_UNIQUE || error == HA_ERR_NULL_IN_SPATIAL ||
       error == HA_ERR_DROP_INDEX_FK)
     table->file->info(HA_STATUS_ERRKEY | HA_STATUS_NO_LOCK);
@@ -4087,14 +4088,14 @@ int handler::rename_table(const char * from, const char * to)
   start_ext= bas_ext();
   for (ext= start_ext; *ext ; ext++)
   {
-    if (rename_file_ext(from, to, *ext))
+    if (unlikely(rename_file_ext(from, to, *ext)))
     {
       if ((error=my_errno) != ENOENT)
 	break;
       error= 0;
     }
   }
-  if (error)
+  if (unlikely(error))
   {
     /* Try to revert the rename. Ignore errors. */
     for (; ext >= start_ext; ext--)
@@ -4138,15 +4139,15 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
 
   if (table->s->mysql_version < MYSQL_VERSION_ID)
   {
-    if ((error= check_old_types()))
+    if (unlikely((error= check_old_types())))
       return error;
     error= ha_check_for_upgrade(check_opt);
-    if (error && (error != HA_ADMIN_NEEDS_CHECK))
+    if (unlikely(error && (error != HA_ADMIN_NEEDS_CHECK)))
       return error;
-    if (!error && (check_opt->sql_flags & TT_FOR_UPGRADE))
+    if (unlikely(!error && (check_opt->sql_flags & TT_FOR_UPGRADE)))
       return 0;
   }
-  if ((error= check(thd, check_opt)))
+  if (unlikely((error= check(thd, check_opt))))
     return error;
   /* Skip updating frm version if not main handler. */
   if (table->file != this)
@@ -4656,7 +4657,7 @@ int ha_enable_transaction(THD *thd, bool on)
       is an optimization hint that storage engine is free to ignore.
       So, let's commit an open transaction (if any) now.
     */
-    if (!(error= ha_commit_trans(thd, 0)))
+    if (likely(!(error= ha_commit_trans(thd, 0))))
       error= trans_commit_implicit(thd);
   }
   DBUG_RETURN(error);
@@ -4914,7 +4915,7 @@ int ha_create_table(THD *thd, const char *path,
 
   error= table.file->ha_create(name, &table, create_info);
 
-  if (error)
+  if (unlikely(error))
   {
     if (!thd->is_error())
       my_error(ER_CANT_CREATE_TABLE, MYF(0), db, table_name, error);
@@ -5069,7 +5070,7 @@ static my_bool discover_handlerton(THD *thd, plugin_ref plugin,
     int error= hton->discover_table(hton, thd, share);
     if (error != HA_ERR_NO_SUCH_TABLE)
     {
-      if (error)
+      if (unlikely(error))
       {
         if (!share->error)
         {
@@ -5706,12 +5707,12 @@ int handler::index_read_idx_map(uchar * buf, uint index, const uchar * key,
   int error, UNINIT_VAR(error1);
 
   error= ha_index_init(index, 0);
-  if (!error)
+  if (likely(!error))
   {
     error= index_read_map(buf, key, keypart_map, find_flag);
     error1= ha_index_end();
   }
-  return error ?  error : error1;
+  return error ? error : error1;
 }
 
 
@@ -5848,7 +5849,7 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
     We also check thd->is_error() as Innodb may return 0 even if
     there was an error.
   */
-  if (!result && !thd->is_error())
+  if (likely(!result && !thd->is_error()))
     my_eof(thd);
   else if (!thd->is_error())
     my_error(ER_GET_ERRNO, MYF(0), errno, hton_name(db_type)->str);
@@ -6111,7 +6112,7 @@ int handler::ha_external_lock(THD *thd, int lock_type)
 
   DBUG_EXECUTE_IF("external_lock_failure", error= HA_ERR_GENERIC;);
 
-  if (error == 0 || lock_type == F_UNLCK)
+  if (likely(error == 0 || lock_type == F_UNLCK))
   {
     m_lock_type= lock_type;
     cached_table_flags= table_flags();
@@ -6232,10 +6233,10 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
 int handler::update_first_row(uchar *new_data)
 {
   int error;
-  if (!(error= ha_rnd_init(1)))
+  if (likely(!(error= ha_rnd_init(1))))
   {
     int end_error;
-    if (!(error= ha_rnd_next(table->record[1])))
+    if (likely(!(error= ha_rnd_next(table->record[1]))))
     {
       /*
         We have to do the memcmp as otherwise we may get error 169 from InnoDB
@@ -6244,7 +6245,7 @@ int handler::update_first_row(uchar *new_data)
         error= update_row(table->record[1], new_data);
     }
     end_error= ha_rnd_end();
-    if (!error)
+    if (likely(!error))
       error= end_error;
     /* Logging would be wrong if update_row works but ha_rnd_end fails */
     DBUG_ASSERT(!end_error || error != 0);

@@ -139,7 +139,7 @@ fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
   table->file->get_parent_foreign_key_list(thd, &fk_list);
 
   /* Out of memory when building list. */
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
     return TRUE;
 
   it.init(fk_list);
@@ -240,7 +240,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
       DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
 
   error= table_ref->table->file->ha_truncate();
-  if (error)
+  if (unlikely(error))
   {
     table_ref->table->file->print_error(error, MYF(0));
     /*
@@ -447,7 +447,7 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
         query must be written to the binary log. The only exception is a
         unimplemented truncate method.
       */
-      if (error == TRUNCATE_OK || error == TRUNCATE_FAILED_BUT_BINLOG)
+      if (unlikely(error == TRUNCATE_OK || error == TRUNCATE_FAILED_BUT_BINLOG))
         binlog_stmt= true;
       else
         binlog_stmt= false;

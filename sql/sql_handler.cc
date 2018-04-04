@@ -345,7 +345,7 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
   error= (thd->open_temporary_tables(tables) ||
           open_tables(thd, &tables, &counter, 0));
 
-  if (error)
+  if (unlikely(error))
     goto err;
 
   table= tables->table;
@@ -371,7 +371,7 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     /* The ticket returned is within a savepoint. Make a copy.  */
     error= thd->mdl_context.clone_ticket(&table_list->mdl_request);
     table_list->table->mdl_ticket= table_list->mdl_request.ticket;
-    if (error)
+    if (unlikely(error))
       goto err;
   }
   }
@@ -426,8 +426,7 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
   thd->set_n_backup_active_arena(&sql_handler->arena, &backup_arena);
   error= table->fill_item_list(&sql_handler->fields);
   thd->restore_active_arena(&sql_handler->arena, &backup_arena);
-
-  if (error)
+  if (unlikely(error))
     goto err;
 
   /* Always read all columns */
@@ -838,7 +837,7 @@ retry:
       goto retry;
     }
 
-    if (lock_error)
+    if (unlikely(lock_error))
       goto err0; // mysql_lock_tables() printed error message already
   }
 
@@ -880,14 +879,14 @@ retry:
     case RFIRST:
       if (keyname)
       {
-        if (!(error= table->file->ha_index_or_rnd_end()) &&
-            !(error= table->file->ha_index_init(keyno, 1)))
+        if (likely(!(error= table->file->ha_index_or_rnd_end())) &&
+            likely(!(error= table->file->ha_index_init(keyno, 1))))
           error= table->file->ha_index_first(table->record[0]);
       }
       else
       {
-        if (!(error= table->file->ha_index_or_rnd_end()) &&
-	    !(error= table->file->ha_rnd_init(1)))
+        if (likely(!(error= table->file->ha_index_or_rnd_end())) &&
+	    likely(!(error= table->file->ha_rnd_init(1))))
           error= table->file->ha_rnd_next(table->record[0]);
       }
       mode= RNEXT;
@@ -906,8 +905,8 @@ retry:
       /* else fall through */
     case RLAST:
       DBUG_ASSERT(keyname != 0);
-      if (!(error= table->file->ha_index_or_rnd_end()) &&
-          !(error= table->file->ha_index_init(keyno, 1)))
+      if (likely(!(error= table->file->ha_index_or_rnd_end())) &&
+          likely(!(error= table->file->ha_index_init(keyno, 1))))
         error= table->file->ha_index_last(table->record[0]);
       mode=RPREV;
       break;
@@ -921,13 +920,13 @@ retry:
     {
       DBUG_ASSERT(keyname != 0);
 
-      if (!(key= (uchar*) thd->calloc(ALIGN_SIZE(handler->key_len))))
+      if (unlikely(!(key= (uchar*) thd->calloc(ALIGN_SIZE(handler->key_len)))))
 	goto err;
-      if ((error= table->file->ha_index_or_rnd_end()))
+      if (unlikely((error= table->file->ha_index_or_rnd_end())))
         break;
       key_copy(key, table->record[0], table->key_info + keyno,
                handler->key_len);
-      if (!(error= table->file->ha_index_init(keyno, 1)))
+      if (unlikely(!(error= table->file->ha_index_init(keyno, 1))))
         error= table->file->ha_index_read_map(table->record[0],
                                               key, handler->keypart_map,
                                               ha_rkey_mode);
@@ -940,7 +939,7 @@ retry:
       goto err;
     }
 
-    if (error)
+    if (unlikely(error))
     {
       if (error == HA_ERR_RECORD_DELETED)
         continue;

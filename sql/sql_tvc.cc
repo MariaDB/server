@@ -255,7 +255,7 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
     sl->item_list.push_back(new_holder);
   }
   
-  if (thd->is_fatal_error)
+  if (unlikely(thd->is_fatal_error))
     DBUG_RETURN(true); // out of memory
     
   result= tmp_result;

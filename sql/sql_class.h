@@ -1013,7 +1013,7 @@ public:
   inline void* calloc(size_t size)
   {
     void *ptr;
-    if ((ptr=alloc_root(mem_root,size)))
+    if (likely((ptr=alloc_root(mem_root,size))))
       bzero(ptr, size);
     return ptr;
   }
@@ -1026,7 +1026,7 @@ public:
   inline void *memdup_w_gap(const void *str, size_t size, size_t gap)
   {
     void *ptr;
-    if ((ptr= alloc_root(mem_root,size+gap)))
+    if (likely((ptr= alloc_root(mem_root,size+gap))))
       memcpy(ptr,str,size);
     return ptr;
   }
@@ -3069,7 +3069,7 @@ public:
   /* See also thd_killed() */
   inline bool check_killed()
   {
-    if (killed)
+    if (unlikely(killed))
       return TRUE;
     if (apc_target.have_apc_requests())
       apc_target.process_apc_requests(); 
@@ -3683,8 +3683,9 @@ public:
   {
     LEX_CSTRING *lex_str;
     char *tmp;
-    if (!(lex_str= (LEX_CSTRING *)alloc_root(mem_root, sizeof(LEX_CSTRING) +
-                                             length+1)))
+    if (unlikely(!(lex_str= (LEX_CSTRING *)alloc_root(mem_root,
+                                                      sizeof(LEX_CSTRING) +
+                                                      length+1))))
       return 0;
     tmp= (char*) (lex_str+1);
     lex_str->str= tmp;
@@ -3697,7 +3698,7 @@ public:
   // Allocate LEX_STRING for character set conversion
   bool alloc_lex_string(LEX_STRING *dst, size_t length)
   {
-    if ((dst->str= (char*) alloc(length)))
+    if (likely((dst->str= (char*) alloc(length))))
       return false;
     dst->length= 0;  // Safety
     return true;     // EOM
@@ -3965,7 +3966,7 @@ public:
           The worst things that can happen is that we get
           a suboptimal error message.
         */
-        if ((killed_err= (err_info*) alloc(sizeof(*killed_err))))
+        if (likely((killed_err= (err_info*) alloc(sizeof(*killed_err)))))
         {
           killed_err->no= killed_errno_arg;
           ::strmake((char*) killed_err->msg, killed_err_msg_arg,
@@ -6397,7 +6398,8 @@ public:
     char *tmp;
     /* format: [database + dot] + name + '\0' */
     dst->length= m_db.length + dot + m_name.length;
-    if (!(dst->str= tmp= (char*) alloc_root(mem_root, dst->length + 1)))
+    if (unlikely(!(dst->str= tmp= (char*) alloc_root(mem_root,
+                                                     dst->length + 1))))
       return true;
     sprintf(tmp, "%.*s%.*s%.*s",
             (int) m_db.length, (m_db.length ? m_db.str : ""),
@@ -6413,7 +6415,7 @@ public:
   {
     char *tmp;
     size_t length= package.length + 1 + routine.length + 1;
-    if (!(tmp= (char *) alloc_root(mem_root, length)))
+    if (unlikely(!(tmp= (char *) alloc_root(mem_root, length))))
       return true;
     m_name.length= my_snprintf(tmp, length, "%.*s.%.*s",
                                (int) package.length, package.str,
@@ -6427,9 +6429,9 @@ public:
                                  const LEX_CSTRING &package,
                                  const LEX_CSTRING &routine)
   {
-    if (make_package_routine_name(mem_root, package, routine))
+    if (unlikely(make_package_routine_name(mem_root, package, routine)))
       return true;
-    if (!(m_db.str= strmake_root(mem_root, db.str, db.length)))
+    if (unlikely(!(m_db.str= strmake_root(mem_root, db.str, db.length))))
       return true;
     m_db.length= db.length;
     return false;

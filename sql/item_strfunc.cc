@@ -4918,7 +4918,7 @@ longlong Item_dyncol_get::val_int()
     char *end= val.x.string.value.str + val.x.string.value.length, *org_end= end;
 
     num= my_strtoll10(val.x.string.value.str, &end, &error);
-    if (end != org_end || error > 0)
+    if (unlikely(end != org_end || error > 0))
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BAD_DATA,

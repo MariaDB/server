@@ -257,8 +257,8 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
 	break;
       case 'w':
 	tmp= (char*) val + 1;
-	if ((weekday= (int) my_strtoll10(val, &tmp, &error)) < 0 ||
-	    weekday >= 7)
+	if (unlikely((weekday= (int) my_strtoll10(val, &tmp, &error)) < 0 ||
+                     weekday >= 7))
 	  goto err;
         /* We should use the same 1 - 7 scale for %w as for %W */
         if (!weekday)
@@ -279,9 +279,10 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
         sunday_first_n_first_week_non_iso= (*ptr=='U' || *ptr== 'V');
         strict_week_number= (*ptr=='V' || *ptr=='v');
 	tmp= (char*) val + MY_MIN(val_len, 2);
-	if ((week_number= (int) my_strtoll10(val, &tmp, &error)) < 0 ||
-            (strict_week_number && !week_number) ||
-            week_number > 53)
+	if (unlikely((week_number=
+                      (int) my_strtoll10(val, &tmp, &error)) < 0 ||
+                     (strict_week_number && !week_number) ||
+                     week_number > 53))
           goto err;
 	val= tmp;
 	break;
@@ -331,7 +332,7 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
       default:
 	goto err;
       }
-      if (error)				// Error from my_strtoll10
+      if (unlikely(error))                  // Error from my_strtoll10
 	goto err;
     }
     else if (!my_isspace(cs, *ptr))

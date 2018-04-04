@@ -1791,13 +1791,14 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     TABLES we have to simply prohibit dropping of views.
   */
 
-  if (thd->locked_tables_mode)
+  if (unlikely(thd->locked_tables_mode))
   {
     my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
     DBUG_RETURN(TRUE);
   }
 
-  if (lock_table_names(thd, views, 0, thd->variables.lock_wait_timeout, 0))
+  if (unlikely(lock_table_names(thd, views, 0,
+                                thd->variables.lock_wait_timeout, 0)))
     DBUG_RETURN(TRUE);
 
   for (view= views; view; view= view->next_local)
@@ -1835,7 +1836,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
       }
       continue;
     }
-    if (mysql_file_delete(key_file_frm, path, MYF(MY_WME)))
+    if (unlikely(mysql_file_delete(key_file_frm, path, MYF(MY_WME))))
       error= TRUE;
 
     some_views_deleted= TRUE;
@@ -1850,12 +1851,12 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     sp_cache_invalidate();
   }
 
-  if (wrong_object_name)
+  if (unlikely(wrong_object_name))
   {
     my_error(ER_WRONG_OBJECT, MYF(0), wrong_object_db, wrong_object_name, 
              "VIEW");
   }
-  if (non_existant_views.length())
+  if (unlikely(non_existant_views.length()))
   {
     my_error(ER_UNKNOWN_VIEW, MYF(0), non_existant_views.c_ptr_safe());
   }
@@ -1866,11 +1867,12 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     /* if something goes wrong, bin-log with possible error code,
        otherwise bin-log with error code cleared.
      */
-    if (write_bin_log(thd, !something_wrong, thd->query(), thd->query_length()))
+    if (unlikely(write_bin_log(thd, !something_wrong, thd->query(),
+                               thd->query_length())))
       something_wrong= 1;
   }
 
-  if (something_wrong)
+  if (unlikely(something_wrong))
   {
     DBUG_RETURN(TRUE);
   }

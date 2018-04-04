@@ -115,7 +115,7 @@ static char* add_identifier(THD* thd, char *to_p, const char * end_p,
   res= strconvert(&my_charset_filename, conv_name, name_len,
                   system_charset_info,
                   conv_string, FN_REFLEN, &errors);
-  if (!res || errors)
+  if (unlikely(!res || errors))
   {
     DBUG_PRINT("error", ("strconvert of '%s' failed with %u (errors: %u)", conv_name, res, errors));
     conv_name= name;
@@ -128,7 +128,9 @@ static char* add_identifier(THD* thd, char *to_p, const char * end_p,
     conv_name_end= conv_string + res;
   }
 
-  quote = thd ? get_quote_char_for_identifier(thd, conv_name, res - 1) : '`';
+  quote= (likely(thd) ?
+          get_quote_char_for_identifier(thd, conv_name, res - 1) :
+          '`');
 
   if (quote != EOF && (end_p - to_p > 2))
   {
@@ -390,7 +392,7 @@ uint filename_to_tablename(const char *from, char *to, size_t to_length,
 
   res= strconvert(&my_charset_filename, from, FN_REFLEN,
                   system_charset_info,  to, to_length, &errors);
-  if (errors) // Old 5.0 name
+  if (unlikely(errors)) // Old 5.0 name
   {
     res= (strxnmov(to, to_length, MYSQL50_TABLE_NAME_PREFIX,  from, NullS) -
           to);
@@ -1160,7 +1162,8 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
         if (frm_action)
         {
           strxmov(to_path, ddl_log_entry->name, reg_ext, NullS);
-          if ((error= mysql_file_delete(key_file_frm, to_path, MYF(MY_WME))))
+          if (unlikely((error= mysql_file_delete(key_file_frm, to_path,
+                                                 MYF(MY_WME)))))
           {
             if (my_errno != ENOENT)
               break;
@@ -1172,7 +1175,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
         }
         else
         {
-          if ((error= file->ha_delete_table(ddl_log_entry->name)))
+          if (unlikely((error= file->ha_delete_table(ddl_log_entry->name))))
           {
             if (error != ENOENT && error != HA_ERR_NO_SUCH_TABLE)
               break;
@@ -1425,19 +1428,19 @@ bool write_ddl_log_entry(DDL_LOG_ENTRY *ddl_log_entry,
                                                     + (2*FN_REFLEN)],
              (char*) &global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS
                                                     + (3*FN_REFLEN)]));
-  if (write_ddl_log_file_entry((*active_entry)->entry_pos))
+  if (unlikely(write_ddl_log_file_entry((*active_entry)->entry_pos)))
   {
     error= TRUE;
     sql_print_error("Failed to write entry_no = %u",
                     (*active_entry)->entry_pos);
   }
-  if (write_header && !error)
+  if (write_header && likely(!error))
   {
     (void) sync_ddl_log_no_lock();
     if (write_ddl_log_header())
       error= TRUE;
   }
-  if (error)
+  if (unlikely(error))
     release_ddl_log_memory_entry(*active_entry);
   DBUG_RETURN(error);
 }
@@ -1868,8 +1871,10 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
                         lpt->create_info->tmp_table(), frm.str, frm.length);
     my_free(const_cast<uchar*>(frm.str));
 
-    if (error || lpt->table->file->ha_create_partitioning_metadata(shadow_path,
-                                       NULL, CHF_CREATE_FLAG))
+    if (unlikely(error) ||
+        unlikely(lpt->table->file->
+                 ha_create_partitioning_metadata(shadow_path,
+                                                 NULL, CHF_CREATE_FLAG)))
     {
       mysql_file_delete(key_file_frm, shadow_frm_name, MYF(0));
       error= 1;
@@ -2127,7 +2132,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
                                  false, drop_sequence, false, false);
   thd->pop_internal_handler();
 
-  if (error)
+  if (unlikely(error))
     DBUG_RETURN(TRUE);
   my_ok(thd);
   DBUG_RETURN(FALSE);
@@ -2524,26 +2529,26 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
           */
           (void) mysql_file_delete(key_file_frm, path, MYF(0));
         }
-        else if (mysql_file_delete(key_file_frm, path,
-                                              MYF(MY_WME)))
+        else if (unlikely(mysql_file_delete(key_file_frm, path,
+                                            MYF(MY_WME))))
         {
           frm_delete_error= my_errno;
           DBUG_ASSERT(frm_delete_error);
         }
       }
 
-      if (!error)
+      if (likely(!error))
       {
         int trigger_drop_error= 0;
 
-        if (!frm_delete_error)
+        if (likely(!frm_delete_error))
         {
           non_tmp_table_deleted= TRUE;
           trigger_drop_error=
             Table_triggers_list::drop_all_triggers(thd, &db, &table->table_name);
         }
 
-        if (trigger_drop_error ||
+        if (unlikely(trigger_drop_error) ||
             (frm_delete_error && frm_delete_error != ENOENT))
           error= 1;
         else if (frm_delete_error && if_exists)
@@ -4809,10 +4814,14 @@ int create_table_impl(THD *thd,
     create_info->data_file_name= create_info->index_file_name= 0;
   }
   else
-  if (error_if_data_home_dir(create_info->data_file_name,  "DATA DIRECTORY") ||
-      error_if_data_home_dir(create_info->index_file_name, "INDEX DIRECTORY")||
-      check_partition_dirs(thd->lex->part_info))
-    goto err;
+  {
+    if (unlikely(error_if_data_home_dir(create_info->data_file_name,
+                                        "DATA DIRECTORY")) ||
+        unlikely(error_if_data_home_dir(create_info->index_file_name,
+                                        "INDEX DIRECTORY")) ||
+        unlikely(check_partition_dirs(thd->lex->part_info)))
+      goto err;
+  }
 
   alias= const_cast<LEX_CSTRING*>(table_case_name(create_info, table_name));
 
@@ -5195,9 +5204,10 @@ err:
     thd->transaction.stmt.mark_created_temp_table();
 
   /* Write log if no error or if we already deleted a table */
-  if (!result || thd->log_current_statement)
+  if (likely(!result) || thd->log_current_statement)
   {
-    if (result && create_info->table_was_deleted && pos_in_locked_tables)
+    if (unlikely(result) && create_info->table_was_deleted &&
+        pos_in_locked_tables)
     {
       /*
         Possible locked table was dropped. We should remove meta data locks
@@ -5205,7 +5215,7 @@ err:
       */
       thd->locked_tables_list.unlock_locked_table(thd, mdl_ticket);
     }
-    else if (!result && create_info->tmp_table() && create_info->table)
+    else if (likely(!result) && create_info->tmp_table() && create_info->table)
     {
       /*
         Remember that tmp table creation was logged so that we know if
@@ -5213,8 +5223,8 @@ err:
       */
       create_info->table->s->table_creation_was_logged= 1;
     }
-    if (write_bin_log(thd, result ? FALSE : TRUE, thd->query(),
-                      thd->query_length(), is_trans))
+    if (unlikely(write_bin_log(thd, result ? FALSE : TRUE, thd->query(),
+                               thd->query_length(), is_trans)))
       result= 1;
   }
   DBUG_RETURN(result);
@@ -5439,9 +5449,9 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
       error= my_errno;
     (void) file->ha_create_partitioning_metadata(to, from, CHF_RENAME_FLAG);
   }
-  else if (!file || !(error=file->ha_rename_table(from_base, to_base)))
+  else if (!file || likely(!(error=file->ha_rename_table(from_base, to_base))))
   {
-    if (!(flags & NO_FRM_RENAME) && rename_file_ext(from,to,reg_ext))
+    if (!(flags & NO_FRM_RENAME) && unlikely(rename_file_ext(from,to,reg_ext)))
     {
       error=my_errno;
       if (file)
@@ -5454,10 +5464,14 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
     }
   }
   delete file;
-  if (error == HA_ERR_WRONG_COMMAND)
-    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "ALTER TABLE");
-  else if (error)
-    my_error(ER_ERROR_ON_RENAME, MYF(0), from, to, error);
+
+  if (unlikely(error))
+  {
+    if (error == HA_ERR_WRONG_COMMAND)
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "ALTER TABLE");
+    else
+      my_error(ER_ERROR_ON_RENAME, MYF(0), from, to, error);
+  }
   else if (!(flags & FN_IS_TMP))
     mysql_audit_rename_table(thd, old_db, old_name, new_db, new_name);
 
@@ -5859,7 +5873,7 @@ int mysql_discard_or_import_tablespace(THD *thd,
 
   THD_STAGE_INFO(thd, stage_end);
 
-  if (error)
+  if (unlikely(error))
     goto err;
 
   /*
@@ -5870,15 +5884,15 @@ int mysql_discard_or_import_tablespace(THD *thd,
 
   /* The ALTER TABLE is always in its own transaction */
   error= trans_commit_stmt(thd);
-  if (trans_commit_implicit(thd))
+  if (unlikely(trans_commit_implicit(thd)))
     error=1;
-  if (!error)
+  if (likely(!error))
     error= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
 
 err:
   thd->tablespace_op=FALSE;
 
-  if (error == 0)
+  if (likely(error == 0))
   {
     my_ok(thd);
     DBUG_RETURN(0);
@@ -6007,7 +6021,7 @@ drop_create_field:
           break;
         }
       }
-      if (*f_ptr == NULL)
+      if (unlikely(*f_ptr == NULL))
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_BAD_FIELD_ERROR,
@@ -6043,7 +6057,7 @@ drop_create_field:
                            acol->name, (*f_ptr)->field_name.str) == 0)
           break;
       }
-      if (*f_ptr == NULL)
+      if (unlikely(*f_ptr == NULL))
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_BAD_FIELD_ERROR,
@@ -7216,18 +7230,20 @@ bool alter_table_manage_keys(TABLE *table, int indexes_were_disabled,
     error= table->file->ha_disable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
   }
 
-  if (error == HA_ERR_WRONG_COMMAND)
+  if (unlikely(error))
   {
-    THD *thd= table->in_use;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                        ER_ILLEGAL_HA, ER_THD(thd, ER_ILLEGAL_HA),
-                        table->file->table_type(),
-                        table->s->db.str, table->s->table_name.str);
-    error= 0;
+    if (error == HA_ERR_WRONG_COMMAND)
+    {
+      THD *thd= table->in_use;
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_ILLEGAL_HA, ER_THD(thd, ER_ILLEGAL_HA),
+                          table->file->table_type(),
+                          table->s->db.str, table->s->table_name.str);
+      error= 0;
+    }
+    else
+      table->file->print_error(error, MYF(0));
   }
-  else if (error)
-    table->file->print_error(error, MYF(0));
-
   DBUG_RETURN(error);
 }
 
@@ -8007,7 +8023,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           break;
       }
 
-      if (find && !find->field)
+      if (likely(find && !find->field))
 	find_it.remove();
       else
       {
@@ -8078,7 +8094,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                               &find->field_name))
             break;
         }
-        if (!find)
+        if (unlikely(!find))
         {
           my_error(ER_BAD_FIELD_ERROR, MYF(0), def->after.str,
                    table->s->table_name.str);
@@ -8112,13 +8128,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       alter_it.remove();
     }
   }
-  if (alter_info->alter_list.elements)
+  if (unlikely(alter_info->alter_list.elements))
   {
     my_error(ER_BAD_FIELD_ERROR, MYF(0),
              alter_info->alter_list.head()->name, table->s->table_name.str);
     goto err;
   }
-  if (!new_create_list.elements)
+  if (unlikely(!new_create_list.elements))
   {
     my_message(ER_CANT_REMOVE_ALL_FIELDS,
                ER_THD(thd, ER_CANT_REMOVE_ALL_FIELDS),
@@ -8594,7 +8610,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
   table->file->get_parent_foreign_key_list(thd, &fk_parent_key_list);
 
   /* OOM when building list. */
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
     DBUG_RETURN(true);
 
   /*
@@ -8689,7 +8705,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
   table->file->get_foreign_key_list(thd, &fk_child_key_list);
 
   /* OOM when building list. */
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
     DBUG_RETURN(true);
 
   /*
@@ -8783,7 +8799,7 @@ simple_tmp_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                                    keys_onoff);
   }
 
-  if (!error && alter_ctx->is_table_renamed())
+  if (likely(!error) && alter_ctx->is_table_renamed())
   {
     THD_STAGE_INFO(thd, stage_rename);
 
@@ -8796,20 +8812,17 @@ simple_tmp_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                                        &alter_ctx->new_alias);
   }
 
-  if (!error)
+  if (likely(!error))
   {
-    int res= 0;
     /*
       We do not replicate alter table statement on temporary tables under
       ROW-based replication.
     */
     if (!thd->is_current_stmt_binlog_format_row())
     {
-      res= write_bin_log(thd, true, thd->query(), thd->query_length());
+      error= write_bin_log(thd, true, thd->query(), thd->query_length()) != 0;
     }
-    if (res != 0)
-      error= true;
-    else
+    if (likely(!error))
       my_ok(thd);
   }
 
@@ -8858,7 +8871,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                                    keys_onoff);
   }
 
-  if (!error && alter_ctx->is_table_renamed())
+  if (likely(!error) && alter_ctx->is_table_renamed())
   {
     THD_STAGE_INFO(thd, stage_rename);
     handlerton *old_db_type= table->s->db_type();
@@ -8898,11 +8911,11 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
     }
   }
 
-  if (!error)
+  if (likely(!error))
   {
     error= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
 
-    if (!error)
+    if (likely(!error))
       my_ok(thd);
   }
   table_list->table= NULL;                    // For query cache
@@ -8963,7 +8976,8 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
   based on information about the table changes from fill_alter_inplace_info().
 */
 
-bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *new_name,
+bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
+                       const LEX_CSTRING *new_name,
                        HA_CREATE_INFO *create_info,
                        TABLE_LIST *table_list,
                        Alter_info *alter_info,
@@ -9065,7 +9079,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
                   };);
 #endif // WITH_WSREP
 
-  if (error)
+  if (unlikely(error))
     DBUG_RETURN(true);
 
   table->use_all_columns();
@@ -9511,7 +9525,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db, const LEX_CSTRING *n
                            &key_info, &key_count, &frm);
   reenable_binlog(thd);
   thd->abort_on_warning= false;
-  if (error)
+  if (unlikely(error))
   {
     my_free(const_cast<uchar*>(frm.str));
     DBUG_RETURN(true);
@@ -10018,8 +10032,8 @@ err_new_table_cleanup:
     the table to be altered isn't empty.
     Report error here.
   */
-  if (alter_ctx.error_if_not_empty &&
-      thd->get_stmt_da()->current_row_for_warning())
+  if (unlikely(alter_ctx.error_if_not_empty &&
+               thd->get_stmt_da()->current_row_for_warning()))
   {
     const char *f_val= 0;
     enum enum_mysql_timestamp_type t_type= MYSQL_TIMESTAMP_DATE;
@@ -10285,15 +10299,15 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   if (!ignore) /* for now, InnoDB needs the undo log for ALTER IGNORE */
     to->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
 
-  while (!(error= info.read_record()))
+  while (likely(!(error= info.read_record())))
   {
-    if (thd->killed)
+    if (unlikely(thd->killed))
     {
       thd->send_kill_message();
       error= 1;
       break;
     }
-    if (++thd->progress.counter >= time_to_report_progress)
+    if (unlikely(++thd->progress.counter >= time_to_report_progress))
     {
       time_to_report_progress+= MY_HOW_OFTEN_TO_WRITE/10;
       thd_progress_report(thd, thd->progress.counter,
@@ -10301,7 +10315,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     }
 
     /* Return error if source table isn't empty. */
-    if (alter_ctx->error_if_not_empty)
+    if (unlikely(alter_ctx->error_if_not_empty))
     {
       error= 1;
       break;
@@ -10343,7 +10357,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     /* This will set thd->is_error() if fatal failure */
     if (to->verify_constraints(ignore) == VIEW_CHECK_SKIP)
       continue;
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
     {
       error= 1;
       break;
@@ -10353,7 +10367,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
     error= to->file->ha_write_row(to->record[0]);
     to->auto_increment_field_not_null= FALSE;
-    if (error)
+    if (unlikely(error))
     {
       if (to->file->is_fatal_error(error, HA_CHECK_DUP))
       {
@@ -10365,7 +10379,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       else
       {
         /* Duplicate key error. */
-        if (alter_ctx->fk_error_if_delete_row)
+        if (unlikely(alter_ctx->fk_error_if_delete_row))
         {
           /*
             We are trying to omit a row from the table which serves as parent
@@ -10421,7 +10435,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     /* We are going to drop the temporary table */
     to->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
   }
-  if (to->file->ha_end_bulk_insert() && error <= 0)
+  if (unlikely(to->file->ha_end_bulk_insert()) && error <= 0)
   {
     /* Give error, if not already given */
     if (!thd->is_error())
@@ -10432,7 +10446,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     to->file->extra(HA_EXTRA_END_ALTER_COPY);
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
-  if (mysql_trans_commit_alter_copy_data(thd))
+  if (unlikely(mysql_trans_commit_alter_copy_data(thd)))
     error= 1;
 
  err:
@@ -10447,10 +10461,10 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   *copied= found_count;
   *deleted=delete_count;
   to->file->ha_release_auto_increment();
-  if (to->file->ha_external_lock(thd,F_UNLCK))
-    error=1;
-  if (error < 0 && !from->s->tmp_table &&
-      to->file->extra(HA_EXTRA_PREPARE_FOR_RENAME))
+  if (unlikely(to->file->ha_external_lock(thd,F_UNLCK)))
+    error= 1;
+  if (likely(error < 0) &&  !from->s->tmp_table &&
+      unlikely(to->file->extra(HA_EXTRA_PREPARE_FOR_RENAME)))
     error= 1;
   thd_progress_end(thd);
   DBUG_RETURN(error > 0 ? -1 : 0);
