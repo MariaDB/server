@@ -1170,7 +1170,7 @@ int verify_ftnode_sub_block(struct sub_block *sb,
         fprintf(
             stderr,
             "%s:%d:verify_ftnode_sub_block - "
-            "file[%s], blocknum[%ld], stored_xsum[%u] != actual_xsum[%u]\n",
+            "file[%s], blocknum[%lld], stored_xsum[%u] != actual_xsum[%u]\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
@@ -1197,7 +1197,7 @@ static int deserialize_ftnode_info(struct sub_block *sb, FTNODE node) {
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_info - "
-            "file[%s], blocknum[%ld], verify_ftnode_sub_block failed with %d\n",
+            "file[%s], blocknum[%lld], verify_ftnode_sub_block failed with %d\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
@@ -1253,7 +1253,7 @@ static int deserialize_ftnode_info(struct sub_block *sb, FTNODE node) {
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_info - "
-            "file[%s], blocknum[%ld], data_size[%d] != rb.ndone[%d]\n",
+            "file[%s], blocknum[%lld], data_size[%d] != rb.ndone[%d]\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
@@ -1388,7 +1388,7 @@ static int deserialize_ftnode_partition(
     if (r != 0) {
         fprintf(stderr,
                 "%s:%d:deserialize_ftnode_partition - "
-                "file[%s], blocknum[%ld], "
+                "file[%s], blocknum[%lld], "
                 "verify_ftnode_sub_block failed with %d\n",
                 __FILE__,
                 __LINE__,
@@ -1410,7 +1410,7 @@ static int deserialize_ftnode_partition(
         if (ch != FTNODE_PARTITION_MSG_BUFFER) {
             fprintf(stderr,
                     "%s:%d:deserialize_ftnode_partition - "
-                    "file[%s], blocknum[%ld], ch[%d] != "
+                    "file[%s], blocknum[%lld], ch[%d] != "
                     "FTNODE_PARTITION_MSG_BUFFER[%d]\n",
                     __FILE__,
                     __LINE__,
@@ -1433,7 +1433,7 @@ static int deserialize_ftnode_partition(
         if (ch != FTNODE_PARTITION_DMT_LEAVES) {
             fprintf(stderr,
                     "%s:%d:deserialize_ftnode_partition - "
-                    "file[%s], blocknum[%ld], ch[%d] != "
+                    "file[%s], blocknum[%lld], ch[%d] != "
                     "FTNODE_PARTITION_DMT_LEAVES[%d]\n",
                     __FILE__,
                     __LINE__,
@@ -1457,7 +1457,7 @@ static int deserialize_ftnode_partition(
     if (rb.ndone != rb.size) {
         fprintf(stderr,
                 "%s:%d:deserialize_ftnode_partition - "
-                "file[%s], blocknum[%ld], rb.ndone[%d] != rb.size[%d]\n",
+                "file[%s], blocknum[%lld], rb.ndone[%d] != rb.size[%d]\n",
                 __FILE__,
                 __LINE__,
                 fname ? fname : "unknown",
@@ -1485,7 +1485,7 @@ static int decompress_and_deserialize_worker(struct rbuf curr_rbuf,
         const char *fname = toku_ftnode_get_cachefile_fname_in_env(node);
         fprintf(stderr,
                 "%s:%d:decompress_and_deserialize_worker - "
-                "file[%s], blocknum[%ld], read_and_decompress_sub_block failed "
+                "file[%s], blocknum[%lld], read_and_decompress_sub_block failed "
                 "with %d\n",
                 __FILE__,
                 __LINE__,
@@ -1502,7 +1502,7 @@ static int decompress_and_deserialize_worker(struct rbuf curr_rbuf,
         const char *fname = toku_ftnode_get_cachefile_fname_in_env(node);
         fprintf(stderr,
                 "%s:%d:decompress_and_deserialize_worker - "
-                "file[%s], blocknum[%ld], deserialize_ftnode_partition failed "
+                "file[%s], blocknum[%lld], deserialize_ftnode_partition failed "
                 "with %d\n",
                 __FILE__,
                 __LINE__,
@@ -1582,7 +1582,7 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-            "file[%s], blocknum[%ld], rb->size[%u] < 24\n",
+            "file[%s], blocknum[%lld], rb->size[%u] < 24\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
@@ -1602,7 +1602,7 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-            "file[%s], blocknum[%ld], unrecognized magic number "
+            "file[%s], blocknum[%lld], unrecognized magic number "
             "%2.2x %2.2x %2.2x %2.2x   %2.2x %2.2x %2.2x %2.2x\n",
             __FILE__,
             __LINE__,
@@ -1627,7 +1627,7 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-            "file[%s], blocknum[%ld], node->layout_version_read_from_disk[%d] "
+            "file[%s], blocknum[%lld], node->layout_version_read_from_disk[%d] "
             "< FT_FIRST_LAYOUT_VERSION_WITH_BASEMENT_NODES[%d]\n",
             __FILE__,
             __LINE__,
@@ -1667,7 +1667,7 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-            "file[%s], blocknum[%ld], needed_size[%d] > rb->size[%d]\n",
+            "file[%s], blocknum[%lld], needed_size[%d] > rb->size[%d]\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
@@ -1695,7 +1695,7 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-            "file[%s], blocknum[%ld], stored_checksum[%d] != checksum[%d]\n",
+            "file[%s], blocknum[%lld], stored_checksum[%d] != checksum[%d]\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
@@ -1717,7 +1717,7 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-            "file[%s], blocknum[%ld], rb->size[%d] - rb->ndone[%d] < "
+            "file[%s], blocknum[%lld], rb->size[%d] - rb->ndone[%d] < "
             "sb_node_info.compressed_size[%d] + 8\n",
             __FILE__,
             __LINE__,
@@ -1744,7 +1744,7 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-            "file[%s], blocknum[%ld], sb_node_info.xsum[%d] != actual_xsum[%d]\n",
+            "file[%s], blocknum[%lld], sb_node_info.xsum[%d] != actual_xsum[%d]\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
@@ -1774,7 +1774,7 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
             fprintf(
                 stderr,
                 "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-                "file[%s], blocknum[%ld], deserialize_ftnode_info failed with "
+                "file[%s], blocknum[%lld], deserialize_ftnode_info failed with "
                 "%d\n",
                 __FILE__,
                 __LINE__,
@@ -1812,7 +1812,7 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
             fprintf(
                 stderr,
                 "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-                "file[%s], blocknum[%ld], toku_ftnode_pf_callback failed with "
+                "file[%s], blocknum[%lld], toku_ftnode_pf_callback failed with "
                 "%d\n",
                 __FILE__,
                 __LINE__,
@@ -2164,7 +2164,7 @@ static int deserialize_and_upgrade_ftnode(FTNODE node,
         const char* fname = toku_cachefile_fname_in_env(bfe->ft->cf);
         fprintf(stderr,
                 "%s:%d:deserialize_and_upgrade_ftnode - "
-                "file[%s], blocknum[%ld], "
+                "file[%s], blocknum[%lld], "
                 "read_and_decompress_block_from_fd_into_rbuf failed with %d\n",
                 __FILE__,
                 __LINE__,
@@ -2190,7 +2190,7 @@ static int deserialize_and_upgrade_ftnode(FTNODE node,
         const char* fname = toku_cachefile_fname_in_env(bfe->ft->cf);
         fprintf(stderr,
                 "%s:%d:deserialize_and_upgrade_ftnode - "
-                "file[%s], blocknum[%ld], version[%d] > "
+                "file[%s], blocknum[%lld], version[%d] > "
                 "FT_LAYOUT_VERSION_14[%d]\n",
                 __FILE__,
                 __LINE__,
@@ -2278,7 +2278,7 @@ static int deserialize_ftnode_from_rbuf(FTNODE *ftnode,
         memcmp(magic, "tokunode", 8) != 0) {
         fprintf(stderr,
                 "%s:%d:deserialize_ftnode_from_rbuf - "
-                "file[%s], blocknum[%ld], unrecognized magic number "
+                "file[%s], blocknum[%lld], unrecognized magic number "
                 "%2.2x %2.2x %2.2x %2.2x   %2.2x %2.2x %2.2x %2.2x\n",
                 __FILE__,
                 __LINE__,
@@ -2309,7 +2309,7 @@ static int deserialize_ftnode_from_rbuf(FTNODE *ftnode,
         if (r != 0) {
             fprintf(stderr,
                     "%s:%d:deserialize_ftnode_from_rbuf - "
-                    "file[%s], blocknum[%ld], deserialize_and_upgrade_ftnode "
+                    "file[%s], blocknum[%lld], deserialize_and_upgrade_ftnode "
                     "failed with %d\n",
                     __FILE__,
                     __LINE__,
@@ -2355,7 +2355,7 @@ static int deserialize_ftnode_from_rbuf(FTNODE *ftnode,
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_from_rbuf - "
-            "file[%s], blocknum[%ld], stored_checksum[%d] != checksum[%d]\n",
+            "file[%s], blocknum[%lld], stored_checksum[%d] != checksum[%d]\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
@@ -2377,7 +2377,7 @@ static int deserialize_ftnode_from_rbuf(FTNODE *ftnode,
             fprintf(
                 stderr,
                 "%s:%d:deserialize_ftnode_from_rbuf - "
-                "file[%s], blocknum[%ld], read_and_decompress_sub_block failed "
+                "file[%s], blocknum[%lld], read_and_decompress_sub_block failed "
                 "with %d\n",
                 __FILE__,
                 __LINE__,
@@ -2398,7 +2398,7 @@ static int deserialize_ftnode_from_rbuf(FTNODE *ftnode,
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_from_rbuf - "
-            "file[%s], blocknum[%ld], deserialize_ftnode_info failed with "
+            "file[%s], blocknum[%lld], deserialize_ftnode_info failed with "
             "%d\n",
             __FILE__,
             __LINE__,
@@ -2470,7 +2470,7 @@ static int deserialize_ftnode_from_rbuf(FTNODE *ftnode,
                     fprintf(
                         stderr,
                         "%s:%d:deserialize_ftnode_from_rbuf - "
-                        "file[%s], blocknum[%ld], childnum[%d], "
+                        "file[%s], blocknum[%lld], childnum[%d], "
                         "decompress_and_deserialize_worker failed with %d\n",
                         __FILE__,
                         __LINE__,
@@ -2490,7 +2490,7 @@ static int deserialize_ftnode_from_rbuf(FTNODE *ftnode,
                 fprintf(
                     stderr,
                     "%s:%d:deserialize_ftnode_from_rbuf - "
-                    "file[%s], blocknum[%ld], childnum[%d], "
+                    "file[%s], blocknum[%lld], childnum[%d], "
                     "check_and_copy_compressed_sub_block_worker failed with "
                     "%d\n",
                     __FILE__,
@@ -2641,7 +2641,7 @@ int toku_deserialize_bp_from_compressed(FTNODE node,
         const char* fname = toku_cachefile_fname_in_env(bfe->ft->cf);
         fprintf(stderr,
                 "%s:%d:toku_deserialize_bp_from_compressed - "
-                "file[%s], blocknum[%ld], "
+                "file[%s], blocknum[%lld], "
                 "deserialize_ftnode_partition failed with %d\n",
                 __FILE__,
                 __LINE__,
@@ -2689,7 +2689,7 @@ static int deserialize_ftnode_from_fd(int fd,
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_from_fd - "
-            "file[%s], blocknum[%ld], deserialize_ftnode_from_rbuf failed with "
+            "file[%s], blocknum[%lld], deserialize_ftnode_from_rbuf failed with "
             "%d\n",
             __FILE__,
             __LINE__,
