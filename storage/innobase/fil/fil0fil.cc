@@ -4156,7 +4156,8 @@ void fsp_flags_try_adjust(fil_space_t* space, ulint flags)
 {
 	ut_ad(!srv_read_only_mode);
 	ut_ad(fsp_flags_is_valid(flags, space->id));
-	if (!space->size) {
+	if (!space->size && (space->purpose != FIL_TYPE_TABLESPACE
+			     || !fil_space_get_size(space->id))) {
 		return;
 	}
 	/* This code is executed during server startup while no
