@@ -2133,6 +2133,8 @@ public:
   Item_func_uuid_short() :Item_int_func() {}
   const char *func_name() const { return "uuid_short"; }
   longlong val_int();
+  bool const_item() const { return false; }
+  table_map used_tables() const { return RAND_TABLE_BIT; }
   void fix_length_and_dec()
   { max_length= 21; unsigned_flag=1; }
   bool check_vcol_func_processor(uchar *int_arg) 
