@@ -725,7 +725,7 @@ int ha_spider::close()
     }
   }
 
-  if (!thd || !*thd_ha_data(thd, spider_hton_ptr))
+  if (!thd || !thd_get_ha_data(thd, spider_hton_ptr))
   {
     for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
       conns[roop_count] = NULL;
