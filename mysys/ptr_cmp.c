@@ -27,14 +27,18 @@
  * written in assembler. for example one in /usr/lib/libc/libc_hwcap*.so.1.
  * on Solaris, or on Windows inside C runtime linrary.
  *
- * On Solaris, native implementation is also usually faster than the 
- * built-in memcmp supplied by GCC, so it is recommended to build 
+ * On Solaris, native implementation is also usually faster than the
+ * built-in memcmp supplied by GCC, so it is recommended to build
  * with "-fno-builtin-memcmp"in CFLAGS if building with GCC on Solaris.
  */
 
-#if defined (__sun) || defined (_WIN32)
+/*
+  Daniel Blacks tests shows that libc memcmp is generally faster than
+  ptr_cmp() at least of x86 and power8 platforms, so we use the libc
+  code as deafult for now
+*/
+
 #define USE_NATIVE_MEMCMP 1
-#endif
 
 #ifdef USE_NATIVE_MEMCMP
 
@@ -45,23 +49,19 @@ static int native_compare(size_t *length, unsigned char **a, unsigned char **b)
   return memcmp(*a, *b, *length);
 }
 
-#else	/* USE_NATIVE_MEMCMP */
+qsort2_cmp get_ptr_compare (size_t size __attribute__((unused)))
+{
+  return (qsort2_cmp) native_compare;
+}
+
+#else /* USE_NATIVE_MEMCMP */
 
 static int ptr_compare(size_t *compare_length, uchar **a, uchar **b);
 static int ptr_compare_0(size_t *compare_length, uchar **a, uchar **b);
 static int ptr_compare_1(size_t *compare_length, uchar **a, uchar **b);
 static int ptr_compare_2(size_t *compare_length, uchar **a, uchar **b);
 static int ptr_compare_3(size_t *compare_length, uchar **a, uchar **b);
-#endif	/* __sun */
 
-	/* Get a pointer to a optimal byte-compare function for a given size */
-
-#ifdef USE_NATIVE_MEMCMP
-qsort2_cmp get_ptr_compare (size_t size __attribute__((unused)))
-{
-  return (qsort2_cmp) native_compare;
-}
-#else
 qsort2_cmp get_ptr_compare (size_t size)
 {
   if (size < 4)
@@ -74,17 +74,12 @@ qsort2_cmp get_ptr_compare (size_t size)
     }
   return 0;					/* Impossible */
 }
-#endif /* USE_NATIVE_MEMCMP */
-
-
 	/*
 	  Compare to keys to see witch is smaller.
 	  Loop unrolled to make it quick !!
 	*/
 
 #define cmp(N) if (first[N] != last[N]) return (int) first[N] - (int) last[N]
-
-#ifndef USE_NATIVE_MEMCMP
 
 static int ptr_compare(size_t *compare_length, uchar **a, uchar **b)
 {
@@ -189,7 +184,7 @@ static int ptr_compare_3(size_t *compare_length,uchar **a, uchar **b)
   return (0);
 }
 
-#endif /* !__sun */
+#endif /* USE_NATIVE_MEMCMP */
 
 void my_store_ptr(uchar *buff, size_t pack_length, my_off_t pos)
 {
@@ -227,4 +222,3 @@ my_off_t my_get_ptr(uchar *ptr, size_t pack_length)
   }
  return pos;
 }
-
