@@ -237,9 +237,12 @@ int ha_sequence::write_row(uchar *buf)
     THD *thd= table->in_use;
     if (thd->lock->table_count != 1)
       DBUG_RETURN(ER_WRONG_INSERT_INTO_SEQUENCE);
-    if (thd->mdl_context.upgrade_shared_lock(table->mdl_ticket, MDL_EXCLUSIVE,
-                                             thd->variables.lock_wait_timeout))
-      DBUG_RETURN(ER_LOCK_WAIT_TIMEOUT);
+    if (table->s->tmp_table == NO_TMP_TABLE &&
+        thd->mdl_context.upgrade_shared_lock(table->mdl_ticket,
+                                             MDL_EXCLUSIVE,
+                                             thd->variables.
+                                             lock_wait_timeout))
+        DBUG_RETURN(ER_LOCK_WAIT_TIMEOUT);
 
     tmp_seq.read_fields(table);
     if (tmp_seq.check_and_adjust(0))
