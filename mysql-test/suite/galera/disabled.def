@@ -25,7 +25,6 @@ galera_gcache_recover_full_gcache : MDEV-13549 Galera test failures
 galera_gcache_recover_manytrx : MDEV-13549 Galera test failures
 galera_ist_mysqldump : MDEV-13549 Galera test failures
 galera_ssl_upgrade : MDEV-13549 Galera test failures
-mysql-wsrep#33 : MDEV-13549 Galera test failures
 galera_var_auto_inc_control_on : MDEV-13549 Galera test failures
 MW-44 : MDEV-13549 Galera test failures
 galera_var_retry_autocommit : MDEV-13549 Galera test failures
