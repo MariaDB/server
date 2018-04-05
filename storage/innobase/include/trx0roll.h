@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -105,11 +105,8 @@ trx_undo_rec_release(
 /*=================*/
 	trx_t*		trx,	/*!< in/out: transaction */
 	undo_no_t	undo_no);/*!< in: undo number */
-/** Report progress when rolling back a row of a recovered transaction.
-@return	whether the rollback should be aborted due to pending shutdown */
-UNIV_INTERN
-bool
-trx_roll_must_shutdown();
+/** Report progress when rolling back a row of a recovered transaction. */
+UNIV_INTERN void trx_roll_report_progress();
 /*******************************************************************//**
 Rollback or clean up any incomplete transactions which were
 encountered in crash recovery.  If the transaction already was
