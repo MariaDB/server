@@ -2689,3 +2689,19 @@ select * from t2;
 select * from t3;
 desc t3;
 drop database d;
+
+#Bug fix for https://jira.mariadb.org/browse/MDEV-15021
+#Fixing the order in which routines are called. Call before dump_table
+CREATE FUNCTION f() RETURNS INT RETURN 1;
+CREATE VIEW v1 AS SELECT f();
+ 
+--exec $MYSQL_DUMP -uroot test --routines --tables v1 > $MYSQLTEST_VARDIR/test.dmp
+ 
+DROP VIEW v1;
+DROP FUNCTION f;
+ 
+--exec $MYSQL -uroot test < $MYSQLTEST_VARDIR/test.dmp
+ 
+# Cleanup
+DROP VIEW v1;
+DROP FUNCTION f;
