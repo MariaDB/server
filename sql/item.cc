@@ -3077,12 +3077,9 @@ Item_field::Item_field(THD *thd, Field *f)
    have_privileges(0), any_privileges(0)
 {
   set_field(f);
-  /*
-    field_name and table_name should not point to garbage
-    if this item is to be reused
-  */
-  orig_table_name= "";
-  orig_field_name= null_clex_str;
+
+  orig_table_name= table_name;
+  orig_field_name= field_name;
   with_field= 1;
 }
 
