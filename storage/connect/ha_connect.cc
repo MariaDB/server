@@ -433,7 +433,7 @@ handlerton *connect_hton= NULL;
 uint GetTraceValue(void)
 	{return (uint)(connect_hton ? THDVAR(current_thd, xtrace) : 0);}
 bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
-bool CondPushEnabled(void) {return THDVAR(current_thd, cond_push);}
+static bool CondPushEnabled(void) {return THDVAR(current_thd, cond_push);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
 int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
 TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
