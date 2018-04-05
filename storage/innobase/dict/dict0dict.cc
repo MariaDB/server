@@ -4401,8 +4401,10 @@ dict_foreign_push_index_error(
 		const char*	col_name;
 		field = dict_index_get_nth_field(err_index, err_col);
 
-		col_name = dict_table_get_col_name(
-			table, dict_col_get_no(field->col));
+		col_name = dict_col_is_virtual(field->col)
+			? "(null)"
+			: dict_table_get_col_name(
+				table, dict_col_get_no(field->col));
 		fprintf(ef,
 			"%s table %s with foreign key constraint"
 			" failed. Field type or character set for column '%s' "
@@ -6982,10 +6984,6 @@ dict_foreign_qualify_index(
 			return(false);
 		}
 
-		col_name = col_names
-			? col_names[col_no]
-			: dict_table_get_col_name(table, col_no);
-
 		if (dict_col_is_virtual(field->col)) {
 			for (ulint j = 0; j < table->n_v_def; j++) {
 				col_name = dict_table_get_v_col_name(table, j);
@@ -6993,6 +6991,10 @@ dict_foreign_qualify_index(
 					break;
 				}
 			}
+		} else {
+			col_name = col_names
+				? col_names[col_no]
+				: dict_table_get_col_name(table, col_no);
 		}
 
 		if (0 != innobase_strcasecmp(columns[i], col_name)) {
