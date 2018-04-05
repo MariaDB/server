@@ -14,18 +14,16 @@ galera_flush :  MariaDB does not have global.thread_statistics
 galera_account_management : MariaDB 10.0 does not support ALTER USER
 galera_binlog_rows_query_log_events: MariaDB does not support binlog_rows_query_log_events
 galera_migrate : MariaDB does not support START SLAVE USER
-GAL-419 : MDEV-13549 Galera test failures
-galera_var_notify_cmd : MDEV-13549 Galera test failures
 galera_as_master_gtid : Requires MySQL GTID
 galera_as_master_gtid_change_master : Requires MySQL GTID
-galera_as_slave_replication_bundle : MDEV-13549 Galera test failures
 galera_as_slave_preordered : wsrep-preordered feature not merged to MariaDB
-galera_gcs_fragment : MDEV-13549 Galera test failures
+GAL-419 : MDEV-13549 Galera test failures
+galera_var_notify_cmd : MDEV-13549 Galera test failures
+galera_as_slave_replication_bundle : MDEV-13549 Galera test failures
 galera_gcache_recover : MDEV-13549 Galera test failures
 galera_gcache_recover_full_gcache : MDEV-13549 Galera test failures
 galera_gcache_recover_manytrx : MDEV-13549 Galera test failures
 galera_ist_mysqldump : MDEV-13549 Galera test failures
-mysql-wsrep#31 :  MDEV-13549 Galera test failures
 galera_wsrep_desync_wsrep_on : MDEV-13549 Galera test failures
 galera_ssl_upgrade : MDEV-13549 Galera test failures
 mysql-wsrep#33 : MDEV-13549 Galera test failures
