@@ -1776,11 +1776,11 @@ bool Item_sp_variable::is_null()
   return this_item()->is_null();
 }
 
-void Item_sp_variable::make_field(THD *thd, Send_field *field)
+void Item_sp_variable::make_send_field(THD *thd, Send_field *field)
 {
   Item *it= this_item();
 
-  it->make_field(thd, field);
+  it->make_send_field(thd, field);
   if (name.str)
     field->col_name= name;
   else
@@ -3057,7 +3057,7 @@ Item* Item_ref::build_clone(THD *thd)
 }
 
 
-void Item_ident_for_show::make_field(THD *thd, Send_field *tmp_field)
+void Item_ident_for_show::make_send_field(THD *thd, Send_field *tmp_field)
 {
   tmp_field->table_name= tmp_field->org_table_name= table_name;
   tmp_field->db_name= db_name;
@@ -5033,9 +5033,9 @@ Item_param::get_out_param_info() const
   @param field container for meta-data to be filled
 */
 
-void Item_param::make_field(THD *thd, Send_field *field)
+void Item_param::make_send_field(THD *thd, Send_field *field)
 {
-  Item::make_field(thd, field);
+  Item::make_send_field(thd, field);
 
   if (!m_out_param_info)
     return;
@@ -6613,8 +6613,8 @@ Item *Item_field::replace_equal_field(THD *thd, uchar *arg)
 }
 
 
-void Item::init_make_field(Send_field *tmp_field,
-			   enum enum_field_types field_type_arg)
+void Item::init_make_send_field(Send_field *tmp_field,
+                                enum enum_field_types field_type_arg)
 {
   tmp_field->db_name=		"";
   tmp_field->org_table_name=	"";
@@ -6631,15 +6631,15 @@ void Item::init_make_field(Send_field *tmp_field,
     tmp_field->flags |= UNSIGNED_FLAG;
 }
 
-void Item::make_field(THD *thd, Send_field *tmp_field)
+void Item::make_send_field(THD *thd, Send_field *tmp_field)
 {
-  init_make_field(tmp_field, field_type());
+  init_make_send_field(tmp_field, field_type());
 }
 
 
-void Item_empty_string::make_field(THD *thd, Send_field *tmp_field)
+void Item_empty_string::make_send_field(THD *thd, Send_field *tmp_field)
 {
-  init_make_field(tmp_field, string_type_handler()->field_type());
+  init_make_send_field(tmp_field, string_type_handler()->field_type());
 }
 
 
@@ -6774,9 +6774,9 @@ bool Item::eq_by_collation(Item *item, bool binary_cmp, CHARSET_INFO *cs)
 
 
 /* ARGSUSED */
-void Item_field::make_field(THD *thd, Send_field *tmp_field)
+void Item_field::make_send_field(THD *thd, Send_field *tmp_field)
 {
-  field->make_field(tmp_field);
+  field->make_send_field(tmp_field);
   DBUG_ASSERT(tmp_field->table_name != 0);
   if (name.str)
   {
@@ -8510,9 +8510,9 @@ void Item_ref::save_org_in_field(Field *field, fast_field_copier optimizer_data)
 }
 
 
-void Item_ref::make_field(THD *thd, Send_field *field)
+void Item_ref::make_send_field(THD *thd, Send_field *field)
 {
-  (*ref)->make_field(thd, field);
+  (*ref)->make_send_field(thd, field);
   /* Non-zero in case of a view */
   if (name.str)
     field->col_name= name;

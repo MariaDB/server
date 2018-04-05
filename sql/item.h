@@ -780,9 +780,9 @@ public:
   void set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs);
   void set_name_no_truncate(THD *thd, const char *str, uint length,
                             CHARSET_INFO *cs);
-  void init_make_field(Send_field *tmp_field,enum enum_field_types type);
+  void init_make_send_field(Send_field *tmp_field,enum enum_field_types type);
   virtual void cleanup();
-  virtual void make_field(THD *thd, Send_field *field);
+  virtual void make_send_field(THD *thd, Send_field *field);
   virtual bool fix_fields(THD *, Item **);
   /*
     Fix after some tables has been pulled out. Basically re-calculate all
@@ -2399,7 +2399,7 @@ public:
   bool is_null();
 
 public:
-  void make_field(THD *thd, Send_field *field);
+  void make_send_field(THD *thd, Send_field *field);
   
   inline bool const_item() const;
   
@@ -2833,7 +2833,7 @@ public:
   {
     return field->get_date(ltime, fuzzydate);
   }
-  void make_field(THD *thd, Send_field *tmp_field);
+  void make_send_field(THD *thd, Send_field *tmp_field);
   const Type_handler *type_handler() const
   {
     const Type_handler *handler= field->type_handler();
@@ -2919,7 +2919,7 @@ public:
   void reset_field(Field *f);
   bool fix_fields(THD *, Item **);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
-  void make_field(THD *thd, Send_field *tmp_field);
+  void make_send_field(THD *thd, Send_field *tmp_field);
   int save_in_field(Field *field,bool no_conversions);
   void save_org_in_field(Field *field, fast_field_copier optimizer_data);
   fast_field_copier setup_fast_field_copier(Field *field);
@@ -3580,7 +3580,7 @@ public:
 
   Item_param *get_item_param() { return this; }
 
-  virtual void make_field(THD *thd, Send_field *field);
+  virtual void make_send_field(THD *thd, Send_field *field);
 
 private:
   Send_field *m_out_param_info;
@@ -4130,7 +4130,7 @@ public:
       name.length= strlen(name.str);
       max_length= length * collation.collation->mbmaxlen;
     }
-  void make_field(THD *thd, Send_field *field);
+  void make_send_field(THD *thd, Send_field *field);
 };
 
 
@@ -4732,7 +4732,7 @@ public:
   bool val_bool_result();
   bool is_null_result();
   bool send(Protocol *prot, st_value *buffer);
-  void make_field(THD *thd, Send_field *field);
+  void make_send_field(THD *thd, Send_field *field);
   bool fix_fields(THD *, Item **);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   int save_in_field(Field *field, bool no_conversions);
@@ -5047,8 +5047,8 @@ public:
 
   virtual void print(String *str, enum_query_type query_type);
   virtual const char *full_name() const { return orig_item->full_name(); }
-  virtual void make_field(THD *thd, Send_field *field)
-  { orig_item->make_field(thd, field); }
+  virtual void make_send_field(THD *thd, Send_field *field)
+  { orig_item->make_send_field(thd, field); }
   bool eq(const Item *item, bool binary_cmp) const
   {
     Item *it= ((Item *) item)->real_item();
@@ -5490,7 +5490,8 @@ public:
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
 
-  void make_field(THD *thd, Send_field *field) { item->make_field(thd, field); }
+  void make_send_field(THD *thd, Send_field *field)
+  { item->make_send_field(thd, field); }
   table_map used_tables() const { return (table_map) 1L; }
   bool const_item() const { return 0; }
   bool is_null() { return null_value; }
@@ -6324,9 +6325,9 @@ public:
   bool setup(THD *thd, Item *item);
   void store(Item *item);
   void illegal_method_call(const char *);
-  void make_field(THD *thd, Send_field *)
+  void make_send_field(THD *thd, Send_field *)
   {
-    illegal_method_call((const char*)"make_field");
+    illegal_method_call((const char*)"make_send_field");
   };
   double val_real()
   {

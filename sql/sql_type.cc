@@ -293,7 +293,7 @@ bool Type_std_attributes::count_string_length(const char *func_name,
   This method is used by:
   - Item_user_var_as_out_param::field_type()
   - Item_func_udf_str::field_type()
-  - Item_empty_string::make_field()
+  - Item_empty_string::make_send_field()
 
   TODO: type_handler_adjusted_to_max_octet_length() and string_type_handler()
   provide very similar functionality, to properly choose between

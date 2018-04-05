@@ -281,7 +281,7 @@ int Materialized_cursor::send_result_set_metadata(
   {
     Send_field send_field;
     Item_ident *ident= static_cast<Item_ident *>(item_dst);
-    item_org->make_field(thd, &send_field);
+    item_org->make_send_field(thd, &send_field);
 
     ident->db_name=    thd->strdup(send_field.db_name);
     ident->table_name= thd->strdup(send_field.table_name);

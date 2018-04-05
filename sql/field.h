@@ -1219,7 +1219,7 @@ public:
   }
 
   void make_sort_key(uchar *buff, uint length);
-  virtual void make_field(Send_field *);
+  virtual void make_send_field(Send_field *);
   virtual void sort_string(uchar *buff,uint length)=0;
   virtual bool optimize_range(uint idx, uint part) const;
   virtual void free() {}
@@ -1659,7 +1659,7 @@ public:
   }
   void add_zerofill_and_unsigned(String &res) const;
   friend class Create_field;
-  void make_field(Send_field *);
+  void make_send_field(Send_field *);
   uint decimals() const { return (uint) dec; }
   uint size_of() const { return sizeof(*this); }
   bool eq_def(const Field *field) const;
@@ -2571,7 +2571,7 @@ public:
   const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end,
                       uint param_data)
   { return Field::unpack(to, from, from_end, param_data); }
-  void make_field(Send_field *field);
+  void make_send_field(Send_field *field);
   void sort_string(uchar *to, uint length)
   {
     DBUG_ASSERT(length == pack_length());
@@ -2855,7 +2855,7 @@ public:
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
   longlong val_int(void);
   double val_real(void);
-  void make_field(Send_field *);
+  void make_send_field(Send_field *);
 };
 
 
@@ -3006,7 +3006,7 @@ public:
   }
   uint decimals() const { return dec; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
-  void make_field(Send_field *field);
+  void make_send_field(Send_field *field);
   bool send_binary(Protocol *protocol);
   uchar *pack(uchar *to, const uchar *from, uint max_length)
   { return Field::pack(to, from, max_length); }

@@ -821,7 +821,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
     char *pos;
     CHARSET_INFO *cs= system_charset_info;
     Send_field field;
-    item->make_field(thd, &field);
+    item->make_send_field(thd, &field);
 
     /* limit number of decimals for float and double */
     if (field.type == MYSQL_TYPE_FLOAT || field.type == MYSQL_TYPE_DOUBLE)
