@@ -30,10 +30,10 @@ insert into emp (emp_id, name, salary, dept_id, mgr) values
 (20, "john", 500, 10, 1),
 (30, "jane", 750, 10,1 );
 
-select max(sys_trx_start) into @ts_1 from emp;
+select row_start into @ts_1 from emp where name="jane";
 
 update emp set mgr=30 where name ="john";
-select sys_trx_start into @ts_2 from emp where name="john";
+select row_start into @ts_2 from emp where name="john";
 
 /* All report to 'Bill' */
 with recursive
@@ -51,6 +51,22 @@ as
 )
 select * from ancestors;
 
+with recursive
+ancestors
+as
+(
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e
+  where name = 'bill'
+  union
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e,
+       ancestors as a
+  where e.mgr = a.emp_id
+)
+select * from ancestors
+for system_time as of timestamp @ts_1;
+
 /* Expected 3 rows */
 with recursive
 ancestors
@@ -66,6 +82,42 @@ as
   where e.mgr = a.emp_id
 )
 select * from ancestors;
+
+let $q=
+with recursive
+ancestors
+as
+(
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e
+  where name = 'bill'
+  union
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e,
+       ancestors as a
+  where e.mgr = a.emp_id
+)
+select * from ancestors
+for system_time as of timestamp @ts_2;
+eval $q;
+eval explain extended $q;
+
+--echo # Multiple instances with SYSTEM_TIME are prohibited
+--error ER_VERS_MULTIPLE_CTE
+with cte as (select name from emp)
+select 0, 'x', 'y' union
+select 1, d.name, ctex.name from dept d, cte for system_time as of @ts_1 as ctex union
+select 2, name, 'z' from cte for system_time as of @ts_1 as ctey;
+
+--echo # SYSTEM_TIME to internal recursive instance is prohibited
+--error ER_VERS_NOT_VERSIONED
+with recursive cte as
+(
+  select * from emp
+  union all
+  select * from cte for system_time as of @ts_1
+)
+select * from cte;
 
 create or replace table emp ( emp_id int, name varchar(127), mgr int) with system versioning;
 create or replace table addr ( emp_id int, address varchar(100)) with system versioning;
