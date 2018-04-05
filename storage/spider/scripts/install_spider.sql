@@ -132,7 +132,9 @@ drop procedure if exists mysql.spider_fix_one_table;
 drop procedure if exists mysql.spider_fix_system_tables;
 delimiter //
 create procedure mysql.spider_fix_one_table
-  (tab_name char(255), test_col_name char(255), _sql text)
+  (tab_name char(255) charset utf8 collate utf8_bin,
+   test_col_name char(255) charset utf8 collate utf8_bin,
+   _sql text charset utf8 collate utf8_bin)
 begin
   set @col_exists := 0;
   select 1 into @col_exists from INFORMATION_SCHEMA.COLUMNS
