@@ -16,7 +16,6 @@ galera_binlog_rows_query_log_events: MariaDB does not support binlog_rows_query_
 GAL-419 : MDEV-13549 Galera test failures
 galera_toi_ddl_fk_insert : MDEV-13549 Galera test failures
 galera_var_notify_cmd : MDEV-13549 Galera test failures
-mysql-wsrep#90 : MDEV-13549 Galera test failures
 galera_as_master_gtid : Requires MySQL GTID
 galera_as_master_gtid_change_master : Requires MySQL GTID
 galera_as_slave_replication_bundle : MDEV-13549 Galera test failures
