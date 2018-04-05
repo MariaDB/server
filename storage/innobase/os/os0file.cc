@@ -107,8 +107,9 @@ static ulint	os_innodb_umask = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 #else
 /** Umask for creating files */
 static ulint	os_innodb_umask	= 0;
-static HANDLE	completion_port;
-static HANDLE	read_completion_port;
+static HANDLE	data_completion_port;
+static HANDLE	log_completion_port;
+
 static DWORD	fls_sync_io  = FLS_OUT_OF_INDEXES;
 #define IOCP_SHUTDOWN_KEY (ULONG_PTR)-1
 #endif /* _WIN32 */
@@ -443,11 +444,17 @@ public:
 #endif /* LINUX_NATIVE_AIO */
 
 #ifdef WIN_ASYNC_IO
-	
+	HANDLE m_completion_port;
 	/** Wake up all AIO threads in Windows native aio */
 	static void wake_at_shutdown() {
-		PostQueuedCompletionStatus(completion_port, 0, IOCP_SHUTDOWN_KEY, NULL);
-		PostQueuedCompletionStatus(read_completion_port, 0, IOCP_SHUTDOWN_KEY, NULL);
+		AIO *all_arrays[] = {s_reads, s_writes, s_log, s_ibuf };
+		for (size_t i = 0; i < array_elements(all_arrays); i++) {
+			AIO *a = all_arrays[i];
+			if (a) {
+				PostQueuedCompletionStatus(a->m_completion_port, 0,
+					IOCP_SHUTDOWN_KEY, 0);
+			}
+		}
 	}
 #endif /* WIN_ASYNC_IO */
 
@@ -3520,15 +3527,11 @@ SyncFileIO::execute(Slot* slot)
 struct WinIoInit
 {
 	WinIoInit() {
-		completion_port = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
-		read_completion_port = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);	ut_a(completion_port && read_completion_port);
 		fls_sync_io = FlsAlloc(win_free_syncio_event);
 		ut_a(fls_sync_io != FLS_OUT_OF_INDEXES);
 	}
 
 	~WinIoInit() {
-		CloseHandle(completion_port);
-		CloseHandle(read_completion_port);
 		FlsFree(fls_sync_io);
 	}
 };
@@ -4300,11 +4303,17 @@ os_file_create_func(
 			*success = true;
 
 			if (srv_use_native_aio && ((attributes & FILE_FLAG_OVERLAPPED) != 0)) {
-				/* Bind the file handle to completion port */
-				ut_a(CreateIoCompletionPort(file, completion_port, 0, 0));
+				/* Bind the file handle to completion port. Completion port
+				might not be created yet, in some stages of backup, but
+				must always be there for the server.*/
+				HANDLE port =(type == OS_LOG_FILE)?
+					log_completion_port : data_completion_port;
+				ut_a(port || srv_operation != SRV_OPERATION_NORMAL);
+				if (port) {
+					ut_a(CreateIoCompletionPort(file, port, 0, 0));
+				}
 			}
 		}
-
 	} while (retry);
 
 	return(file);
@@ -5705,6 +5714,15 @@ os_aio_handler(
 	return(err);
 }
 
+#ifdef WIN_ASYNC_IO
+static HANDLE new_completion_port()
+{
+	HANDLE h = CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
+	ut_a(h);
+	return h;
+}
+#endif
+
 /** Constructor
 @param[in]	id		The latch ID
 @param[in]	n		Number of AIO slots
@@ -5721,6 +5739,9 @@ AIO::AIO(
 	,m_aio_ctx(),
 	m_events(m_slots.size())
 # endif /* LINUX_NATIVE_AIO */
+#ifdef WIN_ASYNC_IO
+	,m_completion_port(new_completion_port())
+#endif
 {
 	ut_a(n > 0);
 	ut_a(m_n_segments > 0);
@@ -5887,6 +5908,9 @@ AIO::~AIO()
 		ut_free(m_aio_ctx);
 	}
 #endif /* LINUX_NATIVE_AIO */
+#if defined(WIN_ASYNC_IO)
+	CloseHandle(m_completion_port);
+#endif
 
 	m_slots.clear();
 }
@@ -5972,6 +5996,12 @@ AIO::start(
 	if (s_writes == NULL) {
 		return(false);
 	}
+
+#ifdef WIN_ASYNC_IO
+	data_completion_port = s_writes->m_completion_port;
+	log_completion_port =
+		s_log ? s_log->m_completion_port : data_completion_port;
+#endif
 
 	n_segments += n_writers;
 
@@ -6460,8 +6490,7 @@ therefore no other thread is allowed to do the freeing!
 @param[out]	type		OS_FILE_WRITE or ..._READ
 @return DB_SUCCESS or error code */
 
-#define READ_SEGMENT(s) (s < srv_n_read_io_threads)
-#define WRITE_SEGMENT(s) !READ_SEGMENT(s)
+
 
 static
 dberr_t
@@ -6484,8 +6513,11 @@ os_aio_windows_handler(
 	we do not have to acquire the protecting mutex yet */
 
 	ut_ad(os_aio_validate_skip());
+	AIO *my_array;
+	AIO::get_array_and_local_segment(&my_array, segment);
 
-	HANDLE port = READ_SEGMENT(segment) ? read_completion_port : completion_port;
+	HANDLE port = my_array->m_completion_port;
+	ut_ad(port);
 	for (;;) {
 		DWORD len;
 		ret = GetQueuedCompletionStatus(port, &len, &key,
@@ -6507,25 +6539,26 @@ os_aio_windows_handler(
 		}
 
 		slot->n_bytes= len;
+		ut_a(slot->array);
+		HANDLE slot_port = slot->array->m_completion_port;
+		if (slot_port != port) {
+			/* there are no redirections between data and log */
+			ut_ad(port == data_completion_port);
+			ut_ad(slot_port != log_completion_port);
 
-		if (WRITE_SEGMENT(segment) && slot->type.is_read()) {
 			/*
-			Redirect read completions  to the dedicated completion port
-			and thread. We need to split read and write threads. If we do not
-			do that, and just allow all io threads process all IO, it is possible
-			to get stuck in a deadlock in buffer pool code,
+			Redirect completions  to the dedicated completion port
+			and threads.
 
-			Currently, the problem is solved this way - "write io" threads
-			always get all completion notifications, from both async reads and
-			writes. Write completion is handled in the same thread that gets it.
-			Read completion is forwarded via PostQueueCompletionStatus())
-			to the second completion port dedicated solely to reads. One of the
-			"read io" threads waiting on this port will finally handle the IO.
+			"Write array" threads receive write,read and ibuf
+			notifications, read and ibuf completions are redirected.
 
-			Forwarding IO completion this way costs a context switch , and this
-			seems tolerable  since asynchronous reads are by far less frequent.
+			Forwarding IO completion this way costs a context switch,
+			and this seems tolerable  since asynchronous reads are by
+			far less frequent.
 			*/
-			ut_a(PostQueuedCompletionStatus(read_completion_port, len, key, &slot->control));
+			ut_a(PostQueuedCompletionStatus(slot_port,
+				len, key, &slot->control));
 		}
 		else {
 			break;
@@ -6586,7 +6619,6 @@ os_aio_windows_handler(
 		err = AIOHandler::post_io_processing(slot);
 	}
 
-	ut_a(slot->array);
 	slot->array->release_with_mutex(slot);
 
 	if (srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS
