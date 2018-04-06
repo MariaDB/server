@@ -5828,3 +5828,10 @@ invisible	int(11)	YES		NULL
 a  b c & $!@#$%^&*( )	int(11)	YES		4	INVISIBLE
 ds=~!@ \# $% ^ & * ( ) _ - = +	int(11)	YES		5	INVISIBLE
 drop database d;
+use test;
+CREATE FUNCTION f() RETURNS INT RETURN 1;
+CREATE VIEW v1 AS SELECT f();
+DROP VIEW v1;
+DROP FUNCTION f;
+DROP VIEW v1;
+DROP FUNCTION f;

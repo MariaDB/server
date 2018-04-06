@@ -2692,6 +2692,7 @@ drop database d;
 
 #Bug fix for https://jira.mariadb.org/browse/MDEV-15021
 #Fixing the order in which routines are called. Call before dump_table
+use test;
 CREATE FUNCTION f() RETURNS INT RETURN 1;
 CREATE VIEW v1 AS SELECT f();
  
