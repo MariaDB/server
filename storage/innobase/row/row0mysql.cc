@@ -2162,16 +2162,18 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 	node->historical_row = NULL;
 
 	ins_node_t* insert_node =
-		ins_node_create(INS_DIRECT, table, thr->prebuilt->heap);
+		ins_node_create(INS_DIRECT, table, node->historical_heap);
 
 	ins_node_set_new_row(insert_node, row);
 
 	dfield_t* row_end = dtuple_get_nth_field(row, table->vers_end);
-	char* where = static_cast<char*>(dfield_get_data(row_end));
+	char where[8];
 	if (dict_table_get_nth_col(table, table->vers_end)->vers_native()) {
 		mach_write_to_8(where, trx->id);
+		dfield_set_data(row_end, where, 8);
 	} else {
 		thd_get_query_start_data(trx->mysql_thd, where);
+		dfield_set_data(row_end, where, 7);
 	}
 
 	for (;;) {
@@ -2193,15 +2195,19 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 		default:
 			/* Other errors are handled for the parent node. */
 			thr->fk_cascade_depth = 0;
-			return trx->error_state;
+			goto exit;
 
 		case DB_SUCCESS:
 			srv_stats.n_rows_inserted.inc(
 				static_cast<size_t>(trx->id));
 			dict_stats_update_if_needed(table);
-			return DB_SUCCESS;
+			goto exit;
 		}
 	}
+exit:
+	mem_heap_free(node->historical_heap);
+	node->historical_heap = NULL;
+	return trx->error_state;
 }
 
 /**********************************************************************//**

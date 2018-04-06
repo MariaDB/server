@@ -1395,9 +1395,11 @@ row_ins_foreign_check_on_constraint(
 
 	if (table->versioned() && cascade->is_delete != PLAIN_DELETE
 	    && cascade->update->affects_versioned()) {
-		cascade->historical_row =
-			row_build(ROW_COPY_DATA, clust_index, clust_rec, NULL,
-				  table, NULL, NULL, NULL, thr->prebuilt->heap);
+		ut_ad(!cascade->historical_heap);
+		cascade->historical_heap = mem_heap_create(128);
+		cascade->historical_row = row_build(
+			ROW_COPY_POINTERS, clust_index, clust_rec, NULL, table,
+			NULL, NULL, NULL, cascade->historical_heap);
 	}
 
 	/* Store pcur position and initialize or store the cascade node

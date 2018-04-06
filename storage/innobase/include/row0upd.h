@@ -569,7 +569,11 @@ struct upd_node_t{
 				heap) of the row to update; this must be reset
 				to NULL after a successful update */
 	dtuple_t*	historical_row;	/*!< historical row used in
-				CASCADE UPDATE/SET NULL */
+				CASCADE UPDATE/SET NULL;
+				allocated from historical_heap  */
+	mem_heap_t*	historical_heap; /*!< heap for historical row insertion;
+				created when row to update is located;
+				freed right before row update */
 	row_ext_t*	ext;	/*!< NULL, or prefixes of the externally
 				stored columns in the old row */
 	dtuple_t*	upd_row;/* NULL, or a copy of the updated row */
