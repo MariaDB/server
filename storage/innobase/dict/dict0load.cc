@@ -1136,8 +1136,9 @@ dict_sys_tables_type_valid(ulint type, bool not_redundant)
 	}
 
 	if (!not_redundant) {
-		/* SYS_TABLES.TYPE must be 1 for ROW_FORMAT=REDUNDANT. */
-		return(false);
+		/* SYS_TABLES.TYPE must be 1 or 1|DICT_TF_MASK_NO_ROLLBACK
+		for ROW_FORMAT=REDUNDANT. */
+		return !(type & ~(1 | DICT_TF_MASK_NO_ROLLBACK));
 	}
 
 	if (type >= 1U << DICT_TF_POS_UNUSED) {
@@ -2637,11 +2638,13 @@ dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
 	ulint		n_v_col;
 
 	if (const char* error_text = dict_sys_tables_rec_check(rec)) {
+		*table = NULL;
 		return(error_text);
 	}
 
 	if (!dict_sys_tables_rec_read(rec, name, &table_id, &space_id,
 				      &t_num, &flags, &flags2)) {
+		*table = NULL;
 		return(dict_load_table_flags);
 	}
 
