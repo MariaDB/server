@@ -1563,7 +1563,8 @@ log_write_up_to(
 
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-					       "log write up to: " LSNPF, lsn);
+					       "log write up to: " LSN_PF,
+					       lsn);
 	}
 
 loop:
