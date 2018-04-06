@@ -17,3 +17,13 @@ a
 select * from t2;
 a
 drop tables s1, t1, t2;
+CREATE SEQUENCE s1;
+LOCK TABLE s1 READ;
+SELECT NEXTVAL(s1);
+ERROR HY000: Table 's1' was locked with a READ lock and can't be updated
+SELECT NEXTVAL(s);
+ERROR HY000: Table 's' was not locked with LOCK TABLES
+DROP SEQUENCE s1;
+ERROR HY000: Table 's1' was locked with a READ lock and can't be updated
+unlock tables;
+DROP SEQUENCE s1;
