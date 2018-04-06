@@ -2542,6 +2542,9 @@ srv_purge_should_exit(ulint n_purged)
 	}
 	/* Slow shutdown was requested. */
 	if (n_purged) {
+		service_manager_extend_timeout(
+			INNODB_EXTEND_TIMEOUT_INTERVAL,
+			"InnoDB " ULINTPF " pages purged", n_purged);
 		/* The previous round still did some work. */
 		return(false);
 	}
@@ -2732,11 +2735,6 @@ srv_do_purge(
 			(++count % TRX_SYS_N_RSEGS) == 0);
 
 		*n_total_purged += n_pages_purged;
-
-		if (n_pages_purged > 0) {
-			service_manager_extend_timeout(
-				INNODB_EXTEND_TIMEOUT_INTERVAL, "Innodb %d pages purged", n_pages_purged);
-		}
 	} while (!srv_purge_should_exit(n_pages_purged)
 		 && n_pages_purged > 0
 		 && purge_sys->state == PURGE_STATE_RUN);

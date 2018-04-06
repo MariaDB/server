@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1445,7 +1445,7 @@ log_write_up_to(
 
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-			"log write up to: %llu", lsn);
+					       "log write up to: " LSNPF, lsn);
 	}
 
 loop:

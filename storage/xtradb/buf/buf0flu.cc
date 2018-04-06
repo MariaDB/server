@@ -577,13 +577,16 @@ buf_flush_remove(
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	ulint		zip_size;
 
-	/* TODO Marko: "I think that it might be useful to have a global time base for the shutdown progress reporting and extending the timeout intervals." */
+#if 0 // FIXME: Rate-limit the output. Move this to the page cleaner?
 	if (UNIV_UNLIKELY(srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE)) {
-		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-			"Flush and remove page with tablespace id %d"
-			", Poolid %d, flush list length %d",
-			bpage->space, buf_pool->instance_no, UT_LIST_GET_LEN(buf_pool->flush_list));
+		service_manager_extend_timeout(
+			INNODB_EXTEND_TIMEOUT_INTERVAL,
+			"Flush and remove page with tablespace id %u"
+			", Poolid " ULINTPF ", flush list length " ULINTPF,
+			bpage->space, buf_pool->instance_no,
+			UT_LIST_GET_LEN(buf_pool->flush_list));
 	}
+#endif
 
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
