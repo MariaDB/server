@@ -5065,6 +5065,12 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
     }
   }
 
+  /* obtain dump of routines (procs/functions) */
+  if (opt_routines && mysql_get_server_version(mysql) >= 50009)
+  {
+    DBUG_PRINT("info", ("Dumping routines for database %s", db));
+    dump_routines_for_db(db);
+  }
   /* Dump each selected table */
   for (pos= dump_tables; pos < end; pos++)
   {
@@ -5125,12 +5131,6 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   {
     DBUG_PRINT("info", ("Dumping events for database %s", db));
     dump_events_for_db(db);
-  }
-  /* obtain dump of routines (procs/functions) */
-  if (opt_routines && mysql_get_server_version(mysql) >= 50009)
-  {
-    DBUG_PRINT("info", ("Dumping routines for database %s", db));
-    dump_routines_for_db(db);
   }
   free_root(&glob_root, MYF(0));
   if (opt_xml)
