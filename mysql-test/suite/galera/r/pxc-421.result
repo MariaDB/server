@@ -26,7 +26,6 @@ SET GLOBAL wsrep_slave_threads = 1;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 16
-SET GLOBAL auto_increment_offset = 2;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 15
@@ -35,4 +34,3 @@ Variable_name	Value
 wsrep_slave_threads	12
 SET GLOBAL wsrep_slave_threads = 1;
 DROP TABLE t1;
-SET GLOBAL auto_increment_offset = 1;
