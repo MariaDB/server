@@ -24,8 +24,8 @@
 
 #pragma once
 
-#include "oqgraph_thunk.h"
 #include "oqgraph_judy.h"
+#include "oqgraph_thunk.h"
 
 #define BOOST_NO_HASH 1
 #define BOOST_NO_SLIST 1
