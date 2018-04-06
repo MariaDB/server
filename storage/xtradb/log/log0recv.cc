@@ -30,7 +30,7 @@ Created 9/20/1997 Heikki Tuuri
 #include <stdio.h>                              // Solaris/x86 header file bug
 
 #include <vector>
-#include <my_systemd.h>
+#include <my_service_manager.h>
 
 #include "log0recv.h"
 
