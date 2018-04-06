@@ -2167,13 +2167,13 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 	ins_node_set_new_row(insert_node, row);
 
 	dfield_t* row_end = dtuple_get_nth_field(row, table->vers_end);
-	char where[8];
+	char row_end_data[8];
 	if (dict_table_get_nth_col(table, table->vers_end)->vers_native()) {
-		mach_write_to_8(where, trx->id);
-		dfield_set_data(row_end, where, 8);
+		mach_write_to_8(row_end_data, trx->id);
+		dfield_set_data(row_end, row_end_data, 8);
 	} else {
-		thd_get_query_start_data(trx->mysql_thd, where);
-		dfield_set_data(row_end, where, 7);
+		thd_get_query_start_data(trx->mysql_thd, row_end_data);
+		dfield_set_data(row_end, row_end_data, 7);
 	}
 
 	for (;;) {
