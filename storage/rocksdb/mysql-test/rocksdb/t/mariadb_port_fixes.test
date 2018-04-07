@@ -73,3 +73,13 @@ set global rocksdb_strict_collation_check=@tmp_rscc;
 --echo #
 select plugin_name, plugin_maturity from information_schema.plugins where plugin_name like '%rocksdb%';
 
+
+--echo #
+--echo #  MDEV-12466 : Assertion `thd->transaction.stmt.is_empty() || thd->in_sub_stmt ||  ...
+--echo #
+
+CREATE TABLE t1 (i INT) ENGINE=RocksDB;
+--error ER_ILLEGAL_HA
+FLUSH TABLE t1 FOR EXPORT;
+DROP TABLE t1;
+
