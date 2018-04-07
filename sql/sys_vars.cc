@@ -2111,11 +2111,11 @@ static Sys_var_ulong Sys_max_long_data_size(
        BLOCK_SIZE(1));
 
 static PolyLock_mutex PLock_prepared_stmt_count(&LOCK_prepared_stmt_count);
-static Sys_var_ulong Sys_max_prepared_stmt_count(
+static Sys_var_uint Sys_max_prepared_stmt_count(
        "max_prepared_stmt_count",
        "Maximum number of prepared statements in the server",
        GLOBAL_VAR(max_prepared_stmt_count), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, 1024*1024), DEFAULT(16382), BLOCK_SIZE(1),
+       VALID_RANGE(0, UINT_MAX32), DEFAULT(16382), BLOCK_SIZE(1),
        &PLock_prepared_stmt_count);
 
 static Sys_var_ulong Sys_max_sort_length(

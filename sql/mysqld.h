@@ -200,7 +200,7 @@ extern ulong slave_trans_retries;
 extern uint  slave_net_timeout;
 extern int max_user_connections;
 extern ulong what_to_log,flush_time;
-extern ulong max_prepared_stmt_count, prepared_stmt_count;
+extern uint max_prepared_stmt_count, prepared_stmt_count;
 extern ulong open_files_limit;
 extern ulonglong binlog_cache_size, binlog_stmt_cache_size;
 extern ulonglong max_binlog_cache_size, max_binlog_stmt_cache_size;

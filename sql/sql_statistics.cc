@@ -3083,18 +3083,19 @@ bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
     return FALSE;
 
   /* 
-    Do not read statistics for any query over non-user tables.
-    If the query references some statistical tables, but not all 
-    of them, reading the statistics may lead to a deadlock
-  */ 
+    Do not read statistics for any query that explicity involves
+    statistical tables, failure to to do so we may end up
+    in a deadlock.
+  */
+
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
     if (!tl->is_view_or_derived() && tl->table)
     {
       TABLE_SHARE *table_share= tl->table->s;
       if (table_share && 
-          (table_share->table_category != TABLE_CATEGORY_USER ||
-           table_share->tmp_table != NO_TMP_TABLE))
+          table_share->table_category != TABLE_CATEGORY_USER
+          && is_stat_table(tl->db, tl->alias))
         return FALSE;
     }
   }
@@ -3767,6 +3768,15 @@ double get_column_range_cardinality(Field *field,
 
   if (!col_stats)
     return tab_records;
+  /*
+    Use statistics for a table only when we have actually read
+    the statistics from the stat tables. For example due to
+    chances of getting a deadlock we disable reading statistics for
+    a table.
+  */
+
+  if (!table->stats_is_read)
+    return tab_records;
 
   double col_nulls= tab_records * col_stats->get_nulls_ratio();
 
@@ -3990,4 +4000,3 @@ bool is_stat_table(const char *db, const char *table)
   }
   return false;
 }
-

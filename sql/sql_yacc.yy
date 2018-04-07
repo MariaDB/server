@@ -14503,6 +14503,11 @@ option_value_no_option_type:
         | '@' '@' opt_var_ident_type internal_variable_name equal set_expr_or_default
           {
             struct sys_var_with_base tmp= $4;
+            if (tmp.var == trg_new_row_fake_var)
+            {
+              my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0), "NEW");
+              MYSQL_YYABORT;
+            }
             /* Lookup if necessary: must be a system variable. */
             if (tmp.var == NULL)
             {

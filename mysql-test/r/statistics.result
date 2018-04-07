@@ -1664,6 +1664,24 @@ db_name	table_name	column_name	HEX(min_value)	HEX(max_value)	nulls_ratio	avg_fre
 test	t1	a	D879626AF872675F73E662F8	D879626AF872675F73E662F8	0.0000	1.0000	0	NULL	NULL
 drop table t1;
 #
+# MDEB-9744: session optimizer_use_condition_selectivity=5 causing SQL Error (1918):
+# Encountered illegal value '' when converting to DECIMAL
+#
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=3, use_stat_tables=preferably;
+create table t1 (id int(10),cost decimal(9,2)) engine=innodb;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+create temporary table t2  (id int);
+insert into t2 (id) select id from t1 where cost > 0;
+select * from t2;
+id
+set use_stat_tables=@save_use_stat_tables;
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1,t2;
+#
 # MDEV-9590: Always print "Engine-independent statistic" warnings and
 # might be filtering columns unintentionally from engines
 #

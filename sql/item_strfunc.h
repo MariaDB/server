@@ -202,6 +202,7 @@ class Item_aes_crypt :public Item_str_binary_checksum_func
 
 protected:
   int what;
+  String tmp_value;
 public:
   Item_aes_crypt(THD *thd, Item *a, Item *b)
    :Item_str_binary_checksum_func(thd, a, b) {}
@@ -211,8 +212,8 @@ public:
 class Item_func_aes_encrypt :public Item_aes_crypt
 {
 public:
-  Item_func_aes_encrypt(THD *thd, Item *a, Item *b):
-    Item_aes_crypt(thd, a, b) {}
+  Item_func_aes_encrypt(THD *thd, Item *a, Item *b)
+   :Item_aes_crypt(thd, a, b) {}
   void fix_length_and_dec();
   const char *func_name() const { return "aes_encrypt"; }
 };
@@ -1241,6 +1242,7 @@ public:
                   DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
     fix_char_length(MY_UUID_STRING_LENGTH);
   }
+  table_map used_tables() const { return RAND_TABLE_BIT; }
   const char *func_name() const{ return "uuid"; }
   String *val_str(String *);
   bool check_vcol_func_processor(uchar *int_arg) 
