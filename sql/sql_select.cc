@@ -678,7 +678,6 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
   vers_asof_timestamp_t &in= thd->variables.vers_asof_timestamp;
   type= (vers_system_time_t) in.type;
   start.unit= VERS_TIMESTAMP;
-  from_query= false;
   if (type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL)
   {
     DBUG_ASSERT(type == SYSTEM_TIME_AS_OF);
@@ -741,7 +740,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     {
       if (table->table && table->table->versioned())
         versioned_tables++;
-      else if (table->vers_conditions.user_defined() &&
+      else if (table->vers_conditions &&
               (table->is_non_derived() || !table->vers_conditions.used))
       {
         my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->alias.str);
