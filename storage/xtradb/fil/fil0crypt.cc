@@ -1016,10 +1016,17 @@ static inline
 void
 fil_crypt_read_crypt_data(fil_space_t* space)
 {
-	if (space->crypt_data || space->size) {
+	if (space->crypt_data || space->size
+	    || !fil_space_get_size(space->id)) {
 		/* The encryption metadata has already been read, or
 		the tablespace is not encrypted and the file has been
-		opened already. */
+		opened already, or the file cannot be accessed,
+		likely due to a concurrent TRUNCATE or
+		RENAME or DROP (possibly as part of ALTER TABLE).
+		FIXME: The file can become unaccessible any time
+		after this check! We should really remove this
+		function and instead make crypt_data an integral
+		part of fil_space_t. */
 		return;
 	}
 
