@@ -3770,7 +3770,8 @@ int
 handler::ha_create_handler_files(const char *name, const char *old_name,
                         int action_flag, HA_CREATE_INFO *info)
 {
-  mark_trx_read_write();
+  if (!info || !(info->options & HA_LEX_CREATE_TMP_TABLE))
+    mark_trx_read_write();
 
   return create_handler_files(name, old_name, action_flag, info);
 }
