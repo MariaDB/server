@@ -3309,7 +3309,7 @@ row_ins_sec_index_entry(
 	if (err == DB_FAIL) {
 		mem_heap_empty(heap);
 
-		if (index->table->space == IBUF_SPACE_ID
+		if (index->table->space == fil_system.sys_space
 		    && !(index->type & (DICT_UNIQUE | DICT_SPATIAL))) {
 			ibuf_free_excess_pages();
 		}

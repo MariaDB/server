@@ -3924,7 +3924,7 @@ row_import_for_mysql(
 		true, true, FIL_TYPE_IMPORT, table->space_id,
 		fsp_flags, table->name, filepath, &err);
 
-	ut_ad(!table->space == (err != DB_SUCCESS));
+	ut_ad((table->space == NULL) == (err != DB_SUCCESS));
 	DBUG_EXECUTE_IF("ib_import_open_tablespace_failure",
 			err = DB_TABLESPACE_NOT_FOUND; table->space = NULL;);
 
