@@ -2493,30 +2493,15 @@ os_file_fsync_posix(
 			os_thread_sleep(200000);
 			break;
 
-		case EIO:
-
-			++failures;
-			ut_a(failures < 1000);
-
-			if (!(failures % 100)) {
-
-				ib::warn()
-					<< "fsync(): "
-					<< "An error occurred during "
-					<< "synchronization,"
-					<< " retrying";
-			}
-
-			/* 0.2 sec */
-			os_thread_sleep(200000);
-			break;
-
 		case EINTR:
 
 			++failures;
 			ut_a(failures < 2000);
 			break;
 
+		case EIO:
+			ib::error() << "fsync() returned EIO, aborting";
+			/* fall through */
 		default:
 			ut_error;
 			break;
