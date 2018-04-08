@@ -2474,38 +2474,25 @@ srv_purge_should_exit(ulint n_purged)
 /*********************************************************************//**
 Fetch and execute a task from the work queue.
 @return true if a task was executed */
-static
-bool
-srv_task_execute(void)
-/*==================*/
+static bool srv_task_execute()
 {
-	que_thr_t*	thr = NULL;
-
 	ut_ad(!srv_read_only_mode);
-	ut_a(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
+	ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
 
 	mutex_enter(&srv_sys.tasks_mutex);
 
-	if (UT_LIST_GET_LEN(srv_sys.tasks) > 0) {
-
-		thr = UT_LIST_GET_FIRST(srv_sys.tasks);
-
+	if (que_thr_t* thr = UT_LIST_GET_FIRST(srv_sys.tasks)) {
 		ut_a(que_node_get_type(thr->child) == QUE_NODE_PURGE);
-
 		UT_LIST_REMOVE(srv_sys.tasks, thr);
-	}
-
-	mutex_exit(&srv_sys.tasks_mutex);
-
-	if (thr != NULL) {
-
+		mutex_exit(&srv_sys.tasks_mutex);
 		que_run_threads(thr);
-
-		my_atomic_addlint(
-			&purge_sys.n_completed, 1);
+		my_atomic_addlint(&purge_sys.n_completed, 1);
+		return true;
 	}
 
-	return(thr != NULL);
+	ut_ad(UT_LIST_GET_LEN(srv_sys.tasks) == 0);
+	mutex_exit(&srv_sys.tasks_mutex);
+	return false;
 }
 
 /*********************************************************************//**
@@ -2781,8 +2768,8 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 		if (srv_shutdown_state == SRV_SHUTDOWN_NONE
 		    && srv_undo_sources
-		    && (purge_sys.state == PURGE_STATE_STOP
-			|| n_total_purged == 0)) {
+		    && (n_total_purged == 0
+			|| purge_sys.state == PURGE_STATE_STOP)) {
 
 			srv_purge_coordinator_suspend(slot, rseg_history_len);
 		}

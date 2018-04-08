@@ -1510,10 +1510,9 @@ static
 void
 trx_purge_wait_for_workers_to_complete()
 {
-	ulint		n_submitted = purge_sys.n_submitted;
-
 	/* Ensure that the work queue empties out. */
-	while ((ulint) my_atomic_loadlint(&purge_sys.n_completed) != n_submitted) {
+	while (my_atomic_loadlint(&purge_sys.n_completed)
+	       != purge_sys.n_submitted) {
 
 		if (srv_get_task_queue_length() > 0) {
 			srv_release_threads(SRV_WORKER, 1);
@@ -1521,9 +1520,6 @@ trx_purge_wait_for_workers_to_complete()
 
 		os_thread_yield();
 	}
-
-	/* None of the worker threads should be doing any work. */
-	ut_a(purge_sys.n_submitted == purge_sys.n_completed);
 
 	/* There should be no outstanding tasks as long
 	as the worker threads are active. */
@@ -1548,7 +1544,8 @@ trx_purge(
 	srv_dml_needed_delay = trx_purge_dml_delay();
 
 	/* The number of tasks submitted should be completed. */
-	ut_a(purge_sys.n_submitted == purge_sys.n_completed);
+	ut_a(purge_sys.n_submitted
+	     == my_atomic_loadlint(&purge_sys.n_completed));
 
 	rw_lock_x_lock(&purge_sys.latch);
 	trx_sys.clone_oldest_view();
@@ -1562,46 +1559,27 @@ trx_purge(
 
 	/* Fetch the UNDO recs that need to be purged. */
 	n_pages_handled = trx_purge_attach_undo_recs(n_purge_threads);
+	purge_sys.n_submitted += n_purge_threads;
 
-	/* Do we do an asynchronous purge or not ? */
-	if (n_purge_threads > 1) {
-		ulint	i = 0;
-
-		/* Submit the tasks to the work queue. */
-		for (i = 0; i < n_purge_threads - 1; ++i) {
-			thr = que_fork_scheduler_round_robin(
-				purge_sys.query, thr);
-
-			ut_a(thr != NULL);
-
-			srv_que_task_enqueue_low(thr);
-		}
-
+	/* Submit tasks to workers queue if using multi-threaded purge. */
+	for (ulint i = n_purge_threads; --i; ) {
 		thr = que_fork_scheduler_round_robin(purge_sys.query, thr);
-		ut_a(thr != NULL);
-
-		purge_sys.n_submitted += n_purge_threads - 1;
-
-		goto run_synchronously;
-
-	/* Do it synchronously. */
-	} else {
-		thr = que_fork_scheduler_round_robin(purge_sys.query, NULL);
-		ut_ad(thr);
-
-run_synchronously:
-		++purge_sys.n_submitted;
-
-		que_run_threads(thr);
-
-		my_atomic_addlint(&purge_sys.n_completed, 1);
-
-		if (n_purge_threads > 1) {
-			trx_purge_wait_for_workers_to_complete();
-		}
+		ut_a(thr);
+		srv_que_task_enqueue_low(thr);
 	}
 
-	ut_a(purge_sys.n_submitted == purge_sys.n_completed);
+	thr = que_fork_scheduler_round_robin(purge_sys.query, thr);
+
+	que_run_threads(thr);
+
+	my_atomic_addlint(&purge_sys.n_completed, 1);
+
+	if (n_purge_threads > 1) {
+		trx_purge_wait_for_workers_to_complete();
+	}
+
+	ut_a(purge_sys.n_submitted
+	     == my_atomic_loadlint(&purge_sys.n_completed));
 
 	if (truncate) {
 		trx_purge_truncate_history();
@@ -1653,7 +1631,6 @@ unlock:
 	case PURGE_STATE_STOP:
 		ut_ad(srv_n_purge_threads > 0);
 		++purge_sys.n_stop;
-		purge_sys.state = PURGE_STATE_STOP;
 		if (!purge_sys.running) {
 			goto unlock;
 		}
