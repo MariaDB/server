@@ -2446,12 +2446,8 @@ suspend_thread:
 	goto loop;
 }
 
-/** Check if purge should stop.
-@param[in]	n_purged	pages purged in the last batch
-@return whether purge should exit */
-static
-bool
-srv_purge_should_exit(ulint n_purged)
+/** @return whether purge should exit due to shutdown */
+static bool srv_purge_should_exit()
 {
 	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_NONE
 	      || srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
@@ -2463,12 +2459,7 @@ srv_purge_should_exit(ulint n_purged)
 		return(true);
 	}
 	/* Slow shutdown was requested. */
-	if (n_purged) {
-		/* The previous round still did some work. */
-		return(false);
-	}
-	/* Exit if there are no active transactions to roll back. */
-	return(trx_sys.any_active_transactions() == 0);
+	return !trx_sys.any_active_transactions() && !trx_sys.history_size();
 }
 
 /*********************************************************************//**
@@ -2643,9 +2634,9 @@ srv_do_purge(ulint* n_total_purged)
 
 		*n_total_purged += n_pages_purged;
 
-	} while (!srv_purge_should_exit(n_pages_purged)
-		 && n_pages_purged > 0
-		 && purge_sys.state == PURGE_STATE_RUN);
+	} while (n_pages_purged > 0
+		 && purge_sys.state == PURGE_STATE_RUN
+		 && !srv_purge_should_exit());
 
 	return(rseg_history_len);
 }
@@ -2776,14 +2767,14 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 		ut_ad(!slot->suspended);
 
-		if (srv_purge_should_exit(n_total_purged)) {
+		if (srv_purge_should_exit()) {
 			break;
 		}
 
 		n_total_purged = 0;
 
 		rseg_history_len = srv_do_purge(&n_total_purged);
-	} while (!srv_purge_should_exit(n_total_purged));
+	} while (!srv_purge_should_exit());
 
 	/* The task queue should always be empty, independent of fast
 	shutdown state. */

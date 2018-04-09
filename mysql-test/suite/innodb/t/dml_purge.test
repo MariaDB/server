@@ -1,8 +1,9 @@
 --source include/innodb_page_size.inc
---source include/not_embedded.inc
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
 let MYSQLD_DATADIR=`select @@datadir`;
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
 --echo #
 --echo # MDEV-12288 Reset DB_TRX_ID when the history is removed,
@@ -13,12 +14,14 @@ SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
 CREATE TABLE t1(a INT PRIMARY KEY, b INT NOT NULL)
 ROW_FORMAT=REDUNDANT ENGINE=InnoDB;
+
 INSERT INTO t1 VALUES(1,2),(3,4);
 UPDATE t1 SET b=-3 WHERE a=3;
 
 # Initiate a full purge, which should reset all DB_TRX_ID.
-SET GLOBAL innodb_fast_shutdown=0;
---source include/shutdown_mysqld.inc
+--source include/wait_all_purged.inc
+
+FLUSH TABLE t1 FOR EXPORT;
 # The following is based on innodb.table_flags:
 --perl
 use strict;
@@ -54,6 +57,7 @@ for (my $offset= 0x65; $offset;
 }
 close(FILE) || die "Unable to close $file\n";
 EOF
---source include/start_mysqld.inc
+UNLOCK TABLES;
 SELECT * FROM t1;
 DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
