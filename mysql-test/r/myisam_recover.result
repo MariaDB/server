@@ -18,6 +18,7 @@
 call mtr.add_suppression("Got an error from thread_id=.*ha_myisam.cc:");
 call mtr.add_suppression("MySQL thread id .*, query id .* localhost.*root Checking table");
 call mtr.add_suppression(" '\..test.t1'");
+set @save_table_open_cache=@@table_open_cache;
 set global table_open_cache=256;
 set global table_definition_cache=400;
 drop procedure if exists p_create;
@@ -102,7 +103,7 @@ prepare stmt from @drop_table_stmt;
 execute stmt;
 deallocate prepare stmt;
 set @@global.table_definition_cache=default;
-set @@global.table_open_cache=default;
+set @@global.table_open_cache=@save_table_open_cache;
 #
 # 18075170 - sql node restart required to avoid deadlock after
 #            restore
