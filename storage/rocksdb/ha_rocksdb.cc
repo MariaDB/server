@@ -7464,13 +7464,6 @@ int ha_rocksdb::calc_eq_cond_len(const Rdb_key_def &kd,
     */
     return slice.size() - bytes_changed_by_succ;
   }
-  if (find_flag == HA_READ_PREFIX_LAST_OR_PREV) {
-    /*
-      We are interested in records with or without the specified prefix, so
-      the only limit is that records are from this index
-    */
-    return Rdb_key_def::INDEX_NUMBER_SIZE;
-  }
 
   if (end_key) {
     *end_key_packed_size =
