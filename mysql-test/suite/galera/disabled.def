@@ -31,7 +31,6 @@ galera_var_retry_autocommit : MDEV-15794 Test failure on galera.galera_var_retry
 galera_var_auto_inc_control_on : MDEV-15803 Test failure on galera.galera_var_auto_inc_control_on
 pxc-421 : MDEV-15804 Test failure on galera.pxc-421
 query_cache : MDEV-15805 Test failure on galera.query_cache
-galera.galera_lock_table : MDEV-15807
 galera.galera_gra_log : MDEV-15808 Test failure on galera.galera_gra_log
 galera.MW-44 : MDEV-15809 Test failure on galera.MW-44
 galera.lp1376747 : MDEV-15810 Test failure on galera.lp1376747
