@@ -34,4 +34,4 @@ query_cache : MDEV-15805 Test failure on galera.query_cache
 galera.galera_gra_log : MDEV-15808 Test failure on galera.galera_gra_log
 galera.MW-44 : MDEV-15809 Test failure on galera.MW-44
 galera.galera_pc_ignore_sb : MDEV-15811 Test failure on galera_pc_ignore_sb
-
+galera.galera_var_slave_threads : MDEV-15785 Test failure on galera.galera_var_slave_threads
