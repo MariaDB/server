@@ -6699,6 +6699,10 @@ int main(int argc, char **argv)
 		xtrabackup_incremental = NULL;
 	}
 
+	if (xtrabackup_stream && !xtrabackup_backup) {
+		msg("Warning: --stream parameter is ignored, it only works together with --backup.\n");
+	}
+
 	if (!xb_init()) {
 		exit(EXIT_FAILURE);
 	}
