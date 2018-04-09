@@ -2089,8 +2089,8 @@ trx_undo_report_row_operation(
 				if (!time.is_versioned()
 				    && index->table->versioned_by_id()
 				    && (!rec /* INSERT */
-					|| !update /* DELETE */
-					|| update->affects_versioned())) {
+					|| (update
+					    && update->affects_versioned()))) {
 					time.set_versioned(limit);
 				}
 			}

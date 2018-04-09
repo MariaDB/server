@@ -553,6 +553,8 @@ row_ins_cascade_calc_update_vec(
 				ufield->exp = NULL;
 
 				ufield->new_val = parent_ufield->new_val;
+				dfield_get_type(&ufield->new_val)->prtype |=
+					col->prtype & DATA_VERSIONED;
 				ufield_len = dfield_get_len(&ufield->new_val);
 
 				/* Clear the "external storage" flag */
@@ -1391,6 +1393,15 @@ row_ins_foreign_check_on_constraint(
 		}
 	}
 
+	if (table->versioned() && cascade->is_delete != PLAIN_DELETE
+	    && cascade->update->affects_versioned()) {
+		ut_ad(!cascade->historical_heap);
+		cascade->historical_heap = mem_heap_create(128);
+		cascade->historical_row = row_build(
+			ROW_COPY_POINTERS, clust_index, clust_rec, NULL, table,
+			NULL, NULL, NULL, cascade->historical_heap);
+	}
+
 	/* Store pcur position and initialize or store the cascade node
 	pcur stored position */
 
@@ -1610,6 +1621,19 @@ row_ins_check_foreign_constraint(
 			which order they are performed. */
 
 			goto exit_func;
+		}
+	}
+
+	if (que_node_get_type(thr->run_node) == QUE_NODE_INSERT) {
+		ins_node_t* insert_node =
+			static_cast<ins_node_t*>(thr->run_node);
+		dict_table_t* table = insert_node->index->table;
+		if (table->versioned()) {
+			dfield_t* row_end = dtuple_get_nth_field(
+				insert_node->row, table->vers_end);
+			if (row_end->vers_history_row()) {
+				goto exit_func;
+			}
 		}
 	}
 
