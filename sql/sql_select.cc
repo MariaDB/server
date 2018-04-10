@@ -23400,13 +23400,10 @@ get_sort_by_table(ORDER *a,ORDER *b, List<TABLE_LIST> &tables,
   calc how big buffer we need for comparing group entries.
 */
 
-static void
-calc_group_buffer(JOIN *join,ORDER *group)
+void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
 {
   uint key_length=0, parts=0, null_parts=0;
 
-  if (group)
-    join->group= 1;
   for (; group ; group=group->next)
   {
     Item *group_item= *group->item;
@@ -23476,9 +23473,16 @@ calc_group_buffer(JOIN *join,ORDER *group)
     if (group_item->maybe_null)
       null_parts++;
   }
-  join->tmp_table_param.group_length=key_length+null_parts;
-  join->tmp_table_param.group_parts=parts;
-  join->tmp_table_param.group_null_parts=null_parts;
+  param->group_length= key_length + null_parts;
+  param->group_parts= parts;
+  param->group_null_parts= null_parts;
+}
+
+static void calc_group_buffer(JOIN *join, ORDER *group)
+{
+  if (group)
+    join->group= 1;
+  calc_group_buffer(&join->tmp_table_param, group);
 }
 
 

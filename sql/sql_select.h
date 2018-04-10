@@ -2382,6 +2382,7 @@ int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table,
 #define RATIO_TO_PACK_ROWS	       2
 #define MIN_STRING_LENGTH_TO_PACK_ROWS   10
 
+void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group);
 TABLE *create_tmp_table(THD *thd,TMP_TABLE_PARAM *param,List<Item> &fields,
 			ORDER *group, bool distinct, bool save_sum_fields,
 			ulonglong select_options, ha_rows rows_limit,
