@@ -7,9 +7,9 @@ TestNo INT AUTO_INCREMENT PRIMARY KEY,
 Source TEXT,
 Target TEXT,
 Flags TEXT,
-On_Master TEXT,
-On_Slave TEXT,
-Expected TEXT,
+On_Master LONGTEXT,
+On_Slave LONGTEXT,
+Expected LONGTEXT,
 Compare INT,
 Error TEXT);
 SELECT @@global.slave_type_conversions;
@@ -39,18 +39,34 @@ ALL_LOSSY,ALL_NON_LOSSY
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='';
 **** Running tests with @@SLAVE_TYPE_CONVERSIONS = '' ****
+#
+# MDEV-15833 Row format replication between LONGBLOB and MEDIUMBLOB does not work for long values
+#
+# End of MDEV-15833
 include/rpl_reset.inc
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_NON_LOSSY';
 **** Running tests with @@SLAVE_TYPE_CONVERSIONS = 'ALL_NON_LOSSY' ****
+#
+# MDEV-15833 Row format replication between LONGBLOB and MEDIUMBLOB does not work for long values
+#
+# End of MDEV-15833
 include/rpl_reset.inc
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY';
 **** Running tests with @@SLAVE_TYPE_CONVERSIONS = 'ALL_LOSSY' ****
+#
+# MDEV-15833 Row format replication between LONGBLOB and MEDIUMBLOB does not work for long values
+#
+# End of MDEV-15833
 include/rpl_reset.inc
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY,ALL_NON_LOSSY';
 **** Running tests with @@SLAVE_TYPE_CONVERSIONS = 'ALL_LOSSY,ALL_NON_LOSSY' ****
+#
+# MDEV-15833 Row format replication between LONGBLOB and MEDIUMBLOB does not work for long values
+#
+# End of MDEV-15833
 include/rpl_reset.inc
 connection slave;
 **** Result of conversions ****
@@ -176,6 +192,20 @@ BIT(5)         	BIT(6)         	                         	<Correct error>
 BIT(6)         	BIT(5)         	                         	<Correct error>
 BIT(5)         	BIT(12)        	                         	<Correct error>
 BIT(12)        	BIT(5)         	                         	<Correct error>
+TINYBLOB       	BLOB           	                         	<Correct error>
+TINYBLOB       	MEDIUMBLOB     	                         	<Correct error>
+TINYBLOB       	LONGBLOB       	                         	<Correct error>
+TINYBLOB       	VARBINARY(255) 	                         	<Correct error>
+BLOB           	TINYBLOB       	                         	<Correct error>
+BLOB           	MEDIUMBLOB     	                         	<Correct error>
+BLOB           	LONGBLOB       	                         	<Correct error>
+BLOB           	VARBINARY(65500	                         	<Correct error>
+MEDIUMBLOB     	TINYBLOB       	                         	<Correct error>
+MEDIUMBLOB     	BLOB           	                         	<Correct error>
+MEDIUMBLOB     	VARBINARY(65500	                         	<Correct error>
+LONGBLOB       	TINYBLOB       	                         	<Correct error>
+LONGBLOB       	BLOB           	                         	<Correct error>
+LONGBLOB       	VARBINARY(65500	                         	<Correct error>
 TINYBLOB       	TINYBLOB       	ALL_NON_LOSSY            	<Correct value>
 TINYBLOB       	BLOB           	ALL_NON_LOSSY            	<Correct value>
 TINYBLOB       	MEDIUMBLOB     	ALL_NON_LOSSY            	<Correct value>
@@ -297,6 +327,20 @@ BIT(5)         	BIT(6)         	ALL_NON_LOSSY            	<Correct value>
 BIT(6)         	BIT(5)         	ALL_NON_LOSSY            	<Correct error>
 BIT(5)         	BIT(12)        	ALL_NON_LOSSY            	<Correct value>
 BIT(12)        	BIT(5)         	ALL_NON_LOSSY            	<Correct error>
+TINYBLOB       	BLOB           	ALL_NON_LOSSY            	<Correct value>
+TINYBLOB       	MEDIUMBLOB     	ALL_NON_LOSSY            	<Correct value>
+TINYBLOB       	LONGBLOB       	ALL_NON_LOSSY            	<Correct value>
+TINYBLOB       	VARBINARY(255) 	ALL_NON_LOSSY            	<Correct value>
+BLOB           	TINYBLOB       	ALL_NON_LOSSY            	<Correct error>
+BLOB           	MEDIUMBLOB     	ALL_NON_LOSSY            	<Correct value>
+BLOB           	LONGBLOB       	ALL_NON_LOSSY            	<Correct value>
+BLOB           	VARBINARY(65500	ALL_NON_LOSSY            	<Correct error>
+MEDIUMBLOB     	TINYBLOB       	ALL_NON_LOSSY            	<Correct error>
+MEDIUMBLOB     	BLOB           	ALL_NON_LOSSY            	<Correct error>
+MEDIUMBLOB     	VARBINARY(65500	ALL_NON_LOSSY            	<Correct error>
+LONGBLOB       	TINYBLOB       	ALL_NON_LOSSY            	<Correct error>
+LONGBLOB       	BLOB           	ALL_NON_LOSSY            	<Correct error>
+LONGBLOB       	VARBINARY(65500	ALL_NON_LOSSY            	<Correct error>
 TINYBLOB       	TINYBLOB       	ALL_LOSSY                	<Correct value>
 TINYBLOB       	BLOB           	ALL_LOSSY                	<Correct error>
 TINYBLOB       	MEDIUMBLOB     	ALL_LOSSY                	<Correct error>
@@ -418,6 +462,20 @@ BIT(5)         	BIT(6)         	ALL_LOSSY                	<Correct error>
 BIT(6)         	BIT(5)         	ALL_LOSSY                	<Correct value>
 BIT(5)         	BIT(12)        	ALL_LOSSY                	<Correct error>
 BIT(12)        	BIT(5)         	ALL_LOSSY                	<Correct value>
+TINYBLOB       	BLOB           	ALL_LOSSY                	<Correct error>
+TINYBLOB       	MEDIUMBLOB     	ALL_LOSSY                	<Correct error>
+TINYBLOB       	LONGBLOB       	ALL_LOSSY                	<Correct error>
+TINYBLOB       	VARBINARY(255) 	ALL_LOSSY                	<Correct error>
+BLOB           	TINYBLOB       	ALL_LOSSY                	<Correct value>
+BLOB           	MEDIUMBLOB     	ALL_LOSSY                	<Correct error>
+BLOB           	LONGBLOB       	ALL_LOSSY                	<Correct error>
+BLOB           	VARBINARY(65500	ALL_LOSSY                	<Correct value>
+MEDIUMBLOB     	TINYBLOB       	ALL_LOSSY                	<Correct value>
+MEDIUMBLOB     	BLOB           	ALL_LOSSY                	<Correct value>
+MEDIUMBLOB     	VARBINARY(65500	ALL_LOSSY                	<Correct value>
+LONGBLOB       	TINYBLOB       	ALL_LOSSY                	<Correct value>
+LONGBLOB       	BLOB           	ALL_LOSSY                	<Correct value>
+LONGBLOB       	VARBINARY(65500	ALL_LOSSY                	<Correct value>
 TINYBLOB       	TINYBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 TINYBLOB       	BLOB           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 TINYBLOB       	MEDIUMBLOB     	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
@@ -539,6 +597,20 @@ BIT(5)         	BIT(6)         	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 BIT(6)         	BIT(5)         	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 BIT(5)         	BIT(12)        	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 BIT(12)        	BIT(5)         	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+TINYBLOB       	BLOB           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+TINYBLOB       	MEDIUMBLOB     	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+TINYBLOB       	LONGBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+TINYBLOB       	VARBINARY(255) 	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+BLOB           	TINYBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+BLOB           	MEDIUMBLOB     	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+BLOB           	LONGBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+BLOB           	VARBINARY(65500	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+MEDIUMBLOB     	TINYBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+MEDIUMBLOB     	BLOB           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+MEDIUMBLOB     	VARBINARY(65500	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+LONGBLOB       	TINYBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+LONGBLOB       	BLOB           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+LONGBLOB       	VARBINARY(65500	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 DROP TABLE type_conversions;
 call mtr.add_suppression("Slave SQL.*Column 1 of table .test.t1. cannot be converted from type.* error.* 1677");
 connection master;
