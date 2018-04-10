@@ -286,50 +286,6 @@ partition by system_time interval 6 day limit 98
 (partition p0 history, partition ver_pn current);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'limit 98
 (partition p0 history, partition ver_pn current)' at line 2
-### ha_partition::update_row() check
-create or replace table t1 (x int)
-with system versioning
-partition by system_time interval 1 second (
-partition p0 history,
-partition p1 history,
-partition pn current);
-insert into t1 values (1), (2), (3), (4);
-select * from t1 partition (pn);
-x
-1
-2
-3
-4
-delete from t1 where x < 3;
-delete from t1;
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
-select * from t1 partition (p0) order by x;
-x
-1
-2
-select * from t1 partition (p1) order by x;
-x
-3
-4
-### ha_partition::write_row() check
-create or replace table t1 (x int)
-with system versioning
-partition by system_time interval 1 second (
-partition p0 history,
-partition p1 history,
-partition pn current);
-insert into t1 values (1);
-update t1 set x= 2;
-update t1 set x= 3;
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
-select * from t1 partition (p0);
-x
-1
-select * from t1 partition (p1);
-x
-2
 ## Subpartitions
 create or replace table t1 (x int)
 with system versioning
@@ -490,50 +446,6 @@ p2	2	SYSTEM_TIME	02:00:00.000000
 pn	3	SYSTEM_TIME	NULL
 Warnings:
 Warning	1292	Truncated incorrect time value: 'CURRENT'
-create or replace table t1 (i int) with system versioning
-partition by system_time interval 1 second
-subpartition by key (i) subpartitions 2
-(partition p1 history, partition pn current);
-insert t1 values (1);
-delete from t1;
-insert t1 values (2);
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
-delete from t1;
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
-alter table t1 add partition (partition p0 history, partition p2 history);
-select subpartition_name,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
-subpartition_name	table_rows
-p1sp0	1
-p1sp1	0
-p0sp0	0
-p0sp1	1
-p2sp0	0
-p2sp1	0
-pnsp0	0
-pnsp1	0
-## pruning check
-set @ts=(select partition_description from information_schema.partitions
-where table_schema='test' and table_name='t1' and partition_name='p0' limit 1);
-insert into t1 values (4),(5);
-select * from t1;
-i
-4
-5
-explain partitions select * from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	pn_pnsp0,pn_pnsp1	ALL	NULL	NULL	NULL	NULL	2	Using where
-explain partitions select * from t1 for system_time as of from_unixtime(@ts);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1_p1sp0,p1_p1sp1,p0_p0sp0,p0_p0sp1,p2_p2sp0,p2_p2sp1,pn_pnsp0,pn_pnsp1	ALL	NULL	NULL	NULL	NULL	#	Using where
-set @ts=(select row_end from t1 for system_time all where i=1);
-select * from t1 for system_time all where row_end = @ts;
-i
-1
-explain partitions select * from t1 for system_time all where row_end = @ts;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1_p1sp0,p1_p1sp1	#	NULL	NULL	NULL	NULL	#	#
 #
 # MDEV-15103 Assertion in ha_partition::part_records() for updating VIEW
 #
