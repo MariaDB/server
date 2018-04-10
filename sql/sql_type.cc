@@ -1392,10 +1392,13 @@ Field *Type_handler_blob_compressed::make_conversion_table_field(TABLE *table,
                                                       const Field *target)
                                                       const
 {
+  uint pack_length= metadata & 0x00ff;
+  if (pack_length < 1 || pack_length > 4)
+    return NULL; // Broken binary log?
   return new(table->in_use->mem_root)
          Field_blob_compressed(NULL, (uchar *) "", 1, Field::NONE,
                                &empty_clex_str,
-                               table->s, 2, target->charset(),
+                               table->s, pack_length, target->charset(),
                                zlib_compression_method);
 }
 

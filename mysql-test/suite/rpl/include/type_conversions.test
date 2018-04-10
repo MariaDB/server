@@ -876,5 +876,175 @@ let $can_convert = $if_is_lossy;
 source suite/rpl/include/check_type.inc;
 
 
+--echo #
+--echo # MDEV-15821 Row format replication from LONGBLOB COMPRESSED to LONGBLOB does not work
+--echo #
+
+# This is to make sure that the compressed data is longer than 64K
+SET column_compression_threshold=16*256*256;
+
+# TINYBLOB COMPRESSED
+
+let $source_type= TINYBLOB COMPRESSED;
+let $target_type= TINYBLOB;
+let $source_value= REPEAT('a',250);
+let $target_value= REPEAT('a',250);
+let $can_convert = $if_is_non_lossy;
+source suite/rpl/include/check_type.inc;
+
+let $source_type= TINYBLOB COMPRESSED;
+let $target_type= BLOB;
+let $source_value= REPEAT('a',250);
+let $target_value= REPEAT('a',250);
+let $can_convert = $if_is_non_lossy;
+source suite/rpl/include/check_type.inc;
+
+let $source_type= TINYBLOB COMPRESSED;
+let $target_type= MEDIUMBLOB;
+let $source_value= REPEAT('a',250);
+let $target_value= REPEAT('a',250);
+let $can_convert = $if_is_non_lossy;
+source suite/rpl/include/check_type.inc;
+
+let $source_type= TINYBLOB COMPRESSED;
+let $target_type= LONGBLOB;
+let $source_value= REPEAT('a',250);
+let $target_value= REPEAT('a',250);
+let $can_convert = $if_is_non_lossy;
+source suite/rpl/include/check_type.inc;
+
+let $source_type= TINYBLOB COMPRESSED;
+let $target_type= VARBINARY(255);
+let $source_value= REPEAT('a',250);
+let $target_value= REPEAT('a',250);
+let $can_convert = $if_is_non_lossy;
+source suite/rpl/include/check_type.inc;
+
+
+# BLOB COMPRESSED
+
+let $source_type= BLOB COMPRESSED;
+let $target_type= TINYBLOB;
+let $source_value= REPEAT('a',64000);
+let $target_value= REPEAT('a',255);
+let $can_convert = $if_is_lossy;
+source suite/rpl/include/check_type.inc;
+
+let $source_type= BLOB COMPRESSED;
+let $target_type= BLOB;
+let $source_value= REPEAT('a',64000);
+let $target_value= REPEAT('a',64000);
+let $can_convert = $if_is_non_lossy;
+source suite/rpl/include/check_type.inc;
+
+let $source_type= BLOB COMPRESSED;
+let $target_type= MEDIUMBLOB;
+let $source_value= REPEAT('a',64000);
+let $target_value= REPEAT('a',64000);
+let $can_convert = $if_is_non_lossy;
+source suite/rpl/include/check_type.inc;
+
+let $source_type= BLOB COMPRESSED;
+let $target_type= LONGBLOB;
+let $source_value= REPEAT('a',64000);
+let $target_value= REPEAT('a',64000);
+let $can_convert = $if_is_non_lossy;
+source suite/rpl/include/check_type.inc;
+
+let $source_type= BLOB COMPRESSED;
+let $target_type= VARBINARY(65500);
+let $source_value= REPEAT('a',65500);
+let $target_value= REPEAT('a',65500);
+let $can_convert = $if_is_lossy;
+source suite/rpl/include/check_type.inc;
+
+
+# MEDIUMBLOB COMPRESSED
+
+let $source_type= MEDIUMBLOB COMPRESSED;
+let $target_type= TINYBLOB;
+let $source_value= REPEAT('a',66000);
+let $target_value= REPEAT('a',255);
+let $can_convert = $if_is_lossy;
+source suite/rpl/include/check_type.inc;
+
+# This failed before the fix
+let $source_type= MEDIUMBLOB COMPRESSED;
+let $target_type= BLOB;
+let $source_value= REPEAT('a',66000);
+let $target_value= REPEAT('a',65535);
+let $can_convert = $if_is_lossy;
+source suite/rpl/include/check_type.inc;
+
+# This failed before the fix
+let $source_type= MEDIUMBLOB COMPRESSED;
+let $target_type= MEDIUMBLOB;
+let $source_value= REPEAT('a',66000);
+let $target_value= REPEAT('a',66000);
+let $can_convert = $if_is_non_lossy;
+source suite/rpl/include/check_type.inc;
+
+# This failed before the fix
+let $source_type= MEDIUMBLOB COMPRESSED;
+let $target_type= LONGBLOB;
+let $source_value= REPEAT('a',66000);
+let $target_value= REPEAT('a',66000);
+let $can_convert = $if_is_non_lossy;
+source suite/rpl/include/check_type.inc;
+
+# This failed before the fix
+let $source_type= MEDIUMBLOB COMPRESSED;
+let $target_type= VARBINARY(65500);
+let $source_value= REPEAT('a',66000);
+let $target_value= REPEAT('a',65500);
+let $can_convert = $if_is_lossy;
+source suite/rpl/include/check_type.inc;
+
+
+# LONGBLOB COMPRESSED
+
+let $source_type= LONGBLOB COMPRESSED;
+let $target_type= TINYBLOB;
+let $source_value= REPEAT('a',66000);
+let $target_value= REPEAT('a',255);
+let $can_convert = $if_is_lossy;
+source suite/rpl/include/check_type.inc;
+
+# This failed before the fix
+let $source_type= LONGBLOB COMPRESSED;
+let $target_type= BLOB;
+let $source_value= REPEAT('a',66000);
+let $target_value= REPEAT('a',65535);
+let $can_convert = $if_is_lossy;
+source suite/rpl/include/check_type.inc;
+
+# This failed before the fix
+let $source_type= LONGBLOB COMPRESSED;
+let $target_type= MEDIUMBLOB;
+let $source_value= REPEAT('a',66000);
+let $target_value= REPEAT('a',66000);
+let $can_convert = $if_is_lossy;
+source suite/rpl/include/check_type.inc;
+
+# This failed before the fix
+let $source_type= LONGBLOB COMPRESSED;
+let $target_type= LONGBLOB;
+let $source_value= REPEAT('a',66000);
+let $target_value= REPEAT('a',66000);
+let $can_convert = $if_is_non_lossy;
+source suite/rpl/include/check_type.inc;
+
+# This failed before the fix
+let $source_type= LONGBLOB COMPRESSED;
+let $target_type= VARBINARY(65500);
+let $source_value= REPEAT('a',66000);
+let $target_value= REPEAT('a',65500);
+let $can_convert = $if_is_lossy;
+source suite/rpl/include/check_type.inc;
+
+SET column_compression_threshold=DEFAULT;
+--echo # End of MDEV-15833
+
+
 --source include/rpl_reset.inc
 enable_query_log;
