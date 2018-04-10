@@ -959,12 +959,12 @@ let $can_convert = $if_is_lossy;
 source extra/rpl_tests/check_type.inc;
 
 # This failed before the fix
-#let $source_type= MEDIUMBLOB;
-#let $target_type= LONGBLOB;
-#let $source_value= REPEAT('a',66000);
-#let $target_value= REPEAT('a',66000);
-#let $can_convert = $if_is_non_lossy;
-#source extra/rpl_tests/check_type.inc;
+let $source_type= MEDIUMBLOB;
+let $target_type= LONGBLOB;
+let $source_value= REPEAT('a',66000);
+let $target_value= REPEAT('a',66000);
+let $can_convert = $if_is_non_lossy;
+source extra/rpl_tests/check_type.inc;
 
 let $source_type= MEDIUMBLOB;
 let $target_type= VARBINARY(65500);
@@ -991,12 +991,12 @@ let $can_convert = $if_is_lossy;
 source extra/rpl_tests/check_type.inc;
 
 # This failed before the fix
-#let $source_type= LONGBLOB;
-#let $target_type= BLOB;
-#let $source_value= REPEAT('a',66000);
-#let $target_value= REPEAT('a',66000);
-#let $can_convert = $if_is_lossy;
-#source extra/rpl_tests/check_type.inc;
+let $source_type= LONGBLOB;
+let $target_type= MEDIUMBLOB;
+let $source_value= REPEAT('a',66000);
+let $target_value= REPEAT('a',66000);
+let $can_convert = $if_is_lossy;
+source extra/rpl_tests/check_type.inc;
 
 let $source_type= LONGBLOB;
 let $target_type= VARBINARY(65500);
