@@ -3560,7 +3560,9 @@ loop:
 		os_event_set(lock_sys->timeout_event);
 		os_event_set(dict_stats_event);
 	}
-	os_thread_sleep(100000);
+#define COUNT_INTERVAL 600
+#define CHECK_INTERVAL 100000
+	os_thread_sleep(CHECK_INTERVAL);
 
 	count++;
 
@@ -3572,7 +3574,10 @@ loop:
 	if (ulint total_trx = srv_was_started && !srv_read_only_mode
 	    && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
 	    ? trx_sys_any_active_transactions() : 0) {
-		if (srv_print_verbose_log && count > 600) {
+		if (srv_print_verbose_log && count > COUNT_INTERVAL) {
+			service_manager_extend_timeout(
+				COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
+				"Waiting for %lu active transactions to finish");
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"Waiting for %lu active transactions to finish",
 				(ulong) total_trx);
@@ -3607,7 +3612,10 @@ loop:
 	if (thread_name) {
 		ut_ad(!srv_read_only_mode);
 wait_suspend_loop:
-		if (srv_print_verbose_log && count > 600) {
+		service_manager_extend_timeout(
+			COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
+			"Waiting for %s to exit", thread_name);
+		if (srv_print_verbose_log && count > COUNT_INTERVAL) {
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"Waiting for %s to exit", thread_name);
 			count = 0;
@@ -3643,8 +3651,6 @@ wait_suspend_loop:
 	before proceeding further. */
 
 	count = 0;
-#define COUNT_INTERVAL 600
-#define CHECK_INTERVAL 100000
 	service_manager_extend_timeout(COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
 		"Waiting for page cleaner");
 	os_rmb;
