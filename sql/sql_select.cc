@@ -2529,7 +2529,7 @@ int JOIN::optimize_stage2()
         ordered_index_usage= ordered_index_order_by;
       }
     }
-  }  
+  }
 
   if (having)
     having_is_correlated= MY_TEST(having->used_tables() & OUTER_REF_TABLE_BIT);
@@ -2977,13 +2977,13 @@ bool JOIN::make_aggr_tables_info()
         (select_distinct && tmp_table_param.using_outer_summary_function))
     {					/* Must copy to another table */
       DBUG_PRINT("info",("Creating group table"));
-      
+
       calc_group_buffer(this, group_list);
       count_field_types(select_lex, &tmp_table_param, tmp_all_fields1,
                         select_distinct && !group_list);
-      tmp_table_param.hidden_field_count= 
+      tmp_table_param.hidden_field_count=
         tmp_all_fields1.elements - tmp_fields_list1.elements;
-      
+
       curr_tab++;
       aggr_tables++;
       bzero(curr_tab, sizeof(JOIN_TAB));
@@ -2998,12 +2998,11 @@ bool JOIN::make_aggr_tables_info()
       if (join_tab->is_using_loose_index_scan())
         tmp_table_param.precomputed_group_by= TRUE;
 
-      tmp_table_param.hidden_field_count= 
+      tmp_table_param.hidden_field_count=
         curr_all_fields->elements - curr_fields_list->elements;
       ORDER *dummy= NULL; //TODO can use table->group here also
 
-      if (create_postjoin_aggr_table(curr_tab,
-                                     curr_all_fields, dummy, true,
+      if (create_postjoin_aggr_table(curr_tab, curr_all_fields, dummy, true,
                                      distinct, keep_row_order))
 	DBUG_RETURN(true);
 
@@ -3274,8 +3273,8 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   */
   ha_rows table_rows_limit= ((order == NULL || skip_sort_order) &&
                               !table_group &&
-                              !select_lex->with_sum_func) ?
-                              select_limit : HA_POS_ERROR;
+                              !select_lex->with_sum_func) ? select_limit
+                                                          : HA_POS_ERROR;
 
   if (!(tab->tmp_table_param= new TMP_TABLE_PARAM(tmp_table_param)))
     DBUG_RETURN(true);
@@ -9373,7 +9372,7 @@ bool JOIN::get_best_combination()
   */ 
   uint aggr_tables= (group_list ? 1 : 0) +
                     (select_distinct ?
-                     (tmp_table_param. using_outer_summary_function ? 2 : 1) : 0) +
+                     (tmp_table_param.using_outer_summary_function ? 2 : 1) : 0) +
                     (order ? 1 : 0) +
        (select_options & (SELECT_BIG_RESULT | OPTION_BUFFER_RESULT) ? 1 : 0) ;
   
@@ -16628,8 +16627,6 @@ static void create_tmp_field_from_item_finalize(THD *thd,
                                update the record in the original table.
                                If modify_item is 0 then fill_record() will
                                update the temporary table
-  @param convert_blob_length   If >0 create a varstring(convert_blob_length)
-                               field instead of blob.
 
   @retval
     0  on error
@@ -16947,6 +16944,10 @@ setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps)
                               temporary table
   @param table_alias          possible name of the temporary table that can
                               be used for name resolving; can be "".
+  @param do_not_open          only create the TABLE object, do not
+                              open the table in the engine
+  @param keep_row_order       rows need to be read in the order they were
+                              inserted, the engine should preserve this order
 */
 
 TABLE *

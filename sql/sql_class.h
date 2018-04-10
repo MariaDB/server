@@ -4990,7 +4990,7 @@ public:
   virtual uint field_count(List<Item> &fields) const
   { return fields.elements; }
   virtual bool send_result_set_metadata(List<Item> &list, uint flags)=0;
-  virtual bool initialize_tables (JOIN *join=0) { return 0; }
+  virtual bool initialize_tables (JOIN *join) { return 0; }
   virtual bool send_eof()=0;
   /**
     Check if this query returns a result set and therefore is allowed in
@@ -5542,7 +5542,7 @@ public:
   bool postponed_prepare(List<Item> &types);
   bool send_result_set_metadata(List<Item> &list, uint flags);
   int send_data(List<Item> &items);
-  bool initialize_tables (JOIN *join= NULL);
+  bool initialize_tables (JOIN *join);
   bool send_eof();
   bool flush() { return false; }
   bool check_simple_select() const

@@ -470,7 +470,7 @@ typedef struct st_join_table {
   Window_funcs_computation* window_funcs_step;
 
   /**
-    List of topmost expressions in the select list. The *next* JOIN TAB
+    List of topmost expressions in the select list. The *next* JOIN_TAB
     in the plan should use it to obtain correct values. Same applicable to
     all_fields. These lists are needed because after tmp tables functions
     will be turned to fields. These variables are pointing to
