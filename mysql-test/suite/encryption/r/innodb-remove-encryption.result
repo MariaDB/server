@@ -1,0 +1,41 @@
+set global innodb_file_per_table=OFF;
+call mtr.add_suppression("mysqld: file-key-management-filename is not set");
+call mtr.add_suppression("Plugin 'file_key_management' init function returned error.");
+call mtr.add_suppression("Plugin 'file_key_management' registration as a ENCRYPTION failed.");
+flush tables;
+create table t1(a int not null primary key, b char(200)) engine=innodb;
+
+# Restart server with encryption
+# Wait until encryption threads have encrypted all tablespaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+NAME
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+# Success!
+SELECT * from t1;
+a	b
+# Now turn off encryption and wait for threads to decrypt all tablespaces
+SET GLOBAL innodb_encrypt_tables = off;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+# Success!
+
+# Restart server with no encryption setup, there should be no crashes
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+SELECT * from t1;
+a	b
+DROP TABLE t1;

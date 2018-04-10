@@ -78,6 +78,12 @@ Created 10/8/1995 Heikki Tuuri
 #include "fil0pagecompress.h"
 #include "btr0scrub.h"
 
+#include <my_service_manager.h>
+
+#ifdef WITH_WSREP
+extern int wsrep_debug;
+extern int wsrep_trx_is_aborting(void *thd_ptr);
+#endif
 /* The following is the maximum allowed duration of a lock wait. */
 UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT;
 
@@ -2511,6 +2517,9 @@ srv_purge_should_exit(ulint n_purged)
 	}
 	/* Slow shutdown was requested. */
 	if (n_purged) {
+		service_manager_extend_timeout(
+			INNODB_EXTEND_TIMEOUT_INTERVAL,
+			"InnoDB " ULINTPF " pages purged", n_purged);
 		/* The previous round still did some work. */
 		return(false);
 	}
@@ -2702,7 +2711,6 @@ srv_do_purge(ulint* n_total_purged)
 			(++count % rseg_truncate_frequency) == 0);
 
 		*n_total_purged += n_pages_purged;
-
 	} while (!srv_purge_should_exit(n_pages_purged)
 		 && n_pages_purged > 0
 		 && purge_sys->state == PURGE_STATE_RUN);

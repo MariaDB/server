@@ -23,3 +23,9 @@ while ($mysql_errno)
 }
 --enable_query_log
 --enable_result_log
+
+# WSREP: SHOW STATUS queries are allowed even if wsrep
+#        is not ready. Make sure wsrep is ready before
+#        returning from this script
+
+--source include/wait_wsrep_ready.inc

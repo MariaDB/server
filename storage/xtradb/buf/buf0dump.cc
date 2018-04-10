@@ -42,6 +42,7 @@ Created April 08, 2011 Vasil Dimov
 #include "ut0byte.h" /* ut_ull_create() */
 #include "ut0sort.h" /* UT_SORT_FUNCTION_BODY */
 #include "mysql/service_wsrep.h" /* wsrep_recovery */
+#include <my_service_manager.h>
 
 enum status_severity {
 	STATUS_INFO,
@@ -327,6 +328,14 @@ buf_dump(
 				counter = 0;
 				buf_dump_status(
 					STATUS_INFO,
+					"Dumping buffer pool "
+					ULINTPF "/" ULINTPF ", "
+					"page " ULINTPF "/" ULINTPF,
+					i + 1, srv_buf_pool_instances,
+					j + 1, n_pages);
+			}
+			if ( (j % 1024) == 0) {
+				service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 					"Dumping buffer pool "
 					ULINTPF "/" ULINTPF ", "
 					"page " ULINTPF "/" ULINTPF,

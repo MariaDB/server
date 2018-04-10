@@ -63,6 +63,8 @@ static const int buf_flush_page_cleaner_priority = -20;
 modification lsn */
 static const ulint buf_flush_wait_flushed_sleep_time = 10000;
 
+#include <my_service_manager.h>
+
 /** Number of pages flushed through non flush_list flushes. */
 static ulint buf_lru_flush_page_count = 0;
 
@@ -640,6 +642,17 @@ buf_flush_remove(
 	buf_page_t*	bpage)	/*!< in: pointer to the block in question */
 {
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
+
+#if 0 // FIXME: Rate-limit the output. Move this to the page cleaner?
+	if (UNIV_UNLIKELY(srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE)) {
+		service_manager_extend_timeout(
+			INNODB_EXTEND_TIMEOUT_INTERVAL,
+			"Flush and remove page with tablespace id %u"
+			", Poolid " ULINTPF ", flush list length " ULINTPF,
+			bpage->space, buf_pool->instance_no,
+			UT_LIST_GET_LEN(buf_pool->flush_list));
+	}
+#endif
 
 	ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));

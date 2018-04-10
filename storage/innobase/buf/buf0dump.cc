@@ -45,6 +45,7 @@ Created April 08, 2011 Vasil Dimov
 #include <algorithm>
 
 #include "mysql/service_wsrep.h" /* wsrep_recovery */
+#include <my_service_manager.h>
 
 enum status_severity {
 	STATUS_INFO,
@@ -389,6 +390,14 @@ buf_dump(
 						tmp_filename, strerror(errno));
 				/* leave tmp_filename to exist */
 				return;
+			}
+			if ( (j % 1024) == 0) {
+				service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+					"Dumping buffer pool "
+					ULINTPF "/" ULINTPF ", "
+					"page " ULINTPF "/" ULINTPF,
+					i + 1, srv_buf_pool_instances,
+					j + 1, n_pages);
 			}
 		}
 

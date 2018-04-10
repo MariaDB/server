@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2018, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -114,17 +114,17 @@ extern my_bool srv_background_scrub_data_compressed;
 
 /***********************************************************************
 Check if a key needs rotation given a key_state
-@param[in]	encrypt_mode		Encryption mode
+@param[in]	crypt_data		Encryption information
 @param[in]	key_version		Current key version
 @param[in]	latest_key_version	Latest key version
 @param[in]	rotate_key_age		when to rotate
 @return true if key needs rotation, false if not */
 static bool
 fil_crypt_needs_rotation(
-	fil_encryption_t	encrypt_mode,
-	uint			key_version,
-	uint			latest_key_version,
-	uint			rotate_key_age)
+	const fil_space_crypt_t*	crypt_data,
+	uint				key_version,
+	uint				latest_key_version,
+	uint				rotate_key_age)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************
@@ -187,7 +187,8 @@ fil_crypt_get_latest_key_version(
 
 	if (crypt_data->is_key_found()) {
 
-		if (fil_crypt_needs_rotation(crypt_data->encryption,
+		if (fil_crypt_needs_rotation(
+				crypt_data,
 				crypt_data->min_key_version,
 				key_version,
 				srv_fil_crypt_rotate_key_age)) {
@@ -963,17 +964,17 @@ fil_crypt_get_key_state(
 
 /***********************************************************************
 Check if a key needs rotation given a key_state
-@param[in]	encrypt_mode		Encryption mode
+@param[in]	crypt_data		Encryption information
 @param[in]	key_version		Current key version
 @param[in]	latest_key_version	Latest key version
 @param[in]	rotate_key_age		when to rotate
 @return true if key needs rotation, false if not */
 static bool
 fil_crypt_needs_rotation(
-	fil_encryption_t	encrypt_mode,
-	uint			key_version,
-	uint			latest_key_version,
-	uint			rotate_key_age)
+	const fil_space_crypt_t*	crypt_data,
+	uint				key_version,
+	uint				latest_key_version,
+	uint				rotate_key_age)
 {
 	if (key_version == ENCRYPTION_KEY_VERSION_INVALID) {
 		return false;
@@ -986,11 +987,18 @@ fil_crypt_needs_rotation(
 	}
 
 	if (latest_key_version == 0 && key_version != 0) {
-		if (encrypt_mode == FIL_ENCRYPTION_DEFAULT) {
+		if (crypt_data->encryption == FIL_ENCRYPTION_DEFAULT) {
 			/* this is rotation encrypted => unencrypted */
 			return true;
 		}
 		return false;
+	}
+
+	if (crypt_data->encryption == FIL_ENCRYPTION_DEFAULT
+	    && crypt_data->type == CRYPT_SCHEME_1
+	    && srv_encrypt_tables == 0 ) {
+		/* This is rotation encrypted => unencrypted */
+		return true;
 	}
 
 	/* this is rotation encrypted => encrypted,
@@ -1008,10 +1016,17 @@ static inline
 void
 fil_crypt_read_crypt_data(fil_space_t* space)
 {
-	if (space->crypt_data || space->size) {
+	if (space->crypt_data || space->size
+	    || !fil_space_get_size(space->id)) {
 		/* The encryption metadata has already been read, or
 		the tablespace is not encrypted and the file has been
-		opened already. */
+		opened already, or the file cannot be accessed,
+		likely due to a concurrent TRUNCATE or
+		RENAME or DROP (possibly as part of ALTER TABLE).
+		FIXME: The file can become unaccessible any time
+		after this check! We should really remove this
+		function and instead make crypt_data an integral
+		part of fil_space_t. */
 		return;
 	}
 
@@ -1272,9 +1287,10 @@ fil_crypt_space_needs_rotation(
 		}
 
 		bool need_key_rotation = fil_crypt_needs_rotation(
-			crypt_data->encryption,
+			crypt_data,
 			crypt_data->min_key_version,
-			key_state->key_version, key_state->rotate_key_age);
+			key_state->key_version,
+			key_state->rotate_key_age);
 
 		crypt_data->rotate_state.scrubbing.is_active =
 			btr_scrub_start_space(space->id, &state->scrub_data);
@@ -1862,9 +1878,10 @@ fil_crypt_rotate_page(
 			ut_ad(kv == 0);
 			ut_ad(page_get_space_id(frame) == 0);
 		} else if (fil_crypt_needs_rotation(
-				   crypt_data->encryption,
-				   kv, key_state->key_version,
-				   key_state->rotate_key_age)) {
+				crypt_data,
+				kv,
+				key_state->key_version,
+				key_state->rotate_key_age)) {
 
 			modified = true;
 

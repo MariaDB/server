@@ -1341,22 +1341,27 @@ bool do_command(THD *thd)
   command= fetch_command(thd, packet);
 
 #ifdef WITH_WSREP
-  /*
-    Bail out if DB snapshot has not been installed.
-  */
-  if (thd->variables.wsrep_on && !thd->wsrep_applier &&
-      (!wsrep_ready || wsrep_reject_queries != WSREP_REJECT_NONE) &&
-      (server_command_flags[command] & CF_SKIP_WSREP_CHECK) == 0)
+  if (WSREP(thd))
   {
-    thd->protocol->end_statement();
+    /*
+      Bail out if DB snapshot has not been installed.
+    */
+    if (!thd->wsrep_applier &&
+        (!wsrep_ready || wsrep_reject_queries != WSREP_REJECT_NONE) &&
+        (server_command_flags[command] & CF_SKIP_WSREP_CHECK) == 0)
+    {
+      my_message(ER_UNKNOWN_COM_ERROR,
+                 "WSREP has not yet prepared node for application use", MYF(0));
+      thd->protocol->end_statement();
 
-    /* Performance Schema Interface instrumentation end. */
-    MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
-    thd->m_statement_psi= NULL;
-    thd->m_digest= NULL;
+      /* Performance Schema Interface instrumentation end. */
+      MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+      thd->m_statement_psi= NULL;
+      thd->m_digest= NULL;
 
-    return_value= FALSE;
-    goto out;
+      return_value= FALSE;
+      goto out;
+    }
   }
 #endif
 
@@ -3156,8 +3161,7 @@ mysql_execute_command(THD *thd)
      * allow SET and SHOW queries and reads from information schema
      * and dirty reads (if configured)
      */
-    if (thd->variables.wsrep_on &&
-	!thd->wsrep_applier &&
+    if (!thd->wsrep_applier &&
         !(wsrep_ready && wsrep_reject_queries == WSREP_REJECT_NONE)        &&
         !(thd->variables.wsrep_dirty_reads &&
           (sql_command_flags[lex->sql_command] & CF_CHANGES_DATA) == 0)    &&

@@ -25,7 +25,7 @@ Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
 #include "my_config.h"
-#include <my_systemd.h>
+#include <my_service_manager.h>
 
 #include "ha_prototypes.h"
 #include "trx0roll.h"
@@ -765,7 +765,6 @@ trx_roll_must_shutdown()
 	const trx_t* trx = trx_roll_crash_recv_trx;
 	ut_ad(trx);
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
-	ut_ad(trx->in_rollback);
 
 	if (trx_get_dict_operation(trx) == TRX_DICT_OP_NONE
 	    && !srv_is_being_started
@@ -791,10 +790,15 @@ trx_roll_must_shutdown()
 				n_rows += t->undo_no;
 			}
 		}
+		if (n_rows > 0) {
+			service_manager_extend_timeout(
+				INNODB_EXTEND_TIMEOUT_INTERVAL,
+				"To roll back: " ULINTPF " transactions, "
+				"%llu rows", n_trx, n_rows);
+		}
+
 		ib::info() << "To roll back: " << n_trx << " transactions, "
 			   << n_rows << " rows";
-		sd_notifyf(0, "STATUS=To roll back: " ULINTPF " transactions, "
-			   "%llu rows", n_trx, n_rows);
 	}
 
 	mutex_exit(&recv_sys->mutex);

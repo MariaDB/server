@@ -5749,8 +5749,8 @@ ER_SP_NO_AGGREGATE 42000
         eng "AGGREGATE is not supported for stored functions"
         ger "AGGREGATE wird bei gespeicherten Funktionen nicht unterstützt"
 ER_MAX_PREPARED_STMT_COUNT_REACHED 42000
-        eng "Can't create more than max_prepared_stmt_count statements (current value: %lu)"
-        ger "Kann nicht mehr Anweisungen als max_prepared_stmt_count erzeugen (aktueller Wert: %lu)"
+        eng "Can't create more than max_prepared_stmt_count statements (current value: %u)"
+        ger "Kann nicht mehr Anweisungen als max_prepared_stmt_count erzeugen (aktueller Wert: %u)"
 ER_VIEW_RECURSIVE
         eng "`%-.192s`.`%-.192s` contains view recursion"
         ger "`%-.192s`.`%-.192s` enthält View-Rekursion"

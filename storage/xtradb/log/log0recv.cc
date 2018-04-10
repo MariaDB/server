@@ -30,7 +30,7 @@ Created 9/20/1997 Heikki Tuuri
 #include <stdio.h>                              // Solaris/x86 header file bug
 
 #include <vector>
-#include <my_systemd.h>
+#include <my_service_manager.h>
 
 #include "log0recv.h"
 
@@ -1804,8 +1804,8 @@ recv_recover_page_func(
 		if (recv_sys->report(time)) {
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"To recover: " ULINTPF " pages from log", n);
-			sd_notifyf(0, "STATUS=To recover: " ULINTPF
-				   " pages from log", n);
+			service_manager_extend_timeout(
+				INNODB_EXTEND_TIMEOUT_INTERVAL, "To recover: " ULINTPF " pages from log", n);
 		}
 	}
 
@@ -3000,6 +3000,9 @@ recv_init_crash_recovery(void)
 	check if there are half-written pages in data files,
 	and restore them from the doublewrite buffer if
 	possible */
+
+	service_manager_extend_timeout(
+		INNODB_EXTEND_TIMEOUT_INTERVAL, "Starting Innodb crash recovery");
 
 	if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
 		buf_dblwr_process();

@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -49,7 +49,7 @@ Created 12/9/1995 Heikki Tuuri
 
 #ifndef UNIV_HOTBACKUP
 #if MYSQL_VERSION_ID < 100200
-# include <my_systemd.h> /* sd_notifyf() */
+# include <my_service_manager.h>
 #endif
 
 #include "mem0mem.h"
@@ -1561,6 +1561,12 @@ log_write_up_to(
 		return;
 	}
 
+	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+					       "log write up to: " LSN_PF,
+					       lsn);
+	}
+
 loop:
 	ut_ad(++loop_count < 100);
 
@@ -2602,8 +2608,9 @@ loop:
 	if (recv_recovery_is_on() && recv_sys && recv_sys->report(ut_time())) {
 		ib_logf(IB_LOG_LEVEL_INFO, "Read redo log up to LSN=" LSN_PF,
 			start_lsn);
-		sd_notifyf(0, "STATUS=Read redo log up to LSN=" LSN_PF,
-			   start_lsn);
+		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+			"Read redo log up to LSN=" LSN_PF,
+			start_lsn);
 	}
 
 	if (start_lsn != end_lsn) {
@@ -3553,7 +3560,9 @@ loop:
 		os_event_set(lock_sys->timeout_event);
 		os_event_set(dict_stats_event);
 	}
-	os_thread_sleep(100000);
+#define COUNT_INTERVAL 600U
+#define CHECK_INTERVAL 100000U
+	os_thread_sleep(CHECK_INTERVAL);
 
 	count++;
 
@@ -3565,7 +3574,11 @@ loop:
 	if (ulint total_trx = srv_was_started && !srv_read_only_mode
 	    && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
 	    ? trx_sys_any_active_transactions() : 0) {
-		if (srv_print_verbose_log && count > 600) {
+		if (srv_print_verbose_log && count > COUNT_INTERVAL) {
+			service_manager_extend_timeout(
+				COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
+				"Waiting for %lu active transactions to finish",
+				(ulong) total_trx);
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"Waiting for %lu active transactions to finish",
 				(ulong) total_trx);
@@ -3600,7 +3613,10 @@ loop:
 	if (thread_name) {
 		ut_ad(!srv_read_only_mode);
 wait_suspend_loop:
-		if (srv_print_verbose_log && count > 600) {
+		service_manager_extend_timeout(
+			COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
+			"Waiting for %s to exit", thread_name);
+		if (srv_print_verbose_log && count > COUNT_INTERVAL) {
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"Waiting for %s to exit", thread_name);
 			count = 0;
@@ -3636,6 +3652,8 @@ wait_suspend_loop:
 	before proceeding further. */
 
 	count = 0;
+	service_manager_extend_timeout(COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
+		"Waiting for page cleaner");
 	os_rmb;
 	while (buf_page_cleaner_is_active || buf_lru_manager_is_active) {
 		if (srv_print_verbose_log && count == 0) {
@@ -3644,8 +3662,10 @@ wait_suspend_loop:
 				"finish flushing of buffer pool");
 		}
 		++count;
-		os_thread_sleep(100000);
-		if (count > 600) {
+		os_thread_sleep(CHECK_INTERVAL);
+		if (srv_print_verbose_log && count > COUNT_INTERVAL) {
+			service_manager_extend_timeout(COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
+				"Waiting for page cleaner");
 			count = 0;
 		}
 		os_rmb;
@@ -3730,6 +3750,8 @@ wait_suspend_loop:
 	}
 
 	if (!srv_read_only_mode) {
+		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+			"ensuring dirty buffer pool are written to log");
 		log_make_checkpoint_at(LSN_MAX, TRUE);
 
 		mutex_enter(&log_sys->mutex);
@@ -3758,23 +3780,6 @@ wait_suspend_loop:
 
 		mutex_exit(&log_sys->mutex);
 
-		fil_flush_file_spaces(FIL_TABLESPACE);
-		fil_flush_file_spaces(FIL_LOG);
-
-		/* The call fil_write_flushed_lsn_to_data_files() will
-		bypass the buffer pool: therefore it is essential that
-		the buffer pool has been completely flushed to disk! */
-
-		if (!buf_all_freed()) {
-			if (srv_print_verbose_log && count > 600) {
-				ib_logf(IB_LOG_LEVEL_INFO,
-					"Waiting for dirty buffer pages"
-					" to be flushed");
-				count = 0;
-			}
-
-			goto loop;
-		}
 	} else {
 		lsn = srv_start_lsn;
 	}
@@ -3791,8 +3796,9 @@ wait_suspend_loop:
 	srv_thread_type	type = srv_get_active_thread_type();
 	ut_a(type == SRV_NONE);
 
-	bool	freed = buf_all_freed();
-	ut_a(freed);
+	service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+				       "Free innodb buffer pool");
+	buf_all_freed();
 
 	ut_a(lsn == log_sys->lsn);
 	ut_ad(srv_force_recovery >= SRV_FORCE_NO_LOG_REDO
@@ -3823,9 +3829,6 @@ wait_suspend_loop:
 	/* Make some checks that the server really is quiet */
 	type = srv_get_active_thread_type();
 	ut_a(type == SRV_NONE);
-
-	freed = buf_all_freed();
-	ut_a(freed);
 
 	ut_a(lsn == log_sys->lsn);
 }

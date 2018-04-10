@@ -30,7 +30,7 @@ Created 9/20/1997 Heikki Tuuri
 #include <vector>
 #include <map>
 #include <string>
-#include <my_systemd.h>
+#include <my_service_manager.h>
 
 #include "log0recv.h"
 
@@ -727,8 +727,9 @@ loop:
 
 	if (recv_sys->report(ut_time())) {
 		ib::info() << "Read redo log up to LSN=" << *start_lsn;
-		sd_notifyf(0, "STATUS=Read redo log up to LSN=" LSN_PF,
-			   *start_lsn);
+		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+			"Read redo log up to LSN=" LSN_PF,
+			*start_lsn);
 	}
 
 	if (*start_lsn != end_lsn) {
@@ -1936,8 +1937,8 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 	if (ulint n = --recv_sys->n_addrs) {
 		if (recv_sys->report(time)) {
 			ib::info() << "To recover: " << n << " pages from log";
-			sd_notifyf(0, "STATUS=To recover: " ULINTPF
-				   " pages from log", n);
+			service_manager_extend_timeout(
+				INNODB_EXTEND_TIMEOUT_INTERVAL, "To recover: " ULINTPF " pages from log", n);
 		}
 	}
 
