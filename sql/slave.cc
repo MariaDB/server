@@ -356,7 +356,7 @@ end:
 static void
 handle_gtid_pos_auto_create_request(THD *thd, void *hton)
 {
-  int err;
+  int UNINIT_VAR(err);
   plugin_ref engine= NULL, *auto_engines;
   rpl_slave_state::gtid_pos_table *entry;
   StringBuffer<FN_REFLEN> loc_table_name;
@@ -6069,7 +6069,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
 {
   int error= 0;
   StringBuffer<1024> error_msg;
-  ulonglong inc_pos;
+  ulonglong inc_pos= 0;
   ulonglong event_pos;
   Relay_log_info *rli= &mi->rli;
   mysql_mutex_t *log_lock= rli->relay_log.get_log_lock();

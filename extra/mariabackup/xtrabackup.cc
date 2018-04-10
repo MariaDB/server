@@ -3036,7 +3036,7 @@ static dberr_t xb_assign_undo_space_start()
 	byte*		page;
 	bool		ret;
 	dberr_t		error = DB_SUCCESS;
-	ulint		space, page_no;
+	ulint		space, page_no __attribute__((unused));
 
 	if (srv_undo_tablespaces == 0) {
 		return error;

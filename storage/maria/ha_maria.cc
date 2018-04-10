@@ -3091,7 +3091,7 @@ int ha_maria::create(const char *name, register TABLE *table_arg,
                      HA_CREATE_INFO *ha_create_info)
 {
   int error;
-  uint create_flags= 0, record_count, i;
+  uint create_flags= 0, record_count= 0, i;
   char buff[FN_REFLEN];
   MARIA_KEYDEF *keydef;
   MARIA_COLUMNDEF *recinfo;

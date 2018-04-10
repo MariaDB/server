@@ -322,7 +322,7 @@ rec_init_offsets_comp_ordinary(
 	      || dict_table_is_comp(index->table));
 	ut_ad(format != REC_LEAF_TEMP_COLUMNS_ADDED
 	      || index->n_fields == rec_offs_n_fields(offsets));
-	ut_d(ulint n_null);
+	ut_d(ulint n_null= 0);
 
 	switch (format) {
 	case REC_LEAF_TEMP:
@@ -1447,10 +1447,10 @@ rec_convert_dtuple_to_rec_comp(
 	byte*		end;
 	byte*		nulls = temp
 		? rec - 1 : rec - (REC_N_NEW_EXTRA_BYTES + 1);
-	byte*		lens;
+	byte*		UNINIT_VAR(lens);
 	ulint		len;
 	ulint		i;
-	ulint		n_node_ptr_field;
+	ulint		UNINIT_VAR(n_node_ptr_field);
 	ulint		fixed_len;
 	ulint		null_mask	= 1;
 
@@ -1835,7 +1835,7 @@ rec_copy_prefix_to_buf(
 	ulint*			buf_size)	/*!< in/out: buffer size */
 {
 	const byte*	nulls;
-	const byte*	lens;
+	const byte*	UNINIT_VAR(lens);
 	ulint		i;
 	ulint		prefix_len;
 	ulint		null_mask;
@@ -2129,7 +2129,7 @@ rec_print_comp(
 	ulint	i;
 
 	for (i = 0; i < rec_offs_n_fields(offsets); i++) {
-		const byte*	data;
+          const byte*	UNINIT_VAR(data);
 		ulint		len;
 
 		if (rec_offs_nth_default(offsets, i)) {

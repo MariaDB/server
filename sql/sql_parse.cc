@@ -4891,7 +4891,7 @@ end_with_restore_list:
     unit->set_limit(select_lex);
 
     MYSQL_DELETE_START(thd->query());
-    Protocol *save_protocol;
+    Protocol * UNINIT_VAR(save_protocol);
     bool replaced_protocol= false;
 
     if (!select_lex->item_list.is_empty())

@@ -2811,7 +2811,7 @@ int spider_internal_xa_commit_by_xid(
   SPIDER_TRX *trx,
   XID* xid
 ) {
-  TABLE *table_xa, *table_xa_member;
+  TABLE *table_xa, *table_xa_member= 0;
   int error_num;
   char xa_key[MAX_KEY_LENGTH];
   char xa_member_key[MAX_KEY_LENGTH];
@@ -3046,7 +3046,7 @@ int spider_internal_xa_rollback_by_xid(
   SPIDER_TRX *trx,
   XID* xid
 ) {
-  TABLE *table_xa, *table_xa_member;
+  TABLE *table_xa, *table_xa_member= 0;
   int error_num;
   char xa_key[MAX_KEY_LENGTH];
   char xa_member_key[MAX_KEY_LENGTH];

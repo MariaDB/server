@@ -6548,7 +6548,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
   Query_arena *arena, backup;
   bool result= TRUE;
   bool first_outer_loop= TRUE;
-  Field *field_1, *field_2;
+  Field *field_1;
   field_visibility_t field_1_invisible, field_2_invisible;
   /*
     Leaf table references to which new natural join columns are added
@@ -6572,6 +6572,8 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
   {
     bool found= FALSE;
     const LEX_CSTRING *field_name_1;
+    Field *field_2= 0;
+
     /* true if field_name_1 is a member of using_fields */
     bool is_using_column_1;
     if (!(nj_col_1= it_1.get_or_create_column_ref(thd, leaf_1)))

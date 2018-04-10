@@ -1188,7 +1188,6 @@ buf_madvise_do_dump()
 {
 	int ret= 0;
 	buf_pool_t*	buf_pool;
-	ulint		n;
 	buf_chunk_t*	chunk;
 
 	/* mirrors allocation in log_sys_init() */
@@ -1207,7 +1206,7 @@ buf_madvise_do_dump()
 
 	buf_pool_mutex_enter_all();
 
-	for (int i= 0; i < srv_buf_pool_instances; i++)
+	for (ulong i= 0; i < srv_buf_pool_instances; i++)
 	{
 		buf_pool = buf_pool_from_array(i);
 		chunk = buf_pool->chunks;

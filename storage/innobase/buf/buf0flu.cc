@@ -967,7 +967,7 @@ buf_flush_init_for_writing(
 		}
 	}
 
-	uint32_t checksum;
+	uint32_t checksum= 0;
 
 	switch (srv_checksum_algorithm_t(srv_checksum_algorithm)) {
 	case SRV_CHECKSUM_ALGORITHM_INNODB:

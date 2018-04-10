@@ -2615,7 +2615,7 @@ String *Item_func_json_remove::val_str(String *str)
   {
     uint array_counters[JSON_DEPTH_LIMIT];
     json_path_with_flags *c_path= paths + n_path;
-    const char *rem_start, *rem_end;
+    const char *rem_start= 0, *rem_end;
     const json_path_step_t *lp;
     uint n_item= 0;
 
