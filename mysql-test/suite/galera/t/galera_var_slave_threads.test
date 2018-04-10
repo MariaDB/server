@@ -88,6 +88,13 @@ INSERT INTO t1 VALUES (DEFAULT);
 DROP TABLE t1;
 
 --connection node_2
+
+# Wait until above DDL is replicated
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
+--source include/wait_condition.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
+
 #
 # make sure that we are left with exactly one applier thread before we leaving the test
 #
