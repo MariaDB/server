@@ -5401,3 +5401,18 @@ DELIMITER ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
 ALTER DATABASE `a\"'``b` CHARACTER SET utf8 COLLATE utf8_general_ci ;
 DROP DATABASE `a\"'``b`;
+#
+# MDEV-15021: mysqldump --tables --routines generates non importable
+#             dump file
+#
+# Check the order in which routines are written in the dump. Routines
+# need to be printed before views, in case views make use of them.
+#
+use test;
+CREATE FUNCTION f() RETURNS INT RETURN 1;
+CREATE VIEW v1 AS SELECT f();
+DROP VIEW v1;
+DROP FUNCTION f;
+# Cleanup
+DROP VIEW v1;
+DROP FUNCTION f;
