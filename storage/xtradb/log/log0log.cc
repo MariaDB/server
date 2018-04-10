@@ -3560,8 +3560,8 @@ loop:
 		os_event_set(lock_sys->timeout_event);
 		os_event_set(dict_stats_event);
 	}
-#define COUNT_INTERVAL 600
-#define CHECK_INTERVAL 100000
+#define COUNT_INTERVAL 600U
+#define CHECK_INTERVAL 100000U
 	os_thread_sleep(CHECK_INTERVAL);
 
 	count++;
@@ -3577,7 +3577,8 @@ loop:
 		if (srv_print_verbose_log && count > COUNT_INTERVAL) {
 			service_manager_extend_timeout(
 				COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
-				"Waiting for %lu active transactions to finish");
+				"Waiting for %lu active transactions to finish",
+				(ulong) total_trx);
 			ib_logf(IB_LOG_LEVEL_INFO,
 				"Waiting for %lu active transactions to finish",
 				(ulong) total_trx);
