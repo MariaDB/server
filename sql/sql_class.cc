@@ -5037,66 +5037,6 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
   return 0;
 }
 
-
-/*
-  If the storage engine detects a deadlock, and needs to choose a victim
-  transaction to roll back, it can call this function to ask the upper
-  server layer for which of two possible transactions is prefered to be
-  aborted and rolled back.
-
-  In parallel replication, if two transactions are running in parallel and
-  one is fixed to commit before the other, then the one that commits later
-  will be prefered as the victim - chosing the early transaction as a victim
-  will not resolve the deadlock anyway, as the later transaction still needs
-  to wait for the earlier to commit.
-
-  Otherwise, a transaction that uses only transactional tables, and can thus
-  be safely rolled back, will be prefered as a deadlock victim over a
-  transaction that also modified non-transactional (eg. MyISAM) tables.
-
-  The return value is -1 if the first transaction is prefered as a deadlock
-  victim, 1 if the second transaction is prefered, or 0 for no preference (in
-  which case the storage engine can make the choice as it prefers).
-*/
-extern "C" int
-thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2)
-{
-  rpl_group_info *rgi1, *rgi2;
-  bool nontrans1, nontrans2;
-
-  if (!thd1 || !thd2)
-    return 0;
-
-  /*
-    If the transactions are participating in the same replication domain in
-    parallel replication, then request to select the one that will commit
-    later (in the fixed commit order from the master) as the deadlock victim.
-  */
-  rgi1= thd1->rgi_slave;
-  rgi2= thd2->rgi_slave;
-  if (rgi1 && rgi2 &&
-      rgi1->is_parallel_exec &&
-      rgi1->rli == rgi2->rli &&
-      rgi1->current_gtid.domain_id == rgi2->current_gtid.domain_id)
-    return rgi1->gtid_sub_id < rgi2->gtid_sub_id ? 1 : -1;
-
-  /*
-    If one transaction has modified non-transactional tables (so that it
-    cannot be safely rolled back), and the other has not, then prefer to
-    select the purely transactional one as the victim.
-  */
-  nontrans1= thd1->transaction.all.modified_non_trans_table;
-  nontrans2= thd2->transaction.all.modified_non_trans_table;
-  if (nontrans1 && !nontrans2)
-    return 1;
-  else if (!nontrans1 && nontrans2)
-    return -1;
-
-  /* No preferences, let the storage engine decide. */
-  return 0;
-}
-
-
 extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 {
   return(thd->transaction.all.modified_non_trans_table);
