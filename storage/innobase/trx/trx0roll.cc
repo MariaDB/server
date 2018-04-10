@@ -719,9 +719,21 @@ fake_prepared:
 	goto func_exit;
 }
 
-/** Report progress when rolling back a row of a recovered transaction. */
-UNIV_INTERN void trx_roll_report_progress()
+/** Report progress when rolling back a row of a recovered transaction.
+@return	whether the rollback should be aborted due to pending shutdown */
+UNIV_INTERN
+bool
+trx_roll_must_shutdown()
 {
+	const trx_t* trx = trx_roll_crash_recv_trx;
+	ut_ad(trx);
+	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
+
+	if (trx_get_dict_operation(trx) == TRX_DICT_OP_NONE
+	    && !srv_undo_sources && srv_fast_shutdown) {
+		return true;
+	}
+
 	ib_time_t time = ut_time();
 	mutex_enter(&trx_sys->mutex);
 	mutex_enter(&recv_sys->mutex);
@@ -755,6 +767,7 @@ UNIV_INTERN void trx_roll_report_progress()
 
 	mutex_exit(&recv_sys->mutex);
 	mutex_exit(&trx_sys->mutex);
+	return false;
 }
 
 /*******************************************************************//**
