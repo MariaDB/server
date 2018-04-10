@@ -189,15 +189,6 @@
 #define __builtin_expect(x, expected_value) (x)
 #endif
 
-/**
-  The semantics of builtin_expect() are that
-  1) its two arguments are long
-  2) it's likely that they are ==
-  Those of our likely(x) are that x can be bool/int/longlong/pointer.
-*/
-#define likely(x)	__builtin_expect(((x) != 0),1)
-#define unlikely(x)	__builtin_expect(((x) != 0),0)
-
 /* Fix problem with S_ISLNK() on Linux */
 #if defined(TARGET_OS_LINUX) || defined(__GLIBC__)
 #undef  _GNU_SOURCE
@@ -383,6 +374,36 @@ C_MODE_END
 #if defined(HAVE_CRYPT_H)
 #include <crypt.h>
 #endif
+
+/* Add checking if we are using likely/unlikely wrong */
+#ifdef CHECK_UNLIKELY
+C_MODE_START
+extern void init_my_likely(), end_my_likely(FILE *);
+extern int my_likely_ok(const char *file_name, uint line);
+extern int my_likely_fail(const char *file_name, uint line);
+C_MODE_END
+
+#define likely(A) ((A) ? (my_likely_ok(__FILE__, __LINE__),1) : (my_likely_fail(__FILE__, __LINE__), 0))
+#define unlikely(A) ((A) ? (my_likely_fail(__FILE__, __LINE__),1) : (my_likely_ok(__FILE__, __LINE__), 0))
+/*
+  These macros should be used when the check fails often when running benchmarks but
+  we know for sure that the check is correct in a production environment
+*/
+#define checked_likely(A) (A)
+#define checked_unlikely(A) (A)
+#else
+/**
+  The semantics of builtin_expect() are that
+  1) its two arguments are long
+  2) it's likely that they are ==
+  Those of our likely(x) are that x can be bool/int/longlong/pointer.
+*/
+
+#define likely(x)	__builtin_expect(((x) != 0),1)
+#define unlikely(x)	__builtin_expect(((x) != 0),0)
+#define checked_likely(x) likely(x)
+#define checked_unlikely(x) unlikely(x)
+#endif /* CHECK_UNLIKELY */
 
 /*
   A lot of our programs uses asserts, so better to always include it
@@ -1279,5 +1300,4 @@ static inline double rint(double x)
 #else
 #define NOT_FIXED_DEC           FLOATING_POINT_DECIMALS
 #endif
-
 #endif /* my_global_h */

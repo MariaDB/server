@@ -78,6 +78,7 @@ So, we can read full search-structure as 32-bit word
 */
 
 #define NO_YACC_SYMBOLS
+#undef CHECK_UNLIKELY
 #include "mariadb.h"
 #include "mysql_version.h"
 #include "lex.h"

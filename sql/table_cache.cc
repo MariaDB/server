@@ -838,7 +838,7 @@ retry:
     /* note that tdc_acquire_share() *always* uses discovery */
     open_table_def(thd, share, flags | GTS_USE_DISCOVERY);
 
-    if (unlikely(share->error))
+    if (checked_unlikely(share->error))
     {
       free_table_share(share);
       lf_hash_delete(&tdc_hash, thd->tdc_hash_pins, key, key_length);
