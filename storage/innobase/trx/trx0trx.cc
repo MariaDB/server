@@ -1457,19 +1457,18 @@ trx_commit_in_memory(
 	srv_wake_purge_thread_if_not_active();
 }
 
-/****************************************************************//**
-Commits a transaction and a mini-transaction. */
-void
-trx_commit_low(
-/*===========*/
-	trx_t*	trx,	/*!< in/out: transaction */
-	mtr_t*	mtr)	/*!< in/out: mini-transaction (will be committed),
-			or NULL if trx made no modifications */
+/** Commit a transaction and a mini-transaction.
+@param[in,out]	trx	transaction
+@param[in,out]	mtr	mini-transaction (NULL if no modifications) */
+void trx_commit_low(trx_t* trx, mtr_t* mtr)
 {
 	assert_trx_nonlocking_or_in_list(trx);
 	ut_ad(!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY));
 	ut_ad(!mtr || mtr->is_active());
-	ut_ad(!mtr == !trx->has_logged_or_recovered());
+	ut_d(bool aborted = trx->in_rollback
+	     && trx->error_state == DB_DEADLOCK);
+	ut_ad(!mtr == (aborted || !trx->has_logged_or_recovered()));
+	ut_ad(!mtr || !aborted);
 
 	/* undo_no is non-zero if we're doing the final commit. */
 	if (trx->fts_trx != NULL && trx->undo_no != 0) {

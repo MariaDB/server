@@ -19424,8 +19424,8 @@ static MYSQL_SYSVAR_ULONG(sync_array_size, srv_sync_array_size,
 static MYSQL_SYSVAR_UINT(fast_shutdown, srv_fast_shutdown,
   PLUGIN_VAR_OPCMDARG,
   "Speeds up the shutdown process of the InnoDB storage engine. Possible"
-  " values are 0, 1 (faster) or 2 (fastest - crash-like).",
-  fast_shutdown_validate, NULL, 1, 0, 2, 0);
+  " values are 0, 1 (faster), 2 (crash-like), 3 (fastest clean).",
+  fast_shutdown_validate, NULL, 1, 0, 3, 0);
 
 static MYSQL_SYSVAR_BOOL(file_per_table, srv_file_per_table,
   PLUGIN_VAR_NOCMDARG,

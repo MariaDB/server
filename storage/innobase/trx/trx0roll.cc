@@ -58,13 +58,47 @@ bool			trx_rollback_is_active;
 /** In crash recovery, the current trx to be rolled back; NULL otherwise */
 const trx_t*		trx_roll_crash_recv_trx;
 
-/****************************************************************//**
-Finishes a transaction rollback. */
-static
-void
-trx_rollback_finish(
-/*================*/
-	trx_t*		trx);	/*!< in: transaction */
+/** Finish transaction rollback.
+@param[in,out]	trx	transaction
+@return	whether the rollback was completed normally
+@retval	false	if the rollback was aborted by shutdown  */
+static bool trx_rollback_finish(trx_t* trx)
+{
+	trx->mod_tables.clear();
+	bool finished = trx->error_state == DB_SUCCESS;
+	if (UNIV_LIKELY(finished)) {
+		trx_commit(trx);
+	} else {
+		ut_a(trx->error_state == DB_INTERRUPTED);
+		ut_ad(!srv_is_being_started);
+		ut_a(!srv_undo_sources);
+		ut_ad(srv_fast_shutdown);
+		ut_d(trx->in_rollback = false);
+		if (trx_undo_t*& undo = trx->rsegs.m_redo.old_insert) {
+			UT_LIST_REMOVE(trx->rsegs.m_redo.rseg->old_insert_list,
+				       undo);
+			ut_free(undo);
+			undo = NULL;
+		}
+		if (trx_undo_t*& undo = trx->rsegs.m_redo.undo) {
+			UT_LIST_REMOVE(trx->rsegs.m_redo.rseg->undo_list,
+				       undo);
+			ut_free(undo);
+			undo = NULL;
+		}
+		if (trx_undo_t*& undo = trx->rsegs.m_noredo.undo) {
+			UT_LIST_REMOVE(trx->rsegs.m_noredo.rseg->undo_list,
+				       undo);
+			ut_free(undo);
+			undo = NULL;
+		}
+		trx_commit_low(trx, NULL);
+	}
+
+	trx->lock.que_state = TRX_QUE_RUNNING;
+
+	return finished;
+}
 
 /*******************************************************************//**
 Rollback a transaction used in MySQL. */
@@ -119,6 +153,7 @@ trx_rollback_to_savepoint_low(
 		trx_rollback_finish(trx);
 		MONITOR_INC(MONITOR_TRX_ROLLBACK);
 	} else {
+		ut_a(trx->error_state == DB_SUCCESS);
 		const undo_no_t limit = savept->least_undo_no;
 		for (trx_mod_tables_t::iterator i = trx->mod_tables.begin();
 		     i != trx->mod_tables.end(); ) {
@@ -131,9 +166,6 @@ trx_rollback_to_savepoint_low(
 		trx->lock.que_state = TRX_QUE_RUNNING;
 		MONITOR_INC(MONITOR_TRX_ROLLBACK_SAVEPOINT);
 	}
-
-	ut_a(trx->error_state == DB_SUCCESS);
-	ut_a(trx->lock.que_state == TRX_QUE_RUNNING);
 
 	mem_heap_free(heap);
 
@@ -182,8 +214,6 @@ trx_rollback_for_mysql_low(
 	trx_rollback_to_savepoint_low(trx, NULL);
 
 	trx->op_info = "";
-
-	ut_a(trx->error_state == DB_SUCCESS);
 
 	return(trx->error_state);
 }
@@ -639,22 +669,13 @@ trx_rollback_active(
 
 	que_run_threads(roll_node->undo_thr);
 
-	if (trx->error_state != DB_SUCCESS) {
-		ut_ad(trx->error_state == DB_INTERRUPTED);
-		ut_ad(!srv_is_being_started);
-		ut_ad(!srv_undo_sources);
-		ut_ad(srv_fast_shutdown);
+	que_graph_free(
+		static_cast<que_t*>(roll_node->undo_thr->common.parent));
+
+	if (UNIV_UNLIKELY(!trx_rollback_finish(trx))) {
 		ut_ad(!dictionary_locked);
-		que_graph_free(static_cast<que_t*>(
-				       roll_node->undo_thr->common.parent));
 		goto func_exit;
 	}
-
-	trx_rollback_finish(thr_get_trx(roll_node->undo_thr));
-
-	/* Free the memory reserved by the undo graph */
-	que_graph_free(static_cast<que_t*>(
-			       roll_node->undo_thr->common.parent));
 
 	ut_a(trx->lock.que_state == TRX_QUE_RUNNING);
 
@@ -718,23 +739,9 @@ static my_bool trx_roll_count_callback(rw_trx_hash_element_t *element,
   return 0;
 }
 
-
-/** Report progress when rolling back a row of a recovered transaction.
-@return	whether the rollback should be aborted due to pending shutdown */
-bool
-trx_roll_must_shutdown()
+/** Report progress when rolling back a row of a recovered transaction. */
+void trx_roll_report_progress()
 {
-	const trx_t* trx = trx_roll_crash_recv_trx;
-	ut_ad(trx);
-	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
-	ut_ad(trx->in_rollback);
-
-	if (trx_get_dict_operation(trx) == TRX_DICT_OP_NONE
-	    && !srv_is_being_started
-	    && !srv_undo_sources && srv_fast_shutdown) {
-		return true;
-	}
-
 	ib_time_t time = ut_time();
 	mutex_enter(&recv_sys->mutex);
 	bool report = recv_sys->report(time);
@@ -754,7 +761,6 @@ trx_roll_must_shutdown()
 		sd_notifyf(0, "STATUS=To roll back: " UINT32PF " transactions,"
 			   " " UINT64PF " rows", arg.n_trx, arg.n_rows);
 	}
-	return false;
 }
 
 
@@ -1112,19 +1118,6 @@ trx_rollback_start(
 	trx->lock.que_state = TRX_QUE_ROLLING_BACK;
 
 	return(que_fork_start_command(roll_graph));
-}
-
-/****************************************************************//**
-Finishes a transaction rollback. */
-static
-void
-trx_rollback_finish(
-/*================*/
-	trx_t*		trx)	/*!< in: transaction */
-{
-	trx->mod_tables.clear();
-	trx_commit(trx);
-	trx->lock.que_state = TRX_QUE_RUNNING;
 }
 
 /*********************************************************************//**

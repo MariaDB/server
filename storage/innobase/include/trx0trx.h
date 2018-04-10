@@ -203,14 +203,10 @@ trx_commit(
 /*=======*/
 	trx_t*	trx);	/*!< in/out: transaction */
 
-/****************************************************************//**
-Commits a transaction and a mini-transaction. */
-void
-trx_commit_low(
-/*===========*/
-	trx_t*	trx,	/*!< in/out: transaction */
-	mtr_t*	mtr);	/*!< in/out: mini-transaction (will be committed),
-			or NULL if trx made no modifications */
+/** Commit a transaction and a mini-transaction.
+@param[in,out]	trx	transaction
+@param[in,out]	mtr	mini-transaction (NULL if no modifications) */
+void trx_commit_low(trx_t* trx, mtr_t* mtr);
 /**********************************************************************//**
 Does the transaction commit for MySQL.
 @return DB_SUCCESS or error number */
