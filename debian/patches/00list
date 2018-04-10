@@ -1,2 +1,1 @@
-38_scripts__mysqld_safe.sh__signals.dpatch
 61_replace_dash_with_bash_mbug675185.dpatch

@@ -36,7 +36,6 @@ skip_err_log=0
 syslog_tag_mysqld=mysqld
 syslog_tag_mysqld_safe=mysqld_safe
 
-trap '' 1 2 3 15			# we shouldn't let anyone kill us
 
 # MySQL-specific environment variable. First off, it's not really a umask,
 # it's the desired mode. Second, it follows umask(2), not umask(3) in that
@@ -160,7 +159,7 @@ eval_log_error () {
       # sed buffers output (only GNU sed supports a -u (unbuffered) option)
       # which means that messages may not get sent to syslog until the
       # mysqld process quits.
-      cmd="$cmd 2>&1 | logger -t '$syslog_tag_mysqld' -p daemon.error"
+      cmd="$cmd 2>&1 | logger -t '$syslog_tag_mysqld' -p daemon.error & wait"
       ;;
     *)
       echo "Internal program error (non-fatal):" \
@@ -876,6 +875,13 @@ then
   log_error "--flush-caches is not supported on this platform"
   exit 1
 fi
+
+#
+# From now on, we catch signals to do a proper shutdown of mysqld
+# when signalled to do so.
+#
+trap '/usr/bin/mysqladmin --defaults-extra-file=/etc/mysql/debian.cnf refresh & wait' 1 # HUP
+trap '/usr/bin/mysqladmin --defaults-extra-file=/etc/mysql/debian.cnf shutdown' 2 3 15 # INT QUIT and TERM
 
 #
 # Uncomment the following lines if you want all tables to be automatically
