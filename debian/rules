@@ -45,6 +45,22 @@ else
     TESTSUITE_FAIL_CMD:=exit 1
 endif
 
+ifeq (32,$(DEB_HOST_ARCH_BITS))
+    CMAKEFLAGS += -DWITHOUT_ROCKSDB=true
+endif
+
+# Skip TokuDB if arch is not amd64 (also disable for kfreebsd-amd64 as it FTBFS)
+# Skipped on the x32 ABI too; untested, but unlikely to work given i386 is not
+# supported.
+ifneq ($(DEB_HOST_ARCH),amd64)
+    CMAKEFLAGS += -DWITHOUT_TOKUDB=true
+endif
+
+# Disable jemalloc on mips* due to #843926
+ifneq (,$(filter $(DEB_HOST_ARCH), mips mipsel mips64 mips64el))
+    CMAKEFLAGS += -DWITH_JEMALLOC=no
+endif
+
 # Add support for verbose builds
 MAKEFLAGS += VERBOSE=1
 
