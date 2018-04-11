@@ -27,9 +27,6 @@
 #include "oqgraph_judy.h"
 #include "oqgraph_thunk.h"
 
-#define BOOST_NO_HASH 1
-#define BOOST_NO_SLIST 1
-
 #include <boost/graph/directed_graph.hpp>
 #include <boost/graph/adjacency_iterator.hpp>
 
