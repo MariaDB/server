@@ -40,6 +40,7 @@ Vcs-Git: https://github.com/MariaDB/server.git
 
 Package: libmariadb-dev
 Architecture: any
+Multi-Arch: same
 Section: libdevel
 Depends: libmariadb3 (= ${binary:Version}),
          zlib1g-dev,
@@ -91,6 +92,7 @@ Description: MariaDB Connector/C, compatibility symlinks
 
 Package: libmariadb3
 Architecture: any
+Multi-Arch: same
 Section: libs
 Depends: mariadb-common,
          ${misc:Depends},
@@ -167,6 +169,7 @@ Description: Virtual package to satisfy external libmysqlclient18 depends
 
 Package: libmariadbd-dev
 Architecture: any
+Multi-Arch: same
 Section: libdevel
 Provides: libmysqld-dev
 Pre-Depends: ${misc:Pre-Depends}
@@ -186,10 +189,10 @@ Description: MariaDB embedded database, development files
 
 Package: libmariadbd19
 Architecture: any
+Multi-Arch: same
 Section: libs
 Depends: ${misc:Depends},
          ${shlibs:Depends}
-Multi-Arch: same
 Breaks: libmariadbd-dev (<< ${source:Version})
 Replaces: libmariadbd-dev (<< ${source:Version})
 Description: MariaDB embedded database, shared library
@@ -734,6 +737,7 @@ Description: MariaDB database regression test suite
 
 Package: mariadb-test-data
 Architecture: all
+Multi-Arch: foreign
 Depends: ${misc:Depends}
 Breaks: mariadb-test-10.0,
         mariadb-test-10.1,
