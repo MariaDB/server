@@ -1,0 +1,3 @@
+#
+# MDEV-9883 Mysqldump does not support --default-character-set=auto
+#

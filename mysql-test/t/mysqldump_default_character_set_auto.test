@@ -1,0 +1,13 @@
+--echo #
+--echo # MDEV-9883 Mysqldump does not support --default-character-set=auto
+--echo #
+
+# By default default-character-set= MYSQL_DEFAULT_CHARSET_NAME  
+# which is curently set to utf8, but should be set to utf8mb4 according to MDEV-8765
+--exec $MYSQL_DUMP --databases test > $MYSQLTEST_VARDIR/1_default_charset.sql
+
+# When parameter is set to auto
+--exec $MYSQL_DUMP --databases test --default-character-set=auto > $MYSQLTEST_VARDIR/2_default_charset_auto.sql
+
+# By changing the parameter value to utf8mb4
+--exec $MYSQL_DUMP --databases test --default-character-set=utf8mb4 > $MYSQLTEST_VARDIR/3_default_charset_utf8mb4.sql
