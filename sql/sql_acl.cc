@@ -9286,11 +9286,8 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
   DBUG_PRINT("info", ("Rewriting entry in roles_mapping table: %s@%s",
                       user_from->user.str, user_from->host.str));
   table->use_all_columns();
-  if ((error= table->file->ha_rnd_init(1)))
-  {
-    table->file->print_error(error, MYF(0));
+  if (unlikely(error= table->file->ha_rnd_init_with_error(1)))
     result= -1;
-  }
   else
   {
     while((error= table->file->ha_rnd_next(table->record[0])) !=
@@ -9451,11 +9448,8 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
       And their host- and user fields are not consecutive.
       Thus, we need to do a table scan to find all matching records.
     */
-    if ((error= table->file->ha_rnd_init(1)))
-    {
-      table->file->print_error(error, MYF(0));
+    if (unlikely(error= table->file->ha_rnd_init_with_error(1)))
       result= -1;
-    }
     else
     {
 #ifdef EXTRA_DEBUG

@@ -1537,11 +1537,9 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
     goto end;
 
   bitmap_set_all(table->read_set);
-  if ((err= table->file->ha_rnd_init_with_error(1)))
-  {
-    table->file->print_error(err, MYF(0));
+  if (unlikely(err= table->file->ha_rnd_init_with_error(1)))
     goto end;
-  }
+
   table_scanned= true;
   for (;;)
   {

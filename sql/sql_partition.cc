@@ -4107,11 +4107,8 @@ bool verify_data_with_partition(TABLE *table, TABLE *part_table,
   old_rec= part_table->record[0];
   part_table->record[0]= table->record[0];
   part_info->table->move_fields(part_info->full_part_field_array, table->record[0], old_rec);
-  if ((error= file->ha_rnd_init(TRUE)))
-  {
-    file->print_error(error, MYF(0));
+  if (unlikely(error= file->ha_rnd_init_with_error(TRUE)))
     goto err;
-  }
 
   do
   {
