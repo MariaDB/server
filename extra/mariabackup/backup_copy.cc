@@ -1816,7 +1816,8 @@ copy_back()
 		is_ibdata_file = false;
 		for (Tablespace::const_iterator iter(srv_sys_space.begin()),
 		       end(srv_sys_space.end()); iter != end; ++iter) {
-			if (strcmp(iter->name(), filename) == 0) {
+			const char *ibfile = base_name(iter->name());
+			if (strcmp(ibfile, filename) == 0) {
 				is_ibdata_file = true;
 				break;
 			}
