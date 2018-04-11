@@ -477,7 +477,7 @@ get_mysql_vars(MYSQL *connection)
 			innodb_data_file_path_var, MYF(MY_FAE));
 	}
 
-	if (innodb_data_home_dir_var && *innodb_data_home_dir_var) {
+	if (innodb_data_home_dir_var) {
 		innobase_data_home_dir = my_strdup(
 			innodb_data_home_dir_var, MYF(MY_FAE));
 	}
@@ -1521,6 +1521,44 @@ cleanup:
 
 extern const char *innodb_checksum_algorithm_names[];
 
+#ifdef _WIN32
+#include <algorithm>
+#endif
+
+static std::string make_local_paths(const char *data_file_path)
+{
+	if (strchr(data_file_path, '/') == 0
+#ifdef _WIN32
+		&& strchr(data_file_path, '\\') == 0
+#endif
+		){
+		return std::string(data_file_path);
+	}
+
+	std::ostringstream buf;
+
+	char *dup = strdup(innobase_data_file_path);
+	ut_a(dup);
+	char *p;
+	char * token = strtok_r(dup, ";", &p);
+	while (token) {
+		if (buf.tellp())
+			buf << ";";
+
+		char *fname = strrchr(token, '/');
+#ifdef _WIN32
+		fname = std::max(fname,strrchr(token, '\\'));
+#endif
+		if (fname)
+			buf << fname + 1;
+		else
+			buf << token;
+		token = strtok_r(NULL, ";", &p);
+	}
+	free(dup);
+	return buf.str();
+}
+
 bool write_backup_config_file()
 {
 	int rc= backup_file_printf("backup-my.cnf",
@@ -1541,7 +1579,7 @@ bool write_backup_config_file()
 		"%s\n",
 		innodb_checksum_algorithm_names[srv_checksum_algorithm],
 		innodb_checksum_algorithm_names[srv_log_checksum_algorithm],
-		innobase_data_file_path,
+		make_local_paths(innobase_data_file_path).c_str(),
 		srv_n_log_files,
 		innobase_log_file_size,
 		srv_page_size,
