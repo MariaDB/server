@@ -3182,8 +3182,8 @@ sub mysql_install_db {
     if (-f $path_sql )
     {
       my $sql_dir= dirname($path_sql);
-      # Use the mysql database for system tables
-      mtr_tofile($bootstrap_sql_file, "use mysql;\n");
+      # Create a test database
+      mtr_tofile($bootstrap_sql_file, "SET \@skip_install_test_db=0;\n");
 
       # Add the offical mysql system tables
       # for a production system
@@ -3250,9 +3250,8 @@ sub mysql_install_db {
   mtr_tofile($path_bootstrap_log,
 	     "$exe_mysqld_bootstrap " . join(" ", @$args) . "\n");
 
-  # Create directories mysql and test
-  mkpath("$install_datadir/mysql");
-  mkpath("$install_datadir/test");
+  # Create directory
+  mkpath("$install_datadir");
 
   if ( My::SafeProcess->run
        (

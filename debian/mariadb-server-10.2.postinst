@@ -141,7 +141,8 @@ EOF
     # Debian: beware of the bashisms...
     # Debian: can safely run on upgrades with existing databases
     set +e
-    bash /usr/bin/mysql_install_db --rpm --cross-bootstrap --user=mysql --disable-log-bin 2>&1 | $ERR_LOGGER
+    bash /usr/bin/mysql_install_db --rpm --cross-bootstrap --skip-auth-anonymous-user \
+        --user=mysql --disable-log-bin 2>&1 | $ERR_LOGGER
     set -e
 
 

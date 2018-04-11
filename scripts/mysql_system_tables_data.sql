@@ -26,13 +26,18 @@
 -- a plain character
 SELECT LOWER( REPLACE((SELECT REPLACE(@@hostname,'_','\_')),'%','\%') )INTO @current_hostname;
 
+SET @str = IF (@skip_install_test_db IS NULL OR @skip_install_test_db=0, 'CREATE DATABASE IF NOT EXISTS test', 'SET @dummy = 0');
+PREPARE stmt FROM @str;
+EXECUTE stmt;
+DROP PREPARE stmt;
 
 -- Fill "db" table with default grants for anyone to
--- access database 'test' and 'test_%' if "db" table didn't exist
+-- access database 'test' and 'test_%' if "db" table didn't exist and
+-- @skip_install_test_db IS NULL (or 0)
 CREATE TEMPORARY TABLE tmp_db LIKE db;
 INSERT INTO tmp_db VALUES ('%','test','','Y','Y','Y','Y','Y','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y');
 INSERT INTO tmp_db VALUES ('%','test\_%','','Y','Y','Y','Y','Y','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y');
-INSERT INTO db SELECT * FROM tmp_db WHERE @had_db_table=0;
+INSERT INTO db SELECT * FROM tmp_db WHERE @had_db_table=0 AND (@skip_install_test_db IS NULL OR @skip_install_test_db=0);
 DROP TABLE tmp_db;
 
 
