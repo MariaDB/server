@@ -1633,3 +1633,16 @@ EVAL EXPLAIN $query;
 EVAL EXPLAIN FORMAT=JSON $query;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-15765: pushing condition with temporal constants
+--echo #             into constant tables
+--echo #
+
+select * from (select  date('2018-01-01') as d
+               union all
+               select  date('2018-01-01') as d) as t
+  where t.d between date ('2017-01-01') and date ('2019-01-01');
+
+select * from (select  date('2018-01-01') as d) as t
+  where t.d between date ('2017-01-01') and date ('2019-01-01');
