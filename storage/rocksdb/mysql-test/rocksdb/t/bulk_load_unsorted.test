@@ -4,4 +4,3 @@
 --let pk_cf=cf1
 
 --source ../include/bulk_load_unsorted.inc
-binmode $fh;
