@@ -343,7 +343,7 @@ static bool set_up_field_array(THD *thd, TABLE *table,
     if (field->flags & GET_FIXED_FIELDS_FLAG)
       num_fields++;
   }
-  if (num_fields > MAX_REF_PARTS)
+  if (unlikely(num_fields > MAX_REF_PARTS))
   {
     char *err_str;
     if (is_sub_part)
@@ -359,15 +359,13 @@ static bool set_up_field_array(THD *thd, TABLE *table,
       We are using hidden key as partitioning field
     */
     DBUG_ASSERT(!is_sub_part);
-    DBUG_RETURN(result);
+    DBUG_RETURN(FALSE);
   }
   size_field_array= (num_fields+1)*sizeof(Field*);
   field_array= (Field**) thd->calloc(size_field_array);
   if (unlikely(!field_array))
-  {
-    mem_alloc_error(size_field_array);
-    result= TRUE;
-  }
+    DBUG_RETURN(TRUE);
+
   ptr= table->field;
   while ((field= *(ptr++))) 
   {
@@ -490,7 +488,6 @@ static bool create_full_part_field_array(THD *thd, TABLE *table,
     field_array= (Field**) thd->calloc(size_field_array);
     if (unlikely(!field_array))
     {
-      mem_alloc_error(size_field_array);
       result= TRUE;
       goto end;
     }
@@ -515,14 +512,12 @@ static bool create_full_part_field_array(THD *thd, TABLE *table,
   if (!(bitmap_buf= (my_bitmap_map*)
         thd->alloc(bitmap_buffer_size(table->s->fields))))
   {
-    mem_alloc_error(bitmap_buffer_size(table->s->fields));
     result= TRUE;
     goto end;
   }
-  if (my_bitmap_init(&part_info->full_part_field_set, bitmap_buf,
-                  table->s->fields, FALSE))
+  if (unlikely(my_bitmap_init(&part_info->full_part_field_set, bitmap_buf,
+                              table->s->fields, FALSE)))
   {
-    mem_alloc_error(table->s->fields);
     result= TRUE;
     goto end;
   }
@@ -1088,12 +1083,11 @@ static bool set_up_partition_bitmaps(THD *thd, partition_info *part_info)
   DBUG_ASSERT(!part_info->bitmaps_are_initialized);
 
   /* Allocate for both read and lock_partitions */
-  if (!(bitmap_buf= (uint32*) alloc_root(&part_info->table->mem_root,
-                                         bitmap_bytes * 2)))
-  {
-    mem_alloc_error(bitmap_bytes * 2);
+  if (unlikely(!(bitmap_buf=
+                 (uint32*) alloc_root(&part_info->table->mem_root,
+                                      bitmap_bytes * 2))))
     DBUG_RETURN(TRUE);
-  }
+
   my_bitmap_init(&part_info->read_partitions, bitmap_buf, bitmap_bits, FALSE);
   /* Use the second half of the allocated buffer for lock_partitions */
   my_bitmap_init(&part_info->lock_partitions, bitmap_buf + (bitmap_bytes / 4),
@@ -1291,11 +1285,9 @@ static bool check_range_constants(THD *thd, partition_info *part_info)
     uint size_entries= sizeof(part_column_list_val) * num_column_values;
     part_info->range_col_array= (part_column_list_val*)
       thd->calloc(part_info->num_parts * size_entries);
-    if (part_info->range_col_array == NULL)
-    {
-      mem_alloc_error(part_info->num_parts * size_entries);
+    if (unlikely(part_info->range_col_array == NULL))
       goto end;
-    }
+
     loc_range_col_array= part_info->range_col_array;
     i= 0;
     do
@@ -1329,11 +1321,9 @@ static bool check_range_constants(THD *thd, partition_info *part_info)
 
     part_info->range_int_array= (longlong*)
       thd->alloc(part_info->num_parts * sizeof(longlong));
-    if (part_info->range_int_array == NULL)
-    {
-      mem_alloc_error(part_info->num_parts * sizeof(longlong));
+    if (unlikely(part_info->range_int_array == NULL))
       goto end;
-    }
+
     i= 0;
     do
     {
@@ -4455,26 +4445,24 @@ bool mysql_unpack_partition(THD *thd,
   thd->variables.character_set_client= system_charset_info;
 
   Parser_state parser_state;
-  if (parser_state.init(thd, part_buf, part_info_len))
+  if (unlikely(parser_state.init(thd, part_buf, part_info_len)))
     goto end;
 
-  if (init_lex_with_single_table(thd, table, &lex))
+  if (unlikely(init_lex_with_single_table(thd, table, &lex)))
     goto end;
 
   *work_part_info_used= FALSE;
-  lex.part_info= new partition_info();
-  lex.part_info->table= table;       /* Indicates MYSQLparse from this place */
-  if (!lex.part_info)
-  {
-    mem_alloc_error(sizeof(partition_info));
+
+  if (unlikely(!(lex.part_info= new partition_info())))
     goto end;
-  }
+
+  lex.part_info->table= table;       /* Indicates MYSQLparse from this place */
   part_info= lex.part_info;
   DBUG_PRINT("info", ("Parse: %s", part_buf));
 
   thd->m_statement_psi= NULL;
-  if (parse_sql(thd, & parser_state, NULL) ||
-      part_info->fix_parser_data(thd))
+  if (unlikely(parse_sql(thd, & parser_state, NULL)) ||
+      unlikely(part_info->fix_parser_data(thd)))
   {
     thd->free_items();
     thd->m_statement_psi= parent_locker;
@@ -5328,21 +5316,17 @@ that are reorganised.
           partition_element *part_elem= alt_it++;
           if (*fast_alter_table)
             part_elem->part_state= PART_TO_BE_ADDED;
-          if (tab_part_info->partitions.push_back(part_elem, thd->mem_root))
-          {
-            mem_alloc_error(1);
+          if (unlikely(tab_part_info->partitions.push_back(part_elem,
+                                                           thd->mem_root)))
             goto err;
-          }
         } while (++part_count < num_new_partitions);
         tab_part_info->num_parts+= num_new_partitions;
         if (tab_part_info->part_type == VERSIONING_PARTITION)
         {
           DBUG_ASSERT(now_part);
-          if (tab_part_info->partitions.push_back(now_part, thd->mem_root))
-          {
-            mem_alloc_error(1);
+          if (unlikely(tab_part_info->partitions.push_back(now_part,
+                                                           thd->mem_root)))
             goto err;
-          }
         }
       }
       /*
@@ -5675,12 +5659,10 @@ the generated partition syntax in a correct manner.
             else
               tab_max_range= part_elem->range_value;
             if (*fast_alter_table &&
-                tab_part_info->temp_partitions.push_back(part_elem,
-                                                         thd->mem_root))
-            {
-              mem_alloc_error(1);
+                unlikely(tab_part_info->temp_partitions.
+                         push_back(part_elem, thd->mem_root)))
               goto err;
-            }
+
             if (*fast_alter_table)
               part_elem->part_state= PART_TO_BE_REORGED;
             if (!found_first)
@@ -7540,27 +7522,6 @@ void append_row_to_str(String &str, const uchar *row, TABLE *table)
   my_free(fields);
 }
 
-
-/*
-  SYNOPSIS
-    mem_alloc_error()
-    size                Size of memory attempted to allocate
-    None
-
-  RETURN VALUES
-    None
-
-  DESCRIPTION
-    A routine to use for all the many places in the code where memory
-    allocation error can happen, a tremendous amount of them, needs
-    simple routine that signals this error.
-*/
-
-void mem_alloc_error(size_t size)
-{
-  my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 
-           static_cast<int>(size));
-}
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 /**

@@ -1769,7 +1769,6 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
       !(m_reorged_file= (handler**) thd->calloc(sizeof(handler*)*
                                                 (m_reorged_parts + 1))))
   {
-    mem_alloc_error(sizeof(handler*)*(m_reorged_parts+1));
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
 
@@ -1802,7 +1801,6 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
                          thd->calloc(sizeof(handler*)*
                                      (2*(num_remain_partitions + 1))))))
   {
-    mem_alloc_error(sizeof(handler*)*2*(num_remain_partitions+1));
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
   m_added_file= &new_file_array[num_remain_partitions + 1];
@@ -1894,7 +1892,6 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
                               thd->mem_root,
                               part_elem->engine_type)))
         {
-          mem_alloc_error(sizeof(handler));
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         }
         if ((*new_file)->set_ha_share_ref(&p_share_refs->ha_shares[j]))
@@ -2922,10 +2919,8 @@ bool ha_partition::new_handlers_from_part_info(MEM_ROOT *mem_root)
   DBUG_ENTER("ha_partition::new_handlers_from_part_info");
 
   if (!(m_file= (handler **) alloc_root(mem_root, alloc_len)))
-  {
-    mem_alloc_error(alloc_len);
-    goto error_end;
-  }
+    goto error;
+
   m_file_tot_parts= m_tot_parts;
   bzero((char*) m_file, alloc_len);
   DBUG_ASSERT(m_part_info->num_parts > 0);
@@ -2966,8 +2961,6 @@ bool ha_partition::new_handlers_from_part_info(MEM_ROOT *mem_root)
   }
   DBUG_RETURN(FALSE);
 error:
-  mem_alloc_error(sizeof(handler));
-error_end:
   DBUG_RETURN(TRUE);
 }
 

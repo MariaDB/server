@@ -29,8 +29,7 @@
 #include "lock.h"       // mysql_unlock_tables
 #include "strfunc.h"    // find_type2, find_set
 #include "sql_truncate.h"                       // regenerate_locked_table 
-#include "sql_partition.h"                      // mem_alloc_error,
-                                                // generate_partition_syntax,
+#include "sql_partition.h"                   // generate_partition_syntax,
                                                 // partition_info
                                                 // NOT_A_PARTITION_ID
 #include "sql_db.h"                             // load_db_opt_by_name
@@ -1146,11 +1145,8 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
     }
     hton= plugin_data(plugin, handlerton*);
     file= get_new_handler((TABLE_SHARE*)0, &mem_root, hton);
-    if (!file)
-    {
-      mem_alloc_error(sizeof(handler));
+    if (unlikely(!file))
       goto error;
-    }
   }
   switch (ddl_log_entry->action_type)
   {
@@ -4492,12 +4488,10 @@ handler *mysql_create_frm_image(THD *thd,
 
   db_options= create_info->table_options_with_row_type();
 
-  if (!(file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root,
-                              create_info->db_type)))
-  {
-    mem_alloc_error(sizeof(handler));
+  if (unlikely(!(file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root,
+                                       create_info->db_type))))
     DBUG_RETURN(NULL);
-  }
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *part_info= thd->work_part_info;
 
@@ -4510,11 +4504,9 @@ handler *mysql_create_frm_image(THD *thd,
       object with the default settings.
     */
     thd->work_part_info= part_info= new partition_info();
-    if (!part_info)
-    {
-      mem_alloc_error(sizeof(partition_info));
+    if (unlikely(!part_info))
       goto err;
-    }
+
     file->set_auto_partitions(part_info);
     part_info->default_engine_type= create_info->db_type;
     part_info->is_auto_partitioned= TRUE;
@@ -4685,12 +4677,9 @@ handler *mysql_create_frm_image(THD *thd,
         engines in partition clauses.
       */
       delete file;
-      if (!(file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root,
-                                  engine_type)))
-      {
-        mem_alloc_error(sizeof(handler));
+      if (unlikely(!(file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root,
+                                           engine_type))))
         DBUG_RETURN(NULL);
-      }
     }
   }
   /*

@@ -342,10 +342,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
   DBUG_ENTER("exchange_name_with_ddl_log");
 
   if (unlikely(!(file= get_new_handler(NULL, thd->mem_root, ht))))
-  {
-    mem_alloc_error(sizeof(handler));
     DBUG_RETURN(TRUE);
-  }
 
   /* prepare the action entry */
   exchange_entry.entry_type=   DDL_LOG_ENTRY_CODE;
