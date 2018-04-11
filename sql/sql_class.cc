@@ -770,6 +770,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   THD *old_THR_THD= current_thd;
   set_current_thd(this);
   status_var.local_memory_used= sizeof(THD);
+  status_var.max_local_memory_used= status_var.local_memory_used;
   status_var.global_memory_used= 0;
   variables.pseudo_thread_id= thread_id;
   variables.max_mem_used= global_system_variables.max_mem_used;
@@ -1317,6 +1318,7 @@ void THD::init(bool skip_lock)
   reset_current_stmt_binlog_format_row();
   reset_binlog_local_stmt_filter();
   set_status_var_init();
+  status_var.max_local_memory_used= status_var.local_memory_used;
   bzero((char *) &org_status_var, sizeof(org_status_var));
   status_in_global= 0;
   start_bytes_received= 0;
