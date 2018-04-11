@@ -6629,7 +6629,7 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl)
     if (bitmap_is_set(write_set, tmp_vfield->field_index))
       bitmap_updated= mark_virtual_col(tmp_vfield);
     else if (tmp_vfield->vcol_info->stored_in_db ||
-             (tmp_vfield->flags & PART_KEY_FLAG))
+             (tmp_vfield->flags & (PART_KEY_FLAG | FIELD_IN_PART_FUNC_FLAG)))
     {
       if (insert_fl)
       {

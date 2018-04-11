@@ -614,9 +614,16 @@ static bool create_full_part_field_array(THD *thd, TABLE *table,
     full_part_field_array may be NULL if storage engine supports native
     partitioning.
   */
+  table->vcol_set= table->read_set= &part_info->full_part_field_set;
   if ((ptr= part_info->full_part_field_array))
     for (; *ptr; ptr++)
-      bitmap_set_bit(&part_info->full_part_field_set, (*ptr)->field_index);
+    {
+      if ((*ptr)->vcol_info)
+        table->mark_virtual_col(*ptr);
+      else
+        bitmap_fast_test_and_set(table->read_set, (*ptr)->field_index);
+    }
+  table->default_column_bitmaps();
 
 end:
   DBUG_RETURN(result);

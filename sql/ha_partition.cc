@@ -8877,6 +8877,8 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
   {
     /* Only need to read the partitioning fields. */
     bitmap_union(table->read_set, &m_part_info->full_part_field_set);
+    if (table->vcol_set)
+      bitmap_union(table->vcol_set, &m_part_info->full_part_field_set);
   }
 
   if ((result= m_file[read_part_id]->ha_rnd_init(1)))
