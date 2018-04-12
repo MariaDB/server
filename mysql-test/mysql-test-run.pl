@@ -5645,7 +5645,9 @@ sub gdb_arguments {
   # Put $args into a single string
   $input = $input ? "< $input" : "";
 
-  if ($type ne 'client' and $opt_valgrind_mysqld) {
+  if ($type eq 'client') {
+    mtr_tofile($gdb_init_file, "set args @$$args $input");
+  } elsif ($opt_valgrind_mysqld) {
     my $v = $$exe;
     my $vargs = [];
     valgrind_arguments($vargs, \$v);
