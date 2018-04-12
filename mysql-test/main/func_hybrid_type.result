@@ -3745,11 +3745,11 @@ IF(0,connection_id(),connection_id()) AS c4;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c0` int(10) NOT NULL,
-  `c1` int(10) NOT NULL,
-  `c2` int(10) NOT NULL,
-  `c3` int(10) NOT NULL,
-  `c4` int(10) NOT NULL
+  `c0` int(10) unsigned NOT NULL,
+  `c1` int(10) unsigned NOT NULL,
+  `c2` int(10) unsigned NOT NULL,
+  `c3` int(10) unsigned NOT NULL,
+  `c4` int(10) unsigned NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #

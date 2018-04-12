@@ -849,7 +849,7 @@ class Item_func_connection_id :public Item_long_func
   longlong value;
 
 public:
-  Item_func_connection_id(THD *thd): Item_long_func(thd) {}
+  Item_func_connection_id(THD *thd): Item_long_func(thd) { unsigned_flag=1; }
   const char *func_name() const { return "connection_id"; }
   void fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);
