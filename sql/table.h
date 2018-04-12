@@ -2537,6 +2537,7 @@ struct TABLE_LIST
     DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
                         (alias.str ? alias.str : "<NULL>"),
                          get_unit()));
+    derived= get_unit();
     derived_type= ((derived_type & (derived ? DTYPE_MASK : DTYPE_VIEW)) |
                    DTYPE_TABLE | DTYPE_MATERIALIZE);
     set_check_materialized();

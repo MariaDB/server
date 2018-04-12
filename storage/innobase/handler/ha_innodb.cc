@@ -58,7 +58,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 // MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
 // MYSQL_PLUGIN_IMPORT extern char mysql_unpacked_real_data_home[];
 
-#include <my_systemd.h>
+#include <my_service_manager.h>
 #include <key.h>
 
 /* Include necessary InnoDB headers */

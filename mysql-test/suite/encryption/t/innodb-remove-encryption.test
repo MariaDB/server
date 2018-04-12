@@ -1,0 +1,59 @@
+--source include/have_innodb.inc
+# Test uses restart
+--source include/not_embedded.inc
+--source filekeys_plugin.inc
+
+#
+# MDEV-15566: System tablespace does not easily key rotate to unencrypted
+#
+
+set global innodb_file_per_table=OFF;
+
+call mtr.add_suppression("mysqld: file-key-management-filename is not set");
+call mtr.add_suppression("Plugin 'file_key_management' init function returned error.");
+call mtr.add_suppression("Plugin 'file_key_management' registration as a ENCRYPTION failed.");
+flush tables;
+
+create table t1(a int not null primary key, b char(200)) engine=innodb;
+
+--echo
+--echo # Restart server with encryption
+-- let $restart_parameters=--plugin-load-add=$FILE_KEY_MANAGEMENT_SO --loose-file-key-management --loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt --file-key-management-encryption-algorithm=aes_cbc --innodb-encrypt-tables=ON --innodb-encryption-threads=4 --innodb-tablespaces-encryption --innodb-encryption-rotate-key-age=15
+-- source include/restart_mysqld.inc
+
+--echo # Wait until encryption threads have encrypted all tablespaces
+
+--let $tables_count= `select count(*) from information_schema.tables where engine = 'InnoDB'`
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) = $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND ROTATING_OR_FLUSHING = 0;
+--source include/wait_condition.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+
+--echo # Success!
+
+SELECT * from t1;
+
+--echo # Now turn off encryption and wait for threads to decrypt all tablespaces
+SET GLOBAL innodb_encrypt_tables = off;
+
+--let $wait_condition=SELECT COUNT(*) = $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND ROTATING_OR_FLUSHING = 0;
+--source include/wait_condition.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+
+--echo # Success!
+
+--echo
+--echo # Restart server with no encryption setup, there should be no crashes
+--let $restart_parameters=--skip-file-key-management --innodb-encrypt-tables=OFF --innodb-encryption-threads=0 --innodb-tablespaces-encryption
+-- source include/restart_mysqld.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+
+SELECT * from t1;
+DROP TABLE t1;
+

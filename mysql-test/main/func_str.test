@@ -1822,6 +1822,41 @@ EXPLAIN EXTENDED SELECT CHAR(0xDF USING `binary`);
 EXPLAIN EXTENDED SELECT CHAR(0xDF);
 
 --echo #
+--echo # MDEV-15619 using CONVERT() inside AES_ENCRYPT() in an UPDATE corrupts data
+--echo #
+
+CREATE TABLE t1 (
+  id int(11) NOT NULL,
+  session_id varchar(255) DEFAULT NULL,
+  directory mediumtext,
+  checksum int(10) DEFAULT NULL,
+  last_update datetime DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY lastupdate (last_update)
+) DEFAULT CHARSET=latin1;
+INSERT INTO t1 VALUES (1,'',NULL,38391,'2017-06-24 07:35:28');
+UPDATE t1 SET directory = AES_ENCRYPT(CONVERT('test stringrererejrjerjehrjekhrjkehrjkehrkjehrjkerhkjehrjekrhkjehrkjerhjkehrkjehrkjehrjkehrjkehrjkehrjkerjkehrjkehrjkehrjke rekjhrejrejhrjehgrehjgrhjerjhegrjherejhgrjhegrjehgrjhegrejhrgjehgrjhegrjhegrjhergjhegrjhegrhjegrjerhthkjjkdhjkgdfjkgjkdgdjkfjkhgjkfdhjgjkfdghkjdfghkjfdghfjkdghkdjfghdkjfghfjkdghfkjdghkjfdghfkjdghfkdjghfkjdghfdjkghjkdfhgdfjkghfjkdghfjkdghfjdkghfjkdghkfjdghfkjdghfkjdghkjdfghfjdkghjkfdghkjdfhgjkdfhgjkfdhgkjfdghkfjdhgkjfdgdjkejktjherjthkjrethkjrethjkerthjkerhtjkerhtkjerhtjkerhtjkerhtjkrehtkjerhtkjrehtjkrehtkjrehtkjerhtkjerhtjkrehtkjrehtjkrehtkjrethjkrethkjrehtkjethjkerhtjkrehtjkretkjerhtkjrehtjkerhtjkrehtjrehtkjrekjtrfgdsfgdhjsghjgfdhjsfhjdfgdhjshjdshjfghjdsfgjhsfgjhsdfgjhdsfgjdhsfgsjhfgjhsdfgsdjhfgjdhsfdjshfgdsjhfgjsdhfdjshfgdjhsfgdjshfgjdhsfgjhsdfgjhsdgfjhsdgfjhdsgfjhsgfjhsdgfjhdsgfhjsdehkjthrkjethjkre' USING latin1), '95F5A1F52A554'), last_update= NOW();
+SELECT directory IS NULL FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  id int(11) NOT NULL PRIMARY KEY,
+  directory mediumtext
+) DEFAULT CHARSET=latin1;
+INSERT INTO t1 VALUES (1,AES_ENCRYPT(CONVERT(REPEAT('a',800) USING latin1),'95F5A1F52A554'));
+SELECT AES_DECRYPT(directory,'95F5A1F52A554') FROM t1;
+DROP TABLE t1;
+
+SET @enc=AES_ENCRYPT(REPEAT(_latin1'a',800),'95F5A1F52A554');
+CREATE TABLE t1 (
+  id int(11) NOT NULL PRIMARY KEY,
+  directory mediumtext
+) DEFAULT CHARSET=latin1;
+INSERT INTO t1 VALUES (1,AES_DECRYPT(CONVERT(@enc USING binary),'95F5A1F52A554'));
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # Start of 10.1 tests
 --echo #
 

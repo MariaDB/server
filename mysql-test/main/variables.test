@@ -343,6 +343,7 @@ set sql_select_limit=1;
 # reset it, so later tests don't get confused
 set sql_select_limit=default;
 set sql_warnings=1;
+set @save_table_open_cache=@@table_open_cache;
 set global table_open_cache=100;
 set default_storage_engine=myisam;
 set global thread_cache_size=100;
@@ -502,7 +503,7 @@ SELECT * FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME LIKE 'MYI
 SET GLOBAL table_open_cache=-1;
 SHOW VARIABLES LIKE 'table_open_cache';
 SELECT * FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME LIKE 'table_open_cache';
-SET GLOBAL table_open_cache=DEFAULT;
+SET GLOBAL table_open_cache=@save_table_open_cache;
 
 #
 # Bugs12363: character_set_results is nullable,

@@ -12763,6 +12763,21 @@ EXPLAIN
 }
 DROP TABLE t1,t2;
 #
+# MDEV-15765: pushing condition with temporal constants
+#             into constant tables
+#
+select * from (select  date('2018-01-01') as d
+union all
+select  date('2018-01-01') as d) as t
+where t.d between date ('2017-01-01') and date ('2019-01-01');
+d
+2018-01-01
+2018-01-01
+select * from (select  date('2018-01-01') as d) as t
+where t.d between date ('2017-01-01') and date ('2019-01-01');
+d
+2018-01-01
+#
 # MDEV-10855: Pushdown into derived with window functions 
 #
 set @save_optimizer_switch= @@optimizer_switch;
