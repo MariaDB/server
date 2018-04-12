@@ -3725,21 +3725,29 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
   SJ_MATERIALIZATION_INFO *sjm= emb_sj_nest->sj_mat_info;
   THD *thd= tab->join->thd;
   /* First the calls come to the materialization function */
-  //List<Item> &item_list= emb_sj_nest->sj_subq_pred->unit->first_select()->item_list;
-  
+
   DBUG_ASSERT(sjm->is_used);
   /* 
     Set up the table to write to, do as select_union::create_result_table does
   */
   sjm->sjm_table_param.init();
   sjm->sjm_table_param.bit_fields_as_long= TRUE;
-  //List_iterator<Item> it(item_list);
   SELECT_LEX *subq_select= emb_sj_nest->sj_subq_pred->unit->first_select();
-  Item **p_item= subq_select->ref_pointer_array;
-  Item **p_end= p_item + subq_select->item_list.elements;
-  //while((right_expr= it++))
-  for(;p_item != p_end; p_item++)
-    sjm->sjm_table_cols.push_back(*p_item);
+  List_iterator<Item> it(subq_select->item_list);
+  Item *item;
+  while((item= it++))
+  {
+    /*
+      This semi-join replaced the subquery (subq_select) and so on
+      re-executing it will not be prepared. To use the Items from its
+      select list we have to prepare (fix_fields) them
+    */
+    if (!item->fixed && item->fix_fields(thd, it.ref()))
+      DBUG_RETURN(TRUE);
+    item= *(it.ref()); // it can be changed by fix_fields
+    DBUG_ASSERT(!item->name_length || item->name_length == strlen(item->name));
+    sjm->sjm_table_cols.push_back(item, thd->mem_root);
+  }
 
   sjm->sjm_table_param.field_count= subq_select->item_list.elements;
   sjm->sjm_table_param.force_not_null_cols= TRUE;
