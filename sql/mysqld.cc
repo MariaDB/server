@@ -5203,13 +5203,6 @@ static int init_server_components()
                         "this server. However this will be ignored as the "
                         "--log-bin option is not defined.");
   }
-
-  if (repl_semisync_master.init_object() ||
-      repl_semisync_slave.init_object())
-  {
-    sql_print_error("Could not initialize semisync.");
-    unireg_abort(1);
-  }
 #endif
 
   if (opt_bin_log)
@@ -5384,6 +5377,19 @@ static int init_server_components()
     unireg_abort(1);
   }
   plugins_are_initialized= TRUE;  /* Don't separate from init function */
+
+#ifdef HAVE_REPLICATION
+  /*
+    Semisync is not required by other components, which justifies its
+    initialization at this point when thread specific memory is also available.
+  */
+  if (repl_semisync_master.init_object() ||
+      repl_semisync_slave.init_object())
+  {
+    sql_print_error("Could not initialize semisync.");
+    unireg_abort(1);
+  }
+#endif
 
 #ifndef EMBEDDED_LIBRARY
   {
