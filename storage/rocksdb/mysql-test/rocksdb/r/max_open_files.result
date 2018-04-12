@@ -1,4 +1,5 @@
 CALL mtr.add_suppression("RocksDB: rocksdb_max_open_files should not be greater than the open_files_limit*");
+FOUND 1 /RocksDB: rocksdb_max_open_files should not be greater than the open_files_limit/ in rocksdb.max_open_files.err
 SELECT FLOOR(@@global.open_files_limit / 2) = @@global.rocksdb_max_open_files;
 FLOOR(@@global.open_files_limit / 2) = @@global.rocksdb_max_open_files
 1
