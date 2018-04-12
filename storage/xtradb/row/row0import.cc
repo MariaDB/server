@@ -3434,13 +3434,13 @@ fil_iterate(
 		bool		updated = false;
 		os_offset_t	page_off = offset;
 		ulint		n_pages_read = (ulint) n_bytes / iter.page_size;
-		bool		decrypted = false;
 		const ulint 	size = iter.page_size;
 		block->page.offset = page_off / size;
 
 		for (ulint i = 0; i < n_pages_read;
 		     ++i, page_off += size, block->frame += size,
 		     block->page.offset++) {
+			bool decrypted = false;
 			dberr_t	err = DB_SUCCESS;
 			byte*	src = readptr + (i * size);
 			byte*	dst = io_buffer + (i * size);
@@ -3487,6 +3487,7 @@ fil_iterate(
 						block->frame = src;
 						frame_changed = true;
 					} else {
+						ut_ad(dst != src);
 						memcpy(dst, src, size);
 					}
 				}
@@ -3547,9 +3548,13 @@ page_corrupted:
 			ut_ad(encrypted ?
 			      src != dst && dst != writeptr + (i * size):1);
 
-			if (encrypted) {
-				memcpy(writeptr + (i * size),
-				       callback.get_frame(block), size);
+			/* When tablespace is encrypted or compressed its
+			first page (i.e. page 0) is not encrypted or
+			compressed and there is no need to copy frame. */
+			if (encrypted && i != 0) {
+				byte *local_frame = callback.get_frame(block);
+				ut_ad((writeptr + (i * size)) != local_frame);
+				memcpy((writeptr + (i * size)), local_frame, size);
 			}
 
 			if (frame_changed) {
@@ -3597,6 +3602,7 @@ page_corrupted:
 
 				if (tmp == src) {
 					/* TODO: remove unnecessary memcpy's */
+					ut_ad(dest != src);
 					memcpy(dest, src, size);
 				}
 
