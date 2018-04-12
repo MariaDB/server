@@ -509,7 +509,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
                                         key_length);
   /* if piece_size is aligned reuse_freed_buffer will always hit */
   uint piece_size= max_key_count_per_piece * key_length;
-  uint bytes_read;               /* to hold return value of read_to_buffer */
+  ulong bytes_read;               /* to hold return value of read_to_buffer */
   BUFFPEK *top;
   int res= 1;
   uint cnt_ofs= key_length - (with_counters ? sizeof(element_count) : 0);
@@ -525,7 +525,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
     top->base= merge_buffer + (top - begin) * piece_size;
     top->max_keys= max_key_count_per_piece;
     bytes_read= read_to_buffer(file, top, key_length);
-    if (unlikely(bytes_read == (uint) (-1)))
+    if (unlikely(bytes_read == (ulong) -1))
       goto end;
     DBUG_ASSERT(bytes_read);
     queue_insert(&queue, (uchar *) top);
@@ -554,9 +554,9 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
       memcpy(save_key_buff, old_key, key_length);
       old_key= save_key_buff;
       bytes_read= read_to_buffer(file, top, key_length);
-      if (unlikely(bytes_read == (uint) (-1)))
+      if (unlikely(bytes_read == (ulong) -1))
         goto end;
-      else if (bytes_read > 0)      /* top->key, top->mem_count are reset */
+      else if (bytes_read)      /* top->key, top->mem_count are reset */
         queue_replace_top(&queue);             /* in read_to_buffer */
       else
       {
@@ -602,7 +602,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
     }
     while (--top->mem_count);
     bytes_read= read_to_buffer(file, top, key_length);
-    if (unlikely(bytes_read == (uint) (-1)))
+    if (unlikely(bytes_read == (ulong) -1))
       goto end;
   }
   while (bytes_read);

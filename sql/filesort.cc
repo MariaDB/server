@@ -1508,21 +1508,21 @@ cleanup:
   Read data to buffer.
 
   @retval  Number of bytes read
-           (uint)-1 if something goes wrong
+           (ulong)-1 if something goes wrong
 */
 
-uint read_to_buffer(IO_CACHE *fromfile, BUFFPEK *buffpek,
-		    uint rec_length)
+ulong read_to_buffer(IO_CACHE *fromfile, BUFFPEK *buffpek,
+                     uint rec_length)
 {
-  uint count;
-  uint length= 0;
+  register ulong count;
+  ulong length= 0;
 
-  if ((count=(uint) MY_MIN((ha_rows) buffpek->max_keys,buffpek->count)))
+  if ((count= (ulong) MY_MIN((ha_rows) buffpek->max_keys,buffpek->count)))
   {
     length= rec_length*count;
     if (unlikely(my_b_pread(fromfile, (uchar*) buffpek->base, length,
                             buffpek->file_pos)))
-      return ((uint) -1);
+      return ((ulong) -1);
     buffpek->key=buffpek->base;
     buffpek->file_pos+= length;			/* New filepos */
     buffpek->count-=	count;
@@ -1582,18 +1582,18 @@ void reuse_freed_buff(QUEUE *queue, BUFFPEK *reuse, uint key_length)
   @retval
     0      OK
   @retval
-    other  error
+    1      ERROR
 */
 
-int merge_buffers(Sort_param *param, IO_CACHE *from_file,
-                  IO_CACHE *to_file, uchar *sort_buffer,
-                  BUFFPEK *lastbuff, BUFFPEK *Fb, BUFFPEK *Tb,
-                  int flag)
+bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
+                   IO_CACHE *to_file, uchar *sort_buffer,
+                   BUFFPEK *lastbuff, BUFFPEK *Fb, BUFFPEK *Tb,
+                   int flag)
 {
-  int error;
+  bool error= 0;
   uint rec_length,res_length,offset;
   size_t sort_length;
-  ulong maxcount;
+  ulong maxcount, bytes_read;
   ha_rows max_rows,org_max_rows;
   my_off_t to_start_filepos;
   uchar *strpos;
@@ -1611,7 +1611,6 @@ int merge_buffers(Sort_param *param, IO_CACHE *from_file,
   thd->inc_status_sort_merge_passes();
   thd->query_plan_fsort_passes++;
 
-  error=0;
   rec_length= param->rec_length;
   res_length= param->res_length;
   sort_length= param->sort_length;
@@ -1639,18 +1638,18 @@ int merge_buffers(Sort_param *param, IO_CACHE *from_file,
     cmp= get_ptr_compare(sort_length);
     first_cmp_arg= (void*) &sort_length;
   }
-  if (init_queue(&queue, (uint) (Tb-Fb)+1, offsetof(BUFFPEK,key), 0,
-                 (queue_compare) cmp, first_cmp_arg, 0, 0))
+  if (unlikely(init_queue(&queue, (uint) (Tb-Fb)+1, offsetof(BUFFPEK,key), 0,
+                          (queue_compare) cmp, first_cmp_arg, 0, 0)))
     DBUG_RETURN(1);                                /* purecov: inspected */
   for (buffpek= Fb ; buffpek <= Tb ; buffpek++)
   {
     buffpek->base= strpos;
     buffpek->max_keys= maxcount;
-    strpos+=
-      (uint) (error= (int) read_to_buffer(from_file, buffpek, rec_length));
-
-    if (unlikely(error == -1))
+    bytes_read= read_to_buffer(from_file, buffpek, rec_length);
+    if (unlikely(bytes_read == (ulong) -1))
       goto err;					/* purecov: inspected */
+
+    strpos+= bytes_read;
     buffpek->max_keys= buffpek->mem_count;	// If less data in buffers than expected
     queue_insert(&queue, (uchar*) buffpek);
   }
@@ -1670,13 +1669,13 @@ int merge_buffers(Sort_param *param, IO_CACHE *from_file,
     buffpek->key+= rec_length;
     if (! --buffpek->mem_count)
     {
-      if (unlikely(!(error= (int) read_to_buffer(from_file, buffpek,
-                                                 rec_length))))
+      if (unlikely(!(bytes_read= read_to_buffer(from_file, buffpek,
+                                                rec_length))))
       {
         (void) queue_remove_top(&queue);
         reuse_freed_buff(&queue, buffpek, rec_length);
       }
-      else if (unlikely(error == -1))
+      else if (unlikely(bytes_read == (ulong) -1))
         goto err;                        /* purecov: inspected */ 
     }
     queue_replace_top(&queue);            // Top element has been used
@@ -1687,9 +1686,8 @@ int merge_buffers(Sort_param *param, IO_CACHE *from_file,
   while (queue.elements > 1)
   {
     if (killable && unlikely(thd->check_killed()))
-    {
-      error= 1; goto err;                        /* purecov: inspected */
-    }
+      goto err;                               /* purecov: inspected */
+
     for (;;)
     {
       buffpek= (BUFFPEK*) queue_top(&queue);
@@ -1726,9 +1724,7 @@ int merge_buffers(Sort_param *param, IO_CACHE *from_file,
       if (!check_dupl_count || dupl_count >= min_dupl_count)
       {
         if (my_b_write(to_file, src+wr_offset, wr_len))
-        {
-          error=1; goto err;                        /* purecov: inspected */
-        }
+          goto err;                           /* purecov: inspected */
       }
       if (cmp)
       {   
@@ -1739,7 +1735,7 @@ int merge_buffers(Sort_param *param, IO_CACHE *from_file,
       }
       if (!--max_rows)
       {
-        error= 0;                               /* purecov: inspected */
+        /* Nothing more to do */
         goto end;                               /* purecov: inspected */
       }
 
@@ -1747,14 +1743,14 @@ int merge_buffers(Sort_param *param, IO_CACHE *from_file,
       buffpek->key+= rec_length;
       if (! --buffpek->mem_count)
       {
-        if (unlikely(!(error= (int) read_to_buffer(from_file, buffpek,
-                                                 rec_length))))
+        if (unlikely(!(bytes_read= read_to_buffer(from_file, buffpek,
+                                                  rec_length))))
         {
           (void) queue_remove_top(&queue);
           reuse_freed_buff(&queue, buffpek, rec_length);
           break;                        /* One buffer have been removed */
         }
-        else if (error == -1)
+        else if (unlikely(bytes_read == (ulong) -1))
           goto err;                        /* purecov: inspected */
       }
       queue_replace_top(&queue);   	/* Top element has been replaced */
@@ -1790,14 +1786,9 @@ int merge_buffers(Sort_param *param, IO_CACHE *from_file,
     {
       src= unique_buff;
       if (my_b_write(to_file, src+wr_offset, wr_len))
-      {
-        error=1; goto err;                        /* purecov: inspected */
-      }
+        goto err;                             /* purecov: inspected */
       if (!--max_rows)
-      {
-        error= 0;                               
         goto end;                             
-      }
     }   
   }
 
@@ -1813,9 +1804,7 @@ int merge_buffers(Sort_param *param, IO_CACHE *from_file,
     {
       if (my_b_write(to_file, (uchar*) buffpek->key,
                      (size_t)(rec_length*buffpek->mem_count)))
-      {
-        error= 1; goto err;                        /* purecov: inspected */
-      }
+        goto err;                             /* purecov: inspected */
     }
     else
     {
@@ -1832,21 +1821,26 @@ int merge_buffers(Sort_param *param, IO_CACHE *from_file,
 	    continue;
         }
         if (my_b_write(to_file, src, wr_len))
-        {
-          error=1; goto err;                        
-        }
+          goto err;
       }
     }
   }
-  while (likely((error=(int) read_to_buffer(from_file, buffpek, rec_length))
-                != -1 && error != 0));
+  while (likely(!(error=
+                  (bytes_read= read_to_buffer(from_file, buffpek,
+                                              rec_length)) == (ulong) -1)) &&
+         bytes_read != 0);
 
 end:
   lastbuff->count= MY_MIN(org_max_rows-max_rows, param->max_rows);
   lastbuff->file_pos= to_start_filepos;
-err:
+cleanup:
   delete_queue(&queue);
   DBUG_RETURN(error);
+
+err:
+  error= 1;
+  goto cleanup;
+
 } /* merge_buffers */
 
 
