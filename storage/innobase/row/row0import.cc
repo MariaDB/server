@@ -3463,7 +3463,7 @@ page_corrupted:
 			/* When tablespace is encrypted or compressed its
 			first page (i.e. page 0) is not encrypted or
 			compressed and there is no need to copy frame. */
-			if (encrypted && i != 0) {
+			if (encrypted && block->page.id.page_no() != 0) {
 				byte *local_frame = callback.get_frame(block);
 				ut_ad((writeptr + (i * size)) != local_frame);
 				memcpy((writeptr + (i * size)), local_frame, size);
