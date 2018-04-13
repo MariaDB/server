@@ -2089,8 +2089,6 @@ int ha_partition::copy_partitions(ulonglong * const copied,
     {
       if ((result= file->ha_rnd_next(m_rec0)))
       {
-        if (result == HA_ERR_RECORD_DELETED)
-          continue;                              //Probably MyISAM
         if (result != HA_ERR_END_OF_FILE)
           goto error;
         /*
@@ -5070,9 +5068,6 @@ int ha_partition::rnd_next(uchar *buf)
     /*
       if we get here, then the current partition ha_rnd_next returned failure
     */
-    if (result == HA_ERR_RECORD_DELETED)
-      continue;                               // Probably MyISAM
-
     if (result != HA_ERR_END_OF_FILE)
       goto end_dont_reset_start_part;         // Return error
 
@@ -6927,9 +6922,6 @@ int ha_partition::ft_read(uchar *buf)
     /*
       if we get here, then the current partition ft_next returned failure
     */
-    if (result == HA_ERR_RECORD_DELETED)
-      continue;                               // Probably MyISAM
-
     if (result != HA_ERR_END_OF_FILE)
       goto end_dont_reset_start_part;         // Return error
 
@@ -10654,8 +10646,6 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
   {
     if ((result= m_file[read_part_id]->ha_rnd_next(m_rec0)))
     {
-      if (result == HA_ERR_RECORD_DELETED)
-        continue;
       if (result != HA_ERR_END_OF_FILE)
         break;
 

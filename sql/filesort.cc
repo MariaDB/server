@@ -705,10 +705,9 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
                              Bounded_queue<uchar, uchar> *pq,
                              ha_rows *found_rows)
 {
-  int error,flag,quick_select;
-  uint idx,indexpos,ref_length;
-  uchar *ref_pos,*next_pos,ref_buff[MAX_REFLENGTH];
-  my_off_t record;
+  int error, quick_select;
+  uint idx, indexpos;
+  uchar *ref_pos, *next_pos, ref_buff[MAX_REFLENGTH];
   TABLE *sort_form;
   handler *file;
   MY_BITMAP *save_read_set, *save_write_set, *save_vcol_set;
@@ -723,14 +722,10 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   error=quick_select=0;
   sort_form=param->sort_form;
   file=sort_form->file;
-  ref_length=param->ref_length;
   ref_pos= ref_buff;
   quick_select=select && select->quick;
-  record=0;
   *found_rows= 0;
-  flag= ((file->ha_table_flags() & HA_REC_NOT_IN_SEQ) || quick_select);
-  if (flag)
-    ref_pos= &file->ref[0];
+  ref_pos= &file->ref[0];
   next_pos=ref_pos;
 
   DBUG_EXECUTE_IF("show_explain_in_find_all_keys", 
@@ -778,27 +773,13 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   for (;;)
   {
     if (quick_select)
-    {
-      if (unlikely((error= select->quick->get_next())))
-        break;
-      file->position(sort_form->record[0]);
-      DBUG_EXECUTE_IF("debug_filesort", dbug_print_record(sort_form, TRUE););
-    }
+      error= select->quick->get_next();
     else					/* Not quick-select */
-    {
-      {
-	error= file->ha_rnd_next(sort_form->record[0]);
-	if (!flag)
-	{
-	  my_store_ptr(ref_pos,ref_length,record); // Position to row
-	  record+= sort_form->s->db_record_offset;
-	}
-	else if (likely(!error))
-	  file->position(sort_form->record[0]);
-      }
-      if (unlikely(error && error != HA_ERR_RECORD_DELETED))
-	break;
-    }
+      error= file->ha_rnd_next(sort_form->record[0]);
+    if (unlikely(error))
+      break;
+    file->position(sort_form->record[0]);
+    DBUG_EXECUTE_IF("debug_filesort", dbug_print_record(sort_form, TRUE););
 
     if (unlikely(thd->check_killed()))
     {

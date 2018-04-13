@@ -1549,9 +1549,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
 
     if ((err= table->file->ha_rnd_next(table->record[0])))
     {
-      if (err == HA_ERR_RECORD_DELETED)
-        continue;
-      else if (err == HA_ERR_END_OF_FILE)
+      if (err == HA_ERR_END_OF_FILE)
         break;
       else
       {

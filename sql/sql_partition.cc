@@ -4103,8 +4103,6 @@ bool verify_data_with_partition(TABLE *table, TABLE *part_table,
   {
     if (unlikely((error= file->ha_rnd_next(table->record[0]))))
     {
-      if (error == HA_ERR_RECORD_DELETED)
-        continue;
       if (error == HA_ERR_END_OF_FILE)
         error= 0;
       else

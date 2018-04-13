@@ -941,8 +941,6 @@ retry:
 
     if (unlikely(error))
     {
-      if (error == HA_ERR_RECORD_DELETED)
-        continue;
       if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
       {
         /* Don't give error in the log file for some expected problems */

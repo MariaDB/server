@@ -10597,8 +10597,6 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
             int error= t->file->ha_rnd_next(t->record[0]);
             if (unlikely(error))
             {
-              if (error == HA_ERR_RECORD_DELETED)
-                continue;
               break;
             }
             if (t->s->null_bytes)

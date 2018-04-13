@@ -3937,11 +3937,6 @@ int subselect_uniquesubquery_engine::scan_table()
     error=table->file->ha_rnd_next(table->record[0]);
     if (unlikely(error))
     {
-      if (error == HA_ERR_RECORD_DELETED)
-      {
-        error= 0;
-        continue;
-      }
       if (error == HA_ERR_END_OF_FILE)
       {
         error= 0;
@@ -6232,11 +6227,6 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
   while (TRUE)
   {
     error= tmp_table->file->ha_rnd_next(tmp_table->record[0]);
-    if (unlikely(error == HA_ERR_RECORD_DELETED))
-    {
-      /* We get this for duplicate records that should not be in tmp_table. */
-      continue;
-    }
     /*
       This is a temp table that we fully own, there should be no other
       cause to stop the iteration than EOF.
@@ -6681,11 +6671,6 @@ bool subselect_table_scan_engine::partial_match()
     error= tmp_table->file->ha_rnd_next(tmp_table->record[0]);
     if (unlikely(error))
     {
-      if (error == HA_ERR_RECORD_DELETED)
-      {
-        error= 0;
-        continue;
-      }
       if (error == HA_ERR_END_OF_FILE)
       {
         error= 0;

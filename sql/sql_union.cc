@@ -280,11 +280,6 @@ bool select_unit::send_eof()
         error= 0;
         break;
       }
-      if (unlikely(error == HA_ERR_RECORD_DELETED))
-      {
-        error= 0;
-        continue;
-      }
       break;
     }
     if (table->field[0]->val_int() != curr_step)
