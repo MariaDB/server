@@ -2598,8 +2598,6 @@ int multi_update::do_updates()
       {
 	if (local_error == HA_ERR_END_OF_FILE)
 	  break;
-	if (local_error == HA_ERR_RECORD_DELETED)
-	  continue;				// May happen on dup key
         err_table= tmp_table;
 	goto err;
       }

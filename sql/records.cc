@@ -217,7 +217,6 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   info->select=select;
   info->print_error=print_error;
   info->unlock_row= rr_unlock_row;
-  info->ignore_not_found_rows= 0;
   table->status= 0;			/* Rows are always found */
 
   tempfile= 0;
@@ -365,11 +364,8 @@ static int rr_quick(READ_RECORD *info)
   int tmp;
   while ((tmp= info->select->quick->get_next()))
   {
-    if (info->thd->killed || (tmp != HA_ERR_RECORD_DELETED))
-    {
-      tmp= rr_handle_error(info, tmp);
-      break;
-    }
+    tmp= rr_handle_error(info, tmp);
+    break;
   }
   return tmp;
 }
@@ -484,15 +480,8 @@ int rr_sequential(READ_RECORD *info)
   int tmp;
   while ((tmp= info->table->file->ha_rnd_next(info->record)))
   {
-    /*
-      rnd_next can return RECORD_DELETED for MyISAM when one thread is
-      reading and another deleting without locks.
-    */
-    if (info->thd->killed || (tmp != HA_ERR_RECORD_DELETED))
-    {
-      tmp= rr_handle_error(info, tmp);
-      break;
-    }
+    tmp= rr_handle_error(info, tmp);
+    break;
   }
   return tmp;
 }
@@ -508,8 +497,7 @@ static int rr_from_tempfile(READ_RECORD *info)
     if (!(tmp= info->table->file->ha_rnd_pos(info->record,info->ref_pos)))
       break;
     /* The following is extremely unlikely to happen */
-    if (tmp == HA_ERR_RECORD_DELETED ||
-        (tmp == HA_ERR_KEY_NOT_FOUND && info->ignore_not_found_rows))
+    if (tmp == HA_ERR_KEY_NOT_FOUND)
       continue;
     tmp= rr_handle_error(info, tmp);
     break;
@@ -560,8 +548,7 @@ int rr_from_pointers(READ_RECORD *info)
       break;
 
     /* The following is extremely unlikely to happen */
-    if (tmp == HA_ERR_RECORD_DELETED ||
-        (tmp == HA_ERR_KEY_NOT_FOUND && info->ignore_not_found_rows))
+    if (tmp == HA_ERR_KEY_NOT_FOUND)
       continue;
     tmp= rr_handle_error(info, tmp);
     break;

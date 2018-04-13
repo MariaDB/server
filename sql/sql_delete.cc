@@ -1421,11 +1421,6 @@ int multi_delete::do_table_deletes(TABLE *table, SORT_INFO *sort_info,
                                 FALSE)))
     DBUG_RETURN(1);
 
-  /*
-    Ignore any rows not found in reference tables as they may already have
-    been deleted by foreign key handling
-  */
-  info.ignore_not_found_rows= 1;
   bool will_batch= !table->file->start_bulk_delete();
   while (likely(!(local_error= info.read_record())) && likely(!thd->killed))
   {

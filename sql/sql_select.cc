@@ -22532,11 +22532,6 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
     }
     if (unlikely(error))
     {
-      if (error == HA_ERR_RECORD_DELETED)
-      {
-        error= file->ha_rnd_next(record);
-        continue;
-      }
       if (error == HA_ERR_END_OF_FILE)
 	break;
       goto err;
@@ -22563,8 +22558,6 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
     {
       if (unlikely((error= file->ha_rnd_next(record))))
       {
-	if (error == HA_ERR_RECORD_DELETED)
-	  continue;
 	if (error == HA_ERR_END_OF_FILE)
 	  break;
 	goto err;
@@ -22655,8 +22648,6 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
     }
     if (unlikely((error= file->ha_rnd_next(record))))
     {
-      if (error == HA_ERR_RECORD_DELETED)
-	continue;
       if (error == HA_ERR_END_OF_FILE)
 	break;
       goto err;
@@ -27067,8 +27058,6 @@ ulong check_selectivity(THD *thd,
     }
     if (unlikely(error))
     {
-      if (error == HA_ERR_RECORD_DELETED)
-        continue;
       if (error == HA_ERR_END_OF_FILE)
 	break;
       goto err;

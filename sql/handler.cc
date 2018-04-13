@@ -2759,19 +2759,27 @@ int handler::ha_rnd_next(uchar *buf)
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited == RND);
 
-  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
-    { result= rnd_next(buf); })
-  if (!result)
+  do
   {
-    update_rows_read();
-    if (table->vfield && buf == table->record[0])
-      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
+    TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
+      { result= rnd_next(buf); })
+    if (result != HA_ERR_RECORD_DELETED)
+      break;
+    status_var_increment(table->in_use->status_var.ha_read_rnd_deleted_count);
+  } while (!table->in_use->check_killed());
+
+  if (result == HA_ERR_RECORD_DELETED)
+    result= HA_ERR_ABORTED_BY_USER;
+  else
+  {
+    if (!result)
+    {
+      update_rows_read();
+      if (table->vfield && buf == table->record[0])
+        table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
+    }
     increment_statistics(&SSV::ha_read_rnd_next_count);
   }
-  else if (result == HA_ERR_RECORD_DELETED)
-    increment_statistics(&SSV::ha_read_rnd_deleted_count);
-  else
-    increment_statistics(&SSV::ha_read_rnd_next_count);
 
   table->status=result ? STATUS_NOT_FOUND: 0;
   DBUG_RETURN(result);
@@ -2789,7 +2797,9 @@ int handler::ha_rnd_pos(uchar *buf, uchar *pos)
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
     { result= rnd_pos(buf, pos); })
   increment_statistics(&SSV::ha_read_rnd_count);
-  if (!result)
+  if (result == HA_ERR_RECORD_DELETED)
+    result= HA_ERR_KEY_NOT_FOUND;
+  else if (!result)
   {
     update_rows_read();
     if (table->vfield && buf == table->record[0])
@@ -2996,8 +3006,7 @@ int handler::read_first_row(uchar * buf, uint primary_key)
   {
     if (likely(!(error= ha_rnd_init(1))))
     {
-      while ((error= ha_rnd_next(buf)) == HA_ERR_RECORD_DELETED)
-        /* skip deleted row */;
+      error= ha_rnd_next(buf);
       const int end_error= ha_rnd_end();
       if (likely(!error))
         error= end_error;

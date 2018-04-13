@@ -757,12 +757,6 @@ int Mrr_ordered_rndpos_reader::get_next(range_id_t *range_info)
     res= file->ha_rnd_pos(file->get_table()->record[0], 
                           rowid_buffer->read_ptr1);
 
-    if (res == HA_ERR_RECORD_DELETED)
-    {
-      /* not likely to get this code with current storage engines, but still */
-      continue;
-    }
-
     if (res)
       return res; /* Some fatal error */
 

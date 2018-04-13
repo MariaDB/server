@@ -2743,11 +2743,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
         break;
 
       if (rc)
-      {
-        if (rc == HA_ERR_RECORD_DELETED)
-          continue;
         break;
-      }
 
       for (field_ptr= table->field; *field_ptr; field_ptr++)
       {
