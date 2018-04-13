@@ -108,14 +108,14 @@ static uint32 get_next_subpartition_via_walking(PARTITION_ITERATOR*);
 
 uint32 get_next_partition_id_range(PARTITION_ITERATOR* part_iter);
 uint32 get_next_partition_id_list(PARTITION_ITERATOR* part_iter);
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
 static int get_part_iter_for_interval_via_mapping(partition_info *, bool,
           uint32 *, uchar *, uchar *, uint, uint, uint, PARTITION_ITERATOR *);
 static int get_part_iter_for_interval_cols_via_map(partition_info *, bool,
           uint32 *, uchar *, uchar *, uint, uint, uint, PARTITION_ITERATOR *);
 static int get_part_iter_for_interval_via_walking(partition_info *, bool,
           uint32 *, uchar *, uchar *, uint, uint, uint, PARTITION_ITERATOR *);
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
 static int cmp_rec_and_tuple(part_column_list_val *val, uint32 nvals_in_rec);
 static int cmp_rec_and_tuple_prune(part_column_list_val *val,
                                    uint32 n_vals_in_rec,
