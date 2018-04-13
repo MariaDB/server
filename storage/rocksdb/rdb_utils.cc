@@ -358,7 +358,8 @@ bool rdb_check_rocksdb_corruption() {
 
 void rdb_persist_corruption_marker() {
   const std::string &fileName(myrocks::rdb_corruption_marker_file_name());
-  int fd = my_open(fileName.c_str(), O_CREAT | O_SYNC, MYF(MY_WME));
+  /* O_SYNC is not supported on windows */
+  int fd = my_open(fileName.c_str(), O_CREAT | IF_WIN(0, O_SYNC), MYF(MY_WME));
   if (fd < 0) {
     sql_print_error("RocksDB: Can't create file %s to mark rocksdb as "
                     "corrupted.",
@@ -369,6 +370,12 @@ void rdb_persist_corruption_marker() {
                           "after fixing the corruption to recover. ",
                           fileName.c_str());
   }
+
+#ifdef _WIN32
+  /* A replacement for O_SYNC flag above */
+  if (fd >= 0)
+    my_sync(fd, MYF(0));
+#endif
 
   int ret = my_close(fd, MYF(MY_WME));
   if (ret) {
