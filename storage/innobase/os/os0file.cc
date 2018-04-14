@@ -890,7 +890,7 @@ os_file_get_block_size(
 
 	if (!result) {
 		DWORD err = GetLastError();
-		if (err != ERROR_INVALID_FUNCTION || err != ERROR_NOT_SUPPORTED) {
+		if (err != ERROR_INVALID_FUNCTION && err != ERROR_NOT_SUPPORTED) {
 				os_file_handle_error_no_exit(volume,
 					"DeviceIoControl(IOCTL_STORAGE_QUERY_PROPERTY)", FALSE);
 		}
