@@ -210,8 +210,8 @@ select variable_value-@a from information_schema.global_status where variable_na
 variable_value-@a
 1
 # Switching to connection 1
-select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 connection con1;
+select variable_value into @a from information_schema.global_status where variable_name='rocksdb_rows_filtered';
 SELECT * FROM t1;
 a
 1

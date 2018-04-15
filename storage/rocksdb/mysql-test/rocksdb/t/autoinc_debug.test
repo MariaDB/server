@@ -7,7 +7,7 @@
 --echo # to new server with such support.
 --echo #
 
-set debug='+d,myrocks_autoinc_upgrade';
+set debug_dbug='+d,myrocks_autoinc_upgrade';
 create table t (i int primary key auto_increment);
 insert into t values ();
 insert into t values ();
@@ -20,7 +20,7 @@ select * from t;
 select table_name, index_name, auto_increment
   from information_schema.rocksdb_ddl where table_name = 't';
 
-set debug='-d,myrocks_autoinc_upgrade';
+set debug_dbug='-d,myrocks_autoinc_upgrade';
 
 --source include/restart_mysqld.inc
 
@@ -55,7 +55,7 @@ insert into t values ();
 begin;
 insert into t values ();
 insert into t values ();
-set debug="+d,crash_commit_before";
+set debug_dbug="+d,crash_commit_before";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
 commit;
@@ -71,7 +71,7 @@ select max(i) from t;
 begin;
 insert into t values ();
 insert into t values ();
-set debug="+d,crash_commit_after_prepare";
+set debug_dbug="+d,crash_commit_after_prepare";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
 commit;
@@ -87,7 +87,7 @@ select max(i) from t;
 begin;
 insert into t values ();
 insert into t values ();
-set debug="+d,crash_commit_after_log";
+set debug_dbug="+d,crash_commit_after_log";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
 commit;
@@ -103,7 +103,7 @@ select max(i) from t;
 begin;
 insert into t values ();
 insert into t values ();
-set debug="+d,crash_commit_after";
+set debug_dbug="+d,crash_commit_after";
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
 commit;
