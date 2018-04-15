@@ -945,8 +945,8 @@ trx_undo_page_report_modify(
 	allowed to ignore blob prefixes if the delete marking was done
 	by some other trx as it must have committed by now for us to
 	allow an over-write. */
-	if (ignore_prefix) {
-		ignore_prefix = (trx_id != trx->id);
+	if (trx_id == trx->id) {
+		ignore_prefix = false;
 	}
 	ptr += mach_u64_write_compressed(ptr, trx_id);
 

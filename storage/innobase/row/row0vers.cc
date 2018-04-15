@@ -420,29 +420,6 @@ row_vers_impl_x_locked(
 	return(trx);
 }
 
-/*****************************************************************//**
-Finds out if we must preserve a delete marked earlier version of a clustered
-index record, because it is >= the purge view.
-@param[in]	trx_id		transaction id in the version
-@param[in]	name		table name
-@param[in,out]	mtr		mini transaction holding the latch on the
-				clustered index record; it will also hold
-				the latch on purge_view
-@return TRUE if earlier version should be preserved */
-ibool
-row_vers_must_preserve_del_marked(
-/*==============================*/
-	trx_id_t		trx_id,
-	const table_name_t&	name,
-	mtr_t*			mtr)
-{
-	ut_ad(!rw_lock_own(&(purge_sys.latch), RW_LOCK_S));
-
-	mtr_s_lock(&purge_sys.latch, mtr);
-
-	return(!purge_sys.view.changes_visible(trx_id,	name));
-}
-
 /** build virtual column value from current cluster index record data
 @param[in,out]	row		the cluster index row in dtuple form
 @param[in]	clust_index	clustered index
