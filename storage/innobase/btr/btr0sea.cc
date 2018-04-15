@@ -1406,6 +1406,13 @@ btr_search_build_page_hash_index(
 		return;
 	}
 
+	rec = page_rec_get_next_const(page_get_infimum_rec(page));
+
+	if (rec_is_default_row(rec, index)) {
+		rec = page_rec_get_next_const(rec);
+		if (!--n_recs) return;
+	}
+
 	/* Calculate and cache fold values and corresponding records into
 	an array for fast insertion to the hash index */
 
@@ -1416,12 +1423,6 @@ btr_search_build_page_hash_index(
 	n_cached = 0;
 
 	ut_a(index->id == btr_page_get_index_id(page));
-
-	rec = page_rec_get_next_const(page_get_infimum_rec(page));
-
-	if (rec_is_default_row(rec, index)) {
-		rec = page_rec_get_next_const(rec);
-	}
 
 	offsets = rec_get_offsets(
 		rec, index, offsets, true,
