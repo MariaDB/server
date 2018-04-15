@@ -171,7 +171,7 @@ When head.blocks == tail.blocks, the reader will access tail.block
 directly. When also head.bytes == tail.bytes, both counts will be
 reset to 0 and the file will be truncated. */
 struct row_log_t {
-	int		fd;	/*!< file descriptor */
+	pfs_os_file_t	fd;	/*!< file descriptor */
 	ib_mutex_t	mutex;	/*!< mutex protecting error,
 				max_trx and tail */
 	page_no_map*	blobs;	/*!< map of page numbers of off-page columns
@@ -226,18 +226,18 @@ struct row_log_t {
 @param[in,out] log     online rebuild log
 @return true if success, false if not */
 static MY_ATTRIBUTE((warn_unused_result))
-int
+pfs_os_file_t
 row_log_tmpfile(
 	row_log_t*	log)
 {
 	DBUG_ENTER("row_log_tmpfile");
-	if (log->fd < 0) {
+	if (log->fd == OS_FILE_CLOSED) {
 		log->fd = row_merge_file_create_low(log->path);
 		DBUG_EXECUTE_IF("row_log_tmpfile_fail",
-				if (log->fd > 0)
+				if (log->fd != OS_FILE_CLOSED)
 					row_merge_file_destroy_low(log->fd);
-				log->fd = -1;);
-		if (log->fd >= 0) {
+				log->fd = OS_FILE_CLOSED;);
+		if (log->fd != OS_FILE_CLOSED) {
 			MONITOR_ATOMIC_INC(MONITOR_ALTER_TABLE_LOG_FILES);
 		}
 	}
@@ -392,7 +392,7 @@ row_log_online_op(
 
 		UNIV_MEM_ASSERT_RW(buf, srv_sort_buf_size);
 
-		if (row_log_tmpfile(log) < 0) {
+		if (row_log_tmpfile(log) == OS_FILE_CLOSED) {
 			log->error = DB_OUT_OF_MEMORY;
 			goto err_exit;
 		}
@@ -413,7 +413,7 @@ row_log_online_op(
 		}
 
 		log->tail.blocks++;
-		if (!os_file_write_int_fd(
+		if (!os_file_write(
 			    request,
 			    "(modification log)",
 			    log->fd,
@@ -528,7 +528,7 @@ row_log_table_close_func(
 
 		UNIV_MEM_ASSERT_RW(buf, srv_sort_buf_size);
 
-		if (row_log_tmpfile(log) < 0) {
+		if (row_log_tmpfile(log) == OS_FILE_CLOSED) {
 			log->error = DB_OUT_OF_MEMORY;
 			goto err_exit;
 		}
@@ -549,7 +549,7 @@ row_log_table_close_func(
 		}
 
 		log->tail.blocks++;
-		if (!os_file_write_int_fd(
+		if (!os_file_write(
 			    request,
 			    "(modification log)",
 			    log->fd,
@@ -2865,9 +2865,9 @@ all_done:
 		IORequest		request(IORequest::READ);
 		byte*			buf = index->online_log->head.block;
 
-		if (!os_file_read_no_error_handling_int_fd(
+		if (!os_file_read_no_error_handling(
 			    request, index->online_log->fd,
-			    buf, ofs, srv_sort_buf_size)) {
+			    buf, ofs, srv_sort_buf_size, 0)) {
 			ib::error()
 				<< "Unable to read temporary file"
 				" for table " << index->table->name;
@@ -3173,7 +3173,7 @@ row_log_allocate(
 		DBUG_RETURN(false);
 	}
 
-	log->fd = -1;
+	log->fd = OS_FILE_CLOSED;
 	mutex_create(LATCH_ID_INDEX_ONLINE_LOG, &log->mutex);
 
 	log->blobs = NULL;
@@ -3732,9 +3732,9 @@ all_done:
 
 		byte*	buf = index->online_log->head.block;
 
-		if (!os_file_read_no_error_handling_int_fd(
+		if (!os_file_read_no_error_handling(
 			    request, index->online_log->fd,
-			    buf, ofs, srv_sort_buf_size)) {
+			    buf, ofs, srv_sort_buf_size, 0)) {
 			ib::error()
 				<< "Unable to read temporary file"
 				" for index " << index->name;

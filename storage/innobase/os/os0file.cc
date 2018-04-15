@@ -1253,10 +1253,23 @@ os_file_create_tmpfile()
 {
 	FILE*	file	= NULL;
 	WAIT_ALLOW_WRITES();
-	int	fd	= innobase_mysql_tmpfile(NULL);
+	os_file_t	fd	= innobase_mysql_tmpfile(NULL);
 
-	if (fd >= 0) {
+	if (fd != OS_FILE_CLOSED) {
+#ifdef _WIN32
+		int crt_fd = _open_osfhandle((intptr_t)HANDLE(fd), 0);
+		if (crt_fd != -1) {
+			file = fdopen(crt_fd, "w+b");
+			if (!file) {
+				close(crt_fd);
+			}
+		}
+#else
 		file = fdopen(fd, "w+b");
+		if (!file) {
+			close(fd);
+		}
+#endif
 	}
 
 	if (file == NULL) {
@@ -1264,10 +1277,6 @@ os_file_create_tmpfile()
 		ib::error()
 			<< "Unable to create temporary file; errno: "
 			<< errno;
-
-		if (fd >= 0) {
-			close(fd);
-		}
 	}
 
 	return(file);

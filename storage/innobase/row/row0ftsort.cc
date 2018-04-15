@@ -255,7 +255,7 @@ row_fts_psort_info_init(
 				dup->index);
 
 			if (row_merge_file_create(psort_info[j].merge_file[i],
-						  path) < 0) {
+						  path) == OS_FILE_CLOSED) {
 				goto func_exit;
 			}
 
@@ -776,7 +776,7 @@ DECLARE_THREAD(fts_parallel_tokenization)(
 	merge_file_t**		merge_file;
 	row_merge_block_t**	block;
 	row_merge_block_t**	crypt_block;
-	int			tmpfd[FTS_NUM_AUX_INDEX];
+	pfs_os_file_t		tmpfd[FTS_NUM_AUX_INDEX];
 	ulint			mycount[FTS_NUM_AUX_INDEX];
 	ib_uint64_t		total_rec = 0;
 	ulint			num_doc_processed = 0;
@@ -1029,7 +1029,7 @@ exit:
 		}
 
 		tmpfd[i] = row_merge_file_create_low(path);
-		if (tmpfd[i] < 0) {
+		if (tmpfd[i] == OS_FILE_CLOSED) {
 			error = DB_OUT_OF_MEMORY;
 			goto func_exit;
 		}
@@ -1041,12 +1041,12 @@ exit:
 				       crypt_block[i], table->space->id);
 
 		if (error != DB_SUCCESS) {
-			close(tmpfd[i]);
+			os_file_close(tmpfd[i]);
 			goto func_exit;
 		}
 
 		total_rec += merge_file[i]->n_rec;
-		close(tmpfd[i]);
+		os_file_close(tmpfd[i]);
 	}
 
 func_exit:
@@ -1570,7 +1570,7 @@ row_fts_merge_insert(
 	ib_alloc_t*		heap_alloc;
 	ulint			i;
 	mrec_buf_t**		buf;
-	int*			fd;
+	pfs_os_file_t*			fd;
 	byte**			block;
 	byte**			crypt_block;
 	const mrec_t**		mrec;
@@ -1612,7 +1612,7 @@ row_fts_merge_insert(
 		heap, sizeof(*offsets) * fts_sort_pll_degree);
 	buf = (mrec_buf_t**) mem_heap_alloc(
 		heap, sizeof(*buf) * fts_sort_pll_degree);
-	fd = (int*) mem_heap_alloc(heap, sizeof(*fd) * fts_sort_pll_degree);
+	fd = (pfs_os_file_t*) mem_heap_alloc(heap, sizeof(*fd) * fts_sort_pll_degree);
 	block = (byte**) mem_heap_alloc(
 		heap, sizeof(*block) * fts_sort_pll_degree);
 	crypt_block = (byte**) mem_heap_alloc(

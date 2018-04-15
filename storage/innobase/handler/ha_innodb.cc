@@ -2410,19 +2410,18 @@ static int mysql_tmpfile_path(const char *path, const char *prefix)
 path. If the path is NULL, then it will be created in tmpdir.
 @param[in]	path	location for creating temporary file
 @return temporary file descriptor, or < 0 on error */
-int
+os_file_t
 innobase_mysql_tmpfile(
 	const char*	path)
 {
 #ifdef WITH_INNODB_DISALLOW_WRITES
 	os_event_wait(srv_allow_writes_event);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
-	int	fd2 = -1;
 	File	fd;
 
 	DBUG_EXECUTE_IF(
 		"innobase_tmpfile_creation_failure",
-		return(-1);
+		return(OS_FILE_CLOSED);
 	);
 
 	if (path == NULL) {
@@ -2431,50 +2430,55 @@ innobase_mysql_tmpfile(
 		fd = mysql_tmpfile_path(path, "ib");
 	}
 
-	if (fd >= 0) {
-		/* Copy the file descriptor, so that the additional resources
-		allocated by create_temp_file() can be freed by invoking
-		my_close().
+	if (fd < 0)
+		return OS_FILE_CLOSED;
 
-		Because the file descriptor returned by this function
-		will be passed to fdopen(), it will be closed by invoking
-		fclose(), which in turn will invoke close() instead of
-		my_close(). */
+	/* Copy the file descriptor, so that the additional resources
+	allocated by create_temp_file() can be freed by invoking
+	my_close().
+
+	Because the file descriptor returned by this function
+	will be passed to fdopen(), it will be closed by invoking
+	fclose(), which in turn will invoke close() instead of
+	my_close(). */
 
 #ifdef _WIN32
-		/* Note that on Windows, the integer returned by mysql_tmpfile
-		has no relation to C runtime file descriptor. Here, we need
-		to call my_get_osfhandle to get the HANDLE and then convert it
-		to C runtime filedescriptor. */
-		{
-			HANDLE hFile = my_get_osfhandle(fd);
-			HANDLE hDup;
-			BOOL bOK = DuplicateHandle(
-					GetCurrentProcess(),
-					hFile, GetCurrentProcess(),
-					&hDup, 0, FALSE, DUPLICATE_SAME_ACCESS);
-			if (bOK) {
-				fd2 = _open_osfhandle((intptr_t) hDup, 0);
-			} else {
-				my_osmaperr(GetLastError());
-				fd2 = -1;
-			}
-		}
-#else
-		fd2 = dup(fd);
-#endif
-		if (fd2 < 0) {
-			char errbuf[MYSYS_STRERROR_SIZE];
-			DBUG_PRINT("error",("Got error %d on dup",fd2));
-			set_my_errno(errno);
-			my_error(EE_OUT_OF_FILERESOURCES,
-				 MYF(0),
-				 "ib*", errno,
-				  my_strerror(errbuf, sizeof(errbuf), errno));
-		}
-		my_close(fd, MYF(MY_WME));
+	/* Note that on Windows, the integer returned by mysql_tmpfile
+	has no relation to C runtime file descriptor. Here, we need
+	to call my_get_osfhandle to get the HANDLE and then convert it
+	to C runtime filedescriptor. */
+
+	HANDLE hFile = my_get_osfhandle(fd);
+	HANDLE hDup;
+	BOOL bOK = DuplicateHandle(
+			GetCurrentProcess(),
+			hFile, GetCurrentProcess(),
+			&hDup, 0, FALSE, DUPLICATE_SAME_ACCESS);
+	my_close(fd, MYF(MY_WME));
+
+	if (!bOK) {
+		my_osmaperr(GetLastError());
+		goto error;
 	}
-	return(fd2);
+	return hDup;
+#else
+	int fd2 = dup(fd);
+	my_close(fd, MYF(MY_WME));
+	if (fd2 < 0) {
+		set_my_errno(errno);
+		goto error;
+	}
+	return fd2;
+#endif
+
+error:
+	char errbuf[MYSYS_STRERROR_SIZE];
+
+	my_error(EE_OUT_OF_FILERESOURCES,
+		MYF(0),
+		"ib*", errno,
+		my_strerror(errbuf, sizeof(errbuf), errno));
+	return (OS_FILE_CLOSED);
 }
 
 /*********************************************************************//**
