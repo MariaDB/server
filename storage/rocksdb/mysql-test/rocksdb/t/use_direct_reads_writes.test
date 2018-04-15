@@ -34,7 +34,6 @@ select plugin_name, plugin_type from information_schema.plugins where plugin_nam
 --source include/search_pattern_in_file.inc
 --remove_file $LOG
 
-select plugin_name, plugin_type from information_schema.plugins where plugin_name='RocksDB';
 
 # Verify invalid direct-writes and --rocksdb_flush_log_at_trx_commit combination at startup fails
 --echo Checking rocksdb_flush_log_at_trx_commit
