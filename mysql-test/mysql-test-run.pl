@@ -3961,32 +3961,32 @@ sub run_testcase ($$) {
   }
 
   my $test= $tinfo->{suite}->start_test($tinfo);
-  # Set only when we have to keep waiting after expectedly died server
-  my $keep_waiting_proc = 0;
+  # Set to a list of processes we have to keep waiting (expectedly died servers)
+  my %keep_waiting_proc = ();
   my $print_timeout= start_timer($print_freq * 60);
 
   while (1)
   {
     my $proc;
-    if ($keep_waiting_proc)
+    if (scalar(keys(%keep_waiting_proc)) > 0)
     {
       # Any other process exited?
       $proc = My::SafeProcess->check_any();
       if ($proc)
       {
 	mtr_verbose ("Found exited process $proc");
+	$keep_waiting_proc{$proc} = 1;
       }
       else
       {
-	$proc = $keep_waiting_proc;
 	# Also check if timer has expired, if so cancel waiting
 	if ( has_expired($test_timeout) )
 	{
-	  $keep_waiting_proc = 0;
+	  %keep_waiting_proc = ();
 	}
       }
     }
-    if (! $keep_waiting_proc)
+    if (scalar(keys(%keep_waiting_proc)) == 0)
     {
       if($test_timeout > $print_timeout)
       {
@@ -4003,137 +4003,148 @@ sub run_testcase ($$) {
       else
       {
          $proc= My::SafeProcess->wait_any_timeout($test_timeout);
+         $keep_waiting_proc{$proc} = 1;
       }
     }
 
-    # Will be restored if we need to keep waiting
-    $keep_waiting_proc = 0;
-
-    unless ( defined $proc )
+    if (scalar(keys(%keep_waiting_proc)) == 0)
     {
       mtr_error("wait_any failed");
     }
-    mtr_verbose("Got $proc");
+    mtr_verbose("Got " . join(",", keys(%keep_waiting_proc)));
 
     mark_time_used('test');
-    # ----------------------------------------------------
-    # Was it the test program that exited
-    # ----------------------------------------------------
-    if ($proc eq $test)
-    {
-      my $res= $test->exit_status();
-
-      if (($res == 0 or $res == 62) and $opt_warnings and check_warnings($tinfo) )
+    my $expected_exit = 1;
+    foreach $proc (keys(%keep_waiting_proc)) {
+      # ----------------------------------------------------
+      # Was it the test program that exited
+      # ----------------------------------------------------
+      if ($proc eq $test)
       {
-        # If test case suceeded, but it has produced unexpected
-        # warnings, continue with $res == 1;
-        # but if the test was skipped, it should remain skipped
-        $res= 1 if $res == 0;
-        resfile_output($tinfo->{'warnings'}) if $opt_resfile;
-      }
+        my $res= $test->exit_status();
 
-      if ( $res == 0 )
-      {
-	my $check_res;
-	if ( $opt_check_testcases and
-	     $check_res= check_testcase($tinfo, "after"))
-	{
-	  if ($check_res == 1) {
-	    # Test case had sideeffects, not fatal error, just continue
-            if ($opt_warnings) {
-              # Checking error logs for warnings, so need to stop server
-              # gracefully so that memory leaks etc. can be properly detected.
-              stop_servers(reverse all_servers());
-              check_warnings_post_shutdown($server_socket);
-              # Even if we got warnings here, we should not fail this
-              # particular test, as the warnings may be caused by an earlier
-              # test.
-            } else {
-              # Not checking warnings, so can do a hard shutdown.
-	      stop_all_servers($opt_shutdown_timeout);
+        if (($res == 0 or $res == 62) and $opt_warnings and check_warnings($tinfo) )
+        {
+          # If test case suceeded, but it has produced unexpected
+          # warnings, continue with $res == 1;
+          # but if the test was skipped, it should remain skipped
+          $res= 1 if $res == 0;
+          resfile_output($tinfo->{'warnings'}) if $opt_resfile;
+        }
+
+        if ( $res == 0 )
+        {
+          my $check_res;
+          if ( $opt_check_testcases and
+               $check_res= check_testcase($tinfo, "after"))
+          {
+            if ($check_res == 1) {
+              # Test case had sideeffects, not fatal error, just continue
+              if ($opt_warnings) {
+                # Checking error logs for warnings, so need to stop server
+                # gracefully so that memory leaks etc. can be properly detected.
+                stop_servers(reverse all_servers());
+                check_warnings_post_shutdown($server_socket);
+                # Even if we got warnings here, we should not fail this
+                # particular test, as the warnings may be caused by an earlier
+                # test.
+              } else {
+                # Not checking warnings, so can do a hard shutdown.
+                stop_all_servers($opt_shutdown_timeout);
+              }
+              mtr_report("Resuming tests...\n");
+              resfile_output($tinfo->{'check'}) if $opt_resfile;
             }
-	    mtr_report("Resuming tests...\n");
-	    resfile_output($tinfo->{'check'}) if $opt_resfile;
-	  }
-	  else {
-	    # Test case check failed fatally, probably a server crashed
-	    report_failure_and_restart($tinfo);
-	    return 1;
-	  }
-	}
-	mtr_report_test_passed($tinfo);
-      }
-      elsif ( $res == 62 )
-      {
-	# Testcase itself tell us to skip this one
-	$tinfo->{skip_detected_by_test}= 1;
-	# Try to get reason from test log file
-	find_testcase_skipped_reason($tinfo);
-	mtr_report_test_skipped($tinfo);
-	# Restart if skipped due to missing perl, it may have had side effects
-	if ( $tinfo->{'comment'} =~ /^perl not found/ )
-	{
-	  stop_all_servers($opt_shutdown_timeout);
-	}
-      }
-      elsif ( $res == 65 )
-      {
-	# Testprogram killed by signal
-	$tinfo->{comment}=
-	  "testprogram crashed(returned code $res)";
-	report_failure_and_restart($tinfo);
-      }
-      elsif ( $res == 1 )
-      {
-	# Check if the test tool requests that
-	# an analyze script should be run
-	my $analyze= find_analyze_request();
-	if ($analyze){
-	  run_on_all($tinfo, "analyze-$analyze");
-	}
+            else {
+              # Test case check failed fatally, probably a server crashed
+              report_failure_and_restart($tinfo);
+              return 1;
+            }
+          }
+          mtr_report_test_passed($tinfo);
+        }
+        elsif ( $res == 62 )
+        {
+          # Testcase itself tell us to skip this one
+          $tinfo->{skip_detected_by_test}= 1;
+          # Try to get reason from test log file
+          find_testcase_skipped_reason($tinfo);
+          mtr_report_test_skipped($tinfo);
+          # Restart if skipped due to missing perl, it may have had side effects
+          if ( $tinfo->{'comment'} =~ /^perl not found/ )
+          {
+            stop_all_servers($opt_shutdown_timeout);
+          }
+        }
+        elsif ( $res == 65 )
+        {
+          # Testprogram killed by signal
+          $tinfo->{comment}=
+            "testprogram crashed(returned code $res)";
+          report_failure_and_restart($tinfo);
+        }
+        elsif ( $res == 1 )
+        {
+          # Check if the test tool requests that
+          # an analyze script should be run
+          my $analyze= find_analyze_request();
+          if ($analyze){
+            run_on_all($tinfo, "analyze-$analyze");
+          }
 
-	# Wait a bit and see if a server died, if so report that instead
-	mtr_milli_sleep(100);
-	my $srvproc= My::SafeProcess::check_any();
-	if ($srvproc && grep($srvproc eq $_, started(all_servers()))) {
-	  $proc= $srvproc;
-	  goto SRVDIED;
-	}
+          # Wait a bit and see if a server died, if so report that instead
+          mtr_milli_sleep(100);
+          my $srvproc= My::SafeProcess::check_any();
+          if ($srvproc && grep($srvproc eq $_, started(all_servers()))) {
+            $proc= $srvproc;
+            goto SRVDIED;
+          }
 
-	# Test case failure reported by mysqltest
-	report_failure_and_restart($tinfo);
+          # Test case failure reported by mysqltest
+          report_failure_and_restart($tinfo);
+        }
+        else
+        {
+          # mysqltest failed, probably crashed
+          $tinfo->{comment}=
+            "mysqltest failed with unexpected return code $res\n";
+          report_failure_and_restart($tinfo);
+        }
+
+        # Save info from this testcase run to mysqltest.log
+        if( -f $path_current_testlog)
+        {
+          if ($opt_resfile && $res && $res != 62) {
+            resfile_output_file($path_current_testlog);
+          }
+          mtr_appendfile_to_file($path_current_testlog, $path_testlog);
+          unlink($path_current_testlog);
+        }
+
+        return ($res == 62) ? 0 : $res;
+
       }
-      else
+
+      # ----------------------------------------------------
+      # Check if it was an expected crash
+      # ----------------------------------------------------
+      my $check_crash = check_expected_crash_and_restart($proc);
+      if ($check_crash == 0) # unexpected exit/crash of $proc
       {
-	# mysqltest failed, probably crashed
-	$tinfo->{comment}=
-	  "mysqltest failed with unexpected return code $res\n";
-	report_failure_and_restart($tinfo);
+        $expected_exit = 0;
+        last;
       }
-
-      # Save info from this testcase run to mysqltest.log
-      if( -f $path_current_testlog)
+      elsif ($check_crash == 1) # $proc was started again by check_expected_crash_and_restart()
       {
-	if ($opt_resfile && $res && $res != 62) {
-	  resfile_output_file($path_current_testlog);
-	}
-	mtr_appendfile_to_file($path_current_testlog, $path_testlog);
-	unlink($path_current_testlog);
+        delete $keep_waiting_proc{$proc};
       }
-
-      return ($res == 62) ? 0 : $res;
-
+      elsif ($check_crash == 2) # we must keep waiting
+      {
+        # do nothing
+      }
     }
 
-    # ----------------------------------------------------
-    # Check if it was an expected crash
-    # ----------------------------------------------------
-    my $check_crash = check_expected_crash_and_restart($proc);
-    if ($check_crash)
-    {
-      # Keep waiting if it returned 2, if 1 don't wait or stop waiting.
-      $keep_waiting_proc = 0 if $check_crash == 1;
-      $keep_waiting_proc = $proc if $check_crash == 2;
+    if ($expected_exit) {
       next;
     }
 
