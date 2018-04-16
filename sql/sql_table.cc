@@ -3378,6 +3378,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     */
     if (sql_field->default_value &&
         sql_field->default_value->expr->basic_const_item() &&
+        (!sql_field->field ||
+         sql_field->field->default_value != sql_field->default_value) &&
         save_cs != sql_field->default_value->expr->collation.collation &&
         (sql_field->sql_type == MYSQL_TYPE_VAR_STRING ||
          sql_field->sql_type == MYSQL_TYPE_STRING ||

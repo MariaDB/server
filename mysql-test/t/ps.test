@@ -4635,3 +4635,18 @@ DELIMITER ;$$
 --disable_result_log
 CALL p1('x');
 DROP PROCEDURE p1;
+
+#
+# MDEV-15746 ASAN heap-use-after-free in Item_change_list::rollback_item_tree_changes on ALTER executed as PS
+#
+create table t1 (b blob default '');
+prepare stmt from "alter table t1 force";
+execute stmt;
+execute stmt;
+execute stmt;
+set names latin1;
+prepare stmt from "alter table t1 modify b text character set utf8 default 'a'";
+execute stmt;
+execute stmt;
+execute stmt;
+drop table t1;
