@@ -1615,6 +1615,14 @@ open_table_v1(PSI_table_share *share, const void *identity)
 {
   PFS_table_share *pfs_table_share= reinterpret_cast<PFS_table_share*> (share);
 
+  /*
+    When the performance schema is off, do not instrument anything.
+    Table handles have short life cycle, instrumentation will happen
+    again if needed during the next open().
+  */
+  if (psi_unlikely(! flag_global_instrumentation))
+    return NULL;
+
   if (unlikely(pfs_table_share == NULL))
     return NULL;
 
@@ -1624,14 +1632,6 @@ open_table_v1(PSI_table_share *share, const void *identity)
 
   /* This object is instrumented, but all table instruments are disabled. */
   if (! global_table_io_class.m_enabled && ! global_table_lock_class.m_enabled)
-    return NULL;
-
-  /*
-    When the performance schema is off, do not instrument anything.
-    Table handles have short life cycle, instrumentation will happen
-    again if needed during the next open().
-  */
-  if (! flag_global_instrumentation)
     return NULL;
 
   PFS_thread *thread= my_pthread_getspecific_ptr(PFS_thread*, THR_PFS);
@@ -1668,6 +1668,12 @@ rebind_table_v1(PSI_table_share *share, const void *identity, PSI_table *table)
     PFS_thread *thread;
     DBUG_ASSERT(pfs->m_thread_owner == NULL);
 
+    if (psi_unlikely(! flag_global_instrumentation))
+    {
+      destroy_table(pfs);
+      return NULL;
+    }
+
     /* The table handle was already instrumented, reuse it for this thread. */
     thread= my_pthread_getspecific_ptr(PFS_thread*, THR_PFS);
 
@@ -1683,15 +1689,12 @@ rebind_table_v1(PSI_table_share *share, const void *identity, PSI_table *table)
       return NULL;
     }
 
-    if (unlikely(! flag_global_instrumentation))
-    {
-      destroy_table(pfs);
-      return NULL;
-    }
-
     pfs->m_thread_owner= thread;
     return table;
   }
+
+  if (psi_unlikely(! flag_global_instrumentation))
+    return NULL;
 
   /* See open_table_v1() */
 
@@ -1704,9 +1707,6 @@ rebind_table_v1(PSI_table_share *share, const void *identity, PSI_table *table)
     return NULL;
 
   if (! global_table_io_class.m_enabled && ! global_table_lock_class.m_enabled)
-    return NULL;
-
-  if (! flag_global_instrumentation)
     return NULL;
 
   PFS_thread *thread= my_pthread_getspecific_ptr(PFS_thread*, THR_PFS);
@@ -1760,7 +1760,7 @@ static void destroy_socket_v1(PSI_socket *socket)
 */
 static void create_file_v1(PSI_file_key key, const char *name, File file)
 {
-  if (! flag_global_instrumentation)
+  if (psi_unlikely(! flag_global_instrumentation))
     return;
   int index= (int) file;
   if (unlikely(index < 0))
@@ -2783,7 +2783,7 @@ get_thread_file_name_locker_v1(PSI_file_locker_state *state,
   DBUG_ASSERT(static_cast<uint> (op) < array_elements(file_operation_map));
   DBUG_ASSERT(state != NULL);
 
-  if (! flag_global_instrumentation)
+  if (psi_unlikely(! flag_global_instrumentation))
     return NULL;
   PFS_file_class *klass= find_file_class(key);
   if (unlikely(klass == NULL))
@@ -3316,7 +3316,7 @@ start_idle_wait_v1(PSI_idle_locker_state* state, const char *src_file, uint src_
 {
   DBUG_ASSERT(state != NULL);
 
-  if (!flag_global_instrumentation)
+  if (psi_unlikely(! flag_global_instrumentation))
     return NULL;
 
   if (!global_idle_class.m_enabled)
@@ -4253,7 +4253,7 @@ static void start_stage_v1(PSI_stage_key key, const char *src_file, int src_line
   /* Always update column threads.processlist_state. */
   pfs_thread->m_stage= key;
 
-  if (! flag_global_instrumentation)
+  if (psi_unlikely(! flag_global_instrumentation))
     return;
 
   if (flag_thread_instrumentation && ! pfs_thread->m_enabled)
@@ -4353,7 +4353,7 @@ static void end_stage_v1()
 
   pfs_thread->m_stage= 0;
 
-  if (! flag_global_instrumentation)
+  if (psi_unlikely(! flag_global_instrumentation))
     return;
 
   if (flag_thread_instrumentation && ! pfs_thread->m_enabled)
@@ -4412,7 +4412,7 @@ get_thread_statement_locker_v1(PSI_statement_locker_state *state,
   DBUG_ASSERT(state != NULL);
   DBUG_ASSERT(charset != NULL);
 
-  if (! flag_global_instrumentation)
+  if (psi_unlikely(! flag_global_instrumentation))
     return NULL;
   PFS_statement_class *klass= find_statement_class(key);
   if (unlikely(klass == NULL))

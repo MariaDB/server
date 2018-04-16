@@ -121,14 +121,14 @@ static LIKELY_ENTRY *my_likely_find(const char *file_name, uint line)
 {
   char key[80], *pos;
   LIKELY_ENTRY *entry;
-  uint length;
+  size_t length;
 
   if (!likely_inited)
     return 0;
 
   pos= strnmov(key, file_name, sizeof(key)-4);
   int3store(pos+1, line);
-  length= (pos-key)+4;
+  length= (size_t) (pos-key)+4;
 
   pthread_mutex_lock(&likely_mutex);
   if (!(entry= (LIKELY_ENTRY*) my_hash_search(&likely_hash, (uchar*) key,

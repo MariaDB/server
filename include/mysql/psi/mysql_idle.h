@@ -82,7 +82,7 @@ inline_mysql_start_idle_wait(PSI_idle_locker_state *state,
 static inline void
 inline_mysql_end_idle_wait(struct PSI_idle_locker *locker)
 {
-  if (likely(locker != NULL))
+  if (psi_likely(locker != NULL))
     PSI_IDLE_CALL(end_idle_wait)(locker);
 }
 #endif

@@ -227,7 +227,7 @@ int logger_printf(LOGGER_HANDLE *log, const char *fmt, ...)
 void logger_init_mutexes()
 {
 #ifdef HAVE_PSI_INTERFACE
-  if (PSI_server)
+  if (unlikely(PSI_server))
     PSI_server->register_mutex("sql_logger", mutex_list, 1);
 #endif
 }
