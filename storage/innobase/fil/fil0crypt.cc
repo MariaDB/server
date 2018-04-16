@@ -2019,6 +2019,12 @@ fil_crypt_rotate_pages(
 			continue;
 		}
 
+		/* If space is marked as stopping, stop rotating
+		pages. */
+		if (state->space->is_stopping()) {
+			break;
+		}
+
 		fil_crypt_rotate_page(key_state, state);
 	}
 }
@@ -2067,20 +2073,22 @@ fil_crypt_flush_space(
 		crypt_data->type = CRYPT_SCHEME_UNENCRYPTED;
 	}
 
-	/* update page 0 */
-	mtr_t mtr;
-	mtr_start(&mtr);
+	if (!space->is_stopping()) {
+		/* update page 0 */
+		mtr_t mtr;
+		mtr_start(&mtr);
 
-	const uint zip_size = fsp_flags_get_zip_size(state->space->flags);
+		const uint zip_size = fsp_flags_get_zip_size(state->space->flags);
 
-	buf_block_t* block = buf_page_get_gen(space->id, zip_size, 0,
+		buf_block_t* block = buf_page_get_gen(space->id, zip_size, 0,
 				RW_X_LATCH, NULL, BUF_GET,
 				__FILE__, __LINE__, &mtr);
-	byte* frame = buf_block_get_frame(block);
+		byte* frame = buf_block_get_frame(block);
 
-	crypt_data->write_page0(frame, &mtr);
+		crypt_data->write_page0(frame, &mtr);
 
-	mtr_commit(&mtr);
+		mtr_commit(&mtr);
+	}
 }
 
 /***********************************************************************
