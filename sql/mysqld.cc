@@ -2240,14 +2240,14 @@ void clean_up(bool print_message)
   lex_free();				/* Free some memory */
   item_create_cleanup();
   tdc_start_shutdown();
+#ifdef HAVE_REPLICATION
+  semi_sync_master_deinit();
+#endif
   plugin_shutdown();
   udf_free();
   ha_end();
   if (tc_log)
     tc_log->close();
-#ifdef HAVE_REPLICATION
-  semi_sync_master_deinit();
-#endif
   xid_cache_free();
   tdc_deinit();
   mdl_destroy();
