@@ -551,3 +551,8 @@ select * from t1 natural join t2;
 b	c	a	d
 2	3	1	4
 drop table t1, t2;
+CREATE TABLE t1 (c CHAR(3), t TIMESTAMP invisible);
+INSERT INTO t1 (c,t) VALUES ('foo','2000-01-01 00:00:00');
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET @a= 1;
+INSERT INTO t1 SELECT * FROM t1;
+DROP TABLE t1;

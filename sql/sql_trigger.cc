@@ -1240,6 +1240,7 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
           return 1;
 
         f->flags= (*fld)->flags;
+        f->invisible= (*fld)->invisible;
         f->null_ptr= null_ptr;
         f->null_bit= null_bit;
         if (null_bit == 128)
