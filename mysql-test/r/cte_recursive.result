@@ -3080,3 +3080,16 @@ a
 129
 130
 set big_tables=default;
+#
+# MDEV-1571: Setting user variable in recursive CTE
+#
+set big_tables=1;
+with recursive qn as
+(
+select 1 as a from dual
+union all
+select a*2000 from qn where a<10000000000000000000
+)
+select * from qn;
+ERROR 22003: BIGINT value is out of range in '`qn`.`a` * 2000'
+set big_tables=default;
