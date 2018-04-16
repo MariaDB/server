@@ -1401,7 +1401,7 @@ bool With_element::instantiate_tmp_tables()
   {
     if (!rec_table->is_created() &&
         instantiate_tmp_table(rec_table,
-                              rec_result->tmp_table_param.keyinfo,
+                              rec_table->s->key_info,
                               rec_result->tmp_table_param.start_recinfo,
                               &rec_result->tmp_table_param.recinfo,
                               0))
