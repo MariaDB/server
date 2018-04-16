@@ -2097,3 +2097,15 @@ WITH RECURSIVE cte AS
 	UNION
 	SELECT @c:=@c+1 FROM cte WHERE @c<3)
 SELECT * FROM cte;
+
+--echo #
+--echo # MDEV-15575: using recursive cte with big_tables enabled
+--echo #
+
+set big_tables=1;
+
+with recursive qn as
+(select 123 as a union all select 1+a from qn where a<130)
+select * from qn;
+
+set big_tables=default;

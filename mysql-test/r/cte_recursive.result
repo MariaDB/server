@@ -3063,3 +3063,20 @@ SELECT * FROM cte;
 5
 2
 3
+#
+# MDEV-15575: using recursive cte with big_tables enabled
+#
+set big_tables=1;
+with recursive qn as
+(select 123 as a union all select 1+a from qn where a<130)
+select * from qn;
+a
+123
+124
+125
+126
+127
+128
+129
+130
+set big_tables=default;
