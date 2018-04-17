@@ -853,7 +853,7 @@ build_table_string(void)
 
   if (auto_generate_sql_guid_primary)
   {
-    dynstr_append(&table_string, "id varchar(32) primary key");
+    dynstr_append(&table_string, "id varchar(36) primary key");
 
     if (num_int_cols || num_char_cols || auto_generate_sql_guid_primary)
       dynstr_append(&table_string, ",");
