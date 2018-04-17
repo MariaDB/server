@@ -4,7 +4,7 @@ export DH_VERBOSE=1
 
 # enable Debian Hardening
 # see: https://wiki.debian.org/Hardening
-export DEB_BUILD_MAINT_OPTIONS = hardening=+all,-pie
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/buildflags.mk
 
