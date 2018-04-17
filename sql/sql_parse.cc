@@ -1171,7 +1171,7 @@ static enum enum_server_command fetch_command(THD *thd, char *packet)
 #ifdef WITH_WSREP
 static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 {
-  bool has_tables = false;
+  bool accessible_tables = true;
   for (const TABLE_LIST *table= tables; table; table= table->next_global)
   {
     TABLE_CATEGORY c;
@@ -1184,9 +1184,8 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
     {
       return false;
     }
-    has_tables = true;
   }
-  return has_tables;
+  return accessible_tables;
 }
 #endif /* WITH_WSREP */
 
@@ -9044,7 +9043,9 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
 	!wsrep_thd_is_BF((void*)tmp, true))
     {
+      if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_wsrep_thd);
       tmp->awake_no_mutex(kill_signal);
+      if (WSREP(thd)) mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       error=0;
     }
     else

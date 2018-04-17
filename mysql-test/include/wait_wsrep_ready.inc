@@ -11,7 +11,7 @@
 # succeed. However, we can force it to succeed by running the SELECT
 # with dirty reads configuration. So we prepare for that
 #
-SET @my_dirty_reads= @@wsrep_dirty_reads;
+--let $my_dirty_reads= `select @@wsrep_dirty_reads`
 SET wsrep_dirty_reads = ON;
 
 if (`SELECT COUNT(*)=1 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsrep' AND PLUGIN_STATUS='ACTIVE'`)
@@ -25,11 +25,7 @@ if (`SELECT COUNT(*)=1 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsre
 }
 
 # ..and returning original dirty read selection here
-#
-# NOTE: we should allow SELECT <variable> even when dirty reads is not set
-#
-#SET wsrep_dirty_reads = @my_dirty_reads;
-SET wsrep_dirty_reads = OFF;
+--eval SET wsrep_dirty_reads = $my_dirty_reads;
 
 --enable_query_log
 --enable_result_log
