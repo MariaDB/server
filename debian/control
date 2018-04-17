@@ -421,10 +421,7 @@ Recommends: libhtml-template-perl
 Pre-Depends: adduser (>= 3.40),
              debconf,
              mariadb-common (>= ${source:Version})
-Depends: bsdutils,
-         coreutils,
-         findutils,
-         galera-3 (>=25.3),
+Depends: galera-3 (>=25.3),
          gawk,
          iproute2,
          libdbi-perl,
