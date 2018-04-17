@@ -22,47 +22,47 @@
 #pragma interface			/* gcc class implementation */
 #endif
 
-class Item_func_vtq_ts: public Item_datetimefunc
+class Item_func_trt_ts: public Item_datetimefunc
 {
-  TR_table::field_id_t vtq_field;
+  TR_table::field_id_t trt_field;
 public:
-  Item_func_vtq_ts(THD *thd, Item* a, TR_table::field_id_t _vtq_field);
+  Item_func_trt_ts(THD *thd, Item* a, TR_table::field_id_t _trt_field);
   const char *func_name() const
   {
-    if (vtq_field == TR_table::FLD_BEGIN_TS)
+    if (trt_field == TR_table::FLD_BEGIN_TS)
     {
-      return "vtq_begin_ts";
+      return "trt_begin_ts";
     }
-    return "vtq_commit_ts";
+    return "trt_commit_ts";
   }
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   Item *get_copy(THD *thd)
-  { return get_item_copy<Item_func_vtq_ts>(thd, this); }
+  { return get_item_copy<Item_func_trt_ts>(thd, this); }
   void fix_length_and_dec() { fix_attributes_datetime(decimals); }
 };
 
-class Item_func_vtq_id : public Item_longlong_func
+class Item_func_trt_id : public Item_longlong_func
 {
-  TR_table::field_id_t vtq_field;
+  TR_table::field_id_t trt_field;
   bool backwards;
 
   longlong get_by_trx_id(ulonglong trx_id);
   longlong get_by_commit_ts(MYSQL_TIME &commit_ts, bool backwards);
 
 public:
-  Item_func_vtq_id(THD *thd, Item* a, TR_table::field_id_t _vtq_field, bool _backwards= false);
-  Item_func_vtq_id(THD *thd, Item* a, Item* b, TR_table::field_id_t _vtq_field);
+  Item_func_trt_id(THD *thd, Item* a, TR_table::field_id_t _trt_field, bool _backwards= false);
+  Item_func_trt_id(THD *thd, Item* a, Item* b, TR_table::field_id_t _trt_field);
 
   const char *func_name() const
   {
-    switch (vtq_field)
+    switch (trt_field)
     {
     case TR_table::FLD_TRX_ID:
-      return "vtq_trx_id";
+      return "trt_trx_id";
     case TR_table::FLD_COMMIT_ID:
-        return "vtq_commit_id";
+        return "trt_commit_id";
     case TR_table::FLD_ISO_LEVEL:
-      return "vtq_iso_level";
+      return "trt_iso_level";
     default:
       DBUG_ASSERT(0);
     }
@@ -77,37 +77,37 @@ public:
 
   longlong val_int();
   Item *get_copy(THD *thd)
-  { return get_item_copy<Item_func_vtq_id>(thd, this); }
+  { return get_item_copy<Item_func_trt_id>(thd, this); }
 };
 
-class Item_func_vtq_trx_sees : public Item_bool_func
+class Item_func_trt_trx_sees : public Item_bool_func
 {
 protected:
   bool accept_eq;
 
 public:
-  Item_func_vtq_trx_sees(THD *thd, Item* a, Item* b);
+  Item_func_trt_trx_sees(THD *thd, Item* a, Item* b);
   const char *func_name() const
   {
-    return "vtq_trx_sees";
+    return "trt_trx_sees";
   }
   longlong val_int();
   Item *get_copy(THD *thd)
-  { return get_item_copy<Item_func_vtq_trx_sees>(thd, this); }
+  { return get_item_copy<Item_func_trt_trx_sees>(thd, this); }
 };
 
-class Item_func_vtq_trx_sees_eq :
-  public Item_func_vtq_trx_sees
+class Item_func_trt_trx_sees_eq :
+  public Item_func_trt_trx_sees
 {
 public:
-  Item_func_vtq_trx_sees_eq(THD *thd, Item* a, Item* b) :
-    Item_func_vtq_trx_sees(thd, a, b)
+  Item_func_trt_trx_sees_eq(THD *thd, Item* a, Item* b) :
+    Item_func_trt_trx_sees(thd, a, b)
   {
     accept_eq= true;
   }
   const char *func_name() const
   {
-    return "vtq_trx_sees_eq";
+    return "trt_trx_sees_eq";
   }
 };
 

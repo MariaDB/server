@@ -6,7 +6,7 @@ select ifnull(max(transaction_id), 0) into @start_trx_id from mysql.transaction_
 set @test_start=now(6);
 
 delimiter ~~;
-create procedure if not exists verify_vtq()
+create procedure if not exists verify_trt()
 begin
   set @i= 0;
   select
@@ -22,7 +22,7 @@ begin
   from mysql.transaction_registry;
 end~~
 
-create procedure if not exists verify_vtq_dummy(recs int)
+create procedure if not exists verify_trt_dummy(recs int)
 begin
   declare i int default 1;
   create temporary table tmp (No int, A bool, B bool, C bool, D bool);

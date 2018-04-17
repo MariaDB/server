@@ -41,7 +41,7 @@ if ($MTR_COMBINATION_TRX_ID)
 {
 --disable_query_log
   set @x1= @t1;
-  select vtq_commit_ts(@x1) into @t1;
+  select trt_commit_ts(@x1) into @t1;
 --enable_query_log
 }
 
@@ -326,6 +326,6 @@ select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
 drop view v1;
 drop table t1, t2, t3, t4;
 
-call verify_vtq_dummy(34);
+call verify_trt_dummy(34);
 
 -- source suite/versioning/common_finish.inc
