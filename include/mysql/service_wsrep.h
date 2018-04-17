@@ -86,15 +86,16 @@ extern struct wsrep_service_st {
   my_bool                     (*get_wsrep_log_conflicts_func)();
   long                        (*get_wsrep_protocol_version_func)();
   bool                        (*wsrep_consistency_check_func)(THD *thd);
-  int                         (*wsrep_is_wsrep_xid_func)(const struct xid_t *xid);
+  //int                         (*wsrep_is_wsrep_xid_func)(const struct xid_t *xid);
+  int                         (*wsrep_is_wsrep_xid_func)(const void *xid);
   long long                   (*wsrep_xid_seqno_func)(const struct xid_t *xid);
   const unsigned char*        (*wsrep_xid_uuid_func)(const struct xid_t *xid);
-  void                        (*wsrep_lock_rollback_func)();
-  int                         (*wsrep_on_func)(MYSQL_THD);
-  void                        (*wsrep_post_commit_func)(THD* thd, bool all);
-  bool                        (*wsrep_prepare_key_func)(const unsigned char*, size_t, const unsigned char*, size_t, struct wsrep_buf*, size_t*);
+  //  int                         (*wsrep_on_func)(MYSQL_THD);
+  int                         (*wsrep_on_func)(void *);
+  //  void                        (*wsrep_post_commit_func)(THD* thd, bool all);
+  //bool                        (*wsrep_prepare_key_func)(const unsigned char*, size_t, const unsigned char*, size_t, struct wsrep_buf*, size_t*);
   bool                        (*wsrep_prepare_key_for_innodb_func)(THD* thd, const unsigned char*, size_t, const unsigned char*, size_t, struct wsrep_buf*, size_t*);
-  enum wsrep_trx_status       (*wsrep_run_wsrep_commit_func)(THD *thd, bool all);
+  //enum wsrep_trx_status       (*wsrep_run_wsrep_commit_func)(THD *thd, bool all);
   void                        (*wsrep_thd_LOCK_func)(THD *thd);
   void                        (*wsrep_thd_UNLOCK_func)(THD *thd);
   void                        (*wsrep_thd_awake_func)(THD *thd, my_bool signal);
@@ -117,7 +118,7 @@ extern struct wsrep_service_st {
   struct wsrep_ws_handle *    (*wsrep_thd_ws_handle_func)(THD *thd);
   int                         (*wsrep_trx_is_aborting_func)(MYSQL_THD thd);
   int                         (*wsrep_trx_order_before_func)(MYSQL_THD, MYSQL_THD);
-  void                        (wsrep_thd_xid_func)(const void *thd_ptr, void *xid, size_t xid_size);
+  //void                        (wsrep_thd_xid_func)(const void *thd_ptr, void *xid, size_t xid_size);
 } *wsrep_service;
 
 
@@ -139,7 +140,6 @@ extern struct wsrep_service_st {
 #define wsrep_is_wsrep_xid(X) wsrep_service->wsrep_is_wsrep_xid_func(X)
 #define wsrep_xid_seqno(X) wsrep_service->wsrep_xid_seqno_func(X)
 #define wsrep_xid_uuid(X) wsrep_service->wsrep_xid_uuid_func(X)
-#define wsrep_lock_rollback() wsrep_service->wsrep_lock_rollback_func()
 #define wsrep_on(X) wsrep_service->wsrep_on_func(X)
 #define wsrep_prepare_key_for_innodb(A,B,C,D,E,F,G) wsrep_service->wsrep_prepare_key_for_innodb_func(A,B,C,D,E,F.G)
 #define wsrep_thd_LOCK(T) wsrep_service->wsrep_thd_LOCK_func(T)
@@ -196,10 +196,12 @@ enum wsrep_conflict_state wsrep_thd_get_conflict_state(MYSQL_THD thd);
 enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd);
 enum wsrep_query_state wsrep_thd_query_state(THD *thd);
 enum wsrep_trx_status wsrep_run_wsrep_commit(THD *thd, bool all);
-int wsrep_is_wsrep_xid(const struct xid_t* xid);
+//int wsrep_is_wsrep_xid(const struct xid_t* xid);
+int wsrep_is_wsrep_xid(const void* xid);
 long long wsrep_xid_seqno(const struct xid_t* xid);
 const unsigned char* wsrep_xid_uuid(const struct xid_t* xid);
-int wsrep_on(MYSQL_THD thd);
+//int wsrep_on(MYSQL_THD thd);
+int wsrep_on(void *);
 int wsrep_thd_retry_counter(THD *thd);
 int wsrep_trx_is_aborting(MYSQL_THD thd);
 int wsrep_trx_order_before(MYSQL_THD thd1, MYSQL_THD thd2);
@@ -225,7 +227,6 @@ void wsrep_thd_awake(THD *thd, my_bool signal);
 void wsrep_thd_set_conflict_state(THD *thd, enum wsrep_conflict_state state);
 bool wsrep_thd_ignore_table(THD *thd);
 void wsrep_thd_xid(const void *thd_ptr, void *xid, size_t xid_size);
-
 #endif
 
 #ifdef __cplusplus
