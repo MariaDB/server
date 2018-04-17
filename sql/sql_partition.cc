@@ -4762,8 +4762,6 @@ bool compare_partition_options(HA_CREATE_INFO *table_create_info,
   const char *option_diffs[MAX_COMPARE_PARTITION_OPTION_ERRORS + 1];
   int i, errors= 0;
   DBUG_ENTER("compare_partition_options");
-  DBUG_ASSERT(!part_elem->tablespace_name &&
-              !table_create_info->tablespace);
 
   /*
     Note that there are not yet any engine supporting tablespace together
