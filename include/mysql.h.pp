@@ -107,6 +107,7 @@ enum enum_session_state_type
   SESSION_TRACK_GTIDS,
   SESSION_TRACK_TRANSACTION_CHARACTERISTICS,
   SESSION_TRACK_TRANSACTION_STATE,
+  SESSION_TRACK_USER_VARIABLES,
   SESSION_TRACK_always_at_the_end
 };
 my_bool my_net_init(NET *net, Vio* vio, void *thd, unsigned int my_flags);

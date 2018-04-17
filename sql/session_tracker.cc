@@ -26,6 +26,8 @@
 #include "sql_show.h"
 #include "sql_plugin.h"
 #include "set_var.h"
+#include <set>
+#include <iterator>
 
 void State_tracker::mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name)
 {
@@ -1588,6 +1590,101 @@ bool Session_state_change_tracker::is_state_changed(THD *)
   return m_changed;
 }
 
+class Session_usrvars_tracker : public State_tracker
+{
+private:
+  struct lex_compare
+  {
+    bool operator() (const LEX_CSTRING& x, const LEX_CSTRING& y) const {
+       return (x.length < y.length || strncasecmp(x.str, y.str, y.length) < 0);
+    }
+  };
+  std::set<LEX_CSTRING, lex_compare> m_changed_usrvars;
+
+public:
+  Session_usrvars_tracker() {};
+  ~Session_usrvars_tracker() {};
+
+  bool enable(THD *thd);
+  bool update(THD *thd, set_var *var);
+  bool store(THD *thd, String *buf);
+  my_bool store_variable(void *ptr, void *data_ptr);
+  void mark_as_changed(THD *thd, LEX_CSTRING *changed_item_name);
+};
+
+bool Session_usrvars_tracker::update(THD *, set_var * var)
+{
+  return true;
+}
+
+bool Session_usrvars_tracker::enable(THD *thd)
+{
+  m_enabled = true;
+  return true;
+}
+
+bool Session_usrvars_tracker::store(THD *thd, String *buf)
+{
+  std::set<LEX_CSTRING>::iterator it;
+  for (it = m_changed_usrvars.begin(); it != m_changed_usrvars.end(); it++)
+  {
+    bool null_value = false;
+    String value_str;
+    user_var_entry *entry = get_variable(&thd->user_vars, (LEX_CSTRING *)&*it, 0);
+    if (entry)
+    {
+      size_t length = net_length_size(entry->name.length) + entry->name.length;
+      entry->val_str(&null_value, &value_str, DECIMAL_MAX_SCALE);
+      if (!null_value)
+      {
+        length += (net_length_size(value_str.length()) + value_str.length());
+      }
+
+      if (entry->type == STRING_RESULT)
+      {
+        length += 2;
+      }
+
+      /* Session state type (SESSION_TRACK_USER_VARIABLES) */
+      buf->q_append((char)SESSION_TRACK_USER_VARIABLES);
+
+      /* Length of the overall entity. */
+      buf->q_net_store_length((ulonglong)length);
+
+      /* User variable's name (length-encoded string). */
+      buf->q_net_store_data((const uchar*)entry->name.str, entry->name.length);
+
+      if (null_value)
+      {
+        continue;
+      }
+      /* User variable's value (length-encoded string). */
+      /* Add apostrophe for string */
+      if (entry->type == STRING_RESULT)
+      {
+        buf->q_net_store_length(value_str.length() + 2);
+        buf->q_append((char)'\'');
+        buf->q_append(value_str.ptr(), value_str.length());
+        buf->q_append((char)'\'');
+      }
+      else
+      {
+        buf->q_net_store_data((const uchar*)value_str.ptr(), value_str.length());
+      }
+    }
+  }
+
+  m_changed = false;
+  m_changed_usrvars.clear();
+  return false;
+}
+
+void Session_usrvars_tracker::mark_as_changed(THD *thd, LEX_CSTRING *changed_item_name)
+{
+  m_changed_usrvars.insert(*changed_item_name);
+  State_tracker::mark_as_changed(thd, changed_item_name);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -1633,6 +1730,8 @@ void Session_tracker::enable(THD *thd)
     new (std::nothrow) Not_implemented_tracker;
   m_trackers[TRANSACTION_INFO_TRACKER]=
     new (std::nothrow) Transaction_state_tracker;
+  m_trackers[SESSION_USRVARS_TRACKER] =
+    new (std::nothrow) Session_usrvars_tracker;
 
   for (int i= 0; i < SESSION_TRACKER_END; i++)
     m_trackers[i]->enable(thd);

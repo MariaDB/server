@@ -34,6 +34,7 @@ enum enum_session_tracker
   SESSION_STATE_CHANGE_TRACKER,
   SESSION_GTIDS_TRACKER,                         /* Tracks GTIDs */
   TRANSACTION_INFO_TRACKER,                      /* Transaction state */
+  SESSION_USRVARS_TRACKER,                       /* Session user variables */
   SESSION_TRACKER_END                            /* must be the last */
 };
 

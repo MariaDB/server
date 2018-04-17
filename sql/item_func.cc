@@ -4732,6 +4732,10 @@ Item_func_set_user_var::update_hash(void *ptr, size_t length,
     null_value= 1;
     return 1;
   }
+
+  THD *thd=current_thd;
+  SESSION_TRACKER_CHANGED(thd, SESSION_USRVARS_TRACKER, &name);
+
   return 0;
 }
 
