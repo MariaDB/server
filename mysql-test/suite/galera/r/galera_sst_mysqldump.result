@@ -6,7 +6,6 @@ CREATE USER 'sst';
 GRANT ALL PRIVILEGES ON *.* TO 'sst';
 SET GLOBAL wsrep_sst_auth = 'sst:';
 connection node_2;
-SET wsrep_dirty_reads = OFF;
 SET GLOBAL wsrep_sst_method = 'mysqldump';
 Performing State Transfer on a server that has been temporarily disconnected
 connection node_1;
@@ -152,7 +151,6 @@ INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 connection node_2;
 Starting server ...
-SET wsrep_dirty_reads = OFF;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('node2_committed_after');
@@ -249,7 +247,6 @@ INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 connection node_2;
 Starting server ...
-SET wsrep_dirty_reads = OFF;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('node2_committed_after');
@@ -320,7 +317,6 @@ INSERT INTO t1 VALUES ('node2_committed_before');
 COMMIT;
 Killing server ...
 connection node_1;
-SET wsrep_dirty_reads = OFF;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('node1_committed_during');
@@ -347,7 +343,6 @@ connection node_2;
 Performing --wsrep-recover ...
 Starting server ...
 Using --wsrep-start-position when starting mysqld ...
-SET wsrep_dirty_reads = OFF;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('node2_committed_after');
@@ -449,7 +444,6 @@ Performing --wsrep-recover ...
 connection node_2;
 Starting server ...
 Using --wsrep-start-position when starting mysqld ...
-SET wsrep_dirty_reads = OFF;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 (f1) VALUES ('node2_committed_after');
@@ -515,3 +509,4 @@ CALL mtr.add_suppression("Can't open and lock time zone table");
 CALL mtr.add_suppression("Can't open and lock privilege tables");
 CALL mtr.add_suppression("Info table is not ready to be used");
 CALL mtr.add_suppression("Native table .* has the wrong structure");
+CALL mtr.add_suppression("Table \'mysql.gtid_slave_pos\' doesn\'t exist");
