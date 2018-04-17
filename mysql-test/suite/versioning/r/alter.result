@@ -265,14 +265,14 @@ t	CREATE TABLE `t` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t drop system versioning;
 insert into t values(1);
-call verify_vtq;
+call verify_trt;
 No	A	B	C	D
 alter table t
 add column trx_start bigint(20) unsigned as row start invisible,
 add column trx_end bigint(20) unsigned as row end invisible,
 add period for system_time(trx_start, trx_end),
 add system versioning;
-call verify_vtq;
+call verify_trt;
 No	A	B	C	D
 1	1	1	1	1
 show create table t;
@@ -284,13 +284,13 @@ t	CREATE TABLE `t` (
   PERIOD FOR SYSTEM_TIME (`trx_start`, `trx_end`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t drop column trx_start, drop column trx_end;
-call verify_vtq;
+call verify_trt;
 No	A	B	C	D
 alter table t drop system versioning, algorithm=copy;
-call verify_vtq;
+call verify_trt;
 No	A	B	C	D
 alter table t add system versioning, algorithm=copy;
-call verify_vtq;
+call verify_trt;
 No	A	B	C	D
 show create table t;
 Table	Create Table
@@ -312,7 +312,7 @@ t	CREATE TABLE `t` (
 select * from t;
 a	b
 2	NULL
-call verify_vtq;
+call verify_trt;
 No	A	B	C	D
 alter table t drop column b, algorithm=copy;
 show create table t;
@@ -324,7 +324,7 @@ select * from t for system_time all;
 a
 2
 1
-call verify_vtq;
+call verify_trt;
 No	A	B	C	D
 alter table t drop system versioning, algorithm=copy;
 show create table t;
@@ -332,7 +332,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-call verify_vtq;
+call verify_trt;
 No	A	B	C	D
 create or replace table t (a int);
 insert t values (1),(2),(3),(4);
