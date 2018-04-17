@@ -172,23 +172,23 @@ alter table t drop system versioning;
 
 insert into t values(1);
 
-call verify_vtq;
+call verify_trt;
 alter table t
   add column trx_start bigint(20) unsigned as row start invisible,
   add column trx_end bigint(20) unsigned as row end invisible,
   add period for system_time(trx_start, trx_end),
   add system versioning;
-call verify_vtq;
+call verify_trt;
 
 show create table t;
 alter table t drop column trx_start, drop column trx_end;
 
-call verify_vtq;
+call verify_trt;
 alter table t drop system versioning, algorithm=copy;
-call verify_vtq;
+call verify_trt;
 
 alter table t add system versioning, algorithm=copy;
-call verify_vtq;
+call verify_trt;
 
 show create table t;
 
@@ -198,31 +198,31 @@ select * from t for system_time all;
 alter table t add column b int, algorithm=copy;
 show create table t;
 select * from t;
-call verify_vtq;
+call verify_trt;
 
 alter table t drop column b, algorithm=copy;
 show create table t;
 select * from t for system_time all;
-call verify_vtq;
+call verify_trt;
 
 ## FIXME: #414 IB: inplace for VERS_TIMESTAMP versioning
 if (0)
 {
 alter table t drop system versioning, algorithm=inplace;
-call verify_vtq;
+call verify_trt;
 
 alter table t add system versioning, algorithm=inplace;
-call verify_vtq;
+call verify_trt;
 show create table t;
 
 update t set a= 1;
 select * from t for system_time all;
-call verify_vtq;
+call verify_trt;
 
 alter table t add column b int, algorithm=inplace;
 show create table t;
 select * from t;
-call verify_vtq;
+call verify_trt;
 
 alter table t drop column b, algorithm=inplace;
 show create table t;
@@ -232,7 +232,7 @@ select * from t for system_time all;
 
 alter table t drop system versioning, algorithm=copy;
 show create table t;
-call verify_vtq;
+call verify_trt;
 
 # nullable autoinc test w/o versioning
 create or replace table t (a int);
@@ -341,7 +341,7 @@ select * from t;
 show create table t;
 
 
-call verify_vtq;
+call verify_trt;
 }
 
 create or replace table t (a int) with system versioning;
