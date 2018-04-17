@@ -95,17 +95,12 @@ endif
 	    -DCOMPILATION_COMMENT="mariadb.org binary distribution" \
 	    -DMYSQL_SERVER_SUFFIX="-$(DEBVERSION)" \
 	    -DSYSTEM_TYPE="debian-$(DEB_BUILD_GNU_SYSTEM)" \
-	    $${MYSQL_BUILD_CXX:+-DCMAKE_CXX_COMPILER=$${MYSQL_BUILD_CXX}} \
-	    $${MYSQL_BUILD_CC:+-DCMAKE_C_COMPILER=$${MYSQL_BUILD_CC}} \
-	    $${MYSQL_COMPILER_LAUNCHER:+-DCMAKE_CXX_COMPILER_LAUNCHER=${MYSQL_COMPILER_LAUNCHER}} \
-	    $${MYSQL_COMPILER_LAUNCHER:+-DCMAKE_C_COMPILER_LAUNCHER=${MYSQL_COMPILER_LAUNCHER}} \
 	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_BUILD_ARCH) \
 	    -DBUILD_CONFIG=mysql_release \
 	    -DINSTALL_LIBDIR=lib/$(DEB_HOST_MULTIARCH) \
 	    -DINSTALL_PLUGINDIR=lib/mysql/plugin \
 	    -DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test \
 	    -DDEB=$(DISTRIBUTION) ..'
-	touch $@
 
 # This is needed, otherwise 'make test' will run before binaries have been built
 override_dh_auto_build:
@@ -113,7 +108,6 @@ override_dh_auto_build:
 	# Print build env info to help debug builds on different platforms
 	dpkg-architecture
 	cd $(BUILDDIR) && $(MAKE)
-	touch $@
 
 override_dh_auto_test:
 	@echo "RULES.$@"
@@ -151,13 +145,6 @@ override_dh_auto_install:
 	# to satisfy Debian reproducible build requirements
 	nm --defined-only $(BUILDDIR)/sql/mysqld | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-10.3/mysqld.sym.gz
 
-	# For 5.0 -> 10.3 transition
-	d=$(TMP)/usr/share/mysql-common/internal-use-only/; \
-	mkdir -p $$d; \
-	cp debian/mariadb-server-10.3.mysql.init $$d/_etc_init.d_mysql; \
-	cp debian/mariadb-server-10.3.mysql-server.logrotate $$d/_etc_logrotate.d_mysql-server; \
-	cp debian/additions/debian-start $$d/_etc_mysql_debian-start;
-
 	# rename and install AppArmor profile
 	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mysqld
 	# install Apport hook
@@ -172,7 +159,6 @@ override_dh_auto_install:
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.19
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmysqlclient.so.20
 
-	touch $@
 
 override_dh_installlogrotate-arch:
 	dh_installlogrotate --name mysql-server
