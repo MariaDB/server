@@ -2190,3 +2190,22 @@ call getNums();
 
 DROP PROCEDURE getNums;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15894: aggregate/winfow functions in non-recorsive part
+--echo #
+
+create table t1(b int);
+insert into t1 values(10),(20),(10);
+
+with recursive qn as
+  (select max(b) as a from t1 union
+   select a from qn)
+select * from qn;
+
+with recursive qn as
+  (select rank() over (order by b) as a from t1 union
+   select a from qn)
+select * from qn;
+
+drop table t1;

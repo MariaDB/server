@@ -1173,7 +1173,7 @@ bool st_select_lex::check_unrestricted_recursive(bool only_standard_compliant)
 
 
   /* Check conditions 3-4 for restricted specification*/
-  if (with_sum_func ||
+  if ((with_sum_func && !with_elem->is_anchor(this)) ||
       (with_elem->contains_sq_with_recursive_reference()))
     with_elem->get_owner()->add_unrestricted(
                               with_elem->get_mutually_recursive());
