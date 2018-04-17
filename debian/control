@@ -659,7 +659,10 @@ Replaces: mariadb-gssapi-server-10.1,
           mariadb-gssapi-server-10.2,
           mariadb-gssapi-server-10.3
 Description: GSSAPI authentication plugin for MariaDB server
- This package contains the server components.
+ This plugin includes support for Kerberos on Unix, but can also be used for
+ Windows authentication with or without domain environment.
+ .
+ This package contains the server parts.
 
 Package: mariadb-plugin-gssapi-client
 Architecture: any
@@ -674,7 +677,10 @@ Replaces: mariadb-gssapi-client-10.1,
           mariadb-gssapi-client-10.2,
           mariadb-gssapi-client-10.3
 Description: GSSAPI authentication plugin for MariaDB client
- This package contains the client components.
+ This plugin includes support for Kerberos on Unix, but can also be used for
+ Windows authentication with or without domain environment.
+ .
+ This package contains the client parts.
 
 Package: mariadb-backup
 Architecture: any
@@ -687,6 +693,10 @@ Depends: mariadb-client-core-10.3,
          ${shlibs:Depends}
 Description: Backup tool for MariaDB server
  This backup tool is guaranteed to be compatible with MariaDB.
+ Based on Xtrabackup, but improved to work with MariaDB.
+ .
+ Plese refer to the MariaDB Knowledge Base on more information on
+ how to use this tool.
 
 Package: mariadb-plugin-cracklib-password-check
 Architecture: any
@@ -697,6 +707,9 @@ Depends: libcrack2 (>= 2.9.0),
 Description: CrackLib Password Validation Plugin for MariaDB
  This password validation plugin uses cracklib to allow only
  sufficiently secure (as defined by cracklib) user passwords in MariaDB.
+ .
+ Plese refer to the MariaDB Knowledge Base on more information on
+ how to use this tool.
 
 Package: mariadb-test
 Architecture: any
