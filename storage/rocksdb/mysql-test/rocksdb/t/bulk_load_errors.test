@@ -33,13 +33,10 @@ SET rocksdb_bulk_load=0;
 SHOW VARIABLES LIKE 'rocksdb_bulk_load';
 call mtr.add_suppression('finalizing last SST file while setting bulk loading variable');
 
---echo #
---echo # Despite the error, bulk load operation is over so the variable value
---echo # will be 0:
 SELECT * FROM t1;
 
 --let SEARCH_FILE=$LOG1
---let SEARCH_PATTERN=RocksDB: Error 198 finalizing last SST file while setting bulk loading variable
+--let SEARCH_PATTERN=RocksDB: Error [0-9]+ finalizing last SST file while setting bulk loading variable
 --source include/search_pattern_in_file.inc
 
 --let LOG2=$MYSQLTEST_VARDIR/tmp/rocksdb.bulk_load_errors.2.err
@@ -64,7 +61,7 @@ SELECT * FROM t1;
 --source include/wait_until_count_sessions.inc
 
 --let SEARCH_FILE=$LOG2
---let SEARCH_PATTERN=RocksDB: Error 198 finalizing last SST file while disconnecting
+--let SEARCH_PATTERN=RocksDB: Error [0-9]+ finalizing last SST file while disconnecting
 --source include/search_pattern_in_file.inc
 
 --let LOG3=$MYSQLTEST_VARDIR/tmp/rocksdb.bulk_load_errors.3.err
@@ -121,7 +118,7 @@ DROP TABLE t1;
 SET @@global.table_open_cache=@orig_table_open_cache;
 
 --let SEARCH_FILE=$LOG3
---let SEARCH_PATTERN=RocksDB: Error 198 finalizing bulk load while closing handler
+--let SEARCH_PATTERN=RocksDB: Error [0-9]+ finalizing bulk load while closing handler
 --source include/search_pattern_in_file.inc
 
 --source include/restart_mysqld.inc
