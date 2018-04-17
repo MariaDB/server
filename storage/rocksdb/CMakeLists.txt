@@ -95,6 +95,8 @@ SET(ROCKSDB_SE_SOURCES
   rdb_threads.h
   rdb_psi.h
   rdb_psi.cc
+  rdb_sst_info.cc
+  rdb_sst_info.h
 )
 
 # MariaDB: the following is added in build_rocksdb.cmake, when appropriate:
@@ -137,8 +139,6 @@ ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
   event_listener.h
   rdb_perf_context.cc
   rdb_perf_context.h
-  rdb_sst_info.cc
-  rdb_sst_info.h
   rdb_buff.h
   rdb_mariadb_port.h
 )
