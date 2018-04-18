@@ -6186,9 +6186,6 @@ end_with_restore_list:
       sp_head *sp;
       const Sp_handler *sph= Sp_handler::handler(lex->sql_command);
       WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
-#ifdef WITH_WSREP
-      if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd)) goto error;
-#endif /* WITH_WSREP */
       if (sph->sp_resolve_package_routine(thd, thd->lex->sphead,
                                           lex->spname, &sph, &pkgname))
         return true;
@@ -9074,9 +9071,9 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
 	!wsrep_thd_is_BF((void*)tmp, true))
     {
-      if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      if (WSREP(tmp)) mysql_mutex_lock(&tmp->LOCK_wsrep_thd);
       tmp->awake_no_mutex(kill_signal);
-      if (WSREP(thd)) mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_wsrep_thd);
       error=0;
     }
     else
