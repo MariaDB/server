@@ -1193,8 +1193,10 @@ cannot_create_many_fulltext_index:
 				innobase_get_err_msg(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FTS);
 		}
-	} else if ((ha_alter_info->handler_flags
-		    & ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX)) {
+	}
+
+	if (ha_alter_info->handler_flags
+	    & ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX) {
 		/* ADD FULLTEXT|SPATIAL INDEX requires a lock.
 
 		We could do ADD FULLTEXT INDEX without a lock if the

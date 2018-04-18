@@ -271,3 +271,10 @@ SELECT * FROM articles WHERE MATCH (title, body)
 	AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
 
 DROP TABLE articles;
+
+# Add more than one FTS index
+CREATE TABLE t1 (a VARCHAR(3)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FULLTEXT KEY(a), ADD COLUMN b VARCHAR(3), ADD FULLTEXT KEY(b);
+
+# Cleanup
+DROP TABLE t1;
