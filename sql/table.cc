@@ -8117,7 +8117,21 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
       (first_table && first_table->is_multitable()))
     set_multitable();
 
-  unit->derived= this;
+  if (!unit->derived)
+    unit->derived= this;
+  else if (!is_with_table_recursive_reference() && unit->derived != this)
+  {
+    if (unit->derived->is_with_table_recursive_reference())
+      unit->derived= this;
+    else if (vers_conditions.eq(unit->derived->vers_conditions))
+      vers_conditions.empty();
+    else
+    {
+      my_error(ER_CONFLICTING_FOR_SYSTEM_TIME, MYF(0));
+      return TRUE;
+    }
+  }
+
   if (init_view && !view)
   {
     /* This is all what we can do for a derived table for now. */
@@ -8867,6 +8881,26 @@ void vers_select_conds_t::resolve_units(bool timestamps_only)
   end.resolve_unit(timestamps_only);
 }
 
+bool vers_select_conds_t::eq(const vers_select_conds_t &conds)
+{
+  if (type != conds.type)
+    return false;
+  switch (type) {
+  case SYSTEM_TIME_UNSPECIFIED:
+  case SYSTEM_TIME_ALL:
+    return true;
+  case SYSTEM_TIME_BEFORE:
+    DBUG_ASSERT(0);
+  case SYSTEM_TIME_AS_OF:
+    return start.eq(conds.start);
+  case SYSTEM_TIME_FROM_TO:
+  case SYSTEM_TIME_BETWEEN:
+    return start.eq(conds.start) && end.eq(conds.end);
+  }
+  DBUG_ASSERT(0);
+  return false;
+}
+
 void Vers_history_point::resolve_unit(bool timestamps_only)
 {
   if (item && unit == VERS_UNDEFINED)
@@ -8886,6 +8920,12 @@ void Vers_history_point::fix_item()
   if (item && item->decimals == 0 && item->type() == Item::FUNC_ITEM &&
       ((Item_func*)item)->functype() == Item_func::NOW_FUNC)
     item->decimals= 6;
+}
+
+
+bool Vers_history_point::eq(const vers_history_point_t &point)
+{
+  return unit == point.unit && item->eq(point.item, false);
 }
 
 void Vers_history_point::print(String *str, enum_query_type query_type,

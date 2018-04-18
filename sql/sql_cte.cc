@@ -978,7 +978,7 @@ bool With_element::prepare_unreferenced(THD *thd)
 
   thd->lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
   if (!spec->prepared &&
-      (spec->prepare(thd, 0, 0) ||
+      (spec->prepare(spec->derived, 0, 0) ||
        rename_columns_of_derived_unit(thd, spec) ||
        check_duplicate_names(thd, first_sl->item_list, 1)))
     rc= true;

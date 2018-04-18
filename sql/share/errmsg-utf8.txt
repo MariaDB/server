@@ -7859,8 +7859,8 @@ ER_VERS_ALTER_ENGINE_PROHIBITED
 ER_VERS_RANGE_PROHIBITED
         eng "SYSTEM_TIME range selector is not allowed"
 
-ER_UNUSED_26
-        eng "You should never see it"
+ER_CONFLICTING_FOR_SYSTEM_TIME
+        eng "Conflicting FOR SYSTEM_TIME clauses in WITH RECURSIVE"
 
 ER_VERS_TABLE_MUST_HAVE_COLUMNS
         eng "Table %`s must have at least one versioned column"
