@@ -3674,7 +3674,7 @@ int subselect_single_select_engine::prepare(THD *thd)
 int subselect_union_engine::prepare(THD *thd_arg)
 {
   set_thd(thd_arg);
-  return unit->prepare(thd, result, SELECT_NO_UNLOCK);
+  return unit->prepare(unit->derived, result, SELECT_NO_UNLOCK);
 }
 
 int subselect_uniquesubquery_engine::prepare(THD *)

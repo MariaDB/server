@@ -36,7 +36,7 @@ bool mysql_union(THD *thd, LEX *lex, select_result *result,
 {
   DBUG_ENTER("mysql_union");
   bool res;
-  if (!(res= unit->prepare(thd, result, SELECT_NO_UNLOCK |
+  if (!(res= unit->prepare(unit->derived, result, SELECT_NO_UNLOCK |
                            setup_tables_done_option)))
     res= unit->exec();
   res|= unit->cleanup();
@@ -807,10 +807,11 @@ bool st_select_lex_unit::join_union_item_types(THD *thd_arg,
 }
 
 
-bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
+bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
+                                 select_result *sel_result,
                                  ulong additional_options)
 {
-  SELECT_LEX *lex_select_save= thd_arg->lex->current_select;
+  SELECT_LEX *lex_select_save= thd->lex->current_select;
   SELECT_LEX *sl, *first_sl= first_select();
   bool is_recursive= with_element && with_element->is_recursive;
   bool is_rec_result_table_created= false;
@@ -821,7 +822,6 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   bool instantiate_tmp_table= false;
   bool single_tvc= !first_sl->next_select() && first_sl->tvc;
   DBUG_ENTER("st_select_lex_unit::prepare");
-  DBUG_ASSERT(thd == thd_arg);
   DBUG_ASSERT(thd == current_thd);
 
   describe= additional_options & SELECT_DESCRIBE;
@@ -873,7 +873,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   prepared= 1;
   saved_error= FALSE;
   
-  thd_arg->lex->current_select= sl= first_sl;
+  thd->lex->current_select= sl= first_sl;
   found_rows_for_union= first_sl->options & OPTION_FOUND_ROWS;
   is_union_select= is_unit_op() || fake_select_lex || single_tvc;
 
@@ -902,7 +902,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       while (last->next_select())
         last= last->next_select();
       if (!(tmp_result= union_result=
-              new (thd_arg->mem_root) select_union_direct(thd_arg, sel_result,
+              new (thd->mem_root) select_union_direct(thd, sel_result,
                                                           last)))
         goto err; /* purecov: inspected */
       fake_select_lex= NULL;
@@ -911,11 +911,11 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
     else
     {
       if (!is_recursive)
-	union_result= new (thd_arg->mem_root) select_unit(thd_arg);
+	union_result= new (thd->mem_root) select_unit(thd);
       else
       {
         with_element->rec_result=
-          new (thd_arg->mem_root) select_union_recursive(thd_arg);
+          new (thd->mem_root) select_union_recursive(thd);
         union_result=  with_element->rec_result;
         fake_select_lex= NULL;
       }
@@ -933,10 +933,10 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   {
     if (sl->tvc)
     {
-      if (sl->tvc->prepare(thd_arg, sl, tmp_result, this))
+      if (sl->tvc->prepare(thd, sl, tmp_result, this))
 	goto err;
     }
-    else if (prepare_join(thd_arg, first_sl, tmp_result, additional_options,
+    else if (prepare_join(thd, first_sl, tmp_result, additional_options,
                      is_union_select))
       goto err;
     types= first_sl->item_list;
@@ -947,10 +947,10 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   {
     if (sl->tvc)
     {
-      if (sl->tvc->prepare(thd_arg, sl, tmp_result, this))
+      if (sl->tvc->prepare(thd, sl, tmp_result, this))
 	goto err;
     }
-    else if (prepare_join(thd_arg, sl, tmp_result, additional_options,
+    else if (prepare_join(thd, sl, tmp_result, additional_options,
                           is_union_select))
       goto err;
 
@@ -970,7 +970,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
     {
       if (with_element)
       {
-        if (derived->with->rename_columns_of_derived_unit(thd, this))
+        if (derived_arg->with->rename_columns_of_derived_unit(thd, this))
           goto err;
         if (check_duplicate_names(thd, sl->item_list, 0))
           goto err;
@@ -981,7 +981,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       if (first_sl->item_list.elements != sl->item_list.elements)
       {
         my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
-                   ER_THD(thd_arg, ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT),
+                   ER_THD(thd, ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT),
                    MYF(0));
         goto err;
       }
@@ -995,20 +995,20 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
           sl->next_select() == with_element->first_recursive))
       {
         ulonglong create_options;
-        create_options= (first_sl->options | thd_arg->variables.option_bits |
+        create_options= (first_sl->options | thd->variables.option_bits |
                          TMP_TABLE_ALL_COLUMNS);
         // Join data types for all non-recursive parts of a recursive UNION
         if (join_union_item_types(thd, types, union_part_count + 1))
           goto err;
         if (union_result->create_result_table(thd, &types,
                                               MY_TEST(union_distinct),
-                                              create_options, &derived->alias,
-                                              false,
+                                              create_options,
+                                              &derived_arg->alias, false,
                                               instantiate_tmp_table, false,
                                               0))
           goto err;
-        if (!derived->table)
-          derived->table= derived->derived_result->table= 
+        if (!derived_arg->table)
+          derived_arg->table= derived_arg->derived_result->table=
             with_element->rec_result->rec_tables.head();
         with_element->mark_as_with_prepared_anchor();
         is_rec_result_table_created= true;
@@ -1079,7 +1079,7 @@ cont:
     }
 
 
-    create_options= (first_sl->options | thd_arg->variables.option_bits |
+    create_options= (first_sl->options | thd->variables.option_bits |
                      TMP_TABLE_ALL_COLUMNS);
     /*
       Force the temporary table to be a MyISAM table if we're going to use
@@ -1107,7 +1107,7 @@ cont:
           Query_arena *arena, backup_arena;
           arena= thd->activate_stmt_arena_if_needed(&backup_arena);
 
-          intersect_mark= new (thd_arg->mem_root) Item_int(thd, 0);
+          intersect_mark= new (thd->mem_root) Item_int(thd, 0);
 
           if (arena)
             thd->restore_active_arena(arena, &backup_arena);
@@ -1151,7 +1151,7 @@ cont:
       result_table_list.maybe_null_exec= save_maybe_null;
     }
 
-    thd_arg->lex->current_select= lex_select_save;
+    thd->lex->current_select= lex_select_save;
     if (!item_list.elements)
     {
       Query_arena *arena, backup_arena;
@@ -1191,7 +1191,7 @@ cont:
         */
 	fake_select_lex->item_list= item_list;
 
-	thd_arg->lex->current_select= fake_select_lex;
+	thd->lex->current_select= fake_select_lex;
 
         /*
           We need to add up n_sum_items in order to make the correct
@@ -1219,12 +1219,12 @@ cont:
     }
   }
 
-  thd_arg->lex->current_select= lex_select_save;
+  thd->lex->current_select= lex_select_save;
 
-  DBUG_RETURN(saved_error || thd_arg->is_fatal_error);
+  DBUG_RETURN(saved_error || thd->is_fatal_error);
 
 err:
-  thd_arg->lex->current_select= lex_select_save;
+  thd->lex->current_select= lex_select_save;
   (void) cleanup();
   DBUG_RETURN(TRUE);
 }
