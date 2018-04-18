@@ -352,8 +352,9 @@ bool JOIN::check_for_splittable_materialized()
 
     Field *ord_field= ((Item_field *) (ord_item->real_item()))->field;
 
-    JOIN_TAB *tab= ord_field->table->reginfo.join_tab;
-    if (tab->is_inner_table_of_outer_join())
+    /* Ignore fields from  of inner tables of outer joins */
+    TABLE_LIST *tbl= ord_field->table->pos_in_table_list;
+    if (tbl->is_inner_table_of_outer_join())
       continue;
 
     List_iterator<Item> li(fields_list);

@@ -2671,3 +2671,22 @@ SELECT * FROM v1 JOIN v2 ON v1.f = v2.f;
 
 DROP VIEW v1,v2;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15899: derived with WF without any key access
+--echo #
+
+create table t1 (f1 int, f2 int, f4 int);
+insert into t1 values
+  (3,1,1), (3,0,9), (0,1,8), (9,0,0), (3,0,9);
+
+let $q=
+with
+cte as (select  median(f2) over (partition by f1) as k1 from t1 order by f1),
+cte1 as (select median(f4) over (partition by f1) as k2 from t1)
+select k1,k2 from cte1, cte;
+
+eval $q;
+eval explain $q;
+
+drop table t1;
