@@ -1056,6 +1056,7 @@ static void test_wl4435_2()
     rc= mysql_query(mysql, "DROP PROCEDURE p1");
     myquery(rc);
   }
+  mct_close_log();
 }
 
 
@@ -20291,6 +20292,327 @@ static void test_bulk_autoinc()
 
 #endif
 
+
+static void print_metadata(MYSQL_RES *rs_metadata, int num_fields)
+{
+  MYSQL_FIELD *fields= mysql_fetch_fields(rs_metadata);
+
+  for (int i = 0; i < num_fields; ++i)
+  {
+    mct_log("  - %d: name: '%s'/'%s'; table: '%s'/'%s'; "
+        "db: '%s'; catalog: '%s'; length: %d; max_length: %d; "
+        "type: %d; decimals: %d\n",
+        (int) i,
+        (const char *) fields[i].name,
+        (const char *) fields[i].org_name,
+        (const char *) fields[i].table,
+        (const char *) fields[i].org_table,
+        (const char *) fields[i].db,
+        (const char *) fields[i].catalog,
+        (int) fields[i].length,
+        (int) fields[i].max_length,
+        (int) fields[i].type,
+        (int) fields[i].decimals);
+
+  }
+}
+
+static void test_explain_meta()
+{
+  MYSQL_STMT *stmt;
+  int num_fields;
+  char query[MAX_TEST_QUERY_LENGTH];
+  MYSQL_RES *rs_metadata;
+  int rc;
+
+  myheader("test_explain_meta");
+  mct_start_logging("test_explain_meta");
+
+  strmov(query, "SELECT 1");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("SELECT number of fields: %d\n", (int) num_fields);
+  if (num_fields != 1)
+  {
+    mct_close_log();
+    DIE("num_fields != 1");
+  }
+  mysql_stmt_close(stmt);
+
+  strmov(query, "EXPLAIN SELECT 1");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("EXPALIN number of fields: %d\n", (int) num_fields);
+  if (num_fields != 10)
+  {
+    mct_close_log();
+    DIE("num_fields != 10");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+  strmov(query, "EXPLAIN format=json SELECT 1");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("EXPALIN JSON number of fields: %d\n", (int) num_fields);
+  if (num_fields != 1)
+  {
+    mct_close_log();
+    DIE("num_fields != 1");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+
+  strmov(query, "ANALYZE SELECT 1");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("ANALYZE number of fields: %d\n", (int) num_fields);
+  if (num_fields != 13)
+  {
+    mct_close_log();
+    DIE("num_fields != 13");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+  strmov(query, "ANALYZE format=json SELECT 1");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("ANALYZE JSON number of fields: %d\n", (int) num_fields);
+  if (num_fields != 1)
+  {
+    mct_close_log();
+    DIE("num_fields != 1");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a int)");
+  myquery(rc);
+
+  strmov(query, "EXPLAIN INSERT INTO t1 values (1)");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("EXPALIN INSERT number of fields: %d\n", (int) num_fields);
+  if (num_fields != 10)
+  {
+    mct_close_log();
+    DIE("num_fields != 10");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+  strmov(query, "EXPLAIN format=json INSERT INTO t1 values(1)");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("EXPALIN JSON INSERT number of fields: %d\n", (int) num_fields);
+  if (num_fields != 1)
+  {
+    mct_close_log();
+    DIE("num_fields != 1");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+
+  strmov(query, "ANALYZE INSERT INTO t1 values(1)");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("ANALYZE INSERT number of fields: %d\n", (int) num_fields);
+  if (num_fields != 13)
+  {
+    mct_close_log();
+    DIE("num_fields != 13");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+  strmov(query, "ANALYZE format=json INSERT INTO t1 values(1)");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("ANALYZE JSON INSERT number of fields: %d\n", (int) num_fields);
+  if (num_fields != 1)
+  {
+    mct_close_log();
+    DIE("num_fields != 1");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+
+  strmov(query, "EXPLAIN UPDATE t1 set a=2");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("EXPALIN UPDATE number of fields: %d\n", (int) num_fields);
+  if (num_fields != 10)
+  {
+    mct_close_log();
+    DIE("num_fields != 10");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+  strmov(query, "EXPLAIN format=json  UPDATE t1 set a=2");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("EXPALIN JSON UPDATE number of fields: %d\n", (int) num_fields);
+  if (num_fields != 1)
+  {
+    mct_close_log();
+    DIE("num_fields != 1");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+
+  strmov(query, "ANALYZE UPDATE t1 set a=2");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("ANALYZE UPDATE number of fields: %d\n", (int) num_fields);
+  if (num_fields != 13)
+  {
+    mct_close_log();
+    DIE("num_fields != 13");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+  strmov(query, "ANALYZE format=json UPDATE t1 set a=2");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("ANALYZE JSON UPDATE number of fields: %d\n", (int) num_fields);
+  if (num_fields != 1)
+  {
+    mct_close_log();
+    DIE("num_fields != 1");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+
+  strmov(query, "EXPLAIN DELETE FROM t1");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("EXPALIN DELETE number of fields: %d\n", (int) num_fields);
+  if (num_fields != 10)
+  {
+    mct_close_log();
+    DIE("num_fields != 10");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+  strmov(query, "EXPLAIN format=json DELETE FROM t1");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("EXPALIN JSON DELETE number of fields: %d\n", (int) num_fields);
+  if (num_fields != 1)
+  {
+    mct_close_log();
+    DIE("num_fields != 1");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+
+  strmov(query, "ANALYZE DELETE FROM t1");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("ANALYZE DELETE number of fields: %d\n", (int) num_fields);
+  if (num_fields != 13)
+  {
+    mct_close_log();
+    DIE("num_fields != 13");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+  strmov(query, "ANALYZE format=json DELETE FROM t1");
+  stmt= mysql_simple_prepare(mysql, query);
+  check_stmt(stmt);
+
+  rs_metadata= mysql_stmt_result_metadata(stmt);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  mct_log("ANALYZE JSON DELETE number of fields: %d\n", (int) num_fields);
+  if (num_fields != 1)
+  {
+    mct_close_log();
+    DIE("num_fields != 1");
+  }
+  print_metadata(rs_metadata, num_fields);
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+  mct_close_log();
+}
+
 static struct my_tests_st my_tests[]= {
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
@@ -20578,6 +20900,7 @@ static struct my_tests_st my_tests[]= {
   { "test_proxy_header", test_proxy_header},
   { "test_bulk_autoinc", test_bulk_autoinc},
 #endif
+  { "test_explain_meta", test_explain_meta },
   { 0, 0 }
 };
 

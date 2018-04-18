@@ -2500,8 +2500,28 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     break;
   }
   if (res == 0)
-    DBUG_RETURN(stmt->is_sql_prepare() ?
-                FALSE : (send_prep_stmt(stmt, 0) || thd->protocol->flush()));
+  {
+    if (!stmt->is_sql_prepare())
+    {
+       if (lex->describe || lex->analyze_stmt)
+       {
+         if (!lex->result &&
+             !(lex->result= new (stmt->mem_root) select_send(thd)))
+              DBUG_RETURN(TRUE);
+         List<Item> field_list;
+         thd->prepare_explain_fields(lex->result, &field_list,
+                                     lex->describe, lex->analyze_stmt);
+         res= send_prep_stmt(stmt, lex->result->field_count(field_list)) ||
+              lex->result->send_result_set_metadata(field_list,
+                                                    Protocol::SEND_EOF);
+       }
+       else
+         res= send_prep_stmt(stmt, 0);
+       if (!res)
+         thd->protocol->flush();
+    }
+    DBUG_RETURN(FALSE);
+  }
 error:
   DBUG_RETURN(TRUE);
 }

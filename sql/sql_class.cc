@@ -2659,18 +2659,31 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, size_t key_length)
 }
 
 
-int THD::send_explain_fields(select_result *result, uint8 explain_flags, bool is_analyze)
+void THD::prepare_explain_fields(select_result *result,
+                                 List<Item> *field_list,
+                                 uint8 explain_flags,
+                                 bool is_analyze)
+{
+  if (lex->explain_json)
+    make_explain_json_field_list(*field_list, is_analyze);
+  else
+    make_explain_field_list(*field_list, explain_flags, is_analyze);
+
+  result->prepare(*field_list, NULL);
+}
+
+
+int THD::send_explain_fields(select_result *result,
+                             uint8 explain_flags,
+                             bool is_analyze)
 {
   List<Item> field_list;
-  if (lex->explain_json)
-    make_explain_json_field_list(field_list, is_analyze);
-  else
-    make_explain_field_list(field_list, explain_flags, is_analyze);
-
-  result->prepare(field_list, NULL);
-  return (result->send_result_set_metadata(field_list,
-                                           Protocol::SEND_NUM_ROWS | 
-                                           Protocol::SEND_EOF));
+  int rc;
+  prepare_explain_fields(result, &field_list, explain_flags, is_analyze);
+  rc= result->send_result_set_metadata(field_list,
+                                       Protocol::SEND_NUM_ROWS |
+                                       Protocol::SEND_EOF);
+  return(rc);
 }
 
 
