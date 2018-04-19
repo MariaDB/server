@@ -2079,10 +2079,16 @@ protected:
       rollback();
       return true;
     } else {
+#ifdef MARIAROCKS_NOT_YET
+      /*
+        Storing binlog position inside MyRocks is needed only for restoring
+        MyRocks from backups. This feature is not supported yet.
+      */
       mysql_bin_log_commit_pos(m_thd, &m_mysql_log_offset,
                                &m_mysql_log_file_name);
       binlog_manager.update(m_mysql_log_file_name, m_mysql_log_offset,
                             get_write_batch());
+#endif
       return commit_no_binlog();
     }
   }
@@ -3089,7 +3095,11 @@ static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
     /* We were instructed to prepare the whole transaction, or
     this is an SQL statement end and autocommit is on */
 
-#ifdef MARIAROCKS_NOT_YET // Crash-safe slave does not work yet
+#ifdef MARIAROCKS_NOT_YET
+    /*
+      Storing binlog position inside MyRocks is needed only for restoring
+      MyRocks from backups. This feature is not supported yet.
+    */
     std::vector<st_slave_gtid_info> slave_gtid_info;
     my_core::thd_slave_gtid_info(thd, &slave_gtid_info);
     for (const auto &it : slave_gtid_info) {
