@@ -431,13 +431,6 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   is_concurrent= (table_list->lock_type == TL_WRITE_CONCURRENT_INSERT);
 #endif
 
-  if (table->versioned(VERS_TIMESTAMP) && handle_duplicates == DUP_REPLACE)
-  {
-    // Additional memory may be required to create historical items.
-    if (table_list->set_insert_values(thd->mem_root))
-      DBUG_RETURN(TRUE);
-  }
-
   if (!fields_vars.elements)
   {
     Field_iterator_table_ref field_iterator;
