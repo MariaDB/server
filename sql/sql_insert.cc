@@ -1970,13 +1970,12 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             error= table->file->ha_delete_row(table->record[1]);
           else
           {
-            DBUG_ASSERT(table->insert_values);
-            store_record(table,insert_values);
-            restore_record(table,record[1]);
+            store_record(table, record[2]);
+            restore_record(table, record[1]);
             table->vers_update_end();
             error= table->file->ha_update_row(table->record[1],
                                               table->record[0]);
-            restore_record(table,insert_values);
+            restore_record(table, record[2]);
           }
           if (unlikely(error))
             goto err;
