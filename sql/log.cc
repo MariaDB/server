@@ -8747,16 +8747,20 @@ void sql_print_information(const char *format, ...)
   va_list args;
   DBUG_ENTER("sql_print_information");
 
-  if (disable_log_notes)
-    DBUG_VOID_RETURN;                 // Skip notes during start/shutdown
-  
   va_start(args, format);
-  error_log_print(INFORMATION_LEVEL, format, args);
+  sql_print_information_v(format, args);
   va_end(args);
 
   DBUG_VOID_RETURN;
 }
 
+void sql_print_information_v(const char *format, va_list ap)
+{
+  if (disable_log_notes)
+    return;                 // Skip notes during start/shutdown
+
+  error_log_print(INFORMATION_LEVEL, format, ap);
+}
 
 void
 TC_LOG::run_prepare_ordered(THD *thd, bool all)
