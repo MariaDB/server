@@ -934,3 +934,27 @@ value
 3
 rollback;
 drop table t1;
+#
+#  #802: MyRocks: Statement rollback doesnt work correctly for nested statements
+#
+create table t1 (a varchar(100)) engine=rocksdb;
+create table t2(a int) engine=rocksdb;
+insert into t2 values (1), (2);
+create table t3(a varchar(100)) engine=rocksdb;
+create function func() returns varchar(100) deterministic 
+begin
+insert into t3 values ('func-called');
+set @a= (select a from t2);
+return 'func-returned';
+end;//
+begin;
+insert into t1 values (func());
+ERROR 21000: Subquery returns more than 1 row
+select * from t1;
+a
+# The following must not produce 'func-called':
+select * from t3;
+a
+rollback;
+drop function func;
+drop table t1,t2,t3;

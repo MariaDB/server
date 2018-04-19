@@ -866,8 +866,10 @@ os_file_get_block_size(
 		0, OPEN_EXISTING, 0, 0);
 
 	if (volume_handle == INVALID_HANDLE_VALUE) {
-		os_file_handle_error_no_exit(volume,
-			"CreateFile()", FALSE);
+		if (GetLastError() != ERROR_ACCESS_DENIED) {
+			os_file_handle_error_no_exit(volume,
+				"CreateFile()", FALSE);
+		}
 		goto end;
 	}
 
@@ -889,16 +891,7 @@ os_file_get_block_size(
 
 	if (!result) {
 		DWORD err = GetLastError();
-		if (err == ERROR_INVALID_FUNCTION || err == ERROR_NOT_SUPPORTED) {
-			// Don't report error, it is driver's fault, not ours or users.
-			// We handle this with fallback. Report wit info message, just once.
-			static bool write_info = true;
-			if (write_info) {
-				ib::info() << "DeviceIoControl(IOCTL_STORAGE_QUERY_PROPERTY)"
-					<< " unsupported on volume " << volume;
-				write_info = false;
-			}
-		} else {
+		if (err != ERROR_INVALID_FUNCTION && err != ERROR_NOT_SUPPORTED) {
 				os_file_handle_error_no_exit(volume,
 					"DeviceIoControl(IOCTL_STORAGE_QUERY_PROPERTY)", FALSE);
 		}

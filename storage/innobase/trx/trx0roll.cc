@@ -979,7 +979,7 @@ trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 		trx_roll_try_truncate(trx);
 	}
 
-	trx_undo_t*	undo;
+	trx_undo_t*	undo	= NULL;
 	trx_undo_t*	insert	= trx->rsegs.m_redo.old_insert;
 	trx_undo_t*	update	= trx->rsegs.m_redo.undo;
 	trx_undo_t*	temp	= trx->rsegs.m_noredo.undo;
@@ -994,17 +994,26 @@ trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 
 	if (UNIV_LIKELY_NULL(insert)
 	    && !insert->empty && limit <= insert->top_undo_no) {
-		if (update && !update->empty
-		    && update->top_undo_no > insert->top_undo_no) {
+		undo = insert;
+	}
+
+	if (update && !update->empty && update->top_undo_no >= limit) {
+		if (!undo) {
 			undo = update;
-		} else {
-			undo = insert;
+		} else if (undo->top_undo_no < update->top_undo_no) {
+			undo = update;
 		}
-	} else if (update && !update->empty && limit <= update->top_undo_no) {
-		undo = update;
-	} else if (temp && !temp->empty && limit <= temp->top_undo_no) {
-		undo = temp;
-	} else {
+	}
+
+	if (temp && !temp->empty && temp->top_undo_no >= limit) {
+		if (!undo) {
+			undo = temp;
+		} else if (undo->top_undo_no < temp->top_undo_no) {
+			undo = temp;
+		}
+	}
+
+	if (undo == NULL) {
 		trx_roll_try_truncate(trx);
 		/* Mark any ROLLBACK TO SAVEPOINT completed, so that
 		if the transaction object is committed and reused

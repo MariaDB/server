@@ -1772,6 +1772,17 @@ protected:
   bool m_is_delayed_snapshot = false;
   bool m_is_two_phase = false;
 
+private:
+  /* Number of RockDB savepoints taken */
+  int m_n_savepoints;
+  /*
+    Number of write operations this transaction had when we took the last
+    savepoint (the idea is not to take another savepoint if we haven't made
+    any changes)
+  */
+  ulonglong m_writes_at_last_savepoint;
+
+protected:
   THD *m_thd = nullptr;
 
   rocksdb::ReadOptions m_read_opts;
@@ -1799,6 +1810,14 @@ protected:
   virtual rocksdb::Iterator *
   get_iterator(const rocksdb::ReadOptions &options,
                rocksdb::ColumnFamilyHandle *column_family) = 0;
+ 
+protected:
+  /*
+    The following two are helper functions to be overloaded by child classes.
+    They should provide RocksDB's savepoint semantics.
+  */
+  virtual void do_set_savepoint() = 0;
+  virtual void do_rollback_to_savepoint() = 0;
 
 public:
   const char *m_mysql_log_file_name;
@@ -2173,6 +2192,50 @@ public:
   virtual bool is_tx_started() const = 0;
   virtual void start_tx() = 0;
   virtual void start_stmt() = 0;
+
+  void set_initial_savepoint() {
+    /*
+      Set the initial savepoint. If the first statement in the transaction
+      fails, we need something to roll back to, without rolling back the
+      entire transaction.
+    */
+    do_set_savepoint();
+    m_n_savepoints= 1;
+    m_writes_at_last_savepoint= m_write_count;
+  }
+
+  /*
+    Called when a "top-level" statement inside a transaction completes
+    successfully and its changes become part of the transaction's changes.
+  */
+  void make_stmt_savepoint_permanent() {
+
+    // Take another RocksDB savepoint only if we had changes since the last
+    // one. This is very important for long transactions doing lots of
+    // SELECTs.
+    if (m_writes_at_last_savepoint != m_write_count)
+    {
+      do_set_savepoint();
+      m_writes_at_last_savepoint= m_write_count;
+      m_n_savepoints++;
+    }
+  }
+
+
+  /*
+    Rollback to the savepoint we've set before the last statement
+  */
+  void rollback_to_stmt_savepoint() {
+    if (m_writes_at_last_savepoint != m_write_count) {
+      do_rollback_to_savepoint();
+      if (!--m_n_savepoints) {
+        do_set_savepoint();
+        m_n_savepoints= 1;
+      }
+      m_writes_at_last_savepoint= m_write_count;
+    }
+  }
+
   virtual void rollback_stmt() = 0;
 
   void set_tx_failed(bool failed_arg) { m_is_tx_failed = failed_arg; }
@@ -2462,7 +2525,18 @@ public:
 
     m_read_opts = rocksdb::ReadOptions();
 
+    set_initial_savepoint();
+
     m_ddl_transaction = false;
+  }
+
+  /* Implementations of do_*savepoint based on rocksdB::Transaction savepoints */
+  void do_set_savepoint() override {
+    m_rocksdb_tx->SetSavePoint();
+  }
+
+  void do_rollback_to_savepoint() override {
+    m_rocksdb_tx->RollbackToSavePoint();
   }
 
   /*
@@ -2477,7 +2551,6 @@ public:
   void start_stmt() override {
     // Set the snapshot to delayed acquisition (SetSnapshotOnNextOperation)
     acquire_snapshot(false);
-    m_rocksdb_tx->SetSavePoint();
   }
 
   /*
@@ -2488,7 +2561,7 @@ public:
     /* TODO: here we must release the locks taken since the start_stmt() call */
     if (m_rocksdb_tx) {
       const rocksdb::Snapshot *const org_snapshot = m_rocksdb_tx->GetSnapshot();
-      m_rocksdb_tx->RollbackToSavePoint();
+      rollback_to_stmt_savepoint();
 
       const rocksdb::Snapshot *const cur_snapshot = m_rocksdb_tx->GetSnapshot();
       if (org_snapshot != cur_snapshot) {
@@ -2563,6 +2636,16 @@ private:
     set_tx_read_only(false);
     m_rollback_only = false;
     return res;
+  }
+
+protected:
+  /* Implementations of do_*savepoint based on rocksdB::WriteBatch savepoints */
+  void do_set_savepoint() override {
+    m_batch->SetSavePoint();
+  }
+
+  void do_rollback_to_savepoint() override {
+    m_batch->RollbackToSavePoint();
   }
 
 public:
@@ -2670,13 +2753,15 @@ public:
     write_opts.disableWAL = THDVAR(m_thd, write_disable_wal);
     write_opts.ignore_missing_column_families =
         THDVAR(m_thd, write_ignore_missing_column_families);
+
+    set_initial_savepoint();
   }
 
-  void start_stmt() override { m_batch->SetSavePoint(); }
+  void start_stmt() override {}
 
   void rollback_stmt() override {
     if (m_batch)
-      m_batch->RollbackToSavePoint();
+      rollback_to_stmt_savepoint();
   }
 
   explicit Rdb_writebatch_impl(THD *const thd)
@@ -2922,6 +3007,8 @@ static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
 
     DEBUG_SYNC(thd, "rocksdb.prepared");
   }
+  else
+    tx->make_stmt_savepoint_permanent();
   return HA_EXIT_SUCCESS;
 }
 
@@ -3172,11 +3259,8 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
     } else {
       /*
         We get here when committing a statement within a transaction.
-
-        We don't need to do anything here. tx->start_stmt() will notify
-        Rdb_transaction_impl that another statement has started.
       */
-      tx->set_tx_failed(false);
+      tx->make_stmt_savepoint_permanent();
     }
 
     if (my_core::thd_tx_isolation(thd) <= ISO_READ_COMMITTED) {
@@ -10064,22 +10148,24 @@ int ha_rocksdb::external_lock(THD *const thd, int lock_type) {
   }
 
   if (lock_type == F_UNLCK) {
-    Rdb_transaction *const tx = get_or_create_tx(thd);
+    Rdb_transaction *const tx = get_tx_from_thd(thd);
 
-    tx->io_perf_end_and_record(&m_io_perf);
-    tx->m_n_mysql_tables_in_use--;
-    if (tx->m_n_mysql_tables_in_use == 0 &&
-        !my_core::thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
-      /*
-        Do like InnoDB: when we get here, it's time to commit a
-        single-statement transaction.
+    if (tx) {
+      tx->io_perf_end_and_record(&m_io_perf);
+      tx->m_n_mysql_tables_in_use--;
+      if (tx->m_n_mysql_tables_in_use == 0 &&
+          !my_core::thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
+        /*
+          Do like InnoDB: when we get here, it's time to commit a
+          single-statement transaction.
 
-        If the statement involved multiple tables, this code will be executed
-        for each of them, but that's ok because non-first tx->commit() calls
-        will be no-ops.
-      */
-      if (tx->commit_or_rollback()) {
-        res = HA_ERR_INTERNAL_ERROR;
+          If the statement involved multiple tables, this code will be executed
+          for each of them, but that's ok because non-first tx->commit() calls
+          will be no-ops.
+        */
+        if (tx->commit_or_rollback()) {
+          res = HA_ERR_INTERNAL_ERROR;
+        }
       }
     }
   } else {

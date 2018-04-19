@@ -559,7 +559,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
     if (trace(1))
       htrc("PlugSubAlloc: %s\n", g->Message);
 
-    abort();
+    throw 1234;
     } /* endif size OS32 code */
 
   /*********************************************************************/
