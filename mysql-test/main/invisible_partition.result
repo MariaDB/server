@@ -1,0 +1,18 @@
+CREATE TABLE t1 (a INT NOT NULL, KEY (a)) ENGINE=MEMORY PARTITION BY KEY(a) PARTITIONS 4;
+INSERT INTO t1 VALUES (1),(2);
+SET debug_dbug="+d,test_pseudo_invisible";
+ALTER TABLE t1 REBUILD PARTITION p2;
+ERROR HY000: Internal error: Don't to it with test_pseudo_invisible
+SET debug_dbug='';
+ALTER TABLE t1 REPAIR PARTITION p1,p2,p3;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+Drop table t1;
+CREATE TABLE t1 (i INT) PARTITION BY HASH (i) PARTITIONS 3;
+SET debug_dbug= "+d,test_pseudo_invisible";
+ALTER TABLE t1 COALESCE PARTITION 1;
+ERROR HY000: Internal error: Don't to it with test_pseudo_invisible
+SET debug_dbug= "";
+SELECT * FROM t1;
+i
+DROP TABLE t1;
