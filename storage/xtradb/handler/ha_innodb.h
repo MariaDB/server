@@ -230,6 +230,7 @@ class ha_innobase: public handler
 	/** @} */
 	bool check_if_incompatible_data(HA_CREATE_INFO *info,
 					uint table_changes);
+	uint alter_table_flags(uint flags);
 	bool check_if_supported_virtual_columns(void) { return TRUE; }
 
 private:

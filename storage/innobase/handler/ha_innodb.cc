@@ -11147,6 +11147,17 @@ ha_innobase::check_if_incompatible_data(
 	return(COMPATIBLE_DATA_YES);
 }
 
+UNIV_INTERN
+uint
+ha_innobase::alter_table_flags(uint flags)
+{
+	uint mask = 0;
+	if (prebuilt->table->n_mysql_handles_opened > 1) {
+		mask = HA_INPLACE_ADD_PK_INDEX_NO_READ_WRITE;
+	}
+	return innobase_alter_table_flags(flags) & ~mask;
+}
+
 /************************************************************//**
 Validate the file format name and return its corresponding id.
 @return	valid file format id */
