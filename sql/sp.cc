@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2002, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2002, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -354,7 +354,7 @@ private:
   bool m_print_once;
 
 public:
-  Proc_table_intact() : m_print_once(TRUE) {}
+  Proc_table_intact() : m_print_once(TRUE) { has_keys= TRUE; }
 
 protected:
   void report_error(uint code, const char *fmt, ...);
