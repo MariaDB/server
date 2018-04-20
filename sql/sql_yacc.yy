@@ -11257,10 +11257,11 @@ percentile_function:
           {
             Item *args= new (thd->mem_root) Item_decimal(thd, "0.5", 3,
                                                    thd->charset());
-            if (($$ == NULL) || (thd->is_error()))
+            if ((args == NULL) || (thd->is_error()))
             {
               MYSQL_YYABORT;
             }
+            Select->prepare_add_window_spec(thd);
             if (add_order_to_list(thd, $3,FALSE)) MYSQL_YYABORT;
 
             $$= new (thd->mem_root) Item_sum_percentile_cont(thd, args);
