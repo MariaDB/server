@@ -4281,18 +4281,6 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
   DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 }
 
-
-/*
-   Default implementation to support in-place alter table
-   and old online add/drop index API
-*/
-
-void handler::notify_table_changed()
-{
-  ha_create_partitioning_metadata(table->s->path.str, NULL, CHF_INDEX_FLAG);
-}
-
-
 void Alter_inplace_info::report_unsupported_error(const char *not_supported,
                                                   const char *try_instead)
 {
@@ -4390,7 +4378,6 @@ handler::ha_create_partitioning_metadata(const char *name, const char *old_name,
   */
   DBUG_ASSERT(m_lock_type == F_UNLCK ||
               (!old_name && strcmp(name, table_share->path.str)));
-  mark_trx_read_write();
 
   return create_partitioning_metadata(name, old_name, action_flag);
 }

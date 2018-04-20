@@ -1,8 +1,10 @@
 The following options may be given as the first argument:
 --print-defaults Print the program argument list and exit.
 --no-defaults Don't read default options from any option file.
+The following specify which files/extra groups are read (specified before remaining options):
 --defaults-file=# Only read default options from the given file #.
 --defaults-extra-file=# Read this file after the global files are read.
+--defaults-group-suffix=# Additionally read default groups with # appended as a suffix.
 
  --allow-suspicious-udfs 
  Allows use of UDFs consisting of only one symbol xxx()
