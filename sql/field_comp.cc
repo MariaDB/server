@@ -59,7 +59,7 @@ static uint compress_zlib(THD *thd, char *to, const char *from, uint length)
     stream.avail_in= length;
     stream.next_in= (Bytef*) from;
 
-    DBUG_ASSERT(length >= original_pack_length + 1);
+    DBUG_ASSERT(length >= static_cast<uint>(original_pack_length) + 1);
     stream.avail_out= length - original_pack_length - 1;
     stream.next_out= (Bytef*) to + original_pack_length + 1;
 
