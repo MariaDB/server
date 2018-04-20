@@ -11072,7 +11072,7 @@ bool Column_definition::set_compressed(const char *method)
     length
 */
 
-uint32 Field_blob::max_display_length()
+uint32 Field_blob::max_display_length() const
 {
   switch (packlength)
   {

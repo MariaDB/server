@@ -5636,7 +5636,6 @@ static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
                               uint offset)
 {
   bool is_blob;
-  int decimals, field_length;
   const char *tmp_buff;
   char column_type_buff[MAX_FIELD_WIDTH];
   String column_type(column_type_buff, sizeof(column_type_buff), cs);
@@ -5686,35 +5685,10 @@ static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
     They are set to -1 if they should not be set (we should return NULL)
   */
 
-  field_length= -1;
-  decimals= field->decimals();
+  Information_schema_numeric_attributes num=
+    field->information_schema_numeric_attributes();
+
   switch (field->type()) {
-  case MYSQL_TYPE_NEWDECIMAL:
-    field_length= ((Field_new_decimal*) field)->precision;
-    break;
-  case MYSQL_TYPE_DECIMAL:
-    field_length= field->field_length - (decimals  ? 2 : 1);
-    break;
-  case MYSQL_TYPE_TINY:
-  case MYSQL_TYPE_SHORT:
-  case MYSQL_TYPE_LONG:
-  case MYSQL_TYPE_INT24:
-    field_length= field->max_display_length() - 1;
-    break;
-  case MYSQL_TYPE_LONGLONG:
-    field_length= field->max_display_length() - 
-      ((field->flags & UNSIGNED_FLAG) ? 0 : 1);
-    break;
-  case MYSQL_TYPE_BIT:
-    field_length= field->max_display_length();
-    decimals= -1;                             // return NULL
-    break;
-  case MYSQL_TYPE_FLOAT:  
-  case MYSQL_TYPE_DOUBLE:
-    field_length= field->field_length;
-    if (decimals == NOT_FIXED_DEC)
-      decimals= -1;                           // return NULL
-    break;
   case MYSQL_TYPE_TIME:
   case MYSQL_TYPE_TIMESTAMP:
   case MYSQL_TYPE_DATETIME:
@@ -5727,15 +5701,15 @@ static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
   }
 
   /* NUMERIC_PRECISION column */
-  if (field_length >= 0)
+  if (num.has_precision())
   {
-    table->field[offset + 3]->store((longlong) field_length, TRUE);
+    table->field[offset + 3]->store((longlong) num.precision(), true);
     table->field[offset + 3]->set_notnull();
 
     /* NUMERIC_SCALE column */
-    if (decimals >= 0)
+    if (num.has_scale())
     {
-      table->field[offset + 4]->store((longlong) decimals, TRUE);
+      table->field[offset + 4]->store((longlong) num.scale(), true);
       table->field[offset + 4]->set_notnull();
     }
   }

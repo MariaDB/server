@@ -911,6 +911,46 @@ public:
 };
 
 
+class Information_schema_numeric_attributes
+{
+  enum enum_attr
+  {
+    ATTR_NONE= 0,
+    ATTR_PRECISION= 1,
+    ATTR_SCALE= 2,
+    ATTR_PRECISION_AND_SCALE= (ATTR_PRECISION|ATTR_SCALE)
+  };
+  uint m_precision;
+  uint m_scale;
+  enum_attr m_available_attributes;
+public:
+  Information_schema_numeric_attributes()
+   :m_precision(0), m_scale(0),
+    m_available_attributes(ATTR_NONE)
+  { }
+  Information_schema_numeric_attributes(uint precision)
+   :m_precision(precision), m_scale(0),
+    m_available_attributes(ATTR_PRECISION)
+  { }
+  Information_schema_numeric_attributes(uint precision, uint scale)
+   :m_precision(precision), m_scale(scale),
+    m_available_attributes(ATTR_PRECISION_AND_SCALE)
+  { }
+  bool has_precision() const { return m_available_attributes & ATTR_PRECISION; }
+  bool has_scale() const { return m_available_attributes & ATTR_SCALE; }
+  uint precision() const
+  {
+    DBUG_ASSERT(has_precision());
+    return (uint) m_precision;
+  }
+  uint scale() const
+  {
+    DBUG_ASSERT(has_scale());
+    return (uint) m_scale;
+  }
+};
+
+
 class Type_handler
 {
 protected:
