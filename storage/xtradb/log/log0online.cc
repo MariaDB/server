@@ -487,9 +487,6 @@ log_online_make_bitmap_name(
 }
 
 /*********************************************************************//**
-}
-
-/*********************************************************************//**
 Check if an old file that has the name of a new bitmap file we are about to
 create should be overwritten.  */
 static
