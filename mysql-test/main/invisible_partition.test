@@ -1,5 +1,6 @@
 --source include/have_partition.inc
 --source include/have_binlog_format_row.inc
+--source include/have_debug.inc
 
 CREATE TABLE t1 (a INT NOT NULL, KEY (a)) ENGINE=MEMORY PARTITION BY KEY(a) PARTITIONS 4;
 INSERT INTO t1 VALUES (1),(2);

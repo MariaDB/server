@@ -7979,13 +7979,16 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
   switch (flags2 & (FL_DDL | FL_TRANSACTIONAL))
   {
     case FL_TRANSACTIONAL:
-      my_atomic_add64_explicit(&mi->total_trans_groups, 1, MY_MEMORY_ORDER_RELAXED);
+      my_atomic_add64_explicit((volatile int64 *)&mi->total_trans_groups, 1,
+                 MY_MEMORY_ORDER_RELAXED);
       break;
     case FL_DDL:
-      my_atomic_add64_explicit(&mi->total_ddl_groups, 1, MY_MEMORY_ORDER_RELAXED);
+      my_atomic_add64_explicit((volatile int64 *)&mi->total_ddl_groups, 1,
+                 MY_MEMORY_ORDER_RELAXED);
     break;
     default:
-      my_atomic_add64_explicit(&mi->total_non_trans_groups, 1, MY_MEMORY_ORDER_RELAXED);
+      my_atomic_add64_explicit((volatile int64 *)&mi->total_non_trans_groups, 1,
+                 MY_MEMORY_ORDER_RELAXED);
   }
 
   if (flags2 & FL_STANDALONE)
