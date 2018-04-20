@@ -574,7 +574,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     Ignore the return value for now. It's better to
     keep master/slave in consistent state.
   */
-  if (thd->locked_tables_list.reopen_tables(thd))
+  if (thd->locked_tables_list.reopen_tables(thd, false))
     thd->clear_error();
 
   /*
