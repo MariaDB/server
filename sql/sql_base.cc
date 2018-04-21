@@ -2872,7 +2872,8 @@ void Locked_tables_list::unlink_from_list(THD *thd,
     If mode is not LTM_LOCK_TABLES, we needn't do anything. Moreover,
     outside this mode pos_in_locked_tables value is not trustworthy.
   */
-  if (thd->locked_tables_mode != LTM_LOCK_TABLES)
+  if (thd->locked_tables_mode != LTM_LOCK_TABLES &&
+      thd->locked_tables_mode != LTM_PRELOCKED_UNDER_LOCK_TABLES)
     return;
 
   /*
