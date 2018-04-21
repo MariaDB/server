@@ -21,6 +21,9 @@ sub skip_combinations {
   my %skip = ( 'include/have_innodb.combinations' => [ @combinations ],
                'include/have_xtradb.combinations' => [ @combinations ]);
 
+  $skip{'include/innodb_encrypt_log.combinations'} = [ 'crypt' ]
+                unless $ENV{DEBUG_KEY_MANAGEMENT_SO};
+
   # don't run tests for the wrong platform
   $skip{'include/platform.combinations'} = [ (IS_WINDOWS) ? 'unix' : 'win' ];
 

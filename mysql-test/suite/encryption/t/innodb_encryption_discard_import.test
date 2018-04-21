@@ -58,6 +58,7 @@ set autocommit=1;
 -- source include/search_pattern_in_file.inc
 
 --source include/start_mysqld.inc
+let MYSQLD_DATADIR =`SELECT @@datadir`;
 
 --list_files $MYSQLD_DATADIR/test
 FLUSH TABLES t1, t2, t3 FOR EXPORT;

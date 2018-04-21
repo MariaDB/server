@@ -1974,6 +1974,12 @@ fil_crypt_rotate_pages(
 			continue;
 		}
 
+		/* If space is marked as stopping, stop rotating
+		pages. */
+		if (state->space->is_stopping()) {
+			break;
+		}
+
 		fil_crypt_rotate_page(key_state, state);
 	}
 }
@@ -2020,6 +2026,10 @@ fil_crypt_flush_space(
 
 	if (crypt_data->min_key_version == 0) {
 		crypt_data->type = CRYPT_SCHEME_UNENCRYPTED;
+	}
+
+	if (space->is_stopping()) {
+		return;
 	}
 
 	/* update page 0 */
