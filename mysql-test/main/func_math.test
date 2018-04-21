@@ -836,8 +836,8 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (a JSON);
 INSERT INTO t1 VALUES ('{"name" : "goodyear"}'),
   ('{"name" : "verygood-year"}');
-SELECT a->>'$.name', CRC32(a) FROM t1;
-SELECT CRC32(a->>'$.name') FROM t1 WHERE a->>'$.name' = 'goodyear';
+SELECT a, CRC32(a) FROM t1;
+SELECT CRC32(json_query(a, '$.name')) FROM t1 WHERE json_query(a, '$.name') = 'goodyear';
 SELECT CRC32(REPLACE(JSON_EXTRACT(a, "$.name"),'\"',''))
   FROM t1 WHERE JSON_EXTRACT(a, "$.name") = 'goodyear';
 DROP TABLE t1;

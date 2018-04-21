@@ -1216,13 +1216,12 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (a JSON);
 INSERT INTO t1 VALUES ('{"name" : "goodyear"}'),
 ('{"name" : "verygood-year"}');
-SELECT a->>'$.name', CRC32(a) FROM t1;
-a->>'$.name'	CRC32(a)
-goodyear	3664432072
-verygood-year	922278888
-SELECT CRC32(a->>'$.name') FROM t1 WHERE a->>'$.name' = 'goodyear';
-CRC32(a->>'$.name')
-3441724142
+SELECT a, CRC32(a) FROM t1;
+a	CRC32(a)
+{"name" : "goodyear"}	3258555818
+{"name" : "verygood-year"}	3616384779
+SELECT CRC32(json_query(a, '$.name')) FROM t1 WHERE json_query(a, '$.name') = 'goodyear';
+CRC32(json_query(a, '$.name'))
 SELECT CRC32(REPLACE(JSON_EXTRACT(a, "$.name"),'\"',''))
 FROM t1 WHERE JSON_EXTRACT(a, "$.name") = 'goodyear';
 CRC32(REPLACE(JSON_EXTRACT(a, "$.name"),'\"',''))
@@ -1284,8 +1283,5 @@ HEX(a)	CRC32(a)
 E4B880E4BA8CE4B889	1785250883
 E59B9BE4BA94E585AD	2914501801
 E4B883E585ABE4B99D	2374586519
-E4B880E4BA8CE4B889	1785250883
-E59B9BE4BA94E585AD	2914501801
-E4B883E585ABE4B99D0A	1546750244
 DROP TABLE t1;
 SET NAMES default;
