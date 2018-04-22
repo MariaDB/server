@@ -2505,7 +2505,7 @@ public:
     based on result_type(), which is less exact.
   */
   Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
+  { return create_table_field_from_handler(table); }
 };
 
 
