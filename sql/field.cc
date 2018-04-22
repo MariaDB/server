@@ -10998,6 +10998,12 @@ Column_definition::redefine_stage1_common(const Column_definition *dup_field,
 
 uint32 Field_blob::char_length() const
 {
+  return Field_blob::octet_length();
+}
+
+
+uint32 Field_blob::octet_length() const
+{
   switch (packlength)
   {
   case 1:

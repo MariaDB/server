@@ -951,6 +951,34 @@ public:
 };
 
 
+class Information_schema_character_attributes
+{
+  uint32 m_octet_length;
+  uint32 m_char_length;
+  bool m_is_set;
+public:
+  Information_schema_character_attributes()
+   :m_octet_length(0), m_char_length(0), m_is_set(false)
+  { }
+  Information_schema_character_attributes(uint32 octet_length,
+                                          uint32 char_length)
+   :m_octet_length(octet_length), m_char_length(char_length), m_is_set(true)
+  { }
+  bool has_octet_length() const { return m_is_set; }
+  bool has_char_length() const { return m_is_set; }
+  uint32 octet_length() const
+  {
+    DBUG_ASSERT(has_octet_length());
+    return m_octet_length;
+  }
+  uint char_length() const
+  {
+    DBUG_ASSERT(has_char_length());
+    return m_char_length;
+  }
+};
+
+
 class Type_handler
 {
 protected:

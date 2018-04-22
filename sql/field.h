@@ -1121,6 +1121,11 @@ public:
   {
     return Information_schema_numeric_attributes();
   }
+  virtual Information_schema_character_attributes
+            information_schema_character_attributes() const
+  {
+    return Information_schema_character_attributes();
+  }
   /*
     Caller beware: sql_type can change str.Ptr, so check
     ptr() to see if it changed if you are using your own buffer
@@ -1731,6 +1736,13 @@ public:
   enum Derivation derivation(void) const { return field_derivation; }
   bool binary() const { return field_charset == &my_charset_bin; }
   uint32 max_display_length() const { return field_length; }
+  uint32 char_length() const { return field_length / field_charset->mbmaxlen; }
+  Information_schema_character_attributes
+    information_schema_character_attributes() const
+  {
+    return Information_schema_character_attributes(field_length,
+                                                   char_length());
+  }
   friend class Create_field;
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_real() != 0e0; }
@@ -2424,6 +2436,11 @@ public:
 	       unireg_check_arg, field_name_arg, collation)
     {}
   const Type_handler *type_handler() const { return &type_handler_null; }
+  Information_schema_character_attributes
+    information_schema_character_attributes() const
+  {
+    return Information_schema_character_attributes();
+  }
   Copy_func *get_copy_func(const Field *from) const
   {
     return do_field_string;
@@ -3564,6 +3581,13 @@ public:
   }
   enum ha_base_keytype key_type() const
     { return binary() ? HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2; }
+  Information_schema_character_attributes
+    information_schema_character_attributes() const
+  {
+    uint32 octets= Field_blob::octet_length();
+    uint32 chars= octets / field_charset->mbminlen;
+    return Information_schema_character_attributes(octets, chars);
+  }
   Copy_func *get_copy_func(const Field *from) const
   {
     /*
@@ -3726,6 +3750,7 @@ public:
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
   uint32 max_display_length() const;
   uint32 char_length() const;
+  uint32 octet_length() const;
   uint is_equal(Create_field *new_field);
 private:
   int save_field_metadata(uchar *first_byte);
@@ -3807,6 +3832,11 @@ public:
   enum_field_types real_type() const
   {
     return MYSQL_TYPE_GEOMETRY;
+  }
+  Information_schema_character_attributes
+    information_schema_character_attributes() const
+  {
+    return Information_schema_character_attributes();
   }
   bool can_optimize_range(const Item_bool_func *cond,
                                   const Item *item,

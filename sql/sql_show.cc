@@ -5635,7 +5635,6 @@ err:
 static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
                               uint offset)
 {
-  bool is_blob;
   const char *tmp_buff;
   char column_type_buff[MAX_FIELD_WIDTH];
   String column_type(column_type_buff, sizeof(column_type_buff), cs);
@@ -5661,22 +5660,18 @@ static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
                               (tmp_buff ? (uint)(tmp_buff - column_type.ptr()) :
                                column_type.length()), cs);
 
-  is_blob= (field->type() == MYSQL_TYPE_BLOB);
-  if (field->has_charset() || is_blob ||
-      field->real_type() == MYSQL_TYPE_VARCHAR ||  // For varbinary type
-      field->real_type() == MYSQL_TYPE_STRING)     // For binary type
+  Information_schema_character_attributes cattr=
+    field->information_schema_character_attributes();
+  if (cattr.has_char_length())
   {
-    uint32 octet_max_length= field->max_display_length();
-    if (is_blob && octet_max_length != (uint32) UINT_MAX32)
-      octet_max_length /= field->charset()->mbmaxlen;
-    longlong char_max_len= is_blob ? 
-      (longlong) octet_max_length / field->charset()->mbminlen :
-      (longlong) octet_max_length / field->charset()->mbmaxlen;
     /* CHARACTER_MAXIMUM_LENGTH column*/
-    table->field[offset + 1]->store(char_max_len, TRUE);
+    table->field[offset + 1]->store((longlong) cattr.char_length(), true);
     table->field[offset + 1]->set_notnull();
+  }
+  if (cattr.has_octet_length())
+  {
     /* CHARACTER_OCTET_LENGTH column */
-    table->field[offset + 2]->store((longlong) octet_max_length, TRUE);
+    table->field[offset + 2]->store((longlong) cattr.octet_length(), true);
     table->field[offset + 2]->set_notnull();
   }
 
