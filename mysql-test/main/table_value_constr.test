@@ -1044,3 +1044,27 @@ select * from (values (1), (b), (2)) as new_tvc;
 select * from (values (1), (t1.b), (2)) as new_tvc;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-MDEV-15940: cursor over TVC
+--echo #
+
+DELIMITER |;
+
+BEGIN NOT ATOMIC
+  DECLARE v INT;
+  DECLARE cur CURSOR FOR VALUES(7);
+  OPEN cur;
+  FETCH cur INTO v;
+  SELECT v;
+END;
+|
+
+BEGIN NOT ATOMIC
+DECLARE v INT DEFAULT 0;
+FOR a IN (VALUES (7)) DO SET v = v + 1; END FOR;
+SELECT v;
+END;
+|
+
+DELIMITER ;|

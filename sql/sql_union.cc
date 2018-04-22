@@ -1874,7 +1874,7 @@ bool st_select_lex_unit::change_result(select_result_interceptor *new_result,
 List<Item> *st_select_lex_unit::get_column_types(bool for_cursor)
 {
   SELECT_LEX *sl= first_select();
-  bool is_procedure= MY_TEST(sl->join->procedure);
+  bool is_procedure= !sl->tvc && sl->join->procedure ;
 
   if (is_procedure)
   {
