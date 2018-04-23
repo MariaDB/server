@@ -64,7 +64,9 @@ INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 --connection node_2
 --echo Starting server ...
 --source include/start_mysqld.inc
---source include/wait_until_ready.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
 
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;

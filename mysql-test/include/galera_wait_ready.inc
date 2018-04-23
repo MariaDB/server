@@ -6,7 +6,7 @@
 --enable_reconnect
 --disable_query_log
 --disable_result_log
-let $wait_counter = 300;
+let $wait_counter = 600;
 while ($wait_counter)
 {
   --disable_abort_on_error
