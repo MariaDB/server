@@ -428,7 +428,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	btr_pcur_t		pcur;
 	btr_cur_t*		btr_cur;
 	ibool			success;
-	ibool			old_has;
+	ibool			old_has = FALSE;
 	dberr_t			err	= DB_SUCCESS;
 	mtr_t			mtr;
 	mtr_t			mtr_vers;
@@ -504,10 +504,15 @@ row_undo_mod_del_mark_or_remove_sec_low(
 					    &mtr_vers);
 	ut_a(success);
 
-	old_has = row_vers_old_has_index_entry(FALSE,
-					       btr_pcur_get_rec(&(node->pcur)),
-					       &mtr_vers, index, entry,
-					       0, 0);
+	/* For temporary table, we can skip to check older version of
+	clustered index entry. Because the purge won't process
+	any no-redo rollback segment undo logs. */
+	if (!dict_table_is_temporary(node->table)) {
+		old_has = row_vers_old_has_index_entry(
+				FALSE, btr_pcur_get_rec(&(node->pcur)),
+				&mtr_vers, index, entry, 0, 0);
+	}
+
 	if (old_has) {
 		err = btr_cur_del_mark_set_sec_rec(BTR_NO_LOCKING_FLAG,
 						   btr_cur, TRUE, thr, &mtr);
