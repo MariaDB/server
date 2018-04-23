@@ -1935,6 +1935,9 @@ void Item_func_neg::fix_length_and_dec_double()
   set_handler(&type_handler_double);
   decimals= args[0]->decimals; // Preserve NOT_FIXED_DEC
   max_length= args[0]->max_length + 1;
+  // Limit length with something reasonable
+  uint32 mlen= type_handler()->max_display_length(this);
+  set_if_smaller(max_length, mlen);
   unsigned_flag= false;
 }
 
