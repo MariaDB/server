@@ -20236,6 +20236,59 @@ static void test_proxy_header()
   test_proxy_header_ignore();
 }
 
+
+static void test_bulk_autoinc()
+{
+  int rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind[1];
+  MYSQL_ROW  row;
+  char       indicator[]= {0, STMT_INDICATOR_NULL, 0/*STMT_INDICATOR_IGNORE*/};
+  my_bool   error[1];
+  int        i, id[]= {2, 3, 777}, count= sizeof(id)/sizeof(id[0]);
+  MYSQL_RES *result;
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS ai_field_value");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE ai_field_value (id int not null primary key auto_increment)");
+  myquery(rc);
+  stmt= mysql_stmt_init(mysql);
+  rc= mysql_stmt_prepare(stmt, "INSERT INTO ai_field_value(id) values(?)", -1);
+  check_execute(stmt, rc);
+
+  memset(bind, 0, sizeof(bind));
+  bind[0].buffer_type = MYSQL_TYPE_LONG;
+  bind[0].buffer = (void *)id;
+  bind[0].buffer_length = 0;
+  bind[0].is_null = NULL;
+  bind[0].length = NULL;
+  bind[0].error = error;
+  bind[0].u.indicator= indicator;
+
+  mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, (void*)&count);
+  rc= mysql_stmt_bind_param(stmt, bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "SELECT id FROM ai_field_value");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+  mytest(result);
+
+  i= 0;
+  while ((row= mysql_fetch_row(result)))
+  {
+    DIE_IF(atoi(row[0]) != id[i++]);
+  }
+  rc= mysql_query(mysql, "DROP TABLE ai_field_value");
+  myquery(rc);
+}
+
 #endif
 
 static struct my_tests_st my_tests[]= {
@@ -20523,6 +20576,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev14454", test_mdev14454 },
 #ifndef EMBEDDED_LIBRARY
   { "test_proxy_header", test_proxy_header},
+  { "test_bulk_autoinc", test_bulk_autoinc},
 #endif
   { 0, 0 }
 };
