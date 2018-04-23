@@ -3291,16 +3291,15 @@ public:
 class Type_handler_hybrid_field_type
 {
   const Type_handler *m_type_handler;
-  bool m_vers_trx_id;
   bool aggregate_for_min_max(const Type_handler *other);
 
 public:
   Type_handler_hybrid_field_type();
   Type_handler_hybrid_field_type(const Type_handler *handler)
-   :m_type_handler(handler), m_vers_trx_id(false)
+   :m_type_handler(handler)
   { }
   Type_handler_hybrid_field_type(const Type_handler_hybrid_field_type *other)
-    :m_type_handler(other->m_type_handler), m_vers_trx_id(other->m_vers_trx_id)
+    :m_type_handler(other->m_type_handler)
   { }
   void swap(Type_handler_hybrid_field_type &other)
   {

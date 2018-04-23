@@ -10700,11 +10700,6 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
   return find_matching_grouping_field(this, sel) != NULL;
 }
 
-bool Item_field::vers_trx_id() const
-{
-  DBUG_ASSERT(field);
-  return field->vers_trx_id();
-}
 
 void Item::register_in(THD *thd)
 {

@@ -1461,11 +1461,6 @@ public:
     return flags & VERS_UPDATE_UNVERSIONED_FLAG;
   }
 
-  virtual bool vers_trx_id() const
-  {
-    return false;
-  }
-
   /*
     Validate a non-null field value stored in the given record
     according to the current thread settings, e.g. sql_mode.
@@ -2313,8 +2308,7 @@ public:
                        unsigned_arg),
         cached(0)
   {}
-  enum_field_types real_type() const { return MYSQL_TYPE_LONGLONG; }
-  enum_field_types type() const { return MYSQL_TYPE_LONGLONG;}
+  const Type_handler *type_handler() const { return &type_handler_vers_trx_id; }
   uint size_of() const { return sizeof(*this); }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglong trx_id);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
@@ -2341,10 +2335,6 @@ public:
   }
   /* cmp_type() cannot be TIME_RESULT, because we want to compare this field against
      integers. But in all other cases we treat it as TIME_RESULT! */
-  bool vers_trx_id() const
-  {
-    return true;
-  }
 };
 
 

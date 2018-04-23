@@ -6854,7 +6854,8 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
   f->flags= flags | NOT_NULL_FLAG;
   if (integer)
   {
-    f->set_handler(&type_handler_longlong);
+    DBUG_ASSERT(0); // Not implemented yet
+    f->set_handler(&type_handler_vers_trx_id);
     f->length= MY_INT64_NUM_DECIMAL_DIGITS - 1;
     f->flags|= UNSIGNED_FLAG;
   }

@@ -126,12 +126,9 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const char *funcname,
     many cases.
   */
   set_handler(items[0]->type_handler()->type_handler_for_comparison());
-  m_vers_trx_id= items[0]->vers_trx_id();
   for (uint i= 1 ; i < nitems ; i++)
   {
     unsigned_count+= items[i]->unsigned_flag;
-    if (!m_vers_trx_id)
-      m_vers_trx_id= items[i]->vers_trx_id();
     if (aggregate_for_comparison(items[i]->type_handler()->
                                  type_handler_for_comparison()))
     {
@@ -423,7 +420,8 @@ void Item_func::convert_const_compared_to_int_field(THD *thd)
         args[field= 1]->real_item()->type() == FIELD_ITEM)
     {
       Item_field *field_item= (Item_field*) (args[field]->real_item());
-      if (((field_item->field_type() == MYSQL_TYPE_LONGLONG && !field_item->vers_trx_id()) ||
+      if (((field_item->field_type() == MYSQL_TYPE_LONGLONG &&
+            field_item->type_handler() != &type_handler_vers_trx_id) ||
            field_item->field_type() ==  MYSQL_TYPE_YEAR))
         convert_const_to_int(thd, field_item, &args[!field]);
     }

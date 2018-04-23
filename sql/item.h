@@ -832,10 +832,6 @@ public:
     return type_handler()->field_type();
   }
   virtual const Type_handler *type_handler() const= 0;
-  virtual uint field_flags() const
-  {
-    return 0;
-  }
   const Type_handler *type_handler_for_comparison() const
   {
     return type_handler()->type_handler_for_comparison();
@@ -1814,8 +1810,6 @@ public:
 
   virtual Item_field *field_for_view_update() { return 0; }
 
-  virtual bool vers_trx_id() const
-  { return false; }
   virtual Item *neg_transformer(THD *thd) { return NULL; }
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg)
   { return this; }
@@ -2941,10 +2935,6 @@ public:
     return field->type_handler();
   }
   TYPELIB *get_typelib() const { return field->get_typelib(); }
-  uint32 field_flags() const
-  {
-    return field->flags;
-  }
   enum_monotonicity_info get_monotonicity_info() const
   {
     return MONOTONIC_STRICT_INCREASING;
@@ -3042,7 +3032,6 @@ public:
   uint32 max_display_length() const { return field->max_display_length(); }
   Item_field *field_for_view_update() { return this; }
   int fix_outer_field(THD *thd, Field **field, Item **reference);
-  virtual bool vers_trx_id() const;
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg);
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg);
@@ -4890,12 +4879,6 @@ public:
       return 0;
     return cleanup_processor(arg);
   }
-  virtual bool vers_trx_id() const
-  {
-    DBUG_ASSERT(ref);
-    DBUG_ASSERT(*ref);
-    return (*ref)->vers_trx_id();
-  }
 };
 
 
@@ -6392,29 +6375,14 @@ class Item_type_holder: public Item,
 {
 protected:
   TYPELIB *enum_set_typelib;
-private:
-  void init_flags(Item *item)
-  {
-    if (item->real_type() == Item::FIELD_ITEM)
-    {
-      Item_field *item_field= (Item_field *)item->real_item();
-      m_flags|= (item_field->field->flags &
-               (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG));
-      // TODO: additional field flag?
-      m_vers_trx_id= item_field->field->vers_trx_id();
-    }
-  }
 public:
   Item_type_holder(THD *thd, Item *item)
    :Item(thd, item),
     Type_handler_hybrid_field_type(item->real_type_handler()),
-    enum_set_typelib(0),
-    m_flags(0),
-    m_vers_trx_id(false)
+    enum_set_typelib(0)
   {
     DBUG_ASSERT(item->fixed);
     maybe_null= item->maybe_null;
-    init_flags(item);
   }
   Item_type_holder(THD *thd,
                    Item *item,
@@ -6424,27 +6392,20 @@ public:
    :Item(thd),
     Type_handler_hybrid_field_type(handler),
     Type_geometry_attributes(handler, attr),
-    enum_set_typelib(attr->get_typelib()),
-    m_flags(0),
-    m_vers_trx_id(false)
+    enum_set_typelib(attr->get_typelib())
   {
     name= item->name;
     Type_std_attributes::set(*attr);
     maybe_null= maybe_null_arg;
-    init_flags(item);
   }
 
   const Type_handler *type_handler() const
   {
-    const Type_handler *handler= m_vers_trx_id ?
-      &type_handler_vers_trx_id :
-      Type_handler_hybrid_field_type::type_handler();
-    return handler->type_handler_for_item_field();
+    return Type_handler_hybrid_field_type::type_handler()->
+             type_handler_for_item_field();
   }
   const Type_handler *real_type_handler() const
   {
-    if (m_vers_trx_id)
-      return &type_handler_vers_trx_id;
     return Type_handler_hybrid_field_type::type_handler();
   }
 
@@ -6471,18 +6432,6 @@ public:
   }
   Item* get_copy(THD *thd) { return 0; }
 
-private:
-  uint m_flags;
-  bool m_vers_trx_id;
-public:
-  uint32 field_flags() const
-  {
-    return m_flags;
-  }
-  virtual bool vers_trx_id() const
-  {
-    return m_vers_trx_id;
-  }
 };
 
 
