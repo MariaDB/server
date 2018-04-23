@@ -1415,4 +1415,8 @@ private:
 const int MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL= MariaDB_PLUGIN_MATURITY_GAMMA;
 
 extern bool prevent_myrocks_loading;
+
+void sql_print_verbose_info(const char *format, ...);
+
 } // namespace myrocks
+

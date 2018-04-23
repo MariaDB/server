@@ -4,6 +4,7 @@ CREATE TABLE t1 (f1 INTEGER);
 connection node_1;
 CREATE TABLE t1 (f1 INTEGER);
 connection node_2;
+SET SESSION wsrep_on=ON;
 SELECT COUNT(*) = 0 FROM t1;
 COUNT(*) = 0
 1
@@ -30,6 +31,5 @@ DELIMITER ;
 ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
-SET SESSION wsrep_on=ON;
 CALL mtr.add_suppression("Slave SQL: Error 'Table 't1' already exists' on query");
 DROP TABLE t1;

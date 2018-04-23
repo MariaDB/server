@@ -4906,8 +4906,8 @@ void Rdb_dict_manager::add_create_index(
     rocksdb::WriteBatch *const batch) const {
   for (const auto &gl_index_id : gl_index_ids) {
     // NO_LINT_DEBUG
-    sql_print_information("RocksDB: Begin index creation (%u,%u)",
-                          gl_index_id.cf_id, gl_index_id.index_id);
+    sql_print_verbose_info("RocksDB: Begin index creation (%u,%u)",
+                           gl_index_id.cf_id, gl_index_id.index_id);
     start_create_index(batch, gl_index_id);
   }
 }
@@ -4986,8 +4986,8 @@ void Rdb_dict_manager::rollback_ongoing_index_creation() const {
 
   for (const auto &gl_index_id : gl_index_ids) {
     // NO_LINT_DEBUG
-    sql_print_information("RocksDB: Removing incomplete create index (%u,%u)",
-                          gl_index_id.cf_id, gl_index_id.index_id);
+    sql_print_verbose_info("RocksDB: Removing incomplete create index (%u,%u)",
+                           gl_index_id.cf_id, gl_index_id.index_id);
 
     start_drop_index(batch, gl_index_id);
   }

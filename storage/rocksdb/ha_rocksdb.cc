@@ -220,8 +220,8 @@ static int rocksdb_compact_column_family(THD *const thd,
   if (const char *const cf = value->val_str(value, buff, &len)) {
     auto cfh = cf_manager.get_cf(cf);
     if (cfh != nullptr && rdb != nullptr) {
-      sql_print_information("RocksDB: Manual compaction of column family: %s\n",
-                            cf);
+      sql_print_verbose_info("RocksDB: Manual compaction of column family: %s\n",
+                             cf);
       rdb->CompactRange(getCompactRangeOptions(), cfh, nullptr, nullptr);
     }
   }
@@ -7776,8 +7776,8 @@ int ha_rocksdb::check(THD *const thd, HA_CHECK_OPT *const check_opt) {
 
   /* For each secondary index, check that we can get a PK value from it */
   // NO_LINT_DEBUG
-  sql_print_information("CHECKTABLE %s: Checking table %s", table_name,
-                        table_name);
+  sql_print_verbose_info("CHECKTABLE %s: Checking table %s", table_name,
+                         table_name);
   ha_rows UNINIT_VAR(row_checksums_at_start); // set/used iff first_index==true
   ha_rows row_checksums = ha_rows(-1);
   bool first_index = true;
@@ -7792,8 +7792,8 @@ int ha_rocksdb::check(THD *const thd, HA_CHECK_OPT *const check_opt) {
         row_checksums_at_start = m_row_checksums_checked;
       int res;
       // NO_LINT_DEBUG
-      sql_print_information("CHECKTABLE %s:   Checking index %s", table_name,
-                            table->key_info[keyno].name);
+      sql_print_verbose_info("CHECKTABLE %s:   Checking index %s", table_name,
+                             table->key_info[keyno].name);
       while (1) {
         if (!rows)
           res = index_first(table->record[0]);
@@ -7881,9 +7881,9 @@ int ha_rocksdb::check(THD *const thd, HA_CHECK_OPT *const check_opt) {
       }
       }
       // NO_LINT_DEBUG
-      sql_print_information("CHECKTABLE %s:   ... %lld index entries checked "
-                            "(%lld had checksums)",
-                            table_name, rows, checksums);
+      sql_print_verbose_info("CHECKTABLE %s:   ... %lld index entries checked "
+                             "(%lld had checksums)",
+                             table_name, rows, checksums);
 
       if (first_index) {
         row_checksums = m_row_checksums_checked - row_checksums_at_start;
@@ -7894,8 +7894,8 @@ int ha_rocksdb::check(THD *const thd, HA_CHECK_OPT *const check_opt) {
   }
   if (row_checksums != ha_rows(-1)) {
     // NO_LINT_DEBUG
-    sql_print_information("CHECKTABLE %s:   %lld table records had checksums",
-                          table_name, row_checksums);
+    sql_print_verbose_info("CHECKTABLE %s:   %lld table records had checksums",
+                           table_name, row_checksums);
   }
   extra(HA_EXTRA_NO_KEYREAD);
 
@@ -12656,7 +12656,19 @@ double ha_rocksdb::read_time(uint index, uint ranges, ha_rows rows) {
   DBUG_RETURN((rows / 20.0) + 1);
 }
 
+void sql_print_verbose_info(const char *format, ...)
+{
+  va_list args;
+
+  if (global_system_variables.log_warnings > 2) {
+    va_start(args, format);
+    sql_print_information_v(format, args);
+    va_end(args);
+  }
+}
+
 } // namespace myrocks
+
 
 /**
   Construct and emit duplicate key error message using information

@@ -462,7 +462,6 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	btr_pcur_t		pcur;
 	btr_cur_t*		btr_cur;
 	ibool			success;
-	ibool			old_has;
 	dberr_t			err	= DB_SUCCESS;
 	mtr_t			mtr;
 	mtr_t			mtr_vers;
@@ -538,11 +537,12 @@ row_undo_mod_del_mark_or_remove_sec_low(
 					    &mtr_vers);
 	ut_a(success);
 
-	old_has = row_vers_old_has_index_entry(FALSE,
-					       btr_pcur_get_rec(&(node->pcur)),
-					       &mtr_vers, index, entry,
-					       0, 0);
-	if (old_has) {
+	/* For temporary table, we can skip to check older version of
+	clustered index entry, because there is no MVCC or purge. */
+	if (!node->table->is_temporary()
+	    && row_vers_old_has_index_entry(
+		    FALSE, btr_pcur_get_rec(&node->pcur),
+		    &mtr_vers, index, entry, 0, 0)) {
 		err = btr_cur_del_mark_set_sec_rec(BTR_NO_LOCKING_FLAG,
 						   btr_cur, TRUE, thr, &mtr);
 		ut_ad(err == DB_SUCCESS);
@@ -561,18 +561,14 @@ row_undo_mod_del_mark_or_remove_sec_low(
 		}
 
 		if (modify_leaf) {
-			success = btr_cur_optimistic_delete(btr_cur, 0, &mtr);
-			if (success) {
-				err = DB_SUCCESS;
-			} else {
-				err = DB_FAIL;
-			}
+			err = btr_cur_optimistic_delete(btr_cur, 0, &mtr)
+				? DB_SUCCESS : DB_FAIL;
 		} else {
 			/* Passing rollback=false,
 			because we are deleting a secondary index record:
 			the distinction only matters when deleting a
 			record that contains externally stored columns. */
-			ut_ad(!dict_index_is_clust(index));
+			ut_ad(!index->is_primary());
 			btr_cur_pessimistic_delete(&err, FALSE, btr_cur, 0,
 						   false, &mtr);
 
