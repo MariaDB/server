@@ -44,4 +44,3 @@ SELECT * FROM t1;
 i
 1
 DROP TABLE t1;
-# End of test

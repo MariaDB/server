@@ -3,9 +3,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
---let $node_1=node_1
---let $node_2=node_2
---source suite/galera/include/auto_increment_offset_save.inc
 --source suite/galera/include/galera_sst_set_mysqldump.inc
 
 --source suite/galera/include/galera_st_disconnect_slave.inc
@@ -16,5 +13,3 @@
 
 --echo Restarting server ...
 --source include/restart_mysqld.inc
-
---source suite/galera/include/auto_increment_offset_restore.inc
