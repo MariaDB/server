@@ -3165,44 +3165,15 @@ Item_field::Item_field(THD *thd, Item_field *item)
 }
 
 
-/**
-  Calculate the max column length not taking into account the
-  limitations over integer types.
-
-  When storing data into fields the server currently just ignores the
-  limits specified on integer types, e.g. 1234 can safely be stored in
-  an int(2) and will not cause an error.
-  Thus when creating temporary tables and doing transformations
-  we must adjust the maximum field length to reflect this fact.
-  We take the un-restricted maximum length and adjust it similarly to
-  how the declared length is adjusted wrt unsignedness etc.
-  TODO: this all needs to go when we disable storing 1234 in int(2).
-
-  @param field_par   Original field the use to calculate the lengths
-  @param max_length  Item's calculated explicit max length
-  @return            The adjusted max length
-*/
-
-inline static uint32
-adjust_max_effective_column_length(Field *field_par, uint32 max_length)
-{
-  uint32 new_max_length= field_par->max_display_length();
-  /* Adjust only if the actual precision based one is bigger than specified */
-  return new_max_length > max_length ? new_max_length : max_length;
-}
-
-
 void Item_field::set_field(Field *field_par)
 {
   field=result_field=field_par;			// for easy coding with fields
   maybe_null=field->maybe_null();
-  Type_std_attributes::set(field_par);
+  Type_std_attributes::set(field_par->type_std_attributes());
   table_name= *field_par->table_name;
   field_name= field_par->field_name;
   db_name= field_par->table->s->db.str;
   alias_name_used= field_par->table->alias_name_used;
-
-  max_length= adjust_max_effective_column_length(field_par, max_length);
 
   fixed= 1;
   if (field->table->s->tmp_table == SYSTEM_TMP_TABLE)

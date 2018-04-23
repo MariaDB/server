@@ -160,15 +160,6 @@ void Temporal_with_date::make_from_item(THD *thd, Item *item, sql_mode_t flags)
 }
 
 
-void Type_std_attributes::set(const Field *field)
-{
-  decimals= field->decimals();
-  unsigned_flag= MY_TEST(field->flags & UNSIGNED_FLAG);
-  collation.set(field->charset(), field->derivation(), field->repertoire());
-  fix_char_length(field->char_length());
-}
-
-
 uint Type_std_attributes::count_max_decimals(Item **item, uint nitems)
 {
   uint res= 0;

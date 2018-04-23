@@ -2838,7 +2838,7 @@ public:
   {
     return result_type() != STRING_RESULT ?
            sp_result_field :
-           tmp_table_field_from_field_type(table);
+           create_table_field_from_handler(table);
   }
   void make_send_field(THD *thd, Send_field *tmp_field);
 

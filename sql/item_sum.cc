@@ -1386,7 +1386,7 @@ Item_sum_sp::fix_length_and_dec()
 {
   DBUG_ENTER("Item_sum_sp::fix_length_and_dec");
   DBUG_ASSERT(sp_result_field);
-  Type_std_attributes::set(sp_result_field);
+  Type_std_attributes::set(sp_result_field->type_std_attributes());
   Item_sum::fix_length_and_dec();
   DBUG_VOID_RETURN;
 }

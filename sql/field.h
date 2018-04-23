@@ -770,7 +770,7 @@ public:
   {
     return DTCollation(charset(), derivation(), repertoire());
   }
-  Type_std_attributes type_std_attributes() const
+  virtual Type_std_attributes type_std_attributes() const
   {
     return Type_std_attributes(field_length, decimals(),
                                MY_TEST(flags & UNSIGNED_FLAG),
@@ -2002,6 +2002,24 @@ public:
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   virtual uint numeric_precision() const= 0;
+  Type_std_attributes type_std_attributes() const
+  {
+    /*
+      For integer data types, the user-specified length does not constrain the
+      supported range, so e.g. a column of the INT(1) data type supports the
+      full integer range anyway.
+      Choose the maximum from the user-specified length and the maximum
+      possible length determined by the data type capacity:
+        INT(1)  -> 11
+        INT(10) -> 11
+        INT(40) -> 40
+    */
+    uint32 length1= max_display_length();
+    uint32 length2= field_length;
+    return Type_std_attributes(MY_MAX(length1, length2), decimals(),
+                               MY_TEST(flags & UNSIGNED_FLAG),
+                               dtcollation());
+  }
   Information_schema_numeric_attributes
     information_schema_numeric_attributes() const
   {
@@ -3581,6 +3599,12 @@ public:
   }
   enum ha_base_keytype key_type() const
     { return binary() ? HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2; }
+  Type_std_attributes type_std_attributes() const
+  {
+    return Type_std_attributes(Field_blob::max_display_length(), decimals(),
+                               MY_TEST(flags & UNSIGNED_FLAG),
+                               dtcollation());
+  }
   Information_schema_character_attributes
     information_schema_character_attributes() const
   {

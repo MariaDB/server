@@ -2822,7 +2822,7 @@ public:
                       const char *table_name_arg):
     Item(thd), field(par_field), db_name(db_arg), table_name(table_name_arg)
   {
-    Type_std_attributes::set(par_field);
+    Type_std_attributes::set(par_field->type_std_attributes());
   }
   enum Type type() const { return FIELD_ITEM; }
   double val_real() { return field->val_real(); }

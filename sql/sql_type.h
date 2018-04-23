@@ -617,7 +617,6 @@ public:
   {
     *this= other;
   }
-  void set(const Field *field);
   uint32 max_char_length() const
   { return max_length / collation.collation->mbmaxlen; }
   void fix_length_and_charset(uint32 max_char_length_arg, CHARSET_INFO *cs)

@@ -905,8 +905,13 @@ sp_head::create_result_field(uint field_max_length, const LEX_CSTRING *field_nam
     Perhaps we should refactor prepare_create_field() to set
     Create_field::length to maximum octet length for BLOBs,
     instead of packed length).
+
+    Note, for integer data types, field_max_length can be bigger
+    than the user specified length, e.g. a field of the INT(1) data type
+    is translated to the item with max_length=11.
   */
   DBUG_ASSERT(field_max_length <= m_return_field_def.length ||
+              m_return_field_def.type_handler()->cmp_type() == INT_RESULT ||
               (current_thd->stmt_arena->is_stmt_execute() &&
                m_return_field_def.length == 8 &&
                (m_return_field_def.pack_flag &
