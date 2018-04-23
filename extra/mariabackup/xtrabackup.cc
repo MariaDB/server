@@ -4654,7 +4654,7 @@ xtrabackup_apply_delta(
 						    n_pages * page_size))
 						goto error;
 				} else if (fil_space_t* space
-					   = fil_space_acquire(0)) {
+					   = fil_system.sys_space) {
 					/* The system tablespace can
 					consist of multiple files. The
 					first one has full tablespace
@@ -4665,7 +4665,6 @@ xtrabackup_apply_delta(
 					bool fail = !strcmp(n->name, dst_path)
 						&& !fil_space_extend(
 							space, (ulint)n_pages);
-					fil_space_release(space);
 					if (fail) goto error;
 				}
 			}
