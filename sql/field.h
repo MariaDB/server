@@ -777,6 +777,8 @@ public:
                                dtcollation());
   }
 
+  bool is_unsigned() const { return flags & UNSIGNED_FLAG; }
+
   /**
     Convenience definition of a copy function returned by
     Field::get_copy_func()
@@ -1983,7 +1985,6 @@ class Field_int :public Field_num
 protected:
   String *val_str_from_long(String *val_buffer, uint max_char_length,
                             int radix, long nr);
-  uint32 sign_length() const { return (flags & UNSIGNED_FLAG) ? 0 : 1; }
 public:
   Field_int(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
             uchar null_bit_arg, enum utype unireg_check_arg,
@@ -1996,7 +1997,11 @@ public:
   bool val_bool() { return val_int() != 0; }
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  virtual uint numeric_precision() const= 0;
+  virtual const Type_limits_int *type_limits_int() const= 0;
+  uint32 max_display_length() const
+  {
+    return type_limits_int()->char_length();
+  }
   Type_std_attributes type_std_attributes() const
   {
     /*
@@ -2018,7 +2023,8 @@ public:
   Information_schema_numeric_attributes
     information_schema_numeric_attributes() const
   {
-    return Information_schema_numeric_attributes(numeric_precision(), 0);
+    uint32 prec= type_limits_int()->precision();
+    return Information_schema_numeric_attributes(prec, 0);
   }
 };
 
@@ -2048,17 +2054,9 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 1; }
   void sql_type(String &str) const;
-  /*
-     SIGNED: -128..127  digits=3 nchars=4
-     UNDIGNED: 0..255   digits=3 nchars=3
-  */
-  uint numeric_precision() const
+  const Type_limits_int *type_limits_int() const
   {
-    return MAX_TINYINT_WIDTH;
-  }
-  uint32 max_display_length() const
-  {
-    return MAX_TINYINT_WIDTH + sign_length();
+    return type_handler_tiny.type_limits_int_by_unsigned_flag(is_unsigned());
   }
 
   virtual uchar *pack(uchar* to, const uchar *from, uint max_length)
@@ -2109,19 +2107,10 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 2; }
   void sql_type(String &str) const;
-  /*
-    SIGNED:   -32768..32767  digits=5 nchars=6
-    UNDIGNED:      0..65535  digits=5 nchars=5
-  */
-  uint numeric_precision() const
+  const Type_limits_int *type_limits_int() const
   {
-    return MAX_SMALLINT_WIDTH;
+    return type_handler_short.type_limits_int_by_unsigned_flag(is_unsigned());
   }
-  uint32 max_display_length() const
-  {
-    return MAX_SMALLINT_WIDTH + sign_length();
-  }
-
   virtual uchar *pack(uchar* to, const uchar *from, uint max_length)
   { return pack_int16(to, from); }
 
@@ -2155,22 +2144,10 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 3; }
   void sql_type(String &str) const;
-  /*
-    MEDIUMINT has a different number of digits for signed and unsigned:
-    MEDIUMINT SIGNED:   -8388608 ..  8388607  digits=7 char_length=8
-    MEDIUMINT UNSIGNED         0 .. 16777215  digits=8 char_length=8
-  */
-  uint numeric_precision() const
+  const Type_limits_int *type_limits_int() const
   {
-    uint ndigits= MAX_MEDIUMINT_WIDTH - 1 + MY_TEST(flags & UNSIGNED_FLAG);
-    return ndigits;
+    return type_handler_int24.type_limits_int_by_unsigned_flag(is_unsigned());
   }
-  uint32 max_display_length() const
-  {
-    // Looks too long for SIGNED: See MDEV-15946
-    return MAX_MEDIUMINT_WIDTH + sign_length();
-  }
-
   virtual uchar *pack(uchar* to, const uchar *from, uint max_length)
   {
     return Field::pack(to, from, max_length);
@@ -2209,17 +2186,9 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 4; }
   void sql_type(String &str) const;
-  /*
-    SIGNED:   -2147483648..2147483647  digits=10 nchars=11
-    UNSIGNED:           0..4294967295  digits=10 nchars=10
-  */
-  uint numeric_precision() const
+  const Type_limits_int *type_limits_int() const
   {
-    return MAX_INT_WIDTH;
-  }
-  uint32 max_display_length() const
-  {
-    return MAX_INT_WIDTH + sign_length();
+    return type_handler_long.type_limits_int_by_unsigned_flag(is_unsigned());
   }
   virtual uchar *pack(uchar* to, const uchar *from,
                       uint max_length __attribute__((unused)))
@@ -2270,15 +2239,10 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 8; }
   void sql_type(String &str) const;
-  /*
-    SIGNED:  -9223372036854775808..9223372036854775807 digits=19 nchars=20
-    UNSIGNED:                  0..18446744073709551615 digits=20 nchars=20
-  */
-  uint numeric_precision() const
+  const Type_limits_int *type_limits_int() const
   {
-    return MAX_BIGINT_WIDTH - sign_length();
+    return type_handler_longlong.type_limits_int_by_unsigned_flag(is_unsigned());
   }
-  uint32 max_display_length() const { return MAX_BIGINT_WIDTH; }
   virtual uchar *pack(uchar* to, const uchar *from,
                       uint max_length  __attribute__((unused)))
   {

@@ -1904,6 +1904,131 @@ public:
 };
 
 
+class Type_limits_int
+{
+private:
+  uint32 m_precision;
+  uint32 m_char_length;
+public:
+  Type_limits_int(uint32 prec, uint32 nchars)
+   :m_precision(prec), m_char_length(nchars)
+  { }
+  uint32 precision() const { return m_precision; }
+  uint32 char_length() const { return m_char_length; }
+};
+
+
+/*
+  UNDIGNED TINYINT:    0..255   digits=3 nchars=3
+  SIGNED TINYINT  : -128..127   digits=3 nchars=4
+*/
+class Type_limits_uint8: public Type_limits_int
+{
+public:
+  Type_limits_uint8()
+   :Type_limits_int(MAX_TINYINT_WIDTH, MAX_TINYINT_WIDTH)
+  { }
+};
+
+
+class Type_limits_sint8: public Type_limits_int
+{
+public:
+  Type_limits_sint8()
+   :Type_limits_int(MAX_TINYINT_WIDTH, MAX_TINYINT_WIDTH + 1)
+  { }
+};
+
+
+/*
+  UNDIGNED SMALLINT:       0..65535  digits=5 nchars=5
+  SIGNED SMALLINT:    -32768..32767  digits=5 nchars=6
+*/
+class Type_limits_uint16: public Type_limits_int
+{
+public:
+  Type_limits_uint16()
+   :Type_limits_int(MAX_SMALLINT_WIDTH, MAX_SMALLINT_WIDTH)
+  { }
+};
+
+
+class Type_limits_sint16: public Type_limits_int
+{
+public:
+  Type_limits_sint16()
+   :Type_limits_int(MAX_SMALLINT_WIDTH, MAX_SMALLINT_WIDTH + 1)
+  { }
+};
+
+
+/*
+  MEDIUMINT UNSIGNED         0 .. 16777215  digits=8 char_length=8
+  MEDIUMINT SIGNED:   -8388608 ..  8388607  digits=7 char_length=8
+*/
+class Type_limits_uint24: public Type_limits_int
+{
+public:
+  Type_limits_uint24()
+   :Type_limits_int(MAX_MEDIUMINT_WIDTH, MAX_MEDIUMINT_WIDTH)
+  { }
+};
+
+
+class Type_limits_sint24: public Type_limits_int
+{
+public:
+  Type_limits_sint24()
+   :Type_limits_int(MAX_MEDIUMINT_WIDTH - 1, MAX_MEDIUMINT_WIDTH)
+  { }
+};
+
+
+/*
+  UNSIGNED INT:           0..4294967295  digits=10 nchars=10
+  SIGNED INT:   -2147483648..2147483647  digits=10 nchars=11
+*/
+class Type_limits_uint32: public Type_limits_int
+{
+public:
+  Type_limits_uint32()
+   :Type_limits_int(MAX_INT_WIDTH, MAX_INT_WIDTH)
+  { }
+};
+
+
+
+class Type_limits_sint32: public Type_limits_int
+{
+public:
+  Type_limits_sint32()
+   :Type_limits_int(MAX_INT_WIDTH, MAX_INT_WIDTH + 1)
+  { }
+};
+
+
+/*
+  UNSIGNED BIGINT:                  0..18446744073709551615 digits=20 nchars=20
+  SIGNED BIGINT:  -9223372036854775808..9223372036854775807 digits=19 nchars=20
+*/
+class Type_limits_uint64: public Type_limits_int
+{
+public:
+  Type_limits_uint64(): Type_limits_int(MAX_BIGINT_WIDTH, MAX_BIGINT_WIDTH)
+  { }
+};
+
+
+class Type_limits_sint64: public Type_limits_int
+{
+public:
+  Type_limits_sint64()
+   :Type_limits_int(MAX_BIGINT_WIDTH - 1, MAX_BIGINT_WIDTH)
+  { }
+};
+
+
+
 class Type_handler_int_result: public Type_handler_numeric
 {
 public:
@@ -1977,6 +2102,9 @@ class Type_handler_general_purpose_int: public Type_handler_int_result
 {
 public:
   bool type_can_have_auto_increment_attribute() const { return true; }
+  virtual const Type_limits_int *
+    type_limits_int_by_unsigned_flag(bool unsigned_flag) const= 0;
+  uint32 max_display_length(const Item *item) const;
 };
 
 
@@ -2196,11 +2324,16 @@ public:
 class Type_handler_tiny: public Type_handler_general_purpose_int
 {
   static const Name m_name_tiny;
+  static const Type_limits_int m_limits_sint8;
+  static const Type_limits_int m_limits_uint8;
 public:
   virtual ~Type_handler_tiny() {}
   const Name name() const { return m_name_tiny; }
   enum_field_types field_type() const { return MYSQL_TYPE_TINY; }
-  uint32 max_display_length(const Item *item) const { return 4; }
+  const Type_limits_int *type_limits_int_by_unsigned_flag(bool unsigned_fl) const
+  {
+    return unsigned_fl ? &m_limits_uint8 : &m_limits_sint8;
+  }
   uint32 calc_pack_length(uint32 length) const { return 1; }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
@@ -2225,6 +2358,8 @@ public:
 class Type_handler_short: public Type_handler_general_purpose_int
 {
   static const Name m_name_short;
+  static const Type_limits_int m_limits_sint16;
+  static const Type_limits_int m_limits_uint16;
 public:
   virtual ~Type_handler_short() {}
   const Name name() const { return m_name_short; }
@@ -2233,7 +2368,10 @@ public:
   {
     return Item_send_short(item, protocol, buf);
   }
-  uint32 max_display_length(const Item *item) const { return 6; }
+  const Type_limits_int *type_limits_int_by_unsigned_flag(bool unsigned_fl) const
+  {
+    return unsigned_fl ? &m_limits_uint16 : &m_limits_sint16;
+  }
   uint32 calc_pack_length(uint32 length) const { return 2; }
   Field *make_conversion_table_field(TABLE *TABLE, uint metadata,
                                      const Field *target) const;
@@ -2254,13 +2392,15 @@ public:
 class Type_handler_long: public Type_handler_general_purpose_int
 {
   static const Name m_name_int;
+  static const Type_limits_int m_limits_sint32;
+  static const Type_limits_int m_limits_uint32;
 public:
   virtual ~Type_handler_long() {}
   const Name name() const { return m_name_int; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONG; }
-  uint32 max_display_length(const Item *item) const
+  const Type_limits_int *type_limits_int_by_unsigned_flag(bool unsigned_fl) const
   {
-    return MY_INT32_NUM_DECIMAL_DIGITS;
+    return unsigned_fl ? &m_limits_uint32 : &m_limits_sint32;
   }
   uint32 calc_pack_length(uint32 length) const { return 4; }
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
@@ -2286,11 +2426,16 @@ public:
 class Type_handler_longlong: public Type_handler_general_purpose_int
 {
   static const Name m_name_longlong;
+  static const Type_limits_int m_limits_sint64;
+  static const Type_limits_int m_limits_uint64;
 public:
   virtual ~Type_handler_longlong() {}
   const Name name() const { return m_name_longlong; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
-  uint32 max_display_length(const Item *item) const { return 20; }
+  const Type_limits_int *type_limits_int_by_unsigned_flag(bool unsigned_fl) const
+  {
+    return unsigned_fl ? &m_limits_uint64 : &m_limits_sint64;
+  }
   uint32 calc_pack_length(uint32 length) const { return 8; }
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
@@ -2330,6 +2475,8 @@ public:
 class Type_handler_int24: public Type_handler_general_purpose_int
 {
   static const Name m_name_mediumint;
+  static const Type_limits_int m_limits_sint24;
+  static const Type_limits_int m_limits_uint24;
 public:
   virtual ~Type_handler_int24() {}
   const Name name() const { return m_name_mediumint; }
@@ -2338,7 +2485,10 @@ public:
   {
     return Item_send_long(item, protocol, buf);
   }
-  uint32 max_display_length(const Item *item) const { return 8; }
+  const Type_limits_int *type_limits_int_by_unsigned_flag(bool unsigned_fl) const
+  {
+    return unsigned_fl ? &m_limits_uint24 : &m_limits_sint24;
+  }
   uint32 calc_pack_length(uint32 length) const { return 3; }
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;

@@ -1286,8 +1286,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `var` mediumint(9) DEFAULT NULL,
-  `rec.var` mediumint(9) DEFAULT NULL
+  `var` mediumint(8) DEFAULT NULL,
+  `rec.var` mediumint(8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1296,8 +1296,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `var` mediumint(9) DEFAULT NULL,
-  `rec.var` mediumint(9) DEFAULT NULL
+  `var` mediumint(8) DEFAULT NULL,
+  `rec.var` mediumint(8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1306,8 +1306,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `var` mediumint(9) DEFAULT NULL,
-  `rec.var` mediumint(9) DEFAULT NULL
+  `var` mediumint(8) DEFAULT NULL,
+  `rec.var` mediumint(8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1316,8 +1316,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `var` mediumint(9) DEFAULT NULL,
-  `rec.var` mediumint(9) DEFAULT NULL
+  `var` mediumint(8) DEFAULT NULL,
+  `rec.var` mediumint(8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1326,8 +1326,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `var` mediumint(9) DEFAULT NULL,
-  `rec.var` mediumint(9) DEFAULT NULL
+  `var` mediumint(8) DEFAULT NULL,
+  `rec.var` mediumint(8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1336,8 +1336,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `var` mediumint(9) DEFAULT NULL,
-  `rec.var` mediumint(9) DEFAULT NULL
+  `var` mediumint(8) DEFAULT NULL,
+  `rec.var` mediumint(8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1346,8 +1346,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `var` mediumint(9) DEFAULT NULL,
-  `rec.var` mediumint(9) DEFAULT NULL
+  `var` mediumint(8) DEFAULT NULL,
+  `rec.var` mediumint(8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -1356,8 +1356,8 @@ CALL p1();
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `var` mediumint(9) DEFAULT NULL,
-  `rec.var` mediumint(9) DEFAULT NULL
+  `var` mediumint(8) DEFAULT NULL,
+  `rec.var` mediumint(8) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP PROCEDURE p1;
