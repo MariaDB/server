@@ -24,7 +24,6 @@ COMMIT;
 --source include/kill_galera.inc
 
 --connection node_1
---source include/wait_until_connected_again.inc
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
 
