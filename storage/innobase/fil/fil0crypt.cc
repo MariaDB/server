@@ -525,7 +525,7 @@ fil_parse_write_crypt_data(
 	/* update fil_space memory cache with crypt_data */
 	if (fil_space_t* space = fil_space_acquire_silent(space_id)) {
 		crypt_data = fil_space_set_crypt_data(space, crypt_data);
-		fil_space_release(space);
+		space->release();
 		/* Check is used key found from encryption plugin */
 		if (crypt_data->should_encrypt()
 		    && !crypt_data->is_key_found()) {
@@ -658,7 +658,7 @@ fil_space_encrypt(
 
 	fil_space_crypt_t* crypt_data = space->crypt_data;
 	const page_size_t	page_size(space->flags);
-	ut_ad(space->n_pending_ios > 0);
+	ut_ad(space->pending_io());
 	byte* tmp = fil_encrypt_buf(crypt_data, space->id, offset, lsn,
 				    src_frame, page_size, dst_frame);
 
@@ -830,7 +830,7 @@ fil_space_decrypt(
 	*decrypted = false;
 
 	ut_ad(space->crypt_data != NULL && space->crypt_data->is_encrypted());
-	ut_ad(space->n_pending_ios > 0);
+	ut_ad(space->pending_io());
 
 	bool encrypted = fil_space_decrypt(space->crypt_data, tmp_frame,
 					   page_size, src_frame, &err);
@@ -1173,7 +1173,7 @@ fil_crypt_space_needs_rotation(
 		return false;
 	}
 
-	ut_ad(space->n_pending_ops > 0);
+	ut_ad(space->referenced());
 
 	fil_space_crypt_t *crypt_data = space->crypt_data;
 
@@ -1470,7 +1470,7 @@ fil_crypt_find_space_to_rotate(
 
 	if (state->should_shutdown()) {
 		if (state->space) {
-			fil_space_release(state->space);
+			state->space->release();
 			state->space = NULL;
 		}
 		return false;
@@ -1479,7 +1479,7 @@ fil_crypt_find_space_to_rotate(
 	if (state->first) {
 		state->first = false;
 		if (state->space) {
-			fil_space_release(state->space);
+			state->space->release();
 		}
 		state->space = NULL;
 	}
@@ -1586,7 +1586,7 @@ fil_crypt_find_page_to_rotate(
 	ulint batch = srv_alloc_time * state->allocated_iops;
 	fil_space_t* space = state->space;
 
-	ut_ad(!space || space->n_pending_ops > 0);
+	ut_ad(!space || space->referenced());
 
 	/* If space is marked to be dropped stop rotation. */
 	if (!space || space->is_stopping()) {
@@ -1644,7 +1644,7 @@ fil_crypt_get_page_throttle_func(
 	fil_space_t* space = state->space;
 	const page_size_t page_size = page_size_t(space->flags);
 	const page_id_t page_id(space->id, offset);
-	ut_ad(space->n_pending_ops > 0);
+	ut_ad(space->referenced());
 
 	/* Before reading from tablespace we need to make sure that
 	the tablespace is not about to be dropped or truncated. */
@@ -1727,7 +1727,7 @@ btr_scrub_get_block_and_allocation_status(
 	buf_block_t *block = NULL;
 	fil_space_t* space = state->space;
 
-	ut_ad(space->n_pending_ops > 0);
+	ut_ad(space->referenced());
 
 	mtr_start(&local_mtr);
 
@@ -1779,7 +1779,7 @@ fil_crypt_rotate_page(
 	ulint sleeptime_ms = 0;
 	fil_space_crypt_t *crypt_data = space->crypt_data;
 
-	ut_ad(space->n_pending_ops > 0);
+	ut_ad(space->referenced());
 	ut_ad(offset > 0);
 
 	/* In fil_crypt_thread where key rotation is done we have
@@ -1957,7 +1957,7 @@ fil_crypt_rotate_pages(
 	ulint end = std::min(state->offset + state->batch,
 			     state->space->free_limit);
 
-	ut_ad(state->space->n_pending_ops > 0);
+	ut_ad(state->space->referenced());
 
 	for (; state->offset < end; state->offset++) {
 
@@ -1996,7 +1996,7 @@ fil_crypt_flush_space(
 	fil_space_t* space = state->space;
 	fil_space_crypt_t *crypt_data = space->crypt_data;
 
-	ut_ad(space->n_pending_ops > 0);
+	ut_ad(space->referenced());
 
 	/* flush tablespace pages so that there are no pages left with old key */
 	lsn_t end_lsn = crypt_data->rotate_state.end_lsn;
@@ -2062,7 +2062,7 @@ fil_crypt_complete_rotate_space(
 	fil_space_crypt_t *crypt_data = state->space->crypt_data;
 
 	ut_ad(crypt_data);
-	ut_ad(state->space->n_pending_ops > 0);
+	ut_ad(state->space->referenced());
 
 	/* Space might already be dropped */
 	if (!state->space->is_stopping()) {
@@ -2222,7 +2222,7 @@ DECLARE_THREAD(fil_crypt_thread)(
 				if (thr.space->is_stopping()) {
 					fil_crypt_complete_rotate_space(
 						&new_state, &thr);
-					fil_space_release(thr.space);
+					thr.space->release();
 					thr.space = NULL;
 					break;
 				}
@@ -2249,7 +2249,7 @@ DECLARE_THREAD(fil_crypt_thread)(
 
 	/* release current space if shutting down */
 	if (thr.space) {
-		fil_space_release(thr.space);
+		thr.space->release();
 		thr.space = NULL;
 	}
 
@@ -2450,7 +2450,7 @@ fil_space_crypt_get_status(
 {
 	memset(status, 0, sizeof(*status));
 
-	ut_ad(space->n_pending_ops > 0);
+	ut_ad(space->referenced());
 
 	/* If there is no crypt data and we have not yet read
 	page 0 for this tablespace, we need to read it before
@@ -2515,7 +2515,7 @@ fil_space_get_scrub_status(
 {
 	memset(status, 0, sizeof(*status));
 
-	ut_ad(space->n_pending_ops > 0);
+	ut_ad(space->referenced());
 	fil_space_crypt_t* crypt_data = space->crypt_data;
 
 	status->space = space->id;

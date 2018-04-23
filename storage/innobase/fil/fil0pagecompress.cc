@@ -651,6 +651,6 @@ err_exit:
 		    << fil_get_compression_alg_name(compression_alg) << ".";
 
 	buf_page_print(buf, univ_page_size);
-	fil_space_release_for_io(space);
+	space->release_for_io();
 	ut_ad(0);
 }

@@ -1828,7 +1828,7 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 		recv = UT_LIST_GET_NEXT(rec_list, recv);
 	}
 
-	fil_space_release(space);
+	space->release();
 
 #ifdef UNIV_ZIP_DEBUG
 	if (fil_page_index_page_check(page)) {

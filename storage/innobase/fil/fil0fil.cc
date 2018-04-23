@@ -354,7 +354,7 @@ The caller should hold an InnoDB table lock or a MDL that prevents
 the tablespace from being dropped during the operation,
 or the caller should be in single-threaded crash recovery mode
 (no user connections that could drop tablespaces).
-If this is not the case, fil_space_acquire() and fil_space_release()
+If this is not the case, fil_space_acquire() and fil_space_t::release()
 should be used instead.
 @param[in]	id	tablespace ID
 @return tablespace, or NULL if not found */
@@ -1355,10 +1355,10 @@ fil_space_free_low(
 	ut_ad(srv_fast_shutdown == 2 || !srv_was_started
 	      || space->max_lsn == 0);
 
-	/* Wait for fil_space_release_for_io(); after
+	/* Wait for fil_space_t::release_for_io(); after
 	fil_space_detach(), the tablespace cannot be found, so
 	fil_space_acquire_for_io() would return NULL */
-	while (space->n_pending_ios) {
+	while (space->pending_io()) {
 		os_thread_sleep(100);
 	}
 
@@ -2086,24 +2086,12 @@ fil_space_acquire_low(ulint id, bool silent)
 	} else if (space->is_stopping()) {
 		space = NULL;
 	} else {
-		space->n_pending_ops++;
+		space->acquire();
 	}
 
 	mutex_exit(&fil_system.mutex);
 
 	return(space);
-}
-
-/** Release a tablespace acquired with fil_space_acquire().
-@param[in,out]	space	tablespace to release  */
-void
-fil_space_release(fil_space_t* space)
-{
-	mutex_enter(&fil_system.mutex);
-	ut_ad(space->magic_n == FIL_SPACE_MAGIC_N);
-	ut_ad(space->n_pending_ops > 0);
-	space->n_pending_ops--;
-	mutex_exit(&fil_system.mutex);
 }
 
 /** Acquire a tablespace for reading or writing a block,
@@ -2119,24 +2107,12 @@ fil_space_acquire_for_io(ulint id)
 	fil_space_t* space = fil_space_get_by_id(id);
 
 	if (space) {
-		space->n_pending_ios++;
+		space->acquire_for_io();
 	}
 
 	mutex_exit(&fil_system.mutex);
 
 	return(space);
-}
-
-/** Release a tablespace acquired with fil_space_acquire_for_io().
-@param[in,out]	space	tablespace to release  */
-void
-fil_space_release_for_io(fil_space_t* space)
-{
-	mutex_enter(&fil_system.mutex);
-	ut_ad(space->magic_n == FIL_SPACE_MAGIC_N);
-	ut_ad(space->n_pending_ios > 0);
-	space->n_pending_ios--;
-	mutex_exit(&fil_system.mutex);
 }
 
 /********************************************************//**
@@ -2429,7 +2405,7 @@ fil_check_pending_ops(const fil_space_t* space, ulint count)
 		return 0;
 	}
 
-	if (ulint n_pending_ops = space->n_pending_ops) {
+	if (ulint n_pending_ops = my_atomic_loadlint(&space->n_pending_ops)) {
 
 		if (count > 5000) {
 			ib::warn() << "Trying to close/delete/truncate"
@@ -2457,7 +2433,7 @@ fil_check_pending_io(
 	ulint		count)		/*!< in: number of attempts so far */
 {
 	ut_ad(mutex_own(&fil_system.mutex));
-	ut_a(space->n_pending_ops == 0);
+	ut_ad(!space->referenced());
 
 	switch (operation) {
 	case FIL_OPERATION_DELETE:
@@ -2519,12 +2495,11 @@ fil_check_pending_operations(
 	if (sp) {
 		sp->stop_new_ops = true;
 		if (sp->crypt_data) {
-			sp->n_pending_ops++;
+			sp->acquire();
 			mutex_exit(&fil_system.mutex);
 			fil_space_crypt_close_tablespace(sp);
 			mutex_enter(&fil_system.mutex);
-			ut_ad(sp->n_pending_ops > 0);
-			sp->n_pending_ops--;
+			sp->release();
 		}
 	}
 
@@ -2757,7 +2732,7 @@ fil_delete_tablespace(
 	the fil_system::mutex. */
 	if (const fil_space_t* s = fil_space_get_by_id(id)) {
 		ut_a(s == space);
-		ut_a(space->n_pending_ops == 0);
+		ut_a(!space->referenced());
 		ut_a(UT_LIST_GET_LEN(space->chain) == 1);
 		fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
 		ut_a(node->n_pending == 0);
@@ -4739,7 +4714,7 @@ fil_aio_wait(
 					    << ": " << ut_strerr(err);
 			}
 
-			fil_space_release_for_io(space);
+			space->release_for_io();
 		}
 		return;
 	}
@@ -4773,7 +4748,7 @@ fil_flush(
 void
 fil_flush(fil_space_t* space)
 {
-	ut_ad(space->n_pending_ios > 0);
+	ut_ad(space->pending_io());
 	ut_ad(space->purpose == FIL_TYPE_TABLESPACE
 	      || space->purpose == FIL_TYPE_IMPORT);
 
@@ -5111,11 +5086,11 @@ fil_space_validate_for_mtr_commit(
 	to quiesce. This is not a problem, because
 	ibuf_merge_or_delete_for_page() would call
 	fil_space_acquire() before mtr_start() and
-	fil_space_release() after mtr_commit(). This is why
+	fil_space_t::release() after mtr_commit(). This is why
 	n_pending_ops should not be zero if stop_new_ops is set. */
 	ut_ad(!space->stop_new_ops
 	      || space->is_being_truncated /* TRUNCATE sets stop_new_ops */
-	      || space->n_pending_ops > 0);
+	      || space->referenced());
 }
 #endif /* UNIV_DEBUG */
 
@@ -5413,7 +5388,7 @@ test_make_filepath()
 
 /** Return the next fil_space_t.
 Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_release() are invoked here which
+fil_space_acquire() and fil_space_t::release() are invoked here which
 blocks a concurrent operation from dropping the tablespace.
 @param[in]	prev_space	Pointer to the previous fil_space_t.
 If NULL, use the first fil_space_t on fil_system.space_list.
@@ -5431,12 +5406,12 @@ fil_space_next(fil_space_t* prev_space)
 
 		/* We can trust that space is not NULL because at least the
 		system tablespace is always present and loaded first. */
-		space->n_pending_ops++;
+		space->acquire();
 	} else {
-		ut_ad(space->n_pending_ops > 0);
+		ut_a(space->referenced());
 
 		/* Move on to the next fil_space_t */
-		space->n_pending_ops--;
+		space->release();
 		space = UT_LIST_GET_NEXT(space_list, space);
 
 		/* Skip spaces that are being created by
@@ -5449,7 +5424,7 @@ fil_space_next(fil_space_t* prev_space)
 		}
 
 		if (space != NULL) {
-			space->n_pending_ops++;
+			space->acquire();
 		}
 	}
 
@@ -5469,7 +5444,7 @@ fil_space_remove_from_keyrotation(fil_space_t* space)
 	ut_ad(mutex_own(&fil_system.mutex));
 	ut_ad(space);
 
-	if (space->n_pending_ops == 0 && space->is_in_rotation_list) {
+	if (space->is_in_rotation_list && !space->referenced()) {
 		space->is_in_rotation_list = false;
 		ut_a(UT_LIST_GET_LEN(fil_system.rotation_list) > 0);
 		UT_LIST_REMOVE(fil_system.rotation_list, space);
@@ -5479,7 +5454,7 @@ fil_space_remove_from_keyrotation(fil_space_t* space)
 
 /** Return the next fil_space_t from key rotation list.
 Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_release() are invoked here which
+fil_space_acquire() and fil_space_t::release() are invoked here which
 blocks a concurrent operation from dropping the tablespace.
 @param[in]	prev_space	Pointer to the previous fil_space_t.
 If NULL, use the first fil_space_t on fil_system.space_list.
@@ -5496,8 +5471,7 @@ fil_space_keyrotate_next(
 
 	if (UT_LIST_GET_LEN(fil_system.rotation_list) == 0) {
 		if (space) {
-			ut_ad(space->n_pending_ops > 0);
-			space->n_pending_ops--;
+			space->release();
 			fil_space_remove_from_keyrotation(space);
 		}
 		mutex_exit(&fil_system.mutex);
@@ -5510,10 +5484,8 @@ fil_space_keyrotate_next(
 		/* We can trust that space is not NULL because we
 		checked list length above */
 	} else {
-		ut_ad(space->n_pending_ops > 0);
-
 		/* Move on to the next fil_space_t */
-		space->n_pending_ops--;
+		space->release();
 
 		old = space;
 		space = UT_LIST_GET_NEXT(rotation_list, space);
@@ -5534,7 +5506,7 @@ fil_space_keyrotate_next(
 	}
 
 	if (space != NULL) {
-		space->n_pending_ops++;
+		space->acquire();
 	}
 
 	mutex_exit(&fil_system.mutex);

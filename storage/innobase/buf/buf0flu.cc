@@ -1138,7 +1138,7 @@ buf_flush_write_block_low(
 		ut_ad(err == DB_SUCCESS);
 	}
 
-	fil_space_release_for_io(space);
+	space->release_for_io();
 
 	/* Increment the counter of I/O operations used
 	for selecting LRU policy. */

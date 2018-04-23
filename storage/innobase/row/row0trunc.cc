@@ -2324,7 +2324,7 @@ fil_recreate_tablespace(
 
 	truncate_t::s_fix_up_active = false;
 func_exit:
-	fil_space_release(space);
+	space->release();
 	return(err);
 }
 

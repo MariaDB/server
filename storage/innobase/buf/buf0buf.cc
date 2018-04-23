@@ -3969,7 +3969,7 @@ buf_zip_decompress(
 		if (page_zip_decompress(&block->page.zip,
 					block->frame, TRUE)) {
 			if (space) {
-				fil_space_release_for_io(space);
+				space->release_for_io();
 			}
 			return(TRUE);
 		}
@@ -3988,7 +3988,7 @@ buf_zip_decompress(
 		/* Copy to uncompressed storage. */
 		memcpy(block->frame, frame, block->page.size.physical());
 		if (space) {
-			fil_space_release_for_io(space);
+			space->release_for_io();
 		}
 
 		return(TRUE);
@@ -4013,7 +4013,7 @@ err_exit:
 			dict_set_corrupted_by_space(space);
 		}
 
-		fil_space_release_for_io(space);
+		space->release_for_io();
 	}
 
 	return(FALSE);
@@ -4417,7 +4417,7 @@ loop:
 				   = fil_space_acquire_for_io(
 					   page_id.space())) {
 				bool set = dict_set_corrupted_by_space(space);
-				fil_space_release_for_io(space);
+				space->release_for_io();
 				if (set) {
 					return NULL;
 				}
@@ -5863,7 +5863,7 @@ static
 dberr_t
 buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 {
-	ut_ad(space->n_pending_ios > 0);
+	ut_ad(space->pending_io());
 
 	byte* dst_frame = (bpage->zip.data) ? bpage->zip.data :
 		((buf_block_t*) bpage)->frame;
@@ -6043,7 +6043,7 @@ database_corrupted:
 					buf_mark_space_corrupt(bpage, space);
 					ib::info() << "Simulated IMPORT "
 						"corruption";
-					fil_space_release_for_io(space);
+					space->release_for_io();
 					return(err);
 				}
 				err = DB_SUCCESS;
@@ -6085,7 +6085,7 @@ database_corrupted:
 				}
 
 				buf_mark_space_corrupt(bpage, space);
-				fil_space_release_for_io(space);
+				space->release_for_io();
 				return(err);
 			}
 		}
@@ -6128,7 +6128,7 @@ database_corrupted:
 
 		}
 
-		fil_space_release_for_io(space);
+		space->release_for_io();
 	} else {
 		/* io_type == BUF_IO_WRITE */
 		if (bpage->slot) {
@@ -7480,7 +7480,7 @@ static
 bool
 buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
 {
-	ut_ad(space->n_pending_ios > 0);
+	ut_ad(space->pending_io());
 	ut_ad(space->id == bpage->id.space());
 
 	bool compressed = bpage->size.is_compressed();
@@ -7574,8 +7574,8 @@ buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
 		}
 	}
 
-	ut_ad(space->n_pending_ios > 0);
-	return (success);
+	ut_ad(space->pending_io());
+	return success;
 }
 
 /**

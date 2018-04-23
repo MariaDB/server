@@ -17651,7 +17651,7 @@ innodb_make_page_dirty(
 	}
 
 	if (srv_saved_page_number_debug >= space->size) {
-		fil_space_release(space);
+		space->release();
 		return;
 	}
 
@@ -17673,7 +17673,7 @@ innodb_make_page_dirty(
 				 MLOG_2BYTES, &mtr);
 	}
 	mtr.commit();
-	fil_space_release(space);
+	space->release();
 }
 #endif // UNIV_DEBUG
 /*************************************************************//**

@@ -1699,7 +1699,7 @@ trx_undo_truncate_tablespace(
 	/* Step-1: Truncate tablespace. */
 	if (!fil_truncate_tablespace(
 		    space, SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)) {
-		fil_space_release(space);
+		space->release();
 		return false;
 	}
 
@@ -1763,7 +1763,7 @@ trx_undo_truncate_tablespace(
 		rseg->needs_purge = false;
 	}
 	mtr_commit(&mtr);
-	fil_space_release(space);
+	space->release();
 
 	return true;
 }

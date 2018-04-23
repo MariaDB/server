@@ -184,7 +184,7 @@ buf_read_page_low(
 				type = 0;
 				sync = true;
 			}
-			fil_space_release(space);
+			space->release();
 		});
 
 	IORequest	request(type | IORequest::READ);
@@ -314,7 +314,7 @@ buf_read_ahead_random(
 		if (high > space->size) {
 			high = space->size;
 		}
-		fil_space_release(space);
+		space->release();
 	} else {
 		return(0);
 	}
@@ -337,7 +337,7 @@ buf_read_ahead_random(
 			if (fil_space_t* space = fil_space_acquire(
 				    page_id.space())) {
 				bool skip = !strcmp(space->name, "test/t1");
-				fil_space_release(space);
+				space->release();
 				if (skip) {
 					high = space->size;
 					buf_pool_mutex_exit(buf_pool);
@@ -610,7 +610,7 @@ buf_read_ahead_linear(
 
 	if (fil_space_t* space = fil_space_acquire(page_id.space())) {
 		space_size = space->size;
-		fil_space_release(space);
+		space->release();
 
 		if (high > space_size) {
 			/* The area is not whole */

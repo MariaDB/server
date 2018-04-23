@@ -8634,15 +8634,15 @@ i_s_tablespaces_encryption_fill_table(
 	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
 	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
 		if (space->purpose == FIL_TYPE_TABLESPACE) {
-			space->n_pending_ops++;
+			space->acquire();
 			mutex_exit(&fil_system.mutex);
 			if (int err = i_s_dict_fill_tablespaces_encryption(
 				    thd, space, tables->table)) {
-				fil_space_release(space);
+				space->release();
 				DBUG_RETURN(err);
 			}
 			mutex_enter(&fil_system.mutex);
-			space->n_pending_ops--;
+			space->release();
 		}
 	}
 
@@ -8905,15 +8905,15 @@ i_s_tablespaces_scrubbing_fill_table(
 	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
 	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
 		if (space->purpose == FIL_TYPE_TABLESPACE) {
-			space->n_pending_ops++;
+			space->acquire();
 			mutex_exit(&fil_system.mutex);
 			if (int err = i_s_dict_fill_tablespaces_scrubbing(
 				    thd, space, tables->table)) {
-				fil_space_release(space);
+				space->release();
 				DBUG_RETURN(err);
 			}
 			mutex_enter(&fil_system.mutex);
-			space->n_pending_ops--;
+			space->release();
 		}
 	}
 

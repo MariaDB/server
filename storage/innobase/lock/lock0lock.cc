@@ -5235,7 +5235,7 @@ lock_rec_block_validate(
 
 		mtr_commit(&mtr);
 
-		fil_space_release(space);
+		space->release();
 	}
 }
 

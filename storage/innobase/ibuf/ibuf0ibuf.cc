@@ -4513,7 +4513,7 @@ ibuf_merge_or_delete_for_page(
 			if (!bitmap_bits) {
 				/* No inserts buffered for this page */
 
-				fil_space_release(space);
+				space->release();
 				return;
 			}
 		}
@@ -4778,7 +4778,7 @@ reset_bit:
 	ibuf_mtr_commit(&mtr);
 
 	if (space) {
-		fil_space_release(space);
+		space->release();
 	}
 
 	btr_pcur_close(&pcur);
