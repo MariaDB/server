@@ -11,11 +11,6 @@
 # This could cause out of storage if run /dev/shm
 --source include/big_test.inc
 
-# Save original auto_increment_offset values.
---let $node_1=node_1
---let $node_2=node_2
---source include/auto_increment_offset_save.inc
-
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
 INSERT INTO t1 VALUES (1, 'a'), (2, 'a'), (3, 'a'), (4, 'a'), (5, 'a'),(6, 'a');
 
@@ -105,9 +100,4 @@ SELECT * FROM t1;
 
 --connection node_1
 DROP TABLE t1;
-
-# Restore original auto_increment_offset values.
---source include/auto_increment_offset_restore.inc
-
---source include/galera_end.inc
 

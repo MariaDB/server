@@ -5,11 +5,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-# Save original auto_increment_offset values.
---let $node_1=node_1
---let $node_2=node_2
---source include/auto_increment_offset_save.inc
-
 --connection node_1
 --let $wsrep_cluster_address_orig = `SELECT @@wsrep_cluster_address`
 --let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
@@ -38,9 +33,3 @@ SET GLOBAL wsrep_cluster_address = '';
 --connection node_2
 --source include/start_mysqld.inc
 --source include/wait_until_connected_again.inc
-
-# Restore original auto_increment_offset values.
---source include/auto_increment_offset_restore.inc
-
---source include/galera_end.inc
-

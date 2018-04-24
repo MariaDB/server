@@ -27,6 +27,7 @@ BEGIN
 
   -- Dump all global variables except those
   -- that are supposed to change
+  -- Galera: auto_increment_offset may change on cluster reconfiguration
   SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
     WHERE variable_name NOT IN ('timestamp', 'innodb_file_format_max')
      AND variable_name not like "Last_IO_Err*"
@@ -34,6 +35,7 @@ BEGIN
      AND variable_name != 'INNODB_USE_NATIVE_AIO'
      AND variable_name not like 'GTID%POS'
      AND variable_name != 'GTID_BINLOG_STATE'
+     AND variable_name != 'auto_increment_offset'
    ORDER BY variable_name;
 
   -- Dump all databases, there should be none

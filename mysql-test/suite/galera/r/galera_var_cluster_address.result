@@ -38,4 +38,3 @@ CALL mtr.add_suppression("Failed to open backend connection: -110 \\(Connection 
 CALL mtr.add_suppression("gcs connect failed: Connection timed out");
 CALL mtr.add_suppression("WSREP: wsrep::connect\\(foo://\\) failed: 7");
 CALL mtr.add_suppression("WSREP: wsrep::connect\\(gcomm://192.0.2.1\\) failed: 7");
-# End of test

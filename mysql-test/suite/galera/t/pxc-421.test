@@ -6,11 +6,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-# Save original auto_increment_offset values.
---let $node_1=node_1
---let $node_2=node_2
---source include/auto_increment_offset_save.inc
-
 --connection node_1
 --let $wsrep_slave_1 = `SELECT @@wsrep_slave_threads`
 set GLOBAL wsrep_slave_threads=26;
@@ -62,6 +57,3 @@ SELECT COUNT(*) FROM t1;
 show global variables like 'wsrep_slave_threads';
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_1
 DROP TABLE t1;
-
---source include/auto_increment_offset_restore.inc
-

@@ -78,9 +78,7 @@ COMMIT;
 --source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 4 FROM t1;
 --source include/wait_condition.inc
---let $node_1= node_2
---let $node_2= node_3
---source include/auto_increment_offset_save.inc
+
 --echo Shutting down server ...
 --source include/shutdown_mysqld.inc
 
@@ -100,7 +98,7 @@ COMMIT;
 --echo Starting server ...
 --source include/start_mysqld.inc
 --source include/wait_until_ready.inc
---source include/auto_increment_offset_restore.inc
+
 
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;

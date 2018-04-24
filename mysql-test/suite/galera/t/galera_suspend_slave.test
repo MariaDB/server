@@ -7,11 +7,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-# Save original auto_increment_offset values.
---let $node_1=node_1
---let $node_2=node_2
---source include/auto_increment_offset_save.inc
-
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 
@@ -60,8 +55,3 @@ SELECT COUNT(*) = 1 FROM t1;
 
 SET SESSION wsrep_sync_wait = 15;
 DROP TABLE t1;
-
-# Restore original auto_increment_offset values.
---let $node_2=node_2a
---source include/auto_increment_offset_restore.inc
-
