@@ -2798,7 +2798,7 @@ int handler::ha_rnd_init_with_error(bool scan)
 */
 int handler::read_first_row(uchar * buf, uint primary_key)
 {
-  register int error;
+  int error;
   DBUG_ENTER("handler::read_first_row");
 
   /*
