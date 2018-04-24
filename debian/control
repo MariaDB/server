@@ -389,5 +389,3 @@ Depends: libjudydebian1, mariadb-server-10.0|mariadb-galera-server-10.0
 Description: Oqgraph storage engine for MariaDB
  The OQGRAPH engine is a computation engine plugin for handling hierarchies
  (trees) and graphs (friend-of-a-friend, etc) cleanly through standard SQL.
-
-

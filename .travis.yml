@@ -1,0 +1,216 @@
+# vim ft=yaml
+# travis-ci.org definition
+
+sudo: false
+dist: trusty
+
+git:
+  depth: 2
+
+language: cpp
+os:
+  - linux
+  - osx
+osx_image: xcode9.1
+compiler:
+  - gcc
+  - clang
+
+cache:
+  apt: true
+  ccache: true
+  directories:
+    - /usr/local/Cellar
+
+env:
+  matrix:
+#    - GCC_VERSION=4.8 TYPE=Debug          MYSQL_TEST_SUITES=rpl
+#    - GCC_VERSION=5   TYPE=Debug          MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
+#    - GCC_VERSION=6   TYPE=Debug          MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
+#    - GCC_VERSION=6   TYPE=Debug          MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
+    - GCC_VERSION=4.8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
+    - GCC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
+    - GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
+    - GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
+
+matrix:
+  exclude:
+    - os: osx
+      compiler: gcc
+  include:
+    - os: linux
+      compiler: gcc
+      addons:
+        apt:
+          packages: # make sure these match debian/control contents
+            - bison
+            - chrpath
+            - cmake
+            - debhelper
+            - dh-apparmor
+            - dpatch
+            - gdb
+            - libaio-dev
+            - libboost-dev
+            - libcurl3-dev
+            - libdbd-mysql
+            - libjudy-dev
+            - libncurses5-dev
+            - libpam0g-dev
+            - libpcre3-dev
+            - libreadline-gplv2-dev
+            - libstemmer-dev
+            - libssl-dev
+            - libnuma-dev
+            - libxml2-dev
+            - lsb-release
+            - perl
+            - po-debconf
+            - psmisc
+            - zlib1g-dev
+            - libcrack2-dev
+            - cracklib-runtime
+            - libjemalloc-dev
+            - libsnappy-dev
+            - liblzma-dev
+            - libzmq-dev
+            - libdistro-info-perl
+            - uuid-dev
+            - devscripts
+            - fakeroot
+      script:
+        - ${CC} --version ; ${CXX} --version
+        - source .travis.compiler.sh
+      # https://github.com/travis-ci/travis-ci/issues/7062 - /run/shm isn't writable or executable
+      # in trusty containers
+        - export MTR_MEM=/tmp
+        - env DEB_BUILD_OPTIONS="parallel=6" debian/autobake-deb.sh;
+        - ccache --show-stats
+  # Until OSX becomes a bit more stable: MDEV-12435
+  allow_failures:
+    - os: osx
+      compiler: clang
+      env: GCC_VERSION=4.8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
+    - os: osx
+      compiler: clang
+      env: GCC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
+    - os: osx
+      compiler: clang
+      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
+    - os: osx
+      compiler: clang
+      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
+
+# Matrix include for coverity
+#    - env:
+#        - GCC_VERSION=6
+#      addon:
+#      coverity_scan:
+#        # ref: https://scan.coverity.com/travis_ci
+#        # GitHub project metadata
+#        project:
+#          - name: MariaDB/server
+#          - description: MariaDB Server
+#
+#        # Where email notification of build analysis results will be sent
+#        notification_email: security@mariadb.org
+#
+#        # Commands to prepare for build_command
+#        build_command_prepend:
+#          - source .travis.compiler.sh
+#          - ${MYSQL_BUILD_CC} --version ; ${MYSQL_BUILD_CXX} --version
+#          - cmake . 
+#                   -DCMAKE_BUILD_TYPE=Debug
+#                   -DWITH_SSL=system -DWITH_ZLIB=system
+#                   -DWITHOUT_TOKUDB_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
+#
+#        # The command that will be added as an argument to "cov-build" to compile your project for analysis,
+#        build_command: make -j 4
+#
+#        # Pattern to match selecting branches that will run analysis.
+#        # Take care in resource usage, and consider the build frequency allowances per
+#        #   https://scan.coverity.com/faq#frequency - 7 per week is the current limit.
+#        branch_pattern: .*coverity.*
+
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+      - llvm-toolchain-trusty-4.0
+      - sourceline: 'deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-5.0 main'
+    packages: # make sure these match the build requirements
+      - gcc-5
+      - g++-5
+      - gcc-6
+      - g++-6
+      - clang-4.0
+      - llvm-4.0-dev
+      - clang-5.0
+      - llvm-5.0-dev
+      - libasan0
+      - bison
+      - chrpath
+      - cmake
+      - gdb
+      - libaio-dev
+      - libboost-dev
+      - libcurl3-dev
+      - libdbd-mysql
+      - libjudy-dev
+      - libncurses5-dev
+      - libpam0g-dev
+      - libpcre3-dev
+      - libreadline-gplv2-dev
+      - libstemmer-dev
+      - libssl-dev
+      - libnuma-dev
+      - libxml2-dev
+      - lsb-release
+      - perl
+      - psmisc
+      - zlib1g-dev
+      - libcrack2-dev
+      - cracklib-runtime
+      - libjemalloc-dev
+      - libsnappy-dev
+      - liblzma-dev
+      - libzmq-dev
+      - uuid-dev
+
+# libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
+
+before_install:
+  - if [[ "${TRAVIS_OS_NAME}" == 'osx' ]]; then
+      brew update;
+      brew install gnutls lz4 lzo xz snappy ccache jemalloc curl ossp-uuid pcre;
+      brew link ccache;
+    fi
+
+script:
+  - ccache --version
+# Clang:
+#   mroonga just generates too many warnings with clang and travis stops the job
+#   tokudb has fatal warnings
+  - source .travis.compiler.sh
+  - cmake .
+           -DCMAKE_BUILD_TYPE=${TYPE}
+           ${CMAKE_OPT}
+           -DWITH_SSL=system -DWITH_ZLIB=system -DPLUGIN_AWS_KEY_MANAGEMENT=DYNAMIC -DAWS_SDK_EXTERNAL_PROJECT=ON
+  - make -j 6
+  - cd mysql-test
+# With ASAN --thread-stack=400K to account for overhead
+# Test timeout needs to be 10(minutes) or less due to travis out timeout
+  - ./mtr --force --max-test-fail=20 --parallel=6 --testcase-timeout=2
+         --suite=${MYSQL_TEST_SUITES}
+         --skip-test-list=unstable-tests
+         --skip-test=binlog.binlog_unsafe
+  - ccache --show-stats
+
+notifications:
+  irc:
+    channels:
+      - "chat.freenode.net#maria"
+    on_success: never # [always|never|change]
+    on_failure: never
+    template:
+      - "%{repository}/%{branch} (%{commit} - %{author}): %{build_url}: %{message}"
