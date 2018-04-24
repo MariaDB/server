@@ -546,7 +546,8 @@ bool LEX::add_select_to_union_list(bool is_union_distinct,
     as possible */
   if (type == INTERSECT_TYPE &&
       (current_select->linkage != INTERSECT_TYPE &&
-       current_select != current_select->master_unit()->first_select()))
+       current_select != current_select->master_unit()->first_select())
+     && !(thd->variables.sql_mode & MODE_ORACLE))
   {
     /*
       This and previous SELECTs should go one level down because of
