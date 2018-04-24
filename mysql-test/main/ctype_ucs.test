@@ -852,6 +852,28 @@ set sql_mode=default;
 
 
 --echo #
+--echo # MDEV-15624 Changing the default character set to utf8mb4 changes query evaluation in a very surprising way
+--echo #
+
+SET NAMES utf8;
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+
+SELECT COUNT(DISTINCT c) FROM (SELECT id, REPLACE(uuid_short(), '0', CAST('o' AS CHAR CHARACTER SET ucs2)) AS c FROM t1) AS d1;
+--replace_column 1 xxxxxxxxxxxxxxxxx
+SELECT DISTINCT REPLACE(uuid_short(), '0', CAST('o' AS CHAR CHARACTER SET ucs2)) AS c FROM t1;
+
+SELECT COUNT(DISTINCT c) FROM (SELECT id, INSERT(uuid_short(), 1, 1, CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1) AS d1;
+--replace_column 1 xxxxxxxxxxxxxxxxx
+SELECT DISTINCT INSERT(uuid_short(), 1, 1, CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1;
+
+SELECT COUNT(DISTINCT c) FROM (SELECT id, CONCAT(uuid_short(), CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1) AS d1;
+--replace_column 1 xxxxxxxxxxxxxxxxx
+SELECT DISTINCT CONCAT(uuid_short(), CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 

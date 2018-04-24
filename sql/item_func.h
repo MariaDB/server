@@ -3001,6 +3001,7 @@ public:
   Item_func_uuid_short(THD *thd): Item_longlong_func(thd) {}
   const char *func_name() const { return "uuid_short"; }
   longlong val_int();
+  bool const_item() const { return false; }
   void fix_length_and_dec()
   { max_length= 21; unsigned_flag=1; }
   table_map used_tables() const { return RAND_TABLE_BIT; }

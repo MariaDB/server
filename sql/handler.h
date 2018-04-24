@@ -4271,7 +4271,7 @@ protected:
 
     @note No errors are allowed during notify_table_changed().
  */
- virtual void notify_table_changed();
+ virtual void notify_table_changed() { }
 
 public:
  /* End of On-line/in-place ALTER TABLE interface. */

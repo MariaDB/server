@@ -490,6 +490,14 @@ void trx_free(trx_t*& trx)
 	ut_ad(trx->will_lock == 0);
 
 	trx_pools->mem_free(trx);
+	/* Unpoison the memory for innodb_monitor_set_option;
+	it is operating also on the freed transaction objects. */
+	MEM_UNDEFINED(&trx->mutex, sizeof trx->mutex);
+	MEM_UNDEFINED(&trx->undo_mutex, sizeof trx->undo_mutex);
+	/* Declare the contents as initialized for Valgrind;
+	we checked that it was initialized in trx_pools->mem_free(trx). */
+	UNIV_MEM_VALID(&trx->mutex, sizeof trx->mutex);
+	UNIV_MEM_VALID(&trx->undo_mutex, sizeof trx->undo_mutex);
 
 	trx = NULL;
 }

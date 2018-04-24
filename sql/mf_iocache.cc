@@ -49,8 +49,7 @@ extern "C" {
 */
 
 
-int _my_b_net_read(register IO_CACHE *info, uchar *Buffer,
-		   size_t Count __attribute__((unused)))
+int _my_b_net_read(IO_CACHE *info, uchar *Buffer, size_t)
 {
   ulong read_length;
   NET *net= &(current_thd)->net;
