@@ -100,7 +100,6 @@ const char **ha_heap::bas_ext() const
 
 int ha_heap::open(const char *name, int mode, uint test_if_locked)
 {
-  set_if_bigger(table->s->reclength, sizeof (uchar*));
   internal_table= test(test_if_locked & HA_OPEN_INTERNAL_TABLE);
   if (internal_table || (!(file= heap_open(name, mode)) && my_errno == ENOENT))
   {
@@ -728,7 +727,7 @@ heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
       }
     }
   }
-  mem_per_row+= MY_ALIGN(share->reclength + 1, sizeof(char*));
+  mem_per_row+= MY_ALIGN(max(share->reclength, sizeof(char*)) + 1, sizeof(char*));
   if (table_arg->found_next_number_field)
   {
     keydef[share->next_number_index].flag|= HA_AUTO_KEY;

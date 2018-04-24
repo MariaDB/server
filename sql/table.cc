@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1272,9 +1272,10 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   extra_rec_buf_length= uint2korr(head+59);
   rec_buff_length= ALIGN_SIZE(share->reclength + 1 + extra_rec_buf_length);
   share->rec_buff_length= rec_buff_length;
-  if (!(record= (uchar *) alloc_root(&share->mem_root,
-                                     rec_buff_length)))
+  if (!(record= (uchar *) alloc_root(&share->mem_root, rec_buff_length)))
     goto err;                          /* purecov: inspected */
+  MEM_NOACCESS(record, rec_buff_length);
+  MEM_UNDEFINED(record, share->reclength);
   share->default_values= record;
   if (mysql_file_pread(file, record, (size_t) share->reclength,
                        record_offset, MYF(MY_NABP)))
@@ -2433,6 +2434,7 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
   if (!(record= (uchar*) alloc_root(&outparam->mem_root,
                                    share->rec_buff_length * records)))
     goto err;                                   /* purecov: inspected */
+  MEM_NOACCESS(record, share->rec_buff_length * records);
 
   if (records == 0)
   {
@@ -2447,6 +2449,8 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
     else
       outparam->record[1]= outparam->record[0];   // Safety
   }
+  MEM_UNDEFINED(outparam->record[0], share->reclength);
+  MEM_UNDEFINED(outparam->record[1], share->reclength);
 
   if (!(field_ptr = (Field **) alloc_root(&outparam->mem_root,
                                           (uint) ((share->fields+1)*
@@ -3629,7 +3633,7 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
 
   /* Whether the table definition has already been validated. */
   if (table->s->table_field_def_cache == table_def)
-    DBUG_RETURN(FALSE);
+    goto end;
 
   if (table->s->fields != table_def->count)
   {
@@ -3751,6 +3755,16 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
 
   if (! error)
     table->s->table_field_def_cache= table_def;
+
+end:
+
+  if (has_keys && !error && !table->key_info)
+  {
+    report_error(0, "Incorrect definition of table %s.%s: "
+                 "indexes are missing",
+                 table->s->db.str, table->alias.c_ptr());
+    error= TRUE;
+  }
 
   DBUG_RETURN(error);
 }
@@ -4000,7 +4014,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   DBUG_ASSERT(key_read == 0);
 
   /* mark the record[0] uninitialized */
-  TRASH(record[0], s->reclength);
+  TRASH_ALLOC(record[0], s->reclength);
 
   /*
     Initialize the null marker bits, to ensure that if we are doing a read

@@ -66,7 +66,7 @@ public:
                   NOW_FUNC, TRIG_COND_FUNC,
                   SUSERVAR_FUNC, GUSERVAR_FUNC, COLLATE_FUNC,
                   EXTRACT_FUNC, CHAR_TYPECAST_FUNC, FUNC_SP, UDF_FUNC,
-                  NEG_FUNC, GSYSVAR_FUNC };
+                  NEG_FUNC, GSYSVAR_FUNC, IN_OPTIMIZER_FUNC };
   enum optimize_type { OPTIMIZE_NONE,OPTIMIZE_KEY,OPTIMIZE_OP, OPTIMIZE_NULL,
                        OPTIMIZE_EQUAL };
   enum Type type() const { return FUNC_ITEM; }
@@ -2133,6 +2133,8 @@ public:
   Item_func_uuid_short() :Item_int_func() {}
   const char *func_name() const { return "uuid_short"; }
   longlong val_int();
+  bool const_item() const { return false; }
+  table_map used_tables() const { return RAND_TABLE_BIT; }
   void fix_length_and_dec()
   { max_length= 21; unsigned_flag=1; }
   bool check_vcol_func_processor(uchar *int_arg) 

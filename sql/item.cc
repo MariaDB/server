@@ -10010,7 +10010,7 @@ const char *dbug_print_item(Item *item)
   if (!item)
     return "(Item*)NULL";
   item->print(&str ,QT_ORDINARY);
-  if (str.c_ptr() == buf)
+  if (str.c_ptr_safe() == buf)
     return buf;
   else
     return "Couldn't fit into buffer";

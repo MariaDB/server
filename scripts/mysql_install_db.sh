@@ -448,7 +448,7 @@ else
   echo
   echo "You can also try to start the mysqld daemon with:"
   echo
-  echo "    shell> $mysqld --skip-grant --general-log &"
+  echo "    shell> $mysqld --skip-grant-tables --general-log &"
   echo
   echo "and use the command line tool $bindir/mysql"
   echo "to connect to the mysql database and look at the grant tables:"
@@ -459,8 +459,8 @@ else
   echo "Try 'mysqld --help' if you have problems with paths.  Using"
   echo "--general-log gives you a log in $ldata that may be helpful."
   link_to_help
-  echo "MariaDB is hosted on launchpad; You can find the latest source and"
-  echo "email lists at http://launchpad.net/maria"
+  echo "You can find the latest source at https://downloads.mariadb.org and"
+  echo "the maria-discuss email list at https://launchpad.net/~maria-discuss"
   echo
   echo "Please check all of the above before submitting a bug report"
   echo "at http://mariadb.org/jira"

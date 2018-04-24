@@ -997,6 +997,8 @@ public:
                   DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
     fix_char_length(MY_UUID_STRING_LENGTH);
   }
+  bool const_item() const { return false; }
+  table_map used_tables() const { return RAND_TABLE_BIT; }
   const char *func_name() const{ return "uuid"; }
   String *val_str(String *);
   bool check_vcol_func_processor(uchar *int_arg) 

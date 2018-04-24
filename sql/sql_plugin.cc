@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2005, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, SkySQL Ab.
+   Copyright (c) 2005, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -267,7 +267,7 @@ public:
   static void *operator new(size_t size, MEM_ROOT *mem_root)
   { return (void*) alloc_root(mem_root, size); }
   static void operator delete(void *ptr_arg,size_t size)
-  { TRASH(ptr_arg, size); }
+  { TRASH_FREE(ptr_arg, size); }
 
   sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
                     struct st_mysql_sys_var *plugin_var_arg,
@@ -476,6 +476,11 @@ static st_plugin_dl *plugin_dl_insert_or_reuse(struct st_plugin_dl *plugin_dl)
       (struct st_plugin_dl *) memdup_root(&plugin_mem_root, (uchar*)plugin_dl,
                                            sizeof(struct st_plugin_dl));
   DBUG_RETURN(tmp);
+}
+#else
+static struct st_plugin_dl *plugin_dl_find(const LEX_STRING *)
+{
+  return 0;
 }
 #endif /* HAVE_DLOPEN */
 
@@ -2246,6 +2251,16 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
   /* need to open before acquiring LOCK_plugin or it will deadlock */
   if (! (table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT)))
     DBUG_RETURN(TRUE);
+
+  if (!table->key_info)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "The table %s.%s has no primary key. "
+                    "Please check the table definition and "
+                    "create the primary key accordingly.", MYF(0),
+                    table->s->db.str, table->s->table_name.str);
+    DBUG_RETURN(TRUE);
+  }
 
   /*
     Pre-acquire audit plugins for events that may potentially occur

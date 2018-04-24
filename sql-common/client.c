@@ -1708,7 +1708,7 @@ read_one_row(MYSQL *mysql,uint fields,MYSQL_ROW row, ulong *lengths)
     }
     else
     {
-      if (len > (ulong) (end_pos - pos))
+      if (pos + len > end_pos)
       {
         set_mysql_error(mysql, CR_UNKNOWN_ERROR, unknown_sqlstate);
         return -1;
@@ -2532,10 +2532,10 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
   if (mysql->client_flag & CLIENT_MULTI_STATEMENTS)
     mysql->client_flag|= CLIENT_MULTI_RESULTS;
 
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#ifdef HAVE_OPENSSL
   if (mysql->options.use_ssl)
     mysql->client_flag|= CLIENT_SSL;
-#endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY*/
+#endif /* HAVE_OPENSSL */
 
   if (mpvio->db)
     mysql->client_flag|= CLIENT_CONNECT_WITH_DB;

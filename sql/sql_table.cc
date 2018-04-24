@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4397,7 +4397,7 @@ bool mysql_create_table_no_lock(THD *thd,
   /* Give warnings for not supported table options */
 #if defined(WITH_ARIA_STORAGE_ENGINE)
   extern handlerton *maria_hton;
-  if (file->ht != maria_hton)
+  if (file->partition_ht() != maria_hton)
 #endif
     if (create_info->transactional)
       push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,

@@ -50,6 +50,12 @@ bool trace_unsupported_by_check_vcol_func_processor(const char *where)
   return trace_unsupported_func(where, "check_vcol_func_processor");
 }
 
+#ifdef DBUG_OFF
+static inline const char *dbug_print_item(Item *item) { return NULL; }
+#else
+extern const char *dbug_print_item(Item *item);
+#endif
+
 class Protocol;
 struct TABLE_LIST;
 void item_init(void);			/* Init item functions */
@@ -580,7 +586,7 @@ public:
   { return sql_alloc(size); }
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
-  static void operator delete(void *ptr,size_t size) { TRASH(ptr, size); }
+  static void operator delete(void *ptr,size_t size) { TRASH_FREE(ptr, size); }
   static void operator delete(void *ptr, MEM_ROOT *mem_root) {}
 
   enum Type {FIELD_ITEM= 0, FUNC_ITEM, SUM_FUNC_ITEM, STRING_ITEM,

@@ -2786,10 +2786,14 @@ public:
 
   void change_item_tree(Item **place, Item *new_value)
   {
+    DBUG_ENTER("THD::change_item_tree");
+    DBUG_PRINT("enter", ("Register: %p (%p) <- %p",
+                       *place, place, new_value));
     /* TODO: check for OOM condition here */
     if (!stmt_arena->is_conventional())
       nocheck_register_item_tree_change(place, *place, mem_root);
     *place= new_value;
+    DBUG_VOID_RETURN;
   }
   /**
     Make change in item tree after checking whether it needs registering

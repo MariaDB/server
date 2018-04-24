@@ -6268,8 +6268,8 @@ build_template_field(
 	}
 
 	templ->charset = dtype_get_charset_coll(col->prtype);
-	templ->mbminlen = DATA_MBMINLEN(col->mbminmaxlen);
-	templ->mbmaxlen = DATA_MBMAXLEN(col->mbminmaxlen);
+	templ->mbminlen = col->mbminlen;
+	templ->mbmaxlen = col->mbmaxlen;
 	templ->is_unsigned = col->prtype & DATA_UNSIGNED;
 
 	if (!dict_index_is_clust(index)
@@ -13574,6 +13574,17 @@ ha_innobase::check_if_incompatible_data(
 
 	DBUG_PRINT("info", (" -> COMPATIBLE_DATA_YES"));
 	DBUG_RETURN(COMPATIBLE_DATA_YES);
+}
+
+UNIV_INTERN
+uint
+ha_innobase::alter_table_flags(uint flags)
+{
+	uint mask = 0;
+	if (prebuilt->table->n_mysql_handles_opened > 1) {
+		mask = HA_INPLACE_ADD_PK_INDEX_NO_READ_WRITE;
+	}
+	return innobase_alter_table_flags(flags) & ~mask;
 }
 
 /************************************************************//**

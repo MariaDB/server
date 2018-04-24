@@ -1,22 +1,10 @@
-#######################################################################
-#                                                                     #
-# Please, DO NOT TOUCH this file as well as the innodb.result file.   #
-# These files are to be modified ONLY BY INNOBASE guys.               #
-#                                                                     #
-# Use innodb_mysql.[test|result] files instead.                       #
-#                                                                     #
-# If nevertheless you need to make some changes here, please, forward #
-# your commit message                                                 #
-# To: innodb_dev_ww@oracle.com                                        #
-# Cc: dev-innodb@mysql.com                                            #
-# (otherwise your changes may be erased).                             #
-#                                                                     #
-#######################################################################
-
 -- source include/have_innodb.inc
 let $MYSQLD_DATADIR= `select @@datadir`;
 let collation=utf8_unicode_ci;
 --source include/have_collation.inc
+
+create temporary table t (a char(1) character set filename) engine=innodb;
+drop temporary table t;
 
 set optimizer_switch = 'mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 
@@ -2546,18 +2534,3 @@ show status like "handler_read_key";
 select f1 from t1;
 show status like "handler_read_key";
 drop table t1;
-
-#######################################################################
-#                                                                     #
-# Please, DO NOT TOUCH this file as well as the innodb.result file.   #
-# These files are to be modified ONLY BY INNOBASE guys.               #
-#                                                                     #
-# Use innodb_mysql.[test|result] files instead.                       #
-#                                                                     #
-# If nevertheless you need to make some changes here, please, forward #
-# your commit message                                                 #
-# To: innodb_dev_ww@oracle.com                                        #
-# Cc: dev-innodb@mysql.com                                            #
-# (otherwise your changes may be erased).                             #
-#                                                                     #
-#######################################################################

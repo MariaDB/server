@@ -1,5 +1,5 @@
 /* Copyright (c) 2005, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, SkySQL Ab.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -283,7 +283,7 @@ bool partition_default_handling(TABLE *table, partition_info *part_info,
     }
   }
   part_info->set_up_defaults_for_partitioning(table->file,
-                                              (ulonglong)0, (uint)0);
+                                              NULL, (uint)0);
   DBUG_RETURN(FALSE);
 }
 

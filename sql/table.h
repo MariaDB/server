@@ -1,7 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -496,10 +496,11 @@ typedef struct st_ha_data_partition
 class Table_check_intact
 {
 protected:
+  bool has_keys;
   virtual void report_error(uint code, const char *fmt, ...)= 0;
 
 public:
-  Table_check_intact() {}
+  Table_check_intact() : has_keys(FALSE) {}
   virtual ~Table_check_intact() {}
 
   /** Checks whether a table is intact. */
@@ -2125,6 +2126,7 @@ struct TABLE_LIST
     DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
                         (alias ? alias : "<NULL>"),
                          get_unit()));
+    derived= get_unit();
     derived_type= ((derived_type & (derived ? DTYPE_MASK : DTYPE_VIEW)) |
                    DTYPE_TABLE | DTYPE_MATERIALIZE);
     set_check_materialized();

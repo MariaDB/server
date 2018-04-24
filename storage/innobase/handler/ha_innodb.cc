@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 
@@ -10508,8 +10508,10 @@ ha_innobase::start_stmt(
 		case SQLCOM_INSERT:
 		case SQLCOM_UPDATE:
 		case SQLCOM_DELETE:
+		case SQLCOM_REPLACE:
 			init_table_handle_for_HANDLER();
 			prebuilt->select_lock_type = LOCK_X;
+			prebuilt->stored_select_lock_type = LOCK_X;
 			error = row_lock_table_for_mysql(prebuilt, NULL, 1);
 
 			if (error != DB_SUCCESS) {
@@ -12240,6 +12242,17 @@ ha_innobase::check_if_incompatible_data(
 	}
 
 	return(COMPATIBLE_DATA_YES);
+}
+
+UNIV_INTERN
+uint
+ha_innobase::alter_table_flags(uint flags)
+{
+	uint mask = 0;
+	if (prebuilt->table->n_mysql_handles_opened > 1) {
+		mask = HA_INPLACE_ADD_PK_INDEX_NO_READ_WRITE;
+	}
+	return innobase_alter_table_flags(flags) & ~mask;
 }
 
 /************************************************************//**

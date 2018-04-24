@@ -64,10 +64,10 @@ component, i.e. we show M.N.P as M.N */
 	(INNODB_VERSION_MAJOR << 8 | INNODB_VERSION_MINOR)
 
 #ifndef PERCONA_INNODB_VERSION
-#define PERCONA_INNODB_VERSION 38.10
+#define PERCONA_INNODB_VERSION 38.11
 #endif
 
-#define INNODB_VERSION_STR	"5.5.58-MariaDB-" IB_TO_STR(PERCONA_INNODB_VERSION)
+#define INNODB_VERSION_STR	"5.5.59-MariaDB-" IB_TO_STR(PERCONA_INNODB_VERSION)
 
 #define REFMAN "http://dev.mysql.com/doc/refman/"	\
 	IB_TO_STR(MYSQL_MAJOR_VERSION) "."		\
@@ -170,7 +170,7 @@ command. Not tested on Windows. */
 #define UNIV_COMPILE_TEST_FUNCS
 */
 
-#if defined(HAVE_valgrind)&& defined(HAVE_VALGRIND_MEMCHECK_H)
+#if defined(HAVE_VALGRIND) && defined(HAVE_valgrind)
 # define UNIV_DEBUG_VALGRIND
 #endif
 #if 0
@@ -511,12 +511,17 @@ typedef void* os_thread_ret_t;
 #include "ut0dbg.h"
 #include "ut0ut.h"
 #include "db0err.h"
+
+#include <my_valgrind.h>
+/* define UNIV macros in terms of my_valgrind.h */
+# define UNIV_MEM_INVALID(addr, size) 	MEM_UNDEFINED(addr, size)
+# define UNIV_MEM_FREE(addr, size) 	MEM_NOACCESS(addr, size)
+# define UNIV_MEM_ALLOC(addr, size) 	UNIV_MEM_INVALID(addr, size)
+
+/* macros below cannot be defined in terms of my_valgrind.h */
 #ifdef UNIV_DEBUG_VALGRIND
 # include <valgrind/memcheck.h>
 # define UNIV_MEM_VALID(addr, size) VALGRIND_MAKE_MEM_DEFINED(addr, size)
-# define UNIV_MEM_INVALID(addr, size) VALGRIND_MAKE_MEM_UNDEFINED(addr, size)
-# define UNIV_MEM_FREE(addr, size) VALGRIND_MAKE_MEM_NOACCESS(addr, size)
-# define UNIV_MEM_ALLOC(addr, size) VALGRIND_MAKE_MEM_UNDEFINED(addr, size)
 # define UNIV_MEM_DESC(addr, size, b) VALGRIND_CREATE_BLOCK(addr, size, b)
 # define UNIV_MEM_UNDESC(b) VALGRIND_DISCARD(b)
 # define UNIV_MEM_ASSERT_RW(addr, size) do {				\
@@ -539,22 +544,11 @@ typedef void* os_thread_ret_t;
 	} while (0)
 #else
 # define UNIV_MEM_VALID(addr, size) do {} while(0)
-# define UNIV_MEM_INVALID(addr, size) do {} while(0)
-# define UNIV_MEM_FREE(addr, size) do {} while(0)
-# define UNIV_MEM_ALLOC(addr, size) do {} while(0)
 # define UNIV_MEM_DESC(addr, size, b) do {} while(0)
 # define UNIV_MEM_UNDESC(b) do {} while(0)
 # define UNIV_MEM_ASSERT_RW(addr, size) do {} while(0)
 # define UNIV_MEM_ASSERT_W(addr, size) do {} while(0)
 #endif
-#define UNIV_MEM_ASSERT_AND_FREE(addr, size) do {	\
-	UNIV_MEM_ASSERT_W(addr, size);			\
-	UNIV_MEM_FREE(addr, size);			\
-} while (0)
-#define UNIV_MEM_ASSERT_AND_ALLOC(addr, size) do {	\
-	UNIV_MEM_ASSERT_W(addr, size);			\
-	UNIV_MEM_ALLOC(addr, size);			\
-} while (0)
 
 extern ulint	srv_page_size_shift;
 extern ulint	srv_page_size;

@@ -79,7 +79,7 @@ int heap_check_heap(HP_INFO *info, my_bool print_status)
     }
     hp_find_record(info,pos);
 
-    if (!info->current_ptr[share->reclength])
+    if (!info->current_ptr[share->visible])
       deleted++;
     else
       records++;

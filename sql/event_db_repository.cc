@@ -1,5 +1,6 @@
 /*
-   Copyright (c) 2006, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2006, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -176,6 +177,8 @@ protected:
     error_log_print(ERROR_LEVEL, fmt, args);
     va_end(args);
   }
+public:
+  Event_db_intact() { has_keys= TRUE; }
 };
 
 /** In case of an error, a message is printed to the error log. */
