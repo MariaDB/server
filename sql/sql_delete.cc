@@ -305,7 +305,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
   THD_STAGE_INFO(thd, stage_init_update);
 
-  bool truncate_history= table_list->vers_conditions;
+  bool truncate_history= table_list->vers_conditions.is_set();
   if (truncate_history)
   {
     if (table_list->is_view_or_derived())
@@ -941,7 +941,7 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
                                     select_lex->leaf_tables, FALSE, 
                                     DELETE_ACL, SELECT_ACL, TRUE))
     DBUG_RETURN(TRUE);
-  if (table_list->vers_conditions)
+  if (table_list->vers_conditions.is_set())
   {
     if (table_list->is_view())
     {

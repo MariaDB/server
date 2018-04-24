@@ -118,7 +118,7 @@ vers_get_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields, b
   List_iterator<Create_field> it(create_fields);
   Create_field *sql_field = NULL;
 
-  const LString_i row_field= row_start ? create_info->vers_info.as_row.start
+  const Lex_ident row_field= row_start ? create_info->vers_info.as_row.start
                                    : create_info->vers_info.as_row.end;
   DBUG_ASSERT(row_field);
 

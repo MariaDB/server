@@ -8881,7 +8881,7 @@ void vers_select_conds_t::resolve_units(bool timestamps_only)
   end.resolve_unit(timestamps_only);
 }
 
-bool vers_select_conds_t::eq(const vers_select_conds_t &conds)
+bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
 {
   if (type != conds.type)
     return false;
@@ -8923,13 +8923,13 @@ void Vers_history_point::fix_item()
 }
 
 
-bool Vers_history_point::eq(const vers_history_point_t &point)
+bool Vers_history_point::eq(const vers_history_point_t &point) const
 {
   return unit == point.unit && item->eq(point.item, false);
 }
 
 void Vers_history_point::print(String *str, enum_query_type query_type,
-                               const char *prefix, size_t plen)
+                               const char *prefix, size_t plen) const
 {
   const static LEX_CSTRING unit_type[]=
   {

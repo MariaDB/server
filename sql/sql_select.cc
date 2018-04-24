@@ -693,7 +693,7 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
   return false;
 }
 
-void vers_select_conds_t::print(String *str, enum_query_type query_type)
+void vers_select_conds_t::print(String *str, enum_query_type query_type) const
 {
   switch (type) {
   case SYSTEM_TIME_UNSPECIFIED:
@@ -765,14 +765,14 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
   {
     TABLE_LIST* derived= master_unit()->derived;
     // inner SELECT may not be a derived table (derived == NULL)
-    while (derived && outer_slex && !derived->vers_conditions)
+    while (derived && outer_slex && !derived->vers_conditions.is_set())
     {
       derived= outer_slex->master_unit()->derived;
       outer_slex= outer_slex->outer_select();
     }
     if (derived && outer_slex)
     {
-      DBUG_ASSERT(derived->vers_conditions);
+      DBUG_ASSERT(derived->vers_conditions.is_set());
       outer_table= derived;
     }
   }
@@ -791,7 +791,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       */
       if (table->partition_names && table->table->part_info->vers_info)
       {
-        if (vers_conditions)
+        if (vers_conditions.is_set())
         {
 #define PART_VERS_ERR_MSG "%s PARTITION (%s)"
           char buf[NAME_LEN*2 + sizeof(PART_VERS_ERR_MSG)];
@@ -805,7 +805,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       }
 #endif
 
-    if (outer_table && !vers_conditions)
+    if (outer_table && !vers_conditions.is_set())
     {
       // propagate system_time from nearest outer SELECT_LEX
       vers_conditions= outer_table->vers_conditions;
@@ -813,15 +813,15 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     }
 
     // propagate system_time from sysvar
-    if (!vers_conditions)
+    if (!vers_conditions.is_set())
     {
       if (vers_conditions.init_from_sysvar(thd))
         DBUG_RETURN(-1);
     }
 
-    if (vers_conditions)
+    if (vers_conditions.is_set())
     {
-      if (vers_conditions == SYSTEM_TIME_ALL)
+      if (vers_conditions.type == SYSTEM_TIME_ALL)
         continue;
 
       lock_type= TL_READ; // ignore TL_WRITE, history is immutable anyway
@@ -837,7 +837,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
 
     bool timestamps_only= table->table->versioned(VERS_TIMESTAMP);
 
-    if (vers_conditions)
+    if (vers_conditions.is_set())
     {
       /* TODO: do resolve fix_length_and_dec(), fix_fields(). This requires
         storing vers_conditions as Item and make some magic related to

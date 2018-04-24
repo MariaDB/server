@@ -1827,9 +1827,9 @@ public:
     fix_item();
   }
   void empty() { unit= VERS_UNDEFINED; item= NULL; }
-  void print(String *str, enum_query_type, const char *prefix, size_t plen);
+  void print(String *str, enum_query_type, const char *prefix, size_t plen) const;
   void resolve_unit(bool timestamps_only);
-  bool eq(const vers_history_point_t &point);
+  bool eq(const vers_history_point_t &point) const;
 };
 
 struct vers_select_conds_t
@@ -1858,19 +1858,11 @@ struct vers_select_conds_t
     end= _end;
   }
 
-  void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type) const;
 
   bool init_from_sysvar(THD *thd);
 
-  bool operator== (vers_system_time_t b)
-  {
-    return type == b;
-  }
-  bool operator!= (vers_system_time_t b)
-  {
-    return type != b;
-  }
-  operator bool() const
+  bool is_set() const
   {
     return type != SYSTEM_TIME_UNSPECIFIED;
   }
@@ -1879,7 +1871,7 @@ struct vers_select_conds_t
   {
     return !from_query && type != SYSTEM_TIME_UNSPECIFIED;
   }
-  bool eq(const vers_select_conds_t &conds);
+  bool eq(const vers_select_conds_t &conds) const;
 };
 
 /*
