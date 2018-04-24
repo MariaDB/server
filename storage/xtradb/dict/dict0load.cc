@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2088,10 +2088,12 @@ dict_load_table_low(
 	ulint		flags2;
 
 	if (rec_get_deleted_flag(rec, 0)) {
+		*table = NULL;
 		return("delete-marked record in SYS_TABLES");
 	}
 
 	if (rec_get_n_fields_old(rec) != DICT_NUM_FIELDS__SYS_TABLES) {
+		*table = NULL;
 		return("wrong number of columns in SYS_TABLES record");
 	}
 
@@ -2099,6 +2101,7 @@ dict_load_table_low(
 		rec, DICT_FLD__SYS_TABLES__NAME, &len);
 	if (len == 0 || len == UNIV_SQL_NULL) {
 err_len:
+		*table = NULL;
 		return("incorrect column length in SYS_TABLES");
 	}
 	rec_get_nth_field_offs_old(
@@ -2178,6 +2181,7 @@ err_len:
 			"InnoDB: in InnoDB data dictionary"
 			" has unknown type %lx.\n",
 			(ulong) flags);
+		*table = NULL;
 		return("incorrect flags in SYS_TABLES");
 	}
 

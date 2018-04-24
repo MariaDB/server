@@ -2674,11 +2674,13 @@ dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
 	ulint		n_v_col;
 
 	if (const char* error_text = dict_sys_tables_rec_check(rec)) {
+		*table = NULL;
 		return(error_text);
 	}
 
 	if (!dict_sys_tables_rec_read(rec, name, &table_id, &space_id,
 				      &t_num, &flags, &flags2)) {
+		*table = NULL;
 		return(dict_load_table_flags);
 	}
 

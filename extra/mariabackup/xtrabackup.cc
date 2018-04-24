@@ -3056,7 +3056,7 @@ static dberr_t xb_assign_undo_space_start()
 		name[dirnamelen++] = OS_PATH_SEPARATOR;
 	}
 
-	snprintf(name + dirnamelen, strlen(name) + strlen("ibdata1"),
+	snprintf(name + dirnamelen, (sizeof name) - dirnamelen,
 		 "%s", "ibdata1");
 
 	file = os_file_create(0, name, OS_FILE_OPEN,

@@ -629,7 +629,7 @@ bool Sql_cmd_alter_table_exchange_partition::
     better to keep master/slave in consistent state. Alternative would be to
     try to revert the exchange operation and issue error.
   */
-  (void) thd->locked_tables_list.reopen_tables(thd);
+  (void) thd->locked_tables_list.reopen_tables(thd, false);
 
   if ((error= write_bin_log(thd, TRUE, thd->query(), thd->query_length())))
   {

@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB
+   Copyright (c) 2011, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -238,7 +238,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
 
   if (thd->locked_tables_list.locked_tables())
   {
-    if (thd->locked_tables_list.reopen_tables(thd))
+    if (thd->locked_tables_list.reopen_tables(thd, false))
       goto end;
     /* Restore the table in the table list with the new opened table */
     table_list->table= pos_in_locked_tables->table;

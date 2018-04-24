@@ -1,4 +1,5 @@
-/* Copyright (c) 2007, 2016, Oracle and/or its affiliates.
+/* Copyright (c) 2007, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1233,6 +1234,13 @@ Old_rows_log_event::Old_rows_log_event(const char *buf, uint event_len,
   DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
   m_width = net_field_length(&ptr_after_width);
   DBUG_PRINT("debug", ("m_width=%lu", m_width));
+  /* Avoid reading out of buffer */
+  if (ptr_after_width + m_width > (uchar *)buf + event_len)
+  {
+    m_cols.bitmap= NULL;
+    DBUG_VOID_RETURN;
+  }
+
   /* if my_bitmap_init fails, catched in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
                           m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,

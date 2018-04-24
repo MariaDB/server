@@ -5969,5 +5969,6 @@ bool JOIN::choose_tableless_subquery_plan()
       tmp_having= having;
     }
   }
+  exec_const_cond= conds;
   return FALSE;
 }

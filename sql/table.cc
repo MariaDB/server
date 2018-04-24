@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2016, MariaDB
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4088,7 +4088,7 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
 
   /* Whether the table definition has already been validated. */
   if (table->s->table_field_def_cache == table_def)
-    DBUG_RETURN(FALSE);
+    goto end;
 
   if (table->s->fields != table_def->count)
   {
@@ -4121,6 +4121,8 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
       is backward compatible.
     */
   }
+  else
+  {
   StringBuffer<1024> sql_type(system_charset_info);
   sql_type.extra_allocation(256); // Allocate min 256 characters at once
   for (i=0 ; i < table_def->count; i++, field_def++)
@@ -4206,6 +4208,7 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
       error= TRUE;
     }
   }
+  }
 
   if (table_def->primary_key_parts)
   {
@@ -4249,6 +4252,16 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
 
   if (! error)
     table->s->table_field_def_cache= table_def;
+
+end:
+
+  if (has_keys && !error && !table->key_info)
+  {
+    report_error(0, "Incorrect definition of table %s.%s: "
+                 "indexes are missing",
+                 table->s->db.str, table->alias.c_ptr());
+    error= TRUE;
+  }
 
   DBUG_RETURN(error);
 }

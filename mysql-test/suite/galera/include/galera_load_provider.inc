@@ -5,6 +5,4 @@
 --eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_orig';
 --enable_query_log
 
---enable_reconnect
---source include/wait_until_connected_again.inc
---source include/wait_until_ready.inc
+--source include/galera_wait_ready.inc

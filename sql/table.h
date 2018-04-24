@@ -1,8 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
-   Copyright (c) 2016, 2017, MariaDB Corporation.
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -473,10 +472,11 @@ typedef struct st_table_field_def
 class Table_check_intact
 {
 protected:
+  bool has_keys;
   virtual void report_error(uint code, const char *fmt, ...)= 0;
 
 public:
-  Table_check_intact() {}
+  Table_check_intact(bool keys= false) : has_keys(keys) {}
   virtual ~Table_check_intact() {}
 
   /** Checks whether a table is intact. */
@@ -491,6 +491,8 @@ class Table_check_intact_log_error : public Table_check_intact
 {
 protected:
   void report_error(uint, const char *fmt, ...);
+public:
+  Table_check_intact_log_error() : Table_check_intact(true) {}
 };
 
 

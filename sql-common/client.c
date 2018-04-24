@@ -1578,7 +1578,7 @@ read_one_row(MYSQL *mysql,uint fields,MYSQL_ROW row, ulong *lengths)
     }
     else
     {
-      if (len > (ulong) (end_pos - pos))
+      if (pos + len > end_pos)
       {
         set_mysql_error(mysql, CR_UNKNOWN_ERROR, unknown_sqlstate);
         return -1;
