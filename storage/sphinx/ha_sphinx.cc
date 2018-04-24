@@ -2538,12 +2538,6 @@ char * ha_sphinx::UnpackString ()
 }
 
 
-static inline const char * FixNull ( const char * s )
-{
-	return s ? s : "(null)";
-}
-
-
 bool ha_sphinx::UnpackSchema ()
 {
 	SPH_ENTER_METHOD();
