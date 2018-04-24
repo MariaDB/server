@@ -7915,3 +7915,5 @@ ER_UPDATED_COLUMN_ONLY_ONCE
         eng "The column %`s.%`s cannot be changed more than once in a single UPDATE statement"
 ER_EMPTY_ROW_IN_TVC
         eng "Row with no elements is not allowed in table value constructor in this context"
+ER_VERS_QUERY_IN_PARTITION
+        eng "SYSTEM_TIME partitions in table %`s does not support historical query"

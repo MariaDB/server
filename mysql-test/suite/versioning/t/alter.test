@@ -449,5 +449,10 @@ create or replace table t (x int) with system versioning;
 alter table user add system versioning;
 use test;
 
+--echo # MDEV-15956 Strange ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN upon ALTER on versioning column
+create or replace table t1 (i int, j int as (i), s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;
+--error ER_VERS_ALTER_SYSTEM_FIELD
+alter table t1 modify s timestamp(6) as row start;
+
 drop database test;
 create database test;
