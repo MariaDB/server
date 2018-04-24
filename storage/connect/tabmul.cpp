@@ -134,7 +134,7 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
   PSZ     filename;
   int     rc, n = 0;
 
-  if (trace)
+  if (trace(1))
     htrc("in InitFileName: fn[]=%d\n", FNSZ);
 
   filename = (char*)PlugSubAlloc(g, NULL, FNSZ);
@@ -144,7 +144,7 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
 
   PlugSetPath(filename, Tdbp->GetFile(g), Tdbp->GetPath());
 
-  if (trace)
+  if (trace(1))
     htrc("InitFileName: fn='%s'\n", filename);
 
   if (Mul != 2) {
@@ -159,7 +159,7 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
 		if (dirp->OpenDB(g))
 			return true;
 
-		if (trace && Mul == 3) {
+		if (trace(1) && Mul == 3) {
 			int nf = ((PTDBSDR)dirp)->FindInDir(g);
 			htrc("Number of files = %d\n", nf);
 		} // endif trace
@@ -203,12 +203,12 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
       // Data files can be imported from Windows (having CRLF)
       if (*p == '\n' || *p == '\r') {
         // is this enough for Unix ???
-        *p--;          // Eliminate ending CR or LF character
+        p--;          // Eliminate ending CR or LF character
 
         if (p >= filename)
           // is this enough for Unix ???
           if (*p == '\n' || *p == '\r')
-            *p--;    // Eliminate ending CR or LF character
+            p--;    // Eliminate ending CR or LF character
 
         } // endif p
 
@@ -319,7 +319,7 @@ int TDBMUL::GetMaxSize(PGLOBAL g)
     int i;
     int mxsz;
 
-    if (trace)
+    if (trace(1))
       htrc("TDBMUL::GetMaxSize: Filenames=%p\n", Filenames);
     
     if (!Filenames && InitFileNames(g))
@@ -375,7 +375,7 @@ int TDBMUL::RowNumber(PGLOBAL g, bool b)
 /***********************************************************************/
 bool TDBMUL::OpenDB(PGLOBAL g)
   {
-  if (trace)
+  if (trace(1))
     htrc("MUL OpenDB: tdbp=%p tdb=R%d use=%d key=%p mode=%d\n",
       this, Tdb_No, Use, To_Key_Col, Mode);
 
@@ -546,7 +546,7 @@ bool TDBMSD::InitFileNames(PGLOBAL g)
 	PSZ     filename;
 	int     rc, n = 0;
 
-	if (trace)
+	if (trace(1))
 		htrc("in InitFileName: fn[]=%d\n", FNSZ);
 
 	filename = (char*)PlugSubAlloc(g, NULL, FNSZ);
@@ -556,7 +556,7 @@ bool TDBMSD::InitFileNames(PGLOBAL g)
 
 	PlugSetPath(filename, Tdbp->GetFile(g), Tdbp->GetPath());
 
-	if (trace)
+	if (trace(1))
 		htrc("InitFileName: fn='%s'\n", filename);
 
 	dirp = new(g) TDBSDR(filename);
@@ -787,7 +787,7 @@ int TDBDIR::GetMaxSize(PGLOBAL g)
 /***********************************************************************/
 bool TDBDIR::OpenDB(PGLOBAL g)
   {
-  if (trace)
+  if (trace(1))
     htrc("DIR OpenDB: tdbp=%p tdb=R%d use=%d mode=%d\n",
       this, Tdb_No, Use, Mode);
 
@@ -985,7 +985,7 @@ void DIRCOL::SetTimeValue(PGLOBAL g, FILETIME& ftime)
 /***********************************************************************/
 void DIRCOL::ReadColumn(PGLOBAL g)
 	{
-  if (trace)
+  if (trace(1))
     htrc("DIR ReadColumn: col %s R%d use=%.4X status=%.4X type=%d N=%d\n",
       Name, Tdbp->GetTdb_No(), ColUse, Status, Buf_Type, N);
 
@@ -1452,7 +1452,7 @@ int TDBDHR::GetMaxSize(PGLOBAL g)
 /***********************************************************************/
 bool TDBDHR::OpenDB(PGLOBAL g)
   {
-  if (trace)
+  if (trace(1))
     htrc("DHR OpenDB: tdbp=%p tdb=R%d use=%d mode=%d\n",
       this, Tdb_No, Use, Mode);
 
@@ -1589,7 +1589,7 @@ void DHRCOL::ReadColumn(PGLOBAL g)
   int     rc;
   PTDBDHR tdbp = (PTDBDHR)To_Tdb;
 
-  if (trace)
+  if (trace(1))
     htrc("DHR ReadColumn: col %s R%d use=%.4X status=%.4X type=%d N=%d\n",
       Name, tdbp->GetTdb_No(), ColUse, Status, Buf_Type, N);
 

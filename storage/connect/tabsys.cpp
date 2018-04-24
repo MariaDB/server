@@ -180,7 +180,7 @@ PTDB TDBINI::Clone(PTABS t)
 /***********************************************************************/
 char *TDBINI::GetSeclist(PGLOBAL g)
   {
-  if (trace)
+  if (trace(1))
     htrc("GetSeclist: Seclist=%p\n", Seclist);
     
   if (!Seclist) {
@@ -267,7 +267,7 @@ bool TDBINI::OpenDB(PGLOBAL g)
     if (!colp->IsSpecial())            // Not a pseudo column
       colp->AllocBuf(g);
 
-  if (trace)
+  if (trace(1))
     htrc("INI OpenDB: seclist=%s seclen=%d ifile=%s\n", 
           Seclist, Seclen, Ifile);
 
@@ -287,7 +287,7 @@ int TDBINI::ReadDB(PGLOBAL)
   else
     Section += (strlen(Section) + 1);
 
-  if (trace > 1)
+  if (trace(2))
     htrc("INI ReadDB: section=%s N=%d\n", Section, N);
 
   N++;
@@ -453,7 +453,7 @@ void INICOL::ReadColumn(PGLOBAL)
   {
   PTDBINI tdbp = (PTDBINI)To_Tdb;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("INI ReadColumn: col %s R%d flag=%d\n",
           Name, tdbp->GetTdb_No(), Flag);
 
@@ -493,7 +493,7 @@ void INICOL::WriteColumn(PGLOBAL g)
   bool    rc;
   PTDBINI tdbp = (PTDBINI)To_Tdb;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("INI WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
           Name, tdbp->GetTdb_No(), ColUse, Status);
 
@@ -823,7 +823,7 @@ void XINCOL::WriteColumn(PGLOBAL g)
   bool    rc;
   PTDBXIN tdbp = (PTDBXIN)To_Tdb;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("XIN WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
           Name, tdbp->GetTdb_No(), ColUse, Status);
 
