@@ -86,6 +86,11 @@ struct Pool {
 		for (Element* elem = m_start; elem != m_last; ++elem) {
 
 			ut_ad(elem->m_pool == this);
+			/* Unpoison the memory for AddressSanitizer */
+			MEM_UNDEFINED(&elem->m_type, sizeof elem->m_type);
+			/* Declare the contents as initialized for Valgrind;
+			we checked this in mem_free(). */
+			UNIV_MEM_VALID(&elem->m_type, sizeof elem->m_type);
 			Factory::destroy(&elem->m_type);
 		}
 
@@ -122,7 +127,18 @@ struct Pool {
 
 		m_lock_strategy.exit();
 
-		return(elem != NULL ? &elem->m_type : 0);
+		if (elem) {
+			/* Unpoison the memory for AddressSanitizer */
+			MEM_UNDEFINED(&elem->m_type, sizeof elem->m_type);
+			/* Declare the memory initialized for Valgrind.
+			The trx_t that are released to the pool are
+			actually initialized; we checked that by
+			UNIV_MEM_ASSERT_RW() in mem_free() below. */
+			UNIV_MEM_VALID(&elem->m_type, sizeof elem->m_type);
+			return &elem->m_type;
+		}
+
+		return NULL;
 	}
 
 	/** Add the object to the pool.
@@ -133,8 +149,10 @@ struct Pool {
 		byte*		p = reinterpret_cast<byte*>(ptr + 1);
 
 		elem = reinterpret_cast<Element*>(p - sizeof(*elem));
+		UNIV_MEM_ASSERT_RW(&elem->m_type, sizeof elem->m_type);
 
 		elem->m_pool->put(elem);
+		MEM_NOACCESS(&elem->m_type, sizeof elem->m_type);
 	}
 
 protected:
