@@ -990,9 +990,9 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
     {
       if (!with_element->is_anchor(sl))
         sl->uncacheable|= UNCACHEABLE_UNITED;
-      if(!is_rec_result_table_created &&
-         (!sl->next_select() ||
-          sl->next_select() == with_element->first_recursive))
+      if (!is_rec_result_table_created &&
+          (!sl->next_select() ||
+           sl->next_select() == with_element->first_recursive))
       {
         ulonglong create_options;
         create_options= (first_sl->options | thd->variables.option_bits |

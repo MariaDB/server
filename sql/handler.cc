@@ -4767,7 +4767,8 @@ void handler::update_global_table_stats()
   if (rows_read + rows_changed == 0)
     return;                                     // Nothing to update.
 
-  DBUG_ASSERT(table->s && table->s->table_cache_key.str);
+  DBUG_ASSERT(table->s);
+  DBUG_ASSERT(table->s->table_cache_key.str);
 
   mysql_mutex_lock(&LOCK_global_table_stats);
   /* Gets the global table stats, creating one if necessary. */
@@ -6371,7 +6372,8 @@ void handler::use_hidden_primary_key()
 Handler_share *handler::get_ha_share_ptr()
 {
   DBUG_ENTER("handler::get_ha_share_ptr");
-  DBUG_ASSERT(ha_share && table_share);
+  DBUG_ASSERT(ha_share);
+  DBUG_ASSERT(table_share);
 
 #ifndef DBUG_OFF
   if (table_share->tmp_table == NO_TMP_TABLE)
@@ -6882,8 +6884,8 @@ static bool vers_create_sys_field(THD *thd, const char *field_name,
   return false;
 }
 
-const LString_i Vers_parse_info::default_start= "row_start";
-const LString_i Vers_parse_info::default_end= "row_end";
+const Lex_ident Vers_parse_info::default_start= "row_start";
+const Lex_ident Vers_parse_info::default_end= "row_end";
 
 bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
 {
@@ -7077,10 +7079,12 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     // copy info from existing table
     create_info->options|= HA_VERSIONED_TABLE;
 
-    DBUG_ASSERT(share->vers_start_field() && share->vers_end_field());
-    LString_i start(share->vers_start_field()->field_name);
-    LString_i end(share->vers_end_field()->field_name);
-    DBUG_ASSERT(start.ptr() && end.ptr());
+    DBUG_ASSERT(share->vers_start_field());
+    DBUG_ASSERT(share->vers_end_field());
+    Lex_ident start(share->vers_start_field()->field_name);
+    Lex_ident end(share->vers_end_field()->field_name);
+    DBUG_ASSERT(start.str);
+    DBUG_ASSERT(end.str);
 
     as_row= start_end_t(start, end);
     system_time= as_row;
@@ -7184,8 +7188,8 @@ bool Vers_parse_info::need_check(const Alter_info *alter_info) const
          alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING || *this;
 }
 
-bool Vers_parse_info::check_conditions(const LString &table_name,
-                                       const LString &db) const
+bool Vers_parse_info::check_conditions(const Lex_table_name &table_name,
+                                       const Lex_table_name &db) const
 {
   if (!as_row.start || !as_row.end)
   {
@@ -7215,7 +7219,8 @@ bool Vers_parse_info::check_conditions(const LString &table_name,
   return false;
 }
 
-bool Vers_parse_info::check_sys_fields(const LString &table_name, const LString &db,
+bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
+                                       const Lex_table_name &db,
                                        Alter_info *alter_info, bool native)
 {
   if (check_conditions(table_name, db))

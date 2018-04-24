@@ -4514,7 +4514,7 @@ int ha_partition::delete_row(const uchar *buf)
     or last historical partition, but DELETE HISTORY can delete from any
     historical partition. So, skip the check in this case.
   */
-  if (!thd->lex->vers_conditions) // if not DELETE HISTORY
+  if (!thd->lex->vers_conditions.is_set()) // if not DELETE HISTORY
   {
     uint32 part_id;
     error= get_part_for_buf(buf, m_rec0, m_part_info, &part_id);

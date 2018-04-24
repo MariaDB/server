@@ -9403,7 +9403,7 @@ bool update_precheck(THD *thd, TABLE_LIST *tables)
 bool delete_precheck(THD *thd, TABLE_LIST *tables)
 {
   DBUG_ENTER("delete_precheck");
-  if (tables->vers_conditions)
+  if (tables->vers_conditions.is_set())
   {
     if (check_one_table_access(thd, DELETE_HISTORY_ACL, tables))
       DBUG_RETURN(TRUE);

@@ -6628,7 +6628,7 @@ field_def:
             Vers_parse_info &info= lex->vers_get_info();
             const LEX_CSTRING &field_name= lex->last_field->field_name;
 
-            LString_i *p;
+            Lex_ident *p;
             switch ($4)
             {
             case 1:
