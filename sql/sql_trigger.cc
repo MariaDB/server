@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2004, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -576,7 +577,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     Ignore the return value for now. It's better to
     keep master/slave in consistent state.
   */
-  if (thd->locked_tables_list.reopen_tables(thd))
+  if (thd->locked_tables_list.reopen_tables(thd, false))
     thd->clear_error();
 
   /*

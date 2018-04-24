@@ -2,6 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -93,17 +94,13 @@ page_dir_find_owner_slot(
 /*=====================*/
 	const rec_t*	rec)	/*!< in: the physical record */
 {
-	const page_t*			page;
-	register uint16			rec_offs_bytes;
-	register const page_dir_slot_t*	slot;
-	register const page_dir_slot_t*	first_slot;
-	register const rec_t*		r = rec;
-
 	ut_ad(page_rec_check(rec));
 
-	page = page_align(rec);
-	first_slot = page_dir_get_nth_slot(page, 0);
-	slot = page_dir_get_nth_slot(page, page_dir_get_n_slots(page) - 1);
+	const page_t* page = page_align(rec);
+	const page_dir_slot_t* first_slot = page_dir_get_nth_slot(page, 0);
+	const page_dir_slot_t* slot = page_dir_get_nth_slot(
+		page, page_dir_get_n_slots(page) - 1);
+	const rec_t*		r = rec;
 
 	if (page_is_comp(page)) {
 		while (rec_get_n_owned_new(r) == 0) {
@@ -119,7 +116,7 @@ page_dir_find_owner_slot(
 		}
 	}
 
-	rec_offs_bytes = mach_encode_2(r - page);
+	uint16 rec_offs_bytes = mach_encode_2(r - page);
 
 	while (UNIV_LIKELY(*(uint16*) slot != rec_offs_bytes)) {
 

@@ -171,3 +171,9 @@ create database mysqltest1;
 create procedure mysqltest1.foo() select "foo";
 update mysql.proc set name='' where db='mysqltest1';
 drop database mysqltest1;
+create procedure p1() set @foo = 10;
+alter table mysql.proc drop primary key;
+drop procedure p1;
+ERROR HY000: Cannot load from mysql.proc. The table is probably corrupted
+alter table mysql.proc add primary key (db,name,type);
+drop procedure p1;
