@@ -69,7 +69,7 @@ static void verify_shared_ops_fail(DB_ENV* env, DB* db) {
     uint32_t flags = 0;
     DBT key,val;
     DBT in_key,in_val;
-    uint32_t in_key_data, in_val_data = 0;
+    uint32_t in_key_data = 0, in_val_data = 0;
     memset(&in_key, 0, sizeof(in_key));
     memset(&in_val, 0, sizeof(in_val));
     in_key.size = sizeof(in_key_data);
