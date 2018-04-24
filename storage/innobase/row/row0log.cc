@@ -183,8 +183,9 @@ struct row_log_t {
 				index that is being created online */
 	bool		same_pk;/*!< whether the definition of the PRIMARY KEY
 				has remained the same */
-	const dtuple_t*	add_cols;
-				/*!< default values of added columns, or NULL */
+	const dtuple_t*	defaults;
+				/*!< default values of added, changed columns,
+				or NULL */
 	const ulint*	col_map;/*!< mapping of old column numbers to
 				new ones, or NULL if !table */
 	dberr_t		error;	/*!< error that occurred during online
@@ -220,6 +221,9 @@ struct row_log_t {
 				decryption or NULL */
 	const char*	path;	/*!< where to create temporary file during
 				log operation */
+	bool		ignore; /*!< Whether the alter ignore is being used;
+				if not, NULL values will not be converted to
+				defaults */
 };
 
 /** Create the file or online log if it does not exist.
@@ -1151,7 +1155,9 @@ row_log_table_get_pk_col(
 	const ulint*		offsets,
 	ulint			i,
 	const page_size_t&	page_size,
-	ulint			max_len)
+	ulint			max_len,
+	bool			ignore,
+	const dtuple_t*		defaults)
 {
 	const byte*	field;
 	ulint		len;
@@ -1159,7 +1165,12 @@ row_log_table_get_pk_col(
 	field = rec_get_nth_field(rec, offsets, i, &len);
 
 	if (len == UNIV_SQL_NULL) {
-		return(DB_INVALID_NULL);
+		if (!ignore || !defaults->fields[i].data) {
+			return(DB_INVALID_NULL);
+		}
+
+		field = static_cast<const byte*>(defaults->fields[i].data);
+		len = defaults->fields[i].len;
 	}
 
 	if (rec_offs_nth_extern(offsets, i)) {
@@ -1323,7 +1334,8 @@ row_log_table_get_pk(
 
 				log->error = row_log_table_get_pk_col(
 					col, ifield, dfield, *heap,
-					rec, offsets, i, page_size, max_len);
+					rec, offsets, i, page_size, max_len,
+					log->ignore, log->defaults);
 
 				if (log->error != DB_SUCCESS) {
 err_exit:
@@ -1338,10 +1350,10 @@ err_exit:
 				/* No matching column was found in the old
 				table, so this must be an added column.
 				Copy the default value. */
-				ut_ad(log->add_cols);
+				ut_ad(log->defaults);
 
 				dfield_copy(dfield, dtuple_get_nth_field(
-						    log->add_cols, col_no));
+						    log->defaults, col_no));
 				mbminlen = dfield->type.mbminlen;
 				mbmaxlen = dfield->type.mbmaxlen;
 				prtype = dfield->type.prtype;
@@ -1512,8 +1524,8 @@ row_log_table_apply_convert_mrec(
 	*error = DB_SUCCESS;
 
 	/* This is based on row_build(). */
-	if (log->add_cols) {
-		row = dtuple_copy(log->add_cols, heap);
+	if (log->defaults) {
+		row = dtuple_copy(log->defaults, heap);
 		/* dict_table_copy_types() would set the fields to NULL */
 		for (ulint i = 0; i < dict_table_get_n_cols(log->table); i++) {
 			dict_col_copy_type(
@@ -1634,9 +1646,17 @@ blob_done:
 
 		if ((new_col->prtype & DATA_NOT_NULL)
 		    && dfield_is_null(dfield)) {
-			/* We got a NULL value for a NOT NULL column. */
-			*error = DB_INVALID_NULL;
-			return(NULL);
+
+			const dfield_t& default_field
+				= log->defaults->fields[col_no];
+
+			if (!log->ignore || !default_field.data) {
+				/* We got a NULL value for a NOT NULL column. */
+				*error = DB_INVALID_NULL;
+				return NULL;
+			}
+
+			*dfield = default_field;
 		}
 
 		/* Adjust the DATA_NOT_NULL flag in the parsed row. */
@@ -3147,12 +3167,13 @@ row_log_allocate(
 				or NULL when creating a secondary index */
 	bool		same_pk,/*!< in: whether the definition of the
 				PRIMARY KEY has remained the same */
-	const dtuple_t*	add_cols,
+	const dtuple_t*	defaults,
 				/*!< in: default values of
-				added columns, or NULL */
+				added, changed columns, or NULL */
 	const ulint*	col_map,/*!< in: mapping of old column
 				numbers to new ones, or NULL if !table */
-	const char*	path)	/*!< in: where to create temporary file */
+	const char*	path,	/*!< in: where to create temporary file */
+	const bool	ignore) /*!< in: alter ignore issued */
 {
 	row_log_t*	log;
 	DBUG_ENTER("row_log_allocate");
@@ -3162,7 +3183,7 @@ row_log_allocate(
 	ut_ad(!table || index->table != table);
 	ut_ad(same_pk || table);
 	ut_ad(!table || col_map);
-	ut_ad(!add_cols || col_map);
+	ut_ad(!defaults || col_map);
 	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 	ut_ad(trx->id);
@@ -3179,7 +3200,7 @@ row_log_allocate(
 	log->blobs = NULL;
 	log->table = table;
 	log->same_pk = same_pk;
-	log->add_cols = add_cols;
+	log->defaults = defaults;
 	log->col_map = col_map;
 	log->error = DB_SUCCESS;
 	log->min_trx = trx->id;
@@ -3191,6 +3212,7 @@ row_log_allocate(
 	log->head.blocks = log->head.bytes = 0;
 	log->head.total = 0;
 	log->path = path;
+	log->ignore=ignore;
 
 	dict_index_set_online_status(index, ONLINE_INDEX_CREATION);
 	index->online_log = log;

@@ -1656,7 +1656,7 @@ containing the index entries for the indexes to be built.
 @param[in]	files		temporary files
 @param[in]	key_numbers	MySQL key numbers to create
 @param[in]	n_index		number of indexes to create
-@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	defaults	default values of added, changed columns, or NULL
 @param[in]	add_v		newly added virtual columns along with indexes
 @param[in]	col_map		mapping of old column numbers to new ones, or
 NULL if old_table == new_table
@@ -1689,7 +1689,7 @@ row_merge_read_clustered_index(
 	merge_file_t*		files,
 	const ulint*		key_numbers,
 	ulint			n_index,
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 	const dict_add_v_col_t*	add_v,
 	const ulint*		col_map,
 	ulint			add_autoinc,
@@ -1743,7 +1743,7 @@ row_merge_read_clustered_index(
 	DBUG_ENTER("row_merge_read_clustered_index");
 
 	ut_ad((old_table == new_table) == !col_map);
-	ut_ad(!add_cols || col_map);
+	ut_ad(!defaults || col_map);
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 	ut_ad(trx->id);
 
@@ -2187,19 +2187,26 @@ end_of_index:
 
 		row = row_build_w_add_vcol(ROW_COPY_POINTERS, clust_index,
 					   rec, offsets, new_table,
-					   add_cols, add_v, col_map, &ext,
+					   defaults, add_v, col_map, &ext,
 					   row_heap);
 		ut_ad(row);
 
 		for (ulint i = 0; i < n_nonnull; i++) {
-			const dfield_t*	field	= &row->fields[nonnull[i]];
+			dfield_t*	field	= &row->fields[nonnull[i]];
 
 			ut_ad(dfield_get_type(field)->prtype & DATA_NOT_NULL);
 
 			if (dfield_is_null(field)) {
-				err = DB_INVALID_NULL;
-				trx->error_key_num = 0;
-				goto func_exit;
+				const dfield_t& default_field
+					= defaults->fields[nonnull[i]];
+
+				if (default_field.data == NULL) {
+					err = DB_INVALID_NULL;
+					trx->error_key_num = 0;
+					goto func_exit;
+				}
+
+				*field = default_field;
 			}
 		}
 
@@ -4548,7 +4555,7 @@ old_table unless creating a PRIMARY KEY
 @param[in]	n_indexes	size of indexes[]
 @param[in,out]	table		MySQL table, for reporting erroneous key value
 if applicable
-@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	defaults	default values of added, changed columns, or NULL
 @param[in]	col_map		mapping of old column numbers to new ones, or
 NULL if old_table == new_table
 @param[in]	add_autoinc	number of added AUTO_INCREMENT columns, or
@@ -4574,7 +4581,7 @@ row_merge_build_indexes(
 	const ulint*		key_numbers,
 	ulint			n_indexes,
 	struct TABLE*		table,
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 	const ulint*		col_map,
 	ulint			add_autoinc,
 	ib_sequence_t&		sequence,
@@ -4610,7 +4617,7 @@ row_merge_build_indexes(
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad((old_table == new_table) == !col_map);
-	ut_ad(!add_cols || col_map);
+	ut_ad(!defaults || col_map);
 
 	stage->begin_phase_read_pk(skip_pk_sort && new_table != old_table
 				   ? n_indexes - 1
@@ -4744,7 +4751,7 @@ row_merge_build_indexes(
 	error = row_merge_read_clustered_index(
 		trx, table, old_table, new_table, online, indexes,
 		fts_sort_idx, psort_info, merge_files, key_numbers,
-		n_indexes, add_cols, add_v, col_map, add_autoinc,
+		n_indexes, defaults, add_v, col_map, add_autoinc,
 		sequence, block, skip_pk_sort, &tmpfd, stage,
 		pct_cost, crypt_block, eval_table, drop_historical);
 

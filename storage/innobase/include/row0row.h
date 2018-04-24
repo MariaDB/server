@@ -153,9 +153,9 @@ row_build(
 					consulted instead; the user
 					columns in this table should be
 					the same columns as in index->table */
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 					/*!< in: default values of
-					added columns, or NULL */
+					added, changed columns, or NULL */
 	const ulint*		col_map,/*!< in: mapping of old column
 					numbers to new ones, or NULL */
 	row_ext_t**		ext,	/*!< out, own: cache of
@@ -177,7 +177,7 @@ addition of new virtual columns.
 				of an index, or NULL if
 				index->table should be
 				consulted instead
-@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	defaults	default values of added, changed columns, or NULL
 @param[in]	add_v		new virtual columns added
 				along with new indexes
 @param[in]	col_map		mapping of old column
@@ -194,7 +194,7 @@ row_build_w_add_vcol(
 	const rec_t*		rec,
 	const ulint*		offsets,
 	const dict_table_t*	col_table,
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 	const dict_add_v_col_t*	add_v,
 	const ulint*		col_map,
 	row_ext_t**		ext,

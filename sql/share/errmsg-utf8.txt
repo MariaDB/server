@@ -7089,7 +7089,7 @@ ER_IDENT_CAUSES_TOO_LONG_PATH
   eng "Long database name and identifier for object resulted in path length exceeding %d characters. Path: '%s'"
 
 ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL
-  eng "cannot silently convert NULL values, as required in this SQL_MODE"
+  eng "cannot convert NULL to non-constant DEFAULT"
 
 ER_MUST_CHANGE_PASSWORD_LOGIN
   eng "Your password has expired. To log in you must change it using a client that supports expired passwords"
