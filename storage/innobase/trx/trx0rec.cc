@@ -1922,8 +1922,6 @@ trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 				undo->top_undo_no = trx->undo_no++;
 				undo->guess_block = block;
 
-				trx->undo_rseg_space
-					= trx->rsegs.m_redo.rseg->space->id;
 				err = DB_SUCCESS;
 				break;
 			} else {
@@ -2069,8 +2067,6 @@ trx_undo_report_row_operation(
 			undo->top_offset  = offset;
 			undo->top_undo_no = trx->undo_no++;
 			undo->guess_block = undo_block;
-
-			trx->undo_rseg_space = rseg->space->id;
 
 			mutex_exit(&trx->undo_mutex);
 

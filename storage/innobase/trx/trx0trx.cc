@@ -690,7 +690,6 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
   if (!undo->empty)
   {
     trx->undo_no= undo->top_undo_no + 1;
-    trx->undo_rseg_space= undo->rseg->space->id;
   }
 
   trx->rsegs.m_redo.rseg= rseg;
@@ -795,7 +794,6 @@ trx_lists_init_at_db_start()
 					}
 
 					trx->undo_no = undo->top_undo_no + 1;
-					trx->undo_rseg_space = rseg->space->id;
 				}
 				trx_resurrect_table_locks(trx, undo);
 			}
@@ -1754,7 +1752,6 @@ trx_mark_sql_stat_end(
 		break;
 	case TRX_STATE_NOT_STARTED:
 		trx->undo_no = 0;
-		trx->undo_rseg_space = 0;
 		/* fall through */
 	case TRX_STATE_ACTIVE:
 		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
