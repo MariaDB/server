@@ -127,6 +127,10 @@ static const alter_table_operations INNOBASE_ALTER_NOREBUILD
 	| ALTER_DROP_VIRTUAL_COLUMN
 	| ALTER_VIRTUAL_COLUMN_ORDER;
 
+static const alter_table_operations INNOBASE_DEFAULTS
+	= ALTER_COLUMN_NOT_NULLABLE
+	| ALTER_ADD_COLUMN;
+
 struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 {
 	/** Dummy query graph */
@@ -173,8 +177,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	const char**	col_names;
 	/** added AUTO_INCREMENT column position, or ULINT_UNDEFINED */
 	const ulint	add_autoinc;
-	/** default values of ADD COLUMN, or NULL */
-	const dtuple_t*	add_cols;
+	/** default values of ADD and CHANGE COLUMN, or NULL */
+	const dtuple_t*	defaults;
 	/** autoinc sequence to use */
 	ib_sequence_t	sequence;
 	/** temporary table name to use for old table when renaming tables */
@@ -200,6 +204,9 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	/** original column names of the table */
 	const char* const old_col_names;
 
+	/** Whether alter ignore issued. */
+	const bool	ignore;
+
 	ha_innobase_inplace_ctx(row_prebuilt_t*& prebuilt_arg,
 				dict_index_t** drop_arg,
 				ulint num_to_drop_arg,
@@ -216,7 +223,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 				ulint add_autoinc_arg,
 				ulonglong autoinc_col_min_value_arg,
 				ulonglong autoinc_col_max_value_arg,
-				ulint num_to_drop_vcol_arg) :
+				ulint num_to_drop_vcol_arg,
+				bool ignore_flag) :
 		inplace_alter_handler_ctx(),
 		prebuilt (prebuilt_arg),
 		add_index (0), add_key_numbers (0), num_to_add_index (0),
@@ -229,7 +237,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		new_table (new_table_arg), instant_table (0),
 		col_map (0), col_names (col_names_arg),
 		add_autoinc (add_autoinc_arg),
-		add_cols (0),
+		defaults (0),
 		sequence(prebuilt->trx->mysql_thd,
 			 autoinc_col_min_value_arg, autoinc_col_max_value_arg),
 		tmp_name (0),
@@ -243,7 +251,8 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		m_stage(NULL),
 		old_n_cols(prebuilt_arg->table->n_cols),
 		old_cols(prebuilt_arg->table->cols),
-		old_col_names(prebuilt_arg->table->col_names)
+		old_col_names(prebuilt_arg->table->col_names),
+		ignore(ignore_flag)
 	{
 		ut_ad(old_n_cols >= DATA_N_SYS_COLS);
 #ifdef UNIV_DEBUG
@@ -674,6 +683,46 @@ instant_alter_column_possible(
 		|| !create_option_need_rebuild(ha_alter_info, table);
 }
 
+/** Check whether the non-const default value for the field
+@param[in]	field	field which could be added or changed
+@return true if the non-const default is present. */
+static bool is_non_const_value(Field* field)
+{
+	return field->default_value
+	       && field->default_value->flags & ~(VCOL_SESSION_FUNC
+						  | VCOL_TIME_FUNC);
+}
+
+/** Set default value for the field.
+@param[in]	field	field which could be added or changed
+@return true if the default value is set. */
+static bool set_default_value(Field* field)
+{
+	/* The added/changed NOT NULL column lacks a DEFAULT value,
+	   or the DEFAULT is the same for all rows.
+	   (Time functions, such as CURRENT_TIMESTAMP(),
+	   are evaluated from a timestamp that is assigned
+	   at the start of the statement. Session
+	   functions, such as USER(), always evaluate the
+	   same within a statement.) */
+
+	ut_ad(!is_non_const_value(field));
+
+	/* Compute the DEFAULT values of non-constant columns
+	   (VCOL_SESSION_FUNC | VCOL_TIME_FUNC). */
+	switch (field->set_default()) {
+	case 0: /* OK */
+	case 3: /* DATETIME to TIME or DATE conversion */
+		return true;
+	case -1: /* OOM, or GEOMETRY type mismatch */
+	case 1:  /* A number adjusted to the min/max value */
+	case 2:  /* String truncation, or conversion problem */
+		break;
+	}
+
+	return false;
+}
+
 /** Check if InnoDB supports a particular alter table in-place
 @param altered_table TABLE object for new version of table.
 @param ha_alter_info Structure describing changes to be done
@@ -1080,20 +1129,26 @@ ha_innobase::check_if_supported_inplace_alter(
 					/* No DEFAULT value is
 					specified. We can report
 					errors for any NULL values for
-					the TIMESTAMP.
+					the TIMESTAMP. */
 
-					FIXME: Allow any DEFAULT
-					expression whose value does
-					not change during ALTER TABLE.
-					This would require a fix in
-					row_merge_read_clustered_index()
-					to try to replace the DEFAULT
-					value before reporting
-					DB_INVALID_NULL. */
 					goto next_column;
 				}
 				break;
 			default:
+				/* Changing from NULL to NOT NULL and
+				set the default constant values. */
+				if (f->real_maybe_null()
+				    && !(*af)->real_maybe_null()) {
+
+					if (is_non_const_value(*af)) {
+						break;
+					}
+
+					if (!set_default_value(*af)) {
+						break;
+					}
+				}
+
 				/* For any other data type, NULL
 				values are not converted.
 				(An AUTO_INCREMENT attribute cannot
@@ -1109,32 +1164,16 @@ ha_innobase::check_if_supported_inplace_alter(
 			ha_alter_info->unsupported_reason
 				= innobase_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
-		} else if (!(*af)->default_value
-			   || !((*af)->default_value->flags
-				& ~(VCOL_SESSION_FUNC | VCOL_TIME_FUNC))) {
+		} else if (!is_non_const_value(*af)) {
+
 			n_add_cols++;
 
 			if (af < &altered_table->field[table_share->fields]) {
 				add_column_not_last = true;
 			}
-			/* The added NOT NULL column lacks a DEFAULT value,
-			or the DEFAULT is the same for all rows.
-			(Time functions, such as CURRENT_TIMESTAMP(),
-			are evaluated from a timestamp that is assigned
-			at the start of the statement. Session
-			functions, such as USER(), always evaluate the
-			same within a statement.) */
 
-			/* Compute the DEFAULT values of non-constant columns
-			(VCOL_SESSION_FUNC | VCOL_TIME_FUNC). */
-			switch ((*af)->set_default()) {
-			case 0: /* OK */
-			case 3: /* DATETIME to TIME or DATE conversion */
+			if (set_default_value(*af)) {
 				goto next_column;
-			case -1: /* OOM, or GEOMETRY type mismatch */
-			case 1:  /* A number adjusted to the min/max value */
-			case 2:  /* String truncation, or conversion problem */
-				break;
 			}
 		}
 
@@ -3181,7 +3220,7 @@ adding columns.
 @param table MySQL table as it is before the ALTER operation
 @param new_table InnoDB table corresponding to MySQL altered_table
 @param old_table InnoDB table corresponding to MYSQL table
-@param add_cols Default values for ADD COLUMN, or NULL if no ADD COLUMN
+@param defaults Default values for ADD COLUMN, or NULL if no ADD COLUMN
 @param heap Memory heap where allocated
 @return array of integers, mapping column numbers in the table
 to column numbers in altered_table */
@@ -3194,7 +3233,7 @@ innobase_build_col_map(
 	const TABLE*		table,
 	const dict_table_t*	new_table,
 	const dict_table_t*	old_table,
-	dtuple_t*		add_cols,
+	dtuple_t*		defaults,
 	mem_heap_t*		heap)
 {
 	DBUG_ENTER("innobase_build_col_map");
@@ -3206,9 +3245,10 @@ innobase_build_col_map(
 	DBUG_ASSERT(dict_table_get_n_cols(old_table)
 		    + dict_table_get_n_v_cols(old_table)
 		    >= table->s->fields + DATA_N_SYS_COLS);
-	DBUG_ASSERT(!!add_cols == !!(ha_alter_info->handler_flags
-				     & ALTER_ADD_COLUMN));
-	DBUG_ASSERT(!add_cols || dtuple_get_n_fields(add_cols)
+	DBUG_ASSERT(!!defaults == !!(ha_alter_info->handler_flags
+				     & (ALTER_ADD_COLUMN
+				        | ALTER_COLUMN_NOT_NULLABLE)));
+	DBUG_ASSERT(!defaults || dtuple_get_n_fields(defaults)
 		    == dict_table_get_n_cols(new_table));
 
 	ulint*	col_map = static_cast<ulint*>(
@@ -3250,6 +3290,19 @@ innobase_build_col_map(
 			}
 
 			if (new_field->field == field) {
+
+				const Field* altered_field =
+					altered_table->field[i];
+
+				if (field->real_maybe_null()
+				    && !altered_field->real_maybe_null()) {
+					innobase_build_col_map_add(
+						heap, dtuple_get_nth_field(
+							defaults, i),
+						altered_field,
+						dict_table_is_comp(new_table));
+				}
+
 				col_map[old_i - num_old_v] = i;
 				goto found_col;
 			}
@@ -3257,7 +3310,7 @@ innobase_build_col_map(
 
 		ut_ad(!is_v);
 		innobase_build_col_map_add(
-			heap, dtuple_get_nth_field(add_cols, i),
+			heap, dtuple_get_nth_field(defaults, i),
 			altered_table->field[i + num_v],
 			dict_table_is_comp(new_table));
 found_col:
@@ -4765,7 +4818,7 @@ prepare_inplace_alter_table_dict(
 	DBUG_ASSERT(!add_fts_doc_id || add_fts_doc_id_idx);
 	DBUG_ASSERT(!add_fts_doc_id_idx
 		    || innobase_fulltext_exist(altered_table));
-	DBUG_ASSERT(!ctx->add_cols);
+	DBUG_ASSERT(!ctx->defaults);
 	DBUG_ASSERT(!ctx->add_index);
 	DBUG_ASSERT(!ctx->add_key_numbers);
 	DBUG_ASSERT(!ctx->num_to_add_index);
@@ -4933,7 +4986,7 @@ new_clustered_failed:
 		       part ? part : "", partlen + 1);
 		ulint		n_cols = 0;
 		ulint		n_v_cols = 0;
-		dtuple_t*	add_cols;
+		dtuple_t*	defaults;
 		ulint		z = 0;
 
 		for (uint i = 0; i < altered_table->s->fields; i++) {
@@ -5101,23 +5154,21 @@ new_clustered_failed:
 
 		dict_table_add_system_columns(ctx->new_table, ctx->heap);
 
-		if (ha_alter_info->handler_flags
-		    & ALTER_ADD_COLUMN) {
-			add_cols = dtuple_create_with_vcol(
+		if (ha_alter_info->handler_flags & INNOBASE_DEFAULTS) {
+			defaults = dtuple_create_with_vcol(
 				ctx->heap,
 				dict_table_get_n_cols(ctx->new_table),
 				dict_table_get_n_v_cols(ctx->new_table));
 
-			dict_table_copy_types(add_cols, ctx->new_table);
+			dict_table_copy_types(defaults, ctx->new_table);
 		} else {
-			add_cols = NULL;
+			defaults = NULL;
 		}
 
 		ctx->col_map = innobase_build_col_map(
 			ha_alter_info, altered_table, old_table,
-			ctx->new_table, user_table,
-			add_cols, ctx->heap);
-		ctx->add_cols = add_cols;
+			ctx->new_table, user_table, defaults, ctx->heap);
+		ctx->defaults = defaults;
 	} else {
 		DBUG_ASSERT(!innobase_need_rebuild(ha_alter_info, old_table));
 		DBUG_ASSERT(old_table->s->primary_key
@@ -5490,7 +5541,8 @@ new_table_failed:
 				clust_index, ctx->new_table,
 				!(ha_alter_info->handler_flags
 				  & ALTER_ADD_PK_INDEX),
-				ctx->add_cols, ctx->col_map, path);
+				ctx->defaults, ctx->col_map, path,
+				ctx->ignore);
 			rw_lock_x_unlock(&clust_index->lock);
 
 			if (!ok) {
@@ -5548,7 +5600,7 @@ error_handling_drop_uncached:
 					ctx->prebuilt->trx,
 					index,
 					NULL, true, NULL, NULL,
-					path);
+					path, ctx->ignore);
 				rw_lock_x_unlock(&index->lock);
 
 				if (!ok) {
@@ -6720,7 +6772,8 @@ err_exit:
 					add_fk, n_add_fk,
 					ha_alter_info->online,
 					heap, indexed_table,
-					col_names, ULINT_UNDEFINED, 0, 0, 0);
+					col_names, ULINT_UNDEFINED, 0, 0, 0,
+					ha_alter_info->ignore);
 		}
 
 		DBUG_ASSERT(m_prebuilt->trx->dict_operation_lock_mode == 0);
@@ -6855,7 +6908,7 @@ found_col:
 		heap, m_prebuilt->table, col_names,
 		add_autoinc_col_no,
 		ha_alter_info->create_info->auto_increment_value,
-		autoinc_col_max_value, 0);
+		autoinc_col_max_value, 0, ha_alter_info->ignore);
 
 	DBUG_RETURN(prepare_inplace_alter_table_dict(
 			    ha_alter_info, altered_table, table,
@@ -7086,7 +7139,7 @@ ok_exit:
 		m_prebuilt->table, ctx->new_table,
 		ctx->online,
 		ctx->add_index, ctx->add_key_numbers, ctx->num_to_add_index,
-		altered_table, ctx->add_cols, ctx->col_map,
+		altered_table, ctx->defaults, ctx->col_map,
 		ctx->add_autoinc, ctx->sequence, ctx->skip_pk_sort,
 		ctx->m_stage, add_v, eval_table,
 		ha_alter_info->handler_flags & ALTER_DROP_HISTORICAL);

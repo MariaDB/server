@@ -55,12 +55,13 @@ row_log_allocate(
 				or NULL when creating a secondary index */
 	bool		same_pk,/*!< in: whether the definition of the
 				PRIMARY KEY has remained the same */
-	const dtuple_t*	add_cols,
+	const dtuple_t*	defaults,
 				/*!< in: default values of
-				added columns, or NULL */
+				added, changed columns, or NULL */
 	const ulint*	col_map,/*!< in: mapping of old column
 				numbers to new ones, or NULL if !table */
-	const char*	path)	/*!< in: where to create temporary file */
+	const char*	path,	/*!< in: where to create temporary file */
+	bool		ignore) /*!< in: Whether alter ignore issued */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
 /******************************************************//**
