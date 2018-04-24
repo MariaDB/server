@@ -11346,7 +11346,7 @@ int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond)
 
 int wild_case_compare(CHARSET_INFO *cs, const char *str,const char *wildstr)
 {
-  reg3 int flag;
+  int flag;
   DBUG_ENTER("wild_case_compare");
   DBUG_PRINT("enter",("str: '%s'  wildstr: '%s'",str,wildstr));
   while (*wildstr)

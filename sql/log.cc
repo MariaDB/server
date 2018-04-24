@@ -2419,7 +2419,7 @@ static int find_uniq_filename(char *name, ulong next_log_number)
   uint                  i;
   char                  buff[FN_REFLEN], ext_buf[FN_REFLEN];
   struct st_my_dir     *dir_info;
-  reg1 struct fileinfo *file_info;
+  struct fileinfo *file_info;
   ulong                 max_found, next, UNINIT_VAR(number);
   size_t		buf_length, length;
   char			*start, *end;
@@ -8480,10 +8480,9 @@ void MYSQL_BIN_LOG::set_max_size(ulong max_size_arg)
     0	String is not a number
 */
 
-static bool test_if_number(register const char *str,
-			   ulong *res, bool allow_wildcards)
+static bool test_if_number(const char *str, ulong *res, bool allow_wildcards)
 {
-  reg2 int flag;
+  int flag;
   const char *start;
   DBUG_ENTER("test_if_number");
 

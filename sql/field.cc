@@ -2797,7 +2797,7 @@ int Field_decimal::store(double nr)
     return 1;
   }
 
-  reg4 uint i;
+  uint i;
   size_t length;
   uchar fyllchar,*to;
   char buff[DOUBLE_TO_STRING_CONVERSION_BUFFER_SIZE];

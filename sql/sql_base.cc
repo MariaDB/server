@@ -7014,7 +7014,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> *sum_func_list, List<Item> *pre_fix,
                   bool allow_sum_func)
 {
-  reg2 Item *item;
+  Item *item;
   enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
   nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
   List_iterator<Item> it(fields);

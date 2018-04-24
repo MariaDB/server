@@ -218,7 +218,7 @@ static void set_slave_max_allowed_packet(THD *thd, MYSQL *mysql)
 void init_thread_mask(int* mask,Master_info* mi,bool inverse)
 {
   bool set_io = mi->slave_running, set_sql = mi->rli.slave_running;
-  register int tmp_mask=0;
+  int tmp_mask=0;
   DBUG_ENTER("init_thread_mask");
 
   if (set_io)
