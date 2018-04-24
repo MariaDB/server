@@ -2114,18 +2114,23 @@ set big_tables=default;
 --echo # MDEV-15571: using recursive cte with big_tables enabled
 --echo #
 
+create table t1 (a bigint);
+insert into t1 values(1);
+
 set big_tables=1;
 
 --error ER_DATA_OUT_OF_RANGE
 with recursive qn as
 (
-  select 1 as a from dual
+  select  a from t1
   union all
   select a*2000 from qn where a<10000000000000000000
 )
 select * from qn;
 
 set big_tables=default;
+
+drop table t1;
 
 --echo #
 --echo # MDEV-15556: using recursive cte with big_tables enabled
