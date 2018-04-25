@@ -1772,13 +1772,27 @@ protected:
     return report_if_important_data(copier->source_end_pos(),
                                     end, count_spaces);
   }
+  int well_formed_copy_with_check(char *to, size_t to_length,
+                                  CHARSET_INFO *from_cs,
+                                  const char *from, size_t from_length,
+                                  size_t nchars, bool count_spaces,
+                                  uint *copy_length)
+  {
+    String_copier copier;
+
+    *copy_length= copier.well_formed_copy(field_charset, to, to_length,
+                                          from_cs, from, from_length,
+                                          nchars);
+
+    return check_conversion_status(&copier, from + from_length, from_cs, count_spaces);
+  }
   bool cmp_to_string_with_same_collation(const Item_bool_func *cond,
                                          const Item *item) const;
   bool cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
                                              const Item *item) const;
   int compress(char *to, uint *to_length,
                const char *from, uint length,
-               CHARSET_INFO *cs);
+               CHARSET_INFO *cs, size_t nchars);
   String *uncompress(String *val_buffer, String *val_ptr,
                      const uchar *from, uint from_length);
 public:

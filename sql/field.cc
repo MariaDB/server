@@ -6968,15 +6968,15 @@ int Field_string::store(const char *from, size_t length,CHARSET_INFO *cs)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   uint copy_length;
-  String_copier copier;
+  int rc;
 
   /* See the comment for Field_long::store(long long) */
   DBUG_ASSERT(!table || table->in_use == current_thd);
 
-  copy_length= copier.well_formed_copy(field_charset,
-                                       (char*) ptr, field_length,
-                                       cs, from, length,
-                                       field_length / field_charset->mbmaxlen);
+  rc= well_formed_copy_with_check((char*) ptr, field_length,
+                                  cs, from, length,
+                                  field_length / field_charset->mbmaxlen,
+                                  false, &copy_length);
 
   /* Append spaces if the string was shorter than the field. */
   if (copy_length < field_length)
@@ -6984,7 +6984,7 @@ int Field_string::store(const char *from, size_t length,CHARSET_INFO *cs)
                               field_length-copy_length,
                               field_charset->pad_char);
 
-  return check_conversion_status(&copier, from + length, cs, false);
+  return rc;
 }
 
 
@@ -7517,19 +7517,16 @@ int Field_varstring::store(const char *from,size_t length,CHARSET_INFO *cs)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   uint copy_length;
-  String_copier copier;
+  int rc;
 
-  copy_length= copier.well_formed_copy(field_charset,
-                                       (char*) ptr + length_bytes,
-                                       field_length,
-                                       cs, from, length,
-                                       field_length / field_charset->mbmaxlen);
-  if (length_bytes == 1)
-    *ptr= (uchar) copy_length;
-  else
-    int2store(ptr, copy_length);
+  rc= well_formed_copy_with_check((char*) get_data(), field_length,
+                                  cs, from, length,
+                                  field_length / field_charset->mbmaxlen,
+                                  true, &copy_length);
 
-  return check_conversion_status(&copier, from + length, cs, true);
+  store_length(copy_length);
+
+  return rc;
 }
 
 
@@ -7952,7 +7949,7 @@ void Field_varstring::hash(ulong *nr, ulong *nr2)
 
 int Field_longstr::compress(char *to, uint *to_length,
                             const char *from, uint length,
-                            CHARSET_INFO *cs)
+                            CHARSET_INFO *cs, size_t nchars)
 {
   THD *thd= get_thd();
   char *buf= 0;
@@ -7961,19 +7958,14 @@ int Field_longstr::compress(char *to, uint *to_length,
   if (String::needs_conversion_on_storage(length, cs, field_charset) ||
       *to_length <= length)
   {
-    String_copier copier;
-    const char *end= from + length;
-
     if (!(buf= (char*) my_malloc(*to_length - 1, MYF(MY_WME))))
     {
       *to_length= 0;
       return -1;
     }
 
-    length= copier.well_formed_copy(field_charset, buf, *to_length - 1,
-                                    cs, from, length,
-                                    (*to_length - 1) / field_charset->mbmaxlen);
-    rc= check_conversion_status(&copier, end, cs, true);
+    rc= well_formed_copy_with_check(buf, *to_length - 1, cs, from, length,
+                                    nchars, true, &length);
     from= buf;
   }
 
@@ -8045,7 +8037,8 @@ int Field_varstring_compressed::store(const char *from, size_t length,
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   uint to_length= (uint)MY_MIN(field_length, field_charset->mbmaxlen * length + 1);
-  int rc= compress((char*) get_data(), &to_length, from, (uint)length, cs);
+  int rc= compress((char*) get_data(), &to_length, from, (uint) length, cs,
+                   (to_length - 1) / field_charset->mbmaxlen);
   store_length(to_length);
   return rc;
 }
@@ -8174,10 +8167,11 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   size_t copy_length, new_length;
-  String_copier copier;
+  uint copy_len;
   char *tmp;
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmpstr(buff,sizeof(buff), &my_charset_bin);
+  int rc;
 
   if (!length)
   {
@@ -8244,13 +8238,13 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
     bmove(ptr + packlength, (uchar*) &tmp, sizeof(char*));
     return 0;
   }
-  copy_length= copier.well_formed_copy(field_charset,
-                                       (char*) value.ptr(), (uint)new_length,
-                                       cs, from, length);
-  Field_blob::store_length(copy_length);
+  rc= well_formed_copy_with_check((char*) value.ptr(), (uint) new_length,
+                                  cs, from, length,
+                                  length, true, &copy_len);
+  Field_blob::store_length(copy_len);
   bmove(ptr+packlength,(uchar*) &tmp,sizeof(char*));
 
-  return check_conversion_status(&copier, from + length, cs, true);
+  return rc;
 
 oom_error:
   /* Fatal OOM error */
@@ -8664,7 +8658,8 @@ int Field_blob_compressed::store(const char *from, size_t length,
   if (value.alloc(to_length))
     goto oom;
 
-  rc= compress((char*) value.ptr(), &to_length, tmp.ptr(), (uint) length, cs);
+  rc= compress((char*) value.ptr(), &to_length, tmp.ptr(), (uint) length, cs,
+               (uint) length);
   set_ptr(to_length, (uchar*) value.ptr());
   return rc;
 

@@ -112,3 +112,11 @@ SET column_compression_threshold=0;
 INSERT INTO t1 VALUES('a');
 SET column_compression_threshold=DEFAULT;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15938 - TINYTEXT CHARACTER SET utf8 COMPRESSED truncates data
+--echo #
+CREATE TABLE t1(a TINYTEXT COMPRESSED, b TINYTEXT) CHARACTER SET utf8;
+INSERT INTO t1 VALUES (REPEAT(_latin1'a', 254), REPEAT(_latin1'a', 254));
+SELECT CHAR_LENGTH(a), CHAR_LENGTH(b), LEFT(a, 10), LEFT(b, 10) FROM t1;
+DROP TABLE t1;
