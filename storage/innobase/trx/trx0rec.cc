@@ -1904,7 +1904,6 @@ trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 	mtr_t		mtr;
 	dberr_t		err;
 	mtr.start();
-	mutex_enter(&trx->undo_mutex);
 	if (buf_block_t* block = trx_undo_assign(trx, &err, &mtr)) {
 		trx_undo_t*	undo = trx->rsegs.m_redo.undo;
 		ut_ad(err == DB_SUCCESS);
@@ -1938,7 +1937,6 @@ trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 		mtr.commit();
 	}
 
-	mutex_exit(&trx->undo_mutex);
 	return err;
 }
 
@@ -2005,7 +2003,6 @@ trx_undo_report_row_operation(
 		rseg = trx->rsegs.m_redo.rseg;
 	}
 
-	mutex_enter(&trx->undo_mutex);
 	dberr_t		err;
 	buf_block_t*	undo_block = trx_undo_assign_low(trx, rseg, pundo,
 							 &err, &mtr);
@@ -2068,8 +2065,6 @@ trx_undo_report_row_operation(
 			undo->guess_block = undo_block;
 			ut_ad(!undo->empty());
 
-			mutex_exit(&trx->undo_mutex);
-
 			if (!is_temp) {
 				const undo_no_t limit = undo->top_undo_no;
 				/* Determine if this is the first time
@@ -2127,7 +2122,6 @@ trx_undo_report_row_operation(
 	err = DB_OUT_OF_FILE_SPACE;
 
 err_exit:
-	mutex_exit(&trx->undo_mutex);
 	mtr_commit(&mtr);
 	return(err);
 }

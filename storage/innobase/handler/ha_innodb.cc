@@ -602,7 +602,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(srv_misc_tmpfile_mutex),
 	PSI_KEY(srv_monitor_file_mutex),
 	PSI_KEY(buf_dblwr_mutex),
-	PSI_KEY(trx_undo_mutex),
 	PSI_KEY(trx_pool_mutex),
 	PSI_KEY(trx_pool_manager_mutex),
 	PSI_KEY(srv_sys_mutex),

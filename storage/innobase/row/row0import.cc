@@ -3752,8 +3752,6 @@ row_import_for_mysql(
 	/* Assign an undo segment for the transaction, so that the
 	transaction will be recovered after a crash. */
 
-	mutex_enter(&trx->undo_mutex);
-
 	/* TODO: Do not write any undo log for the IMPORT cleanup. */
 	{
 		mtr_t mtr;
@@ -3761,8 +3759,6 @@ row_import_for_mysql(
 		trx_undo_assign(trx, &err, &mtr);
 		mtr.commit();
 	}
-
-	mutex_exit(&trx->undo_mutex);
 
 	DBUG_EXECUTE_IF("ib_import_undo_assign_failure",
 			err = DB_TOO_MANY_CONCURRENT_TRXS;);

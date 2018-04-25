@@ -343,8 +343,8 @@ trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no,
 
 #ifndef UNIV_INNOCHECKSUM
 
-/** Transaction undo log memory object; this is protected by the undo_mutex
-in the corresponding transaction object */
+/** Transaction undo log memory object; modified by the thread associated
+with the transaction. */
 
 struct trx_undo_t {
 	/*-----------------------------*/

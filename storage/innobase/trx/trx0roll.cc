@@ -895,8 +895,6 @@ static
 void
 trx_roll_try_truncate(trx_t* trx)
 {
-	ut_ad(mutex_own(&trx->undo_mutex));
-
 	trx->pages_undone = 0;
 
 	undo_no_t	undo_no		= trx->undo_no;
@@ -934,8 +932,6 @@ trx_roll_pop_top_rec(
 	trx_undo_t*	undo,	/*!< in: undo log */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	ut_ad(mutex_own(&trx->undo_mutex));
-
 	page_t*	undo_page = trx_undo_page_get_s_latched(
 		page_id_t(undo->rseg->space->id, undo->top_page_no), mtr);
 
@@ -974,8 +970,6 @@ trx_roll_pop_top_rec(
 trx_undo_rec_t*
 trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 {
-	mutex_enter(&trx->undo_mutex);
-
 	if (trx->pages_undone >= TRX_ROLL_TRUNC_THRESHOLD) {
 		trx_roll_try_truncate(trx);
 	}
@@ -1021,7 +1015,6 @@ trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 		later, we will default to a full ROLLBACK. */
 		trx->roll_limit = 0;
 		trx->in_rollback = false;
-		mutex_exit(&trx->undo_mutex);
 		return(NULL);
 	}
 
@@ -1058,7 +1051,6 @@ trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 	}
 
 	trx->undo_no = undo_no;
-	mutex_exit(&trx->undo_mutex);
 
 	trx_undo_rec_t*	undo_rec_copy = trx_undo_rec_copy(undo_rec, heap);
 	mtr.commit();

@@ -1804,12 +1804,10 @@ row_truncate_table_for_mysql(
 	/* Step-6: Truncate operation can be rolled back in case of error
 	till some point. Associate rollback segment to record undo log. */
 	if (!table->is_temporary()) {
-		mutex_enter(&trx->undo_mutex);
 		mtr_t mtr;
 		mtr.start();
 		trx_undo_assign(trx, &err, &mtr);
 		mtr.commit();
-		mutex_exit(&trx->undo_mutex);
 
 		DBUG_EXECUTE_IF("ib_err_trunc_assigning_undo_log",
 				err = DB_ERROR;);

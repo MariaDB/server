@@ -108,16 +108,6 @@ V
 Transaction system header
 |
 V
-Transaction undo mutex			The undo log entry must be written
-|					before any index page is modified.
-|					Transaction undo mutex is for the undo
-|					logs the analogue of the tree latch
-|					for a B-tree. If a thread has the
-|					trx undo mutex reserved, it is allowed
-|					to latch the undo log pages in any
-|					order, and also after it has acquired
-|					the fsp latch.
-V
 Rollback segment mutex			The rollback segment mutex must be
 |					reserved, if, e.g., a new page must
 |					be added to an undo log. The rollback
@@ -256,7 +246,6 @@ enum latch_level_t {
 	SYNC_RSEG_HEADER_NEW,
 	SYNC_NOREDO_RSEG,
 	SYNC_REDO_RSEG,
-	SYNC_TRX_UNDO,
 	SYNC_PURGE_LATCH,
 	SYNC_TREE_NODE,
 	SYNC_TREE_NODE_FROM_HASH,
@@ -338,7 +327,6 @@ enum latch_id_t {
 	LATCH_ID_SRV_MISC_TMPFILE,
 	LATCH_ID_SRV_MONITOR_FILE,
 	LATCH_ID_BUF_DBLWR,
-	LATCH_ID_TRX_UNDO,
 	LATCH_ID_TRX_POOL,
 	LATCH_ID_TRX_POOL_MANAGER,
 	LATCH_ID_TRX,

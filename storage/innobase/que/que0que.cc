@@ -1005,11 +1005,6 @@ que_thr_step(
 		} else if (type == QUE_NODE_FOR) {
 			for_step(thr);
 		} else if (type == QUE_NODE_PROC) {
-
-			/* We can access trx->undo_no without reserving
-			trx->undo_mutex, because there cannot be active query
-			threads doing updating or inserting at the moment! */
-
 			if (thr->prev_node == que_node_get_parent(node)) {
 				trx->last_sql_stat_start.least_undo_no
 					= trx->undo_no;

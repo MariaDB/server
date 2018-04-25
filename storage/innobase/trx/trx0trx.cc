@@ -225,7 +225,6 @@ struct TrxFactory {
 			&trx_named_savept_t::trx_savepoints);
 
 		mutex_create(LATCH_ID_TRX, &trx->mutex);
-		mutex_create(LATCH_ID_TRX_UNDO, &trx->undo_mutex);
 
 		lock_trx_alloc_locks(trx);
 	}
@@ -252,7 +251,6 @@ struct TrxFactory {
 		ut_free(trx->detailed_error);
 
 		mutex_free(&trx->mutex);
-		mutex_free(&trx->undo_mutex);
 
 		trx->mod_tables.~trx_mod_tables_t();
 
@@ -493,11 +491,9 @@ void trx_free(trx_t*& trx)
 	/* Unpoison the memory for innodb_monitor_set_option;
 	it is operating also on the freed transaction objects. */
 	MEM_UNDEFINED(&trx->mutex, sizeof trx->mutex);
-	MEM_UNDEFINED(&trx->undo_mutex, sizeof trx->undo_mutex);
 	/* Declare the contents as initialized for Valgrind;
 	we checked that it was initialized in trx_pools->mem_free(trx). */
 	UNIV_MEM_VALID(&trx->mutex, sizeof trx->mutex);
-	UNIV_MEM_VALID(&trx->undo_mutex, sizeof trx->undo_mutex);
 
 	trx = NULL;
 }
@@ -1114,9 +1110,6 @@ trx_write_serialisation_history(
 	undo log to the purge queue. */
 	trx_serialise(trx);
 
-	/* It is not necessary to acquire trx->undo_mutex here because
-	only a single OS thread is allowed to commit this transaction.
-	The undo logs will be processed and purged later. */
 	if (UNIV_LIKELY_NULL(old_insert)) {
 		UT_LIST_REMOVE(rseg->old_insert_list, old_insert);
 		trx_purge_add_undo_to_history(trx, old_insert, mtr);
@@ -1967,10 +1960,6 @@ trx_prepare_low(trx_t* trx)
 	ut_ad(!trx->is_recovered);
 
 	mtr_t	mtr;
-
-	/* It is not necessary to acquire trx->undo_mutex here because
-	only the owning (connection) thread of the transaction is
-	allowed to perform XA PREPARE. */
 
 	if (trx_undo_t* undo = trx->rsegs.m_noredo.undo) {
 		ut_ad(undo->rseg == trx->rsegs.m_noredo.rseg);

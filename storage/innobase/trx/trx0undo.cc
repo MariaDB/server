@@ -81,12 +81,12 @@ The contention of the trx_sys.mutex should be minimized. When a transaction
 does its first insert or modify in an index, an undo log is assigned for it.
 Then we must have an x-latch to the rollback segment header.
 	When the transaction performs modifications or rolls back, its
-undo log is protected by undo page latches and trx_t::undo_mutex.
+undo log is protected by undo page latches.
 Only the thread that is associated with the transaction may hold multiple
 undo page latches at a time. Undo pages are always private to a single
 transaction. Other threads that are performing MVCC reads
 or checking for implicit locks will lock at most one undo page at a time
-in trx_undo_get_undo_rec_low(), without holding any undo_mutex.
+in trx_undo_get_undo_rec_low().
 	When the transaction commits, its persistent undo log is added
 to the history list. If it is not suitable for reuse, its slot is reset.
 In both cases, an x-latch must be acquired on the rollback segment header page.
@@ -769,8 +769,6 @@ trx_undo_parse_page_header(
 buf_block_t*
 trx_undo_add_page(trx_t* trx, trx_undo_t* undo, mtr_t* mtr)
 {
-	ut_ad(mutex_own(&trx->undo_mutex));
-
 	trx_rseg_t*	rseg		= undo->rseg;
 	buf_block_t*	new_block	= NULL;
 	ulint		n_reserved;
@@ -1397,7 +1395,6 @@ A new undo log is created or a cached undo log reused.
 buf_block_t*
 trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 {
-	ut_ad(mutex_own(&trx->undo_mutex));
 	ut_ad(mtr->get_log_mode() == MTR_LOG_ALL);
 
 	trx_undo_t* undo = trx->rsegs.m_redo.undo;
@@ -1450,7 +1447,6 @@ trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 {
 	const bool	is_temp = rseg == trx->rsegs.m_noredo.rseg;
 
-	ut_ad(mutex_own(&trx->undo_mutex));
 	ut_ad(rseg == trx->rsegs.m_redo.rseg
 	      || rseg == trx->rsegs.m_noredo.rseg);
 	ut_ad(undo == (is_temp

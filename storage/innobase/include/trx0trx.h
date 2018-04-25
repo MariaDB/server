@@ -978,12 +978,6 @@ public:
 			trx_savepoints;	/*!< savepoints set with SAVEPOINT ...,
 					oldest first */
 	/*------------------------------*/
-	UndoMutex	undo_mutex;	/*!< mutex protecting the fields in this
-					section (down to undo_no_arr), EXCEPT
-					last_sql_stat_start, which can be
-					accessed only when we know that there
-					cannot be any activity in the undo
-					logs! */
 	undo_no_t	undo_no;	/*!< next undo log record number to
 					assign; since the undo log is
 					private for a transaction, this
@@ -994,8 +988,7 @@ public:
 	trx_savept_t	last_sql_stat_start;
 					/*!< undo_no when the last sql statement
 					was started: in case of an error, trx
-					is rolled back down to this undo
-					number; see note at undo_mutex! */
+					is rolled back down to this number */
 	trx_rsegs_t	rsegs;		/* rollback segments for undo logging */
 	undo_no_t	roll_limit;	/*!< least undo number to undo during
 					a partial rollback; 0 otherwise */
