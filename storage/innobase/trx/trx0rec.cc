@@ -70,12 +70,37 @@ trx_undof_page_add_undo_rec_log(
 	ut_ad(mach_read_from_2(undo_page
 			       + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE)
 	      == new_free);
-	mlog_write_ulint(undo_page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE,
-			 new_free, MLOG_2BYTES, mtr);
-	mlog_log_string(undo_page + old_free, new_free - old_free, mtr);
+	mtr->set_modified();
+	switch (mtr->get_log_mode()) {
+	case MTR_LOG_NONE:
+	case MTR_LOG_NO_REDO:
+		return;
+	case MTR_LOG_SHORT_INSERTS:
+		ut_ad(0);
+		/* fall through */
+	case MTR_LOG_ALL:
+		break;
+	}
+
+	const uint32_t
+		len = uint32_t(new_free - old_free - 4),
+		reserved = std::min<uint32_t>(11 + 13 + len,
+					      mtr->get_log()->MAX_DATA_SIZE);
+	byte* log_ptr = mtr->get_log()->open(reserved);
+	const byte* log_end = log_ptr + reserved;
+	log_ptr = mlog_write_initial_log_record_fast(
+		undo_page, MLOG_UNDO_INSERT, log_ptr, mtr);
+	mach_write_to_2(log_ptr, len);
+	if (log_ptr + 2 + len <= log_end) {
+		memcpy(log_ptr + 2, undo_page + old_free + 2, len);
+		mlog_close(mtr, log_ptr + 2 + len);
+	} else {
+		mlog_close(mtr, log_ptr + 2);
+		mtr->get_log()->push(undo_page + old_free + 2, len);
+	}
 }
 
-/** Parse MLOG_UNDO_INSERT for crash-upgrade from MariaDB 10.2.
+/** Parse MLOG_UNDO_INSERT.
 @param[in]	ptr	log record
 @param[in]	end_ptr	end of log record buffer
 @param[in,out]	page	page or NULL
