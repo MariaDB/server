@@ -2627,6 +2627,15 @@ public:
     WT_THD wt;                          ///< for deadlock detection
     Rows_log_event *m_pending_rows_event;
 
+    struct st_trans_time : public timeval
+    {
+      void reset(THD *thd)
+      {
+        tv_sec= thd->query_start();
+        tv_usec= (long) thd->query_start_sec_part();
+      }
+    } start_time;
+
     /*
        Tables changed in transaction (that must be invalidated in query cache).
        List contain only transactional tables, that not invalidated in query
@@ -3468,6 +3477,13 @@ private:
   }
 
 public:
+  timeval transaction_time()
+  {
+    if (!in_multi_stmt_transaction_mode())
+      transaction.start_time.reset(this);
+    return transaction.start_time;
+  }
+
   inline void set_start_time()
   {
     if (user_time.val)
