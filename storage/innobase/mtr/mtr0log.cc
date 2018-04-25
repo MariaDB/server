@@ -426,11 +426,20 @@ mlog_open_and_write_index(
 
 	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table));
 
+	mtr->set_modified();
+	switch (mtr->get_log_mode()) {
+	case MTR_LOG_NONE:
+	case MTR_LOG_NO_REDO:
+		return NULL;
+	case MTR_LOG_SHORT_INSERTS:
+		ut_ad(0);
+		/* fall through */
+	case MTR_LOG_ALL:
+		break;
+	}
+
 	if (!page_rec_is_comp(rec)) {
-		log_start = log_ptr = mlog_open(mtr, 11 + size);
-		if (!log_ptr) {
-			return(NULL); /* logging is disabled */
-		}
+		log_start = log_ptr = mtr->get_log()->open(11 + size);
 		log_ptr = mlog_write_initial_log_record_fast(rec, type,
 							     log_ptr, mtr);
 		log_end = log_ptr + 11 + size;
@@ -439,11 +448,8 @@ mlog_open_and_write_index(
 		bool	is_instant = index->is_instant();
 		ulint	n	= dict_index_get_n_fields(index);
 		ulint	total	= 11 + (is_instant ? 2 : 0) + size + (n + 2) * 2;
-		ulint	alloc	= total;
-
-		if (alloc > mtr_buf_t::MAX_DATA_SIZE) {
-			alloc = mtr_buf_t::MAX_DATA_SIZE;
-		}
+		ulint	alloc	= std::min(total,
+					   ulint(mtr_buf_t::MAX_DATA_SIZE));
 
 		const bool is_leaf = page_is_leaf(page_align(rec));
 
@@ -453,12 +459,7 @@ mlog_open_and_write_index(
 			n = DICT_INDEX_SPATIAL_NODEPTR_SIZE;
 		}
 
-		log_start = log_ptr = mlog_open(mtr, alloc);
-
-		if (!log_ptr) {
-			return(NULL); /* logging is disabled */
-		}
-
+		log_start = log_ptr = mtr->get_log()->open(alloc);
 		log_end = log_ptr + alloc;
 
 		log_ptr = mlog_write_initial_log_record_fast(
@@ -477,16 +478,10 @@ mlog_open_and_write_index(
 		}
 
 		log_ptr += 2;
-
-		if (is_leaf) {
-			mach_write_to_2(
-				log_ptr, dict_index_get_n_unique_in_tree(index));
-		} else {
-			mach_write_to_2(
-				log_ptr,
-				dict_index_get_n_unique_in_tree_nonleaf(index));
-		}
-
+		mach_write_to_2(
+			log_ptr, is_leaf
+			? dict_index_get_n_unique_in_tree(index)
+			: dict_index_get_n_unique_in_tree_nonleaf(index));
 		log_ptr += 2;
 
 		for (i = 0; i < n; i++) {
@@ -511,17 +506,12 @@ mlog_open_and_write_index(
 				mlog_close(mtr, log_ptr);
 				ut_a(total > (ulint) (log_ptr - log_start));
 				total -= log_ptr - log_start;
-				alloc = total;
+				alloc = std::min(
+					total,
+					ulint(mtr_buf_t::MAX_DATA_SIZE));
 
-				if (alloc > mtr_buf_t::MAX_DATA_SIZE) {
-					alloc = mtr_buf_t::MAX_DATA_SIZE;
-				}
-
-				log_start = log_ptr = mlog_open(mtr, alloc);
-
-				if (!log_ptr) {
-					return(NULL); /* logging is disabled */
-				}
+				log_start = log_ptr = mtr->get_log()->open(
+					alloc);
 				log_end = log_ptr + alloc;
 			}
 			mach_write_to_2(log_ptr, len);
