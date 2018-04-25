@@ -2625,6 +2625,15 @@ public:
     WT_THD wt;                          ///< for deadlock detection
     Rows_log_event *m_pending_rows_event;
 
+    struct st_trans_time : public timeval
+    {
+      void reset(THD *thd)
+      {
+        tv_sec= thd->systime();
+        tv_usec= (long) thd->systime_sec_part();
+      }
+    } start_time;
+
     /*
        Tables changed in transaction (that must be invalidated in query cache).
        List contain only transactional tables, that not invalidated in query
@@ -3442,6 +3451,14 @@ public:
 
   ulong systime_sec_part() { query_start_sec_part_used=1; return system_time.sec_part; }
   my_time_t systime() { return system_time.sec; }
+
+  timeval transaction_time()
+  {
+    if (!(variables.option_bits & OPTION_BEGIN))
+      transaction.start_time.reset(this);
+    return transaction.start_time;
+  }
+
 
 private:
   void set_system_time()

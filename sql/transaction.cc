@@ -203,6 +203,7 @@ bool trans_begin(THD *thd, uint flags)
   thd->transaction.all.reset();
   thd->has_waiter= false;
   thd->waiting_on_group_commit= false;
+  thd->transaction.start_time.reset(thd);
 
   if (res)
     DBUG_RETURN(TRUE);
