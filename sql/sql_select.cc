@@ -921,9 +921,9 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
         break;
       case SYSTEM_TIME_BEFORE:
         trx_id0= vers_conditions.start.unit == VERS_TIMESTAMP
-          ? newx Item_func_trt_id(thd, vers_conditions.start.item, TR_table::FLD_TRX_ID)
+          ? newx Item_func_trt_id(thd, vers_conditions.start.item, TR_table::FLD_TRX_ID, true)
           : vers_conditions.start.item;
-        cond1= newx Item_func_lt(thd, row_end, trx_id0);
+        cond1= newx Item_func_trt_trx_sees(thd, trx_id0, row_end);
         break;
       default:
         DBUG_ASSERT(0);
