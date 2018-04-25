@@ -52,23 +52,20 @@ const dtuple_t trx_undo_default_rec = {
 
 /*=========== UNDO LOG RECORD CREATION AND DECODING ====================*/
 
-/**********************************************************************//**
-Writes the mtr log entry of the inserted undo log record on the undo log
-page. */
-UNIV_INLINE
-void
-trx_undof_page_add_undo_rec_log(
-/*============================*/
-	page_t* undo_page,	/*!< in: undo log page */
-	ulint	old_free,	/*!< in: start offset of the inserted entry */
-	ulint	new_free,	/*!< in: end offset of the entry */
-	mtr_t*	mtr)		/*!< in: mtr */
+/** Write redo log of writing an undo log record.
+@param[in]	undo_block	undo log page
+@param[in]	old_free	start offset of the undo log record
+@param[in]	new_free	end offset of the undo log record
+@param[in,out]	mtr		mini-transaction */
+static void trx_undof_page_add_undo_rec_log(const buf_block_t* undo_block,
+					    ulint old_free, ulint new_free,
+					    mtr_t* mtr)
 {
 	ut_ad(old_free >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
 	ut_ad(new_free >= old_free);
 	ut_ad(new_free < UNIV_PAGE_SIZE);
-	ut_ad(mach_read_from_2(undo_page
-			       + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE)
+	ut_ad(mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
+			       + undo_block->frame)
 	      == new_free);
 	mtr->set_modified();
 	switch (mtr->get_log_mode()) {
@@ -88,15 +85,17 @@ trx_undof_page_add_undo_rec_log(
 					      mtr->get_log()->MAX_DATA_SIZE);
 	byte* log_ptr = mtr->get_log()->open(reserved);
 	const byte* log_end = log_ptr + reserved;
-	log_ptr = mlog_write_initial_log_record_fast(
-		undo_page, MLOG_UNDO_INSERT, log_ptr, mtr);
+	log_ptr = mlog_write_initial_log_record_low(
+		MLOG_UNDO_INSERT,
+		undo_block->page.id.space(), undo_block->page.id.page_no(),
+		log_ptr, mtr);
 	mach_write_to_2(log_ptr, len);
 	if (log_ptr + 2 + len <= log_end) {
-		memcpy(log_ptr + 2, undo_page + old_free + 2, len);
+		memcpy(log_ptr + 2, undo_block->frame + old_free + 2, len);
 		mlog_close(mtr, log_ptr + 2 + len);
 	} else {
 		mlog_close(mtr, log_ptr + 2);
-		mtr->get_log()->push(undo_page + old_free + 2, len);
+		mtr->get_log()->push(undo_block->frame + old_free + 2, len);
 	}
 }
 
@@ -143,20 +142,16 @@ trx_undo_parse_add_undo_rec(
 	return(const_cast<byte*>(ptr + len));
 }
 
-/**********************************************************************//**
-Calculates the free space left for extending an undo log record.
+/** Calculate the free space left for extending an undo log record.
+@param[in]	undo_block	undo log page
+@param[in]	ptr		current end of the undo page
 @return bytes left */
-UNIV_INLINE
-ulint
-trx_undo_left(
-/*==========*/
-	const page_t*	page,	/*!< in: undo log page */
-	const byte*	ptr)	/*!< in: pointer to page */
+static ulint trx_undo_left(const buf_block_t* undo_block, const byte* ptr)
 {
-	/* The '- 10' is a safety margin, in case we have some small
+	/* The 10 is a safety margin, in case we have some small
 	calculation error below */
-
-	return(UNIV_PAGE_SIZE - (ptr - page) - 10 - FIL_PAGE_DATA_END);
+	return srv_page_size - (ptr - undo_block->frame)
+		- (10 + FIL_PAGE_DATA_END);
 }
 
 /**********************************************************************//**
@@ -168,7 +163,7 @@ static
 ulint
 trx_undo_page_set_next_prev_and_add(
 /*================================*/
-	page_t*		undo_page,	/*!< in/out: undo log page */
+	buf_block_t*	undo_block,	/*!< in/out: undo log page */
 	byte*		ptr,		/*!< in: ptr up to where data has been
 					written on this undo page. */
 	mtr_t*		mtr)		/*!< in: mtr */
@@ -180,15 +175,15 @@ trx_undo_page_set_next_prev_and_add(
 					that points to the next free
 					offset value within undo_page.*/
 
-	ut_ad(ptr > undo_page);
-	ut_ad(ptr < undo_page + UNIV_PAGE_SIZE);
+	ut_ad(ptr > undo_block->frame);
+	ut_ad(ptr < undo_block->frame + UNIV_PAGE_SIZE);
 
-	if (UNIV_UNLIKELY(trx_undo_left(undo_page, ptr) < 2)) {
-
+	if (UNIV_UNLIKELY(trx_undo_left(undo_block, ptr) < 2)) {
 		return(0);
 	}
 
-	ptr_to_first_free = undo_page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE;
+	ptr_to_first_free = TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
+		+ undo_block->frame;
 
 	first_free = mach_read_from_2(ptr_to_first_free);
 
@@ -196,16 +191,16 @@ trx_undo_page_set_next_prev_and_add(
 	mach_write_to_2(ptr, first_free);
 	ptr += 2;
 
-	end_of_rec = ptr - undo_page;
+	end_of_rec = ptr - undo_block->frame;
 
 	/* Write offset of the next undo log record */
-	mach_write_to_2(undo_page + first_free, end_of_rec);
+	mach_write_to_2(undo_block->frame + first_free, end_of_rec);
 
 	/* Update the offset to first free undo record */
 	mach_write_to_2(ptr_to_first_free, end_of_rec);
 
 	/* Write this log entry to the UNDO log */
-	trx_undof_page_add_undo_rec_log(undo_page, first_free,
+	trx_undof_page_add_undo_rec_log(undo_block, first_free,
 					end_of_rec, mtr);
 
 	return(first_free);
@@ -217,7 +212,7 @@ static const ulint VIRTUAL_COL_UNDO_FORMAT_1 = 0xF1;
 
 /** Write virtual column index info (index id and column position in index)
 to the undo log
-@param[in,out]	undo_page	undo log page
+@param[in,out]	undo_block	undo log page
 @param[in]	table           the table
 @param[in]	pos		the virtual column position
 @param[in]      ptr             undo log record being written
@@ -227,7 +222,7 @@ to the undo log
 static
 byte*
 trx_undo_log_v_idx(
-	page_t*			undo_page,
+	buf_block_t*		undo_block,
 	const dict_table_t*	table,
 	ulint			pos,
 	byte*			ptr,
@@ -246,7 +241,7 @@ trx_undo_log_v_idx(
 	1 byte for undo log record format version marker */
 	ulint		size = n_idx * (5 + 5) + 5 + 2 + (first_v_col ? 1 : 0);
 
-	if (trx_undo_left(undo_page, ptr) < size) {
+	if (trx_undo_left(undo_block, ptr) < size) {
 		return(NULL);
 	}
 
@@ -376,7 +371,7 @@ trx_undo_read_v_idx(
 }
 
 /** Reports in the undo log of an insert of virtual columns.
-@param[in]	undo_page	undo log page
+@param[in]	undo_block	undo log page
 @param[in]	table		the table
 @param[in]	row		dtuple contains the virtual columns
 @param[in,out]	ptr		log ptr
@@ -384,7 +379,7 @@ trx_undo_read_v_idx(
 static
 bool
 trx_undo_report_insert_virtual(
-	page_t*		undo_page,
+	buf_block_t*	undo_block,
 	dict_table_t*	table,
 	const dtuple_t*	row,
 	byte**		ptr)
@@ -392,7 +387,7 @@ trx_undo_report_insert_virtual(
 	byte*	start = *ptr;
 	bool	first_v_col = true;
 
-	if (trx_undo_left(undo_page, *ptr) < 2) {
+	if (trx_undo_left(undo_block, *ptr) < 2) {
 		return(false);
 	}
 
@@ -411,7 +406,7 @@ trx_undo_report_insert_virtual(
 		if (col->m_col.ord_part) {
 
 			/* make sure enought space to write the length */
-			if (trx_undo_left(undo_page, *ptr) < 5) {
+			if (trx_undo_left(undo_block, *ptr) < 5) {
 				return(false);
 			}
 
@@ -419,7 +414,7 @@ trx_undo_report_insert_virtual(
 			pos += REC_MAX_N_FIELDS;
 			*ptr += mach_write_compressed(*ptr, pos);
 
-			*ptr = trx_undo_log_v_idx(undo_page, table,
+			*ptr = trx_undo_log_v_idx(undo_block, table,
 						  col_no, *ptr, first_v_col);
 			first_v_col = false;
 
@@ -439,8 +434,8 @@ trx_undo_report_insert_virtual(
 					flen = max_len;
 				}
 
-				if (trx_undo_left(undo_page, *ptr) < flen + 5) {
-
+				if (trx_undo_left(undo_block, *ptr)
+				    < flen + 5) {
 					return(false);
 				}
 				*ptr += mach_write_compressed(*ptr, flen);
@@ -448,8 +443,7 @@ trx_undo_report_insert_virtual(
 				ut_memcpy(*ptr, vfield->data, flen);
 				*ptr += flen;
 			} else {
-				if (trx_undo_left(undo_page, *ptr) < 5) {
-
+				if (trx_undo_left(undo_block, *ptr) < 5) {
 					return(false);
 				}
 
@@ -471,7 +465,7 @@ static
 ulint
 trx_undo_page_report_insert(
 /*========================*/
-	page_t*		undo_page,	/*!< in: undo log page */
+	buf_block_t*	undo_block,	/*!< in: undo log page */
 	trx_t*		trx,		/*!< in: transaction */
 	dict_index_t*	index,		/*!< in: clustered index */
 	const dtuple_t*	clust_entry,	/*!< in: index entry which will be
@@ -488,18 +482,16 @@ trx_undo_page_report_insert(
 	TRX_UNDO_INSERT == 1 into insert_undo pages,
 	or TRX_UNDO_UPDATE == 2 into update_undo pages. */
 	ut_ad(mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
-			       + undo_page) <= 2);
+			       + undo_block->frame) <= 2);
 
-	first_free = mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
-				      + TRX_UNDO_PAGE_FREE);
-	ptr = undo_page + first_free;
+	first_free = mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
+				      + undo_block->frame);
+	ptr = undo_block->frame + first_free;
 
 	ut_ad(first_free <= UNIV_PAGE_SIZE);
 
-	if (trx_undo_left(undo_page, ptr) < 2 + 1 + 11 + 11) {
-
+	if (trx_undo_left(undo_block, ptr) < 2 + 1 + 11 + 11) {
 		/* Not enough space for writing the general parameters */
-
 		return(0);
 	}
 
@@ -516,8 +508,9 @@ trx_undo_page_report_insert(
 	if (UNIV_UNLIKELY(clust_entry->info_bits)) {
 		ut_ad(clust_entry->info_bits == REC_INFO_DEFAULT_ROW);
 		ut_ad(index->is_instant());
-		ut_ad(undo_page[first_free + 2] == TRX_UNDO_INSERT_REC);
-		undo_page[first_free + 2] = TRX_UNDO_INSERT_DEFAULT;
+		ut_ad(undo_block->frame[first_free + 2]
+		      == TRX_UNDO_INSERT_REC);
+		undo_block->frame[first_free + 2] = TRX_UNDO_INSERT_DEFAULT;
 		goto done;
 	}
 
@@ -526,7 +519,7 @@ trx_undo_page_report_insert(
 		const dfield_t*	field	= dtuple_get_nth_field(clust_entry, i);
 		ulint		flen	= dfield_get_len(field);
 
-		if (trx_undo_left(undo_page, ptr) < 5) {
+		if (trx_undo_left(undo_block, ptr) < 5) {
 
 			return(0);
 		}
@@ -534,7 +527,7 @@ trx_undo_page_report_insert(
 		ptr += mach_write_compressed(ptr, flen);
 
 		if (flen != UNIV_SQL_NULL) {
-			if (trx_undo_left(undo_page, ptr) < flen) {
+			if (trx_undo_left(undo_block, ptr) < flen) {
 
 				return(0);
 			}
@@ -546,13 +539,13 @@ trx_undo_page_report_insert(
 
 	if (index->table->n_v_cols) {
 		if (!trx_undo_report_insert_virtual(
-			undo_page, index->table, clust_entry, &ptr)) {
+			undo_block, index->table, clust_entry, &ptr)) {
 			return(0);
 		}
 	}
 
 done:
-	return(trx_undo_page_set_next_prev_and_add(undo_page, ptr, mtr));
+	return(trx_undo_page_set_next_prev_and_add(undo_block, ptr, mtr));
 }
 
 /**********************************************************************//**
@@ -868,7 +861,7 @@ static
 ulint
 trx_undo_page_report_modify(
 /*========================*/
-	page_t*		undo_page,	/*!< in: undo log page */
+	buf_block_t*	undo_block,	/*!< in: undo log page */
 	trx_t*		trx,		/*!< in: transaction */
 	dict_index_t*	index,		/*!< in: clustered index where update or
 					delete marking is done */
@@ -884,9 +877,34 @@ trx_undo_page_report_modify(
 					virtual column info */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	dict_table_t*	table		= index->table;
 	ulint		first_free;
 	byte*		ptr;
+
+	ut_ad(index->is_primary());
+	ut_ad(rec_offs_validate(rec, index, offsets));
+	/* MariaDB 10.3.1+ in trx_undo_page_init() always initializes
+	TRX_UNDO_PAGE_TYPE as 0, but previous versions wrote
+	TRX_UNDO_INSERT == 1 into insert_undo pages,
+	or TRX_UNDO_UPDATE == 2 into update_undo pages. */
+	ut_ad(mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
+			       + undo_block->frame) <= 2);
+
+	first_free = mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
+				      + undo_block->frame);
+	ptr = undo_block->frame + first_free;
+
+	ut_ad(first_free <= UNIV_PAGE_SIZE);
+
+	if (trx_undo_left(undo_block, ptr) < 50) {
+		/* NOTE: the value 50 must be big enough so that the general
+		fields written below fit on the undo log page */
+		return 0;
+	}
+
+	/* Reserve 2 bytes for the pointer to the next undo log record */
+	ptr += 2;
+
+	dict_table_t*	table		= index->table;
 	const byte*	field;
 	ulint		flen;
 	ulint		col_no;
@@ -898,32 +916,6 @@ trx_undo_page_report_modify(
 	byte		ext_buf[REC_VERSION_56_MAX_INDEX_COL_LEN
 				+ BTR_EXTERN_FIELD_REF_SIZE];
 	bool		first_v_col = true;
-
-	ut_a(dict_index_is_clust(index));
-	ut_ad(rec_offs_validate(rec, index, offsets));
-	/* MariaDB 10.3.1+ in trx_undo_page_init() always initializes
-	TRX_UNDO_PAGE_TYPE as 0, but previous versions wrote
-	TRX_UNDO_INSERT == 1 into insert_undo pages,
-	or TRX_UNDO_UPDATE == 2 into update_undo pages. */
-	ut_ad(mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_TYPE
-			       + undo_page) <= 2);
-
-	first_free = mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
-				      + TRX_UNDO_PAGE_FREE);
-	ptr = undo_page + first_free;
-
-	ut_ad(first_free <= UNIV_PAGE_SIZE);
-
-	if (trx_undo_left(undo_page, ptr) < 50) {
-
-		/* NOTE: the value 50 must be big enough so that the general
-		fields written below fit on the undo log page */
-
-		return(0);
-	}
-
-	/* Reserve 2 bytes for the pointer to the next undo log record */
-	ptr += 2;
 
 	/* Store first some general parameters to the undo log */
 
@@ -997,16 +989,14 @@ trx_undo_page_report_modify(
 		ut_ad(!rec_offs_nth_extern(offsets, i));
 		ut_ad(dict_index_get_nth_col(index, i)->ord_part);
 
-		if (trx_undo_left(undo_page, ptr) < 5) {
-
+		if (trx_undo_left(undo_block, ptr) < 5) {
 			return(0);
 		}
 
 		ptr += mach_write_compressed(ptr, flen);
 
 		if (flen != UNIV_SQL_NULL) {
-			if (trx_undo_left(undo_page, ptr) < flen) {
-
+			if (trx_undo_left(undo_block, ptr) < flen) {
 				return(0);
 			}
 
@@ -1019,8 +1009,7 @@ trx_undo_page_report_modify(
 	/* Save to the undo log the old values of the columns to be updated. */
 
 	if (update) {
-		if (trx_undo_left(undo_page, ptr) < 5) {
-
+		if (trx_undo_left(undo_block, ptr) < 5) {
 			return(0);
 		}
 
@@ -1058,8 +1047,7 @@ trx_undo_page_report_modify(
 			ulint	pos = fld->field_no;
 
 			/* Write field number to undo log */
-			if (trx_undo_left(undo_page, ptr) < 5) {
-
+			if (trx_undo_left(undo_block, ptr) < 5) {
 				return(0);
 			}
 
@@ -1083,7 +1071,7 @@ trx_undo_page_report_modify(
 			if (is_virtual) {
 				ut_ad(fld->field_no < table->n_v_def);
 
-				ptr = trx_undo_log_v_idx(undo_page, table,
+				ptr = trx_undo_log_v_idx(undo_block, table,
 							 fld->field_no, ptr,
 							 first_v_col);
 				if (ptr == NULL) {
@@ -1110,8 +1098,7 @@ trx_undo_page_report_modify(
 					rec, index, offsets, pos, &flen);
 			}
 
-			if (trx_undo_left(undo_page, ptr) < 15) {
-
+			if (trx_undo_left(undo_block, ptr) < 15) {
 				return(0);
 			}
 
@@ -1140,8 +1127,7 @@ trx_undo_page_report_modify(
 			}
 
 			if (flen != UNIV_SQL_NULL) {
-				if (trx_undo_left(undo_page, ptr) < flen) {
-
+				if (trx_undo_left(undo_block, ptr) < flen) {
 					return(0);
 				}
 
@@ -1158,16 +1144,15 @@ trx_undo_page_report_modify(
 						flen, max_v_log_len);
 				}
 
-				if (trx_undo_left(undo_page, ptr) < 15) {
-
+				if (trx_undo_left(undo_block, ptr) < 15) {
 					return(0);
 				}
 
 				ptr += mach_write_compressed(ptr, flen);
 
 				if (flen != UNIV_SQL_NULL) {
-					if (trx_undo_left(undo_page, ptr) < flen) {
-
+					if (trx_undo_left(undo_block, ptr)
+					    < flen) {
 						return(0);
 					}
 
@@ -1201,8 +1186,7 @@ trx_undo_page_report_modify(
 		double		mbr[SPDIMS * 2];
 		mem_heap_t*	row_heap = NULL;
 
-		if (trx_undo_left(undo_page, ptr) < 5) {
-
+		if (trx_undo_left(undo_block, ptr) < 5) {
 			return(0);
 		}
 
@@ -1268,8 +1252,7 @@ trx_undo_page_report_modify(
 
 			if (true) {
 				/* Write field number to undo log */
-				if (trx_undo_left(undo_page, ptr) < 5 + 15) {
-
+				if (trx_undo_left(undo_block, ptr) < 5 + 15) {
 					return(0);
 				}
 
@@ -1317,9 +1300,8 @@ trx_undo_page_report_modify(
 
 				if (flen != UNIV_SQL_NULL
 				    && spatial_status != SPATIAL_ONLY) {
-					if (trx_undo_left(undo_page, ptr)
+					if (trx_undo_left(undo_block, ptr)
 					    < flen) {
-
 						return(0);
 					}
 
@@ -1328,7 +1310,7 @@ trx_undo_page_report_modify(
 				}
 
 				if (spatial_status != SPATIAL_NONE) {
-					if (trx_undo_left(undo_page, ptr)
+					if (trx_undo_left(undo_block, ptr)
 					    < DATA_MBR_LEN) {
 						return(0);
 					}
@@ -1361,8 +1343,7 @@ already_logged:
 
 				/* Write field number to undo log.
 				Make sure there is enought space in log */
-				if (trx_undo_left(undo_page, ptr) < 5) {
-
+				if (trx_undo_left(undo_block, ptr) < 5) {
 					return(0);
 				}
 
@@ -1370,7 +1351,7 @@ already_logged:
 				ptr += mach_write_compressed(ptr, pos);
 
 				ut_ad(col_no < table->n_v_def);
-				ptr = trx_undo_log_v_idx(undo_page, table,
+				ptr = trx_undo_log_v_idx(undo_block, table,
 							 col_no, ptr,
 							 first_v_col);
 				first_v_col = false;
@@ -1410,9 +1391,8 @@ already_logged:
 				ptr += mach_write_compressed(ptr, flen);
 
 				if (flen != UNIV_SQL_NULL) {
-					if (trx_undo_left(undo_page, ptr)
+					if (trx_undo_left(undo_block, ptr)
 					    < flen) {
-
 						return(0);
 					}
 
@@ -1431,22 +1411,20 @@ already_logged:
 
 	/*----------------------------------------*/
 	/* Write pointers to the previous and the next undo log records */
-	if (trx_undo_left(undo_page, ptr) < 2) {
-
+	if (trx_undo_left(undo_block, ptr) < 2) {
 		return(0);
 	}
 
 	mach_write_to_2(ptr, first_free);
 	ptr += 2;
-	mach_write_to_2(undo_page + first_free, ptr - undo_page);
+	const ulint new_free = ptr - undo_block->frame;
+	mach_write_to_2(undo_block->frame + first_free, new_free);
 
-	mach_write_to_2(undo_page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE,
-			ptr - undo_page);
+	mach_write_to_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
+			+ undo_block->frame, new_free);
 
 	/* Write to the REDO log about this change in the UNDO log */
-
-	trx_undof_page_add_undo_rec_log(undo_page, first_free,
-					ptr - undo_page, mtr);
+	trx_undof_page_add_undo_rec_log(undo_block, first_free, new_free, mtr);
 	return(first_free);
 }
 
@@ -1893,7 +1871,7 @@ trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 			    + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE
 			    < UNIV_PAGE_SIZE_MIN - 10 - FIL_PAGE_DATA_END);
 
-	if (trx_undo_left(block->frame, start) < fixed + len) {
+	if (trx_undo_left(block, start) < fixed + len) {
 		ut_ad(first_free > TRX_UNDO_PAGE_HDR
 		      + TRX_UNDO_PAGE_HDR_SIZE);
 		return 0;
@@ -1911,7 +1889,7 @@ trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 	mach_write_to_2(start, offset);
 	mach_write_to_2(ptr_first_free, offset);
 
-	trx_undof_page_add_undo_rec_log(block->frame, first_free, offset, mtr);
+	trx_undof_page_add_undo_rec_log(block, first_free, offset, mtr);
 	return first_free;
 }
 
@@ -2041,16 +2019,15 @@ trx_undo_report_row_operation(
 	ut_ad(undo != NULL);
 
 	do {
-		page_t*	undo_page = buf_block_get_frame(undo_block);
 		ulint	offset = !rec
 			? trx_undo_page_report_insert(
-				undo_page, trx, index, clust_entry, &mtr)
+				undo_block, trx, index, clust_entry, &mtr)
 			: trx_undo_page_report_modify(
-				undo_page, trx, index, rec, offsets, update,
+				undo_block, trx, index, rec, offsets, update,
 				cmpl_info, clust_entry, &mtr);
 
 		if (UNIV_UNLIKELY(offset == 0)) {
-			if (!trx_undo_erase_page_end(undo_page)) {
+			if (!trx_undo_erase_page_end(undo_block->frame)) {
 				/* The record did not fit on an empty
 				undo page. Discard the freshly allocated
 				page and return an error. */
