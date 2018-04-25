@@ -370,8 +370,6 @@ struct trx_undo_t {
 					top_page_no during a rollback */
 	ulint		size;		/*!< current size in pages */
 	/*-----------------------------*/
-	ulint		empty;		/*!< TRUE if the stack of undo log
-					records is currently empty */
 	ulint		top_page_no;	/*!< page number where the latest undo
 					log record was catenated; during
 					rollback the page from which the latest
@@ -379,11 +377,16 @@ struct trx_undo_t {
 	ulint		top_offset;	/*!< offset of the latest undo record,
 					i.e., the topmost element in the undo
 					log if we think of it as a stack */
-	undo_no_t	top_undo_no;	/*!< undo number of the latest record */
+	undo_no_t	top_undo_no;	/*!< undo number of the latest record
+					(IB_ID_MAX if the undo log is empty) */
 	buf_block_t*	guess_block;	/*!< guess for the buffer block where
 					the top page might reside */
 	ulint		withdraw_clock;	/*!< the withdraw clock value of the
 					buffer pool when guess_block was stored */
+
+	/** @return whether the undo log is empty */
+	bool empty() const { return top_undo_no == IB_ID_MAX; }
+
 	/*-----------------------------*/
 	UT_LIST_NODE_T(trx_undo_t) undo_list;
 					/*!< undo log objects in the rollback

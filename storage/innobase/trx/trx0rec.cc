@@ -1916,11 +1916,11 @@ trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 			if (ulint offset = trx_undo_page_report_rename(
 				    trx, table, block, &mtr)) {
 				undo->withdraw_clock = buf_withdraw_clock;
-				undo->empty = FALSE;
 				undo->top_page_no = undo->last_page_no;
 				undo->top_offset  = offset;
 				undo->top_undo_no = trx->undo_no++;
 				undo->guess_block = block;
+				ut_ad(!undo->empty());
 
 				err = DB_SUCCESS;
 				break;
@@ -2012,7 +2012,7 @@ trx_undo_report_row_operation(
 	trx_undo_t*	undo	= *pundo;
 
 	ut_ad((err == DB_SUCCESS) == (undo_block != NULL));
-	if (undo_block == NULL) {
+	if (UNIV_UNLIKELY(undo_block == NULL)) {
 		goto err_exit;
 	}
 
@@ -2062,11 +2062,11 @@ trx_undo_report_row_operation(
 			undo->withdraw_clock = buf_withdraw_clock;
 			mtr_commit(&mtr);
 
-			undo->empty = FALSE;
 			undo->top_page_no = undo_block->page.id.page_no();
 			undo->top_offset  = offset;
 			undo->top_undo_no = trx->undo_no++;
 			undo->guess_block = undo_block;
+			ut_ad(!undo->empty());
 
 			mutex_exit(&trx->undo_mutex);
 
@@ -2111,7 +2111,7 @@ trx_undo_report_row_operation(
 
 		DBUG_EXECUTE_IF("ib_err_ins_undo_page_add_failure",
 				undo_block = NULL;);
-	} while (undo_block != NULL);
+	} while (UNIV_LIKELY(undo_block != NULL));
 
 	ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 		DB_OUT_OF_FILE_SPACE,

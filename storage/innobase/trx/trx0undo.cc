@@ -1150,13 +1150,14 @@ trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no,
 		page_t* last_page = trx_undo_page_get(
 			page_id_t(rseg->space->id, undo->last_page_no), &mtr);
 
-		const trx_undo_rec_t*	rec = trx_undo_page_get_last_rec(
-			last_page, page_no, offset);
-
-		undo->empty = !rec;
-		if (rec) {
+		if (const trx_undo_rec_t* rec = trx_undo_page_get_last_rec(
+			    last_page, page_no, offset)) {
 			undo->top_offset = rec - last_page;
 			undo->top_undo_no = trx_undo_rec_get_undo_no(rec);
+			ut_ad(!undo->empty());
+		} else {
+			undo->top_undo_no = IB_ID_MAX;
+			ut_ad(undo->empty());
 		}
 	}
 
@@ -1217,10 +1218,11 @@ trx_undo_mem_create(
 	undo->last_page_no = page_no;
 	undo->size = 1;
 
-	undo->empty = TRUE;
+	undo->top_undo_no = IB_ID_MAX;
 	undo->top_page_no = page_no;
 	undo->guess_block = NULL;
 	undo->withdraw_clock = 0;
+	ut_ad(undo->empty());
 
 	return(undo);
 }
@@ -1248,7 +1250,8 @@ trx_undo_mem_init_for_reuse(
 	undo->dict_operation = FALSE;
 
 	undo->hdr_offset = offset;
-	undo->empty = TRUE;
+	undo->top_undo_no = IB_ID_MAX;
+	ut_ad(undo->empty());
 }
 
 /** Create an undo log.

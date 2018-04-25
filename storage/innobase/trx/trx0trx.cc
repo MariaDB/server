@@ -571,8 +571,7 @@ trx_resurrect_table_locks(
 	      trx_state_eq(trx, TRX_STATE_PREPARED));
 	ut_ad(undo->rseg == trx->rsegs.m_redo.rseg);
 
-	if (undo->empty) {
-
+	if (undo->empty()) {
 		return;
 	}
 
@@ -687,11 +686,7 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
   else
     trx->rsegs.m_redo.undo= undo;
 
-  if (!undo->empty)
-  {
-    trx->undo_no= undo->top_undo_no + 1;
-  }
-
+  trx->undo_no= undo->top_undo_no + 1;
   trx->rsegs.m_redo.rseg= rseg;
   /*
     For transactions with active data will not have rseg size = 1
@@ -784,8 +779,7 @@ trx_lists_init_at_db_start()
 				ut_ad(trx->rsegs.m_redo.rseg->trx_ref_count);
 
 				trx->rsegs.m_redo.undo = undo;
-				if (!undo->empty
-				    && undo->top_undo_no >= trx->undo_no) {
+				if (undo->top_undo_no >= trx->undo_no) {
 					if (trx_state_eq(trx,
 							 TRX_STATE_ACTIVE)) {
 						rows_to_undo -= trx->undo_no;
