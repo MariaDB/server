@@ -3089,16 +3089,19 @@ set big_tables=default;
 #
 # MDEV-15571: using recursive cte with big_tables enabled
 #
+create table t1 (a bigint);
+insert into t1 values(1);
 set big_tables=1;
 with recursive qn as
 (
-select 1 as a from dual
+select  a from t1
 union all
 select a*2000 from qn where a<10000000000000000000
 )
 select * from qn;
 ERROR 22003: BIGINT value is out of range in '`qn`.`a` * 2000'
 set big_tables=default;
+drop table t1;
 #
 # MDEV-15556: using recursive cte with big_tables enabled
 #             when recursive tables are accessed by key
