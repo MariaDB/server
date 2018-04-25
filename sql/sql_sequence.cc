@@ -560,8 +560,7 @@ void sequence_definition::adjust_values(longlong next_value)
     else
     {
       next_free_value+= to_add;
-      DBUG_ASSERT(next_free_value % real_increment == offset &&
-                  next_free_value >= reserved_until);
+      DBUG_ASSERT(next_free_value % real_increment == offset);
     }
   }
 }

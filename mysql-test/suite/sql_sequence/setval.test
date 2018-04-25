@@ -137,3 +137,20 @@ SELECT SETVAL(s1,10);
 DROP SEQUENCE s1;
 --enable_ps_protocol
 --disable_metadata
+
+--echo #
+--echo # MDEV-15732: Assertion `next_free_value % real_increment == offset &&
+--echo # next_free_value >= reserved_until' failed in
+--echo # sequence_definition::adjust_values upon SETVAL for sequence with
+--echo # INCREMENT 0
+--echo #
+
+CREATE SEQUENCE s INCREMENT 0;
+SELECT NEXTVAL(s);
+SELECT SETVAL(s, 10);
+
+# Cleanup
+DROP SEQUENCE s;
+
+
+--echo # End of 10.3 tests
