@@ -4520,39 +4520,26 @@ row_search_mvcc(
 		prebuilt->sql_stat_start = FALSE;
 	} else if (!prebuilt->sql_stat_start) {
 		/* No need to set an intention lock or assign a read view */
-
-		if (!trx->read_view.is_open()
-		    && !srv_read_only_mode
-		    && prebuilt->select_lock_type == LOCK_NONE) {
-
-			ib::error() << "MySQL is trying to perform a"
-				" consistent read but the read view is not"
-				" assigned!";
-			trx_print(stderr, trx, 600);
-			fputc('\n', stderr);
-			ut_error;
-		}
-	} else if (prebuilt->select_lock_type == LOCK_NONE) {
-		/* This is a consistent read */
-		/* Assign a read view for the query */
-		trx_start_if_not_started(trx, false);
-
-		trx->read_view.open(trx);
-
-		prebuilt->sql_stat_start = FALSE;
+		ut_a(prebuilt->select_lock_type != LOCK_NONE
+		     || srv_read_only_mode || trx->read_view.is_open());
 	} else {
-		trx_start_if_not_started(trx, false);
-wait_table_again:
-		err = lock_table(0, prebuilt->table,
-				 prebuilt->select_lock_type == LOCK_S
-				 ? LOCK_IS : LOCK_IX, thr);
-
-		if (err != DB_SUCCESS) {
-
-			table_lock_waited = TRUE;
-			goto lock_table_wait;
-		}
 		prebuilt->sql_stat_start = FALSE;
+		trx_start_if_not_started(trx, false);
+
+		if (prebuilt->select_lock_type == LOCK_NONE) {
+			trx->read_view.open(trx);
+		} else {
+wait_table_again:
+			err = lock_table(0, prebuilt->table,
+					 prebuilt->select_lock_type == LOCK_S
+					 ? LOCK_IS : LOCK_IX, thr);
+
+			if (err != DB_SUCCESS) {
+
+				table_lock_waited = TRUE;
+				goto lock_table_wait;
+			}
+		}
 	}
 
 	/* Open or restore index cursor position */
@@ -5551,25 +5538,25 @@ next_rec:
 	For R-tree spatial search, we also commit the mini-transaction
 	each time  */
 
-	if (mtr_has_extra_clust_latch || spatial_search) {
+	if (spatial_search) {
+		/* No need to do store restore for R-tree */
+		mtr.commit();
+		mtr.start();
+		mtr_has_extra_clust_latch = FALSE;
+	} else if (mtr_has_extra_clust_latch) {
 		/* If we have extra cluster latch, we must commit
 		mtr if we are moving to the next non-clustered
 		index record, because we could break the latching
 		order if we would access a different clustered
 		index page right away without releasing the previous. */
 
-		/* No need to do store restore for R-tree */
-		if (!spatial_search) {
-			btr_pcur_store_position(pcur, &mtr);
-		}
-
+		btr_pcur_store_position(pcur, &mtr);
 		mtr.commit();
 		mtr_has_extra_clust_latch = FALSE;
 
 		mtr.start();
 
-		if (!spatial_search
-		    && sel_restore_position_for_mysql(&same_user_rec,
+		if (sel_restore_position_for_mysql(&same_user_rec,
 						   BTR_SEARCH_LEAF,
 						   pcur, moves_up, &mtr)) {
 			goto rec_loop;
