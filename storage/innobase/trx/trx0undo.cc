@@ -77,16 +77,19 @@ can still remove old versions from the bottom of the stack. */
    -------------------------------------------------------------------
 latches?
 -------
-The contention of the trx_sys_t::mutex should be minimized. When a transaction
+The contention of the trx_sys.mutex should be minimized. When a transaction
 does its first insert or modify in an index, an undo log is assigned for it.
 Then we must have an x-latch to the rollback segment header.
-	When the transaction does more modifys or rolls back, the undo log is
-protected with undo_mutex in the transaction.
-	When the transaction commits, its insert undo log is either reset and
-cached for a fast reuse, or freed. In these cases we must have an x-latch on
-the rollback segment page. The update undo log is put to the history list. If
-it is not suitable for reuse, its slot in the rollback segment is reset. In
-both cases, an x-latch must be acquired on the rollback segment.
+	When the transaction performs modifications or rolls back, its
+undo log is protected by undo page latches and trx_t::undo_mutex.
+Only the thread that is associated with the transaction may hold multiple
+undo page latches at a time. Undo pages are always private to a single
+transaction. Other threads that are performing MVCC reads
+or checking for implicit locks will lock at most one undo page at a time
+in trx_undo_get_undo_rec_low(), without holding any undo_mutex.
+	When the transaction commits, its persistent undo log is added
+to the history list. If it is not suitable for reuse, its slot is reset.
+In both cases, an x-latch must be acquired on the rollback segment header page.
 	The purge operation steps through the history list without modifying
 it until a truncate operation occurs, which can remove undo logs from the end
 of the list and release undo log segments. In stepping through the list,
