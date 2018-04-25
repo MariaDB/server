@@ -8612,12 +8612,10 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
   if (!table && open())
     return true;
 
-  timeval start_time= {thd->query_start(), long(thd->query_start_sec_part())};
-  thd->set_start_time();
+  store(FLD_BEGIN_TS, thd->transaction_time());
   timeval end_time= {thd->query_start(), long(thd->query_start_sec_part())};
   store(FLD_TRX_ID, start_id);
   store(FLD_COMMIT_ID, end_id);
-  store(FLD_BEGIN_TS, start_time);
   store(FLD_COMMIT_TS, end_time);
   store_iso_level(thd->tx_isolation);
 
