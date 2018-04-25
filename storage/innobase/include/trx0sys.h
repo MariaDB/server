@@ -627,6 +627,12 @@ public:
     */
     if (!trx_id)
       return NULL;
+    if (caller_trx && caller_trx->id == trx_id)
+    {
+      if (do_ref_count)
+        caller_trx->reference();
+      return caller_trx;
+    }
 
     trx_t *trx= 0;
     LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
