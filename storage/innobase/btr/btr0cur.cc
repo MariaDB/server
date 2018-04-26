@@ -75,18 +75,14 @@ enum btr_op_t {
 	BTR_DELMARK_OP			/*!< Mark a record for deletion */
 };
 
-/** Modification types for the B-tree operation. */
+/** Modification types for the B-tree operation.
+    Note that the order must be DELETE, BOTH, INSERT !!
+ */
 enum btr_intention_t {
 	BTR_INTENTION_DELETE,
 	BTR_INTENTION_BOTH,
 	BTR_INTENTION_INSERT
 };
-#if BTR_INTENTION_DELETE > BTR_INTENTION_BOTH
-#error "BTR_INTENTION_DELETE > BTR_INTENTION_BOTH"
-#endif
-#if BTR_INTENTION_BOTH > BTR_INTENTION_INSERT
-#error "BTR_INTENTION_BOTH > BTR_INTENTION_INSERT"
-#endif
 
 /** For the index->lock scalability improvement, only possibility of clear
 performance regression observed was caused by grown huge history list length.
@@ -209,6 +205,7 @@ btr_rec_free_externally_stored_fields(
 
 /*==================== B-TREE SEARCH =========================*/
 
+/**
 #if MTR_MEMO_PAGE_S_FIX != RW_S_LATCH
 #error "MTR_MEMO_PAGE_S_FIX != RW_S_LATCH"
 #endif
@@ -218,6 +215,7 @@ btr_rec_free_externally_stored_fields(
 #if MTR_MEMO_PAGE_SX_FIX != RW_SX_LATCH
 #error "MTR_MEMO_PAGE_SX_FIX != RW_SX_LATCH"
 #endif
+*/
 
 /** Latches the leaf page or pages requested.
 @param[in]	block		leaf page where the search converged

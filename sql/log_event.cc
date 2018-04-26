@@ -14516,7 +14516,7 @@ void Incident_log_event::pack_info(Protocol *protocol)
 #endif /* MYSQL_CLIENT */
 
 
-#if WITH_WSREP && !defined(MYSQL_CLIENT)
+#if defined(WITH_WSREP) && !defined(MYSQL_CLIENT)
 /*
   read the first event from (*buf). The size of the (*buf) is (*buf_len).
   At the end (*buf) is shitfed to point to the following event or NULL and

@@ -2536,7 +2536,7 @@ page_validate(
 
 			data_size += rec_offs_size(offsets);
 
-#if UNIV_GIS_DEBUG
+#if defined(UNIV_GIS_DEBUG)
 			/* For spatial index, print the mbr info.*/
 			if (index->type & DICT_SPATIAL) {
 				rec_print_mbr_rec(stderr, rec, offsets);

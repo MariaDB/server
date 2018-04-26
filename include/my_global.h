@@ -710,7 +710,7 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #define closesocket(A)	close(A)
 #endif
 
-#if (_MSC_VER)
+#if defined(_MSC_VER)
 #if !defined(_WIN64)
 inline double my_ulonglong2double(unsigned long long value)
 {
@@ -1166,7 +1166,7 @@ typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 
 /* Provide __func__ macro definition for platforms that miss it. */
 #if !defined (__func__)
-#if __STDC_VERSION__ < 199901L
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ < 199901L
 #  if __GNUC__ >= 2
 #    define __func__ __FUNCTION__
 #  else
@@ -1258,7 +1258,7 @@ static inline double rint(double x)
   CMake using getconf
 */
 #if !defined(CPU_LEVEL1_DCACHE_LINESIZE) || CPU_LEVEL1_DCACHE_LINESIZE == 0
-  #if CPU_LEVEL1_DCACHE_LINESIZE == 0
+  #if defined(CPU_LEVEL1_DCACHE_LINESIZE) && CPU_LEVEL1_DCACHE_LINESIZE == 0
     #undef CPU_LEVEL1_DCACHE_LINESIZE
   #endif
 

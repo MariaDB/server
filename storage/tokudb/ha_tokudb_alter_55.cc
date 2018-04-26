@@ -23,7 +23,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
 
-#if TOKU_INCLUDE_ALTER_55
+#if defined(TOKU_INCLUDE_ALTER_55)
 
 #include "ha_tokudb_alter_common.cc"
 

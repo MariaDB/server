@@ -100,7 +100,7 @@ fil_compress_page(
 	int comp_level = int(level);
 	ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
 	ulint write_size = 0;
-#if HAVE_LZO
+#if defined(HAVE_LZO)
 	lzo_uint write_size_lzo = write_size;
 #endif
 	/* Cache to avoid change during function execution */
@@ -122,12 +122,12 @@ fil_compress_page(
 		/* Both snappy and lzo compression methods require that
 		output buffer used for compression is bigger than input
 		buffer. Increase the allocated buffer size accordingly. */
-#if HAVE_SNAPPY
+#if defined(HAVE_SNAPPY)
 		if (comp_method == PAGE_SNAPPY_ALGORITHM) {
 			size = snappy_max_compressed_length(size);
 		}
 #endif
-#if HAVE_LZO
+#if defined(HAVE_LZO)
 		if (comp_method == PAGE_LZO_ALGORITHM) {
 			size += LZO1X_1_15_MEM_COMPRESS;
 		}

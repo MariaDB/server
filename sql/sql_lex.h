@@ -173,7 +173,7 @@ struct LEX_TYPE
 #define LEX_YYSTYPE void *
 #else
 #include "lex_symbol.h"
-#if MYSQL_LEX
+#ifdef MYSQL_LEX
 #include "item_func.h"            /* Cast_target used in sql_yacc.h */
 #include "sql_get_diagnostics.h"  /* Types used in sql_yacc.h */
 #include "sp_pcontext.h"

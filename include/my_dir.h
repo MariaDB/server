@@ -76,7 +76,7 @@ typedef struct my_stat
 
 #else
 
-#if(_MSC_VER)
+#if defined(_MSC_VER)
 #define MY_STAT struct _stati64 /* 64 bit file size */
 #else
 #define MY_STAT struct stat	/* Original struct has what we need */

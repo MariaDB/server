@@ -866,8 +866,8 @@ struct dict_index_t{
 				in a clustered index record, if the fields
 				before it are known to be of a fixed size,
 				0 otherwise */
-#if (1<<MAX_KEY_LENGTH_BITS) < MAX_KEY_LENGTH
-# error (1<<MAX_KEY_LENGTH_BITS) < MAX_KEY_LENGTH
+#if (1<<MAX_KEY_LENGTH_BITS) < HA_MAX_KEY_LENGTH
+# error (1<<MAX_KEY_LENGTH_BITS) < HA_MAX_KEY_LENGTH
 #endif
 	unsigned	n_user_defined_cols:10;
 				/*!< number of columns the user defined to

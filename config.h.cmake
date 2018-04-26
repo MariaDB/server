@@ -433,11 +433,11 @@
 #cmakedefine strtoll @strtoll@
 #cmakedefine strtoull @strtoull@
 #cmakedefine vsnprintf @vsnprintf@
-#if (_MSC_VER > 1800)
+#if defined(_MSC_VER) && (_MSC_VER > 1800)
 #define tzname _tzname
 #define P_tmpdir "C:\\TEMP"
 #endif
-#if (_MSC_VER > 1310)
+#if defined(_MSC_VER) && (_MSC_VER > 1310)
 # define HAVE_SETENV
 #define setenv(a,b,c) _putenv_s(a,b)
 #endif

@@ -28,6 +28,7 @@ Created 1/8/1996 Heikki Tuuri
 #define dict0types_h
 
 #include <ut0mutex.h>
+#include <rem0types.h>
 
 struct dict_sys_t;
 struct dict_col_t;
