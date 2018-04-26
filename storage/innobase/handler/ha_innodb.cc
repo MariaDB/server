@@ -9032,6 +9032,14 @@ ha_innobase::update_row(
 		goto func_exit;
 	}
 
+	if (!uvect->n_fields) {
+		/* This is the same as success, but instructs
+		MySQL that the row is not really updated and it
+		should not increase the count of updated rows.
+		This is fix for http://bugs.mysql.com/29157 */
+		DBUG_RETURN(HA_ERR_RECORD_IS_THE_SAME);
+	}
+
 	/* This is not a delete */
 	m_prebuilt->upd_node->is_delete = FALSE;
 
@@ -9068,20 +9076,12 @@ ha_innobase::update_row(
 	innobase_srv_conc_exit_innodb(m_prebuilt);
 
 func_exit:
-
-	err = convert_error_code_to_mysql(
-		error, m_prebuilt->table->flags, m_user_thd);
-
-	/* If success and no columns were updated. */
-	if (err == 0 && uvect->n_fields == 0) {
-
-		/* This is the same as success, but instructs
-		MySQL that the row is not really updated and it
-		should not increase the count of updated rows.
-		This is fix for http://bugs.mysql.com/29157 */
-		err = HA_ERR_RECORD_IS_THE_SAME;
-	} else if (err == HA_FTS_INVALID_DOCID) {
+	if (error == DB_FTS_INVALID_DOCID) {
+		err = HA_FTS_INVALID_DOCID;
 		my_error(HA_FTS_INVALID_DOCID, MYF(0));
+	} else {
+		err = convert_error_code_to_mysql(
+			error, m_prebuilt->table->flags, m_user_thd);
 	}
 
 	/* Tell InnoDB server that there might be work for
