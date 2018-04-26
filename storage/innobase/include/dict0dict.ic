@@ -1450,16 +1450,8 @@ bool
 dict_table_is_file_per_table(
 	const dict_table_t*	table)	/*!< in: table to check */
 {
-	bool is_file_per_table = table->space != fil_system.sys_space
+	return table->space != fil_system.sys_space
 		&& table->space != fil_system.temp_space;
-
-	/* If the table is file-per-table and it is not redundant, then
-	it should have the flags2 bit for DICT_TF2_USE_FILE_PER_TABLE. */
-	ut_ad(!is_file_per_table
-	      || !DICT_TF_GET_COMPACT(table->flags)
-	      || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_USE_FILE_PER_TABLE));
-
-	return(is_file_per_table);
 }
 
 /** Get reference count.

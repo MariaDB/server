@@ -3620,7 +3620,6 @@ innobase_init(
 	int		err;
 	char		*default_path;
 	ulong		num_pll_degree;
-	ulint		srv_buf_pool_size_org = 0;
 
 	DBUG_ENTER("innobase_init");
 	handlerton* innobase_hton= (handlerton*) p;
@@ -4128,31 +4127,9 @@ innobase_change_buffering_inited_ok:
 	mysql_cond_register("innodb", all_innodb_conds, count);
 #endif /* HAVE_PSI_INTERFACE */
 
-	/* Set buffer pool size to default for fast startup when mysqld is
-	run with --help --verbose options. */
-	/* JAN: TODO: MySQL 5.7 has opt_verbose
-	if (opt_help && opt_verbose
-	    && srv_buf_pool_size > srv_buf_pool_def_size) {
-		ib::warn() << "Setting innodb_buf_pool_size to "
-			<< srv_buf_pool_def_size << " for fast startup, "
-			<< "when running with --help --verbose options.";
-		srv_buf_pool_size_org = srv_buf_pool_size;
-		srv_buf_pool_size = srv_buf_pool_def_size;
-	}
-	*/
-
 	err = innobase_start_or_create_for_mysql();
 
-	if (srv_buf_pool_size_org != 0) {
-		/* Set the original value back to show in help. */
-		srv_buf_pool_size_org =
-			buf_pool_size_align(srv_buf_pool_size_org);
-		innobase_buffer_pool_size =
-			static_cast<long long>(srv_buf_pool_size_org);
-	} else {
-		innobase_buffer_pool_size =
-			static_cast<long long>(srv_buf_pool_size);
-	}
+	innobase_buffer_pool_size = static_cast<long long>(srv_buf_pool_size);
 
 	if (err != DB_SUCCESS) {
 		innodb_shutdown();
@@ -8822,7 +8799,13 @@ ha_innobase::update_row(
 		goto func_exit;
 	}
 
-	{
+	if (!uvect->n_fields) {
+		/* This is the same as success, but instructs
+		MySQL that the row is not really updated and it
+		should not increase the count of updated rows.
+		This is fix for http://bugs.mysql.com/29157 */
+		DBUG_RETURN(HA_ERR_RECORD_IS_THE_SAME);
+	} else {
 		const bool vers_set_fields = m_prebuilt->versioned_write
 			&& m_prebuilt->upd_node->update->affects_versioned();
 		const bool vers_ins_row = vers_set_fields
@@ -8879,20 +8862,12 @@ ha_innobase::update_row(
 	innobase_srv_conc_exit_innodb(m_prebuilt);
 
 func_exit:
-
-	err = convert_error_code_to_mysql(
-		error, m_prebuilt->table->flags, m_user_thd);
-
-	/* If success and no columns were updated. */
-	if (err == 0 && uvect->n_fields == 0) {
-
-		/* This is the same as success, but instructs
-		MySQL that the row is not really updated and it
-		should not increase the count of updated rows.
-		This is fix for http://bugs.mysql.com/29157 */
-		err = HA_ERR_RECORD_IS_THE_SAME;
-	} else if (err == HA_FTS_INVALID_DOCID) {
+	if (error == DB_FTS_INVALID_DOCID) {
+		err = HA_FTS_INVALID_DOCID;
 		my_error(HA_FTS_INVALID_DOCID, MYF(0));
+	} else {
+		err = convert_error_code_to_mysql(
+			error, m_prebuilt->table->flags, m_user_thd);
 	}
 
 	/* Tell InnoDB server that there might be work for

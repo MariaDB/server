@@ -108,11 +108,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "btr0scrub.h"
 #include "ut0new.h"
 
-#ifdef HAVE_LZO1X
-#include <lzo/lzo1x.h>
-extern bool srv_lzo_disabled;
-#endif /* HAVE_LZO1X */
-
 /** Log sequence number immediately after startup */
 lsn_t	srv_start_lsn;
 /** Log sequence number at shutdown */
@@ -1491,16 +1486,6 @@ innobase_start_or_create_for_mysql()
 		refused in read-only mode). */
 		srv_use_doublewrite_buf = FALSE;
 	}
-
-#ifdef HAVE_LZO1X
-	if (lzo_init() != LZO_E_OK) {
-		ib::warn() << "lzo_init() failed, support disabled";
-		srv_lzo_disabled = true;
-	} else {
-		ib::info() << "LZO1X support available";
-		srv_lzo_disabled = false;
-	}
-#endif /* HAVE_LZO1X */
 
 	compile_time_assert(sizeof(ulint) == sizeof(void*));
 
