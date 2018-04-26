@@ -221,6 +221,12 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
   uint cnt= first_elem->elements;
   Type_holder *holders;
   
+  if (cnt == 0)
+  {
+    my_error(ER_EMPTY_ROW_IN_TVC, MYF(0));
+    DBUG_RETURN(true);
+  }
+
   if (fix_fields_for_tvc(thd, li))
     DBUG_RETURN(true);
 

@@ -1046,7 +1046,7 @@ select * from (values (1), (t1.b), (2)) as new_tvc;
 drop table t1;
 
 --echo #
---echo # MDEV-MDEV-15940: cursor over TVC
+--echo # MDEV-15940: cursor over TVC
 --echo #
 
 DELIMITER |;
@@ -1068,3 +1068,10 @@ END;
 |
 
 DELIMITER ;|
+
+--echo #
+--echo # MDEV-16038: empty row in TVC
+--echo #
+
+--error ER_EMPTY_ROW_IN_TVC
+with t as (values (),()) select 1 from t;
