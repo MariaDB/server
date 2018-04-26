@@ -30,4 +30,4 @@ galera.MW-328A : have_deadlocks test not stable
 galera_var_retry_autocommit : MDEV-15794 Test failure on galera.galera_var_retry_autocommit
 galera_var_auto_inc_control_on : MDEV-15803 Test failure on galera.galera_var_auto_inc_control_on
 query_cache : MDEV-15805 Test failure on galera.query_cache
-galera.MW-44 : MDEV-15809 Test failure on galera.MW-44
+
