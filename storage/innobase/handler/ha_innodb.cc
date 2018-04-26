@@ -3705,7 +3705,6 @@ innobase_init(
 	char		*default_path;
 	uint		format_id;
 	ulong		num_pll_degree;
-	ulint		srv_buf_pool_size_org = 0;
 
 	DBUG_ENTER("innobase_init");
 	handlerton* innobase_hton= (handlerton*) p;
@@ -4304,31 +4303,9 @@ innobase_change_buffering_inited_ok:
 	mysql_cond_register("innodb", all_innodb_conds, count);
 #endif /* HAVE_PSI_INTERFACE */
 
-	/* Set buffer pool size to default for fast startup when mysqld is
-	run with --help --verbose options. */
-	/* JAN: TODO: MySQL 5.7 has opt_verbose
-	if (opt_help && opt_verbose
-	    && srv_buf_pool_size > srv_buf_pool_def_size) {
-		ib::warn() << "Setting innodb_buf_pool_size to "
-			<< srv_buf_pool_def_size << " for fast startup, "
-			<< "when running with --help --verbose options.";
-		srv_buf_pool_size_org = srv_buf_pool_size;
-		srv_buf_pool_size = srv_buf_pool_def_size;
-	}
-	*/
-
 	err = innobase_start_or_create_for_mysql();
 
-	if (srv_buf_pool_size_org != 0) {
-		/* Set the original value back to show in help. */
-		srv_buf_pool_size_org =
-			buf_pool_size_align(srv_buf_pool_size_org);
-		innobase_buffer_pool_size =
-			static_cast<long long>(srv_buf_pool_size_org);
-	} else {
-		innobase_buffer_pool_size =
-			static_cast<long long>(srv_buf_pool_size);
-	}
+	innobase_buffer_pool_size = static_cast<long long>(srv_buf_pool_size);
 
 	if (err != DB_SUCCESS) {
 		innodb_shutdown();
