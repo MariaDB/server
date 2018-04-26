@@ -160,3 +160,23 @@ CREATE table t1 (a int check (setval(s1,10)));
 --error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 CREATE TABLE t1 (a int, b int as (next value for s1 > 0));
 drop sequence s1;
+
+
+--echo #
+--echo # MDEV-13024: Server crashes in my_store_ptr upon DELETE from
+--echo # sequence in multi-table format
+--echo #
+CREATE SEQUENCE s;
+CREATE table t1 (a int);
+insert into t1 values (1),(2);
+--error ER_ILLEGAL_HA
+DELETE s FROM s;
+--error ER_ILLEGAL_HA
+delete t1,s from s,t1;
+--error ER_ILLEGAL_HA
+delete s,t1 from t1,s;
+DROP SEQUENCE s;
+DROP TABLE t1;
+
+
+--echo # End of 10.3 tests
