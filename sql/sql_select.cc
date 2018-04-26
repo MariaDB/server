@@ -822,8 +822,10 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       lock_type= TL_READ; // ignore TL_WRITE, history is immutable anyway
     }
 
-    const LEX_CSTRING *fstart= &table->table->vers_start_field()->field_name;
-    const LEX_CSTRING *fend= &table->table->vers_end_field()->field_name;
+    const LEX_CSTRING *fstart=
+        thd->make_clex_string(table->table->vers_start_field()->field_name);
+    const LEX_CSTRING *fend=
+        thd->make_clex_string(table->table->vers_end_field()->field_name);
 
     Item *row_start=
         newx Item_field(thd, &this->context, table->db.str, table->alias.str, fstart);
