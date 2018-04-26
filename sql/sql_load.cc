@@ -444,6 +444,9 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     field_iterator.set(table_list);
     for (; !field_iterator.end_of_fields(); field_iterator.next())
     {
+      if (field_iterator.field() &&
+              field_iterator.field()->invisible > VISIBLE)
+        continue;
       Item *item;
       if (!(item= field_iterator.create_item(thd)))
         DBUG_RETURN(TRUE);

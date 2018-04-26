@@ -556,3 +556,64 @@ INSERT INTO t1 (c,t) VALUES ('foo','2000-01-01 00:00:00');
 CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW SET @a= 1;
 INSERT INTO t1 SELECT * FROM t1;
 DROP TABLE t1;
+create or replace table t1 (a int, b int invisible);
+insert into t1 values (1),(2);
+select * from t1 into outfile 'f';
+load data infile 'f' into table t1;
+select a,b from t1;
+a	b
+1	NULL
+2	NULL
+1	NULL
+2	NULL
+load data infile 'f' into table t1 (a,@v) SET b=@v;
+select a,b from t1;
+a	b
+1	NULL
+2	NULL
+1	NULL
+2	NULL
+1	NULL
+2	NULL
+load data infile 'f' into table t1 (a,@v) SET b=a;
+select a,b from t1;
+a	b
+1	NULL
+2	NULL
+1	NULL
+2	NULL
+1	NULL
+2	NULL
+1	1
+2	2
+truncate table t1;
+insert into t1(a,b) values (1,1),(2,2);
+select a,b from t1 into outfile 'a';
+load data infile 'a' into table t1(a,b);
+select a,b from t1;
+a	b
+1	1
+2	2
+1	1
+2	2
+load data infile 'a' into table t1 (a,@v) SET b=@v;
+select a,b from t1;
+a	b
+1	1
+2	2
+1	1
+2	2
+1	1
+2	2
+load data infile 'a' into table t1 (a,@v) SET b=@v+2;
+select a,b from t1;
+a	b
+1	1
+2	2
+1	1
+2	2
+1	1
+2	2
+1	3
+2	4
+drop table t1;
