@@ -9680,17 +9680,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
                       global_system_variables.max_allowed_packet);
   }
 
-#if MYSQL_VERSION_ID > 101001
-  /*
-    TIMESTAMP columns get implicit DEFAULT values when
-    --explicit_defaults_for_timestamp is not set.
-  */
-  if (!opt_help && !opt_explicit_defaults_for_timestamp)
-    sql_print_warning("TIMESTAMP with implicit DEFAULT value is deprecated. "
-                      "Please use --explicit_defaults_for_timestamp server "
-                      "option (see documentation for more details).");
-#endif
-
   if (log_error_file_ptr != disabled_my_option)
     opt_error_log= 1;
   else

@@ -3232,13 +3232,7 @@ void Item_func_str_to_date::fix_length_and_dec()
   if (agg_arg_charsets(collation, args, 2, MY_COLL_ALLOW_CONV, 1))
     return;
   if (collation.collation->mbminlen > 1)
-  {
-#if MYSQL_VERSION_ID > 50500
     internal_charset= &my_charset_utf8mb4_general_ci;
-#else
-    internal_charset= &my_charset_utf8_general_ci;
-#endif
-  }
 
   maybe_null= true;
   set_handler(&type_handler_datetime2);

@@ -1076,13 +1076,7 @@ find_files(THD *thd, Dynamic_array<LEX_CSTRING*> *files, LEX_CSTRING *db,
     if (ha_discover_table_names(thd, db, dirp, &tl, false))
       goto err;
   }
-#if MYSQL_VERSION_ID < 100300
-  /* incomplete optimization, but a less drastic change in GA version */
-  if (!thd->lex->select_lex.order_list.elements &&
-      !thd->lex->select_lex.group_list.elements)
-#else
   if (is_show_command(thd))
-#endif
     tl.sort();
 #ifndef DBUG_OFF
   else
