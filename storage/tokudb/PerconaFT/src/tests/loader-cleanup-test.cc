@@ -172,12 +172,12 @@ err_type_str (enum test_type t) {
     case einval_o:       return "open";
     case enospc_fc:      return "fclose";
     case abort_via_poll: return "abort_via_poll";
-    case commit:         assert(0);
-    case abort_txn:      assert(0);
-    case abort_loader:   assert(0);
+    case commit:         abort();
+    case abort_txn:      abort();
+    case abort_loader:   abort();
     }
     // I know that Barry prefers the single-return case, but writing the code this way means that the compiler will complain if I forget something in the enum. -Bradley
-    assert(0);
+    abort();
     return NULL;
 }
 
@@ -193,12 +193,12 @@ err_msg_type_str (enum test_type t) {
     case einval_o:       return "EINVAL";
     case enospc_fc:      return "ENOSPC";
     case abort_via_poll: return "non-zero";
-    case commit:         assert(0);
-    case abort_txn:      assert(0);
-    case abort_loader:   assert(0);
+    case commit:         abort();
+    case abort_txn:      abort();
+    case abort_loader:   abort();
     }
     // I know that Barry prefers the single-return case, but writing the code this way means that the compiler will complain if I forget something in the enum. -Bradley
-    assert(0);
+    abort();
     return NULL;
 }
 
@@ -873,7 +873,7 @@ static void run_test(enum test_type t, int trigger)
     case abort_via_poll:
 	poll_count_trigger  = trigger;       break;
     default:
-	assert(0);
+	abort();
     }
 
 
