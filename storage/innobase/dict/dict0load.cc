@@ -1436,12 +1436,13 @@ dict_check_sys_tables(
 			continue;
 		}
 
-		/* If the table is not a predefined tablespace then it must
-		be in a file-per-table tablespace.
-		Note that flags2 is not available for REDUNDANT tables,
-		so don't check those. */
-		ut_ad(!DICT_TF_GET_COMPACT(flags)
-		      || flags2 & DICT_TF2_USE_FILE_PER_TABLE);
+		/* For tables or partitions using .ibd files, the flag
+		DICT_TF2_USE_FILE_PER_TABLE was not set in MIX_LEN
+		before MySQL 5.6.5. The flag should not have been
+		introduced in persistent storage. MariaDB will keep
+		setting the flag when writing SYS_TABLES entries for
+		newly created or rebuilt tables or partitions, but
+		will otherwise ignore the flag. */
 
 		/* Now that we have the proper name for this tablespace,
 		look to see if it is already in the tablespace cache. */
