@@ -2104,6 +2104,9 @@ wait_suspend_loop:
 			goto loop;
 		}
 
+		/* Ensure that all buffered changes are written to the
+		redo log before fil_close_all_files(). */
+		fil_flush_file_spaces(FIL_TYPE_LOG);
 	} else {
 		lsn = srv_start_lsn;
 	}
