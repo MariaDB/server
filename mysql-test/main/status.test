@@ -430,6 +430,13 @@ FLUSH STATUS;
 SHOW STATUS LIKE 'Threads_running';
 SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='THREADS_RUNNING';
 
+--echo #
+--echo # MDEV-15915 Add Feature_json status variable.
+--echo #
+SHOW STATUS LIKE 'Feature_json';
+select json_valid('123');
+SHOW STATUS LIKE 'Feature_json';
+
 # Restore global concurrent_insert value. Keep in the end of the test file.
 --connection default
 set @@global.concurrent_insert= @old_concurrent_insert;

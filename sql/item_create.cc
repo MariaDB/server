@@ -5118,6 +5118,7 @@ Create_func_json_exists Create_func_json_exists::s_singleton;
 Item*
 Create_func_json_exists::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
+  status_var_increment(current_thd->status_var.feature_json);
   return new (thd->mem_root) Item_func_json_exists(thd, arg1, arg2);
 }
 
@@ -5143,6 +5144,7 @@ Create_func_json_detailed::create_native(THD *thd, LEX_CSTRING *name,
     func= new (thd->mem_root) Item_func_json_format(thd, *item_list);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
@@ -5152,6 +5154,7 @@ Create_func_json_loose Create_func_json_loose::s_singleton;
 Item*
 Create_func_json_loose::create_1_arg(THD *thd, Item *arg1)
 {
+  status_var_increment(current_thd->status_var.feature_json);
   return new (thd->mem_root) Item_func_json_format(thd, arg1,
                Item_func_json_format::LOOSE);
 }
@@ -5162,6 +5165,7 @@ Create_func_json_compact Create_func_json_compact::s_singleton;
 Item*
 Create_func_json_compact::create_1_arg(THD *thd, Item *arg1)
 {
+  status_var_increment(current_thd->status_var.feature_json);
   return new (thd->mem_root) Item_func_json_format(thd, arg1,
                Item_func_json_format::COMPACT);
 }
@@ -5172,6 +5176,7 @@ Create_func_json_valid Create_func_json_valid::s_singleton;
 Item*
 Create_func_json_valid::create_1_arg(THD *thd, Item *arg1)
 {
+  status_var_increment(current_thd->status_var.feature_json);
   return new (thd->mem_root) Item_func_json_valid(thd, arg1);
 }
 
@@ -5181,6 +5186,7 @@ Create_func_json_type Create_func_json_type::s_singleton;
 Item*
 Create_func_json_type::create_1_arg(THD *thd, Item *arg1)
 {
+  status_var_increment(current_thd->status_var.feature_json);
   return new (thd->mem_root) Item_func_json_type(thd, arg1);
 }
 
@@ -5190,6 +5196,7 @@ Create_func_json_depth Create_func_json_depth::s_singleton;
 Item*
 Create_func_json_depth::create_1_arg(THD *thd, Item *arg1)
 {
+  status_var_increment(current_thd->status_var.feature_json);
   return new (thd->mem_root) Item_func_json_depth(thd, arg1);
 }
 
@@ -5199,6 +5206,7 @@ Create_func_json_value Create_func_json_value::s_singleton;
 Item*
 Create_func_json_value::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
+  status_var_increment(current_thd->status_var.feature_json);
   return new (thd->mem_root) Item_func_json_value(thd, arg1, arg2);
 }
 
@@ -5208,6 +5216,7 @@ Create_func_json_query Create_func_json_query::s_singleton;
 Item*
 Create_func_json_query::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
+  status_var_increment(current_thd->status_var.feature_json);
   return new (thd->mem_root) Item_func_json_query(thd, arg1, arg2);
 }
 
@@ -5217,6 +5226,7 @@ Create_func_json_quote Create_func_json_quote::s_singleton;
 Item*
 Create_func_json_quote::create_1_arg(THD *thd, Item *arg1)
 {
+  status_var_increment(current_thd->status_var.feature_json);
   return new (thd->mem_root) Item_func_json_quote(thd, arg1);
 }
 
@@ -5226,6 +5236,7 @@ Create_func_json_unquote Create_func_json_unquote::s_singleton;
 Item*
 Create_func_json_unquote::create_1_arg(THD *thd, Item *arg1)
 {
+  status_var_increment(current_thd->status_var.feature_json);
   return new (thd->mem_root) Item_func_json_unquote(thd, arg1);
 }
 
@@ -5256,6 +5267,7 @@ Create_func_json_array::create_native(THD *thd, LEX_CSTRING *name,
     func= new (thd->mem_root) Item_func_json_array(thd);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
@@ -5281,6 +5293,7 @@ Create_func_json_array_append::create_native(THD *thd, LEX_CSTRING *name,
     func= new (thd->mem_root) Item_func_json_array_append(thd, *item_list);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
@@ -5306,6 +5319,7 @@ Create_func_json_array_insert::create_native(THD *thd, LEX_CSTRING *name,
     func= new (thd->mem_root) Item_func_json_array_insert(thd, *item_list);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
@@ -5332,6 +5346,7 @@ Create_func_json_insert::create_native(THD *thd, LEX_CSTRING *name,
                                                     thd, *item_list);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
@@ -5358,6 +5373,7 @@ Create_func_json_set::create_native(THD *thd, LEX_CSTRING *name,
                                                     thd, *item_list);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
@@ -5384,6 +5400,7 @@ Create_func_json_replace::create_native(THD *thd, LEX_CSTRING *name,
                                                     thd, *item_list);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
@@ -5409,6 +5426,7 @@ Create_func_json_remove::create_native(THD *thd, LEX_CSTRING *name,
     func= new (thd->mem_root) Item_func_json_remove(thd, *item_list);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
@@ -5441,6 +5459,7 @@ Create_func_json_object::create_native(THD *thd, LEX_CSTRING *name,
     func= new (thd->mem_root) Item_func_json_object(thd);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
@@ -5465,6 +5484,7 @@ Create_func_json_length::create_native(THD *thd, LEX_CSTRING *name,
     func= new (thd->mem_root) Item_func_json_length(thd, *item_list);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
@@ -5489,6 +5509,7 @@ Create_func_json_merge::create_native(THD *thd, LEX_CSTRING *name,
     func= new (thd->mem_root) Item_func_json_merge(thd, *item_list);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
@@ -5514,6 +5535,7 @@ Create_func_json_contains::create_native(THD *thd, LEX_CSTRING *name,
     my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
@@ -5539,6 +5561,7 @@ Create_func_json_keys::create_native(THD *thd, LEX_CSTRING *name,
     func= new (thd->mem_root) Item_func_json_keys(thd, *item_list);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
@@ -5564,6 +5587,7 @@ Create_func_json_contains_path::create_native(THD *thd, LEX_CSTRING *name,
     func= new (thd->mem_root) Item_func_json_contains_path(thd, *item_list);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
@@ -5589,6 +5613,7 @@ Create_func_json_extract::create_native(THD *thd, LEX_CSTRING *name,
     func= new (thd->mem_root) Item_func_json_extract(thd, *item_list);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
@@ -5614,6 +5639,7 @@ Create_func_json_search::create_native(THD *thd, LEX_CSTRING *name,
     func= new (thd->mem_root) Item_func_json_search(thd, *item_list);
   }
 
+  status_var_increment(current_thd->status_var.feature_json);
   return func;
 }
 
