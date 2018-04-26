@@ -20295,9 +20295,10 @@ static void test_bulk_autoinc()
 
 static void print_metadata(MYSQL_RES *rs_metadata, int num_fields)
 {
+  int i;
   MYSQL_FIELD *fields= mysql_fetch_fields(rs_metadata);
 
-  for (int i = 0; i < num_fields; ++i)
+  for (i = 0; i < num_fields; ++i)
   {
     mct_log("  - %d: name: '%s'/'%s'; table: '%s'/'%s'; "
         "db: '%s'; catalog: '%s'; length: %d; max_length: %d; "
