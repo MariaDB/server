@@ -849,7 +849,7 @@ page_cur_insert_rec_write_log(
 		return;
 	}
 
-	ut_a(rec_size < UNIV_PAGE_SIZE);
+	ut_a(rec_size < srv_page_size);
 	ut_ad(mtr->is_named_space(index->table->space));
 	ut_ad(page_align(insert_rec) == page_align(cursor_rec));
 	ut_ad(!page_rec_is_comp(insert_rec)
@@ -992,8 +992,8 @@ need_extra_info:
 		/* Write the mismatch index */
 		log_ptr += mach_write_compressed(log_ptr, i);
 
-		ut_a(i < UNIV_PAGE_SIZE);
-		ut_a(extra_size < UNIV_PAGE_SIZE);
+		ut_a(i < srv_page_size);
+		ut_a(extra_size < srv_page_size);
 	} else {
 		/* Write the record end segment length
 		and the extra info storage flag */
@@ -1010,7 +1010,7 @@ need_extra_info:
 		mlog_close(mtr, log_ptr + rec_size);
 	} else {
 		mlog_close(mtr, log_ptr);
-		ut_a(rec_size < UNIV_PAGE_SIZE);
+		ut_a(rec_size < srv_page_size);
 		mlog_catenate_string(mtr, ins_ptr, rec_size);
 	}
 }
@@ -1062,7 +1062,7 @@ page_cur_parse_insert_rec(
 
 		cursor_rec = page + offset;
 
-		if (offset >= UNIV_PAGE_SIZE) {
+		if (offset >= srv_page_size) {
 
 			recv_sys->found_corrupt_log = TRUE;
 
@@ -1077,7 +1077,7 @@ page_cur_parse_insert_rec(
 		return(NULL);
 	}
 
-	if (end_seg_len >= UNIV_PAGE_SIZE << 1) {
+	if (end_seg_len >= srv_page_size << 1) {
 		recv_sys->found_corrupt_log = TRUE;
 
 		return(NULL);
@@ -1101,7 +1101,7 @@ page_cur_parse_insert_rec(
 			return(NULL);
 		}
 
-		ut_a(origin_offset < UNIV_PAGE_SIZE);
+		ut_a(origin_offset < srv_page_size);
 
 		mismatch_index = mach_parse_compressed(&ptr, end_ptr);
 
@@ -1110,7 +1110,7 @@ page_cur_parse_insert_rec(
 			return(NULL);
 		}
 
-		ut_a(mismatch_index < UNIV_PAGE_SIZE);
+		ut_a(mismatch_index < srv_page_size);
 	}
 
 	if (end_ptr < ptr + (end_seg_len >> 1)) {
@@ -1152,7 +1152,7 @@ page_cur_parse_insert_rec(
 
 	/* Build the inserted record to buf */
 
-        if (UNIV_UNLIKELY(mismatch_index >= UNIV_PAGE_SIZE)) {
+        if (UNIV_UNLIKELY(mismatch_index >= srv_page_size)) {
 
 		ib::fatal() << "is_short " << is_short << ", "
 			<< "info_and_status_bits " << info_and_status_bits
@@ -2066,9 +2066,9 @@ page_copy_rec_list_end_to_created_page(
 #ifdef UNIV_DEBUG
 	/* To pass the debug tests we have to set these dummy values
 	in the debug version */
-	page_dir_set_n_slots(new_page, NULL, UNIV_PAGE_SIZE / 2);
+	page_dir_set_n_slots(new_page, NULL, srv_page_size / 2);
 	page_header_set_ptr(new_page, NULL, PAGE_HEAP_TOP,
-			    new_page + UNIV_PAGE_SIZE - 1);
+			    new_page + srv_page_size - 1);
 #endif
 	log_ptr = page_copy_rec_list_to_created_page_write_log(new_page,
 							       index, mtr);
@@ -2133,7 +2133,7 @@ page_copy_rec_list_end_to_created_page(
 
 		rec_size = rec_offs_size(offsets);
 
-		ut_ad(heap_top < new_page + UNIV_PAGE_SIZE);
+		ut_ad(heap_top < new_page + srv_page_size);
 
 		heap_top += rec_size;
 
@@ -2171,7 +2171,7 @@ page_copy_rec_list_end_to_created_page(
 
 	log_data_len = mtr->get_log()->size() - log_data_len;
 
-	ut_a(log_data_len < 100 * UNIV_PAGE_SIZE);
+	ut_a(log_data_len < 100 * srv_page_size);
 
 	if (log_ptr != NULL) {
 		mach_write_to_4(log_ptr, log_data_len);
@@ -2255,7 +2255,7 @@ page_cur_parse_delete_rec(
 	offset = mach_read_from_2(ptr);
 	ptr += 2;
 
-	ut_a(offset <= UNIV_PAGE_SIZE);
+	ut_a(offset <= srv_page_size);
 
 	if (block) {
 		page_t*		page		= buf_block_get_frame(block);

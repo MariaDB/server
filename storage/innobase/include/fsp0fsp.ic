@@ -105,8 +105,8 @@ xdes_calc_descriptor_page(
 # endif
 #endif /* !DOXYGEN */
 
-	ut_ad(UNIV_PAGE_SIZE > XDES_ARR_OFFSET
-	      + (UNIV_PAGE_SIZE / FSP_EXTENT_SIZE)
+	ut_ad(srv_page_size > XDES_ARR_OFFSET
+	      + (srv_page_size / FSP_EXTENT_SIZE)
 	      * XDES_SIZE);
 	ut_ad(UNIV_ZIP_SIZE_MIN > XDES_ARR_OFFSET
 	      + (UNIV_ZIP_SIZE_MIN / FSP_EXTENT_SIZE)

@@ -394,7 +394,7 @@ row_quiesce_write_header(
 	byte*		ptr = row;
 
 	/* Write the system page size. */
-	mach_write_to_4(ptr, UNIV_PAGE_SIZE);
+	mach_write_to_4(ptr, srv_page_size);
 	ptr += sizeof(ib_uint32_t);
 
 	/* Write the table->flags. */

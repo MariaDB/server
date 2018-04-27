@@ -1123,9 +1123,9 @@ srv_normalize_init_values(void)
 
 	srv_tmp_space.normalize();
 
-	srv_log_buffer_size /= UNIV_PAGE_SIZE;
+	srv_log_buffer_size /= srv_page_size;
 
-	srv_lock_table_size = 5 * (srv_buf_pool_size / UNIV_PAGE_SIZE);
+	srv_lock_table_size = 5 * (srv_buf_pool_size / srv_page_size);
 }
 
 /*********************************************************************//**
@@ -1538,7 +1538,7 @@ srv_export_innodb_status(void)
 	export_vars.innodb_have_atomic_builtins = 0;
 #endif
 
-	export_vars.innodb_page_size = UNIV_PAGE_SIZE;
+	export_vars.innodb_page_size = srv_page_size;
 
 	export_vars.innodb_log_waits = srv_stats.log_waits;
 

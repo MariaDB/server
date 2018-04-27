@@ -62,7 +62,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "row0merge.h"
 
 /** Log records are stored in the hash table in chunks at most of this size;
-this must be less than UNIV_PAGE_SIZE as it is stored in the buffer pool */
+this must be less than srv_page_size as it is stored in the buffer pool */
 #define RECV_DATA_BLOCK_SIZE	(MEM_MAX_ALLOC_IN_BUF - sizeof(recv_data_t))
 
 /** Read-ahead area in applying log records to file pages */
@@ -673,15 +673,14 @@ loop:
 
 	MONITOR_INC(MONITOR_LOG_IO);
 
-	ut_a(source_offset / UNIV_PAGE_SIZE <= ULINT_MAX);
+	ut_a(source_offset / srv_page_size <= ULINT_MAX);
 
-	const ulint	page_no
-		= (ulint) (source_offset / univ_page_size.physical());
+	const ulint	page_no = ulint(source_offset / srv_page_size);
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
 	       univ_page_size,
-	       (ulint) (source_offset % univ_page_size.physical()),
+	       ulint(source_offset % srv_page_size),
 	       len, buf, NULL);
 
 	for (ulint l = 0; l < len; l += OS_FILE_LOG_BLOCK_SIZE,
@@ -887,8 +886,7 @@ recv_log_format_0_recover(lsn_t lsn)
 	const lsn_t	source_offset
 		= log_group_calc_lsn_offset(lsn, group);
 	log_mutex_exit();
-	const ulint	page_no
-		= (ulint) (source_offset / univ_page_size.physical());
+	const ulint	page_no = ulint(source_offset / srv_page_size);
 	byte*		buf = log_sys->buf;
 
 	static const char* NO_UPGRADE_RECOVERY_MSG =
@@ -898,9 +896,9 @@ recv_log_format_0_recover(lsn_t lsn)
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
 	       univ_page_size,
-	       (ulint) ((source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1))
-			% univ_page_size.physical()),
-		OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
+	       ulint((source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1))
+		     % srv_page_size),
+	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
 
 	if (log_block_calc_checksum_format_0(buf)
 	    != log_block_get_checksum(buf)
@@ -1598,7 +1596,7 @@ recv_add_to_hash_table(
 
 	prev_field = &(recv->data);
 
-	/* Store the log record body in chunks of less than UNIV_PAGE_SIZE:
+	/* Store the log record body in chunks of less than srv_page_size:
 	recv_sys->heap grows into the buffer pool, and bigger chunks could not
 	be allocated */
 
@@ -1811,7 +1809,7 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 
 			end_lsn = recv->start_lsn + recv->len;
 			mach_write_to_8(FIL_PAGE_LSN + page, end_lsn);
-			mach_write_to_8(UNIV_PAGE_SIZE
+			mach_write_to_8(srv_page_size
 					- FIL_PAGE_END_LSN_OLD_CHKSUM
 					+ page, end_lsn);
 
@@ -2908,7 +2906,7 @@ recv_group_scan_log_recs(
 	lsn_t	end_lsn;
 	store_t	store_to_hash	= recv_sys->mlog_checkpoint_lsn == 0
 		? STORE_NO : (last_phase ? STORE_IF_EXISTS : STORE_YES);
-	ulint	available_mem	= UNIV_PAGE_SIZE
+	ulint	available_mem	= srv_page_size
 		* (buf_pool_get_n_pages()
 		   - (recv_n_pool_free_frames * srv_buf_pool_instances));
 

@@ -48,7 +48,7 @@ buf_buddy_alloc(
 					the page resides */
 	ulint		size,		/*!< in: compressed page size
 					(between UNIV_ZIP_SIZE_MIN and
-					UNIV_PAGE_SIZE) */
+					srv_page_size) */
 	bool*		lru)		/*!< in: pointer to a variable
 					that will be assigned true if
 				       	storage was allocated from the
@@ -67,14 +67,14 @@ buf_buddy_free(
 	void*		buf,		/*!< in: block to be freed, must not
 					be pointed to by the buffer pool */
 	ulint		size)		/*!< in: block size,
-					up to UNIV_PAGE_SIZE */
+					up to srv_page_size */
 	MY_ATTRIBUTE((nonnull));
 
 /** Reallocate a block.
 @param[in]	buf_pool	buffer pool instance
 @param[in]	buf		block to be reallocated, must be pointed
 to by the buffer pool
-@param[in]	size		block size, up to UNIV_PAGE_SIZE
+@param[in]	size		block size, up to srv_page_size
 @retval false	if failed because of no free blocks. */
 bool
 buf_buddy_realloc(

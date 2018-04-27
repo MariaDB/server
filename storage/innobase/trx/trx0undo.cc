@@ -222,7 +222,7 @@ trx_undo_page_get_prev_rec(trx_undo_rec_t* rec, ulint page_no, ulint offset)
 	page_t*	undo_page;
 	ulint	start;
 
-	undo_page = (page_t*) ut_align_down(rec, UNIV_PAGE_SIZE);
+	undo_page = (page_t*) ut_align_down(rec, srv_page_size);
 
 	start = trx_undo_page_get_start(undo_page, page_no, offset);
 
@@ -615,7 +615,7 @@ trx_undo_header_create(
 
 	new_free = free + TRX_UNDO_LOG_OLD_HDR_SIZE;
 
-	ut_a(free + TRX_UNDO_LOG_XA_HDR_SIZE < UNIV_PAGE_SIZE - 100);
+	ut_a(free + TRX_UNDO_LOG_XA_HDR_SIZE < srv_page_size - 100);
 
 	mach_write_to_2(page_hdr + TRX_UNDO_PAGE_START, new_free);
 

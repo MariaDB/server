@@ -587,7 +587,7 @@ fsp_init_file_page_low(
 {
 	page_t*		page	= buf_block_get_frame(block);
 
-	memset(page, 0, UNIV_PAGE_SIZE);
+	memset(page, 0, srv_page_size);
 
 	mach_write_to_4(page + FIL_PAGE_OFFSET, block->page.id.page_no());
 	mach_write_to_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
@@ -1989,7 +1989,7 @@ fseg_create(
 
 	ut_ad(mtr);
 	ut_ad(byte_offset + FSEG_HEADER_SIZE
-	      <= UNIV_PAGE_SIZE - FIL_PAGE_DATA_END);
+	      <= srv_page_size - FIL_PAGE_DATA_END);
 
 	mtr_x_lock(&space->latch, mtr);
 	const page_size_t	page_size(space->flags);

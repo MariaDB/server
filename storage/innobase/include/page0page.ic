@@ -172,8 +172,8 @@ page_header_set_field(
 {
 	ut_ad(page);
 	ut_ad(field <= PAGE_N_RECS);
-	ut_ad(field == PAGE_N_HEAP || val < UNIV_PAGE_SIZE);
-	ut_ad(field != PAGE_N_HEAP || (val & 0x7fff) < UNIV_PAGE_SIZE);
+	ut_ad(field == PAGE_N_HEAP || val < srv_page_size);
+	ut_ad(field != PAGE_N_HEAP || (val & 0x7fff) < srv_page_size);
 
 	mach_write_to_2(page + PAGE_HEADER + field, val);
 	if (page_zip) {
@@ -521,7 +521,7 @@ page_dir_get_nth_slot(
 	ut_ad(page_dir_get_n_slots(page) > n);
 
 	return((page_dir_slot_t*)
-	       page + UNIV_PAGE_SIZE - PAGE_DIR
+	       page + srv_page_size - PAGE_DIR
 	       - (n + 1) * PAGE_DIR_SLOT_SIZE);
 }
 #endif /* UNIV_DEBUG */
@@ -640,7 +640,7 @@ page_rec_get_next_low(
 
 	offs = rec_get_next_offs(rec, comp);
 
-	if (offs >= UNIV_PAGE_SIZE) {
+	if (offs >= srv_page_size) {
 		fprintf(stderr,
 			"InnoDB: Next record offset is nonsensical %lu"
 			" in record at offset %lu\n"
@@ -852,7 +852,7 @@ page_get_data_size(
 		   ? PAGE_NEW_SUPREMUM_END
 		   : PAGE_OLD_SUPREMUM_END)
 		- page_header_get_field(page, PAGE_GARBAGE);
-	ut_ad(ret < UNIV_PAGE_SIZE);
+	ut_ad(ret < srv_page_size);
 	return(ret);
 }
 
@@ -900,13 +900,13 @@ page_get_free_space_of_empty(
 	ulint	comp)		/*!< in: nonzero=compact page layout */
 {
 	if (comp) {
-		return((ulint)(UNIV_PAGE_SIZE
+		return((ulint)(srv_page_size
 			       - PAGE_NEW_SUPREMUM_END
 			       - PAGE_DIR
 			       - 2 * PAGE_DIR_SLOT_SIZE));
 	}
 
-	return((ulint)(UNIV_PAGE_SIZE
+	return((ulint)(srv_page_size
 		       - PAGE_OLD_SUPREMUM_END
 		       - PAGE_DIR
 		       - 2 * PAGE_DIR_SLOT_SIZE));

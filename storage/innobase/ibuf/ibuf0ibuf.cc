@@ -442,7 +442,7 @@ ibuf_count_set(
 	ulint			val)
 {
 	ibuf_count_check(page_id);
-	ut_a(val < UNIV_PAGE_SIZE);
+	ut_a(val < srv_page_size);
 
 	ibuf_counts[page_id.space()][page_id.page_no()] = val;
 }
@@ -510,7 +510,7 @@ ibuf_init_at_db_start(void)
 	buffer pool size. Once ibuf struct is initialized this
 	value is updated with the user supplied size by calling
 	ibuf_max_size_update(). */
-	ibuf->max_size = ((buf_pool_get_curr_size() / UNIV_PAGE_SIZE)
+	ibuf->max_size = ((buf_pool_get_curr_size() / srv_page_size)
 			  * CHANGE_BUFFER_DEFAULT_SIZE) / 100;
 
 	mutex_create(LATCH_ID_IBUF, &ibuf_mutex);
@@ -584,7 +584,7 @@ ibuf_max_size_update(
 	ulint	new_val)	/*!< in: new value in terms of
 				percentage of the buffer pool size */
 {
-	ulint	new_size = ((buf_pool_get_curr_size() / UNIV_PAGE_SIZE)
+	ulint	new_size = ((buf_pool_get_curr_size() / srv_page_size)
 			    * new_val) / 100;
 	mutex_enter(&ibuf_mutex);
 	ibuf->max_size = new_size;
@@ -701,7 +701,7 @@ ibuf_bitmap_page_get_bits_low(
 	byte_offset = bit_offset / 8;
 	bit_offset = bit_offset % 8;
 
-	ut_ad(byte_offset + IBUF_BITMAP < UNIV_PAGE_SIZE);
+	ut_ad(byte_offset + IBUF_BITMAP < srv_page_size);
 
 	map_byte = mach_read_from_1(page + IBUF_BITMAP + byte_offset);
 
@@ -754,7 +754,7 @@ ibuf_bitmap_page_set_bits(
 	byte_offset = bit_offset / 8;
 	bit_offset = bit_offset % 8;
 
-	ut_ad(byte_offset + IBUF_BITMAP < UNIV_PAGE_SIZE);
+	ut_ad(byte_offset + IBUF_BITMAP < srv_page_size);
 
 	map_byte = mach_read_from_1(page + IBUF_BITMAP + byte_offset);
 
@@ -2381,7 +2381,7 @@ ibuf_get_merge_page_nos_func(
 				&& prev_space_id == first_space_id)
 			    || (volume_for_page
 				> ((IBUF_MERGE_THRESHOLD - 1)
-				   * 4 * UNIV_PAGE_SIZE
+				   * 4 * srv_page_size
 				   / IBUF_PAGE_SIZE_PER_FREE_SPACE)
 				/ IBUF_MERGE_THRESHOLD)) {
 
@@ -2965,7 +2965,7 @@ get_volume_comp:
 Gets an upper limit for the combined size of entries buffered in the insert
 buffer for a given page.
 @return upper limit for the volume of buffered inserts for the index
-page, in bytes; UNIV_PAGE_SIZE, if the entries for the index page span
+page, in bytes; srv_page_size, if the entries for the index page span
 several pages in the insert buffer */
 static
 ulint
@@ -3066,7 +3066,7 @@ ibuf_get_volume_buffered(
 			do not have the x-latch on it, and cannot acquire one
 			because of the latching order: we have to give up */
 
-			return(UNIV_PAGE_SIZE);
+			return(srv_page_size);
 		}
 
 		if (page_no != ibuf_rec_get_page_no(mtr, rec)
@@ -3136,7 +3136,7 @@ count_later:
 
 			/* We give up */
 
-			return(UNIV_PAGE_SIZE);
+			return(srv_page_size);
 		}
 
 		if (page_no != ibuf_rec_get_page_no(mtr, rec)
@@ -4653,7 +4653,7 @@ loop:
 
 				volume += page_dir_calc_reserved_space(1);
 
-				ut_a(volume <= 4 * UNIV_PAGE_SIZE
+				ut_a(volume <= 4 * srv_page_size
 					/ IBUF_PAGE_SIZE_PER_FREE_SPACE);
 #endif
 				ibuf_insert_to_index_page(

@@ -352,8 +352,8 @@ public:
 		}
 
 
-		ulint	sz = UNIV_PAGE_SIZE;
-		void*	buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+		ulint	sz = srv_page_size;
+		void*	buf = ut_zalloc_nokey(sz + srv_page_size);
 		if (buf == 0) {
 			os_file_close(handle);
 			return(DB_OUT_OF_MEMORY);
@@ -361,7 +361,7 @@ public:
 
 		/* Align the memory for file i/o if we might have O_DIRECT set*/
 		byte*	log_buf = static_cast<byte*>(
-			ut_align(buf, UNIV_PAGE_SIZE));
+			ut_align(buf, srv_page_size));
 
 		lsn_t	lsn = log_get_lsn();
 
@@ -383,7 +383,7 @@ public:
 				ut_ad(err == DB_FAIL);
 				ut_free(buf);
 				sz *= 2;
-				buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+				buf = ut_zalloc_nokey(sz + srv_page_size);
 				DBUG_EXECUTE_IF("ib_err_trunc_oom_logging",
 						ut_free(buf);
 						buf = 0;);
@@ -392,7 +392,7 @@ public:
 					return(DB_OUT_OF_MEMORY);
 				}
 				log_buf = static_cast<byte*>(
-					ut_align(buf, UNIV_PAGE_SIZE));
+					ut_align(buf, srv_page_size));
 			}
 
 		} while (err != DB_SUCCESS);
@@ -664,8 +664,8 @@ TruncateLogParser::parse(
 		return(DB_IO_ERROR);
 	}
 
-	ulint	sz = UNIV_PAGE_SIZE;
-	void*	buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+	ulint	sz = srv_page_size;
+	void*	buf = ut_zalloc_nokey(sz + srv_page_size);
 	if (buf == 0) {
 		os_file_close(handle);
 		return(DB_OUT_OF_MEMORY);
@@ -674,7 +674,7 @@ TruncateLogParser::parse(
 	IORequest	request(IORequest::READ);
 
 	/* Align the memory for file i/o if we might have O_DIRECT set*/
-	byte*	log_buf = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
+	byte*	log_buf = static_cast<byte*>(ut_align(buf, srv_page_size));
 
 	do {
 		err = os_file_read(request, handle, log_buf, 0, sz);
@@ -714,7 +714,7 @@ TruncateLogParser::parse(
 
 			sz *= 2;
 
-			buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+			buf = ut_zalloc_nokey(sz + srv_page_size);
 
 			if (buf == 0) {
 				os_file_close(handle);
@@ -725,7 +725,7 @@ TruncateLogParser::parse(
 			}
 
 			log_buf = static_cast<byte*>(
-				ut_align(buf, UNIV_PAGE_SIZE));
+				ut_align(buf, srv_page_size));
 		}
 	} while (err != DB_SUCCESS);
 
@@ -2199,10 +2199,10 @@ fil_recreate_tablespace(
 		byte*	buf;
 		page_t*	page;
 
-		buf = static_cast<byte*>(ut_zalloc_nokey(3 * UNIV_PAGE_SIZE));
+		buf = static_cast<byte*>(ut_zalloc_nokey(3 * srv_page_size));
 
 		/* Align the memory for file i/o */
-		page = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
+		page = static_cast<byte*>(ut_align(buf, srv_page_size));
 
 		flags |= FSP_FLAGS_PAGE_SSIZE();
 
@@ -2213,7 +2213,7 @@ fil_recreate_tablespace(
 
 		page_zip_des_t  page_zip;
 		page_zip_set_size(&page_zip, page_size.physical());
-		page_zip.data = page + UNIV_PAGE_SIZE;
+		page_zip.data = page + srv_page_size;
 
 #ifdef UNIV_DEBUG
 		page_zip.m_start =

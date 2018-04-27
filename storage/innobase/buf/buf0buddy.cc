@@ -160,7 +160,7 @@ buf_buddy_get(
 	ut_ad(size >= BUF_BUDDY_LOW);
 	ut_ad(BUF_BUDDY_LOW <= UNIV_ZIP_SIZE_MIN);
 	ut_ad(size < BUF_BUDDY_HIGH);
-	ut_ad(BUF_BUDDY_HIGH == UNIV_PAGE_SIZE);
+	ut_ad(BUF_BUDDY_HIGH == srv_page_size);
 	ut_ad(!ut_align_offset(page, size));
 
 	if (((ulint) page) & size) {
@@ -376,7 +376,7 @@ buf_buddy_alloc_zip(
 }
 
 /**********************************************************************//**
-Deallocate a buffer frame of UNIV_PAGE_SIZE. */
+Deallocate a buffer frame of srv_page_size. */
 static
 void
 buf_buddy_block_free(
@@ -390,7 +390,7 @@ buf_buddy_block_free(
 
 	ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(!mutex_own(&buf_pool->zip_mutex));
-	ut_a(!ut_align_offset(buf, UNIV_PAGE_SIZE));
+	ut_a(!ut_align_offset(buf, srv_page_size));
 
 	HASH_SEARCH(hash, buf_pool->zip_hash, fold, buf_page_t*, bpage,
 		    ut_ad(buf_page_get_state(bpage) == BUF_BLOCK_MEMORY
@@ -403,8 +403,8 @@ buf_buddy_block_free(
 	ut_d(bpage->in_zip_hash = FALSE);
 	HASH_DELETE(buf_page_t, hash, buf_pool->zip_hash, fold, bpage);
 
-	ut_d(memset(buf, 0, UNIV_PAGE_SIZE));
-	UNIV_MEM_INVALID(buf, UNIV_PAGE_SIZE);
+	ut_d(memset(buf, 0, srv_page_size));
+	UNIV_MEM_INVALID(buf, srv_page_size);
 
 	block = (buf_block_t*) bpage;
 	buf_page_mutex_enter(block);
@@ -432,7 +432,7 @@ buf_buddy_block_register(
 	buf_block_set_state(block, BUF_BLOCK_MEMORY);
 
 	ut_a(block->frame);
-	ut_a(!ut_align_offset(block->frame, UNIV_PAGE_SIZE));
+	ut_a(!ut_align_offset(block->frame, srv_page_size));
 
 	ut_ad(!block->page.in_page_hash);
 	ut_ad(!block->page.in_zip_hash);
@@ -765,7 +765,7 @@ func_exit:
 @param[in]	buf_pool	buffer pool instance
 @param[in]	buf		block to be reallocated, must be pointed
 to by the buffer pool
-@param[in]	size		block size, up to UNIV_PAGE_SIZE
+@param[in]	size		block size, up to srv_page_size
 @retval false	if failed because of no free blocks. */
 bool
 buf_buddy_realloc(

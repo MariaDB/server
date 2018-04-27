@@ -583,8 +583,8 @@ namespace undo {
 			return(DB_IO_ERROR);
 		}
 
-		ulint	sz = UNIV_PAGE_SIZE;
-		void*	buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+		ulint	sz = srv_page_size;
+		void*	buf = ut_zalloc_nokey(sz + srv_page_size);
 		if (buf == NULL) {
 			os_file_close(handle);
 			delete[] log_file_name;
@@ -592,7 +592,7 @@ namespace undo {
 		}
 
 		byte*	log_buf = static_cast<byte*>(
-			ut_align(buf, UNIV_PAGE_SIZE));
+			ut_align(buf, srv_page_size));
 
 		IORequest	request(IORequest::WRITE);
 
@@ -643,8 +643,8 @@ namespace undo {
 			return;
 		}
 
-		ulint	sz = UNIV_PAGE_SIZE;
-		void*	buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+		ulint	sz = srv_page_size;
+		void*	buf = ut_zalloc_nokey(sz + srv_page_size);
 		if (buf == NULL) {
 			os_file_close(handle);
 			os_file_delete(innodb_log_file_key, log_file_name);
@@ -653,7 +653,7 @@ namespace undo {
 		}
 
 		byte*	log_buf = static_cast<byte*>(
-			ut_align(buf, UNIV_PAGE_SIZE));
+			ut_align(buf, srv_page_size));
 
 		mach_write_to_4(log_buf, undo::s_magic);
 
@@ -711,8 +711,8 @@ namespace undo {
 				return(false);
 			}
 
-			ulint	sz = UNIV_PAGE_SIZE;
-			void*	buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+			ulint	sz = srv_page_size;
+			void*	buf = ut_zalloc_nokey(sz + srv_page_size);
 			if (buf == NULL) {
 				os_file_close(handle);
 				os_file_delete(innodb_log_file_key,
@@ -722,7 +722,7 @@ namespace undo {
 			}
 
 			byte*	log_buf = static_cast<byte*>(
-				ut_align(buf, UNIV_PAGE_SIZE));
+				ut_align(buf, srv_page_size));
 
 			IORequest	request(IORequest::READ);
 

@@ -643,13 +643,13 @@ srv_undo_tablespace_create(
 			" be created";
 
 		ib::info() << "Setting file " << name << " size to "
-			<< (size >> (20 - UNIV_PAGE_SIZE_SHIFT)) << " MB";
+			<< (size >> (20 - srv_page_size_shift)) << " MB";
 
 		ib::info() << "Database physically writes the file full: "
 			<< "wait...";
 
 		ret = os_file_set_size(
-			name, fh, os_offset_t(size) << UNIV_PAGE_SIZE_SHIFT);
+			name, fh, os_offset_t(size) << srv_page_size_shift);
 
 		if (!ret) {
 			ib::info() << "Error in creating " << name
@@ -726,7 +726,7 @@ srv_undo_tablespace_open(
 		ut_a(fil_validate());
 		ut_a(space);
 
-		os_offset_t	n_pages = size / UNIV_PAGE_SIZE;
+		os_offset_t	n_pages = size / srv_page_size;
 
 		/* On 32-bit platforms, ulint is 32 bits and os_offset_t
 		is 64 bits. It is OK to cast the n_pages to ulint because

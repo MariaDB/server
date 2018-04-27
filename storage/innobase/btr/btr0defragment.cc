@@ -456,7 +456,7 @@ btr_defragment_merge_pages(
 	// Estimate how many records can be moved from the from_page to
 	// the to_page.
 	if (page_size.is_compressed()) {
-		ulint page_diff = UNIV_PAGE_SIZE - *max_data_size;
+		ulint page_diff = srv_page_size - *max_data_size;
 		max_ins_size_to_use = (max_ins_size_to_use > page_diff)
 			       ? max_ins_size_to_use - page_diff : 0;
 	}
@@ -529,7 +529,7 @@ btr_defragment_merge_pages(
 		} else {
 			ibuf_update_free_bits_if_full(
 				to_block,
-				UNIV_PAGE_SIZE,
+				srv_page_size,
 				ULINT_UNDEFINED);
 		}
 	}

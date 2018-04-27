@@ -1838,7 +1838,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_page_size */
 	case MONITOR_OVLD_SRV_PAGE_SIZE:
-		value = UNIV_PAGE_SIZE;
+		value = srv_page_size;
 		break;
 
 	case MONITOR_OVLD_RWLOCK_S_SPIN_WAITS:

@@ -218,9 +218,9 @@ xb_fil_cur_open(
 	/* Allocate read buffer */
 	cursor->buf_size = XB_FIL_CUR_PAGES * page_size.physical();
 	cursor->orig_buf = static_cast<byte *>
-		(malloc(cursor->buf_size + UNIV_PAGE_SIZE));
+		(malloc(cursor->buf_size + srv_page_size));
 	cursor->buf = static_cast<byte *>
-		(ut_align(cursor->orig_buf, UNIV_PAGE_SIZE));
+		(ut_align(cursor->orig_buf, srv_page_size));
 
 	cursor->buf_read = 0;
 	cursor->buf_npages = 0;
@@ -258,7 +258,7 @@ xb_fil_cur_read(
 	ib_int64_t		offset;
 	ib_int64_t		to_read;
 	const ulint		page_size = cursor->page_size.physical();
-	xb_ad(!cursor->is_system() || page_size == UNIV_PAGE_SIZE);
+	xb_ad(!cursor->is_system() || page_size == srv_page_size);
 
 	cursor->read_filter->get_next_batch(&cursor->read_filter_ctxt,
 					    &offset, &to_read);

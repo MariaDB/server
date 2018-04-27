@@ -2117,13 +2117,13 @@ dict_index_node_ptr_max_size(
 		/* This is universal index for change buffer.
 		The max size of the entry is about max key length * 2.
 		(index key + primary key to be inserted to the index)
-		(The max key length is UNIV_PAGE_SIZE / 16 * 3 at
+		(The max key length is srv_page_size / 16 * 3 at
 		 ha_innobase::max_supported_key_length(),
 		 considering MAX_KEY_LENGTH = 3072 at MySQL imposes
 		 the 3500 historical InnoDB value for 16K page size case.)
 		For the universal index, node_ptr contains most of the entry.
 		And 512 is enough to contain ibuf columns and meta-data */
-		return(UNIV_PAGE_SIZE / 8 * 3 + 512);
+		return(srv_page_size / 8 * 3 + 512);
 	}
 
 	comp = dict_table_is_comp(index->table);
@@ -2224,10 +2224,10 @@ dict_index_too_big_for_tree(
 	const page_size_t page_size(dict_tf_get_page_size(table->flags));
 
 	if (page_size.is_compressed()
-	    && page_size.physical() < univ_page_size.physical()) {
+	    && page_size.physical() < srv_page_size) {
 		/* On a compressed page, two records must fit in the
 		uncompressed page modification log. On compressed pages
-		with size.physical() == univ_page_size.physical(),
+		with size.physical() == srv_page_size,
 		this limit will never be reached. */
 		ut_ad(comp);
 		/* The maximum allowed record size is the size of
@@ -6980,7 +6980,7 @@ dict_index_zip_pad_update(
 		/* Only do increment if it won't increase padding
 		beyond max pad size. */
 		if (info->pad + ZIP_PAD_INCR
-		    < (UNIV_PAGE_SIZE * zip_pad_max) / 100) {
+		    < (srv_page_size * zip_pad_max) / 100) {
 			/* Use atomics even though we have the mutex.
 			This is to ensure that we are able to read
 			info->pad atomically. */
@@ -7076,17 +7076,17 @@ dict_index_zip_pad_optimal_page_size(
 
 	if (!zip_failure_threshold_pct) {
 		/* Disabled by user. */
-		return(UNIV_PAGE_SIZE);
+		return(srv_page_size);
 	}
 
 	pad = my_atomic_loadlint(&index->zip_pad.pad);
 
-	ut_ad(pad < UNIV_PAGE_SIZE);
-	sz = UNIV_PAGE_SIZE - pad;
+	ut_ad(pad < srv_page_size);
+	sz = srv_page_size - pad;
 
 	/* Min size allowed by user. */
 	ut_ad(zip_pad_max < 100);
-	min_sz = (UNIV_PAGE_SIZE * (100 - zip_pad_max)) / 100;
+	min_sz = (srv_page_size * (100 - zip_pad_max)) / 100;
 
 	return(ut_max(sz, min_sz));
 }

@@ -1454,7 +1454,7 @@ rtr_leaf_push_match_rec(
 	data_len = rec_offs_data_size(offsets) + rec_offs_extra_size(offsets);
 	match_rec->used += data_len;
 
-	ut_ad(match_rec->used < UNIV_PAGE_SIZE);
+	ut_ad(match_rec->used < srv_page_size);
 }
 
 /**************************************************************//**

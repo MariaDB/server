@@ -595,8 +595,8 @@ dict_tf_is_valid_not_redundant(ulint flags)
 		for the uncompressed page format */
 		return(false);
 	} else if (zip_ssize > PAGE_ZIP_SSIZE_MAX
-		   || zip_ssize > UNIV_PAGE_SIZE_SHIFT
-		   || UNIV_PAGE_SIZE_SHIFT > UNIV_ZIP_SIZE_SHIFT_MAX) {
+		   || zip_ssize > srv_page_size_shift
+		   || srv_page_size_shift > UNIV_ZIP_SIZE_SHIFT_MAX) {
 		/* KEY_BLOCK_SIZE is out of bounds, or
 		ROW_FORMAT=COMPRESSED is not supported with this
 		innodb_page_size (only up to 16KiB) */
@@ -852,7 +852,7 @@ dict_tf_get_page_size(
 
 	ut_ad(zip_size <= UNIV_ZIP_SIZE_MAX);
 
-	return(page_size_t(zip_size, univ_page_size.logical(), true));
+	return(page_size_t(zip_size, srv_page_size, true));
 }
 
 /*********************************************************************//**
@@ -1182,7 +1182,7 @@ ulint
 dict_index_get_space_reserve(void)
 /*==============================*/
 {
-	return(UNIV_PAGE_SIZE / 16);
+	return(srv_page_size / 16);
 }
 
 /********************************************************************//**

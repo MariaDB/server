@@ -45,7 +45,7 @@ Created 6/2/1994 Heikki Tuuri
 
 /** Maximum record size which can be stored on a page, without using the
 special big record storage structure */
-#define	BTR_PAGE_MAX_REC_SIZE	(UNIV_PAGE_SIZE / 2 - 200)
+#define	BTR_PAGE_MAX_REC_SIZE	(srv_page_size / 2 - 200)
 
 /** @brief Maximum depth of a B-tree in InnoDB.
 

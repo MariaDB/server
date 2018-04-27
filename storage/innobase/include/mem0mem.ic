@@ -548,7 +548,7 @@ mem_heap_get_size(
 	size = heap->total_size;
 
 	if (heap->free_block) {
-		size += UNIV_PAGE_SIZE;
+		size += srv_page_size;
 	}
 
 	return(size);

@@ -219,7 +219,7 @@ mem_heap_validate(
 			break;
 		case MEM_HEAP_BUFFER:
 		case MEM_HEAP_BUFFER | MEM_HEAP_BTR_SEARCH:
-			ut_ad(block->len <= UNIV_PAGE_SIZE);
+			ut_ad(block->len <= srv_page_size);
 			break;
 		default:
 			ut_error;
@@ -264,13 +264,13 @@ mem_heap_create_block_func(
 	/* In dynamic allocation, calculate the size: block header + data. */
 	len = MEM_BLOCK_HEADER_SIZE + MEM_SPACE_NEEDED(n);
 
-	if (type == MEM_HEAP_DYNAMIC || len < UNIV_PAGE_SIZE / 2) {
+	if (type == MEM_HEAP_DYNAMIC || len < srv_page_size / 2) {
 
 		ut_ad(type == MEM_HEAP_DYNAMIC || n <= MEM_MAX_ALLOC_IN_BUF);
 
 		block = static_cast<mem_block_t*>(ut_malloc_nokey(len));
 	} else {
-		len = UNIV_PAGE_SIZE;
+		len = srv_page_size;
 
 		if ((type & MEM_HEAP_BTR_SEARCH) && heap) {
 			/* We cannot allocate the block from the
@@ -412,7 +412,7 @@ mem_heap_block_free(
 	len = block->len;
 	block->magic_n = MEM_FREED_BLOCK_MAGIC_N;
 
-	if (type == MEM_HEAP_DYNAMIC || len < UNIV_PAGE_SIZE / 2) {
+	if (type == MEM_HEAP_DYNAMIC || len < srv_page_size / 2) {
 		ut_ad(!buf_block);
 		ut_free(block);
 	} else {

@@ -106,7 +106,7 @@ static time_t	log_last_margine_warning_time;
 
 /* Margins for free space in the log buffer after a log entry is catenated */
 #define LOG_BUF_FLUSH_RATIO	2
-#define LOG_BUF_FLUSH_MARGIN	(LOG_BUF_WRITE_MARGIN + 4 * UNIV_PAGE_SIZE)
+#define LOG_BUF_FLUSH_MARGIN	(LOG_BUF_WRITE_MARGIN + 4 * srv_page_size)
 
 /* This parameter controls asynchronous making of a new checkpoint; the value
 should be bigger than LOG_POOL_PREFLUSH_RATIO_SYNC */
@@ -184,7 +184,7 @@ log_buffer_extend(
 
 		log_mutex_enter_all();
 
-		if (srv_log_buffer_size > len / UNIV_PAGE_SIZE) {
+		if (srv_log_buffer_size > len / srv_page_size) {
 			/* Already extended enough by the others */
 			log_mutex_exit_all();
 			return;
@@ -234,7 +234,7 @@ log_buffer_extend(
 	ut_free_dodump(log_sys->buf, log_sys->buf_size * 2);
 
 	/* reallocate log buffer */
-	srv_log_buffer_size = len / UNIV_PAGE_SIZE + 1;
+	srv_log_buffer_size = len / srv_page_size + 1;
 	log_sys->buf_size = LOG_BUFFER_SIZE;
 
 	log_sys->buf = static_cast<byte*>(
@@ -722,7 +722,7 @@ log_sys_init()
 	log_sys->lsn = LOG_START_LSN;
 
 	ut_a(LOG_BUFFER_SIZE >= 16 * OS_FILE_LOG_BLOCK_SIZE);
-	ut_a(LOG_BUFFER_SIZE >= 4 * UNIV_PAGE_SIZE);
+	ut_a(LOG_BUFFER_SIZE >= 4 * srv_page_size);
 
 	log_sys->buf_size = LOG_BUFFER_SIZE;
 
@@ -895,13 +895,12 @@ log_group_file_header_flush(
 
 	srv_stats.os_log_pending_writes.inc();
 
-	const ulint	page_no
-		= (ulint) (dest_offset / univ_page_size.physical());
+	const ulint	page_no = ulint(dest_offset / srv_page_size);
 
 	fil_io(IORequestLogWrite, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
 	       univ_page_size,
-	       (ulint) (dest_offset % univ_page_size.physical()),
+	       ulint(dest_offset % srv_page_size),
 	       OS_FILE_LOG_BLOCK_SIZE, buf, group);
 
 	srv_stats.os_log_pending_writes.dec();
@@ -1016,15 +1015,14 @@ loop:
 
 	srv_stats.os_log_pending_writes.inc();
 
-	ut_a(next_offset / UNIV_PAGE_SIZE <= ULINT_MAX);
+	ut_a(next_offset / srv_page_size <= ULINT_MAX);
 
-	const ulint	page_no
-		= (ulint) (next_offset / univ_page_size.physical());
+	const ulint	page_no = ulint(next_offset / srv_page_size);
 
 	fil_io(IORequestLogWrite, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
 	       univ_page_size,
-	       (ulint) (next_offset % UNIV_PAGE_SIZE), write_len, buf,
+	       ulint(next_offset % srv_page_size), write_len, buf,
 	       group);
 
 	srv_stats.os_log_pending_writes.dec();
@@ -1261,7 +1259,7 @@ loop:
 			/* The first block in the unit was initialized
 			after the last writing.
 			Needs to be written padded data once. */
-			pad_size = std::min(
+			pad_size = std::min<ulint>(
 				ulint(write_ahead_size) - end_offset_in_unit,
 				log_sys->buf_size - area_end);
 			::memset(write_buf + area_end, 0, pad_size);
@@ -1524,8 +1522,8 @@ log_group_checkpoint(lsn_t end_lsn)
 
 	MONITOR_INC(MONITOR_LOG_IO);
 
-	ut_ad(LOG_CHECKPOINT_1 < univ_page_size.physical());
-	ut_ad(LOG_CHECKPOINT_2 < univ_page_size.physical());
+	ut_ad(LOG_CHECKPOINT_1 < srv_page_size);
+	ut_ad(LOG_CHECKPOINT_2 < srv_page_size);
 
 	if (log_sys->n_pending_checkpoint_writes++ == 0) {
 		rw_lock_x_lock_gen(&log_sys->checkpoint_lock,
@@ -1566,8 +1564,8 @@ log_group_header_read(
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID,
-			 header / univ_page_size.physical()),
-	       univ_page_size, header % univ_page_size.physical(),
+			 header / srv_page_size),
+	       univ_page_size, header % srv_page_size,
 	       OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL);
 }
 

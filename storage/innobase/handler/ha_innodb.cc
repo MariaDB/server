@@ -3697,10 +3697,10 @@ innobase_init(
 
 	/* The buffer pool needs to be able to accommodate enough many
 	pages, even for larger pages */
-	if (UNIV_PAGE_SIZE > UNIV_PAGE_SIZE_DEF
+	if (srv_page_size > UNIV_PAGE_SIZE_DEF
 	    && innobase_buffer_pool_size < (24 * 1024 * 1024)) {
 		ib::info() << "innodb_page_size="
-			<< UNIV_PAGE_SIZE << " requires "
+			<< srv_page_size << " requires "
 			<< "innodb_buffer_pool_size > 24M current "
 			<< innobase_buffer_pool_size;
 		goto error;
@@ -5168,7 +5168,7 @@ ha_innobase::max_supported_key_length() const
 	Note: Handle 16k and 32k pages the same here since the limits
 	are higher than imposed by MySQL. */
 
-	switch (UNIV_PAGE_SIZE) {
+	switch (srv_page_size) {
 	case 4096:
 		return(768);
 	case 8192:
@@ -6269,7 +6269,7 @@ no_such_table:
 	}
 
 	/* Index block size in InnoDB: used by MySQL in query optimization */
-	stats.block_size = UNIV_PAGE_SIZE;
+	stats.block_size = srv_page_size;
 
 	/* Init table lock structure */
 	thr_lock_data_init(&m_share->lock, &lock, NULL);
@@ -11411,7 +11411,7 @@ create_table_info_t::create_options_are_invalid()
 		case 8:
 		case 16:
 			/* The maximum KEY_BLOCK_SIZE (KBS) is
-			UNIV_PAGE_SIZE_MAX. But if UNIV_PAGE_SIZE is
+			UNIV_PAGE_SIZE_MAX. But if srv_page_size is
 			smaller than UNIV_PAGE_SIZE_MAX, the maximum
 			KBS is also smaller. */
 			kbs_max = ut_min(
@@ -11512,7 +11512,7 @@ create_table_info_t::create_options_are_invalid()
 
 	/* Don't support compressed table when page size > 16k. */
 	if ((has_key_block_size || row_format == ROW_TYPE_COMPRESSED)
-	    && UNIV_PAGE_SIZE > UNIV_PAGE_SIZE_DEF) {
+	    && srv_page_size > UNIV_PAGE_SIZE_DEF) {
 		push_warning(m_thd, Sql_condition::WARN_LEVEL_WARN,
 			     ER_ILLEGAL_HA_CREATE_OPTION,
 			     "InnoDB: Cannot create a COMPRESSED table"
@@ -11924,7 +11924,7 @@ index_bad:
 		if (row_type == ROW_TYPE_COMPRESSED && zip_allowed) {
 			/* ROW_FORMAT=COMPRESSED without KEY_BLOCK_SIZE
 			implies half the maximum KEY_BLOCK_SIZE(*1k) or
-			UNIV_PAGE_SIZE, whichever is less. */
+			srv_page_size, whichever is less. */
 			zip_ssize = zip_ssize_max - 1;
 		}
 	}
@@ -11975,7 +11975,7 @@ index_bad:
 	}
 
 	/* Don't support compressed table when page size > 16k. */
-	if (zip_allowed && zip_ssize && UNIV_PAGE_SIZE > UNIV_PAGE_SIZE_DEF) {
+	if (zip_allowed && zip_ssize && srv_page_size > UNIV_PAGE_SIZE_DEF) {
 		push_warning(m_thd, Sql_condition::WARN_LEVEL_WARN,
 			     ER_ILLEGAL_HA_CREATE_OPTION,
 			     "InnoDB: Cannot create a COMPRESSED table"
@@ -13436,7 +13436,7 @@ ha_innobase::estimate_rows_upper_bound()
 	ut_a(stat_n_leaf_pages > 0);
 
 	local_data_file_length =
-		((ulonglong) stat_n_leaf_pages) * UNIV_PAGE_SIZE;
+		((ulonglong) stat_n_leaf_pages) * srv_page_size;
 
 	/* Calculate a minimum length for a clustered index record and from
 	that an upper bound for the number of rows. Since we only calculate
@@ -18760,8 +18760,8 @@ innodb_log_write_ahead_size_update(
 		val = val * 2;
 	}
 
-	if (val > UNIV_PAGE_SIZE) {
-		val = UNIV_PAGE_SIZE;
+	if (val > srv_page_size) {
+		val = srv_page_size;
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
 				    "innodb_log_write_ahead_size cannot"
@@ -18770,7 +18770,7 @@ innodb_log_write_ahead_size_update(
 				    ER_WRONG_ARGUMENTS,
 				    "Setting innodb_log_write_ahead_size"
 				    " to %lu",
-				    UNIV_PAGE_SIZE);
+				    srv_page_size);
 	} else if (val != in_val) {
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
@@ -20684,13 +20684,13 @@ innodb_params_adjust()
 		= MYSQL_SYSVAR_NAME(undo_logs).def_val
 		= srv_available_undo_logs;
 	MYSQL_SYSVAR_NAME(max_undo_log_size).max_val
-		= 1ULL << (32 + UNIV_PAGE_SIZE_SHIFT);
+		= 1ULL << (32 + srv_page_size_shift);
 	MYSQL_SYSVAR_NAME(max_undo_log_size).min_val
 		= MYSQL_SYSVAR_NAME(max_undo_log_size).def_val
 		= ulonglong(SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)
 		* srv_page_size;
 	MYSQL_SYSVAR_NAME(max_undo_log_size).max_val
-		= 1ULL << (32 + UNIV_PAGE_SIZE_SHIFT);
+		= 1ULL << (32 + srv_page_size_shift);
 }
 
 /****************************************************************************
@@ -20994,7 +20994,7 @@ innobase_get_computed_value(
 	if (!heap || index->table->vc_templ->rec_len
 		     >= REC_VERSION_56_MAX_INDEX_COL_LEN) {
 		if (*local_heap == NULL) {
-			*local_heap = mem_heap_create(UNIV_PAGE_SIZE);
+			*local_heap = mem_heap_create(srv_page_size);
 		}
 
 		buf = static_cast<byte*>(mem_heap_alloc(
@@ -21035,7 +21035,7 @@ innobase_get_computed_value(
 
 		if (row_field->ext) {
 			if (*local_heap == NULL) {
-				*local_heap = mem_heap_create(UNIV_PAGE_SIZE);
+				*local_heap = mem_heap_create(srv_page_size);
 			}
 
 			data = btr_copy_externally_stored_field(

@@ -4802,7 +4802,8 @@ row_scan_index_for_mysql(
 		return(DB_SUCCESS);
 	}
 
-	ulint bufsize = ut_max(UNIV_PAGE_SIZE, prebuilt->mysql_row_len);
+	ulint bufsize = std::max<ulint>(srv_page_size,
+					prebuilt->mysql_row_len);
 	buf = static_cast<byte*>(ut_malloc_nokey(bufsize));
 	heap = mem_heap_create(100);
 

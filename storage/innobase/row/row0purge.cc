@@ -811,7 +811,7 @@ skip_secondaries:
 				(dfield_get_data(&ufield->new_val))
 				- undo_rec);
 
-			ut_a(internal_offset < UNIV_PAGE_SIZE);
+			ut_a(internal_offset < srv_page_size);
 
 			trx_undo_decode_roll_ptr(node->roll_ptr,
 						 &is_insert, &rseg_id,

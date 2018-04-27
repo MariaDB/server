@@ -63,7 +63,7 @@ static void trx_undof_page_add_undo_rec_log(const buf_block_t* undo_block,
 {
 	ut_ad(old_free >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
 	ut_ad(new_free >= old_free);
-	ut_ad(new_free < UNIV_PAGE_SIZE);
+	ut_ad(new_free < srv_page_size);
 	ut_ad(mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
 			       + undo_block->frame)
 	      == new_free);
@@ -176,7 +176,7 @@ trx_undo_page_set_next_prev_and_add(
 					offset value within undo_page.*/
 
 	ut_ad(ptr > undo_block->frame);
-	ut_ad(ptr < undo_block->frame + UNIV_PAGE_SIZE);
+	ut_ad(ptr < undo_block->frame + srv_page_size);
 
 	if (UNIV_UNLIKELY(trx_undo_left(undo_block, ptr) < 2)) {
 		return(0);
@@ -488,7 +488,7 @@ trx_undo_page_report_insert(
 				      + undo_block->frame);
 	ptr = undo_block->frame + first_free;
 
-	ut_ad(first_free <= UNIV_PAGE_SIZE);
+	ut_ad(first_free <= srv_page_size);
 
 	if (trx_undo_left(undo_block, ptr) < 2 + 1 + 11 + 11) {
 		/* Not enough space for writing the general parameters */
@@ -893,7 +893,7 @@ trx_undo_page_report_modify(
 				      + undo_block->frame);
 	ptr = undo_block->frame + first_free;
 
-	ut_ad(first_free <= UNIV_PAGE_SIZE);
+	ut_ad(first_free <= srv_page_size);
 
 	if (trx_undo_left(undo_block, ptr) < 50) {
 		/* NOTE: the value 50 must be big enough so that the general
@@ -1840,7 +1840,7 @@ trx_undo_erase_page_end(page_t* undo_page)
 	first_free = mach_read_from_2(undo_page + TRX_UNDO_PAGE_HDR
 				      + TRX_UNDO_PAGE_FREE);
 	memset(undo_page + first_free, 0,
-	       (UNIV_PAGE_SIZE - FIL_PAGE_DATA_END) - first_free);
+	       (srv_page_size - FIL_PAGE_DATA_END) - first_free);
 
 	return(first_free != TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
 }
@@ -1861,7 +1861,7 @@ trx_undo_page_report_rename(trx_t* trx, const dict_table_t* table,
 		+ block->frame;
 	ulint	first_free = mach_read_from_2(ptr_first_free);
 	ut_ad(first_free >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
-	ut_ad(first_free <= UNIV_PAGE_SIZE);
+	ut_ad(first_free <= srv_page_size);
 	byte* start = block->frame + first_free;
 	size_t len = strlen(table->name.m_name);
 	const size_t fixed = 2 + 1 + 11 + 11 + 2;

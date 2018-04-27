@@ -902,7 +902,7 @@ buf_flush_init_for_writing(
 	/* Write the newest modification lsn to the page header and trailer */
 	mach_write_to_8(page + FIL_PAGE_LSN, newest_lsn);
 
-	mach_write_to_8(page + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM,
+	mach_write_to_8(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
 			newest_lsn);
 
 	if (block && srv_page_size == 16384) {
@@ -998,7 +998,7 @@ buf_flush_init_for_writing(
 		new enum is added and not handled here */
 	}
 
-	mach_write_to_4(page + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM,
+	mach_write_to_4(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
 			checksum);
 }
 

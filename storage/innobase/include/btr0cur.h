@@ -834,7 +834,7 @@ btr_cur_latch_leaves(
 /** In the pessimistic delete, if the page data size drops below this
 limit, merging it to a neighbor is tried */
 #define BTR_CUR_PAGE_COMPRESS_LIMIT(index) \
-	((UNIV_PAGE_SIZE * (ulint)((index)->merge_threshold)) / 100)
+	((srv_page_size * (ulint)((index)->merge_threshold)) / 100)
 
 /** A slot in the path array. We store here info on a search path down the
 tree. Each slot contains data on a single level of the tree. */

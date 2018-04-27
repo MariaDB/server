@@ -140,7 +140,7 @@ public:
 	ulint get_autoextend_increment() const
 	{
 		return(sys_tablespace_auto_extend_increment
-		       * ((1024 * 1024) / UNIV_PAGE_SIZE));
+		       * ((1024 * 1024) / srv_page_size));
 	}
 
 	/**

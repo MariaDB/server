@@ -2301,23 +2301,23 @@ AIO::is_linux_native_aio_supported()
 
 	memset(&io_event, 0x0, sizeof(io_event));
 
-	byte*	buf = static_cast<byte*>(ut_malloc_nokey(UNIV_PAGE_SIZE * 2));
-	byte*	ptr = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
+	byte*	buf = static_cast<byte*>(ut_malloc_nokey(srv_page_size * 2));
+	byte*	ptr = static_cast<byte*>(ut_align(buf, srv_page_size));
 
 	struct iocb	iocb;
 
 	/* Suppress valgrind warning. */
-	memset(buf, 0x00, UNIV_PAGE_SIZE * 2);
+	memset(buf, 0x00, srv_page_size * 2);
 	memset(&iocb, 0x0, sizeof(iocb));
 
 	struct iocb*	p_iocb = &iocb;
 
 	if (!srv_read_only_mode) {
 
-		io_prep_pwrite(p_iocb, fd, ptr, UNIV_PAGE_SIZE, 0);
+		io_prep_pwrite(p_iocb, fd, ptr, srv_page_size, 0);
 
 	} else {
-		ut_a(UNIV_PAGE_SIZE >= 512);
+		ut_a(srv_page_size >= 512);
 		io_prep_pread(p_iocb, fd, ptr, 512, 0);
 	}
 
@@ -5329,16 +5329,16 @@ fallback:
 	/* Write up to 1 megabyte at a time. */
 	ulint	buf_size = ut_min(
 		static_cast<ulint>(64),
-		static_cast<ulint>(size / UNIV_PAGE_SIZE));
+		static_cast<ulint>(size / srv_page_size));
 
-	buf_size *= UNIV_PAGE_SIZE;
+	buf_size *= srv_page_size;
 
 	/* Align the buffer for possible raw i/o */
 	byte*	buf2;
 
-	buf2 = static_cast<byte*>(ut_malloc_nokey(buf_size + UNIV_PAGE_SIZE));
+	buf2 = static_cast<byte*>(ut_malloc_nokey(buf_size + srv_page_size));
 
-	byte*	buf = static_cast<byte*>(ut_align(buf2, UNIV_PAGE_SIZE));
+	byte*	buf = static_cast<byte*>(ut_align(buf2, srv_page_size));
 
 	/* Write buffer full of zeros */
 	memset(buf, 0, buf_size);
@@ -5561,7 +5561,7 @@ os_is_sparse_file_supported(os_file_t fh)
 
 	/* We don't know the FS block size, use the sector size. The FS
 	will do the magic. */
-	err = os_file_punch_hole_posix(fh, 0, UNIV_PAGE_SIZE);
+	err = os_file_punch_hole_posix(fh, 0, srv_page_size);
 
 	return(err == DB_SUCCESS);
 #endif /* _WIN32 */
@@ -6172,7 +6172,7 @@ AIO::reserve_slot(
 	doing simulated AIO */
 	ulint		local_seg;
 
-	local_seg = (offset >> (UNIV_PAGE_SIZE_SHIFT + 6)) % m_n_segments;
+	local_seg = (offset >> (srv_page_size_shift + 6)) % m_n_segments;
 
 	for (;;) {
 
@@ -6853,10 +6853,10 @@ public:
 			}
 
 			m_ptr = static_cast<byte*>(
-				ut_malloc_nokey(len + UNIV_PAGE_SIZE));
+				ut_malloc_nokey(len + srv_page_size));
 
 			m_buf = static_cast<byte*>(
-				ut_align(m_ptr, UNIV_PAGE_SIZE));
+				ut_align(m_ptr, srv_page_size));
 
 		} else {
 			len = first_slot()->len;

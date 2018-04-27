@@ -3061,12 +3061,13 @@ static dberr_t xb_assign_undo_space_start()
 		return DB_ERROR;
 	}
 
-	buf = static_cast<byte*>(ut_malloc_nokey(2 * UNIV_PAGE_SIZE));
-	page = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
+	buf = static_cast<byte*>(ut_malloc_nokey(2 * srv_page_size));
+	page = static_cast<byte*>(ut_align(buf, srv_page_size));
 
 retry:
-	if (!os_file_read(IORequestRead, file, page, TRX_SYS_PAGE_NO * UNIV_PAGE_SIZE,
-			  UNIV_PAGE_SIZE)) {
+	if (!os_file_read(IORequestRead, file, page,
+			  TRX_SYS_PAGE_NO * srv_page_size,
+			  srv_page_size)) {
 		msg("mariabackup: Reading TRX_SYS page failed.\n");
 		error = DB_ERROR;
 		goto func_exit;
@@ -3591,8 +3592,8 @@ xb_normalize_init_values(void)
 /*==========================*/
 {
 	srv_sys_space.normalize();
-	srv_log_buffer_size /= UNIV_PAGE_SIZE;
-	srv_lock_table_size = 5 * (srv_buf_pool_size / UNIV_PAGE_SIZE);
+	srv_log_buffer_size /= srv_page_size;
+	srv_lock_table_size = 5 * (srv_buf_pool_size / srv_page_size);
 }
 
 /***********************************************************************
@@ -4248,7 +4249,7 @@ xb_space_create_file(
 	}
 
 	ret = os_file_set_size(path, *file,
-			       FIL_IBD_FILE_INITIAL_SIZE * UNIV_PAGE_SIZE);
+			       FIL_IBD_FILE_INITIAL_SIZE * srv_page_size);
 	if (!ret) {
 		msg("mariabackup: cannot set size for file %s\n", path);
 		os_file_close(*file);
@@ -4256,11 +4257,11 @@ xb_space_create_file(
 		return ret;
 	}
 
-	buf = static_cast<byte *>(malloc(3 * UNIV_PAGE_SIZE));
+	buf = static_cast<byte *>(malloc(3 * srv_page_size));
 	/* Align the memory for file i/o if we might have O_DIRECT set */
-	page = static_cast<byte *>(ut_align(buf, UNIV_PAGE_SIZE));
+	page = static_cast<byte *>(ut_align(buf, srv_page_size));
 
-	memset(page, '\0', UNIV_PAGE_SIZE);
+	memset(page, '\0', srv_page_size);
 
 	fsp_header_init_fields(page, space_id, flags);
 	mach_write_to_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, space_id);
@@ -4271,12 +4272,12 @@ xb_space_create_file(
 		buf_flush_init_for_writing(NULL, page, NULL, 0);
 
 		ret = os_file_write(IORequestWrite, path, *file, page, 0,
-				    UNIV_PAGE_SIZE);
+				    srv_page_size);
 	} else {
 		page_zip_des_t	page_zip;
 		ulint zip_size = page_size.physical();
 		page_zip_set_size(&page_zip, zip_size);
-		page_zip.data = page + UNIV_PAGE_SIZE;
+		page_zip.data = page + srv_page_size;
 		fprintf(stderr, "zip_size = " ULINTPF "\n", zip_size);
 
 #ifdef UNIV_DEBUG

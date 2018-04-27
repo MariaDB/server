@@ -1048,7 +1048,7 @@ rec_get_nth_field_offs_old(
 
 	*len = next_os - os;
 
-	ut_ad(*len < UNIV_PAGE_SIZE);
+	ut_ad(*len < srv_page_size);
 
 	return(os);
 }
@@ -1985,7 +1985,7 @@ rec_validate_old(
 	for (i = 0; i < n_fields; i++) {
 		rec_get_nth_field_offs_old(rec, i, &len);
 
-		if (!((len < UNIV_PAGE_SIZE) || (len == UNIV_SQL_NULL))) {
+		if (!((len < srv_page_size) || (len == UNIV_SQL_NULL))) {
 			ib::error() << "Record field " << i << " len " << len;
 			return(FALSE);
 		}
@@ -2036,7 +2036,7 @@ rec_validate(
 
 		switch (len) {
 		default:
-			if (len >= UNIV_PAGE_SIZE) {
+			if (len >= srv_page_size) {
 				ib::error() << "Record field " << i
 					<< " len " << len;
 				return(FALSE);

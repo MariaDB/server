@@ -346,7 +346,7 @@ times! */
 
 /** Size of block reads when the log groups are scanned forward to do a
 roll-forward */
-#define RECV_SCAN_SIZE		(4 * UNIV_PAGE_SIZE)
+#define RECV_SCAN_SIZE		(4 * srv_page_size)
 
 /** This many frames must be left free in the buffer pool when we scan
 the log and store the scanned log records in the buffer pool: we will

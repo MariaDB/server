@@ -2954,12 +2954,12 @@ row_sel_store_mysql_field_func(
 		if (DATA_LARGE_MTYPE(templ->type)) {
 			if (prebuilt->blob_heap == NULL) {
 				prebuilt->blob_heap = mem_heap_create(
-					UNIV_PAGE_SIZE);
+					srv_page_size);
 			}
 
 			heap = prebuilt->blob_heap;
 		} else {
-			heap = mem_heap_create(UNIV_PAGE_SIZE);
+			heap = mem_heap_create(srv_page_size);
 		}
 
 		/* NOTE: if we are retrieving a big BLOB, we may
@@ -3042,7 +3042,7 @@ row_sel_store_mysql_field_func(
 
 			if (prebuilt->blob_heap == NULL) {
 				prebuilt->blob_heap = mem_heap_create(
-					UNIV_PAGE_SIZE);
+					srv_page_size);
 				DBUG_PRINT("anna", ("blob_heap allocated: %p",
 						    prebuilt->blob_heap));
 			}
@@ -4375,7 +4375,7 @@ row_search_mvcc(
 	    && dict_index_is_clust(index)
 	    && !prebuilt->templ_contains_blob
 	    && !prebuilt->used_in_HANDLER
-	    && (prebuilt->mysql_row_len < UNIV_PAGE_SIZE / 8)) {
+	    && (prebuilt->mysql_row_len < srv_page_size / 8)) {
 
 		mode = PAGE_CUR_GE;
 
@@ -4772,7 +4772,7 @@ rec_loop:
 		}
 	}
 
-	if (UNIV_UNLIKELY(next_offs >= UNIV_PAGE_SIZE - PAGE_DIR)) {
+	if (UNIV_UNLIKELY(next_offs >= srv_page_size - PAGE_DIR)) {
 
 wrong_offs:
 		if (srv_force_recovery == 0 || moves_up == FALSE) {
@@ -5823,7 +5823,8 @@ row_count_rtree_recs(
 
 	prebuilt->search_tuple = entry;
 
-	ulint bufsize = ut_max(UNIV_PAGE_SIZE, prebuilt->mysql_row_len);
+	ulint bufsize = std::max<ulint>(srv_page_size,
+					prebuilt->mysql_row_len);
 	buf = static_cast<byte*>(ut_malloc_nokey(bufsize));
 
 	ulint cnt = 1000;

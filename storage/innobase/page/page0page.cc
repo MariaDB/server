@@ -99,13 +99,13 @@ page_dir_find_owner_slot(
 		while (rec_get_n_owned_new(r) == 0) {
 			r = rec_get_next_ptr_const(r, TRUE);
 			ut_ad(r >= page + PAGE_NEW_SUPREMUM);
-			ut_ad(r < page + (UNIV_PAGE_SIZE - PAGE_DIR));
+			ut_ad(r < page + (srv_page_size - PAGE_DIR));
 		}
 	} else {
 		while (rec_get_n_owned_old(r) == 0) {
 			r = rec_get_next_ptr_const(r, FALSE);
 			ut_ad(r >= page + PAGE_OLD_SUPREMUM);
-			ut_ad(r < page + (UNIV_PAGE_SIZE - PAGE_DIR));
+			ut_ad(r < page + (srv_page_size - PAGE_DIR));
 		}
 	}
 
@@ -387,10 +387,10 @@ page_create_low(
 		       sizeof infimum_supremum_compact);
 		memset(page
 		       + PAGE_NEW_SUPREMUM_END, 0,
-		       UNIV_PAGE_SIZE - PAGE_DIR - PAGE_NEW_SUPREMUM_END);
-		page[UNIV_PAGE_SIZE - PAGE_DIR - PAGE_DIR_SLOT_SIZE * 2 + 1]
+		       srv_page_size - PAGE_DIR - PAGE_NEW_SUPREMUM_END);
+		page[srv_page_size - PAGE_DIR - PAGE_DIR_SLOT_SIZE * 2 + 1]
 			= PAGE_NEW_SUPREMUM;
-		page[UNIV_PAGE_SIZE - PAGE_DIR - PAGE_DIR_SLOT_SIZE + 1]
+		page[srv_page_size - PAGE_DIR - PAGE_DIR_SLOT_SIZE + 1]
 			= PAGE_NEW_INFIMUM;
 	} else {
 		page[PAGE_HEADER + PAGE_N_HEAP + 1] = PAGE_HEAP_NO_USER_LOW;
@@ -399,10 +399,10 @@ page_create_low(
 		       sizeof infimum_supremum_redundant);
 		memset(page
 		       + PAGE_OLD_SUPREMUM_END, 0,
-		       UNIV_PAGE_SIZE - PAGE_DIR - PAGE_OLD_SUPREMUM_END);
-		page[UNIV_PAGE_SIZE - PAGE_DIR - PAGE_DIR_SLOT_SIZE * 2 + 1]
+		       srv_page_size - PAGE_DIR - PAGE_OLD_SUPREMUM_END);
+		page[srv_page_size - PAGE_DIR - PAGE_DIR_SLOT_SIZE * 2 + 1]
 			= PAGE_OLD_SUPREMUM;
-		page[UNIV_PAGE_SIZE - PAGE_DIR - PAGE_DIR_SLOT_SIZE + 1]
+		page[srv_page_size - PAGE_DIR - PAGE_DIR_SLOT_SIZE + 1]
 			= PAGE_OLD_INFIMUM;
 	}
 
@@ -594,7 +594,7 @@ page_copy_rec_list_end_no_locks(
 
 	btr_assert_not_corrupted(new_block, index);
 	ut_a(page_is_comp(new_page) == page_rec_is_comp(rec));
-	ut_a(mach_read_from_2(new_page + UNIV_PAGE_SIZE - 10) == (ulint)
+	ut_a(mach_read_from_2(new_page + srv_page_size - 10) == (ulint)
 	     (page_is_comp(new_page) ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM));
 	const bool is_leaf = page_is_leaf(block->frame);
 
@@ -1052,7 +1052,7 @@ page_delete_rec_list_end(
 	ulint*		offsets		= offsets_;
 	rec_offs_init(offsets_);
 
-	ut_ad(size == ULINT_UNDEFINED || size < UNIV_PAGE_SIZE);
+	ut_ad(size == ULINT_UNDEFINED || size < srv_page_size);
 	ut_ad(!page_zip || page_rec_is_comp(rec));
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
@@ -1159,8 +1159,8 @@ delete_all:
 			s = rec_offs_size(offsets);
 			ut_ad(ulint(rec2 - page) + s
 			      - rec_offs_extra_size(offsets)
-			      < UNIV_PAGE_SIZE);
-			ut_ad(size + s < UNIV_PAGE_SIZE);
+			      < srv_page_size);
+			ut_ad(size + s < srv_page_size);
 			size += s;
 			n_recs++;
 
@@ -1177,7 +1177,7 @@ delete_all:
 		}
 	}
 
-	ut_ad(size < UNIV_PAGE_SIZE);
+	ut_ad(size < srv_page_size);
 
 	/* Update the page directory; there is no need to balance the number
 	of the records owned by the supremum record, as it is allowed to be
@@ -1632,7 +1632,7 @@ page_rec_get_nth_const(
 		return(page_get_infimum_rec(page));
 	}
 
-	ut_ad(nth < UNIV_PAGE_SIZE / (REC_N_NEW_EXTRA_BYTES + 1));
+	ut_ad(nth < srv_page_size / (REC_N_NEW_EXTRA_BYTES + 1));
 
 	for (i = 0;; i++) {
 
@@ -1724,7 +1724,7 @@ page_rec_get_n_recs_before(
 	n--;
 
 	ut_ad(n >= 0);
-	ut_ad((ulong) n < UNIV_PAGE_SIZE / (REC_N_NEW_EXTRA_BYTES + 1));
+	ut_ad((ulong) n < srv_page_size / (REC_N_NEW_EXTRA_BYTES + 1));
 
 	return((ulint) n);
 }
@@ -2017,7 +2017,7 @@ page_simple_validate_old(
 
 	n_slots = page_dir_get_n_slots(page);
 
-	if (UNIV_UNLIKELY(n_slots > UNIV_PAGE_SIZE / 4)) {
+	if (UNIV_UNLIKELY(n_slots > srv_page_size / 4)) {
 		ib::error() << "Nonsensical number " << n_slots
 			<< " of page dir slots";
 
@@ -2093,7 +2093,7 @@ page_simple_validate_old(
 
 		if (UNIV_UNLIKELY
 		    (rec_get_next_offs(rec, FALSE) < FIL_PAGE_DATA
-		     || rec_get_next_offs(rec, FALSE) >= UNIV_PAGE_SIZE)) {
+		     || rec_get_next_offs(rec, FALSE) >= srv_page_size)) {
 
 			ib::error() << "Next record offset nonsensical "
 				<< rec_get_next_offs(rec, FALSE) << " for rec "
@@ -2104,7 +2104,7 @@ page_simple_validate_old(
 
 		count++;
 
-		if (UNIV_UNLIKELY(count > UNIV_PAGE_SIZE)) {
+		if (UNIV_UNLIKELY(count > srv_page_size)) {
 			ib::error() << "Page record list appears"
 				" to be circular " << count;
 			goto func_exit;
@@ -2141,7 +2141,7 @@ page_simple_validate_old(
 
 	while (rec != NULL) {
 		if (UNIV_UNLIKELY(rec < page + FIL_PAGE_DATA
-				  || rec >= page + UNIV_PAGE_SIZE)) {
+				  || rec >= page + srv_page_size)) {
 			ib::error() << "Free list record has"
 				" a nonsensical offset " << (rec - page);
 
@@ -2158,7 +2158,7 @@ page_simple_validate_old(
 
 		count++;
 
-		if (UNIV_UNLIKELY(count > UNIV_PAGE_SIZE)) {
+		if (UNIV_UNLIKELY(count > srv_page_size)) {
 			ib::error() << "Page free list appears"
 				" to be circular " << count;
 			goto func_exit;
@@ -2207,7 +2207,7 @@ page_simple_validate_new(
 
 	n_slots = page_dir_get_n_slots(page);
 
-	if (UNIV_UNLIKELY(n_slots > UNIV_PAGE_SIZE / 4)) {
+	if (UNIV_UNLIKELY(n_slots > srv_page_size / 4)) {
 		ib::error() << "Nonsensical number " << n_slots
 			<< " of page dir slots";
 
@@ -2284,7 +2284,7 @@ page_simple_validate_new(
 
 		if (UNIV_UNLIKELY
 		    (rec_get_next_offs(rec, TRUE) < FIL_PAGE_DATA
-		     || rec_get_next_offs(rec, TRUE) >= UNIV_PAGE_SIZE)) {
+		     || rec_get_next_offs(rec, TRUE) >= srv_page_size)) {
 
 			ib::error() << "Next record offset nonsensical "
 				<< rec_get_next_offs(rec, TRUE)
@@ -2295,7 +2295,7 @@ page_simple_validate_new(
 
 		count++;
 
-		if (UNIV_UNLIKELY(count > UNIV_PAGE_SIZE)) {
+		if (UNIV_UNLIKELY(count > srv_page_size)) {
 			ib::error() << "Page record list appears to be"
 				" circular " << count;
 			goto func_exit;
@@ -2332,7 +2332,7 @@ page_simple_validate_new(
 
 	while (rec != NULL) {
 		if (UNIV_UNLIKELY(rec < page + FIL_PAGE_DATA
-				  || rec >= page + UNIV_PAGE_SIZE)) {
+				  || rec >= page + srv_page_size)) {
 
 			ib::error() << "Free list record has"
 				" a nonsensical offset " << page_offset(rec);
@@ -2350,7 +2350,7 @@ page_simple_validate_new(
 
 		count++;
 
-		if (UNIV_UNLIKELY(count > UNIV_PAGE_SIZE)) {
+		if (UNIV_UNLIKELY(count > srv_page_size)) {
 			ib::error() << "Page free list appears to be"
 				" circular " << count;
 			goto func_exit;
@@ -2440,12 +2440,12 @@ page_validate(
 		ut_ad(srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN);
 	}
 
-	heap = mem_heap_create(UNIV_PAGE_SIZE + 200);
+	heap = mem_heap_create(srv_page_size + 200);
 
 	/* The following buffer is used to check that the
 	records in the page record heap do not overlap */
 
-	buf = static_cast<byte*>(mem_heap_zalloc(heap, UNIV_PAGE_SIZE));
+	buf = static_cast<byte*>(mem_heap_zalloc(heap, srv_page_size));
 
 	/* Check first that the record heap and the directory do not
 	overlap. */
@@ -2548,7 +2548,7 @@ page_validate(
 
 		offs = page_offset(rec_get_start(rec, offsets));
 		i = rec_offs_size(offsets);
-		if (UNIV_UNLIKELY(offs + i >= UNIV_PAGE_SIZE)) {
+		if (UNIV_UNLIKELY(offs + i >= srv_page_size)) {
 			ib::error() << "Record offset out of bounds";
 			goto func_exit;
 		}
@@ -2656,7 +2656,7 @@ n_owned_zero:
 		count++;
 		offs = page_offset(rec_get_start(rec, offsets));
 		i = rec_offs_size(offsets);
-		if (UNIV_UNLIKELY(offs + i >= UNIV_PAGE_SIZE)) {
+		if (UNIV_UNLIKELY(offs + i >= srv_page_size)) {
 			ib::error() << "Record offset out of bounds";
 			goto func_exit;
 		}

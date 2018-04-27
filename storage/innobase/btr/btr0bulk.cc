@@ -140,16 +140,16 @@ PageBulk::init()
 		m_reserved_space = dict_index_get_space_reserve();
 	} else {
 		m_reserved_space =
-			UNIV_PAGE_SIZE * (100 - innobase_fill_factor) / 100;
+			srv_page_size * (100 - innobase_fill_factor) / 100;
 	}
 
 	m_padding_space =
-		UNIV_PAGE_SIZE - dict_index_zip_pad_optimal_page_size(m_index);
+		srv_page_size - dict_index_zip_pad_optimal_page_size(m_index);
 	m_heap_top = page_header_get_ptr(new_page, PAGE_HEAP_TOP);
 	m_rec_no = page_header_get_field(new_page, PAGE_N_RECS);
 
 	ut_d(m_total_data = 0);
-	page_header_set_field(m_page, NULL, PAGE_HEAP_TOP, UNIV_PAGE_SIZE - 1);
+	page_header_set_field(m_page, NULL, PAGE_HEAP_TOP, srv_page_size - 1);
 
 	return(DB_SUCCESS);
 }
@@ -212,7 +212,7 @@ PageBulk::insert(
 		- page_dir_calc_reserved_space(m_rec_no);
 
 	ut_ad(m_free_space >= rec_size + slot_size);
-	ut_ad(m_heap_top + rec_size < m_page + UNIV_PAGE_SIZE);
+	ut_ad(m_heap_top + rec_size < m_page + srv_page_size);
 
 	m_free_space -= rec_size + slot_size;
 	m_heap_top += rec_size;
@@ -234,7 +234,7 @@ PageBulk::finish()
 
 	/* To pass the debug tests we have to set these dummy values
 	in the debug version */
-	page_dir_set_n_slots(m_page, NULL, UNIV_PAGE_SIZE / 2);
+	page_dir_set_n_slots(m_page, NULL, srv_page_size / 2);
 #endif
 
 	ulint	count = 0;

@@ -118,7 +118,7 @@ uint	btr_cur_limit_optimistic_insert_debug;
 
 /** In the optimistic insert, if the insert does not fit, but this much space
 can be released by page reorganize, then it is reorganized */
-#define BTR_CUR_PAGE_REORGANIZE_LIMIT	(UNIV_PAGE_SIZE / 32)
+#define BTR_CUR_PAGE_REORGANIZE_LIMIT	(srv_page_size / 32)
 
 /** The structure of a BLOB part header */
 /* @{ */
@@ -959,7 +959,7 @@ btr_cur_search_to_nth_level_func(
 	page_cur_mode_t	search_mode = PAGE_CUR_UNSUPP;
 	ulint		buf_mode;
 	ulint		estimate;
-	ulint		node_ptr_max_size = UNIV_PAGE_SIZE / 2;
+	ulint		node_ptr_max_size = srv_page_size / 2;
 	page_cur_t*	page_cursor;
 	btr_op_t	btr_op;
 	ulint		root_height = 0; /* remove warning */
@@ -2244,7 +2244,7 @@ btr_cur_open_at_index_side_func(
 	mtr_t*		mtr)		/*!< in/out: mini-transaction */
 {
 	page_cur_t*	page_cursor;
-	ulint		node_ptr_max_size = UNIV_PAGE_SIZE / 2;
+	ulint		node_ptr_max_size = srv_page_size / 2;
 	ulint		height;
 	ulint		root_height = 0; /* remove warning */
 	rec_t*		node_ptr;
@@ -2615,7 +2615,7 @@ btr_cur_open_at_rnd_pos_func(
 	mtr_t*		mtr)		/*!< in: mtr */
 {
 	page_cur_t*	page_cursor;
-	ulint		node_ptr_max_size = UNIV_PAGE_SIZE / 2;
+	ulint		node_ptr_max_size = srv_page_size / 2;
 	ulint		height;
 	rec_t*		node_ptr;
 	ulint		savepoint;
@@ -3709,7 +3709,7 @@ btr_cur_parse_update_in_place(
 	rec_offset = mach_read_from_2(ptr);
 	ptr += 2;
 
-	ut_a(rec_offset <= UNIV_PAGE_SIZE);
+	ut_a(rec_offset <= srv_page_size);
 
 	heap = mem_heap_create(256);
 
@@ -4937,7 +4937,7 @@ btr_cur_parse_del_mark_set_clust_rec(
 	offset = mach_read_from_2(ptr);
 	ptr += 2;
 
-	ut_a(offset <= UNIV_PAGE_SIZE);
+	ut_a(offset <= srv_page_size);
 
 	/* In delete-marked records, DB_TRX_ID must
 	always refer to an existing undo log record. */
@@ -5131,7 +5131,7 @@ btr_cur_parse_del_mark_set_sec_rec(
 	offset = mach_read_from_2(ptr);
 	ptr += 2;
 
-	ut_a(offset <= UNIV_PAGE_SIZE);
+	ut_a(offset <= srv_page_size);
 
 	if (page) {
 		rec = page + offset;
@@ -6710,11 +6710,11 @@ btr_rec_get_externally_stored_len(
 				+ BTR_EXTERN_LEN + 4);
 
 			total_extern_len += ut_calc_align(extern_len,
-							  UNIV_PAGE_SIZE);
+							  srv_page_size);
 		}
 	}
 
-	return(total_extern_len / UNIV_PAGE_SIZE);
+	return(total_extern_len / srv_page_size);
 }
 
 /*******************************************************************//**

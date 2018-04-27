@@ -819,9 +819,9 @@ row_merge_buf_add(
 
 	/* Record size can exceed page size while converting to
 	redundant row format. But there is assert
-	ut_ad(size < UNIV_PAGE_SIZE) in rec_offs_data_size().
+	ut_ad(size < srv_page_size) in rec_offs_data_size().
 	It may hit the assert before attempting to insert the row. */
-	if (conv_heap != NULL && data_size > UNIV_PAGE_SIZE) {
+	if (conv_heap != NULL && data_size > srv_page_size) {
 		*err = DB_TOO_BIG_RECORD;
 	}
 

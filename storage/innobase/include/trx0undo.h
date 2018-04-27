@@ -421,7 +421,7 @@ struct trx_undo_t {
 at most this many bytes used; we must leave space at least for one new undo
 log header on the page */
 
-#define TRX_UNDO_PAGE_REUSE_LIMIT	(3 * UNIV_PAGE_SIZE / 4)
+#define TRX_UNDO_PAGE_REUSE_LIMIT	(3 * srv_page_size / 4)
 
 /* An update undo log segment may contain several undo logs on its first page
 if the undo logs took so little space that the segment could be cached and

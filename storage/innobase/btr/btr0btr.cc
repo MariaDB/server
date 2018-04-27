@@ -207,7 +207,7 @@ btr_root_fseg_validate(
 
 	ut_a(mach_read_from_4(seg_header + FSEG_HDR_SPACE) == space);
 	ut_a(offset >= FIL_PAGE_DATA);
-	ut_a(offset <= UNIV_PAGE_SIZE - FIL_PAGE_DATA_END);
+	ut_a(offset <= srv_page_size - FIL_PAGE_DATA_END);
 	return(TRUE);
 }
 #endif /* UNIV_BTR_DEBUG */
@@ -336,7 +336,7 @@ btr_root_fseg_adjust_on_import(
 	ulint	offset = mach_read_from_2(seg_header + FSEG_HDR_OFFSET);
 
 	if (offset < FIL_PAGE_DATA
-	    || offset > UNIV_PAGE_SIZE - FIL_PAGE_DATA_END) {
+	    || offset > srv_page_size - FIL_PAGE_DATA_END) {
 
 		return(FALSE);
 
@@ -755,7 +755,7 @@ btr_page_free_low(
 		// TODO(jonaso): scrub only what is actually needed
 		page_t* page = buf_block_get_frame(block);
 		memset(page + PAGE_HEADER, 0,
-		       UNIV_PAGE_SIZE - PAGE_HEADER);
+		       srv_page_size - PAGE_HEADER);
 #ifdef UNIV_DEBUG_SCRUBBING
 		fprintf(stderr,
 			"btr_page_free_low: scrub blob page %lu/%lu\n",
@@ -1684,18 +1684,18 @@ btr_page_reorganize_low(
 		ut_a(!memcmp(PAGE_HEADER + PAGE_N_RECS + page,
 			     PAGE_HEADER + PAGE_N_RECS + temp_page,
 			     PAGE_DATA - (PAGE_HEADER + PAGE_N_RECS)));
-		ut_a(!memcmp(UNIV_PAGE_SIZE - FIL_PAGE_DATA_END + page,
-			     UNIV_PAGE_SIZE - FIL_PAGE_DATA_END + temp_page,
+		ut_a(!memcmp(srv_page_size - FIL_PAGE_DATA_END + page,
+			     srv_page_size - FIL_PAGE_DATA_END + temp_page,
 			     FIL_PAGE_DATA_END));
 #endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
 
 		memcpy(PAGE_HEADER + page, PAGE_HEADER + temp_page,
 		       PAGE_N_RECS - PAGE_N_DIR_SLOTS);
 		memcpy(PAGE_DATA + page, PAGE_DATA + temp_page,
-		       UNIV_PAGE_SIZE - PAGE_DATA - FIL_PAGE_DATA_END);
+		       srv_page_size - PAGE_DATA - FIL_PAGE_DATA_END);
 
 #if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
-		ut_a(!memcmp(page, temp_page, UNIV_PAGE_SIZE));
+		ut_a(!memcmp(page, temp_page, srv_page_size));
 #endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
 
 		goto func_exit;
@@ -4173,7 +4173,7 @@ retry:
 			write the bits accurately in a separate
 			mini-transaction. */
 			ibuf_update_free_bits_if_full(merge_block,
-						      UNIV_PAGE_SIZE,
+						      srv_page_size,
 						      ULINT_UNDEFINED);
 		}
 	}

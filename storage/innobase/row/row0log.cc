@@ -2706,7 +2706,7 @@ row_log_progress_inc_per_block()
 	(usually 1MiB). */
 	const ulint	pages_per_block = std::max(
 		static_cast<unsigned long>(
-			srv_sort_buf_size / univ_page_size.physical()),
+			srv_sort_buf_size / srv_page_size),
 		1UL);
 
 	/* Multiply by an artificial factor of 6 to even the pace with
@@ -2796,8 +2796,8 @@ row_log_table_apply_ops(
 	offsets[0] = i;
 	offsets[1] = dict_index_get_n_fields(index);
 
-	heap = mem_heap_create(UNIV_PAGE_SIZE);
-	offsets_heap = mem_heap_create(UNIV_PAGE_SIZE);
+	heap = mem_heap_create(srv_page_size);
+	offsets_heap = mem_heap_create(srv_page_size);
 	has_index_lock = true;
 
 next_block:
@@ -3674,8 +3674,8 @@ row_log_apply_ops(
 	offsets[0] = i;
 	offsets[1] = dict_index_get_n_fields(index);
 
-	offsets_heap = mem_heap_create(UNIV_PAGE_SIZE);
-	heap = mem_heap_create(UNIV_PAGE_SIZE);
+	offsets_heap = mem_heap_create(srv_page_size);
+	heap = mem_heap_create(srv_page_size);
 	has_index_lock = true;
 
 next_block:

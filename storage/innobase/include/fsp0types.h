@@ -59,11 +59,11 @@ page size | file space extent size
   32 KiB  |  64 pages = 2 MiB
   64 KiB  |  64 pages = 4 MiB
 */
-#define FSP_EXTENT_SIZE         ((UNIV_PAGE_SIZE <= (16384) ?	\
-				(1048576 / UNIV_PAGE_SIZE) :	\
-				((UNIV_PAGE_SIZE <= (32768)) ?	\
-				(2097152 / UNIV_PAGE_SIZE) :	\
-				(4194304 / UNIV_PAGE_SIZE))))
+#define FSP_EXTENT_SIZE         ((srv_page_size <= (16384) ?	\
+				(1048576 / srv_page_size) :	\
+				((srv_page_size <= (32768)) ?	\
+				(2097152 / srv_page_size) :	\
+				(4194304 / srv_page_size))))
 
 /** File space extent size (four megabyte) in pages for MAX page size */
 #define	FSP_EXTENT_SIZE_MAX	(4194304 / UNIV_PAGE_SIZE_MAX)
@@ -151,8 +151,8 @@ enum fsp_reserve_t {
 /* Number of pages described in a single descriptor page: currently each page
 description takes less than 1 byte; a descriptor page is repeated every
 this many file pages */
-/* #define XDES_DESCRIBED_PER_PAGE		UNIV_PAGE_SIZE */
-/* This has been replaced with either UNIV_PAGE_SIZE or page_zip->size. */
+/* #define XDES_DESCRIBED_PER_PAGE		srv_page_size */
+/* This has been replaced with either srv_page_size or page_zip->size. */
 
 /** @name The space low address page map
 The pages at FSP_XDES_OFFSET and FSP_IBUF_BITMAP_OFFSET are repeated

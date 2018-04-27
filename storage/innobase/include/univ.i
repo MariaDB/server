@@ -275,9 +275,6 @@ management to ensure correct alignment for doubles etc. */
 			========================
 */
 
-/** The 2-logarithm of UNIV_PAGE_SIZE: */
-#define UNIV_PAGE_SIZE_SHIFT	srv_page_size_shift
-
 #ifdef HAVE_LZO
 #define IF_LZO(A,B) A
 #else
@@ -313,9 +310,6 @@ management to ensure correct alignment for doubles etc. */
 #else
 #define IF_PUNCH_HOLE(A,B) B
 #endif
-
-/** The universal page size of the database */
-#define UNIV_PAGE_SIZE		((ulint) srv_page_size)
 
 /** log2 of smallest compressed page size (1<<10 == 1024 bytes)
 Note: This must never change! */
@@ -359,13 +353,13 @@ and 2 bits for flags. This limits the uncompressed page size to 16k.
 /** Largest possible ssize for an uncompressed page.
 (The convention 'ssize' is used for 'log2 minus 9' or the number of
 shifts starting with 512.)
-This max number varies depending on UNIV_PAGE_SIZE. */
+This max number varies depending on srv_page_size. */
 #define UNIV_PAGE_SSIZE_MAX	\
-	static_cast<ulint>(UNIV_PAGE_SIZE_SHIFT - UNIV_ZIP_SIZE_SHIFT_MIN + 1)
+	ulint(srv_page_size_shift - UNIV_ZIP_SIZE_SHIFT_MIN + 1)
 
 /** Smallest possible ssize for an uncompressed page. */
 #define UNIV_PAGE_SSIZE_MIN	\
-	static_cast<ulint>(UNIV_PAGE_SIZE_SHIFT_MIN - UNIV_ZIP_SIZE_SHIFT_MIN + 1)
+	ulint(UNIV_PAGE_SIZE_SHIFT_MIN - UNIV_ZIP_SIZE_SHIFT_MIN + 1)
 
 /** Maximum number of parallel threads in a parallelized operation */
 #define UNIV_MAX_PARALLELISM	32

@@ -288,8 +288,8 @@ reachable via buf_pool->chunks[].
 
 The chains of free memory blocks (buf_pool->zip_free[]) are used by
 the buddy allocator (buf0buddy.cc) to keep track of currently unused
-memory blocks of size sizeof(buf_page_t)..UNIV_PAGE_SIZE / 2.  These
-blocks are inside the UNIV_PAGE_SIZE-sized memory blocks of type
+memory blocks of size sizeof(buf_page_t)..srv_page_size / 2.  These
+blocks are inside the srv_page_size-sized memory blocks of type
 BUF_BLOCK_MEMORY that the buddy allocator requests from the buffer
 pool.  The buddy allocator is solely used for allocating control
 blocks for compressed pages (buf_page_t) and compressed page frames.
@@ -542,7 +542,7 @@ buf_get_total_list_size_in_bytes(
 		for statistics purpose */
 		buf_pools_list_size->LRU_bytes += buf_pool->stat.LRU_bytes;
 		buf_pools_list_size->unzip_LRU_bytes +=
-			UT_LIST_GET_LEN(buf_pool->unzip_LRU) * UNIV_PAGE_SIZE;
+			UT_LIST_GET_LEN(buf_pool->unzip_LRU) * srv_page_size;
 		buf_pools_list_size->flush_list_bytes +=
 			buf_pool->stat.flush_list_bytes;
 	}
@@ -854,7 +854,7 @@ buf_page_is_corrupted(
 		ib::info() << "Log sequence number at the start "
 			   << mach_read_from_4(read_buf + FIL_PAGE_LSN + 4)
 			   << " and the end "
-			   << mach_read_from_4(read_buf + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM + 4)
+			   << mach_read_from_4(read_buf + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM + 4)
 			   << " do not match";
 #endif /* UNIV_INNOCHECKSUM */
 		return(true);
@@ -1461,7 +1461,7 @@ buf_block_init(
 	buf_block_t*	block,		/*!< in: pointer to control block */
 	byte*		frame)		/*!< in: pointer to buffer frame */
 {
-	UNIV_MEM_DESC(frame, UNIV_PAGE_SIZE);
+	UNIV_MEM_DESC(frame, srv_page_size);
 
 	/* This function should only be executed at database startup or by
 	buf_pool_resize(). Either way, adaptive hash index must not exist. */
@@ -1544,10 +1544,12 @@ buf_chunk_init(
 
 	/* Round down to a multiple of page size,
 	although it already should be. */
-	mem_size = ut_2pow_round(mem_size, UNIV_PAGE_SIZE);
+	mem_size = ut_2pow_round(mem_size, srv_page_size);
 	/* Reserve space for the block descriptors. */
-	mem_size += ut_2pow_round((mem_size / UNIV_PAGE_SIZE) * (sizeof *block)
-				  + (UNIV_PAGE_SIZE - 1), UNIV_PAGE_SIZE);
+	mem_size += ut_2pow_round((mem_size >> srv_page_size_shift)
+				  * (sizeof *block)
+				  + (srv_page_size - 1),
+				  ulint(srv_page_size));
 
 	DBUG_EXECUTE_IF("ib_buf_chunk_init_fails", return(NULL););
 
@@ -1581,12 +1583,12 @@ buf_chunk_init(
 	chunk->blocks = (buf_block_t*) chunk->mem;
 
 	/* Align a pointer to the first frame.  Note that when
-	os_large_page_size is smaller than UNIV_PAGE_SIZE,
+	os_large_page_size is smaller than srv_page_size,
 	we may allocate one fewer block than requested.  When
 	it is bigger, we may allocate more blocks than requested. */
 
-	frame = (byte*) ut_align(chunk->mem, UNIV_PAGE_SIZE);
-	chunk->size = chunk->mem_pfx.m_size / UNIV_PAGE_SIZE
+	frame = (byte*) ut_align(chunk->mem, srv_page_size);
+	chunk->size = chunk->mem_pfx.m_size / srv_page_size
 		- (frame != chunk->mem);
 
 	/* Subtract the space needed for block descriptors. */
@@ -1594,7 +1596,7 @@ buf_chunk_init(
 		ulint	size = chunk->size;
 
 		while (frame < (byte*) (chunk->blocks + size)) {
-			frame += UNIV_PAGE_SIZE;
+			frame += srv_page_size;
 			size--;
 		}
 
@@ -1610,7 +1612,7 @@ buf_chunk_init(
 	for (i = chunk->size; i--; ) {
 
 		buf_block_init(buf_pool, block, frame);
-		UNIV_MEM_INVALID(block->frame, UNIV_PAGE_SIZE);
+		UNIV_MEM_INVALID(block->frame, srv_page_size);
 
 		/* Add the block to the free list */
 		UT_LIST_ADD_LAST(buf_pool->free, &block->page);
@@ -1619,7 +1621,7 @@ buf_chunk_init(
 		ut_ad(buf_pool_from_block(block) == buf_pool);
 
 		block++;
-		frame += UNIV_PAGE_SIZE;
+		frame += srv_page_size;
 	}
 
 	buf_pool_register_chunk(chunk);
@@ -1863,7 +1865,7 @@ buf_pool_init_instance(
 			ut_min(BUF_READ_AHEAD_PAGES,
 			       ut_2_power_up(buf_pool->curr_size /
 					     BUF_READ_AHEAD_PORTION));
-		buf_pool->curr_pool_size = buf_pool->curr_size * UNIV_PAGE_SIZE;
+		buf_pool->curr_pool_size = buf_pool->curr_size * srv_page_size;
 
 		buf_pool->old_size = buf_pool->curr_size;
 		buf_pool->n_chunks_new = buf_pool->n_chunks;
@@ -2127,7 +2129,7 @@ buf_page_realloc(
 	if (buf_page_can_relocate(&block->page)) {
 		mutex_enter(&new_block->mutex);
 
-		memcpy(new_block->frame, block->frame, UNIV_PAGE_SIZE);
+		memcpy(new_block->frame, block->frame, srv_page_size);
 		memcpy(&new_block->page, &block->page, sizeof block->page);
 
 		/* relocate LRU list */
@@ -2191,7 +2193,7 @@ buf_page_realloc(
 		buf_block_modify_clock_inc(block);
 		memset(block->frame + FIL_PAGE_OFFSET, 0xff, 4);
 		memset(block->frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
-		UNIV_MEM_INVALID(block->frame, UNIV_PAGE_SIZE);
+		UNIV_MEM_INVALID(block->frame, srv_page_size);
 		buf_block_set_state(block, BUF_BLOCK_REMOVE_HASH);
 		block->page.id.reset();
 
@@ -2314,7 +2316,7 @@ buf_frame_will_withdrawn(
 	while (chunk < echunk) {
 		if (ptr >= chunk->blocks->frame
 		    && ptr < (chunk->blocks + chunk->size - 1)->frame
-			     + UNIV_PAGE_SIZE) {
+			     + srv_page_size) {
 			return(true);
 		}
 		++chunk;
@@ -2652,7 +2654,7 @@ buf_pool_resize()
 	ut_ad(srv_buf_pool_chunk_unit > 0);
 
 	new_instance_size = srv_buf_pool_size / srv_buf_pool_instances;
-	new_instance_size /= UNIV_PAGE_SIZE;
+	new_instance_size /= srv_page_size;
 
 	buf_resize_status("Resizing buffer pool from " ULINTPF " to "
 			  ULINTPF " (unit=" ULINTPF ").",
@@ -2671,7 +2673,7 @@ buf_pool_resize()
 
 		buf_pool->curr_size = new_instance_size;
 
-		buf_pool->n_chunks_new = new_instance_size * UNIV_PAGE_SIZE
+		buf_pool->n_chunks_new = new_instance_size * srv_page_size
 			/ srv_buf_pool_chunk_unit;
 
 		buf_pool_mutex_exit(buf_pool);
@@ -3004,7 +3006,7 @@ calc_buf_pool_size:
 				       ut_2_power_up(buf_pool->curr_size /
 						      BUF_READ_AHEAD_PORTION));
 			buf_pool->curr_pool_size
-				= buf_pool->curr_size * UNIV_PAGE_SIZE;
+				= buf_pool->curr_size * srv_page_size;
 			curr_size += buf_pool->curr_pool_size;
 			buf_pool->old_size = buf_pool->curr_size;
 		}
@@ -3056,7 +3058,7 @@ calc_buf_pool_size:
 		buf_resize_status("Resizing also other hash tables.");
 
 		/* normalize lock_sys */
-		srv_lock_table_size = 5 * (srv_buf_pool_size / UNIV_PAGE_SIZE);
+		srv_lock_table_size = 5 * (srv_buf_pool_size / srv_page_size);
 		lock_sys.resize(srv_lock_table_size);
 
 		/* normalize btr_search_sys */
@@ -4046,14 +4048,14 @@ buf_block_from_ahi(const byte* ptr)
 
 	ulint		offs = ulint(ptr - chunk->blocks->frame);
 
-	offs >>= UNIV_PAGE_SIZE_SHIFT;
+	offs >>= srv_page_size_shift;
 
 	ut_a(offs < chunk->size);
 
 	buf_block_t*	block = &chunk->blocks[offs];
 
 	/* The function buf_chunk_init() invokes buf_block_init() so that
-	block[n].frame == block->frame + n * UNIV_PAGE_SIZE.  Check it. */
+	block[n].frame == block->frame + n * srv_page_size.  Check it. */
 	ut_ad(block->frame == page_align(ptr));
 	/* Read the state of the block without holding a mutex.
 	A state transition from BUF_BLOCK_FILE_PAGE to
@@ -5252,7 +5254,7 @@ buf_page_init(
 		/* Silence valid Valgrind warnings about uninitialized
 		data being written to data files.  There are some unused
 		bytes on some pages that InnoDB does not initialize. */
-		UNIV_MEM_VALID(block->frame, UNIV_PAGE_SIZE);
+		UNIV_MEM_VALID(block->frame, srv_page_size);
 	}
 #endif /* UNIV_DEBUG_VALGRIND */
 
@@ -7339,14 +7341,14 @@ buf_pool_reserve_tmp_slot(
 
 	/* Allocate temporary memory for encryption/decryption */
 	if (free_slot->crypt_buf == NULL) {
-		free_slot->crypt_buf = static_cast<byte*>(aligned_malloc(UNIV_PAGE_SIZE, UNIV_PAGE_SIZE));
-		memset(free_slot->crypt_buf, 0, UNIV_PAGE_SIZE);
+		free_slot->crypt_buf = static_cast<byte*>(aligned_malloc(srv_page_size, srv_page_size));
+		memset(free_slot->crypt_buf, 0, srv_page_size);
 	}
 
 	/* For page compressed tables allocate temporary memory for
 	compression/decompression */
 	if (compressed && free_slot->comp_buf == NULL) {
-		ulint size = UNIV_PAGE_SIZE;
+		ulint size = srv_page_size;
 
 		/* Both snappy and lzo compression methods require that
 		output buffer used for compression is bigger than input
@@ -7357,7 +7359,7 @@ buf_pool_reserve_tmp_slot(
 #if HAVE_LZO
 		size += LZO1X_1_15_MEM_COMPRESS;
 #endif
-		free_slot->comp_buf = static_cast<byte*>(aligned_malloc(size, UNIV_PAGE_SIZE));
+		free_slot->comp_buf = static_cast<byte*>(aligned_malloc(size, srv_page_size));
 		memset(free_slot->comp_buf, 0, size);
 	}
 
@@ -7379,7 +7381,7 @@ buf_page_encrypt_before_write(
 	byte*		src_frame)
 {
 	ut_ad(space->id == bpage->id.space());
-	bpage->real_size = UNIV_PAGE_SIZE;
+	bpage->real_size = srv_page_size;
 
 	fil_page_type_validate(src_frame);
 
