@@ -50,8 +50,8 @@ struct log_group_t;
 /* Margin for the free space in the smallest log group, before a new query
 step which modifies the database, is started */
 
-#define LOG_CHECKPOINT_FREE_PER_THREAD	(4 * srv_page_size)
-#define LOG_CHECKPOINT_EXTRA_FREE	(8 * srv_page_size)
+#define LOG_CHECKPOINT_FREE_PER_THREAD	(4U << srv_page_size_shift)
+#define LOG_CHECKPOINT_EXTRA_FREE	(8U << srv_page_size_shift)
 
 typedef ulint (*log_checksum_func_t)(const byte* log_block);
 
@@ -422,7 +422,7 @@ extern my_bool	innodb_log_checksums;
 /* The counting of lsn's starts from this value: this must be non-zero */
 #define LOG_START_LSN		((lsn_t) (16 * OS_FILE_LOG_BLOCK_SIZE))
 
-#define LOG_BUFFER_SIZE		(srv_log_buffer_size * srv_page_size)
+#define LOG_BUFFER_SIZE		(srv_log_buffer_size << srv_page_size_shift)
 
 /* Offsets of a log block header */
 #define	LOG_BLOCK_HDR_NO	0	/* block number which must be > 0 and

@@ -342,11 +342,11 @@ extern bool		recv_lsn_checks_on;
 
 /** Size of the parsing buffer; it must accommodate RECV_SCAN_SIZE many
 times! */
-#define RECV_PARSING_BUF_SIZE	(2 * 1024 * 1024)
+#define RECV_PARSING_BUF_SIZE	(2U << 20)
 
 /** Size of block reads when the log groups are scanned forward to do a
 roll-forward */
-#define RECV_SCAN_SIZE		(4 * srv_page_size)
+#define RECV_SCAN_SIZE		(4U << srv_page_size_shift)
 
 /** This many frames must be left free in the buffer pool when we scan
 the log and store the scanned log records in the buffer pool: we will

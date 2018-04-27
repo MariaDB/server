@@ -1040,7 +1040,7 @@ fil_space_extend_must_retry(
 	fil_node_open_file() expects at least 4 * srv_page_size bytes.*/
 	os_offset_t new_size = std::max(
 		os_offset_t(size - file_start_page_no) * page_size,
-		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE * srv_page_size));
+		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift));
 
 	*success = os_file_set_size(node->name, node->handle, new_size,
 		FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags));
@@ -2043,7 +2043,7 @@ fil_write_flushed_lsn(
 	byte*	buf;
 	dberr_t	err = DB_TABLESPACE_NOT_FOUND;
 
-	buf1 = static_cast<byte*>(ut_malloc_nokey(2 * srv_page_size));
+	buf1 = static_cast<byte*>(ut_malloc_nokey(2U << srv_page_size_shift));
 	buf = static_cast<byte*>(ut_align(buf1, srv_page_size));
 
 	const page_id_t	page_id(TRX_SYS_SPACE, 0);
@@ -2805,7 +2805,8 @@ bool fil_truncate_tablespace(fil_space_t* space, ulint size_in_pages)
 	bool success = os_file_truncate(node->name, node->handle, 0);
 	if (success) {
 
-		os_offset_t	size = os_offset_t(size_in_pages) * srv_page_size;
+		os_offset_t	size = os_offset_t(size_in_pages)
+			<< srv_page_size_shift;
 
 		success = os_file_set_size(
 			node->name, node->handle, size,
@@ -3273,7 +3274,7 @@ err_exit:
 	with zeros from the call of os_file_set_size(), until a buffer pool
 	flush would write to it. */
 
-	buf2 = static_cast<byte*>(ut_malloc_nokey(3 * srv_page_size));
+	buf2 = static_cast<byte*>(ut_malloc_nokey(3U << srv_page_size_shift));
 	/* Align the memory for file i/o if we might have O_DIRECT set */
 	page = static_cast<byte*>(ut_align(buf2, srv_page_size));
 
@@ -4027,7 +4028,8 @@ fil_ibd_load(
 
 		/* Every .ibd file is created >= 4 pages in size.
 		Smaller files cannot be OK. */
-		minimum_size = FIL_IBD_FILE_INITIAL_SIZE * srv_page_size;
+		minimum_size = os_offset_t(FIL_IBD_FILE_INITIAL_SIZE)
+			<< srv_page_size_shift;
 
 		if (size == static_cast<os_offset_t>(-1)) {
 			/* The following call prints an error message */
@@ -4381,7 +4383,7 @@ fil_io(
 	ut_ad(len > 0);
 	ut_ad(byte_offset < srv_page_size);
 	ut_ad(!page_size.is_compressed() || byte_offset == 0);
-	ut_ad(srv_page_size == ulong(1) << srv_page_size_shift);
+	ut_ad(srv_page_size == 1UL << srv_page_size_shift);
 #if (1 << UNIV_PAGE_SIZE_SHIFT_MAX) != UNIV_PAGE_SIZE_MAX
 # error "(1 << UNIV_PAGE_SIZE_SHIFT_MAX) != UNIV_PAGE_SIZE_MAX"
 #endif
@@ -4574,7 +4576,7 @@ fil_io(
 
 		ut_a(node->size - cur_page_no
 		     >= ((byte_offset + len + (srv_page_size - 1))
-			 / srv_page_size));
+			 >> srv_page_size_shift));
 	} else {
 		ulint	size_shift;
 
@@ -5308,7 +5310,7 @@ truncate_t::truncate(
 		: space->size;
 
 	const bool success = os_file_truncate(
-		path, node->handle, trunc_size * srv_page_size);
+		path, node->handle, trunc_size << srv_page_size_shift);
 
 	if (!success) {
 		ib::error() << "Cannot truncate file " << path

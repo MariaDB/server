@@ -1123,9 +1123,9 @@ srv_normalize_init_values(void)
 
 	srv_tmp_space.normalize();
 
-	srv_log_buffer_size /= srv_page_size;
+	srv_log_buffer_size >>= srv_page_size_shift;
 
-	srv_lock_table_size = 5 * (srv_buf_pool_size / srv_page_size);
+	srv_lock_table_size = 5 * (srv_buf_pool_size >> srv_page_size_shift);
 }
 
 /*********************************************************************//**

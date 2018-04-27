@@ -313,27 +313,27 @@ management to ensure correct alignment for doubles etc. */
 
 /** log2 of smallest compressed page size (1<<10 == 1024 bytes)
 Note: This must never change! */
-#define UNIV_ZIP_SIZE_SHIFT_MIN		10
+#define UNIV_ZIP_SIZE_SHIFT_MIN		10U
 
 /** log2 of largest compressed page size (1<<14 == 16384 bytes).
 A compressed page directory entry reserves 14 bits for the start offset
 and 2 bits for flags. This limits the uncompressed page size to 16k.
 */
-#define UNIV_ZIP_SIZE_SHIFT_MAX		14
+#define UNIV_ZIP_SIZE_SHIFT_MAX		14U
 
 /* Define the Min, Max, Default page sizes. */
 /** Minimum Page Size Shift (power of 2) */
-#define UNIV_PAGE_SIZE_SHIFT_MIN	12
+#define UNIV_PAGE_SIZE_SHIFT_MIN	12U
 /** log2 of largest page size (1<<16 == 64436 bytes). */
 /** Maximum Page Size Shift (power of 2) */
-#define UNIV_PAGE_SIZE_SHIFT_MAX	16
+#define UNIV_PAGE_SIZE_SHIFT_MAX	16U
 /** log2 of default page size (1<<14 == 16384 bytes). */
 /** Default Page Size Shift (power of 2) */
-#define UNIV_PAGE_SIZE_SHIFT_DEF	14
+#define UNIV_PAGE_SIZE_SHIFT_DEF	14U
 /** Original 16k InnoDB Page Size Shift, in case the default changes */
-#define UNIV_PAGE_SIZE_SHIFT_ORIG	14
+#define UNIV_PAGE_SIZE_SHIFT_ORIG	14U
 /** Original 16k InnoDB Page Size as an ssize (log2 - 9) */
-#define UNIV_PAGE_SSIZE_ORIG		(UNIV_PAGE_SIZE_SHIFT_ORIG - 9)
+#define UNIV_PAGE_SSIZE_ORIG		(UNIV_PAGE_SIZE_SHIFT_ORIG - 9U)
 
 /** Minimum page size InnoDB currently supports. */
 #define UNIV_PAGE_SIZE_MIN	(1U << UNIV_PAGE_SIZE_SHIFT_MIN)
@@ -355,11 +355,11 @@ and 2 bits for flags. This limits the uncompressed page size to 16k.
 shifts starting with 512.)
 This max number varies depending on srv_page_size. */
 #define UNIV_PAGE_SSIZE_MAX	\
-	ulint(srv_page_size_shift - UNIV_ZIP_SIZE_SHIFT_MIN + 1)
+	ulint(srv_page_size_shift - UNIV_ZIP_SIZE_SHIFT_MIN + 1U)
 
 /** Smallest possible ssize for an uncompressed page. */
 #define UNIV_PAGE_SSIZE_MIN	\
-	ulint(UNIV_PAGE_SIZE_SHIFT_MIN - UNIV_ZIP_SIZE_SHIFT_MIN + 1)
+	ulint(UNIV_PAGE_SIZE_SHIFT_MIN - UNIV_ZIP_SIZE_SHIFT_MIN + 1U)
 
 /** Maximum number of parallel threads in a parallelized operation */
 #define UNIV_MAX_PARALLELISM	32

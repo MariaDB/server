@@ -2199,7 +2199,8 @@ fil_recreate_tablespace(
 		byte*	buf;
 		page_t*	page;
 
-		buf = static_cast<byte*>(ut_zalloc_nokey(3 * srv_page_size));
+		buf = static_cast<byte*>(
+			ut_zalloc_nokey(3U << srv_page_size_shift));
 
 		/* Align the memory for file i/o */
 		page = static_cast<byte*>(ut_align(buf, srv_page_size));

@@ -726,7 +726,7 @@ srv_undo_tablespace_open(
 		ut_a(fil_validate());
 		ut_a(space);
 
-		os_offset_t	n_pages = size / srv_page_size;
+		os_offset_t	n_pages = size >> srv_page_size_shift;
 
 		/* On 32-bit platforms, ulint is 32 bits and os_offset_t
 		is 64 bits. It is OK to cast the n_pages to ulint because

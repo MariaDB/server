@@ -149,7 +149,7 @@ buf_dblwr_init(
 		ut_zalloc_nokey(buf_size * sizeof(bool)));
 
 	buf_dblwr->write_buf_unaligned = static_cast<byte*>(
-		ut_malloc_nokey((1 + buf_size) * srv_page_size));
+		ut_malloc_nokey((1 + buf_size) << srv_page_size_shift));
 
 	buf_dblwr->write_buf = static_cast<byte*>(
 		ut_align(buf_dblwr->write_buf_unaligned,
@@ -214,7 +214,8 @@ too_small:
 			<< "Cannot create doublewrite buffer: "
 			"the first file in innodb_data_file_path"
 			" must be at least "
-			<< (3 * (FSP_EXTENT_SIZE * srv_page_size) >> 20)
+			<< (3 * (FSP_EXTENT_SIZE
+				 >> (20U - srv_page_size_shift)))
 			<< "M.";
 		mtr.commit();
 		return(false);
@@ -363,7 +364,7 @@ buf_dblwr_init_or_load_pages(
 	/* We do the file i/o past the buffer pool */
 
 	unaligned_read_buf = static_cast<byte*>(
-		ut_malloc_nokey(3 * srv_page_size));
+		ut_malloc_nokey(3U << srv_page_size_shift));
 
 	read_buf = static_cast<byte*>(
 		ut_align(unaligned_read_buf, srv_page_size));
@@ -376,7 +377,7 @@ buf_dblwr_init_or_load_pages(
 
 	err = os_file_read(
 		read_request,
-		file, read_buf, TRX_SYS_PAGE_NO * srv_page_size,
+		file, read_buf, TRX_SYS_PAGE_NO << srv_page_size_shift,
 		srv_page_size);
 
 	if (err != DB_SUCCESS) {
@@ -425,8 +426,8 @@ buf_dblwr_init_or_load_pages(
 	/* Read the pages from the doublewrite buffer to memory */
 	err = os_file_read(
 		read_request,
-		file, buf, block1 * srv_page_size,
-		TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * srv_page_size);
+		file, buf, block1 << srv_page_size_shift,
+		TRX_SYS_DOUBLEWRITE_BLOCK_SIZE << srv_page_size_shift);
 
 	if (err != DB_SUCCESS) {
 
@@ -442,9 +443,9 @@ buf_dblwr_init_or_load_pages(
 	err = os_file_read(
 		read_request,
 		file,
-		buf + TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * srv_page_size,
-		block2 * srv_page_size,
-		TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * srv_page_size);
+		buf + (TRX_SYS_DOUBLEWRITE_BLOCK_SIZE << srv_page_size_shift),
+		block2 << srv_page_size_shift,
+		TRX_SYS_DOUBLEWRITE_BLOCK_SIZE << srv_page_size_shift);
 
 	if (err != DB_SUCCESS) {
 
@@ -484,7 +485,7 @@ buf_dblwr_init_or_load_pages(
 
 			err = os_file_write(
 				write_request, path, file, page,
-				source_page_no * srv_page_size,
+				source_page_no << srv_page_size_shift,
 				srv_page_size);
 			if (err != DB_SUCCESS) {
 
@@ -529,7 +530,7 @@ buf_dblwr_process()
 	}
 
 	unaligned_read_buf = static_cast<byte*>(
-		ut_malloc_nokey(2 * srv_page_size));
+		ut_malloc_nokey(2U << srv_page_size_shift));
 
 	read_buf = static_cast<byte*>(
 		ut_align(unaligned_read_buf, srv_page_size));
@@ -1024,8 +1025,8 @@ try_again:
 	}
 
 	/* Write out the first block of the doublewrite buffer */
-	len = ut_min(TRX_SYS_DOUBLEWRITE_BLOCK_SIZE,
-		     buf_dblwr->first_free) * srv_page_size;
+	len = std::min<ulint>(TRX_SYS_DOUBLEWRITE_BLOCK_SIZE,
+			      buf_dblwr->first_free) << srv_page_size_shift;
 
 	fil_io(IORequestWrite, true,
 	       page_id_t(TRX_SYS_SPACE, buf_dblwr->block1), univ_page_size,
@@ -1038,10 +1039,10 @@ try_again:
 
 	/* Write out the second block of the doublewrite buffer. */
 	len = (buf_dblwr->first_free - TRX_SYS_DOUBLEWRITE_BLOCK_SIZE)
-	       * srv_page_size;
+	       << srv_page_size_shift;
 
 	write_buf = buf_dblwr->write_buf
-		    + TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * srv_page_size;
+		+ (TRX_SYS_DOUBLEWRITE_BLOCK_SIZE << srv_page_size_shift);
 
 	fil_io(IORequestWrite, true,
 	       page_id_t(TRX_SYS_SPACE, buf_dblwr->block2), univ_page_size,

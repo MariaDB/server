@@ -3598,7 +3598,7 @@ fil_tablespace_iterate(
 	We allocate an extra page in case it is a compressed table. One
 	page is to ensure alignement. */
 
-	void*	page_ptr = ut_malloc_nokey(3 * srv_page_size);
+	void*	page_ptr = ut_malloc_nokey(3U << srv_page_size_shift);
 	byte*	page = static_cast<byte*>(ut_align(page_ptr, srv_page_size));
 
 	buf_block_t* block = reinterpret_cast<buf_block_t*>
@@ -3655,7 +3655,7 @@ fil_tablespace_iterate(
 
 		/* Add an extra page for compressed page scratch area. */
 		void*	io_buffer = ut_malloc_nokey(
-			(2 + iter.n_io_buffers) * srv_page_size);
+			(2 + iter.n_io_buffers) << srv_page_size_shift);
 
 		iter.io_buffer = static_cast<byte*>(
 			ut_align(io_buffer, srv_page_size));
@@ -3663,7 +3663,8 @@ fil_tablespace_iterate(
 		void* crypt_io_buffer = NULL;
 		if (iter.crypt_data) {
 			crypt_io_buffer = ut_malloc_nokey(
-				(2 + iter.n_io_buffers) * srv_page_size);
+				(2 + iter.n_io_buffers)
+				<< srv_page_size_shift);
 			iter.crypt_io_buffer = static_cast<byte*>(
 				ut_align(crypt_io_buffer, srv_page_size));
 		}

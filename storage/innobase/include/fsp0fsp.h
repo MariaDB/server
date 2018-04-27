@@ -46,7 +46,7 @@ Created 12/18/1995 Heikki Tuuri
 /** @return the PAGE_SSIZE flags for the current innodb_page_size */
 #define FSP_FLAGS_PAGE_SSIZE()						\
 	((srv_page_size == UNIV_PAGE_SIZE_ORIG) ?			\
-	 0 : (srv_page_size_shift - UNIV_ZIP_SIZE_SHIFT_MIN + 1)	\
+	 0U : (srv_page_size_shift - UNIV_ZIP_SIZE_SHIFT_MIN + 1)	\
 	 << FSP_FLAGS_POS_PAGE_SSIZE)
 
 /* @defgroup Compatibility macros for MariaDB 10.1.0 through 10.1.20;
@@ -318,7 +318,7 @@ UNIV_INLINE
 ulint
 fsp_get_extent_size_in_pages(const page_size_t&	page_size)
 {
-	return(FSP_EXTENT_SIZE * srv_page_size / page_size.physical());
+	return (FSP_EXTENT_SIZE << srv_page_size_shift) / page_size.physical();
 }
 
 /**********************************************************************//**

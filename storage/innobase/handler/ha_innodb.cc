@@ -3956,7 +3956,7 @@ innobase_change_buffering_inited_ok:
 		srv_max_undo_log_size = std::max(
 			srv_max_undo_log_size,
 			ulonglong(SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)
-			* srv_page_size);
+			<< srv_page_size_shift);
 	}
 
 	if (srv_log_write_ahead_size > srv_page_size) {
@@ -13435,8 +13435,8 @@ ha_innobase::estimate_rows_upper_bound()
 
 	ut_a(stat_n_leaf_pages > 0);
 
-	local_data_file_length =
-		((ulonglong) stat_n_leaf_pages) * srv_page_size;
+	local_data_file_length = ulonglong(stat_n_leaf_pages)
+		<< srv_page_size_shift;
 
 	/* Calculate a minimum length for a clustered index record and from
 	that an upper bound for the number of rows. Since we only calculate
@@ -20684,13 +20684,13 @@ innodb_params_adjust()
 		= MYSQL_SYSVAR_NAME(undo_logs).def_val
 		= srv_available_undo_logs;
 	MYSQL_SYSVAR_NAME(max_undo_log_size).max_val
-		= 1ULL << (32 + srv_page_size_shift);
+		= 1ULL << (32U + srv_page_size_shift);
 	MYSQL_SYSVAR_NAME(max_undo_log_size).min_val
 		= MYSQL_SYSVAR_NAME(max_undo_log_size).def_val
 		= ulonglong(SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)
-		* srv_page_size;
+		<< srv_page_size_shift;
 	MYSQL_SYSVAR_NAME(max_undo_log_size).max_val
-		= 1ULL << (32 + srv_page_size_shift);
+		= 1ULL << (32U + srv_page_size_shift);
 }
 
 /****************************************************************************

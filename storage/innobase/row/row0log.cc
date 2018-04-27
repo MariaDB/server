@@ -2704,10 +2704,8 @@ row_log_progress_inc_per_block()
 	/* We must increment the progress once per page (as in
 	univ_page_size, usually 16KiB). One block here is srv_sort_buf_size
 	(usually 1MiB). */
-	const ulint	pages_per_block = std::max(
-		static_cast<unsigned long>(
-			srv_sort_buf_size / srv_page_size),
-		1UL);
+	const ulint	pages_per_block = std::max<ulint>(
+		ulint(srv_sort_buf_size >> srv_page_size_shift), 1);
 
 	/* Multiply by an artificial factor of 6 to even the pace with
 	the rest of the ALTER TABLE phases, they process page_size amount

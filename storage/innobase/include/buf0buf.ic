@@ -115,7 +115,7 @@ ulint
 buf_pool_get_n_pages(void)
 /*======================*/
 {
-	return(buf_pool_get_curr_size() / srv_page_size);
+	return buf_pool_get_curr_size() >> srv_page_size_shift;
 }
 
 /********************************************************************//**

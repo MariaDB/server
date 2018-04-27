@@ -139,8 +139,8 @@ public:
 	@return the autoextend increment in pages. */
 	ulint get_autoextend_increment() const
 	{
-		return(sys_tablespace_auto_extend_increment
-		       * ((1024 * 1024) / srv_page_size));
+		return sys_tablespace_auto_extend_increment
+			<< (20 - srv_page_size_shift);
 	}
 
 	/**

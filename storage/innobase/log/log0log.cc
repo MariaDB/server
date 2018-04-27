@@ -106,7 +106,8 @@ static time_t	log_last_margine_warning_time;
 
 /* Margins for free space in the log buffer after a log entry is catenated */
 #define LOG_BUF_FLUSH_RATIO	2
-#define LOG_BUF_FLUSH_MARGIN	(LOG_BUF_WRITE_MARGIN + 4 * srv_page_size)
+#define LOG_BUF_FLUSH_MARGIN	(LOG_BUF_WRITE_MARGIN		\
+				 + (4U << srv_page_size_shift))
 
 /* This parameter controls asynchronous making of a new checkpoint; the value
 should be bigger than LOG_POOL_PREFLUSH_RATIO_SYNC */
@@ -184,7 +185,7 @@ log_buffer_extend(
 
 		log_mutex_enter_all();
 
-		if (srv_log_buffer_size > len / srv_page_size) {
+		if (srv_log_buffer_size > (len >> srv_page_size_shift)) {
 			/* Already extended enough by the others */
 			log_mutex_exit_all();
 			return;
@@ -234,7 +235,7 @@ log_buffer_extend(
 	ut_free_dodump(log_sys->buf, log_sys->buf_size * 2);
 
 	/* reallocate log buffer */
-	srv_log_buffer_size = len / srv_page_size + 1;
+	srv_log_buffer_size = (len >> srv_page_size_shift) + 1;
 	log_sys->buf_size = LOG_BUFFER_SIZE;
 
 	log_sys->buf = static_cast<byte*>(
@@ -722,7 +723,7 @@ log_sys_init()
 	log_sys->lsn = LOG_START_LSN;
 
 	ut_a(LOG_BUFFER_SIZE >= 16 * OS_FILE_LOG_BLOCK_SIZE);
-	ut_a(LOG_BUFFER_SIZE >= 4 * srv_page_size);
+	ut_a(LOG_BUFFER_SIZE >= 4U << srv_page_size_shift);
 
 	log_sys->buf_size = LOG_BUFFER_SIZE;
 
@@ -895,12 +896,12 @@ log_group_file_header_flush(
 
 	srv_stats.os_log_pending_writes.inc();
 
-	const ulint	page_no = ulint(dest_offset / srv_page_size);
+	const ulint	page_no = ulint(dest_offset >> srv_page_size_shift);
 
 	fil_io(IORequestLogWrite, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
 	       univ_page_size,
-	       ulint(dest_offset % srv_page_size),
+	       ulint(dest_offset & (srv_page_size - 1)),
 	       OS_FILE_LOG_BLOCK_SIZE, buf, group);
 
 	srv_stats.os_log_pending_writes.dec();
@@ -1015,14 +1016,14 @@ loop:
 
 	srv_stats.os_log_pending_writes.inc();
 
-	ut_a(next_offset / srv_page_size <= ULINT_MAX);
+	ut_a((next_offset >> srv_page_size_shift) <= ULINT_MAX);
 
-	const ulint	page_no = ulint(next_offset / srv_page_size);
+	const ulint	page_no = ulint(next_offset >> srv_page_size_shift);
 
 	fil_io(IORequestLogWrite, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
 	       univ_page_size,
-	       ulint(next_offset % srv_page_size), write_len, buf,
+	       ulint(next_offset & (srv_page_size - 1)), write_len, buf,
 	       group);
 
 	srv_stats.os_log_pending_writes.dec();
@@ -1564,8 +1565,8 @@ log_group_header_read(
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID,
-			 header / srv_page_size),
-	       univ_page_size, header % srv_page_size,
+			 header >> srv_page_size_shift),
+	       univ_page_size, header & (srv_page_size - 1),
 	       OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL);
 }
 

@@ -673,14 +673,14 @@ loop:
 
 	MONITOR_INC(MONITOR_LOG_IO);
 
-	ut_a(source_offset / srv_page_size <= ULINT_MAX);
+	ut_a((source_offset >> srv_page_size_shift) <= ULINT_MAX);
 
-	const ulint	page_no = ulint(source_offset / srv_page_size);
+	const ulint	page_no = ulint(source_offset >> srv_page_size_shift);
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
 	       univ_page_size,
-	       ulint(source_offset % srv_page_size),
+	       ulint(source_offset & (srv_page_size - 1)),
 	       len, buf, NULL);
 
 	for (ulint l = 0; l < len; l += OS_FILE_LOG_BLOCK_SIZE,
@@ -886,7 +886,7 @@ recv_log_format_0_recover(lsn_t lsn)
 	const lsn_t	source_offset
 		= log_group_calc_lsn_offset(lsn, group);
 	log_mutex_exit();
-	const ulint	page_no = ulint(source_offset / srv_page_size);
+	const ulint	page_no = ulint(source_offset >> srv_page_size_shift);
 	byte*		buf = log_sys->buf;
 
 	static const char* NO_UPGRADE_RECOVERY_MSG =
@@ -897,7 +897,7 @@ recv_log_format_0_recover(lsn_t lsn)
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
 	       univ_page_size,
 	       ulint((source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1))
-		     % srv_page_size),
+		     & (srv_page_size - 1)),
 	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
 
 	if (log_block_calc_checksum_format_0(buf)

@@ -5327,11 +5327,9 @@ fallback:
 #endif /* _WIN32*/
 
 	/* Write up to 1 megabyte at a time. */
-	ulint	buf_size = ut_min(
-		static_cast<ulint>(64),
-		static_cast<ulint>(size / srv_page_size));
-
-	buf_size *= srv_page_size;
+	ulint	buf_size = ut_min(ulint(64),
+				  ulint(size >> srv_page_size_shift))
+		<< srv_page_size_shift;
 
 	/* Align the buffer for possible raw i/o */
 	byte*	buf2;

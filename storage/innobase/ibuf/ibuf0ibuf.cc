@@ -510,7 +510,7 @@ ibuf_init_at_db_start(void)
 	buffer pool size. Once ibuf struct is initialized this
 	value is updated with the user supplied size by calling
 	ibuf_max_size_update(). */
-	ibuf->max_size = ((buf_pool_get_curr_size() / srv_page_size)
+	ibuf->max_size = ((buf_pool_get_curr_size() >> srv_page_size_shift)
 			  * CHANGE_BUFFER_DEFAULT_SIZE) / 100;
 
 	mutex_create(LATCH_ID_IBUF, &ibuf_mutex);
@@ -584,7 +584,7 @@ ibuf_max_size_update(
 	ulint	new_val)	/*!< in: new value in terms of
 				percentage of the buffer pool size */
 {
-	ulint	new_size = ((buf_pool_get_curr_size() / srv_page_size)
+	ulint	new_size = ((buf_pool_get_curr_size() >> srv_page_size_shift)
 			    * new_val) / 100;
 	mutex_enter(&ibuf_mutex);
 	ibuf->max_size = new_size;
@@ -2381,7 +2381,7 @@ ibuf_get_merge_page_nos_func(
 				&& prev_space_id == first_space_id)
 			    || (volume_for_page
 				> ((IBUF_MERGE_THRESHOLD - 1)
-				   * 4 * srv_page_size
+				   * 4U << srv_page_size_shift
 				   / IBUF_PAGE_SIZE_PER_FREE_SPACE)
 				/ IBUF_MERGE_THRESHOLD)) {
 
@@ -4653,8 +4653,8 @@ loop:
 
 				volume += page_dir_calc_reserved_space(1);
 
-				ut_a(volume <= 4 * srv_page_size
-					/ IBUF_PAGE_SIZE_PER_FREE_SPACE);
+				ut_a(volume <= (4U << srv_page_size_shift)
+				     / IBUF_PAGE_SIZE_PER_FREE_SPACE);
 #endif
 				ibuf_insert_to_index_page(
 					entry, block, dummy_index, &mtr);

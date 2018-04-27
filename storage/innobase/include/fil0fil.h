@@ -365,15 +365,15 @@ typedef	byte	fil_faddr_t;	/*!< 'type' definition in C: an address
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** Initial size of a single-table tablespace in pages */
-#define FIL_IBD_FILE_INITIAL_SIZE	4
+#define FIL_IBD_FILE_INITIAL_SIZE	4U
 
 /** 'null' (undefined) page offset in the context of file spaces */
 #define	FIL_NULL	ULINT32_UNDEFINED
 
 
-#define FIL_ADDR_PAGE	0	/* first in address is the page offset */
-#define	FIL_ADDR_BYTE	4	/* then comes 2-byte byte offset within page*/
-#define	FIL_ADDR_SIZE	6	/* address size is 6 bytes */
+#define FIL_ADDR_PAGE	0U	/* first in address is the page offset */
+#define	FIL_ADDR_BYTE	4U	/* then comes 2-byte byte offset within page*/
+#define	FIL_ADDR_SIZE	6U	/* address size is 6 bytes */
 
 #ifndef UNIV_INNOCHECKSUM
 
@@ -393,15 +393,15 @@ extern const fil_addr_t	fil_addr_null;
 					page belongs to (== 0) but in later
 					versions the 'new' checksum of the
 					page */
-#define FIL_PAGE_OFFSET		4	/*!< page offset inside space */
-#define FIL_PAGE_PREV		8	/*!< if there is a 'natural'
+#define FIL_PAGE_OFFSET		4U	/*!< page offset inside space */
+#define FIL_PAGE_PREV		8U	/*!< if there is a 'natural'
 					predecessor of the page, its
 					offset.  Otherwise FIL_NULL.
 					This field is not set on BLOB
 					pages, which are stored as a
 					singly-linked list.  See also
 					FIL_PAGE_NEXT. */
-#define FIL_PAGE_NEXT		12	/*!< if there is a 'natural' successor
+#define FIL_PAGE_NEXT		12U	/*!< if there is a 'natural' successor
 					of the page, its offset.
 					Otherwise FIL_NULL.
 					B-tree index pages
@@ -411,9 +411,9 @@ extern const fil_addr_t	fil_addr_null;
 					FIL_PAGE_PREV and FIL_PAGE_NEXT
 					in the collation order of the
 					smallest user record on each page. */
-#define FIL_PAGE_LSN		16	/*!< lsn of the end of the newest
+#define FIL_PAGE_LSN		16U	/*!< lsn of the end of the newest
 					modification log record to the page */
-#define	FIL_PAGE_TYPE		24	/*!< file page type: FIL_PAGE_INDEX,...,
+#define	FIL_PAGE_TYPE		24U	/*!< file page type: FIL_PAGE_INDEX,...,
 					2 bytes.
 
 					The contents of this field can only
@@ -428,7 +428,7 @@ extern const fil_addr_t	fil_addr_null;
 					MySQL/InnoDB 5.1.7 or later, the
 					contents of this field is valid
 					for all uncompressed pages. */
-#define FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION 26 /*!< for the first page
+#define FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION 26U /*!< for the first page
 					in a system tablespace data file
 					(ibdata*, not *.ibd): the file has
 					been flushed to disk at least up
@@ -442,7 +442,7 @@ extern const fil_addr_t	fil_addr_null;
 #define	FIL_RTREE_SPLIT_SEQ_NUM	FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
 
 /** starting from 4.1.x this contains the space id of the page */
-#define FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID  34
+#define FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID  34U
 
 #define FIL_PAGE_SPACE_ID  FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID
 

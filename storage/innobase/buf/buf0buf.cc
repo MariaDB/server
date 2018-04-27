@@ -542,7 +542,8 @@ buf_get_total_list_size_in_bytes(
 		for statistics purpose */
 		buf_pools_list_size->LRU_bytes += buf_pool->stat.LRU_bytes;
 		buf_pools_list_size->unzip_LRU_bytes +=
-			UT_LIST_GET_LEN(buf_pool->unzip_LRU) * srv_page_size;
+			UT_LIST_GET_LEN(buf_pool->unzip_LRU)
+			<< srv_page_size_shift;
 		buf_pools_list_size->flush_list_bytes +=
 			buf_pool->stat.flush_list_bytes;
 	}
@@ -1544,7 +1545,7 @@ buf_chunk_init(
 
 	/* Round down to a multiple of page size,
 	although it already should be. */
-	mem_size = ut_2pow_round(mem_size, srv_page_size);
+	mem_size = ut_2pow_round(mem_size, ulint(srv_page_size));
 	/* Reserve space for the block descriptors. */
 	mem_size += ut_2pow_round((mem_size >> srv_page_size_shift)
 				  * (sizeof *block)
@@ -1588,7 +1589,7 @@ buf_chunk_init(
 	it is bigger, we may allocate more blocks than requested. */
 
 	frame = (byte*) ut_align(chunk->mem, srv_page_size);
-	chunk->size = chunk->mem_pfx.m_size / srv_page_size
+	chunk->size = (chunk->mem_pfx.m_size >> srv_page_size_shift)
 		- (frame != chunk->mem);
 
 	/* Subtract the space needed for block descriptors. */
@@ -1865,7 +1866,8 @@ buf_pool_init_instance(
 			ut_min(BUF_READ_AHEAD_PAGES,
 			       ut_2_power_up(buf_pool->curr_size /
 					     BUF_READ_AHEAD_PORTION));
-		buf_pool->curr_pool_size = buf_pool->curr_size * srv_page_size;
+		buf_pool->curr_pool_size = buf_pool->curr_size
+			<< srv_page_size_shift;
 
 		buf_pool->old_size = buf_pool->curr_size;
 		buf_pool->n_chunks_new = buf_pool->n_chunks;
@@ -2654,7 +2656,7 @@ buf_pool_resize()
 	ut_ad(srv_buf_pool_chunk_unit > 0);
 
 	new_instance_size = srv_buf_pool_size / srv_buf_pool_instances;
-	new_instance_size /= srv_page_size;
+	new_instance_size >>= srv_page_size_shift;
 
 	buf_resize_status("Resizing buffer pool from " ULINTPF " to "
 			  ULINTPF " (unit=" ULINTPF ").",
@@ -2673,7 +2675,8 @@ buf_pool_resize()
 
 		buf_pool->curr_size = new_instance_size;
 
-		buf_pool->n_chunks_new = new_instance_size * srv_page_size
+		buf_pool->n_chunks_new =
+			(new_instance_size << srv_page_size_shift)
 			/ srv_buf_pool_chunk_unit;
 
 		buf_pool_mutex_exit(buf_pool);
@@ -3006,7 +3009,7 @@ calc_buf_pool_size:
 				       ut_2_power_up(buf_pool->curr_size /
 						      BUF_READ_AHEAD_PORTION));
 			buf_pool->curr_pool_size
-				= buf_pool->curr_size * srv_page_size;
+				= buf_pool->curr_size << srv_page_size_shift;
 			curr_size += buf_pool->curr_pool_size;
 			buf_pool->old_size = buf_pool->curr_size;
 		}
@@ -3058,7 +3061,8 @@ calc_buf_pool_size:
 		buf_resize_status("Resizing also other hash tables.");
 
 		/* normalize lock_sys */
-		srv_lock_table_size = 5 * (srv_buf_pool_size / srv_page_size);
+		srv_lock_table_size = 5
+			* (srv_buf_pool_size >> srv_page_size_shift);
 		lock_sys.resize(srv_lock_table_size);
 
 		/* normalize btr_search_sys */

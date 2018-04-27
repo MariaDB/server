@@ -6709,12 +6709,12 @@ btr_rec_get_externally_stored_len(
 				btr_rec_get_field_ref(rec, offsets, i)
 				+ BTR_EXTERN_LEN + 4);
 
-			total_extern_len += ut_calc_align(extern_len,
-							  srv_page_size);
+			total_extern_len += ut_calc_align(
+				extern_len, ulint(srv_page_size));
 		}
 	}
 
-	return(total_extern_len / srv_page_size);
+	return total_extern_len >> srv_page_size_shift;
 }
 
 /*******************************************************************//**

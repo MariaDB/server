@@ -397,7 +397,7 @@ SysTablespace::set_size(
 
 	/* We created the data file and now write it full of zeros */
 	ib::info() << "Setting file '" << file.filepath() << "' size to "
-		<< (file.m_size >> (20 - srv_page_size_shift)) << " MB."
+		<< (file.m_size >> (20U - srv_page_size_shift)) << " MB."
 		" Physically writing the file full; Please wait ...";
 
 	bool	success = os_file_set_size(
@@ -406,7 +406,7 @@ SysTablespace::set_size(
 
 	if (success) {
 		ib::info() << "File '" << file.filepath() << "' size is now "
-			<< (file.m_size >> (20 - srv_page_size_shift))
+			<< (file.m_size >> (20U - srv_page_size_shift))
 			<< " MB.";
 	} else {
 		ib::error() << "Could not set the file size of '"
@@ -766,11 +766,10 @@ SysTablespace::check_file_spec(
 	}
 
 	if (!m_auto_extend_last_file
-	    && get_sum_of_sizes() < min_expected_size / srv_page_size) {
-
+	    && get_sum_of_sizes()
+	    < (min_expected_size >> srv_page_size_shift)) {
 		ib::error() << "Tablespace size must be at least "
-			<< min_expected_size / (1024 * 1024) << " MB";
-
+			<< (min_expected_size >> 20) << " MB";
 		return(DB_ERROR);
 	}
 
@@ -949,10 +948,10 @@ SysTablespace::normalize()
 
 	for (files_t::iterator it = m_files.begin(); it != end; ++it) {
 
-		it->m_size *= (1024 * 1024) / srv_page_size;
+		it->m_size <<= (20U - srv_page_size_shift);
 	}
 
-	m_last_file_size_max *= (1024 * 1024) / srv_page_size;
+	m_last_file_size_max <<= (20U - srv_page_size_shift);
 }
 
 

@@ -998,7 +998,7 @@ buf_LRU_check_size_of_non_data_objects(
 			" Check that your transactions do not set too many"
 			" row locks, or review if"
 			" innodb_buffer_pool_size="
-			<< (buf_pool->curr_size >> (20 - srv_page_size_shift))
+			<< (buf_pool->curr_size >> (20U - srv_page_size_shift))
 			<< "M could be bigger.";
 	} else if (!recv_recovery_is_on()
 		   && buf_pool->curr_size == buf_pool->old_size
@@ -1021,7 +1021,7 @@ buf_LRU_check_size_of_non_data_objects(
 				" set too many row locks."
 				" innodb_buffer_pool_size="
 				<< (buf_pool->curr_size >>
-				    (20 - srv_page_size_shift)) << "M."
+				    (20U - srv_page_size_shift)) << "M."
 				" Starting the InnoDB Monitor to print"
 				" diagnostics.";
 

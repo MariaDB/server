@@ -60,7 +60,8 @@ ib_create(
 
 	if (n_sync_obj == 0) {
 		table->heap = mem_heap_create_typed(
-			ut_min(static_cast<ulint>(4096),
+			std::min<ulong>(
+				4096,
 				MEM_MAX_ALLOC_IN_BUF / 2
 				- MEM_BLOCK_HEADER_SIZE - MEM_SPACE_NEEDED(0)),
 			type);
@@ -84,7 +85,8 @@ ib_create(
 
 	for (ulint i = 0; i < n_sync_obj; i++) {
 		table->heaps[i] = mem_heap_create_typed(
-			ut_min(static_cast<ulint>(4096),
+			std::min<ulong>(
+				4096,
 				MEM_MAX_ALLOC_IN_BUF / 2
 				- MEM_BLOCK_HEADER_SIZE - MEM_SPACE_NEEDED(0)),
 			type);
@@ -126,7 +128,8 @@ ib_recreate(
 
 	for (ulint i = 0; i < new_table->n_sync_obj; i++) {
 		new_table->heaps[i] = mem_heap_create_typed(
-			ut_min(static_cast<ulint>(4096),
+			std::min<ulong>(
+				4096,
 				MEM_MAX_ALLOC_IN_BUF / 2
 				- MEM_BLOCK_HEADER_SIZE - MEM_SPACE_NEEDED(0)),
 			MEM_HEAP_FOR_PAGE_HASH);

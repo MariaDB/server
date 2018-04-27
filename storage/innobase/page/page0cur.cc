@@ -2171,7 +2171,7 @@ page_copy_rec_list_end_to_created_page(
 
 	log_data_len = mtr->get_log()->size() - log_data_len;
 
-	ut_a(log_data_len < 100 * srv_page_size);
+	ut_a(log_data_len < 100U << srv_page_size_shift);
 
 	if (log_ptr != NULL) {
 		mach_write_to_4(log_ptr, log_data_len);

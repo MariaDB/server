@@ -1607,11 +1607,11 @@ innodb_init_param(void)
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	if (innobase_page_size != (1LL << 14)) {
-		int n_shift = (int)get_bit_shift((ulint) innobase_page_size);
+		size_t n_shift = get_bit_shift(size_t(innobase_page_size));
 
 		if (n_shift >= 12 && n_shift <= UNIV_PAGE_SIZE_SHIFT_MAX) {
-			srv_page_size_shift = n_shift;
-			srv_page_size = 1 << n_shift;
+			srv_page_size_shift = ulong(n_shift);
+			srv_page_size = 1U << n_shift;
 			msg("InnoDB: The universal page size of the "
 			    "database is set to %lu.\n", srv_page_size);
 		} else {
@@ -1621,7 +1621,7 @@ innodb_init_param(void)
 		}
 	} else {
 		srv_page_size_shift = 14;
-		srv_page_size = (1 << srv_page_size_shift);
+		srv_page_size = 1U << 14;
 	}
 
 	/* Check that values don't overflow on 32-bit systems. */
@@ -3061,12 +3061,12 @@ static dberr_t xb_assign_undo_space_start()
 		return DB_ERROR;
 	}
 
-	buf = static_cast<byte*>(ut_malloc_nokey(2 * srv_page_size));
+	buf = static_cast<byte*>(ut_malloc_nokey(2U << srv_page_size_shift));
 	page = static_cast<byte*>(ut_align(buf, srv_page_size));
 
 retry:
 	if (!os_file_read(IORequestRead, file, page,
-			  TRX_SYS_PAGE_NO * srv_page_size,
+			  TRX_SYS_PAGE_NO << srv_page_size_shift,
 			  srv_page_size)) {
 		msg("mariabackup: Reading TRX_SYS page failed.\n");
 		error = DB_ERROR;
@@ -3592,8 +3592,8 @@ xb_normalize_init_values(void)
 /*==========================*/
 {
 	srv_sys_space.normalize();
-	srv_log_buffer_size /= srv_page_size;
-	srv_lock_table_size = 5 * (srv_buf_pool_size / srv_page_size);
+	srv_log_buffer_size >>= srv_page_size_shift;
+	srv_lock_table_size = 5 * (srv_buf_pool_size >> srv_page_size_shift);
 }
 
 /***********************************************************************
@@ -4249,7 +4249,8 @@ xb_space_create_file(
 	}
 
 	ret = os_file_set_size(path, *file,
-			       FIL_IBD_FILE_INITIAL_SIZE * srv_page_size);
+			       FIL_IBD_FILE_INITIAL_SIZE
+			       << srv_page_size_shift);
 	if (!ret) {
 		msg("mariabackup: cannot set size for file %s\n", path);
 		os_file_close(*file);
@@ -4257,7 +4258,7 @@ xb_space_create_file(
 		return ret;
 	}
 
-	buf = static_cast<byte *>(malloc(3 * srv_page_size));
+	buf = static_cast<byte *>(malloc(3U << srv_page_size_shift));
 	/* Align the memory for file i/o if we might have O_DIRECT set */
 	page = static_cast<byte *>(ut_align(buf, srv_page_size));
 
