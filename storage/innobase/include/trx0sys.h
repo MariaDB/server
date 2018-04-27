@@ -990,10 +990,10 @@ public:
   bool is_initialised() { return m_initialised; }
 
 
-  /** Initialise the purge subsystem. */
+  /** Initialise the transaction subsystem. */
   void create();
 
-  /** Close the purge subsystem on shutdown. */
+  /** Close the transaction subsystem on shutdown. */
   void close();
 
   /** @return total number of active (non-prepared) transactions */
