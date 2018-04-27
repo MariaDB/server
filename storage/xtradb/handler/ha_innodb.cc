@@ -5496,7 +5496,6 @@ static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels)
 	DBUG_ENTER("innobase_kill_query");
 
 #ifdef WITH_WSREP
-	wsrep_thd_LOCK(thd);
 	if (wsrep_thd_get_conflict_state(thd) != NO_CONFLICT) {
 		/* if victim has been signaled by BF thread and/or aborting
 		   is already progressing, following query aborting is not necessary
@@ -5504,10 +5503,8 @@ static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels)
 		   Also, BF thread should own trx mutex for the victim, which would
 		   conflict with trx_mutex_enter() below
 		*/
-		wsrep_thd_UNLOCK(thd);
 		DBUG_VOID_RETURN;
 	}
-	wsrep_thd_UNLOCK(thd);
 #endif /* WITH_WSREP */
 	if (trx_t* trx = thd_to_trx(thd)) {
 		ut_ad(trx->mysql_thd == thd);

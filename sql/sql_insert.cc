@@ -4388,16 +4388,16 @@ bool select_create::send_eof()
 #ifdef WITH_WSREP
     if (WSREP_ON)
     {
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
       if (thd->wsrep_conflict_state != NO_CONFLICT)
       {
         WSREP_DEBUG("select_create commit failed, thd: %lu err: %d %s",
                     thd->thread_id, thd->wsrep_conflict_state, thd->query());
-        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+        mysql_mutex_unlock(&thd->LOCK_thd_data);
         abort_result_set();
         DBUG_RETURN(true);
       }
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
     }
 #endif /* WITH_WSREP */
   }

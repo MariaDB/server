@@ -3898,10 +3898,10 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       DBUG_RETURN(1);
 
 #ifdef WITH_WSREP
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     if (thd->wsrep_conflict_state == NO_CONFLICT)
     {
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
 #endif /* WITH_WSREP */
     if (slave_trans_retries)
     {
@@ -3978,7 +3978,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #ifdef WITH_WSREP
     }
     else
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
 #endif /* WITH_WSREP */
 
     thread_safe_increment64(&rli->executed_entries);

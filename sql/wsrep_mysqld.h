@@ -272,8 +272,6 @@ extern my_bool       wsrep_preordered_opt;
 extern handlerton    *wsrep_hton;
 
 #ifdef HAVE_PSI_INTERFACE
-extern PSI_mutex_key key_LOCK_wsrep_thd;
-extern PSI_cond_key  key_COND_wsrep_thd;
 extern PSI_mutex_key key_LOCK_wsrep_ready;
 extern PSI_mutex_key key_COND_wsrep_ready;
 extern PSI_mutex_key key_LOCK_wsrep_sst;
