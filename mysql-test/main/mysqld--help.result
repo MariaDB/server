@@ -1238,7 +1238,7 @@ The following specify which files/extra groups are read (specified before remain
  --system-versioning-alter-history=name 
  Versioning ALTER TABLE mode. ERROR: Fail ALTER with
  error; KEEP: Keep historical system rows and subject them
- to ALTER; 
+ to ALTER
  --table-cache=#     Deprecated; use --table-open-cache instead.
  --table-definition-cache=# 
  The number of cached table definitions
