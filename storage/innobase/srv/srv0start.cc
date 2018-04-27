@@ -487,7 +487,7 @@ create_log_files(
 		}
 	}
 
-	log_init(srv_n_log_files);
+	log_sys.log.create(srv_n_log_files);
 	if (!log_set_capacity(srv_log_file_size_requested)) {
 		return(DB_ERROR);
 	}
@@ -1926,7 +1926,7 @@ dberr_t srv_start(bool create_new_db)
 			}
 		}
 
-		log_init(srv_n_log_files_found);
+		log_sys.log.create(srv_n_log_files_found);
 
 		if (!log_set_capacity(srv_log_file_size_requested)) {
 			return(srv_init_abort(DB_ERROR));
@@ -2176,7 +2176,6 @@ files_checked:
 			err = fil_write_flushed_lsn(log_get_lsn());
 			ut_ad(!buf_pool_check_no_pending_io());
 			fil_close_log_files(true);
-			log_group_close_all();
 			if (err == DB_SUCCESS) {
 				bool trunc = srv_operation
 					== SRV_OPERATION_RESTORE;
@@ -2243,9 +2242,6 @@ files_checked:
 			DBUG_EXECUTE_IF("innodb_log_abort_5",
 					return(srv_init_abort(DB_ERROR)););
 			DBUG_PRINT("ib_log", ("After innodb_log_abort_5"));
-
-			/* Free the old log file space. */
-			log_group_close_all();
 
 			ib::info() << "Starting to delete and rewrite log"
 				" files.";

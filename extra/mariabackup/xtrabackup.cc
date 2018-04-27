@@ -2544,8 +2544,7 @@ xtrabackup_copy_logfile(copy_logfile copy)
 
 		lsn_t lsn= start_lsn;
 		for(int retries= 0; retries < 100; retries++) {
-			if (log_group_read_log_seg(log_sys.buf, &log_sys.log,
-				&lsn, end_lsn)){
+			if (log_sys.log.read_log_seg(&lsn, end_lsn)) {
 				break;
 			}
 			msg("Retrying read of a redo log block");
@@ -3819,7 +3818,7 @@ fail:
 		    SRV_MAX_N_PENDING_SYNC_IOS);
 
 	log_sys.create();
-	log_init(srv_n_log_files);
+	log_sys.log.create(srv_n_log_files);
 	fil_space_t*	space = fil_space_create(
 		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID, 0,
 		FIL_TYPE_LOG, NULL);
@@ -3924,7 +3923,7 @@ reread_log_header:
 	ut_ad(!((log_sys.log.format ^ LOG_HEADER_FORMAT_CURRENT)
 		& ~LOG_HEADER_FORMAT_ENCRYPTED));
 
-	log_group_header_read(&log_sys.log, max_cp_field);
+	log_header_read(max_cp_field);
 
 	if (checkpoint_no_start != mach_read_from_8(buf + LOG_CHECKPOINT_NO)) {
 		goto reread_log_header;

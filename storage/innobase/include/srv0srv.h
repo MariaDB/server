@@ -339,8 +339,6 @@ extern const ulint	SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 
 extern char*	srv_log_group_home_dir;
 
-/** Maximum number of srv_n_log_files, or innodb_log_files_in_group */
-#define SRV_N_LOG_FILES_MAX 100
 extern ulong	srv_n_log_files;
 /** The InnoDB redo log file size, or 0 when changing the redo log format
 at startup (while disallowing writes to the redo log). */

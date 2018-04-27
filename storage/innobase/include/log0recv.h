@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -95,20 +95,6 @@ Frees the recovery system. */
 void
 recv_sys_debug_free(void);
 /*=====================*/
-
-/** Read a log segment to a buffer.
-@param[out]	buf		buffer
-@param[in]	group		redo log files
-@param[in, out]	start_lsn	in : read area start, out: the last read valid lsn
-@param[in]	end_lsn		read area end
-@param[out] invalid_block - invalid, (maybe incompletely written) block encountered
-@return	false, if invalid block encountered (e.g checksum mismatch), true otherwise */
-bool
-log_group_read_log_seg(
-	byte*			buf,
-	const log_group_t*	group,
-	lsn_t*			start_lsn,
-	lsn_t			end_lsn);
 
 /********************************************************//**
 Reset the state of the recovery system variables. */
