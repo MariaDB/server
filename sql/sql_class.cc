@@ -2498,6 +2498,39 @@ bool THD::convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs)
 }
 
 
+bool THD::check_string_for_wellformedness(const char *str,
+                                          size_t length,
+                                          CHARSET_INFO *cs) const
+{
+  DBUG_ASSERT(charset_is_system_charset);
+  size_t wlen= Well_formed_prefix(cs, str, length).length();
+  if (wlen < length)
+  {
+    ErrConvString err(str, length, &my_charset_bin);
+    my_error(ER_INVALID_CHARACTER_STRING, MYF(0), cs->csname, err.ptr());
+    return true;
+  }
+  return false;
+}
+
+
+bool THD::to_ident_sys_alloc(Lex_ident_sys_st *to, const Lex_ident_cli_st *ident)
+{
+  if (ident->is_quoted())
+  {
+    LEX_CSTRING unquoted;
+    if (quote_unescape(&unquoted, ident, ident->quote()))
+      return true;
+    return charset_is_system_charset ?
+           to->copy_sys(this, &unquoted) :
+           to->convert(this, &unquoted, charset());
+  }
+  return charset_is_system_charset ?
+         to->copy_sys(this, ident) :
+         to->copy_or_convert(this, ident, charset());
+}
+
+
 Item_basic_constant *
 THD::make_string_literal(const char *str, size_t length, uint repertoire)
 {

@@ -67,6 +67,92 @@ public:
 };
 
 
+/*
+  Used to store identifiers in the client character set.
+  Points to a query fragment.
+*/
+struct Lex_ident_cli_st: public LEX_CSTRING
+{
+private:
+  bool m_is_8bit;
+  char m_quote;
+public:
+  void set_keyword(const char *s, size_t len)
+  {
+    str= s;
+    length= len;
+    m_is_8bit= false;
+    m_quote= '\0';
+  }
+  void set_ident(const char *s, size_t len, bool is_8bit)
+  {
+    str= s;
+    length= len;
+    m_is_8bit= is_8bit;
+    m_quote= '\0';
+  }
+  void set_ident_quoted(const char *s, size_t len, bool is_8bit, char quote)
+  {
+    str= s;
+    length= len;
+    m_is_8bit= is_8bit;
+    m_quote= quote;
+  }
+  void set_unquoted(const LEX_CSTRING *s, bool is_8bit)
+  {
+    ((LEX_CSTRING &)*this)= *s;
+    m_is_8bit= is_8bit;
+    m_quote= '\0';
+  }
+  const char *pos() const { return str - is_quoted(); }
+  const char *end() const { return str + length + is_quoted(); }
+  bool is_quoted() const { return m_quote != '\0'; }
+  bool is_8bit() const { return m_is_8bit; }
+  char quote() const { return m_quote; }
+};
+
+
+class Lex_ident_cli: public Lex_ident_cli_st
+{
+public:
+  Lex_ident_cli(const LEX_CSTRING *s, bool is_8bit)
+  {
+    set_unquoted(s, is_8bit);
+  }
+  Lex_ident_cli(const char *s, size_t len)
+  {
+    set_ident(s, len, false);
+  }
+};
+
+
+struct Lex_ident_sys_st: public LEX_CSTRING
+{
+public:
+  bool copy_ident_cli(THD *thd, const Lex_ident_cli_st *str);
+  bool copy_keyword(THD *thd, const Lex_ident_cli_st *str);
+  bool copy_sys(THD *thd, const LEX_CSTRING *str);
+  bool convert(THD *thd, const LEX_CSTRING *str, CHARSET_INFO *cs);
+  bool copy_or_convert(THD *thd, const Lex_ident_cli_st *str, CHARSET_INFO *cs);
+  bool is_null() const { return str == NULL; }
+};
+
+
+class Lex_ident_sys: public Lex_ident_sys_st
+{
+public:
+  Lex_ident_sys(THD *thd, const Lex_ident_cli_st *str)
+  {
+    if (copy_ident_cli(thd, str))
+      ((LEX_CSTRING &) *this)= null_clex_str;
+  }
+  Lex_ident_sys()
+  {
+    ((LEX_CSTRING &) *this)= null_clex_str;
+  }
+};
+
+
 enum sub_select_type
 {
   UNSPECIFIED_TYPE,
@@ -2392,6 +2478,12 @@ public:
 
   void reduce_digest_token(uint token_left, uint token_right);
 
+  int scan_ident_sysvar(THD *thd, Lex_ident_cli_st *str);
+  int scan_ident_start(THD *thd, Lex_ident_cli_st *str);
+  int scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
+                        CHARSET_INFO **cs, my_lex_states *);
+  int scan_ident_delimited(THD *thd, Lex_ident_cli_st *str);
+  bool get_7bit_or_8bit_ident(THD *thd, uchar *last_char);
 private:
   /** Pointer to the current position in the raw input stream. */
   char *m_ptr;
@@ -3299,20 +3391,42 @@ public:
 
   bool sp_open_cursor(THD *thd, const LEX_CSTRING *name,
                       List<sp_assignment_lex> *parameters);
-  Item_splocal *create_item_for_sp_var(LEX_CSTRING *name, sp_variable *spvar,
-                                       const char *start, const char *end);
+  Item_splocal *create_item_for_sp_var(const Lex_ident_cli_st *name,
+                                       sp_variable *spvar);
 
-  Item *create_item_ident_nosp(THD *thd, LEX_CSTRING *name);
-  Item *create_item_ident_sp(THD *thd, LEX_CSTRING *name,
-                             const char *start, const char *end);
-  Item *create_item_ident(THD *thd, LEX_CSTRING *name,
-                          const char *start, const char *end)
+  Item *create_item_qualified_asterisk(THD *thd, const Lex_ident_sys_st *name);
+  Item *create_item_qualified_asterisk(THD *thd,
+                                       const Lex_ident_sys_st *a,
+                                       const Lex_ident_sys_st *b);
+  Item *create_item_qualified_asterisk(THD *thd, const Lex_ident_cli_st *cname)
   {
-    return sphead ?
-           create_item_ident_sp(thd, name, start, end) :
-           create_item_ident_nosp(thd, name);
+    Lex_ident_sys name(thd, cname);
+    if (name.is_null())
+      return NULL; // EOM
+    return create_item_qualified_asterisk(thd, &name);
+  }
+  Item *create_item_qualified_asterisk(THD *thd,
+                                       const Lex_ident_cli_st *ca,
+                                       const Lex_ident_cli_st *cb)
+  {
+    Lex_ident_sys a(thd, ca), b(thd, cb);
+    if (a.is_null() || b.is_null())
+      return NULL; // EOM
+    return create_item_qualified_asterisk(thd, &a, &b);
   }
 
+  Item *create_item_ident_nosp(THD *thd, Lex_ident_sys_st *name);
+  Item *create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
+                             const char *start, const char *end);
+  Item *create_item_ident(THD *thd, Lex_ident_cli_st *cname)
+  {
+    Lex_ident_sys name(thd, cname);
+    if (name.is_null())
+      return NULL; // EOM
+    return sphead ?
+           create_item_ident_sp(thd, &name, cname->pos(), cname->end()) :
+           create_item_ident_nosp(thd, &name);
+  }
   /*
     Create an Item corresponding to a qualified name: a.b
     when the parser is out of an SP context.
@@ -3327,8 +3441,8 @@ public:
     - Item_ref
   */
   Item *create_item_ident_nospvar(THD *thd,
-                                  const LEX_CSTRING *a,
-                                  const LEX_CSTRING *b);
+                                  const Lex_ident_sys_st *a,
+                                  const Lex_ident_sys_st *b);
   /*
     Create an Item corresponding to a ROW field valiable:  var.field
       @param THD        - THD, for mem_root
@@ -3342,8 +3456,8 @@ public:
   */
   Item_splocal *create_item_spvar_row_field(THD *thd,
                                             const Sp_rcontext_handler *rh,
-                                            const LEX_CSTRING *var,
-                                            const LEX_CSTRING *field,
+                                            const Lex_ident_sys *var,
+                                            const Lex_ident_sys *field,
                                             sp_variable *spvar,
                                             const char *start,
                                             const char *end);
@@ -3356,15 +3470,11 @@ public:
       @param thd         - THD, for mem_root
       @param a           - the first name
       @param b           - the second name
-      @param start       - position in the query (for binary log)
-      @param end         - end in the query (for binary log)
       @retval            - NULL on error, or a pointer to a new Item.
   */
   Item *create_item_ident(THD *thd,
-                          const LEX_CSTRING *a,
-                          const LEX_CSTRING *b,
-                          const char *start,
-                          const char *end);
+                          const Lex_ident_cli_st *a,
+                          const Lex_ident_cli_st *b);
   /*
     Create an item from its qualified name.
     Depending on context, it can be a table field, a table field reference,
@@ -3376,9 +3486,27 @@ public:
       @retval            - NULL on error, or a pointer to a new Item.
   */
   Item *create_item_ident(THD *thd,
-                          const LEX_CSTRING *a,
-                          const LEX_CSTRING *b,
-                          const LEX_CSTRING *c);
+                          const Lex_ident_sys_st *a,
+                          const Lex_ident_sys_st *b,
+                          const Lex_ident_sys_st *c);
+
+  Item *create_item_ident(THD *thd,
+                          const Lex_ident_cli_st *ca,
+                          const Lex_ident_cli_st *cb,
+                          const Lex_ident_cli_st *cc)
+  {
+    Lex_ident_sys b(thd, cb), c(thd, cc);
+    if (b.is_null() || c.is_null())
+      return NULL;
+    if (ca->pos() == cb->pos())  // SELECT .t1.col1
+    {
+      DBUG_ASSERT(ca->length == 0);
+      Lex_ident_sys none;
+      return create_item_ident(thd, &none, &b, &c);
+    }
+    Lex_ident_sys a(thd, ca);
+    return a.is_null() ? NULL : create_item_ident(thd, &a, &b, &c);
+  }
 
   /*
     Create an item for "NEXT VALUE FOR sequence_name"
@@ -3403,16 +3531,11 @@ public:
     Create an item for a name in LIMIT clause: LIMIT var
       @param THD         - THD, for mem_root
       @param var_name    - the variable name
-      @param start       - position in the query (for binary log)
-      @param end         - end in the query (for binary log)
       @retval            - a new Item corresponding to the SP variable,
                            or NULL on error
                            (non in SP, unknown variable, wrong data type).
   */
-  Item *create_item_limit(THD *thd,
-                          const LEX_CSTRING *var_name,
-                          const char *start,
-                          const char *end);
+  Item *create_item_limit(THD *thd, const Lex_ident_cli_st *var_name);
 
   /*
     Create an item for a qualified name in LIMIT clause: LIMIT var.field
@@ -3427,14 +3550,14 @@ public:
                             wrong data type).
   */
   Item *create_item_limit(THD *thd,
-                          const LEX_CSTRING *var_name,
-                          const LEX_CSTRING *field_name,
-                          const char *start,
-                          const char *end);
+                          const Lex_ident_cli_st *var_name,
+                          const Lex_ident_cli_st *field_name);
 
   Item *make_item_func_replace(THD *thd, Item *org, Item *find, Item *replace);
   Item *make_item_func_substr(THD *thd, Item *a, Item *b, Item *c);
   Item *make_item_func_substr(THD *thd, Item *a, Item *b);
+  Item *make_item_func_call_generic(THD *thd, Lex_ident_cli_st *db,
+                                    Lex_ident_cli_st *name, List<Item> *args);
   my_var *create_outvar(THD *thd, const LEX_CSTRING *name);
 
   /*
@@ -3452,7 +3575,10 @@ public:
 
   Item *create_and_link_Item_trigger_field(THD *thd, const LEX_CSTRING *name,
                                            bool new_row);
-
+  // For syntax with colon, e.g. :NEW.a  or :OLD.a
+  Item *make_item_colon_ident_ident(THD *thd,
+                                    const Lex_ident_sys_st *a,
+                                    const Lex_ident_sys_st *b);
   void sp_block_init(THD *thd, const LEX_CSTRING *label);
   void sp_block_init(THD *thd)
   {
@@ -3748,6 +3874,25 @@ public:
     return create_info.vers_info;
   }
   sp_package *get_sp_package() const;
+
+  /**
+    Check if the select is a simple select (not an union).
+    @retval
+      0 ok
+    @retval
+      1 error	; In this case the error messege is sent to the client
+  */
+  bool check_simple_select(const LEX_CSTRING *option)
+  {
+    if (current_select != &select_lex)
+    {
+      char command[80];
+      strmake(command, option->str, MY_MIN(option->length, sizeof(command)-1));
+      my_error(ER_CANT_USE_OPTION_HERE, MYF(0), command);
+      return true;
+    }
+    return false;
+  }
 };
 
 

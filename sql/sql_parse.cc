@@ -9059,32 +9059,6 @@ bool append_file_to_dir(THD *thd, const char **filename_ptr,
 }
 
 
-/**
-  Check if the select is a simple select (not an union).
-
-  @retval
-    0	ok
-  @retval
-    1	error	; In this case the error messege is sent to the client
-*/
-
-bool check_simple_select()
-{
-  THD *thd= current_thd;
-  LEX *lex= thd->lex;
-  if (lex->current_select != &lex->select_lex)
-  {
-    char command[80];
-    Lex_input_stream *lip= & thd->m_parser_state->m_lip;
-    strmake(command, lip->yylval->symbol.str,
-	    MY_MIN(lip->yylval->symbol.length, sizeof(command)-1));
-    my_error(ER_CANT_USE_OPTION_HERE, MYF(0), command);
-    return 1;
-  }
-  return 0;
-}
-
-
 Comp_creator *comp_eq_creator(bool invert)
 {
   return invert?(Comp_creator *)&ne_creator:(Comp_creator *)&eq_creator;

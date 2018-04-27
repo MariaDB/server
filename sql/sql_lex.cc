@@ -849,9 +849,9 @@ static int find_keyword(Lex_input_stream *lip, uint len, bool function)
   SYMBOL *symbol= get_hash_symbol(tok, len, function);
   if (symbol)
   {
-    lip->yylval->symbol.symbol=symbol;
-    lip->yylval->symbol.str= (char*) tok;
-    lip->yylval->symbol.length=len;
+    lip->yylval->kwd.set_keyword(tok, len);
+    DBUG_ASSERT(tok >= lip->get_buf());
+    DBUG_ASSERT(tok < lip->get_end_of_query());
 
     if ((symbol->tok == NOT_SYM) &&
         (lip->m_thd->variables.sql_mode & MODE_HIGH_NOT_PRECEDENCE))
@@ -965,41 +965,6 @@ static LEX_CSTRING get_token(Lex_input_stream *lip, uint skip, uint length)
   lip->m_cpp_text_start= lip->get_cpp_tok_start() + skip;
   lip->m_cpp_text_end= lip->m_cpp_text_start + tmp.length;
 
-  return tmp;
-}
-
-/* 
- todo: 
-   There are no dangerous charsets in mysql for function 
-   get_quoted_token yet. But it should be fixed in the 
-   future to operate multichar strings (like ucs2)
-*/
-
-static LEX_CSTRING get_quoted_token(Lex_input_stream *lip,
-                                    uint skip,
-                                    uint length, char quote)
-{
-  LEX_CSTRING tmp;
-  const char *from, *end;
-  char *to;
-  lip->yyUnget();                       // ptr points now after last token char
-  tmp.length= length;
-  tmp.str= to= (char*) lip->m_thd->alloc(tmp.length+1);
-  from= lip->get_tok_start() + skip;
-  end= to+length;
-
-  lip->m_cpp_text_start= lip->get_cpp_tok_start() + skip;
-  lip->m_cpp_text_end= lip->m_cpp_text_start + length;
-
-  for ( ; to != end; )
-  {
-    if ((*to++= *from++) == quote)
-    {
-      from++;					// Skip double quotes
-      lip->m_cpp_text_start++;
-    }
-  }
-  *to= 0;					// End null for safety
   return tmp;
 }
 
@@ -1407,7 +1372,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 {
   uchar UNINIT_VAR(c);
   bool comment_closed;
-  int	tokval, result_state;
+  int	tokval;
   uint length;
   enum my_lex_states state;
   Lex_input_stream *lip= & thd->m_parser_state->m_lip;
@@ -1529,95 +1494,15 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       }
       /* fall through */
     case MY_LEX_IDENT:
-      const char *start;
-#if defined(USE_MB) && defined(USE_MB_IDENT)
-      if (use_mb(cs))
-      {
-	result_state= IDENT_QUOTED;
-        int char_length= my_charlen(cs, lip->get_ptr() - 1,
-                                        lip->get_end_of_query());
-        if (char_length <= 0)
-        {
-          state= MY_LEX_CHAR;
-          continue;
-        }
-        lip->skip_binary(char_length - 1);
-
-        while (ident_map[c=lip->yyGet()])
-        {
-          char_length= my_charlen(cs, lip->get_ptr() - 1,
-                                      lip->get_end_of_query());
-          if (char_length <= 0)
-            break;
-          lip->skip_binary(char_length - 1);
-        }
-      }
-      else
-#endif
-      {
-        for (result_state= c;
-             ident_map[(uchar) (c= lip->yyGet())];
-             result_state|= c)
-          ;
-        /* If there were non-ASCII characters, mark that we must convert */
-        result_state= result_state & 0x80 ? IDENT_QUOTED : IDENT;
-      }
-      length= lip->yyLength();
-      start= lip->get_ptr();
-      if (lip->ignore_space)
-      {
-        /*
-          If we find a space then this can't be an identifier. We notice this
-          below by checking start != lex->ptr.
-        */
-        for (; state_map[(uchar) c] == MY_LEX_SKIP ; c= lip->yyGet())
-        {
-          if (c == '\n')
-            lip->yylineno++;
-        }
-      }
-      if (start == lip->get_ptr() && c == '.' &&
-          ident_map[(uchar) lip->yyPeek()])
-	lip->next_state=MY_LEX_IDENT_SEP;
-      else
-      {					// '(' must follow directly if function
-        lip->yyUnget();
-	if ((tokval = find_keyword(lip, length, c == '(')))
-	{
-	  lip->next_state= MY_LEX_START;	// Allow signed numbers
-	  return(tokval);		// Was keyword
-	}
-        lip->yySkip();                  // next state does a unget
-      }
-      yylval->lex_str=get_token(lip, 0, length);
-
-      /*
-         Note: "SELECT _bla AS 'alias'"
-         _bla should be considered as a IDENT if charset haven't been found.
-         So we don't use MYF(MY_WME) with get_charset_by_csname to avoid
-         producing an error.
-      */
-
-      if (yylval->lex_str.str[0] == '_')
-      {
-        CHARSET_INFO *cs= get_charset_by_csname(yylval->lex_str.str + 1,
-                                                MY_CS_PRIMARY, MYF(0));
-        if (cs)
-        {
-          yylval->charset= cs;
-          lip->m_underscore_cs= cs;
-
-          lip->body_utf8_append(lip->m_cpp_text_start,
-                                lip->get_cpp_tok_start() + length);
-          return(UNDERSCORE_CHARSET);
-        }
-      }
-
-      lip->body_utf8_append(lip->m_cpp_text_start);
-
-      lip->body_utf8_append_ident(thd, &yylval->lex_str, lip->m_cpp_text_end);
-
-      return(result_state);			// IDENT or IDENT_QUOTED
+    {
+      tokval= lip->scan_ident_middle(thd, &yylval->ident_cli,
+                                     &yylval->charset, &state);
+      if (!tokval)
+        continue;
+      if (tokval == UNDERSCORE_CHARSET)
+        lip->m_underscore_cs= yylval->charset;
+      return tokval;
+    }
 
     case MY_LEX_IDENT_SEP:                  // Found ident and now '.'
       yylval->lex_str.str= (char*) lip->get_ptr();
@@ -1686,81 +1571,11 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       }
       // fall through
     case MY_LEX_IDENT_START:			// We come here after '.'
-      result_state= IDENT;
-#if defined(USE_MB) && defined(USE_MB_IDENT)
-      if (use_mb(cs))
-      {
-	result_state= IDENT_QUOTED;
-        while (ident_map[c=lip->yyGet()])
-        {
-          int char_length= my_charlen(cs, lip->get_ptr() - 1,
-                                          lip->get_end_of_query());
-          if (char_length <= 0)
-            break;
-          lip->skip_binary(char_length - 1);
-        }
-      }
-      else
-#endif
-      {
-        for (result_state=0; ident_map[c= lip->yyGet()]; result_state|= c)
-          ;
-        /* If there were non-ASCII characters, mark that we must convert */
-        result_state= result_state & 0x80 ? IDENT_QUOTED : IDENT;
-      }
-      if (c == '.' && ident_map[(uchar) lip->yyPeek()])
-	lip->next_state=MY_LEX_IDENT_SEP;// Next is '.'
-
-      yylval->lex_str= get_token(lip, 0, lip->yyLength());
-
-      lip->body_utf8_append(lip->m_cpp_text_start);
-
-      lip->body_utf8_append_ident(thd, &yylval->lex_str, lip->m_cpp_text_end);
-
-      return(result_state);
+      return lip->scan_ident_start(thd, &yylval->ident_cli);
 
     case MY_LEX_USER_VARIABLE_DELIMITER:	// Found quote char
-    {
-      uint double_quotes= 0;
-      char quote_char= c;                       // Used char
-      while ((c=lip->yyGet()))
-      {
-        int var_length= my_charlen(cs, lip->get_ptr() - 1,
-                                       lip->get_end_of_query());
-        if (var_length == 1)
-	{
-	  if (c == quote_char)
-	  {
-            if (lip->yyPeek() != quote_char)
-	      break;
-            c=lip->yyGet();
-	    double_quotes++;
-	    continue;
-	  }
-	}
-#ifdef USE_MB
-        else if (var_length > 1)
-        {
-          lip->skip_binary(var_length - 1);
-        }
-#endif
-      }
-      if (double_quotes)
-	yylval->lex_str=get_quoted_token(lip, 1,
-                                         lip->yyLength() - double_quotes -1,
-					 quote_char);
-      else
-        yylval->lex_str=get_token(lip, 1, lip->yyLength() -1);
-      if (c == quote_char)
-        lip->yySkip();                  // Skip end `
-      lip->next_state= MY_LEX_START;
+      return lip->scan_ident_delimited(thd, &yylval->ident_cli);
 
-      lip->body_utf8_append(lip->m_cpp_text_start);
-
-      lip->body_utf8_append_ident(thd, &yylval->lex_str, lip->m_cpp_text_end);
-
-      return(IDENT_QUOTED);
-    }
     case MY_LEX_INT_OR_REAL:		// Complete int or incomplete real
       if (c != '.' || lip->yyPeek() == '.')
       {
@@ -2120,31 +1935,255 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 	We should now be able to handle:
 	[(global | local | session) .]variable_name
       */
-
-      for (result_state= 0; ident_map[c= lip->yyGet()]; result_state|= c)
-        ;
-      /* If there were non-ASCII characters, mark that we must convert */
-      result_state= result_state & 0x80 ? IDENT_QUOTED : IDENT;
-
-      if (c == '.')
-	lip->next_state=MY_LEX_IDENT_SEP;
-      length= lip->yyLength();
-      if (length == 0)
-        return(ABORT_SYM);              // Names must be nonempty.
-      if ((tokval= find_keyword(lip, length,0)))
-      {
-        lip->yyUnget();                         // Put back 'c'
-	return(tokval);				// Was keyword
-      }
-      yylval->lex_str=get_token(lip, 0, length);
-
-      lip->body_utf8_append(lip->m_cpp_text_start);
-
-      lip->body_utf8_append_ident(thd, &yylval->lex_str, lip->m_cpp_text_end);
-
-      return(result_state);
+      return lip->scan_ident_sysvar(thd, &yylval->ident_cli);
     }
   }
+}
+
+
+bool Lex_input_stream::get_7bit_or_8bit_ident(THD *thd, uchar *last_char)
+{
+  uchar c;
+  CHARSET_INFO *const cs= thd->charset();
+  const uchar *const ident_map= cs->ident_map;
+  bool is_8bit= false;
+  for ( ; ident_map[c= yyGet()]; )
+  {
+    if (c & 0x80)
+      is_8bit= true; // will convert
+  }
+  *last_char= c;
+  return is_8bit;
+}
+
+
+int Lex_input_stream::scan_ident_sysvar(THD *thd, Lex_ident_cli_st *str)
+{
+  uchar last_char;
+  uint length;
+  int tokval;
+  bool is_8bit;
+  DBUG_ASSERT(m_tok_start == m_ptr);
+
+  is_8bit= get_7bit_or_8bit_ident(thd, &last_char);
+
+  if (last_char == '.')
+    next_state= MY_LEX_IDENT_SEP;
+  if (!(length= yyLength()))
+    return ABORT_SYM;                  // Names must be nonempty.
+  if ((tokval= find_keyword(this, length, 0)))
+  {
+    yyUnget();                         // Put back 'c'
+    return tokval;                     // Was keyword
+  }
+
+  yyUnget();                       // ptr points now after last token char
+  str->set_ident(get_tok_start(), length, is_8bit);
+
+  m_cpp_text_start= get_cpp_tok_start();
+  m_cpp_text_end= m_cpp_text_start + length;
+  body_utf8_append(m_cpp_text_start);
+  body_utf8_append_ident(thd, str, m_cpp_text_end);
+
+  return is_8bit ? IDENT_QUOTED : IDENT;
+}
+
+
+/*
+  We can come here if different parsing stages:
+  - In an identifier chain:
+       SELECT t1.cccc FROM t1;
+    (when the "cccc" part starts)
+    In this case both m_tok_start and m_ptr point to "cccc".
+  - When a sequence of digits has changed to something else,
+    therefore the token becomes an identifier rather than a number:
+       SELECT 12345_6 FROM t1;
+    In this case m_tok_start points to the entire "12345_678",
+    while m_ptr points to "678".
+*/
+int Lex_input_stream::scan_ident_start(THD *thd, Lex_ident_cli_st *str)
+{
+  uchar c;
+  bool is_8bit;
+  CHARSET_INFO *const cs= thd->charset();
+  const uchar *const ident_map= cs->ident_map;
+  DBUG_ASSERT(m_tok_start <= m_ptr);
+
+  if (use_mb(cs))
+  {
+    is_8bit= true;
+    while (ident_map[c= yyGet()])
+    {
+      int char_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
+      if (char_length <= 0)
+        break;
+      skip_binary(char_length - 1);
+    }
+  }
+  else
+  {
+    is_8bit= get_7bit_or_8bit_ident(thd, &c);
+  }
+  if (c == '.' && ident_map[(uchar) yyPeek()])
+    next_state= MY_LEX_IDENT_SEP;// Next is '.'
+
+  uint length= yyLength();
+  yyUnget(); // ptr points now after last token char
+  str->set_ident(get_tok_start(), length, is_8bit);
+  m_cpp_text_start= get_cpp_tok_start();
+  m_cpp_text_end= m_cpp_text_start + length;
+  body_utf8_append(m_cpp_text_start);
+  body_utf8_append_ident(thd, str, m_cpp_text_end);
+  return is_8bit ? IDENT_QUOTED : IDENT;
+}
+
+
+int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
+                                        CHARSET_INFO **introducer,
+                                        my_lex_states *st)
+{
+  CHARSET_INFO *const cs= thd->charset();
+  const uchar *const ident_map= cs->ident_map;
+  const uchar *const state_map= cs->state_map;
+  const char *start;
+  uint length;
+  uchar c;
+  bool is_8bit;
+  bool resolve_introducer= true;
+  DBUG_ASSERT(m_ptr == m_tok_start + 1); // m_ptr points to the second byte
+
+  if (use_mb(cs))
+  {
+    is_8bit= true;
+    int char_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
+    if (char_length <= 0)
+    {
+      *st= MY_LEX_CHAR;
+      return 0;
+    }
+    skip_binary(char_length - 1);
+
+    while (ident_map[c= yyGet()])
+    {
+      char_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
+      if (char_length <= 0)
+        break;
+      if (char_length > 1 || (c & 0x80))
+        resolve_introducer= false;
+      skip_binary(char_length - 1);
+    }
+  }
+  else
+  {
+    is_8bit= (m_tok_start[0] & 0x80) | get_7bit_or_8bit_ident(thd, &c);
+    resolve_introducer= !is_8bit;
+  }
+  length= yyLength();
+  start= get_ptr();
+  if (ignore_space)
+  {
+    /*
+      If we find a space then this can't be an identifier. We notice this
+      below by checking start != lex->ptr.
+    */
+    for (; state_map[(uchar) c] == MY_LEX_SKIP ; c= yyGet())
+    {
+      if (c == '\n')
+        yylineno++;
+    }
+  }
+  if (start == get_ptr() && c == '.' && ident_map[(uchar) yyPeek()])
+    next_state= MY_LEX_IDENT_SEP;
+  else
+  {					// '(' must follow directly if function
+    int tokval;
+    yyUnget();
+    if ((tokval= find_keyword(this, length, c == '(')))
+    {
+      next_state= MY_LEX_START;	// Allow signed numbers
+      return(tokval);		// Was keyword
+    }
+    yySkip();                  // next state does a unget
+  }
+
+  /*
+     Note: "SELECT _bla AS 'alias'"
+     _bla should be considered as a IDENT if charset haven't been found.
+     So we don't use MYF(MY_WME) with get_charset_by_csname to avoid
+     producing an error.
+  */
+  DBUG_ASSERT(length > 0);
+  if (resolve_introducer && get_tok_start()[0] == '_')
+  {
+
+    yyUnget();                       // ptr points now after last token char
+    str->set_ident(get_tok_start(), length, false);
+
+    m_cpp_text_start= get_cpp_tok_start();
+    m_cpp_text_end= m_cpp_text_start + length;
+    body_utf8_append(m_cpp_text_start, get_cpp_tok_start() + length);
+    ErrConvString csname(str->str + 1, str->length - 1, &my_charset_bin);
+    CHARSET_INFO *cs= get_charset_by_csname(csname.ptr(),
+                                            MY_CS_PRIMARY, MYF(0));
+    if (cs)
+    {
+      *introducer= cs;
+      return UNDERSCORE_CHARSET;
+    }
+    return IDENT;
+  }
+
+  yyUnget();                       // ptr points now after last token char
+  str->set_ident(get_tok_start(), length, is_8bit);
+  m_cpp_text_start= get_cpp_tok_start();
+  m_cpp_text_end= m_cpp_text_start + length;
+  body_utf8_append(m_cpp_text_start);
+  body_utf8_append_ident(thd, str, m_cpp_text_end);
+  return is_8bit ? IDENT_QUOTED : IDENT;
+}
+
+
+int Lex_input_stream::scan_ident_delimited(THD *thd,
+                                           Lex_ident_cli_st *str)
+{
+  CHARSET_INFO *const cs= thd->charset();
+  uint double_quotes= 0;
+  uchar c, quote_char= m_tok_start[0];
+  DBUG_ASSERT(m_ptr == m_tok_start + 1);
+
+  while ((c= yyGet()))
+  {
+    int var_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
+    if (var_length == 1)
+    {
+      if (c == quote_char)
+      {
+        if (yyPeek() != quote_char)
+          break;
+        c= yyGet();
+        double_quotes++;
+        continue;
+      }
+    }
+    else if (var_length > 1)
+    {
+      skip_binary(var_length - 1);
+    }
+  }
+
+  str->set_ident_quoted(get_tok_start() + 1, yyLength() - 1, true, quote_char);
+  yyUnget();                       // ptr points now after last token char
+
+  m_cpp_text_start= get_cpp_tok_start() + 1;
+  m_cpp_text_end= m_cpp_text_start + str->length;
+
+  if (c == quote_char)
+    yySkip();                  // Skip end `
+  next_state= MY_LEX_START;
+  body_utf8_append(m_cpp_text_start);
+  // QQQ: shouldn't it add unescaped version ????
+  body_utf8_append_ident(thd, str, m_cpp_text_end);
+  return IDENT_QUOTED;
 }
 
 
@@ -5249,12 +5288,26 @@ LEX::find_variable(const LEX_CSTRING *name,
 }
 
 
+static bool is_new(const char *str)
+{
+  return (str[0] == 'n' || str[0] == 'N') &&
+         (str[1] == 'e' || str[1] == 'E') &&
+         (str[2] == 'w' || str[2] == 'W');
+}
+
+static bool is_old(const char *str)
+{
+  return (str[0] == 'o' || str[0] == 'O') &&
+         (str[1] == 'l' || str[1] == 'L') &&
+         (str[2] == 'd' || str[2] == 'D');
+}
+
+
 bool LEX::is_trigger_new_or_old_reference(const LEX_CSTRING *name) const
 {
+  // "name" is not necessarily NULL-terminated!
   return sphead && sphead->m_handler->type() == TYPE_ENUM_TRIGGER &&
-         name->length == 3 &&
-         (!my_strcasecmp(system_charset_info, name->str, "NEW") ||
-          !my_strcasecmp(system_charset_info, name->str, "OLD"));
+         name->length == 3 && (is_new(name->str) || is_old(name->str));
 }
 
 
@@ -6546,6 +6599,20 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
 }
 
 
+Item *LEX::make_item_colon_ident_ident(THD *thd,
+                                       const Lex_ident_sys_st *a,
+                                       const Lex_ident_sys_st *b)
+{
+  if (!is_trigger_new_or_old_reference(a))
+  {
+    thd->parse_error();
+    return NULL;
+  }
+  bool new_row= (a->str[0] == 'N' || a->str[0] == 'n');
+  return create_and_link_Item_trigger_field(thd, b, new_row);
+}
+
+
 Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
                                  const char *start, const char *end)
 {
@@ -6591,8 +6658,8 @@ bool LEX::add_resignal_statement(THD *thd, const sp_condition_value *v)
 
 
 Item *LEX::create_item_ident_nospvar(THD *thd,
-                                     const LEX_CSTRING *a,
-                                     const LEX_CSTRING *b)
+                                     const Lex_ident_sys_st *a,
+                                     const Lex_ident_sys_st *b)
 {
   DBUG_ASSERT(this == thd->lex);
   /*
@@ -6623,8 +6690,8 @@ Item *LEX::create_item_ident_nospvar(THD *thd,
 
 Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
                                                const Sp_rcontext_handler *rh,
-                                               const LEX_CSTRING *a,
-                                               const LEX_CSTRING *b,
+                                               const Lex_ident_sys *a,
+                                               const Lex_ident_sys *b,
                                                sp_variable *spv,
                                                const char *start,
                                                const char *end)
@@ -6765,38 +6832,45 @@ Item *LEX::create_item_func_setval(THD *thd, Table_ident *table_ident,
 
 
 Item *LEX::create_item_ident(THD *thd,
-                             const LEX_CSTRING *a,
-                             const LEX_CSTRING *b,
-                             const char *start, const char *end)
+                             const Lex_ident_cli_st *ca,
+                             const Lex_ident_cli_st *cb)
 {
+  const char *start= ca->pos();
+  const char *end= cb->end();
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
-  if ((spv= find_variable(a, &rh)) &&
+  DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() <= start);
+  DBUG_ASSERT(start <= end);
+  DBUG_ASSERT(end <= thd->m_parser_state->m_lip.get_end_of_query());
+  Lex_ident_sys a(thd, ca), b(thd, cb);
+  if (a.is_null() || b.is_null())
+    return NULL; // OEM
+  if ((spv= find_variable(&a, &rh)) &&
       (spv->field_def.is_row() ||
        spv->field_def.is_table_rowtype_ref() ||
        spv->field_def.is_cursor_rowtype_ref()))
-    return create_item_spvar_row_field(thd, rh, a, b, spv, start, end);
+    return create_item_spvar_row_field(thd, rh, &a, &b, spv, start, end);
 
-  if ((thd->variables.sql_mode & MODE_ORACLE) && b->length == 7)
+  if ((thd->variables.sql_mode & MODE_ORACLE) && b.length == 7)
   {
     if (!my_strnncoll(system_charset_info,
-                      (const uchar *) b->str, 7,
+                      (const uchar *) b.str, 7,
                       (const uchar *) "NEXTVAL", 7))
-      return create_item_func_nextval(thd, &null_clex_str, a);
+      return create_item_func_nextval(thd, &null_clex_str, &a);
     else if (!my_strnncoll(system_charset_info,
-                          (const uchar *) b->str, 7,
+                          (const uchar *) b.str, 7,
                           (const uchar *) "CURRVAL", 7))
-      return create_item_func_lastval(thd, &null_clex_str, a);
+      return create_item_func_lastval(thd, &null_clex_str, &a);
   }
 
-  return create_item_ident_nospvar(thd, a, b);
+  return create_item_ident_nospvar(thd, &a, &b);
 }
 
 
 Item *LEX::create_item_ident(THD *thd,
-                             const LEX_CSTRING *a,
-                             const LEX_CSTRING *b,
-                             const LEX_CSTRING *c)
+                             const Lex_ident_sys_st *a,
+                             const Lex_ident_sys_st *b,
+                             const Lex_ident_sys_st *c)
 {
   const char *schema= (thd->client_capabilities & CLIENT_NO_SCHEMA ?
                        NullS : a->str);
@@ -6827,21 +6901,26 @@ Item *LEX::create_item_ident(THD *thd,
 }
 
 
-Item *LEX::create_item_limit(THD *thd,
-                             const LEX_CSTRING *a,
-                             const char *start, const char *end)
+Item *LEX::create_item_limit(THD *thd, const Lex_ident_cli_st *ca)
 {
+  DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() <= ca->pos());
+  DBUG_ASSERT(ca->pos() <= ca->end());
+  DBUG_ASSERT(ca->end() <= thd->m_parser_state->m_lip.get_end_of_query());
+
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
-  if (!(spv= find_variable(a, &rh)))
+  Lex_ident_sys sa(thd, ca);
+  if (sa.is_null())
+    return NULL; // EOM
+  if (!(spv= find_variable(&sa, &rh)))
   {
-    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a->str);
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), sa.str);
     return NULL;
   }
 
-  Query_fragment pos(thd, sphead, start, end);
+  Query_fragment pos(thd, sphead, ca->pos(), ca->end());
   Item_splocal *item;
-  if (!(item= new (thd->mem_root) Item_splocal(thd, rh, a,
+  if (!(item= new (thd->mem_root) Item_splocal(thd, rh, &sa,
                                                spv->offset, spv->type_handler(),
                                                pos.pos(), pos.length())))
     return NULL;
@@ -6861,21 +6940,28 @@ Item *LEX::create_item_limit(THD *thd,
 
 
 Item *LEX::create_item_limit(THD *thd,
-                             const LEX_CSTRING *a,
-                             const LEX_CSTRING *b,
-                             const char *start, const char *end)
+                             const Lex_ident_cli_st *ca,
+                             const Lex_ident_cli_st *cb)
 {
+  DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() <= ca->pos());
+  DBUG_ASSERT(ca->pos() <= cb->end());
+  DBUG_ASSERT(cb->end() <= thd->m_parser_state->m_lip.get_end_of_query());
+
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
-  if (!(spv= find_variable(a, &rh)))
+  Lex_ident_sys sa(thd, ca), sb(thd, cb);
+  if (sa.is_null() || sb.is_null())
+    return NULL; // EOM
+  if (!(spv= find_variable(&sa, &rh)))
   {
-    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a->str);
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), sa.str);
     return NULL;
   }
   // Qualified %TYPE variables are not possible
   DBUG_ASSERT(!spv->field_def.column_type_ref());
   Item_splocal *item;
-  if (!(item= create_item_spvar_row_field(thd, rh, a, b, spv, start, end)))
+  if (!(item= create_item_spvar_row_field(thd, rh, &sa, &sb, spv,
+                                          ca->pos(), cb->end())))
     return NULL;
   if (item->type() != Item::INT_ITEM)
   {
@@ -6899,7 +6985,7 @@ bool LEX::set_user_variable(THD *thd, const LEX_CSTRING *name, Item *val)
 }
 
 
-Item *LEX::create_item_ident_nosp(THD *thd, LEX_CSTRING *name)
+Item *LEX::create_item_ident_nosp(THD *thd, Lex_ident_sys_st *name)
 {
   if (current_select->parsing_place != IN_HAVING ||
       current_select->get_in_sum_expr() > 0)
@@ -6911,10 +6997,14 @@ Item *LEX::create_item_ident_nosp(THD *thd, LEX_CSTRING *name)
 }
 
 
-Item *LEX::create_item_ident_sp(THD *thd, LEX_CSTRING *name,
+Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
                                 const char *start,
                                 const char *end)
 {
+  DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() <= start);
+  DBUG_ASSERT(start <= end);
+  DBUG_ASSERT(end <= thd->m_parser_state->m_lip.get_end_of_query());
+
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
   DBUG_ASSERT(spcont);
@@ -7756,4 +7846,110 @@ Item *Lex_trim_st::make_item_func_trim(THD *thd) const
   return (thd->variables.sql_mode & MODE_ORACLE) ?
          make_item_func_trim_oracle(thd) :
          make_item_func_trim_std(thd);
+}
+
+
+Item *LEX::make_item_func_call_generic(THD *thd, Lex_ident_cli_st *cdb,
+                                       Lex_ident_cli_st *cname, List<Item> *args)
+{
+  Lex_ident_sys db(thd, cdb), name(thd, cname);
+  if (db.is_null() || name.is_null())
+    return NULL; // EOM
+  /*
+    The following in practice calls:
+    <code>Create_sp_func::create()</code>
+    and builds a stored function.
+
+    However, it's important to maintain the interface between the
+    parser and the implementation in item_create.cc clean,
+    since this will change with WL#2128 (SQL PATH):
+    - INFORMATION_SCHEMA.version() is the SQL 99 syntax for the native
+    function version(),
+    - MySQL.version() is the SQL 2003 syntax for the native function
+    version() (a vendor can specify any schema).
+  */
+
+  if (!name.str || check_db_name((LEX_STRING*) static_cast<LEX_CSTRING*>(&db)))
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
+    return NULL;
+  }
+  if (check_routine_name(&name))
+    return NULL;
+
+  Create_qfunc *builder= find_qualified_function_builder(thd);
+  DBUG_ASSERT(builder);
+  return builder->create_with_db(thd, &db, &name, true, args);
+}
+
+
+Item *LEX::create_item_qualified_asterisk(THD *thd,
+                                          const Lex_ident_sys_st *name)
+{
+  Item *item;
+  if (!(item= new (thd->mem_root) Item_field(thd, current_context(),
+                                             NullS, name->str,
+                                             &star_clex_str)))
+    return NULL;
+  current_select->with_wild++;
+  return item;
+}
+
+
+Item *LEX::create_item_qualified_asterisk(THD *thd,
+                                          const Lex_ident_sys_st *a,
+                                          const Lex_ident_sys_st *b)
+{
+  Item *item;
+  const char* schema= thd->client_capabilities & CLIENT_NO_SCHEMA ?
+                      NullS : a->str;
+  if (!(item= new (thd->mem_root) Item_field(thd, current_context(),
+                                             schema, b->str,
+                                             &star_clex_str)))
+   return NULL;
+  current_select->with_wild++;
+  return item;
+}
+
+
+bool Lex_ident_sys_st::copy_ident_cli(THD *thd, const Lex_ident_cli_st *str)
+{
+  return thd->to_ident_sys_alloc(this, str);
+}
+
+bool Lex_ident_sys_st::copy_keyword(THD *thd, const Lex_ident_cli_st *str)
+{
+  return thd->make_lex_string(static_cast<LEX_CSTRING*>(this),
+                              str->str, str->length) == NULL;
+}
+
+bool Lex_ident_sys_st::copy_or_convert(THD *thd,
+                                       const Lex_ident_cli_st *src,
+                                       CHARSET_INFO *cs)
+{
+  if (!src->is_8bit())
+    return copy_keyword(thd, src); // 7bit string makes a wellformed identifier
+  return convert(thd, src, cs);
+}
+
+
+bool Lex_ident_sys_st::copy_sys(THD *thd, const LEX_CSTRING *src)
+{
+  if (thd->check_string_for_wellformedness(src->str, src->length,
+                                           system_charset_info))
+    return true;
+  return thd->make_lex_string(this, src->str, src->length) == NULL;
+}
+
+
+bool Lex_ident_sys_st::convert(THD *thd,
+                               const LEX_CSTRING *src, CHARSET_INFO *cs)
+{
+  LEX_STRING tmp;
+  if (thd->convert_with_error(system_charset_info, &tmp, cs,
+                              src->str, src->length))
+    return true;
+  str=    tmp.str;
+  length= tmp.length;
+  return false;
 }

@@ -3658,6 +3658,26 @@ public:
     lex_str->length= length;
     return lex_str;
   }
+  // Remove double quotes:  aaa""bbb -> aaa"bbb
+  bool quote_unescape(LEX_CSTRING *dst, const LEX_CSTRING *src, char quote)
+  {
+    const char *tmp= src->str;
+    const char *tmpend= src->str + src->length;
+    char *to;
+    if (!(dst->str= to= (char *) alloc(src->length + 1)))
+    {
+      dst->length= 0; // Safety
+      return true;
+    }
+    for ( ; tmp < tmpend; )
+    {
+      if ((*to++= *tmp++) == quote)
+        tmp++;                                  // Skip double quotes
+    }
+    *to= 0;                                     // End null for safety
+    dst->length= to - dst->str;
+    return false;
+  }
 
   LEX_CSTRING *make_clex_string(const char* str, size_t length)
   {
@@ -3701,7 +3721,6 @@ public:
   bool convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                           CHARSET_INFO *srccs,
                           const char *src, size_t src_length);
-
   /*
     If either "dstcs" or "srccs" is &my_charset_bin,
     then performs native copying using cs->cset->copy_fix().
@@ -3719,6 +3738,17 @@ public:
                        CHARSET_INFO *srccs, const char *src, size_t src_length);
 
   bool convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs);
+
+  /*
+    Check if the string is wellformed, raise an error if not wellformed.
+    @param str    - The string to check.
+    @param length - the string length.
+  */
+  bool check_string_for_wellformedness(const char *str,
+                                       size_t length,
+                                       CHARSET_INFO *cs) const;
+
+  bool to_ident_sys_alloc(Lex_ident_sys_st *to, const Lex_ident_cli_st *from);
 
   /*
     Create a string literal with optional client->connection conversion.
@@ -3827,7 +3857,7 @@ public:
   void set_stmt_da(Diagnostics_area *da)
   { m_stmt_da= da; }
 
-  inline CHARSET_INFO *charset() { return variables.character_set_client; }
+  inline CHARSET_INFO *charset() const { return variables.character_set_client; }
   void update_charset();
   void update_charset(CHARSET_INFO *character_set_client,
                       CHARSET_INFO *collation_connection)
