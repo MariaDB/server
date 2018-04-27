@@ -400,7 +400,7 @@ static const char *vers_alter_history_keywords[]= {"ERROR", "KEEP", NullS};
 static Sys_var_enum Sys_vers_alter_history(
        "system_versioning_alter_history", "Versioning ALTER TABLE mode. "
        "ERROR: Fail ALTER with error; " /* TODO: fail only when history non-empty */
-       "KEEP: Keep historical system rows and subject them to ALTER; ",
+       "KEEP: Keep historical system rows and subject them to ALTER",
        SESSION_VAR(vers_alter_history), CMD_LINE(REQUIRED_ARG),
        vers_alter_history_keywords, DEFAULT(VERS_ALTER_HISTORY_ERROR));
 
