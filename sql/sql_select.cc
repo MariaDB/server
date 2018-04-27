@@ -848,10 +848,9 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       }
     }
 
-    Item *cond1= 0, *cond2= 0, *curr= 0;
-    // Temporary tables of can be created from INNODB tables and thus will
-    // have uint64 type of sys_trx_(start|end) field.
-    // They need special handling.
+    Item *cond1= NULL, *cond2= NULL, *cond3= NULL, *curr= NULL;
+    Item *point_in_time1= vers_conditions.start.item;
+    Item *point_in_time2= vers_conditions.end.item;
     TABLE *t= table->table;
     if (t->versioned(VERS_TIMESTAMP))
     {
@@ -865,19 +864,21 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
         cond1= newx Item_func_eq(thd, row_end, curr);
         break;
       case SYSTEM_TIME_AS_OF:
-        cond1= newx Item_func_le(thd, row_start, vers_conditions.start.item);
-        cond2= newx Item_func_gt(thd, row_end, vers_conditions.start.item);
+        cond1= newx Item_func_le(thd, row_start, point_in_time1);
+        cond2= newx Item_func_gt(thd, row_end, point_in_time1);
         break;
       case SYSTEM_TIME_FROM_TO:
-        cond1= newx Item_func_lt(thd, row_start, vers_conditions.end.item);
-        cond2= newx Item_func_ge(thd, row_end, vers_conditions.start.item);
+        cond1= newx Item_func_lt(thd, row_start, point_in_time2);
+        cond2= newx Item_func_gt(thd, row_end, point_in_time1);
+        cond3= newx Item_func_lt(thd, point_in_time1, point_in_time2);
         break;
       case SYSTEM_TIME_BETWEEN:
-        cond1= newx Item_func_le(thd, row_start, vers_conditions.end.item);
-        cond2= newx Item_func_ge(thd, row_end, vers_conditions.start.item);
+        cond1= newx Item_func_le(thd, row_start, point_in_time2);
+        cond2= newx Item_func_gt(thd, row_end, point_in_time1);
+        cond3= newx Item_func_le(thd, point_in_time1, point_in_time2);
         break;
       case SYSTEM_TIME_BEFORE:
-        cond1= newx Item_func_lt(thd, row_end, vers_conditions.start.item);
+        cond1= newx Item_func_lt(thd, row_end, point_in_time1);
         break;
       default:
         DBUG_ASSERT(0);
@@ -897,29 +898,33 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
         break;
       case SYSTEM_TIME_AS_OF:
         trx_id0= vers_conditions.start.unit == VERS_TIMESTAMP
-          ?  newx Item_func_trt_id(thd, vers_conditions.start.item, TR_table::FLD_TRX_ID)
-          : vers_conditions.start.item;
+          ? newx Item_func_trt_id(thd, point_in_time1, TR_table::FLD_TRX_ID)
+          : point_in_time1;
         cond1= newx Item_func_trt_trx_sees_eq(thd, trx_id0, row_start);
         cond2= newx Item_func_trt_trx_sees(thd, row_end, trx_id0);
         break;
       case SYSTEM_TIME_FROM_TO:
+	cond3= newx Item_func_lt(thd, point_in_time1, point_in_time2);
+        /* fall through */
       case SYSTEM_TIME_BETWEEN:
         trx_id0= vers_conditions.start.unit == VERS_TIMESTAMP
-          ? newx Item_func_trt_id(thd, vers_conditions.start.item, TR_table::FLD_TRX_ID, true)
-          : vers_conditions.start.item;
+          ? newx Item_func_trt_id(thd, point_in_time1, TR_table::FLD_TRX_ID, true)
+          : point_in_time1;
         trx_id1= vers_conditions.end.unit == VERS_TIMESTAMP
-          ? newx Item_func_trt_id(thd, vers_conditions.end.item, TR_table::FLD_TRX_ID, false)
-          : vers_conditions.end.item;
+          ? newx Item_func_trt_id(thd, point_in_time2, TR_table::FLD_TRX_ID, false)
+          : point_in_time2;
         cond1= vers_conditions.type == SYSTEM_TIME_FROM_TO
           ? newx Item_func_trt_trx_sees(thd, trx_id1, row_start)
           : newx Item_func_trt_trx_sees_eq(thd, trx_id1, row_start);
         cond2= newx Item_func_trt_trx_sees_eq(thd, row_end, trx_id0);
+	if (!cond3)
+	  cond3= newx Item_func_le(thd, point_in_time1, point_in_time2);
         break;
       case SYSTEM_TIME_BEFORE:
         trx_id0= vers_conditions.start.unit == VERS_TIMESTAMP
-          ? newx Item_func_trt_id(thd, vers_conditions.start.item, TR_table::FLD_TRX_ID)
-          : vers_conditions.start.item;
-        cond1= newx Item_func_lt(thd, row_end, trx_id0);
+          ? newx Item_func_trt_id(thd, point_in_time1, TR_table::FLD_TRX_ID, true)
+          : point_in_time1;
+        cond1= newx Item_func_trt_trx_sees(thd, trx_id0, row_end);
         break;
       default:
         DBUG_ASSERT(0);
@@ -929,6 +934,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
     if (cond1)
     {
       cond1= and_items(thd, cond2, cond1);
+      cond1= and_items(thd, cond3, cond1);
       table->on_expr= and_items(thd, table->on_expr, cond1);
     }
 

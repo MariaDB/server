@@ -326,6 +326,26 @@ select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
 drop view v1;
 drop table t1, t2, t3, t4;
 
+--echo #
+--echo # MDEV-15980 FOR SYSTEM_TIME BETWEEN and FROM .. TO work with negative intervals
+--echo #
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table t1 (
+  a int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end)
+) with system versioning;
+insert into t1 values (1);
+delete from t1;
+select row_start from t1 for system_time all into @t1;
+select row_end from t1 for system_time all into @t2;
+select * from t1 for system_time between @t1 and @t2;
+select * from t1 for system_time between @t2 and @t1;
+select * from t1 for system_time from @t1 to @t2;
+select * from t1 for system_time from @t2 to @t1;
+drop table t1;
+
 call verify_trt_dummy(34);
 
 -- source suite/versioning/common_finish.inc

@@ -512,6 +512,30 @@ Warnings:
 Note	1003	select `test`.`t1`.`f1` AS `f1` from `test`.`t1` FOR SYSTEM_TIME ALL join `test`.`t2` left join (`test`.`t3` left join `test`.`t4` FOR SYSTEM_TIME ALL on(`test`.`t4`.`f4` = `test`.`t2`.`f2` and `test`.`t4`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999')) on(`test`.`t3`.`f3` = `test`.`t2`.`f2`) where `test`.`t1`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999'
 drop view v1;
 drop table t1, t2, t3, t4;
+#
+# MDEV-15980 FOR SYSTEM_TIME BETWEEN and FROM .. TO work with negative intervals
+#
+create or replace table t1 (
+a int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end)
+) with system versioning;
+insert into t1 values (1);
+delete from t1;
+select row_start from t1 for system_time all into @t1;
+select row_end from t1 for system_time all into @t2;
+select * from t1 for system_time between @t1 and @t2;
+a
+1
+select * from t1 for system_time between @t2 and @t1;
+a
+select * from t1 for system_time from @t1 to @t2;
+a
+1
+select * from t1 for system_time from @t2 to @t1;
+a
+drop table t1;
 call verify_trt_dummy(34);
 No	A	B	C	D
 1	1	1	1	1
