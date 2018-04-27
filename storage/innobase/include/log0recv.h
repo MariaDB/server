@@ -331,7 +331,7 @@ extern bool		recv_no_ibuf_operations;
 extern bool		recv_needed_recovery;
 #ifdef UNIV_DEBUG
 /** TRUE if writing to the redo log (mtr_commit) is forbidden.
-Protected by log_sys->mutex. */
+Protected by log_sys.mutex. */
 extern bool		recv_no_log_write;
 #endif /* UNIV_DEBUG */
 

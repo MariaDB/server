@@ -80,7 +80,7 @@ struct srv_stats_t
 	lsn_ctr_1_t		os_log_written;
 
 	/** Number of writes being done to the log files.
-	Protected by log_sys->write_mutex. */
+	Protected by log_sys.write_mutex. */
 	ulint_ctr_1_t		os_log_pending_writes;
 
 	/** We increase this counter, when we don't have enough

@@ -2439,7 +2439,7 @@ page_cleaner_flush_pages_recommendation(
 
 	cur_lsn = log_get_lsn_nowait();
 
-	/* log_get_lsn_nowait tries to get log_sys->mutex with
+	/* log_get_lsn_nowait tries to get log_sys.mutex with
 	mutex_enter_nowait, if this does not succeed function
 	returns 0, do not use that value to update stats. */
 	if (cur_lsn == 0) {

@@ -82,7 +82,7 @@ struct fil_space_t {
 				/*!< LSN of the most recent
 				fil_names_write_if_was_clean().
 				Reset to 0 by fil_names_clear().
-				Protected by log_sys->mutex.
+				Protected by log_sys.mutex.
 				If and only if this is nonzero, the
 				tablespace will be in named_spaces. */
 	bool		stop_ios;/*!< true if we want to rename the
@@ -286,7 +286,7 @@ struct fil_space_t {
 struct fil_node_t {
 	/** tablespace containing this file */
 	fil_space_t*	space;
-	/** file name; protected by fil_system.mutex and log_sys->mutex. */
+	/** file name; protected by fil_system.mutex and log_sys.mutex. */
 	char*		name;
 	/** file handle (valid if is_open) */
 	pfs_os_file_t	handle;
@@ -628,7 +628,7 @@ public:
 					for which a MLOG_FILE_NAME
 					record has been written since
 					the latest redo log checkpoint.
-					Protected only by log_sys->mutex. */
+					Protected only by log_sys.mutex. */
 	UT_LIST_BASE_NODE_T(fil_space_t) rotation_list;
 					/*!< list of all file spaces needing
 					key rotation.*/
@@ -1326,8 +1326,8 @@ fil_names_write_if_was_clean(
 	}
 
 	const bool	was_clean = space->max_lsn == 0;
-	ut_ad(space->max_lsn <= log_sys->lsn);
-	space->max_lsn = log_sys->lsn;
+	ut_ad(space->max_lsn <= log_sys.lsn);
+	space->max_lsn = log_sys.lsn;
 
 	if (was_clean) {
 		fil_names_dirty_and_write(space, mtr);

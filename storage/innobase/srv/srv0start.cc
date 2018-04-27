@@ -496,7 +496,7 @@ create_log_files(
 
 	/* Create a log checkpoint. */
 	log_mutex_enter();
-	if (log_sys->is_encrypted() && !log_crypt_init()) {
+	if (log_sys.is_encrypted() && !log_crypt_init()) {
 		return(DB_ERROR);
 	}
 	ut_d(recv_no_log_write = false);
@@ -1370,14 +1370,14 @@ srv_prepare_to_delete_redo_log_files(
 
 		log_mutex_enter();
 
-		fil_names_clear(log_sys->lsn, false);
+		fil_names_clear(log_sys.lsn, false);
 
-		flushed_lsn = log_sys->lsn;
+		flushed_lsn = log_sys.lsn;
 
 		{
 			ib::info	info;
 			if (srv_log_file_size == 0
-			    || (log_sys->log.format
+			    || (log_sys.log.format
 				& ~LOG_HEADER_FORMAT_ENCRYPTED)
 			    != LOG_HEADER_FORMAT_CURRENT) {
 				info << "Upgrading redo log: ";
@@ -1385,7 +1385,7 @@ srv_prepare_to_delete_redo_log_files(
 				   || srv_log_file_size
 				   != srv_log_file_size_requested) {
 				if (srv_encrypt_log
-				    == (my_bool)log_sys->is_encrypted()) {
+				    == (my_bool)log_sys.is_encrypted()) {
 					info << (srv_encrypt_log
 						 ? "Resizing encrypted"
 						 : "Resizing");
@@ -1689,7 +1689,7 @@ dberr_t srv_start(bool create_new_db)
 	}
 #endif /* UNIV_DEBUG */
 
-	log_sys_init();
+	log_sys.create();
 	recv_sys_init();
 	lock_sys.create(srv_lock_table_size);
 
@@ -2204,7 +2204,7 @@ files_checked:
 			/* Leave the redo log alone. */
 		} else if (srv_log_file_size_requested == srv_log_file_size
 			   && srv_n_log_files_found == srv_n_log_files
-			   && log_sys->log.format
+			   && log_sys.log.format
 			   == (srv_encrypt_log
 			       ? LOG_HEADER_FORMAT_CURRENT
 			       | LOG_HEADER_FORMAT_ENCRYPTED
@@ -2674,11 +2674,11 @@ void innodb_shutdown()
 	ut_ad(buf_dblwr || !srv_was_started || srv_read_only_mode
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys.is_initialised() || !srv_was_started);
+	ut_ad(log_sys.is_initialised() || !srv_was_started);
 #ifdef BTR_CUR_HASH_ADAPT
 	ut_ad(btr_search_sys || !srv_was_started);
 #endif /* BTR_CUR_HASH_ADAPT */
 	ut_ad(ibuf || !srv_was_started);
-	ut_ad(log_sys || !srv_was_started);
 
 	if (dict_stats_event) {
 		dict_stats_thread_deinit();
@@ -2705,9 +2705,7 @@ void innodb_shutdown()
 	if (ibuf) {
 		ibuf_close();
 	}
-	if (log_sys) {
-		log_shutdown();
-	}
+	log_sys.close();
 	purge_sys.close();
 	trx_sys.close();
 	if (buf_dblwr) {

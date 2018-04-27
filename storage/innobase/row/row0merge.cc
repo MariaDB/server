@@ -144,7 +144,7 @@ public:
 		ut_ad(dict_index_is_spatial(m_index));
 
 		DBUG_EXECUTE_IF("row_merge_instrument_log_check_flush",
-			log_sys->check_flush_or_checkpoint = true;
+			log_sys.check_flush_or_checkpoint = true;
 		);
 
 		for (idx_tuple_vec::iterator it = m_dtuple_vec->begin();
@@ -153,7 +153,7 @@ public:
 			dtuple = *it;
 			ut_ad(dtuple);
 
-			if (log_sys->check_flush_or_checkpoint) {
+			if (log_sys.check_flush_or_checkpoint) {
 				if (!(*mtr_committed)) {
 					btr_pcur_move_to_prev_on_page(pcur);
 					btr_pcur_store_position(pcur, scan_mtr);

@@ -56,7 +56,7 @@ step which modifies the database, is started */
 typedef ulint (*log_checksum_func_t)(const byte* log_block);
 
 /** Pointer to the log checksum calculation function. Protected with
-log_sys->mutex. */
+log_sys.mutex. */
 extern log_checksum_func_t log_checksum_algorithm_ptr;
 
 /** Append a string to the log.
@@ -136,7 +136,7 @@ log_get_flush_lsn(void);
 /*=============*/
 /****************************************************************
 Gets the log group capacity. It is OK to read the value without
-holding log_sys->mutex because it is constant.
+holding log_sys.mutex because it is constant.
 @return log group capacity */
 UNIV_INLINE
 lsn_t
@@ -150,9 +150,6 @@ UNIV_INLINE
 lsn_t
 log_get_max_modified_age_async(void);
 /*================================*/
-/** Initializes the redo logging subsystem. */
-void
-log_sys_init();
 
 /** Initialize the redo log.
 @param[in]	n_files		number of files */
@@ -233,7 +230,7 @@ shutdown. This function also writes all log in log files to the log archive. */
 void
 logs_empty_and_mark_files_at_shutdown(void);
 /*=======================================*/
-/** Read a log group header page to log_sys->checkpoint_buf.
+/** Read a log group header page to log_sys.checkpoint_buf.
 @param[in]	group	log group
 @param[in]	header	0 or LOG_CHEKCPOINT_1 or LOG_CHECKPOINT2 */
 void
@@ -406,9 +403,6 @@ Closes all log groups. */
 void
 log_group_close_all(void);
 /*=====================*/
-/** Shut down the redo log subsystem. */
-void
-log_shutdown();
 
 /** Whether to generate and require checksums on the redo log pages */
 extern my_bool	innodb_log_checksums;
@@ -443,7 +437,7 @@ extern my_bool	innodb_log_checksums;
 					from this offset in this log block,
 					if value not 0 */
 #define LOG_BLOCK_CHECKPOINT_NO	8	/* 4 lower bytes of the value of
-					log_sys->next_checkpoint_no when the
+					log_sys.next_checkpoint_no when the
 					log block was last written to: if the
 					block has not yet been written full,
 					this value is only updated before a
@@ -544,9 +538,9 @@ typedef ib_mutex_t	FlushOrderMutex;
 
 /** Log group consists of a number of log files, each of the same size; a log
 group is implemented as a space in the sense of the module fil0fil.
-Currently, this is only protected by log_sys->mutex. However, in the case
+Currently, this is only protected by log_sys.mutex. However, in the case
 of log_write_up_to(), we will access some members only with the protection
-of log_sys->write_mutex, which should affect nothing for now. */
+of log_sys.write_mutex, which should affect nothing for now. */
 struct log_group_t{
 	/** number of files in the group */
 	ulint				n_files;
@@ -588,25 +582,22 @@ struct log_group_t{
 
 /** Redo log buffer */
 struct log_t{
-	char		pad1[CACHE_LINE_SIZE];
-					/*!< Padding to prevent other memory
-					update hotspots from residing on the
-					same memory cache line */
+	MY_ALIGNED(CACHE_LINE_SIZE)
 	lsn_t		lsn;		/*!< log sequence number */
 	ulong		buf_free;	/*!< first free offset within the log
 					buffer in use */
 
-	char		pad2[CACHE_LINE_SIZE];/*!< Padding */
+	MY_ALIGNED(CACHE_LINE_SIZE)
 	LogSysMutex	mutex;		/*!< mutex protecting the log */
-	char		pad3[CACHE_LINE_SIZE]; /*!< Padding */
+	MY_ALIGNED(CACHE_LINE_SIZE)
 	LogSysMutex	write_mutex;	/*!< mutex protecting writing to log
 					file and accessing to log_group_t */
-	char		pad4[CACHE_LINE_SIZE];/*!< Padding */
+	MY_ALIGNED(CACHE_LINE_SIZE)
 	FlushOrderMutex	log_flush_order_mutex;/*!< mutex to serialize access to
 					the flush list when we are putting
 					dirty blocks in the list. The idea
 					behind this mutex is to be able
-					to release log_sys->mutex during
+					to release log_sys.mutex during
 					mtr_commit and still ensure that
 					insertions in the flush_list happen
 					in the LSN order. */
@@ -636,7 +627,7 @@ struct log_t{
 					peeked at by log_free_check(), which
 					does not reserve the log mutex */
 	/** the redo log */
-	log_group_t			log;
+	log_group_t	log;
 
 	/** The fields involved in the log buffer flush @{ */
 
@@ -707,7 +698,7 @@ struct log_t{
 					/*!< extra redo log records to write
 					during a checkpoint, or NULL if none.
 					The pointer is protected by
-					log_sys->mutex, and the data must
+					log_sys.mutex, and the data must
 					remain constant as long as this
 					pointer is not NULL. */
 	ulint		n_pending_checkpoint_writes;
@@ -717,62 +708,79 @@ struct log_t{
 					checkpoint write is running; a thread
 					should wait for this without owning
 					the log mutex */
-	byte*		checkpoint_buf_ptr;/* unaligned checkpoint header */
-	byte*		checkpoint_buf;	/*!< checkpoint header is read to this
-					buffer */
+
+	/** buffer for checkpoint header */
+	MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE)
+	byte		checkpoint_buf[OS_FILE_LOG_BLOCK_SIZE];
 	/* @} */
 
-	/** @return whether the redo log is encrypted */
-	bool is_encrypted() const
-	{
-		return(log.is_encrypted());
-	}
+private:
+  bool m_initialised;
+public:
+  /**
+    Constructor.
+
+    Some members may require late initialisation, thus we just mark object as
+    uninitialised. Real initialisation happens in create().
+  */
+  log_t(): m_initialised(false) {}
+
+  /** @return whether the redo log is encrypted */
+  bool is_encrypted() const { return(log.is_encrypted()); }
+
+  bool is_initialised() { return m_initialised; }
+
+  /** Initialise the redo log subsystem. */
+  void create();
+
+  /** Shut down the redo log subsystem. */
+  void close();
 };
 
 /** Redo log system */
-extern log_t*	log_sys;
+extern log_t	log_sys;
 
 /** Test if flush order mutex is owned. */
 #define log_flush_order_mutex_own()			\
-	mutex_own(&log_sys->log_flush_order_mutex)
+	mutex_own(&log_sys.log_flush_order_mutex)
 
 /** Acquire the flush order mutex. */
 #define log_flush_order_mutex_enter() do {		\
-	mutex_enter(&log_sys->log_flush_order_mutex);	\
+	mutex_enter(&log_sys.log_flush_order_mutex);	\
 } while (0)
 /** Release the flush order mutex. */
 # define log_flush_order_mutex_exit() do {		\
-	mutex_exit(&log_sys->log_flush_order_mutex);	\
+	mutex_exit(&log_sys.log_flush_order_mutex);	\
 } while (0)
 
 /** Test if log sys mutex is owned. */
-#define log_mutex_own() mutex_own(&log_sys->mutex)
+#define log_mutex_own() mutex_own(&log_sys.mutex)
 
 /** Test if log sys write mutex is owned. */
-#define log_write_mutex_own() mutex_own(&log_sys->write_mutex)
+#define log_write_mutex_own() mutex_own(&log_sys.write_mutex)
 
 /** Acquire the log sys mutex. */
-#define log_mutex_enter() mutex_enter(&log_sys->mutex)
+#define log_mutex_enter() mutex_enter(&log_sys.mutex)
 
 /** Acquire the log sys write mutex. */
-#define log_write_mutex_enter() mutex_enter(&log_sys->write_mutex)
+#define log_write_mutex_enter() mutex_enter(&log_sys.write_mutex)
 
 /** Acquire all the log sys mutexes. */
 #define log_mutex_enter_all() do {		\
-	mutex_enter(&log_sys->write_mutex);	\
-	mutex_enter(&log_sys->mutex);		\
+	mutex_enter(&log_sys.write_mutex);	\
+	mutex_enter(&log_sys.mutex);		\
 } while (0)
 
 /** Release the log sys mutex. */
-#define log_mutex_exit() mutex_exit(&log_sys->mutex)
+#define log_mutex_exit() mutex_exit(&log_sys.mutex)
 
 /** Release the log sys write mutex.*/
-#define log_write_mutex_exit() mutex_exit(&log_sys->write_mutex)
+#define log_write_mutex_exit() mutex_exit(&log_sys.write_mutex)
 
 /** Release all the log sys mutexes. */
 #define log_mutex_exit_all() do {		\
-	mutex_exit(&log_sys->mutex);		\
-	mutex_exit(&log_sys->write_mutex);	\
+	mutex_exit(&log_sys.mutex);		\
+	mutex_exit(&log_sys.write_mutex);	\
 } while (0)
 
 /** Calculate the offset of an lsn within a log group.

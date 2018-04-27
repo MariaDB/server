@@ -2445,7 +2445,7 @@ lsn_t
 xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
 {
 	lsn_t	scanned_lsn	= start_lsn;
-	const byte* log_block = log_sys->buf;
+	const byte* log_block = log_sys.buf;
 	bool more_data = false;
 
 	for (ulint scanned_checkpoint = 0;
@@ -2494,7 +2494,7 @@ xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
 
 	recv_sys_justify_left_parsing_buf();
 
-	log_sys->log.scanned_lsn = scanned_lsn;
+	log_sys.log.scanned_lsn = scanned_lsn;
 
 	end_lsn = copy == COPY_LAST
 		? ut_uint64_align_up(scanned_lsn, OS_FILE_LOG_BLOCK_SIZE)
@@ -2502,10 +2502,10 @@ xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
 
 	if (ulint write_size = ulint(end_lsn - start_lsn)) {
 		if (srv_encrypt_log) {
-			log_crypt(log_sys->buf, start_lsn, write_size);
+			log_crypt(log_sys.buf, start_lsn, write_size);
 		}
 
-		if (ds_write(dst_log_file, log_sys->buf, write_size)) {
+		if (ds_write(dst_log_file, log_sys.buf, write_size)) {
 			msg("mariabackup: Error: "
 			    "write to logfile failed\n");
 			return(0);
@@ -2544,7 +2544,7 @@ xtrabackup_copy_logfile(copy_logfile copy)
 
 		lsn_t lsn= start_lsn;
 		for(int retries= 0; retries < 100; retries++) {
-			if (log_group_read_log_seg(log_sys->buf, &log_sys->log,
+			if (log_group_read_log_seg(log_sys.buf, &log_sys.log,
 				&lsn, end_lsn)){
 				break;
 			}
@@ -2565,7 +2565,7 @@ xtrabackup_copy_logfile(copy_logfile copy)
 		}
 	} while (start_lsn == end_lsn);
 
-	ut_ad(start_lsn == log_sys->log.scanned_lsn);
+	ut_ad(start_lsn == log_sys.log.scanned_lsn);
 
 	msg_ts(">> log scanned up to (" LSN_PF ")\n", start_lsn);
 
@@ -3656,9 +3656,9 @@ xtrabackup_backup_low()
 		log_mutex_enter();
 
 		if (recv_find_max_checkpoint(&max_cp_field) == DB_SUCCESS
-		    && log_sys->log.format != 0) {
+		    && log_sys.log.format != 0) {
 			metadata_to_lsn = mach_read_from_8(
-				log_sys->checkpoint_buf + LOG_CHECKPOINT_LSN);
+				log_sys.checkpoint_buf + LOG_CHECKPOINT_LSN);
 			msg("mariabackup: The latest check point"
 			    " (for incremental): '" LSN_PF "'\n",
 			    metadata_to_lsn);
@@ -3818,7 +3818,7 @@ fail:
 	os_aio_init(srv_n_read_io_threads, srv_n_write_io_threads,
 		    SRV_MAX_N_PENDING_SYNC_IOS);
 
-	log_sys_init();
+	log_sys.create();
 	log_init(srv_n_log_files);
 	fil_space_t*	space = fil_space_create(
 		"innodb_redo_log", SRV_LOG_SPACE_FIRST_ID, 0,
@@ -3894,7 +3894,7 @@ log_fail:
 		goto fail;
 	}
 
-	if (log_sys->log.format == 0) {
+	if (log_sys.log.format == 0) {
 old_format:
 		msg("mariabackup: Error: cannot process redo log"
 		    " before MariaDB 10.2.2\n");
@@ -3902,14 +3902,14 @@ old_format:
 		goto log_fail;
 	}
 
-	ut_ad(!((log_sys->log.format ^ LOG_HEADER_FORMAT_CURRENT)
+	ut_ad(!((log_sys.log.format ^ LOG_HEADER_FORMAT_CURRENT)
 		& ~LOG_HEADER_FORMAT_ENCRYPTED));
 
-	const byte* buf = log_sys->checkpoint_buf;
+	const byte* buf = log_sys.checkpoint_buf;
 
 reread_log_header:
-	checkpoint_lsn_start = log_sys->log.lsn;
-	checkpoint_no_start = log_sys->next_checkpoint_no;
+	checkpoint_lsn_start = log_sys.log.lsn;
+	checkpoint_no_start = log_sys.next_checkpoint_no;
 
 	err = recv_find_max_checkpoint(&max_cp_field);
 
@@ -3917,14 +3917,14 @@ reread_log_header:
 		goto log_fail;
 	}
 
-	if (log_sys->log.format == 0) {
+	if (log_sys.log.format == 0) {
 		goto old_format;
 	}
 
-	ut_ad(!((log_sys->log.format ^ LOG_HEADER_FORMAT_CURRENT)
+	ut_ad(!((log_sys.log.format ^ LOG_HEADER_FORMAT_CURRENT)
 		& ~LOG_HEADER_FORMAT_ENCRYPTED));
 
-	log_group_header_read(&log_sys->log, max_cp_field);
+	log_group_header_read(&log_sys.log, max_cp_field);
 
 	if (checkpoint_no_start != mach_read_from_8(buf + LOG_CHECKPOINT_NO)) {
 		goto reread_log_header;
@@ -3950,7 +3950,7 @@ reread_log_header:
 	/* label it */
 	byte MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE) log_hdr[OS_FILE_LOG_BLOCK_SIZE];
 	memset(log_hdr, 0, sizeof log_hdr);
-	mach_write_to_4(LOG_HEADER_FORMAT + log_hdr, log_sys->log.format);
+	mach_write_to_4(LOG_HEADER_FORMAT + log_hdr, log_sys.log.format);
 	mach_write_to_8(LOG_HEADER_START_LSN + log_hdr, checkpoint_lsn_start);
 	strcpy(reinterpret_cast<char*>(LOG_HEADER_CREATOR + log_hdr),
 	       "Backup " MYSQL_SERVER_VERSION);
@@ -4936,7 +4936,7 @@ xtrabackup_prepare_func(char** argv)
 		ut_d(sync_check_enable());
 		ut_crc32_init();
 		recv_sys_init();
-		log_sys_init();
+		log_sys.create();
 		recv_recovery_on = true;
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
@@ -4970,7 +4970,7 @@ xtrabackup_prepare_func(char** argv)
 		os_event_destroy(srv_allow_writes_event);
 #endif
 		innodb_free_param();
-		log_shutdown();
+		log_sys.close();
 		sync_check_close();
 		if (!ok) goto error_cleanup;
 	}

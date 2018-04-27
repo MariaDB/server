@@ -2000,11 +2000,11 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_LSN_FLUSHDISK:
-		value = (mon_type_t) log_sys->flushed_to_disk_lsn;
+		value = (mon_type_t) log_sys.flushed_to_disk_lsn;
 		break;
 
 	case MONITOR_OVLD_LSN_CURRENT:
-		value = (mon_type_t) log_sys->lsn;
+		value = (mon_type_t) log_sys.lsn;
 		break;
 
 	case MONITOR_OVLD_BUF_OLDEST_LSN:
@@ -2012,15 +2012,15 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_LSN_CHECKPOINT:
-		value = (mon_type_t) log_sys->last_checkpoint_lsn;
+		value = (mon_type_t) log_sys.last_checkpoint_lsn;
 		break;
 
 	case MONITOR_OVLD_MAX_AGE_ASYNC:
-		value = log_sys->max_modified_age_async;
+		value = log_sys.max_modified_age_async;
 		break;
 
 	case MONITOR_OVLD_MAX_AGE_SYNC:
-		value = log_sys->max_modified_age_sync;
+		value = log_sys.max_modified_age_sync;
 		break;
 
 #ifdef BTR_CUR_HASH_ADAPT

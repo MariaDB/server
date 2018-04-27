@@ -79,7 +79,7 @@ volatile bool	recv_recovery_on;
 bool	recv_needed_recovery;
 #ifdef UNIV_DEBUG
 /** TRUE if writing to the redo log (mtr_commit) is forbidden.
-Protected by log_sys->mutex. */
+Protected by log_sys.mutex. */
 bool	recv_no_log_write = false;
 #endif /* UNIV_DEBUG */
 
@@ -669,7 +669,7 @@ loop:
 			(source_offset % group->file_size));
 	}
 
-	log_sys->n_log_ios++;
+	log_sys.n_log_ios++;
 
 	MONITOR_INC(MONITOR_LOG_IO);
 
@@ -760,13 +760,13 @@ recv_synchronize_groups()
 
 	lsn_t start_lsn = ut_uint64_align_down(recovered_lsn,
 						     OS_FILE_LOG_BLOCK_SIZE);
-	log_group_read_log_seg(log_sys->buf, &log_sys->log,
+	log_group_read_log_seg(log_sys.buf, &log_sys.log,
 			       &start_lsn, start_lsn + OS_FILE_LOG_BLOCK_SIZE);
 
 	/* Update the fields in the group struct to correspond to
 	recovered_lsn */
 
-	log_group_set_fields(&log_sys->log, recovered_lsn);
+	log_group_set_fields(&log_sys.log, recovered_lsn);
 
 	/* Copy the checkpoint info to the log; remember that we have
 	incremented checkpoint_no by one, and the info will not be written
@@ -799,10 +799,10 @@ static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 recv_find_max_checkpoint_0(log_group_t** max_group, ulint* max_field)
 {
-	log_group_t*	group = &log_sys->log;
+	log_group_t*	group = &log_sys.log;
 	ib_uint64_t	max_no = 0;
 	ib_uint64_t	checkpoint_no;
-	byte*		buf	= log_sys->checkpoint_buf;
+	byte*		buf	= log_sys.checkpoint_buf;
 
 	ut_ad(group->format == 0);
 
@@ -882,12 +882,12 @@ dberr_t
 recv_log_format_0_recover(lsn_t lsn)
 {
 	log_mutex_enter();
-	log_group_t*	group = &log_sys->log;
+	log_group_t*	group = &log_sys.log;
 	const lsn_t	source_offset
 		= log_group_calc_lsn_offset(lsn, group);
 	log_mutex_exit();
 	const ulint	page_no = ulint(source_offset >> srv_page_size_shift);
-	byte*		buf = log_sys->buf;
+	byte*		buf = log_sys.buf;
 
 	static const char* NO_UPGRADE_RECOVERY_MSG =
 		"Upgrade after a crash is not supported."
@@ -919,11 +919,11 @@ recv_log_format_0_recover(lsn_t lsn)
 	recv_sys->parse_start_lsn = recv_sys->recovered_lsn
 		= recv_sys->scanned_lsn
 		= recv_sys->mlog_checkpoint_lsn = lsn;
-	log_sys->last_checkpoint_lsn = log_sys->next_checkpoint_lsn
-		= log_sys->lsn = log_sys->write_lsn
-		= log_sys->current_flush_lsn = log_sys->flushed_to_disk_lsn
+	log_sys.last_checkpoint_lsn = log_sys.next_checkpoint_lsn
+		= log_sys.lsn = log_sys.write_lsn
+		= log_sys.current_flush_lsn = log_sys.flushed_to_disk_lsn
 		= lsn;
-	log_sys->next_checkpoint_no = 0;
+	log_sys.next_checkpoint_no = 0;
 	return(DB_SUCCESS);
 }
 
@@ -939,12 +939,12 @@ recv_find_max_checkpoint(ulint* max_field)
 	ulint		field;
 	byte*		buf;
 
-	group = &log_sys->log;
+	group = &log_sys.log;
 
 	max_no = 0;
 	*max_field = 0;
 
-	buf = log_sys->checkpoint_buf;
+	buf = log_sys.checkpoint_buf;
 
 	group->state = LOG_GROUP_CORRUPTED;
 
@@ -1019,7 +1019,7 @@ recv_find_max_checkpoint(ulint* max_field)
 				buf + LOG_CHECKPOINT_LSN);
 			group->lsn_offset = mach_read_from_8(
 				buf + LOG_CHECKPOINT_OFFSET);
-			log_sys->next_checkpoint_no = checkpoint_no;
+			log_sys.next_checkpoint_no = checkpoint_no;
 		}
 	}
 
@@ -1751,7 +1751,7 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 	while (recv) {
 		end_lsn = recv->end_lsn;
 
-		ut_ad(end_lsn <= log_sys->log.scanned_lsn);
+		ut_ad(end_lsn <= log_sys.log.scanned_lsn);
 
 		if (recv->len > RECV_DATA_BLOCK_SIZE) {
 			/* We have to copy the record body to a separate
@@ -2927,11 +2927,11 @@ recv_group_scan_log_recs(
 						 OS_FILE_LOG_BLOCK_SIZE);
 		end_lsn = start_lsn;
 		log_group_read_log_seg(
-			log_sys->buf, group, &end_lsn,
+			log_sys.buf, group, &end_lsn,
 			start_lsn + RECV_SCAN_SIZE);
 	} while (end_lsn != start_lsn
 		 && !recv_scan_log_recs(
-			 available_mem, &store_to_hash, log_sys->buf,
+			 available_mem, &store_to_hash, log_sys.buf,
 			 checkpoint_lsn,
 			 start_lsn, end_lsn,
 			 contiguous_lsn, &group->scanned_lsn));
@@ -3157,14 +3157,14 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	if (err != DB_SUCCESS) {
 
-		srv_start_lsn = recv_sys->recovered_lsn = log_sys->lsn;
+		srv_start_lsn = recv_sys->recovered_lsn = log_sys.lsn;
 		log_mutex_exit();
 		return(err);
 	}
 
-	log_group_header_read(&log_sys->log, max_cp_field);
+	log_group_header_read(&log_sys.log, max_cp_field);
 
-	buf = log_sys->checkpoint_buf;
+	buf = log_sys.checkpoint_buf;
 
 	checkpoint_lsn = mach_read_from_8(buf + LOG_CHECKPOINT_LSN);
 	checkpoint_no = mach_read_from_8(buf + LOG_CHECKPOINT_NO);
@@ -3177,7 +3177,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	ut_ad(RECV_SCAN_SIZE <= srv_log_buffer_size);
 
-	group = &log_sys->log;
+	group = &log_sys.log;
 	const lsn_t	end_lsn = mach_read_from_8(
 		buf + LOG_CHECKPOINT_END_LSN);
 
@@ -3283,7 +3283,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		}
 	}
 
-	log_sys->lsn = recv_sys->recovered_lsn;
+	log_sys.lsn = recv_sys->recovered_lsn;
 
 	if (recv_needed_recovery) {
 		bool missing_tablespace = false;
@@ -3378,8 +3378,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	/* Synchronize the uncorrupted log groups to the most up-to-date log
 	group; we also copy checkpoint info to groups */
 
-	log_sys->next_checkpoint_lsn = checkpoint_lsn;
-	log_sys->next_checkpoint_no = checkpoint_no + 1;
+	log_sys.next_checkpoint_lsn = checkpoint_lsn;
+	log_sys.next_checkpoint_no = checkpoint_no + 1;
 
 	recv_synchronize_groups();
 
@@ -3389,24 +3389,24 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		srv_start_lsn = recv_sys->recovered_lsn;
 	}
 
-	log_sys->buf_free = ulong(log_sys->lsn % OS_FILE_LOG_BLOCK_SIZE);
-	log_sys->buf_next_to_write = log_sys->buf_free;
-	log_sys->write_lsn = log_sys->lsn;
+	log_sys.buf_free = ulong(log_sys.lsn % OS_FILE_LOG_BLOCK_SIZE);
+	log_sys.buf_next_to_write = log_sys.buf_free;
+	log_sys.write_lsn = log_sys.lsn;
 
-	log_sys->last_checkpoint_lsn = checkpoint_lsn;
+	log_sys.last_checkpoint_lsn = checkpoint_lsn;
 
 	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL) {
 		/* Write a MLOG_CHECKPOINT marker as the first thing,
 		before generating any other redo log. This ensures
 		that subsequent crash recovery will be possible even
 		if the server were killed soon after this. */
-		fil_names_clear(log_sys->last_checkpoint_lsn, true);
+		fil_names_clear(log_sys.last_checkpoint_lsn, true);
 	}
 
 	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
-		    log_sys->lsn - log_sys->last_checkpoint_lsn);
+		    log_sys.lsn - log_sys.last_checkpoint_lsn);
 
-	log_sys->next_checkpoint_no = ++checkpoint_no;
+	log_sys.next_checkpoint_no = ++checkpoint_no;
 
 	mutex_enter(&recv_sys->mutex);
 
@@ -3512,26 +3512,26 @@ recv_reset_logs(
 {
 	ut_ad(log_mutex_own());
 
-	log_sys->lsn = ut_uint64_align_up(lsn, OS_FILE_LOG_BLOCK_SIZE);
+	log_sys.lsn = ut_uint64_align_up(lsn, OS_FILE_LOG_BLOCK_SIZE);
 
-	log_sys->log.lsn = log_sys->lsn;
-	log_sys->log.lsn_offset = LOG_FILE_HDR_SIZE;
+	log_sys.log.lsn = log_sys.lsn;
+	log_sys.log.lsn_offset = LOG_FILE_HDR_SIZE;
 
-	log_sys->buf_next_to_write = 0;
-	log_sys->write_lsn = log_sys->lsn;
+	log_sys.buf_next_to_write = 0;
+	log_sys.write_lsn = log_sys.lsn;
 
-	log_sys->next_checkpoint_no = 0;
-	log_sys->last_checkpoint_lsn = 0;
+	log_sys.next_checkpoint_no = 0;
+	log_sys.last_checkpoint_lsn = 0;
 
-	memset(log_sys->buf, 0, srv_log_buffer_size);
-	log_block_init(log_sys->buf, log_sys->lsn);
-	log_block_set_first_rec_group(log_sys->buf, LOG_BLOCK_HDR_SIZE);
+	memset(log_sys.buf, 0, srv_log_buffer_size);
+	log_block_init(log_sys.buf, log_sys.lsn);
+	log_block_set_first_rec_group(log_sys.buf, LOG_BLOCK_HDR_SIZE);
 
-	log_sys->buf_free = LOG_BLOCK_HDR_SIZE;
-	log_sys->lsn += LOG_BLOCK_HDR_SIZE;
+	log_sys.buf_free = LOG_BLOCK_HDR_SIZE;
+	log_sys.lsn += LOG_BLOCK_HDR_SIZE;
 
 	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
-		    (log_sys->lsn - log_sys->last_checkpoint_lsn));
+		    (log_sys.lsn - log_sys.last_checkpoint_lsn));
 
 	log_mutex_exit();
 

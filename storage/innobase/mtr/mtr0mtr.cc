@@ -481,7 +481,7 @@ mtr_write_log(
 	ut_ad(!recv_no_log_write);
 	DBUG_PRINT("ib_log",
 		   (ULINTPF " extra bytes written at " LSN_PF,
-		    len, log_sys->lsn));
+		    len, log_sys.lsn));
 
 	log_reserve_and_open(len);
 	log->for_each_block(write_log);
@@ -624,7 +624,7 @@ mtr_t::commit_checkpoint(
 	if (write_mlog_checkpoint) {
 		DBUG_PRINT("ib_log",
 			   ("MLOG_CHECKPOINT(" LSN_PF ") written at " LSN_PF,
-			    checkpoint_lsn, log_sys->lsn));
+			    checkpoint_lsn, log_sys.lsn));
 	}
 }
 
@@ -774,7 +774,7 @@ mtr_t::Command::prepare_write()
 	case MTR_LOG_NONE:
 		ut_ad(m_impl->m_log.size() == 0);
 		log_mutex_enter();
-		m_end_lsn = m_start_lsn = log_sys->lsn;
+		m_end_lsn = m_start_lsn = log_sys.lsn;
 		return(0);
 	case MTR_LOG_ALL:
 		break;
