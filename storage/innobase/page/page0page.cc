@@ -92,7 +92,7 @@ page_dir_find_owner_slot(
 	const page_t* page = page_align(rec);
 	const page_dir_slot_t* first_slot = page_dir_get_nth_slot(page, 0);
 	const page_dir_slot_t* slot = page_dir_get_nth_slot(
-		page, page_dir_get_n_slots(page) - 1);
+		page, ulint(page_dir_get_n_slots(page)) - 1);
 	const rec_t*		r = rec;
 
 	if (page_is_comp(page)) {
@@ -109,7 +109,7 @@ page_dir_find_owner_slot(
 		}
 	}
 
-	uint16 rec_offs_bytes = mach_encode_2(r - page);
+	uint16 rec_offs_bytes = mach_encode_2(ulint(r - page));
 
 	while (UNIV_LIKELY(*(uint16*) slot != rec_offs_bytes)) {
 
@@ -1157,7 +1157,8 @@ delete_all:
 						  is_leaf,
 						  ULINT_UNDEFINED, &heap);
 			s = rec_offs_size(offsets);
-			ut_ad(rec2 - page + s - rec_offs_extra_size(offsets)
+			ut_ad(ulint(rec2 - page) + s
+			      - rec_offs_extra_size(offsets)
 			      < UNIV_PAGE_SIZE);
 			ut_ad(size + s < UNIV_PAGE_SIZE);
 			size += s;
@@ -1693,7 +1694,7 @@ page_rec_get_n_recs_before(
 			slot = page_dir_get_nth_slot(page, i);
 			slot_rec = page_dir_slot_get_rec(slot);
 
-			n += rec_get_n_owned_new(slot_rec);
+			n += lint(rec_get_n_owned_new(slot_rec));
 
 			if (rec == slot_rec) {
 
@@ -1711,7 +1712,7 @@ page_rec_get_n_recs_before(
 			slot = page_dir_get_nth_slot(page, i);
 			slot_rec = page_dir_slot_get_rec(slot);
 
-			n += rec_get_n_owned_old(slot_rec);
+			n += lint(rec_get_n_owned_old(slot_rec));
 
 			if (rec == slot_rec) {
 
@@ -2056,7 +2057,7 @@ page_simple_validate_old(
 			goto func_exit;
 		}
 
-		if (UNIV_UNLIKELY(rec_get_n_owned_old(rec))) {
+		if (UNIV_UNLIKELY(rec_get_n_owned_old(rec) != 0)) {
 			/* This is a record pointed to by a dir slot */
 			if (UNIV_UNLIKELY(rec_get_n_owned_old(rec)
 					  != own_count)) {
@@ -2247,7 +2248,7 @@ page_simple_validate_new(
 			goto func_exit;
 		}
 
-		if (UNIV_UNLIKELY(rec_get_n_owned_new(rec))) {
+		if (UNIV_UNLIKELY(rec_get_n_owned_new(rec) != 0)) {
 			/* This is a record pointed to by a dir slot */
 			if (UNIV_UNLIKELY(rec_get_n_owned_new(rec)
 					  != own_count)) {
@@ -2568,7 +2569,7 @@ page_validate(
 			rec_own_count = rec_get_n_owned_old(rec);
 		}
 
-		if (UNIV_UNLIKELY(rec_own_count)) {
+		if (UNIV_UNLIKELY(rec_own_count != 0)) {
 			/* This is a record pointed to by a dir slot */
 			if (UNIV_UNLIKELY(rec_own_count != own_count)) {
 				ib::error() << "Wrong owned count "

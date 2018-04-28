@@ -49,8 +49,8 @@ buf_buddy_alloc(
 	ulint		size,		/*!< in: compressed page size
 					(between UNIV_ZIP_SIZE_MIN and
 					UNIV_PAGE_SIZE) */
-	ibool*		lru)		/*!< in: pointer to a variable
-					that will be assigned TRUE if
+	bool*		lru)		/*!< in: pointer to a variable
+					that will be assigned true if
 				       	storage was allocated from the
 				       	LRU list and buf_pool->mutex was
 				       	temporarily released */

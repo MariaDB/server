@@ -277,7 +277,8 @@ mem_heap_free_heap_top(
 	ut_ad(block);
 
 	/* Set the free field of block */
-	mem_block_set_free(block, old_top - (byte*) block);
+	mem_block_set_free(block,
+			   ulint(old_top - reinterpret_cast<byte*>(block)));
 
 	ut_ad(mem_block_get_start(block) <= mem_block_get_free(block));
 	UNIV_MEM_FREE(old_top, (byte*) block + block->len - old_top);

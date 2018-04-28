@@ -866,8 +866,8 @@ row_upd_index_write_log(
 		/* If this is a virtual column, mark it using special
 		field_no */
 		ulint	field_no = upd_fld_is_virtual_col(upd_field)
-				   ? REC_MAX_N_FIELDS + upd_field->field_no
-				   : upd_field->field_no;
+			? REC_MAX_N_FIELDS + unsigned(upd_field->field_no)
+			: unsigned(upd_field->field_no);
 
 		log_ptr += mach_write_compressed(log_ptr, field_no);
 		log_ptr += mach_write_compressed(log_ptr, len);
@@ -1326,7 +1326,7 @@ row_upd_index_replace_new_col_val(
 
 		/* Copy the locally stored prefix. */
 		memcpy(buf, data,
-		       uf->orig_len - BTR_EXTERN_FIELD_REF_SIZE);
+		       unsigned(uf->orig_len) - BTR_EXTERN_FIELD_REF_SIZE);
 
 		/* Copy the BLOB pointer. */
 		memcpy(buf + uf->orig_len - BTR_EXTERN_FIELD_REF_SIZE,

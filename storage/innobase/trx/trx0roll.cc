@@ -953,7 +953,7 @@ trx_roll_pop_top_rec(
 		}
 
 		undo->top_page_no = page_get_page_no(prev_rec_page);
-		undo->top_offset  = prev_rec - prev_rec_page;
+		undo->top_offset  = ulint(prev_rec - prev_rec_page);
 		undo->top_undo_no = trx_undo_rec_get_undo_no(prev_rec);
 		ut_ad(!undo->empty());
 	}

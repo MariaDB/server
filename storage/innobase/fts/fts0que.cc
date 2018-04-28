@@ -1772,8 +1772,8 @@ fts_query_match_phrase_add_word_for_parser(
 	}
 
 	match.f_str = (uchar *)(word);
-	match.f_len = word_len;
-	match.f_n_char = fts_get_token_size(phrase->charset, word, word_len);
+	match.f_len = ulint(word_len);
+	match.f_n_char= fts_get_token_size(phrase->charset, word, match.f_len);
 
 	if (match.f_len > 0) {
 		/* Get next token to match. */
@@ -1905,7 +1905,7 @@ fts_query_match_phrase(
 				&phrase_param,
 				phrase->parser,
 				ptr,
-				(end - ptr))) {
+				ulint(end - ptr))) {
 				break;
 			}
 		} else {
@@ -3296,7 +3296,7 @@ fts_query_filter_doc_ids(
 		++ptr;
 
 		/* Bytes decoded so far */
-		decoded = ptr - (byte*) data;
+		decoded = ulint(ptr - (byte*) data);
 
 		/* We simply collect the matching documents and the
 		positions here and match later. */
@@ -4105,7 +4105,7 @@ fts_query(
 			<< diff_time / 1000 << " secs: " << diff_time % 1000
 			<< " millisec: row(s) "
 			<< ((*result)->rankings_by_id
-			    ? rbt_size((*result)->rankings_by_id)
+			    ? lint(rbt_size((*result)->rankings_by_id))
 			    : -1);
 
 		/* Log memory consumption & result size */

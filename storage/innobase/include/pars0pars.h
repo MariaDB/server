@@ -539,7 +539,7 @@ pars_info_add_int4_literal(
 /*=======================*/
 	pars_info_t*	info,		/*!< in: info struct */
 	const char*	name,		/*!< in: name */
-	lint		val);		/*!< in: value */
+	ulint		val);		/*!< in: value */
 
 /****************************************************************//**
 Equivalent to:

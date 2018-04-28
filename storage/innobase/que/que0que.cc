@@ -484,7 +484,7 @@ que_graph_free_recursive(
 		if (upd->in_mysql_interface) {
 
 			btr_pcur_free_for_mysql(upd->pcur);
-			upd->in_mysql_interface = FALSE;
+			upd->in_mysql_interface = false;
 		}
 
 		que_graph_free_recursive(upd->cascade_node);

@@ -311,7 +311,7 @@ dict_index_is_spatial(
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
-	return(index->type & DICT_SPATIAL);
+	return ulint(UNIV_EXPECT(index->type & DICT_SPATIAL, 0));
 }
 
 /** Check whether the index contains a virtual column
@@ -372,7 +372,7 @@ dict_table_get_n_user_cols(
 	/* n_cols counts stored columns only. A table may contain
 	virtual columns and no user-specified stored columns at all. */
 	ut_ad(table->n_cols >= DATA_N_SYS_COLS);
-	return(table->n_cols - DATA_N_SYS_COLS);
+	return unsigned(table->n_cols) - DATA_N_SYS_COLS;
 }
 
 /********************************************************************//**
@@ -519,13 +519,8 @@ dict_table_get_sys_col(
 	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
 {
 	dict_col_t*	col;
-
-	ut_ad(table);
-	ut_ad(sys < DATA_N_SYS_COLS);
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
-	col = dict_table_get_nth_col(table, table->n_cols - DATA_N_SYS_COLS
-				     + sys);
+	col = dict_table_get_nth_col(table,
+				     dict_table_get_sys_col_no(table, sys));
 	ut_ad(col->mtype == DATA_SYS);
 	ut_ad(col->prtype == (sys | DATA_NOT_NULL));
 
@@ -547,7 +542,7 @@ dict_table_get_sys_col_no(
 	ut_ad(sys < DATA_N_SYS_COLS);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
-	return(table->n_cols - DATA_N_SYS_COLS + sys);
+	return unsigned(table->n_cols) + (sys - DATA_N_SYS_COLS);
 }
 
 /********************************************************************//**

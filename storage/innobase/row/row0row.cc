@@ -1014,7 +1014,7 @@ row_search_on_row_ref(
 
 	index = dict_table_get_first_index(table);
 
-	if (UNIV_UNLIKELY(ref->info_bits)) {
+	if (UNIV_UNLIKELY(ref->info_bits != 0)) {
 		ut_ad(ref->info_bits == REC_INFO_DEFAULT_ROW);
 		ut_ad(ref->n_fields <= index->n_uniq);
 		btr_pcur_open_at_index_side(true, index, mode, pcur, true, 0,
@@ -1186,7 +1186,7 @@ row_raw_format_int(
 		value = mach_read_int_type(
 			(const byte*) data, data_len, unsigned_type);
 
-		ret = snprintf(
+		ret = (ulint) snprintf(
 			buf, buf_size,
 			unsigned_type ? "%llu" : "%lld", (longlong) value)+1;
 	} else {

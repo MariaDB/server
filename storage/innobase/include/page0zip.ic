@@ -242,9 +242,9 @@ page_zip_get_trailer_len(
 		ut_ad(!page_zip->n_blobs);
 	}
 
-	return((page_dir_get_n_heap(page_zip->data) - 2)
-	       * uncompressed_size
-	       + page_zip->n_blobs * BTR_EXTERN_FIELD_REF_SIZE);
+	return (ulint(page_dir_get_n_heap(page_zip->data)) - 2)
+		* uncompressed_size
+		+ ulint(page_zip->n_blobs) * BTR_EXTERN_FIELD_REF_SIZE;
 }
 
 /**********************************************************************//**

@@ -365,9 +365,9 @@ dtype_form_prtype(ulint old_prtype, ulint charset_coll)
 Determines if a MySQL string type is a subset of UTF-8.  This function
 may return false negatives, in case further character-set collation
 codes are introduced in MySQL later.
-@return TRUE if a subset of UTF-8 */
+@return whether a subset of UTF-8 */
 UNIV_INLINE
-ibool
+bool
 dtype_is_utf8(
 /*==========*/
 	ulint	prtype);/*!< in: precise data type */

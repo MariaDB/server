@@ -413,7 +413,7 @@ page_cur_search_with_match(
 	owned by the upper limit directory slot. */
 
 	low = 0;
-	up = page_dir_get_n_slots(page) - 1;
+	up = ulint(page_dir_get_n_slots(page)) - 1;
 
 	/* Perform binary search until the lower and upper limit directory
 	slots come to the distance 1 of each other */
@@ -659,7 +659,7 @@ page_cur_search_with_match_bytes(
 	owned by the upper limit directory slot. */
 
 	low = 0;
-	up = page_dir_get_n_slots(page) - 1;
+	up = ulint(page_dir_get_n_slots(page)) - 1;
 
 	/* Perform binary search until the lower and upper limit directory
 	slots come to the distance 1 of each other */
@@ -1240,9 +1240,9 @@ page_direction_increment(
 	if (page_zip) {
 		page_zip_write_header(page_zip, ptr, 1, NULL);
 	}
-	page_header_set_field(page, page_zip, PAGE_N_DIRECTION,
-			      page_header_get_field(page, PAGE_N_DIRECTION)
-			      + 1);
+	page_header_set_field(
+		page, page_zip, PAGE_N_DIRECTION,
+		1U + page_header_get_field(page, PAGE_N_DIRECTION));
 }
 
 /***********************************************************//**
@@ -1391,7 +1391,7 @@ use_heap:
 	}
 
 	page_header_set_field(page, NULL, PAGE_N_RECS,
-			      1 + page_get_n_recs(page));
+			      1U + page_get_n_recs(page));
 
 	/* 5. Set the n_owned field in the inserted record to zero,
 	and set the heap_no field */
@@ -1743,14 +1743,13 @@ too_small:
 
 		/* On compressed pages, do not relocate records from
 		the free list.  If extra_size would grow, use the heap. */
-		extra_size_diff
-			= rec_offs_extra_size(offsets)
-			- rec_offs_extra_size(foffsets);
+		extra_size_diff = lint(rec_offs_extra_size(offsets)
+				       - rec_offs_extra_size(foffsets));
 
 		if (UNIV_UNLIKELY(extra_size_diff < 0)) {
 			/* Add an offset to the extra_size. */
 			if (rec_offs_size(foffsets)
-			    < rec_size - extra_size_diff) {
+			    < rec_size - ulint(extra_size_diff)) {
 
 				goto too_small;
 			}
@@ -1853,7 +1852,7 @@ use_heap:
 	}
 
 	page_header_set_field(page, page_zip, PAGE_N_RECS,
-			      1 + page_get_n_recs(page));
+			      1U + page_get_n_recs(page));
 
 	/* 5. Set the n_owned field in the inserted record to zero,
 	and set the heap_no field */

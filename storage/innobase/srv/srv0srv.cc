@@ -860,7 +860,8 @@ srv_suspend_thread_low(
 	ut_a(!slot->suspended);
 	slot->suspended = TRUE;
 
-	if ((lint)my_atomic_addlint(&srv_sys.n_threads_active[type], -1) < 0) {
+	if (lint(my_atomic_addlint(&srv_sys.n_threads_active[type], ulint(-1)))
+	    < 0) {
 		ut_error;
 	}
 

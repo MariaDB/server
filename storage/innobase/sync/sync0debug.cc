@@ -191,10 +191,10 @@ struct LatchDebug {
 					latch that the thread is trying
 					to acquire
 	@return true if passes, else crash with error message. */
-	bool basic_check(
+	inline bool basic_check(
 		const Latches*	latches,
 		latch_level_t	requested_level,
-		ulint		level) const
+		lint		level) const
 		UNIV_NOTHROW;
 
 	/** Adds a latch and its level in the thread level array. Allocates
@@ -606,11 +606,11 @@ LatchDebug::less(
 				The level of the latch that the thread is
 				trying to acquire
 @return true if passes, else crash with error message. */
-bool
+inline bool
 LatchDebug::basic_check(
 	const Latches*	latches,
 	latch_level_t	requested_level,
-	ulint		in_level) const
+	lint		in_level) const
 	UNIV_NOTHROW
 {
 	latch_level_t	level = latch_level_t(in_level);

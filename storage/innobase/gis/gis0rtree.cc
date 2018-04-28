@@ -71,7 +71,7 @@ rtr_page_split_initialize_nodes(
 	page = buf_block_get_frame(block);
 	n_uniq = dict_index_get_n_unique_in_tree(cursor->index);
 
-	n_recs = page_get_n_recs(page) + 1;
+	n_recs = ulint(page_get_n_recs(page)) + 1;
 
 	/*We reserve 2 MBRs memory space for temp result of split
 	algrithm. And plus the new mbr that need to insert, we
@@ -1065,7 +1065,7 @@ func_start:
 		*heap, cursor, offsets, tuple, &buf_pos);
 
 	/* Divide all mbrs to two groups. */
-	n_recs = page_get_n_recs(page) + 1;
+	n_recs = ulint(page_get_n_recs(page)) + 1;
 
 	end_split_node = rtr_split_node_array + n_recs;
 

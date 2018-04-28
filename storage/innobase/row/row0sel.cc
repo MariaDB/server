@@ -506,8 +506,8 @@ row_sel_fetch_columns(
 
 		if (field_no != ULINT_UNDEFINED) {
 
-			if (UNIV_UNLIKELY(rec_offs_nth_extern(offsets,
-							      field_no))) {
+			if (UNIV_UNLIKELY(rec_offs_nth_extern(
+						  offsets, field_no) != 0)) {
 
 				/* Copy an externally stored field to the
 				temporary heap, if possible. */
@@ -2577,8 +2577,8 @@ row_sel_convert_mysql_key_to_innobase(
 				even though the actual value only takes data
 				len bytes from the start. */
 
-				data_len = key_ptr[data_offset]
-					   + 256 * key_ptr[data_offset + 1];
+				data_len = ulint(key_ptr[data_offset])
+					| ulint(key_ptr[data_offset + 1]) << 8;
 				data_field_len = data_offset + 2
 					+ field->prefix_len;
 
@@ -2817,7 +2817,8 @@ row_sel_field_store_in_mysql_format_func(
 			}
 		}
 
-		row_mysql_pad_col(templ->mbminlen, pad, field_end - pad);
+		row_mysql_pad_col(templ->mbminlen, pad,
+				  ulint(field_end - pad));
 		break;
 
 	case DATA_BLOB:
@@ -2943,7 +2944,7 @@ row_sel_store_mysql_field_func(
 	      || field_no == templ->icp_rec_field_no);
 	ut_ad(rec_offs_validate(rec, index, offsets));
 
-	if (UNIV_UNLIKELY(rec_offs_nth_extern(offsets, field_no))) {
+	if (UNIV_UNLIKELY(rec_offs_nth_extern(offsets, field_no) != 0)) {
 
 		mem_heap_t*	heap;
 		/* Copy an externally stored field to a temporary heap */
@@ -3504,10 +3505,10 @@ err_exit:
 Restores cursor position after it has been stored. We have to take into
 account that the record cursor was positioned on may have been deleted.
 Then we may have to move the cursor one step up or down.
-@return TRUE if we may need to process the record the cursor is now
+@return true if we may need to process the record the cursor is now
 positioned on (i.e. we should not go to the next record yet) */
 static
-ibool
+bool
 sel_restore_position_for_mysql(
 /*===========================*/
 	ibool*		same_user_rec,	/*!< out: TRUE if we were able to restore
@@ -3553,12 +3554,12 @@ next:
 				btr_pcur_move_to_next(pcur, mtr);
 			}
 
-			return(TRUE);
+			return true;
 		}
 		return(!success);
 	case BTR_PCUR_AFTER_LAST_IN_TREE:
 	case BTR_PCUR_BEFORE_FIRST_IN_TREE:
-		return(TRUE);
+		return true;
 	case BTR_PCUR_AFTER:
 		/* positioned to record after pcur->old_rec. */
 		pcur->pos_state = BTR_PCUR_IS_POSITIONED;
@@ -3568,7 +3569,7 @@ prev:
 					   pcur->btr_cur.index)) {
 			btr_pcur_move_to_prev(pcur, mtr);
 		}
-		return(TRUE);
+		return true;
 	case BTR_PCUR_BEFORE:
 		/* For non optimistic restoration:
 		The position is now set to the record before pcur->old_rec.
@@ -3590,19 +3591,19 @@ prev:
 				HANDLER READ idx PREV; */
 				goto prev;
 			}
-			return(TRUE);
+			return true;
 		case BTR_PCUR_IS_POSITIONED:
 			if (moves_up && btr_pcur_is_on_user_rec(pcur)) {
 				goto next;
 			}
-			return(TRUE);
+			return true;
 		case BTR_PCUR_WAS_POSITIONED:
 		case BTR_PCUR_NOT_POSITIONED:
 			break;
 		}
 	}
 	ut_ad(0);
-	return(TRUE);
+	return true;
 }
 
 /********************************************************************//**
@@ -4551,7 +4552,7 @@ wait_table_again:
 			goto next_rec;
 		}
 
-		ibool	need_to_process = sel_restore_position_for_mysql(
+		bool	need_to_process = sel_restore_position_for_mysql(
 			&same_user_rec, BTR_SEARCH_LEAF,
 			pcur, moves_up, &mtr);
 

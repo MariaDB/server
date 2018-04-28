@@ -1042,7 +1042,7 @@ dict_stats_analyze_index_level(
 	offsets[0] and the REC_OFFS_HEADER_SIZE bytes), and n_fields + 1,
 	so that this will never be less than the size calculated in
 	rec_get_offsets_func(). */
-	i = (REC_OFFS_HEADER_SIZE + 1 + 1) + index->n_fields;
+	i = (REC_OFFS_HEADER_SIZE + 1 + 1) + unsigned(index->n_fields);
 
 	heap = mem_heap_create((2 * sizeof *rec_offsets) * i);
 	rec_offsets = static_cast<ulint*>(
@@ -2332,7 +2332,7 @@ dict_stats_save_index_stat(
 	pars_info_add_str_literal(pinfo, "table_name", table_utf8);
 	pars_info_add_str_literal(pinfo, "index_name", index->name);
 	UNIV_MEM_ASSERT_RW_ABORT(&last_update, 4);
-	pars_info_add_int4_literal(pinfo, "last_update", (lint)last_update);
+	pars_info_add_int4_literal(pinfo, "last_update", uint32(last_update));
 	UNIV_MEM_ASSERT_RW_ABORT(stat_name, strlen(stat_name));
 	pars_info_add_str_literal(pinfo, "stat_name", stat_name);
 	UNIV_MEM_ASSERT_RW_ABORT(&stat_value, 8);
@@ -2464,7 +2464,7 @@ dict_stats_save(
 
 	pars_info_add_str_literal(pinfo, "database_name", db_utf8);
 	pars_info_add_str_literal(pinfo, "table_name", table_utf8);
-	pars_info_add_int4_literal(pinfo, "last_update", (lint)now);
+	pars_info_add_int4_literal(pinfo, "last_update", uint32(now));
 	pars_info_add_ull_literal(pinfo, "n_rows", table->stat_n_rows);
 	pars_info_add_ull_literal(pinfo, "clustered_index_size",
 		table->stat_clustered_index_size);
@@ -2910,7 +2910,7 @@ dict_stats_fetch_index_stats_step(
 
 		/* extract 12 from "n_diff_pfx12..." into n_pfx
 		note that stat_name does not have a terminating '\0' */
-		n_pfx = (num_ptr[0] - '0') * 10 + (num_ptr[1] - '0');
+		n_pfx = ulong(num_ptr[0] - '0') * 10 + ulong(num_ptr[1] - '0');
 
 		ulint	n_uniq = index->n_uniq;
 

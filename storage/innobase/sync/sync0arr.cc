@@ -1080,13 +1080,11 @@ sync_array_print_long_waits(
 	}
 
 	if (noticed) {
-		ibool	old_val;
-
 		fprintf(stderr,
 			"InnoDB: ###### Starts InnoDB Monitor"
 			" for 30 secs to print diagnostic info:\n");
 
-		old_val = srv_print_innodb_monitor;
+		my_bool old_val = srv_print_innodb_monitor;
 
 		/* If some crucial semaphore is reserved, then also the InnoDB
 		Monitor can hang, and we do not get diagnostics. Since in

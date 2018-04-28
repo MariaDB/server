@@ -115,7 +115,7 @@ struct Pool {
 		} else if (m_last < m_end) {
 
 			/* Initialise the remaining elements. */
-			init(m_end - m_last);
+			init(size_t(m_end - m_last));
 
 			ut_ad(!m_pqueue.empty());
 

@@ -355,8 +355,8 @@ trx_state_eq(
 
 /**********************************************************************//**
 Determines if the currently running transaction has been interrupted.
-@return TRUE if interrupted */
-ibool
+@return true if interrupted */
+bool
 trx_is_interrupted(
 /*===============*/
 	const trx_t*	trx);	/*!< in: transaction */
@@ -940,7 +940,7 @@ public:
 					contains a pointer to the latest file
 					name; this is NULL if binlog is not
 					used */
-	int64_t		mysql_log_offset;
+	ulonglong	mysql_log_offset;
 					/*!< if MySQL binlog is used, this
 					field contains the end offset of the
 					binlog entry */

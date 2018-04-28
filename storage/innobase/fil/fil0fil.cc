@@ -1068,7 +1068,7 @@ fil_space_extend_must_retry(
 	space->size += file_size - node->size;
 	node->size = file_size;
 	const ulint pages_in_MiB = node->size
-		& ~((1 << (20 - UNIV_PAGE_SIZE_SHIFT)) - 1);
+		& ~ulint((1U << (20U - srv_page_size_shift)) - 1);
 
 	fil_node_complete_io(node,IORequestRead);
 
@@ -1199,7 +1199,8 @@ fil_mutex_enter_and_prepare_for_io(
 			}
 		}
 
-		if (ulint size = ulint(UNIV_UNLIKELY(space->recv_size))) {
+		ulint size = space->recv_size;
+		if (UNIV_UNLIKELY(size != 0)) {
 			ut_ad(node);
 			bool	success;
 			if (fil_space_extend_must_retry(space, node, size,
@@ -2130,12 +2131,13 @@ fil_create_directory_for_tablename(
 	len = strlen(fil_path_to_mysql_datadir);
 	namend = strchr(name, '/');
 	ut_a(namend);
-	path = static_cast<char*>(ut_malloc_nokey(len + (namend - name) + 2));
+	path = static_cast<char*>(
+		ut_malloc_nokey(len + ulint(namend - name) + 2));
 
 	memcpy(path, fil_path_to_mysql_datadir, len);
 	path[len] = '/';
-	memcpy(path + len + 1, name, namend - name);
-	path[len + (namend - name) + 1] = 0;
+	memcpy(path + len + 1, name, ulint(namend - name));
+	path[len + ulint(namend - name) + 1] = 0;
 
 	os_normalize_path(path);
 
@@ -2339,9 +2341,9 @@ fil_op_replay_rename(
 	ut_a(namend != NULL);
 
 	char*		dir = static_cast<char*>(
-		ut_malloc_nokey(namend - new_name + 1));
+		ut_malloc_nokey(ulint(namend - new_name) + 1));
 
-	memcpy(dir, new_name, namend - new_name);
+	memcpy(dir, new_name, ulint(namend - new_name));
 	dir[namend - new_name] = '\0';
 
 	bool		success = os_file_create_directory(dir, false);
@@ -2350,7 +2352,7 @@ fil_op_replay_rename(
 	ulint		dirlen = 0;
 
 	if (const char* dirend = strrchr(dir, OS_PATH_SEPARATOR)) {
-		dirlen = dirend - dir + 1;
+		dirlen = ulint(dirend - dir) + 1;
 	}
 
 	ut_free(dir);
@@ -2369,7 +2371,7 @@ fil_op_replay_rename(
 		strlen(new_name + dirlen)
 		- 4 /* remove ".ibd" */);
 
-	ut_ad(new_table[namend - new_name - dirlen]
+	ut_ad(new_table[ulint(namend - new_name) - dirlen]
 	      == OS_PATH_SEPARATOR);
 #if OS_PATH_SEPARATOR != '/'
 	new_table[namend - new_name - dirlen] = '/';
@@ -3806,7 +3808,7 @@ fil_path_to_space_name(
 
 	while (const char* t = static_cast<const char*>(
 		       memchr(tablename, OS_PATH_SEPARATOR,
-			      end - tablename))) {
+			      ulint(end - tablename)))) {
 		dbname = tablename;
 		tablename = t + 1;
 	}
@@ -3818,7 +3820,7 @@ fil_path_to_space_name(
 	ut_ad(end - tablename > 4);
 	ut_ad(memcmp(end - 4, DOT_IBD, 4) == 0);
 
-	char*	name = mem_strdupl(dbname, end - dbname - 4);
+	char*	name = mem_strdupl(dbname, ulint(end - dbname) - 4);
 
 	ut_ad(name[tablename - dbname - 1] == OS_PATH_SEPARATOR);
 #if OS_PATH_SEPARATOR != '/'

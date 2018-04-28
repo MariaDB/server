@@ -689,8 +689,8 @@ instant_alter_column_possible(
 static bool is_non_const_value(Field* field)
 {
 	return field->default_value
-	       && field->default_value->flags & ~(VCOL_SESSION_FUNC
-						  | VCOL_TIME_FUNC);
+		&& field->default_value->flags
+		& uint(~(VCOL_SESSION_FUNC | VCOL_TIME_FUNC));
 }
 
 /** Set default value for the field.
@@ -762,7 +762,7 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	if (high_level_read_only) {
 		ha_alter_info->unsupported_reason =
-			innobase_get_err_msg(ER_READ_ONLY_MODE);
+			my_get_err_msg(ER_READ_ONLY_MODE);
 
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
@@ -773,7 +773,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		return an error too. This is how we effectively
 		deny adding too many columns to a table. */
 		ha_alter_info->unsupported_reason =
-			innobase_get_err_msg(ER_TOO_MANY_FIELDS);
+			my_get_err_msg(ER_TOO_MANY_FIELDS);
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
@@ -786,7 +786,7 @@ ha_innobase::check_if_supported_inplace_alter(
 
 		if (ha_alter_info->handler_flags
 		    & ALTER_STORED_COLUMN_TYPE) {
-			ha_alter_info->unsupported_reason = innobase_get_err_msg(
+			ha_alter_info->unsupported_reason = my_get_err_msg(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_COLUMN_TYPE);
 		}
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
@@ -796,7 +796,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	check_foreigns is turned off */
 	if ((ha_alter_info->handler_flags & ALTER_ADD_FOREIGN_KEY)
 	    && m_prebuilt->trx->check_foreigns) {
-		ha_alter_info->unsupported_reason = innobase_get_err_msg(
+		ha_alter_info->unsupported_reason = my_get_err_msg(
 			ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FK_CHECK);
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
@@ -820,7 +820,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	if ((ha_alter_info->handler_flags
 	     & ALTER_COLUMN_NOT_NULLABLE)
 	    && !thd_is_strict_mode(m_user_thd)) {
-		ha_alter_info->unsupported_reason = innobase_get_err_msg(
+		ha_alter_info->unsupported_reason = my_get_err_msg(
 			ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
@@ -830,7 +830,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	if ((ha_alter_info->handler_flags
 	     & (ALTER_ADD_PK_INDEX | ALTER_DROP_PK_INDEX))
 	    == ALTER_DROP_PK_INDEX) {
-		ha_alter_info->unsupported_reason = innobase_get_err_msg(
+		ha_alter_info->unsupported_reason = my_get_err_msg(
 			ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOPK);
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
@@ -847,7 +847,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		if (UNIV_UNLIKELY(my_primary_key >= MAX_KEY)
 		    && !dict_index_is_auto_gen_clust(
 			    dict_table_get_first_index(m_prebuilt->table))) {
-			ha_alter_info->unsupported_reason = innobase_get_err_msg(
+			ha_alter_info->unsupported_reason = my_get_err_msg(
 				ER_PRIMARY_CANT_HAVE_NULL);
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 		}
@@ -892,7 +892,7 @@ ha_innobase::check_if_supported_inplace_alter(
 	use "Copy" method. */
 	if (m_prebuilt->table->dict_frm_mismatch) {
 
-		ha_alter_info->unsupported_reason = innobase_get_err_msg(
+		ha_alter_info->unsupported_reason = my_get_err_msg(
 			ER_NO_SUCH_INDEX);
 		ib_push_frm_error(m_user_thd, m_prebuilt->table, altered_table,
 			n_indexes, true);
@@ -1009,7 +1009,7 @@ ha_innobase::check_if_supported_inplace_alter(
 				    system_charset_info,
 				    key_part->field->field_name.str,
 				    FTS_DOC_ID_COL_NAME)) {
-				ha_alter_info->unsupported_reason = innobase_get_err_msg(
+				ha_alter_info->unsupported_reason = my_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_HIDDEN_FTS);
 				DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 			}
@@ -1024,7 +1024,7 @@ ha_innobase::check_if_supported_inplace_alter(
 				column values during online ALTER. */
 				DBUG_ASSERT(key_part->field == altered_table
 					    -> found_next_number_field);
-				ha_alter_info->unsupported_reason = innobase_get_err_msg(
+				ha_alter_info->unsupported_reason = my_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_AUTOINC);
 				online = false;
 			}
@@ -1063,7 +1063,7 @@ ha_innobase::check_if_supported_inplace_alter(
 				    system_charset_info,
 				    ha_alter_info->index_drop_buffer[i]->name.str,
 				    FTS_DOC_ID_INDEX_NAME)) {
-				ha_alter_info->unsupported_reason = innobase_get_err_msg(
+				ha_alter_info->unsupported_reason = my_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_CHANGE_FTS);
 				DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 			}
@@ -1083,7 +1083,7 @@ ha_innobase::check_if_supported_inplace_alter(
 				    system_charset_info,
 				    (*fp)->field_name.str,
 				    FTS_DOC_ID_COL_NAME)) {
-				ha_alter_info->unsupported_reason = innobase_get_err_msg(
+				ha_alter_info->unsupported_reason = my_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_CHANGE_FTS);
 				DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 			}
@@ -1162,7 +1162,7 @@ ha_innobase::check_if_supported_inplace_alter(
 			}
 
 			ha_alter_info->unsupported_reason
-				= innobase_get_err_msg(
+				= my_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
 		} else if (!is_non_const_value(*af)) {
 
@@ -1214,14 +1214,14 @@ next_column:
 		refuse to rebuild the table natively altogether. */
 		if (m_prebuilt->table->fts) {
 cannot_create_many_fulltext_index:
-			ha_alter_info->unsupported_reason = innobase_get_err_msg(
+			ha_alter_info->unsupported_reason = my_get_err_msg(
 				ER_INNODB_FT_LIMIT);
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 		}
 
 		if (innobase_spatial_exist(altered_table)) {
 			ha_alter_info->unsupported_reason =
-				innobase_get_err_msg(
+				my_get_err_msg(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
 		} else if (!innobase_fulltext_exist(altered_table)) {
 			/* MDEV-14341 FIXME: Remove this limitation. */
@@ -1229,7 +1229,7 @@ cannot_create_many_fulltext_index:
 				"online rebuild with indexed virtual columns";
 		} else {
 			ha_alter_info->unsupported_reason =
-				innobase_get_err_msg(
+				my_get_err_msg(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FTS);
 		}
 	}
@@ -1261,12 +1261,12 @@ cannot_create_many_fulltext_index:
 					goto cannot_create_many_fulltext_index;
 				}
 				add_fulltext = true;
-				ha_alter_info->unsupported_reason = innobase_get_err_msg(
+				ha_alter_info->unsupported_reason = my_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_FTS);
 				online = false;
 			}
 			if (online && (key->flags & HA_SPATIAL)) {
-				ha_alter_info->unsupported_reason = innobase_get_err_msg(
+				ha_alter_info->unsupported_reason = my_get_err_msg(
 					ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_GIS);
 				online = false;
 			}
@@ -2797,7 +2797,7 @@ innobase_create_key_defs(
 			index->ind_type = DICT_CLUSTERED;
 			index->name = innobase_index_reserve_name;
 			index->rebuild = true;
-			index->key_number = ~0;
+			index->key_number = ~0U;
 			primary_key_number = ULINT_UNDEFINED;
 			goto created_clustered;
 		} else {
@@ -3248,7 +3248,7 @@ innobase_build_col_map(
 
 	ulint*	col_map = static_cast<ulint*>(
 		mem_heap_alloc(
-			heap, (old_table->n_cols + old_table->n_v_cols)
+			heap, unsigned(old_table->n_cols + old_table->n_v_cols)
 			* sizeof *col_map));
 
 	List_iterator_fast<Create_field> cf_it(
@@ -3591,10 +3591,11 @@ innobase_pk_order_preserved(
 		const bool	old_pk_column = old_field < old_n_uniq;
 
 		if (old_pk_column) {
-			new_field_order = old_field;
+			new_field_order = lint(old_field);
 		} else if (innobase_pk_col_is_existing(new_col_no, col_map,
 						       old_n_cols)) {
-			new_field_order = old_n_uniq + existing_field_count++;
+			new_field_order = lint(old_n_uniq
+					       + existing_field_count++);
 		} else {
 			/* Skip newly added column. */
 			continue;
@@ -4168,11 +4169,11 @@ innobase_add_virtual_try(
 	}
 
 
-	ulint	n_col = user_table->n_cols - DATA_N_SYS_COLS;
-	ulint	n_v_col = user_table->n_v_cols
+	ulint	n_col = unsigned(user_table->n_cols) - DATA_N_SYS_COLS;
+	ulint	n_v_col = unsigned(user_table->n_v_cols)
 		+ ctx->num_to_add_vcol - ctx->num_to_drop_vcol;
 	ulint	new_n = dict_table_encode_n_col(n_col, n_v_col)
-		+ ((user_table->flags & DICT_TF_COMPACT) << 31);
+		+ (unsigned(user_table->flags & DICT_TF_COMPACT) << 31);
 
 	return innodb_update_n_cols(user_table, new_n, trx);
 }
@@ -4291,14 +4292,15 @@ innobase_add_instant_try(
 	}
 
 	if (innodb_update_n_cols(user_table, dict_table_encode_n_col(
-					 user_table->n_cols - DATA_N_SYS_COLS,
+					 unsigned(user_table->n_cols)
+					 - DATA_N_SYS_COLS,
 					 user_table->n_v_cols)
 				 | (user_table->flags & DICT_TF_COMPACT) << 31,
 				 trx)) {
 		return true;
 	}
 
-	unsigned i = user_table->n_cols - DATA_N_SYS_COLS;
+	unsigned i = unsigned(user_table->n_cols) - DATA_N_SYS_COLS;
 	byte trx_id[DATA_TRX_ID_LEN], roll_ptr[DATA_ROLL_PTR_LEN];
 	dfield_set_data(dtuple_get_nth_field(row, i++), field_ref_zero,
 			DATA_ROW_ID_LEN);
@@ -4537,11 +4539,11 @@ innobase_drop_one_virtual_sys_columns(
 	for (ulint i = v_col->v_pos + 1; i < table->n_v_cols; i++) {
 		dict_v_col_t*   t_col = dict_table_get_nth_v_col(table, i);
 		ulint		old_p = dict_create_v_col_pos(
-					t_col->v_pos - n_prev_dropped,
-					t_col->m_col.ind - n_prev_dropped);
+			t_col->v_pos - n_prev_dropped,
+			t_col->m_col.ind - n_prev_dropped);
 		ulint		new_p = dict_create_v_col_pos(
-					t_col->v_pos - 1 - n_prev_dropped,
-					t_col->m_col.ind - 1 - n_prev_dropped);
+			t_col->v_pos - 1 - n_prev_dropped,
+			ulint(t_col->m_col.ind) - 1 - n_prev_dropped);
 
 		error = innobase_update_v_pos_sys_columns(
 			table, old_p, new_p, trx);
@@ -4637,10 +4639,11 @@ innobase_drop_virtual_try(
 	}
 
 
-	ulint	n_col = user_table->n_cols - DATA_N_SYS_COLS;
-	ulint	n_v_col = user_table->n_v_cols - ctx->num_to_drop_vcol;
+	ulint	n_col = unsigned(user_table->n_cols) - DATA_N_SYS_COLS;
+	ulint	n_v_col = unsigned(user_table->n_v_cols)
+		- ctx->num_to_drop_vcol;
 	ulint	new_n = dict_table_encode_n_col(n_col, n_v_col)
-		+ ((user_table->flags & DICT_TF_COMPACT) << 31);
+		| ((user_table->flags & DICT_TF_COMPACT) << 31);
 
 	return innodb_update_n_cols(user_table, new_n, trx);
 }
@@ -5236,7 +5239,7 @@ new_clustered_failed:
 			goto not_instant_add_column;
 		}
 
-		for (uint i = ctx->old_table->n_cols - DATA_N_SYS_COLS;
+		for (uint i = uint(ctx->old_table->n_cols) - DATA_N_SYS_COLS;
 		     i--; ) {
 			if (ctx->col_map[i] != i) {
 				goto not_instant_add_column;

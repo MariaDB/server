@@ -308,7 +308,7 @@ cmp_gis_field(
 		return(cmp_geometry_field(DATA_GEOMETRY, DATA_GIS_MBR,
 					  a, a_length, b, b_length));
 	} else {
-		return(rtree_key_cmp(mode, a, a_length, b, b_length));
+		return rtree_key_cmp(mode, a, int(a_length), b, int(b_length));
 	}
 }
 

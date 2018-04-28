@@ -396,7 +396,8 @@ page_get_middle_rec(
 /*================*/
 	page_t*	page)	/*!< in: page */
 {
-	ulint	middle = (page_get_n_recs(page) + PAGE_HEAP_NO_USER_LOW) / 2;
+	ulint	middle = (ulint(page_get_n_recs(page))
+			  + PAGE_HEAP_NO_USER_LOW) / 2;
 
 	return(page_rec_get_nth(page, middle));
 }
@@ -1043,7 +1044,7 @@ page_mem_free(
 		page_zip_dir_delete(page_zip, rec, index, offsets, free);
 	} else {
 		page_header_set_field(page, page_zip, PAGE_N_RECS,
-				      page_get_n_recs(page) - 1);
+				      ulint(page_get_n_recs(page)) - 1);
 	}
 }
 

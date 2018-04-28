@@ -206,7 +206,7 @@ opt_look_for_col_in_comparison_before(
 
 			if (opt_check_exp_determined_before(exp, sel_node,
 							    nth_table)) {
-				*op = search_cond->func;
+				*op = ulint(search_cond->func);
 
 				return(exp);
 			}
@@ -225,7 +225,8 @@ opt_look_for_col_in_comparison_before(
 
 			if (opt_check_exp_determined_before(exp, sel_node,
 							    nth_table)) {
-				*op = opt_invert_cmp_op(search_cond->func);
+				*op = ulint(opt_invert_cmp_op(
+						    search_cond->func));
 
 				return(exp);
 			}

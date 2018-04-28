@@ -477,7 +477,7 @@ row_mysql_store_col_in_innobase_format(
 			case 4:
 				/* space=0x00000020 */
 				/* Trim "half-chars", just in case. */
-				col_len &= ~3;
+				col_len &= ~3U;
 
 				while (col_len >= 4
 				       && ptr[col_len - 4] == 0x00
@@ -490,7 +490,7 @@ row_mysql_store_col_in_innobase_format(
 			case 2:
 				/* space=0x0020 */
 				/* Trim "half-chars", just in case. */
-				col_len &= ~1;
+				col_len &= ~1U;
 
 				while (col_len >= 2 && ptr[col_len - 2] == 0x00
 				       && ptr[col_len - 1] == 0x20) {
@@ -1621,7 +1621,7 @@ row_create_update_node_for_mysql(
 
 	node = upd_node_create(heap);
 
-	node->in_mysql_interface = TRUE;
+	node->in_mysql_interface = true;
 	node->is_delete = NO_DELETE;
 	node->searched_update = FALSE;
 	node->select = NULL;
@@ -2581,7 +2581,7 @@ row_create_index_for_mysql(
 		if (index) {
 			ut_ad(!index->is_instant());
 			index->n_core_null_bytes = UT_BITS_IN_BYTES(
-				index->n_nullable);
+				unsigned(index->n_nullable));
 
 			err = dict_create_index_tree_in_mem(index, trx);
 

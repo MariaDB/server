@@ -101,12 +101,10 @@ dict_create_sys_tables_tuple(
 
 	/* If there is any virtual column, encode it in N_COLS */
 	mach_write_to_4(ptr, dict_table_encode_n_col(
-				static_cast<ulint>(table->n_cols
-						   - DATA_N_SYS_COLS),
-				static_cast<ulint>(table->n_v_def))
-			| ((table->flags & DICT_TF_COMPACT) << 31));
+				ulint(table->n_cols - DATA_N_SYS_COLS),
+				ulint(table->n_v_def))
+			| (ulint(table->flags & DICT_TF_COMPACT) << 31));
 	dfield_set_data(dfield, ptr, 4);
-
 
 	/* 5: TYPE (table flags) -----------------------------*/
 	dfield = dtuple_get_nth_field(
@@ -1350,9 +1348,10 @@ dict_create_index_step(
 		      == ((dict_index_is_clust(node->index)
 			   && node->table->supports_instant())
 			  ? dict_index_t::NO_CORE_NULL_BYTES
-			  : UT_BITS_IN_BYTES(node->index->n_nullable)));
+			  : UT_BITS_IN_BYTES(
+				  unsigned(node->index->n_nullable))));
 		node->index->n_core_null_bytes = UT_BITS_IN_BYTES(
-			node->index->n_nullable);
+			unsigned(node->index->n_nullable));
 		node->state = INDEX_CREATE_INDEX_TREE;
 	}
 
@@ -1931,7 +1930,8 @@ dict_create_add_foreign_to_dictionary(
 				  foreign->referenced_table_name);
 
 	pars_info_add_int4_literal(info, "n_cols",
-				   foreign->n_fields + (foreign->type << 24));
+				   ulint(foreign->n_fields)
+				   | (ulint(foreign->type) << 24));
 
 	DBUG_PRINT("dict_create_add_foreign_to_dictionary",
 		   ("'%s', '%s', '%s', %d", foreign->id, name,

@@ -4044,7 +4044,7 @@ buf_block_from_ahi(const byte* ptr)
 		chunk = (--it)->second;
 	}
 
-	ulint		offs = ptr - chunk->blocks->frame;
+	ulint		offs = ulint(ptr - chunk->blocks->frame);
 
 	offs >>= UNIV_PAGE_SIZE_SHIFT;
 
@@ -5336,7 +5336,7 @@ buf_page_init_for_read(
 	buf_page_t*	watch_page;
 	rw_lock_t*	hash_lock;
 	mtr_t		mtr;
-	ibool		lru	= FALSE;
+	bool		lru	= false;
 	void*		data;
 	buf_pool_t*	buf_pool = buf_pool_get(page_id);
 
@@ -5627,7 +5627,7 @@ buf_page_create(
 
 	if (page_size.is_compressed()) {
 		void*	data;
-		ibool	lru;
+		bool	lru;
 
 		/* Prevent race conditions during buf_buddy_alloc(),
 		which may release and reacquire buf_pool->mutex,
@@ -5986,7 +5986,7 @@ buf_page_io_complete(buf_page_t* bpage, bool dblwr, bool evict)
 			my_atomic_addlint(&buf_pool->n_pend_unzip, 1);
 			ibool ok = buf_zip_decompress((buf_block_t*) bpage,
 						      FALSE);
-			my_atomic_addlint(&buf_pool->n_pend_unzip, -1);
+			my_atomic_addlint(&buf_pool->n_pend_unzip, ulint(-1));
 
 			if (!ok) {
 				ib::info() << "Page "

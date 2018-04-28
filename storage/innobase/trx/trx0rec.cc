@@ -150,7 +150,7 @@ static ulint trx_undo_left(const buf_block_t* undo_block, const byte* ptr)
 {
 	/* The 10 is a safety margin, in case we have some small
 	calculation error below */
-	return srv_page_size - (ptr - undo_block->frame)
+	return srv_page_size - ulint(ptr - undo_block->frame)
 		- (10 + FIL_PAGE_DATA_END);
 }
 
@@ -191,7 +191,7 @@ trx_undo_page_set_next_prev_and_add(
 	mach_write_to_2(ptr, first_free);
 	ptr += 2;
 
-	end_of_rec = ptr - undo_block->frame;
+	end_of_rec = ulint(ptr - undo_block->frame);
 
 	/* Write offset of the next undo log record */
 	mach_write_to_2(undo_block->frame + first_free, end_of_rec);
@@ -270,7 +270,7 @@ trx_undo_log_v_idx(
 		ptr += mach_write_compressed(ptr, v_index.nth_field);
 	}
 
-	mach_write_to_2(old_ptr, ptr - old_ptr);
+	mach_write_to_2(old_ptr, ulint(ptr - old_ptr));
 
 	return(ptr);
 }
@@ -453,7 +453,7 @@ trx_undo_report_insert_virtual(
 	}
 
 	/* Always mark the end of the log with 2 bytes length field */
-	mach_write_to_2(start, *ptr - start);
+	mach_write_to_2(start, ulint(*ptr - start));
 
 	return(true);
 }
@@ -505,7 +505,7 @@ trx_undo_page_report_insert(
 	/*----------------------------------------*/
 	/* Store then the fields required to uniquely determine the record
 	to be inserted in the clustered index */
-	if (UNIV_UNLIKELY(clust_entry->info_bits)) {
+	if (UNIV_UNLIKELY(clust_entry->info_bits != 0)) {
 		ut_ad(clust_entry->info_bits == REC_INFO_DEFAULT_ROW);
 		ut_ad(index->is_instant());
 		ut_ad(undo_block->frame[first_free + 2]
@@ -782,7 +782,7 @@ trx_undo_page_report_modify_ext(
 	}
 
 	/* Encode spatial status into length. */
-	spatial_len |= spatial_status << SPATIAL_STATUS_SHIFT;
+	spatial_len |= ulint(spatial_status) << SPATIAL_STATUS_SHIFT;
 
 	if (spatial_status == SPATIAL_ONLY) {
 		/* If the column is only used by gis index, log its
@@ -1402,7 +1402,7 @@ already_logged:
 			}
 		}
 
-		mach_write_to_2(old_ptr, ptr - old_ptr);
+		mach_write_to_2(old_ptr, ulint(ptr - old_ptr));
 
 		if (row_heap) {
 			mem_heap_free(row_heap);
@@ -1417,7 +1417,7 @@ already_logged:
 
 	mach_write_to_2(ptr, first_free);
 	ptr += 2;
-	const ulint new_free = ptr - undo_block->frame;
+	const ulint new_free = ulint(ptr - undo_block->frame);
 	mach_write_to_2(undo_block->frame + first_free, new_free);
 
 	mach_write_to_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE

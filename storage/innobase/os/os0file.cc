@@ -1031,7 +1031,7 @@ AIOHandler::post_io_processing(Slot* slot)
 	ut_ad(slot->is_reserved);
 
 	/* Total bytes read so far */
-	ulint	n_bytes = (slot->ptr - slot->buf) + slot->n_bytes;
+	ulint	n_bytes = ulint(slot->ptr - slot->buf) + slot->n_bytes;
 
 	return(n_bytes == slot->original_len ? DB_SUCCESS : DB_FAIL);
 }
@@ -1327,7 +1327,7 @@ os_file_make_new_pathname(
 	/* Find the offset of the last slash. We will strip off the
 	old basename.ibd which starts after that slash. */
 	last_slash = strrchr((char*) old_path, OS_PATH_SEPARATOR);
-	dir_len = last_slash ? last_slash - old_path : strlen(old_path);
+	dir_len = last_slash ? ulint(last_slash - old_path) : strlen(old_path);
 
 	/* allocate a new path and move the old directory path to it. */
 	new_path_len = dir_len + strlen(base_name) + sizeof "/.ibd";
@@ -1474,7 +1474,7 @@ os_file_get_parent_dir(
 
 	/* Non-trivial directory component */
 
-	return(mem_strdupl(path, last_slash - path));
+	return(mem_strdupl(path, ulint(last_slash - path)));
 }
 #ifdef UNIV_ENABLE_UNIT_TEST_GET_PARENT_DIR
 
@@ -3288,7 +3288,7 @@ os_file_get_size(
 		/* st_blocks is in 512 byte sized blocks */
 		file_size.m_alloc_size = s.st_blocks * 512;
 	} else {
-		file_size.m_total_size = ~0;
+		file_size.m_total_size = ~0U;
 		file_size.m_alloc_size = (os_offset_t) errno;
 	}
 
@@ -4847,7 +4847,7 @@ os_file_io(
 	os_offset_t	offset,
 	dberr_t*	err)
 {
-	ulint		original_n = n;
+	ssize_t		original_n = ssize_t(n);
 	IORequest	type = in_type;
 	ssize_t		bytes_returned = 0;
 
@@ -4862,7 +4862,7 @@ os_file_io(
 
 			break;
 
-		} else if ((ulint) n_bytes + bytes_returned == n) {
+		} else if (n_bytes + bytes_returned == ssize_t(n)) {
 
 			bytes_returned += n_bytes;
 
@@ -4881,9 +4881,9 @@ os_file_io(
 
 		/* Handle partial read/write. */
 
-		ut_ad((ulint) n_bytes + bytes_returned < n);
+		ut_ad(ulint(n_bytes + bytes_returned) < n);
 
-		bytes_returned += (ulint) n_bytes;
+		bytes_returned += n_bytes;
 
 		if (!type.is_partial_io_warning_disabled()) {
 

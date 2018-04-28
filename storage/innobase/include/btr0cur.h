@@ -982,11 +982,11 @@ We store locally a long enough prefix of each column so that we can determine
 the ordering parts of each index record without looking into the externally
 stored part. */
 /*-------------------------------------- @{ */
-#define BTR_EXTERN_SPACE_ID		0	/*!< space id where stored */
-#define BTR_EXTERN_PAGE_NO		4	/*!< page no where stored */
-#define BTR_EXTERN_OFFSET		8	/*!< offset of BLOB header
+#define BTR_EXTERN_SPACE_ID		0U	/*!< space id where stored */
+#define BTR_EXTERN_PAGE_NO		4U	/*!< page no where stored */
+#define BTR_EXTERN_OFFSET		8U	/*!< offset of BLOB header
 						on that page */
-#define BTR_EXTERN_LEN			12	/*!< 8 bytes containing the
+#define BTR_EXTERN_LEN			12U	/*!< 8 bytes containing the
 						length of the externally
 						stored part of the BLOB.
 						The 2 highest bits are

@@ -655,8 +655,9 @@ row_log_table_delete(
 		fields of the record. */
 		heap = mem_heap_create(
 			DATA_TRX_ID_LEN
-			+ DTUPLE_EST_ALLOC(new_index->n_uniq + 2));
-		old_pk = tuple = dtuple_create(heap, new_index->n_uniq + 2);
+			+ DTUPLE_EST_ALLOC(unsigned(new_index->n_uniq) + 2));
+		old_pk = tuple = dtuple_create(
+			heap, unsigned(new_index->n_uniq) + 2);
 		dict_index_copy_types(tuple, new_index, tuple->n_fields);
 		dtuple_set_n_fields_cmp(tuple, new_index->n_uniq);
 
@@ -1282,7 +1283,7 @@ row_log_table_get_pk(
 
 			if (!offsets) {
 				size += (1 + REC_OFFS_HEADER_SIZE
-					 + index->n_fields)
+					 + unsigned(index->n_fields))
 					* sizeof *offsets;
 			}
 
@@ -2464,7 +2465,7 @@ row_log_table_apply_op(
 		if (next_mrec > mrec_end) {
 			return(NULL);
 		} else {
-			log->head.total += next_mrec - mrec_start;
+			log->head.total += ulint(next_mrec - mrec_start);
 			*error = row_log_table_apply_insert(
 				thr, mrec, offsets, offsets_heap,
 				heap, dup);
@@ -2489,7 +2490,8 @@ row_log_table_apply_op(
 		/* The ROW_T_DELETE record was converted by
 		rec_convert_dtuple_to_temp() using new_index. */
 		ut_ad(!new_index->is_instant());
-		rec_offs_set_n_fields(offsets, new_index->n_uniq + 2);
+		rec_offs_set_n_fields(offsets,
+				      unsigned(new_index->n_uniq) + 2);
 		rec_init_offsets_temp(mrec, new_index, offsets);
 		next_mrec = mrec + rec_offs_data_size(offsets) + ext_size;
 
@@ -2497,7 +2499,7 @@ row_log_table_apply_op(
 			return(NULL);
 		}
 
-		log->head.total += next_mrec - mrec_start;
+		log->head.total += ulint(next_mrec - mrec_start);
 
 		/* If there are external fields, retrieve those logged
 		prefix info and reconstruct the row_ext_t */
@@ -2603,7 +2605,8 @@ row_log_table_apply_op(
 			/* The old_pk prefix was converted by
 			rec_convert_dtuple_to_temp() using new_index. */
 			ut_ad(!new_index->is_instant());
-			rec_offs_set_n_fields(offsets, new_index->n_uniq + 2);
+			rec_offs_set_n_fields(offsets,
+					      unsigned(new_index->n_uniq) + 2);
 			rec_init_offsets_temp(mrec, new_index, offsets);
 
 			next_mrec = mrec + rec_offs_data_size(offsets);
@@ -2613,7 +2616,8 @@ row_log_table_apply_op(
 
 			/* Copy the PRIMARY KEY fields and
 			DB_TRX_ID, DB_ROLL_PTR from mrec to old_pk. */
-			old_pk = dtuple_create(heap, new_index->n_uniq + 2);
+			old_pk = dtuple_create(
+				heap, unsigned(new_index->n_uniq) + 2);
 			dict_index_copy_types(old_pk, new_index,
 					      old_pk->n_fields);
 
@@ -2670,7 +2674,7 @@ row_log_table_apply_op(
 		}
 
 		ut_ad(next_mrec <= mrec_end);
-		log->head.total += next_mrec - mrec_start;
+		log->head.total += ulint(next_mrec - mrec_start);
 		dtuple_set_n_fields_cmp(old_pk, new_index->n_uniq);
 
 		*error = row_log_table_apply_update(
@@ -2939,7 +2943,7 @@ all_done:
 		ut_ad(mrec_end < (&index->online_log->head.buf)[1]);
 
 		memcpy((mrec_t*) mrec_end, next_mrec,
-		       (&index->online_log->head.buf)[1] - mrec_end);
+		       ulint((&index->online_log->head.buf)[1] - mrec_end));
 		mrec = row_log_table_apply_op(
 			thr, new_trx_id_col,
 			dup, &error, offsets_heap, heap,
@@ -2956,7 +2960,7 @@ all_done:
 		it should proceed beyond the old end of the buffer. */
 		ut_a(mrec > mrec_end);
 
-		index->online_log->head.bytes = mrec - mrec_end;
+		index->online_log->head.bytes = ulint(mrec - mrec_end);
 		next_mrec += index->online_log->head.bytes;
 	}
 
@@ -3064,7 +3068,8 @@ process_next_block:
 			goto next_block;
 		} else if (next_mrec != NULL) {
 			ut_ad(next_mrec < next_mrec_end);
-			index->online_log->head.bytes += next_mrec - mrec;
+			index->online_log->head.bytes
+				+= ulint(next_mrec - mrec);
 		} else if (has_index_lock) {
 			/* When mrec is within tail.block, it should
 			be a complete record, because we are holding
@@ -3076,8 +3081,8 @@ process_next_block:
 			goto unexpected_eof;
 		} else {
 			memcpy(index->online_log->head.buf, mrec,
-			       mrec_end - mrec);
-			mrec_end += index->online_log->head.buf - mrec;
+			       ulint(mrec_end - mrec));
+			mrec_end += ulint(index->online_log->head.buf - mrec);
 			mrec = index->online_log->head.buf;
 			goto process_next_block;
 		}
@@ -3798,7 +3803,7 @@ all_done:
 		ut_ad(mrec_end < (&index->online_log->head.buf)[1]);
 
 		memcpy((mrec_t*) mrec_end, next_mrec,
-		       (&index->online_log->head.buf)[1] - mrec_end);
+		       ulint((&index->online_log->head.buf)[1] - mrec_end));
 		mrec = row_log_apply_op(
 			index, dup, &error, offsets_heap, heap,
 			has_index_lock, index->online_log->head.buf,
@@ -3814,7 +3819,7 @@ all_done:
 		it should proceed beyond the old end of the buffer. */
 		ut_a(mrec > mrec_end);
 
-		index->online_log->head.bytes = mrec - mrec_end;
+		index->online_log->head.bytes = ulint(mrec - mrec_end);
 		next_mrec += index->online_log->head.bytes;
 	}
 
@@ -3912,7 +3917,8 @@ process_next_block:
 			goto next_block;
 		} else if (next_mrec != NULL) {
 			ut_ad(next_mrec < next_mrec_end);
-			index->online_log->head.bytes += next_mrec - mrec;
+			index->online_log->head.bytes
+				+= ulint(next_mrec - mrec);
 		} else if (has_index_lock) {
 			/* When mrec is within tail.block, it should
 			be a complete record, because we are holding
@@ -3924,8 +3930,8 @@ process_next_block:
 			goto unexpected_eof;
 		} else {
 			memcpy(index->online_log->head.buf, mrec,
-			       mrec_end - mrec);
-			mrec_end += index->online_log->head.buf - mrec;
+			       ulint(mrec_end - mrec));
+			mrec_end += ulint(index->online_log->head.buf - mrec);
 			mrec = index->online_log->head.buf;
 			goto process_next_block;
 		}

@@ -115,7 +115,7 @@ struct table_name_t
 	}
 
 	/** @return the length of the schema name, in bytes */
-	size_t dblen() const { return dbend() - m_name; }
+	size_t dblen() const { return size_t(dbend() - m_name); }
 
 	/** Determine the filename-safe encoded table name.
 	@return	the filename-safe encoded table name */

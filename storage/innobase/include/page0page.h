@@ -158,9 +158,9 @@ Otherwise written as 0. @see PAGE_ROOT_AUTO_INC */
 /*-----------------------------*/
 
 /* Heap numbers */
-#define PAGE_HEAP_NO_INFIMUM	0	/* page infimum */
-#define PAGE_HEAP_NO_SUPREMUM	1	/* page supremum */
-#define PAGE_HEAP_NO_USER_LOW	2	/* first user record in
+#define PAGE_HEAP_NO_INFIMUM	0U	/* page infimum */
+#define PAGE_HEAP_NO_SUPREMUM	1U	/* page supremum */
+#define PAGE_HEAP_NO_USER_LOW	2U	/* first user record in
 					creation (insertion) order,
 					not necessarily collation order;
 					this record may have been deleted */

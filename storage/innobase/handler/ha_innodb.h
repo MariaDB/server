@@ -132,8 +132,6 @@ public:
 
 	double read_time(uint index, uint ranges, ha_rows rows);
 
-	longlong get_memory_buffer_size() const;
-
 	int delete_all_rows();
 
 	int write_row(uchar * buf);
@@ -912,19 +910,6 @@ innodb_base_col_setup_for_stored(
 #define normalize_table_name(norm_name, name)           \
 	create_table_info_t::normalize_table_name_low(norm_name, name, FALSE)
 #endif /* _WIN32 */
-
-/** Converts an InnoDB error code to a MySQL error code.
-Also tells to MySQL about a possible transaction rollback inside InnoDB caused
-by a lock wait timeout or a deadlock.
-@param[in]	error	InnoDB error code.
-@param[in]	flags	InnoDB table flags or 0.
-@param[in]	thd	MySQL thread or NULL.
-@return MySQL error code */
-int
-convert_error_code_to_mysql(
-	dberr_t	error,
-	ulint	flags,
-	THD*	thd);
 
 /** Converts a search mode flag understood by MySQL to a flag understood
 by InnoDB.

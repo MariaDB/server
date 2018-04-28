@@ -2325,7 +2325,7 @@ btr_page_get_split_rec(
 	/* free_space is now the free space of a created new page */
 
 	total_data   = page_get_data_size(page) + insert_size;
-	total_n_recs = page_get_n_recs(page) + 1;
+	total_n_recs = ulint(page_get_n_recs(page)) + 1;
 	ut_ad(total_n_recs >= 2);
 	total_space  = total_data + page_dir_calc_reserved_space(total_n_recs);
 
@@ -2436,7 +2436,7 @@ btr_page_insert_fits(
 	/* free_space is now the free space of a created new page */
 
 	total_data   = page_get_data_size(page) + insert_size;
-	total_n_recs = page_get_n_recs(page) + 1;
+	total_n_recs = ulint(page_get_n_recs(page)) + 1;
 
 	/* We determine which records (from rec to end_rec, not including
 	end_rec) will end up on the other half page from tuple when it is
@@ -3536,7 +3536,8 @@ btr_lift_page_up(
 		ulint*		offsets	= NULL;
 		mem_heap_t*	heap	= mem_heap_create(
 			sizeof(*offsets)
-			* (REC_OFFS_HEADER_SIZE + 1 + 1 + index->n_fields));
+			* (REC_OFFS_HEADER_SIZE + 1 + 1
+			   + unsigned(index->n_fields)));
 		buf_block_t*	b;
 
 		if (dict_index_is_spatial(index)) {

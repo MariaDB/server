@@ -347,7 +347,7 @@ ordinary:
 		/* fall through */
 	case REC_LEAF_TEMP_COLUMNS_ADDED:
 		ut_ad(index->is_instant());
-		n_fields = index->n_core_fields + 1
+		n_fields = unsigned(index->n_core_fields) + 1
 			+ rec_get_n_add_field(nulls);
 		ut_ad(n_fields <= index->n_fields);
 		const ulint n_nullable = index->get_n_nullable(n_fields);
@@ -448,7 +448,7 @@ resolved:
 	} while (++i < rec_offs_n_fields(offsets));
 
 	*rec_offs_base(offsets)
-		= (rec - (lens + 1)) | REC_OFFS_COMPACT | any;
+		= ulint(rec - (lens + 1)) | REC_OFFS_COMPACT | any;
 }
 
 #ifdef UNIV_DEBUG
@@ -594,7 +594,7 @@ rec_init_offsets(
 		const byte*	lens;
 		dict_field_t*	field;
 		ulint		null_mask;
-		ulint		status = rec_get_status(rec);
+		rec_comp_status_t status = rec_get_status(rec);
 		ulint		n_node_ptr_field = ULINT_UNDEFINED;
 
 		switch (UNIV_EXPECT(status, REC_STATUS_ORDINARY)) {
@@ -710,7 +710,7 @@ resolved:
 		} while (++i < rec_offs_n_fields(offsets));
 
 		*rec_offs_base(offsets)
-			= (rec - (lens + 1)) | REC_OFFS_COMPACT;
+			= ulint(rec - (lens + 1)) | REC_OFFS_COMPACT;
 	} else {
 		/* Old-style record: determine extra size and end offsets */
 		offs = REC_N_OLD_EXTRA_BYTES;
@@ -910,7 +910,7 @@ rec_get_offsets_reverse(
 	ut_ad(dict_table_is_comp(index->table));
 	ut_ad(!index->is_instant());
 
-	if (UNIV_UNLIKELY(node_ptr)) {
+	if (UNIV_UNLIKELY(node_ptr != 0)) {
 		n_node_ptr_field =
 			dict_index_get_n_unique_in_tree_nonleaf(index);
 		n = n_node_ptr_field + 1;
@@ -996,7 +996,7 @@ resolved:
 	} while (++i < rec_offs_n_fields(offsets));
 
 	ut_ad(lens >= extra);
-	*rec_offs_base(offsets) = (lens - extra + REC_N_NEW_EXTRA_BYTES)
+	*rec_offs_base(offsets) = (ulint(lens - extra) + REC_N_NEW_EXTRA_BYTES)
 		| REC_OFFS_COMPACT | any_ext;
 }
 
@@ -1484,7 +1484,8 @@ rec_convert_dtuple_to_rec_comp(
 		lens = nulls - (index->is_instant()
 				? UT_BITS_IN_BYTES(index->get_n_nullable(
 							   n_fields))
-				: UT_BITS_IN_BYTES(index->n_nullable));
+				: UT_BITS_IN_BYTES(
+					unsigned(index->n_nullable)));
 		break;
 	case REC_STATUS_NODE_PTR:
 		ut_ad(!temp);
@@ -1505,7 +1506,7 @@ rec_convert_dtuple_to_rec_comp(
 
 	end = rec;
 	/* clear the SQL-null flags */
-	memset(lens + 1, 0, nulls - lens);
+	memset(lens + 1, 0, ulint(nulls - lens));
 
 	/* Store the data and the offsets */
 
@@ -1883,7 +1884,7 @@ rec_copy_prefix_to_buf(
 		an instant ADD COLUMN operation. */
 		ut_ad(index->is_instant() || page_rec_is_default_row(rec));
 		nulls = &rec[-REC_N_NEW_EXTRA_BYTES];
-		const ulint n_rec = index->n_core_fields + 1
+		const ulint n_rec = ulint(index->n_core_fields) + 1
 			+ rec_get_n_add_field(nulls);
 		const uint n_nullable = index->get_n_nullable(n_rec);
 		lens = --nulls - UT_BITS_IN_BYTES(n_nullable);
@@ -1946,7 +1947,7 @@ rec_copy_prefix_to_buf(
 
 	UNIV_PREFETCH_R(rec + prefix_len);
 
-	prefix_len += rec - (lens + 1);
+	prefix_len += ulint(rec - (lens + 1));
 
 	if ((*buf == NULL) || (*buf_size < prefix_len)) {
 		ut_free(*buf);

@@ -2115,7 +2115,7 @@ int trx_recover_for_mysql(XID *xid_list, uint len)
   if (arg.count)
     ib::info() << arg.count
                << " transactions in prepared state after recovery";
-  return(arg.count);
+  return int(arg.count);
 }
 
 

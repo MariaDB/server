@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,7 +31,7 @@ Created 03/11/2014 Shaohua Wang
 #include "ibuf0ibuf.h"
 
 /** Innodb B-tree index fill factor for bulk load. */
-long	innobase_fill_factor;
+uint	innobase_fill_factor;
 
 /** Initialize members, allocate page if needed and start mtr.
 Note: we commit all mtrs on failure.
@@ -462,15 +462,14 @@ PageBulk::copyOut(
 				  page_rec_is_leaf(split_rec),
 				  ULINT_UNDEFINED, &m_heap);
 
-	m_free_space += rec_get_end(last_rec, offsets)
-		- m_heap_top
+	m_free_space += ulint(rec_get_end(last_rec, offsets) - m_heap_top)
 		+ page_dir_calc_reserved_space(m_rec_no)
 		- page_dir_calc_reserved_space(n);
-	ut_ad(m_free_space > 0);
+	ut_ad(lint(m_free_space) > 0);
 	m_rec_no = n;
 
 #ifdef UNIV_DEBUG
-	m_total_data -= rec_get_end(last_rec, offsets) - m_heap_top;
+	m_total_data -= ulint(rec_get_end(last_rec, offsets) - m_heap_top);
 #endif /* UNIV_DEBUG */
 }
 

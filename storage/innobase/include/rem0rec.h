@@ -738,9 +738,7 @@ rec_offs_any_flag(const ulint* offsets, ulint flag)
 /** Determine if the offsets are for a record containing off-page columns.
 @param[in]	offsets	rec_get_offsets()
 @return nonzero if any off-page columns exist */
-inline
-ulint
-rec_offs_any_extern(const ulint* offsets)
+inline bool rec_offs_any_extern(const ulint* offsets)
 {
 	return rec_offs_any_flag(offsets, REC_OFFS_EXTERNAL);
 }

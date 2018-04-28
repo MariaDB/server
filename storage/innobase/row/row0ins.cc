@@ -359,7 +359,8 @@ row_ins_clust_index_entry_by_modify(
 		cursor->index, entry, rec, NULL, true,
 		thr_get_trx(thr), heap, mysql_table);
 	if (mode != BTR_MODIFY_TREE) {
-		ut_ad((mode & ~BTR_ALREADY_S_LATCHED) == BTR_MODIFY_LEAF);
+		ut_ad((mode & ulint(~BTR_ALREADY_S_LATCHED))
+		      == BTR_MODIFY_LEAF);
 
 		/* Try optimistic updating of the record, keeping changes
 		within the page */
@@ -2638,7 +2639,7 @@ row_ins_clust_index_entry_low(
 	}
 #endif /* UNIV_DEBUG */
 
-	if (UNIV_UNLIKELY(entry->info_bits)) {
+	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
 		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		ut_ad(index->is_instant());
@@ -2739,7 +2740,7 @@ do_insert:
 		rec_t*	insert_rec;
 
 		if (mode != BTR_MODIFY_TREE) {
-			ut_ad((mode & ~BTR_ALREADY_S_LATCHED)
+			ut_ad((mode & ulint(~BTR_ALREADY_S_LATCHED))
 			      == BTR_MODIFY_LEAF);
 			err = btr_cur_optimistic_insert(
 				flags, cursor, &offsets, &offsets_heap,

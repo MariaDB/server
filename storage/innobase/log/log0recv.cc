@@ -522,7 +522,7 @@ DECLARE_THREAD(recv_writer_thread)(
 
 		/* Wait till we get a signal to clean the LRU list.
 		Bounded by max wait time of 100ms. */
-		ib_uint64_t      sig_count = os_event_reset(buf_flush_event);
+		int64_t      sig_count = os_event_reset(buf_flush_event);
 		os_event_wait_time_low(buf_flush_event, 100000, sig_count);
 
 		mutex_enter(&recv_sys->writer_mutex);
@@ -1563,13 +1563,13 @@ recv_add_to_hash_table(
 	ut_ad(type != MLOG_INDEX_LOAD);
 	ut_ad(type != MLOG_TRUNCATE);
 
-	len = rec_end - body;
+	len = ulint(rec_end - body);
 
 	recv = static_cast<recv_t*>(
 		mem_heap_alloc(recv_sys->heap, sizeof(recv_t)));
 
 	recv->type = type;
-	recv->len = rec_end - body;
+	recv->len = ulint(rec_end - body);
 	recv->start_lsn = start_lsn;
 	recv->end_lsn = end_lsn;
 
@@ -1604,7 +1604,7 @@ recv_add_to_hash_table(
 
 	while (rec_end > body) {
 
-		len = rec_end - body;
+		len = ulint(rec_end - body);
 
 		if (len > RECV_DATA_BLOCK_SIZE) {
 			len = RECV_DATA_BLOCK_SIZE;
@@ -2167,7 +2167,7 @@ recv_parse_log_rec(
 							      end_ptr));
 	}
 
-	return(new_ptr - ptr);
+	return ulint(new_ptr - ptr);
 }
 
 /*******************************************************//**
@@ -2226,7 +2226,7 @@ recv_report_corrupt_log(
 	const ulint	before
 		= std::min(recv_previous_parsed_rec_offset, limit);
 	const ulint	after
-		= std::min(recv_sys->len - (ptr - recv_sys->buf), limit);
+		= std::min(recv_sys->len - ulint(ptr - recv_sys->buf), limit);
 
 	ib::info() << "Hex dump starting " << before << " bytes before and"
 		" ending " << after << " bytes after the corrupted record:";
@@ -2234,7 +2234,7 @@ recv_report_corrupt_log(
 	ut_print_buf(stderr,
 		     recv_sys->buf
 		     + recv_previous_parsed_rec_offset - before,
-		     ptr - recv_sys->buf + before + after
+		     ulint(ptr - recv_sys->buf) + before + after
 		     - recv_previous_parsed_rec_offset);
 	putc('\n', stderr);
 

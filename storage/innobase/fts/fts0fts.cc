@@ -2005,7 +2005,7 @@ fts_create_one_index_table(
 			       ? DATA_VARCHAR : DATA_VARMYSQL,
 			       field->col->prtype,
 			       FTS_MAX_WORD_LEN_IN_CHAR
-			       * field->col->mbmaxlen);
+			       * unsigned(field->col->mbmaxlen));
 
 	dict_mem_table_add_col(new_table, heap, "first_doc_id", DATA_INT,
 			       DATA_NOT_NULL | DATA_UNSIGNED,
@@ -2810,7 +2810,7 @@ fts_update_sync_doc_id(
 
 	info = pars_info_create();
 
-	id_len = snprintf(
+	id_len = (ulint) snprintf(
 		(char*) id, sizeof(id), FTS_DOC_ID_FORMAT, doc_id + 1);
 
 	pars_info_bind_varchar_literal(info, "doc_id", id, id_len);
@@ -4737,9 +4737,9 @@ fts_tokenize_add_word_for_parser(
 	ut_ad(result_doc != NULL);
 
 	str.f_str = (byte*)(word);
-	str.f_len = word_len;
+	str.f_len = ulint(word_len);
 	str.f_n_char = fts_get_token_size(
-		const_cast<CHARSET_INFO*>(param->cs), word, word_len);
+		const_cast<CHARSET_INFO*>(param->cs), word, str.f_len);
 
 	/* JAN: TODO: MySQL 5.7 FTS
 	ut_ad(boolean_info->position >= 0);
@@ -5942,7 +5942,7 @@ fts_is_aux_table_name(
 	if (ptr != NULL) {
 		/* We will start the match after the '/' */
 		++ptr;
-		len = end - ptr;
+		len = ulint(end - ptr);
 	}
 
 	/* All auxiliary tables are prefixed with "FTS_" and the name
@@ -5969,7 +5969,7 @@ fts_is_aux_table_name(
 		/* Skip the underscore. */
 		++ptr;
 		ut_a(end > ptr);
-		len = end - ptr;
+		len = ulint(end - ptr);
 
 		/* First search the common table suffix array. */
 		for (i = 0; fts_common_tables[i] != NULL; ++i) {
@@ -6000,7 +6000,7 @@ fts_is_aux_table_name(
 		/* Skip the underscore. */
 		++ptr;
 		ut_a(end > ptr);
-		len = end - ptr;
+		len = ulint(end - ptr);
 
 		/* Search the FT index specific array. */
 		for (i = 0; i < FTS_NUM_AUX_INDEX; ++i) {

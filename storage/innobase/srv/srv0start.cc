@@ -1203,7 +1203,7 @@ srv_start_state_set(
 	srv_start_state_t state)	/*!< in: indicate current state of
 					thread startup */
 {
-	srv_start_state |= state;
+	srv_start_state |= ulint(state);
 }
 
 /****************************************************************//**
@@ -1215,7 +1215,7 @@ srv_start_state_is_set(
 /*===================*/
 	srv_start_state_t state)	/*!< in: state to check for */
 {
-	return(srv_start_state & state);
+	return(srv_start_state & ulint(state));
 }
 
 /**

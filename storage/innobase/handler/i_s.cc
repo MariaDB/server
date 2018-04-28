@@ -331,7 +331,7 @@ field_store_ulint(
 
 	if (n != ULINT_UNDEFINED) {
 
-		ret = field->store(n, true);
+		ret = field->store(longlong(n), true);
 		field->set_notnull();
 	} else {
 

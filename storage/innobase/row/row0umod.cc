@@ -124,7 +124,8 @@ row_undo_mod_clust_low(
 	}
 
 	if (mode != BTR_MODIFY_TREE) {
-		ut_ad((mode & ~BTR_ALREADY_S_LATCHED) == BTR_MODIFY_LEAF);
+		ut_ad((mode & ulint(~BTR_ALREADY_S_LATCHED))
+		      == BTR_MODIFY_LEAF);
 
 		err = btr_cur_optimistic_update(
 			BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG

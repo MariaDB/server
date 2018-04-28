@@ -109,7 +109,7 @@ are described in fsp0fsp.h. */
 /** dict_table_t::flags bit 0 is equal to 0 if the row format = Redundant */
 #define DICT_TF_REDUNDANT		0	/*!< Redundant row format. */
 /** dict_table_t::flags bit 0 is equal to 1 if the row format = Compact */
-#define DICT_TF_COMPACT			1	/*!< Compact row format. */
+#define DICT_TF_COMPACT			1U	/*!< Compact row format. */
 
 /** This bitmask is used in SYS_TABLES.N_COLS to set and test whether
 the Compact page format is used, i.e ROW_FORMAT != REDUNDANT */
@@ -1093,7 +1093,7 @@ struct dict_index_t{
 			fields[i].col->remove_instant();
 		}
 		n_core_fields = n_fields;
-		n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
+		n_core_null_bytes = UT_BITS_IN_BYTES(unsigned(n_nullable));
 	}
 
 	/** Check if record in clustered index is historical row.
@@ -1453,7 +1453,7 @@ struct dict_table_t {
 	/** @return whether the table supports transactions */
 	bool no_rollback() const
 	{
-		return !(~flags & DICT_TF_MASK_NO_ROLLBACK);
+		return !(~unsigned(flags) & DICT_TF_MASK_NO_ROLLBACK);
         }
 	/** @return whether this is a temporary table */
 	bool is_temporary() const
@@ -1514,7 +1514,7 @@ struct dict_table_t {
 	void inc_fk_checks()
 	{
 #ifdef UNIV_DEBUG
-		lint fk_checks=
+		lint fk_checks= (lint)
 #endif
 		my_atomic_addlint(&n_foreign_key_checks_running, 1);
 		ut_ad(fk_checks >= 0);
@@ -1522,9 +1522,9 @@ struct dict_table_t {
 	void dec_fk_checks()
 	{
 #ifdef UNIV_DEBUG
-		lint fk_checks=
+		lint fk_checks= (lint)
 #endif
-		my_atomic_addlint(&n_foreign_key_checks_running, -1);
+		my_atomic_addlint(&n_foreign_key_checks_running, ulint(-1));
 		ut_ad(fk_checks > 0);
 	}
 

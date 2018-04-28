@@ -572,7 +572,8 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 		index root pages of ROW_FORMAT=COMPACT or
 		ROW_FORMAT=DYNAMIC when instant ADD COLUMN is not used. */
 		ut_ad(!page_is_comp(page) || !page_get_instant(page));
-		index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
+		index->n_core_null_bytes = UT_BITS_IN_BYTES(
+			unsigned(index->n_nullable));
 		return false;
 	case FIL_PAGE_TYPE_INSTANT:
 		break;
@@ -591,7 +592,7 @@ btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 	ut_ad(!index->is_dummy);
 	ut_d(index->is_dummy = true);
 	index->n_core_null_bytes = n == index->n_fields
-		? UT_BITS_IN_BYTES(index->n_nullable)
+		? UT_BITS_IN_BYTES(unsigned(index->n_nullable))
 		: UT_BITS_IN_BYTES(index->get_n_nullable(n));
 	ut_d(index->is_dummy = false);
 	return false;
@@ -718,7 +719,7 @@ btr_cur_get_and_clear_intention(
 		/* both or unknown */
 		intention = BTR_INTENTION_BOTH;
 	}
-	*latch_mode &= ~(BTR_LATCH_FOR_INSERT | BTR_LATCH_FOR_DELETE);
+	*latch_mode &= ulint(~(BTR_LATCH_FOR_INSERT | BTR_LATCH_FOR_DELETE));
 
 	return(intention);
 }
@@ -865,7 +866,7 @@ btr_cur_will_modify_tree(
 					   page_size.physical())
 		       < rec_size * 2 + page_get_data_size(page)
 			 + page_dir_calc_reserved_space(
-				page_get_n_recs(page) + 2) + 1) {
+				 ulint(page_get_n_recs(page)) + 2) + 1) {
 			return(true);
 		}
 	}
@@ -1512,7 +1513,7 @@ retry_page_get:
 		root_height = height;
 		cursor->tree_height = root_height + 1;
 
-		if (UNIV_UNLIKELY(dict_index_is_spatial(index))) {
+		if (dict_index_is_spatial(index)) {
 			ut_ad(cursor->rtr_info);
 
 			node_seq_t      seq_no = rtr_get_current_ssn_id(index);
@@ -2263,14 +2264,14 @@ btr_cur_open_at_index_side_func(
 	rec_offs_init(offsets_);
 
 	estimate = latch_mode & BTR_ESTIMATE;
-	latch_mode &= ~BTR_ESTIMATE;
+	latch_mode &= ulint(~BTR_ESTIMATE);
 
 	ut_ad(level != ULINT_UNDEFINED);
 
 	bool	s_latch_by_caller;
 
 	s_latch_by_caller = latch_mode & BTR_ALREADY_S_LATCHED;
-	latch_mode &= ~BTR_ALREADY_S_LATCHED;
+	latch_mode &= ulint(~BTR_ALREADY_S_LATCHED);
 
 	lock_intention = btr_cur_get_and_clear_intention(&latch_mode);
 
@@ -3522,7 +3523,7 @@ btr_cur_pessimistic_insert(
 		if (entry->info_bits & REC_INFO_MIN_REC_FLAG) {
 			ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
 			ut_ad(index->is_instant());
-			ut_ad((flags & ~BTR_KEEP_IBUF_BITMAP)
+			ut_ad((flags & ulint(~BTR_KEEP_IBUF_BITMAP))
 			      == BTR_NO_LOCKING_FLAG);
 		} else {
 			btr_search_update_hash_on_insert(
@@ -5773,11 +5774,10 @@ btr_estimate_n_rows_in_range_on_level(
 						estimation */
 {
 	int64_t		n_rows;
-	ulint		n_pages_read;
+	int		n_pages_read = 0;
 	ulint		level;
 
 	n_rows = 0;
-	n_pages_read = 0;
 
 	/* Assume by default that we will scan all pages between
 	slot1->page_no and slot2->page_no. */
@@ -5787,14 +5787,14 @@ btr_estimate_n_rows_in_range_on_level(
 	the record which serves as a left border of the range, if any
 	(we don't include the record itself in this count). */
 	if (slot1->nth_rec <= slot1->n_recs) {
-		n_rows += slot1->n_recs - slot1->nth_rec;
+		n_rows += int64_t(slot1->n_recs - slot1->nth_rec);
 	}
 
 	/* Add records from slot2->page_no which are to the left of
 	the record which servers as a right border of the range, if any
 	(we don't include the record itself in this count). */
 	if (slot2->nth_rec > 1) {
-		n_rows += slot2->nth_rec - 1;
+		n_rows += int64_t(slot2->nth_rec) - 1;
 	}
 
 	/* Count the records in the pages between slot1->page_no and
@@ -5965,7 +5965,7 @@ btr_estimate_n_rows_in_range_low(
 	mtr_t		mtr;
 	int64_t		table_n_rows;
 
-	table_n_rows = dict_table_get_n_rows(index->table);
+	table_n_rows = int64_t(dict_table_get_n_rows(index->table));
 
 	/* Below we dive to the two records specified by tuple1 and tuple2 and
 	we remember the entire dive paths from the tree root. The place where
@@ -6244,7 +6244,8 @@ btr_estimate_n_rows_in_range_low(
 			if (slot1->nth_rec < slot2->nth_rec) {
 				/* We do not count the borders (nor the left
 				nor the right one), thus "- 1". */
-				n_rows = slot2->nth_rec - slot1->nth_rec - 1;
+				n_rows = int64_t(slot2->nth_rec
+						 - slot1->nth_rec) - 1;
 
 				if (n_rows > 0) {
 					/* There is at least one row between
@@ -6280,12 +6281,12 @@ btr_estimate_n_rows_in_range_low(
 				n_rows = 0;
 
 				if (slot1->nth_rec < slot1->n_recs) {
-					n_rows += slot1->n_recs
-						- slot1->nth_rec;
+					n_rows += int64_t(slot1->n_recs
+							  - slot1->nth_rec);
 				}
 
 				if (slot2->nth_rec > 1) {
-					n_rows += slot2->nth_rec - 1;
+					n_rows += int64_t(slot2->nth_rec) - 1;
 				}
 			}
 		} else if (diverged_lot) {
@@ -6891,10 +6892,10 @@ btr_push_update_extern_fields(
 							     uf->orig_len);
 				/* Copy the locally stored prefix. */
 				memcpy(buf, data,
-				       uf->orig_len
+				       unsigned(uf->orig_len)
 				       - BTR_EXTERN_FIELD_REF_SIZE);
 				/* Copy the BLOB pointer. */
-				memcpy(buf + uf->orig_len
+				memcpy(buf + unsigned(uf->orig_len)
 				       - BTR_EXTERN_FIELD_REF_SIZE,
 				       data + len - BTR_EXTERN_FIELD_REF_SIZE,
 				       BTR_EXTERN_FIELD_REF_SIZE);
@@ -7164,7 +7165,7 @@ btr_store_big_rec_extern_fields(
 		heap = mem_heap_create(250000);
 		page_zip_set_alloc(&c_stream, heap);
 
-		err = deflateInit2(&c_stream, page_zip_level,
+		err = deflateInit2(&c_stream, int(page_zip_level),
 				   Z_DEFLATED, 15, 7, Z_DEFAULT_STRATEGY);
 		ut_a(err == Z_OK);
 	}

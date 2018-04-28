@@ -1625,7 +1625,8 @@ ibuf_build_entry_from_ibuf_rec_func(
 		ibuf_dummy_index_add_col(index, dfield_get_type(field), len);
 	}
 
-	index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
+	index->n_core_null_bytes
+		= UT_BITS_IN_BYTES(unsigned(index->n_nullable));
 
 	/* Prevent an ut_ad() failure in page_zip_write_rec() by
 	adding system columns to the dummy table pointed to by the
@@ -1915,7 +1916,7 @@ ibuf_entry_build(
 
 	field = dtuple_get_nth_field(tuple, IBUF_REC_FIELD_METADATA);
 
-	dfield_set_data(field, type_info, ti - type_info);
+	dfield_set_data(field, type_info, ulint(ti - type_info));
 
 	/* Set all the types in the new tuple binary */
 
@@ -1980,11 +1981,8 @@ ibuf_search_tuple_build(
 /*********************************************************************//**
 Checks if there are enough pages in the free list of the ibuf tree that we
 dare to start a pessimistic insert to the insert buffer.
-@return TRUE if enough free pages in list */
-UNIV_INLINE
-ibool
-ibuf_data_enough_free_for_insert(void)
-/*==================================*/
+@return whether enough free pages in list */
+static inline bool ibuf_data_enough_free_for_insert()
 {
 	ut_ad(mutex_own(&ibuf_mutex));
 
@@ -2880,7 +2878,7 @@ ibuf_get_volume_buffered_count_func(
 
 	types = rec_get_nth_field_old(rec, IBUF_REC_FIELD_METADATA, &len);
 
-	switch (UNIV_EXPECT(len % DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE,
+	switch (UNIV_EXPECT(int(len % DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE),
 			    IBUF_REC_INFO_SIZE)) {
 	default:
 		ut_error;

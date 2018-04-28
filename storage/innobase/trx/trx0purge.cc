@@ -1296,7 +1296,7 @@ trx_purge_get_next_rec(
 	} else {
 		page = page_align(rec2);
 
-		purge_sys.offset = rec2 - page;
+		purge_sys.offset = ulint(rec2 - page);
 		purge_sys.page_no = page_get_page_no(page);
 		purge_sys.tail.undo_no = trx_undo_rec_get_undo_no(rec2);
 

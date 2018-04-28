@@ -187,7 +187,7 @@ os_thread_exit(bool detach)
 	pfs_delete_thread();
 #endif
 
-	my_atomic_addlint(&os_thread_count, -1);
+	my_atomic_addlint(&os_thread_count, ulint(-1));
 
 #ifdef _WIN32
 	ExitThread(0);

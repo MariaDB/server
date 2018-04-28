@@ -2778,8 +2778,8 @@ pc_flush_slot(void)
 {
 	ulint	lru_tm = 0;
 	ulint	list_tm = 0;
-	int	lru_pass = 0;
-	int	list_pass = 0;
+	ulint	lru_pass = 0;
+	ulint	list_pass = 0;
 
 	mutex_enter(&page_cleaner.mutex);
 

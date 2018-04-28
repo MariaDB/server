@@ -930,7 +930,7 @@ function_exit:
 			if (trunc_here) {
 				mlog_write_ulint(undo_page + TRX_UNDO_PAGE_HDR
 						 + TRX_UNDO_PAGE_FREE,
-						 trunc_here - undo_page,
+						 ulint(trunc_here - undo_page),
 						 MLOG_2BYTES, &mtr);
 			}
 
@@ -1153,7 +1153,7 @@ trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no,
 
 		if (const trx_undo_rec_t* rec = trx_undo_page_get_last_rec(
 			    last_page, page_no, offset)) {
-			undo->top_offset = rec - last_page;
+			undo->top_offset = ulint(rec - last_page);
 			undo->top_undo_no = trx_undo_rec_get_undo_no(rec);
 			ut_ad(!undo->empty());
 		} else {

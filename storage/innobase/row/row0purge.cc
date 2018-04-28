@@ -806,10 +806,10 @@ skip_secondaries:
 			can calculate from node->roll_ptr the file
 			address of the new_val data */
 
-			internal_offset
-				= ((const byte*)
-				   dfield_get_data(&ufield->new_val))
-				- undo_rec;
+			internal_offset = ulint(
+				static_cast<const byte*>
+				(dfield_get_data(&ufield->new_val))
+				- undo_rec);
 
 			ut_a(internal_offset < UNIV_PAGE_SIZE);
 

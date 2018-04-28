@@ -134,7 +134,7 @@ fts_query_add_word_for_parser(
 
 	case FT_TOKEN_WORD:
 		term_node = fts_ast_create_node_term_for_parser(
-			state, word, word_len);
+			state, word, ulint(word_len));
 
 		if (info->trunc) {
 			fts_ast_term_set_wildcard(term_node);
@@ -251,7 +251,7 @@ fts_parse_query_internal(
 		int ret = param->mysql_add_word(
 				param,
 				reinterpret_cast<char*>(w.pos),
-				w.len, &info);
+				int(w.len), &info);
 		if (ret) {
 			return(ret);
 		}

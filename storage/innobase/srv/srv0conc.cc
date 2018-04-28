@@ -136,12 +136,9 @@ srv_conc_enter_innodb_with_atomics(
 #endif /* WITH_WSREP */
 
 		if (srv_thread_concurrency == 0) {
-
 			if (notified_mysql) {
-
-				(void) my_atomic_addlint(
-					&srv_conc.n_waiting, -1);
-
+				my_atomic_addlint(&srv_conc.n_waiting,
+						  ulint(-1));
 				thd_wait_end(trx->mysql_thd);
 			}
 
@@ -160,10 +157,8 @@ srv_conc_enter_innodb_with_atomics(
 				srv_enter_innodb_with_tickets(trx);
 
 				if (notified_mysql) {
-
-					(void) my_atomic_addlint(
-						&srv_conc.n_waiting, -1);
-
+					my_atomic_addlint(&srv_conc.n_waiting,
+							  ulint(-1));
 					thd_wait_end(trx->mysql_thd);
 				}
 
@@ -185,13 +180,11 @@ srv_conc_enter_innodb_with_atomics(
 			/* Since there were no free seats, we relinquish
 			the overbooked ticket. */
 
-			(void) my_atomic_addlint(
-				&srv_conc.n_active, -1);
+			my_atomic_addlint(&srv_conc.n_active, ulint(-1));
 		}
 
 		if (!notified_mysql) {
-			(void) my_atomic_addlint(
-				&srv_conc.n_waiting, 1);
+			my_atomic_addlint(&srv_conc.n_waiting, 1);
 
 			thd_wait_begin(trx->mysql_thd, THD_WAIT_USER_LOCK);
 
@@ -235,7 +228,7 @@ srv_conc_exit_innodb_with_atomics(
 	trx->n_tickets_to_enter_innodb = 0;
 	trx->declared_to_be_inside_innodb = FALSE;
 
-	(void) my_atomic_addlint(&srv_conc.n_active, -1);
+	my_atomic_addlint(&srv_conc.n_active, ulint(-1));
 }
 
 /*********************************************************************//**

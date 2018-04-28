@@ -155,7 +155,7 @@ fil_compress_page(
 	/* If no compression level was provided to this table, use system
 	default level */
 	if (comp_level == 0) {
-		comp_level = page_zip_level;
+		comp_level = int(page_zip_level);
 	}
 
 	DBUG_LOG("compress", "Preparing for space "

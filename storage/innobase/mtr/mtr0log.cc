@@ -504,8 +504,8 @@ mlog_open_and_write_index(
 			}
 			if (log_ptr + 2 > log_end) {
 				mlog_close(mtr, log_ptr);
-				ut_a(total > (ulint) (log_ptr - log_start));
-				total -= log_ptr - log_start;
+				ut_a(total > ulint(log_ptr - log_start));
+				total -= ulint(log_ptr - log_start);
 				alloc = std::min(
 					total,
 					ulint(mtr_buf_t::MAX_DATA_SIZE));
@@ -631,7 +631,7 @@ mlog_parse_index(
 				ind->get_n_nullable(n_core_fields));
 		} else {
 			ind->n_core_null_bytes = UT_BITS_IN_BYTES(
-				ind->n_nullable);
+				unsigned(ind->n_nullable));
 			ind->n_core_fields = ind->n_fields;
 		}
 	}

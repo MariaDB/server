@@ -632,7 +632,8 @@ rec_get_info_and_status_bits(
 # error "REC_NEW_STATUS_MASK and REC_INFO_BITS_MASK overlap"
 #endif
 	if (comp) {
-		bits = rec_get_info_bits(rec, TRUE) | rec_get_status(rec);
+		bits = rec_get_info_bits(rec, TRUE)
+			| ulint(rec_get_status(rec));
 	} else {
 		bits = rec_get_info_bits(rec, FALSE);
 		ut_ad(!(bits & ~(REC_INFO_BITS_MASK >> REC_INFO_BITS_SHIFT)));

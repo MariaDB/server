@@ -559,7 +559,7 @@ row_merge_buf_add(
 		mem_heap_alloc(buf->heap, n_fields * sizeof *entry->fields));
 
 	data_size = 0;
-	extra_size = UT_BITS_IN_BYTES(index->n_nullable);
+	extra_size = UT_BITS_IN_BYTES(unsigned(index->n_nullable));
 
 	ifield = dict_index_get_nth_field(index, 0);
 
@@ -1232,7 +1232,7 @@ err_exit:
 		to the auxiliary buffer and handle this as a special
 		case. */
 
-		avail_size = &block[srv_sort_buf_size] - b;
+		avail_size = ulint(&block[srv_sort_buf_size] - b);
 		ut_ad(avail_size < sizeof *buf);
 		memcpy(*buf, b, avail_size);
 
@@ -1287,7 +1287,7 @@ err_exit:
 	/* The record spans two blocks.  Copy it to buf. */
 
 	b -= extra_size + data_size;
-	avail_size = &block[srv_sort_buf_size] - b;
+	avail_size = ulint(&block[srv_sort_buf_size] - b);
 	memcpy(*buf, b, avail_size);
 	*mrec = *buf + extra_size;
 
@@ -1403,7 +1403,7 @@ row_merge_write_rec(
 	if (UNIV_UNLIKELY(b + size >= &block[srv_sort_buf_size])) {
 		/* The record spans two blocks.
 		Copy it to the temporary buffer first. */
-		avail_size = &block[srv_sort_buf_size] - b;
+		avail_size = ulint(&block[srv_sort_buf_size] - b);
 
 		row_merge_write_rec_low(buf[0],
 					extra_size, size, fd, *foffs,
@@ -1467,7 +1467,7 @@ row_merge_write_eof(
 #ifdef UNIV_DEBUG_VALGRIND
 	/* The rest of the block is uninitialized.  Initialize it
 	to avoid bogus warnings. */
-	memset(b, 0xff, &block[srv_sort_buf_size] - b);
+	memset(b, 0xff, ulint(&block[srv_sort_buf_size] - b));
 #endif /* UNIV_DEBUG_VALGRIND */
 
 	if (!row_merge_write(fd, (*foffs)++, block, crypt_block, space)) {
@@ -1842,7 +1842,7 @@ row_merge_read_clustered_index(
 
 	clust_index = dict_table_get_first_index(old_table);
 	const ulint old_trx_id_col = DATA_TRX_ID - DATA_N_SYS_COLS
-		+ old_table->n_cols;
+		+ ulint(old_table->n_cols);
 	ut_ad(old_table->cols[old_trx_id_col].mtype == DATA_SYS);
 	ut_ad(old_table->cols[old_trx_id_col].prtype
 	      == (DATA_TRX_ID | DATA_NOT_NULL));
@@ -4364,7 +4364,7 @@ row_merge_rename_tables_dict(
 		pars_info_add_str_literal(info, "tmp_name", tmp_name);
 		pars_info_add_str_literal(info, "tmp_path", tmp_path);
 		pars_info_add_int4_literal(info, "old_space",
-					   lint(old_table->space_id));
+					   old_table->space_id);
 
 		err = que_eval_sql(info,
 				   "PROCEDURE RENAME_OLD_SPACE () IS\n"
@@ -4395,7 +4395,7 @@ row_merge_rename_tables_dict(
 					  old_table->name.m_name);
 		pars_info_add_str_literal(info, "old_path", old_path);
 		pars_info_add_int4_literal(info, "new_space",
-					   lint(new_table->space_id));
+					   new_table->space_id);
 
 		err = que_eval_sql(info,
 				   "PROCEDURE RENAME_NEW_SPACE () IS\n"

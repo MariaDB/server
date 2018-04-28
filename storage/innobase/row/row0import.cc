@@ -1560,7 +1560,7 @@ PageConverter::adjust_cluster_index_blob_column(
 		return(DB_CORRUPTION);
 	}
 
-	field += BTR_EXTERN_SPACE_ID - BTR_EXTERN_FIELD_REF_SIZE + len;
+	field += len - (BTR_EXTERN_FIELD_REF_SIZE - BTR_EXTERN_SPACE_ID);
 
 	mach_write_to_4(field, get_space_id());
 

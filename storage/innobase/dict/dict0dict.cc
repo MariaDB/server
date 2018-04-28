@@ -251,7 +251,7 @@ dict_get_db_name_len(
 	const char*	s;
 	s = strchr(name, '/');
 	ut_a(s);
-	return(s - name);
+	return ulint(s - name);
 }
 
 /** Reserve the dictionary system mutex. */
@@ -619,12 +619,12 @@ const char* dict_col_t::name(const dict_table_t& table) const
 	const char *s;
 
 	if (is_virtual()) {
-		col_nr = reinterpret_cast<const dict_v_col_t*>(this)
-			- table.v_cols;
+		col_nr = size_t(reinterpret_cast<const dict_v_col_t*>(this)
+				- table.v_cols);
 		ut_ad(col_nr < table.n_v_def);
 		s = table.v_col_names;
 	} else {
-		col_nr = this - table.cols;
+		col_nr = size_t(this - table.cols);
 		ut_ad(col_nr < table.n_def);
 		s = table.col_names;
 	}
@@ -2136,11 +2136,11 @@ dict_index_node_ptr_max_size(
 	if (comp) {
 		/* Include the "null" flags in the
 		maximum possible record size. */
-		rec_max_size += UT_BITS_IN_BYTES(index->n_nullable);
+		rec_max_size += UT_BITS_IN_BYTES(unsigned(index->n_nullable));
 	} else {
 		/* For each column, include a 2-byte offset and a
 		"null" flag. */
-		rec_max_size += 2 * index->n_fields;
+		rec_max_size += 2 * unsigned(index->n_fields);
 	}
 
 	/* Compute the maximum possible record size. */
@@ -2263,14 +2263,15 @@ dict_index_too_big_for_tree(
 	if (comp) {
 		/* Include the "null" flags in the
 		maximum possible record size. */
-		rec_max_size += UT_BITS_IN_BYTES(new_index->n_nullable);
+		rec_max_size += UT_BITS_IN_BYTES(
+			unsigned(new_index->n_nullable));
 	} else {
 		/* For each column, include a 2-byte offset and a
 		"null" flag.  The 1-byte format is only used in short
 		records that do not contain externally stored columns.
 		Such records could never exceed the page limit, even
 		when using the 2-byte format. */
-		rec_max_size += 2 * new_index->n_fields;
+		rec_max_size += 2 * unsigned(new_index->n_fields);
 	}
 
 	/* Compute the maximum possible record size. */
@@ -2418,7 +2419,7 @@ dict_index_add_to_cache(
 			? dict_index_build_internal_fts(index)
 			: dict_index_build_internal_non_clust(index);
 		new_index->n_core_null_bytes = UT_BITS_IN_BYTES(
-			new_index->n_nullable);
+			unsigned(new_index->n_nullable));
 	}
 
 	/* Set the n_fields value in new_index to the actual defined
@@ -2780,7 +2781,7 @@ dict_index_add_col(
 
 	dict_mem_index_add_field(index, col_name, prefix_len);
 
-	field = dict_index_get_nth_field(index, index->n_def - 1);
+	field = dict_index_get_nth_field(index, unsigned(index->n_def) - 1);
 
 	field->col = col;
 	field->fixed_len = static_cast<unsigned int>(
@@ -2969,7 +2970,8 @@ dict_index_build_internal_clust(
 	/* Create a new index object with certainly enough fields */
 	new_index = dict_mem_index_create(index->table, index->name,
 					  index->type,
-					  index->n_fields + table->n_cols);
+					  unsigned(index->n_fields
+						   + table->n_cols));
 
 	/* Copy other relevant data from the old index struct to the new
 	struct: it inherits the values */
@@ -2988,7 +2990,7 @@ dict_index_build_internal_clust(
 		new_index->n_uniq = new_index->n_def;
 	} else {
 		/* Also the row id is needed to identify the entry */
-		new_index->n_uniq = 1 + new_index->n_def;
+		new_index->n_uniq = 1 + unsigned(new_index->n_def);
 	}
 
 	new_index->trx_id_offset = 0;
@@ -3095,7 +3097,7 @@ dict_index_build_internal_clust(
 
 	new_index->n_core_null_bytes = table->supports_instant()
 		? dict_index_t::NO_CORE_NULL_BYTES
-		: UT_BITS_IN_BYTES(new_index->n_nullable);
+		: UT_BITS_IN_BYTES(unsigned(new_index->n_nullable));
 	new_index->cached = TRUE;
 
 	return(new_index);
@@ -3134,7 +3136,7 @@ dict_index_build_internal_non_clust(
 	/* Create a new index */
 	new_index = dict_mem_index_create(
 		index->table, index->name, index->type,
-		index->n_fields + 1 + clust_index->n_uniq);
+		ulint(index->n_fields + 1 + clust_index->n_uniq));
 
 	/* Copy other relevant data from the old index
 	struct to the new struct: it inherits the values */
@@ -3790,7 +3792,7 @@ dict_scan_id(
 			ptr++;
 		}
 
-		len = ptr - s;
+		len = ulint(ptr - s);
 	}
 
 	if (heap == NULL) {
@@ -3811,7 +3813,7 @@ dict_scan_id(
 			}
 		}
 		*d++ = 0;
-		len = d - str;
+		len = ulint(d - str);
 		ut_ad(*s == quote);
 		ut_ad(s + 1 == ptr);
 	} else {
@@ -4030,7 +4032,7 @@ dict_scan_table_name(
 		for (s = scan_name; *s; s++) {
 			if (*s == '.') {
 				database_name = scan_name;
-				database_name_len = s - scan_name;
+				database_name_len = ulint(s - scan_name);
 				scan_name = ++s;
 				break;/* to do: multiple dots? */
 			}
@@ -7004,7 +7006,7 @@ dict_index_zip_pad_update(
 			/* Use atomics even though we have the mutex.
 			This is to ensure that we are able to read
 			info->pad atomically. */
-			my_atomic_addlint(&info->pad, -ZIP_PAD_INCR);
+			my_atomic_addlint(&info->pad, ulint(-ZIP_PAD_INCR));
 
 			info->n_rounds = 0;
 

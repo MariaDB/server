@@ -2615,7 +2615,7 @@ truncate_t::update_root_page_no(
 
 		pars_info_add_ull_literal(
 			info, "index_id",
-			(mark_index_corrupted ? -1 : it->m_id));
+			(mark_index_corrupted ? IB_ID_MAX : it->m_id));
 
 		err = que_eval_sql(
 			info,

@@ -1485,8 +1485,8 @@ srv_mon_set_module_control(
 	mon_option_t	set_option)	/*!< in: Turn on/off reset the
 					counter */
 {
-	ulint	ix;
-	ulint	start_id;
+	lint	ix;
+	lint	start_id;
 	ibool	set_current_module = FALSE;
 
 	ut_a(module_id <= NUM_MONITOR);

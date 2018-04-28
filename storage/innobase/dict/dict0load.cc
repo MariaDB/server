@@ -1138,7 +1138,7 @@ dict_sys_tables_type_valid(ulint type, bool not_redundant)
 	if (!not_redundant) {
 		/* SYS_TABLES.TYPE must be 1 or 1|DICT_TF_MASK_NO_ROLLBACK
 		for ROW_FORMAT=REDUNDANT. */
-		return !(type & ~(1 | DICT_TF_MASK_NO_ROLLBACK));
+		return !(type & ~(1U | DICT_TF_MASK_NO_ROLLBACK));
 	}
 
 	if (type >= 1U << DICT_TF_POS_UNUSED) {
@@ -2032,7 +2032,7 @@ dict_load_field_low(
 	ulint		len;
 	unsigned	pos_and_prefix_len;
 	unsigned	prefix_len;
-	ibool		first_field;
+	bool		first_field;
 	ulint		position;
 
 	/* Either index or sys_field is supplied, not both */

@@ -792,7 +792,7 @@ struct row_prebuilt_t {
 					allocated mem buf start, because
 					there is a 4 byte magic number at the
 					start and at the end */
-	ibool		keep_other_fields_on_keyread; /*!< when using fetch
+	bool		keep_other_fields_on_keyread; /*!< when using fetch
 					cache with HA_EXTRA_KEYREAD, don't
 					overwrite other fields in mysql row
 					row buffer.*/

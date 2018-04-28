@@ -669,7 +669,7 @@ btr_defragment_n_pages(
 	// For compressed pages, we take compression failures into account.
 	if (page_size.is_compressed()) {
 		ulint size = 0;
-		int i = 0;
+		uint i = 0;
 		// We estimate the optimal data size of the index use samples of
 		// data size. These samples are taken when pages failed to
 		// compress due to insertion on the page. We use the average
@@ -683,7 +683,7 @@ btr_defragment_n_pages(
 			size += index->stat_defrag_data_size_sample[i];
 		}
 		if (i != 0) {
-			size = size / i;
+			size /= i;
 			optimal_page_size = ut_min(optimal_page_size, size);
 		}
 		max_data_size = optimal_page_size;

@@ -838,7 +838,7 @@ lock_prdt_lock(
 
 	lock_mutex_enter();
 
-	const ulint	prdt_mode = mode | type_mode;
+	const ulint	prdt_mode = ulint(mode) | type_mode;
 	lock_t*		lock = lock_rec_get_first_on_page(hash, block);
 
 	if (lock == NULL) {
@@ -846,7 +846,7 @@ lock_prdt_lock(
 #ifdef WITH_WSREP
 			NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
-			mode | type_mode, block, PRDT_HEAPNO,
+			ulint(mode) | type_mode, block, PRDT_HEAPNO,
 			index, trx, FALSE);
 
 		status = LOCK_REC_SUCCESS_CREATED;
@@ -878,7 +878,7 @@ lock_prdt_lock(
 						NULL, /* FIXME: replicate
 						      SPATIAL INDEX locks */
 #endif
-						mode | type_mode,
+						ulint(mode) | type_mode,
 						block, PRDT_HEAPNO,
 						index, thr, prdt);
 				} else {

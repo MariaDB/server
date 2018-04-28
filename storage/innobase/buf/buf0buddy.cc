@@ -489,8 +489,8 @@ buf_buddy_alloc_low(
 	buf_pool_t*	buf_pool,	/*!< in/out: buffer pool instance */
 	ulint		i,		/*!< in: index of buf_pool->zip_free[],
 					or BUF_BUDDY_SIZES */
-	ibool*		lru)		/*!< in: pointer to a variable that
-					will be assigned TRUE if storage was
+	bool*		lru)		/*!< in: pointer to a variable that
+					will be assigned true if storage was
 					allocated from the LRU list and
 					buf_pool->mutex was temporarily
 					released */
@@ -522,7 +522,7 @@ buf_buddy_alloc_low(
 	/* Try replacing an uncompressed page in the buffer pool. */
 	buf_pool_mutex_exit(buf_pool);
 	block = buf_LRU_get_free_block(buf_pool);
-	*lru = TRUE;
+	*lru = true;
 	buf_pool_mutex_enter(buf_pool);
 
 alloc_big:

@@ -188,13 +188,13 @@ static const long AUTOINC_NEW_STYLE_LOCKING = 1;
 static const long AUTOINC_NO_LOCKING = 2;
 
 static long innobase_log_buffer_size;
-static long innobase_open_files=0;
+static ulong innobase_open_files;
 static long innobase_autoinc_lock_mode;
 static ulong innobase_commit_concurrency = 0;
 static ulong innobase_read_io_threads;
 static ulong innobase_write_io_threads;
 
-static long long innobase_buffer_pool_size;
+static ulonglong innobase_buffer_pool_size;
 
 /** Percentage of the buffer pool to reserve for 'old' blocks.
 Connected to buf_LRU_old_ratio. */
@@ -1815,19 +1815,6 @@ thd_lock_wait_timeout(
 	return(THDVAR(thd, lock_wait_timeout));
 }
 
-/******************************************************************//**
-Set the time waited for the lock for the current query. */
-void
-thd_set_lock_wait_time(
-/*===================*/
-	THD*	thd,	/*!< in/out: thread handle */
-	ulint	value)	/*!< in: time waited for the lock */
-{
-	if (thd) {
-		thd_storage_lock_wait(thd, value);
-	}
-}
-
 /** Get the value of innodb_tmpdir.
 @param[in]	thd	thread handle, or NULL to query
 			the global innodb_tmpdir.
@@ -1890,7 +1877,7 @@ Converts an InnoDB error code to a MySQL error code and also tells to MySQL
 about a possible transaction rollback inside InnoDB caused by a lock wait
 timeout or a deadlock.
 @return MySQL error code */
-int
+static int
 convert_error_code_to_mysql(
 /*========================*/
 	dberr_t	error,	/*!< in: InnoDB error code */
@@ -2107,17 +2094,6 @@ innobase_mysql_print_thd(
 	fputs(thd_get_error_context_description(thd, buffer, sizeof buffer,
 						max_query_len), f);
 	putc('\n', f);
-}
-
-/******************************************************************//**
-Get the error message format string.
-@return the format string or 0 if not found. */
-const char*
-innobase_get_err_msg(
-/*=================*/
-	int	error_code)	/*!< in: MySQL error code */
-{
-	return(my_get_err_msg(error_code));
 }
 
 /******************************************************************//**
@@ -3198,12 +3174,12 @@ innobase_invalidate_query_cache(
         char db_name[NAME_CHAR_LEN * MY_CS_MBMAXLEN + 1];
         const char *key_ptr;
         size_t  tabname_len;
-        size_t  dbname_len;
 
         // Extract the database name.
         key_ptr= strchr(full_name, '/');
         DBUG_ASSERT(key_ptr != NULL); // Database name should be present
-        memcpy(db_name, full_name, (dbname_len= (key_ptr - full_name)));
+        size_t  dbname_len= size_t(key_ptr - full_name);
+        memcpy(db_name, full_name, dbname_len);
         db_name[dbname_len]= '\0';
 
         /* Construct the key("db-name\0table$name\0") for the query cache using
@@ -3272,9 +3248,9 @@ innobase_quote_identifier(
 	if (q == EOF) {
 		quoted_identifier.append(id);
 	} else {
-		quoted_identifier += (unsigned char)q;
+		quoted_identifier += char(q);
 		quoted_identifier.append(id);
-		quoted_identifier += (unsigned char)q;
+		quoted_identifier += char(q);
 	}
 
 	return (quoted_identifier);
@@ -3342,12 +3318,13 @@ innobase_convert_name(
 	}
 
 	/* Print the database name and table name separately. */
-	s = innobase_convert_identifier(s, bufend - s, id, slash - id, thd);
+	s = innobase_convert_identifier(s, ulint(bufend - s),
+					id, ulint(slash - id), thd);
 	if (s < bufend) {
 		*s++ = '.';
-		s = innobase_convert_identifier(s, bufend - s,
+		s = innobase_convert_identifier(s, ulint(bufend - s),
 						slash + 1, idlen
-						- (slash - id) - 1,
+						- ulint(slash - id) - 1,
 						thd);
 	}
 
@@ -3376,8 +3353,8 @@ innobase_format_name(
 
 /**********************************************************************//**
 Determines if the currently running transaction has been interrupted.
-@return TRUE if interrupted */
-ibool
+@return true if interrupted */
+bool
 trx_is_interrupted(
 /*===============*/
 	const trx_t*	trx)	/*!< in: transaction */
@@ -3413,7 +3390,7 @@ ha_innobase::reset_template(void)
 		}
 	);
 
-	m_prebuilt->keep_other_fields_on_keyread = 0;
+	m_prebuilt->keep_other_fields_on_keyread = false;
 	m_prebuilt->read_just_key = 0;
 	m_prebuilt->in_fts_query = 0;
 
@@ -4001,7 +3978,7 @@ innobase_change_buffering_inited_ok:
 
 	srv_log_buffer_size = (ulint) innobase_log_buffer_size;
 
-	srv_buf_pool_size = (ulint) innobase_buffer_pool_size;
+	srv_buf_pool_size = ulint(innobase_buffer_pool_size);
 
 	srv_n_read_io_threads = (ulint) innobase_read_io_threads;
 	srv_n_write_io_threads = (ulint) innobase_write_io_threads;
@@ -4041,16 +4018,16 @@ innobase_change_buffering_inited_ok:
 		}
 	}
 
-	if (innobase_open_files > (long) open_files_limit) {
+	if (innobase_open_files > open_files_limit) {
 		ib::warn() << "innodb_open_files " << innobase_open_files
 			   << " should not be greater"
 			   << "than the open_files_limit " << open_files_limit;
-		if (innobase_open_files > (long) tc_size) {
+		if (innobase_open_files > tc_size) {
 			innobase_open_files = tc_size;
 		}
 	}
 
-	srv_max_n_open_files = (ulint) innobase_open_files;
+	srv_max_n_open_files = innobase_open_files;
 	srv_innodb_status = (ibool) innobase_create_status_file;
 
 	srv_print_verbose_log = mysqld_embedded ? 0 : 1;
@@ -4129,7 +4106,7 @@ innobase_change_buffering_inited_ok:
 
 	err = innobase_start_or_create_for_mysql();
 
-	innobase_buffer_pool_size = static_cast<long long>(srv_buf_pool_size);
+	innobase_buffer_pool_size = srv_buf_pool_size;
 
 	if (err != DB_SUCCESS) {
 		innodb_shutdown();
@@ -4389,11 +4366,8 @@ innobase_commit_ordered_2(
 		If the binary log is not enabled, or the transaction
 		is not written to the binary log, the file name will
 		be a NULL pointer. */
-		ulonglong	pos;
-
-		thd_binlog_pos(thd, &trx->mysql_log_file_name, &pos);
-
-		trx->mysql_log_offset = static_cast<int64_t>(pos);
+		thd_binlog_pos(thd, &trx->mysql_log_file_name,
+			       &trx->mysql_log_offset);
 
 		/* Don't do write + flush right now. For group commit
 		to work we want to do the flush later. */
@@ -4811,7 +4785,7 @@ innobase_rollback_to_savepoint(
 
 	char	name[64];
 
-	longlong2str((ulint) savepoint, name, 36);
+	longlong2str(longlong(savepoint), name, 36);
 
 	int64_t	mysql_binlog_cache_pos;
 
@@ -4880,7 +4854,7 @@ innobase_release_savepoint(
 
 	/* TODO: use provided savepoint data area to store savepoint data */
 
-	longlong2str((ulint) savepoint, name, 36);
+	longlong2str(longlong(savepoint), name, 36);
 
 	error = trx_release_savepoint_for_mysql(trx, name);
 
@@ -4919,7 +4893,7 @@ innobase_savepoint(
 	/* TODO: use provided savepoint data area to store savepoint data */
 	char	name[64];
 
-	longlong2str((ulint) savepoint,name,36);
+	longlong2str(longlong(savepoint), name, 36);
 
 	dberr_t	error = trx_savepoint_for_mysql(trx, name, 0);
 
@@ -5075,9 +5049,7 @@ ha_innobase::table_flags() const
 	/* Need to use tx_isolation here since table flags is (also)
 	called before prebuilt is inited. */
 
-	ulong const	tx_isolation = thd_tx_isolation(thd);
-
-	if (tx_isolation <= ISO_READ_COMMITTED) {
+	if (thd_tx_isolation(thd) <= ISO_READ_COMMITTED) {
 		return(flags);
 	}
 
@@ -5648,7 +5620,7 @@ innobase_build_v_templ(
 	const dict_add_v_col_t*	add_v,
 	bool			locked)
 {
-	ulint	ncol = ib_table->n_cols - DATA_N_SYS_COLS;
+	ulint	ncol = unsigned(ib_table->n_cols) - DATA_N_SYS_COLS;
 	ulint	n_v_col = ib_table->n_v_cols;
 	bool	marker[REC_MAX_N_FIELDS];
 
@@ -6506,7 +6478,7 @@ ha_innobase::close()
 
 #ifdef WITH_WSREP
 UNIV_INTERN
-int
+ulint
 wsrep_innobase_mysql_sort(
 /*======================*/
 					/* out: str contains sort string */
@@ -6520,7 +6492,7 @@ wsrep_innobase_mysql_sort(
 {
 	CHARSET_INFO*		charset;
 	enum_field_types	mysql_tp;
-	int ret_length =	str_length;
+	ulint			ret_length =	str_length;
 
 	DBUG_ASSERT(str_length != UNIV_SQL_NULL);
 
@@ -6757,7 +6729,7 @@ innobase_mysql_fts_get_token(
 	for (;;) {
 
 		if (doc >= end) {
-			return(doc - start);
+			return ulint(doc - start);
 		}
 
 		int	ctype;
@@ -6799,7 +6771,7 @@ innobase_mysql_fts_get_token(
 	token->f_len = (uint) (doc - token->f_str) - mwc;
 	token->f_n_char = length;
 
-	return(doc - start);
+	return ulint(doc - start);
 }
 
 /** Converts a MySQL type to an InnoDB type. Note that this function returns
@@ -10302,7 +10274,7 @@ wsrep_append_foreign_key(
 	}
 
 	ut_a(idx);
-	key[0] = (char)i;
+	key[0] = byte(i);
 
 	rcode = wsrep_rec_get_foreign_key(
 		&key[1], &len, rec, index, idx,
@@ -10769,7 +10741,7 @@ innodb_base_col_setup(
 	const Field*	field,
 	dict_v_col_t*	v_col)
 {
-	int     n = 0;
+	ulint n = 0;
 
 	prepare_vcol_for_base_setup(table, field, v_col);
 
@@ -11443,8 +11415,8 @@ create_table_info_t::create_options_are_invalid()
 			smaller than UNIV_PAGE_SIZE_MAX, the maximum
 			KBS is also smaller. */
 			kbs_max = ut_min(
-				1 << (UNIV_PAGE_SSIZE_MAX - 1),
-				1 << (PAGE_ZIP_SSIZE_MAX - 1));
+				1U << (UNIV_PAGE_SSIZE_MAX - 1),
+				1U << (PAGE_ZIP_SSIZE_MAX - 1));
 			if (m_create_info->key_block_size > kbs_max) {
 				push_warning_printf(
 					m_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -13557,16 +13529,6 @@ ha_innobase::read_time(
 	return(ranges + (double) rows / (double) total_rows * time_for_scan);
 }
 
-/******************************************************************//**
-Return the size of the InnoDB memory buffer. */
-
-longlong
-ha_innobase::get_memory_buffer_size() const
-/*=======================================*/
-{
-	return(innobase_buffer_pool_size);
-}
-
 /** Update the system variable with the given value of the InnoDB
 buffer pool size.
 @param[in]	buf_pool_size	given value of buffer pool size.*/
@@ -13586,7 +13548,7 @@ match. In this case, we have to take into account if we generated a
 default clustered index for the table
 @return the key number used inside MySQL */
 static
-int
+unsigned
 innobase_get_mysql_key_number_for_index(
 /*====================================*/
 	INNOBASE_SHARE*		share,	/*!< in: share structure for index
@@ -13612,8 +13574,7 @@ innobase_get_mysql_key_number_for_index(
 			i++;
 		}
 
-		if (dict_index_is_clust(index)
-		    && dict_index_is_auto_gen_clust(index)) {
+		if (dict_index_is_auto_gen_clust(index)) {
 			ut_a(i > 0);
 			i--;
 		}
@@ -13667,13 +13628,13 @@ innobase_get_mysql_key_number_for_index(
 					" index.",
 					index->name());
 			}
-			return(-1);
+			return(~0U);
 		}
 	}
 
 	ut_error;
 
-	return(-1);
+	return(~0U);
 }
 
 /*********************************************************************//**
@@ -14115,7 +14076,7 @@ ha_innobase::info_low(
 			errkey = (unsigned int) (
 				(m_prebuilt->trx->error_key_num
 				 == ULINT_UNDEFINED)
-					? ~0
+					? ~0U
 					: m_prebuilt->trx->error_key_num);
 		}
 	}
@@ -14301,17 +14262,15 @@ ha_innobase::optimize(
 	This works OK otherwise, but MySQL locks the entire table during
 	calls to OPTIMIZE, which is undesirable. */
 
-	/* TODO: Defragment is disabled for now */
 	if (srv_defragment) {
-		int err;
-
-		err = defragment_table(m_prebuilt->table->name.m_name, NULL, false);
+		int err= defragment_table(
+			m_prebuilt->table->name.m_name, NULL, false);
 
 		if (err == 0) {
 			return (HA_ADMIN_OK);
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				err,
+					    uint(err),
 				"InnoDB: Cannot defragment table %s: returned error code %d\n",
 				m_prebuilt->table->name, err);
 
@@ -15685,7 +15644,7 @@ innodb_show_status(
 	bytes of text. */
 
 	char*	str;
-	ssize_t	flen;
+	size_t	flen;
 
 	mutex_enter(&srv_monitor_file_mutex);
 	rewind(srv_monitor_file);
@@ -15695,11 +15654,12 @@ innodb_show_status(
 
 	os_file_set_eof(srv_monitor_file);
 
-	if ((flen = ftell(srv_monitor_file)) < 0) {
+	flen = size_t(ftell(srv_monitor_file));
+	if (ssize_t(flen) < 0) {
 		flen = 0;
 	}
 
-	ssize_t	usable_len;
+	size_t	usable_len;
 
 	if (flen > MAX_STATUS_SIZE) {
 		usable_len = MAX_STATUS_SIZE;
@@ -15712,7 +15672,7 @@ innodb_show_status(
 	read the contents of the temporary file */
 
 	if (!(str = (char*) my_malloc(//PSI_INSTRUMENT_ME,
-				usable_len + 1, MYF(0)))) {
+		      usable_len + 1, MYF(0)))) {
 		mutex_exit(&srv_monitor_file_mutex);
 		DBUG_RETURN(1);
 	}
@@ -15722,19 +15682,18 @@ innodb_show_status(
 	if (flen < MAX_STATUS_SIZE) {
 		/* Display the entire output. */
 		flen = fread(str, 1, flen, srv_monitor_file);
-	} else if (trx_list_end < (ulint) flen
+	} else if (trx_list_end < flen
 		   && trx_list_start < trx_list_end
-		   && trx_list_start + (flen - trx_list_end)
+		   && trx_list_start + flen - trx_list_end
 		   < MAX_STATUS_SIZE - sizeof truncated_msg - 1) {
 
 		/* Omit the beginning of the list of active transactions. */
-		ssize_t	len = fread(str, 1, trx_list_start, srv_monitor_file);
+		size_t	len = fread(str, 1, trx_list_start, srv_monitor_file);
 
 		memcpy(str + len, truncated_msg, sizeof truncated_msg - 1);
 		len += sizeof truncated_msg - 1;
 		usable_len = (MAX_STATUS_SIZE - 1) - len;
-		fseek(srv_monitor_file,
-		      static_cast<long>(flen - usable_len), SEEK_SET);
+		fseek(srv_monitor_file, long(flen - usable_len), SEEK_SET);
 		len += fread(str + len, 1, usable_len, srv_monitor_file);
 		flen = len;
 	} else {
@@ -16287,7 +16246,7 @@ ha_innobase::store_lock(
 
 	DBUG_ASSERT(EQ_CURRENT_THD(thd));
 	const bool in_lock_tables = thd_in_lock_tables(thd);
-	const uint sql_command = thd_sql_command(thd);
+	const int sql_command = thd_sql_command(thd);
 
 	if (srv_read_only_mode
 	    && (sql_command == SQLCOM_UPDATE
@@ -16944,8 +16903,7 @@ innobase_get_at_most_n_mbchars(
 		characters, and we can store in the column prefix index the
 		whole string. */
 
-		char_length = my_charpos(charset, str,
-						str + data_len, (int) n_chars);
+		char_length= my_charpos(charset, str, str + data_len, n_chars);
 		if (char_length > data_len) {
 			char_length = data_len;
 		}
@@ -18438,13 +18396,8 @@ innodb_enable_monitor_at_startup(
 	for (char* option = my_strtok_r(str, sep, &last);
 	     option;
 	     option = my_strtok_r(NULL, sep, &last)) {
-		ulint	ret;
 		char*	option_name;
-
-		ret = innodb_monitor_valid_byname(&option_name, option);
-
-		/* The name is validated if ret == 0 */
-		if (!ret) {
+		if (!innodb_monitor_valid_byname(&option_name, option)) {
 			innodb_monitor_update(NULL, NULL, &option,
 					      MONITOR_TURN_ON, FALSE);
 		} else {
@@ -19640,13 +19593,13 @@ BUF_POOL_SIZE_THRESHOLD (srv/srv0start.cc), then srv_buf_pool_instances_default
 can be removed and 8 used instead. The problem with the current setup is that
 with 128MiB default buffer pool size and 8 instances by default we would emit
 a warning when no options are specified. */
-static MYSQL_SYSVAR_LONGLONG(buffer_pool_size, innobase_buffer_pool_size,
+static MYSQL_SYSVAR_ULONGLONG(buffer_pool_size, innobase_buffer_pool_size,
   PLUGIN_VAR_RQCMDARG,
   "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
   innodb_buffer_pool_size_validate,
   innodb_buffer_pool_size_update,
-  static_cast<longlong>(srv_buf_pool_def_size),
-  static_cast<longlong>(srv_buf_pool_min_size),
+  srv_buf_pool_def_size,
+  srv_buf_pool_min_size,
   LLONG_MAX, 1024*1024L);
 
 static MYSQL_SYSVAR_ULONG(buffer_pool_chunk_size, srv_buf_pool_chunk_unit,
@@ -19819,7 +19772,7 @@ static MYSQL_SYSVAR_BOOL(deadlock_detect, innobase_deadlock_detect,
   " and we rely on innodb_lock_wait_timeout in case of deadlock.",
   NULL, NULL, TRUE);
 
-static MYSQL_SYSVAR_LONG(fill_factor, innobase_fill_factor,
+static MYSQL_SYSVAR_UINT(fill_factor, innobase_fill_factor,
   PLUGIN_VAR_RQCMDARG,
   "Percentage of B-tree page filled during bulk insert",
   NULL, NULL, 100, 10, 100, 0);
@@ -19947,10 +19900,10 @@ static MYSQL_SYSVAR_UINT(old_blocks_time, buf_LRU_old_threshold_ms,
   " The timeout is disabled if 0.",
   NULL, NULL, 1000, 0, UINT_MAX32, 0);
 
-static MYSQL_SYSVAR_LONG(open_files, innobase_open_files,
+static MYSQL_SYSVAR_ULONG(open_files, innobase_open_files,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "How many files at the maximum InnoDB keeps open at the same time.",
-  NULL, NULL, 0L, 0L, LONG_MAX, 0);
+  NULL, NULL, 0, 0, LONG_MAX, 0);
 
 static MYSQL_SYSVAR_ULONG(sync_spin_loops, srv_n_spin_wait_rounds,
   PLUGIN_VAR_RQCMDARG,
@@ -20939,7 +20892,7 @@ innobase_rename_vc_templ(
 
 	if (is_part != NULL) {
 		*is_part = '\0';
-		tbnamelen = is_part - tbname;
+		tbnamelen = ulint(is_part - tbname);
 	}
 
 	dbnamelen = filename_to_tablename(dbname, t_dbname,
@@ -21220,7 +21173,7 @@ ib_senderrf(
 {
 	va_list		args;
 	char*		str = NULL;
-	const char*	format = innobase_get_err_msg(code);
+	const char*	format = my_get_err_msg(code);
 
 	/* If the caller wants to push a message to the client then
 	the caller must pass a valid session handle. */
@@ -21443,8 +21396,6 @@ innodb_buffer_pool_size_validate(
 	struct st_mysql_value*		value)
 {
 	longlong	intbuf;
-
-
 	value->val_int(value, &intbuf);
 
 	if (!srv_was_started) {
@@ -21490,12 +21441,11 @@ innodb_buffer_pool_size_validate(
 		return(1);
 	}
 
-	ulint	requested_buf_pool_size
-		= buf_pool_size_align(static_cast<ulint>(intbuf));
+	ulint	requested_buf_pool_size = buf_pool_size_align(ulint(intbuf));
 
-	*static_cast<longlong*>(save) = requested_buf_pool_size;
+	*static_cast<ulonglong*>(save) = requested_buf_pool_size;
 
-	if (srv_buf_pool_size == static_cast<ulint>(intbuf)) {
+	if (srv_buf_pool_size == ulint(intbuf)) {
 		buf_pool_mutex_exit_all();
 		/* nothing to do */
 		return(0);
@@ -21543,7 +21493,7 @@ innodb_compression_algorithm_validate(
 						for update function */
 	struct st_mysql_value*		value)	/*!< in: incoming string */
 {
-	long		compression_algorithm;
+	ulong		compression_algorithm;
 	DBUG_ENTER("innobase_compression_algorithm_validate");
 
 	if (check_sysvar_enum(thd, var, save, value)) {
@@ -21665,7 +21615,7 @@ UNIV_INTERN
 void
 ib_push_warning(
 	trx_t*		trx,	/*!< in: trx */
-	ulint		error,	/*!< in: error code to push as warning */
+	dberr_t		error,	/*!< in: error code to push as warning */
 	const char	*format,/*!< in: warning message */
 	...)
 {
@@ -21679,9 +21629,9 @@ ib_push_warning(
 		buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
 		vsprintf(buf,format, args);
 
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			convert_error_code_to_mysql((dberr_t)error, 0, thd),
-			buf);
+		push_warning_printf(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			uint(convert_error_code_to_mysql(error, 0, thd)), buf);
 		my_free(buf);
 		va_end(args);
 	}
@@ -21693,7 +21643,7 @@ UNIV_INTERN
 void
 ib_push_warning(
 	void*		ithd,	/*!< in: thd */
-	ulint		error,	/*!< in: error code to push as warning */
+	dberr_t		error,	/*!< in: error code to push as warning */
 	const char	*format,/*!< in: warning message */
 	...)
 {
@@ -21711,9 +21661,9 @@ ib_push_warning(
 		buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
 		vsprintf(buf,format, args);
 
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-			convert_error_code_to_mysql((dberr_t)error, 0, thd),
-			buf);
+		push_warning_printf(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			uint(convert_error_code_to_mysql(error, 0, thd)), buf);
 		my_free(buf);
 		va_end(args);
 	}
