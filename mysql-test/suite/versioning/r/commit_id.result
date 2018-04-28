@@ -62,7 +62,7 @@ A	B	C	D	E	F
 1	1	1	1	1	1
 select trt_trx_sees(0, @tx2);
 trt_trx_sees(0, @tx2)
-NULL
+0
 set transaction isolation level read uncommitted;
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx3;
