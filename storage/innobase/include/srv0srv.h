@@ -148,7 +148,7 @@ struct srv_stats_t
 	ulint_ctr_1_t		n_lock_wait_count;
 
 	/** Number of threads currently waiting on database locks */
-	simple_counter<ulint, true> n_lock_wait_current_count;
+	simple_atomic_counter<>	n_lock_wait_current_count;
 
 	/** Number of rows read. */
 	ulint_ctr_64_t		n_rows_read;

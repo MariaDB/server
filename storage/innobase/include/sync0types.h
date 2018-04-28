@@ -1186,50 +1186,43 @@ static inline void my_atomic_storelint(ulint *A, ulint B)
 #endif
 }
 
-/** Simple counter aligned to CACHE_LINE_SIZE
-@tparam	Type	the integer type of the counter
-@tparam	atomic	whether to use atomic memory access */
-template <typename Type = ulint, bool atomic = false>
+/** Simple non-atomic counter aligned to CACHE_LINE_SIZE
+@tparam	Type	the integer type of the counter */
+template <typename Type>
 struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
 {
 	/** Increment the counter */
 	Type inc() { return add(1); }
 	/** Decrement the counter */
-	Type dec() { return sub(1); }
+	Type dec() { return add(Type(~0)); }
 
 	/** Add to the counter
 	@param[in]	i	amount to be added
 	@return	the value of the counter after adding */
-	Type add(Type i)
-	{
-		compile_time_assert(!atomic || sizeof(Type) == sizeof(lint));
-		if (atomic) {
-#ifdef _MSC_VER
-// Suppress type conversion/ possible loss of data warning
-#pragma warning (push)
-#pragma warning (disable : 4244)
-#endif
-			return Type(my_atomic_addlint(reinterpret_cast<ulint*>
-						      (&m_counter), i));
-#ifdef _MSC_VER
-#pragma warning (pop)
-#endif
-		} else {
-			return m_counter += i;
-		}
-	}
-	/** Subtract from the counter
-	@param[in]	i	amount to be subtracted
+	Type add(Type i) { return m_counter += i; }
+
+	/** @return the value of the counter */
+	operator Type() const { return m_counter; }
+
+private:
+	/** The counter */
+	Type	m_counter;
+};
+
+/** Simple atomic counter aligned to CACHE_LINE_SIZE
+@tparam	Type	lint or ulint */
+template <typename Type = ulint>
+struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_atomic_counter
+{
+	/** Increment the counter */
+	Type inc() { return add(1); }
+	/** Decrement the counter */
+	Type dec() { return add(Type(~0)); }
+
+	/** Add to the counter
+	@param[in]	i	amount to be added
 	@return	the value of the counter after adding */
-	Type sub(Type i)
-	{
-		compile_time_assert(!atomic || sizeof(Type) == sizeof(lint));
-		if (atomic) {
-			return Type(my_atomic_addlint(&m_counter, -lint(i)));
-		} else {
-			return m_counter -= i;
-		}
-	}
+	Type add(Type i) { return my_atomic_addlint(&m_counter, i); }
 
 	/** @return the value of the counter (non-atomic access)! */
 	operator Type() const { return m_counter; }
