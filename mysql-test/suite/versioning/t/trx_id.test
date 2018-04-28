@@ -157,5 +157,17 @@ commit;
 select row_start from t1 into @trx_id;
 select trt_begin_ts(@trx_id) <= @ts1 as BEGIN_TS_GOOD;
 
+--echo # MDEV-16010 Too many rows with AS OF point_in_the_past_or_NULL
+create or replace table t1 (
+  x int,
+  row_start bigint unsigned as row start invisible,
+  row_end bigint unsigned as row end invisible,
+  period for system_time (row_start, row_end)
+) with system versioning engine innodb;
+insert into t1 (x) values (1);
+delete from t1;
+select * from t1 for system_time as of timestamp'1990-1-1 00:00';
+select * from t1 for system_time as of NULL;
+
 drop database test;
 create database test;

@@ -8720,6 +8720,12 @@ bool TR_table::query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
     return false;
   }
 
+  if (trx_id0 == ULONGLONG_MAX || trx_id1 == 0)
+  {
+    result= false;
+    return false;
+  }
+
   if (!commit_id1)
   {
     if (!query(trx_id1))
