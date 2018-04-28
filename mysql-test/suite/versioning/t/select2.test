@@ -202,6 +202,14 @@ select * from (select * from t1 for system_time all, t2 for system_time all) for
 --error ER_PARSE_ERROR
 select * from (t1 for system_time all join t2 for system_time all) for system_time all;
 
+--echo # MDEV-16043 Assertion thd->Item_change_list::is_empty() failed in mysql_parse upon SELECT from a view reading from a versioned table
+create or replace table t1 (a int) with system versioning;
+create or replace view v1 as select * from t1;
+prepare stmt from "select * from t1 where exp( '20010609211642053929' )";
+--error ER_DATA_OUT_OF_RANGE
+execute stmt;
+select a from v1;
+
 drop view v1;
 drop table t1, t2;
 
