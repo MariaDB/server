@@ -90,6 +90,7 @@ public:
     args= tmp_arg;
     args[0]= a;
     with_sum_func= a->with_sum_func;
+    with_param= a->with_param;
     with_field= a->with_field;
   }
   Item_func(Item *a,Item *b):
@@ -98,6 +99,7 @@ public:
     args= tmp_arg;
     args[0]= a; args[1]= b;
     with_sum_func= a->with_sum_func || b->with_sum_func;
+    with_param= a->with_param || b->with_param;
     with_field= a->with_field || b->with_field;
   }
   Item_func(Item *a,Item *b,Item *c):
@@ -109,6 +111,7 @@ public:
       arg_count= 3;
       args[0]= a; args[1]= b; args[2]= c;
       with_sum_func= a->with_sum_func || b->with_sum_func || c->with_sum_func;
+      with_param= a->with_param || b->with_param || c->with_param;
       with_field= a->with_field || b->with_field || c->with_field;
     }
   }
@@ -122,6 +125,8 @@ public:
       args[0]= a; args[1]= b; args[2]= c; args[3]= d;
       with_sum_func= a->with_sum_func || b->with_sum_func ||
 	c->with_sum_func || d->with_sum_func;
+      with_param= a->with_param || b->with_param ||
+        c->with_param || d->with_param;
       with_field= a->with_field || b->with_field ||
         c->with_field || d->with_field;
     }
@@ -135,6 +140,8 @@ public:
       args[0]= a; args[1]= b; args[2]= c; args[3]= d; args[4]= e;
       with_sum_func= a->with_sum_func || b->with_sum_func ||
 	c->with_sum_func || d->with_sum_func || e->with_sum_func ;
+      with_param= a->with_param || b->with_param ||
+        c->with_param || d->with_param || e->with_param;
       with_field= a->with_field || b->with_field ||
         c->with_field || d->with_field || e->with_field;
     }
