@@ -2075,7 +2075,7 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
   }
   else
   {
-    is_8bit= (m_tok_start[0] & 0x80) | get_7bit_or_8bit_ident(thd, &c);
+    is_8bit= get_7bit_or_8bit_ident(thd, &c) || (m_tok_start[0] & 0x80);
     resolve_introducer= !is_8bit;
   }
   length= yyLength();
