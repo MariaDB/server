@@ -8351,7 +8351,7 @@ int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size)
 {
   handler **file;
   char *name_buffer_ptr;
-  int error;
+  int error= 0;
 
   name_buffer_ptr= m_name_buffer_ptr;
   file= m_file;
@@ -8362,13 +8362,20 @@ int ha_partition::open_read_partitions(char *name_buff, size_t name_buff_size)
     int is_open= bitmap_is_set(&m_opened_partitions, n_file);
     int should_be_open= bitmap_is_set(&m_part_info->read_partitions, n_file);
 
-    if (is_open && !should_be_open)
-    {
-      if ((error= (*file)->ha_close()))
-        goto err_handler;
-      bitmap_clear_bit(&m_opened_partitions, n_file);
-    }
-    else if (!is_open && should_be_open)
+    /*
+      TODO: we can close some opened partitions if they're not
+      used in the query. It probably should be syncronized with the
+      table_open_cache value.
+
+      if (is_open && !should_be_open)
+      {
+        if ((error= (*file)->ha_close()))
+          goto err_handler;
+        bitmap_clear_bit(&m_opened_partitions, n_file);
+      }
+      else
+    */
+    if (!is_open && should_be_open)
     {
       LEX_CSTRING save_connect_string= table->s->connect_string;
       if ((error= create_partition_name(name_buff, name_buff_size,
