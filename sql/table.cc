@@ -1777,6 +1777,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     vers_can_native= plugin_hton(se_plugin)->flags & HTON_NATIVE_SYS_VERSIONING;
     row_start_field= row_start;
     row_end_field= row_end;
+    status_var_increment(thd->status_var.feature_system_versioning);
   } // if (system_period == NULL)
 
   for (i=0 ; i < share->fields; i++, strpos+=field_pack_length, field_ptr++)

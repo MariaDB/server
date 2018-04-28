@@ -13,6 +13,7 @@ Feature_invisible_columns	0
 Feature_json	0
 Feature_locale	0
 Feature_subquery	0
+Feature_system_versioning	0
 Feature_timezone	0
 Feature_trigger	0
 Feature_window_functions	0
