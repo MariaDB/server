@@ -58,10 +58,8 @@ ulong	srv_thread_sleep_delay	= 10000;
 
 
 /** We are prepared for a situation that we have this many threads waiting for
-a semaphore inside InnoDB. innobase_start_or_create_for_mysql() sets the
-value. */
-
-ulint	srv_max_n_threads	= 0;
+a semaphore inside InnoDB. srv_start() sets the value. */
+ulint	srv_max_n_threads;
 
 /** The following controls how many threads we let inside InnoDB concurrently:
 threads waiting for locks are not counted into the number because otherwise

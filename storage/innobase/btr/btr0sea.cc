@@ -224,8 +224,7 @@ btr_search_check_free_space_in_heap(const dict_index_t* index)
 
 /** Creates and initializes the adaptive search system at a database start.
 @param[in]	hash_size	hash table size. */
-void
-btr_search_sys_create(ulint hash_size)
+void btr_search_sys_create(ulint hash_size)
 {
 	/* Search System is divided into n parts.
 	Each part controls access to distinct set of hash buckets from
@@ -266,8 +265,7 @@ btr_search_sys_create(ulint hash_size)
 
 /** Resize hash index hash table.
 @param[in]	hash_size	hash index hash table size */
-void
-btr_search_sys_resize(ulint hash_size)
+void btr_search_sys_resize(ulint hash_size)
 {
 	/* Step-1: Lock all search latches in exclusive mode. */
 	btr_search_x_lock_all();
@@ -303,10 +301,14 @@ btr_search_sys_resize(ulint hash_size)
 }
 
 /** Frees the adaptive search system at a database shutdown. */
-void
-btr_search_sys_free()
+void btr_search_sys_free()
 {
-	ut_ad(btr_search_sys != NULL && btr_search_latches != NULL);
+	if (!btr_search_sys) {
+		ut_ad(!btr_search_latches);
+		return;
+	}
+
+	ut_ad(btr_search_latches);
 
 	/* Step-1: Release the hash tables. */
 	for (ulint i = 0; i < btr_ahi_parts; ++i) {
@@ -351,9 +353,7 @@ btr_search_disable_ref_count(
 
 /** Disable the adaptive hash search system and empty the index.
 @param[in]	need_mutex	need to acquire dict_sys->mutex */
-void
-btr_search_disable(
-	bool	need_mutex)
+void btr_search_disable(bool need_mutex)
 {
 	dict_table_t*	table;
 
@@ -406,8 +406,7 @@ btr_search_disable(
 }
 
 /** Enable the adaptive hash search system. */
-void
-btr_search_enable()
+void btr_search_enable()
 {
 	buf_pool_mutex_enter_all();
 	if (srv_buf_pool_old_size != srv_buf_pool_size) {
@@ -1080,8 +1079,7 @@ fail:
 			block->buf_fix_count == 0 or it is an index page which
 			has already been removed from the buf_pool->page_hash
 			i.e.: it is in state BUF_BLOCK_REMOVE_HASH */
-void
-btr_search_drop_page_hash_index(buf_block_t* block)
+void btr_search_drop_page_hash_index(buf_block_t* block)
 {
 	ulint			n_fields;
 	ulint			n_bytes;
@@ -1652,8 +1650,7 @@ btr_search_move_or_delete_hash_entries(
 /** Updates the page hash index when a single record is deleted from a page.
 @param[in]	cursor	cursor which was positioned on the record to delete
 			using btr_cur_search_, the record is not yet deleted.*/
-void
-btr_search_update_hash_on_delete(btr_cur_t* cursor)
+void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 {
 	hash_table_t*	table;
 	buf_block_t*	block;

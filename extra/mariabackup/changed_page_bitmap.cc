@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 
 #include "common.h"
 #include "xtrabackup.h"
+#include "srv0srv.h"
 
 /* TODO: copy-pasted shared definitions from the XtraDB bitmap write code.
 Remove these on the first opportunity, i.e. single-binary XtraBackup.  */

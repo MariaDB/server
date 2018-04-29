@@ -48,7 +48,7 @@ lock_wait_table_print(void)
 
 	const srv_slot_t*	slot = lock_sys.waiting_threads;
 
-	for (ulint i = 0; i < OS_THREAD_MAX_N; i++, ++slot) {
+	for (ulint i = 0; i < srv_max_n_threads; i++, ++slot) {
 
 		fprintf(stderr,
 			"Slot %lu: thread type %lu,"
@@ -72,7 +72,7 @@ lock_wait_table_release_slot(
 	srv_slot_t*	slot)		/*!< in: slot to release */
 {
 #ifdef UNIV_DEBUG
-	srv_slot_t*	upper = lock_sys.waiting_threads + OS_THREAD_MAX_N;
+	srv_slot_t*	upper = lock_sys.waiting_threads + srv_max_n_threads;
 #endif /* UNIV_DEBUG */
 
 	lock_wait_mutex_enter();
@@ -142,7 +142,7 @@ lock_wait_table_reserve_slot(
 
 	slot = lock_sys.waiting_threads;
 
-	for (i = OS_THREAD_MAX_N; i--; ++slot) {
+	for (i = srv_max_n_threads; i--; ++slot) {
 		if (!slot->in_use) {
 			slot->in_use = TRUE;
 			slot->thr = thr;
@@ -163,13 +163,13 @@ lock_wait_table_reserve_slot(
 			}
 
 			ut_ad(lock_sys.last_slot
-			      <= lock_sys.waiting_threads + OS_THREAD_MAX_N);
+			      <= lock_sys.waiting_threads + srv_max_n_threads);
 
 			return(slot);
 		}
 	}
 
-	ib::error() << "There appear to be " << OS_THREAD_MAX_N << " user"
+	ib::error() << "There appear to be " << srv_max_n_threads << " user"
 		" threads currently waiting inside InnoDB, which is the upper"
 		" limit. Cannot continue operation. Before aborting, we print"
 		" a list of waiting threads.";

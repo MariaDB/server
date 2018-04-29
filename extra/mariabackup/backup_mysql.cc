@@ -48,6 +48,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include <limits>
 #include "common.h"
 #include "xtrabackup.h"
+#include "srv0srv.h"
 #include "mysql_version.h"
 #include "backup_copy.h"
 #include "backup_mysql.h"

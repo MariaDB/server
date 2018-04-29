@@ -1192,11 +1192,11 @@ buf_madvise_do_dump()
 	buf_chunk_t*	chunk;
 
 	/* mirrors allocation in log_sys_init() */
-	if (log_sys->buf)
-	{
-		ret+= madvise(log_sys->first_in_use ? log_sys->buf
-						    : log_sys->buf - log_sys->buf_size,
-			      log_sys->buf_size,
+	if (log_sys->buf) {
+		ret+= madvise(log_sys->first_in_use
+			      ? log_sys->buf
+			      : log_sys->buf - srv_log_buffer_size,
+			      srv_log_buffer_size * 2,
 			      MADV_DODUMP);
 	}
 	/* mirrors recv_sys_init() */

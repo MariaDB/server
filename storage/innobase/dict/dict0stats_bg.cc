@@ -110,6 +110,7 @@ dict_stats_recalc_pool_deinit()
 	recalc_pool->clear();
 
 	UT_DELETE(recalc_pool);
+	recalc_pool = NULL;
 }
 
 /*****************************************************************//**
@@ -306,6 +307,10 @@ dict_stats_thread_deinit()
 {
 	ut_a(!srv_read_only_mode);
 	ut_ad(!srv_dict_stats_thread_active);
+
+	if (recalc_pool == NULL) {
+		return;
+	}
 
 	dict_stats_recalc_pool_deinit();
 	dict_defrag_pool_deinit();

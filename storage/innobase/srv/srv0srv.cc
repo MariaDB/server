@@ -170,7 +170,7 @@ use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 my_bool	srv_use_native_aio;
 my_bool	srv_numa_interleave;
-/** copy of innodb_use_atomic_writes; @see innobase_init() */
+/** copy of innodb_use_atomic_writes; @see innodb_init_params() */
 my_bool	srv_use_atomic_writes;
 /** innodb_compression_algorithm; used with page compression */
 ulong	innodb_compression_algorithm;
@@ -189,15 +189,15 @@ ulong	srv_n_log_files;
 /** The InnoDB redo log file size, or 0 when changing the redo log format
 at startup (while disallowing writes to the redo log). */
 ulonglong	srv_log_file_size;
-/** copy of innodb_log_buffer_size, but in database pages */
-ulint		srv_log_buffer_size;
+/** innodb_log_buffer_size, in bytes */
+ulong		srv_log_buffer_size;
 /** innodb_flush_log_at_trx_commit */
 ulong		srv_flush_log_at_trx_commit;
 /** innodb_flush_log_at_timeout */
 uint		srv_flush_log_at_timeout;
 /** innodb_page_size */
 ulong		srv_page_size;
-/** log2 of innodb_page_size; @see innobase_init() */
+/** log2 of innodb_page_size; @see innodb_init_params() */
 ulong		srv_page_size_shift;
 /** innodb_log_write_ahead_size */
 ulong		srv_log_write_ahead_size;
@@ -262,10 +262,10 @@ ulint	srv_lock_table_size	= ULINT_MAX;
 /** innodb_idle_flush_pct */
 ulong	srv_idle_flush_pct;
 
-/** copy of innodb_read_io_threads */
-ulint	srv_n_read_io_threads;
-/** copy of innodb_write_io_threads */
-ulint	srv_n_write_io_threads;
+/** innodb_read_io_threads */
+ulong	srv_n_read_io_threads;
+/** innodb_write_io_threads */
+ulong	srv_n_write_io_threads;
 
 /** innodb_random_read_ahead */
 my_bool	srv_random_read_ahead;
@@ -278,13 +278,10 @@ ulong	srv_read_ahead_threshold;
 buffer in terms of percentage of the buffer pool. */
 uint	srv_change_buffer_max_size;
 
-char*	srv_file_flush_method_str;
+enum srv_flush_t	srv_file_flush_method;
 
 
-enum srv_flush_t	srv_file_flush_method = IF_WIN(SRV_ALL_O_DIRECT_FSYNC,SRV_FSYNC);
-
-
-/** copy of innodb_open_files, initialized by innobase_init() */
+/** copy of innodb_open_files; @see innodb_init_params() */
 ulint	srv_max_n_open_files;
 
 /** innodb_io_capacity */
@@ -381,8 +378,7 @@ unsigned long long srv_stats_modified_counter;
 based on number of configured pages */
 my_bool	srv_stats_sample_traditional;
 
-/** copy of innodb_doublewrite */
-ibool	srv_use_doublewrite_buf;
+my_bool	srv_use_doublewrite_buf;
 
 /** innodb_doublewrite_batch_size (a debug parameter) specifies the
 number of pages to use in LRU and flush_list batch flushing.
@@ -1113,40 +1109,15 @@ srv_free(void)
 }
 
 /*********************************************************************//**
-Normalizes init parameter values to use units we use inside InnoDB. */
-static
-void
-srv_normalize_init_values(void)
-/*===========================*/
-{
-	srv_sys_space.normalize();
-
-	srv_tmp_space.normalize();
-
-	srv_log_buffer_size >>= srv_page_size_shift;
-
-	srv_lock_table_size = 5 * (srv_buf_pool_size >> srv_page_size_shift);
-}
-
-/*********************************************************************//**
 Boots the InnoDB server. */
 void
 srv_boot(void)
 /*==========*/
 {
-	/* Transform the init parameter values given by MySQL to
-	use units we use inside InnoDB: */
-
-	srv_normalize_init_values();
-
 	sync_check_init();
-	/* Reset the system variables in the recovery module. */
 	recv_sys_var_init();
 	trx_pool_init();
 	row_mysql_init();
-
-	/* Initialize this module */
-
 	srv_init();
 }
 
@@ -2443,10 +2414,6 @@ suspend_thread:
 
 	srv_suspend_thread(slot);
 
-	/* DO NOT CHANGE THIS STRING. innobase_start_or_create_for_mysql()
-	waits for database activity to die down when converting < 4.1.x
-	databases, and relies on this string being exactly as it is. InnoDB
-	manual also mentions this string in several places. */
 	srv_main_thread_op_info = "waiting for server activity";
 
 	srv_resume_thread(slot);

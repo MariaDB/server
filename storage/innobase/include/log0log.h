@@ -82,9 +82,7 @@ log_free_check(void);
 
 /** Extends the log buffer.
 @param[in]	len	requested minimum size in bytes */
-void
-log_buffer_extend(
-	ulint	len);
+void log_buffer_extend(ulong len);
 
 /** Check margin not to overwrite transaction log from the last checkpoint.
 If would estimate the log write to exceed the log_group_capacity,
@@ -422,8 +420,6 @@ extern my_bool	innodb_log_checksums;
 /* The counting of lsn's starts from this value: this must be non-zero */
 #define LOG_START_LSN		((lsn_t) (16 * OS_FILE_LOG_BLOCK_SIZE))
 
-#define LOG_BUFFER_SIZE		(srv_log_buffer_size << srv_page_size_shift)
-
 /* Offsets of a log block header */
 #define	LOG_BLOCK_HDR_NO	0	/* block number which must be > 0 and
 					is allowed to wrap around at 2G; the
@@ -470,7 +466,7 @@ extern my_bool	innodb_log_checksums;
 #define LOG_CHECKPOINT_LSN		8
 /** Byte offset of the log record corresponding to LOG_CHECKPOINT_LSN */
 #define LOG_CHECKPOINT_OFFSET		16
-/** log_sys_t::buf_size at the time of the checkpoint (not used) */
+/** srv_log_buffer_size at the time of the checkpoint (not used) */
 #define LOG_CHECKPOINT_LOG_BUF_SIZE	24
 /** MariaDB 10.2.5 encrypted redo log encryption key version (32 bits)*/
 #define LOG_CHECKPOINT_CRYPT_KEY	32
@@ -597,7 +593,7 @@ struct log_t{
 					update hotspots from residing on the
 					same memory cache line */
 	lsn_t		lsn;		/*!< log sequence number */
-	ulint		buf_free;	/*!< first free offset within the log
+	ulong		buf_free;	/*!< first free offset within the log
 					buffer in use */
 
 	char		pad2[CACHE_LINE_SIZE];/*!< Padding */
@@ -614,7 +610,8 @@ struct log_t{
 					mtr_commit and still ensure that
 					insertions in the flush_list happen
 					in the LSN order. */
-	byte*		buf;		/*!< Memory of double the buf_size is
+	byte*		buf;		/*!< Memory of double the
+					srv_log_buffer_size is
 					allocated here. This pointer will change
 					however to either the first half or the
 					second half in turns, so that log
@@ -626,8 +623,7 @@ struct log_t{
 	bool		first_in_use;	/*!< true if buf points to the first
 					half of the aligned(buf_ptr), false
 					if the second half */
-	ulint		buf_size;	/*!< log buffer size of each in bytes */
-	ulint		max_buf_free;	/*!< recommended maximum value of
+	ulong		max_buf_free;	/*!< recommended maximum value of
 					buf_free for the buffer in use, after
 					which the buffer is flushed */
 	bool		check_flush_or_checkpoint;
@@ -644,7 +640,7 @@ struct log_t{
 
 	/** The fields involved in the log buffer flush @{ */
 
-	ulint		buf_next_to_write;/*!< first offset in the log buffer
+	ulong		buf_next_to_write;/*!< first offset in the log buffer
 					where the byte content may not exist
 					written to file, e.g., the start
 					offset of a log record catenated

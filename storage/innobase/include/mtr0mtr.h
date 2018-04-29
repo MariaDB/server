@@ -321,9 +321,9 @@ struct mtr_t {
 	@param[in]	space	user or system tablespace */
 	void set_named_space(fil_space_t* space)
 	{
-		ut_ad(m_impl.m_user_space_id == TRX_SYS_SPACE);
+		ut_ad(!m_impl.m_user_space_id);
 		ut_d(m_impl.m_user_space_id = space->id);
-		if (space->id != TRX_SYS_SPACE) {
+		if (space->id) {
 			m_impl.m_user_space = space;
 		}
 	}

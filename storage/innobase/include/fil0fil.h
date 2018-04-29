@@ -36,7 +36,7 @@ Created 10/25/1995 Heikki Tuuri
 #include "ibuf0types.h"
 
 // Forward declaration
-extern ibool srv_use_doublewrite_buf;
+extern my_bool srv_use_doublewrite_buf;
 extern struct buf_dblwr_t* buf_dblwr;
 struct trx_t;
 class page_id_t;

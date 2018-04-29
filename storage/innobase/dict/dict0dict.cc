@@ -6702,11 +6702,18 @@ void
 dict_close(void)
 /*============*/
 {
-	ulint	i;
+	if (dict_sys == NULL) {
+		/* This should only happen if a failure occurred
+		during redo log processing. */
+		return;
+	}
+
+	/* Acquire only because it's a pre-condition. */
+	mutex_enter(&dict_sys->mutex);
 
 	/* Free the hash elements. We don't remove them from the table
 	because we are going to destroy the table anyway. */
-	for (i = 0; i < hash_get_n_cells(dict_sys->table_hash); i++) {
+	for (ulint i = 0; i < hash_get_n_cells(dict_sys->table_id_hash); i++) {
 		dict_table_t*	table;
 
 		table = static_cast<dict_table_t*>(
@@ -6718,12 +6725,7 @@ dict_close(void)
 			table = static_cast<dict_table_t*>(
 				HASH_GET_NEXT(name_hash, prev_table));
 			ut_ad(prev_table->magic_n == DICT_TABLE_MAGIC_N);
-			/* Acquire only because it's a pre-condition. */
-			mutex_enter(&dict_sys->mutex);
-
 			dict_table_remove_from_cache(prev_table);
-
-			mutex_exit(&dict_sys->mutex);
 		}
 	}
 
@@ -6733,6 +6735,7 @@ dict_close(void)
 	therefore we don't delete the individual elements. */
 	hash_table_free(dict_sys->table_id_hash);
 
+	mutex_exit(&dict_sys->mutex);
 	mutex_free(&dict_sys->mutex);
 
 	rw_lock_free(dict_operation_lock);
@@ -6741,6 +6744,11 @@ dict_close(void)
 	dict_operation_lock = NULL;
 
 	mutex_free(&dict_foreign_err_mutex);
+
+	if (dict_foreign_err_file) {
+		fclose(dict_foreign_err_file);
+		dict_foreign_err_file = NULL;
+	}
 
 	ut_free(dict_sys);
 

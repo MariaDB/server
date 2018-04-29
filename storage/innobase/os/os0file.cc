@@ -5207,7 +5207,7 @@ os_file_set_nocache(
 
 		ib::error()
 			<< "Failed to set DIRECTIO_ON on file "
-			<< file_name << ": " << operation_name
+			<< file_name << "; " << operation_name << ": "
 			<< strerror(errno_save) << ","
 			" continuing anyway.";
 	}
@@ -5221,9 +5221,9 @@ os_file_set_nocache(
 # ifdef UNIV_LINUX
 				ib::warn()
 					<< "Failed to set O_DIRECT on file"
-					<< file_name << ";" << operation_name
+					<< file_name << "; " << operation_name
 					<< ": " << strerror(errno_save) << ", "
-					<< "ccontinuing anyway. O_DIRECT is "
+					"continuing anyway. O_DIRECT is "
 					"known to result in 'Invalid argument' "
 					"on Linux on tmpfs, "
 					"see MySQL Bug#26662.";
@@ -5239,7 +5239,7 @@ short_warning:
 				<< "Failed to set O_DIRECT on file "
 				<< file_name << "; " << operation_name
 				<< " : " << strerror(errno_save)
-				<< " continuing anyway.";
+				<< ", continuing anyway.";
 		}
 	}
 #endif /* defined(UNIV_SOLARIS) && defined(DIRECTIO_ON) */

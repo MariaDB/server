@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,12 +26,12 @@ Created 12/9/1995 Heikki Tuuri
 
 #include "mach0data.h"
 #include "srv0mon.h"
-#include "srv0srv.h"
 #include "ut0crc32.h"
 
 #ifdef UNIV_LOG_LSN_DEBUG
 #include "mtr0types.h"
 #endif /* UNIV_LOG_LSN_DEBUG */
+extern ulong srv_log_buffer_size;
 
 /************************************************************//**
 Gets a log block flush bit.
@@ -376,9 +376,9 @@ log_reserve_and_write_fast(
                         OS_FILE_LOG_BLOCK_SIZE)),
                 data_len);
 
-	log_sys->buf_free += len;
+	log_sys->buf_free += ulong(len);
 
-	ut_ad(log_sys->buf_free <= log_sys->buf_size);
+	ut_ad(log_sys->buf_free <= srv_log_buffer_size);
 
 	log_sys->lsn += len;
 

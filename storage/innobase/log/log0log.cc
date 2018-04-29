@@ -166,12 +166,8 @@ log_buf_pool_get_oldest_modification(void)
 
 /** Extends the log buffer.
 @param[in]	len	requested minimum size in bytes */
-void
-log_buffer_extend(
-	ulint	len)
+void log_buffer_extend(ulong len)
 {
-	ulint	move_start;
-	ulint	move_end;
 	byte	tmp_buf[OS_FILE_LOG_BLOCK_SIZE];
 
 	log_mutex_enter_all();
@@ -185,21 +181,21 @@ log_buffer_extend(
 
 		log_mutex_enter_all();
 
-		if (srv_log_buffer_size > (len >> srv_page_size_shift)) {
+		if (srv_log_buffer_size > len) {
 			/* Already extended enough by the others */
 			log_mutex_exit_all();
 			return;
 		}
 	}
 
-	if (len >= log_sys->buf_size / 2) {
+	if (len >= srv_log_buffer_size / 2) {
 		DBUG_EXECUTE_IF("ib_log_buffer_is_short_crash",
 				DBUG_SUICIDE(););
 
 		/* log_buffer is too small. try to extend instead of crash. */
-		ib::warn() << "The transaction log size is too large"
-			" for innodb_log_buffer_size (" << len << " >= "
-			<< LOG_BUFFER_SIZE << " / 2). Trying to extend it.";
+		ib::warn() << "The redo log transaction size " << len <<
+			" exceeds innodb_log_buffer_size="
+			<< srv_log_buffer_size << " / 2). Trying to extend it.";
 	}
 
 	log_sys->is_extending = true;
@@ -216,10 +212,10 @@ log_buffer_extend(
 		log_mutex_enter_all();
 	}
 
-	move_start = ut_calc_align_down(
+	ulong move_start = ut_calc_align_down(
 		log_sys->buf_free,
 		OS_FILE_LOG_BLOCK_SIZE);
-	move_end = log_sys->buf_free;
+	ulong move_end = log_sys->buf_free;
 
 	/* store the last log block in buffer */
 	ut_memcpy(tmp_buf, log_sys->buf + move_start,
@@ -230,20 +226,19 @@ log_buffer_extend(
 
 	/* free previous after getting the right address */
 	if (!log_sys->first_in_use) {
-		log_sys->buf -= log_sys->buf_size;
+		log_sys->buf -= srv_log_buffer_size;
 	}
-	ut_free_dodump(log_sys->buf, log_sys->buf_size * 2);
+	ut_free_dodump(log_sys->buf, srv_log_buffer_size * 2);
 
 	/* reallocate log buffer */
-	srv_log_buffer_size = (len >> srv_page_size_shift) + 1;
-	log_sys->buf_size = LOG_BUFFER_SIZE;
+	srv_log_buffer_size = len;
 
 	log_sys->buf = static_cast<byte*>(
-		ut_malloc_dontdump(log_sys->buf_size * 2));
+		ut_malloc_dontdump(srv_log_buffer_size * 2));
 
 	log_sys->first_in_use = true;
 
-	log_sys->max_buf_free = log_sys->buf_size / LOG_BUF_FLUSH_RATIO
+	log_sys->max_buf_free = srv_log_buffer_size / LOG_BUF_FLUSH_RATIO
 		- LOG_BUF_FLUSH_MARGIN;
 
 	/* restore the last log block */
@@ -255,7 +250,7 @@ log_buffer_extend(
 	log_mutex_exit_all();
 
 	ib::info() << "innodb_log_buffer_size was extended to "
-		<< LOG_BUFFER_SIZE << ".";
+		<< srv_log_buffer_size << ".";
 }
 
 /** Calculate actual length in redo buffer and file including
@@ -384,7 +379,7 @@ loop:
 	len_upper_limit = LOG_BUF_WRITE_MARGIN + srv_log_write_ahead_size
 			  + (5 * len) / 4;
 
-	if (log_sys->buf_free + len_upper_limit > log_sys->buf_size) {
+	if (log_sys->buf_free + len_upper_limit > srv_log_buffer_size) {
 		log_mutex_exit();
 
 		DEBUG_SYNC_C("log_buf_size_exceeded");
@@ -464,7 +459,7 @@ part_loop:
 
 	log->buf_free += len;
 
-	ut_ad(log->buf_free <= log->buf_size);
+	ut_ad(log->buf_free <= srv_log_buffer_size);
 
 	if (str_len > 0) {
 		goto part_loop;
@@ -722,17 +717,15 @@ log_sys_init()
 
 	log_sys->lsn = LOG_START_LSN;
 
-	ut_a(LOG_BUFFER_SIZE >= 16 * OS_FILE_LOG_BLOCK_SIZE);
-	ut_a(LOG_BUFFER_SIZE >= 4U << srv_page_size_shift);
-
-	log_sys->buf_size = LOG_BUFFER_SIZE;
+	ut_ad(srv_log_buffer_size >= 16 * OS_FILE_LOG_BLOCK_SIZE);
+	ut_ad(srv_log_buffer_size >= 4U << srv_page_size_shift);
 
 	log_sys->buf = static_cast<byte*>(
-		ut_malloc_dontdump(log_sys->buf_size * 2));
+		ut_malloc_dontdump(srv_log_buffer_size * 2));
 
 	log_sys->first_in_use = true;
 
-	log_sys->max_buf_free = log_sys->buf_size / LOG_BUF_FLUSH_RATIO
+	log_sys->max_buf_free = srv_log_buffer_size / LOG_BUF_FLUSH_RATIO
 		- LOG_BUF_FLUSH_MARGIN;
 	log_sys->check_flush_or_checkpoint = true;
 
@@ -837,7 +830,9 @@ log_io_complete(
 		case SRV_LITTLESYNC:
 		case SRV_O_DIRECT:
 		case SRV_O_DIRECT_NO_FSYNC:
+#ifdef _WIN32
 		case SRV_ALL_O_DIRECT_FSYNC:
+#endif
 			fil_flush(SRV_LOG_SPACE_FIRST_ID);
 		}
 
@@ -1088,10 +1083,10 @@ log_buffer_switch()
 		log_sys->first_in_use = false;
 		ut_ad(log_sys->buf == ut_align(log_sys->buf,
 					       OS_FILE_LOG_BLOCK_SIZE));
-		log_sys->buf += log_sys->buf_size;
+		log_sys->buf += srv_log_buffer_size;
 	} else {
 		log_sys->first_in_use = true;
-		log_sys->buf -= log_sys->buf_size;
+		log_sys->buf -= srv_log_buffer_size;
 		ut_ad(log_sys->buf == ut_align(log_sys->buf,
 					       OS_FILE_LOG_BLOCK_SIZE));
 	}
@@ -1262,7 +1257,7 @@ loop:
 			Needs to be written padded data once. */
 			pad_size = std::min<ulint>(
 				ulint(write_ahead_size) - end_offset_in_unit,
-				log_sys->buf_size - area_end);
+				srv_log_buffer_size - area_end);
 			::memset(write_buf + area_end, 0, pad_size);
 		}
 	}
@@ -1512,7 +1507,8 @@ log_group_checkpoint(lsn_t end_lsn)
 	lsn_offset = log_group_calc_lsn_offset(log_sys->next_checkpoint_lsn,
 					       group);
 	mach_write_to_8(buf + LOG_CHECKPOINT_OFFSET, lsn_offset);
-	mach_write_to_8(buf + LOG_CHECKPOINT_LOG_BUF_SIZE, log_sys->buf_size);
+	mach_write_to_8(buf + LOG_CHECKPOINT_LOG_BUF_SIZE,
+			srv_log_buffer_size);
 	mach_write_to_8(buf + LOG_CHECKPOINT_END_LSN, end_lsn);
 
 	log_block_set_checksum(buf, log_block_calc_checksum_crc32(buf));
@@ -1644,7 +1640,9 @@ log_checkpoint(
 	case SRV_LITTLESYNC:
 	case SRV_O_DIRECT:
 	case SRV_O_DIRECT_NO_FSYNC:
+#ifdef _WIN32
 	case SRV_ALL_O_DIRECT_FSYNC:
+#endif
 		fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
 	}
 
@@ -2261,9 +2259,9 @@ log_shutdown()
 	log_group_close_all();
 
 	if (!log_sys->first_in_use) {
-		log_sys->buf -= log_sys->buf_size;
+		log_sys->buf -= srv_log_buffer_size;
 	}
-	ut_free_dodump(log_sys->buf, log_sys->buf_size * 2);
+	ut_free_dodump(log_sys->buf, srv_log_buffer_size * 2);
 	log_sys->buf = NULL;
 	ut_free(log_sys->checkpoint_buf_ptr);
 	log_sys->checkpoint_buf_ptr = NULL;

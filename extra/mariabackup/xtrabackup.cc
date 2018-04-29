@@ -4,7 +4,7 @@ MariaBackup: hot backup tool for InnoDB
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
 Yasufumi Kinoshita, Ignacio Nin and Baron Schwartz.
-(c) 2017, MariaDB Corporation.
+(c) 2017, 2018, MariaDB Corporation.
 Portions written by Marko Mäkelä.
 
 This program is free software; you can redistribute it and/or modify
@@ -223,7 +223,6 @@ long innobase_buffer_pool_awe_mem_mb = 0;
 long innobase_file_io_threads = 4;
 long innobase_read_io_threads = 4;
 long innobase_write_io_threads = 4;
-long innobase_log_buffer_size = 1024*1024L;
 
 longlong innobase_page_size = (1LL << 14); /* 16KB */
 char*	innobase_buffer_pool_filename = NULL;
@@ -236,9 +235,6 @@ are determined in innobase_init below: */
 static char*	innobase_ignored_opt;
 char*	innobase_data_home_dir;
 char*	innobase_data_file_path;
-/* The following has a misleading name: starting from 4.0.5, this also
-affects Windows: */
-char*	innobase_unix_file_flush_method;
 
 my_bool innobase_use_doublewrite;
 my_bool innobase_use_large_pages;
@@ -621,13 +617,9 @@ enum options_xtrabackup
   OPT_INNODB_ADAPTIVE_HASH_INDEX,
   OPT_INNODB_DOUBLEWRITE,
   OPT_INNODB_FILE_PER_TABLE,
-  OPT_INNODB_FLUSH_LOG_AT_TRX_COMMIT,
-  OPT_INNODB_FLUSH_METHOD,
-  OPT_INNODB_LOCKS_UNSAFE_FOR_BINLOG,
   OPT_INNODB_LOG_GROUP_HOME_DIR,
   OPT_INNODB_MAX_DIRTY_PAGES_PCT,
   OPT_INNODB_MAX_PURGE_LAG,
-  OPT_INNODB_ROLLBACK_ON_TIMEOUT,
   OPT_INNODB_STATUS_FILE,
   OPT_INNODB_AUTOEXTEND_INCREMENT,
   OPT_INNODB_BUFFER_POOL_SIZE,
@@ -1127,15 +1119,10 @@ struct my_option xb_server_options[] =
    (G_PTR*) &innobase_file_per_table, 0, GET_BOOL, NO_ARG,
    FALSE, 0, 0, 0, 0, 0},
 
-  {"innodb_flush_method", OPT_INNODB_FLUSH_METHOD,
-   "With which method to flush data.", (G_PTR*) &innobase_unix_file_flush_method,
-   (G_PTR*) &innobase_unix_file_flush_method, 0, GET_STR, REQUIRED_ARG, 0, 0, 0,
-   0, 0, 0},
-
   {"innodb_log_buffer_size", OPT_INNODB_LOG_BUFFER_SIZE,
    "The size of the buffer which InnoDB uses to write log to the log files on disk.",
-   (G_PTR*) &innobase_log_buffer_size, (G_PTR*) &innobase_log_buffer_size, 0,
-   GET_LONG, REQUIRED_ARG, 1024*1024L, 256*1024L, LONG_MAX, 0, 1024, 0},
+   (G_PTR*) &srv_log_buffer_size, (G_PTR*) &srv_log_buffer_size, 0,
+   GET_ULONG, REQUIRED_ARG, 1024*1024L, 256*1024L, LONG_MAX, 0, 1024, 0},
   {"innodb_log_file_size", OPT_INNODB_LOG_FILE_SIZE,
    "Ignored for mysqld option compatibility",
    (G_PTR*) &srv_log_file_size, (G_PTR*) &srv_log_file_size, 0,
@@ -1479,11 +1466,6 @@ xb_get_one_option(int optid,
   case OPT_INNODB_LOG_FILE_SIZE:
     break;
 
-  case OPT_INNODB_FLUSH_METHOD:
-
-    ADD_PRINT_PARAM_OPT(innobase_unix_file_flush_method);
-    break;
-
   case OPT_INNODB_PAGE_SIZE:
 
     ADD_PRINT_PARAM_OPT(innobase_page_size);
@@ -1587,15 +1569,14 @@ xb_get_one_option(int optid,
   return 0;
 }
 
-static my_bool
-innodb_init_param(void)
+static bool innodb_init_param()
 {
 	srv_is_being_started = TRUE;
 	/* === some variables from mysqld === */
 	memset((G_PTR) &mysql_tmpdir_list, 0, sizeof(mysql_tmpdir_list));
 
 	if (init_tmpdir(&mysql_tmpdir_list, opt_mysql_tmpdir))
-		exit(EXIT_FAILURE);
+		return true;
 	xtrabackup_tmpdir = my_tmpdir(&mysql_tmpdir_list);
 	/* dummy for initialize all_charsets[] */
 	get_charset_name(0);
@@ -1617,7 +1598,7 @@ innodb_init_param(void)
 		} else {
 			msg("InnoDB: Error: invalid value of "
 			    "innobase_page_size: %lld", innobase_page_size);
-			exit(EXIT_FAILURE);
+			goto error;
 		}
 	} else {
 		srv_page_size_shift = 14;
@@ -1684,6 +1665,9 @@ innodb_init_param(void)
 		goto error;
 	}
 
+	srv_sys_space.normalize_size();
+	srv_lock_table_size = 5 * (srv_buf_pool_size >> srv_page_size_shift);
+
 	/* -------------- Log files ---------------------------*/
 
 	/* The default dir for log files is the datadir of MySQL */
@@ -1707,16 +1691,13 @@ innodb_init_param(void)
 
 	srv_adaptive_flushing = FALSE;
 
-	srv_file_flush_method_str = innobase_unix_file_flush_method;
-
-	srv_log_buffer_size = (ulint) innobase_log_buffer_size;
-
         /* We set srv_pool_size here in units of 1 kB. InnoDB internally
         changes the value so that it becomes the number of database pages. */
 
 	srv_buf_pool_size = (ulint) xtrabackup_use_memory;
 	srv_buf_pool_chunk_unit = (ulong)srv_buf_pool_size;
 	srv_buf_pool_instances = 1;
+	srv_n_page_cleaners = 1;
 
 	srv_n_file_io_threads = (ulint) innobase_file_io_threads;
 	srv_n_read_io_threads = (ulint) innobase_read_io_threads;
@@ -1732,7 +1713,7 @@ innodb_init_param(void)
 
         srv_locks_unsafe_for_binlog = (ibool) innobase_locks_unsafe_for_binlog;
 
-	srv_max_n_open_files = ULINT_UNDEFINED;
+	srv_max_n_open_files = ULINT_UNDEFINED - 5;
 	srv_innodb_status = (ibool) innobase_create_status_file;
 
 	srv_print_verbose_log = 1;
@@ -1743,20 +1724,7 @@ innodb_init_param(void)
 	/* We cannot treat characterset here for now!! */
 	data_mysql_default_charset_coll = (ulint)default_charset_info->number;
 
-	ut_a(DATA_MYSQL_BINARY_CHARSET_COLL == my_charset_bin.number);
-
-	//innobase_commit_concurrency_init_default();
-
-	/* Since we in this module access directly the fields of a trx
-        struct, and due to different headers and flags it might happen that
-	mutex_t has a different size in this module and in InnoDB
-	modules, we check at run time that the size is the same in
-	these compilation modules. */
-
-	/* On 5.5+ srv_use_native_aio is TRUE by default. It is later reset
-	if it is not supported by the platform in
-	innobase_start_or_create_for_mysql(). As we don't call it in xtrabackup,
-	we have to duplicate checks from that function here. */
+	ut_ad(DATA_MYSQL_BINARY_CHARSET_COLL == my_charset_bin.number);
 
 #ifdef _WIN32
 	srv_use_native_aio = TRUE;
@@ -1789,16 +1757,27 @@ innodb_init_param(void)
 		? log_block_calc_checksum_crc32
 		: log_block_calc_checksum_none;
 
-	return(FALSE);
+#ifdef _WIN32
+	srv_use_native_aio = TRUE;
+#endif
+	srv_file_flush_method = IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_FSYNC);
+	return false;
 
 error:
 	msg("mariabackup: innodb_init_param(): Error occured.\n");
-	return(TRUE);
+	return true;
 }
 
 static bool innodb_init()
 {
-	dberr_t err = innobase_start_or_create_for_mysql();
+	bool create_new_db = false;
+	/* Check if the data files exist or not. */
+	dberr_t err = srv_sys_space.check_file_spec(&create_new_db, 5U << 20);
+
+	if (err == DB_SUCCESS) {
+		err = srv_start(create_new_db);
+	}
+
 	if (err != DB_SUCCESS) {
 		msg("mariabackup: innodb_init() returned %d (%s).\n",
 		    err, ut_strerr(err));
@@ -3583,19 +3562,6 @@ open_or_create_log_file(
 	return(DB_SUCCESS);
 }
 
-/*********************************************************************//**
-Normalizes init parameter values to use units we use inside InnoDB.
-@return	DB_SUCCESS or error code */
-static
-void
-xb_normalize_init_values(void)
-/*==========================*/
-{
-	srv_sys_space.normalize();
-	srv_log_buffer_size >>= srv_page_size_shift;
-	srv_lock_table_size = 5 * (srv_buf_pool_size >> srv_page_size_shift);
-}
-
 /***********************************************************************
 Set the open files limit. Based on set_max_open_files().
 
@@ -3804,42 +3770,6 @@ fail:
 		}
 		return(false);
 	}
-
-	xb_normalize_init_values();
-
-
-	if (srv_file_flush_method_str == NULL) {
-		/* These are the default options */
-		srv_file_flush_method = SRV_FSYNC;
-	} else if (0 == ut_strcmp(srv_file_flush_method_str, "fsync")) {
-		srv_file_flush_method = SRV_FSYNC;
-	} else if (0 == ut_strcmp(srv_file_flush_method_str, "O_DSYNC")) {
-		srv_file_flush_method = SRV_O_DSYNC;
-
-	} else if (0 == ut_strcmp(srv_file_flush_method_str, "O_DIRECT")) {
-		srv_file_flush_method = SRV_O_DIRECT;
-		msg("mariabackup: using O_DIRECT\n");
-	} else if (0 == ut_strcmp(srv_file_flush_method_str, "littlesync")) {
-		srv_file_flush_method = SRV_LITTLESYNC;
-	} else if (0 == ut_strcmp(srv_file_flush_method_str, "nosync")) {
-		srv_file_flush_method = SRV_NOSYNC;
-	} else if (0 == ut_strcmp(srv_file_flush_method_str, "ALL_O_DIRECT")) {
-		srv_file_flush_method = SRV_ALL_O_DIRECT_FSYNC;
-		msg("mariabackup: using ALL_O_DIRECT\n");
-	} else if (0 == ut_strcmp(srv_file_flush_method_str,
-				  "O_DIRECT_NO_FSYNC")) {
-		srv_file_flush_method = SRV_O_DIRECT_NO_FSYNC;
-		msg("mariabackup: using O_DIRECT_NO_FSYNC\n");
-	} else {
-		msg("mariabackup: Unrecognized value %s for "
-		    "innodb_flush_method\n", srv_file_flush_method_str);
-		goto fail;
-	}
-
-#ifdef _WIN32
-  srv_file_flush_method = SRV_ALL_O_DIRECT_FSYNC;
-	srv_use_native_aio = TRUE;
-#endif
 
 	if (srv_buf_pool_size >= 1000 * 1024 * 1024) {
                                   /* Here we still have srv_pool_size counted
@@ -5002,7 +4932,6 @@ xtrabackup_prepare_func(char** argv)
 			goto error_cleanup;
 		}
 
-		xb_normalize_init_values();
 		sync_check_init();
 		ut_d(sync_check_enable());
 		ut_crc32_init();

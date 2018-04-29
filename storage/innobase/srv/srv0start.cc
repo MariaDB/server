@@ -133,7 +133,7 @@ bool	srv_sys_tablespaces_open;
 bool	srv_was_started;
 /** The original value of srv_log_file_size (innodb_log_file_size) */
 static ulonglong	srv_log_file_size_requested;
-/** TRUE if innobase_start_or_create_for_mysql() has been called */
+/** whether srv_start() has been called */
 static bool		srv_start_has_been_called;
 
 /** Whether any undo log records can be generated */
@@ -194,9 +194,6 @@ static os_thread_t	dict_stats_thread_handle;
 static bool		thread_started[SRV_MAX_N_IO_THREADS + 6 + 32] = {false};
 /** Name of srv_monitor_file */
 static char*	srv_monitor_file_name;
-
-/** Minimum expected tablespace size. (10M) */
-static const ulint MIN_EXPECTED_TABLESPACE_SIZE = 5 * 1024 * 1024;
 
 /** */
 #define SRV_MAX_N_PENDING_SYNC_IOS	100
@@ -305,7 +302,7 @@ DECLARE_THREAD(io_handler_thread)(
 #endif
 
 	/* For read only mode, we don't need ibuf and log I/O thread.
-	Please see innobase_start_or_create_for_mysql() */
+	Please see srv_start() */
 	ulint   start = (srv_read_only_mode) ? 0 : 2;
 
 	if (segment < start) {
@@ -1446,14 +1443,11 @@ srv_prepare_to_delete_redo_log_files(
 	DBUG_RETURN(flushed_lsn);
 }
 
-/********************************************************************
-Starts InnoDB and creates a new database if database files
-are not found and the user wants.
+/** Start InnoDB.
+@param[in]	create_new_db	whether to create a new database
 @return DB_SUCCESS or error code */
-dberr_t
-innobase_start_or_create_for_mysql()
+dberr_t srv_start(bool create_new_db)
 {
-	bool		create_new_db = false;
 	lsn_t		flushed_lsn;
 	dberr_t		err		= DB_SUCCESS;
 	ulint		srv_n_log_files_found = srv_n_log_files;
@@ -1467,6 +1461,7 @@ innobase_start_or_create_for_mysql()
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
+
 	if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
 		srv_read_only_mode = true;
 	}
@@ -1477,15 +1472,6 @@ innobase_start_or_create_for_mysql()
 
 	/* Reset the start state. */
 	srv_start_state = SRV_START_STATE_NONE;
-
-	if (srv_read_only_mode) {
-		ib::info() << "Started in read only mode";
-
-		/* There is no write to InnoDB tablespaces (not even
-		temporary ones, because also CREATE TEMPORARY TABLE is
-		refused in read-only mode). */
-		srv_use_doublewrite_buf = FALSE;
-	}
 
 	compile_time_assert(sizeof(ulint) == sizeof(void*));
 
@@ -1542,61 +1528,9 @@ innobase_start_or_create_for_mysql()
 
 	srv_is_being_started = true;
 
-#ifdef _WIN32
-	srv_use_native_aio = TRUE;
-
-#elif defined(LINUX_NATIVE_AIO)
-
-	if (srv_use_native_aio) {
-		ib::info() << "Using Linux native AIO";
-	}
-#else
-	/* Currently native AIO is supported only on windows and linux
-	and that also when the support is compiled in. In all other
-	cases, we ignore the setting of innodb_use_native_aio. */
-	srv_use_native_aio = FALSE;
-#endif /* _WIN32 */
-
 	/* Register performance schema stages before any real work has been
 	started which may need to be instrumented. */
 	mysql_stage_register("innodb", srv_stages, UT_ARR_SIZE(srv_stages));
-
-	if (srv_file_flush_method_str == NULL) {
-		/* These are the default options */
-		srv_file_flush_method = IF_WIN(SRV_ALL_O_DIRECT_FSYNC,SRV_FSYNC);
-	} else if (0 == ut_strcmp(srv_file_flush_method_str, "fsync")) {
-		srv_file_flush_method = SRV_FSYNC;
-
-	} else if (0 == ut_strcmp(srv_file_flush_method_str, "O_DSYNC")) {
-		srv_file_flush_method = SRV_O_DSYNC;
-
-	} else if (0 == ut_strcmp(srv_file_flush_method_str, "O_DIRECT")) {
-		srv_file_flush_method = SRV_O_DIRECT;
-
-	} else if (0 == ut_strcmp(srv_file_flush_method_str, "O_DIRECT_NO_FSYNC")) {
-		srv_file_flush_method = SRV_O_DIRECT_NO_FSYNC;
-
-	} else if (0 == ut_strcmp(srv_file_flush_method_str, "littlesync")) {
-		srv_file_flush_method = SRV_LITTLESYNC;
-
-	} else if (0 == ut_strcmp(srv_file_flush_method_str, "nosync")) {
-		srv_file_flush_method = SRV_NOSYNC;
-#ifdef _WIN32
-	} else if (0 == ut_strcmp(srv_file_flush_method_str, "normal")) {
-		srv_file_flush_method = SRV_FSYNC;
-	} else if (0 == ut_strcmp(srv_file_flush_method_str, "unbuffered")) {
-	} else if (0 == ut_strcmp(srv_file_flush_method_str,
-				  "async_unbuffered")) {
-#endif /* _WIN32 */
-	} else {
-		ib::error() << "Unrecognized value "
-			<< srv_file_flush_method_str
-			<< " for innodb_flush_method";
-		err = DB_ERROR;
-	}
-
-	/* Note that the call srv_boot() also changes the values of
-	some variables to the units used by InnoDB internally */
 
 	/* Set the maximum number of threads which can wait for a semaphore
 	inside InnoDB: this is the 'sync wait array' size, as well as the
@@ -1625,65 +1559,6 @@ innobase_start_or_create_for_mysql()
 			    /* FTS Parallel Sort */
 			    + fts_sort_pll_degree * FTS_NUM_AUX_INDEX
 			      * max_connections;
-
-	if (srv_buf_pool_size >= BUF_POOL_SIZE_THRESHOLD) {
-
-		if (srv_buf_pool_instances == srv_buf_pool_instances_default) {
-#if defined(_WIN32) && !defined(_WIN64)
-			/* Do not allocate too large of a buffer pool on
-			Windows 32-bit systems, which can have trouble
-			allocating larger single contiguous memory blocks. */
-			srv_buf_pool_size = static_cast<ulint>(ut_uint64_align_up(srv_buf_pool_size, srv_buf_pool_chunk_unit));
-			srv_buf_pool_instances = ut_min(
-				static_cast<ulong>(MAX_BUFFER_POOLS),
-				static_cast<ulong>(srv_buf_pool_size / srv_buf_pool_chunk_unit));
-#else /* defined(_WIN32) && !defined(_WIN64) */
-			/* Default to 8 instances when size > 1GB. */
-			srv_buf_pool_instances = 8;
-#endif /* defined(_WIN32) && !defined(_WIN64) */
-		}
-	} else {
-		/* If buffer pool is less than 1 GiB, assume fewer
-		threads. Also use only one buffer pool instance. */
-		if (srv_buf_pool_instances != srv_buf_pool_instances_default
-		    && srv_buf_pool_instances != 1) {
-			/* We can't distinguish whether the user has explicitly
-			started mysqld with --innodb-buffer-pool-instances=0,
-			(srv_buf_pool_instances_default is 0) or has not
-			specified that option at all. Thus we have the
-			limitation that if the user started with =0, we
-			will not emit a warning here, but we should actually
-			do so. */
-			ib::info()
-				<< "Adjusting innodb_buffer_pool_instances"
-				" from " << srv_buf_pool_instances << " to 1"
-				" since innodb_buffer_pool_size is less than "
-				<< BUF_POOL_SIZE_THRESHOLD / (1024 * 1024)
-				<< " MiB";
-		}
-
-		srv_buf_pool_instances = 1;
-	}
-
-	if (srv_buf_pool_chunk_unit * srv_buf_pool_instances
-	    > srv_buf_pool_size) {
-		/* Size unit of buffer pool is larger than srv_buf_pool_size.
-		adjust srv_buf_pool_chunk_unit for srv_buf_pool_size. */
-		srv_buf_pool_chunk_unit
-			= static_cast<ulong>(srv_buf_pool_size)
-			  / srv_buf_pool_instances;
-		if (srv_buf_pool_size % srv_buf_pool_instances != 0) {
-			++srv_buf_pool_chunk_unit;
-		}
-	}
-
-	srv_buf_pool_size = buf_pool_size_align(srv_buf_pool_size);
-
-	if (srv_n_page_cleaners > srv_buf_pool_instances) {
-		/* limit of page_cleaner parallelizability
-		is number of buffer pool instances. */
-		srv_n_page_cleaners = srv_buf_pool_instances;
-	}
 
 	srv_boot();
 
@@ -1815,7 +1690,6 @@ innobase_start_or_create_for_mysql()
 #endif /* UNIV_DEBUG */
 
 	log_sys_init();
-
 	recv_sys_init();
 	lock_sys.create(srv_lock_table_size);
 
@@ -1847,27 +1721,6 @@ innobase_start_or_create_for_mysql()
 		os_event_wait(recv_sys->flush_end);
 #endif /* UNIV_LINUX */
 		srv_start_state_set(SRV_START_STATE_IO);
-	}
-
-	if (srv_n_log_files * srv_log_file_size >= 512ULL << 30) {
-		/* log_block_convert_lsn_to_no() limits the returned block
-		number to 1G and given that OS_FILE_LOG_BLOCK_SIZE is 512
-		bytes, then we have a limit of 512 GB. If that limit is to
-		be raised, then log_block_convert_lsn_to_no() must be
-		modified. */
-		ib::error() << "Combined size of log files must be < 512 GB";
-
-		return(srv_init_abort(DB_ERROR));
-	}
-
-	os_normalize_path(srv_data_home);
-
-	/* Check if the data files exist or not. */
-	err = srv_sys_space.check_file_spec(
-		&create_new_db, MIN_EXPECTED_TABLESPACE_SIZE);
-
-	if (err != DB_SUCCESS) {
-		return(srv_init_abort(DB_ERROR));
 	}
 
 	srv_startup_is_before_trx_rollback_phase = !create_new_db;
@@ -2758,8 +2611,7 @@ srv_fts_close(void)
 #endif
 
 /** Shut down background threads that can generate undo log. */
-void
-srv_shutdown_bg_undo_sources()
+void srv_shutdown_bg_undo_sources()
 {
 	if (srv_undo_sources) {
 		ut_ad(!srv_read_only_mode);
@@ -2774,8 +2626,7 @@ srv_shutdown_bg_undo_sources()
 }
 
 /** Shut down InnoDB. */
-void
-innodb_shutdown()
+void innodb_shutdown()
 {
 	ut_ad(!my_atomic_loadptr_explicit(reinterpret_cast<void**>
 					  (&srv_running),
@@ -2865,22 +2716,13 @@ innodb_shutdown()
 	lock_sys.close();
 	trx_pool_close();
 
-	/* We don't create these mutexes in RO mode because we don't create
-	the temp files that the cover. */
 	if (!srv_read_only_mode) {
 		mutex_free(&srv_monitor_file_mutex);
 		mutex_free(&srv_misc_tmpfile_mutex);
 	}
 
-	if (dict_sys) {
-		dict_close();
-	}
-
-#ifdef BTR_CUR_HASH_ADAPT
-	if (btr_search_sys) {
-		btr_search_sys_free();
-	}
-#endif /* BTR_CUR_HASH_ADAPT */
+	dict_close();
+	btr_search_sys_free();
 
 	/* 3. Free all InnoDB's own mutexes and the os_fast_mutexes inside
 	them */
@@ -2900,10 +2742,6 @@ innodb_shutdown()
 	}
 
 	sync_check_close();
-
-	if (dict_foreign_err_file) {
-		fclose(dict_foreign_err_file);
-	}
 
 	if (srv_was_started && srv_print_verbose_log) {
 		ib::info() << "Shutdown completed; log sequence number "

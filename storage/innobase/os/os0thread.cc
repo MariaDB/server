@@ -142,7 +142,7 @@ os_thread_create_func(
 
 #endif /* not _WIN32 */
 
-	ut_a(os_thread_count <= OS_THREAD_MAX_N);
+	ut_a(os_thread_count <= srv_max_n_threads);
 
 	/* Return the thread_id if the caller requests it. */
 	if (thread_id != NULL) {

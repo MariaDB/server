@@ -44,20 +44,16 @@ only one buffer pool instance is used. */
 dberr_t
 srv_undo_tablespaces_init(bool create_new_db);
 
-/****************************************************************//**
-Starts Innobase and creates a new database if database files
-are not found and the user wants.
+/** Start InnoDB.
+@param[in]	create_new_db	whether to create a new database
 @return DB_SUCCESS or error code */
-dberr_t
-innobase_start_or_create_for_mysql();
+dberr_t srv_start(bool create_new_db);
 
 /** Shut down InnoDB. */
-void
-innodb_shutdown();
+void innodb_shutdown();
 
 /** Shut down background threads that can generate undo log. */
-void
-srv_shutdown_bg_undo_sources();
+void srv_shutdown_bg_undo_sources();
 
 /*************************************************************//**
 Copy the file path component of the physical file to parameter. It will

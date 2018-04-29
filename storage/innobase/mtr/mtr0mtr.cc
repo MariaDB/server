@@ -785,8 +785,8 @@ mtr_t::Command::prepare_write()
 	ut_ad(len > 0);
 	ut_ad(n_recs > 0);
 
-	if (len > log_sys->buf_size / 2) {
-		log_buffer_extend((len + 1) * 2);
+	if (len > srv_log_buffer_size / 2) {
+		log_buffer_extend(ulong((len + 1) * 2));
 	}
 
 	ut_ad(m_impl->m_n_log_recs == n_recs);

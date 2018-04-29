@@ -3175,7 +3175,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	recv_sys->mlog_checkpoint_lsn = 0;
 
-	ut_ad(RECV_SCAN_SIZE <= log_sys->buf_size);
+	ut_ad(RECV_SCAN_SIZE <= srv_log_buffer_size);
 
 	group = &log_sys->log;
 	const lsn_t	end_lsn = mach_read_from_8(
@@ -3389,7 +3389,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		srv_start_lsn = recv_sys->recovered_lsn;
 	}
 
-	log_sys->buf_free = (ulint) log_sys->lsn % OS_FILE_LOG_BLOCK_SIZE;
+	log_sys->buf_free = ulong(log_sys->lsn % OS_FILE_LOG_BLOCK_SIZE);
 	log_sys->buf_next_to_write = log_sys->buf_free;
 	log_sys->write_lsn = log_sys->lsn;
 
@@ -3523,7 +3523,7 @@ recv_reset_logs(
 	log_sys->next_checkpoint_no = 0;
 	log_sys->last_checkpoint_lsn = 0;
 
-	memset(log_sys->buf, 0, log_sys->buf_size);
+	memset(log_sys->buf, 0, srv_log_buffer_size);
 	log_block_init(log_sys->buf, log_sys->lsn);
 	log_block_set_first_rec_group(log_sys->buf, LOG_BLOCK_HDR_SIZE);
 

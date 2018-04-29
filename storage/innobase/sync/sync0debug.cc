@@ -738,7 +738,7 @@ LatchDebug::check_order(
 		if (srv_is_being_started) {
 			/* This is violated during trx_sys_create_rsegs()
 			when creating additional rollback segments when
-			upgrading in innobase_start_or_create_for_mysql(). */
+			upgrading in srv_start(). */
 			break;
 		}
 
@@ -1739,7 +1739,7 @@ sync_check_init()
 
 	ut_d(LatchDebug::init());
 
-	sync_array_init(OS_THREAD_MAX_N);
+	sync_array_init();
 }
 
 /** Free the InnoDB synchronization data structures. */

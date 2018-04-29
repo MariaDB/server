@@ -48,7 +48,6 @@ Created 10/10/1995 Heikki Tuuri
 #include "mysql/psi/psi.h"
 
 #include "univ.i"
-#include "log0log.h"
 #include "os0event.h"
 #include "que0types.h"
 #include "trx0types.h"
@@ -346,11 +345,11 @@ extern ulong	srv_n_log_files;
 /** The InnoDB redo log file size, or 0 when changing the redo log format
 at startup (while disallowing writes to the redo log). */
 extern ulonglong	srv_log_file_size;
-extern ulint	srv_log_buffer_size;
+extern ulong	srv_log_buffer_size;
 extern ulong	srv_flush_log_at_trx_commit;
 extern uint	srv_flush_log_at_timeout;
 extern ulong	srv_log_write_ahead_size;
-extern char	srv_adaptive_flushing;
+extern my_bool	srv_adaptive_flushing;
 extern my_bool	srv_flush_sync;
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
@@ -400,8 +399,8 @@ extern ulint	srv_lock_table_size;
 extern ulint	srv_n_file_io_threads;
 extern my_bool	srv_random_read_ahead;
 extern ulong	srv_read_ahead_threshold;
-extern ulint	srv_n_read_io_threads;
-extern ulint	srv_n_write_io_threads;
+extern ulong	srv_n_read_io_threads;
+extern ulong	srv_n_write_io_threads;
 
 /* Defragmentation, Origianlly facebook default value is 100, but it's too high */
 #define SRV_DEFRAGMENT_FREQUENCY_DEFAULT 40
@@ -434,8 +433,6 @@ is 5% of the max where max is srv_io_capacity.  */
 to treat NULL value when collecting statistics. It is not defined
 as enum type because the configure option takes unsigned integer type. */
 extern ulong	srv_innodb_stats_method;
-
-extern char*	srv_file_flush_method_str;
 
 extern ulint	srv_max_n_open_files;
 
@@ -471,7 +468,7 @@ extern my_bool			srv_stats_include_delete_marked;
 extern unsigned long long	srv_stats_modified_counter;
 extern my_bool			srv_stats_sample_traditional;
 
-extern ibool	srv_use_doublewrite_buf;
+extern my_bool	srv_use_doublewrite_buf;
 extern ulong	srv_doublewrite_batch_size;
 extern ulong	srv_checksum_algorithm;
 
@@ -666,7 +663,7 @@ extern PSI_stage_info	srv_stage_buffer_pool_load;
 /** Alternatives for the file flush option in Unix; see the InnoDB manual
 about what these mean */
 enum srv_flush_t {
-	SRV_FSYNC = 1,	/*!< fsync, the default */
+	SRV_FSYNC = 0,	/*!< fsync, the default */
 	SRV_O_DSYNC,	/*!< open log files in O_SYNC mode */
 	SRV_LITTLESYNC,	/*!< do not call os_file_flush()
 				when writing data files, but do flush
@@ -678,16 +675,18 @@ enum srv_flush_t {
 				the reason for which is that some FS
 				do not flush meta-data when
 				unbuffered IO happens */
-	SRV_O_DIRECT_NO_FSYNC,
+	SRV_O_DIRECT_NO_FSYNC
 				/*!< do not use fsync() when using
 				direct IO i.e.: it can be set to avoid
 				the fsync() call that we make when
 				using SRV_UNIX_O_DIRECT. However, in
 				this case user/DBA should be sure about
 				the integrity of the meta-data */
-	SRV_ALL_O_DIRECT_FSYNC
+#ifdef _WIN32
+	,SRV_ALL_O_DIRECT_FSYNC
 				/*!< Traditional Windows appoach to open 
 				all files without caching, and do FileFlushBuffers()*/
+#endif
 };
 extern enum srv_flush_t	srv_file_flush_method;
 

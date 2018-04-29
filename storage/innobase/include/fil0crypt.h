@@ -27,9 +27,9 @@ Created 04/01/2015 Jan Lindström
 #define fil0crypt_h
 
 #ifndef UNIV_INNOCHECKSUM
-
 #include "os0event.h"
 #include "my_crypt.h"
+#include "fil0fil.h"
 #endif /*! UNIV_INNOCHECKSUM */
 
 /**

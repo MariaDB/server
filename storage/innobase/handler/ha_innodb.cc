@@ -187,12 +187,9 @@ static const long AUTOINC_OLD_STYLE_LOCKING = 0;
 static const long AUTOINC_NEW_STYLE_LOCKING = 1;
 static const long AUTOINC_NO_LOCKING = 2;
 
-static long innobase_log_buffer_size;
 static ulong innobase_open_files;
 static long innobase_autoinc_lock_mode;
-static ulong innobase_commit_concurrency = 0;
-static ulong innobase_read_io_threads;
-static ulong innobase_write_io_threads;
+static ulong innobase_commit_concurrency;
 
 static ulonglong innobase_buffer_pool_size;
 
@@ -200,19 +197,20 @@ static ulonglong innobase_buffer_pool_size;
 Connected to buf_LRU_old_ratio. */
 static uint innobase_old_blocks_pct;
 
-/* The default values for the following char* start-up parameters
-are determined in innobase_init below: */
-
-static char*	innobase_data_home_dir;
 static char*	innobase_data_file_path;
 static char*	innobase_temp_data_file_path;
-static char*	innobase_change_buffering;
+
+/* The default values for the following char* start-up parameters
+are determined in innodb_init_params(). */
+
+static char*	innobase_data_home_dir;
 static char*	innobase_enable_monitor_counter;
 static char*	innobase_disable_monitor_counter;
 static char*	innobase_reset_monitor_counter;
 static char*	innobase_reset_all_monitor_counter;
 
-static char*	innobase_file_flush_method;
+static ulong	innodb_change_buffering;
+static ulong	innodb_flush_method;
 
 /* This variable can be set in the server configure file, specifying
 stopword table to be used */
@@ -222,7 +220,6 @@ static char*	innobase_server_stopword_table;
 values */
 
 static my_bool	innobase_use_atomic_writes;
-static my_bool	innobase_use_doublewrite;
 static my_bool	innobase_use_checksums;
 static my_bool	innobase_locks_unsafe_for_binlog;
 static my_bool	innobase_rollback_on_timeout;
@@ -433,6 +430,30 @@ static TYPELIB innodb_lock_schedule_algorithm_typelib = {
 	NULL
 };
 
+/** Names of allowed values of innodb_flush_method */
+static const char* innodb_flush_method_names[] = {
+	"fsync",
+	"O_DSYNC",
+	"littlesync",
+	"nosync",
+	"O_DIRECT",
+	"O_DIRECT_NO_FSYNC",
+#ifdef _WIN32
+	"unbuffered",
+	"async_unbuffered" /* alias for "unbuffered" */,
+	"normal" /* alias for "fsync" */,
+#endif
+	NullS
+};
+
+/** Enumeration of innodb_flush_method */
+static TYPELIB innodb_flush_method_typelib = {
+	array_elements(innodb_flush_method_names) - 1,
+	"innodb_flush_method_typelib",
+	innodb_flush_method_names,
+	NULL
+};
+
 /* The following counter is used to convey information to InnoDB
 about server activity: in case of normal DML ops it is not
 sensible to call srv_active_wake_master_thread after each
@@ -444,13 +465,22 @@ static ulong	innobase_active_counter	= 0;
 static hash_table_t*	innobase_open_tables;
 
 /** Allowed values of innodb_change_buffering */
-static const char* innobase_change_buffering_values[IBUF_USE_COUNT] = {
+static const char* innodb_change_buffering_names[] = {
 	"none",		/* IBUF_USE_NONE */
 	"inserts",	/* IBUF_USE_INSERT */
 	"deletes",	/* IBUF_USE_DELETE_MARK */
 	"changes",	/* IBUF_USE_INSERT_DELETE_MARK */
 	"purges",	/* IBUF_USE_DELETE */
-	"all"		/* IBUF_USE_ALL */
+	"all",		/* IBUF_USE_ALL */
+	NullS
+};
+
+/** Enumeration of innodb_change_buffering */
+static TYPELIB innodb_change_buffering_typelib = {
+	array_elements(innodb_change_buffering_names) - 1,
+	"innodb_change_buffering_typelib",
+	innodb_change_buffering_names,
+	NULL
 };
 
 /** Retrieve the FTS Relevance Ranking result for doc with doc_id
@@ -3486,26 +3516,13 @@ innobase_space_shutdown()
 	DBUG_VOID_RETURN;
 }
 
-/*********************************************************************//**
-Free any resources that were allocated and return failure.
+/** Free any resources that were allocated and return failure.
 @return always return 1 */
-static
-int
-innobase_init_abort()
-/*=================*/
+static int innodb_init_abort()
 {
-	DBUG_ENTER("innobase_init_abort");
+	DBUG_ENTER("innodb_init_abort");
 	innobase_space_shutdown();
 	DBUG_RETURN(1);
-}
-
-/** Return partitioning flags. */
-static uint innobase_partition_flags()
-{
-	/* JAN: TODO: MYSQL 5.7
-	return(HA_CAN_EXCHANGE_PARTITION | HA_CANNOT_PARTITION_FK);
-	*/
-	return (0);
 }
 
 /** Update log_checksum_algorithm_ptr with a pointer to the function
@@ -3584,99 +3601,79 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
 	return 0;
 }
 
-/*********************************************************************//**
-Opens an InnoDB database.
-@return 0 on success, 1 on failure */
-static
-int
-innobase_init(
-/*==========*/
-	void	*p)	/*!< in: InnoDB handlerton */
+/** Initialize and normalize innodb_buffer_pool_size. */
+static void innodb_buffer_pool_size_init()
 {
-	static char	current_dir[3];		/*!< Set if using current lib */
-	int		err;
+	if (srv_buf_pool_size >= BUF_POOL_SIZE_THRESHOLD) {
+
+		if (srv_buf_pool_instances == srv_buf_pool_instances_default) {
+#if defined(_WIN32) && !defined(_WIN64)
+			/* Do not allocate too large of a buffer pool on
+			Windows 32-bit systems, which can have trouble
+			allocating larger single contiguous memory blocks. */
+			srv_buf_pool_size = ulint(
+				ut_uint64_align_up(srv_buf_pool_size,
+						   srv_buf_pool_chunk_unit));
+			srv_buf_pool_instances = std::min<ulong>(
+				MAX_BUFFER_POOLS,
+				ulong(srv_buf_pool_size
+				      / srv_buf_pool_chunk_unit));
+#else /* defined(_WIN32) && !defined(_WIN64) */
+			/* Default to 8 instances when size > 1GB. */
+			srv_buf_pool_instances = 8;
+#endif /* defined(_WIN32) && !defined(_WIN64) */
+		}
+	} else {
+		/* If buffer pool is less than 1 GiB, assume fewer
+		threads. Also use only one buffer pool instance. */
+		if (srv_buf_pool_instances != srv_buf_pool_instances_default
+		    && srv_buf_pool_instances != 1) {
+			/* We can't distinguish whether the user has explicitly
+			started mysqld with --innodb-buffer-pool-instances=0,
+			(srv_buf_pool_instances_default is 0) or has not
+			specified that option at all. Thus we have the
+			limitation that if the user started with =0, we
+			will not emit a warning here, but we should actually
+			do so. */
+			ib::info()
+				<< "Adjusting innodb_buffer_pool_instances"
+				" from " << srv_buf_pool_instances << " to 1"
+				" since innodb_buffer_pool_size is less than "
+				<< BUF_POOL_SIZE_THRESHOLD / (1024 * 1024)
+				<< " MiB";
+		}
+
+		srv_buf_pool_instances = 1;
+	}
+
+	if (srv_buf_pool_chunk_unit * srv_buf_pool_instances
+	    > srv_buf_pool_size) {
+		/* Size unit of buffer pool is larger than srv_buf_pool_size.
+		adjust srv_buf_pool_chunk_unit for srv_buf_pool_size. */
+		srv_buf_pool_chunk_unit
+			= static_cast<ulong>(srv_buf_pool_size)
+			  / srv_buf_pool_instances;
+		if (srv_buf_pool_size % srv_buf_pool_instances != 0) {
+			++srv_buf_pool_chunk_unit;
+		}
+	}
+
+	srv_buf_pool_size = buf_pool_size_align(srv_buf_pool_size);
+	innobase_buffer_pool_size = srv_buf_pool_size;
+}
+
+/** Initialize, validate and normalize the InnoDB startup parameters.
+@return failure code
+@retval 0 on success
+@retval HA_ERR_OUT_OF_MEM	when out of memory
+@retval HA_ERR_INITIALIZATION	when some parameters are out of range */
+static int innodb_init_params()
+{
+	DBUG_ENTER("innodb_init_params");
+
+	static char	current_dir[3];
 	char		*default_path;
 	ulong		num_pll_degree;
-
-	DBUG_ENTER("innobase_init");
-	handlerton* innobase_hton= (handlerton*) p;
-	innodb_hton_ptr = innobase_hton;
-
-	innobase_hton->state = SHOW_OPTION_YES;
-	innobase_hton->db_type = DB_TYPE_INNODB;
-	innobase_hton->savepoint_offset = sizeof(trx_named_savept_t);
-	innobase_hton->close_connection = innobase_close_connection;
-	innobase_hton->kill_query = innobase_kill_query;
-	innobase_hton->savepoint_set = innobase_savepoint;
-	innobase_hton->savepoint_rollback = innobase_rollback_to_savepoint;
-
-	innobase_hton->savepoint_rollback_can_release_mdl =
-				innobase_rollback_to_savepoint_can_release_mdl;
-
-	innobase_hton->savepoint_release = innobase_release_savepoint;
-	innobase_hton->prepare_ordered= NULL;
-	innobase_hton->commit_ordered= innobase_commit_ordered;
-	innobase_hton->commit = innobase_commit;
-	innobase_hton->rollback = innobase_rollback;
-	innobase_hton->prepare = innobase_xa_prepare;
-	innobase_hton->recover = innobase_xa_recover;
-	innobase_hton->commit_by_xid = innobase_commit_by_xid;
-	innobase_hton->rollback_by_xid = innobase_rollback_by_xid;
-	innobase_hton->commit_checkpoint_request=innobase_checkpoint_request;
-	innobase_hton->create = innobase_create_handler;
-
-	innobase_hton->drop_database = innobase_drop_database;
-	innobase_hton->panic = innobase_end;
-	innobase_hton->partition_flags= innobase_partition_flags;
-
-	innobase_hton->start_consistent_snapshot =
-		innobase_start_trx_and_assign_read_view;
-
-	innobase_hton->flush_logs = innobase_flush_logs;
-	innobase_hton->show_status = innobase_show_status;
-	innobase_hton->flags =
-		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS | HTON_NATIVE_SYS_VERSIONING;
-
-#ifdef WITH_WSREP
-        innobase_hton->abort_transaction=wsrep_abort_transaction;
-        innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
-        innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
-        innobase_hton->fake_trx_id=wsrep_fake_trx_id;
-#endif /* WITH_WSREP */
-
-        if (srv_file_per_table) {
-		innobase_hton->tablefile_extensions = ha_innobase_exts;
-	}
-
-	innobase_hton->table_options = innodb_table_option_list;
-
-	/* System Versioning */
-	innobase_hton->prepare_commit_versioned
-		= innodb_prepare_commit_versioned;
-
-	innodb_remember_check_sysvar_funcs();
-
-	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
-
-#ifndef DBUG_OFF
-	static const char	test_filename[] = "-@";
-	char			test_tablename[sizeof test_filename
-				+ sizeof(srv_mysql50_table_name_prefix) - 1];
-	if ((sizeof(test_tablename)) - 1
-			!= filename_to_tablename(test_filename,
-						 test_tablename,
-						 sizeof(test_tablename), true)
-			|| strncmp(test_tablename,
-				   srv_mysql50_table_name_prefix,
-				   sizeof(srv_mysql50_table_name_prefix) - 1)
-			|| strcmp(test_tablename
-				  + sizeof(srv_mysql50_table_name_prefix) - 1,
-				  test_filename)) {
-
-		sql_print_error("tablename encoding has been changed");
-		DBUG_RETURN(innobase_init_abort());
-	}
-#endif /* DBUG_OFF */
 
 	/* Check that values don't overflow on 32-bit systems. */
 	if (sizeof(ulint) == 4) {
@@ -3684,16 +3681,9 @@ innobase_init(
 			sql_print_error(
 				"innodb_buffer_pool_size can't be over 4GB"
 				" on 32-bit systems");
-
-			DBUG_RETURN(innobase_init_abort());
+			DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 		}
 	}
-
-	os_file_set_umask(my_umask);
-
-	/* Setup the memory alloc/free tracing mechanisms before calling
-	any functions that could possibly allocate memory. */
-	ut_new_boot();
 
 	/* The buffer pool needs to be able to accommodate enough many
 	pages, even for larger pages */
@@ -3703,7 +3693,7 @@ innobase_init(
 			<< srv_page_size << " requires "
 			<< "innodb_buffer_pool_size > 24M current "
 			<< innobase_buffer_pool_size;
-		goto error;
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
 #ifdef WITH_WSREP
@@ -3720,7 +3710,7 @@ innobase_init(
 		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
 				"InnoDB: liblz4 is not installed. \n",
 				innodb_compression_algorithm);
-	        goto error;
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 #endif
 
@@ -3729,7 +3719,7 @@ innobase_init(
 		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
 				"InnoDB: liblzo is not installed. \n",
 				innodb_compression_algorithm);
-		goto error;
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 #endif
 
@@ -3738,7 +3728,7 @@ innobase_init(
 		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
 				"InnoDB: liblzma is not installed. \n",
 				innodb_compression_algorithm);
-		goto error;
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 #endif
 
@@ -3747,7 +3737,7 @@ innobase_init(
 		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
 				"InnoDB: libbz2 is not installed. \n",
 				innodb_compression_algorithm);
-		goto error;
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 #endif
 
@@ -3756,7 +3746,7 @@ innobase_init(
 		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
 				"InnoDB: libsnappy is not installed. \n",
 				innodb_compression_algorithm);
-		goto error;
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 #endif
 
@@ -3764,8 +3754,17 @@ innobase_init(
 	     && !encryption_key_id_exists(FIL_DEFAULT_ENCRYPTION_KEY)) {
 		sql_print_error("InnoDB: cannot enable encryption, "
 				"encryption plugin is not available");
-		goto error;
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
+
+#ifdef _WIN32
+	if (!is_filename_allowed(srv_buf_dump_filename,
+				 strlen(srv_buf_dump_filename), FALSE)) {
+		sql_print_error("InnoDB: innodb_buffer_pool_filename"
+			" cannot have colon (:) in the file name.");
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
+	}
+#endif
 
 	/* First calculate the default path for innodb_data_home_dir etc.,
 	in case the user has not given any value.
@@ -3804,13 +3803,7 @@ innobase_init(
 	if (!srv_page_size_shift) {
 		sql_print_error("InnoDB: Invalid page size=%lu.\n",
 				srv_page_size);
-		DBUG_RETURN(innobase_init_abort());
-	}
-
-	/* Set default InnoDB temp data file size to 12 MB and let it be
-	auto-extending. */
-	if (!innobase_data_file_path) {
-		innobase_data_file_path = (char*) "ibdata1:12M:autoextend";
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
 	/* This is the first time univ_page_size is used.
@@ -3825,33 +3818,26 @@ innobase_init(
 
 	/* Supports raw devices */
 	if (!srv_sys_space.parse_params(innobase_data_file_path, true)) {
-		DBUG_RETURN(innobase_init_abort());
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
-	/* Set default InnoDB temp data file size to 12 MB and let it be
-	auto-extending. */
-
-	if (!innobase_temp_data_file_path) {
-		innobase_temp_data_file_path = (char*) "ibtmp1:12M:autoextend";
-	}
-
-	/* We set the temporary tablspace id later, after recovery.
-	The temp tablespace doesn't support raw devices.
-	Set the name and path. */
 	srv_tmp_space.set_name("innodb_temporary");
 	srv_tmp_space.set_path(srv_data_home);
 	srv_tmp_space.set_flags(FSP_FLAGS_PAGE_SSIZE());
 
 	if (!srv_tmp_space.parse_params(innobase_temp_data_file_path, false)) {
-		DBUG_RETURN(innobase_init_abort());
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
 	/* Perform all sanity check before we take action of deleting files*/
 	if (srv_sys_space.intersection(&srv_tmp_space)) {
 		sql_print_error("%s and %s file names seem to be the same.",
 			srv_tmp_space.name(), srv_sys_space.name());
-		DBUG_RETURN(innobase_init_abort());
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
+
+	srv_sys_space.normalize_size();
+	srv_tmp_space.normalize_size();
 
 	/* ------------ UNDO tablespaces files ---------------------*/
 	if (!srv_undo_dir) {
@@ -3862,7 +3848,7 @@ innobase_init(
 
 	if (strchr(srv_undo_dir, ';')) {
 		sql_print_error("syntax error in innodb_undo_directory");
-		DBUG_RETURN(innobase_init_abort());
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
 	/* -------------- All log files ---------------------------*/
@@ -3877,33 +3863,22 @@ innobase_init(
 
 	if (strchr(srv_log_group_home_dir, ';')) {
 		sql_print_error("syntax error in innodb_log_group_home_dir");
-		DBUG_RETURN(innobase_init_abort());
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
-	if (innobase_change_buffering) {
-		ulint	use;
-
-		for (use = 0;
-		     use < UT_ARR_SIZE(innobase_change_buffering_values);
-		     use++) {
-			if (!innobase_strcasecmp(
-				    innobase_change_buffering,
-				    innobase_change_buffering_values[use])) {
-				ibuf_use = (ibuf_use_t) use;
-				goto innobase_change_buffering_inited_ok;
-			}
-		}
-
-		sql_print_error("InnoDB: invalid value"
-				" innodb_change_buffering=%s",
-				innobase_change_buffering);
-		DBUG_RETURN(innobase_init_abort());
+	if (srv_n_log_files * srv_log_file_size
+	    >= 512ULL * 1024ULL * 1024ULL * 1024ULL) {
+		/* log_block_convert_lsn_to_no() limits the returned block
+		number to 1G and given that OS_FILE_LOG_BLOCK_SIZE is 512
+		bytes, then we have a limit of 512 GB. If that limit is to
+		be raised, then log_block_convert_lsn_to_no() must be
+		modified. */
+		ib::error() << "Combined size of log files must be < 512 GB";
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
-innobase_change_buffering_inited_ok:
-	ut_a((ulint) ibuf_use < UT_ARR_SIZE(innobase_change_buffering_values));
-	innobase_change_buffering = (char*)
-		innobase_change_buffering_values[ibuf_use];
+	DBUG_ASSERT(innodb_change_buffering <= IBUF_USE_ALL);
+	ibuf_use = ibuf_use_t(innodb_change_buffering);
 
 	/* Check that interdependent parameters have sane values. */
 	if (srv_max_buf_pool_modified_pct < srv_max_dirty_pages_pct_lwm) {
@@ -3939,17 +3914,6 @@ innobase_change_buffering_inited_ok:
 		srv_io_capacity = srv_max_io_capacity;
 	}
 
-	if (!is_filename_allowed(srv_buf_dump_filename,
-				 strlen(srv_buf_dump_filename), FALSE)) {
-		sql_print_error("InnoDB: innodb_buffer_pool_filename"
-			" cannot have colon (:) in the file name.");
-		DBUG_RETURN(innobase_init_abort());
-	}
-
-	/* --------------------------------------------------*/
-
-	srv_file_flush_method_str = innobase_file_flush_method;
-
 	if (UNIV_PAGE_SIZE_DEF != srv_page_size) {
 		ib::info() << "innodb_page_size=" << srv_page_size;
 
@@ -3976,14 +3940,7 @@ innobase_change_buffering_inited_ok:
 		}
 	}
 
-	srv_log_buffer_size = (ulint) innobase_log_buffer_size;
-
 	srv_buf_pool_size = ulint(innobase_buffer_pool_size);
-
-	srv_n_read_io_threads = (ulint) innobase_read_io_threads;
-	srv_n_write_io_threads = (ulint) innobase_write_io_threads;
-
-	srv_use_doublewrite_buf = (ibool) innobase_use_doublewrite;
 
 	if (!innobase_use_checksums) {
 		ib::warn() << "Setting innodb_checksums to OFF is DEPRECATED."
@@ -4064,14 +4021,152 @@ innobase_change_buffering_inited_ok:
                   unbuffered)
                 */
 #ifndef _WIN32
-		if (!innobase_file_flush_method ||
-			!strstr(innobase_file_flush_method, "O_DIRECT")) {
-			innobase_file_flush_method =
-				srv_file_flush_method_str = (char*)"O_DIRECT";
+		switch (innodb_flush_method) {
+		case SRV_O_DIRECT:
+		case SRV_O_DIRECT_NO_FSYNC:
+			break;
+		default:
+			innodb_flush_method = SRV_O_DIRECT;
 			fprintf(stderr, "InnoDB: using O_DIRECT due to atomic writes.\n");
 		}
 #endif
 	}
+
+	if (srv_read_only_mode) {
+		ib::info() << "Started in read only mode";
+		srv_use_doublewrite_buf = FALSE;
+	}
+
+#ifdef LINUX_NATIVE_AIO
+	if (srv_use_native_aio) {
+		ib::info() << "Using Linux native AIO";
+	}
+#elif !defined _WIN32
+	/* Currently native AIO is supported only on windows and linux
+	and that also when the support is compiled in. In all other
+	cases, we ignore the setting of innodb_use_native_aio. */
+	srv_use_native_aio = FALSE;
+#endif
+
+#ifndef _WIN32
+	ut_ad(innodb_flush_method <= SRV_O_DIRECT_NO_FSYNC);
+#else
+	switch (innodb_flush_method) {
+	case SRV_ALL_O_DIRECT_FSYNC + 1 /* "async_unbuffered"="unbuffered" */:
+		innodb_flush_method = SRV_ALL_O_DIRECT_FSYNC;
+		break;
+	case SRV_ALL_O_DIRECT_FSYNC + 2 /* "normal"="fsync" */:
+		innodb_flush_method = SRV_FSYNC;
+		break;
+	default:
+		ut_ad(innodb_flush_method <= SRV_ALL_O_DIRECT_FSYNC);
+	}
+#endif
+	srv_file_flush_method = srv_flush_t(innodb_flush_method);
+
+	innodb_buffer_pool_size_init();
+
+	if (srv_n_page_cleaners > srv_buf_pool_instances) {
+		/* limit of page_cleaner parallelizability
+		is number of buffer pool instances. */
+		srv_n_page_cleaners = srv_buf_pool_instances;
+	}
+
+	srv_lock_table_size = 5 * (srv_buf_pool_size >> srv_page_size_shift);
+	DBUG_RETURN(0);
+}
+
+/** Initialize the InnoDB storage engine plugin.
+@param[in,out]	p	InnoDB handlerton
+@return error code
+@retval 0 on success */
+static int innodb_init(void* p)
+{
+	DBUG_ENTER("innodb_init");
+	handlerton* innobase_hton= static_cast<handlerton*>(p);
+	innodb_hton_ptr = innobase_hton;
+
+	innobase_hton->state = SHOW_OPTION_YES;
+	innobase_hton->db_type = DB_TYPE_INNODB;
+	innobase_hton->savepoint_offset = sizeof(trx_named_savept_t);
+	innobase_hton->close_connection = innobase_close_connection;
+	innobase_hton->kill_query = innobase_kill_query;
+	innobase_hton->savepoint_set = innobase_savepoint;
+	innobase_hton->savepoint_rollback = innobase_rollback_to_savepoint;
+
+	innobase_hton->savepoint_rollback_can_release_mdl =
+				innobase_rollback_to_savepoint_can_release_mdl;
+
+	innobase_hton->savepoint_release = innobase_release_savepoint;
+	innobase_hton->prepare_ordered= NULL;
+	innobase_hton->commit_ordered= innobase_commit_ordered;
+	innobase_hton->commit = innobase_commit;
+	innobase_hton->rollback = innobase_rollback;
+	innobase_hton->prepare = innobase_xa_prepare;
+	innobase_hton->recover = innobase_xa_recover;
+	innobase_hton->commit_by_xid = innobase_commit_by_xid;
+	innobase_hton->rollback_by_xid = innobase_rollback_by_xid;
+	innobase_hton->commit_checkpoint_request=innobase_checkpoint_request;
+	innobase_hton->create = innobase_create_handler;
+
+	innobase_hton->drop_database = innobase_drop_database;
+	innobase_hton->panic = innobase_end;
+
+	innobase_hton->start_consistent_snapshot =
+		innobase_start_trx_and_assign_read_view;
+
+	innobase_hton->flush_logs = innobase_flush_logs;
+	innobase_hton->show_status = innobase_show_status;
+	innobase_hton->flags =
+		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS
+		| HTON_NATIVE_SYS_VERSIONING;
+
+#ifdef WITH_WSREP
+	innobase_hton->abort_transaction=wsrep_abort_transaction;
+	innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
+	innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
+	innobase_hton->fake_trx_id=wsrep_fake_trx_id;
+#endif /* WITH_WSREP */
+
+	innobase_hton->tablefile_extensions = ha_innobase_exts;
+	innobase_hton->table_options = innodb_table_option_list;
+
+	/* System Versioning */
+	innobase_hton->prepare_commit_versioned
+		= innodb_prepare_commit_versioned;
+
+	innodb_remember_check_sysvar_funcs();
+
+	compile_time_assert(DATA_MYSQL_TRUE_VARCHAR == MYSQL_TYPE_VARCHAR);
+
+#ifndef DBUG_OFF
+	static const char	test_filename[] = "-@";
+	char			test_tablename[sizeof test_filename
+				+ sizeof(srv_mysql50_table_name_prefix) - 1];
+	DBUG_ASSERT(sizeof test_tablename - 1
+		    == filename_to_tablename(test_filename,
+					     test_tablename,
+					     sizeof test_tablename, true));
+	DBUG_ASSERT(!strncmp(test_tablename,
+			     srv_mysql50_table_name_prefix,
+			     sizeof srv_mysql50_table_name_prefix - 1));
+	DBUG_ASSERT(!strcmp(test_tablename
+			    + sizeof srv_mysql50_table_name_prefix - 1,
+			    test_filename));
+#endif /* DBUG_OFF */
+
+	os_file_set_umask(my_umask);
+
+	/* Setup the memory alloc/free tracing mechanisms before calling
+	any functions that could possibly allocate memory. */
+	ut_new_boot();
+
+	if (int error = innodb_init_params()) {
+		DBUG_RETURN(error);
+	}
+
+	/* After this point, error handling has to use
+	innodb_init_abort(). */
 
 #ifdef HAVE_PSI_INTERFACE
 	/* Register keys with MySQL performance schema */
@@ -4104,13 +4199,20 @@ innobase_change_buffering_inited_ok:
 	mysql_cond_register("innodb", all_innodb_conds, count);
 #endif /* HAVE_PSI_INTERFACE */
 
-	err = innobase_start_or_create_for_mysql();
+	bool	create_new_db = false;
 
-	innobase_buffer_pool_size = srv_buf_pool_size;
+	/* Check whether the data files exist. */
+	dberr_t	err = srv_sys_space.check_file_spec(&create_new_db, 5U << 20);
+
+	if (err != DB_SUCCESS) {
+		DBUG_RETURN(innodb_init_abort());
+	}
+
+	err = srv_start(create_new_db);
 
 	if (err != DB_SUCCESS) {
 		innodb_shutdown();
-		DBUG_RETURN(innobase_init_abort());
+		DBUG_RETURN(innodb_init_abort());
 	} else if (!srv_read_only_mode) {
 		mysql_thread_create(thd_destructor_thread_key,
 				    &thd_destructor_thread,
@@ -4162,7 +4264,6 @@ innobase_change_buffering_inited_ok:
 	/* Turn on monitor counters that are default on */
 	srv_mon_default_on();
 
-
 	/* Unit Tests */
 #ifdef UNIV_ENABLE_UNIT_TEST_GET_PARENT_DIR
 	unit_test_os_file_get_parent_dir();
@@ -4183,9 +4284,6 @@ innobase_change_buffering_inited_ok:
 #endif /* UNIV_ENABLE_UNIT_TEST_ROW_RAW_FORMAT_INT */
 
 	DBUG_RETURN(0);
-
-error:
-	DBUG_RETURN(1);
 }
 
 /** Shut down the InnoDB storage engine.
@@ -17609,108 +17707,6 @@ innodb_make_page_dirty(
 }
 #endif // UNIV_DEBUG
 /*************************************************************//**
-Find the corresponding ibuf_use_t value that indexes into
-innobase_change_buffering_values[] array for the input
-change buffering option name.
-@return corresponding IBUF_USE_* value for the input variable
-name, or IBUF_USE_COUNT if not able to find a match */
-static
-ibuf_use_t
-innodb_find_change_buffering_value(
-/*===============================*/
-	const char*	input_name)	/*!< in: input change buffering
-					option name */
-{
-	for (ulint i = 0;
-	     i < UT_ARR_SIZE(innobase_change_buffering_values);
-	     ++i) {
-
-		/* found a match */
-		if (!innobase_strcasecmp(
-			input_name, innobase_change_buffering_values[i])) {
-			return(static_cast<ibuf_use_t>(i));
-		}
-	}
-
-	/* Did not find any match */
-	return(IBUF_USE_COUNT);
-}
-
-/*************************************************************//**
-Check if it is a valid value of innodb_change_buffering. This function is
-registered as a callback with MySQL.
-@return 0 for valid innodb_change_buffering */
-static
-int
-innodb_change_buffering_validate(
-/*=============================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to system
-						variable */
-	void*				save,	/*!< out: immediate result
-						for update function */
-	struct st_mysql_value*		value)	/*!< in: incoming string */
-{
-	const char*	change_buffering_input;
-	char		buff[STRING_BUFFER_USUAL_SIZE];
-	int		len = sizeof(buff);
-
-	ut_a(save != NULL);
-	ut_a(value != NULL);
-
-	change_buffering_input = value->val_str(value, buff, &len);
-
-	if (change_buffering_input != NULL) {
-		ibuf_use_t	use;
-
-		use = innodb_find_change_buffering_value(
-			change_buffering_input);
-
-		if (use != IBUF_USE_COUNT) {
-			/* Find a matching change_buffering option value. */
-			*static_cast<const char**>(save) =
-				innobase_change_buffering_values[use];
-
-			return(0);
-		}
-	}
-
-	/* No corresponding change buffering option for user supplied
-	"change_buffering_input" */
-	return(1);
-}
-
-/****************************************************************//**
-Update the system variable innodb_change_buffering using the "saved"
-value. This function is registered as a callback with MySQL. */
-static
-void
-innodb_change_buffering_update(
-/*===========================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
-	const void*			save)	/*!< in: immediate result
-						from check function */
-{
-	ibuf_use_t	use;
-
-	ut_a(var_ptr != NULL);
-	ut_a(save != NULL);
-
-	use = innodb_find_change_buffering_value(
-		*static_cast<const char*const*>(save));
-
-	ut_a(use < IBUF_USE_COUNT);
-
-	ibuf_use = use;
-	*static_cast<const char**>(var_ptr) =
-		 *static_cast<const char*const*>(save);
-}
-
-/*************************************************************//**
 Just emit a warning that the usage of the variable is deprecated.
 @return 0 */
 static
@@ -18174,9 +18170,7 @@ innodb_srv_buf_dump_filename_validate(
 	ut_a(save != NULL);
 	ut_a(value != NULL);
 
-	const char*	buf_name = value->val_str(value, buff, &len);
-
-	if (buf_name != NULL) {
+	if (const char* buf_name = value->val_str(value, buff, &len)) {
 		if (is_filename_allowed(buf_name, len, FALSE)){
 			*static_cast<const char**>(save) = buf_name;
 			return(0);
@@ -19261,7 +19255,7 @@ static MYSQL_SYSVAR_STR(data_home_dir, innobase_data_home_dir,
   "The common part for InnoDB table spaces.",
   NULL, NULL, NULL);
 
-static MYSQL_SYSVAR_BOOL(doublewrite, innobase_use_doublewrite,
+static MYSQL_SYSVAR_BOOL(doublewrite, srv_use_doublewrite_buf,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Enable InnoDB doublewrite buffer (enabled by default)."
   " Disable with --skip-innodb-doublewrite.",
@@ -19389,9 +19383,11 @@ static MYSQL_SYSVAR_ULONG(flush_log_at_trx_commit, srv_flush_log_at_trx_commit,
   " guarantees in case of crash. 0 and 2 can be faster than 1 or 3.",
   NULL, NULL, 1, 0, 3, 0);
 
-static MYSQL_SYSVAR_STR(flush_method, innobase_file_flush_method,
+static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "With which method to flush data.", NULL, NULL, NULL);
+  "With which method to flush data.",
+  NULL, NULL, IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_FSYNC),
+  &innodb_flush_method_typelib);
 
 static MYSQL_SYSVAR_BOOL(force_load_corrupted, srv_load_corrupted,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
@@ -19843,12 +19839,12 @@ static MYSQL_SYSVAR_BOOL(optimize_fulltext_only, innodb_optimize_fulltext_only,
   "Only optimize the Fulltext index of the table",
   NULL, NULL, FALSE);
 
-static MYSQL_SYSVAR_ULONG(read_io_threads, innobase_read_io_threads,
+static MYSQL_SYSVAR_ULONG(read_io_threads, srv_n_read_io_threads,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Number of background read I/O threads in InnoDB.",
   NULL, NULL, 4, 1, 64, 0);
 
-static MYSQL_SYSVAR_ULONG(write_io_threads, innobase_write_io_threads,
+static MYSQL_SYSVAR_ULONG(write_io_threads, srv_n_write_io_threads,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Number of background write I/O threads in InnoDB.",
   NULL, NULL, 4, 1, 64, 0);
@@ -19864,10 +19860,10 @@ static MYSQL_SYSVAR_ULONG(page_size, srv_page_size,
   NULL, NULL, UNIV_PAGE_SIZE_DEF,
   UNIV_PAGE_SIZE_MIN, UNIV_PAGE_SIZE_MAX, 0);
 
-static MYSQL_SYSVAR_LONG(log_buffer_size, innobase_log_buffer_size,
+static MYSQL_SYSVAR_ULONG(log_buffer_size, srv_log_buffer_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "The size of the buffer which InnoDB uses to write log to the log files on disk.",
-  NULL, NULL, 16*1024*1024L, 256*1024L, LONG_MAX, 1024);
+  NULL, NULL, 16L << 20, 256L << 10, LONG_MAX, 1024);
 
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -19947,12 +19943,12 @@ static MYSQL_SYSVAR_ULONG(thread_sleep_delay, srv_thread_sleep_delay,
 static MYSQL_SYSVAR_STR(data_file_path, innobase_data_file_path,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Path to individual files and their sizes.",
-  NULL, NULL, NULL);
+  NULL, NULL, "ibdata1:12M:autoextend");
 
 static MYSQL_SYSVAR_STR(temp_data_file_path, innobase_temp_data_file_path,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Path to files and their sizes making temp-tablespace.",
-  NULL, NULL, NULL);
+  NULL, NULL, "ibtmp1:12M:autoextend");
 
 static MYSQL_SYSVAR_STR(undo_directory, srv_undo_dir,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -20030,12 +20026,10 @@ static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
   NULL, NULL, FALSE);
 #endif /* HAVE_LIBNUMA */
 
-static MYSQL_SYSVAR_STR(change_buffering, innobase_change_buffering,
+static MYSQL_SYSVAR_ENUM(change_buffering, innodb_change_buffering,
   PLUGIN_VAR_RQCMDARG,
-  "Buffer changes to reduce random access:"
-  " OFF, ON, inserting, deleting, changing, or purging.",
-  innodb_change_buffering_validate,
-  innodb_change_buffering_update, "all");
+  "Buffer changes to secondary indexes.",
+  NULL, NULL, IBUF_USE_ALL, &innodb_change_buffering_typelib);
 
 static MYSQL_SYSVAR_UINT(change_buffer_max_size,
   srv_change_buffer_max_size,
@@ -20611,7 +20605,7 @@ maria_declare_plugin(innobase)
   plugin_author,
   "Supports transactions, row-level locking, foreign keys and encryption for tables",
   PLUGIN_LICENSE_GPL,
-  innobase_init, /* Plugin Init */
+  innodb_init, /* Plugin Init */
   NULL, /* Plugin Deinit */
   INNODB_VERSION_SHORT,
   innodb_status_variables_export,/* status variables             */
