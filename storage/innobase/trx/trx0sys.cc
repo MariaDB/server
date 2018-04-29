@@ -195,7 +195,7 @@ trx_sysf_create(
 	ut_a(ptr <= page + (srv_page_size - FIL_PAGE_DATA_END));
 
 	/* Initialize all of the page.  This part used to be uninitialized. */
-	memset(ptr, 0, srv_page_size - FIL_PAGE_DATA_END + page - ptr);
+	memset(ptr, 0, srv_page_size - FIL_PAGE_DATA_END + size_t(page - ptr));
 
 	mlog_log_string(TRX_SYS + page, srv_page_size - FIL_PAGE_DATA_END
 			- TRX_SYS, mtr);

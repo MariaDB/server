@@ -28,6 +28,7 @@ Created 10/16/1994 Heikki Tuuri
 #define btr0cur_h
 
 #include "univ.i"
+#include "my_base.h"
 #include "dict0dict.h"
 #include "page0cur.h"
 #include "btr0types.h"
@@ -600,7 +601,7 @@ btr_cur_parse_del_mark_set_sec_rec(
 @param[in]	tuple2	range end, may also be empty tuple
 @param[in]	mode2	search mode for range end
 @return estimated number of rows */
-int64_t
+ha_rows
 btr_estimate_n_rows_in_range(
 	dict_index_t*	index,
 	const dtuple_t*	tuple1,

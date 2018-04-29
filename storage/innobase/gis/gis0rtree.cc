@@ -1843,7 +1843,7 @@ rtr_rec_cal_increase(
 @param[in]	tuple	range tuple containing mbr, may also be empty tuple
 @param[in]	mode	search mode
 @return estimated number of rows */
-int64_t
+ha_rows
 rtr_estimate_n_rows_in_range(
 	dict_index_t*	index,
 	const dtuple_t*	tuple,
@@ -1994,6 +1994,5 @@ rtr_estimate_n_rows_in_range(
 		return(HA_POS_ERROR);
 	}
 
-	return(static_cast<int64_t>(dict_table_get_n_rows(index->table)
-				    * area / n_recs));
+	return dict_table_get_n_rows(index->table) * area / n_recs;
 }

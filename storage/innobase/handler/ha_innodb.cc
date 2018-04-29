@@ -13383,7 +13383,7 @@ ha_innobase::records_in_range(
 	dict_index_t*	index;
 	dtuple_t*	range_start;
 	dtuple_t*	range_end;
-	int64_t		n_rows;
+	ha_rows		n_rows;
 	page_cur_mode_t	mode1;
 	page_cur_mode_t	mode2;
 	mem_heap_t*	heap;

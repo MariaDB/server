@@ -5758,43 +5758,41 @@ the number of pages between slot1->page and slot2->page (which is
 n_rows_on_prev_level). In this case we set is_n_rows_exact to FALSE.
 @return number of rows, not including the borders (exact or estimated) */
 static
-int64_t
+ha_rows
 btr_estimate_n_rows_in_range_on_level(
 /*==================================*/
 	dict_index_t*	index,			/*!< in: index */
 	btr_path_t*	slot1,			/*!< in: left border */
 	btr_path_t*	slot2,			/*!< in: right border */
-	int64_t		n_rows_on_prev_level,	/*!< in: number of rows
+	ha_rows		n_rows_on_prev_level,	/*!< in: number of rows
 						on the previous level for the
 						same descend paths; used to
 						determine the number of pages
 						on this level */
-	ibool*		is_n_rows_exact)	/*!< out: TRUE if the returned
+	bool*		is_n_rows_exact)	/*!< out: TRUE if the returned
 						value is exact i.e. not an
 						estimation */
 {
-	int64_t		n_rows;
-	int		n_pages_read = 0;
+	ha_rows		n_rows = 0;
+	uint		n_pages_read = 0;
 	ulint		level;
-
-	n_rows = 0;
 
 	/* Assume by default that we will scan all pages between
 	slot1->page_no and slot2->page_no. */
-	*is_n_rows_exact = TRUE;
+	*is_n_rows_exact = true;
 
 	/* Add records from slot1->page_no which are to the right of
 	the record which serves as a left border of the range, if any
 	(we don't include the record itself in this count). */
 	if (slot1->nth_rec <= slot1->n_recs) {
-		n_rows += int64_t(slot1->n_recs - slot1->nth_rec);
+		n_rows += slot1->n_recs - slot1->nth_rec;
 	}
 
 	/* Add records from slot2->page_no which are to the left of
 	the record which servers as a right border of the range, if any
 	(we don't include the record itself in this count). */
 	if (slot2->nth_rec > 1) {
-		n_rows += int64_t(slot2->nth_rec) - 1;
+		n_rows += slot2->nth_rec - 1;
 	}
 
 	/* Count the records in the pages between slot1->page_no and
@@ -5897,7 +5895,7 @@ btr_estimate_n_rows_in_range_on_level(
 
 inexact:
 
-	*is_n_rows_exact = FALSE;
+	*is_n_rows_exact = false;
 
 	/* We did interrupt before reaching slot2->page */
 
@@ -5905,8 +5903,7 @@ inexact:
 		/* The number of pages on this level is
 		n_rows_on_prev_level, multiply it by the
 		average number of recs per page so far */
-		n_rows = n_rows_on_prev_level
-			* n_rows / n_pages_read;
+		n_rows = n_rows_on_prev_level * n_rows / n_pages_read;
 	} else {
 		/* The tree changed before we could even
 		start with slot1->page_no */
@@ -5925,7 +5922,7 @@ static const unsigned	rows_in_range_max_retries = 4;
 /** We pretend that a range has that many records if the tree keeps changing
 for rows_in_range_max_retries retries while we try to estimate the records
 in a given range. */
-static const int64_t	rows_in_range_arbitrary_ret_val = 10;
+static const ha_rows	rows_in_range_arbitrary_ret_val = 10;
 
 /** Estimates the number of rows in a given index range.
 @param[in]	index		index
@@ -5942,7 +5939,7 @@ rows_in_range_arbitrary_ret_val as a result (if
 nth_attempt >= rows_in_range_max_retries and the tree is modified between
 the two dives). */
 static
-int64_t
+ha_rows
 btr_estimate_n_rows_in_range_low(
 	dict_index_t*	index,
 	const dtuple_t*	tuple1,
@@ -5956,16 +5953,16 @@ btr_estimate_n_rows_in_range_low(
 	btr_cur_t	cursor;
 	btr_path_t*	slot1;
 	btr_path_t*	slot2;
-	ibool		diverged;
-	ibool		diverged_lot;
+	bool		diverged;
+	bool		diverged_lot;
 	ulint		divergence_level;
-	int64_t		n_rows;
-	ibool		is_n_rows_exact;
+	ha_rows		n_rows;
+	bool		is_n_rows_exact;
 	ulint		i;
 	mtr_t		mtr;
-	int64_t		table_n_rows;
+	ha_rows		table_n_rows;
 
-	table_n_rows = int64_t(dict_table_get_n_rows(index->table));
+	table_n_rows = dict_table_get_n_rows(index->table);
 
 	/* Below we dive to the two records specified by tuple1 and tuple2 and
 	we remember the entire dive paths from the tree root. The place where
@@ -6099,16 +6096,16 @@ btr_estimate_n_rows_in_range_low(
 	/* We have the path information for the range in path1 and path2 */
 
 	n_rows = 0;
-	is_n_rows_exact = TRUE;
+	is_n_rows_exact = true;
 
 	/* This becomes true when the two paths do not pass through the
 	same pages anymore. */
-	diverged = FALSE;
+	diverged = false;
 
 	/* This becomes true when the paths are not the same or adjacent
 	any more. This means that they pass through the same or
 	neighboring-on-the-same-level pages only. */
-	diverged_lot = FALSE;
+	diverged_lot = false;
 
 	/* This is the level where paths diverged a lot. */
 	divergence_level = 1000000;
@@ -6231,21 +6228,17 @@ btr_estimate_n_rows_in_range_low(
 					return(rows_in_range_arbitrary_ret_val);
 				}
 
-				const int64_t	ret =
-					btr_estimate_n_rows_in_range_low(
-						index, tuple1, mode1,
-						tuple2, mode2, nth_attempt + 1);
-
-				return(ret);
+				return btr_estimate_n_rows_in_range_low(
+					index, tuple1, mode1,
+					tuple2, mode2, nth_attempt + 1);
 			}
 
-			diverged = TRUE;
+			diverged = true;
 
 			if (slot1->nth_rec < slot2->nth_rec) {
 				/* We do not count the borders (nor the left
 				nor the right one), thus "- 1". */
-				n_rows = int64_t(slot2->nth_rec
-						 - slot1->nth_rec) - 1;
+				n_rows = slot2->nth_rec - slot1->nth_rec - 1;
 
 				if (n_rows > 0) {
 					/* There is at least one row between
@@ -6253,7 +6246,7 @@ btr_estimate_n_rows_in_range_low(
 					and slot2, so on the level below the
 					slots will point to non-adjacent
 					pages. */
-					diverged_lot = TRUE;
+					diverged_lot = true;
 					divergence_level = i;
 				}
 			} else {
@@ -6275,18 +6268,18 @@ btr_estimate_n_rows_in_range_low(
 			if (slot1->nth_rec < slot1->n_recs
 			    || slot2->nth_rec > 1) {
 
-				diverged_lot = TRUE;
+				diverged_lot = true;
 				divergence_level = i;
 
 				n_rows = 0;
 
 				if (slot1->nth_rec < slot1->n_recs) {
-					n_rows += int64_t(slot1->n_recs
-							  - slot1->nth_rec);
+					n_rows += slot1->n_recs
+						- slot1->nth_rec;
 				}
 
 				if (slot2->nth_rec > 1) {
-					n_rows += int64_t(slot2->nth_rec) - 1;
+					n_rows += slot2->nth_rec - 1;
 				}
 			}
 		} else if (diverged_lot) {
@@ -6305,7 +6298,7 @@ btr_estimate_n_rows_in_range_low(
 @param[in]	tuple2	range end, may also be empty tuple
 @param[in]	mode2	search mode for range end
 @return estimated number of rows */
-int64_t
+ha_rows
 btr_estimate_n_rows_in_range(
 	dict_index_t*	index,
 	const dtuple_t*	tuple1,
@@ -6313,10 +6306,8 @@ btr_estimate_n_rows_in_range(
 	const dtuple_t*	tuple2,
 	page_cur_mode_t	mode2)
 {
-	const int64_t	ret = btr_estimate_n_rows_in_range_low(
-		index, tuple1, mode1, tuple2, mode2, 1 /* first attempt */);
-
-	return(ret);
+	return btr_estimate_n_rows_in_range_low(
+		index, tuple1, mode1, tuple2, mode2, 1);
 }
 
 /*******************************************************************//**

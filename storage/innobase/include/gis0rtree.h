@@ -28,6 +28,7 @@ Created 2013/03/27 Jimmy Yang and Allen Lai
 #define gis0rtree_h
 
 #include "univ.i"
+#include "my_base.h"
 
 #include "data0type.h"
 #include "data0types.h"
@@ -543,7 +544,7 @@ rtr_info_reinit_in_cursor(
 @param[in]	tuple	range tuple containing mbr, may also be empty tuple
 @param[in]	mode	search mode
 @return estimated number of rows */
-int64_t
+ha_rows
 rtr_estimate_n_rows_in_range(
 	dict_index_t*	index,
 	const dtuple_t*	tuple,

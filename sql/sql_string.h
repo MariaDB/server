@@ -628,7 +628,7 @@ public:
   {
     char *buff= Ptr + str_length;
     char *end= ll2str(i, buff, radix, 0);
-    str_length+= (int) (end-buff);
+    str_length+= uint32(end-buff);
   }
 
   /* Inline (general) functions used by the protocol functions */
