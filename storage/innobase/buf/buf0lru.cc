@@ -59,9 +59,6 @@ static const ulint BUF_LRU_OLD_TOLERANCE = 20;
 (that is, when there are more than BUF_LRU_OLD_MIN_LEN blocks).
 @see buf_LRU_old_adjust_len */
 #define BUF_LRU_NON_OLD_MIN_LEN	5
-#if BUF_LRU_NON_OLD_MIN_LEN >= BUF_LRU_OLD_MIN_LEN
-# error "BUF_LRU_NON_OLD_MIN_LEN >= BUF_LRU_OLD_MIN_LEN"
-#endif
 
 /** When dropping the search hash index entries before deleting an ibd
 file, we build a local array of pages belonging to that tablespace
@@ -1208,8 +1205,12 @@ buf_LRU_old_adjust_len(
 	ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(buf_pool->LRU_old_ratio >= BUF_LRU_OLD_RATIO_MIN);
 	ut_ad(buf_pool->LRU_old_ratio <= BUF_LRU_OLD_RATIO_MAX);
+	compile_time_assert(BUF_LRU_OLD_RATIO_MIN * BUF_LRU_OLD_MIN_LEN
+			    > BUF_LRU_OLD_RATIO_DIV
+			    * (BUF_LRU_OLD_TOLERANCE + 5));
+	compile_time_assert(BUF_LRU_NON_OLD_MIN_LEN < BUF_LRU_OLD_MIN_LEN);
+
 #ifdef UNIV_LRU_DEBUG
-        compile_time_assert(BUF_LRU_OLD_RATIO_MIN * BUF_LRU_OLD_MIN_LEN <= BUF_LRU_OLD_RATIO_DIV * (BUF_LRU_OLD_TOLERANCE + 5));
 	/* buf_pool->LRU_old must be the first item in the LRU list
 	whose "old" flag is set. */
 	ut_a(buf_pool->LRU_old->old);

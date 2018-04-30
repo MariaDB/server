@@ -463,7 +463,7 @@ typedef	ib_uint64_t		lsn_t;
 #define UINT64_UNDEFINED	((ib_uint64_t)(-1))
 
 /** The bitmask of 32-bit unsigned integer */
-#define ULINT32_MASK		0xFFFFFFFF
+#define ULINT32_MASK		0xFFFFFFFFU
 /** The undefined 32-bit unsigned integer */
 #define	ULINT32_UNDEFINED	ULINT32_MASK
 

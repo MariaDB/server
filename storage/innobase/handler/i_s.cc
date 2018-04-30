@@ -87,11 +87,6 @@ in i_s_page_type[] array */
 
 #define I_S_PAGE_TYPE_BITS		4
 
-/* Check if we can hold all page types */
-#if I_S_PAGE_TYPE_LAST >= 1 << I_S_PAGE_TYPE_BITS
-# error i_s_page_type[] is too large
-#endif
-
 /** Name string for File Page Types */
 static buf_page_desc_t	i_s_page_type[] = {
 	{"ALLOCATED", FIL_PAGE_TYPE_ALLOCATED},
@@ -4852,6 +4847,8 @@ i_s_innodb_buffer_page_fill(
 	TABLE*			table;
 	Field**			fields;
 
+	compile_time_assert(I_S_PAGE_TYPE_LAST < 1 << I_S_PAGE_TYPE_BITS);
+
 	DBUG_ENTER("i_s_innodb_buffer_page_fill");
 
 	table = tables->table;
@@ -4955,10 +4952,7 @@ i_s_innodb_buffer_page_fill(
 			   page_info->zip_ssize
 			   ? (UNIV_ZIP_SIZE_MIN >> 1) << page_info->zip_ssize
 			   : 0, true));
-
-#if BUF_PAGE_STATE_BITS > 3
-# error "BUF_PAGE_STATE_BITS > 3, please ensure that all 1<<BUF_PAGE_STATE_BITS values are checked for"
-#endif
+		compile_time_assert(BUF_PAGE_STATE_BITS == 3);
 		state = static_cast<enum buf_page_state>(page_info->page_state);
 
 		switch (state) {

@@ -2320,9 +2320,7 @@ loop:
 			/* Do nothing */
 			break;
 		case MLOG_CHECKPOINT:
-#if SIZE_OF_MLOG_CHECKPOINT != 1 + 8
-# error SIZE_OF_MLOG_CHECKPOINT != 1 + 8
-#endif
+			compile_time_assert(SIZE_OF_MLOG_CHECKPOINT == 1 + 8);
 			lsn = mach_read_from_8(ptr + 1);
 
 			DBUG_PRINT("ib_log",

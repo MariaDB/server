@@ -4388,12 +4388,10 @@ fil_io(
 	ut_ad(byte_offset < srv_page_size);
 	ut_ad(!page_size.is_compressed() || byte_offset == 0);
 	ut_ad(srv_page_size == 1UL << srv_page_size_shift);
-#if (1 << UNIV_PAGE_SIZE_SHIFT_MAX) != UNIV_PAGE_SIZE_MAX
-# error "(1 << UNIV_PAGE_SIZE_SHIFT_MAX) != UNIV_PAGE_SIZE_MAX"
-#endif
-#if (1 << UNIV_PAGE_SIZE_SHIFT_MIN) != UNIV_PAGE_SIZE_MIN
-# error "(1 << UNIV_PAGE_SIZE_SHIFT_MIN) != UNIV_PAGE_SIZE_MIN"
-#endif
+	compile_time_assert((1U << UNIV_PAGE_SIZE_SHIFT_MAX)
+			    == UNIV_PAGE_SIZE_MAX);
+	compile_time_assert((1U << UNIV_PAGE_SIZE_SHIFT_MIN)
+			    == UNIV_PAGE_SIZE_MIN);
 	ut_ad(fil_validate_skip());
 
 	/* ibuf bitmap pages must be read in the sync AIO mode: */

@@ -36,9 +36,6 @@ my_bool	srv_ibuf_disable_background_merge;
 
 /** Number of bits describing a single page */
 #define IBUF_BITS_PER_PAGE	4
-#if IBUF_BITS_PER_PAGE % 2
-# error "IBUF_BITS_PER_PAGE must be an even number!"
-#endif
 /** The start address for an insert buffer bitmap page bitmap */
 #define IBUF_BITMAP		PAGE_DATA
 
@@ -258,9 +255,6 @@ type, counter, and some flags. */
 /* @{ */
 #define IBUF_REC_INFO_SIZE	4	/*!< Combined size of info fields at
 					the beginning of the fourth field */
-#if IBUF_REC_INFO_SIZE >= DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE
-# error "IBUF_REC_INFO_SIZE >= DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE"
-#endif
 
 /* Offsets for the fields at the beginning of the fourth field */
 #define IBUF_REC_OFFSET_COUNTER	0	/*!< Operation counter */
@@ -611,6 +605,7 @@ ibuf_bitmap_page_init(
 	fil_page_set_type(page, FIL_PAGE_IBUF_BITMAP);
 
 	/* Write all zeros to the bitmap */
+	compile_time_assert(!(IBUF_BITS_PER_PAGE % 2));
 
 	byte_offset = UT_BITS_IN_BYTES(block->page.size.physical()
 				       * IBUF_BITS_PER_PAGE);
@@ -694,9 +689,7 @@ ibuf_bitmap_page_get_bits_low(
 	ulint	value;
 
 	ut_ad(bit < IBUF_BITS_PER_PAGE);
-#if IBUF_BITS_PER_PAGE % 2
-# error "IBUF_BITS_PER_PAGE % 2 != 0"
-#endif
+	compile_time_assert(!(IBUF_BITS_PER_PAGE % 2));
 	ut_ad(mtr_memo_contains_page(mtr, page, latch_type));
 
 	bit_offset = (page_id.page_no() % page_size.physical())
@@ -742,9 +735,7 @@ ibuf_bitmap_page_set_bits(
 	ulint	map_byte;
 
 	ut_ad(bit < IBUF_BITS_PER_PAGE);
-#if IBUF_BITS_PER_PAGE % 2
-# error "IBUF_BITS_PER_PAGE % 2 != 0"
-#endif
+	compile_time_assert(!(IBUF_BITS_PER_PAGE % 2));
 	ut_ad(mtr_memo_contains_page(mtr, page, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(mtr->is_named_space(page_id.space()));
 #ifdef UNIV_IBUF_COUNT_DEBUG
@@ -1330,6 +1321,8 @@ ibuf_rec_get_info_func(
 	types = rec_get_nth_field_old(rec, IBUF_REC_FIELD_METADATA, &len);
 
 	info_len_local = len % DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE;
+	compile_time_assert(IBUF_REC_INFO_SIZE
+			    < DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE);
 
 	switch (info_len_local) {
 	case 0:

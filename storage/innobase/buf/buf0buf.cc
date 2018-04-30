@@ -910,9 +910,7 @@ buf_page_is_corrupted(
 	checksum_field2 = mach_read_from_4(
 		read_buf + page_size.logical() - FIL_PAGE_END_LSN_OLD_CHKSUM);
 
-#if FIL_PAGE_LSN % 8
-#error "FIL_PAGE_LSN must be 64 bit aligned"
-#endif
+	compile_time_assert(!(FIL_PAGE_LSN % 8));
 
 	/* declare empty pages non-corrupted */
 	if (checksum_field1 == 0

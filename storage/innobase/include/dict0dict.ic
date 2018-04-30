@@ -555,11 +555,6 @@ dict_table_is_comp(
 	const dict_table_t*	table)	/*!< in: table */
 {
 	ut_ad(table);
-
-#if DICT_TF_COMPACT != 1
-#error "DICT_TF_COMPACT must be 1"
-#endif
-
 	return (table->flags & DICT_TF_COMPACT) != 0;
 }
 

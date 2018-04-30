@@ -412,9 +412,7 @@ page_zip_compress_write_log(
 	/* Add the space occupied by BLOB pointers. */
 	trailer_size += page_zip->n_blobs * BTR_EXTERN_FIELD_REF_SIZE;
 	ut_a(page_zip->m_end > PAGE_DATA);
-#if FIL_PAGE_DATA > PAGE_DATA
-# error "FIL_PAGE_DATA > PAGE_DATA"
-#endif
+	compile_time_assert(FIL_PAGE_DATA <= PAGE_DATA);
 	ut_a(page_zip->m_end + trailer_size <= page_zip_get_size(page_zip));
 
 	log_ptr = mlog_write_initial_log_record_fast((page_t*) page,
@@ -697,12 +695,11 @@ page_zip_dir_encode(
 		ut_a(heap_no < n_heap);
 		ut_a(offs < srv_page_size - PAGE_DIR);
 		ut_a(offs >= PAGE_ZIP_START);
-#if PAGE_ZIP_DIR_SLOT_MASK & (PAGE_ZIP_DIR_SLOT_MASK + 1)
-# error PAGE_ZIP_DIR_SLOT_MASK is not 1 less than a power of 2
-#endif
-#if PAGE_ZIP_DIR_SLOT_MASK < UNIV_ZIP_SIZE_MAX - 1
-# error PAGE_ZIP_DIR_SLOT_MASK < UNIV_ZIP_SIZE_MAX - 1
-#endif
+		compile_time_assert(!(PAGE_ZIP_DIR_SLOT_MASK
+				      & (PAGE_ZIP_DIR_SLOT_MASK + 1)));
+		compile_time_assert(PAGE_ZIP_DIR_SLOT_MASK
+				    >= UNIV_ZIP_SIZE_MAX - 1);
+
 		if (UNIV_UNLIKELY(rec_get_n_owned_new(rec) != 0)) {
 			offs |= PAGE_ZIP_DIR_SLOT_OWNED;
 		}
@@ -4123,9 +4120,7 @@ page_zip_write_node_ptr(
 #if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
 	ut_a(!memcmp(storage, field, REC_NODE_PTR_SIZE));
 #endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
-#if REC_NODE_PTR_SIZE != 4
-# error "REC_NODE_PTR_SIZE != 4"
-#endif
+	compile_time_assert(REC_NODE_PTR_SIZE == 4);
 	mach_write_to_4(field, ptr);
 	memcpy(storage, field, REC_NODE_PTR_SIZE);
 
@@ -4191,9 +4186,7 @@ page_zip_write_trx_id_and_roll_ptr(
 		- (rec_get_heap_no_new(rec) - 1)
 		* (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
 
-#if DATA_TRX_ID + 1 != DATA_ROLL_PTR
-# error "DATA_TRX_ID + 1 != DATA_ROLL_PTR"
-#endif
+	compile_time_assert(DATA_TRX_ID + 1 == DATA_ROLL_PTR);
 	field = rec_get_nth_field(rec, offsets, trx_id_col, &len);
 	ut_ad(len == DATA_TRX_ID_LEN);
 	ut_ad(field + DATA_TRX_ID_LEN
@@ -4202,13 +4195,9 @@ page_zip_write_trx_id_and_roll_ptr(
 #if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
 	ut_a(!memcmp(storage, field, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN));
 #endif /* UNIV_DEBUG || UNIV_ZIP_DEBUG */
-#if DATA_TRX_ID_LEN != 6
-# error "DATA_TRX_ID_LEN != 6"
-#endif
+	compile_time_assert(DATA_TRX_ID_LEN == 6);
 	mach_write_to_6(field, trx_id);
-#if DATA_ROLL_PTR_LEN != 7
-# error "DATA_ROLL_PTR_LEN != 7"
-#endif
+	compile_time_assert(DATA_ROLL_PTR_LEN == 7);
 	mach_write_to_7(field + DATA_TRX_ID_LEN, roll_ptr);
 	memcpy(storage, field, DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
 
@@ -4726,9 +4715,7 @@ page_zip_write_header_log(
 
 	ut_ad(offset < PAGE_DATA);
 	ut_ad(offset + length < PAGE_DATA);
-#if PAGE_DATA > 255
-# error "PAGE_DATA > 255"
-#endif
+	compile_time_assert(PAGE_DATA < 256U);
 	ut_ad(length > 0);
 	ut_ad(length < 256);
 
@@ -4876,9 +4863,7 @@ page_zip_copy_recs(
 	the records stored in the page.  Also copy the field
 	PAGE_MAX_TRX_ID.  Skip the rest of the page header and
 	trailer.  On the compressed page, there is no trailer. */
-#if PAGE_MAX_TRX_ID + 8 != PAGE_HEADER_PRIV_END
-# error "PAGE_MAX_TRX_ID + 8 != PAGE_HEADER_PRIV_END"
-#endif
+	compile_time_assert(PAGE_MAX_TRX_ID + 8 == PAGE_HEADER_PRIV_END);
 	memcpy(PAGE_HEADER + page, PAGE_HEADER + src,
 	       PAGE_HEADER_PRIV_END);
 	memcpy(PAGE_DATA + page, PAGE_DATA + src,
@@ -5084,9 +5069,7 @@ page_zip_verify_checksum(
                                  (data) + FIL_PAGE_SPACE_ID);
 	const page_id_t	page_id(space_id, page_no);
 
-#if FIL_PAGE_LSN % 8
-#error "FIL_PAGE_LSN must be 64 bit aligned"
-#endif
+	compile_time_assert(!(FIL_PAGE_LSN % 8));
 
 	/* Check if page is empty */
 	if (stored == 0

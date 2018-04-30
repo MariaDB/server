@@ -92,18 +92,12 @@ xdes_calc_descriptor_page(
 	const page_size_t&	page_size,
 	ulint			offset)
 {
-#ifndef DOXYGEN /* Doxygen gets confused by these */
-# if UNIV_PAGE_SIZE_MAX <= XDES_ARR_OFFSET				\
-			   + (UNIV_PAGE_SIZE_MAX / FSP_EXTENT_SIZE_MAX)	\
-			   * XDES_SIZE_MAX
-#  error
-# endif
-# if UNIV_ZIP_SIZE_MIN <= XDES_ARR_OFFSET				\
-			  + (UNIV_ZIP_SIZE_MIN / FSP_EXTENT_SIZE_MIN)	\
-			  * XDES_SIZE_MIN
-#  error
-# endif
-#endif /* !DOXYGEN */
+	compile_time_assert(UNIV_PAGE_SIZE_MAX > XDES_ARR_OFFSET
+			    + (UNIV_PAGE_SIZE_MAX / FSP_EXTENT_SIZE_MAX)
+			    * XDES_SIZE_MAX);
+	compile_time_assert(UNIV_PAGE_SIZE_MIN > XDES_ARR_OFFSET
+			    + (UNIV_PAGE_SIZE_MIN / FSP_EXTENT_SIZE_MIN)
+			    * XDES_SIZE_MIN);
 
 	ut_ad(srv_page_size > XDES_ARR_OFFSET
 	      + (srv_page_size / FSP_EXTENT_SIZE)

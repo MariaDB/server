@@ -73,10 +73,6 @@ list. This value is stamped at BUF_BUDDY_STAMP_OFFSET offset */
 value by the consumer of the block */
 #define BUF_BUDDY_STAMP_NONFREE	0XFFFFFFFFUL
 
-#if BUF_BUDDY_STAMP_FREE >= BUF_BUDDY_STAMP_NONFREE
-# error "BUF_BUDDY_STAMP_FREE >= BUF_BUDDY_STAMP_NONFREE"
-#endif
-
 /** Return type of buf_buddy_is_free() */
 enum buf_buddy_state_t {
 	BUF_BUDDY_STATE_FREE,	/*!< If the buddy to completely free */
@@ -114,6 +110,7 @@ buf_buddy_stamp_is_free(
 /*====================*/
 	const buf_buddy_free_t*	buf)	/*!< in: block to check */
 {
+	compile_time_assert(BUF_BUDDY_STAMP_FREE < BUF_BUDDY_STAMP_NONFREE);
 	return(mach_read_from_4(buf->stamp.bytes + BUF_BUDDY_STAMP_OFFSET)
 	       == BUF_BUDDY_STAMP_FREE);
 }
@@ -138,13 +135,12 @@ buf_buddy_stamp_free(
 Stamps a buddy nonfree.
 @param[in,out]	buf	block to stamp
 @param[in]	i	block size */
-#define buf_buddy_stamp_nonfree(buf, i) do {				\
-	buf_buddy_mem_invalid(buf, i);					\
-	memset(buf->stamp.bytes + BUF_BUDDY_STAMP_OFFSET, 0xff, 4);	\
-} while (0)
-#if BUF_BUDDY_STAMP_NONFREE != 0xffffffff
-# error "BUF_BUDDY_STAMP_NONFREE != 0xffffffff"
-#endif
+static inline void buf_buddy_stamp_nonfree(buf_buddy_free_t* buf, ulint i)
+{
+	buf_buddy_mem_invalid(buf, i);
+	compile_time_assert(BUF_BUDDY_STAMP_NONFREE == 0xffffffffU);
+	memset(buf->stamp.bytes + BUF_BUDDY_STAMP_OFFSET, 0xff, 4);
+}
 
 /**********************************************************************//**
 Get the offset of the buddy of a compressed page frame.

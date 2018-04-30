@@ -1242,28 +1242,19 @@ dict_table_add_system_columns(
 			       DATA_ROW_ID | DATA_NOT_NULL,
 			       DATA_ROW_ID_LEN);
 
-#if DATA_ROW_ID != 0
-#error "DATA_ROW_ID != 0"
-#endif
+	compile_time_assert(DATA_ROW_ID == 0);
 	dict_mem_table_add_col(table, heap, "DB_TRX_ID", DATA_SYS,
 			       DATA_TRX_ID | DATA_NOT_NULL,
 			       DATA_TRX_ID_LEN);
-#if DATA_TRX_ID != 1
-#error "DATA_TRX_ID != 1"
-#endif
-
+	compile_time_assert(DATA_TRX_ID == 1);
 	dict_mem_table_add_col(table, heap, "DB_ROLL_PTR", DATA_SYS,
 			       DATA_ROLL_PTR | DATA_NOT_NULL,
 			       DATA_ROLL_PTR_LEN);
-#if DATA_ROLL_PTR != 2
-#error "DATA_ROLL_PTR != 2"
-#endif
+	compile_time_assert(DATA_ROLL_PTR == 2);
 
 	/* This check reminds that if a new system column is added to
 	the program, it should be dealt with here */
-#if DATA_N_SYS_COLS != 3
-#error "DATA_N_SYS_COLS != 3"
-#endif
+	compile_time_assert(DATA_N_SYS_COLS == 3);
 }
 
 /** Add the table definition to the data dictionary cache */
@@ -2077,19 +2068,13 @@ dict_col_name_is_reserved(
 /*======================*/
 	const char*	name)	/*!< in: column name */
 {
-	/* This check reminds that if a new system column is added to
-	the program, it should be dealt with here. */
-#if DATA_N_SYS_COLS != 3
-#error "DATA_N_SYS_COLS != 3"
-#endif
-
 	static const char*	reserved_names[] = {
 		"DB_ROW_ID", "DB_TRX_ID", "DB_ROLL_PTR"
 	};
 
-	ulint			i;
+	compile_time_assert(UT_ARR_SIZE(reserved_names) == DATA_N_SYS_COLS);
 
-	for (i = 0; i < UT_ARR_SIZE(reserved_names); i++) {
+	for (ulint i = 0; i < UT_ARR_SIZE(reserved_names); i++) {
 		if (innobase_strcasecmp(name, reserved_names[i]) == 0) {
 
 			return(TRUE);
@@ -2799,12 +2784,11 @@ dict_index_add_col(
 	if (field->fixed_len > DICT_MAX_FIXED_COL_LEN) {
 		field->fixed_len = 0;
 	}
-#if DICT_MAX_FIXED_COL_LEN != 768
+
 	/* The comparison limit above must be constant.  If it were
 	changed, the disk format of some fixed-length columns would
 	change, which would be a disaster. */
-# error "DICT_MAX_FIXED_COL_LEN != 768"
-#endif
+	compile_time_assert(DICT_MAX_FIXED_COL_LEN == 768);
 
 	if (!(col->prtype & DATA_NOT_NULL)) {
 		index->n_nullable++;
@@ -2999,15 +2983,9 @@ dict_index_build_internal_clust(
 
 	trx_id_pos = new_index->n_def;
 
-#if DATA_ROW_ID != 0
-# error "DATA_ROW_ID != 0"
-#endif
-#if DATA_TRX_ID != 1
-# error "DATA_TRX_ID != 1"
-#endif
-#if DATA_ROLL_PTR != 2
-# error "DATA_ROLL_PTR != 2"
-#endif
+	compile_time_assert(DATA_ROW_ID == 0);
+	compile_time_assert(DATA_TRX_ID == 1);
+	compile_time_assert(DATA_ROLL_PTR == 2);
 
 	if (!dict_index_is_unique(index)) {
 		dict_index_add_col(new_index, table,

@@ -235,9 +235,8 @@ dtype_new_store_for_order_and_null_size(
 	ulint		prefix_len)/*!< in: prefix length to
 				replace type->len, or 0 */
 {
-#if 6 != DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE
-#error "6 != DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE"
-#endif
+	compile_time_assert(6 == DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE);
+
 	ulint	len;
 
 	ut_ad(type);
@@ -280,10 +279,7 @@ dtype_read_for_order_and_null_size(
 	dtype_t*	type,	/*!< in: type struct */
 	const byte*	buf)	/*!< in: buffer for stored type order info */
 {
-#if 4 != DATA_ORDER_NULL_TYPE_BUF_SIZE
-# error "4 != DATA_ORDER_NULL_TYPE_BUF_SIZE"
-#endif
-
+	compile_time_assert(4 == DATA_ORDER_NULL_TYPE_BUF_SIZE);
 	type->mtype = buf[0] & 63;
 	type->prtype = buf[1];
 
@@ -309,11 +305,7 @@ dtype_new_read_for_order_and_null_size(
 	dtype_t*	type,	/*!< in: type struct */
 	const byte*	buf)	/*!< in: buffer for stored type order info */
 {
-	ulint	charset_coll;
-
-#if 6 != DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE
-#error "6 != DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE"
-#endif
+	compile_time_assert(6 == DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE);
 
 	type->mtype = buf[0] & 63;
 	type->prtype = buf[1];
@@ -328,7 +320,7 @@ dtype_new_read_for_order_and_null_size(
 
 	type->len = mach_read_from_2(buf + 2);
 
-	charset_coll = mach_read_from_2(buf + 4) & CHAR_COLL_MASK;
+	ulint charset_coll = mach_read_from_2(buf + 4) & CHAR_COLL_MASK;
 
 	if (dtype_is_string_type(type->mtype)) {
 		ut_a(charset_coll <= MAX_CHAR_COLL_NUM);

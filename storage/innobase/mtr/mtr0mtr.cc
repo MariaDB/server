@@ -610,9 +610,7 @@ mtr_t::commit_checkpoint(
 
 	if (write_mlog_checkpoint) {
 		byte*	ptr = m_impl.m_log.push<byte*>(SIZE_OF_MLOG_CHECKPOINT);
-#if SIZE_OF_MLOG_CHECKPOINT != 9
-# error SIZE_OF_MLOG_CHECKPOINT != 9
-#endif
+		compile_time_assert(SIZE_OF_MLOG_CHECKPOINT == 1 + 8);
 		*ptr = MLOG_CHECKPOINT;
 		mach_write_to_8(ptr + 1, checkpoint_lsn);
 	}

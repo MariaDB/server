@@ -4008,9 +4008,7 @@ retry:
 #ifdef UNIV_BTR_DEBUG
 			memcpy(fil_page_prev, merge_page + FIL_PAGE_PREV, 4);
 #endif /* UNIV_BTR_DEBUG */
-#if FIL_NULL != 0xffffffff
-# error "FIL_NULL != 0xffffffff"
-#endif
+			compile_time_assert(FIL_NULL == 0xffffffffU);
 			memset(merge_page + FIL_PAGE_PREV, 0xff, 4);
 		}
 

@@ -235,8 +235,8 @@ rec_get_next_ptr_const(
 {
 	ulint	field_value;
 
-	ut_ad(REC_NEXT_MASK == 0xFFFFUL);
-	ut_ad(REC_NEXT_SHIFT == 0);
+	compile_time_assert(REC_NEXT_MASK == 0xFFFFUL);
+	compile_time_assert(REC_NEXT_SHIFT == 0);
 
 	field_value = mach_read_from_2(rec - REC_NEXT);
 
@@ -304,12 +304,8 @@ rec_get_next_offs(
 	ulint		comp)	/*!< in: nonzero=compact page format */
 {
 	ulint	field_value;
-#if REC_NEXT_MASK != 0xFFFFUL
-# error "REC_NEXT_MASK != 0xFFFFUL"
-#endif
-#if REC_NEXT_SHIFT
-# error "REC_NEXT_SHIFT != 0"
-#endif
+	compile_time_assert(REC_NEXT_MASK == 0xFFFFUL);
+	compile_time_assert(REC_NEXT_SHIFT == 0);
 
 	field_value = mach_read_from_2(rec - REC_NEXT);
 
@@ -361,13 +357,8 @@ rec_set_next_offs_old(
 {
 	ut_ad(rec);
 	ut_ad(srv_page_size > next);
-#if REC_NEXT_MASK != 0xFFFFUL
-# error "REC_NEXT_MASK != 0xFFFFUL"
-#endif
-#if REC_NEXT_SHIFT
-# error "REC_NEXT_SHIFT != 0"
-#endif
-
+	compile_time_assert(REC_NEXT_MASK == 0xFFFFUL);
+	compile_time_assert(REC_NEXT_SHIFT == 0);
 	mach_write_to_2(rec - REC_NEXT, next);
 }
 
@@ -627,10 +618,8 @@ rec_get_info_and_status_bits(
 	ulint		comp)	/*!< in: nonzero=compact page format */
 {
 	ulint	bits;
-#if (REC_NEW_STATUS_MASK >> REC_NEW_STATUS_SHIFT) \
-& (REC_INFO_BITS_MASK >> REC_INFO_BITS_SHIFT)
-# error "REC_NEW_STATUS_MASK and REC_INFO_BITS_MASK overlap"
-#endif
+	compile_time_assert(!((REC_NEW_STATUS_MASK >> REC_NEW_STATUS_SHIFT)
+			      & (REC_INFO_BITS_MASK >> REC_INFO_BITS_SHIFT)));
 	if (comp) {
 		bits = rec_get_info_bits(rec, TRUE)
 			| ulint(rec_get_status(rec));
@@ -650,10 +639,8 @@ rec_set_info_and_status_bits(
 	rec_t*	rec,	/*!< in/out: physical record */
 	ulint	bits)	/*!< in: info bits */
 {
-#if (REC_NEW_STATUS_MASK >> REC_NEW_STATUS_SHIFT) \
-& (REC_INFO_BITS_MASK >> REC_INFO_BITS_SHIFT)
-# error "REC_NEW_STATUS_MASK and REC_INFO_BITS_MASK overlap"
-#endif
+	compile_time_assert(!((REC_NEW_STATUS_MASK >> REC_NEW_STATUS_SHIFT)
+			      & (REC_INFO_BITS_MASK >> REC_INFO_BITS_SHIFT)));
 	rec_set_status(rec, bits & REC_NEW_STATUS_MASK);
 	rec_set_info_bits_new(rec, bits & ~REC_NEW_STATUS_MASK);
 }
@@ -806,10 +793,6 @@ rec_get_1byte_offs_flag(
 /*====================*/
 	const rec_t*	rec)	/*!< in: physical record */
 {
-#if TRUE != 1
-#error "TRUE != 1"
-#endif
-
 	return(rec_get_bit_field_1(rec, REC_OLD_SHORT, REC_OLD_SHORT_MASK,
 				   REC_OLD_SHORT_SHIFT));
 }
@@ -823,10 +806,7 @@ rec_set_1byte_offs_flag(
 	rec_t*	rec,	/*!< in: physical record */
 	ibool	flag)	/*!< in: TRUE if 1byte form */
 {
-#if TRUE != 1
-#error "TRUE != 1"
-#endif
-	ut_ad(flag <= TRUE);
+	ut_ad(flag <= 1);
 
 	rec_set_bit_field_1(rec, flag, REC_OLD_SHORT, REC_OLD_SHORT_MASK,
 			    REC_OLD_SHORT_SHIFT);

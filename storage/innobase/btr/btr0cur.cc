@@ -205,18 +205,6 @@ btr_rec_free_externally_stored_fields(
 
 /*==================== B-TREE SEARCH =========================*/
 
-/**
-#if MTR_MEMO_PAGE_S_FIX != RW_S_LATCH
-#error "MTR_MEMO_PAGE_S_FIX != RW_S_LATCH"
-#endif
-#if MTR_MEMO_PAGE_X_FIX != RW_X_LATCH
-#error "MTR_MEMO_PAGE_X_FIX != RW_X_LATCH"
-#endif
-#if MTR_MEMO_PAGE_SX_FIX != RW_SX_LATCH
-#error "MTR_MEMO_PAGE_SX_FIX != RW_SX_LATCH"
-#endif
-*/
-
 /** Latches the leaf page or pages requested.
 @param[in]	block		leaf page where the search converged
 @param[in]	page_id		page id of the leaf
@@ -240,6 +228,10 @@ btr_cur_latch_leaves(
 	page_t*		page = buf_block_get_frame(block);
 	bool		spatial;
 	btr_latch_leaves_t latch_leaves = {{NULL, NULL, NULL}, {0, 0, 0}};
+
+	compile_time_assert(int(MTR_MEMO_PAGE_S_FIX) == int(RW_S_LATCH));
+	compile_time_assert(int(MTR_MEMO_PAGE_X_FIX) == int(RW_X_LATCH));
+	compile_time_assert(int(MTR_MEMO_PAGE_SX_FIX) == int(RW_SX_LATCH));
 
 	spatial = dict_index_is_spatial(cursor->index) && cursor->rtr_info;
 	ut_ad(buf_page_in_file(&block->page));

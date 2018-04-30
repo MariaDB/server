@@ -113,9 +113,8 @@ row_build_index_entry_low(
 			col_no = dict_col_get_no(col);
 			dfield = dtuple_get_nth_field(entry, i);
 		}
-#if DATA_MISSING != 0
-# error "DATA_MISSING != 0"
-#endif
+
+		compile_time_assert(DATA_MISSING == 0);
 
 		if (dict_col_is_virtual(col)) {
 			const dict_v_col_t*	v_col

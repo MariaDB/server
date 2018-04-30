@@ -513,9 +513,7 @@ row_upd_rec_sys_fields_in_recovery(
 
 		field = rec_get_nth_field(rec, offsets, pos, &len);
 		ut_ad(len == DATA_TRX_ID_LEN);
-#if DATA_TRX_ID + 1 != DATA_ROLL_PTR
-# error "DATA_TRX_ID + 1 != DATA_ROLL_PTR"
-#endif
+		compile_time_assert(DATA_TRX_ID + 1 == DATA_ROLL_PTR);
 		trx_write_trx_id(field, trx_id);
 		trx_write_roll_ptr(field + DATA_TRX_ID_LEN, roll_ptr);
 	}
@@ -845,10 +843,7 @@ row_upd_index_write_log(
 	log_ptr += mach_write_compressed(log_ptr, n_fields);
 
 	for (i = 0; i < n_fields; i++) {
-
-#if MLOG_BUF_MARGIN <= 30
-# error "MLOG_BUF_MARGIN <= 30"
-#endif
+		compile_time_assert(MLOG_BUF_MARGIN > 30);
 
 		if (log_ptr + 30 > buf_end) {
 			mlog_close(mtr, log_ptr);
