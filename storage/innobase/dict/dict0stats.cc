@@ -1039,10 +1039,10 @@ dict_stats_analyze_index_level(
 	memset(n_diff, 0x0, n_uniq * sizeof(n_diff[0]));
 
 	/* Allocate space for the offsets header (the allocation size at
-	offsets[0] and the REC_OFFS_HEADER_SIZE bytes), and n_fields + 1,
+	offsets[0] and the REC_OFFS_HEADER_SIZE bytes), and n_uniq + 1,
 	so that this will never be less than the size calculated in
 	rec_get_offsets_func(). */
-	i = (REC_OFFS_HEADER_SIZE + 1 + 1) + unsigned(index->n_fields);
+	i = (REC_OFFS_HEADER_SIZE + 1 + 1) + n_uniq;
 
 	heap = mem_heap_create((2 * sizeof *rec_offsets) * i);
 	rec_offsets = static_cast<ulint*>(
@@ -1158,8 +1158,7 @@ dict_stats_analyze_index_level(
 					n_uniq, &heap);
 
 				prev_rec = rec_copy_prefix_to_buf(
-					prev_rec, index,
-					rec_offs_n_fields(prev_rec_offsets),
+					prev_rec, index, n_uniq,
 					&prev_rec_buf, &prev_rec_buf_size);
 
 				prev_rec_is_copied = true;
@@ -1232,7 +1231,7 @@ dict_stats_analyze_index_level(
 			btr_pcur_move_to_next_user_rec() will release the
 			latch on the page that prev_rec is on */
 			prev_rec = rec_copy_prefix_to_buf(
-				rec, index, rec_offs_n_fields(rec_offsets),
+				rec, index, n_uniq,
 				&prev_rec_buf, &prev_rec_buf_size);
 			prev_rec_is_copied = true;
 
