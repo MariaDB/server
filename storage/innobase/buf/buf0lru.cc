@@ -1947,11 +1947,11 @@ buf_LRU_block_remove_hashed(
 				break;
 			case FIL_PAGE_INDEX:
 			case FIL_PAGE_RTREE:
-#ifdef UNIV_ZIP_DEBUG
+#if defined UNIV_ZIP_DEBUG && defined BTR_CUR_HASH_ADAPT
 				ut_a(page_zip_validate(
 					     &bpage->zip, page,
 					     ((buf_block_t*) bpage)->index));
-#endif /* UNIV_ZIP_DEBUG */
+#endif /* UNIV_ZIP_DEBUG && BTR_CUR_HASH_ADAPT */
 				break;
 			default:
 				ib::error() << "The compressed page to be"

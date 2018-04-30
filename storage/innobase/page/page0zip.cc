@@ -3469,7 +3469,7 @@ page_zip_validate_low(
 			page + PAGE_NEW_INFIMUM, TRUE);
 		trec = page_rec_get_next_low(
 			temp_page + PAGE_NEW_INFIMUM, TRUE);
-		ut_d(const bool is_leaf = page_is_leaf(page));
+		const bool is_leaf = page_is_leaf(page);
 
 		do {
 			if (page_offset(rec) != page_offset(trec)) {
