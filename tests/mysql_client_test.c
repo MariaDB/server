@@ -20622,7 +20622,7 @@ static struct my_tests_st my_tests[]= {
 #ifdef EMBEDDED_LIBRARY
   { "test_embedded_start_stop", test_embedded_start_stop },
 #endif
-#if NOT_YET_WORKING
+#ifdef NOT_YET_WORKING
   { "test_drop_temp", test_drop_temp },
 #endif
   { "test_fetch_seek", test_fetch_seek },

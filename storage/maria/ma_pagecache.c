@@ -985,7 +985,7 @@ static int flush_all_key_blocks(PAGECACHE *pagecache)
      resizing, due to the page locking specific to this page cache.
      So we disable it for now.
 */
-#if NOT_USED /* keep disabled until code is fixed see above !! */
+#ifdef NOT_USED /* keep disabled until code is fixed see above !! */
 size_t resize_pagecache(PAGECACHE *pagecache,
                        size_t use_mem, uint division_limit,
                        uint age_threshold, uint changed_blocks_hash_size)

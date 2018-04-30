@@ -17,7 +17,7 @@
 #pragma implementation // gcc: Class implementation
 #endif
 
-#if _MSC_VER>=1400
+#if defined(_MSC_VER) && _MSC_VER>=1400
 #define _CRT_SECURE_NO_DEPRECATE 1
 #define _CRT_NONSTDC_NO_DEPRECATE 1
 #endif
@@ -65,7 +65,7 @@
 #define MSG_WAITALL 0
 #endif
 
-#if _MSC_VER>=1400
+#if defined(_MSC_VER) && _MSC_VER>=1400
 #pragma warning(push,4)
 #endif
 
