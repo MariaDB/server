@@ -96,7 +96,7 @@ public:
 		for (;;) {
 
 			if (!btr_pcur_is_on_user_rec(&m_pcur)
-			    || !callback.match(&m_mtr, &m_pcur)) {
+			    || !callback.match(&m_pcur)) {
 
 				/* The end of of the index has been reached. */
 				err = DB_END_OF_INDEX;
@@ -195,10 +195,9 @@ public:
 	}
 
 	/**
-	@param mtr		mini-transaction covering the iteration
 	@param pcur		persistent cursor used for iteration
 	@return true if the table id column matches. */
-	bool match(mtr_t* mtr, btr_pcur_t* pcur) const
+	bool match(btr_pcur_t* pcur) const
 	{
 		ulint		len;
 		const byte*	field;
@@ -866,15 +865,13 @@ public:
 	/**
 	Look for table-id in SYS_XXXX tables without loading the table.
 
-	@param mtr	mini-transaction covering the read
 	@param pcur	persistent cursor used for reading
-	@return DB_SUCCESS or error code */
-	dberr_t operator()(mtr_t* mtr, btr_pcur_t* pcur);
-
-private:
-	// Disably copying
-	TableLocator(const TableLocator&);
-	TableLocator& operator=(const TableLocator&);
+	@return DB_SUCCESS */
+	dberr_t operator()(mtr_t*, btr_pcur_t*)
+	{
+		m_table_found = true;
+		return(DB_SUCCESS);
+	}
 
 private:
 	/** Set to true if table is present */
@@ -882,11 +879,10 @@ private:
 };
 
 /**
-@param mtr	mini-transaction covering the read
 @param pcur	persistent cursor used for reading
 @return DB_SUCCESS or error code */
 dberr_t
-TruncateLogger::operator()(mtr_t* mtr, btr_pcur_t* pcur)
+TruncateLogger::operator()(mtr_t*, btr_pcur_t* pcur)
 {
 	ulint			len;
 	const byte*		field;
@@ -1084,20 +1080,6 @@ CreateIndex::operator()(mtr_t* mtr, btr_pcur_t* pcur) const
 			return(DB_ERROR);
 		}
 	}
-
-	return(DB_SUCCESS);
-}
-
-/**
-Look for table-id in SYS_XXXX tables without loading the table.
-
-@param mtr	mini-transaction covering the read
-@param pcur	persistent cursor used for reading
-@return DB_SUCCESS */
-dberr_t
-TableLocator::operator()(mtr_t* mtr, btr_pcur_t* pcur)
-{
-	m_table_found = true;
 
 	return(DB_SUCCESS);
 }

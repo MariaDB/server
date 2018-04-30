@@ -164,7 +164,7 @@ public:
   */
   bool copy(const base_list *rhs, MEM_ROOT *mem_root);
   base_list(const base_list &rhs, MEM_ROOT *mem_root) { copy(&rhs, mem_root); }
-  inline base_list(bool error) { }
+  inline base_list(bool) {}
   inline bool push_back(void *info)
   {
     if (((*last)=new list_node(info, &end_of_list)))
@@ -533,10 +533,10 @@ public:
 template <class T> class List_iterator_fast :public base_list_iterator
 {
 protected:
-  inline T *replace(T *a)   { return (T*) 0; }
-  inline T *replace(List<T> &a) { return (T*) 0; }
-  inline void remove(void)  { }
-  inline void after(T *a)   { }
+  inline T *replace(T *)   { return (T*) 0; }
+  inline T *replace(List<T> &) { return (T*) 0; }
+  inline void remove(void)  {}
+  inline void after(T *)    {}
   inline T** ref(void)	    { return (T**) 0; }
 
 public:
@@ -605,7 +605,7 @@ struct ilink
   {
     return (void*)my_malloc((uint)size, MYF(MY_WME | MY_FAE | ME_FATALERROR));
   }
-  static void operator delete(void* ptr_arg, size_t size)
+  static void operator delete(void* ptr_arg, size_t)
   {
      my_free(ptr_arg);
   }

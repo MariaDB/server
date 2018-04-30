@@ -1929,7 +1929,7 @@ trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 			} else {
 				mtr.commit();
 				mtr.start();
-				block = trx_undo_add_page(trx, undo, &mtr);
+				block = trx_undo_add_page(undo, &mtr);
 				if (!block) {
 					err = DB_OUT_OF_FILE_SPACE;
 					break;
@@ -2104,7 +2104,7 @@ trx_undo_report_row_operation(
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
 		}
 
-		undo_block = trx_undo_add_page(trx, undo, &mtr);
+		undo_block = trx_undo_add_page(undo, &mtr);
 
 		DBUG_EXECUTE_IF("ib_err_ins_undo_page_add_failure",
 				undo_block = NULL;);

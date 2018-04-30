@@ -920,16 +920,10 @@ srv_was_tablespace_truncated(const fil_space_t* space);
 #ifdef UNIV_DEBUG
 /** Disables master thread. It's used by:
 	SET GLOBAL innodb_master_thread_disabled_debug = 1 (0).
-@param[in]	thd		thread handle
-@param[in]	var		pointer to system variable
-@param[out]	var_ptr		where the formal string goes
 @param[in]	save		immediate result from check function */
 void
-srv_master_thread_disabled_debug_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save);
+srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
+					const void* save);
 #endif /* UNIV_DEBUG */
 
 /** Status variables to be passed to MySQL */

@@ -144,7 +144,6 @@ dict_load_column_low(
 /** Load a virtual column "mapping" (to base columns) information
 from a SYS_VIRTUAL record
 @param[in,out]	table		table
-@param[in,out]	heap		memory heap
 @param[in,out]	column		mapped base column's dict_column_t
 @param[in,out]	table_id	table id
 @param[in,out]	pos		virtual column position
@@ -156,7 +155,6 @@ static
 const char*
 dict_load_virtual_low(
 	dict_table_t*	table,
-	mem_heap_t*	heap,
 	dict_col_t**	column,
 	table_id_t*	table_id,
 	ulint*		pos,
@@ -467,7 +465,6 @@ dict_process_sys_columns_rec(
 
 /** This function parses a SYS_VIRTUAL record and extracts virtual column
 information
-@param[in,out]	heap		heap memory
 @param[in]	rec		current SYS_COLUMNS rec
 @param[in,out]	table_id	table id
 @param[in,out]	pos		virtual column position
@@ -475,7 +472,6 @@ information
 @return error message, or NULL on success */
 const char*
 dict_process_sys_virtual_rec(
-	mem_heap_t*	heap,
 	const rec_t*	rec,
 	table_id_t*	table_id,
 	ulint*		pos,
@@ -484,7 +480,7 @@ dict_process_sys_virtual_rec(
 	const char*	err_msg;
 
 	/* Parse the record, and get "dict_col_t" struct filled */
-	err_msg = dict_load_virtual_low(NULL, heap, NULL, table_id,
+	err_msg = dict_load_virtual_low(NULL, NULL, table_id,
 					pos, base_pos, rec);
 
 	return(err_msg);
@@ -1693,7 +1689,6 @@ static const char* dict_load_virtual_del = "delete-marked record in SYS_VIRTUAL"
 /** Load a virtual column "mapping" (to base columns) information
 from a SYS_VIRTUAL record
 @param[in,out]	table		table
-@param[in,out]	heap		memory heap
 @param[in,out]	column		mapped base column's dict_column_t
 @param[in,out]	table_id	table id
 @param[in,out]	pos		virtual column position
@@ -1705,7 +1700,6 @@ static
 const char*
 dict_load_virtual_low(
 	dict_table_t*	table,
-	mem_heap_t*	heap,
 	dict_col_t**	column,
 	table_id_t*	table_id,
 	ulint*		pos,
@@ -1965,7 +1959,7 @@ dict_load_virtual_one_col(
 
 		ut_a(btr_pcur_is_on_user_rec(&pcur));
 
-		err_msg = dict_load_virtual_low(table, heap,
+		err_msg = dict_load_virtual_low(table,
 						&v_col->base_col[i - skipped],
 						NULL,
 					        &pos, NULL, rec);

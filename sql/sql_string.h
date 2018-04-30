@@ -190,7 +190,7 @@ public:
   { /* never called */ }
   static void operator delete[](void *ptr, size_t size)
   { TRASH_FREE(ptr, size); }
-  static void operator delete[](void *ptr, MEM_ROOT *mem_root)
+  static void operator delete[](void *, MEM_ROOT *)
   { /* never called */ }
 
   ~String() { free(); }

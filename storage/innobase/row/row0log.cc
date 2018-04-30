@@ -1132,7 +1132,6 @@ row_log_table_get_pk_old_col(
 }
 
 /** Maps an old table column of a PRIMARY KEY column.
-@param[in]	col		old table column (before ALTER TABLE)
 @param[in]	ifield		clustered index field in the new table (after
 ALTER TABLE)
 @param[in,out]	dfield		clustered index tuple field in the new table
@@ -1148,7 +1147,6 @@ table
 static
 dberr_t
 row_log_table_get_pk_col(
-	const dict_col_t*	col,
 	const dict_field_t*	ifield,
 	dfield_t*		dfield,
 	mem_heap_t*		heap,
@@ -1334,7 +1332,7 @@ row_log_table_get_pk(
 				}
 
 				log->error = row_log_table_get_pk_col(
-					col, ifield, dfield, *heap,
+					ifield, dfield, *heap,
 					rec, offsets, i, page_size, max_len,
 					log->ignore, log->defaults);
 
@@ -1897,11 +1895,10 @@ flag_ok:
 /******************************************************//**
 Replays a delete operation on a table that was rebuilt.
 @return DB_SUCCESS or error code */
-static MY_ATTRIBUTE((nonnull(1, 3, 4, 5, 6, 7), warn_unused_result))
+static MY_ATTRIBUTE((nonnull(2, 3, 4, 5, 6), warn_unused_result))
 dberr_t
 row_log_table_apply_delete(
 /*=======================*/
-	que_thr_t*		thr,		/*!< in: query graph */
 	ulint			trx_id_col,	/*!< in: position of
 						DB_TRX_ID in the new
 						clustered index */
@@ -1911,9 +1908,8 @@ row_log_table_apply_delete(
 						that can be emptied */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
 	const row_log_t*	log,		/*!< in: online log */
-	const row_ext_t*	save_ext,	/*!< in: saved external field
+	const row_ext_t*	save_ext)	/*!< in: saved external field
 						info, or NULL */
-	ulint			ext_size)	/*!< in: external field size */
 {
 	dict_table_t*	new_table = log->table;
 	dict_index_t*	index = dict_table_get_first_index(new_table);
@@ -2525,9 +2521,9 @@ row_log_table_apply_op(
 		}
 
 		*error = row_log_table_apply_delete(
-			thr, new_trx_id_col,
+			new_trx_id_col,
 			mrec, offsets, offsets_heap, heap,
-			log, ext, ext_size);
+			log, ext);
 		break;
 
 	case ROW_T_UPDATE:

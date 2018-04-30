@@ -232,7 +232,7 @@ public:
 			if (error == DB_SUCCESS) {
 				if (rtr_info.mbr_adj) {
 					error = rtr_ins_enlarge_mbr(
-							&ins_cur, NULL, &mtr);
+							&ins_cur, &mtr);
 				}
 
 				if (error == DB_SUCCESS) {
@@ -2940,10 +2940,10 @@ wait_again:
 @param[in,out]	foffs1	offset of second source list in the file
 @param[in,out]	of	output file
 @param[in,out]	stage	performance schema accounting object, used by
-@param[in,out]	crypt_block	encryption buffer
-@param[in]	space	tablespace ID for encryption
 ALTER TABLE. If not NULL stage->inc() will be called for each record
 processed.
+@param[in,out]	crypt_block	encryption buffer
+@param[in]	space	tablespace ID for encryption
 @return DB_SUCCESS or error code */
 static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
@@ -2954,7 +2954,7 @@ row_merge_blocks(
 	ulint*			foffs0,
 	ulint*			foffs1,
 	merge_file_t*		of,
-	ut_stage_alter_t*	stage,
+	ut_stage_alter_t*	stage MY_ATTRIBUTE((unused)),
 	row_merge_block_t*	crypt_block,
 	ulint			space)
 {
@@ -3062,10 +3062,10 @@ done1:
 @param[in,out]	foffs0	input file offset
 @param[in,out]	of	output file
 @param[in,out]	stage	performance schema accounting object, used by
-@param[in,out]	crypt_block	encryption buffer
-@param[in]	space	tablespace ID for encryption
 ALTER TABLE. If not NULL stage->inc() will be called for each record
 processed.
+@param[in,out]	crypt_block	encryption buffer
+@param[in]	space	tablespace ID for encryption
 @return TRUE on success, FALSE on failure */
 static MY_ATTRIBUTE((warn_unused_result))
 ibool
@@ -3075,7 +3075,7 @@ row_merge_blocks_copy(
 	row_merge_block_t*	block,
 	ulint*			foffs0,
 	merge_file_t*		of,
-	ut_stage_alter_t*	stage,
+	ut_stage_alter_t*	stage MY_ATTRIBUTE((unused)),
 	row_merge_block_t*	crypt_block,
 	ulint			space)
 {

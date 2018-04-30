@@ -1750,7 +1750,7 @@ fts_query_match_phrase_add_word_for_parser(
 	MYSQL_FTPARSER_PARAM*	param,		/*!< in: parser param */
 	const char*			word,		/*!< in: token */
 	int			word_len,	/*!< in: token length */
-	MYSQL_FTPARSER_BOOLEAN_INFO* info)	/*!< in: token info */
+	MYSQL_FTPARSER_BOOLEAN_INFO*)
 {
 	fts_phrase_param_t*	phrase_param;
 	fts_phrase_t*		phrase;
@@ -3920,7 +3920,6 @@ fts_query_can_optimize(
 }
 
 /** FTS Query entry point.
-@param[in]	trx		transaction
 @param[in]	index		fts index to search
 @param[in]	flags		FTS search mode
 @param[in]	query_str	FTS query
@@ -3929,7 +3928,6 @@ fts_query_can_optimize(
 @return DB_SUCCESS if successful otherwise error code */
 dberr_t
 fts_query(
-	trx_t*		trx,
 	dict_index_t*	index,
 	uint		flags,
 	const byte*	query_str,

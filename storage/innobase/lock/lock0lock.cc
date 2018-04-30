@@ -5243,8 +5243,7 @@ lock_rec_block_validate(
 }
 
 
-static my_bool lock_validate_table_locks(rw_trx_hash_element_t *element,
-                                         void *arg)
+static my_bool lock_validate_table_locks(rw_trx_hash_element_t *element, void*)
 {
   ut_ad(lock_mutex_own());
   mutex_enter(&element->mutex);
@@ -5481,7 +5480,6 @@ lock_rec_convert_impl_to_expl_for_trx(
 	const buf_block_t*	block,	/*!< in: buffer block of rec */
 	const rec_t*		rec,	/*!< in: user record on page */
 	dict_index_t*		index,	/*!< in: index of record */
-	const ulint*		offsets,/*!< in: rec_get_offsets(rec, index) */
 	trx_t*			trx,	/*!< in/out: active transaction */
 	ulint			heap_no)/*!< in: rec heap number to lock */
 {
@@ -5626,7 +5624,7 @@ lock_rec_convert_impl_to_expl(
 		trx cannot be committed until the ref count is zero. */
 
 		lock_rec_convert_impl_to_expl_for_trx(
-			block, rec, index, offsets, trx, heap_no);
+			block, rec, index, trx, heap_no);
 	}
 }
 

@@ -530,32 +530,6 @@ ut_copy_file(
 The returned string is static and should not be freed or modified.
 @param[in]	num	InnoDB internal error number
 @return string, describing the error */
-std::string
-ut_get_name(
-/*=========*/
-	const trx_t*	trx,	/*!< in: transaction (NULL=no quotes) */
-	ibool		table_id,/*!< in: TRUE=print a table name,
-				FALSE=print other identifier */
-	const char*	name)	/*!< in: name to print */
-{
-	/* 2 * NAME_LEN for database and table name,
-	and some slack for the #mysql50# prefix and quotes */
-	char		buf[3 * NAME_LEN];
-	const char*	bufend;
-	ulint		namelen = strlen(name);
-
-	bufend = innobase_convert_name(buf, sizeof buf,
-				       name, namelen,
-				       trx ? trx->mysql_thd : NULL);
-	buf[bufend-buf]='\0';
-	std::string str(buf);
-	return str;
-}
-
-/** Convert an error number to a human readable text message.
-The returned string is static and should not be freed or modified.
-@param[in]	num	InnoDB internal error number
-@return string, describing the error */
 const char*
 ut_strerr(
 	dberr_t	num)

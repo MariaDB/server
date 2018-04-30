@@ -1119,11 +1119,10 @@ loop:
 
 	if (flush_to_disk) {
 		log_write_flush_to_disk_low();
-		ib_uint64_t write_lsn = log_sys.write_lsn;
 		ib_uint64_t flush_lsn = log_sys.flushed_to_disk_lsn;
 		log_mutex_exit();
 
-		innobase_mysql_log_notify(write_lsn, flush_lsn);
+		innobase_mysql_log_notify(flush_lsn);
 	}
 }
 

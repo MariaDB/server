@@ -831,7 +831,10 @@ open that file, and read the contents into m_filepath.
 dberr_t
 RemoteDatafile::open_link_file()
 {
-	set_link_filepath(NULL);
+	if (m_link_filepath == NULL) {
+		m_link_filepath = fil_make_filepath(NULL, name(), ISL, false);
+	}
+
 	m_filepath = read_link_file(m_link_filepath);
 
 	return(m_filepath == NULL ? DB_CANNOT_OPEN_FILE : DB_SUCCESS);
@@ -894,18 +897,6 @@ RemoteDatafile::shutdown()
 	if (m_link_filepath != 0) {
 		ut_free(m_link_filepath);
 		m_link_filepath = 0;
-	}
-}
-
-/** Set the link filepath. Use default datadir, the base name of
-the path provided without its suffix, plus DOT_ISL.
-@param[in]	path	filepath which contains a basename to use.
-			If NULL, use m_name as the basename. */
-void
-RemoteDatafile::set_link_filepath(const char* path)
-{
-	if (m_link_filepath == NULL) {
-		m_link_filepath = fil_make_filepath(NULL, name(), ISL, false);
 	}
 }
 

@@ -2752,7 +2752,11 @@ page_delete_rec(
 					belongs to */
 	page_cur_t*		pcur,	/*!< in/out: page cursor on record
 					to delete */
-	page_zip_des_t*		page_zip,/*!< in: compressed page descriptor */
+	page_zip_des_t*
+#ifdef UNIV_ZIP_DEBUG
+		page_zip/*!< in: compressed page descriptor */
+#endif
+	,
 	const ulint*		offsets)/*!< in: offsets for record */
 {
 	bool		no_compress_needed;

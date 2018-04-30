@@ -2489,8 +2489,7 @@ row_sel_convert_mysql_key_to_innobase(
 	ulint		buf_len,	/*!< in: buffer length */
 	dict_index_t*	index,		/*!< in: index of the key value */
 	const byte*	key_ptr,	/*!< in: MySQL key value */
-	ulint		key_len,	/*!< in: MySQL key value length */
-	trx_t*		trx)		/*!< in: transaction */
+	ulint		key_len)	/*!< in: MySQL key value length */
 {
 	byte*		original_buf	= buf;
 	const byte*	original_key_ptr = key_ptr;
@@ -3288,7 +3287,7 @@ row_sel_get_clust_rec_for_mysql(
 		thd_get_thread_id(trx->mysql_thd));
 
 	row_build_row_ref_in_tuple(prebuilt->clust_ref, rec,
-				   sec_index, *offsets, trx);
+				   sec_index, *offsets);
 
 	clust_index = dict_table_get_first_index(sec_index->table);
 

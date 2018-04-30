@@ -241,12 +241,10 @@ log_block_calc_checksum_crc32(
 }
 
 /** Calculates the checksum for a log block using the "no-op" algorithm.
-@param[in]     block   log block
 @return        checksum */
 UNIV_INLINE
 ulint
-log_block_calc_checksum_none(
-	const byte*	block)
+log_block_calc_checksum_none(const byte*)
 {
 	return(LOG_NO_CHECKSUM_MAGIC);
 }

@@ -166,13 +166,11 @@ trx_undo_get_first_rec(
 	mtr_t*			mtr);
 
 /** Allocate an undo log page.
-@param[in,out]	trx	transaction
 @param[in,out]	undo	undo log
 @param[in,out]	mtr	mini-transaction that does not hold any page latch
 @return	X-latched block if success
 @retval	NULL	on failure */
-buf_block_t*
-trx_undo_add_page(trx_t* trx, trx_undo_t* undo, mtr_t* mtr)
+buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Free the last undo log page. The caller must hold the rseg mutex.
@@ -282,23 +280,17 @@ trx_undo_truncate_tablespace(
 @return	end of log record
 @retval	NULL	if the log record is incomplete */
 byte*
-trx_undo_parse_page_init(
-	const byte*	ptr,
-	const byte*	end_ptr,
-	page_t*		page,
-	mtr_t*		mtr);
+trx_undo_parse_page_init(const byte* ptr, const byte* end_ptr, page_t* page);
 /** Parse MLOG_UNDO_HDR_REUSE for crash-upgrade from MariaDB 10.2.
 @param[in]	ptr	redo log record
 @param[in]	end_ptr	end of log buffer
 @param[in,out]	page	undo page or NULL
-@param[in,out]	mtr	mini-transaction
 @return end of log record or NULL */
 byte*
 trx_undo_parse_page_header_reuse(
 	const byte*	ptr,
 	const byte*	end_ptr,
-	page_t*		page,
-	mtr_t*		mtr);
+	page_t*		page);
 
 /** Parse the redo log entry of an undo log page header create.
 @param[in]	ptr	redo log record

@@ -209,12 +209,7 @@ btr_pcur_is_on_user_rec(
 /*********************************************************//**
 Checks if the persistent cursor is before the first user record in
 the index tree. */
-UNIV_INLINE
-ibool
-btr_pcur_is_before_first_in_tree(
-/*=============================*/
-	btr_pcur_t*	cursor,	/*!< in: persistent cursor */
-	mtr_t*		mtr)	/*!< in: mtr */
+static inline bool btr_pcur_is_before_first_in_tree(btr_pcur_t* cursor)
 {
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
@@ -226,12 +221,7 @@ btr_pcur_is_before_first_in_tree(
 /*********************************************************//**
 Checks if the persistent cursor is after the last user record in
 the index tree. */
-UNIV_INLINE
-ibool
-btr_pcur_is_after_last_in_tree(
-/*===========================*/
-	btr_pcur_t*	cursor,	/*!< in: persistent cursor */
-	mtr_t*		mtr)	/*!< in: mtr */
+static inline bool btr_pcur_is_after_last_in_tree(btr_pcur_t* cursor)
 {
 	ut_ad(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
@@ -307,9 +297,7 @@ btr_pcur_move_to_next_user_rec(
 	cursor->old_stored = false;
 loop:
 	if (btr_pcur_is_after_last_on_page(cursor)) {
-
-		if (btr_pcur_is_after_last_in_tree(cursor, mtr)) {
-
+		if (btr_pcur_is_after_last_in_tree(cursor)) {
 			return(FALSE);
 		}
 
@@ -344,19 +332,15 @@ btr_pcur_move_to_next(
 	cursor->old_stored = false;
 
 	if (btr_pcur_is_after_last_on_page(cursor)) {
-
-		if (btr_pcur_is_after_last_in_tree(cursor, mtr)) {
-
+		if (btr_pcur_is_after_last_in_tree(cursor)) {
 			return(FALSE);
 		}
 
 		btr_pcur_move_to_next_page(cursor, mtr);
-
 		return(TRUE);
 	}
 
 	btr_pcur_move_to_next_on_page(cursor);
-
 	return(TRUE);
 }
 

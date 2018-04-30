@@ -628,7 +628,6 @@ lock_prdt_update_parent(
         buf_block_t*    right_block,	/*!< in/out: the new half page */
         lock_prdt_t*	left_prdt,	/*!< in: MBR on the old page */
         lock_prdt_t*	right_prdt,	/*!< in: MBR on the new page */
-	lock_prdt_t*	parent_prdt,	/*!< in: original parent MBR */
 	ulint		space,		/*!< in: parent space id */
 	ulint		page_no)	/*!< in: parent page number */
 {
@@ -682,7 +681,6 @@ static
 void
 lock_prdt_update_split_low(
 /*=======================*/
-	buf_block_t*	block,		/*!< in/out: page to be split */
 	buf_block_t*	new_block,	/*!< in/out: the new half page */
 	lock_prdt_t*	prdt,		/*!< in: MBR on the old page */
 	lock_prdt_t*	new_prdt,	/*!< in: MBR on the new page */
@@ -759,17 +757,16 @@ Update predicate lock when page splits */
 void
 lock_prdt_update_split(
 /*===================*/
-	buf_block_t*	block,		/*!< in/out: page to be split */
 	buf_block_t*	new_block,	/*!< in/out: the new half page */
 	lock_prdt_t*	prdt,		/*!< in: MBR on the old page */
 	lock_prdt_t*	new_prdt,	/*!< in: MBR on the new page */
 	ulint		space,		/*!< in: space id */
 	ulint		page_no)	/*!< in: page number */
 {
-	lock_prdt_update_split_low(block, new_block, prdt, new_prdt,
+	lock_prdt_update_split_low(new_block, prdt, new_prdt,
 				   space, page_no, LOCK_PREDICATE);
 
-	lock_prdt_update_split_low(block, new_block, NULL, NULL,
+	lock_prdt_update_split_low(new_block, NULL, NULL,
 				   space, page_no, LOCK_PRDT_PAGE);
 }
 
@@ -811,9 +808,8 @@ lock_prdt_lock(
 				SELECT FOR UPDATE */
 	ulint		type_mode,
 				/*!< in: LOCK_PREDICATE or LOCK_PRDT_PAGE */
-	que_thr_t*	thr,	/*!< in: query thread
+	que_thr_t*	thr)	/*!< in: query thread
 				(can be NULL if BTR_NO_LOCKING_FLAG) */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	trx_t*		trx = thr_get_trx(thr);
 	dberr_t		err = DB_SUCCESS;

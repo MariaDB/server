@@ -886,17 +886,14 @@ private:
 
 	/** Purge delete-marked records, only if it is possible to do
 	so without re-organising the B+tree.
-	@param offsets current row offsets.
 	@retval true if purged */
-	bool	purge(const ulint* offsets) UNIV_NOTHROW;
+	bool purge() UNIV_NOTHROW;
 
 	/** Adjust the BLOB references and sys fields for the current record.
-	@param index the index being converted
 	@param rec record to update
 	@param offsets column offsets for the record
 	@return DB_SUCCESS or error code. */
 	dberr_t	adjust_cluster_record(
-		const dict_index_t*	index,
 		rec_t*			rec,
 		const ulint*		offsets) UNIV_NOTHROW;
 
@@ -1631,11 +1628,8 @@ PageConverter::adjust_cluster_index_blob_ref(
 
 /** Purge delete-marked records, only if it is possible to do so without
 re-organising the B+tree.
-@param offsets current row offsets.
 @return true if purge succeeded */
-inline
-bool
-PageConverter::purge(const ulint* offsets) UNIV_NOTHROW
+inline bool PageConverter::purge() UNIV_NOTHROW
 {
 	const dict_index_t*	index = m_index->m_srv_index;
 
@@ -1659,7 +1653,6 @@ PageConverter::purge(const ulint* offsets) UNIV_NOTHROW
 inline
 dberr_t
 PageConverter::adjust_cluster_record(
-	const dict_index_t*	index,
 	rec_t*			rec,
 	const ulint*		offsets) UNIV_NOTHROW
 {
@@ -1726,8 +1719,7 @@ PageConverter::update_records(
 
 		if (clust_index) {
 
-			dberr_t err = adjust_cluster_record(
-				m_index->m_srv_index, rec, m_offsets);
+			dberr_t err = adjust_cluster_record(rec, m_offsets);
 
 			if (err != DB_SUCCESS) {
 				return(err);
@@ -1741,7 +1733,7 @@ PageConverter::update_records(
 			/* A successful purge will move the cursor to the
 			next record. */
 
-			if (!purge(m_offsets)) {
+			if (!purge()) {
 				m_rec_iter.next();
 			}
 
@@ -2108,8 +2100,6 @@ static	MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_import_adjust_root_pages_of_secondary_indexes(
 /*==============================================*/
-	row_prebuilt_t*		prebuilt,	/*!< in/out: prebuilt from
-						handler */
 	trx_t*			trx,		/*!< in: transaction used for
 						the import */
 	dict_table_t*		table,		/*!< in: table the indexes
@@ -2367,8 +2357,7 @@ row_import_cfg_read_index_fields(
 /*=============================*/
 	FILE*			file,	/*!< in: file to write to */
 	THD*			thd,	/*!< in/out: session */
-	row_index_t*		index,	/*!< Index being read in */
-	row_import*		cfg)	/*!< in/out: meta-data read */
+	row_index_t*		index)	/*!< Index being read in */
 {
 	byte			row[sizeof(ib_uint32_t) * 3];
 	ulint			n_fields = index->m_n_fields;
@@ -2588,8 +2577,7 @@ row_import_read_index_data(
 			return(err);
 		}
 
-		err = row_import_cfg_read_index_fields(
-			file, thd, cfg_index, cfg);
+		err = row_import_cfg_read_index_fields(file, thd, cfg_index);
 
 		if (err != DB_SUCCESS) {
 			return(err);
@@ -2965,7 +2953,6 @@ static	MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_import_read_meta_data(
 /*======================*/
-	dict_table_t*	table,		/*!< in: table */
 	FILE*		file,		/*!< in: File to read from */
 	THD*		thd,		/*!< in: session */
 	row_import&	cfg)		/*!< out: contents of the .cfg file */
@@ -3039,7 +3026,7 @@ row_import_read_cfg(
 
 		cfg.m_missing = false;
 
-		err = row_import_read_meta_data(table, file, thd, cfg);
+		err = row_import_read_meta_data(file, thd, cfg);
 		fclose(file);
 	}
 
@@ -3998,7 +3985,7 @@ row_import_for_mysql(
 	during the page conversion phase. */
 
 	err = row_import_adjust_root_pages_of_secondary_indexes(
-		prebuilt, trx, table, cfg);
+		trx, table, cfg);
 
 	DBUG_EXECUTE_IF("ib_import_sec_root_adjust_failure",
 			err = DB_CORRUPTION;);

@@ -2095,16 +2095,10 @@ srv_master_do_disabled_loop(void)
 
 /** Disables master thread. It's used by:
 	SET GLOBAL innodb_master_thread_disabled_debug = 1 (0).
-@param[in]	thd		thread handle
-@param[in]	var		pointer to system variable
-@param[out]	var_ptr		where the formal string goes
 @param[in]	save		immediate result from check function */
 void
-srv_master_thread_disabled_debug_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save)
+srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
+					const void* save)
 {
 	/* This method is protected by mutex, as every SET GLOBAL .. */
 	ut_ad(srv_master_thread_disabled_event != NULL);

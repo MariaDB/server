@@ -469,7 +469,6 @@ byte*
 fil_parse_write_crypt_data(
 	byte*			ptr,
 	const byte*		end_ptr,
-	const buf_block_t*	block,
 	dberr_t*		err)
 {
 	/* check that redo log entry is complete */
@@ -2051,13 +2050,8 @@ fil_crypt_flush_space(
 
 /***********************************************************************
 Complete rotating a space
-@param[in,out]		key_state		Key state
 @param[in,out]		state			Rotation state */
-static
-void
-fil_crypt_complete_rotate_space(
-	const key_state_t*	key_state,
-	rotate_thread_t*	state)
+static void fil_crypt_complete_rotate_space(rotate_thread_t* state)
 {
 	fil_space_crypt_t *crypt_data = state->space->crypt_data;
 
@@ -2220,8 +2214,7 @@ DECLARE_THREAD(fil_crypt_thread)(
 				/* If space is marked as stopping, release
 				space and stop rotation. */
 				if (thr.space->is_stopping()) {
-					fil_crypt_complete_rotate_space(
-						&new_state, &thr);
+					fil_crypt_complete_rotate_space(&thr);
 					thr.space->release();
 					thr.space = NULL;
 					break;
@@ -2233,7 +2226,7 @@ DECLARE_THREAD(fil_crypt_thread)(
 
 			/* complete rotation */
 			if (thr.space) {
-				fil_crypt_complete_rotate_space(&new_state, &thr);
+				fil_crypt_complete_rotate_space(&thr);
 			}
 
 			/* force key state refresh */

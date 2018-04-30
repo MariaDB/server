@@ -565,14 +565,10 @@ block->n_hash_helps, n_fields, n_bytes, left_side are NOT protected by any
 semaphore, to save CPU time! Do not assume the fields are consistent.
 @return TRUE if building a (new) hash index on the block is recommended
 @param[in,out]	info	search info
-@param[in,out]	block	buffer block
-@param[in]	cursor	cursor */
+@param[in,out]	block	buffer block */
 static
 bool
-btr_search_update_block_hash_info(
-	btr_search_t*		info,
-	buf_block_t*		block,
-	const btr_cur_t*	cursor)
+btr_search_update_block_hash_info(btr_search_t* info, buf_block_t* block)
 {
 	ut_ad(!btr_search_own_any(RW_LOCK_S));
 	ut_ad(!btr_search_own_any(RW_LOCK_X));
@@ -1548,8 +1544,7 @@ btr_search_info_update_slow(btr_search_t* info, btr_cur_t* cursor)
 
 	btr_search_info_update_hash(info, cursor);
 
-	bool build_index = btr_search_update_block_hash_info(
-		info, block, cursor);
+	bool build_index = btr_search_update_block_hash_info(info, block);
 
 	if (build_index || (cursor->flag == BTR_CUR_HASH_FAIL)) {
 

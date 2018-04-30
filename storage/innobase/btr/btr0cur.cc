@@ -1718,7 +1718,7 @@ retry_page_get:
 		}
 
 		lock_prdt_lock(block, &prdt, index, LOCK_S,
-			       LOCK_PREDICATE, cursor->thr, mtr);
+			       LOCK_PREDICATE, cursor->thr);
 
 		if (rw_latch == RW_NO_LATCH && height != 0) {
 			rw_lock_s_unlock(&(block->lock));
@@ -2919,9 +2919,8 @@ btr_cur_insert_if_possible(
 
 	ut_ad(dtuple_check_typed(tuple));
 
-	ut_ad(mtr_is_block_fix(
-		mtr, btr_cur_get_block(cursor),
-		MTR_MEMO_PAGE_X_FIX, cursor->index->table));
+	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(cursor),
+			       MTR_MEMO_PAGE_X_FIX));
 	page_cursor = btr_cur_get_page_cur(cursor);
 
 	/* Now, try the insert */
@@ -3111,7 +3110,7 @@ btr_cur_optimistic_insert(
 	page = buf_block_get_frame(block);
 	index = cursor->index;
 
-	ut_ad(mtr_is_block_fix(mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
+	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(!dict_index_is_online_ddl(index)
 	      || dict_index_is_clust(index)
 	      || (flags & BTR_CREATE_FLAG));
@@ -3403,9 +3402,8 @@ btr_cur_pessimistic_insert(
 	ut_ad(mtr_memo_contains_flagged(
 		      mtr, dict_index_get_lock(btr_cur_get_index(cursor)),
 		      MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
-	ut_ad(mtr_is_block_fix(
-		mtr, btr_cur_get_block(cursor),
-		MTR_MEMO_PAGE_X_FIX, cursor->index->table));
+	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(cursor),
+			       MTR_MEMO_PAGE_X_FIX));
 	ut_ad(!dict_index_is_online_ddl(index)
 	      || dict_index_is_clust(index)
 	      || (flags & BTR_CREATE_FLAG));
@@ -4099,7 +4097,7 @@ btr_cur_optimistic_update(
 	index = cursor->index;
 	ut_ad(trx_id > 0 || (flags & BTR_KEEP_SYS_FLAG));
 	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table));
-	ut_ad(mtr_is_block_fix(mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
+	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 	/* This is intended only for leaf page updates */
 	ut_ad(page_is_leaf(page));
 	/* The insert buffer tree should never be updated in place. */
@@ -4450,7 +4448,7 @@ btr_cur_pessimistic_update(
 	ut_ad(mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
 					MTR_MEMO_X_LOCK |
 					MTR_MEMO_SX_LOCK));
-	ut_ad(mtr_is_block_fix(mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
+	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
@@ -5234,9 +5232,8 @@ btr_cur_compress_if_useful(
 	ut_ad(mtr_memo_contains_flagged(
 		mtr, dict_index_get_lock(btr_cur_get_index(cursor)),
 		MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
-	ut_ad(mtr_is_block_fix(
-		mtr, btr_cur_get_block(cursor),
-		MTR_MEMO_PAGE_X_FIX, cursor->index->table));
+	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(cursor),
+			       MTR_MEMO_PAGE_X_FIX));
 
 	if (dict_index_is_spatial(cursor->index)) {
 		const page_t*   page = btr_cur_get_page(cursor);
@@ -5288,8 +5285,8 @@ btr_cur_optimistic_delete_func(
 	ut_ad(flags == 0 || flags == BTR_CREATE_FLAG);
 	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(cursor),
 				MTR_MEMO_PAGE_X_FIX));
-	ut_ad(mtr_is_block_fix(mtr, btr_cur_get_block(cursor),
-			       MTR_MEMO_PAGE_X_FIX, cursor->index->table));
+	ut_ad(mtr_memo_contains(mtr, btr_cur_get_block(cursor),
+			       MTR_MEMO_PAGE_X_FIX));
 	ut_ad(mtr->is_named_space(cursor->index->table->space));
 
 	/* This is intended only for leaf page deletions */
@@ -5480,7 +5477,7 @@ btr_cur_pessimistic_delete(
 	ut_ad(mtr_memo_contains_flagged(mtr, dict_index_get_lock(index),
 					MTR_MEMO_X_LOCK
 					| MTR_MEMO_SX_LOCK));
-	ut_ad(mtr_is_block_fix(mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
+	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(mtr->is_named_space(index->table->space));
 
 	if (!has_reserved_extents) {
@@ -6922,7 +6919,6 @@ static
 void
 btr_blob_free(
 /*==========*/
-	dict_index_t*	index,	/*!< in: index */
 	buf_block_t*	block,	/*!< in: buffer block */
 	ibool		all,	/*!< in: TRUE=remove also the compressed page
 				if there is one */
@@ -6932,7 +6928,7 @@ btr_blob_free(
 	ulint		space = block->page.id.space();
 	ulint		page_no	= block->page.id.page_no();
 
-	ut_ad(mtr_is_block_fix(mtr, block, MTR_MEMO_PAGE_X_FIX, index->table));
+	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 
 	mtr_commit(mtr);
 
@@ -7121,8 +7117,7 @@ btr_store_big_rec_extern_fields(
 	ut_ad(rec_offs_any_extern(offsets));
 	ut_ad(mtr_memo_contains_flagged(btr_mtr, dict_index_get_lock(index),
 					MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
-	ut_ad(mtr_is_block_fix(
-		btr_mtr, rec_block, MTR_MEMO_PAGE_X_FIX, index->table));
+	ut_ad(mtr_memo_contains(btr_mtr, rec_block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(buf_block_get_frame(rec_block) == page_align(rec));
 	ut_a(dict_index_is_clust(index));
 
@@ -7436,7 +7431,7 @@ next_zip_page:
 
 				/* Commit mtr and release the
 				uncompressed page frame to save memory. */
-				btr_blob_free(index, block, FALSE, &mtr);
+				btr_blob_free(block, FALSE, &mtr);
 
 				if (err == Z_STREAM_END) {
 					break;
@@ -7618,11 +7613,11 @@ btr_free_externally_stored_field(
 	ulint		next_page_no;
 	mtr_t		mtr;
 
-	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->is_primary());
 	ut_ad(mtr_memo_contains_flagged(local_mtr, dict_index_get_lock(index),
 					MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
-	ut_ad(mtr_is_page_fix(
-		local_mtr, field_ref, MTR_MEMO_PAGE_X_FIX, index->table));
+	ut_ad(mtr_memo_contains_page(local_mtr, field_ref,
+				     MTR_MEMO_PAGE_X_FIX));
 	ut_ad(!rec || rec_offs_validate(rec, index, offsets));
 	ut_ad(!rec || field_ref == btr_rec_get_field_ref(rec, offsets, i));
 	ut_ad(local_mtr->is_named_space(
@@ -7764,7 +7759,7 @@ btr_free_externally_stored_field(
 		}
 
 		/* Commit mtr and release the BLOB block to save memory. */
-		btr_blob_free(index, ext_block, TRUE, &mtr);
+		btr_blob_free(ext_block, TRUE, &mtr);
 	}
 }
 
@@ -7789,8 +7784,8 @@ btr_rec_free_externally_stored_fields(
 	ulint	i;
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(mtr_is_page_fix(mtr, rec, MTR_MEMO_PAGE_X_FIX, index->table));
-	ut_ad(dict_index_is_clust(index));
+	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX));
+	ut_ad(index->is_primary());
 	ut_ad(page_rec_is_leaf(rec));
 	/* Free possible externally stored fields in the record */
 
@@ -7828,7 +7823,7 @@ btr_rec_free_updated_extern_fields(
 	ulint	i;
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(mtr_is_page_fix(mtr, rec, MTR_MEMO_PAGE_X_FIX, index->table));
+	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_X_FIX));
 
 	/* Free possible externally stored fields in the record */
 

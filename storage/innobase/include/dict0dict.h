@@ -939,8 +939,7 @@ dict_table_has_atomic_blobs(const dict_table_t* table)
 @param[in]	zip_ssize	Zip Shift Size
 @param[in]	use_data_dir	Table uses DATA DIRECTORY
 @param[in]	page_compressed Table uses page compression
-@param[in]	page_compression_level Page compression level
-@param[in]	not_used        For future */
+@param[in]	page_compression_level Page compression level */
 UNIV_INLINE
 void
 dict_tf_set(
@@ -949,8 +948,7 @@ dict_tf_set(
 	ulint		zip_ssize,
 	bool		use_data_dir,
 	bool		page_compressed,
-	ulint		page_compression_level,
-	ulint		not_used);
+	ulint		page_compression_level);
 
 /** Convert a 32 bit integer table flags to the 32 bit FSP Flags.
 Fsp Flags are written into the tablespace header at the offset

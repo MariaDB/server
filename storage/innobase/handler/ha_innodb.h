@@ -186,12 +186,6 @@ public:
 
 	FT_INFO* ft_init_ext(uint flags, uint inx, String* key);
 
-	FT_INFO* ft_init_ext_with_hints(
-		uint			inx,
-		String*			key,
-		void*			hints);
-		//Ft_hints*		hints);
-
 	int ft_read(uchar* buf);
 
 	void position(const uchar *record);

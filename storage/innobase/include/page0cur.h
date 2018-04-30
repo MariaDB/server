@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -156,10 +157,7 @@ page_cur_tuple_insert(
 	ulint**		offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	mtr_t*		mtr,	/*!< in: mini-transaction handle, or NULL */
-	bool		use_cache = false)
-				/*!< in: if true, then use record cache to
-				hold the tuple converted record. */
+	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
 	MY_ATTRIBUTE((nonnull(1,2,3,4,5), warn_unused_result));
 /***********************************************************//**
 Inserts a record next to page cursor. Returns pointer to inserted record if

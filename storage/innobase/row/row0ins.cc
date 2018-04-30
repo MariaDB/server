@@ -915,8 +915,7 @@ row_ins_invalidate_query_cache(
 	const char*	name)		/*!< in: table name prefixed with
 					database name and a '/' character */
 {
-	ulint	len = strlen(name) + 1;
-	innobase_invalidate_query_cache(thr_get_trx(thr), name, len);
+	innobase_invalidate_query_cache(thr_get_trx(thr), name);
 }
 
 
@@ -3133,7 +3132,7 @@ row_ins_sec_index_entry_low(
 
 		if (err == DB_SUCCESS && dict_index_is_spatial(index)
 		    && rtr_info.mbr_adj) {
-			err = rtr_ins_enlarge_mbr(&cursor, thr, &mtr);
+			err = rtr_ins_enlarge_mbr(&cursor, &mtr);
 		}
 	} else {
 		rec_t*		insert_rec;
@@ -3147,7 +3146,7 @@ row_ins_sec_index_entry_low(
 			if (err == DB_SUCCESS
 			    && dict_index_is_spatial(index)
 			    && rtr_info.mbr_adj) {
-				err = rtr_ins_enlarge_mbr(&cursor, thr, &mtr);
+				err = rtr_ins_enlarge_mbr(&cursor, &mtr);
 			}
 		} else {
 			ut_ad(mode == BTR_MODIFY_TREE);
@@ -3172,7 +3171,7 @@ row_ins_sec_index_entry_low(
 			if (err == DB_SUCCESS
 				   && dict_index_is_spatial(index)
 				   && rtr_info.mbr_adj) {
-				err = rtr_ins_enlarge_mbr(&cursor, thr, &mtr);
+				err = rtr_ins_enlarge_mbr(&cursor, &mtr);
 			}
 		}
 

@@ -319,7 +319,6 @@ the dict mutex
 que_t*
 fts_parse_sql_no_dict_lock(
 /*=======================*/
-	fts_table_t*	fts_table,	/*!< in: table with FTS index */
 	pars_info_t*	info,		/*!< in: parser info */
 	const char*	sql)		/*!< in: SQL string to evaluate */
 	MY_ATTRIBUTE((warn_unused_result));

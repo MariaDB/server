@@ -70,13 +70,11 @@ innobase_invalidate_query_cache(
 /*============================*/
 	trx_t*		trx,		/*!< in: transaction which
 					modifies the table */
-	const char*	full_name,	/*!< in: concatenation of
+	const char*	full_name);	/*!< in: concatenation of
 					database name, path separator,
 					table name, null char NUL;
 					NOTE that in Windows this is
 					always in LOWER CASE! */
-	ulint		full_name_len);	/*!< in: full name length where
-					also the null chars count */
 
 /** Quote a standard SQL identifier like tablespace, index or column name.
 @param[in]	file	output stream
@@ -158,7 +156,6 @@ UNIV_INTERN
 void
 innobase_mysql_log_notify(
 /*======================*/
-	ib_uint64_t	write_lsn,	/*!< in: LSN written to log file */
 	ib_uint64_t	flush_lsn);	/*!< in: LSN flushed to disk */
 
 /** Converts a MySQL type to an InnoDB type. Note that this function returns

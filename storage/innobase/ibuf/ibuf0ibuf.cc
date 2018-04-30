@@ -4582,8 +4582,7 @@ loop:
 	}
 
 	if (!btr_pcur_is_on_user_rec(&pcur)) {
-		ut_ad(btr_pcur_is_after_last_in_tree(&pcur, &mtr));
-
+		ut_ad(btr_pcur_is_after_last_in_tree(&pcur));
 		goto reset_bit;
 	}
 
@@ -4820,8 +4819,7 @@ loop:
 		&pcur, &mtr);
 
 	if (!btr_pcur_is_on_user_rec(&pcur)) {
-		ut_ad(btr_pcur_is_after_last_in_tree(&pcur, &mtr));
-
+		ut_ad(btr_pcur_is_after_last_in_tree(&pcur));
 		goto leave_loop;
 	}
 

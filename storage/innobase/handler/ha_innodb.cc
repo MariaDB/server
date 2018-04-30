@@ -779,7 +779,7 @@ static
 int
 innodb_tmpdir_validate(
 	THD*				thd,
-	struct st_mysql_sys_var*	var,
+	struct st_mysql_sys_var*,
 	void*				save,
 	struct st_mysql_value*		value)
 {
@@ -1531,9 +1531,7 @@ static
 int
 innobase_commit_concurrency_validate(
 /*=================================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to system
-						variable */
+	THD*, st_mysql_sys_var*,
 	void*				save,	/*!< out: immediate result
 						for update function */
 	struct st_mysql_value*		value)	/*!< in: incoming string */
@@ -1695,10 +1693,7 @@ extern "C" time_t thd_start_time(const THD* thd);
 /******************************************************************//**
 Get the thread start time.
 @return the thread start time in seconds since the epoch. */
-ulint
-thd_start_time_in_secs(
-/*===================*/
-	THD*	thd)	/*!< in: thread handle, or NULL */
+ulint thd_start_time_in_secs(THD*)
 {
 	// FIXME: This function should be added to the server code.
 	//return(thd_start_time(thd));
@@ -3133,7 +3128,7 @@ innobase_query_caching_of_table_permitted(
 	const char* full_name,	/*!< in: normalized path to the table */
 	uint	full_name_len,	/*!< in: length of the normalized path
 				to the table */
-	ulonglong *unused)	/*!< unused for this engine */
+	ulonglong *)
 {
 	char	norm_name[1000];
 	trx_t*	trx = check_trx_exists(thd);
@@ -3187,13 +3182,11 @@ innobase_invalidate_query_cache(
 /*============================*/
 	trx_t*		trx,		/*!< in: transaction which
 					modifies the table */
-	const char*	full_name,	/*!< in: concatenation of
+	const char*	full_name)	/*!< in: concatenation of
 					database name, path separator,
 					table name, null char NUL;
 					NOTE that in Windows this is
 					always in LOWER CASE! */
-	ulint		full_name_len)	/*!< in: full name length where
-					also the null chars count */
 {
 	/* Note that the sync0mutex.h rank of the query cache mutex is just
 	above the InnoDB trx_sys_t->lock. The caller of this function must
@@ -4793,7 +4786,6 @@ UNIV_INTERN
 void
 innobase_mysql_log_notify(
 /*======================*/
-	ib_uint64_t	write_lsn,	/*!< in: LSN written to log file */
 	ib_uint64_t	flush_lsn)	/*!< in: LSN flushed to disk */
 {
 	struct pending_checkpoint *	pending;
@@ -4996,7 +4988,7 @@ innobase_savepoint(
 	dberr_t	error = trx_savepoint_for_mysql(trx, name, 0);
 
 	if (error == DB_SUCCESS && trx->fts_trx != NULL) {
-		fts_savepoint_take(trx, trx->fts_trx, name);
+		fts_savepoint_take(trx->fts_trx, name);
 	}
 
 	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
@@ -6432,7 +6424,11 @@ platforms.
 @return dictionary table object or NULL if not found */
 dict_table_t*
 ha_innobase::open_dict_table(
-	const char*		table_name,
+	const char*
+#ifdef _WIN32
+	table_name
+#endif
+	,
 	const char*		norm_name,
 	bool			is_partition,
 	dict_err_ignore_t	ignore_err)
@@ -8727,8 +8723,7 @@ wsrep_calc_row_hash(
 	const uchar*	row,		/*!< in: row in MySQL format */
 	TABLE*		table,		/*!< in: table in MySQL data
 					dictionary */
-	row_prebuilt_t*	prebuilt,	/*!< in: InnoDB prebuilt struct */
-	THD*		thd)		/*!< in: user thread */
+	row_prebuilt_t*	prebuilt)	/*!< in: InnoDB prebuilt struct */
 {
 	Field*		field;
 	enum_field_types field_mysql_type;
@@ -9116,8 +9111,7 @@ int
 ha_innobase::index_init(
 /*====================*/
 	uint		keynr,	/*!< in: key (index) number */
-	bool		sorted)	/*!< in: 1 if result MUST be sorted
-				according to index */
+	bool)
 {
 	DBUG_ENTER("index_init");
 
@@ -9303,8 +9297,7 @@ ha_innobase::index_read(
 			m_prebuilt->srch_key_val_len,
 			index,
 			(byte*) key_ptr,
-			(ulint) key_len,
-			m_prebuilt->trx);
+			(ulint) key_len);
 
 		DBUG_ASSERT(m_prebuilt->search_tuple->n_fields > 0);
 	} else {
@@ -9723,8 +9716,7 @@ int
 ha_innobase::index_next_same(
 /*=========================*/
 	uchar*		buf,	/*!< in/out: buffer for the row */
-	const uchar*	key,	/*!< in: key value */
-	uint		keylen)	/*!< in: key value length */
+	const uchar*, uint)
 {
 	return(general_fetch(buf, ROW_SEL_NEXT, m_last_match_mode));
 }
@@ -10016,7 +10008,8 @@ ha_innobase::ft_init_ext(
 		const_cast<char*>(query));
 
 	// FIXME: support ft_init_ext_with_hints(), pass LIMIT
-	dberr_t	error = fts_query(trx, index, flags, q, query_len, &result);
+	// FIXME: use trx
+	dberr_t	error = fts_query(index, flags, q, query_len, &result);
 
 	if (error != DB_SUCCESS) {
 		my_error(convert_error_code_to_mysql(error, 0, NULL), MYF(0));
@@ -10036,25 +10029,6 @@ ha_innobase::ft_init_ext(
 	m_prebuilt->in_fts_query = true;
 
 	return(reinterpret_cast<FT_INFO*>(fts_hdl));
-}
-
-/**********************************************************************//**
-Initialize FT index scan
-@return FT_INFO structure if successful or NULL */
-
-FT_INFO*
-ha_innobase::ft_init_ext_with_hints(
-/*================================*/
-	uint			keynr,		/* in: key num */
-	String*			key,		/* in: key */
-	void*			hints)		/* in: hints  */
-{
-	/* TODO Implement function properly working with FT hint. */
-#ifdef MYSQL_FT_INIT_EXT
-	return(ft_init_ext(hints->get_flags(), keynr, key));
-#else
-	return NULL;
-#endif
 }
 
 /*****************************************************************//**
@@ -10460,7 +10434,6 @@ wsrep_append_key(
 	THD		*thd,
 	trx_t 		*trx,
 	TABLE_SHARE 	*table_share,
-	TABLE 		*table,
 	const char*	key,
 	uint16_t        key_len,
 	bool            shared
@@ -10573,7 +10546,7 @@ ha_innobase::wsrep_append_keys(
 
 		if (!is_null) {
 			rcode = wsrep_append_key(
-				thd, trx, table_share, table, keyval,
+				thd, trx, table_share, keyval,
 				len, shared);
 
 			if (rcode) {
@@ -10627,7 +10600,7 @@ ha_innobase::wsrep_append_keys(
 					record0, &is_null);
 				if (!is_null) {
 					rcode = wsrep_append_key(
-						thd, trx, table_share, table,
+						thd, trx, table_share,
 						keyval0, len+1, shared);
 
 					if (rcode) {
@@ -10650,7 +10623,6 @@ ha_innobase::wsrep_append_keys(
 					if (!is_null && memcmp(key0, key1, len)) {
 						rcode = wsrep_append_key(
 							thd, trx, table_share,
-							table,
 							keyval1, len+1, shared);
 						if (rcode) DBUG_RETURN(rcode);
 					}
@@ -10664,9 +10636,9 @@ ha_innobase::wsrep_append_keys(
 		uchar digest[16];
 		int rcode;
 
-		wsrep_calc_row_hash(digest, record0, table, m_prebuilt, thd);
+		wsrep_calc_row_hash(digest, record0, table, m_prebuilt);
 
-		if ((rcode = wsrep_append_key(thd, trx, table_share, table,
+		if ((rcode = wsrep_append_key(thd, trx, table_share,
 					      (const char*) digest, 16,
 					      shared))) {
 			DBUG_RETURN(rcode);
@@ -10674,9 +10646,8 @@ ha_innobase::wsrep_append_keys(
 
 		if (record1) {
 			wsrep_calc_row_hash(
-				digest, record1, table, m_prebuilt, thd);
+				digest, record1, table, m_prebuilt);
 			if ((rcode = wsrep_append_key(thd, trx, table_share,
-						      table,
 						      (const char*) digest,
 						      16, shared))) {
 				DBUG_RETURN(rcode);
@@ -11817,7 +11788,11 @@ innobase_fts_load_stopword(
 @return 0 if successful, otherwise, error number */
 int
 create_table_info_t::parse_table_name(
-	const char*		name)
+	const char*
+#ifdef _WIN32
+	name
+#endif
+				      )
 {
 	DBUG_ENTER("parse_table_name");
 
@@ -12096,8 +12071,7 @@ index_bad:
 			m_use_data_dir,
 			options->page_compressed,
 		    	options->page_compression_level == 0 ?
-		        default_compression_level : static_cast<ulint>(options->page_compression_level),
-		    	0);
+		        default_compression_level : ulint(options->page_compression_level));
 
 	if (m_form->s->table_type == TABLE_TYPE_SEQUENCE) {
 		m_flags |= DICT_TF_MASK_NO_ROLLBACK;
@@ -13430,8 +13404,7 @@ ha_innobase::records_in_range(
 		m_prebuilt->srch_key_val_len,
 		index,
 		(byte*) (min_key ? min_key->key : (const uchar*) 0),
-		(ulint) (min_key ? min_key->length : 0),
-		m_prebuilt->trx);
+		(ulint) (min_key ? min_key->length : 0));
 
 	DBUG_ASSERT(min_key
 		    ? range_start->n_fields > 0
@@ -13443,8 +13416,7 @@ ha_innobase::records_in_range(
 		m_prebuilt->srch_key_val_len,
 		index,
 		(byte*) (max_key ? max_key->key : (const uchar*) 0),
-		(ulint) (max_key ? max_key->length : 0),
-		m_prebuilt->trx);
+		(ulint) (max_key ? max_key->length : 0));
 
 	DBUG_ASSERT(max_key
 		    ? range_end->n_fields > 0
@@ -14203,10 +14175,7 @@ each index tree. This does NOT calculate exact statistics on the table.
 @return HA_ADMIN_* error code or HA_ADMIN_OK */
 
 int
-ha_innobase::analyze(
-/*=================*/
-	THD*		thd,		/*!< in: connection thread handle */
-	HA_CHECK_OPT*	check_opt)	/*!< in: currently ignored */
+ha_innobase::analyze(THD*, HA_CHECK_OPT*)
 {
 	/* Simply call info_low() with all the flags
 	and request recalculation of the statistics */
@@ -14343,7 +14312,7 @@ int
 ha_innobase::optimize(
 /*==================*/
 	THD*		thd,		/*!< in: connection thread handle */
-	HA_CHECK_OPT*	check_opt)	/*!< in: currently ignored */
+	HA_CHECK_OPT*)
 {
 
 	/* FTS-FIXME: Since MySQL doesn't support engine-specific commands,
@@ -15926,12 +15895,10 @@ struct ShowStatus {
 		spins=N,waits=N,calls=N"
 
 	The user has to parse the dataunfortunately
-	@param[in,out]	hton		the innodb handlerton
 	@param[in,out]	thd		the MySQL query thread of the caller
 	@param[in,out]	stat_print	function for printing statistics
 	@return true on success. */
 	bool to_string(
-		handlerton*	hton,
 		THD*		thd,
 		stat_print_fn*	stat_print)
 		UNIV_NOTHROW;
@@ -15947,13 +15914,11 @@ We store the metrics  in the "Status" column as:
 	spins=N,waits=N,calls=N"
 
 The user has to parse the dataunfortunately
-@param[in,out]	hton		the innodb handlerton
 @param[in,out]	thd		the MySQL query thread of the caller
 @param[in,out]	stat_print	function for printing statistics
 @return true on success. */
 bool
 ShowStatus::to_string(
-	handlerton*	hton,
 	THD*		thd,
 	stat_print_fn*	stat_print)
 	UNIV_NOTHROW
@@ -16002,7 +15967,11 @@ ShowStatus::to_string(
 static
 int
 innodb_show_mutex_status(
-	handlerton*	hton,
+	handlerton*
+#ifndef DBUG_OFF
+	hton
+#endif
+	,
 	THD*		thd,
 	stat_print_fn*	stat_print)
 {
@@ -16014,7 +15983,7 @@ innodb_show_mutex_status(
 
 	mutex_monitor.iterate(collector);
 
-	if (!collector.to_string(hton, thd, stat_print)) {
+	if (!collector.to_string(thd, stat_print)) {
 		DBUG_RETURN(1);
 	}
 
@@ -16029,7 +15998,11 @@ innodb_show_mutex_status(
 static
 int
 innodb_show_rwlock_status(
-	handlerton*	hton,
+	handlerton*
+#ifndef DBUG_OFF
+	hton
+#endif
+	,
 	THD*		thd,
 	stat_print_fn*	stat_print)
 {
@@ -17225,10 +17198,7 @@ void
 innodb_io_capacity_max_update(
 /*===========================*/
 	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
+	st_mysql_sys_var*, void*,
 	const void*			save)	/*!< in: immediate result
 						from check function */
 {
@@ -17260,10 +17230,7 @@ void
 innodb_io_capacity_update(
 /*======================*/
 	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
+	st_mysql_sys_var*, void*,
 	const void*			save)	/*!< in: immediate result
 						from check function */
 {
@@ -17295,10 +17262,7 @@ void
 innodb_max_dirty_pages_pct_update(
 /*==============================*/
 	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
+	st_mysql_sys_var*, void*,
 	const void*			save)	/*!< in: immediate result
 						from check function */
 {
@@ -17329,10 +17293,7 @@ void
 innodb_max_dirty_pages_pct_lwm_update(
 /*==================================*/
 	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
+	st_mysql_sys_var*, void*,
 	const void*			save)	/*!< in: immediate result
 						from check function */
 {
@@ -17394,8 +17355,7 @@ int
 innodb_stopword_table_validate(
 /*===========================*/
 	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to system
-						variable */
+	st_mysql_sys_var*,
 	void*				save,	/*!< out: immediate result
 						for update function */
 	struct st_mysql_value*		value)	/*!< in: incoming string */
@@ -17430,17 +17390,10 @@ innodb_stopword_table_validate(
 
 /** Update the system variable innodb_buffer_pool_size using the "saved"
 value. This function is registered as a callback with MySQL.
-@param[in]	thd	thread handle
-@param[in]	var	pointer to system variable
-@param[out]	var_ptr	where the formal string goes
 @param[in]	save	immediate result from check function */
 static
 void
-innodb_buffer_pool_size_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save)
+innodb_buffer_pool_size_update(THD*,st_mysql_sys_var*,void*, const void* save)
 {
         longlong	in_val = *static_cast<const longlong*>(save);
 
@@ -17462,9 +17415,7 @@ static
 int
 innodb_internal_table_validate(
 /*===========================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to system
-						variable */
+	THD*, st_mysql_sys_var*,
 	void*				save,	/*!< out: immediate result
 						for update function */
 	struct st_mysql_value*		value)	/*!< in: incoming string */
@@ -17514,9 +17465,7 @@ static
 void
 innodb_internal_table_update(
 /*=========================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
+	THD*, st_mysql_sys_var*,
 	void*				var_ptr,/*!< out: where the
 						formal string goes */
 	const void*			save)	/*!< in: immediate result
@@ -17547,15 +17496,8 @@ Update the system variable innodb_adaptive_hash_index using the "saved"
 value. This function is registered as a callback with MySQL. */
 static
 void
-innodb_adaptive_hash_index_update(
-/*==============================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
-	const void*			save)	/*!< in: immediate result
-						from check function */
+innodb_adaptive_hash_index_update(THD*, st_mysql_sys_var*, void*,
+				  const void* save)
 {
 	if (*(my_bool*) save) {
 		btr_search_enable();
@@ -17570,15 +17512,7 @@ Update the system variable innodb_cmp_per_index using the "saved"
 value. This function is registered as a callback with MySQL. */
 static
 void
-innodb_cmp_per_index_update(
-/*========================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
-	const void*			save)	/*!< in: immediate result
-						from check function */
+innodb_cmp_per_index_update(THD*, st_mysql_sys_var*, void*, const void* save)
 {
 	/* Reset the stats whenever we enable the table
 	INFORMATION_SCHEMA.innodb_cmp_per_index. */
@@ -17594,15 +17528,7 @@ Update the system variable innodb_old_blocks_pct using the "saved"
 value. This function is registered as a callback with MySQL. */
 static
 void
-innodb_old_blocks_pct_update(
-/*=========================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
-	const void*			save)	/*!< in: immediate result
-						from check function */
+innodb_old_blocks_pct_update(THD*, st_mysql_sys_var*, void*, const void* save)
 {
 	innobase_old_blocks_pct = static_cast<uint>(
 		buf_LRU_old_ratio_update(
@@ -17614,15 +17540,8 @@ Update the system variable innodb_old_blocks_pct using the "saved"
 value. This function is registered as a callback with MySQL. */
 static
 void
-innodb_change_buffer_max_size_update(
-/*=================================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
-	const void*			save)	/*!< in: immediate result
-						from check function */
+innodb_change_buffer_max_size_update(THD*, st_mysql_sys_var*, void*,
+				     const void* save)
 {
 	srv_change_buffer_max_size =
 			(*static_cast<const uint*>(save));
@@ -17637,15 +17556,7 @@ static ulong srv_saved_page_number_debug = 0;
 Save an InnoDB page number. */
 static
 void
-innodb_save_page_no(
-/*================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
-	const void*			save)	/*!< in: immediate result
-						from check function */
+innodb_save_page_no(THD*, st_mysql_sys_var*, void*, const void* save)
 {
 	srv_saved_page_number_debug = *static_cast<const ulong*>(save);
 
@@ -17657,15 +17568,7 @@ innodb_save_page_no(
 Make the first page of given user tablespace dirty. */
 static
 void
-innodb_make_page_dirty(
-/*===================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
-	const void*			save)	/*!< in: immediate result
-						from check function */
+innodb_make_page_dirty(THD*, st_mysql_sys_var*, void*, const void* save)
 {
 	mtr_t		mtr;
 	ulong		space_id = *static_cast<const ulong*>(save);
@@ -17709,10 +17612,7 @@ void
 innodb_stats_sample_pages_update(
 /*=============================*/
 	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
+	st_mysql_sys_var*, void*,
 	const void*			save)	/*!< in: immediate result
 						from check function */
 {
@@ -17988,9 +17888,7 @@ static
 int
 innodb_monitor_validate(
 /*====================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to system
-						variable */
+	THD*, st_mysql_sys_var*,
 	void*				save,	/*!< out: immediate result
 						for update function */
 	struct st_mysql_value*		value)	/*!< in: incoming string */
@@ -18234,13 +18132,8 @@ SET GLOBAL innodb_buffer_pool_evict='uncompressed'
 evicts all uncompressed page frames of compressed tablespaces. */
 static
 void
-innodb_buffer_pool_evict_update(
-/*============================*/
-	THD*			thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*var,	/*!< in: pointer to system variable */
-	void*			var_ptr,/*!< out: ignored */
-	const void*		save)	/*!< in: immediate result
-					from check function */
+innodb_buffer_pool_evict_update(THD*, st_mysql_sys_var*, void*,
+				const void* save)
 {
 	if (const char* op = *static_cast<const char*const*>(save)) {
 		if (!strcmp(op, "uncompressed")) {
@@ -18268,8 +18161,7 @@ void
 innodb_enable_monitor_update(
 /*=========================*/
 	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
+	st_mysql_sys_var*,
 	void*				var_ptr,/*!< out: where the
 						formal string goes */
 	const void*			save)	/*!< in: immediate result
@@ -18286,8 +18178,7 @@ void
 innodb_disable_monitor_update(
 /*==========================*/
 	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
+	st_mysql_sys_var*,
 	void*				var_ptr,/*!< out: where the
 						formal string goes */
 	const void*			save)	/*!< in: immediate result
@@ -18305,8 +18196,7 @@ void
 innodb_reset_monitor_update(
 /*========================*/
 	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
+	st_mysql_sys_var*,
 	void*				var_ptr,/*!< out: where the
 						formal string goes */
 	const void*			save)	/*!< in: immediate result
@@ -18324,8 +18214,7 @@ void
 innodb_reset_all_monitor_update(
 /*============================*/
 	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
+	st_mysql_sys_var*,
 	void*				var_ptr,/*!< out: where the
 						formal string goes */
 	const void*			save)	/*!< in: immediate result
@@ -18337,15 +18226,8 @@ innodb_reset_all_monitor_update(
 
 static
 void
-innodb_defragment_frequency_update(
-/*===============================*/
-	THD* thd,  /*!< in: thread handle */
-	struct st_mysql_sys_var* var,  /*!< in: pointer to
-	          system variable */
-	void* var_ptr,/*!< out: where the
-	          formal string goes */
-	const void* save) /*!< in: immediate result
-	          from check function */
+innodb_defragment_frequency_update(THD*, st_mysql_sys_var*, void*,
+				   const void* save)
 {
 	srv_defragment_frequency = (*static_cast<const uint*>(save));
 	srv_defragment_interval = ut_microseconds_to_timer(
@@ -18399,13 +18281,7 @@ innodb_enable_monitor_at_startup(
 /****************************************************************//**
 Callback function for accessing the InnoDB variables from MySQL:
 SHOW VARIABLES. */
-static
-int
-show_innodb_vars(
-/*=============*/
-	THD*		thd,
-	SHOW_VAR*	var,
-	char*		buff)
+static int show_innodb_vars(THD*, SHOW_VAR* var, char*)
 {
 	innodb_export_status();
 	var->type = SHOW_ARRAY;
@@ -18524,17 +18400,7 @@ static uint	innodb_merge_threshold_set_all_debug
 /** Wait for the background drop list to become empty. */
 static
 void
-wait_background_drop_list_empty(
-	THD*				thd	/*!< in: thread handle */
-					MY_ATTRIBUTE((unused)),
-	struct st_mysql_sys_var*	var	/*!< in: pointer to system
-						variable */
-					MY_ATTRIBUTE((unused)),
-	void*				var_ptr	/*!< out: where the formal
-						string goes */
-					MY_ATTRIBUTE((unused)),
-	const void*			save)	/*!< in: immediate result from
-						check function */
+wait_background_drop_list_empty(THD*, st_mysql_sys_var*, void*, const void*)
 {
 	row_wait_for_background_drop_list_empty();
 }
@@ -18543,18 +18409,7 @@ wait_background_drop_list_empty(
 Force innodb to checkpoint. */
 static
 void
-checkpoint_now_set(
-/*===============*/
-	THD*				thd	/*!< in: thread handle */
-					MY_ATTRIBUTE((unused)),
-	struct st_mysql_sys_var*	var	/*!< in: pointer to system
-						variable */
-					MY_ATTRIBUTE((unused)),
-	void*				var_ptr	/*!< out: where the formal
-						string goes */
-					MY_ATTRIBUTE((unused)),
-	const void*			save)	/*!< in: immediate result from
-						check function */
+checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 {
 	if (*(my_bool*) save) {
 		while (log_sys.last_checkpoint_lsn
@@ -18578,18 +18433,7 @@ checkpoint_now_set(
 Force a dirty pages flush now. */
 static
 void
-buf_flush_list_now_set(
-/*===================*/
-	THD*				thd	/*!< in: thread handle */
-					MY_ATTRIBUTE((unused)),
-	struct st_mysql_sys_var*	var	/*!< in: pointer to system
-						variable */
-					MY_ATTRIBUTE((unused)),
-	void*				var_ptr	/*!< out: where the formal
-						string goes */
-					MY_ATTRIBUTE((unused)),
-	const void*			save)	/*!< in: immediate result from
-						check function */
+buf_flush_list_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 {
 	if (*(my_bool*) save) {
 		buf_flush_sync_all_buf_pools();
@@ -18598,17 +18442,11 @@ buf_flush_list_now_set(
 
 /** Override current MERGE_THRESHOLD setting for all indexes at dictionary
 now.
-@param[in]	thd	thread handle
-@param[in]	var	pointer to system variable
-@param[out]	var_ptr	where the formal string goes
 @param[in]	save	immediate result from check function */
 static
 void
-innodb_merge_threshold_set_all_debug_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save)
+innodb_merge_threshold_set_all_debug_update(THD*, st_mysql_sys_var*, void*,
+					    const void* save)
 {
 	innodb_merge_threshold_set_all_debug
 		= (*static_cast<const uint*>(save));
@@ -18735,10 +18573,7 @@ void
 innodb_log_write_ahead_size_update(
 /*===============================*/
 	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
+	st_mysql_sys_var*, void*,
 	const void*			save)	/*!< in: immediate result
 						from check function */
 {
@@ -18781,12 +18616,8 @@ which control InnoDB "status monitor" output to the error log.
 @param[in]	save	to-be-assigned value */
 static
 void
-innodb_status_output_update(
-/*========================*/
-	THD*				thd __attribute__((unused)),
-	struct st_mysql_sys_var*	var __attribute__((unused)),
-	void*				var_ptr __attribute__((unused)),
-	const void*			save __attribute__((unused)))
+innodb_status_output_update(THD*, st_mysql_sys_var*, void* var_ptr,
+			    const void* save)
 {
 	*static_cast<my_bool*>(var_ptr) = *static_cast<const my_bool*>(save);
 	/* Wakeup server monitor thread. */
@@ -18797,15 +18628,8 @@ innodb_status_output_update(
 Update the system variable innodb_encryption_threads */
 static
 void
-innodb_encryption_threads_update(
-/*=============================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
-	const void*			save)	/*!< in: immediate result
-						from check function */
+innodb_encryption_threads_update(THD*, st_mysql_sys_var*, void*,
+				 const void* save)
 {
 	fil_crypt_set_thread_cnt(*static_cast<const uint*>(save));
 }
@@ -18814,15 +18638,8 @@ innodb_encryption_threads_update(
 Update the system variable innodb_encryption_rotate_key_age */
 static
 void
-innodb_encryption_rotate_key_age_update(
-/*====================================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
-	const void*			save)	/*!< in: immediate result
-						from check function */
+innodb_encryption_rotate_key_age_update(THD*, st_mysql_sys_var*, void*,
+					const void* save)
 {
 	fil_crypt_set_rotate_key_age(*static_cast<const uint*>(save));
 }
@@ -18831,15 +18648,8 @@ innodb_encryption_rotate_key_age_update(
 Update the system variable innodb_encryption_rotation_iops */
 static
 void
-innodb_encryption_rotation_iops_update(
-/*===================================*/
-	THD*				thd,	/*!< in: thread handle */
-	struct st_mysql_sys_var*	var,	/*!< in: pointer to
-						system variable */
-	void*				var_ptr,/*!< out: where the
-						formal string goes */
-	const void*			save)	/*!< in: immediate result
-						from check function */
+innodb_encryption_rotation_iops_update(THD*, st_mysql_sys_var*, void*,
+				       const void* save)
 {
 	fil_crypt_set_rotation_iops(*static_cast<const uint*>(save));
 }
@@ -18848,31 +18658,19 @@ innodb_encryption_rotation_iops_update(
 Update the system variable innodb_encrypt_tables*/
 static
 void
-innodb_encrypt_tables_update(
-/*=========================*/
-	THD*                            thd,    /*!< in: thread handle */
-	struct st_mysql_sys_var*        var,    /*!< in: pointer to
-						system variable */
-	void*                           var_ptr,/*!< out: where the
-						formal string goes */
-	const void*                     save)   /*!< in: immediate result
-						from check function */
+innodb_encrypt_tables_update(THD*, st_mysql_sys_var*, void*, const void* save)
 {
 	fil_crypt_set_encrypt_tables(*static_cast<const ulong*>(save));
 }
 
 /** Update the innodb_log_checksums parameter.
-@param[in]	thd	thread handle
-@param[in]	var	system variable
+@param[in,out]	thd	client connection
 @param[out]	var_ptr	current value
 @param[in]	save	immediate result from check function */
 static
 void
-innodb_log_checksums_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save)
+innodb_log_checksums_update(THD* thd, st_mysql_sys_var*, void* var_ptr,
+			    const void* save)
 {
 	*static_cast<my_bool*>(var_ptr) = innodb_log_checksums_func_update(
 		thd, *static_cast<const my_bool*>(save));
@@ -19127,7 +18925,7 @@ static
 int
 wsrep_abort_transaction(
 /*====================*/
-	handlerton* hton,
+	handlerton*,
 	THD *bf_thd,
 	THD *victim_thd,
 	my_bool signal)
@@ -19191,12 +18989,7 @@ innobase_wsrep_get_checkpoint(
         return 0;
 }
 
-static
-void
-wsrep_fake_trx_id(
-/*==============*/
-	handlerton	*hton,
-	THD		*thd)	/*!< in: user thread handle */
+static void wsrep_fake_trx_id(handlerton *, THD *thd)
 {
 	trx_id_t trx_id = trx_sys.get_new_trx_id();
 	WSREP_DEBUG("innodb fake trx id: " TRX_ID_FMT " thd: %s",
@@ -20074,14 +19867,8 @@ static my_bool	innobase_disallow_writes	= FALSE;
 An "update" method for innobase_disallow_writes variable. */
 static
 void
-innobase_disallow_writes_update(
-/*============================*/
-	THD*			thd,		/* in: thread handle */
-	st_mysql_sys_var*	var,		/* in: pointer to system
-						variable */
-	void*			var_ptr,	/* out: pointer to dynamic
-						variable */
-	const void*		save)		/* in: temporary storage */
+innobase_disallow_writes_update(THD*, st_mysql_sys_var*,
+				void* var_ptr, const void* save)
 {
 	*(my_bool*)var_ptr = *(my_bool*)save;
 	ut_a(srv_allow_writes_event);
@@ -21371,7 +21158,6 @@ ib_warn_row_too_big(const dict_table_t*	table)
 /** Validate the requested buffer pool size.  Also, reserve the necessary
 memory needed for buffer pool resize.
 @param[in]	thd	thread handle
-@param[in]	var	pointer to system variable
 @param[out]	save	immediate result for update function
 @param[in]	value	incoming string
 @return 0 on success, 1 on failure.
@@ -21380,7 +21166,7 @@ static
 int
 innodb_buffer_pool_size_validate(
 	THD*				thd,
-	struct st_mysql_sys_var*	var,
+	st_mysql_sys_var*,
 	void*				save,
 	struct st_mysql_value*		value)
 {

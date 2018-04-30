@@ -2983,17 +2983,10 @@ buf_flush_page_cleaner_disabled_loop(void)
 }
 
 /** Disables page cleaner threads (coordinator and workers).
-It's used by: SET GLOBAL innodb_page_cleaner_disabled_debug = 1 (0).
-@param[in]	thd		thread handle
-@param[in]	var		pointer to system variable
-@param[out]	var_ptr		where the formal string goes
 @param[in]	save		immediate result from check function */
-void
-buf_flush_page_cleaner_disabled_debug_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save)
+void buf_flush_page_cleaner_disabled_debug_update(THD*,
+						  st_mysql_sys_var*, void*,
+						  const void* save)
 {
 	if (!page_cleaner.is_running) {
 		return;

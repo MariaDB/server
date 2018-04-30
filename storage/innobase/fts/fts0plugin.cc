@@ -32,26 +32,12 @@ Created 2013/06/04 Shaohua Wang
 /******************************************************************//**
 FTS default parser init
 @return 0 */
-static
-int
-fts_default_parser_init(
-/*====================*/
-	MYSQL_FTPARSER_PARAM *param)	/*!< in: plugin parser param */
-{
-	return(0);
-}
+static int fts_default_parser_init(MYSQL_FTPARSER_PARAM*) { return 0; }
 
 /******************************************************************//**
 FTS default parser deinit
 @return 0 */
-static
-int
-fts_default_parser_deinit(
-/*======================*/
-	MYSQL_FTPARSER_PARAM *param)	/*!< in: plugin parser param */
-{
-        return(0);
-}
+static int fts_default_parser_deinit(MYSQL_FTPARSER_PARAM*) { return 0; }
 
 /******************************************************************//**
 FTS default parser parse from ft_static.c in MYISAM.

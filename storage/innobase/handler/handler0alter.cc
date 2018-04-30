@@ -223,7 +223,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 				ulint add_autoinc_arg,
 				ulonglong autoinc_col_min_value_arg,
 				ulonglong autoinc_col_max_value_arg,
-				ulint num_to_drop_vcol_arg,
 				bool ignore_flag) :
 		inplace_alter_handler_ctx(),
 		prebuilt (prebuilt_arg),
@@ -1522,12 +1521,10 @@ no_match:
 Find an index whose first fields are the columns in the array
 in the same order and is not marked for deletion
 @return matching index, NULL if not found */
-static MY_ATTRIBUTE((nonnull(1,2,6), warn_unused_result))
+static MY_ATTRIBUTE((nonnull(1,5), warn_unused_result))
 dict_index_t*
 innobase_find_fk_index(
 /*===================*/
-	Alter_inplace_info*	ha_alter_info,
-					/*!< in: alter table info */
 	dict_table_t*		table,	/*!< in: table */
 	const char**		col_names,
 					/*!< in: column names, or NULL
@@ -1708,7 +1705,6 @@ innobase_get_foreign_key_info(
 			}
 
 			index = innobase_find_fk_index(
-				ha_alter_info,
 				table, col_names,
 				drop_index, n_drop_index,
 				column_names, i);
@@ -3138,12 +3134,11 @@ column that is being dropped or modified to NOT NULL.
 @retval true Not allowed (will call my_error())
 @retval false Allowed
 */
-MY_ATTRIBUTE((pure, nonnull(1,2,3,4), warn_unused_result))
+MY_ATTRIBUTE((pure, nonnull(1,2,3), warn_unused_result))
 static
 bool
 innobase_check_foreigns(
 	Alter_inplace_info*	ha_alter_info,
-	const TABLE*		altered_table,
 	const TABLE*		old_table,
 	const dict_table_t*	user_table,
 	dict_foreign_t**	drop_fk,
@@ -3899,7 +3894,6 @@ prepare_inplace_add_virtual(
 
 /** Collect virtual column info for its addition
 @param[in] ha_alter_info	Data used during in-place alter
-@param[in] altered_table	MySQL table that is being altered to
 @param[in] table		MySQL table as it is before the ALTER operation
 @retval true Failure
 @retval false Success */
@@ -3907,7 +3901,6 @@ static
 bool
 prepare_inplace_drop_virtual(
 	Alter_inplace_info*	ha_alter_info,
-	const TABLE*		altered_table,
 	const TABLE*		table)
 {
 	ha_innobase_inplace_ctx*	ctx;
@@ -4134,8 +4127,6 @@ innodb_update_n_cols(const dict_table_t* table, ulint n_cols, trx_t* trx)
 
 /** Update system table for adding virtual column(s)
 @param[in]	ha_alter_info	Data used during in-place alter
-@param[in]	altered_table	MySQL table that is being altered
-@param[in]	table		MySQL table as it is before the ALTER operation
 @param[in]	user_table	InnoDB table
 @param[in]	trx		transaction
 @retval true Failure
@@ -4144,8 +4135,6 @@ static
 bool
 innobase_add_virtual_try(
 	Alter_inplace_info*	ha_alter_info,
-	const TABLE*		altered_table,
-	const TABLE*		table,
 	const dict_table_t*     user_table,
 	trx_t*			trx)
 {
@@ -4180,7 +4169,6 @@ innobase_add_virtual_try(
 
 /** Insert into SYS_COLUMNS and insert/update the 'default row'
 for instant ADD COLUMN.
-@param[in,out]	ha_alter_info	Data used during in-place alter
 @param[in,out]	ctx		ALTER TABLE context for the current partition
 @param[in]	altered_table	MySQL table that is being altered
 @param[in]	table		MySQL table as it is before the ALTER operation
@@ -4190,7 +4178,6 @@ for instant ADD COLUMN.
 static
 bool
 innobase_add_instant_try(
-	Alter_inplace_info*	ha_alter_info,
 	ha_innobase_inplace_ctx*ctx,
 	const TABLE*		altered_table,
 	const TABLE*		table,
@@ -4592,8 +4579,6 @@ innobase_drop_one_virtual_sys_virtual(
 
 /** Update system table for dropping virtual column(s)
 @param[in]	ha_alter_info	Data used during in-place alter
-@param[in]	altered_table	MySQL table that is being altered
-@param[in]	table		MySQL table as it is before the ALTER operation
 @param[in]	user_table	InnoDB table
 @param[in]	trx		transaction
 @retval true Failure
@@ -4602,8 +4587,6 @@ static
 bool
 innobase_drop_virtual_try(
 	Alter_inplace_info*	ha_alter_info,
-	const TABLE*		altered_table,
-	const TABLE*		table,
 	const dict_table_t*     user_table,
 	trx_t*			trx)
 {
@@ -4827,8 +4810,7 @@ prepare_inplace_alter_table_dict(
 
 	if (ha_alter_info->handler_flags
 	    & ALTER_DROP_VIRTUAL_COLUMN) {
-		if (prepare_inplace_drop_virtual(
-			    ha_alter_info, altered_table, old_table)) {
+		if (prepare_inplace_drop_virtual(ha_alter_info, old_table)) {
 			DBUG_RETURN(true);
 		}
 	}
@@ -4942,7 +4924,7 @@ prepare_inplace_alter_table_dict(
 
 	if (new_clustered) {
 		if (innobase_check_foreigns(
-			    ha_alter_info, altered_table, old_table,
+			    ha_alter_info, old_table,
 			    user_table, ctx->drop_fk, ctx->num_to_drop_fk)) {
 new_clustered_failed:
 			DBUG_ASSERT(ctx->trx != ctx->prebuilt->trx);
@@ -6770,7 +6752,7 @@ err_exit:
 					add_fk, n_add_fk,
 					ha_alter_info->online,
 					heap, indexed_table,
-					col_names, ULINT_UNDEFINED, 0, 0, 0,
+					col_names, ULINT_UNDEFINED, 0, 0,
 					ha_alter_info->ignore);
 		}
 
@@ -6784,8 +6766,7 @@ err_exit:
 
 		if ((ha_alter_info->handler_flags
 		     & ALTER_DROP_VIRTUAL_COLUMN)
-		    && prepare_inplace_drop_virtual(
-			    ha_alter_info, altered_table, table)) {
+		    && prepare_inplace_drop_virtual(ha_alter_info, table)) {
 			DBUG_RETURN(true);
 		}
 
@@ -6906,7 +6887,7 @@ found_col:
 		heap, m_prebuilt->table, col_names,
 		add_autoinc_col_no,
 		ha_alter_info->create_info->auto_increment_value,
-		autoinc_col_max_value, 0, ha_alter_info->ignore);
+		autoinc_col_max_value, ha_alter_info->ignore);
 
 	DBUG_RETURN(prepare_inplace_alter_table_dict(
 			    ha_alter_info, altered_table, table,
@@ -7568,8 +7549,7 @@ innobase_rename_column_try(
 	ulint			nth_col,
 	const char*		from,
 	const char*		to,
-	bool			new_clustered,
-	bool			is_virtual)
+	bool			new_clustered)
 {
 	pars_info_t*	info;
 	dberr_t		error;
@@ -7805,8 +7785,7 @@ innobase_rename_columns_try(
 					    col_n,
 					    cf->field->field_name.str,
 					    cf->field_name.str,
-					    ctx->need_rebuild(),
-					    is_virtual)) {
+					    ctx->need_rebuild())) {
 					return(true);
 				}
 				goto processed_field;
@@ -8741,22 +8720,17 @@ commit_try_norebuild(
 
 	if ((ha_alter_info->handler_flags
 	     & ALTER_DROP_VIRTUAL_COLUMN)
-	    && innobase_drop_virtual_try(
-		    ha_alter_info, altered_table, old_table,
-		    ctx->old_table, trx)) {
+	    && innobase_drop_virtual_try(ha_alter_info, ctx->old_table, trx)) {
 		DBUG_RETURN(true);
 	}
 
 	if ((ha_alter_info->handler_flags
 	     & ALTER_ADD_VIRTUAL_COLUMN)
-	    && innobase_add_virtual_try(
-		    ha_alter_info, altered_table, old_table,
-		    ctx->old_table, trx)) {
+	    && innobase_add_virtual_try(ha_alter_info, ctx->old_table, trx)) {
 		DBUG_RETURN(true);
 	}
 
-	if (innobase_add_instant_try(ha_alter_info, ctx, altered_table,
-				     old_table, trx)) {
+	if (innobase_add_instant_try(ctx, altered_table, old_table, trx)) {
 		DBUG_RETURN(true);
 	}
 
@@ -8891,8 +8865,6 @@ Remove statistics for dropped indexes, add statistics for created indexes
 and rename statistics for renamed indexes.
 @param ha_alter_info Data used during in-place alter
 @param ctx In-place ALTER TABLE context
-@param altered_table MySQL table that is being altered
-@param table_name Table name in MySQL
 @param thd MySQL connection
 */
 static
@@ -8901,8 +8873,6 @@ alter_stats_norebuild(
 /*==================*/
 	Alter_inplace_info*		ha_alter_info,
 	ha_innobase_inplace_ctx*	ctx,
-	TABLE*				altered_table,
-	const char*			table_name,
 	THD*				thd)
 {
 	ulint	i;
@@ -9775,9 +9745,7 @@ foreign_fail:
 				(*pctx);
 			DBUG_ASSERT(!ctx->need_rebuild());
 
-			alter_stats_norebuild(
-				ha_alter_info, ctx, altered_table,
-				table->s->table_name.str, m_user_thd);
+			alter_stats_norebuild(ha_alter_info, ctx, m_user_thd);
 			DBUG_INJECT_CRASH("ib_commit_inplace_crash",
 					  crash_inject_count++);
 		}

@@ -238,11 +238,18 @@ struct ut_new_pfx_t {
 #endif
 };
 
-static inline void ut_allocate_trace_dontdump(void *		ptr,
-			size_t	bytes,
-			bool		dontdump,
-			ut_new_pfx_t*	pfx,
-			const char*	file)
+static inline void ut_allocate_trace_dontdump(void *ptr, size_t	bytes,
+					      bool
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DONTDUMP)
+					      dontdump
+#endif
+					      , ut_new_pfx_t* pfx,
+					      const char*
+#ifdef UNIV_PFS_MEMORY
+					      file
+#endif
+
+					      )
 {
 	ut_a(ptr != NULL);
 
@@ -262,17 +269,19 @@ static inline void ut_allocate_trace_dontdump(void *		ptr,
 	}
 }
 
+#if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DODUMP)
 static inline void ut_dodump(void* ptr, size_t m_size)
 {
-#if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DODUMP)
 	if (ptr && madvise(ptr, m_size, MADV_DODUMP)) {
 		ib::warn() << "Failed to set memory to DODUMP: "
 			   << strerror(errno)
 			   << " ptr " << ptr
 			   << " size " << m_size;
 	}
-#endif
 }
+#else
+static inline void ut_dodump(void*, size_t) {}
+#endif
 
 /** Allocator class for allocating memory from inside std::* containers.
 @tparam	T		type of allocated object
@@ -288,19 +297,25 @@ public:
 	typedef size_t		size_type;
 	typedef ptrdiff_t	difference_type;
 
+#ifdef UNIV_PFS_MEMORY
 	/** Default constructor. */
 	explicit
 	ut_allocator(PSI_memory_key key = PSI_NOT_INSTRUMENTED)
-#ifdef UNIV_PFS_MEMORY
 		: m_key(key)
-#endif /* UNIV_PFS_MEMORY */
 	{
 	}
+#else
+	ut_allocator() {}
+	ut_allocator(PSI_memory_key) {}
+#endif /* UNIV_PFS_MEMORY */
 
 	/** Constructor from allocator of another type. */
 	template <class U>
-	ut_allocator(
-		const ut_allocator<U>&	other)
+	ut_allocator(const ut_allocator<U>&
+#ifdef UNIV_PFS_MEMORY
+		     other
+#endif
+		     )
 #ifdef UNIV_PFS_MEMORY
 		: m_key(other.m_key)
 #endif /* UNIV_PFS_MEMORY */
@@ -321,6 +336,8 @@ public:
 #endif /* UNIV_PFS_MEMORY */
 	}
 
+	pointer allocate(size_type n) { return allocate(n, NULL, NULL); }
+
 	/** Allocate a chunk of memory that can hold 'n_elements' objects of
 	type 'T' and trace the allocation.
 	If the allocation fails this method may throw an exception. This
@@ -329,9 +346,6 @@ public:
 	After successfull allocation the returned pointer must be passed
 	to ut_allocator::deallocate() when no longer needed.
 	@param[in]	n_elements	number of elements
-	@param[in]	hint		pointer to a nearby memory location,
-	unused by this implementation
-	@param[in]	file		file name of the caller
 	@param[in]	set_to_zero	if true, then the returned memory is
 	initialized with 0x0 bytes.
 	@param[in]	throw_on_error	if true, raize exception if too big
@@ -339,8 +353,12 @@ public:
 	pointer
 	allocate(
 		size_type	n_elements,
-		const_pointer	hint = NULL,
-		const char*	file = NULL,
+		const_pointer,
+		const char*
+#ifdef UNIV_PFS_MEMORY
+		file /*!< file name of the caller */
+#endif
+		,
 		bool		set_to_zero = false,
 		bool		throw_on_error = true)
 	{
@@ -648,7 +666,11 @@ public:
 	void
 	deallocate_large(
 		pointer			ptr,
-		const ut_new_pfx_t*	pfx,
+		const ut_new_pfx_t*
+#ifdef UNIV_PFS_MEMORY
+		pfx
+#endif
+		,
 		size_t			size,
 		bool			dodump = false)
 	{
@@ -775,12 +797,7 @@ could be freed by A2 even if the pfs mem key is different. */
 template <typename T>
 inline
 bool
-operator==(
-	const ut_allocator<T>&	lhs,
-	const ut_allocator<T>&	rhs)
-{
-	return(true);
-}
+operator==(const ut_allocator<T>&, const ut_allocator<T>&) { return(true); }
 
 /** Compare two allocators of the same type. */
 template <typename T>

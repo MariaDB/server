@@ -490,7 +490,7 @@ btr_pcur_move_backward_from_page(
 
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 	ut_ad(btr_pcur_is_before_first_on_page(cursor));
-	ut_ad(!btr_pcur_is_before_first_in_tree(cursor, mtr));
+	ut_ad(!btr_pcur_is_before_first_in_tree(cursor));
 
 	latch_mode = cursor->latch_mode;
 
@@ -562,7 +562,7 @@ btr_pcur_move_to_prev(
 
 	if (btr_pcur_is_before_first_on_page(cursor)) {
 
-		if (btr_pcur_is_before_first_in_tree(cursor, mtr)) {
+		if (btr_pcur_is_before_first_in_tree(cursor)) {
 
 			return(FALSE);
 		}

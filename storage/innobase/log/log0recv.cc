@@ -1346,12 +1346,11 @@ parse_log:
 		break;
 	case MLOG_UNDO_INIT:
 		/* Allow anything in page_type when creating a page. */
-		ptr = trx_undo_parse_page_init(ptr, end_ptr, page, mtr);
+		ptr = trx_undo_parse_page_init(ptr, end_ptr, page);
 		break;
 	case MLOG_UNDO_HDR_REUSE:
 		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
-		ptr = trx_undo_parse_page_header_reuse(ptr, end_ptr, page,
-						       mtr);
+		ptr = trx_undo_parse_page_header_reuse(ptr, end_ptr, page);
 		break;
 	case MLOG_UNDO_HDR_CREATE:
 		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
@@ -1431,7 +1430,7 @@ parse_log:
 		break;
 	case MLOG_FILE_WRITE_CRYPT_DATA:
 		dberr_t err;
-		ptr = const_cast<byte*>(fil_parse_write_crypt_data(ptr, end_ptr, block, &err));
+		ptr = const_cast<byte*>(fil_parse_write_crypt_data(ptr, end_ptr, &err));
 
 		if (err != DB_SUCCESS) {
 			recv_sys->found_corrupt_log = TRUE;

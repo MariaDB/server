@@ -51,9 +51,8 @@ lock_prdt_lock(
 				SELECT FOR UPDATE */
 	ulint		type_mode,
 				/*!< in: LOCK_PREDICATE or LOCK_PRDT_PAGE */
-	que_thr_t*	thr,	/*!< in: query thread
+	que_thr_t*	thr);	/*!< in: query thread
 				(can be NULL if BTR_NO_LOCKING_FLAG) */
-	mtr_t*		mtr);	/*!< in/out: mini-transaction */
 
 /*********************************************************************//**
 Acquire a "Page" lock on a block
@@ -107,7 +106,6 @@ Update predicate lock when page splits */
 void
 lock_prdt_update_split(
 /*===================*/
-	buf_block_t*	block,		/*!< in/out: page to be split */
 	buf_block_t*	new_block,	/*!< in/out: the new half page */
 	lock_prdt_t*	prdt,		/*!< in: MBR on the old page */
 	lock_prdt_t*	new_prdt,	/*!< in: MBR on the new page */
@@ -123,7 +121,6 @@ lock_prdt_update_parent(
 	buf_block_t*	right_block,	/*!< in/out: the new half page */
 	lock_prdt_t*	left_prdt,	/*!< in: MBR on the old page */
 	lock_prdt_t*	right_prdt,	/*!< in: MBR on the new page */
-	lock_prdt_t*	parent_prdt,	/*!< in: original parent MBR */
 	ulint		space,		/*!< in: space id */
 	ulint		page_no);	/*!< in: page number */
 
