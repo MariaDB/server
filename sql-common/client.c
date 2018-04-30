@@ -1636,7 +1636,7 @@ MYSQL_DATA *cli_read_rows(MYSQL *mysql,MYSQL_FIELD *mysql_fields,
       else
       {
 	cur->data[field] = to;
-        if (to + len > end_to)
+        if (unlikely(len > (ulong)(end_to-to) || to > end_to))
         {
           free_rows(result);
           set_mysql_error(mysql, CR_MALFORMED_PACKET, unknown_sqlstate);
@@ -1708,7 +1708,7 @@ read_one_row(MYSQL *mysql,uint fields,MYSQL_ROW row, ulong *lengths)
     }
     else
     {
-      if (pos + len > end_pos)
+      if (unlikely(len > (ulong)(end_pos - pos) || pos > end_pos))
       {
         set_mysql_error(mysql, CR_UNKNOWN_ERROR, unknown_sqlstate);
         return -1;
