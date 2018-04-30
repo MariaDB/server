@@ -1838,6 +1838,7 @@ rec_copy_prefix_to_buf(
 	const byte*	nulls;
 	const byte*	lens;
 	ulint		prefix_len	= 0;
+	ulint		instant_len	= 0;
 
 	ut_ad(n_fields <= index->n_fields || dict_index_is_ibuf(index));
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
@@ -1892,6 +1893,8 @@ rec_copy_prefix_to_buf(
 		nulls = &rec[-REC_N_NEW_EXTRA_BYTES];
 		const ulint n_rec = ulint(index->n_core_fields) + 1
 			+ rec_get_n_add_field(nulls);
+		instant_len = ulint(&rec[-REC_N_NEW_EXTRA_BYTES] - nulls);
+		ut_ad(instant_len == 1 || instant_len == 2);
 		const uint n_nullable = index->get_n_nullable(n_rec);
 		lens = --nulls - UT_BITS_IN_BYTES(n_nullable);
 	}
@@ -1947,7 +1950,7 @@ rec_copy_prefix_to_buf(
 
 	UNIV_PREFETCH_R(rec + prefix_len);
 
-	prefix_len += ulint(rec - (lens + 1));
+	prefix_len += ulint(rec - (lens + 1)) - instant_len;
 
 	if ((*buf == NULL) || (*buf_size < prefix_len)) {
 		ut_free(*buf);
@@ -1955,9 +1958,21 @@ rec_copy_prefix_to_buf(
 		*buf = static_cast<byte*>(ut_malloc_nokey(prefix_len));
 	}
 
-	memcpy(*buf, lens + 1, prefix_len);
-
-	return(*buf + (rec - (lens + 1)));
+	if (instant_len) {
+		ulint hdr = ulint(&rec[-REC_N_NEW_EXTRA_BYTES] - (lens + 1))
+			- instant_len;
+		memcpy(*buf, lens + 1, hdr);
+		memcpy(*buf + hdr, &rec[-REC_N_NEW_EXTRA_BYTES],
+		       prefix_len - hdr);
+		ut_ad(rec_get_status(*buf + hdr + REC_N_NEW_EXTRA_BYTES)
+		      == REC_STATUS_COLUMNS_ADDED);
+		rec_set_status(*buf + hdr + REC_N_NEW_EXTRA_BYTES,
+			       REC_STATUS_ORDINARY);
+		return *buf + hdr + REC_N_NEW_EXTRA_BYTES;
+	} else {
+		memcpy(*buf, lens + 1, prefix_len);
+		return *buf + (rec - (lens + 1));
+	}
 }
 
 /***************************************************************//**
