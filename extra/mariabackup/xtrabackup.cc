@@ -97,7 +97,6 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include "backup_mysql.h"
 #include "backup_copy.h"
 #include "backup_mysql.h"
-#include "xb0xb.h"
 #include "encryption_plugin.h"
 #include <sql_plugin.h>
 #include <srv0srv.h>
@@ -296,6 +295,11 @@ my_bool opt_decompress = FALSE;
 my_bool opt_remove_original;
 
 my_bool opt_lock_ddl_per_table = FALSE;
+
+extern const char *innodb_checksum_algorithm_names[];
+extern TYPELIB innodb_checksum_algorithm_typelib;
+extern const char *innodb_flush_method_names[];
+extern TYPELIB innodb_flush_method_typelib;
 
 static const char *binlog_info_values[] = {"off", "lockless", "on", "auto",
 					   NullS};
@@ -617,6 +621,7 @@ enum options_xtrabackup
   OPT_INNODB_ADAPTIVE_HASH_INDEX,
   OPT_INNODB_DOUBLEWRITE,
   OPT_INNODB_FILE_PER_TABLE,
+  OPT_INNODB_FLUSH_METHOD,
   OPT_INNODB_LOG_GROUP_HOME_DIR,
   OPT_INNODB_MAX_DIRTY_PAGES_PCT,
   OPT_INNODB_MAX_PURGE_LAG,
@@ -1119,6 +1124,12 @@ struct my_option xb_server_options[] =
    (G_PTR*) &innobase_file_per_table, 0, GET_BOOL, NO_ARG,
    FALSE, 0, 0, 0, 0, 0},
 
+  {"innodb_flush_method", OPT_INNODB_FLUSH_METHOD,
+   "With which method to flush data.",
+   &srv_file_flush_method, &srv_file_flush_method,
+   &innodb_flush_method_typelib, GET_ENUM, REQUIRED_ARG,
+   IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_FSYNC), 0, 0, 0, 0, 0},
+
   {"innodb_log_buffer_size", OPT_INNODB_LOG_BUFFER_SIZE,
    "The size of the buffer which InnoDB uses to write log to the log files on disk.",
    (G_PTR*) &srv_log_buffer_size, (G_PTR*) &srv_log_buffer_size, 0,
@@ -1466,6 +1477,12 @@ xb_get_one_option(int optid,
   case OPT_INNODB_LOG_FILE_SIZE:
     break;
 
+  case OPT_INNODB_FLUSH_METHOD:
+    ut_a(srv_file_flush_method
+	 <= IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_O_DIRECT_NO_FSYNC));
+    ADD_PRINT_PARAM_OPT(innodb_flush_method_names[srv_file_flush_method]);
+    break;
+
   case OPT_INNODB_PAGE_SIZE:
 
     ADD_PRINT_PARAM_OPT(innobase_page_size);
@@ -1760,7 +1777,6 @@ static bool innodb_init_param()
 #ifdef _WIN32
 	srv_use_native_aio = TRUE;
 #endif
-	srv_file_flush_method = IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_FSYNC);
 	return false;
 
 error:

@@ -57,8 +57,6 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include "backup_copy.h"
 #include "backup_mysql.h"
 #include <btr0btr.h>
-#include "xb0xb.h"
-
 
 /* list of files to sync for --rsync mode */
 static std::set<std::string> rsync_list;

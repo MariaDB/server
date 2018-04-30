@@ -33,7 +33,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include "common.h"
 #include "read_filt.h"
 #include "xtrabackup.h"
-#include "xb0xb.h"
 
 /* Size of read buffer in pages (640 pages = 10M for 16K sized pages) */
 #define XB_FIL_CUR_PAGES 640

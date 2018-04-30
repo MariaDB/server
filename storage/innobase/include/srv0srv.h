@@ -658,8 +658,7 @@ extern PSI_stage_info	srv_stage_buffer_pool_load;
 #endif /* HAVE_PSI_STAGE_INTERFACE */
 
 
-/** Alternatives for the file flush option in Unix; see the InnoDB manual
-about what these mean */
+/** Alternatives for innodb_flush_method */
 enum srv_flush_t {
 	SRV_FSYNC = 0,	/*!< fsync, the default */
 	SRV_O_DSYNC,	/*!< open log files in O_SYNC mode */
@@ -686,7 +685,8 @@ enum srv_flush_t {
 				all files without caching, and do FileFlushBuffers()*/
 #endif
 };
-extern enum srv_flush_t	srv_file_flush_method;
+/** innodb_flush_method */
+extern ulong srv_file_flush_method;
 
 /** Alternatives for srv_force_recovery. Non-zero values are intended
 to help the user get a damaged database up so that he can dump intact

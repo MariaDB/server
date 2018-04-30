@@ -431,7 +431,7 @@ static TYPELIB innodb_lock_schedule_algorithm_typelib = {
 };
 
 /** Names of allowed values of innodb_flush_method */
-static const char* innodb_flush_method_names[] = {
+const char* innodb_flush_method_names[] = {
 	"fsync",
 	"O_DSYNC",
 	"littlesync",
@@ -447,7 +447,7 @@ static const char* innodb_flush_method_names[] = {
 };
 
 /** Enumeration of innodb_flush_method */
-static TYPELIB innodb_flush_method_typelib = {
+TYPELIB innodb_flush_method_typelib = {
 	array_elements(innodb_flush_method_names) - 1,
 	"innodb_flush_method_typelib",
 	innodb_flush_method_names,

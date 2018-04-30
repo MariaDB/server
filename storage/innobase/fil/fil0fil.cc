@@ -4691,7 +4691,7 @@ fil_aio_wait(
 		and can only end up here when writing a log checkpoint! */
 		ut_a(ptrdiff_t(message) == 1);
 		/* It was a checkpoint write */
-		switch (srv_file_flush_method) {
+		switch (srv_flush_t(srv_file_flush_method)) {
 		case SRV_O_DSYNC:
 		case SRV_NOSYNC:
 			break;
