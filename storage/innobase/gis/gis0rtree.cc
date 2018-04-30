@@ -1849,6 +1849,8 @@ rtr_estimate_n_rows_in_range(
 	const dtuple_t*	tuple,
 	page_cur_mode_t	mode)
 {
+	ut_ad(dict_index_is_spatial(index));
+
 	/* Check tuple & mode */
 	if (tuple->n_fields == 0) {
 		return(HA_POS_ERROR);
@@ -1870,35 +1872,31 @@ rtr_estimate_n_rows_in_range(
 	);
 
 	/* Read mbr from tuple. */
-	const dfield_t*	dtuple_field;
-	ulint		dtuple_f_len MY_ATTRIBUTE((unused));
 	rtr_mbr_t	range_mbr;
 	double		range_area;
-	byte*		range_mbr_ptr;
+	const byte*	range_mbr_ptr;
 
-	dtuple_field = dtuple_get_nth_field(tuple, 0);
-	dtuple_f_len = dfield_get_len(dtuple_field);
-	range_mbr_ptr = reinterpret_cast<byte*>(dfield_get_data(dtuple_field));
+	const dfield_t* dtuple_field = dtuple_get_nth_field(tuple, 0);
+	ut_ad(dfield_get_len(dtuple_field) >= DATA_MBR_LEN);
+	range_mbr_ptr = reinterpret_cast<const byte*>(
+		dfield_get_data(dtuple_field));
 
-	ut_ad(dtuple_f_len >= DATA_MBR_LEN);
 	rtr_read_mbr(range_mbr_ptr, &range_mbr);
 	range_area = (range_mbr.xmax - range_mbr.xmin)
 		 * (range_mbr.ymax - range_mbr.ymin);
 
 	/* Get index root page. */
 	mtr_t		mtr;
-	buf_block_t*	block;
-	page_t*		page;
 
 	mtr.start();
 	index->set_modified(mtr);
 	mtr_s_lock(&index->lock, &mtr);
 
-	block = btr_block_get(
+	buf_block_t* block = btr_block_get(
 		page_id_t(index->table->space->id, index->page),
 		page_size_t(index->table->space->flags),
 		RW_S_LATCH, index, &mtr);
-	page = buf_block_get_frame(block);
+	const page_t* page = buf_block_get_frame(block);
 	const unsigned n_recs = page_header_get_field(page, PAGE_N_RECS);
 
 	if (n_recs == 0) {
@@ -1906,27 +1904,16 @@ rtr_estimate_n_rows_in_range(
 		return(HA_POS_ERROR);
 	}
 
-	rec_t*		rec;
-	byte*		field;
-	ulint		len;
-	ulint*		offsets = NULL;
-	mem_heap_t*	heap;
-
-	heap = mem_heap_create(512);
-	rec = page_rec_get_next(page_get_infimum_rec(page));
-	offsets = rec_get_offsets(rec, index, offsets, page_rec_is_leaf(rec),
-				  ULINT_UNDEFINED, &heap);
-
 	/* Scan records in root page and calculate area. */
 	double	area = 0;
-	while (!page_rec_is_supremum(rec)) {
+	for (const rec_t* rec = page_rec_get_next(
+		     page_get_infimum_rec(block->frame));
+	     !page_rec_is_supremum(rec);
+	     rec = page_rec_get_next_const(rec)) {
 		rtr_mbr_t	mbr;
 		double		rec_area;
 
-		field = rec_get_nth_field(rec, offsets, 0, &len);
-		ut_ad(len == DATA_MBR_LEN);
-
-		rtr_read_mbr(field, &mbr);
+		rtr_read_mbr(rec, &mbr);
 
 		rec_area = (mbr.xmax - mbr.xmin) * (mbr.ymax - mbr.ymin);
 
@@ -1943,8 +1930,8 @@ rtr_estimate_n_rows_in_range(
 			case PAGE_CUR_WITHIN:
 			case PAGE_CUR_MBR_EQUAL:
 				if (rtree_key_cmp(
-					PAGE_CUR_WITHIN, range_mbr_ptr,
-					DATA_MBR_LEN, field, DATA_MBR_LEN)
+					    PAGE_CUR_WITHIN, range_mbr_ptr,
+					    DATA_MBR_LEN, rec, DATA_MBR_LEN)
 				    == 0) {
 					area += 1;
 				}
@@ -1958,22 +1945,23 @@ rtr_estimate_n_rows_in_range(
 			switch (mode) {
 			case PAGE_CUR_CONTAIN:
 			case PAGE_CUR_INTERSECT:
-				area += rtree_area_overlapping(range_mbr_ptr,
-						field, DATA_MBR_LEN) / rec_area;
+				area += rtree_area_overlapping(
+					range_mbr_ptr, rec, DATA_MBR_LEN)
+					/ rec_area;
 				break;
 
 			case PAGE_CUR_DISJOINT:
 				area += 1;
-				area -= rtree_area_overlapping(range_mbr_ptr,
-						field, DATA_MBR_LEN) / rec_area;
+				area -= rtree_area_overlapping(
+					range_mbr_ptr, rec, DATA_MBR_LEN)
+					/ rec_area;
 				break;
 
 			case PAGE_CUR_WITHIN:
 			case PAGE_CUR_MBR_EQUAL:
-				if (rtree_key_cmp(
-					PAGE_CUR_WITHIN, range_mbr_ptr,
-					DATA_MBR_LEN, field, DATA_MBR_LEN)
-				    == 0) {
+				if (!rtree_key_cmp(
+					    PAGE_CUR_WITHIN, range_mbr_ptr,
+					    DATA_MBR_LEN, rec, DATA_MBR_LEN)) {
 					area += range_area / rec_area;
 				}
 
@@ -1982,12 +1970,9 @@ rtr_estimate_n_rows_in_range(
 				ut_error;
 			}
 		}
-
-		rec = page_rec_get_next(rec);
 	}
 
 	mtr.commit();
-	mem_heap_free(heap);
 
 	if (!isfinite(area)) {
 		return(HA_POS_ERROR);
