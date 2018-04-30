@@ -5596,19 +5596,19 @@ dict_index_copy_rec_order_prefix(
 	UNIV_PREFETCH_R(rec);
 
 	if (dict_index_is_ibuf(index)) {
-		ut_a(!dict_table_is_comp(index->table));
+		ut_ad(!dict_table_is_comp(index->table));
 		n = rec_get_n_fields_old(rec);
 	} else {
 		if (page_rec_is_leaf(rec)) {
 			n = dict_index_get_n_unique_in_tree(index);
+		} else if (dict_index_is_spatial(index)) {
+			ut_ad(dict_index_get_n_unique_in_tree_nonleaf(index)
+			      == DICT_INDEX_SPATIAL_NODEPTR_SIZE);
+			/* For R-tree, we have to compare
+			the child page numbers as well. */
+			n = DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1;
 		} else {
-			n = dict_index_get_n_unique_in_tree_nonleaf(index);
-			/* For internal node of R-tree, since we need to
-			compare the page no field, so, we need to copy this
-			field as well. */
-			if (dict_index_is_spatial(index)) {
-				n++;
-			}
+			n = dict_index_get_n_unique_in_tree(index);
 		}
 	}
 

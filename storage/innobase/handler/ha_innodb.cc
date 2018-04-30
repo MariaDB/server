@@ -11262,7 +11262,6 @@ create_index(
 	dict_index_t*	index;
 	int		error;
 	const KEY*	key;
-	ulint		ind_type;
 	ulint*		field_lengths;
 
 	DBUG_ENTER("create_index");
@@ -11272,17 +11271,13 @@ create_index(
 	/* Assert that "GEN_CLUST_INDEX" cannot be used as non-primary index */
 	ut_a(innobase_strcasecmp(key->name.str, innobase_index_reserve_name) != 0);
 
-	ind_type = 0;
-	if (key->flags & HA_SPATIAL) {
-		ind_type = DICT_SPATIAL;
-	} else if (key->flags & HA_FULLTEXT) {
-		ind_type = DICT_FTS;
-	}
-
-	if (ind_type != 0)
-	{
+	if (key->flags & (HA_SPATIAL | HA_FULLTEXT)) {
+		/* Only one of these can be specified at a time. */
+		ut_ad(~key->flags & (HA_SPATIAL | HA_FULLTEXT));
+		ut_ad(!(key->flags & HA_NOSAME));
 		index = dict_mem_index_create(table, key->name.str,
-					      ind_type,
+					      (key->flags & HA_SPATIAL)
+					      ? DICT_SPATIAL : DICT_FTS,
 					      key->user_defined_key_parts);
 
 		for (ulint i = 0; i < key->user_defined_key_parts; i++) {
@@ -11305,7 +11300,7 @@ create_index(
 				    table->flags, NULL));
 	}
 
-	ind_type = 0;
+	ulint ind_type = 0;
 
 	if (key_num == form->s->primary_key) {
 		ind_type |= DICT_CLUSTERED;

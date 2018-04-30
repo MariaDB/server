@@ -1836,11 +1836,8 @@ rec_copy_prefix_to_buf(
 	ulint*			buf_size)	/*!< in/out: buffer size */
 {
 	const byte*	nulls;
-	const byte*	UNINIT_VAR(lens);
-	ulint		i;
-	ulint		prefix_len;
-	ulint		null_mask;
-	bool		is_rtr_node_ptr = false;
+	const byte*	lens;
+	ulint		prefix_len	= 0;
 
 	ut_ad(n_fields <= index->n_fields || dict_index_is_ibuf(index));
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
@@ -1855,8 +1852,7 @@ rec_copy_prefix_to_buf(
 	}
 
 	switch (rec_get_status(rec)) {
-	case REC_STATUS_INFIMUM:
-	case REC_STATUS_SUPREMUM:
+	default:
 		/* infimum or supremum record: no sense to copy anything */
 		ut_error;
 		return(NULL);
@@ -1866,18 +1862,28 @@ rec_copy_prefix_to_buf(
 		lens = nulls - index->n_core_null_bytes;
 		break;
 	case REC_STATUS_NODE_PTR:
-		/* For R-tree, we need to copy the child page number field. */
-		if (dict_index_is_spatial(index)) {
-			ut_ad(n_fields == DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1);
-			is_rtr_node_ptr = true;
-		} else {
-			/* it doesn't make sense to copy the child page number
-			field */
-			ut_ad(n_fields <=
-			      dict_index_get_n_unique_in_tree_nonleaf(index));
-		}
 		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
 		lens = nulls - index->n_core_null_bytes;
+		/* For R-tree, we need to copy the child page number field. */
+		compile_time_assert(DICT_INDEX_SPATIAL_NODEPTR_SIZE == 1);
+		if (dict_index_is_spatial(index)) {
+			ut_ad(index->n_core_null_bytes == 0);
+			ut_ad(n_fields == DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1);
+			ut_ad(index->fields[0].col->prtype & DATA_NOT_NULL);
+			ut_ad(DATA_BIG_COL(index->fields[0].col));
+			/* This is a deficiency of the format introduced
+			in MySQL 5.7. The length in the R-tree index should
+			always be DATA_MBR_LEN. */
+			ut_ad(!index->fields[0].fixed_len);
+			ut_ad(*lens == DATA_MBR_LEN);
+			lens--;
+			prefix_len = DATA_MBR_LEN + REC_NODE_PTR_SIZE;
+			n_fields = 0; /* skip the "for" loop below */
+			break;
+		}
+		/* it doesn't make sense to copy the child page number field */
+		ut_ad(n_fields
+		      <= dict_index_get_n_unique_in_tree_nonleaf(index));
 		break;
 	case REC_STATUS_COLUMNS_ADDED:
 		/* We would have !index->is_instant() when rolling back
@@ -1891,11 +1897,9 @@ rec_copy_prefix_to_buf(
 	}
 
 	UNIV_PREFETCH_R(lens);
-	prefix_len = 0;
-	null_mask = 1;
 
 	/* read the lengths of fields 0..n */
-	for (i = 0; i < n_fields; i++) {
+	for (ulint i = 0, null_mask = 1; i < n_fields; i++) {
 		const dict_field_t*	field;
 		const dict_col_t*	col;
 
@@ -1917,11 +1921,7 @@ rec_copy_prefix_to_buf(
 			null_mask <<= 1;
 		}
 
-		if (is_rtr_node_ptr && i == 1) {
-			/* For rtree node ptr rec, we need to
-			copy the page no field with 4 bytes len. */
-			prefix_len += 4;
-		} else if (field->fixed_len) {
+		if (field->fixed_len) {
 			prefix_len += field->fixed_len;
 		} else {
 			ulint	len = *lens--;
