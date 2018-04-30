@@ -485,7 +485,8 @@ err_with_reopen:
       old locks. This should always succeed (unless some external process
       has removed the tables)
     */
-    thd->locked_tables_list.reopen_tables(thd);
+    if (thd->locked_tables_list.reopen_tables(thd))
+      result= true;
     /*
       Since downgrade_lock() won't do anything with shared
       metadata lock it is much simpler to go through all open tables rather
@@ -1480,6 +1481,16 @@ open_table_get_mdl_lock(THD *thd, Open_table_context *ot_ctx,
   return FALSE;
 }
 
+/* Set all [named] partitions as used. */
+static int set_partitions_as_used(TABLE_LIST *tl, TABLE *t)
+{
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (t->part_info)
+    return t->file->change_partitions_to_open(tl->partition_names);
+#endif
+  return 0;
+}
+
 
 /**
   Open a base table.
@@ -1622,12 +1633,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       table= best_table;
       table->query_id= thd->query_id;
       DBUG_PRINT("info",("Using locked table"));
-      if (table->part_info)
-      {
-        /* Set all [named] partitions as used. */
-        part_names_error=
-          table->file->change_partitions_to_open(table_list->partition_names);
-      }
+      part_names_error= set_partitions_as_used(table_list, table);
       goto reset;
     }
     /*
@@ -1912,12 +1918,7 @@ retry_share:
   {
     DBUG_ASSERT(table->file != NULL);
     MYSQL_REBIND_TABLE(table->file);
-    if (table->part_info)
-    {
-      /* Set all [named] partitions as used. */
-      part_names_error=
-        table->file->change_partitions_to_open(table_list->partition_names);
-    }
+    part_names_error= set_partitions_as_used(table_list, table);
   }
   else
   {
@@ -1931,7 +1932,7 @@ retry_share:
                                  HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
                                  EXTRA_RECORD,
                                  thd->open_options, table, FALSE,
-                                 table_list->partition_names);
+                                 IF_PARTITIONING(table_list->partition_names,0));
 
     if (error)
     {
@@ -2453,7 +2454,7 @@ Locked_tables_list::reopen_tables(THD *thd)
       break something else.
     */
     lock= mysql_lock_tables(thd, m_reopen_array, reopen_count,
-                            MYSQL_OPEN_REOPEN);
+                            MYSQL_OPEN_REOPEN | MYSQL_LOCK_USE_MALLOC);
     thd->in_lock_tables= 0;
     if (lock == NULL || (merged_lock=
                          mysql_lock_merge(thd->lock, lock)) == NULL)
@@ -6566,7 +6567,7 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
   Query_arena *arena, backup;
   bool result= TRUE;
   bool first_outer_loop= TRUE;
-  Field *field_1, *field_2;
+  Field *field_1;
   field_visibility_t field_1_invisible, field_2_invisible;
   /*
     Leaf table references to which new natural join columns are added
@@ -6590,6 +6591,8 @@ mark_common_columns(THD *thd, TABLE_LIST *table_ref_1, TABLE_LIST *table_ref_2,
   {
     bool found= FALSE;
     const LEX_CSTRING *field_name_1;
+    Field *field_2= 0;
+
     /* true if field_name_1 is a member of using_fields */
     bool is_using_column_1;
     if (!(nj_col_1= it_1.get_or_create_column_ref(thd, leaf_1)))
@@ -8840,31 +8843,10 @@ open_log_table(THD *thd, TABLE_LIST *one_table, Open_tables_backup *backup)
 
   if ((table= open_ltable(thd, one_table, one_table->lock_type, flags)))
   {
-    if (table->s->table_category == TABLE_CATEGORY_LOG)
-    {
-      /* Make sure all columns get assigned to a default value */
-      table->use_all_columns();
-      DBUG_ASSERT(table->s->no_replicate);
-    }
-    else
-    {
-      my_error(ER_NOT_LOG_TABLE, MYF(0), table->s->db.str, table->s->table_name.str);
-      int error= 0;
-      if (table->current_lock != F_UNLCK)
-      {
-        table->current_lock= F_UNLCK;
-        error= table->file->ha_external_lock(thd, F_UNLCK);
-      }
-      if (error)
-        table->file->print_error(error, MYF(0));
-      else
-      {
-        tc_release_table(table);
-        thd->reset_open_tables_state(thd);
-        thd->restore_backup_open_tables_state(backup);
-        table= NULL;
-      }
-    }
+    DBUG_ASSERT(table->s->table_category == TABLE_CATEGORY_LOG);
+    /* Make sure all columns get assigned to a default value */
+    table->use_all_columns();
+    DBUG_ASSERT(table->s->no_replicate);
   }
   else
     thd->restore_backup_open_tables_state(backup);

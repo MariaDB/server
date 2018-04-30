@@ -95,7 +95,7 @@ Zero if the create is successful. Non-zero if an error occurs.
 
 HA_WRONG_CREATE_OPTION
  means that some of the arguments was wrong.
-appart from the above one can get any unix error that one can get from open(), write() or close().
+apart from the above one can get any unix error that one can get from open(), write() or close().
 
 #.#.4 Examples
 
@@ -169,7 +169,7 @@ The function parameter can be:
 HA_EXTRA_QUICK=1			Optimize for speed 
 HA_EXTRA_RESET=2			Reset database to after open 
 HA_EXTRA_CACHE=3			Cash record in HA_rrnd() 
-HA_EXTRA_NO_CACHE=4			End cacheing of records (def) 
+HA_EXTRA_NO_CACHE=4			End caching of records (def) 
 HA_EXTRA_NO_READCHECK=5		No readcheck on update 
 HA_EXTRA_READCHECK=6			Use readcheck (def) 
 HA_EXTRA_KEYREAD=7			Read only key to database 
@@ -335,7 +335,7 @@ int mi_rfirst(MI_INFO *mip , byte *buf, int inx)
 #.#.1 Description
 
 Reads the first row in the MyISAM file according to the specified index.
-If one want's to read rows in physical sequences, then one should instead use mi_scan() or mi_rrnd().
+If one wants to read rows in physical sequences, then one should instead use mi_scan() or mi_rrnd().
 
 mip is an MI_INFO pointer to the open handle.
 buf is the record buffer that will contain the row.
@@ -364,7 +364,7 @@ int mi_rkey(MI_INFO *mip, byte *buf, int inx, const byte *key, uint key_len, enu
 #.#.1 Description
 
 Reads the next row after the last row read, using the current index. 
-If one want's to read rows in physical sequences, then one should instead use mi_scan() or mi_rrnd().
+If one wants to read rows in physical sequences, then one should instead use mi_scan() or mi_rrnd().
 
 mip is an MI_INFO pointer to the open handle.
 buf is the record buffer that will contain the row.
@@ -397,7 +397,7 @@ int mi_rlast(MI_INFO *mip , byte *buf, int inx)
 #.#.1 Description
 
 Reads the last row in the MyISAM file according to the specified index.
-If one want's to read rows in physical sequences, then one should instead use mi_scan() or mi_rrnd().
+If one wants to read rows in physical sequences, then one should instead use mi_scan() or mi_rrnd().
 mip is an MI_INFO pointer to the open handle.
 buf is a pointer to the record buffer that will contain the row.
 Inx is the index (key) number, which must be the same as currently selected.
@@ -425,7 +425,7 @@ int mi_rnext(MI_INFO *mip , byte *buf, int inx )
 #.#.1 Description
 
 Reads the next row after the last row read, using the current index. 
-If one want's to read rows in physical sequences, then one should instead use mi_scan() or mi_rrnd().
+If one wants to read rows in physical sequences, then one should instead use mi_scan() or mi_rrnd().
 
 mip is an MI_INFO pointer to the open handle.
 buf is the record buffer that will contain the row.
@@ -520,7 +520,7 @@ int mi_rsame(MI_INFO *mip, byte *buf, int inx)
 
 Reads the current row to get its latest contents. This is useful to refresh the record buffer in case someone else has changed it.
 If inx is negative it reads by position. If inx is >= 0 it reads by key.
-With mi_rsame() one can switch to use any other index for the current row. This is good if you have a user application that lets the user do 'read-next' on a row.  In this case, if the user want's to start scanning on another index, one simply has to do a mi_rsame() on the new index to activate this.
+With mi_rsame() one can switch to use any other index for the current row. This is good if you have a user application that lets the user do 'read-next' on a row.  In this case, if the user wants to start scanning on another index, one simply has to do a mi_rsame() on the new index to activate this.
 
 mip is an MI_INFO pointer to the open handle.
 buf is the record buffer that will contain the row.
@@ -677,7 +677,7 @@ Zero if successful. Non-zero if an error occurred.
 HA_ERR_FOUND_DUPP_KEY
 A record already existed with a unique key same as this new record.
 HA_ERR_RECORD_FILE_FULL
-The error is given if you hit a system limit or if you try to create more rows in a table that you reserverd room for with mi_create().
+The error is given if you hit a system limit or if you try to create more rows in a table that you reserved room for with mi_create().
 ENOSPC
 The disk is full.
 EACCES
@@ -770,7 +770,7 @@ uint _mi_make_key( MI_INFO *mip, uint keynr, uchar *key, const char *record, my_
 Construct a key string for the given index, from the provided record buffer.
 ??? When packed records are used ...
 This is an internal function, not for use by applications. Monty says: "This can't be used to create an external key for an application from your record."
-See mi_make_application_key() for a similar function that is useable by applications.
+See mi_make_application_key() for a similar function that is usable by applications.
 
 The parameters are:
 A MI_INFO pointer mip.
@@ -872,7 +872,7 @@ HEAP tables only exists in memory so they are lost if `mysqld' is taken down or 
 
 The *MySQL* internal HEAP tables uses 100% dynamic hashing without overflow areas and don't have problems with delete. 
 
-You can only access things by equality using a index (usually by the `=' operator) whith a heap table. 
+You can only access things by equality using a index (usually by the `=' operator) with a heap table. 
 The downside with HEAPS are: 
   1. You need enough extra memory for all HEAP tables that you want to use at the same time. 
   2. You can't search on a part of a index. 

@@ -56,6 +56,8 @@ Created July 17, 2007 Vasil Dimov
 #include "trx0sys.h"
 #include "trx0trx.h"
 #include "ut0mem.h"
+#include "que0que.h"
+#include "trx0purge.h"
 
 /** Initial number of rows in the table cache */
 #define TABLE_CACHE_INITIAL_ROWSNUM	1024
@@ -1275,17 +1277,6 @@ static void fetch_data_into_cache_low(trx_i_s_cache_t *cache, const trx_t *trx)
 }
 
 
-static my_bool fetch_data_into_cache_callback(
-  rw_trx_hash_element_t *element, trx_i_s_cache_t *cache)
-{
-  mutex_enter(&element->mutex);
-  if (element->trx)
-    fetch_data_into_cache_low(cache, element->trx);
-  mutex_exit(&element->mutex);
-  return cache->is_truncated;
-}
-
-
 /**
   Fetches the data needed to fill the 3 INFORMATION SCHEMA tables into the
   table cache buffer. Cache must be locked for write.
@@ -1296,24 +1287,13 @@ static void fetch_data_into_cache(trx_i_s_cache_t *cache)
   ut_ad(lock_mutex_own());
   trx_i_s_cache_clear(cache);
 
-  /*
-    Capture the state of the read-write transactions. This includes
-    internal transactions too. They are not on mysql_trx_list
-  */
-  trx_sys.rw_trx_hash.iterate_no_dups(reinterpret_cast<my_hash_walk_action>
-                                      (fetch_data_into_cache_callback), cache);
-
-  /* Capture the state of the read-only active transactions */
+  /* Capture the state of transactions */
   mutex_enter(&trx_sys.mutex);
-  for (const trx_t *trx= UT_LIST_GET_FIRST(trx_sys.mysql_trx_list);
+  for (const trx_t *trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
        trx != NULL;
-       trx= UT_LIST_GET_NEXT(mysql_trx_list, trx))
+       trx= UT_LIST_GET_NEXT(trx_list, trx))
   {
-    /*
-      Skip transactions that have trx->id > 0: they were added in previous
-      iteration. Although we may miss concurrently started transactions.
-    */
-    if (trx_is_started(trx) && trx->id == 0)
+    if (trx_is_started(trx) && trx != purge_sys.query->trx)
     {
       fetch_data_into_cache_low(cache, trx);
       if (cache->is_truncated)

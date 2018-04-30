@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -181,19 +182,16 @@ public:
 	/** Create an index for a table.
 	@param[in]	table_name		table name, for which to create
 	the index
-	@param[in]	space_id		space id where we have to
-	create the index
-	@param[in]	page_size		page size of the .ibd file
+	@param[in,out]	space			tablespace
 	@param[in]	index_type		type of index to truncate
 	@param[in]	index_id		id of index to truncate
 	@param[in]	btr_redo_create_info	control info for ::btr_create()
 	@param[in,out]	mtr			mini-transaction covering the
 	create index
 	@return root page no or FIL_NULL on failure */
-	ulint create_index(
+	inline ulint create_index(
 		const char*		table_name,
-		ulint			space_id,
-		const page_size_t&	page_size,
+		fil_space_t*		space,
 		ulint			index_type,
 		index_id_t      	index_id,
 		const btr_create_t&	btr_redo_create_info,
@@ -202,31 +200,27 @@ public:
 	/** Create the indexes for a table
 	@param[in]	table_name	table name, for which to create the
 	indexes
-	@param[in]	space_id	space id where we have to create the
-	indexes
-	@param[in]	page_size	page size of the .ibd file
-	@param[in]	flags		tablespace flags
+	@param[in,out]	space		tablespace
 	@param[in]	format_flags	page format flags
 	@return DB_SUCCESS or error code. */
-	dberr_t create_indexes(
+	inline dberr_t create_indexes(
 		const char*		table_name,
-		ulint			space_id,
-		const page_size_t&	page_size,
-		ulint			flags,
+		fil_space_t*		space,
 		ulint			format_flags);
 
 	/** Check if index has been modified since TRUNCATE log snapshot
 	was recorded.
-	@param space_id	space_id where table/indexes resides.
+	@param[in]	space		tablespace
+	@param[in]	root_page_no	index root page number
 	@return true if modified else false */
-	bool is_index_modified_since_logged(
-		ulint		space_id,
-		ulint		root_page_no) const;
+	inline bool is_index_modified_since_logged(
+		const fil_space_t*	space,
+		ulint			root_page_no) const;
 
 	/** Drop indexes for a table.
-	@param space_id		space_id where table/indexes resides.
+	@param[in,out] space		tablespace
 	@return DB_SUCCESS or error code. */
-	void drop_indexes(ulint	space_id) const;
+	void drop_indexes(fil_space_t* space) const;
 
 	/**
 	Parses log record during recovery

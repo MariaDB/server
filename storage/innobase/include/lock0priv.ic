@@ -32,6 +32,8 @@ methods but they are used only in that file. */
 #error Do not include lock0priv.ic outside of the lock/ module
 #endif
 
+#include "row0row.h"
+
 /*********************************************************************//**
 Gets the type of a lock.
 @return LOCK_TABLE or LOCK_REC */

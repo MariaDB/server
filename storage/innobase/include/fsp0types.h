@@ -196,17 +196,6 @@ fsp_is_system_temporary(ulint	space_id)
 {
 	return(space_id == SRV_TMP_SPACE_ID);
 }
-
-#ifdef UNIV_DEBUG
-/** Skip some of the sanity checks that are time consuming even in debug mode
-and can affect frequent verification runs that are done to ensure stability of
-the product.
-@return true if check should be skipped for given space. */
-bool
-fsp_skip_sanity_check(
-	ulint	space_id);
-#endif /* UNIV_DEBUG */
-
 #endif /* !UNIV_INNOCHECKSUM */
 
 /* @defgroup fsp_flags InnoDB Tablespace Flag Constants @{ */

@@ -72,8 +72,7 @@ int main(int argc, char **argv)
   static char **defaults_argv;
   MY_INIT(argv[0]);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
-  if (load_defaults("my",load_default_groups,&argc,&argv))
-    exit(1);
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   defaults_argv=argv;
 
   get_options(&argc,&argv);

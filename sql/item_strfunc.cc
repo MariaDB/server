@@ -317,7 +317,7 @@ String *Item_aes_crypt::val_str(String *str2)
 {
   DBUG_ASSERT(fixed == 1);
   StringBuffer<80> user_key_buf;
-  String *sptr= args[0]->val_str(&str_value);
+  String *sptr= args[0]->val_str(&tmp_value);
   String *user_key=  args[1]->val_str(&user_key_buf);
   uint32 aes_length;
 
@@ -2116,6 +2116,7 @@ void Item_func_trim::print(String *str, enum_query_type query_type)
     return;
   }
   str->append(Item_func_trim::func_name());
+  str->append(func_name_ext());
   str->append('(');
   str->append(mode_name());
   str->append(' ');

@@ -80,7 +80,6 @@ const char *wsrep_node_name;
 const char *wsrep_node_address;
 const char *wsrep_node_incoming_address;
 const char *wsrep_start_position;
-ulong   wsrep_reject_queries;
 const char *wsrep_data_home_dir;
 const char *wsrep_dbug_option;
 const char *wsrep_notify_cmd;
@@ -153,7 +152,10 @@ mysql_mutex_t LOCK_wsrep_desync;
 mysql_mutex_t LOCK_wsrep_config_state;
 mysql_mutex_t LOCK_wsrep_SR_pool;
 mysql_mutex_t LOCK_wsrep_SR_store;
-mysql_mutex_t LOCK_wsrep_thd_pool;
+mysql_mutex_t LOCK_wsrep_thd_pool; /* locking policy:
+                                      1. LOCK_wsrep_slave_threads
+                                      2. LOCK_wsrep_thd_pool
+                                   */
 
 int wsrep_replaying= 0;
 ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
@@ -350,7 +352,7 @@ void wsrep_init_schema()
   if (!wsrep_schema)
   {
     if (wsrep_before_SE()) {
-      DBUG_ASSERT(!wsrep_thd_pool);
+      delete wsrep_thd_pool;
       wsrep_thd_pool= new Wsrep_thd_pool(WSREP_THD_POOL_SIZE);
     }
     wsrep_schema= new Wsrep_schema(wsrep_thd_pool);
@@ -588,11 +590,11 @@ wsrep_view_handler_cb(void*                    app_ctx,
 
   if (memcmp(&cluster_uuid, &view->state_id.uuid, sizeof(wsrep_uuid_t)))
   {
-    memcpy((wsrep_uuid_t*)&cluster_uuid, &view->state_id.uuid,
-           sizeof(cluster_uuid));
+      memcpy((wsrep_uuid_t*)&cluster_uuid, &view->state_id.uuid,
+             sizeof(cluster_uuid));
 
-    wsrep_uuid_print (&cluster_uuid, cluster_uuid_str,
-                      sizeof(cluster_uuid_str));
+      wsrep_uuid_print (&cluster_uuid, cluster_uuid_str,
+                        sizeof(cluster_uuid_str));
   }
 
   /*
@@ -1262,6 +1264,7 @@ void wsrep_thr_deinit()
 {
   if (!wsrep_config_state)
     return;                                     // Never initialized
+  WSREP_DEBUG("wsrep_thr_deinit");
   mysql_mutex_destroy(&LOCK_wsrep_ready);
   mysql_cond_destroy(&COND_wsrep_ready);
   mysql_mutex_destroy(&LOCK_wsrep_sst);
@@ -1337,9 +1340,6 @@ void wsrep_stop_replication(THD *thd)
   delete wsrep_schema;
   wsrep_schema= 0;
 
-  delete wsrep_thd_pool;
-  wsrep_thd_pool= 0;
-
   return;
 }
 
@@ -1411,7 +1411,7 @@ bool wsrep_start_replication()
   if (!wsrep_before_SE())
   {
     WSREP_DEBUG("thd pool init for mysqldump SST");
-    DBUG_ASSERT(!wsrep_thd_pool);
+    if (wsrep_thd_pool) delete wsrep_thd_pool;
     wsrep_thd_pool= new Wsrep_thd_pool(WSREP_THD_POOL_SIZE);
   }
   wsrep_init_SR_pool();
@@ -3491,7 +3491,7 @@ void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode)
 
 void wsrep_thd_set_conflict_state(THD *thd, enum wsrep_conflict_state state)
 {
-  thd->set_wsrep_conflict_state(state);
+    if (WSREP(thd)) thd->set_wsrep_conflict_state(state);
 }
 
 
@@ -3633,6 +3633,7 @@ void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id)
 
 void wsrep_thd_awake(THD *thd, my_bool signal)
 {
+  WSREP_DEBUG("wsrep_thd_awake %lu %d", thd->thread_id, signal);
   if (signal)
   {
     thd->awake(KILL_QUERY);

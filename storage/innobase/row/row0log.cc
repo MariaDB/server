@@ -171,7 +171,7 @@ When head.blocks == tail.blocks, the reader will access tail.block
 directly. When also head.bytes == tail.bytes, both counts will be
 reset to 0 and the file will be truncated. */
 struct row_log_t {
-	int		fd;	/*!< file descriptor */
+	pfs_os_file_t	fd;	/*!< file descriptor */
 	ib_mutex_t	mutex;	/*!< mutex protecting error,
 				max_trx and tail */
 	page_no_map*	blobs;	/*!< map of page numbers of off-page columns
@@ -226,18 +226,18 @@ struct row_log_t {
 @param[in,out] log     online rebuild log
 @return true if success, false if not */
 static MY_ATTRIBUTE((warn_unused_result))
-int
+pfs_os_file_t
 row_log_tmpfile(
 	row_log_t*	log)
 {
 	DBUG_ENTER("row_log_tmpfile");
-	if (log->fd < 0) {
+	if (log->fd == OS_FILE_CLOSED) {
 		log->fd = row_merge_file_create_low(log->path);
 		DBUG_EXECUTE_IF("row_log_tmpfile_fail",
-				if (log->fd > 0)
+				if (log->fd != OS_FILE_CLOSED)
 					row_merge_file_destroy_low(log->fd);
-				log->fd = -1;);
-		if (log->fd >= 0) {
+				log->fd = OS_FILE_CLOSED;);
+		if (log->fd != OS_FILE_CLOSED) {
 			MONITOR_ATOMIC_INC(MONITOR_ALTER_TABLE_LOG_FILES);
 		}
 	}
@@ -392,7 +392,7 @@ row_log_online_op(
 
 		UNIV_MEM_ASSERT_RW(buf, srv_sort_buf_size);
 
-		if (row_log_tmpfile(log) < 0) {
+		if (row_log_tmpfile(log) == OS_FILE_CLOSED) {
 			log->error = DB_OUT_OF_MEMORY;
 			goto err_exit;
 		}
@@ -403,7 +403,7 @@ row_log_online_op(
 			if (!log_tmp_block_encrypt(
 				    buf, srv_sort_buf_size,
 				    log->crypt_tail, byte_offset,
-				    index->table->space)) {
+				    index->table->space->id)) {
 				log->error = DB_DECRYPTION_FAILED;
 				goto write_failed;
 			}
@@ -413,7 +413,7 @@ row_log_online_op(
 		}
 
 		log->tail.blocks++;
-		if (!os_file_write_int_fd(
+		if (!os_file_write(
 			    request,
 			    "(modification log)",
 			    log->fd,
@@ -528,7 +528,7 @@ row_log_table_close_func(
 
 		UNIV_MEM_ASSERT_RW(buf, srv_sort_buf_size);
 
-		if (row_log_tmpfile(log) < 0) {
+		if (row_log_tmpfile(log) == OS_FILE_CLOSED) {
 			log->error = DB_OUT_OF_MEMORY;
 			goto err_exit;
 		}
@@ -539,7 +539,7 @@ row_log_table_close_func(
 			if (!log_tmp_block_encrypt(
 				    log->tail.block, srv_sort_buf_size,
 				    log->crypt_tail, byte_offset,
-				    index->table->space)) {
+				    index->table->space->id)) {
 				log->error = DB_DECRYPTION_FAILED;
 				goto err_exit;
 			}
@@ -549,7 +549,7 @@ row_log_table_close_func(
 		}
 
 		log->tail.blocks++;
-		if (!os_file_write_int_fd(
+		if (!os_file_write(
 			    request,
 			    "(modification log)",
 			    log->fd,
@@ -1832,8 +1832,8 @@ row_log_table_apply_delete_low(
 
 		const dtuple_t*	entry = row_build_index_entry(
 			row, save_ext, index, heap);
-		mtr_start(mtr);
-		mtr->set_named_space(index->space);
+		mtr->start();
+		index->set_modified(*mtr);
 		btr_pcur_open(index, entry, PAGE_CUR_LE,
 			      BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
 			      pcur, mtr);
@@ -1860,14 +1860,14 @@ flag_ok:
 			found, because new_table is being modified by
 			this thread only, and all indexes should be
 			updated in sync. */
-			mtr_commit(mtr);
+			mtr->commit();
 			return(DB_INDEX_CORRUPT);
 		}
 
 		btr_cur_pessimistic_delete(&error, FALSE,
 					   btr_pcur_get_btr_cur(pcur),
 					   BTR_CREATE_FLAG, false, mtr);
-		mtr_commit(mtr);
+		mtr->commit();
 	}
 
 	return(error);
@@ -1919,7 +1919,7 @@ row_log_table_apply_delete(
 	}
 
 	mtr_start(&mtr);
-	mtr.set_named_space(index->space);
+	index->set_modified(mtr);
 	btr_pcur_open(index, old_pk, PAGE_CUR_LE,
 		      BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
 		      &pcur, &mtr);
@@ -2067,7 +2067,7 @@ row_log_table_apply_update(
 	}
 
 	mtr_start(&mtr);
-	mtr.set_named_space(index->space);
+	index->set_modified(mtr);
 	btr_pcur_open(index, old_pk, PAGE_CUR_LE,
 		      BTR_MODIFY_TREE, &pcur, &mtr);
 #ifdef UNIV_DEBUG
@@ -2327,7 +2327,7 @@ func_exit_committed:
 		}
 
 		mtr_start(&mtr);
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 
 		if (ROW_FOUND != row_search_index_entry(
 			    index, entry, BTR_MODIFY_TREE, &pcur, &mtr)) {
@@ -2359,7 +2359,7 @@ func_exit_committed:
 		}
 
 		mtr_start(&mtr);
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 	}
 
 	goto func_exit;
@@ -2865,12 +2865,12 @@ all_done:
 		IORequest		request(IORequest::READ);
 		byte*			buf = index->online_log->head.block;
 
-		if (!os_file_read_no_error_handling_int_fd(
+		if (!os_file_read_no_error_handling(
 			    request, index->online_log->fd,
-			    buf, ofs, srv_sort_buf_size)) {
+			    buf, ofs, srv_sort_buf_size, 0)) {
 			ib::error()
 				<< "Unable to read temporary file"
-				" for table " << index->table_name;
+				" for table " << index->table->name;
 			goto corruption;
 		}
 
@@ -2878,7 +2878,7 @@ all_done:
 			if (!log_tmp_block_decrypt(
 				    buf, srv_sort_buf_size,
 				    index->online_log->crypt_head,
-				    ofs, index->table->space)) {
+				    ofs, index->table->space->id)) {
 				error = DB_DECRYPTION_FAILED;
 				goto func_exit;
 			}
@@ -3173,7 +3173,7 @@ row_log_allocate(
 		DBUG_RETURN(false);
 	}
 
-	log->fd = -1;
+	log->fd = OS_FILE_CLOSED;
 	mutex_create(LATCH_ID_INDEX_ONLINE_LOG, &log->mutex);
 
 	log->blobs = NULL;
@@ -3296,7 +3296,7 @@ row_log_apply_op_low(
 		 << rec_printer(entry).str());
 
 	mtr_start(&mtr);
-	mtr.set_named_space(index->space);
+	index->set_modified(mtr);
 
 	/* We perform the pessimistic variant of the operations if we
 	already hold index->lock exclusively. First, search the
@@ -3353,7 +3353,7 @@ row_log_apply_op_low(
 				Lock the index tree exclusively. */
 				mtr_commit(&mtr);
 				mtr_start(&mtr);
-				mtr.set_named_space(index->space);
+				index->set_modified(mtr);
 				btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
 					BTR_MODIFY_TREE, &cursor, 0,
@@ -3456,7 +3456,7 @@ insert_the_rec:
 				Lock the index tree exclusively. */
 				mtr_commit(&mtr);
 				mtr_start(&mtr);
-				mtr.set_named_space(index->space);
+				index->set_modified(mtr);
 				btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
 					BTR_MODIFY_TREE, &cursor, 0,
@@ -3732,9 +3732,9 @@ all_done:
 
 		byte*	buf = index->online_log->head.block;
 
-		if (!os_file_read_no_error_handling_int_fd(
+		if (!os_file_read_no_error_handling(
 			    request, index->online_log->fd,
-			    buf, ofs, srv_sort_buf_size)) {
+			    buf, ofs, srv_sort_buf_size, 0)) {
 			ib::error()
 				<< "Unable to read temporary file"
 				" for index " << index->name;
@@ -3745,7 +3745,7 @@ all_done:
 			if (!log_tmp_block_decrypt(
 				    buf, srv_sort_buf_size,
 				    index->online_log->crypt_head,
-				    ofs, index->table->space)) {
+				    ofs, index->table->space->id)) {
 				error = DB_DECRYPTION_FAILED;
 				goto func_exit;
 			}

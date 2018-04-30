@@ -237,9 +237,12 @@ int ha_sequence::write_row(uchar *buf)
     THD *thd= table->in_use;
     if (thd->lock->table_count != 1)
       DBUG_RETURN(ER_WRONG_INSERT_INTO_SEQUENCE);
-    if (thd->mdl_context.upgrade_shared_lock(table->mdl_ticket, MDL_EXCLUSIVE,
-                                             thd->variables.lock_wait_timeout))
-      DBUG_RETURN(ER_LOCK_WAIT_TIMEOUT);
+    if (table->s->tmp_table == NO_TMP_TABLE &&
+        thd->mdl_context.upgrade_shared_lock(table->mdl_ticket,
+                                             MDL_EXCLUSIVE,
+                                             thd->variables.
+                                             lock_wait_timeout))
+        DBUG_RETURN(ER_LOCK_WAIT_TIMEOUT);
 
     tmp_seq.read_fields(table);
     if (tmp_seq.check_and_adjust(0))
@@ -259,8 +262,7 @@ int ha_sequence::write_row(uchar *buf)
       sequence->copy(&tmp_seq);
     rows_changed++;
     /* We have to do the logging while we hold the sequence mutex */
-    if (table->file->check_table_binlog_row_based(1))
-      error= binlog_log_row(table, 0, buf, log_func);
+    error= binlog_log_row(table, 0, buf, log_func);
     row_already_logged= 1;
   }
 

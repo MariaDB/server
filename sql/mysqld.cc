@@ -117,7 +117,7 @@
 #include <poll.h>
 #endif
 
-#include <my_systemd.h>
+#include <my_service_manager.h>
 
 #define mysqld_charset &my_charset_latin1
 
@@ -547,7 +547,7 @@ bool max_user_connections_checking=0;
   Limit of the total number of prepared statements in the server.
   Is necessary to protect the server against out-of-memory attacks.
 */
-ulong max_prepared_stmt_count;
+uint max_prepared_stmt_count;
 /**
   Current total number of prepared statements in the server. This number
   is exact, and therefore may not be equal to the difference between
@@ -558,7 +558,7 @@ ulong max_prepared_stmt_count;
   two different connections, this counts as two distinct prepared
   statements.
 */
-ulong prepared_stmt_count=0;
+uint prepared_stmt_count=0;
 my_thread_id global_thread_id= 0;
 ulong current_pid;
 ulong slow_launch_threads = 0;
@@ -1732,6 +1732,7 @@ static void close_connections(void)
 #endif
     tmp->set_killed(KILL_SERVER_HARD);
     MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (tmp));
+    if (WSREP(tmp)) mysql_mutex_lock(&tmp->LOCK_wsrep_thd);
     mysql_mutex_lock(&tmp->LOCK_thd_kill);
     if (tmp->mysys_var)
     {
@@ -1756,6 +1757,7 @@ static void close_connections(void)
       mysql_mutex_unlock(&tmp->mysys_var->mutex);
     }
     mysql_mutex_unlock(&tmp->LOCK_thd_kill);
+    if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_wsrep_thd);
   }
   mysql_mutex_unlock(&LOCK_thread_count); // For unlink from list
 
@@ -2247,14 +2249,14 @@ void clean_up(bool print_message)
   lex_free();				/* Free some memory */
   item_create_cleanup();
   tdc_start_shutdown();
+#ifdef HAVE_REPLICATION
+  semi_sync_master_deinit();
+#endif
   plugin_shutdown();
   udf_free();
   ha_end();
   if (tc_log)
     tc_log->close();
-#ifdef HAVE_REPLICATION
-  semi_sync_master_deinit();
-#endif
   xid_cache_free();
   tdc_deinit();
   mdl_destroy();
@@ -4401,7 +4403,7 @@ static int init_common_variables()
   DBUG_PRINT("info",("%s  Ver %s for %s on %s\n",my_progname,
 		     server_version, SYSTEM_TYPE,MACHINE_TYPE));
 
-#ifdef HAVE_LARGE_PAGES
+#ifdef HAVE_LINUX_LARGE_PAGES
   /* Initialize large page size */
   if (opt_large_pages)
   {
@@ -4416,7 +4418,7 @@ static int init_common_variables()
     else
       SYSVAR_AUTOSIZE(opt_large_pages, 0);
   }
-#endif /* HAVE_LARGE_PAGES */
+#endif /* HAVE_LINUX_LARGE_PAGES */
 #ifdef HAVE_SOLARIS_LARGE_PAGES
 #define LARGE_PAGESIZE (4*1024*1024)  /* 4MB */
 #define SUPER_LARGE_PAGESIZE (256*1024*1024)  /* 256MB */
@@ -4476,11 +4478,20 @@ static int init_common_variables()
 
   /* connections and databases needs lots of files */
   {
-    uint files, wanted_files, max_open_files;
+    uint files, wanted_files, max_open_files, min_tc_size, extra_files,
+      min_connections;
+    ulong org_max_connections, org_tc_size;
 
+    /* Number of files reserved for temporary files */
+    extra_files= 30;
+    min_connections= 10;
     /* MyISAM requires two file handles per table. */
-    wanted_files= (10 + max_connections + extra_max_connections +
+    wanted_files= (extra_files + max_connections + extra_max_connections +
                    tc_size * 2);
+    min_tc_size= MY_MIN(tc_size, TABLE_OPEN_CACHE_MIN);
+    org_max_connections= max_connections;
+    org_tc_size= tc_size;
+
     /*
       We are trying to allocate no less than max_connections*5 file
       handles (i.e. we are trying to set the limit so that they will
@@ -4492,44 +4503,49 @@ static int init_common_variables()
       requested (value of wanted_files).
     */
     max_open_files= MY_MAX(MY_MAX(wanted_files,
-                            (max_connections + extra_max_connections)*5),
-                        open_files_limit);
+                                  (max_connections + extra_max_connections)*5),
+                           open_files_limit);
     files= my_set_max_open_files(max_open_files);
+    SYSVAR_AUTOSIZE_IF_CHANGED(open_files_limit, files, ulong);
 
-    if (files < wanted_files)
-    {
-      if (!open_files_limit || IS_SYSVAR_AUTOSIZE(&open_files_limit))
-      {
-        /*
-          If we have requested too much file handles than we bring
-          max_connections in supported bounds.
-        */
-        SYSVAR_AUTOSIZE(max_connections,
-           (ulong) MY_MIN(files-10-TABLE_OPEN_CACHE_MIN*2, max_connections));
-        /*
-          Decrease tc_size according to max_connections, but
-          not below TABLE_OPEN_CACHE_MIN.  Outer MY_MIN() ensures that we
-          never increase tc_size automatically (that could
-          happen if max_connections is decreased above).
-        */
-        SYSVAR_AUTOSIZE(tc_size, 
-                        (ulong) MY_MIN(MY_MAX((files - 10 - max_connections) / 2,
-                                              TABLE_OPEN_CACHE_MIN), tc_size));
-	DBUG_PRINT("warning",
-		   ("Changed limits: max_open_files: %u  max_connections: %ld  table_cache: %ld",
-		    files, max_connections, tc_size));
-	if (global_system_variables.log_warnings > 1)
-	  sql_print_warning("Changed limits: max_open_files: %u  max_connections: %ld  table_cache: %ld",
-			files, max_connections, tc_size);
-      }
-      else if (global_system_variables.log_warnings)
-	sql_print_warning("Could not increase number of max_open_files to more than %u (request: %u)", files, wanted_files);
-    }
-    SYSVAR_AUTOSIZE(open_files_limit, files);
+    if (files < wanted_files && global_system_variables.log_warnings)
+      sql_print_warning("Could not increase number of max_open_files to more than %u (request: %u)", files, wanted_files);
+
+    /*
+      If we have requested too much file handles than we bring
+      max_connections in supported bounds. Still leave at least
+      'min_connections' connections
+    */
+    SYSVAR_AUTOSIZE_IF_CHANGED(max_connections,
+                               (ulong) MY_MAX(MY_MIN(files- extra_files-
+                                                     min_tc_size*2,
+                                                     max_connections),
+                                              min_connections),
+                               ulong);
+
+    /*
+      Decrease tc_size according to max_connections, but
+      not below min_tc_size.  Outer MY_MIN() ensures that we
+      never increase tc_size automatically (that could
+      happen if max_connections is decreased above).
+    */
+    SYSVAR_AUTOSIZE_IF_CHANGED(tc_size,
+                               (ulong) MY_MIN(MY_MAX((files - extra_files -
+                                                      max_connections) / 2,
+                                                     min_tc_size),
+                                              tc_size), ulong);
+    DBUG_PRINT("warning",
+               ("Current limits: max_open_files: %u  max_connections: %ld  table_cache: %ld",
+                files, max_connections, tc_size));
+    if (global_system_variables.log_warnings > 1 &&
+        (max_connections < org_max_connections ||
+         tc_size < org_tc_size))
+      sql_print_warning("Changed limits: max_open_files: %u  max_connections: %lu (was %lu)  table_cache: %lu (was %lu)",
+			files, max_connections, org_max_connections,
+                        tc_size, org_tc_size);
   }
-
   /*
-    Max_connections is now set.
+    Max_connections and tc_cache are now set.
     Now we can fix other variables depending on this variable.
   */
 
@@ -5204,13 +5220,6 @@ static int init_server_components()
                         "this server. However this will be ignored as the "
                         "--log-bin option is not defined.");
   }
-
-  if (repl_semisync_master.init_object() ||
-      repl_semisync_slave.init_object())
-  {
-    sql_print_error("Could not initialize semisync.");
-    unireg_abort(1);
-  }
 #endif
 
   if (opt_bin_log)
@@ -5409,6 +5418,19 @@ static int init_server_components()
     unireg_abort(1);
   }
   plugins_are_initialized= TRUE;  /* Don't separate from init function */
+
+#ifdef HAVE_REPLICATION
+  /*
+    Semisync is not required by other components, which justifies its
+    initialization at this point when thread specific memory is also available.
+  */
+  if (repl_semisync_master.init_object() ||
+      repl_semisync_slave.init_object())
+  {
+    sql_print_error("Could not initialize semisync.");
+    unireg_abort(1);
+  }
+#endif
 
 #ifndef EMBEDDED_LIBRARY
   {
@@ -5796,8 +5818,7 @@ int mysqld_main(int argc, char **argv)
   orig_argc= argc;
   orig_argv= argv;
   my_getopt_use_args_separator= TRUE;
-  if (load_defaults(MYSQL_CONFIG_NAME, load_default_groups, &argc, &argv))
-    return 1;
+  load_defaults_or_exit(MYSQL_CONFIG_NAME, load_default_groups, &argc, &argv);
   my_getopt_use_args_separator= FALSE;
   defaults_argc= argc;
   defaults_argv= argv;
@@ -6714,7 +6735,7 @@ void handle_connections_sockets()
 #endif
 
   sd_notify(0, "READY=1\n"
-            "STATUS=Taking your SQL requests now...");
+            "STATUS=Taking your SQL requests now...\n");
 
   DBUG_PRINT("general",("Waiting for connections."));
   MAYBE_BROKEN_SYSCALL;
@@ -6916,7 +6937,7 @@ void handle_connections_sockets()
     create_new_thread(connect);
   }
   sd_notify(0, "STOPPING=1\n"
-            "STATUS=Shutdown in progress");
+            "STATUS=Shutdown in progress\n");
   DBUG_VOID_RETURN;
 }
 
@@ -8564,6 +8585,7 @@ SHOW_VAR status_vars[]= {
   {"Executed_events",          (char*) &executed_events, SHOW_LONG_NOFLUSH },
   {"Executed_triggers",        (char*) offsetof(STATUS_VAR, executed_triggers), SHOW_LONG_STATUS},
   {"Feature_check_constraint", (char*) &feature_check_constraint, SHOW_LONG },
+  {"Feature_custom_aggregate_functions", (char*) offsetof(STATUS_VAR, feature_custom_aggregate_functions), SHOW_LONG_STATUS},
   {"Feature_delay_key_write",  (char*) &feature_files_opened_with_delayed_keys, SHOW_LONG },
   {"Feature_dynamic_columns",  (char*) offsetof(STATUS_VAR, feature_dynamic_columns), SHOW_LONG_STATUS},
   {"Feature_fulltext",         (char*) offsetof(STATUS_VAR, feature_fulltext), SHOW_LONG_STATUS},

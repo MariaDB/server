@@ -414,7 +414,6 @@ enum enum_alter_inplace_result {
 #define HA_CREATE_TMP_ALTER     8U
 #define HA_LEX_CREATE_SEQUENCE  16U
 #define HA_VERSIONED_TABLE      32U
-#define HA_VTMD                 64U
 
 #define HA_MAX_REC_LENGTH	65535
 
@@ -566,6 +565,182 @@ given at all. */
 
 /* Create a sequence */
 #define HA_CREATE_USED_SEQUENCE           (1UL << 25)
+
+typedef ulonglong alter_table_operations;
+
+/*
+  These flags are set by the parser and describes the type of
+  operation(s) specified by the ALTER TABLE statement.
+*/
+
+// Set by parser for ADD [COLUMN]
+#define ALTER_PARSER_ADD_COLUMN     (1ULL <<  0)
+// Set by parser for DROP [COLUMN]
+#define ALTER_PARSER_DROP_COLUMN    (1ULL <<  1)
+// Set for CHANGE [COLUMN] | MODIFY [CHANGE] & mysql_recreate_table
+#define ALTER_CHANGE_COLUMN         (1ULL <<  2)
+// Set for ADD INDEX | ADD KEY | ADD PRIMARY KEY | ADD UNIQUE KEY |
+//         ADD UNIQUE INDEX | ALTER ADD [COLUMN]
+#define ALTER_ADD_INDEX             (1ULL <<  3)
+// Set for DROP PRIMARY KEY | DROP FOREIGN KEY | DROP KEY | DROP INDEX
+#define ALTER_DROP_INDEX            (1ULL <<  4)
+// Set for RENAME [TO]
+#define ALTER_RENAME                (1ULL <<  5)
+// Set for ORDER BY
+#define ALTER_ORDER                 (1ULL <<  6)
+// Set for table_options, like table comment
+#define ALTER_OPTIONS               (1ULL <<  7)
+// Set for ALTER [COLUMN] ... SET DEFAULT ... | DROP DEFAULT
+#define ALTER_CHANGE_COLUMN_DEFAULT (1ULL <<  8)
+// Set for DISABLE KEYS | ENABLE KEYS
+#define ALTER_KEYS_ONOFF            (1ULL <<  9)
+// Set for FORCE, ENGINE(same engine), by mysql_recreate_table()
+#define ALTER_RECREATE              (1ULL << 10)
+// Set for ADD FOREIGN KEY
+#define ALTER_ADD_FOREIGN_KEY       (1ULL << 21)
+// Set for DROP FOREIGN KEY
+#define ALTER_DROP_FOREIGN_KEY      (1ULL << 22)
+// Set for ADD [COLUMN] FIRST | AFTER
+#define ALTER_COLUMN_ORDER          (1ULL << 25)
+#define ALTER_ADD_CHECK_CONSTRAINT  (1ULL << 27)
+#define ALTER_DROP_CHECK_CONSTRAINT (1ULL << 28)
+#define ALTER_RENAME_COLUMN         (1ULL << 29)
+#define ALTER_COLUMN_UNVERSIONED    (1ULL << 30)
+#define ALTER_ADD_SYSTEM_VERSIONING (1ULL << 31)
+#define ALTER_DROP_SYSTEM_VERSIONING (1ULL << 32)
+#define ALTER_ADD_PERIOD             (1ULL << 33)
+#define ALTER_DROP_PERIOD            (1ULL << 34)
+
+/*
+  Following defines are used by ALTER_INPLACE_TABLE
+
+  They do describe in more detail the type operation(s) to be executed
+  by the storage engine. For example, which type of type of index to be
+  added/dropped.  These are set by fill_alter_inplace_info().
+*/
+
+#define ALTER_RECREATE_TABLE	     ALTER_RECREATE
+#define ALTER_CHANGE_CREATE_OPTION   ALTER_OPTIONS
+#define ALTER_ADD_COLUMN             (ALTER_ADD_VIRTUAL_COLUMN | \
+                                      ALTER_ADD_STORED_BASE_COLUMN | \
+                                      ALTER_ADD_STORED_GENERATED_COLUMN)
+#define ALTER_DROP_COLUMN             (ALTER_DROP_VIRTUAL_COLUMN | \
+                                       ALTER_DROP_STORED_COLUMN)
+#define ALTER_COLUMN_DEFAULT          ALTER_CHANGE_COLUMN_DEFAULT
+
+#define ALTER_DROP_HISTORICAL        (1ULL << 35)
+
+// Add non-unique, non-primary index
+#define ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX  (1ULL << 36)
+
+// Drop non-unique, non-primary index
+#define ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX (1ULL << 37)
+
+// Add unique, non-primary index
+#define ALTER_ADD_UNIQUE_INDEX               (1ULL << 38)
+
+// Drop unique, non-primary index
+#define ALTER_DROP_UNIQUE_INDEX              (1ULL << 39)
+
+// Add primary index
+#define ALTER_ADD_PK_INDEX                   (1ULL << 40)
+
+// Drop primary index
+#define ALTER_DROP_PK_INDEX                  (1ULL << 41)
+
+// Virtual generated column
+#define ALTER_ADD_VIRTUAL_COLUMN             (1ULL << 42)
+// Stored base (non-generated) column
+#define ALTER_ADD_STORED_BASE_COLUMN         (1ULL << 43)
+// Stored generated column
+#define ALTER_ADD_STORED_GENERATED_COLUMN    (1ULL << 44)
+
+// Drop column
+#define ALTER_DROP_VIRTUAL_COLUMN            (1ULL << 45)
+#define ALTER_DROP_STORED_COLUMN             (1ULL << 46)
+
+// Rename column (verified; ALTER_RENAME_COLUMN may use original name)
+#define ALTER_COLUMN_NAME          	     (1ULL << 47)
+
+// Change column datatype
+#define ALTER_VIRTUAL_COLUMN_TYPE            (1ULL << 48)
+#define ALTER_STORED_COLUMN_TYPE             (1ULL << 49)
+
+/**
+  Change column datatype in such way that new type has compatible
+  packed representation with old type, so it is theoretically
+  possible to perform change by only updating data dictionary
+  without changing table rows.
+*/
+#define ALTER_COLUMN_EQUAL_PACK_LENGTH       (1ULL << 50)
+
+// Reorder column
+#define ALTER_STORED_COLUMN_ORDER            (1ULL << 51)
+
+// Reorder column
+#define ALTER_VIRTUAL_COLUMN_ORDER           (1ULL << 52)
+
+// Change column from NOT NULL to NULL
+#define ALTER_COLUMN_NULLABLE                (1ULL << 53)
+
+// Change column from NULL to NOT NULL
+#define ALTER_COLUMN_NOT_NULLABLE            (1ULL << 54)
+
+// Change column generation expression
+#define ALTER_VIRTUAL_GCOL_EXPR              (1ULL << 55)
+#define ALTER_STORED_GCOL_EXPR               (1ULL << 56)
+
+// column's engine options changed, something in field->option_struct
+#define ALTER_COLUMN_OPTION                  (1ULL << 57)
+
+// MySQL alias for the same thing:
+#define ALTER_COLUMN_STORAGE_TYPE            (1ULL << 58)
+
+// Change the column format of column
+#define ALTER_COLUMN_COLUMN_FORMAT           (1ULL << 59)
+
+/**
+  Changes in generated columns that affect storage,
+  for example, when a vcol type or expression changes
+  and this vcol is indexed or used in a partitioning expression
+*/
+#define ALTER_COLUMN_VCOL                    (1ULL << 60)
+
+/**
+  ALTER TABLE for a partitioned table. The engine needs to commit
+  online alter of all partitions atomically (using group_commit_ctx)
+*/
+#define ALTER_PARTITIONED                    (1ULL << 61)
+
+/*
+  Flags set in partition_flags when altering partitions
+*/
+
+// Set for ADD PARTITION
+#define ALTER_PARTITION_ADD         (1ULL << 1)
+// Set for DROP PARTITION
+#define ALTER_PARTITION_DROP        (1ULL << 2)
+// Set for COALESCE PARTITION
+#define ALTER_PARTITION_COALESCE    (1ULL << 3)
+// Set for REORGANIZE PARTITION ... INTO
+#define ALTER_PARTITION_REORGANIZE  (1ULL << 4)
+// Set for partition_options
+#define ALTER_PARTITION_INFO        (1ULL << 5)
+// Set for LOAD INDEX INTO CACHE ... PARTITION
+// Set for CACHE INDEX ... PARTITION
+#define ALTER_PARTITION_ADMIN       (1ULL << 6)
+// Set for REBUILD PARTITION
+#define ALTER_PARTITION_REBUILD     (1ULL << 7)
+// Set for partitioning operations specifying ALL keyword
+#define ALTER_PARTITION_ALL         (1ULL << 8)
+// Set for REMOVE PARTITIONING
+#define ALTER_PARTITION_REMOVE      (1ULL << 9)
+// Set for EXCHANGE PARITION
+#define ALTER_PARTITION_EXCHANGE    (1ULL << 10)
+// Set by Sql_cmd_alter_table_truncate_partition::execute()
+#define ALTER_PARTITION_TRUNCATE    (1ULL << 11)
+// Set for REORGANIZE PARTITION
+#define ALTER_PARTITION_TABLE_REORG           (1ULL << 12)
 
 /*
   This is master database for most of system tables. However there
@@ -1249,7 +1424,7 @@ struct handlerton
    bool (*flush_logs)(handlerton *hton);
    bool (*show_status)(handlerton *hton, THD *thd, stat_print_fn *print, enum ha_stat_type stat);
    uint (*partition_flags)();
-   ulonglong (*alter_table_flags)(ulonglong flags);
+   alter_table_operations (*alter_table_flags)(alter_table_operations flags);
    int (*alter_tablespace)(handlerton *hton, THD *thd, st_alter_tablespace *ts_info);
    int (*fill_is_table)(handlerton *hton, THD *thd, TABLE_LIST *tables, 
                         class Item *cond, 
@@ -1774,24 +1949,23 @@ protected:
   bool is_end(const char *name) const;
   bool is_start(const Create_field &f) const;
   bool is_end(const Create_field &f) const;
-  bool fix_implicit(THD *thd, Alter_info *alter_info, int *added= NULL);
+  bool fix_implicit(THD *thd, Alter_info *alter_info);
   operator bool() const
   {
     return as_row.start || as_row.end || system_time.start || system_time.end;
   }
   bool need_check(const Alter_info *alter_info) const;
-  bool check_with_conditions(const char *table_name) const;
-  bool check_sys_fields(const char *table_name, Alter_info *alter_info,
-                        bool native);
-
+  bool check_conditions(const LString &table_name, const LString &db) const;
 public:
-  static const LString default_start;
-  static const LString default_end;
+  static const LString_i default_start;
+  static const LString_i default_end;
 
   bool fix_alter_info(THD *thd, Alter_info *alter_info,
                        HA_CREATE_INFO *create_info, TABLE *table);
   bool fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_info,
                        TABLE_LIST &src_table, TABLE_LIST &table);
+  bool check_sys_fields(const LString &table_name, const LString &db,
+                        Alter_info *alter_info, bool native);
 
   /**
      At least one field was specified 'WITH/WITHOUT SYSTEM VERSIONING'.
@@ -1879,9 +2053,10 @@ struct Table_scope_and_contents_source_st
 
   bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
                          const TABLE_LIST &create_table,
-                         const TABLE_LIST *select_table= NULL,
-                         List<Item> *items= NULL,
-                         bool *versioned_write= NULL);
+                         bool create_select= false);
+
+  bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
+                                const TABLE_LIST &create_table);
 
   bool vers_native(THD *thd) const;
 
@@ -1899,11 +2074,6 @@ struct Table_scope_and_contents_source_st
   bool versioned() const
   {
     return options & HA_VERSIONED_TABLE;
-  }
-
-  bool vtmd() const
-  {
-    return options & HA_VTMD;
   }
 };
 
@@ -2025,166 +2195,6 @@ public:
 class Alter_inplace_info
 {
 public:
-  /**
-     Bits to show in detail what operations the storage engine is
-     to execute.
-
-     All these operations are supported as in-place operations by the
-     SQL layer. This means that operations that by their nature must
-     be performed by copying the table to a temporary table, will not
-     have their own flags here.
-
-     We generally try to specify handler flags only if there are real
-     changes. But in cases when it is cumbersome to determine if some
-     attribute has really changed we might choose to set flag
-     pessimistically, for example, relying on parser output only.
-  */
-  typedef ulonglong HA_ALTER_FLAGS;
-
-  // Add non-unique, non-primary index
-  static const HA_ALTER_FLAGS ADD_INDEX                  = 1ULL << 0;
-
-  // Drop non-unique, non-primary index
-  static const HA_ALTER_FLAGS DROP_INDEX                 = 1ULL << 1;
-
-  // Add unique, non-primary index
-  static const HA_ALTER_FLAGS ADD_UNIQUE_INDEX           = 1ULL << 2;
-
-  // Drop unique, non-primary index
-  static const HA_ALTER_FLAGS DROP_UNIQUE_INDEX          = 1ULL << 3;
-
-  // Add primary index
-  static const HA_ALTER_FLAGS ADD_PK_INDEX               = 1ULL << 4;
-
-  // Drop primary index
-  static const HA_ALTER_FLAGS DROP_PK_INDEX              = 1ULL << 5;
-
-  // Virtual generated column
-  static const HA_ALTER_FLAGS ADD_VIRTUAL_COLUMN         = 1ULL << 6;
-  // Stored base (non-generated) column
-  static const HA_ALTER_FLAGS ADD_STORED_BASE_COLUMN     = 1ULL << 7;
-  // Stored generated column
-  static const HA_ALTER_FLAGS ADD_STORED_GENERATED_COLUMN= 1ULL << 8;
-  // Add generic column (convience constant).
-  static const HA_ALTER_FLAGS ADD_COLUMN= ADD_VIRTUAL_COLUMN |
-                                          ADD_STORED_BASE_COLUMN |
-                                          ADD_STORED_GENERATED_COLUMN;
-
-  // Drop column
-  static const HA_ALTER_FLAGS DROP_VIRTUAL_COLUMN        = 1ULL << 9;
-  static const HA_ALTER_FLAGS DROP_STORED_COLUMN         = 1ULL << 10;
-  static const HA_ALTER_FLAGS DROP_COLUMN= DROP_VIRTUAL_COLUMN |
-                                           DROP_STORED_COLUMN;
-
-  // Rename column
-  static const HA_ALTER_FLAGS ALTER_COLUMN_NAME          = 1ULL << 11;
-
-  // Change column datatype
-  static const HA_ALTER_FLAGS ALTER_VIRTUAL_COLUMN_TYPE  = 1ULL << 12;
-  static const HA_ALTER_FLAGS ALTER_STORED_COLUMN_TYPE   = 1ULL << 13;
-
-  /**
-    Change column datatype in such way that new type has compatible
-    packed representation with old type, so it is theoretically
-    possible to perform change by only updating data dictionary
-    without changing table rows.
-  */
-  static const HA_ALTER_FLAGS ALTER_COLUMN_EQUAL_PACK_LENGTH = 1ULL << 14;
-
-  // Reorder column
-  static const HA_ALTER_FLAGS ALTER_STORED_COLUMN_ORDER =  1ULL << 15;
-
-  // Reorder column
-  static const HA_ALTER_FLAGS ALTER_VIRTUAL_COLUMN_ORDER = 1ULL << 16;
-
-  // Change column from NOT NULL to NULL
-  static const HA_ALTER_FLAGS ALTER_COLUMN_NULLABLE      = 1ULL << 17;
-
-  // Change column from NULL to NOT NULL
-  static const HA_ALTER_FLAGS ALTER_COLUMN_NOT_NULLABLE  = 1ULL << 18;
-
-  // Set or remove default column value
-  static const HA_ALTER_FLAGS ALTER_COLUMN_DEFAULT       = 1ULL << 19;
-
-  // Change column generation expression
-  static const HA_ALTER_FLAGS ALTER_VIRTUAL_GCOL_EXPR    = 1ULL << 20;
-  static const HA_ALTER_FLAGS ALTER_STORED_GCOL_EXPR     = 1ULL << 21;
-  //
-  // Add foreign key
-  static const HA_ALTER_FLAGS ADD_FOREIGN_KEY            = 1ULL << 22;
-
-  // Drop foreign key
-  static const HA_ALTER_FLAGS DROP_FOREIGN_KEY           = 1ULL << 23;
-
-  // table_options changed, see HA_CREATE_INFO::used_fields for details.
-  static const HA_ALTER_FLAGS CHANGE_CREATE_OPTION       = 1ULL << 24;
-
-  // Table is renamed
-  static const HA_ALTER_FLAGS ALTER_RENAME               = 1ULL << 25;
-
-  // column's engine options changed, something in field->option_struct
-  static const HA_ALTER_FLAGS ALTER_COLUMN_OPTION        = 1ULL << 26;
-
-  // MySQL alias for the same thing:
-  static const HA_ALTER_FLAGS ALTER_COLUMN_STORAGE_TYPE  = 1ULL << 26;
-
-  // Change the column format of column
-  static const HA_ALTER_FLAGS ALTER_COLUMN_COLUMN_FORMAT = 1ULL << 27;
-
-  // Add partition
-  static const HA_ALTER_FLAGS ADD_PARTITION              = 1ULL << 28;
-
-  // Drop partition
-  static const HA_ALTER_FLAGS DROP_PARTITION             = 1ULL << 29;
-
-  // Changing partition options
-  static const HA_ALTER_FLAGS ALTER_PARTITION            = 1ULL << 30;
-
-  // Coalesce partition
-  static const HA_ALTER_FLAGS COALESCE_PARTITION         = 1ULL << 31;
-
-  // Reorganize partition ... into
-  static const HA_ALTER_FLAGS REORGANIZE_PARTITION       = 1ULL << 32;
-
-  // Reorganize partition
-  static const HA_ALTER_FLAGS ALTER_TABLE_REORG          = 1ULL << 33;
-
-  // Remove partitioning
-  static const HA_ALTER_FLAGS ALTER_REMOVE_PARTITIONING  = 1ULL << 34;
-
-  // Partition operation with ALL keyword
-  static const HA_ALTER_FLAGS ALTER_ALL_PARTITION        = 1ULL << 35;
-
-  /**
-    Recreate the table for ALTER TABLE FORCE, ALTER TABLE ENGINE
-    and OPTIMIZE TABLE operations.
-  */
-  static const HA_ALTER_FLAGS RECREATE_TABLE             = 1ULL << 36;
-
-  /**
-    Changes in generated columns that affect storage,
-    for example, when a vcol type or expression changes
-    and this vcol is indexed or used in a partitioning expression
-  */
-  static const HA_ALTER_FLAGS ALTER_COLUMN_VCOL          = 1ULL << 37;
-
-  /**
-    ALTER TABLE for a partitioned table. The engine needs to commit
-    online alter of all partitions atomically (using group_commit_ctx)
-  */
-  static const HA_ALTER_FLAGS ALTER_PARTITIONED          = 1ULL << 38;
-
-  static const HA_ALTER_FLAGS ALTER_ADD_CHECK_CONSTRAINT = 1ULL << 39;
-
-  static const HA_ALTER_FLAGS ALTER_DROP_CHECK_CONSTRAINT= 1ULL << 40;
-
-  static const HA_ALTER_FLAGS ALTER_DROP_HISTORICAL      = 1ULL << 41;
-
-  static const HA_ALTER_FLAGS ALTER_COLUMN_UNVERSIONED   = 1ULL << 42;
-
-  static const HA_ALTER_FLAGS ALTER_ADD_SYSTEM_VERSIONING= 1ULL << 43;
-
-  static const HA_ALTER_FLAGS ALTER_DROP_SYSTEM_VERSIONING= 1ULL << 44;
 
   /**
     Create options (like MAX_ROWS) for the new version of table.
@@ -2269,9 +2279,13 @@ public:
   inplace_alter_handler_ctx **group_commit_ctx;
 
   /**
-     Flags describing in detail which operations the storage engine is to execute.
+     Flags describing in detail which operations the storage engine is to
+     execute. Flags are defined in sql_alter.h
   */
-  HA_ALTER_FLAGS handler_flags;
+  alter_table_operations handler_flags;
+
+  /* Alter operations involving parititons are strored here */
+  ulong partition_flags;
 
   /**
      Partition_info taking into account the partition changes to be performed.
@@ -2347,6 +2361,7 @@ typedef struct st_key_create_information
 {
   enum ha_key_alg algorithm;
   ulong block_size;
+  uint flags;                                   /* HA_USE.. flags */
   LEX_CSTRING parser_name;
   LEX_CSTRING comment;
   /**
@@ -4268,7 +4283,7 @@ public:
     but we don't have a primary key
   */
   virtual void use_hidden_primary_key();
-  virtual ulonglong alter_table_flags(ulonglong flags)
+  virtual alter_table_operations alter_table_flags(alter_table_operations flags)
   {
     if (ht->alter_table_flags)
       return ht->alter_table_flags(flags);

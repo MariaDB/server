@@ -756,7 +756,7 @@ dberr_t
 srv_check_undo_redo_logs_exists()
 {
 	bool		ret;
-	os_file_t	fh;
+	pfs_os_file_t	fh;
 	char	name[OS_FILE_MAX_PATH];
 
 	/* Check if any undo tablespaces exist */
@@ -895,12 +895,11 @@ srv_undo_tablespaces_init(bool create_new_db)
 	switch (srv_operation) {
 	case SRV_OPERATION_RESTORE_DELTA:
 	case SRV_OPERATION_BACKUP:
-		/* MDEV-13561 FIXME: Determine srv_undo_space_id_start
-		from the undo001 file. */
-		srv_undo_space_id_start = 1;
 		for (i = 0; i < n_undo_tablespaces; i++) {
 			undo_tablespace_ids[i] = i + srv_undo_space_id_start;
 		}
+
+		prev_space_id = srv_undo_space_id_start - 1;
 		break;
 	case SRV_OPERATION_NORMAL:
 		if (create_new_db) {
@@ -961,7 +960,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 			undo_tablespace_ids[i]);
 
 		/* Should be no gaps in undo tablespace ids. */
-		ut_a(prev_space_id + 1 == undo_tablespace_ids[i]);
+		ut_a(!i || prev_space_id + 1 == undo_tablespace_ids[i]);
 
 		/* The system space id should not be in this array. */
 		ut_a(undo_tablespace_ids[i] != 0);
@@ -989,14 +988,14 @@ srv_undo_tablespaces_init(bool create_new_db)
 	not in use and therefore not required by recovery. We only check
 	that there are no gaps. */
 
-	for (i = prev_space_id + 1; i < TRX_SYS_N_RSEGS; ++i) {
+	for (i = prev_space_id + 1;
+	     i < srv_undo_space_id_start + TRX_SYS_N_RSEGS; ++i) {
 		char	name[OS_FILE_MAX_PATH];
 
 		snprintf(
 			name, sizeof(name),
 			"%s%cundo%03zu", srv_undo_dir, OS_PATH_SEPARATOR, i);
 
-		/* Undo space ids start from 1. */
 		err = srv_undo_tablespace_open(name, i);
 
 		if (err != DB_SUCCESS) {
@@ -1040,17 +1039,13 @@ srv_undo_tablespaces_init(bool create_new_db)
 	if (create_new_db) {
 		mtr_t	mtr;
 
-		mtr_start(&mtr);
-
-		/* The undo log tablespace */
 		for (i = 0; i < n_undo_tablespaces; ++i) {
-
-			fsp_header_init(
-				undo_tablespace_ids[i],
-				SRV_UNDO_TABLESPACE_SIZE_IN_PAGES, &mtr);
+			mtr.start();
+			fsp_header_init(fil_space_get(undo_tablespace_ids[i]),
+					SRV_UNDO_TABLESPACE_SIZE_IN_PAGES,
+					&mtr);
+			mtr.commit();
 		}
-
-		mtr_commit(&mtr);
 	}
 
 	if (!undo::Truncate::s_fix_up_spaces.empty()) {
@@ -1078,16 +1073,17 @@ srv_undo_tablespaces_init(bool create_new_db)
 
 			undo::Truncate::add_space_to_trunc_list(*it);
 
-			fsp_header_init(
-				*it, SRV_UNDO_TABLESPACE_SIZE_IN_PAGES, &mtr);
+			fil_space_t* space = fil_space_get(*it);
 
-			mtr_x_lock(fil_space_get_latch(*it, NULL), &mtr);
+			fsp_header_init(space,
+					SRV_UNDO_TABLESPACE_SIZE_IN_PAGES,
+					&mtr);
 
 			for (ulint i = 0; i < TRX_SYS_N_RSEGS; i++) {
 				if (trx_sysf_rseg_get_space(sys_header, i)
 				    == *it) {
 					trx_rseg_header_create(
-						*it, i, sys_header, &mtr);
+						space, i, sys_header, &mtr);
 				}
 			}
 
@@ -1100,9 +1096,9 @@ srv_undo_tablespaces_init(bool create_new_db)
 			     = undo::Truncate::s_fix_up_spaces.begin();
 		     it != undo::Truncate::s_fix_up_spaces.end();
 		     ++it) {
-			FlushObserver dummy(TRX_SYS_SPACE, NULL, NULL);
+			FlushObserver dummy(fil_system.sys_space, NULL, NULL);
 			buf_LRU_flush_or_remove_pages(TRX_SYS_SPACE, &dummy);
-			FlushObserver dummy2(*it, NULL, NULL);
+			FlushObserver dummy2(fil_space_get(*it), NULL, NULL);
 			buf_LRU_flush_or_remove_pages(*it, &dummy2);
 
 			/* Remove the truncate redo log file. */
@@ -1174,47 +1170,30 @@ srv_open_tmp_tablespace(bool create_new_db)
 		&create_new_temp_space, 12 * 1024 * 1024);
 
 	if (err == DB_FAIL) {
-
-		ib::error() << "The " << srv_tmp_space.name()
-			<< " data file must be writable!";
-
+		ib::error() << "The innodb_temporary"
+			" data file must be writable!";
 		err = DB_ERROR;
-
 	} else if (err != DB_SUCCESS) {
-		ib::error() << "Could not create the shared "
-			<< srv_tmp_space.name() << ".";
-
+		ib::error() << "Could not create the shared innodb_temporary.";
 	} else if ((err = srv_tmp_space.open_or_create(
 			    true, create_new_db, &sum_of_new_sizes, NULL))
 		   != DB_SUCCESS) {
-
-		ib::error() << "Unable to create the shared "
-			<< srv_tmp_space.name();
-
+		ib::error() << "Unable to create the shared innodb_temporary";
+	} else if (fil_system.temp_space->open()) {
+		/* Initialize the header page */
+		mtr_t mtr;
+		mtr.start();
+		mtr.set_log_mode(MTR_LOG_NO_REDO);
+		fsp_header_init(fil_system.temp_space,
+				srv_tmp_space.get_sum_of_sizes(),
+				&mtr);
+		mtr.commit();
 	} else {
-
-		mtr_t	mtr;
-		ulint	size = srv_tmp_space.get_sum_of_sizes();
-
-		/* Open this shared temp tablespace in the fil_system so that
-		it stays open until shutdown. */
-		if (fil_space_open(srv_tmp_space.name())) {
-
-			/* Initialize the header page */
-			mtr_start(&mtr);
-			mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-
-			fsp_header_init(SRV_TMP_SPACE_ID, size, &mtr);
-
-			mtr_commit(&mtr);
-		} else {
-			/* This file was just opened in the code above! */
-			ib::error() << "The " << srv_tmp_space.name()
-				<< " data file cannot be re-opened"
-				" after check_file_spec() succeeded!";
-
-			err = DB_ERROR;
-		}
+		/* This file was just opened in the code above! */
+		ib::error() << "The innodb_temporary"
+			" data file cannot be re-opened"
+			" after check_file_spec() succeeded!";
+		err = DB_ERROR;
 	}
 
 	return(err);
@@ -1498,7 +1477,8 @@ innobase_start_or_create_for_mysql()
 	}
 
 	high_level_read_only = srv_read_only_mode
-		|| srv_force_recovery > SRV_FORCE_NO_TRX_UNDO;
+		|| srv_force_recovery > SRV_FORCE_NO_TRX_UNDO
+		|| srv_sys_space.created_new_raw();
 
 	/* Reset the start state. */
 	srv_start_state = SRV_START_STATE_NONE;
@@ -1798,7 +1778,7 @@ innobase_start_or_create_for_mysql()
 		return(srv_init_abort(DB_ERROR));
 	}
 
-	fil_init(srv_file_per_table ? 50000 : 5000, srv_max_n_open_files);
+	fil_system.create(srv_file_per_table ? 50000 : 5000);
 
 	double	size;
 	char	unit;
@@ -1849,7 +1829,6 @@ innobase_start_or_create_for_mysql()
 	}
 #endif /* UNIV_DEBUG */
 
-	fsp_init();
 	log_sys_init();
 
 	recv_sys_init();
@@ -2122,7 +2101,7 @@ files_checked:
 	shutdown */
 
 	fil_open_log_and_system_tablespace_files();
-	ut_d(fil_space_get(0)->recv_size = srv_sys_space_size_debug);
+	ut_d(fil_system.sys_space->recv_size = srv_sys_space_size_debug);
 
 	err = srv_undo_tablespaces_init(create_new_db);
 
@@ -2147,16 +2126,14 @@ files_checked:
 		ut_a(!srv_read_only_mode);
 
 		mtr_start(&mtr);
-
-		fsp_header_init(0, sum_of_new_sizes, &mtr);
-
+		ut_ad(fil_system.sys_space->id == 0);
 		compile_time_assert(TRX_SYS_SPACE == 0);
 		compile_time_assert(IBUF_SPACE_ID == 0);
+		fsp_header_init(fil_system.sys_space, sum_of_new_sizes, &mtr);
 
 		ulint ibuf_root = btr_create(
-			DICT_CLUSTERED | DICT_IBUF,
-			0, univ_page_size, DICT_IBUF_ID_MIN,
-			dict_ind_redundant, NULL, &mtr);
+			DICT_CLUSTERED | DICT_IBUF, fil_system.sys_space,
+			DICT_IBUF_ID_MIN, dict_ind_redundant, NULL, &mtr);
 
 		mtr_commit(&mtr);
 
@@ -2262,15 +2239,27 @@ files_checked:
 		if (!srv_read_only_mode) {
 			const ulint flags = FSP_FLAGS_PAGE_SSIZE();
 			for (ulint id = 0; id <= srv_undo_tablespaces; id++) {
-				if (fil_space_get(id)) {
-					fsp_flags_try_adjust(id, flags);
+				if (fil_space_t* space = fil_space_get(id)) {
+					fsp_flags_try_adjust(space, flags);
 				}
 			}
 
 			if (sum_of_new_sizes > 0) {
 				/* New data file(s) were added */
 				mtr.start();
-				fsp_header_inc_size(0, sum_of_new_sizes, &mtr);
+				buf_block_t* block = buf_page_get(
+					page_id_t(0, 0), univ_page_size,
+					RW_SX_LATCH, &mtr);
+				ulint size = mach_read_from_4(
+					FSP_HEADER_OFFSET + FSP_SIZE
+					+ block->frame);
+				ut_ad(size == fil_system.sys_space
+				      ->size_in_header);
+				size += sum_of_new_sizes;
+				mlog_write_ulint(FSP_HEADER_OFFSET + FSP_SIZE
+						 + block->frame, size,
+						 MLOG_4BYTES, &mtr);
+				fil_system.sys_space->size_in_header = size;
 				mtr.commit();
 				/* Immediately write the log record about
 				increased tablespace size to disk, so that it
@@ -2280,8 +2269,20 @@ files_checked:
 			}
 		}
 
+#ifdef UNIV_DEBUG
+		{
+			mtr.start();
+			buf_block_t* block = buf_page_get(page_id_t(0, 0),
+							  univ_page_size,
+							  RW_S_LATCH, &mtr);
+			ut_ad(mach_read_from_4(FSP_SIZE + FSP_HEADER_OFFSET
+					       + block->frame)
+			      == fil_system.sys_space->size_in_header);
+			mtr.commit();
+		}
+#endif
 		const ulint	tablespace_size_in_header
-			= fsp_header_get_tablespace_size();
+			= fil_system.sys_space->size_in_header;
 		const ulint	sum_of_data_file_sizes
 			= srv_sys_space.get_sum_of_sizes();
 		/* Compare the system tablespace file size to what is
@@ -2431,10 +2432,8 @@ files_checked:
 		/* Validate a few system page types that were left
 		uninitialized by older versions of MySQL. */
 		if (!high_level_read_only) {
-			mtr_t		mtr;
 			buf_block_t*	block;
 			mtr.start();
-			mtr.set_sys_modified();
 			/* Bitmap page types will be reset in
 			buf_dblwr_check_block() without redo logging. */
 			block = buf_page_get(
@@ -2793,7 +2792,9 @@ srv_shutdown_bg_undo_sources()
 void
 innodb_shutdown()
 {
-	ut_ad(!srv_running);
+	ut_ad(!my_atomic_loadptr_explicit(reinterpret_cast<void**>
+					  (&srv_running),
+					  MY_MEMORY_ORDER_RELAXED));
 	ut_ad(!srv_undo_sources);
 
 	switch (srv_operation) {
@@ -2871,8 +2872,8 @@ innodb_shutdown()
 	if (log_sys) {
 		log_shutdown();
 	}
-	trx_sys.close();
 	purge_sys.close();
+	trx_sys.close();
 	if (buf_dblwr) {
 		buf_dblwr_free();
 	}
@@ -2901,7 +2902,7 @@ innodb_shutdown()
 	os_aio_free();
 	row_mysql_close();
 	srv_free();
-	fil_close();
+	fil_system.close();
 
 	/* 4. Free all allocated memory */
 

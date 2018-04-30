@@ -158,8 +158,7 @@ SET (SQL_SOURCE
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
-               vtmd.cc
-			   )
+)
   
 IF (CMAKE_SYSTEM_NAME MATCHES "Linux" OR
     CMAKE_SYSTEM_NAME MATCHES "Windows" OR

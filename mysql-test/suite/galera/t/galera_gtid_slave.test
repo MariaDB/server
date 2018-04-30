@@ -38,7 +38,13 @@ SELECT @@global.gtid_binlog_state;
 
 --let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
 --source include/wait_condition.inc
---sleep 1
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 2 FROM t2;
+--source include/wait_condition.inc
+
 INSERT INTO t1 VALUES(2);
 INSERT INTO t1 VALUES(3);
 SELECT @@global.gtid_binlog_state;
@@ -82,3 +88,6 @@ SET GLOBAL wsrep_on=ON;
 SET GLOBAL wsrep_on=OFF;
 reset master;
 SET GLOBAL wsrep_on=ON;
+
+--connection node_1
+reset master;

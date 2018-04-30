@@ -4914,7 +4914,7 @@ my_strnxfrmlen_unicode_full_bin(CHARSET_INFO *cs, size_t len)
 
 /*
   We consider bytes with code more than 127 as a letter.
-  This garantees that word boundaries work fine with regular
+  This guarantees that word boundaries work fine with regular
   expressions. Note, there is no need to mark byte 255  as a
   letter, it is illegal byte in UTF8.
 */
@@ -7305,7 +7305,7 @@ struct charset_info_st my_charset_filename=
 
 /*
   We consider bytes with code more than 127 as a letter.
-  This garantees that word boundaries work fine with regular
+  This guarantees that word boundaries work fine with regular
   expressions. Note, there is no need to mark byte 255  as a
   letter, it is illegal byte in UTF8.
 */

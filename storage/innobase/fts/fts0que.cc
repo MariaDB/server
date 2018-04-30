@@ -3951,7 +3951,7 @@ fts_query(
 
 	*result = NULL;
 	memset(&query, 0x0, sizeof(query));
-	query_trx = trx_allocate_for_background();
+	query_trx = trx_create();
 	query_trx->op_info = "FTS query";
 
 	start_time_ms = ut_time_ms();
@@ -4120,7 +4120,7 @@ fts_query(
 func_exit:
 	fts_query_free(&query);
 
-	trx_free_for_background(query_trx);
+	trx_free(query_trx);
 
 	return(error);
 }

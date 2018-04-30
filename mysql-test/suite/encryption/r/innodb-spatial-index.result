@@ -36,12 +36,12 @@ INSERT INTO t2 values(1, 'secret', ST_GeomFromText('POINT(903994614 180726515)')
 # Success!
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION > 0;
 NAME
-mysql/innodb_table_stats
+innodb_system
 mysql/innodb_index_stats
+mysql/innodb_table_stats
 mysql/transaction_registry
 test/t1
 test/t2
-innodb_system
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 NAME
 DROP TABLE t1, t2;

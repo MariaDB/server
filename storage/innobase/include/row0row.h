@@ -398,7 +398,7 @@ row_mtr_start(mtr_t* mtr, dict_index_t* index, bool pessimistic)
 {
 	mtr->start();
 
-	switch (index->space) {
+	switch (index->table->space->id) {
 	case IBUF_SPACE_ID:
 		if (pessimistic
 		    && !(index->type & (DICT_UNIQUE | DICT_SPATIAL))) {
@@ -409,7 +409,7 @@ row_mtr_start(mtr_t* mtr, dict_index_t* index, bool pessimistic)
 		mtr->set_log_mode(MTR_LOG_NO_REDO);
 		break;
 	default:
-		mtr->set_named_space(index->space);
+		index->set_modified(*mtr);
 		break;
 	}
 

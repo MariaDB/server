@@ -2,6 +2,7 @@
 !include include/default_mysqld.cnf
 
 [mysqld]
+loose-innodb
 wsrep-on=1
 binlog-format=row
 innodb-autoinc-lock-mode=2
@@ -14,6 +15,7 @@ wsrep-sync-wait=15
 # yet compatible with galera
 innodb_lock_schedule_algorithm=FCFS
 [mysqld.1]
+loose-innodb
 #galera_port=@OPT.port
 #ist_port=@OPT.port
 #sst_port=@OPT.port
@@ -31,6 +33,7 @@ wsrep_sync_wait = 15
 innodb_lock_schedule_algorithm=FCFS
 
 [mysqld.2]
+loose-innodb
 # debug=d:t:i:o,/tmp/mysqld.2.trace
 #galera_port=@OPT.port
 #ist_port=@OPT.port

@@ -602,7 +602,7 @@ typedef struct st_mysql_cond mysql_cond_t;
 
 /**
   @def mysql_thread_set_psi_id(I)
-  Set the thread indentifier for the instrumentation.
+  Set the thread identifier for the instrumentation.
   @param I The thread identifier
 */
 #ifdef HAVE_PSI_THREAD_INTERFACE

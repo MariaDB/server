@@ -882,9 +882,9 @@ GLOBAL_VALUE_ORIGIN	COMPILE-TIME
 DEFAULT_VALUE	1
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Speeds up the shutdown process of the InnoDB storage engine. Possible values are 0, 1 (faster) or 2 (fastest - crash-like).
+VARIABLE_COMMENT	Speeds up the shutdown process of the InnoDB storage engine. Possible values are 0, 1 (faster), 2 (crash-like), 3 (fastest clean).
 NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	2
+NUMERIC_MAX_VALUE	3
 NUMERIC_BLOCK_SIZE	0
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO

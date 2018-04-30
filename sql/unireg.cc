@@ -124,7 +124,7 @@ vers_get_field(HA_CREATE_INFO *create_info, List<Create_field> &create_fields, b
 
   for (unsigned field_no = 0; (sql_field = it++); ++field_no)
   {
-    if (row_field == sql_field->field_name)
+    if (row_field.streq(sql_field->field_name))
     {
       DBUG_ASSERT(field_no <= uint16(~0U));
       return uint16(field_no);
@@ -287,11 +287,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
     extra2_size+= 1 + 1 + 2 * sizeof(uint16);
   }
 
-  if (create_info->vtmd())
-  {
-    extra2_size+= 1 + 1 + 1;
-  }
-
   bool has_extra2_field_flags_= has_extra2_field_flags(create_fields);
   if (has_extra2_field_flags_)
   {
@@ -362,13 +357,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
     pos+= sizeof(uint16);
     int2store(pos, vers_get_field(create_info, create_fields, ROW_END));
     pos+= sizeof(uint16);
-  }
-
-  if (create_info->vtmd())
-  {
-    *pos++= EXTRA2_VTMD;
-    *pos++= 1;
-    *pos++= 1;
   }
 
   if (has_extra2_field_flags_)

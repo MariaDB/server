@@ -1153,36 +1153,50 @@ enum rw_lock_flag_t {
 
 #endif /* UNIV_INNOCHECKSUM */
 
-#ifdef _WIN64
 static inline ulint my_atomic_addlint(ulint *A, ulint B)
 {
+#ifdef _WIN64
   return ulint(my_atomic_add64((volatile int64*)A, B));
+#else
+  return ulint(my_atomic_addlong(A, B));
+#endif
 }
 
 static inline ulint my_atomic_loadlint(const ulint *A)
 {
+#ifdef _WIN64
   return ulint(my_atomic_load64((volatile int64*)A));
+#else
+  return ulint(my_atomic_loadlong(A));
+#endif
 }
 
 static inline lint my_atomic_addlint(volatile lint *A, lint B)
 {
+#ifdef _WIN64
   return my_atomic_add64((volatile int64*)A, B);
+#else
+  return my_atomic_addlong(A, B);
+#endif
 }
 
 static inline lint my_atomic_loadlint(const lint *A)
 {
+#ifdef _WIN64
   return lint(my_atomic_load64((volatile int64*)A));
+#else
+  return my_atomic_loadlong(A);
+#endif
 }
 
 static inline void my_atomic_storelint(ulint *A, ulint B)
 {
+#ifdef _WIN64
   my_atomic_store64((volatile int64*)A, B);
-}
 #else
-#define my_atomic_addlint my_atomic_addlong
-#define my_atomic_loadlint my_atomic_loadlong
-#define my_atomic_storelint my_atomic_storelong
+  my_atomic_storelong(A, B);
 #endif
+}
 
 /** Simple counter aligned to CACHE_LINE_SIZE
 @tparam	Type	the integer type of the counter

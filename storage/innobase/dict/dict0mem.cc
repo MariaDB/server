@@ -37,6 +37,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "ut0crc32.h"
 #include "lock0lock.h"
 #include "sync0sync.h"
+#include "row0row.h"
 #include <iostream>
 
 #define	DICT_HEAP_SIZE		100	/*!< initial memory heap size when
@@ -49,6 +50,29 @@ static const char* innobase_system_databases[] = {
 	"performance_schema/",
 	NullS
 };
+
+/** Determine if a table belongs to innobase_system_databases[]
+@param[in]	name	database_name/table_name
+@return	whether the database_name is in innobase_system_databases[] */
+static bool dict_mem_table_is_system(const char *name)
+{
+	/* table has the following format: database/table
+	and some system table are of the form SYS_* */
+	if (!strchr(name, '/')) {
+		return true;
+	}
+	size_t table_len = strlen(name);
+	const char *system_db;
+	int i = 0;
+	while ((system_db = innobase_system_databases[i++])
+	       && (system_db != NullS)) {
+		size_t len = strlen(system_db);
+		if (table_len > len && !strncmp(name, system_db, len)) {
+			return true;
+		}
+	}
+	return false;
+}
 
 /** The start of the table basename suffix for partitioned tables */
 const char table_name_t::part_suffix[4]
@@ -103,8 +127,7 @@ dict_table_t*
 dict_mem_table_create(
 /*==================*/
 	const char*	name,	/*!< in: table name */
-	ulint		space,	/*!< in: space where the clustered index of
-				the table is placed */
+	fil_space_t*	space,	/*!< in: tablespace */
 	ulint		n_cols,	/*!< in: total number of columns including
 				virtual and non-virtual columns */
 	ulint		n_v_cols,/*!< in: number of virtual columns */
@@ -115,6 +138,10 @@ dict_mem_table_create(
 	mem_heap_t*	heap;
 
 	ut_ad(name);
+	ut_ad(!space
+	      || space->purpose == FIL_TYPE_TABLESPACE
+	      || space->purpose == FIL_TYPE_TEMPORARY
+	      || space->purpose == FIL_TYPE_IMPORT);
 	ut_a(dict_tf2_is_valid(flags, flags2));
 	ut_a(!(flags2 & DICT_TF2_UNUSED_BIT_MASK));
 
@@ -135,7 +162,8 @@ dict_mem_table_create(
 	table->flags2 = (unsigned int) flags2;
 	table->name.m_name = mem_strdup(name);
 	table->is_system_db = dict_mem_table_is_system(table->name.m_name);
-	table->space = (unsigned int) space;
+	table->space = space;
+	table->space_id = space ? space->id : ULINT_UNDEFINED;
 	table->n_t_cols = unsigned(n_cols + DATA_N_SYS_COLS);
 	table->n_v_cols = (unsigned int) (n_v_cols);
 	table->n_cols = table->n_t_cols - table->n_v_cols;
@@ -697,11 +725,8 @@ Creates an index memory object.
 dict_index_t*
 dict_mem_index_create(
 /*==================*/
-	const char*	table_name,	/*!< in: table name */
+	dict_table_t*	table,		/*!< in: table */
 	const char*	index_name,	/*!< in: index name */
-	ulint		space,		/*!< in: space where the index tree is
-					placed, ignored if the index is of
-					the clustered type */
 	ulint		type,		/*!< in: DICT_UNIQUE,
 					DICT_CLUSTERED, ... ORed */
 	ulint		n_fields)	/*!< in: number of fields */
@@ -709,15 +734,16 @@ dict_mem_index_create(
 	dict_index_t*	index;
 	mem_heap_t*	heap;
 
-	ut_ad(table_name && index_name);
+	ut_ad(!table || table->magic_n == DICT_TABLE_MAGIC_N);
+	ut_ad(index_name);
 
 	heap = mem_heap_create(DICT_HEAP_SIZE);
 
 	index = static_cast<dict_index_t*>(
 		mem_heap_zalloc(heap, sizeof(*index)));
+	index->table = table;
 
-	dict_mem_fill_index_struct(index, heap, table_name, index_name,
-				   space, type, n_fields);
+	dict_mem_fill_index_struct(index, heap, index_name, type, n_fields);
 
 	dict_index_zip_pad_mutex_create_lazy(index);
 
@@ -1166,35 +1192,6 @@ operator<< (std::ostream& out, const dict_foreign_set& fk_set)
 	return(out);
 }
 
-/****************************************************************//**
-Determines if a table belongs to a system database
-@return */
-bool
-dict_mem_table_is_system(
-/*================*/
-	char	*name)		/*!< in: table name */
-{
-	ut_ad(name);
-
-	/* table has the following format: database/table
-	and some system table are of the form SYS_* */
-	if (strchr(name, '/')) {
-		size_t table_len = strlen(name);
-		const char *system_db;
-		int i = 0;
-		while ((system_db = innobase_system_databases[i++])
-			&& (system_db != NullS)) {
-			size_t len = strlen(system_db);
-			if (table_len > len && !strncmp(name, system_db, len)) {
-				return true;
-			}
-		}
-		return false;
-	} else {
-		return true;
-	}
-}
-
 /** Adjust clustered index metadata for instant ADD COLUMN.
 @param[in]	clustered index definition after instant ADD COLUMN */
 inline void dict_index_t::instant_add_field(const dict_index_t& instant)
@@ -1492,16 +1489,12 @@ dict_index_t::vers_history_row(
 	ut_ad(col.vers_sys_end());
 	ulint nfield = dict_col_get_clust_pos(&col, this);
 	const byte *data = rec_get_nth_field(rec, offsets, nfield, &len);
-	if (col.mtype == DATA_FIXBINARY) {
-		ut_ad(len == sizeof timestamp_max_bytes);
-		return 0 != memcmp(data, timestamp_max_bytes, len);
-	} else {
-		ut_ad(col.mtype == DATA_INT);
+	if (col.vers_native()) {
 		ut_ad(len == sizeof trx_id_max_bytes);
 		return 0 != memcmp(data, trx_id_max_bytes, len);
 	}
-	ut_ad(0);
-	return false;
+	ut_ad(len == sizeof timestamp_max_bytes);
+	return 0 != memcmp(data, timestamp_max_bytes, len);
 }
 
 /** Check if record in secondary index is historical row.

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -294,7 +294,8 @@ field_store_index_name(
 	int	ret;
 
 	ut_ad(index_name != NULL);
-	ut_ad(field->real_type() == MYSQL_TYPE_VARCHAR);
+	ut_ad(field->real_type() == MYSQL_TYPE_VARCHAR ||
+              field->real_type() == MYSQL_TYPE_NULL);
 
 	/* Since TEMP_INDEX_PREFIX is not a valid UTF8, we need to convert
 	it to something else. */
@@ -1722,7 +1723,7 @@ i_s_cmp_per_index_fill_low(
 			char	db_utf8[MAX_DB_UTF8_LEN];
 			char	table_utf8[MAX_TABLE_UTF8_LEN];
 
-			dict_fs2utf8(index->table_name,
+			dict_fs2utf8(index->table->name.m_name,
 				     db_utf8, sizeof(db_utf8),
 				     table_utf8, sizeof(table_utf8));
 
@@ -2943,7 +2944,7 @@ i_s_fts_deleted_generic_fill(
 
 	deleted = fts_doc_ids_create();
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx->op_info = "Select for FTS DELETE TABLE";
 
 	FTS_INIT_FTS_TABLE(&fts_table,
@@ -2966,7 +2967,7 @@ i_s_fts_deleted_generic_fill(
 		BREAK_IF(ret = schema_table_store_record(thd, table));
 	}
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	fts_doc_ids_free(deleted);
 
@@ -3476,7 +3477,7 @@ i_s_fts_index_table_fill_selected(
 	        fts_result_cache_limit = 8192;
 	);
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 
 	trx->op_info = "fetching FTS index nodes";
 
@@ -3533,7 +3534,7 @@ i_s_fts_index_table_fill_selected(
 	que_graph_free(graph);
 	mutex_exit(&dict_sys->mutex);
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	if (fetch.total_memory >= fts_result_cache_limit) {
 		error = DB_FTS_EXCEED_RESULT_CACHE_LIMIT;
@@ -3971,7 +3972,7 @@ i_s_fts_config_fill(
 		DBUG_RETURN(0);
 	}
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx->op_info = "Select for FTS CONFIG TABLE";
 
 	FTS_INIT_FTS_TABLE(&fts_table, "CONFIG", FTS_COMMON_TABLE, user_table);
@@ -4022,7 +4023,7 @@ i_s_fts_config_fill(
 
 	fts_sql_commit(trx);
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	dict_table_close(user_table, FALSE, FALSE);
 
@@ -4921,8 +4922,8 @@ i_s_innodb_buffer_page_fill(
 				    page_info->index_id)) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
-					index->table_name,
-					strlen(index->table_name),
+					index->table->name.m_name,
+					strlen(index->table->name.m_name),
 					thd);
 
 				ret = fields[IDX_BUFFER_PAGE_TABLE_NAME]
@@ -5640,8 +5641,8 @@ i_s_innodb_buf_page_lru_fill(
 				    page_info->index_id)) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
-					index->table_name,
-					strlen(index->table_name),
+					index->table->name.m_name,
+					strlen(index->table->name.m_name),
 					thd);
 
 				ret = fields[IDX_BUF_LRU_PAGE_TABLE_NAME]
@@ -6026,7 +6027,6 @@ i_s_dict_fill_sys_tables(
 								table->flags);
 	const page_size_t&	page_size = dict_tf_get_page_size(table->flags);
 	const char*		row_format;
-	const char*		space_type;
 
 	if (!compact) {
 		row_format = "Redundant";
@@ -6036,12 +6036,6 @@ i_s_dict_fill_sys_tables(
 		row_format = "Compressed";
 	} else {
 		row_format = "Dynamic";
-	}
-
-	if (is_system_tablespace(table->space)) {
-		space_type = "System";
-	} else {
-		space_type = "Single";
 	}
 
 	DBUG_ENTER("i_s_dict_fill_sys_tables");
@@ -6056,7 +6050,7 @@ i_s_dict_fill_sys_tables(
 
 	OK(fields[SYS_TABLES_NUM_COLUMN]->store(table->n_cols));
 
-	OK(fields[SYS_TABLES_SPACE]->store(table->space));
+	OK(fields[SYS_TABLES_SPACE]->store(table->space_id, true));
 
 	OK(field_store_string(fields[SYS_TABLES_ROW_FORMAT], row_format));
 
@@ -6065,7 +6059,8 @@ i_s_dict_fill_sys_tables(
 				? page_size.physical()
 				: 0, true));
 
-	OK(field_store_string(fields[SYS_TABLES_SPACE_TYPE], space_type));
+	OK(field_store_string(fields[SYS_TABLES_SPACE_TYPE],
+			      table->space_id ? "Single" : "System"));
 
 	OK(schema_table_store_record(thd, table_to_fill));
 
@@ -6109,23 +6104,19 @@ i_s_sys_tables_fill_table(
 		/* Create and populate a dict_table_t structure with
 		information from SYS_TABLES row */
 		err_msg = dict_process_sys_tables_rec_and_mtr_commit(
-			heap, rec, &table_rec,
-			DICT_TABLE_LOAD_FROM_RECORD, &mtr);
+			heap, rec, &table_rec, false, &mtr);
 
 		mutex_exit(&dict_sys->mutex);
 
 		if (!err_msg) {
-			i_s_dict_fill_sys_tables(thd, table_rec, tables->table);
+			i_s_dict_fill_sys_tables(thd, table_rec,
+						 tables->table);
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
 					    err_msg);
 		}
 
-		/* Since dict_process_sys_tables_rec_and_mtr_commit()
-		is called with DICT_TABLE_LOAD_FROM_RECORD, the table_rec
-		is created in dict_process_sys_tables_rec(), we will
-		need to free it */
 		if (table_rec) {
 			dict_mem_table_free(table_rec);
 		}
@@ -6410,8 +6401,7 @@ i_s_sys_tables_fill_table_stats(
 		/* Fetch the dict_table_t structure corresponding to
 		this SYS_TABLES record */
 		err_msg = dict_process_sys_tables_rec_and_mtr_commit(
-			heap, rec, &table_rec,
-			DICT_TABLE_LOAD_FROM_CACHE, &mtr);
+			heap, rec, &table_rec, true, &mtr);
 
 		ulint ref_count = table_rec ? table_rec->get_ref_count() : 0;
 		mutex_exit(&dict_sys->mutex);
@@ -6610,6 +6600,7 @@ i_s_dict_fill_sys_indexes(
 /*======================*/
 	THD*		thd,		/*!< in: thread */
 	table_id_t	table_id,	/*!< in: table id */
+	ulint		space_id,	/*!< in: tablespace id */
 	dict_index_t*	index,		/*!< in: populated dict_index_t
 					struct with index info */
 	TABLE*		table_to_fill)	/*!< in/out: fill this table */
@@ -6626,20 +6617,25 @@ i_s_dict_fill_sys_indexes(
 
 	OK(fields[SYS_INDEX_TABLE_ID]->store(longlong(table_id), true));
 
-	OK(fields[SYS_INDEX_TYPE]->store(index->type));
+	OK(fields[SYS_INDEX_TYPE]->store(index->type, true));
 
 	OK(fields[SYS_INDEX_NUM_FIELDS]->store(index->n_fields));
 
 	/* FIL_NULL is ULINT32_UNDEFINED */
 	if (index->page == FIL_NULL) {
-		OK(fields[SYS_INDEX_PAGE_NO]->store(-1));
+		fields[SYS_INDEX_PAGE_NO]->set_null();
 	} else {
-		OK(fields[SYS_INDEX_PAGE_NO]->store(index->page));
+		OK(fields[SYS_INDEX_PAGE_NO]->store(index->page, true));
 	}
 
-	OK(fields[SYS_INDEX_SPACE]->store(index->space));
+	if (space_id == ULINT_UNDEFINED) {
+		fields[SYS_INDEX_SPACE]->set_null();
+	} else {
+		OK(fields[SYS_INDEX_SPACE]->store(space_id, true));
+	}
 
-	OK(fields[SYS_INDEX_MERGE_THRESHOLD]->store(index->merge_threshold));
+	OK(fields[SYS_INDEX_MERGE_THRESHOLD]->store(index->merge_threshold,
+						    true));
 
 	OK(schema_table_store_record(thd, table_to_fill));
 
@@ -6681,19 +6677,27 @@ i_s_sys_indexes_fill_table(
 	while (rec) {
 		const char*	err_msg;
 		table_id_t	table_id;
+		ulint		space_id;
 		dict_index_t	index_rec;
 
 		/* Populate a dict_index_t structure with information from
 		a SYS_INDEXES row */
 		err_msg = dict_process_sys_indexes_rec(heap, rec, &index_rec,
 						       &table_id);
-
+		const byte* field = rec_get_nth_field_old(
+			rec, DICT_FLD__SYS_INDEXES__SPACE, &space_id);
+		space_id = space_id == 4 ? mach_read_from_4(field)
+			: ULINT_UNDEFINED;
 		mtr_commit(&mtr);
 		mutex_exit(&dict_sys->mutex);
 
 		if (!err_msg) {
-			i_s_dict_fill_sys_indexes(thd, table_id, &index_rec,
-						 tables->table);
+			if (int err = i_s_dict_fill_sys_indexes(
+				    thd, table_id, space_id, &index_rec,
+				    tables->table)) {
+				mem_heap_free(heap);
+				DBUG_RETURN(err);
+			}
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
@@ -8617,12 +8621,6 @@ i_s_tablespaces_encryption_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	mem_heap_t*	heap;
-	mtr_t		mtr;
-	bool		found_space_0 = false;
-
 	DBUG_ENTER("i_s_tablespaces_encryption_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
@@ -8631,68 +8629,24 @@ i_s_tablespaces_encryption_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	heap = mem_heap_create(1000);
-	mutex_enter(&dict_sys->mutex);
-	mtr_start(&mtr);
+	mutex_enter(&fil_system.mutex);
 
-	rec = dict_startscan_system(&pcur, &mtr, SYS_TABLESPACES);
-
-	while (rec) {
-		const char*	err_msg;
-		ulint		space_id;
-		const char*	name;
-		ulint		flags;
-
-		/* Extract necessary information from a SYS_TABLESPACES row */
-		err_msg = dict_process_sys_tablespaces(
-			heap, rec, &space_id, &name, &flags);
-
-		mtr_commit(&mtr);
-		mutex_exit(&dict_sys->mutex);
-
-		if (space_id == 0) {
-			found_space_0 = true;
+	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
+	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
+		if (space->purpose == FIL_TYPE_TABLESPACE) {
+			space->n_pending_ops++;
+			mutex_exit(&fil_system.mutex);
+			if (int err = i_s_dict_fill_tablespaces_encryption(
+				    thd, space, tables->table)) {
+				fil_space_release(space);
+				DBUG_RETURN(err);
+			}
+			mutex_enter(&fil_system.mutex);
+			space->n_pending_ops--;
 		}
-
-		fil_space_t* space = fil_space_acquire_silent(space_id);
-
-		if (!err_msg && space) {
-			i_s_dict_fill_tablespaces_encryption(
-				thd, space, tables->table);
-		} else {
-			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-					    ER_CANT_FIND_SYSTEM_REC, "%s",
-					    err_msg);
-		}
-
-		if (space) {
-			fil_space_release(space);
-		}
-
-		mem_heap_empty(heap);
-
-		/* Get the next record */
-		mutex_enter(&dict_sys->mutex);
-		mtr_start(&mtr);
-		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
-	mtr_commit(&mtr);
-	mutex_exit(&dict_sys->mutex);
-	mem_heap_free(heap);
-
-	if (found_space_0 == false) {
-		/* space 0 does for what ever unknown reason not show up
-		* in iteration above, add it manually */
-
-		fil_space_t* space = fil_space_acquire_silent(0);
-
-		i_s_dict_fill_tablespaces_encryption(
-			thd, space, tables->table);
-
-		fil_space_release(space);
-	}
-
+	mutex_exit(&fil_system.mutex);
 	DBUG_RETURN(0);
 }
 /*******************************************************************//**
@@ -8938,12 +8892,6 @@ i_s_tablespaces_scrubbing_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	mem_heap_t*	heap;
-	mtr_t		mtr;
-	bool		found_space_0 = false;
-
 	DBUG_ENTER("i_s_tablespaces_scrubbing_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
@@ -8952,67 +8900,24 @@ i_s_tablespaces_scrubbing_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	heap = mem_heap_create(1000);
-	mutex_enter(&dict_sys->mutex);
-	mtr_start(&mtr);
+	mutex_enter(&fil_system.mutex);
 
-	rec = dict_startscan_system(&pcur, &mtr, SYS_TABLESPACES);
-
-	while (rec) {
-		const char*	err_msg;
-		ulint		space_id;
-		const char*	name;
-		ulint		flags;
-
-		/* Extract necessary information from a SYS_TABLESPACES row */
-		err_msg = dict_process_sys_tablespaces(
-			heap, rec, &space_id, &name, &flags);
-
-		mtr_commit(&mtr);
-		mutex_exit(&dict_sys->mutex);
-
-		if (space_id == 0) {
-			found_space_0 = true;
+	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
+	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
+		if (space->purpose == FIL_TYPE_TABLESPACE) {
+			space->n_pending_ops++;
+			mutex_exit(&fil_system.mutex);
+			if (int err = i_s_dict_fill_tablespaces_scrubbing(
+				    thd, space, tables->table)) {
+				fil_space_release(space);
+				DBUG_RETURN(err);
+			}
+			mutex_enter(&fil_system.mutex);
+			space->n_pending_ops--;
 		}
-
-		fil_space_t* space = fil_space_acquire_silent(space_id);
-
-		if (!err_msg && space) {
-			i_s_dict_fill_tablespaces_scrubbing(
-				thd, space, tables->table);
-		} else {
-			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-					    ER_CANT_FIND_SYSTEM_REC, "%s",
-					    err_msg);
-		}
-
-		if (space) {
-			fil_space_release(space);
-		}
-
-		mem_heap_empty(heap);
-
-		/* Get the next record */
-		mutex_enter(&dict_sys->mutex);
-		mtr_start(&mtr);
-		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
-	mtr_commit(&mtr);
-	mutex_exit(&dict_sys->mutex);
-	mem_heap_free(heap);
-
-	if (found_space_0 == false) {
-		/* space 0 does for what ever unknown reason not show up
-		* in iteration above, add it manually */
-		fil_space_t* space = fil_space_acquire_silent(0);
-
-		i_s_dict_fill_tablespaces_scrubbing(
-			thd, space, tables->table);
-
-		fil_space_release(space);
-	}
-
+	mutex_exit(&fil_system.mutex);
 	DBUG_RETURN(0);
 }
 /*******************************************************************//**

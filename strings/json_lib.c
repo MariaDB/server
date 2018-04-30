@@ -185,7 +185,7 @@ static int read_array(json_engine_t *j)
 /*
   Character classes inside the JSON string constant.
   We mostly need this to parse escaping properly.
-  Escapings availabe in JSON are:
+  Escapings available in JSON are:
   \" - quotation mark
   \\ - backslash
   \b - backspace UNICODE 8

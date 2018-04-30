@@ -293,7 +293,7 @@ bool Type_std_attributes::count_string_length(const char *func_name,
   This method is used by:
   - Item_user_var_as_out_param::field_type()
   - Item_func_udf_str::field_type()
-  - Item_empty_string::make_field()
+  - Item_empty_string::make_send_field()
 
   TODO: type_handler_adjusted_to_max_octet_length() and string_type_handler()
   provide very similar functionality, to properly choose between
@@ -1365,60 +1365,20 @@ Field *Type_handler_varchar_compressed::make_conversion_table_field(TABLE *table
 }
 
 
-Field *Type_handler_tiny_blob::make_conversion_table_field(TABLE *table,
-                                                           uint metadata,
-                                                           const Field *target)
-                                                           const
-{
-  return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
-                    table->s, 1, target->charset());
-}
-
-
-Field *Type_handler_blob::make_conversion_table_field(TABLE *table,
-                                                      uint metadata,
-                                                      const Field *target)
-                                                      const
-{
-  return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
-                    table->s, 2, target->charset());
-}
-
 
 Field *Type_handler_blob_compressed::make_conversion_table_field(TABLE *table,
                                                       uint metadata,
                                                       const Field *target)
                                                       const
 {
+  uint pack_length= metadata & 0x00ff;
+  if (pack_length < 1 || pack_length > 4)
+    return NULL; // Broken binary log?
   return new(table->in_use->mem_root)
          Field_blob_compressed(NULL, (uchar *) "", 1, Field::NONE,
                                &empty_clex_str,
-                               table->s, 2, target->charset(),
+                               table->s, pack_length, target->charset(),
                                zlib_compression_method);
-}
-
-
-Field *Type_handler_medium_blob::make_conversion_table_field(TABLE *table,
-                                                           uint metadata,
-                                                           const Field *target)
-                                                           const
-{
-  return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
-                    table->s, 3, target->charset());
-}
-
-
-Field *Type_handler_long_blob::make_conversion_table_field(TABLE *table,
-                                                           uint metadata,
-                                                           const Field *target)
-                                                           const
-{
-  return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
-                    table->s, 4, target->charset());
 }
 
 
@@ -5765,6 +5725,19 @@ void Type_handler_datetime_common::Item_param_set_param_func(Item_param *param,
                                                              ulong len) const
 {
   param->set_param_datetime(pos, len);
+}
+
+Field *Type_handler_blob_common::make_conversion_table_field(TABLE *table,
+                                                            uint metadata,
+                                                            const Field *target)
+                                                            const
+{
+  uint pack_length= metadata & 0x00ff;
+  if (pack_length < 1 || pack_length > 4)
+    return NULL; // Broken binary log?
+  return new(table->in_use->mem_root)
+         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
+                    table->s, pack_length, target->charset());
 }
 
 

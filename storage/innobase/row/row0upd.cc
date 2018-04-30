@@ -303,25 +303,19 @@ row_upd_check_references_constraints(
 			undergoing a truncate, ignore the FK check. */
 
 			if (foreign_table) {
-				mutex_enter(&fil_system->mutex);
-				const fil_space_t* space = fil_space_get_by_id(
-					foreign_table->space);
-				const bool being_truncated = space
-					&& space->is_being_truncated;
-				mutex_exit(&fil_system->mutex);
-				if (being_truncated) {
+				if (foreign_table->space
+				    && foreign_table->space
+				    ->is_being_truncated) {
 					continue;
 				}
+
+				foreign_table->inc_fk_checks();
 			}
 
 			/* NOTE that if the thread ends up waiting for a lock
 			we will release dict_operation_lock temporarily!
-			But the counter on the table protects 'foreign' from
+			But the inc_fk_checks() protects foreign_table from
 			being dropped while the check is running. */
-
-			if (foreign_table) {
-				foreign_table->inc_fk_checks();
-			}
 
 			err = row_ins_check_foreign_constraint(
 				FALSE, foreign, table, entry, thr);
@@ -2313,13 +2307,13 @@ row_upd_sec_index_entry(
 
 	mtr.start();
 
-	switch (index->space) {
+	switch (index->table->space->id) {
 	case SRV_TMP_SPACE_ID:
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 		flags = BTR_NO_LOCKING_FLAG;
 		break;
 	default:
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 		/* fall through */
 	case IBUF_SPACE_ID:
 		flags = index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
@@ -2888,7 +2882,7 @@ row_upd_clust_rec(
 		flags |= BTR_NO_LOCKING_FLAG;
 		mtr->set_log_mode(MTR_LOG_NO_REDO);
 	} else {
-		mtr->set_named_space(index->space);
+		index->set_modified(*mtr);
 	}
 
 	/* NOTE: this transaction has an s-lock or x-lock on the record and
@@ -3080,7 +3074,7 @@ row_upd_clust_step(
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
 		flags = node->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 	}
 
 	/* If the restoration does not succeed, then the same
@@ -3132,7 +3126,7 @@ row_upd_clust_step(
 		mtr.commit();
 
 		mtr.start();
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 
 		success = btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur,
 						    &mtr);
@@ -3461,4 +3455,58 @@ error_handling:
 	node->state = UPD_NODE_UPDATE_CLUSTERED;
 
 	DBUG_RETURN(thr);
+}
+
+/** Write query start time as SQL field data to a buffer. Needed by InnoDB.
+@param	thd	Thread object
+@param	buf	Buffer to hold start time data */
+void thd_get_query_start_data(THD *thd, char *buf);
+
+/** Appends row_start or row_end field to update vector and sets a
+CURRENT_TIMESTAMP/trx->id value to it.
+Supposed to be called only by make_versioned_update() and
+make_versioned_delete().
+@param[in]	trx	transaction
+@param[in]	vers_sys_idx	table->row_start or table->row_end */
+void upd_node_t::make_versioned_helper(const trx_t* trx, ulint idx)
+{
+	ut_ad(in_mysql_interface); // otherwise needs to recalculate
+				   // node->cmpl_info
+	ut_ad(idx == table->vers_start || idx == table->vers_end);
+
+	dict_index_t* clust_index = dict_table_get_first_index(table);
+
+	update->n_fields++;
+	upd_field_t* ufield =
+		upd_get_nth_field(update, upd_get_n_fields(update) - 1);
+	const dict_col_t* col = dict_table_get_nth_col(table, idx);
+
+	upd_field_set_field_no(ufield, dict_col_get_clust_pos(col, clust_index),
+			       clust_index);
+
+	char* where = reinterpret_cast<char*>(update->vers_sys_value);
+	if (col->vers_native()) {
+		mach_write_to_8(where, trx->id);
+	} else {
+		thd_get_query_start_data(trx->mysql_thd, where);
+	}
+
+	dfield_set_data(&ufield->new_val, update->vers_sys_value, col->len);
+}
+
+/** Also set row_start = CURRENT_TIMESTAMP/trx->id
+@param[in]	trx	transaction */
+void upd_node_t::make_versioned_update(const trx_t* trx)
+{
+	make_versioned_helper(trx, table->vers_start);
+}
+
+/** Only set row_end = CURRENT_TIMESTAMP/trx->id.
+Do not touch other fields at all.
+@param[in]	trx	transaction */
+void upd_node_t::make_versioned_delete(const trx_t* trx)
+{
+	update->n_fields = 0;
+	is_delete = VERSIONED_DELETE;
+	make_versioned_helper(trx, table->vers_end);
 }

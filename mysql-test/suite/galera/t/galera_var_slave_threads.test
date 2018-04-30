@@ -6,7 +6,6 @@
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
-
 --let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
 
 --connection node_1
@@ -14,7 +13,7 @@ CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=InnoDB;
 CREATE TABLE t2 (f1 INT AUTO_INCREMENT PRIMARY KEY) Engine=InnoDB;
 
 --connection node_2
-
+CALL mtr.add_suppression("WSREP: Refusing exit for the last slave thread.");
 # Setting wsrep_slave_threads to zero triggers a warning
 SET GLOBAL wsrep_slave_threads = 0;
 SHOW WARNINGS;
@@ -30,7 +29,6 @@ SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system use
 #
 
 SET GLOBAL wsrep_slave_threads = 64;
---sleep 0.5
 
 --connection node_1
 INSERT INTO t1 VALUES (1);
@@ -43,6 +41,9 @@ SELECT COUNT(*) = 1 FROM t1;
 #
 SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
 SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--source include/wait_condition.inc
 
 #
 # Reduce the number of slave threads. The change is not immediate -- a thread will only exit after a replication event
@@ -67,6 +68,9 @@ SET wsrep_sync_wait=0;
 SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
 SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%')
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 --let $wsrep_cluster_address_node2 = `SELECT @@wsrep_cluster_address`
 --let $wsrep_provider_node2 = `SELECT @@wsrep_provider`
@@ -154,9 +158,17 @@ while ($count)
 
 
 --connection node_2
+SET GLOBAL wsrep_slave_threads = 4;
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%')
+--source include/wait_condition.inc
 
+SET GLOBAL wsrep_slave_threads = 1;
+
+--connection node_1
 --let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon'
 --source include/wait_condition.inc
 
 DROP TABLE t1;
 DROP TABLE t2;
+
+--echo # End of tests

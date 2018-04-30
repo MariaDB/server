@@ -11,7 +11,7 @@ SELECT * FROM t1;
 ERROR 42S02: Table 'test.t1' doesn't exist in engine
 SHOW WARNINGS;
 Level	Code	Message
-Warning	192	Table test/t1 in tablespace  is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
+Warning	192	Table test/t1 in file ./test/t1.ibd is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
 Error	1932	Table 'test.t1' doesn't exist in engine
 ALTER TABLE t1 ENGINE=InnoDB;
 ERROR 42S02: Table 'test.t1' doesn't exist in engine

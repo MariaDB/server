@@ -24,7 +24,6 @@ SHOW STATUS;
 
 SET SESSION wsrep_sync_wait=0;
 
---error 0
 SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS;
 
 # Must return 'OFF'

@@ -259,21 +259,21 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
   if (is_infoschema_db(db))
     return TABLE_CATEGORY_INFORMATION;
 
-  if (lex_string_eq(&PERFORMANCE_SCHEMA_DB_NAME, db) == 0)
+  if (lex_string_eq(&PERFORMANCE_SCHEMA_DB_NAME, db))
     return TABLE_CATEGORY_PERFORMANCE;
 
-  if (lex_string_eq(&MYSQL_SCHEMA_NAME, db) == 0)
+  if (lex_string_eq(&MYSQL_SCHEMA_NAME, db))
   {
     if (is_system_table_name(name->str, name->length))
       return TABLE_CATEGORY_SYSTEM;
 
-    if (lex_string_eq(&GENERAL_LOG_NAME, name) == 0)
+    if (lex_string_eq(&GENERAL_LOG_NAME, name))
       return TABLE_CATEGORY_LOG;
 
-    if (lex_string_eq(&SLOW_LOG_NAME, name) == 0)
+    if (lex_string_eq(&SLOW_LOG_NAME, name))
       return TABLE_CATEGORY_LOG;
 
-    if (lex_string_eq(&TRANSACTION_REG_NAME, name) == 0)
+    if (lex_string_eq(&TRANSACTION_REG_NAME, name))
       return TABLE_CATEGORY_LOG;
   }
 
@@ -1205,8 +1205,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint ext_key_parts= 0;
   plugin_ref se_plugin= 0;
   const uchar *system_period= 0;
-  bool vtmd_used= false;
-  share->vtmd= false;
   bool vers_can_native= false;
   const uchar *extra2_field_flags= 0;
   size_t extra2_field_flags_length= 0;
@@ -1308,17 +1306,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (system_period || length != 2 * sizeof(uint16))
           goto err;
         system_period = extra2;
-        break;
-      case EXTRA2_VTMD:
-        if (vtmd_used)
-          goto err;
-        share->vtmd= *extra2;
-        if (share->vtmd)
-        {
-          share->table_category= TABLE_CATEGORY_LOG;
-          share->no_replicate= true;
-        }
-        vtmd_used= true;
         break;
       case EXTRA2_FIELD_FLAGS:
         if (extra2_field_flags)
@@ -6423,11 +6410,9 @@ void TABLE::mark_columns_needed_for_delete()
   if (need_signal)
     file->column_bitmaps_signal();
 
-  /*
-     For System Versioning we have to write and read Sys_end.
-  */
   if (s->versioned)
   {
+    bitmap_set_bit(read_set, s->vers_start_field()->field_index);
     bitmap_set_bit(read_set, s->vers_end_field()->field_index);
     bitmap_set_bit(write_set, s->vers_end_field()->field_index);
   }
@@ -7792,28 +7777,6 @@ void TABLE::vers_update_end()
     DBUG_ASSERT(0);
 }
 
-
-bool TABLE_LIST::vers_vtmd_name(String& out) const
-{
-  static const char *vtmd_suffix= "_vtmd";
-  static const size_t vtmd_suffix_len= strlen(vtmd_suffix);
-  if (table_name.length > NAME_CHAR_LEN - vtmd_suffix_len)
-  {
-    my_printf_error(ER_VERS_VTMD_ERROR, "Table name is longer than %d characters", MYF(0),
-                    int(NAME_CHAR_LEN - vtmd_suffix_len));
-    return true;
-  }
-  out.set(table_name.str, table_name.length, table_alias_charset);
-  if (out.append(vtmd_suffix, vtmd_suffix_len + 1))
-  {
-    my_message(ER_VERS_VTMD_ERROR, "Failed allocate VTMD name", MYF(0));
-    return true;
-  }
-  out.length(out.length() - 1);
-  return false;
-}
-
-
 /**
    Reset markers that fields are being updated
 */
@@ -8458,6 +8421,7 @@ Item* TABLE_LIST::build_pushable_cond_for_table(THD *thd, Item *cond)
       return 0;		
     List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
     Item *item;
+    bool is_fix_needed= false;
     while ((item=li++))
     {
       if (item->get_extraction_flag() == NO_EXTRACTION_FL)
@@ -8471,8 +8435,16 @@ Item* TABLE_LIST::build_pushable_cond_for_table(THD *thd, Item *cond)
 	return 0;
       if (!fix) 
 	continue;
+
+      if (fix->type() == Item::COND_ITEM &&
+          ((Item_cond*) fix)->functype() == Item_func::COND_AND_FUNC)
+	is_fix_needed= true;
+
       new_cond->argument_list()->push_back(fix, thd->mem_root);
     }
+    if (is_fix_needed)
+      new_cond->fix_fields(thd, 0);
+
     switch (new_cond->argument_list()->elements) 
     {
     case 0:

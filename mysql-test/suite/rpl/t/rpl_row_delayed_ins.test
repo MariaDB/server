@@ -1,2 +1,2 @@
 let $engine_type=myisam;
--- source extra/rpl_tests/rpl_row_delayed_ins.test
+-- source include/rpl_row_delayed_ins.test

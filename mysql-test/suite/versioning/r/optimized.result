@@ -61,4 +61,15 @@ a	b
 3	4
 select * from t for system_time as of timestamp now(6) where b is NULL;
 a	b
+create or replace table t (x int with system versioning, y int);
+select column_name, extra from information_schema.columns where table_name='t';
+column_name	extra
+x	
+y	WITHOUT SYSTEM VERSIONING
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 drop table t;

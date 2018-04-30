@@ -180,6 +180,7 @@ void ORAerror(THD *thd, const char *s)
   Lex_dyncol_type_st Lex_dyncol_type;
   Lex_for_loop_st for_loop;
   Lex_for_loop_bounds_st for_loop_bounds;
+  Lex_trim_st trim;
   struct
   {
     LEX_CSTRING name;
@@ -198,6 +199,7 @@ void ORAerror(THD *thd, const char *s)
   Item *item;
   Item_num *item_num;
   Item_param *item_param;
+  Item_basic_constant *item_basic_constant;
   Key_part_spec *key_part;
   LEX *lex;
   sp_assignment_lex *assignment_lex;
@@ -944,6 +946,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  TRIGGERS_SYM
 %token  TRIGGER_SYM                   /* SQL-2003-R */
 %token  TRIM                          /* SQL-2003-N */
+%token  TRIM_ORACLE
 %token  TRUE_SYM                      /* SQL-2003-R */
 %token  TRUNCATE_SYM
 %token  TYPES_SYM
@@ -1156,7 +1159,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         replace_lock_option opt_low_priority insert_lock_option load_data_lock
 
 %type <item>
-        literal text_literal insert_ident order_ident temporal_literal
+        literal insert_ident order_ident temporal_literal
         simple_ident expr sum_expr in_sum_expr
         variable variable_aux bool_pri
         predicate bit_expr parenthesized_expr
@@ -1188,6 +1191,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <item_num>
         NUM_literal
+
+%type <item_basic_constant> text_literal
 
 %type <item_list>
         expr_list opt_udf_expr_list udf_expr_list when_list when_list_opt_else
@@ -1402,6 +1407,7 @@ END_OF_INPUT
 %type <spvar> sp_param_name sp_param_name_and_type
 %type <for_loop> sp_for_loop_index_and_bounds
 %type <for_loop_bounds> sp_for_loop_bounds
+%type <trim> trim_operands
 %type <num> opt_sp_for_loop_direction
 %type <spvar_mode> sp_opt_inout
 %type <index_hint> index_hint_type
@@ -5086,7 +5092,7 @@ partitioning:
             }
             if (lex->sql_command == SQLCOM_ALTER_TABLE)
             {
-              lex->alter_info.flags|= Alter_info::ALTER_PARTITION;
+              lex->alter_info.partition_flags|= ALTER_PARTITION_INFO;
             }
           }
           partition
@@ -6286,7 +6292,7 @@ key_def:
             lex->option_list= NULL;
 
             /* Only used for ALTER TABLE. Ignored otherwise. */
-            lex->alter_info.flags|= Alter_info::ADD_FOREIGN_KEY;
+            lex->alter_info.flags|= ALTER_ADD_FOREIGN_KEY;
           }
 	;
 
@@ -6432,13 +6438,13 @@ vcol_attribute:
           {
             LEX *lex=Lex;
             lex->last_field->flags|= UNIQUE_KEY_FLAG;
-            lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
+            lex->alter_info.flags|= ALTER_ADD_INDEX;
           }
         | UNIQUE_SYM KEY_SYM
           {
             LEX *lex=Lex;
             lex->last_field->flags|= UNIQUE_KEY_FLAG;
-            lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
+            lex->alter_info.flags|= ALTER_ADD_INDEX;
           }
         | COMMENT_SYM TEXT_STRING_sys { Lex->last_field->comment= $2; }
         | INVISIBLE_SYM
@@ -6928,7 +6934,7 @@ attribute:
           { 
             LEX *lex=Lex;
             lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG | UNIQUE_KEY_FLAG;
-            lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
+            lex->alter_info.flags|= ALTER_ADD_INDEX;
           }
         | COLLATE_SYM collation_name
           {
@@ -6946,7 +6952,7 @@ serial_attribute:
           {
             LEX *lex=Lex;
             lex->last_field->flags|= PRI_KEY_FLAG | NOT_NULL_FLAG;
-            lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
+            lex->alter_info.flags|= ALTER_ADD_INDEX;
           }
         | vcol_attribute
         | IDENT_sys equal TEXT_STRING_sys
@@ -7345,7 +7351,10 @@ key_using_alg:
 
 all_key_opt:
           KEY_BLOCK_SIZE opt_equal ulong_num
-          { Lex->last_key->key_create_info.block_size= $3; }
+          {
+            Lex->create_info.used_fields|= HA_USES_BLOCK_SIZE;
+            Lex->create_info.key_block_size= $3;
+          }
         | COMMENT_SYM TEXT_STRING_sys
           { Lex->last_key->key_create_info.comment= $2; }
         | IDENT_sys equal TEXT_STRING_sys
@@ -7718,7 +7727,7 @@ alter_commands:
         | add_partition_rule
         | DROP PARTITION_SYM opt_if_exists alt_part_name_list
           {
-            Lex->alter_info.flags|= Alter_info::ALTER_DROP_PARTITION;
+            Lex->alter_info.partition_flags|= ALTER_PARTITION_DROP;
             DBUG_ASSERT(!Lex->if_exists());
             Lex->create_info.add($3);
           }
@@ -7726,7 +7735,7 @@ alter_commands:
           all_or_alt_part_name_list
           {
             LEX *lex= Lex;
-            lex->alter_info.flags|= Alter_info::ALTER_REBUILD_PARTITION;
+            lex->alter_info.partition_flags|= ALTER_PARTITION_REBUILD;
             lex->no_write_to_binlog= $3;
           }
         | OPTIMIZE PARTITION_SYM opt_no_write_to_binlog
@@ -7781,7 +7790,7 @@ alter_commands:
         | COALESCE PARTITION_SYM opt_no_write_to_binlog real_ulong_num
           {
             LEX *lex= Lex;
-            lex->alter_info.flags|= Alter_info::ALTER_COALESCE_PARTITION;
+            lex->alter_info.partition_flags|= ALTER_PARTITION_COALESCE;
             lex->no_write_to_binlog= $3;
             lex->alter_info.num_parts= $4;
           }
@@ -7807,7 +7816,7 @@ alter_commands:
               MYSQL_YYABORT;
             }
             lex->name= $6->table;
-            lex->alter_info.flags|= Alter_info::ALTER_EXCHANGE_PARTITION;
+            lex->alter_info.partition_flags|= ALTER_PARTITION_EXCHANGE;
             if (!lex->select_lex.add_table_to_list(thd, $6, NULL,
                                                    TL_OPTION_UPDATING,
                                                    TL_READ_NO_INSERT,
@@ -7824,14 +7833,14 @@ alter_commands:
 remove_partitioning:
           REMOVE_SYM PARTITIONING_SYM
           {
-            Lex->alter_info.flags|= Alter_info::ALTER_REMOVE_PARTITIONING;
+            Lex->alter_info.partition_flags|= ALTER_PARTITION_REMOVE;
           }
         ;
 
 all_or_alt_part_name_list:
           ALL
           {
-            Lex->alter_info.flags|= Alter_info::ALTER_ALL_PARTITION;
+            Lex->alter_info.partition_flags|= ALTER_PARTITION_ALL;
           }
         | alt_part_name_list
         ;
@@ -7847,7 +7856,7 @@ add_partition_rule:
               mem_alloc_error(sizeof(partition_info));
               MYSQL_YYABORT;
             }
-            lex->alter_info.flags|= Alter_info::ALTER_ADD_PARTITION;
+            lex->alter_info.partition_flags|= ALTER_PARTITION_ADD;
             DBUG_ASSERT(!Lex->create_info.if_not_exists());
             lex->create_info.set($3);
             lex->no_write_to_binlog= $4;
@@ -7887,11 +7896,11 @@ reorg_partition_rule:
 reorg_parts_rule:
           /* empty */
           {
-            Lex->alter_info.flags|= Alter_info::ALTER_TABLE_REORG;
+            Lex->alter_info.partition_flags|= ALTER_PARTITION_TABLE_REORG;
           }
         | alt_part_name_list
           {
-            Lex->alter_info.flags|= Alter_info::ALTER_REORGANIZE_PARTITION;
+            Lex->alter_info.partition_flags|= ALTER_PARTITION_REORGANIZE;
           }
           INTO '(' part_def_list ')'
           {
@@ -7928,42 +7937,41 @@ alter_list:
 
 add_column:
           ADD opt_column opt_if_not_exists_table_element
-          {
-            LEX *lex=Lex;
-            lex->alter_info.flags|= Alter_info::ALTER_ADD_COLUMN;
-          }
         ;
 
 alter_list_item:
           add_column column_def opt_place
           {
-            Lex->create_last_non_select_table= Lex->last_table();
+            LEX *lex=Lex;
+            lex->create_last_non_select_table= lex->last_table();
+            lex->alter_info.flags|= ALTER_PARSER_ADD_COLUMN;
             $2->after= $3;
           }
         | ADD key_def
           {
             Lex->create_last_non_select_table= Lex->last_table();
-            Lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
+            Lex->alter_info.flags|= ALTER_ADD_INDEX;
           }
         | add_column '(' create_field_list ')'
           {
-            Lex->alter_info.flags|= Alter_info::ALTER_ADD_COLUMN |
-                                    Alter_info::ALTER_ADD_INDEX;
+            LEX *lex=Lex;
+            lex->alter_info.flags|= ALTER_PARSER_ADD_COLUMN;
+            if (!lex->alter_info.key_list.is_empty())
+              lex->alter_info.flags|= ALTER_ADD_INDEX;
           }
         | ADD constraint_def
           {
-            Lex->alter_info.flags|= Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
+            Lex->alter_info.flags|= ALTER_ADD_CHECK_CONSTRAINT;
 	  }
         | ADD CONSTRAINT IF_SYM not EXISTS field_ident check_constraint
          {
-           Lex->alter_info.flags|= Alter_info::ALTER_ADD_CHECK_CONSTRAINT;
+           Lex->alter_info.flags|= ALTER_ADD_CHECK_CONSTRAINT;
            Lex->add_constraint(&$6, $7, TRUE);
          }
         | CHANGE opt_column opt_if_exists_table_element field_ident
           field_spec opt_place
           {
-            Lex->alter_info.flags|= (Alter_info::ALTER_CHANGE_COLUMN |
-                                     Alter_info::ALTER_RENAME_COLUMN);
+            Lex->alter_info.flags|= ALTER_CHANGE_COLUMN | ALTER_RENAME_COLUMN;
             Lex->create_last_non_select_table= Lex->last_table();
             $5->change= $4;
             $5->after= $6;
@@ -7971,7 +7979,7 @@ alter_list_item:
         | MODIFY_SYM opt_column opt_if_exists_table_element
           field_spec opt_place
           {
-            Lex->alter_info.flags|= Alter_info::ALTER_CHANGE_COLUMN;
+            Lex->alter_info.flags|= ALTER_CHANGE_COLUMN;
             Lex->create_last_non_select_table= Lex->last_table();
             $4->change= $4->field_name;
             $4->after= $5;
@@ -7984,7 +7992,7 @@ alter_list_item:
             if (ad == NULL)
               MYSQL_YYABORT;
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
-            lex->alter_info.flags|= Alter_info::ALTER_DROP_COLUMN;
+            lex->alter_info.flags|= ALTER_PARSER_DROP_COLUMN;
           }
 	| DROP CONSTRAINT opt_if_exists_table_element field_ident
           {
@@ -7995,7 +8003,7 @@ alter_list_item:
             if (ad == NULL)
               MYSQL_YYABORT;
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
-            lex->alter_info.flags|= Alter_info::ALTER_DROP_CHECK_CONSTRAINT;
+            lex->alter_info.flags|= ALTER_DROP_CHECK_CONSTRAINT;
           }
         | DROP FOREIGN KEY_SYM opt_if_exists_table_element field_ident
           {
@@ -8005,7 +8013,7 @@ alter_list_item:
             if (ad == NULL)
               MYSQL_YYABORT;
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
-            lex->alter_info.flags|= Alter_info::DROP_FOREIGN_KEY;
+            lex->alter_info.flags|= ALTER_DROP_FOREIGN_KEY;
           }
         | DROP PRIMARY_SYM KEY_SYM
           {
@@ -8016,7 +8024,7 @@ alter_list_item:
             if (ad == NULL)
               MYSQL_YYABORT;
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
-            lex->alter_info.flags|= Alter_info::ALTER_DROP_INDEX;
+            lex->alter_info.flags|= ALTER_DROP_INDEX;
           }
         | DROP key_or_index opt_if_exists_table_element field_ident
           {
@@ -8026,19 +8034,19 @@ alter_list_item:
             if (ad == NULL)
               MYSQL_YYABORT;
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
-            lex->alter_info.flags|= Alter_info::ALTER_DROP_INDEX;
+            lex->alter_info.flags|= ALTER_DROP_INDEX;
           }
         | DISABLE_SYM KEYS
           {
             LEX *lex=Lex;
             lex->alter_info.keys_onoff= Alter_info::DISABLE;
-            lex->alter_info.flags|= Alter_info::ALTER_KEYS_ONOFF;
+            lex->alter_info.flags|= ALTER_KEYS_ONOFF;
           }
         | ENABLE_SYM KEYS
           {
             LEX *lex=Lex;
             lex->alter_info.keys_onoff= Alter_info::ENABLE;
-            lex->alter_info.flags|= Alter_info::ALTER_KEYS_ONOFF;
+            lex->alter_info.flags|= ALTER_KEYS_ONOFF;
           }
         | ALTER opt_column opt_if_exists_table_element field_ident SET DEFAULT column_default_expr
           {
@@ -8063,7 +8071,7 @@ alter_list_item:
                 ($3->db.str && check_db_name((LEX_STRING*) &$3->db)))
               my_yyabort_error((ER_WRONG_TABLE_NAME, MYF(0), $3->table.str));
             lex->name= $3->table;
-            lex->alter_info.flags|= Alter_info::ALTER_RENAME;
+            lex->alter_info.flags|= ALTER_RENAME;
           }
         | CONVERT_SYM TO_SYM charset charset_name_or_default opt_collate
           {
@@ -8077,12 +8085,12 @@ alter_list_item:
                                 $5->name, $4->csname));
             if (Lex->create_info.add_alter_list_item_convert_to_charset($5))
               MYSQL_YYABORT;
-            Lex->alter_info.flags|= Alter_info::ALTER_OPTIONS;
+            Lex->alter_info.flags|= ALTER_OPTIONS;
           }
         | create_table_options_space_separated
           {
             LEX *lex=Lex;
-            lex->alter_info.flags|= Alter_info::ALTER_OPTIONS;
+            lex->alter_info.flags|= ALTER_OPTIONS;
             if ((lex->create_info.used_fields & HA_CREATE_USED_ENGINE) &&
                 !lex->create_info.db_type)
             {
@@ -8091,12 +8099,12 @@ alter_list_item:
           }
         | FORCE_SYM
           {
-            Lex->alter_info.flags|= Alter_info::ALTER_RECREATE;
+            Lex->alter_info.flags|= ALTER_RECREATE;
           }
         | alter_order_clause
           {
             LEX *lex=Lex;
-            lex->alter_info.flags|= Alter_info::ALTER_ORDER;
+            lex->alter_info.flags|= ALTER_ORDER;
           }
         | alter_algorithm_option
         | alter_lock_option
@@ -8179,13 +8187,13 @@ opt_place:
         | AFTER_SYM ident
           {
             $$= $2;
-            Lex->alter_info.flags |= Alter_info::ALTER_COLUMN_ORDER;
+            Lex->alter_info.flags |= ALTER_COLUMN_ORDER;
           }
         | FIRST_SYM
           {
             $$.str=    first_keyword;
 	    $$.length= 5; /* Length of "first" */
-            Lex->alter_info.flags |= Alter_info::ALTER_COLUMN_ORDER;
+            Lex->alter_info.flags |= ALTER_COLUMN_ORDER;
           }
         ;
 
@@ -8725,7 +8733,7 @@ preload_keys_parts:
 adm_partition:
           PARTITION_SYM have_partitioning
           {
-            Lex->alter_info.flags|= Alter_info::ALTER_ADMIN_PARTITION;
+            Lex->alter_info.partition_flags|= ALTER_PARTITION_ADMIN;
           }
           '(' all_or_alt_part_name_list ')'
         ;
@@ -9672,6 +9680,17 @@ explicit_cursor_attr:
           }
         ;
 
+trim_operands:
+          expr                     { $$.set(TRIM_BOTH, $1);         }
+        | LEADING  expr FROM expr  { $$.set(TRIM_LEADING, $2, $4);  }
+        | TRAILING expr FROM expr  { $$.set(TRIM_TRAILING, $2, $4); }
+        | BOTH     expr FROM expr  { $$.set(TRIM_BOTH, $2, $4);     }
+        | LEADING       FROM expr  { $$.set(TRIM_LEADING, $3);      }
+        | TRAILING      FROM expr  { $$.set(TRIM_TRAILING, $3);     }
+        | BOTH          FROM expr  { $$.set(TRIM_BOTH, $3);         }
+        | expr          FROM expr  { $$.set(TRIM_BOTH, $1, $3);     }
+        ;
+
 /*
   Expressions that the parser allows in a column DEFAULT clause
   without parentheses. These expressions cannot end with a COLLATE clause.
@@ -9727,27 +9746,8 @@ column_default_non_parenthesized_expr:
           }
         | '{' ident expr '}'
           {
-            $$= NULL;
-            /*
-              If "expr" is reasonably short pure ASCII string literal,
-              try to parse known ODBC style date, time or timestamp literals,
-              e.g:
-              SELECT {d'2001-01-01'};
-              SELECT {t'10:20:30'};
-              SELECT {ts'2001-01-01 10:20:30'};
-            */
-            if ($3->type() == Item::STRING_ITEM)
-            {
-              Item_string *item= (Item_string *) $3;
-              enum_field_types type= item->odbc_temporal_literal_type(&$2);
-              if (type != MYSQL_TYPE_STRING)
-              {
-                $$= create_temporal_literal(thd, item->val_str(NULL),
-                                            type, false);
-              }
-            }
-            if ($$ == NULL)
-              $$= $3;
+            if (!($$= $3->make_odbc_literal(thd, &$2)))
+              MYSQL_YYABORT;
           }
         | MATCH ident_list_arg AGAINST '(' bit_expr fulltext_options ')'
           {
@@ -10056,52 +10056,9 @@ function_call_keyword:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | TRIM '(' expr ')'
+        | TRIM '(' trim_operands ')'
           {
-            $$= new (thd->mem_root) Item_func_trim(thd, $3);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | TRIM '(' LEADING expr FROM expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_ltrim(thd, $6, $4);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | TRIM '(' TRAILING expr FROM expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_rtrim(thd, $6, $4);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | TRIM '(' BOTH expr FROM expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_trim(thd, $6, $4);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | TRIM '(' LEADING FROM expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_ltrim(thd, $5);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | TRIM '(' TRAILING FROM expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_rtrim(thd, $5);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | TRIM '(' BOTH FROM expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_trim(thd, $5);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        | TRIM '(' expr FROM expr ')'
-          {
-            $$= new (thd->mem_root) Item_func_trim(thd, $5, $3);
-            if ($$ == NULL)
+            if (!($$= $3.make_item_func_trim(thd)))
               MYSQL_YYABORT;
           }
         | USER_SYM '(' ')'
@@ -10260,6 +10217,11 @@ function_call_nonkeyword:
           {
             $$= new (thd->mem_root) Item_func_timestamp_diff(thd, $5, $7, $3);
             if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | TRIM_ORACLE '(' trim_operands ')'
+          {
+            if (!($$= $3.make_item_func_trim_oracle(thd)))
               MYSQL_YYABORT;
           }
         | UTC_DATE_SYM optional_braces
@@ -12716,7 +12678,7 @@ drop:
               MYSQL_YYABORT;
             lex->sql_command= SQLCOM_DROP_INDEX;
             lex->alter_info.reset();
-            lex->alter_info.flags= Alter_info::ALTER_DROP_INDEX;
+            lex->alter_info.flags= ALTER_DROP_INDEX;
             lex->alter_info.drop_list.push_back(ad, thd->mem_root);
             if (!lex->current_select->add_table_to_list(thd, $6, NULL,
                                                         TL_OPTION_UPDATING,
@@ -14404,7 +14366,7 @@ text_literal:
           }
         | text_literal TEXT_STRING_literal
           {
-            if (!($$= thd->make_string_literal_concat($1, $2)))
+            if (!($$= $1->make_string_literal_concat(thd, &$2)))
               MYSQL_YYABORT;
           }
         ;
@@ -15588,6 +15550,7 @@ keyword_sp_not_data_type:
         | TRANSACTION_SYM          {}
         | TRANSACTIONAL_SYM        {}
         | TRIGGERS_SYM             {}
+        | TRIM_ORACLE              {}
         | TIMESTAMP_ADD            {}
         | TIMESTAMP_DIFF           {}
         | TYPES_SYM                {}

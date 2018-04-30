@@ -78,6 +78,12 @@ Created 10/8/1995 Heikki Tuuri
 #include "fil0pagecompress.h"
 #include "btr0scrub.h"
 
+#include <my_service_manager.h>
+
+#ifdef WITH_WSREP
+extern int wsrep_debug;
+extern int wsrep_trx_is_aborting(void *thd_ptr);
+#endif
 /* The following is the maximum allowed duration of a lock wait. */
 UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT;
 
@@ -403,16 +409,6 @@ static ulint		srv_n_system_rows_read_old;
 ulint	srv_truncated_status_writes;
 /** Number of initialized rollback segments for persistent undo log */
 ulong	srv_available_undo_logs;
-
-UNIV_INTERN ib_uint64_t srv_page_compression_saved;
-UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect512;
-UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect4096;
-UNIV_INTERN ib_uint64_t srv_index_pages_written;
-UNIV_INTERN ib_uint64_t srv_non_index_pages_written;
-UNIV_INTERN ib_uint64_t srv_pages_page_compressed;
-UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op;
-UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op_saved;
-UNIV_INTERN ib_uint64_t srv_index_page_decompressed;
 
 /* Defragmentation */
 UNIV_INTERN my_bool	srv_defragment;
@@ -1162,7 +1158,16 @@ srv_refresh_innodb_monitor_stats(void)
 {
 	mutex_enter(&srv_innodb_monitor_mutex);
 
-	srv_last_monitor_time = time(NULL);
+	time_t current_time = time(NULL);
+
+	if (difftime(current_time, srv_last_monitor_time) <= 60) {
+		/* We referesh InnoDB Monitor values so that averages are
+		printed from at most 60 last seconds */
+		mutex_exit(&srv_innodb_monitor_mutex);
+		return;
+	}
+
+	srv_last_monitor_time = current_time;
 
 	os_aio_refresh_stats();
 
@@ -1205,7 +1210,6 @@ srv_printf_innodb_monitor(
 {
 	double	time_elapsed;
 	time_t	current_time;
-	ulint	n_reserved;
 	ibool	ret;
 
 	mutex_enter(&srv_innodb_monitor_mutex);
@@ -1368,8 +1372,7 @@ srv_printf_innodb_monitor(
 	fprintf(file, ULINTPF " read views open inside InnoDB\n",
 		trx_sys.view_count());
 
-	n_reserved = fil_space_get_n_reserved_extents(0);
-	if (n_reserved > 0) {
+	if (ulint n_reserved = fil_system.sys_space->n_reserved_extents) {
 		fprintf(file,
 			ULINTPF " tablespace extents now reserved for"
 			" B-tree split operations\n",
@@ -1757,6 +1760,8 @@ loop:
 		}
 	}
 
+	srv_refresh_innodb_monitor_stats();
+
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		goto exit_func;
 	}
@@ -1826,13 +1831,6 @@ loop:
 		}
 
 		old_lsn = new_lsn;
-	}
-
-	if (difftime(time(NULL), srv_last_monitor_time) > 60) {
-		/* We referesh InnoDB Monitor values so that averages are
-		printed from at most 60 last seconds */
-
-		srv_refresh_innodb_monitor_stats();
 	}
 
 	/* Update the statistics collected for deciding LRU
@@ -2454,12 +2452,8 @@ suspend_thread:
 	goto loop;
 }
 
-/** Check if purge should stop.
-@param[in]	n_purged	pages purged in the last batch
-@return whether purge should exit */
-static
-bool
-srv_purge_should_exit(ulint n_purged)
+/** @return whether purge should exit due to shutdown */
+static bool srv_purge_should_exit()
 {
 	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_NONE
 	      || srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
@@ -2471,49 +2465,31 @@ srv_purge_should_exit(ulint n_purged)
 		return(true);
 	}
 	/* Slow shutdown was requested. */
-	if (n_purged) {
-		/* The previous round still did some work. */
-		return(false);
-	}
-	/* Exit if there are no active transactions to roll back. */
-	return(trx_sys.any_active_transactions() == 0);
+	return !trx_sys.any_active_transactions() && !trx_sys.history_size();
 }
 
 /*********************************************************************//**
 Fetch and execute a task from the work queue.
 @return true if a task was executed */
-static
-bool
-srv_task_execute(void)
-/*==================*/
+static bool srv_task_execute()
 {
-	que_thr_t*	thr = NULL;
-
 	ut_ad(!srv_read_only_mode);
-	ut_a(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
+	ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
 
 	mutex_enter(&srv_sys.tasks_mutex);
 
-	if (UT_LIST_GET_LEN(srv_sys.tasks) > 0) {
-
-		thr = UT_LIST_GET_FIRST(srv_sys.tasks);
-
+	if (que_thr_t* thr = UT_LIST_GET_FIRST(srv_sys.tasks)) {
 		ut_a(que_node_get_type(thr->child) == QUE_NODE_PURGE);
-
 		UT_LIST_REMOVE(srv_sys.tasks, thr);
-	}
-
-	mutex_exit(&srv_sys.tasks_mutex);
-
-	if (thr != NULL) {
-
+		mutex_exit(&srv_sys.tasks_mutex);
 		que_run_threads(thr);
-
-		my_atomic_addlint(
-			&purge_sys.n_completed, 1);
+		my_atomic_addlint(&purge_sys.n_completed, 1);
+		return true;
 	}
 
-	return(thr != NULL);
+	ut_ad(UT_LIST_GET_LEN(srv_sys.tasks) == 0);
+	mutex_exit(&srv_sys.tasks_mutex);
+	return false;
 }
 
 /*********************************************************************//**
@@ -2664,9 +2640,16 @@ srv_do_purge(ulint* n_total_purged)
 
 		*n_total_purged += n_pages_purged;
 
-	} while (!srv_purge_should_exit(n_pages_purged)
-		 && n_pages_purged > 0
-		 && purge_sys.state == PURGE_STATE_RUN);
+		if (n_pages_purged) {
+			service_manager_extend_timeout(
+				INNODB_EXTEND_TIMEOUT_INTERVAL,
+				"InnoDB " ULINTPF " pages purged", n_pages_purged);
+			/* The previous round still did some work. */
+			continue;
+		}
+	} while (n_pages_purged > 0
+		 && purge_sys.state == PURGE_STATE_RUN
+		 && !srv_purge_should_exit());
 
 	return(rseg_history_len);
 }
@@ -2789,22 +2772,22 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 		if (srv_shutdown_state == SRV_SHUTDOWN_NONE
 		    && srv_undo_sources
-		    && (purge_sys.state == PURGE_STATE_STOP
-			|| n_total_purged == 0)) {
+		    && (n_total_purged == 0
+			|| purge_sys.state == PURGE_STATE_STOP)) {
 
 			srv_purge_coordinator_suspend(slot, rseg_history_len);
 		}
 
 		ut_ad(!slot->suspended);
 
-		if (srv_purge_should_exit(n_total_purged)) {
+		if (srv_purge_should_exit()) {
 			break;
 		}
 
 		n_total_purged = 0;
 
 		rseg_history_len = srv_do_purge(&n_total_purged);
-	} while (!srv_purge_should_exit(n_total_purged));
+	} while (!srv_purge_should_exit());
 
 	/* The task queue should always be empty, independent of fast
 	shutdown state. */
@@ -2903,7 +2886,9 @@ srv_purge_wakeup()
 
 			srv_release_threads(SRV_WORKER, n_workers);
 		}
-	} while (!srv_running
+	} while (!my_atomic_loadptr_explicit(reinterpret_cast<void**>
+					     (&srv_running),
+					     MY_MEMORY_ORDER_RELAXED)
 		 && (srv_sys.n_threads_active[SRV_WORKER]
 		     || srv_sys.n_threads_active[SRV_PURGE]));
 }

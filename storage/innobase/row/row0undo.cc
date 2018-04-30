@@ -42,6 +42,7 @@ Created 1/8/1997 Heikki Tuuri
 #include "row0upd.h"
 #include "row0mysql.h"
 #include "srv0srv.h"
+#include "srv0start.h"
 
 /* How to undo row operations?
 (1) For an insert, we have stored a prefix of the clustered index record
@@ -345,11 +346,17 @@ row_undo_step(
 
 	ut_ad(que_node_get_type(node) == QUE_NODE_UNDO);
 
-	if (UNIV_UNLIKELY(trx == trx_roll_crash_recv_trx)
-	    && trx_roll_must_shutdown()) {
+	if (UNIV_UNLIKELY(trx_get_dict_operation(trx) == TRX_DICT_OP_NONE
+			  && !srv_undo_sources
+			  && !srv_is_being_started)
+	    && (srv_fast_shutdown == 3 || trx == trx_roll_crash_recv_trx)) {
 		/* Shutdown has been initiated. */
 		trx->error_state = DB_INTERRUPTED;
-		return(NULL);
+		return NULL;
+	}
+
+	if (UNIV_UNLIKELY(trx == trx_roll_crash_recv_trx)) {
+		trx_roll_report_progress();
 	}
 
 	err = row_undo(node, thr);

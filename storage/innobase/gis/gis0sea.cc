@@ -37,6 +37,7 @@ Created 2014/01/16 Jimmy Yang
 #include "ibuf0ibuf.h"
 #include "trx0trx.h"
 #include "srv0mon.h"
+#include "que0que.h"
 #include "gis0geo.h"
 
 /** Restore the stored position of a persistent cursor bufferfixing the page */
@@ -95,7 +96,6 @@ rtr_pcur_getnext_from_path(
 {
 	dict_index_t*	index = btr_cur->index;
 	bool		found = false;
-	ulint		space = dict_index_get_space(index);
 	page_cur_t*	page_cursor;
 	ulint		level = 0;
 	node_visit_t	next_rec;
@@ -145,7 +145,7 @@ rtr_pcur_getnext_from_path(
 						| MTR_MEMO_X_LOCK));
 	}
 
-	const page_size_t&	page_size = dict_table_page_size(index->table);
+	const page_size_t	page_size(index->table->space->flags);
 
 	/* Pop each node/page to be searched from "path" structure
 	and do a search on it. Please note, any pages that are in
@@ -266,11 +266,11 @@ rtr_pcur_getnext_from_path(
 					btr_cur->page_cur.block)));
 #endif /* UNIV_RTR_DEBUG */
 
-		page_id_t	page_id(space, next_rec.page_no);
 		dberr_t err = DB_SUCCESS;
 
 		block = buf_page_get_gen(
-			page_id, page_size,
+			page_id_t(index->table->space->id,
+				  next_rec.page_no), page_size,
 			rw_latch, NULL, BUF_GET, __FILE__, __LINE__, mtr, &err);
 
 		if (block == NULL) {
@@ -299,7 +299,8 @@ rtr_pcur_getnext_from_path(
 			    && mode != PAGE_CUR_RTREE_LOCATE) {
 				ut_ad(rtr_info->thr);
 				lock_place_prdt_page_lock(
-					space, next_page_no, index,
+					index->table->space->id,
+					next_page_no, index,
 					rtr_info->thr);
 			}
 			new_split = true;
@@ -421,11 +422,11 @@ rtr_pcur_getnext_from_path(
 				if (my_latch_mode == BTR_MODIFY_TREE
 				    && level == 0) {
 					ut_ad(rw_latch == RW_NO_LATCH);
-					page_id_t	my_page_id(
-						space, block->page.id.page_no());
 
 					btr_cur_latch_leaves(
-						block, my_page_id,
+						block,
+						page_id_t(index->table->space->id,
+							  block->page.id.page_no()),
 						page_size, BTR_MODIFY_TREE,
 						btr_cur, mtr);
 				}
@@ -1345,9 +1346,8 @@ rtr_cur_restore_position(
 	const page_t*	page;
 	page_cur_t*	page_cursor;
 	node_visit_t*	node = rtr_get_parent_node(btr_cur, level, false);
-	ulint		space = dict_index_get_space(index);
 	node_seq_t	path_ssn = node->seq_no;
-	page_size_t	page_size = dict_table_page_size(index->table);
+	const page_size_t	page_size(index->table->space->flags);
 
 	ulint		page_no = node->page_no;
 
@@ -1360,11 +1360,11 @@ rtr_cur_restore_position(
 	ut_ad(r_cursor == node->cursor);
 
 search_again:
-	page_id_t	page_id(space, page_no);
 	dberr_t err = DB_SUCCESS;
 
 	block = buf_page_get_gen(
-		page_id, page_size, RW_X_LATCH, NULL,
+		page_id_t(index->table->space->id, page_no),
+		page_size, RW_X_LATCH, NULL,
 		BUF_GET, __FILE__, __LINE__, mtr, &err);
 
 	ut_ad(block);

@@ -315,7 +315,7 @@ static void DbugVfprintf(FILE *stream, const char* format, va_list args);
 
 #undef EXISTS
 #if !defined(HAVE_ACCESS)
-#define EXISTS(pathname) (FALSE)        /* Assume no existance */
+#define EXISTS(pathname) (FALSE)        /* Assume no existence */
 #define Writable(name) (TRUE)
 #else
 #define EXISTS(pathname)         (access(pathname, F_OK) == 0)
@@ -2180,7 +2180,7 @@ static BOOLEAN Writable(const char *pathname)
 
 /*
   flush dbug-stream, free mutex lock & wait delay
-  This is because some systems (MSDOS!!) dosn't flush fileheader
+  This is because some systems (MSDOS!!) doesn't flush fileheader
   and dbug-file isn't readable after a system crash !!
 */
 

@@ -198,17 +198,13 @@ start_again:
 		buf_dblwr_being_created = FALSE;
 		return(true);
 	} else {
-		fil_space_t* space = fil_space_acquire(TRX_SYS_SPACE);
-		const bool fail = UT_LIST_GET_FIRST(space->chain)->size
-			< 3 * FSP_EXTENT_SIZE;
-		fil_space_release(space);
-
-		if (fail) {
+		if (UT_LIST_GET_FIRST(fil_system.sys_space->chain)->size
+		    < 3 * FSP_EXTENT_SIZE) {
 			goto too_small;
 		}
 	}
 
-	block2 = fseg_create(TRX_SYS_SPACE, TRX_SYS_PAGE_NO,
+	block2 = fseg_create(fil_system.sys_space, TRX_SYS_PAGE_NO,
 			     TRX_SYS_DOUBLEWRITE
 			     + TRX_SYS_DOUBLEWRITE_FSEG, &mtr);
 

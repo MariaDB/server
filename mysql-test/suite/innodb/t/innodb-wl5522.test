@@ -84,7 +84,6 @@ ALTER TABLE t2 IMPORT TABLESPACE;
 --error ER_TABLE_SCHEMA_MISMATCH
 ALTER TABLE t2 IMPORT TABLESPACE;
 DROP TABLE t2;
---remove_file $MYSQLD_DATADIR/test/t2.ibd
 
 SET GLOBAL innodb_file_per_table = 1;
 SELECT @@innodb_file_per_table;

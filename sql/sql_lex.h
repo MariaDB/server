@@ -1044,7 +1044,7 @@ public:
   /** System Versioning */
 public:
   uint versioned_tables;
-  int vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr);
+  int vers_setup_conds(THD *thd, TABLE_LIST *tables);
   /* push new Item_field into item_list */
   bool vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name);
 
@@ -1221,9 +1221,11 @@ public:
   */
   bool non_agg_field_used() const { return m_non_agg_field_used; }
   bool agg_func_used()      const { return m_agg_func_used; }
+  bool custom_agg_func_used() const { return m_custom_agg_func_used; }
 
   void set_non_agg_field_used(bool val) { m_non_agg_field_used= val; }
   void set_agg_func_used(bool val)      { m_agg_func_used= val; }
+  void set_custom_agg_func_used(bool val) { m_custom_agg_func_used= val; }
   inline void set_with_clause(With_clause *with_clause);
   With_clause *get_with_clause()
   {
@@ -1267,6 +1269,7 @@ public:
 private:
   bool m_non_agg_field_used;
   bool m_agg_func_used;
+  bool m_custom_agg_func_used;
 
   /* current index hint kind. used in filling up index_hints */
   enum index_hint_type current_index_hint_type;
@@ -1977,18 +1980,6 @@ private:
     be accessed while executing a statement.
   */
   uint32 stmt_accessed_table_flag;
-};
-
-
-class Query_tables_backup
-{
-  THD *thd;
-  Query_tables_list backup;
-
-public:
-  Query_tables_backup(THD *_thd);
-  ~Query_tables_backup();
-  const Query_tables_list& get() const { return backup; }
 };
 
 
@@ -3662,7 +3653,7 @@ public:
                                            MDL_SHARED_UPGRADABLE))
       return true;
     alter_info.reset();
-    alter_info.flags= Alter_info::ALTER_ADD_INDEX;
+    alter_info.flags= ALTER_ADD_INDEX;
     option_list= NULL;
     return false;
   }

@@ -81,3 +81,10 @@ ROCKSDB_DDL	Gamma
 ROCKSDB_INDEX_FILE_MAP	Gamma
 ROCKSDB_LOCKS	Gamma
 ROCKSDB_TRX	Gamma
+#
+#  MDEV-12466 : Assertion `thd->transaction.stmt.is_empty() || thd->in_sub_stmt ||  ...
+#
+CREATE TABLE t1 (i INT) ENGINE=RocksDB;
+FLUSH TABLE t1 FOR EXPORT;
+ERROR HY000: Storage engine ROCKSDB of the table `test`.`t1` doesn't have this option
+DROP TABLE t1;

@@ -212,14 +212,14 @@ btr_defragment_add_index(
 	dberr_t*	err)	/*!< out: error code */
 {
 	mtr_t mtr;
-	ulint page_no = dict_index_get_page(index);
 	*err = DB_SUCCESS;
 
 	mtr_start(&mtr);
 	// Load index rood page.
-	const page_id_t page_id(dict_index_get_space(index), page_no);
-	const page_size_t page_size(dict_table_page_size(index->table));
-	buf_block_t* block = btr_block_get(page_id, page_size, RW_NO_LATCH, index, &mtr);
+	buf_block_t* block = btr_block_get(
+		page_id_t(index->table->space->id, index->page),
+		page_size_t(index->table->space->flags),
+		RW_NO_LATCH, index, &mtr);
 	page_t* page = NULL;
 
 	if (block) {
@@ -365,7 +365,7 @@ btr_defragment_save_defrag_stats_if_needed(
 	dict_index_t*	index)	/*!< in: index */
 {
 	if (srv_defragment_stats_accuracy != 0 // stats tracking disabled
-	    && dict_index_get_space(index) != 0 // do not track system tables
+	    && index->table->space->id != 0 // do not track system tables
 	    && index->stat_defrag_modified_counter
 	       >= srv_defragment_stats_accuracy) {
 		dict_stats_defrag_pool_add(index);
@@ -437,7 +437,6 @@ btr_defragment_merge_pages(
 {
 	page_t* from_page = buf_block_get_frame(from_block);
 	page_t* to_page = buf_block_get_frame(to_block);
-	ulint space = dict_index_get_space(index);
 	ulint level = btr_page_get_level(from_page);
 	ulint n_recs = page_get_n_recs(from_page);
 	ulint new_data_size = page_get_data_size(to_page);
@@ -540,7 +539,9 @@ btr_defragment_merge_pages(
 		lock_update_merge_left(to_block, orig_pred,
 				       from_block);
 		btr_search_drop_page_hash_index(from_block);
-		btr_level_list_remove(space, page_size, (page_t*)from_page, index, mtr);
+		btr_level_list_remove(
+			index->table->space->id,
+			page_size, from_page, index, mtr);
 		btr_node_ptr_delete(index, from_block, mtr);
 		/* btr_blob_dbg_remove(from_page, index,
 		"btr_defragment_n_pages"); */
@@ -591,7 +592,6 @@ btr_defragment_n_pages(
 	uint		n_pages,/*!< in: number of pages to defragment */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
-	ulint		space;
 	/* We will need to load the n+1 block because if the last page is freed
 	and we need to modify the prev_page_no of that block. */
 	buf_block_t*	blocks[BTR_DEFRAGMENT_MAX_N_PAGES + 1];
@@ -602,7 +602,6 @@ btr_defragment_n_pages(
 	ulint		data_size_per_rec;
 	ulint		optimal_page_size;
 	ulint		reserved_space;
-	ulint		level;
 	ulint		max_data_size = 0;
 	uint		n_defragmented = 0;
 	uint		n_new_slots;
@@ -612,8 +611,11 @@ btr_defragment_n_pages(
 	/* It doesn't make sense to call this function with n_pages = 1. */
 	ut_ad(n_pages > 1);
 
-	space = dict_index_get_space(index);
-	if (space == 0) {
+	if (!page_is_leaf(block->frame)) {
+		return NULL;
+	}
+
+	if (!index->table->space || !index->table->space->id) {
 		/* Ignore space 0. */
 		return NULL;
 	}
@@ -623,12 +625,7 @@ btr_defragment_n_pages(
 	}
 
 	first_page = buf_block_get_frame(block);
-	level = btr_page_get_level(first_page);
-	const page_size_t page_size(dict_table_page_size(index->table));
-
-	if (level != 0) {
-		return NULL;
-	}
+	const page_size_t page_size(index->table->space->flags);
 
 	/* 1. Load the pages and calculate the total data size. */
 	blocks[0] = block;
@@ -643,9 +640,8 @@ btr_defragment_n_pages(
 			break;
 		}
 
-		const page_id_t page_id(dict_index_get_space(index), page_no);
-
-		blocks[i] = btr_block_get(page_id, page_size,
+		blocks[i] = btr_block_get(page_id_t(index->table->space->id,
+						    page_no), page_size,
 					  RW_X_LATCH, index, mtr);
 	}
 
@@ -799,7 +795,7 @@ DECLARE_THREAD(btr_defragment_thread)(void*)
 		mtr_start(&mtr);
 		cursor = btr_pcur_get_btr_cur(pcur);
 		index = btr_cur_get_index(cursor);
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 		/* To follow the latching order defined in WL#6326, acquire index->lock X-latch.
 		This entitles us to acquire page latches in any order for the index. */
 		mtr_x_lock(&index->lock, &mtr);

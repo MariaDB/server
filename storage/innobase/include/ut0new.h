@@ -238,7 +238,7 @@ struct ut_new_pfx_t {
 #endif
 };
 
-static void ut_allocate_trace_dontdump(void *		ptr,
+static inline void ut_allocate_trace_dontdump(void *		ptr,
 			size_t	bytes,
 			bool		dontdump,
 			ut_new_pfx_t*	pfx,
@@ -262,7 +262,7 @@ static void ut_allocate_trace_dontdump(void *		ptr,
 	}
 }
 
-static void ut_dodump(void* ptr, size_t m_size)
+static inline void ut_dodump(void* ptr, size_t m_size)
 {
 #if defined(DBUG_OFF) && defined(HAVE_MADVISE) && defined(MADV_DODUMP)
 	if (ptr && madvise(ptr, m_size, MADV_DODUMP)) {

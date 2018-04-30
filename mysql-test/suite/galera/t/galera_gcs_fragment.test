@@ -1,6 +1,7 @@
 # Test fragmentation over configuration changes
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source suite/galera/include/galera_have_debug_sync.inc
 
 # Prepare table
 CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 TEXT);

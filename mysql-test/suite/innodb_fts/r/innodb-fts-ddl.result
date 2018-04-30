@@ -231,3 +231,6 @@ id	title	body
 1	MySQL Tutorial	DBMS stands for DataBase ...
 3	Optimizing MySQL	In this tutorial we will show ...
 DROP TABLE articles;
+CREATE TABLE t1 (a VARCHAR(3)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FULLTEXT KEY(a), ADD COLUMN b VARCHAR(3), ADD FULLTEXT KEY(b);
+DROP TABLE t1;

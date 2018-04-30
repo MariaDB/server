@@ -1,2 +1,2 @@
 let $engine=MyISAM;
---source extra/rpl_tests/rpl_truncate.test
+--source include/rpl_truncate.test

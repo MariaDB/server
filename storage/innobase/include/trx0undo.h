@@ -28,12 +28,7 @@ Created 3/26/1996 Heikki Tuuri
 #define trx0undo_h
 
 #ifndef UNIV_INNOCHECKSUM
-#include "univ.i"
-#include "trx0types.h"
-#include "mtr0mtr.h"
 #include "trx0sys.h"
-#include "page0types.h"
-#include "trx0xa.h"
 
 /** The LSB of the "is insert" flag in DB_ROLL_PTR */
 #define ROLL_PTR_INSERT_FLAG_POS 55
@@ -164,7 +159,7 @@ trx_undo_get_next_rec(
 @return undo log record, the page latched, NULL if none */
 trx_undo_rec_t*
 trx_undo_get_first_rec(
-	ulint			space,
+	fil_space_t*		space,
 	ulint			page_no,
 	ulint			offset,
 	ulint			mode,
@@ -366,8 +361,6 @@ struct trx_undo_t {
 					id */
 	trx_rseg_t*	rseg;		/*!< rseg where the undo log belongs */
 	/*-----------------------------*/
-	ulint		space;		/*!< space id where the undo log
-					placed */
 	ulint		hdr_page_no;	/*!< page number of the header page in
 					the undo log */
 	ulint		hdr_offset;	/*!< header offset of the undo log on

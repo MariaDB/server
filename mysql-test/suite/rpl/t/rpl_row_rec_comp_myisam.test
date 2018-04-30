@@ -27,6 +27,6 @@ UPDATE t1 SET c1= 0;
 DROP TABLE t1; 
 -- sync_slave_with_master
 
--- source extra/rpl_tests/rpl_record_compare.test
+-- source include/rpl_record_compare.test
 
 --source include/rpl_end.inc

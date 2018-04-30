@@ -352,8 +352,9 @@ bool JOIN::check_for_splittable_materialized()
 
     Field *ord_field= ((Item_field *) (ord_item->real_item()))->field;
 
-    JOIN_TAB *tab= ord_field->table->reginfo.join_tab;
-    if (tab->is_inner_table_of_outer_join())
+    /* Ignore fields from  of inner tables of outer joins */
+    TABLE_LIST *tbl= ord_field->table->pos_in_table_list;
+    if (tbl->is_inner_table_of_outer_join())
       continue;
 
     List_iterator<Item> li(fields_list);
@@ -862,12 +863,12 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
   table_map tables_usable_for_splitting=
               spl_opt_info->tables_usable_for_splitting;
   KEYUSE_EXT *keyuse_ext= &join->ext_keyuses_for_splitting->at(0);
-  KEYUSE_EXT *best_key_keyuse_ext_start;
+  KEYUSE_EXT *UNINIT_VAR(best_key_keyuse_ext_start);
   TABLE *best_table= 0;
   double best_rec_per_key= DBL_MAX;
   SplM_plan_info *spl_plan= 0;
-  uint best_key;
-  uint best_key_parts;
+  uint best_key= 0;
+  uint best_key_parts= 0;
 
   /*
     Check whether there are keys that can be used to join T employing splitting

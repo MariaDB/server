@@ -424,9 +424,12 @@ public:
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	ReadView	view;		/*!< The purge will not remove undo logs
 					which are >= this view (purge view) */
-	ulint	n_submitted;	/*!< Count of total tasks submitted
-					to the task queue */
-	ulint	n_completed;	/*!< Count of total tasks completed */
+	/** Total number of tasks submitted by srv_purge_coordinator_thread.
+	Not accessed by other threads. */
+	ulint	n_submitted;
+	/** Number of completed tasks. Accessed by srv_purge_coordinator
+	and srv_worker_thread by my_atomic. */
+	ulint	n_completed;
 
 	/** Iterator to the undo log records of committed transactions */
 	struct iterator

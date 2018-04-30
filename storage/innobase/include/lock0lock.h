@@ -268,7 +268,7 @@ a record. If they do, first tests if the query thread should anyway
 be suspended for some reason; if not, then puts the transaction and
 the query thread to the lock wait state and inserts a waiting request
 for a gap x-lock to the lock queue.
-@return DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_rec_insert_check_and_lock(
 /*===========================*/
@@ -292,7 +292,7 @@ first tests if the query thread should anyway be suspended for some
 reason; if not, then puts the transaction and the query thread to the
 lock wait state and inserts a waiting request for a record x-lock to the
 lock queue.
-@return DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_clust_rec_modify_check_and_lock(
 /*=================================*/
@@ -308,7 +308,7 @@ lock_clust_rec_modify_check_and_lock(
 /*********************************************************************//**
 Checks if locks of other transactions prevent an immediate modify
 (delete mark or delete unmark) of a secondary index record.
-@return DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_sec_rec_modify_check_and_lock(
 /*===============================*/
@@ -328,8 +328,7 @@ lock_sec_rec_modify_check_and_lock(
 /*********************************************************************//**
 Like lock_clust_rec_read_check_and_lock(), but reads a
 secondary index record.
-@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC, DB_LOCK_WAIT, DB_DEADLOCK,
-or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_sec_rec_read_check_and_lock(
 /*=============================*/
@@ -357,8 +356,7 @@ if the query thread should anyway be suspended for some reason; if not, then
 puts the transaction and the query thread to the lock wait state and inserts a
 waiting request for a record lock to the lock queue. Sets the requested mode
 lock on the record.
-@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC, DB_LOCK_WAIT, DB_DEADLOCK,
-or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_clust_rec_read_check_and_lock(
 /*===============================*/
@@ -388,7 +386,7 @@ waiting request for a record lock to the lock queue. Sets the requested mode
 lock on the record. This is an alternative version of
 lock_clust_rec_read_check_and_lock() that does not require the parameter
 "offsets".
-@return DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_clust_rec_read_check_and_lock_alt(
 /*===================================*/
@@ -443,7 +441,7 @@ lock_sec_rec_cons_read_sees(
 /*********************************************************************//**
 Locks the specified database table in the mode given. If the lock cannot
 be granted immediately, the query thread is put to wait.
-@return DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_table(
 /*=======*/
@@ -752,9 +750,7 @@ the wait lock.
 dberr_t
 lock_trx_handle_wait(
 /*=================*/
-	trx_t*	trx,	/*!< in/out: trx lock state */
-	bool	lock_mutex_taken,
-	bool	trx_mutex_taken);
+	trx_t*	trx);	/*!< in/out: trx lock state */
 /*********************************************************************//**
 Get the number of locks on a table.
 @return number of locks */
@@ -956,6 +952,30 @@ public:
   void close();
 };
 
+/*********************************************************************//**
+Creates a new record lock and inserts it to the lock queue. Does NOT check
+for deadlocks or lock compatibility!
+@return created lock */
+UNIV_INLINE
+lock_t*
+lock_rec_create(
+/*============*/
+#ifdef WITH_WSREP
+	lock_t*			c_lock,	/*!< conflicting lock */
+	que_thr_t*		thr,	/*!< thread owning trx */
+#endif
+	ulint			type_mode,/*!< in: lock mode and wait
+					flag, type is ignored and
+					replaced by LOCK_REC */
+	const buf_block_t*	block,	/*!< in: buffer block containing
+					the record */
+	ulint			heap_no,/*!< in: heap number of the record */
+	dict_index_t*		index,	/*!< in: index of record */
+	trx_t*			trx,	/*!< in,out: transaction */
+	bool			caller_owns_trx_mutex);
+					/*!< in: true if caller owns
+					trx mutex */
+
 /*************************************************************//**
 Removes a record lock request, waiting or granted, from the queue. */
 void
@@ -965,6 +985,61 @@ lock_rec_discard(
 					record locks which are contained
 					in this lock object are removed */
 
+/** Create a new record lock and inserts it to the lock queue,
+without checking for deadlocks or conflicts.
+@param[in]	type_mode	lock mode and wait flag; type will be replaced
+				with LOCK_REC
+@param[in]	space		tablespace id
+@param[in]	page_no		index page number
+@param[in]	page		R-tree index page, or NULL
+@param[in]	heap_no		record heap number in the index page
+@param[in]	index		the index tree
+@param[in,out]	trx		transaction
+@param[in]	holds_trx_mutex	whether the caller holds trx->mutex
+@return created lock */
+lock_t*
+lock_rec_create_low(
+#ifdef WITH_WSREP
+	lock_t*		c_lock,	/*!< conflicting lock */
+	que_thr_t*	thr,	/*!< thread owning trx */
+#endif
+	ulint		type_mode,
+	ulint		space,
+	ulint		page_no,
+	const page_t*	page,
+	ulint		heap_no,
+	dict_index_t*	index,
+	trx_t*		trx,
+	bool		holds_trx_mutex);
+/** Enqueue a waiting request for a lock which cannot be granted immediately.
+Check for deadlocks.
+@param[in]	type_mode	the requested lock mode (LOCK_S or LOCK_X)
+				possibly ORed with LOCK_GAP or
+				LOCK_REC_NOT_GAP, ORed with
+				LOCK_INSERT_INTENTION if this
+				waiting lock request is set
+				when performing an insert of
+				an index record
+@param[in]	block		leaf page in the index
+@param[in]	heap_no		record heap number in the block
+@param[in]	index		index tree
+@param[in,out]	thr		query thread
+@param[in]	prdt		minimum bounding box (spatial index)
+@retval	DB_LOCK_WAIT		if the waiting lock was enqueued
+@retval	DB_DEADLOCK		if this transaction was chosen as the victim
+@retval	DB_SUCCESS_LOCKED_REC	if the other transaction was chosen as a victim
+				(or it happened to commit) */
+dberr_t
+lock_rec_enqueue_waiting(
+#ifdef WITH_WSREP
+	lock_t*			c_lock,	/*!< conflicting lock */
+#endif
+	ulint			type_mode,
+	const buf_block_t*	block,
+	ulint			heap_no,
+	dict_index_t*		index,
+	que_thr_t*		thr,
+	lock_prdt_t*		prdt);
 /*************************************************************//**
 Moves the explicit locks on user records to another page if a record
 list start is moved to another page. */
@@ -986,16 +1061,6 @@ void
 lock_rec_free_all_from_discard_page(
 /*================================*/
 	const buf_block_t*	block);		/*!< in: page to be discarded */
-
-/** Reset the nth bit of a record lock.
-@param[in,out]	lock record lock
-@param[in] i	index of the bit that will be reset
-@param[in] type	whether the lock is in wait mode  */
-void
-lock_rec_trx_wait(
-	lock_t*		lock,
-	ulint		i,
-	ulint		type);
 
 /** The lock system */
 extern lock_sys_t lock_sys;

@@ -423,7 +423,7 @@ btr_pessimistic_scrub(
 	* so that splitting won't fail due to this */
 	ulint n_extents = 3;
 	ulint n_reserved = 0;
-	if (!fsp_reserve_free_extents(&n_reserved, index->space,
+	if (!fsp_reserve_free_extents(&n_reserved, index->table->space,
 				      n_extents, FSP_NORMAL, mtr)) {
 		log_scrub_failure(index, scrub_data, block,
 				  DB_OUT_OF_FILE_SPACE);
@@ -432,12 +432,9 @@ btr_pessimistic_scrub(
 
 	/* read block variables */
 	const ulint page_no =  mach_read_from_4(page + FIL_PAGE_OFFSET);
-	const page_id_t page_id(dict_index_get_space(index), page_no);
-	const ulint left_page_no = btr_page_get_prev(page, mtr);
-	const ulint right_page_no = btr_page_get_next(page, mtr);
-	const page_id_t lpage_id(dict_index_get_space(index), left_page_no);
-	const page_id_t rpage_id(dict_index_get_space(index), right_page_no);
-	const page_size_t page_size(dict_table_page_size(index->table));
+	const ulint left_page_no = mach_read_from_4(page + FIL_PAGE_PREV);
+	const ulint right_page_no = mach_read_from_4(page + FIL_PAGE_NEXT);
+	const page_size_t page_size(index->table->space->flags);
 
 	/**
 	* When splitting page, we need X-latches on left/right brothers
@@ -453,15 +450,15 @@ btr_pessimistic_scrub(
 		mtr->release_block_at_savepoint(scrub_data->savepoint, block);
 
 		buf_block_t* get_block __attribute__((unused)) = btr_block_get(
-			lpage_id, page_size,
-			RW_X_LATCH, index, mtr);
+			page_id_t(index->table->space->id, left_page_no),
+			page_size, RW_X_LATCH, index, mtr);
 
 		/**
 		* Refetch block and re-initialize page
 		*/
 		block = btr_block_get(
-			page_id, page_size,
-			RW_X_LATCH, index, mtr);
+			page_id_t(index->table->space->id, page_no),
+			page_size, RW_X_LATCH, index, mtr);
 
 		page = buf_block_get_frame(block);
 
@@ -474,8 +471,8 @@ btr_pessimistic_scrub(
 
 	if (right_page_no != FIL_NULL) {
 		buf_block_t* get_block __attribute__((unused))= btr_block_get(
-			rpage_id, page_size,
-			RW_X_LATCH, index, mtr);
+			page_id_t(index->table->space->id, right_page_no),
+			page_size, RW_X_LATCH, index, mtr);
 	}
 
 	/* arguments to btr_page_split_and_insert */
@@ -522,10 +519,7 @@ btr_pessimistic_scrub(
 		mem_heap_free(heap);
 	}
 
-	if (n_reserved > 0) {
-		fil_space_release_free_extents(index->space, n_reserved);
-	}
-
+	index->table->space->release_free_extents(n_reserved);
 	scrub_data->scrub_stat.page_splits++;
 	return DB_SUCCESS;
 }
@@ -792,13 +786,14 @@ btr_scrub_page(
 
 	/* check that table/index still match now that they are loaded */
 
-	if (scrub_data->current_table->space != scrub_data->space) {
+	if (!scrub_data->current_table->space
+	    || scrub_data->current_table->space->id != scrub_data->space) {
 		/* this is truncate table */
 		mtr_commit(mtr);
 		return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;
 	}
 
-	if (scrub_data->current_index->space != scrub_data->space) {
+	if (scrub_data->current_index->table != scrub_data->current_table) {
 		/* this is truncate table */
 		mtr_commit(mtr);
 		return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;

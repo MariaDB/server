@@ -33,6 +33,8 @@ MYSQL_CHECK_BZIP2()
 MYSQL_CHECK_SNAPPY()
 MYSQL_CHECK_NUMA()
 
+INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/compile_flags.cmake)
+
 IF(CMAKE_CROSSCOMPILING)
   # Use CHECK_C_SOURCE_COMPILES instead of CHECK_C_SOURCE_RUNS when
   # cross-compiling. Not as precise, but usually good enough.
@@ -219,6 +221,12 @@ ELSE()
    ADD_DEFINITIONS(-DMUTEX_SYS)
 ENDIF()
 
+OPTION(WITH_INNODB_DISALLOW_WRITES "InnoDB freeze writes patch from Google" ${WITH_WSREP})
+IF (WITH_INNODB_DISALLOW_WRITES)
+  ADD_DEFINITIONS(-DWITH_INNODB_DISALLOW_WRITES)
+ENDIF()
+
+
 # Include directories under innobase
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
 		    ${CMAKE_SOURCE_DIR}/storage/innobase/handler)
@@ -235,9 +243,8 @@ ENDIF()
 
 # Avoid generating Hardware Capabilities due to crc32 instructions
 IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_SYSTEM_PROCESSOR MATCHES "i386")
-  INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/compile_flags.cmake)
-  MY_CHECK_CXX_COMPILER_FLAG("-Wa,-nH" HAVE_WA_NH)
-  IF(HAVE_WA_NH)
+  MY_CHECK_CXX_COMPILER_FLAG("-Wa,-nH")
+  IF(have_CXX__Wa__nH)
     ADD_COMPILE_FLAGS(
       ut/ut0crc32.cc
       COMPILE_FLAGS "-Wa,-nH"

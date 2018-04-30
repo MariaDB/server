@@ -162,10 +162,12 @@ trx_sysf_create(
 	then enter the kernel: we must do it in this order to conform
 	to the latching order rules. */
 
-	mtr_x_lock_space(TRX_SYS_SPACE, mtr);
+	mtr_x_lock(&fil_system.sys_space->latch, mtr);
+	compile_time_assert(TRX_SYS_SPACE == 0);
 
 	/* Create the trx sys file block in a new allocated file segment */
-	block = fseg_create(TRX_SYS_SPACE, 0, TRX_SYS + TRX_SYS_FSEG_HEADER,
+	block = fseg_create(fil_system.sys_space, 0,
+			    TRX_SYS + TRX_SYS_FSEG_HEADER,
 			    mtr);
 	buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
 
@@ -200,7 +202,8 @@ trx_sysf_create(
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sys_rseg_find_free(block);
-	page_no = trx_rseg_header_create(TRX_SYS_SPACE, slot_no, block, mtr);
+	page_no = trx_rseg_header_create(fil_system.sys_space, slot_no, block,
+					 mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
 	ut_a(page_no == FSP_FIRST_RSEG_PAGE_NO);
@@ -214,8 +217,7 @@ trx_sys_t::create()
 	ut_ad(!is_initialised());
 	m_initialised = true;
 	mutex_create(LATCH_ID_TRX_SYS, &mutex);
-	UT_LIST_INIT(mysql_trx_list, &trx_t::mysql_trx_list);
-	UT_LIST_INIT(m_views, &ReadView::m_view_list);
+	UT_LIST_INIT(trx_list, &trx_t::trx_list);
 	my_atomic_store32(&rseg_history_len, 0);
 
 	rw_trx_hash.init();
@@ -342,47 +344,25 @@ trx_sys_t::close()
 		}
 	}
 
-	ut_a(UT_LIST_GET_LEN(mysql_trx_list) == 0);
-	ut_ad(UT_LIST_GET_LEN(m_views) == 0);
+	ut_a(UT_LIST_GET_LEN(trx_list) == 0);
 	mutex_free(&mutex);
 	m_initialised = false;
 }
 
-
-static my_bool active_count_callback(rw_trx_hash_element_t *element,
-                                     uint32_t *count)
-{
-  mutex_enter(&element->mutex);
-  if (trx_t *trx= element->trx)
-  {
-    mutex_enter(&trx->mutex);
-    if (trx_state_eq(trx, TRX_STATE_ACTIVE))
-      ++*count;
-    mutex_exit(&trx->mutex);
-  }
-  mutex_exit(&element->mutex);
-  return 0;
-}
-
-
 /** @return total number of active (non-prepared) transactions */
 ulint trx_sys_t::any_active_transactions()
 {
-	uint32_t total_trx = 0;
+  uint32_t total_trx= 0;
 
-	trx_sys.rw_trx_hash.iterate_no_dups(
-				reinterpret_cast<my_hash_walk_action>
-				(active_count_callback), &total_trx);
-
-	mutex_enter(&mutex);
-	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys.mysql_trx_list);
-	     trx != NULL;
-	     trx = UT_LIST_GET_NEXT(mysql_trx_list, trx)) {
-		if (trx->state != TRX_STATE_NOT_STARTED && !trx->id) {
-			total_trx++;
-		}
-	}
-	mutex_exit(&mutex);
-
-	return(total_trx);
+  mutex_enter(&mutex);
+  for (trx_t* trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
+       trx != NULL;
+       trx= UT_LIST_GET_NEXT(trx_list, trx))
+  {
+    if (trx->state == TRX_STATE_COMMITTED_IN_MEMORY ||
+        (trx->state == TRX_STATE_ACTIVE && trx->id))
+      total_trx++;
+  }
+  mutex_exit(&mutex);
+  return total_trx;
 }

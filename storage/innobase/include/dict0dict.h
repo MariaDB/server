@@ -986,14 +986,8 @@ ulint
 dict_table_extent_size(
 	const dict_table_t*	table);
 
-/** Get the table page size.
-@param[in]	table	table
-@return compressed page size, or 0 if not compressed */
-UNIV_INLINE
-const page_size_t
-dict_table_page_size(
-	const dict_table_t*	table)
-	MY_ATTRIBUTE((warn_unused_result));
+/** Get the table page size. */
+#define dict_table_page_size(table) page_size_t(table->space->flags)
 
 /*********************************************************************//**
 Obtain exclusive locks on all index trees of the table. This is to prevent
@@ -1087,43 +1081,28 @@ dict_make_room_in_cache(
 
 #define BIG_ROW_SIZE	1024
 
-/** Adds an index to the dictionary cache.
-@param[in]	table	table on which the index is
-@param[in]	index	index; NOTE! The index memory
-			object is freed in this function!
-@param[in]	page_no	root page number of the index
-@param[in]	strict	TRUE=refuse to create the index
-			if records could be too big to fit in
-			an B-tree page
-@return DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION */
-dberr_t
-dict_index_add_to_cache(
-	dict_table_t*	table,
-	dict_index_t*	index,
-	ulint		page_no,
-	ibool		strict)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
-@param[in]	table	table on which the index is
 @param[in]	index	index; NOTE! The index memory
 			object is freed in this function!
-@param[in]	add_v	new virtual column that being added along with
-			an add index call
 @param[in]	page_no	root page number of the index
-@param[in]	strict	TRUE=refuse to create the index
+@param[in]	strict	true=refuse to create the index
 			if records could be too big to fit in
 			an B-tree page
-@return DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION */
-dberr_t
-dict_index_add_to_cache_w_vcol(
-	dict_table_t*		table,
+@param[out]	err	DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION
+@param[in]	add_v	new virtual column that being added along with
+			an add index call
+@return	the added index
+@retval	NULL	on error */
+dict_index_t*
+dict_index_add_to_cache(
 	dict_index_t*		index,
-	const dict_add_v_col_t* add_v,
 	ulint			page_no,
-	ibool			strict)
-	MY_ATTRIBUTE((warn_unused_result));
+	bool			strict = false,
+	dberr_t*		err = NULL,
+	const dict_add_v_col_t* add_v = NULL)
+	MY_ATTRIBUTE((nonnull(1)));
+
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index,
 including fields added by the dictionary system.
@@ -1433,24 +1412,6 @@ dict_index_build_data_tuple(
 	mem_heap_t*		heap)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/*********************************************************************//**
-Gets the space id of the root of the index tree.
-@return space id */
-UNIV_INLINE
-ulint
-dict_index_get_space(
-/*=================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
-Sets the space id of the root of the index tree. */
-UNIV_INLINE
-void
-dict_index_set_space(
-/*=================*/
-	dict_index_t*	index,	/*!< in/out: index */
-	ulint		space)	/*!< in: space id */
-	MY_ATTRIBUTE((nonnull));
 /*********************************************************************//**
 Gets the page number of the root of the index tree.
 @return page number */
@@ -1843,18 +1804,10 @@ dict_set_corrupted_index_cache_only(
 Flags a table with specified space_id corrupted in the table dictionary
 cache.
 @return TRUE if successful */
-ibool
-dict_set_corrupted_by_space(
-/*========================*/
-	ulint		space_id);	/*!< in: space ID */
+bool dict_set_corrupted_by_space(const fil_space_t* space);
 
-/** Flag a table with specified space_id encrypted in the data dictionary
-cache
-@param[in]	space_id	Tablespace id */
-UNIV_INTERN
-void
-dict_set_encrypted_by_space(
-	ulint	space_id);
+/** Flag a table encrypted in the data dictionary cache. */
+void dict_set_encrypted_by_space(const fil_space_t* space);
 
 /** Sets merge_threshold in the SYS_INDEXES
 @param[in,out]	index		index

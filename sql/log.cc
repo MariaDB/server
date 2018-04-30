@@ -9729,6 +9729,30 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
 
   if (err)
     DBUG_RETURN(0);
+#ifdef WITH_WSREP
+  if (WSREP(thd) && thd->wsrep_exec_mode != REPL_RECV &&
+      thd->wsrep_trx_must_order_commit() &&
+      wsrep_before_commit(thd, all))
+  {
+    return(0);
+  }
+#endif /* WITH_WSREP */
+#ifdef WITH_WSREP
+  //if (WSREP(thd) && !thd->wsrep_apply_toi)
+  if (WSREP(thd) && thd->wsrep_exec_mode != REPL_RECV &&
+      thd->wsrep_trx_must_order_commit())
+  {
+    /*
+      TODO: Ordered commit should be done after the transaction
+      has been queued for group commit.
+    */
+    int error= wsrep_ordered_commit(thd, all, wsrep_apply_error());
+    if (!error)
+    {
+      (void) wsrep_after_commit(thd, all);
+    }
+  }
+#endif /* WITH_WSREP */
 
   bool need_unlog= cache_mngr->need_unlog;
   /*

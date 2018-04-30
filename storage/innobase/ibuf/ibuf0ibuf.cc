@@ -522,7 +522,9 @@ ibuf_init_at_db_start(void)
 
 	mtr_start(&mtr);
 
-	mtr_x_lock_space(IBUF_SPACE_ID, &mtr);
+	compile_time_assert(IBUF_SPACE_ID == TRX_SYS_SPACE);
+	compile_time_assert(IBUF_SPACE_ID == 0);
+	mtr_x_lock(&fil_system.sys_space->latch, &mtr);
 
 	mutex_enter(&ibuf_mutex);
 
@@ -558,11 +560,11 @@ ibuf_init_at_db_start(void)
 	mtr.commit();
 
 	ibuf->index = dict_mem_index_create(
-		"innodb_change_buffer", "CLUST_IND",
-		IBUF_SPACE_ID, DICT_CLUSTERED | DICT_IBUF, 1);
+		dict_mem_table_create("innodb_change_buffer",
+				      fil_system.sys_space, 1, 0, 0, 0),
+		"CLUST_IND",
+		DICT_CLUSTERED | DICT_IBUF, 1);
 	ibuf->index->id = DICT_IBUF_ID_MIN + IBUF_SPACE_ID;
-	ibuf->index->table = dict_mem_table_create(
-		"innodb_change_buffer", IBUF_SPACE_ID, 1, 0, 0, 0);
 	ibuf->index->n_uniq = REC_MAX_N_FIELDS;
 	rw_lock_create(index_tree_rw_lock_key, &ibuf->index->lock,
 		       SYNC_IBUF_INDEX_TREE);
@@ -908,7 +910,8 @@ ibuf_set_free_bits_func(
 	}
 
 	mtr_start(&mtr);
-	const fil_space_t* space = mtr.set_named_space(block->page.id.space());
+	const fil_space_t* space = mtr.set_named_space_id(
+		block->page.id.space());
 
 	bitmap_page = ibuf_bitmap_get_map_page(block->page.id,
 					       block->page.size, &mtr);
@@ -1151,7 +1154,8 @@ ibuf_page_low(
 		return(FALSE);
 	}
 
-	ut_ad(fil_space_get_type(IBUF_SPACE_ID) == FIL_TYPE_TABLESPACE);
+	compile_time_assert(IBUF_SPACE_ID == 0);
+	ut_ad(fil_system.sys_space->purpose == FIL_TYPE_TABLESPACE);
 
 #ifdef UNIV_DEBUG
 	if (!x_latch) {
@@ -1491,14 +1495,10 @@ ibuf_dummy_index_create(
 	dict_table_t*	table;
 	dict_index_t*	index;
 
-	table = dict_mem_table_create("IBUF_DUMMY",
-				      DICT_HDR_SPACE, n, 0,
+	table = dict_mem_table_create("IBUF_DUMMY", NULL, n, 0,
 				      comp ? DICT_TF_COMPACT : 0, 0);
 
-	index = dict_mem_index_create("IBUF_DUMMY", "IBUF_DUMMY",
-				      DICT_HDR_SPACE, 0, n);
-
-	index->table = table;
+	index = dict_mem_index_create(table, "IBUF_DUMMY", 0, n);
 
 	/* avoid ut_ad(index->cached) in dict_index_get_n_unique_in_tree */
 	index->cached = TRUE;
@@ -2028,11 +2028,9 @@ ibuf_add_free_page(void)
 	page_t*		bitmap_page;
 
 	mtr_start(&mtr);
-	fil_space_t* space = mtr.set_sys_modified();
-
 	/* Acquire the fsp latch before the ibuf header, obeying the latching
 	order */
-	mtr_x_lock(&space->latch, &mtr);
+	mtr_x_lock(&fil_system.sys_space->latch, &mtr);
 	header_page = ibuf_header_page_get(&mtr);
 
 	/* Allocate a new page: NOTE that if the page has been a part of a
@@ -2078,13 +2076,11 @@ ibuf_add_free_page(void)
 	(level 2 page) */
 
 	const page_id_t		page_id(IBUF_SPACE_ID, block->page.id.page_no());
-	const page_size_t	page_size(space->flags);
-
-	bitmap_page = ibuf_bitmap_get_map_page(page_id, page_size, &mtr);
+	bitmap_page = ibuf_bitmap_get_map_page(page_id, univ_page_size, &mtr);
 
 	mutex_exit(&ibuf_mutex);
 
-	ibuf_bitmap_page_set_bits(bitmap_page, page_id, page_size,
+	ibuf_bitmap_page_set_bits(bitmap_page, page_id, univ_page_size,
 				  IBUF_BITMAP_IBUF, TRUE, &mtr);
 
 	ibuf_mtr_commit(&mtr);
@@ -2110,13 +2106,10 @@ ibuf_remove_free_page(void)
 	log_free_check();
 
 	mtr_start(&mtr);
-	fil_space_t*		space = mtr.set_sys_modified();
-	const page_size_t	page_size(space->flags);
-
 	/* Acquire the fsp latch before the ibuf header, obeying the latching
 	order */
 
-	mtr_x_lock(&space->latch, &mtr);
+	mtr_x_lock(&fil_system.sys_space->latch, &mtr);
 	header_page = ibuf_header_page_get(&mtr);
 
 	/* Prevent pessimistic inserts to insert buffer trees for a while */
@@ -2195,12 +2188,12 @@ ibuf_remove_free_page(void)
 	/* Set the bit indicating that this page is no more an ibuf tree page
 	(level 2 page) */
 
-	bitmap_page = ibuf_bitmap_get_map_page(page_id, page_size, &mtr);
+	bitmap_page = ibuf_bitmap_get_map_page(page_id, univ_page_size, &mtr);
 
 	mutex_exit(&ibuf_mutex);
 
 	ibuf_bitmap_page_set_bits(
-		bitmap_page, page_id, page_size, IBUF_BITMAP_IBUF, FALSE,
+		bitmap_page, page_id, univ_page_size, IBUF_BITMAP_IBUF, FALSE,
 		&mtr);
 
 	ut_d(buf_page_set_file_page_was_freed(page_id));
@@ -2584,8 +2577,6 @@ ibuf_merge_space(
 	mem_heap_t*	heap = mem_heap_create(512);
 	dtuple_t*	tuple = ibuf_search_tuple_build(space, 0, heap);
 	ulint		n_pages = 0;
-
-	ut_ad(space < SRV_LOG_SPACE_FIRST_ID);
 
 	ut_ad(space < SRV_LOG_SPACE_FIRST_ID);
 
@@ -3391,6 +3382,7 @@ ibuf_insert_low(
 	ut_ad(!dict_index_is_spatial(index));
 	ut_ad(dtuple_check_typed(entry));
 	ut_ad(!no_counter || op == IBUF_OP_INSERT);
+	ut_ad(page_id.space() == index->table->space->id);
 	ut_a(op < IBUF_OP_COUNT);
 
 	do_merge = FALSE;
@@ -3513,7 +3505,7 @@ fail_exit:
 	ut_a((buffered == 0) || ibuf_count_get(page_id));
 #endif
 	ibuf_mtr_start(&bitmap_mtr);
-	bitmap_mtr.set_named_space(page_id.space());
+	index->set_modified(bitmap_mtr);
 
 	bitmap_page = ibuf_bitmap_get_map_page(page_id, page_size,
 					       &bitmap_mtr);
@@ -4581,7 +4573,7 @@ loop:
 	if (block != NULL) {
 		ibool success;
 
-		mtr.set_named_space(page_id.space());
+		mtr.set_named_space(space);
 
 		success = buf_page_get_known_nowait(
 			RW_X_LATCH, block,
@@ -4597,7 +4589,7 @@ loop:
 		latch an io-fixed block. */
 		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE);
 	} else if (update_ibuf_bitmap) {
-		mtr.set_named_space(page_id.space());
+		mtr.set_named_space(space);
 	}
 
 	if (!btr_pcur_is_on_user_rec(&pcur)) {
@@ -4648,6 +4640,9 @@ loop:
 
 			entry = ibuf_build_entry_from_ibuf_rec(
 				&mtr, rec, heap, &dummy_index);
+			ut_ad(!dummy_index->table->space);
+			dummy_index->table->space = space;
+			dummy_index->table->space_id = space->id;
 
 			ut_ad(page_validate(block->frame, dummy_index));
 
@@ -4699,7 +4694,7 @@ loop:
 				ibuf_btr_pcur_commit_specify_mtr(&pcur, &mtr);
 
 				ibuf_mtr_start(&mtr);
-				mtr.set_named_space(page_id.space());
+				mtr.set_named_space(space);
 
 				success = buf_page_get_known_nowait(
 					RW_X_LATCH, block,
@@ -4954,25 +4949,15 @@ ibuf_print(
 	mutex_exit(&ibuf_mutex);
 }
 
-/******************************************************************//**
-Checks the insert buffer bitmaps on IMPORT TABLESPACE.
+/** Check the insert buffer bitmaps on IMPORT TABLESPACE.
+@param[in]	trx	transaction
+@param[in,out]	space	tablespace being imported
 @return DB_SUCCESS or error code */
-dberr_t
-ibuf_check_bitmap_on_import(
-/*========================*/
-	const trx_t*	trx,		/*!< in: transaction */
-	ulint		space_id)	/*!< in: tablespace identifier */
+dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 {
 	ulint	page_no;
-
-	ut_ad(space_id);
 	ut_ad(trx->mysql_thd);
-
-	FilSpace space(space_id);
-	if (!space()) {
-		return(DB_TABLE_NOT_FOUND);
-	}
-
+	ut_ad(space->purpose == FIL_TYPE_IMPORT);
 	const page_size_t	page_size(space->flags);
 	/* fil_space_t::size and fil_space_t::free_limit would still be 0
 	at this point. So, we will have to read page 0. */
@@ -4982,7 +4967,7 @@ ibuf_check_bitmap_on_import(
 	mtr_t	mtr;
 	ulint	size;
 	mtr.start();
-	if (buf_block_t* sp = buf_page_get(page_id_t(space_id, 0), page_size,
+	if (buf_block_t* sp = buf_page_get(page_id_t(space->id, 0), page_size,
 					   RW_S_LATCH, &mtr)) {
 		size = std::min(
 			mach_read_from_4(FSP_HEADER_OFFSET + FSP_FREE_LIMIT
@@ -5022,7 +5007,7 @@ ibuf_check_bitmap_on_import(
 		ibuf_enter(&mtr);
 
 		bitmap_page = ibuf_bitmap_get_map_page(
-			page_id_t(space_id, page_no), page_size, &mtr);
+			page_id_t(space->id, page_no), page_size, &mtr);
 
 		if (buf_page_is_zeroes(bitmap_page, page_size)) {
 			/* This means we got all-zero page instead of
@@ -5033,9 +5018,8 @@ ibuf_check_bitmap_on_import(
 			     curr_page < page_size.physical(); curr_page++) {
 
 				buf_block_t* block = buf_page_get(
-						page_id_t(space_id, curr_page),
-						page_size,
-						RW_S_LATCH, &mtr);
+					page_id_t(space->id, curr_page),
+					page_size, RW_S_LATCH, &mtr);
 	                        page_t*	page = buf_block_get_frame(block);
 				ut_ad(buf_page_is_zeroes(page, page_size));
 			}
@@ -5051,7 +5035,7 @@ ibuf_check_bitmap_on_import(
 
 			const ulint	offset = page_no + i;
 
-			const page_id_t	cur_page_id(space_id, offset);
+			const page_id_t	cur_page_id(space->id, offset);
 
 			if (ibuf_bitmap_page_get_bits(
 					bitmap_page, cur_page_id, page_size,
@@ -5064,12 +5048,10 @@ ibuf_check_bitmap_on_import(
 				ib_errf(trx->mysql_thd,
 					IB_LOG_LEVEL_ERROR,
 					 ER_INNODB_INDEX_CORRUPT,
-					 "Space %u page %u"
+					 "File %s page " ULINTPF
 					 " is wrongly flagged to belong to the"
 					 " insert buffer",
-					 (unsigned) space_id,
-					 (unsigned) offset);
-
+					space->chain.start->name, offset);
 				return(DB_CORRUPTION);
 			}
 
@@ -5081,9 +5063,9 @@ ibuf_check_bitmap_on_import(
 					IB_LOG_LEVEL_WARN,
 					ER_INNODB_INDEX_CORRUPT,
 					"Buffered changes"
-					" for space %u page %u are lost",
-					(unsigned) space_id,
-					(unsigned) offset);
+					" for file %s page " ULINTPF
+					" are lost",
+					space->chain.start->name, offset);
 
 				/* Tolerate this error, so that
 				slightly corrupted tables can be
@@ -5119,7 +5101,7 @@ ibuf_set_bitmap_for_bulk_load(
 	free_val = ibuf_index_page_calc_free(block);
 
 	mtr_start(&mtr);
-	mtr.set_named_space(block->page.id.space());
+	mtr.set_named_space_id(block->page.id.space());
 
 	bitmap_page = ibuf_bitmap_get_map_page(block->page.id,
                                                block->page.size, &mtr);

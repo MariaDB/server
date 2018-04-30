@@ -50,14 +50,6 @@ SysTablespace srv_tmp_space;
 at a time. We have to make this public because it is a config variable. */
 ulong sys_tablespace_auto_extend_increment;
 
-#ifdef UNIV_DEBUG
-/** Control if extra debug checks need to be done for temporary tablespace.
-Default = true that is disable such checks.
-This variable is not exposed to end-user but still kept as variable for
-developer to enable it during debug. */
-bool srv_skip_temp_table_checks_debug = true;
-#endif /* UNIV_DEBUG */
-
 /** Convert a numeric string that optionally ends in G or M or K,
     to a number containing megabytes.
 @param[in]	str	String with a quantity in bytes
@@ -912,15 +904,19 @@ SysTablespace::open_or_create(
 		it->close();
 		it->m_exists = true;
 
-		if (it == begin) {
-			/* First data file. */
-
-			/* Create the tablespace entry for the multi-file
-			tablespace in the tablespace manager. */
-			space = fil_space_create(
-				name(), space_id(), flags(), is_temp
-				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
-				NULL);
+		if (it != begin) {
+		} else if (is_temp) {
+			ut_ad(!fil_system.temp_space);
+			ut_ad(space_id() == SRV_TMP_SPACE_ID);
+			space = fil_system.temp_space = fil_space_create(
+				name(), SRV_TMP_SPACE_ID, flags(),
+				FIL_TYPE_TEMPORARY, NULL);
+		} else {
+			ut_ad(!fil_system.sys_space);
+			ut_ad(space_id() == TRX_SYS_SPACE);
+			space = fil_system.sys_space = fil_space_create(
+				name(), TRX_SYS_SPACE, flags(),
+				FIL_TYPE_TABLESPACE, NULL);
 		}
 
 		ut_a(fil_validate());

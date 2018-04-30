@@ -2964,6 +2964,8 @@ class Type_handler_blob_common: public Type_handler_longstr
 {
 public:
   virtual ~Type_handler_blob_common() { }
+  Field *make_conversion_table_field(TABLE *, uint metadata,
+                                     const Field *target) const;
   const Type_handler *type_handler_for_tmp_table(const Item *item) const
   {
     return blob_type_handler(item);
@@ -2988,6 +2990,7 @@ public:
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
   void Item_param_setup_conversion(THD *thd, Item_param *) const;
+
 };
 
 
@@ -2999,8 +3002,6 @@ public:
   const Name name() const { return m_name_tinyblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_TINY_BLOB; }
   uint32 calc_pack_length(uint32 length) const;
-  Field *make_conversion_table_field(TABLE *, uint metadata,
-                                     const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -3016,8 +3017,6 @@ public:
   const Name name() const { return m_name_mediumblob; }
   enum_field_types field_type() const { return MYSQL_TYPE_MEDIUM_BLOB; }
   uint32 calc_pack_length(uint32 length) const;
-  Field *make_conversion_table_field(TABLE *, uint metadata,
-                                     const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -3035,8 +3034,6 @@ public:
   uint32 calc_pack_length(uint32 length) const;
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
-  Field *make_conversion_table_field(TABLE *, uint metadata,
-                                     const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
@@ -3052,8 +3049,6 @@ public:
   const Name name() const { return m_name_blob; }
   enum_field_types field_type() const { return MYSQL_TYPE_BLOB; }
   uint32 calc_pack_length(uint32 length) const;
-  Field *make_conversion_table_field(TABLE *, uint metadata,
-                                     const Field *target) const;
   Field *make_table_field(const LEX_CSTRING *name,
                           const Record_addr &addr,
                           const Type_all_attributes &attr,

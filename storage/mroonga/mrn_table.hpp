@@ -96,7 +96,7 @@ struct st_mrn_slot_data
 };
 
 #define MRN_SET_WRAP_ALTER_KEY(file, ha_alter_info) \
-  Alter_inplace_info::HA_ALTER_FLAGS base_handler_flags = ha_alter_info->handler_flags; \
+  alter_table_operations base_handler_flags = ha_alter_info->handler_flags; \
   KEY  *base_key_info_buffer = ha_alter_info->key_info_buffer; \
   uint base_key_count = ha_alter_info->key_count; \
   uint base_index_drop_count = ha_alter_info->index_drop_count; \

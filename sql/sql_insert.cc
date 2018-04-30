@@ -2095,7 +2095,7 @@ public:
   ulong start_time_sec_part;
   sql_mode_t sql_mode;
   bool auto_increment_field_not_null;
-  bool query_start_used, ignore, log_query, query_start_sec_part_used;
+  bool ignore, log_query, query_start_sec_part_used;
   bool stmt_depends_on_first_successful_insert_id_in_prev_stmt;
   ulonglong first_successful_insert_id_in_prev_stmt;
   ulonglong forced_insert_id;
@@ -2706,7 +2706,6 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
     goto err;
   memcpy(row->record, table->record[0], table->s->reclength);
   row->start_time=                thd->start_time;
-  row->query_start_used=          thd->query_start_used;
   row->start_time_sec_part=       thd->start_time_sec_part;
   row->query_start_sec_part_used= thd->query_start_sec_part_used;
   /*
@@ -3294,7 +3293,6 @@ bool Delayed_insert::handle_inserts(void)
       set_delayed_insert_blobs(table);
 
     thd.start_time=row->start_time;
-    thd.query_start_used=row->query_start_used;
     thd.start_time_sec_part=row->start_time_sec_part;
     thd.query_start_sec_part_used=row->query_start_sec_part_used;
     /*
@@ -3593,8 +3591,7 @@ select_insert::select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
   select_result_interceptor(thd_arg),
   table_list(table_list_par), table(table_par), fields(fields_par),
   autoinc_value_of_last_inserted_row(0),
-  insert_into_view(table_list_par && table_list_par->view != 0),
-  versioned_write(false)
+  insert_into_view(table_list_par && table_list_par->view != 0)
 {
   bzero((char*) &info,sizeof(info));
   info.handle_duplicates= duplic;
@@ -3628,8 +3625,6 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
                      values, MARK_COLUMNS_READ, 0, NULL, 0) ||
         check_insert_fields(thd, table_list, *fields, values,
                             !insert_into_view, 1, &map));
-
-  versioned_write= table_list->table->versioned();
 
   if (!res && fields->elements)
   {
@@ -3843,7 +3838,8 @@ int select_insert::send_data(List<Item> &values)
     table->auto_increment_field_not_null= FALSE;
     DBUG_RETURN(1);
   }
-  table->vers_write= versioned_write;
+
+  table->vers_write= table->versioned();
   if (table_list)                               // Not CREATE ... SELECT
   {
     switch (table_list->view_check_option(thd, info.ignore)) {
@@ -4144,7 +4140,7 @@ TABLE *select_create::create_table_from_items(THD *thd,
   /* Add selected items to field list */
   List_iterator_fast<Item> it(*items);
   Item *item;
-  DBUG_ENTER("create_table_from_items");
+  DBUG_ENTER("select_create::create_table_from_items");
 
   tmp_table.s= &share;
   init_tmp_table_share(thd, &share, "", 0, "", "");
@@ -4156,6 +4152,10 @@ TABLE *select_create::create_table_from_items(THD *thd,
 
   if (!opt_explicit_defaults_for_timestamp)
     promote_first_timestamp_column(&alter_info->create_list);
+
+  if (create_info->vers_fix_system_fields(thd, alter_info, *create_table,
+                                          true))
+    DBUG_RETURN(NULL);
 
   while ((item=it++))
   {
@@ -4193,11 +4193,8 @@ TABLE *select_create::create_table_from_items(THD *thd,
     alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
 
-  if (create_info->vers_fix_system_fields(thd, alter_info, *create_table,
-    select_tables, items, &versioned_write))
-  {
+  if (create_info->vers_check_system_fields(thd, alter_info, *create_table))
     DBUG_RETURN(NULL);
-  }
 
   DEBUG_SYNC(thd,"create_table_select_before_create");
 
@@ -4441,11 +4438,16 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   }
 
   /* First field to copy */
-  field= table->field+table->s->fields - values.elements;
+  field= table->field+table->s->fields;
 
   /* Mark all fields that are given values */
-  for (Field **f= field ; *f ; f++)
-    bitmap_set_bit(table->write_set, (*f)->field_index);
+  for (uint n= values.elements; n; )
+  {
+    if ((*--field)->invisible >= INVISIBLE_SYSTEM)
+      continue;
+    n--;
+    bitmap_set_bit(table->write_set, (*field)->field_index);
+  }
 
   table->next_number_field=table->found_next_number_field;
 

@@ -331,7 +331,7 @@ my %mysqld_logs;
 my $opt_debug_sync_timeout= 300; # Default timeout for WAIT_FOR actions.
 my $warn_seconds = 60;
 
-my $rebootstrap_re= '--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)|data[-_]file[-_]path';
+my $rebootstrap_re= '--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)|data[-_]file[-_]path|force_rebootstrap';
 
 sub testcase_timeout ($) {
   my ($tinfo)= @_;
@@ -1133,7 +1133,7 @@ sub command_line_setup {
              'debug'                    => \$opt_debug,
              'debug-common'             => \$opt_debug_common,
              'debug-server'             => \$opt_debug_server,
-             'gdb'                      => \$opt_gdb,
+             'gdb:s'                    => sub { $opt_gdb = $_[1] || '#' },
              'client-gdb'               => \$opt_client_gdb,
              'manual-gdb'               => \$opt_manual_gdb,
              'manual-lldb'              => \$opt_manual_lldb,
@@ -4563,6 +4563,7 @@ sub extract_warning_lines ($$) {
      qr|SSL error: Failed to set ciphers to use|,
      qr/Plugin 'InnoDB' will be forced to shutdown/,
      qr|Could not increase number of max_open_files to more than|,
+     qr|Changed limits: max_open_files|,
      qr/InnoDB: Error table encrypted but encryption service not available.*/,
      qr/InnoDB: Could not find a valid tablespace file for*/,
      qr/InnoDB: Tablespace open failed for*/,
@@ -5768,7 +5769,9 @@ sub gdb_arguments {
   # Put $args into a single string
   $input = $input ? "< $input" : "";
 
-  if ($type ne 'client' and $opt_valgrind_mysqld) {
+  if ($type eq 'client') {
+    mtr_tofile($gdb_init_file, "set args @$$args $input");
+  } elsif ($opt_valgrind_mysqld) {
     my $v = $$exe;
     my $vargs = [];
     valgrind_arguments($vargs, \$v);
@@ -5778,7 +5781,11 @@ shell sleep 1
 target remote | /usr/lib64/valgrind/../../bin/vgdb
 EOF
   } else {
-    mtr_tofile($gdb_init_file, "set args @$$args $input\n");
+    mtr_tofile($gdb_init_file,
+      join("\n",
+        "set args @$$args $input",
+        split /;/, $opt_gdb
+        ));
   }
 
   if ( $opt_manual_gdb )
@@ -6119,7 +6126,7 @@ path-to-testcase
 Examples:
 
 alias
-main.alias              'main' is the name of the suite for the 't' directory.
+main.alias              'main' is the name of the main test suite
 rpl.rpl_invoked_features,mix,innodb
 suite/rpl/t/rpl.rpl_invoked_features
 

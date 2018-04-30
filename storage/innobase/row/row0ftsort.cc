@@ -70,15 +70,15 @@ integer value)
 dict_index_t*
 row_merge_create_fts_sort_index(
 /*============================*/
-	dict_index_t*		index,	/*!< in: Original FTS index
-					based on which this sort index
-					is created */
-	const dict_table_t*	table,	/*!< in: table that FTS index
-					is being created on */
-	ibool*			opt_doc_id_size)
-					/*!< out: whether to use 4 bytes
-					instead of 8 bytes integer to
-					store Doc ID during sort */
+	dict_index_t*	index,	/*!< in: Original FTS index
+				based on which this sort index
+				is created */
+	dict_table_t*	table,	/*!< in,out: table that FTS index
+				is being created on */
+	ibool*		opt_doc_id_size)
+				/*!< out: whether to use 4 bytes
+				instead of 8 bytes integer to
+				store Doc ID during sort */
 {
 	dict_index_t*   new_index;
 	dict_field_t*   field;
@@ -86,11 +86,9 @@ row_merge_create_fts_sort_index(
 	CHARSET_INFO*	charset;
 
 	// FIXME: This name shouldn't be hard coded here.
-	new_index = dict_mem_index_create(
-		index->table->name.m_name, "tmp_fts_idx", 0, DICT_FTS, 3);
+	new_index = dict_mem_index_create(table, "tmp_fts_idx", DICT_FTS, 3);
 
 	new_index->id = index->id;
-	new_index->table = (dict_table_t*) table;
 	new_index->n_uniq = FTS_NUM_FIELDS_SORT;
 	new_index->n_def = FTS_NUM_FIELDS_SORT;
 	new_index->cached = TRUE;
@@ -257,7 +255,7 @@ row_fts_psort_info_init(
 				dup->index);
 
 			if (row_merge_file_create(psort_info[j].merge_file[i],
-						  path) < 0) {
+						  path) == OS_FILE_CLOSED) {
 				goto func_exit;
 			}
 
@@ -778,7 +776,7 @@ DECLARE_THREAD(fts_parallel_tokenization)(
 	merge_file_t**		merge_file;
 	row_merge_block_t**	block;
 	row_merge_block_t**	crypt_block;
-	int			tmpfd[FTS_NUM_AUX_INDEX];
+	pfs_os_file_t		tmpfd[FTS_NUM_AUX_INDEX];
 	ulint			mycount[FTS_NUM_AUX_INDEX];
 	ib_uint64_t		total_rec = 0;
 	ulint			num_doc_processed = 0;
@@ -908,7 +906,7 @@ loop:
 				     merge_file[t_ctx.buf_used]->offset++,
 				     block[t_ctx.buf_used],
 				     crypt_block[t_ctx.buf_used],
-				     table->space)) {
+				     table->space->id)) {
 			error = DB_TEMP_FILE_WRITE_FAIL;
 			goto func_exit;
 		}
@@ -1002,7 +1000,7 @@ exit:
 						merge_file[i]->offset++,
 						block[i],
 						crypt_block[i],
-						table->space)) {
+						table->space->id)) {
 					error = DB_TEMP_FILE_WRITE_FAIL;
 					goto func_exit;
 				}
@@ -1031,7 +1029,7 @@ exit:
 		}
 
 		tmpfd[i] = row_merge_file_create_low(path);
-		if (tmpfd[i] < 0) {
+		if (tmpfd[i] == OS_FILE_CLOSED) {
 			error = DB_OUT_OF_MEMORY;
 			goto func_exit;
 		}
@@ -1040,15 +1038,15 @@ exit:
 				       psort_info->psort_common->dup,
 				       merge_file[i], block[i], &tmpfd[i],
 				       false, 0.0/* pct_progress */, 0.0/* pct_cost */,
-				       crypt_block[i], table->space);
+				       crypt_block[i], table->space->id);
 
 		if (error != DB_SUCCESS) {
-			close(tmpfd[i]);
+			os_file_close(tmpfd[i]);
 			goto func_exit;
 		}
 
 		total_rec += merge_file[i]->n_rec;
-		close(tmpfd[i]);
+		os_file_close(tmpfd[i]);
 	}
 
 func_exit:
@@ -1572,7 +1570,7 @@ row_fts_merge_insert(
 	ib_alloc_t*		heap_alloc;
 	ulint			i;
 	mrec_buf_t**		buf;
-	int*			fd;
+	pfs_os_file_t*			fd;
 	byte**			block;
 	byte**			crypt_block;
 	const mrec_t**		mrec;
@@ -1597,7 +1595,7 @@ row_fts_merge_insert(
 	/* We use the insert query graph as the dummy graph
 	needed in the row module call */
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx_start_if_not_started(trx, true);
 
 	trx->op_info = "inserting index entries";
@@ -1614,7 +1612,7 @@ row_fts_merge_insert(
 		heap, sizeof(*offsets) * fts_sort_pll_degree);
 	buf = (mrec_buf_t**) mem_heap_alloc(
 		heap, sizeof(*buf) * fts_sort_pll_degree);
-	fd = (int*) mem_heap_alloc(heap, sizeof(*fd) * fts_sort_pll_degree);
+	fd = (pfs_os_file_t*) mem_heap_alloc(heap, sizeof(*fd) * fts_sort_pll_degree);
 	block = (byte**) mem_heap_alloc(
 		heap, sizeof(*block) * fts_sort_pll_degree);
 	crypt_block = (byte**) mem_heap_alloc(
@@ -1712,7 +1710,7 @@ row_fts_merge_insert(
 #ifdef UNIV_DEBUG
 	ins_ctx.aux_index_id = id;
 #endif
-	const ulint space = table->space;
+	const ulint space = table->space->id;
 
 	for (i = 0; i < fts_sort_pll_degree; i++) {
 		if (psort_info[i].merge_file[id]->n_rec == 0) {
@@ -1823,7 +1821,7 @@ exit:
 	error = ins_ctx.btr_bulk->finish(error);
 	UT_DELETE(ins_ctx.btr_bulk);
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	mem_heap_free(heap);
 

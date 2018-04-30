@@ -21,9 +21,8 @@
 typedef struct st_mysql_const_lex_string LEX_CSTRING;
 
 /* Functions to compare if two lex strings are equal */
-inline bool lex_string_cmp(CHARSET_INFO *charset,
-                           const LEX_CSTRING *a,
-                           const LEX_CSTRING *b)
+static inline bool lex_string_cmp(CHARSET_INFO *charset, const LEX_CSTRING *a,
+                                  const LEX_CSTRING *b)
 {
   return my_strcasecmp(charset, a->str, b->str);
 }
@@ -31,7 +30,7 @@ inline bool lex_string_cmp(CHARSET_INFO *charset,
 /*
   Compare to LEX_CSTRING's and return 0 if equal
 */
-inline bool cmp(const LEX_CSTRING *a, const LEX_CSTRING *b)
+static inline bool cmp(const LEX_CSTRING *a, const LEX_CSTRING *b)
 {
   return (a->length != b->length ||
           memcmp(a->str, b->str, a->length));
@@ -41,12 +40,20 @@ inline bool cmp(const LEX_CSTRING *a, const LEX_CSTRING *b)
   Compare if two LEX_CSTRING are equal. Assumption is that
   character set is ASCII (like for plugin names)
 */
-inline bool lex_string_eq(const LEX_CSTRING *a,
-                          const LEX_CSTRING *b)
+static inline bool lex_string_eq(const LEX_CSTRING *a, const LEX_CSTRING *b)
 {
   if (a->length != b->length)
-    return 1;                                   /* Different */
-  return strcasecmp(a->str, b->str) != 0;
+    return 0;                                   /* Different */
+  return strcasecmp(a->str, b->str) == 0;
+}
+
+/*
+  Compare if two LEX_CSTRING are equal in system character set
+  (field names, user variables, etc - but *not* table names)
+*/
+static inline bool lex_string_syseq(const LEX_CSTRING *a, const LEX_CSTRING *b)
+{
+  return lex_string_cmp(system_charset_info, a, b) == 0;
 }
 
 #endif /* LEX_STRING_INCLUDED */

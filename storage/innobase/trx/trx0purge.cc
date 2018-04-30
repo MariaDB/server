@@ -115,8 +115,8 @@ inline bool TrxUndoRsegsIterator::set_next()
 
 	/* We assume in purge of externally stored fields that space id is
 	in the range of UNDO tablespace space ids */
-	ut_a(purge_sys.rseg->space == TRX_SYS_SPACE
-	     || srv_is_undo_tablespace(purge_sys.rseg->space));
+	ut_ad(purge_sys.rseg->space->id == TRX_SYS_SPACE
+	      || srv_is_undo_tablespace(purge_sys.rseg->space->id));
 
 	ut_a(purge_sys.tail.commit <= purge_sys.rseg->last_commit);
 
@@ -138,7 +138,7 @@ purge_graph_build()
 {
 	ut_a(srv_n_purge_threads > 0);
 
-	trx_t* trx = trx_allocate_for_background();
+	trx_t* trx = trx_create();
 	ut_ad(!trx->id);
 	trx->start_time = ut_time();
 	trx->state = TRX_STATE_ACTIVE;
@@ -193,7 +193,7 @@ void purge_sys_t::close()
 	ut_ad(!trx->id);
 	ut_ad(trx->state == TRX_STATE_ACTIVE);
 	trx->state = TRX_STATE_NOT_STARTED;
-	trx_free_for_background(trx);
+	trx_free(trx);
 	rw_lock_free(&latch);
 	/* rw_lock_free() already called latch.~rw_lock_t(); tame the
 	debug assertions when the destructor will be called once more. */
@@ -279,7 +279,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		  && purge_sys.state == PURGE_STATE_INIT)
 	      || (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND
 		  && purge_sys.state == PURGE_STATE_DISABLED)
-	      || ((trx->undo_no == 0 || trx->in_mysql_trx_list
+	      || ((trx->undo_no == 0 || trx->mysql_thd
 		   || trx->internal)
 		  && srv_fast_shutdown));
 
@@ -361,7 +361,7 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 
 	rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
 	undo_page = trx_undo_page_get(
-		page_id_t(rseg->space, hdr_addr.page), &mtr);
+		page_id_t(rseg->space->id, hdr_addr.page), &mtr);
 
 	/* Mark the last undo log totally purged, so that if the
 	system crashes, the tail of the undo log will not get accessed
@@ -384,7 +384,7 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 		rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
 
 		undo_page = trx_undo_page_get(
-			page_id_t(rseg->space, hdr_addr.page), &mtr);
+			page_id_t(rseg->space->id, hdr_addr.page), &mtr);
 	}
 
 	/* The page list may now be inconsistent, but the length field
@@ -461,7 +461,7 @@ func_exit:
 		return;
 	}
 
-	undo_page = trx_undo_page_get(page_id_t(rseg.space, hdr_addr.page),
+	undo_page = trx_undo_page_get(page_id_t(rseg.space->id, hdr_addr.page),
 				      &mtr);
 
 	log_hdr = undo_page + hdr_addr.boffset;
@@ -828,7 +828,8 @@ trx_purge_mark_undo_for_truncate(
 	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
 		if (trx_rseg_t* rseg = trx_sys.rseg_array[i]) {
 			ut_ad(rseg->is_persistent());
-			if (rseg->space == undo_trunc->get_marked_space_id()) {
+			if (rseg->space->id
+			    == undo_trunc->get_marked_space_id()) {
 
 				/* Once set this rseg will not be allocated
 				to new booting transaction but we will wait
@@ -870,7 +871,7 @@ trx_purge_cleanse_purge_queue(
 		     it2 != it->end();
 		     ++it2) {
 
-			if ((*it2)->space
+			if ((*it2)->space->id
 				== undo_trunc->get_marked_space_id()) {
 				it->erase(it2);
 				break;
@@ -1099,7 +1100,7 @@ trx_purge_rseg_get_next_history_log(
 	mtr_start(&mtr);
 
 	undo_page = trx_undo_page_get_s_latched(
-		page_id_t(rseg->space, rseg->last_page_no), &mtr);
+		page_id_t(rseg->space->id, rseg->last_page_no), &mtr);
 
 	log_hdr = undo_page + rseg->last_offset;
 
@@ -1127,7 +1128,7 @@ trx_purge_rseg_get_next_history_log(
 	/* Read the previous log header. */
 	mtr_start(&mtr);
 
-	log_hdr = trx_undo_page_get_s_latched(page_id_t(rseg->space,
+	log_hdr = trx_undo_page_get_s_latched(page_id_t(rseg->space->id,
 							prev_log_addr.page),
 					      &mtr)
 		+ prev_log_addr.boffset;
@@ -1243,7 +1244,7 @@ trx_purge_get_next_rec(
 	ut_ad(purge_sys.next_stored);
 	ut_ad(purge_sys.tail.trx_no() < purge_sys.view.low_limit_no());
 
-	space = purge_sys.rseg->space;
+	space = purge_sys.rseg->space->id;
 	page_no = purge_sys.page_no;
 	offset = purge_sys.offset;
 
@@ -1509,10 +1510,9 @@ static
 void
 trx_purge_wait_for_workers_to_complete()
 {
-	ulint		n_submitted = purge_sys.n_submitted;
-
 	/* Ensure that the work queue empties out. */
-	while ((ulint) my_atomic_loadlint(&purge_sys.n_completed) != n_submitted) {
+	while (my_atomic_loadlint(&purge_sys.n_completed)
+	       != purge_sys.n_submitted) {
 
 		if (srv_get_task_queue_length() > 0) {
 			srv_release_threads(SRV_WORKER, 1);
@@ -1520,9 +1520,6 @@ trx_purge_wait_for_workers_to_complete()
 
 		os_thread_yield();
 	}
-
-	/* None of the worker threads should be doing any work. */
-	ut_a(purge_sys.n_submitted == purge_sys.n_completed);
 
 	/* There should be no outstanding tasks as long
 	as the worker threads are active. */
@@ -1547,7 +1544,8 @@ trx_purge(
 	srv_dml_needed_delay = trx_purge_dml_delay();
 
 	/* The number of tasks submitted should be completed. */
-	ut_a(purge_sys.n_submitted == purge_sys.n_completed);
+	ut_a(purge_sys.n_submitted
+	     == my_atomic_loadlint(&purge_sys.n_completed));
 
 	rw_lock_x_lock(&purge_sys.latch);
 	trx_sys.clone_oldest_view();
@@ -1561,46 +1559,27 @@ trx_purge(
 
 	/* Fetch the UNDO recs that need to be purged. */
 	n_pages_handled = trx_purge_attach_undo_recs(n_purge_threads);
+	purge_sys.n_submitted += n_purge_threads;
 
-	/* Do we do an asynchronous purge or not ? */
-	if (n_purge_threads > 1) {
-		ulint	i = 0;
-
-		/* Submit the tasks to the work queue. */
-		for (i = 0; i < n_purge_threads - 1; ++i) {
-			thr = que_fork_scheduler_round_robin(
-				purge_sys.query, thr);
-
-			ut_a(thr != NULL);
-
-			srv_que_task_enqueue_low(thr);
-		}
-
+	/* Submit tasks to workers queue if using multi-threaded purge. */
+	for (ulint i = n_purge_threads; --i; ) {
 		thr = que_fork_scheduler_round_robin(purge_sys.query, thr);
-		ut_a(thr != NULL);
-
-		purge_sys.n_submitted += n_purge_threads - 1;
-
-		goto run_synchronously;
-
-	/* Do it synchronously. */
-	} else {
-		thr = que_fork_scheduler_round_robin(purge_sys.query, NULL);
-		ut_ad(thr);
-
-run_synchronously:
-		++purge_sys.n_submitted;
-
-		que_run_threads(thr);
-
-		my_atomic_addlint(&purge_sys.n_completed, 1);
-
-		if (n_purge_threads > 1) {
-			trx_purge_wait_for_workers_to_complete();
-		}
+		ut_a(thr);
+		srv_que_task_enqueue_low(thr);
 	}
 
-	ut_a(purge_sys.n_submitted == purge_sys.n_completed);
+	thr = que_fork_scheduler_round_robin(purge_sys.query, thr);
+
+	que_run_threads(thr);
+
+	my_atomic_addlint(&purge_sys.n_completed, 1);
+
+	if (n_purge_threads > 1) {
+		trx_purge_wait_for_workers_to_complete();
+	}
+
+	ut_a(purge_sys.n_submitted
+	     == my_atomic_loadlint(&purge_sys.n_completed));
 
 	if (truncate) {
 		trx_purge_truncate_history();
@@ -1652,7 +1631,6 @@ unlock:
 	case PURGE_STATE_STOP:
 		ut_ad(srv_n_purge_threads > 0);
 		++purge_sys.n_stop;
-		purge_sys.state = PURGE_STATE_STOP;
 		if (!purge_sys.running) {
 			goto unlock;
 		}

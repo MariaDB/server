@@ -62,6 +62,8 @@ static const int buf_flush_page_cleaner_priority = -20;
 modification lsn */
 static const ulint buf_flush_wait_flushed_sleep_time = 10000;
 
+#include <my_service_manager.h>
+
 /** Number of pages flushed through non flush_list flushes. */
 static ulint buf_lru_flush_page_count = 0;
 
@@ -642,6 +644,17 @@ buf_flush_remove(
 {
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 
+#if 0 // FIXME: Rate-limit the output. Move this to the page cleaner?
+	if (UNIV_UNLIKELY(srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE)) {
+		service_manager_extend_timeout(
+			INNODB_EXTEND_TIMEOUT_INTERVAL,
+			"Flush and remove page with tablespace id %u"
+			", Poolid " ULINTPF ", flush list length " ULINTPF,
+			bpage->space, buf_pool->instance_no,
+			UT_LIST_GET_LEN(buf_pool->flush_list));
+	}
+#endif
+
 	ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_ad(bpage->in_flush_list);
@@ -954,7 +967,7 @@ buf_flush_init_for_writing(
 		}
 	}
 
-	uint32_t checksum;
+	uint32_t checksum= 0;
 
 	switch (srv_checksum_algorithm_t(srv_checksum_algorithm)) {
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
@@ -1010,7 +1023,7 @@ buf_flush_write_block_low(
 	      || space->purpose == FIL_TYPE_IMPORT
 	      || space->purpose == FIL_TYPE_TABLESPACE);
 	ut_ad((space->purpose == FIL_TYPE_TEMPORARY)
-	      == fsp_is_system_temporary(space->id));
+	      == (space == fil_system.temp_space));
 	page_t*	frame = NULL;
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -1633,8 +1646,6 @@ buf_flush_LRU_list_batch(
 {
 	buf_page_t*	bpage;
 	ulint		scanned = 0;
-	ulint		evict_count = 0;
-	ulint		count = 0;
 	ulint		free_len = UT_LIST_GET_LEN(buf_pool->free);
 	ulint		lru_len = UT_LIST_GET_LEN(buf_pool->LRU);
 	ulint		withdraw_depth = 0;
@@ -1650,7 +1661,7 @@ buf_flush_LRU_list_batch(
 	}
 
 	for (bpage = UT_LIST_GET_LAST(buf_pool->LRU);
-	     bpage != NULL && count + evict_count < max
+	     bpage != NULL && n->flushed + n->evicted < max
 	     && free_len < srv_LRU_scan_depth + withdraw_depth
 	     && lru_len > BUF_LRU_MIN_LEN;
 	     ++scanned,
@@ -1668,7 +1679,7 @@ buf_flush_LRU_list_batch(
 			clean and is not IO-fixed or buffer fixed. */
 			mutex_exit(block_mutex);
 			if (buf_LRU_free_page(bpage, true)) {
-				++evict_count;
+				++n->evicted;
 			}
 		} else if (buf_flush_ready_for_flush(bpage, BUF_FLUSH_LRU)) {
 			/* Block is ready for flush. Dispatch an IO
@@ -1676,7 +1687,7 @@ buf_flush_LRU_list_batch(
 			free list in IO completion routine. */
 			mutex_exit(block_mutex);
 			buf_flush_page_and_try_neighbors(
-				bpage, BUF_FLUSH_LRU, max, &count);
+				bpage, BUF_FLUSH_LRU, max, &n->flushed);
 		} else {
 			/* Can't evict or dispatch this block. Go to
 			previous. */
@@ -1700,12 +1711,12 @@ buf_flush_LRU_list_batch(
 
 	ut_ad(buf_pool_mutex_own(buf_pool));
 
-	if (evict_count) {
+	if (n->evicted) {
 		MONITOR_INC_VALUE_CUMULATIVE(
 			MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE,
 			MONITOR_LRU_BATCH_EVICT_COUNT,
 			MONITOR_LRU_BATCH_EVICT_PAGES,
-			evict_count);
+			n->evicted);
 	}
 
 	if (scanned) {
@@ -2147,16 +2158,16 @@ buf_flush_lists(
 			failure. */
 			success = false;
 
-			continue;
 		}
+
+		n_flushed += n.flushed;
 	}
 
 	if (n_flushed) {
 		buf_flush_stats(n_flushed, 0);
-	}
-
-	if (n_processed) {
-		*n_processed = n_flushed;
+		if (n_processed) {
+			*n_processed = n_flushed;
+		}
 	}
 
 	return(success);
@@ -2698,26 +2709,6 @@ buf_flush_page_cleaner_init(void)
 	ut_d(page_cleaner.n_disabled_debug = 0);
 
 	page_cleaner.is_running = true;
-}
-
-/**
-Close page_cleaner. */
-static
-void
-buf_flush_page_cleaner_close(void)
-{
-	ut_ad(!page_cleaner.is_running);
-
-	/* waiting for all worker threads exit */
-	while (page_cleaner.n_workers) {
-		os_thread_sleep(10000);
-	}
-
-	mutex_destroy(&page_cleaner.mutex);
-
-	os_event_destroy(page_cleaner.is_finished);
-	os_event_destroy(page_cleaner.is_requested);
-	os_event_destroy(page_cleaner.is_started);
 }
 
 /**
@@ -3421,9 +3412,18 @@ thread_exit:
 	and no more access to page_cleaner structure by them.
 	Wakes worker threads up just to make them exit. */
 	page_cleaner.is_running = false;
-	os_event_set(page_cleaner.is_requested);
 
-	buf_flush_page_cleaner_close();
+	/* waiting for all worker threads exit */
+	while (page_cleaner.n_workers) {
+		os_event_set(page_cleaner.is_requested);
+		os_thread_sleep(10000);
+	}
+
+	mutex_destroy(&page_cleaner.mutex);
+
+	os_event_destroy(page_cleaner.is_finished);
+	os_event_destroy(page_cleaner.is_requested);
+	os_event_destroy(page_cleaner.is_started);
 
 	buf_page_cleaner_is_active = false;
 
@@ -3740,17 +3740,17 @@ buf_flush_get_dirty_pages_count(
 }
 
 /** FlushObserver constructor
-@param[in]	space_id	table space id
+@param[in]	space		tablespace
 @param[in]	trx		trx instance
 @param[in]	stage		performance schema accounting object,
 used by ALTER TABLE. It is passed to log_preflush_pool_modified_pages()
 for accounting. */
 FlushObserver::FlushObserver(
-	ulint			space_id,
+	fil_space_t*		space,
 	trx_t*			trx,
 	ut_stage_alter_t*	stage)
 	:
-	m_space_id(space_id),
+	m_space(space),
 	m_trx(trx),
 	m_stage(stage),
 	m_interrupted(false)
@@ -3769,7 +3769,7 @@ FlushObserver::FlushObserver(
 /** FlushObserver deconstructor */
 FlushObserver::~FlushObserver()
 {
-	ut_ad(buf_flush_get_dirty_pages_count(m_space_id, this) == 0);
+	ut_ad(buf_flush_get_dirty_pages_count(m_space->id, this) == 0);
 
 	UT_DELETE(m_flushed);
 	UT_DELETE(m_removed);
@@ -3833,10 +3833,10 @@ FlushObserver::flush()
 
 	if (!m_interrupted && m_stage) {
 		m_stage->begin_phase_flush(buf_flush_get_dirty_pages_count(
-						   m_space_id, this));
+						   m_space->id, this));
 	}
 
-	buf_LRU_flush_or_remove_pages(m_space_id, this);
+	buf_LRU_flush_or_remove_pages(m_space->id, this);
 
 	/* Wait for all dirty pages were flushed. */
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {

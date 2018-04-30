@@ -89,7 +89,7 @@ static handler *partition_create_handler(handlerton *hton,
                                          TABLE_SHARE *share,
                                          MEM_ROOT *mem_root);
 static uint partition_flags();
-static ulonglong alter_table_flags(ulonglong flags);
+static alter_table_operations alter_table_flags(alter_table_operations flags);
 
 /*
   If frm_error() is called then we will use this to to find out what file
@@ -214,7 +214,7 @@ static uint partition_flags()
   return HA_CAN_PARTITION;
 }
 
-static ulonglong alter_table_flags(ulonglong /* flags */)
+static alter_table_operations alter_table_flags(alter_table_operations flags __attribute__((unused)))
 {
   return (HA_PARTITION_FUNCTION_SUPPORTED |
           HA_FAST_CHANGE_PARTITION);
@@ -1387,7 +1387,7 @@ int ha_partition::handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt,
       when ALTER TABLE <CMD> PARTITION ...
       it should only do named partitions, otherwise all partitions
     */
-    if (!(thd->lex->alter_info.flags & Alter_info::ALTER_ADMIN_PARTITION) ||
+    if (!(thd->lex->alter_info.partition_flags & ALTER_PARTITION_ADMIN) ||
         part_elem->part_state == PART_ADMIN)
     {
       if (m_is_sub_partitioned)
@@ -9662,7 +9662,7 @@ void ha_partition::print_error(int error, myf errflag)
 
   /* Should probably look for my own errors first */
   if ((error == HA_ERR_NO_PARTITION_FOUND) &&
-      ! (thd->lex->alter_info.flags & Alter_info::ALTER_TRUNCATE_PARTITION))
+      ! (thd->lex->alter_info.partition_flags & ALTER_PARTITION_TRUNCATE))
   {
     m_part_info->print_no_partition_found(table, errflag);
     DBUG_VOID_RETURN;
@@ -9777,9 +9777,10 @@ handler::Table_flags ha_partition::table_flags() const
   alter_table_flags must be on handler/table level, not on hton level
   due to the ha_partition hton does not know what the underlying hton is.
 */
-ulonglong ha_partition::alter_table_flags(ulonglong flags)
+
+alter_table_operations ha_partition::alter_table_flags(alter_table_operations flags)
 {
-  ulonglong flags_to_return;
+  alter_table_operations flags_to_return;
   DBUG_ENTER("ha_partition::alter_table_flags");
 
   flags_to_return= ht->alter_table_flags(flags);
@@ -9877,8 +9878,11 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
     Any other change would set partition_changed in
     prep_alter_part_table() in mysql_alter_table().
   */
-  if (ha_alter_info->alter_info->flags == Alter_info::ALTER_PARTITION)
+  if (ha_alter_info->alter_info->partition_flags == ALTER_PARTITION_INFO)
+  {
+    DBUG_ASSERT(ha_alter_info->alter_info->flags == 0);
     DBUG_RETURN(HA_ALTER_INPLACE_NO_LOCK);
+  }
 
   part_inplace_ctx=
     new (thd->mem_root) ha_partition_inplace_ctx(thd, m_tot_parts);
@@ -9894,7 +9898,7 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
   for (index= 0; index <= m_tot_parts; index++)
     part_inplace_ctx->handler_ctx_array[index]= NULL;
 
-  ha_alter_info->handler_flags |= Alter_inplace_info::ALTER_PARTITIONED;
+  ha_alter_info->handler_flags |= ALTER_PARTITIONED;
   for (index= 0; index < m_tot_parts; index++)
   {
     enum_alter_inplace_result p_result=
@@ -9944,8 +9948,11 @@ bool ha_partition::prepare_inplace_alter_table(TABLE *altered_table,
     Changing to similar partitioning, only update metadata.
     Non allowed changes would be catched in prep_alter_part_table().
   */
-  if (ha_alter_info->alter_info->flags == Alter_info::ALTER_PARTITION)
+  if (ha_alter_info->alter_info->partition_flags == ALTER_PARTITION_INFO)
+  {
+    DBUG_ASSERT(ha_alter_info->alter_info->flags == 0);
     DBUG_RETURN(false);
+  }
 
   part_inplace_ctx=
     static_cast<class ha_partition_inplace_ctx*>(ha_alter_info->handler_ctx);
@@ -9977,8 +9984,11 @@ bool ha_partition::inplace_alter_table(TABLE *altered_table,
     Changing to similar partitioning, only update metadata.
     Non allowed changes would be catched in prep_alter_part_table().
   */
-  if (ha_alter_info->alter_info->flags == Alter_info::ALTER_PARTITION)
+  if (ha_alter_info->alter_info->partition_flags == ALTER_PARTITION_INFO)
+  {
+    DBUG_ASSERT(ha_alter_info->alter_info->flags == 0);
     DBUG_RETURN(false);
+  }
 
   part_inplace_ctx=
     static_cast<class ha_partition_inplace_ctx*>(ha_alter_info->handler_ctx);
@@ -10017,8 +10027,11 @@ bool ha_partition::commit_inplace_alter_table(TABLE *altered_table,
     Changing to similar partitioning, only update metadata.
     Non allowed changes would be catched in prep_alter_part_table().
   */
-  if (ha_alter_info->alter_info->flags == Alter_info::ALTER_PARTITION)
+  if (ha_alter_info->alter_info->partition_flags == ALTER_PARTITION_INFO)
+  {
+    DBUG_ASSERT(ha_alter_info->alter_info->flags == 0);
     DBUG_RETURN(false);
+  }
 
   part_inplace_ctx=
     static_cast<class ha_partition_inplace_ctx*>(ha_alter_info->handler_ctx);

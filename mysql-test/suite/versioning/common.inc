@@ -22,18 +22,6 @@ begin
   from mysql.transaction_registry;
 end~~
 
-create function if not exists sys_commit_ts(sys_field varchar(255))
-returns varchar(255)
-deterministic
-begin
-  if @@default_storage_engine = 'InnoDB' then
-    return concat('vtq_commit_ts(', sys_field, ')');
-  elseif @@default_storage_engine = 'MyISAM' then
-    return sys_field;
-  end if;
-  return NULL;
-end~~
-
 create procedure if not exists verify_vtq_dummy(recs int)
 begin
   declare i int default 1;
@@ -46,19 +34,6 @@ begin
   drop table tmp;
 end~~
 
-create procedure concat_exec2(a varchar(255), b varchar(255))
-begin
-  prepare stmt from concat(a, b);
-  execute stmt;
-  deallocate prepare stmt;
-end~~
-
-create procedure concat_exec3(a varchar(255), b varchar(255), c varchar(255))
-begin
-  prepare stmt from concat(a, b, c);
-  execute stmt;
-  deallocate prepare stmt;
-end~~
 delimiter ;~~
 
 let $default_engine= `select @@default_storage_engine`;
@@ -77,4 +52,26 @@ if ($MTR_COMBINATION_TRX_ID)
   let $sys_datatype_expl_uc= BIGINT(20) UNSIGNED;
   let $sys_datatype_max= 18446744073709551615;
 }
+
+eval create or replace function current_row(sys_trx_end $sys_datatype_expl)
+returns int
+deterministic
+  return sys_trx_end = $sys_datatype_max;
+
+delimiter ~~;
+eval create or replace function check_row(row_start $sys_datatype_expl, row_end $sys_datatype_expl)
+returns varchar(255)
+deterministic
+begin
+  if row_end < row_start then
+    return "ERROR: row_end < row_start";
+  elseif row_end = row_start then
+    return "ERROR: row_end == row_start";
+  elseif current_row(row_end) then
+    return "CURRENT ROW";
+  end if;
+  return "HISTORICAL ROW";
+end~~
+delimiter ;~~
+
 --enable_query_log

@@ -101,7 +101,7 @@ struct row_merge_buf_t {
 
 /** Information about temporary files used in merge sort */
 struct merge_file_t {
-	int		fd;		/*!< file descriptor */
+	pfs_os_file_t	fd;		/*!< file descriptor */
 	ulint		offset;		/*!< file offset (end of file) */
 	ib_uint64_t	n_rec;		/*!< number of records in the file */
 };
@@ -193,7 +193,7 @@ row_merge_drop_temp_indexes(void);
 UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
 @param[in]	path	location for creating temporary merge files, or NULL
 @return File descriptor */
-int
+pfs_os_file_t
 row_merge_file_create_low(
 	const char*	path)
 	MY_ATTRIBUTE((warn_unused_result));
@@ -203,7 +203,7 @@ if UNIV_PFS_IO is defined. */
 void
 row_merge_file_destroy_low(
 /*=======================*/
-	int		fd);	/*!< in: merge file descriptor */
+	const pfs_os_file_t&	fd);	/*!< in: merge file descriptor */
 
 /*********************************************************************//**
 Provide a new pathname for a table that is being renamed if it belongs to
@@ -372,7 +372,7 @@ UNIV_INTERN
 bool
 row_merge_write(
 /*============*/
-	int		fd,	/*!< in: file descriptor */
+	const pfs_os_file_t&	fd,	/*!< in: file descriptor */
 	ulint		offset,	/*!< in: offset where to write,
 				in number of row_merge_block_t elements */
 	const void*	buf,	/*!< in: data */
@@ -393,7 +393,7 @@ row_merge_buf_empty(
 @param[out]	merge_file	merge file structure
 @param[in]	path		location for creating temporary file, or NULL
 @return file descriptor, or -1 on failure */
-int
+pfs_os_file_t
 row_merge_file_create(
 	merge_file_t*	merge_file,
 	const char*	path)
@@ -421,7 +421,7 @@ row_merge_sort(
 	const row_merge_dup_t*	dup,
 	merge_file_t*		file,
 	row_merge_block_t*	block,
-	int*			tmpfd,
+	pfs_os_file_t*		tmpfd,
 	const bool		update_progress,
 	const double	pct_progress,
 	const double	pct_cost,
@@ -460,7 +460,7 @@ row_merge_file_destroy(
 bool
 row_merge_read(
 /*===========*/
-	int			fd,	/*!< in: file descriptor */
+	const pfs_os_file_t&	fd,	/*!< in: file descriptor */
 	ulint			offset,	/*!< in: offset where to read
 					in number of row_merge_block_t
 					elements */
@@ -479,7 +479,7 @@ row_merge_read_rec(
 	mrec_buf_t*		buf,	/*!< in/out: secondary buffer */
 	const byte*		b,	/*!< in: pointer to record */
 	const dict_index_t*	index,	/*!< in: index of the record */
-	int			fd,	/*!< in: file descriptor */
+	const pfs_os_file_t&	fd,	/*!< in: file descriptor */
 	ulint*			foffs,	/*!< in/out: file offset */
 	const mrec_t**		mrec,	/*!< out: pointer to merge record,
 					or NULL on end of list

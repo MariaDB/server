@@ -806,6 +806,7 @@ static wsrep_cb_status_t wsrep_commit_thd(THD* const thd,
   wsrep_cb_status_t rcode= WSREP_CB_SUCCESS;
   if (!opt_log_slave_updates && wsrep_before_commit(thd, true))
     rcode= WSREP_CB_FAILURE;
+  WSREP_DEBUG("applier commit_thd ");
 
   /*
     This is needed because the applying of DDL, does not call for binlog log_and_order
@@ -887,7 +888,7 @@ wsrep_cb_status_t wsrep_commit(void*         const     ctx,
                                const wsrep_apply_error& err)
 {
   DBUG_ENTER("wsrep_commit");
-  WSREP_DEBUG("commit_cb with flags: %u seqno: %ld, srctrx: %ld",
+  WSREP_DEBUG("applier commit with flags: %u seqno: %ld, srctrx: %ld",
               flags, meta->gtid.seqno, meta->stid.trx);
 
   THD* thd((THD*)ctx);
@@ -896,6 +897,7 @@ wsrep_cb_status_t wsrep_commit(void*         const     ctx,
 
   if (WSREP_NBO_START(flags))
   {
+    WSREP_DEBUG("NBO");
     wsrep_cb_status_t ret= WSREP_CB_SUCCESS;
     if (wsrep_before_commit(thd, true) ||
         wsrep_ordered_commit(thd, true, err))
@@ -984,6 +986,8 @@ wsrep_cb_status_t wsrep_commit(void*         const     ctx,
 
   if (wsrep_slave_count_change < 0 && trx_end && WSREP_CB_SUCCESS == rcode)
   {
+    WSREP_DEBUG("applier commit, locking LOCK_wsrep_slave_threads %lu", thd->thread_id);
+    mysql_mutex_assert_not_owner(&LOCK_wsrep_thd_pool);
     mysql_mutex_lock(&LOCK_wsrep_slave_threads);
     if (wsrep_slave_count_change < 0)
     {

@@ -1,4 +1,4 @@
-#set connect_enable_mongo=1;
+set connect_enable_mongo=1;
 
 --echo #
 --echo # Test the MONGO table type
@@ -130,7 +130,9 @@ DROP TABLE t1;
 --echo #
 --echo # try CRUD operations
 --echo #
+--disable_query_log
 --exec $MONGO --eval "db.testcoll.drop()" --quiet
+--enable_query_log
 eval CREATE TABLE t1 (_id INT(4) NOT NULL, msg CHAR(64))
 ENGINE=CONNECT TABLE_TYPE=$TYPE TABNAME='testcoll'
 OPTION_LIST='Driver=$DRV,Version=$VERS' $CONN;
@@ -147,7 +149,9 @@ DROP TABLE t1;
 --echo #
 --echo # List states whose population is equal or more than 10 millions
 --echo #
+--disable_query_log
 --exec $MONGO --eval "db.cities.drop()" --quiet
+--enable_query_log
 --exec $MONGOIMPORT --quiet $MTR_SUITE_DIR/std_data/cities.json
 eval CREATE TABLE t1 (
   _id char(5) NOT NULL,
@@ -204,4 +208,4 @@ SELECT * FROM t1;
 DROP TABLE t1;
 --exec $MONGO --eval "db.testcoll.drop()" --quiet
 
-#set connect_enable_mongo=0;
+set connect_enable_mongo=0;

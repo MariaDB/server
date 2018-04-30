@@ -730,9 +730,6 @@ handle_new_error:
 		/* MySQL will roll back the latest SQL statement */
 		break;
 	case DB_LOCK_WAIT:
-
-		trx_kill_blocking(trx);
-
 		lock_wait_suspend_thread(thr);
 
 		if (trx->error_state != DB_SUCCESS) {
@@ -1298,7 +1295,7 @@ row_mysql_get_table_status(
 	bool 			push_warning = true)
 {
 	dberr_t err;
-	if (fil_space_t* space = fil_space_acquire_silent(table->space)) {
+	if (const fil_space_t* space = table->space) {
 		if (space->crypt_data && space->crypt_data->is_encrypted()) {
 			// maybe we cannot access the table due to failing
 			// to decrypt
@@ -1320,8 +1317,6 @@ row_mysql_get_table_status(
 
 			err = DB_CORRUPTION;
 		}
-
-		fil_space_release(space);
 	} else {
 		ib::error() << ".ibd file is missing for table "
 			<< table->name;
@@ -1871,50 +1866,15 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 
 	ut_ad(!prebuilt->versioned_write || node->table->versioned());
 
-	bool vers_set_fields = prebuilt->versioned_write
-		&& (node->is_delete ? node->is_delete == VERSIONED_DELETE
-		    : node->update->affects_versioned());
+	if (prebuilt->versioned_write) {
+		if (node->is_delete == VERSIONED_DELETE) {
+			node->make_versioned_delete(trx);
+		} else if (node->update->affects_versioned()) {
+			node->make_versioned_update(trx);
+		}
+	}
 
 	for (;;) {
-		if (vers_set_fields) {
-			/* System Versioning: modify update vector to set
-			row_start (or row_end in case of DELETE)
-			to current trx_id. */
-			dict_table_t* table = node->table;
-			dict_index_t* clust_index = dict_table_get_first_index(table);
-			upd_t* uvect = node->update;
-			upd_field_t* ufield;
-			dict_col_t* col;
-			unsigned col_idx;
-			if (node->is_delete) {
-				ufield = &uvect->fields[0];
-				uvect->n_fields = 0;
-				node->is_delete = VERSIONED_DELETE;
-				col_idx = table->vers_end;
-			} else {
-				ut_ad(uvect->n_fields < table->n_cols);
-				ufield = &uvect->fields[uvect->n_fields];
-				col_idx = table->vers_start;
-			}
-			col = &table->cols[col_idx];
-			UNIV_MEM_INVALID(ufield, sizeof *ufield);
-			{
-				ulint field_no = dict_col_get_clust_pos(col, clust_index);
-				ut_ad(field_no != ULINT_UNDEFINED);
-				ufield->field_no = field_no;
-			}
-			ufield->orig_len = 0;
-			ufield->exp = NULL;
-
-			mach_write_to_8(node->update->vers_sys_value, trx->id);
-			dfield_t* dfield = &ufield->new_val;
-			dfield_set_data(dfield, node->update->vers_sys_value, 8);
-			dict_col_copy_type(col, &dfield->type);
-
-			uvect->n_fields++;
-			ut_ad(node->in_mysql_interface); // otherwise needs to recalculate node->cmpl_info
-		}
-
 		thr->run_node = node;
 		thr->prev_node = node;
 		thr->fk_cascade_depth = 0;
@@ -2174,6 +2134,77 @@ row_mysql_unfreeze_data_dictionary(
 	trx->dict_operation_lock_mode = 0;
 }
 
+/** Write query start time as SQL field data to a buffer. Needed by InnoDB.
+@param	thd	Thread object
+@param	buf	Buffer to hold start time data */
+void thd_get_query_start_data(THD *thd, char *buf);
+
+/** Function restores btr_pcur_t, creates dtuple_t from rec_t,
+sets row_end = CURRENT_TIMESTAMP/trx->id, inserts it to a table and updates
+table statistics.
+This is used in UPDATE CASCADE/SET NULL of a system versioning table.
+@param[in]	thr	current query thread
+@param[in]	node	a node which just updated a row in a foreign table
+@return DB_SUCCESS or some error */
+static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
+{
+	const trx_t* trx = thr_get_trx(thr);
+	dict_table_t* table = node->table;
+	ut_ad(table->versioned());
+
+	dtuple_t* row = node->historical_row;
+	ut_ad(row);
+	node->historical_row = NULL;
+
+	ins_node_t* insert_node =
+		ins_node_create(INS_DIRECT, table, node->historical_heap);
+
+	ins_node_set_new_row(insert_node, row);
+
+	dfield_t* row_end = dtuple_get_nth_field(row, table->vers_end);
+	char row_end_data[8];
+	if (dict_table_get_nth_col(table, table->vers_end)->vers_native()) {
+		mach_write_to_8(row_end_data, trx->id);
+		dfield_set_data(row_end, row_end_data, 8);
+	} else {
+		thd_get_query_start_data(trx->mysql_thd, row_end_data);
+		dfield_set_data(row_end, row_end_data, 7);
+	}
+
+	for (;;) {
+		thr->run_node = insert_node;
+		thr->prev_node = insert_node;
+
+		row_ins_step(thr);
+
+		switch (trx->error_state) {
+		case DB_LOCK_WAIT:
+			que_thr_stop_for_mysql(thr);
+			lock_wait_suspend_thread(thr);
+
+			if (trx->error_state == DB_SUCCESS) {
+				continue;
+			}
+
+			/* fall through */
+		default:
+			/* Other errors are handled for the parent node. */
+			thr->fk_cascade_depth = 0;
+			goto exit;
+
+		case DB_SUCCESS:
+			srv_stats.n_rows_inserted.inc(
+				static_cast<size_t>(trx->id));
+			dict_stats_update_if_needed(table);
+			goto exit;
+		}
+	}
+exit:
+	mem_heap_free(node->historical_heap);
+	node->historical_heap = NULL;
+	return trx->error_state;
+}
+
 /**********************************************************************//**
 Does a cascaded delete or set null in a foreign key operation.
 @return error code or DB_SUCCESS */
@@ -2193,53 +2224,21 @@ row_update_cascade_for_mysql(
                 return(DB_FOREIGN_EXCEED_MAX_CASCADE);
         }
 
-	trx_t* trx = thr_get_trx(thr);
+	const trx_t* trx = thr_get_trx(thr);
 
-	bool vers_set_fields = node->table->versioned()
-				  && (node->is_delete == PLAIN_DELETE
-				      || node->update->affects_versioned());
+	if (table->versioned()) {
+		if (node->is_delete == PLAIN_DELETE) {
+			node->make_versioned_delete(trx);
+		} else if (node->update->affects_versioned()) {
+			dberr_t err = row_update_vers_insert(thr, node);
+			if (err != DB_SUCCESS) {
+				return err;
+			}
+			node->make_versioned_update(trx);
+		}
+	}
 
 	for (;;) {
-		if (vers_set_fields) {
-			// FIXME: code duplication with row_update_for_mysql()
-			/* System Versioning: modify update vector to set
-			row_start (or row_end in case of DELETE)
-			to current trx_id. */
-			dict_table_t* table = node->table;
-			dict_index_t* clust_index = dict_table_get_first_index(table);
-			upd_t* uvect = node->update;
-			upd_field_t* ufield;
-			dict_col_t* col;
-			unsigned col_idx;
-			if (node->is_delete) {
-				ufield = &uvect->fields[0];
-				uvect->n_fields = 0;
-				node->is_delete = VERSIONED_DELETE;
-				col_idx = table->vers_end;
-			} else {
-				ut_ad(uvect->n_fields < table->n_cols);
-				ufield = &uvect->fields[uvect->n_fields];
-				col_idx = table->vers_start;
-			}
-			col = &table->cols[col_idx];
-			UNIV_MEM_INVALID(ufield, sizeof *ufield);
-			{
-				ulint field_no = dict_col_get_clust_pos(col, clust_index);
-				ut_ad(field_no != ULINT_UNDEFINED);
-				ufield->field_no = field_no;
-			}
-			ufield->orig_len = 0;
-			ufield->exp = NULL;
-
-			mach_write_to_8(node->update->vers_sys_value, trx->id);
-			dfield_t* dfield = &ufield->new_val;
-			dfield_set_data(dfield, node->update->vers_sys_value, 8);
-			dict_col_copy_type(col, &dfield->type);
-
-			uvect->n_fields++;
-			ut_ad(node->in_mysql_interface); // otherwise needs to recalculate node->cmpl_info
-		}
-
 		thr->run_node = node;
 		thr->prev_node = node;
 
@@ -2418,18 +2417,10 @@ err_exit:
 	/* Update SYS_TABLESPACES and SYS_DATAFILES if a new file-per-table
 	tablespace was created. */
 	if (err == DB_SUCCESS && dict_table_is_file_per_table(table)) {
-
-		ut_ad(dict_table_is_file_per_table(table));
-
-		char*	path;
-		path = fil_space_get_first_path(table->space);
-
 		err = dict_replace_tablespace_in_dictionary(
-			table->space, table->name.m_name,
-			fil_space_get_flags(table->space),
-			path, trx);
-
-			ut_free(path);
+			table->space_id, table->name.m_name,
+			table->space->flags,
+			table->space->chain.start->name, trx);
 
 		if (err != DB_SUCCESS) {
 
@@ -2464,7 +2455,7 @@ err_exit:
 		/* We already have .ibd file here. it should be deleted. */
 
 		if (dict_table_is_file_per_table(table)
-		    && fil_delete_tablespace(table->space) != DB_SUCCESS) {
+		    && fil_delete_tablespace(table->space->id) != DB_SUCCESS) {
 
 			ib::error() << "Not able to delete tablespace "
 				<< table->space << " of table "
@@ -2512,28 +2503,15 @@ row_create_index_for_mysql(
 	dberr_t		err;
 	ulint		i;
 	ulint		len;
-	char*		table_name;
-	char*		index_name;
-	dict_table_t*	table = NULL;
-	ibool		is_fts;
+	dict_table_t*	table = index->table;
 
 	trx->op_info = "creating index";
-
-	/* Copy the table name because we may want to drop the
-	table later, after the index object is freed (inside
-	que_run_threads()) and thus index->table_name is not available. */
-	table_name = mem_strdup(index->table_name);
-	index_name = mem_strdup(index->name);
-
-	is_fts = (index->type == DICT_FTS);
 
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
-	table = dict_table_open_on_name(table_name, TRUE, TRUE,
-					DICT_ERR_IGNORE_NONE);
 
-	if (!dict_table_is_temporary(table)) {
+	if (!table->is_temporary()) {
 		trx_start_if_not_started_xa(trx, true);
 	}
 
@@ -2566,13 +2544,14 @@ row_create_index_for_mysql(
 	/* For temp-table we avoid insertion into SYSTEM TABLES to
 	maintain performance and so we have separate path that directly
 	just updates dictonary cache. */
-	if (!dict_table_is_temporary(table)) {
+	if (!table->is_temporary()) {
 		/* Note that the space id where we store the index is
 		inherited from the table in dict_build_index_def_step()
 		in dict0crea.cc. */
 
 		heap = mem_heap_create(512);
-		node = ind_create_graph_create(index, heap, NULL);
+		node = ind_create_graph_create(index, table->name.m_name,
+					       heap);
 
 		thr = pars_complete_graph_for_exec(node, trx, heap, NULL);
 
@@ -2584,50 +2563,36 @@ row_create_index_for_mysql(
 
 		err = trx->error_state;
 
+		index = node->index;
+
+		ut_ad(!index == (err != DB_SUCCESS));
+
 		que_graph_free((que_t*) que_node_get_parent(thr));
+
+		if (index && (index->type & DICT_FTS)) {
+			err = fts_create_index_tables(trx, index, table->id);
+		}
 	} else {
 		dict_build_index_def(table, index, trx);
 
-		index_id_t index_id = index->id;
-
 		/* add index to dictionary cache and also free index object. */
-		err = dict_index_add_to_cache(
-			table, index, FIL_NULL, trx_is_strict(trx));
+		index = dict_index_add_to_cache(
+			index, FIL_NULL, trx_is_strict(trx), &err);
+		if (index) {
+			ut_ad(!index->is_instant());
+			index->n_core_null_bytes = UT_BITS_IN_BYTES(
+				index->n_nullable);
 
-		if (err != DB_SUCCESS) {
-			goto error_handling;
-		}
+			err = dict_create_index_tree_in_mem(index, trx);
 
-		/* as above function has freed index object re-load it
-		now from dictionary cache using index_id */
-		index = dict_index_get_if_in_cache_low(index_id);
-		ut_a(index != NULL);
-		index->table = table;
-		ut_ad(!index->is_instant());
-		index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
-
-		err = dict_create_index_tree_in_mem(index, trx);
-
-		if (err != DB_SUCCESS) {
-			dict_index_remove_from_cache(table, index);
+			if (err != DB_SUCCESS) {
+				dict_index_remove_from_cache(table, index);
+			}
 		}
 	}
-
-	/* Create the index specific FTS auxiliary tables. */
-	if (err == DB_SUCCESS && is_fts) {
-		dict_index_t*	idx;
-
-		idx = dict_table_get_index_on_name(table, index_name);
-
-		ut_ad(idx);
-		err = fts_create_index_tables_low(
-			trx, idx, table->name.m_name, table->id);
-	}
-
-error_handling:
-	dict_table_close(table, TRUE, FALSE);
 
 	if (err != DB_SUCCESS) {
+error_handling:
 		/* We have special error handling here */
 
 		trx->error_state = DB_SUCCESS;
@@ -2637,7 +2602,7 @@ error_handling:
 			trx_rollback_to_savepoint(trx, NULL);
 		}
 
-		row_drop_table_for_mysql(table_name, trx, FALSE, true);
+		row_drop_table_for_mysql(table->name.m_name, trx, FALSE, true);
 
 		if (trx_is_started(trx)) {
 
@@ -2648,9 +2613,6 @@ error_handling:
 	}
 
 	trx->op_info = "";
-
-	ut_free(table_name);
-	ut_free(index_name);
 
 	return(err);
 }
@@ -2759,7 +2721,7 @@ row_drop_table_for_mysql_in_background(
 	dberr_t	error;
 	trx_t*	trx;
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 
 	/* If the original transaction was dropping a table referenced by
 	foreign keys, we must set the following to be able to drop the
@@ -2773,7 +2735,7 @@ row_drop_table_for_mysql_in_background(
 
 	trx_commit_for_mysql(trx);
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	return(error);
 }
@@ -2874,7 +2836,7 @@ row_mysql_drop_garbage_tables()
 	mem_heap_t*	heap = mem_heap_create(FN_REFLEN);
 	btr_pcur_t	pcur;
 	mtr_t		mtr;
-	trx_t*		trx = trx_allocate_for_background();
+	trx_t*		trx = trx_create();
 	trx->op_info = "dropping garbage tables";
 	row_mysql_lock_data_dictionary(trx);
 
@@ -2931,7 +2893,7 @@ row_mysql_drop_garbage_tables()
 	btr_pcur_close(&pcur);
 	mtr.commit();
 	row_mysql_unlock_data_dictionary(trx);
-	trx_free_for_background(trx);
+	trx_free(trx);
 	mem_heap_free(heap);
 }
 
@@ -3040,7 +3002,7 @@ row_discard_tablespace_begin(
 
 	if (table) {
 		dict_stats_wait_bg_to_stop_using_table(table, trx);
-		ut_a(!is_system_tablespace(table->space));
+		ut_a(!is_system_tablespace(table->space_id));
 		ut_ad(!table->n_foreign_key_checks_running);
 	}
 
@@ -3162,14 +3124,13 @@ row_discard_tablespace(
 	3) Insert buffer: we remove all entries for the tablespace in
 	the insert buffer tree. */
 
-	ibuf_delete_for_discarded_space(table->space);
+	ibuf_delete_for_discarded_space(table->space_id);
 
 	table_id_t	new_id;
 
 	/* Set the TABLESPACE DISCARD flag in the table definition
 	on disk. */
-	err = row_import_update_discarded_flag(
-		trx, table->id, true, true);
+	err = row_import_update_discarded_flag(trx, table->id, true);
 
 	if (err != DB_SUCCESS) {
 		return(err);
@@ -3199,50 +3160,45 @@ row_discard_tablespace(
 	}
 
 	/* Discard the physical file that is used for the tablespace. */
-
-	err = fil_discard_tablespace(table->space);
-
+	err = fil_delete_tablespace(table->space_id
+#ifdef BTR_CUR_HASH_ADAPT
+				   , true
+#endif /* BTR_CUR_HASH_ADAPT */
+				   );
 	switch (err) {
-	case DB_SUCCESS:
 	case DB_IO_ERROR:
-	case DB_TABLESPACE_NOT_FOUND:
-		/* All persistent operations successful, update the
-		data dictionary memory cache. */
-
-		table->file_unreadable = true;
-
-		table->flags2 |= DICT_TF2_DISCARDED;
-
-		dict_table_change_id_in_cache(table, new_id);
-
-		/* Reset the root page numbers. */
-
-		for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
-		     index != 0;
-		     index = UT_LIST_GET_NEXT(indexes, index)) {
-
-			index->page = FIL_NULL;
-			index->space = FIL_NULL;
-		}
-
-		/* If the tablespace did not already exist or we couldn't
-		write to it, we treat that as a successful DISCARD. It is
-		unusable anyway. */
-
-		err = DB_SUCCESS;
+		ib::warn() << "ALTER TABLE " << table->name
+			<< " DISCARD TABLESPACE failed to delete file";
 		break;
-
+	case DB_TABLESPACE_NOT_FOUND:
+		ib::warn() << "ALTER TABLE " << table->name
+			<< " DISCARD TABLESPACE failed to find tablespace";
+		break;
+	case DB_SUCCESS:
+		break;
 	default:
-		/* We need to rollback the disk changes, something failed. */
-
-		trx->error_state = DB_SUCCESS;
-
-		trx_rollback_to_savepoint(trx, NULL);
-
-		trx->error_state = DB_SUCCESS;
+		ut_error;
 	}
 
-	return(err);
+	/* All persistent operations successful, update the
+	data dictionary memory cache. */
+
+	table->file_unreadable = true;
+	table->space = NULL;
+	table->flags2 |= DICT_TF2_DISCARDED;
+	dict_table_change_id_in_cache(table, new_id);
+
+	/* Reset the root page numbers. */
+
+	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
+	     index != 0;
+	     index = UT_LIST_GET_NEXT(indexes, index)) {
+		index->page = FIL_NULL;
+	}
+	/* If the tablespace did not already exist or we couldn't
+	write to it, we treat that as a successful DISCARD. It is
+	unusable anyway. */
+	return DB_SUCCESS;
 }
 
 /*********************************************************************//**
@@ -3272,7 +3228,7 @@ row_discard_tablespace_for_mysql(
 
 		err = DB_ERROR;
 
-	} else if (table->space == TRX_SYS_SPACE) {
+	} else if (table->space_id == TRX_SYS_SPACE) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
 
 		innobase_format_name(
@@ -3347,30 +3303,7 @@ run_again:
 	} else {
 		que_thr_stop_for_mysql(thr);
 
-		if (err != DB_QUE_THR_SUSPENDED) {
-			ibool	was_lock_wait;
-
-			was_lock_wait = row_mysql_handle_errors(
-				&err, trx, thr, NULL);
-
-			if (was_lock_wait) {
-				goto run_again;
-			}
-		} else {
-			que_thr_t*	run_thr;
-			que_node_t*	parent;
-
-			parent = que_node_get_parent(thr);
-
-			run_thr = que_fork_start_command(
-				static_cast<que_fork_t*>(parent));
-
-			ut_a(run_thr == thr);
-
-			/* There was a lock wait but the thread was not
-			in a ready to run or running state. */
-			trx->error_state = DB_LOCK_WAIT;
-
+		if (row_mysql_handle_errors(&err, trx, thr, NULL)) {
 			goto run_again;
 		}
 	}
@@ -3469,7 +3402,7 @@ row_drop_table_from_cache(
 	trx_t*		trx)
 {
 	dberr_t	err = DB_SUCCESS;
-	bool	is_temp = dict_table_is_temporary(table);
+	ut_ad(!table->is_temporary());
 
 	/* Remove the pointer to this table object from the list
 	of modified tables by the transaction because the object
@@ -3478,51 +3411,10 @@ row_drop_table_from_cache(
 
 	dict_table_remove_from_cache(table);
 
-	if (!is_temp
-	    && dict_load_table(tablename, true,
-			       DICT_ERR_IGNORE_NONE) != NULL) {
+	if (dict_load_table(tablename, true, DICT_ERR_IGNORE_NONE)) {
 		ib::error() << "Not able to remove table "
 			<< ut_get_name(trx, tablename)
 			<< " from the dictionary cache!";
-		err = DB_ERROR;
-	}
-
-	return(err);
-}
-
-/** Drop a single-table tablespace as part of dropping or renaming a table.
-This deletes the fil_space_t if found and the file on disk.
-@param[in]	space_id	Tablespace ID
-@param[in]	tablename	Table name, same as the tablespace name
-@param[in]	filepath	File path of tablespace to delete
-@param[in]	table_flags	table flags
-@return error code or DB_SUCCESS */
-UNIV_INLINE
-dberr_t
-row_drop_single_table_tablespace(
-	ulint		space_id,
-	const char*	tablename,
-	const char*	filepath,
-	ulint		table_flags)
-{
-	dberr_t	err = DB_SUCCESS;
-
-	/* If the tablespace is not in the cache, just delete the file. */
-	if (!fil_space_for_table_exists_in_mem(
-		    space_id, tablename, true, NULL, table_flags)) {
-
-		/* Force a delete of any discarded or temporary files. */
-		fil_delete_file(filepath);
-
-		ib::info() << "Removed datafile " << filepath
-			<< " for table " << tablename;
-	} else if (fil_delete_tablespace(space_id) != DB_SUCCESS) {
-
-		ib::error() << "We removed the InnoDB internal data"
-			" dictionary entry of table " << tablename
-			<< " but we are not able to delete the tablespace "
-			<< space_id << " file " << filepath << "!";
-
 		err = DB_ERROR;
 	}
 
@@ -3552,7 +3444,6 @@ row_drop_table_for_mysql(
 	dberr_t		err;
 	dict_foreign_t*	foreign;
 	dict_table_t*	table;
-	char*		filepath		= NULL;
 	char*		tablename		= NULL;
 	bool		locked_dictionary	= false;
 	pars_info_t*	info			= NULL;
@@ -3589,17 +3480,30 @@ row_drop_table_for_mysql(
 
 	if (!table) {
 		err = DB_TABLE_NOT_FOUND;
-		goto funct_exit;
+		goto funct_exit_all_freed;
+	}
+
+	if (table->is_temporary()) {
+		ut_ad(table->space == fil_system.temp_space);
+		for (dict_index_t* index = dict_table_get_first_index(table);
+		     index != NULL;
+		     index = dict_table_get_next_index(index)) {
+			btr_free(page_id_t(SRV_TMP_SPACE_ID, index->page),
+				 univ_page_size);
+		}
+		/* Remove the pointer to this table object from the list
+		of modified tables by the transaction because the object
+		is going to be destroyed below. */
+		trx->mod_tables.erase(table);
+		table->release();
+		dict_table_remove_from_cache(table);
+		err = DB_SUCCESS;
+		goto funct_exit_all_freed;
 	}
 
 	/* This function is called recursively via fts_drop_tables(). */
 	if (!trx_is_started(trx)) {
-
-		if (!dict_table_is_temporary(table)) {
-			trx_start_for_ddl(trx, TRX_DICT_OP_TABLE);
-		} else {
-			trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
-		}
+		trx_start_for_ddl(trx, TRX_DICT_OP_TABLE);
 	}
 
 	/* Turn on this drop bit before we could release the dictionary
@@ -3629,13 +3533,7 @@ row_drop_table_for_mysql(
 			row_mysql_lock_data_dictionary(trx);
 		}
 
-		/* Do not bother to deal with persistent stats for temp
-		tables since we know temp tables do not use persistent
-		stats. */
-		if (!dict_table_is_temporary(table)) {
-			dict_stats_wait_bg_to_stop_using_table(
-				table, trx);
-		}
+		dict_stats_wait_bg_to_stop_using_table(table, trx);
 	}
 
 	/* make sure background stats thread is not running on the table */
@@ -3646,8 +3544,7 @@ row_drop_table_for_mysql(
 		RemoteDatafile::delete_link_file(name);
 	}
 
-	if (!dict_table_is_temporary(table) && !table->no_rollback()) {
-
+	if (!table->no_rollback()) {
 		dict_stats_recalc_pool_del(table);
 		dict_stats_defrag_pool_del(table, NULL);
 		if (btr_defragment_thread_active) {
@@ -3789,10 +3686,8 @@ defer:
 	case TRX_DICT_OP_INDEX:
 		/* If the transaction was previously flagged as
 		TRX_DICT_OP_INDEX, we should be dropping auxiliary
-		tables for full-text indexes or temp tables. */
-		ut_ad(strstr(table->name.m_name, "/FTS_") != NULL
-		      || strstr(table->name.m_name,
-				TEMP_TABLE_PATH_PREFIX) != NULL);
+		tables for full-text indexes. */
+		ut_ad(strstr(table->name.m_name, "/FTS_"));
 	}
 
 	/* Mark all indexes unavailable in the data dictionary cache
@@ -3821,148 +3716,115 @@ defer:
 		rw_lock_x_unlock(dict_index_get_lock(index));
 	}
 
-	/* As we don't insert entries to SYSTEM TABLES for temp-tables
-	we need to avoid running removal of these entries. */
-	if (!dict_table_is_temporary(table)) {
+	/* Deleting a row from SYS_INDEXES table will invoke
+	dict_drop_index_tree(). */
+	info = pars_info_create();
+	pars_info_add_str_literal(info, "table_name", name);
+	err = que_eval_sql(
+		info,
+		"PROCEDURE DROP_TABLE_PROC () IS\n"
+		"sys_foreign_id CHAR;\n"
+		"table_id CHAR;\n"
+		"index_id CHAR;\n"
+		"foreign_id CHAR;\n"
+		"space_id INT;\n"
+		"found INT;\n"
 
-		/* We use the private SQL parser of Innobase to generate the
-		query graphs needed in deleting the dictionary data from system
-		tables in Innobase. Deleting a row from SYS_INDEXES table also
-		frees the file segments of the B-tree associated with the
-		index. */
+		"DECLARE CURSOR cur_fk IS\n"
+		"SELECT ID FROM SYS_FOREIGN\n"
+		"WHERE FOR_NAME = :table_name\n"
+		"AND TO_BINARY(FOR_NAME)\n"
+		"  = TO_BINARY(:table_name)\n"
+		"LOCK IN SHARE MODE;\n"
 
-		info = pars_info_create();
+		"DECLARE CURSOR cur_idx IS\n"
+		"SELECT ID FROM SYS_INDEXES\n"
+		"WHERE TABLE_ID = table_id\n"
+		"LOCK IN SHARE MODE;\n"
 
-		pars_info_add_str_literal(info, "table_name", name);
+		"BEGIN\n"
 
-		std::basic_string<char, std::char_traits<char>,
-				  ut_allocator<char> > sql;
-		sql.reserve(2000);
+		"SELECT ID INTO table_id\n"
+		"FROM SYS_TABLES\n"
+		"WHERE NAME = :table_name\n"
+		"LOCK IN SHARE MODE;\n"
+		"IF (SQL % NOTFOUND) THEN\n"
+		"       RETURN;\n"
+		"END IF;\n"
 
-		sql =	"PROCEDURE DROP_TABLE_PROC () IS\n"
-			"sys_foreign_id CHAR;\n"
-			"table_id CHAR;\n"
-			"index_id CHAR;\n"
-			"foreign_id CHAR;\n"
-			"space_id INT;\n"
-			"found INT;\n";
+		"SELECT SPACE INTO space_id\n"
+		"FROM SYS_TABLES\n"
+		"WHERE NAME = :table_name;\n"
+		"IF (SQL % NOTFOUND) THEN\n"
+		"       RETURN;\n"
+		"END IF;\n"
 
-		sql +=	"DECLARE CURSOR cur_fk IS\n"
-			"SELECT ID FROM SYS_FOREIGN\n"
-			"WHERE FOR_NAME = :table_name\n"
-			"AND TO_BINARY(FOR_NAME)\n"
-			"  = TO_BINARY(:table_name)\n"
-			"LOCK IN SHARE MODE;\n";
+		"found := 1;\n"
+		"SELECT ID INTO sys_foreign_id\n"
+		"FROM SYS_TABLES\n"
+		"WHERE NAME = 'SYS_FOREIGN'\n"
+		"LOCK IN SHARE MODE;\n"
+		"IF (SQL % NOTFOUND) THEN\n"
+		"       found := 0;\n"
+		"END IF;\n"
+		"IF (:table_name = 'SYS_FOREIGN') THEN\n"
+		"       found := 0;\n"
+		"END IF;\n"
+		"IF (:table_name = 'SYS_FOREIGN_COLS') \n"
+		"THEN\n"
+		"       found := 0;\n"
+		"END IF;\n"
 
-		sql +=	"DECLARE CURSOR cur_idx IS\n"
-			"SELECT ID FROM SYS_INDEXES\n"
-			"WHERE TABLE_ID = table_id\n"
-			"LOCK IN SHARE MODE;\n";
+		"OPEN cur_fk;\n"
+		"WHILE found = 1 LOOP\n"
+		"       FETCH cur_fk INTO foreign_id;\n"
+		"       IF (SQL % NOTFOUND) THEN\n"
+		"               found := 0;\n"
+		"       ELSE\n"
+		"               DELETE FROM \n"
+		"		   SYS_FOREIGN_COLS\n"
+		"               WHERE ID = foreign_id;\n"
+		"               DELETE FROM SYS_FOREIGN\n"
+		"               WHERE ID = foreign_id;\n"
+		"       END IF;\n"
+		"END LOOP;\n"
+		"CLOSE cur_fk;\n"
 
-		sql +=	"BEGIN\n";
+		"found := 1;\n"
+		"OPEN cur_idx;\n"
+		"WHILE found = 1 LOOP\n"
+		"       FETCH cur_idx INTO index_id;\n"
+		"       IF (SQL % NOTFOUND) THEN\n"
+		"               found := 0;\n"
+		"       ELSE\n"
+		"               DELETE FROM SYS_FIELDS\n"
+		"               WHERE INDEX_ID = index_id;\n"
+		"               DELETE FROM SYS_INDEXES\n"
+		"               WHERE ID = index_id\n"
+		"               AND TABLE_ID = table_id;\n"
+		"       END IF;\n"
+		"END LOOP;\n"
+		"CLOSE cur_idx;\n"
 
-		sql +=	"SELECT ID INTO table_id\n"
-			"FROM SYS_TABLES\n"
-			"WHERE NAME = :table_name\n"
-			"LOCK IN SHARE MODE;\n"
-			"IF (SQL % NOTFOUND) THEN\n"
-			"       RETURN;\n"
-			"END IF;\n";
+		"DELETE FROM SYS_COLUMNS\n"
+		"WHERE TABLE_ID = table_id;\n"
+		"DELETE FROM SYS_TABLES\n"
+		"WHERE NAME = :table_name;\n"
 
-		sql +=	"SELECT SPACE INTO space_id\n"
-			"FROM SYS_TABLES\n"
-			"WHERE NAME = :table_name;\n"
-			"IF (SQL % NOTFOUND) THEN\n"
-			"       RETURN;\n"
-			"END IF;\n";
+		"DELETE FROM SYS_TABLESPACES\n"
+		"WHERE SPACE = space_id;\n"
+		"DELETE FROM SYS_DATAFILES\n"
+		"WHERE SPACE = space_id;\n"
 
-		sql +=	"found := 1;\n"
-			"SELECT ID INTO sys_foreign_id\n"
-			"FROM SYS_TABLES\n"
-			"WHERE NAME = 'SYS_FOREIGN'\n"
-			"LOCK IN SHARE MODE;\n"
-			"IF (SQL % NOTFOUND) THEN\n"
-			"       found := 0;\n"
-			"END IF;\n"
-			"IF (:table_name = 'SYS_FOREIGN') THEN\n"
-			"       found := 0;\n"
-			"END IF;\n"
-			"IF (:table_name = 'SYS_FOREIGN_COLS') \n"
-			"THEN\n"
-			"       found := 0;\n"
-			"END IF;\n";
-
-		sql +=	"OPEN cur_fk;\n"
-			"WHILE found = 1 LOOP\n"
-			"       FETCH cur_fk INTO foreign_id;\n"
-			"       IF (SQL % NOTFOUND) THEN\n"
-			"               found := 0;\n"
-			"       ELSE\n"
-			"               DELETE FROM \n"
-			"		   SYS_FOREIGN_COLS\n"
-			"               WHERE ID = foreign_id;\n"
-			"               DELETE FROM SYS_FOREIGN\n"
-			"               WHERE ID = foreign_id;\n"
-			"       END IF;\n"
-			"END LOOP;\n"
-			"CLOSE cur_fk;\n";
-
-		sql +=	"found := 1;\n"
-			"OPEN cur_idx;\n"
-			"WHILE found = 1 LOOP\n"
-			"       FETCH cur_idx INTO index_id;\n"
-			"       IF (SQL % NOTFOUND) THEN\n"
-			"               found := 0;\n"
-			"       ELSE\n"
-			"               DELETE FROM SYS_FIELDS\n"
-			"               WHERE INDEX_ID = index_id;\n"
-			"               DELETE FROM SYS_INDEXES\n"
-			"               WHERE ID = index_id\n"
-			"               AND TABLE_ID = table_id;\n"
-			"       END IF;\n"
-			"END LOOP;\n"
-			"CLOSE cur_idx;\n";
-
-		sql +=	"DELETE FROM SYS_COLUMNS\n"
-			"WHERE TABLE_ID = table_id;\n"
-			"DELETE FROM SYS_TABLES\n"
-			"WHERE NAME = :table_name;\n";
-
-		if (dict_table_is_file_per_table(table)) {
-			sql += "DELETE FROM SYS_TABLESPACES\n"
-				"WHERE SPACE = space_id;\n"
-				"DELETE FROM SYS_DATAFILES\n"
-				"WHERE SPACE = space_id;\n";
-		}
-
-		sql +=	"DELETE FROM SYS_VIRTUAL\n"
-			"WHERE TABLE_ID = table_id;\n"
-			"END;\n";
-
-		err = que_eval_sql(info, sql.c_str(), FALSE, trx);
-	} else {
-		page_no = page_nos;
-		for (dict_index_t* index = dict_table_get_first_index(table);
-		     index != NULL;
-		     index = dict_table_get_next_index(index)) {
-			/* remove the index object associated. */
-			dict_drop_index_tree_in_mem(index, *page_no++);
-		}
-		err = row_drop_table_from_cache(tablename, table, trx);
-		goto funct_exit;
-	}
+		"DELETE FROM SYS_VIRTUAL\n"
+		"WHERE TABLE_ID = table_id;\n"
+		"END;\n",
+		FALSE, trx);
 
 	switch (err) {
-		ulint	space_id;
-		bool	is_discarded;
-		ulint	table_flags;
-
+		fil_space_t* space;
+		char* filepath;
 	case DB_SUCCESS:
-		space_id = table->space;
-		is_discarded = dict_table_is_discarded(table);
-		table_flags = table->flags;
-		ut_ad(!dict_table_is_temporary(table));
-
 		if (!table->no_rollback()) {
 			err = row_drop_ancillary_fts_tables(table, trx);
 			if (err != DB_SUCCESS) {
@@ -3970,34 +3832,41 @@ defer:
 			}
 		}
 
+		space = table->space;
+		ut_ad(!space || space->id == table->space_id);
 		/* Determine the tablespace filename before we drop
-		dict_table_t.  Free this memory before returning. */
+		dict_table_t. */
 		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 			dict_get_and_save_data_dir_path(table, true);
 			ut_a(table->data_dir_path);
-			filepath = fil_make_filepath(
+			filepath = space ? NULL : fil_make_filepath(
 				table->data_dir_path,
 				table->name.m_name, IBD, true);
 		} else {
-			filepath = fil_make_filepath(
+			filepath = space ? NULL : fil_make_filepath(
 				NULL, table->name.m_name, IBD, false);
 		}
 
 		/* Free the dict_table_t object. */
 		err = row_drop_table_from_cache(tablename, table, trx);
 		if (err != DB_SUCCESS) {
+			ut_free(filepath);
 			break;
 		}
 
 		/* Do not attempt to drop known-to-be-missing tablespaces,
 		nor the system tablespace. */
-		if (is_discarded || is_system_tablespace(space_id)) {
+		if (!space) {
+			fil_delete_file(filepath);
+			ut_free(filepath);
 			break;
 		}
 
-		/* We can now drop the single-table tablespace. */
-		err = row_drop_single_table_tablespace(
-			space_id, tablename, filepath, table_flags);
+		ut_ad(!filepath);
+
+		if (space->id != TRX_SYS_SPACE) {
+			err = fil_delete_tablespace(space->id);
+		}
 		break;
 
 	case DB_OUT_OF_FILE_SPACE:
@@ -4060,8 +3929,7 @@ funct_exit:
 		mem_heap_free(heap);
 	}
 
-	ut_free(filepath);
-
+funct_exit_all_freed:
 	if (locked_dictionary) {
 
 		if (trx_is_started(trx)) {
@@ -4224,8 +4092,7 @@ loop:
 					<< table->name << ".frm' was lost.";
 			}
 
-			if (!table->is_readable()
-			    && !fil_space_get(table->space)) {
+			if (!table->is_readable() && !table->space) {
 				ib::warn() << "Missing .ibd file for table "
 					<< table->name << ".";
 			}
@@ -4479,8 +4346,7 @@ row_rename_table_for_mysql(
 		err = DB_TABLE_NOT_FOUND;
 		goto funct_exit;
 
-	} else if (!table->is_readable()
-		   && fil_space_get(table->space) == NULL
+	} else if (!table->is_readable() && !table->space
 		   && !dict_table_is_discarded(table)) {
 
 		err = DB_TABLE_NOT_FOUND;
@@ -4556,22 +4422,18 @@ row_rename_table_for_mysql(
 	if (err == DB_SUCCESS
 	    && dict_table_is_file_per_table(table)) {
 		/* Make a new pathname to update SYS_DATAFILES. */
-		char*	new_path = row_make_new_pathname(table, new_name);
-		char*	old_path = fil_space_get_first_path(table->space);
-
 		/* If old path and new path are the same means tablename
 		has not changed and only the database name holding the table
 		has changed so we need to make the complete filepath again. */
-		if (!dict_tables_have_same_db(old_name, new_name)) {
-			ut_free(new_path);
-			new_path = fil_make_filepath(NULL, new_name, IBD, false);
-		}
+		char*	new_path = dict_tables_have_same_db(old_name, new_name)
+			? row_make_new_pathname(table, new_name)
+			: fil_make_filepath(NULL, new_name, IBD, false);
 
 		info = pars_info_create();
 
 		pars_info_add_str_literal(info, "new_table_name", new_name);
 		pars_info_add_str_literal(info, "new_path_name", new_path);
-		pars_info_add_int4_literal(info, "space_id", table->space);
+		pars_info_add_int4_literal(info, "space_id", table->space_id);
 
 		err = que_eval_sql(info,
 				   "PROCEDURE RENAME_SPACE () IS\n"
@@ -4585,7 +4447,6 @@ row_rename_table_for_mysql(
 				   "END;\n"
 				   , FALSE, trx);
 
-		ut_free(old_path);
 		ut_free(new_path);
 	}
 	if (err != DB_SUCCESS) {
@@ -4845,7 +4706,7 @@ funct_exit:
 	    && table != NULL && (table->space != 0)) {
 
 		char*	orig_name = table->name.m_name;
-		trx_t*	trx_bg = trx_allocate_for_background();
+		trx_t*	trx_bg = trx_create();
 
 		/* If the first fts_rename fails, the trx would
 		be rolled back and committed, we can't use it any more,
@@ -4869,7 +4730,7 @@ funct_exit:
 
 		trx_bg->dict_operation_lock_mode = 0;
 		trx_commit_for_mysql(trx_bg);
-		trx_free_for_background(trx_bg);
+		trx_free(trx_bg);
 	}
 
 	if (table != NULL) {

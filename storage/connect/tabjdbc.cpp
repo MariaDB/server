@@ -153,7 +153,7 @@ int JDBCDEF::ParseURL(PGLOBAL g, char *url, bool b)
 //	  Tabname = GetStringCatInfo(g, "Tabname", Tabname);
 		} // endif
 
-		if (trace)
+		if (trace(1))
 			htrc("server: %s Tabname: %s", url, Tabname);
 
 		// Now make the required URL
@@ -470,7 +470,7 @@ bool TDBJDBC::MakeInsert(PGLOBAL g)
 	else
 		Prepared = true;
 
-	if (trace)
+	if (trace(33))
 		htrc("Insert=%s\n", Query->GetStr());
 
 	return false;
@@ -553,7 +553,7 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 {
 	bool rc = true;
 
-	if (trace)
+	if (trace(1))
 		htrc("JDBC OpenDB: tdbp=%p tdb=R%d use=%d mode=%d\n",
 		     this, Tdb_No, Use, Mode);
 
@@ -604,6 +604,10 @@ bool TDBJDBC::OpenDB(PGLOBAL g)
 		return true;
 	else if (Quoted)
 		Quote = Jcp->GetQuoteChar();
+
+	if (Mode != MODE_READ && Mode != MODE_READX)
+		if (Jcp->SetUUID(g, this))
+			PushWarning(g, this, 1);
 
 	Use = USE_OPEN;       // Do it now in case we are recursively called
 
@@ -767,7 +771,7 @@ bool TDBJDBC::ReadKey(PGLOBAL g, OPVAL op, const key_range *kr)
 		Mode = MODE_READ;
 	} // endif's op
 
-	if (trace)
+	if (trace(33))
 		htrc("JDBC ReadKey: Query=%s\n", Query->GetStr());
 
 	rc = Jcp->ExecuteQuery((char*)Query->GetStr());
@@ -783,7 +787,7 @@ int TDBJDBC::ReadDB(PGLOBAL g)
 {
 	int  rc;
 
-	if (trace > 1)
+	if (trace(2))
 		htrc("JDBC ReadDB: R%d Mode=%d\n", GetTdb_No(), Mode);
 
 	if (Mode == MODE_UPDATE || Mode == MODE_DELETE) {
@@ -836,7 +840,7 @@ int TDBJDBC::ReadDB(PGLOBAL g)
 
 	} // endif placed
 
-	if (trace > 1)
+	if (trace(2))
 		htrc(" Read: Rbuf=%d rc=%d\n", Rbuf, rc);
 
 	return rc;
@@ -897,7 +901,7 @@ int TDBJDBC::WriteDB(PGLOBAL g)
 
 	Query->RepLast(')');
 
-	if (trace > 1)
+	if (trace(2))
 		htrc("Inserting: %s\n", Query->GetStr());
 
 	rc = Jcp->ExecuteUpdate(Query->GetStr());
@@ -925,7 +929,7 @@ int TDBJDBC::DeleteDB(PGLOBAL g, int irc)
 			AftRows = Jcp->m_Aff;
 			sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
 
-			if (trace)
+			if (trace(1))
 				htrc("%s\n", g->Message);
 
 			PushWarning(g, this, 0);    // 0 means a Note
@@ -946,14 +950,14 @@ void TDBJDBC::CloseDB(PGLOBAL g)
 	if (Jcp)
 		Jcp->Close();
 
-	if (trace)
+	if (trace(1))
 		htrc("JDBC CloseDB: closing %s\n", Name);
 
 	if (!Werr && 
 		(Mode == MODE_INSERT || Mode == MODE_UPDATE || Mode == MODE_DELETE)) {
 		sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
 
-		if (trace)
+		if (trace(1))
 			htrc("%s\n", g->Message);
 
 		PushWarning(g, this, 0);    // 0 means a Note
@@ -970,6 +974,7 @@ void TDBJDBC::CloseDB(PGLOBAL g)
 JDBCCOL::JDBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
 	     : EXTCOL(cdp, tdbp, cprec, i, am)
 {
+	uuid = false;
 } // end of JDBCCOL constructor
 
 /***********************************************************************/
@@ -977,6 +982,7 @@ JDBCCOL::JDBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
 /***********************************************************************/
 JDBCCOL::JDBCCOL(void) : EXTCOL()
 {
+	uuid = false;
 } // end of JDBCCOL constructor
 
 /***********************************************************************/
@@ -985,12 +991,11 @@ JDBCCOL::JDBCCOL(void) : EXTCOL()
 /***********************************************************************/
 JDBCCOL::JDBCCOL(JDBCCOL *col1, PTDB tdbp) : EXTCOL(col1, tdbp)
 {
+	uuid = col1->uuid;
 } // end of JDBCCOL copy constructor
 
 /***********************************************************************/
-/*  ReadColumn: when SQLFetch is used there is nothing to do as the    */
-/*  column buffer was bind to the record set. This is also the case    */
-/*  when calculating MaxSize (Bufp is NULL even when Rows is not).     */
+/*  ReadColumn: retrieve the column value via the JDBC driver.         */
 /***********************************************************************/
 void JDBCCOL::ReadColumn(PGLOBAL g)
 {
@@ -1117,7 +1122,7 @@ bool TDBXJDC::OpenDB(PGLOBAL g)
 {
 	bool rc = false;
 
-	if (trace)
+	if (trace(1))
 		htrc("JDBC OpenDB: tdbp=%p tdb=R%d use=%d mode=%d\n",
 		this, Tdb_No, Use, Mode);
 

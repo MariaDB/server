@@ -15,10 +15,14 @@ sub convert_to_mariadb_101
     $badflags |= 1<<6|$compression_level<<7 if ($flags & 1 << 16);
     $badflags |= ($flags & 15 << 6) << 7; # PAGE_SSIZE
 
-    substr ($_, 54, 4) = pack("N", $badflags);
-    # Replace the innodb_checksum_algorithm=none checksum
-    substr ($_, 0, 4) = pack("N", 0xdeadbeef);
-    substr ($_, $page_size - 8, 4) = pack("N", 0xdeadbeef);
-    syswrite(FILE, $_, $page_size)==$page_size||die "Unable to write $file\n";
+    if ($badflags != $flags)
+    {
+	warn "$file: changing $flags to $badflags\n";
+	substr ($_, 54, 4) = pack("N", $badflags);
+	# Replace the innodb_checksum_algorithm=none checksum
+	substr ($_, 0, 4) = pack("N", 0xdeadbeef);
+	substr ($_, $page_size - 8, 4) = pack("N", 0xdeadbeef);
+	syswrite(FILE, $_, $page_size)==$page_size||die "Unable to write $file\n";
+    }
     close(FILE);
 }

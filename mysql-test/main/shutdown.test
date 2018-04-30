@@ -1,0 +1,38 @@
+--source include/not_embedded.inc
+#
+# SHUTDOWN statement
+#
+create user user1@localhost;
+
+connect (c1,localhost,user1,,);
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+shutdown;
+
+connection default;
+disconnect c1;
+--connect (c1,localhost,root,,)
+
+create procedure try_shutdown() shutdown;
+drop procedure try_shutdown;
+
+--let $_server_id= `SELECT @@server_id`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--exec echo "wait" > $_expect_file_name
+
+--send shutdown
+--connection default
+--source include/wait_until_disconnected.inc
+
+--exec echo "restart" > $_expect_file_name
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+drop user user1@localhost;
+
+--echo #
+--echo # MDEV-8491 - On shutdown, report the user and the host executed that.
+--echo #
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN=mysqld(\.exe)? \(initiated by: root\[root\] @ localhost \[(::1)?\]\): Normal shutdown
+--source include/search_pattern_in_file.inc

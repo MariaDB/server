@@ -299,7 +299,7 @@ dict_stats_exec_sql(
 	}
 
 	if (trx == NULL) {
-		trx = trx_allocate_for_background();
+		trx = trx_create();
 		trx_started = true;
 
 		if (srv_read_only_mode) {
@@ -333,7 +333,7 @@ dict_stats_exec_sql(
 	}
 
 	if (trx_started) {
-		trx_free_for_background(trx);
+		trx_free(trx);
 	}
 
 	return(err);
@@ -450,8 +450,6 @@ dict_stats_table_clone_create(
 		idx->id = index->id;
 
 		idx->name = mem_heap_strdup(heap, index->name);
-
-		idx->table_name = t->name.m_name;
 
 		idx->table = t;
 
@@ -1512,10 +1510,10 @@ dict_stats_analyze_index_below_cur(
 	offsets_rec = rec_get_offsets(rec, index, offsets1, false,
 				      ULINT_UNDEFINED, &heap);
 
-	page_id_t		page_id(dict_index_get_space(index),
+	page_id_t		page_id(index->table->space->id,
 					btr_node_ptr_get_child_page_no(
 						rec, offsets_rec));
-	const page_size_t	page_size(dict_table_page_size(index->table));
+	const page_size_t	page_size(index->table->space->flags);
 
 	/* assume no external pages by default - in case we quit from this
 	function without analyzing any leaf pages */
@@ -2322,7 +2320,7 @@ dict_stats_save_index_stat(
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
 
-	ut_ad(!trx || trx->internal || trx->in_mysql_trx_list);
+	ut_ad(!trx || trx->internal || trx->mysql_thd);
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
@@ -2403,10 +2401,9 @@ dict_stats_report_error(dict_table_t* table, bool defragment)
 {
 	dberr_t		err;
 
-	FilSpace space(table->space);
 	const char*	df = defragment ? " defragment" : "";
 
-	if (!space()) {
+	if (!table->space) {
 		ib::warn() << "Cannot save" << df << " statistics for table "
 			   << table->name
 			   << " because the .ibd file is missing. "
@@ -2415,7 +2412,8 @@ dict_stats_report_error(dict_table_t* table, bool defragment)
 	} else {
 		ib::warn() << "Cannot save" << df << " statistics for table "
 			   << table->name
-			   << " because file " << space()->chain.start->name
+			   << " because file "
+			   << table->space->chain.start->name
 			   << (table->corrupted
 			       ? " is corrupted."
 			       : " cannot be decrypted.");
@@ -2507,7 +2505,7 @@ dict_stats_save(
 		return(ret);
 	}
 
-	trx_t*	trx = trx_allocate_for_background();
+	trx_t*	trx = trx_create();
 	trx_start_internal(trx);
 
 	dict_index_t*	index;
@@ -2604,7 +2602,7 @@ dict_stats_save(
 	trx_commit_for_mysql(trx);
 
 end:
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	mutex_exit(&dict_sys->mutex);
 	rw_lock_x_unlock(dict_operation_lock);
@@ -2986,7 +2984,7 @@ dict_stats_fetch_from_ps(
 	stats. */
 	dict_stats_empty_table(table, true);
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 
 	/* Use 'read-uncommitted' so that the SELECTs we execute
 	do not get blocked in case some user has locked the rows we
@@ -3080,7 +3078,7 @@ dict_stats_fetch_from_ps(
 
 	trx_commit_for_mysql(trx);
 
-	trx_free_for_background(trx);
+	trx_free(trx);
 
 	if (!index_fetch_arg.stats_were_modified) {
 		return(DB_STATS_DO_NOT_EXIST);

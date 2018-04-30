@@ -5,6 +5,11 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
 --connection node_1
 
 CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, node VARCHAR(10)) ENGINE=InnoDB;
@@ -12,6 +17,8 @@ CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, node VARCHAR(10)) ENGINE
 # auto_increment_increment is equal to the number of nodes
 # auto_increment_offset is equal to the ID of the node
 
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_index';
 SELECT @@auto_increment_increment = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size');
 SELECT @@global.auto_increment_offset = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_index') + 1;
 
@@ -27,6 +34,8 @@ SELECT @@global.auto_increment_offset = (SELECT VARIABLE_VALUE FROM INFORMATION_
 --connection node_2
 --reap
 
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_index';
 SELECT @@auto_increment_increment = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size');
 SELECT @@global.auto_increment_offset = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_index') + 1;
 

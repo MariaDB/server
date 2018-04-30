@@ -74,7 +74,8 @@ public:
                   NOW_FUNC, NOW_UTC_FUNC, SYSDATE_FUNC, TRIG_COND_FUNC,
                   SUSERVAR_FUNC, GUSERVAR_FUNC, COLLATE_FUNC,
                   EXTRACT_FUNC, CHAR_TYPECAST_FUNC, FUNC_SP, UDF_FUNC,
-                  NEG_FUNC, GSYSVAR_FUNC, DYNCOL_FUNC, JSON_EXTRACT_FUNC };
+                  NEG_FUNC, GSYSVAR_FUNC, IN_OPTIMIZER_FUNC, DYNCOL_FUNC,
+                  JSON_EXTRACT_FUNC };
   enum Type type() const { return FUNC_ITEM; }
   virtual enum Functype functype() const   { return UNKNOWN_FUNC; }
   Item_func(THD *thd): Item_func_or_sum(thd)
@@ -848,7 +849,7 @@ class Item_func_connection_id :public Item_long_func
   longlong value;
 
 public:
-  Item_func_connection_id(THD *thd): Item_long_func(thd) {}
+  Item_func_connection_id(THD *thd): Item_long_func(thd) { unsigned_flag=1; }
   const char *func_name() const { return "connection_id"; }
   void fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);
@@ -2413,7 +2414,7 @@ public:
   bool update_hash(void *ptr, size_t length, enum Item_result type,
                    CHARSET_INFO *cs, bool unsigned_arg);
   bool send(Protocol *protocol, st_value *buffer);
-  void make_field(THD *thd, Send_field *tmp_field);
+  void make_send_field(THD *thd, Send_field *tmp_field);
   bool check(bool use_result_field);
   void save_item_result(Item *item);
   bool update();
@@ -2839,7 +2840,7 @@ public:
            sp_result_field :
            tmp_table_field_from_field_type(table);
   }
-  void make_field(THD *thd, Send_field *tmp_field);
+  void make_send_field(THD *thd, Send_field *tmp_field);
 
   longlong val_int()
   {
@@ -3128,7 +3129,6 @@ public:
 Item *get_system_var(THD *thd, enum_var_type var_type,
                      const LEX_CSTRING *name, const LEX_CSTRING *component);
 extern bool check_reserved_words(const LEX_CSTRING *name);
-Item *find_date_time_item(Item **args, uint nargs, uint col);
 double my_double_round(double value, longlong dec, bool dec_unsigned,
                        bool truncate);
 bool eval_const_cond(COND *cond);

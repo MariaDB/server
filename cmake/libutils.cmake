@@ -151,7 +151,7 @@ MACRO(MERGE_STATIC_LIBS TARGET OUTPUT_NAME LIBS_TO_MERGE)
       IF(LIB_TYPE STREQUAL "STATIC_LIBRARY")
         SET(STATIC_LIBS ${STATIC_LIBS} ${LIB_LOCATION})
         ADD_DEPENDENCIES(${TARGET} ${LIB})
-        # Extract dependend OS libraries
+        # Extract dependent OS libraries
         GET_DEPENDEND_OS_LIBS(${LIB} LIB_OSLIBS)
         LIST(APPEND OSLIBS ${LIB_OSLIBS})
       ELSE()

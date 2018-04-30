@@ -1,1 +1,1 @@
---source extra/rpl_tests/rpl_cant_read_event_incident.inc
+--source suite/rpl/include/rpl_cant_read_event_incident.inc

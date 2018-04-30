@@ -432,7 +432,7 @@ btr_search_info_get_ref_count(
 {
 	ulint ret = 0;
 
-	if (!btr_search_enabled) {
+	if (!btr_search_enabled || !index->table->space) {
 		return(ret);
 	}
 
@@ -666,7 +666,7 @@ btr_search_update_hash_ref(
 		return;
 	}
 
-	ut_ad(block->page.id.space() == index->space);
+	ut_ad(block->page.id.space() == index->table->space->id);
 	ut_ad(index == cursor->index);
 	ut_ad(!dict_index_is_ibuf(index));
 
@@ -1151,7 +1151,7 @@ retry:
 #endif
 	ut_ad(btr_search_enabled);
 
-	ut_ad(block->page.id.space() == index->space);
+	ut_ad(block->page.id.space() == index->table->space->id);
 	ut_a(index_id == index->id);
 	ut_a(!dict_index_is_ibuf(index));
 #ifdef UNIV_DEBUG
@@ -1280,12 +1280,8 @@ cleanup:
 /** Drop any adaptive hash index entries that may point to an index
 page that may be in the buffer pool, when a page is evicted from the
 buffer pool or freed in a file segment.
-@param[in]	page_id		page id
-@param[in]	page_size	page size */
-void
-btr_search_drop_page_hash_when_freed(
-	const page_id_t&	page_id,
-	const page_size_t&	page_size)
+@param[in]	page_id		page id */
+void btr_search_drop_page_hash_when_freed(const page_id_t& page_id)
 {
 	buf_block_t*	block;
 	mtr_t		mtr;
@@ -1301,7 +1297,7 @@ btr_search_drop_page_hash_when_freed(
 	are possibly holding, we cannot s-latch the page, but must
 	(recursively) x-latch it, even though we are only reading. */
 
-	block = buf_page_get_gen(page_id, page_size, RW_X_LATCH, NULL,
+	block = buf_page_get_gen(page_id, univ_page_size, RW_X_LATCH, NULL,
 				 BUF_PEEK_IF_IN_POOL, __FILE__, __LINE__,
 				 &mtr, &err);
 
@@ -1370,7 +1366,7 @@ btr_search_build_page_hash_index(
 	rec_offs_init(offsets_);
 	ut_ad(ahi_latch == btr_get_search_latch(index));
 	ut_ad(index);
-	ut_ad(block->page.id.space() == index->space);
+	ut_ad(block->page.id.space() == index->table->space->id);
 	ut_a(!dict_index_is_ibuf(index));
 	ut_ad(page_is_leaf(block->frame));
 
@@ -1410,6 +1406,13 @@ btr_search_build_page_hash_index(
 		return;
 	}
 
+	rec = page_rec_get_next_const(page_get_infimum_rec(page));
+
+	if (rec_is_default_row(rec, index)) {
+		rec = page_rec_get_next_const(rec);
+		if (!--n_recs) return;
+	}
+
 	/* Calculate and cache fold values and corresponding records into
 	an array for fast insertion to the hash index */
 
@@ -1420,12 +1423,6 @@ btr_search_build_page_hash_index(
 	n_cached = 0;
 
 	ut_a(index->id == btr_page_get_index_id(page));
-
-	rec = page_rec_get_next_const(page_get_infimum_rec(page));
-
-	if (rec_is_default_row(rec, index)) {
-		rec = page_rec_get_next_const(rec);
-	}
 
 	offsets = rec_get_offsets(
 		rec, index, offsets, true,
@@ -1688,7 +1685,7 @@ btr_search_update_hash_on_delete(btr_cur_t* cursor)
 		return;
 	}
 
-	ut_ad(block->page.id.space() == index->space);
+	ut_ad(block->page.id.space() == index->table->space->id);
 	ut_a(index == cursor->index);
 	ut_a(block->curr_n_fields > 0 || block->curr_n_bytes > 0);
 	ut_a(!dict_index_is_ibuf(index));
@@ -1845,7 +1842,7 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 		return;
 	}
 
-	ut_ad(block->page.id.space() == index->space);
+	ut_ad(block->page.id.space() == index->table->space->id);
 	btr_search_check_free_space_in_heap(index);
 
 	table = btr_get_search_table(index);
@@ -2066,7 +2063,8 @@ btr_search_hash_table_validate(ulint hash_table_id)
 			}
 
 			ut_a(!dict_index_is_ibuf(block->index));
-			ut_ad(block->page.id.space() == block->index->space);
+			ut_ad(block->page.id.space()
+			      == block->index->table->space->id);
 
 			page_index_id = btr_page_get_index_id(block->frame);
 

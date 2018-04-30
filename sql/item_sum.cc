@@ -313,6 +313,8 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
     }
   }
   aggr_sel->set_agg_func_used(true);
+  if (sum_func() == SP_AGGREGATE_FUNC)
+    aggr_sel->set_custom_agg_func_used(true);
   update_used_tables();
   thd->lex->in_sum_func= in_sum_func;
   return FALSE;
@@ -2414,7 +2416,7 @@ Item *Item_sum_min::copy_or_same(THD* thd)
 
 bool Item_sum_min::add()
 {
-  Item *tmp_item;
+  Item *UNINIT_VAR(tmp_item);
   DBUG_ENTER("Item_sum_min::add");
   DBUG_PRINT("enter", ("this: %p", this));
 
@@ -2454,7 +2456,7 @@ Item *Item_sum_max::copy_or_same(THD* thd)
 
 bool Item_sum_max::add()
 {
-  Item *tmp_item;
+  Item * UNINIT_VAR(tmp_item);
   DBUG_ENTER("Item_sum_max::add");
   DBUG_PRINT("enter", ("this: %p", this));
 
@@ -2659,7 +2661,7 @@ void Item_sum_num::reset_field()
 
 void Item_sum_hybrid::reset_field()
 {
-  Item *tmp_item, *arg0;
+  Item *UNINIT_VAR(tmp_item), *arg0;
   DBUG_ENTER("Item_sum_hybrid::reset_field");
 
   arg0= args[0];
@@ -3016,7 +3018,7 @@ Item *Item_sum_avg::result_item(THD *thd, Field *field)
 void Item_sum_hybrid::update_field()
 {
   DBUG_ENTER("Item_sum_hybrid::update_field");
-  Item *tmp_item;
+  Item *UNINIT_VAR(tmp_item);
   if (unlikely(direct_added))
   {
     tmp_item= args[0];

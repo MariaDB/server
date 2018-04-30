@@ -1520,7 +1520,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
                               LEX_CSTRING *tablename, void **out_hton)
 {
   TABLE_LIST tlist;
-  TABLE *table;
+  TABLE *UNINIT_VAR(table);
   bool table_opened= false;
   bool table_scanned= false;
   struct gtid_pos_element tmp_entry, *entry;
@@ -1537,11 +1537,9 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
     goto end;
 
   bitmap_set_all(table->read_set);
-  if ((err= table->file->ha_rnd_init_with_error(1)))
-  {
-    table->file->print_error(err, MYF(0));
+  if (unlikely(err= table->file->ha_rnd_init_with_error(1)))
     goto end;
-  }
+
   table_scanned= true;
   for (;;)
   {

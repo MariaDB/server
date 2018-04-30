@@ -60,8 +60,8 @@ typedef struct my_aio_result {
 
 	/* General bitmaps for my_func's */
 #define MY_FFNF		1U	/* Fatal if file not found */
-#define MY_FNABP	2U	/* Fatal if not all bytes read/writen */
-#define MY_NABP		4U	/* Error if not all bytes read/writen */
+#define MY_FNABP	2U	/* Fatal if not all bytes read/written */
+#define MY_NABP		4U	/* Error if not all bytes read/written */
 #define MY_FAE		8U	/* Fatal if any error */
 #define MY_WME		16U	/* Write message on error */
 #define MY_WAIT_IF_FULL 32U	/* Wait and try again if disk full error */
@@ -71,7 +71,7 @@ typedef struct my_aio_result {
 #define MY_FULL_IO     512U     /* my_read(): loop until I/O is complete */
 #define MY_DONT_CHECK_FILESIZE 128U /* Option to init_io_cache() */
 #define MY_LINK_WARNING 32U	/* my_redel() gives warning if links */
-#define MY_COPYTIME	64U	/* my_redel() copys time */
+#define MY_COPYTIME	64U	/* my_redel() copies time */
 #define MY_DELETE_OLD	256U	/* my_create_with_symlink() */
 #define MY_RESOLVE_LINK 128U	/* my_realpath(); Only resolve links */
 #define MY_HOLD_ORIGINAL_MODES 128U  /* my_copy() holds to file modes */
@@ -96,7 +96,7 @@ typedef struct my_aio_result {
 #define MY_SYNC_FILESIZE 65536U /* my_sync(): safe sync when file is extended */
 #define MY_THREAD_SPECIFIC 0x10000U /* my_malloc(): thread specific */
 #define MY_THREAD_MOVE     0x20000U /* realloc(); Memory can move */
-/* Tree that should delete things automaticly */
+/* Tree that should delete things automatically */
 #define MY_TREE_WITH_DELETE 0x40000U
 
 #define MY_CHECK_ERROR	1U	/* Params to my_end; Check open-close */
@@ -106,7 +106,7 @@ typedef struct my_aio_result {
 #define ME_BELL         4U      /* Ring bell then printing message */
 #define ME_WAITTANG     0       /* Wait for a user action  */
 #define ME_NOREFRESH    64U     /* Write the error message to error log */
-#define ME_NOINPUT      0       /* Dont use the input libary */
+#define ME_NOINPUT      0       /* Don't use the input library */
 #define ME_JUST_INFO    1024U   /**< not error but just info */
 #define ME_JUST_WARNING 2048U   /**< not error but just warning */
 #define ME_FATALERROR   4096U   /* Fatal statement error */
@@ -177,7 +177,7 @@ extern void *my_memdup(const void *from,size_t length,myf MyFlags);
 extern char *my_strdup(const char *from,myf MyFlags);
 extern char *my_strndup(const char *from, size_t length, myf MyFlags);
 
-#ifdef HAVE_LARGE_PAGES
+#ifdef HAVE_LINUX_LARGE_PAGES
 extern uint my_get_large_page_size(void);
 extern uchar * my_large_malloc(size_t size, myf my_flags);
 extern void my_large_free(uchar *ptr);
@@ -185,7 +185,7 @@ extern void my_large_free(uchar *ptr);
 #define my_get_large_page_size() (0)
 #define my_large_malloc(A,B) my_malloc_lock((A),(B))
 #define my_large_free(A) my_free_lock((A))
-#endif /* HAVE_LARGE_PAGES */
+#endif /* HAVE_LINUX_LARGE_PAGES */
 
 void my_init_atomic_write(void);
 #ifdef __linux__
@@ -243,7 +243,7 @@ extern int sf_leaking_memory; /* set to 1 to disable memleak detection */
 extern void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
                               const char *, const char *, const unsigned int);
 
-#ifdef HAVE_LARGE_PAGES
+#ifdef HAVE_LINUX_LARGE_PAGES
 extern my_bool my_use_large_pages;
 extern uint    my_large_page_size;
 #endif
@@ -271,7 +271,7 @@ extern myf      my_global_flags;        /* Set to MY_WME for more error messages
 extern void (*my_sigtstp_cleanup)(void),
 					/* Executed before jump to shell */
 	    (*my_sigtstp_restart)(void);
-					/* Executed when comming from shell */
+					/* Executed when coming from shell */
 extern MYSQL_PLUGIN_IMPORT int my_umask;		/* Default creation mask  */
 extern int my_umask_dir,
 	   my_recived_signals,	/* Signals we have got */
@@ -311,7 +311,7 @@ enum flush_type
   FLUSH_KEEP_LAZY
 };
 
-typedef struct st_record_cache	/* Used when cacheing records */
+typedef struct st_record_cache	/* Used when caching records */
 {
   File file;
   int	rc_seek,error,inited;
@@ -391,7 +391,7 @@ typedef struct st_io_cache_share
 #endif
 } IO_CACHE_SHARE;
 
-typedef struct st_io_cache		/* Used when cacheing files */
+typedef struct st_io_cache		/* Used when caching files */
 {
   /* Offset in file corresponding to the first byte of uchar* buffer. */
   my_off_t pos_in_file;
@@ -940,6 +940,13 @@ extern int my_getncpus(void);
 typedef struct {ulonglong val;} my_hrtime_t;
 void my_time_init(void);
 extern my_hrtime_t my_hrtime(void);
+
+#ifdef _WIN32
+extern my_hrtime_t my_hrtime_coarse();
+#else
+#define my_hrtime_coarse() my_hrtime()
+#endif
+
 extern ulonglong my_interval_timer(void);
 extern ulonglong my_getcputime(void);
 
@@ -948,7 +955,7 @@ extern ulonglong my_getcputime(void);
 #define hrtime_from_time(X)             ((ulonglong)((X)*HRTIME_RESOLUTION))
 #define hrtime_to_double(X)             ((X).val/(double)HRTIME_RESOLUTION)
 #define hrtime_sec_part(X)              ((ulong)((X).val % HRTIME_RESOLUTION))
-#define my_time(X)                      hrtime_to_time(my_hrtime())
+#define my_time(X)                      hrtime_to_time(my_hrtime_coarse())
 
 #if STACK_DIRECTION < 0
 #define available_stack_size(CUR,END) (long) ((char*)(CUR) - (char*)(END))

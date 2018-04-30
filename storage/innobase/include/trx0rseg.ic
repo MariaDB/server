@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -34,26 +34,18 @@ Created 3/26/1996 Heikki Tuuri
 @return rollback segment header, page x-latched */
 UNIV_INLINE
 trx_rsegf_t*
-trx_rsegf_get(
-	ulint			space,
-	ulint			page_no,
-	mtr_t*			mtr)
+trx_rsegf_get(fil_space_t* space, ulint page_no, mtr_t* mtr)
 {
-	buf_block_t*	block;
-	trx_rsegf_t*	header;
-
-	ut_ad(space <= srv_undo_tablespaces_active || space == SRV_TMP_SPACE_ID
+	ut_ad(space == fil_system.sys_space || space == fil_system.temp_space
+	      || srv_is_undo_tablespace(space->id)
 	      || !srv_was_started);
-	ut_ad(space <= TRX_SYS_MAX_UNDO_SPACES || space == SRV_TMP_SPACE_ID);
 
-	block = buf_page_get(
-		page_id_t(space, page_no), univ_page_size, RW_X_LATCH, mtr);
+	buf_block_t* block = buf_page_get(page_id_t(space->id, page_no),
+					  univ_page_size, RW_X_LATCH, mtr);
 
 	buf_block_dbg_add_level(block, SYNC_RSEG_HEADER);
 
-	header = TRX_RSEG + buf_block_get_frame(block);
-
-	return(header);
+	return TRX_RSEG + block->frame;
 }
 
 /** Gets a newly created rollback segment header.

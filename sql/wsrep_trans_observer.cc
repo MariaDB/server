@@ -822,7 +822,8 @@ static void wsrep_log_thd(THD* thd, bool is_real_trans, const char *function)
 static int wsrep_run_hook(const THD* thd, bool is_real_trans,
                           bool for_real_trans)
 {
-  return (WSREP(thd) &&  /* THD is non NULL, wsrep is enabled for thd and is client thread */
+  return (WSREP(thd) &&  /* THD is non NULL, wsrep is enabled for thd 
+                            and is client thread */
           thd->wsrep_exec_mode != TOTAL_ORDER && /* not TOI execution */
           thd->wsrep_exec_mode != REPL_RECV &&   /* not applier or replayer */
           (!for_real_trans || is_real_trans) &&

@@ -33,6 +33,7 @@ Created 11/5/1995 Heikki Tuuri
 
 // Forward declaration
 struct trx_t;
+struct fil_space_t;
 
 /******************************************************************//**
 Returns TRUE if less than 25 % of the buffer pool is available. This can be

@@ -62,12 +62,13 @@ PageBulk::init()
 		because we don't guarantee pages are committed following
 		the allocation order, and we will always generate redo log
 		for page allocation, even when creating a new tablespace. */
-		mtr_start(&alloc_mtr);
-		alloc_mtr.set_named_space(dict_index_get_space(m_index));
+		alloc_mtr.start();
+		m_index->set_modified(alloc_mtr);
 
 		ulint	n_reserved;
 		bool	success;
-		success = fsp_reserve_free_extents(&n_reserved, m_index->space,
+		success = fsp_reserve_free_extents(&n_reserved,
+						   m_index->table->space,
 						   1, FSP_NORMAL, &alloc_mtr);
 		if (!success) {
 			mtr_commit(&alloc_mtr);
@@ -79,12 +80,9 @@ PageBulk::init()
 		new_block = btr_page_alloc(m_index, 0, FSP_UP, m_level,
 					   &alloc_mtr, mtr);
 
-		if (n_reserved > 0) {
-			fil_space_release_free_extents(m_index->space,
-						       n_reserved);
-		}
+		m_index->table->space->release_free_extents(n_reserved);
 
-		mtr_commit(&alloc_mtr);
+		alloc_mtr.commit();
 
 		new_page = buf_block_get_frame(new_block);
 		new_page_zip = buf_block_get_page_zip(new_block);
@@ -106,11 +104,10 @@ PageBulk::init()
 
 		btr_page_set_index_id(new_page, NULL, m_index->id, mtr);
 	} else {
-		page_id_t	page_id(dict_index_get_space(m_index), m_page_no);
-		page_size_t	page_size(dict_table_page_size(m_index->table));
-
-		new_block = btr_block_get(page_id, page_size,
-					  RW_X_LATCH, m_index, mtr);
+		new_block = btr_block_get(
+			page_id_t(m_index->table->space->id, m_page_no),
+			page_size_t(m_index->table->space->flags),
+			RW_X_LATCH, m_index, mtr);
 
 		new_page = buf_block_get_frame(new_block);
 		new_page_zip = buf_block_get_page_zip(new_block);
@@ -610,12 +607,11 @@ PageBulk::latch()
 				      __FILE__, __LINE__, m_mtr);
 	/* In case the block is S-latched by page_cleaner. */
 	if (!ret) {
-		page_id_t       page_id(dict_index_get_space(m_index), m_page_no);
-		page_size_t     page_size(dict_table_page_size(m_index->table));
-
-		m_block = buf_page_get_gen(page_id, page_size, RW_X_LATCH,
-					   m_block, BUF_GET_IF_IN_POOL,
-					   __FILE__, __LINE__, m_mtr, &m_err);
+		m_block = buf_page_get_gen(
+			page_id_t(m_index->table->space->id, m_page_no),
+			page_size_t(m_index->table->space->flags),
+			RW_X_LATCH, m_block, BUF_GET_IF_IN_POOL,
+			__FILE__, __LINE__, m_mtr, &m_err);
 
 		if (m_err != DB_SUCCESS) {
 			return (m_err);
@@ -954,30 +950,27 @@ BtrBulk::finish(dberr_t	err)
 		rec_t*		first_rec;
 		mtr_t		mtr;
 		buf_block_t*	last_block;
-		page_t*		last_page;
-		page_id_t	page_id(dict_index_get_space(m_index),
-					last_page_no);
-		page_size_t	page_size(dict_table_page_size(m_index->table));
-		ulint		root_page_no = dict_index_get_page(m_index);
 		PageBulk	root_page_bulk(m_index, m_trx_id,
-					       root_page_no, m_root_level,
+					       m_index->page, m_root_level,
 					       m_flush_observer);
 
-		mtr_start(&mtr);
-		mtr.set_named_space(dict_index_get_space(m_index));
-		mtr_x_lock(dict_index_get_lock(m_index), &mtr);
+		mtr.start();
+		m_index->set_modified(mtr);
+		mtr_x_lock(&m_index->lock, &mtr);
 
 		ut_ad(last_page_no != FIL_NULL);
-		last_block = btr_block_get(page_id, page_size,
-					   RW_X_LATCH, m_index, &mtr);
-		last_page = buf_block_get_frame(last_block);
-		first_rec = page_rec_get_next(page_get_infimum_rec(last_page));
+		last_block = btr_block_get(
+			page_id_t(m_index->table->space->id, last_page_no),
+			page_size_t(m_index->table->space->flags),
+			RW_X_LATCH, m_index, &mtr);
+		first_rec = page_rec_get_next(
+			page_get_infimum_rec(last_block->frame));
 		ut_ad(page_rec_is_user_rec(first_rec));
 
 		/* Copy last page to root page. */
 		err = root_page_bulk.init();
 		if (err != DB_SUCCESS) {
-			mtr_commit(&mtr);
+			mtr.commit();
 			return(err);
 		}
 		root_page_bulk.copyIn(first_rec);
@@ -988,7 +981,7 @@ BtrBulk::finish(dberr_t	err)
 		/* Do not flush the last page. */
 		last_block->page.flush_observer = NULL;
 
-		mtr_commit(&mtr);
+		mtr.commit();
 
 		err = pageCommit(&root_page_bulk, NULL, false);
 		ut_ad(err == DB_SUCCESS);

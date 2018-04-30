@@ -718,7 +718,7 @@ void vers_select_conds_t::print(String *str, enum_query_type query_type)
   }
 }
 
-int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr)
+int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
 {
   DBUG_ENTER("SELECT_LEX::vers_setup_cond");
 #define newx new (thd->mem_root)
@@ -777,9 +777,6 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
     }
   }
 
-  COND** dst_cond= where_expr;
-  COND* vers_cond= NULL;
-
   for (table= tables; table; table= table->next_local)
   {
     if (!table->table || !table->table->versioned())
@@ -830,11 +827,6 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
       lock_type= TL_READ; // ignore TL_WRITE, history is immutable anyway
     }
 
-    if (table->on_expr)
-    {
-      dst_cond= &table->on_expr;
-    }
-
     const LEX_CSTRING *fstart= &table->table->vers_start_field()->field_name;
     const LEX_CSTRING *fend= &table->table->vers_end_field()->field_name;
 
@@ -875,7 +867,6 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
         max_time.second_part= TIME_MAX_SECOND_PART;
         curr= newx Item_datetime_literal(thd, &max_time, TIME_SECOND_PART_DIGITS);
         cond1= newx Item_func_eq(thd, row_end, curr);
-        cond1= or_items(thd, cond1, newx Item_func_isnull(thd, row_end));
         break;
       case SYSTEM_TIME_AS_OF:
         cond1= newx Item_func_le(thd, row_start, vers_conditions.start.item);
@@ -938,42 +929,15 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables, COND **where_expr
         DBUG_ASSERT(0);
       }
     }
-    vers_conditions.type= SYSTEM_TIME_ALL;
 
     if (cond1)
     {
-      vers_cond= and_items(thd,
-        vers_cond,
-        and_items(thd,
-          cond2,
-          cond1));
-      if (table->is_view_or_derived())
-        vers_cond= or_items(thd, vers_cond, newx Item_func_isnull(thd, row_end));
+      cond1= and_items(thd, cond2, cond1);
+      table->on_expr= and_items(thd, table->on_expr, cond1);
     }
+
+    table->vers_conditions.type= SYSTEM_TIME_ALL;
   } // for (table= tables; ...)
-
-  if (vers_cond)
-  {
-    COND *all_cond= and_items(thd, *dst_cond, vers_cond);
-    bool from_where= dst_cond == where_expr;
-    if (on_stmt_arena.arena_replaced())
-      *dst_cond= all_cond;
-    else
-      thd->change_item_tree(dst_cond, all_cond);
-
-    if (from_where)
-    {
-      this->where= *dst_cond;
-      this->where->top_level_item();
-    }
-
-    // Invalidate current SP [#52, #422]
-    if (thd->spcont)
-    {
-      DBUG_ASSERT(thd->spcont->m_sp);
-      thd->spcont->m_sp->set_sp_cache_version(0);
-    }
-  }
 
   DBUG_RETURN(0);
 #undef newx
@@ -1059,7 +1023,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   }
 
   /* System Versioning: handle FOR SYSTEM_TIME clause. */
-  if (select_lex->vers_setup_conds(thd, tables_list, &conds) < 0)
+  if (select_lex->vers_setup_conds(thd, tables_list) < 0)
     DBUG_RETURN(-1);
 
   /*
@@ -3255,6 +3219,8 @@ bool JOIN::make_aggr_tables_info()
     /* Count that we're using window functions. */
     status_var_increment(thd->status_var.feature_window_functions);
   }
+  if (select_lex->custom_agg_func_used())
+    status_var_increment(thd->status_var.feature_custom_aggregate_functions);
 
   fields= curr_fields_list;
   // Reset before execution
@@ -7531,7 +7497,7 @@ static int compare_embedding_subqueries(JOIN_TAB *jt1, JOIN_TAB *jt2)
       b: dependent = 0x0 table->map = 0x2 found_records = 3 ptr = 0x907e838
       c: dependent = 0x6 table->map = 0x10 found_records = 2 ptr = 0x907ecd0
 
-   As for subuqueries, this function must produce order that can be fed to 
+   As for subqueries, this function must produce order that can be fed to
    choose_initial_table_order().
      
   @retval
@@ -7869,7 +7835,7 @@ greedy_search(JOIN      *join,
       'best_read < DBL_MAX' means that optimizer managed to find
       some plan and updated 'best_positions' array accordingly.
     */
-    DBUG_ASSERT(join->best_read < DBL_MAX); 
+    DBUG_ASSERT(join->best_read < DBL_MAX);
 
     if (size_remain <= search_depth)
     {
@@ -8627,7 +8593,7 @@ best_extension_by_limited_search(JOIN      *join,
       /* Find the best access method from 's' to the current partial plan */
       POSITION loose_scan_pos;
       best_access_path(join, s, remaining_tables, idx, disable_jbuf,
-                       record_count, join->positions + idx, &loose_scan_pos);
+                       record_count, position, &loose_scan_pos);
 
       /* Compute the cost of extending the plan with 's', avoid overflow */
       if (position->records_read < DBL_MAX / record_count)
@@ -16551,11 +16517,7 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
       item->result_field= new_field;
     else
       new_field->field_name= *name;
-    new_field->flags|= (org_field->flags & (
-      NO_DEFAULT_VALUE_FLAG |
-      VERS_SYS_START_FLAG |
-      VERS_SYS_END_FLAG |
-      VERS_UPDATE_UNVERSIONED_FLAG));
+    new_field->flags|= org_field->flags & NO_DEFAULT_VALUE_FLAG;
     if (org_field->maybe_null() || (item && item->maybe_null))
       new_field->flags&= ~NOT_NULL_FLAG;	// Because of outer join
     if (org_field->type() == MYSQL_TYPE_VAR_STRING ||
@@ -16685,11 +16647,15 @@ Field *Item::create_field_for_schema(THD *thd, TABLE *table)
   {
     Field *field;
     if (max_length > MAX_FIELD_VARCHARLENGTH)
-      field= new Field_blob(max_length, maybe_null, &name,
-                            collation.collation);
+      field= new (thd->mem_root) Field_blob(max_length, maybe_null, &name,
+                                            collation.collation);
+    else if (max_length > 0)
+      field= new (thd->mem_root) Field_varstring(max_length, maybe_null, &name,
+                                                 table->s,
+                                                 collation.collation);
     else
-      field= new Field_varstring(max_length, maybe_null, &name,
-                                 table->s, collation.collation);
+      field= new Field_null((uchar*) 0, 0, Field::NONE, &name,
+                            collation.collation);
     if (field)
       field->init(table);
     return field;
@@ -16815,9 +16781,6 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
                                           modify_item ? field :
                                           NULL);
     }
-
-    if (field->field->vers_sys_field())
-      result->invisible= field->field->invisible;
 
     if (orig_type == Item::REF_ITEM && orig_modify)
       ((Item_ref*)orig_item)->set_result_field(result);

@@ -769,6 +769,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   THD *old_THR_THD= current_thd;
   set_current_thd(this);
   status_var.local_memory_used= sizeof(THD);
+  status_var.max_local_memory_used= status_var.local_memory_used;
   status_var.global_memory_used= 0;
   variables.pseudo_thread_id= thread_id;
   variables.max_mem_used= global_system_variables.max_mem_used;
@@ -802,7 +803,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   security_ctx= &main_security_ctx;
   no_errors= 0;
   password= 0;
-  query_start_used= query_start_sec_part_used= 0;
+  query_start_sec_part_used= 0;
   count_cuted_fields= CHECK_FIELD_IGNORE;
   killed= NOT_KILLED;
   killed_err= 0;
@@ -818,6 +819,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   statement_id_counter= 0UL;
   // Must be reset to handle error with THD's created for init of mysqld
   lex->current_select= 0;
+  stmt_lex= 0;
   start_utime= utime_after_query= 0;
   system_time.start.val= system_time.sec= system_time.sec_part= 0;
   utime_after_lock= 0L;
@@ -1324,6 +1326,7 @@ void THD::init(bool skip_lock)
   reset_current_stmt_binlog_format_row();
   reset_binlog_local_stmt_filter();
   set_status_var_init();
+  status_var.max_local_memory_used= status_var.local_memory_used;
   bzero((char *) &org_status_var, sizeof(org_status_var));
   status_in_global= 0;
   start_bytes_received= 0;
@@ -1795,8 +1798,10 @@ THD::~THD()
     THD is not deleted while they access it. The following mutex_lock
     ensures that no one else is using this THD and it's now safe to delete
   */
+  if (WSREP(this)) mysql_mutex_lock(&LOCK_wsrep_thd);
   mysql_mutex_lock(&LOCK_thd_kill);
   mysql_mutex_unlock(&LOCK_thd_kill);
+  if (WSREP(this)) mysql_mutex_unlock(&LOCK_wsrep_thd);
 
   if (!free_connection_done)
     free_connection();
@@ -1993,6 +1998,7 @@ void THD::awake_no_mutex(killed_state state_to_set)
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
                        this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
+  if (WSREP(this)) mysql_mutex_assert_owner(&LOCK_wsrep_thd);
   mysql_mutex_assert_owner(&LOCK_thd_kill);
 
   print_aborted_warning(3, "KILLED");
@@ -2591,8 +2597,8 @@ bool THD::convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs)
 }
 
 
-Item *THD::make_string_literal(const char *str, size_t length,
-                               uint repertoire)
+Item_basic_constant *
+THD::make_string_literal(const char *str, size_t length, uint repertoire)
 {
   if (!length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
     return new (mem_root) Item_null(this, 0, variables.collation_connection);
@@ -2613,7 +2619,8 @@ Item *THD::make_string_literal(const char *str, size_t length,
 }
 
 
-Item *THD::make_string_literal_nchar(const Lex_string_with_metadata_st &str)
+Item_basic_constant *
+THD::make_string_literal_nchar(const Lex_string_with_metadata_st &str)
 {
   DBUG_ASSERT(my_charset_is_ascii_based(national_charset_info));
   if (!str.length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
@@ -2626,41 +2633,14 @@ Item *THD::make_string_literal_nchar(const Lex_string_with_metadata_st &str)
 }
 
 
-Item *THD::make_string_literal_charset(const Lex_string_with_metadata_st &str,
-                                       CHARSET_INFO *cs)
+Item_basic_constant *
+THD::make_string_literal_charset(const Lex_string_with_metadata_st &str,
+                                 CHARSET_INFO *cs)
 {
   if (!str.length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
     return new (mem_root) Item_null(this, 0, cs);
   return new (mem_root) Item_string_with_introducer(this,
                                                     str.str, (uint)str.length, cs);
-}
-
-
-Item *THD::make_string_literal_concat(Item *item, const LEX_CSTRING &str)
-{
-  if (item->type() == Item::NULL_ITEM)
-  {
-    DBUG_ASSERT(variables.sql_mode & MODE_EMPTY_STRING_IS_NULL);
-    if (str.length)
-    {
-      CHARSET_INFO *cs= variables.collation_connection;
-      uint repertoire= my_string_repertoire(cs, str.str, str.length);
-      return new (mem_root) Item_string(this, str.str, (uint)str.length, cs,
-                                        DERIVATION_COERCIBLE, repertoire);
-    }
-    return item;
-  }
-
-  DBUG_ASSERT(item->type() == Item::STRING_ITEM);
-  DBUG_ASSERT(item->basic_const_item());
-  static_cast<Item_string*>(item)->append(str.str, (uint)str.length);
-  if (!(item->collation.repertoire & MY_REPERTOIRE_EXTENDED))
-  {
-    // If the string has been pure ASCII so far, check the new part.
-    CHARSET_INFO *cs= variables.collation_connection;
-    item->collation.repertoire|= my_string_repertoire(cs, str.str, str.length);
-  }
-  return item;
 }
 
 
@@ -2994,15 +2974,19 @@ Item_change_list::check_and_register_item_tree_change(Item **place,
 
 void Item_change_list::rollback_item_tree_changes()
 {
+  DBUG_ENTER("THD::rollback_item_tree_changes");
   I_List_iterator<Item_change_record> it(change_list);
   Item_change_record *change;
 
   while ((change= it++))
   {
+    DBUG_PRINT("info", ("Rollback: %p (%p) <- %p",
+                        *change->place, change->place, change->old_value));
     *change->place= change->old_value;
   }
   /* We can forget about changes memory: it's allocated in runtime memroot */
   change_list.empty();
+  DBUG_VOID_RETURN;
 }
 
 
@@ -5154,66 +5138,6 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
   return 0;
 }
 
-
-/*
-  If the storage engine detects a deadlock, and needs to choose a victim
-  transaction to roll back, it can call this function to ask the upper
-  server layer for which of two possible transactions is prefered to be
-  aborted and rolled back.
-
-  In parallel replication, if two transactions are running in parallel and
-  one is fixed to commit before the other, then the one that commits later
-  will be prefered as the victim - chosing the early transaction as a victim
-  will not resolve the deadlock anyway, as the later transaction still needs
-  to wait for the earlier to commit.
-
-  Otherwise, a transaction that uses only transactional tables, and can thus
-  be safely rolled back, will be prefered as a deadlock victim over a
-  transaction that also modified non-transactional (eg. MyISAM) tables.
-
-  The return value is -1 if the first transaction is prefered as a deadlock
-  victim, 1 if the second transaction is prefered, or 0 for no preference (in
-  which case the storage engine can make the choice as it prefers).
-*/
-extern "C" int
-thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2)
-{
-  rpl_group_info *rgi1, *rgi2;
-  bool nontrans1, nontrans2;
-
-  if (!thd1 || !thd2)
-    return 0;
-
-  /*
-    If the transactions are participating in the same replication domain in
-    parallel replication, then request to select the one that will commit
-    later (in the fixed commit order from the master) as the deadlock victim.
-  */
-  rgi1= thd1->rgi_slave;
-  rgi2= thd2->rgi_slave;
-  if (rgi1 && rgi2 &&
-      rgi1->is_parallel_exec &&
-      rgi1->rli == rgi2->rli &&
-      rgi1->current_gtid.domain_id == rgi2->current_gtid.domain_id)
-    return rgi1->gtid_sub_id < rgi2->gtid_sub_id ? 1 : -1;
-
-  /*
-    If one transaction has modified non-transactional tables (so that it
-    cannot be safely rolled back), and the other has not, then prefer to
-    select the purely transactional one as the victim.
-  */
-  nontrans1= thd1->transaction.all.modified_non_trans_table;
-  nontrans2= thd2->transaction.all.modified_non_trans_table;
-  if (nontrans1 && !nontrans2)
-    return 1;
-  else if (!nontrans1 && nontrans2)
-    return -1;
-
-  /* No preferences, let the storage engine decide. */
-  return 0;
-}
-
-
 extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 {
   return(thd->transaction.all.modified_non_trans_table);
@@ -5293,6 +5217,20 @@ extern "C" void thd_get_autoinc(const MYSQL_THD thd, ulong* off, ulong* inc)
 extern "C" bool thd_is_strict_mode(const MYSQL_THD thd)
 {
   return thd->is_strict_mode();
+}
+
+
+/**
+  Get query start time as SQL field data.
+  Needed by InnoDB.
+  @param thd	Thread object
+  @param buf	Buffer to hold start time data
+*/
+void thd_get_query_start_data(THD *thd, char *buf)
+{
+  LEX_CSTRING field_name;
+  Field_timestampf f((uchar *)buf, NULL, 0, Field::NONE, &field_name, NULL, 6);
+  f.store_TIME(thd->query_start(), thd->query_start_sec_part());
 }
 
 
@@ -7932,4 +7870,23 @@ Query_arena_stmt::~Query_arena_stmt()
 {
   if (arena)
     thd->restore_active_arena(arena, &backup);
+}
+
+
+bool THD::timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
+                            ulong sec_part, ulonglong fuzzydate)
+{
+  time_zone_used= 1;
+  if (ts == 0 && sec_part == 0)
+  {
+    if (fuzzydate & TIME_NO_ZERO_DATE)
+      return 1;
+    set_zero_time(ltime, MYSQL_TIMESTAMP_DATETIME);
+  }
+  else
+  {
+    variables.time_zone->gmt_sec_to_TIME(ltime, ts);
+    ltime->second_part= sec_part;
+  }
+  return 0;
 }

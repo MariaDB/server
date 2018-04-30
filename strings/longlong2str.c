@@ -47,7 +47,7 @@
 
   Note: The standard itoa() returns a pointer to the argument, when int2str
 	returns the pointer to the end-null.
-	itoa assumes that 10 -base numbers are allways signed and other arn't.
+	itoa assumes that 10 -base numbers are always signed and other aren't.
 */
 
 #include "strings_def.h"

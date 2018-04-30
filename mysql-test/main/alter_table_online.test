@@ -1,0 +1,335 @@
+#
+# Test of ALTER ONLINE TABLE syntax
+#
+
+--source include/have_innodb.inc
+--source include/have_partition.inc
+#
+# Test of things that can be done online
+#
+
+create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b')) engine=myisam;
+insert into t1 (a) values (1),(2),(3);
+
+alter online table t1 modify b int default 5, alter c set default 'X';
+alter online table t1 change b new_name int;
+alter online table t1 modify e enum('a','b','c');
+alter online table t1 comment "new comment";
+alter table t1 add constraint q check (a > 0);
+alter online table t1 drop constraint q;
+
+# No OPs
+
+alter online table t1 algorithm=INPLACE, lock=NONE;
+alter online table t1;
+alter table t1 algorithm=INPLACE;
+alter table t1 lock=NONE;
+show create table t1;
+drop table t1;
+
+#
+# everything with temporary tables is "online", i.e. without locks
+#
+create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
+insert into t1 (a) values (1),(2),(3);
+
+alter online table t1 modify b int default 5, alter c set default 'X';
+alter online table t1 change b new_name int;
+alter online table t1 modify e enum('a','b','c');
+alter online table t1 comment "new comment";
+alter online table t1 rename to t2;
+show create table t2;
+drop table t2;
+
+#
+# Test also with Aria
+#
+
+create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b')) engine=aria;
+insert into t1 (a) values (1),(2),(3);
+alter online table t1 modify b int default 5;
+alter online table t1 change b new_name int;
+alter online table t1 modify e enum('a','b','c');
+alter online table t1 comment "new comment";
+show create table t1;
+alter online table t1 page_checksum=1;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter online table t1 page_checksum=0;
+drop table t1;
+
+#
+# Test of things that is not possible to do online
+#
+
+create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
+insert into t1 (a) values (1),(2),(3);
+
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter online table t1 drop column b, add b int;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter online table t1 modify b bigint;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter online table t1 modify e enum('c','a','b');
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter online table t1 modify c varchar(50);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter online table t1 modify c varchar(100);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter online table t1 add f int;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter online table t1 engine=memory;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter online table t1 rename to t2;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter online table t1 checksum=1;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter online table t1 add constraint check (b > 0);
+
+alter table t1 engine=innodb;
+alter table t1 add index (b);
+alter online table t1 add index c (c);
+alter online table t1 drop index b;
+alter online table t1 comment "new comment";
+show create table t1;
+drop table t1;
+
+create temporary table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b'));
+insert into t1 (a) values (1),(2),(3);
+
+#
+# everything with temporary tables is "online", i.e. without locks
+#
+alter online table t1 drop column b, add b int;
+alter online table t1 modify b bigint;
+alter online table t1 modify e enum('c','a','b');
+alter online table t1 modify c varchar(50);
+alter online table t1 modify c varchar(100);
+alter online table t1 add f int;
+alter online table t1 engine=memory;
+
+alter table t1 engine=innodb;
+alter table t1 add index (b);
+alter online table t1 add index c (c);
+alter online table t1 drop index b;
+drop table t1;
+
+#
+# Test merge tables
+#
+create table t1 (a int not null primary key, b int, c varchar(80));
+create table t2 (a int not null primary key, b int, c varchar(80));
+create table t3 (a int not null primary key, b int, c varchar(80)) engine=merge UNION=(t1);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter online table t3 union=(t1,t2);
+drop table t1,t2,t3;
+
+#
+# MDEV-9868 Altering a partitioned table comment does a full copy
+#
+create table t1 (i int) partition by hash(i) partitions 2;
+alter online table t1 comment 'test';
+drop table t1;
+
+#
+# MDEV-9168 altering a column comment does a full copy
+#
+create table t1 (a int);
+alter online table t1 modify a int comment 'test';
+drop table t1;
+
+create table t1 (a int) engine=innodb;
+alter online table t1 modify a int comment 'test';
+drop table t1;
+
+create table t1 (a int) partition by hash(a) partitions 2;
+alter online table t1 modify a int comment 'test';
+drop table t1;
+
+--echo #
+--echo # MDEV-8948 ALTER ... INPLACE does work for BINARY, BLOB
+--echo #
+#
+# ALTER to the same [VAR]BINARY type
+#
+CREATE TABLE t1 (a BINARY(10));
+ALTER TABLE t1 MODIFY a BINARY(10), ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARBINARY(10));
+ALTER TABLE t1 MODIFY a VARBINARY(10), ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+#
+# ALTER to the same BLOB variant
+#
+CREATE TABLE t1 (a TINYBLOB);
+ALTER TABLE t1 MODIFY a TINYBLOB, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a MEDIUMBLOB);
+ALTER TABLE t1 MODIFY a MEDIUMBLOB, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a BLOB);
+ALTER TABLE t1 MODIFY a BLOB, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a LONGBLOB);
+ALTER TABLE t1 MODIFY a LONGBLOB, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+#
+# ALTER to the same [VAR]CHAR type
+#
+CREATE TABLE t1 (a CHAR(10));
+ALTER TABLE t1 MODIFY a CHAR(10), ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10));
+ALTER TABLE t1 MODIFY a VARCHAR(10), ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+
+#
+# ALTER to the same TEXT variant
+#
+CREATE TABLE t1 (a TINYTEXT);
+ALTER TABLE t1 MODIFY a TINYTEXT, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a MEDIUMTEXT);
+ALTER TABLE t1 MODIFY a MEDIUMTEXT, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TEXT);
+ALTER TABLE t1 MODIFY a TEXT, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a LONGTEXT);
+ALTER TABLE t1 MODIFY a LONGTEXT, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+#
+# ALTER from a non-binary to a binary collation
+#
+CREATE TABLE t1 (a CHAR(10));
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a CHAR(10) COLLATE latin1_bin, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10));
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE latin1_bin, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TINYTEXT);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a TINYTEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a MEDIUMTEXT);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a MEDIUMTEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TEXT);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a TEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a LONGTEXT);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_bin, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+#
+# ALTER from a binary to a non-binary collation
+#
+CREATE TABLE t1 (a CHAR(10) COLLATE latin1_bin);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a CHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) COLLATE latin1_bin);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TINYTEXT COLLATE latin1_bin);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a TINYTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a MEDIUMTEXT COLLATE latin1_bin);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a MEDIUMTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TEXT COLLATE latin1_bin);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a TEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a LONGTEXT COLLATE latin1_bin);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+#
+# ALTER from a non-binary collation to another non-binary collation
+#
+CREATE TABLE t1 (a CHAR(10) COLLATE latin1_general_ci);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a CHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(10) COLLATE latin1_general_ci);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a VARCHAR(10) COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TINYTEXT COLLATE latin1_general_ci);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a TINYTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a MEDIUMTEXT COLLATE latin1_general_ci);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a MEDIUMTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TEXT COLLATE latin1_general_ci);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a TEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a LONGTEXT COLLATE latin1_general_ci);
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+ALTER TABLE t1 MODIFY a LONGTEXT COLLATE latin1_swedish_ci, ALGORITHM=INPLACE;
+DROP TABLE t1;
+
+# End of 10.0 tests
+
+#
+# MDEV-11335 Changing delay_key_write option for MyISAM table should not copy rows
+#
+select @@global.delay_key_write;
+create table t1 (a int, b int, key(b));
+flush tables;
+flush status;
+show status like 'Feature_delay_key_write';
+insert t1 values (1,2),(2,3),(3,4);
+show status like 'Feature_delay_key_write';
+alter online table t1 delay_key_write=1;
+show status like 'Feature_delay_key_write';
+flush tables;
+insert t1 values (1,2),(2,3),(3,4);
+show status like 'Feature_delay_key_write';
+alter online table t1 delay_key_write=0;
+show status like 'Feature_delay_key_write';
+flush tables;
+insert t1 values (1,2),(2,3),(3,4);
+show status like 'Feature_delay_key_write';
+drop table t1;
+
+# End of 10.1 tests

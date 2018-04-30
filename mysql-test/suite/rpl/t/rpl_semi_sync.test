@@ -1,1 +1,1 @@
---source extra/rpl_tests/rpl_semi_sync.inc
+--source include/rpl_semi_sync.inc

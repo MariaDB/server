@@ -1034,7 +1034,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
   while ((item= it++))
   {
     Send_field server_field;
-    item->make_field(thd, &server_field);
+    item->make_send_field(thd, &server_field);
 
     /* Keep things compatible for old clients */
     if (server_field.type == MYSQL_TYPE_VARCHAR)

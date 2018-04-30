@@ -856,21 +856,6 @@ bool partition_info::has_unique_name(partition_element *element)
   DBUG_RETURN(TRUE);
 }
 
-bool partition_info::vers_init_info(THD * thd)
-{
-  part_type= VERSIONING_PARTITION;
-  list_of_part_fields= TRUE;
-  column_list= TRUE;
-  num_columns= 1;
-  vers_info= new (thd->mem_root) Vers_part_info;
-  if (!vers_info)
-  {
-    mem_alloc_error(sizeof(Vers_part_info));
-    return true;
-  }
-  return false;
-}
-
 void partition_info::vers_set_hist_part(THD *thd)
 {
   if (vers_info->limit)
@@ -2442,7 +2427,7 @@ static bool strcmp_null(const char *a, const char *b)
   such partitioned tables using numeric colums in the partitioning expression.
   For more info see bug#14521864.
   Does not check if columns etc has changed, i.e. only for
-  alter_info->flags == ALTER_PARTITION.
+  alter_info->partition_flags == ALTER_PARTITION_INFO.
 */
 
 bool partition_info::has_same_partitioning(partition_info *new_part_info)
@@ -2662,30 +2647,6 @@ bool partition_info::has_same_partitioning(partition_info *new_part_info)
 }
 
 
-bool partition_info::vers_trx_id_to_ts(THD* thd, Field* in_trx_id, Field_timestamp& out_ts)
-{
-  DBUG_ASSERT(table);
-  handlerton *hton= plugin_hton(table->s->db_plugin);
-  DBUG_ASSERT(hton);
-  ulonglong trx_id= in_trx_id->val_int();
-  TR_table trt(thd);
-  bool found= trt.query(trx_id);
-  if (!found)
-  {
-    push_warning_printf(thd,
-      Sql_condition::WARN_LEVEL_WARN,
-      WARN_VERS_TRX_MISSING,
-      ER_THD(thd, WARN_VERS_TRX_MISSING),
-      trx_id);
-    return true;
-  }
-  MYSQL_TIME ts;
-  trt[TR_table::FLD_COMMIT_TS]->get_date(&ts, 0);
-  out_ts.store_time_dec(&ts, 6);
-  return false;
-}
-
-
 void partition_info::print_debug(const char *str, uint *value)
 {
   DBUG_ENTER("print_debug");
@@ -2746,6 +2707,22 @@ bool check_partition_dirs(partition_info *part_info)
 }
 
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
+
+bool partition_info::vers_init_info(THD * thd)
+{
+  part_type= VERSIONING_PARTITION;
+  list_of_part_fields= TRUE;
+  column_list= TRUE;
+  num_columns= 1;
+  vers_info= new (thd->mem_root) Vers_part_info;
+  if (!vers_info)
+  {
+    mem_alloc_error(sizeof(Vers_part_info));
+    return true;
+  }
+  return false;
+}
+
 
 bool partition_info::error_if_requires_values() const
 {

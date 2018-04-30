@@ -37,10 +37,7 @@ Created 3/26/1996 Heikki Tuuri
 @return rollback segment header, page x-latched */
 UNIV_INLINE
 trx_rsegf_t*
-trx_rsegf_get(
-	ulint			space,
-	ulint			page_no,
-	mtr_t*			mtr);
+trx_rsegf_get(fil_space_t* space, ulint page_no, mtr_t* mtr);
 
 /** Gets a newly created rollback segment header.
 @param[in]	space		space where placed
@@ -71,20 +68,18 @@ UNIV_INLINE
 ulint
 trx_rsegf_undo_find_free(const trx_rsegf_t* rsegf);
 
-/** Creates a rollback segment header.
-This function is called only when a new rollback segment is created in
-the database.
-@param[in]	space		space id
+/** Create a rollback segment header.
+@param[in,out]	space		system, undo, or temporary tablespace
 @param[in]	rseg_id		rollback segment identifier
 @param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
 @param[in,out]	mtr		mini-transaction
 @return page number of the created segment, FIL_NULL if fail */
 ulint
 trx_rseg_header_create(
-	ulint			space,
-	ulint			rseg_id,
-	buf_block_t*		sys_header,
-	mtr_t*			mtr);
+	fil_space_t*	space,
+	ulint		rseg_id,
+	buf_block_t*	sys_header,
+	mtr_t*		mtr);
 
 /** Initialize the rollback segments in memory at database startup. */
 void
@@ -135,7 +130,7 @@ struct trx_rseg_t {
 	RsegMutex			mutex;
 
 	/** space where the rollback segment header is placed */
-	ulint				space;
+	fil_space_t*			space;
 
 	/** page number of the rollback segment header */
 	ulint				page_no;
@@ -188,20 +183,20 @@ struct trx_rseg_t {
 	/** @return whether the rollback segment is persistent */
 	bool is_persistent() const
 	{
-		ut_ad(space == SRV_TMP_SPACE_ID
-		      || space == TRX_SYS_SPACE
+		ut_ad(space == fil_system.temp_space
+		      || space == fil_system.sys_space
 		      || (srv_undo_space_id_start > 0
-			  && space >= srv_undo_space_id_start
-			  && space <= srv_undo_space_id_start
+			  && space->id >= srv_undo_space_id_start
+			  && space->id <= srv_undo_space_id_start
 			  + TRX_SYS_MAX_UNDO_SPACES));
-		ut_ad(space == SRV_TMP_SPACE_ID
-		      || space == TRX_SYS_SPACE
+		ut_ad(space == fil_system.temp_space
+		      || space == fil_system.sys_space
 		      || (srv_undo_space_id_start > 0
-			  && space >= srv_undo_space_id_start
-			  && space <= srv_undo_space_id_start
+			  && space->id >= srv_undo_space_id_start
+			  && space->id <= srv_undo_space_id_start
 			  + srv_undo_tablespaces_active)
 		      || !srv_was_started);
-		return(space != SRV_TMP_SPACE_ID);
+		return(space->id != SRV_TMP_SPACE_ID);
 	}
 };
 

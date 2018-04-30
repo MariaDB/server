@@ -35,6 +35,7 @@ Created 2/2/1994 Heikki Tuuri
 #include "lock0lock.h"
 #include "fut0lst.h"
 #include "btr0sea.h"
+#include "trx0sys.h"
 
 /*			THE INDEX PAGE
 			==============
@@ -237,9 +238,9 @@ page_set_autoinc(
 {
 	ut_ad(mtr_memo_contains_flagged(
 		      mtr, block, MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX));
-	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->is_primary());
 	ut_ad(index->page == block->page.id.page_no());
-	ut_ad(index->space == block->page.id.space());
+	ut_ad(index->table->space->id == block->page.id.space());
 
 	byte*	field = PAGE_HEADER + PAGE_ROOT_AUTO_INC
 		+ buf_block_get_frame(block);

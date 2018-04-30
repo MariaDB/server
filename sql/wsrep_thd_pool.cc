@@ -54,6 +54,7 @@ Wsrep_thd_pool::Wsrep_thd_pool(size_t threads)
   threads_(threads),
   pool_()
 {
+  WSREP_DEBUG("Wsrep_thd_pool constructor");
   wsp::auto_lock lock(&LOCK_wsrep_thd_pool);
   pool_.reserve(threads);
   for (size_t i= 0; i < threads; ++i)
@@ -107,7 +108,6 @@ void Wsrep_thd_pool::release_thd(THD* thd)
   DBUG_ASSERT(!thd->mdl_context.has_locks());
   DBUG_ASSERT(!thd->open_tables);
   DBUG_ASSERT(thd->transaction.stmt.is_empty());
-
   wsp::auto_lock lock(&LOCK_wsrep_thd_pool);
   if (pool_.size() < threads_)
   {

@@ -307,7 +307,7 @@ int my_pthread_mutex_trylock(pthread_mutex_t *mutex);
 
 #ifndef set_timespec_nsec
 #define set_timespec_nsec(ABSTIME,NSEC)                                 \
-  set_timespec_time_nsec((ABSTIME), my_hrtime().val*1000 + (NSEC))
+  set_timespec_time_nsec((ABSTIME), my_hrtime_coarse().val*1000 + (NSEC))
 #endif /* !set_timespec_nsec */
 
 /* adapt for two different flavors of struct timespec */
@@ -501,9 +501,9 @@ void safe_mutex_free_deadlock_data(safe_mutex_t *mp);
      MDL subsystem deadlock detector relies on this property for
      its correctness.
   2) They are optimized for uncontended wr-lock/unlock case.
-     This is scenario in which they are most oftenly used
+     This is a scenario in which they are most often used
      within MDL subsystem. Optimizing for it gives significant
-     performance improvements in some of tests involving many
+     performance improvements in some of the tests involving many
      connections.
 
   Another important requirement imposed on this type of rwlock

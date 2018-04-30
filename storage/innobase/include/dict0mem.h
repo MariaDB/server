@@ -49,7 +49,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "os0once.h"
 #include "ut0new.h"
 #include "fil0fil.h"
-#include <my_crypt.h>
 #include "fil0crypt.h"
 #include <set>
 #include <algorithm>
@@ -307,22 +306,13 @@ dict_table_t*
 dict_mem_table_create(
 /*==================*/
 	const char*	name,		/*!< in: table name */
-	ulint		space,		/*!< in: space where the clustered index
-					of the table is placed */
+	fil_space_t*	space,		/*!< in: tablespace */
 	ulint		n_cols,		/*!< in: total number of columns
 					including virtual and non-virtual
 					columns */
 	ulint		n_v_cols,	/*!< in: number of virtual columns */
 	ulint		flags,		/*!< in: table flags */
 	ulint		flags2);	/*!< in: table flags2 */
-/**********************************************************************//**
-Determines if a table belongs to a system database
-@return */
-UNIV_INTERN
-bool
-dict_mem_table_is_system(
-/*==================*/
-	char	*name);		/*!< in: table name */
 /****************************************************************//**
 Free a table memory object. */
 void
@@ -406,11 +396,7 @@ dict_mem_fill_index_struct(
 /*=======================*/
 	dict_index_t*	index,		/*!< out: index to be filled */
 	mem_heap_t*	heap,		/*!< in: memory heap */
-	const char*	table_name,	/*!< in: table name */
 	const char*	index_name,	/*!< in: index name */
-	ulint		space,		/*!< in: space where the index tree is
-					placed, ignored if the index is of
-					the clustered type */
 	ulint		type,		/*!< in: DICT_UNIQUE,
 					DICT_CLUSTERED, ... ORed */
 	ulint		n_fields);	/*!< in: number of fields */
@@ -420,11 +406,8 @@ Creates an index memory object.
 dict_index_t*
 dict_mem_index_create(
 /*==================*/
-	const char*	table_name,	/*!< in: table name */
+	dict_table_t*	table,		/*!< in: table */
 	const char*	index_name,	/*!< in: index name */
-	ulint		space,		/*!< in: space where the index tree is
-					placed, ignored if the index is of
-					the clustered type */
 	ulint		type,		/*!< in: DICT_UNIQUE,
 					DICT_CLUSTERED, ... ORed */
 	ulint		n_fields);	/*!< in: number of fields */
@@ -561,36 +544,6 @@ private:
 	const char*	m_name;
 };
 
-/** Table name wrapper for pretty-printing */
-struct table_name_t
-{
-	/** The name in internal representation */
-	char*	m_name;
-
-	/** @return the end of the schema name */
-	const char* dbend() const
-	{
-		const char* sep = strchr(m_name, '/');
-		ut_ad(sep);
-		return sep;
-	}
-
-	/** @return the length of the schema name, in bytes */
-	size_t dblen() const { return dbend() - m_name; }
-
-	/** Determine the filename-safe encoded table name.
-	@return	the filename-safe encoded table name */
-	const char* basename() const { return dbend() + 1; }
-
-	/** The start of the table basename suffix for partitioned tables */
-	static const char part_suffix[4];
-
-	/** Determine the partition or subpartition name suffix.
-	@return the partition name
-	@retval	NULL	if the table is not partitioned */
-	const char* part() const { return strstr(basename(), part_suffix); }
-};
-
 /** Data structure for a column in a table */
 struct dict_col_t{
 	/*----------------------*/
@@ -652,8 +605,13 @@ struct dict_col_t{
 	/** @return whether NULL is an allowed value for this column */
 	bool is_nullable() const { return !(prtype & DATA_NOT_NULL); }
 
-	/** @return whether this is system field */
-	bool vers_sys_field() const { return prtype & DATA_VERSIONED; }
+	/** @return whether table of this system field is TRX_ID-based */
+	bool vers_native() const
+	{
+		ut_ad(vers_sys_start() || vers_sys_end());
+		ut_ad(mtype == DATA_INT || mtype == DATA_FIXBINARY);
+		return mtype == DATA_INT;
+	}
 	/** @return whether this is system versioned */
 	bool is_versioned() const { return !(~prtype & DATA_VERSIONED); }
 	/** @return whether this is the system version start */
@@ -892,10 +850,7 @@ struct dict_index_t{
 	index_id_t	id;	/*!< id of the index */
 	mem_heap_t*	heap;	/*!< memory heap */
 	id_name_t	name;	/*!< index name */
-	const char*	table_name;/*!< table name */
 	dict_table_t*	table;	/*!< back pointer to table */
-	unsigned	space:32;
-				/*!< space where the index tree is placed */
 	unsigned	page:32;/*!< index tree root page number */
 	unsigned	merge_threshold:6;
 				/*!< In the pessimistic delete, if the page
@@ -1068,6 +1023,10 @@ struct dict_index_t{
 		ut_ad(committed || !(type & DICT_CLUSTERED));
 		uncommitted = !committed;
 	}
+
+	/** Notify that the index pages are going to be modified.
+	@param[in,out]	mtr	mini-transaction */
+	inline void set_modified(mtr_t& mtr) const;
 
 	/** @return whether this index is readable
 	@retval	true	normally
@@ -1509,6 +1468,7 @@ struct dict_table_t {
 			page cannot be read or decrypted */
 	bool is_readable() const
 	{
+		ut_ad(file_unreadable || space);
 		return(UNIV_LIKELY(!file_unreadable));
 	}
 
@@ -1588,8 +1548,10 @@ struct dict_table_t {
 	/** NULL or the directory path specified by DATA DIRECTORY. */
 	char*					data_dir_path;
 
-	/** Space where the clustered index of the table is placed. */
-	uint32_t				space;
+	/** The tablespace of the table */
+	fil_space_t*				space;
+	/** Tablespace ID */
+	ulint					space_id;
 
 	/** Stores information about:
 	1 row format (redundant or compact),
@@ -1952,6 +1914,11 @@ public:
 	columns */
 	dict_vcol_templ_t*			vc_templ;
 };
+
+inline void dict_index_t::set_modified(mtr_t& mtr) const
+{
+	mtr.set_named_space(table->space);
+}
 
 inline bool dict_index_t::is_readable() const
 {

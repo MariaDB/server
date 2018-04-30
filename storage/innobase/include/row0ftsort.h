@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -175,15 +175,15 @@ tokenized doc string. The index has three "fields":
 dict_index_t*
 row_merge_create_fts_sort_index(
 /*============================*/
-	dict_index_t*		index,	/*!< in: Original FTS index
-					based on which this sort index
-					is created */
-	const dict_table_t*	table,	/*!< in: table that FTS index
-					is being created on */
-	ibool*			opt_doc_id_size);
-					/*!< out: whether to use 4 bytes
-					instead of 8 bytes integer to
-					store Doc ID during sort */
+	dict_index_t*	index,	/*!< in: Original FTS index
+				based on which this sort index
+				is created */
+	dict_table_t*	table,	/*!< in,out: table that FTS index
+				is being created on */
+	ibool*		opt_doc_id_size);
+				/*!< out: whether to use 4 bytes
+				instead of 8 bytes integer to
+				store Doc ID during sort */
 
 /********************************************************************//**
 Initialize FTS parallel sort structures.

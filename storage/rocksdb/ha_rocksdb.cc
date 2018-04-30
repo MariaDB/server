@@ -3957,13 +3957,24 @@ static rocksdb::Status check_rocksdb_options_compatibility(
   return status;
 }
 
+bool prevent_myrocks_loading= false;
+
 
 /*
   Storage Engine initialization function, invoked when plugin is loaded.
 */
 
 static int rocksdb_init_func(void *const p) {
+
   DBUG_ENTER_FUNC();
+
+  if (prevent_myrocks_loading)
+  {
+    my_error(ER_INTERNAL_ERROR, MYF(0),
+             "Loading MyRocks plugin after it has been unloaded is not "
+             "supported. Please restart mysqld");
+    DBUG_RETURN(1);
+  }
 
   // Validate the assumption about the size of ROCKSDB_SIZEOF_HIDDEN_PK_COLUMN.
   static_assert(sizeof(longlong) == 8, "Assuming that longlong is 8 bytes.");
@@ -4417,6 +4428,49 @@ static int rocksdb_done_func(void *const p) {
   }
 
   /*
+    MariaDB: When the plugin is unloaded with UNINSTALL SONAME command, some
+    connections may still have Rdb_transaction objects.
+
+    These objects are not genuine transactions (as SQL layer makes sure that
+    a plugin that is being unloaded has no open tables), they are empty
+    Rdb_transaction objects that were left there to save on object
+    creation/deletion.
+
+    Go through the list and delete them.
+  */
+  {
+    class Rdb_trx_deleter: public Rdb_tx_list_walker {
+    public:
+      std::set<Rdb_transaction*> rdb_trxs;
+
+      void process_tran(const Rdb_transaction *const tx) override {
+        /*
+          Check if the transaction is really empty. We only check
+          non-WriteBatch-based transactions, because there is no easy way to
+          check WriteBatch-based transactions.
+        */
+        if (!tx->is_writebatch_trx()) {
+          const auto tx_impl = static_cast<const Rdb_transaction_impl *>(tx);
+          DBUG_ASSERT(tx_impl);
+          if (tx_impl->get_rdb_trx())
+            DBUG_ASSERT(0);
+        }
+        rdb_trxs.insert((Rdb_transaction*)tx);
+      };
+    } deleter;
+
+    Rdb_transaction::walk_tx_list(&deleter);
+
+    for (std::set<Rdb_transaction*>::iterator it= deleter.rdb_trxs.begin();
+         it != deleter.rdb_trxs.end();
+         ++it)
+    {
+      // When a transaction is deleted, it removes itself from s_tx_list.
+      delete *it;
+    }
+  }
+
+  /*
     destructors for static objects can be called at _exit(),
     but we want to free the memory at dlclose()
   */
@@ -4462,11 +4516,26 @@ static int rocksdb_done_func(void *const p) {
   }
 #endif /* HAVE_purify */
 
-  rocksdb_db_options = nullptr;
-  rocksdb_tbl_options = nullptr;
+  /*
+    MariaDB: don't clear rocksdb_db_options and rocksdb_tbl_options.
+    MyRocks' plugin variables refer to them.
+
+    The plugin cannot be loaded again (see prevent_myrocks_loading) but plugin
+    variables are processed before myrocks::rocksdb_init_func is invoked, so
+    they must point to valid memory.
+  */
+  //rocksdb_db_options = nullptr;
+  rocksdb_db_options->statistics = nullptr;
+  //rocksdb_tbl_options = nullptr;
   rocksdb_stats = nullptr;
 
   my_error_unregister(HA_ERR_ROCKSDB_FIRST, HA_ERR_ROCKSDB_LAST);
+
+  /*
+    Prevent loading the plugin after it has been loaded and then unloaded. This
+    doesn't work currently.
+  */
+  prevent_myrocks_loading= true;
 
   DBUG_RETURN(error);
 }
@@ -9988,6 +10057,7 @@ int ha_rocksdb::external_lock(THD *const thd, int lock_type) {
       thd->lex->sql_command != SQLCOM_LOCK_TABLES &&  // (*)
       thd->lex->sql_command != SQLCOM_ANALYZE &&   // (**)
       thd->lex->sql_command != SQLCOM_OPTIMIZE &&  // (**)
+      thd->lex->sql_command != SQLCOM_FLUSH &&  // (**)
       my_core::thd_binlog_filter_ok(thd)) {
     my_error(ER_REQUIRE_ROW_BINLOG_FORMAT, MYF(0));
     DBUG_RETURN(HA_ERR_UNSUPPORTED);
@@ -10882,17 +10952,17 @@ my_core::enum_alter_inplace_result ha_rocksdb::check_if_supported_inplace_alter(
   DBUG_ASSERT(ha_alter_info != nullptr);
 
   if (ha_alter_info->handler_flags &
-      ~(my_core::Alter_inplace_info::DROP_INDEX |
-        my_core::Alter_inplace_info::DROP_UNIQUE_INDEX |
-        my_core::Alter_inplace_info::ADD_INDEX |
-        my_core::Alter_inplace_info::ALTER_PARTITIONED |
-        my_core::Alter_inplace_info::ADD_UNIQUE_INDEX)) {
+      ~(ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX |
+        ALTER_DROP_UNIQUE_INDEX |
+        ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX |
+        ALTER_PARTITIONED |
+        ALTER_ADD_UNIQUE_INDEX)) {
     DBUG_RETURN(my_core::HA_ALTER_INPLACE_NOT_SUPPORTED);
   }
 
   /* We don't support unique keys on table w/ no primary keys */
   if ((ha_alter_info->handler_flags &
-       my_core::Alter_inplace_info::ADD_UNIQUE_INDEX) &&
+       ALTER_ADD_UNIQUE_INDEX) &&
       has_hidden_pk(altered_table)) {
     DBUG_RETURN(my_core::HA_ALTER_INPLACE_NOT_SUPPORTED);
   }
@@ -10958,10 +11028,10 @@ bool ha_rocksdb::prepare_inplace_alter_table(
       m_tbl_def->m_hidden_pk_val.load(std::memory_order_relaxed);
 
   if (ha_alter_info->handler_flags &
-          (my_core::Alter_inplace_info::DROP_INDEX |
-           my_core::Alter_inplace_info::DROP_UNIQUE_INDEX |
-           my_core::Alter_inplace_info::ADD_INDEX |
-           my_core::Alter_inplace_info::ADD_UNIQUE_INDEX) &&
+          (ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX |
+           ALTER_DROP_UNIQUE_INDEX |
+           ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX |
+           ALTER_ADD_UNIQUE_INDEX) &&
       create_key_defs(altered_table, new_tdef, table, m_tbl_def)) {
     /* Delete the new key descriptors */
     delete[] new_key_descr;
@@ -11077,8 +11147,8 @@ bool ha_rocksdb::inplace_alter_table(
       static_cast<Rdb_inplace_alter_ctx *>(ha_alter_info->handler_ctx);
 
   if (ha_alter_info->handler_flags &
-      (my_core::Alter_inplace_info::ADD_INDEX |
-       my_core::Alter_inplace_info::ADD_UNIQUE_INDEX)) {
+      (ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX |
+       ALTER_ADD_UNIQUE_INDEX)) {
     /*
       Buffers need to be set up again to account for new, possibly longer
       secondary keys.
@@ -11094,7 +11164,7 @@ bool ha_rocksdb::inplace_alter_table(
     if ((err = alloc_key_buffers(
              altered_table, ctx->m_new_tdef,
              ha_alter_info->handler_flags &
-                 my_core::Alter_inplace_info::ADD_UNIQUE_INDEX))) {
+                 ALTER_ADD_UNIQUE_INDEX))) {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       DBUG_RETURN(err);
     }
@@ -11433,10 +11503,10 @@ bool ha_rocksdb::commit_inplace_alter_table(
   ha_alter_info->group_commit_ctx = nullptr;
 
   if (ha_alter_info->handler_flags &
-      (my_core::Alter_inplace_info::DROP_INDEX |
-       my_core::Alter_inplace_info::DROP_UNIQUE_INDEX |
-       my_core::Alter_inplace_info::ADD_INDEX |
-       my_core::Alter_inplace_info::ADD_UNIQUE_INDEX)) {
+      (ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX |
+       ALTER_DROP_UNIQUE_INDEX |
+       ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX |
+       ALTER_ADD_UNIQUE_INDEX)) {
     const std::unique_ptr<rocksdb::WriteBatch> wb = dict_manager.begin();
     rocksdb::WriteBatch *const batch = wb.get();
     std::unordered_set<GL_INDEX_ID> create_index_ids;

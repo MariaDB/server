@@ -424,7 +424,6 @@ public:
     }
     return NULL;
   }
-  bool vers_trx_id_to_ts(THD *thd, Field *in_trx_id, Field_timestamp &out_ts);
 };
 
 uint32 get_next_partition_id_range(struct st_partition_iter* part_iter);

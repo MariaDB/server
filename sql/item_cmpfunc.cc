@@ -34,7 +34,6 @@
 #include "sql_time.h"                  // make_truncated_value_warning
 #include "sql_base.h"                  // dynamic_column_error_message
 
-
 /**
   find an temporal type (item) that others will be converted to
   for the purpose of comparison.
@@ -42,7 +41,7 @@
   this is the type that will be used in warnings like
   "Incorrect <<TYPE>> value".
 */
-Item *find_date_time_item(Item **args, uint nargs, uint col)
+static Item *find_date_time_item(Item **args, uint nargs, uint col)
 {
   Item *date_arg= 0, **arg, **arg_end;
   for (arg= args, arg_end= args + nargs; arg != arg_end ; arg++)
@@ -703,62 +702,6 @@ Item** Arg_comparator::cache_converted_constant(THD *thd_arg, Item **value,
     cache->setup(thd_arg, *value);
     *cache_item= cache;
     return cache_item;
-  }
-  return value;
-}
-
-
-/**
-  Retrieves correct DATETIME value from given item.
-
-  @param[in]     thd         thread handle
-  @param[in,out] item_arg    item to retrieve DATETIME value from
-  @param[in,out] cache_arg   pointer to place to store the caching item to
-  @param[in]     warn_item   item for issuing the conversion warning
-  @param[out]    is_null     TRUE <=> the item_arg is null
-
-  @details
-    Retrieves the correct DATETIME value from given item for comparison by the
-    compare_datetime() function.
-
-    If the value should be compared as time (TIME_RESULT), it's retrieved as
-    MYSQL_TIME. Otherwise it's read as a number/string and converted to time.
-    Constant items are cached, so the convertion is only done once for them.
-
-    Note the f_type behavior: if the item can be compared as time, then
-    f_type is this item's field_type(). Otherwise it's field_type() of
-    warn_item (which is the other operand of the comparison operator).
-    This logic provides correct string/number to date/time conversion
-    depending on the other operand (when comparing a string with a date, it's
-    parsed as a date, when comparing a string with a time it's parsed as a time)
-
-    If the item is a constant it is replaced by the Item_cache_int, that
-    holds the packed datetime value.
-
-  @return
-    MYSQL_TIME value, packed in a longlong, suitable for comparison.
-*/
-
-longlong
-get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
-                   enum_field_types f_type, bool *is_null)
-{
-  longlong UNINIT_VAR(value);
-  Item *item= **item_arg;
-  value= item->val_temporal_packed(f_type);
-  if ((*is_null= item->null_value))
-    return ~(ulonglong) 0;
-  if (cache_arg && item->const_item() &&
-      !(item->type() == Item::CACHE_ITEM && item->cmp_type() == TIME_RESULT))
-  {
-    if (!thd)
-      thd= current_thd;
-    const Type_handler *h= Type_handler::get_handler_by_field_type(f_type);
-    Item_cache *tmp_cache= h->Item_get_cache(thd, item);
-    Item_cache_temporal *cache= static_cast<Item_cache_temporal*>(tmp_cache);
-    cache->store_packed(value, item);
-    *cache_arg= cache;
-    *item_arg= cache_arg;
   }
   return value;
 }
@@ -2891,6 +2834,28 @@ Item_func_nullif::is_null()
   return (null_value= (!compare() ? 1 : args[2]->null_value));
 }
 
+void Item_func_case::reorder_args(uint start)
+{
+  /*
+    Reorder args, to have at first the optional CASE expression, then all WHEN
+    expressions, then all THEN expressions. And the optional ELSE expression
+    at the end.
+
+    We reorder an even number of arguments, starting from start.
+  */
+  uint count = (arg_count - start) / 2;
+  const size_t size= sizeof(Item*) * count * 2;
+  Item **arg_buffer= (Item **)my_safe_alloca(size);
+  memcpy(arg_buffer, &args[start], size);
+  for (uint i= 0; i < count; i++)
+  {
+    args[start + i]= arg_buffer[i*2];
+    args[start + i + count]= arg_buffer[i*2 + 1];
+  }
+  my_safe_afree(arg_buffer, size);
+}
+
+
 
 /**
     Find and return matching items for CASE or ELSE item if all compares
@@ -2918,8 +2883,8 @@ Item *Item_func_case_searched::find_item()
   uint count= when_count();
   for (uint i= 0 ; i < count ; i++)
   {
-    if (args[2 * i]->val_bool())
-      return args[2 * i + 1];
+    if (args[i]->val_bool())
+      return args[i + count];
   }
   Item **pos= Item_func_case_searched::else_expr_addr();
   return pos ? pos[0] : 0;
@@ -2931,7 +2896,7 @@ Item *Item_func_case_simple::find_item()
   /* Compare every WHEN argument with it and return the first match */
   uint idx;
   if (!Predicant_to_list_comparator::cmp(this, &idx, NULL))
-    return args[idx + 1];
+    return args[idx + when_count()];
   Item **pos= Item_func_case_simple::else_expr_addr();
   return pos ? pos[0] : 0;
 }
@@ -2941,7 +2906,7 @@ Item *Item_func_decode_oracle::find_item()
 {
   uint idx;
   if (!Predicant_to_list_comparator::cmp_nulls_equal(this, &idx))
-    return args[idx + 1];
+    return args[idx + when_count()];
   Item **pos= Item_func_decode_oracle::else_expr_addr();
   return pos ? pos[0] : 0;
 }
@@ -3039,27 +3004,11 @@ bool Item_func_case::time_op(MYSQL_TIME *ltime)
 
 bool Item_func_case::fix_fields(THD *thd, Item **ref)
 {
-  /*
-    buff should match stack usage from
-    Item_func_case::val_int() -> Item_func_case::find_item()
-  */
-  uchar buff[MAX_FIELD_WIDTH*2+sizeof(String)*2+sizeof(String*)*2+sizeof(double)*2+sizeof(longlong)*2];
-
-  if (!(arg_buffer= (Item**) thd->alloc(sizeof(Item*)*(arg_count))))
-    return TRUE;
-
   bool res= Item_func::fix_fields(thd, ref);
 
   Item **pos= else_expr_addr();
   if (!pos || pos[0]->maybe_null)
     maybe_null= 1;
-
-  /*
-    Call check_stack_overrun after fix_fields to be sure that stack variable
-    is not optimized away
-  */
-  if (check_stack_overrun(thd, STACK_MIN_SIZE, buff))
-    return TRUE;				// Fatal error flag is set!
   return res;
 }
 
@@ -3067,22 +3016,15 @@ bool Item_func_case::fix_fields(THD *thd, Item **ref)
 /**
   Check if (*place) and new_value points to different Items and call
   THD::change_item_tree() if needed.
-
-  This function is a workaround for implementation deficiency in
-  Item_func_case. The problem there is that the 'args' attribute contains
-  Items from different expressions.
- 
-  The function must not be used elsewhere and will be remove eventually.
 */
 
-static void change_item_tree_if_needed(THD *thd,
-                                       Item **place,
-                                       Item *new_value)
+static void propagate_and_change_item_tree(THD *thd, Item **place,
+                                           COND_EQUAL *cond,
+                                           const Item::Context &ctx)
 {
-  if (*place == new_value)
-    return;
-
-  thd->change_item_tree(place, new_value);
+  Item *new_value= (*place)->propagate_equal_fields(thd, ctx, cond);
+  if (new_value && *place != new_value)
+    thd->change_item_tree(place, new_value);
 }
 
 
@@ -3098,8 +3040,8 @@ bool Item_func_case_simple::prepare_predicant_and_values(THD *thd,
   for (uint i= 0 ; i < ncases; i++)
   {
     if (nulls_equal ?
-        add_value("case..when", this, i * 2 + 1) :
-        add_value_skip_null("case..when", this, i * 2 + 1, &have_null))
+        add_value("case..when", this, i + 1) :
+        add_value_skip_null("case..when", this, i + 1, &have_null))
       return true;
   }
   all_values_added(&tmp, &type_cnt, &m_found_types);
@@ -3113,16 +3055,14 @@ bool Item_func_case_simple::prepare_predicant_and_values(THD *thd,
 void Item_func_case_searched::fix_length_and_dec()
 {
   THD *thd= current_thd;
-  Item **else_ptr= Item_func_case_searched::else_expr_addr();
-  aggregate_then_and_else_arguments(thd, &args[1], when_count(), else_ptr);
+  aggregate_then_and_else_arguments(thd, when_count());
 }
 
 
 void Item_func_case_simple::fix_length_and_dec()
 {
   THD *thd= current_thd;
-  Item **else_ptr= Item_func_case_simple::else_expr_addr();
-  if (!aggregate_then_and_else_arguments(thd, &args[2], when_count(), else_ptr))
+  if (!aggregate_then_and_else_arguments(thd, when_count() + 1))
     aggregate_switch_and_when_arguments(thd, false);
 }
 
@@ -3130,8 +3070,7 @@ void Item_func_case_simple::fix_length_and_dec()
 void Item_func_decode_oracle::fix_length_and_dec()
 {
   THD *thd= current_thd;
-  Item **else_ptr= Item_func_decode_oracle::else_expr_addr();
-  if (!aggregate_then_and_else_arguments(thd, &args[2], when_count(), else_ptr))
+  if (!aggregate_then_and_else_arguments(thd, when_count() + 1))
     aggregate_switch_and_when_arguments(thd, true);
 }
 
@@ -3141,40 +3080,16 @@ void Item_func_decode_oracle::fix_length_and_dec()
   and collations when string result
   
   @param THD       - current thd
-  @param them_expr - the pointer to the leftmost THEN argument in args[]
-  @param count     - the number or THEN..ELSE pairs
-  @param else_epxr - the pointer to the ELSE arguments in args[]
-                     (or NULL is there is not ELSE)
+  @param start     - an element in args to start aggregating from
 */
-bool Item_func_case::aggregate_then_and_else_arguments(THD *thd,
-                                                       Item **then_expr,
-                                                       uint count,
-                                                       Item **else_expr)
+bool Item_func_case::aggregate_then_and_else_arguments(THD *thd, uint start)
 {
-  Item **agg= arg_buffer;
-  uint nagg;
-
-  for (nagg= 0 ; nagg < count ; nagg++)
-    agg[nagg]= then_expr[nagg * 2];
-
-  if (else_expr)
-    agg[nagg++]= *else_expr;
-
-  if (aggregate_for_result(func_name(), agg, nagg, true))
+  if (aggregate_for_result(func_name(), args + start, arg_count - start, true))
     return true;
 
-  if (fix_attributes(agg, nagg))
+  if (fix_attributes(args + start, arg_count - start))
     return true;
 
-  /*
-    Copy all modified THEN and ELSE items back to then_expr[] array.
-    Some of the items might have been changed to Item_func_conv_charset.
-  */
-  for (nagg= 0 ; nagg < count ; nagg++)
-    change_item_tree_if_needed(thd, &then_expr[nagg * 2], agg[nagg]);
-
-  if (else_expr)
-    change_item_tree_if_needed(thd, else_expr, agg[nagg++]);
   return false;
 }
 
@@ -3186,8 +3101,6 @@ bool Item_func_case::aggregate_then_and_else_arguments(THD *thd,
 bool Item_func_case_simple::aggregate_switch_and_when_arguments(THD *thd,
                                                                 bool nulls_eq)
 {
-  Item **agg= arg_buffer;
-  uint nagg;
   uint ncases= when_count();
   m_found_types= 0;
   if (prepare_predicant_and_values(thd, &m_found_types, nulls_eq))
@@ -3201,17 +3114,7 @@ bool Item_func_case_simple::aggregate_switch_and_when_arguments(THD *thd,
     return true;
   }
 
-  /*
-    As the predicant expression and WHEN expressions
-    are intermixed in args[] array THEN and ELSE items,
-    extract the first expression and all WHEN expressions into
-    a temporary array, to process them easier.
-  */
-  agg[0]= args[0]; // The predicant
-  for (nagg= 0; nagg < ncases ; nagg++)
-    agg[nagg+1]= args[nagg * 2 + 1];
-  nagg++;
-  if (!(m_found_types= collect_cmp_types(agg, nagg)))
+  if (!(m_found_types= collect_cmp_types(args, ncases + 1)))
     return true;
 
   if (m_found_types & (1U << STRING_RESULT))
@@ -3240,17 +3143,8 @@ bool Item_func_case_simple::aggregate_switch_and_when_arguments(THD *thd,
 
          CASE utf16_item WHEN CONVERT(latin1_item USING utf16) THEN ... END
     */
-    if (agg_arg_charsets_for_comparison(cmp_collation, agg, nagg))
+    if (agg_arg_charsets_for_comparison(cmp_collation, args, ncases + 1))
       return true;
-    /*
-      Now copy first expression and all WHEN expressions back to args[]
-      arrray, because some of the items might have been changed to converters
-      (e.g. Item_func_conv_charset, or Item_string for constants).
-    */
-    change_item_tree_if_needed(thd, &args[0], agg[0]);
-
-    for (nagg= 0; nagg < ncases; nagg++)
-      change_item_tree_if_needed(thd, &args[nagg * 2 + 1], agg[nagg + 1]);
   }
 
   if (make_unique_cmp_items(thd, cmp_collation.collation))
@@ -3267,77 +3161,57 @@ Item* Item_func_case_simple::propagate_equal_fields(THD *thd,
   const Type_handler *first_expr_cmp_handler;
 
   first_expr_cmp_handler= args[0]->type_handler_for_comparison();
-  for (uint i= 0; i < arg_count; i++)
+  /*
+    Cannot replace the CASE (the switch) argument if
+    there are multiple comparison types were found, or found a single
+    comparison type that is not equal to args[0]->cmp_type().
+
+    - Example: multiple comparison types, can't propagate:
+        WHERE CASE str_column
+              WHEN 'string' THEN TRUE
+              WHEN 1 THEN TRUE
+              ELSE FALSE END;
+
+    - Example: a single incompatible comparison type, can't propagate:
+        WHERE CASE str_column
+              WHEN DATE'2001-01-01' THEN TRUE
+              ELSE FALSE END;
+
+    - Example: a single incompatible comparison type, can't propagate:
+        WHERE CASE str_column
+              WHEN 1 THEN TRUE
+              ELSE FALSE END;
+
+    - Example: a single compatible comparison type, ok to propagate:
+        WHERE CASE str_column
+              WHEN 'str1' THEN TRUE
+              WHEN 'str2' THEN TRUE
+              ELSE FALSE END;
+  */
+  if (m_found_types == (1UL << first_expr_cmp_handler->cmp_type()))
+    propagate_and_change_item_tree(thd, &args[0], cond,
+      Context(ANY_SUBST, first_expr_cmp_handler, cmp_collation.collation));
+
+  /*
+    These arguments are in comparison.
+    Allow invariants of the same value during propagation.
+    Note, as we pass ANY_SUBST, none of the WHEN arguments will be
+    replaced to zero-filled constants (only IDENTITY_SUBST allows this).
+    Such a change for WHEN arguments would require rebuilding cmp_items.
+  */
+  uint i, count= when_count();
+  for (i= 1; i <= count; i++)
   {
-    /*
-      Even "i" values cover items that are in a comparison context:
-        CASE x0 WHEN x1 .. WHEN x2 .. WHEN x3 ..
-      Odd "i" values cover items that are not in comparison:
-        CASE ... THEN y1 ... THEN y2 ... THEN y3 ... ELSE y4 END
-    */
-    Item *new_item= 0;
-    if (i == 0) // Then CASE (the switch) argument
-    {
-      /*
-        Cannot replace the CASE (the switch) argument if
-        there are multiple comparison types were found, or found a single
-        comparison type that is not equal to args[0]->cmp_type().
-
-        - Example: multiple comparison types, can't propagate:
-            WHERE CASE str_column
-                  WHEN 'string' THEN TRUE
-                  WHEN 1 THEN TRUE
-                  ELSE FALSE END;
-
-        - Example: a single incompatible comparison type, can't propagate:
-            WHERE CASE str_column
-                  WHEN DATE'2001-01-01' THEN TRUE
-                  ELSE FALSE END;
-
-        - Example: a single incompatible comparison type, can't propagate:
-            WHERE CASE str_column
-                  WHEN 1 THEN TRUE
-                  ELSE FALSE END;
-
-        - Example: a single compatible comparison type, ok to propagate:
-            WHERE CASE str_column
-                  WHEN 'str1' THEN TRUE
-                  WHEN 'str2' THEN TRUE
-                  ELSE FALSE END;
-      */
-      if (m_found_types == (1UL << first_expr_cmp_handler->cmp_type()))
-        new_item= args[i]->propagate_equal_fields(thd,
-                                                  Context(
-                                                    ANY_SUBST,
-                                                    first_expr_cmp_handler,
-                                                    cmp_collation.collation),
-                                                  cond);
-    }
-    else if ((i % 2) == 1 && i != arg_count - 1) // WHEN arguments
-    {
-      /*
-        These arguments are in comparison.
-        Allow invariants of the same value during propagation.
-        Note, as we pass ANY_SUBST, none of the WHEN arguments will be
-        replaced to zero-filled constants (only IDENTITY_SUBST allows this).
-        Such a change for WHEN arguments would require rebuilding cmp_items.
-      */
-      Type_handler_hybrid_field_type tmp(first_expr_cmp_handler);
-      if (!tmp.aggregate_for_comparison(args[i]->type_handler_for_comparison()))
-        new_item= args[i]->propagate_equal_fields(thd,
-                                                  Context(
-                                                    ANY_SUBST,
-                                                    tmp.type_handler(),
-                                                    cmp_collation.collation),
-                                                  cond);
-    }
-    else // THEN and ELSE arguments (they are not in comparison)
-    {
-      new_item= args[i]->propagate_equal_fields(thd, Context_identity(), cond);
-    }
-    if (new_item && new_item != args[i])
-      thd->change_item_tree(&args[i], new_item);
+    Type_handler_hybrid_field_type tmp(first_expr_cmp_handler);
+    if (!tmp.aggregate_for_comparison(args[i]->type_handler_for_comparison()))
+      propagate_and_change_item_tree(thd, &args[i], cond,
+        Context(ANY_SUBST, tmp.type_handler(), cmp_collation.collation));
   }
+
+  // THEN and ELSE arguments (they are not in comparison)
+  for (; i < arg_count; i++)
+    propagate_and_change_item_tree(thd, &args[i], cond, Context_identity());
+
   return this;
 }
 
@@ -3349,9 +3223,9 @@ void Item_func_case::print_when_then_arguments(String *str,
   for (uint i=0 ; i < count ; i++)
   {
     str->append(STRING_WITH_LEN("when "));
-    items[i * 2]->print_parenthesised(str, query_type, precedence());
+    items[i]->print_parenthesised(str, query_type, precedence());
     str->append(STRING_WITH_LEN(" then "));
-    items[i * 2 + 1]->print_parenthesised(str, query_type, precedence());
+    items[i + count]->print_parenthesised(str, query_type, precedence());
     str->append(' ');
   }
 }
@@ -3388,6 +3262,28 @@ void Item_func_case_simple::print(String *str, enum_query_type query_type)
   if ((pos= Item_func_case_simple::else_expr_addr()))
     print_else_argument(str, query_type, pos[0]);
   str->append(STRING_WITH_LEN("end"));
+}
+
+
+void Item_func_decode_oracle::print(String *str, enum_query_type query_type)
+{
+  str->append(func_name());
+  str->append('(');
+  args[0]->print(str, query_type);
+  for (uint i= 1, count= when_count() ; i <= count; i++)
+  {
+    str->append(',');
+    args[i]->print(str, query_type);
+    str->append(',');
+    args[i+count]->print(str, query_type);
+  }
+  Item **else_expr= Item_func_case_simple::else_expr_addr();
+  if (else_expr)
+  {
+    str->append(',');
+    (*else_expr)->print(str, query_type);
+  }
+  str->append(')');
 }
 
 
@@ -3758,9 +3654,7 @@ void in_time::set(uint pos,Item *item)
 
 uchar *in_temporal::get_value_internal(Item *item, enum_field_types f_type)
 {
-  bool is_null;
-  Item **tmp_item= lval_cache ? &lval_cache : &item;
-  tmp.val= get_datetime_value(0, &tmp_item, &lval_cache, f_type, &is_null);
+  tmp.val= item->val_temporal_packed(f_type);
   if (item->null_value)
     return 0;
   tmp.unsigned_flag= 1L;
@@ -4119,9 +4013,7 @@ cmp_item* cmp_item_decimal::make_same()
 void cmp_item_temporal::store_value_internal(Item *item,
                                              enum_field_types f_type)
 {
-  bool is_null;
-  Item **tmp_item= lval_cache ? &lval_cache : &item;
-  value= get_datetime_value(0, &tmp_item, &lval_cache, f_type, &is_null);
+  value= item->val_temporal_packed(f_type);
   m_null_value= item->null_value;
 }
 
@@ -4920,17 +4812,14 @@ Item *Item_cond::propagate_equal_fields(THD *thd,
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
   DBUG_ASSERT(arg_count == 0);
   List_iterator<Item> li(list);
-  Item *item;
-  while ((item= li++))
+  while (li++)
   {
     /*
-      The exact value of the second parameter to propagate_equal_fields()
+      The exact value of the last parameter to propagate_and_change_item_tree()
       is not important at this point. Item_func derivants will create and
       pass their own context to the arguments.
     */
-    Item *new_item= item->propagate_equal_fields(thd, Context_boolean(), cond);
-    if (new_item && new_item != item)
-      thd->change_item_tree(li.ref(), new_item);
+    propagate_and_change_item_tree(thd, li.ref(), cond, Context_boolean());
   }
   return this;
 }

@@ -1188,7 +1188,7 @@ public:
     wrapper function for handlerton alter_table_flags, since
     the ha_partition_hton cannot know all its capabilities
   */
-  virtual ulonglong alter_table_flags(ulonglong flags);
+  virtual alter_table_operations alter_table_flags(alter_table_operations flags);
   /*
     unireg.cc will call the following to make sure that the storage engine
     can handle the data it is about to send.

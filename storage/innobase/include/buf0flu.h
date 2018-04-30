@@ -345,12 +345,12 @@ flushed to disk before any redo logged operations go to the index. */
 class FlushObserver {
 public:
 	/** Constructor
-	@param[in]	space_id	table space id
+	@param[in,out]	space		tablespace
 	@param[in]	trx		trx instance
 	@param[in]	stage		performance schema accounting object,
 	used by ALTER TABLE. It is passed to log_preflush_pool_modified_pages()
 	for accounting. */
-	FlushObserver(ulint space_id, trx_t* trx, ut_stage_alter_t* stage);
+	FlushObserver(fil_space_t* space, trx_t* trx, ut_stage_alter_t* stage);
 
 	/** Deconstructor */
 	~FlushObserver();
@@ -397,8 +397,8 @@ public:
 		buf_pool_t*	buf_pool,
 		buf_page_t*	bpage);
 private:
-	/** Table space id */
-	const ulint		m_space_id;
+	/** Tablespace */
+	fil_space_t*		m_space;
 
 	/** Trx instance */
 	trx_t* const		m_trx;

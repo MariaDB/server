@@ -45,6 +45,7 @@ const byte field_ref_zero[FIELD_REF_SIZE] = {
 #include "btr0cur.h"
 #include "page0types.h"
 #include "log0recv.h"
+#include "row0row.h"
 #include "row0trunc.h"
 #include "zlib.h"
 #include "buf0buf.h"
@@ -1381,7 +1382,7 @@ page_zip_compress(
 	    && !dict_index_is_ibuf(index)
 	    && page_get_n_recs(page) >= 2
 	    && ((ulint)(rand() % 100) < srv_simulate_comp_failures)
-	    && strcasecmp(index->table_name, "IBUF_DUMMY") != 0) {
+	    && strcmp(index->table->name.m_name, "IBUF_DUMMY")) {
 
 #ifdef UNIV_DEBUG
 		ib::error()
@@ -1706,11 +1707,9 @@ page_zip_fields_decode(
 		return(NULL);
 	}
 
-	table = dict_mem_table_create("ZIP_DUMMY", DICT_HDR_SPACE, n, 0,
+	table = dict_mem_table_create("ZIP_DUMMY", NULL, n, 0,
 				      DICT_TF_COMPACT, 0);
-	index = dict_mem_index_create("ZIP_DUMMY", "ZIP_DUMMY",
-				      DICT_HDR_SPACE, 0, n);
-	index->table = table;
+	index = dict_mem_index_create(table, "ZIP_DUMMY", 0, n);
 	index->n_uniq = unsigned(n);
 	/* avoid ut_ad(index->cached) in dict_index_get_n_unique_in_tree */
 	index->cached = TRUE;

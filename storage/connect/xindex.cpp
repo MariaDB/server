@@ -344,7 +344,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
 
     } // endif n
 
-  if (trace)
+  if (trace(1))
     htrc("XINDEX Make: n=%d\n", n);
 
   // File position must be stored
@@ -417,7 +417,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
         if (kcp->Init(g, colp, n, true, 0))
           return true;
 
-        if (trace)
+        if (trace(1))
           htrc("Adding colp=%p Buf_Type=%d size=%d\n",
                 colp, colp->GetResultType(), n);
 
@@ -484,7 +484,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
     } else
       To_Rec[nkey] = Tdbp->GetRecpos();
 
-    if (trace > 1)
+    if (trace(2))
       htrc("Make: To_Rec[%d]=%d\n", nkey, To_Rec[nkey]); 
 
     /*******************************************************************/
@@ -553,7 +553,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   if ((Ndif = Qsort(g, Num_K)) < 0)
     goto err;       // Error during sort
 
-  if (trace)
+  if (trace(1))
     htrc("Make: Nk=%d n=%d Num_K=%d Ndif=%d addcolp=%p BlkFil=%p X=%p\n",
           Nk, n, Num_K, Ndif, addcolp, Tdbp->To_BlkFil, X);
 
@@ -883,7 +883,7 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
   n[5] = Nblk; n[6] = Sblk;
   n[7] = Srtd ? 1 : 0;        // Values are sorted in the file
 
-  if (trace) {
+  if (trace(1)) {
     htrc("Saving index %s\n", Xdp->GetName());
     htrc("ID=%d Nk=%d nof=%d Num_K=%d Incr=%d Nblk=%d Sblk=%d Srtd=%d\n",
           ID, Nk, nof, Num_K, Incr, Nblk, Sblk, Srtd);
@@ -926,7 +926,7 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
 //  dup->ProgCur += 5;
     } // endfor kcp
 
-  if (trace)
+  if (trace(1))
     htrc("Index %s saved, Size=%d\n", Xdp->GetName(), size);
 
  end:
@@ -1016,7 +1016,7 @@ bool XINDEX::Init(PGLOBAL g)
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
 
-  if (trace)
+  if (trace(1))
     htrc("Index %s file: %s\n", Xdp->GetName(), fn);
 
   /*********************************************************************/
@@ -1039,7 +1039,7 @@ bool XINDEX::Init(PGLOBAL g)
   } else
     Srtd = false;
 
-  if (trace)
+  if (trace(1))
     htrc("nv=%d %d %d %d %d %d %d (%d)\n",
           nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6], Srtd);
 
@@ -1048,7 +1048,7 @@ bool XINDEX::Init(PGLOBAL g)
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
 
-    if (trace)
+    if (trace(1))
       htrc("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
 
     goto err;
@@ -1269,7 +1269,7 @@ bool XINDEX::MapInit(PGLOBAL g)
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
 
-  if (trace)
+  if (trace(1))
     htrc("Index %s file: %s\n", Xdp->GetName(), fn);
 
   /*********************************************************************/
@@ -1300,7 +1300,7 @@ bool XINDEX::MapInit(PGLOBAL g)
 		nv0 = nv[0];
   } // endif nv
 
-  if (trace)
+  if (trace(1))
     htrc("nv=%d %d %d %d %d %d %d %d\n",
           nv0, nv[1], nv[2], nv[3], nv[4], nv[5], nv[6], Srtd);
 
@@ -1310,7 +1310,7 @@ bool XINDEX::MapInit(PGLOBAL g)
     // Not this index
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
 
-    if (trace)
+    if (trace(1))
       htrc("nv0=%d ID=%d nv[1]=%d Nk=%d\n", nv0, ID, nv[1], Nk);
 
     goto err;
@@ -1483,7 +1483,7 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
 
-  if (trace)
+  if (trace(1))
     htrc("Index %s file: %s\n", Xdp->GetName(), fn);
 
   /*********************************************************************/
@@ -1500,7 +1500,7 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
   if (X->Read(g, nv, NZ, sizeof(int)))
     goto err;
 
-  if (trace)
+  if (trace(1))
     htrc("nv=%d %d %d %d\n", nv[0], nv[1], nv[2], nv[3]);
 
   // The test on ID was suppressed because MariaDB can change an index ID
@@ -1508,7 +1508,7 @@ bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
 
-    if (trace)
+    if (trace(1))
       htrc("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
 
     goto err;
@@ -1770,7 +1770,7 @@ int XINDEX::Fetch(PGLOBAL g)
   if (Num_K == 0)
     return -1;                   // means end of file
 
-  if (trace > 1)
+  if (trace(2))
     htrc("XINDEX Fetch: Op=%d\n", Op);
 
   /*********************************************************************/
@@ -1834,7 +1834,7 @@ int XINDEX::Fetch(PGLOBAL g)
 
         Nth++;
 
-        if (trace > 1)
+        if (trace(2))
           htrc("Fetch: Looking for new value Nth=%d\n", Nth);
 
         Cur_K = FastFind();
@@ -1907,7 +1907,7 @@ int XINDEX::FastFind(void)
     sup = To_KeyCol->Ndf;
   } // endif Nblk
 
-  if (trace > 2)
+  if (trace(4))
     htrc("XINDEX FastFind: Nblk=%d Op=%d inf=%d sup=%d\n",
                            Nblk, Op, inf, sup); 
 
@@ -1985,7 +1985,7 @@ int XINDEX::FastFind(void)
     curk = (kcp->Kof) ? kcp->Kof[kcp->Val_K] : kcp->Val_K;
     } // endfor kcp
 
-  if (trace > 2)
+  if (trace(4))
     htrc("XINDEX FastFind: curk=%d\n", curk);
 
   return curk;
@@ -2123,7 +2123,7 @@ int XINDXS::Fetch(PGLOBAL g)
   if (Num_K == 0)
     return -1;                   // means end of file
 
-  if (trace > 1)
+  if (trace(2))
     htrc("XINDXS Fetch: Op=%d\n", Op);
 
   /*********************************************************************/
@@ -2176,7 +2176,7 @@ int XINDXS::Fetch(PGLOBAL g)
       else
         Nth++;
 
-      if (trace > 1)
+      if (trace(2))
         htrc("Fetch: Looking for new value Nth=%d\n", Nth);
 
       Cur_K = FastFind();
@@ -2243,7 +2243,7 @@ int XINDXS::FastFind(void)
     sup = Ndif;
   } // endif Nblk
 
-  if (trace > 2)
+  if (trace(4))
     htrc("XINDXS FastFind: Nblk=%d Op=%d inf=%d sup=%d\n",
                            Nblk, Op, inf, sup); 
 
@@ -2269,7 +2269,7 @@ int XINDXS::FastFind(void)
     n = 0;
   } // endif sup
 
-  if (trace > 2)
+  if (trace(4))
     htrc("XINDXS FastFind: n=%d i=%d\n", n, i);
 
   // Loop on kcp because of dynamic indexing
@@ -2337,7 +2337,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     } // endswitch mode
 
   if (!(Xfile= global_fopen(g, MSGID_OPEN_ERROR_AND_STRERROR, filename, pmod))) {
-    if (trace)
+    if (trace(1))
       htrc("Open: %s\n", g->Message);
 
     return true;
@@ -2354,7 +2354,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
 
     NewOff.v.Low = (int)ftell(Xfile);
 
-    if (trace)
+    if (trace(1))
       htrc("XFILE Open: NewOff.v.Low=%d\n", NewOff.v.Low);
 
   } else if (mode == MODE_WRITE) {
@@ -2365,7 +2365,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       fseek(Xfile, 0, SEEK_END);
       NewOff.v.Low = (int)ftell(Xfile);
 
-      if (trace)
+      if (trace(1))
         htrc("XFILE Open: NewOff.v.Low=%d\n", NewOff.v.Low);
 
       } // endif id
@@ -2377,7 +2377,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       return true;
       } // endif MAX_INDX
 
-      if (trace)
+      if (trace(1))
         htrc("XFILE Open: noff[%d].v.Low=%d\n", id, noff[id].v.Low);
 
     // Position the cursor at the offset of this index
@@ -2510,7 +2510,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     return true;
     } // endif
 
-  if (trace)
+  if (trace(1))
     htrc(" Xopen: filename=%s id=%d mode=%d\n", filename, id, mode);
 
 #if defined(__WIN__)
@@ -2554,7 +2554,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     return true;
     } // endif Hfile
 
-  if (trace)
+  if (trace(1))
     htrc(" access=%p share=%p creation=%d handle=%p fn=%s\n",
          access, share, creation, Hfile, filename);
 
@@ -2628,13 +2628,13 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
 
   if (Hfile == INVALID_HANDLE_VALUE) {
     /*rc = errno;*/
-    if (trace)
+    if (trace(1))
       htrc("Open: %s\n", g->Message);
 
     return true;
     } // endif Hfile
 
-  if (trace)
+  if (trace(1))
     htrc(" oflag=%p mode=%d handle=%d fn=%s\n", 
            oflag, mode, Hfile, filename);
 
@@ -2647,7 +2647,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       return true;
       } // endif
 
-    if (trace)
+    if (trace(1))
       htrc("INSERT: NewOff=%lld\n", NewOff.Val);
 
   } else if (mode == MODE_WRITE) {
@@ -2657,7 +2657,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       NewOff.v.Low = write(Hfile, &noff, sizeof(noff));
       } // endif id
 
-    if (trace)
+    if (trace(1))
       htrc("WRITE: NewOff=%lld\n", NewOff.Val);
 
   } else if (mode == MODE_READ && id >= 0) {
@@ -2667,7 +2667,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       return true;
       } // endif read
       
-	  if (trace)
+	  if (trace(1))
       htrc("noff[%d]=%lld\n", id, noff[id].Val);
 
     // Position the cursor at the offset of this index
@@ -2705,13 +2705,13 @@ bool XHUGE::Seek(PGLOBAL g, int low, int high, int origin)
   if (lseek64(Hfile, pos, origin) < 0) {
     sprintf(g->Message, MSG(ERROR_IN_LSK), errno);
 
-    if (trace)
+    if (trace(1))
       htrc("lseek64 error %d\n", errno);
 
     return true;
     } // endif lseek64
 
-  if (trace)
+  if (trace(1))
     htrc("Seek: low=%d high=%d\n", low, high);
 #endif // UNIX
 
@@ -2750,13 +2750,13 @@ bool XHUGE::Read(PGLOBAL g, void *buf, int n, int size)
 #else    // UNIX
   ssize_t count = (ssize_t)(n * size);
 
-  if (trace)
+  if (trace(1))
     htrc("Hfile=%d n=%d size=%d count=%d\n", Hfile, n, size, count);
 
   if (read(Hfile, buf, count) != count) {
     sprintf(g->Message, MSG(READ_ERROR), "Index file", strerror(errno));
 
-    if (trace)
+    if (trace(1))
       htrc("read error %d\n", errno);
 
     rc = true;
@@ -2810,7 +2810,7 @@ int XHUGE::Write(PGLOBAL g, void *buf, int n, int size, bool& rc)
 /***********************************************************************/
 void XHUGE::Close(char *fn, int id)
   {
-  if (trace)
+  if (trace(1))
     htrc("XHUGE::Close: fn=%s id=%d NewOff=%lld\n", fn, id, NewOff.Val);
 
 #if defined(__WIN__)
@@ -3022,7 +3022,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
     Prefix = true;
     } // endif kln
 
-  if (trace)
+  if (trace(1))
     htrc("KCOL(%p) Init: col=%s n=%d type=%d sm=%d\n",
          this, colp->GetName(), n, colp->GetResultType(), sm);
 
@@ -3076,7 +3076,7 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
 
   Type = colp->GetResultType();
 
-  if (trace)
+  if (trace(1))
     htrc("MapInit(%p): colp=%p type=%d n=%d len=%d m=%p\n",
          this, colp, Type, n[0], len, m);
 
@@ -3196,7 +3196,7 @@ bool KXYCOL::InitFind(PGLOBAL g, PXOB xp)
     Valp->SetValue_pval(xp->GetValue(), false);
   } // endif Type
 
-  if (trace > 1) {
+  if (trace(2)) {
     char buf[32];
 
     htrc("KCOL InitFind: value=%s\n", Valp->GetCharString(buf));
@@ -3237,7 +3237,7 @@ int KXYCOL::Compare(int i1, int i2)
   // Do the actual comparison between values.
   register int k = Kblp->CompVal(i1, i2);
 
-  if (trace > 2)
+  if (trace(4))
     htrc("Compare done result=%d\n", k);
 
   return (Asc) ? k : -k;
@@ -3249,7 +3249,7 @@ int KXYCOL::Compare(int i1, int i2)
 int KXYCOL::CompVal(int i)
   {
   // Do the actual comparison between numerical values.
-  if (trace > 2) {
+  if (trace(4)) {
     register int k = (int)Kblp->CompVal(Valp, (int)i);
 
     htrc("Compare done result=%d\n", k);

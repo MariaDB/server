@@ -1848,3 +1848,20 @@ create table t1(o1 int, o2 int, o3 int, primary key(o1,o2,o3)) engine = innodb;
 insert into t1 values(1,1,2),(2,2,1);
 alter table t1 drop primary key, add primary key(o1), lock=none;
 drop table t1;
+#
+# MDEV-15325 Incomplete validation of missing tablespace during recovery
+#
+CREATE TABLE t1(f1 INT PRIMARY KEY)ENGINE=InnoDB;
+CREATE TABLE t2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
+# Kill the server
+# Wrong space_id in a dirty file and a missing file
+SELECT * FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
+# Restore t1 and t2
+SELECT * FROM t1;
+f1
+SELECT * FROM t2;
+f1
+DROP TABLE t1, t2;

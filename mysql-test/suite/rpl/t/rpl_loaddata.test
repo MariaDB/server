@@ -1,4 +1,4 @@
 -- source include/have_binlog_format_statement.inc
 
 let $engine_type=MyISAM;
--- source extra/rpl_tests/rpl_loaddata.test
+-- source include/rpl_loaddata.test

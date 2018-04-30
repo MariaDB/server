@@ -312,7 +312,7 @@ static char *process_int_arg(char *to, const char *end, size_t length,
 
 
 /**
-  Procesed positional arguments.
+  Processed positional arguments.
 
   @param cs         string charset
   @param to         buffer where processed string will be place

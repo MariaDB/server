@@ -15,7 +15,7 @@
 
 /*
   This file is also used to make handling of sockets and ioctl()
-  portable accross systems.
+  portable across systems.
 
 */
 

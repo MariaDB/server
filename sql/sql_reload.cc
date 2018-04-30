@@ -30,6 +30,7 @@
 #include "sql_show.h"
 #include "debug_sync.h"
 #include "des_key_file.h"
+#include "transaction.h"
 
 static void disable_checkpoints(THD *thd);
 
@@ -593,6 +594,7 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
   return FALSE;
 
 error_reset_bits:
+  trans_rollback_stmt(thd);
   close_thread_tables(thd);
   thd->variables.option_bits&= ~OPTION_TABLE_LOCK;
 error:

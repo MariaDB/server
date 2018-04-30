@@ -2266,6 +2266,7 @@ void st_select_lex::init_query()
   select_list_tables= 0;
   m_non_agg_field_used= false;
   m_agg_func_used= false;
+  m_custom_agg_func_used= false;
   window_specs.empty();
   window_funcs.empty();
   tvc= 0;
@@ -2305,6 +2306,7 @@ void st_select_lex::init_select()
   merged_into= 0;
   m_non_agg_field_used= false;
   m_agg_func_used= false;
+  m_custom_agg_func_used= false;
   name_visibility_map= 0;
   with_dep= 0;
   join= 0;
@@ -5050,8 +5052,8 @@ int st_select_lex_unit::save_union_explain_part2(Explain_query *output)
 bool LEX::is_partition_management() const
 {
   return (sql_command == SQLCOM_ALTER_TABLE &&
-          (alter_info.flags ==  Alter_info::ALTER_ADD_PARTITION ||
-           alter_info.flags ==  Alter_info::ALTER_REORGANIZE_PARTITION));
+          (alter_info.partition_flags ==  ALTER_PARTITION_ADD ||
+           alter_info.partition_flags ==  ALTER_PARTITION_REORGANIZE));
 }
 
 
@@ -7009,7 +7011,10 @@ bool LEX::set_default_system_variable(enum_var_type var_type,
   if (!var)
     return true;
   if (!var->is_struct())
+  {
     my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), name->str);
+    return true;
+  }
   return set_system_variable(var_type, var, &default_base_name, val);
 }
 
@@ -7038,7 +7043,10 @@ bool LEX::set_system_variable(THD *thd, enum_var_type var_type,
     return true;
   }
   if (!tmp->is_struct())
+  {
     my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), name2->str);
+    return true;
+  }
   return set_system_variable(var_type, tmp, name1, val);
 }
 
@@ -7438,20 +7446,6 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
 }
 
 
-Query_tables_backup::Query_tables_backup(THD* _thd) :
-  thd(_thd)
-{
-  thd->lex->reset_n_backup_query_tables_list(&backup);
-  thd->lex->sql_command= backup.sql_command;
-}
-
-
-Query_tables_backup::~Query_tables_backup()
-{
-  thd->lex->restore_backup_query_tables_list(&backup);
-}
-
-
 bool LEX::sp_add_cfetch(THD *thd, const LEX_CSTRING *name)
 {
   uint offset;
@@ -7702,3 +7696,64 @@ bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING 
   return false;
 }
 
+
+Item *Lex_trim_st::make_item_func_trim_std(THD *thd) const
+{
+  if (m_remove)
+  {
+    switch (m_spec) {
+    case TRIM_BOTH:
+      return new (thd->mem_root) Item_func_trim(thd, m_source, m_remove);
+    case TRIM_LEADING:
+      return new (thd->mem_root) Item_func_ltrim(thd, m_source, m_remove);
+    case TRIM_TRAILING:
+     return new (thd->mem_root) Item_func_rtrim(thd, m_source, m_remove);
+    }
+  }
+
+  switch (m_spec) {
+  case TRIM_BOTH:
+    return new (thd->mem_root) Item_func_trim(thd, m_source);
+  case TRIM_LEADING:
+    return new (thd->mem_root) Item_func_ltrim(thd, m_source);
+  case TRIM_TRAILING:
+   return new (thd->mem_root) Item_func_rtrim(thd, m_source);
+  }
+  DBUG_ASSERT(0);
+  return NULL;
+}
+
+
+Item *Lex_trim_st::make_item_func_trim_oracle(THD *thd) const
+{
+  if (m_remove)
+  {
+    switch (m_spec) {
+    case TRIM_BOTH:
+      return new (thd->mem_root) Item_func_trim_oracle(thd, m_source, m_remove);
+    case TRIM_LEADING:
+      return new (thd->mem_root) Item_func_ltrim_oracle(thd, m_source, m_remove);
+    case TRIM_TRAILING:
+     return new (thd->mem_root) Item_func_rtrim_oracle(thd, m_source, m_remove);
+    }
+  }
+
+  switch (m_spec) {
+  case TRIM_BOTH:
+    return new (thd->mem_root) Item_func_trim_oracle(thd, m_source);
+  case TRIM_LEADING:
+    return new (thd->mem_root) Item_func_ltrim_oracle(thd, m_source);
+  case TRIM_TRAILING:
+   return new (thd->mem_root) Item_func_rtrim_oracle(thd, m_source);
+  }
+  DBUG_ASSERT(0);
+  return NULL;
+}
+
+
+Item *Lex_trim_st::make_item_func_trim(THD *thd) const
+{
+  return (thd->variables.sql_mode & MODE_ORACLE) ?
+         make_item_func_trim_oracle(thd) :
+         make_item_func_trim_std(thd);
+}

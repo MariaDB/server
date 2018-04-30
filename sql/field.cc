@@ -1819,30 +1819,11 @@ int Field::store(const char *to, size_t length, CHARSET_INFO *cs,
 }
 
 
-static int timestamp_to_TIME(THD *thd, MYSQL_TIME *ltime, my_time_t ts,
-                             ulong sec_part, ulonglong fuzzydate)
-{
-  thd->time_zone_used= 1;
-  if (ts == 0 && sec_part == 0)
-  {
-    if (fuzzydate & TIME_NO_ZERO_DATE)
-      return 1;
-    set_zero_time(ltime, MYSQL_TIMESTAMP_DATETIME);
-  }
-  else
-  {
-    thd->variables.time_zone->gmt_sec_to_TIME(ltime, ts);
-    ltime->second_part= sec_part;
-  }
-  return 0;
-}
-
-
 int Field::store_timestamp(my_time_t ts, ulong sec_part)
 {
   MYSQL_TIME ltime;
   THD *thd= get_thd();
-  timestamp_to_TIME(thd, &ltime, ts, sec_part, 0);
+  thd->timestamp_to_TIME(&ltime, ts, sec_part, 0);
   return store_time_dec(&ltime, decimals());
 }
 
@@ -1960,7 +1941,7 @@ void Field_num::add_zerofill_and_unsigned(String &res) const
 }
 
 
-void Field::make_field(Send_field *field)
+void Field::make_send_field(Send_field *field)
 {
   if (orig_table && orig_table->s->db.str && *orig_table->s->db.str)
   {
@@ -2050,7 +2031,7 @@ longlong Field::convert_decimal2longlong(const my_decimal *val,
     !=0  error
 */
 
-int Field_num::store_decimal(const my_decimal *val)
+int Field_int::store_decimal(const my_decimal *val)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   int err= 0;
@@ -2073,17 +2054,16 @@ int Field_num::store_decimal(const my_decimal *val)
     pointer to decimal buffer with value of field
 */
 
-my_decimal* Field_num::val_decimal(my_decimal *decimal_value)
+my_decimal* Field_int::val_decimal(my_decimal *decimal_value)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  DBUG_ASSERT(result_type() == INT_RESULT);
   longlong nr= val_int();
   int2my_decimal(E_DEC_FATAL_ERROR, nr, unsigned_flag, decimal_value);
   return decimal_value;
 }
 
 
-bool Field_num::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+bool Field_int::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
   longlong nr= val_int();
@@ -2193,9 +2173,9 @@ bool Field_str::can_be_substituted_to_equal_item(const Context &ctx,
 }
 
 
-void Field_num::make_field(Send_field *field)
+void Field_num::make_send_field(Send_field *field)
 {
-  Field::make_field(field);
+  Field::make_send_field(field);
   field->decimals= dec;
 }
 
@@ -2302,7 +2282,7 @@ int Field::store_time_dec(const MYSQL_TIME *ltime, uint dec)
 }
 
 
-bool Field::optimize_range(uint idx, uint part)
+bool Field::optimize_range(uint idx, uint part) const
 {
   return MY_TEST(table->file->index_flags(idx, part, 1) & HA_READ_RANGE);
 }
@@ -3578,7 +3558,7 @@ Item *Field_new_decimal::get_equal_const_item(THD *thd, const Context &ctx,
 }
 
 
-int Field_num::store_time_dec(const MYSQL_TIME *ltime, uint dec_arg)
+int Field_int::store_time_dec(const MYSQL_TIME *ltime, uint dec_arg)
 {
   longlong v= TIME_to_ulonglong(ltime);
   if (ltime->neg == 0)
@@ -3713,24 +3693,8 @@ String *Field_tiny::val_str(String *val_buffer,
 			    String *val_ptr __attribute__((unused)))
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  CHARSET_INFO *cs= &my_charset_numeric;
-  uint length;
-  uint mlength=MY_MAX(field_length+1,5*cs->mbmaxlen);
-  val_buffer->alloc(mlength);
-  char *to=(char*) val_buffer->ptr();
-
-  if (unsigned_flag)
-    length= (uint) cs->cset->long10_to_str(cs,to,mlength, 10,
-					   (long) *ptr);
-  else
-    length= (uint) cs->cset->long10_to_str(cs,to,mlength,-10,
-					   (long) *((signed char*) ptr));
-  
-  val_buffer->length(length);
-  if (zerofill)
-    prepend_zeros(val_buffer);
-  val_buffer->set_charset(cs);
-  return val_buffer;
+  long nr= unsigned_flag ? (long) ptr[0] : (long) ((signed char*) ptr)[0];
+  return val_str_from_long(val_buffer, 5, -10, nr);
 }
 
 bool Field_tiny::send_binary(Protocol *protocol)
@@ -3895,24 +3859,9 @@ String *Field_short::val_str(String *val_buffer,
 			     String *val_ptr __attribute__((unused)))
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  CHARSET_INFO *cs= &my_charset_numeric;
-  uint length;
-  uint mlength=MY_MAX(field_length+1,7*cs->mbmaxlen);
-  val_buffer->alloc(mlength);
-  char *to=(char*) val_buffer->ptr();
-  short j;
-  j=sint2korr(ptr);
-
-  if (unsigned_flag)
-    length=(uint) cs->cset->long10_to_str(cs, to, mlength, 10, 
-					  (long) (uint16) j);
-  else
-    length=(uint) cs->cset->long10_to_str(cs, to, mlength,-10, (long) j);
-  val_buffer->length(length);
-  if (zerofill)
-    prepend_zeros(val_buffer);
-  val_buffer->set_charset(cs);
-  return val_buffer;
+  short j= sint2korr(ptr);
+  long nr= unsigned_flag ? (long) (unsigned short) j : (long) j;
+  return val_str_from_long(val_buffer, 7, -10, nr);
 }
 
 
@@ -4085,14 +4034,21 @@ String *Field_medium::val_str(String *val_buffer,
 			      String *val_ptr __attribute__((unused)))
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
+  long nr= unsigned_flag ? (long) uint3korr(ptr) : sint3korr(ptr);
+  return val_str_from_long(val_buffer, 10, -10, nr);
+}
+
+
+String *Field_int::val_str_from_long(String *val_buffer,
+                                     uint max_char_length,
+                                     int radix, long nr)
+{
   CHARSET_INFO *cs= &my_charset_numeric;
   uint length;
-  uint mlength=MY_MAX(field_length+1,10*cs->mbmaxlen);
+  uint mlength= MY_MAX(field_length + 1, max_char_length * cs->mbmaxlen);
   val_buffer->alloc(mlength);
   char *to=(char*) val_buffer->ptr();
-  long j= unsigned_flag ? (long) uint3korr(ptr) : sint3korr(ptr);
-
-  length=(uint) cs->cset->long10_to_str(cs,to,mlength,-10,j);
+  length= (uint) cs->cset->long10_to_str(cs, to, mlength, radix, nr);
   val_buffer->length(length);
   if (zerofill)
     prepend_zeros(val_buffer); /* purecov: inspected */
@@ -4270,27 +4226,13 @@ longlong Field_long::val_int(void)
   return unsigned_flag ? (longlong) (uint32) j : (longlong) j;
 }
 
+
 String *Field_long::val_str(String *val_buffer,
 			    String *val_ptr __attribute__((unused)))
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
-  CHARSET_INFO *cs= &my_charset_numeric;
-  size_t length;
-  size_t mlength=MY_MAX(field_length+1,12*cs->mbmaxlen);
-  val_buffer->alloc(mlength);
-  char *to=(char*) val_buffer->ptr();
-  int32 j;
-  j=sint4korr(ptr);
-
-  if (unsigned_flag)
-    length=cs->cset->long10_to_str(cs,to,mlength, 10,(uint32) j);
-  else
-    length=cs->cset->long10_to_str(cs,to,mlength,-10,j);
-  val_buffer->length(length);
-  if (zerofill)
-    prepend_zeros(val_buffer);
-  val_buffer->set_charset(cs);
-  return val_buffer;
+  long nr= unsigned_flag ? (long) uint4korr(ptr) : sint4korr(ptr);
+  return val_str_from_long(val_buffer, 12, unsigned_flag ? 10 : -10, nr);
 }
 
 
@@ -5316,7 +5258,7 @@ bool Field_timestamp::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   ulong sec_part;
   my_time_t ts= get_timestamp(&sec_part);
-  return timestamp_to_TIME(get_thd(), ltime, ts, sec_part, fuzzydate);
+  return get_thd()->timestamp_to_TIME(ltime, ts, sec_part, fuzzydate);
 }
 
 
@@ -5536,9 +5478,9 @@ int Field_timestamp_hires::cmp(const uchar *a_ptr, const uchar *b_ptr)
 }
 
 
-void Field_timestamp_with_dec::make_field(Send_field *field)
+void Field_timestamp_with_dec::make_send_field(Send_field *field)
 {
-  Field::make_field(field);
+  Field::make_send_field(field);
   field->decimals= dec;
 }
 
@@ -6243,9 +6185,9 @@ void Field_time_hires::sort_string(uchar *to,uint length __attribute__((unused))
   to[0]^= 128;
 }
 
-void Field_time_with_dec::make_field(Send_field *field)
+void Field_time_with_dec::make_send_field(Send_field *field)
 {
-  Field::make_field(field);
+  Field::make_send_field(field);
   field->decimals= dec;
 }
 
@@ -6895,9 +6837,9 @@ int Field_datetime_hires::cmp(const uchar *a_ptr, const uchar *b_ptr)
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
-void Field_datetime_with_dec::make_field(Send_field *field)
+void Field_datetime_with_dec::make_send_field(Send_field *field)
 {
-  Field::make_field(field);
+  Field::make_send_field(field);
   field->decimals= dec;
 }
 
@@ -8718,17 +8660,22 @@ int Field_blob_compressed::store(const char *from, size_t length,
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   uint to_length= (uint)MY_MIN(max_data_length(), field_charset->mbmaxlen * length + 1);
+  String tmp(from, length, cs);
   int rc;
 
-  if (value.alloc(to_length))
-  {
-    set_ptr((uint32) 0, NULL);
-    return -1;
-  }
+  if (from >= value.ptr() && from <= value.end() && tmp.copy(from, length, cs))
+    goto oom;
 
-  rc= compress((char*) value.ptr(), &to_length, from, (uint)length, cs);
+  if (value.alloc(to_length))
+    goto oom;
+
+  rc= compress((char*) value.ptr(), &to_length, tmp.ptr(), (uint) length, cs);
   set_ptr(to_length, (uchar*) value.ptr());
   return rc;
+
+oom:
+  set_ptr((uint32) 0, NULL);
+  return -1;
 }
 
 

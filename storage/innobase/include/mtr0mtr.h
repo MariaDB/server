@@ -29,9 +29,7 @@ Created 11/26/1995 Heikki Tuuri
 #define mtr0mtr_h
 
 #include "univ.i"
-#include "log0types.h"
-#include "mtr0types.h"
-#include "buf0types.h"
+#include "fil0fil.h"
 #include "dyn0buf.h"
 
 /** Start a mini-transaction. */
@@ -140,9 +138,6 @@ savepoint. */
 @return true if the mtr is dirtying a clean page. */
 #define mtr_block_dirtied(b)	mtr_t::is_block_dirtied((b))
 
-/** Forward declaration of a tablespace object */
-struct fil_space_t;
-
 /** Append records to the system-wide redo log buffer.
 @param[in]	log	redo log records */
 void
@@ -194,12 +189,6 @@ struct mtr_t {
 		/** User tablespace that is being modified by the
 		mini-transaction */
 		fil_space_t*	m_user_space;
-		/** Undo tablespace that is being modified by the
-		mini-transaction */
-		fil_space_t*	m_undo_space;
-		/** System tablespace if it is being modified by the
-		mini-transaction */
-		fil_space_t*	m_sys_space;
 
 		/** State of the transaction */
 		mtr_state_t	m_state;
@@ -222,13 +211,6 @@ struct mtr_t {
 	}
 
 	~mtr_t() { }
-
-	/** Release the free extents that was reserved using
-	fsp_reserve_free_extents().  This is equivalent to calling
-	fil_space_release_free_extents().  This is intended for use
-	with index pages.
-	@param[in]	n_reserved	number of reserved extents */
-	void release_free_extents(ulint n_reserved);
 
 	/** Start a mini-transaction.
 	@param sync		true if it is a synchronous mini-transaction
@@ -302,17 +284,6 @@ struct mtr_t {
 	@return	old mode */
 	inline mtr_log_t set_log_mode(mtr_log_t mode);
 
-	/** Note that the mini-transaction is modifying the system tablespace
-	(for example, for the change buffer or for undo logs)
-	@return the system tablespace */
-	fil_space_t* set_sys_modified()
-	{
-		if (!m_impl.m_sys_space) {
-			lookup_sys_space();
-		}
-		return(m_impl.m_sys_space);
-	}
-
 	/** Copy the tablespaces associated with the mini-transaction
 	(needed for generating MLOG_FILE_NAME records)
 	@param[in]	mtr	mini-transaction that may modify
@@ -321,35 +292,41 @@ struct mtr_t {
 	{
 		ut_ad(!m_impl.m_user_space_id);
 		ut_ad(!m_impl.m_user_space);
-		ut_ad(!m_impl.m_undo_space);
-		ut_ad(!m_impl.m_sys_space);
 
 		ut_d(m_impl.m_user_space_id = mtr.m_impl.m_user_space_id);
 		m_impl.m_user_space = mtr.m_impl.m_user_space;
-		m_impl.m_undo_space = mtr.m_impl.m_undo_space;
-		m_impl.m_sys_space = mtr.m_impl.m_sys_space;
 	}
 
 	/** Set the tablespace associated with the mini-transaction
 	(needed for generating a MLOG_FILE_NAME record)
 	@param[in]	space_id	user or system tablespace ID
 	@return	the tablespace */
-	fil_space_t* set_named_space(ulint space_id)
+	fil_space_t* set_named_space_id(ulint space_id)
 	{
 		ut_ad(!m_impl.m_user_space_id);
 		ut_d(m_impl.m_user_space_id = space_id);
 		if (!space_id) {
-			return(set_sys_modified());
+			return fil_system.sys_space;
 		} else {
-			lookup_user_space(space_id);
-			return(m_impl.m_user_space);
+			ut_ad(m_impl.m_user_space_id == space_id);
+			ut_ad(!m_impl.m_user_space);
+			m_impl.m_user_space = fil_space_get(space_id);
+			ut_ad(m_impl.m_user_space);
+			return m_impl.m_user_space;
 		}
 	}
 
 	/** Set the tablespace associated with the mini-transaction
 	(needed for generating a MLOG_FILE_NAME record)
 	@param[in]	space	user or system tablespace */
-	void set_named_space(fil_space_t* space);
+	void set_named_space(fil_space_t* space)
+	{
+		ut_ad(m_impl.m_user_space_id == TRX_SYS_SPACE);
+		ut_d(m_impl.m_user_space_id = space->id);
+		if (space->id != TRX_SYS_SPACE) {
+			m_impl.m_user_space = space;
+		}
+	}
 
 #ifdef UNIV_DEBUG
 	/** Check the tablespace associated with the mini-transaction
@@ -357,6 +334,11 @@ struct mtr_t {
 	@param[in]	space	tablespace
 	@return whether the mini-transaction is associated with the space */
 	bool is_named_space(ulint space) const;
+	/** Check the tablespace associated with the mini-transaction
+	(needed for generating a MLOG_FILE_NAME record)
+	@param[in]	space	tablespace
+	@return whether the mini-transaction is associated with the space */
+	bool is_named_space(const fil_space_t* space) const;
 #endif /* UNIV_DEBUG */
 
 	/** Read 1 - 4 bytes from a file page buffered in the buffer pool.
@@ -582,12 +564,6 @@ struct mtr_t {
 		MY_ATTRIBUTE((warn_unused_result));
 
 private:
-	/** Look up the system tablespace. */
-	void lookup_sys_space();
-	/** Look up the user tablespace.
-	@param[in]	space_id	tablespace ID  */
-	void lookup_user_space(ulint space_id);
-
 	class Command;
 
 	friend class Command;

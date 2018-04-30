@@ -107,8 +107,9 @@ static ulint	os_innodb_umask = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 #else
 /** Umask for creating files */
 static ulint	os_innodb_umask	= 0;
-static HANDLE	completion_port;
-static HANDLE	read_completion_port;
+static HANDLE	data_completion_port;
+static HANDLE	log_completion_port;
+
 static DWORD	fls_sync_io  = FLS_OUT_OF_INDEXES;
 #define IOCP_SHUTDOWN_KEY (ULONG_PTR)-1
 #endif /* _WIN32 */
@@ -443,11 +444,17 @@ public:
 #endif /* LINUX_NATIVE_AIO */
 
 #ifdef WIN_ASYNC_IO
-	
+	HANDLE m_completion_port;
 	/** Wake up all AIO threads in Windows native aio */
 	static void wake_at_shutdown() {
-		PostQueuedCompletionStatus(completion_port, 0, IOCP_SHUTDOWN_KEY, NULL);
-		PostQueuedCompletionStatus(read_completion_port, 0, IOCP_SHUTDOWN_KEY, NULL);
+		AIO *all_arrays[] = {s_reads, s_writes, s_log, s_ibuf };
+		for (size_t i = 0; i < array_elements(all_arrays); i++) {
+			AIO *a = all_arrays[i];
+			if (a) {
+				PostQueuedCompletionStatus(a->m_completion_port, 0,
+					IOCP_SHUTDOWN_KEY, 0);
+			}
+		}
 	}
 #endif /* WIN_ASYNC_IO */
 
@@ -701,28 +708,50 @@ static
 bool
 os_aio_validate();
 
+/** Handle errors for file operations.
+@param[in]	name		name of a file or NULL
+@param[in]	operation	operation
+@param[in]	should_abort	whether to abort on an unknown error
+@param[in]	on_error_silent	whether to suppress reports of non-fatal errors
+@return true if we should retry the operation */
+static MY_ATTRIBUTE((warn_unused_result))
+bool
+os_file_handle_error_cond_exit(
+	const char*	name,
+	const char*	operation,
+	bool		should_abort,
+	bool		on_error_silent);
+
 /** Does error handling when a file operation fails.
-@param[in]	name		File name or NULL
-@param[in]	operation	Name of operation e.g., "read", "write"
+@param[in]	name		name of a file or NULL
+@param[in]	operation	operation name that failed
 @return true if we should retry the operation */
 static
 bool
 os_file_handle_error(
 	const char*	name,
-	const char*	operation);
+	const char*	operation)
+{
+	/* Exit in case of unknown error */
+	return(os_file_handle_error_cond_exit(name, operation, true, false));
+}
 
-/**
-Does error handling when a file operation fails.
-@param[in]	name		File name or NULL
-@param[in]	operation	Name of operation e.g., "read", "write"
-@param[in]	silent	if true then don't print any message to the log.
+/** Does error handling when a file operation fails.
+@param[in]	name		name of a file or NULL
+@param[in]	operation	operation name that failed
+@param[in]	on_error_silent	if true then don't print any message to the log.
 @return true if we should retry the operation */
 static
 bool
 os_file_handle_error_no_exit(
 	const char*	name,
 	const char*	operation,
-	bool		silent);
+	bool		on_error_silent)
+{
+	/* Don't exit in case of unknown error */
+	return(os_file_handle_error_cond_exit(
+			name, operation, false, on_error_silent));
+}
 
 /** Does simulated AIO. This function should be called by an i/o-handler
 thread.
@@ -1224,10 +1253,23 @@ os_file_create_tmpfile()
 {
 	FILE*	file	= NULL;
 	WAIT_ALLOW_WRITES();
-	int	fd	= innobase_mysql_tmpfile(NULL);
+	os_file_t	fd	= innobase_mysql_tmpfile(NULL);
 
-	if (fd >= 0) {
+	if (fd != OS_FILE_CLOSED) {
+#ifdef _WIN32
+		int crt_fd = _open_osfhandle((intptr_t)HANDLE(fd), 0);
+		if (crt_fd != -1) {
+			file = fdopen(crt_fd, "w+b");
+			if (!file) {
+				close(crt_fd);
+			}
+		}
+#else
 		file = fdopen(fd, "w+b");
+		if (!file) {
+			close(fd);
+		}
+#endif
 	}
 
 	if (file == NULL) {
@@ -1235,10 +1277,6 @@ os_file_create_tmpfile()
 		ib::error()
 			<< "Unable to create temporary file; errno: "
 			<< errno;
-
-		if (fd >= 0) {
-			close(fd);
-		}
 	}
 
 	return(file);
@@ -2253,7 +2291,7 @@ AIO::is_linux_native_aio_supported()
 
 		strcpy(name + dirnamelen, "ib_logfile0");
 
-		fd = open(name, O_RDONLY);
+		fd = open(name, O_RDONLY | O_CLOEXEC);
 
 		if (fd == -1) {
 
@@ -3486,15 +3524,11 @@ SyncFileIO::execute(Slot* slot)
 struct WinIoInit
 {
 	WinIoInit() {
-		completion_port = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
-		read_completion_port = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);	ut_a(completion_port && read_completion_port);
 		fls_sync_io = FlsAlloc(win_free_syncio_event);
 		ut_a(fls_sync_io != FLS_OUT_OF_INDEXES);
 	}
 
 	~WinIoInit() {
-		CloseHandle(completion_port);
-		CloseHandle(read_completion_port);
 		FlsFree(fls_sync_io);
 	}
 };
@@ -4226,11 +4260,17 @@ os_file_create_func(
 			*success = true;
 
 			if (srv_use_native_aio && ((attributes & FILE_FLAG_OVERLAPPED) != 0)) {
-				/* Bind the file handle to completion port */
-				ut_a(CreateIoCompletionPort(file, completion_port, 0, 0));
+				/* Bind the file handle to completion port. Completion port
+				might not be created yet, in some stages of backup, but
+				must always be there for the server.*/
+				HANDLE port =(type == OS_LOG_FILE)?
+					log_completion_port : data_completion_port;
+				ut_a(port || srv_operation != SRV_OPERATION_NORMAL);
+				if (port) {
+					ut_a(CreateIoCompletionPort(file, port, 0, 0));
+				}
 			}
 		}
-
 	} while (retry);
 
 	return(file);
@@ -5025,52 +5065,31 @@ os_file_read_page(
 	ut_ad(type.validate());
 	ut_ad(n > 0);
 
-	for (;;) {
-		ssize_t	n_bytes;
+	ssize_t	n_bytes = os_file_pread(type, file, buf, n, offset, &err);
 
-		n_bytes = os_file_pread(type, file, buf, n, offset, &err);
-
-		if (o != NULL) {
-			*o = n_bytes;
-		}
-
-		if (err != DB_SUCCESS && !exit_on_err) {
-
-			return(err);
-
-		} else if ((ulint) n_bytes == n) {
-			return(DB_SUCCESS);
-		}
-
-		ib::error() << "Tried to read " << n
-			<< " bytes at offset " << offset
-			<< ", but was only able to read " << n_bytes;
-
-		if (exit_on_err) {
-
-			if (!os_file_handle_error(NULL, "read")) {
-				/* Hard error */
-				break;
-			}
-
-		} else if (!os_file_handle_error_no_exit(NULL, "read", false)) {
-
-			/* Hard error */
-			break;
-		}
-
-		if (n_bytes > 0 && (ulint) n_bytes < n) {
-			n -= (ulint) n_bytes;
-			offset += (ulint) n_bytes;
-			buf = reinterpret_cast<uchar*>(buf) + (ulint) n_bytes;
-		}
+	if (o) {
+		*o = n_bytes;
 	}
 
-	ib::fatal()
-		<< "Cannot read from file. OS error number "
-		<< errno << ".";
+	if (ulint(n_bytes) == n || (err != DB_SUCCESS && !exit_on_err)) {
+		return err;
+	}
 
-	return(err);
+	ib::error() << "Tried to read " << n << " bytes at offset "
+		    << offset << ", but was only able to read " << n_bytes;
+
+	if (!os_file_handle_error_cond_exit(
+		    NULL, "read", exit_on_err, false)) {
+		ib::fatal()
+			<< "Cannot read from file. OS error number "
+			<< errno << ".";
+	}
+
+	if (err == DB_SUCCESS) {
+		err = DB_IO_ERROR;
+	}
+
+	return err;
 }
 
 /** Retrieves the last error number if an error occurs in a file io function.
@@ -5174,37 +5193,6 @@ os_file_handle_error_cond_exit(
 	}
 
 	return(false);
-}
-
-/** Does error handling when a file operation fails.
-@param[in]	name		name of a file or NULL
-@param[in]	operation	operation name that failed
-@return true if we should retry the operation */
-static
-bool
-os_file_handle_error(
-	const char*	name,
-	const char*	operation)
-{
-	/* Exit in case of unknown error */
-	return(os_file_handle_error_cond_exit(name, operation, true, false));
-}
-
-/** Does error handling when a file operation fails.
-@param[in]	name		name of a file or NULL
-@param[in]	operation	operation name that failed
-@param[in]	on_error_silent	if true then don't print any message to the log.
-@return true if we should retry the operation */
-static
-bool
-os_file_handle_error_no_exit(
-	const char*	name,
-	const char*	operation,
-	bool		on_error_silent)
-{
-	/* Don't exit in case of unknown error */
-	return(os_file_handle_error_cond_exit(
-			name, operation, false, on_error_silent));
 }
 
 #ifndef _WIN32
@@ -5683,6 +5671,15 @@ os_aio_handler(
 	return(err);
 }
 
+#ifdef WIN_ASYNC_IO
+static HANDLE new_completion_port()
+{
+	HANDLE h = CreateIoCompletionPort(INVALID_HANDLE_VALUE, 0, 0, 0);
+	ut_a(h);
+	return h;
+}
+#endif
+
 /** Constructor
 @param[in]	id		The latch ID
 @param[in]	n		Number of AIO slots
@@ -5699,6 +5696,9 @@ AIO::AIO(
 	,m_aio_ctx(),
 	m_events(m_slots.size())
 # endif /* LINUX_NATIVE_AIO */
+#ifdef WIN_ASYNC_IO
+	,m_completion_port(new_completion_port())
+#endif
 {
 	ut_a(n > 0);
 	ut_a(m_n_segments > 0);
@@ -5865,6 +5865,9 @@ AIO::~AIO()
 		ut_free(m_aio_ctx);
 	}
 #endif /* LINUX_NATIVE_AIO */
+#if defined(WIN_ASYNC_IO)
+	CloseHandle(m_completion_port);
+#endif
 
 	m_slots.clear();
 }
@@ -5950,6 +5953,12 @@ AIO::start(
 	if (s_writes == NULL) {
 		return(false);
 	}
+
+#ifdef WIN_ASYNC_IO
+	data_completion_port = s_writes->m_completion_port;
+	log_completion_port =
+		s_log ? s_log->m_completion_port : data_completion_port;
+#endif
 
 	n_segments += n_writers;
 
@@ -6438,8 +6447,7 @@ therefore no other thread is allowed to do the freeing!
 @param[out]	type		OS_FILE_WRITE or ..._READ
 @return DB_SUCCESS or error code */
 
-#define READ_SEGMENT(s) (s < srv_n_read_io_threads)
-#define WRITE_SEGMENT(s) !READ_SEGMENT(s)
+
 
 static
 dberr_t
@@ -6462,8 +6470,11 @@ os_aio_windows_handler(
 	we do not have to acquire the protecting mutex yet */
 
 	ut_ad(os_aio_validate_skip());
+	AIO *my_array;
+	AIO::get_array_and_local_segment(&my_array, segment);
 
-	HANDLE port = READ_SEGMENT(segment) ? read_completion_port : completion_port;
+	HANDLE port = my_array->m_completion_port;
+	ut_ad(port);
 	for (;;) {
 		DWORD len;
 		ret = GetQueuedCompletionStatus(port, &len, &key,
@@ -6485,25 +6496,26 @@ os_aio_windows_handler(
 		}
 
 		slot->n_bytes= len;
+		ut_a(slot->array);
+		HANDLE slot_port = slot->array->m_completion_port;
+		if (slot_port != port) {
+			/* there are no redirections between data and log */
+			ut_ad(port == data_completion_port);
+			ut_ad(slot_port != log_completion_port);
 
-		if (WRITE_SEGMENT(segment) && slot->type.is_read()) {
 			/*
-			Redirect read completions  to the dedicated completion port
-			and thread. We need to split read and write threads. If we do not
-			do that, and just allow all io threads process all IO, it is possible
-			to get stuck in a deadlock in buffer pool code,
+			Redirect completions  to the dedicated completion port
+			and threads.
 
-			Currently, the problem is solved this way - "write io" threads
-			always get all completion notifications, from both async reads and
-			writes. Write completion is handled in the same thread that gets it.
-			Read completion is forwarded via PostQueueCompletionStatus())
-			to the second completion port dedicated solely to reads. One of the
-			"read io" threads waiting on this port will finally handle the IO.
+			"Write array" threads receive write,read and ibuf
+			notifications, read and ibuf completions are redirected.
 
-			Forwarding IO completion this way costs a context switch , and this
-			seems tolerable  since asynchronous reads are by far less frequent.
+			Forwarding IO completion this way costs a context switch,
+			and this seems tolerable  since asynchronous reads are by
+			far less frequent.
 			*/
-			ut_a(PostQueuedCompletionStatus(read_completion_port, len, key, &slot->control));
+			ut_a(PostQueuedCompletionStatus(slot_port,
+				len, key, &slot->control));
 		}
 		else {
 			break;
@@ -6564,7 +6576,6 @@ os_aio_windows_handler(
 		err = AIOHandler::post_io_processing(slot);
 	}
 
-	ut_a(slot->array);
 	slot->array->release_with_mutex(slot);
 
 	if (srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS

@@ -1807,7 +1807,7 @@ ER_NORMAL_SHUTDOWN
         cze "%s (%s): normální ukončení"
         dan "%s (%s): Normal nedlukning"
         nla "%s (%s): Normaal afgesloten "
-        eng "%s (%s): Normal shutdown"
+        eng "%s (initiated by: %s): Normal shutdown"
         est "%s (%s): MariaDB lõpetas"
         fre "%s (%s): Arrêt normal du serveur"
         ger "%s (%s): Normal heruntergefahren"
@@ -1822,7 +1822,7 @@ ER_NORMAL_SHUTDOWN
         pol "%s (%s): Standardowe zakończenie działania"
         por "%s (%s): 'Shutdown' normal"
         rum "%s (%s): Terminare normala"
-        rus "%s (%s): Корректная остановка"
+        rus "%s (инициирована пользователем: %s): Корректная остановка"
         serbian "%s (%s): Normalno gašenje"
         slo "%s (%s): normálne ukončenie"
         spa "%s (%s): Apagado normal"
@@ -5749,8 +5749,8 @@ ER_SP_NO_AGGREGATE 42000
         eng "AGGREGATE is not supported for stored functions"
         ger "AGGREGATE wird bei gespeicherten Funktionen nicht unterstützt"
 ER_MAX_PREPARED_STMT_COUNT_REACHED 42000
-        eng "Can't create more than max_prepared_stmt_count statements (current value: %lu)"
-        ger "Kann nicht mehr Anweisungen als max_prepared_stmt_count erzeugen (aktueller Wert: %lu)"
+        eng "Can't create more than max_prepared_stmt_count statements (current value: %u)"
+        ger "Kann nicht mehr Anweisungen als max_prepared_stmt_count erzeugen (aktueller Wert: %u)"
 ER_VIEW_RECURSIVE
         eng "%`s.%`s contains view recursion"
         ger "%`s.%`s enthält View-Rekursion"
@@ -7844,8 +7844,8 @@ WARN_VERS_PARAMETERS
 ER_VERS_DROP_PARTITION_INTERVAL
         eng "Can only drop oldest partitions when rotating by INTERVAL"
 
-WARN_VERS_TRX_MISSING
-        eng "VTQ missing transaction ID %lu"
+ER_UNUSED_25
+        eng "You should never see it"
 
 WARN_VERS_PART_NON_HISTORICAL
         eng "Partition %`s contains non-historical data"
@@ -7854,13 +7854,13 @@ ER_VERS_ALTER_NOT_ALLOWED
         eng "Not allowed for system-versioned %`s.%`s. Change @@system_versioning_alter_history to proceed with ALTER."
 
 ER_VERS_ALTER_ENGINE_PROHIBITED
-        eng "Not allowed for system-versioned %`s.%`s. Change to/from native system versioning engine is prohibited."
+        eng "Not allowed for system-versioned %`s.%`s. Change to/from native system versioning engine is not supported."
 
 ER_VERS_RANGE_PROHIBITED
-        eng "SYSTEM_TIME range selector is prohibited"
+        eng "SYSTEM_TIME range selector is not allowed"
 
-ER_VERS_VTMD_ERROR
-        eng "VTMD error: %s"
+ER_UNUSED_26
+        eng "You should never see it"
 
 ER_VERS_TABLE_MUST_HAVE_COLUMNS
         eng "Table %`s must have at least one versioned column"
@@ -7889,8 +7889,8 @@ ER_VERS_ALTER_SYSTEM_FIELD
 ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION
         eng "Can not DROP SYSTEM VERSIONING for table %`s partitioned BY SYSTEM_TIME"
 
-ER_NOT_LOG_TABLE
-        eng "Table %`s.%`s is not a log table"
+ER_VERS_DB_NOT_SUPPORTED
+      eng "System versioning tables in the %`s database are not suported"
 
 ER_VERS_TRT_IS_DISABLED
         eng "Transaction registry is disabled"
@@ -7905,7 +7905,7 @@ ER_UNUSED_24
 	eng "You should never see it"
 
 ER_VERS_TEMPORARY
-	eng "System versioning prohibited for TEMPORARY tables"
+	eng "TEMPORARY tables do not support system versioning"
 
 ER_VERS_NOT_SUPPORTED
         eng "%s is not supported for %s system-versioned tables"

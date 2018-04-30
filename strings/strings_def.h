@@ -18,8 +18,8 @@
 /* This file is to be include first in all files in the string directory */
 
 #undef DBUG_ASSERT_AS_PRINTF
-#include <my_global.h>		/* Define standar vars */
-#include "m_string.h"		/* Exernal defintions of string functions */
+#include <my_global.h>		/* Define standard vars */
+#include "m_string.h"		/* Exernal definitions of string functions */
 
 /*
   We can't use the original DBUG_ASSERT() (which includes _db_flush())

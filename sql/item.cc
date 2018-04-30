@@ -149,19 +149,21 @@ bool Item::get_time_with_conversion(THD *thd, MYSQL_TIME *ltime,
         - truncate the YYYYMMDD part
         - add (MM*33+DD)*24 to hours
         - add (MM*31+DD)*24 to hours
-        Let's return NULL here, to disallow equal field propagation.
+        Let's return TRUE here, to disallow equal field propagation.
         Note, If we start to use this method in more pieces of the code other
-        than eqial field propagation, we should probably return
-        NULL only if some flag in fuzzydate is set.
+        than equal field propagation, we should probably return
+        TRUE only if some flag in fuzzydate is set.
       */
-      return (null_value= true);
+      return true;
     }
     if (datetime_to_time_with_warn(thd, ltime, &ltime2, TIME_SECOND_PART_DIGITS))
     {
       /*
-        Time difference between CURRENT_DATE and ltime
-        did not fit into the supported TIME range
+        If the time difference between CURRENT_DATE and ltime
+        did not fit into the supported TIME range, then we set the
+        difference to the maximum possible value in the supported TIME range
       */
+      DBUG_ASSERT(0);
       return (null_value= true);
     }
     *ltime= ltime2;
@@ -1774,11 +1776,11 @@ bool Item_sp_variable::is_null()
   return this_item()->is_null();
 }
 
-void Item_sp_variable::make_field(THD *thd, Send_field *field)
+void Item_sp_variable::make_send_field(THD *thd, Send_field *field)
 {
   Item *it= this_item();
 
-  it->make_field(thd, field);
+  it->make_send_field(thd, field);
   if (name.str)
     field->col_name= name;
   else
@@ -3055,7 +3057,7 @@ Item* Item_ref::build_clone(THD *thd)
 }
 
 
-void Item_ident_for_show::make_field(THD *thd, Send_field *tmp_field)
+void Item_ident_for_show::make_send_field(THD *thd, Send_field *tmp_field)
 {
   tmp_field->table_name= tmp_field->org_table_name= table_name;
   tmp_field->db_name= db_name;
@@ -3075,12 +3077,9 @@ Item_field::Item_field(THD *thd, Field *f)
    have_privileges(0), any_privileges(0)
 {
   set_field(f);
-  /*
-    field_name and table_name should not point to garbage
-    if this item is to be reused
-  */
-  orig_table_name= "";
-  orig_field_name= null_clex_str;
+
+  orig_table_name= table_name;
+  orig_field_name= field_name;
   with_field= 1;
 }
 
@@ -4040,6 +4039,23 @@ Item *Item_null::clone_item(THD *thd)
 {
   return new (thd->mem_root) Item_null(thd, name.str);
 }
+
+
+Item_basic_constant *
+Item_null::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
+{
+  DBUG_ASSERT(thd->variables.sql_mode & MODE_EMPTY_STRING_IS_NULL);
+  if (str->length)
+  {
+    CHARSET_INFO *cs= thd->variables.collation_connection;
+    uint repertoire= my_string_repertoire(cs, str->str, str->length);
+    return new (thd->mem_root) Item_string(thd,
+                                           str->str, (uint) str->length, cs,
+                                           DERIVATION_COERCIBLE, repertoire);
+  }
+  return this;
+}
+
 
 /*********************** Item_param related ******************************/
 
@@ -5017,9 +5033,9 @@ Item_param::get_out_param_info() const
   @param field container for meta-data to be filled
 */
 
-void Item_param::make_field(THD *thd, Send_field *field)
+void Item_param::make_send_field(THD *thd, Send_field *field)
 {
-  Item::make_field(thd, field);
+  Item::make_send_field(thd, field);
 
   if (!m_out_param_info)
     return;
@@ -6597,8 +6613,8 @@ Item *Item_field::replace_equal_field(THD *thd, uchar *arg)
 }
 
 
-void Item::init_make_field(Send_field *tmp_field,
-			   enum enum_field_types field_type_arg)
+void Item::init_make_send_field(Send_field *tmp_field,
+                                enum enum_field_types field_type_arg)
 {
   tmp_field->db_name=		"";
   tmp_field->org_table_name=	"";
@@ -6615,15 +6631,15 @@ void Item::init_make_field(Send_field *tmp_field,
     tmp_field->flags |= UNSIGNED_FLAG;
 }
 
-void Item::make_field(THD *thd, Send_field *tmp_field)
+void Item::make_send_field(THD *thd, Send_field *tmp_field)
 {
-  init_make_field(tmp_field, field_type());
+  init_make_send_field(tmp_field, field_type());
 }
 
 
-void Item_empty_string::make_field(THD *thd, Send_field *tmp_field)
+void Item_empty_string::make_send_field(THD *thd, Send_field *tmp_field)
 {
-  init_make_field(tmp_field, string_type_handler()->field_type());
+  init_make_send_field(tmp_field, string_type_handler()->field_type());
 }
 
 
@@ -6758,9 +6774,9 @@ bool Item::eq_by_collation(Item *item, bool binary_cmp, CHARSET_INFO *cs)
 
 
 /* ARGSUSED */
-void Item_field::make_field(THD *thd, Send_field *tmp_field)
+void Item_field::make_send_field(THD *thd, Send_field *tmp_field)
 {
-  field->make_field(tmp_field);
+  field->make_send_field(tmp_field);
   DBUG_ASSERT(tmp_field->table_name != 0);
   if (name.str)
   {
@@ -6993,6 +7009,41 @@ Item *Item_string::clone_item(THD *thd)
   return new (thd->mem_root)
     Item_string(thd, name.str, str_value.ptr(),
                 str_value.length(), collation.collation);
+}
+
+
+Item_basic_constant *
+Item_string::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
+{
+  append(str->str, (uint32) str->length);
+  if (!(collation.repertoire & MY_REPERTOIRE_EXTENDED))
+  {
+    // If the string has been pure ASCII so far, check the new part.
+    CHARSET_INFO *cs= thd->variables.collation_connection;
+    collation.repertoire|= my_string_repertoire(cs, str->str, str->length);
+  }
+  return this;
+}
+
+
+/*
+  If "this" is a reasonably short pure ASCII string literal,
+  try to parse known ODBC-style date, time or timestamp literals,
+  e.g:
+  SELECT {d'2001-01-01'};
+  SELECT {t'10:20:30'};
+  SELECT {ts'2001-01-01 10:20:30'};
+*/
+Item *Item_string::make_odbc_literal(THD *thd, const LEX_CSTRING *typestr)
+{
+  enum_field_types type= odbc_temporal_literal_type(typestr);
+  Item *res= type == MYSQL_TYPE_STRING ? this :
+             create_temporal_literal(thd, val_str(NULL), type, false);
+  /*
+    create_temporal_literal() returns NULL if failed to parse the string,
+    or the string format did not match the type, e.g.:  {d'2001-01-01 10:10:10'}
+  */
+  return res ? res : this;
 }
 
 
@@ -8459,9 +8510,9 @@ void Item_ref::save_org_in_field(Field *field, fast_field_copier optimizer_data)
 }
 
 
-void Item_ref::make_field(THD *thd, Send_field *field)
+void Item_ref::make_send_field(THD *thd, Send_field *field)
 {
-  (*ref)->make_field(thd, field);
+  (*ref)->make_send_field(thd, field);
   /* Non-zero in case of a view */
   if (name.str)
     field->col_name= name;
@@ -9951,6 +10002,8 @@ Item *Item_cache_int::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
+  if (!value_cached)
+    cache_value();
   new_item= null_value ?
             (Item*) new (thd->mem_root) Item_null(thd) :
 	    (Item*) new (thd->mem_root) Item_int(thd, val_int(), max_length);
@@ -10042,7 +10095,7 @@ double Item_cache_temporal::val_real()
 }
 
 
-bool  Item_cache_temporal::cache_value()
+bool Item_cache_temporal::cache_value()
 {
   if (!example)
     return false;
@@ -10071,12 +10124,11 @@ bool Item_cache_temporal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   if (!has_value())
   {
     bzero((char*) ltime,sizeof(*ltime));
-    return 1;
+    return (null_value= true);
   }
 
   unpack_time(value, ltime, mysql_timestamp_type());
   return 0;
- 
 }
 
 
@@ -10114,18 +10166,35 @@ Item *Item_cache_temporal::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
+  if (!value_cached)
+    cache_value();
   if (null_value)
-    new_item= (Item*) new (thd->mem_root) Item_null(thd);
+    return new (thd->mem_root) Item_null(thd);
   else
-  {
-    MYSQL_TIME ltime;
-    unpack_time(val_datetime_packed(), &ltime, MYSQL_TIMESTAMP_DATETIME);
-    new_item= (Item*) new (thd->mem_root) Item_datetime_literal(thd, &ltime,
-                                                                decimals);
-  }
+    return make_literal(thd);
   return new_item;
 }
 
+Item *Item_cache_datetime::make_literal(THD *thd)
+{
+  MYSQL_TIME ltime;
+  unpack_time(val_datetime_packed(), &ltime, MYSQL_TIMESTAMP_DATETIME);
+  return new (thd->mem_root) Item_datetime_literal(thd, &ltime, decimals);
+}
+
+Item *Item_cache_date::make_literal(THD *thd)
+{
+  MYSQL_TIME ltime;
+  unpack_time(val_datetime_packed(), &ltime, MYSQL_TIMESTAMP_DATE);
+  return new (thd->mem_root) Item_date_literal(thd, &ltime);
+}
+
+Item *Item_cache_time::make_literal(THD *thd)
+{
+  MYSQL_TIME ltime;
+  unpack_time(val_time_packed(), &ltime, MYSQL_TIMESTAMP_TIME);
+  return new (thd->mem_root) Item_time_literal(thd, &ltime, decimals);
+}
 
 bool Item_cache_real::cache_value()
 {
@@ -10179,6 +10248,8 @@ Item *Item_cache_real::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
+  if (!value_cached)
+    cache_value();
   new_item= null_value ?
             (Item*) new (thd->mem_root) Item_null(thd) :
 	    (Item*) new (thd->mem_root) Item_float(thd, val_real(),
@@ -10242,6 +10313,8 @@ Item *Item_cache_decimal::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
+  if (!value_cached)
+    cache_value();
   if (null_value)
     new_item= (Item*) new (thd->mem_root) Item_null(thd);
   else
@@ -10337,6 +10410,8 @@ Item *Item_cache_str::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
+  if (!value_cached)
+    cache_value();
   if (null_value)
     new_item= (Item*) new (thd->mem_root) Item_null(thd);
   else

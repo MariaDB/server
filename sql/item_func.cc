@@ -5128,17 +5128,17 @@ bool Item_func_set_user_var::send(Protocol *protocol, st_value *buffer)
   return Item::send(protocol, buffer);
 }
 
-void Item_func_set_user_var::make_field(THD *thd, Send_field *tmp_field)
+void Item_func_set_user_var::make_send_field(THD *thd, Send_field *tmp_field)
 {
   if (result_field)
   {
-    result_field->make_field(tmp_field);
+    result_field->make_send_field(tmp_field);
     DBUG_ASSERT(tmp_field->table_name != 0);
     if (Item::name.str)
       tmp_field->col_name= Item::name;          // Use user supplied name
   }
   else
-    Item::make_field(thd, tmp_field);
+    Item::make_send_field(thd, tmp_field);
 }
 
 
@@ -6380,11 +6380,11 @@ Item_func_sp::execute()
 
 
 void
-Item_func_sp::make_field(THD *thd, Send_field *tmp_field)
+Item_func_sp::make_send_field(THD *thd, Send_field *tmp_field)
 {
-  DBUG_ENTER("Item_func_sp::make_field");
+  DBUG_ENTER("Item_func_sp::make_send_field");
   DBUG_ASSERT(sp_result_field);
-  sp_result_field->make_field(tmp_field);
+  sp_result_field->make_send_field(tmp_field);
   if (name.str)
   {
     DBUG_ASSERT(name.length == strlen(name.str));

@@ -555,6 +555,8 @@ row_ins_cascade_calc_update_vec(
 				ufield->exp = NULL;
 
 				ufield->new_val = parent_ufield->new_val;
+				dfield_get_type(&ufield->new_val)->prtype |=
+					col->prtype & DATA_VERSIONED;
 				ufield_len = dfield_get_len(&ufield->new_val);
 
 				/* Clear the "external storage" flag */
@@ -1393,6 +1395,15 @@ row_ins_foreign_check_on_constraint(
 		}
 	}
 
+	if (table->versioned() && cascade->is_delete != PLAIN_DELETE
+	    && cascade->update->affects_versioned()) {
+		ut_ad(!cascade->historical_heap);
+		cascade->historical_heap = mem_heap_create(128);
+		cascade->historical_row = row_build(
+			ROW_COPY_POINTERS, clust_index, clust_rec, NULL, table,
+			NULL, NULL, NULL, cascade->historical_heap);
+	}
+
 	/* Store pcur position and initialize or store the cascade node
 	pcur stored position */
 
@@ -1612,6 +1623,19 @@ row_ins_check_foreign_constraint(
 			which order they are performed. */
 
 			goto exit_func;
+		}
+	}
+
+	if (que_node_get_type(thr->run_node) == QUE_NODE_INSERT) {
+		ins_node_t* insert_node =
+			static_cast<ins_node_t*>(thr->run_node);
+		dict_table_t* table = insert_node->index->table;
+		if (table->versioned()) {
+			dfield_t* row_end = dtuple_get_nth_field(
+				insert_node->row, table->vers_end);
+			if (row_end->vers_history_row()) {
+				goto exit_func;
+			}
 		}
 	}
 
@@ -1876,8 +1900,6 @@ do_possible_lock_wait:
 		thr->lock_state = QUE_THR_LOCK_ROW;
 
 		check_table->inc_fk_checks();
-
-		trx_kill_blocking(trx);
 
 		lock_wait_suspend_thread(thr);
 
@@ -2475,7 +2497,7 @@ row_ins_index_entry_big_rec(
 	if (index->table->is_temporary()) {
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 	}
 
 	btr_pcur_open(index, entry, PAGE_CUR_LE, BTR_MODIFY_TREE,
@@ -2569,7 +2591,7 @@ row_ins_clust_index_entry_low(
 		ut_ad(!index->is_instant());
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 
 		if (mode == BTR_MODIFY_LEAF
 		    && dict_index_is_online_ddl(index)) {
@@ -2801,12 +2823,12 @@ row_ins_sec_mtr_start_and_check_if_aborted(
 	ulint		search_mode)
 {
 	ut_ad(!dict_index_is_clust(index));
-	ut_ad(mtr->is_named_space(index->space));
+	ut_ad(mtr->is_named_space(index->table->space));
 
 	const mtr_log_t	log_mode = mtr->get_log_mode();
 
-	mtr_start(mtr);
-	mtr->set_named_space(index->space);
+	mtr->start();
+	index->set_modified(*mtr);
 	mtr->set_log_mode(log_mode);
 
 	if (!check) {
@@ -2888,7 +2910,7 @@ row_ins_sec_index_entry_low(
 		ut_ad(flags & BTR_NO_LOCKING_FLAG);
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
-		mtr.set_named_space(index->space);
+		index->set_modified(mtr);
 		if (!dict_index_is_spatial(index)) {
 			search_mode |= BTR_INSERT;
 		}
@@ -2941,7 +2963,7 @@ row_ins_sec_index_entry_low(
 					  index, false);
 			rtr_info_update_btr(&cursor, &rtr_info);
 			mtr_start(&mtr);
-			mtr.set_named_space(index->space);
+			index->set_modified(mtr);
 			search_mode &= ulint(~BTR_MODIFY_LEAF);
 			search_mode |= BTR_MODIFY_TREE;
 			err = btr_cur_search_to_nth_level(
@@ -3330,7 +3352,7 @@ row_ins_sec_index_entry(
 	if (err == DB_FAIL) {
 		mem_heap_empty(heap);
 
-		if (index->space == IBUF_SPACE_ID
+		if (index->table->space == fil_system.sys_space
 		    && !(index->type & (DICT_UNIQUE | DICT_SPATIAL))) {
 			ibuf_free_excess_pages();
 		}

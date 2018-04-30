@@ -62,7 +62,6 @@
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
 #endif
-#include "vtmd.h"
 #include "transaction.h"
 
 enum enum_i_s_events_fields
@@ -1369,14 +1368,6 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   TABLE_LIST archive;
-  bool versioned= table_list->vers_conditions;
-  if (versioned)
-  {
-    DBUG_ASSERT(table_list->vers_conditions == SYSTEM_TIME_AS_OF);
-    VTMD_table vtmd(*table_list);
-    if (vtmd.setup_select(thd))
-      goto exit;
-  }
 
   if (mysqld_show_create_get_fields(thd, table_list, &field_list, &buffer))
     goto exit;
@@ -1418,13 +1409,6 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   my_eof(thd);
 
 exit:
-  if (versioned)
-  {
-    /* If commit fails, we should be able to reset the OK status. */
-    thd->get_stmt_da()->set_overwrite_status(true);
-    trans_commit_stmt(thd);
-    thd->get_stmt_da()->set_overwrite_status(false);
-  }
   close_thread_tables(thd);
   /* Release any metadata locks taken during SHOW CREATE. */
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
@@ -2150,7 +2134,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   }
   else
   {
-    if (lower_case_table_names == 2 || table_list->vers_force_alias)
+    if (lower_case_table_names == 2)
     {
       alias.str= table->alias.c_ptr();
       alias.length= table->alias.length();
@@ -3836,6 +3820,13 @@ extern ST_SCHEMA_TABLE schema_tables[];
 bool schema_table_store_record(THD *thd, TABLE *table)
 {
   int error;
+
+  if (thd->killed)
+  {
+    thd->send_kill_message();
+    return 1;
+  }
+
   if ((error= table->file->ha_write_tmp_row(table->record[0])))
   {
     TMP_TABLE_PARAM *param= table->pos_in_table_list->schema_table_param;
@@ -4373,7 +4364,7 @@ int schema_tables_add(THD *thd, Dynamic_array<LEX_CSTRING*> *files,
     @retval       2           Not fatal error; Safe to ignore this file list
 */
 
-int
+static int
 make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
                      LEX *lex, LOOKUP_FIELD_VALUES *lookup_field_vals,
                      LEX_CSTRING *db_name)
@@ -5025,60 +5016,6 @@ public:
   }
 };
 
-static bool get_all_archive_tables(THD *thd,
-                                   Dynamic_array<String> &all_archive_tables)
-{
-  if (thd->variables.vers_alter_history != VERS_ALTER_HISTORY_SURVIVE)
-    return false;
-
-  Dynamic_array<LEX_CSTRING *> all_db;
-  LOOKUP_FIELD_VALUES lookup_field_values= {
-    {C_STRING_WITH_LEN("%")}, {NULL, 0}, true, false};
-  if (make_db_list(thd, &all_db, &lookup_field_values))
-    return true;
-
-  LEX_STRING information_schema= {C_STRING_WITH_LEN("information_schema")};
-  for (size_t i= 0; i < all_db.elements(); i++)
-  {
-    LEX_CSTRING db= *all_db.at(i);
-    if (db.length == information_schema.length &&
-        !memcmp(db.str, information_schema.str, db.length))
-    {
-      all_db.del(i);
-      break;
-    }
-  }
-
-  for (size_t i= 0; i < all_db.elements(); i++)
-  {
-    LEX_CSTRING db_name= *all_db.at(i);
-    Dynamic_array<String> archive_tables;
-    if (VTMD_table::get_archive_tables(thd, db_name.str, db_name.length,
-                                       archive_tables))
-      return true;
-    for (size_t i= 0; i < archive_tables.elements(); i++)
-      if (all_archive_tables.push(archive_tables.at(i)))
-        return true;
-  }
-
-  return false;
-}
-
-static bool is_archive_table(const Dynamic_array<String> &all_archive_tables,
-                             const LEX_CSTRING candidate)
-{
-  for (size_t i= 0; i < all_archive_tables.elements(); i++)
-  {
-    const String &archive_table= all_archive_tables.at(i);
-    if (candidate.length == archive_table.length() &&
-        !memcmp(candidate.str, archive_table.ptr(), candidate.length))
-    {
-      return true;
-    }
-  }
-  return false;
-}
-
 /**
   @brief          Fill I_S tables whose data are retrieved
                   from frm files and storage engine
@@ -5120,7 +5057,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #endif
   uint table_open_method= tables->table_open_method;
   bool can_deadlock;
-  Dynamic_array<String> all_archive_tables;
   MEM_ROOT tmp_mem_root;
   DBUG_ENTER("get_all_tables");
 
@@ -5180,9 +5116,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   if (make_db_list(thd, &db_names, &plan->lookup_field_vals))
     goto err;
 
-  if (get_all_archive_tables(thd, all_archive_tables))
-    goto err;
-
   /* Use tmp_mem_root to allocate data for opened tables */
   init_alloc_root(&tmp_mem_root, "get_all_tables", SHOW_ALLOC_BLOCK_SIZE,
                   SHOW_ALLOC_BLOCK_SIZE, MY_THREAD_SPECIFIC);
@@ -5211,9 +5144,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
       {
         LEX_CSTRING *table_name= table_names.at(i);
         DBUG_ASSERT(table_name->length <= NAME_LEN);
-
-        if (is_archive_table(all_archive_tables, *table_name))
-          continue;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
         if (!(thd->col_access & TABLE_ACLS))
@@ -6069,6 +5999,12 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
       if (buf.length())
         buf.append(STRING_WITH_LEN(", "));
       buf.append(STRING_WITH_LEN("INVISIBLE"),cs);
+    }
+    if (field->vers_update_unversioned())
+    {
+      if (buf.length())
+        buf.append(STRING_WITH_LEN(", "));
+      buf.append(STRING_WITH_LEN("WITHOUT SYSTEM VERSIONING"), cs);
     }
     table->field[17]->store(buf.ptr(), buf.length(), cs);
     table->field[19]->store(field->comment.str, field->comment.length, cs);
@@ -8064,6 +8000,50 @@ ST_SCHEMA_TABLE *get_schema_table(enum enum_schema_tables schema_table_idx)
   return &schema_tables[schema_table_idx];
 }
 
+static void
+mark_all_fields_used_in_query(THD *thd,
+                              ST_FIELD_INFO *schema_fields,
+                              MY_BITMAP *bitmap,
+                              Item *all_items)
+{
+  Item *item;
+  DBUG_ENTER("mark_all_fields_used_in_query");
+
+  /* If not SELECT command, return all columns */
+  if (thd->lex->sql_command != SQLCOM_SELECT &&
+      thd->lex->sql_command != SQLCOM_SET_OPTION)
+  {
+    bitmap_set_all(bitmap);
+    DBUG_VOID_RETURN;
+  }
+
+  for (item= all_items ; item ; item= item->next)
+  {
+    if (item->type() == Item::FIELD_ITEM)
+    {
+      ST_FIELD_INFO *fields= schema_fields;
+      uint count;
+      Item_field *item_field= (Item_field*) item;
+
+      /* item_field can be '*' as this function is called before fix_fields */
+      if (item_field->field_name.str == star_clex_str.str)
+      {
+        bitmap_set_all(bitmap);
+        break;
+      }
+      for (count=0; fields->field_name; fields++, count++)
+      {
+        if (!my_strcasecmp(system_charset_info, fields->field_name,
+                           item_field->field_name.str))
+        {
+          bitmap_set_bit(bitmap, count);
+          break;
+        }
+      }
+    }
+  }
+  DBUG_VOID_RETURN;
+}
 
 /**
   Create information_schema table using schema_table data.
@@ -8088,17 +8068,34 @@ ST_SCHEMA_TABLE *get_schema_table(enum enum_schema_tables schema_table_idx)
 
 TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
 {
-  int field_count= 0;
-  Item *item;
+  uint field_count;
+  Item *item, *all_items;
   TABLE *table;
   List<Item> field_list;
   ST_SCHEMA_TABLE *schema_table= table_list->schema_table;
   ST_FIELD_INFO *fields_info= schema_table->fields_info;
+  ST_FIELD_INFO *fields;
   CHARSET_INFO *cs= system_charset_info;
   MEM_ROOT *mem_root= thd->mem_root;
+  MY_BITMAP bitmap;
+  my_bitmap_map *buf;
   DBUG_ENTER("create_schema_table");
 
-  for (; fields_info->field_name; fields_info++)
+  for (field_count= 0, fields= fields_info; fields->field_name; fields++)
+    field_count++;
+  if (!(buf= (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count))))
+    DBUG_RETURN(NULL);
+  my_bitmap_init(&bitmap, buf, field_count, 0);
+
+  if (!thd->stmt_arena->is_conventional() &&
+      thd->mem_root != thd->stmt_arena->mem_root)
+    all_items= thd->stmt_arena->free_list;
+  else
+    all_items= thd->free_list;
+
+  mark_all_fields_used_in_query(thd, fields_info, &bitmap, all_items);
+
+  for (field_count=0; fields_info->field_name; fields_info++)
   {
     size_t field_name_length= strlen(fields_info->field_name);
     switch (fields_info->field_type) {
@@ -8175,25 +8172,43 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
     case MYSQL_TYPE_MEDIUM_BLOB:
     case MYSQL_TYPE_LONG_BLOB:
     case MYSQL_TYPE_BLOB:
-      if (!(item= new (mem_root)
-            Item_blob(thd, fields_info->field_name,
-                      fields_info->field_length)))
+      if (bitmap_is_set(&bitmap, field_count))
       {
-        DBUG_RETURN(0);
+        if (!(item= new (mem_root)
+              Item_blob(thd, fields_info->field_name,
+                        fields_info->field_length)))
+        {
+          DBUG_RETURN(0);
+        }
+      }
+      else
+      {
+        if (!(item= new (mem_root)
+              Item_empty_string(thd, "", 0, cs)))
+        {
+          DBUG_RETURN(0);
+        }
+        item->set_name(thd, fields_info->field_name,
+                       field_name_length, cs);
       }
       break;
     default:
+    {
+      bool show_field;
       /* Don't let unimplemented types pass through. Could be a grave error. */
       DBUG_ASSERT(fields_info->field_type == MYSQL_TYPE_STRING);
 
+      show_field= bitmap_is_set(&bitmap, field_count);
       if (!(item= new (mem_root)
-            Item_empty_string(thd, "", fields_info->field_length, cs)))
+            Item_empty_string(thd, "",
+                              show_field ? fields_info->field_length : 0, cs)))
       {
         DBUG_RETURN(0);
       }
       item->set_name(thd, fields_info->field_name,
                      field_name_length, cs);
       break;
+    }
     }
     field_list.push_back(item, thd->mem_root);
     item->maybe_null= (fields_info->field_flags & MY_I_S_MAYBE_NULL);

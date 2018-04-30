@@ -48,7 +48,7 @@ extern "C" {
 /*
   On i386 we store Unicode->CS conversion tables for
   some character sets using Big-endian order,
-  to copy two bytes at onces.
+  to copy two bytes at once.
   This gives some performance improvement.
 */
 #ifdef __i386__
@@ -376,7 +376,7 @@ typedef size_t (*my_charset_conv_case)(CHARSET_INFO *,
   A structure to return the statistics of a native string copying,
   when no Unicode conversion is involved.
 
-  The stucture is OK to be uninitialized before calling a copying routine.
+  The structure is OK to be uninitialized before calling a copying routine.
   A copying routine must populate the structure as follows:
     - m_source_end_pos must be set by to a non-NULL value
       in the range of the input string.
@@ -517,7 +517,7 @@ struct my_charset_handler_st
   /**
     Write a character to the target string, using its native code.
     For Unicode character sets (utf8, ucs2, utf16, utf16le, utf32, filename)
-    native codes are equvalent to Unicode code points.
+    native codes are equivalent to Unicode code points.
     For 8bit character sets the native code is just the byte value.
     For Asian characters sets:
     - MB1 native code is just the byte value (e.g. on the ASCII range)
@@ -964,7 +964,7 @@ uint32 my_convert_using_func(char *to, size_t to_length, CHARSET_INFO *to_cs,
   Bad byte sequences as well as characters that cannot be
   encoded in the destination character set are replaced to '?'.
   Not more than "nchars" characters are copied.
-  Conversion statistics is returnd in "status" and is set as follows:
+  Conversion statistics is returned in "status" and is set as follows:
   - status->m_native_copy_status.m_source_end_pos - to the position
     between (src) and (src+src_length), where the function stopped reading
     the source string.

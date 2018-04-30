@@ -1482,10 +1482,10 @@ static const char *fix_plugin_ptr(const char *name)
 */
 static bool fix_user_plugin_ptr(ACL_USER *user)
 {
-  if (lex_string_eq(&user->plugin, &native_password_plugin_name) == 0)
+  if (lex_string_eq(&user->plugin, &native_password_plugin_name))
     user->plugin= native_password_plugin_name;
   else
-  if (lex_string_eq(&user->plugin, &old_password_plugin_name) == 0)
+  if (lex_string_eq(&user->plugin, &old_password_plugin_name))
     user->plugin= old_password_plugin_name;
   else
     return true;
@@ -1525,10 +1525,10 @@ static bool fix_lex_user(THD *thd, LEX_USER *user)
   DBUG_ASSERT(user->plugin.length || !user->auth.length);
   DBUG_ASSERT(!(user->plugin.length && (user->pwtext.length || user->pwhash.length)));
 
-  if (lex_string_eq(&user->plugin, &native_password_plugin_name) == 0)
+  if (lex_string_eq(&user->plugin, &native_password_plugin_name))
     check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
   else
-  if (lex_string_eq(&user->plugin, &old_password_plugin_name) == 0)
+  if (lex_string_eq(&user->plugin, &old_password_plugin_name))
     check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
   else
   if (user->plugin.length)
@@ -9286,11 +9286,8 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
   DBUG_PRINT("info", ("Rewriting entry in roles_mapping table: %s@%s",
                       user_from->user.str, user_from->host.str));
   table->use_all_columns();
-  if ((error= table->file->ha_rnd_init(1)))
-  {
-    table->file->print_error(error, MYF(0));
+  if (unlikely(error= table->file->ha_rnd_init_with_error(1)))
     result= -1;
-  }
   else
   {
     while((error= table->file->ha_rnd_next(table->record[0])) !=
@@ -9451,11 +9448,8 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
       And their host- and user fields are not consecutive.
       Thus, we need to do a table scan to find all matching records.
     */
-    if ((error= table->file->ha_rnd_init(1)))
-    {
-      table->file->print_error(error, MYF(0));
+    if (unlikely(error= table->file->ha_rnd_init_with_error(1)))
       result= -1;
-    }
     else
     {
 #ifdef EXTRA_DEBUG
@@ -11213,7 +11207,7 @@ applicable_roles_insert(ACL_USER_BASE *grantee, ACL_ROLE *role, void *ptr)
   if (!is_role)
   {
     if (data->user->default_rolename.length &&
-        !lex_string_eq(&data->user->default_rolename, &role->user))
+        lex_string_eq(&data->user->default_rolename, &role->user))
       table->field[3]->store(STRING_WITH_LEN("YES"), cs);
     else
       table->field[3]->store(STRING_WITH_LEN("NO"), cs);
@@ -12825,8 +12819,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     restarted and a server auth plugin will read the data that the client
     has just send. Cache them to return in the next server_mpvio_read_packet().
   */
-  if (lex_string_eq(&mpvio->acl_user->plugin,
-                    plugin_name(mpvio->plugin)) != 0)
+  if (!lex_string_eq(&mpvio->acl_user->plugin, plugin_name(mpvio->plugin)))
   {
     mpvio->cached_client_reply.pkt= passwd;
     mpvio->cached_client_reply.pkt_len= (uint)passwd_len;
@@ -13256,7 +13249,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   {
     DBUG_ASSERT(mpvio.acl_user);
     DBUG_ASSERT(command == COM_CHANGE_USER ||
-                lex_string_eq(auth_plugin_name, &mpvio.acl_user->plugin));
+                !lex_string_eq(auth_plugin_name, &mpvio.acl_user->plugin));
     auth_plugin_name= &mpvio.acl_user->plugin;
     res= do_auth_once(thd, auth_plugin_name, &mpvio);
   }

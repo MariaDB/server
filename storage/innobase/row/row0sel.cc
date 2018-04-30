@@ -134,7 +134,7 @@ row_sel_sec_rec_is_for_blob(
 	}
 
 	len = btr_copy_externally_stored_field_prefix(
-		buf, prefix_len, dict_tf_get_page_size(table->flags),
+		buf, prefix_len, page_size_t(table->space->flags),
 		clust_field, clust_len);
 
 	if (len == 0) {
@@ -302,8 +302,8 @@ row_sel_sec_rec_is_for_clust_rec(
 			if (rec_offs_nth_extern(clust_offs, clust_pos)) {
 				dptr = btr_copy_externally_stored_field(
 					&clust_len, dptr,
-					dict_tf_get_page_size(
-						sec_index->table->flags),
+					page_size_t(clust_index->table->space
+						    ->flags),
 					len, heap);
 			}
 
@@ -1120,13 +1120,14 @@ re_scan:
 			}
 			mutex_exit(&match->rtr_match_mutex);
 
+			/* MDEV-14059 FIXME: why re-latch the block?
+			pcur is already positioned on it! */
 			ulint		page_no = page_get_page_no(
-						btr_pcur_get_page(pcur));
-			page_id_t	page_id(dict_index_get_space(index),
-						page_no);
+				btr_pcur_get_page(pcur));
 
 			cur_block = buf_page_get_gen(
-				page_id, dict_table_page_size(index->table),
+				page_id_t(index->table->space->id, page_no),
+				page_size_t(index->table->space->flags),
 				RW_X_LATCH, NULL, BUF_GET,
 				__FILE__, __LINE__, mtr, &err);
 		} else {
@@ -2864,7 +2865,9 @@ row_sel_field_store_in_mysql_format_func(
 		      || !(templ->mysql_col_len % templ->mbmaxlen));
 		ut_ad(len * templ->mbmaxlen >= templ->mysql_col_len
 		      || (field_no == templ->icp_rec_field_no
-			  && field->prefix_len > 0));
+			  && field->prefix_len > 0)
+		      || templ->rec_field_is_prefix);
+
 		ut_ad(templ->is_virtual
 		      || !(field->prefix_len % templ->mbmaxlen));
 
@@ -4033,6 +4036,118 @@ row_sel_fill_vrow(
 	}
 }
 
+/** Return the record field length in characters.
+@param[in]	col		table column of the field
+@param[in]	field_no	field number
+@param[in]	rec		physical record
+@param[in]	offsets		field offsets in the physical record
+@return field length in characters. */
+static
+size_t
+rec_field_len_in_chars(
+	const dict_col_t*	col,
+	const ulint		field_no,
+	const rec_t*		rec,
+	const ulint*		offsets)
+{
+	const ulint cset = dtype_get_charset_coll(col->prtype);
+	const CHARSET_INFO* cs = all_charsets[cset];
+	ulint rec_field_len;
+	const char* rec_field = reinterpret_cast<const char *>(
+		rec_get_nth_field(
+			rec, offsets, field_no, &rec_field_len));
+
+	if (UNIV_UNLIKELY(!cs)) {
+		ib::warn() << "Missing collation " << cset;
+		return SIZE_T_MAX;
+	}
+
+	return(cs->cset->numchars(cs, rec_field, rec_field + rec_field_len));
+}
+
+/** Avoid the clustered index lookup if all the following conditions
+are true:
+1) all columns are in secondary index
+2) all values for columns that are prefix-only indexes are shorter
+than the prefix size. This optimization can avoid many IOs for certain schemas.
+@return true, to avoid clustered index lookup. */
+static
+bool row_search_with_covering_prefix(
+	row_prebuilt_t*	prebuilt,
+	const rec_t*	rec,
+	const ulint*	offsets)
+{
+	const dict_index_t*	index = prebuilt->index;
+	ut_ad(!dict_index_is_clust(index));
+
+	if (!srv_prefix_index_cluster_optimization) {
+		return false;
+	}
+
+	/** Optimization only applicable if there the number of secondary index
+	fields are greater than or equal to number of clustered index fields. */
+	if (prebuilt->n_template > index->n_fields) {
+		return false;
+	}
+
+	for (ulint i = 0; i < prebuilt->n_template; i++) {
+		mysql_row_templ_t* templ = prebuilt->mysql_template + i;
+		ulint j = templ->rec_prefix_field_no;
+
+		/** Condition (1) : is the field in the index. */
+		if (j == ULINT_UNDEFINED) {
+			return false;
+		}
+
+		/** Condition (2): If this is a prefix index then
+		row's value size shorter than prefix length. */
+
+		if (!templ->rec_field_is_prefix) {
+			continue;
+		}
+
+		ulint rec_size = rec_offs_nth_size(offsets, j);
+		const dict_field_t* field = dict_index_get_nth_field(index, j);
+		ulint max_chars = field->prefix_len / templ->mbmaxlen;
+
+		ut_a(field->prefix_len > 0);
+
+		if (rec_size < max_chars) {
+			/* Record in bytes shorter than the index
+			prefix length in char. */
+			continue;
+		}
+
+		if (rec_size * templ->mbminlen >= field->prefix_len) {
+			/* Shortest representation string by the
+			byte length of the record is longer than the
+			maximum possible index prefix. */
+			return false;
+		}
+
+		size_t num_chars = rec_field_len_in_chars(
+			field->col, j, rec, offsets);
+
+		if (num_chars >= max_chars) {
+			/* No of chars to store the record exceeds
+			the index prefix character length. */
+			return false;
+		}
+	}
+
+	/* If prefix index optimization condition satisfied then
+	for all columns above, use rec_prefix_field_no instead of
+	rec_field_no, and skip the clustered lookup below. */
+	for (ulint i = 0; i < prebuilt->n_template; i++) {
+		mysql_row_templ_t* templ = prebuilt->mysql_template + i;
+		templ->rec_field_no = templ->rec_prefix_field_no;
+		ut_a(templ->rec_field_no != ULINT_UNDEFINED);
+	}
+
+	srv_stats.n_sec_rec_cluster_reads_avoided.inc();
+	return true;
+}
+
 /** Searches for rows in the database using cursor.
 Function is mainly used for tables that are shared across connections and
 so it employs technique that can help re-construct the rows that
@@ -4070,7 +4185,7 @@ row_search_mvcc(
 	trx_t*		trx		= prebuilt->trx;
 	dict_index_t*	clust_index;
 	que_thr_t*	thr;
-	const rec_t*	rec;
+	const rec_t*	UNINIT_VAR(rec);
 	const dtuple_t*	vrow = NULL;
 	const rec_t*	result_rec = NULL;
 	const rec_t*	clust_rec;
@@ -4093,7 +4208,6 @@ row_search_mvcc(
 	ulint*		offsets				= offsets_;
 	ibool		table_lock_waited		= FALSE;
 	byte*		next_buf			= 0;
-	ibool		use_clustered_index		= FALSE;
 	bool		spatial_search			= false;
 
 	rec_offs_init(offsets_);
@@ -4117,7 +4231,7 @@ row_search_mvcc(
 		DBUG_RETURN(DB_TABLESPACE_DELETED);
 
 	} else if (!prebuilt->table->is_readable()) {
-		DBUG_RETURN(fil_space_get(prebuilt->table->space)
+		DBUG_RETURN(prebuilt->table->space
 			    ? DB_DECRYPTION_FAILED
 			    : DB_TABLESPACE_NOT_FOUND);
 	} else if (!prebuilt->index_usable) {
@@ -4398,17 +4512,12 @@ row_search_mvcc(
 	naturally moves upward (in fetch next) in alphabetical order,
 	otherwise downward */
 
-	if (direction == 0) {
-
-		if (mode == PAGE_CUR_GE
-		    || mode == PAGE_CUR_G
+	if (UNIV_UNLIKELY(direction == 0)) {
+		if (mode == PAGE_CUR_GE || mode == PAGE_CUR_G
 		    || mode >= PAGE_CUR_CONTAIN) {
-
 			moves_up = TRUE;
 		}
-
 	} else if (direction == ROW_SEL_NEXT) {
-
 		moves_up = TRUE;
 	}
 
@@ -4985,8 +5094,7 @@ no_gap_lock:
 			a deadlock and the transaction had to wait then
 			release the lock it is waiting on. */
 
-			trx->abort_type = TRX_SERVER_ABORT;
-			err = lock_trx_handle_wait(trx, false, false);
+			err = lock_trx_handle_wait(trx);
 
 			switch (err) {
 			case DB_SUCCESS:
@@ -5162,69 +5270,10 @@ locks_ok_del_marked:
 		break;
 	}
 
-	/* Get the clustered index record if needed, if we did not do the
-	search using the clustered index... */
-
-	use_clustered_index =
-		(index != clust_index && prebuilt->need_to_access_clustered);
-
-	if (use_clustered_index && srv_prefix_index_cluster_optimization
-	    && prebuilt->n_template <= index->n_fields) {
-		/* ...but, perhaps avoid the clustered index lookup if
-		all of the following are true:
-		1) all columns are in the secondary index
-		2) all values for columns that are prefix-only
-		   indexes are shorter than the prefix size
-		This optimization can avoid many IOs for certain schemas.
-		*/
-		ibool row_contains_all_values = TRUE;
-		uint i;
-		for (i = 0; i < prebuilt->n_template; i++) {
-			/* Condition (1) from above: is the field in the
-			index (prefix or not)? */
-			mysql_row_templ_t* templ =
-				prebuilt->mysql_template + i;
-			ulint secondary_index_field_no =
-				templ->rec_prefix_field_no;
-			if (secondary_index_field_no == ULINT_UNDEFINED) {
-				row_contains_all_values = FALSE;
-				break;
-			}
-			/* Condition (2) from above: if this is a
-			prefix, is this row's value size shorter
-			than the prefix? */
-			if (templ->rec_field_is_prefix) {
-				ulint record_size = rec_offs_nth_size(
-					offsets,
-					secondary_index_field_no);
-				const dict_field_t *field =
-					dict_index_get_nth_field(
-						index,
-						secondary_index_field_no);
-				ut_a(field->prefix_len > 0);
-				if (record_size >= field->prefix_len) {
-					row_contains_all_values = FALSE;
-					break;
-				}
-			}
+	if (index != clust_index && prebuilt->need_to_access_clustered) {
+		if (row_search_with_covering_prefix(prebuilt, rec, offsets)) {
+			goto use_covering_index;
 		}
-		/* If (1) and (2) were true for all columns above, use
-		rec_prefix_field_no instead of rec_field_no, and skip
-		the clustered lookup below. */
-		if (row_contains_all_values) {
-			for (i = 0; i < prebuilt->n_template; i++) {
-				mysql_row_templ_t* templ =
-					prebuilt->mysql_template + i;
-				templ->rec_field_no =
-					templ->rec_prefix_field_no;
-				ut_a(templ->rec_field_no != ULINT_UNDEFINED);
-			}
-			use_clustered_index = FALSE;
-			srv_stats.n_sec_rec_cluster_reads_avoided.inc();
-		}
-	}
-
-	if (use_clustered_index) {
 requires_clust_rec:
 		ut_ad(index != clust_index);
 		/* We use a 'goto' to the preceding label if a consistent
@@ -5322,6 +5371,7 @@ requires_clust_rec:
 			}
 		}
 	} else {
+use_covering_index:
 		result_rec = rec;
 	}
 
@@ -5666,15 +5716,6 @@ normal_return:
 	}
 
 	mtr.commit();
-
-	/* Rollback blocking transactions from hit list for high priority
-	transaction, if any. We should not be holding latches here as
-	we are going to rollback the blocking transactions. */
-	if (!trx->hit_list.empty()) {
-
-		ut_ad(trx_is_high_priority(trx));
-		trx_kill_blocking(trx);
-	}
 
 	DEBUG_SYNC_C("row_search_for_mysql_before_return");
 

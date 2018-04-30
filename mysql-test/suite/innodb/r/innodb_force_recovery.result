@@ -12,11 +12,11 @@ ERROR HY000: Running in read-only mode
 alter table t1 add f3 int not null, algorithm=copy;
 ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 165 "Table is read only")
 alter table t1 add f3 int not null, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Operation not allowed when innodb_forced_recovery > 0.. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Running in read-only mode. Try ALGORITHM=COPY
 drop index idx on t1;
 ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 165 "Table is read only")
 alter table t1 drop index idx, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Operation not allowed when innodb_forced_recovery > 0.. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Running in read-only mode. Try ALGORITHM=COPY
 update t1 set f1=3 where f2=2;
 ERROR HY000: Running in read-only mode
 create table t3(f1 int not null)engine=innodb;
@@ -40,7 +40,7 @@ ERROR HY000: Running in read-only mode
 alter table t2 add f3 int not null, algorithm=copy;
 ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 165 "Table is read only")
 alter table t2 add f3 int not null, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Operation not allowed when innodb_forced_recovery > 0.. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Running in read-only mode. Try ALGORITHM=COPY
 drop index idx on t2;
 ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 165 "Table is read only")
 update t2 set f1=3 where f2=2;
@@ -67,7 +67,7 @@ ERROR HY000: Table 't2' is read only
 alter table t2 add f3 int not null, algorithm=copy;
 ERROR HY000: Table 't2' is read only
 alter table t2 add f3 int not null, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Operation not allowed when innodb_forced_recovery > 0.. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Running in read-only mode. Try ALGORITHM=COPY
 drop index idx on t2;
 ERROR HY000: Table 't2' is read only
 update t2 set f1=3 where f2=2;
