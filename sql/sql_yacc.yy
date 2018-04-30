@@ -14106,9 +14106,9 @@ opt_format_json:
           /* empty */ {}
         | FORMAT_SYM '=' ident_or_text
           {
-            if (!my_strcasecmp(system_charset_info, $3.str, "JSON"))
+            if (lex_string_eq(&$3, STRING_WITH_LEN("JSON")))
               Lex->explain_json= true;
-            else if (!my_strcasecmp(system_charset_info, $3.str, "TRADITIONAL"))
+            else if (lex_string_eq(&$3, STRING_WITH_LEN("TRADITIONAL")))
               DBUG_ASSERT(Lex->explain_json==false);
             else
               my_yyabort_error((ER_UNKNOWN_EXPLAIN_FORMAT, MYF(0), "EXPLAIN",
@@ -17466,9 +17466,9 @@ opt_format_xid:
          /* empty */ { $$= false; }
         | FORMAT_SYM '=' ident_or_text
           {
-            if (!my_strcasecmp(system_charset_info, $3.str, "SQL"))
+            if (lex_string_eq(&$3, STRING_WITH_LEN("SQL")))
               $$= true;
-            else if (!my_strcasecmp(system_charset_info, $3.str, "RAW"))
+            else if (lex_string_eq(&$3, STRING_WITH_LEN("RAW")))
               $$= false;
             else
             {

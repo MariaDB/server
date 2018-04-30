@@ -62,9 +62,9 @@
 
 bool check_reserved_words(const LEX_CSTRING *name)
 {
-  if (!my_strcasecmp(system_charset_info, name->str, "GLOBAL") ||
-      !my_strcasecmp(system_charset_info, name->str, "LOCAL") ||
-      !my_strcasecmp(system_charset_info, name->str, "SESSION"))
+  if (lex_string_eq(name, STRING_WITH_LEN("GLOBAL")) ||
+      lex_string_eq(name, STRING_WITH_LEN("LOCAL")) ||
+      lex_string_eq(name, STRING_WITH_LEN("SESSION")))
     return TRUE;
   return FALSE;
 }

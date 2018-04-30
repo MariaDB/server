@@ -54,11 +54,11 @@ Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
 bool Alter_info::set_requested_algorithm(const LEX_CSTRING *str)
 {
   // To avoid adding new keywords to the grammar, we match strings here.
-  if (!my_strcasecmp(system_charset_info, str->str, "INPLACE"))
+  if (lex_string_eq(str, STRING_WITH_LEN("INPLACE")))
     requested_algorithm= ALTER_TABLE_ALGORITHM_INPLACE;
-  else if (!my_strcasecmp(system_charset_info, str->str, "COPY"))
+  else if (lex_string_eq(str, STRING_WITH_LEN("COPY")))
     requested_algorithm= ALTER_TABLE_ALGORITHM_COPY;
-  else if (!my_strcasecmp(system_charset_info, str->str, "DEFAULT"))
+  else if (lex_string_eq(str, STRING_WITH_LEN("DEFAULT")))
     requested_algorithm= ALTER_TABLE_ALGORITHM_DEFAULT;
   else
     return true;
@@ -69,13 +69,13 @@ bool Alter_info::set_requested_algorithm(const LEX_CSTRING *str)
 bool Alter_info::set_requested_lock(const LEX_CSTRING *str)
 {
   // To avoid adding new keywords to the grammar, we match strings here.
-  if (!my_strcasecmp(system_charset_info, str->str, "NONE"))
+  if (lex_string_eq(str, STRING_WITH_LEN("NONE")))
     requested_lock= ALTER_TABLE_LOCK_NONE;
-  else if (!my_strcasecmp(system_charset_info, str->str, "SHARED"))
+  else if (lex_string_eq(str, STRING_WITH_LEN("SHARED")))
     requested_lock= ALTER_TABLE_LOCK_SHARED;
-  else if (!my_strcasecmp(system_charset_info, str->str, "EXCLUSIVE"))
+  else if (lex_string_eq(str, STRING_WITH_LEN("EXCLUSIVE")))
     requested_lock= ALTER_TABLE_LOCK_EXCLUSIVE;
-  else if (!my_strcasecmp(system_charset_info, str->str, "DEFAULT"))
+  else if (lex_string_eq(str, STRING_WITH_LEN("DEFAULT")))
     requested_lock= ALTER_TABLE_LOCK_DEFAULT;
   else
     return true;

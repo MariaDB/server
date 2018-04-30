@@ -7038,9 +7038,9 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
 
   if (thd->variables.sql_mode & MODE_ORACLE)
   {
-    if (!my_strcasecmp(system_charset_info, name->str, "SQLCODE"))
+    if (lex_string_eq(name, STRING_WITH_LEN("SQLCODE")))
       return new (thd->mem_root) Item_func_sqlcode(thd);
-    if (!my_strcasecmp(system_charset_info, name->str, "SQLERRM"))
+    if (lex_string_eq(name, STRING_WITH_LEN("SQLERRM")))
       return new (thd->mem_root) Item_func_sqlerrm(thd);
   }
   return create_item_ident_nosp(thd, name);
