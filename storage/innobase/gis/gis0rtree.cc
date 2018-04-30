@@ -1889,7 +1889,6 @@ rtr_estimate_n_rows_in_range(
 	mtr_t		mtr;
 	buf_block_t*	block;
 	page_t*		page;
-	ulint		n_recs;
 
 	mtr.start();
 	index->set_modified(mtr);
@@ -1900,7 +1899,7 @@ rtr_estimate_n_rows_in_range(
 		page_size_t(index->table->space->flags),
 		RW_S_LATCH, index, &mtr);
 	page = buf_block_get_frame(block);
-	n_recs = page_header_get_field(page, PAGE_N_RECS);
+	const unsigned n_recs = page_header_get_field(page, PAGE_N_RECS);
 
 	if (n_recs == 0) {
 		mtr.commit();
@@ -1994,5 +1993,6 @@ rtr_estimate_n_rows_in_range(
 		return(HA_POS_ERROR);
 	}
 
-	return dict_table_get_n_rows(index->table) * area / n_recs;
+	area /= n_recs;
+	return ha_rows(dict_table_get_n_rows(index->table) * area);
 }
