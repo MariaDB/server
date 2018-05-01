@@ -119,7 +119,10 @@ int spider_db_connect(
     conn->net_write_timeout = spider_param_net_write_timeout(thd,
       share->net_write_timeouts[link_idx]);
     connect_retry_interval = spider_param_connect_retry_interval(thd);
-    connect_retry_count = spider_param_connect_retry_count(thd);
+    if (conn->disable_connect_retry)
+      connect_retry_count = 0;
+    else
+      connect_retry_count = spider_param_connect_retry_count(thd);
   } else {
     conn->connect_timeout = spider_param_connect_timeout(NULL,
       share->connect_timeouts[link_idx]);

@@ -449,6 +449,9 @@ typedef struct st_spider_conn
   st_spider_conn     *bulk_access_next;
 #endif
 
+  bool               disable_connect_retry;  /* TRUE if it is unnecessary to
+                                                retry to connect after a
+                                                connection error */
   bool               connect_error_with_message;
   char               connect_error_msg[MYSQL_ERRMSG_SIZE];
   int                connect_error;
