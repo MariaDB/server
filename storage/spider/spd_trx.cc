@@ -1638,15 +1638,20 @@ int spider_check_and_set_sql_log_off(
   SPIDER_CONN *conn,
   int *need_mon
 ) {
-  bool internal_sql_log_off;
+  int internal_sql_log_off;
   DBUG_ENTER("spider_check_and_set_sql_log_off");
 
   internal_sql_log_off = spider_param_internal_sql_log_off(thd);
-  if (internal_sql_log_off)
+  if (internal_sql_log_off != -1)
   {
-    spider_conn_queue_sql_log_off(conn, TRUE);
-  } else {
-    spider_conn_queue_sql_log_off(conn, FALSE);
+    if (internal_sql_log_off)
+    {
+      spider_conn_queue_sql_log_off(conn, TRUE);
+    }
+    else
+    {
+      spider_conn_queue_sql_log_off(conn, FALSE);
+    }
   }
 /*
   if (internal_sql_log_off && conn->sql_log_off != 1)

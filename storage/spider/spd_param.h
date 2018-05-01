@@ -113,7 +113,7 @@ bool spider_param_sync_time_zone(
 bool spider_param_use_default_database(
   THD *thd
 );
-bool spider_param_internal_sql_log_off(
+int spider_param_internal_sql_log_off(
   THD *thd
 );
 int spider_param_bulk_size(
