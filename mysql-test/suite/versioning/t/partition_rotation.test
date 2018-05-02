@@ -1,17 +1,8 @@
 --source include/have_partition.inc
---source include/have_binlog_format_statement.inc
---source include/master-slave.inc
-
-#
-# The test below isn't a replication test as such,
-# but it uses replication to get custom timestamps and repeatable
-# behavior into versioning.
-#
 
 #
 # partition rotation
 #
-disable_warnings;
 set timestamp=unix_timestamp('2001-02-03 10:20:30');
 create or replace table t1 (i int) with system versioning
 partition by system_time interval 1 day
@@ -21,17 +12,16 @@ set timestamp=unix_timestamp('2001-02-03 10:20:40');
 insert t1 values (1); delete from t1;
 set timestamp=unix_timestamp('2001-02-04 10:20:50');
 insert t1 values (2); delete from t1;
-enable_warnings;
-sync_slave_with_master;
+
 select subpartition_name,partition_description,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
-connection master;
+
 set timestamp=unix_timestamp('2001-02-04 10:20:55');
 alter table t1 add partition (partition p0 history, partition p2 history);
 set timestamp=unix_timestamp('2001-02-04 10:30:00');
 insert t1 values (4),(5);
 set timestamp=unix_timestamp('2001-02-04 10:30:10');
 update t1 set i=6 where i=5;
-sync_slave_with_master;
+
 select subpartition_name,partition_description,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
 
 --echo ## pruning check
@@ -47,7 +37,4 @@ select * from t1 for system_time all where row_end = @ts;
 --replace_column 5 # 10 # 11 #
 explain partitions select * from t1 for system_time all where row_end = @ts;
 
-connection master;
 drop table t1;
-
---source include/rpl_end.inc
