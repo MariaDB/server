@@ -85,13 +85,12 @@ int spider_udf_set_copy_tables_param_default(
     if (!copy_tables->param_name) \
     { \
       if ((copy_tables->param_name = spider_get_string_between_quote( \
-        start_ptr, TRUE))) \
+        start_ptr, TRUE, &param_string_parse))) \
         copy_tables->SPIDER_PARAM_STR_LEN(param_name) = \
           strlen(copy_tables->param_name); \
-      else { \
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM; \
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR, \
-          MYF(0), tmp_ptr); \
+      else \
+      { \
+        error_num = param_string_parse.print_param_error(); \
         goto error; \
       } \
       DBUG_PRINT("info",("spider " title_name "=%s", copy_tables->param_name)); \
@@ -111,9 +110,7 @@ int spider_udf_set_copy_tables_param_default(
     { \
       if (hint_num < 0 || hint_num >= max_size) \
       { \
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM; \
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR, \
-          MYF(0), tmp_ptr); \
+        error_num = param_string_parse.print_param_error(); \
         goto error; \
       } else if (copy_tables->param_name[hint_num] != -1) \
         break; \
@@ -126,17 +123,13 @@ int spider_udf_set_copy_tables_param_default(
         else if (copy_tables->param_name[hint_num] > max_val) \
           copy_tables->param_name[hint_num] = max_val; \
       } else { \
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM; \
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR, \
-          MYF(0), tmp_ptr); \
+        error_num = param_string_parse.print_param_error(); \
         goto error; \
       } \
       DBUG_PRINT("info",("spider " title_name "[%d]=%d", hint_num, \
         copy_tables->param_name[hint_num])); \
     } else { \
-      error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM; \
-      my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR, \
-        MYF(0), tmp_ptr); \
+      error_num = param_string_parse.print_param_error(); \
       goto error; \
     } \
     break; \
@@ -155,10 +148,11 @@ int spider_udf_set_copy_tables_param_default(
           copy_tables->param_name = min_val; \
         else if (copy_tables->param_name > max_val) \
           copy_tables->param_name = max_val; \
+        param_string_parse.set_param_value(tmp_ptr2, \
+                                           tmp_ptr2 + \
+                                             strlen(tmp_ptr2) + 1); \
       } else { \
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM; \
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR, \
-          MYF(0), tmp_ptr); \
+        error_num = param_string_parse.print_param_error(); \
         goto error; \
       } \
       DBUG_PRINT("info",("spider " title_name "=%d", copy_tables->param_name)); \
@@ -177,10 +171,11 @@ int spider_udf_set_copy_tables_param_default(
         copy_tables->param_name = atoi(tmp_ptr2); \
         if (copy_tables->param_name < min_val) \
           copy_tables->param_name = min_val; \
+        param_string_parse.set_param_value(tmp_ptr2, \
+                                           tmp_ptr2 + \
+                                             strlen(tmp_ptr2) + 1); \
       } else { \
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM; \
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR, \
-          MYF(0), tmp_ptr); \
+        error_num = param_string_parse.print_param_error(); \
         goto error; \
       } \
       DBUG_PRINT("info",("spider " title_name "=%d", copy_tables->param_name)); \
@@ -200,10 +195,11 @@ int spider_udf_set_copy_tables_param_default(
           my_strtoll10(tmp_ptr2, (char**) NULL, &error_num); \
         if (copy_tables->param_name < min_val) \
           copy_tables->param_name = min_val; \
+        param_string_parse.set_param_value(tmp_ptr2, \
+                                           tmp_ptr2 + \
+                                             strlen(tmp_ptr2) + 1); \
       } else { \
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM; \
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR, \
-          MYF(0), tmp_ptr); \
+        error_num = param_string_parse.print_param_error(); \
         goto error; \
       } \
       DBUG_PRINT("info",("spider " title_name "=%lld", \
@@ -222,6 +218,7 @@ int spider_udf_parse_copy_tables_param(
   char *sprit_ptr[2];
   char *tmp_ptr, *tmp_ptr2, *start_ptr;
   int title_length;
+  SPIDER_PARAM_STRING_PARSE param_string_parse;
   DBUG_ENTER("spider_udf_parse_copy_tables_param");
   copy_tables->bulk_insert_interval = -1;
   copy_tables->bulk_insert_rows = -1;
@@ -246,6 +243,7 @@ int spider_udf_parse_copy_tables_param(
   DBUG_PRINT("info",("spider param_string=%s", param_string));
 
   sprit_ptr[0] = param_string;
+  param_string_parse.init(param_string, ER_SPIDER_INVALID_UDF_PARAM_NUM);
   while (sprit_ptr[0])
   {
     if ((sprit_ptr[1] = strchr(sprit_ptr[0], ',')))
@@ -272,10 +270,14 @@ int spider_udf_parse_copy_tables_param(
       title_length++;
       start_ptr++;
     }
+    param_string_parse.set_param_title(tmp_ptr, tmp_ptr + title_length);
 
     switch (title_length)
     {
       case 0:
+        error_num = param_string_parse.print_param_error();
+        if (error_num)
+          goto error;
         continue;
       case 3:
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -286,55 +288,43 @@ int spider_udf_parse_copy_tables_param(
         SPIDER_PARAM_STR("dtb", database);
         SPIDER_PARAM_INT_WITH_MAX("utc", use_table_charset, 0, 1);
         SPIDER_PARAM_INT_WITH_MAX("utr", use_transaction, 0, 1);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
       case 7:
         SPIDER_PARAM_INT_WITH_MAX("bg_mode", bg_mode, 0, 1);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
 #endif
       case 8:
         SPIDER_PARAM_STR("database", database);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 15:
         SPIDER_PARAM_INT_WITH_MAX("use_transaction", use_transaction, 0, 1);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 16:
         SPIDER_PARAM_LONGLONG("bulk_insert_rows", bulk_insert_rows, 1);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 17:
         SPIDER_PARAM_INT_WITH_MAX(
           "use_table_charset", use_table_charset, 0, 1);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       case 20:
         SPIDER_PARAM_INT("bulk_insert_interval", bulk_insert_interval, 0);
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
       default:
-        error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
-        my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
-          MYF(0), tmp_ptr);
+        error_num = param_string_parse.print_param_error();
         goto error;
     }
+
+    /* Verify that the remainder of the parameter value is whitespace */
+    if ((error_num = param_string_parse.has_extra_parameter_values()))
+      goto error;
   }
 
 set_default:
