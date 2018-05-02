@@ -2454,8 +2454,7 @@ static Sys_var_ulong Sys_optimizer_search_depth(
        "optimization, but may produce very bad query plans. If set to 0, "
        "the system will automatically pick a reasonable value.",
        SESSION_VAR(optimizer_search_depth), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, MAX_TABLES+1), DEFAULT(MAX_TABLES+1), BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0));
+       VALID_RANGE(0, MAX_TABLES+1), DEFAULT(MAX_TABLES+1), BLOCK_SIZE(1));
 
 /* this is used in the sigsegv handler */
 export const char *optimizer_switch_names[]=
@@ -5413,9 +5412,7 @@ static const char *wsrep_OSU_method_names[]= { "TOI", "RSU", NullS };
 static Sys_var_enum Sys_wsrep_OSU_method(
        "wsrep_OSU_method", "Method for Online Schema Upgrade",
        SESSION_VAR(wsrep_OSU_method), CMD_LINE(OPT_ARG),
-       wsrep_OSU_method_names, DEFAULT(WSREP_OSU_TOI),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(0));
+       wsrep_OSU_method_names, DEFAULT(WSREP_OSU_TOI));
 
 static PolyLock_mutex PLock_wsrep_desync(&LOCK_wsrep_desync);
 static Sys_var_mybool Sys_wsrep_desync (
@@ -5883,9 +5880,7 @@ static Sys_var_enum Sys_binlog_row_image(
        "before image, and only changed columns are logged in the after image. "
        "(Default: FULL).",
        SESSION_VAR(binlog_row_image), CMD_LINE(REQUIRED_ARG),
-       binlog_row_image_names, DEFAULT(BINLOG_ROW_IMAGE_FULL),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
-       ON_UPDATE(NULL));
+       binlog_row_image_names, DEFAULT(BINLOG_ROW_IMAGE_FULL));
 
 static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 {
