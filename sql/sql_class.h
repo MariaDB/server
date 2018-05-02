@@ -3520,15 +3520,20 @@ public:
   */
   inline void set_time(my_time_t t, ulong sec_part)
   {
-    start_time= t;
-    start_time_sec_part= sec_part > TIME_MAX_SECOND_PART ? 0 : sec_part;
-    user_time.val= hrtime_from_time(start_time) + start_time_sec_part;
-    if (slave_thread)
-      set_system_time_from_user_time(sec_part <= TIME_MAX_SECOND_PART);
-    else // BINLOG command
-      set_system_time();
-    PSI_CALL_set_thread_start_time(start_time);
-    start_utime= utime_after_lock= microsecond_interval_timer();
+    if (opt_secure_timestamp > (slave_thread ? SECTIME_REPL : SECTIME_SUPER))
+      set_time();                 // note that BINLOG itself requires SUPER
+    else
+    {
+      start_time= t;
+      start_time_sec_part= sec_part > TIME_MAX_SECOND_PART ? 0 : sec_part;
+      user_time.val= hrtime_from_time(start_time) + start_time_sec_part;
+      if (slave_thread)
+        set_system_time_from_user_time(sec_part <= TIME_MAX_SECOND_PART);
+      else // BINLOG command
+        set_system_time();
+      PSI_CALL_set_thread_start_time(start_time);
+      start_utime= utime_after_lock= microsecond_interval_timer();
+    }
   }
   void set_time_after_lock()
   {

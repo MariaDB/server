@@ -4212,11 +4212,24 @@ static Sys_var_harows Sys_select_limit(
        SESSION_VAR(select_limit), NO_CMD_LINE,
        VALID_RANGE(0, HA_POS_ERROR), DEFAULT(HA_POS_ERROR), BLOCK_SIZE(1));
 
+static const char *secure_timestamp_levels[]= {"NO", "SUPER", "REPLICATION", "YES", 0};
+static bool check_timestamp(sys_var *self, THD *thd, set_var *var)
+{
+  if (opt_secure_timestamp == SECTIME_NO)
+    return false;
+  if (opt_secure_timestamp == SECTIME_SUPER)
+    return check_has_super(self, thd, var);
+  char buf[1024];
+  strxnmov(buf, sizeof(buf), "--secure-timestamp=",
+           secure_timestamp_levels[opt_secure_timestamp], NULL);
+  my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), buf);
+  return true;
+}
 static Sys_var_timestamp Sys_timestamp(
        "timestamp", "Set the time for this client",
        sys_var::ONLY_SESSION, NO_CMD_LINE,
        VALID_RANGE(0, TIMESTAMP_MAX_VALUE),
-       NO_MUTEX_GUARD, IN_BINLOG);
+       NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_timestamp));
 
 static bool update_last_insert_id(THD *thd, set_var *var)
 {
@@ -6052,3 +6065,13 @@ static Sys_var_uint Sys_in_subquery_conversion_threshold(
        SESSION_VAR(in_subquery_conversion_threshold), CMD_LINE(OPT_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(IN_SUBQUERY_CONVERSION_THRESHOLD), BLOCK_SIZE(1));
 #endif
+
+static Sys_var_enum Sys_secure_timestamp(
+       "secure_timestamp", "Restricts direct setting of a session "
+       "timestamp. Possible levels are: YES - timestamp cannot deviate from "
+       "the system clock, REPLICATION - replication thread can adjust "
+       "timestamp to match the master's, SUPER - a user with this "
+       "privilege and a replication thread can adjust timestamp, NO - "
+       "historical behavior, anyone can modify session timestamp",
+       READ_ONLY GLOBAL_VAR(opt_secure_timestamp), CMD_LINE(REQUIRED_ARG),
+       secure_timestamp_levels, DEFAULT(SECTIME_NO));

@@ -1038,6 +1038,14 @@ The following specify which files/extra groups are read (specified before remain
  --secure-file-priv=name 
  Limit LOAD DATA, SELECT ... OUTFILE, and LOAD_FILE() to
  files within specified directory
+ --secure-timestamp=name 
+ Restricts direct setting of a session timestamp. Possible
+ levels are: YES - timestamp cannot deviate from the
+ system clock, REPLICATION - replication thread can adjust
+ timestamp to match the master's, SUPER - a user with this
+ privilege and a replication thread can adjust timestamp,
+ NO - historical behavior, anyone can modify session
+ timestamp
  --server-id=#       Uniquely identifies the server instance in the community
  of replication partners
  --session-track-schema 
@@ -1616,6 +1624,7 @@ rpl-semi-sync-slave-trace-level 32
 safe-user-create FALSE
 secure-auth TRUE
 secure-file-priv (No default value)
+secure-timestamp NO
 server-id 1
 session-track-schema TRUE
 session-track-state-change FALSE
