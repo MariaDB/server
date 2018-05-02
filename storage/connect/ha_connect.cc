@@ -238,8 +238,6 @@ uint    GetWorkSize(void);
 void    SetWorkSize(uint);
 extern "C" const char *msglang(void);
 
-static char *strz(PGLOBAL g, LEX_STRING &ls);
-
 static void PopUser(PCONNECT xp);
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
 static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);
