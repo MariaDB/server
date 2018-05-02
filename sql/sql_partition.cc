@@ -1564,7 +1564,7 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
       my_tz_OFFSET0->TIME_to_gmt_sec(&ltime, &error);
     if (error)
       goto err;
-    if (vers_info->hist_part->range_value <= thd->systime())
+    if (vers_info->hist_part->range_value <= thd->query_start())
       vers_info->hist_part= el;
   }
   return 0;
@@ -5303,7 +5303,7 @@ that are reorganised.
           if (*fast_alter_table && tab_part_info->vers_info->interval.is_set())
           {
             partition_element *hist_part= tab_part_info->vers_info->hist_part;
-            if (hist_part->range_value <= thd->systime())
+            if (hist_part->range_value <= thd->query_start())
               hist_part->part_state= PART_CHANGED;
           }
         }

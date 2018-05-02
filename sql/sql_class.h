@@ -3435,16 +3435,13 @@ public:
   { query_start_sec_part_used=1; return start_time_sec_part; }
   MYSQL_TIME query_start_TIME();
 
+private:
   struct {
     my_hrtime_t start;
     my_time_t sec;
     ulong sec_part;
   } system_time;
 
-  ulong systime_sec_part() { query_start_sec_part_used=1; return system_time.sec_part; }
-  my_time_t systime() { return system_time.sec; }
-
-private:
   void set_system_time()
   {
     my_hrtime_t hrtime= my_hrtime();
@@ -3469,29 +3466,9 @@ private:
     }
   }
 
-  void set_system_time_from_user_time(bool with_sec_part)
-  {
-    if (with_sec_part)
-    {
-      system_time.sec= start_time;
-      system_time.sec_part= start_time_sec_part;
-    }
-    else
-    {
-      if (system_time.sec == start_time)
-        system_time.sec_part++;
-      else
-      {
-        system_time.sec= start_time;
-        system_time.sec_part= 0;
-      }
-    }
-  }
-
 public:
   inline void set_start_time()
   {
-    set_system_time();
     if (user_time.val)
     {
       start_time= hrtime_to_my_time(user_time);
@@ -3499,6 +3476,7 @@ public:
     }
     else
     {
+      set_system_time();
       start_time= system_time.sec;
       start_time_sec_part= system_time.sec_part;
     }
@@ -3509,6 +3487,7 @@ public:
     set_start_time();
     start_utime= utime_after_lock= microsecond_interval_timer();
   }
+  /* only used in SET @@timestamp=... */
   inline void set_time(my_hrtime_t t)
   {
     user_time= t;
@@ -3524,13 +3503,22 @@ public:
       set_time();                 // note that BINLOG itself requires SUPER
     else
     {
-      start_time= t;
-      start_time_sec_part= sec_part > TIME_MAX_SECOND_PART ? 0 : sec_part;
+      if (sec_part <= TIME_MAX_SECOND_PART)
+      {
+        start_time= system_time.sec= t;
+        start_time_sec_part= system_time.sec_part= sec_part;
+      }
+      else if (t != system_time.sec)
+      {
+        start_time= system_time.sec= t;
+        start_time_sec_part= system_time.sec_part= 0;
+      }
+      else
+      {
+        start_time= t;
+        start_time_sec_part= ++system_time.sec_part;
+      }
       user_time.val= hrtime_from_time(start_time) + start_time_sec_part;
-      if (slave_thread)
-        set_system_time_from_user_time(sec_part <= TIME_MAX_SECOND_PART);
-      else // BINLOG command
-        set_system_time();
       PSI_CALL_set_thread_start_time(start_time);
       start_utime= utime_after_lock= microsecond_interval_timer();
     }

@@ -7752,8 +7752,8 @@ void TABLE::vers_update_fields()
   {
     if (!vers_write)
       return;
-    if (vers_start_field()->store_timestamp(in_use->systime(),
-                                            in_use->systime_sec_part()))
+    if (vers_start_field()->store_timestamp(in_use->query_start(),
+                                            in_use->query_start_sec_part()))
       DBUG_ASSERT(0);
   }
   else
@@ -7768,8 +7768,8 @@ void TABLE::vers_update_fields()
 
 void TABLE::vers_update_end()
 {
-  if (vers_end_field()->store_timestamp(in_use->systime(),
-                                        in_use->systime_sec_part()))
+  if (vers_end_field()->store_timestamp(in_use->query_start(),
+                                        in_use->query_start_sec_part()))
     DBUG_ASSERT(0);
 }
 
@@ -8611,9 +8611,9 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
   if (!table && open())
     return true;
 
-  timeval start_time= {thd->systime(), long(thd->systime_sec_part())};
+  timeval start_time= {thd->query_start(), long(thd->query_start_sec_part())};
   thd->set_start_time();
-  timeval end_time= {thd->systime(), long(thd->systime_sec_part())};
+  timeval end_time= {thd->query_start(), long(thd->query_start_sec_part())};
   store(FLD_TRX_ID, start_id);
   store(FLD_COMMIT_ID, end_id);
   store(FLD_BEGIN_TS, start_time);
