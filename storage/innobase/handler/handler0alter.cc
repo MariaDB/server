@@ -3282,13 +3282,13 @@ innobase_build_col_map(
 			if (new_field->field == field) {
 
 				const Field* altered_field =
-					altered_table->field[i];
+					altered_table->field[i + num_v];
 
 				if (field->real_maybe_null()
 				    && !altered_field->real_maybe_null()) {
 					innobase_build_col_map_add(
 						heap, dtuple_get_nth_field(
-							defaults, i),
+							defaults, i + num_v),
 						altered_field,
 						dict_table_is_comp(new_table));
 				}
