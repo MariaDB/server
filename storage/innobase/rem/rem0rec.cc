@@ -1835,11 +1835,6 @@ rec_copy_prefix_to_buf(
 						or NULL */
 	ulint*			buf_size)	/*!< in/out: buffer size */
 {
-	const byte*	nulls;
-	const byte*	lens;
-	ulint		prefix_len	= 0;
-	ulint		instant_len	= 0;
-
 	ut_ad(n_fields <= index->n_fields || dict_index_is_ibuf(index));
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	UNIV_PREFETCH_RW(*buf);
@@ -1852,6 +1847,12 @@ rec_copy_prefix_to_buf(
 			       buf, buf_size));
 	}
 
+	ulint		prefix_len	= 0;
+	ulint		instant_omit	= 0;
+	const byte*	nulls		= rec - (REC_N_NEW_EXTRA_BYTES + 1);
+	const byte*	nullf		= nulls;
+	const byte*	lens		= nulls - index->n_core_null_bytes;
+
 	switch (rec_get_status(rec)) {
 	default:
 		/* infimum or supremum record: no sense to copy anything */
@@ -1859,12 +1860,8 @@ rec_copy_prefix_to_buf(
 		return(NULL);
 	case REC_STATUS_ORDINARY:
 		ut_ad(n_fields <= index->n_core_fields);
-		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
-		lens = nulls - index->n_core_null_bytes;
 		break;
 	case REC_STATUS_NODE_PTR:
-		nulls = rec - (REC_N_NEW_EXTRA_BYTES + 1);
-		lens = nulls - index->n_core_null_bytes;
 		/* For R-tree, we need to copy the child page number field. */
 		compile_time_assert(DICT_INDEX_SPATIAL_NODEPTR_SIZE == 1);
 		if (dict_index_is_spatial(index)) {
@@ -1890,15 +1887,18 @@ rec_copy_prefix_to_buf(
 		/* We would have !index->is_instant() when rolling back
 		an instant ADD COLUMN operation. */
 		ut_ad(index->is_instant() || page_rec_is_default_row(rec));
-		nulls = &rec[-REC_N_NEW_EXTRA_BYTES];
+		nulls++;
 		const ulint n_rec = ulint(index->n_core_fields) + 1
 			+ rec_get_n_add_field(nulls);
-		instant_len = ulint(&rec[-REC_N_NEW_EXTRA_BYTES] - nulls);
-		ut_ad(instant_len == 1 || instant_len == 2);
-		const uint n_nullable = index->get_n_nullable(n_rec);
-		lens = --nulls - UT_BITS_IN_BYTES(n_nullable);
+		instant_omit = ulint(&rec[-REC_N_NEW_EXTRA_BYTES] - nulls);
+		ut_ad(instant_omit == 1 || instant_omit == 2);
+		nullf = nulls;
+		const uint nb = UT_BITS_IN_BYTES(index->get_n_nullable(n_rec));
+		instant_omit += nb - index->n_core_null_bytes;
+		lens = --nulls - nb;
 	}
 
+	const byte* const lenf = lens;
 	UNIV_PREFETCH_R(lens);
 
 	/* read the lengths of fields 0..n */
@@ -1950,27 +1950,39 @@ rec_copy_prefix_to_buf(
 
 	UNIV_PREFETCH_R(rec + prefix_len);
 
-	prefix_len += ulint(rec - (lens + 1)) - instant_len;
+	ulint size = prefix_len + ulint(rec - (lens + 1)) - instant_omit;
 
-	if ((*buf == NULL) || (*buf_size < prefix_len)) {
+	if (*buf == NULL || *buf_size < size) {
 		ut_free(*buf);
-		*buf_size = prefix_len;
-		*buf = static_cast<byte*>(ut_malloc_nokey(prefix_len));
+		*buf_size = size;
+		*buf = static_cast<byte*>(ut_malloc_nokey(size));
 	}
 
-	if (instant_len) {
-		ulint hdr = ulint(&rec[-REC_N_NEW_EXTRA_BYTES] - (lens + 1))
-			- instant_len;
-		memcpy(*buf, lens + 1, hdr);
-		memcpy(*buf + hdr, &rec[-REC_N_NEW_EXTRA_BYTES],
-		       prefix_len - hdr);
-		ut_ad(rec_get_status(*buf + hdr + REC_N_NEW_EXTRA_BYTES)
-		      == REC_STATUS_COLUMNS_ADDED);
-		rec_set_status(*buf + hdr + REC_N_NEW_EXTRA_BYTES,
-			       REC_STATUS_ORDINARY);
-		return *buf + hdr + REC_N_NEW_EXTRA_BYTES;
+	if (instant_omit) {
+		/* Copy and convert the record header to a format where
+		instant ADD COLUMN has not been used:
+		+ lengths of variable-length fields in the prefix
+		- omit any null flag bytes for any instantly added columns
+		+ index->n_core_null_bytes of null flags
+		- omit the n_add_fields header (1 or 2 bytes)
+		+ REC_N_NEW_EXTRA_BYTES of fixed header */
+		byte* b = *buf;
+		/* copy the lengths of the variable-length fields */
+		memcpy(b, lens + 1, ulint(lenf - lens));
+		b += ulint(lenf - lens);
+		/* copy the null flags */
+		memcpy(b, nullf - index->n_core_null_bytes,
+		       index->n_core_null_bytes);
+		b += index->n_core_null_bytes + REC_N_NEW_EXTRA_BYTES;
+		ut_ad(ulint(b - *buf) + prefix_len == size);
+		/* copy the fixed-size header and the record prefix */
+		memcpy(b - REC_N_NEW_EXTRA_BYTES, rec - REC_N_NEW_EXTRA_BYTES,
+		       prefix_len + REC_N_NEW_EXTRA_BYTES);
+		ut_ad(rec_get_status(b) == REC_STATUS_COLUMNS_ADDED);
+		rec_set_status(b, REC_STATUS_ORDINARY);
+		return b;
 	} else {
-		memcpy(*buf, lens + 1, prefix_len);
+		memcpy(*buf, lens + 1, size);
 		return *buf + (rec - (lens + 1));
 	}
 }
