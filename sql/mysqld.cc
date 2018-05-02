@@ -534,6 +534,7 @@ ulonglong slave_skipped_errors;
 ulong feature_files_opened_with_delayed_keys= 0, feature_check_constraint= 0;
 ulonglong denied_connections;
 my_decimal decimal_zero;
+long opt_secure_timestamp;
 
 /*
   Maximum length of parameter value which can be set through

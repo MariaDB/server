@@ -1892,10 +1892,11 @@ public:
                const char *comment, int flag_args,
                CMD_LINE getopt,
                double min_val, double max_val,
-               PolyLock *lock, enum binlog_status_enum binlog_status_arg)
+               PolyLock *lock, enum binlog_status_enum binlog_status_arg,
+               on_check_function on_check_func=0)
     : Sys_var_double(name_arg, comment, flag_args, 0,
               sizeof(double), getopt, min_val,
-              max_val, 0, lock, binlog_status_arg)
+              max_val, 0, lock, binlog_status_arg, on_check_func)
   {
     SYSVAR_ASSERT(scope() == ONLY_SESSION);
     SYSVAR_ASSERT(getopt.id < 0); // NO_CMD_LINE, because the offset is fake

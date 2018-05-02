@@ -302,6 +302,9 @@ extern my_bool encrypt_binlog;
 extern my_bool encrypt_tmp_disk_tables, encrypt_tmp_files;
 extern ulong encryption_algorithm;
 extern const char *encryption_algorithm_names[];
+extern long opt_secure_timestamp;
+
+enum secure_timestamp { SECTIME_NO, SECTIME_SUPER, SECTIME_REPL, SECTIME_YES };
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
