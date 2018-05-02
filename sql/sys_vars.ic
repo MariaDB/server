@@ -325,7 +325,7 @@ public:
   Class specific constructor arguments:
     char* values[]    - 0-terminated list of strings of valid values
 
-  Backing store: uint
+  Backing store: ulong
 
   @note
   Do *not* use "enum FOO" variables as a backing store, there is no
