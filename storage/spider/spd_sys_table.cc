@@ -69,11 +69,13 @@ inline int spider_write_sys_table_row(TABLE *table, bool do_handle_error = TRUE)
   Update a Spider system table row.
 
   @param  table             The spider system table.
+  @param  do_handle_error   TRUE if an error message should be printed
+                            before returning.
 
   @return                   Error code returned by the update.
 */
 
-inline int spider_update_sys_table_row(TABLE *table)
+inline int spider_update_sys_table_row(TABLE *table, bool do_handle_error = TRUE)
 {
   int error_num;
   THD *thd = table->in_use;
@@ -82,7 +84,7 @@ inline int spider_update_sys_table_row(TABLE *table)
   error_num = table->file->ha_update_row(table->record[1], table->record[0]);
   reenable_binlog(thd);
 
-  if (error_num)
+  if (error_num && do_handle_error)
   {
     if (error_num == HA_ERR_RECORD_IS_THE_SAME)
       error_num = 0;
@@ -101,7 +103,7 @@ inline int spider_update_sys_table_row(TABLE *table)
   @param  do_handle_error   TRUE if an error message should be printed
                             before returning.
 
-  @return                   Error code returned by the update.
+  @return                   Error code returned by the delete.
 */
 
 inline int spider_delete_sys_table_row(TABLE *table, int record_number = 0,
@@ -1333,11 +1335,8 @@ int spider_insert_sys_table(
 ) {
   int error_num;
   DBUG_ENTER("spider_insert_sys_table");
-  if ((error_num = table->file->ha_write_row(table->record[0])))
-  {
-    table->file->print_error(error_num, MYF(0));
+  if (error_num = spider_write_sys_table_row(table))
     DBUG_RETURN(error_num);
-  }
   DBUG_RETURN(0);
 }
 
@@ -1378,14 +1377,10 @@ int spider_insert_or_update_table_sts(
       table->file->print_error(error_num, MYF(0));
       DBUG_RETURN(error_num);
     }
-    if ((error_num = table->file->ha_write_row(table->record[0])))
-    {
-      table->file->print_error(error_num, MYF(0));
+    if (error_num = spider_write_sys_table_row(table))
       DBUG_RETURN(error_num);
-    }
   } else {
-    if ((error_num = table->file->ha_update_row(table->record[1],
-      table->record[0])))
+    if (error_num = spider_update_sys_table_row(table, FALSE))
     {
       table->file->print_error(error_num, MYF(0));
       DBUG_RETURN(error_num);
@@ -1419,14 +1414,10 @@ int spider_insert_or_update_table_crd(
         table->file->print_error(error_num, MYF(0));
         DBUG_RETURN(error_num);
       }
-      if ((error_num = table->file->ha_write_row(table->record[0])))
-      {
-        table->file->print_error(error_num, MYF(0));
+      if (error_num = spider_write_sys_table_row(table))
         DBUG_RETURN(error_num);
-      }
     } else {
-      if ((error_num = table->file->ha_update_row(table->record[1],
-        table->record[0])))
+      if (error_num = spider_update_sys_table_row(table, FALSE))
       {
         table->file->print_error(error_num, MYF(0));
         DBUG_RETURN(error_num);
@@ -1791,11 +1782,8 @@ int spider_delete_table_sts(
     /* no record is ok */
     DBUG_RETURN(0);
   } else {
-    if ((error_num = table->file->ha_delete_row(table->record[0])))
-    {
-      table->file->print_error(error_num, MYF(0));
+    if (error_num = spider_delete_sys_table_row(table))
       DBUG_RETURN(error_num);
-    }
   }
 
   DBUG_RETURN(0);
@@ -1824,10 +1812,9 @@ int spider_delete_table_crd(
     DBUG_RETURN(0);
   } else {
     do {
-      if ((error_num = table->file->ha_delete_row(table->record[0])))
+      if (error_num = spider_delete_sys_table_row(table))
       {
         spider_sys_index_end(table);
-        table->file->print_error(error_num, MYF(0));
         DBUG_RETURN(error_num);
       }
       error_num = spider_sys_index_next_same(table, table_key);
