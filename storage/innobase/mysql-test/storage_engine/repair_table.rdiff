@@ -78,7 +78,7 @@
  DROP TABLE t1, t2;
  call mtr.add_suppression("Got an error from thread_id=.*");
  call mtr.add_suppression("MySQL thread id .*, query id .* localhost.*root Checking table");
-@@ -62,45 +63,32 @@
+@@ -63,46 +64,33 @@
  CREATE TABLE t1 (a <INT_COLUMN>, b <CHAR_COLUMN>, <CUSTOM_INDEX> (a)) ENGINE=<STORAGE_ENGINE> <CUSTOM_TABLE_OPTIONS>;
  REPAIR TABLE t1;
  Table	Op	Msg_type	Msg_text
@@ -94,9 +94,10 @@
  Table	Op	Msg_type	Msg_text
 -test.t1	repair	warning	Number of rows changed from 0 to 3
 -test.t1	repair	status	OK
++test.t1	repair	note	The storage engine for the table doesn't support repair
+ db.opt
 -t1.MYD
 -t1.MYI
-+test.t1	repair	note	The storage engine for the table doesn't support repair
  t1.frm
 +t1.ibd
  INSERT INTO t1 (a,b) VALUES (14,'n'),(15,'o');
