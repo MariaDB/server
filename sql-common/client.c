@@ -1483,7 +1483,9 @@ unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,uint fields,
     {
       uchar *pos;
       /* fields count may be wrong */
-      DBUG_ASSERT((uint) (field - result) < fields);
+      if (field - result >= fields)
+        goto err;
+
       cli_fetch_lengths(&lengths[0], row->data, default_value ? 8 : 7);
       field->catalog=   strmake_root(alloc,(char*) row->data[0], lengths[0]);
       field->db=        strmake_root(alloc,(char*) row->data[1], lengths[1]);
@@ -1501,12 +1503,7 @@ unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,uint fields,
 
       /* Unpack fixed length parts */
       if (lengths[6] != 12)
-      {
-        /* malformed packet. signal an error. */
-        free_rows(data);			/* Free old data */
-        set_mysql_error(mysql, CR_MALFORMED_PACKET, unknown_sqlstate);
-        DBUG_RETURN(0);
-      }
+        goto err;
 
       pos= (uchar*) row->data[6];
       field->charsetnr= uint2korr(pos);
@@ -1533,6 +1530,8 @@ unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,uint fields,
     /* old protocol, for backward compatibility */
     for (row=data->data; row ; row = row->next,field++)
     {
+      if (field - result >= fields)
+        goto err;
       cli_fetch_lengths(&lengths[0], row->data, default_value ? 6 : 5);
       field->org_table= field->table=  strdup_root(alloc,(char*) row->data[0]);
       field->name=   strdup_root(alloc,(char*) row->data[1]);
@@ -1569,8 +1568,17 @@ unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,uint fields,
     }
   }
 #endif /* DELETE_SUPPORT_OF_4_0_PROTOCOL */
+  if (field - result < fields)
+    goto err;
   free_rows(data);				/* Free old data */
   DBUG_RETURN(result);
+
+err:
+  /* malformed packet. signal an error. */
+  free_rows(data);
+  free_root(alloc, MYF(0));
+  set_mysql_error(mysql, CR_MALFORMED_PACKET, unknown_sqlstate);
+  DBUG_RETURN(0);
 }
 
 /* Read all rows (fields or data) from server */
