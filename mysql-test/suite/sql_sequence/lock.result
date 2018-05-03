@@ -27,3 +27,8 @@ DROP SEQUENCE s1;
 ERROR HY000: Table 's1' was locked with a READ lock and can't be updated
 unlock tables;
 DROP SEQUENCE s1;
+CREATE SEQUENCE seq1;
+CREATE SEQUENCE seq2;
+LOCK TABLE seq1 WRITE, seq2 WRITE;
+INSERT INTO seq1 VALUES (1, 1, 100000, 1, 1, 100, 1, 1);
+DROP SEQUENCE seq1, seq2;

@@ -84,14 +84,18 @@ int ha_sequence::open(const char *name, int mode, uint flags)
   if (!(error= file->open(name, mode, flags)))
   {
     /*
-      Copy values set by handler::open() in the underlying handler
-      Reuse original storage engine data for duplicate key reference
-      It would be easier to do this if we would have another handler
-      call:  fixup_after_open()...
-    */
-    ref=        file->ref;
+      Allocate ref in table's mem_root. We can't use table's ref
+      as it's allocated by ha_ caller that allocates this.
+     */
     ref_length= file->ref_length;
-    dup_ref=    file->dup_ref;
+    if (!(ref= (uchar*) alloc_root(&table->mem_root,ALIGN_SIZE(ref_length)*2)))
+    {
+      file->ha_close();
+      error=HA_ERR_OUT_OF_MEM;
+      DBUG_RETURN(error);
+    }
+    file->ref= ref;
+    file->dup_ref= dup_ref= ref+ALIGN_SIZE(file->ref_length);
 
     /*
       ha_open() sets the following for us. We have to set this for the
@@ -229,14 +233,10 @@ int ha_sequence::write_row(uchar *buf)
       - Get an exclusive lock for the table. This is needed to ensure that
         we excute all full inserts (same as ALTER SEQUENCE) in same order
         on master and slaves
-      - Check that we are only using one table.
-        This is to avoid deadlock problems when upgrading lock to exlusive.
       - Check that the new row is an accurate SEQUENCE object
     */
 
     THD *thd= table->in_use;
-    if (thd->lock->table_count != 1)
-      DBUG_RETURN(ER_WRONG_INSERT_INTO_SEQUENCE);
     if (table->s->tmp_table == NO_TMP_TABLE &&
         thd->mdl_context.upgrade_shared_lock(table->mdl_ticket,
                                              MDL_EXCLUSIVE,
