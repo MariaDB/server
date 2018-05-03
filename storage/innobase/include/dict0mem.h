@@ -1050,13 +1050,11 @@ struct dict_index_t{
 	@return	number of fields 0..n_prefix-1 that can be set NULL */
 	unsigned get_n_nullable(ulint n_prefix) const
 	{
-		DBUG_ASSERT(is_instant());
 		DBUG_ASSERT(n_prefix > 0);
 		DBUG_ASSERT(n_prefix <= n_fields);
 		unsigned n = n_nullable;
 		for (; n_prefix < n_fields; n_prefix++) {
 			const dict_col_t* col = fields[n_prefix].col;
-			DBUG_ASSERT(is_dummy || col->is_instant());
 			DBUG_ASSERT(!col->is_virtual());
 			n -= col->is_nullable();
 		}

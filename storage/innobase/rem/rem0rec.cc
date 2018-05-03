@@ -298,6 +298,7 @@ in ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED.
 This is a special case of rec_init_offsets() and rec_get_offsets_func().
 @param[in]	rec	leaf-page record
 @param[in]	index	the index that the record belongs in
+@param[in]	n_core	number of core fields (index->n_core_fields)
 @param[in,out]	offsets	offsets, with valid rec_offs_n_fields(offsets)
 @param[in]	format	record format */
 static inline
@@ -306,17 +307,19 @@ rec_init_offsets_comp_ordinary(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	ulint*			offsets,
+	ulint			n_core,
 	rec_leaf_format		format)
 {
 	ulint		offs		= 0;
 	ulint		any		= 0;
 	const byte*	nulls		= rec;
 	const byte*	lens		= NULL;
-	ulint		n_fields	= index->n_core_fields;
+	ulint		n_fields	= n_core;
 	ulint		null_mask	= 1;
 
-	ut_ad(index->n_core_fields > 0);
-	ut_ad(index->n_fields >= index->n_core_fields);
+	ut_ad(index->n_core_fields >= n_core);
+	ut_ad(n_core > 0);
+	ut_ad(index->n_fields >= n_core);
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	ut_ad(format == REC_LEAF_TEMP || format == REC_LEAF_TEMP_COLUMNS_ADDED
 	      || dict_table_is_comp(index->table));
@@ -344,17 +347,17 @@ ordinary:
 		/* We would have !index->is_instant() when rolling back
 		an instant ADD COLUMN operation. */
 		nulls -= REC_N_NEW_EXTRA_BYTES;
+		ut_ad(index->is_instant());
 		/* fall through */
 	case REC_LEAF_TEMP_COLUMNS_ADDED:
-		ut_ad(index->is_instant());
-		n_fields = unsigned(index->n_core_fields) + 1
-			+ rec_get_n_add_field(nulls);
+		n_fields = n_core + 1 + rec_get_n_add_field(nulls);
 		ut_ad(n_fields <= index->n_fields);
 		const ulint n_nullable = index->get_n_nullable(n_fields);
 		const ulint n_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 		ut_d(n_null = n_nullable);
 		ut_ad(n_null <= index->n_nullable);
-		ut_ad(n_null_bytes >= index->n_core_null_bytes);
+		ut_ad(n_null_bytes >= index->n_core_null_bytes
+		      || n_core < index->n_core_fields);
 		lens = --nulls - n_null_bytes;
 	}
 
@@ -614,11 +617,13 @@ rec_init_offsets(
 		case REC_STATUS_COLUMNS_ADDED:
 			ut_ad(leaf);
 			rec_init_offsets_comp_ordinary(rec, index, offsets,
+						       index->n_core_fields,
 						       REC_LEAF_COLUMNS_ADDED);
 			return;
 		case REC_STATUS_ORDINARY:
 			ut_ad(leaf);
 			rec_init_offsets_comp_ordinary(rec, index, offsets,
+						       index->n_core_fields,
 						       REC_LEAF_ORDINARY);
 			return;
 		}
@@ -1689,23 +1694,42 @@ rec_get_converted_size_temp(
 @param[in]	rec	temporary file record
 @param[in]	index	index of that the record belongs to
 @param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
-@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
-*/
+@param[in]	n_core	number of core fields (index->n_core_fields)
+@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED */
 void
 rec_init_offsets_temp(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	ulint*			offsets,
+	ulint			n_core,
 	rec_comp_status_t	status)
 {
 	ut_ad(status == REC_STATUS_ORDINARY
 	      || status == REC_STATUS_COLUMNS_ADDED);
-	ut_ad(status == REC_STATUS_ORDINARY || index->is_instant());
-
-	rec_init_offsets_comp_ordinary(rec, index, offsets,
+	/* The table may have been converted to plain format
+	if it was emptied during an ALTER TABLE operation. */
+	ut_ad(index->n_core_fields == n_core || !index->is_instant());
+	ut_ad(index->n_core_fields >= n_core);
+	rec_init_offsets_comp_ordinary(rec, index, offsets, n_core,
 				       status == REC_STATUS_COLUMNS_ADDED
 				       ? REC_LEAF_TEMP_COLUMNS_ADDED
 				       : REC_LEAF_TEMP);
+}
+
+/** Determine the offset to each field in temporary file.
+@param[in]	rec	temporary file record
+@param[in]	index	index of that the record belongs to
+@param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
+*/
+void
+rec_init_offsets_temp(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	ulint*			offsets)
+{
+	ut_ad(!index->is_instant());
+	rec_init_offsets_comp_ordinary(rec, index, offsets,
+				       index->n_core_fields, REC_LEAF_TEMP);
 }
 
 /** Convert a data tuple prefix to the temporary file format.

@@ -221,9 +221,24 @@ struct row_log_t {
 				decryption or NULL */
 	const char*	path;	/*!< where to create temporary file during
 				log operation */
+	/** the number of core fields in the clustered index of the
+	source table; before row_log_table_apply() completes, the
+	table could be emptied, so that table->is_instant() no longer holds,
+	but all log records must be in the "instant" format. */
+	unsigned	n_core_fields;
 	bool		ignore; /*!< Whether the alter ignore is being used;
 				if not, NULL values will not be converted to
 				defaults */
+
+	/** Determine whether the log should be in the 'instant ADD' format
+	@param[in]	index	the clustered index of the source table
+	@return	whether to use the 'instant ADD COLUMN' format */
+	bool is_instant(const dict_index_t* index) const
+	{
+		ut_ad(table);
+		ut_ad(n_core_fields <= index->n_fields);
+		return n_core_fields != index->n_fields;
+	}
 };
 
 /** Create the file or online log if it does not exist.
@@ -872,12 +887,13 @@ row_log_table_low_redundant(
 				DATA_ROLL_PTR_LEN);
 	}
 
-	rec_comp_status_t status = index->is_instant()
+	const bool is_instant = index->online_log->is_instant(index);
+	rec_comp_status_t status = is_instant
 		? REC_STATUS_COLUMNS_ADDED : REC_STATUS_ORDINARY;
 
 	size = rec_get_converted_size_temp(
 		index, tuple->fields, tuple->n_fields, &extra_size, status);
-	if (index->is_instant()) {
+	if (is_instant) {
 		size++;
 		extra_size++;
 	}
@@ -928,8 +944,8 @@ row_log_table_low_redundant(
 		}
 
 		if (status == REC_STATUS_COLUMNS_ADDED) {
-			ut_ad(index->is_instant());
-			if (n_fields <= index->n_core_fields) {
+			ut_ad(is_instant);
+			if (n_fields <= index->online_log->n_core_fields) {
 				status = REC_STATUS_ORDINARY;
 			}
 			*b = status;
@@ -1019,11 +1035,12 @@ row_log_table_low(
 	const ulint omit_size = REC_N_NEW_EXTRA_BYTES;
 
 	const ulint rec_extra_size = rec_offs_extra_size(offsets) - omit_size;
-	extra_size = rec_extra_size + index->is_instant();
+	const bool is_instant = index->online_log->is_instant(index);
+	extra_size = rec_extra_size + is_instant;
 
 	mrec_size = ROW_LOG_HEADER_SIZE
 		+ (extra_size >= 0x80) + rec_offs_size(offsets) - omit_size
-		+ index->is_instant();
+		+ is_instant;
 
 	if (insert || index->online_log->same_pk) {
 		ut_ad(!old_pk);
@@ -1068,7 +1085,7 @@ row_log_table_low(
 			*b++ = static_cast<byte>(extra_size);
 		}
 
-		if (index->is_instant()) {
+		if (is_instant) {
 			*b++ = rec_get_status(rec);
 		} else {
 			ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY);
@@ -2424,6 +2441,7 @@ row_log_table_apply_op(
 		return(NULL);
 	}
 
+	const bool is_instant = log->is_instant(dup->index);
 	const mrec_t* const mrec_start = mrec;
 
 	switch (*mrec++) {
@@ -2443,7 +2461,7 @@ row_log_table_apply_op(
 
 		mrec += extra_size;
 
-		ut_ad(extra_size || !dup->index->is_instant());
+		ut_ad(extra_size || !is_instant);
 
 		if (mrec > mrec_end) {
 			return(NULL);
@@ -2451,7 +2469,8 @@ row_log_table_apply_op(
 
 		rec_offs_set_n_fields(offsets, dup->index->n_fields);
 		rec_init_offsets_temp(mrec, dup->index, offsets,
-				      dup->index->is_instant()
+				      log->n_core_fields,
+				      is_instant
 				      ? static_cast<rec_comp_status_t>(
 					      *(mrec - extra_size))
 				      : REC_STATUS_ORDINARY);
@@ -2535,7 +2554,7 @@ row_log_table_apply_op(
 		is not changed, the log will only contain
 		DB_TRX_ID,new_row. */
 
-		if (dup->index->online_log->same_pk) {
+		if (log->same_pk) {
 			ut_ad(new_index->n_uniq == dup->index->n_uniq);
 
 			extra_size = *mrec++;
@@ -2549,7 +2568,7 @@ row_log_table_apply_op(
 
 			mrec += extra_size;
 
-			ut_ad(extra_size || !dup->index->is_instant());
+			ut_ad(extra_size || !is_instant);
 
 			if (mrec > mrec_end) {
 				return(NULL);
@@ -2557,7 +2576,8 @@ row_log_table_apply_op(
 
 			rec_offs_set_n_fields(offsets, dup->index->n_fields);
 			rec_init_offsets_temp(mrec, dup->index, offsets,
-					      dup->index->is_instant()
+					      log->n_core_fields,
+					      is_instant
 					      ? static_cast<rec_comp_status_t>(
 						      *(mrec - extra_size))
 					      : REC_STATUS_ORDINARY);
@@ -2649,7 +2669,7 @@ row_log_table_apply_op(
 
 			mrec += extra_size;
 
-			ut_ad(extra_size || !dup->index->is_instant());
+			ut_ad(extra_size || !is_instant);
 
 			if (mrec > mrec_end) {
 				return(NULL);
@@ -2657,7 +2677,8 @@ row_log_table_apply_op(
 
 			rec_offs_set_n_fields(offsets, dup->index->n_fields);
 			rec_init_offsets_temp(mrec, dup->index, offsets,
-					      dup->index->is_instant()
+					      log->n_core_fields,
+					      is_instant
 					      ? static_cast<rec_comp_status_t>(
 						      *(mrec - extra_size))
 					      : REC_STATUS_ORDINARY);
@@ -3211,6 +3232,8 @@ row_log_allocate(
 	log->head.blocks = log->head.bytes = 0;
 	log->head.total = 0;
 	log->path = path;
+	log->n_core_fields = index->n_core_fields;
+	ut_ad(!table || log->is_instant(index) == index->is_instant());
 	log->ignore=ignore;
 
 	dict_index_set_online_status(index, ONLINE_INDEX_CREATION);
