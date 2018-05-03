@@ -2456,10 +2456,8 @@ err_exit:
 
 		if (dict_table_is_file_per_table(table)
 		    && fil_delete_tablespace(table->space->id) != DB_SUCCESS) {
-
-			ib::error() << "Not able to delete tablespace "
-				<< table->space << " of table "
-				<< table->name << "!";
+			ib::error() << "Cannot delete the file of table "
+				<< table->name;
 		}
 		/* fall through */
 
@@ -3331,16 +3329,15 @@ fil_wait_crypt_bg_threads(
 		if (now >= last + 30) {
 			ib::warn()
 				<< "Waited " << now - start
-				<< " seconds for ref-count on table: "
-				<< table->name << " space: " << table->space;
+				<< " seconds for ref-count on table "
+				<< table->name;
 			last = now;
 		}
 		if (now >= start + 300) {
 			ib::warn()
 				<< "After " << now - start
 				<< " seconds, gave up waiting "
-				<< "for ref-count on table: " << table->name
-				<< " space: " << table->space;
+				<< "for ref-count on table " << table->name;
 			break;
 		}
 	}
