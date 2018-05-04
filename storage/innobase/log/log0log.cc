@@ -235,6 +235,8 @@ log_buffer_extend(
 
 	log_sys->buf_ptr = static_cast<byte*>(
 		ut_zalloc_nokey(log_sys->buf_size * 2 + OS_FILE_LOG_BLOCK_SIZE));
+	TRASH_ALLOC(log_sys->buf_ptr,
+		    log_sys->buf_size * 2 + OS_FILE_LOG_BLOCK_SIZE);
 	log_sys->buf = static_cast<byte*>(
 		ut_align(log_sys->buf_ptr, OS_FILE_LOG_BLOCK_SIZE));
 
@@ -726,6 +728,8 @@ log_sys_init()
 
 	log_sys->buf_ptr = static_cast<byte*>(
 		ut_zalloc_nokey(log_sys->buf_size * 2 + OS_FILE_LOG_BLOCK_SIZE));
+	TRASH_ALLOC(log_sys->buf_ptr,
+		    log_sys->buf_size * 2 + OS_FILE_LOG_BLOCK_SIZE);
 	log_sys->buf = static_cast<byte*>(
 		ut_align(log_sys->buf_ptr, OS_FILE_LOG_BLOCK_SIZE));
 
@@ -1243,7 +1247,8 @@ loop:
 
 	log_mutex_exit();
 	/* Erase the end of the last log block. */
-	memset(write_buf + end_offset, 0, ~end_offset & OS_FILE_LOG_BLOCK_SIZE);
+	memset(write_buf + end_offset, 0,
+	       ~end_offset & (OS_FILE_LOG_BLOCK_SIZE - 1));
 
 	/* Calculate pad_size if needed. */
 	pad_size = 0;
