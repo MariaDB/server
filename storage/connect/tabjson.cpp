@@ -195,7 +195,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 	tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
 
 	if (!(tdp->Database = SetPath(g, db)))
-		return NULL;
+		return 0;
 
 	tdp->Objname = GetStringTableOption(g, topt, "Object", NULL);
 	tdp->Base = GetIntegerTableOption(g, topt, "Base", 0) ? 1 : 0;
@@ -243,14 +243,14 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 			tjsp = new(g) TDBJSON(tdp, new(g) MAPFAM(tdp));
 
 		if (tjsp->MakeDocument(g))
-			return NULL;
+			return 0;
 
 		jsp = (tjsp->GetDoc()) ? tjsp->GetDoc()->GetValue(0) : NULL;
 	}	else {
 		if (!(tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0)))
 			if (!mgo) {
 				sprintf(g->Message, "LRECL must be specified for pretty=%d", tdp->Pretty);
-				return NULL;
+				return 0;
 			}	else
 				tdp->Lrecl = 8192;			 // Should be enough
 
@@ -269,14 +269,14 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 				tjnp = new(g) TDBJSN(tdp, new(g) CMGFAM(tdp));
 #else
 				sprintf(g->Message, "Mongo %s Driver not available", "C");
-				return NULL;
+				return 0;
 #endif
 			}	else if (tdp->Driver && toupper(*tdp->Driver) == 'J') {
 #if defined(JAVA_SUPPORT)
 				tjnp = new(g) TDBJSN(tdp, new(g) JMGFAM(tdp));
 #else
 				sprintf(g->Message, "Mongo %s Driver not available", "Java");
-				return NULL;
+				return 0;
 #endif
 			}	else {						 // Driver not specified
 #if defined(CMGO_SUPPORT)
@@ -285,7 +285,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 				tjnp = new(g) TDBJSN(tdp, new(g) JMGFAM(tdp));
 #else
 				sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
-				return NULL;
+				return 0;
 #endif
 			}	// endif Driver
 
@@ -304,7 +304,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 		tjnp->SetG(G);
 
 		if (tjnp->OpenDB(g))
-			return NULL;
+			return 0;
 
 		switch (tjnp->ReadDB(g)) {
 		case RC_EF:
