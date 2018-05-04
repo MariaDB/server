@@ -228,6 +228,7 @@ void log_buffer_extend(ulong len)
 
 	log_sys.buf = static_cast<byte*>(
 		ut_malloc_dontdump(srv_log_buffer_size * 2));
+	TRASH_ALLOC(log_sys.buf, srv_log_buffer_size * 2);
 
 	log_sys.first_in_use = true;
 
@@ -609,6 +610,7 @@ void log_t::create()
   ut_ad(srv_log_buffer_size >= 4U << srv_page_size_shift);
 
   buf= static_cast<byte*>(ut_malloc_dontdump(srv_log_buffer_size * 2));
+  TRASH_ALLOC(buf, srv_log_buffer_size * 2);
 
   first_in_use= true;
 
@@ -1069,7 +1071,8 @@ loop:
 
 	log_mutex_exit();
 	/* Erase the end of the last log block. */
-	memset(write_buf + end_offset, 0, ~end_offset & OS_FILE_LOG_BLOCK_SIZE);
+	memset(write_buf + end_offset, 0,
+	       ~end_offset & (OS_FILE_LOG_BLOCK_SIZE - 1));
 
 	/* Calculate pad_size if needed. */
 	pad_size = 0;
