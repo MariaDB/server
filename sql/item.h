@@ -694,6 +694,7 @@ public:
                                            of a query with ROLLUP */ 
   bool null_value;			/* if item is null */
   bool with_sum_func;                   /* True if item contains a sum func */
+  bool with_param;                      /* True if contains an SP parameter */
   /**
     True if any item except Item_sum contains a field. Set during parsing.
   */

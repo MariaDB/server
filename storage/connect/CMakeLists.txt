@@ -230,7 +230,7 @@ ENDIF(CONNECT_WITH_ODBC)
 #
 # JDBC with MongoDB Java Driver included but disabled if without MONGO
 #
-# OPTION(CONNECT_WITH_MONGO "Compile CONNECT storage engine with MONGO support" ON)
+#OPTION(CONNECT_WITH_MONGO "Compile CONNECT storage engine with MONGO support" ON)
 OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
 
 IF(CONNECT_WITH_JDBC)
@@ -325,6 +325,13 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
 IF(NOT TARGET connect)
   RETURN()
 ENDIF()
+
+IF(WIN32)
+  IF (libmongoc-1.0_FOUND)
+	  SET_TARGET_PROPERTIES(connect PROPERTIES LINK_FLAGS
+	    "/DELAYLOAD:libbson-1.0.dll /DELAYLOAD:libmongoc-1.0.dll")
+  ENDIF(libmongoc-1.0_FOUND)
+ENDIF(WIN32)
 
 # Install some extra files that belong to connect engine
 IF(WIN32)

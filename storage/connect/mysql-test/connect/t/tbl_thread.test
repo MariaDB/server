@@ -56,7 +56,7 @@ SELECT * FROM t5;
 eval CREATE TABLE total (a int, b char(10))
 ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2,t3,t4,t5'
 OPTION_LIST='thread=yes,port=$PORT';
-set connect_xtrace=1;
+set connect_xtrace=96;
 SELECT * FROM total order by a desc;
 set connect_xtrace=0;
 
@@ -85,7 +85,7 @@ SELECT * FROM t2;
 
 --replace_result $PORT PORT
 --eval CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=$PORT';
-set connect_xtrace=1;
+set connect_xtrace=96;
 SELECT * FROM total order by v desc;
 set connect_xtrace=0;
 DROP TABLE t1,t2,total;
@@ -101,7 +101,7 @@ SELECT * FROM t2;
 
 --replace_result $PORT PORT
 --eval CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=$PORT';
-set connect_xtrace=1;
+set connect_xtrace=96;
 SELECT * FROM total order by v desc;
 set connect_xtrace=0;
 

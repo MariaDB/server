@@ -8,7 +8,7 @@
 /***********************************************************************/
 typedef struct _datpar {
   const char *Format;     // Points to format to decode
-  char *Curp;             // Points to current parsing position
+  const char *Curp;       // Points to current parsing position
   char *InFmt;            // Start of input format
   char *OutFmt;           // Start of output format
   int   Index[8];         // Indexes of date values

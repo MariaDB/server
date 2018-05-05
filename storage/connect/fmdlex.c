@@ -283,7 +283,7 @@ static void yy_fatal_error YY_PROTO(( const char msg[] ));
  */
 #define YY_DO_BEFORE_ACTION \
   yytext_ptr = yy_bp; \
-  yyleng = yy_cp - yy_bp; \
+  yyleng = (int)(yy_cp - yy_bp); \
   yy_hold_char = *yy_cp; \
   *yy_cp = '\0'; \
   yy_c_buf_p = yy_cp;
@@ -695,7 +695,7 @@ case YY_STATE_EOF(dqt):
   case YY_END_OF_BUFFER:
     {
     /* Amount of text matched not including the EOB char. */
-    int yy_amount_of_matched_text = yy_cp - yytext_ptr - 1;
+    int yy_amount_of_matched_text = (int)(yy_cp - yytext_ptr - 1);
 
     /* Undo the effects of YY_DO_BEFORE_ACTION. */
     *yy_cp = yy_hold_char;
@@ -862,7 +862,7 @@ static int yy_get_next_buffer()
   /* Try to read more data. */
 
   /* First move last chars to start of buffer. */
-  number_to_move = yy_c_buf_p - yytext_ptr;
+  number_to_move = (int)(yy_c_buf_p - yytext_ptr);
 
   for ( i = 0; i < number_to_move; ++i )
     *(dest++) = *(source++);
@@ -888,7 +888,7 @@ static int yy_get_next_buffer()
       /* just a shorter name for the current buffer */
       YY_BUFFER_STATE b = yy_current_buffer;
 
-      int yy_c_buf_p_offset = yy_c_buf_p - b->yy_ch_buf;
+      int yy_c_buf_p_offset = (int)(yy_c_buf_p - b->yy_ch_buf);
 
       b->yy_buf_size *= 2;
       b->yy_ch_buf = (char *)

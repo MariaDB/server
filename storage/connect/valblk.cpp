@@ -53,7 +53,7 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
   {
   PVBLK blkp;
 
-  if (trace)
+  if (trace(1))
     htrc("AVB: mp=%p type=%d nval=%d len=%d check=%u blank=%u\n",
          mp, type, nval, len, check, blank);
 

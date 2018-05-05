@@ -39,7 +39,7 @@ DROP TABLE t1;
 #
 # MDEV-15456 Server crashes upon adding or dropping a partition in ALTER under LOCK TABLE after ER_SAME_NAME_PARTITION
 #
-create table t1 (i int) partition by range(i) (partition p0 values less than (10));
+--eval create table t1 (i int) engine=$engine partition by range(i) (partition p0 values less than (10))
 lock table t1 write;
 --error ER_SAME_NAME_PARTITION
 alter table t1 add partition (partition p0 values less than (20));

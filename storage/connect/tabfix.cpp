@@ -291,7 +291,7 @@ bool TDBFIX::IsUsingTemp(PGLOBAL)
 /***********************************************************************/
 bool TDBFIX::OpenDB(PGLOBAL g)
   {
-  if (trace)
+  if (trace(1))
     htrc("FIX OpenDB: tdbp=%p tdb=R%d use=%d key=%p mode=%d Ftype=%d\n",
       this, Tdb_No, Use, To_Key_Col, Mode, Ftype);
 
@@ -345,7 +345,7 @@ bool TDBFIX::OpenDB(PGLOBAL g)
   /*********************************************************************/
   To_BlkFil = InitBlockFilter(g, To_Filter);
 
-  if (trace)
+  if (trace(1))
     htrc("OpenFix: R%hd mode=%d BlkFil=%p\n", Tdb_No, Mode, To_BlkFil);
 
   /*********************************************************************/
@@ -474,7 +474,7 @@ void BINCOL::ReadColumn(PGLOBAL g)
   int     rc;
   PTDBFIX tdbp = (PTDBFIX)To_Tdb;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("BIN ReadColumn: col %s R%d coluse=%.4X status=%.4X buf_type=%d\n",
       Name, tdbp->GetTdb_No(), ColUse, Status, Buf_Type);
 
@@ -565,7 +565,7 @@ void BINCOL::WriteColumn(PGLOBAL g)
   longlong n;
   PTDBFIX  tdbp = (PTDBFIX)To_Tdb;
 
-  if (trace) {
+  if (trace(1)) {
     htrc("BIN WriteColumn: col %s R%d coluse=%.4X status=%.4X",
           Name, tdbp->GetTdb_No(), ColUse, Status);
     htrc(" Lrecl=%d\n", tdbp->Lrecl);
