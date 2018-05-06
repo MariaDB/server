@@ -140,11 +140,7 @@ master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; DROP FUNCTION myfunc_int
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(ddl_case) VALUES (41)
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(ddl_case) VALUES (40)
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO tt_1(ddl_case) VALUES (39)
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
