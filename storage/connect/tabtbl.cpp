@@ -232,7 +232,7 @@ bool TDBTBL::InitTableList(PGLOBAL g)
   {
   int     n;
   uint    sln;
-  const char   *scs;
+  const char *scs;
   PTABLE  tp, tabp;
   PCOL    colp;
   PTBLDEF tdp = (PTBLDEF)To_Def;

@@ -108,13 +108,8 @@
 #define MYSQL_SERVER 1
 #define DONT_DEFINE_VOID
 #include <my_global.h>
-#include "sql_class.h"
-#include "create_options.h"
-#include "mysql_com.h"
-#include "field.h"
 #include "sql_parse.h"
 #include "sql_base.h"
-#include <sys/stat.h>
 #include "sql_partition.h"
 #undef  OFFSET
 
@@ -175,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.06.0007 March 11, 2018";
+       char version[]= "Version 1.06.0007 May 01, 2018";
 #if defined(__WIN__)
        char compver[]= "Version 1.06.0007 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -238,7 +233,7 @@ uint    GetWorkSize(void);
 void    SetWorkSize(uint);
 extern "C" const char *msglang(void);
 
-static char *strz(PGLOBAL g, LEX_STRING &ls);
+static char *strz(PGLOBAL g, LEX_CSTRING &ls);
 
 static void PopUser(PCONNECT xp);
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
@@ -1322,7 +1317,7 @@ PCSZ ha_connect::GetStringOption(PCSZ opname, PCSZ sdef)
 
   if (!stricmp(opname, "Connect")) {
     LEX_CSTRING cnc= (tshp) ? tshp->connect_string 
-                           : table->s->connect_string;
+                            : table->s->connect_string;
 
     if (cnc.length)
       opval= strz(xp->g, cnc);
@@ -5571,7 +5566,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				} // endif p
 
 			} else if (ttp != TAB_ODBC || !(fnc & (FNC_TABLE | FNC_COL)))
-				tab = (char *) table_s->table_name.str; // Default value
+				tab = (char*) table_s->table_name.str;   // Default value
 
 		} // endif tab
 

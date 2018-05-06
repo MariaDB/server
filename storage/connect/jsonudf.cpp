@@ -41,8 +41,6 @@ static PJSON JsonNew(PGLOBAL g, JTYP type);
 static PJVAL JvalNew(PGLOBAL g, JTYP type, void *vp = NULL);
 static PJSNX JsnxNew(PGLOBAL g, PJSON jsp, int type, int len = 64);
 
-void json_array_deinit(UDF_INIT* initid);
-
 static uint JsonGrpSize = 10;
 
 /*********************************************************************************/
@@ -1669,7 +1667,7 @@ static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 		int     j = 0, n = args->attribute_lengths[i];
 		my_bool b;  // true if attribute is zero terminated
 		PSZ     p;
-                const char *s = args->attributes[i];
+    PCSZ    s = args->attributes[i];
 
 		if (s && *s && (n || *s == '\'')) {
 			if ((b = (!n || !s[n])))
@@ -1688,7 +1686,7 @@ static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 			} // endif *s
 
 			if (n < 1)
-                                return (char*) "Key";
+				return "Key";
 
 			if (!b) {
 				if ((p = (PSZ)PlgDBSubAlloc(g, NULL, n + 1))) {
@@ -1702,10 +1700,10 @@ static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 
 		} // endif s
 
-		return (char*) s;
+		return s;
 	} // endif count
 
-  return (char*) "Key";
+  return "Key";
 } // end of MakeKey
 
 /*********************************************************************************/
