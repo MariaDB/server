@@ -107,13 +107,9 @@
 
 #define MYSQL_SERVER 1
 #define DONT_DEFINE_VOID
-#include "sql_class.h"
-#include "create_options.h"
-#include "mysql_com.h"
-#include "field.h"
+#include <my_global.h>
 #include "sql_parse.h"
 #include "sql_base.h"
-#include <sys/stat.h>
 #include "sql_partition.h"
 #undef  OFFSET
 
@@ -432,7 +428,7 @@ handlerton *connect_hton= NULL;
 uint GetTraceValue(void)
 	{return (uint)(connect_hton ? THDVAR(current_thd, xtrace) : 0);}
 bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
-bool CondPushEnabled(void) {return THDVAR(current_thd, cond_push);}
+static bool CondPushEnabled(void) {return THDVAR(current_thd, cond_push);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
 int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
 TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
@@ -1781,12 +1777,14 @@ bool ha_connect::CheckVirtualIndex(TABLE_SHARE *s)
 
 bool ha_connect::IsPartitioned(void)
 {
-  if (tshp)
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+	if (tshp)
     return tshp->partition_info_str_len > 0;
   else if (table && table->part_info)
     return true;
   else
-    return false;
+#endif
+		return false;
 
 } // end of IsPartitioned
 
@@ -2811,7 +2809,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
     htrc("Cond type=%d\n", cond->type());
 
   if (cond->type() == COND::COND_ITEM) {
-    char      *pb0, *pb1, *pb2, *ph0, *ph1, *ph2;
+    char      *pb0, *pb1, *pb2, *ph0= 0, *ph1= 0, *ph2= 0;
 		bool       bb = false, bh = false;
     Item_cond *cond_item= (Item_cond *)cond;
 
@@ -5568,7 +5566,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				} // endif p
 
 			} else if (ttp != TAB_ODBC || !(fnc & (FNC_TABLE | FNC_COL)))
-				tab = table_s->table_name.str;           // Default value
+			  tab = (char*)table_s->table_name.str;   // Default value
 
 		} // endif tab
 
@@ -6200,7 +6198,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 	LEX_STRING cnc = table_arg->s->connect_string;
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
   partition_info *part_info= table_arg->part_info;
-#endif   // WITH_PARTITION_STORAGE_ENGINE
+#else		// !WITH_PARTITION_STORAGE_ENGINE
+#define part_info 0
+#endif  // !WITH_PARTITION_STORAGE_ENGINE
   xp= GetUser(thd, xp);
   PGLOBAL g= xp->g;
 
@@ -6301,9 +6301,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
 				// fall through
       case TAB_MYSQL:
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
         if (!part_info)
-#endif   // WITH_PARTITION_STORAGE_ENGINE
        {const char *src= options->srcdef;
 				PCSZ host, db, tab= options->tabname;
         int  port;
@@ -6567,7 +6565,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       } else
         lwt[i]= tolower(options->type[i]);
 
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
     if (part_info) {
       char *p;
 
@@ -6577,7 +6574,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       strcat(strcat(strcpy(buf, p), "."), lwt);
       *p= 0;
     } else {
-#endif   // WITH_PARTITION_STORAGE_ENGINE
       strcat(strcat(strcpy(buf, GetTableName()), "."), lwt);
       sprintf(g->Message, "No file name. Table will use %s", buf);
   
@@ -6585,9 +6581,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
   
       strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
     } // endif part_info
-#endif   // WITH_PARTITION_STORAGE_ENGINE
 
     PlugSetPath(fn, buf, dbpath);
 
@@ -6652,11 +6646,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
         "Unexpected command in create, please contact CONNECT team");
 
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
     if (part_info && !inward)
       strncpy(partname, decode(g, strrchr(name, '#') + 1), sizeof(partname) - 1);
 //    strcpy(partname, part_info->curr_part_elem->partition_name);
-#endif   // WITH_PARTITION_STORAGE_ENGINE
 
     if (g->Alchecked == 0 &&
         (!IsFileType(type) || FileExists(options->filename, false))) {
@@ -6692,12 +6684,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 					my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
 					rc = HA_ERR_INTERNAL_ERROR;
 				} else if (cat) {
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
           if (part_info)
             strncpy(partname, 
                     decode(g, strrchr(name, (inward ? slash : '#')) + 1),
 										sizeof(partname) - 1);
-#endif   // WITH_PARTITION_STORAGE_ENGINE
 
           if ((rc= optimize(table->in_use, NULL))) {
             htrc("Create rc=%d %s\n", rc, g->Message);

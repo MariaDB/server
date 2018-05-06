@@ -44,6 +44,9 @@ typedef struct {
   int   len;
   } STRG, *PSG;
 
+char *NextChr(PSZ s, char sep);
+char *GetJsonNull(void);
+
 PJSON ParseJson(PGLOBAL g, char *s, int n, int *prty = NULL, bool *b = NULL);
 PJAR  ParseArray(PGLOBAL g, int& i, STRG& src, bool *pty);
 PJOB  ParseObject(PGLOBAL g, int& i, STRG& src, bool *pty);
