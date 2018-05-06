@@ -322,7 +322,8 @@ int ha_sequence::external_lock(THD *thd, int lock_type)
     Copy lock flag to satisfy DBUG_ASSERT checks in ha_* functions in
     handler.cc when we later call it with file->ha_..()
   */
-  file->m_lock_type= lock_type;
+  if (!error)
+    file->m_lock_type= lock_type;
   return error;
 }
 
