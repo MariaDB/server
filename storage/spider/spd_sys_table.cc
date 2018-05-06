@@ -1335,7 +1335,7 @@ int spider_insert_sys_table(
 ) {
   int error_num;
   DBUG_ENTER("spider_insert_sys_table");
-  if (error_num = spider_write_sys_table_row(table))
+  if ((error_num = spider_write_sys_table_row(table)))
     DBUG_RETURN(error_num);
   DBUG_RETURN(0);
 }
@@ -1377,10 +1377,10 @@ int spider_insert_or_update_table_sts(
       table->file->print_error(error_num, MYF(0));
       DBUG_RETURN(error_num);
     }
-    if (error_num = spider_write_sys_table_row(table))
+    if ((error_num = spider_write_sys_table_row(table)))
       DBUG_RETURN(error_num);
   } else {
-    if (error_num = spider_update_sys_table_row(table, FALSE))
+    if ((error_num = spider_update_sys_table_row(table, FALSE)))
     {
       table->file->print_error(error_num, MYF(0));
       DBUG_RETURN(error_num);
@@ -1414,10 +1414,10 @@ int spider_insert_or_update_table_crd(
         table->file->print_error(error_num, MYF(0));
         DBUG_RETURN(error_num);
       }
-      if (error_num = spider_write_sys_table_row(table))
+      if ((error_num = spider_write_sys_table_row(table)))
         DBUG_RETURN(error_num);
     } else {
-      if (error_num = spider_update_sys_table_row(table, FALSE))
+      if ((error_num = spider_update_sys_table_row(table, FALSE)))
       {
         table->file->print_error(error_num, MYF(0));
         DBUG_RETURN(error_num);
@@ -1782,7 +1782,7 @@ int spider_delete_table_sts(
     /* no record is ok */
     DBUG_RETURN(0);
   } else {
-    if (error_num = spider_delete_sys_table_row(table))
+    if ((error_num = spider_delete_sys_table_row(table)))
       DBUG_RETURN(error_num);
   }
 
@@ -1812,7 +1812,7 @@ int spider_delete_table_crd(
     DBUG_RETURN(0);
   } else {
     do {
-      if (error_num = spider_delete_sys_table_row(table))
+      if ((error_num = spider_delete_sys_table_row(table)))
       {
         spider_sys_index_end(table);
         DBUG_RETURN(error_num);
