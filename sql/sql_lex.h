@@ -3577,8 +3577,8 @@ public:
                                            bool new_row);
   // For syntax with colon, e.g. :NEW.a  or :OLD.a
   Item *make_item_colon_ident_ident(THD *thd,
-                                    const Lex_ident_sys_st *a,
-                                    const Lex_ident_sys_st *b);
+                                    const Lex_ident_cli_st *a,
+                                    const Lex_ident_cli_st *b);
   void sp_block_init(THD *thd, const LEX_CSTRING *label);
   void sp_block_init(THD *thd)
   {

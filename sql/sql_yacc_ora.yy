@@ -14415,10 +14415,10 @@ param_marker:
                                            YYLIP->get_tok_start() + 1)))
               MYSQL_YYABORT;
           }
-        | colon_with_pos ident
+        | colon_with_pos ident_cli
           {
             if (!($$= Lex->add_placeholder(thd, &null_clex_str,
-                                           $1, YYLIP->get_tok_end())))
+                                           $1, $2.end())))
               MYSQL_YYABORT;
           }
         | colon_with_pos NUM
@@ -14727,7 +14727,7 @@ simple_ident:
             if (!($$= Lex->create_item_ident(thd, &$1, &$3, &$5)))
               MYSQL_YYABORT;
           }
-        | colon_with_pos ident '.' ident
+        | colon_with_pos ident_cli '.' ident_cli
           {
             if (!($$= Lex->make_item_colon_ident_ident(thd, &$2, &$4)))
               MYSQL_YYABORT;
@@ -14745,7 +14745,7 @@ simple_ident_nospvar:
             if (!($$= Lex->create_item_ident_nospvar(thd, &$1, &$3)))
               MYSQL_YYABORT;
           }
-        | colon_with_pos ident '.' ident
+        | colon_with_pos ident_cli '.' ident_cli
           {
             if (!($$= Lex->make_item_colon_ident_ident(thd, &$2, &$4)))
               MYSQL_YYABORT;

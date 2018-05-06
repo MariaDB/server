@@ -6600,16 +6600,19 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
 
 
 Item *LEX::make_item_colon_ident_ident(THD *thd,
-                                       const Lex_ident_sys_st *a,
-                                       const Lex_ident_sys_st *b)
+                                       const Lex_ident_cli_st *ca,
+                                       const Lex_ident_cli_st *cb)
 {
-  if (!is_trigger_new_or_old_reference(a))
+  Lex_ident_sys a(thd, ca), b(thd, cb);
+  if (a.is_null() || b.is_null())
+    return NULL; // OEM
+  if (!is_trigger_new_or_old_reference(&a))
   {
     thd->parse_error();
     return NULL;
   }
-  bool new_row= (a->str[0] == 'N' || a->str[0] == 'n');
-  return create_and_link_Item_trigger_field(thd, b, new_row);
+  bool new_row= (a.str[0] == 'N' || a.str[0] == 'n');
+  return create_and_link_Item_trigger_field(thd, &b, new_row);
 }
 
 
