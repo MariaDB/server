@@ -2831,7 +2831,7 @@ Sp_handler::sp_cache_package_routine(THD *thd,
     sp_package *pkg= ph ? ph->get_package() : NULL;
     LEX_CSTRING tmp= name->m_name;
     const char *dot= strrchr(tmp.str, '.');
-    size_t prefix_length= dot ? dot - tmp.str + 1 : NULL;
+    size_t prefix_length= dot ? dot - tmp.str + 1 : 0;
     tmp.str+= prefix_length;
     tmp.length-= prefix_length;
     LEX *rlex= pkg ? pkg->m_routine_implementations.find(tmp, type()) : NULL;
