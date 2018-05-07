@@ -8597,12 +8597,11 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
   if (!table && open())
     return true;
 
-  timeval start_time= {thd->systime(), long(thd->systime_sec_part())};
+  store(FLD_BEGIN_TS, thd->transaction_time());
   thd->set_start_time();
   timeval end_time= {thd->systime(), long(thd->systime_sec_part())};
   store(FLD_TRX_ID, start_id);
   store(FLD_COMMIT_ID, end_id);
-  store(FLD_BEGIN_TS, start_time);
   store(FLD_COMMIT_TS, end_time);
   store_iso_level(thd->tx_isolation);
 
@@ -8721,6 +8720,12 @@ bool TR_table::query_sees(bool &result, ulonglong trx_id1, ulonglong trx_id0,
   if (trx_id1 == ULONGLONG_MAX || trx_id0 == 0)
   {
     result= true;
+    return false;
+  }
+
+  if (trx_id0 == ULONGLONG_MAX || trx_id1 == 0)
+  {
+    result= false;
     return false;
   }
 
