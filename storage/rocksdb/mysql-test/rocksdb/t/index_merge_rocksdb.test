@@ -70,13 +70,14 @@ while ($cnt)
 
 SELECT COUNT(*) FROM t1;
 
+# flush the table first as statistics is calculated a bit differently for memtable and SST files
+SET GLOBAL rocksdb_force_flush_memtable_now = 1;
+
 -- disable_query_log
 -- disable_result_log
 ANALYZE TABLE t1;
 -- enable_result_log
 -- enable_query_log
-
-SET GLOBAL rocksdb_force_flush_memtable_now = 1;
 
 --replace_column 9 #
 EXPLAIN UPDATE t1 SET filler1='to be deleted' WHERE key1=100 AND key2=100;
@@ -95,8 +96,8 @@ while ($i <= 1000) {
   eval $insert;
 }
 --enable_query_log
-analyze table t1;
 set global rocksdb_force_flush_memtable_now=1;
+analyze table t1;
 
 --replace_column 9 #
 explain select * from t1 where key1 = 1;

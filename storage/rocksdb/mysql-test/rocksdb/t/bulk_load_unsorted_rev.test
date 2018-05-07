@@ -1,0 +1,5 @@
+--source include/have_rocksdb.inc
+
+--let pk_cf=rev:cf1
+
+--source ../include/bulk_load_unsorted.inc

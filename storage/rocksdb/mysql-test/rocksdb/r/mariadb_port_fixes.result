@@ -81,6 +81,7 @@ ROCKSDB_DDL	Gamma
 ROCKSDB_INDEX_FILE_MAP	Gamma
 ROCKSDB_LOCKS	Gamma
 ROCKSDB_TRX	Gamma
+ROCKSDB_DEADLOCK	Gamma
 #
 #  MDEV-12466 : Assertion `thd->transaction.stmt.is_empty() || thd->in_sub_stmt ||  ...
 #

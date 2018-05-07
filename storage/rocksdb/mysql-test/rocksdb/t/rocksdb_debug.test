@@ -1,0 +1,14 @@
+--source include/have_rocksdb.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # Issue #728: Assertion `covers_key(b)' failed in int
+--echo # myrocks::Rdb_key_def::cmp_full_keys(const rocks db::Slice&,
+--echo # const rocksdb::Slice&) 
+--echo #
+
+CREATE TABLE t2(c1 TINYINT SIGNED KEY,c2 TINYINT UNSIGNED,c3 INT);
+INSERT INTO t2(c1)VALUES(0);
+SELECT * FROM t2 WHERE c1<=127 ORDER BY c1 DESC;
+DROP TABLE t2;
+

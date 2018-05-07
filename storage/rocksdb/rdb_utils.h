@@ -84,7 +84,7 @@ namespace myrocks {
   do {                                                                         \
     if (!(expr)) {                                                             \
       my_safe_printf_stderr("\nShip assert failure: \'%s\'\n", #expr);         \
-      abort_with_stack_traces();                                               \
+      abort();                                                                 \
     }                                                                          \
   } while (0)
 #endif // SHIP_ASSERT
@@ -250,11 +250,19 @@ inline void rdb_check_mutex_call_result(const char *function_name,
 
     // This will hopefully result in a meaningful stack trace which we can use
     // to efficiently debug the root cause.
-    abort_with_stack_traces();
+    abort();
   }
 }
 
 void rdb_log_status_error(const rocksdb::Status &s, const char *msg = nullptr);
+
+// return true if the marker file exists which indicates that the corruption
+// has been detected
+bool rdb_check_rocksdb_corruption();
+
+// stores a marker file in the data directory so that after restart server
+// is still aware that rocksdb data is corrupted
+void rdb_persist_corruption_marker();
 
 /*
   Helper functions to parse strings.
