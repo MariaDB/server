@@ -204,7 +204,7 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
     strnmov(addr2line_binary, info.dli_fname, sizeof(addr2line_binary));
   }
   offset = info.dli_fbase;
-  len= my_snprintf(input, sizeof(input), "%p\n", ptr - offset);
+  len= my_snprintf(input, sizeof(input), "%08x\n", (ulonglong)(ptr - offset));
   if (write(in[1], input, len) <= 0)
     return 1;
   if (read(out[0], output, sizeof(output)) <= 0)

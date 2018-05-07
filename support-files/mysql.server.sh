@@ -25,7 +25,6 @@
 # Description: MariaDB is a very fast and reliable SQL database engine.
 ### END INIT INFO
 
-# If you install MariaDB on some other places than @prefix@, then you
 # have to do one of the following things for this script to work:
 #
 # - Run this script from within the MariaDB installation directory
@@ -438,7 +437,6 @@ case "$mode" in
   *)
       # usage
       basename=`basename "$0"`
-      echo "Usage: $basename  {start|stop|restart|reload|force-reload|status|configtest}  [ MariaDB server options ]"
       exit 1
     ;;
 esac

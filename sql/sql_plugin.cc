@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2005, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+   Copyright (c) 2005, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2082,11 +2082,14 @@ bool mysql_install_plugin(THD *thd, const LEX_STRING *name,
   bool error;
   int argc=orig_argc;
   char **argv=orig_argv;
+  unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
+  { MYSQL_AUDIT_GENERAL_CLASSMASK };
   DBUG_ENTER("mysql_install_plugin");
 
   tables.init_one_table("mysql", 5, "plugin", 6, "plugin", TL_WRITE);
   if (!opt_noacl && check_table_access(thd, INSERT_ACL, &tables, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /* need to open before acquiring LOCK_plugin or it will deadlock */
   if (! (table = open_ltable(thd, &tables, TL_WRITE,
@@ -2120,8 +2123,7 @@ bool mysql_install_plugin(THD *thd, const LEX_STRING *name,
 
     See also mysql_uninstall_plugin() and initialize_audit_plugin()
   */
-  unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
-  { MYSQL_AUDIT_GENERAL_CLASSMASK };
+
   mysql_audit_acquire_plugins(thd, event_class_mask);
 
   mysql_mutex_lock(&LOCK_plugin);
@@ -2152,6 +2154,10 @@ err:
   if (argv)
     free_defaults(argv);
   DBUG_RETURN(error);
+#ifdef WITH_WSREP
+ error:
+  DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
 }
 
 
@@ -2218,16 +2224,29 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
   TABLE_LIST tables;
   LEX_STRING dl= *dl_arg;
   bool error= false;
+  unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
+  { MYSQL_AUDIT_GENERAL_CLASSMASK };
   DBUG_ENTER("mysql_uninstall_plugin");
 
   tables.init_one_table("mysql", 5, "plugin", 6, "plugin", TL_WRITE);
 
   if (!opt_noacl && check_table_access(thd, DELETE_ACL, &tables, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /* need to open before acquiring LOCK_plugin or it will deadlock */
   if (! (table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT)))
     DBUG_RETURN(TRUE);
+
+  if (!table->key_info)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "The table %s.%s has no primary key. "
+                    "Please check the table definition and "
+                    "create the primary key accordingly.", MYF(0),
+                    table->s->db.str, table->s->table_name.str);
+    DBUG_RETURN(TRUE);
+  }
 
   /*
     Pre-acquire audit plugins for events that may potentially occur
@@ -2250,8 +2269,6 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
 
     See also mysql_install_plugin() and initialize_audit_plugin()
   */
-  unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
-  { MYSQL_AUDIT_GENERAL_CLASSMASK };
   mysql_audit_acquire_plugins(thd, event_class_mask);
 
   mysql_mutex_lock(&LOCK_plugin);
@@ -2281,6 +2298,10 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
 
   mysql_mutex_unlock(&LOCK_plugin);
   DBUG_RETURN(error);
+#ifdef WITH_WSREP
+ error:
+  DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
 }
 
 

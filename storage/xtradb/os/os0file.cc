@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -1381,7 +1381,7 @@ os_file_create_simple_func(
 	}
 
 	do {
-		file = ::open(name, create_flag, os_innodb_umask);
+		file = ::open(name, create_flag | O_CLOEXEC, os_innodb_umask);
 
 		if (file == -1) {
 			*success = FALSE;
@@ -1577,7 +1577,7 @@ os_file_create_simple_no_error_handling_func(
 		return(file);
 	}
 
-	file.m_file = ::open(name, create_flag, os_innodb_umask);
+	file.m_file = ::open(name, create_flag | O_CLOEXEC , os_innodb_umask);
 
 	*success = file.m_file == -1 ? FALSE : TRUE;
 
@@ -1959,7 +1959,7 @@ os_file_create_func(
 #endif /* O_SYNC */
 
 	do {
-		file.m_file = ::open(name, create_flag, os_innodb_umask);
+		file.m_file = ::open(name, create_flag | O_CLOEXEC, os_innodb_umask);
 
 		if (file.m_file == -1) {
 			const char*	operation;
@@ -3465,7 +3465,7 @@ os_file_get_status(
 
 		access = !srv_read_only_mode ? O_RDWR : O_RDONLY;
 
-		fh = ::open(path, access, os_innodb_umask);
+		fh = ::open(path, access | O_CLOEXEC, os_innodb_umask);
 
 		if (fh == -1) {
 			stat_info->rw_perm = false;
@@ -3894,7 +3894,7 @@ os_aio_native_aio_supported(void)
 
 		strcpy(name + dirnamelen, "ib_logfile0");
 
-		fd = ::open(name, O_RDONLY);
+		fd = ::open(name, O_RDONLY | O_CLOEXEC);
 
 		if (fd == -1) {
 
