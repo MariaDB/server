@@ -5232,8 +5232,7 @@ new_clustered_failed:
 			     = dict_table_get_first_index(user_table);
 		     index != NULL;
 		     index = dict_table_get_next_index(index)) {
-			if (!index->to_be_dropped
-			    && dict_index_is_corrupted(index)) {
+			if (!index->to_be_dropped && index->is_corrupted()) {
 				my_error(ER_CHECK_NO_SUCH_TABLE, MYF(0));
 				goto error_handled;
 			}
@@ -5243,8 +5242,7 @@ new_clustered_failed:
 			     = dict_table_get_first_index(user_table);
 		     index != NULL;
 		     index = dict_table_get_next_index(index)) {
-			if (!index->to_be_dropped
-			    && dict_index_is_corrupted(index)) {
+			if (!index->to_be_dropped && index->is_corrupted()) {
 				my_error(ER_CHECK_NO_SUCH_TABLE, MYF(0));
 				goto error_handled;
 			}
@@ -6322,8 +6320,7 @@ ha_innobase::prepare_inplace_alter_table(
 
 	if (indexed_table->corrupted
 	    || dict_table_get_first_index(indexed_table) == NULL
-	    || dict_index_is_corrupted(
-		    dict_table_get_first_index(indexed_table))) {
+	    || dict_table_get_first_index(indexed_table)->is_corrupted()) {
 		/* The clustered index is corrupted. */
 		my_error(ER_CHECK_NO_SUCH_TABLE, MYF(0));
 		DBUG_RETURN(true);
@@ -6611,7 +6608,7 @@ found_fk:
 					" with name %s", key->name);
 			} else {
 				ut_ad(!index->to_be_dropped);
-				if (!dict_index_is_clust(index)) {
+				if (!index->is_primary()) {
 					drop_index[n_drop_index++] = index;
 				} else {
 					drop_primary = index;
@@ -6712,7 +6709,7 @@ check_if_can_drop_indexes:
 		for (dict_index_t* index = dict_table_get_first_index(indexed_table);
 		     index != NULL; index = dict_table_get_next_index(index)) {
 
-			if (!index->to_be_dropped && dict_index_is_corrupted(index)) {
+			if (!index->to_be_dropped && index->is_corrupted()) {
 				my_error(ER_INDEX_CORRUPT, MYF(0), index->name());
 				goto err_exit;
 			}
@@ -8440,7 +8437,7 @@ commit_try_rebuild(
 		DBUG_ASSERT(dict_index_get_online_status(index)
 			    == ONLINE_INDEX_COMPLETE);
 		DBUG_ASSERT(index->is_committed());
-		if (dict_index_is_corrupted(index)) {
+		if (index->is_corrupted()) {
 			my_error(ER_INDEX_CORRUPT, MYF(0), index->name());
 			DBUG_RETURN(true);
 		}
@@ -8689,7 +8686,7 @@ commit_try_norebuild(
 		DBUG_ASSERT(dict_index_get_online_status(index)
 			    == ONLINE_INDEX_COMPLETE);
 		DBUG_ASSERT(!index->is_committed());
-		if (dict_index_is_corrupted(index)) {
+		if (index->is_corrupted()) {
 			/* Report a duplicate key
 			error for the index that was
 			flagged corrupted, most likely

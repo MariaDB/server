@@ -3774,8 +3774,7 @@ row_ins(
 			node->index = NULL; node->entry = NULL; break;);
 
 		/* Skip corrupted secondary index and its entry */
-		while (node->index && dict_index_is_corrupted(node->index)) {
-
+		while (node->index && node->index->is_corrupted()) {
 			node->index = dict_table_get_next_index(node->index);
 			node->entry = UT_LIST_GET_NEXT(tuple_list, node->entry);
 		}

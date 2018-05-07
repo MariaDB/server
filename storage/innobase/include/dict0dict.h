@@ -683,7 +683,7 @@ dict_table_get_next_index(
 
 /* Skip corrupted index */
 #define dict_table_skip_corrupt_index(index)			\
-	while (index && dict_index_is_corrupted(index)) {	\
+	while (index && index->is_corrupted()) {		\
 		index = dict_table_get_next_index(index);	\
 	}
 
@@ -1767,16 +1767,6 @@ ulint
 dict_table_is_corrupted(
 /*====================*/
 	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/**********************************************************************//**
-Check whether the index is corrupted.
-@return nonzero for corrupted index, zero for valid indexes */
-UNIV_INLINE
-ulint
-dict_index_is_corrupted(
-/*====================*/
-	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /**********************************************************************//**

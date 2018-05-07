@@ -4483,13 +4483,13 @@ row_merge_is_index_usable(
 	const trx_t*		trx,	/*!< in: transaction */
 	const dict_index_t*	index)	/*!< in: index to check */
 {
-	if (!dict_index_is_clust(index)
+	if (!index->is_primary()
 	    && dict_index_is_online_ddl(index)) {
 		/* Indexes that are being created are not useable. */
 		return(false);
 	}
 
-	return(!dict_index_is_corrupted(index)
+	return(!index->is_corrupted()
 	       && (dict_table_is_temporary(index->table)
 		   || index->trx_id == 0
 		   || !trx->read_view.is_open()
