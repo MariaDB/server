@@ -84,8 +84,8 @@ DOMDOC::DOMDOC(char *nsl, char *nsdf, char *enc, PFBLOCK fp)
       : XMLDOCUMENT(nsl, nsdf, enc)
   {
   assert (!fp || fp->Type == TYPE_FB_XML);
-  Docp = (fp) ? ((PXBLOCK)fp)->Docp : NULL;
-  Nlist = NULL;
+	Docp = (fp) ? ((PXBLOCK)fp)->Docp : (MSXML2::IXMLDOMDocumentPtr)NULL;
+	Nlist = NULL;
   Hr = 0;
   } // end of DOMDOC constructor
 

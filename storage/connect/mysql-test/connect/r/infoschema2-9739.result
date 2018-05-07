@@ -8,5 +8,5 @@ TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE
 Warnings:
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
-Warning	1296	Got error 174 'File t1.xml not found' from CONNECT
+Warning	1105
 drop table t1;

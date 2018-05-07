@@ -1,7 +1,7 @@
 /***********************************************************************/
 /*  GLOBAL.H: Declaration file used by all CONNECT implementations.    */
 /*  (C) Copyright MariaDB Corporation Ab                 							 */
-/*  Author Olivier Bertrand                              1993-2017     */
+/*  Author Olivier Bertrand                              1993-2018     */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -192,7 +192,7 @@ typedef struct _global {            /* Global structure                */
 	PACTIVITY Activityp;
   char      Message[MAX_STR];
 	ulong     More;										/* Used by jsonudf                 */
-	int       Createas;               /* To pass info to created table   */
+	int       Createas;               /* To pass multi to ext tables     */
   void     *Xchk;                   /* indexes in create/alter         */
   short     Alchecked;              /* Checked for ALTER               */
   short     Mrr;                    /* True when doing mrr             */

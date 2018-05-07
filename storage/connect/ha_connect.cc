@@ -107,13 +107,9 @@
 
 #define MYSQL_SERVER 1
 #define DONT_DEFINE_VOID
-#include "sql_class.h"
-#include "create_options.h"
-#include "mysql_com.h"
-#include "field.h"
+#include <my_global.h>
 #include "sql_parse.h"
 #include "sql_base.h"
-#include <sys/stat.h>
 #include "sql_partition.h"
 #undef  OFFSET
 
@@ -174,9 +170,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.06.0007 March 11, 2018";
+       char version[]= "Version 1.06.0008 October 06, 2018";
 #if defined(__WIN__)
-       char compver[]= "Version 1.06.0007 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.06.0008 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -432,7 +428,7 @@ handlerton *connect_hton= NULL;
 uint GetTraceValue(void)
 	{return (uint)(connect_hton ? THDVAR(current_thd, xtrace) : 0);}
 bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
-bool CondPushEnabled(void) {return THDVAR(current_thd, cond_push);}
+static bool CondPushEnabled(void) {return THDVAR(current_thd, cond_push);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
 int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
 TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
@@ -1781,12 +1777,14 @@ bool ha_connect::CheckVirtualIndex(TABLE_SHARE *s)
 
 bool ha_connect::IsPartitioned(void)
 {
-  if (tshp)
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+	if (tshp)
     return tshp->partition_info_str_len > 0;
   else if (table && table->part_info)
     return true;
   else
-    return false;
+#endif
+		return false;
 
 } // end of IsPartitioned
 
@@ -2811,7 +2809,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
     htrc("Cond type=%d\n", cond->type());
 
   if (cond->type() == COND::COND_ITEM) {
-    char      *pb0, *pb1, *pb2, *ph0, *ph1, *ph2;
+    char      *pb0, *pb1, *pb2, *ph0= 0, *ph1= 0, *ph2= 0;
 		bool       bb = false, bh = false;
     Item_cond *cond_item= (Item_cond *)cond;
 
@@ -3292,6 +3290,58 @@ ha_rows ha_connect::records()
 } // end of records
 
 
+int ha_connect::check(THD* thd, HA_CHECK_OPT* check_opt)
+{
+	int     rc = HA_ADMIN_OK;
+	PGLOBAL g = ((table && table->in_use) ? GetPlug(table->in_use, xp) :
+		(xp) ? xp->g : NULL);
+	DBUG_ENTER("ha_connect::check");
+
+	if (!g || !table || xmod != MODE_READ)
+		DBUG_RETURN(HA_ADMIN_INTERNAL_ERROR);
+
+	// Do not close the table if it was opened yet (possible?)
+	if (IsOpened()) {
+		if (IsPartitioned() && CheckColumnList(g)) // map can have been changed
+			rc = HA_ADMIN_CORRUPT;
+		else if (tdbp->OpenDB(g))      // Rewind table
+			rc = HA_ADMIN_CORRUPT;
+
+	} else if (xp->CheckQuery(valid_query_id)) {
+		tdbp = NULL;       // Not valid anymore
+
+		if (OpenTable(g, false))
+			rc = HA_ADMIN_CORRUPT;
+
+	} else // possible?
+		DBUG_RETURN(HA_ADMIN_INTERNAL_ERROR);
+
+	if (rc == HA_ADMIN_OK) {
+		TABTYPE type = GetTypeID(GetStringOption("Type", "*"));
+
+		if (IsFileType(type)) {
+			if (check_opt->flags & T_MEDIUM) {
+				// TO DO
+				do {
+					if ((rc = CntReadNext(g, tdbp)) == RC_FX)
+						break;
+
+				} while (rc != RC_EF);
+
+				rc = (rc == RC_EF) ? HA_ADMIN_OK : HA_ADMIN_CORRUPT;
+			} else if (check_opt->flags & T_EXTEND) {
+				// TO DO
+			} // endif's flags
+
+		} // endif file type
+
+	} else
+		PushWarning(g, thd, 1);
+
+	DBUG_RETURN(rc);
+}	// end of check
+
+
 /**
   Return an error message specific to this handler.
 
@@ -3305,23 +3355,16 @@ bool ha_connect::get_error_message(int error, String* buf)
 {
   DBUG_ENTER("ha_connect::get_error_message");
 
-  if (xp && xp->g) {
-    PGLOBAL g= xp->g;
-    char    msg[3072];         // MAX_STR * 3
-    uint    dummy_errors;
-    uint32  len= copy_and_convert(msg, strlen(g->Message) * 3,
-                               system_charset_info,
-                               g->Message, strlen(g->Message),
-                               &my_charset_latin1,
-                               &dummy_errors);
+	if (xp && xp->g) {
+		PGLOBAL g = xp->g;
 
-    if (trace(1))
-      htrc("GEM(%d): len=%u %s\n", error, len, g->Message);
+		if (trace(1))
+			htrc("GEM(%d): %s\n", error, g->Message);
 
-    msg[len]= '\0';
-    buf->copy(msg, (uint)strlen(msg), system_charset_info);
-  } else
-    buf->copy("Cannot retrieve msg", 19, system_charset_info);
+		buf->append(ErrConvString(g->Message, strlen(g->Message),
+			&my_charset_latin1).ptr());
+	} else
+    buf->append("Cannot retrieve error message");
 
   DBUG_RETURN(false);
 } // end of get_error_message
@@ -3434,7 +3477,7 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT*)
 					push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
 					rc = 0;
 				} else
-					rc = HA_ERR_INTERNAL_ERROR;
+					rc = HA_ERR_CRASHED_ON_USAGE;		// Table must be repaired
 
 			} // endif rc
 
@@ -3449,6 +3492,9 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT*)
 		strcpy(g->Message, msg);
 		rc = HA_ERR_INTERNAL_ERROR;
 	} // end catch
+
+	if (rc)
+		my_message(ER_WARN_DATA_OUT_OF_RANGE, g->Message, MYF(0));
 
   return rc;
 } // end of optimize
@@ -4511,14 +4557,16 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
 //    case SQLCOM_REPLACE_SELECT:
 //      newmode= MODE_UPDATE;               // To be checked
 //      break;
-      case SQLCOM_DELETE:
-      case SQLCOM_DELETE_MULTI:
+			case SQLCOM_DELETE_MULTI:
+				*cras = true;
+			case SQLCOM_DELETE:
       case SQLCOM_TRUNCATE:
         newmode= MODE_DELETE;
         break;
-      case SQLCOM_UPDATE:
       case SQLCOM_UPDATE_MULTI:
-        newmode= MODE_UPDATE;
+				*cras = true;
+			case SQLCOM_UPDATE:
+				newmode= MODE_UPDATE;
         break;
       case SQLCOM_SELECT:
       case SQLCOM_OPTIMIZE:
@@ -4543,8 +4591,10 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
           newmode= MODE_ANY;
           break;
 //        } // endif partitioned
-
-      default:
+			case SQLCOM_REPAIR: // TODO implement it
+				newmode = MODE_UPDATE;
+				break;
+			default:
         htrc("Unsupported sql_command=%d\n", thd_sql_command(thd));
         strcpy(g->Message, "CONNECT Unsupported command");
         my_message(ER_NOT_ALLOWED_COMMAND, g->Message, MYF(0));
@@ -4556,17 +4606,18 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
     switch (thd_sql_command(thd)) {
       case SQLCOM_CREATE_TABLE:
         *chk= true;
-        *cras= true;
+				break;
+			case SQLCOM_UPDATE_MULTI:
+			case SQLCOM_DELETE_MULTI:
+				*cras= true;
       case SQLCOM_INSERT:
       case SQLCOM_LOAD:
       case SQLCOM_INSERT_SELECT:
 //    case SQLCOM_REPLACE:
 //    case SQLCOM_REPLACE_SELECT:
       case SQLCOM_DELETE:
-      case SQLCOM_DELETE_MULTI:
       case SQLCOM_TRUNCATE:
       case SQLCOM_UPDATE:
-      case SQLCOM_UPDATE_MULTI:
       case SQLCOM_SELECT:
       case SQLCOM_OPTIMIZE:
       case SQLCOM_SET_OPTION:
@@ -4594,8 +4645,9 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
           break;
 //        } // endif partitioned
 
-			case SQLCOM_CHECK: // TODO implement it
-			case SQLCOM_END:	 // Met in procedures: IF(EXISTS(SELECT...
+			case SQLCOM_CHECK:   // TODO implement it
+			case SQLCOM_ANALYZE: // TODO implement it
+			case SQLCOM_END:	   // Met in procedures: IF(EXISTS(SELECT...
 				newmode= MODE_READ;
         break;
       default:
@@ -4877,7 +4929,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 #endif // 0
 
   if (cras)
-    g->Createas= 1;       // To tell created table to ignore FLAG
+    g->Createas= 1;  // To tell external tables of a multi-table command
 
   if (trace(1)) {
 #if 0
@@ -5568,7 +5620,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				} // endif p
 
 			} else if (ttp != TAB_ODBC || !(fnc & (FNC_TABLE | FNC_COL)))
-				tab = table_s->table_name.str;           // Default value
+			  tab = (char*)table_s->table_name.str;   // Default value
 
 		} // endif tab
 
@@ -6200,7 +6252,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 	LEX_STRING cnc = table_arg->s->connect_string;
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
   partition_info *part_info= table_arg->part_info;
-#endif   // WITH_PARTITION_STORAGE_ENGINE
+#else		// !WITH_PARTITION_STORAGE_ENGINE
+#define part_info 0
+#endif  // !WITH_PARTITION_STORAGE_ENGINE
   xp= GetUser(thd, xp);
   PGLOBAL g= xp->g;
 
@@ -6301,9 +6355,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
 				// fall through
       case TAB_MYSQL:
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
         if (!part_info)
-#endif   // WITH_PARTITION_STORAGE_ENGINE
        {const char *src= options->srcdef;
 				PCSZ host, db, tab= options->tabname;
         int  port;
@@ -6567,7 +6619,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       } else
         lwt[i]= tolower(options->type[i]);
 
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
     if (part_info) {
       char *p;
 
@@ -6577,7 +6628,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       strcat(strcat(strcpy(buf, p), "."), lwt);
       *p= 0;
     } else {
-#endif   // WITH_PARTITION_STORAGE_ENGINE
       strcat(strcat(strcpy(buf, GetTableName()), "."), lwt);
       sprintf(g->Message, "No file name. Table will use %s", buf);
   
@@ -6585,9 +6635,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
   
       strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
     } // endif part_info
-#endif   // WITH_PARTITION_STORAGE_ENGINE
 
     PlugSetPath(fn, buf, dbpath);
 
@@ -6652,11 +6700,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
         "Unexpected command in create, please contact CONNECT team");
 
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
     if (part_info && !inward)
       strncpy(partname, decode(g, strrchr(name, '#') + 1), sizeof(partname) - 1);
 //    strcpy(partname, part_info->curr_part_elem->partition_name);
-#endif   // WITH_PARTITION_STORAGE_ENGINE
 
     if (g->Alchecked == 0 &&
         (!IsFileType(type) || FileExists(options->filename, false))) {
@@ -6692,12 +6738,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 					my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
 					rc = HA_ERR_INTERNAL_ERROR;
 				} else if (cat) {
-#if defined(WITH_PARTITION_STORAGE_ENGINE)
           if (part_info)
             strncpy(partname, 
                     decode(g, strrchr(name, (inward ? slash : '#')) + 1),
 										sizeof(partname) - 1);
-#endif   // WITH_PARTITION_STORAGE_ENGINE
 
           if ((rc= optimize(table->in_use, NULL))) {
             htrc("Create rc=%d %s\n", rc, g->Message);
@@ -7266,7 +7310,7 @@ maria_declare_plugin(connect)
   0x0107,                                       /* version number (1.05) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.06.0007",                                  /* string version */
+  "1.06.0008",                                  /* string version */
 	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;
