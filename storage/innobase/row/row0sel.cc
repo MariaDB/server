@@ -4253,18 +4253,14 @@ row_search_mvcc(
 	ut_ad(!sync_check_iterate(sync_check()));
 
 	if (dict_table_is_discarded(prebuilt->table)) {
-
 		DBUG_RETURN(DB_TABLESPACE_DELETED);
-
 	} else if (!prebuilt->table->is_readable()) {
 		DBUG_RETURN(fil_space_get(prebuilt->table->space)
 			    ? DB_DECRYPTION_FAILED
 			    : DB_TABLESPACE_NOT_FOUND);
 	} else if (!prebuilt->index_usable) {
 		DBUG_RETURN(DB_MISSING_HISTORY);
-
-	} else if (dict_index_is_corrupted(prebuilt->index)) {
-
+	} else if (prebuilt->index->is_corrupted()) {
 		DBUG_RETURN(DB_CORRUPTION);
 	}
 

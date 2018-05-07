@@ -293,7 +293,7 @@ row_log_online_op(
 	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_S)
 	      || rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
 
-	if (dict_index_is_corrupted(index)) {
+	if (index->is_corrupted()) {
 		return;
 	}
 
@@ -613,8 +613,8 @@ row_log_table_delete(
 			&index->lock,
 			RW_LOCK_FLAG_S | RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
 
-	if (dict_index_is_corrupted(index)
-	    || !dict_index_is_online_ddl(index)
+	if (index->online_status != ONLINE_INDEX_CREATION
+	    || (index->type & DICT_CORRUPT) || index->table->corrupted
 	    || index->online_log->error != DB_SUCCESS) {
 		return;
 	}
@@ -922,8 +922,8 @@ row_log_table_low(
 	ut_ad(!old_pk || !insert);
 	ut_ad(!old_pk || old_pk->n_v_fields == 0);
 
-	if (dict_index_is_corrupted(index)
-	    || !dict_index_is_online_ddl(index)
+	if (index->online_status != ONLINE_INDEX_CREATION
+	    || (index->type & DICT_CORRUPT) || index->table->corrupted
 	    || index->online_log->error != DB_SUCCESS) {
 		return;
 	}
@@ -2672,7 +2672,7 @@ next_block:
 		goto interrupted;
 	}
 
-	if (dict_index_is_corrupted(index)) {
+	if (index->is_corrupted()) {
 		error = DB_INDEX_CORRUPT;
 		goto func_exit;
 	}
@@ -3167,7 +3167,7 @@ row_log_apply_op_low(
 	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X)
 	      == has_index_lock);
 
-	ut_ad(!dict_index_is_corrupted(index));
+	ut_ad(!index->is_corrupted());
 	ut_ad(trx_id != 0 || op == ROW_OP_DELETE);
 
 	DBUG_LOG("ib_create_index",
@@ -3411,7 +3411,7 @@ row_log_apply_op(
 	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X)
 	      == has_index_lock);
 
-	if (dict_index_is_corrupted(index)) {
+	if (index->is_corrupted()) {
 		*error = DB_INDEX_CORRUPT;
 		return(NULL);
 	}
@@ -3548,7 +3548,7 @@ next_block:
 		goto func_exit;
 	}
 
-	if (dict_index_is_corrupted(index)) {
+	if (index->is_corrupted()) {
 		error = DB_INDEX_CORRUPT;
 		goto func_exit;
 	}

@@ -980,6 +980,9 @@ struct dict_index_t{
 	{
 		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
 	}
+
+	/** @return whether the index is corrupted */
+	inline bool is_corrupted() const;
 };
 
 /** The status of online index creation */
@@ -1722,6 +1725,13 @@ public:
 inline bool dict_index_t::is_readable() const
 {
 	return(UNIV_LIKELY(!table->file_unreadable));
+}
+
+inline bool dict_index_t::is_corrupted() const
+{
+	return UNIV_UNLIKELY(online_status >= ONLINE_INDEX_ABORTED
+			     || (type & DICT_CORRUPT)
+			     || (table && table->corrupted));
 }
 
 /*******************************************************************//**

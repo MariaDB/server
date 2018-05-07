@@ -9406,13 +9406,13 @@ ha_innobase::index_read(
 
 	dict_index_t*	index = m_prebuilt->index;
 
-	if (index == NULL || dict_index_is_corrupted(index)) {
+	if (index == NULL || index->is_corrupted()) {
 		m_prebuilt->index_usable = FALSE;
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
 
 	if (!m_prebuilt->index_usable) {
-		DBUG_RETURN(dict_index_is_corrupted(index)
+		DBUG_RETURN(index->is_corrupted()
 			    ? HA_ERR_INDEX_CORRUPT
 			    : HA_ERR_TABLE_DEF_CHANGED);
 	}
@@ -9671,14 +9671,14 @@ ha_innobase::change_active_index(
 		m_prebuilt->trx, m_prebuilt->index);
 
 	if (!m_prebuilt->index_usable) {
-		if (dict_index_is_corrupted(m_prebuilt->index)) {
+		if (m_prebuilt->index->is_corrupted()) {
 			char	table_name[MAX_FULL_NAME_LEN + 1];
 
 			innobase_format_name(
 				table_name, sizeof table_name,
 				m_prebuilt->index->table->name.m_name);
 
-			if (dict_index_is_clust(m_prebuilt->index)) {
+			if (m_prebuilt->index->is_primary()) {
 				ut_ad(m_prebuilt->index->table->corrupted);
 				push_warning_printf(
 					m_user_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -13662,7 +13662,7 @@ ha_innobase::records_in_range(
 		n_rows = HA_POS_ERROR;
 		goto func_exit;
 	}
-	if (dict_index_is_corrupted(index)) {
+	if (index->is_corrupted()) {
 		n_rows = HA_ERR_INDEX_CORRUPT;
 		goto func_exit;
 	}
@@ -14522,7 +14522,7 @@ ha_innobase::defragment_table(
 	for (index = dict_table_get_first_index(table); index;
 	     index = dict_table_get_next_index(index)) {
 
-		if (dict_index_is_corrupted(index)) {
+		if (index->is_corrupted()) {
 			continue;
 		}
 
@@ -14721,7 +14721,7 @@ ha_innobase::check(
 		clustered index, we will do so here */
 		index = dict_table_get_first_index(m_prebuilt->table);
 
-		if (!dict_index_is_corrupted(index)) {
+		if (!index->is_corrupted()) {
 			dict_set_corrupted(
 				index, m_prebuilt->trx, "CHECK TABLE");
 		}
@@ -14759,7 +14759,7 @@ ha_innobase::check(
 		}
 
 		if (!(check_opt->flags & T_QUICK)
-		    && !dict_index_is_corrupted(index)) {
+		    && !index->is_corrupted()) {
 			/* Enlarge the fatal lock wait timeout during
 			CHECK TABLE. */
 			my_atomic_addlong(
@@ -14811,7 +14811,7 @@ ha_innobase::check(
 
 		DBUG_EXECUTE_IF(
 			"dict_set_index_corrupted",
-			if (!dict_index_is_clust(index)) {
+			if (!index->is_primary()) {
 				m_prebuilt->index_usable = FALSE;
 				// row_mysql_lock_data_dictionary(m_prebuilt->trx);
 				dict_set_corrupted(index, m_prebuilt->trx, "dict_set_index_corrupted");
@@ -14819,7 +14819,7 @@ ha_innobase::check(
 			});
 
 		if (UNIV_UNLIKELY(!m_prebuilt->index_usable)) {
-			if (dict_index_is_corrupted(m_prebuilt->index)) {
+			if (index->is_corrupted()) {
 				push_warning_printf(
 					m_user_thd,
 					Sql_condition::WARN_LEVEL_WARN,
@@ -14859,7 +14859,7 @@ ha_innobase::check(
 
 		DBUG_EXECUTE_IF(
 			"dict_set_index_corrupted",
-			if (!dict_index_is_clust(index)) {
+			if (!index->is_primary()) {
 				ret = DB_CORRUPTION;
 			});
 

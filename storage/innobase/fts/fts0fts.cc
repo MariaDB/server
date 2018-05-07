@@ -6549,7 +6549,7 @@ fts_check_corrupt_index(
 		if (index->id == aux_table->index_id) {
 			ut_ad(index->type & DICT_FTS);
 			dict_table_close(table, true, false);
-			return(dict_index_is_corrupted(index));
+			return index->is_corrupted();
 		}
 	}
 

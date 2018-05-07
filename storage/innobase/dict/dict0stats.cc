@@ -158,9 +158,8 @@ dict_stats_should_ignore_index(
 /*===========================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	return((index->type & DICT_FTS)
-	       || dict_index_is_corrupted(index)
-	       || dict_index_is_spatial(index)
+	return((index->type & (DICT_FTS | DICT_SPATIAL))
+	       || index->is_corrupted()
 	       || index->to_be_dropped
 	       || !index->is_committed());
 }
@@ -2228,7 +2227,7 @@ dict_stats_update_persistent(
 	index = dict_table_get_first_index(table);
 
 	if (index == NULL
-	    || dict_index_is_corrupted(index)
+	    || index->is_corrupted()
 	    || (index->type | DICT_UNIQUE) != (DICT_CLUSTERED | DICT_UNIQUE)) {
 
 		/* Table definition is corrupt */

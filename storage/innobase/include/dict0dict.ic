@@ -1487,21 +1487,6 @@ dict_table_is_corrupted(
 }
 
 /********************************************************************//**
-Check whether the index is corrupted.
-@return nonzero for corrupted index, zero for valid indexes */
-UNIV_INLINE
-ulint
-dict_index_is_corrupted(
-/*====================*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return((index->type & DICT_CORRUPT)
-	        || (index->table && index->table->corrupted));
-}
-
-/********************************************************************//**
 Check if the tablespace for the table has been discarded.
 @return true if the tablespace has been discarded. */
 UNIV_INLINE

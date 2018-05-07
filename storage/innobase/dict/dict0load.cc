@@ -2521,10 +2521,10 @@ dict_load_indexes(
 		}
 
 		ut_ad(index);
+		ut_ad(!dict_index_is_online_ddl(index));
 
 		/* Check whether the index is corrupted */
-		if (dict_index_is_corrupted(index)) {
-
+		if (index->is_corrupted()) {
 			ib::error() << "Index " << index->name
 				<< " of table " << table->name
 				<< " is corrupted";
@@ -3044,10 +3044,7 @@ err_exit:
 			table = NULL;
 			goto func_exit;
 		} else {
-			dict_index_t*	clust_index;
-			clust_index = dict_table_get_first_index(table);
-
-			if (dict_index_is_corrupted(clust_index)) {
+			if (table->indexes.start->is_corrupted()) {
 				table->corrupted = true;
 			}
 		}
@@ -3095,14 +3092,11 @@ err_exit:
 
 		if (!srv_force_recovery
 		    || !index
-		    || !dict_index_is_clust(index)) {
-
+		    || !index->is_primary()) {
 			dict_table_remove_from_cache(table);
 			table = NULL;
-
-		} else if (dict_index_is_corrupted(index)
+		} else if (index->is_corrupted()
 			   && table->is_readable()) {
-
 			/* It is possible we force to load a corrupted
 			clustered index if srv_load_corrupted is set.
 			Mark the table as corrupted in this case */
