@@ -3654,7 +3654,7 @@ void Statement::set_statement(Statement *stmt)
 {
   id=             stmt->id;
   mark_used_columns=   stmt->mark_used_columns;
-  stmt_lex= lex=  stmt->lex;
+  lex=            stmt->lex;
   query_string=   stmt->query_string;
 }
 

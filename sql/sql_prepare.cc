@@ -3635,7 +3635,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
 
   if (! (lex= new (mem_root) st_lex_local))
     DBUG_RETURN(TRUE);
-  stmt_lex= lex;
+  lex->stmt_lex= lex;
 
   if (set_db(thd->db, thd->db_length))
     DBUG_RETURN(TRUE);

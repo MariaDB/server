@@ -9754,4 +9754,19 @@ DROP TABLE t1, t2;
 
 SET max_sp_recursion_depth=default;
 
+--echo #
+--echo # MDEV-15347: Valgrind or ASAN errors in mysql_make_view on query
+--echo # from information_schema
+--echo #
+
+CREATE VIEW v AS SELECT 1;
+CREATE FUNCTION f() RETURNS INT RETURN 1;
+--disable_result_log
+SELECT * FROM INFORMATION_SCHEMA.TABLES JOIN INFORMATION_SCHEMA.PARAMETERS
+UNION
+SELECT * FROM INFORMATION_SCHEMA.TABLES JOIN INFORMATION_SCHEMA.PARAMETERS;
+--enable_result_log
+DROP FUNCTION f;
+DROP VIEW v;
+
 --echo #End of 10.1 tests

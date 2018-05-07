@@ -657,10 +657,11 @@ void lex_start(THD *thd)
 {
   LEX *lex= thd->lex;
   DBUG_ENTER("lex_start");
-  DBUG_PRINT("info", ("Lex %p stmt_lex: %p", thd->lex, thd->stmt_lex));
+  DBUG_PRINT("info", ("Lex %p", thd->lex));
 
   lex->thd= lex->unit.thd= thd;
-  
+
+  lex->stmt_lex= lex; // default, should be rewritten for VIEWs And CTEs
   DBUG_ASSERT(!lex->explain);
 
   lex->context_stack.empty();
