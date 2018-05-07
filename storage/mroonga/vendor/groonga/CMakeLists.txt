@@ -361,10 +361,7 @@ if(NOT ${GRN_WITH_LZ4} STREQUAL "no")
       pkg_check_modules(LIBLZ4 liblz4)
     endif()
     if(LIBLZ4_FOUND)
-      find_library(LZ4_LIBS
-	NAMES ${LIBLZ4_LIBRARIES}
-	PATHS ${LIBLZ4_LIBRARY_DIRS}
-	NO_DEFAULT_PATH)
+      set(LZ4_LIBS ${LZ4_LIBRARY})
       set(GRN_WITH_LZ4 TRUE)
     else()
       if(${GRN_WITH_LZ4} STREQUAL "yes")
