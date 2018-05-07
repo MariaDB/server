@@ -700,8 +700,6 @@ ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation require
 ALTER TABLE t1 ADD FULLTEXT INDEX (ct),
 CHANGE c1 pk INT, ALTER c2 SET DEFAULT 42, RENAME TO tt,
 ALGORITHM=INPLACE, LOCK=SHARED;
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 ### files in MYSQL_DATA_DIR/test
 FTS_AUX_INDEX_1.isl
 FTS_AUX_INDEX_2.isl
@@ -786,8 +784,6 @@ ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
 CREATE TABLE t1n LIKE t1o;
 ALTER TABLE t1n ADD FULLTEXT INDEX(ct);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 ### files in MYSQL_DATA_DIR/test
 FTS_AUX_INDEX_1.isl
 FTS_AUX_INDEX_2.isl

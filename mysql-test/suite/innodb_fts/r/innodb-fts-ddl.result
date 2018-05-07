@@ -13,8 +13,6 @@ INSERT INTO fts_test (title,body) VALUES
 ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
 ERROR 0A000: ALGORITHM=NOCOPY is not supported for this operation. Try ALGORITHM=INPLACE
 ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=INPLACE;
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 SELECT * FROM fts_test WHERE MATCH (title, body)
 AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
 id	title	body
@@ -218,13 +216,9 @@ INSERT INTO articles VALUES
 (5, 'MySQL vs. YourSQL','In the following database comparison ...'),
 (6, 'MySQL Security','When configured properly, MySQL ...');
 CREATE FULLTEXT INDEX idx on articles (title, body);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 DROP INDEX idx ON articles;
 CREATE UNIQUE INDEX idx2 ON articles(id);
 CREATE FULLTEXT INDEX idx on articles (title, body);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 SELECT * FROM articles WHERE MATCH (title, body)
 AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
 id	title	body

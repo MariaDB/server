@@ -6871,13 +6871,6 @@ err_exit:
 			add_fts_doc_id = true;
 			add_fts_doc_id_idx = true;
 
-			push_warning_printf(
-				m_user_thd,
-				Sql_condition::WARN_LEVEL_WARN,
-				HA_ERR_WRONG_INDEX,
-				"InnoDB rebuilding table to add"
-				" column " FTS_DOC_ID_COL_NAME);
-
 		} else if (fts_doc_col_no == ULINT_UNDEFINED) {
 			goto err_exit;
 		}

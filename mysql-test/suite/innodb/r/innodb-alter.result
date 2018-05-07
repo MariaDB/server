@@ -419,8 +419,6 @@ ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation require
 ALTER TABLE t1 ADD FULLTEXT INDEX (ct),
 CHANGE c1 pk INT, ALTER c2 SET DEFAULT 42, RENAME TO tt,
 ALGORITHM=INPLACE, LOCK=SHARED;
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 SELECT i.NAME,i.POS,i.MTYPE,i.PRTYPE,i.LEN
 FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS i
 INNER JOIN sys_tables st ON i.TABLE_ID=st.TABLE_ID;
@@ -485,8 +483,6 @@ ALTER TABLE t1o DROP COLUMN FTS_DOC_ID, ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot drop or rename FTS_DOC_ID. Try ALGORITHM=COPY
 ALTER TABLE t1o DROP COLUMN FTS_DOC_ID, DROP INDEX ct, ALGORITHM=INPLACE;
 ALTER TABLE t1o ADD FULLTEXT INDEX(ct), ADD COLUMN cu TEXT;
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 ALTER TABLE t1o ADD FULLTEXT INDEX(cu), ADD COLUMN FTS_DOC_ID BIGINT,
 ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try ALGORITHM=COPY
@@ -702,8 +698,6 @@ FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
 WHERE name LIKE '%FTS_%' ORDER BY 1, 2;
 prefix	name
 ALTER TABLE t ADD FULLTEXT INDEX(t);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 SELECT sc.pos, sc.NAME FROM information_schema.innodb_sys_columns sc
 INNER JOIN information_schema.innodb_sys_tables st
 ON sc.TABLE_ID=st.TABLE_ID
