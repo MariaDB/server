@@ -72,14 +72,6 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 connection slave;
 drop table t1;
-create or replace table t1 (x int) with system versioning;
-connection master;
-create table t1 engine=federated connection='mysql://root@127.0.0.1:SLAVE_MYPORT/test/t1';
-ERROR HY000: Engine FEDERATED failed to discover table `test`.`t1` with 'CREATE TABLE `t1` (
-  `x` int(11) DEFAULT NULL
-) WITH SYSTEM VERSIONING CONNECTION='mysql://root@127.0.0.1:SLAVE_MYPORT/test/t1''
-connection slave;
-drop table t1;
 connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;
