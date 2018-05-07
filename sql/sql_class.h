@@ -632,6 +632,7 @@ typedef struct system_variables
   ulong query_cache_type;
   ulong tx_isolation;
   ulong updatable_views_with_limit;
+  ulong alter_algorithm;
   int max_user_connections;
   ulong server_id;
   /**
@@ -655,7 +656,6 @@ typedef struct system_variables
   my_bool keep_files_on_create;
 
   my_bool old_mode;
-  my_bool old_alter_table;
   my_bool old_passwords;
   my_bool big_tables;
   my_bool only_standard_compliant_cte;

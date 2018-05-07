@@ -893,8 +893,8 @@ row_undo_mod_upd_del_sec(
 		}
 
 		/* During online index creation,
-		HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE should
-		guarantee that any active transaction has not modified
+		HA_ALTER_INPLACE_COPY_NO_LOCK or HA_ALTER_INPLACE_NOCOPY_NO_LOCk
+		should guarantee that any active transaction has not modified
 		indexed columns such that col->ord_part was 0 at the
 		time when the undo log record was written. When we get
 		to roll back an undo log entry TRX_UNDO_DEL_MARK_REC,
@@ -959,8 +959,8 @@ row_undo_mod_del_mark_sec(
 		}
 
 		/* During online index creation,
-		HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE should
-		guarantee that any active transaction has not modified
+		HA_ALTER_INPLACE_COPY_NO_LOCK or HA_ALTER_INPLACE_NOCOPY_NO_LOCK
+		should guarantee that any active transaction has not modified
 		indexed columns such that col->ord_part was 0 at the
 		time when the undo log record was written. When we get
 		to roll back an undo log entry TRX_UNDO_DEL_MARK_REC,

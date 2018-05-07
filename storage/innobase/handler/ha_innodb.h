@@ -298,12 +298,24 @@ public:
 	by ALTER TABLE and holding data used during in-place alter.
 
 	@retval HA_ALTER_INPLACE_NOT_SUPPORTED Not supported
-	@retval HA_ALTER_INPLACE_NO_LOCK Supported
-	@retval HA_ALTER_INPLACE_SHARED_LOCK_AFTER_PREPARE
-		Supported, but requires lock during main phase and
-		exclusive lock during prepare phase.
-	@retval HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE
-		Supported, prepare phase requires exclusive lock.  */
+	@retval HA_ALTER_INPLACE_INSTANT
+	MDL_EXCLUSIVE is needed for executing prepare_inplace_alter_table()
+	and commit_inplace_alter_table(). inplace_alter_table()
+	will not be called.
+	@retval HA_ALTER_INPLACE_COPY_NO_LOCK
+	MDL_EXCLUSIVE in prepare_inplace_alter_table(), which can be downgraded
+	to LOCK=NONE for rebuilding the table in inplace_alter_table()
+	@retval HA_ALTER_INPLACE_COPY_LOCK
+	MDL_EXCLUSIVE in prepare_inplace_alter_table(), which can be downgraded
+	to LOCK=SHARED for rebuilding the table in inplace_alter_table()
+	@retval HA_ALTER_INPLACE_NOCOPY_NO_LOCK
+	MDL_EXCLUSIVE in prepare_inplace_alter_table(), which can be downgraded
+	to LOCK=NONE for inplace_alter_table() which will not rebuild the table
+	@retval HA_ALTER_INPLACE_NOCOPY_LOCK
+	MDL_EXCLUSIVE in prepare_inplace_alter_table(), which can be downgraded
+	to LOCK=SHARED for inplace_alter_table() which will not rebuild
+	the table. */
+
 	enum_alter_inplace_result check_if_supported_inplace_alter(
 		TABLE*			altered_table,
 		Alter_inplace_info*	ha_alter_info);

@@ -12,6 +12,9 @@ The following specify which files/extra groups are read (specified before remain
  without corresponding xxx_init() or xxx_deinit(). That
  also means that one can load any function from any
  library, for example exit() from libc.so
+ --alter-algorithm[=name] 
+ Specify the alter table algorithm. One of: DEFAULT, COPY,
+ INPLACE, NOCOPY, INSTANT
  -a, --ansi          Use ANSI SQL syntax instead of MySQL syntax. This mode
  will also set transaction isolation level 'serializable'.
  --auto-increment-increment[=#] 
@@ -617,7 +620,10 @@ The following specify which files/extra groups are read (specified before remain
  connection before aborting the write
  --old               Use compatible behavior from previous MariaDB version.
  See also --old-mode
- --old-alter-table   Use old, non-optimized alter table
+ --old-alter-table[=name] 
+ Alias for alter_algorithm. Deprecated. Use
+ --alter-algorithm instead.. One of: DEFAULT, COPY, 
+ INPLACE, NOCOPY, INSTANT
  --old-mode=name     Used to emulate old behavior from earlier MariaDB or
  MySQL versions. Any combination of: 
  NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
@@ -1334,6 +1340,7 @@ The following specify which files/extra groups are read (specified before remain
 
 Variables (--variable-name=value)
 allow-suspicious-udfs FALSE
+alter-algorithm DEFAULT
 auto-increment-increment 1
 auto-increment-offset 1
 autocommit TRUE
@@ -1509,7 +1516,7 @@ net-read-timeout 30
 net-retry-count 10
 net-write-timeout 60
 old FALSE
-old-alter-table FALSE
+old-alter-table DEFAULT
 old-mode 
 old-passwords FALSE
 old-style-user-limits FALSE

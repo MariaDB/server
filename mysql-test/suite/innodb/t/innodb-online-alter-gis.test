@@ -2,10 +2,10 @@
 
 create table t1(a int not null primary key, b geometry not null) engine=innodb;
 --error 1846
-ALTER ONLINE TABLE t1 ADD SPATIAL INDEX new(b);
+ALTER ONLINE TABLE t1 ADD SPATIAL INDEX new(b), ALGORITHM=INSTANT;
 show warnings;
 show errors;
-ALTER ONLINE TABLE t1 ADD SPATIAL INDEX new(b), LOCK=SHARED;
+ALTER ONLINE TABLE t1 ADD SPATIAL INDEX new(b), LOCK=SHARED, ALGORITHM=NOCOPY;
 show warnings;
 show errors;
 drop table t1;

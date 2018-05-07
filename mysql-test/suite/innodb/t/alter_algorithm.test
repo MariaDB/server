@@ -1,0 +1,22 @@
+--source include/have_innodb.inc
+let $algorithm = `SELECT @@ALTER_ALGORITHM`;
+let $error_code = 0;
+
+if ($algorithm == "NOCOPY") {
+ let $error_code = ER_ALTER_OPERATION_NOT_SUPPORTED;
+}
+
+if ($algorithm == "INSTANT") {
+ let $error_code = ER_ALTER_OPERATION_NOT_SUPPORTED, ER_ALTER_OPERATION_NOT_SUPPORTED_REASON;
+}
+
+--source include/alter_nocopy_fail.inc
+
+if ($algorithm == "NOCOPY") {
+ let $error_code = 0;
+}
+
+if ($algorithm == "INSTANT") {
+ let $error_code = ER_ALTER_OPERATION_NOT_SUPPORTED_REASON;
+}
+--source include/alter_nocopy.inc

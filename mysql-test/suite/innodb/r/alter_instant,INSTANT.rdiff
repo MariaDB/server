@@ -1,0 +1,11 @@
+--- alter_instant.result	2018-04-10 11:19:46.299868465 +0530
++++ alter_instant.reject	2018-04-10 11:22:47.281949905 +0530
+@@ -8,7 +8,7 @@
+ INSERT INTO t1(f1, f2) VALUES(1, 1);
+ select @@alter_algorithm;
+ @@alter_algorithm
+-NOCOPY
++INSTANT
+ # Add column at the end of the table
+ ALTER TABLE t1 ADD COLUMN f4 char(100) default "BIG WALL";
+ affected rows: 0
