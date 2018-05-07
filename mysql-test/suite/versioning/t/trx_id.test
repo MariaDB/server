@@ -141,5 +141,21 @@ update t1 set x= 4;
 commit;
 select x, row_start <  row_end from t1 for system_time all;
 
+--echo # MDEV-16024 transaction_registry.begin_timestamp is wrong for explicit transactions
+create or replace table t1 (
+    x int(11) default null,
+    row_start bigint(20) unsigned generated always as row start invisible,
+    row_end bigint(20) unsigned generated always as row end invisible,
+    period for system_time (row_start, row_end)
+) engine=innodb with system versioning;
+begin;
+set @ts1= now(6);
+--sleep 0.01
+insert into t1 values (1);
+commit;
+
+select row_start from t1 into @trx_id;
+select trt_begin_ts(@trx_id) <= @ts1 as BEGIN_TS_GOOD;
+
 drop database test;
 create database test;
