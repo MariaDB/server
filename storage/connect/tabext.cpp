@@ -286,7 +286,7 @@ bool TDBEXT::MakeSrcdef(PGLOBAL g)
 	char *catp = strstr(Srcdef, "%s");
 
 	if (catp) {
-		char *fil1, *fil2;
+		char *fil1 = 0, *fil2;
 		PCSZ  ph = ((EXTDEF*)To_Def)->Phpos;
 
 		if (!ph)
