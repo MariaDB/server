@@ -11677,8 +11677,8 @@ int QUICK_SELECT_DESC::get_next()
     end_key.flag=     (last_range->flag & NEAR_MAX ? HA_READ_BEFORE_KEY :
                        HA_READ_AFTER_KEY);
     end_key.keypart_map= last_range->max_keypart_map;
-    result= file->prepare_range_scan((last_range->flag & NO_MIN_RANGE) ? NULL : &end_key,
-                                     (last_range->flag & NO_MAX_RANGE) ? NULL : &start_key);
+    result= file->prepare_range_scan((last_range->flag & NO_MIN_RANGE) ? NULL : &start_key,
+                                     (last_range->flag & NO_MAX_RANGE) ? NULL : &end_key);
     if (result)
     {
       DBUG_RETURN(result);
