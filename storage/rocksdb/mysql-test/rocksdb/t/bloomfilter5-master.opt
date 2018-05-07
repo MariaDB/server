@@ -1,0 +1,1 @@
+--rocksdb_override_cf_options=rev:bf5_1={prefix_extractor=capped:4;block_based_table_factory={filter_policy=bloomfilter:10:false;whole_key_filtering=0;}};
