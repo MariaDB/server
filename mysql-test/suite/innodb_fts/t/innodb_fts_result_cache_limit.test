@@ -44,8 +44,6 @@ SELECT COUNT(*) FROM t1 WHERE MATCH (a,b) AGAINST ('"mysql database"' IN BOOLEAN
 --error 128
 SELECT COUNT(*) FROM t1 WHERE MATCH (a,b) AGAINST ('"mysql database" @ 5' IN BOOLEAN MODE);
 
-SET SESSION debug_dbug="-d,fts_instrument_result_cache_limit";
-
 DROP TABLE t1;
 
 SET GLOBAL innodb_ft_result_cache_limit=default;

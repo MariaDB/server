@@ -128,6 +128,7 @@ static void check_prepared_list (enum prepared_state ps[NTXNS], long count, DB_P
 	    goto next;
 	case PREPARED:
 	    count_prepared++;
+            /* fall through */
 	case MAYBE_COMMITTED:
 	case MAYBE_ABORTED:
 	    count_maybe_prepared++;

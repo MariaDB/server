@@ -1798,7 +1798,7 @@ PageConverter::adjust_cluster_record(
 
 		row_upd_rec_sys_fields(
 			rec, m_page_zip_ptr, m_cluster_index, m_offsets,
-			m_trx, 0);
+			m_trx, roll_ptr_t(1) << 55);
 	}
 
 	return(err);

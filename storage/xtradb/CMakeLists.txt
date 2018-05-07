@@ -1,4 +1,4 @@
-# Copyright (c) 2006, 2015, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2006, 2017, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -514,7 +514,9 @@ MYSQL_ADD_PLUGIN(xtradb ${INNOBASE_SOURCES} STORAGE_ENGINE
   RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${LINKER_SCRIPT})
 
-IF(TARGET xtradb AND NOT XTRADB_OK)
-  MESSAGE(FATAL_ERROR "Percona XtraDB is not supported on this platform")
+IF(TARGET xtradb)
+  IF(NOT XTRADB_OK)
+    MESSAGE(FATAL_ERROR "Percona XtraDB is not supported on this platform")
+  ENDIF()
+  ADD_DEPENDENCIES(xtradb GenError)
 ENDIF()
-

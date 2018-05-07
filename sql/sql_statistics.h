@@ -107,6 +107,7 @@ double get_column_range_cardinality(Field *field,
                                     key_range *min_endp,
                                     key_range *max_endp,
                                     uint range_flag);
+bool is_stat_table(const char *db, const char *table);
 
 class Histogram
 {

@@ -238,7 +238,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
 
   if (thd->locked_tables_list.locked_tables())
   {
-    if (thd->locked_tables_list.reopen_tables(thd))
+    if (thd->locked_tables_list.reopen_tables(thd, false))
       goto end;
     /* Restore the table in the table list with the new opened table */
     table_list->table= pos_in_locked_tables->table;

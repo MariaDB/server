@@ -1143,9 +1143,6 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
   
   eval_select_list_used_tables();
 
-  if (optimize_constant_subqueries())
-    DBUG_RETURN(1);
-
   table_count= select_lex->leaf_tables.elements;
 
   if (setup_ftfuncs(select_lex)) /* should be after having->fix_fields */
@@ -1207,6 +1204,9 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
       thd->restore_active_arena(arena, &backup);
   }
   
+  if (optimize_constant_subqueries())
+    DBUG_RETURN(1);
+
   if (setup_jtbm_semi_joins(this, join_list, &conds))
     DBUG_RETURN(1);
 
@@ -11476,13 +11476,15 @@ void JOIN_TAB::cleanup()
       }
       else
       {
+        TABLE_LIST *tmp= table->pos_in_table_list;
         end_read_record(&read_record);
-        table->pos_in_table_list->jtbm_subselect->cleanup();
+        tmp->jtbm_subselect->cleanup();
         /* 
           The above call freed the materializedd temptable. Set it to NULL so
           that we don't attempt to touch it if JOIN_TAB::cleanup() is invoked
           multiple times (it may be)
         */
+        tmp->table= NULL;
         table=NULL;
       }
       DBUG_VOID_RETURN;

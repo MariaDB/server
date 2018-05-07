@@ -4713,7 +4713,12 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
     DBUG_RETURN(TRUE);
   }
 
-  thd->work_part_info= thd->lex->part_info;
+  /*
+    One of these is done in handle_if_exists_option():
+        thd->work_part_info= thd->lex->part_info;
+      or
+        thd->work_part_info= NULL;
+  */
 
   if (thd->work_part_info &&
       !(thd->work_part_info= thd->work_part_info->get_clone()))
@@ -6553,7 +6558,7 @@ static void alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
       thd->set_stmt_da(&tmp_stmt_da);
     }
 
-    if (thd->locked_tables_list.reopen_tables(thd))
+    if (thd->locked_tables_list.reopen_tables(thd, false))
       sql_print_warning("We failed to reacquire LOCKs in ALTER TABLE");
 
     if (stmt_da)
@@ -6757,7 +6762,7 @@ err_exclusive_lock:
       thd->set_stmt_da(&tmp_stmt_da);
     }
 
-    if (thd->locked_tables_list.reopen_tables(thd))
+    if (thd->locked_tables_list.reopen_tables(thd, false))
       sql_print_warning("We failed to reacquire LOCKs in ALTER TABLE");
 
     if (stmt_da)

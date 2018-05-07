@@ -7972,7 +7972,12 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
   }
 
   if (!(charset= get_charset(charset_number, MYF(MY_WME))))
+  {
+    rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
+                ER_THD(thd, ER_SLAVE_FATAL_ERROR),
+                "Invalid character set for User var event");
     DBUG_RETURN(1);
+  }
   LEX_STRING user_var_name;
   user_var_name.str= name;
   user_var_name.length= name_len;
@@ -7987,12 +7992,26 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
   {
     switch (type) {
     case REAL_RESULT:
+      if (val_len != 8)
+      {
+        rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
+                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
+                    "Invalid variable length at User var event");
+        return 1;
+      }
       float8get(real_val, val);
       it= new Item_float(real_val, 0);
       val= (char*) &real_val;		// Pointer to value in native format
       val_len= 8;
       break;
     case INT_RESULT:
+      if (val_len != 8)
+      {
+        rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
+                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
+                    "Invalid variable length at User var event");
+        return 1;
+      }
       int_val= (longlong) uint8korr(val);
       it= new Item_int(int_val);
       val= (char*) &int_val;		// Pointer to value in native format
@@ -8000,6 +8019,13 @@ int User_var_log_event::do_apply_event(rpl_group_info *rgi)
       break;
     case DECIMAL_RESULT:
     {
+      if (val_len < 3)
+      {
+        rgi->rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
+                    ER_THD(thd, ER_SLAVE_FATAL_ERROR),
+                    "Invalid variable length at User var event");
+        return 1;
+      }
       Item_decimal *dec= new Item_decimal((uchar*) val+2, val[0], val[1]);
       it= dec;
       val= (char *)dec->val_decimal(NULL);
@@ -9518,6 +9544,14 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
   DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
   m_width = net_field_length(&ptr_after_width);
   DBUG_PRINT("debug", ("m_width=%lu", m_width));
+
+  /* Avoid reading out of buffer */
+  if (ptr_after_width + (m_width + 7) / 8 > (uchar*)buf + event_len)
+  {
+    m_cols.bitmap= NULL;
+    DBUG_VOID_RETURN;
+  }
+
   /* if my_bitmap_init fails, catched in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
                           m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,

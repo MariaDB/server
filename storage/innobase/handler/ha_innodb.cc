@@ -12349,7 +12349,7 @@ ha_innobase::records_in_range(
 
 		n_rows = btr_estimate_n_rows_in_range(index, range_start,
 						      mode1, range_end,
-						      mode2, prebuilt->trx);
+						      mode2);
 	} else {
 
 		n_rows = HA_POS_ERROR;

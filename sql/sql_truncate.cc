@@ -503,7 +503,7 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
       */
       error= dd_recreate_table(thd, table_ref->db, table_ref->table_name);
 
-      if (thd->locked_tables_mode && thd->locked_tables_list.reopen_tables(thd))
+      if (thd->locked_tables_mode && thd->locked_tables_list.reopen_tables(thd, false))
           thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
 
       /* No need to binlog a failed truncate-by-recreate. */
@@ -576,4 +576,3 @@ bool Sql_cmd_truncate_table::execute(THD *thd)
     my_ok(thd);
   DBUG_RETURN(res);
 }
-

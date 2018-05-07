@@ -50,17 +50,19 @@ SELECT Json_Array_Add(Json_Make_Array(56, 3.1416, 'foo', NULL), 'One more') Arra
 Array
 [56,3.141600,"foo",null,"One more"]
 SELECT Json_Array_Add(JsonValue('one value'), 'One more');
-ERROR HY000: Can't initialize function 'json_array_add'; First argument must be a json item
+Json_Array_Add(JsonValue('one value'), 'One more')
+["\"one value\"","One more"]
 SELECT Json_Array_Add('one value', 'One more');
-ERROR HY000: Can't initialize function 'json_array_add'; First argument must be a json item
+Json_Array_Add('one value', 'One more')
+["one value","One more"]
 SELECT Json_Array_Add('one value' json_, 'One more');
 Json_Array_Add('one value' json_, 'One more')
 one value
 Warnings:
 Warning	1105	Error 2 opening one value
-Warning	1105	First argument target is not an array
 SELECT Json_Array_Add(5 json_, 'One more');
-ERROR HY000: Can't initialize function 'json_array_add'; First argument must be a json item
+Json_Array_Add(5 json_, 'One more')
+[5,"One more"]
 SELECT Json_Array_Add('[5,3,8,7,9]' json_, 4, 0);
 Json_Array_Add('[5,3,8,7,9]' json_, 4, 0)
 [4,5,3,8,7,9]

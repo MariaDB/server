@@ -24,11 +24,8 @@
 
 #pragma once
 
-#include "oqgraph_thunk.h"
 #include "oqgraph_judy.h"
-
-#define BOOST_NO_HASH 1
-#define BOOST_NO_SLIST 1
+#include "oqgraph_thunk.h"
 
 #include <boost/graph/directed_graph.hpp>
 #include <boost/graph/adjacency_iterator.hpp>

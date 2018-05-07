@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1442,8 +1442,7 @@ error_exit:
 			doc_ids difference should not exceed
 			FTS_DOC_ID_MAX_STEP value. */
 
-			if (next_doc_id > 1
-			    && doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
+			if (doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
 				fprintf(stderr,
 					"InnoDB: Doc ID " UINT64PF " is too"
 					" big. Its difference with largest"
@@ -1942,7 +1941,7 @@ row_unlock_for_mysql(
 		trx_id_t	rec_trx_id;
 		mtr_t		mtr;
 
-		mtr_start_trx(&mtr, trx);
+		mtr_start(&mtr);
 
 		/* Restore the cursor position and find the record */
 
@@ -3476,7 +3475,7 @@ row_truncate_table_for_mysql(
 				index = dict_table_get_next_index(index);
 			} while (index);
 
-			mtr_start_trx(&mtr, trx);
+			mtr_start(&mtr);
 			fsp_header_init(space,
 					FIL_IBD_FILE_INITIAL_SIZE, &mtr);
 			mtr_commit(&mtr);
@@ -3505,7 +3504,7 @@ row_truncate_table_for_mysql(
 	sys_index = dict_table_get_first_index(dict_sys->sys_indexes);
 	dict_index_copy_types(tuple, sys_index, 1);
 
-	mtr_start_trx(&mtr, trx);
+	mtr_start(&mtr);
 	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
 				  BTR_MODIFY_LEAF, &pcur, &mtr);
 	for (;;) {
@@ -3552,7 +3551,7 @@ row_truncate_table_for_mysql(
 			a page in this mini-transaction, and the rest of
 			this loop could latch another index page. */
 			mtr_commit(&mtr);
-			mtr_start_trx(&mtr, trx);
+			mtr_start(&mtr);
 			btr_pcur_restore_position(BTR_MODIFY_LEAF,
 						  &pcur, &mtr);
 		}
@@ -5143,7 +5142,8 @@ row_rename_table_for_mysql(
 		}
 	}
 
-	if (dict_table_has_fts_index(table)
+	if ((dict_table_has_fts_index(table)
+	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
 	    && !dict_tables_have_same_db(old_name, new_name)) {
 		err = fts_rename_aux_tables(table, new_name, trx);
 		if (err != DB_TABLE_NOT_FOUND) {

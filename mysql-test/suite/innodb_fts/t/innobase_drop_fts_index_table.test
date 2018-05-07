@@ -14,6 +14,4 @@ SET debug_dbug='+d,alter_table_rollback_new_index';
 -- error ER_UNKNOWN_ERROR
 ALTER TABLE t ADD FULLTEXT INDEX (b(64));
 
-SET debug_dbug='-d,alter_table_rollback_new_index';
-
 DROP TABLE t;

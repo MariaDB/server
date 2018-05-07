@@ -203,7 +203,7 @@ bool GZFAM::AllocateBuffer(PGLOBAL g)
   Buflen = Lrecl + 2;                     // Lrecl does not include CRLF
 //Buflen *= ((Mode == MODE_DELETE) ? DOS_BUFF_LEN : 1);    NIY
 
-  if (trace)
+  if (trace(1))
     htrc("SubAllocating a buffer of %d bytes\n", Buflen);
 
   To_Buf = (char*)PlugSubAlloc(g, NULL, Buflen);
@@ -347,7 +347,7 @@ int GZFAM::ReadBuffer(PGLOBAL g)
   } else
     rc = Zerror(g);
 
-  if (trace > 1)
+  if (trace(2))
     htrc(" Read: '%s' rc=%d\n", To_Buf, rc);
 
   return rc;
@@ -389,7 +389,7 @@ void GZFAM::CloseTableFile(PGLOBAL, bool)
   {
   int rc = gzclose(Zfile);
 
-  if (trace)
+  if (trace(1))
     htrc("GZ CloseDB: closing %s rc=%d\n", To_File, rc);
 
   Zfile = NULL;            // So we can know whether table is open
@@ -537,7 +537,7 @@ int ZBKFAM::ReadBuffer(PGLOBAL g)
     while (*NxtLine++ != '\n') ;
 
     // Set caller line buffer
-    n = NxtLine - CurLine - Ending;
+    n = (int)(NxtLine - CurLine - Ending);
     memcpy(Tdbp->GetLine(), CurLine, n);
     Tdbp->GetLine()[n] = '\0';
     return RC_OK;
@@ -588,7 +588,7 @@ int ZBKFAM::ReadBuffer(PGLOBAL g)
     for (NxtLine = CurLine; *NxtLine++ != '\n';) ;
 
     // Set caller line buffer
-    n = NxtLine - CurLine - Ending;
+    n = (int)(NxtLine - CurLine - Ending);
     memcpy(Tdbp->GetLine(), CurLine, n);
     Tdbp->GetLine()[n] = '\0';
     Rbuf = (CurBlk == Block - 1) ? Last : Nrec;
@@ -702,7 +702,7 @@ void ZBKFAM::CloseTableFile(PGLOBAL g, bool)
   } else
     rc = gzclose(Zfile);
 
-  if (trace)
+  if (trace(1))
     htrc("GZ CloseDB: closing %s rc=%d\n", To_File, rc);
 
   Zfile = NULL;            // So we can know whether table is open
@@ -1087,7 +1087,7 @@ bool ZLBFAM::SetPos(PGLOBAL g, int pos __attribute__((unused)))
 /***********************************************************************/
 int ZLBFAM::ReadBuffer(PGLOBAL g)
   {
-  int   n;
+  size_t   n;
   void *rdbuf;
 
   /*********************************************************************/
@@ -1299,7 +1299,7 @@ int ZLBFAM::WriteBuffer(PGLOBAL g)
   else
     NxtLine = CurLine + Lrecl;
 
-  BlkLen = NxtLine - To_Buf;
+  BlkLen = (int)(NxtLine - To_Buf);
 
   if (WriteCompressedBuffer(g)) {
     Closing = TRUE;      // To tell CloseDB about a Write error
@@ -1382,7 +1382,7 @@ void ZLBFAM::CloseTableFile(PGLOBAL g, bool)
   } else
     rc = fclose(Stream);
 
-  if (trace)
+  if (trace(1))
     htrc("ZLB CloseTableFile: closing %s mode=%d rc=%d\n",
          To_File, Tdbp->GetMode(), rc);
 
@@ -1408,7 +1408,7 @@ void ZLBFAM::Rewind(void)
 
       rewind(Stream);
 
-			if (!(st = fread(Zlenp, sizeof(int), 1, Stream)) && trace)
+			if (!(st = fread(Zlenp, sizeof(int), 1, Stream)) && trace(1))
 				htrc("fread error %d in Rewind", errno);
 
       fseek(Stream, *Zlenp + sizeof(int), SEEK_SET);

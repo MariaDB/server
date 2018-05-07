@@ -134,19 +134,30 @@ public:
 };
 
 
-class Item_func_aes_encrypt :public Item_str_func
+class Item_aes_crypt :public Item_str_func
+{
+protected:
+  String tmp_value;
+public:
+  Item_aes_crypt(Item *a, Item *b)
+   :Item_str_func(a, b) {}
+};
+
+class Item_func_aes_encrypt :public Item_aes_crypt
 {
 public:
-  Item_func_aes_encrypt(Item *a, Item *b) :Item_str_func(a,b) {}
+  Item_func_aes_encrypt(Item *a, Item *b):
+    Item_aes_crypt(a, b) {}
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "aes_encrypt"; }
 };
 
-class Item_func_aes_decrypt :public Item_str_func	
+class Item_func_aes_decrypt :public Item_aes_crypt
 {
 public:
-  Item_func_aes_decrypt(Item *a, Item *b) :Item_str_func(a,b) {}
+  Item_func_aes_decrypt(Item *a, Item *b):
+    Item_aes_crypt(a,b) {}
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "aes_decrypt"; }
@@ -156,6 +167,7 @@ public:
 class Item_func_concat :public Item_str_func
 {
   String tmp_value;
+  bool realloc_result(String *str, uint length) const;
 public:
   Item_func_concat(List<Item> &list) :Item_str_func(list) {}
   Item_func_concat(Item *a,Item *b) :Item_str_func(a,b) {}

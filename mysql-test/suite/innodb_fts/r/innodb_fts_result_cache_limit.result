@@ -26,6 +26,5 @@ SELECT COUNT(*) FROM t1 WHERE MATCH (a,b) AGAINST ('"mysql database"' IN BOOLEAN
 ERROR HY000: Table handler out of memory
 SELECT COUNT(*) FROM t1 WHERE MATCH (a,b) AGAINST ('"mysql database" @ 5' IN BOOLEAN MODE);
 ERROR HY000: Table handler out of memory
-SET SESSION debug_dbug="-d,fts_instrument_result_cache_limit";
 DROP TABLE t1;
 SET GLOBAL innodb_ft_result_cache_limit=default;

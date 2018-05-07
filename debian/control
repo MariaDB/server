@@ -24,8 +24,8 @@ Build-Depends: bison,
                ${LIBREADLINE_DEV}
 Standards-Version: 3.8.3
 Homepage: http://mariadb.org/
-Vcs-Browser: http://bazaar.launchpad.net/~maria-captains/maria/10.0/files
-Vcs-Bzr: bzr://lp:maria
+Vcs-Browser: https://github.com/MariaDB/server/
+Vcs-Git: https://github.com/MariaDB/server.git
 
 Package: mariadb-galera-test-10.0
 Section: database

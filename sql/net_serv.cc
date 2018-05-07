@@ -58,9 +58,11 @@
 #ifdef EXTRA_DEBUG
 #define EXTRA_DEBUG_fprintf fprintf
 #define EXTRA_DEBUG_fflush fflush
+#define EXTRA_DEBUG_ASSERT DBUG_ASSERT
 #else
 static void inline EXTRA_DEBUG_fprintf(...) {}
 static int inline EXTRA_DEBUG_fflush(...) { return 0; }
+#define EXTRA_DEBUG_ASSERT(X) do {} while(0)
 #endif
 #ifdef MYSQL_SERVER
 #define MYSQL_SERVER_my_error my_error
@@ -1071,7 +1073,7 @@ packets_out_of_order:
                ("Packets out of order (Found: %d, expected %u)",
                 (int) net->buff[net->where_b + 3],
                 net->pkt_nr));
-    DBUG_ASSERT(0);
+    EXTRA_DEBUG_ASSERT(0);
     /*
        We don't make noise server side, since the client is expected
        to break the protocol for e.g. --send LOAD DATA .. LOCAL where

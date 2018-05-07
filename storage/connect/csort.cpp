@@ -351,7 +351,7 @@ void CSORT::Qstx(int *base, int *max)
 
   zlo = zhi = cnm = 0;                  // Avoid warning message
 
-  lo = max - base;                      // Number of elements as longs
+  lo = (int)(max - base);                      // Number of elements as longs
 
   if (Dup)
     cnm = Cmpnum(lo);
@@ -472,7 +472,7 @@ void CSORT::Qstx(int *base, int *max)
     i = him + 1;
 
     if (Pof)
-      Pof[him - Pex] = Pof[mid - Pex] = i - j;
+      Pof[him - Pex] = Pof[mid - Pex] = (int)(i - j);
 
     /*******************************************************************/
     /* Look at sizes of the two partitions, do the smaller one first   */
@@ -481,8 +481,8 @@ void CSORT::Qstx(int *base, int *max)
     /* But only repeat (recursively or by branching) if the partition  */
     /* is of at least size THRESH.                                     */
     /*******************************************************************/
-    lo = j - base;
-    hi = max - i;
+    lo = (int)(j - base);
+    hi = (int)(max - i);
 
     if (Dup) {                         // Update progress information
       zlo = Cmpnum(lo);
@@ -726,7 +726,7 @@ void CSORT::Qstc(int *base, int *max)
 
   zlo = zhi = cnm = 0;                  // Avoid warning message
 
-  lo = max - base;                      // Number of elements as longs
+  lo = (int)(max - base);                      // Number of elements as longs
 
   if (Dup)
     cnm = Cmpnum(lo);
@@ -853,7 +853,7 @@ void CSORT::Qstc(int *base, int *max)
     /* the offset array values indicating break point and block size.  */
     /*******************************************************************/
     if (Pof)
-      Pof[lt - Pex] = Pof[(jj - 1) - Pex] = jj - lt;
+      Pof[lt - Pex] = Pof[(jj - 1) - Pex] = (int)(jj - lt);
 
     /*******************************************************************/
     /* Look at sizes of the two partitions, do the smaller one first   */
@@ -862,8 +862,8 @@ void CSORT::Qstc(int *base, int *max)
     /* But only repeat (recursively or by branching) if the partition  */
     /* is of at least size THRESH.                                     */
     /*******************************************************************/
-    lo = lt - base;
-    hi = gt - Swix;
+    lo = (int)(lt - base);
+    hi = (int)(gt - Swix);
 
     if (Dup) {                         // Update progress information
       zlo = Cmpnum(lo);

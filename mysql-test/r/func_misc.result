@@ -571,6 +571,13 @@ AND 57813X540X1723 = 'Test';
 N	AVG
 0	NULL
 drop table t1;
+SELECT NAME_CONST('a', -(1 OR 2)) OR 1;
+ERROR HY000: Incorrect arguments to NAME_CONST
+SELECT NAME_CONST('a', -(1 AND 2)) OR 1;
+ERROR HY000: Incorrect arguments to NAME_CONST
+SELECT NAME_CONST('a', -(1)) OR 1;
+NAME_CONST('a', -(1)) OR 1
+1
 #
 # MDEV-15630 uuid() function evaluates at wrong time in query
 #
@@ -582,13 +589,6 @@ COUNT(1)	uid
 1	xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 1	xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 DROP TABLE t1;
-SELECT NAME_CONST('a', -(1 OR 2)) OR 1;
-ERROR HY000: Incorrect arguments to NAME_CONST
-SELECT NAME_CONST('a', -(1 AND 2)) OR 1;
-ERROR HY000: Incorrect arguments to NAME_CONST
-SELECT NAME_CONST('a', -(1)) OR 1;
-NAME_CONST('a', -(1)) OR 1
-1
 #
 # End of 5.5 tests
 #

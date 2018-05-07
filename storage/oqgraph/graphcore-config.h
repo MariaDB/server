@@ -27,6 +27,8 @@
 #define BOOST_ALL_NO_LIB 1
 #define BOOST_NO_RTTI 1
 #define BOOST_NO_TYPEID 1
+#define BOOST_NO_HASH 1
+#define BOOST_NO_SLIST 1
 
 #ifdef DBUG_OFF
 #define NDEBUG 1

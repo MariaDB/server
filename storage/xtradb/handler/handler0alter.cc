@@ -1599,6 +1599,7 @@ innobase_create_index_def(
 
 	if (key_clustered) {
 		DBUG_ASSERT(!(key->flags & HA_FULLTEXT));
+		DBUG_ASSERT(key->flags & HA_NOSAME);
 		index->ind_type |= DICT_CLUSTERED;
 	} else if (key->flags & HA_FULLTEXT) {
 		DBUG_ASSERT(!(key->flags & HA_KEYFLAG_MASK
@@ -1914,14 +1915,9 @@ innobase_create_key_defs(
 		ulint	primary_key_number;
 
 		if (new_primary) {
-			if (n_add == 0) {
-				DBUG_ASSERT(got_default_clust);
-				DBUG_ASSERT(altered_table->s->primary_key
-					    == 0);
-				primary_key_number = 0;
-			} else {
-				primary_key_number = *add;
-			}
+			DBUG_ASSERT(n_add || got_default_clust);
+			DBUG_ASSERT(n_add || !altered_table->s->primary_key);
+			primary_key_number = altered_table->s->primary_key;
 		} else if (got_default_clust) {
 			/* Create the GEN_CLUST_INDEX */
 			index_def_t*	index = indexdef++;

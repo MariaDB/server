@@ -699,7 +699,7 @@ bool UNZIPUTL::openEntry(PGLOBAL g)
 		entryopen = true;
 	} // endif rc
 
-	if (trace)
+	if (trace(1))
 		htrc("Openning entry%s %s\n", fn, (entryopen) ? "oked" : "failed");
 
 	return !entryopen;
@@ -748,10 +748,10 @@ UNZFAM::UNZFAM(PUNZFAM txfp) : MAPFAM(txfp)
 /***********************************************************************/
 int UNZFAM::GetFileLength(PGLOBAL g)
 {
-	int len = (zutp && zutp->entryopen) ? Top - Memory
+	int len = (zutp && zutp->entryopen) ? (int)(Top - Memory)
 		                                  : TXTFAM::GetFileLength(g) * 3;
 
-	if (trace)
+	if (trace(1))
 		htrc("Zipped file length=%d\n", len);
 
 	return len;
@@ -1088,7 +1088,7 @@ int ZIPFAM::WriteBuffer(PGLOBAL g)
 
 	//  Prepare to write the new line
 	strcat(strcpy(To_Buf, Tdbp->GetLine()), (Bin) ? CrLf : "\n");
-	len = strchr(To_Buf, '\n') - To_Buf + 1;
+	len = (int)(strchr(To_Buf, '\n') - To_Buf + 1);
 	return zutp->writeEntry(g, To_Buf, len);
 } // end of WriteBuffer
 

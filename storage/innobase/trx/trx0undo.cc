@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1070,9 +1070,11 @@ Truncates an undo log from the end. This function is used during a rollback
 to free space from an undo log. */
 UNIV_INTERN
 void
-trx_undo_truncate_end(
+trx_undo_truncate_end_func(
 /*=======================*/
-	trx_t*		trx,	/*!< in: transaction whose undo log it is */
+#ifdef UNIV_DEBUG
+	const trx_t*	trx,	/*!< in: transaction whose undo log it is */
+#endif /* UNIV_DEBUG */
 	trx_undo_t*	undo,	/*!< in: undo log */
 	undo_no_t	limit)	/*!< in: all undo records with undo number
 				>= this value should be truncated */
@@ -1087,7 +1089,7 @@ trx_undo_truncate_end(
 	ut_ad(mutex_own(&(trx->rseg->mutex)));
 
 	for (;;) {
-		mtr_start_trx(&mtr, trx);
+		mtr_start(&mtr);
 
 		trunc_here = NULL;
 
@@ -1774,7 +1776,7 @@ trx_undo_assign_undo(
 
 	ut_ad(mutex_own(&(trx->undo_mutex)));
 
-	mtr_start_trx(&mtr, trx);
+	mtr_start(&mtr);
 
 	mutex_enter(&rseg->mutex);
 
@@ -1987,7 +1989,9 @@ trx_undo_insert_cleanup(
 
 		mutex_exit(&(rseg->mutex));
 
-		trx_undo_seg_free(undo);
+		if (!srv_read_only_mode) {
+			trx_undo_seg_free(undo);
+		}
 
 		mutex_enter(&(rseg->mutex));
 
