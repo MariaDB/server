@@ -49,10 +49,12 @@ public:
   Item_func_json_valid(THD *thd, Item *json) : Item_int_func(thd, json) {}
   longlong val_int();
   const char *func_name() const { return "json_valid"; }
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
-    Item_int_func::fix_length_and_dec();
+    if (Item_int_func::fix_length_and_dec())
+      return TRUE;
     maybe_null= 1;
+    return FALSE;
   }
   bool is_bool_type() { return true; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -71,7 +73,7 @@ public:
     Item_int_func(thd, js, i_path) {}
   const char *func_name() const { return "json_exists"; }
   bool is_bool_type() { return true; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_json_exists>(thd, mem_root, this); }
   longlong val_int();
@@ -88,7 +90,7 @@ public:
   Item_func_json_value(THD *thd, Item *js, Item *i_path):
     Item_str_func(thd, js, i_path) {}
   const char *func_name() const { return "json_value"; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   String *val_str(String *);
   virtual bool check_and_get_value(json_engine_t *je, String *res, int *error);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -117,7 +119,7 @@ protected:
 public:
   Item_func_json_quote(THD *thd, Item *s): Item_str_func(thd, s) {}
   const char *func_name() const { return "json_quote"; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   String *val_str(String *);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_json_quote>(thd, mem_root, this); }
@@ -132,7 +134,7 @@ protected:
 public:
   Item_func_json_unquote(THD *thd, Item *s): Item_str_func(thd, s) {}
   const char *func_name() const { return "json_unquote"; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   String *val_str(String *);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_json_unquote>(thd, mem_root, this); }
@@ -165,7 +167,7 @@ public:
     Item_json_str_multipath(thd, list) {}
   const char *func_name() const { return "json_extract"; }
   enum Functype functype() const   { return JSON_EXTRACT_FUNC; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   String *val_str(String *);
   longlong val_int();
   double val_real();
@@ -187,7 +189,7 @@ public:
   Item_func_json_contains(THD *thd, List<Item> &list):
     Item_int_func(thd, list) {}
   const char *func_name() const { return "json_contains"; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   longlong val_int();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_json_contains>(thd, mem_root, this); }
@@ -209,7 +211,7 @@ public:
     Item_int_func(thd, list), tmp_paths(0) {}
   const char *func_name() const { return "json_contains_path"; }
   bool fix_fields(THD *thd, Item **ref);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   void cleanup();
   longlong val_int();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -229,7 +231,7 @@ public:
     Item_str_func(thd, list) {}
   String *val_str(String *);
   bool is_json_type() { return true; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   const char *func_name() const { return "json_array"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_json_array>(thd, mem_root, this); }
@@ -244,7 +246,7 @@ protected:
 public:
   Item_func_json_array_append(THD *thd, List<Item> &list):
     Item_json_str_multipath(thd, list) {}
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   String *val_str(String *);
   uint get_n_paths() const { return arg_count/2; }
   const char *func_name() const { return "json_array_append"; }
@@ -305,7 +307,7 @@ public:
   Item_func_json_length(THD *thd, List<Item> &list):
     Item_int_func(thd, list) {}
   const char *func_name() const { return "json_length"; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   longlong val_int();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_json_length>(thd, mem_root, this); }
@@ -332,7 +334,7 @@ protected:
 public:
   Item_func_json_type(THD *thd, Item *js): Item_str_func(thd, js) {}
   const char *func_name() const { return "json_type"; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   String *val_str(String *);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_json_type>(thd, mem_root, this); }
@@ -349,7 +351,7 @@ public:
   Item_func_json_insert(bool i_mode, bool r_mode, THD *thd, List<Item> &list):
     Item_json_str_multipath(thd, list),
       mode_insert(i_mode), mode_replace(r_mode) {}
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   String *val_str(String *);
   uint get_n_paths() const { return arg_count/2; }
   const char *func_name() const
@@ -369,7 +371,7 @@ protected:
 public:
   Item_func_json_remove(THD *thd, List<Item> &list):
     Item_json_str_multipath(thd, list) {}
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   String *val_str(String *);
   uint get_n_paths() const { return arg_count - 1; }
   const char *func_name() const { return "json_remove"; }
@@ -388,7 +390,7 @@ public:
   Item_func_json_keys(THD *thd, List<Item> &list):
     Item_str_func(thd, list) {}
   const char *func_name() const { return "json_keys"; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   String *val_str(String *);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_json_keys>(thd, mem_root, this); }
@@ -412,7 +414,7 @@ public:
     Item_json_str_multipath(thd, list) {}
   const char *func_name() const { return "json_search"; }
   bool fix_fields(THD *thd, Item **ref);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   String *val_str(String *);
   uint get_n_paths() const { return arg_count > 4 ? arg_count - 4 : 0; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -440,7 +442,7 @@ public:
     Item_str_func(thd, list), fmt(DETAILED) {}
 
   const char *func_name() const;
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   String *val_str(String *str);
   String *val_json(String *str);
   bool is_json_type() { return true; }

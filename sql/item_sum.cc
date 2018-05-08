@@ -1132,9 +1132,8 @@ Item_sum_num::fix_fields(THD *thd, Item **ref)
   result_field=0;
   max_length=float_length(decimals);
   null_value=1;
-  fix_length_and_dec();
-
-  if (check_sum_func(thd, ref))
+  if (fix_length_and_dec() ||
+      check_sum_func(thd, ref))
     return TRUE;
 
   memcpy (orig_args, args, sizeof (Item *) * arg_count);
@@ -1189,9 +1188,8 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
   maybe_null= 1;
   result_field=0;
   null_value=1;
-  fix_length_and_dec();
-
-  if (check_sum_func(thd, ref))
+  if (fix_length_and_dec() ||
+      check_sum_func(thd, ref))
     return TRUE;
 
   orig_args[0]= args[0];
@@ -1329,7 +1327,7 @@ void Item_sum_sum::clear()
 }
 
 
-void Item_sum_sum::fix_length_and_dec()
+bool Item_sum_sum::fix_length_and_dec()
 {
   DBUG_ENTER("Item_sum_sum::fix_length_and_dec");
   maybe_null=null_value=1;
@@ -1364,7 +1362,7 @@ void Item_sum_sum::fix_length_and_dec()
                        "--ILLEGAL!!!--"),
                       max_length,
                       (int)decimals));
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -1664,9 +1662,10 @@ void Item_sum_count::cleanup()
 /*
   Avgerage
 */
-void Item_sum_avg::fix_length_and_dec()
+bool Item_sum_avg::fix_length_and_dec()
 {
-  Item_sum_sum::fix_length_and_dec();
+  if (Item_sum_sum::fix_length_and_dec())
+    return TRUE;
   maybe_null=null_value=1;
   prec_increment= current_thd->variables.div_precincrement;
   if (Item_sum_avg::result_type() == DECIMAL_RESULT)
@@ -1686,6 +1685,7 @@ void Item_sum_avg::fix_length_and_dec()
                      FLOATING_POINT_DECIMALS);
     max_length= MY_MIN(args[0]->max_length + prec_increment, float_length(decimals));
   }
+  return FALSE;
 }
 
 
@@ -1884,7 +1884,7 @@ Item_sum_variance::Item_sum_variance(THD *thd, Item_sum_variance *item):
 }
 
 
-void Item_sum_variance::fix_length_and_dec()
+bool Item_sum_variance::fix_length_and_dec()
 {
   DBUG_ENTER("Item_sum_variance::fix_length_and_dec");
   maybe_null= null_value= 1;
@@ -1919,7 +1919,7 @@ void Item_sum_variance::fix_length_and_dec()
     DBUG_ASSERT(0);
   }
   DBUG_PRINT("info", ("Type: REAL_RESULT (%d, %d)", max_length, (int)decimals));
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -2989,13 +2989,13 @@ my_decimal *Item_sum_udf_int::val_decimal(my_decimal *dec)
 
 /** Default max_length is max argument length. */
 
-void Item_sum_udf_str::fix_length_and_dec()
+bool Item_sum_udf_str::fix_length_and_dec()
 {
   DBUG_ENTER("Item_sum_udf_str::fix_length_and_dec");
   max_length=0;
   for (uint i = 0; i < arg_count; i++)
     set_if_bigger(max_length,args[i]->max_length);
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 

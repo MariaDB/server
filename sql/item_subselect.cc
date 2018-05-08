@@ -305,10 +305,14 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
     if (engine->cols() > max_columns)
     {
       my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
-
+      res= TRUE;
       goto end;
     }
-    fix_length_and_dec();
+    if (fix_length_and_dec())
+    {
+      res= TRUE;
+      goto end;
+    }
   }
   else
     goto end;
@@ -905,9 +909,11 @@ Item::Type Item_subselect::type() const
 }
 
 
-void Item_subselect::fix_length_and_dec()
+bool Item_subselect::fix_length_and_dec()
 {
-  engine->fix_length_and_dec(0);
+  if (engine->fix_length_and_dec(0))
+    return TRUE;
+  return FALSE;
 }
 
 
@@ -1195,18 +1201,19 @@ enum_field_types Item_singlerow_subselect::field_type() const
   return engine->field_type();
 }
 
-void Item_singlerow_subselect::fix_length_and_dec()
+bool Item_singlerow_subselect::fix_length_and_dec()
 {
   if ((max_columns= engine->cols()) == 1)
   {
-    engine->fix_length_and_dec(row= &value);
+    if (engine->fix_length_and_dec(row= &value))
+      return TRUE;
   }
   else
   {
     if (!(row= (Item_cache**) current_thd->alloc(sizeof(Item_cache*) *
-                                                 max_columns)))
-      return;
-    engine->fix_length_and_dec(row);
+                                                 max_columns)) ||
+        engine->fix_length_and_dec(row))
+      return TRUE;
     value= *row;
   }
   unsigned_flag= value->unsigned_flag;
@@ -1222,6 +1229,7 @@ void Item_singlerow_subselect::fix_length_and_dec()
     for (uint i= 0; i < max_columns; i++)
       row[i]->maybe_null= TRUE;
   }
+  return FALSE;
 }
 
 
@@ -1506,7 +1514,7 @@ void Item_exists_subselect::init_length_and_dec()
 }
 
 
-void Item_exists_subselect::fix_length_and_dec()
+bool Item_exists_subselect::fix_length_and_dec()
 {
   DBUG_ENTER("Item_exists_subselect::fix_length_and_dec");
   init_length_and_dec();
@@ -1514,14 +1522,17 @@ void Item_exists_subselect::fix_length_and_dec()
     We need only 1 row to determine existence (i.e. any EXISTS that is not
     an IN always requires LIMIT 1)
   */
+  Item *item= new (thd->mem_root) Item_int(thd, (int32) 1);
+  if (!item)
+    DBUG_RETURN(TRUE);
   thd->change_item_tree(&unit->global_parameters()->select_limit,
-                        new (thd->mem_root) Item_int(thd, (int32) 1));
+                        item);
   DBUG_PRINT("info", ("Set limit to 1"));
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 
-void Item_in_subselect::fix_length_and_dec()
+bool Item_in_subselect::fix_length_and_dec()
 {
   DBUG_ENTER("Item_in_subselect::fix_length_and_dec");
   init_length_and_dec();
@@ -1529,7 +1540,7 @@ void Item_in_subselect::fix_length_and_dec()
     Unlike Item_exists_subselect, LIMIT 1 is set later for
     Item_in_subselect, depending on the chosen strategy.
   */
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -3712,11 +3723,11 @@ bool subselect_single_select_engine::no_rows()
 }
 
 
-/* 
- makes storage for the output values for the subquery and calcuates 
+/**
+ Makes storage for the output values for the subquery and calcuates
  their data and column types and their nullability.
-*/ 
-void subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
+*/
+bool subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
 {
   Item *sel_item;
   List_iterator_fast<Item> li(item_list);
@@ -3732,44 +3743,51 @@ void subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
     item->unsigned_flag= sel_item->unsigned_flag;
     maybe_null= sel_item->maybe_null;
     if (!(row[i]= Item_cache::get_cache(thd, sel_item, sel_item->cmp_type())))
-      return;
+      return TRUE;
     row[i]->setup(thd, sel_item);
  //psergey-backport-timours:   row[i]->store(sel_item);
   }
   if (item_list.elements > 1)
     cmp_type= res_type= ROW_RESULT;
+  return FALSE;
 }
 
-void subselect_single_select_engine::fix_length_and_dec(Item_cache **row)
+bool subselect_single_select_engine::fix_length_and_dec(Item_cache **row)
 {
   DBUG_ASSERT(row || select_lex->item_list.elements==1);
-  set_row(select_lex->item_list, row);
+  if (set_row(select_lex->item_list, row))
+    return TRUE;
   item->collation.set(row[0]->collation);
   if (cols() != 1)
     maybe_null= 0;
+  return FALSE;
 }
 
-void subselect_union_engine::fix_length_and_dec(Item_cache **row)
+bool subselect_union_engine::fix_length_and_dec(Item_cache **row)
 {
   DBUG_ASSERT(row || unit->first_select()->item_list.elements==1);
 
   if (unit->first_select()->item_list.elements == 1)
   {
-    set_row(unit->types, row);
+    if (set_row(unit->types, row))
+      return TRUE;
     item->collation.set(row[0]->collation);
   }
   else
   {
     bool maybe_null_saved= maybe_null;
-    set_row(unit->types, row);
+    if (set_row(unit->types, row))
+      return TRUE;
     maybe_null= maybe_null_saved;
   }
+  return FALSE;
 }
 
-void subselect_uniquesubquery_engine::fix_length_and_dec(Item_cache **row)
+bool subselect_uniquesubquery_engine::fix_length_and_dec(Item_cache **row)
 {
   //this never should be called
   DBUG_ASSERT(0);
+  return FALSE;
 }
 
 int  read_first_record_seq(JOIN_TAB *tab);
@@ -5602,9 +5620,10 @@ void subselect_hash_sj_engine::print(String *str, enum_query_type query_type)
          ));
 }
 
-void subselect_hash_sj_engine::fix_length_and_dec(Item_cache** row)
+bool subselect_hash_sj_engine::fix_length_and_dec(Item_cache** row)
 {
   DBUG_ASSERT(FALSE);
+  return FALSE;
 }
 
 void subselect_hash_sj_engine::exclude()

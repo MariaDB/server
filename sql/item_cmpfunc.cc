@@ -526,7 +526,7 @@ bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
 }
 
 
-void Item_bool_rowready_func2::fix_length_and_dec()
+bool Item_bool_rowready_func2::fix_length_and_dec()
 {
   max_length= 1;				     // Function returns 0 or 1
 
@@ -535,8 +535,8 @@ void Item_bool_rowready_func2::fix_length_and_dec()
     we have to check for out of memory conditions here
   */
   if (!args[0] || !args[1])
-    return;
-  setup_args_and_comparator(current_thd, &cmp);
+    return FALSE;
+  return setup_args_and_comparator(current_thd, &cmp);
 }
 
 
@@ -1156,12 +1156,13 @@ int Arg_comparator::compare_e_str_json()
 }
 
 
-void Item_func_truth::fix_length_and_dec()
+bool Item_func_truth::fix_length_and_dec()
 {
   maybe_null= 0;
   null_value= 0;
   decimals= 0;
   max_length= 1;
+  return FALSE;
 }
 
 
@@ -1780,10 +1781,11 @@ longlong Item_func_eq::val_int()
 
 /** Same as Item_func_eq, but NULL = NULL. */
 
-void Item_func_equal::fix_length_and_dec()
+bool Item_func_equal::fix_length_and_dec()
 {
-  Item_bool_rowready_func2::fix_length_and_dec();
+  bool rc= Item_bool_rowready_func2::fix_length_and_dec();
   maybe_null=null_value=0;
+  return rc;
 }
 
 longlong Item_func_equal::val_int()
@@ -1880,7 +1882,7 @@ bool Item_func_interval::fix_fields(THD *thd, Item **ref)
 }
 
 
-void Item_func_interval::fix_length_and_dec()
+bool Item_func_interval::fix_length_and_dec()
 {
   uint rows= row->cols();
   
@@ -1898,10 +1900,13 @@ void Item_func_interval::fix_length_and_dec()
       not_null_consts&= el->const_item() && !el->is_null();
     }
 
-    if (not_null_consts &&
-        (intervals= (interval_range*) current_thd->alloc(sizeof(interval_range) *
-                                                         (rows - 1))))
+    if (not_null_consts)
     {
+      intervals= (interval_range*) current_thd->alloc(sizeof(interval_range) *
+                                                         (rows - 1));
+      if (!intervals)
+        return TRUE;
+
       if (use_decimal_comparison)
       {
         for (uint i= 1; i < rows; i++)
@@ -1942,6 +1947,7 @@ void Item_func_interval::fix_length_and_dec()
   with_sum_func= with_sum_func || row->with_sum_func;
   with_param= with_param || row->with_param;
   with_field= with_field || row->with_field;
+  return FALSE;
 }
 
 
@@ -2102,7 +2108,7 @@ void Item_func_between::fix_after_pullout(st_select_lex *new_parent,
   eval_not_null_tables(NULL);
 }
 
-void Item_func_between::fix_length_and_dec()
+bool Item_func_between::fix_length_and_dec()
 {
   THD *thd= current_thd;
   max_length= 1;
@@ -2113,13 +2119,13 @@ void Item_func_between::fix_length_and_dec()
     we have to check for out of memory conditions here
   */
   if (!args[0] || !args[1] || !args[2])
-    return;
+    return TRUE;
   if (agg_cmp_type(&m_compare_type, args, 3))
-    return;
+    return TRUE;
 
   if (m_compare_type == STRING_RESULT &&
       agg_arg_charsets_for_comparison(cmp_collation, args, 3))
-   return;
+   return TRUE;
 
   /*
     When comparing as date/time, we need to convert non-temporal values
@@ -2144,6 +2150,7 @@ void Item_func_between::fix_length_and_dec()
         m_compare_type= INT_RESULT;              // Works for all types.
     }
   }
+  return FALSE;
 }
 
 
@@ -2441,7 +2448,7 @@ void Item_func_if::cache_type_info(Item *source)
 }
 
 
-void
+bool
 Item_func_if::fix_length_and_dec()
 {
   // Let IF(cond, expr, NULL) and IF(cond, NULL, expr) inherit type from expr.
@@ -2452,15 +2459,15 @@ Item_func_if::fix_length_and_dec()
     // If both arguments are NULL, make resulting type BINARY(0).
     if (args[2]->type() == NULL_ITEM)
       set_handler_by_field_type(MYSQL_TYPE_STRING);
-    return;
+    return FALSE;
   }
   if (args[2]->type() == NULL_ITEM)
   {
     cache_type_info(args[1]);
     maybe_null= true;
-    return;
+    return FALSE;
   }
-  Item_func_case_abbreviation2::fix_length_and_dec2(args + 1);
+  return Item_func_case_abbreviation2::fix_length_and_dec2(args + 1);
 }
 
 
@@ -2574,7 +2581,7 @@ void Item_func_nullif::update_used_tables()
 
 
 
-void
+bool
 Item_func_nullif::fix_length_and_dec()
 {
   /*
@@ -2724,6 +2731,8 @@ Item_func_nullif::fix_length_and_dec()
     m_cache= args[0]->cmp_type() == STRING_RESULT ?
              new (thd->mem_root) Item_cache_str_for_nullif(thd, args[0]) :
              Item_cache::get_cache(thd, args[0]);
+    if (!m_cache)
+      return TRUE;
     m_cache->setup(thd, args[0]);
     m_cache->store(args[0]);
     m_cache->set_used_tables(args[0]->used_tables());
@@ -2737,7 +2746,8 @@ Item_func_nullif::fix_length_and_dec()
   fix_char_length(args[2]->max_char_length());
   maybe_null=1;
   m_arg0= args[0];
-  setup_args_and_comparator(thd, &cmp);
+  if (setup_args_and_comparator(thd, &cmp))
+    return TRUE;
   /*
     A special code for EXECUTE..PREPARE.
 
@@ -2777,6 +2787,7 @@ Item_func_nullif::fix_length_and_dec()
   */
   if (args[0] == m_arg0)
     m_arg0= NULL;
+  return FALSE;
 }
 
 
@@ -3158,7 +3169,7 @@ static void change_item_tree_if_needed(THD *thd, Item **place, Item *new_value)
 }
 
 
-void Item_func_case::fix_length_and_dec()
+bool Item_func_case::fix_length_and_dec()
 {
   m_found_types= 0;
   if (else_expr_num == -1 || args[else_expr_num]->maybe_null)
@@ -3175,7 +3186,7 @@ void Item_func_case::fix_length_and_dec()
   if (Item_func_case::result_type() == STRING_RESULT)
   {
     if (count_string_result_length(Item_func_case::field_type(), rets, nrets))
-      return;
+      return TRUE;
   }
   else
     fix_attributes(rets, nrets);
@@ -3189,7 +3200,7 @@ void Item_func_case::fix_length_and_dec()
     left_cmp_type= args[0]->cmp_type();
 
     if (!(m_found_types= collect_cmp_types(args, nwhens + 1)))
-      return;
+      return TRUE;
 
     Item *date_arg= 0;
     if (m_found_types & (1U << TIME_RESULT))
@@ -3222,7 +3233,7 @@ void Item_func_case::fix_length_and_dec()
            CASE utf16_item WHEN CONVERT(latin1_item USING utf16) THEN ... END
       */
       if (agg_arg_charsets_for_comparison(cmp_collation, args, nwhens + 1))
-        return;
+        return TRUE;
     }
 
     for (uint i= 0; i <= (uint)TIME_RESULT; i++)
@@ -3233,10 +3244,11 @@ void Item_func_case::fix_length_and_dec()
         if (!(cmp_items[i]=
             cmp_item::get_comparator((Item_result)i, date_arg,
                                      cmp_collation.collation)))
-          return;
+          return TRUE;
       }
     }
   }
+  return FALSE;
 }
 
 
@@ -4117,7 +4129,6 @@ static int srtcmp_in(CHARSET_INFO *cs, const String *x,const String *y)
                                (uchar *) y->ptr(),y->length());
 }
 
-
 /*
   Create 'array' for this IN predicate with the respect to its result type
   and put values from <in value list> in 'array'.
@@ -4178,7 +4189,7 @@ bool Item_func_in::create_array(THD *thd)
 }
 
 
-void Item_func_in::fix_length_and_dec()
+bool Item_func_in::fix_length_and_dec()
 {
   Item **arg, **arg_end;
   bool const_itm= 1;
@@ -4190,7 +4201,7 @@ void Item_func_in::fix_length_and_dec()
   m_compare_type= STRING_RESULT;
   left_cmp_type= args[0]->cmp_type();
   if (!(found_types= collect_cmp_types(args, arg_count, true)))
-    return;
+    return TRUE;
   
   for (arg= args + 1, arg_end= args + arg_count; arg != arg_end ; arg++)
   {
@@ -4239,7 +4250,7 @@ void Item_func_in::fix_length_and_dec()
   {
     if (m_compare_type == STRING_RESULT &&
         agg_arg_charsets_for_comparison(cmp_collation, args, arg_count))
-      return;
+      return TRUE;
     arg_types_compatible= TRUE;
 
     if (m_compare_type == ROW_RESULT)
@@ -4250,12 +4261,14 @@ void Item_func_in::fix_length_and_dec()
       if (bisection_possible)
       {
         array= new (thd->mem_root) in_row(thd, arg_count-1, 0);
+        if (!array)
+          return TRUE;
         cmp= &((in_row*)array)->tmp;
       }
       else
       {
         if (!(cmp= new (thd->mem_root) cmp_item_row))
-          return;
+          return TRUE;
         cmp_items[ROW_RESULT]= cmp;
       }
       cmp->n= cols;
@@ -4272,6 +4285,8 @@ void Item_func_in::fix_length_and_dec()
           else
             cmp= ((cmp_item_row*)cmp_items[ROW_RESULT])->comparators + col;
           *cmp= new (thd->mem_root) cmp_item_datetime(date_arg);
+          if (!(*cmp))
+            return TRUE;
         }
       }
     }
@@ -4306,7 +4321,7 @@ void Item_func_in::fix_length_and_dec()
       }
     }
     if (create_array(thd))
-      return;
+      return TRUE;
   }
   else
   {
@@ -4314,7 +4329,7 @@ void Item_func_in::fix_length_and_dec()
       date_arg= find_date_time_item(thd, args, arg_count, 0, true);
     if (found_types & (1U << STRING_RESULT) &&
         agg_arg_charsets_for_comparison(cmp_collation, args, arg_count))
-      return;
+      return TRUE;
     for (i= 0; i <= (uint) TIME_RESULT; i++)
     {
       if (found_types & (1U << i) && !cmp_items[i])
@@ -4322,11 +4337,12 @@ void Item_func_in::fix_length_and_dec()
         if (!cmp_items[i] && !(cmp_items[i]=
             cmp_item::get_comparator((Item_result)i, date_arg,
                                      cmp_collation.collation)))
-          return;
+          return TRUE;
       }
     }
   }
   max_length= 1;
+  return FALSE;
 }
 
 
@@ -4617,7 +4633,8 @@ Item_cond::fix_fields(THD *thd, Item **ref)
     with_window_func|= item->with_window_func;
     maybe_null|=       item->maybe_null;
   }
-  fix_length_and_dec();
+  if (fix_length_and_dec())
+    return TRUE;
   fixed= 1;
   return FALSE;
 }
@@ -5656,16 +5673,16 @@ bool Item_func_regex::fix_fields(THD *thd, Item **ref)
   return Item_bool_func::fix_fields(thd, ref);
 }
 
-void
+bool
 Item_func_regex::fix_length_and_dec()
 {
-  Item_bool_func::fix_length_and_dec();
-
-  if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
-    return;
+  if (Item_bool_func::fix_length_and_dec() ||
+      agg_arg_charsets_for_comparison(cmp_collation, args, 2))
+    return TRUE;
 
   re.init(cmp_collation.collation, 0);
   re.fix_owner(this, args[0], args[1]);
+  return FALSE;
 }
 
 
@@ -5689,14 +5706,15 @@ bool Item_func_regexp_instr::fix_fields(THD *thd, Item **ref)
 }
 
 
-void
+bool
 Item_func_regexp_instr::fix_length_and_dec()
 {
   if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
-    return;
+    return TRUE;
 
   re.init(cmp_collation.collation, 0);
   re.fix_owner(this, args[0], args[1]);
+  return FALSE;
 }
 
 
@@ -6638,7 +6656,8 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
   }
   if (prev_equal_field && last_equal_field != first_equal_field)
     last_equal_field->next_equal_field= first_equal_field;
-  fix_length_and_dec();
+  if (fix_length_and_dec())
+    return TRUE;
   fixed= 1;
   return FALSE;
 }
@@ -6724,11 +6743,12 @@ longlong Item_equal::val_int()
 }
 
 
-void Item_equal::fix_length_and_dec()
+bool Item_equal::fix_length_and_dec()
 {
   Item *item= get_first(NO_PARTICULAR_TAB, NULL);
   eval_item= cmp_item::get_comparator(item->cmp_type(), item,
                                       item->collation.collation);
+  return FALSE;
 }
 
 

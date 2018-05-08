@@ -38,7 +38,7 @@ public:
   Item_geometry_func(THD *thd, Item *a, Item *b, Item *c):
     Item_str_func(thd, a, b, c) {}
   Item_geometry_func(THD *thd, List<Item> &list): Item_str_func(thd, list) {}
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   enum_field_types field_type() const  { return MYSQL_TYPE_GEOMETRY; }
   Field *create_field_for_create_select(TABLE *table);
 };
@@ -90,7 +90,7 @@ public:
   Item_func_as_wkt(THD *thd, Item *a): Item_str_ascii_func(thd, a) {}
   const char *func_name() const { return "st_astext"; }
   String *val_str_ascii(String *);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_as_wkt>(thd, mem_root, this); }
 };
@@ -116,7 +116,7 @@ public:
   Item_func_as_geojson(THD *thd, Item *js, Item *max_dec_digits, Item *opt):
     Item_str_ascii_func(thd, js, max_dec_digits, opt) {}
   const char *func_name() const { return "st_asgeojson"; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   String *val_str_ascii(String *);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_as_geojson>(thd, mem_root, this); }
@@ -129,11 +129,12 @@ public:
   Item_func_geometry_type(THD *thd, Item *a): Item_str_ascii_func(thd, a) {}
   String *val_str_ascii(String *);
   const char *func_name() const { return "st_geometrytype"; }
-  void fix_length_and_dec() 
+  bool fix_length_and_dec()
   {
     // "GeometryCollection" is the longest
     fix_length_and_charset(20, default_charset());
     maybe_null= 1;
+    return FALSE;
   };
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_geometry_type>(thd, mem_root, this); }
@@ -308,9 +309,10 @@ public:
     item_type=it;
   }
   String *val_str(String *);
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
-    Item_geometry_func::fix_length_and_dec();
+    if (Item_geometry_func::fix_length_and_dec())
+      return TRUE;
     for (unsigned int i= 0; i < arg_count; ++i)
     {
       if (args[i]->fixed && args[i]->field_type() != MYSQL_TYPE_GEOMETRY)
@@ -320,8 +322,10 @@ public:
         str.append('\0');
         my_error(ER_ILLEGAL_VALUE_FOR_TYPE, MYF(0), "non geometric",
                  str.ptr());
+        return TRUE;
       }
     }
+    return FALSE;
   }
  
   const char *func_name() const { return "geometrycollection"; }
@@ -510,7 +514,7 @@ public:
   Item_func_isempty(THD *thd, Item *a): Item_bool_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_isempty"; }
-  void fix_length_and_dec() { maybe_null= 1; }
+  bool fix_length_and_dec() { maybe_null= 1; return FALSE; }
   bool need_parentheses_in_default() { return false; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_isempty>(thd, mem_root, this); }
@@ -526,7 +530,7 @@ public:
   Item_func_issimple(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_issimple"; }
-  void fix_length_and_dec() { decimals=0; max_length=2; }
+  bool fix_length_and_dec() { decimals=0; max_length=2; return FALSE; }
   uint decimal_precision() const { return 1; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_issimple>(thd, mem_root, this); }
@@ -538,7 +542,7 @@ public:
   Item_func_isclosed(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_isclosed"; }
-  void fix_length_and_dec() { decimals=0; max_length=2; }
+  bool fix_length_and_dec() { decimals=0; max_length=2; return FALSE; }
   uint decimal_precision() const { return 1; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_isclosed>(thd, mem_root, this); }
@@ -561,7 +565,7 @@ public:
   Item_func_dimension(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_dimension"; }
-  void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
+  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_dimension>(thd, mem_root, this); }
 };
@@ -573,10 +577,12 @@ public:
   Item_func_x(THD *thd, Item *a): Item_real_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "st_x"; }
-  void fix_length_and_dec() 
-  { 
-    Item_real_func::fix_length_and_dec();
-    maybe_null= 1; 
+  bool fix_length_and_dec()
+  {
+    if (Item_real_func::fix_length_and_dec())
+      return TRUE;
+    maybe_null= 1;
+    return FALSE;
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_x>(thd, mem_root, this); }
@@ -590,10 +596,12 @@ public:
   Item_func_y(THD *thd, Item *a): Item_real_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "st_y"; }
-  void fix_length_and_dec() 
-  { 
-    Item_real_func::fix_length_and_dec();
-    maybe_null= 1; 
+  bool fix_length_and_dec()
+  {
+    if (Item_real_func::fix_length_and_dec())
+      return TRUE;
+    maybe_null= 1;
+    return FALSE;
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_y>(thd, mem_root, this); }
@@ -607,7 +615,7 @@ public:
   Item_func_numgeometries(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_numgeometries"; }
-  void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
+  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_numgeometries>(thd, mem_root, this); }
 };
@@ -620,7 +628,7 @@ public:
   Item_func_numinteriorring(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_numinteriorrings"; }
-  void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
+  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_numinteriorring>(thd, mem_root, this); }
 };
@@ -633,7 +641,7 @@ public:
   Item_func_numpoints(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_numpoints"; }
-  void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
+  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_numpoints>(thd, mem_root, this); }
 };
@@ -646,10 +654,12 @@ public:
   Item_func_area(THD *thd, Item *a): Item_real_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "st_area"; }
-  void fix_length_and_dec() 
-  { 
-    Item_real_func::fix_length_and_dec();
-    maybe_null= 1; 
+  bool fix_length_and_dec()
+  {
+    if (Item_real_func::fix_length_and_dec())
+      return TRUE;
+    maybe_null= 1;
+    return FALSE;
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_area>(thd, mem_root, this); }
@@ -663,10 +673,12 @@ public:
   Item_func_glength(THD *thd, Item *a): Item_real_func(thd, a) {}
   double val_real();
   const char *func_name() const { return "st_length"; }
-  void fix_length_and_dec() 
-  { 
-    Item_real_func::fix_length_and_dec();
-    maybe_null= 1; 
+  bool fix_length_and_dec()
+  {
+    if (Item_real_func::fix_length_and_dec())
+      return TRUE;
+    maybe_null= 1;
+    return FALSE;
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_glength>(thd, mem_root, this); }
@@ -680,7 +692,7 @@ public:
   Item_func_srid(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "srid"; }
-  void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
+  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_srid>(thd, mem_root, this); }
 };

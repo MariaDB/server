@@ -1932,5 +1932,21 @@ show create table t1;
 drop table t1;
 
 --echo #
+--echo # MDEV-11071: Assertion `thd->transaction.stmt.is_empty()' failed
+--echo # in Locked_tables_list::unlock_locked_tables
+--echo #
+
+CREATE TABLE t1 (d DATETIME DEFAULT CURRENT_TIMESTAMP, i INT) ENGINE=InnoDB;
+INSERT INTO t1 (i) VALUES (1),(1);
+LOCK TABLE t1 WRITE;
+--error ER_DUP_ENTRY
+ALTER TABLE t1 ADD UNIQUE(i);
+
+# Cleanup
+UNLOCK TABLES;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

@@ -106,7 +106,8 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
   with_window_func= true;
   with_sum_func= false;
 
-  fix_length_and_dec();
+  if (fix_length_and_dec())
+    return TRUE;
 
   max_length= window_func()->max_length;
   maybe_null= window_func()->maybe_null;
@@ -268,7 +269,8 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
   maybe_null= 1;
   result_field=0;
   null_value=1;
-  fix_length_and_dec();
+  if (fix_length_and_dec())
+    return TRUE;
 
   if (check_sum_func(thd, ref))
     return TRUE;

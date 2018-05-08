@@ -237,8 +237,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
       with_subselect|=        item->has_subquery();
     }
   }
-  fix_length_and_dec();
-  if (thd->is_error()) // An error inside fix_length_and_dec occurred
+  if (fix_length_and_dec())
     return TRUE;
   fixed= 1;
   return FALSE;
@@ -733,10 +732,12 @@ String *Item_int_func::val_str(String *str)
 }
 
 
-void Item_func_connection_id::fix_length_and_dec()
+bool Item_func_connection_id::fix_length_and_dec()
 {
-  Item_int_func::fix_length_and_dec();
+  if (Item_int_func::fix_length_and_dec())
+    return TRUE;
   max_length= 10;
+  return FALSE;
 }
 
 
@@ -755,7 +756,7 @@ bool Item_func_connection_id::fix_fields(THD *thd, Item **ref)
   function of two arguments.
 */
 
-void Item_num_op::fix_length_and_dec(void)
+bool Item_num_op::fix_length_and_dec(void)
 {
   DBUG_ENTER("Item_num_op::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
@@ -791,7 +792,7 @@ void Item_num_op::fix_length_and_dec(void)
               result_type() == DECIMAL_RESULT ? "DECIMAL_RESULT" :
               result_type() == INT_RESULT ? "INT_RESULT" :
               "--ILLEGAL!!!--")));
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -801,7 +802,7 @@ void Item_num_op::fix_length_and_dec(void)
   type depends only on the first argument)
 */
 
-void Item_func_num1::fix_length_and_dec()
+bool Item_func_num1::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_num1::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
@@ -832,7 +833,7 @@ void Item_func_num1::fix_length_and_dec()
                        result_type() == DECIMAL_RESULT ? "DECIMAL_RESULT" :
                        result_type() == INT_RESULT ? "INT_RESULT" :
                        "--ILLEGAL!!!--")));
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -1417,12 +1418,14 @@ void Item_func_additive_op::result_precision()
   subtraction of UNSIGNED BIGINT to return negative values.
 */
 
-void Item_func_minus::fix_length_and_dec()
+bool Item_func_minus::fix_length_and_dec()
 {
-  Item_num_op::fix_length_and_dec();
+  if (Item_num_op::fix_length_and_dec())
+    return TRUE;
   if (unsigned_flag &&
       (current_thd->variables.sql_mode & MODE_NO_UNSIGNED_SUBTRACTION))
     unsigned_flag=0;
+  return FALSE;
 }
 
 
@@ -1720,11 +1723,12 @@ void Item_func_div::result_precision()
 }
 
 
-void Item_func_div::fix_length_and_dec()
+bool Item_func_div::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_div::fix_length_and_dec");
   prec_increment= current_thd->variables.div_precincrement;
-  Item_num_op::fix_length_and_dec();
+  if (Item_num_op::fix_length_and_dec())
+    DBUG_RETURN(TRUE);
   switch (Item_func_div::result_type()) {
   case REAL_RESULT:
   {
@@ -1755,7 +1759,7 @@ void Item_func_div::fix_length_and_dec()
     DBUG_ASSERT(0);
   }
   maybe_null= 1; // devision by zero
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -1831,7 +1835,7 @@ longlong Item_func_int_div::val_int()
 }
 
 
-void Item_func_int_div::fix_length_and_dec()
+bool Item_func_int_div::fix_length_and_dec()
 {
   Item_result argtype= args[0]->result_type();
   /* use precision ony for the data type it is applicable for and valid */
@@ -1842,6 +1846,7 @@ void Item_func_int_div::fix_length_and_dec()
                   MY_INT64_NUM_DECIMAL_DIGITS : char_length);
   maybe_null=1;
   unsigned_flag=args[0]->unsigned_flag | args[1]->unsigned_flag;
+  return false;
 }
 
 
@@ -1925,11 +1930,13 @@ void Item_func_mod::result_precision()
 }
 
 
-void Item_func_mod::fix_length_and_dec()
+bool Item_func_mod::fix_length_and_dec()
 {
-  Item_num_op::fix_length_and_dec();
+  if (Item_num_op::fix_length_and_dec())
+    return true;
   maybe_null= 1;
   unsigned_flag= args[0]->unsigned_flag;
+  return false;
 }
 
 
@@ -1976,10 +1983,11 @@ my_decimal *Item_func_neg::decimal_op(my_decimal *decimal_value)
 }
 
 
-void Item_func_neg::fix_length_and_dec()
+bool Item_func_neg::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_neg::fix_length_and_dec");
-  Item_func_num1::fix_length_and_dec();
+  if (Item_func_num1::fix_length_and_dec())
+    DBUG_RETURN(TRUE);
   /* 1 add because sign can appear */
   max_length= args[0]->max_length + 1;
 
@@ -2005,7 +2013,7 @@ void Item_func_neg::fix_length_and_dec()
     }
   }
   unsigned_flag= 0;
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -2045,10 +2053,12 @@ my_decimal *Item_func_abs::decimal_op(my_decimal *decimal_value)
 }
 
 
-void Item_func_abs::fix_length_and_dec()
+bool Item_func_abs::fix_length_and_dec()
 {
-  Item_func_num1::fix_length_and_dec();
+  if (Item_func_num1::fix_length_and_dec())
+    return TRUE;
   unsigned_flag= args[0]->unsigned_flag;
+  return FALSE;
 }
 
 
@@ -2280,7 +2290,7 @@ longlong Item_func_bit_neg::val_int()
 
 // Conversion functions
 
-void Item_func_int_val::fix_length_and_dec()
+bool Item_func_int_val::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_int_val::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
@@ -2328,7 +2338,7 @@ void Item_func_int_val::fix_length_and_dec()
                        result_type() == INT_RESULT ? "INT_RESULT" :
                        "--ILLEGAL!!!--")));
 
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -2426,7 +2436,7 @@ my_decimal *Item_func_floor::decimal_op(my_decimal *decimal_value)
 }
 
 
-void Item_func_round::fix_length_and_dec()
+bool Item_func_round::fix_length_and_dec()
 {
   int      decimals_to_set;
   longlong val1;
@@ -2444,12 +2454,12 @@ void Item_func_round::fix_length_and_dec()
     }
     else
       set_handler_by_result_type(REAL_RESULT);
-    return;
+    return FALSE;
   }
 
   val1= args[1]->val_int();
   if ((null_value= args[1]->null_value))
-    return;
+    return FALSE;
 
   val1_unsigned= args[1]->unsigned_flag;
   if (val1 < 0)
@@ -2462,7 +2472,7 @@ void Item_func_round::fix_length_and_dec()
     decimals= MY_MIN(decimals_to_set, NOT_FIXED_DEC);
     max_length= float_length(decimals);
     set_handler_by_result_type(REAL_RESULT);
-    return;
+    return FALSE;
   }
   
   switch (args[0]->result_type()) {
@@ -2503,6 +2513,7 @@ void Item_func_round::fix_length_and_dec()
   case TIME_RESULT:
     DBUG_ASSERT(0); /* This result type isn't handled */
   }
+  return FALSE;
 }
 
 double my_double_round(double value, longlong dec, bool dec_unsigned,
@@ -2727,7 +2738,7 @@ double Item_func_units::val_real()
 }
 
 
-void Item_func_min_max::fix_length_and_dec()
+bool Item_func_min_max::fix_length_and_dec()
 {
   uint unsigned_count= 0;
   int max_int_part=0;
@@ -2838,6 +2849,7 @@ void Item_func_min_max::fix_length_and_dec()
     set_handler_by_field_type(MYSQL_TYPE_DOUBLE);
     break;
   }
+  return FALSE;
 }
 
 
@@ -3088,10 +3100,10 @@ longlong Item_func_coercibility::val_int()
 }
 
 
-void Item_func_locate::fix_length_and_dec()
+bool Item_func_locate::fix_length_and_dec()
 {
   max_length= MY_INT32_NUM_DECIMAL_DIGITS;
-  agg_arg_charsets_for_comparison(cmp_collation, args, 2);
+  return agg_arg_charsets_for_comparison(cmp_collation, args, 2);
 }
 
 
@@ -3208,14 +3220,15 @@ longlong Item_func_field::val_int()
 }
 
 
-void Item_func_field::fix_length_and_dec()
+bool Item_func_field::fix_length_and_dec()
 {
   maybe_null=0; max_length=3;
   cmp_type= args[0]->result_type();
   for (uint i=1; i < arg_count ; i++)
     cmp_type= item_cmp_type(cmp_type, args[i]->result_type());
   if (cmp_type == STRING_RESULT)
-    agg_arg_charsets_for_comparison(cmp_collation, args, arg_count);
+    return agg_arg_charsets_for_comparison(cmp_collation, args, arg_count);
+  return FALSE;
 }
 
 
@@ -3262,7 +3275,7 @@ longlong Item_func_ord::val_int()
 	/* Returns number of found type >= 1 or 0 if not found */
 	/* This optimizes searching in enums to bit testing! */
 
-void Item_func_find_in_set::fix_length_and_dec()
+bool Item_func_find_in_set::fix_length_and_dec()
 {
   decimals=0;
   max_length=3;					// 1-999
@@ -3284,7 +3297,7 @@ void Item_func_find_in_set::fix_length_and_dec()
       }
     }
   }
-  agg_arg_charsets_for_comparison(cmp_collation, args, 2);
+  return agg_arg_charsets_for_comparison(cmp_collation, args, 2);
 }
 
 static const char separator=',';
@@ -3490,7 +3503,8 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       DBUG_RETURN(TRUE);
     }
   }
-  func->fix_length_and_dec();
+  if (func->fix_length_and_dec())
+    DBUG_RETURN(TRUE);
   initid.max_length=func->max_length;
   initid.maybe_null=func->maybe_null;
   initid.const_item=func->const_item_cache;
@@ -3828,13 +3842,13 @@ String *Item_func_udf_decimal::val_str(String *str)
 
 /* Default max_length is max argument length */
 
-void Item_func_udf_str::fix_length_and_dec()
+bool Item_func_udf_str::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_udf_str::fix_length_and_dec");
   max_length=0;
   for (uint i = 0; i < arg_count; i++)
     set_if_bigger(max_length,args[i]->max_length);
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 String *Item_func_udf_str::val_str(String *str)
@@ -4721,7 +4735,7 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
 }
 
 
-void
+bool
 Item_func_set_user_var::fix_length_and_dec()
 {
   maybe_null=args[0]->maybe_null;
@@ -4735,6 +4749,7 @@ Item_func_set_user_var::fix_length_and_dec()
                            args[0]->collation.collation);
   }
   unsigned_flag= args[0]->unsigned_flag;
+  return FALSE;
 }
 
 
@@ -5573,7 +5588,7 @@ err:
   return 1;
 }
 
-void Item_func_get_user_var::fix_length_and_dec()
+bool Item_func_get_user_var::fix_length_and_dec()
 {
   THD *thd=current_thd;
   int error;
@@ -5623,6 +5638,7 @@ void Item_func_get_user_var::fix_length_and_dec()
     set_handler_by_field_type(MYSQL_TYPE_LONG_BLOB);
     max_length= MAX_BLOB_WIDTH;
   }
+  return false;
 }
 
 
@@ -5765,7 +5781,7 @@ void Item_func_get_system_var::update_null_value()
 }
 
 
-void Item_func_get_system_var::fix_length_and_dec()
+bool Item_func_get_system_var::fix_length_and_dec()
 {
   char *cptr;
   maybe_null= TRUE;
@@ -5777,7 +5793,7 @@ void Item_func_get_system_var::fix_length_and_dec()
     {
       my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0),
                var->name.str, var_type == OPT_GLOBAL ? "SESSION" : "GLOBAL");
-      return;
+      return TRUE;
     }
     /* As there was no local variable, return the global value */
     var_type= OPT_GLOBAL;
@@ -5841,6 +5857,7 @@ void Item_func_get_system_var::fix_length_and_dec()
       my_error(ER_VAR_CANT_BE_READ, MYF(0), var->name.str);
       break;
   }
+  return FALSE;
 }
 
 
@@ -6617,7 +6634,7 @@ bool Item_func_sp::is_expensive()
   @note called from Item::fix_fields.
 */
 
-void Item_func_sp::fix_length_and_dec()
+bool Item_func_sp::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_sp::fix_length_and_dec");
 
@@ -6625,7 +6642,7 @@ void Item_func_sp::fix_length_and_dec()
   Type_std_attributes::set(sp_result_field);
   maybe_null= 1;
 
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -6964,9 +6981,10 @@ my_decimal *Item_func_last_value::val_decimal(my_decimal *decimal_value)
 }
 
 
-void Item_func_last_value::fix_length_and_dec()
+bool Item_func_last_value::fix_length_and_dec()
 {
   last_value=          args[arg_count -1];
   Type_std_attributes::set(last_value);
   maybe_null=          last_value->maybe_null;
+  return FALSE;
 }

@@ -49,12 +49,13 @@ Field *Item_geometry_func::create_field_for_create_select(TABLE *t_arg)
   return result;
 }
 
-void Item_geometry_func::fix_length_and_dec()
+bool Item_geometry_func::fix_length_and_dec()
 {
   collation.set(&my_charset_bin);
   decimals=0;
   max_length= (uint32) 4294967295U;
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -223,11 +224,12 @@ String *Item_func_as_wkt::val_str_ascii(String *str)
 }
 
 
-void Item_func_as_wkt::fix_length_and_dec()
+bool Item_func_as_wkt::fix_length_and_dec()
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length=MAX_BLOB_WIDTH;
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -249,11 +251,12 @@ String *Item_func_as_wkb::val_str(String *str)
 }
 
 
-void Item_func_as_geojson::fix_length_and_dec()
+bool Item_func_as_geojson::fix_length_and_dec()
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length=MAX_BLOB_WIDTH;
   maybe_null= 1;
+  return FALSE;
 }
 
 

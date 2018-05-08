@@ -200,7 +200,7 @@ public:
   Item_bool_func(THD *thd, Item_bool_func *item) :Item_int_func(thd, item) {}
   bool is_bool_type() { return true; }
   virtual CHARSET_INFO *compare_collation() const { return NULL; }
-  void fix_length_and_dec() { decimals=0; max_length=1; }
+  bool fix_length_and_dec() { decimals=0; max_length=1; return FALSE; }
   uint decimal_precision() const { return 1; }
   bool need_parentheses_in_default() { return true; }
 };
@@ -216,7 +216,7 @@ class Item_func_truth : public Item_bool_func
 public:
   virtual bool val_bool();
   virtual longlong val_int();
-  virtual void fix_length_and_dec();
+  virtual bool fix_length_and_dec();
   virtual void print(String *str, enum_query_type query_type);
   enum precedence precedence() const { return CMP_PRECEDENCE; }
 
@@ -501,7 +501,7 @@ public:
                                       cond);
     return this;
   }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   int set_cmp_func()
   {
     return cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, true);
@@ -711,7 +711,7 @@ public:
   Item_func_equal(THD *thd, Item *a, Item *b):
     Item_bool_rowready_func2(thd, a, b) {}
   longlong val_int();
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   table_map not_null_tables() const { return 0; }
   enum Functype functype() const { return EQUAL_FUNC; }
   enum Functype rev_functype() const { return EQUAL_FUNC; }
@@ -878,7 +878,7 @@ public:
   enum Functype functype() const   { return BETWEEN; }
   const char *func_name() const { return "between"; }
   enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   virtual void print(String *str, enum_query_type query_type);
   bool eval_not_null_tables(void *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
@@ -911,10 +911,12 @@ public:
   longlong val_int();
   uint decimal_precision() const { return 1; }
   const char *func_name() const { return "strcmp"; }
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
-    agg_arg_charsets_for_comparison(cmp_collation, args, 2);
-    fix_char_length(2); // returns "1" or "0" or "-1"
+    if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
+      return TRUE;
+    fix_char_length(2);
+    return FALSE;
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_strcmp>(thd, mem_root, this); }
@@ -941,7 +943,7 @@ public:
   }
   bool fix_fields(THD *, Item **);
   longlong val_int();
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   const char *func_name() const { return "interval"; }
   uint decimal_precision() const { return 2; }
   void print(String *str, enum_query_type query_type)
@@ -966,10 +968,11 @@ public:
   String *str_op(String *);
   my_decimal *decimal_op(my_decimal *);
   bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     set_handler_by_field_type(agg_field_type(args, arg_count, true));
     fix_attributes(args, arg_count);
+    return FALSE;
   }
   const char *func_name() const { return "coalesce"; }
   table_map not_null_tables() const { return 0; }
@@ -986,10 +989,11 @@ public:
 class Item_func_case_abbreviation2 :public Item_func_hybrid_field_type
 {
 protected:
-  void fix_length_and_dec2(Item **items)
+  bool fix_length_and_dec2(Item **items)
   {
     set_handler_by_field_type(agg_field_type(items, 2, true));
     fix_attributes(items, 2);
+    return FALSE;
   }
   uint decimal_precision2(Item **args) const;
 public:
@@ -1010,10 +1014,12 @@ public:
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
   bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
-    Item_func_case_abbreviation2::fix_length_and_dec2(args);
+    if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
+      return TRUE;
     maybe_null= args[1]->maybe_null;
+    return FALSE;
   }
   const char *func_name() const { return "ifnull"; }
   Field *create_field_for_create_select(TABLE *table)
@@ -1041,7 +1047,7 @@ public:
   my_decimal *decimal_op(my_decimal *);
   String *str_op(String *);
   bool fix_fields(THD *, Item **);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   uint decimal_precision() const
   {
     return Item_func_case_abbreviation2::decimal_precision2(args + 1);
@@ -1108,7 +1114,7 @@ public:
   longlong int_op();
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   bool walk(Item_processor processor, bool walk_subquery, void *arg);
   uint decimal_precision() const { return args[2]->decimal_precision(); }
   const char *func_name() const { return "nullif"; }
@@ -1570,7 +1576,7 @@ public:
   my_decimal *decimal_op(my_decimal *);
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
   bool fix_fields(THD *thd, Item **ref);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   uint decimal_precision() const;
   table_map not_null_tables() const { return 0; }
   const char *func_name() const { return "case"; }
@@ -1649,7 +1655,7 @@ public:
   longlong val_int();
   bool fix_fields(THD *, Item **);
   bool create_array(THD *thd);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   void cleanup()
   {
     uint i;
@@ -1710,7 +1716,7 @@ public:
   int compare(cmp_item *arg);
   cmp_item *make_same();
   void store_value_by_template(THD *thd, cmp_item *tmpl, Item *);
-  friend void Item_func_in::fix_length_and_dec();
+  friend bool Item_func_in::fix_length_and_dec();
   cmp_item *get_comparator(uint i) { return comparators[i]; }
 };
 
@@ -1724,7 +1730,7 @@ public:
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
   friend bool Item_func_in::create_array(THD *thd);
-  friend void Item_func_in::fix_length_and_dec();
+  friend bool Item_func_in::fix_length_and_dec();
   Item_result result_type() { return ROW_RESULT; }
   cmp_item *get_cmp_item() { return &tmp; }
 };
@@ -1756,7 +1762,11 @@ public:
   }
   CHARSET_INFO *compare_collation() const
   { return args[0]->collation.collation; }
-  void fix_length_and_dec() { decimals=0; max_length=1; maybe_null=0; }
+  bool fix_length_and_dec()
+  {
+    decimals=0; max_length=1; maybe_null=0;
+    return FALSE;
+  }
   bool count_sargable_conds(void *arg);
 };
 
@@ -1980,10 +1990,10 @@ public:
   const char *func_name() const { return "like"; }
   enum precedence precedence() const { return CMP_PRECEDENCE; }
   bool fix_fields(THD *thd, Item **ref);
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     max_length= 1;
-    agg_arg_charsets_for_comparison(cmp_collation, args, 2);
+    return agg_arg_charsets_for_comparison(cmp_collation, args, 2);
   }
   void cleanup();
 
@@ -2104,7 +2114,7 @@ public:
   }
   longlong val_int();
   bool fix_fields(THD *thd, Item **ref);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
   enum precedence precedence() const { return CMP_PRECEDENCE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -2142,7 +2152,7 @@ public:
   }
   longlong val_int();
   bool fix_fields(THD *thd, Item **ref);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   const char *func_name() const { return "regexp_instr"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_regexp_instr>(thd, mem_root, this); }
@@ -2378,7 +2388,7 @@ public:
   longlong val_int(); 
   const char *func_name() const { return "multiple equal"; }
   void sort(Item_field_cmpfunc compare, void *arg);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);
   void cleanup()
   {

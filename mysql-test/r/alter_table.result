@@ -2369,5 +2369,16 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 #
+# MDEV-11071: Assertion `thd->transaction.stmt.is_empty()' failed
+# in Locked_tables_list::unlock_locked_tables
+#
+CREATE TABLE t1 (d DATETIME DEFAULT CURRENT_TIMESTAMP, i INT) ENGINE=InnoDB;
+INSERT INTO t1 (i) VALUES (1),(1);
+LOCK TABLE t1 WRITE;
+ALTER TABLE t1 ADD UNIQUE(i);
+ERROR 23000: Duplicate entry '1' for key 'i'
+UNLOCK TABLES;
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
