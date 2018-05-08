@@ -540,8 +540,8 @@ row_undo_mod_del_mark_or_remove_sec_low(
 
 	/* For temporary table, we can skip to check older version of
 	clustered index entry, because there is no MVCC or purge. */
-	if (!node->table->is_temporary()
-	    && row_vers_old_has_index_entry(
+	if (node->table->is_temporary()
+	    || row_vers_old_has_index_entry(
 		    FALSE, btr_pcur_get_rec(&node->pcur),
 		    &mtr_vers, index, entry, 0, 0)) {
 		err = btr_cur_del_mark_set_sec_rec(BTR_NO_LOCKING_FLAG,
