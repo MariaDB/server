@@ -1514,7 +1514,7 @@ cleanup:
 ulong read_to_buffer(IO_CACHE *fromfile, BUFFPEK *buffpek,
                      uint rec_length)
 {
-  register ulong count;
+  ulong count;
   ulong length= 0;
 
   if ((count= (ulong) MY_MIN((ha_rows) buffpek->max_keys,buffpek->count)))
