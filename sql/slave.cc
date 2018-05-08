@@ -346,6 +346,13 @@ gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_CSTRING *table_name)
               FALSE, FALSE);
   if (unlikely(thd->is_error()))
     err= 1;
+  /* The warning is relevant to 10.3 and earlier. */
+  sql_print_warning("The automatically created table '%s' name may not be "
+                    "entirely in lowercase. The table name will be converted "
+                    "to lowercase to any future upgrade to 10.4.0 and later "
+                    "version where it will be auto-created at once "
+                    "in lowercase.",
+                    table_name->str);
 end:
   thd->variables.option_bits= thd_saved_option;
   thd->reset_query();
