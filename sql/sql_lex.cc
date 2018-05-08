@@ -125,7 +125,7 @@ const char * index_hint_type_name[] =
 inline int lex_casecmp(const char *s, const char *t, uint len)
 {
   while (len-- != 0 &&
-	 to_upper_lex[(uchar) *s++] == to_upper_lex[(uchar) *t++]) ;
+         to_upper_lex[(uchar) *s++] == to_upper_lex[(uchar) *t++]) ;
   return (int) len+1;
 }
 
@@ -146,7 +146,7 @@ void lex_init(void)
 
 
 void lex_free(void)
-{					// Call this when daemon ends
+{                                        // Call this when daemon ends
   DBUG_ENTER("lex_free");
   DBUG_VOID_RETURN;
 }
@@ -251,8 +251,8 @@ st_parsing_options::reset()
 */
 
 bool Lex_input_stream::init(THD *thd,
-			    char* buff,
-			    size_t length)
+                            char* buff,
+                            size_t length)
 {
   DBUG_EXECUTE_IF("bug42064_simulate_oom",
                   DBUG_SET("+d,simulate_out_of_memory"););
@@ -857,7 +857,7 @@ static int find_keyword(Lex_input_stream *lip, uint len, bool function)
         (lip->m_thd->variables.sql_mode & MODE_HIGH_NOT_PRECEDENCE))
       return NOT2_SYM;
     if ((symbol->tok == OR_OR_SYM) &&
-	!(lip->m_thd->variables.sql_mode & MODE_PIPES_AS_CONCAT))
+        !(lip->m_thd->variables.sql_mode & MODE_PIPES_AS_CONCAT))
       return OR2_SYM;
 
     return symbol->tok;
@@ -1067,10 +1067,10 @@ bool Lex_input_stream::get_text(Lex_string_with_metadata_st *dst, uint sep,
 #endif
     if (c == '\\' &&
         !(m_thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES))
-    {					// Escaped character
+    {                                        // Escaped character
       found_escape=1;
       if (eof())
-	return true;
+        return true;
       yySkip();
     }
     else if (c == sep)
@@ -1078,7 +1078,7 @@ bool Lex_input_stream::get_text(Lex_string_with_metadata_st *dst, uint sep,
       if (c == yyGet())                 // Check if two separators in a row
       {
         found_escape=1;                 // duplicate. Remember for delete
-	continue;
+        continue;
       }
       else
         yyUnget();
@@ -1141,11 +1141,11 @@ static const uint unsigned_longlong_len=20;
 
 static inline uint int_token(const char *str,uint length)
 {
-  if (length < long_len)			// quick normal case
+  if (length < long_len)                        // quick normal case
     return NUM;
   bool neg=0;
 
-  if (*str == '+')				// Remove sign and pre-zeros
+  if (*str == '+')                              // Remove sign and pre-zeros
   {
     str++; length--;
   }
@@ -1167,9 +1167,9 @@ static inline uint int_token(const char *str,uint length)
   {
     if (length == long_len)
     {
-      cmp= signed_long_str+1;
-      smaller=NUM;				// If <= signed_long_str
-      bigger=LONG_NUM;				// If >= signed_long_str
+      cmp= signed_long_str + 1;
+      smaller= NUM;                                   // If <= signed_long_str
+      bigger= LONG_NUM;                               // If >= signed_long_str
     }
     else if (length < signed_longlong_len)
       return LONG_NUM;
@@ -1177,8 +1177,8 @@ static inline uint int_token(const char *str,uint length)
       return DECIMAL_NUM;
     else
     {
-      cmp=signed_longlong_str+1;
-      smaller=LONG_NUM;				// If <= signed_longlong_str
+      cmp= signed_longlong_str + 1;
+      smaller= LONG_NUM;                              // If <= signed_longlong_str
       bigger=DECIMAL_NUM;
     }
   }
@@ -1264,9 +1264,9 @@ bool consume_comment(Lex_input_stream *lip, int remaining_recursions_permitted)
   @param yylval         [out]  semantic value of the token being parsed (yylval)
   @param thd            THD
 
-  - MY_LEX_EOQ			Found end of query
-  - MY_LEX_OPERATOR_OR_IDENT	Last state was an ident, text or number
-				(which can't be followed by a signed number)
+  - MY_LEX_EOQ                  Found end of query
+  - MY_LEX_OPERATOR_OR_IDENT    Last state was an ident, text or number
+                                (which can't be followed by a signed number)
 */
 
 int MYSQLlex(YYSTYPE *yylval, THD *thd)
@@ -1372,7 +1372,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 {
   uchar UNINIT_VAR(c);
   bool comment_closed;
-  int	tokval;
+  int tokval;
   uint length;
   enum my_lex_states state;
   Lex_input_stream *lip= & thd->m_parser_state->m_lip;
@@ -1381,7 +1381,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
   const uchar *const state_map= cs->state_map;
   const uchar *const ident_map= cs->ident_map;
 
-  lip->yylval=yylval;			// The global state
+  lip->yylval= yylval;                    // The global state
 
   lip->start_token();
   state=lip->next_state;
@@ -1389,13 +1389,13 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
   for (;;)
   {
     switch (state) {
-    case MY_LEX_OPERATOR_OR_IDENT:	// Next is operator or keyword
-    case MY_LEX_START:			// Start of token
+    case MY_LEX_OPERATOR_OR_IDENT:        // Next is operator or keyword
+    case MY_LEX_START:                    // Start of token
       // Skip starting whitespace
       while(state_map[c= lip->yyPeek()] == MY_LEX_SKIP)
       {
-	if (c == '\n')
-	  lip->yylineno++;
+        if (c == '\n')
+          lip->yylineno++;
 
         lip->yySkip();
       }
@@ -1407,16 +1407,16 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       break;
     case MY_LEX_ESCAPE:
       if (!lip->eof() && lip->yyGet() == 'N')
-      {					// Allow \N as shortcut for NULL
-	yylval->lex_str.str=(char*) "\\N";
-	yylval->lex_str.length=2;
-	return NULL_SYM;
+      {                                        // Allow \N as shortcut for NULL
+        yylval->lex_str.str= (char*) "\\N";
+        yylval->lex_str.length= 2;
+        return NULL_SYM;
       }
       /* Fall through */
-    case MY_LEX_CHAR:			// Unknown or single char token
-    case MY_LEX_SKIP:			// This should not happen
+    case MY_LEX_CHAR:                          // Unknown or single char token
+    case MY_LEX_SKIP:                          // This should not happen
       if (c != ')')
-	lip->next_state= MY_LEX_START;	// Allow signed numbers
+        lip->next_state= MY_LEX_START;         // Allow signed numbers
       return((int) c);
 
     case MY_LEX_MINUS_OR_COMMENT:
@@ -1427,7 +1427,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
         state=MY_LEX_COMMENT;
         break;
       }
-      lip->next_state= MY_LEX_START;	// Allow signed numbers
+      lip->next_state= MY_LEX_START;        // Allow signed numbers
       return((int) c);
 
     case MY_LEX_PLACEHOLDER:
@@ -1437,13 +1437,13 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
         its value in a query for the binlog, the query must stay
         grammatically correct.
       */
-      lip->next_state= MY_LEX_START;	// Allow signed numbers
+      lip->next_state= MY_LEX_START;        // Allow signed numbers
       if (lip->stmt_prepare_mode && !ident_map[(uchar) lip->yyPeek()])
         return(PARAM_MARKER);
       return((int) c);
 
     case MY_LEX_COMMA:
-      lip->next_state= MY_LEX_START;	// Allow signed numbers
+      lip->next_state= MY_LEX_START;        // Allow signed numbers
       /*
         Warning:
         This is a work around, to make the "remember_name" rule in
@@ -1461,16 +1461,16 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       uint sep;
       if (lip->yyPeek() != '\'')
       {
-	state= MY_LEX_IDENT;
-	break;
+        state= MY_LEX_IDENT;
+        break;
       }
       /* Found N'string' */
       lip->yySkip();                         // Skip '
       if (lip->get_text(&yylval->lex_string_with_metadata,
                         (sep= lip->yyGetLast()), 2, 1))
       {
-	state= MY_LEX_CHAR;             // Read char by char
-	break;
+        state= MY_LEX_CHAR;                    // Read char by char
+        break;
       }
 
       lip->body_utf8_append(lip->m_cpp_text_start);
@@ -1481,9 +1481,9 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
     }
     case MY_LEX_IDENT_OR_HEX:
       if (lip->yyPeek() == '\'')
-      {					// Found x'hex-number'
-	state= MY_LEX_HEX_NUMBER;
-	break;
+      {                                      // Found x'hex-number'
+        state= MY_LEX_HEX_NUMBER;
+        break;
       }
       /* fall through */
     case MY_LEX_IDENT_OR_BIN:
@@ -1510,10 +1510,10 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       c= lip->yyGet();                          // should be '.'
       lip->next_state= MY_LEX_IDENT_START;      // Next is ident (not keyword)
       if (!ident_map[(uchar) lip->yyPeek()])    // Probably ` or "
-	lip->next_state= MY_LEX_START;
+        lip->next_state= MY_LEX_START;
       return((int) c);
 
-    case MY_LEX_NUMBER_IDENT:		// number or ident which num-start
+    case MY_LEX_NUMBER_IDENT:                   // number or ident which num-start
       if (lip->yyGetLast() == '0')
       {
         c= lip->yyGet();
@@ -1549,34 +1549,34 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 
       while (my_isdigit(cs, (c = lip->yyGet()))) ;
       if (!ident_map[c])
-      {					// Can't be identifier
-	state=MY_LEX_INT_OR_REAL;
-	break;
+      {                                        // Can't be identifier
+        state=MY_LEX_INT_OR_REAL;
+        break;
       }
       if (c == 'e' || c == 'E')
       {
-	// The following test is written this way to allow numbers of type 1e1
+        // The following test is written this way to allow numbers of type 1e1
         if (my_isdigit(cs,lip->yyPeek()) ||
             (c=(lip->yyGet())) == '+' || c == '-')
-	{				// Allow 1E+10
+        {                                       // Allow 1E+10
           if (my_isdigit(cs,lip->yyPeek()))     // Number must have digit after sign
-	  {
+          {
             lip->yySkip();
-            while (my_isdigit(cs,lip->yyGet())) ;
-            yylval->lex_str=get_token(lip, 0, lip->yyLength());
-	    return(FLOAT_NUM);
-	  }
-	}
+            while (my_isdigit(cs, lip->yyGet())) ;
+            yylval->lex_str= get_token(lip, 0, lip->yyLength());
+            return(FLOAT_NUM);
+          }
+        }
         lip->yyUnget();
       }
       // fall through
-    case MY_LEX_IDENT_START:			// We come here after '.'
+    case MY_LEX_IDENT_START:                    // We come here after '.'
       return lip->scan_ident_start(thd, &yylval->ident_cli);
 
-    case MY_LEX_USER_VARIABLE_DELIMITER:	// Found quote char
+    case MY_LEX_USER_VARIABLE_DELIMITER:        // Found quote char
       return lip->scan_ident_delimited(thd, &yylval->ident_cli);
 
-    case MY_LEX_INT_OR_REAL:		// Complete int or incomplete real
+    case MY_LEX_INT_OR_REAL:                    // Complete int or incomplete real
       if (c != '.' || lip->yyPeek() == '.')
       {
         /*
@@ -1585,30 +1585,30 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
           - the number is followed by a double dot as in: FOR i IN 1..10
         */
         yylval->lex_str=get_token(lip, 0, lip->yyLength());
-	return int_token(yylval->lex_str.str, (uint) yylval->lex_str.length);
+        return int_token(yylval->lex_str.str, (uint) yylval->lex_str.length);
       }
       // fall through
-    case MY_LEX_REAL:			// Incomplete real number
+    case MY_LEX_REAL:                           // Incomplete real number
       while (my_isdigit(cs,c = lip->yyGet())) ;
 
       if (c == 'e' || c == 'E')
       {
         c = lip->yyGet();
-	if (c == '-' || c == '+')
+        if (c == '-' || c == '+')
           c = lip->yyGet();                     // Skip sign
-	if (!my_isdigit(cs,c))
-	{				// No digit after sign
-	  state= MY_LEX_CHAR;
-	  break;
-	}
+        if (!my_isdigit(cs, c))
+        {                                       // No digit after sign
+          state= MY_LEX_CHAR;
+          break;
+        }
         while (my_isdigit(cs,lip->yyGet())) ;
         yylval->lex_str=get_token(lip, 0, lip->yyLength());
-	return(FLOAT_NUM);
+        return(FLOAT_NUM);
       }
       yylval->lex_str=get_token(lip, 0, lip->yyLength());
       return(DECIMAL_NUM);
 
-    case MY_LEX_HEX_NUMBER:		// Found x'hexstring'
+    case MY_LEX_HEX_NUMBER:             // Found x'hexstring'
       lip->yySkip();                    // Accept opening '
       while (my_isxdigit(cs, (c= lip->yyGet()))) ;
       if (c != '\'')
@@ -1635,8 +1635,8 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
                                  length-3); // don't count b' and last '
       return (BIN_NUM);
 
-    case MY_LEX_CMP_OP:			// Incomplete comparison operator
-      lip->next_state= MY_LEX_START;	// Allow signed numbers
+    case MY_LEX_CMP_OP:                     // Incomplete comparison operator
+      lip->next_state= MY_LEX_START;        // Allow signed numbers
       if (state_map[(uchar) lip->yyPeek()] == MY_LEX_CMP_OP ||
           state_map[(uchar) lip->yyPeek()] == MY_LEX_LONG_CMP_OP)
       {
@@ -1647,7 +1647,7 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       }
       return(c);
 
-    case MY_LEX_LONG_CMP_OP:		// Incomplete comparison operator
+    case MY_LEX_LONG_CMP_OP:                // Incomplete comparison operator
       lip->next_state= MY_LEX_START;
       if (state_map[(uchar) lip->yyPeek()] == MY_LEX_CMP_OP ||
           state_map[(uchar) lip->yyPeek()] == MY_LEX_LONG_CMP_OP)
@@ -1669,30 +1669,30 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
     case MY_LEX_BOOL:
       if (c != lip->yyPeek())
       {
-	state=MY_LEX_CHAR;
-	break;
+        state= MY_LEX_CHAR;
+        break;
       }
       lip->yySkip();
-      tokval = find_keyword(lip,2,0);	// Is a bool operator
-      lip->next_state= MY_LEX_START;	// Allow signed numbers
+      tokval= find_keyword(lip, 2, 0);      // Is a bool operator
+      lip->next_state= MY_LEX_START;        // Allow signed numbers
       return(tokval);
 
     case MY_LEX_STRING_OR_DELIMITER:
       if (thd->variables.sql_mode & MODE_ANSI_QUOTES)
       {
-	state= MY_LEX_USER_VARIABLE_DELIMITER;
-	break;
+        state= MY_LEX_USER_VARIABLE_DELIMITER;
+        break;
       }
       /* " used for strings */
       /* fall through */
-    case MY_LEX_STRING:			// Incomplete text string
+    case MY_LEX_STRING:                        // Incomplete text string
     {
       uint sep;
       if (lip->get_text(&yylval->lex_string_with_metadata,
                         (sep= lip->yyGetLast()), 1, 1))
       {
-	state= MY_LEX_CHAR;		// Read char by char
-	break;
+        state= MY_LEX_CHAR;                     // Read char by char
+        break;
       }
       CHARSET_INFO *strcs= lip->m_underscore_cs ? lip->m_underscore_cs : cs;
       lip->body_utf8_append(lip->m_cpp_text_start);
@@ -1702,17 +1702,17 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       lip->m_underscore_cs= NULL;
       return(TEXT_STRING);
     }
-    case MY_LEX_COMMENT:			//  Comment
+    case MY_LEX_COMMENT:                       //  Comment
       lex->select_lex.options|= OPTION_FOUND_COMMENT;
-      while ((c = lip->yyGet()) != '\n' && c) ;
-      lip->yyUnget();                   // Safety against eof
-      state = MY_LEX_START;		// Try again
+      while ((c= lip->yyGet()) != '\n' && c) ;
+      lip->yyUnget();                          // Safety against eof
+      state= MY_LEX_START;                     // Try again
       break;
-    case MY_LEX_LONG_COMMENT:		/* Long C comment? */
+    case MY_LEX_LONG_COMMENT:                  // Long C comment?
       if (lip->yyPeek() != '*')
       {
-	state=MY_LEX_CHAR;		// Probable division
-	break;
+        state= MY_LEX_CHAR;                     // Probable division
+        break;
       }
       lex->select_lex.options|= OPTION_FOUND_COMMENT;
       /* Reject '/' '*', since we might need to turn off the echo */
@@ -1776,15 +1776,15 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
           else
           {
 #ifdef WITH_WSREP
-	    if (WSREP(thd) && version == 99997 && thd->wsrep_exec_mode == LOCAL_STATE)
-	    {
-	      WSREP_DEBUG("consistency check: %s", thd->query());
-	      thd->wsrep_consistency_check= CONSISTENCY_CHECK_DECLARED;
-	      lip->yySkipn(5);
-	      lip->set_echo(TRUE);
-	      state=MY_LEX_START;
-	      break;  /* Do not treat contents as a comment.  */
-	    }
+            if (WSREP(thd) && version == 99997 && thd->wsrep_exec_mode == LOCAL_STATE)
+            {
+              WSREP_DEBUG("consistency check: %s", thd->query());
+              thd->wsrep_consistency_check= CONSISTENCY_CHECK_DECLARED;
+              lip->yySkipn(5);
+              lip->set_echo(TRUE);
+              state= MY_LEX_START;
+              break;  /* Do not treat contents as a comment.  */
+            }
 #endif /* WITH_WSREP */
             /*
               Patch and skip the conditional comment to avoid it
@@ -1826,9 +1826,9 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 
         /#!VERSI oned containing /# regular #/ is allowed #/
 
-		Inside one versioned comment, another versioned comment
-		is treated as a regular discardable comment.  It gets
-		no special parsing.
+                Inside one versioned comment, another versioned comment
+                is treated as a regular discardable comment.  It gets
+                no special parsing.
       */
 
       /* Unbalanced comments with a missing '*' '/' are a syntax error */
@@ -1851,17 +1851,17 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
         state=MY_LEX_START;
       }
       else
-	state=MY_LEX_CHAR;		// Return '*'
+        state= MY_LEX_CHAR;              // Return '*'
       break;
-    case MY_LEX_SET_VAR:		// Check if ':='
+    case MY_LEX_SET_VAR:                // Check if ':='
       if (lip->yyPeek() != '=')
       {
-	state=MY_LEX_CHAR;		// Return ':'
-	break;
+        state= MY_LEX_CHAR;              // Return ':'
+        break;
       }
       lip->yySkip();
       return (SET_VAR);
-    case MY_LEX_SEMICOLON:			// optional line terminator
+    case MY_LEX_SEMICOLON:              // optional line terminator
       state= MY_LEX_CHAR;               // Return ';'
       break;
     case MY_LEX_EOL:
@@ -1881,12 +1881,12 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       break;
     case MY_LEX_END:
       lip->next_state=MY_LEX_END;
-      return(0);			// We found end of input last time
+      return(0);                        // We found end of input last time
 
       /* Actually real shouldn't start with . but allow them anyhow */
     case MY_LEX_REAL_OR_POINT:
       if (my_isdigit(cs,(c= lip->yyPeek())))
-	state = MY_LEX_REAL;		// Real
+        state = MY_LEX_REAL;            // Real
       else if (c == '.')
       {
         lip->yySkip();
@@ -1894,29 +1894,29 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       }
       else
       {
-	state= MY_LEX_IDENT_SEP;	// return '.'
+        state= MY_LEX_IDENT_SEP;        // return '.'
         lip->yyUnget();                 // Put back '.'
       }
       break;
-    case MY_LEX_USER_END:		// end '@' of user@hostname
+    case MY_LEX_USER_END:               // end '@' of user@hostname
       switch (state_map[(uchar) lip->yyPeek()]) {
       case MY_LEX_STRING:
       case MY_LEX_USER_VARIABLE_DELIMITER:
       case MY_LEX_STRING_OR_DELIMITER:
-	break;
+        break;
       case MY_LEX_USER_END:
-	lip->next_state=MY_LEX_SYSTEM_VAR;
-	break;
+        lip->next_state= MY_LEX_SYSTEM_VAR;
+        break;
       default:
-	lip->next_state=MY_LEX_HOSTNAME;
-	break;
+        lip->next_state= MY_LEX_HOSTNAME;
+        break;
       }
       yylval->lex_str.str=(char*) lip->get_ptr();
       yylval->lex_str.length=1;
       return((int) '@');
-    case MY_LEX_HOSTNAME:		// end '@' of user@hostname
+    case MY_LEX_HOSTNAME:               // end '@' of user@hostname
       for (c=lip->yyGet() ;
-	   my_isalnum(cs,c) || c == '.' || c == '_' ||  c == '$';
+           my_isalnum(cs, c) || c == '.' || c == '_' ||  c == '$';
            c= lip->yyGet()) ;
       yylval->lex_str=get_token(lip, 0, lip->yyLength());
       return(LEX_HOSTNAME);
@@ -1925,15 +1925,15 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
       yylval->lex_str.length=1;
       lip->yySkip();                                    // Skip '@'
       lip->next_state= (state_map[(uchar) lip->yyPeek()] ==
-			MY_LEX_USER_VARIABLE_DELIMITER ?
-			MY_LEX_OPERATOR_OR_IDENT :
-			MY_LEX_IDENT_OR_KEYWORD);
+                        MY_LEX_USER_VARIABLE_DELIMITER ?
+                        MY_LEX_OPERATOR_OR_IDENT :
+                        MY_LEX_IDENT_OR_KEYWORD);
       return((int) '@');
     case MY_LEX_IDENT_OR_KEYWORD:
       /*
-	We come here when we have found two '@' in a row.
-	We should now be able to handle:
-	[(global | local | session) .]variable_name
+        We come here when we have found two '@' in a row.
+        We should now be able to handle:
+        [(global | local | session) .]variable_name
       */
       return lip->scan_ident_sysvar(thd, &yylval->ident_cli);
     }
@@ -2095,13 +2095,13 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
   if (start == get_ptr() && c == '.' && ident_map[(uchar) yyPeek()])
     next_state= MY_LEX_IDENT_SEP;
   else
-  {					// '(' must follow directly if function
+  {                                    // '(' must follow directly if function
     int tokval;
     yyUnget();
     if ((tokval= find_keyword(this, length, c == '(')))
     {
-      next_state= MY_LEX_START;	// Allow signed numbers
-      return(tokval);		// Was keyword
+      next_state= MY_LEX_START;        // Allow signed numbers
+      return(tokval);                  // Was keyword
     }
     yySkip();                  // next state does a unget
   }
@@ -2406,7 +2406,7 @@ void st_select_lex_node::add_slave(st_select_lex_node *slave_arg)
     ref - references on reference on this node
 */
 void st_select_lex_node::include_standalone(st_select_lex_node *upper,
-					    st_select_lex_node **ref)
+                                            st_select_lex_node **ref)
 {
   next= 0;
   prev= ref;
@@ -2471,7 +2471,7 @@ void st_select_lex_node::fast_exclude()
 */
 
 st_select_lex_node *st_select_lex_node:: insert_chain_before(
-				         st_select_lex_node **ptr_pos_to_insert,
+                                         st_select_lex_node **ptr_pos_to_insert,
                                          st_select_lex_node *end_chain_node)
 {
   end_chain_node->link_next= *ptr_pos_to_insert;
@@ -3170,11 +3170,11 @@ bool LEX::can_be_merged()
   }
 
   return (selects_allow_merge &&
-	  select_lex.group_list.elements == 0 &&
-	  select_lex.having == 0 &&
+          select_lex.group_list.elements == 0 &&
+          select_lex.having == 0 &&
           select_lex.with_sum_func == 0 &&
-	  select_lex.table_list.elements >= 1 &&
-	  !(select_lex.options & SELECT_DISTINCT) &&
+          select_lex.table_list.elements >= 1 &&
+          !(select_lex.options & SELECT_DISTINCT) &&
           select_lex.select_limit == 0);
 }
 
@@ -3555,14 +3555,14 @@ void LEX::set_trg_event_type_for_tables()
 
   SYNOPSIS
     unlink_first_table()
-    link_to_local	Set to 1 if caller should link this table to local list
+    link_to_local   Set to 1 if caller should link this table to local list
 
   NOTES
     We assume that first tables in both lists is the same table or the local
     list is empty.
 
   RETURN
-    0	If 'query_tables' == 0
+    0      If 'query_tables' == 0
     unlinked table
       In this case link_to_local is set.
 
@@ -3589,7 +3589,7 @@ TABLE_LIST *LEX::unlink_first_table(bool *link_to_local)
       select_lex.context.table_list= 
         select_lex.context.first_name_resolution_table= first->next_local;
       select_lex.table_list.first= first->next_local;
-      select_lex.table_list.elements--;	//safety
+      select_lex.table_list.elements--;  //safety
       first->next_local= 0;
       /*
         Ensure that the global list has the same first table as the local
@@ -3651,14 +3651,14 @@ void LEX::first_lists_tables_same()
 
   SYNOPSIS
     link_first_table_back()
-    link_to_local	do we need link this table to local
+    link_to_local        do we need link this table to local
 
   RETURN
     global list
 */
 
 void LEX::link_first_table_back(TABLE_LIST *first,
-				   bool link_to_local)
+                                bool link_to_local)
 {
   if (first)
   {
@@ -3673,7 +3673,7 @@ void LEX::link_first_table_back(TABLE_LIST *first,
       first->next_local= select_lex.table_list.first;
       select_lex.context.table_list= first;
       select_lex.table_list.first= first;
-      select_lex.table_list.elements++;	//safety
+      select_lex.table_list.elements++; //safety
     }
   }
 }
@@ -3968,15 +3968,15 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
     {
       if (!subquery_predicate->fixed)
       {
-	/*
-	 This subquery was excluded as part of some expression so it is
-	 invisible from all prepared expression.
+        /*
+         This subquery was excluded as part of some expression so it is
+         invisible from all prepared expression.
        */
-	next_unit= un->next_unit();
-	un->exclude_level();
-	if (next_unit)
-	  continue;
-	break;
+        next_unit= un->next_unit();
+        un->exclude_level();
+        if (next_unit)
+          continue;
+        break;
       }
       if (subquery_predicate->substype() == Item_subselect::IN_SUBS)
       {
@@ -4297,7 +4297,7 @@ bool SELECT_LEX::merge_subquery(THD *thd, TABLE_LIST *derived,
     for (uint i= 0; i < cnt; i++)
     {
       if (subq_select->expr_cache_may_be_used[i])
-	expr_cache_may_be_used[i]= true;
+        expr_cache_may_be_used[i]= true;
     }
 
     List_iterator_fast<Item_func_in> it(subq_select->in_funcs);
@@ -4363,7 +4363,7 @@ void SELECT_LEX::update_used_tables()
       for (embedding= tl->embedding; embedding; embedding=embedding->embedding)
       {
         if (embedding->is_view_or_derived())
-	{
+        {
           DBUG_ASSERT(embedding->is_merged_derived());
           TABLE *tab= tl->table;
           tab->covering_keys= tab->s->keys_for_keyread;
@@ -4395,7 +4395,7 @@ void SELECT_LEX::update_used_tables()
       bool maybe_null;
       if ((maybe_null= MY_TEST(embedding->outer_join)))
       {
-	tl->table->maybe_null= maybe_null;
+        tl->table->maybe_null= maybe_null;
         break;
       }
     }
@@ -7362,9 +7362,9 @@ void st_select_lex::collect_grouping_fields(THD *thd,
     {
       if ((*ord->item)->eq((Item*)item, 0))
       {
-	Grouping_tmp_field *grouping_tmp_field= 
-	  new Grouping_tmp_field(master_unit()->derived->table->field[i], item);
-	grouping_tmp_fields.push_back(grouping_tmp_field);
+        Grouping_tmp_field *grouping_tmp_field=
+          new Grouping_tmp_field(master_unit()->derived->table->field[i], item);
+        grouping_tmp_fields.push_back(grouping_tmp_field);
       }
     }
   }
@@ -7470,7 +7470,7 @@ st_select_lex::check_cond_extraction_for_grouping_fields(Item *cond,
 */ 
 
 Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
-						    bool no_top_clones)
+                                                    bool no_top_clones)
 {
   if (cond->get_extraction_flag() == FULL_EXTRACTION_FL)
   {
@@ -7491,24 +7491,24 @@ Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
     else
       new_cond= new (thd->mem_root) Item_cond_or(thd);
     if (unlikely(!new_cond))
-      return 0;		
+      return 0;
     List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
     Item *item;
     while ((item=li++))
     {
       if (item->get_extraction_flag() == NO_EXTRACTION_FL)
       {
-	DBUG_ASSERT(cond_and);
-	item->clear_extraction_flag();
-	continue;
+        DBUG_ASSERT(cond_and);
+        item->clear_extraction_flag();
+        continue;
       }
       Item *fix= build_cond_for_grouping_fields(thd, item,
-						no_top_clones & cond_and);
+                                                no_top_clones & cond_and);
       if (unlikely(!fix))
       {
-	if (cond_and)
-	  continue;
-	break;
+        if (cond_and)
+          continue;
+        break;
       }
       new_cond->argument_list()->push_back(fix, thd->mem_root);
     }
@@ -7516,13 +7516,13 @@ Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
     if (!cond_and && item)
     {
       while((item= li++))
-	item->clear_extraction_flag();
+        item->clear_extraction_flag();
       return 0;
     }
     switch (new_cond->argument_list()->elements) 
     {
     case 0:
-      return 0;			
+      return 0;
     case 1:
       return new_cond->argument_list()->head();
     default:

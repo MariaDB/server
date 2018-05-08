@@ -272,13 +272,13 @@ struct LEX_TYPE
 #endif
 
 // describe/explain types
-#define DESCRIBE_NORMAL		1
-#define DESCRIBE_EXTENDED	2
+#define DESCRIBE_NORMAL         1
+#define DESCRIBE_EXTENDED       2
 /*
   This is not within #ifdef because we want "EXPLAIN PARTITIONS ..." to produce
   additional "partitions" column even if partitioning is not compiled in.
 */
-#define DESCRIBE_PARTITIONS	4
+#define DESCRIBE_PARTITIONS     4
 
 #ifdef MYSQL_SERVER
 
@@ -319,15 +319,15 @@ const LEX_STRING sp_data_access_name[]=
   { C_STRING_WITH_LEN("MODIFIES SQL DATA") }
 };
 
-#define DERIVED_SUBQUERY	1
-#define DERIVED_VIEW		2
+#define DERIVED_SUBQUERY        1
+#define DERIVED_VIEW            2
 #define DERIVED_WITH            4
 
 enum enum_view_create_mode
 {
-  VIEW_CREATE_NEW,		// check that there are not such VIEW/table
-  VIEW_ALTER,			// check that VIEW .frm with such name exists
-  VIEW_CREATE_OR_REPLACE	// check only that there are not such table
+  VIEW_CREATE_NEW,              // check that there are not such VIEW/table
+  VIEW_ALTER,                   // check that VIEW .frm with such name exists
+  VIEW_CREATE_OR_REPLACE        // check only that there are not such table
 };
 
 
@@ -359,8 +359,8 @@ enum enum_drop_mode
 };
 
 /* Options to add_table_to_list() */
-#define TL_OPTION_UPDATING	1
-#define TL_OPTION_FORCE_INDEX	2
+#define TL_OPTION_UPDATING      1
+#define TL_OPTION_FORCE_INDEX   2
 #define TL_OPTION_IGNORE_LEAVES 4
 #define TL_OPTION_ALIAS         8
 #define TL_OPTION_SEQUENCE      16
@@ -835,7 +835,7 @@ public:
 
   st_select_lex *union_distinct; /* pointer to the last UNION DISTINCT */
   bool describe; /* union exec() called for EXPLAIN */
-  Procedure *last_procedure;	 /* Pointer to procedure, if such exists */
+  Procedure *last_procedure;     /* Pointer to procedure, if such exists */
 
   bool columns_are_renamed;
 
@@ -945,7 +945,7 @@ public:
 
   List<Item>          item_list;  /* list of fields & expressions */
   List<Item>          pre_fix; /* above list before fix_fields */
-  bool	              is_item_list_lookup;
+  bool                is_item_list_lookup;
   /* 
     Usualy it is pointer to ftfunc_list_alloc, but in union used to create fake
     select_lex for calling mysql_select under results of union
@@ -1172,11 +1172,11 @@ public:
   bool add_order_to_list(THD *thd, Item *item, bool asc);
   bool add_gorder_to_list(THD *thd, Item *item, bool asc);
   TABLE_LIST* add_table_to_list(THD *thd, Table_ident *table,
-				LEX_CSTRING *alias,
-				ulong table_options,
-				thr_lock_type flags= TL_UNLOCK,
+                                LEX_CSTRING *alias,
+                                ulong table_options,
+                                thr_lock_type flags= TL_UNLOCK,
                                 enum_mdl_type mdl_type= MDL_SHARED_READ,
-				List<Index_hint> *hints= 0,
+                                List<Index_hint> *hints= 0,
                                 List<String> *partition_names= 0,
                                 LEX_STRING *option= 0);
   TABLE_LIST* get_table_list();
@@ -1328,7 +1328,7 @@ public:
   void check_cond_extraction_for_grouping_fields(Item *cond,
                                                  TABLE_LIST *derived);
   Item *build_cond_for_grouping_fields(THD *thd, Item *cond,
-				       bool no_to_clones);
+                                       bool no_to_clones);
   
   List<Window_spec> window_specs;
   void prepare_add_window_spec(THD *thd);
@@ -2781,7 +2781,7 @@ struct LEX: public Query_tables_list
 
   LEX_CSTRING name;
   const char *help_arg;
-  const char *backup_dir;			/* For RESTORE/BACKUP */
+  const char *backup_dir;                       /* For RESTORE/BACKUP */
   const char* to_log;                           /* For PURGE MASTER LOGS TO */
   const char* x509_subject,*x509_issuer,*ssl_cipher;
   String *wild; /* Wildcard in SHOW {something} LIKE 'wild'*/ 
@@ -2819,7 +2819,7 @@ struct LEX: public Query_tables_list
   List<Key_part_spec> ref_list;
   List<LEX_USER>      users_list;
   List<LEX_COLUMN>    columns;
-  List<Item>	      *insert_list,field_list,value_list,update_list;
+  List<Item>          *insert_list,field_list,value_list,update_list;
   List<List_item>     many_values;
   List<set_var_base>  var_list;
   List<set_var_base>  stmt_var_list; //SET_STATEMENT values
@@ -2872,10 +2872,10 @@ public:
   Column_definition *last_field;
   Item_sum *in_sum_func;
   udf_func udf;
-  HA_CHECK_OPT   check_opt;			// check/repair options
+  HA_CHECK_OPT   check_opt;                        // check/repair options
   Table_specification_st create_info;
   Key *last_key;
-  LEX_MASTER_INFO mi;				// used by CHANGE MASTER
+  LEX_MASTER_INFO mi;                              // used by CHANGE MASTER
   LEX_SERVER_OPTIONS server_options;
   LEX_CSTRING relay_log_connection_name;
   USER_RESOURCES mqh;
@@ -2914,7 +2914,7 @@ public:
   */
   bool parse_vcol_expr;
 
-  enum SSL_type ssl_type;			/* defined in violite.h */
+  enum SSL_type ssl_type;                       // defined in violite.h
   enum enum_duplicates duplicates;
   enum enum_tx_isolation tx_isolation;
   enum enum_ha_read_modes ha_read_mode;
@@ -2975,7 +2975,7 @@ public:
   List<Item> prepared_stmt_params;
   sp_head *sphead;
   sp_name *spname;
-  bool sp_lex_in_use;	/* Keep track on lex usage in SPs for error handling */
+  bool sp_lex_in_use;   // Keep track on lex usage in SPs for error handling
   bool all_privileges;
   bool proxy_priv;
 
@@ -3880,7 +3880,7 @@ public:
     @retval
       0 ok
     @retval
-      1 error	; In this case the error messege is sent to the client
+      1 error   ; In this case the error messege is sent to the client
   */
   bool check_simple_select(const LEX_CSTRING *option)
   {
