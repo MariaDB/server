@@ -2146,6 +2146,16 @@ public:
   void reset(char *buff, size_t length);
 
   /**
+    The main method to scan the next token, with token contraction processing
+    for LALR(2) resolution, e.g. translate "WITH" followed by "ROLLUP"
+    to a single token WITH_ROLLUP_SYM.
+  */
+  int lex_token(union YYSTYPE *yylval, THD *thd);
+
+  void reduce_digest_token(uint token_left, uint token_right);
+
+private:
+  /**
     Set the echo mode.
 
     When echo is true, characters parsed from the raw input stream are
@@ -2274,39 +2284,12 @@ public:
 
   /**
     End of file indicator for the query text to parse.
-    @return true if there are no more characters to parse
-  */
-  bool eof()
-  {
-    return (m_ptr >= m_end_of_query);
-  }
-
-  /**
-    End of file indicator for the query text to parse.
     @param n number of characters expected
     @return true if there are less than n characters to parse
   */
   bool eof(int n)
   {
     return ((m_ptr + n) >= m_end_of_query);
-  }
-
-  /** Get the raw query buffer. */
-  const char *get_buf()
-  {
-    return m_buf;
-  }
-
-  /** Get the pre-processed query buffer. */
-  const char *get_cpp_buf()
-  {
-    return m_cpp_buf;
-  }
-
-  /** Get the end of the raw query buffer. */
-  const char *get_end_of_query()
-  {
-    return m_end_of_query;
   }
 
   /** Mark the stream position as the start of a new token. */
@@ -2329,6 +2312,61 @@ public:
   {
     m_tok_start= m_ptr;
     m_cpp_tok_start= m_cpp_ptr;
+  }
+
+  /**
+    Get the maximum length of the utf8-body buffer.
+    The utf8 body can grow because of the character set conversion and escaping.
+  */
+  size_t get_body_utf8_maximum_length(THD *thd);
+
+  /** Get the length of the current token, in the raw buffer. */
+  uint yyLength()
+  {
+    /*
+      The assumption is that the lexical analyser is always 1 character ahead,
+      which the -1 account for.
+    */
+    DBUG_ASSERT(m_ptr > m_tok_start);
+    return (uint) ((m_ptr - m_tok_start) - 1);
+  }
+
+public:
+
+  /**
+    Test if a lookahead token was already scanned by lex_token(),
+    for LALR(2) resolution.
+  */
+  bool has_lookahead() const
+  {
+    return lookahead_token >= 0;
+  }
+
+  /**
+    End of file indicator for the query text to parse.
+    @return true if there are no more characters to parse
+  */
+  bool eof()
+  {
+    return (m_ptr >= m_end_of_query);
+  }
+
+  /** Get the raw query buffer. */
+  const char *get_buf()
+  {
+    return m_buf;
+  }
+
+  /** Get the pre-processed query buffer. */
+  const char *get_cpp_buf()
+  {
+    return m_cpp_buf;
+  }
+
+  /** Get the end of the raw query buffer. */
+  const char *get_end_of_query()
+  {
+    return m_end_of_query;
   }
 
   /** Get the token start position, in the raw buffer. */
@@ -2358,17 +2396,6 @@ public:
   const char *get_ptr()
   {
     return m_ptr;
-  }
-
-  /** Get the length of the current token, in the raw buffer. */
-  uint yyLength()
-  {
-    /*
-      The assumption is that the lexical analyser is always 1 character ahead,
-      which the -1 account for.
-    */
-    DBUG_ASSERT(m_ptr > m_tok_start);
-    return (uint) ((m_ptr - m_tok_start) - 1);
   }
 
   /** Get the previus token start position, in the pre-processed buffer. */
@@ -2434,12 +2461,6 @@ public:
     return (size_t) (m_body_utf8_ptr - m_body_utf8);
   }
 
-  /**
-    Get the maximum length of the utf8-body buffer.
-    The utf8 body can grow because of the character set conversion and escaping.
-  */
-  size_t get_body_utf8_maximum_length(THD *thd);
-
   void body_utf8_start(THD *thd, const char *begin_ptr);
   void body_utf8_append(const char *ptr);
   void body_utf8_append(const char *ptr, const char *end_ptr);
@@ -2451,15 +2472,8 @@ public:
                                CHARSET_INFO *txt_cs,
                                const char *end_ptr,
                                my_wc_t sep);
-  /** Current thread. */
-  THD *m_thd;
 
-  /** Current line number. */
-  uint yylineno;
-
-  /** Interface with bison, value of the last token parsed. */
-  LEX_YYSTYPE yylval;
-
+private:
   /**
     LALR(2) resolution, look ahead token.
     Value of the next token to return, if any,
@@ -2476,15 +2490,20 @@ public:
 
   void add_digest_token(uint token, LEX_YYSTYPE yylval);
 
-  void reduce_digest_token(uint token_left, uint token_right);
-
+  bool consume_comment(int remaining_recursions_permitted);
+  int lex_one_token(union YYSTYPE *yylval, THD *thd);
+  int find_keyword(Lex_ident_cli_st *str, uint len, bool function);
+  LEX_CSTRING get_token(uint skip, uint length);
   int scan_ident_sysvar(THD *thd, Lex_ident_cli_st *str);
   int scan_ident_start(THD *thd, Lex_ident_cli_st *str);
   int scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
                         CHARSET_INFO **cs, my_lex_states *);
   int scan_ident_delimited(THD *thd, Lex_ident_cli_st *str);
   bool get_7bit_or_8bit_ident(THD *thd, uchar *last_char);
-private:
+
+  /** Current thread. */
+  THD *m_thd;
+
   /** Pointer to the current position in the raw input stream. */
   char *m_ptr;
 
@@ -2570,6 +2589,15 @@ public:
   */
   bool multi_statements;
 
+  /** Current line number. */
+  uint yylineno;
+
+  /**
+    Current statement digest instrumentation.
+  */
+  sql_digest_state* m_digest;
+
+private:
   /** State of the lexical analyser for comments. */
   enum_comment_state in_comment;
   enum_comment_state in_comment_saved;
@@ -2596,12 +2624,8 @@ public:
     NOTE: this member must be used within MYSQLlex() function only.
   */
   CHARSET_INFO *m_underscore_cs;
-
-  /**
-    Current statement digest instrumentation. 
-  */
-  sql_digest_state* m_digest;
 };
+
 
 /**
   Abstract representation of a statement.

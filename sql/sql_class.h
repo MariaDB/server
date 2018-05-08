@@ -4250,7 +4250,7 @@ public:
     Lex_input_stream *lip= &m_parser_state->m_lip;
     if (!yytext)
     {
-      if (lip->lookahead_token >= 0)
+      if (lip->has_lookahead())
         yytext= lip->get_tok_start_prev();
       else
         yytext= lip->get_tok_start();

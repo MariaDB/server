@@ -17365,7 +17365,7 @@ trigger_tail:
               FOR token is already passed through (see 'case FOR_SYM' in sql_lex.cc),
               so we use _prev() to get it back.
             */
-            DBUG_ASSERT(YYLIP->lookahead_token >= 0);
+            DBUG_ASSERT(YYLIP->has_lookahead());
             Lex->raw_trg_on_table_name_end= YYLIP->get_tok_start_prev();
           }
           EACH_SYM
