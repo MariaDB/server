@@ -1,6 +1,6 @@
 --source include/have_innodb.inc
 
-# VTQ test
+# TRT test
 
 create table t1(
   x int unsigned,
