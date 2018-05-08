@@ -12,6 +12,10 @@ show create table t;
 
 --error ER_VERS_ALTER_NOT_ALLOWED
 alter table t add column y int;
+--error ER_VERS_ALTER_NOT_ALLOWED
+alter table t add primary key (a);
+--error ER_VERS_ALTER_NOT_ALLOWED
+alter table t add unique key (a);
 --error ER_VERS_ALTER_ENGINE_PROHIBITED
 alter table t engine innodb;
 
@@ -453,6 +457,17 @@ use test;
 create or replace table t1 (i int, j int as (i), s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;
 --error ER_VERS_ALTER_SYSTEM_FIELD
 alter table t1 modify s timestamp(6) as row start;
+
+--echo # ignore CHECK for historical rows
+create or replace table t (a int) with system versioning;
+insert into t values (0), (1);
+delete from t where a = 0;
+--error ER_CONSTRAINT_FAILED
+alter table t add check (a > 1);
+alter table t add check (a > 0);
+--error ER_CONSTRAINT_FAILED
+insert into t values (0);
+insert into t values (2);
 
 drop database test;
 create database test;

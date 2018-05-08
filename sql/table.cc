@@ -5234,6 +5234,8 @@ int TABLE::verify_constraints(bool ignore_failure)
   if (check_constraints &&
       !(in_use->variables.option_bits & OPTION_NO_CHECK_CONSTRAINT_CHECKS))
   {
+    if (versioned() && !vers_end_field()->is_max())
+      return VIEW_CHECK_OK;
     for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
     {
       /*
@@ -5245,7 +5247,7 @@ int TABLE::verify_constraints(bool ignore_failure)
       {
         my_error(ER_CONSTRAINT_FAILED,
                  MYF(ignore_failure ? ME_JUST_WARNING : 0), (*chk)->name.str,
-                 s->db.str, s->table_name.str);
+                 s->db.str, s->error_table_name());
         return ignore_failure ? VIEW_CHECK_SKIP : VIEW_CHECK_ERROR;
       }
     }
@@ -7780,6 +7782,7 @@ void TABLE::vers_update_fields()
   }
 
   vers_end_field()->set_max();
+  bitmap_set_bit(read_set, vers_end_field()->field_index);
 }
 
 

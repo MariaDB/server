@@ -179,6 +179,23 @@ NULL	0
 NULL	1
 drop table child;
 drop table parent;
+# ignore history rows on ALTER
+create table parent(
+id int unique key
+);
+create table child(
+parent_id int,
+sys_start SYS_DATATYPE as row start invisible,
+sys_end SYS_DATATYPE as row end invisible,
+period for system_time(sys_start, sys_end)
+) with system versioning;
+insert into child values (1);
+alter table child add foreign key (parent_id) references parent (id);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`#sql-temporary`, CONSTRAINT `#sql-temporaryibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parent` (`id`))
+delete from child;
+alter table child add foreign key (parent_id) references parent (id);
+drop table child;
+drop table parent;
 ###########################
 # Parent table is foreign #
 ###########################

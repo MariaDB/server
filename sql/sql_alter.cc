@@ -209,6 +209,35 @@ bool Alter_info::supports_lock(THD *thd, enum_alter_inplace_result result,
   return false;
 }
 
+bool Alter_info::vers_prohibited(THD *thd) const
+{
+  if (thd->slave_thread ||
+      thd->variables.vers_alter_history != VERS_ALTER_HISTORY_ERROR)
+  {
+    return false;
+  }
+  if (flags & (
+    ALTER_PARSER_ADD_COLUMN |
+    ALTER_PARSER_DROP_COLUMN |
+    ALTER_CHANGE_COLUMN |
+    ALTER_COLUMN_ORDER))
+  {
+    return true;
+  }
+  if (flags & ALTER_ADD_INDEX)
+  {
+    List_iterator_fast<Key> key_it(const_cast<List<Key> &>(key_list));
+    Key *key;
+    while ((key= key_it++))
+    {
+      if (key->type == Key::PRIMARY || key->type == Key::UNIQUE)
+        return true;
+    }
+  }
+  return false;
+}
+
+
 Alter_table_ctx::Alter_table_ctx()
   : datetime_field(NULL), error_if_not_empty(false),
     tables_opened(0),
