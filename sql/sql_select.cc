@@ -2851,7 +2851,7 @@ bool JOIN::make_aggr_tables_info()
     - duplicate value removal
     Both of these operations are done after window function computation step.
   */
-  curr_tab= join_tab + exec_join_tab_cnt() + aggr_tables - 1;
+  curr_tab= join_tab + total_join_tab_cnt();
   if (select_lex->window_funcs.elements)
   {
     curr_tab->window_funcs_step= new Window_funcs_computation;

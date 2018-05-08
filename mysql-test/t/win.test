@@ -2067,3 +2067,18 @@ SELECT DISTINCT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
 SELECT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-15853: Assertion `tab->filesort_result == 0' failed
+--echo #
+
+CREATE TABLE t1 ( a1 int);
+insert into t1 values (1),(2),(3);
+
+CREATE TABLE t2 (b1 int, a1 int, a2 int);
+insert into t2 values (1,2,3),(2,3,4),(3,4,5);
+
+--sorted_result
+SELECT COUNT(DISTINCT t2.a2),
+      rank() OVER (ORDER BY t2.b1)
+FROM t2 ,t1 GROUP BY t2.b1 ORDER BY t1.a1;
+DROP TABLE t1,t2;

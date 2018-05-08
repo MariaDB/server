@@ -3299,3 +3299,18 @@ ROW_NUMBER() OVER()	i
 SELECT ROW_NUMBER() OVER(), i FROM t1 WHERE 0;
 ROW_NUMBER() OVER()	i
 DROP TABLE t1;
+#
+# MDEV-15853: Assertion `tab->filesort_result == 0' failed
+#
+CREATE TABLE t1 ( a1 int);
+insert into t1 values (1),(2),(3);
+CREATE TABLE t2 (b1 int, a1 int, a2 int);
+insert into t2 values (1,2,3),(2,3,4),(3,4,5);
+SELECT COUNT(DISTINCT t2.a2),
+rank() OVER (ORDER BY t2.b1)
+FROM t2 ,t1 GROUP BY t2.b1 ORDER BY t1.a1;
+COUNT(DISTINCT t2.a2)	rank() OVER (ORDER BY t2.b1)
+1	1
+1	2
+1	3
+DROP TABLE t1,t2;
