@@ -493,6 +493,10 @@ class ha_rocksdb : public my_core::handler {
 
   /* Iterator used for range scans and for full table/index scans */
   rocksdb::Iterator *m_scan_it;
+  
+  /* Same as handler::end_key but for start. Reverse-ordered scans need it */ 
+  key_range m_save_start_range;
+  const key_range *m_start_range;
 
   /* Whether m_scan_it was created with skip_bloom=true */
   bool m_scan_it_skips_bloom;

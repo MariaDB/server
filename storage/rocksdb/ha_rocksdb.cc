@@ -7925,6 +7925,15 @@ int ha_rocksdb::prepare_range_scan(const key_range *start_key,
                                     const key_range *end_key)
 {
   range_key_part= table->key_info[active_index].key_part;
+
+  if (start_key)
+  {
+    m_save_start_range= *start_key;
+    m_start_range= &m_save_start_range;
+  }
+  else
+    m_start_range= NULL;
+
   set_end_range(end_key);
   return 0;
 }
@@ -8054,8 +8063,12 @@ int ha_rocksdb::index_read_map_impl(uchar *const buf, const uchar *const key,
                        packed_size);
 
   uint end_key_packed_size = 0;
+  const key_range *cur_end_key= end_key;
+  if (find_flag == HA_READ_PREFIX_LAST_OR_PREV)
+    cur_end_key= m_start_range;
+
   const uint eq_cond_len =
-      calc_eq_cond_len(kd, find_flag, slice, bytes_changed_by_succ, end_key,
+      calc_eq_cond_len(kd, find_flag, slice, bytes_changed_by_succ, cur_end_key,
                        &end_key_packed_size);
 
   bool use_all_keys = false;
@@ -9996,6 +10009,7 @@ int ha_rocksdb::index_init(uint idx, bool sorted) {
   DBUG_ASSERT(tx != nullptr);
 
   setup_read_decoders();
+  m_start_range= NULL;
 
   if (!m_keyread_only) {
     m_key_descr_arr[idx]->get_lookup_bitmap(table, &m_lookup_bitmap);
@@ -10024,6 +10038,7 @@ int ha_rocksdb::index_end() {
 
   active_index = MAX_KEY;
   in_range_check_pushed_down = FALSE;
+  m_start_range= NULL;
 
   DBUG_RETURN(HA_EXIT_SUCCESS);
 }
