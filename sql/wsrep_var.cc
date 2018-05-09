@@ -336,9 +336,9 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
      Note: releasing LOCK_global_system_variables may cause race condition, if 
      there can be several concurrent clients changing wsrep_provider
   */
+  mysql_mutex_assert_not_owner(&LOCK_wsrep_thd_pool);
   mysql_mutex_unlock(&LOCK_global_system_variables);
   wsrep_stop_replication(thd);
-  mysql_mutex_lock(&LOCK_global_system_variables);
 
   /* provider status variables are allocated in provider library
      and need to freed here, otherwise a dangling reference to
@@ -364,6 +364,8 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
   wsrep_provider_options_init(NULL);
   if (!rcode)
     refresh_provider_options();
+
+  mysql_mutex_lock(&LOCK_global_system_variables);
 
   return rcode;
 }
@@ -478,6 +480,7 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
      Note: releasing LOCK_global_system_variables may cause race condition, if 
      there can be several concurrent clients changing wsrep_provider
   */
+  mysql_mutex_assert_not_owner(&LOCK_wsrep_thd_pool);
   mysql_mutex_unlock(&LOCK_global_system_variables);
   wsrep_stop_replication(thd);
 
