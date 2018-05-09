@@ -1,5 +1,9 @@
-install soname 'ha_federatedx';
-call create_table('t1', 'x int');
+create or replace table t1 (
+x int,
+row_start SYS_TYPE as row start invisible,
+row_end SYS_TYPE as row end invisible,
+period for system_time (row_start, row_end))
+with system versioning;
 create or replace table tf engine=FEDERATED connection='mysql://root@127.0.0.1:MASTER_MYPORT/test/t1';
 # INSERT
 insert into t1 values (1);
@@ -40,7 +44,7 @@ truncate tf;
 select * from t1 for system_time all;
 x
 # REPLACE
-call create_table_key('t2', 'y int');
+call create_table('t2', 'y int');
 create or replace table t2f engine=FEDERATED connection='mysql://root@127.0.0.1:MASTER_MYPORT/test/t2';
 insert t2f (id, y) values (1, 2);
 replace t2f (id, y) values (1, 3);
@@ -82,4 +86,3 @@ id	y	check_row(row_start, row_end)
 2	22	CURRENT ROW
 drop database test;
 create database test;
-uninstall soname 'ha_federatedx';

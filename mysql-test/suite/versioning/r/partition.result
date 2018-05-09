@@ -479,6 +479,3 @@ insert into t1 values (1),(2),(3);
 update t1 set a = 4;
 delete from t1;
 delete from t1 where a is not null;
-# Test cleanup
-drop database test;
-create database test;

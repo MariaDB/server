@@ -118,16 +118,13 @@ execute stmt;
 a
 execute stmt;
 a
-drop database test;
-create database test;
-use test;
 #
 # MDEV-15146 SQLError[4122]: View is not system versioned
 #
-create table t1 (a int) with system versioning;
+create or replace  table t1 (a int) with system versioning;
 insert t1 values (1),(2);
 set @a=now(6);
-create view v1 as select * from t1;
+create or replace view v1 as select * from t1;
 delete from t1;
 select * from v1;
 a
@@ -148,5 +145,3 @@ create or replace view v1 as select * from t1 for system_time as of date_sub(now
 show create view v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`i` AS `i` from `t1` FOR SYSTEM_TIME AS OF current_timestamp() - interval 6 second	latin1	latin1_swedish_ci
-drop view v1;
-drop table t1;

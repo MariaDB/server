@@ -449,5 +449,4 @@ create or replace table t (x int) with system versioning;
 alter table user add system versioning;
 use test;
 
-drop database test;
-create database test;
+--source suite/versioning/common_finish.inc

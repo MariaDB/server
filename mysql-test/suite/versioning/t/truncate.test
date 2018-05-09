@@ -107,5 +107,4 @@ unlock tables;
 drop view v;
 drop table t;
 
-drop database test;
-create database test;
+--source suite/versioning/common_finish.inc

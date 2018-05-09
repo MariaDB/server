@@ -100,5 +100,3 @@ ERROR 42S02: 'v' is a view
 unlock tables;
 drop view v;
 drop table t;
-drop database test;
-create database test;

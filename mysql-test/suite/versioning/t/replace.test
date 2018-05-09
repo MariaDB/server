@@ -9,5 +9,4 @@ replace t values (1, 3);
 select *, current_row(row_end) as current from t for system_time all
 order by x;
 
-drop database test;
-create database test;
+--source suite/versioning/common_finish.inc

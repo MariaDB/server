@@ -4,4 +4,8 @@ drop procedure verify_trt_dummy;
 drop function current_row;
 drop function check_row;
 drop function check_result;
+set @@global.time_zone= @saved_time_zime;
+
+drop database test;
+create database test;
 --enable_query_log

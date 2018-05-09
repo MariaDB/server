@@ -524,5 +524,3 @@ ERROR HY000: System versioning tables in the `mysql` database are not suported
 alter table user add system versioning;
 ERROR HY000: System versioning tables in the `mysql` database are not suported
 use test;
-drop database test;
-create database test;

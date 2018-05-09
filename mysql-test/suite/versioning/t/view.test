@@ -98,17 +98,14 @@ create or replace table t2 (b int) with system versioning;
 prepare stmt from 'select a from v1 inner join t2 group by a order by a';
 execute stmt;
 execute stmt;
-drop database test;
-create database test;
-use test;
 
 --echo #
 --echo # MDEV-15146 SQLError[4122]: View is not system versioned
 --echo #
-create table t1 (a int) with system versioning;
+create or replace  table t1 (a int) with system versioning;
 insert t1 values (1),(2);
 set @a=now(6);
-create view v1 as select * from t1;
+create or replace view v1 as select * from t1;
 delete from t1;
 select * from v1;
 select * from v1 for system_time as of @a;
@@ -122,5 +119,4 @@ select * from t1 for system_time as of now() - interval 6 second;
 create or replace view v1 as select * from t1 for system_time as of date_sub(now(), interval 6 second);
 show create view v1;
 
-drop view v1;
-drop table t1;
+--source suite/versioning/common_finish.inc
