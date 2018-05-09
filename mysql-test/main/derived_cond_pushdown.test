@@ -2690,3 +2690,26 @@ eval $q;
 eval explain $q;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-16104: embedded splittable materialized derived/views
+--echo #
+
+CREATE TABLE t1 (f int PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t1
+  VALUES (3), (7), (1), (4), (8), (5), (9);
+
+CREATE ALGORITHM=MERGE VIEW v1 AS
+SELECT a2.*
+FROM
+  ( SELECT f, COUNT(*) as c FROM t1 GROUP BY f ) AS a1
+  JOIN
+  t1 AS a2
+  USING (f);
+
+EXPLAIN EXTENDED
+SELECT * FROM ( SELECT STRAIGHT_JOIN f, COUNT(*) as c FROM v1 GROUP BY f ) AS s;
+SELECT * FROM ( SELECT STRAIGHT_JOIN f, COUNT(*) as c FROM v1 GROUP BY f ) AS s;
+
+DROP VIEW v1;
+DROP TABLE t1;

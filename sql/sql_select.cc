@@ -1853,6 +1853,18 @@ JOIN::optimize_inner()
     DBUG_RETURN(1);
   }
 
+  /*
+    If a splittable materialized derived/view dt_i is embedded into
+    into another splittable materialized derived/view dt_o then
+    splitting plans for dt_i and dt_o are evaluated independently.
+    First the optimizer looks for the best splitting plan sp_i for dt_i.
+    It happens when non-splitting plans for dt_o are evaluated.
+    The cost of sp_i is considered as the cost of materialization of dt_i
+    when evaluating any splitting plan for dt_o.
+  */
+  if (fix_all_splittings_in_plan())
+    DBUG_RETURN(1);
+
 setup_subq_exit:
   with_two_phase_optimization= check_two_phase_optimization(thd);
   if (with_two_phase_optimization)
@@ -9373,9 +9385,6 @@ bool JOIN::get_best_combination()
 
   full_join=0;
   hash_join= FALSE;
-
-  if (fix_all_splittings_in_plan())
-    DBUG_RETURN(TRUE);
 
   fix_semijoin_strategies_for_picked_join_order(this);
    
