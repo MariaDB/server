@@ -2642,7 +2642,8 @@ files_checked:
 	/* Create the master thread which does purge and other utility
 	operations */
 
-	if (!srv_read_only_mode) {
+	if (!srv_read_only_mode
+	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 		thread_handles[1 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_master_thread,
 			NULL, thread_ids + (1 + SRV_MAX_N_IO_THREADS));
