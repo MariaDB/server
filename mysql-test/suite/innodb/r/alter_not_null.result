@@ -79,3 +79,10 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT, v INT AS (a), d INT NOT NULL, e INT) ENGINE=InnoDB;
 ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
 DROP TABLE t1;
+#
+# MDEV-16126 Crash or ASAN heap-buffer-overflow in
+# mach_read_from_n_little_endian upon ALTER TABLE with blob
+#
+CREATE TABLE t1(a INT, v INT AS (a), b INT, c BLOB) ENGINE=InnoDB;
+ALTER TABLE t1 ADD PRIMARY KEY(b);
+DROP TABLE t1;

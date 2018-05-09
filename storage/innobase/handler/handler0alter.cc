@@ -3360,9 +3360,12 @@ innobase_build_col_map(
 
 				if (field->real_maybe_null()
 				    && !altered_field->real_maybe_null()) {
+					/* Don't consider virtual column.
+					NULL to NOT NULL is not applicable
+					for virtual column. */
 					innobase_build_col_map_add(
 						heap, dtuple_get_nth_field(
-							defaults, i + num_v),
+							defaults, i),
 						altered_field,
 						dict_table_is_comp(new_table));
 				}
