@@ -90,6 +90,22 @@ timeit(){
     return $extcode
 }
 
+setup_ports()
+{
+    if [[ "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
+        SST_PORT=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $2 }')
+        REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F ':' '{ print $1 }')
+        REMOTEHOST=$(getent hosts $REMOTEIP | awk '{ print $2 }')
+        if [[ -z $REMOTEHOST ]];then
+            REMOTEHOST=$REMOTEIP
+        fi
+        lsn=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $4 }')
+        sst_ver=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $5 }')
+    else
+        SST_PORT=$(echo ${WSREP_SST_OPT_ADDR} | awk -F ':' '{ print $2 }')
+    fi
+}
+
 get_keys()
 {
     if [[ $encrypt -eq 2 ]];then 
