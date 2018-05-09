@@ -54,12 +54,16 @@ Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
 bool Alter_info::set_requested_algorithm(const LEX_CSTRING *str)
 {
   // To avoid adding new keywords to the grammar, we match strings here.
-  if (!my_strcasecmp(system_charset_info, str->str, "INPLACE"))
+  if (lex_string_eq(str, STRING_WITH_LEN("INPLACE")))
     requested_algorithm= ALTER_TABLE_ALGORITHM_INPLACE;
-  else if (!my_strcasecmp(system_charset_info, str->str, "COPY"))
+  else if (lex_string_eq(str, STRING_WITH_LEN("COPY")))
     requested_algorithm= ALTER_TABLE_ALGORITHM_COPY;
-  else if (!my_strcasecmp(system_charset_info, str->str, "DEFAULT"))
+  else if (lex_string_eq(str, STRING_WITH_LEN("DEFAULT")))
     requested_algorithm= ALTER_TABLE_ALGORITHM_DEFAULT;
+  else if (lex_string_eq(str, STRING_WITH_LEN("NOCOPY")))
+    requested_algorithm= ALTER_TABLE_ALGORITHM_NOCOPY;
+  else if (lex_string_eq(str, STRING_WITH_LEN("INSTANT")))
+    requested_algorithm= ALTER_TABLE_ALGORITHM_INSTANT;
   else
     return true;
   return false;
@@ -69,19 +73,141 @@ bool Alter_info::set_requested_algorithm(const LEX_CSTRING *str)
 bool Alter_info::set_requested_lock(const LEX_CSTRING *str)
 {
   // To avoid adding new keywords to the grammar, we match strings here.
-  if (!my_strcasecmp(system_charset_info, str->str, "NONE"))
+  if (lex_string_eq(str, STRING_WITH_LEN("NONE")))
     requested_lock= ALTER_TABLE_LOCK_NONE;
-  else if (!my_strcasecmp(system_charset_info, str->str, "SHARED"))
+  else if (lex_string_eq(str, STRING_WITH_LEN("SHARED")))
     requested_lock= ALTER_TABLE_LOCK_SHARED;
-  else if (!my_strcasecmp(system_charset_info, str->str, "EXCLUSIVE"))
+  else if (lex_string_eq(str, STRING_WITH_LEN("EXCLUSIVE")))
     requested_lock= ALTER_TABLE_LOCK_EXCLUSIVE;
-  else if (!my_strcasecmp(system_charset_info, str->str, "DEFAULT"))
+  else if (lex_string_eq(str, STRING_WITH_LEN("DEFAULT")))
     requested_lock= ALTER_TABLE_LOCK_DEFAULT;
   else
     return true;
   return false;
 }
 
+const char* Alter_info::algorithm() const
+{
+  switch (requested_algorithm) {
+  case ALTER_TABLE_ALGORITHM_INPLACE:
+    return "ALGORITHM=INPLACE";
+  case ALTER_TABLE_ALGORITHM_COPY:
+    return "ALGORITHM=COPY";
+  case ALTER_TABLE_ALGORITHM_DEFAULT:
+    return "ALGORITHM=DEFAULT";
+  case ALTER_TABLE_ALGORITHM_NOCOPY:
+    return "ALGORITHM=NOCOPY";
+  case ALTER_TABLE_ALGORITHM_INSTANT:
+    return "ALGORITHM=INSTANT";
+  }
+
+  return NULL; /* purecov: begin deadcode */
+}
+
+const char* Alter_info::lock() const
+{
+  switch (requested_lock) {
+  case ALTER_TABLE_LOCK_SHARED:
+    return "LOCK=SHARED";
+  case ALTER_TABLE_LOCK_NONE:
+    return "LOCK=NONE";
+  case ALTER_TABLE_LOCK_DEFAULT:
+    return "LOCK=DEFAULT";
+  case ALTER_TABLE_LOCK_EXCLUSIVE:
+    return "LOCK=EXCLUSIVE";
+  }
+  return NULL; /* purecov: begin deadcode */
+}
+
+
+bool Alter_info::supports_algorithm(THD *thd, enum_alter_inplace_result result,
+                                    const Alter_inplace_info *ha_alter_info)
+{
+  if (requested_algorithm == Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT)
+    requested_algorithm = (Alter_info::enum_alter_table_algorithm) thd->variables.alter_algorithm;
+
+  switch (result) {
+  case HA_ALTER_INPLACE_EXCLUSIVE_LOCK:
+  case HA_ALTER_INPLACE_SHARED_LOCK:
+  case HA_ALTER_INPLACE_NO_LOCK:
+  case HA_ALTER_INPLACE_INSTANT:
+     return false;
+  case HA_ALTER_INPLACE_COPY_NO_LOCK:
+  case HA_ALTER_INPLACE_COPY_LOCK:
+    if (requested_algorithm >= Alter_info::ALTER_TABLE_ALGORITHM_NOCOPY)
+    {
+      ha_alter_info->report_unsupported_error(algorithm(),
+                                              "ALGORITHM=INPLACE");
+      return true;
+    }
+    return false;
+  case HA_ALTER_INPLACE_NOCOPY_NO_LOCK:
+  case HA_ALTER_INPLACE_NOCOPY_LOCK:
+    if (requested_algorithm == Alter_info::ALTER_TABLE_ALGORITHM_INSTANT)
+    {
+      ha_alter_info->report_unsupported_error("ALGORITHM=INSTANT",
+                                              "ALGORITHM=NOCOPY");
+      return true;
+    }
+    return false;
+  case HA_ALTER_INPLACE_NOT_SUPPORTED:
+    if (requested_algorithm >= Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
+    {
+      ha_alter_info->report_unsupported_error(algorithm(),
+					      "ALGORITHM=COPY");
+      return true;
+    }
+    return false;
+  case HA_ALTER_ERROR:
+    return true;
+  }
+  /* purecov: begin deadcode */
+  DBUG_ASSERT(0);
+  return false;
+}
+
+
+bool Alter_info::supports_lock(THD *thd, enum_alter_inplace_result result,
+                               const Alter_inplace_info *ha_alter_info)
+{
+  switch (result) {
+  case HA_ALTER_INPLACE_EXCLUSIVE_LOCK:
+    // If SHARED lock and no particular algorithm was requested, use COPY.
+    if (requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED &&
+        requested_algorithm == Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
+        thd->variables.alter_algorithm ==
+                Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT)
+         return false;
+
+    if (requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED ||
+        requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
+    {
+      ha_alter_info->report_unsupported_error(lock(), "LOCK=EXCLUSIVE");
+      return true;
+    }
+    return false;
+  case HA_ALTER_INPLACE_NO_LOCK:
+  case HA_ALTER_INPLACE_INSTANT:
+  case HA_ALTER_INPLACE_COPY_NO_LOCK:
+  case HA_ALTER_INPLACE_NOCOPY_NO_LOCK:
+    return false;
+  case HA_ALTER_INPLACE_COPY_LOCK:
+  case HA_ALTER_INPLACE_NOCOPY_LOCK:
+  case HA_ALTER_INPLACE_NOT_SUPPORTED:
+  case HA_ALTER_INPLACE_SHARED_LOCK:
+    if (requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
+    {
+      ha_alter_info->report_unsupported_error("LOCK=NONE", "LOCK=SHARED");
+      return true;
+    }
+    return false;
+  case HA_ALTER_ERROR:
+    return true;
+  }
+  /* purecov: begin deadcode */
+  DBUG_ASSERT(0);
+  return false;
+}
 
 Alter_table_ctx::Alter_table_ctx()
   : datetime_field(NULL), error_if_not_empty(false),
@@ -219,8 +345,11 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
   DBUG_ENTER("Sql_cmd_alter_table::execute");
 
-  if (thd->is_fatal_error) /* out of memory creating a copy of alter_info */
+  if (unlikely(thd->is_fatal_error))
+  {
+    /* out of memory creating a copy of alter_info */
     DBUG_RETURN(TRUE);
+  }
   /*
     We also require DROP priv for ALTER TABLE ... DROP PARTITION, as well
     as for RENAME TO, as being done by SQLCOM_RENAME_TABLE

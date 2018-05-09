@@ -221,7 +221,7 @@ public:
   bool resize(size_t new_size, Elem default_val)
   {
     size_t old_size= elements();
-    if (allocate_dynamic(&array, (uint)new_size))
+    if (unlikely(allocate_dynamic(&array, (uint)new_size)))
       return true;
     
     if (new_size > old_size)

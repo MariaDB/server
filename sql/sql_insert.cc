@@ -89,7 +89,7 @@ static int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
                          LEX_STRING query, bool ignore, bool log_on);
 static void end_delayed_insert(THD *thd);
 pthread_handler_t handle_delayed_insert(void *arg);
-static void unlink_blobs(register TABLE *table);
+static void unlink_blobs(TABLE *table);
 #endif
 static bool check_view_insertability(THD *thd, TABLE_LIST *view);
 
@@ -963,8 +963,9 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         */
         restore_record(table,s->default_values);	// Get empty record
         table->reset_default_fields();
-        if (fill_record_n_invoke_before_triggers(thd, table, fields, *values, 0,
-                                                 TRG_EVENT_INSERT))
+        if (unlikely(fill_record_n_invoke_before_triggers(thd, table, fields,
+                                                          *values, 0,
+                                                          TRG_EVENT_INSERT)))
         {
           if (values_list.elements != 1 && ! thd->is_error())
           {
@@ -987,7 +988,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
           INSERT INTO t1 VALUES (values)
         */
         if (thd->lex->used_tables || // Column used in values()
-                table->s->visible_fields != table->s->fields)
+            table->s->visible_fields != table->s->fields)
 	  restore_record(table,s->default_values);	// Get empty record
         else
         {
@@ -1008,9 +1009,11 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
           }
         }
         table->reset_default_fields();
-        if (fill_record_n_invoke_before_triggers(thd, table,
-                                                 table->field_to_fill(),
-                                                 *values, 0, TRG_EVENT_INSERT))
+        if (unlikely(fill_record_n_invoke_before_triggers(thd, table,
+                                                          table->
+                                                          field_to_fill(),
+                                                          *values, 0,
+                                                          TRG_EVENT_INSERT)))
         {
           if (values_list.elements != 1 && ! thd->is_error())
 	  {
@@ -1023,16 +1026,16 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       }
 
       /*
-        with triggers a field can get a value *conditionally*, so we have to repeat
-        has_no_default_value() check for every row
+        with triggers a field can get a value *conditionally*, so we have to
+        repeat has_no_default_value() check for every row
       */
       if (table->triggers &&
           table->triggers->has_triggers(TRG_EVENT_INSERT, TRG_ACTION_BEFORE))
       {
         for (Field **f=table->field ; *f ; f++)
         {
-          if (!(*f)->has_explicit_value() &&
-              has_no_default_value(thd, *f, table_list))
+          if (unlikely(!(*f)->has_explicit_value() &&
+                       has_no_default_value(thd, *f, table_list)))
           {
             error= 1;
             goto values_loop_end;
@@ -1064,7 +1067,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       else
 #endif
         error=write_record(thd, table ,&info);
-      if (error)
+      if (unlikely(error))
         break;
       thd->get_stmt_da()->inc_current_row_for_warning();
     }
@@ -1081,9 +1084,9 @@ values_loop_end:
     user
   */
 #ifndef EMBEDDED_LIBRARY
-  if (lock_type == TL_WRITE_DELAYED)
+  if (unlikely(lock_type == TL_WRITE_DELAYED))
   {
-    if (!error)
+    if (likely(!error))
     {
       info.copied=values_list.elements;
       end_delayed_insert(thd);
@@ -1097,7 +1100,8 @@ values_loop_end:
       auto_inc values from the delayed_insert thread as they share TABLE.
     */
     table->file->ha_release_auto_increment();
-    if (using_bulk_insert && table->file->ha_end_bulk_insert() && !error)
+    if (using_bulk_insert && unlikely(table->file->ha_end_bulk_insert()) &&
+        !error)
     {
       table->file->print_error(my_errno,MYF(0));
       error=1;
@@ -1107,7 +1111,7 @@ values_loop_end:
 
     transactional_table= table->file->has_transactions();
 
-    if ((changed= (info.copied || info.deleted || info.updated)))
+    if (likely(changed= (info.copied || info.deleted || info.updated)))
     {
       /*
         Invalidate the table in the query cache if something changed.
@@ -1212,7 +1216,7 @@ values_loop_end:
       (!table->triggers || !table->triggers->has_delete_triggers()))
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
 
-  if (error)
+  if (unlikely(error))
     goto abort;
   if (thd->lex->analyze_stmt)
   {
@@ -1692,7 +1696,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
   if (info->handle_duplicates == DUP_REPLACE ||
       info->handle_duplicates == DUP_UPDATE)
   {
-    while ((error=table->file->ha_write_row(table->record[0])))
+    while (unlikely(error=table->file->ha_write_row(table->record[0])))
     {
       uint key_nr;
       /*
@@ -1725,7 +1729,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         }
         goto err;
       }
-      if ((int) (key_nr = table->file->get_dup_key(error)) < 0)
+      if (unlikely((int) (key_nr = table->file->get_dup_key(error)) < 0))
       {
 	error= HA_ERR_FOUND_DUPP_KEY;         /* Database can't find key */
 	goto err;
@@ -1836,8 +1840,8 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         info->touched++;
         if (different_records)
         {
-          if ((error=table->file->ha_update_row(table->record[1],
-                                                table->record[0])) &&
+          if (unlikely(error=table->file->ha_update_row(table->record[1],
+                                                        table->record[0])) &&
               error != HA_ERR_RECORD_IS_THE_SAME)
           {
             if (info->ignore &&
@@ -1935,11 +1939,11 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
             table->vers_start_field()->store(0, false);
           }
-          if ((error=table->file->ha_update_row(table->record[1],
-                                                table->record[0])) &&
+          if (unlikely(error= table->file->ha_update_row(table->record[1],
+                                                         table->record[0])) &&
               error != HA_ERR_RECORD_IS_THE_SAME)
             goto err;
-          if (error != HA_ERR_RECORD_IS_THE_SAME)
+          if (likely(!error))
           {
             info->deleted++;
             if (table->versioned(VERS_TIMESTAMP))
@@ -1947,12 +1951,12 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
               store_record(table, record[2]);
               error= vers_insert_history_row(table);
               restore_record(table, record[2]);
-              if (error)
+              if (unlikely(error))
                 goto err;
             }
           }
           else
-            error= 0;
+            error= 0;   // error was HA_ERR_RECORD_IS_THE_SAME
           thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
           /*
             Since we pretend that we have done insert we should call
@@ -1979,7 +1983,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
                                               table->record[0]);
             restore_record(table,insert_values);
           }
-          if (error)
+          if (unlikely(error))
             goto err;
           if (!table->versioned(VERS_TIMESTAMP))
             info->deleted++;
@@ -2019,7 +2023,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         table->write_set != save_write_set)
       table->column_bitmaps_set(save_read_set, save_write_set);
   }
-  else if ((error=table->file->ha_write_row(table->record[0])))
+  else if (unlikely((error=table->file->ha_write_row(table->record[0]))))
   {
     DEBUG_SYNC(thd, "write_row_noreplace");
     if (!info->ignore ||
@@ -2606,11 +2610,12 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
       share->default_fields)
   {
     bool error_reported= FALSE;
-    if (!(copy->def_vcol_set= (MY_BITMAP*) alloc_root(client_thd->mem_root,
-                                                      sizeof(MY_BITMAP))))
+    if (unlikely(!(copy->def_vcol_set=
+                   (MY_BITMAP*) alloc_root(client_thd->mem_root,
+                                           sizeof(MY_BITMAP)))))
       goto error;
-
-    if (parse_vcol_defs(client_thd, client_thd->mem_root, copy, &error_reported))
+    if (unlikely(parse_vcol_defs(client_thd, client_thd->mem_root, copy,
+                                 &error_reported)))
       goto error;
   }
 
@@ -3198,7 +3203,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
 
 /* Remove all pointers to data for blob fields so that original table doesn't try to free them */
 
-static void unlink_blobs(register TABLE *table)
+static void unlink_blobs(TABLE *table)
 {
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
@@ -3209,7 +3214,7 @@ static void unlink_blobs(register TABLE *table)
 
 /* Free blobs stored in current row */
 
-static void free_delayed_insert_blobs(register TABLE *table)
+static void free_delayed_insert_blobs(TABLE *table)
 {
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
@@ -3221,7 +3226,7 @@ static void free_delayed_insert_blobs(register TABLE *table)
 
 /* set value field for blobs to point to data in record */
 
-static void set_delayed_insert_blobs(register TABLE *table)
+static void set_delayed_insert_blobs(TABLE *table)
 {
   for (Field **ptr=table->field ; *ptr ; ptr++)
   {
@@ -3362,7 +3367,7 @@ bool Delayed_insert::handle_inserts(void)
     thd.clear_error(); // reset error for binlog
 
     tmp_error= 0;
-    if (table->vfield)
+    if (unlikely(table->vfield))
     {
       /*
         Virtual fields where not calculated by caller as the temporary
@@ -3373,7 +3378,7 @@ bool Delayed_insert::handle_inserts(void)
                                               VCOL_UPDATE_FOR_WRITE);
     }
 
-    if (tmp_error || write_record(&thd, table, &info))
+    if (unlikely(tmp_error) || unlikely(write_record(&thd, table, &info)))
     {
       info.error_count++;				// Ignore errors
       thread_safe_increment(delayed_insert_errors,&LOCK_delayed_status);
@@ -3420,7 +3425,7 @@ bool Delayed_insert::handle_inserts(void)
           mysql_cond_broadcast(&cond_client);   // If waiting clients
 	THD_STAGE_INFO(&thd, stage_reschedule);
         mysql_mutex_unlock(&mutex);
-	if ((error=table->file->extra(HA_EXTRA_NO_CACHE)))
+	if (unlikely((error=table->file->extra(HA_EXTRA_NO_CACHE))))
 	{
 	  /* This should never happen */
 	  table->file->print_error(error,MYF(0));
@@ -3472,7 +3477,7 @@ bool Delayed_insert::handle_inserts(void)
       thd.binlog_flush_pending_rows_event(TRUE, has_trans))
     goto err;
 
-  if ((error=table->file->extra(HA_EXTRA_NO_CACHE)))
+  if (unlikely((error=table->file->extra(HA_EXTRA_NO_CACHE))))
   {						// This shouldn't happen
     table->file->print_error(error,MYF(0));
     sql_print_error("%s", thd.get_stmt_da()->message());
@@ -3825,15 +3830,16 @@ int select_insert::send_data(List<Item> &values)
     unit->offset_limit_cnt--;
     DBUG_RETURN(0);
   }
-  if (thd->killed == ABORT_QUERY)
+  if (unlikely(thd->killed == ABORT_QUERY))
     DBUG_RETURN(0);
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// Calculate cuted fields
   store_values(values);
-  if (table->default_field && table->update_default_fields(0, info.ignore))
+  if (table->default_field &&
+      unlikely(table->update_default_fields(0, info.ignore)))
     DBUG_RETURN(1);
   thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
   {
     table->auto_increment_field_not_null= FALSE;
     DBUG_RETURN(1);
@@ -3854,7 +3860,7 @@ int select_insert::send_data(List<Item> &values)
   table->vers_write= table->versioned();
   table->auto_increment_field_not_null= FALSE;
   
-  if (!error)
+  if (likely(!error))
   {
     if (table->triggers || info.handle_duplicates == DUP_UPDATE)
     {
@@ -3914,20 +3920,19 @@ bool select_insert::prepare_eof()
                        trans_table, table->file->table_type()));
 
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-  int wsrep_error= (thd->wsrep_conflict_state() == MUST_ABORT ||
-                    thd->wsrep_conflict_state() == CERT_FAILURE);
+  error= (IF_WSREP((thd->wsrep_conflict_state() == MUST_ABORT ||
+                    thd->wsrep_conflict_state() == CERT_FAILURE) ? -1 :, )
+          (thd->locked_tables_mode <= LTM_LOCK_TABLES ?
+           table->file->ha_end_bulk_insert() : 0));
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-  error = IF_WSREP((wsrep_error) ? -1 :, )
-	  (thd->locked_tables_mode <= LTM_LOCK_TABLES ?
-           table->file->ha_end_bulk_insert() : 0);
 
-  if (!error && thd->is_error())
+  if (likely(!error) && unlikely(thd->is_error()))
     error= thd->get_stmt_da()->sql_errno();
 
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
 
-  if ((changed= (info.copied || info.deleted || info.updated)))
+  if (likely((changed= (info.copied || info.deleted || info.updated))))
   {
     /*
       We must invalidate the table in the query cache before binlog writing
@@ -3951,10 +3956,10 @@ bool select_insert::prepare_eof()
     ha_autocommit_or_rollback() is issued below.
   */
   if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
-      (!error || thd->transaction.stmt.modified_non_trans_table))
+      (likely(!error) || thd->transaction.stmt.modified_non_trans_table))
   {
     int errcode= 0;
-    if (!error)
+    if (likely(!error))
       thd->clear_error();
     else
       errcode= query_error_code(thd, killed_status == NOT_KILLED);
@@ -3968,7 +3973,7 @@ bool select_insert::prepare_eof()
   }
   table->file->ha_release_auto_increment();
 
-  if (error)
+  if (unlikely(error))
   {
     table->file->print_error(error,MYF(0));
     DBUG_RETURN(true);
@@ -4280,9 +4285,9 @@ TABLE *select_create::create_table_from_items(THD *thd,
   else
     create_table->table= 0;                     // Create failed
   
-  if (!(table= create_table->table))
+  if (unlikely(!(table= create_table->table)))
   {
-    if (!thd->is_error())                     // CREATE ... IF NOT EXISTS
+    if (likely(!thd->is_error()))             // CREATE ... IF NOT EXISTS
       my_ok(thd);                             //   succeed, but did nothing
     DBUG_RETURN(NULL);
   }
@@ -4296,8 +4301,8 @@ TABLE *select_create::create_table_from_items(THD *thd,
     since it won't wait for the table lock (we have exclusive metadata lock on
     the table) and thus can't get aborted.
   */
-  if (! ((*lock)= mysql_lock_tables(thd, &table, 1, 0)) ||
-        hooks->postlock(&table, 1))
+  if (unlikely(!((*lock)= mysql_lock_tables(thd, &table, 1, 0)) ||
+               hooks->postlock(&table, 1)))
   {
     /* purecov: begin tested */
     /*
@@ -4367,14 +4372,15 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
 
       create_table->next_global= save_next_global;
 
-      if (error)
+      if (unlikely(error))
         return error;
 
       TABLE const *const table = *tables;
       if (thd->is_current_stmt_binlog_format_row()  &&
           !table->s->tmp_table)
       {
-        if (int error= ptr->binlog_show_create_table(tables, count))
+        int error;
+        if (unlikely((error= ptr->binlog_show_create_table(tables, count))))
           return error;
       }
       return 0;

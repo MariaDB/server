@@ -102,3 +102,28 @@ select median(score) over (partition by name), percentile_cont(0.8)  within grou
 select median(score) over (partition by name), percentile_cont(0.9)  within group(order by score) over (partition by name) as c from t1;
 select median(score) over (partition by name), percentile_cont(1)  within group(order by score) over (partition by name) as c from t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-13352: MEDIAN window function over a table with virtual column
+--echo #             in select with CTE and ORDER BY
+--echo #
+
+CREATE TABLE t1 (f1 int ,f2 int ,f3 int, f4 int, v1 int AS (-f4) virtual);
+INSERT INTO t1(f1,f2,f3,f4) VALUES
+  (1,10,100,10), (7,11,112,15), (3,14,121,12);
+
+WITH CTE AS (SELECT MIN(f3) OVER () FROM t1)
+SELECT  MEDIAN(f3) OVER () FROM t1
+ORDER BY f1, f2, f3, f4, v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15846: Sever crashed with MEDIAN() window function
+--echo #
+
+CREATE TABLE t1 ( pk int PRIMARY KEY, a1 int, a2 int);
+
+SELECT MEDIAN(`a1`) OVER (),
+       MEDIAN(`a2`) OVER (PARTITION BY `pk`)
+FROM t1;
+DROP TABLE t1;

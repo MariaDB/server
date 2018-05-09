@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2224,7 +2224,7 @@ bool acl_reload(THD *thd)
     To avoid deadlocks we should obtain table locks before
     obtaining acl_cache->lock mutex.
   */
-  if ((result= tables.open_and_lock(thd)))
+  if (unlikely((result= tables.open_and_lock(thd))))
   {
     DBUG_ASSERT(result <= 0);
     /*
@@ -3470,7 +3470,8 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
     user_table.default_role()->store(acl_user->default_rolename.str,
                                      acl_user->default_rolename.length,
                                      system_charset_info);
-    if ((error=table->file->ha_update_row(table->record[1],table->record[0])) &&
+    if (unlikely(error= table->file->ha_update_row(table->record[1],
+                                                   table->record[0])) &&
         error != HA_ERR_RECORD_IS_THE_SAME)
     {
       mysql_mutex_unlock(&acl_cache->lock);
@@ -3829,7 +3830,8 @@ static bool update_user_table(THD *thd, const User_table& user_table,
                                             new_password_len);
 
 
-  if ((error=table->file->ha_update_row(table->record[1],table->record[0])) &&
+  if (unlikely(error= table->file->ha_update_row(table->record[1],
+                                                 table->record[0])) &&
       error != HA_ERR_RECORD_IS_THE_SAME)
   {
     table->file->print_error(error,MYF(0));  /* purecov: deadcode */
@@ -4121,8 +4123,8 @@ static int replace_user_table(THD *thd, const User_table &user_table,
     */
     if (cmp_record(table, record[1]))
     {
-      if ((error=
-           table->file->ha_update_row(table->record[1],table->record[0])) &&
+      if (unlikely(error= table->file->ha_update_row(table->record[1],
+                                                     table->record[0])) &&
           error != HA_ERR_RECORD_IS_THE_SAME)
       {                                         // This should never happen
         table->file->print_error(error,MYF(0)); /* purecov: deadcode */
@@ -4133,8 +4135,9 @@ static int replace_user_table(THD *thd, const User_table &user_table,
         error= 0;
     }
   }
-  else if ((error=table->file->ha_write_row(table->record[0]))) // insert
-  {						// This should never happen
+  else if (unlikely(error=table->file->ha_write_row(table->record[0])))
+  {
+    // This should never happen
     if (table->file->is_fatal_error(error, HA_CHECK_DUP))
     {
       table->file->print_error(error,MYF(0));	/* purecov: deadcode */
@@ -4145,7 +4148,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   error=0;					// Privileges granted / revoked
 
 end:
-  if (!error)
+  if (likely(!error))
   {
     acl_cache->clear(1);			// Clear privilege cache
     if (old_row_exists)
@@ -4259,18 +4262,19 @@ static int replace_db_table(TABLE *table, const char *db,
     /* update old existing row */
     if (rights)
     {
-      if ((error= table->file->ha_update_row(table->record[1],
-                                             table->record[0])) &&
+      if (unlikely((error= table->file->ha_update_row(table->record[1],
+                                                      table->record[0]))) &&
           error != HA_ERR_RECORD_IS_THE_SAME)
 	goto table_error;			/* purecov: deadcode */
     }
     else	/* must have been a revoke of all privileges */
     {
-      if ((error= table->file->ha_delete_row(table->record[1])))
+      if (unlikely((error= table->file->ha_delete_row(table->record[1]))))
 	goto table_error;			/* purecov: deadcode */
     }
   }
-  else if (rights && (error= table->file->ha_write_row(table->record[0])))
+  else if (rights &&
+           (unlikely(error= table->file->ha_write_row(table->record[0]))))
   {
     if (table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
       goto table_error; /* purecov: deadcode */
@@ -4347,7 +4351,7 @@ replace_roles_mapping_table(TABLE *table, LEX_CSTRING *user, LEX_CSTRING *host,
     }
     if (revoke_grant && !with_admin) 
     {
-      if ((error= table->file->ha_delete_row(table->record[1])))
+      if (unlikely((error= table->file->ha_delete_row(table->record[1]))))
       {
         DBUG_PRINT("info", ("error deleting row '%s' '%s' '%s'",
                             host->str, user->str, role->str));
@@ -4358,7 +4362,8 @@ replace_roles_mapping_table(TABLE *table, LEX_CSTRING *user, LEX_CSTRING *host,
     {
       table->field[3]->store(!revoke_grant + 1);
 
-      if ((error= table->file->ha_update_row(table->record[1], table->record[0])))
+      if (unlikely((error= table->file->ha_update_row(table->record[1],
+                                                      table->record[0]))))
       {
         DBUG_PRINT("info", ("error updating row '%s' '%s' '%s'",
                             host->str, user->str, role->str));
@@ -4370,7 +4375,7 @@ replace_roles_mapping_table(TABLE *table, LEX_CSTRING *user, LEX_CSTRING *host,
 
   table->field[3]->store(with_admin + 1);
 
-  if ((error= table->file->ha_write_row(table->record[0])))
+  if (unlikely((error= table->file->ha_write_row(table->record[0]))))
   {
     DBUG_PRINT("info", ("error inserting row '%s' '%s' '%s'",
                         host->str, user->str, role->str));
@@ -4501,7 +4506,7 @@ replace_proxies_priv_table(THD *thd, TABLE *table, const LEX_USER *user,
 
   get_grantor(thd, grantor);
 
-  if ((error= table->file->ha_index_init(0, 1)))
+  if (unlikely((error= table->file->ha_index_init(0, 1))))
   {
     table->file->print_error(error, MYF(0));
     DBUG_PRINT("info", ("ha_index_init error"));
@@ -4538,18 +4543,18 @@ replace_proxies_priv_table(THD *thd, TABLE *table, const LEX_USER *user,
     /* update old existing row */
     if (!revoke_grant)
     {
-      if ((error= table->file->ha_update_row(table->record[1],
-                                             table->record[0])) &&
+      if (unlikely(error= table->file->ha_update_row(table->record[1],
+                                                     table->record[0])) &&
           error != HA_ERR_RECORD_IS_THE_SAME)
 	goto table_error;			/* purecov: inspected */
     }
     else
     {
-      if ((error= table->file->ha_delete_row(table->record[1])))
+      if (unlikely((error= table->file->ha_delete_row(table->record[1]))))
 	goto table_error;			/* purecov: inspected */
     }
   }
-  else if ((error= table->file->ha_write_row(table->record[0])))
+  else if (unlikely((error= table->file->ha_write_row(table->record[0]))))
   {
     DBUG_PRINT("info", ("error inserting the row"));
     if (table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
@@ -4952,7 +4957,7 @@ static int replace_column_table(GRANT_TABLE *g_t,
   List_iterator <LEX_COLUMN> iter(columns);
   class LEX_COLUMN *column;
   int error= table->file->ha_index_init(0, 1);
-  if (error)
+  if (unlikely(error))
   {
     table->file->print_error(error, MYF(0));
     DBUG_RETURN(-1);
@@ -5012,7 +5017,7 @@ static int replace_column_table(GRANT_TABLE *g_t,
 	error=table->file->ha_update_row(table->record[1],table->record[0]);
       else
 	error=table->file->ha_delete_row(table->record[1]);
-      if (error && error != HA_ERR_RECORD_IS_THE_SAME)
+      if (unlikely(error) && error != HA_ERR_RECORD_IS_THE_SAME)
       {
 	table->file->print_error(error,MYF(0)); /* purecov: inspected */
 	result= -1;				/* purecov: inspected */
@@ -5028,7 +5033,7 @@ static int replace_column_table(GRANT_TABLE *g_t,
     else					// new grant
     {
       GRANT_COLUMN *grant_column;
-      if ((error=table->file->ha_write_row(table->record[0])))
+      if (unlikely((error=table->file->ha_write_row(table->record[0]))))
       {
 	table->file->print_error(error,MYF(0)); /* purecov: inspected */
 	result= -1;				/* purecov: inspected */
@@ -5083,8 +5088,9 @@ static int replace_column_table(GRANT_TABLE *g_t,
 	if (privileges)
 	{
 	  int tmp_error;
-	  if ((tmp_error=table->file->ha_update_row(table->record[1],
-						    table->record[0])) &&
+	  if (unlikely(tmp_error=
+                       table->file->ha_update_row(table->record[1],
+                                                  table->record[0])) &&
               tmp_error != HA_ERR_RECORD_IS_THE_SAME)
 	  {					/* purecov: deadcode */
 	    table->file->print_error(tmp_error,MYF(0)); /* purecov: deadcode */
@@ -5100,7 +5106,8 @@ static int replace_column_table(GRANT_TABLE *g_t,
 	else
 	{
 	  int tmp_error;
-	  if ((tmp_error = table->file->ha_delete_row(table->record[1])))
+	  if (unlikely((tmp_error=
+                        table->file->ha_delete_row(table->record[1]))))
 	  {					/* purecov: deadcode */
 	    table->file->print_error(tmp_error,MYF(0)); /* purecov: deadcode */
 	    result= -1;				/* purecov: deadcode */
@@ -5226,18 +5233,18 @@ static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
   {
     if (store_table_rights || store_col_rights)
     {
-      if ((error=table->file->ha_update_row(table->record[1],
-                                            table->record[0])) &&
+      if (unlikely(error=table->file->ha_update_row(table->record[1],
+                                                    table->record[0])) &&
           error != HA_ERR_RECORD_IS_THE_SAME)
 	goto table_error;			/* purecov: deadcode */
     }
-    else if ((error = table->file->ha_delete_row(table->record[1])))
+    else if (unlikely((error = table->file->ha_delete_row(table->record[1]))))
       goto table_error;				/* purecov: deadcode */
   }
   else
   {
     error=table->file->ha_write_row(table->record[0]);
-    if (table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
+    if (unlikely(table->file->is_fatal_error(error, HA_CHECK_DUP_KEY)))
       goto table_error;				/* purecov: deadcode */
   }
 
@@ -5352,18 +5359,18 @@ static int replace_routine_table(THD *thd, GRANT_NAME *grant_name,
   {
     if (store_proc_rights)
     {
-      if ((error=table->file->ha_update_row(table->record[1],
-                                            table->record[0])) &&
-          error != HA_ERR_RECORD_IS_THE_SAME)
+      if (unlikely(error=table->file->ha_update_row(table->record[1],
+                                                    table->record[0])) &&
+                   error != HA_ERR_RECORD_IS_THE_SAME)
 	goto table_error;
     }
-    else if ((error= table->file->ha_delete_row(table->record[1])))
+    else if (unlikely((error= table->file->ha_delete_row(table->record[1]))))
       goto table_error;
   }
   else
   {
     error=table->file->ha_write_row(table->record[0]);
-    if (table->file->is_fatal_error(error, HA_CHECK_DUP_KEY))
+    if (unlikely(table->file->is_fatal_error(error, HA_CHECK_DUP_KEY)))
       goto table_error;
   }
 
@@ -6375,13 +6382,13 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
                                          column->column.ptr(), NULL, NULL,
                                          NULL, TRUE, FALSE,
                                          &unused_field_idx, FALSE, &dummy);
-        if (f == (Field*)0)
+        if (unlikely(f == (Field*)0))
         {
           my_error(ER_BAD_FIELD_ERROR, MYF(0),
                    column->column.c_ptr(), table_list->alias.str);
           DBUG_RETURN(TRUE);
         }
-        if (f == (Field *)-1)
+        if (unlikely(f == (Field *)-1))
           DBUG_RETURN(TRUE);
         column_priv|= column->rights;
       }
@@ -6464,7 +6471,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
                                0, revoke_grant, create_new_users,
                                MY_TEST(thd->variables.sql_mode &
                                        MODE_NO_AUTO_CREATE_USER));
-    if (error)
+    if (unlikely(error))
     {
       result= TRUE;				// Remember error
       continue;					// Add next user
@@ -9244,8 +9251,8 @@ static int modify_grant_table(TABLE *table, Field *host_field,
                       system_charset_info);
     user_field->store(user_to->user.str, user_to->user.length,
                       system_charset_info);
-    if ((error= table->file->ha_update_row(table->record[1],
-                                           table->record[0])) &&
+    if (unlikely(error= table->file->ha_update_row(table->record[1],
+                                                   table->record[0])) &&
         error != HA_ERR_RECORD_IS_THE_SAME)
       table->file->print_error(error, MYF(0));
     else
@@ -9254,7 +9261,7 @@ static int modify_grant_table(TABLE *table, Field *host_field,
   else
   {
     /* delete */
-    if ((error=table->file->ha_delete_row(table->record[0])))
+    if (unlikely((error=table->file->ha_delete_row(table->record[0]))))
       table->file->print_error(error, MYF(0));
   }
 
@@ -9286,7 +9293,8 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
   DBUG_PRINT("info", ("Rewriting entry in roles_mapping table: %s@%s",
                       user_from->user.str, user_from->host.str));
   table->use_all_columns();
-  if (unlikely(error= table->file->ha_rnd_init_with_error(1)))
+
+  if (unlikely(table->file->ha_rnd_init_with_error(1)))
     result= -1;
   else
   {
@@ -9318,7 +9326,7 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
 
         if (drop) /* drop if requested */
         {
-          if ((error= table->file->ha_delete_row(table->record[0])))
+          if (unlikely((error= table->file->ha_delete_row(table->record[0]))))
             table->file->print_error(error, MYF(0));
         }
         else if (user_to)
@@ -9326,8 +9334,8 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
           store_record(table, record[1]);
           role_field->store(user_to->user.str, user_to->user.length,
                             system_charset_info);
-          if ((error= table->file->ha_update_row(table->record[1],
-                                                 table->record[0])) &&
+          if (unlikely(error= table->file->ha_update_row(table->record[1],
+                                                         table->record[0])) &&
               error != HA_ERR_RECORD_IS_THE_SAME)
             table->file->print_error(error, MYF(0));
         }
@@ -9418,13 +9426,14 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
     error= table->file->ha_index_read_idx_map(table->record[0], 0,
                                               user_key, (key_part_map)3,
                                               HA_READ_KEY_EXACT);
-    if (!error && !*host_str)
-    { // verify that we got a role or a user, as needed
+    if (!unlikely(error) && !*host_str)
+    {
+      // verify that we got a role or a user, as needed
       if (static_cast<const User_table&>(grant_table).check_is_role() !=
           user_from->is_role())
         error= HA_ERR_KEY_NOT_FOUND;
     }
-    if (error)
+    if (unlikely(error))
     {
       if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
       {
@@ -9448,7 +9457,7 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
       And their host- and user fields are not consecutive.
       Thus, we need to do a table scan to find all matching records.
     */
-    if (unlikely(error= table->file->ha_rnd_init_with_error(1)))
+    if (unlikely(table->file->ha_rnd_init_with_error(1)))
       result= -1;
     else
     {
@@ -11379,7 +11388,7 @@ int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond)
 
 int wild_case_compare(CHARSET_INFO *cs, const char *str,const char *wildstr)
 {
-  reg3 int flag;
+  int flag;
   DBUG_ENTER("wild_case_compare");
   DBUG_PRINT("enter",("str: '%s'  wildstr: '%s'",str,wildstr));
   while (*wildstr)
@@ -12639,7 +12648,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
     DBUG_PRINT("info", ("Reading user information over SSL layer"));
     pkt_len= my_net_read(net);
-    if (pkt_len == packet_error || pkt_len < NORMAL_HANDSHAKE_SIZE)
+    if (unlikely(pkt_len == packet_error || pkt_len < NORMAL_HANDSHAKE_SIZE))
     {
       DBUG_PRINT("error", ("Failed to read user information (pkt_len= %lu)",
 			   pkt_len));
@@ -12728,8 +12737,9 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     Since 4.1 all database names are stored in utf8
     The cast is ok as copy_with_error will create a new area for db
   */
-  if (thd->copy_with_error(system_charset_info, (LEX_STRING*) &mpvio->db,
-                           thd->charset(), db, db_len))
+  if (unlikely(thd->copy_with_error(system_charset_info,
+                                    (LEX_STRING*) &mpvio->db,
+                                    thd->charset(), db, db_len)))
     return packet_error;
 
   user_len= copy_and_convert(user_buff, sizeof(user_buff) - 1,
@@ -12966,7 +12976,7 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
   else
     pkt_len= my_net_read(&mpvio->auth_info.thd->net);
 
-  if (pkt_len == packet_error)
+  if (unlikely(pkt_len == packet_error))
     goto err;
 
   mpvio->packets_read++;
@@ -12978,7 +12988,7 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
   if (mpvio->packets_read == 1)
   {
     pkt_len= parse_client_handshake_packet(mpvio, buf, pkt_len);
-    if (pkt_len == packet_error)
+    if (unlikely(pkt_len == packet_error))
       goto err;
   }
   else

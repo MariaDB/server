@@ -103,7 +103,7 @@ public:
 	void shutdown();
 
 	/** Normalize the file size, convert to extents. */
-	void normalize();
+	void normalize_size();
 
 	/**
 	@return true if a new raw device was created. */
@@ -139,8 +139,8 @@ public:
 	@return the autoextend increment in pages. */
 	ulint get_autoextend_increment() const
 	{
-		return(sys_tablespace_auto_extend_increment
-		       * ((1024 * 1024) / UNIV_PAGE_SIZE));
+		return sys_tablespace_auto_extend_increment
+			<< (20 - srv_page_size_shift);
 	}
 
 	/**

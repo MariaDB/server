@@ -514,8 +514,8 @@ row_sel_fetch_columns(
 
 		if (field_no != ULINT_UNDEFINED) {
 
-			if (UNIV_UNLIKELY(rec_offs_nth_extern(offsets,
-							      field_no))) {
+			if (UNIV_UNLIKELY(rec_offs_nth_extern(
+						  offsets, field_no) != 0)) {
 
 				/* Copy an externally stored field to the
 				temporary heap, if possible. */
@@ -2497,8 +2497,7 @@ row_sel_convert_mysql_key_to_innobase(
 	ulint		buf_len,	/*!< in: buffer length */
 	dict_index_t*	index,		/*!< in: index of the key value */
 	const byte*	key_ptr,	/*!< in: MySQL key value */
-	ulint		key_len,	/*!< in: MySQL key value length */
-	trx_t*		trx)		/*!< in: transaction */
+	ulint		key_len)	/*!< in: MySQL key value length */
 {
 	byte*		original_buf	= buf;
 	const byte*	original_key_ptr = key_ptr;
@@ -2585,8 +2584,8 @@ row_sel_convert_mysql_key_to_innobase(
 				even though the actual value only takes data
 				len bytes from the start. */
 
-				data_len = key_ptr[data_offset]
-					   + 256 * key_ptr[data_offset + 1];
+				data_len = ulint(key_ptr[data_offset])
+					| ulint(key_ptr[data_offset + 1]) << 8;
 				data_field_len = data_offset + 2
 					+ field->prefix_len;
 
@@ -2825,7 +2824,8 @@ row_sel_field_store_in_mysql_format_func(
 			}
 		}
 
-		row_mysql_pad_col(templ->mbminlen, pad, field_end - pad);
+		row_mysql_pad_col(templ->mbminlen, pad,
+				  ulint(field_end - pad));
 		break;
 
 	case DATA_BLOB:
@@ -2951,7 +2951,7 @@ row_sel_store_mysql_field_func(
 	      || field_no == templ->icp_rec_field_no);
 	ut_ad(rec_offs_validate(rec, index, offsets));
 
-	if (UNIV_UNLIKELY(rec_offs_nth_extern(offsets, field_no))) {
+	if (UNIV_UNLIKELY(rec_offs_nth_extern(offsets, field_no) != 0)) {
 
 		mem_heap_t*	heap;
 		/* Copy an externally stored field to a temporary heap */
@@ -2961,12 +2961,12 @@ row_sel_store_mysql_field_func(
 		if (DATA_LARGE_MTYPE(templ->type)) {
 			if (prebuilt->blob_heap == NULL) {
 				prebuilt->blob_heap = mem_heap_create(
-					UNIV_PAGE_SIZE);
+					srv_page_size);
 			}
 
 			heap = prebuilt->blob_heap;
 		} else {
-			heap = mem_heap_create(UNIV_PAGE_SIZE);
+			heap = mem_heap_create(srv_page_size);
 		}
 
 		/* NOTE: if we are retrieving a big BLOB, we may
@@ -3049,7 +3049,7 @@ row_sel_store_mysql_field_func(
 
 			if (prebuilt->blob_heap == NULL) {
 				prebuilt->blob_heap = mem_heap_create(
-					UNIV_PAGE_SIZE);
+					srv_page_size);
 				DBUG_PRINT("anna", ("blob_heap allocated: %p",
 						    prebuilt->blob_heap));
 			}
@@ -3295,7 +3295,7 @@ row_sel_get_clust_rec_for_mysql(
 		thd_get_thread_id(trx->mysql_thd));
 
 	row_build_row_ref_in_tuple(prebuilt->clust_ref, rec,
-				   sec_index, *offsets, trx);
+				   sec_index, *offsets);
 
 	clust_index = dict_table_get_first_index(sec_index->table);
 
@@ -3512,10 +3512,10 @@ err_exit:
 Restores cursor position after it has been stored. We have to take into
 account that the record cursor was positioned on may have been deleted.
 Then we may have to move the cursor one step up or down.
-@return TRUE if we may need to process the record the cursor is now
+@return true if we may need to process the record the cursor is now
 positioned on (i.e. we should not go to the next record yet) */
 static
-ibool
+bool
 sel_restore_position_for_mysql(
 /*===========================*/
 	ibool*		same_user_rec,	/*!< out: TRUE if we were able to restore
@@ -3561,12 +3561,12 @@ next:
 				btr_pcur_move_to_next(pcur, mtr);
 			}
 
-			return(TRUE);
+			return true;
 		}
 		return(!success);
 	case BTR_PCUR_AFTER_LAST_IN_TREE:
 	case BTR_PCUR_BEFORE_FIRST_IN_TREE:
-		return(TRUE);
+		return true;
 	case BTR_PCUR_AFTER:
 		/* positioned to record after pcur->old_rec. */
 		pcur->pos_state = BTR_PCUR_IS_POSITIONED;
@@ -3576,7 +3576,7 @@ prev:
 					   pcur->btr_cur.index)) {
 			btr_pcur_move_to_prev(pcur, mtr);
 		}
-		return(TRUE);
+		return true;
 	case BTR_PCUR_BEFORE:
 		/* For non optimistic restoration:
 		The position is now set to the record before pcur->old_rec.
@@ -3598,19 +3598,19 @@ prev:
 				HANDLER READ idx PREV; */
 				goto prev;
 			}
-			return(TRUE);
+			return true;
 		case BTR_PCUR_IS_POSITIONED:
 			if (moves_up && btr_pcur_is_on_user_rec(pcur)) {
 				goto next;
 			}
-			return(TRUE);
+			return true;
 		case BTR_PCUR_WAS_POSITIONED:
 		case BTR_PCUR_NOT_POSITIONED:
 			break;
 		}
 	}
 	ut_ad(0);
-	return(TRUE);
+	return true;
 }
 
 /********************************************************************//**
@@ -4227,18 +4227,14 @@ row_search_mvcc(
 	ut_ad(!sync_check_iterate(sync_check()));
 
 	if (dict_table_is_discarded(prebuilt->table)) {
-
 		DBUG_RETURN(DB_TABLESPACE_DELETED);
-
 	} else if (!prebuilt->table->is_readable()) {
 		DBUG_RETURN(prebuilt->table->space
 			    ? DB_DECRYPTION_FAILED
 			    : DB_TABLESPACE_NOT_FOUND);
 	} else if (!prebuilt->index_usable) {
 		DBUG_RETURN(DB_MISSING_HISTORY);
-
-	} else if (dict_index_is_corrupted(prebuilt->index)) {
-
+	} else if (prebuilt->index->is_corrupted()) {
 		DBUG_RETURN(DB_CORRUPTION);
 	}
 
@@ -4382,7 +4378,7 @@ row_search_mvcc(
 	    && dict_index_is_clust(index)
 	    && !prebuilt->templ_contains_blob
 	    && !prebuilt->used_in_HANDLER
-	    && (prebuilt->mysql_row_len < UNIV_PAGE_SIZE / 8)) {
+	    && (prebuilt->mysql_row_len < srv_page_size / 8)) {
 
 		mode = PAGE_CUR_GE;
 
@@ -4535,39 +4531,26 @@ row_search_mvcc(
 		prebuilt->sql_stat_start = FALSE;
 	} else if (!prebuilt->sql_stat_start) {
 		/* No need to set an intention lock or assign a read view */
-
-		if (!trx->read_view.is_open()
-		    && !srv_read_only_mode
-		    && prebuilt->select_lock_type == LOCK_NONE) {
-
-			ib::error() << "MySQL is trying to perform a"
-				" consistent read but the read view is not"
-				" assigned!";
-			trx_print(stderr, trx, 600);
-			fputc('\n', stderr);
-			ut_error;
-		}
-	} else if (prebuilt->select_lock_type == LOCK_NONE) {
-		/* This is a consistent read */
-		/* Assign a read view for the query */
-		trx_start_if_not_started(trx, false);
-
-		trx->read_view.open(trx);
-
-		prebuilt->sql_stat_start = FALSE;
+		ut_a(prebuilt->select_lock_type != LOCK_NONE
+		     || srv_read_only_mode || trx->read_view.is_open());
 	} else {
-		trx_start_if_not_started(trx, false);
-wait_table_again:
-		err = lock_table(0, prebuilt->table,
-				 prebuilt->select_lock_type == LOCK_S
-				 ? LOCK_IS : LOCK_IX, thr);
-
-		if (err != DB_SUCCESS) {
-
-			table_lock_waited = TRUE;
-			goto lock_table_wait;
-		}
 		prebuilt->sql_stat_start = FALSE;
+		trx_start_if_not_started(trx, false);
+
+		if (prebuilt->select_lock_type == LOCK_NONE) {
+			trx->read_view.open(trx);
+		} else {
+wait_table_again:
+			err = lock_table(0, prebuilt->table,
+					 prebuilt->select_lock_type == LOCK_S
+					 ? LOCK_IS : LOCK_IX, thr);
+
+			if (err != DB_SUCCESS) {
+
+				table_lock_waited = TRUE;
+				goto lock_table_wait;
+			}
+		}
 	}
 
 	/* Open or restore index cursor position */
@@ -4579,7 +4562,7 @@ wait_table_again:
 			goto next_rec;
 		}
 
-		ibool	need_to_process = sel_restore_position_for_mysql(
+		bool	need_to_process = sel_restore_position_for_mysql(
 			&same_user_rec, BTR_SEARCH_LEAF,
 			pcur, moves_up, &mtr);
 
@@ -4799,7 +4782,7 @@ rec_loop:
 		}
 	}
 
-	if (UNIV_UNLIKELY(next_offs >= UNIV_PAGE_SIZE - PAGE_DIR)) {
+	if (UNIV_UNLIKELY(next_offs >= srv_page_size - PAGE_DIR)) {
 
 wrong_offs:
 		if (srv_force_recovery == 0 || moves_up == FALSE) {
@@ -5566,25 +5549,25 @@ next_rec:
 	For R-tree spatial search, we also commit the mini-transaction
 	each time  */
 
-	if (mtr_has_extra_clust_latch || spatial_search) {
+	if (spatial_search) {
+		/* No need to do store restore for R-tree */
+		mtr.commit();
+		mtr.start();
+		mtr_has_extra_clust_latch = FALSE;
+	} else if (mtr_has_extra_clust_latch) {
 		/* If we have extra cluster latch, we must commit
 		mtr if we are moving to the next non-clustered
 		index record, because we could break the latching
 		order if we would access a different clustered
 		index page right away without releasing the previous. */
 
-		/* No need to do store restore for R-tree */
-		if (!spatial_search) {
-			btr_pcur_store_position(pcur, &mtr);
-		}
-
+		btr_pcur_store_position(pcur, &mtr);
 		mtr.commit();
 		mtr_has_extra_clust_latch = FALSE;
 
 		mtr.start();
 
-		if (!spatial_search
-		    && sel_restore_position_for_mysql(&same_user_rec,
+		if (sel_restore_position_for_mysql(&same_user_rec,
 						   BTR_SEARCH_LEAF,
 						   pcur, moves_up, &mtr)) {
 			goto rec_loop;
@@ -5850,7 +5833,8 @@ row_count_rtree_recs(
 
 	prebuilt->search_tuple = entry;
 
-	ulint bufsize = ut_max(UNIV_PAGE_SIZE, prebuilt->mysql_row_len);
+	ulint bufsize = std::max<ulint>(srv_page_size,
+					prebuilt->mysql_row_len);
 	buf = static_cast<byte*>(ut_malloc_nokey(bufsize));
 
 	ulint cnt = 1000;

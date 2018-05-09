@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -95,20 +95,6 @@ Frees the recovery system. */
 void
 recv_sys_debug_free(void);
 /*=====================*/
-
-/** Read a log segment to a buffer.
-@param[out]	buf		buffer
-@param[in]	group		redo log files
-@param[in, out]	start_lsn	in : read area start, out: the last read valid lsn
-@param[in]	end_lsn		read area end
-@param[out] invalid_block - invalid, (maybe incompletely written) block encountered
-@return	false, if invalid block encountered (e.g checksum mismatch), true otherwise */
-bool
-log_group_read_log_seg(
-	byte*			buf,
-	const log_group_t*	group,
-	lsn_t*			start_lsn,
-	lsn_t			end_lsn);
 
 /********************************************************//**
 Reset the state of the recovery system variables. */
@@ -331,7 +317,7 @@ extern bool		recv_no_ibuf_operations;
 extern bool		recv_needed_recovery;
 #ifdef UNIV_DEBUG
 /** TRUE if writing to the redo log (mtr_commit) is forbidden.
-Protected by log_sys->mutex. */
+Protected by log_sys.mutex. */
 extern bool		recv_no_log_write;
 #endif /* UNIV_DEBUG */
 
@@ -342,11 +328,11 @@ extern bool		recv_lsn_checks_on;
 
 /** Size of the parsing buffer; it must accommodate RECV_SCAN_SIZE many
 times! */
-#define RECV_PARSING_BUF_SIZE	(2 * 1024 * 1024)
+#define RECV_PARSING_BUF_SIZE	(2U << 20)
 
 /** Size of block reads when the log groups are scanned forward to do a
 roll-forward */
-#define RECV_SCAN_SIZE		(4 * UNIV_PAGE_SIZE)
+#define RECV_SCAN_SIZE		(4U << srv_page_size_shift)
 
 /** This many frames must be left free in the buffer pool when we scan
 the log and store the scanned log records in the buffer pool: we will

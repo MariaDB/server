@@ -127,7 +127,7 @@ int writefrm(const char *path, const char *db, const char *table,
   File file= mysql_file_create(key_file_frm, file_name,
                                CREATE_MODE, create_flags, MYF(0));
 
-  if ((error= file < 0))
+  if (unlikely((error= file < 0)))
   {
     if (my_errno == ENOENT)
       my_error(ER_BAD_DB_ERROR, MYF(0), db);

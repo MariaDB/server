@@ -1432,7 +1432,7 @@ int _ma_update_state_lsns(MARIA_SHARE *share, LSN lsn, TrID create_trid,
      @retval 1      error (disk problem)
 */
 
-#if (_MSC_VER == 1310)
+#if defined(_MSC_VER) && (_MSC_VER == 1310)
 /*
  Visual Studio 2003 compiler produces internal compiler error
  in this function. Disable optimizations to workaround.
@@ -1505,6 +1505,6 @@ int _ma_update_state_lsns_sub(MARIA_SHARE *share, LSN lsn, TrID create_trid,
                     MARIA_FILE_CREATE_TRID_OFFSET, MYF(MY_NABP)) ||
           (do_sync && mysql_file_sync(file, MYF(0))));
 }
-#if (_MSC_VER == 1310)
+#if defined(_MSC_VER) && (_MSC_VER == 1310)
 #pragma optimize("",on)
 #endif /*VS2003 compiler bug workaround*/

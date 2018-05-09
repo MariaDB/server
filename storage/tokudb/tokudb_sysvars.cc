@@ -74,7 +74,7 @@ my_bool     dir_per_db = FALSE;
 char*       version = (char*) TOKUDB_VERSION_STR;
 
 // file system reserve as a percentage of total disk space
-#if TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL
+#if defined(TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL)
 char*       gdb_path = NULL;
 my_bool     gdb_on_fatal = FALSE;
 #endif
@@ -411,7 +411,7 @@ static MYSQL_SYSVAR_BOOL(dir_per_db, dir_per_db,
     0, "TokuDB store ft files in db directories",
     NULL, tokudb_dir_per_db_update, FALSE);
 
-#if TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL
+#if defined(TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL)
 static MYSQL_SYSVAR_STR(
     gdb_path,
     gdb_path,
@@ -894,7 +894,7 @@ static MYSQL_THDVAR_ULONGLONG(
     ~0ULL,
     1);
 
-#if TOKU_INCLUDE_UPSERT
+#if defined(TOKU_INCLUDE_UPSERT)
 static MYSQL_THDVAR_BOOL(
     disable_slow_update,
     PLUGIN_VAR_THDLOCAL,
@@ -951,7 +951,7 @@ st_mysql_sys_var* system_variables[] = {
     MYSQL_SYSVAR(version),
     MYSQL_SYSVAR(write_status_frequency),
     MYSQL_SYSVAR(dir_per_db),
-#if TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL
+#if defined(TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL)
     MYSQL_SYSVAR(gdb_path),
     MYSQL_SYSVAR(gdb_on_fatal),
 #endif
@@ -997,7 +997,7 @@ st_mysql_sys_var* system_variables[] = {
     MYSQL_SYSVAR(rpl_unique_checks),
     MYSQL_SYSVAR(rpl_unique_checks_delay),
 
-#if TOKU_INCLUDE_UPSERT
+#if defined(TOKU_INCLUDE_UPSERT)
     MYSQL_SYSVAR(disable_slow_update),
     MYSQL_SYSVAR(disable_slow_upsert),
 #endif
@@ -1055,7 +1055,7 @@ my_bool disable_prefetching(THD* thd) {
 my_bool disable_slow_alter(THD* thd) {
     return (THDVAR(thd, disable_slow_alter) != 0);
 }
-#if TOKU_INCLUDE_UPSERT
+#if defined(TOKU_INCLUDE_UPSERT)
 my_bool disable_slow_update(THD* thd) {
     return (THDVAR(thd, disable_slow_update) != 0);
 }

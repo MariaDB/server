@@ -36,9 +36,6 @@ my_bool	srv_ibuf_disable_background_merge;
 
 /** Number of bits describing a single page */
 #define IBUF_BITS_PER_PAGE	4
-#if IBUF_BITS_PER_PAGE % 2
-# error "IBUF_BITS_PER_PAGE must be an even number!"
-#endif
 /** The start address for an insert buffer bitmap page bitmap */
 #define IBUF_BITMAP		PAGE_DATA
 
@@ -258,9 +255,6 @@ type, counter, and some flags. */
 /* @{ */
 #define IBUF_REC_INFO_SIZE	4	/*!< Combined size of info fields at
 					the beginning of the fourth field */
-#if IBUF_REC_INFO_SIZE >= DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE
-# error "IBUF_REC_INFO_SIZE >= DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE"
-#endif
 
 /* Offsets for the fields at the beginning of the fourth field */
 #define IBUF_REC_OFFSET_COUNTER	0	/*!< Operation counter */
@@ -442,7 +436,7 @@ ibuf_count_set(
 	ulint			val)
 {
 	ibuf_count_check(page_id);
-	ut_a(val < UNIV_PAGE_SIZE);
+	ut_a(val < srv_page_size);
 
 	ibuf_counts[page_id.space()][page_id.page_no()] = val;
 }
@@ -454,6 +448,10 @@ void
 ibuf_close(void)
 /*============*/
 {
+	if (ibuf == NULL) {
+		return;
+	}
+
 	mutex_free(&ibuf_pessimistic_insert_mutex);
 
 	mutex_free(&ibuf_mutex);
@@ -510,7 +508,7 @@ ibuf_init_at_db_start(void)
 	buffer pool size. Once ibuf struct is initialized this
 	value is updated with the user supplied size by calling
 	ibuf_max_size_update(). */
-	ibuf->max_size = ((buf_pool_get_curr_size() / UNIV_PAGE_SIZE)
+	ibuf->max_size = ((buf_pool_get_curr_size() >> srv_page_size_shift)
 			  * CHANGE_BUFFER_DEFAULT_SIZE) / 100;
 
 	mutex_create(LATCH_ID_IBUF, &ibuf_mutex);
@@ -584,7 +582,7 @@ ibuf_max_size_update(
 	ulint	new_val)	/*!< in: new value in terms of
 				percentage of the buffer pool size */
 {
-	ulint	new_size = ((buf_pool_get_curr_size() / UNIV_PAGE_SIZE)
+	ulint	new_size = ((buf_pool_get_curr_size() >> srv_page_size_shift)
 			    * new_val) / 100;
 	mutex_enter(&ibuf_mutex);
 	ibuf->max_size = new_size;
@@ -607,6 +605,7 @@ ibuf_bitmap_page_init(
 	fil_page_set_type(page, FIL_PAGE_IBUF_BITMAP);
 
 	/* Write all zeros to the bitmap */
+	compile_time_assert(!(IBUF_BITS_PER_PAGE % 2));
 
 	byte_offset = UT_BITS_IN_BYTES(block->page.size.physical()
 				       * IBUF_BITS_PER_PAGE);
@@ -690,9 +689,7 @@ ibuf_bitmap_page_get_bits_low(
 	ulint	value;
 
 	ut_ad(bit < IBUF_BITS_PER_PAGE);
-#if IBUF_BITS_PER_PAGE % 2
-# error "IBUF_BITS_PER_PAGE % 2 != 0"
-#endif
+	compile_time_assert(!(IBUF_BITS_PER_PAGE % 2));
 	ut_ad(mtr_memo_contains_page(mtr, page, latch_type));
 
 	bit_offset = (page_id.page_no() % page_size.physical())
@@ -701,7 +698,7 @@ ibuf_bitmap_page_get_bits_low(
 	byte_offset = bit_offset / 8;
 	bit_offset = bit_offset % 8;
 
-	ut_ad(byte_offset + IBUF_BITMAP < UNIV_PAGE_SIZE);
+	ut_ad(byte_offset + IBUF_BITMAP < srv_page_size);
 
 	map_byte = mach_read_from_1(page + IBUF_BITMAP + byte_offset);
 
@@ -738,9 +735,7 @@ ibuf_bitmap_page_set_bits(
 	ulint	map_byte;
 
 	ut_ad(bit < IBUF_BITS_PER_PAGE);
-#if IBUF_BITS_PER_PAGE % 2
-# error "IBUF_BITS_PER_PAGE % 2 != 0"
-#endif
+	compile_time_assert(!(IBUF_BITS_PER_PAGE % 2));
 	ut_ad(mtr_memo_contains_page(mtr, page, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(mtr->is_named_space(page_id.space()));
 #ifdef UNIV_IBUF_COUNT_DEBUG
@@ -754,7 +749,7 @@ ibuf_bitmap_page_set_bits(
 	byte_offset = bit_offset / 8;
 	bit_offset = bit_offset % 8;
 
-	ut_ad(byte_offset + IBUF_BITMAP < UNIV_PAGE_SIZE);
+	ut_ad(byte_offset + IBUF_BITMAP < srv_page_size);
 
 	map_byte = mach_read_from_1(page + IBUF_BITMAP + byte_offset);
 
@@ -1326,6 +1321,8 @@ ibuf_rec_get_info_func(
 	types = rec_get_nth_field_old(rec, IBUF_REC_FIELD_METADATA, &len);
 
 	info_len_local = len % DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE;
+	compile_time_assert(IBUF_REC_INFO_SIZE
+			    < DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE);
 
 	switch (info_len_local) {
 	case 0:
@@ -1625,7 +1622,8 @@ ibuf_build_entry_from_ibuf_rec_func(
 		ibuf_dummy_index_add_col(index, dfield_get_type(field), len);
 	}
 
-	index->n_core_null_bytes = UT_BITS_IN_BYTES(index->n_nullable);
+	index->n_core_null_bytes
+		= UT_BITS_IN_BYTES(unsigned(index->n_nullable));
 
 	/* Prevent an ut_ad() failure in page_zip_write_rec() by
 	adding system columns to the dummy table pointed to by the
@@ -1915,7 +1913,7 @@ ibuf_entry_build(
 
 	field = dtuple_get_nth_field(tuple, IBUF_REC_FIELD_METADATA);
 
-	dfield_set_data(field, type_info, ti - type_info);
+	dfield_set_data(field, type_info, ulint(ti - type_info));
 
 	/* Set all the types in the new tuple binary */
 
@@ -1980,11 +1978,8 @@ ibuf_search_tuple_build(
 /*********************************************************************//**
 Checks if there are enough pages in the free list of the ibuf tree that we
 dare to start a pessimistic insert to the insert buffer.
-@return TRUE if enough free pages in list */
-UNIV_INLINE
-ibool
-ibuf_data_enough_free_for_insert(void)
-/*==================================*/
+@return whether enough free pages in list */
+static inline bool ibuf_data_enough_free_for_insert()
 {
 	ut_ad(mutex_own(&ibuf_mutex));
 
@@ -2383,7 +2378,7 @@ ibuf_get_merge_page_nos_func(
 				&& prev_space_id == first_space_id)
 			    || (volume_for_page
 				> ((IBUF_MERGE_THRESHOLD - 1)
-				   * 4 * UNIV_PAGE_SIZE
+				   * 4U << srv_page_size_shift
 				   / IBUF_PAGE_SIZE_PER_FREE_SPACE)
 				/ IBUF_MERGE_THRESHOLD)) {
 
@@ -2880,7 +2875,7 @@ ibuf_get_volume_buffered_count_func(
 
 	types = rec_get_nth_field_old(rec, IBUF_REC_FIELD_METADATA, &len);
 
-	switch (UNIV_EXPECT(len % DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE,
+	switch (UNIV_EXPECT(int(len % DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE),
 			    IBUF_REC_INFO_SIZE)) {
 	default:
 		ut_error;
@@ -2967,7 +2962,7 @@ get_volume_comp:
 Gets an upper limit for the combined size of entries buffered in the insert
 buffer for a given page.
 @return upper limit for the volume of buffered inserts for the index
-page, in bytes; UNIV_PAGE_SIZE, if the entries for the index page span
+page, in bytes; srv_page_size, if the entries for the index page span
 several pages in the insert buffer */
 static
 ulint
@@ -3068,7 +3063,7 @@ ibuf_get_volume_buffered(
 			do not have the x-latch on it, and cannot acquire one
 			because of the latching order: we have to give up */
 
-			return(UNIV_PAGE_SIZE);
+			return(srv_page_size);
 		}
 
 		if (page_no != ibuf_rec_get_page_no(mtr, rec)
@@ -3138,7 +3133,7 @@ count_later:
 
 			/* We give up */
 
-			return(UNIV_PAGE_SIZE);
+			return(srv_page_size);
 		}
 
 		if (page_no != ibuf_rec_get_page_no(mtr, rec)
@@ -3727,8 +3722,6 @@ ibuf_insert(
 		case IBUF_USE_INSERT_DELETE_MARK:
 		case IBUF_USE_ALL:
 			goto check_watch;
-		case IBUF_USE_COUNT:
-			break;
 		}
 		break;
 	case IBUF_OP_DELETE_MARK:
@@ -3742,8 +3735,6 @@ ibuf_insert(
 		case IBUF_USE_ALL:
 			ut_ad(!no_counter);
 			goto check_watch;
-		case IBUF_USE_COUNT:
-			break;
 		}
 		break;
 	case IBUF_OP_DELETE:
@@ -3757,8 +3748,6 @@ ibuf_insert(
 		case IBUF_USE_ALL:
 			ut_ad(!no_counter);
 			goto skip_watch;
-		case IBUF_USE_COUNT:
-			break;
 		}
 		break;
 	case IBUF_OP_COUNT:
@@ -4513,7 +4502,7 @@ ibuf_merge_or_delete_for_page(
 			if (!bitmap_bits) {
 				/* No inserts buffered for this page */
 
-				fil_space_release(space);
+				space->release();
 				return;
 			}
 		}
@@ -4593,8 +4582,7 @@ loop:
 	}
 
 	if (!btr_pcur_is_on_user_rec(&pcur)) {
-		ut_ad(btr_pcur_is_after_last_in_tree(&pcur, &mtr));
-
+		ut_ad(btr_pcur_is_after_last_in_tree(&pcur));
 		goto reset_bit;
 	}
 
@@ -4655,8 +4643,8 @@ loop:
 
 				volume += page_dir_calc_reserved_space(1);
 
-				ut_a(volume <= 4 * UNIV_PAGE_SIZE
-					/ IBUF_PAGE_SIZE_PER_FREE_SPACE);
+				ut_a(volume <= (4U << srv_page_size_shift)
+				     / IBUF_PAGE_SIZE_PER_FREE_SPACE);
 #endif
 				ibuf_insert_to_index_page(
 					entry, block, dummy_index, &mtr);
@@ -4778,7 +4766,7 @@ reset_bit:
 	ibuf_mtr_commit(&mtr);
 
 	if (space) {
-		fil_space_release(space);
+		space->release();
 	}
 
 	btr_pcur_close(&pcur);
@@ -4831,8 +4819,7 @@ loop:
 		&pcur, &mtr);
 
 	if (!btr_pcur_is_on_user_rec(&pcur)) {
-		ut_ad(btr_pcur_is_after_last_in_tree(&pcur, &mtr));
-
+		ut_ad(btr_pcur_is_after_last_in_tree(&pcur));
 		goto leave_loop;
 	}
 

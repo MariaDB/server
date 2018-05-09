@@ -133,7 +133,7 @@ btr_scrub_lock_dict_func(ulint space_id, bool lock_to_close_table,
 		if (lock_to_close_table) {
 		} else if (fil_space_t* space = fil_space_acquire(space_id)) {
 			bool stopping = space->is_stopping();
-			fil_space_release(space);
+			space->release();
 			if (stopping) {
 				return false;
 			}
@@ -209,7 +209,7 @@ btr_scrub_table_close_for_thread(
 			btr_scrub_table_close(scrub_data->current_table);
 			mutex_exit(&dict_sys->mutex);
 		}
-		fil_space_release(space);
+		space->release();
 	}
 
 	scrub_data->current_table = NULL;
@@ -668,7 +668,7 @@ btr_scrub_free_page(
 		* it will be found by scrubbing thread again
 		*/
 		memset(buf_block_get_frame(block) + PAGE_HEADER, 0,
-		       UNIV_PAGE_SIZE - PAGE_HEADER);
+		       srv_page_size - PAGE_HEADER);
 
 		mach_write_to_2(buf_block_get_frame(block) + FIL_PAGE_TYPE,
 				FIL_PAGE_TYPE_ALLOCATED);

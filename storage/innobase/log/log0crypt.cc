@@ -219,7 +219,7 @@ bool
 log_crypt_init()
 {
 	ut_ad(log_mutex_own());
-	ut_ad(log_sys->is_encrypted());
+	ut_ad(log_sys.is_encrypted());
 
 	info.key_version = encryption_key_get_latest_version(
 		LOG_DEFAULT_ENCRYPTION_KEY);

@@ -456,7 +456,7 @@ btr_defragment_merge_pages(
 	// Estimate how many records can be moved from the from_page to
 	// the to_page.
 	if (page_size.is_compressed()) {
-		ulint page_diff = UNIV_PAGE_SIZE - *max_data_size;
+		ulint page_diff = srv_page_size - *max_data_size;
 		max_ins_size_to_use = (max_ins_size_to_use > page_diff)
 			       ? max_ins_size_to_use - page_diff : 0;
 	}
@@ -529,7 +529,7 @@ btr_defragment_merge_pages(
 		} else {
 			ibuf_update_free_bits_if_full(
 				to_block,
-				UNIV_PAGE_SIZE,
+				srv_page_size,
 				ULINT_UNDEFINED);
 		}
 	}
@@ -669,7 +669,7 @@ btr_defragment_n_pages(
 	// For compressed pages, we take compression failures into account.
 	if (page_size.is_compressed()) {
 		ulint size = 0;
-		int i = 0;
+		uint i = 0;
 		// We estimate the optimal data size of the index use samples of
 		// data size. These samples are taken when pages failed to
 		// compress due to insertion on the page. We use the average
@@ -683,7 +683,7 @@ btr_defragment_n_pages(
 			size += index->stat_defrag_data_size_sample[i];
 		}
 		if (i != 0) {
-			size = size / i;
+			size /= i;
 			optimal_page_size = ut_min(optimal_page_size, size);
 		}
 		max_data_size = optimal_page_size;

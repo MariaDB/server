@@ -131,7 +131,7 @@ struct buf_dblwr_t{
 				doublewrite block (64 pages) */
 	ulint		block2;	/*!< page number of the second block */
 	ulint		first_free;/*!< first free position in write_buf
-				measured in units of UNIV_PAGE_SIZE */
+				measured in units of srv_page_size */
 	ulint		b_reserved;/*!< number of slots currently reserved
 				for batch flush. */
 	os_event_t	b_event;/*!< event where threads wait for a
@@ -150,7 +150,7 @@ struct buf_dblwr_t{
 				buffer. */
 	byte*		write_buf;/*!< write buffer used in writing to the
 				doublewrite buffer, aligned to an
-				address divisible by UNIV_PAGE_SIZE
+				address divisible by srv_page_size
 				(which is required by Windows aio) */
 	byte*		write_buf_unaligned;/*!< pointer to write_buf,
 				but unaligned */

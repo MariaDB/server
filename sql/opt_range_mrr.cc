@@ -135,7 +135,7 @@ static void step_down_to(SEL_ARG_RANGE_SEQ *arg, SEL_ARG *key_tree)
     TRUE   No more ranges in the sequence
 */
 
-#if (_MSC_FULL_VER == 160030319)
+#if defined(_MSC_FULL_VER) && (_MSC_FULL_VER == 160030319)
 /*
    Workaround Visual Studio 2010 RTM compiler backend bug, the function enters 
    infinite loop.
@@ -315,7 +315,7 @@ walk_up_n_right:
   return 0;
 }
 
-#if (_MSC_FULL_VER == 160030319)
+#if defined(_MSC_FULL_VER) && (_MSC_FULL_VER == 160030319)
 /* VS2010 compiler bug workaround */
 #pragma optimize("g", on)
 #endif

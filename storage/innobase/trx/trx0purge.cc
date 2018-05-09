@@ -583,8 +583,8 @@ namespace undo {
 			return(DB_IO_ERROR);
 		}
 
-		ulint	sz = UNIV_PAGE_SIZE;
-		void*	buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+		ulint	sz = srv_page_size;
+		void*	buf = ut_zalloc_nokey(sz + srv_page_size);
 		if (buf == NULL) {
 			os_file_close(handle);
 			delete[] log_file_name;
@@ -592,7 +592,7 @@ namespace undo {
 		}
 
 		byte*	log_buf = static_cast<byte*>(
-			ut_align(buf, UNIV_PAGE_SIZE));
+			ut_align(buf, srv_page_size));
 
 		IORequest	request(IORequest::WRITE);
 
@@ -643,8 +643,8 @@ namespace undo {
 			return;
 		}
 
-		ulint	sz = UNIV_PAGE_SIZE;
-		void*	buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+		ulint	sz = srv_page_size;
+		void*	buf = ut_zalloc_nokey(sz + srv_page_size);
 		if (buf == NULL) {
 			os_file_close(handle);
 			os_file_delete(innodb_log_file_key, log_file_name);
@@ -653,7 +653,7 @@ namespace undo {
 		}
 
 		byte*	log_buf = static_cast<byte*>(
-			ut_align(buf, UNIV_PAGE_SIZE));
+			ut_align(buf, srv_page_size));
 
 		mach_write_to_4(log_buf, undo::s_magic);
 
@@ -711,8 +711,8 @@ namespace undo {
 				return(false);
 			}
 
-			ulint	sz = UNIV_PAGE_SIZE;
-			void*	buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+			ulint	sz = srv_page_size;
+			void*	buf = ut_zalloc_nokey(sz + srv_page_size);
 			if (buf == NULL) {
 				os_file_close(handle);
 				os_file_delete(innodb_log_file_key,
@@ -722,7 +722,7 @@ namespace undo {
 			}
 
 			byte*	log_buf = static_cast<byte*>(
-				ut_align(buf, UNIV_PAGE_SIZE));
+				ut_align(buf, srv_page_size));
 
 			IORequest	request(IORequest::READ);
 
@@ -800,7 +800,7 @@ trx_purge_mark_undo_for_truncate(
 	for (ulint i = 1; i <= srv_undo_tablespaces_active; i++) {
 
 		if (fil_space_get_size(space_id)
-		    > (srv_max_undo_log_size / srv_page_size)) {
+		    > (srv_max_undo_log_size >> srv_page_size_shift)) {
 			/* Tablespace qualifies for truncate. */
 			undo_trunc->mark(space_id);
 			undo::Truncate::add_space_to_trunc_list(space_id);
@@ -1296,7 +1296,7 @@ trx_purge_get_next_rec(
 	} else {
 		page = page_align(rec2);
 
-		purge_sys.offset = rec2 - page;
+		purge_sys.offset = ulint(rec2 - page);
 		purge_sys.page_no = page_get_page_no(page);
 		purge_sys.tail.undo_no = trx_undo_rec_get_undo_no(rec2);
 

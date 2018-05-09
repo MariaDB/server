@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 connection node_2;
 connection node_1;
@@ -12,7 +14,6 @@ INSERT INTO t1 VALUES (2);
 connection node_1;
 INSERT INTO t1 VALUES (3);
 connection node_2;
-set SESSION wsrep_sync_wait=0;
 INSERT INTO t1 VALUES (4);
 set GLOBAL wsrep_slave_threads=5;
 SELECT COUNT(*) = 5 FROM t1;

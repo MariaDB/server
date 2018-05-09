@@ -91,3 +91,32 @@ SET SESSION optimizer_switch = 'derived_merge=off';
 SELECT * FROM ( SELECT * FROM t1 ) AS sq ORDER BY b;
 SET SESSION optimizer_switch=DEFAULT;
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-15762 - VARCHAR(0) COMPRESSED crashes the server
+--echo #
+CREATE TABLE t1(a VARCHAR(0) COMPRESSED);
+--error ER_DATA_TOO_LONG
+INSERT INTO t1 VALUES('a');
+INSERT INTO t1 VALUES(' ');
+SELECT LENGTH(a) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-15763 - VARCHAR(1) COMPRESSED crashes the server
+--echo #
+CREATE TABLE t1(a VARCHAR(1) COMPRESSED);
+SET column_compression_threshold=0;
+INSERT INTO t1 VALUES('a');
+SET column_compression_threshold=DEFAULT;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15938 - TINYTEXT CHARACTER SET utf8 COMPRESSED truncates data
+--echo #
+CREATE TABLE t1(a TINYTEXT COMPRESSED, b TINYTEXT) CHARACTER SET utf8;
+INSERT INTO t1 VALUES (REPEAT(_latin1'a', 254), REPEAT(_latin1'a', 254));
+SELECT CHAR_LENGTH(a), CHAR_LENGTH(b), LEFT(a, 10), LEFT(b, 10) FROM t1;
+DROP TABLE t1;

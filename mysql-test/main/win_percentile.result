@@ -324,3 +324,27 @@ median(score) over (partition by name)	c
 4.0000000000	4.0000000000
 4.0000000000	4.0000000000
 drop table t1;
+#
+# MDEV-13352: MEDIAN window function over a table with virtual column
+#             in select with CTE and ORDER BY
+#
+CREATE TABLE t1 (f1 int ,f2 int ,f3 int, f4 int, v1 int AS (-f4) virtual);
+INSERT INTO t1(f1,f2,f3,f4) VALUES
+(1,10,100,10), (7,11,112,15), (3,14,121,12);
+WITH CTE AS (SELECT MIN(f3) OVER () FROM t1)
+SELECT  MEDIAN(f3) OVER () FROM t1
+ORDER BY f1, f2, f3, f4, v1;
+MEDIAN(f3) OVER ()
+112.0000000000
+112.0000000000
+112.0000000000
+DROP TABLE t1;
+#
+# MDEV-15846: Sever crashed with MEDIAN() window function
+#
+CREATE TABLE t1 ( pk int PRIMARY KEY, a1 int, a2 int);
+SELECT MEDIAN(`a1`) OVER (),
+MEDIAN(`a2`) OVER (PARTITION BY `pk`)
+FROM t1;
+MEDIAN(`a1`) OVER ()	MEDIAN(`a2`) OVER (PARTITION BY `pk`)
+DROP TABLE t1;

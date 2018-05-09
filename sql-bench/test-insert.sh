@@ -993,11 +993,22 @@ $end_time=new Benchmark;
 print "Time for update_with_key (" . ($opt_loop_count*3) . "):  " .
   timestr(timediff($end_time, $loop_time),"all") . "\n";
 
+print "Testing update with key, no changes in data\n";
+$loop_time=new Benchmark;
+for ($i=0 ; $i < $opt_loop_count*3 ; $i++)
+{
+  $sth = $dbh->do("update bench1 set dummy1='updated' where id=$i and id2=$i") or die $DBI::errstr;
+}
+
+$end_time=new Benchmark;
+print "Time for update_with_key_record_unchanged (" . ($opt_loop_count*3) . "):  " .
+  timestr(timediff($end_time, $loop_time),"all") . "\n";
+
 $loop_time=new Benchmark;
 $count=0;
 for ($i=1 ; $i < $opt_loop_count*3 ; $i+=3)
 {
-  $sth = $dbh->do("update bench1 set dummy1='updated' where id=$i") or die $DBI::errstr;
+  $sth = $dbh->do("update bench1 set dummy1='really updated' where id=$i") or die $DBI::errstr;
   $end_time=new Benchmark;
   last if ($estimated=predict_query_time($loop_time,$end_time,\$i,($i-1)/3,
 					 $opt_loop_count));

@@ -1189,7 +1189,7 @@ bool st_select_lex::check_unrestricted_recursive(bool only_standard_compliant)
 
 
   /* Check conditions 3-4 for restricted specification*/
-  if (with_sum_func ||
+  if ((with_sum_func && !with_elem->is_anchor(this)) ||
       (with_elem->contains_sq_with_recursive_reference()))
     with_elem->get_owner()->add_unrestricted(
                               with_elem->get_mutually_recursive());
@@ -1414,7 +1414,7 @@ bool With_element::instantiate_tmp_tables()
   {
     if (!rec_table->is_created() &&
         instantiate_tmp_table(rec_table,
-                              rec_result->tmp_table_param.keyinfo,
+                              rec_table->s->key_info,
                               rec_result->tmp_table_param.start_recinfo,
                               &rec_result->tmp_table_param.recinfo,
                               0))

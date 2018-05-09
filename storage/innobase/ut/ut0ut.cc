@@ -160,7 +160,7 @@ ut_time_us(
 
 	ut_gettimeofday(&tv, NULL);
 
-	us = static_cast<uintmax_t>(tv.tv_sec) * 1000000 + tv.tv_usec;
+	us = uintmax_t(tv.tv_sec) * 1000000 + uintmax_t(tv.tv_usec);
 
 	if (tloc != NULL) {
 		*tloc = us;
@@ -182,7 +182,7 @@ ut_time_ms(void)
 
 	ut_gettimeofday(&tv, NULL);
 
-	return((ulint) tv.tv_sec * 1000 + tv.tv_usec / 1000);
+	return(ulint(tv.tv_sec) * 1000 + ulint(tv.tv_usec / 1000));
 }
 
 /**********************************************************//**
@@ -429,7 +429,7 @@ ut_get_name(
 				       name, strlen(name),
 				       trx ? trx->mysql_thd : NULL);
 	buf[bufend - buf] = '\0';
-	return(std::string(buf, 0, bufend - buf));
+	return(std::string(buf, 0, size_t(bufend - buf)));
 }
 
 /**********************************************************************//**
@@ -453,7 +453,7 @@ ut_print_name(
 				       name, strlen(name),
 				       trx ? trx->mysql_thd : NULL);
 
-	if (fwrite(buf, 1, bufend - buf, f) != (size_t) (bufend - buf)) {
+	if (fwrite(buf, 1, size_t(bufend - buf), f) != size_t(bufend - buf)) {
 		perror("fwrite");
 	}
 }
@@ -524,32 +524,6 @@ ut_copy_file(
 			break;
 		}
 	} while (len > 0);
-}
-
-/** Convert an error number to a human readable text message.
-The returned string is static and should not be freed or modified.
-@param[in]	num	InnoDB internal error number
-@return string, describing the error */
-std::string
-ut_get_name(
-/*=========*/
-	const trx_t*	trx,	/*!< in: transaction (NULL=no quotes) */
-	ibool		table_id,/*!< in: TRUE=print a table name,
-				FALSE=print other identifier */
-	const char*	name)	/*!< in: name to print */
-{
-	/* 2 * NAME_LEN for database and table name,
-	and some slack for the #mysql50# prefix and quotes */
-	char		buf[3 * NAME_LEN];
-	const char*	bufend;
-	ulint		namelen = strlen(name);
-
-	bufend = innobase_convert_name(buf, sizeof buf,
-				       name, namelen,
-				       trx ? trx->mysql_thd : NULL);
-	buf[bufend-buf]='\0';
-	std::string str(buf);
-	return str;
 }
 
 /** Convert an error number to a human readable text message.

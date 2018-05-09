@@ -644,7 +644,7 @@ grn_ctx_free_lifo(grn_ctx *ctx, void *ptr,
   }
 }
 
-#if USE_DYNAMIC_MALLOC_CHANGE
+#if defined(USE_DYNAMIC_MALLOC_CHANGE)
 grn_malloc_func
 grn_ctx_get_malloc(grn_ctx *ctx)
 {

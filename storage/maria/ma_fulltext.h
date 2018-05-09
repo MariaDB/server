@@ -20,6 +20,11 @@
 #include "maria_def.h"
 #include "ft_global.h"
 
+/* If HA_FT_MAXLEN is change to 127 or over, it must be tested properly as
+   it may cause different representation on disk for full text indexes
+*/
+#define HA_FT_MAXLEN 126
+
 int  _ma_ft_cmp(MARIA_HA *, uint, const uchar *, const uchar *);
 int  _ma_ft_add(MARIA_HA *, uint, uchar *, const uchar *, my_off_t);
 int  _ma_ft_del(MARIA_HA *, uint, uchar *, const uchar *, my_off_t);

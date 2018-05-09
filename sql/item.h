@@ -832,10 +832,6 @@ public:
     return type_handler()->field_type();
   }
   virtual const Type_handler *type_handler() const= 0;
-  virtual uint field_flags() const
-  {
-    return 0;
-  }
   const Type_handler *type_handler_for_comparison() const
   {
     return type_handler()->type_handler_for_comparison();
@@ -1814,8 +1810,6 @@ public:
 
   virtual Item_field *field_for_view_update() { return 0; }
 
-  virtual bool vers_trx_id() const
-  { return false; }
   virtual Item *neg_transformer(THD *thd) { return NULL; }
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg)
   { return this; }
@@ -2031,7 +2025,7 @@ template <class T>
 inline Item* get_item_copy (THD *thd, T* item)
 {
   Item *copy= new (get_thd_memroot(thd)) T(*item);
-  if (copy)
+  if (likely(copy))
     copy->register_in(thd);
   return copy;
 }	
@@ -2168,7 +2162,7 @@ public:
   Item_args(THD *thd, Item *a, Item *b, Item *c)
   {
     arg_count= 0;
-    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 3)))
+    if (likely((args= (Item**) thd_alloc(thd, sizeof(Item*) * 3))))
     {
       arg_count= 3;
       args[0]= a; args[1]= b; args[2]= c;
@@ -2177,7 +2171,7 @@ public:
   Item_args(THD *thd, Item *a, Item *b, Item *c, Item *d)
   {
     arg_count= 0;
-    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 4)))
+    if (likely((args= (Item**) thd_alloc(thd, sizeof(Item*) * 4))))
     {
       arg_count= 4;
       args[0]= a; args[1]= b; args[2]= c; args[3]= d;
@@ -2186,7 +2180,7 @@ public:
   Item_args(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e)
   {
     arg_count= 5;
-    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 5)))
+    if (likely((args= (Item**) thd_alloc(thd, sizeof(Item*) * 5))))
     {
       arg_count= 5;
       args[0]= a; args[1]= b; args[2]= c; args[3]= d; args[4]= e;
@@ -2505,7 +2499,7 @@ public:
     based on result_type(), which is less exact.
   */
   Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
+  { return create_table_field_from_handler(table); }
 };
 
 
@@ -2822,7 +2816,7 @@ public:
                       const char *table_name_arg):
     Item(thd), field(par_field), db_name(db_arg), table_name(table_name_arg)
   {
-    Type_std_attributes::set(par_field);
+    Type_std_attributes::set(par_field->type_std_attributes());
   }
   enum Type type() const { return FIELD_ITEM; }
   double val_real() { return field->val_real(); }
@@ -2941,10 +2935,6 @@ public:
     return field->type_handler();
   }
   TYPELIB *get_typelib() const { return field->get_typelib(); }
-  uint32 field_flags() const
-  {
-    return field->flags;
-  }
   enum_monotonicity_info get_monotonicity_info() const
   {
     return MONOTONIC_STRICT_INCREASING;
@@ -3042,7 +3032,6 @@ public:
   uint32 max_display_length() const { return field->max_display_length(); }
   Item_field *field_for_view_update() { return this; }
   int fix_outer_field(THD *thd, Field **field, Item **reference);
-  virtual bool vers_trx_id() const;
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg);
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg);
@@ -3191,17 +3180,10 @@ public:
   Field *result_field;
   Item_null_result(THD *thd): Item_null(thd), result_field(0) {}
   bool is_result_field() { return result_field != 0; }
-#if MARIADB_VERSION_ID < 100300
-  enum_field_types field_type() const
-  {
-    return result_field->type();
-  }
-#else
   const Type_handler *type_handler() const
   {
     return result_field->type_handler();
   }
-#endif
   void save_in_result_field(bool no_conversions)
   {
     save_in_field(result_field, no_conversions);
@@ -4217,7 +4199,7 @@ public:
   {
     // following assert is redundant, because fixed=1 assigned in constructor
     DBUG_ASSERT(fixed == 1);
-    ulonglong value= (ulonglong) Item_hex_hybrid::val_int();
+    longlong value= Item_hex_hybrid::val_int();
     int2my_decimal(E_DEC_FATAL_ERROR, value, TRUE, decimal_value);
     return decimal_value;
   }
@@ -4889,12 +4871,6 @@ public:
         ((Item_field *) item)->field && item->const_item())
       return 0;
     return cleanup_processor(arg);
-  }
-  virtual bool vers_trx_id() const
-  {
-    DBUG_ASSERT(ref);
-    DBUG_ASSERT(*ref);
-    return (*ref)->vers_trx_id();
   }
 };
 
@@ -6392,29 +6368,14 @@ class Item_type_holder: public Item,
 {
 protected:
   TYPELIB *enum_set_typelib;
-private:
-  void init_flags(Item *item)
-  {
-    if (item->real_type() == Item::FIELD_ITEM)
-    {
-      Item_field *item_field= (Item_field *)item->real_item();
-      m_flags|= (item_field->field->flags &
-               (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG));
-      // TODO: additional field flag?
-      m_vers_trx_id= item_field->field->vers_trx_id();
-    }
-  }
 public:
   Item_type_holder(THD *thd, Item *item)
    :Item(thd, item),
     Type_handler_hybrid_field_type(item->real_type_handler()),
-    enum_set_typelib(0),
-    m_flags(0),
-    m_vers_trx_id(false)
+    enum_set_typelib(0)
   {
     DBUG_ASSERT(item->fixed);
     maybe_null= item->maybe_null;
-    init_flags(item);
   }
   Item_type_holder(THD *thd,
                    Item *item,
@@ -6424,27 +6385,20 @@ public:
    :Item(thd),
     Type_handler_hybrid_field_type(handler),
     Type_geometry_attributes(handler, attr),
-    enum_set_typelib(attr->get_typelib()),
-    m_flags(0),
-    m_vers_trx_id(false)
+    enum_set_typelib(attr->get_typelib())
   {
     name= item->name;
     Type_std_attributes::set(*attr);
     maybe_null= maybe_null_arg;
-    init_flags(item);
   }
 
   const Type_handler *type_handler() const
   {
-    const Type_handler *handler= m_vers_trx_id ?
-      &type_handler_vers_trx_id :
-      Type_handler_hybrid_field_type::type_handler();
-    return handler->type_handler_for_item_field();
+    return Type_handler_hybrid_field_type::type_handler()->
+             type_handler_for_item_field();
   }
   const Type_handler *real_type_handler() const
   {
-    if (m_vers_trx_id)
-      return &type_handler_vers_trx_id;
     return Type_handler_hybrid_field_type::type_handler();
   }
 
@@ -6471,18 +6425,6 @@ public:
   }
   Item* get_copy(THD *thd) { return 0; }
 
-private:
-  uint m_flags;
-  bool m_vers_trx_id;
-public:
-  uint32 field_flags() const
-  {
-    return m_flags;
-  }
-  virtual bool vers_trx_id() const
-  {
-    return m_vers_trx_id;
-  }
 };
 
 

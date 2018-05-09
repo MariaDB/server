@@ -144,7 +144,7 @@ public:
 		ut_ad(dict_index_is_spatial(m_index));
 
 		DBUG_EXECUTE_IF("row_merge_instrument_log_check_flush",
-			log_sys->check_flush_or_checkpoint = true;
+			log_sys.check_flush_or_checkpoint = true;
 		);
 
 		for (idx_tuple_vec::iterator it = m_dtuple_vec->begin();
@@ -153,7 +153,7 @@ public:
 			dtuple = *it;
 			ut_ad(dtuple);
 
-			if (log_sys->check_flush_or_checkpoint) {
+			if (log_sys.check_flush_or_checkpoint) {
 				if (!(*mtr_committed)) {
 					btr_pcur_move_to_prev_on_page(pcur);
 					btr_pcur_store_position(pcur, scan_mtr);
@@ -232,7 +232,7 @@ public:
 			if (error == DB_SUCCESS) {
 				if (rtr_info.mbr_adj) {
 					error = rtr_ins_enlarge_mbr(
-							&ins_cur, NULL, &mtr);
+							&ins_cur, &mtr);
 				}
 
 				if (error == DB_SUCCESS) {
@@ -559,7 +559,7 @@ row_merge_buf_add(
 		mem_heap_alloc(buf->heap, n_fields * sizeof *entry->fields));
 
 	data_size = 0;
-	extra_size = UT_BITS_IN_BYTES(index->n_nullable);
+	extra_size = UT_BITS_IN_BYTES(unsigned(index->n_nullable));
 
 	ifield = dict_index_get_nth_field(index, 0);
 
@@ -819,9 +819,9 @@ row_merge_buf_add(
 
 	/* Record size can exceed page size while converting to
 	redundant row format. But there is assert
-	ut_ad(size < UNIV_PAGE_SIZE) in rec_offs_data_size().
+	ut_ad(size < srv_page_size) in rec_offs_data_size().
 	It may hit the assert before attempting to insert the row. */
-	if (conv_heap != NULL && data_size > UNIV_PAGE_SIZE) {
+	if (conv_heap != NULL && data_size > srv_page_size) {
 		*err = DB_TOO_BIG_RECORD;
 	}
 
@@ -1232,7 +1232,7 @@ err_exit:
 		to the auxiliary buffer and handle this as a special
 		case. */
 
-		avail_size = &block[srv_sort_buf_size] - b;
+		avail_size = ulint(&block[srv_sort_buf_size] - b);
 		ut_ad(avail_size < sizeof *buf);
 		memcpy(*buf, b, avail_size);
 
@@ -1287,7 +1287,7 @@ err_exit:
 	/* The record spans two blocks.  Copy it to buf. */
 
 	b -= extra_size + data_size;
-	avail_size = &block[srv_sort_buf_size] - b;
+	avail_size = ulint(&block[srv_sort_buf_size] - b);
 	memcpy(*buf, b, avail_size);
 	*mrec = *buf + extra_size;
 
@@ -1403,7 +1403,7 @@ row_merge_write_rec(
 	if (UNIV_UNLIKELY(b + size >= &block[srv_sort_buf_size])) {
 		/* The record spans two blocks.
 		Copy it to the temporary buffer first. */
-		avail_size = &block[srv_sort_buf_size] - b;
+		avail_size = ulint(&block[srv_sort_buf_size] - b);
 
 		row_merge_write_rec_low(buf[0],
 					extra_size, size, fd, *foffs,
@@ -1467,7 +1467,7 @@ row_merge_write_eof(
 #ifdef UNIV_DEBUG_VALGRIND
 	/* The rest of the block is uninitialized.  Initialize it
 	to avoid bogus warnings. */
-	memset(b, 0xff, &block[srv_sort_buf_size] - b);
+	memset(b, 0xff, ulint(&block[srv_sort_buf_size] - b));
 #endif /* UNIV_DEBUG_VALGRIND */
 
 	if (!row_merge_write(fd, (*foffs)++, block, crypt_block, space)) {
@@ -1656,7 +1656,7 @@ containing the index entries for the indexes to be built.
 @param[in]	files		temporary files
 @param[in]	key_numbers	MySQL key numbers to create
 @param[in]	n_index		number of indexes to create
-@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	defaults	default values of added, changed columns, or NULL
 @param[in]	add_v		newly added virtual columns along with indexes
 @param[in]	col_map		mapping of old column numbers to new ones, or
 NULL if old_table == new_table
@@ -1689,7 +1689,7 @@ row_merge_read_clustered_index(
 	merge_file_t*		files,
 	const ulint*		key_numbers,
 	ulint			n_index,
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 	const dict_add_v_col_t*	add_v,
 	const ulint*		col_map,
 	ulint			add_autoinc,
@@ -1743,7 +1743,7 @@ row_merge_read_clustered_index(
 	DBUG_ENTER("row_merge_read_clustered_index");
 
 	ut_ad((old_table == new_table) == !col_map);
-	ut_ad(!add_cols || col_map);
+	ut_ad(!defaults || col_map);
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 	ut_ad(trx->id);
 
@@ -1842,7 +1842,7 @@ row_merge_read_clustered_index(
 
 	clust_index = dict_table_get_first_index(old_table);
 	const ulint old_trx_id_col = DATA_TRX_ID - DATA_N_SYS_COLS
-		+ old_table->n_cols;
+		+ ulint(old_table->n_cols);
 	ut_ad(old_table->cols[old_trx_id_col].mtype == DATA_SYS);
 	ut_ad(old_table->cols[old_trx_id_col].prtype
 	      == (DATA_TRX_ID | DATA_NOT_NULL));
@@ -2187,19 +2187,26 @@ end_of_index:
 
 		row = row_build_w_add_vcol(ROW_COPY_POINTERS, clust_index,
 					   rec, offsets, new_table,
-					   add_cols, add_v, col_map, &ext,
+					   defaults, add_v, col_map, &ext,
 					   row_heap);
 		ut_ad(row);
 
 		for (ulint i = 0; i < n_nonnull; i++) {
-			const dfield_t*	field	= &row->fields[nonnull[i]];
+			dfield_t*	field	= &row->fields[nonnull[i]];
 
 			ut_ad(dfield_get_type(field)->prtype & DATA_NOT_NULL);
 
 			if (dfield_is_null(field)) {
-				err = DB_INVALID_NULL;
-				trx->error_key_num = 0;
-				goto func_exit;
+				const dfield_t& default_field
+					= defaults->fields[nonnull[i]];
+
+				if (default_field.data == NULL) {
+					err = DB_INVALID_NULL;
+					trx->error_key_num = 0;
+					goto func_exit;
+				}
+
+				*field = default_field;
 			}
 		}
 
@@ -2933,10 +2940,10 @@ wait_again:
 @param[in,out]	foffs1	offset of second source list in the file
 @param[in,out]	of	output file
 @param[in,out]	stage	performance schema accounting object, used by
-@param[in,out]	crypt_block	encryption buffer
-@param[in]	space	tablespace ID for encryption
 ALTER TABLE. If not NULL stage->inc() will be called for each record
 processed.
+@param[in,out]	crypt_block	encryption buffer
+@param[in]	space	tablespace ID for encryption
 @return DB_SUCCESS or error code */
 static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
@@ -2947,7 +2954,7 @@ row_merge_blocks(
 	ulint*			foffs0,
 	ulint*			foffs1,
 	merge_file_t*		of,
-	ut_stage_alter_t*	stage,
+	ut_stage_alter_t*	stage MY_ATTRIBUTE((unused)),
 	row_merge_block_t*	crypt_block,
 	ulint			space)
 {
@@ -3055,10 +3062,10 @@ done1:
 @param[in,out]	foffs0	input file offset
 @param[in,out]	of	output file
 @param[in,out]	stage	performance schema accounting object, used by
-@param[in,out]	crypt_block	encryption buffer
-@param[in]	space	tablespace ID for encryption
 ALTER TABLE. If not NULL stage->inc() will be called for each record
 processed.
+@param[in,out]	crypt_block	encryption buffer
+@param[in]	space	tablespace ID for encryption
 @return TRUE on success, FALSE on failure */
 static MY_ATTRIBUTE((warn_unused_result))
 ibool
@@ -3068,7 +3075,7 @@ row_merge_blocks_copy(
 	row_merge_block_t*	block,
 	ulint*			foffs0,
 	merge_file_t*		of,
-	ut_stage_alter_t*	stage,
+	ut_stage_alter_t*	stage MY_ATTRIBUTE((unused)),
 	row_merge_block_t*	crypt_block,
 	ulint			space)
 {
@@ -4357,7 +4364,7 @@ row_merge_rename_tables_dict(
 		pars_info_add_str_literal(info, "tmp_name", tmp_name);
 		pars_info_add_str_literal(info, "tmp_path", tmp_path);
 		pars_info_add_int4_literal(info, "old_space",
-					   lint(old_table->space_id));
+					   old_table->space_id);
 
 		err = que_eval_sql(info,
 				   "PROCEDURE RENAME_OLD_SPACE () IS\n"
@@ -4388,7 +4395,7 @@ row_merge_rename_tables_dict(
 					  old_table->name.m_name);
 		pars_info_add_str_literal(info, "old_path", old_path);
 		pars_info_add_int4_literal(info, "new_space",
-					   lint(new_table->space_id));
+					   new_table->space_id);
 
 		err = que_eval_sql(info,
 				   "PROCEDURE RENAME_NEW_SPACE () IS\n"
@@ -4476,13 +4483,13 @@ row_merge_is_index_usable(
 	const trx_t*		trx,	/*!< in: transaction */
 	const dict_index_t*	index)	/*!< in: index to check */
 {
-	if (!dict_index_is_clust(index)
+	if (!index->is_primary()
 	    && dict_index_is_online_ddl(index)) {
 		/* Indexes that are being created are not useable. */
 		return(false);
 	}
 
-	return(!dict_index_is_corrupted(index)
+	return(!index->is_corrupted()
 	       && (dict_table_is_temporary(index->table)
 		   || index->trx_id == 0
 		   || !trx->read_view.is_open()
@@ -4548,7 +4555,7 @@ old_table unless creating a PRIMARY KEY
 @param[in]	n_indexes	size of indexes[]
 @param[in,out]	table		MySQL table, for reporting erroneous key value
 if applicable
-@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	defaults	default values of added, changed columns, or NULL
 @param[in]	col_map		mapping of old column numbers to new ones, or
 NULL if old_table == new_table
 @param[in]	add_autoinc	number of added AUTO_INCREMENT columns, or
@@ -4574,7 +4581,7 @@ row_merge_build_indexes(
 	const ulint*		key_numbers,
 	ulint			n_indexes,
 	struct TABLE*		table,
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 	const ulint*		col_map,
 	ulint			add_autoinc,
 	ib_sequence_t&		sequence,
@@ -4610,7 +4617,7 @@ row_merge_build_indexes(
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad((old_table == new_table) == !col_map);
-	ut_ad(!add_cols || col_map);
+	ut_ad(!defaults || col_map);
 
 	stage->begin_phase_read_pk(skip_pk_sort && new_table != old_table
 				   ? n_indexes - 1
@@ -4744,7 +4751,7 @@ row_merge_build_indexes(
 	error = row_merge_read_clustered_index(
 		trx, table, old_table, new_table, online, indexes,
 		fts_sort_idx, psort_info, merge_files, key_numbers,
-		n_indexes, add_cols, add_v, col_map, add_autoinc,
+		n_indexes, defaults, add_v, col_map, add_autoinc,
 		sequence, block, skip_pk_sort, &tmpfd, stage,
 		pct_cost, crypt_block, eval_table, drop_historical);
 

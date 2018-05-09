@@ -15071,7 +15071,6 @@ EXPLAIN
       "materialized": {
         "query_block": {
           "select_id": 2,
-          "outer_ref_condition": "t1.pk1 is not null",
           "table": {
             "table_name": "t2",
             "access_type": "eq_ref",
@@ -15130,31 +15129,31 @@ cte as (select  median(f2) over (partition by f1) as k1 from t1 order by f1),
 cte1 as (select median(f4) over (partition by f1) as k2 from t1)
 select k1,k2 from cte1, cte;
 k1	k2
-0.0000000000	8.0000000000
-0.0000000000	8.0000000000
-0.0000000000	8.0000000000
-0.0000000000	8.0000000000
-0.0000000000	8.0000000000
-0.0000000000	8.0000000000
-0.0000000000	8.0000000000
-0.0000000000	8.0000000000
-0.0000000000	8.0000000000
-0.0000000000	8.0000000000
+1.0000000000	9.0000000000
+1.0000000000	9.0000000000
 1.0000000000	8.0000000000
-1.0000000000	8.0000000000
-1.0000000000	8.0000000000
-1.0000000000	8.0000000000
-1.0000000000	8.0000000000
+1.0000000000	0.0000000000
+1.0000000000	9.0000000000
+0.0000000000	9.0000000000
+0.0000000000	9.0000000000
 0.0000000000	8.0000000000
+0.0000000000	0.0000000000
+0.0000000000	9.0000000000
+0.0000000000	9.0000000000
+0.0000000000	9.0000000000
 0.0000000000	8.0000000000
+0.0000000000	0.0000000000
+0.0000000000	9.0000000000
+0.0000000000	9.0000000000
+0.0000000000	9.0000000000
 0.0000000000	8.0000000000
+0.0000000000	0.0000000000
+0.0000000000	9.0000000000
+0.0000000000	9.0000000000
+0.0000000000	9.0000000000
 0.0000000000	8.0000000000
-0.0000000000	8.0000000000
-0.0000000000	8.0000000000
-0.0000000000	8.0000000000
-0.0000000000	8.0000000000
-0.0000000000	8.0000000000
-0.0000000000	8.0000000000
+0.0000000000	0.0000000000
+0.0000000000	9.0000000000
 explain with
 cte as (select  median(f2) over (partition by f1) as k1 from t1 order by f1),
 cte1 as (select median(f4) over (partition by f1) as k2 from t1)
@@ -15162,6 +15161,39 @@ select k1,k2 from cte1, cte;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	5	
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary
+3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
 drop table t1;
+#
+# MDEV-16104: embedded splittable materialized derived/views
+#
+CREATE TABLE t1 (f int PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t1
+VALUES (3), (7), (1), (4), (8), (5), (9);
+CREATE ALGORITHM=MERGE VIEW v1 AS
+SELECT a2.*
+FROM
+( SELECT f, COUNT(*) as c FROM t1 GROUP BY f ) AS a1
+JOIN
+t1 AS a2
+USING (f);
+EXPLAIN EXTENDED
+SELECT * FROM ( SELECT STRAIGHT_JOIN f, COUNT(*) as c FROM v1 GROUP BY f ) AS s;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	7	100.00	
+2	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	7	100.00	Using temporary; Using filesort
+2	DERIVED	a2	eq_ref	PRIMARY	PRIMARY	4	a1.f	1	100.00	Using index
+4	DERIVED	t1	index	PRIMARY	PRIMARY	4	NULL	7	100.00	Using index; Using temporary; Using filesort
+Warnings:
+Note	1003	/* select#1 */ select `s`.`f` AS `f`,`s`.`c` AS `c` from (/* select#2 */ select straight_join `a2`.`f` AS `f`,count(0) AS `c` from ((/* select#4 */ select `test`.`t1`.`f` AS `f`,count(0) AS `c` from `test`.`t1` group by `test`.`t1`.`f`)) `a1` join `test`.`t1` `a2` where `a2`.`f` = `a1`.`f` group by `a2`.`f`) `s`
+SELECT * FROM ( SELECT STRAIGHT_JOIN f, COUNT(*) as c FROM v1 GROUP BY f ) AS s;
+f	c
+1	1
+3	1
+4	1
+5	1
+7	1
+8	1
+9	1
+DROP VIEW v1;
+DROP TABLE t1;

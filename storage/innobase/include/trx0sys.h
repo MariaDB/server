@@ -224,7 +224,7 @@ trx_sysf_rseg_get_page_no(const buf_block_t* sys_header, ulint rseg_id)
 # error "UNIV_PAGE_SIZE_MIN < 4096"
 #endif
 /** The offset of the MySQL binlog offset info in the trx system header */
-#define TRX_SYS_MYSQL_LOG_INFO		(UNIV_PAGE_SIZE - 1000)
+#define TRX_SYS_MYSQL_LOG_INFO		(srv_page_size - 1000)
 #define	TRX_SYS_MYSQL_LOG_MAGIC_N_FLD	0	/*!< magic number which is
 						TRX_SYS_MYSQL_LOG_MAGIC_N
 						if we have valid data in the
@@ -233,7 +233,7 @@ trx_sysf_rseg_get_page_no(const buf_block_t* sys_header, ulint rseg_id)
 						within that file */
 #define TRX_SYS_MYSQL_LOG_NAME		12	/*!< MySQL log file name */
 
-/** Memory map TRX_SYS_PAGE_NO = 5 when UNIV_PAGE_SIZE = 4096
+/** Memory map TRX_SYS_PAGE_NO = 5 when srv_page_size = 4096
 
 0...37 FIL_HEADER
 38...45 TRX_SYS_TRX_ID_STORE
@@ -249,7 +249,7 @@ trx_sysf_rseg_get_page_no(const buf_block_t* sys_header, ulint rseg_id)
 ...
   ...1063  TRX_SYS_RSEG_PAGE_NO     for slot 126
 
-(UNIV_PAGE_SIZE-3500 WSREP ::: FAIL would overwrite undo tablespace
+(srv_page_size-3500 WSREP ::: FAIL would overwrite undo tablespace
 space_id, page_no pairs :::)
 596 TRX_SYS_WSREP_XID_INFO             TRX_SYS_WSREP_XID_MAGIC_N_FLD
 600 TRX_SYS_WSREP_XID_FORMAT
@@ -259,7 +259,7 @@ space_id, page_no pairs :::)
 739 TRX_SYS_WSREP_XID_DATA_END
 
 FIXED WSREP XID info offsets for 4k page size 10.0.32-galera
-(UNIV_PAGE_SIZE-2500)
+(srv_page_size-2500)
 1596 TRX_SYS_WSREP_XID_INFO             TRX_SYS_WSREP_XID_MAGIC_N_FLD
 1600 TRX_SYS_WSREP_XID_FORMAT
 1604 TRX_SYS_WSREP_XID_GTRID_LEN
@@ -267,19 +267,19 @@ FIXED WSREP XID info offsets for 4k page size 10.0.32-galera
 1612 TRX_SYS_WSREP_XID_DATA   (len = 128)
 1739 TRX_SYS_WSREP_XID_DATA_END
 
-(UNIV_PAGE_SIZE - 2000 MYSQL MASTER LOG)
+(srv_page_size - 2000 MYSQL MASTER LOG)
 2096   TRX_SYS_MYSQL_MASTER_LOG_INFO   TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
 2100   TRX_SYS_MYSQL_LOG_OFFSET_HIGH
 2104   TRX_SYS_MYSQL_LOG_OFFSET_LOW
 2108   TRX_SYS_MYSQL_LOG_NAME
 
-(UNIV_PAGE_SIZE - 1000 MYSQL LOG)
+(srv_page_size - 1000 MYSQL LOG)
 3096   TRX_SYS_MYSQL_LOG_INFO          TRX_SYS_MYSQL_LOG_MAGIC_N_FLD
 3100   TRX_SYS_MYSQL_LOG_OFFSET_HIGH
 3104   TRX_SYS_MYSQL_LOG_OFFSET_LOW
 3108   TRX_SYS_MYSQL_LOG_NAME
 
-(UNIV_PAGE_SIZE - 200 DOUBLEWRITE)
+(srv_page_size - 200 DOUBLEWRITE)
 3896   TRX_SYS_DOUBLEWRITE		TRX_SYS_DOUBLEWRITE_FSEG
 3906         TRX_SYS_DOUBLEWRITE_MAGIC
 3910         TRX_SYS_DOUBLEWRITE_BLOCK1
@@ -287,7 +287,7 @@ FIXED WSREP XID info offsets for 4k page size 10.0.32-galera
 3918         TRX_SYS_DOUBLEWRITE_REPEAT
 3930         TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N
 
-(UNIV_PAGE_SIZE - 8, TAILER)
+(srv_page_size - 8, TAILER)
 4088..4096	FIL_TAILER
 
 */
@@ -308,7 +308,7 @@ FIXED WSREP XID info offsets for 4k page size 10.0.32-galera
 /** Doublewrite buffer */
 /* @{ */
 /** The offset of the doublewrite buffer header on the trx system header page */
-#define TRX_SYS_DOUBLEWRITE		(UNIV_PAGE_SIZE - 200)
+#define TRX_SYS_DOUBLEWRITE		(srv_page_size - 200)
 /*-------------------------------------------------------------*/
 #define TRX_SYS_DOUBLEWRITE_FSEG	0	/*!< fseg header of the fseg
 						containing the doublewrite
@@ -627,6 +627,12 @@ public:
     */
     if (!trx_id)
       return NULL;
+    if (caller_trx && caller_trx->id == trx_id)
+    {
+      if (do_ref_count)
+        caller_trx->reference();
+      return caller_trx;
+    }
 
     trx_t *trx= 0;
     LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
@@ -698,9 +704,10 @@ public:
     because it may change even before this method returns.
   */
 
-  int32_t size()
+  uint32_t size()
   {
-    return my_atomic_load32_explicit(&hash.count, MY_MEMORY_ORDER_RELAXED);
+    return uint32_t(my_atomic_load32_explicit(&hash.count,
+					      MY_MEMORY_ORDER_RELAXED));
   }
 
 
@@ -984,10 +991,10 @@ public:
   bool is_initialised() { return m_initialised; }
 
 
-  /** Initialise the purge subsystem. */
+  /** Initialise the transaction subsystem. */
   void create();
 
-  /** Close the purge subsystem on shutdown. */
+  /** Close the transaction subsystem on shutdown. */
   void close();
 
   /** @return total number of active (non-prepared) transactions */

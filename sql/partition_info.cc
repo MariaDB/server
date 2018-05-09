@@ -48,11 +48,9 @@ partition_info *partition_info::get_clone(THD *thd)
   List_iterator<partition_element> part_it(partitions);
   partition_element *part;
   partition_info *clone= new (mem_root) partition_info(*this);
-  if (!clone)
-  {
-    mem_alloc_error(sizeof(partition_info));
+  if (unlikely(!clone))
     DBUG_RETURN(NULL);
-  }
+
   memset(&(clone->read_partitions), 0, sizeof(clone->read_partitions));
   memset(&(clone->lock_partitions), 0, sizeof(clone->lock_partitions));
   clone->bitmaps_are_initialized= FALSE;
@@ -64,20 +62,16 @@ partition_info *partition_info::get_clone(THD *thd)
     partition_element *subpart;
     partition_element *part_clone= new (mem_root) partition_element();
     if (!part_clone)
-    {
-      mem_alloc_error(sizeof(partition_element));
       DBUG_RETURN(NULL);
-    }
+
     memcpy(part_clone, part, sizeof(partition_element));
     part_clone->subpartitions.empty();
     while ((subpart= (subpart_it++)))
     {
       partition_element *subpart_clone= new (mem_root) partition_element();
       if (!subpart_clone)
-      {
-        mem_alloc_error(sizeof(partition_element));
         DBUG_RETURN(NULL);
-      }
+
       memcpy(subpart_clone, subpart, sizeof(partition_element));
       part_clone->subpartitions.push_back(subpart_clone, mem_root);
     }
@@ -88,20 +82,15 @@ partition_info *partition_info::get_clone(THD *thd)
       (part_elem_value *)alloc_root(mem_root, sizeof(part_elem_value) *
                                     part->list_val_list.elements);
     if (!new_val_arr)
-    {
-      mem_alloc_error(sizeof(part_elem_value) * part->list_val_list.elements);
       DBUG_RETURN(NULL);
-    }
+
     p_column_list_val *new_colval_arr=
       (p_column_list_val*)alloc_root(mem_root, sizeof(p_column_list_val) *
                                      num_columns *
                                      part->list_val_list.elements);
     if (!new_colval_arr)
-    {
-      mem_alloc_error(sizeof(p_column_list_val) * num_columns *
-                      part->list_val_list.elements);
       DBUG_RETURN(NULL);
-    }
+
     part_elem_value *val;
     while ((val= list_val_it++))
     {
@@ -394,10 +383,6 @@ char *partition_info::create_default_partition_names(THD *thd, uint part_no,
       move_ptr+= MAX_PART_NAME_SIZE;
     } while (++i < num_parts_arg);
   }
-  else
-  {
-    mem_alloc_error(num_parts_arg*MAX_PART_NAME_SIZE);
-  }
   DBUG_RETURN(ptr);
 }
 
@@ -422,13 +407,8 @@ char *partition_info::create_default_subpartition_name(THD *thd, uint subpart_no
   DBUG_ENTER("create_default_subpartition_name");
 
   if (likely(ptr != NULL))
-  {
     my_snprintf(ptr, size_alloc, "%ssp%u", part_name, subpart_no);
-  }
-  else
-  {
-    mem_alloc_error(size_alloc);
-  }
+
   DBUG_RETURN(ptr);
 }
 
@@ -505,10 +485,7 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
       default_name+=MAX_PART_NAME_SIZE;
     }
     else
-    {
-      mem_alloc_error(sizeof(partition_element));
       goto end;
-    }
   } while (++i < num_parts);
   result= FALSE;
 end:
@@ -574,10 +551,7 @@ bool partition_info::set_up_default_subpartitions(THD *thd, handler *file,
         subpart_elem->partition_name= ptr;
       }
       else
-      {
-        mem_alloc_error(sizeof(partition_element));
         goto end;
-      }
     } while (++j < num_subparts);
   } while (++i < num_parts);
   result= FALSE;
@@ -1506,11 +1480,9 @@ bool partition_info::set_part_expr(THD *thd, char *start_token, Item *item_ptr,
   size_t expr_len= end_token - start_token;
   char *func_string= (char*) thd->memdup(start_token, expr_len);
 
-  if (!func_string)
-  {
-    mem_alloc_error(expr_len);
+  if (unlikely(!func_string))
     return TRUE;
-  }
+
   if (is_subpart)
   {
     list_of_subpart_fields= FALSE;
@@ -1665,7 +1637,6 @@ bool partition_info::set_up_charset_field_preps(THD *thd)
   }
   DBUG_RETURN(FALSE);
 error:
-  mem_alloc_error(size);
   DBUG_RETURN(TRUE);
 }
 
@@ -1698,17 +1669,19 @@ bool check_partition_dirs(partition_info *part_info)
       partition_element *subpart_elem;
       while ((subpart_elem= sub_it++))
       {
-        if (error_if_data_home_dir(subpart_elem->data_file_name,
-                                   "DATA DIRECTORY") ||
-            error_if_data_home_dir(subpart_elem->index_file_name,
-                                   "INDEX DIRECTORY"))
+        if (unlikely(error_if_data_home_dir(subpart_elem->data_file_name,
+                                            "DATA DIRECTORY")) ||
+            unlikely(error_if_data_home_dir(subpart_elem->index_file_name,
+                                            "INDEX DIRECTORY")))
         return 1;
       }
     }
     else
     {
-      if (error_if_data_home_dir(part_elem->data_file_name, "DATA DIRECTORY") ||
-          error_if_data_home_dir(part_elem->index_file_name, "INDEX DIRECTORY"))
+      if (unlikely(error_if_data_home_dir(part_elem->data_file_name,
+                                          "DATA DIRECTORY")) ||
+          unlikely(error_if_data_home_dir(part_elem->index_file_name,
+                                          "INDEX DIRECTORY")))
         return 1;
     }
   }
@@ -1970,10 +1943,8 @@ bool partition_info::init_column_part(THD *thd)
   if (!(list_val=
       (part_elem_value*) thd->calloc(sizeof(part_elem_value))) ||
       p_elem->list_val_list.push_back(list_val, thd->mem_root))
-  {
-    mem_alloc_error(sizeof(part_elem_value));
     DBUG_RETURN(TRUE);
-  }
+
   if (num_columns)
     loc_num_columns= num_columns;
   else
@@ -1981,10 +1952,8 @@ bool partition_info::init_column_part(THD *thd)
   if (!(col_val_array=
         (part_column_list_val*) thd->calloc(loc_num_columns *
                                             sizeof(part_column_list_val))))
-  {
-    mem_alloc_error(loc_num_columns * sizeof(part_elem_value));
     DBUG_RETURN(TRUE);
-  }
+
   list_val->col_val_array= col_val_array;
   list_val->added_items= 0;
   curr_list_val= list_val;
@@ -2200,7 +2169,6 @@ bool partition_info::fix_column_value_functions(THD *thd,
         thd->variables.sql_mode= save_sql_mode;
         if (!(val_ptr= (uchar*) thd->memdup(field->ptr, len)))
         {
-          mem_alloc_error(len);
           result= TRUE;
           goto end;
         }
@@ -2304,7 +2272,7 @@ bool partition_info::fix_parser_data(THD *thd)
     part_elem= it++;
     List_iterator<part_elem_value> list_val_it(part_elem->list_val_list);
     num_elements= part_elem->list_val_list.elements;
-    if (!num_elements && error_if_requires_values())
+    if (unlikely(!num_elements && error_if_requires_values()))
       DBUG_RETURN(true);
     DBUG_ASSERT(part_type == RANGE_PARTITION ?
                 num_elements == 1U : TRUE);
@@ -2715,11 +2683,9 @@ bool partition_info::vers_init_info(THD * thd)
   column_list= TRUE;
   num_columns= 1;
   vers_info= new (thd->mem_root) Vers_part_info;
-  if (!vers_info)
-  {
-    mem_alloc_error(sizeof(Vers_part_info));
+  if (unlikely(!vers_info))
     return true;
-  }
+
   return false;
 }
 

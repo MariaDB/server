@@ -701,7 +701,7 @@ buf_load()
 
 		if (this_space_id != cur_space_id) {
 			if (space != NULL) {
-				fil_space_release(space);
+				space->release();
 			}
 
 			cur_space_id = this_space_id;
@@ -733,7 +733,7 @@ buf_load()
 
 		if (buf_load_abort_flag) {
 			if (space != NULL) {
-				fil_space_release(space);
+				space->release();
 			}
 			buf_load_abort_flag = FALSE;
 			ut_free(dump);
@@ -764,7 +764,7 @@ buf_load()
 	}
 
 	if (space != NULL) {
-		fil_space_release(space);
+		space->release();
 	}
 
 	ut_free(dump);

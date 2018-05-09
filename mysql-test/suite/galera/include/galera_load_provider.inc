@@ -73,13 +73,4 @@ if ($errno)
 --enable_result_log
 #--eval SET GLOBAL log_error = $log_error_;
 
-#
-# now we can check if node is really ready to rock
-#
---enable_reconnect
-#--disconnect node_2
-#--connect node_2, 127.0.0.1, root, , test, $NODE_MYPORT_2
-#--connection node_2
-#--source include/wait_until_connected_again.inc
-#--sleep 240
-#--source include/wait_until_ready.inc
+--source include/galera_wait_ready.inc

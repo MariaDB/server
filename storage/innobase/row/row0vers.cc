@@ -750,7 +750,6 @@ func_exit:
 @param[in]	clust_index	cluster index
 @param[in]	clust_offsets	cluster rec offset
 @param[in]	index		secondary index
-@param[in]	ientry		secondary index rec
 @param[in]	roll_ptr	roll_ptr for the purge record
 @param[in]	trx_id		transaction ID on the purging record
 @param[in,out]	heap		heap memory
@@ -765,7 +764,6 @@ row_vers_build_cur_vrow(
 	dict_index_t*	clust_index,
 	ulint**		clust_offsets,
 	dict_index_t*	index,
-	const dtuple_t*	ientry,
 	roll_ptr_t	roll_ptr,
 	trx_id_t	trx_id,
 	mem_heap_t*	heap,
@@ -970,7 +968,7 @@ safe_to_purge:
 		associated with current cluster index */
 		cur_vrow = row_vers_build_cur_vrow(
 			also_curr, rec, clust_index, &clust_offsets,
-			index, ientry, roll_ptr, trx_id, heap, v_heap, mtr);
+			index, roll_ptr, trx_id, heap, v_heap, mtr);
 	}
 
 	version = rec;

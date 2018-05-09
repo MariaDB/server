@@ -1182,8 +1182,8 @@ Sql_condition* THD::raise_condition(uint sql_errno,
      require memory allocation and therefore might fail. Non fatal out of 
      memory errors can occur if raised by SIGNAL/RESIGNAL statement.
   */
-  if (!(is_fatal_error && (sql_errno == EE_OUTOFMEMORY ||
-                           sql_errno == ER_OUTOFMEMORY)))
+  if (likely(!(is_fatal_error && (sql_errno == EE_OUTOFMEMORY ||
+                                  sql_errno == ER_OUTOFMEMORY))))
   {
     cond= da->push_warning(this, sql_errno, sqlstate, level, ucid, msg);
   }
@@ -2477,12 +2477,12 @@ bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
   DBUG_ENTER("THD::convert_string");
   size_t new_length= to_cs->mbmaxlen * from_length;
   uint errors;
-  if (alloc_lex_string(to, new_length + 1))
+  if (unlikely(alloc_lex_string(to, new_length + 1)))
     DBUG_RETURN(true);                          // EOM
   to->length= copy_and_convert((char*) to->str, new_length, to_cs,
 			       from, from_length, from_cs, &errors);
   to->str[to->length]= 0;                       // Safety
-  if (errors && lex->parse_vcol_expr)
+  if (unlikely(errors) && lex->parse_vcol_expr)
   {
     my_error(ER_BAD_DATA, MYF(0),
              ErrConvString(from, from_length, from_cs).ptr(),
@@ -2584,7 +2584,8 @@ bool THD::copy_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
 bool THD::convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs)
 {
   uint dummy_errors;
-  if (convert_buffer.copy(s->ptr(), s->length(), from_cs, to_cs, &dummy_errors))
+  if (unlikely(convert_buffer.copy(s->ptr(), s->length(), from_cs, to_cs,
+                                   &dummy_errors)))
     return TRUE;
   /* If convert_buffer >> s copying is more efficient long term */
   if (convert_buffer.alloced_length() >= convert_buffer.length() * 2 ||
@@ -2594,6 +2595,39 @@ bool THD::convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs)
   }
   s->swap(convert_buffer);
   return FALSE;
+}
+
+
+bool THD::check_string_for_wellformedness(const char *str,
+                                          size_t length,
+                                          CHARSET_INFO *cs) const
+{
+  DBUG_ASSERT(charset_is_system_charset);
+  size_t wlen= Well_formed_prefix(cs, str, length).length();
+  if (wlen < length)
+  {
+    ErrConvString err(str, length, &my_charset_bin);
+    my_error(ER_INVALID_CHARACTER_STRING, MYF(0), cs->csname, err.ptr());
+    return true;
+  }
+  return false;
+}
+
+
+bool THD::to_ident_sys_alloc(Lex_ident_sys_st *to, const Lex_ident_cli_st *ident)
+{
+  if (ident->is_quoted())
+  {
+    LEX_CSTRING unquoted;
+    if (quote_unescape(&unquoted, ident, ident->quote()))
+      return true;
+    return charset_is_system_charset ?
+           to->copy_sys(this, &unquoted) :
+           to->convert(this, &unquoted, charset());
+  }
+  return charset_is_system_charset ?
+         to->copy_sys(this, ident) :
+         to->copy_or_convert(this, ident, charset());
 }
 
 
@@ -2758,18 +2792,31 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, size_t key_length)
 }
 
 
-int THD::send_explain_fields(select_result *result, uint8 explain_flags, bool is_analyze)
+void THD::prepare_explain_fields(select_result *result,
+                                 List<Item> *field_list,
+                                 uint8 explain_flags,
+                                 bool is_analyze)
+{
+  if (lex->explain_json)
+    make_explain_json_field_list(*field_list, is_analyze);
+  else
+    make_explain_field_list(*field_list, explain_flags, is_analyze);
+
+  result->prepare(*field_list, NULL);
+}
+
+
+int THD::send_explain_fields(select_result *result,
+                             uint8 explain_flags,
+                             bool is_analyze)
 {
   List<Item> field_list;
-  if (lex->explain_json)
-    make_explain_json_field_list(field_list, is_analyze);
-  else
-    make_explain_field_list(field_list, explain_flags, is_analyze);
-
-  result->prepare(field_list, NULL);
-  return (result->send_result_set_metadata(field_list,
-                                           Protocol::SEND_NUM_ROWS | 
-                                           Protocol::SEND_EOF));
+  int rc;
+  prepare_explain_fields(result, &field_list, explain_flags, is_analyze);
+  rc= result->send_result_set_metadata(field_list,
+                                       Protocol::SEND_NUM_ROWS |
+                                       Protocol::SEND_EOF);
+  return(rc);
 }
 
 
@@ -3116,7 +3163,7 @@ bool select_send::send_eof()
     Don't send EOF if we're in error condition (which implies we've already
     sent or are sending an error)
   */
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
     return TRUE;
   ::my_eof(thd);
   is_result_set_started= 0;
@@ -3131,10 +3178,11 @@ bool select_send::send_eof()
 bool select_to_file::send_eof()
 {
   int error= MY_TEST(end_io_cache(&cache));
-  if (mysql_file_close(file, MYF(MY_WME)) || thd->is_error())
+  if (unlikely(mysql_file_close(file, MYF(MY_WME))) ||
+      unlikely(thd->is_error()))
     error= true;
 
-  if (!error && !suppress_my_ok)
+  if (likely(!error) && !suppress_my_ok)
   {
     ::my_ok(thd,row_count);
   }
@@ -3396,7 +3444,7 @@ int select_export::send_data(List<Item> &items)
                                      res->charset(),
                                      res->ptr(), res->length());
       error_pos= copier.most_important_error_pos();
-      if (error_pos)
+      if (unlikely(error_pos))
       {
         char printable_buff[32];
         convert_to_printable(printable_buff, sizeof(printable_buff),
@@ -4232,7 +4280,7 @@ bool select_dumpvar::send_eof()
     Don't send EOF if we're in error condition (which implies we've already
     sent or are sending an error)
   */
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
     return true;
 
   if (!suppress_my_ok)
@@ -4368,9 +4416,8 @@ void thd_increment_bytes_sent(void *thd, size_t length)
   }
 }
 
-my_bool thd_net_is_killed()
+my_bool thd_net_is_killed(THD *thd)
 {
-  THD *thd= current_thd;
   return thd && thd->killed ? 1 : 0;
 }
 
@@ -4838,7 +4885,7 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
   /* we don't recover here */
   DBUG_ASSERT(!error || !ot_ctx.can_recover_from_failed_open());
 
-  if (error)
+  if (unlikely(error))
     close_thread_tables(thd);
 
   DBUG_RETURN(error ? NULL : tl->table);
@@ -6487,7 +6534,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       clear_binlog_local_stmt_filter();
     }
 
-    if (error) {
+    if (unlikely(error))
+    {
       DBUG_PRINT("info", ("decision: no logging since an error was generated"));
       DBUG_RETURN(-1);
     }
@@ -7329,8 +7377,11 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
     top-most close_thread_tables().
   */
   if (this->locked_tables_mode <= LTM_LOCK_TABLES)
-    if (int error= binlog_flush_pending_rows_event(TRUE, is_trans))
+  {
+    int error;
+    if (unlikely(error= binlog_flush_pending_rows_event(TRUE, is_trans)))
       DBUG_RETURN(error);
+  }
 
   /*
     Warnings for unsafe statements logged in statement format are
@@ -7598,7 +7649,7 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
   thd->ENTER_COND(&COND_wait_commit, &LOCK_wait_commit,
                   &stage_waiting_for_prior_transaction_to_commit,
                   &old_stage);
-  while ((loc_waitee= this->waitee) && !thd->check_killed())
+  while ((loc_waitee= this->waitee) && likely(!thd->check_killed()))
     mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
   if (!loc_waitee)
   {

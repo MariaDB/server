@@ -674,7 +674,8 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       table reference from a subquery for this.
     */
     DBUG_ASSERT(derived->with->get_sq_rec_ref());
-    if (mysql_derived_prepare(lex->thd, lex, derived->with->get_sq_rec_ref()))
+    if (unlikely(mysql_derived_prepare(lex->thd, lex,
+                                       derived->with->get_sq_rec_ref())))
       DBUG_RETURN(TRUE);
   }
 
@@ -698,7 +699,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                   &derived->alias, FALSE, FALSE, FALSE, 0);
     thd->create_tmp_table_for_derived= FALSE;
 
-    if (!res && !derived->table)
+    if (likely(!res) && !derived->table)
     {
       derived->derived_result->set_unit(unit);
       derived->table= derived->derived_result->table;

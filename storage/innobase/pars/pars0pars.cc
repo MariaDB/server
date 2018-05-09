@@ -1832,7 +1832,7 @@ pars_column_def(
 	ulint len2;
 
 	if (len) {
-		len2 = eval_node_get_int_val(len);
+		len2 = ulint(eval_node_get_int_val(len));
 	} else {
 		len2 = 0;
 	}
@@ -2074,9 +2074,8 @@ pars_get_lex_chars(
 {
 	int	len;
 
-	len = static_cast<int>(
-		pars_sym_tab_global->string_len
-		- pars_sym_tab_global->next_char_pos);
+	len = int(pars_sym_tab_global->string_len)
+		- pars_sym_tab_global->next_char_pos;
 	if (len == 0) {
 		return(0);
 	}
@@ -2085,8 +2084,8 @@ pars_get_lex_chars(
 		len = max_size;
 	}
 
-	ut_memcpy(buf, pars_sym_tab_global->sql_string
-		  + pars_sym_tab_global->next_char_pos, len);
+	memcpy(buf, pars_sym_tab_global->sql_string
+	       + pars_sym_tab_global->next_char_pos, ulint(len));
 
 	pars_sym_tab_global->next_char_pos += len;
 
@@ -2345,7 +2344,7 @@ pars_info_add_int4_literal(
 /*=======================*/
 	pars_info_t*	info,		/*!< in: info struct */
 	const char*	name,		/*!< in: name */
-	lint		val)		/*!< in: value */
+	ulint		val)		/*!< in: value */
 {
 	byte*	buf = static_cast<byte*>(mem_heap_alloc(info->heap, 4));
 

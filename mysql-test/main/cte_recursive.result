@@ -3070,6 +3070,177 @@ SELECT * FROM cte;
 2
 3
 #
+# MDEV-15575: using recursive cte with big_tables enabled
+#
+set big_tables=1;
+with recursive qn as
+(select 123 as a union all select 1+a from qn where a<130)
+select * from qn;
+a
+123
+124
+125
+126
+127
+128
+129
+130
+set big_tables=default;
+#
+# MDEV-15571: using recursive cte with big_tables enabled
+#
+create table t1 (a bigint);
+insert into t1 values(1);
+set big_tables=1;
+with recursive qn as
+(
+select  a from t1
+union all
+select a*2000 from qn where a<10000000000000000000
+)
+select * from qn;
+ERROR 22003: BIGINT value is out of range in '`qn`.`a` * 2000'
+set big_tables=default;
+drop table t1;
+#
+# MDEV-15556: using recursive cte with big_tables enabled
+#             when recursive tables are accessed by key
+#
+SET big_tables=1;
+CREATE TABLE t1 (id int, name char(10), leftpar int, rightpar int);
+INSERT INTO t1 VALUES
+(1, "A", 2, 3), (2, "LA", 4, 5), (4, "LLA", 6, 7),
+(6, "LLLA", NULL, NULL), (7, "RLLA", NULL, NULL), (5, "RLA", 8, 9),
+(8, "LRLA", NULL, NULL), (9, "RRLA", NULL, NULL), (3, "RA", 10, 11),
+(10, "LRA", 12, 13), (11, "RRA", 14, 15), (15, "RRRA", NULL, NULL),
+(16, "B", 17, 18), (17, "LB", NULL, NULL), (18, "RB", NULL, NULL);
+CREATE TABLE t2 SELECT * FROM t1 ORDER BY rand();
+WITH RECURSIVE tree_of_a AS
+(SELECT *, cast(id AS char(200)) AS path FROM t2 WHERE name="A"
+    UNION ALL
+SELECT t2.*, concat(tree_of_a.path,",",t2.id)
+FROM t2 JOIN tree_of_a ON t2.id=tree_of_a.leftpar
+UNION ALL
+SELECT t2.*, concat(tree_of_a.path,",",t2.id)
+FROM t2 JOIN tree_of_a ON t2.id=tree_of_a.rightpar)
+SELECT * FROM tree_of_a
+ORDER BY path;
+id	name	leftpar	rightpar	path
+1	A	2	3	1
+2	LA	4	5	1,2
+4	LLA	6	7	1,2,4
+6	LLLA	NULL	NULL	1,2,4,6
+7	RLLA	NULL	NULL	1,2,4,7
+5	RLA	8	9	1,2,5
+8	LRLA	NULL	NULL	1,2,5,8
+9	RRLA	NULL	NULL	1,2,5,9
+3	RA	10	11	1,3
+10	LRA	12	13	1,3,10
+11	RRA	14	15	1,3,11
+15	RRRA	NULL	NULL	1,3,11,15
+EXPLAIN WITH RECURSIVE tree_of_a AS
+(SELECT *, cast(id AS char(200)) AS path FROM t2 WHERE name="A"
+    UNION ALL
+SELECT t2.*, concat(tree_of_a.path,",",t2.id)
+FROM t2 JOIN tree_of_a ON t2.id=tree_of_a.leftpar
+UNION ALL
+SELECT t2.*, concat(tree_of_a.path,",",t2.id)
+FROM t2 JOIN tree_of_a ON t2.id=tree_of_a.rightpar)
+SELECT * FROM tree_of_a
+ORDER BY path;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	15	Using filesort
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	15	Using where
+3	RECURSIVE UNION	t2	ALL	NULL	NULL	NULL	NULL	15	Using where
+3	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.t2.id	2	
+4	RECURSIVE UNION	t2	ALL	NULL	NULL	NULL	NULL	15	Using where
+4	RECURSIVE UNION	<derived2>	ref	key0	key0	5	test.t2.id	2	
+NULL	UNION RESULT	<union2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+DROP TABLE t1,t2;
+SET big_tables=0;
+#
+# MDEV-15840: recursive tables are accessed by key
+#             (the same problem as for MDEV-15556)
+#
+CREATE TABLE t1 (p1 text,k2 int, p2 text, k1 int);
+INSERT INTO t1 select seq, seq, seq, seq from seq_1_to_1000;
+CREATE PROCEDURE getNums()
+BEGIN
+WITH RECURSIVE cte as
+(
+SELECT * FROM t1
+UNION
+SELECT c.* FROM t1 c JOIN cte p ON c.p1 = p.p2 AND c.k2 = p.k1
+)
+SELECT * FROM cte LIMIT 10;
+END |
+call getNums();
+p1	k2	p2	k1
+1	1	1	1
+2	2	2	2
+3	3	3	3
+4	4	4	4
+5	5	5	5
+6	6	6	6
+7	7	7	7
+8	8	8	8
+9	9	9	9
+10	10	10	10
+DROP PROCEDURE getNums;
+DROP TABLE t1;
+#
+# MDEV-15894: aggregate/winfow functions in non-recorsive part
+#
+create table t1(b int);
+insert into t1 values(10),(20),(10);
+with recursive qn as
+(select max(b) as a from t1 union
+select a from qn)
+select * from qn;
+a
+20
+with recursive qn as
+(select rank() over (order by b) as a from t1 union
+select a from qn)
+select * from qn;
+a
+1
+3
+drop table t1;
+#
+# MDEV-16086: tmp table for CTE is created as ARIA tables
+#
+CREATE TABLE t1 (
+Id int(11) not null AUTO_INCREMENT,
+Parent varchar(15) not null,
+Child varchar(15) not null,
+PRIMARY KEY (Id)
+) ENGINE = MyISAM;
+INSERT INTO t1 (Parent, Child) VALUES
+('123', '456'),('456', '789'),('321', '654'),('654', '987');
+WITH RECURSIVE cte AS
+( SELECT b.Parent,
+b.Child,
+CAST(CONCAT(b.Child,',') AS CHAR(513)) Path
+FROM t1 b
+LEFT OUTER JOIN t1 bc ON b.Child = bc.Parent
+WHERE bc.Id IS NULL
+UNION ALL SELECT c.Parent,
+c.Child,
+CONCAT(p.Path,c.Child,',') Path
+FROM t1 c
+INNER JOIN cte p ON c.Child = p.Parent)
+SELECT *
+FROM cte
+ORDER BY Path;
+Parent	Child	Path
+456	789	789,
+123	456	789,456,
+654	987	987,
+321	654	987,654,
+DROP TABLE t1;
+# Start of 10.3 tests
+#
 # MDEV-14217 [db crash] Recursive CTE when SELECT includes new field
 #
 CREATE TEMPORARY TABLE a_tbl (

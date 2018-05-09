@@ -1768,7 +1768,8 @@ end_with_setting_default_tz:
       most of them once more, but this is OK for system tables open
       for READ.
     */
-    if (!(global_system_variables.time_zone= my_tz_find(thd, &tmp_tzname2)))
+    if (unlikely(!(global_system_variables.time_zone=
+                   my_tz_find(thd, &tmp_tzname2))))
     {
       sql_print_error("Fatal error: Illegal or unknown default time zone '%s'",
                       default_tzname);
@@ -1783,7 +1784,7 @@ end_with_close:
 end_with_cleanup:
 
   /* if there were error free time zone describing structs */
-  if (return_val)
+  if (unlikely(return_val))
     my_tz_free();
 end:
   delete thd;

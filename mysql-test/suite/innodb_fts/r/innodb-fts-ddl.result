@@ -10,9 +10,9 @@ INSERT INTO fts_test (title,body) VALUES
 ('1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
 ('MySQL vs. YourSQL','In the following database comparison ...'),
 ('MySQL Security','When configured properly, MySQL ...');
-CREATE FULLTEXT INDEX idx on fts_test (title, body);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
+ERROR 0A000: ALGORITHM=NOCOPY is not supported for this operation. Try ALGORITHM=INPLACE
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=INPLACE;
 SELECT * FROM fts_test WHERE MATCH (title, body)
 AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
 id	title	body
@@ -26,7 +26,7 @@ INSERT INTO fts_test (title,body) VALUES
 ('1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
 ('MySQL vs. YourSQL','In the following database comparison ...'),
 ('MySQL Security','When configured properly, MySQL ...');
-CREATE FULLTEXT INDEX idx on fts_test (title, body);
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
 SELECT * FROM fts_test WHERE MATCH (title, body)
 AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
 id	title	body
@@ -68,7 +68,6 @@ FTS_DOC_ID BIGINT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 title VARCHAR(200),
 body TEXT
 ) ENGINE=InnoDB;
-create unique index FTS_DOC_ID_INDEX on fts_test(FTS_DOC_ID);
 INSERT INTO fts_test (title,body) VALUES
 ('MySQL Tutorial','DBMS stands for DataBase ...')  ,
 ('How To Use MySQL Well','After you went through a ...'),
@@ -78,7 +77,7 @@ INSERT INTO fts_test (title,body) VALUES
 ('MySQL Security','When configured properly, MySQL ...');
 CREATE FULLTEXT INDEX idx on fts_test (title, body) LOCK=NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
-CREATE FULLTEXT INDEX idx on fts_test (title, body);
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
 ALTER TABLE fts_test ROW_FORMAT=REDUNDANT, LOCK=NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try LOCK=SHARED
 ALTER TABLE fts_test ROW_FORMAT=REDUNDANT;
@@ -95,7 +94,6 @@ FTS_DOC_ID	title	body
 1	MySQL Tutorial	DBMS stands for DataBase ...
 3	Optimizing MySQL	In this tutorial we will show ...
 drop index idx on fts_test;
-drop index FTS_DOC_ID_INDEX on fts_test;
 CREATE FULLTEXT INDEX idx on fts_test (title, body);
 SELECT * FROM fts_test WHERE MATCH (title, body)
 AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
@@ -202,7 +200,7 @@ FTS_DOC_ID	title	body
 DROP TABLE articles;
 create table articles(`FTS_DOC_ID` serial,
 `col32` timestamp not null,`col115` text) engine=innodb;
-create fulltext index `idx5` on articles(`col115`)  ;
+create fulltext index `idx5` on articles(`col115`) ;
 alter ignore table articles add primary key  (`col32`)  ;
 drop table articles;
 CREATE TABLE articles (
@@ -218,13 +216,9 @@ INSERT INTO articles VALUES
 (5, 'MySQL vs. YourSQL','In the following database comparison ...'),
 (6, 'MySQL Security','When configured properly, MySQL ...');
 CREATE FULLTEXT INDEX idx on articles (title, body);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 DROP INDEX idx ON articles;
 CREATE UNIQUE INDEX idx2 ON articles(id);
 CREATE FULLTEXT INDEX idx on articles (title, body);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 SELECT * FROM articles WHERE MATCH (title, body)
 AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
 id	title	body

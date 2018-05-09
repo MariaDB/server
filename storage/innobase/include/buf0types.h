@@ -113,7 +113,7 @@ is_checksum_strict(ulint algo)
 #define BUF_BUDDY_LOW		(1U << BUF_BUDDY_LOW_SHIFT)
 
 /** Actual number of buddy sizes based on current page size */
-#define BUF_BUDDY_SIZES		(UNIV_PAGE_SIZE_SHIFT - BUF_BUDDY_LOW_SHIFT)
+#define BUF_BUDDY_SIZES		(srv_page_size_shift - BUF_BUDDY_LOW_SHIFT)
 
 /** Maximum number of buddy sizes based on the max page size */
 #define BUF_BUDDY_SIZES_MAX	(UNIV_PAGE_SIZE_SHIFT_MAX	\
@@ -121,7 +121,7 @@ is_checksum_strict(ulint algo)
 
 /** twice the maximum block size of the buddy system;
 the underlying memory is aligned by this amount:
-this must be equal to UNIV_PAGE_SIZE */
+this must be equal to srv_page_size */
 #define BUF_BUDDY_HIGH	(BUF_BUDDY_LOW << BUF_BUDDY_SIZES)
 /* @} */
 

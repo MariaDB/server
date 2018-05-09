@@ -1,0 +1,17 @@
+#
+# Test for MDEV-15812
+# Assertion `m_lock_type == 2' failed in
+# handler::~handler on dropping a sequence after
+# ER_BINLOG_STMT_MODE_AND_ROW_ENGINE
+#
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_statement.inc
+
+CREATE SEQUENCE seq ENGINE=InnoDB;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+--error ER_BINLOG_STMT_MODE_AND_ROW_ENGINE
+INSERT INTO seq VALUES (1,1,100,1,1,1,1,1);
+
+# Cleanup
+DROP SEQUENCE seq;

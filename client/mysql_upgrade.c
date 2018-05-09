@@ -1144,7 +1144,7 @@ int main(int argc, char **argv)
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   defaults_argv= argv; /* Must be freed by 'free_defaults' */
 
-#if __WIN__
+#if defined(__WIN__)
   if (GetModuleFileName(NULL, self_name, FN_REFLEN) == 0)
 #endif
   {

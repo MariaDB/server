@@ -36,7 +36,7 @@ Created 10/25/1995 Heikki Tuuri
 #include "ibuf0types.h"
 
 // Forward declaration
-extern ibool srv_use_doublewrite_buf;
+extern my_bool srv_use_doublewrite_buf;
 extern struct buf_dblwr_t* buf_dblwr;
 struct trx_t;
 class page_id_t;
@@ -82,7 +82,7 @@ struct fil_space_t {
 				/*!< LSN of the most recent
 				fil_names_write_if_was_clean().
 				Reset to 0 by fil_names_clear().
-				Protected by log_sys->mutex.
+				Protected by log_sys.mutex.
 				If and only if this is nonzero, the
 				tablespace will be in named_spaces. */
 	bool		stop_ios;/*!< true if we want to rename the
@@ -144,14 +144,14 @@ struct fil_space_t {
 	dropped. An example is change buffer merge.
 	The tablespace cannot be dropped while this is nonzero,
 	or while fil_node_t::n_pending is nonzero.
-	Protected by fil_system.mutex. */
+	Protected by fil_system.mutex and my_atomic_loadlint() and friends. */
 	ulint		n_pending_ops;
 	/** Number of pending block read or write operations
 	(when a write is imminent or a read has recently completed).
 	The tablespace object cannot be freed while this is nonzero,
 	but it can be detached from fil_system.
 	Note that fil_node_t::n_pending tracks actual pending I/O requests.
-	Protected by fil_system.mutex. */
+	Protected by fil_system.mutex and my_atomic_loadlint() and friends. */
 	ulint		n_pending_ios;
 	hash_node_t	hash;	/*!< hash chain node */
 	hash_node_t	name_hash;/*!< hash chain the name_hash table */
@@ -245,6 +245,38 @@ struct fil_space_t {
 	bool open();
 	/** Close each file. Only invoked on fil_system.temp_space. */
 	void close();
+
+	/** Acquire a tablespace reference. */
+	void acquire() { my_atomic_addlint(&n_pending_ops, 1); }
+	/** Release a tablespace reference. */
+	void release()
+	{
+		ut_ad(referenced());
+		my_atomic_addlint(&n_pending_ops, ulint(-1));
+	}
+	/** @return whether references are being held */
+	bool referenced() { return my_atomic_loadlint(&n_pending_ops); }
+	/** @return whether references are being held */
+	bool referenced() const
+	{
+		return const_cast<fil_space_t*>(this)->referenced();
+	}
+
+	/** Acquire a tablespace reference for I/O. */
+	void acquire_for_io() { my_atomic_addlint(&n_pending_ios, 1); }
+	/** Release a tablespace reference for I/O. */
+	void release_for_io()
+	{
+		ut_ad(pending_io());
+		my_atomic_addlint(&n_pending_ios, ulint(-1));
+	}
+	/** @return whether I/O is pending */
+	bool pending_io() { return my_atomic_loadlint(&n_pending_ios); }
+	/** @return whether I/O is pending */
+	bool pending_io() const
+	{
+		return const_cast<fil_space_t*>(this)->pending_io();
+	}
 };
 
 /** Value of fil_space_t::magic_n */
@@ -254,7 +286,7 @@ struct fil_space_t {
 struct fil_node_t {
 	/** tablespace containing this file */
 	fil_space_t*	space;
-	/** file name; protected by fil_system.mutex and log_sys->mutex. */
+	/** file name; protected by fil_system.mutex and log_sys.mutex. */
 	char*		name;
 	/** file handle (valid if is_open) */
 	pfs_os_file_t	handle;
@@ -333,15 +365,15 @@ typedef	byte	fil_faddr_t;	/*!< 'type' definition in C: an address
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** Initial size of a single-table tablespace in pages */
-#define FIL_IBD_FILE_INITIAL_SIZE	4
+#define FIL_IBD_FILE_INITIAL_SIZE	4U
 
 /** 'null' (undefined) page offset in the context of file spaces */
 #define	FIL_NULL	ULINT32_UNDEFINED
 
 
-#define FIL_ADDR_PAGE	0	/* first in address is the page offset */
-#define	FIL_ADDR_BYTE	4	/* then comes 2-byte byte offset within page*/
-#define	FIL_ADDR_SIZE	6	/* address size is 6 bytes */
+#define FIL_ADDR_PAGE	0U	/* first in address is the page offset */
+#define	FIL_ADDR_BYTE	4U	/* then comes 2-byte byte offset within page*/
+#define	FIL_ADDR_SIZE	6U	/* address size is 6 bytes */
 
 #ifndef UNIV_INNOCHECKSUM
 
@@ -361,15 +393,15 @@ extern const fil_addr_t	fil_addr_null;
 					page belongs to (== 0) but in later
 					versions the 'new' checksum of the
 					page */
-#define FIL_PAGE_OFFSET		4	/*!< page offset inside space */
-#define FIL_PAGE_PREV		8	/*!< if there is a 'natural'
+#define FIL_PAGE_OFFSET		4U	/*!< page offset inside space */
+#define FIL_PAGE_PREV		8U	/*!< if there is a 'natural'
 					predecessor of the page, its
 					offset.  Otherwise FIL_NULL.
 					This field is not set on BLOB
 					pages, which are stored as a
 					singly-linked list.  See also
 					FIL_PAGE_NEXT. */
-#define FIL_PAGE_NEXT		12	/*!< if there is a 'natural' successor
+#define FIL_PAGE_NEXT		12U	/*!< if there is a 'natural' successor
 					of the page, its offset.
 					Otherwise FIL_NULL.
 					B-tree index pages
@@ -379,9 +411,9 @@ extern const fil_addr_t	fil_addr_null;
 					FIL_PAGE_PREV and FIL_PAGE_NEXT
 					in the collation order of the
 					smallest user record on each page. */
-#define FIL_PAGE_LSN		16	/*!< lsn of the end of the newest
+#define FIL_PAGE_LSN		16U	/*!< lsn of the end of the newest
 					modification log record to the page */
-#define	FIL_PAGE_TYPE		24	/*!< file page type: FIL_PAGE_INDEX,...,
+#define	FIL_PAGE_TYPE		24U	/*!< file page type: FIL_PAGE_INDEX,...,
 					2 bytes.
 
 					The contents of this field can only
@@ -396,7 +428,7 @@ extern const fil_addr_t	fil_addr_null;
 					MySQL/InnoDB 5.1.7 or later, the
 					contents of this field is valid
 					for all uncompressed pages. */
-#define FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION 26 /*!< for the first page
+#define FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION 26U /*!< for the first page
 					in a system tablespace data file
 					(ibdata*, not *.ibd): the file has
 					been flushed to disk at least up
@@ -410,7 +442,7 @@ extern const fil_addr_t	fil_addr_null;
 #define	FIL_RTREE_SPLIT_SEQ_NUM	FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
 
 /** starting from 4.1.x this contains the space id of the page */
-#define FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID  34
+#define FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID  34U
 
 #define FIL_PAGE_SPACE_ID  FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID
 
@@ -514,7 +546,7 @@ The caller should hold an InnoDB table lock or a MDL that prevents
 the tablespace from being dropped during the operation,
 or the caller should be in single-threaded crash recovery mode
 (no user connections that could drop tablespaces).
-If this is not the case, fil_space_acquire() and fil_space_release()
+If this is not the case, fil_space_acquire() and fil_space_t::release()
 should be used instead.
 @param[in]	id	tablespace ID
 @return tablespace, or NULL if not found */
@@ -596,7 +628,7 @@ public:
 					for which a MLOG_FILE_NAME
 					record has been written since
 					the latest redo log checkpoint.
-					Protected only by log_sys->mutex. */
+					Protected only by log_sys.mutex. */
 	UT_LIST_BASE_NODE_T(fil_space_t) rotation_list;
 					/*!< list of all file spaces needing
 					key rotation.*/
@@ -792,11 +824,6 @@ fil_space_acquire_silent(ulint id)
 	return (fil_space_acquire_low(id, true));
 }
 
-/** Release a tablespace acquired with fil_space_acquire().
-@param[in,out]	space	tablespace to release  */
-void
-fil_space_release(fil_space_t* space);
-
 /** Acquire a tablespace for reading or writing a block,
 when it could be dropped concurrently.
 @param[in]	id	tablespace ID
@@ -805,14 +832,9 @@ when it could be dropped concurrently.
 fil_space_t*
 fil_space_acquire_for_io(ulint id);
 
-/** Release a tablespace acquired with fil_space_acquire_for_io().
-@param[in,out]	space	tablespace to release  */
-void
-fil_space_release_for_io(fil_space_t* space);
-
 /** Return the next fil_space_t.
 Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_release() are invoked here which
+fil_space_acquire() and fil_space_t::release() are invoked here which
 blocks a concurrent operation from dropping the tablespace.
 @param[in,out]	prev_space	Pointer to the previous fil_space_t.
 If NULL, use the first fil_space_t on fil_system.space_list.
@@ -825,7 +847,7 @@ fil_space_next(
 
 /** Return the next fil_space_t from key rotation list.
 Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_release() are invoked here which
+fil_space_acquire() and fil_space_t::release() are invoked here which
 blocks a concurrent operation from dropping the tablespace.
 @param[in,out]	prev_space	Pointer to the previous fil_space_t.
 If NULL, use the first fil_space_t on fil_system.space_list.
@@ -1304,8 +1326,8 @@ fil_names_write_if_was_clean(
 	}
 
 	const bool	was_clean = space->max_lsn == 0;
-	ut_ad(space->max_lsn <= log_sys->lsn);
-	space->max_lsn = log_sys->lsn;
+	ut_ad(space->max_lsn <= log_sys.lsn);
+	space->max_lsn = log_sys.lsn;
 
 	if (was_clean) {
 		fil_names_dirty_and_write(space, mtr);

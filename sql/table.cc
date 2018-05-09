@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2016, MariaDB
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -684,7 +684,7 @@ err:
   mysql_file_close(file, MYF(MY_WME));
 
 err_not_open:
-  if (share->error && !error_given)
+  if (unlikely(share->error && !error_given))
   {
     share->open_errno= my_errno;
     open_table_error(share, share->error, share->open_errno);
@@ -2771,8 +2771,8 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   thd->reset_db(&db);
   lex_start(thd);
 
-  if ((error= parse_sql(thd, & parser_state, NULL) || 
-              sql_unusable_for_discovery(thd, hton, sql_copy)))
+  if (unlikely((error= parse_sql(thd, & parser_state, NULL) ||
+                sql_unusable_for_discovery(thd, hton, sql_copy))))
     goto ret;
 
   thd->lex->create_info.db_type= hton;
@@ -2804,7 +2804,7 @@ ret:
   reenable_binlog(thd);
   thd->variables.sql_mode= saved_mode;
   thd->variables.character_set_client= old_cs;
-  if (thd->is_error() || error)
+  if (unlikely(thd->is_error() || error))
   {
     thd->clear_error();
     my_error(ER_SQL_DISCOVER_ERROR, MYF(0),
@@ -2964,14 +2964,14 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
   res.errors= 0;
 
   int error= func_expr->walk(&Item::check_vcol_func_processor, 0, &res);
-  if (error || (res.errors & VCOL_IMPOSSIBLE))
+  if (unlikely(error || (res.errors & VCOL_IMPOSSIBLE)))
   {
     // this can only happen if the frm was corrupted
     my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
              vcol->get_vcol_type_name(), vcol->name.str);
     DBUG_RETURN(1);
   }
-  else if (res.errors & VCOL_AUTO_INC)
+  else if (unlikely(res.errors & VCOL_AUTO_INC))
   {
     /*
       An auto_increment field may not be used in an expression for
@@ -3052,7 +3052,7 @@ unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   lex.last_field= &vcol_storage;
 
   error= parse_sql(thd, &parser_state, NULL);
-  if (error)
+  if (unlikely(error))
     goto end;
 
   if (lex.current_select->table_list.first[0].next_global)
@@ -3321,7 +3321,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     if (share->table_check_constraints || share->field_check_constraints)
       outparam->check_constraints= check_constraint_ptr;
 
-    if (parse_vcol_defs(thd, &outparam->mem_root, outparam, &error_reported))
+    if (unlikely(parse_vcol_defs(thd, &outparam->mem_root, outparam,
+                                 &error_reported)))
     {
       error= OPEN_FRM_CORRUPTED;
       goto err;
@@ -3546,7 +3547,7 @@ partititon_err:
     table		TABLE object to free
 */
 
-int closefrm(register TABLE *table)
+int closefrm(TABLE *table)
 {
   int error=0;
   DBUG_ENTER("closefrm");
@@ -3583,7 +3584,7 @@ int closefrm(register TABLE *table)
 
 /* Deallocate temporary blob storage */
 
-void free_blobs(register TABLE *table)
+void free_blobs(TABLE *table)
 {
   uint *ptr, *end;
   for (ptr= table->s->blob_field, end=ptr + table->s->blob_fields ;
@@ -3777,17 +3778,6 @@ void append_unescaped(String *res, const char *pos, size_t length)
 
   for (; pos != end ; pos++)
   {
-#if defined(USE_MB) && MYSQL_VERSION_ID < 40100
-    uint mblen;
-    if (use_mb(default_charset_info) &&
-        (mblen= my_ismbchar(default_charset_info, pos, end)))
-    {
-      res->append(pos, mblen);
-      pos+= mblen;
-      continue;
-    }
-#endif
-
     switch (*pos) {
     case 0:				/* Must be escaped for 'mysql' */
       res->append('\\');
@@ -4202,7 +4192,7 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
 
   /* Whether the table definition has already been validated. */
   if (table->s->table_field_def_cache == table_def)
-    DBUG_RETURN(FALSE);
+    goto end;
 
   if (table->s->fields != table_def->count)
   {
@@ -4235,6 +4225,8 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
       is backward compatible.
     */
   }
+  else
+  {
   StringBuffer<1024> sql_type(system_charset_info);
   sql_type.extra_allocation(256); // Allocate min 256 characters at once
   for (i=0 ; i < table_def->count; i++, field_def++)
@@ -4320,6 +4312,7 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
       error= TRUE;
     }
   }
+  }
 
   if (table_def->primary_key_parts)
   {
@@ -4361,8 +4354,18 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
     }
   }
 
-  if (! error)
+  if (likely(! error))
     table->s->table_field_def_cache= table_def;
+
+end:
+
+  if (has_keys && !error && !table->key_info)
+  {
+    report_error(0, "Incorrect definition of table %s.%s: "
+                 "indexes are missing",
+                 table->s->db.str, table->alias.c_ptr());
+    error= TRUE;
+  }
 
   DBUG_RETURN(error);
 }
@@ -7924,7 +7927,7 @@ bool TABLE::insert_all_rows_into_tmp_table(THD *thd,
     tmp_table->file->ha_disable_indexes(HA_KEY_SWITCH_ALL);
   file->ha_index_or_rnd_end();
 
-  if (file->ha_rnd_init_with_error(1))
+  if (unlikely(file->ha_rnd_init_with_error(1)))
     DBUG_RETURN(1);
 
   if (tmp_table->no_rows)
@@ -7936,10 +7939,10 @@ bool TABLE::insert_all_rows_into_tmp_table(THD *thd,
     tmp_table->file->ha_start_bulk_insert(file->stats.records);
   }
 
-  while (!file->ha_rnd_next(tmp_table->record[0]))
+  while (likely(!file->ha_rnd_next(tmp_table->record[0])))
   {
     write_err= tmp_table->file->ha_write_tmp_row(tmp_table->record[0]);
-    if (write_err)
+    if (unlikely(write_err))
     {
       bool is_duplicate;
       if (tmp_table->file->is_fatal_error(write_err, HA_CHECK_DUP) &&
@@ -7950,7 +7953,7 @@ bool TABLE::insert_all_rows_into_tmp_table(THD *thd,
 	DBUG_RETURN(1);
        
     }  
-    if (thd->check_killed())
+    if (unlikely(thd->check_killed()))
     {
       thd->send_kill_message();
       goto err_killed;
@@ -8611,7 +8614,7 @@ bool TR_table::update(ulonglong start_id, ulonglong end_id)
   store_iso_level(thd->tx_isolation);
 
   int error= table->file->ha_write_row(table->record[0]);
-  if (error)
+  if (unlikely(error))
     table->file->print_error(error, MYF(0));
   return error;
 }
@@ -8630,10 +8633,10 @@ bool TR_table::query(ulonglong trx_id)
   Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_TRX_ID]);
   Item *value= newx Item_int(thd, trx_id);
   COND *conds= newx Item_func_eq(thd, field, value);
-  if ((error= setup_conds(thd, this, dummy, &conds)))
+  if (unlikely((error= setup_conds(thd, this, dummy, &conds))))
     return false;
   select= make_select(table, 0, 0, conds, NULL, 0, &error);
-  if (error || !select)
+  if (unlikely(error || !select))
     return false;
   // FIXME: (performance) force index 'transaction_id'
   error= init_read_record(&info, thd, table, select, NULL,
@@ -8664,11 +8667,11 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
     conds= newx Item_func_ge(thd, field, value);
   else
     conds= newx Item_func_le(thd, field, value);
-  if ((error= setup_conds(thd, this, dummy, &conds)))
+  if (unlikely((error= setup_conds(thd, this, dummy, &conds))))
     return false;
   // FIXME: (performance) force index 'commit_timestamp'
   select= make_select(table, 0, 0, conds, NULL, 0, &error);
-  if (error || !select)
+  if (unlikely(error || !select))
     return false;
   error= init_read_record(&info, thd, table, select, NULL,
                           1 /* use_record_cache */, true /* print_error */,

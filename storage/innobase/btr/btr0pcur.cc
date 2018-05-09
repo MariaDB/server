@@ -127,6 +127,8 @@ btr_pcur_store_position(
 			  mtr, dict_index_get_lock(index),
 			  MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK)));
 
+	cursor->old_stored = true;
+
 	if (page_is_empty(page)) {
 		/* It must be an empty index tree; NOTE that in this case
 		we do not store the modify_clock, but always do a search
@@ -136,10 +138,7 @@ btr_pcur_store_position(
 		ut_ad(page_is_leaf(page));
 		ut_ad(page_get_page_no(page) == index->page);
 
-		cursor->old_stored = true;
-
 		if (page_rec_is_supremum_low(offs)) {
-
 			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
 		} else {
 			cursor->rel_pos = BTR_PCUR_BEFORE_FIRST_IN_TREE;
@@ -149,21 +148,25 @@ btr_pcur_store_position(
 	}
 
 	if (page_rec_is_supremum_low(offs)) {
-
 		rec = page_rec_get_prev(rec);
 
+		ut_ad(!page_rec_is_infimum(rec));
+		ut_ad(!rec_is_default_row(rec, index));
+
 		cursor->rel_pos = BTR_PCUR_AFTER;
-
 	} else if (page_rec_is_infimum_low(offs)) {
-
 		rec = page_rec_get_next(rec);
+
+		if (rec_is_default_row(rec, index)) {
+			rec = page_rec_get_next(rec);
+			ut_ad(!page_rec_is_supremum(rec));
+		}
 
 		cursor->rel_pos = BTR_PCUR_BEFORE;
 	} else {
 		cursor->rel_pos = BTR_PCUR_ON;
 	}
 
-	cursor->old_stored = true;
 	cursor->old_rec = dict_index_copy_rec_order_prefix(
 		index, rec, &cursor->old_n_fields,
 		&cursor->old_rec_buf, &cursor->buf_size);
@@ -490,7 +493,7 @@ btr_pcur_move_backward_from_page(
 
 	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
 	ut_ad(btr_pcur_is_before_first_on_page(cursor));
-	ut_ad(!btr_pcur_is_before_first_in_tree(cursor, mtr));
+	ut_ad(!btr_pcur_is_before_first_in_tree(cursor));
 
 	latch_mode = cursor->latch_mode;
 
@@ -562,7 +565,7 @@ btr_pcur_move_to_prev(
 
 	if (btr_pcur_is_before_first_on_page(cursor)) {
 
-		if (btr_pcur_is_before_first_in_tree(cursor, mtr)) {
+		if (btr_pcur_is_before_first_in_tree(cursor)) {
 
 			return(FALSE);
 		}

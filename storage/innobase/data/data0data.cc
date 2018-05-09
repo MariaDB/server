@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -346,7 +346,7 @@ dfield_print_also_hex(
 			val = mach_read_from_1(data);
 
 			if (!(prtype & DATA_UNSIGNED)) {
-				val &= ~0x80;
+				val &= ~0x80U;
 				fprintf(stderr, "%ld", (long) val);
 			} else {
 				fprintf(stderr, "%lu", (ulong) val);
@@ -357,7 +357,7 @@ dfield_print_also_hex(
 			val = mach_read_from_2(data);
 
 			if (!(prtype & DATA_UNSIGNED)) {
-				val &= ~0x8000;
+				val &= ~0x8000U;
 				fprintf(stderr, "%ld", (long) val);
 			} else {
 				fprintf(stderr, "%lu", (ulong) val);
@@ -368,7 +368,7 @@ dfield_print_also_hex(
 			val = mach_read_from_3(data);
 
 			if (!(prtype & DATA_UNSIGNED)) {
-				val &= ~0x800000;
+				val &= ~0x800000U;
 				fprintf(stderr, "%ld", (long) val);
 			} else {
 				fprintf(stderr, "%lu", (ulong) val);

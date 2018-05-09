@@ -600,7 +600,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                       *ex->field_term, *ex->line_start,
                       *ex->line_term, *ex->enclosed,
 		      info.escape_char, read_file_from_client, is_fifo);
-  if (read_info.error)
+  if (unlikely(read_info.error))
   {
     if (file >= 0)
       mysql_file_close(file, MYF(0));           // no files in net reading
@@ -632,7 +632,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   }
 
   thd_proc_info(thd, "Reading file");
-  if (!(error= MY_TEST(read_info.error)))
+  if (likely(!(error= MY_TEST(read_info.error))))
   {
     table->reset_default_fields();
     table->next_number_field=table->found_next_number_field;
@@ -669,7 +669,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                             *ex->enclosed, skip_lines, ignore);
 
     thd_proc_info(thd, "End bulk insert");
-    if (!error)
+    if (likely(!error))
       thd_progress_next_stage(thd);
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
         table->file->ha_end_bulk_insert() && !error)
@@ -794,7 +794,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       */
       error= error || mysql_bin_log.get_log_file()->error;
     }
-    if (error)
+    if (unlikely(error))
       goto err;
   }
 #endif /*!EMBEDDED_LIBRARY*/
@@ -1117,11 +1117,11 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       }
     }
 
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
       read_info.error= 1;
-
-    if (read_info.error)
+    if (unlikely(read_info.error))
       break;
+
     if (skip_lines)
     {
       skip_lines--;
@@ -1136,16 +1136,16 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       {
         Load_data_outvar *dst= item->get_load_data_outvar_or_error();
         DBUG_ASSERT(dst);
-        if (dst->load_data_set_no_data(thd, &read_info))
+        if (unlikely(dst->load_data_set_no_data(thd, &read_info)))
           DBUG_RETURN(1);
       }
     }
 
-    if (thd->killed ||
-        fill_record_n_invoke_before_triggers(thd, table, set_fields,
-                                             set_values,
-                                             ignore_check_option_errors,
-                                             TRG_EVENT_INSERT))
+    if (unlikely(thd->killed) ||
+        unlikely(fill_record_n_invoke_before_triggers(thd, table, set_fields,
+                                                      set_values,
+                                                      ignore_check_option_errors,
+                                                      TRG_EVENT_INSERT)))
       DBUG_RETURN(1);
 
     switch (table_list->view_check_option(thd,
@@ -1254,7 +1254,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         DBUG_RETURN(1);
     }
     
-    if (read_info.error)
+    if (unlikely(read_info.error))
       break;
     
     if (skip_lines)

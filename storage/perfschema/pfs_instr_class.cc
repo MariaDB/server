@@ -41,13 +41,6 @@
 */
 
 /**
-  Global performance schema flag.
-  Indicate if the performance schema is enabled.
-  This flag is set at startup, and never changes.
-*/
-my_bool pfs_enabled= TRUE;
-
-/**
   PFS_INSTRUMENT option settings array and associated state variable to
   serialize access during shutdown.
  */

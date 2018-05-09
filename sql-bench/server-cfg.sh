@@ -131,6 +131,7 @@ sub new
   $limits{'alter_add_multi_col'}= 1; #Have ALTER TABLE t add a int,add b int;
   $limits{'alter_table'}	= 1; # Have ALTER TABLE
   $limits{'alter_table_dropcol'}= 1; # Have ALTER TABLE DROP column
+  $limits{'alter_table_after'}= 1;   # Have ALTER TABLE .. AFTER other_column
   $limits{'column_alias'}	= 1; # Alias for fields in select statement.
   $limits{'func_extra_%'}	= 1; # Has % as alias for mod()
   $limits{'func_extra_if'}	= 1; # Have function if.

@@ -1962,10 +1962,11 @@ void kill_mysql(THD *thd)
     pthread_t tmp;
     int error;
     abort_loop=1;
-    if ((error= mysql_thread_create(0, /* Not instrumented */
-                                    &tmp, &connection_attrib,
-                                    kill_server_thread, (void*) 0)))
-      sql_print_error("Can't create thread to kill server (errno= %d).", error);
+    if (unlikely((error= mysql_thread_create(0, /* Not instrumented */
+                                             &tmp, &connection_attrib,
+                                             kill_server_thread, (void*) 0))))
+      sql_print_error("Can't create thread to kill server (errno= %d).",
+                      error);
   }
 #endif
   DBUG_VOID_RETURN;
@@ -2578,7 +2579,7 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
 
   my_snprintf(port_buf, NI_MAXSERV, "%d", port);
   error= getaddrinfo(real_bind_addr_str, port_buf, &hints, &ai);
-  if (error != 0)
+  if (unlikely(error != 0))
   {
     DBUG_PRINT("error",("Got error: %d from getaddrinfo()", error));
 
@@ -3489,8 +3490,9 @@ static void start_signal_handler(void)
   (void) my_setstacksize(&thr_attr,my_thread_stack_size);
 
   mysql_mutex_lock(&LOCK_start_thread);
-  if ((error= mysql_thread_create(key_thread_signal_hand,
-                                  &signal_thread, &thr_attr, signal_hand, 0)))
+  if (unlikely((error= mysql_thread_create(key_thread_signal_hand,
+                                           &signal_thread, &thr_attr,
+                                           signal_hand, 0))))
   {
     sql_print_error("Can't create interrupt-thread (error %d, errno: %d)",
 		    error,errno);
@@ -3592,10 +3594,10 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
         PSI_CALL_delete_current_thread();
 #ifdef USE_ONE_SIGNAL_HAND
 	pthread_t tmp;
-        if ((error= mysql_thread_create(0, /* Not instrumented */
-                                        &tmp, &connection_attrib,
-                                        kill_server_thread,
-                                        (void*) &sig)))
+        if (unlikely((error= mysql_thread_create(0, /* Not instrumented */
+                                                 &tmp, &connection_attrib,
+                                                 kill_server_thread,
+                                                 (void*) &sig))))
           sql_print_error("Can't create thread to kill server (errno= %d)",
                           error);
 #else
@@ -3687,9 +3689,9 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
     func= sql_print_error;
   }
 
-  if (thd)
+  if (likely(thd))
   {
-    if (MyFlags & ME_FATALERROR)
+    if (unlikely(MyFlags & ME_FATALERROR))
       thd->is_fatal_error= 1;
     (void) thd->raise_condition(error, NULL, level, str);
   }
@@ -3699,7 +3701,7 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
   /* When simulating OOM, skip writing to error log to avoid mtr errors */
   DBUG_EXECUTE_IF("simulate_out_of_memory", DBUG_VOID_RETURN;);
 
-  if (!thd || thd->log_all_errors || (MyFlags & ME_NOREFRESH))
+  if (unlikely(!thd) || thd->log_all_errors || (MyFlags & ME_NOREFRESH))
     (*func)("%s: %s", my_progname_short, str); /* purecov: inspected */
   DBUG_VOID_RETURN;
 }
@@ -4105,7 +4107,7 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
                   thd->status_var.local_memory_used);
     if (size > 0 &&
         thd->status_var.local_memory_used > (int64)thd->variables.max_mem_used &&
-        !thd->killed && !thd->get_stmt_da()->is_set())
+        likely(!thd->killed) && !thd->get_stmt_da()->is_set())
     {
       /* Ensure we don't get called here again */
       char buf[50], *buf2;
@@ -5405,7 +5407,7 @@ static int init_server_components()
   init_global_index_stats();
 
   /* Allow storage engine to give real error messages */
-  if (ha_init_errors())
+  if (unlikely(ha_init_errors()))
     DBUG_RETURN(1);
 
   tc_log= 0; // ha_initialize_handlerton() needs that
@@ -5592,7 +5594,7 @@ static int init_server_components()
     error= mysql_bin_log.open(opt_bin_logname, LOG_BIN, 0, 0,
                               WRITE_CACHE, max_binlog_size, 0, TRUE);
     mysql_mutex_unlock(log_lock);
-    if (error)
+    if (unlikely(error))
       unireg_abort(1);
   }
 
@@ -5626,7 +5628,7 @@ static int init_server_components()
     else
       error= mlockall(MCL_CURRENT);
 
-    if (error)
+    if (unlikely(error))
     {
       if (global_system_variables.log_warnings)
 	sql_print_warning("Failed to lock memory. Errno: %d\n",errno);
@@ -5658,9 +5660,9 @@ static void create_shutdown_thread()
   hEventShutdown=CreateEvent(0, FALSE, FALSE, shutdown_event_name);
   pthread_t hThread;
   int error;
-  if ((error= mysql_thread_create(key_thread_handle_shutdown,
-                                  &hThread, &connection_attrib,
-                                  handle_shutdown, 0)))
+  if (unlikely((error= mysql_thread_create(key_thread_handle_shutdown,
+                                           &hThread, &connection_attrib,
+                                           handle_shutdown, 0))))
     sql_print_warning("Can't create thread to handle shutdown requests"
                       " (errno= %d)", error);
 
@@ -8591,6 +8593,7 @@ SHOW_VAR status_vars[]= {
   {"Feature_fulltext",         (char*) offsetof(STATUS_VAR, feature_fulltext), SHOW_LONG_STATUS},
   {"Feature_gis",              (char*) offsetof(STATUS_VAR, feature_gis), SHOW_LONG_STATUS},
   {"Feature_invisible_columns",   (char*) offsetof(STATUS_VAR, feature_invisible_columns), SHOW_LONG_STATUS},
+  {"Feature_json",             (char*) offsetof(STATUS_VAR, feature_json), SHOW_LONG_STATUS},
   {"Feature_locale",           (char*) offsetof(STATUS_VAR, feature_locale), SHOW_LONG_STATUS},
   {"Feature_subquery",         (char*) offsetof(STATUS_VAR, feature_subquery), SHOW_LONG_STATUS},
   {"Feature_timezone",         (char*) offsetof(STATUS_VAR, feature_timezone), SHOW_LONG_STATUS},
@@ -9050,7 +9053,7 @@ static int mysql_init_variables(void)
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
   have_ssl=SHOW_OPTION_YES;
-#if HAVE_YASSL
+#if defined(HAVE_YASSL)
   have_openssl= SHOW_OPTION_NO;
 #else
   have_openssl= SHOW_OPTION_YES;
@@ -9602,7 +9605,7 @@ mysql_getopt_value(const char *name, uint length,
   case OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE:
   {
     KEY_CACHE *key_cache;
-    if (!(key_cache= get_or_create_key_cache(name, length)))
+    if (unlikely(!(key_cache= get_or_create_key_cache(name, length))))
     {
       if (error)
         *error= EXIT_OUT_OF_MEMORY;
@@ -9731,17 +9734,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
                       global_system_variables.net_buffer_length, 
                       global_system_variables.max_allowed_packet);
   }
-
-#if MYSQL_VERSION_ID > 101001
-  /*
-    TIMESTAMP columns get implicit DEFAULT values when
-    --explicit_defaults_for_timestamp is not set.
-  */
-  if (!opt_help && !opt_explicit_defaults_for_timestamp)
-    sql_print_warning("TIMESTAMP with implicit DEFAULT value is deprecated. "
-                      "Please use --explicit_defaults_for_timestamp server "
-                      "option (see documentation for more details).");
-#endif
 
   if (log_error_file_ptr != disabled_my_option)
     opt_error_log= 1;

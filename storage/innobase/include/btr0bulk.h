@@ -33,7 +33,7 @@ Created 03/11/2014 Shaohua Wang
 #include <vector>
 
 /** Innodb B-tree index fill factor for bulk load. */
-extern	long	innobase_fill_factor;
+extern	uint	innobase_fill_factor;
 
 /*
 The proper function call sequence of PageBulk is as below:
@@ -294,7 +294,8 @@ public:
 		mem_heap_free(m_heap);
 		UT_DELETE(m_page_bulks);
 		ut_d(my_atomic_addlint(
-			     &m_index->table->space->redo_skipped_count, -1));
+			     &m_index->table->space->redo_skipped_count,
+			     ulint(-1)));
 	}
 
 	/** Initialization

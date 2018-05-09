@@ -2500,5 +2500,19 @@ t2	CREATE TABLE `t2` (
 DROP TABLE t2;
 DROP TABLE t1;
 #
+# MDEV-13232: Assertion `(&(&share->intern_lock)->m_mutex)->count > 0 &&
+# pthread_equal(pthread_self(), (&(&share->intern_lock)->m_mutex)->
+# thread)' failed in _ma_state_info_write
+#
+CREATE TABLE t1 (c1 CHAR(8));
+INSERT INTO t1 VALUES ('10'),('-10');
+CREATE TABLE t2 (c2 CHAR);
+SET @a= CAST('10' AS CHAR);
+SELECT c1 FROM t1 UNION SELECT - @a FROM t2;
+c1
+10
+-10
+drop table t1,t2;
+#
 # End of 10.3 tests
 #

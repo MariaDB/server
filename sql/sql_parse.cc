@@ -963,7 +963,7 @@ static char *fgets_fn(char *buffer, size_t size, fgets_input_t input, int *error
 {
   MYSQL_FILE *in= static_cast<MYSQL_FILE*> (input);
   char *line= mysql_file_fgets(buffer, (int)size, in);
-  if (error)
+  if (unlikely(error))
     *error= (line == NULL) ? ferror(in->m_file) : 0;
   return line;
 }
@@ -1077,7 +1077,7 @@ static void handle_bootstrap_impl(THD *thd)
 #endif
     delete_explain_query(thd->lex);
 
-    if (bootstrap_error)
+    if (unlikely(bootstrap_error))
       break;
 
     thd->reset_kill_query();  /* Ensure that killed_errmsg is released */
@@ -1264,7 +1264,7 @@ bool do_command(THD *thd)
 
   packet_length= my_net_read_packet(net, 1);
 
-  if (packet_length == packet_error)
+  if (unlikely(packet_length == packet_error))
   {
     DBUG_PRINT("info",("Got error %d reading command from socket %s",
 		       net->error,
@@ -1663,8 +1663,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   {
     LEX_CSTRING tmp;
     status_var_increment(thd->status_var.com_stat[SQLCOM_CHANGE_DB]);
-    if (thd->copy_with_error(system_charset_info, (LEX_STRING*) &tmp,
-                             thd->charset(), packet, packet_length))
+    if (unlikely(thd->copy_with_error(system_charset_info, (LEX_STRING*) &tmp,
+                                      thd->charset(), packet, packet_length)))
       break;
     if (!mysql_change_db(thd, &tmp, FALSE))
     {
@@ -1796,7 +1796,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     thd->m_digest= & thd->m_digest_state;
     thd->m_digest->reset(thd->m_token_array, max_digest_length);
 
-    if (alloc_query(thd, packet, packet_length))
+    if (unlikely(alloc_query(thd, packet, packet_length)))
       break;					// fatal error is set
     MYSQL_QUERY_START(thd->query(), thd->thread_id,
                       thd->get_db(),
@@ -1812,7 +1812,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                              thd->query_length());
 
     Parser_state parser_state;
-    if (parser_state.init(thd, thd->query(), thd->query_length()))
+    if (unlikely(parser_state.init(thd, thd->query(), thd->query_length())))
       break;
 
     if (WSREP_ON)
@@ -2459,7 +2459,7 @@ com_multi_end:
   if (drop_more_results)
     thd->server_status&= ~SERVER_MORE_RESULTS_EXISTS;
 
-  if (!thd->is_error() && !thd->killed_errno())
+  if (likely(!thd->is_error() && !thd->killed_errno()))
     mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_RESULT, 0, 0);
 
   mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
@@ -4002,7 +4002,7 @@ mysql_execute_command(THD *thd)
     {
       /* New replication created */
       mi= new Master_info(&lex_mi->connection_name, relay_log_recovery); 
-      if (!mi || mi->error())
+      if (unlikely(!mi || mi->error()))
       {
         delete mi;
         res= 1;
@@ -4112,7 +4112,7 @@ mysql_execute_command(THD *thd)
       copy.
     */
     Alter_info alter_info(lex->alter_info, thd->mem_root);
-    if (thd->is_fatal_error)
+    if (unlikely(thd->is_fatal_error))
     {
       /* If out of memory when creating a copy of alter_info. */
       res= 1;
@@ -4254,7 +4254,7 @@ mysql_execute_command(THD *thd)
       thd->lex->create_info.options|= create_info.options;
       res= open_and_lock_tables(thd, create_info, lex->query_tables, TRUE, 0);
       thd->lex->create_info.options= save_thd_create_info_options;
-      if (res)
+      if (unlikely(res))
       {
         /* Got error or warning. Set res to 1 if error */
         if (!(res= thd->is_error()))
@@ -4266,9 +4266,9 @@ mysql_execute_command(THD *thd)
       if (create_info.or_replace() && !create_info.tmp_table())
       {
         TABLE_LIST *duplicate;
-        if ((duplicate= unique_table(thd, lex->query_tables,
-                                     lex->query_tables->next_global,
-                                     0)))
+        if (unlikely((duplicate= unique_table(thd, lex->query_tables,
+                                              lex->query_tables->next_global,
+                                              0))))
         {
           update_non_unique_table_error(lex->query_tables, "CREATE",
                                         duplicate);
@@ -4292,13 +4292,14 @@ mysql_execute_command(THD *thd)
           needs to be created for every execution of a PS/SP.
           Note: In wsrep-patch, CTAS is handled like a regular transaction.
         */
-        if ((result= new (thd->mem_root) select_create(thd, create_table,
-                                                       &create_info,
-                                                       &alter_info,
-                                                       select_lex->item_list,
-                                                       lex->duplicates,
-                                                       lex->ignore,
-                                                       select_tables)))
+        if (unlikely((result= new (thd->mem_root)
+                      select_create(thd, create_table,
+                                    &create_info,
+                                    &alter_info,
+                                    select_lex->item_list,
+                                    lex->duplicates,
+                                    lex->ignore,
+                                    select_tables))))
         {
           /*
             CREATE from SELECT give its SELECT_LEX for SELECT,
@@ -4379,7 +4380,7 @@ end_with_restore_list:
     HA_CREATE_INFO create_info;
     Alter_info alter_info(lex->alter_info, thd->mem_root);
 
-    if (thd->is_fatal_error) /* out of memory creating a copy of alter_info */
+    if (unlikely(thd->is_fatal_error)) /* out of memory creating alter_info */
       goto error;
 
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
@@ -4416,8 +4417,8 @@ end_with_restore_list:
       We don't need to ensure that only one user is using master_info
       as start_slave is protected against simultaneous usage
     */
-    if ((mi= get_master_info(&lex_mi->connection_name,
-                             Sql_condition::WARN_LEVEL_ERROR)))
+    if (unlikely((mi= get_master_info(&lex_mi->connection_name,
+                                      Sql_condition::WARN_LEVEL_ERROR))))
     {
       if (load_error)
       {
@@ -5020,17 +5021,17 @@ end_with_restore_list:
       break;
 
     MYSQL_MULTI_DELETE_START(thd->query());
-    if ((res= mysql_multi_delete_prepare(thd)))
+    if (unlikely(res= mysql_multi_delete_prepare(thd)))
     {
       MYSQL_MULTI_DELETE_DONE(1, 0);
       goto error;
     }
 
-    if (!thd->is_fatal_error)
+    if (likely(!thd->is_fatal_error))
     {
       result= new (thd->mem_root) multi_delete(thd, aux_tables,
                                                lex->table_count);
-      if (result)
+      if (unlikely(result))
       {
         res= mysql_select(thd,
                           select_lex->get_table_list(),
@@ -5228,9 +5229,9 @@ end_with_restore_list:
     if ((check_table_access(thd, SELECT_ACL, all_tables, FALSE, UINT_MAX, FALSE)
          || open_and_lock_tables(thd, all_tables, TRUE, 0)))
       goto error;
-    if (!(res= sql_set_variables(thd, lex_var_list, true)))
+    if (likely(!(res= sql_set_variables(thd, lex_var_list, true))))
     {
-      if (!thd->is_error())
+      if (likely(!thd->is_error()))
         my_ok(thd);
     }
     else
@@ -6330,7 +6331,7 @@ end_with_restore_list:
 
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
-    if ((error= alter_server(thd, &lex->server_options)))
+    if (unlikely((error= alter_server(thd, &lex->server_options))))
     {
       DBUG_PRINT("info", ("problem altering server <%s>",
                           lex->server_options.server_name.str));
@@ -6434,7 +6435,8 @@ finish:
       }
       thd->reset_kill_query();
     }
-    if (thd->is_error() || (thd->variables.option_bits & OPTION_MASTER_SQL_ERROR))
+    if (unlikely(thd->is_error()) ||
+        (thd->variables.option_bits & OPTION_MASTER_SQL_ERROR))
     {
       THD_STAGE_INFO(thd, stage_rollback);
       trans_rollback_stmt(thd);
@@ -6568,7 +6570,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         to prepend EXPLAIN to any query and receive output for it,
         even if the query itself redirects the output.
       */
-      if (!(result= new (thd->mem_root) select_send(thd)))
+      if (unlikely(!(result= new (thd->mem_root) select_send(thd))))
         return 1;                               /* purecov: inspected */
       thd->send_explain_fields(result, lex->describe, lex->analyze_stmt);
         
@@ -6579,7 +6581,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
       res= mysql_explain_union(thd, &lex->unit, result);
       
       /* Print EXPLAIN only if we don't have an error */
-      if (!res)
+      if (likely(!res))
       {
         /* 
           Do like the original select_describe did: remove OFFSET from the
@@ -6792,7 +6794,7 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
   /* check access may be called twice in a row. Don't change to same stage */
   if (thd->proc_info != stage_checking_permissions.m_name)
     THD_STAGE_INFO(thd, stage_checking_permissions);
-  if ((!db || !db[0]) && !thd->db.str && !dont_check_global_grants)
+  if (unlikely((!db || !db[0]) && !thd->db.str && !dont_check_global_grants))
   {
     DBUG_PRINT("error",("No database"));
     if (!no_errors)
@@ -6801,7 +6803,7 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
     DBUG_RETURN(TRUE);				/* purecov: tested */
   }
 
-  if ((db != NULL) && (db != any_db))
+  if (likely((db != NULL) && (db != any_db)))
   {
     /*
       Check if this is reserved database, like information schema or
@@ -6871,8 +6873,8 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
       *save_priv|= sctx->master_access;
     DBUG_RETURN(FALSE);
   }
-  if (((want_access & ~sctx->master_access) & ~DB_ACLS) ||
-      (! db && dont_check_global_grants))
+  if (unlikely(((want_access & ~sctx->master_access) & ~DB_ACLS) ||
+               (! db && dont_check_global_grants)))
   {						// We can never grant this
     DBUG_PRINT("error",("No possible access"));
     if (!no_errors)
@@ -6888,7 +6890,7 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
     DBUG_RETURN(TRUE);				/* purecov: tested */
   }
 
-  if (db == any_db)
+  if (unlikely(db == any_db))
   {
     /*
       Access granted; Allow select on *any* db.
@@ -7382,7 +7384,7 @@ bool check_global_access(THD *thd, ulong want_access, bool no_errors)
   char command[128];
   if ((thd->security_ctx->master_access & want_access))
     return 0;
-  if (!no_errors)
+  if (unlikely(!no_errors))
   {
     get_privilege_desc(command, sizeof(command), want_access);
     my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), command);
@@ -7629,7 +7631,7 @@ void THD::reset_for_next_command(bool do_clear_error)
   DBUG_ASSERT(!spcont); /* not for substatements of routines */
   DBUG_ASSERT(!in_sub_stmt);
 
-  if (do_clear_error)
+  if (likely(do_clear_error))
     clear_error(1);
 
   free_list= 0;
@@ -8119,7 +8121,7 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
 
     bool err= parse_sql(thd, parser_state, NULL, true);
 
-    if (!err)
+    if (likely(!err))
     {
       thd->m_statement_psi=
         MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
@@ -8134,7 +8136,7 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
       else
 #endif
       {
-	if (! thd->is_error())
+	if (likely(! thd->is_error()))
 	{
           const char *found_semicolon= parser_state->m_lip.found_semicolon;
           /*
@@ -8228,7 +8230,7 @@ bool mysql_test_parse_for_slave(THD *thd, char *rawbuf, uint length)
   DBUG_ENTER("mysql_test_parse_for_slave");
 
   Parser_state parser_state;
-  if (!(error= parser_state.init(thd, rawbuf, length)))
+  if (likely(!(error= parser_state.init(thd, rawbuf, length))))
   {
     lex_start(thd);
     thd->reset_for_next_command();
@@ -8250,7 +8252,7 @@ add_proc_to_list(THD* thd, Item *item)
   ORDER *order;
   Item	**item_ptr;
 
-  if (!(order = (ORDER *) thd->alloc(sizeof(ORDER)+sizeof(Item*))))
+  if (unlikely(!(order = (ORDER *) thd->alloc(sizeof(ORDER)+sizeof(Item*)))))
     return 1;
   item_ptr = (Item**) (order+1);
   *item_ptr= item;
@@ -8268,7 +8270,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
 {
   ORDER *order;
   DBUG_ENTER("add_to_list");
-  if (!(order = (ORDER *) thd->alloc(sizeof(ORDER))))
+  if (unlikely(!(order = (ORDER *) thd->alloc(sizeof(ORDER)))))
     DBUG_RETURN(1);
   order->item_ptr= item;
   order->item= &order->item_ptr;
@@ -8311,25 +8313,25 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
                                              List<String> *partition_names,
                                              LEX_STRING *option)
 {
-  register TABLE_LIST *ptr;
+  TABLE_LIST *ptr;
   TABLE_LIST *UNINIT_VAR(previous_table_ref); /* The table preceding the current one. */
   LEX_CSTRING alias_str;
   LEX *lex= thd->lex;
   DBUG_ENTER("add_table_to_list");
 
-  if (!table)
+  if (unlikely(!table))
     DBUG_RETURN(0);				// End of memory
   alias_str= alias ? *alias : table->table;
   DBUG_ASSERT(alias_str.str);
   if (!MY_TEST(table_options & TL_OPTION_ALIAS) &&
-      check_table_name(table->table.str, table->table.length, FALSE))
+      unlikely(check_table_name(table->table.str, table->table.length, FALSE)))
   {
     my_error(ER_WRONG_TABLE_NAME, MYF(0), table->table.str);
     DBUG_RETURN(0);
   }
 
-  if (table->is_derived_table() == FALSE && table->db.str &&
-      check_db_name((LEX_STRING*) &table->db))
+  if (unlikely(table->is_derived_table() == FALSE && table->db.str &&
+               check_db_name((LEX_STRING*) &table->db)))
   {
     my_error(ER_WRONG_DB_NAME, MYF(0), table->db.str);
     DBUG_RETURN(0);
@@ -8337,17 +8339,17 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 
   if (!alias)                            /* Alias is case sensitive */
   {
-    if (table->sel)
+    if (unlikely(table->sel))
     {
       my_message(ER_DERIVED_MUST_HAVE_ALIAS,
                  ER_THD(thd, ER_DERIVED_MUST_HAVE_ALIAS), MYF(0));
       DBUG_RETURN(0);
     }
     /* alias_str points to table->table;  Let's make a copy */
-    if (!(alias_str.str= (char*) thd->memdup(alias_str.str, alias_str.length+1)))
+    if (unlikely(!(alias_str.str= (char*) thd->memdup(alias_str.str, alias_str.length+1))))
       DBUG_RETURN(0);
   }
-  if (!(ptr = (TABLE_LIST *) thd->calloc(sizeof(TABLE_LIST))))
+  if (unlikely(!(ptr = (TABLE_LIST *) thd->calloc(sizeof(TABLE_LIST)))))
     DBUG_RETURN(0);				/* purecov: inspected */
   if (table->db.str)
   {
@@ -8393,7 +8395,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
       DBUG_RETURN(0);
     }
     schema_table= find_schema_table(thd, &ptr->table_name);
-    if (!schema_table ||
+    if (unlikely(!schema_table) ||
         (schema_table->hidden && 
          ((sql_command_flags[lex->sql_command] & CF_STATUS_COMMAND) == 0 || 
           /*
@@ -8427,8 +8429,9 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 	 tables ;
 	 tables=tables->next_local)
     {
-      if (!my_strcasecmp(table_alias_charset, alias_str.str, tables->alias.str) &&
-	  !cmp(&ptr->db, &tables->db) && ! tables->sequence)
+      if (unlikely(!my_strcasecmp(table_alias_charset, alias_str.str,
+                                  tables->alias.str) &&
+                   !cmp(&ptr->db, &tables->db) && ! tables->sequence))
       {
 	my_error(ER_NONUNIQ_TABLE, MYF(0), alias_str.str); /* purecov: tested */
 	DBUG_RETURN(0);				/* purecov: tested */
@@ -8436,7 +8439,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     }
   }
   /* Store the table reference preceding the current one. */
-  if (table_list.elements > 0 && !ptr->sequence)
+  if (table_list.elements > 0 && likely(!ptr->sequence))
   {
     /*
       table_list.next points to the last inserted TABLE_LIST->next_local'
@@ -8464,7 +8467,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     We don't store sequences into the local list to hide them from INSERT
     and SELECT.
   */
-  if (!ptr->sequence)
+  if (likely(!ptr->sequence))
     table_list.link_in_list(ptr, &ptr->next_local);
   ptr->next_name_resolution_table= NULL;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -8509,13 +8512,14 @@ bool st_select_lex::init_nested_join(THD *thd)
   NESTED_JOIN *nested_join;
   DBUG_ENTER("init_nested_join");
 
-  if (!(ptr= (TABLE_LIST*) thd->calloc(ALIGN_SIZE(sizeof(TABLE_LIST))+
-                                       sizeof(NESTED_JOIN))))
+  if (unlikely(!(ptr= (TABLE_LIST*) thd->calloc(ALIGN_SIZE(sizeof(TABLE_LIST))+
+                                                sizeof(NESTED_JOIN)))))
     DBUG_RETURN(1);
   nested_join= ptr->nested_join=
     ((NESTED_JOIN*) ((uchar*) ptr + ALIGN_SIZE(sizeof(TABLE_LIST))));
 
-  join_list->push_front(ptr, thd->mem_root);
+  if (unlikely(join_list->push_front(ptr, thd->mem_root)))
+    DBUG_RETURN(1);
   ptr->embedding= embedding;
   ptr->join_list= join_list;
   ptr->alias.str="(nested_join)";
@@ -8591,8 +8595,8 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
   List<TABLE_LIST> *embedded_list;
   DBUG_ENTER("nest_last_join");
 
-  if (!(ptr= (TABLE_LIST*) thd->calloc(ALIGN_SIZE(sizeof(TABLE_LIST))+
-                                       sizeof(NESTED_JOIN))))
+  if (unlikely(!(ptr= (TABLE_LIST*) thd->calloc(ALIGN_SIZE(sizeof(TABLE_LIST))+
+                                                sizeof(NESTED_JOIN)))))
     DBUG_RETURN(0);
   nested_join= ptr->nested_join=
     ((NESTED_JOIN*) ((uchar*) ptr + ALIGN_SIZE(sizeof(TABLE_LIST))));
@@ -8607,7 +8611,7 @@ TABLE_LIST *st_select_lex::nest_last_join(THD *thd)
   for (uint i=0; i < 2; i++)
   {
     TABLE_LIST *table= join_list->pop();
-    if (!table)
+    if (unlikely(!table))
       DBUG_RETURN(NULL);
     table->join_list= embedded_list;
     table->embedding= ptr;
@@ -9102,7 +9106,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
 
   *rows= 0;
 
-  if (thd->is_fatal_error)                       // If we run out of memory
+  if (unlikely(thd->is_fatal_error))        // If we run out of memory
     DBUG_RETURN(ER_OUT_OF_RESOURCES);
 
   DBUG_PRINT("enter", ("user: %s  signal: %u", user->user.str,
@@ -9176,7 +9180,7 @@ static
 void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
 {
   uint error;
-  if (!(error= kill_one_thread(thd, id, state, type)))
+  if (likely(!(error= kill_one_thread(thd, id, state, type))))
   {
     if (!thd->killed)
       my_ok(thd);
@@ -9193,7 +9197,7 @@ void sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 {
   uint error;
   ha_rows rows;
-  if (!(error= kill_threads_for_user(thd, user, state, &rows)))
+  if (likely(!(error= kill_threads_for_user(thd, user, state, &rows))))
     my_ok(thd, rows);
   else
   {
@@ -9225,36 +9229,11 @@ bool append_file_to_dir(THD *thd, const char **filename_ptr,
   /* Fix is using unix filename format on dos */
   strmov(buff,*filename_ptr);
   end=convert_dirname(buff, *filename_ptr, NullS);
-  if (!(ptr= (char*) thd->alloc((size_t) (end-buff) + table_name->length + 1)))
+  if (unlikely(!(ptr= (char*) thd->alloc((size_t) (end-buff) +
+                                         table_name->length + 1))))
     return 1;					// End of memory
   *filename_ptr=ptr;
   strxmov(ptr,buff,table_name->str,NullS);
-  return 0;
-}
-
-
-/**
-  Check if the select is a simple select (not an union).
-
-  @retval
-    0	ok
-  @retval
-    1	error	; In this case the error messege is sent to the client
-*/
-
-bool check_simple_select()
-{
-  THD *thd= current_thd;
-  LEX *lex= thd->lex;
-  if (lex->current_select != &lex->select_lex)
-  {
-    char command[80];
-    Lex_input_stream *lip= & thd->m_parser_state->m_lip;
-    strmake(command, lip->yylval->symbol.str,
-	    MY_MIN(lip->yylval->symbol.length, sizeof(command)-1));
-    my_error(ER_CANT_USE_OPTION_HERE, MYF(0), command);
-    return 1;
-  }
   return 0;
 }
 
@@ -9897,7 +9876,7 @@ LEX_USER *create_default_definer(THD *thd, bool role)
 {
   LEX_USER *definer;
 
-  if (! (definer= (LEX_USER*) thd->alloc(sizeof(LEX_USER))))
+  if (unlikely(! (definer= (LEX_USER*) thd->alloc(sizeof(LEX_USER)))))
     return 0;
 
   thd->get_definer(definer, role);
@@ -9932,7 +9911,7 @@ LEX_USER *create_definer(THD *thd, LEX_CSTRING *user_name,
 
   /* Create and initialize. */
 
-  if (! (definer= (LEX_USER*) thd->alloc(sizeof(LEX_USER))))
+  if (unlikely(!(definer= (LEX_USER*) thd->alloc(sizeof(LEX_USER)))))
     return 0;
 
   definer->user= *user_name;
@@ -9995,7 +9974,8 @@ bool check_string_char_length(const LEX_CSTRING *str, uint err_msg,
                               bool no_error)
 {
   Well_formed_prefix prefix(cs, str->str, str->length, max_char_length);
-  if (!prefix.well_formed_error_pos() && str->length == prefix.length())
+  if (likely(!prefix.well_formed_error_pos() &&
+             str->length == prefix.length()))
     return FALSE;
 
   if (!no_error)

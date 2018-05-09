@@ -39,9 +39,6 @@ void LEX::parse_error(uint err_number)
 }
 
 
-static int lex_one_token(YYSTYPE *yylval, THD *thd);
-
-
 /**
   LEX_STRING constant for null-string to be used in parser and other places.
 */
@@ -125,7 +122,7 @@ const char * index_hint_type_name[] =
 inline int lex_casecmp(const char *s, const char *t, uint len)
 {
   while (len-- != 0 &&
-	 to_upper_lex[(uchar) *s++] == to_upper_lex[(uchar) *t++]) ;
+         to_upper_lex[(uchar) *s++] == to_upper_lex[(uchar) *t++]) ;
   return (int) len+1;
 }
 
@@ -146,7 +143,7 @@ void lex_init(void)
 
 
 void lex_free(void)
-{					// Call this when daemon ends
+{                                        // Call this when daemon ends
   DBUG_ENTER("lex_free");
   DBUG_VOID_RETURN;
 }
@@ -189,14 +186,14 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
   thd->lex= lex;
   lex_start(thd);
   context->init();
-  if ((!(table_ident= new Table_ident(thd,
-                                      &table->s->db,
-                                      &table->s->table_name,
-                                      TRUE))) ||
-      (!(table_list= select_lex->add_table_to_list(thd,
-                                                   table_ident,
-                                                   NULL,
-                                                   0))))
+  if (unlikely((!(table_ident= new Table_ident(thd,
+                                               &table->s->db,
+                                               &table->s->table_name,
+                                               TRUE)))) ||
+      (unlikely(!(table_list= select_lex->add_table_to_list(thd,
+                                                            table_ident,
+                                                            NULL,
+                                                            0)))))
     return TRUE;
   context->resolve_in_table_list_only(table_list);
   lex->use_only_table_context= TRUE;
@@ -251,8 +248,8 @@ st_parsing_options::reset()
 */
 
 bool Lex_input_stream::init(THD *thd,
-			    char* buff,
-			    size_t length)
+                            char* buff,
+                            size_t length)
 {
   DBUG_EXECUTE_IF("bug42064_simulate_oom",
                   DBUG_SET("+d,simulate_out_of_memory"););
@@ -284,7 +281,6 @@ void
 Lex_input_stream::reset(char *buffer, size_t length)
 {
   yylineno= 1;
-  yylval= NULL;
   lookahead_token= -1;
   lookahead_yylval= NULL;
   m_ptr= buffer;
@@ -842,22 +838,23 @@ Yacc_state::~Yacc_state()
   }
 }
 
-static int find_keyword(Lex_input_stream *lip, uint len, bool function)
+int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
+                                   uint len, bool function)
 {
-  const char *tok= lip->get_tok_start();
+  const char *tok= get_tok_start();
 
   SYMBOL *symbol= get_hash_symbol(tok, len, function);
   if (symbol)
   {
-    lip->yylval->symbol.symbol=symbol;
-    lip->yylval->symbol.str= (char*) tok;
-    lip->yylval->symbol.length=len;
+    kwd->set_keyword(tok, len);
+    DBUG_ASSERT(tok >= get_buf());
+    DBUG_ASSERT(tok < get_end_of_query());
 
     if ((symbol->tok == NOT_SYM) &&
-        (lip->m_thd->variables.sql_mode & MODE_HIGH_NOT_PRECEDENCE))
+        (m_thd->variables.sql_mode & MODE_HIGH_NOT_PRECEDENCE))
       return NOT2_SYM;
     if ((symbol->tok == OR_OR_SYM) &&
-	!(lip->m_thd->variables.sql_mode & MODE_PIPES_AS_CONCAT))
+        !(m_thd->variables.sql_mode & MODE_PIPES_AS_CONCAT))
       return OR2_SYM;
 
     return symbol->tok;
@@ -955,51 +952,16 @@ bool is_native_function_with_warn(THD *thd, const LEX_CSTRING *name)
 
 /* make a copy of token before ptr and set yytoklen */
 
-static LEX_CSTRING get_token(Lex_input_stream *lip, uint skip, uint length)
+LEX_CSTRING Lex_input_stream::get_token(uint skip, uint length)
 {
   LEX_CSTRING tmp;
-  lip->yyUnget();                       // ptr points now after last token char
+  yyUnget();                       // ptr points now after last token char
   tmp.length= length;
-  tmp.str= lip->m_thd->strmake(lip->get_tok_start() + skip, tmp.length);
+  tmp.str= m_thd->strmake(get_tok_start() + skip, tmp.length);
 
-  lip->m_cpp_text_start= lip->get_cpp_tok_start() + skip;
-  lip->m_cpp_text_end= lip->m_cpp_text_start + tmp.length;
+  m_cpp_text_start= get_cpp_tok_start() + skip;
+  m_cpp_text_end= m_cpp_text_start + tmp.length;
 
-  return tmp;
-}
-
-/* 
- todo: 
-   There are no dangerous charsets in mysql for function 
-   get_quoted_token yet. But it should be fixed in the 
-   future to operate multichar strings (like ucs2)
-*/
-
-static LEX_CSTRING get_quoted_token(Lex_input_stream *lip,
-                                    uint skip,
-                                    uint length, char quote)
-{
-  LEX_CSTRING tmp;
-  const char *from, *end;
-  char *to;
-  lip->yyUnget();                       // ptr points now after last token char
-  tmp.length= length;
-  tmp.str= to= (char*) lip->m_thd->alloc(tmp.length+1);
-  from= lip->get_tok_start() + skip;
-  end= to+length;
-
-  lip->m_cpp_text_start= lip->get_cpp_tok_start() + skip;
-  lip->m_cpp_text_end= lip->m_cpp_text_start + length;
-
-  for ( ; to != end; )
-  {
-    if ((*to++= *from++) == quote)
-    {
-      from++;					// Skip double quotes
-      lip->m_cpp_text_start++;
-    }
-  }
-  *to= 0;					// End null for safety
   return tmp;
 }
 
@@ -1078,7 +1040,7 @@ Lex_input_stream::unescape(CHARSET_INFO *cs, char *to,
 bool Lex_input_stream::get_text(Lex_string_with_metadata_st *dst, uint sep,
                                 int pre_skip, int post_skip)
 {
-  reg1 uchar c;
+  uchar c;
   uint found_escape=0;
   CHARSET_INFO *cs= m_thd->charset();
 
@@ -1102,10 +1064,10 @@ bool Lex_input_stream::get_text(Lex_string_with_metadata_st *dst, uint sep,
 #endif
     if (c == '\\' &&
         !(m_thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES))
-    {					// Escaped character
+    {                                        // Escaped character
       found_escape=1;
       if (eof())
-	return true;
+        return true;
       yySkip();
     }
     else if (c == sep)
@@ -1113,7 +1075,7 @@ bool Lex_input_stream::get_text(Lex_string_with_metadata_st *dst, uint sep,
       if (c == yyGet())                 // Check if two separators in a row
       {
         found_escape=1;                 // duplicate. Remember for delete
-	continue;
+        continue;
       }
       else
         yyUnget();
@@ -1176,11 +1138,11 @@ static const uint unsigned_longlong_len=20;
 
 static inline uint int_token(const char *str,uint length)
 {
-  if (length < long_len)			// quick normal case
+  if (length < long_len)                        // quick normal case
     return NUM;
   bool neg=0;
 
-  if (*str == '+')				// Remove sign and pre-zeros
+  if (*str == '+')                              // Remove sign and pre-zeros
   {
     str++; length--;
   }
@@ -1202,9 +1164,9 @@ static inline uint int_token(const char *str,uint length)
   {
     if (length == long_len)
     {
-      cmp= signed_long_str+1;
-      smaller=NUM;				// If <= signed_long_str
-      bigger=LONG_NUM;				// If >= signed_long_str
+      cmp= signed_long_str + 1;
+      smaller= NUM;                                   // If <= signed_long_str
+      bigger= LONG_NUM;                               // If >= signed_long_str
     }
     else if (length < signed_longlong_len)
       return LONG_NUM;
@@ -1212,8 +1174,8 @@ static inline uint int_token(const char *str,uint length)
       return DECIMAL_NUM;
     else
     {
-      cmp=signed_longlong_str+1;
-      smaller=LONG_NUM;				// If <= signed_longlong_str
+      cmp= signed_longlong_str + 1;
+      smaller= LONG_NUM;                              // If <= signed_longlong_str
       bigger=DECIMAL_NUM;
     }
   }
@@ -1259,34 +1221,34 @@ static inline uint int_token(const char *str,uint length)
 
   @retval  Whether EOF reached before comment is closed.
 */
-bool consume_comment(Lex_input_stream *lip, int remaining_recursions_permitted)
+bool Lex_input_stream::consume_comment(int remaining_recursions_permitted)
 {
-  reg1 uchar c;
-  while (! lip->eof())
+  uchar c;
+  while (!eof())
   {
-    c= lip->yyGet();
+    c= yyGet();
 
     if (remaining_recursions_permitted > 0)
     {
-      if ((c == '/') && (lip->yyPeek() == '*'))
+      if ((c == '/') && (yyPeek() == '*'))
       {
-        lip->yySkip(); /* Eat asterisk */
-        consume_comment(lip, remaining_recursions_permitted-1);
+        yySkip(); // Eat asterisk
+        consume_comment(remaining_recursions_permitted - 1);
         continue;
       }
     }
 
     if (c == '*')
     {
-      if (lip->yyPeek() == '/')
+      if (yyPeek() == '/')
       {
-        lip->yySkip(); /* Eat slash */
+        yySkip(); // Eat slash
         return FALSE;
       }
     }
 
     if (c == '\n')
-      lip->yylineno++;
+      yylineno++;
   }
 
   return TRUE;
@@ -1299,31 +1261,42 @@ bool consume_comment(Lex_input_stream *lip, int remaining_recursions_permitted)
   @param yylval         [out]  semantic value of the token being parsed (yylval)
   @param thd            THD
 
-  - MY_LEX_EOQ			Found end of query
-  - MY_LEX_OPERATOR_OR_IDENT	Last state was an ident, text or number
-				(which can't be followed by a signed number)
+  - MY_LEX_EOQ                  Found end of query
+  - MY_LEX_OPERATOR_OR_IDENT    Last state was an ident, text or number
+                                (which can't be followed by a signed number)
 */
 
 int MYSQLlex(YYSTYPE *yylval, THD *thd)
 {
-  Lex_input_stream *lip= & thd->m_parser_state->m_lip;
+  return thd->m_parser_state->m_lip.lex_token(yylval, thd);
+}
+
+
+int ORAlex(YYSTYPE *yylval, THD *thd)
+{
+  return thd->m_parser_state->m_lip.lex_token(yylval, thd);
+}
+
+
+int Lex_input_stream::lex_token(YYSTYPE *yylval, THD *thd)
+{
   int token;
   
-  if (lip->lookahead_token >= 0)
+  if (lookahead_token >= 0)
   {
     /*
       The next token was already parsed in advance,
       return it.
     */
-    token= lip->lookahead_token;
-    lip->lookahead_token= -1;
-    *yylval= *(lip->lookahead_yylval);
-    lip->lookahead_yylval= NULL;
+    token= lookahead_token;
+    lookahead_token= -1;
+    *yylval= *(lookahead_yylval);
+    lookahead_yylval= NULL;
     return token;
   }
 
   token= lex_one_token(yylval, thd);
-  lip->add_digest_token(token, yylval);
+  add_digest_token(token, yylval);
 
   switch(token) {
   case WITH:
@@ -1335,7 +1308,7 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       which sql_yacc.yy can process.
     */
     token= lex_one_token(yylval, thd);
-    lip->add_digest_token(token, yylval);
+    add_digest_token(token, yylval);
     switch(token) {
     case CUBE_SYM:
       return WITH_CUBE_SYM;
@@ -1347,9 +1320,8 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       /*
         Save the token following 'WITH'
       */
-      lip->lookahead_yylval= lip->yylval;
-      lip->yylval= NULL;
-      lip->lookahead_token= token;
+      lookahead_yylval= yylval;
+      lookahead_token= token;
       return WITH;
     }
     break;
@@ -1360,7 +1332,7 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
      * SELECT ... FOR SYSTEM_TIME ... .
      */
     token= lex_one_token(yylval, thd);
-    lip->add_digest_token(token, yylval);
+    add_digest_token(token, yylval);
     switch(token) {
     case SYSTEM_TIME_SYM:
       return FOR_SYSTEM_TIME_SYM;
@@ -1368,9 +1340,8 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
       /*
         Save the token following 'FOR_SYM'
       */
-      lip->lookahead_yylval= lip->yylval;
-      lip->yylval= NULL;
-      lip->lookahead_token= token;
+      lookahead_yylval= yylval;
+      lookahead_token= token;
       return FOR_SYM;
     }
     break;
@@ -1379,16 +1350,15 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
         thd->lex->current_select->parsing_place == IN_PART_FUNC)
       return VALUE_SYM;
     token= lex_one_token(yylval, thd);
-    lip->add_digest_token(token, yylval);
+    add_digest_token(token, yylval);
     switch(token) {
     case LESS_SYM:
       return VALUES_LESS_SYM;
     case IN_SYM:
       return VALUES_IN_SYM;
     default:
-      lip->lookahead_yylval= lip->yylval;
-      lip->yylval= NULL;
-      lip->lookahead_token= token;
+      lookahead_yylval= yylval;
+      lookahead_token= token;
       return VALUES;
     }
     break;
@@ -1398,71 +1368,64 @@ int MYSQLlex(YYSTYPE *yylval, THD *thd)
   return token;
 }
 
-int ORAlex(YYSTYPE *yylval, THD *thd)
-{
-  return MYSQLlex(yylval, thd);
-}
 
-static int lex_one_token(YYSTYPE *yylval, THD *thd)
+int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
 {
-  reg1	uchar UNINIT_VAR(c);
+  uchar UNINIT_VAR(c);
   bool comment_closed;
-  int	tokval, result_state;
+  int tokval;
   uint length;
   enum my_lex_states state;
-  Lex_input_stream *lip= & thd->m_parser_state->m_lip;
   LEX *lex= thd->lex;
   CHARSET_INFO *const cs= thd->charset();
   const uchar *const state_map= cs->state_map;
   const uchar *const ident_map= cs->ident_map;
 
-  lip->yylval=yylval;			// The global state
-
-  lip->start_token();
-  state=lip->next_state;
-  lip->next_state=MY_LEX_OPERATOR_OR_IDENT;
+  start_token();
+  state= next_state;
+  next_state= MY_LEX_OPERATOR_OR_IDENT;
   for (;;)
   {
     switch (state) {
-    case MY_LEX_OPERATOR_OR_IDENT:	// Next is operator or keyword
-    case MY_LEX_START:			// Start of token
+    case MY_LEX_OPERATOR_OR_IDENT:        // Next is operator or keyword
+    case MY_LEX_START:                    // Start of token
       // Skip starting whitespace
-      while(state_map[c= lip->yyPeek()] == MY_LEX_SKIP)
+      while(state_map[c= yyPeek()] == MY_LEX_SKIP)
       {
-	if (c == '\n')
-	  lip->yylineno++;
+        if (c == '\n')
+          yylineno++;
 
-        lip->yySkip();
+        yySkip();
       }
 
       /* Start of real token */
-      lip->restart_token();
-      c= lip->yyGet();
+      restart_token();
+      c= yyGet();
       state= (enum my_lex_states) state_map[c];
       break;
     case MY_LEX_ESCAPE:
-      if (!lip->eof() && lip->yyGet() == 'N')
-      {					// Allow \N as shortcut for NULL
-	yylval->lex_str.str=(char*) "\\N";
-	yylval->lex_str.length=2;
-	return NULL_SYM;
+      if (!eof() && yyGet() == 'N')
+      {                                        // Allow \N as shortcut for NULL
+        yylval->lex_str.str= (char*) "\\N";
+        yylval->lex_str.length= 2;
+        return NULL_SYM;
       }
       /* Fall through */
-    case MY_LEX_CHAR:			// Unknown or single char token
-    case MY_LEX_SKIP:			// This should not happen
+    case MY_LEX_CHAR:                          // Unknown or single char token
+    case MY_LEX_SKIP:                          // This should not happen
       if (c != ')')
-	lip->next_state= MY_LEX_START;	// Allow signed numbers
+        next_state= MY_LEX_START;         // Allow signed numbers
       return((int) c);
 
     case MY_LEX_MINUS_OR_COMMENT:
-      if (lip->yyPeek() == '-' &&
-          (my_isspace(cs,lip->yyPeekn(1)) ||
-           my_iscntrl(cs,lip->yyPeekn(1))))
+      if (yyPeek() == '-' &&
+          (my_isspace(cs,yyPeekn(1)) ||
+           my_iscntrl(cs,yyPeekn(1))))
       {
         state=MY_LEX_COMMENT;
         break;
       }
-      lip->next_state= MY_LEX_START;	// Allow signed numbers
+      next_state= MY_LEX_START;        // Allow signed numbers
       return((int) c);
 
     case MY_LEX_PLACEHOLDER:
@@ -1472,13 +1435,13 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
         its value in a query for the binlog, the query must stay
         grammatically correct.
       */
-      lip->next_state= MY_LEX_START;	// Allow signed numbers
-      if (lip->stmt_prepare_mode && !ident_map[(uchar) lip->yyPeek()])
+      next_state= MY_LEX_START;        // Allow signed numbers
+      if (stmt_prepare_mode && !ident_map[(uchar) yyPeek()])
         return(PARAM_MARKER);
       return((int) c);
 
     case MY_LEX_COMMA:
-      lip->next_state= MY_LEX_START;	// Allow signed numbers
+      next_state= MY_LEX_START;        // Allow signed numbers
       /*
         Warning:
         This is a work around, to make the "remember_name" rule in
@@ -1488,431 +1451,277 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
         remember_name (see select_item) *before* actually parsing the
         first token of expr2.
       */
-      lip->restart_token();
+      restart_token();
       return((int) c);
 
     case MY_LEX_IDENT_OR_NCHAR:
     {
       uint sep;
-      if (lip->yyPeek() != '\'')
+      if (yyPeek() != '\'')
       {
-	state= MY_LEX_IDENT;
-	break;
+        state= MY_LEX_IDENT;
+        break;
       }
       /* Found N'string' */
-      lip->yySkip();                         // Skip '
-      if (lip->get_text(&yylval->lex_string_with_metadata,
-                        (sep= lip->yyGetLast()), 2, 1))
+      yySkip();                         // Skip '
+      if (get_text(&yylval->lex_string_with_metadata, (sep= yyGetLast()), 2, 1))
       {
-	state= MY_LEX_CHAR;             // Read char by char
-	break;
+        state= MY_LEX_CHAR;                    // Read char by char
+        break;
       }
 
-      lip->body_utf8_append(lip->m_cpp_text_start);
-      lip->body_utf8_append_escape(thd, &yylval->lex_string_with_metadata,
+      body_utf8_append(m_cpp_text_start);
+      body_utf8_append_escape(thd, &yylval->lex_string_with_metadata,
                                    national_charset_info,
-                                   lip->m_cpp_text_end, sep);
+                                   m_cpp_text_end, sep);
       return(NCHAR_STRING);
     }
     case MY_LEX_IDENT_OR_HEX:
-      if (lip->yyPeek() == '\'')
-      {					// Found x'hex-number'
-	state= MY_LEX_HEX_NUMBER;
-	break;
+      if (yyPeek() == '\'')
+      {                                      // Found x'hex-number'
+        state= MY_LEX_HEX_NUMBER;
+        break;
       }
       /* fall through */
     case MY_LEX_IDENT_OR_BIN:
-      if (lip->yyPeek() == '\'')
+      if (yyPeek() == '\'')
       {                                 // Found b'bin-number'
         state= MY_LEX_BIN_NUMBER;
         break;
       }
       /* fall through */
     case MY_LEX_IDENT:
-      const char *start;
-#if defined(USE_MB) && defined(USE_MB_IDENT)
-      if (use_mb(cs))
-      {
-	result_state= IDENT_QUOTED;
-        int char_length= my_charlen(cs, lip->get_ptr() - 1,
-                                        lip->get_end_of_query());
-        if (char_length <= 0)
-        {
-          state= MY_LEX_CHAR;
-          continue;
-        }
-        lip->skip_binary(char_length - 1);
-
-        while (ident_map[c=lip->yyGet()])
-        {
-          char_length= my_charlen(cs, lip->get_ptr() - 1,
-                                      lip->get_end_of_query());
-          if (char_length <= 0)
-            break;
-          lip->skip_binary(char_length - 1);
-        }
-      }
-      else
-#endif
-      {
-        for (result_state= c;
-             ident_map[(uchar) (c= lip->yyGet())];
-             result_state|= c)
-          ;
-        /* If there were non-ASCII characters, mark that we must convert */
-        result_state= result_state & 0x80 ? IDENT_QUOTED : IDENT;
-      }
-      length= lip->yyLength();
-      start= lip->get_ptr();
-      if (lip->ignore_space)
-      {
-        /*
-          If we find a space then this can't be an identifier. We notice this
-          below by checking start != lex->ptr.
-        */
-        for (; state_map[(uchar) c] == MY_LEX_SKIP ; c= lip->yyGet())
-        {
-          if (c == '\n')
-            lip->yylineno++;
-        }
-      }
-      if (start == lip->get_ptr() && c == '.' &&
-          ident_map[(uchar) lip->yyPeek()])
-	lip->next_state=MY_LEX_IDENT_SEP;
-      else
-      {					// '(' must follow directly if function
-        lip->yyUnget();
-	if ((tokval = find_keyword(lip, length, c == '(')))
-	{
-	  lip->next_state= MY_LEX_START;	// Allow signed numbers
-	  return(tokval);		// Was keyword
-	}
-        lip->yySkip();                  // next state does a unget
-      }
-      yylval->lex_str=get_token(lip, 0, length);
-
-      /*
-         Note: "SELECT _bla AS 'alias'"
-         _bla should be considered as a IDENT if charset haven't been found.
-         So we don't use MYF(MY_WME) with get_charset_by_csname to avoid
-         producing an error.
-      */
-
-      if (yylval->lex_str.str[0] == '_')
-      {
-        CHARSET_INFO *cs= get_charset_by_csname(yylval->lex_str.str + 1,
-                                                MY_CS_PRIMARY, MYF(0));
-        if (cs)
-        {
-          yylval->charset= cs;
-          lip->m_underscore_cs= cs;
-
-          lip->body_utf8_append(lip->m_cpp_text_start,
-                                lip->get_cpp_tok_start() + length);
-          return(UNDERSCORE_CHARSET);
-        }
-      }
-
-      lip->body_utf8_append(lip->m_cpp_text_start);
-
-      lip->body_utf8_append_ident(thd, &yylval->lex_str, lip->m_cpp_text_end);
-
-      return(result_state);			// IDENT or IDENT_QUOTED
+    {
+      tokval= scan_ident_middle(thd, &yylval->ident_cli,
+                                &yylval->charset, &state);
+      if (!tokval)
+        continue;
+      if (tokval == UNDERSCORE_CHARSET)
+        m_underscore_cs= yylval->charset;
+      return tokval;
+    }
 
     case MY_LEX_IDENT_SEP:                  // Found ident and now '.'
-      yylval->lex_str.str= (char*) lip->get_ptr();
+      yylval->lex_str.str= (char*) get_ptr();
       yylval->lex_str.length= 1;
-      c= lip->yyGet();                          // should be '.'
-      lip->next_state= MY_LEX_IDENT_START;      // Next is ident (not keyword)
-      if (!ident_map[(uchar) lip->yyPeek()])    // Probably ` or "
-	lip->next_state= MY_LEX_START;
+      c= yyGet();                          // should be '.'
+      next_state= MY_LEX_IDENT_START;      // Next is ident (not keyword)
+      if (!ident_map[(uchar) yyPeek()])    // Probably ` or "
+        next_state= MY_LEX_START;
       return((int) c);
 
-    case MY_LEX_NUMBER_IDENT:		// number or ident which num-start
-      if (lip->yyGetLast() == '0')
+    case MY_LEX_NUMBER_IDENT:                   // number or ident which num-start
+      if (yyGetLast() == '0')
       {
-        c= lip->yyGet();
+        c= yyGet();
         if (c == 'x')
         {
-          while (my_isxdigit(cs,(c = lip->yyGet()))) ;
-          if ((lip->yyLength() >= 3) && !ident_map[c])
+          while (my_isxdigit(cs, (c = yyGet()))) ;
+          if ((yyLength() >= 3) && !ident_map[c])
           {
             /* skip '0x' */
-            yylval->lex_str=get_token(lip, 2, lip->yyLength()-2);
+            yylval->lex_str= get_token(2, yyLength() - 2);
             return (HEX_NUM);
           }
-          lip->yyUnget();
+          yyUnget();
           state= MY_LEX_IDENT_START;
           break;
         }
         else if (c == 'b')
         {
-          while ((c= lip->yyGet()) == '0' || c == '1')
+          while ((c= yyGet()) == '0' || c == '1')
             ;
-          if ((lip->yyLength() >= 3) && !ident_map[c])
+          if ((yyLength() >= 3) && !ident_map[c])
           {
             /* Skip '0b' */
-            yylval->lex_str= get_token(lip, 2, lip->yyLength()-2);
+            yylval->lex_str= get_token(2, yyLength() - 2);
             return (BIN_NUM);
           }
-          lip->yyUnget();
+          yyUnget();
           state= MY_LEX_IDENT_START;
           break;
         }
-        lip->yyUnget();
+        yyUnget();
       }
 
-      while (my_isdigit(cs, (c = lip->yyGet()))) ;
+      while (my_isdigit(cs, (c= yyGet()))) ;
       if (!ident_map[c])
-      {					// Can't be identifier
-	state=MY_LEX_INT_OR_REAL;
-	break;
+      {                                        // Can't be identifier
+        state=MY_LEX_INT_OR_REAL;
+        break;
       }
       if (c == 'e' || c == 'E')
       {
-	// The following test is written this way to allow numbers of type 1e1
-        if (my_isdigit(cs,lip->yyPeek()) ||
-            (c=(lip->yyGet())) == '+' || c == '-')
-	{				// Allow 1E+10
-          if (my_isdigit(cs,lip->yyPeek()))     // Number must have digit after sign
-	  {
-            lip->yySkip();
-            while (my_isdigit(cs,lip->yyGet())) ;
-            yylval->lex_str=get_token(lip, 0, lip->yyLength());
-	    return(FLOAT_NUM);
-	  }
-	}
-        lip->yyUnget();
+        // The following test is written this way to allow numbers of type 1e1
+        if (my_isdigit(cs, yyPeek()) ||
+            (c=(yyGet())) == '+' || c == '-')
+        {                                       // Allow 1E+10
+          if (my_isdigit(cs, yyPeek()))         // Number must have digit after sign
+          {
+            yySkip();
+            while (my_isdigit(cs, yyGet())) ;
+            yylval->lex_str= get_token(0, yyLength());
+            return(FLOAT_NUM);
+          }
+        }
+        yyUnget();
       }
       // fall through
-    case MY_LEX_IDENT_START:			// We come here after '.'
-      result_state= IDENT;
-#if defined(USE_MB) && defined(USE_MB_IDENT)
-      if (use_mb(cs))
-      {
-	result_state= IDENT_QUOTED;
-        while (ident_map[c=lip->yyGet()])
-        {
-          int char_length= my_charlen(cs, lip->get_ptr() - 1,
-                                          lip->get_end_of_query());
-          if (char_length <= 0)
-            break;
-          lip->skip_binary(char_length - 1);
-        }
-      }
-      else
-#endif
-      {
-        for (result_state=0; ident_map[c= lip->yyGet()]; result_state|= c)
-          ;
-        /* If there were non-ASCII characters, mark that we must convert */
-        result_state= result_state & 0x80 ? IDENT_QUOTED : IDENT;
-      }
-      if (c == '.' && ident_map[(uchar) lip->yyPeek()])
-	lip->next_state=MY_LEX_IDENT_SEP;// Next is '.'
+    case MY_LEX_IDENT_START:                    // We come here after '.'
+      return scan_ident_start(thd, &yylval->ident_cli);
 
-      yylval->lex_str= get_token(lip, 0, lip->yyLength());
+    case MY_LEX_USER_VARIABLE_DELIMITER:        // Found quote char
+      return scan_ident_delimited(thd, &yylval->ident_cli);
 
-      lip->body_utf8_append(lip->m_cpp_text_start);
-
-      lip->body_utf8_append_ident(thd, &yylval->lex_str, lip->m_cpp_text_end);
-
-      return(result_state);
-
-    case MY_LEX_USER_VARIABLE_DELIMITER:	// Found quote char
-    {
-      uint double_quotes= 0;
-      char quote_char= c;                       // Used char
-      while ((c=lip->yyGet()))
-      {
-        int var_length= my_charlen(cs, lip->get_ptr() - 1,
-                                       lip->get_end_of_query());
-        if (var_length == 1)
-	{
-	  if (c == quote_char)
-	  {
-            if (lip->yyPeek() != quote_char)
-	      break;
-            c=lip->yyGet();
-	    double_quotes++;
-	    continue;
-	  }
-	}
-#ifdef USE_MB
-        else if (var_length > 1)
-        {
-          lip->skip_binary(var_length - 1);
-        }
-#endif
-      }
-      if (double_quotes)
-	yylval->lex_str=get_quoted_token(lip, 1,
-                                         lip->yyLength() - double_quotes -1,
-					 quote_char);
-      else
-        yylval->lex_str=get_token(lip, 1, lip->yyLength() -1);
-      if (c == quote_char)
-        lip->yySkip();                  // Skip end `
-      lip->next_state= MY_LEX_START;
-
-      lip->body_utf8_append(lip->m_cpp_text_start);
-
-      lip->body_utf8_append_ident(thd, &yylval->lex_str, lip->m_cpp_text_end);
-
-      return(IDENT_QUOTED);
-    }
-    case MY_LEX_INT_OR_REAL:		// Complete int or incomplete real
-      if (c != '.' || lip->yyPeek() == '.')
+    case MY_LEX_INT_OR_REAL:                    // Complete int or incomplete real
+      if (c != '.' || yyPeek() == '.')
       {
         /*
           Found a complete integer number:
           - the number is either not followed by a dot at all, or
           - the number is followed by a double dot as in: FOR i IN 1..10
         */
-        yylval->lex_str=get_token(lip, 0, lip->yyLength());
-	return int_token(yylval->lex_str.str, (uint) yylval->lex_str.length);
+        yylval->lex_str= get_token(0, yyLength());
+        return int_token(yylval->lex_str.str, (uint) yylval->lex_str.length);
       }
       // fall through
-    case MY_LEX_REAL:			// Incomplete real number
-      while (my_isdigit(cs,c = lip->yyGet())) ;
+    case MY_LEX_REAL:                           // Incomplete real number
+      while (my_isdigit(cs, c= yyGet())) ;
 
       if (c == 'e' || c == 'E')
       {
-        c = lip->yyGet();
-	if (c == '-' || c == '+')
-          c = lip->yyGet();                     // Skip sign
-	if (!my_isdigit(cs,c))
-	{				// No digit after sign
-	  state= MY_LEX_CHAR;
-	  break;
-	}
-        while (my_isdigit(cs,lip->yyGet())) ;
-        yylval->lex_str=get_token(lip, 0, lip->yyLength());
-	return(FLOAT_NUM);
+        c= yyGet();
+        if (c == '-' || c == '+')
+          c= yyGet();                           // Skip sign
+        if (!my_isdigit(cs, c))
+        {                                       // No digit after sign
+          state= MY_LEX_CHAR;
+          break;
+        }
+        while (my_isdigit(cs, yyGet())) ;
+        yylval->lex_str= get_token(0, yyLength());
+        return(FLOAT_NUM);
       }
-      yylval->lex_str=get_token(lip, 0, lip->yyLength());
+      yylval->lex_str= get_token(0, yyLength());
       return(DECIMAL_NUM);
 
-    case MY_LEX_HEX_NUMBER:		// Found x'hexstring'
-      lip->yySkip();                    // Accept opening '
-      while (my_isxdigit(cs, (c= lip->yyGet()))) ;
+    case MY_LEX_HEX_NUMBER:             // Found x'hexstring'
+      yySkip();                    // Accept opening '
+      while (my_isxdigit(cs, (c= yyGet()))) ;
       if (c != '\'')
         return(ABORT_SYM);              // Illegal hex constant
-      lip->yySkip();                    // Accept closing '
-      length= lip->yyLength();          // Length of hexnum+3
+      yySkip();                    // Accept closing '
+      length= yyLength();          // Length of hexnum+3
       if ((length % 2) == 0)
         return(ABORT_SYM);              // odd number of hex digits
-      yylval->lex_str=get_token(lip,
-                                2,          // skip x'
-                                length-3);  // don't count x' and last '
+      yylval->lex_str= get_token(2,            // skip x'
+                                 length - 3);  // don't count x' and last '
       return HEX_STRING;
 
     case MY_LEX_BIN_NUMBER:           // Found b'bin-string'
-      lip->yySkip();                  // Accept opening '
-      while ((c= lip->yyGet()) == '0' || c == '1')
+      yySkip();                  // Accept opening '
+      while ((c= yyGet()) == '0' || c == '1')
         ;
       if (c != '\'')
         return(ABORT_SYM);            // Illegal hex constant
-      lip->yySkip();                  // Accept closing '
-      length= lip->yyLength();        // Length of bin-num + 3
-      yylval->lex_str= get_token(lip,
-                                 2,         // skip b'
-                                 length-3); // don't count b' and last '
+      yySkip();                  // Accept closing '
+      length= yyLength();        // Length of bin-num + 3
+      yylval->lex_str= get_token(2,           // skip b'
+                                 length - 3); // don't count b' and last '
       return (BIN_NUM);
 
-    case MY_LEX_CMP_OP:			// Incomplete comparison operator
-      lip->next_state= MY_LEX_START;	// Allow signed numbers
-      if (state_map[(uchar) lip->yyPeek()] == MY_LEX_CMP_OP ||
-          state_map[(uchar) lip->yyPeek()] == MY_LEX_LONG_CMP_OP)
+    case MY_LEX_CMP_OP:                     // Incomplete comparison operator
+      next_state= MY_LEX_START;        // Allow signed numbers
+      if (state_map[(uchar) yyPeek()] == MY_LEX_CMP_OP ||
+          state_map[(uchar) yyPeek()] == MY_LEX_LONG_CMP_OP)
       {
-        lip->yySkip();
-        if ((tokval= find_keyword(lip, 2, 0)))
+        yySkip();
+        if ((tokval= find_keyword(&yylval->kwd, 2, 0)))
           return(tokval);
-        lip->yyUnget();
+        yyUnget();
       }
       return(c);
 
-    case MY_LEX_LONG_CMP_OP:		// Incomplete comparison operator
-      lip->next_state= MY_LEX_START;
-      if (state_map[(uchar) lip->yyPeek()] == MY_LEX_CMP_OP ||
-          state_map[(uchar) lip->yyPeek()] == MY_LEX_LONG_CMP_OP)
+    case MY_LEX_LONG_CMP_OP:                // Incomplete comparison operator
+      next_state= MY_LEX_START;
+      if (state_map[(uchar) yyPeek()] == MY_LEX_CMP_OP ||
+          state_map[(uchar) yyPeek()] == MY_LEX_LONG_CMP_OP)
       {
-        lip->yySkip();
-        if (state_map[(uchar) lip->yyPeek()] == MY_LEX_CMP_OP)
+        yySkip();
+        if (state_map[(uchar) yyPeek()] == MY_LEX_CMP_OP)
         {
-          lip->yySkip();
-          if ((tokval= find_keyword(lip, 3, 0)))
+          yySkip();
+          if ((tokval= find_keyword(&yylval->kwd, 3, 0)))
             return(tokval);
-          lip->yyUnget();
+          yyUnget();
         }
-        if ((tokval= find_keyword(lip, 2, 0)))
+        if ((tokval= find_keyword(&yylval->kwd, 2, 0)))
           return(tokval);
-        lip->yyUnget();
+        yyUnget();
       }
       return(c);
 
     case MY_LEX_BOOL:
-      if (c != lip->yyPeek())
+      if (c != yyPeek())
       {
-	state=MY_LEX_CHAR;
-	break;
+        state= MY_LEX_CHAR;
+        break;
       }
-      lip->yySkip();
-      tokval = find_keyword(lip,2,0);	// Is a bool operator
-      lip->next_state= MY_LEX_START;	// Allow signed numbers
+      yySkip();
+      tokval= find_keyword(&yylval->kwd, 2, 0);  // Is a bool operator
+      next_state= MY_LEX_START;                  // Allow signed numbers
       return(tokval);
 
     case MY_LEX_STRING_OR_DELIMITER:
       if (thd->variables.sql_mode & MODE_ANSI_QUOTES)
       {
-	state= MY_LEX_USER_VARIABLE_DELIMITER;
-	break;
+        state= MY_LEX_USER_VARIABLE_DELIMITER;
+        break;
       }
       /* " used for strings */
       /* fall through */
-    case MY_LEX_STRING:			// Incomplete text string
+    case MY_LEX_STRING:                        // Incomplete text string
     {
       uint sep;
-      if (lip->get_text(&yylval->lex_string_with_metadata,
-                        (sep= lip->yyGetLast()), 1, 1))
+      if (get_text(&yylval->lex_string_with_metadata, (sep= yyGetLast()), 1, 1))
       {
-	state= MY_LEX_CHAR;		// Read char by char
-	break;
+        state= MY_LEX_CHAR;                     // Read char by char
+        break;
       }
-      CHARSET_INFO *strcs= lip->m_underscore_cs ? lip->m_underscore_cs : cs;
-      lip->body_utf8_append(lip->m_cpp_text_start);
+      CHARSET_INFO *strcs= m_underscore_cs ? m_underscore_cs : cs;
+      body_utf8_append(m_cpp_text_start);
 
-      lip->body_utf8_append_escape(thd, &yylval->lex_string_with_metadata,
-                                   strcs, lip->m_cpp_text_end, sep);
-      lip->m_underscore_cs= NULL;
+      body_utf8_append_escape(thd, &yylval->lex_string_with_metadata,
+                                   strcs, m_cpp_text_end, sep);
+      m_underscore_cs= NULL;
       return(TEXT_STRING);
     }
-    case MY_LEX_COMMENT:			//  Comment
+    case MY_LEX_COMMENT:                       //  Comment
       lex->select_lex.options|= OPTION_FOUND_COMMENT;
-      while ((c = lip->yyGet()) != '\n' && c) ;
-      lip->yyUnget();                   // Safety against eof
-      state = MY_LEX_START;		// Try again
+      while ((c= yyGet()) != '\n' && c) ;
+      yyUnget();                          // Safety against eof
+      state= MY_LEX_START;                     // Try again
       break;
-    case MY_LEX_LONG_COMMENT:		/* Long C comment? */
-      if (lip->yyPeek() != '*')
+    case MY_LEX_LONG_COMMENT:                  // Long C comment?
+      if (yyPeek() != '*')
       {
-	state=MY_LEX_CHAR;		// Probable division
-	break;
+        state= MY_LEX_CHAR;                     // Probable division
+        break;
       }
       lex->select_lex.options|= OPTION_FOUND_COMMENT;
       /* Reject '/' '*', since we might need to turn off the echo */
-      lip->yyUnget();
+      yyUnget();
 
-      lip->save_in_comment_state();
+      save_in_comment_state();
 
-      if (lip->yyPeekn(2) == '!' ||
-          (lip->yyPeekn(2) == 'M' && lip->yyPeekn(3) == '!'))
+      if (yyPeekn(2) == '!' ||
+          (yyPeekn(2) == 'M' && yyPeekn(3) == '!'))
       {
-        bool maria_comment_syntax= lip->yyPeekn(2) == 'M';
-        lip->in_comment= DISCARD_COMMENT;
+        bool maria_comment_syntax= yyPeekn(2) == 'M';
+        in_comment= DISCARD_COMMENT;
         /* Accept '/' '*' '!', but do not keep this marker. */
-        lip->set_echo(FALSE);
-        lip->yySkipn(maria_comment_syntax ? 4 : 3);
+        set_echo(FALSE);
+        yySkipn(maria_comment_syntax ? 4 : 3);
 
         /*
           The special comment format is very strict:
@@ -1923,24 +1732,24 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
           50114  -> 5.1.14
           100000 -> 10.0.0
         */
-        if (  my_isdigit(cs, lip->yyPeekn(0))
-           && my_isdigit(cs, lip->yyPeekn(1))
-           && my_isdigit(cs, lip->yyPeekn(2))
-           && my_isdigit(cs, lip->yyPeekn(3))
-           && my_isdigit(cs, lip->yyPeekn(4))
+        if (  my_isdigit(cs, yyPeekn(0))
+           && my_isdigit(cs, yyPeekn(1))
+           && my_isdigit(cs, yyPeekn(2))
+           && my_isdigit(cs, yyPeekn(3))
+           && my_isdigit(cs, yyPeekn(4))
            )
         {
           ulong version;
           uint length= 5;
-          char *end_ptr= (char*) lip->get_ptr()+length;
+          char *end_ptr= (char*) get_ptr() + length;
           int error;
-          if (my_isdigit(cs, lip->yyPeekn(5)))
+          if (my_isdigit(cs, yyPeekn(5)))
           {
             end_ptr++;                          // 6 digit number
             length++;
           }
 
-          version= (ulong) my_strtoll10(lip->get_ptr(), &end_ptr, &error);
+          version= (ulong) my_strtoll10(get_ptr(), &end_ptr, &error);
 
           /*
             MySQL-5.7 has new features and might have new SQL syntax that
@@ -1952,9 +1761,9 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
               (version < 50700 || version > 99999 || maria_comment_syntax))
           {
             /* Accept 'M' 'm' 'm' 'd' 'd' */
-            lip->yySkipn(length);
+            yySkipn(length);
             /* Expand the content of the special comment as real code */
-            lip->set_echo(TRUE);
+            set_echo(TRUE);
             state=MY_LEX_START;
             break;  /* Do not treat contents as a comment.  */
           }
@@ -1965,9 +1774,9 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
             {
               WSREP_DEBUG("consistency check: %s", thd->query());
               thd->wsrep_consistency_check= CONSISTENCY_CHECK_DECLARED;
-              lip->yySkipn(5);
-              lip->set_echo(TRUE);
-              state=MY_LEX_START;
+              yySkipn(5);
+              set_echo(TRUE);
+              state= MY_LEX_START;
               break;  /* Do not treat contents as a comment.  */
             }
 #endif /* WITH_WSREP */
@@ -1975,8 +1784,8 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
               Patch and skip the conditional comment to avoid it
               being propagated infinitely (eg. to a slave).
             */
-            char *pcom= lip->yyUnput(' ');
-            comment_closed= ! consume_comment(lip, 1);
+            char *pcom= yyUnput(' ');
+            comment_closed= ! consume_comment(1);
             if (! comment_closed)
             {
               *pcom= '!';
@@ -1988,16 +1797,16 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
         {
           /* Not a version comment. */
           state=MY_LEX_START;
-          lip->set_echo(TRUE);
+          set_echo(TRUE);
           break;
         }
       }
       else
       {
-        lip->in_comment= PRESERVE_COMMENT;
-        lip->yySkip();                  // Accept /
-        lip->yySkip();                  // Accept *
-        comment_closed= ! consume_comment(lip, 0);
+        in_comment= PRESERVE_COMMENT;
+        yySkip();                  // Accept /
+        yySkip();                  // Accept *
+        comment_closed= ! consume_comment(0);
         /* regular comments can have zero comments inside. */
       }
       /*
@@ -2011,140 +1820,364 @@ static int lex_one_token(YYSTYPE *yylval, THD *thd)
 
         /#!VERSI oned containing /# regular #/ is allowed #/
 
-		Inside one versioned comment, another versioned comment
-		is treated as a regular discardable comment.  It gets
-		no special parsing.
+                Inside one versioned comment, another versioned comment
+                is treated as a regular discardable comment.  It gets
+                no special parsing.
       */
 
       /* Unbalanced comments with a missing '*' '/' are a syntax error */
       if (! comment_closed)
         return (ABORT_SYM);
       state = MY_LEX_START;             // Try again
-      lip->restore_in_comment_state();
+      restore_in_comment_state();
       break;
     case MY_LEX_END_LONG_COMMENT:
-      if ((lip->in_comment != NO_COMMENT) && lip->yyPeek() == '/')
+      if ((in_comment != NO_COMMENT) && yyPeek() == '/')
       {
         /* Reject '*' '/' */
-        lip->yyUnget();
+        yyUnget();
         /* Accept '*' '/', with the proper echo */
-        lip->set_echo(lip->in_comment == PRESERVE_COMMENT);
-        lip->yySkipn(2);
+        set_echo(in_comment == PRESERVE_COMMENT);
+        yySkipn(2);
         /* And start recording the tokens again */
-        lip->set_echo(TRUE);
-        lip->in_comment=NO_COMMENT;
+        set_echo(TRUE);
+        in_comment= NO_COMMENT;
         state=MY_LEX_START;
       }
       else
-	state=MY_LEX_CHAR;		// Return '*'
+        state= MY_LEX_CHAR;              // Return '*'
       break;
-    case MY_LEX_SET_VAR:		// Check if ':='
-      if (lip->yyPeek() != '=')
+    case MY_LEX_SET_VAR:                // Check if ':='
+      if (yyPeek() != '=')
       {
-	state=MY_LEX_CHAR;		// Return ':'
-	break;
+        state= MY_LEX_CHAR;              // Return ':'
+        break;
       }
-      lip->yySkip();
+      yySkip();
       return (SET_VAR);
-    case MY_LEX_SEMICOLON:			// optional line terminator
+    case MY_LEX_SEMICOLON:              // optional line terminator
       state= MY_LEX_CHAR;               // Return ';'
       break;
     case MY_LEX_EOL:
-      if (lip->eof())
+      if (eof())
       {
-        lip->yyUnget();                 // Reject the last '\0'
-        lip->set_echo(FALSE);
-        lip->yySkip();
-        lip->set_echo(TRUE);
+        yyUnget();                 // Reject the last '\0'
+        set_echo(FALSE);
+        yySkip();
+        set_echo(TRUE);
         /* Unbalanced comments with a missing '*' '/' are a syntax error */
-        if (lip->in_comment != NO_COMMENT)
+        if (in_comment != NO_COMMENT)
           return (ABORT_SYM);
-        lip->next_state=MY_LEX_END;     // Mark for next loop
+        next_state= MY_LEX_END;     // Mark for next loop
         return(END_OF_INPUT);
       }
       state=MY_LEX_CHAR;
       break;
     case MY_LEX_END:
-      lip->next_state=MY_LEX_END;
-      return(0);			// We found end of input last time
+      next_state= MY_LEX_END;
+      return(0);                        // We found end of input last time
 
       /* Actually real shouldn't start with . but allow them anyhow */
     case MY_LEX_REAL_OR_POINT:
-      if (my_isdigit(cs,(c= lip->yyPeek())))
-	state = MY_LEX_REAL;		// Real
+      if (my_isdigit(cs, (c= yyPeek())))
+        state = MY_LEX_REAL;            // Real
       else if (c == '.')
       {
-        lip->yySkip();
+        yySkip();
         return DOT_DOT_SYM;
       }
       else
       {
-	state= MY_LEX_IDENT_SEP;	// return '.'
-        lip->yyUnget();                 // Put back '.'
+        state= MY_LEX_IDENT_SEP;        // return '.'
+        yyUnget();                 // Put back '.'
       }
       break;
-    case MY_LEX_USER_END:		// end '@' of user@hostname
-      switch (state_map[(uchar) lip->yyPeek()]) {
+    case MY_LEX_USER_END:               // end '@' of user@hostname
+      switch (state_map[(uchar) yyPeek()]) {
       case MY_LEX_STRING:
       case MY_LEX_USER_VARIABLE_DELIMITER:
       case MY_LEX_STRING_OR_DELIMITER:
-	break;
+        break;
       case MY_LEX_USER_END:
-	lip->next_state=MY_LEX_SYSTEM_VAR;
-	break;
+        next_state= MY_LEX_SYSTEM_VAR;
+        break;
       default:
-	lip->next_state=MY_LEX_HOSTNAME;
-	break;
+        next_state= MY_LEX_HOSTNAME;
+        break;
       }
-      yylval->lex_str.str=(char*) lip->get_ptr();
-      yylval->lex_str.length=1;
+      yylval->lex_str.str= (char*) get_ptr();
+      yylval->lex_str.length= 1;
       return((int) '@');
-    case MY_LEX_HOSTNAME:		// end '@' of user@hostname
-      for (c=lip->yyGet() ;
-	   my_isalnum(cs,c) || c == '.' || c == '_' ||  c == '$';
-           c= lip->yyGet()) ;
-      yylval->lex_str=get_token(lip, 0, lip->yyLength());
+    case MY_LEX_HOSTNAME:               // end '@' of user@hostname
+      for (c= yyGet() ;
+           my_isalnum(cs, c) || c == '.' || c == '_' ||  c == '$';
+           c= yyGet()) ;
+      yylval->lex_str= get_token(0, yyLength());
       return(LEX_HOSTNAME);
     case MY_LEX_SYSTEM_VAR:
-      yylval->lex_str.str=(char*) lip->get_ptr();
-      yylval->lex_str.length=1;
-      lip->yySkip();                                    // Skip '@'
-      lip->next_state= (state_map[(uchar) lip->yyPeek()] ==
-			MY_LEX_USER_VARIABLE_DELIMITER ?
-			MY_LEX_OPERATOR_OR_IDENT :
-			MY_LEX_IDENT_OR_KEYWORD);
+      yylval->lex_str.str= (char*) get_ptr();
+      yylval->lex_str.length= 1;
+      yySkip();                                    // Skip '@'
+      next_state= (state_map[(uchar) yyPeek()] ==
+                        MY_LEX_USER_VARIABLE_DELIMITER ?
+                        MY_LEX_OPERATOR_OR_IDENT :
+                        MY_LEX_IDENT_OR_KEYWORD);
       return((int) '@');
     case MY_LEX_IDENT_OR_KEYWORD:
       /*
-	We come here when we have found two '@' in a row.
-	We should now be able to handle:
-	[(global | local | session) .]variable_name
+        We come here when we have found two '@' in a row.
+        We should now be able to handle:
+        [(global | local | session) .]variable_name
       */
-
-      for (result_state= 0; ident_map[c= lip->yyGet()]; result_state|= c)
-        ;
-      /* If there were non-ASCII characters, mark that we must convert */
-      result_state= result_state & 0x80 ? IDENT_QUOTED : IDENT;
-
-      if (c == '.')
-	lip->next_state=MY_LEX_IDENT_SEP;
-      length= lip->yyLength();
-      if (length == 0)
-        return(ABORT_SYM);              // Names must be nonempty.
-      if ((tokval= find_keyword(lip, length,0)))
-      {
-        lip->yyUnget();                         // Put back 'c'
-	return(tokval);				// Was keyword
-      }
-      yylval->lex_str=get_token(lip, 0, length);
-
-      lip->body_utf8_append(lip->m_cpp_text_start);
-
-      lip->body_utf8_append_ident(thd, &yylval->lex_str, lip->m_cpp_text_end);
-
-      return(result_state);
+      return scan_ident_sysvar(thd, &yylval->ident_cli);
     }
   }
+}
+
+
+bool Lex_input_stream::get_7bit_or_8bit_ident(THD *thd, uchar *last_char)
+{
+  uchar c;
+  CHARSET_INFO *const cs= thd->charset();
+  const uchar *const ident_map= cs->ident_map;
+  bool is_8bit= false;
+  for ( ; ident_map[c= yyGet()]; )
+  {
+    if (c & 0x80)
+      is_8bit= true; // will convert
+  }
+  *last_char= c;
+  return is_8bit;
+}
+
+
+int Lex_input_stream::scan_ident_sysvar(THD *thd, Lex_ident_cli_st *str)
+{
+  uchar last_char;
+  uint length;
+  int tokval;
+  bool is_8bit;
+  DBUG_ASSERT(m_tok_start == m_ptr);
+
+  is_8bit= get_7bit_or_8bit_ident(thd, &last_char);
+
+  if (last_char == '.')
+    next_state= MY_LEX_IDENT_SEP;
+  if (!(length= yyLength()))
+    return ABORT_SYM;                  // Names must be nonempty.
+  if ((tokval= find_keyword(str, length, 0)))
+  {
+    yyUnget();                         // Put back 'c'
+    return tokval;                     // Was keyword
+  }
+
+  yyUnget();                       // ptr points now after last token char
+  str->set_ident(get_tok_start(), length, is_8bit);
+
+  m_cpp_text_start= get_cpp_tok_start();
+  m_cpp_text_end= m_cpp_text_start + length;
+  body_utf8_append(m_cpp_text_start);
+  body_utf8_append_ident(thd, str, m_cpp_text_end);
+
+  return is_8bit ? IDENT_QUOTED : IDENT;
+}
+
+
+/*
+  We can come here if different parsing stages:
+  - In an identifier chain:
+       SELECT t1.cccc FROM t1;
+    (when the "cccc" part starts)
+    In this case both m_tok_start and m_ptr point to "cccc".
+  - When a sequence of digits has changed to something else,
+    therefore the token becomes an identifier rather than a number:
+       SELECT 12345_6 FROM t1;
+    In this case m_tok_start points to the entire "12345_678",
+    while m_ptr points to "678".
+*/
+int Lex_input_stream::scan_ident_start(THD *thd, Lex_ident_cli_st *str)
+{
+  uchar c;
+  bool is_8bit;
+  CHARSET_INFO *const cs= thd->charset();
+  const uchar *const ident_map= cs->ident_map;
+  DBUG_ASSERT(m_tok_start <= m_ptr);
+
+  if (use_mb(cs))
+  {
+    is_8bit= true;
+    while (ident_map[c= yyGet()])
+    {
+      int char_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
+      if (char_length <= 0)
+        break;
+      skip_binary(char_length - 1);
+    }
+  }
+  else
+  {
+    is_8bit= get_7bit_or_8bit_ident(thd, &c);
+  }
+  if (c == '.' && ident_map[(uchar) yyPeek()])
+    next_state= MY_LEX_IDENT_SEP;// Next is '.'
+
+  uint length= yyLength();
+  yyUnget(); // ptr points now after last token char
+  str->set_ident(get_tok_start(), length, is_8bit);
+  m_cpp_text_start= get_cpp_tok_start();
+  m_cpp_text_end= m_cpp_text_start + length;
+  body_utf8_append(m_cpp_text_start);
+  body_utf8_append_ident(thd, str, m_cpp_text_end);
+  return is_8bit ? IDENT_QUOTED : IDENT;
+}
+
+
+int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
+                                        CHARSET_INFO **introducer,
+                                        my_lex_states *st)
+{
+  CHARSET_INFO *const cs= thd->charset();
+  const uchar *const ident_map= cs->ident_map;
+  const uchar *const state_map= cs->state_map;
+  const char *start;
+  uint length;
+  uchar c;
+  bool is_8bit;
+  bool resolve_introducer= true;
+  DBUG_ASSERT(m_ptr == m_tok_start + 1); // m_ptr points to the second byte
+
+  if (use_mb(cs))
+  {
+    is_8bit= true;
+    int char_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
+    if (char_length <= 0)
+    {
+      *st= MY_LEX_CHAR;
+      return 0;
+    }
+    skip_binary(char_length - 1);
+
+    while (ident_map[c= yyGet()])
+    {
+      char_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
+      if (char_length <= 0)
+        break;
+      if (char_length > 1 || (c & 0x80))
+        resolve_introducer= false;
+      skip_binary(char_length - 1);
+    }
+  }
+  else
+  {
+    is_8bit= get_7bit_or_8bit_ident(thd, &c) || (m_tok_start[0] & 0x80);
+    resolve_introducer= !is_8bit;
+  }
+  length= yyLength();
+  start= get_ptr();
+  if (ignore_space)
+  {
+    /*
+      If we find a space then this can't be an identifier. We notice this
+      below by checking start != lex->ptr.
+    */
+    for (; state_map[(uchar) c] == MY_LEX_SKIP ; c= yyGet())
+    {
+      if (c == '\n')
+        yylineno++;
+    }
+  }
+  if (start == get_ptr() && c == '.' && ident_map[(uchar) yyPeek()])
+    next_state= MY_LEX_IDENT_SEP;
+  else
+  {                                    // '(' must follow directly if function
+    int tokval;
+    yyUnget();
+    if ((tokval= find_keyword(str, length, c == '(')))
+    {
+      next_state= MY_LEX_START;        // Allow signed numbers
+      return(tokval);                  // Was keyword
+    }
+    yySkip();                  // next state does a unget
+  }
+
+  /*
+     Note: "SELECT _bla AS 'alias'"
+     _bla should be considered as a IDENT if charset haven't been found.
+     So we don't use MYF(MY_WME) with get_charset_by_csname to avoid
+     producing an error.
+  */
+  DBUG_ASSERT(length > 0);
+  if (resolve_introducer && get_tok_start()[0] == '_')
+  {
+
+    yyUnget();                       // ptr points now after last token char
+    str->set_ident(get_tok_start(), length, false);
+
+    m_cpp_text_start= get_cpp_tok_start();
+    m_cpp_text_end= m_cpp_text_start + length;
+    body_utf8_append(m_cpp_text_start, get_cpp_tok_start() + length);
+    ErrConvString csname(str->str + 1, str->length - 1, &my_charset_bin);
+    CHARSET_INFO *cs= get_charset_by_csname(csname.ptr(),
+                                            MY_CS_PRIMARY, MYF(0));
+    if (cs)
+    {
+      *introducer= cs;
+      return UNDERSCORE_CHARSET;
+    }
+    return IDENT;
+  }
+
+  yyUnget();                       // ptr points now after last token char
+  str->set_ident(get_tok_start(), length, is_8bit);
+  m_cpp_text_start= get_cpp_tok_start();
+  m_cpp_text_end= m_cpp_text_start + length;
+  body_utf8_append(m_cpp_text_start);
+  body_utf8_append_ident(thd, str, m_cpp_text_end);
+  return is_8bit ? IDENT_QUOTED : IDENT;
+}
+
+
+int Lex_input_stream::scan_ident_delimited(THD *thd,
+                                           Lex_ident_cli_st *str)
+{
+  CHARSET_INFO *const cs= thd->charset();
+  uint double_quotes= 0;
+  uchar c, quote_char= m_tok_start[0];
+  DBUG_ASSERT(m_ptr == m_tok_start + 1);
+
+  while ((c= yyGet()))
+  {
+    int var_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());
+    if (var_length == 1)
+    {
+      if (c == quote_char)
+      {
+        if (yyPeek() != quote_char)
+          break;
+        c= yyGet();
+        double_quotes++;
+        continue;
+      }
+    }
+    else if (var_length > 1)
+    {
+      skip_binary(var_length - 1);
+    }
+  }
+
+  str->set_ident_quoted(get_tok_start() + 1, yyLength() - 1, true, quote_char);
+  yyUnget();                       // ptr points now after last token char
+
+  m_cpp_text_start= get_cpp_tok_start() + 1;
+  m_cpp_text_end= m_cpp_text_start + str->length;
+
+  if (c == quote_char)
+    yySkip();                  // Skip end `
+  next_state= MY_LEX_START;
+  body_utf8_append(m_cpp_text_start);
+  // QQQ: shouldn't it add unescaped version ????
+  body_utf8_append_ident(thd, str, m_cpp_text_end);
+  return IDENT_QUOTED;
 }
 
 
@@ -2367,7 +2400,7 @@ void st_select_lex_node::add_slave(st_select_lex_node *slave_arg)
     ref - references on reference on this node
 */
 void st_select_lex_node::include_standalone(st_select_lex_node *upper,
-					    st_select_lex_node **ref)
+                                            st_select_lex_node **ref)
 {
   next= 0;
   prev= ref;
@@ -2432,7 +2465,7 @@ void st_select_lex_node::fast_exclude()
 */
 
 st_select_lex_node *st_select_lex_node:: insert_chain_before(
-				         st_select_lex_node **ptr_pos_to_insert,
+                                         st_select_lex_node **ptr_pos_to_insert,
                                          st_select_lex_node *end_chain_node)
 {
   end_chain_node->link_next= *ptr_pos_to_insert;
@@ -2815,7 +2848,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
       return false;
    }
   Item **array= static_cast<Item**>(arena->alloc(sizeof(Item*) * n_elems));
-  if (array != NULL)
+  if (likely(array != NULL))
     ref_pointer_array= Ref_ptr_array(array, n_elems);
 
   return array == NULL;
@@ -3131,11 +3164,11 @@ bool LEX::can_be_merged()
   }
 
   return (selects_allow_merge &&
-	  select_lex.group_list.elements == 0 &&
-	  select_lex.having == 0 &&
+          select_lex.group_list.elements == 0 &&
+          select_lex.having == 0 &&
           select_lex.with_sum_func == 0 &&
-	  select_lex.table_list.elements >= 1 &&
-	  !(select_lex.options & SELECT_DISTINCT) &&
+          select_lex.table_list.elements >= 1 &&
+          !(select_lex.options & SELECT_DISTINCT) &&
           select_lex.select_limit == 0);
 }
 
@@ -3516,14 +3549,14 @@ void LEX::set_trg_event_type_for_tables()
 
   SYNOPSIS
     unlink_first_table()
-    link_to_local	Set to 1 if caller should link this table to local list
+    link_to_local   Set to 1 if caller should link this table to local list
 
   NOTES
     We assume that first tables in both lists is the same table or the local
     list is empty.
 
   RETURN
-    0	If 'query_tables' == 0
+    0      If 'query_tables' == 0
     unlinked table
       In this case link_to_local is set.
 
@@ -3550,7 +3583,7 @@ TABLE_LIST *LEX::unlink_first_table(bool *link_to_local)
       select_lex.context.table_list= 
         select_lex.context.first_name_resolution_table= first->next_local;
       select_lex.table_list.first= first->next_local;
-      select_lex.table_list.elements--;	//safety
+      select_lex.table_list.elements--;  //safety
       first->next_local= 0;
       /*
         Ensure that the global list has the same first table as the local
@@ -3612,14 +3645,14 @@ void LEX::first_lists_tables_same()
 
   SYNOPSIS
     link_first_table_back()
-    link_to_local	do we need link this table to local
+    link_to_local        do we need link this table to local
 
   RETURN
     global list
 */
 
 void LEX::link_first_table_back(TABLE_LIST *first,
-				   bool link_to_local)
+                                bool link_to_local)
 {
   if (first)
   {
@@ -3634,7 +3667,7 @@ void LEX::link_first_table_back(TABLE_LIST *first,
       first->next_local= select_lex.table_list.first;
       select_lex.context.table_list= first;
       select_lex.table_list.first= first;
-      select_lex.table_list.elements++;	//safety
+      select_lex.table_list.elements++; //safety
     }
   }
 }
@@ -3929,15 +3962,15 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
     {
       if (!subquery_predicate->fixed)
       {
-	/*
-	 This subquery was excluded as part of some expression so it is
-	 invisible from all prepared expression.
+        /*
+         This subquery was excluded as part of some expression so it is
+         invisible from all prepared expression.
        */
-	next_unit= un->next_unit();
-	un->exclude_level();
-	if (next_unit)
-	  continue;
-	break;
+        next_unit= un->next_unit();
+        un->exclude_level();
+        if (next_unit)
+          continue;
+        break;
       }
       if (subquery_predicate->substype() == Item_subselect::IN_SUBS)
       {
@@ -4258,7 +4291,7 @@ bool SELECT_LEX::merge_subquery(THD *thd, TABLE_LIST *derived,
     for (uint i= 0; i < cnt; i++)
     {
       if (subq_select->expr_cache_may_be_used[i])
-	expr_cache_may_be_used[i]= true;
+        expr_cache_may_be_used[i]= true;
     }
 
     List_iterator_fast<Item_func_in> it(subq_select->in_funcs);
@@ -4324,7 +4357,7 @@ void SELECT_LEX::update_used_tables()
       for (embedding= tl->embedding; embedding; embedding=embedding->embedding)
       {
         if (embedding->is_view_or_derived())
-	{
+        {
           DBUG_ASSERT(embedding->is_merged_derived());
           TABLE *tab= tl->table;
           tab->covering_keys= tab->s->keys_for_keyread;
@@ -4356,7 +4389,7 @@ void SELECT_LEX::update_used_tables()
       bool maybe_null;
       if ((maybe_null= MY_TEST(embedding->outer_join)))
       {
-	tl->table->maybe_null= maybe_null;
+        tl->table->maybe_null= maybe_null;
         break;
       }
     }
@@ -4868,14 +4901,14 @@ bool LEX::set_arena_for_set_stmt(Query_arena *backup)
   if (!mem_root_for_set_stmt)
   {
     mem_root_for_set_stmt= new MEM_ROOT();
-    if (!(mem_root_for_set_stmt))
+    if (unlikely(!(mem_root_for_set_stmt)))
       DBUG_RETURN(1);
     init_sql_alloc(mem_root_for_set_stmt, "set_stmt",
                    ALLOC_ROOT_SET, ALLOC_ROOT_SET, MYF(MY_THREAD_SPECIFIC));
   }
-  if (!(arena_for_set_stmt= new(mem_root_for_set_stmt)
-        Query_arena_memroot(mem_root_for_set_stmt,
-                            Query_arena::STMT_INITIALIZED)))
+  if (unlikely(!(arena_for_set_stmt= new(mem_root_for_set_stmt)
+                 Query_arena_memroot(mem_root_for_set_stmt,
+                                     Query_arena::STMT_INITIALIZED))))
     DBUG_RETURN(1);
   DBUG_PRINT("info", ("mem_root: %p  arena: %p",
                       mem_root_for_set_stmt,
@@ -4988,6 +5021,8 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
   Explain_union *eu= 
     new (output->mem_root) Explain_union(output->mem_root, 
                                          thd->lex->analyze_stmt);
+  if (unlikely(!eu))
+    return 0;
 
   if (with_element && with_element->is_recursive)
     eu->is_recursive_cte= true;
@@ -5122,9 +5157,9 @@ bool LEX::add_unit_in_brackets(SELECT_LEX *nselect)
   /* add SELECT list*/
   Item *item= new (thd->mem_root)
     Item_field(thd, context, NULL, NULL, &star_clex_str);
-  if (item == NULL)
+  if (unlikely(item == NULL))
     DBUG_RETURN(TRUE);
-  if (add_item_to_list(thd, item))
+  if (unlikely(add_item_to_list(thd, item)))
     DBUG_RETURN(TRUE);
   (dummy_select->with_wild)++;
 
@@ -5137,20 +5172,21 @@ bool LEX::add_unit_in_brackets(SELECT_LEX *nselect)
 
   SELECT_LEX_UNIT *unit= nselect->master_unit();
   Table_ident *ti= new (thd->mem_root) Table_ident(unit);
-  if (ti == NULL)
+  if (unlikely(ti == NULL))
     DBUG_RETURN(TRUE);
   char buff[10];
   LEX_CSTRING alias;
   alias.length= my_snprintf(buff, sizeof(buff),
                             "__%u", dummy_select->select_number);
   alias.str= thd->strmake(buff, alias.length);
-  if (!alias.str)
+  if (unlikely(!alias.str))
     DBUG_RETURN(TRUE);
 
   TABLE_LIST *table_list;
-  if (!(table_list= dummy_select->add_table_to_list(thd, ti, &alias,
-                                                    0, TL_READ,
-                                                    MDL_SHARED_READ)))
+  if (unlikely(!(table_list=
+                 dummy_select->add_table_to_list(thd, ti, &alias,
+                                                 0, TL_READ,
+                                                 MDL_SHARED_READ))))
     DBUG_RETURN(TRUE);
   context->resolve_in_table_list_only(table_list);
   dummy_select->add_joined_table(table_list);
@@ -5249,12 +5285,26 @@ LEX::find_variable(const LEX_CSTRING *name,
 }
 
 
+static bool is_new(const char *str)
+{
+  return (str[0] == 'n' || str[0] == 'N') &&
+         (str[1] == 'e' || str[1] == 'E') &&
+         (str[2] == 'w' || str[2] == 'W');
+}
+
+static bool is_old(const char *str)
+{
+  return (str[0] == 'o' || str[0] == 'O') &&
+         (str[1] == 'l' || str[1] == 'L') &&
+         (str[2] == 'd' || str[2] == 'D');
+}
+
+
 bool LEX::is_trigger_new_or_old_reference(const LEX_CSTRING *name) const
 {
+  // "name" is not necessarily NULL-terminated!
   return sphead && sphead->m_handler->type() == TYPE_ENUM_TRIGGER &&
-         name->length == 3 &&
-         (!my_strcasecmp(system_charset_info, name->str, "NEW") ||
-          !my_strcasecmp(system_charset_info, name->str, "OLD"));
+         name->length == 3 && (is_new(name->str) || is_old(name->str));
 }
 
 
@@ -5273,7 +5323,7 @@ bool LEX::sp_variable_declarations_set_default(THD *thd, int nvars,
                                                Item *dflt_value_item)
 {
   if (!dflt_value_item &&
-      !(dflt_value_item= new (thd->mem_root) Item_null(thd)))
+      unlikely(!(dflt_value_item= new (thd->mem_root) Item_null(thd))))
     return true;
 
   for (uint i= 0 ; i < (uint) nvars ; i++)
@@ -5287,7 +5337,7 @@ bool LEX::sp_variable_declarations_set_default(THD *thd, int nvars,
                                    spcont, &sp_rcontext_handler_local,
                                    spvar->offset, dflt_value_item,
                                    this, last);
-    if (is == NULL || sphead->add_instr(is))
+    if (unlikely(is == NULL || sphead->add_instr(is)))
       return true;
   }
   return false;
@@ -5311,7 +5361,8 @@ LEX::sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
     }
     spvar->field_def.field_name= spvar->name;
   }
-  if (sp_variable_declarations_set_default(thd, nvars, default_value))
+  if (unlikely(sp_variable_declarations_set_default(thd, nvars,
+                                                    default_value)))
     return true;
   spcont->declare_var_boundary(0);
   return sphead->restore_lex(thd);
@@ -5412,7 +5463,8 @@ LEX::sp_variable_declarations_table_rowtype_finalize(THD *thd, int nvars,
                                                      Item *def)
 {
   Table_ident *table_ref;
-  if (!(table_ref= new (thd->mem_root) Table_ident(thd, &db, &table, false)))
+  if (unlikely(!(table_ref=
+                 new (thd->mem_root) Table_ident(thd, &db, &table, false))))
     return true;
   // Loop through all variables in the same declaration
   for (uint i= 0 ; i < (uint) nvars; i++)
@@ -5452,7 +5504,7 @@ LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
 
     sphead->fill_spvar_definition(thd, &spvar->field_def, &spvar->name);
   }
-  if (sp_variable_declarations_set_default(thd, nvars, def))
+  if (unlikely(sp_variable_declarations_set_default(thd, nvars, def)))
     return true;
   // Make sure sp_rcontext is created using the invoker security context:
   sphead->m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
@@ -5575,7 +5627,7 @@ sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,
   spvar->field_def.set_handler(&type_handler_longlong);
   type_handler_longlong.Column_definition_prepare_stage2(&spvar->field_def,
                                                          NULL, HA_CAN_GEOMETRY);
-  if (!value && !(value= new (thd->mem_root) Item_null(thd)))
+  if (!value && unlikely(!(value= new (thd->mem_root) Item_null(thd))))
     return NULL;
 
   spvar->default_value= value;
@@ -5584,7 +5636,7 @@ sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,
                                  spcont, &sp_rcontext_handler_local,
                                  spvar->offset, value,
                                  this, true);
-  if (is == NULL || sphead->add_instr(is))
+  if (unlikely(is == NULL || sphead->add_instr(is)))
     return NULL;
   spcont->declare_var_boundary(0);
   return spvar;
@@ -5601,14 +5653,16 @@ bool LEX::sp_for_loop_implicit_cursor_statement(THD *thd,
   if (sp_declare_cursor(thd, &name, cur, NULL, true))
     return true;
   DBUG_ASSERT(thd->lex == this);
-  if (!(bounds->m_index= new (thd->mem_root) sp_assignment_lex(thd, this)))
+  if (unlikely(!(bounds->m_index=
+                 new (thd->mem_root) sp_assignment_lex(thd, this))))
     return true;
   bounds->m_index->sp_lex_in_use= true;
   sphead->reset_lex(thd, bounds->m_index);
   DBUG_ASSERT(thd->lex != this);
-  if (!(item= new (thd->mem_root) Item_field(thd,
-                                             thd->lex->current_context(),
-                                             NullS, NullS, &name)))
+  if (unlikely(!(item=
+                 new (thd->mem_root) Item_field(thd,
+                                                thd->lex->current_context(),
+                                                NullS, NullS, &name))))
     return true;
   bounds->m_index->set_item_and_free_list(item, NULL);
   if (thd->lex->sphead->restore_lex(thd))
@@ -5633,13 +5687,14 @@ LEX::sp_add_for_loop_cursor_variable(THD *thd,
     return NULL;
   spcont->declare_var_boundary(1);
   sphead->fill_spvar_definition(thd, &spvar->field_def, &spvar->name);
-  if (!(spvar->default_value= new (thd->mem_root) Item_null(thd)))
+  if (unlikely(!(spvar->default_value= new (thd->mem_root) Item_null(thd))))
     return NULL;
 
   spvar->field_def.set_cursor_rowtype_ref(coffset);
 
-  if (sphead->add_for_loop_open_cursor(thd, spcont, spvar, pcursor, coffset,
-                                       param_lex, parameters))
+  if (unlikely(sphead->add_for_loop_open_cursor(thd, spcont, spvar, pcursor,
+                                                coffset,
+                                                param_lex, parameters)))
     return NULL;
 
   spcont->declare_var_boundary(0);
@@ -5662,7 +5717,7 @@ bool LEX::sp_for_loop_condition(THD *thd, const Lex_for_loop_st &loop)
     args[i]= new (thd->mem_root)
               Item_splocal(thd, &sp_rcontext_handler_local,
                            &src->name, src->offset, src->type_handler());
-    if (args[i] == NULL)
+    if (unlikely(args[i] == NULL))
       return true;
 #ifdef DBUG_ASSERT_EXISTS
     args[i]->m_sp= sphead;
@@ -5672,7 +5727,7 @@ bool LEX::sp_for_loop_condition(THD *thd, const Lex_for_loop_st &loop)
   Item *expr= loop.m_direction > 0 ?
     (Item *) new (thd->mem_root) Item_func_le(thd, args[0], args[1]) :
     (Item *) new (thd->mem_root) Item_func_ge(thd, args[0], args[1]);
-  return !expr || sp_while_loop_expression(thd, expr);
+  return unlikely(!expr) || unlikely(sp_while_loop_expression(thd, expr));
 }
 
 
@@ -5684,7 +5739,7 @@ bool LEX::sp_for_loop_intrange_condition_test(THD *thd,
 {
   spcont->set_for_loop(loop);
   sphead->reset_lex(thd);
-  if (thd->lex->sp_for_loop_condition(thd, loop))
+  if (unlikely(thd->lex->sp_for_loop_condition(thd, loop)))
     return true;
   return thd->lex->sphead->restore_lex(thd);
 }
@@ -5699,8 +5754,10 @@ bool LEX::sp_for_loop_cursor_condition_test(THD *thd,
   sphead->reset_lex(thd);
   cursor_name= spcont->find_cursor(loop.m_cursor_offset);
   DBUG_ASSERT(cursor_name);
-  if (!(expr= new (thd->mem_root) Item_func_cursor_found(thd, cursor_name,
-                                                         loop.m_cursor_offset)))
+  if (unlikely(!(expr=
+                 new (thd->mem_root)
+                 Item_func_cursor_found(thd, cursor_name,
+                                        loop.m_cursor_offset))))
     return true;
   if (thd->lex->sp_while_loop_expression(thd, expr))
     return true;
@@ -5712,13 +5769,16 @@ bool LEX::sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
                                             const LEX_CSTRING *index,
                                             const Lex_for_loop_bounds_st &bounds)
 {
-  if (!(loop->m_index=
-        bounds.m_index->sp_add_for_loop_variable(thd, index,
-                                                 bounds.m_index->get_item())))
+  if (unlikely(!(loop->m_index=
+                 bounds.m_index->
+                 sp_add_for_loop_variable(thd, index,
+                                          bounds.m_index->get_item()))))
     return true;
-  if (!(loop->m_upper_bound=
-        bounds.m_upper_bound->sp_add_for_loop_upper_bound(thd,
-                                           bounds.m_upper_bound->get_item())))
+  if (unlikely(!(loop->m_upper_bound=
+                 bounds.m_upper_bound->
+                 sp_add_for_loop_upper_bound(thd,
+                                             bounds.
+                                             m_upper_bound->get_item()))))
      return true;
   loop->m_direction= bounds.m_direction;
   loop->m_implicit_cursor= 0;
@@ -5771,8 +5831,9 @@ bool LEX::sp_for_loop_cursor_declarations(THD *thd,
     thd->parse_error();
     return true;
   }
-  if (!(pcursor= spcont->find_cursor_with_error(&name, &coffs, false)) ||
-      pcursor->check_param_count_with_error(param_count))
+  if (unlikely(!(pcursor= spcont->find_cursor_with_error(&name, &coffs,
+                                                         false)) ||
+               pcursor->check_param_count_with_error(param_count)))
     return true;
 
   if (!(loop->m_index= sp_add_for_loop_cursor_variable(thd, index,
@@ -5797,18 +5858,19 @@ bool LEX::sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop)
     Item_splocal(thd, &sp_rcontext_handler_local,
                       &loop.m_index->name, loop.m_index->offset,
                       loop.m_index->type_handler());
-  if (splocal == NULL)
+  if (unlikely(splocal == NULL))
     return true;
 #ifdef DBUG_ASSERT_EXISTS
   splocal->m_sp= sphead;
 #endif
   Item_int *inc= new (thd->mem_root) Item_int(thd, loop.m_direction);
-  if (!inc)
+  if (unlikely(!inc))
     return true;
   Item *expr= new (thd->mem_root) Item_func_plus(thd, splocal, inc);
-  if (!expr ||
-      sphead->set_local_variable(thd, spcont, &sp_rcontext_handler_local,
-                                 loop.m_index, expr, this, true))
+  if (unlikely(!expr) ||
+      unlikely(sphead->set_local_variable(thd, spcont,
+                                          &sp_rcontext_handler_local,
+                                          loop.m_index, expr, this, true)))
     return true;
   return false;
 }
@@ -5820,8 +5882,8 @@ bool LEX::sp_for_loop_intrange_finalize(THD *thd, const Lex_for_loop_st &loop)
 
   // Generate FOR LOOP index increment in its own lex
   DBUG_ASSERT(this != thd->lex);
-  if (thd->lex->sp_for_loop_increment(thd, loop) ||
-      thd->lex->sphead->restore_lex(thd))
+  if (unlikely(thd->lex->sp_for_loop_increment(thd, loop) ||
+               thd->lex->sphead->restore_lex(thd)))
     return true;
 
   // Generate a jump to the beginning of the loop
@@ -5835,7 +5897,7 @@ bool LEX::sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &loop)
   sp_instr_cfetch *instr=
     new (thd->mem_root) sp_instr_cfetch(sphead->instructions(),
                                         spcont, loop.m_cursor_offset, false);
-  if (instr == NULL || sphead->add_instr(instr))
+  if (unlikely(instr == NULL) || unlikely(sphead->add_instr(instr)))
     return true;
   instr->add_to_varlist(loop.m_index);
   // Generate a jump to the beginning of the loop
@@ -5858,7 +5920,7 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
   }
   cursor_stmt->set_cursor_name(name);
 
-  if (spcont->add_cursor(name, param_ctx, cursor_stmt))
+  if (unlikely(spcont->add_cursor(name, param_ctx, cursor_stmt)))
     return true;
 
   if (add_cpush_instr)
@@ -5866,7 +5928,7 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
     i= new (thd->mem_root)
          sp_instr_cpush(sphead->instructions(), spcont, cursor_stmt,
                         spcont->current_cursor_count() - 1);
-    return i == NULL || sphead->add_instr(i);
+    return unlikely(i == NULL) || unlikely(sphead->add_instr(i));
   }
   return false;
 }
@@ -5901,15 +5963,17 @@ bool LEX::sp_handler_declaration_init(THD *thd, int type)
   sp_instr_hpush_jump *i=
     new (thd->mem_root) sp_instr_hpush_jump(sphead->instructions(), spcont, h);
 
-  if (i == NULL || sphead->add_instr(i))
+  if (unlikely(i == NULL) || unlikely(sphead->add_instr(i)))
     return true;
 
   /* For continue handlers, mark end of handler scope. */
   if (type == sp_handler::CONTINUE &&
-      sphead->push_backpatch(thd, i, spcont->last_label()))
+      unlikely(sphead->push_backpatch(thd, i, spcont->last_label())))
     return true;
 
-  if (sphead->push_backpatch(thd, i, spcont->push_label(thd, &empty_clex_str, 0)))
+  if (unlikely(sphead->push_backpatch(thd, i,
+                                      spcont->push_label(thd, &empty_clex_str,
+                                                         0))))
     return true;
 
   return false;
@@ -5924,16 +5988,16 @@ bool LEX::sp_handler_declaration_finalize(THD *thd, int type)
   if (type == sp_handler::CONTINUE)
   {
     i= new (thd->mem_root) sp_instr_hreturn(sphead->instructions(), spcont);
-    if (i == NULL ||
-        sphead->add_instr(i))
+    if (unlikely(i == NULL) ||
+        unlikely(sphead->add_instr(i)))
       return true;
   }
   else
   {  /* EXIT or UNDO handler, just jump to the end of the block */
     i= new (thd->mem_root) sp_instr_hreturn(sphead->instructions(), spcont);
-    if (i == NULL ||
-        sphead->add_instr(i) ||
-        sphead->push_backpatch(thd, i, spcont->last_label())) /* Block end */
+    if (unlikely(i == NULL) ||
+        unlikely(sphead->add_instr(i)) ||
+        unlikely(sphead->push_backpatch(thd, i, spcont->last_label()))) /* Block end */
       return true;
   }
   sphead->backpatch(hlab);
@@ -5961,16 +6025,16 @@ bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
   {
     i= new (thd->mem_root)
       sp_instr_hpop(sp->instructions(), ctx, spblock.hndlrs);
-    if (i == NULL ||
-        sp->add_instr(i))
+    if (unlikely(i == NULL) ||
+        unlikely(sp->add_instr(i)))
       return true;
   }
   if (spblock.curs)
   {
     i= new (thd->mem_root)
       sp_instr_cpop(sp->instructions(), ctx, spblock.curs);
-    if (i == NULL ||
-        sp->add_instr(i))
+    if (unlikely(i == NULL) ||
+        unlikely(sp->add_instr(i)))
       return true;
   }
   spcont= ctx->pop_context();
@@ -5983,11 +6047,11 @@ bool LEX::sp_block_finalize(THD *thd, const Lex_spblock_st spblock,
                             const LEX_CSTRING *end_label)
 {
   sp_label *splabel;
-  if (sp_block_finalize(thd, spblock, &splabel))
+  if (unlikely(sp_block_finalize(thd, spblock, &splabel)))
     return true;
-  if (end_label->str &&
-      lex_string_cmp(system_charset_info,
-                     end_label, &splabel->name) != 0)
+  if (unlikely(end_label->str &&
+               lex_string_cmp(system_charset_info,
+                              end_label, &splabel->name) != 0))
   {
     my_error(ER_SP_LABEL_MISMATCH, MYF(0), end_label->str);
     return true;
@@ -6000,9 +6064,9 @@ sp_name *LEX::make_sp_name(THD *thd, const LEX_CSTRING *name)
 {
   sp_name *res;
   LEX_CSTRING db;
-  if (check_routine_name(name) ||
-      copy_db_to(&db) ||
-      (!(res= new (thd->mem_root) sp_name(&db, name, false))))
+  if (unlikely(check_routine_name(name)) ||
+      unlikely(copy_db_to(&db)) ||
+      unlikely((!(res= new (thd->mem_root) sp_name(&db, name, false)))))
     return NULL;
   return res;
 }
@@ -6024,7 +6088,7 @@ sp_name *LEX::make_sp_name(THD *thd, const LEX_CSTRING *name)
 sp_name *LEX::make_sp_name_package_routine(THD *thd, const LEX_CSTRING *name)
 {
   sp_name *res= make_sp_name(thd, name);
-  if (res && strchr(res->m_name.str, '.'))
+  if (likely(res) && unlikely(strchr(res->m_name.str, '.')))
   {
     my_error(ER_SP_WRONG_NAME, MYF(0), res->m_name.str);
     res= NULL;
@@ -6038,15 +6102,16 @@ sp_name *LEX::make_sp_name(THD *thd, const LEX_CSTRING *name1,
 {
   sp_name *res;
   LEX_CSTRING norm_name1;
-  if (!name1->str ||
-      !thd->make_lex_string(&norm_name1, name1->str, name1->length) ||
-      check_db_name((LEX_STRING *) &norm_name1))
+  if (unlikely(!name1->str) ||
+      unlikely(!thd->make_lex_string(&norm_name1, name1->str,
+                                     name1->length)) ||
+      unlikely(check_db_name((LEX_STRING *) &norm_name1)))
   {
     my_error(ER_WRONG_DB_NAME, MYF(0), name1->str);
     return NULL;
   }
-  if (check_routine_name(name2) ||
-      (!(res= new (thd->mem_root) sp_name(&norm_name1, name2, true))))
+  if (unlikely(check_routine_name(name2)) ||
+      unlikely(!(res= new (thd->mem_root) sp_name(&norm_name1, name2, true))))
     return NULL;
   return res;
 }
@@ -6059,7 +6124,7 @@ sp_head *LEX::make_sp_head(THD *thd, const sp_name *name,
   sp_head *sp;
 
   /* Order is important here: new - reset - init */
-  if ((sp= new sp_head(package, sph)))
+  if (likely((sp= new sp_head(package, sph))))
   {
     sp->reset_thd_mem_root(thd);
     sp->init(this);
@@ -6211,13 +6276,13 @@ bool LEX::sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive)
   if ((n= spcont->diff_handlers(ctx, exclusive)))
   {
     sp_instr_hpop *hpop= new (thd->mem_root) sp_instr_hpop(ip++, spcont, n);
-    if (hpop == NULL || sphead->add_instr(hpop))
+    if (unlikely(hpop == NULL) || unlikely(sphead->add_instr(hpop)))
       return true;
   }
   if ((n= spcont->diff_cursors(ctx, exclusive)))
   {
     sp_instr_cpop *cpop= new (thd->mem_root) sp_instr_cpop(ip++, spcont, n);
-    if (cpop == NULL || sphead->add_instr(cpop))
+    if (unlikely(cpop == NULL) || unlikely(sphead->add_instr(cpop)))
       return true;
   }
   return false;
@@ -6227,7 +6292,7 @@ bool LEX::sp_change_context(THD *thd, const sp_pcontext *ctx, bool exclusive)
 bool LEX::sp_leave_statement(THD *thd, const LEX_CSTRING *label_name)
 {
   sp_label *lab= spcont->find_label(label_name);
-  if (!lab)
+  if (unlikely(!lab))
   {
     my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "LEAVE", label_name->str);
     return true;
@@ -6267,7 +6332,7 @@ bool LEX::sp_push_goto_label(THD *thd, const LEX_CSTRING *label_name)
   sp_label *lab= spcont->find_goto_label(label_name, false);
   if (lab)
   {
-    if  (lab->ip != 0)
+    if (unlikely(lab->ip != 0))
     {
       my_error(ER_SP_LABEL_REDEFINE, MYF(0), label_name->str);
       return true;
@@ -6311,9 +6376,9 @@ bool LEX::sp_exit_block(THD *thd, sp_label *lab, Item *when)
                            sp_instr_jump_if_not(sphead->instructions(),
                                                 spcont,
                                                 when, thd->lex);
-  if (i == NULL ||
-      sphead->add_instr(i) ||
-      sp_exit_block(thd, lab))
+  if (unlikely(i == NULL) ||
+      unlikely(sphead->add_instr(i)) ||
+      unlikely(sp_exit_block(thd, lab)))
     return true;
   i->backpatch(sphead->instructions(), spcont);
   return false;
@@ -6323,7 +6388,7 @@ bool LEX::sp_exit_block(THD *thd, sp_label *lab, Item *when)
 bool LEX::sp_exit_statement(THD *thd, Item *item)
 {
   sp_label *lab= spcont->find_label_current_loop_start();
-  if (!lab)
+  if (unlikely(!lab))
   {
     my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "EXIT", "");
     return true;
@@ -6336,7 +6401,7 @@ bool LEX::sp_exit_statement(THD *thd, Item *item)
 bool LEX::sp_exit_statement(THD *thd, const LEX_CSTRING *label_name, Item *item)
 {
   sp_label *lab= spcont->find_label(label_name);
-  if (!lab || lab->type != sp_label::ITERATION)
+  if (unlikely(!lab || lab->type != sp_label::ITERATION))
   {
     my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "EXIT", label_name->str);
     return true;
@@ -6348,7 +6413,7 @@ bool LEX::sp_exit_statement(THD *thd, const LEX_CSTRING *label_name, Item *item)
 bool LEX::sp_iterate_statement(THD *thd, const LEX_CSTRING *label_name)
 {
   sp_label *lab= spcont->find_label(label_name);
-  if (!lab || lab->type != sp_label::ITERATION)
+  if (unlikely(!lab || lab->type != sp_label::ITERATION))
   {
     my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "ITERATE", label_name->str);
     return true;
@@ -6384,9 +6449,9 @@ bool LEX::sp_continue_loop(THD *thd, sp_label *lab, Item *when)
                            sp_instr_jump_if_not(sphead->instructions(),
                                                 spcont,
                                                 when, thd->lex);
-  if (i == NULL ||
-      sphead->add_instr(i) ||
-      sp_continue_loop(thd, lab))
+  if (unlikely(i == NULL) ||
+      unlikely(sphead->add_instr(i)) ||
+      unlikely(sp_continue_loop(thd, lab)))
     return true;
   i->backpatch(sphead->instructions(), spcont);
   return false;
@@ -6396,7 +6461,7 @@ bool LEX::sp_continue_loop(THD *thd, sp_label *lab, Item *when)
 bool LEX::sp_continue_statement(THD *thd, Item *when)
 {
   sp_label *lab= spcont->find_label_current_loop_start();
-  if (!lab)
+  if (unlikely(!lab))
   {
     my_error(ER_SP_LILABEL_MISMATCH, MYF(0), "CONTINUE", "");
     return true;
@@ -6484,11 +6549,11 @@ bool LEX::sp_while_loop_expression(THD *thd, Item *expr)
 {
   sp_instr_jump_if_not *i= new (thd->mem_root)
     sp_instr_jump_if_not(sphead->instructions(), spcont, expr, this);
-  return i == NULL ||
-         /* Jumping forward */
-         sphead->push_backpatch(thd, i, spcont->last_label()) ||
-         sphead->new_cont_backpatch(i) ||
-         sphead->add_instr(i);
+  return (unlikely(i == NULL) ||
+          /* Jumping forward */
+          unlikely(sphead->push_backpatch(thd, i, spcont->last_label())) ||
+          unlikely(sphead->new_cont_backpatch(i)) ||
+          unlikely(sphead->add_instr(i)));
 }
 
 
@@ -6497,8 +6562,8 @@ bool LEX::sp_while_loop_finalize(THD *thd)
   sp_label *lab= spcont->last_label();  /* Jumping back */
   sp_instr_jump *i= new (thd->mem_root)
     sp_instr_jump(sphead->instructions(), spcont, lab->ip);
-  if (i == NULL ||
-      sphead->add_instr(i))
+  if (unlikely(i == NULL) ||
+      unlikely(sphead->add_instr(i)))
     return true;
   sphead->do_cont_backpatch();
   return false;
@@ -6511,13 +6576,13 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
 {
   Item_trigger_field *trg_fld;
 
-  if (trg_chistics.event == TRG_EVENT_INSERT && !new_row)
+  if (unlikely(trg_chistics.event == TRG_EVENT_INSERT && !new_row))
   {
     my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "OLD", "on INSERT");
     return NULL;
   }
 
-  if (trg_chistics.event == TRG_EVENT_DELETE && new_row)
+  if (unlikely(trg_chistics.event == TRG_EVENT_DELETE && new_row))
   {
     my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE");
     return NULL;
@@ -6539,22 +6604,39 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
     Let us add this item to list of all Item_trigger_field objects
     in trigger.
   */
-  if (trg_fld)
-      trg_table_fields.link_in_list(trg_fld, &trg_fld->next_trg_field);
+  if (likely(trg_fld))
+    trg_table_fields.link_in_list(trg_fld, &trg_fld->next_trg_field);
 
   return trg_fld;
+}
+
+
+Item *LEX::make_item_colon_ident_ident(THD *thd,
+                                       const Lex_ident_cli_st *ca,
+                                       const Lex_ident_cli_st *cb)
+{
+  Lex_ident_sys a(thd, ca), b(thd, cb);
+  if (a.is_null() || b.is_null())
+    return NULL; // OEM
+  if (!is_trigger_new_or_old_reference(&a))
+  {
+    thd->parse_error();
+    return NULL;
+  }
+  bool new_row= (a.str[0] == 'N' || a.str[0] == 'n');
+  return create_and_link_Item_trigger_field(thd, &b, new_row);
 }
 
 
 Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
                                  const char *start, const char *end)
 {
-  if (!thd->m_parser_state->m_lip.stmt_prepare_mode)
+  if (unlikely(!thd->m_parser_state->m_lip.stmt_prepare_mode))
   {
     thd->parse_error(ER_SYNTAX_ERROR, start);
     return NULL;
   }
-  if (!parsing_options.allows_variable)
+  if (unlikely(!parsing_options.allows_variable))
   {
     my_error(ER_VIEW_SELECT_VARIABLE, MYF(0));
     return NULL;
@@ -6563,7 +6645,7 @@ Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
   Query_fragment pos(thd, sphead, start, end);
   Item_param *item= new (thd->mem_root) Item_param(thd, name,
                                                    pos.pos(), pos.length());
-  if (!item || param_list.push_back(item, thd->mem_root))
+  if (unlikely(!item) || unlikely(param_list.push_back(item, thd->mem_root)))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return NULL;
@@ -6591,8 +6673,8 @@ bool LEX::add_resignal_statement(THD *thd, const sp_condition_value *v)
 
 
 Item *LEX::create_item_ident_nospvar(THD *thd,
-                                     const LEX_CSTRING *a,
-                                     const LEX_CSTRING *b)
+                                     const Lex_ident_sys_st *a,
+                                     const Lex_ident_sys_st *b)
 {
   DBUG_ASSERT(this == thd->lex);
   /*
@@ -6607,7 +6689,7 @@ Item *LEX::create_item_ident_nospvar(THD *thd,
     return create_and_link_Item_trigger_field(thd, b, new_row);
   }
 
-  if (current_select->no_table_names_allowed)
+  if (unlikely(current_select->no_table_names_allowed))
   {
     my_error(ER_TABLENAME_NOT_ALLOWED_HERE, MYF(0), a->str, thd->where);
     return NULL;
@@ -6623,13 +6705,13 @@ Item *LEX::create_item_ident_nospvar(THD *thd,
 
 Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
                                                const Sp_rcontext_handler *rh,
-                                               const LEX_CSTRING *a,
-                                               const LEX_CSTRING *b,
+                                               const Lex_ident_sys *a,
+                                               const Lex_ident_sys *b,
                                                sp_variable *spv,
                                                const char *start,
                                                const char *end)
 {
-  if (!parsing_options.allows_variable)
+  if (unlikely(!parsing_options.allows_variable))
   {
     my_error(ER_VIEW_SELECT_VARIABLE, MYF(0));
     return NULL;
@@ -6640,24 +6722,24 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
   if (spv->field_def.is_table_rowtype_ref() ||
       spv->field_def.is_cursor_rowtype_ref())
   {
-    if (!(item= new (thd->mem_root)
-                Item_splocal_row_field_by_name(thd, rh, a, b, spv->offset,
-                                               &type_handler_null,
-                                               pos.pos(), pos.length())))
+    if (unlikely(!(item= new (thd->mem_root)
+                   Item_splocal_row_field_by_name(thd, rh, a, b, spv->offset,
+                                                  &type_handler_null,
+                                                  pos.pos(), pos.length()))))
       return NULL;
   }
   else
   {
     uint row_field_offset;
     const Spvar_definition *def;
-    if (!(def= spv->find_row_field(a, b, &row_field_offset)))
+    if (unlikely(!(def= spv->find_row_field(a, b, &row_field_offset))))
       return NULL;
 
-    if (!(item= new (thd->mem_root)
-                Item_splocal_row_field(thd, rh, a, b,
-                                       spv->offset, row_field_offset,
-                                       def->type_handler(),
-                                       pos.pos(), pos.length())))
+    if (unlikely(!(item= new (thd->mem_root)
+                   Item_splocal_row_field(thd, rh, a, b,
+                                          spv->offset, row_field_offset,
+                                          def->type_handler(),
+                                          pos.pos(), pos.length()))))
       return NULL;
   }
 #ifdef DBUG_ASSERT_EXISTS
@@ -6672,7 +6754,7 @@ my_var *LEX::create_outvar(THD *thd, const LEX_CSTRING *name)
 {
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
-  if ((spv= find_variable(name, &rh)))
+  if (likely((spv= find_variable(name, &rh))))
     return result ? new (thd->mem_root)
                     my_var_sp(rh, name, spv->offset,
                               spv->type_handler(), sphead) :
@@ -6688,7 +6770,7 @@ my_var *LEX::create_outvar(THD *thd,
 {
   const Sp_rcontext_handler *rh;
   sp_variable *t;
-  if (!(t= find_variable(a, &rh)))
+  if (unlikely(!(t= find_variable(a, &rh))))
   {
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), a->str);
     return NULL;
@@ -6706,10 +6788,10 @@ my_var *LEX::create_outvar(THD *thd,
 Item *LEX::create_item_func_nextval(THD *thd, Table_ident *table_ident)
 {
   TABLE_LIST *table;
-  if (!(table= current_select->add_table_to_list(thd, table_ident, 0,
-                                                 TL_OPTION_SEQUENCE,
-                                                 TL_WRITE_ALLOW_WRITE,
-                                                 MDL_SHARED_WRITE)))
+  if (unlikely(!(table= current_select->add_table_to_list(thd, table_ident, 0,
+                                                          TL_OPTION_SEQUENCE,
+                                                          TL_WRITE_ALLOW_WRITE,
+                                                          MDL_SHARED_WRITE))))
     return NULL;
   return new (thd->mem_root) Item_func_nextval(thd, table);
 }
@@ -6718,10 +6800,10 @@ Item *LEX::create_item_func_nextval(THD *thd, Table_ident *table_ident)
 Item *LEX::create_item_func_lastval(THD *thd, Table_ident *table_ident)
 {
   TABLE_LIST *table;
-  if (!(table= current_select->add_table_to_list(thd, table_ident, 0,
-                                                 TL_OPTION_SEQUENCE,
-                                                 TL_READ,
-                                                 MDL_SHARED_READ)))
+  if (unlikely(!(table= current_select->add_table_to_list(thd, table_ident, 0,
+                                                          TL_OPTION_SEQUENCE,
+                                                          TL_READ,
+                                                          MDL_SHARED_READ))))
     return NULL;
   return new (thd->mem_root) Item_func_lastval(thd, table);
 }
@@ -6732,7 +6814,8 @@ Item *LEX::create_item_func_nextval(THD *thd,
                                     const LEX_CSTRING *name)
 {
   Table_ident *table_ident;
-  if (!(table_ident= new (thd->mem_root) Table_ident(thd, db, name, false)))
+  if (unlikely(!(table_ident=
+                 new (thd->mem_root) Table_ident(thd, db, name, false))))
     return NULL;
   return create_item_func_nextval(thd, table_ident);
 }
@@ -6743,7 +6826,8 @@ Item *LEX::create_item_func_lastval(THD *thd,
                                     const LEX_CSTRING *name)
 {
   Table_ident *table_ident;
-  if (!(table_ident= new (thd->mem_root) Table_ident(thd, db, name, false)))
+  if (unlikely(!(table_ident=
+                 new (thd->mem_root) Table_ident(thd, db, name, false))))
     return NULL;
   return create_item_func_lastval(thd, table_ident);
 }
@@ -6754,10 +6838,10 @@ Item *LEX::create_item_func_setval(THD *thd, Table_ident *table_ident,
                                    bool is_used)
 {
   TABLE_LIST *table;
-  if (!(table= current_select->add_table_to_list(thd, table_ident, 0,
-                                                 TL_OPTION_SEQUENCE,
-                                                 TL_WRITE_ALLOW_WRITE,
-                                                 MDL_SHARED_WRITE)))
+  if (unlikely(!(table= current_select->add_table_to_list(thd, table_ident, 0,
+                                                          TL_OPTION_SEQUENCE,
+                                                          TL_WRITE_ALLOW_WRITE,
+                                                          MDL_SHARED_WRITE))))
     return NULL;
   return new (thd->mem_root) Item_func_setval(thd, table, nextval, round,
                                               is_used);
@@ -6765,38 +6849,45 @@ Item *LEX::create_item_func_setval(THD *thd, Table_ident *table_ident,
 
 
 Item *LEX::create_item_ident(THD *thd,
-                             const LEX_CSTRING *a,
-                             const LEX_CSTRING *b,
-                             const char *start, const char *end)
+                             const Lex_ident_cli_st *ca,
+                             const Lex_ident_cli_st *cb)
 {
+  const char *start= ca->pos();
+  const char *end= cb->end();
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
-  if ((spv= find_variable(a, &rh)) &&
+  DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() <= start);
+  DBUG_ASSERT(start <= end);
+  DBUG_ASSERT(end <= thd->m_parser_state->m_lip.get_end_of_query());
+  Lex_ident_sys a(thd, ca), b(thd, cb);
+  if (a.is_null() || b.is_null())
+    return NULL; // OEM
+  if ((spv= find_variable(&a, &rh)) &&
       (spv->field_def.is_row() ||
        spv->field_def.is_table_rowtype_ref() ||
        spv->field_def.is_cursor_rowtype_ref()))
-    return create_item_spvar_row_field(thd, rh, a, b, spv, start, end);
+    return create_item_spvar_row_field(thd, rh, &a, &b, spv, start, end);
 
-  if ((thd->variables.sql_mode & MODE_ORACLE) && b->length == 7)
+  if ((thd->variables.sql_mode & MODE_ORACLE) && b.length == 7)
   {
     if (!my_strnncoll(system_charset_info,
-                      (const uchar *) b->str, 7,
+                      (const uchar *) b.str, 7,
                       (const uchar *) "NEXTVAL", 7))
-      return create_item_func_nextval(thd, &null_clex_str, a);
+      return create_item_func_nextval(thd, &null_clex_str, &a);
     else if (!my_strnncoll(system_charset_info,
-                          (const uchar *) b->str, 7,
+                          (const uchar *) b.str, 7,
                           (const uchar *) "CURRVAL", 7))
-      return create_item_func_lastval(thd, &null_clex_str, a);
+      return create_item_func_lastval(thd, &null_clex_str, &a);
   }
 
-  return create_item_ident_nospvar(thd, a, b);
+  return create_item_ident_nospvar(thd, &a, &b);
 }
 
 
 Item *LEX::create_item_ident(THD *thd,
-                             const LEX_CSTRING *a,
-                             const LEX_CSTRING *b,
-                             const LEX_CSTRING *c)
+                             const Lex_ident_sys_st *a,
+                             const Lex_ident_sys_st *b,
+                             const Lex_ident_sys_st *c)
 {
   const char *schema= (thd->client_capabilities & CLIENT_NO_SCHEMA ?
                        NullS : a->str);
@@ -6827,30 +6918,36 @@ Item *LEX::create_item_ident(THD *thd,
 }
 
 
-Item *LEX::create_item_limit(THD *thd,
-                             const LEX_CSTRING *a,
-                             const char *start, const char *end)
+Item *LEX::create_item_limit(THD *thd, const Lex_ident_cli_st *ca)
 {
+  DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() <= ca->pos());
+  DBUG_ASSERT(ca->pos() <= ca->end());
+  DBUG_ASSERT(ca->end() <= thd->m_parser_state->m_lip.get_end_of_query());
+
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
-  if (!(spv= find_variable(a, &rh)))
+  Lex_ident_sys sa(thd, ca);
+  if (sa.is_null())
+    return NULL; // EOM
+  if (!(spv= find_variable(&sa, &rh)))
   {
-    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a->str);
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), sa.str);
     return NULL;
   }
 
-  Query_fragment pos(thd, sphead, start, end);
+  Query_fragment pos(thd, sphead, ca->pos(), ca->end());
   Item_splocal *item;
-  if (!(item= new (thd->mem_root) Item_splocal(thd, rh, a,
-                                               spv->offset, spv->type_handler(),
-                                               pos.pos(), pos.length())))
+  if (unlikely(!(item= new (thd->mem_root)
+                 Item_splocal(thd, rh, &sa,
+                              spv->offset, spv->type_handler(),
+                              pos.pos(), pos.length()))))
     return NULL;
 #ifdef DBUG_ASSERT_EXISTS
   item->m_sp= sphead;
 #endif
   safe_to_cache_query= 0;
 
-  if (item->type() != Item::INT_ITEM)
+  if (unlikely(item->type() != Item::INT_ITEM))
   {
     my_error(ER_WRONG_SPVAR_TYPE_IN_LIMIT, MYF(0));
     return NULL;
@@ -6861,23 +6958,30 @@ Item *LEX::create_item_limit(THD *thd,
 
 
 Item *LEX::create_item_limit(THD *thd,
-                             const LEX_CSTRING *a,
-                             const LEX_CSTRING *b,
-                             const char *start, const char *end)
+                             const Lex_ident_cli_st *ca,
+                             const Lex_ident_cli_st *cb)
 {
+  DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() <= ca->pos());
+  DBUG_ASSERT(ca->pos() <= cb->end());
+  DBUG_ASSERT(cb->end() <= thd->m_parser_state->m_lip.get_end_of_query());
+
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
-  if (!(spv= find_variable(a, &rh)))
+  Lex_ident_sys sa(thd, ca), sb(thd, cb);
+  if (unlikely(sa.is_null() || sb.is_null()))
+    return NULL; // EOM
+  if (!(spv= find_variable(&sa, &rh)))
   {
-    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a->str);
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), sa.str);
     return NULL;
   }
   // Qualified %TYPE variables are not possible
   DBUG_ASSERT(!spv->field_def.column_type_ref());
   Item_splocal *item;
-  if (!(item= create_item_spvar_row_field(thd, rh, a, b, spv, start, end)))
+  if (unlikely(!(item= create_item_spvar_row_field(thd, rh, &sa, &sb, spv,
+                                                   ca->pos(), cb->end()))))
     return NULL;
-  if (item->type() != Item::INT_ITEM)
+  if (unlikely(item->type() != Item::INT_ITEM))
   {
     my_error(ER_WRONG_SPVAR_TYPE_IN_LIMIT, MYF(0));
     return NULL;
@@ -6891,15 +6995,17 @@ bool LEX::set_user_variable(THD *thd, const LEX_CSTRING *name, Item *val)
 {
   Item_func_set_user_var *item;
   set_var_user *var;
-  if (!(item= new (thd->mem_root) Item_func_set_user_var(thd, name,  val)) ||
-      !(var= new (thd->mem_root) set_var_user(item)))
+  if (unlikely(!(item= new (thd->mem_root) Item_func_set_user_var(thd, name,
+                                                                  val))) ||
+      unlikely(!(var= new (thd->mem_root) set_var_user(item))))
     return true;
-  var_list.push_back(var, thd->mem_root);
+  if (unlikely(var_list.push_back(var, thd->mem_root)))
+    return true;
   return false;
 }
 
 
-Item *LEX::create_item_ident_nosp(THD *thd, LEX_CSTRING *name)
+Item *LEX::create_item_ident_nosp(THD *thd, Lex_ident_sys_st *name)
 {
   if (current_select->parsing_place != IN_HAVING ||
       current_select->get_in_sum_expr() > 0)
@@ -6911,10 +7017,14 @@ Item *LEX::create_item_ident_nosp(THD *thd, LEX_CSTRING *name)
 }
 
 
-Item *LEX::create_item_ident_sp(THD *thd, LEX_CSTRING *name,
+Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
                                 const char *start,
                                 const char *end)
 {
+  DBUG_ASSERT(thd->m_parser_state->m_lip.get_buf() <= start);
+  DBUG_ASSERT(start <= end);
+  DBUG_ASSERT(end <= thd->m_parser_state->m_lip.get_end_of_query());
+
   const Sp_rcontext_handler *rh;
   sp_variable *spv;
   DBUG_ASSERT(spcont);
@@ -6937,7 +7047,7 @@ Item *LEX::create_item_ident_sp(THD *thd, LEX_CSTRING *name,
       new (thd->mem_root) Item_splocal(thd, rh, name,
                                        spv->offset, spv->type_handler(),
                                        pos.pos(), pos.length());
-    if (splocal == NULL)
+    if (unlikely(splocal == NULL))
       return NULL;
 #ifdef DBUG_ASSERT_EXISTS
     splocal->m_sp= sphead;
@@ -6948,9 +7058,9 @@ Item *LEX::create_item_ident_sp(THD *thd, LEX_CSTRING *name,
 
   if (thd->variables.sql_mode & MODE_ORACLE)
   {
-    if (!my_strcasecmp(system_charset_info, name->str, "SQLCODE"))
+    if (lex_string_eq(name, STRING_WITH_LEN("SQLCODE")))
       return new (thd->mem_root) Item_func_sqlcode(thd);
-    if (!my_strcasecmp(system_charset_info, name->str, "SQLERRM"))
+    if (lex_string_eq(name, STRING_WITH_LEN("SQLERRM")))
       return new (thd->mem_root) Item_func_sqlerrm(thd);
   }
   return create_item_ident_nosp(thd, name);
@@ -7010,7 +7120,7 @@ bool LEX::set_default_system_variable(enum_var_type var_type,
   sys_var *var= find_sys_var(thd, name->str, name->length);
   if (!var)
     return true;
-  if (!var->is_struct())
+  if (unlikely(!var->is_struct()))
   {
     my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), name->str);
     return true;
@@ -7025,7 +7135,7 @@ bool LEX::set_system_variable(enum_var_type var_type,
 {
   sys_var *var= find_sys_var(thd, name->str, name->length);
   DBUG_ASSERT(thd->is_error() || var != NULL);
-  return var ? set_system_variable(var_type, var, &null_clex_str, val) : true;
+  return likely(var) ? set_system_variable(var_type, var, &null_clex_str, val) : true;
 }
 
 
@@ -7035,14 +7145,15 @@ bool LEX::set_system_variable(THD *thd, enum_var_type var_type,
                               Item *val)
 {
   sys_var *tmp;
-  if (check_reserved_words(name1) ||
-      !(tmp= find_sys_var_ex(thd, name2->str, name2->length, true, false)))
+  if (unlikely(check_reserved_words(name1)) ||
+      unlikely(!(tmp= find_sys_var_ex(thd, name2->str, name2->length, true,
+                                      false))))
   {
     my_error(ER_UNKNOWN_STRUCTURED_VARIABLE, MYF(0),
              (int) name1->length, name1->str);
     return true;
   }
-  if (!tmp->is_struct())
+  if (unlikely(!tmp->is_struct()))
   {
     my_error(ER_VARIABLE_IS_NOT_STRUCT, MYF(0), name2->str);
     return true;
@@ -7055,17 +7166,17 @@ bool LEX::set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
                             Item *val)
 {
   DBUG_ASSERT(is_trigger_new_or_old_reference(name1));
-  if (name1->str[0]=='O' || name1->str[0]=='o')
+  if (unlikely(name1->str[0]=='O' || name1->str[0]=='o'))
   {
     my_error(ER_TRG_CANT_CHANGE_ROW, MYF(0), "OLD", "");
     return true;
   }
-  if (trg_chistics.event == TRG_EVENT_DELETE)
+  if (unlikely(trg_chistics.event == TRG_EVENT_DELETE))
   {
     my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE");
     return true;
   }
-  if (trg_chistics.action_time == TRG_ACTION_AFTER)
+  if (unlikely(trg_chistics.action_time == TRG_ACTION_AFTER))
   {
     my_error(ER_TRG_CANT_CHANGE_ROW, MYF(0), "NEW", "after ");
     return true;
@@ -7245,9 +7356,9 @@ void st_select_lex::collect_grouping_fields(THD *thd,
     {
       if ((*ord->item)->eq((Item*)item, 0))
       {
-	Grouping_tmp_field *grouping_tmp_field= 
-	  new Grouping_tmp_field(master_unit()->derived->table->field[i], item);
-	grouping_tmp_fields.push_back(grouping_tmp_field);
+        Grouping_tmp_field *grouping_tmp_field=
+          new Grouping_tmp_field(master_unit()->derived->table->field[i], item);
+        grouping_tmp_fields.push_back(grouping_tmp_field);
       }
     }
   }
@@ -7353,7 +7464,7 @@ st_select_lex::check_cond_extraction_for_grouping_fields(Item *cond,
 */ 
 
 Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
-						    bool no_top_clones)
+                                                    bool no_top_clones)
 {
   if (cond->get_extraction_flag() == FULL_EXTRACTION_FL)
   {
@@ -7373,25 +7484,25 @@ Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
     }
     else
       new_cond= new (thd->mem_root) Item_cond_or(thd);
-    if (!new_cond)
-      return 0;		
+    if (unlikely(!new_cond))
+      return 0;
     List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
     Item *item;
     while ((item=li++))
     {
       if (item->get_extraction_flag() == NO_EXTRACTION_FL)
       {
-	DBUG_ASSERT(cond_and);
-	item->clear_extraction_flag();
-	continue;
+        DBUG_ASSERT(cond_and);
+        item->clear_extraction_flag();
+        continue;
       }
       Item *fix= build_cond_for_grouping_fields(thd, item,
-						no_top_clones & cond_and);
-      if (!fix)
+                                                no_top_clones & cond_and);
+      if (unlikely(!fix))
       {
-	if (cond_and)
-	  continue;
-	break;
+        if (cond_and)
+          continue;
+        break;
       }
       new_cond->argument_list()->push_back(fix, thd->mem_root);
     }
@@ -7399,13 +7510,13 @@ Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
     if (!cond_and && item)
     {
       while((item= li++))
-	item->clear_extraction_flag();
+        item->clear_extraction_flag();
       return 0;
     }
     switch (new_cond->argument_list()->elements) 
     {
     case 0:
-      return 0;			
+      return 0;
     case 1:
       return new_cond->argument_list()->head();
     default:
@@ -7420,12 +7531,12 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
                                 size_t var_name_length, ulonglong value)
 {
   sys_var *sysvar;
-  if (thd->lex->sql_command == SQLCOM_CREATE_VIEW)
+  if (unlikely(thd->lex->sql_command == SQLCOM_CREATE_VIEW))
   {
     my_error(ER_VIEW_SELECT_CLAUSE, MYF(0), "[NO]WAIT");
     return 1;
   }
-  if (thd->lex->sphead)
+  if (unlikely(thd->lex->sphead))
   {
     my_error(ER_SP_BADSTATEMENT, MYF(0), "[NO]WAIT");
     return 1;
@@ -7436,7 +7547,8 @@ int set_statement_var_if_exists(THD *thd, const char *var_name,
     set_var *var= new (thd->mem_root) set_var(thd, OPT_SESSION, sysvar,
                                               &null_clex_str, item);
 
-    if (!item || !var || thd->lex->stmt_var_list.push_back(var, thd->mem_root))
+    if (unlikely(!item) || unlikely(!var) ||
+        unlikely(thd->lex->stmt_var_list.push_back(var, thd->mem_root)))
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       return 1;
@@ -7459,7 +7571,7 @@ bool LEX::sp_add_cfetch(THD *thd, const LEX_CSTRING *name)
   i= new (thd->mem_root)
     sp_instr_cfetch(sphead->instructions(), spcont, offset,
                     !(thd->variables.sql_mode & MODE_ORACLE));
-  if (i == NULL || sphead->add_instr(i))
+  if (unlikely(i == NULL) || unlikely(sphead->add_instr(i)))
     return true;
   return false;
 }
@@ -7469,10 +7581,10 @@ bool LEX::create_or_alter_view_finalize(THD *thd, Table_ident *table_ident)
 {
   sql_command= SQLCOM_CREATE_VIEW;
   /* first table in list is target VIEW name */
-  if (!select_lex.add_table_to_list(thd, table_ident, NULL,
-                                    TL_OPTION_UPDATING,
-                                    TL_IGNORE,
-                                    MDL_EXCLUSIVE))
+  if (unlikely(!select_lex.add_table_to_list(thd, table_ident, NULL,
+                                             TL_OPTION_UPDATING,
+                                             TL_IGNORE,
+                                             MDL_EXCLUSIVE)))
     return true;
   query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
   return false;
@@ -7483,13 +7595,13 @@ bool LEX::add_alter_view(THD *thd, uint16 algorithm,
                          enum_view_suid suid,
                          Table_ident *table_ident)
 {
-  if (sphead)
+  if (unlikely(sphead))
   {
     my_error(ER_SP_BADSTATEMENT, MYF(0), "ALTER VIEW");
     return true;
   }
-  if (!(create_view= new (thd->mem_root)
-                     Create_view_info(VIEW_ALTER, algorithm, suid)))
+  if (unlikely(!(create_view= new (thd->mem_root)
+                 Create_view_info(VIEW_ALTER, algorithm, suid))))
     return true;
   return create_or_alter_view_finalize(thd, table_ident);
 }
@@ -7499,13 +7611,13 @@ bool LEX::add_create_view(THD *thd, DDL_options_st ddl,
                           uint16 algorithm, enum_view_suid suid,
                           Table_ident *table_ident)
 {
-  if (set_create_options_with_check(ddl))
+  if (unlikely(set_create_options_with_check(ddl)))
     return true;
-  if (!(create_view= new (thd->mem_root)
-                     Create_view_info(ddl.or_replace() ?
-                                      VIEW_CREATE_OR_REPLACE :
-                                      VIEW_CREATE_NEW,
-                                      algorithm, suid)))
+  if (unlikely(!(create_view= new (thd->mem_root)
+                 Create_view_info(ddl.or_replace() ?
+                                  VIEW_CREATE_OR_REPLACE :
+                                  VIEW_CREATE_NEW,
+                                  algorithm, suid))))
     return true;
   return create_or_alter_view_finalize(thd, table_ident);
 }
@@ -7517,10 +7629,10 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
   const Sp_handler *sph= &sp_handler_procedure;
   sql_command= SQLCOM_CALL;
   value_list.empty();
-  if (sph->sp_resolve_package_routine(thd, thd->lex->sphead,
-                                      name, &sph, &pkgname))
+  if (unlikely(sph->sp_resolve_package_routine(thd, thd->lex->sphead,
+                                               name, &sph, &pkgname)))
     return true;
-  if (!(m_sql_cmd= new (thd->mem_root) Sql_cmd_call(name, sph)))
+  if (unlikely(!(m_sql_cmd= new (thd->mem_root) Sql_cmd_call(name, sph))))
     return true;
   sph->add_used_routine(this, thd, name);
   if (pkgname.m_name.length)
@@ -7532,7 +7644,7 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
 bool LEX::call_statement_start(THD *thd, const LEX_CSTRING *name)
 {
   sp_name *spname= make_sp_name(thd, name);
-  return !spname || call_statement_start(thd, spname);
+  return unlikely(!spname) || call_statement_start(thd, spname);
 }
 
 
@@ -7540,7 +7652,7 @@ bool LEX::call_statement_start(THD *thd, const LEX_CSTRING *name1,
                                          const LEX_CSTRING *name2)
 {
   sp_name *spname= make_sp_name(thd, name1, name2);
-  return !spname || call_statement_start(thd, spname);
+  return unlikely(!spname) || call_statement_start(thd, spname);
 }
 
 
@@ -7557,12 +7669,13 @@ sp_package *LEX::create_package_start(THD *thd,
                                       DDL_options_st options)
 {
   sp_package *pkg;
-  if (sphead)
+
+  if (unlikely(sphead))
   {
     my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0), sph->type_str());
     return NULL;
   }
-  if (set_command_with_check(command, options))
+  if (unlikely(set_command_with_check(command, options)))
     return NULL;
   if (sph->type() == TYPE_ENUM_PACKAGE_BODY)
   {
@@ -7584,7 +7697,7 @@ sp_package *LEX::create_package_start(THD *thd,
     sp_head *spec;
     int ret= sp_handler_package_spec.
                sp_cache_routine_reentrant(thd, name_arg, &spec);
-    if (!spec)
+    if (unlikely(!spec))
     {
       if (!ret)
         my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
@@ -7592,7 +7705,7 @@ sp_package *LEX::create_package_start(THD *thd,
       return 0;
     }
   }
-  if (!(pkg= new sp_package(this, name_arg, sph)))
+  if (unlikely(!(pkg= new sp_package(this, name_arg, sph))))
     return NULL;
   pkg->reset_thd_mem_root(thd);
   pkg->init(this);
@@ -7620,7 +7733,8 @@ bool LEX::create_package_finalize(THD *thd,
     return true;
   }
   sphead->m_body.length= body_end - body_start;
-  if (!(sphead->m_body.str= thd->strmake(body_start, sphead->m_body.length)))
+  if (unlikely(!(sphead->m_body.str= thd->strmake(body_start,
+                                                  sphead->m_body.length))))
     return true;
 
   size_t not_used;
@@ -7677,20 +7791,24 @@ Item *LEX::make_item_func_replace(THD *thd,
 }
 
 
-bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table, const LEX_CSTRING field_name)
+bool SELECT_LEX::vers_push_field(THD *thd, TABLE_LIST *table,
+                                 const LEX_CSTRING field_name)
 {
   DBUG_ASSERT(field_name.str);
   Item_field *fld= new (thd->mem_root) Item_field(thd, &context,
-                                                  table->db.str, table->alias.str, &field_name);
-  if (!fld || item_list.push_back(fld))
+                                                  table->db.str,
+                                                  table->alias.str,
+                                                  &field_name);
+  if (unlikely(!fld) || unlikely(item_list.push_back(fld)))
     return true;
 
   if (thd->lex->view_list.elements)
   {
     LEX_CSTRING *l;
-    if (!(l= thd->make_clex_string(field_name.str, field_name.length)))
+    if (unlikely(!(l= thd->make_clex_string(field_name.str,
+                                            field_name.length))) ||
+        unlikely(thd->lex->view_list.push_back(l)))
       return true;
-    thd->lex->view_list.push_back(l);
   }
 
   return false;
@@ -7756,4 +7874,110 @@ Item *Lex_trim_st::make_item_func_trim(THD *thd) const
   return (thd->variables.sql_mode & MODE_ORACLE) ?
          make_item_func_trim_oracle(thd) :
          make_item_func_trim_std(thd);
+}
+
+
+Item *LEX::make_item_func_call_generic(THD *thd, Lex_ident_cli_st *cdb,
+                                       Lex_ident_cli_st *cname, List<Item> *args)
+{
+  Lex_ident_sys db(thd, cdb), name(thd, cname);
+  if (db.is_null() || name.is_null())
+    return NULL; // EOM
+  /*
+    The following in practice calls:
+    <code>Create_sp_func::create()</code>
+    and builds a stored function.
+
+    However, it's important to maintain the interface between the
+    parser and the implementation in item_create.cc clean,
+    since this will change with WL#2128 (SQL PATH):
+    - INFORMATION_SCHEMA.version() is the SQL 99 syntax for the native
+    function version(),
+    - MySQL.version() is the SQL 2003 syntax for the native function
+    version() (a vendor can specify any schema).
+  */
+
+  if (!name.str || check_db_name((LEX_STRING*) static_cast<LEX_CSTRING*>(&db)))
+  {
+    my_error(ER_WRONG_DB_NAME, MYF(0), db.str);
+    return NULL;
+  }
+  if (check_routine_name(&name))
+    return NULL;
+
+  Create_qfunc *builder= find_qualified_function_builder(thd);
+  DBUG_ASSERT(builder);
+  return builder->create_with_db(thd, &db, &name, true, args);
+}
+
+
+Item *LEX::create_item_qualified_asterisk(THD *thd,
+                                          const Lex_ident_sys_st *name)
+{
+  Item *item;
+  if (!(item= new (thd->mem_root) Item_field(thd, current_context(),
+                                             NullS, name->str,
+                                             &star_clex_str)))
+    return NULL;
+  current_select->with_wild++;
+  return item;
+}
+
+
+Item *LEX::create_item_qualified_asterisk(THD *thd,
+                                          const Lex_ident_sys_st *a,
+                                          const Lex_ident_sys_st *b)
+{
+  Item *item;
+  const char* schema= thd->client_capabilities & CLIENT_NO_SCHEMA ?
+                      NullS : a->str;
+  if (!(item= new (thd->mem_root) Item_field(thd, current_context(),
+                                             schema, b->str,
+                                             &star_clex_str)))
+   return NULL;
+  current_select->with_wild++;
+  return item;
+}
+
+
+bool Lex_ident_sys_st::copy_ident_cli(THD *thd, const Lex_ident_cli_st *str)
+{
+  return thd->to_ident_sys_alloc(this, str);
+}
+
+bool Lex_ident_sys_st::copy_keyword(THD *thd, const Lex_ident_cli_st *str)
+{
+  return thd->make_lex_string(static_cast<LEX_CSTRING*>(this),
+                              str->str, str->length) == NULL;
+}
+
+bool Lex_ident_sys_st::copy_or_convert(THD *thd,
+                                       const Lex_ident_cli_st *src,
+                                       CHARSET_INFO *cs)
+{
+  if (!src->is_8bit())
+    return copy_keyword(thd, src); // 7bit string makes a wellformed identifier
+  return convert(thd, src, cs);
+}
+
+
+bool Lex_ident_sys_st::copy_sys(THD *thd, const LEX_CSTRING *src)
+{
+  if (thd->check_string_for_wellformedness(src->str, src->length,
+                                           system_charset_info))
+    return true;
+  return thd->make_lex_string(this, src->str, src->length) == NULL;
+}
+
+
+bool Lex_ident_sys_st::convert(THD *thd,
+                               const LEX_CSTRING *src, CHARSET_INFO *cs)
+{
+  LEX_STRING tmp;
+  if (thd->convert_with_error(system_charset_info, &tmp, cs,
+                              src->str, src->length))
+    return true;
+  str=    tmp.str;
+  length= tmp.length;
+  return false;
 }

@@ -160,15 +160,6 @@ void Temporal_with_date::make_from_item(THD *thd, Item *item, sql_mode_t flags)
 }
 
 
-void Type_std_attributes::set(const Field *field)
-{
-  decimals= field->decimals();
-  unsigned_flag= MY_TEST(field->flags & UNSIGNED_FLAG);
-  collation.set(field->charset(), field->derivation(), field->repertoire());
-  fix_char_length(field->char_length());
-}
-
-
 uint Type_std_attributes::count_max_decimals(Item **item, uint nitems)
 {
   uint res= 0;
@@ -474,6 +465,20 @@ const Name
   Type_handler_datetime_common::m_name_datetime(STRING_WITH_LEN("datetime")),
   Type_handler_timestamp_common::m_name_timestamp(STRING_WITH_LEN("timestamp"));
 
+
+const Type_limits_int
+  Type_handler_tiny::m_limits_sint8=      Type_limits_sint8(),
+  Type_handler_tiny::m_limits_uint8=      Type_limits_uint8(),
+  Type_handler_short::m_limits_sint16=    Type_limits_sint16(),
+  Type_handler_short::m_limits_uint16=    Type_limits_uint16(),
+  Type_handler_int24::m_limits_sint24=    Type_limits_sint24(),
+  Type_handler_int24::m_limits_uint24=    Type_limits_uint24(),
+  Type_handler_long::m_limits_sint32=     Type_limits_sint32(),
+  Type_handler_long::m_limits_uint32=     Type_limits_uint32(),
+  Type_handler_longlong::m_limits_sint64= Type_limits_sint64(),
+  Type_handler_longlong::m_limits_uint64= Type_limits_uint64();
+
+
 /***************************************************************************/
 
 const Type_handler *Type_handler_null::type_handler_for_comparison() const
@@ -694,9 +699,7 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
 
   Item_result a= cmp_type();
   Item_result b= h->cmp_type();
-  if (m_vers_trx_id && (a == STRING_RESULT || b == STRING_RESULT))
-    m_type_handler= &type_handler_datetime;
-  else if (a == STRING_RESULT && b == STRING_RESULT)
+  if (a == STRING_RESULT && b == STRING_RESULT)
     m_type_handler= &type_handler_long_blob;
   else if (a == INT_RESULT && b == INT_RESULT)
     m_type_handler= &type_handler_longlong;
@@ -2498,6 +2501,14 @@ uint32 Type_handler_bit::max_display_length(const Item *item) const
 {
   return item->max_length;
 }
+
+
+uint32 Type_handler_general_purpose_int::max_display_length(const Item *item)
+                                                            const
+{
+  return type_limits_int_by_unsigned_flag(item->unsigned_flag)->char_length();
+}
+
 
 /*************************************************************************/
 

@@ -454,8 +454,6 @@ t	CREATE TABLE `t` (
   `c` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t add fulltext key (c);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 create or replace table t (a int) with system versioning;
 alter table t drop column a;
 ERROR HY000: Table `t` must have at least one versioned column

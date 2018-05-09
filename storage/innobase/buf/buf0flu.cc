@@ -902,7 +902,7 @@ buf_flush_init_for_writing(
 	/* Write the newest modification lsn to the page header and trailer */
 	mach_write_to_8(page + FIL_PAGE_LSN, newest_lsn);
 
-	mach_write_to_8(page + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM,
+	mach_write_to_8(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
 			newest_lsn);
 
 	if (block && srv_page_size == 16384) {
@@ -998,7 +998,7 @@ buf_flush_init_for_writing(
 		new enum is added and not handled here */
 	}
 
-	mach_write_to_4(page + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM,
+	mach_write_to_4(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
 			checksum);
 }
 
@@ -1138,7 +1138,7 @@ buf_flush_write_block_low(
 		ut_ad(err == DB_SUCCESS);
 	}
 
-	fil_space_release_for_io(space);
+	space->release_for_io();
 
 	/* Increment the counter of I/O operations used
 	for selecting LRU policy. */
@@ -2439,7 +2439,7 @@ page_cleaner_flush_pages_recommendation(
 
 	cur_lsn = log_get_lsn_nowait();
 
-	/* log_get_lsn_nowait tries to get log_sys->mutex with
+	/* log_get_lsn_nowait tries to get log_sys.mutex with
 	mutex_enter_nowait, if this does not succeed function
 	returns 0, do not use that value to update stats. */
 	if (cur_lsn == 0) {
@@ -2778,8 +2778,8 @@ pc_flush_slot(void)
 {
 	ulint	lru_tm = 0;
 	ulint	list_tm = 0;
-	int	lru_pass = 0;
-	int	list_pass = 0;
+	ulint	lru_pass = 0;
+	ulint	list_pass = 0;
 
 	mutex_enter(&page_cleaner.mutex);
 
@@ -2983,17 +2983,10 @@ buf_flush_page_cleaner_disabled_loop(void)
 }
 
 /** Disables page cleaner threads (coordinator and workers).
-It's used by: SET GLOBAL innodb_page_cleaner_disabled_debug = 1 (0).
-@param[in]	thd		thread handle
-@param[in]	var		pointer to system variable
-@param[out]	var_ptr		where the formal string goes
 @param[in]	save		immediate result from check function */
-void
-buf_flush_page_cleaner_disabled_debug_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save)
+void buf_flush_page_cleaner_disabled_debug_update(THD*,
+						  st_mysql_sys_var*, void*,
+						  const void* save)
 {
 	if (!page_cleaner.is_running) {
 		return;

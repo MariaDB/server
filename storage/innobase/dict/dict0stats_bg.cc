@@ -110,6 +110,7 @@ dict_stats_recalc_pool_deinit()
 	recalc_pool->clear();
 
 	UT_DELETE(recalc_pool);
+	recalc_pool = NULL;
 }
 
 /*****************************************************************//**
@@ -307,6 +308,10 @@ dict_stats_thread_deinit()
 	ut_a(!srv_read_only_mode);
 	ut_ad(!srv_dict_stats_thread_active);
 
+	if (recalc_pool == NULL) {
+		return;
+	}
+
 	dict_stats_recalc_pool_deinit();
 	dict_defrag_pool_deinit();
 
@@ -394,16 +399,9 @@ dict_stats_process_entry_from_recalc_pool()
 #ifdef UNIV_DEBUG
 /** Disables dict stats thread. It's used by:
 	SET GLOBAL innodb_dict_stats_disabled_debug = 1 (0).
-@param[in]	thd		thread handle
-@param[in]	var		pointer to system variable
-@param[out]	var_ptr		where the formal string goes
 @param[in]	save		immediate result from check function */
-void
-dict_stats_disabled_debug_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save)
+void dict_stats_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
+				      const void* save)
 {
 	/* This method is protected by mutex, as every SET GLOBAL .. */
 	ut_ad(dict_stats_disabled_event != NULL);

@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2005, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+   Copyright (c) 2005, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1874,7 +1874,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
     free_root(tmp_root, MYF(MY_MARK_BLOCKS_FREE));
     mysql_mutex_unlock(&LOCK_plugin);
   }
-  if (error > 0)
+  if (unlikely(error > 0))
     sql_print_error(ER_THD(new_thd, ER_GET_ERRNO), my_errno,
                            table->file->table_type());
   end_read_record(&read_record_info);
@@ -2154,7 +2154,7 @@ static bool finalize_install(THD *thd, TABLE *table, const LEX_CSTRING *name,
                          files_charset_info);
   error= table->file->ha_write_row(table->record[0]);
   reenable_binlog(thd);
-  if (error)
+  if (unlikely(error))
   {
     table->file->print_error(error, MYF(0));
     tmp->state= PLUGIN_IS_DELETED;
@@ -2220,7 +2220,7 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
 
   mysql_mutex_lock(&LOCK_plugin);
   error= plugin_add(thd->mem_root, name, &dl, REPORT_TO_USER);
-  if (error)
+  if (unlikely(error))
     goto err;
 
   if (name->str)
@@ -2236,7 +2236,7 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
     }
   }
 
-  if (error)
+  if (unlikely(error))
   {
     reap_needed= true;
     reap_plugins();
@@ -2299,7 +2299,7 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
     tmp_disable_binlog(thd);
     error= table->file->ha_delete_row(table->record[0]);
     reenable_binlog(thd);
-    if (error)
+    if (unlikely(error))
     {
       table->file->print_error(error, MYF(0));
       return 1;
@@ -2335,6 +2335,16 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
   /* need to open before acquiring LOCK_plugin or it will deadlock */
   if (! (table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT)))
     DBUG_RETURN(TRUE);
+
+  if (!table->key_info)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "The table %s.%s has no primary key. "
+                    "Please check the table definition and "
+                    "create the primary key accordingly.", MYF(0),
+                    table->s->db.str, table->s->table_name.str);
+    DBUG_RETURN(TRUE);
+  }
 
   /*
     Pre-acquire audit plugins for events that may potentially occur
@@ -2757,7 +2767,7 @@ static int check_func_set(THD *thd, struct st_mysql_sys_var *var,
       goto err;
     result= find_set(typelib, str, length, NULL,
                      &error, &error_len, &not_used);
-    if (error_len)
+    if (unlikely(error_len))
       goto err;
   }
   else
@@ -2876,7 +2886,7 @@ sys_var *find_sys_var_ex(THD *thd, const char *str, size_t length,
   if (!locked)
     mysql_mutex_unlock(&LOCK_plugin);
 
-  if (!throw_error && !var)
+  if (unlikely(!throw_error && !var))
     my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0),
              (int) (length ? length : strlen(str)), (char*) str);
   DBUG_RETURN(var);
@@ -4127,7 +4137,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
     error= handle_options(argc, &argv, opts, mark_changed);
     (*argc)++; /* add back one for the program name */
 
-    if (error)
+    if (unlikely(error))
     {
        sql_print_error("Parsing options for plugin '%s' failed.",
                        tmp->name.str);

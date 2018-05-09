@@ -126,12 +126,9 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const char *funcname,
     many cases.
   */
   set_handler(items[0]->type_handler()->type_handler_for_comparison());
-  m_vers_trx_id= items[0]->vers_trx_id();
   for (uint i= 1 ; i < nitems ; i++)
   {
     unsigned_count+= items[i]->unsigned_flag;
-    if (!m_vers_trx_id)
-      m_vers_trx_id= items[i]->vers_trx_id();
     if (aggregate_for_comparison(items[i]->type_handler()->
                                  type_handler_for_comparison()))
     {
@@ -423,7 +420,8 @@ void Item_func::convert_const_compared_to_int_field(THD *thd)
         args[field= 1]->real_item()->type() == FIELD_ITEM)
     {
       Item_field *field_item= (Item_field*) (args[field]->real_item());
-      if (((field_item->field_type() == MYSQL_TYPE_LONGLONG && !field_item->vers_trx_id()) ||
+      if (((field_item->field_type() == MYSQL_TYPE_LONGLONG &&
+            field_item->type_handler() != &type_handler_vers_trx_id) ||
            field_item->field_type() ==  MYSQL_TYPE_YEAR))
         convert_const_to_int(thd, field_item, &args[!field]);
     }
@@ -4304,7 +4302,7 @@ bool cmp_item_row::prepare_comparators(THD *thd, Item **args, uint arg_count)
 bool Item_func_in::fix_for_row_comparison_using_bisection(THD *thd)
 {
   uint cols= args[0]->cols();
-  if (!(array= new (thd->mem_root) in_row(thd, arg_count-1, 0)))
+  if (unlikely(!(array= new (thd->mem_root) in_row(thd, arg_count-1, 0))))
     return true;
   cmp_item_row *cmp= &((in_row*)array)->tmp;
   if (cmp->alloc_comparators(thd, cols) ||
@@ -4315,7 +4313,7 @@ bool Item_func_in::fix_for_row_comparison_using_bisection(THD *thd)
     Call store_value() to setup others.
   */
   cmp->store_value(args[0]);
-  if (thd->is_fatal_error)            // OOM
+  if (unlikely(thd->is_fatal_error))            // OOM
     return true;
   fix_in_vector();
   return false;
@@ -5439,7 +5437,7 @@ bool Regexp_processor_pcre::compile(String *pattern, bool send_error)
   m_pcre= pcre_compile(pattern->c_ptr_safe(), m_library_flags,
                        &pcreErrorStr, &pcreErrorOffset, NULL);
 
-  if (m_pcre == NULL)
+  if (unlikely(m_pcre == NULL))
   {
     if (send_error)
     {
@@ -5458,7 +5456,7 @@ bool Regexp_processor_pcre::compile(Item *item, bool send_error)
   char buff[MAX_FIELD_WIDTH];
   String tmp(buff, sizeof(buff), &my_charset_bin);
   String *pattern= item->val_str(&tmp);
-  if (item->null_value || compile(pattern, send_error))
+  if (unlikely(item->null_value) || (unlikely(compile(pattern, send_error))))
     return true;
   return false;
 }
@@ -5577,7 +5575,7 @@ int Regexp_processor_pcre::pcre_exec_with_warn(const pcre *code,
   int rc= pcre_exec(code, extra, subject, length,
                     startoffset, options, ovector, ovecsize);
   DBUG_EXECUTE_IF("pcre_exec_error_123", rc= -123;);
-  if (rc < PCRE_ERROR_NOMATCH)
+  if (unlikely(rc < PCRE_ERROR_NOMATCH))
     pcre_exec_warn(rc);
   return rc;
 }
@@ -5857,8 +5855,8 @@ void Item_func_like::turboBM_compute_bad_character_shifts()
 
 bool Item_func_like::turboBM_matches(const char* text, int text_len) const
 {
-  register int bcShift;
-  register int turboShift;
+  int bcShift;
+  int turboShift;
   int shift = pattern_len;
   int j     = 0;
   int u     = 0;
@@ -5872,7 +5870,7 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
   {
     while (j <= tlmpl)
     {
-      register int i= plm1;
+      int i= plm1;
       while (i >= 0 && pattern[i] == text[i + j])
       {
 	i--;
@@ -5882,7 +5880,7 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
       if (i < 0)
 	return 1;
 
-      register const int v = plm1 - i;
+      const int v= plm1 - i;
       turboShift = u - v;
       bcShift    = bmBc[(uint) (uchar) text[i + j]] - plm1 + i;
       shift      = MY_MAX(turboShift, bcShift);
@@ -5903,7 +5901,7 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
   {
     while (j <= tlmpl)
     {
-      register int i = plm1;
+      int i= plm1;
       while (i >= 0 && likeconv(cs,pattern[i]) == likeconv(cs,text[i + j]))
       {
 	i--;
@@ -5913,7 +5911,7 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
       if (i < 0)
 	return 1;
 
-      register const int v = plm1 - i;
+      const int v= plm1 - i;
       turboShift = u - v;
       bcShift    = bmBc[(uint) likeconv(cs, text[i + j])] - plm1 + i;
       shift      = MY_MAX(turboShift, bcShift);

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -71,11 +71,11 @@ allocations of small buffers. */
 
 #define MEM_BLOCK_START_SIZE		64
 #define MEM_BLOCK_STANDARD_SIZE		\
-	(UNIV_PAGE_SIZE >= 16384 ? 8000 : MEM_MAX_ALLOC_IN_BUF)
+	(srv_page_size >= 16384 ? 8000 : MEM_MAX_ALLOC_IN_BUF)
 
 /** If a memory heap is allowed to grow into the buffer pool, the following
 is the maximum size for a single allocated buffer: */
-#define MEM_MAX_ALLOC_IN_BUF		(UNIV_PAGE_SIZE - 200)
+#define MEM_MAX_ALLOC_IN_BUF		(srv_page_size - 200)
 
 /** Space needed when allocating for a user a field of length N.
 The space is allocated only in multiples of UNIV_MEM_ALIGNMENT.  */
@@ -464,13 +464,14 @@ public:
 	allocated by mem_heap_allocator) can be used as a hint to the
 	implementation about where the new memory should be allocated in
 	order to improve locality. */
-	pointer	allocate(size_type n, const_pointer hint = 0)
+	pointer	allocate(size_type n)
 	{
 		return(reinterpret_cast<pointer>(
 			mem_heap_alloc(m_heap, n * sizeof(T))));
 	}
+	pointer	allocate(size_type n, const_pointer) { return allocate(n); }
 
-	void deallocate(pointer p, size_type n) { }
+	void deallocate(pointer, size_type) {}
 
 	pointer address (reference r) const { return(&r); }
 

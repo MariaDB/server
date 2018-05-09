@@ -354,7 +354,7 @@ The caller should hold an InnoDB table lock or a MDL that prevents
 the tablespace from being dropped during the operation,
 or the caller should be in single-threaded crash recovery mode
 (no user connections that could drop tablespaces).
-If this is not the case, fil_space_acquire() and fil_space_release()
+If this is not the case, fil_space_acquire() and fil_space_t::release()
 should be used instead.
 @param[in]	id	tablespace ID
 @return tablespace, or NULL if not found */
@@ -1036,11 +1036,11 @@ fil_space_extend_must_retry(
 	const page_size_t	pageSize(space->flags);
 	const ulint		page_size = pageSize.physical();
 
-	/* fil_read_first_page() expects UNIV_PAGE_SIZE bytes.
-	fil_node_open_file() expects at least 4 * UNIV_PAGE_SIZE bytes.*/
+	/* fil_read_first_page() expects srv_page_size bytes.
+	fil_node_open_file() expects at least 4 * srv_page_size bytes.*/
 	os_offset_t new_size = std::max(
 		os_offset_t(size - file_start_page_no) * page_size,
-		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE * UNIV_PAGE_SIZE));
+		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift));
 
 	*success = os_file_set_size(node->name, node->handle, new_size,
 		FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags));
@@ -1068,7 +1068,7 @@ fil_space_extend_must_retry(
 	space->size += file_size - node->size;
 	node->size = file_size;
 	const ulint pages_in_MiB = node->size
-		& ~((1 << (20 - UNIV_PAGE_SIZE_SHIFT)) - 1);
+		& ~ulint((1U << (20U - srv_page_size_shift)) - 1);
 
 	fil_node_complete_io(node,IORequestRead);
 
@@ -1199,7 +1199,8 @@ fil_mutex_enter_and_prepare_for_io(
 			}
 		}
 
-		if (ulint size = ulint(UNIV_UNLIKELY(space->recv_size))) {
+		ulint size = space->recv_size;
+		if (UNIV_UNLIKELY(size != 0)) {
 			ut_ad(node);
 			bool	success;
 			if (fil_space_extend_must_retry(space, node, size,
@@ -1355,10 +1356,10 @@ fil_space_free_low(
 	ut_ad(srv_fast_shutdown == 2 || !srv_was_started
 	      || space->max_lsn == 0);
 
-	/* Wait for fil_space_release_for_io(); after
+	/* Wait for fil_space_t::release_for_io(); after
 	fil_space_detach(), the tablespace cannot be found, so
 	fil_space_acquire_for_io() would return NULL */
-	while (space->n_pending_ios) {
+	while (space->pending_io()) {
 		os_thread_sleep(100);
 	}
 
@@ -2006,6 +2007,10 @@ fil_close_log_files(
 	}
 
 	mutex_exit(&fil_system.mutex);
+
+	if (free) {
+		log_sys.log.close();
+	}
 }
 
 /*******************************************************************//**
@@ -2042,18 +2047,18 @@ fil_write_flushed_lsn(
 	byte*	buf;
 	dberr_t	err = DB_TABLESPACE_NOT_FOUND;
 
-	buf1 = static_cast<byte*>(ut_malloc_nokey(2 * UNIV_PAGE_SIZE));
-	buf = static_cast<byte*>(ut_align(buf1, UNIV_PAGE_SIZE));
+	buf1 = static_cast<byte*>(ut_malloc_nokey(2U << srv_page_size_shift));
+	buf = static_cast<byte*>(ut_align(buf1, srv_page_size));
 
 	const page_id_t	page_id(TRX_SYS_SPACE, 0);
 
-	err = fil_read(page_id, univ_page_size, 0, univ_page_size.physical(),
+	err = fil_read(page_id, univ_page_size, 0, srv_page_size,
 		       buf);
 
 	if (err == DB_SUCCESS) {
 		mach_write_to_8(buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, lsn);
 		err = fil_write(page_id, univ_page_size, 0,
-				univ_page_size.physical(), buf);
+				srv_page_size, buf);
 		fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
 	}
 
@@ -2086,24 +2091,12 @@ fil_space_acquire_low(ulint id, bool silent)
 	} else if (space->is_stopping()) {
 		space = NULL;
 	} else {
-		space->n_pending_ops++;
+		space->acquire();
 	}
 
 	mutex_exit(&fil_system.mutex);
 
 	return(space);
-}
-
-/** Release a tablespace acquired with fil_space_acquire().
-@param[in,out]	space	tablespace to release  */
-void
-fil_space_release(fil_space_t* space)
-{
-	mutex_enter(&fil_system.mutex);
-	ut_ad(space->magic_n == FIL_SPACE_MAGIC_N);
-	ut_ad(space->n_pending_ops > 0);
-	space->n_pending_ops--;
-	mutex_exit(&fil_system.mutex);
 }
 
 /** Acquire a tablespace for reading or writing a block,
@@ -2119,24 +2112,12 @@ fil_space_acquire_for_io(ulint id)
 	fil_space_t* space = fil_space_get_by_id(id);
 
 	if (space) {
-		space->n_pending_ios++;
+		space->acquire_for_io();
 	}
 
 	mutex_exit(&fil_system.mutex);
 
 	return(space);
-}
-
-/** Release a tablespace acquired with fil_space_acquire_for_io().
-@param[in,out]	space	tablespace to release  */
-void
-fil_space_release_for_io(fil_space_t* space)
-{
-	mutex_enter(&fil_system.mutex);
-	ut_ad(space->magic_n == FIL_SPACE_MAGIC_N);
-	ut_ad(space->n_pending_ios > 0);
-	space->n_pending_ios--;
-	mutex_exit(&fil_system.mutex);
 }
 
 /********************************************************//**
@@ -2154,12 +2135,13 @@ fil_create_directory_for_tablename(
 	len = strlen(fil_path_to_mysql_datadir);
 	namend = strchr(name, '/');
 	ut_a(namend);
-	path = static_cast<char*>(ut_malloc_nokey(len + (namend - name) + 2));
+	path = static_cast<char*>(
+		ut_malloc_nokey(len + ulint(namend - name) + 2));
 
 	memcpy(path, fil_path_to_mysql_datadir, len);
 	path[len] = '/';
-	memcpy(path + len + 1, name, namend - name);
-	path[len + (namend - name) + 1] = 0;
+	memcpy(path + len + 1, name, ulint(namend - name));
+	path[len + ulint(namend - name) + 1] = 0;
 
 	os_normalize_path(path);
 
@@ -2363,9 +2345,9 @@ fil_op_replay_rename(
 	ut_a(namend != NULL);
 
 	char*		dir = static_cast<char*>(
-		ut_malloc_nokey(namend - new_name + 1));
+		ut_malloc_nokey(ulint(namend - new_name) + 1));
 
-	memcpy(dir, new_name, namend - new_name);
+	memcpy(dir, new_name, ulint(namend - new_name));
 	dir[namend - new_name] = '\0';
 
 	bool		success = os_file_create_directory(dir, false);
@@ -2374,7 +2356,7 @@ fil_op_replay_rename(
 	ulint		dirlen = 0;
 
 	if (const char* dirend = strrchr(dir, OS_PATH_SEPARATOR)) {
-		dirlen = dirend - dir + 1;
+		dirlen = ulint(dirend - dir) + 1;
 	}
 
 	ut_free(dir);
@@ -2393,7 +2375,7 @@ fil_op_replay_rename(
 		strlen(new_name + dirlen)
 		- 4 /* remove ".ibd" */);
 
-	ut_ad(new_table[namend - new_name - dirlen]
+	ut_ad(new_table[ulint(namend - new_name) - dirlen]
 	      == OS_PATH_SEPARATOR);
 #if OS_PATH_SEPARATOR != '/'
 	new_table[namend - new_name - dirlen] = '/';
@@ -2429,7 +2411,7 @@ fil_check_pending_ops(const fil_space_t* space, ulint count)
 		return 0;
 	}
 
-	if (ulint n_pending_ops = space->n_pending_ops) {
+	if (ulint n_pending_ops = my_atomic_loadlint(&space->n_pending_ops)) {
 
 		if (count > 5000) {
 			ib::warn() << "Trying to close/delete/truncate"
@@ -2457,7 +2439,7 @@ fil_check_pending_io(
 	ulint		count)		/*!< in: number of attempts so far */
 {
 	ut_ad(mutex_own(&fil_system.mutex));
-	ut_a(space->n_pending_ops == 0);
+	ut_ad(!space->referenced());
 
 	switch (operation) {
 	case FIL_OPERATION_DELETE:
@@ -2519,12 +2501,11 @@ fil_check_pending_operations(
 	if (sp) {
 		sp->stop_new_ops = true;
 		if (sp->crypt_data) {
-			sp->n_pending_ops++;
+			sp->acquire();
 			mutex_exit(&fil_system.mutex);
 			fil_space_crypt_close_tablespace(sp);
 			mutex_enter(&fil_system.mutex);
-			ut_ad(sp->n_pending_ops > 0);
-			sp->n_pending_ops--;
+			sp->release();
 		}
 	}
 
@@ -2757,7 +2738,7 @@ fil_delete_tablespace(
 	the fil_system::mutex. */
 	if (const fil_space_t* s = fil_space_get_by_id(id)) {
 		ut_a(s == space);
-		ut_a(space->n_pending_ops == 0);
+		ut_a(!space->referenced());
 		ut_a(UT_LIST_GET_LEN(space->chain) == 1);
 		fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
 		ut_a(node->n_pending == 0);
@@ -2828,7 +2809,8 @@ bool fil_truncate_tablespace(fil_space_t* space, ulint size_in_pages)
 	bool success = os_file_truncate(node->name, node->handle, 0);
 	if (success) {
 
-		os_offset_t	size = os_offset_t(size_in_pages) * UNIV_PAGE_SIZE;
+		os_offset_t	size = os_offset_t(size_in_pages)
+			<< srv_page_size_shift;
 
 		success = os_file_set_size(
 			node->name, node->handle, size,
@@ -3144,7 +3126,7 @@ func_exit:
 		log_mutex_enter();
 	}
 
-	/* log_sys->mutex is above fil_system.mutex in the latching order */
+	/* log_sys.mutex is above fil_system.mutex in the latching order */
 	ut_ad(log_mutex_own());
 	mutex_enter(&fil_system.mutex);
 	ut_ad(space->name == old_space_name);
@@ -3275,7 +3257,7 @@ fil_ibd_create(
 
 	if (!os_file_set_size(
 		path, file,
-		os_offset_t(size) << UNIV_PAGE_SIZE_SHIFT, is_compressed)) {
+		os_offset_t(size) << srv_page_size_shift, is_compressed)) {
 		*err = DB_OUT_OF_FILE_SPACE;
 err_exit:
 		os_file_close(file);
@@ -3296,11 +3278,11 @@ err_exit:
 	with zeros from the call of os_file_set_size(), until a buffer pool
 	flush would write to it. */
 
-	buf2 = static_cast<byte*>(ut_malloc_nokey(3 * UNIV_PAGE_SIZE));
+	buf2 = static_cast<byte*>(ut_malloc_nokey(3U << srv_page_size_shift));
 	/* Align the memory for file i/o if we might have O_DIRECT set */
-	page = static_cast<byte*>(ut_align(buf2, UNIV_PAGE_SIZE));
+	page = static_cast<byte*>(ut_align(buf2, srv_page_size));
 
-	memset(page, '\0', UNIV_PAGE_SIZE);
+	memset(page, '\0', srv_page_size);
 
 	flags |= FSP_FLAGS_PAGE_SSIZE();
 	fsp_header_init_fields(page, space_id, flags);
@@ -3318,7 +3300,7 @@ err_exit:
 	} else {
 		page_zip_des_t	page_zip;
 		page_zip_set_size(&page_zip, page_size.physical());
-		page_zip.data = page + UNIV_PAGE_SIZE;
+		page_zip.data = page + srv_page_size;
 #ifdef UNIV_DEBUG
 		page_zip.m_start =
 #endif /* UNIV_DEBUG */
@@ -3831,7 +3813,7 @@ fil_path_to_space_name(
 
 	while (const char* t = static_cast<const char*>(
 		       memchr(tablename, OS_PATH_SEPARATOR,
-			      end - tablename))) {
+			      ulint(end - tablename)))) {
 		dbname = tablename;
 		tablename = t + 1;
 	}
@@ -3843,7 +3825,7 @@ fil_path_to_space_name(
 	ut_ad(end - tablename > 4);
 	ut_ad(memcmp(end - 4, DOT_IBD, 4) == 0);
 
-	char*	name = mem_strdupl(dbname, end - dbname - 4);
+	char*	name = mem_strdupl(dbname, ulint(end - dbname) - 4);
 
 	ut_ad(name[tablename - dbname - 1] == OS_PATH_SEPARATOR);
 #if OS_PATH_SEPARATOR != '/'
@@ -4050,7 +4032,8 @@ fil_ibd_load(
 
 		/* Every .ibd file is created >= 4 pages in size.
 		Smaller files cannot be OK. */
-		minimum_size = FIL_IBD_FILE_INITIAL_SIZE * UNIV_PAGE_SIZE;
+		minimum_size = os_offset_t(FIL_IBD_FILE_INITIAL_SIZE)
+			<< srv_page_size_shift;
 
 		if (size == static_cast<os_offset_t>(-1)) {
 			/* The following call prints an error message */
@@ -4402,15 +4385,13 @@ fil_io(
 	ut_ad(req_type.validate());
 
 	ut_ad(len > 0);
-	ut_ad(byte_offset < UNIV_PAGE_SIZE);
+	ut_ad(byte_offset < srv_page_size);
 	ut_ad(!page_size.is_compressed() || byte_offset == 0);
-	ut_ad(UNIV_PAGE_SIZE == (ulong)(1 << UNIV_PAGE_SIZE_SHIFT));
-#if (1 << UNIV_PAGE_SIZE_SHIFT_MAX) != UNIV_PAGE_SIZE_MAX
-# error "(1 << UNIV_PAGE_SIZE_SHIFT_MAX) != UNIV_PAGE_SIZE_MAX"
-#endif
-#if (1 << UNIV_PAGE_SIZE_SHIFT_MIN) != UNIV_PAGE_SIZE_MIN
-# error "(1 << UNIV_PAGE_SIZE_SHIFT_MIN) != UNIV_PAGE_SIZE_MIN"
-#endif
+	ut_ad(srv_page_size == 1UL << srv_page_size_shift);
+	compile_time_assert((1U << UNIV_PAGE_SIZE_SHIFT_MAX)
+			    == UNIV_PAGE_SIZE_MAX);
+	compile_time_assert((1U << UNIV_PAGE_SIZE_SHIFT_MIN)
+			    == UNIV_PAGE_SIZE_MIN);
 	ut_ad(fil_validate_skip());
 
 	/* ibuf bitmap pages must be read in the sync AIO mode: */
@@ -4593,11 +4574,11 @@ fil_io(
 	if (!page_size.is_compressed()) {
 
 		offset = ((os_offset_t) cur_page_no
-			  << UNIV_PAGE_SIZE_SHIFT) + byte_offset;
+			  << srv_page_size_shift) + byte_offset;
 
 		ut_a(node->size - cur_page_no
-		     >= ((byte_offset + len + (UNIV_PAGE_SIZE - 1))
-			 / UNIV_PAGE_SIZE));
+		     >= ((byte_offset + len + (srv_page_size - 1))
+			 >> srv_page_size_shift));
 	} else {
 		ulint	size_shift;
 
@@ -4706,7 +4687,26 @@ fil_aio_wait(
 	switch (purpose) {
 	case FIL_TYPE_LOG:
 		srv_set_io_thread_op_info(segment, "complete io for log");
-		log_io_complete(static_cast<log_group_t*>(message));
+		/* We use synchronous writing of the logs
+		and can only end up here when writing a log checkpoint! */
+		ut_a(ptrdiff_t(message) == 1);
+		/* It was a checkpoint write */
+		switch (srv_flush_t(srv_file_flush_method)) {
+		case SRV_O_DSYNC:
+		case SRV_NOSYNC:
+			break;
+		case SRV_FSYNC:
+		case SRV_LITTLESYNC:
+		case SRV_O_DIRECT:
+		case SRV_O_DIRECT_NO_FSYNC:
+#ifdef _WIN32
+		case SRV_ALL_O_DIRECT_FSYNC:
+#endif
+			fil_flush(SRV_LOG_SPACE_FIRST_ID);
+		}
+
+		DBUG_PRINT("ib_log", ("checkpoint info written"));
+		log_sys.complete_checkpoint();
 		return;
 	case FIL_TYPE_TABLESPACE:
 	case FIL_TYPE_TEMPORARY:
@@ -4739,7 +4739,7 @@ fil_aio_wait(
 					    << ": " << ut_strerr(err);
 			}
 
-			fil_space_release_for_io(space);
+			space->release_for_io();
 		}
 		return;
 	}
@@ -4773,7 +4773,7 @@ fil_flush(
 void
 fil_flush(fil_space_t* space)
 {
-	ut_ad(space->n_pending_ios > 0);
+	ut_ad(space->pending_io());
 	ut_ad(space->purpose == FIL_TYPE_TABLESPACE
 	      || space->purpose == FIL_TYPE_IMPORT);
 
@@ -5111,11 +5111,11 @@ fil_space_validate_for_mtr_commit(
 	to quiesce. This is not a problem, because
 	ibuf_merge_or_delete_for_page() would call
 	fil_space_acquire() before mtr_start() and
-	fil_space_release() after mtr_commit(). This is why
+	fil_space_t::release() after mtr_commit(). This is why
 	n_pending_ops should not be zero if stop_new_ops is set. */
 	ut_ad(!space->stop_new_ops
 	      || space->is_being_truncated /* TRUNCATE sets stop_new_ops */
-	      || space->n_pending_ops > 0);
+	      || space->referenced());
 }
 #endif /* UNIV_DEBUG */
 
@@ -5141,12 +5141,12 @@ fil_names_dirty(
 {
 	ut_ad(log_mutex_own());
 	ut_ad(recv_recovery_is_on());
-	ut_ad(log_sys->lsn != 0);
+	ut_ad(log_sys.lsn != 0);
 	ut_ad(space->max_lsn == 0);
 	ut_d(fil_space_validate_for_mtr_commit(space));
 
 	UT_LIST_ADD_LAST(fil_system.named_spaces, space);
-	space->max_lsn = log_sys->lsn;
+	space->max_lsn = log_sys.lsn;
 }
 
 /** Write MLOG_FILE_NAME records when a non-predefined persistent
@@ -5161,7 +5161,7 @@ fil_names_dirty_and_write(
 {
 	ut_ad(log_mutex_own());
 	ut_d(fil_space_validate_for_mtr_commit(space));
-	ut_ad(space->max_lsn == log_sys->lsn);
+	ut_ad(space->max_lsn == log_sys.lsn);
 
 	UT_LIST_ADD_LAST(fil_system.named_spaces, space);
 	fil_names_write(space, mtr);
@@ -5198,8 +5198,8 @@ fil_names_clear(
 
 	ut_ad(log_mutex_own());
 
-	if (log_sys->append_on_checkpoint) {
-		mtr_write_log(log_sys->append_on_checkpoint);
+	if (log_sys.append_on_checkpoint) {
+		mtr_write_log(log_sys.append_on_checkpoint);
 		do_write = true;
 	}
 
@@ -5331,7 +5331,7 @@ truncate_t::truncate(
 		: space->size;
 
 	const bool success = os_file_truncate(
-		path, node->handle, trunc_size * UNIV_PAGE_SIZE);
+		path, node->handle, trunc_size << srv_page_size_shift);
 
 	if (!success) {
 		ib::error() << "Cannot truncate file " << path
@@ -5413,7 +5413,7 @@ test_make_filepath()
 
 /** Return the next fil_space_t.
 Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_release() are invoked here which
+fil_space_acquire() and fil_space_t::release() are invoked here which
 blocks a concurrent operation from dropping the tablespace.
 @param[in]	prev_space	Pointer to the previous fil_space_t.
 If NULL, use the first fil_space_t on fil_system.space_list.
@@ -5431,12 +5431,12 @@ fil_space_next(fil_space_t* prev_space)
 
 		/* We can trust that space is not NULL because at least the
 		system tablespace is always present and loaded first. */
-		space->n_pending_ops++;
+		space->acquire();
 	} else {
-		ut_ad(space->n_pending_ops > 0);
+		ut_a(space->referenced());
 
 		/* Move on to the next fil_space_t */
-		space->n_pending_ops--;
+		space->release();
 		space = UT_LIST_GET_NEXT(space_list, space);
 
 		/* Skip spaces that are being created by
@@ -5449,7 +5449,7 @@ fil_space_next(fil_space_t* prev_space)
 		}
 
 		if (space != NULL) {
-			space->n_pending_ops++;
+			space->acquire();
 		}
 	}
 
@@ -5469,7 +5469,7 @@ fil_space_remove_from_keyrotation(fil_space_t* space)
 	ut_ad(mutex_own(&fil_system.mutex));
 	ut_ad(space);
 
-	if (space->n_pending_ops == 0 && space->is_in_rotation_list) {
+	if (space->is_in_rotation_list && !space->referenced()) {
 		space->is_in_rotation_list = false;
 		ut_a(UT_LIST_GET_LEN(fil_system.rotation_list) > 0);
 		UT_LIST_REMOVE(fil_system.rotation_list, space);
@@ -5479,7 +5479,7 @@ fil_space_remove_from_keyrotation(fil_space_t* space)
 
 /** Return the next fil_space_t from key rotation list.
 Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_release() are invoked here which
+fil_space_acquire() and fil_space_t::release() are invoked here which
 blocks a concurrent operation from dropping the tablespace.
 @param[in]	prev_space	Pointer to the previous fil_space_t.
 If NULL, use the first fil_space_t on fil_system.space_list.
@@ -5496,8 +5496,7 @@ fil_space_keyrotate_next(
 
 	if (UT_LIST_GET_LEN(fil_system.rotation_list) == 0) {
 		if (space) {
-			ut_ad(space->n_pending_ops > 0);
-			space->n_pending_ops--;
+			space->release();
 			fil_space_remove_from_keyrotation(space);
 		}
 		mutex_exit(&fil_system.mutex);
@@ -5510,10 +5509,8 @@ fil_space_keyrotate_next(
 		/* We can trust that space is not NULL because we
 		checked list length above */
 	} else {
-		ut_ad(space->n_pending_ops > 0);
-
 		/* Move on to the next fil_space_t */
-		space->n_pending_ops--;
+		space->release();
 
 		old = space;
 		space = UT_LIST_GET_NEXT(rotation_list, space);
@@ -5534,7 +5531,7 @@ fil_space_keyrotate_next(
 	}
 
 	if (space != NULL) {
-		space->n_pending_ops++;
+		space->acquire();
 	}
 
 	mutex_exit(&fil_system.mutex);

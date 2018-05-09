@@ -63,7 +63,7 @@ class engine_option_value: public Sql_alloc
     name(name_arg), next(NULL), parsed(false), quoted_value(false)
   {
     char *str;
-    if ((value.str= str= (char *)alloc_root(root, 22)))
+    if (likely((value.str= str= (char *)alloc_root(root, 22))))
     {
       value.length= longlong10_to_str(value_arg, str, 10) - str;
       link(start, end);

@@ -102,9 +102,11 @@ ORDER BY 1, 2, 3;
 
 -- source include/restart_mysqld.inc
 
+SHOW CREATE TABLE t;
+
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 
-SELECT COUNT(*) FROM t;
+SELECT COUNT(*) FROM t IGNORE INDEX(b);
 
 SELECT
 database_name,

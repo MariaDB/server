@@ -61,11 +61,11 @@ struct ib_sequence_t;
 
 /** @brief Block size for I/O operations in merge sort.
 
-The minimum is UNIV_PAGE_SIZE, or page_get_free_space_of_empty()
+The minimum is srv_page_size, or page_get_free_space_of_empty()
 rounded to a power of 2.
 
 When not creating a PRIMARY KEY that contains column prefixes, this
-can be set as small as UNIV_PAGE_SIZE / 2. */
+can be set as small as srv_page_size / 2. */
 typedef byte	row_merge_block_t;
 
 /** @brief Secondary buffer for I/O operations of merge records.
@@ -308,7 +308,7 @@ old_table unless creating a PRIMARY KEY
 @param[in]	n_indexes	size of indexes[]
 @param[in,out]	table		MySQL table, for reporting erroneous key value
 if applicable
-@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	defaults	default values of added, changed columns, or NULL
 @param[in]	col_map		mapping of old column numbers to new ones, or
 NULL if old_table == new_table
 @param[in]	add_autoinc	number of added AUTO_INCREMENT columns, or
@@ -334,7 +334,7 @@ row_merge_build_indexes(
 	const ulint*		key_numbers,
 	ulint			n_indexes,
 	struct TABLE*		table,
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 	const ulint*		col_map,
 	ulint			add_autoinc,
 	ib_sequence_t&		sequence,

@@ -1,13 +1,13 @@
 create table t1(a int not null primary key, b geometry not null) engine=innodb;
-ALTER ONLINE TABLE t1 ADD SPATIAL INDEX new(b);
-ERROR 0A000: LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
+ALTER ONLINE TABLE t1 ADD SPATIAL INDEX new(b), ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: Do not support online operation on table with GIS index. Try ALGORITHM=NOCOPY
 show warnings;
 Level	Code	Message
-Error	1846	LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
+Error	1846	ALGORITHM=INSTANT is not supported. Reason: Do not support online operation on table with GIS index. Try ALGORITHM=NOCOPY
 show errors;
 Level	Code	Message
-Error	1846	LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
-ALTER ONLINE TABLE t1 ADD SPATIAL INDEX new(b), LOCK=SHARED;
+Error	1846	ALGORITHM=INSTANT is not supported. Reason: Do not support online operation on table with GIS index. Try ALGORITHM=NOCOPY
+ALTER ONLINE TABLE t1 ADD SPATIAL INDEX new(b), LOCK=SHARED, ALGORITHM=NOCOPY;
 show warnings;
 Level	Code	Message
 show errors;

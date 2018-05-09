@@ -770,12 +770,14 @@ public:
   {
     return DTCollation(charset(), derivation(), repertoire());
   }
-  Type_std_attributes type_std_attributes() const
+  virtual Type_std_attributes type_std_attributes() const
   {
     return Type_std_attributes(field_length, decimals(),
                                MY_TEST(flags & UNSIGNED_FLAG),
                                dtcollation());
   }
+
+  bool is_unsigned() const { return flags & UNSIGNED_FLAG; }
 
   /**
     Convenience definition of a copy function returned by
@@ -1116,6 +1118,16 @@ public:
      memcpy(ptr, val, len);
   }
   virtual uint decimals() const { return 0; }
+  virtual Information_schema_numeric_attributes
+            information_schema_numeric_attributes() const
+  {
+    return Information_schema_numeric_attributes();
+  }
+  virtual Information_schema_character_attributes
+            information_schema_character_attributes() const
+  {
+    return Information_schema_character_attributes();
+  }
   /*
     Caller beware: sql_type can change str.Ptr, so check
     ptr() to see if it changed if you are using your own buffer
@@ -1390,8 +1402,7 @@ public:
   }
 
   /* maximum possible display length */
-  virtual uint32 max_display_length()= 0;
-
+  virtual uint32 max_display_length() const= 0;
   /**
     Whether a field being created is compatible with a existing one.
 
@@ -1450,11 +1461,6 @@ public:
   bool vers_update_unversioned() const
   {
     return flags & VERS_UPDATE_UNVERSIONED_FLAG;
-  }
-
-  virtual bool vers_trx_id() const
-  {
-    return false;
   }
 
   /*
@@ -1552,7 +1558,7 @@ public:
   }
   virtual bool sp_prepare_and_store_item(THD *thd, Item **value);
 
-  friend int cre_myisam(char * name, register TABLE *form, uint options,
+  friend int cre_myisam(char * name, TABLE *form, uint options,
 			ulonglong auto_increment_value);
   friend class Copy_field;
   friend class Item_avg_field;
@@ -1726,7 +1732,14 @@ public:
   CHARSET_INFO *charset(void) const { return field_charset; }
   enum Derivation derivation(void) const { return field_derivation; }
   bool binary() const { return field_charset == &my_charset_bin; }
-  uint32 max_display_length() { return field_length; }
+  uint32 max_display_length() const { return field_length; }
+  uint32 char_length() const { return field_length / field_charset->mbmaxlen; }
+  Information_schema_character_attributes
+    information_schema_character_attributes() const
+  {
+    return Information_schema_character_attributes(field_length,
+                                                   char_length());
+  }
   friend class Create_field;
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_real() != 0e0; }
@@ -1759,13 +1772,27 @@ protected:
     return report_if_important_data(copier->source_end_pos(),
                                     end, count_spaces);
   }
+  int well_formed_copy_with_check(char *to, size_t to_length,
+                                  CHARSET_INFO *from_cs,
+                                  const char *from, size_t from_length,
+                                  size_t nchars, bool count_spaces,
+                                  uint *copy_length)
+  {
+    String_copier copier;
+
+    *copy_length= copier.well_formed_copy(field_charset, to, to_length,
+                                          from_cs, from, from_length,
+                                          nchars);
+
+    return check_conversion_status(&copier, from + from_length, from_cs, count_spaces);
+  }
   bool cmp_to_string_with_same_collation(const Item_bool_func *cond,
                                          const Item *item) const;
   bool cmp_to_string_with_stricter_collation(const Item_bool_func *cond,
                                              const Item *item) const;
   int compress(char *to, uint *to_length,
                const char *from, uint length,
-               CHARSET_INFO *cs);
+               CHARSET_INFO *cs, size_t nchars);
   String *uncompress(String *val_buffer, String *val_ptr,
                      const uchar *from, uint from_length);
 public:
@@ -1817,6 +1844,13 @@ public:
   {
     return do_field_real;
   }
+  Information_schema_numeric_attributes
+    information_schema_numeric_attributes() const
+  {
+    return dec == NOT_FIXED_DEC ?
+                  Information_schema_numeric_attributes(field_length) :
+                  Information_schema_numeric_attributes(field_length, dec);
+  }
   int save_in_field(Field *to) { return to->store(val_real()); }
   bool memcpy_field_possible(const Field *from) const
   {
@@ -1833,7 +1867,7 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_real() != 0e0; }
-  uint32 max_display_length() { return field_length; }
+  uint32 max_display_length() const { return field_length; }
   uint size_of() const { return sizeof(*this); }
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
 };
@@ -1852,6 +1886,12 @@ public:
   const Type_handler *type_handler() const { return &type_handler_olddecimal; }
   enum ha_base_keytype key_type() const
   { return zerofill ? HA_KEYTYPE_BINARY : HA_KEYTYPE_NUM; }
+  Information_schema_numeric_attributes
+    information_schema_numeric_attributes() const
+  {
+    uint tmp= dec ? 2 : 1; // The sign and the decimal point
+    return Information_schema_numeric_attributes(field_length - tmp, dec);
+  }
   Copy_func *get_copy_func(const Field *from) const
   {
     return eq_def(from) ? get_identical_copy_func() : do_field_string;
@@ -1936,7 +1976,12 @@ public:
   void sort_string(uchar *buff, uint length);
   bool zero_pack() const { return 0; }
   void sql_type(String &str) const;
-  uint32 max_display_length() { return field_length; }
+  uint32 max_display_length() const { return field_length; }
+  Information_schema_numeric_attributes
+    information_schema_numeric_attributes() const
+  {
+    return Information_schema_numeric_attributes(precision, dec);
+  }
   uint size_of() const { return sizeof(*this); } 
   uint32 pack_length() const { return (uint32) bin_size; }
   uint pack_length_from_metadata(uint field_metadata);
@@ -1966,6 +2011,35 @@ public:
   bool val_bool() { return val_int() != 0; }
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  virtual const Type_limits_int *type_limits_int() const= 0;
+  uint32 max_display_length() const
+  {
+    return type_limits_int()->char_length();
+  }
+  Type_std_attributes type_std_attributes() const
+  {
+    /*
+      For integer data types, the user-specified length does not constrain the
+      supported range, so e.g. a column of the INT(1) data type supports the
+      full integer range anyway.
+      Choose the maximum from the user-specified length and the maximum
+      possible length determined by the data type capacity:
+        INT(1)  -> 11
+        INT(10) -> 11
+        INT(40) -> 40
+    */
+    uint32 length1= max_display_length();
+    uint32 length2= field_length;
+    return Type_std_attributes(MY_MAX(length1, length2), decimals(),
+                               MY_TEST(flags & UNSIGNED_FLAG),
+                               dtcollation());
+  }
+  Information_schema_numeric_attributes
+    information_schema_numeric_attributes() const
+  {
+    uint32 prec= type_limits_int()->precision();
+    return Information_schema_numeric_attributes(prec, 0);
+  }
 };
 
 
@@ -1994,7 +2068,10 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 1; }
   void sql_type(String &str) const;
-  uint32 max_display_length() { return 4; }
+  const Type_limits_int *type_limits_int() const
+  {
+    return type_handler_tiny.type_limits_int_by_unsigned_flag(is_unsigned());
+  }
 
   virtual uchar *pack(uchar* to, const uchar *from, uint max_length)
   {
@@ -2044,8 +2121,10 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 2; }
   void sql_type(String &str) const;
-  uint32 max_display_length() { return 6; }
-
+  const Type_limits_int *type_limits_int() const
+  {
+    return type_handler_short.type_limits_int_by_unsigned_flag(is_unsigned());
+  }
   virtual uchar *pack(uchar* to, const uchar *from, uint max_length)
   { return pack_int16(to, from); }
 
@@ -2079,8 +2158,10 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 3; }
   void sql_type(String &str) const;
-  uint32 max_display_length() { return 8; }
-
+  const Type_limits_int *type_limits_int() const
+  {
+    return type_handler_int24.type_limits_int_by_unsigned_flag(is_unsigned());
+  }
   virtual uchar *pack(uchar* to, const uchar *from, uint max_length)
   {
     return Field::pack(to, from, max_length);
@@ -2119,7 +2200,10 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 4; }
   void sql_type(String &str) const;
-  uint32 max_display_length() { return MY_INT32_NUM_DECIMAL_DIGITS; }
+  const Type_limits_int *type_limits_int() const
+  {
+    return type_handler_long.type_limits_int_by_unsigned_flag(is_unsigned());
+  }
   virtual uchar *pack(uchar* to, const uchar *from,
                       uint max_length __attribute__((unused)))
   {
@@ -2169,7 +2253,10 @@ public:
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const { return 8; }
   void sql_type(String &str) const;
-  uint32 max_display_length() { return 20; }
+  const Type_limits_int *type_limits_int() const
+  {
+    return type_handler_longlong.type_limits_int_by_unsigned_flag(is_unsigned());
+  }
   virtual uchar *pack(uchar* to, const uchar *from,
                       uint max_length  __attribute__((unused)))
   {
@@ -2199,8 +2286,7 @@ public:
                        unsigned_arg),
         cached(0)
   {}
-  enum_field_types real_type() const { return MYSQL_TYPE_LONGLONG; }
-  enum_field_types type() const { return MYSQL_TYPE_LONGLONG;}
+  const Type_handler *type_handler() const { return &type_handler_vers_trx_id; }
   uint size_of() const { return sizeof(*this); }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate, ulonglong trx_id);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
@@ -2227,10 +2313,6 @@ public:
   }
   /* cmp_type() cannot be TIME_RESULT, because we want to compare this field against
      integers. But in all other cases we treat it as TIME_RESULT! */
-  bool vers_trx_id() const
-  {
-    return true;
-  }
 };
 
 
@@ -2340,6 +2422,11 @@ public:
 	       unireg_check_arg, field_name_arg, collation)
     {}
   const Type_handler *type_handler() const { return &type_handler_null; }
+  Information_schema_character_attributes
+    information_schema_character_attributes() const
+  {
+    return Information_schema_character_attributes();
+  }
   Copy_func *get_copy_func(const Field *from) const
   {
     return do_field_string;
@@ -2361,7 +2448,7 @@ public:
   uint32 pack_length() const { return 0; }
   void sql_type(String &str) const;
   uint size_of() const { return sizeof(*this); }
-  uint32 max_display_length() { return 4; }
+  uint32 max_display_length() const { return 4; }
   void move_field_offset(my_ptrdiff_t ptr_diff) {}
   bool can_optimize_keypart_ref(const Item_bool_func *cond,
                                 const Item *item) const
@@ -2400,7 +2487,7 @@ public:
     return to->store_time_dec(&ltime, decimals());
   }
   bool memcpy_field_possible(const Field *from) const;
-  uint32 max_display_length() { return field_length; }
+  uint32 max_display_length() const { return field_length; }
   bool str_needs_quotes() { return TRUE; }
   enum Derivation derivation(void) const { return DERIVATION_NUMERIC; }
   uint repertoire(void) const { return MY_REPERTOIRE_NUMERIC; }
@@ -2700,7 +2787,12 @@ public:
   String *val_str(String*,String *);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool send_binary(Protocol *protocol);
-  uint32 max_display_length() { return field_length; }
+  Information_schema_numeric_attributes
+    information_schema_numeric_attributes() const
+  {
+    return Information_schema_numeric_attributes();
+  }
+  uint32 max_display_length() const { return field_length; }
   void sql_type(String &str) const;
 };
 
@@ -3355,7 +3447,7 @@ private:
     Field_varstring::sql_type(str);
     str.append(STRING_WITH_LEN(" /*!100301 COMPRESSED*/"));
   }
-  uint32 max_display_length() { return field_length - 1; }
+  uint32 max_display_length() const { return field_length - 1; }
   int cmp_max(const uchar *a_ptr, const uchar *b_ptr, uint max_len);
 
   /*
@@ -3475,6 +3567,19 @@ public:
   }
   enum ha_base_keytype key_type() const
     { return binary() ? HA_KEYTYPE_VARBINARY2 : HA_KEYTYPE_VARTEXT2; }
+  Type_std_attributes type_std_attributes() const
+  {
+    return Type_std_attributes(Field_blob::max_display_length(), decimals(),
+                               MY_TEST(flags & UNSIGNED_FLAG),
+                               dtcollation());
+  }
+  Information_schema_character_attributes
+    information_schema_character_attributes() const
+  {
+    uint32 octets= Field_blob::octet_length();
+    uint32 chars= octets / field_charset->mbminlen;
+    return Information_schema_character_attributes(octets, chars);
+  }
   Copy_func *get_copy_func(const Field *from) const
   {
     /*
@@ -3635,8 +3740,9 @@ public:
   uint size_of() const { return sizeof(*this); }
   bool has_charset(void) const
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
-  uint32 max_display_length();
+  uint32 max_display_length() const;
   uint32 char_length() const;
+  uint32 octet_length() const;
   uint is_equal(Create_field *new_field);
 private:
   int save_field_metadata(uchar *first_byte);
@@ -3718,6 +3824,11 @@ public:
   enum_field_types real_type() const
   {
     return MYSQL_TYPE_GEOMETRY;
+  }
+  Information_schema_character_attributes
+    information_schema_character_attributes() const
+  {
+    return Information_schema_character_attributes();
   }
   bool can_optimize_range(const Item_bool_func *cond,
                                   const Item *item,
@@ -3915,7 +4026,12 @@ public:
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_BIT; }
   uint32 key_length() const { return (uint32) (field_length + 7) / 8; }
   uint32 max_data_length() const { return (field_length + 7) / 8; }
-  uint32 max_display_length() { return field_length; }
+  uint32 max_display_length() const { return field_length; }
+  Information_schema_numeric_attributes
+    information_schema_numeric_attributes() const
+  {
+    return Information_schema_numeric_attributes(field_length);
+  }
   uint size_of() const { return sizeof(*this); }
   int reset(void) { 
     bzero(ptr, bytes_in_rec); 

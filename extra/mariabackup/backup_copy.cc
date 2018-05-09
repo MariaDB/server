@@ -57,8 +57,6 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include "backup_copy.h"
 #include "backup_mysql.h"
 #include <btr0btr.h>
-#include "xb0xb.h"
-
 
 /* list of files to sync for --rsync mode */
 static std::set<std::string> rsync_list;
@@ -966,6 +964,9 @@ copy_file(ds_ctxt_t *datasink,
 	ds_file_t		*dstfile = NULL;
 	datafile_cur_t		 cursor;
 	xb_fil_cur_result_t	 res;
+	const char	*dst_path =
+		(xtrabackup_copy_back || xtrabackup_move_back)?
+		dst_file_path : trim_dotslash(dst_file_path);
 
 	if (!datafile_open(src_file_path, &cursor, thread_n)) {
 		goto error_close;
@@ -973,8 +974,7 @@ copy_file(ds_ctxt_t *datasink,
 
 	strncpy(dst_name, cursor.rel_path, sizeof(dst_name));
 
-	dstfile = ds_open(datasink, trim_dotslash(dst_file_path),
-			  &cursor.statinfo);
+	dstfile = ds_open(datasink, dst_path, &cursor.statinfo);
 	if (dstfile == NULL) {
 		msg("[%02u] error: "
 			"cannot open the destination stream for %s\n",

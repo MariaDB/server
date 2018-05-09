@@ -255,7 +255,7 @@ void trx_rseg_format_upgrade(trx_rsegf_t* rseg_header, mtr_t* mtr)
 	/* Clear also possible garbage at the end of the page. Old
 	InnoDB versions did not initialize unused parts of pages. */
 	byte* b = rseg_header + TRX_RSEG_MAX_TRX_ID + 8;
-	ulint len = UNIV_PAGE_SIZE
+	ulint len = srv_page_size
 		- (FIL_PAGE_DATA_END
 		   + TRX_RSEG + TRX_RSEG_MAX_TRX_ID + 8);
 	memset(b, 0, len);

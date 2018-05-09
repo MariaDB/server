@@ -191,10 +191,10 @@ struct LatchDebug {
 					latch that the thread is trying
 					to acquire
 	@return true if passes, else crash with error message. */
-	bool basic_check(
+	inline bool basic_check(
 		const Latches*	latches,
 		latch_level_t	requested_level,
-		ulint		level) const
+		lint		level) const
 		UNIV_NOTHROW;
 
 	/** Adds a latch and its level in the thread level array. Allocates
@@ -499,7 +499,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_RSEG_HEADER_NEW);
 	LEVEL_MAP_INSERT(SYNC_NOREDO_RSEG);
 	LEVEL_MAP_INSERT(SYNC_REDO_RSEG);
-	LEVEL_MAP_INSERT(SYNC_TRX_UNDO);
 	LEVEL_MAP_INSERT(SYNC_PURGE_LATCH);
 	LEVEL_MAP_INSERT(SYNC_TREE_NODE);
 	LEVEL_MAP_INSERT(SYNC_TREE_NODE_FROM_HASH);
@@ -607,11 +606,11 @@ LatchDebug::less(
 				The level of the latch that the thread is
 				trying to acquire
 @return true if passes, else crash with error message. */
-bool
+inline bool
 LatchDebug::basic_check(
 	const Latches*	latches,
 	latch_level_t	requested_level,
-	ulint		in_level) const
+	lint		in_level) const
 	UNIV_NOTHROW
 {
 	latch_level_t	level = latch_level_t(in_level);
@@ -739,7 +738,7 @@ LatchDebug::check_order(
 		if (srv_is_being_started) {
 			/* This is violated during trx_sys_create_rsegs()
 			when creating additional rollback segments when
-			upgrading in innobase_start_or_create_for_mysql(). */
+			upgrading in srv_start(). */
 			break;
 		}
 
@@ -767,7 +766,6 @@ LatchDebug::check_order(
 	case SYNC_IBUF_BITMAP_MUTEX:
 	case SYNC_REDO_RSEG:
 	case SYNC_NOREDO_RSEG:
-	case SYNC_TRX_UNDO:
 	case SYNC_PURGE_LATCH:
 	case SYNC_PURGE_QUEUE:
 	case SYNC_DICT_AUTOINC_MUTEX:
@@ -894,8 +892,7 @@ LatchDebug::check_order(
 		The purge thread can read the UNDO pages without any covering
 		mutex. */
 
-		ut_a(find(latches, SYNC_TRX_UNDO) != 0
-		     || find(latches, SYNC_REDO_RSEG) != 0
+		ut_a(find(latches, SYNC_REDO_RSEG) != 0
 		     || find(latches, SYNC_NOREDO_RSEG) != 0
 		     || basic_check(latches, level, level - 1));
 		break;
@@ -1400,8 +1397,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(BUF_DBLWR, SYNC_DOUBLEWRITE, buf_dblwr_mutex_key);
 
-	LATCH_ADD_MUTEX(TRX_UNDO, SYNC_TRX_UNDO, trx_undo_mutex_key);
-
 	LATCH_ADD_MUTEX(TRX_POOL, SYNC_POOL, trx_pool_mutex_key);
 
 	LATCH_ADD_MUTEX(TRX_POOL_MANAGER, SYNC_POOL_MANAGER,
@@ -1744,7 +1739,7 @@ sync_check_init()
 
 	ut_d(LatchDebug::init());
 
-	sync_array_init(OS_THREAD_MAX_N);
+	sync_array_init();
 }
 
 /** Free the InnoDB synchronization data structures. */

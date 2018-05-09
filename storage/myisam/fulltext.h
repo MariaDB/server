@@ -21,6 +21,11 @@
 #include "myisamdef.h"
 #include "ft_global.h"
 
+/* If HA_FT_MAXLEN is change to 127 or over, it must be tested properly as
+   it may cause different representation on disk for full text indexes
+*/
+#define HA_FT_MAXLEN 126
+
 int  _mi_ft_cmp(MI_INFO *, uint, const uchar *, const uchar *);
 int  _mi_ft_add(MI_INFO *, uint, uchar *, const uchar *, my_off_t);
 int  _mi_ft_del(MI_INFO *, uint, uchar *, const uchar *, my_off_t);

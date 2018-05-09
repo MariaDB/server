@@ -426,21 +426,11 @@ btr_pcur_is_before_first_on_page(
 /*********************************************************//**
 Checks if the persistent cursor is before the first user record in
 the index tree. */
-UNIV_INLINE
-ibool
-btr_pcur_is_before_first_in_tree(
-/*=============================*/
-	btr_pcur_t*	cursor,	/*!< in: persistent cursor */
-	mtr_t*		mtr);	/*!< in: mtr */
+static inline bool btr_pcur_is_before_first_in_tree(btr_pcur_t* cursor);
 /*********************************************************//**
 Checks if the persistent cursor is after the last user record in
 the index tree. */
-UNIV_INLINE
-ibool
-btr_pcur_is_after_last_in_tree(
-/*===========================*/
-	btr_pcur_t*	cursor,	/*!< in: persistent cursor */
-	mtr_t*		mtr);	/*!< in: mtr */
+static inline bool btr_pcur_is_after_last_in_tree(btr_pcur_t* cursor);
 /*********************************************************//**
 Moves the persistent cursor to the next record on the same page. */
 UNIV_INLINE

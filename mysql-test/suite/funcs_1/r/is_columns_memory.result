@@ -434,9 +434,9 @@ def	test	tb1	f19	11	NULL	YES	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5) u
 def	test	tb1	f2	2	NULL	YES	char	1	1	NULL	NULL	NULL	latin1	latin1_bin	char(1)			select,insert,update,references		NEVER	NULL
 def	test	tb1	f20	12	NULL	YES	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5) unsigned zerofill			select,insert,update,references		NEVER	NULL
 def	test	tb1	f21	13	NULL	YES	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(9)			select,insert,update,references		NEVER	NULL
-def	test	tb1	f22	14	NULL	YES	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(8) unsigned			select,insert,update,references		NEVER	NULL
-def	test	tb1	f23	15	NULL	YES	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
-def	test	tb1	f24	16	NULL	YES	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
+def	test	tb1	f22	14	NULL	YES	mediumint	NULL	NULL	8	0	NULL	NULL	NULL	mediumint(8) unsigned			select,insert,update,references		NEVER	NULL
+def	test	tb1	f23	15	NULL	YES	mediumint	NULL	NULL	8	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
+def	test	tb1	f24	16	NULL	YES	mediumint	NULL	NULL	8	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
 def	test	tb1	f25	17	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references		NEVER	NULL
 def	test	tb1	f26	18	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select,insert,update,references		NEVER	NULL
 def	test	tb1	f27	19	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned zerofill			select,insert,update,references		NEVER	NULL
@@ -538,9 +538,9 @@ def	test	tb3	f135	12	999	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5) un
 def	test	tb3	f136	13	00999	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5) unsigned zerofill			select,insert,update,references		NEVER	NULL
 def	test	tb3	f137	14	00999	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5) unsigned zerofill			select,insert,update,references		NEVER	NULL
 def	test	tb3	f138	15	9999	NO	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(9)			select,insert,update,references		NEVER	NULL
-def	test	tb3	f139	16	9999	NO	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(8) unsigned			select,insert,update,references		NEVER	NULL
-def	test	tb3	f140	17	00009999	NO	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
-def	test	tb3	f141	18	00009999	NO	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
+def	test	tb3	f139	16	9999	NO	mediumint	NULL	NULL	8	0	NULL	NULL	NULL	mediumint(8) unsigned			select,insert,update,references		NEVER	NULL
+def	test	tb3	f140	17	00009999	NO	mediumint	NULL	NULL	8	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
+def	test	tb3	f141	18	00009999	NO	mediumint	NULL	NULL	8	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
 def	test	tb3	f142	19	99999	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references		NEVER	NULL
 def	test	tb3	f143	20	99999	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select,insert,update,references		NEVER	NULL
 def	test	tb3	f144	21	0000099999	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned zerofill			select,insert,update,references		NEVER	NULL

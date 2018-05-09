@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,6 +28,7 @@ Created 2013/03/27 Jimmy Yang and Allen Lai
 #define gis0rtree_h
 
 #include "univ.i"
+#include "my_base.h"
 
 #include "data0type.h"
 #include "data0types.h"
@@ -87,10 +88,8 @@ rtr_index_build_node_ptr(
 					pointer */
 	ulint			page_no,/*!< in: page number to put in node
 					pointer */
-	mem_heap_t*		heap,	/*!< in: memory heap where pointer
+	mem_heap_t*		heap);	/*!< in: memory heap where pointer
 					created */
-	ulint			level);	/*!< in: level of rec in tree:
-					0 means leaf level */
 
 /*************************************************************//**
 Splits an R-tree index page to halves and inserts the tuple. It is assumed
@@ -179,7 +178,6 @@ dberr_t
 rtr_ins_enlarge_mbr(
 /*=================*/
 	btr_cur_t*		cursor,	/*!< in: btr cursor */
-	que_thr_t*		thr,	/*!< in: query thread */
 	mtr_t*			mtr);	/*!< in: mtr */
 
 /********************************************************************//**
@@ -438,9 +436,6 @@ rtr_merge_and_update_mbr(
 	ulint*			offsets,	/*!< in: rec offsets */
 	ulint*			offsets2,	/*!< in: rec offsets */
 	page_t*			child_page,	/*!< in: the child page. */
-	buf_block_t*		merge_block,	/*!< in: page to merge */
-	buf_block_t*		block,		/*!< in: page be merged */
-	dict_index_t*		index,		/*!< in: index */
 	mtr_t*			mtr);		/*!< in: mtr */
 
 /*************************************************************//**
@@ -448,10 +443,8 @@ Deletes on the upper level the node pointer to a page. */
 void
 rtr_node_ptr_delete(
 /*================*/
-	dict_index_t*	index,	/*!< in: index tree */
-	btr_cur_t*	sea_cur,/*!< in: search cursor, contains information
+	btr_cur_t*	cursor,	/*!< in: search cursor, contains information
 				about parent nodes in search */
-	buf_block_t*	block,	/*!< in: page whose node pointer is deleted */
 	mtr_t*		mtr);	/*!< in: mtr */
 
 /****************************************************************//**
@@ -463,10 +456,7 @@ rtr_merge_mbr_changed(
 	btr_cur_t*	cursor2,	/*!< in: the other cursor */
 	ulint*		offsets,	/*!< in: rec offsets */
 	ulint*		offsets2,	/*!< in: rec offsets */
-	rtr_mbr_t*	new_mbr,	/*!< out: MBR to update */
-	buf_block_t*	merge_block,	/*!< in: page to merge */
-	buf_block_t*	block,		/*!< in: page be merged */
-	dict_index_t*	index);		/*!< in: index */
+	rtr_mbr_t*	new_mbr);	/*!< out: MBR to update */
 
 
 /**************************************************************//**
@@ -543,7 +533,7 @@ rtr_info_reinit_in_cursor(
 @param[in]	tuple	range tuple containing mbr, may also be empty tuple
 @param[in]	mode	search mode
 @return estimated number of rows */
-int64_t
+ha_rows
 rtr_estimate_n_rows_in_range(
 	dict_index_t*	index,
 	const dtuple_t*	tuple,

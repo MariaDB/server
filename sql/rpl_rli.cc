@@ -142,7 +142,7 @@ int Relay_log_info::init(const char* info_fname)
   log_space_limit= relay_log_space_limit;
   log_space_total= 0;
 
-  if (error_on_rli_init_info)
+  if (unlikely(error_on_rli_init_info))
     goto err;
 
   char pattern[FN_REFLEN];
@@ -306,7 +306,7 @@ Failed to open the existing relay log info file '%s' (errno %d)",
                         fname);
         error= 1;
       }
-      if (error)
+      if (unlikely(error))
       {
         if (info_fd >= 0)
           mysql_file_close(info_fd, MYF(0));
@@ -415,7 +415,7 @@ Failed to open the existing relay log info file '%s' (errno %d)",
     before Relay_log_info::flush()
   */
   reinit_io_cache(&info_file, WRITE_CACHE,0L,0,1);
-  if ((error= flush()))
+  if (unlikely((error= flush())))
   {
     msg= "Failed to flush relay log info file";
     goto err;
@@ -2206,7 +2206,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
     to rollback before continuing with the next events.
     4) so we need this "context cleanup" function.
   */
-  if (error)
+  if (unlikely(error))
   {
     trans_rollback_stmt(thd); // if a "statement transaction"
     /* trans_rollback() also resets OPTION_GTID_BEGIN */
@@ -2220,7 +2220,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
   m_table_map.clear_tables();
   slave_close_thread_tables(thd);
 
-  if (error)
+  if (unlikely(error))
   {
     thd->mdl_context.release_transactional_locks();
 

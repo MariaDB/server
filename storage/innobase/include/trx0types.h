@@ -138,7 +138,6 @@ typedef	byte	trx_undo_rec_t;
 
 typedef ib_mutex_t RsegMutex;
 typedef ib_mutex_t TrxMutex;
-typedef ib_mutex_t UndoMutex;
 typedef ib_mutex_t PQMutex;
 typedef ib_mutex_t TrxSysMutex;
 

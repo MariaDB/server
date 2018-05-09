@@ -1,28 +1,32 @@
+# include/galera_wait_ready.inc
+#
+# Waits for galera node to transition to READY state.
+#
 
---disable_result_log
+--enable_reconnect
 --disable_query_log
-let $counter= 100;
-let $not_synced= 1;
-while ($not_synced)
+--disable_result_log
+let $wait_counter = 600;
+while ($wait_counter)
 {
-  --error 0,1205,ER_SERVER_SHUTDOWN,ER_CONNECTION_KILLED,2002,2006,2013
-  if (`SELECT variable_value=4 from information_schema.global_status where variable_name='wsrep_local_state'`)
+  --disable_abort_on_error
+  let $success = `SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'`;
+  --enable_abort_on_error
+  if ($success)
   {
-        let $not_synced = 0;
+    let $wait_counter = 0;
   }
-
-  dec $counter;
-  if (!$counter)
+  if (!$success)
   {
-    SHOW STATUS LIKE 'wsrep%';
-    --die Server failed to sync in time
+     real_sleep 0.1;
+     dec $wait_counter;
   }
-  --sleep 5
 }
 
+if (!$success)
+{
+  die "Server did not transition to READY state";
+}
+--disable_reconnect
 --enable_query_log
 --enable_result_log
-
-let $wait_timeout = 60;
-let $wait_condition = SELECT 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready' AND VARIABLE_VALUE = 'ON';
---source include/wait_condition.inc

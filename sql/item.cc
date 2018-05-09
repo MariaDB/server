@@ -295,7 +295,7 @@ longlong Item::val_int_signed_typecast_from_str()
 {
   int error;
   longlong value= val_int_from_str(&error);
-  if (!null_value && value < 0 && error == 0)
+  if (unlikely(!null_value && value < 0 && error == 0))
     push_note_converted_to_negative_complement(current_thd);
   return value;
 }
@@ -305,7 +305,7 @@ longlong Item::val_int_unsigned_typecast_from_str()
 {
   int error;
   longlong value= val_int_from_str(&error);
-  if (!null_value && error < 0)
+  if (unlikely(!null_value && error < 0))
     push_note_converted_to_positive_complement(current_thd);
   return value;
 }
@@ -703,12 +703,11 @@ Item* Item::set_expr_cache(THD *thd)
 {
   DBUG_ENTER("Item::set_expr_cache");
   Item_cache_wrapper *wrapper;
-  if ((wrapper= new (thd->mem_root) Item_cache_wrapper(thd, this)) &&
-      !wrapper->fix_fields(thd, (Item**)&wrapper))
+  if (likely((wrapper= new (thd->mem_root) Item_cache_wrapper(thd, this))) &&
+      likely(!wrapper->fix_fields(thd, (Item**)&wrapper)))
   {
-    if (wrapper->set_cache(thd))
-      DBUG_RETURN(NULL);
-    DBUG_RETURN(wrapper);
+    if (likely(!wrapper->set_cache(thd)))
+      DBUG_RETURN(wrapper);
   }
   DBUG_RETURN(NULL);
 }
@@ -1307,7 +1306,7 @@ Item *Item_cache::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
     return this;
   Item_cache *cache;
   if (!conv || conv->fix_fields(thd, (Item **) NULL) ||
-      !(cache= new (thd->mem_root) Item_cache_str(thd, conv)))
+      unlikely(!(cache= new (thd->mem_root) Item_cache_str(thd, conv))))
     return NULL; // Safe conversion is not possible, or OEM
   cache->setup(thd, conv);
   cache->fixed= false; // Make Item::fix_fields() happy
@@ -1389,7 +1388,7 @@ Item *Item::const_charset_converter(THD *thd, CHARSET_INFO *tocs,
                                   collation.derivation,
                                   collation.repertoire));
 
-  if (!conv || (conv_errors && lossless))
+  if (unlikely(!conv || (conv_errors && lossless)))
   {
     /*
       Safe conversion is not possible (or EOM).
@@ -2760,13 +2759,13 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
 Item* Item_func_or_sum::build_clone(THD *thd)
 {
   Item_func_or_sum *copy= (Item_func_or_sum *) get_copy(thd);
-  if (!copy)
+  if (unlikely(!copy))
     return 0;
   if (arg_count > 2)
   {
     copy->args= 
       (Item**) alloc_root(thd->mem_root, sizeof(Item*) * arg_count);
-    if (!copy->args)
+    if (unlikely(!copy->args))
       return 0;
   }
   else if (arg_count > 0)
@@ -2863,7 +2862,7 @@ Item_sp::sp_check_access(THD *thd)
 */
 bool Item_sp::execute(THD *thd, bool *null_value, Item **args, uint arg_count)
 {
-  if (execute_impl(thd, args, arg_count))
+  if (unlikely(execute_impl(thd, args, arg_count)))
   {
     *null_value= 1;
     context->process_error(thd);
@@ -2905,7 +2904,7 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
     thd->security_ctx= context->security_ctx;
   }
 
-  if (sp_check_access(thd))
+  if (unlikely(sp_check_access(thd)))
   {
     thd->security_ctx= save_security_ctx;
     DBUG_RETURN(TRUE);
@@ -2916,10 +2915,10 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
     statement-based replication (SBR) is active.
   */
 
-  if (!m_sp->detistic() && !trust_function_creators &&
-      (access == SP_CONTAINS_SQL || access == SP_MODIFIES_SQL_DATA) &&
-      (mysql_bin_log.is_open() &&
-       thd->variables.binlog_format == BINLOG_FORMAT_STMT))
+  if (unlikely(!m_sp->detistic() && !trust_function_creators &&
+               (access == SP_CONTAINS_SQL || access == SP_MODIFIES_SQL_DATA) &&
+               (mysql_bin_log.is_open() &&
+                thd->variables.binlog_format == BINLOG_FORMAT_STMT)))
   {
     my_error(ER_BINLOG_UNSAFE_ROUTINE, MYF(0));
     thd->security_ctx= save_security_ctx;
@@ -3049,9 +3048,10 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
 Item* Item_ref::build_clone(THD *thd)
 {
   Item_ref *copy= (Item_ref *) get_copy(thd);
-  if (!copy ||
-      !(copy->ref= (Item**) alloc_root(thd->mem_root, sizeof(Item*))) ||
-      !(*copy->ref= (* ref)->build_clone(thd)))
+  if (unlikely(!copy) ||
+      unlikely(!(copy->ref= (Item**) alloc_root(thd->mem_root,
+                                                sizeof(Item*)))) ||
+      unlikely(!(*copy->ref= (* ref)->build_clone(thd))))
     return 0;
   return copy;
 }
@@ -3165,71 +3165,15 @@ Item_field::Item_field(THD *thd, Item_field *item)
 }
 
 
-/**
-  Calculate the max column length not taking into account the
-  limitations over integer types.
-
-  When storing data into fields the server currently just ignores the
-  limits specified on integer types, e.g. 1234 can safely be stored in
-  an int(2) and will not cause an error.
-  Thus when creating temporary tables and doing transformations
-  we must adjust the maximum field length to reflect this fact.
-  We take the un-restricted maximum length and adjust it similarly to
-  how the declared length is adjusted wrt unsignedness etc.
-  TODO: this all needs to go when we disable storing 1234 in int(2).
-
-  @param field_par   Original field the use to calculate the lengths
-  @param max_length  Item's calculated explicit max length
-  @return            The adjusted max length
-*/
-
-inline static uint32
-adjust_max_effective_column_length(Field *field_par, uint32 max_length)
-{
-  uint32 new_max_length= field_par->max_display_length();
-  uint32 sign_length= (field_par->flags & UNSIGNED_FLAG) ? 0 : 1;
-
-  switch (field_par->type())
-  {
-  case MYSQL_TYPE_INT24:
-    /*
-      Compensate for MAX_MEDIUMINT_WIDTH being 1 too long (8)
-      compared to the actual number of digits that can fit into
-      the column.
-    */
-    new_max_length+= 1;
-    /* fall through */
-  case MYSQL_TYPE_LONG:
-  case MYSQL_TYPE_TINY:
-  case MYSQL_TYPE_SHORT:
-
-    /* Take out the sign and add a conditional sign */
-    new_max_length= new_max_length - 1 + sign_length;
-    break;
-
-  /* BINGINT is always 20 no matter the sign */
-  case MYSQL_TYPE_LONGLONG:
-  /* make gcc happy */
-  default:
-    break;
-  }
-
-  /* Adjust only if the actual precision based one is bigger than specified */
-  return new_max_length > max_length ? new_max_length : max_length;
-}
-
-
 void Item_field::set_field(Field *field_par)
 {
   field=result_field=field_par;			// for easy coding with fields
   maybe_null=field->maybe_null();
-  Type_std_attributes::set(field_par);
+  Type_std_attributes::set(field_par->type_std_attributes());
   table_name= *field_par->table_name;
   field_name= field_par->field_name;
   db_name= field_par->table->s->db.str;
   alias_name_used= field_par->table->alias_name_used;
-
-  max_length= adjust_max_effective_column_length(field_par, max_length);
 
   fixed= 1;
   if (field->table->s->tmp_table == SYSTEM_TMP_TABLE)
@@ -4269,7 +4213,7 @@ bool Item_param::set_str(const char *str, ulong length,
     been written to the binary log.
   */
   uint dummy_errors;
-  if (value.m_string.copy(str, length, fromcs, tocs, &dummy_errors))
+  if (unlikely(value.m_string.copy(str, length, fromcs, tocs, &dummy_errors)))
     DBUG_RETURN(TRUE);
   /*
     Set str_value_ptr to make sure it's in sync with str_value.
@@ -6208,7 +6152,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 
             Field *new_field= (*((Item_field**)res))->field;
 
-            if (new_field == NULL)
+            if (unlikely(new_field == NULL))
             {
               /* The column to which we link isn't valid. */
               my_error(ER_BAD_FIELD_ERROR, MYF(0), (*res)->name.str,
@@ -6253,7 +6197,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
         }
       }
 
-      if (!select)
+      if (unlikely(!select))
       {
         my_error(ER_BAD_FIELD_ERROR, MYF(0), full_name(), thd->where);
         goto error;
@@ -6661,7 +6605,7 @@ String *Item::check_well_formed_result(String *str, bool send_error)
   CHARSET_INFO *cs= str->charset();
   uint wlen= str->well_formed_length();
   null_value= false;
-  if (wlen < str->length())
+  if (unlikely(wlen < str->length()))
   {
     THD *thd= current_thd;
     char hexbuf[7];
@@ -6700,9 +6644,10 @@ String_copier_for_item::copy_with_warn(CHARSET_INFO *dstcs, String *dst,
                                        CHARSET_INFO *srccs, const char *src,
                                        uint32 src_length, uint32 nchars)
 {
-  if ((dst->copy(dstcs, srccs, src, src_length, nchars, this)))
+  if (unlikely((dst->copy(dstcs, srccs, src, src_length, nchars, this))))
     return true; // EOM
-  if (const char *pos= well_formed_error_pos())
+  const char *pos;
+  if (unlikely(pos= well_formed_error_pos()))
   {
     ErrConvString err(pos, src_length - (pos - src), &my_charset_bin);
     push_warning_printf(m_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -6713,7 +6658,7 @@ String_copier_for_item::copy_with_warn(CHARSET_INFO *dstcs, String *dst,
                         err.ptr());
     return false;
   }
-  if (const char *pos= cannot_convert_error_pos())
+  if (unlikely(pos= cannot_convert_error_pos()))
   {
     char buf[16];
     int mblen= my_charlen(srccs, pos, src + src_length);
@@ -7236,7 +7181,7 @@ Item_float::Item_float(THD *thd, const char *str_arg, size_t length):
   char *end_not_used;
   value= my_strntod(&my_charset_bin, (char*) str_arg, length, &end_not_used,
                     &error);
-  if (error)
+  if (unlikely(error))
   {
     char tmp[NAME_LEN + 1];
     my_snprintf(tmp, sizeof(tmp), "%.*s", (int)length, str_arg);
@@ -7985,7 +7930,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       Field *from_field;
       ref= 0;
 
-      if (!outer_context)
+      if (unlikely(!outer_context))
       {
         /* The current reference cannot be resolved in this query. */
         my_error(ER_BAD_FIELD_ERROR,MYF(0),
@@ -8133,7 +8078,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
                         last_checked_context->select_lex->nest_level);
         return FALSE;
       }
-      if (ref == 0)
+      if (unlikely(ref == 0))
       {
         /* The item was not a table field and not a reference */
         my_error(ER_BAD_FIELD_ERROR, MYF(0),
@@ -9557,7 +9502,7 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
 
   if (arg->type() == REF_ITEM)
     arg= static_cast<Item_ref *>(arg)->ref[0];
-  if (arg->type() != FIELD_ITEM)
+  if (unlikely(arg->type() != FIELD_ITEM))
   {
     my_error(ER_BAD_FIELD_ERROR, MYF(0), "", "VALUES() function");
     return TRUE;
@@ -9706,7 +9651,7 @@ bool Item_trigger_field::fix_fields(THD *thd, Item **items)
 
   /* Set field. */
 
-  if (field_idx != (uint)-1)
+  if (likely(field_idx != (uint)-1))
   {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     /*
@@ -10756,11 +10701,6 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
   return find_matching_grouping_field(this, sel) != NULL;
 }
 
-bool Item_field::vers_trx_id() const
-{
-  DBUG_ASSERT(field);
-  return field->vers_trx_id();
-}
 
 void Item::register_in(THD *thd)
 {

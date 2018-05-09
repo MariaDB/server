@@ -256,7 +256,7 @@ int TP_connection_win::start_io()
       If skip_completion_port_on_success is set, we need to handle it right 
       here, because completion callback would not be executed by the pool.
     */
-    if(skip_completion_port_on_success)
+    if (skip_completion_port_on_success)
     {
       CancelThreadpoolIo(io);
       io_completion_callback(callback_instance, this, &overlapped, last_error, 
@@ -265,7 +265,7 @@ int TP_connection_win::start_io()
     return 0;
   }
 
-  if(last_error == ERROR_IO_PENDING)
+  if (last_error == ERROR_IO_PENDING)
   {
     return 0;
   }

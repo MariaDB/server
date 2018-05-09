@@ -635,9 +635,9 @@ fts_zip_read_word(
 				ptr[len] = 0;
 
 				zip->zp->next_out = ptr;
-				zip->zp->avail_out = len;
+				zip->zp->avail_out = uInt(len);
 
-				word->f_len = len;
+				word->f_len = ulint(len);
 				len = 0;
 			}
 			break;
@@ -690,15 +690,15 @@ fts_fetch_index_words(
 
 	/* Skip the duplicate words. */
 	if (zip->word.f_len == static_cast<ulint>(len)
-	    && !memcmp(zip->word.f_str, data, len)) {
+	    && !memcmp(zip->word.f_str, data, zip->word.f_len)) {
 
 		return(TRUE);
 	}
 
 	ut_a(len <= FTS_MAX_WORD_LEN);
 
-	memcpy(zip->word.f_str, data, len);
-	zip->word.f_len = len;
+	zip->word.f_len = ulint(len);
+	memcpy(zip->word.f_str, data, zip->word.f_len);
 
 	ut_a(zip->zp->avail_in == 0);
 	ut_a(zip->zp->next_in == NULL);
@@ -727,7 +727,7 @@ fts_fetch_index_words(
 		case Z_OK:
 			if (zip->zp->avail_in == 0) {
 				zip->zp->next_in = static_cast<byte*>(data);
-				zip->zp->avail_in = len;
+				zip->zp->avail_in = uInt(len);
 				ut_a(len <= FTS_MAX_WORD_LEN);
 				len = 0;
 			}
@@ -1158,7 +1158,7 @@ fts_optimize_encode_node(
 	++src;
 
 	/* Number of encoded pos bytes to copy. */
-	pos_enc_len = src - enc->src_ilist_ptr;
+	pos_enc_len = ulint(src - enc->src_ilist_ptr);
 
 	/* Total number of bytes required for copy. */
 	enc_len += pos_enc_len;
@@ -1230,7 +1230,7 @@ fts_optimize_node(
 		enc->src_ilist_ptr = src_node->ilist;
 	}
 
-	copied = enc->src_ilist_ptr - src_node->ilist;
+	copied = ulint(enc->src_ilist_ptr - src_node->ilist);
 
 	/* While there is data in the source node and space to copy
 	into in the destination node. */
@@ -1251,7 +1251,7 @@ test_again:
 			fts_update_t*	update;
 
 			update = (fts_update_t*) ib_vector_get(
-				del_vec, *del_pos);
+				del_vec, ulint(*del_pos));
 
 			del_doc_id = update->doc_id;
 		}
@@ -1295,7 +1295,7 @@ test_again:
 		}
 
 		/* Bytes copied so for from source. */
-		copied = enc->src_ilist_ptr - src_node->ilist;
+		copied = ulint(enc->src_ilist_ptr - src_node->ilist);
 	}
 
 	if (copied >= src_node->ilist_size) {
@@ -1402,7 +1402,7 @@ fts_optimize_word(
 		ut_a(enc.src_ilist_ptr != NULL);
 
 		/* Determine the numer of bytes copied to dst_node. */
-		copied = enc.src_ilist_ptr - src_node->ilist;
+		copied = ulint(enc.src_ilist_ptr - src_node->ilist);
 
 		/* Can't copy more than whats in the vlc array. */
 		ut_a(copied <= src_node->ilist_size);

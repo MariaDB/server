@@ -361,7 +361,8 @@ row_ins_clust_index_entry_by_modify(
 		cursor->index, entry, rec, NULL, true,
 		thr_get_trx(thr), heap, mysql_table);
 	if (mode != BTR_MODIFY_TREE) {
-		ut_ad((mode & ~BTR_ALREADY_S_LATCHED) == BTR_MODIFY_LEAF);
+		ut_ad((mode & ulint(~BTR_ALREADY_S_LATCHED))
+		      == BTR_MODIFY_LEAF);
 
 		/* Try optimistic updating of the record, keeping changes
 		within the page */
@@ -916,8 +917,7 @@ row_ins_invalidate_query_cache(
 	const char*	name)		/*!< in: table name prefixed with
 					database name and a '/' character */
 {
-	ulint	len = strlen(name) + 1;
-	innobase_invalidate_query_cache(thr_get_trx(thr), name, len);
+	innobase_invalidate_query_cache(thr_get_trx(thr), name);
 }
 
 
@@ -2640,7 +2640,7 @@ row_ins_clust_index_entry_low(
 	}
 #endif /* UNIV_DEBUG */
 
-	if (UNIV_UNLIKELY(entry->info_bits)) {
+	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
 		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		ut_ad(index->is_instant());
@@ -2741,7 +2741,7 @@ do_insert:
 		rec_t*	insert_rec;
 
 		if (mode != BTR_MODIFY_TREE) {
-			ut_ad((mode & ~BTR_ALREADY_S_LATCHED)
+			ut_ad((mode & ulint(~BTR_ALREADY_S_LATCHED))
 			      == BTR_MODIFY_LEAF);
 			err = btr_cur_optimistic_insert(
 				flags, cursor, &offsets, &offsets_heap,
@@ -3134,7 +3134,7 @@ row_ins_sec_index_entry_low(
 
 		if (err == DB_SUCCESS && dict_index_is_spatial(index)
 		    && rtr_info.mbr_adj) {
-			err = rtr_ins_enlarge_mbr(&cursor, thr, &mtr);
+			err = rtr_ins_enlarge_mbr(&cursor, &mtr);
 		}
 	} else {
 		rec_t*		insert_rec;
@@ -3148,7 +3148,7 @@ row_ins_sec_index_entry_low(
 			if (err == DB_SUCCESS
 			    && dict_index_is_spatial(index)
 			    && rtr_info.mbr_adj) {
-				err = rtr_ins_enlarge_mbr(&cursor, thr, &mtr);
+				err = rtr_ins_enlarge_mbr(&cursor, &mtr);
 			}
 		} else {
 			ut_ad(mode == BTR_MODIFY_TREE);
@@ -3173,7 +3173,7 @@ row_ins_sec_index_entry_low(
 			if (err == DB_SUCCESS
 				   && dict_index_is_spatial(index)
 				   && rtr_info.mbr_adj) {
-				err = rtr_ins_enlarge_mbr(&cursor, thr, &mtr);
+				err = rtr_ins_enlarge_mbr(&cursor, &mtr);
 			}
 		}
 
@@ -3793,8 +3793,7 @@ row_ins(
 			node->index = NULL; node->entry = NULL; break;);
 
 		/* Skip corrupted secondary index and its entry */
-		while (node->index && dict_index_is_corrupted(node->index)) {
-
+		while (node->index && node->index->is_corrupted()) {
 			node->index = dict_table_get_next_index(node->index);
 			node->entry = UT_LIST_GET_NEXT(tuple_list, node->entry);
 		}

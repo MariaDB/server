@@ -78,13 +78,6 @@ savepoint. */
 				(m)->memo_release((o), (t))
 
 #ifdef UNIV_DEBUG
-
-/** Check if memo contains the given item. */
-#define mtr_is_block_fix(m, o, t, table) mtr_memo_contains(m, o, t)
-
-/** Check if memo contains the given page. */
-#define mtr_is_page_fix(m, p, t, table) mtr_memo_contains_page(m, p, t)
-
 /** Check if memo contains the given item.
 @return	TRUE if contains */
 #define mtr_memo_contains(m, o, t)					\
@@ -213,9 +206,8 @@ struct mtr_t {
 	~mtr_t() { }
 
 	/** Start a mini-transaction.
-	@param sync		true if it is a synchronous mini-transaction
-	@param read_only	true if read only mini-transaction */
-	void start(bool sync = true, bool read_only = false);
+	@param sync		true if it is a synchronous mini-transaction */
+	void start(bool sync = true);
 
 	/** @return whether this is an asynchronous mini-transaction. */
 	bool is_async() const
@@ -321,9 +313,9 @@ struct mtr_t {
 	@param[in]	space	user or system tablespace */
 	void set_named_space(fil_space_t* space)
 	{
-		ut_ad(m_impl.m_user_space_id == TRX_SYS_SPACE);
+		ut_ad(!m_impl.m_user_space_id);
 		ut_d(m_impl.m_user_space_id = space->id);
-		if (space->id != TRX_SYS_SPACE) {
+		if (space->id) {
 			m_impl.m_user_space = space;
 		}
 	}

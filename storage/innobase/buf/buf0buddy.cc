@@ -73,10 +73,6 @@ list. This value is stamped at BUF_BUDDY_STAMP_OFFSET offset */
 value by the consumer of the block */
 #define BUF_BUDDY_STAMP_NONFREE	0XFFFFFFFFUL
 
-#if BUF_BUDDY_STAMP_FREE >= BUF_BUDDY_STAMP_NONFREE
-# error "BUF_BUDDY_STAMP_FREE >= BUF_BUDDY_STAMP_NONFREE"
-#endif
-
 /** Return type of buf_buddy_is_free() */
 enum buf_buddy_state_t {
 	BUF_BUDDY_STATE_FREE,	/*!< If the buddy to completely free */
@@ -114,6 +110,7 @@ buf_buddy_stamp_is_free(
 /*====================*/
 	const buf_buddy_free_t*	buf)	/*!< in: block to check */
 {
+	compile_time_assert(BUF_BUDDY_STAMP_FREE < BUF_BUDDY_STAMP_NONFREE);
 	return(mach_read_from_4(buf->stamp.bytes + BUF_BUDDY_STAMP_OFFSET)
 	       == BUF_BUDDY_STAMP_FREE);
 }
@@ -138,13 +135,12 @@ buf_buddy_stamp_free(
 Stamps a buddy nonfree.
 @param[in,out]	buf	block to stamp
 @param[in]	i	block size */
-#define buf_buddy_stamp_nonfree(buf, i) do {				\
-	buf_buddy_mem_invalid(buf, i);					\
-	memset(buf->stamp.bytes + BUF_BUDDY_STAMP_OFFSET, 0xff, 4);	\
-} while (0)
-#if BUF_BUDDY_STAMP_NONFREE != 0xffffffff
-# error "BUF_BUDDY_STAMP_NONFREE != 0xffffffff"
-#endif
+static inline void buf_buddy_stamp_nonfree(buf_buddy_free_t* buf, ulint i)
+{
+	buf_buddy_mem_invalid(buf, i);
+	compile_time_assert(BUF_BUDDY_STAMP_NONFREE == 0xffffffffU);
+	memset(buf->stamp.bytes + BUF_BUDDY_STAMP_OFFSET, 0xff, 4);
+}
 
 /**********************************************************************//**
 Get the offset of the buddy of a compressed page frame.
@@ -160,7 +156,7 @@ buf_buddy_get(
 	ut_ad(size >= BUF_BUDDY_LOW);
 	ut_ad(BUF_BUDDY_LOW <= UNIV_ZIP_SIZE_MIN);
 	ut_ad(size < BUF_BUDDY_HIGH);
-	ut_ad(BUF_BUDDY_HIGH == UNIV_PAGE_SIZE);
+	ut_ad(BUF_BUDDY_HIGH == srv_page_size);
 	ut_ad(!ut_align_offset(page, size));
 
 	if (((ulint) page) & size) {
@@ -376,7 +372,7 @@ buf_buddy_alloc_zip(
 }
 
 /**********************************************************************//**
-Deallocate a buffer frame of UNIV_PAGE_SIZE. */
+Deallocate a buffer frame of srv_page_size. */
 static
 void
 buf_buddy_block_free(
@@ -390,7 +386,7 @@ buf_buddy_block_free(
 
 	ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(!mutex_own(&buf_pool->zip_mutex));
-	ut_a(!ut_align_offset(buf, UNIV_PAGE_SIZE));
+	ut_a(!ut_align_offset(buf, srv_page_size));
 
 	HASH_SEARCH(hash, buf_pool->zip_hash, fold, buf_page_t*, bpage,
 		    ut_ad(buf_page_get_state(bpage) == BUF_BLOCK_MEMORY
@@ -403,8 +399,8 @@ buf_buddy_block_free(
 	ut_d(bpage->in_zip_hash = FALSE);
 	HASH_DELETE(buf_page_t, hash, buf_pool->zip_hash, fold, bpage);
 
-	ut_d(memset(buf, 0, UNIV_PAGE_SIZE));
-	UNIV_MEM_INVALID(buf, UNIV_PAGE_SIZE);
+	ut_d(memset(buf, 0, srv_page_size));
+	UNIV_MEM_INVALID(buf, srv_page_size);
 
 	block = (buf_block_t*) bpage;
 	buf_page_mutex_enter(block);
@@ -432,7 +428,7 @@ buf_buddy_block_register(
 	buf_block_set_state(block, BUF_BLOCK_MEMORY);
 
 	ut_a(block->frame);
-	ut_a(!ut_align_offset(block->frame, UNIV_PAGE_SIZE));
+	ut_a(!ut_align_offset(block->frame, srv_page_size));
 
 	ut_ad(!block->page.in_page_hash);
 	ut_ad(!block->page.in_zip_hash);
@@ -489,8 +485,8 @@ buf_buddy_alloc_low(
 	buf_pool_t*	buf_pool,	/*!< in/out: buffer pool instance */
 	ulint		i,		/*!< in: index of buf_pool->zip_free[],
 					or BUF_BUDDY_SIZES */
-	ibool*		lru)		/*!< in: pointer to a variable that
-					will be assigned TRUE if storage was
+	bool*		lru)		/*!< in: pointer to a variable that
+					will be assigned true if storage was
 					allocated from the LRU list and
 					buf_pool->mutex was temporarily
 					released */
@@ -522,7 +518,7 @@ buf_buddy_alloc_low(
 	/* Try replacing an uncompressed page in the buffer pool. */
 	buf_pool_mutex_exit(buf_pool);
 	block = buf_LRU_get_free_block(buf_pool);
-	*lru = TRUE;
+	*lru = true;
 	buf_pool_mutex_enter(buf_pool);
 
 alloc_big:
@@ -765,7 +761,7 @@ func_exit:
 @param[in]	buf_pool	buffer pool instance
 @param[in]	buf		block to be reallocated, must be pointed
 to by the buffer pool
-@param[in]	size		block size, up to UNIV_PAGE_SIZE
+@param[in]	size		block size, up to srv_page_size
 @retval false	if failed because of no free blocks. */
 bool
 buf_buddy_realloc(

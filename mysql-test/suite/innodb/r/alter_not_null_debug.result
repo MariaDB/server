@@ -1,0 +1,68 @@
+CREATE TABLE t1(c1 INT NOT NULL, c2 INT, PRIMARY KEY(c1))ENGINE=INNODB;
+INSERT INTO t1 VALUES(1, NULL);
+SET DEBUG_SYNC= 'row_merge_after_scan
+SIGNAL opened WAIT_FOR flushed';
+ALTER TABLE t1 CHANGE c2 c2 INT NOT NULL DEFAULT 2, ALGORITHM=INPLACE;
+connect  con1,localhost,root;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+INSERT INTO t1 VALUES(2, NULL);
+SET DEBUG_SYNC= 'now SIGNAL flushed';
+connection default;
+ERROR 22004: Invalid use of NULL value
+SELECT * FROM t1;
+c1	c2
+1	NULL
+2	NULL
+UPDATE t1 SET c2 = 0 WHERE c1 = 2;
+SET DEBUG_SYNC= 'row_merge_after_scan
+SIGNAL opened WAIT_FOR flushed';
+# Alter ignore can convert the NULL values from
+# CONCURRENT DML to constants
+ALTER IGNORE TABLE t1 CHANGE c2 c2 INT NOT NULL DEFAULT 2, ALGORITHM=INPLACE;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+UPDATE t1 SET c2 = NULL WHERE c1 = 2;
+INSERT INTO t1 VALUES (3, NULL);
+SET DEBUG_SYNC= 'now SIGNAL flushed';
+connection default;
+SELECT * FROM t1;
+c1	c2
+1	2
+2	2
+3	2
+DROP TABLE t1;
+CREATE TABLE t1(c1 INT NOT NULL, c2 INT, c3 INT, PRIMARY KEY(c1))ENGINE=INNODB;
+INSERT INTO t1 VALUES(1, NULL, NULL);
+SET DEBUG_SYNC= 'row_merge_after_scan
+SIGNAL opened WAIT_FOR flushed';
+# Alter Successfully converts from null to not null
+ALTER TABLE t1 CHANGE c2 c2 INT NOT NULL DEFAULT 2, ALGORITHM=INPLACE;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+UPDATE t1 SET c2= 2 WHERE c1 = 1;
+INSERT INTO t1 VALUES (2, 3, 4);
+SET DEBUG_SYNC= 'now SIGNAL flushed';
+connection default;
+SELECT * FROM t1;
+c1	c2	c3
+1	2	NULL
+2	3	4
+SET DEBUG_SYNC= 'row_merge_after_scan
+SIGNAL opened WAIT_FOR flushed';
+# Alter fails because concurrent dml inserts null value
+ALTER TABLE t1 CHANGE c3 c3 INT NOT NULL DEFAULT 2, ALGORITHM=INPLACE;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+UPDATE t1 SET c3= 2 WHERE c1 = 2;
+INSERT INTO t1 VALUES (4, 3, NULL);
+SET DEBUG_SYNC= 'now SIGNAL flushed';
+connection default;
+ERROR 22004: Invalid use of NULL value
+SELECT * FROM t1;
+c1	c2	c3
+1	2	NULL
+2	3	2
+4	3	NULL
+DROP TABLE t1;
+disconnect con1;
+SET DEBUG_SYNC='RESET';

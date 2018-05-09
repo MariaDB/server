@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2016, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -232,7 +232,7 @@ dict_stats_process_entry_from_defrag_pool()
 		? dict_table_find_index_on_id(table, index_id)
 		: NULL;
 
-	if (!index || dict_index_is_corrupted(index)) {
+	if (!index || index->is_corrupted()) {
 		if (table) {
 			dict_table_close(table, TRUE, FALSE);
 		}

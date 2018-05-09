@@ -304,7 +304,7 @@ rtr_pcur_getnext_from_path(
 					rtr_info->thr);
 			}
 			new_split = true;
-#if UNIV_GIS_DEBUG
+#if defined(UNIV_GIS_DEBUG)
 			fprintf(stderr,
 				"GIS_DIAG: Splitted page found: %d, %ld\n",
 				static_cast<int>(need_parent), next_page_no);
@@ -407,8 +407,7 @@ rtr_pcur_getnext_from_path(
 			}
 
 			lock_prdt_lock(block, &prdt, index, LOCK_S,
-				       LOCK_PREDICATE, btr_cur->rtr_info->thr,
-				       mtr);
+				       LOCK_PREDICATE, btr_cur->rtr_info->thr);
 
 			if (rw_latch == RW_NO_LATCH) {
 				rw_lock_s_unlock(&(block->lock));
@@ -729,7 +728,7 @@ rtr_page_get_father_node_ptr(
 	rtr_get_mbr_from_rec(user_rec, offsets, &mbr);
 
 	tuple = rtr_index_build_node_ptr(
-			index, &mbr, user_rec, page_no, heap, level);
+		index, &mbr, user_rec, page_no, heap);
 
 	if (sea_cur && !sea_cur->rtr_info) {
 		sea_cur = NULL;
@@ -1454,7 +1453,7 @@ rtr_leaf_push_match_rec(
 	data_len = rec_offs_data_size(offsets) + rec_offs_extra_size(offsets);
 	match_rec->used += data_len;
 
-	ut_ad(match_rec->used < UNIV_PAGE_SIZE);
+	ut_ad(match_rec->used < srv_page_size);
 }
 
 /**************************************************************//**

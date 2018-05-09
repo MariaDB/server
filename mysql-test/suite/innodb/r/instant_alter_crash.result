@@ -101,4 +101,5 @@ t2	CREATE TABLE `t2` (
   UNIQUE KEY `c2` (`c2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
 DROP TABLE t1,t2;
+db.opt
 SET GLOBAL innodb_purge_rseg_truncate_frequency=@saved_frequency;

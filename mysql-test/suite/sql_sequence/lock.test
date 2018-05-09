@@ -38,3 +38,16 @@ SELECT NEXTVAL(s);
 DROP SEQUENCE s1;
 unlock tables;
 DROP SEQUENCE s1;
+
+
+#
+# MDEV-15106 Unexpected ER_WRONG_INSERT_INTO_SEQUENCE upon INSERT with
+# multiple locks on sequences
+#
+
+CREATE SEQUENCE seq1;
+CREATE SEQUENCE seq2;
+LOCK TABLE seq1 WRITE, seq2 WRITE;
+INSERT INTO seq1 VALUES (1, 1, 100000, 1, 1, 100, 1, 1);
+DROP SEQUENCE seq1, seq2;
+
