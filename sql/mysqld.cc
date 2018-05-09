@@ -2594,10 +2594,6 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
                     socket_errno);
     unireg_abort(1);
   }
-#if defined(WITH_WSREP) && defined(HAVE_FCNTL) && defined(FD_CLOEXEC)
-    (void) fcntl(mysql_socket_getfd(ip_sock), F_SETFD, FD_CLOEXEC);
-#endif /* WITH_WSREP */
-
   DBUG_RETURN(ip_sock);
 }
 
@@ -2715,9 +2711,6 @@ static void network_init(void)
     if (mysql_socket_listen(unix_sock,(int) back_log) < 0)
       sql_print_warning("listen() on Unix socket failed with error %d",
 		      socket_errno);
-#if defined(WITH_WSREP) && defined(HAVE_FCNTL)
-    (void) fcntl(mysql_socket_getfd(unix_sock), F_SETFD, FD_CLOEXEC);
-#endif /* WITH_WSREP */
   }
 #endif
   DBUG_PRINT("info",("server started"));
