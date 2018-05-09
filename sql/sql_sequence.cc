@@ -459,7 +459,10 @@ int SEQUENCE::read_initial_values(TABLE *table)
       mdl_requests.push_front(&mdl_request);
       if (thd->mdl_context.acquire_locks(&mdl_requests,
                                          thd->variables.lock_wait_timeout))
+      {
+        write_unlock(table);
         DBUG_RETURN(HA_ERR_LOCK_WAIT_TIMEOUT);
+      }
     }
     save_lock_type= table->reginfo.lock_type;
     table->reginfo.lock_type= TL_READ;
@@ -468,6 +471,7 @@ int SEQUENCE::read_initial_values(TABLE *table)
     {
       if (mdl_lock_used)
         thd->mdl_context.release_lock(mdl_request.ticket);
+      write_unlock(table);
       DBUG_RETURN(HA_ERR_LOCK_WAIT_TIMEOUT);
     }
     DBUG_ASSERT(table->reginfo.lock_type == TL_READ);
