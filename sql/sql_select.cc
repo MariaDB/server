@@ -793,11 +793,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
       {
         if (vers_conditions.is_set())
         {
-#define PART_VERS_ERR_MSG "%s PARTITION (%s)"
-          char buf[NAME_LEN*2 + sizeof(PART_VERS_ERR_MSG)];
-          my_snprintf(buf, sizeof(buf), PART_VERS_ERR_MSG, table->alias.str,
-                      table->partition_names->head()->c_ptr());
-          my_error(ER_VERS_NOT_VERSIONED, MYF(0), buf);
+          my_error(ER_VERS_QUERY_IN_PARTITION, MYF(0), table->alias.str);
           DBUG_RETURN(-1);
         }
         else

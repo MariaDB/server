@@ -7055,7 +7055,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     {
       if (f->change.length && f->flags & VERS_SYSTEM_FIELD)
       {
-        my_error(ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN, MYF(0));
+        my_error(ER_VERS_ALTER_SYSTEM_FIELD, MYF(0), f->field_name.str);
         return true;
       }
     }

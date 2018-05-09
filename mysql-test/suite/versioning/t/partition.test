@@ -425,6 +425,11 @@ update t1 set a = 4;
 delete from t1;
 delete from t1 where a is not null;
 
+--echo # MDEV-14823 Wrong error message upon selecting from a system_time partition
+create or replace table t1 (i int) with system versioning partition by system_time limit 10 (partition p0 history, partition pn current);
+--error ER_VERS_QUERY_IN_PARTITION
+select * from t1 partition (p0) for system_time all;
+
 --echo # Test cleanup
 drop database test;
 create database test;
