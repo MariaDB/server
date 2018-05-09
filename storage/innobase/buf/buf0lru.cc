@@ -59,9 +59,6 @@ static const ulint BUF_LRU_OLD_TOLERANCE = 20;
 (that is, when there are more than BUF_LRU_OLD_MIN_LEN blocks).
 @see buf_LRU_old_adjust_len */
 #define BUF_LRU_NON_OLD_MIN_LEN	5
-#if BUF_LRU_NON_OLD_MIN_LEN >= BUF_LRU_OLD_MIN_LEN
-# error "BUF_LRU_NON_OLD_MIN_LEN >= BUF_LRU_OLD_MIN_LEN"
-#endif
 
 /** When dropping the search hash index entries before deleting an ibd
 file, we build a local array of pages belonging to that tablespace
@@ -951,7 +948,7 @@ buf_LRU_get_free_only(
 			assert_block_ahi_empty(block);
 
 			buf_block_set_state(block, BUF_BLOCK_READY_FOR_USE);
-			UNIV_MEM_ALLOC(block->frame, UNIV_PAGE_SIZE);
+			UNIV_MEM_ALLOC(block->frame, srv_page_size);
 
 			ut_ad(buf_pool_from_block(block) == buf_pool);
 
@@ -998,7 +995,7 @@ buf_LRU_check_size_of_non_data_objects(
 			" Check that your transactions do not set too many"
 			" row locks, or review if"
 			" innodb_buffer_pool_size="
-			<< (buf_pool->curr_size >> (20 - UNIV_PAGE_SIZE_SHIFT))
+			<< (buf_pool->curr_size >> (20U - srv_page_size_shift))
 			<< "M could be bigger.";
 	} else if (!recv_recovery_is_on()
 		   && buf_pool->curr_size == buf_pool->old_size
@@ -1021,7 +1018,7 @@ buf_LRU_check_size_of_non_data_objects(
 				" set too many row locks."
 				" innodb_buffer_pool_size="
 				<< (buf_pool->curr_size >>
-				    (20 - UNIV_PAGE_SIZE_SHIFT)) << "M."
+				    (20U - srv_page_size_shift)) << "M."
 				" Starting the InnoDB Monitor to print"
 				" diagnostics.";
 
@@ -1208,9 +1205,11 @@ buf_LRU_old_adjust_len(
 	ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(buf_pool->LRU_old_ratio >= BUF_LRU_OLD_RATIO_MIN);
 	ut_ad(buf_pool->LRU_old_ratio <= BUF_LRU_OLD_RATIO_MAX);
-#if BUF_LRU_OLD_RATIO_MIN * BUF_LRU_OLD_MIN_LEN <= BUF_LRU_OLD_RATIO_DIV * (BUF_LRU_OLD_TOLERANCE + 5)
-# error "BUF_LRU_OLD_RATIO_MIN * BUF_LRU_OLD_MIN_LEN <= BUF_LRU_OLD_RATIO_DIV * (BUF_LRU_OLD_TOLERANCE + 5)"
-#endif
+	compile_time_assert(BUF_LRU_OLD_RATIO_MIN * BUF_LRU_OLD_MIN_LEN
+			    > BUF_LRU_OLD_RATIO_DIV
+			    * (BUF_LRU_OLD_TOLERANCE + 5));
+	compile_time_assert(BUF_LRU_NON_OLD_MIN_LEN < BUF_LRU_OLD_MIN_LEN);
+
 #ifdef UNIV_LRU_DEBUG
 	/* buf_pool->LRU_old must be the first item in the LRU list
 	whose "old" flag is set. */
@@ -1758,10 +1757,10 @@ func_exit:
 	order to avoid bogus Valgrind warnings.*/
 
 	UNIV_MEM_VALID(((buf_block_t*) bpage)->frame,
-		       UNIV_PAGE_SIZE);
+		       srv_page_size);
 	btr_search_drop_page_hash_index((buf_block_t*) bpage);
 	UNIV_MEM_INVALID(((buf_block_t*) bpage)->frame,
-			 UNIV_PAGE_SIZE);
+			 srv_page_size);
 
 	if (b != NULL) {
 
@@ -1827,10 +1826,10 @@ buf_LRU_block_free_non_file_page(
 
 	buf_block_set_state(block, BUF_BLOCK_NOT_USED);
 
-	UNIV_MEM_ALLOC(block->frame, UNIV_PAGE_SIZE);
+	UNIV_MEM_ALLOC(block->frame, srv_page_size);
 #ifdef UNIV_DEBUG
 	/* Wipe contents of page to reveal possible stale pointers to it */
-	memset(block->frame, '\0', UNIV_PAGE_SIZE);
+	memset(block->frame, '\0', srv_page_size);
 #else
 	/* Wipe page_no and space_id */
 	memset(block->frame + FIL_PAGE_OFFSET, 0xfe, 4);
@@ -1871,7 +1870,7 @@ buf_LRU_block_free_non_file_page(
 		ut_d(block->page.in_free_list = TRUE);
 	}
 
-	UNIV_MEM_FREE(block->frame, UNIV_PAGE_SIZE);
+	UNIV_MEM_FREE(block->frame, srv_page_size);
 }
 
 /******************************************************************//**
@@ -1920,7 +1919,7 @@ buf_LRU_block_remove_hashed(
 	case BUF_BLOCK_FILE_PAGE:
 		UNIV_MEM_ASSERT_W(bpage, sizeof(buf_block_t));
 		UNIV_MEM_ASSERT_W(((buf_block_t*) bpage)->frame,
-				  UNIV_PAGE_SIZE);
+				  srv_page_size);
 		buf_block_modify_clock_inc((buf_block_t*) bpage);
 		if (bpage->zip.data) {
 			const page_t*	page = ((buf_block_t*) bpage)->frame;
@@ -1949,11 +1948,11 @@ buf_LRU_block_remove_hashed(
 				break;
 			case FIL_PAGE_INDEX:
 			case FIL_PAGE_RTREE:
-#ifdef UNIV_ZIP_DEBUG
+#if defined UNIV_ZIP_DEBUG && defined BTR_CUR_HASH_ADAPT
 				ut_a(page_zip_validate(
 					     &bpage->zip, page,
 					     ((buf_block_t*) bpage)->index));
-#endif /* UNIV_ZIP_DEBUG */
+#endif /* UNIV_ZIP_DEBUG && BTR_CUR_HASH_ADAPT */
 				break;
 			default:
 				ib::error() << "The compressed page to be"
@@ -2069,7 +2068,7 @@ buf_LRU_block_remove_hashed(
 		memset(((buf_block_t*) bpage)->frame
 		       + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
 		UNIV_MEM_INVALID(((buf_block_t*) bpage)->frame,
-				 UNIV_PAGE_SIZE);
+				 srv_page_size);
 		buf_page_set_state(bpage, BUF_BLOCK_REMOVE_HASH);
 
 		/* Question: If we release bpage and hash mutex here

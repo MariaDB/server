@@ -67,7 +67,7 @@ struct READ_RECORD
   uchar	*cache,*cache_pos,*cache_end,*read_positions;
   struct st_sort_addon_field *addon_field;     /* Pointer to the fields info */
   struct st_io_cache *io_cache;
-  bool print_error, ignore_not_found_rows;
+  bool print_error;
   void    (*unpack)(struct st_sort_addon_field *, uchar *, uchar *);
 
   int read_record() { return read_record_func(this); }

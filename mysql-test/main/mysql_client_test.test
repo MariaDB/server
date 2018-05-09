@@ -29,5 +29,12 @@ echo ok;
 --echo # ------------------------------------
 --echo
 
+--echo
+--echo # cat MYSQL_TMP_DIR/test_explain_meta.out.log
+--echo # ------------------------------------
+--cat_file $MYSQL_TMP_DIR/test_explain_meta.out.log
+--echo # ------------------------------------
+--echo
+
 SET @@global.general_log= @old_general_log;
 SET @@global.slow_query_log= @old_slow_query_log;

@@ -469,7 +469,6 @@ byte*
 fil_parse_write_crypt_data(
 	byte*			ptr,
 	const byte*		end_ptr,
-	const buf_block_t*	block,
 	dberr_t*		err)
 {
 	/* check that redo log entry is complete */
@@ -665,7 +664,7 @@ fil_space_encrypt(
 #ifdef UNIV_DEBUG
 	if (tmp) {
 		/* Verify that encrypted buffer is not corrupted */
-		byte* tmp_mem = (byte *)malloc(UNIV_PAGE_SIZE);
+		byte* tmp_mem = (byte *)malloc(srv_page_size);
 		dberr_t err = DB_SUCCESS;
 		byte* src = src_frame;
 		bool page_compressed_encrypted = (mach_read_from_2(tmp+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
@@ -673,9 +672,9 @@ fil_space_encrypt(
 		byte* uncomp_mem = NULL;
 
 		if (page_compressed_encrypted) {
-			comp_mem = (byte *)malloc(UNIV_PAGE_SIZE);
-			uncomp_mem = (byte *)malloc(UNIV_PAGE_SIZE);
-			memcpy(comp_mem, src_frame, UNIV_PAGE_SIZE);
+			comp_mem = (byte *)malloc(srv_page_size);
+			uncomp_mem = (byte *)malloc(srv_page_size);
+			memcpy(comp_mem, src_frame, srv_page_size);
 			fil_decompress_page(uncomp_mem, comp_mem,
 					    srv_page_size, NULL);
 			src = uncomp_mem;
@@ -686,7 +685,7 @@ fil_space_encrypt(
 
 		/* Need to decompress the page if it was also compressed */
 		if (page_compressed_encrypted) {
-			memcpy(comp_mem, tmp_mem, UNIV_PAGE_SIZE);
+			memcpy(comp_mem, tmp_mem, srv_page_size);
 			fil_decompress_page(tmp_mem, comp_mem,
 					    srv_page_size, NULL);
 		}
@@ -2051,13 +2050,8 @@ fil_crypt_flush_space(
 
 /***********************************************************************
 Complete rotating a space
-@param[in,out]		key_state		Key state
 @param[in,out]		state			Rotation state */
-static
-void
-fil_crypt_complete_rotate_space(
-	const key_state_t*	key_state,
-	rotate_thread_t*	state)
+static void fil_crypt_complete_rotate_space(rotate_thread_t* state)
 {
 	fil_space_crypt_t *crypt_data = state->space->crypt_data;
 
@@ -2220,8 +2214,7 @@ DECLARE_THREAD(fil_crypt_thread)(
 				/* If space is marked as stopping, release
 				space and stop rotation. */
 				if (thr.space->is_stopping()) {
-					fil_crypt_complete_rotate_space(
-						&new_state, &thr);
+					fil_crypt_complete_rotate_space(&thr);
 					thr.space->release();
 					thr.space = NULL;
 					break;
@@ -2233,7 +2226,7 @@ DECLARE_THREAD(fil_crypt_thread)(
 
 			/* complete rotation */
 			if (thr.space) {
-				fil_crypt_complete_rotate_space(&new_state, &thr);
+				fil_crypt_complete_rotate_space(&thr);
 			}
 
 			/* force key state refresh */
@@ -2649,7 +2642,7 @@ fil_space_verify_crypt_checksum(
 		checksum2 = checksum1;
 	} else {
 		checksum2 = mach_read_from_4(
-			page + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM);
+			page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM);
 		valid = buf_page_is_checksum_valid_crc32(
 			page, checksum1, checksum2, false
 			/* FIXME: also try the original crc32 that was

@@ -104,7 +104,7 @@ extern uint         write_status_frequency;
 extern my_bool      dir_per_db;
 extern char*        version;
 
-#if TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL
+#if defined(TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL)
 extern char*        gdb_path;
 extern my_bool      gdb_on_fatal;
 #endif

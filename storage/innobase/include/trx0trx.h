@@ -355,8 +355,8 @@ trx_state_eq(
 
 /**********************************************************************//**
 Determines if the currently running transaction has been interrupted.
-@return TRUE if interrupted */
-ibool
+@return true if interrupted */
+bool
 trx_is_interrupted(
 /*===============*/
 	const trx_t*	trx);	/*!< in: transaction */
@@ -940,7 +940,7 @@ public:
 					contains a pointer to the latest file
 					name; this is NULL if binlog is not
 					used */
-	int64_t		mysql_log_offset;
+	ulonglong	mysql_log_offset;
 					/*!< if MySQL binlog is used, this
 					field contains the end offset of the
 					binlog entry */
@@ -978,12 +978,6 @@ public:
 			trx_savepoints;	/*!< savepoints set with SAVEPOINT ...,
 					oldest first */
 	/*------------------------------*/
-	UndoMutex	undo_mutex;	/*!< mutex protecting the fields in this
-					section (down to undo_no_arr), EXCEPT
-					last_sql_stat_start, which can be
-					accessed only when we know that there
-					cannot be any activity in the undo
-					logs! */
 	undo_no_t	undo_no;	/*!< next undo log record number to
 					assign; since the undo log is
 					private for a transaction, this
@@ -991,14 +985,10 @@ public:
 					with no gaps; thus it represents
 					the number of modified/inserted
 					rows in a transaction */
-	ulint		undo_rseg_space;
-					/*!< space id where last undo record
-					was written */
 	trx_savept_t	last_sql_stat_start;
 					/*!< undo_no when the last sql statement
 					was started: in case of an error, trx
-					is rolled back down to this undo
-					number; see note at undo_mutex! */
+					is rolled back down to this number */
 	trx_rsegs_t	rsegs;		/* rollback segments for undo logging */
 	undo_no_t	roll_limit;	/*!< least undo number to undo during
 					a partial rollback; 0 otherwise */

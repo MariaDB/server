@@ -477,7 +477,7 @@ row_mysql_store_col_in_innobase_format(
 			case 4:
 				/* space=0x00000020 */
 				/* Trim "half-chars", just in case. */
-				col_len &= ~3;
+				col_len &= ~3U;
 
 				while (col_len >= 4
 				       && ptr[col_len - 4] == 0x00
@@ -490,7 +490,7 @@ row_mysql_store_col_in_innobase_format(
 			case 2:
 				/* space=0x0020 */
 				/* Trim "half-chars", just in case. */
-				col_len &= ~1;
+				col_len &= ~1U;
 
 				while (col_len >= 2 && ptr[col_len - 2] == 0x00
 				       && ptr[col_len - 1] == 0x20) {
@@ -1621,7 +1621,7 @@ row_create_update_node_for_mysql(
 
 	node = upd_node_create(heap);
 
-	node->in_mysql_interface = TRUE;
+	node->in_mysql_interface = true;
 	node->is_delete = NO_DELETE;
 	node->searched_update = FALSE;
 	node->select = NULL;
@@ -2456,10 +2456,8 @@ err_exit:
 
 		if (dict_table_is_file_per_table(table)
 		    && fil_delete_tablespace(table->space->id) != DB_SUCCESS) {
-
-			ib::error() << "Not able to delete tablespace "
-				<< table->space << " of table "
-				<< table->name << "!";
+			ib::error() << "Cannot delete the file of table "
+				<< table->name;
 		}
 		/* fall through */
 
@@ -2581,7 +2579,7 @@ row_create_index_for_mysql(
 		if (index) {
 			ut_ad(!index->is_instant());
 			index->n_core_null_bytes = UT_BITS_IN_BYTES(
-				index->n_nullable);
+				unsigned(index->n_nullable));
 
 			err = dict_create_index_tree_in_mem(index, trx);
 
@@ -3331,16 +3329,15 @@ fil_wait_crypt_bg_threads(
 		if (now >= last + 30) {
 			ib::warn()
 				<< "Waited " << now - start
-				<< " seconds for ref-count on table: "
-				<< table->name << " space: " << table->space;
+				<< " seconds for ref-count on table "
+				<< table->name;
 			last = now;
 		}
 		if (now >= start + 300) {
 			ib::warn()
 				<< "After " << now - start
 				<< " seconds, gave up waiting "
-				<< "for ref-count on table: " << table->name
-				<< " space: " << table->space;
+				<< "for ref-count on table " << table->name;
 			break;
 		}
 	}
@@ -4802,7 +4799,8 @@ row_scan_index_for_mysql(
 		return(DB_SUCCESS);
 	}
 
-	ulint bufsize = ut_max(UNIV_PAGE_SIZE, prebuilt->mysql_row_len);
+	ulint bufsize = std::max<ulint>(srv_page_size,
+					prebuilt->mysql_row_len);
 	buf = static_cast<byte*>(ut_malloc_nokey(bufsize));
 	heap = mem_heap_create(100);
 

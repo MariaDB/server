@@ -529,65 +529,28 @@ ut_stage_alter_t::change_phase(
 
 class ut_stage_alter_t {
 public:
-	explicit
-	ut_stage_alter_t(
-		const dict_index_t*	pk)
-	{
-	}
+	explicit ut_stage_alter_t(const dict_index_t*) {}
 
-	void
-	begin_phase_read_pk(
-		ulint	n_sort_indexes)
-	{
-	}
+	void begin_phase_read_pk(ulint)	{}
 
-	void
-	n_pk_recs_inc()
-	{
-	}
+	void n_pk_recs_inc() {}
 
-	void
-	inc(
-		ulint	inc_val = 1)
-	{
-	}
+	void inc() {}
+	void inc(ulint) {}
 
-	void
-	end_phase_read_pk()
-	{
-	}
+	void end_phase_read_pk() {}
 
-	void
-	begin_phase_sort(
-		double	sort_multi_factor)
-	{
-	}
+	void begin_phase_sort(double) {}
 
-	void
-	begin_phase_insert()
-	{
-	}
+	void begin_phase_insert() {}
 
-	void
-	begin_phase_flush(
-		ulint	n_flush_pages)
-	{
-	}
+	void begin_phase_flush(ulint) {}
 
-	void
-	begin_phase_log_index()
-	{
-	}
+	void begin_phase_log_index() {}
 
-	void
-	begin_phase_log_table()
-	{
-	}
+	void begin_phase_log_table() {}
 
-	void
-	begin_phase_end()
-	{
-	}
+	void begin_phase_end() {}
 };
 
 #endif /* HAVE_PSI_STAGE_INTERFACE */

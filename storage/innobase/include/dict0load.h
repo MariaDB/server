@@ -233,7 +233,6 @@ information
 @return error message, or NULL on success */
 const char*
 dict_process_sys_virtual_rec(
-	mem_heap_t*	heap,
 	const rec_t*	rec,
 	table_id_t*	table_id,
 	ulint*		pos,

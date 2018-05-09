@@ -1,3 +1,5 @@
+create database latin1_german2_ci default character set latin1 collate latin1_german2_ci;
+use latin1_german2_ci;
 set names latin1;
 set @@collation_connection=latin1_german2_ci;
 select @@collation_connection;
@@ -139,7 +141,7 @@ a
 a
 check table t1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	status	OK
+latin1_german2_ci.t1	check	status	OK
 select * from t1 where a like "ö%";
 a	b
 ö	1
@@ -835,3 +837,5 @@ hex(weight_string('xß' as char(2)))
 #
 # End of 5.6 tests
 #
+drop database latin1_german2_ci;
+use test;

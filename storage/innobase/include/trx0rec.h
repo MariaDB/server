@@ -244,7 +244,7 @@ trx_undo_prev_version_build(
 				into this function by purge thread or not.
 				And if we read "after image" of undo log */
 
-/** Parse MLOG_UNDO_INSERT for crash-upgrade from MariaDB 10.2.
+/** Parse MLOG_UNDO_INSERT.
 @param[in]	ptr	log record
 @param[in]	end_ptr	end of log record buffer
 @param[in,out]	page	page or NULL

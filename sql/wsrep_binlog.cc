@@ -425,7 +425,7 @@ void wsrep_dump_rbr_direct(THD* thd, IO_CACHE* cache)
       break;
     }
   } while ((bytes_in_cache= my_b_fill(cache)));
-  if(cache->error == -1)
+  if (cache->error == -1)
   {
     WSREP_ERROR("RBR inconsistent");
     goto cleanup;

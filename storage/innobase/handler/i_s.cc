@@ -87,11 +87,6 @@ in i_s_page_type[] array */
 
 #define I_S_PAGE_TYPE_BITS		4
 
-/* Check if we can hold all page types */
-#if I_S_PAGE_TYPE_LAST >= 1 << I_S_PAGE_TYPE_BITS
-# error i_s_page_type[] is too large
-#endif
-
 /** Name string for File Page Types */
 static buf_page_desc_t	i_s_page_type[] = {
 	{"ALLOCATED", FIL_PAGE_TYPE_ALLOCATED},
@@ -331,7 +326,7 @@ field_store_ulint(
 
 	if (n != ULINT_UNDEFINED) {
 
-		ret = field->store(n, true);
+		ret = field->store(longlong(n), true);
 		field->set_notnull();
 	} else {
 
@@ -4852,6 +4847,8 @@ i_s_innodb_buffer_page_fill(
 	TABLE*			table;
 	Field**			fields;
 
+	compile_time_assert(I_S_PAGE_TYPE_LAST < 1 << I_S_PAGE_TYPE_BITS);
+
 	DBUG_ENTER("i_s_innodb_buffer_page_fill");
 
 	table = tables->table;
@@ -4955,10 +4952,7 @@ i_s_innodb_buffer_page_fill(
 			   page_info->zip_ssize
 			   ? (UNIV_ZIP_SIZE_MIN >> 1) << page_info->zip_ssize
 			   : 0, true));
-
-#if BUF_PAGE_STATE_BITS > 3
-# error "BUF_PAGE_STATE_BITS > 3, please ensure that all 1<<BUF_PAGE_STATE_BITS values are checked for"
-#endif
+		compile_time_assert(BUF_PAGE_STATE_BITS == 3);
 		state = static_cast<enum buf_page_state>(page_info->page_state);
 
 		switch (state) {
@@ -5916,12 +5910,8 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_buffer_page_lru =
 
 /*******************************************************************//**
 Unbind a dynamic INFORMATION_SCHEMA table.
-@return 0 on success */
-static
-int
-i_s_common_deinit(
-/*==============*/
-	void*	p)	/*!< in/out: table schema object */
+@return 0 */
+static int i_s_common_deinit(void*)
 {
 	DBUG_ENTER("i_s_common_deinit");
 
@@ -7119,7 +7109,6 @@ i_s_sys_virtual_fill_table(
 	const rec_t*	rec;
 	ulint		pos;
 	ulint		base_pos;
-	mem_heap_t*	heap;
 	mtr_t		mtr;
 
 	DBUG_ENTER("i_s_sys_virtual_fill_table");
@@ -7130,7 +7119,6 @@ i_s_sys_virtual_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	heap = mem_heap_create(1000);
 	mutex_enter(&dict_sys->mutex);
 	mtr_start(&mtr);
 
@@ -7142,7 +7130,7 @@ i_s_sys_virtual_fill_table(
 
 		/* populate a dict_col_t structure with information from
 		a SYS_VIRTUAL row */
-		err_msg = dict_process_sys_virtual_rec(heap, rec,
+		err_msg = dict_process_sys_virtual_rec(rec,
 						       &table_id, &pos,
 						       &base_pos);
 
@@ -7158,8 +7146,6 @@ i_s_sys_virtual_fill_table(
 					    err_msg);
 		}
 
-		mem_heap_empty(heap);
-
 		/* Get the next record */
 		mutex_enter(&dict_sys->mutex);
 		mtr_start(&mtr);
@@ -7168,7 +7154,6 @@ i_s_sys_virtual_fill_table(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys->mutex);
-	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
 }

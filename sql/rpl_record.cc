@@ -196,6 +196,7 @@ unpack_row(rpl_group_info *rgi,
            uchar const **const current_row_end, ulong *const master_reclength,
            uchar const *const row_end)
 {
+  int error;
   DBUG_ENTER("unpack_row");
   DBUG_ASSERT(row_data);
   DBUG_ASSERT(table);
@@ -419,7 +420,7 @@ unpack_row(rpl_group_info *rgi,
   /*
     Add Extra slave persistent columns
   */
-  if (int error= fill_extra_persistent_columns(table, cols->n_bits))
+  if (unlikely(error= fill_extra_persistent_columns(table, cols->n_bits)))
     DBUG_RETURN(error);
 
   /*

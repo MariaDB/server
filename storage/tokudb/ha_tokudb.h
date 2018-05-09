@@ -941,7 +941,7 @@ public:
 
  public:
 #endif
-#if TOKU_INCLUDE_ALTER_55
+#if defined(TOKU_INCLUDE_ALTER_55)
 public:
     // Returns true of the 5.6 inplace alter table interface is used.
     bool try_hot_alter_table();
@@ -1037,7 +1037,7 @@ private:
 #if TOKU_INCLUDE_WRITE_FRM_DATA
     int write_frm_data(const uchar *frm_data, size_t frm_len);
 #endif
-#if TOKU_INCLUDE_UPSERT
+#if defined(TOKU_INCLUDE_UPSERT)
 private:
     int fast_update(THD *thd, List<Item> &update_fields, List<Item> &update_values, Item *conds);
     bool check_fast_update(THD *thd, List<Item> &update_fields, List<Item> &update_values, Item *conds);

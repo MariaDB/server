@@ -404,7 +404,7 @@ public:
 	Called for every page in the tablespace. If the page was not
 	updated then its state must be set to BUF_PAGE_NOT_USED. For
 	compressed tables the page descriptor memory will be at offset:
-		block->frame + UNIV_PAGE_SIZE;
+		block->frame + srv_page_size;
 	@param offset - physical offset within the file
 	@param block - block read from file, note it is not from the buffer pool
 	@retval DB_SUCCESS or error code. */
@@ -573,7 +573,7 @@ AbstractCallback::init(
 
 		ib::error() << "Page size " << m_page_size.physical()
 			<< " of ibd file is not the same as the server page"
-			" size " << univ_page_size.physical();
+			" size " << srv_page_size;
 
 		return(DB_CORRUPTION);
 
@@ -886,17 +886,14 @@ private:
 
 	/** Purge delete-marked records, only if it is possible to do
 	so without re-organising the B+tree.
-	@param offsets current row offsets.
 	@retval true if purged */
-	bool	purge(const ulint* offsets) UNIV_NOTHROW;
+	bool purge() UNIV_NOTHROW;
 
 	/** Adjust the BLOB references and sys fields for the current record.
-	@param index the index being converted
 	@param rec record to update
 	@param offsets column offsets for the record
 	@return DB_SUCCESS or error code. */
 	dberr_t	adjust_cluster_record(
-		const dict_index_t*	index,
 		rec_t*			rec,
 		const ulint*		offsets) UNIV_NOTHROW;
 
@@ -1560,7 +1557,7 @@ PageConverter::adjust_cluster_index_blob_column(
 		return(DB_CORRUPTION);
 	}
 
-	field += BTR_EXTERN_SPACE_ID - BTR_EXTERN_FIELD_REF_SIZE + len;
+	field += len - (BTR_EXTERN_FIELD_REF_SIZE - BTR_EXTERN_SPACE_ID);
 
 	mach_write_to_4(field, get_space_id());
 
@@ -1631,11 +1628,8 @@ PageConverter::adjust_cluster_index_blob_ref(
 
 /** Purge delete-marked records, only if it is possible to do so without
 re-organising the B+tree.
-@param offsets current row offsets.
 @return true if purge succeeded */
-inline
-bool
-PageConverter::purge(const ulint* offsets) UNIV_NOTHROW
+inline bool PageConverter::purge() UNIV_NOTHROW
 {
 	const dict_index_t*	index = m_index->m_srv_index;
 
@@ -1659,7 +1653,6 @@ PageConverter::purge(const ulint* offsets) UNIV_NOTHROW
 inline
 dberr_t
 PageConverter::adjust_cluster_record(
-	const dict_index_t*	index,
 	rec_t*			rec,
 	const ulint*		offsets) UNIV_NOTHROW
 {
@@ -1726,8 +1719,7 @@ PageConverter::update_records(
 
 		if (clust_index) {
 
-			dberr_t err = adjust_cluster_record(
-				m_index->m_srv_index, rec, m_offsets);
+			dberr_t err = adjust_cluster_record(rec, m_offsets);
 
 			if (err != DB_SUCCESS) {
 				return(err);
@@ -1741,7 +1733,7 @@ PageConverter::update_records(
 			/* A successful purge will move the cursor to the
 			next record. */
 
-			if (!purge(m_offsets)) {
+			if (!purge()) {
 				m_rec_iter.next();
 			}
 
@@ -2108,8 +2100,6 @@ static	MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_import_adjust_root_pages_of_secondary_indexes(
 /*==============================================*/
-	row_prebuilt_t*		prebuilt,	/*!< in/out: prebuilt from
-						handler */
 	trx_t*			trx,		/*!< in: transaction used for
 						the import */
 	dict_table_t*		table,		/*!< in: table the indexes
@@ -2367,8 +2357,7 @@ row_import_cfg_read_index_fields(
 /*=============================*/
 	FILE*			file,	/*!< in: file to write to */
 	THD*			thd,	/*!< in/out: session */
-	row_index_t*		index,	/*!< Index being read in */
-	row_import*		cfg)	/*!< in/out: meta-data read */
+	row_index_t*		index)	/*!< Index being read in */
 {
 	byte			row[sizeof(ib_uint32_t) * 3];
 	ulint			n_fields = index->m_n_fields;
@@ -2588,8 +2577,7 @@ row_import_read_index_data(
 			return(err);
 		}
 
-		err = row_import_cfg_read_index_fields(
-			file, thd, cfg_index, cfg);
+		err = row_import_cfg_read_index_fields(file, thd, cfg_index);
 
 		if (err != DB_SUCCESS) {
 			return(err);
@@ -2919,14 +2907,14 @@ row_import_read_v1(
 	const ulint	logical_page_size = mach_read_from_4(ptr);
 	ptr += sizeof(ib_uint32_t);
 
-	if (logical_page_size != univ_page_size.logical()) {
+	if (logical_page_size != srv_page_size) {
 
 		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
 			"Tablespace to be imported has a different"
 			" page size than this server. Server page size"
-			" is " ULINTPF ", whereas tablespace page size"
+			" is %lu, whereas tablespace page size"
 			" is " ULINTPF,
-			univ_page_size.logical(),
+			srv_page_size,
 			logical_page_size);
 
 		return(DB_ERROR);
@@ -2965,7 +2953,6 @@ static	MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_import_read_meta_data(
 /*======================*/
-	dict_table_t*	table,		/*!< in: table */
 	FILE*		file,		/*!< in: File to read from */
 	THD*		thd,		/*!< in: session */
 	row_import&	cfg)		/*!< out: contents of the .cfg file */
@@ -3039,7 +3026,7 @@ row_import_read_cfg(
 
 		cfg.m_missing = false;
 
-		err = row_import_read_meta_data(table, file, thd, cfg);
+		err = row_import_read_meta_data(file, thd, cfg);
 		fclose(file);
 	}
 
@@ -3598,8 +3585,8 @@ fil_tablespace_iterate(
 	We allocate an extra page in case it is a compressed table. One
 	page is to ensure alignement. */
 
-	void*	page_ptr = ut_malloc_nokey(3 * UNIV_PAGE_SIZE);
-	byte*	page = static_cast<byte*>(ut_align(page_ptr, UNIV_PAGE_SIZE));
+	void*	page_ptr = ut_malloc_nokey(3U << srv_page_size_shift);
+	byte*	page = static_cast<byte*>(ut_align(page_ptr, srv_page_size));
 
 	buf_block_t* block = reinterpret_cast<buf_block_t*>
 		(ut_zalloc_nokey(sizeof *block));
@@ -3615,7 +3602,7 @@ fil_tablespace_iterate(
 	request.disable_partial_io_warnings();
 
 	err = os_file_read_no_error_handling(request, file, page, 0,
-					     UNIV_PAGE_SIZE, 0);
+					     srv_page_size, 0);
 
 	if (err == DB_SUCCESS) {
 		err = callback.init(file_size, block);
@@ -3655,23 +3642,24 @@ fil_tablespace_iterate(
 
 		/* Add an extra page for compressed page scratch area. */
 		void*	io_buffer = ut_malloc_nokey(
-			(2 + iter.n_io_buffers) * UNIV_PAGE_SIZE);
+			(2 + iter.n_io_buffers) << srv_page_size_shift);
 
 		iter.io_buffer = static_cast<byte*>(
-			ut_align(io_buffer, UNIV_PAGE_SIZE));
+			ut_align(io_buffer, srv_page_size));
 
 		void* crypt_io_buffer = NULL;
 		if (iter.crypt_data) {
 			crypt_io_buffer = ut_malloc_nokey(
-				(2 + iter.n_io_buffers) * UNIV_PAGE_SIZE);
+				(2 + iter.n_io_buffers)
+				<< srv_page_size_shift);
 			iter.crypt_io_buffer = static_cast<byte*>(
-				ut_align(crypt_io_buffer, UNIV_PAGE_SIZE));
+				ut_align(crypt_io_buffer, srv_page_size));
 		}
 
 		if (block->page.zip.ssize) {
 			ut_ad(iter.n_io_buffers == 1);
 			block->frame = iter.io_buffer;
-			block->page.zip.data = block->frame + UNIV_PAGE_SIZE;
+			block->page.zip.data = block->frame + srv_page_size;
 		}
 
 		err = fil_iterate(iter, block, callback);
@@ -3752,8 +3740,6 @@ row_import_for_mysql(
 	/* Assign an undo segment for the transaction, so that the
 	transaction will be recovered after a crash. */
 
-	mutex_enter(&trx->undo_mutex);
-
 	/* TODO: Do not write any undo log for the IMPORT cleanup. */
 	{
 		mtr_t mtr;
@@ -3761,8 +3747,6 @@ row_import_for_mysql(
 		trx_undo_assign(trx, &err, &mtr);
 		mtr.commit();
 	}
-
-	mutex_exit(&trx->undo_mutex);
 
 	DBUG_EXECUTE_IF("ib_import_undo_assign_failure",
 			err = DB_TOO_MANY_CONCURRENT_TRXS;);
@@ -4001,7 +3985,7 @@ row_import_for_mysql(
 	during the page conversion phase. */
 
 	err = row_import_adjust_root_pages_of_secondary_indexes(
-		prebuilt, trx, table, cfg);
+		trx, table, cfg);
 
 	DBUG_EXECUTE_IF("ib_import_sec_root_adjust_failure",
 			err = DB_CORRUPTION;);

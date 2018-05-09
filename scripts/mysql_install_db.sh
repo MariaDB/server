@@ -37,9 +37,9 @@ force=0
 in_rpm=0
 ip_only=0
 cross_bootstrap=0
-install_params=""
 auth_root_authentication_method=normal
 auth_root_socket_user='root'
+skip_test_db=0
 
 usage()
 {
@@ -80,11 +80,10 @@ Usage: $0 [OPTIONS]
   --defaults-file=path Read only this configuration file.
   --rpm                For internal use.  This option is used by RPM files
                        during the MariaDB installation process.
-  --skip-auth-anonymous-user
-                       Do not install an unprivileged anonymous user.
   --skip-name-resolve  Use IP addresses rather than hostnames when creating
                        grant table entries.  This option can be useful if
                        your DNS does not work.
+  --skip-test-db       Don't install a test database.
   --srcdir=path        The path to the MariaDB source directory.  This option
                        uses the compiled binaries and support files within the
                        source tree, useful for if you don't want to install
@@ -168,9 +167,6 @@ parse_arguments()
         #
         # --windows is a deprecated alias
         cross_bootstrap=1 ;;
-      --skip-auth-anonymous-user)
-	install_params="$install_params
-SET @skip_auth_anonymous=1;" ;;
       --auth-root-authentication-method=normal)
 	auth_root_authentication_method=normal ;;
       --auth-root-authentication-method=socket)
@@ -179,6 +175,7 @@ SET @skip_auth_anonymous=1;" ;;
         usage ;;
       --auth-root-socket-user=*)
         auth_root_socket_user="$(parse_arg "$arg")" ;;
+      --skip-test-db) skip_test_db=1 ;;
 
       *)
         if test -n "$pick_args"
@@ -353,8 +350,9 @@ create_system_tables="$srcpkgdatadir/mysql_system_tables.sql"
 create_system_tables2="$srcpkgdatadir/mysql_performance_tables.sql"
 fill_system_tables="$srcpkgdatadir/mysql_system_tables_data.sql"
 maria_add_gis_sp="$buildpkgdatadir/maria_add_gis_sp_bootstrap.sql"
+mysql_test_db="$srcpkgdatadir/mysql_test_db.sql"
 
-for f in "$fill_help_tables" "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$maria_add_gis_sp"
+for f in "$fill_help_tables" "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$maria_add_gis_sp" "$mysql_test_db"
 do
   if test ! -f "$f"
   then
@@ -418,7 +416,7 @@ then
 fi
 
 # Create database directories
-for dir in "$ldata" "$ldata/mysql" "$ldata/test"
+for dir in "$ldata" "$ldata/mysql"
 do
   if test ! -d "$dir"
   then
@@ -467,20 +465,31 @@ mysqld_install_cmd_line()
   --net_buffer_length=16K
 }
 
+cat_sql()
+{
+  echo "use mysql;"
+
+  case "$auth_root_authentication_method" in
+    normal)
+      echo "SET @skip_auth_root_nopasswd=NULL;"
+      echo "SET @auth_root_socket=NULL;"
+      ;;
+    socket)
+      echo "SET @skip_auth_root_nopasswd=1;"
+      echo "SET @auth_root_socket='$auth_root_socket_user';"
+      ;;
+  esac
+
+  cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"
+  if test "$skip_test_db" -eq 0
+  then
+    cat "$mysql_test_db"
+  fi
+}
 
 # Create the system and help tables by passing them to "mysqld --bootstrap"
 s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
-case "$auth_root_authentication_method" in
-  normal)
-    install_params="$install_params
-SET @skip_auth_root_nopasswd=NULL;
-SET @auth_root_socket=NULL;" ;;
-  socket)
-    install_params="$install_params
-SET @skip_auth_root_nopasswd=1;
-SET @auth_root_socket='$auth_root_socket_user';" ;;
-esac
-if { echo "use mysql;$install_params"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
+if cat_sql | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
   s_echo "OK"
 else

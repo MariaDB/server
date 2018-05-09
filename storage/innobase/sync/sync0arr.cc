@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1080,13 +1080,11 @@ sync_array_print_long_waits(
 	}
 
 	if (noticed) {
-		ibool	old_val;
-
 		fprintf(stderr,
 			"InnoDB: ###### Starts InnoDB Monitor"
 			" for 30 secs to print diagnostic info:\n");
 
-		old_val = srv_print_innodb_monitor;
+		my_bool old_val = srv_print_innodb_monitor;
 
 		/* If some crucial semaphore is reserved, then also the InnoDB
 		Monitor can hang, and we do not get diagnostics. Since in
@@ -1159,23 +1157,18 @@ sync_array_print_info(
 	sync_array_exit(arr);
 }
 
-/**********************************************************************//**
-Create the primary system wait array(s), they are protected by an OS mutex */
-void
-sync_array_init(
-/*============*/
-	ulint		n_threads)		/*!< in: Number of slots to
-						create in all arrays */
+/** Create the primary system wait arrays */
+void sync_array_init()
 {
 	ut_a(sync_wait_array == NULL);
 	ut_a(srv_sync_array_size > 0);
-	ut_a(n_threads > 0);
+	ut_a(srv_max_n_threads > 0);
 
 	sync_array_size = srv_sync_array_size;
 
 	sync_wait_array = UT_NEW_ARRAY_NOKEY(sync_array_t*, sync_array_size);
 
-	ulint	n_slots = 1 + (n_threads - 1) / sync_array_size;
+	ulint	n_slots = 1 + (srv_max_n_threads - 1) / sync_array_size;
 
 	for (ulint i = 0; i < sync_array_size; ++i) {
 
@@ -1183,11 +1176,8 @@ sync_array_init(
 	}
 }
 
-/**********************************************************************//**
-Close sync array wait sub-system. */
-void
-sync_array_close(void)
-/*==================*/
+/** Destroy the sync array wait sub-system. */
+void sync_array_close()
 {
 	for (ulint i = 0; i < sync_array_size; ++i) {
 		sync_array_free(sync_wait_array[i]);

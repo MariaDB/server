@@ -73,11 +73,14 @@ class sequence_definition;
 */
 enum enum_alter_inplace_result {
   HA_ALTER_ERROR,
+  HA_ALTER_INPLACE_COPY_NO_LOCK,
+  HA_ALTER_INPLACE_COPY_LOCK,
+  HA_ALTER_INPLACE_NOCOPY_LOCK,
+  HA_ALTER_INPLACE_NOCOPY_NO_LOCK,
+  HA_ALTER_INPLACE_INSTANT,
   HA_ALTER_INPLACE_NOT_SUPPORTED,
   HA_ALTER_INPLACE_EXCLUSIVE_LOCK,
-  HA_ALTER_INPLACE_SHARED_LOCK_AFTER_PREPARE,
   HA_ALTER_INPLACE_SHARED_LOCK,
-  HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE,
   HA_ALTER_INPLACE_NO_LOCK
 };
 
@@ -1919,15 +1922,15 @@ struct Vers_parse_info
     start_end_t(LEX_CSTRING _start, LEX_CSTRING _end) :
       start(_start),
       end(_end) {}
-    LString_i start;
-    LString_i end;
+    Lex_ident start;
+    Lex_ident end;
   };
 
   start_end_t system_time;
   start_end_t as_row;
   vers_sys_type_t check_unit;
 
-  void set_system_time(LString start, LString end)
+  void set_system_time(Lex_ident start, Lex_ident end)
   {
     system_time.start= start;
     system_time.end= end;
@@ -1955,16 +1958,18 @@ protected:
     return as_row.start || as_row.end || system_time.start || system_time.end;
   }
   bool need_check(const Alter_info *alter_info) const;
-  bool check_conditions(const LString &table_name, const LString &db) const;
+  bool check_conditions(const Lex_table_name &table_name,
+                        const Lex_table_name &db) const;
 public:
-  static const LString_i default_start;
-  static const LString_i default_end;
+  static const Lex_ident default_start;
+  static const Lex_ident default_end;
 
   bool fix_alter_info(THD *thd, Alter_info *alter_info,
                        HA_CREATE_INFO *create_info, TABLE *table);
   bool fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_info,
                        TABLE_LIST &src_table, TABLE_LIST &table);
-  bool check_sys_fields(const LString &table_name, const LString &db,
+  bool check_sys_fields(const Lex_table_name &table_name,
+                        const Lex_table_name &db,
                         Alter_info *alter_info, bool native);
 
   /**
@@ -2304,8 +2309,7 @@ public:
   /**
      Can be set by handler to describe why a given operation cannot be done
      in-place (HA_ALTER_INPLACE_NOT_SUPPORTED) or why it cannot be done
-     online (HA_ALTER_INPLACE_NO_LOCK or
-     HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE)
+     online (HA_ALTER_INPLACE_NO_LOCK or HA_ALTER_INPLACE_COPY_NO_LOCK)
      If set, it will be used with ER_ALTER_OPERATION_NOT_SUPPORTED_REASON if
      results from handler::check_if_supported_inplace_alter() doesn't match
      requirements set by user. If not set, the more generic
@@ -2353,7 +2357,7 @@ public:
                           replace not_supported with.
   */
   void report_unsupported_error(const char *not_supported,
-                                const char *try_instead);
+                                const char *try_instead) const;
 };
 
 
@@ -4060,8 +4064,8 @@ public:
    *) As the first step, we acquire a lock corresponding to the concurrency
       level which was returned by handler::check_if_supported_inplace_alter()
       and requested by the user. This lock is held for most of the
-      duration of in-place ALTER (if HA_ALTER_INPLACE_SHARED_LOCK_AFTER_PREPARE
-      or HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE were returned we acquire an
+      duration of in-place ALTER (if HA_ALTER_INPLACE_COPY_LOCK
+      or HA_ALTER_INPLACE_COPY_NO_LOCK were returned we acquire an
       exclusive lock for duration of the next step only).
    *) After that we call handler::ha_prepare_inplace_alter_table() to give the
       storage engine a chance to update its internal structures with a higher
@@ -4105,12 +4109,12 @@ public:
     @retval   HA_ALTER_ERROR                  Unexpected error.
     @retval   HA_ALTER_INPLACE_NOT_SUPPORTED  Not supported, must use copy.
     @retval   HA_ALTER_INPLACE_EXCLUSIVE_LOCK Supported, but requires X lock.
-    @retval   HA_ALTER_INPLACE_SHARED_LOCK_AFTER_PREPARE
+    @retval   HA_ALTER_INPLACE_COPY_LOCK
                                               Supported, but requires SNW lock
                                               during main phase. Prepare phase
                                               requires X lock.
     @retval   HA_ALTER_INPLACE_SHARED_LOCK    Supported, but requires SNW lock.
-    @retval   HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE
+    @retval   HA_ALTER_INPLACE_COPY_NO_LOCK
                                               Supported, concurrent reads/writes
                                               allowed. However, prepare phase
                                               requires X lock.
@@ -4170,10 +4174,9 @@ protected:
  /**
     Allows the storage engine to update internal structures with concurrent
     writes blocked. If check_if_supported_inplace_alter() returns
-    HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE or
-    HA_ALTER_INPLACE_SHARED_AFTER_PREPARE, this function is called with
-    exclusive lock otherwise the same level of locking as for
-    inplace_alter_table() will be used.
+    HA_ALTER_INPLACE_COPY_NO_LOCK or HA_ALTER_INPLACE_COPY_LOCK,
+    this function is called with exclusive lock otherwise the same level
+    of locking as for inplace_alter_table() will be used.
 
     @note Storage engines are responsible for reporting any errors by
     calling my_error()/print_error()
@@ -4271,7 +4274,7 @@ protected:
 
     @note No errors are allowed during notify_table_changed().
  */
- virtual void notify_table_changed();
+ virtual void notify_table_changed() { }
 
 public:
  /* End of On-line/in-place ALTER TABLE interface. */

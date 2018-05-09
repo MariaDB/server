@@ -3087,7 +3087,7 @@ static enum data_file_type maria_row_type(HA_CREATE_INFO *info)
 }
 
 
-int ha_maria::create(const char *name, register TABLE *table_arg,
+int ha_maria::create(const char *name, TABLE *table_arg,
                      HA_CREATE_INFO *ha_create_info)
 {
   int error;

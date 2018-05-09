@@ -61,11 +61,11 @@ struct ib_sequence_t;
 
 /** @brief Block size for I/O operations in merge sort.
 
-The minimum is UNIV_PAGE_SIZE, or page_get_free_space_of_empty()
+The minimum is srv_page_size, or page_get_free_space_of_empty()
 rounded to a power of 2.
 
 When not creating a PRIMARY KEY that contains column prefixes, this
-can be set as small as UNIV_PAGE_SIZE / 2. */
+can be set as small as srv_page_size / 2. */
 typedef byte	row_merge_block_t;
 
 /** @brief Secondary buffer for I/O operations of merge records.

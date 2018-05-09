@@ -618,8 +618,9 @@ SQL_SELECT *prepare_simple_select(THD *thd, Item *cond,
   table->covering_keys.clear_all();
 
   SQL_SELECT *res= make_select(table, 0, 0, cond, 0, 0, error);
-  if (*error || (res && res->check_quick(thd, 0, HA_POS_ERROR)) ||
-      (res && res->quick && res->quick->reset()))
+  if (unlikely(*error) ||
+      (likely(res) && unlikely(res->check_quick(thd, 0, HA_POS_ERROR))) ||
+      (likely(res) && res->quick && unlikely(res->quick->reset())))
   {
     delete res;
     res=0;
@@ -658,7 +659,7 @@ SQL_SELECT *prepare_select_for_name(THD *thd, const char *mask, size_t mlen,
                                               pfname->charset()),
                    new (mem_root) Item_string_ascii(thd, "\\"),
                    FALSE);
-  if (thd->is_fatal_error)
+  if (unlikely(thd->is_fatal_error))
     return 0;					// OOM
   return prepare_simple_select(thd, cond, table, error);
 }

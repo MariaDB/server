@@ -302,7 +302,7 @@ Datafile::read_first_page(bool read_only_mode)
 	/* Align the memory for a possible read from a raw device */
 
 	m_first_page = static_cast<byte*>(
-		ut_align(m_first_page_buf, UNIV_PAGE_SIZE));
+		ut_align(m_first_page_buf, srv_page_size));
 
 	IORequest	request;
 	dberr_t		err = DB_ERROR;
@@ -529,7 +529,7 @@ err_exit:
 	/* Check if the whole page is blank. */
 	if (!m_space_id && !m_flags) {
 		const byte*	b		= m_first_page;
-		ulint		nonzero_bytes	= UNIV_PAGE_SIZE;
+		ulint		nonzero_bytes	= srv_page_size;
 
 		while (*b == '\0' && --nonzero_bytes != 0) {
 
@@ -550,13 +550,13 @@ err_exit:
 
 	const page_size_t	page_size(m_flags);
 
-	if (univ_page_size.logical() != page_size.logical()) {
-		/* Page size must be univ_page_size. */
+	if (srv_page_size != page_size.logical()) {
+		/* Logical size must be innodb_page_size. */
 		ib::error()
 			<< "Data file '" << m_filepath << "' uses page size "
 			<< page_size.logical() << ", but the innodb_page_size"
 			" start-up parameter is "
-			<< univ_page_size.logical();
+			<< srv_page_size;
 		free_first_page();
 		return(DB_ERROR);
 	}
@@ -683,8 +683,8 @@ Datafile::find_space_id()
 			bool	noncompressed_ok = false;
 
 			/* For noncompressed pages, the page size must be
-			equal to univ_page_size.physical(). */
-			if (page_size == univ_page_size.physical()) {
+			equal to srv_page_size. */
+			if (page_size == srv_page_size) {
 				noncompressed_ok = !buf_page_is_corrupted(
 					false, page, univ_page_size, NULL);
 			}
@@ -698,11 +698,11 @@ Datafile::find_space_id()
 			assume the page is compressed if univ_page_size.
 			logical() is equal to or less than 16k and the
 			page_size we are checking is equal to or less than
-			univ_page_size.logical(). */
-			if (univ_page_size.logical() <= UNIV_PAGE_SIZE_DEF
-			    && page_size <= univ_page_size.logical()) {
+			srv_page_size. */
+			if (srv_page_size <= UNIV_PAGE_SIZE_DEF
+			    && page_size <= srv_page_size) {
 				const page_size_t	compr_page_size(
-					page_size, univ_page_size.logical(),
+					page_size, srv_page_size,
 					true);
 
 				compressed_ok = !buf_page_is_corrupted(
@@ -831,7 +831,10 @@ open that file, and read the contents into m_filepath.
 dberr_t
 RemoteDatafile::open_link_file()
 {
-	set_link_filepath(NULL);
+	if (m_link_filepath == NULL) {
+		m_link_filepath = fil_make_filepath(NULL, name(), ISL, false);
+	}
+
 	m_filepath = read_link_file(m_link_filepath);
 
 	return(m_filepath == NULL ? DB_CANNOT_OPEN_FILE : DB_SUCCESS);
@@ -894,18 +897,6 @@ RemoteDatafile::shutdown()
 	if (m_link_filepath != 0) {
 		ut_free(m_link_filepath);
 		m_link_filepath = 0;
-	}
-}
-
-/** Set the link filepath. Use default datadir, the base name of
-the path provided without its suffix, plus DOT_ISL.
-@param[in]	path	filepath which contains a basename to use.
-			If NULL, use m_name as the basename. */
-void
-RemoteDatafile::set_link_filepath(const char* path)
-{
-	if (m_link_filepath == NULL) {
-		m_link_filepath = fil_make_filepath(NULL, name(), ISL, false);
 	}
 }
 

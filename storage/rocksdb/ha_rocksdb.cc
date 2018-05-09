@@ -11053,16 +11053,17 @@ my_core::enum_alter_inplace_result ha_rocksdb::check_if_supported_inplace_alter(
     DBUG_RETURN(my_core::HA_ALTER_INPLACE_NOT_SUPPORTED);
   }
 
-  DBUG_RETURN(my_core::HA_ALTER_INPLACE_SHARED_LOCK_AFTER_PREPARE);
+  /* FIXME: MDEV-16099 Use alter algorithm=nocopy or algorithm=instant
+		for non-InnoDB engine */
+  DBUG_RETURN(my_core::HA_ALTER_INPLACE_COPY_LOCK);
 }
 
 /**
   Allows the storage engine to update internal structures with concurrent
   writes blocked. If check_if_supported_inplace_alter() returns
-  HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE or
-  HA_ALTER_INPLACE_SHARED_AFTER_PREPARE, this function is called with
-  exclusive lock otherwise the same level of locking as for
-  inplace_alter_table() will be used.
+  HA_ALTER_INPLACE_COPY_NO_LOCK or HA_ALTER_INPLACE_COPY_LOCK.
+  this function is called with exclusive lock otherwise the same level of
+  locking as for inplace_alter_table() will be used.
 
   @note Storage engines are responsible for reporting any errors by
   calling my_error()/print_error()

@@ -48,7 +48,7 @@ typedef os_event_list_t::iterator				event_iter_t;
 
 /** InnoDB condition variable. */
 struct os_event {
-	os_event(const char* name) UNIV_NOTHROW;
+	os_event() UNIV_NOTHROW;
 
 	~os_event() UNIV_NOTHROW;
 
@@ -415,7 +415,7 @@ os_event::wait_time_low(
 }
 
 /** Constructor */
-os_event::os_event(const char* name) UNIV_NOTHROW
+os_event::os_event() UNIV_NOTHROW
 {
 	init();
 
@@ -444,14 +444,9 @@ Creates an event semaphore, i.e., a semaphore which may just have two
 states: signaled and nonsignaled. The created event is manual reset: it
 must be reset explicitly by calling sync_os_reset_event.
 @return	the event handle */
-os_event_t
-os_event_create(
-/*============*/
-	const char*	name)			/*!< in: the name of the
-						event, if NULL the event
-						is created without a name */
+os_event_t os_event_create(const char*)
 {
-	return(UT_NEW_NOKEY(os_event(name)));
+	return(UT_NEW_NOKEY(os_event()));
 }
 
 /**

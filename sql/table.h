@@ -1,8 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
-   Copyright (c) 2016, 2017, MariaDB Corporation.
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -487,10 +486,11 @@ typedef struct st_table_field_def
 class Table_check_intact
 {
 protected:
+  bool has_keys;
   virtual void report_error(uint code, const char *fmt, ...)= 0;
 
 public:
-  Table_check_intact() {}
+  Table_check_intact(bool keys= false) : has_keys(keys) {}
   virtual ~Table_check_intact() {}
 
   /** Checks whether a table is intact. */
@@ -505,6 +505,8 @@ class Table_check_intact_log_error : public Table_check_intact
 {
 protected:
   void report_error(uint, const char *fmt, ...);
+public:
+  Table_check_intact_log_error() : Table_check_intact(true) {}
 };
 
 
@@ -1825,8 +1827,9 @@ public:
     fix_item();
   }
   void empty() { unit= VERS_UNDEFINED; item= NULL; }
-  void print(String *str, enum_query_type, const char *prefix, size_t plen);
+  void print(String *str, enum_query_type, const char *prefix, size_t plen) const;
   void resolve_unit(bool timestamps_only);
+  bool eq(const vers_history_point_t &point) const;
 };
 
 struct vers_select_conds_t
@@ -1855,19 +1858,11 @@ struct vers_select_conds_t
     end= _end;
   }
 
-  void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type) const;
 
   bool init_from_sysvar(THD *thd);
 
-  bool operator== (vers_system_time_t b)
-  {
-    return type == b;
-  }
-  bool operator!= (vers_system_time_t b)
-  {
-    return type != b;
-  }
-  operator bool() const
+  bool is_set() const
   {
     return type != SYSTEM_TIME_UNSPECIFIED;
   }
@@ -1876,6 +1871,7 @@ struct vers_select_conds_t
   {
     return !from_query && type != SYSTEM_TIME_UNSPECIFIED;
   }
+  bool eq(const vers_select_conds_t &conds) const;
 };
 
 /*

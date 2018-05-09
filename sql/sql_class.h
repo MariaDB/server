@@ -632,6 +632,7 @@ typedef struct system_variables
   ulong query_cache_type;
   ulong tx_isolation;
   ulong updatable_views_with_limit;
+  ulong alter_algorithm;
   int max_user_connections;
   ulong server_id;
   /**
@@ -655,7 +656,6 @@ typedef struct system_variables
   my_bool keep_files_on_create;
 
   my_bool old_mode;
-  my_bool old_alter_table;
   my_bool old_passwords;
   my_bool big_tables;
   my_bool only_standard_compliant_cte;
@@ -820,8 +820,10 @@ typedef struct system_status_var
   ulong feature_fulltext;	    /* +1 when MATCH is used */
   ulong feature_gis;                /* +1 opening a table with GIS features */
   ulong feature_invisible_columns;     /* +1 opening a table with invisible column */
+  ulong feature_json;		    /* +1 when JSON function appears in the statement */
   ulong feature_locale;		    /* +1 when LOCALE is set */
   ulong feature_subquery;	    /* +1 when subqueries are used */
+  ulong feature_system_versioning;  /* +1 opening a table WITH SYSTEM VERSIONING */
   ulong feature_timezone;	    /* +1 when XPATH is used */
   ulong feature_trigger;	    /* +1 opening a table with triggers */
   ulong feature_xml;		    /* +1 when XPATH is used */
@@ -1012,7 +1014,7 @@ public:
   inline void* calloc(size_t size)
   {
     void *ptr;
-    if ((ptr=alloc_root(mem_root,size)))
+    if (likely((ptr=alloc_root(mem_root,size))))
       bzero(ptr, size);
     return ptr;
   }
@@ -1025,7 +1027,7 @@ public:
   inline void *memdup_w_gap(const void *str, size_t size, size_t gap)
   {
     void *ptr;
-    if ((ptr= alloc_root(mem_root,size+gap)))
+    if (likely((ptr= alloc_root(mem_root,size+gap))))
       memcpy(ptr,str,size);
     return ptr;
   }
@@ -1910,7 +1912,7 @@ public:
   void unlink_all_closed_tables(THD *thd,
                                 MYSQL_LOCK *lock,
                                 size_t reopen_count);
-  bool reopen_tables(THD *thd);
+  bool reopen_tables(THD *thd, bool need_reopen);
   bool restore_lock(THD *thd, TABLE_LIST *dst_table_list, TABLE *table,
                     MYSQL_LOCK *lock);
   void add_back_last_deleted_lock(TABLE_LIST *dst_table_list);
@@ -2625,6 +2627,15 @@ public:
     WT_THD wt;                          ///< for deadlock detection
     Rows_log_event *m_pending_rows_event;
 
+    struct st_trans_time : public timeval
+    {
+      void reset(THD *thd)
+      {
+        tv_sec= thd->query_start();
+        tv_usec= (long) thd->query_start_sec_part();
+      }
+    } start_time;
+
     /*
        Tables changed in transaction (that must be invalidated in query cache).
        List contain only transactional tables, that not invalidated in query
@@ -3068,7 +3079,7 @@ public:
   /* See also thd_killed() */
   inline bool check_killed()
   {
-    if (killed)
+    if (unlikely(killed))
       return TRUE;
     if (apc_target.have_apc_requests())
       apc_target.process_apc_requests(); 
@@ -3434,16 +3445,13 @@ public:
   { query_start_sec_part_used=1; return start_time_sec_part; }
   MYSQL_TIME query_start_TIME();
 
+private:
   struct {
     my_hrtime_t start;
     my_time_t sec;
     ulong sec_part;
   } system_time;
 
-  ulong systime_sec_part() { query_start_sec_part_used=1; return system_time.sec_part; }
-  my_time_t systime() { return system_time.sec; }
-
-private:
   void set_system_time()
   {
     my_hrtime_t hrtime= my_hrtime();
@@ -3468,29 +3476,16 @@ private:
     }
   }
 
-  void set_system_time_from_user_time(bool with_sec_part)
+public:
+  timeval transaction_time()
   {
-    if (with_sec_part)
-    {
-      system_time.sec= start_time;
-      system_time.sec_part= start_time_sec_part;
-    }
-    else
-    {
-      if (system_time.sec == start_time)
-        system_time.sec_part++;
-      else
-      {
-        system_time.sec= start_time;
-        system_time.sec_part= 0;
-      }
-    }
+    if (!in_multi_stmt_transaction_mode())
+      transaction.start_time.reset(this);
+    return transaction.start_time;
   }
 
-public:
   inline void set_start_time()
   {
-    set_system_time();
     if (user_time.val)
     {
       start_time= hrtime_to_my_time(user_time);
@@ -3498,6 +3493,7 @@ public:
     }
     else
     {
+      set_system_time();
       start_time= system_time.sec;
       start_time_sec_part= system_time.sec_part;
     }
@@ -3508,6 +3504,7 @@ public:
     set_start_time();
     start_utime= utime_after_lock= microsecond_interval_timer();
   }
+  /* only used in SET @@timestamp=... */
   inline void set_time(my_hrtime_t t)
   {
     user_time= t;
@@ -3519,15 +3516,29 @@ public:
   */
   inline void set_time(my_time_t t, ulong sec_part)
   {
-    start_time= t;
-    start_time_sec_part= sec_part > TIME_MAX_SECOND_PART ? 0 : sec_part;
-    user_time.val= hrtime_from_time(start_time) + start_time_sec_part;
-    if (slave_thread)
-      set_system_time_from_user_time(sec_part <= TIME_MAX_SECOND_PART);
-    else // BINLOG command
-      set_system_time();
-    PSI_CALL_set_thread_start_time(start_time);
-    start_utime= utime_after_lock= microsecond_interval_timer();
+    if (opt_secure_timestamp > (slave_thread ? SECTIME_REPL : SECTIME_SUPER))
+      set_time();                 // note that BINLOG itself requires SUPER
+    else
+    {
+      if (sec_part <= TIME_MAX_SECOND_PART)
+      {
+        start_time= system_time.sec= t;
+        start_time_sec_part= system_time.sec_part= sec_part;
+      }
+      else if (t != system_time.sec)
+      {
+        start_time= system_time.sec= t;
+        start_time_sec_part= system_time.sec_part= 0;
+      }
+      else
+      {
+        start_time= t;
+        start_time_sec_part= ++system_time.sec_part;
+      }
+      user_time.val= hrtime_from_time(start_time) + start_time_sec_part;
+      PSI_CALL_set_thread_start_time(start_time);
+      start_utime= utime_after_lock= microsecond_interval_timer();
+    }
   }
   void set_time_after_lock()
   {
@@ -3657,13 +3668,34 @@ public:
     lex_str->length= length;
     return lex_str;
   }
+  // Remove double quotes:  aaa""bbb -> aaa"bbb
+  bool quote_unescape(LEX_CSTRING *dst, const LEX_CSTRING *src, char quote)
+  {
+    const char *tmp= src->str;
+    const char *tmpend= src->str + src->length;
+    char *to;
+    if (!(dst->str= to= (char *) alloc(src->length + 1)))
+    {
+      dst->length= 0; // Safety
+      return true;
+    }
+    for ( ; tmp < tmpend; )
+    {
+      if ((*to++= *tmp++) == quote)
+        tmp++;                                  // Skip double quotes
+    }
+    *to= 0;                                     // End null for safety
+    dst->length= to - dst->str;
+    return false;
+  }
 
   LEX_CSTRING *make_clex_string(const char* str, size_t length)
   {
     LEX_CSTRING *lex_str;
     char *tmp;
-    if (!(lex_str= (LEX_CSTRING *)alloc_root(mem_root, sizeof(LEX_CSTRING) +
-                                             length+1)))
+    if (unlikely(!(lex_str= (LEX_CSTRING *)alloc_root(mem_root,
+                                                      sizeof(LEX_CSTRING) +
+                                                      length+1))))
       return 0;
     tmp= (char*) (lex_str+1);
     lex_str->str= tmp;
@@ -3676,7 +3708,7 @@ public:
   // Allocate LEX_STRING for character set conversion
   bool alloc_lex_string(LEX_STRING *dst, size_t length)
   {
-    if ((dst->str= (char*) alloc(length)))
+    if (likely((dst->str= (char*) alloc(length))))
       return false;
     dst->length= 0;  // Safety
     return true;     // EOM
@@ -3700,7 +3732,6 @@ public:
   bool convert_with_error(CHARSET_INFO *dstcs, LEX_STRING *dst,
                           CHARSET_INFO *srccs,
                           const char *src, size_t src_length);
-
   /*
     If either "dstcs" or "srccs" is &my_charset_bin,
     then performs native copying using cs->cset->copy_fix().
@@ -3718,6 +3749,17 @@ public:
                        CHARSET_INFO *srccs, const char *src, size_t src_length);
 
   bool convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs);
+
+  /*
+    Check if the string is wellformed, raise an error if not wellformed.
+    @param str    - The string to check.
+    @param length - the string length.
+  */
+  bool check_string_for_wellformedness(const char *str,
+                                       size_t length,
+                                       CHARSET_INFO *cs) const;
+
+  bool to_ident_sys_alloc(Lex_ident_sys_st *to, const Lex_ident_cli_st *from);
 
   /*
     Create a string literal with optional client->connection conversion.
@@ -3738,6 +3780,8 @@ public:
   void add_changed_table(TABLE *table);
   void add_changed_table(const char *key, size_t key_length);
   CHANGED_TABLE_LIST * changed_table_dup(const char *key, size_t key_length);
+  void prepare_explain_fields(select_result *result, List<Item> *field_list,
+                              uint8 explain_flags, bool is_analyze);
   int send_explain_fields(select_result *result, uint8 explain_flags,
                           bool is_analyze);
   void make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
@@ -3824,7 +3868,7 @@ public:
   void set_stmt_da(Diagnostics_area *da)
   { m_stmt_da= da; }
 
-  inline CHARSET_INFO *charset() { return variables.character_set_client; }
+  inline CHARSET_INFO *charset() const { return variables.character_set_client; }
   void update_charset();
   void update_charset(CHARSET_INFO *character_set_client,
                       CHARSET_INFO *collation_connection)
@@ -3932,7 +3976,7 @@ public:
           The worst things that can happen is that we get
           a suboptimal error message.
         */
-        if ((killed_err= (err_info*) alloc(sizeof(*killed_err))))
+        if (likely((killed_err= (err_info*) alloc(sizeof(*killed_err)))))
         {
           killed_err->no= killed_errno_arg;
           ::strmake((char*) killed_err->msg, killed_err_msg_arg,
@@ -4216,7 +4260,7 @@ public:
     Lex_input_stream *lip= &m_parser_state->m_lip;
     if (!yytext)
     {
-      if (lip->lookahead_token >= 0)
+      if (lip->has_lookahead())
         yytext= lip->get_tok_start_prev();
       else
         yytext= lip->get_tok_start();
@@ -6364,7 +6408,8 @@ public:
     char *tmp;
     /* format: [database + dot] + name + '\0' */
     dst->length= m_db.length + dot + m_name.length;
-    if (!(dst->str= tmp= (char*) alloc_root(mem_root, dst->length + 1)))
+    if (unlikely(!(dst->str= tmp= (char*) alloc_root(mem_root,
+                                                     dst->length + 1))))
       return true;
     sprintf(tmp, "%.*s%.*s%.*s",
             (int) m_db.length, (m_db.length ? m_db.str : ""),
@@ -6380,7 +6425,7 @@ public:
   {
     char *tmp;
     size_t length= package.length + 1 + routine.length + 1;
-    if (!(tmp= (char *) alloc_root(mem_root, length)))
+    if (unlikely(!(tmp= (char *) alloc_root(mem_root, length))))
       return true;
     m_name.length= my_snprintf(tmp, length, "%.*s.%.*s",
                                (int) package.length, package.str,
@@ -6394,9 +6439,9 @@ public:
                                  const LEX_CSTRING &package,
                                  const LEX_CSTRING &routine)
   {
-    if (make_package_routine_name(mem_root, package, routine))
+    if (unlikely(make_package_routine_name(mem_root, package, routine)))
       return true;
-    if (!(m_db.str= strmake_root(mem_root, db.str, db.length)))
+    if (unlikely(!(m_db.str= strmake_root(mem_root, db.str, db.length))))
       return true;
     m_db.length= db.length;
     return false;

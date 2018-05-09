@@ -60,7 +60,8 @@ ib_create(
 
 	if (n_sync_obj == 0) {
 		table->heap = mem_heap_create_typed(
-			ut_min(static_cast<ulint>(4096),
+			std::min<ulong>(
+				4096,
 				MEM_MAX_ALLOC_IN_BUF / 2
 				- MEM_BLOCK_HEADER_SIZE - MEM_SPACE_NEEDED(0)),
 			type);
@@ -84,7 +85,8 @@ ib_create(
 
 	for (ulint i = 0; i < n_sync_obj; i++) {
 		table->heaps[i] = mem_heap_create_typed(
-			ut_min(static_cast<ulint>(4096),
+			std::min<ulong>(
+				4096,
 				MEM_MAX_ALLOC_IN_BUF / 2
 				- MEM_BLOCK_HEADER_SIZE - MEM_SPACE_NEEDED(0)),
 			type);
@@ -126,7 +128,8 @@ ib_recreate(
 
 	for (ulint i = 0; i < new_table->n_sync_obj; i++) {
 		new_table->heaps[i] = mem_heap_create_typed(
-			ut_min(static_cast<ulint>(4096),
+			std::min<ulong>(
+				4096,
 				MEM_MAX_ALLOC_IN_BUF / 2
 				- MEM_BLOCK_HEADER_SIZE - MEM_SPACE_NEEDED(0)),
 			MEM_HEAP_FOR_PAGE_HASH);
@@ -192,7 +195,7 @@ ha_clear(
 #ifdef BTR_CUR_HASH_ADAPT
 # if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 /** Maximum number of records in a page */
-static const lint MAX_N_POINTERS
+static const ulint MAX_N_POINTERS
 	= UNIV_PAGE_SIZE_MAX / REC_N_NEW_EXTRA_BYTES;
 # endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 
@@ -242,8 +245,8 @@ ha_insert_for_fold_func(
 				buf_block_t* prev_block = prev_node->block;
 				ut_a(prev_block->frame
 				     == page_align(prev_node->data));
-				ut_a(my_atomic_addlint(
-					     &prev_block->n_pointers, -1)
+				ut_a(my_atomic_addlint(&prev_block->n_pointers,
+						       ulint(-1))
 				     < MAX_N_POINTERS);
 				ut_a(my_atomic_addlint(&block->n_pointers, 1)
 				     < MAX_N_POINTERS);
@@ -339,7 +342,7 @@ ha_delete_hash_node(
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	if (table->adaptive) {
 		ut_a(del_node->block->frame = page_align(del_node->data));
-		ut_a(my_atomic_addlint(&del_node->block->n_pointers, -1)
+		ut_a(my_atomic_addlint(&del_node->block->n_pointers, ulint(-1))
 		     < MAX_N_POINTERS);
 	}
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
@@ -382,7 +385,8 @@ ha_search_and_update_if_found_func(
 	if (node) {
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 		if (table->adaptive) {
-			ut_a(my_atomic_addlint(&node->block->n_pointers, -1)
+			ut_a(my_atomic_addlint(&node->block->n_pointers,
+					       ulint(-1))
 			     < MAX_N_POINTERS);
 			ut_a(my_atomic_addlint(&new_block->n_pointers, 1)
 			     < MAX_N_POINTERS);

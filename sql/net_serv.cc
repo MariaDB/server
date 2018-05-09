@@ -112,12 +112,12 @@ extern void query_cache_insert(void *thd, const char *packet, size_t length,
                                unsigned pkt_nr);
 #endif // HAVE_QUERY_CACHE
 #define update_statistics(A) A
-extern my_bool thd_net_is_killed();
+extern my_bool thd_net_is_killed(THD *thd);
 /* Additional instrumentation hooks for the server */
 #include "mysql_com_server.h"
 #else
 #define update_statistics(A)
-#define thd_net_is_killed() 0
+#define thd_net_is_killed(A) 0
 #endif
 
 
@@ -620,7 +620,7 @@ net_real_write(NET *net,const uchar *packet, size_t len)
   query_cache_insert(net->thd, (char*) packet, len, net->pkt_nr);
 #endif
 
-  if (net->error == 2)
+  if (unlikely(net->error == 2))
     DBUG_RETURN(-1);				/* socket can't be used */
 
   net->reading_or_writing=2;
@@ -960,7 +960,7 @@ retry:
 	  DBUG_PRINT("info",("vio_read returned %ld  errno: %d",
 			     (long) length, vio_errno(net->vio)));
 
-          if (i== 0 && thd_net_is_killed())
+          if (i== 0 && unlikely(thd_net_is_killed((THD*) net->thd)))
           {
             DBUG_PRINT("info", ("thd is killed"));
             len= packet_error;
@@ -1246,13 +1246,13 @@ my_net_read_packet_reallen(NET *net, my_bool read_from_server, ulong* reallen)
 	total_length += len;
 	len = my_real_read(net,&complen, 0);
       } while (len == MAX_PACKET_LENGTH);
-      if (len != packet_error)
+      if (likely(len != packet_error))
 	len+= total_length;
       net->where_b = save_pos;
     }
 
     net->read_pos = net->buff + net->where_b;
-    if (len != packet_error)
+    if (likely(len != packet_error))
     {
       net->read_pos[len]=0;		/* Safeguard for mysql_use_result */
       *reallen = (ulong)len;

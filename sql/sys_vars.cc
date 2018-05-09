@@ -400,7 +400,7 @@ static const char *vers_alter_history_keywords[]= {"ERROR", "KEEP", NullS};
 static Sys_var_enum Sys_vers_alter_history(
        "system_versioning_alter_history", "Versioning ALTER TABLE mode. "
        "ERROR: Fail ALTER with error; " /* TODO: fail only when history non-empty */
-       "KEEP: Keep historical system rows and subject them to ALTER; ",
+       "KEEP: Keep historical system rows and subject them to ALTER",
        SESSION_VAR(vers_alter_history), CMD_LINE(REQUIRED_ARG),
        vers_alter_history_keywords, DEFAULT(VERS_ALTER_HISTORY_ERROR));
 
@@ -443,13 +443,13 @@ static bool
 error_if_in_trans_or_substatement(THD *thd, int in_substatement_error,
                                   int in_transaction_error)
 {
-  if (thd->in_sub_stmt)
+  if (unlikely(thd->in_sub_stmt))
   {
     my_error(in_substatement_error, MYF(0));
     return true;
   }
 
-  if (thd->in_active_multi_stmt_transaction())
+  if (unlikely(thd->in_active_multi_stmt_transaction()))
   {
     my_error(in_transaction_error, MYF(0));
     return true;
@@ -470,6 +470,8 @@ static bool check_has_super(sys_var *self, THD *thd, set_var *var)
 #endif
   return false;
 }
+
+
 static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
 {
   if (check_has_super(self, thd, var))
@@ -529,9 +531,9 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
     return true;
   }
 
-  if (error_if_in_trans_or_substatement(thd,
-         ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_FORMAT,
-         ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_FORMAT))
+  if (unlikely(error_if_in_trans_or_substatement(thd,
+                                                 ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_FORMAT,
+                                                 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_FORMAT)))
     return true;
 
   return false;
@@ -566,9 +568,9 @@ static bool binlog_direct_check(sys_var *self, THD *thd, set_var *var)
   if (var->type == OPT_GLOBAL)
     return false;
 
-  if (error_if_in_trans_or_substatement(thd,
-          ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_DIRECT,
-          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_DIRECT))
+  if (unlikely(error_if_in_trans_or_substatement(thd,
+                                                 ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_DIRECT,
+                                                 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_DIRECT)))
      return true;
 
   return false;
@@ -1606,9 +1608,9 @@ static bool check_gtid_seq_no(sys_var *self, THD *thd, set_var *var)
 
   if (check_has_super(self, thd, var))
     return true;
-  if (error_if_in_trans_or_substatement(thd,
-          ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
-          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO))
+  if (unlikely(error_if_in_trans_or_substatement(thd,
+                                                 ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
+                                                 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO)))
     return true;
 
   domain_id= thd->variables.gtid_domain_id;
@@ -2369,9 +2371,19 @@ static Sys_var_mybool Sys_old_mode(
        "old", "Use compatible behavior from previous MariaDB version. See also --old-mode",
        SESSION_VAR(old_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
-static Sys_var_mybool Sys_old_alter_table(
-       "old_alter_table", "Use old, non-optimized alter table",
-       SESSION_VAR(old_alter_table), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+static const char *alter_algorithm_modes[]= {"DEFAULT", "COPY", "INPLACE",
+"NOCOPY", "INSTANT", NULL};
+
+static Sys_var_enum Sys_alter_algorithm(
+	"alter_algorithm", "Specify the alter table algorithm",
+	SESSION_VAR(alter_algorithm), CMD_LINE(OPT_ARG),
+	alter_algorithm_modes, DEFAULT(0));
+
+static Sys_var_enum Sys_old_alter_table(
+       "old_alter_table", "Alias for alter_algorithm. "
+       "Deprecated. Use --alter-algorithm instead.",
+       SESSION_VAR(alter_algorithm), CMD_LINE(OPT_ARG),
+       alter_algorithm_modes, DEFAULT(0));
 
 static bool check_old_passwords(sys_var *self, THD *thd, set_var *var)
 {
@@ -2442,8 +2454,7 @@ static Sys_var_ulong Sys_optimizer_search_depth(
        "optimization, but may produce very bad query plans. If set to 0, "
        "the system will automatically pick a reasonable value.",
        SESSION_VAR(optimizer_search_depth), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, MAX_TABLES+1), DEFAULT(MAX_TABLES+1), BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0));
+       VALID_RANGE(0, MAX_TABLES+1), DEFAULT(MAX_TABLES+1), BLOCK_SIZE(1));
 
 /* this is used in the sigsegv handler */
 export const char *optimizer_switch_names[]=
@@ -4035,15 +4046,15 @@ static bool check_sql_log_bin(sys_var *self, THD *thd, set_var *var)
   if (check_has_super(self, thd, var))
     return TRUE;
 
-  if (var->type == OPT_GLOBAL)
+  if (unlikely(var->type == OPT_GLOBAL))
   {
     my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0), self->name.str, "SESSION");
     return TRUE;
   }
 
-  if (error_if_in_trans_or_substatement(thd,
-          ER_STORED_FUNCTION_PREVENTS_SWITCH_SQL_LOG_BIN,
-          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SQL_LOG_BIN))
+  if (unlikely(error_if_in_trans_or_substatement(thd,
+                                                 ER_STORED_FUNCTION_PREVENTS_SWITCH_SQL_LOG_BIN,
+                                                 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SQL_LOG_BIN)))
     return TRUE;
 
   return FALSE;
@@ -4176,9 +4187,9 @@ static bool check_skip_replication(sys_var *self, THD *thd, set_var *var)
     Rows_log_event without Table_map_log_event or transactional updates without
     the COMMIT).
   */
-  if (error_if_in_trans_or_substatement(thd,
-          ER_STORED_FUNCTION_PREVENTS_SWITCH_SKIP_REPLICATION,
-          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SKIP_REPLICATION))
+  if (unlikely(error_if_in_trans_or_substatement(thd,
+                                                 ER_STORED_FUNCTION_PREVENTS_SWITCH_SKIP_REPLICATION,
+                                                 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SKIP_REPLICATION)))
     return 1;
 
   return 0;
@@ -4201,11 +4212,24 @@ static Sys_var_harows Sys_select_limit(
        SESSION_VAR(select_limit), NO_CMD_LINE,
        VALID_RANGE(0, HA_POS_ERROR), DEFAULT(HA_POS_ERROR), BLOCK_SIZE(1));
 
+static const char *secure_timestamp_levels[]= {"NO", "SUPER", "REPLICATION", "YES", 0};
+static bool check_timestamp(sys_var *self, THD *thd, set_var *var)
+{
+  if (opt_secure_timestamp == SECTIME_NO)
+    return false;
+  if (opt_secure_timestamp == SECTIME_SUPER)
+    return check_has_super(self, thd, var);
+  char buf[1024];
+  strxnmov(buf, sizeof(buf), "--secure-timestamp=",
+           secure_timestamp_levels[opt_secure_timestamp], NULL);
+  my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), buf);
+  return true;
+}
 static Sys_var_timestamp Sys_timestamp(
        "timestamp", "Set the time for this client",
        sys_var::ONLY_SESSION, NO_CMD_LINE,
        VALID_RANGE(0, TIMESTAMP_MAX_VALUE),
-       NO_MUTEX_GUARD, IN_BINLOG);
+       NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_timestamp));
 
 static bool update_last_insert_id(THD *thd, set_var *var)
 {
@@ -5401,9 +5425,7 @@ static const char *wsrep_OSU_method_names[]= { "TOI", "RSU", NullS };
 static Sys_var_enum Sys_wsrep_OSU_method(
        "wsrep_OSU_method", "Method for Online Schema Upgrade",
        SESSION_VAR(wsrep_OSU_method), CMD_LINE(OPT_ARG),
-       wsrep_OSU_method_names, DEFAULT(WSREP_OSU_TOI),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(0));
+       wsrep_OSU_method_names, DEFAULT(WSREP_OSU_TOI));
 
 static PolyLock_mutex PLock_wsrep_desync(&LOCK_wsrep_desync);
 static Sys_var_mybool Sys_wsrep_desync (
@@ -5871,9 +5893,7 @@ static Sys_var_enum Sys_binlog_row_image(
        "before image, and only changed columns are logged in the after image. "
        "(Default: FULL).",
        SESSION_VAR(binlog_row_image), CMD_LINE(REQUIRED_ARG),
-       binlog_row_image_names, DEFAULT(BINLOG_ROW_IMAGE_FULL),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
-       ON_UPDATE(NULL));
+       binlog_row_image_names, DEFAULT(BINLOG_ROW_IMAGE_FULL));
 
 static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
 {
@@ -6045,3 +6065,13 @@ static Sys_var_uint Sys_in_subquery_conversion_threshold(
        SESSION_VAR(in_subquery_conversion_threshold), CMD_LINE(OPT_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(IN_SUBQUERY_CONVERSION_THRESHOLD), BLOCK_SIZE(1));
 #endif
+
+static Sys_var_enum Sys_secure_timestamp(
+       "secure_timestamp", "Restricts direct setting of a session "
+       "timestamp. Possible levels are: YES - timestamp cannot deviate from "
+       "the system clock, REPLICATION - replication thread can adjust "
+       "timestamp to match the master's, SUPER - a user with this "
+       "privilege and a replication thread can adjust timestamp, NO - "
+       "historical behavior, anyone can modify session timestamp",
+       READ_ONLY GLOBAL_VAR(opt_secure_timestamp), CMD_LINE(REQUIRED_ARG),
+       secure_timestamp_levels, DEFAULT(SECTIME_NO));

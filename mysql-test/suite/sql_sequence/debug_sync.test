@@ -1,0 +1,15 @@
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+#
+# MDEV-13029
+# Assertion `ds_control' failed in debug_sync upon closing connection after
+# creating temporary sequence
+
+--connect (con1,localhost,root,,)
+CREATE TEMPORARY SEQUENCE f ENGINE=InnoDB;
+--disconnect con1
+--connection default
+--sleep 3
+
+SELECT 'Still alive' AS `Heartbeat`;

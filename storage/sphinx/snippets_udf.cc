@@ -45,7 +45,7 @@ typedef uchar byte;
 
 /// partially copy-pasted stuff that should be moved elsewhere
 
-#if UNALIGNED_RAM_ACCESS
+#ifdef UNALIGNED_RAM_ACCESS
 
 /// pass-through wrapper
 template < typename T > inline T sphUnalignedRead ( const T & tRef )
@@ -83,7 +83,7 @@ void sphUnalignedWrite ( void * pPtr, const T & tVal )
 		*pDst++ = *pSrc++;
 }
 
-#endif
+#endif /* UNALIGNED_RAM_ACCESS */
 
 #define SPHINXSE_MAX_ALLOC			(16*1024*1024)
 

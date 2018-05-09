@@ -2617,7 +2617,7 @@ int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
   DBUG_ENTER("collect_statistics_for_index");
 
   /* No statistics for FULLTEXT indexes. */
-  if (key_info->flags & HA_FULLTEXT)
+  if (key_info->flags & (HA_FULLTEXT|HA_SPATIAL))
     DBUG_RETURN(rc);
 
   Index_prefix_calc index_prefix_calc(thd, table, key_info);
@@ -2743,11 +2743,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
         break;
 
       if (rc)
-      {
-        if (rc == HA_ERR_RECORD_DELETED)
-          continue;
         break;
-      }
 
       for (field_ptr= table->field; *field_ptr; field_ptr++)
       {

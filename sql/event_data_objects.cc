@@ -1444,7 +1444,7 @@ Event_job_data::execute(THD *thd, bool drop)
   }
 
 end:
-  if (drop && !thd->is_fatal_error)
+  if (drop && likely(!thd->is_fatal_error))
   {
     /*
       We must do it here since here we're under the right authentication

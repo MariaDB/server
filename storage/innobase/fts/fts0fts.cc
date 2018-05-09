@@ -502,7 +502,6 @@ fts_load_user_stopword(
 				stopword_info);
 
 	graph = fts_parse_sql_no_dict_lock(
-		NULL,
 		info,
 		"DECLARE FUNCTION my_func;\n"
 		"DECLARE CURSOR c IS"
@@ -1932,7 +1931,7 @@ fts_create_common_tables(
 	pars_info_bind_id(info, true, "config_table", fts_name);
 
 	graph = fts_parse_sql_no_dict_lock(
-		&fts_table, info, fts_config_table_insert_values_sql);
+		info, fts_config_table_insert_values_sql);
 
 	error = fts_eval_sql(trx, graph);
 
@@ -2005,7 +2004,7 @@ fts_create_one_index_table(
 			       ? DATA_VARCHAR : DATA_VARMYSQL,
 			       field->col->prtype,
 			       FTS_MAX_WORD_LEN_IN_CHAR
-			       * field->col->mbmaxlen);
+			       * unsigned(field->col->mbmaxlen));
 
 	dict_mem_table_add_col(new_table, heap, "first_doc_id", DATA_INT,
 			       DATA_NOT_NULL | DATA_UNSIGNED,
@@ -2311,7 +2310,7 @@ fts_trx_create(
 	     savep != NULL;
 	     savep = UT_LIST_GET_NEXT(trx_savepoints, savep)) {
 
-		fts_savepoint_take(trx, ftt, savep->name);
+		fts_savepoint_take(ftt, savep->name);
 	}
 
 	return(ftt);
@@ -2810,7 +2809,7 @@ fts_update_sync_doc_id(
 
 	info = pars_info_create();
 
-	id_len = snprintf(
+	id_len = (ulint) snprintf(
 		(char*) id, sizeof(id), FTS_DOC_ID_FORMAT, doc_id + 1);
 
 	pars_info_bind_varchar_literal(info, "doc_id", id, id_len);
@@ -3561,7 +3560,7 @@ fts_add_doc_by_id(
 			dict_index_copy_types(clust_ref, clust_index, n_fields);
 
 			row_build_row_ref_in_tuple(
-				clust_ref, rec, fts_id_index, NULL, NULL);
+				clust_ref, rec, fts_id_index, NULL);
 
 			btr_pcur_open_with_no_init(
 				clust_index, clust_ref, PAGE_CUR_LE,
@@ -4725,7 +4724,7 @@ fts_tokenize_add_word_for_parser(
 	MYSQL_FTPARSER_PARAM*	param,		/* in: parser paramter */
 	const char*			word,		/* in: token word */
 	int			word_len,	/* in: word len */
-	MYSQL_FTPARSER_BOOLEAN_INFO* boolean_info) /* in: word boolean info */
+	MYSQL_FTPARSER_BOOLEAN_INFO*)
 {
 	fts_string_t	str;
 	fts_tokenize_param_t*	fts_param;
@@ -4737,9 +4736,9 @@ fts_tokenize_add_word_for_parser(
 	ut_ad(result_doc != NULL);
 
 	str.f_str = (byte*)(word);
-	str.f_len = word_len;
+	str.f_len = ulint(word_len);
 	str.f_n_char = fts_get_token_size(
-		const_cast<CHARSET_INFO*>(param->cs), word, word_len);
+		const_cast<CHARSET_INFO*>(param->cs), word, str.f_len);
 
 	/* JAN: TODO: MySQL 5.7 FTS
 	ut_ad(boolean_info->position >= 0);
@@ -5634,7 +5633,6 @@ Take a FTS savepoint. */
 void
 fts_savepoint_take(
 /*===============*/
-	trx_t*		trx,		/*!< in: transaction */
 	fts_trx_t*	fts_trx,	/*!< in: fts transaction */
 	const char*	name)		/*!< in: savepoint name */
 {
@@ -5912,7 +5910,7 @@ fts_savepoint_rollback(
 		ut_a(ib_vector_size(savepoints) > 0);
 
 		/* Restore the savepoint. */
-		fts_savepoint_take(trx, trx->fts_trx, name);
+		fts_savepoint_take(trx->fts_trx, name);
 	}
 }
 
@@ -5942,7 +5940,7 @@ fts_is_aux_table_name(
 	if (ptr != NULL) {
 		/* We will start the match after the '/' */
 		++ptr;
-		len = end - ptr;
+		len = ulint(end - ptr);
 	}
 
 	/* All auxiliary tables are prefixed with "FTS_" and the name
@@ -5969,7 +5967,7 @@ fts_is_aux_table_name(
 		/* Skip the underscore. */
 		++ptr;
 		ut_a(end > ptr);
-		len = end - ptr;
+		len = ulint(end - ptr);
 
 		/* First search the common table suffix array. */
 		for (i = 0; fts_common_tables[i] != NULL; ++i) {
@@ -6000,7 +5998,7 @@ fts_is_aux_table_name(
 		/* Skip the underscore. */
 		++ptr;
 		ut_a(end > ptr);
-		len = end - ptr;
+		len = ulint(end - ptr);
 
 		/* Search the FT index specific array. */
 		for (i = 0; i < FTS_NUM_AUX_INDEX; ++i) {
@@ -6528,7 +6526,7 @@ fts_check_corrupt_index(
 		if (index->id == aux_table->index_id) {
 			ut_ad(index->type & DICT_FTS);
 			dict_table_close(table, true, false);
-			return(dict_index_is_corrupted(index));
+			return index->is_corrupted();
 		}
 	}
 
@@ -7175,7 +7173,6 @@ fts_drop_orphaned_tables(void)
 	pars_info_bind_function(info, "my_func", fts_read_tables, tables);
 
 	graph = fts_parse_sql_no_dict_lock(
-		NULL,
 		info,
 		"DECLARE FUNCTION my_func;\n"
 		"DECLARE CURSOR c IS"

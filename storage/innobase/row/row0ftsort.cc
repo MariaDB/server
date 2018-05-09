@@ -108,7 +108,7 @@ row_merge_create_fts_sort_index(
 		? DATA_VARCHAR : DATA_VARMYSQL;
 	field->col->mbminlen = idx_field->col->mbminlen;
 	field->col->mbmaxlen = idx_field->col->mbmaxlen;
-	field->col->len = HA_FT_MAXCHARLEN * field->col->mbmaxlen;
+	field->col->len = HA_FT_MAXCHARLEN * unsigned(field->col->mbmaxlen);
 
 	field->fixed_len = 0;
 
@@ -415,9 +415,9 @@ row_merge_fts_doc_add_word_for_parser(
 	ut_ad(t_ctx);
 
 	str.f_str = (byte*)(word);
-	str.f_len = word_len;
+	str.f_len = ulint(word_len);
 	str.f_n_char = fts_get_token_size(
-		(CHARSET_INFO*)param->cs, word, word_len);
+		(CHARSET_INFO*)param->cs, word, ulint(word_len));
 
 	/* JAN: TODO: MySQL 5.7 FTS
 	ut_ad(boolean_info->position >= 0);
@@ -1135,7 +1135,7 @@ row_fts_start_parallel_merge(
 /*=========================*/
 	fts_psort_t*	merge_info)	/*!< in: parallel sort info */
 {
-	int		i = 0;
+	ulint		i = 0;
 
 	/* Kick off merge/insert threads */
 	for (i = 0; i <  FTS_NUM_AUX_INDEX; i++) {
@@ -1375,10 +1375,10 @@ row_fts_insert_tuple(
 Propagate a newly added record up one level in the selection tree
 @return parent where this value propagated to */
 static
-int
+ulint
 row_fts_sel_tree_propagate(
 /*=======================*/
-	int		propogated,	/*<! in: tree node propagated */
+	ulint		propogated,	/*<! in: tree node propagated */
 	int*		sel_tree,	/*<! in: selection tree */
 	const mrec_t**	mrec,		/*<! in: sort record */
 	ulint**		offsets,	/*<! in: record offsets */
@@ -1417,7 +1417,7 @@ row_fts_sel_tree_propagate(
 
 	sel_tree[parent] = selected;
 
-	return(static_cast<int>(parent));
+	return parent;
 }
 
 /*********************************************************************//**
@@ -1437,8 +1437,8 @@ row_fts_sel_tree_update(
 	ulint	i;
 
 	for (i = 1; i <= height; i++) {
-		propagated = static_cast<ulint>(row_fts_sel_tree_propagate(
-			static_cast<int>(propagated), sel_tree, mrec, offsets, index));
+		propagated = row_fts_sel_tree_propagate(
+			propagated, sel_tree, mrec, offsets, index);
 	}
 
 	return(sel_tree[0]);
@@ -1518,7 +1518,7 @@ row_fts_build_sel_tree(
 {
 	ulint	treelevel = 1;
 	ulint	num = 2;
-	int	i = 0;
+	ulint	i = 0;
 	ulint	start;
 
 	/* No need to build selection tree if we only have two merge threads */
@@ -1533,13 +1533,13 @@ row_fts_build_sel_tree(
 
 	start = (ulint(1) << treelevel) - 1;
 
-	for (i = 0; i < (int) fts_sort_pll_degree; i++) {
-		sel_tree[i + start] = i;
+	for (i = 0; i < fts_sort_pll_degree; i++) {
+		sel_tree[i + start] = int(i);
 	}
 
-	for (i = static_cast<int>(treelevel) - 1; i >= 0; i--) {
+	for (i = treelevel; --i; ) {
 		row_fts_build_sel_tree_level(
-			sel_tree, static_cast<ulint>(i), mrec, offsets, index);
+			sel_tree, i, mrec, offsets, index);
 	}
 
 	return(treelevel);
@@ -1579,7 +1579,7 @@ row_fts_merge_insert(
 	ulint			height;
 	ulint			start;
 	fts_psort_insert_t	ins_ctx;
-	ulint			count_diag = 0;
+	uint64_t		count_diag = 0;
 	fts_table_t		fts_table;
 	char			aux_table_name[MAX_FULL_NAME_LEN];
 	dict_table_t*		aux_table;
@@ -1645,7 +1645,7 @@ row_fts_merge_insert(
 		buf[i] = static_cast<mrec_buf_t*>(
 			mem_heap_alloc(heap, sizeof *buf[i]));
 
-		count_diag += (int) psort_info[i].merge_file[id]->n_rec;
+		count_diag += psort_info[i].merge_file[id]->n_rec;
 	}
 
 	if (fts_enable_diag_print) {
@@ -1737,7 +1737,7 @@ row_fts_merge_insert(
 	height = row_fts_build_sel_tree(sel_tree, (const mrec_t **) mrec,
 					offsets, index);
 
-	start = (1 << height) - 1;
+	start = (1U << height) - 1;
 
 	/* Fetch sorted records from sort buffer and insert them into
 	corresponding FTS index auxiliary tables */

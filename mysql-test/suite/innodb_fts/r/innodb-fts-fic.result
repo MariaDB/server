@@ -13,8 +13,6 @@ INSERT INTO articles (title,body) VALUES
 ('MySQL vs. YourSQL','In the following database comparison ...'),
 ('MySQL Security','When configured properly, MySQL ...');
 CREATE FULLTEXT INDEX idx on articles (title, body);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 SELECT * FROM articles WHERE MATCH (title, body)
 AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);
 id	title	body
@@ -105,8 +103,6 @@ INSERT INTO articles (title,body) VALUES
 ('MySQL vs. YourSQL','In the following database comparison ...'),
 ('MySQL Security','When configured properly, MySQL ...');
 CREATE FULLTEXT INDEX idx on articles (title);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 CREATE FULLTEXT INDEX idx2 on articles (body);
 SELECT * FROM articles WHERE MATCH (title, body)
 AGAINST ('Tutorial' IN NATURAL LANGUAGE MODE);

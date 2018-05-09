@@ -28,6 +28,7 @@ Created 1/8/1996 Heikki Tuuri
 #define dict0types_h
 
 #include <ut0mutex.h>
+#include <rem0types.h>
 
 struct dict_sys_t;
 struct dict_col_t;
@@ -114,7 +115,7 @@ struct table_name_t
 	}
 
 	/** @return the length of the schema name, in bytes */
-	size_t dblen() const { return dbend() - m_name; }
+	size_t dblen() const { return size_t(dbend() - m_name); }
 
 	/** Determine the filename-safe encoded table name.
 	@return	the filename-safe encoded table name */

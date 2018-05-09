@@ -763,6 +763,13 @@ struct PSI_bootstrap *PSI_hook= NULL;
 
 PSI *PSI_server= & PSI_noop;
 
+/**
+  Global performance schema flag.
+  Indicate if the performance schema is enabled.
+  This flag is set at startup, and never changes.
+*/
+my_bool pfs_enabled= FALSE;
+
 void set_psi_server(PSI *psi)
 {
   PSI_server= psi;

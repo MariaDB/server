@@ -2025,7 +2025,7 @@ template <class T>
 inline Item* get_item_copy (THD *thd, T* item)
 {
   Item *copy= new (get_thd_memroot(thd)) T(*item);
-  if (copy)
+  if (likely(copy))
     copy->register_in(thd);
   return copy;
 }	
@@ -2162,7 +2162,7 @@ public:
   Item_args(THD *thd, Item *a, Item *b, Item *c)
   {
     arg_count= 0;
-    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 3)))
+    if (likely((args= (Item**) thd_alloc(thd, sizeof(Item*) * 3))))
     {
       arg_count= 3;
       args[0]= a; args[1]= b; args[2]= c;
@@ -2171,7 +2171,7 @@ public:
   Item_args(THD *thd, Item *a, Item *b, Item *c, Item *d)
   {
     arg_count= 0;
-    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 4)))
+    if (likely((args= (Item**) thd_alloc(thd, sizeof(Item*) * 4))))
     {
       arg_count= 4;
       args[0]= a; args[1]= b; args[2]= c; args[3]= d;
@@ -2180,7 +2180,7 @@ public:
   Item_args(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e)
   {
     arg_count= 5;
-    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 5)))
+    if (likely((args= (Item**) thd_alloc(thd, sizeof(Item*) * 5))))
     {
       arg_count= 5;
       args[0]= a; args[1]= b; args[2]= c; args[3]= d; args[4]= e;
@@ -3180,17 +3180,10 @@ public:
   Field *result_field;
   Item_null_result(THD *thd): Item_null(thd), result_field(0) {}
   bool is_result_field() { return result_field != 0; }
-#if MARIADB_VERSION_ID < 100300
-  enum_field_types field_type() const
-  {
-    return result_field->type();
-  }
-#else
   const Type_handler *type_handler() const
   {
     return result_field->type_handler();
   }
-#endif
   void save_in_result_field(bool no_conversions)
   {
     save_in_field(result_field, no_conversions);
@@ -4206,7 +4199,7 @@ public:
   {
     // following assert is redundant, because fixed=1 assigned in constructor
     DBUG_ASSERT(fixed == 1);
-    ulonglong value= (ulonglong) Item_hex_hybrid::val_int();
+    longlong value= Item_hex_hybrid::val_int();
     int2my_decimal(E_DEC_FATAL_ERROR, value, TRUE, decimal_value);
     return decimal_value;
   }

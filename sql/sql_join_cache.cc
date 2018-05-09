@@ -2248,7 +2248,7 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
     goto finish2;
 
   /* Prepare to retrieve all records of the joined table */
-  if ((error= join_tab_scan->open()))
+  if (unlikely((error= join_tab_scan->open())))
   { 
     /* 
       TODO: if we get here, we will assert in net_send_statement(). Add test
@@ -2259,7 +2259,7 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
 
   while (!(error= join_tab_scan->next()))   
   {
-    if (join->thd->check_killed())
+    if (unlikely(join->thd->check_killed()))
     {
       /* The user has aborted the execution of the query */
       join->thd->send_kill_message();
@@ -2411,7 +2411,7 @@ enum_nested_loop_state JOIN_CACHE::generate_full_extensions(uchar *rec_ptr)
       DBUG_RETURN(rc);
     }
   }
-  else if (join->thd->is_error())
+  else if (unlikely(join->thd->is_error()))
     rc= NESTED_LOOP_ERROR;
   DBUG_RETURN(rc);
 }
@@ -2533,7 +2533,7 @@ enum_nested_loop_state JOIN_CACHE::join_null_complements(bool skip_last)
 
   for ( ; cnt; cnt--)
   {
-    if (join->thd->check_killed())
+    if (unlikely(join->thd->check_killed()))
     {
       /* The user has aborted the execution of the query */
       join->thd->send_kill_message();
@@ -3392,7 +3392,7 @@ int JOIN_TAB_SCAN::next()
 
   while (!err && select && (skip_rc= select->skip_record(thd)) <= 0)
   {
-    if (thd->check_killed() || skip_rc < 0) 
+    if (unlikely(thd->check_killed()) || skip_rc < 0)
       return 1;
     /* 
       Move to the next record if the last retrieved record does not

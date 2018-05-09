@@ -1052,7 +1052,7 @@ void query_cache_insert(void *thd_arg, const char *packet, size_t length,
     called for this thread.
   */
 
-  if (!thd)
+  if (unlikely(!thd))
     return;
 
   query_cache.insert(thd, &thd->query_cache_tls,

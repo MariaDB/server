@@ -1975,7 +1975,7 @@ lock_rec_lock(
     trx_mutex_enter(trx);
     if (lock_rec_get_next_on_page(lock) ||
         lock->trx != trx ||
-        lock->type_mode != (mode | LOCK_REC) ||
+        lock->type_mode != (ulint(mode) | LOCK_REC) ||
         lock_rec_get_n_bits(lock) <= heap_no)
     {
       /* Do nothing if the trx already has a strong enough lock on rec */
@@ -2470,7 +2470,8 @@ lock_rec_inherit_to_gap(
 			 && lock_get_mode(lock) ==
 			 (lock->trx->duplicates ? LOCK_S : LOCK_X))) {
 			lock_rec_add_to_queue(
-				LOCK_REC | LOCK_GAP | lock_get_mode(lock),
+				LOCK_REC | LOCK_GAP
+				| ulint(lock_get_mode(lock)),
 				heir_block, heir_heap_no, lock->index,
 				lock->trx, FALSE);
 		}
@@ -2506,7 +2507,8 @@ lock_rec_inherit_to_gap_if_gap_lock(
 			|| !lock_rec_get_rec_not_gap(lock))) {
 
 			lock_rec_add_to_queue(
-				LOCK_REC | LOCK_GAP | lock_get_mode(lock),
+				LOCK_REC | LOCK_GAP
+				| ulint(lock_get_mode(lock)),
 				block, heir_heap_no, lock->index,
 				lock->trx, FALSE);
 		}
@@ -3770,7 +3772,7 @@ lock_table_enqueue_waiting(
 #endif /* WITH_WSREP */
 
 	/* Enqueue the lock request that will wait to be granted */
-	lock = lock_table_create(table, mode | LOCK_WAIT, trx
+	lock = lock_table_create(table, ulint(mode) | LOCK_WAIT, trx
 #ifdef WITH_WSREP
 				 , c_lock
 #endif
@@ -3929,13 +3931,14 @@ lock_table(
 	mode: this trx may have to wait */
 
 	if (wait_for != NULL) {
-		err = lock_table_enqueue_waiting(mode | flags, table, thr
+		err = lock_table_enqueue_waiting(ulint(mode) | flags, table,
+						 thr
 #ifdef WITH_WSREP
 						 , wait_for
 #endif
 						 );
 	} else {
-		lock_table_create(table, mode | flags, trx);
+		lock_table_create(table, ulint(mode) | flags, trx);
 
 		ut_a(!flags || mode == LOCK_S || mode == LOCK_X);
 
@@ -5240,8 +5243,7 @@ lock_rec_block_validate(
 }
 
 
-static my_bool lock_validate_table_locks(rw_trx_hash_element_t *element,
-                                         void *arg)
+static my_bool lock_validate_table_locks(rw_trx_hash_element_t *element, void*)
 {
   ut_ad(lock_mutex_own());
   mutex_enter(&element->mutex);
@@ -5478,7 +5480,6 @@ lock_rec_convert_impl_to_expl_for_trx(
 	const buf_block_t*	block,	/*!< in: buffer block of rec */
 	const rec_t*		rec,	/*!< in: user record on page */
 	dict_index_t*		index,	/*!< in: index of record */
-	const ulint*		offsets,/*!< in: rec_get_offsets(rec, index) */
 	trx_t*			trx,	/*!< in/out: active transaction */
 	ulint			heap_no)/*!< in: rec heap number to lock */
 {
@@ -5623,7 +5624,7 @@ lock_rec_convert_impl_to_expl(
 		trx cannot be committed until the ref count is zero. */
 
 		lock_rec_convert_impl_to_expl_for_trx(
-			block, rec, index, offsets, trx, heap_no);
+			block, rec, index, trx, heap_no);
 	}
 }
 
@@ -5820,7 +5821,7 @@ lock_sec_rec_read_check_and_lock(
 					      index, offsets);
 	}
 
-	err = lock_rec_lock(FALSE, mode | gap_mode,
+	err = lock_rec_lock(FALSE, ulint(mode) | gap_mode,
 			    block, heap_no, index, thr);
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
@@ -5884,7 +5885,8 @@ lock_clust_rec_read_check_and_lock(
 					      index, offsets);
 	}
 
-	err = lock_rec_lock(FALSE, mode | gap_mode, block, heap_no, index, thr);
+	err = lock_rec_lock(FALSE, ulint(mode) | gap_mode,
+			    block, heap_no, index, thr);
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
 

@@ -999,7 +999,7 @@ bool Aggregator_distinct::add()
       */
       return tree->unique_add(table->record[0] + table->s->null_bytes);
     }
-    if ((error= table->file->ha_write_tmp_row(table->record[0])) &&
+    if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))) &&
         table->file->is_fatal_error(error, HA_CHECK_DUP))
       return TRUE;
     return FALSE;

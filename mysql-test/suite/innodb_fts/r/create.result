@@ -9,8 +9,6 @@ INSERT INTO t SET t=REPEAT(_utf8 0xefbc90,84);
 INSERT INTO t SET t=REPEAT('befor',17);
 INSERT INTO t SET t='BeforeTheIndexCreation';
 CREATE FULLTEXT INDEX ft ON t(t);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 INSERT INTO t SET t='this was inserted after creating the index';
 INSERT INTO t SET t=REPEAT(_utf8 0xefbc91,84);
 INSERT INTO t SET t=REPEAT('after',17);
@@ -90,8 +88,6 @@ INSERT INTO t SET t=REPEAT(_utf8 0xefbc90,84);
 INSERT INTO t SET t=REPEAT('befor',17);
 INSERT INTO t SET t='BeforeTheIndexCreation';
 CREATE FULLTEXT INDEX ft ON t(t);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 INSERT INTO t SET t='this was inserted after creating the index';
 INSERT INTO t SET t=REPEAT(_utf8 0xefbc91,84);
 INSERT INTO t SET t=REPEAT('after',17);

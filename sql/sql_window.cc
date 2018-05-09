@@ -2799,7 +2799,7 @@ bool compute_window_func(THD *thd,
 
       /* Check if we found any error in the window function while adding values
          through cursors. */
-      if (thd->is_error() || thd->is_killed())
+      if (unlikely(thd->is_error() || thd->is_killed()))
         break;
 
 

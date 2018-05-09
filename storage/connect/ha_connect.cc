@@ -238,8 +238,6 @@ uint    GetWorkSize(void);
 void    SetWorkSize(uint);
 extern "C" const char *msglang(void);
 
-static char *strz(PGLOBAL g, LEX_STRING &ls);
-
 static void PopUser(PCONNECT xp);
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
 static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);
@@ -6882,12 +6880,12 @@ bool ha_connect::NoFieldOptionChange(TABLE *tab)
     @retval   HA_ALTER_ERROR                  Unexpected error.
     @retval   HA_ALTER_INPLACE_NOT_SUPPORTED  Not supported, must use copy.
     @retval   HA_ALTER_INPLACE_EXCLUSIVE_LOCK Supported, but requires X lock.
-    @retval   HA_ALTER_INPLACE_SHARED_LOCK_AFTER_PREPARE
+    @retval   HA_ALTER_INPLACE_COPY_LOCK
                                               Supported, but requires SNW lock
                                               during main phase. Prepare phase
                                               requires X lock.
     @retval   HA_ALTER_INPLACE_SHARED_LOCK    Supported, but requires SNW lock.
-    @retval   HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE
+    @retval   HA_ALTER_INPLACE_COPY_NO_LOCK
                                               Supported, concurrent reads/writes
                                               allowed. However, prepare phase
                                               requires X lock.

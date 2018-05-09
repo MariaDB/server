@@ -135,8 +135,7 @@ row_sel_convert_mysql_key_to_innobase(
 	ulint		buf_len,	/*!< in: buffer length */
 	dict_index_t*	index,		/*!< in: index of the key value */
 	const byte*	key_ptr,	/*!< in: MySQL key value */
-	ulint		key_len,	/*!< in: MySQL key value length */
-	trx_t*		trx);		/*!< in: transaction */
+	ulint		key_len);	/*!< in: MySQL key value length */
 
 
 /** Searches for rows in the database. This is used in the interface to

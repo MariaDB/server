@@ -79,8 +79,9 @@ ulonglong find_set(TYPELIB *lib, const char *str, size_t length, CHARSET_INFO *c
       var_len= (uint) (pos - start);
       uint find= cs ? find_type2(lib, start, var_len, cs) :
                       find_type(lib, start, var_len, (bool) 0);
-      if (!find && *err_len == 0) // report the first error with length > 0
+      if (unlikely(!find && *err_len == 0))
       {
+        // report the first error with length > 0
         *err_pos= (char*) start;
         *err_len= var_len;
         *set_warning= 1;

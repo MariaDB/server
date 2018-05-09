@@ -5,8 +5,6 @@ a VARCHAR(200),
 b TEXT
 ) ENGINE= InnoDB;
 CREATE FULLTEXT INDEX idx on t1 (a,b);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 INSERT INTO t1 (a,b) VALUES
 ('MySQL from Tutorial','DBMS stands for DataBase ...')  ,
 ('when To Use MySQL Well','After that you went through a ...'),
@@ -111,8 +109,6 @@ INSERT INTO t1 (a,b) VALUES
 ('when To Use MySQL Well','After that you went through a ...'),
 ('where will Optimizing MySQL','what In this tutorial we will show ...');
 CREATE FULLTEXT INDEX idx on t1 (a,b);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 INSERT INTO t1 (a,b) VALUES
 ('MySQL Tutorial','request docteam@oraclehelp.com ...')  ,
 ('Trial version','query performace @1255 minute on 2.1Hz Memory 2GB...'),
@@ -148,8 +144,6 @@ INSERT INTO t1 (a,b,c) VALUES   (repeat("b", 19000), 'XYZ, long text', 'very lon
 INSERT INTO t1 (a,b,c) VALUES   (repeat("b", 19000), 'XYZ, very little long blob very much blob', 'very long blob');
 INSERT INTO t1 (a,b,c) VALUES   (repeat("b", 19000),"very 租车 供 blob","new 供需分析information");
 CREATE FULLTEXT INDEX idx on t1 (a,b,c);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 INSERT INTO t1 (a,b,c) VALUES   (repeat("x", 19000), 'new, long text', 'very new blob');
 INSERT INTO t1 (a,b,c) VALUES   ('interesting, long text', repeat("x", 19000), 'very very good new blob');
 SELECT count(*) FROM t1
@@ -191,8 +185,6 @@ b TEXT
 INSERT INTO t1 (a,b) VALUES
 ('MySQL from Tutorial','DBMS stands for    + DataBase ...');
 CREATE FULLTEXT INDEX idx on t1 (a,b);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 SELECT * FROM t1
 WHERE MATCH (a,b)
 AGAINST ('"stands database"@3' IN BOOLEAN MODE);
@@ -208,8 +200,6 @@ c TEXT
 INSERT INTO t1 (a,b,c) VALUES   (repeat("b", 19000), 'XYZ, long text', 'very long blob');
 INSERT INTO t1 (a,b,c) VALUES   ('XYZ, 租车 very little long blob very much blob', repeat("b", 19000), 'very long but smaller blob');
 CREATE FULLTEXT INDEX idx on t1 (a,b,c);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 DELETE FROM t1;
 INSERT INTO t1 (a,b,c) VALUES   (repeat("b", 19000), 'XYZ, long text', 'very long blob');
 INSERT INTO t1 (a,b,c) VALUES   ('XYZ, 租车 very little long blob is a very much longer blob', repeat("b", 19000), 'this is very long but smaller blob');

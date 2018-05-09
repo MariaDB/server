@@ -320,7 +320,7 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
   enum_binlog_format save_binlog_format;
   DBUG_ENTER("Events::create_event");
 
-  if (check_if_system_tables_error())
+  if (unlikely(check_if_system_tables_error()))
     DBUG_RETURN(TRUE);
 
   /*
@@ -455,7 +455,7 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
 
   DBUG_ENTER("Events::update_event");
 
-  if (check_if_system_tables_error())
+  if (unlikely(check_if_system_tables_error()))
     DBUG_RETURN(TRUE);
 
   if (parse_data->check_parse_data(thd) || parse_data->do_not_create)
@@ -589,7 +589,7 @@ Events::drop_event(THD *thd, const LEX_CSTRING *dbname,
   enum_binlog_format save_binlog_format;
   DBUG_ENTER("Events::drop_event");
 
-  if (check_if_system_tables_error())
+  if (unlikely(check_if_system_tables_error()))
     DBUG_RETURN(TRUE);
 
   if (check_access(thd, EVENT_ACL, dbname->str, NULL, NULL, 0, 0))
@@ -761,7 +761,7 @@ Events::show_create_event(THD *thd, const LEX_CSTRING *dbname,
   DBUG_ENTER("Events::show_create_event");
   DBUG_PRINT("enter", ("name: %s@%s", dbname->str, name->str));
 
-  if (check_if_system_tables_error())
+  if (unlikely(check_if_system_tables_error()))
     DBUG_RETURN(TRUE);
 
   if (check_access(thd, EVENT_ACL, dbname->str, NULL, NULL, 0, 0))
@@ -817,7 +817,7 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
   if (opt_noacl)
     DBUG_RETURN(0);
 
-  if (check_if_system_tables_error())
+  if (unlikely(check_if_system_tables_error()))
     DBUG_RETURN(1);
 
   /*

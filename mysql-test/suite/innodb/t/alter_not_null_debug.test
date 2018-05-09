@@ -1,0 +1,68 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1(c1 INT NOT NULL, c2 INT, PRIMARY KEY(c1))ENGINE=INNODB;
+INSERT INTO t1 VALUES(1, NULL);
+SET DEBUG_SYNC= 'row_merge_after_scan
+SIGNAL opened WAIT_FOR flushed';
+send ALTER TABLE t1 CHANGE c2 c2 INT NOT NULL DEFAULT 2, ALGORITHM=INPLACE;
+connect (con1,localhost,root);
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+INSERT INTO t1 VALUES(2, NULL);
+SET DEBUG_SYNC= 'now SIGNAL flushed';
+connection default;
+--error ER_INVALID_USE_OF_NULL
+reap;
+SELECT * FROM t1;
+UPDATE t1 SET c2 = 0 WHERE c1 = 2;
+SET DEBUG_SYNC= 'row_merge_after_scan
+SIGNAL opened WAIT_FOR flushed';
+--echo # Alter ignore can convert the NULL values from
+--echo # CONCURRENT DML to constants
+send ALTER IGNORE TABLE t1 CHANGE c2 c2 INT NOT NULL DEFAULT 2, ALGORITHM=INPLACE;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+UPDATE t1 SET c2 = NULL WHERE c1 = 2;
+INSERT INTO t1 VALUES (3, NULL);
+SET DEBUG_SYNC= 'now SIGNAL flushed';
+connection default;
+reap;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1(c1 INT NOT NULL, c2 INT, c3 INT, PRIMARY KEY(c1))ENGINE=INNODB;
+INSERT INTO t1 VALUES(1, NULL, NULL);
+SET DEBUG_SYNC= 'row_merge_after_scan
+SIGNAL opened WAIT_FOR flushed';
+--echo # Alter Successfully converts from null to not null
+
+send ALTER TABLE t1 CHANGE c2 c2 INT NOT NULL DEFAULT 2, ALGORITHM=INPLACE;
+
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+UPDATE t1 SET c2= 2 WHERE c1 = 1;
+INSERT INTO t1 VALUES (2, 3, 4);
+SET DEBUG_SYNC= 'now SIGNAL flushed';
+connection default;
+reap;
+SELECT * FROM t1;
+
+SET DEBUG_SYNC= 'row_merge_after_scan
+SIGNAL opened WAIT_FOR flushed';
+--echo # Alter fails because concurrent dml inserts null value
+
+send ALTER TABLE t1 CHANGE c3 c3 INT NOT NULL DEFAULT 2, ALGORITHM=INPLACE;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+UPDATE t1 SET c3= 2 WHERE c1 = 2;
+INSERT INTO t1 VALUES (4, 3, NULL);
+SET DEBUG_SYNC= 'now SIGNAL flushed';
+connection default;
+--error ER_INVALID_USE_OF_NULL
+reap;
+SELECT * FROM t1;
+DROP TABLE t1;
+disconnect con1;
+SET DEBUG_SYNC='RESET';

@@ -698,10 +698,6 @@ bool	os_has_said_disk_full;
 /** Default Zip compression level */
 extern uint page_zip_level;
 
-#if DATA_TRX_ID_LEN > 6
-#error "COMPRESSION_ALGORITHM will not fit"
-#endif /* DATA_TRX_ID_LEN */
-
 /** Validates the consistency of the aio system.
 @return true if ok */
 static
@@ -1031,7 +1027,7 @@ AIOHandler::post_io_processing(Slot* slot)
 	ut_ad(slot->is_reserved);
 
 	/* Total bytes read so far */
-	ulint	n_bytes = (slot->ptr - slot->buf) + slot->n_bytes;
+	ulint	n_bytes = ulint(slot->ptr - slot->buf) + slot->n_bytes;
 
 	return(n_bytes == slot->original_len ? DB_SUCCESS : DB_FAIL);
 }
@@ -1327,7 +1323,7 @@ os_file_make_new_pathname(
 	/* Find the offset of the last slash. We will strip off the
 	old basename.ibd which starts after that slash. */
 	last_slash = strrchr((char*) old_path, OS_PATH_SEPARATOR);
-	dir_len = last_slash ? last_slash - old_path : strlen(old_path);
+	dir_len = last_slash ? ulint(last_slash - old_path) : strlen(old_path);
 
 	/* allocate a new path and move the old directory path to it. */
 	new_path_len = dir_len + strlen(base_name) + sizeof "/.ibd";
@@ -1474,7 +1470,7 @@ os_file_get_parent_dir(
 
 	/* Non-trivial directory component */
 
-	return(mem_strdupl(path, last_slash - path));
+	return(mem_strdupl(path, ulint(last_slash - path)));
 }
 #ifdef UNIV_ENABLE_UNIT_TEST_GET_PARENT_DIR
 
@@ -2301,23 +2297,23 @@ AIO::is_linux_native_aio_supported()
 
 	memset(&io_event, 0x0, sizeof(io_event));
 
-	byte*	buf = static_cast<byte*>(ut_malloc_nokey(UNIV_PAGE_SIZE * 2));
-	byte*	ptr = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
+	byte*	buf = static_cast<byte*>(ut_malloc_nokey(srv_page_size * 2));
+	byte*	ptr = static_cast<byte*>(ut_align(buf, srv_page_size));
 
 	struct iocb	iocb;
 
 	/* Suppress valgrind warning. */
-	memset(buf, 0x00, UNIV_PAGE_SIZE * 2);
+	memset(buf, 0x00, srv_page_size * 2);
 	memset(&iocb, 0x0, sizeof(iocb));
 
 	struct iocb*	p_iocb = &iocb;
 
 	if (!srv_read_only_mode) {
 
-		io_prep_pwrite(p_iocb, fd, ptr, UNIV_PAGE_SIZE, 0);
+		io_prep_pwrite(p_iocb, fd, ptr, srv_page_size, 0);
 
 	} else {
-		ut_a(UNIV_PAGE_SIZE >= 512);
+		ut_a(srv_page_size >= 512);
 		io_prep_pread(p_iocb, fd, ptr, 512, 0);
 	}
 
@@ -3288,7 +3284,7 @@ os_file_get_size(
 		/* st_blocks is in 512 byte sized blocks */
 		file_size.m_alloc_size = s.st_blocks * 512;
 	} else {
-		file_size.m_total_size = ~0;
+		file_size.m_total_size = ~0U;
 		file_size.m_alloc_size = (os_offset_t) errno;
 	}
 
@@ -4847,7 +4843,7 @@ os_file_io(
 	os_offset_t	offset,
 	dberr_t*	err)
 {
-	ulint		original_n = n;
+	ssize_t		original_n = ssize_t(n);
 	IORequest	type = in_type;
 	ssize_t		bytes_returned = 0;
 
@@ -4862,7 +4858,7 @@ os_file_io(
 
 			break;
 
-		} else if ((ulint) n_bytes + bytes_returned == n) {
+		} else if (n_bytes + bytes_returned == ssize_t(n)) {
 
 			bytes_returned += n_bytes;
 
@@ -4881,9 +4877,9 @@ os_file_io(
 
 		/* Handle partial read/write. */
 
-		ut_ad((ulint) n_bytes + bytes_returned < n);
+		ut_ad(ulint(n_bytes + bytes_returned) < n);
 
-		bytes_returned += (ulint) n_bytes;
+		bytes_returned += n_bytes;
 
 		if (!type.is_partial_io_warning_disabled()) {
 
@@ -5207,7 +5203,7 @@ os_file_set_nocache(
 
 		ib::error()
 			<< "Failed to set DIRECTIO_ON on file "
-			<< file_name << ": " << operation_name
+			<< file_name << "; " << operation_name << ": "
 			<< strerror(errno_save) << ","
 			" continuing anyway.";
 	}
@@ -5221,9 +5217,9 @@ os_file_set_nocache(
 # ifdef UNIV_LINUX
 				ib::warn()
 					<< "Failed to set O_DIRECT on file"
-					<< file_name << ";" << operation_name
+					<< file_name << "; " << operation_name
 					<< ": " << strerror(errno_save) << ", "
-					<< "ccontinuing anyway. O_DIRECT is "
+					"continuing anyway. O_DIRECT is "
 					"known to result in 'Invalid argument' "
 					"on Linux on tmpfs, "
 					"see MySQL Bug#26662.";
@@ -5239,7 +5235,7 @@ short_warning:
 				<< "Failed to set O_DIRECT on file "
 				<< file_name << "; " << operation_name
 				<< " : " << strerror(errno_save)
-				<< " continuing anyway.";
+				<< ", continuing anyway.";
 		}
 	}
 #endif /* defined(UNIV_SOLARIS) && defined(DIRECTIO_ON) */
@@ -5327,18 +5323,16 @@ fallback:
 #endif /* _WIN32*/
 
 	/* Write up to 1 megabyte at a time. */
-	ulint	buf_size = ut_min(
-		static_cast<ulint>(64),
-		static_cast<ulint>(size / UNIV_PAGE_SIZE));
-
-	buf_size *= UNIV_PAGE_SIZE;
+	ulint	buf_size = ut_min(ulint(64),
+				  ulint(size >> srv_page_size_shift))
+		<< srv_page_size_shift;
 
 	/* Align the buffer for possible raw i/o */
 	byte*	buf2;
 
-	buf2 = static_cast<byte*>(ut_malloc_nokey(buf_size + UNIV_PAGE_SIZE));
+	buf2 = static_cast<byte*>(ut_malloc_nokey(buf_size + srv_page_size));
 
-	byte*	buf = static_cast<byte*>(ut_align(buf2, UNIV_PAGE_SIZE));
+	byte*	buf = static_cast<byte*>(ut_align(buf2, srv_page_size));
 
 	/* Write buffer full of zeros */
 	memset(buf, 0, buf_size);
@@ -5561,7 +5555,7 @@ os_is_sparse_file_supported(os_file_t fh)
 
 	/* We don't know the FS block size, use the sector size. The FS
 	will do the magic. */
-	err = os_file_punch_hole_posix(fh, 0, UNIV_PAGE_SIZE);
+	err = os_file_punch_hole_posix(fh, 0, srv_page_size);
 
 	return(err == DB_SUCCESS);
 #endif /* _WIN32 */
@@ -6172,7 +6166,7 @@ AIO::reserve_slot(
 	doing simulated AIO */
 	ulint		local_seg;
 
-	local_seg = (offset >> (UNIV_PAGE_SIZE_SHIFT + 6)) % m_n_segments;
+	local_seg = (offset >> (srv_page_size_shift + 6)) % m_n_segments;
 
 	for (;;) {
 
@@ -6853,10 +6847,10 @@ public:
 			}
 
 			m_ptr = static_cast<byte*>(
-				ut_malloc_nokey(len + UNIV_PAGE_SIZE));
+				ut_malloc_nokey(len + srv_page_size));
 
 			m_buf = static_cast<byte*>(
-				ut_align(m_ptr, UNIV_PAGE_SIZE));
+				ut_align(m_ptr, srv_page_size));
 
 		} else {
 			len = first_slot()->len;

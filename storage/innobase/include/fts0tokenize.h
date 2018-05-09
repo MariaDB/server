@@ -144,7 +144,7 @@ fts_get_word(
 				}
 			}
 
-			info->prev = *doc;
+			info->prev = char(*doc);
 			info->yesno = (FTB_YES == ' ') ? 1 : (info->quot != 0);
 			info->weight_adjust = info->wasign = 0;
 		}

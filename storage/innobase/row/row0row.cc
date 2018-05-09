@@ -113,9 +113,8 @@ row_build_index_entry_low(
 			col_no = dict_col_get_no(col);
 			dfield = dtuple_get_nth_field(entry, i);
 		}
-#if DATA_MISSING != 0
-# error "DATA_MISSING != 0"
-#endif
+
+		compile_time_assert(DATA_MISSING == 0);
 
 		if (dict_col_is_virtual(col)) {
 			const dict_v_col_t*	v_col
@@ -910,9 +909,8 @@ row_build_row_ref_in_tuple(
 					held as long as the row
 					reference is used! */
 	const dict_index_t*	index,	/*!< in: secondary index */
-	ulint*			offsets,/*!< in: rec_get_offsets(rec, index)
+	ulint*			offsets)/*!< in: rec_get_offsets(rec, index)
 					or NULL */
-	trx_t*			trx)	/*!< in: transaction */
 {
 	const dict_index_t*	clust_index;
 	dfield_t*		dfield;
@@ -1014,7 +1012,7 @@ row_search_on_row_ref(
 
 	index = dict_table_get_first_index(table);
 
-	if (UNIV_UNLIKELY(ref->info_bits)) {
+	if (UNIV_UNLIKELY(ref->info_bits != 0)) {
 		ut_ad(ref->info_bits == REC_INFO_DEFAULT_ROW);
 		ut_ad(ref->n_fields <= index->n_uniq);
 		btr_pcur_open_at_index_side(true, index, mode, pcur, true, 0,
@@ -1186,7 +1184,7 @@ row_raw_format_int(
 		value = mach_read_int_type(
 			(const byte*) data, data_len, unsigned_type);
 
-		ret = snprintf(
+		ret = (ulint) snprintf(
 			buf, buf_size,
 			unsigned_type ? "%llu" : "%lld", (longlong) value)+1;
 	} else {

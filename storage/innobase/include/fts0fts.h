@@ -561,7 +561,6 @@ fts_commit(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** FTS Query entry point.
-@param[in]	trx		transaction
 @param[in]	index		fts index to search
 @param[in]	flags		FTS search mode
 @param[in]	query_str	FTS query
@@ -570,7 +569,6 @@ fts_commit(
 @return DB_SUCCESS if successful otherwise error code */
 dberr_t
 fts_query(
-	trx_t*		trx,
 	dict_index_t*	index,
 	uint		flags,
 	const byte*	query_str,
@@ -736,7 +734,6 @@ Take a FTS savepoint. */
 void
 fts_savepoint_take(
 /*===============*/
-	trx_t*		trx,			/*!< in: transaction */
 	fts_trx_t*	fts_trx,		/*!< in: fts transaction */
 	const char*	name);			/*!< in: savepoint name */
 

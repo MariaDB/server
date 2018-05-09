@@ -6,6 +6,7 @@ CREATE DATABASE new_db;
 CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY NOT NULL) ENGINE=tokudb;
 ALTER TABLE test.t1 RENAME new_db.t1;
 The content of "test" directory:
+db.opt
 The content of "new_db" directory:
 db.opt
 t1.frm

@@ -15071,7 +15071,6 @@ EXPLAIN
       "materialized": {
         "query_block": {
           "select_id": 2,
-          "outer_ref_condition": "t1.pk1 is not null",
           "table": {
             "table_name": "t2",
             "access_type": "eq_ref",

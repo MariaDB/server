@@ -374,7 +374,7 @@ static int send_file(THD *thd)
     We need net_flush here because the client will not know it needs to send
     us the file name until it has processed the load event entry
   */
-  if (net_flush(net) || (packet_len = my_net_read(net)) == packet_error)
+  if (unlikely(net_flush(net) || (packet_len = my_net_read(net)) == packet_error))
   {
     errmsg = "while reading file name";
     goto err;
@@ -1259,12 +1259,12 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
       goto end;
     }
     bzero((char*) &cache, sizeof(cache));
-    if ((file= open_binlog(&cache, buf, &errormsg)) == (File)-1)
+    if (unlikely((file= open_binlog(&cache, buf, &errormsg)) == (File)-1))
       goto end;
     errormsg= get_gtid_list_event(&cache, &glev);
     end_io_cache(&cache);
     mysql_file_close(file, MYF(MY_WME));
-    if (errormsg)
+    if (unlikely(errormsg))
       goto end;
 
     if (!glev || contains_all_slave_gtid(state, glev))
@@ -1371,14 +1371,14 @@ gtid_state_from_pos(const char *name, uint32 offset,
   String packet;
   Format_description_log_event *fdev= NULL;
 
-  if (gtid_state->load((const rpl_gtid *)NULL, 0))
+  if (unlikely(gtid_state->load((const rpl_gtid *)NULL, 0)))
   {
     errormsg= "Internal error (out of memory?) initializing slave state "
       "while scanning binlog to find start position";
     return errormsg;
   }
 
-  if ((file= open_binlog(&cache, name, &errormsg)) == (File)-1)
+  if (unlikely((file= open_binlog(&cache, name, &errormsg)) == (File)-1))
     return errormsg;
 
   if (!(fdev= new Format_description_log_event(3)))
@@ -1411,7 +1411,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
     err= Log_event::read_log_event(&cache, &packet, fdev,
                          opt_master_verify_checksum ? current_checksum_alg
                                                     : BINLOG_CHECKSUM_ALG_OFF);
-    if (err)
+    if (unlikely(err))
     {
       errormsg= "Could not read binlog while searching for slave start "
         "position on master";
@@ -1426,7 +1426,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
     {
       Format_description_log_event *tmp;
 
-      if (found_format_description_event)
+      if (unlikely(found_format_description_event))
       {
         errormsg= "Duplicate format description log event found while "
           "searching for old-style position in binlog";
@@ -1435,8 +1435,9 @@ gtid_state_from_pos(const char *name, uint32 offset,
 
       current_checksum_alg= get_checksum_alg(packet.ptr(), packet.length());
       found_format_description_event= true;
-      if (!(tmp= new Format_description_log_event(packet.ptr(), packet.length(),
-                                                  fdev)))
+      if (unlikely(!(tmp= new Format_description_log_event(packet.ptr(),
+                                                           packet.length(),
+                                                           fdev))))
       {
         errormsg= "Corrupt Format_description event found or out-of-memory "
           "while searching for old-style position in binlog";
@@ -1459,7 +1460,8 @@ gtid_state_from_pos(const char *name, uint32 offset,
         goto end;
       }
     }
-    else if (typ != FORMAT_DESCRIPTION_EVENT && !found_format_description_event)
+    else if (unlikely(typ != FORMAT_DESCRIPTION_EVENT &&
+                      !found_format_description_event))
     {
       errormsg= "Did not find format description log event while searching "
         "for old-style position in binlog";
@@ -1474,7 +1476,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       bool status;
       uint32 list_len;
 
-      if (found_gtid_list_event)
+      if (unlikely(found_gtid_list_event))
       {
         errormsg= "Found duplicate Gtid_list_log_event while scanning binlog "
           "to find slave start position";
@@ -1483,7 +1485,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       status= Gtid_list_log_event::peek(packet.ptr(), packet.length(),
                                         current_checksum_alg,
                                         &gtid_list, &list_len, fdev);
-      if (status)
+      if (unlikely(status))
       {
         errormsg= "Error reading Gtid_list_log_event while searching "
           "for old-style position in binlog";
@@ -1491,7 +1493,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       }
       err= gtid_state->load(gtid_list, list_len);
       my_free(gtid_list);
-      if (err)
+      if (unlikely(err))
       {
         errormsg= "Internal error (out of memory?) initialising slave state "
           "while scanning binlog to find start position";
@@ -1499,7 +1501,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       }
       found_gtid_list_event= true;
     }
-    else if (!found_gtid_list_event)
+    else if (unlikely(!found_gtid_list_event))
     {
       /* We did not find any Gtid_list_log_event, must be old binlog. */
       goto end;
@@ -1508,15 +1510,16 @@ gtid_state_from_pos(const char *name, uint32 offset,
     {
       rpl_gtid gtid;
       uchar flags2;
-      if (Gtid_log_event::peek(packet.ptr(), packet.length(),
-                               current_checksum_alg, &gtid.domain_id,
-                               &gtid.server_id, &gtid.seq_no, &flags2, fdev))
+      if (unlikely(Gtid_log_event::peek(packet.ptr(), packet.length(),
+                                        current_checksum_alg, &gtid.domain_id,
+                                        &gtid.server_id, &gtid.seq_no, &flags2,
+                                        fdev)))
       {
         errormsg= "Corrupt gtid_log_event found while scanning binlog to find "
           "initial slave position";
         goto end;
       }
-      if (gtid_state->update(&gtid))
+      if (unlikely(gtid_state->update(&gtid)))
       {
         errormsg= "Internal error (out of memory?) updating slave state while "
           "scanning binlog to find start position";
@@ -1525,7 +1528,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
     }
   }
 
-  if (!valid_pos)
+  if (unlikely(!valid_pos))
   {
     errormsg= "Slave requested incorrect position in master binlog. "
       "Requested position %u in file '%s', but this position does not "
@@ -2099,8 +2102,8 @@ static int init_binlog_sender(binlog_send_info *info,
       info->error= ER_UNKNOWN_ERROR;
       return 1;
     }
-    if ((error= check_slave_start_position(info, &info->errmsg,
-                                           &info->error_gtid)))
+    if (unlikely((error= check_slave_start_position(info, &info->errmsg,
+                                                    &info->error_gtid))))
     {
       info->error= error;
       return 1;
@@ -2199,7 +2202,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
                                    : BINLOG_CHECKSUM_ALG_OFF);
   linfo->pos= my_b_tell(log);
 
-  if (error)
+  if (unlikely(error))
   {
     set_read_error(info, error);
     DBUG_RETURN(1);
@@ -2333,7 +2336,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
                                    : BINLOG_CHECKSUM_ALG_OFF);
   linfo->pos= my_b_tell(log);
 
-  if (error)
+  if (unlikely(error))
   {
     set_read_error(info, error);
     DBUG_RETURN(1);
@@ -2585,7 +2588,7 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
                                                   : BINLOG_CHECKSUM_ALG_OFF);
     linfo->pos= my_b_tell(log);
 
-    if (error)
+    if (unlikely(error))
     {
       set_read_error(info, error);
       return 1;
@@ -2893,6 +2896,12 @@ err:
   thd->variables.max_allowed_packet= old_max_allowed_packet;
   delete info->fdev;
 
+  if (likely(info->error == 0))
+  {
+    my_eof(thd);
+    DBUG_VOID_RETURN;
+  }
+
   if ((info->error == ER_MASTER_FATAL_ERROR_READING_BINLOG ||
        info->error == ER_SLAVE_SAME_ID) && binlog_open)
   {
@@ -2954,17 +2963,10 @@ err:
                 "mysql", rpl_gtid_slave_state_table_name.str);
     info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
   }
-  else if (info->error != 0 && info->errmsg != NULL)
+  else if (info->errmsg != NULL)
     strcpy(info->error_text, info->errmsg);
 
-  if (info->error == 0)
-  {
-    my_eof(thd);
-  }
-  else
-  {
-    my_message(info->error, info->error_text, MYF(0));
-  }
+  my_message(info->error, info->error_text, MYF(0));
 
   DBUG_VOID_RETURN;
 }
@@ -3283,9 +3285,9 @@ int reset_slave(THD *thd, Master_info* mi)
   }
 
   // delete relay logs, clear relay log coordinates
-  if ((error= purge_relay_logs(&mi->rli, thd,
+  if (unlikely((error= purge_relay_logs(&mi->rli, thd,
 			       1 /* just reset */,
-			       &errmsg)))
+                                        &errmsg))))
   {
     sql_errno= ER_RELAY_LOG_FAIL;
     goto err;
@@ -3343,7 +3345,7 @@ int reset_slave(THD *thd, Master_info* mi)
     repl_semisync_slave.reset_slave(mi);
 err:
   mi->unlock_slave_threads();
-  if (error)
+  if (unlikely(error))
     my_error(sql_errno, MYF(0), errmsg);
   DBUG_RETURN(error);
 }
@@ -4042,7 +4044,7 @@ bool mysql_show_binlog_events(THD* thd)
 	break;
     }
 
-    if (event_count < limit_end && log.error)
+    if (unlikely(event_count < limit_end && log.error))
     {
       errmsg = "Wrong offset or I/O error";
       mysql_mutex_unlock(log_lock);
@@ -4223,7 +4225,7 @@ bool show_binlogs(THD* thd)
     if (protocol->write())
       goto err;
   }
-  if(index_file->error == -1)
+  if (unlikely(index_file->error == -1))
     goto err;
   mysql_bin_log.unlock_index();
   my_eof(thd);

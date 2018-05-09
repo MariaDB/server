@@ -487,10 +487,11 @@ static void do_cut_string_complex(Copy_field *copy)
   memcpy(copy->to_ptr, copy->from_ptr, copy_length);
 
   /* Check if we lost any important characters */
-  if (prefix.well_formed_error_pos() ||
-      cs->cset->scan(cs, (char*) copy->from_ptr + copy_length,
-                     (char*) from_end,
-                     MY_SEQ_SPACES) < (copy->from_length - copy_length))
+  if (unlikely(prefix.well_formed_error_pos() ||
+               cs->cset->scan(cs, (char*) copy->from_ptr + copy_length,
+                              (char*) from_end,
+                              MY_SEQ_SPACES) <
+               (copy->from_length - copy_length)))
   {
     copy->to_field->set_warning(Sql_condition::WARN_LEVEL_WARN,
                                 WARN_DATA_TRUNCATED, 1);

@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2002, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2002, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -423,7 +423,7 @@ private:
   bool m_print_once;
 
 public:
-  Proc_table_intact() : m_print_once(TRUE) {}
+  Proc_table_intact() : m_print_once(TRUE) { has_keys= TRUE; }
 
 protected:
   void report_error(uint code, const char *fmt, ...);
@@ -2275,7 +2275,7 @@ bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
   {
     Sroutine_hash_entry *rn=
       (Sroutine_hash_entry *)arena->alloc(sizeof(Sroutine_hash_entry));
-    if (!rn)              // OOM. Error will be reported using fatal_error().
+    if (unlikely(!rn)) // OOM. Error will be reported using fatal_error().
       return FALSE;
     rn->mdl_request.init(key, MDL_SHARED, MDL_TRANSACTION);
     if (my_hash_insert(&prelocking_ctx->sroutines, (uchar *)rn))
@@ -2787,7 +2787,7 @@ int Sp_handler::sp_cache_routine(THD *thd,
         an error with it's return value without calling my_error(), we
         set the generic "mysql.proc table corrupt" error here.
       */
-      if (! thd->is_error())
+      if (!thd->is_error())
       {
         my_error(ER_SP_PROC_TABLE_CORRUPT, MYF(0),
                  ErrConvDQName(name).ptr(), ret);
@@ -2831,7 +2831,7 @@ Sp_handler::sp_cache_package_routine(THD *thd,
     sp_package *pkg= ph ? ph->get_package() : NULL;
     LEX_CSTRING tmp= name->m_name;
     const char *dot= strrchr(tmp.str, '.');
-    size_t prefix_length= dot ? dot - tmp.str + 1 : NULL;
+    size_t prefix_length= dot ? dot - tmp.str + 1 : 0;
     tmp.str+= prefix_length;
     tmp.length-= prefix_length;
     LEX *rlex= pkg ? pkg->m_routine_implementations.find(tmp, type()) : NULL;

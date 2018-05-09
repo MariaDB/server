@@ -147,12 +147,25 @@ insert into t3 values (1,1),(3,3);
 (select a,b from t1) union (select c,d from t2) intersect (select e,f from t3) union (select 4,4);
 explain extended
 (select a,b from t1) union (select c,d from t2) intersect (select e,f from t3) union (select 4,4);
+set SQL_MODE=ORACLE;
+--sorted_result
+(select a,b from t1) union (select c,d from t2) intersect (select e,f from t3) union (select 4,4);
+explain extended
+(select a,b from t1) union (select c,d from t2) intersect (select e,f from t3) union (select 4,4);
+set SQL_MODE=default;
+
 
 # test result of linear mix operation 
 --sorted_result
 (select e,f from t3) intersect (select c,d from t2) union (select a,b from t1) union (select 4,4);
 explain extended
 (select e,f from t3) intersect (select c,d from t2) union (select a,b from t1) union (select 4,4);
+set SQL_MODE=ORACLE;
+--sorted_result
+(select e,f from t3) intersect (select c,d from t2) union (select a,b from t1) union (select 4,4);
+explain extended
+(select e,f from t3) intersect (select c,d from t2) union (select a,b from t1) union (select 4,4);
+set SQL_MODE=default;
 
 --sorted_result
 (/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1`) union /* select#3 */ select `__3`.`c` AS `c`,`__3`.`d` AS `d` from ((/* select#2 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2`) intersect (/* select#4 */ select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3`)) `__3` union (/* select#5 */ select 4 AS `4`,4 AS `4`);
@@ -281,5 +294,30 @@ select count(*) from (
 ) a;
 
 drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-13695: INTERSECT precedence is not in line with Oracle even
+--echo # in SQL_MODE=Oracle
+--echo #
+
+create table t12(c1 int);
+insert into t12 values(1);
+insert into t12 values(2);
+create table t13(c1 int);
+insert into t13 values(1);
+insert into t13 values(3);
+create table t234(c1 int);
+insert into t234 values(2);
+insert into t234 values(3);
+insert into t234 values(4);
+ 
+set SQL_MODE=oracle;
+--sorted_result
+select * from t13 union select * from t234 intersect select * from t12;
+set SQL_MODE=default;
+--sorted_result
+select * from t13 union select * from t234 intersect select * from t12;
+
+drop table t12,t13,t234;
 
 --echo # End of 10.3 tests

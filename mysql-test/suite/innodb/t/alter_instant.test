@@ -1,0 +1,45 @@
+--source alter_algorithm.inc
+
+CREATE TABLE t1(f1 INT NOT NULL,
+                f2 INT NOT NULL,
+                f3 INT AS (f2 * f2) VIRTUAL,
+		INDEX idx (f2))engine=innodb;
+
+CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL,
+		f3 VARCHAR(10),
+		INDEX(f1))ENGINE=INNODB;
+
+INSERT INTO t1(f1, f2) VALUES(1, 1);
+
+select @@alter_algorithm;
+
+--enable_info
+--echo # Add column at the end of the table
+--eval ALTER TABLE t1 ADD COLUMN f4 char(100) default "BIG WALL"
+
+--echo # Change virtual column expression
+--eval ALTER TABLE t1 CHANGE f3 f3 INT AS (f2 * f2) VIRTUAL
+
+--echo # Add virtual column
+--eval ALTER TABLE t1 ADD COLUMN f5 INT AS (f2) VIRTUAL
+
+--echo # Rename Column
+--eval ALTER TABLE t1 CHANGE f3 vcol INT AS (f2) VIRTUAL
+
+--echo # Rename table
+--eval ALTER TABLE t1 RENAME t3
+
+--echo # Drop Virtual Column
+--eval ALTER TABLE t3 DROP COLUMN vcol
+
+--echo # Column length varies
+--eval ALTER TABLE t2 CHANGE f3 f3 VARCHAR(20)
+
+SET foreign_key_checks = 0;
+--eval ALTER TABLE t3 ADD FOREIGN KEY `fidx`(f2) REFERENCES t2(f1)
+
+SET foreign_key_checks = 1;
+--eval ALTER TABLE t3 DROP FOREIGN KEY `fidx`
+
+DROP TABLE t3, t2;
+--disable_info

@@ -1,5 +1,5 @@
-/* Copyright (c) 2006, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+/* Copyright (c) 2006, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -102,8 +102,8 @@ retry:
   do { /* PTR() isn't necessary below, head is a dummy node */
     cursor->curr= (LF_SLIST *)(*cursor->prev);
     lf_pin(pins, 1, cursor->curr);
-  } while (*cursor->prev != (intptr)cursor->curr && LF_BACKOFF());
-
+  } while (my_atomic_loadptr((void**)cursor->prev) != cursor->curr &&
+           LF_BACKOFF());
   for (;;)
   {
     if (unlikely(!cursor->curr))

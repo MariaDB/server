@@ -89,10 +89,10 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
     ((char*) (engine_name->str))[0]= 0;
   }
 
-  if ((error= mysql_file_read(file, (uchar*) header, sizeof(header), MYF(MY_NABP))))
+  if (unlikely((error= mysql_file_read(file, (uchar*) header, sizeof(header), MYF(MY_NABP)))))
     goto err;
 
-  if (!strncmp((char*) header, "TYPE=VIEW\n", 10))
+  if (unlikely((!strncmp((char*) header, "TYPE=VIEW\n", 10))))
   {
     type= TABLE_TYPE_VIEW;
     goto err;

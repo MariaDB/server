@@ -838,7 +838,7 @@ buf_read_ibuf_merge_pages(
 					in the arrays */
 {
 #ifdef UNIV_IBUF_DEBUG
-	ut_a(n_stored < UNIV_PAGE_SIZE);
+	ut_a(n_stored < srv_page_size);
 #endif
 
 	for (ulint i = 0; i < n_stored; i++) {

@@ -245,10 +245,10 @@ uchar *sys_var::global_value_ptr(THD *thd, const LEX_CSTRING *base)
 
 bool sys_var::check(THD *thd, set_var *var)
 {
-  if ((var->value && do_check(thd, var))
-      || (on_check && on_check(this, thd, var)))
+  if (unlikely((var->value && do_check(thd, var)) ||
+               (on_check && on_check(this, thd, var))))
   {
-    if (!thd->is_error())
+    if (likely(!thd->is_error()))
     {
       char buff[STRING_BUFFER_USUAL_SIZE];
       String str(buff, sizeof(buff), system_charset_info), *res;
@@ -718,10 +718,10 @@ int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free)
   set_var_base *var;
   while ((var=it++))
   {
-    if ((error= var->check(thd)))
+    if (unlikely((error= var->check(thd))))
       goto err;
   }
-  if (was_error || !(error= MY_TEST(thd->is_error())))
+  if (unlikely(was_error) || likely(!(error= MY_TEST(thd->is_error()))))
   {
     it.rewind();
     while ((var= it++))

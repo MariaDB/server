@@ -530,7 +530,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   /* prepare select to resolve all fields */
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
-  if (unit->prepare(thd, 0, 0))
+  if (unit->prepare(unit->derived, 0, 0))
   {
     /*
       some errors from prepare are reported to user, if is not then
@@ -609,7 +609,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
         if (!fld)
           continue;
         TABLE_SHARE *s= fld->field->table->s;
-        const LString_i field_name= fld->field->field_name;
+        const Lex_ident field_name= fld->field->field_name;
         if (s->tmp_table ||
             (s->versioned &&
              (field_name.streq(s->vers_start_field()->field_name) ||
@@ -1791,13 +1791,14 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     TABLES we have to simply prohibit dropping of views.
   */
 
-  if (thd->locked_tables_mode)
+  if (unlikely(thd->locked_tables_mode))
   {
     my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
     DBUG_RETURN(TRUE);
   }
 
-  if (lock_table_names(thd, views, 0, thd->variables.lock_wait_timeout, 0))
+  if (unlikely(lock_table_names(thd, views, 0,
+                                thd->variables.lock_wait_timeout, 0)))
     DBUG_RETURN(TRUE);
 
   for (view= views; view; view= view->next_local)
@@ -1835,7 +1836,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
       }
       continue;
     }
-    if (mysql_file_delete(key_file_frm, path, MYF(MY_WME)))
+    if (unlikely(mysql_file_delete(key_file_frm, path, MYF(MY_WME))))
       error= TRUE;
 
     some_views_deleted= TRUE;
@@ -1850,12 +1851,12 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     sp_cache_invalidate();
   }
 
-  if (wrong_object_name)
+  if (unlikely(wrong_object_name))
   {
     my_error(ER_WRONG_OBJECT, MYF(0), wrong_object_db, wrong_object_name, 
              "VIEW");
   }
-  if (non_existant_views.length())
+  if (unlikely(non_existant_views.length()))
   {
     my_error(ER_UNKNOWN_VIEW, MYF(0), non_existant_views.c_ptr_safe());
   }
@@ -1866,11 +1867,12 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     /* if something goes wrong, bin-log with possible error code,
        otherwise bin-log with error code cleared.
      */
-    if (write_bin_log(thd, !something_wrong, thd->query(), thd->query_length()))
+    if (unlikely(write_bin_log(thd, !something_wrong, thd->query(),
+                               thd->query_length())))
       something_wrong= 1;
   }
 
-  if (something_wrong)
+  if (unlikely(something_wrong))
   {
     DBUG_RETURN(TRUE);
   }
@@ -2038,7 +2040,7 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
     if ((fld= entry->item->field_for_view_update()))
     {
       TABLE_SHARE *s= fld->context->table_list->table->s;
-      LString_i field_name= fld->field_name;
+      Lex_ident field_name= fld->field_name;
       if (s->versioned &&
           (field_name.streq(s->vers_start_field()->field_name) ||
            field_name.streq(s->vers_end_field()->field_name)))

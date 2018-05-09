@@ -35,7 +35,7 @@ bool mysql_do(THD *thd, List<Item> &values)
     (void) value->is_null();
   free_underlaid_joins(thd, &thd->lex->select_lex);
 
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
   {
     /*
       Rollback the effect of the statement, since next instruction

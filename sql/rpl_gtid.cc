@@ -167,7 +167,7 @@ rpl_slave_state::check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi)
       break;
     }
     thd= rgi->thd;
-    if (thd->check_killed())
+    if (unlikely(thd->check_killed()))
     {
       thd->send_kill_message();
       res= -1;
@@ -2602,7 +2602,7 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
                         &stage_master_gtid_wait_primary, &old_stage);
         do
         {
-          if (thd->check_killed())
+          if (unlikely(thd->check_killed()))
             break;
           else if (wait_until)
           {
@@ -2654,7 +2654,7 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
                         &stage_master_gtid_wait, &old_stage);
         did_enter_cond= true;
       }
-      while (!elem.done && !thd->check_killed())
+      while (!elem.done && likely(!thd->check_killed()))
       {
         thd_wait_begin(thd, THD_WAIT_BINLOG);
         if (wait_until)

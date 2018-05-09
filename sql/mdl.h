@@ -456,7 +456,7 @@ public:
 
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
-  static void operator delete(void *ptr, MEM_ROOT *mem_root) {}
+  static void operator delete(void *, MEM_ROOT *) {}
 
   void init(MDL_key::enum_mdl_namespace namespace_arg,
             const char *db_arg, const char *name_arg,
@@ -497,7 +497,7 @@ public:
     is mandatory. Can only be used before the request has been
     granted.
   */
-  MDL_request& operator=(const MDL_request &rhs)
+  MDL_request& operator=(const MDL_request &)
   {
     ticket= NULL;
     /* Do nothing, in particular, don't try to copy the key. */

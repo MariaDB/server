@@ -1093,7 +1093,7 @@ my_well_formed_length(CHARSET_INFO *cs, const char *b, const char *e,
   MY_STRCOPY_STATUS status;
   (void) cs->cset->well_formed_char_length(cs, b, e, nchars, &status);
   *error= status.m_well_formed_error_pos == NULL ? 0 : 1;
-  return status.m_source_end_pos - b;
+  return (size_t) (status.m_source_end_pos - b);
 }
 
 

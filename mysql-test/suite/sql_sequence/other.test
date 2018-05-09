@@ -38,10 +38,6 @@ create sequence s2;
 insert into s1 (next_not_cached_value, minimum_value) values (100,1000);
 --error ER_UPDATE_TABLE_USED
 insert into s1 values (next value for s1, 1,9223372036854775806,1,1,1000,0,0);
---error ER_WRONG_INSERT_INTO_SEQUENCE
-insert into s1 values (next value for s2, 1,9223372036854775806,1,1,1000,0,0);
---error ER_WRONG_INSERT_INTO_SEQUENCE
-insert into s1 select * from s2;
 --error ER_SEQUENCE_INVALID_DATA
 insert into s1 values(1000,9223372036854775806,1,1,1,1000,0,0);
 --error ER_SEQUENCE_INVALID_DATA
@@ -53,6 +49,13 @@ select next value for s1;
 select * from s1;
 --error ER_SEQUENCE_INVALID_DATA
 insert into s2 values(0, 1, 10, 1, 2, 1, 1, 0);
+
+select * from s1;
+insert into s1 values (next value for s2, 1,9223372036854775806,1,1,1000,0,0);
+select * from s1;
+select * from s2;
+insert into s1 select * from s2;
+select * from s1;
 drop sequence s1,s2;
 
 --echo #
@@ -157,3 +160,23 @@ CREATE table t1 (a int check (setval(s1,10)));
 --error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 CREATE TABLE t1 (a int, b int as (next value for s1 > 0));
 drop sequence s1;
+
+
+--echo #
+--echo # MDEV-13024: Server crashes in my_store_ptr upon DELETE from
+--echo # sequence in multi-table format
+--echo #
+CREATE SEQUENCE s;
+CREATE table t1 (a int);
+insert into t1 values (1),(2);
+--error ER_ILLEGAL_HA
+DELETE s FROM s;
+--error ER_ILLEGAL_HA
+delete t1,s from s,t1;
+--error ER_ILLEGAL_HA
+delete s,t1 from t1,s;
+DROP SEQUENCE s;
+DROP TABLE t1;
+
+
+--echo # End of 10.3 tests

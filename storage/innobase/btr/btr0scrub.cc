@@ -668,7 +668,7 @@ btr_scrub_free_page(
 		* it will be found by scrubbing thread again
 		*/
 		memset(buf_block_get_frame(block) + PAGE_HEADER, 0,
-		       UNIV_PAGE_SIZE - PAGE_HEADER);
+		       srv_page_size - PAGE_HEADER);
 
 		mach_write_to_2(buf_block_get_frame(block) + FIL_PAGE_TYPE,
 				FIL_PAGE_TYPE_ALLOCATED);

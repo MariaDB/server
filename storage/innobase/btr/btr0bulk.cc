@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,7 +31,7 @@ Created 03/11/2014 Shaohua Wang
 #include "ibuf0ibuf.h"
 
 /** Innodb B-tree index fill factor for bulk load. */
-long	innobase_fill_factor;
+uint	innobase_fill_factor;
 
 /** Initialize members, allocate page if needed and start mtr.
 Note: we commit all mtrs on failure.
@@ -140,16 +140,16 @@ PageBulk::init()
 		m_reserved_space = dict_index_get_space_reserve();
 	} else {
 		m_reserved_space =
-			UNIV_PAGE_SIZE * (100 - innobase_fill_factor) / 100;
+			srv_page_size * (100 - innobase_fill_factor) / 100;
 	}
 
 	m_padding_space =
-		UNIV_PAGE_SIZE - dict_index_zip_pad_optimal_page_size(m_index);
+		srv_page_size - dict_index_zip_pad_optimal_page_size(m_index);
 	m_heap_top = page_header_get_ptr(new_page, PAGE_HEAP_TOP);
 	m_rec_no = page_header_get_field(new_page, PAGE_N_RECS);
 
 	ut_d(m_total_data = 0);
-	page_header_set_field(m_page, NULL, PAGE_HEAP_TOP, UNIV_PAGE_SIZE - 1);
+	page_header_set_field(m_page, NULL, PAGE_HEAP_TOP, srv_page_size - 1);
 
 	return(DB_SUCCESS);
 }
@@ -212,7 +212,7 @@ PageBulk::insert(
 		- page_dir_calc_reserved_space(m_rec_no);
 
 	ut_ad(m_free_space >= rec_size + slot_size);
-	ut_ad(m_heap_top + rec_size < m_page + UNIV_PAGE_SIZE);
+	ut_ad(m_heap_top + rec_size < m_page + srv_page_size);
 
 	m_free_space -= rec_size + slot_size;
 	m_heap_top += rec_size;
@@ -234,7 +234,7 @@ PageBulk::finish()
 
 	/* To pass the debug tests we have to set these dummy values
 	in the debug version */
-	page_dir_set_n_slots(m_page, NULL, UNIV_PAGE_SIZE / 2);
+	page_dir_set_n_slots(m_page, NULL, srv_page_size / 2);
 #endif
 
 	ulint	count = 0;
@@ -462,15 +462,14 @@ PageBulk::copyOut(
 				  page_rec_is_leaf(split_rec),
 				  ULINT_UNDEFINED, &m_heap);
 
-	m_free_space += rec_get_end(last_rec, offsets)
-		- m_heap_top
+	m_free_space += ulint(rec_get_end(last_rec, offsets) - m_heap_top)
 		+ page_dir_calc_reserved_space(m_rec_no)
 		- page_dir_calc_reserved_space(n);
-	ut_ad(m_free_space > 0);
+	ut_ad(lint(m_free_space) > 0);
 	m_rec_no = n;
 
 #ifdef UNIV_DEBUG
-	m_total_data -= rec_get_end(last_rec, offsets) - m_heap_top;
+	m_total_data -= ulint(rec_get_end(last_rec, offsets) - m_heap_top);
 #endif /* UNIV_DEBUG */
 }
 
@@ -726,7 +725,7 @@ BtrBulk::pageCommit(
 void
 BtrBulk::logFreeCheck()
 {
-	if (log_sys->check_flush_or_checkpoint) {
+	if (log_sys.check_flush_or_checkpoint) {
 		release();
 
 		log_free_check();

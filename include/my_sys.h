@@ -573,21 +573,21 @@ static inline my_bool my_b_write_byte(IO_CACHE *info, uchar chr)
 static inline size_t my_b_fill(IO_CACHE *info)
 {
   info->read_pos= info->read_end;
-  return _my_b_read(info,0,0) ? 0 : info->read_end - info->read_pos;
+  return _my_b_read(info,0,0) ? 0 : (size_t) (info->read_end - info->read_pos);
 }
 
 static inline my_off_t my_b_tell(const IO_CACHE *info)
 {
   if (info->type == WRITE_CACHE) {
-    return info->pos_in_file + (info->write_pos - info->request_pos);
+    return info->pos_in_file + (my_off_t)(info->write_pos - info->request_pos);
 
   }
-  return info->pos_in_file + (info->read_pos - info->request_pos);
+  return info->pos_in_file + (my_off_t) (info->read_pos - info->request_pos);
 }
 
 static inline my_off_t my_b_write_tell(const IO_CACHE *info)
 {
-  return info->pos_in_file + (info->write_pos - info->write_buffer);
+  return info->pos_in_file + (my_off_t) (info->write_pos - info->write_buffer);
 }
 
 static inline uchar* my_b_get_buffer_start(const IO_CACHE *info)
@@ -597,7 +597,7 @@ static inline uchar* my_b_get_buffer_start(const IO_CACHE *info)
 
 static inline size_t my_b_get_bytes_in_buffer(const IO_CACHE *info)
 {
-  return info->read_end - info->request_pos;
+  return (size_t) (info->read_end - info->request_pos);
 }
 
 static inline my_off_t my_b_get_pos_in_file(const IO_CACHE *info)
@@ -608,9 +608,9 @@ static inline my_off_t my_b_get_pos_in_file(const IO_CACHE *info)
 static inline size_t my_b_bytes_in_cache(const IO_CACHE *info)
 {
   if (info->type == WRITE_CACHE) {
-    return info->write_end - info->write_pos;
+    return (size_t) (info->write_end - info->write_pos);
   }
-  return info->read_end - info->read_pos;
+  return (size_t) (info->read_end - info->read_pos);
 }
 
 int      my_b_copy_to_file(IO_CACHE *cache, FILE *file);

@@ -126,4 +126,7 @@ select * from t for system_time between '0-0-0' and current_timestamp(6);
 a
 2
 1
+show status like "Feature_system_versioning";
+Variable_name	Value
+Feature_system_versioning	2
 drop table t;

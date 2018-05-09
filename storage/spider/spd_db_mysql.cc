@@ -11139,6 +11139,7 @@ int spider_mysql_handler::show_table_status(
   ulonglong auto_increment_value = 0;
   DBUG_ENTER("spider_mysql_handler::show_table_status");
   DBUG_PRINT("info",("spider sts_mode=%d", sts_mode));
+
   if (sts_mode == 1)
   {
     pthread_mutex_lock(&conn->mta_conn_mutex);
@@ -11146,6 +11147,7 @@ int spider_mysql_handler::show_table_status(
     conn->need_mon = &spider->need_mons[link_idx];
     conn->mta_conn_mutex_lock_already = TRUE;
     conn->mta_conn_mutex_unlock_later = TRUE;
+    conn->disable_connect_retry = TRUE;
     spider_conn_set_timeout_from_share(conn, link_idx, spider->trx->thd,
       share);
     if (
@@ -11167,6 +11169,7 @@ int spider_mysql_handler::show_table_status(
         /* retry */
         if ((error_num = spider_db_ping(spider, conn, link_idx)))
         {
+          conn->disable_connect_retry = FALSE;
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11175,6 +11178,7 @@ int spider_mysql_handler::show_table_status(
         }
         if ((error_num = spider_db_set_names(spider, conn, link_idx)))
         {
+          conn->disable_connect_retry = FALSE;
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11190,11 +11194,13 @@ int spider_mysql_handler::show_table_status(
           -1,
           &spider->need_mons[link_idx])
         ) {
+          conn->disable_connect_retry = FALSE;
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           DBUG_RETURN(spider_db_errorno(conn));
         }
       } else {
+        conn->disable_connect_retry = FALSE;
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11210,6 +11216,7 @@ int spider_mysql_handler::show_table_status(
     request_key.next = NULL;
     if (spider_param_dry_access())
     {
+      conn->disable_connect_retry = FALSE;
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11218,11 +11225,13 @@ int spider_mysql_handler::show_table_status(
     }
     if (!(res = conn->db_conn->store_result(NULL, &request_key, &error_num)))
     {
+      conn->disable_connect_retry = FALSE;
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       if (error_num || (error_num = spider_db_errorno(conn)))
         DBUG_RETURN(error_num);
-      else {
+      else
+      {
         my_printf_error(ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM,
           ER_SPIDER_REMOTE_TABLE_NOT_FOUND_STR, MYF(0),
           mysql_share->db_names_str[spider->conn_link_idx[link_idx]].ptr(),
@@ -11231,6 +11240,7 @@ int spider_mysql_handler::show_table_status(
         DBUG_RETURN(ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM);
       }
     }
+    conn->disable_connect_retry = FALSE;
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11278,6 +11288,7 @@ int spider_mysql_handler::show_table_status(
     conn->need_mon = &spider->need_mons[link_idx];
     conn->mta_conn_mutex_lock_already = TRUE;
     conn->mta_conn_mutex_unlock_later = TRUE;
+    conn->disable_connect_retry = TRUE;
     spider_conn_set_timeout_from_share(conn, link_idx, spider->trx->thd,
       share);
     if (
@@ -11299,6 +11310,7 @@ int spider_mysql_handler::show_table_status(
         /* retry */
         if ((error_num = spider_db_ping(spider, conn, link_idx)))
         {
+          conn->disable_connect_retry = FALSE;
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11307,6 +11319,7 @@ int spider_mysql_handler::show_table_status(
         }
         if ((error_num = spider_db_set_names(spider, conn, link_idx)))
         {
+          conn->disable_connect_retry = FALSE;
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11322,11 +11335,13 @@ int spider_mysql_handler::show_table_status(
           -1,
           &spider->need_mons[link_idx])
         ) {
+          conn->disable_connect_retry = FALSE;
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           DBUG_RETURN(spider_db_errorno(conn));
         }
       } else {
+        conn->disable_connect_retry = FALSE;
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11342,6 +11357,7 @@ int spider_mysql_handler::show_table_status(
     request_key.next = NULL;
     if (spider_param_dry_access())
     {
+      conn->disable_connect_retry = FALSE;
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11350,6 +11366,7 @@ int spider_mysql_handler::show_table_status(
     }
     if (!(res = conn->db_conn->store_result(NULL, &request_key, &error_num)))
     {
+      conn->disable_connect_retry = FALSE;
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       if (error_num || (error_num = spider_db_errorno(conn)))
@@ -11357,6 +11374,7 @@ int spider_mysql_handler::show_table_status(
       else
         DBUG_RETURN(ER_QUERY_ON_FOREIGN_DATA_SOURCE);
     }
+    conn->disable_connect_retry = FALSE;
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11413,6 +11431,7 @@ int spider_mysql_handler::show_table_status(
     DBUG_PRINT("info",("spider auto_increment_value=%llu",
       share->lgtm_tblhnd_share->auto_increment_value));
   }
+
   DBUG_RETURN(0);
 }
 

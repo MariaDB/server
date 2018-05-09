@@ -100,12 +100,12 @@ public:
 int merge_many_buff(Sort_param *param, uchar *sort_buffer,
 		    BUFFPEK *buffpek,
 		    uint *maxbuffer, IO_CACHE *t_file);
-uint read_to_buffer(IO_CACHE *fromfile,BUFFPEK *buffpek,
-		    uint sort_length);
-int merge_buffers(Sort_param *param,IO_CACHE *from_file,
-                  IO_CACHE *to_file, uchar *sort_buffer,
-                  BUFFPEK *lastbuff,BUFFPEK *Fb,
-                  BUFFPEK *Tb,int flag);
+ulong read_to_buffer(IO_CACHE *fromfile,BUFFPEK *buffpek,
+                     uint sort_length);
+bool merge_buffers(Sort_param *param,IO_CACHE *from_file,
+                   IO_CACHE *to_file, uchar *sort_buffer,
+                   BUFFPEK *lastbuff,BUFFPEK *Fb,
+                   BUFFPEK *Tb,int flag);
 int merge_index(Sort_param *param, uchar *sort_buffer,
 		BUFFPEK *buffpek, uint maxbuffer,
 		IO_CACHE *tempfile, IO_CACHE *outfile);

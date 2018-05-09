@@ -2114,18 +2114,23 @@ set big_tables=default;
 --echo # MDEV-15571: using recursive cte with big_tables enabled
 --echo #
 
+create table t1 (a bigint);
+insert into t1 values(1);
+
 set big_tables=1;
 
 --error ER_DATA_OUT_OF_RANGE
 with recursive qn as
 (
-  select 1 as a from dual
+  select  a from t1
   union all
   select a*2000 from qn where a<10000000000000000000
 )
 select * from qn;
 
 set big_tables=default;
+
+drop table t1;
 
 --echo #
 --echo # MDEV-15556: using recursive cte with big_tables enabled
@@ -2209,6 +2214,38 @@ with recursive qn as
 select * from qn;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-16086: tmp table for CTE is created as ARIA tables
+--echo #
+
+CREATE TABLE t1 (
+  Id int(11) not null AUTO_INCREMENT,
+  Parent varchar(15) not null,
+  Child varchar(15) not null,
+  PRIMARY KEY (Id)
+) ENGINE = MyISAM;
+
+INSERT INTO t1 (Parent, Child) VALUES
+  ('123', '456'),('456', '789'),('321', '654'),('654', '987');
+
+WITH RECURSIVE cte AS
+  ( SELECT b.Parent,
+           b.Child,
+           CAST(CONCAT(b.Child,',') AS CHAR(513)) Path
+   FROM t1 b
+   LEFT OUTER JOIN t1 bc ON b.Child = bc.Parent
+   WHERE bc.Id IS NULL
+   UNION ALL SELECT c.Parent,
+                    c.Child,
+                    CONCAT(p.Path,c.Child,',') Path
+   FROM t1 c
+   INNER JOIN cte p ON c.Child = p.Parent)
+SELECT *
+FROM cte
+ORDER BY Path;
+
+DROP TABLE t1;
 
 --echo # Start of 10.3 tests
 

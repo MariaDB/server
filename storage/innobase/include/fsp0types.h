@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -59,11 +59,8 @@ page size | file space extent size
   32 KiB  |  64 pages = 2 MiB
   64 KiB  |  64 pages = 4 MiB
 */
-#define FSP_EXTENT_SIZE         ((UNIV_PAGE_SIZE <= (16384) ?	\
-				(1048576 / UNIV_PAGE_SIZE) :	\
-				((UNIV_PAGE_SIZE <= (32768)) ?	\
-				(2097152 / UNIV_PAGE_SIZE) :	\
-				(4194304 / UNIV_PAGE_SIZE))))
+#define FSP_EXTENT_SIZE         (srv_page_size_shift < 14 ?	\
+				 (1048576U >> srv_page_size_shift) : 64U)
 
 /** File space extent size (four megabyte) in pages for MAX page size */
 #define	FSP_EXTENT_SIZE_MAX	(4194304 / UNIV_PAGE_SIZE_MAX)
@@ -151,38 +148,38 @@ enum fsp_reserve_t {
 /* Number of pages described in a single descriptor page: currently each page
 description takes less than 1 byte; a descriptor page is repeated every
 this many file pages */
-/* #define XDES_DESCRIBED_PER_PAGE		UNIV_PAGE_SIZE */
-/* This has been replaced with either UNIV_PAGE_SIZE or page_zip->size. */
+/* #define XDES_DESCRIBED_PER_PAGE		srv_page_size */
+/* This has been replaced with either srv_page_size or page_zip->size. */
 
 /** @name The space low address page map
 The pages at FSP_XDES_OFFSET and FSP_IBUF_BITMAP_OFFSET are repeated
 every XDES_DESCRIBED_PER_PAGE pages in every tablespace. */
 /* @{ */
 /*--------------------------------------*/
-#define FSP_XDES_OFFSET			0	/* !< extent descriptor */
-#define FSP_IBUF_BITMAP_OFFSET		1	/* !< insert buffer bitmap */
+#define FSP_XDES_OFFSET			0U	/* !< extent descriptor */
+#define FSP_IBUF_BITMAP_OFFSET		1U	/* !< insert buffer bitmap */
 				/* The ibuf bitmap pages are the ones whose
 				page number is the number above plus a
 				multiple of XDES_DESCRIBED_PER_PAGE */
 
-#define FSP_FIRST_INODE_PAGE_NO		2	/*!< in every tablespace */
+#define FSP_FIRST_INODE_PAGE_NO		2U	/*!< in every tablespace */
 				/* The following pages exist
 				in the system tablespace (space 0). */
-#define FSP_IBUF_HEADER_PAGE_NO		3	/*!< insert buffer
+#define FSP_IBUF_HEADER_PAGE_NO		3U	/*!< insert buffer
 						header page, in
 						tablespace 0 */
-#define FSP_IBUF_TREE_ROOT_PAGE_NO	4	/*!< insert buffer
+#define FSP_IBUF_TREE_ROOT_PAGE_NO	4U	/*!< insert buffer
 						B-tree root page in
 						tablespace 0 */
 				/* The ibuf tree root page number in
 				tablespace 0; its fseg inode is on the page
 				number FSP_FIRST_INODE_PAGE_NO */
-#define FSP_TRX_SYS_PAGE_NO		5	/*!< transaction
+#define FSP_TRX_SYS_PAGE_NO		5U	/*!< transaction
 						system header, in
 						tablespace 0 */
-#define	FSP_FIRST_RSEG_PAGE_NO		6	/*!< first rollback segment
+#define	FSP_FIRST_RSEG_PAGE_NO		6U	/*!< first rollback segment
 						page, in tablespace 0 */
-#define FSP_DICT_HDR_PAGE_NO		7	/*!< data dictionary header
+#define FSP_DICT_HDR_PAGE_NO		7U	/*!< data dictionary header
 						page, in tablespace 0 */
 /*--------------------------------------*/
 /* @} */

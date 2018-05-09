@@ -2072,7 +2072,7 @@ select * from (values (1), (t1.b), (2)) as new_tvc;
 ERROR HY000: Field reference 't1.b' can't be used in table value constructor
 drop table t1;
 #
-# MDEV-MDEV-15940: cursor over TVC
+# MDEV-15940: cursor over TVC
 #
 BEGIN NOT ATOMIC
 DECLARE v INT;
@@ -2092,3 +2092,8 @@ END;
 |
 v
 1
+#
+# MDEV-16038: empty row in TVC
+#
+with t as (values (),()) select 1 from t;
+ERROR HY000: Row with no elements is not allowed in table value constructor in this context
