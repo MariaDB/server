@@ -816,3 +816,17 @@ a	int(11)	YES		0
 b	int(20)	YES		0	
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-15576: Server crashed in Cached_item_str::cmp / sortcmp or
+# Assertion `item->null_value' failed in
+# Type_handler_temporal_result::make_sort_key upon SELECT with NULLIF
+# and ROLLUP
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT NULLIF( CAST( 'foo' AS DATE ), NULL & 'bar' ) AS f FROM t1 GROUP BY f WITH ROLLUP;
+f
+NULL
+NULL
+DROP TABLE t1;
+# End of 10.3 Tests

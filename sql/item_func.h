@@ -1615,14 +1615,13 @@ public:
   {
     name= a->name;
   }
-  double val_real() { return args[0]->val_real(); }
-  longlong val_int() { return args[0]->val_int(); }
-  String *val_str(String *str) { return args[0]->val_str(str); }
-  my_decimal *val_decimal(my_decimal *dec) { return args[0]->val_decimal(dec); }
+  double val_real() { return val_real_from_item(args[0]); }
+  longlong val_int() { return val_int_from_item(args[0]); }
+  String *val_str(String *str) { return val_str_from_item(args[0], str); }
+  my_decimal *val_decimal(my_decimal *dec)
+    { return val_decimal_from_item(args[0], dec); }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
-  {
-    return args[0]->get_date(ltime, fuzzydate);
-  }
+    { return get_date_from_item(args[0], ltime, fuzzydate); }
   const char *func_name() const { return "rollup_const"; }
   bool const_item() const { return 0; }
   const Type_handler *type_handler() const { return args[0]->type_handler(); }
@@ -1630,9 +1629,7 @@ public:
   {
     collation= args[0]->collation;
     max_length= args[0]->max_length;
-    decimals=args[0]->decimals; 
-    /* The item could be a NULL constant. */
-    null_value= args[0]->is_null();
+    decimals=args[0]->decimals;
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_rollup_const>(thd, this); }

@@ -2832,7 +2832,7 @@ Item_func_nullif::time_op(MYSQL_TIME *ltime)
 bool
 Item_func_nullif::is_null()
 {
-  return (null_value= (!compare() ? 1 : args[2]->null_value));
+  return (null_value= (!compare() ? 1 : args[2]->is_null()));
 }
 
 void Item_func_case::reorder_args(uint start)
