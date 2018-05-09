@@ -2464,11 +2464,14 @@ files_checked:
 
 		trx_temp_rseg_create();
 
-		thread_handles[1 + SRV_MAX_N_IO_THREADS] = os_thread_create(
-			srv_master_thread,
-			NULL, thread_ids + (1 + SRV_MAX_N_IO_THREADS));
-		thread_started[1 + SRV_MAX_N_IO_THREADS] = true;
-		srv_start_state_set(SRV_START_STATE_MASTER);
+		if (srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
+			thread_handles[1 + SRV_MAX_N_IO_THREADS]
+				= os_thread_create(srv_master_thread, NULL,
+						   (1 + SRV_MAX_N_IO_THREADS)
+						   + thread_ids);
+			thread_started[1 + SRV_MAX_N_IO_THREADS] = true;
+			srv_start_state_set(SRV_START_STATE_MASTER);
+		}
 	}
 
 	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL

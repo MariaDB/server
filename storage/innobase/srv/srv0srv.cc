@@ -2366,10 +2366,6 @@ DECLARE_THREAD(srv_master_thread)(
 	ut_a(slot == srv_sys.sys_threads);
 
 loop:
-	if (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND) {
-		goto suspend_thread;
-	}
-
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 
 		srv_master_sleep();
@@ -2384,7 +2380,6 @@ loop:
 		}
 	}
 
-suspend_thread:
 	switch (srv_shutdown_state) {
 	case SRV_SHUTDOWN_NONE:
 		break;
