@@ -76,8 +76,13 @@ public:
 		{
 			m_mutex = mutex;
 
+#if defined(__APPLE__) && defined(__MACH__)
 			my_atomic_storelint(&m_thread_id,
-					    ulint(os_thread_get_curr_id()));
+					    reinterpret_cast<ulint>(os_thread_get_curr_id()));
+#else
+			my_atomic_storelint(&m_thread_id,
+					    os_thread_get_curr_id());
+#endif
 
 			m_filename = filename;
 
