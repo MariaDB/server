@@ -2,11 +2,13 @@
 source include/have_innodb.inc;
 
 set @@session.time_zone='+00:00';
+set @saved_time_zime= @@global.time_zone;
+set @@global.time_zone='+00:00';
 select ifnull(max(transaction_id), 0) into @start_trx_id from mysql.transaction_registry;
 set @test_start=now(6);
 
 delimiter ~~;
-create procedure if not exists verify_vtq()
+create procedure if not exists verify_trt()
 begin
   set @i= 0;
   select
@@ -22,7 +24,7 @@ begin
   from mysql.transaction_registry;
 end~~
 
-create procedure if not exists verify_vtq_dummy(recs int)
+create procedure if not exists verify_trt_dummy(recs int)
 begin
   declare i int default 1;
   create temporary table tmp (No int, A bool, B bool, C bool, D bool);
@@ -36,6 +38,10 @@ end~~
 
 delimiter ;~~
 
+create function check_result (cond boolean)
+    returns char(50) deterministic
+    return if(cond = 1, '[CORRECT]', '[WRONG]');
+
 let $default_engine= `select @@default_storage_engine`;
 let $non_default_engine= `select if(@@default_storage_engine = 'InnoDB', 'MyISAM', 'InnoDB')`;
 let $sys_datatype_expl= timestamp(6);
@@ -44,10 +50,16 @@ let $sys_datatype_max= TIMESTAMP'2038-01-19 03:14:07.999999';
 
 if ($MTR_COMBINATION_MYISAM)
 {
+  set @MTR_COMBINATION_MYISAM= 1;
   --let $MTR_COMBINATION_TIMESTAMP= 1
+}
+if ($MTR_COMBINATION_TIMESTAMP)
+{
+  set @MTR_COMBINATION_TIMESTAMP= 1;
 }
 if ($MTR_COMBINATION_TRX_ID)
 {
+  set @MTR_COMBINATION_TRX_ID= 1;
   let $sys_datatype_expl= bigint(20) unsigned;
   let $sys_datatype_expl_uc= BIGINT(20) UNSIGNED;
   let $sys_datatype_max= 18446744073709551615;

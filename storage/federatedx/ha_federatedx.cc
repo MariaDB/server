@@ -3216,7 +3216,14 @@ int ha_federatedx::delete_all_rows()
   query.length(0);
 
   query.set_charset(system_charset_info);
-  query.append(STRING_WITH_LEN("TRUNCATE "));
+  if (thd->lex->sql_command == SQLCOM_TRUNCATE)
+  {
+    query.append(STRING_WITH_LEN("TRUNCATE "));
+  }
+  else
+  {
+    query.append(STRING_WITH_LEN("DELETE FROM "));
+  }
   append_ident(&query, share->table_name, share->table_name_length,
                ident_quote_char);
 
@@ -3583,6 +3590,8 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
   MYSQL mysql;
   char buf[1024];
   String query(buf, sizeof(buf), cs);
+  static const String cut_clause(" WITH SYSTEM VERSIONING", cs);
+  int cut_offset;
   MYSQL_RES *res;
   MYSQL_ROW rdata;
   ulong *rlen;
@@ -3618,6 +3627,12 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
     goto err2;
 
   query.copy(rdata[1], rlen[1], cs);
+  cut_offset= query.length() - cut_clause.length();
+  if (cut_offset > 0 &&
+    0 == memcmp(query.ptr() + cut_offset, cut_clause.ptr(), cut_clause.length()))
+  {
+    query.length(cut_offset);
+  }
   query.append(STRING_WITH_LEN(" CONNECTION='"), cs);
   query.append_for_single_quote(table_s->connect_string.str,
                                 table_s->connect_string.length);

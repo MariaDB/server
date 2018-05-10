@@ -371,5 +371,4 @@ create or replace table t1 (i int) with system versioning as select 1 as i;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
-drop database test;
-create database test;
+--source suite/versioning/common_finish.inc

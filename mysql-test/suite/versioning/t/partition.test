@@ -425,6 +425,4 @@ update t1 set a = 4;
 delete from t1;
 delete from t1 where a is not null;
 
---echo # Test cleanup
-drop database test;
-create database test;
+--source suite/versioning/common_finish.inc
