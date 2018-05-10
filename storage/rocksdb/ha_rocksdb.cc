@@ -7141,12 +7141,17 @@ int rdb_normalize_tablename(const std::string &tablename,
                             std::string *const strbuf) {
   DBUG_ASSERT(strbuf != nullptr);
 
-  if (tablename.size() < 2 || tablename[0] != '.' || tablename[1] != FN_LIBCHAR) {
+  if (tablename.size() < 2 || tablename[0] != '.' ||
+      (tablename[1] != FN_LIBCHAR && tablename[1] != FN_LIBCHAR2)) {
     DBUG_ASSERT(0); // We were not passed table name?
     return HA_ERR_ROCKSDB_INVALID_TABLE;
   }
 
   size_t pos = tablename.find_first_of(FN_LIBCHAR, 2);
+  if (pos == std::string::npos) {
+    pos = tablename.find_first_of(FN_LIBCHAR2, 2);
+  }
+
   if (pos == std::string::npos) {
     DBUG_ASSERT(0); // We were not passed table name?
     return HA_ERR_ROCKSDB_INVALID_TABLE;
