@@ -107,13 +107,9 @@
 
 #define MYSQL_SERVER 1
 #define DONT_DEFINE_VOID
-#include "sql_class.h"
-#include "create_options.h"
-#include "mysql_com.h"
-#include "field.h"
+#include <my_global.h>
 #include "sql_parse.h"
 #include "sql_base.h"
-#include <sys/stat.h>
 #include "sql_partition.h"
 #undef  OFFSET
 
@@ -432,7 +428,7 @@ handlerton *connect_hton= NULL;
 uint GetTraceValue(void)
 	{return (uint)(connect_hton ? THDVAR(current_thd, xtrace) : 0);}
 bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
-bool CondPushEnabled(void) {return THDVAR(current_thd, cond_push);}
+static bool CondPushEnabled(void) {return THDVAR(current_thd, cond_push);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
 int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
 TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
@@ -2813,7 +2809,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
     htrc("Cond type=%d\n", cond->type());
 
   if (cond->type() == COND::COND_ITEM) {
-    char      *pb0, *pb1, *pb2, *ph0, *ph1, *ph2;
+    char      *pb0, *pb1, *pb2, *ph0= 0, *ph1= 0, *ph2= 0;
 		bool       bb = false, bh = false;
     Item_cond *cond_item= (Item_cond *)cond;
 
@@ -5570,7 +5566,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				} // endif p
 
 			} else if (ttp != TAB_ODBC || !(fnc & (FNC_TABLE | FNC_COL)))
-				tab = table_s->table_name.str;           // Default value
+			  tab = (char*)table_s->table_name.str;   // Default value
 
 		} // endif tab
 

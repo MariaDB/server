@@ -1620,7 +1620,7 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args, uint n,
 				if (AllocSarea(g, ml)) {
 					char errmsg[MAX_STR];
 
-					snprintf(errmsg, sizeof(errmsg)-1, MSG(WORK_AREA), g->Message);
+					snprintf(errmsg, sizeof(errmsg) - 1, MSG(WORK_AREA), g->Message);
 					strcpy(g->Message, errmsg);
 					return true;
 					} // endif SareaAlloc
