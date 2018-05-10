@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -469,6 +469,8 @@ err_exit:
 	*avail = srv_sort_buf_size - log->tail.bytes;
 
 	if (size > *avail) {
+		/* Make sure log->tail.buf is large enough */
+		ut_ad(size <= sizeof log->tail.buf);
 		return(log->tail.buf);
 	} else {
 		return(log->tail.block + log->tail.bytes);
@@ -598,12 +600,10 @@ row_log_table_delete(
 {
 	ulint		old_pk_extra_size;
 	ulint		old_pk_size;
-	ulint		ext_size = 0;
 	ulint		mrec_size;
 	ulint		avail_size;
 	mem_heap_t*	heap		= NULL;
 	const dtuple_t*	old_pk;
-	row_ext_t*	ext;
 
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(rec_offs_validate(rec, index, offsets));
@@ -683,71 +683,19 @@ row_log_table_delete(
 		&old_pk_extra_size);
 	ut_ad(old_pk_extra_size < 0x100);
 
-	mrec_size = 6 + old_pk_size;
-
-	/* Log enough prefix of the BLOB unless both the
-	old and new table are in COMPACT or REDUNDANT format,
-	which store the prefix in the clustered index record. */
-	if (rec_offs_any_extern(offsets)
-	    && (dict_table_get_format(index->table) >= UNIV_FORMAT_B
-		|| dict_table_get_format(new_table) >= UNIV_FORMAT_B)) {
-
-		/* Build a cache of those off-page column prefixes
-		that are referenced by secondary indexes. It can be
-		that none of the off-page columns are needed. */
-		row_build(ROW_COPY_DATA, index, rec,
-			  offsets, NULL, NULL, NULL, &ext, heap);
-		if (ext) {
-			/* Log the row_ext_t, ext->ext and ext->buf */
-			ext_size = ext->n_ext * ext->max_len
-				+ sizeof(*ext)
-				+ ext->n_ext * sizeof(ulint)
-				+ (ext->n_ext - 1) * sizeof ext->len;
-			mrec_size += ext_size;
-		}
-	}
+	/* 2 = 1 (extra_size) + at least 1 byte payload */
+	mrec_size = 2 + old_pk_size;
 
 	if (byte* b = row_log_table_open(index->online_log,
 					 mrec_size, &avail_size)) {
 		*b++ = ROW_T_DELETE;
 		*b++ = static_cast<byte>(old_pk_extra_size);
 
-		/* Log the size of external prefix we saved */
-		mach_write_to_4(b, ext_size);
-		b += 4;
-
 		rec_convert_dtuple_to_temp(
 			b + old_pk_extra_size, new_index,
 			old_pk->fields, old_pk->n_fields);
 
 		b += old_pk_size;
-
-		if (ext_size) {
-			ulint	cur_ext_size = sizeof(*ext)
-				+ (ext->n_ext - 1) * sizeof ext->len;
-
-			memcpy(b, ext, cur_ext_size);
-			b += cur_ext_size;
-
-			/* Check if we need to col_map to adjust the column
-			number. If columns were added/removed/reordered,
-			adjust the column number. */
-			if (const ulint* col_map =
-				index->online_log->col_map) {
-				for (ulint i = 0; i < ext->n_ext; i++) {
-					const_cast<ulint&>(ext->ext[i]) =
-						col_map[ext->ext[i]];
-				}
-			}
-
-			memcpy(b, ext->ext, ext->n_ext * sizeof(*ext->ext));
-			b += ext->n_ext * sizeof(*ext->ext);
-
-			ext_size -= cur_ext_size
-				 + ext->n_ext * sizeof(*ext->ext);
-			memcpy(b, ext->buf, ext_size);
-			b += ext_size;
-		}
 
 		row_log_table_close(index, b, mrec_size, avail_size);
 	}
@@ -1670,15 +1618,13 @@ row_log_table_apply_insert(
 /******************************************************//**
 Deletes a record from a table that is being rebuilt.
 @return DB_SUCCESS or error code */
-static MY_ATTRIBUTE((warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_log_table_apply_delete_low(
 /*===========================*/
 	btr_pcur_t*		pcur,		/*!< in/out: B-tree cursor,
 						will be trashed */
 	const ulint*		offsets,	/*!< in: offsets on pcur */
-	const row_ext_t*	save_ext,	/*!< in: saved external field
-						info, or NULL */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
 	mtr_t*			mtr)		/*!< in/out: mini-transaction,
 						will be committed */
@@ -1699,12 +1645,7 @@ row_log_table_apply_delete_low(
 		/* Build a row template for purging secondary index entries. */
 		row = row_build(
 			ROW_COPY_DATA, index, btr_pcur_get_rec(pcur),
-			offsets, NULL, NULL, NULL,
-			save_ext ? NULL : &ext, heap);
-
-		if (!save_ext) {
-			save_ext = ext;
-		}
+			offsets, NULL, NULL, NULL, &ext, heap);
 	} else {
 		row = NULL;
 	}
@@ -1723,7 +1664,7 @@ row_log_table_apply_delete_low(
 		}
 
 		const dtuple_t*	entry = row_build_index_entry(
-			row, save_ext, index, heap);
+			row, ext, index, heap);
 		mtr_start(mtr);
 		mtr->set_named_space(index->space);
 		btr_pcur_open(index, entry, PAGE_CUR_LE,
@@ -1768,11 +1709,10 @@ flag_ok:
 /******************************************************//**
 Replays a delete operation on a table that was rebuilt.
 @return DB_SUCCESS or error code */
-static MY_ATTRIBUTE((nonnull(1, 3, 4, 5, 6, 7), warn_unused_result))
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_log_table_apply_delete(
 /*=======================*/
-	que_thr_t*		thr,		/*!< in: query graph */
 	ulint			trx_id_col,	/*!< in: position of
 						DB_TRX_ID in the new
 						clustered index */
@@ -1781,10 +1721,7 @@ row_log_table_apply_delete(
 	mem_heap_t*		offsets_heap,	/*!< in/out: memory heap
 						that can be emptied */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
-	const row_log_t*	log,		/*!< in: online log */
-	const row_ext_t*	save_ext,	/*!< in: saved external field
-						info, or NULL */
-	ulint			ext_size)	/*!< in: external field size */
+	const row_log_t*	log)		/*!< in: online log */
 {
 	dict_table_t*	new_table = log->table;
 	dict_index_t*	index = dict_table_get_first_index(new_table);
@@ -1886,9 +1823,7 @@ all_done:
 		}
 	}
 
-	return(row_log_table_apply_delete_low(&pcur,
-					      offsets, save_ext,
-					      heap, &mtr));
+	return row_log_table_apply_delete_low(&pcur, offsets, heap, &mtr);
 }
 
 /******************************************************//**
@@ -2100,7 +2035,7 @@ func_exit_committed:
 		/* Some BLOBs are missing, so we are interpreting
 		this ROW_T_UPDATE as ROW_T_DELETE (see *1). */
 		error = row_log_table_apply_delete_low(
-			&pcur, cur_offsets, NULL, heap, &mtr);
+			&pcur, cur_offsets, heap, &mtr);
 		goto func_exit_committed;
 	}
 
@@ -2138,7 +2073,7 @@ func_exit_committed:
 		}
 
 		error = row_log_table_apply_delete_low(
-			&pcur, cur_offsets, NULL, heap, &mtr);
+			&pcur, cur_offsets, heap, &mtr);
 		ut_ad(mtr.has_committed());
 
 		if (error == DB_SUCCESS) {
@@ -2286,8 +2221,6 @@ row_log_table_apply_op(
 	ulint		extra_size;
 	const mrec_t*	next_mrec;
 	dtuple_t*	old_pk;
-	row_ext_t*	ext;
-	ulint		ext_size;
 
 	ut_ad(dict_index_is_clust(dup->index));
 	ut_ad(dup->index->table != log->table);
@@ -2295,7 +2228,7 @@ row_log_table_apply_op(
 
 	*error = DB_SUCCESS;
 
-	/* 3 = 1 (op type) + 1 (ext_size) + at least 1 byte payload */
+	/* 3 = 1 (op type) + 1 (extra_size) + at least 1 byte payload */
 	if (mrec + 3 >= mrec_end) {
 		return(NULL);
 	}
@@ -2345,14 +2278,12 @@ row_log_table_apply_op(
 		break;
 
 	case ROW_T_DELETE:
-		/* 1 (extra_size) + 4 (ext_size) + at least 1 (payload) */
-		if (mrec + 6 >= mrec_end) {
+		/* 1 (extra_size) + at least 1 (payload) */
+		if (mrec + 2 >= mrec_end) {
 			return(NULL);
 		}
 
 		extra_size = *mrec++;
-		ext_size = mach_read_from_4(mrec);
-		mrec += 4;
 		ut_ad(mrec < mrec_end);
 
 		/* We assume extra_size < 0x100 for the PRIMARY KEY prefix.
@@ -2361,41 +2292,16 @@ row_log_table_apply_op(
 
 		rec_offs_set_n_fields(offsets, new_index->n_uniq + 2);
 		rec_init_offsets_temp(mrec, new_index, offsets);
-		next_mrec = mrec + rec_offs_data_size(offsets) + ext_size;
-
+		next_mrec = mrec + rec_offs_data_size(offsets);
 		if (next_mrec > mrec_end) {
 			return(NULL);
 		}
 
 		log->head.total += next_mrec - mrec_start;
 
-		/* If there are external fields, retrieve those logged
-		prefix info and reconstruct the row_ext_t */
-		if (ext_size) {
-			/* We use memcpy to avoid unaligned
-			access on some non-x86 platforms.*/
-			ext = static_cast<row_ext_t*>(
-				mem_heap_dup(heap,
-					     mrec + rec_offs_data_size(offsets),
-					     ext_size));
-
-			byte*	ext_start = reinterpret_cast<byte*>(ext);
-
-			ulint	ext_len = sizeof(*ext)
-				+ (ext->n_ext - 1) * sizeof ext->len;
-
-			ext->ext = reinterpret_cast<ulint*>(ext_start + ext_len);
-			ext_len += ext->n_ext * sizeof(*ext->ext);
-
-			ext->buf = static_cast<byte*>(ext_start + ext_len);
-		} else {
-			ext = NULL;
-		}
-
 		*error = row_log_table_apply_delete(
-			thr, new_trx_id_col,
-			mrec, offsets, offsets_heap, heap,
-			log, ext, ext_size);
+			new_trx_id_col,
+			mrec, offsets, offsets_heap, heap, log);
 		break;
 
 	case ROW_T_UPDATE:
@@ -2866,7 +2772,15 @@ all_done:
 
 	while (!trx_is_interrupted(trx)) {
 		mrec = next_mrec;
-		ut_ad(mrec < mrec_end);
+		ut_ad(mrec <= mrec_end);
+
+		if (mrec == mrec_end) {
+			/* We are at the end of the log.
+			   Mark the replay all_done. */
+			if (has_index_lock) {
+				goto all_done;
+			}
+		}
 
 		if (!has_index_lock) {
 			/* We are applying operations from a different

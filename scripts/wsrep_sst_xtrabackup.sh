@@ -408,7 +408,6 @@ if [[ ! ${WSREP_SST_OPT_ROLE} == 'joiner' && ! ${WSREP_SST_OPT_ROLE} == 'donor' 
 fi
 
 read_cnf
-setup_ports
 get_stream
 get_transfer
 

@@ -11,6 +11,14 @@ INSERT INTO t1 VALUES (1);
 
 --connection node_2
 --source include/kill_galera.inc
+
+--connection node_1
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
+--source include/wait_condition.inc
+SET SESSION wsrep_sync_wait = DEFAULT;
+
+--connection node_2
 --source include/start_mysqld.inc
 
 --let $galera_connection_name = node_2a

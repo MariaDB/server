@@ -54,7 +54,7 @@ test_main (int argc __attribute__((__unused__)),
     {
 	ml_lock(&logger->input_lock);
 	toku_logger_make_space_in_inbuf(logger, 5);
-	snprintf(logger->inbuf.buf+logger->inbuf.n_in_buf, 5, "a1234");
+	memcpy(logger->inbuf.buf+logger->inbuf.n_in_buf, "a1234", 5);
 	logger->inbuf.n_in_buf+=5;
 	logger->lsn.lsn++;
 	logger->inbuf.max_lsn_in_buf = logger->lsn;

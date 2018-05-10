@@ -4339,6 +4339,11 @@ loop:
 					      ibuf_inside(mtr));
 
 			retries = 0;
+		} else if (mode == BUF_GET_POSSIBLY_FREED) {
+			if (err) {
+				*err = local_err;
+			}
+			return NULL;
 		} else if (retries < BUF_PAGE_READ_MAX_RETRIES) {
 			++retries;
 

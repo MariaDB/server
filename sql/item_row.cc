@@ -65,6 +65,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
     with_window_func = with_window_func || item->with_window_func;
     with_field= with_field || item->with_field;
     with_subselect|= item->with_subselect;
+    with_param|= item->with_param;
   }
   fixed= 1;
   return FALSE;

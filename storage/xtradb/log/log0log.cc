@@ -3780,6 +3780,9 @@ wait_suspend_loop:
 
 		mutex_exit(&log_sys->mutex);
 
+		/* Ensure that all buffered changes are written to the
+		redo log before fil_close_all_files(). */
+		fil_flush_file_spaces(FIL_LOG);
 	} else {
 		lsn = srv_start_lsn;
 	}

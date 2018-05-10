@@ -41,8 +41,6 @@ static PJSON JsonNew(PGLOBAL g, JTYP type);
 static PJVAL JvalNew(PGLOBAL g, JTYP type, void *vp = NULL);
 static PJSNX JsnxNew(PGLOBAL g, PJSON jsp, int type, int len = 64);
 
-void json_array_deinit(UDF_INIT* initid);
-
 static uint JsonGrpSize = 10;
 
 /*********************************************************************************/

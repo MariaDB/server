@@ -75,16 +75,19 @@ public:
   {
     with_sum_func= 0;
     with_field= 0;
+    with_param= 0;
   }
   Item_func(THD *thd, Item *a): Item_func_or_sum(thd, a), allowed_arg_cols(1)
   {
     with_sum_func= a->with_sum_func;
+    with_param= a->with_param;
     with_field= a->with_field;
   }
   Item_func(THD *thd, Item *a, Item *b):
     Item_func_or_sum(thd, a, b), allowed_arg_cols(1)
   {
     with_sum_func= a->with_sum_func || b->with_sum_func;
+    with_param= a->with_param || b->with_param;
     with_field= a->with_field || b->with_field;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c):
@@ -92,6 +95,7 @@ public:
   {
     with_sum_func= a->with_sum_func || b->with_sum_func || c->with_sum_func;
     with_field= a->with_field || b->with_field || c->with_field;
+    with_param= a->with_param || b->with_param || c->with_param;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d):
     Item_func_or_sum(thd, a, b, c, d), allowed_arg_cols(1)
@@ -100,6 +104,8 @@ public:
                    c->with_sum_func || d->with_sum_func;
     with_field= a->with_field || b->with_field ||
                 c->with_field || d->with_field;
+    with_param= a->with_param || b->with_param ||
+                c->with_param || d->with_param;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e):
     Item_func_or_sum(thd, a, b, c, d, e), allowed_arg_cols(1)
@@ -108,6 +114,8 @@ public:
                    c->with_sum_func || d->with_sum_func || e->with_sum_func;
     with_field= a->with_field || b->with_field ||
                 c->with_field || d->with_field || e->with_field;
+    with_param= a->with_param || b->with_param ||
+                c->with_param || d->with_param || e->with_param;
   }
   Item_func(THD *thd, List<Item> &list):
     Item_func_or_sum(thd, list), allowed_arg_cols(1)

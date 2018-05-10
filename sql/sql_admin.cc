@@ -1170,7 +1170,9 @@ send_result_message:
     }
     else
     {
-      if (trans_commit_stmt(thd) || trans_commit_implicit(thd))
+      if (trans_commit_stmt(thd) ||
+          (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END) &&
+           trans_commit_implicit(thd)))
         goto err;
     }
     close_thread_tables(thd);
@@ -1204,7 +1206,8 @@ send_result_message:
 err:
   /* Make sure this table instance is not reused after the failure. */
   trans_rollback_stmt(thd);
-  trans_rollback(thd);
+  if (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END))
+    trans_rollback(thd);
   if (table && table->table)
   {
     table->table->m_needs_reopen= true;
