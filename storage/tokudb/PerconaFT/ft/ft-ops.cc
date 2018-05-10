@@ -822,7 +822,7 @@ int toku_ftnode_fetch_callback(CACHEFILE UU(cachefile),
             fprintf(
                 stderr,
                 "%s:%d:toku_ftnode_fetch_callback - "
-                "file[%s], blocknum[%ld], toku_deserialize_ftnode_from "
+                "file[%s], blocknum[%lld], toku_deserialize_ftnode_from "
                 "failed with a checksum error.\n",
                 __FILE__,
                 __LINE__,
@@ -832,7 +832,7 @@ int toku_ftnode_fetch_callback(CACHEFILE UU(cachefile),
             fprintf(
                 stderr,
                 "%s:%d:toku_ftnode_fetch_callback - "
-                "file[%s], blocknum[%ld], toku_deserialize_ftnode_from "
+                "file[%s], blocknum[%lld], toku_deserialize_ftnode_from "
                 "failed with %d.\n",
                 __FILE__,
                 __LINE__,

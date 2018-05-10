@@ -18,7 +18,7 @@ set(tokudb_srcs
 ## make the shared library
 add_library(${LIBTOKUDB} SHARED ${tokudb_srcs})
 add_dependencies(${LIBTOKUDB} install_tdb_h generate_log_code)
-target_link_libraries(${LIBTOKUDB} LINK_PRIVATE locktree_static ft_static util_static lzma snappy ${LIBTOKUPORTABILITY})
+target_link_libraries(${LIBTOKUDB} LINK_PRIVATE locktree_static ft_static util_static lzma snappy dbug ${LIBTOKUPORTABILITY})
 target_link_libraries(${LIBTOKUDB} LINK_PUBLIC ${ZLIB_LIBRARY} )
 
 ## make the static library

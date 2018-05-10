@@ -111,7 +111,7 @@ public:
 
     // wait for the event to become signalled
     void wait(void);
-    int wait(ulonglong microseconds);
+//    int wait(ulonglong microseconds);
 
     // signal the event
     void signal(void);
@@ -152,7 +152,7 @@ public:
 
     // wait for the semaphore to become signalled
     E_WAIT wait(void);
-    E_WAIT wait(ulonglong microseconds);
+//    E_WAIT wait(ulonglong microseconds);
 
     // signal the semaphore to increase the count
     // return true if signalled, false if ignored due to count
@@ -372,28 +372,28 @@ inline void event_t::wait(void) {
     assert_debug(r == 0);
     return;
 }
-inline int event_t::wait(ulonglong microseconds) {
-    timespec waittime = time::offset_timespec(microseconds);
-    int r = pthread_mutex_timedlock(&_mutex, &waittime);
-    if (r == ETIMEDOUT) return ETIMEDOUT;
-    assert_debug(r == 0);
-    while (_signalled == false && _pulsed == false) {
-        r = pthread_cond_timedwait(&_cond, &_mutex, &waittime);
-        if (r == ETIMEDOUT) {
-            r = pthread_mutex_unlock(&_mutex);
-            assert_debug(r == 0);
-            return ETIMEDOUT;
-        }
-        assert_debug(r == 0);
-    }
-    if (_manual_reset == false)
-        _signalled = false;
-    if (_pulsed)
-        _pulsed = false;
-    r = pthread_mutex_unlock(&_mutex);
-    assert_debug(r == 0);
-    return 0;
-}
+//inline int event_t::wait(ulonglong microseconds) {
+//    timespec waittime = time::offset_timespec(microseconds);
+//    int r = pthread_mutex_trylock(&_mutex, &waittime);
+//    if (r == ETIMEDOUT) return ETIMEDOUT;
+//    assert_debug(r == 0);
+//    while (_signalled == false && _pulsed == false) {
+//        r = pthread_cond_timedwait(&_cond, &_mutex, &waittime);
+//        if (r == ETIMEDOUT) {
+//            r = pthread_mutex_unlock(&_mutex);
+//            assert_debug(r == 0);
+//            return ETIMEDOUT;
+//        }
+//        assert_debug(r == 0);
+//    }
+//    if (_manual_reset == false)
+//        _signalled = false;
+//    if (_pulsed)
+//        _pulsed = false;
+//    r = pthread_mutex_unlock(&_mutex);
+//    assert_debug(r == 0);
+//    return 0;
+//}
 inline void event_t::signal(void) {
     int r MY_ATTRIBUTE((unused)) = pthread_mutex_lock(&_mutex);
     assert_debug(r == 0);
@@ -479,31 +479,31 @@ inline semaphore_t::E_WAIT semaphore_t::wait(void) {
     assert_debug(r == 0);
     return ret;
 }
-inline semaphore_t::E_WAIT semaphore_t::wait(ulonglong microseconds) {
-    E_WAIT ret;
-    timespec waittime = time::offset_timespec(microseconds);
-    int r = pthread_mutex_timedlock(&_mutex, &waittime);
-    if (r == ETIMEDOUT) return E_TIMEDOUT;
-    assert_debug(r == 0);
-    while (_signalled == 0 && _interrupted == false) {
-        r = pthread_cond_timedwait(&_cond, &_mutex, &waittime);
-        if (r == ETIMEDOUT) {
-            r = pthread_mutex_unlock(&_mutex);
-            assert_debug(r == 0);
-            return E_TIMEDOUT;
-        }
-        assert_debug(r == 0);
-    }
-    if (_interrupted) {
-        ret = E_INTERRUPTED;
-    } else {
-        _signalled--;
-        ret = E_SIGNALLED;
-    }
-    r = pthread_mutex_unlock(&_mutex);
-    assert_debug(r == 0);
-    return ret;
-}
+//inline semaphore_t::E_WAIT semaphore_t::wait(ulonglong microseconds) {
+//    E_WAIT ret;
+//    timespec waittime = time::offset_timespec(microseconds);
+//    int r = pthread_mutex_timedlock(&_mutex, &waittime);
+//    if (r == ETIMEDOUT) return E_TIMEDOUT;
+//    assert_debug(r == 0);
+//    while (_signalled == 0 && _interrupted == false) {
+//        r = pthread_cond_timedwait(&_cond, &_mutex, &waittime);
+//        if (r == ETIMEDOUT) {
+//            r = pthread_mutex_unlock(&_mutex);
+//            assert_debug(r == 0);
+//            return E_TIMEDOUT;
+//        }
+//        assert_debug(r == 0);
+//    }
+//    if (_interrupted) {
+//        ret = E_INTERRUPTED;
+//    } else {
+//        _signalled--;
+//        ret = E_SIGNALLED;
+//    }
+//    r = pthread_mutex_unlock(&_mutex);
+//    assert_debug(r == 0);
+//    return ret;
+//}
 inline bool semaphore_t::signal(void) {
     bool ret = false;
     int r MY_ATTRIBUTE((unused)) = pthread_mutex_lock(&_mutex);

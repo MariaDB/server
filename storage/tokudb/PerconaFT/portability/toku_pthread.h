@@ -162,10 +162,20 @@ typedef struct toku_mutex_aligned {
 #define ZERO_COND_INITIALIZER \
     { 0 }
 #elif defined(__APPLE__)
+#if TOKU_PTHREAD_DEBUG
 #define ZERO_COND_INITIALIZER \
     {                         \
-        { 0 }                 \
+        { 0 , { 0 } },        \
+        nullptr,              \
+        0                     \
     }
+#else
+#define ZERO_COND_INITIALIZER \
+    {                         \
+        { 0 , { 0 } },        \
+        nullptr               \
+    }
+#endif
 #else  // __linux__, at least
 #define ZERO_COND_INITIALIZER \
     {                         \
