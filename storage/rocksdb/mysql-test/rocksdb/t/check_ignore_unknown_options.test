@@ -1,3 +1,7 @@
+# MariaDB: "xargs" is not present on windows builders.
+#  we could work around this but this is not a priority.
+--source include/not_windows.inc
+
 --disable_warnings
 let $MYSQLD_DATADIR= `select @@datadir`;
 let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
