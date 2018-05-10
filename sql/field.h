@@ -1737,7 +1737,7 @@ public:
   Information_schema_character_attributes
     information_schema_character_attributes() const
   {
-    return Information_schema_character_attributes(field_length,
+    return Information_schema_character_attributes(max_display_length(),
                                                    char_length());
   }
   friend class Create_field;
@@ -3448,6 +3448,10 @@ private:
     str.append(STRING_WITH_LEN(" /*!100301 COMPRESSED*/"));
   }
   uint32 max_display_length() const { return field_length - 1; }
+  uint32 char_length() const
+  {
+    return (field_length - 1) / field_charset->mbmaxlen;
+  }
   int cmp_max(const uchar *a_ptr, const uchar *b_ptr, uint max_len);
 
   /*
