@@ -656,9 +656,9 @@ exit:
     fprintf(stderr, \
             "%s:%d toku_deserialize_ft_from: " \
             "filename[%s] " \
-            "r[%d] max_acceptable_lsn[%lu]" \
-            "r0[%d] checkpoint_lsn_0[%lu] checkpoint_count_0[%lu] " \
-            "r1[%d] checkpoint_lsn_1[%lu] checkpoint_count_1[%lu]\n", \
+            "r[%d] max_acceptable_lsn[%llu]" \
+            "r0[%d] checkpoint_lsn_0[%llu] checkpoint_count_0[%llu] " \
+            "r1[%d] checkpoint_lsn_1[%llu] checkpoint_count_1[%llu]\n", \
             __FILE__, \
             __LINE__, \
             fn, \
