@@ -3049,6 +3049,7 @@ set_connect_attributes(MYSQL *mysql, char *buff, size_t buf_len)
   rc+= mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_DELETE, "_client_name");
   rc+= mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_DELETE, "_os");
   rc+= mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_DELETE, "_platform");
+  rc+= mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_DELETE, "_host_name");
   rc+= mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_DELETE, "_pid");
   rc+= mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_DELETE, "_thread");
   rc+= mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_DELETE, "_client_version");
@@ -3064,6 +3065,8 @@ set_connect_attributes(MYSQL *mysql, char *buff, size_t buf_len)
                       "_os", SYSTEM_TYPE);
   rc+= mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                       "_platform", MACHINE_TYPE);
+  rc+= mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
+                      "_host_name", mysql->host);                      
 #ifdef __WIN__
   snprintf(buff, buf_len, "%lu", (ulong) GetCurrentProcessId());
 #else
