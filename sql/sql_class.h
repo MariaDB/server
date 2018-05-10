@@ -4248,16 +4248,8 @@ public:
   void parse_error(const char *err_text, const char *yytext)
   {
     Lex_input_stream *lip= &m_parser_state->m_lip;
-    if (!yytext)
-    {
-      if (lip->has_lookahead())
-        yytext= lip->get_tok_start_prev();
-      else
-        yytext= lip->get_tok_start();
-
-      if (!yytext)
+    if (!yytext && !(yytext= lip->get_tok_start()))
         yytext= "";
-    }
     /* Push an error into the error stack */
     ErrConvString err(yytext, strlen(yytext), variables.character_set_client);
     my_printf_error(ER_PARSE_ERROR,  ER_THD(this, ER_PARSE_ERROR), MYF(0),

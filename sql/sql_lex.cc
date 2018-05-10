@@ -841,7 +841,7 @@ Yacc_state::~Yacc_state()
 int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
                                    uint len, bool function)
 {
-  const char *tok= get_tok_start();
+  const char *tok= m_tok_start;
 
   SYMBOL *symbol= get_hash_symbol(tok, len, function);
   if (symbol)
@@ -957,9 +957,9 @@ LEX_CSTRING Lex_input_stream::get_token(uint skip, uint length)
   LEX_CSTRING tmp;
   yyUnget();                       // ptr points now after last token char
   tmp.length= length;
-  tmp.str= m_thd->strmake(get_tok_start() + skip, tmp.length);
+  tmp.str= m_thd->strmake(m_tok_start + skip, tmp.length);
 
-  m_cpp_text_start= get_cpp_tok_start() + skip;
+  m_cpp_text_start= m_cpp_tok_start + skip;
   m_cpp_text_end= m_cpp_text_start + tmp.length;
 
   return tmp;
@@ -1084,7 +1084,7 @@ bool Lex_input_stream::get_text(Lex_string_with_metadata_st *dst, uint sep,
       const char *str, *end;
       char *to;
 
-      str= get_tok_start();
+      str= m_tok_start;
       end= get_ptr();
       /* Extract the text from the token */
       str += pre_skip;
@@ -1099,7 +1099,7 @@ bool Lex_input_stream::get_text(Lex_string_with_metadata_st *dst, uint sep,
       }
       dst->str= to;
 
-      m_cpp_text_start= get_cpp_tok_start() + pre_skip;
+      m_cpp_text_start= m_cpp_tok_start + pre_skip;
       m_cpp_text_end= get_cpp_ptr() - post_skip;
 
       if (!found_escape)
@@ -1972,9 +1972,9 @@ int Lex_input_stream::scan_ident_sysvar(THD *thd, Lex_ident_cli_st *str)
   }
 
   yyUnget();                       // ptr points now after last token char
-  str->set_ident(get_tok_start(), length, is_8bit);
+  str->set_ident(m_tok_start, length, is_8bit);
 
-  m_cpp_text_start= get_cpp_tok_start();
+  m_cpp_text_start= m_cpp_tok_start;
   m_cpp_text_end= m_cpp_text_start + length;
   body_utf8_append(m_cpp_text_start);
   body_utf8_append_ident(thd, str, m_cpp_text_end);
@@ -2023,8 +2023,8 @@ int Lex_input_stream::scan_ident_start(THD *thd, Lex_ident_cli_st *str)
 
   uint length= yyLength();
   yyUnget(); // ptr points now after last token char
-  str->set_ident(get_tok_start(), length, is_8bit);
-  m_cpp_text_start= get_cpp_tok_start();
+  str->set_ident(m_tok_start, length, is_8bit);
+  m_cpp_text_start= m_cpp_tok_start;
   m_cpp_text_end= m_cpp_text_start + length;
   body_utf8_append(m_cpp_text_start);
   body_utf8_append_ident(thd, str, m_cpp_text_end);
@@ -2107,15 +2107,15 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
      producing an error.
   */
   DBUG_ASSERT(length > 0);
-  if (resolve_introducer && get_tok_start()[0] == '_')
+  if (resolve_introducer && m_tok_start[0] == '_')
   {
 
     yyUnget();                       // ptr points now after last token char
-    str->set_ident(get_tok_start(), length, false);
+    str->set_ident(m_tok_start, length, false);
 
-    m_cpp_text_start= get_cpp_tok_start();
+    m_cpp_text_start= m_cpp_tok_start;
     m_cpp_text_end= m_cpp_text_start + length;
-    body_utf8_append(m_cpp_text_start, get_cpp_tok_start() + length);
+    body_utf8_append(m_cpp_text_start, m_cpp_tok_start + length);
     ErrConvString csname(str->str + 1, str->length - 1, &my_charset_bin);
     CHARSET_INFO *cs= get_charset_by_csname(csname.ptr(),
                                             MY_CS_PRIMARY, MYF(0));
@@ -2128,8 +2128,8 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
   }
 
   yyUnget();                       // ptr points now after last token char
-  str->set_ident(get_tok_start(), length, is_8bit);
-  m_cpp_text_start= get_cpp_tok_start();
+  str->set_ident(m_tok_start, length, is_8bit);
+  m_cpp_text_start= m_cpp_tok_start;
   m_cpp_text_end= m_cpp_text_start + length;
   body_utf8_append(m_cpp_text_start);
   body_utf8_append_ident(thd, str, m_cpp_text_end);
@@ -2165,10 +2165,10 @@ int Lex_input_stream::scan_ident_delimited(THD *thd,
     }
   }
 
-  str->set_ident_quoted(get_tok_start() + 1, yyLength() - 1, true, quote_char);
+  str->set_ident_quoted(m_tok_start + 1, yyLength() - 1, true, quote_char);
   yyUnget();                       // ptr points now after last token char
 
-  m_cpp_text_start= get_cpp_tok_start() + 1;
+  m_cpp_text_start= m_cpp_tok_start + 1;
   m_cpp_text_end= m_cpp_text_start + str->length;
 
   if (c == quote_char)

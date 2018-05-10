@@ -2331,8 +2331,6 @@ private:
     return (uint) ((m_ptr - m_tok_start) - 1);
   }
 
-public:
-
   /**
     Test if a lookahead token was already scanned by lex_token(),
     for LALR(2) resolution.
@@ -2341,6 +2339,8 @@ public:
   {
     return lookahead_token >= 0;
   }
+
+public:
 
   /**
     End of file indicator for the query text to parse.
@@ -2372,7 +2372,7 @@ public:
   /** Get the token start position, in the raw buffer. */
   const char *get_tok_start()
   {
-    return m_tok_start;
+    return has_lookahead() ? m_tok_start_prev : m_tok_start;
   }
 
   void set_cpp_tok_start(const char *pos)
@@ -2386,28 +2386,16 @@ public:
     return m_tok_end;
   }
 
-  /** Get the previous token start position, in the raw buffer. */
-  const char *get_tok_start_prev()
-  {
-    return m_tok_start_prev;
-  }
-
   /** Get the current stream pointer, in the raw buffer. */
   const char *get_ptr()
   {
     return m_ptr;
   }
 
-  /** Get the previus token start position, in the pre-processed buffer. */
-  const char *get_cpp_start_prev()
-  {
-    return m_cpp_tok_start_prev;
-  }
-
   /** Get the token start position, in the pre-processed buffer. */
   const char *get_cpp_tok_start()
   {
-    return m_cpp_tok_start;
+    return has_lookahead() ? m_cpp_tok_start_prev : m_cpp_tok_start;
   }
 
   /** Get the token end position, in the pre-processed buffer. */
