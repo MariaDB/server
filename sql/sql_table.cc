@@ -3191,8 +3191,10 @@ bool Column_definition::prepare_stage1_string(THD *thd,
     Convert the default value from client character
     set into the column character set if necessary.
     We can only do this for constants as we have not yet run fix_fields.
+    But not for blobs, as they will be stored as SQL expressions, not
+    written down into the record image.
   */
-  if (default_value &&
+  if (!(flags & BLOB_FLAG) && default_value &&
       default_value->expr->basic_const_item() &&
       charset != default_value->expr->collation.collation)
   {
