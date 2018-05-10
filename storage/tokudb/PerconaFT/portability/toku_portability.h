@@ -157,7 +157,7 @@ extern "C" {
 #endif
 
 // Deprecated functions.
-#if !defined(TOKU_ALLOW_DEPRECATED)
+#if !defined(TOKU_ALLOW_DEPRECATED) && !defined(__clang__)
 int      creat(const char *pathname, mode_t mode)   __attribute__((__deprecated__));
 int      fstat(int fd, struct stat *buf)            __attribute__((__deprecated__));
 int      stat(const char *path, struct stat *buf)   __attribute__((__deprecated__));

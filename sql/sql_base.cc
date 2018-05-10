@@ -808,10 +808,7 @@ void close_thread_tables(THD *thd)
       we will exit this function a few lines below.
     */
     if (! thd->lex->requires_prelocking())
-    {
-      thd->locked_tables_list.reopen_tables(thd, true);
       DBUG_VOID_RETURN;
-    }
 
     /*
       We are in the top-level statement of a prelocked statement,

@@ -1,0 +1,5 @@
+set @old_dbug=@@global.debug_dbug;
+set global debug_dbug='+d,auth_disconnect';
+create user 'bad' identified by 'worse';
+set global debug_dbug=@old_dbug;
+drop user bad;

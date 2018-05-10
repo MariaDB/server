@@ -16,6 +16,7 @@ typedef class JSONDEF *PJDEF;
 typedef class TDBJSON *PJTDB;
 typedef class JSONCOL *PJCOL;
 class TDBJSN;
+PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info);
 
 /***********************************************************************/
 /*  The JSON tree node. Can be an Object or an Array.           	  	 */

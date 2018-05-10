@@ -41,8 +41,6 @@ static PJSON JsonNew(PGLOBAL g, JTYP type);
 static PJVAL JvalNew(PGLOBAL g, JTYP type, void *vp = NULL);
 static PJSNX JsnxNew(PGLOBAL g, PJSON jsp, int type, int len = 64);
 
-void json_array_deinit(UDF_INIT* initid);
-
 static uint JsonGrpSize = 10;
 
 /*********************************************************************************/
@@ -1622,7 +1620,7 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args, uint n,
 				if (AllocSarea(g, ml)) {
 					char errmsg[MAX_STR];
 
-					snprintf(errmsg, sizeof(errmsg)-1, MSG(WORK_AREA), g->Message);
+					snprintf(errmsg, sizeof(errmsg) - 1, MSG(WORK_AREA), g->Message);
 					strcpy(g->Message, errmsg);
 					return true;
 					} // endif SareaAlloc

@@ -4881,6 +4881,94 @@ static void toku_pfs_keys_init(const char *toku_instr_group_name) {
     toku_instr_probe_1 = new toku_instr_probe(*fti_probe_1_key);
 }
 
+static void toku_pfs_keys_destroy(void) {
+    delete kibbutz_mutex_key;
+    delete minicron_p_mutex_key;
+    delete queue_result_mutex_key;
+    delete tpool_lock_mutex_key;
+    delete workset_lock_mutex_key;
+    delete bjm_jobs_lock_mutex_key;
+    delete log_internal_lock_mutex_key;
+    delete cachetable_ev_thread_lock_mutex_key;
+    delete cachetable_disk_nb_mutex_key;
+    delete safe_file_size_lock_mutex_key;
+    delete cachetable_m_mutex_key;
+    delete checkpoint_safe_mutex_key;
+    delete ft_ref_lock_mutex_key;
+    delete ft_open_close_lock_mutex_key;
+    delete loader_error_mutex_key;
+    delete bfs_mutex_key;
+    delete loader_bl_mutex_key;
+    delete loader_fi_lock_mutex_key;
+    delete loader_out_mutex_key;
+    delete result_output_condition_lock_mutex_key;
+    delete block_table_mutex_key;
+    delete rollback_log_node_cache_mutex_key;
+    delete txn_lock_mutex_key;
+    delete txn_state_lock_mutex_key;
+    delete txn_child_manager_mutex_key;
+    delete txn_manager_lock_mutex_key;
+    delete treenode_mutex_key;
+    delete locktree_request_info_mutex_key;
+    delete locktree_request_info_retry_mutex_key;
+    delete manager_mutex_key;
+    delete manager_escalation_mutex_key;
+    delete db_txn_struct_i_txn_mutex_key;
+    delete manager_escalator_mutex_key;
+    delete indexer_i_indexer_lock_mutex_key;
+    delete indexer_i_indexer_estimate_lock_mutex_key;
+
+    delete tokudb_file_data_key;
+    delete tokudb_file_load_key;
+    delete tokudb_file_tmp_key;
+    delete tokudb_file_log_key;
+
+    delete fti_probe_1_key;
+
+    delete extractor_thread_key;
+    delete fractal_thread_key;
+    delete io_thread_key;
+    delete eviction_thread_key;
+    delete kibbutz_thread_key;
+    delete minicron_thread_key;
+    delete tp_internal_thread_key;
+
+    delete result_state_cond_key;
+    delete bjm_jobs_wait_key;
+    delete cachetable_p_refcount_wait_key;
+    delete cachetable_m_flow_control_cond_key;
+    delete cachetable_m_ev_thread_cond_key;
+    delete bfs_cond_key;
+    delete result_output_condition_key;
+    delete manager_m_escalator_done_key;
+    delete lock_request_m_wait_cond_key;
+    delete queue_result_cond_key;
+    delete ws_worker_wait_key;
+    delete rwlock_wait_read_key;
+    delete rwlock_wait_write_key;
+    delete rwlock_cond_key;
+    delete tp_thread_wait_key;
+    delete tp_pool_wait_free_key;
+    delete frwlock_m_wait_read_key;
+    delete kibbutz_k_cond_key;
+    delete minicron_p_condvar_key;
+    delete locktree_request_info_retry_cv_key;
+
+    delete multi_operation_lock_key;
+    delete low_priority_multi_operation_lock_key;
+    delete cachetable_m_list_lock_key;
+    delete cachetable_m_pending_lock_expensive_key;
+    delete cachetable_m_pending_lock_cheap_key;
+    delete cachetable_m_lock_key;
+    delete result_i_open_dbs_rwlock_key;
+    delete checkpoint_safe_rwlock_key;
+    delete cachetable_value_key;
+    delete safe_file_size_lock_rwlock_key;
+
+    delete cachetable_disk_nb_rwlock_key;
+    delete toku_instr_probe_1;
+}
+
 int toku_ft_layer_init(void) {
     int r = 0;
 
@@ -4917,8 +5005,7 @@ void toku_ft_layer_destroy(void) {
     toku_status_destroy();
     partitioned_counters_destroy();
     toku_scoped_malloc_destroy();
-
-    delete toku_instr_probe_1;
+    toku_pfs_keys_destroy();
 
     // Portability must be cleaned up last
     toku_portability_destroy();

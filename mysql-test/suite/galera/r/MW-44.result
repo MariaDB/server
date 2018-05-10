@@ -1,15 +1,18 @@
-SET @@global.wsrep_replicate_myisam=OFF;
-connection node_1;
+SET GLOBAL general_log='OFF';
 TRUNCATE TABLE mysql.general_log;
 SELECT COUNT(*) from mysql.general_log;
 COUNT(*)
-1
-connection node_2;
+0
+SELECT * FROM mysql.general_log;
+event_time	user_host	thread_id	server_id	command_type	argument
+SET GLOBAL general_log='OFF';
 TRUNCATE TABLE mysql.general_log;
 SELECT COUNT(*) from mysql.general_log;
 COUNT(*)
-1
-connection node_1;
+0
+SELECT * FROM mysql.general_log;
+event_time	user_host	thread_id	server_id	command_type	argument
+SET GLOBAL general_log='ON';
 SELECT COUNT(*) from mysql.general_log;
 COUNT(*)
 1
@@ -21,9 +24,8 @@ SET SESSION wsrep_osu_method=TOI;
 SELECT COUNT(*) = 2 FROM mysql.general_log WHERE argument LIKE 'CREATE%' OR argument LIKE 'ALTER%';
 COUNT(*) = 2
 1
-connection node_2;
+SET GLOBAL general_log='ON';
 SELECT COUNT(*) = 0 FROM mysql.general_log WHERE argument NOT LIKE 'SELECT%';
 COUNT(*) = 0
 1
 DROP TABLE t1;
-SET @@global.wsrep_replicate_myisam=Default;

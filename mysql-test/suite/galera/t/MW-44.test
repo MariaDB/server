@@ -5,18 +5,22 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-SET @@global.wsrep_replicate_myisam=OFF;
 --connection node_1
+SET GLOBAL general_log='OFF';
 TRUNCATE TABLE mysql.general_log;
 SELECT COUNT(*) from mysql.general_log;
+SELECT * FROM mysql.general_log;
 
 --sleep 1
 --connection node_2
+SET GLOBAL general_log='OFF';
 TRUNCATE TABLE mysql.general_log;
 SELECT COUNT(*) from mysql.general_log;
+SELECT * FROM mysql.general_log;
 
 --sleep 1
 --connection node_1
+SET GLOBAL general_log='ON';
 SELECT COUNT(*) from mysql.general_log;
 SET SESSION wsrep_osu_method=TOI;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
@@ -27,6 +31,7 @@ SET SESSION wsrep_osu_method=TOI;
 SELECT COUNT(*) = 2 FROM mysql.general_log WHERE argument LIKE 'CREATE%' OR argument LIKE 'ALTER%';
 
 --connection node_2
+SET GLOBAL general_log='ON';
 SELECT COUNT(*) = 0 FROM mysql.general_log WHERE argument NOT LIKE 'SELECT%';
 DROP TABLE t1;
-SET @@global.wsrep_replicate_myisam=Default;
+

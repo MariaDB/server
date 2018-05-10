@@ -3993,11 +3993,11 @@ bool is_stat_table(const char *db, const char *table)
 {
   DBUG_ASSERT(db && table);
 
-  if (!memcmp(db, stat_tables_db_name.str, stat_tables_db_name.length))
+  if (!my_strcasecmp(table_alias_charset, db, stat_tables_db_name.str))
   {
     for (uint i= 0; i < STATISTICS_TABLES; i ++)
     {
-      if (!memcmp(table, stat_table_name[i].str, stat_table_name[i].length))
+      if (!my_strcasecmp(table_alias_charset, table, stat_table_name[i].str))
         return true;
     }
   }

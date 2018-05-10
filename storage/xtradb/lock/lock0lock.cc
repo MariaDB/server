@@ -6955,10 +6955,10 @@ lock_rec_block_validate(
 			page_no, RW_X_LATCH, NULL,
 			BUF_GET_POSSIBLY_FREED,
 			__FILE__, __LINE__, &mtr);
-
-		buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
-
-		ut_ad(lock_rec_validate_page(block));
+		if (block) {
+			buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
+			ut_ad(lock_rec_validate_page(block));
+		}
 		mtr_commit(&mtr);
 
 		fil_space_release(space);

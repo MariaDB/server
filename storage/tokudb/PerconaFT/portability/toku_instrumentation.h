@@ -52,6 +52,8 @@ class toku_instr_key {
                    UU(const char *name)) {}
 
     explicit toku_instr_key(UU(pfs_key_t key_id)) {}
+
+    ~toku_instr_key() {}
 };
 
 typedef toku_instr_probe_empty toku_instr_probe;

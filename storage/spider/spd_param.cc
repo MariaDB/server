@@ -928,20 +928,25 @@ bool spider_param_use_default_database(
   DBUG_RETURN(THDVAR(thd, use_default_database));
 }
 
+static int spider_internal_sql_log_off;
 /*
-  FALSE: sql_log_off = 0
-  TRUE:  sql_log_off = 1
- */
-static MYSQL_THDVAR_BOOL(
-  internal_sql_log_off, /* name */
-  PLUGIN_VAR_OPCMDARG, /* opt */
-  "Sync sql_log_off", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  TRUE /* def */
+-1 :don't know or does not matter; don't send 'SET SQL_LOG_OFF' statement
+ 0 :do send 'SET SQL_LOG_OFF 0' statement to data nodes
+ 1 :do send 'SET SQL_LOG_OFF 1' statement to data nodes
+*/
+static MYSQL_THDVAR_INT(
+  internal_sql_log_off,                                  /* name */
+  PLUGIN_VAR_RQCMDARG,                                   /* opt */
+  "Manage SQL_LOG_OFF mode statement to the data nodes", /* comment */
+  NULL,                                                  /* check */
+  NULL,                                                  /* update */
+  -1,                                                    /* default */
+  -1,                                                    /* min */
+  1,                                                     /* max */
+  0                                                      /* blk */
 );
 
-bool spider_param_internal_sql_log_off(
+int spider_param_internal_sql_log_off(
   THD *thd
 ) {
   DBUG_ENTER("spider_param_internal_sql_log_off");
@@ -2182,15 +2187,15 @@ char *spider_param_remote_time_zone()
 
 static int spider_remote_sql_log_off;
 /*
- -1 :don't set
-  0 :sql_log_off = 0
-  1 :sql_log_off = 1
+ -1 :don't know the value on all data nodes, or does not matter
+  0 :sql_log_off = 0 on all data nodes
+  1 :sql_log_off = 1 on all data nodes
  */
 static MYSQL_SYSVAR_INT(
   remote_sql_log_off,
   spider_remote_sql_log_off,
   PLUGIN_VAR_RQCMDARG,
-  "Set sql_log_off mode at connecting for improvement performance of connection if you know",
+  "Set SQL_LOG_OFF mode on connecting for improved performance of connection, if you know",
   NULL,
   NULL,
   -1,

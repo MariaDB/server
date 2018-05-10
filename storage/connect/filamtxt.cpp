@@ -427,7 +427,7 @@ int TXTFAM::DeleteSortedRows(PGLOBAL g)
 
   for (i = 0; i < Posar->GetNval(); i++) {
     if ((irc = InitDelete(g, Posar->GetIntValue(ix[i]), 
-                             Sosar->GetIntValue(ix[i])) == RC_FX))
+                             Sosar->GetIntValue(ix[i]))) == RC_FX)
       goto err;
 
     // Now delete the sorted rows
