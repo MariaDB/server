@@ -95,8 +95,8 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 # define TOKU_ANNOTATE_IGNORE_WRITES_BEGIN() ((void) 0)
 # define TOKU_ANNOTATE_IGNORE_WRITES_END() ((void) 0)
 # define TOKU_VALGRIND_RESET_MUTEX_ORDERING_INFO(mutex)
+#undef RUNNING_ON_VALGRIND
 # define RUNNING_ON_VALGRIND (0U)
-
 #endif
 
 // Valgrind 3.10.1 (and previous versions).

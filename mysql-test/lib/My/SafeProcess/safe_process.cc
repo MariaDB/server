@@ -89,7 +89,7 @@ static void die(const char* fmt, ...)
 }
 
 
-static void kill_child(bool was_killed)
+static int kill_child(bool was_killed)
 {
   int status= 0;
 
@@ -108,15 +108,15 @@ static void kill_child(bool was_killed)
       exit_code= WEXITSTATUS(status);
       message("Child exit: %d", exit_code);
       // Exit with exit status of the child
-      exit(exit_code);
+      return exit_code;
     }
 
     if (WIFSIGNALED(status))
       message("Child killed by signal: %d", WTERMSIG(status));
 
-    exit(exit_code);
+    return exit_code;
   }
-  exit(5);
+  return 5;
 }
 
 
@@ -136,7 +136,7 @@ extern "C" void handle_signal(int sig)
   terminated= 1;
 
   if (child_pid > 0)
-    kill_child(sig == SIGCHLD);
+    _exit(kill_child(sig == SIGCHLD));
 
   // Ignore further signals
   signal(SIGTERM, SIG_IGN);
@@ -300,8 +300,6 @@ int main(int argc, char* const argv[] )
     /* Wait for parent or child to die */
     sleep(1);
   }
-  kill_child(0);
-
-  return 4;
+  return kill_child(0);
 }
 

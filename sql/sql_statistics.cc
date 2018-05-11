@@ -3990,11 +3990,11 @@ bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table)
 {
   DBUG_ASSERT(db->str && table->str);
 
-  if (!cmp(db, &MYSQL_SCHEMA_NAME))
+  if (!my_strcasecmp(table_alias_charset, db->str, MYSQL_SCHEMA_NAME.str))
   {
     for (uint i= 0; i < STATISTICS_TABLES; i ++)
     {
-      if (cmp(table, &stat_table_name[i]) == 0)
+      if (!my_strcasecmp(table_alias_charset, table->str, stat_table_name[i].str))
         return true;
     }
   }

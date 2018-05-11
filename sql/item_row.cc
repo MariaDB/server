@@ -65,6 +65,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
     with_window_func = with_window_func || item->with_window_func;
     with_field= with_field || item->with_field;
     m_with_subquery|= item->with_subquery();
+    with_param|= item->with_param;
   }
   fixed= 1;
   return FALSE;
@@ -178,4 +179,3 @@ Item* Item_row::build_clone(THD *thd)
   }
   return copy;
 }
-

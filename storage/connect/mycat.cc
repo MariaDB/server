@@ -18,7 +18,7 @@
 /* -------------                                                       */
 /*  Version 1.6                                                        */
 /*                                                                     */
-/*  Author: Olivier Bertrand                       2012 - 2017         */
+/*  Author: Olivier Bertrand                       2012 - 2018         */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -31,10 +31,7 @@
 #define DONT_DEFINE_VOID
 #include <my_global.h>
 
-#if defined(__WIN__)
-//#include <windows.h>
-//#include <sqlext.h>
-#elif defined(UNIX)
+#if defined(UNIX)
 #include <unistd.h>
 #include <string.h>
 #endif

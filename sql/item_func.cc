@@ -148,6 +148,7 @@ void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
     with_sum_func|= item->with_sum_func;
     with_window_func|= item->with_window_func;
     with_field|= item->with_field;
+    with_param|= item->with_param;
   }
 }
 
@@ -367,6 +368,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
 	maybe_null=1;
 
       with_sum_func= with_sum_func || item->with_sum_func;
+      with_param= with_param || item->with_param;
       with_window_func= with_window_func || item->with_window_func;
       with_field= with_field || item->with_field;
       used_tables_and_const_cache_join(item);
@@ -3301,6 +3303,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 	func->maybe_null=1;
       func->with_sum_func= func->with_sum_func || item->with_sum_func;
       func->with_field= func->with_field || item->with_field;
+      func->with_param= func->with_param || item->with_param;
       func->With_subquery_cache::join(item);
       func->used_tables_and_const_cache_join(item);
       f_args.arg_type[i]=item->result_type();
