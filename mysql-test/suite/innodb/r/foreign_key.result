@@ -306,3 +306,14 @@ id	member_id
 SELECT * FROM payment_method;
 id	member_id	cardholder_address_id
 DROP TABLE payment_method,address,member;
+#
+# Bug #26958695 INNODB NESTED STORED FIELD WITH CONSTRAINT KEY
+# PRODUCE BROKEN TABLE (no bug in MariaDB)
+#
+create table t1(f1 int,f2 int, primary key(f1), key(f2, f1))engine=innodb;
+create table t2(f1 int, f2 int as (2) stored, f3 int as (f2) stored,
+foreign key(f1) references t1(f2) on update set NULL)
+engine=innodb;
+insert into t1 values(1, 1);
+insert into t2(f1) values(1);
+drop table t2, t1;
