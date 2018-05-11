@@ -3468,7 +3468,8 @@ partititon_err:
       /* Set a flag if the table is crashed and it can be auto. repaired */
       share->crashed= (outparam->file->auto_repair(ha_err) &&
                        !(ha_open_flags & HA_OPEN_FOR_REPAIR));
-      outparam->file->print_error(ha_err, MYF(0));
+      if (!thd->is_error())
+        outparam->file->print_error(ha_err, MYF(0));
       error_reported= TRUE;
 
       if (ha_err == HA_ERR_TABLE_DEF_CHANGED)
