@@ -2787,7 +2787,7 @@ static void network_init(void)
     size_t port_len;
     DBUG_PRINT("general",("UNIX Socket is %s",mysqld_unix_port));
 
-    if ((port_len=strlen(mysqld_unix_port)) > (sizeof(UNIXaddr.sun_path) - 1))
+    if ((port_len= strlen(mysqld_unix_port)) > sizeof(UNIXaddr.sun_path) - 1)
     {
       sql_print_error("The socket file path is too long (> %u): %s",
                       (uint) sizeof(UNIXaddr.sun_path) - 1, mysqld_unix_port);
@@ -2808,22 +2808,23 @@ static void network_init(void)
 #if defined(__linux__)
     /* Abstract socket */
     if (mysqld_unix_port[0] == '@')
+    {
       UNIXaddr.sun_path[0]= '\0';
+      port_len+= offsetof(struct sockaddr_un, sun_path);
+    }
     else
 #endif
+    {
       (void) unlink(mysqld_unix_port);
+      port_len= sizeof(UNIXaddr);
+    }
     arg= 1;
     (void) mysql_socket_setsockopt(unix_sock,SOL_SOCKET,SO_REUSEADDR,
                                    (char*)&arg, sizeof(arg));
     umask(0);
     if (mysql_socket_bind(unix_sock,
                           reinterpret_cast<struct sockaddr *>(&UNIXaddr),
-#if defined(__linux__)
-                          offsetof(struct sockaddr_un, sun_path) + port_len
-#else
-                          sizeof(UNIXaddr)
-#endif
-                         ) < 0)
+                          port_len) < 0)
     {
       sql_perror("Can't start server : Bind on unix socket"); /* purecov: tested */
       sql_print_error("Do you already have another mysqld server running on socket: %s ?",mysqld_unix_port);
