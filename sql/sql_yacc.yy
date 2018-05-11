@@ -15170,57 +15170,26 @@ IDENT_sys:
 TEXT_STRING_sys:
           TEXT_STRING
           {
-            if (thd->charset_is_system_charset)
-              $$= $1;
-            else
-            {
-              LEX_STRING to;
-              if (unlikely(thd->convert_string(&to, system_charset_info,
-                                               $1.str, $1.length,
-                                               thd->charset())))
-                MYSQL_YYABORT;
-              $$.str=    to.str;
-	      $$.length= to.length;
-            }
+            if (thd->make_text_string_sys(&$$, &$1))
+              MYSQL_YYABORT;
           }
         ;
 
 TEXT_STRING_literal:
           TEXT_STRING
           {
-            if (thd->charset_is_collation_connection)
-              $$= $1;
-            else
-            {
-              LEX_STRING to;
-              if (unlikely(thd->convert_string(&to,
-                                               thd->variables.collation_connection,
-                                               $1.str, $1.length,
-                                               thd->charset())))
-                MYSQL_YYABORT;
-              $$.str=    to.str;
-	      $$.length= to.length;
-            }
+            if (thd->make_text_string_connection(&$$, &$1))
+              MYSQL_YYABORT;
           }
         ;
 
 TEXT_STRING_filesystem:
           TEXT_STRING
           {
-            if (thd->charset_is_character_set_filesystem)
-              $$= $1;
-            else
-            {
-              LEX_STRING to;
-              if (unlikely(thd->convert_string(&to,
-                                               thd->variables.character_set_filesystem,
-                                               $1.str, $1.length,
-                                               thd->charset())))
-                MYSQL_YYABORT;
-              $$.str=    to.str;
-	      $$.length= to.length;
-            }
+            if (thd->make_text_string_filesystem(&$$, &$1))
+              MYSQL_YYABORT;
           }
+        ;
 
 ident_table_alias:
           IDENT_sys

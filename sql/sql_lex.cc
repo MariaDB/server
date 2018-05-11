@@ -416,32 +416,18 @@ void Lex_input_stream::body_utf8_append(const char *ptr)
                   operation.
 */
 
-void Lex_input_stream::body_utf8_append_ident(THD *thd,
-                                              const LEX_CSTRING *txt,
-                                              const char *end_ptr)
+void
+Lex_input_stream::body_utf8_append_ident(THD *thd,
+                                         const Lex_string_with_metadata_st *txt,
+                                         const char *end_ptr)
 {
   if (!m_cpp_utf8_processed_ptr)
     return;
 
   LEX_CSTRING utf_txt;
-  CHARSET_INFO *txt_cs= thd->charset();
-
-  if (!my_charset_same(txt_cs, &my_charset_utf8_general_ci))
-  {
-    LEX_STRING to;
-    thd->convert_string(&to,
-                        &my_charset_utf8_general_ci,
-                        txt->str, (uint) txt->length,
-                        txt_cs);
-    utf_txt.str=    to.str;
-    utf_txt.length= to.length;
-
-  }
-  else
-    utf_txt= *txt;
+  thd->make_text_string_sys(&utf_txt, txt); // QQ: check return value?
 
   /* NOTE: utf_txt.length is in bytes, not in symbols. */
-
   memcpy(m_body_utf8_ptr, utf_txt.str, utf_txt.length);
   m_body_utf8_ptr += utf_txt.length;
   *m_body_utf8_ptr= 0;
@@ -1043,13 +1029,13 @@ bool Lex_input_stream::get_text(Lex_string_with_metadata_st *dst, uint sep,
   uchar c;
   uint found_escape=0;
   CHARSET_INFO *cs= m_thd->charset();
+  bool is_8bit= false;
 
-  dst->set_8bit(false);
   while (! eof())
   {
     c= yyGet();
     if (c & 0x80)
-      dst->set_8bit(true);
+      is_8bit= true;
 #ifdef USE_MB
     {
       int l;
@@ -1093,23 +1079,24 @@ bool Lex_input_stream::get_text(Lex_string_with_metadata_st *dst, uint sep,
 
       if (!(to= (char*) m_thd->alloc((uint) (end - str) + 1)))
       {
-        dst->str= "";        // Sql_alloc has set error flag
-        dst->length= 0;
-        return true;
+        dst->set(&empty_clex_str, 0, '\0');
+        return true;                   // Sql_alloc has set error flag
       }
-      dst->str= to;
 
       m_cpp_text_start= m_cpp_tok_start + pre_skip;
       m_cpp_text_end= get_cpp_ptr() - post_skip;
 
       if (!found_escape)
       {
-        memcpy(to, str, dst->length= (end - str));
-        to[dst->length]= 0;
+        size_t len= (end - str);
+        memcpy(to, str, len);
+        to[len]= '\0';
+        dst->set(to, len, is_8bit, '\0');
       }
       else
       {
-        dst->length= unescape(cs, to, str, end, sep);
+        size_t len= unescape(cs, to, str, end, sep);
+        dst->set(to, len, is_8bit, '\0');
       }
       return false;
     }

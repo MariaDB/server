@@ -37,12 +37,16 @@
 
 
 /**
-  A string with metadata.
+  A string with metadata. Usually points to a string in the client
+  character set, but unlike Lex_ident_cli_st (see below) it does not
+  necessarily point to a query fragment. It can also point to memory
+  of other kinds (e.g. an additional THD allocated memory buffer
+  not overlapping with the current query text).
+
   We'll add more flags here eventually, to know if the string has, e.g.:
   - multi-byte characters
   - bad byte sequences
   - backslash escapes:   'a\nb'
-  - separator escapes:   'a''b'
   and reuse the original query fragments instead of making the string
   copy too early, in Lex_input_stream::get_text().
   This will allow to avoid unnecessary copying, as well as
@@ -50,9 +54,30 @@
 */
 struct Lex_string_with_metadata_st: public LEX_CSTRING
 {
+private:
   bool m_is_8bit; // True if the string has 8bit characters
+  char m_quote;   // Quote character, or 0 if not quoted
 public:
   void set_8bit(bool is_8bit) { m_is_8bit= is_8bit; }
+  void set_metadata(bool is_8bit, char quote)
+  {
+    m_is_8bit= is_8bit;
+    m_quote= quote;
+  }
+  void set(const char *s, size_t len, bool is_8bit, char quote)
+  {
+    str= s;
+    length= len;
+    set_metadata(is_8bit, quote);
+  }
+  void set(const LEX_CSTRING *s, bool is_8bit, char quote)
+  {
+    ((LEX_CSTRING &)*this)= *s;
+    set_metadata(is_8bit, quote);
+  }
+  bool is_8bit() const { return m_is_8bit; }
+  bool is_quoted() const { return m_quote != '\0'; }
+  char quote() const { return m_quote; }
   // Get string repertoire by the 8-bit flag and the character set
   uint repertoire(CHARSET_INFO *cs) const
   {
@@ -71,44 +96,27 @@ public:
   Used to store identifiers in the client character set.
   Points to a query fragment.
 */
-struct Lex_ident_cli_st: public LEX_CSTRING
+struct Lex_ident_cli_st: public Lex_string_with_metadata_st
 {
-private:
-  bool m_is_8bit;
-  char m_quote;
 public:
   void set_keyword(const char *s, size_t len)
   {
-    str= s;
-    length= len;
-    m_is_8bit= false;
-    m_quote= '\0';
+    set(s, len, false, '\0');
   }
   void set_ident(const char *s, size_t len, bool is_8bit)
   {
-    str= s;
-    length= len;
-    m_is_8bit= is_8bit;
-    m_quote= '\0';
+    set(s, len, is_8bit, '\0');
   }
   void set_ident_quoted(const char *s, size_t len, bool is_8bit, char quote)
   {
-    str= s;
-    length= len;
-    m_is_8bit= is_8bit;
-    m_quote= quote;
+    set(s, len, is_8bit, quote);
   }
   void set_unquoted(const LEX_CSTRING *s, bool is_8bit)
   {
-    ((LEX_CSTRING &)*this)= *s;
-    m_is_8bit= is_8bit;
-    m_quote= '\0';
+    set(s, is_8bit, '\0');
   }
   const char *pos() const { return str - is_quoted(); }
   const char *end() const { return str + length + is_quoted(); }
-  bool is_quoted() const { return m_quote != '\0'; }
-  bool is_8bit() const { return m_is_8bit; }
-  char quote() const { return m_quote; }
 };
 
 
@@ -2453,7 +2461,7 @@ public:
   void body_utf8_append(const char *ptr);
   void body_utf8_append(const char *ptr, const char *end_ptr);
   void body_utf8_append_ident(THD *thd,
-                              const LEX_CSTRING *txt,
+                              const Lex_string_with_metadata_st *txt,
                               const char *end_ptr);
   void body_utf8_append_escape(THD *thd,
                                const LEX_CSTRING *txt,

@@ -3130,8 +3130,10 @@ public:
     is set if a statement accesses a temporary table created through
     CREATE TEMPORARY TABLE. 
   */
-  bool	     charset_is_system_charset, charset_is_collation_connection;
+private:
+  bool       charset_is_system_charset, charset_is_collation_connection;
   bool       charset_is_character_set_filesystem;
+public:
   bool       enable_slow_log;    /* Enable slow log for current statement */
   bool	     abort_on_warning;
   bool 	     got_warning;       /* Set on call to push_warning() */
@@ -3706,6 +3708,25 @@ public:
   bool convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
 		      const char *from, size_t from_length,
 		      CHARSET_INFO *from_cs);
+  bool convert_string(LEX_CSTRING *to, CHARSET_INFO *to_cs,
+                      const char *from, size_t from_length,
+                      CHARSET_INFO *from_cs)
+  {
+    LEX_STRING tmp;
+    bool rc= convert_string(&tmp, to_cs, from, from_length, from_cs);
+    to->str= tmp.str;
+    to->length= tmp.length;
+    return rc;
+  }
+  bool convert_string(LEX_CSTRING *to, CHARSET_INFO *tocs,
+                      const LEX_CSTRING *from, CHARSET_INFO *fromcs,
+                      bool simple_copy_is_possible)
+  {
+    if (!simple_copy_is_possible)
+      return unlikely(convert_string(to, tocs, from->str, from->length, fromcs));
+    *to= *from;
+    return false;
+  }
   /*
     Convert a strings between character sets.
     Uses my_convert_fix(), which uses an mb_wc .. mc_mb loop internally.
@@ -3767,6 +3788,24 @@ public:
   Item_basic_constant *make_string_literal_nchar(const Lex_string_with_metadata_st &str);
   Item_basic_constant *make_string_literal_charset(const Lex_string_with_metadata_st &str,
                                                    CHARSET_INFO *cs);
+  bool make_text_string_sys(LEX_CSTRING *to,
+                            const Lex_string_with_metadata_st *from)
+  {
+    return convert_string(to, system_charset_info,
+                          from, charset(), charset_is_system_charset);
+  }
+  bool make_text_string_connection(LEX_CSTRING *to,
+                                   const Lex_string_with_metadata_st *from)
+  {
+    return convert_string(to, variables.collation_connection,
+                          from, charset(), charset_is_collation_connection);
+  }
+  bool make_text_string_filesystem(LEX_CSTRING *to,
+                                   const Lex_string_with_metadata_st *from)
+  {
+    return convert_string(to, variables.character_set_filesystem,
+                          from, charset(), charset_is_character_set_filesystem);
+  }
   void add_changed_table(TABLE *table);
   void add_changed_table(const char *key, size_t key_length);
   CHANGED_TABLE_LIST * changed_table_dup(const char *key, size_t key_length);
