@@ -4518,8 +4518,9 @@ prepare_inplace_alter_table_dict(
 		uint32_t	key_id = FIL_DEFAULT_ENCRYPTION_KEY;
 		fil_encryption_t mode = FIL_ENCRYPTION_DEFAULT;
 
-		if (fil_space_t* space
-		    = fil_space_acquire(ctx->prebuilt->table->space)) {
+		if (dict_table_is_discarded(ctx->prebuilt->table)) {
+		} else if (fil_space_t* space
+			   = fil_space_acquire(ctx->prebuilt->table->space)) {
 			if (const fil_space_crypt_t* crypt_data
 			    = space->crypt_data) {
 				key_id = crypt_data->key_id;
@@ -4917,7 +4918,8 @@ new_clustered_failed:
 
 			/* Initialize the AUTO_INCREMENT sequence
 			to the rebuilt table from the old one. */
-			if (!old_table->found_next_number_field) {
+			if (!old_table->found_next_number_field
+			    || dict_table_is_discarded(user_table)) {
 			} else if (ib_uint64_t autoinc
 				   = btr_read_autoinc(clust_index)) {
 				btr_write_autoinc(new_clust_index, autoinc);
@@ -7372,9 +7374,10 @@ innobase_rename_or_enlarge_columns_cache(
 @param ha_alter_info Data used during in-place alter
 @param ctx In-place ALTER TABLE context
 @param altered_table MySQL table that is being altered
-@param old_table MySQL table as it is before the ALTER operation */
+@param old_table MySQL table as it is before the ALTER operation
+@return whether the operation failed (and my_error() was called) */
 static MY_ATTRIBUTE((nonnull))
-void
+bool
 commit_set_autoinc(
 	Alter_inplace_info*	ha_alter_info,
 	ha_innobase_inplace_ctx*ctx,
@@ -7402,6 +7405,13 @@ commit_set_autoinc(
 		    & Alter_inplace_info::CHANGE_CREATE_OPTION)
 		   && (ha_alter_info->create_info->used_fields
 		       & HA_CREATE_USED_AUTO)) {
+
+		if (dict_table_is_discarded(ctx->old_table)) {
+			my_error(ER_TABLESPACE_DISCARDED, MYF(0),
+				 old_table->s->table_name.str);
+			DBUG_RETURN(true);
+		}
+
 		/* An AUTO_INCREMENT value was supplied by the user.
 		It must be persisted to the data file. */
 		const Field*	ai	= old_table->found_next_number_field;
@@ -7481,7 +7491,7 @@ commit_set_autoinc(
 		between prepare_inplace and commit_inplace. */
 	}
 
-	DBUG_VOID_RETURN;
+	DBUG_RETURN(false);
 }
 
 /** Add or drop foreign key constraints to the data dictionary tables,
@@ -8604,9 +8614,11 @@ ha_innobase::commit_inplace_alter_table(
 
 		DBUG_ASSERT(new_clustered == ctx->need_rebuild());
 
-		commit_set_autoinc(ha_alter_info, ctx, altered_table, table);
+		fail = commit_set_autoinc(ha_alter_info, ctx, altered_table,
+					  table);
 
-		if (ctx->need_rebuild()) {
+		if (fail) {
+		} else if (ctx->need_rebuild()) {
 			ctx->tmp_name = dict_mem_create_temporary_tablename(
 				ctx->heap, ctx->new_table->name.m_name,
 				ctx->new_table->id);
