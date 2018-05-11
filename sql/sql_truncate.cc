@@ -302,7 +302,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
                                             table_ref->table_name.str, FALSE)))
       DBUG_RETURN(TRUE);
 
-    *hton_can_recreate= ha_check_storage_engine_flag(table->s->db_type(),
+    *hton_can_recreate= ha_check_storage_engine_flag(table->file->ht,
                                                      HTON_CAN_RECREATE);
     table_ref->mdl_request.ticket= table->mdl_ticket;
   }
@@ -428,7 +428,10 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
       error= dd_recreate_table(thd, table_ref->db.str, table_ref->table_name.str);
 
       if (thd->locked_tables_mode && thd->locked_tables_list.reopen_tables(thd, false))
-          thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+      {
+        thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+        error=1;
+      }
 
       /* No need to binlog a failed truncate-by-recreate. */
       binlog_stmt= !error;
