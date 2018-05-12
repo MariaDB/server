@@ -34,3 +34,4 @@ galera_ist_progress: MDEV-15236 galera_ist_progress fails when trying to read tr
 GAL-480 : "Lost connection to MySQL"
 galera_concurrent_ctas : MDEV-15845 Test failure on galera.galera_concurrent_ctas
 galera_sst_mysqldump : MDEV-14069
+pxc-421: Lock timeout exceeded
