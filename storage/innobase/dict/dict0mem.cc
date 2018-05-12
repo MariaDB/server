@@ -534,7 +534,7 @@ dict_mem_table_col_rename_low(
 				/* if is_virtual and that in field->col does
 				not match, continue */
 				if ((!is_virtual) !=
-				    (!dict_col_is_virtual(field->col))) {
+				    (!field->col->is_virtual())) {
 					continue;
 				}
 

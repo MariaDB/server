@@ -192,7 +192,7 @@ dict_create_sys_columns_tuple(
 		v_col_no = column->ind;
 	} else {
 		column = dict_table_get_nth_col(table, i);
-		ut_ad(!dict_col_is_virtual(column));
+		ut_ad(!column->is_virtual());
 	}
 
 	sys_columns = dict_sys->sys_columns;

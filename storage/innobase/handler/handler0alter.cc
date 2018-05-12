@@ -2714,7 +2714,7 @@ innobase_fts_check_doc_id_index(
 		    && field->col->mtype == DATA_INT
 		    && field->col->len == 8
 		    && field->col->prtype & DATA_NOT_NULL
-		    && !dict_col_is_virtual(field->col)) {
+		    && !field->col->is_virtual()) {
 			if (fts_doc_col_no) {
 				*fts_doc_col_no = dict_col_get_no(field->col);
 			}
@@ -7350,7 +7350,7 @@ check_col_exists_in_indexes(
 			const dict_col_t* idx_col
 				= dict_index_get_nth_col(index, i);
 
-			if (is_v && dict_col_is_virtual(idx_col)) {
+			if (is_v && idx_col->is_virtual()) {
 				const dict_v_col_t*   v_col = reinterpret_cast<
 					const dict_v_col_t*>(idx_col);
 				if (v_col->v_pos == col_no) {
@@ -7358,7 +7358,7 @@ check_col_exists_in_indexes(
 				}
 			}
 
-			if (!is_v && !dict_col_is_virtual(idx_col)
+			if (!is_v && !idx_col->is_virtual()
 			    && dict_col_get_no(idx_col) == col_no) {
 				return(true);
 			}
@@ -8641,7 +8641,7 @@ get_col_list_to_be_dropped(
 			const dict_col_t*	idx_col
 				= dict_index_get_nth_col(index, col);
 
-			if (dict_col_is_virtual(idx_col)) {
+			if (idx_col->is_virtual()) {
 				const dict_v_col_t*	v_col
 					= reinterpret_cast<
 						const dict_v_col_t*>(idx_col);

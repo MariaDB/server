@@ -1882,7 +1882,6 @@ dict_index_node_ptr_max_size(
 /*=========================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((warn_unused_result));
-#define dict_col_is_virtual(col) (col)->is_virtual()
 
 /** encode number of columns and number of virtual columns in one
 4 bytes value. We could do this because the number of columns in

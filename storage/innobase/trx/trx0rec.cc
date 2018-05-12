@@ -314,7 +314,7 @@ trx_undo_read_v_idx_low(
 			if (index->id == id) {
 				const dict_col_t* col = dict_index_get_nth_col(
 					index, pos);
-				ut_ad(dict_col_is_virtual(col));
+				ut_ad(col->is_virtual());
 				const dict_v_col_t*	vcol = reinterpret_cast<
 					const dict_v_col_t*>(col);
 				*col_pos = vcol->v_pos;

@@ -215,7 +215,7 @@ row_sel_sec_rec_is_for_clust_rec(
 		ifield = dict_index_get_nth_field(sec_index, i);
 		col = dict_field_get_col(ifield);
 
-		is_virtual = dict_col_is_virtual(col);
+		is_virtual = col->is_virtual();
 
 		/* For virtual column, its value will need to be
 		reconstructed from base column in cluster index */
@@ -4011,7 +4011,7 @@ row_sel_fill_vrow(
 		field = dict_index_get_nth_field(index, i);
 		col = dict_field_get_col(field);
 
-		if (dict_col_is_virtual(col)) {
+		if (col->is_virtual()) {
 			const byte*     data;
 			ulint           len;
 

@@ -60,7 +60,7 @@ row_vers_non_virtual_fields_equal(
 
 	for (const dict_field_t* ifield = index->fields; ifield != end;
 	     ifield++) {
-		if (!dict_col_is_virtual(ifield->col)
+		if (!ifield->col->is_virtual()
 		    && cmp_dfield_dfield(a++, b++)) {
 			return false;
 		}
@@ -438,7 +438,7 @@ row_vers_build_clust_v_col(
 		const dict_field_t* ind_field = dict_index_get_nth_field(
 				index, i);
 
-		if (dict_col_is_virtual(ind_field->col)) {
+		if (ind_field->col->is_virtual()) {
 			const dict_v_col_t*       col;
 
 			col = reinterpret_cast<const dict_v_col_t*>(
@@ -537,7 +537,7 @@ row_vers_build_cur_vrow_low(
 				 = dict_index_get_nth_field(index, i);
 			const dict_col_t*	col = ind_field->col;
 
-			if (!dict_col_is_virtual(col)) {
+			if (!col->is_virtual()) {
 				continue;
 			}
 
@@ -621,7 +621,7 @@ row_vers_vc_matches_cluster(
 		for (const dict_field_t *ifield = index->fields,
 			     *const end = &index->fields[index->n_fields];
 		     ifield != end; ifield++, a++, b++) {
-			if (!dict_col_is_virtual(ifield->col)) {
+			if (!ifield->col->is_virtual()) {
 				if (cmp_dfield_dfield(a, b)) {
 					return false;
 				}
@@ -685,7 +685,7 @@ row_vers_vc_matches_cluster(
 			const dict_col_t*	col = ind_field->col;
 			field1 = dtuple_get_nth_field(ientry, i);
 
-			if (!dict_col_is_virtual(col)) {
+			if (!col->is_virtual()) {
 				continue;
 			}
 

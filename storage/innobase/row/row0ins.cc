@@ -641,7 +641,7 @@ row_ins_cascade_calc_update_vec(
 				    && dict_table_is_fts_column(
 					table->fts->indexes,
 					dict_col_get_no(col),
-					dict_col_is_virtual(col))
+					col->is_virtual())
 					!= ULINT_UNDEFINED) {
 					affects_fulltext = true;
 				}
@@ -1300,9 +1300,9 @@ row_ins_foreign_check_on_constraint(
 			if (!affects_fulltext
 			    && table->fts && dict_table_is_fts_column(
 				    table->fts->indexes,
-				    dict_index_get_nth_col_no(index, i),
-				    dict_col_is_virtual(
-					    dict_index_get_nth_col(index, i)))
+				    dict_index_get_nth_col(index, i)->ind,
+				    dict_index_get_nth_col(index, i)
+				    ->is_virtual())
 			    != ULINT_UNDEFINED) {
 				affects_fulltext = true;
 			}
@@ -1329,9 +1329,8 @@ row_ins_foreign_check_on_constraint(
 		for (ulint i = 0; i < foreign->n_fields; i++) {
 			if (dict_table_is_fts_column(
 				table->fts->indexes,
-				dict_index_get_nth_col_no(index, i),
-				dict_col_is_virtual(
-					dict_index_get_nth_col(index, i)))
+				dict_index_get_nth_col(index, i)->ind,
+				dict_index_get_nth_col(index, i)->is_virtual())
 			    != ULINT_UNDEFINED) {
 				affects_fulltext = true;
 				break;
@@ -3446,7 +3445,7 @@ row_ins_index_entry_set_vals(
 			col = ind_field->col;
 		}
 
-		if (dict_col_is_virtual(col)) {
+		if (col->is_virtual()) {
 			const dict_v_col_t*     v_col
 				= reinterpret_cast<const dict_v_col_t*>(col);
 			ut_ad(dtuple_get_n_fields(row)

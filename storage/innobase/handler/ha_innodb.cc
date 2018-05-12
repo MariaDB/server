@@ -5650,7 +5650,7 @@ innobase_vcol_build_templ(
 	mysql_row_templ_t*	templ,
 	ulint			col_no)
 {
-	if (dict_col_is_virtual(col)) {
+	if (col->is_virtual()) {
 		templ->is_virtual = true;
 		templ->col_no = col_no;
 		templ->clust_rec_field_no = ULINT_UNDEFINED;

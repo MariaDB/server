@@ -116,7 +116,7 @@ row_build_index_entry_low(
 
 		compile_time_assert(DATA_MISSING == 0);
 
-		if (dict_col_is_virtual(col)) {
+		if (col->is_virtual()) {
 			const dict_v_col_t*	v_col
 				= reinterpret_cast<const dict_v_col_t*>(col);
 

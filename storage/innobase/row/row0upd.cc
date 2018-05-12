@@ -1361,7 +1361,7 @@ row_upd_index_replace_new_col_vals_index_pos(
 
 		field = dict_index_get_nth_field(index, i);
 		col = dict_field_get_col(field);
-		if (dict_col_is_virtual(col)) {
+		if (col->is_virtual()) {
 			const dict_v_col_t*	vcol = reinterpret_cast<
 							const dict_v_col_t*>(
 								col);
@@ -1415,7 +1415,7 @@ row_upd_index_replace_new_col_vals(
 
 		field = dict_index_get_nth_field(index, i);
 		col = dict_field_get_col(field);
-		if (dict_col_is_virtual(col)) {
+		if (col->is_virtual()) {
 			const dict_v_col_t*	vcol = reinterpret_cast<
 							const dict_v_col_t*>(
 								col);
@@ -1720,7 +1720,7 @@ row_upd_changes_ord_field_binary_func(
 		ind_field = dict_index_get_nth_field(index, i);
 		col = dict_field_get_col(ind_field);
 		col_no = dict_col_get_no(col);
-		is_virtual = dict_col_is_virtual(col);
+		is_virtual = col->is_virtual();
 
 		if (is_virtual) {
 			vcol = reinterpret_cast<const dict_v_col_t*>(col);

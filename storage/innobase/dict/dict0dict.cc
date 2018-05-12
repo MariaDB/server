@@ -2592,7 +2592,7 @@ dict_index_remove_from_cache_low(
 
 		for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
 			col =  dict_index_get_nth_col(index, i);
-			if (dict_col_is_virtual(col)) {
+			if (col->is_virtual()) {
 				vcol = reinterpret_cast<const dict_v_col_t*>(
 					col);
 
@@ -2745,7 +2745,7 @@ dict_index_add_col(
 	dict_field_t*	field;
 	const char*	col_name;
 
-	if (dict_col_is_virtual(col)) {
+	if (col->is_virtual()) {
 		dict_v_col_t*	v_col = reinterpret_cast<dict_v_col_t*>(col);
 
 		/* When v_col->v_indexes==NULL,
@@ -3136,7 +3136,7 @@ dict_index_build_internal_non_clust(
 
 		field = dict_index_get_nth_field(new_index, i);
 
-		if (dict_col_is_virtual(field->col)) {
+		if (field->col->is_virtual()) {
 			continue;
 		}
 
@@ -4323,7 +4323,7 @@ dict_foreign_push_index_error(
 		const char*	col_name;
 		field = dict_index_get_nth_field(err_index, err_col);
 
-		col_name = dict_col_is_virtual(field->col)
+		col_name = field->col->is_virtual()
 			? "(null)"
 			: dict_table_get_col_name(
 				table, dict_col_get_no(field->col));
@@ -6888,7 +6888,7 @@ dict_foreign_qualify_index(
 			return(false);
 		}
 
-		if (dict_col_is_virtual(field->col)) {
+		if (field->col->is_virtual()) {
 			for (ulint j = 0; j < table->n_v_def; j++) {
 				col_name = dict_table_get_v_col_name(table, j);
 				if (innobase_strcasecmp(field->name,col_name) == 0) {
