@@ -3,6 +3,14 @@
 -- source include/have_innodb.inc
 
 # Create FTS table
+--error ER_INNODB_NO_FT_TEMP_TABLE
+CREATE TEMPORARY TABLE articles (
+	id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+	title VARCHAR(200),
+	body TEXT,
+	FULLTEXT (title,body)
+	) ENGINE=InnoDB;
+
 CREATE TABLE articles (
 	id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 	title VARCHAR(200),

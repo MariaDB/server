@@ -943,14 +943,10 @@ dict_create_index_tree_in_mem(
 	const trx_t*	trx)	/*!< in: InnoDB transaction handle */
 {
 	mtr_t		mtr;
-	ulint		page_no = FIL_NULL;
+	ulint		page_no;
 
 	ut_ad(mutex_own(&dict_sys->mutex));
-
-	if (index->type == DICT_FTS) {
-		/* FTS index does not need an index tree */
-		return(DB_SUCCESS);
-	}
+	ut_ad(!(index->type & DICT_FTS));
 
 	mtr_start(&mtr);
 	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
