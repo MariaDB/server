@@ -8241,8 +8241,8 @@ Item* TABLE_LIST::build_pushable_cond_for_table(THD *thd, Item *cond)
 
       new_cond->argument_list()->push_back(fix, thd->mem_root);
     }
-    if (is_fix_needed)
-      new_cond->fix_fields(thd, 0);
+    if (is_fix_needed && new_cond->fix_fields(thd, 0))
+      return 0;
 
     switch (new_cond->argument_list()->elements) 
     {

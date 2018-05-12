@@ -4117,6 +4117,67 @@ static int srtcmp_in(CHARSET_INFO *cs, const String *x,const String *y)
                                (uchar *) y->ptr(),y->length());
 }
 
+
+/*
+  Create 'array' for this IN predicate with the respect to its result type
+  and put values from <in value list> in 'array'.
+*/
+
+bool Item_func_in::create_array(THD *thd)
+{
+  Item *date_arg= 0;
+
+  switch (m_compare_type) {
+  case STRING_RESULT:
+    array=new (thd->mem_root) in_string(thd, arg_count - 1,
+                                        (qsort2_cmp) srtcmp_in,
+                                        cmp_collation.collation);
+   break;
+  case INT_RESULT:
+    array= new (thd->mem_root) in_longlong(thd, arg_count - 1);
+    break;
+  case REAL_RESULT:
+    array= new (thd->mem_root) in_double(thd, arg_count - 1);
+    break;
+  case ROW_RESULT:
+    /*
+      The row comparator was created at the beginning but only DATETIME
+      items comparators were initialized. Call store_value() to setup
+      others.
+    */
+    ((in_row*)array)->tmp.store_value(args[0]);
+    break;
+  case DECIMAL_RESULT:
+    array= new (thd->mem_root) in_decimal(thd, arg_count - 1);
+    break;
+  case TIME_RESULT:
+    date_arg= find_date_time_item(thd, args, arg_count, 0, true);
+    array= new (thd->mem_root) in_datetime(thd, date_arg, arg_count - 1);
+    break;
+  }
+  if (!array || thd->is_fatal_error)          // OOM
+    return true;
+  uint j=0;
+  for (uint i=1 ; i < arg_count ; i++)
+  {
+    array->set(j,args[i]);
+    if (!args[i]->null_value)
+      j++; // include this cell in the array.
+    else
+    {
+      /*
+        We don't put NULL values in array to avoid erronous matches in
+        bisection.
+      */
+      have_null= 1;
+    }
+  }
+  if ((array->used_count= j))
+    array->sort();
+  return false;
+}
+
+
 void Item_func_in::fix_length_and_dec()
 {
   Item **arg, **arg_end;
@@ -4244,53 +4305,8 @@ void Item_func_in::fix_length_and_dec()
           m_compare_type= INT_RESULT;
       }
     }
-    switch (m_compare_type) {
-    case STRING_RESULT:
-      array=new (thd->mem_root) in_string(thd, arg_count - 1,
-                                          (qsort2_cmp) srtcmp_in,
-                                          cmp_collation.collation);
-      break;
-    case INT_RESULT:
-      array= new (thd->mem_root) in_longlong(thd, arg_count - 1);
-      break;
-    case REAL_RESULT:
-      array= new (thd->mem_root) in_double(thd, arg_count - 1);
-      break;
-    case ROW_RESULT:
-      /*
-        The row comparator was created at the beginning but only DATETIME
-        items comparators were initialized. Call store_value() to setup
-        others.
-      */
-      ((in_row*)array)->tmp.store_value(args[0]);
-      break;
-    case DECIMAL_RESULT:
-      array= new (thd->mem_root) in_decimal(thd, arg_count - 1);
-      break;
-    case TIME_RESULT:
-      date_arg= find_date_time_item(thd, args, arg_count, 0, true);
-      array= new (thd->mem_root) in_datetime(thd, date_arg, arg_count - 1);
-      break;
-    }
-    if (!array || thd->is_fatal_error)		// OOM
+    if (create_array(thd))
       return;
-    uint j=0;
-    for (uint i=1 ; i < arg_count ; i++)
-    {
-      array->set(j,args[i]);
-      if (!args[i]->null_value)
-        j++; // include this cell in the array.
-      else
-      {
-        /*
-          We don't put NULL values in array, to avoid erronous matches in
-          bisection.
-        */
-        have_null= 1;
-      }
-    }
-    if ((array->used_count= j))
-      array->sort();
   }
   else
   {
@@ -4396,6 +4412,19 @@ longlong Item_func_in::val_int()
 
   null_value= have_null;
   return (longlong) (!null_value && negated);
+}
+
+
+Item *Item_func_in::build_clone(THD *thd, MEM_ROOT *mem_root)
+{
+  Item_func_in *clone= (Item_func_in *) Item_func::build_clone(thd, mem_root);
+  if (clone)
+  {
+    if (array && clone->create_array(thd))
+        return NULL;
+    memcpy(&clone->cmp_items, &cmp_items, sizeof(cmp_items));
+  }
+  return clone;
 }
 
 

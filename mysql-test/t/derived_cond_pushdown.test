@@ -1729,3 +1729,19 @@ EVAL EXPLAIN $query;
 EVAL EXPLAIN FORMAT=JSON $query;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-15765: pushing condition with IN subquery defined with constants
+--echo #             using substitution
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM
+(
+  SELECT DISTINCT * FROM t1
+) der_tab
+WHERE (a>0 AND a<2 OR a IN (2,3)) AND
+      (a=2 OR 0);
+
+DROP TABLE t1;

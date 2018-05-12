@@ -1648,6 +1648,7 @@ public:
   }
   longlong val_int();
   bool fix_fields(THD *, Item **);
+  bool create_array(THD *thd);
   void fix_length_and_dec();
   void cleanup()
   {
@@ -1693,16 +1694,7 @@ public:
   bool count_sargable_conds(void *arg);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_in>(thd, mem_root, this); }
-  Item *build_clone(THD *thd, MEM_ROOT *mem_root)
-  {
-    Item_func_in *clone= (Item_func_in *) Item_func::build_clone(thd, mem_root);
-    if (clone)
-    {
-      clone->array= 0;
-      bzero(&clone->cmp_items, sizeof(cmp_items));
-    }
-    return clone;
-  }      
+  Item *build_clone(THD *thd, MEM_ROOT *mem_root);
 };
 
 class cmp_item_row :public cmp_item
@@ -1731,6 +1723,7 @@ public:
   ~in_row();
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
+  friend bool Item_func_in::create_array(THD *thd);
   friend void Item_func_in::fix_length_and_dec();
   Item_result result_type() { return ROW_RESULT; }
   cmp_item *get_cmp_item() { return &tmp; }
