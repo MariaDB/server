@@ -3938,7 +3938,7 @@ row_log_apply(
 	}
 
 	if (error != DB_SUCCESS) {
-		ut_a(!dict_table_is_discarded(index->table));
+		ut_ad(index->table->space);
 		/* We set the flag directly instead of invoking
 		dict_set_corrupted_index_cache_only(index) here,
 		because the index is not "public" yet. */

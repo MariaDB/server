@@ -635,8 +635,6 @@ trx_rollback_active(
 	que_fork_t*	fork;
 	que_thr_t*	thr;
 	roll_node_t*	roll_node;
-	dict_table_t*	table;
-	ibool		dictionary_locked = FALSE;
 	const trx_id_t	trx_id = trx->id;
 
 	ut_ad(trx_id);
@@ -659,9 +657,11 @@ trx_rollback_active(
 
 	trx_roll_crash_recv_trx	= trx;
 
-	if (trx_get_dict_operation(trx) != TRX_DICT_OP_NONE) {
+	const bool dictionary_locked = trx_get_dict_operation(trx)
+		!= TRX_DICT_OP_NONE;
+
+	if (dictionary_locked) {
 		row_mysql_lock_data_dictionary(trx);
-		dictionary_locked = TRUE;
 	}
 
 	que_run_threads(thr);
@@ -679,27 +679,16 @@ trx_rollback_active(
 
 	ut_a(trx->lock.que_state == TRX_QUE_RUNNING);
 
-	if (trx_get_dict_operation(trx) != TRX_DICT_OP_NONE
-	    && trx->table_id != 0) {
+	if (!dictionary_locked || !trx->table_id) {
+	} else if (dict_table_t* table = dict_table_open_on_id(
+			   trx->table_id, TRUE, DICT_TABLE_OP_NORMAL)) {
+		ib::info() << "Dropping table " << table->name
+			   << ", with id " << trx->table_id
+			   << " in recovery";
 
-		ut_ad(dictionary_locked);
+		dict_table_close_and_drop(trx, table);
 
-		/* If the transaction was for a dictionary operation,
-		we drop the relevant table only if it is not flagged
-		as DISCARDED. If it still exists. */
-
-		table = dict_table_open_on_id(
-			trx->table_id, TRUE, DICT_TABLE_OP_NORMAL);
-
-		if (table && !dict_table_is_discarded(table)) {
-			ib::warn() << "Dropping table '" << table->name
-				<< "', with id " << trx->table_id
-				<< " in recovery";
-
-			dict_table_close_and_drop(trx, table);
-
-			trx_commit_for_mysql(trx);
-		}
+		trx_commit_for_mysql(trx);
 	}
 
 	ib::info() << "Rolled back recovered transaction " << trx_id;

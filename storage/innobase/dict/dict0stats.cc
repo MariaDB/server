@@ -918,7 +918,7 @@ dict_stats_update_transient(
 
 	index = dict_table_get_first_index(table);
 
-	if (dict_table_is_discarded(table)) {
+	if (!table->space) {
 		/* Nothing to do. */
 		dict_stats_empty_table(table, true);
 		return;

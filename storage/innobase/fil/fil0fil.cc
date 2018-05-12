@@ -5049,8 +5049,7 @@ fil_mtr_rename_log(
 		const char* old_path = old_table->space->chain.start->name;
 		/* Temp filepath must not exist. */
 		dberr_t err = fil_rename_tablespace_check(
-			old_path, tmp_path,
-			dict_table_is_discarded(old_table));
+			old_path, tmp_path, !old_table->space);
 		if (err != DB_SUCCESS) {
 			ut_free(tmp_path);
 			return(err);
@@ -5072,8 +5071,7 @@ fil_mtr_rename_log(
 		TABLE starts and ends with a file_per-table tablespace. */
 		if (!old_table->space_id) {
 			dberr_t err = fil_rename_tablespace_check(
-				new_path, old_path,
-				dict_table_is_discarded(new_table));
+				new_path, old_path, !new_table->space);
 			if (err != DB_SUCCESS) {
 				ut_free(old_path);
 				return(err);

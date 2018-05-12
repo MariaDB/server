@@ -1580,7 +1580,7 @@ dberr_t
 row_truncate_sanity_checks(
 	const dict_table_t* table)
 {
-	if (dict_table_is_discarded(table)) {
+	if (!table->space) {
 
 		return(DB_TABLESPACE_DELETED);
 

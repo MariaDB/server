@@ -6184,7 +6184,7 @@ no_such_table:
 
 	MONITOR_INC(MONITOR_TABLE_OPEN);
 
-	if (dict_table_is_discarded(ib_table)) {
+	if ((ib_table->flags2 & DICT_TF2_DISCARDED)) {
 
 		ib_senderrf(thd,
 			IB_LOG_LEVEL_WARN, ER_TABLESPACE_DISCARDED,
@@ -9976,7 +9976,7 @@ ha_innobase::ft_init_ext(
 	}
 
 	/* If tablespace is discarded, we should return here */
-	if (dict_table_is_discarded(ft_table)) {
+	if (!ft_table->space) {
 		my_error(ER_NO_SUCH_TABLE, MYF(0), table->s->db.str,
 			 table->s->table_name.str);
 		return(NULL);
@@ -13369,7 +13369,7 @@ ha_innobase::records_in_range(
 	/* There exists possibility of not being able to find requested
 	index due to inconsistency between MySQL and InoDB dictionary info.
 	Necessary message should have been printed in innobase_get_index() */
-	if (dict_table_is_discarded(m_prebuilt->table)) {
+	if (!m_prebuilt->table->space) {
 		n_rows = HA_POS_ERROR;
 		goto func_exit;
 	}
@@ -14343,7 +14343,7 @@ ha_innobase::optimize(
 
 	if (innodb_optimize_fulltext_only) {
 		if (m_prebuilt->table->fts && m_prebuilt->table->fts->cache
-		    && !dict_table_is_discarded(m_prebuilt->table)) {
+		    && m_prebuilt->table->space) {
 			fts_sync_table(m_prebuilt->table, false, true, false);
 			fts_optimize_table(m_prebuilt->table);
 		}
@@ -14385,7 +14385,7 @@ ha_innobase::check(
 		build_template(true);
 	}
 
-	if (dict_table_is_discarded(m_prebuilt->table)) {
+	if (!m_prebuilt->table->space) {
 
 		ib_senderrf(
 			thd,
@@ -15500,7 +15500,7 @@ ha_innobase::external_lock(
 		    && thd_sql_command(thd) == SQLCOM_FLUSH
 		    && lock_type == F_RDLCK) {
 
-			if (dict_table_is_discarded(m_prebuilt->table)) {
+			if (!m_prebuilt->table->space) {
 				ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 					    ER_TABLESPACE_DISCARDED,
 					    table->s->table_name.str);

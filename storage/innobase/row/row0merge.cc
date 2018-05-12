@@ -4412,7 +4412,7 @@ row_merge_rename_tables_dict(
 		ut_free(old_path);
 	}
 
-	if (err == DB_SUCCESS && dict_table_is_discarded(new_table)) {
+	if (err == DB_SUCCESS && (new_table->flags2 & DICT_TF2_DISCARDED)) {
 		err = row_import_update_discarded_flag(
 			trx, new_table->id, true);
 	}

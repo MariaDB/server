@@ -4218,7 +4218,7 @@ row_search_mvcc(
 
 	ut_ad(!sync_check_iterate(sync_check()));
 
-	if (dict_table_is_discarded(prebuilt->table)) {
+	if (!prebuilt->table->space) {
 		DBUG_RETURN(DB_TABLESPACE_DELETED);
 	} else if (!prebuilt->table->is_readable()) {
 		DBUG_RETURN(prebuilt->table->space

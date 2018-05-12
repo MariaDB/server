@@ -1369,7 +1369,7 @@ row_insert_for_mysql(
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->magic_n2 == ROW_PREBUILT_ALLOCATED);
 
-	if (dict_table_is_discarded(prebuilt->table)) {
+	if (!prebuilt->table->space) {
 
 		ib::error() << "The table " << prebuilt->table->name
 			<< " doesn't have a corresponding tablespace, it was"
@@ -4343,7 +4343,7 @@ row_rename_table_for_mysql(
 		goto funct_exit;
 
 	} else if (!table->is_readable() && !table->space
-		   && !dict_table_is_discarded(table)) {
+		   && !(table->flags2 & DICT_TF2_DISCARDED)) {
 
 		err = DB_TABLE_NOT_FOUND;
 

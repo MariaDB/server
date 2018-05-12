@@ -1921,10 +1921,7 @@ inline void dict_index_t::set_modified(mtr_t& mtr) const
 	mtr.set_named_space(table->space);
 }
 
-inline bool dict_index_t::is_readable() const
-{
-	return(UNIV_LIKELY(!table->file_unreadable));
-}
+inline bool dict_index_t::is_readable() const { return table->is_readable(); }
 
 inline bool dict_index_t::is_instant() const
 {

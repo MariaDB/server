@@ -831,7 +831,7 @@ dict_create_index_tree_step(
 
 	dberr_t		err = DB_SUCCESS;
 
-	if (!index->is_readable() || dict_table_is_discarded(index->table)) {
+	if (!index->is_readable()) {
 		node->page_no = FIL_NULL;
 	} else {
 		index->set_modified(mtr);
@@ -873,11 +873,7 @@ dict_create_index_tree_in_mem(
 	mtr_t		mtr;
 
 	ut_ad(mutex_own(&dict_sys->mutex));
-
-	if (index->type == DICT_FTS) {
-		/* FTS index does not need an index tree */
-		return(DB_SUCCESS);
-	}
+	ut_ad(!(index->type & DICT_FTS));
 
 	mtr_start(&mtr);
 	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
@@ -885,7 +881,7 @@ dict_create_index_tree_in_mem(
 	/* Currently this function is being used by temp-tables only.
 	Import/Discard of temp-table is blocked and so this assert. */
 	ut_ad(index->is_readable());
-	ut_ad(!dict_table_is_discarded(index->table));
+	ut_ad(!(index->table->flags2 & DICT_TF2_DISCARDED));
 
 	index->page = btr_create(index->type, index->table->space,
 				 index->id, index, NULL, &mtr);

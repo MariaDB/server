@@ -4486,7 +4486,7 @@ fts_sync_table(
 
 	ut_ad(table->fts);
 
-	if (!dict_table_is_discarded(table) && table->fts->cache
+	if (table->space && table->fts->cache
 	    && !dict_table_is_corrupted(table)) {
 		err = fts_sync(table->fts->cache->sync,
 			       unlock_cache, wait, has_dict);

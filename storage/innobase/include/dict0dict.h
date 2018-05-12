@@ -1832,16 +1832,6 @@ dict_tf2_is_valid(
 	ulint	flags,
 	ulint	flags2);
 
-/********************************************************************//**
-Check if the tablespace for the table has been discarded.
-@return true if the tablespace has been discarded. */
-UNIV_INLINE
-bool
-dict_table_is_discarded(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table to check */
-	MY_ATTRIBUTE((warn_unused_result));
-
 /*********************************************************************//**
 This function should be called whenever a page is successfully
 compressed. Updates the compression padding information. */

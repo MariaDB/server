@@ -5641,7 +5641,7 @@ error_handling_drop_uncached:
 				by a modification log. */
 			} else if (!ctx->online
 				   || !user_table->is_readable()
-				   || dict_table_is_discarded(user_table)) {
+				   || !user_table->space) {
 				/* No need to allocate a modification log. */
 				DBUG_ASSERT(!index->online_log);
 			} else {
@@ -7118,8 +7118,7 @@ ok_exit:
 
 	ctx->m_stage = UT_NEW_NOKEY(ut_stage_alter_t(pk));
 
-	if (!m_prebuilt->table->is_readable()
-	    || dict_table_is_discarded(m_prebuilt->table)) {
+	if (!m_prebuilt->table->is_readable()) {
 		goto all_done;
 	}
 
@@ -8544,7 +8543,7 @@ commit_try_rebuild(
 
 	/* The new table must inherit the flag from the
 	"parent" table. */
-	if (dict_table_is_discarded(user_table)) {
+	if (!user_table->space) {
 		rebuilt_table->file_unreadable = true;
 		rebuilt_table->flags2 |= DICT_TF2_DISCARDED;
 	}
@@ -8596,8 +8595,7 @@ commit_cache_rebuild(
 	DBUG_ENTER("commit_cache_rebuild");
 	DEBUG_SYNC_C("commit_cache_rebuild");
 	DBUG_ASSERT(ctx->need_rebuild());
-	DBUG_ASSERT(dict_table_is_discarded(ctx->old_table)
-		    == dict_table_is_discarded(ctx->new_table));
+	DBUG_ASSERT(!ctx->old_table->space == !ctx->new_table->space);
 
 	const char* old_name = mem_heap_strdup(
 		ctx->heap, ctx->old_table->name.m_name);
@@ -9048,7 +9046,7 @@ alter_stats_rebuild(
 {
 	DBUG_ENTER("alter_stats_rebuild");
 
-	if (dict_table_is_discarded(table)
+	if (!table->space
 	    || !dict_stats_is_persistent_enabled(table)) {
 		DBUG_VOID_RETURN;
 	}
