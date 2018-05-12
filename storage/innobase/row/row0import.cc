@@ -3716,7 +3716,7 @@ row_import_for_mysql(
 	/* The caller assured that this is not read_only_mode and that no
 	temorary tablespace is being imported. */
 	ut_ad(!srv_read_only_mode);
-	ut_ad(!dict_table_is_temporary(table));
+	ut_ad(!table->is_temporary());
 
 	ut_ad(table->space_id);
 	ut_ad(table->space_id < SRV_LOG_SPACE_FIRST_ID);

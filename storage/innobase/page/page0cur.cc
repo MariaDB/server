@@ -844,7 +844,7 @@ page_cur_insert_rec_write_log(
 	const byte* log_end;
 	ulint	i;
 
-	if (dict_table_is_temporary(index->table)) {
+	if (index->table->is_temporary()) {
 		ut_ad(!mlog_open(mtr, 0));
 		return;
 	}
@@ -2077,7 +2077,7 @@ page_copy_rec_list_end_to_created_page(
 
 	/* Individual inserts are logged in a shorter form */
 
-	const mtr_log_t	log_mode = dict_table_is_temporary(index->table)
+	const mtr_log_t	log_mode = index->table->is_temporary()
 	    || !index->is_readable() /* IMPORT TABLESPACE */
 		? mtr_get_log_mode(mtr)
 		: mtr_set_log_mode(mtr, MTR_LOG_SHORT_INSERTS);

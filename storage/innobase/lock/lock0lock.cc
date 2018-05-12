@@ -445,7 +445,7 @@ lock_sec_rec_cons_read_sees(
 	/* NOTE that we might call this function while holding the search
 	system latch. */
 
-	if (dict_table_is_temporary(index->table)) {
+	if (index->table->is_temporary()) {
 
 		/* Temp-tables are not shared across connections and multiple
 		transactions from different connections cannot simultaneously
@@ -3883,7 +3883,7 @@ lock_table(
 	locking overhead */
 	if ((flags & BTR_NO_LOCKING_FLAG)
 	    || srv_read_only_mode
-	    || dict_table_is_temporary(table)) {
+	    || table->is_temporary()) {
 
 		return(DB_SUCCESS);
 	}
@@ -5349,7 +5349,7 @@ lock_rec_insert_check_and_lock(
 		return(DB_SUCCESS);
 	}
 
-	ut_ad(!dict_table_is_temporary(index->table));
+	ut_ad(!index->table->is_temporary());
 
 	dberr_t		err;
 	lock_t*		lock;
@@ -5661,7 +5661,7 @@ lock_clust_rec_modify_check_and_lock(
 		return(DB_SUCCESS);
 	}
 	ut_ad(!rec_is_default_row(rec, index));
-	ut_ad(!dict_table_is_temporary(index->table));
+	ut_ad(!index->table->is_temporary());
 
 	heap_no = rec_offs_comp(offsets)
 		? rec_get_heap_no_new(rec)
@@ -5719,7 +5719,7 @@ lock_sec_rec_modify_check_and_lock(
 
 		return(DB_SUCCESS);
 	}
-	ut_ad(!dict_table_is_temporary(index->table));
+	ut_ad(!index->table->is_temporary());
 
 	heap_no = page_rec_get_heap_no(rec);
 
@@ -5802,7 +5802,7 @@ lock_sec_rec_read_check_and_lock(
 
 	if ((flags & BTR_NO_LOCKING_FLAG)
 	    || srv_read_only_mode
-	    || dict_table_is_temporary(index->table)) {
+	    || index->table->is_temporary()) {
 
 		return(DB_SUCCESS);
 	}
@@ -5872,7 +5872,7 @@ lock_clust_rec_read_check_and_lock(
 
 	if ((flags & BTR_NO_LOCKING_FLAG)
 	    || srv_read_only_mode
-	    || dict_table_is_temporary(index->table)) {
+	    || index->table->is_temporary()) {
 
 		return(DB_SUCCESS);
 	}
@@ -6604,10 +6604,10 @@ lock_trx_has_rec_x_lock(
 
 	lock_mutex_enter();
 	ut_a(lock_table_has(trx, table, LOCK_IX)
-	     || dict_table_is_temporary(table));
+	     || table->is_temporary());
 	ut_a(lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP,
 			       block, heap_no, trx)
-	     || dict_table_is_temporary(table));
+	     || table->is_temporary());
 	lock_mutex_exit();
 	return(true);
 }

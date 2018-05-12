@@ -1842,8 +1842,6 @@ dict_table_is_discarded(
 	const dict_table_t*	table)	/*!< in: table to check */
 	MY_ATTRIBUTE((warn_unused_result));
 
-#define dict_table_is_temporary(table) (table)->is_temporary()
-
 /*********************************************************************//**
 This function should be called whenever a page is successfully
 compressed. Updates the compression padding information. */

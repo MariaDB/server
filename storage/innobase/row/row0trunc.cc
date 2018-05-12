@@ -1185,7 +1185,7 @@ row_truncate_complete(
 
 	DEBUG_SYNC_C("ib_trunc_table_trunc_completing");
 
-	if (!dict_table_is_temporary(table)) {
+	if (!table->is_temporary()) {
 
 		DBUG_EXECUTE_IF("ib_trunc_crash_before_log_removal",
 				log_buffer_flush_to_disk();
@@ -1206,7 +1206,7 @@ row_truncate_complete(
 
 	/* If non-temp file-per-table tablespace... */
 	if (is_file_per_table
-	    && !dict_table_is_temporary(table)
+	    && !table->is_temporary()
 	    && fsp_flags != ULINT_UNDEFINED) {
 
 		/* This function will reset back the stop_new_ops
@@ -1466,7 +1466,7 @@ row_truncate_update_system_tables(
 {
 	dberr_t		err	= DB_SUCCESS;
 
-	ut_a(!dict_table_is_temporary(table));
+	ut_a(!table->is_temporary());
 
 	err = row_truncate_update_table_id(table->id, new_id, FALSE, trx);
 
@@ -1753,7 +1753,7 @@ row_truncate_table_for_mysql(
 
 	}
 
-	if (!dict_table_is_temporary(table)) {
+	if (!table->is_temporary()) {
 		trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 	}
 
@@ -1828,7 +1828,7 @@ row_truncate_table_for_mysql(
 	we need to use index locks to sync up */
 	dict_table_x_lock_indexes(table);
 
-	if (!dict_table_is_temporary(table)) {
+	if (!table->is_temporary()) {
 		fsp_flags = table->space
 			? table->space->flags
 			: ULINT_UNDEFINED;
@@ -2008,7 +2008,7 @@ row_truncate_table_for_mysql(
 			DBUG_SUICIDE(););
 
 	/* Step-10: Re-create new indexes. */
-	if (!dict_table_is_temporary(table)) {
+	if (!table->is_temporary()) {
 
 		CreateIndex	createIndex(table, no_redo);
 
@@ -2048,7 +2048,7 @@ row_truncate_table_for_mysql(
 	on-disk (INNODB_SYS_TABLES). INNODB_SYS_INDEXES also needs to
 	be updated to reflect updated root-page-no of new index created
 	and updated table-id. */
-	if (dict_table_is_temporary(table)) {
+	if (table->is_temporary()) {
 
 		dict_table_change_id_in_cache(table, new_id);
 		err = DB_SUCCESS;

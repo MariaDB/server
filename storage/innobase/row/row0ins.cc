@@ -2577,7 +2577,7 @@ row_ins_clust_index_entry_low(
 
 	mtr_start(&mtr);
 
-	if (dict_table_is_temporary(index->table)) {
+	if (index->table->is_temporary()) {
 		/* Disable REDO logging as the lifetime of temp-tables is
 		limited to server or connection lifetime and so REDO
 		information is not needed on restart for recovery.
@@ -3228,7 +3228,7 @@ row_ins_clust_index_entry(
 	n_uniq = dict_index_is_unique(index) ? index->n_uniq : 0;
 
 	ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
-		: dict_table_is_temporary(index->table)
+		: index->table->is_temporary()
 		? BTR_NO_LOCKING_FLAG : 0;
 	const ulint	orig_n_fields = entry->n_fields;
 
@@ -3314,7 +3314,7 @@ row_ins_sec_index_entry(
 	/* Try first optimistic descent to the B-tree */
 
 	log_free_check();
-	ulint flags = dict_table_is_temporary(index->table)
+	ulint flags = index->table->is_temporary()
 		? BTR_NO_LOCKING_FLAG
 		: 0;
 
@@ -3754,7 +3754,7 @@ row_ins(
 			}
 		}
 
-		if (node->duplicate && dict_table_is_temporary(node->table)) {
+		if (node->duplicate && node->table->is_temporary()) {
 			ut_ad(thr_get_trx(thr)->error_state
 			      == DB_DUPLICATE_KEY);
 			/* For TEMPORARY TABLE, we won't lock anything,

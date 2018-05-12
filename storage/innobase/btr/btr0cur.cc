@@ -1052,7 +1052,7 @@ btr_cur_search_to_nth_level_func(
 	/* Operations on the clustered index cannot be buffered. */
 	ut_ad(btr_op == BTR_NO_OP || !dict_index_is_clust(index));
 	/* Operations on the temporary table(indexes) cannot be buffered. */
-	ut_ad(btr_op == BTR_NO_OP || !dict_table_is_temporary(index->table));
+	ut_ad(btr_op == BTR_NO_OP || !index->table->is_temporary());
 	/* Operation on the spatial index cannot be buffered. */
 	ut_ad(btr_op == BTR_NO_OP || !dict_index_is_spatial(index));
 
@@ -3263,7 +3263,7 @@ fail_err:
 
 	if (*rec) {
 	} else if (page_size.is_compressed()) {
-		ut_ad(!dict_table_is_temporary(index->table));
+		ut_ad(!index->table->is_temporary());
 		/* Reset the IBUF_BITMAP_FREE bits, because
 		page_cur_tuple_insert() will have attempted page
 		reorganize before failing. */
@@ -3324,7 +3324,7 @@ fail_err:
 
 	if (leaf
 	    && !dict_index_is_clust(index)
-	    && !dict_table_is_temporary(index->table)) {
+	    && !index->table->is_temporary()) {
 		/* Update the free bits of the B-tree page in the
 		insert buffer bitmap. */
 
@@ -3477,7 +3477,7 @@ btr_cur_pessimistic_insert(
 	      || dict_index_is_spatial(index));
 
 	if (!(flags & BTR_NO_LOCKING_FLAG)) {
-		ut_ad(!dict_table_is_temporary(index->table));
+		ut_ad(!index->table->is_temporary());
 		if (dict_index_is_spatial(index)) {
 			/* Do nothing */
 		} else {
@@ -3819,7 +3819,7 @@ out_of_space:
 
 	/* Out of space: reset the free bits. */
 	if (!dict_index_is_clust(index)
-	    && !dict_table_is_temporary(index->table)
+	    && !index->table->is_temporary()
 	    && page_is_leaf(page)) {
 		ibuf_reset_free_bits(page_cur_get_block(cursor));
 	}
@@ -3888,7 +3888,7 @@ btr_cur_update_in_place(
 
 	/* Check that enough space is available on the compressed page. */
 	if (page_zip) {
-		ut_ad(!dict_table_is_temporary(index->table));
+		ut_ad(!index->table->is_temporary());
 
 		if (!btr_cur_update_alloc_zip(
 			    page_zip, btr_cur_get_page_cur(cursor),
@@ -3982,7 +3982,7 @@ func_exit:
 	    && !dict_index_is_clust(index)
 	    && page_is_leaf(buf_block_get_frame(block))) {
 		/* Update the free bits in the insert buffer. */
-		ut_ad(!dict_table_is_temporary(index->table));
+		ut_ad(!index->table->is_temporary());
 		ibuf_update_free_bits_zip(block, mtr);
 	}
 
@@ -4186,7 +4186,7 @@ any_extern:
 #endif /* UNIV_ZIP_DEBUG */
 
 	if (page_zip) {
-		ut_ad(!dict_table_is_temporary(index->table));
+		ut_ad(!index->table->is_temporary());
 
 		if (page_zip_rec_needs_ext(new_rec_size, page_is_comp(page),
 					   dict_index_get_n_fields(index),
@@ -4326,9 +4326,9 @@ func_exit:
 	    && !dict_index_is_clust(index)) {
 		/* Update the free bits in the insert buffer. */
 		if (page_zip) {
-			ut_ad(!dict_table_is_temporary(index->table));
+			ut_ad(!index->table->is_temporary());
 			ibuf_update_free_bits_zip(block, mtr);
-		} else if (!dict_table_is_temporary(index->table)) {
+		} else if (!index->table->is_temporary()) {
 			ibuf_update_free_bits_low(block, max_ins_size, mtr);
 		}
 	}
@@ -4452,7 +4452,7 @@ btr_cur_pessimistic_update(
 #ifdef UNIV_ZIP_DEBUG
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
-	ut_ad(!page_zip || !dict_table_is_temporary(index->table));
+	ut_ad(!page_zip || !index->table->is_temporary());
 	/* The insert buffer tree should never be updated in place. */
 	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(trx_id > 0
@@ -4484,7 +4484,7 @@ btr_cur_pessimistic_update(
 		    && optim_err != DB_ZIP_OVERFLOW
 		    && !dict_index_is_clust(index)
 		    && page_is_leaf(page)) {
-			ut_ad(!dict_table_is_temporary(index->table));
+			ut_ad(!index->table->is_temporary());
 			ibuf_update_free_bits_zip(block, mtr);
 		}
 
@@ -4685,9 +4685,9 @@ btr_cur_pessimistic_update(
 			This is the same block which was skipped by
 			BTR_KEEP_IBUF_BITMAP. */
 			if (page_zip) {
-				ut_ad(!dict_table_is_temporary(index->table));
+				ut_ad(!index->table->is_temporary());
 				ibuf_update_free_bits_zip(block, mtr);
-			} else if (!dict_table_is_temporary(index->table)) {
+			} else if (!index->table->is_temporary()) {
 				ibuf_update_free_bits_low(block, max_ins_size,
 							  mtr);
 			}
@@ -4719,7 +4719,7 @@ btr_cur_pessimistic_update(
 		This is the same block which was skipped by
 		BTR_KEEP_IBUF_BITMAP. */
 		if (!dict_index_is_clust(index)
-		    && !dict_table_is_temporary(index->table)
+		    && !index->table->is_temporary()
 		    && page_is_leaf(page)) {
 			ibuf_reset_free_bits(block);
 		}
@@ -4771,7 +4771,7 @@ btr_cur_pessimistic_update(
 	max_trx_id is ignored for temp tables because it not required
 	for MVCC. */
 	if (dict_index_is_sec_or_ibuf(index)
-	    && !dict_table_is_temporary(index->table)) {
+	    && !index->table->is_temporary()) {
 		/* Update PAGE_MAX_TRX_ID in the index page header.
 		It was not updated by btr_cur_pessimistic_insert()
 		because of BTR_NO_LOCKING_FLAG. */
@@ -5404,7 +5404,7 @@ btr_cur_optimistic_delete_func(
 			into non-leaf pages, into clustered indexes,
 			or into the change buffer. */
 			if (!dict_index_is_clust(cursor->index)
-			    && !dict_table_is_temporary(cursor->index->table)
+			    && !cursor->index->table->is_temporary()
 			    && !dict_index_is_ibuf(cursor->index)) {
 				ibuf_update_free_bits_low(block, max_ins, mtr);
 			}
@@ -7656,7 +7656,7 @@ btr_free_externally_stored_field(
 		mtr.set_spaces(*local_mtr);
 		mtr.set_log_mode(local_mtr->get_log_mode());
 
-		ut_ad(!dict_table_is_temporary(index->table)
+		ut_ad(!index->table->is_temporary()
 		      || local_mtr->get_log_mode() == MTR_LOG_NO_REDO);
 
 		const page_t*	p = page_align(field_ref);

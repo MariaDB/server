@@ -2867,7 +2867,7 @@ innobase_copy_frm_flags_from_create_info(
 	ibool	ps_on;
 	ibool	ps_off;
 
-	if (dict_table_is_temporary(innodb_table)
+	if (innodb_table->is_temporary()
 	    || innodb_table->no_rollback()) {
 		/* Temp tables do not use persistent stats. */
 		ps_on = FALSE;
@@ -2903,7 +2903,7 @@ innobase_copy_frm_flags_from_table_share(
 	ibool	ps_on;
 	ibool	ps_off;
 
-	if (dict_table_is_temporary(innodb_table)) {
+	if (innodb_table->is_temporary()) {
 		/* Temp tables do not use persistent stats */
 		ps_on = FALSE;
 		ps_off = TRUE;
@@ -6063,7 +6063,7 @@ static
 void
 initialize_auto_increment(dict_table_t* table, const Field* field)
 {
-	ut_ad(!dict_table_is_temporary(table));
+	ut_ad(!table->is_temporary());
 
 	const unsigned	col_no = innodb_col_no(field);
 
@@ -6362,7 +6362,7 @@ no_such_table:
 	thr_lock_data_init(&m_share->lock, &lock, NULL);
 
 	if (m_prebuilt->table == NULL
-	    || dict_table_is_temporary(m_prebuilt->table)
+	    || m_prebuilt->table->is_temporary()
 	    || m_prebuilt->table->persistent_autoinc
 	    || !m_prebuilt->table->is_readable()) {
 	} else if (const Field* ai = table->found_next_number_field) {
@@ -11752,7 +11752,7 @@ ha_innobase::update_create_info(
 		create_info->auto_increment_value = stats.auto_increment_value;
 	}
 
-	if (dict_table_is_temporary(m_prebuilt->table)) {
+	if (m_prebuilt->table->is_temporary()) {
 		return;
 	}
 
@@ -12167,7 +12167,7 @@ innobase_parse_hint_from_comment(
 	}
 
 	/* update SYS_INDEX table */
-	if (!dict_table_is_temporary(table)) {
+	if (!table->is_temporary()) {
 		for (uint i = 0; i < table_share->keys; i++) {
 			is_found[i] = false;
 		}
@@ -12613,7 +12613,7 @@ create_table_info_t::create_table_update_dict()
 		dict_table_autoinc_lock(innobase_table);
 		dict_table_autoinc_initialize(innobase_table, autoinc);
 
-		if (dict_table_is_temporary(innobase_table)) {
+		if (innobase_table->is_temporary()) {
 			/* AUTO_INCREMENT is not persistent for
 			TEMPORARY TABLE. Temporary tables are never
 			evicted. Keep the counter in memory only. */
@@ -12754,7 +12754,7 @@ ha_innobase::discard_or_import_tablespace(
 
 	dict_table_t*	dict_table = m_prebuilt->table;
 
-	if (dict_table_is_temporary(dict_table)) {
+	if (dict_table->is_temporary()) {
 
 		ib_senderrf(
 			m_prebuilt->trx->mysql_thd, IB_LOG_LEVEL_ERROR,
@@ -15313,7 +15313,7 @@ ha_innobase::start_stmt(
 	m_prebuilt->hint_need_to_fetch_extra_cols = 0;
 	reset_template();
 
-	if (dict_table_is_temporary(m_prebuilt->table)
+	if (m_prebuilt->table->is_temporary()
 	    && m_mysql_has_locked
 	    && m_prebuilt->select_lock_type == LOCK_NONE) {
 		dberr_t error;

@@ -3707,7 +3707,7 @@ ibuf_insert(
 	ut_ad(page_id.space() != SRV_TMP_SPACE_ID);
 
 	ut_a(!dict_index_is_clust(index));
-	ut_ad(!dict_table_is_temporary(index->table));
+	ut_ad(!index->table->is_temporary());
 
 	no_counter = use <= IBUF_USE_INSERT;
 

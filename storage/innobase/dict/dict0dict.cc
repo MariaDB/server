@@ -1596,7 +1596,7 @@ dict_table_rename_in_cache(
 		char*		filepath;
 
 		ut_ad(dict_table_is_file_per_table(table));
-		ut_ad(!dict_table_is_temporary(table));
+		ut_ad(!table->is_temporary());
 
 		/* Make sure the data_dir_path is set. */
 		dict_get_and_save_data_dir_path(table, true);
@@ -1637,7 +1637,7 @@ dict_table_rename_in_cache(
 		const char* old_path = UT_LIST_GET_FIRST(table->space->chain)
 			->name;
 
-		ut_ad(!dict_table_is_temporary(table));
+		ut_ad(!table->is_temporary());
 
 		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 			new_path = os_file_make_new_pathname(

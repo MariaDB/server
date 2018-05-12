@@ -1257,7 +1257,7 @@ btr_create(
 			/* Not enough space for new segment, free root
 			segment before return. */
 			btr_free_root(block, mtr);
-			if (!dict_table_is_temporary(index->table)) {
+			if (!index->table->is_temporary()) {
 				btr_free_root_invalidate(block, mtr);
 			}
 
@@ -1332,7 +1332,7 @@ btr_create(
 	Note: Insert Buffering is disabled for temporary tables given that
 	most temporary tables are smaller in size and short-lived. */
 	if (!(type & DICT_CLUSTERED)
-	    && (index == NULL || !dict_table_is_temporary(index->table))) {
+	    && (index == NULL || !index->table->is_temporary())) {
 
 		ibuf_reset_free_bits(block);
 	}
@@ -1496,7 +1496,7 @@ ib_uint64_t
 btr_read_autoinc_with_fallback(const dict_table_t* table, unsigned col_no)
 {
 	ut_ad(table->persistent_autoinc);
-	ut_ad(!dict_table_is_temporary(table));
+	ut_ad(!table->is_temporary());
 
 	dict_index_t*	index = dict_table_get_first_index(table);
 
@@ -1654,7 +1654,7 @@ btr_page_reorganize_low(
 
 	During redo log apply, dict_index_is_sec_or_ibuf() always
 	holds, even for clustered indexes. */
-	ut_ad(recovery || dict_table_is_temporary(index->table)
+	ut_ad(recovery || index->table->is_temporary()
 	      || !page_is_leaf(temp_page)
 	      || !dict_index_is_sec_or_ibuf(index)
 	      || page_get_max_trx_id(page) != 0);
@@ -2152,7 +2152,7 @@ btr_root_raise_and_insert(
 	/* We play safe and reset the free bits for the new page */
 
 	if (!dict_index_is_clust(index)
-	    && !dict_table_is_temporary(index->table)) {
+	    && !index->table->is_temporary()) {
 		ibuf_reset_free_bits(new_block);
 	}
 
@@ -2839,7 +2839,7 @@ btr_insert_into_right_sibling(
 		if (is_leaf
 		    && next_block->page.size.is_compressed()
 		    && !dict_index_is_clust(cursor->index)
-		    && !dict_table_is_temporary(cursor->index->table)) {
+		    && !cursor->index->table->is_temporary()) {
 			/* Reset the IBUF_BITMAP_FREE bits, because
 			page_cur_tuple_insert() will have attempted page
 			reorganize before failing. */
@@ -2881,7 +2881,7 @@ btr_insert_into_right_sibling(
 
 	if (is_leaf
 	    && !dict_index_is_clust(cursor->index)
-	    && !dict_table_is_temporary(cursor->index->table)) {
+	    && !cursor->index->table->is_temporary()) {
 		/* Update the free bits of the B-tree page in the
 		insert buffer bitmap. */
 
@@ -3293,7 +3293,7 @@ insert_empty:
 insert_failed:
 		/* We play safe and reset the free bits for new_page */
 		if (!dict_index_is_clust(cursor->index)
-		    && !dict_table_is_temporary(cursor->index->table)) {
+		    && !cursor->index->table->is_temporary()) {
 			ibuf_reset_free_bits(new_block);
 			ibuf_reset_free_bits(block);
 		}
@@ -3311,7 +3311,7 @@ func_exit:
 	left and right pages in the same mtr */
 
 	if (!dict_index_is_clust(cursor->index)
-	    && !dict_table_is_temporary(cursor->index->table)
+	    && !cursor->index->table->is_temporary()
 	    && page_is_leaf(page)) {
 
 		ibuf_update_free_bits_for_two_pages_low(
@@ -3684,7 +3684,7 @@ btr_lift_page_up(
 
 	/* We play it safe and reset the free bits for the father */
 	if (!dict_index_is_clust(index)
-	    && !dict_table_is_temporary(index->table)) {
+	    && !index->table->is_temporary()) {
 		ibuf_reset_free_bits(father_block);
 	}
 	ut_ad(page_validate(father_page, index));
@@ -4124,7 +4124,7 @@ retry:
 	}
 
 	if (!dict_index_is_clust(index)
-	    && !dict_table_is_temporary(index->table)
+	    && !index->table->is_temporary()
 	    && page_is_leaf(merge_page)) {
 		/* Update the free bits of the B-tree page in the
 		insert buffer bitmap.  This has to be done in a

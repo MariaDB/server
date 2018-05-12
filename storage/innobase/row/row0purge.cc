@@ -414,7 +414,7 @@ row_purge_remove_sec_if_poss_leaf(
 
 	log_free_check();
 	ut_ad(index->table == node->table);
-	ut_ad(!dict_table_is_temporary(index->table));
+	ut_ad(!index->table->is_temporary());
 	mtr_start(&mtr);
 	index->set_modified(mtr);
 
@@ -937,7 +937,7 @@ try_again:
 		goto err_exit;
 	}
 
-	ut_ad(!dict_table_is_temporary(node->table));
+	ut_ad(!node->table->is_temporary());
 
 	if (!fil_table_accessible(node->table)) {
 		dict_table_close(node->table, FALSE, FALSE);

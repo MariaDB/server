@@ -2348,7 +2348,7 @@ row_upd_sec_index_entry(
 		are no foreign key constraints referring to the index.
 		Change buffering is disabled for temporary tables and
 		spatial index. */
-		mode = (referenced || dict_table_is_temporary(index->table)
+		mode = (referenced || index->table->is_temporary()
 			|| dict_index_is_spatial(index))
 			? BTR_MODIFY_LEAF_ALREADY_S_LATCHED
 			: BTR_DELETE_MARK_LEAF_ALREADY_S_LATCHED;
@@ -2362,7 +2362,7 @@ row_upd_sec_index_entry(
 		are no foreign key constraints referring to the index.
 		Change buffering is disabled for temporary tables and
 		spatial index. */
-		mode = (referenced || dict_table_is_temporary(index->table)
+		mode = (referenced || index->table->is_temporary()
 			|| dict_index_is_spatial(index))
 			? BTR_MODIFY_LEAF
 			: BTR_DELETE_MARK_LEAF;
@@ -3049,7 +3049,7 @@ row_upd_clust_step(
 
 	mtr.start();
 
-	if (dict_table_is_temporary(node->table)) {
+	if (node->table->is_temporary()) {
 		/* Disable locking, because temporary tables are
 		private to the connection (no concurrent access). */
 		flags = node->table->no_rollback()

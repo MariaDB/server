@@ -354,7 +354,7 @@ dict_stats_process_entry_from_recalc_pool()
 		return;
 	}
 
-	ut_ad(!dict_table_is_temporary(table));
+	ut_ad(!table->is_temporary());
 
 	if (!fil_table_accessible(table)) {
 		dict_table_close(table, TRUE, FALSE);

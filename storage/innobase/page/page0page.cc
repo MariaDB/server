@@ -473,19 +473,19 @@ page_create_zip(
 
 	/* PAGE_MAX_TRX_ID or PAGE_ROOT_AUTO_INC are always 0 for
 	temporary tables. */
-	ut_ad(max_trx_id == 0 || !dict_table_is_temporary(index->table));
+	ut_ad(max_trx_id == 0 || !index->table->is_temporary());
 	/* In secondary indexes and the change buffer, PAGE_MAX_TRX_ID
 	must be zero on non-leaf pages. max_trx_id can be 0 when the
 	index consists of an empty root (leaf) page. */
 	ut_ad(max_trx_id == 0
 	      || level == 0
 	      || !dict_index_is_sec_or_ibuf(index)
-	      || dict_table_is_temporary(index->table));
+	      || index->table->is_temporary());
 	/* In the clustered index, PAGE_ROOT_AUTOINC or
 	PAGE_MAX_TRX_ID must be 0 on other pages than the root. */
 	ut_ad(level == 0 || max_trx_id == 0
 	      || !dict_index_is_sec_or_ibuf(index)
-	      || dict_table_is_temporary(index->table));
+	      || index->table->is_temporary());
 
 	page = page_create_low(block, TRUE, is_spatial);
 	mach_write_to_2(PAGE_HEADER + PAGE_LEVEL + page, level);
@@ -531,7 +531,7 @@ page_create_empty(
 	max_trx_id is ignored for temp tables because it not required
 	for MVCC. */
 	if (dict_index_is_sec_or_ibuf(index)
-	    && !dict_table_is_temporary(index->table)
+	    && !index->table->is_temporary()
 	    && page_is_leaf(page)) {
 		max_trx_id = page_get_max_trx_id(page);
 		ut_ad(max_trx_id);
@@ -543,7 +543,7 @@ page_create_empty(
 	}
 
 	if (page_zip) {
-		ut_ad(!dict_table_is_temporary(index->table));
+		ut_ad(!index->table->is_temporary());
 		page_create_zip(block, index,
 				page_header_get_field(page, PAGE_LEVEL),
 				max_trx_id, NULL, mtr);
@@ -713,7 +713,7 @@ page_copy_rec_list_end(
 	for MVCC. */
 	if (dict_index_is_sec_or_ibuf(index)
 	    && page_is_leaf(page)
-	    && !dict_table_is_temporary(index->table)) {
+	    && !index->table->is_temporary()) {
 		page_update_max_trx_id(new_block, NULL,
 				       page_get_max_trx_id(page), mtr);
 	}
@@ -874,7 +874,7 @@ page_copy_rec_list_start(
 	max_trx_id is ignored for temp tables because it not required
 	for MVCC. */
 	if (is_leaf && dict_index_is_sec_or_ibuf(index)
-	    && !dict_table_is_temporary(index->table)) {
+	    && !index->table->is_temporary()) {
 		page_update_max_trx_id(new_block, NULL,
 				       page_get_max_trx_id(page_align(rec)),
 				       mtr);
