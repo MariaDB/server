@@ -99,6 +99,8 @@ SET(ROCKSDB_SE_SOURCES
   rdb_threads.h
   rdb_psi.h
   rdb_psi.cc
+  rdb_sst_info.cc
+  rdb_sst_info.h
 )
 
 # MariaDB: the following is added in build_rocksdb.cmake, when appropriate:
@@ -141,8 +143,6 @@ ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
   event_listener.h
   rdb_perf_context.cc
   rdb_perf_context.h
-  rdb_sst_info.cc
-  rdb_sst_info.h
   rdb_buff.h
   rdb_mariadb_port.h
 )
@@ -182,9 +182,9 @@ IF(HAVE_SCHED_GETCPU)
   ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1)
 ENDIF()
 
-IF (NOT "$ENV{WITH_TBB}" STREQUAL "")
+IF (WITH_TBB)
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_TBB}/libtbb${PIC_EXT}.a)
+  ${WITH_TBB}/lib/libtbb${PIC_EXT}.a)
   ADD_DEFINITIONS(-DTBB)
 ENDIF()
 

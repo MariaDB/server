@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, 2018, MariaDB Corporation.
 
@@ -1077,7 +1077,9 @@ dict_make_room_in_cache(
 	ulint		max_tables,	/*!< in: max tables allowed in cache */
 	ulint		pct_check);	/*!< in: max percent to check */
 
-#define BIG_ROW_SIZE	1024
+/** Clears the virtual column's index list before index is being freed.
+@param[in]  index   Index being freed */
+void dict_index_remove_from_v_col_list(dict_index_t* index);
 
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.

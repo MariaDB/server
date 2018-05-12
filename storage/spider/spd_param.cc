@@ -968,7 +968,6 @@ bool spider_param_use_default_database(
   DBUG_RETURN(THDVAR(thd, use_default_database));
 }
 
-static int spider_internal_sql_log_off;
 /*
 -1 :don't know or does not matter; don't send 'SET SQL_LOG_OFF' statement
  0 :do send 'SET SQL_LOG_OFF 0' statement to data nodes

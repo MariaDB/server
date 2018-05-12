@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, 2018, MariaDB Corporation.
 
@@ -1079,6 +1079,7 @@ dict_mem_index_free(
 		UT_DELETE(index->rtr_track->rtr_active);
 	}
 
+	dict_index_remove_from_v_col_list(index);
 	mem_heap_free(index->heap);
 }
 

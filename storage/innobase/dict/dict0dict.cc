@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, 2018, MariaDB Corporation.
 
@@ -1428,6 +1428,13 @@ dict_make_room_in_cache(
 
 		if (dict_table_can_be_evicted(table)) {
 
+			DBUG_EXECUTE_IF("crash_if_fts_table_is_evicted",
+			{
+				  if (table->fts &&
+				      dict_table_has_fts_index(table)) {
+					ut_ad(0);
+				  }
+			};);
 			dict_table_remove_from_cache_low(table, TRUE);
 
 			++n_evicted;
@@ -2349,6 +2356,44 @@ add_field_size:
 	}
 
 	return(FALSE);
+}
+
+/** Clears the virtual column's index list before index is
+being freed.
+@param[in]  index   Index being freed */
+void dict_index_remove_from_v_col_list(dict_index_t* index)
+{
+	/* Index is not completely formed */
+	if (!index->cached) {
+		return;
+	}
+        if (dict_index_has_virtual(index)) {
+                const dict_col_t*       col;
+                const dict_v_col_t*     vcol;
+
+                for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
+                        col =  dict_index_get_nth_col(index, i);
+                        if (col->is_virtual()) {
+                                vcol = reinterpret_cast<const dict_v_col_t*>(
+                                        col);
+				/* This could be NULL, when we do add
+                                virtual column, add index together. We do not
+                                need to track this virtual column's index */
+				if (vcol->v_indexes == NULL) {
+                                        continue;
+                                }
+				dict_v_idx_list::iterator       it;
+				for (it = vcol->v_indexes->begin();
+                                     it != vcol->v_indexes->end(); ++it) {
+                                        dict_v_idx_t    v_index = *it;
+                                        if (v_index.index == index) {
+                                                vcol->v_indexes->erase(it);
+                                                break;
+                                        }
+				}
+			}
+		}
+	}
 }
 
 /** Adds an index to the dictionary cache, with possible indexing newly

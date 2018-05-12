@@ -871,6 +871,25 @@ DROP TABLE dest_db.t1;
 DROP TABLE source_db.t1;
 DROP DATABASE source_db;
 DROP DATABASE dest_db;
+#
+# BUG #26334149 MYSQL CRASHES WHEN FULL TEXT INDEXES IBD FILES ARE
+# ORPHANED DUE TO RENAME TABLE
+#
+CREATE DATABASE db1;
+USE db1;
+CREATE TABLE notes (
+id int(11) NOT NULL AUTO_INCREMENT,
+body text COLLATE utf8_unicode_ci,
+PRIMARY KEY (id)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8
+COLLATE=utf8_unicode_ci
+ROW_FORMAT=COMPRESSED;
+ALTER TABLE notes ADD FULLTEXT INDEX index_ft_body (body(255));
+DROP INDEX index_ft_body ON notes;
+CREATE DATABASE db2;
+RENAME TABLE db1.notes TO db2.notes;
+DROP DATABASE db1;
+DROP DATABASE db2;
 USE test;
 #
 # MDEV-14038 ALTER TABLE does not exit on error with InnoDB + bad default function

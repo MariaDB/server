@@ -15,6 +15,7 @@ while ($i<10000)
 --enable_query_log
 analyze table t1;
 select count(*) from t1;
+--replace_column 9 #
 explain select c1 from t1 where c1 > 5 limit 10;
 drop table t1;
 
