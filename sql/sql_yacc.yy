@@ -9776,6 +9776,25 @@ bit_expr:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | INTERVAL_SYM expr interval '+' expr %prec INTERVAL_SYM
+          /* we cannot put interval before - */
+          {
+            $$= new (thd->mem_root) Item_date_add_interval(thd, $5, $2, $3, 0);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | '+' INTERVAL_SYM expr interval '+' expr %prec NEG
+          {
+            $$= new (thd->mem_root) Item_date_add_interval(thd, $6, $3, $4, 0);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | '-' INTERVAL_SYM expr interval '+' expr %prec NEG
+          {
+            $$= new (thd->mem_root) Item_date_add_interval(thd, $6, $3, $4, 1);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
         | bit_expr '*' bit_expr %prec '*'
           {
             $$= new (thd->mem_root) Item_func_mul(thd, $1, $3);
@@ -10130,13 +10149,6 @@ simple_expr:
         | not2 simple_expr %prec NEG
           {
             $$= negate_expression(thd, $2);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
-        | INTERVAL_SYM expr interval '+' expr %prec INTERVAL_SYM
-          /* we cannot put interval before - */
-          {
-            $$= new (thd->mem_root) Item_date_add_interval(thd, $5, $2, $3, 0);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
