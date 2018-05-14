@@ -2932,6 +2932,7 @@ void
 srv_purge_wakeup()
 {
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!sync_check_iterate(sync_check()));
 
 	if (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND) {
 		return;

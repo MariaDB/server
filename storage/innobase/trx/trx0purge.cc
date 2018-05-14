@@ -1781,8 +1781,8 @@ unlock:
 
 		const int64_t sig_count = os_event_reset(purge_sys->event);
 		purge_sys->state = PURGE_STATE_STOP;
-		srv_purge_wakeup();
 		rw_lock_x_unlock(&purge_sys->latch);
+		srv_purge_wakeup();
 		/* Wait for purge coordinator to signal that it
 		is suspended. */
 		os_event_wait_low(purge_sys->event, sig_count);
