@@ -50,7 +50,7 @@ eval CREATE TABLE t3(
 perl;
 my $fn = $ENV{'ROCKSDB_INFILE'};
 open(my $fh, '>', $fn) || die "perl open($fn): $!";
-my $max = 5000000;
+my $max = 2500000;
 my $desc = $ENV{'MTR_DATA_ORDER_DESC'};
 my @chars = ("A".."Z", "a".."z", "0".."9");
 my @powers_of_26 = (26 * 26 * 26 * 26, 26 * 26 * 26, 26 * 26, 26, 1);
@@ -118,15 +118,12 @@ ANALYZE TABLE t1, t2, t3;
 SHOW TABLE STATUS WHERE name LIKE 't%';
 
 # Make sure all the data is there.
-select count(pk) from t1;
-select count(a) from t1;
-select count(b) from t1;
-select count(pk) from t2;
-select count(a) from t2;
-select count(b) from t2;
-select count(pk) from t3;
-select count(a) from t3;
-select count(b) from t3;
+select count(pk),count(a) from t1;
+select count(b)           from t1;
+select count(pk),count(a) from t2;
+select count(b)           from t2;
+select count(pk),count(a) from t3;
+select count(b)           from t3;
 
 # Create a dummy file with a bulk load extesion.  It should be removed when
 # the server starts
