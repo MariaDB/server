@@ -6919,7 +6919,7 @@ static bool setup_natural_join_row_types(THD *thd,
 
 int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 	       List<Item> *sum_func_list,
-	       uint wild_num)
+	       uint wild_num, uint *hidden_bit_fields)
 {
   if (!wild_num)
     return(0);
@@ -6960,7 +6960,7 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
       else if (insert_fields(thd, ((Item_field*) item)->context,
                              ((Item_field*) item)->db_name,
                              ((Item_field*) item)->table_name, &it,
-                             any_privileges))
+                             any_privileges, hidden_bit_fields))
       {
 	if (arena)
 	  thd->restore_active_arena(arena, &backup);
@@ -7425,7 +7425,7 @@ bool get_key_map_from_key_list(key_map *map, TABLE *table,
 bool
 insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
 	      const char *table_name, List_iterator<Item> *it,
-              bool any_privileges)
+              bool any_privileges, uint *hidden_bit_fields)
 {
   Field_iterator_table_ref field_iterator;
   bool found;
@@ -7544,6 +7544,9 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
       }
       else
         it->after(item);   /* Add 'item' to the SELECT list. */
+
+      if (item->type() == Item::FIELD_ITEM && item->field_type() == MYSQL_TYPE_BIT)
+        (*hidden_bit_fields)++;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
       /*

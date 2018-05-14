@@ -1474,6 +1474,7 @@ bool st_select_lex::cleanup()
   }
   inner_refs_list.empty();
   exclude_from_table_unique_test= FALSE;
+  hidden_bit_fields= 0;
   DBUG_RETURN(error);
 }
 

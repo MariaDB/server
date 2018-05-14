@@ -760,7 +760,8 @@ l
                                     select_lex->leaf_tables, FALSE, 
                                     DELETE_ACL, SELECT_ACL, TRUE))
     DBUG_RETURN(TRUE);
-  if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num)) ||
+  if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num,
+                              &select_lex->hidden_bit_fields)) ||
       setup_fields(thd, Ref_ptr_array(),
                    field_list, MARK_COLUMNS_READ, NULL, NULL, 0) ||
       setup_conds(thd, table_list, select_lex->leaf_tables, conds) ||
