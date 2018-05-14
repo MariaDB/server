@@ -603,6 +603,12 @@ static void mark_used_tables_as_free_for_reuse(THD *thd, TABLE *table)
       table->query_id= 0;
       table->file->ha_reset();
     }
+    else
+    {
+      // table of exlict LOCK TABLE
+      table->file->check_table_binlog_row_based_done=
+      table->file->check_table_binlog_row_based_result= 0;
+    }
   }
 }
 
