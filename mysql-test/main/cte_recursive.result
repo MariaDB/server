@@ -3509,3 +3509,22 @@ Beijing
 Bangkok
 Paris
 drop table flights, distances;
+#
+# MDEV-15159: Forced nullability of columns in recursive CTE
+#
+WITH RECURSIVE cte AS (
+SELECT 1 AS a UNION ALL
+SELECT NULL FROM cte WHERE a IS NOT NULL)
+SELECT * FROM cte;
+a
+1
+NULL
+CREATE TABLE t1 (a int NOT NULL);
+INSERT INTO t1 VALUES (0);
+WITH RECURSIVE cte AS
+(SELECT a FROM t1 where a=0 UNION SELECT NULL FROM cte)
+SELECT * FROM cte;
+a
+0
+NULL
+DROP TABLE t1;

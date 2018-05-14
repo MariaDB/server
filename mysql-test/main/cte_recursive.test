@@ -2458,3 +2458,21 @@ with recursive destinations (city) as
 select * from destinations;
 
 drop table flights, distances;
+
+--echo #
+--echo # MDEV-15159: Forced nullability of columns in recursive CTE
+--echo #
+
+WITH RECURSIVE cte AS (
+	SELECT 1 AS a UNION ALL
+	SELECT NULL FROM cte WHERE a IS NOT NULL)
+SELECT * FROM cte;
+
+CREATE TABLE t1 (a int NOT NULL);
+INSERT INTO t1 VALUES (0);
+
+WITH RECURSIVE cte AS
+  (SELECT a FROM t1 where a=0 UNION SELECT NULL FROM cte)
+SELECT * FROM cte;
+
+DROP TABLE t1;

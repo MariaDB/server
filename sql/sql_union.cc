@@ -788,18 +788,28 @@ bool st_select_lex_unit::join_union_item_types(THD *thd_arg,
      join_union_type_attributes(thd_arg, holders, count))
     DBUG_RETURN(true);
 
+  bool is_recursive= with_element && with_element->is_recursive;
   types.empty();
   List_iterator_fast<Item> it(first_sl->item_list);
   Item *item_tmp;
   for (uint pos= 0; (item_tmp= it++); pos++)
   {
+    /*
+      SQL standard requires forced nullability only for
+      recursive columns. However type aggregation in our
+      implementation so far does not differentiate between
+      recursive and non-recursive columns of a recursive CTE.
+      TODO: this should be fixed.
+    */
+    bool pos_maybe_null= is_recursive ? true : holders[pos].get_maybe_null();
+
     /* Error's in 'new' will be detected after loop */
     types.push_back(new (thd_arg->mem_root)
                     Item_type_holder(thd_arg,
                                      item_tmp,
                                      holders[pos].type_handler(),
                                      &holders[pos]/*Type_all_attributes*/,
-                                     holders[pos].get_maybe_null()));
+                                     pos_maybe_null));
   }
   if (unlikely(thd_arg->is_fatal_error))
     DBUG_RETURN(true); // out of memory
