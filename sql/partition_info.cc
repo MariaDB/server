@@ -1800,9 +1800,11 @@ part_column_list_val *partition_info::add_column_value(THD *thd)
       into the structure used for 1 column. After this we call
       ourselves recursively which should always succeed.
     */
+    num_columns= curr_list_object;
     if (!reorganize_into_single_field_col_val(thd))
     {
-      DBUG_RETURN(add_column_value(thd));
+      if (!init_column_part(thd))
+        DBUG_RETURN(add_column_value(thd));
     }
     DBUG_RETURN(NULL);
   }
