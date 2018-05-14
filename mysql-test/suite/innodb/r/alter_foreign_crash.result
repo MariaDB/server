@@ -6,14 +6,16 @@ call mtr.add_suppression("InnoDB: Failed to load table");
 create database bug;
 use bug;
 create table parent(a serial) engine=innodb;
-create table child(a serial, foreign key fk (a) references parent(a));
+create table child(a serial, foreign key fk (a) references parent(a))engine=innodb;
 insert into parent values(1);
 insert into child values(1);
+connect  con1,localhost,root,,bug;
 SET DEBUG_SYNC='innodb_rename_table_ready SIGNAL s1 WAIT_FOR s2 EXECUTE 2';
 ALTER TABLE child ROW_FORMAT=DYNAMIC, ALGORITHM=COPY;
+connection default;
 SET DEBUG_SYNC='now WAIT_FOR s1';
 SET DEBUG_SYNC='now SIGNAL s2 WAIT_FOR s1';
-# Kill and restart
+disconnect con1;
 show tables;
 Tables_in_bug
 parent
@@ -21,5 +23,4 @@ alter table parent row_format=dynamic;
 Warnings:
 Warning	1088	InnoDB: Could not add foreign key constraints.
 drop table parent;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 drop database bug;
