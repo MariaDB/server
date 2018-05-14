@@ -83,3 +83,12 @@ CREATE TABLE t1 (i INT) ENGINE=RocksDB;
 FLUSH TABLE t1 FOR EXPORT;
 DROP TABLE t1;
 
+--echo # 
+--echo # MDEV-16154 Server crashes in in myrocks::ha_rocksdb::load_auto_incr_value_from_inde
+--echo # 
+CREATE TABLE t1 (a INT) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 AUTO_INCREMENT 10;
+ 
+DROP TABLE t1;
+

@@ -5088,6 +5088,12 @@ static ulonglong rdb_get_int_col_max_value(const Field *field) {
   case HA_KEYTYPE_LONGLONG:
     max_value = 0x7FFFFFFFFFFFFFFFULL;
     break;
+  case HA_KEYTYPE_FLOAT:
+    max_value = 0x1000000ULL;
+    break;
+  case HA_KEYTYPE_DOUBLE:
+    max_value = 0x20000000000000ULL;
+    break;
   default:
     abort();
   }
@@ -11734,7 +11740,9 @@ bool ha_rocksdb::prepare_inplace_alter_table(
     if (!new_tdef) {
       new_tdef = m_tbl_def;
     }
-    max_auto_incr = load_auto_incr_value_from_index();
+    if (table->found_next_number_field) {
+      max_auto_incr = load_auto_incr_value_from_index();
+    }
   }
 
   ha_alter_info->handler_ctx = new Rdb_inplace_alter_ctx(
