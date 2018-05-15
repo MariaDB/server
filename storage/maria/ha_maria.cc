@@ -2224,6 +2224,7 @@ end:
       _ma_reenable_logging_for_table(file,
                                      bulk_insert_single_undo ==
                                      BULK_INSERT_SINGLE_UNDO_AND_NO_REPAIR);
+    bulk_insert_single_undo= BULK_INSERT_NONE;  // Safety
   }
   DBUG_RETURN(err);
 }
