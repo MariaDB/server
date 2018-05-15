@@ -77,6 +77,42 @@ disconnect con2;
 disconnect con3;
 DROP TABLE tbl_with_partitions;
 
+--echo #
+--echo # MDEV-15465 Server crash or ASAN heap-use-after-free in Item_func_match::cleanup
+--echo #            upon using FT search with partitioning.
+--echo #
+
+--connect (con1,localhost,root,,test)
+CREATE OR REPLACE TABLE t1 (c CHAR(8)) ENGINE=MyISAM PARTITION BY KEY(c);
+
+--connection default
+set debug_sync= 'execute_command_after_close_tables SIGNAL opened WAIT_FOR go';
+--send
+DELETE FROM t1 WHERE MATCH(c) AGAINST ('foo' IN BOOLEAN MODE);
+
+--connection con1
+set debug_sync= 'now WAIT_FOR opened';
+FLUSH TABLES;
+set debug_sync= 'now SIGNAL go';
+
+--connection default
+--reap
+set debug_sync= 'execute_command_after_close_tables SIGNAL opened WAIT_FOR go';
+--send
+SELECT * FROM t1 WHERE MATCH(c) AGAINST ('foo' IN BOOLEAN MODE);
+
+--connection con1
+set debug_sync= 'now WAIT_FOR opened';
+FLUSH TABLES;
+set debug_sync= 'now SIGNAL go';
+
+# Cleanup
+--disconnect con1
+--connection default
+--reap
+DROP TABLE t1;
+set debug_sync= 'RESET';
+
 
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.

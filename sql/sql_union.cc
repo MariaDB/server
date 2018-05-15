@@ -1916,6 +1916,7 @@ bool st_select_lex::cleanup()
 
   cleanup_order(order_list.first);
   cleanup_order(group_list.first);
+  cleanup_ftfuncs(this);
 
   if (join)
   {

@@ -216,6 +216,7 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
 		COND **conds);
 void wrap_ident(THD *thd, Item **conds);
 int setup_ftfuncs(SELECT_LEX* select);
+void cleanup_ftfuncs(SELECT_LEX *select_lex);
 int init_ftfuncs(THD *thd, SELECT_LEX* select, bool no_order);
 bool lock_table_names(THD *thd, const DDL_options_st &options,
                       TABLE_LIST *table_list,
