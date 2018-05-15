@@ -5411,7 +5411,7 @@ test_make_filepath()
 
 /** Return the next fil_space_t.
 Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_t::release() are invoked here which
+fil_space_t::acquire() and fil_space_t::release() are invoked here which
 blocks a concurrent operation from dropping the tablespace.
 @param[in]	prev_space	Pointer to the previous fil_space_t.
 If NULL, use the first fil_space_t on fil_system.space_list.
@@ -5424,31 +5424,27 @@ fil_space_next(fil_space_t* prev_space)
 
 	mutex_enter(&fil_system.mutex);
 
-	if (prev_space == NULL) {
+	if (!space) {
 		space = UT_LIST_GET_FIRST(fil_system.space_list);
-
-		/* We can trust that space is not NULL because at least the
-		system tablespace is always present and loaded first. */
-		space->acquire();
 	} else {
 		ut_a(space->referenced());
 
 		/* Move on to the next fil_space_t */
 		space->release();
 		space = UT_LIST_GET_NEXT(space_list, space);
+	}
 
-		/* Skip spaces that are being created by
-		fil_ibd_create(), or dropped, or !tablespace. */
-		while (space != NULL
-			&& (UT_LIST_GET_LEN(space->chain) == 0
-			    || space->is_stopping()
-			    || space->purpose != FIL_TYPE_TABLESPACE)) {
-			space = UT_LIST_GET_NEXT(space_list, space);
-		}
+	/* Skip spaces that are being created by
+	fil_ibd_create(), or dropped, or !tablespace. */
+	while (space != NULL
+	       && (UT_LIST_GET_LEN(space->chain) == 0
+		   || space->is_stopping()
+		   || space->purpose != FIL_TYPE_TABLESPACE)) {
+		space = UT_LIST_GET_NEXT(space_list, space);
+	}
 
-		if (space != NULL) {
-			space->acquire();
-		}
+	if (space != NULL) {
+		space->acquire();
 	}
 
 	mutex_exit(&fil_system.mutex);
@@ -5477,7 +5473,7 @@ fil_space_remove_from_keyrotation(fil_space_t* space)
 
 /** Return the next fil_space_t from key rotation list.
 Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_t::release() are invoked here which
+fil_space_t::acquire() and fil_space_t::release() are invoked here which
 blocks a concurrent operation from dropping the tablespace.
 @param[in]	prev_space	Pointer to the previous fil_space_t.
 If NULL, use the first fil_space_t on fil_system.space_list.
