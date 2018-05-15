@@ -334,7 +334,7 @@ int mysql_update(THD *thd,
 
   DBUG_ENTER("mysql_update");
 
-  create_explain_query(thd->lex, thd->mem_root);
+  thd->create_explain_query();
   if (open_tables(thd, &table_list, &table_count, 0))
     DBUG_RETURN(1);
 

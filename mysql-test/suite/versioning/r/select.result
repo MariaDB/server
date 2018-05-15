@@ -538,6 +538,13 @@ a
 select * from t1 for system_time from @t2 to @t1;
 a
 drop table t1;
+#
+# MDEV-16153 Server crashes in Apc_target::disable, ASAN heap-use-after-free in Explain_query::~Explain_query upon/after EXECUTE IMMEDIATE
+#
+create or replace table t1 (a int) with system versioning;
+execute immediate "select * from t1 where exists (select 1)";
+a
+drop table t1;
 call verify_trt_dummy(34);
 No	A	B	C	D
 1	1	1	1	1

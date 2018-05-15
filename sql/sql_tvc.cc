@@ -320,7 +320,7 @@ int table_value_constr::save_explain_data_intern(THD *thd,
 
 bool table_value_constr::optimize(THD *thd)
 {
-  create_explain_query_if_not_exists(thd->lex, thd->mem_root);
+  thd->create_explain_query_if_not_exists();
   have_query_plan= QEP_AVAILABLE;
 
   if (select_lex->select_number != UINT_MAX &&

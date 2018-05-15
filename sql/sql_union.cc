@@ -1358,7 +1358,7 @@ bool st_select_lex_unit::exec()
   
   saved_error= optimize();
   
-  create_explain_query_if_not_exists(thd->lex, thd->mem_root);
+  thd->create_explain_query_if_not_exists();
 
   if (!saved_error && !was_executed)
     save_union_explain(thd->lex->explain);
@@ -1659,7 +1659,7 @@ bool st_select_lex_unit::exec_recursive()
   DBUG_ENTER("st_select_lex_unit::exec_recursive");
 
   executed= 1;
-  create_explain_query_if_not_exists(thd->lex, thd->mem_root);
+  thd->create_explain_query_if_not_exists();
   if (!was_executed)
     save_union_explain(thd->lex->explain);
 

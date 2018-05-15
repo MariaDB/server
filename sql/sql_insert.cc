@@ -728,7 +728,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   Item *unused_conds= 0;
   DBUG_ENTER("mysql_insert");
 
-  create_explain_query(thd->lex, thd->mem_root);
+  thd->create_explain_query();
   /*
     Upgrade lock type if the requested lock is incompatible with
     the current connection mode or table operation.
