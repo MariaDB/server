@@ -18,7 +18,12 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=ROCKSDB DEFAULT CHARSET=latin1
 CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY) ENGINE=rocksdb;
 ERROR HY000: Table storage engine 'ROCKSDB' does not support the create option 'TEMPORARY'
+#
+# MDEV-12914: Engine for temporary tables which are implicitly
+#             created as RocksDB is substitued siliently with MyIsam
 DROP TABLE t2;
+CREATE TEMPORARY TABLE t2 LIKE t1;
+ERROR HY000: Table storage engine 'ROCKSDB' does not support the create option 'TEMPORARY'
 DROP TABLE IF EXISTS t1;
 SET default_storage_engine = rocksdb;
 CREATE TABLE t1 (a INT PRIMARY KEY);
@@ -41,6 +46,8 @@ a
 1
 2
 FLUSH LOGS;
+CREATE TEMPORARY TABLE t2;
+ERROR HY000: Table storage engine 'ROCKSDB' does not support the create option 'TEMPORARY'
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1(c1 INT,c2 INT,c3 INT,c4 INT,c5 INT,c6 INT,c7 INT,c8 INT,c9 INT,
 c10 INT,c11 INT,c12 INT,c13 INT,c14 INT,c15 INT,c16 INT,c17 INT,

@@ -32,18 +32,14 @@ SHOW CREATE TABLE t2;
 --error ER_ILLEGAL_HA_CREATE_OPTION 
 CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY) ENGINE=rocksdb;
 
---disable_parsing
+--echo #
+--echo # MDEV-12914: Engine for temporary tables which are implicitly
+--echo #             created as RocksDB is substitued siliently with MyIsam
 
 DROP TABLE t2;
 
+--error ER_ILLEGAL_HA_CREATE_OPTION
 CREATE TEMPORARY TABLE t2 LIKE t1;
-
-SHOW CREATE TABLE t2;
-DROP TEMPORARY TABLE t2;
-
---enable_parsing
-
-DROP TABLE t2;
 
 DROP TABLE IF EXISTS t1;
 
@@ -64,6 +60,10 @@ SELECT * FROM t1;
 
 # Just to add FLUSH LOGS into the mix while we are in the most common test
 FLUSH LOGS;
+
+# Test temporary tables with default engine, part of MDEV-12914
+--error ER_ILLEGAL_HA_CREATE_OPTION
+CREATE TEMPORARY TABLE t2;
 
 DROP TABLE IF EXISTS t1;
 
