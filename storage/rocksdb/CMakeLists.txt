@@ -210,7 +210,7 @@ MYSQL_ADD_EXECUTABLE(sst_dump rocksdb/tools/sst_dump.cc COMPONENT rocksdb-engine
 TARGET_LINK_LIBRARIES(sst_dump rocksdblib)
 
 MYSQL_ADD_EXECUTABLE(mysql_ldb tools/mysql_ldb.cc COMPONENT rocksdb-engine)
-TARGET_LINK_LIBRARIES(mysql_ldb rocksdb_tools rocksdb_aux_lib)
+TARGET_LINK_LIBRARIES(mysql_ldb rocksdb_tools rocksdb_aux_lib dbug)
 
 INSTALL_SCRIPT(myrocks_hotbackup COMPONENT rocksdb-engine)
 
