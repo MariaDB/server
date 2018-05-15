@@ -162,6 +162,7 @@ static ulint row_trx_id_offset(const rec_t* rec, const dict_index_t* index)
 		/* Reserve enough offsets for the PRIMARY KEY and 2 columns
 		so that we can access DB_TRX_ID, DB_ROLL_PTR. */
 		ulint	offsets_[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS + 2];
+		rec_offs_init(offsets_);
 		mem_heap_t* heap = NULL;
 		const ulint trx_id_pos = index->n_uniq ? index->n_uniq : 1;
 		ulint* offsets = rec_get_offsets(rec, index, offsets_, true,
