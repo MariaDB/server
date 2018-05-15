@@ -1616,9 +1616,28 @@ JOIN::optimize_inner()
     if (arena)
       thd->restore_active_arena(arena, &backup);
   }
-  
-  if (setup_jtbm_semi_joins(this, join_list, &conds))
+
+  List<Item> eq_list;
+
+  if (setup_degenerate_jtbm_semi_joins(this, join_list, eq_list))
     DBUG_RETURN(1);
+
+  if (eq_list.elements != 0)
+  {
+    Item *new_cond;
+
+    if (eq_list.elements == 1)
+      new_cond= eq_list.pop();
+    else
+      new_cond= new (thd->mem_root) Item_cond_and(thd, eq_list);
+
+    if (new_cond &&
+        ((new_cond->fix_fields(thd, &new_cond) ||
+        !(conds= and_items(thd, conds, new_cond)) ||
+        conds->fix_fields(thd, &conds))))
+      DBUG_RETURN(TRUE);
+  }
+  eq_list.empty();
 
   if (select_lex->cond_pushed_into_where)
   {
@@ -1641,6 +1660,32 @@ JOIN::optimize_inner()
   conds= optimize_cond(this, conds, join_list, FALSE,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
   
+  if (thd->lex->sql_command == SQLCOM_SELECT &&
+      optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY))
+  {
+    TABLE_LIST *tbl;
+    List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
+    while ((tbl= li++))
+      if (tbl->jtbm_subselect)
+      {
+        if (tbl->jtbm_subselect->pushdown_cond_for_in_subquery(thd, conds))
+          DBUG_RETURN(1);
+      }
+  }
+
+  if (setup_jtbm_semi_joins(this, join_list, eq_list))
+    DBUG_RETURN(1);
+
+  if (eq_list.elements != 0)
+  {
+    conds= and_new_conditions_to_optimized_cond(thd, conds, &cond_equal,
+                                                eq_list, &cond_value);
+
+    if (!conds &&
+        cond_value != Item::COND_FALSE && cond_value != Item::COND_TRUE)
+      DBUG_RETURN(TRUE);
+  }
+
   if (thd->lex->sql_command == SQLCOM_SELECT &&
       optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED))
   {
@@ -1679,7 +1724,6 @@ JOIN::optimize_inner()
     if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
       DBUG_RETURN(1);
   }
-     
   if (thd->is_error())
   {
     error= 1;
@@ -13382,9 +13426,9 @@ finish:
     FALSE   otherwise
 */
 
-static bool check_simple_equality(THD *thd, const Item::Context &ctx,
-                                  Item *left_item, Item *right_item,
-                                  COND_EQUAL *cond_equal)
+bool check_simple_equality(THD *thd, const Item::Context &ctx,
+                           Item *left_item, Item *right_item,
+                           COND_EQUAL *cond_equal)
 {
   Item *orig_left_item= left_item;
   Item *orig_right_item= right_item;

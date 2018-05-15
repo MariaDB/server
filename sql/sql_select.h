@@ -1470,6 +1470,11 @@ public:
   Dynamic_array<KEYUSE_EXT> *ext_keyuses_for_splitting;
 
   JOIN_TAB *sort_and_group_aggr_tab;
+  /*
+    Flag is set to true if select_lex was found to be degenerated before
+    the optimize_cond() call in JOIN::optimize_inner() method.
+  */
+  bool is_orig_degenerated;
 
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)
@@ -1564,6 +1569,7 @@ public:
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
     sjm_scan_tables= 0;
+    is_orig_degenerated= false;
   }
 
   /* True if the plan guarantees that it will be returned zero or one row */
@@ -1734,6 +1740,7 @@ public:
   bool fix_all_splittings_in_plan();
 
   bool transform_in_predicates_into_in_subq(THD *thd);
+  bool add_equalities_to_where_condition(THD *thd, List<Item> &eq_list);
 private:
   /**
     Create a temporary table to be used for processing DISTINCT/ORDER
@@ -2325,7 +2332,7 @@ Item_equal *find_item_equal(COND_EQUAL *cond_equal, Field *field,
 extern bool test_if_ref(Item *, 
                  Item_field *left_item,Item *right_item);
 
-inline bool optimizer_flag(THD *thd, uint flag)
+inline bool optimizer_flag(THD *thd, ulonglong flag)
 { 
   return (thd->variables.optimizer_switch & flag);
 }
@@ -2439,5 +2446,14 @@ int create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort);
 
 JOIN_TAB *first_explain_order_tab(JOIN* join);
 JOIN_TAB *next_explain_order_tab(JOIN* join, JOIN_TAB* tab);
+
+bool check_simple_equality(THD *thd, const Item::Context &ctx,
+                           Item *left_item, Item *right_item,
+                           COND_EQUAL *cond_equal);
+
+void propagate_new_equalities(THD *thd, Item *cond,
+                              List<Item_equal> *new_equalities,
+                              COND_EQUAL *inherited,
+                              bool *is_simplifiable_cond);
 
 #endif /* SQL_SELECT_INCLUDED */

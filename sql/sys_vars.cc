@@ -2472,6 +2472,7 @@ export const char *optimizer_switch_names[]=
   "orderby_uses_equalities",
   "condition_pushdown_for_derived",
   "split_materialized",
+  "condition_pushdown_for_subquery",
   "default", 
   NullS
 };

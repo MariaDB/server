@@ -1272,7 +1272,11 @@ public:
   { reset_first_arg_if_needed(); return this; }
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg)
   { reset_first_arg_if_needed(); return this; }
-  Item *derived_grouping_field_transformer_for_where(THD *thd, uchar *arg)
+  Item *grouping_field_transformer_for_where(THD *thd, uchar *arg)
+  { reset_first_arg_if_needed(); return this; }
+  Item *in_subq_field_transformer_for_where(THD *thd, uchar *arg)
+  { reset_first_arg_if_needed(); return this; }
+  Item *in_subq_field_transformer_for_having(THD *thd, uchar *arg)
   { reset_first_arg_if_needed(); return this; }
 };
 
@@ -3135,6 +3139,8 @@ public:
   {
     return used_tables() & tab_map;
   }
+  bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred);
+
   friend class Item_equal_fields_iterator;
   bool count_sargable_conds(void *arg);
   friend class Item_equal_iterator<List_iterator_fast,Item>;

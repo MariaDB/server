@@ -33,6 +33,7 @@ class subselect_hash_sj_engine;
 class Item_bool_func2;
 class Comp_creator;
 class With_element;
+class Field_pair;
 
 typedef class st_select_lex SELECT_LEX;
 
@@ -570,6 +571,8 @@ public:
   */
   bool is_registered_semijoin;
   
+  List<Field_pair> corresponding_fields;
+
   /*
     Used to determine how this subselect item is represented in the item tree,
     in case there is a need to locate it there and replace with something else.
@@ -741,6 +744,8 @@ public:
     return 0;
   };
 
+  bool pushdown_cond_for_in_subquery(THD *thd, Item *cond);
+
   friend class Item_ref_null_helper;
   friend class Item_is_not_null_test;
   friend class Item_in_optimizer;
@@ -852,7 +857,6 @@ protected:
   void set_row(List<Item> &item_list, Item_cache **row);
 };
 
-
 class subselect_single_select_engine: public subselect_engine
 {
   bool prepared;       /* simple subselect is prepared */
@@ -886,9 +890,10 @@ public:
 
   friend class subselect_hash_sj_engine;
   friend class Item_in_subselect;
-  friend bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
-                                    Item **join_where);
-
+  friend bool execute_degenerate_jtbm_semi_join(THD *thd,
+                                                TABLE_LIST *tbl,
+                                                Item_in_subselect *subq_pred,
+                                                List<Item> &eq_list);
 };
 
 

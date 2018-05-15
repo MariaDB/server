@@ -2595,8 +2595,6 @@ struct TABLE_LIST
     return false;
   } 
   void set_lock_type(THD* thd, enum thr_lock_type lock);
-  void check_pushable_cond_for_table(Item *cond);
-  Item *build_pushable_cond_for_table(THD *thd, Item *cond); 
 
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
