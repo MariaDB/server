@@ -1054,7 +1054,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   NEG '~'
 %right  NOT_SYM NOT2_SYM
 %right  BINARY COLLATE_SYM
-%left  INTERVAL_SYM
 
 %type <lex_str>
         DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
@@ -9526,7 +9525,7 @@ bit_expr:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | INTERVAL_SYM expr interval '+' expr %prec INTERVAL_SYM
+        | INTERVAL_SYM expr interval '+' expr
           /* we cannot put interval before - */
           {
             $$= new (thd->mem_root) Item_date_add_interval(thd, $5, $2, $3, 0);
@@ -10017,7 +10016,7 @@ function_call_keyword:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | INTERVAL_SYM '(' expr ',' expr ')' %prec INTERVAL_SYM
+        | INTERVAL_SYM '(' expr ',' expr ')'
           {
             List<Item> *list= new (thd->mem_root) List<Item>;
             if (unlikely(list == NULL))
@@ -10031,7 +10030,7 @@ function_call_keyword:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | INTERVAL_SYM '(' expr ',' expr ',' expr_list ')' %prec INTERVAL_SYM
+        | INTERVAL_SYM '(' expr ',' expr ',' expr_list ')'
           {
             $7->push_front($5, thd->mem_root);
             $7->push_front($3, thd->mem_root);
@@ -10162,14 +10161,12 @@ function_call_nonkeyword:
             Lex->safe_to_cache_query=0;
           }
         | DATE_ADD_INTERVAL '(' expr ',' INTERVAL_SYM expr interval ')'
-          %prec INTERVAL_SYM
           {
             $$= new (thd->mem_root) Item_date_add_interval(thd, $3, $6, $7, 0);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
         | DATE_SUB_INTERVAL '(' expr ',' INTERVAL_SYM expr interval ')'
-          %prec INTERVAL_SYM
           {
             $$= new (thd->mem_root) Item_date_add_interval(thd, $3, $6, $7, 1);
             if (unlikely($$ == NULL))
