@@ -3185,9 +3185,9 @@ public:
   Field *result_field;
   Item_null_result(THD *thd): Item_null(thd), result_field(0) {}
   bool is_result_field() { return result_field != 0; }
-  const Type_handler *type_handler() const
+  enum_field_types field_type() const
   {
-    return result_field->type_handler();
+    return result_field->type();
   }
   void save_in_result_field(bool no_conversions)
   {

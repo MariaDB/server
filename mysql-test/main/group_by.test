@@ -1948,3 +1948,12 @@ insert into t1 values(-126,7),(1,1),(0,0),(-1,1),(351,65534);
 select distinct 1 from t1 group by a,b with rollup limit 1;
 drop table t1;
 
+--echo #
+--echo # MDEV-16170
+--echo # Server crashes in Item_null_result::type_handler on SELECT with ROLLUP
+--echo #
+
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('2032-10-08');
+SELECT d != '2023-03-04' AS f, COUNT(*) FROM t1 GROUP BY d WITH ROLLUP;
+DROP TABLE t1;
