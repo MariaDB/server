@@ -1828,7 +1828,20 @@ public:
   }
   void empty() { unit= VERS_UNDEFINED; item= NULL; }
   void print(String *str, enum_query_type, const char *prefix, size_t plen) const;
-  void resolve_unit(bool timestamps_only);
+  bool resolve_unit(THD *thd);
+  bool resolve_unit_trx_id(THD *thd)
+  {
+    if (unit == VERS_UNDEFINED)
+      unit= VERS_TRX_ID;
+    return false;
+  }
+  bool resolve_unit_timestamp(THD *thd)
+  {
+    if (unit == VERS_UNDEFINED)
+      unit= VERS_TIMESTAMP;
+    return false;
+  }
+  void bad_expression_data_type_error(const char *type) const;
   bool eq(const vers_history_point_t &point) const;
 };
 
@@ -1866,7 +1879,7 @@ struct vers_select_conds_t
   {
     return type != SYSTEM_TIME_UNSPECIFIED;
   }
-  void resolve_units(bool timestamps_only);
+  bool resolve_units(THD *thd);
   bool user_defined() const
   {
     return !from_query && type != SYSTEM_TIME_UNSPECIFIED;

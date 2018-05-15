@@ -8879,12 +8879,12 @@ bool TR_table::check(bool error)
   return false;
 }
 
-void vers_select_conds_t::resolve_units(bool timestamps_only)
+bool vers_select_conds_t::resolve_units(THD *thd)
 {
   DBUG_ASSERT(type != SYSTEM_TIME_UNSPECIFIED);
   DBUG_ASSERT(start.item);
-  start.resolve_unit(timestamps_only);
-  end.resolve_unit(timestamps_only);
+  return start.resolve_unit(thd) ||
+         end.resolve_unit(thd);
 }
 
 bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
@@ -8907,19 +8907,24 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
   return false;
 }
 
-void Vers_history_point::resolve_unit(bool timestamps_only)
+
+bool Vers_history_point::resolve_unit(THD *thd)
 {
-  if (item && unit == VERS_UNDEFINED)
-  {
-    if (item->type() == Item::FIELD_ITEM || timestamps_only)
-      unit= VERS_TIMESTAMP;
-    else if (item->result_type() == INT_RESULT ||
-             item->result_type() == REAL_RESULT)
-      unit= VERS_TRX_ID;
-    else
-      unit= VERS_TIMESTAMP;
-  }
+  if (!item)
+    return false;
+  if (!item->fixed && item->fix_fields(thd, &item))
+    return true;
+  return item->this_item()->type_handler_for_system_time()->
+           Vers_history_point_resolve_unit(thd, this);
 }
+
+
+void Vers_history_point::bad_expression_data_type_error(const char *type) const
+{
+  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+           type, "FOR SYSTEM_TIME");
+}
+
 
 void Vers_history_point::fix_item()
 {

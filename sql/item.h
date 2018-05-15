@@ -845,6 +845,10 @@ public:
   {
     return type_handler();
   }
+  virtual const Type_handler *type_handler_for_system_time() const
+  {
+    return real_type_handler();
+  }
   /* result_type() of an item specifies how the value should be returned */
   Item_result result_type() const
   {
@@ -4210,6 +4214,10 @@ public:
     return field->store_hex_hybrid(str_value.ptr(), str_value.length());
   }
   const Type_handler *cast_to_int_type_handler() const
+  {
+    return &type_handler_longlong;
+  }
+  const Type_handler *type_handler_for_system_time() const
   {
     return &type_handler_longlong;
   }

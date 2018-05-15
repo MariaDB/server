@@ -892,10 +892,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 139 shift/reduce conflicts.
+  Currently there are 127 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 139
+%expect 127
 
 /*
    Comments for TOKENS.
@@ -9251,9 +9251,13 @@ opt_history_unit:
         ;
 
 history_point:
-          temporal_literal
+          TIMESTAMP TEXT_STRING
           {
-            $$= Vers_history_point(VERS_TIMESTAMP, $1);
+            Item *item;
+            if (!(item= create_temporal_literal(thd, $2.str, $2.length, YYCSCL,
+                                                MYSQL_TYPE_DATETIME, true)))
+              MYSQL_YYABORT;
+            $$= Vers_history_point(VERS_TIMESTAMP, item);
           }
         | function_call_keyword_timestamp
           {

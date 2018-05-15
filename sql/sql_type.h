@@ -72,6 +72,7 @@ class handler;
 struct Schema_specification_st;
 struct TABLE;
 struct SORT_FIELD_ATTR;
+class Vers_history_point;
 
 
 /**
@@ -1409,6 +1410,9 @@ public:
   Item_func_div_fix_length_and_dec(Item_func_div *func) const= 0;
   virtual bool
   Item_func_mod_fix_length_and_dec(Item_func_mod *func) const= 0;
+
+  virtual bool
+  Vers_history_point_resolve_unit(THD *thd, Vers_history_point *point) const;
 };
 
 
@@ -2105,6 +2109,7 @@ public:
   virtual const Type_limits_int *
     type_limits_int_by_unsigned_flag(bool unsigned_flag) const= 0;
   uint32 max_display_length(const Item *item) const;
+  bool Vers_history_point_resolve_unit(THD *thd, Vers_history_point *p) const;
 };
 
 
@@ -2174,6 +2179,7 @@ public:
   bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const;
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const;
+  bool Vers_history_point_resolve_unit(THD *thd, Vers_history_point *p) const;
 };
 
 
@@ -2298,6 +2304,7 @@ class Type_handler_general_purpose_string: public Type_handler_string_result
 {
 public:
   bool is_general_purpose_string_type() const { return true; }
+  bool Vers_history_point_resolve_unit(THD *thd, Vers_history_point *p) const;
 };
 
 
@@ -2570,6 +2577,7 @@ public:
                           const Record_addr &addr,
                           const Type_all_attributes &attr,
                           TABLE *table) const;
+  bool Vers_history_point_resolve_unit(THD *thd, Vers_history_point *p) const;
 };
 
 
@@ -3384,6 +3392,7 @@ public:
                                          const;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const;
+  bool Vers_history_point_resolve_unit(THD *thd, Vers_history_point *p) const;
 };
 
 

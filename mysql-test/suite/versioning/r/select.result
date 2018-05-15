@@ -339,6 +339,8 @@ select x from t1 for system_time as of timestamp @ts;
 x
 1
 set @ts= timestamp'1-1-1 0:0:0';
+select x from t1 for system_time as of timestamp @ts;
+x
 ## TRANSACTION specifier
 select x from t1 for system_time as of transaction @trx_start;
 x
@@ -390,7 +392,7 @@ create or replace table t1 (x int) with system versioning;
 select * from t1 for system_time as of current_timestamp;
 x
 select * from t1 for system_time as of now;
-ERROR 42S22: Unknown column 'now' in 'on clause'
+ERROR 42S22: Unknown column 'now' in 'FOR SYSTEM_TIME'
 ### Issue #405, NATURAL JOIN failure
 create or replace table t1 (a int) with system versioning;
 create or replace table t2 (b int);
