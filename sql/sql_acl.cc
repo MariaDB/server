@@ -7782,6 +7782,8 @@ err:
     table_ref        table reference where to check the field
     name             name of field to check
     length           length of name
+    fld              use fld object to check invisibility when it is
+                     not 0, not_found_field, view_ref_found
 
   DESCRIPTION
     Check the access rights to a column depending on the type of table
@@ -7796,13 +7798,17 @@ err:
 */
 
 bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
-                                     const char *name, size_t length)
+                                     const char *name, size_t length,
+                                     Field *fld)
 {
   GRANT_INFO *grant;
   const char *db_name;
   const char *table_name;
   Security_context *sctx= table_ref->security_ctx ?
                           table_ref->security_ctx : thd->security_ctx;
+  if (fld && fld != not_found_field && fld != view_ref_found
+          && fld->invisible >= INVISIBLE_SYSTEM)
+      return false;
 
   if (table_ref->view || table_ref->field_translation)
   {
@@ -7878,6 +7884,9 @@ bool check_grant_all_columns(THD *thd, ulong want_access_arg,
 
   for (; !fields->end_of_fields(); fields->next())
   {
+    if (fields->field() &&
+        fields->field()->invisible >= INVISIBLE_SYSTEM)
+      continue;
     LEX_CSTRING *field_name= fields->name();
 
     if (table_name != fields->get_table_name())

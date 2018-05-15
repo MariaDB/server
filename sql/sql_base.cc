@@ -5877,7 +5877,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* Check if there are sufficient access rights to the found field. */
     if (check_privileges &&
-        check_column_grant_in_table_ref(thd, *actual_table, name, length))
+        check_column_grant_in_table_ref(thd, *actual_table, name, length, fld))
       fld= WRONG_GRANT;
     else
 #endif
@@ -6054,7 +6054,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
       /* Check if there are sufficient access rights to the found field. */
       if (found && check_privileges &&
-          check_column_grant_in_table_ref(thd, table_ref, name, length))
+          check_column_grant_in_table_ref(thd, table_ref, name, length, found))
         found= WRONG_GRANT;
 #endif
     }
