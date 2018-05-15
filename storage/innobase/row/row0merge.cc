@@ -1959,15 +1959,6 @@ row_merge_read_clustered_index(
 				}
 			}
 
-#ifdef DBUG_OFF
-# define dbug_run_purge	false
-#else /* DBUG_OFF */
-			bool	dbug_run_purge = false;
-#endif /* DBUG_OFF */
-			DBUG_EXECUTE_IF(
-				"ib_purge_on_create_index_page_switch",
-				dbug_run_purge = true;);
-
 			/* Insert the cached spatial index rows. */
 			bool	mtr_committed = false;
 
@@ -1984,9 +1975,8 @@ row_merge_read_clustered_index(
 				goto scan_next;
 			}
 
-			if (dbug_run_purge
-			    || my_atomic_load32_explicit(&clust_index->lock.waiters,
-							 MY_MEMORY_ORDER_RELAXED)) {
+			if (my_atomic_load32_explicit(&clust_index->lock.waiters,
+						      MY_MEMORY_ORDER_RELAXED)) {
 				/* There are waiters on the clustered
 				index tree lock, likely the purge
 				thread. Store and restore the cursor
@@ -2006,18 +1996,6 @@ row_merge_read_clustered_index(
 
 				btr_pcur_store_position(&pcur, &mtr);
 				mtr_commit(&mtr);
-
-				if (dbug_run_purge) {
-					/* This is for testing
-					purposes only (see
-					DBUG_EXECUTE_IF above).  We
-					signal the purge thread and
-					hope that the purge batch will
-					complete before we execute
-					btr_pcur_restore_position(). */
-					trx_purge_run();
-					os_thread_sleep(1000000);
-				}
 
 				/* Give the waiters a chance to proceed. */
 				os_thread_yield();

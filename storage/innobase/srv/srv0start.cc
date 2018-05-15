@@ -1102,41 +1102,6 @@ srv_undo_tablespaces_init(bool create_new_db)
 	return(DB_SUCCESS);
 }
 
-/********************************************************************
-Wait for the purge thread(s) to start up. */
-static
-void
-srv_start_wait_for_purge_to_start()
-/*===============================*/
-{
-	/* Wait for the purge coordinator and master thread to startup. */
-
-	purge_state_t	state = trx_purge_state();
-
-	ut_a(state != PURGE_STATE_DISABLED);
-
-	while (srv_shutdown_state == SRV_SHUTDOWN_NONE
-	       && srv_force_recovery < SRV_FORCE_NO_BACKGROUND
-	       && state == PURGE_STATE_INIT) {
-
-		switch (state = trx_purge_state()) {
-		case PURGE_STATE_RUN:
-		case PURGE_STATE_STOP:
-			break;
-
-		case PURGE_STATE_INIT:
-			ib::info() << "Waiting for purge to start";
-
-			os_thread_sleep(50000);
-			break;
-
-		case PURGE_STATE_EXIT:
-		case PURGE_STATE_DISABLED:
-			ut_error;
-		}
-	}
-}
-
 /** Create the temporary file tablespace.
 @param[in]	create_new_db	whether we are creating a new database
 @return DB_SUCCESS or error code. */
@@ -2417,7 +2382,7 @@ files_checked:
 			| SRV_START_STATE_MONITOR;
 
 		ut_ad(srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN
-		      || trx_purge_state() == PURGE_STATE_INIT);
+		      || !purge_sys.enabled());
 
 		if (srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 			srv_undo_sources = true;
@@ -2494,11 +2459,14 @@ files_checked:
 			thread_started[5 + i + SRV_MAX_N_IO_THREADS] = true;
 		}
 
-		srv_start_wait_for_purge_to_start();
+		while (srv_shutdown_state == SRV_SHUTDOWN_NONE
+		       && srv_force_recovery < SRV_FORCE_NO_BACKGROUND
+		       && !purge_sys.enabled()) {
+			ib::info() << "Waiting for purge to start";
+			os_thread_sleep(50000);
+		}
 
 		srv_start_state_set(SRV_START_STATE_PURGE);
-	} else {
-		purge_sys.state = PURGE_STATE_DISABLED;
 	}
 
 	srv_is_being_started = false;

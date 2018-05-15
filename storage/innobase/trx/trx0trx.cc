@@ -715,7 +715,6 @@ trx_lists_init_at_db_start()
 {
 	ut_a(srv_is_being_started);
 	ut_ad(!srv_was_started);
-	ut_ad(!purge_sys.is_initialised());
 
 	if (srv_operation == SRV_OPERATION_RESTORE) {
 		/* mariabackup --prepare only deals with

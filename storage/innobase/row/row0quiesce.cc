@@ -525,7 +525,7 @@ row_quiesce_table_start(
 	ib::info() << "Sync to disk of " << table->name << " started.";
 
 	if (srv_undo_sources) {
-		trx_purge_stop();
+		purge_sys.stop();
 	}
 
 	for (ulint count = 0;
@@ -609,7 +609,7 @@ row_quiesce_table_complete(
 	}
 
 	if (srv_undo_sources) {
-		trx_purge_run();
+		purge_sys.resume();
 	}
 
 	dberr_t	err = row_quiesce_set_state(table, QUIESCE_NONE, trx);
