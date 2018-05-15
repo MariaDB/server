@@ -1221,7 +1221,7 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_atomic_counter
 
 	/** Add to the counter
 	@param[in]	i	amount to be added
-	@return	the value of the counter after adding */
+	@return	the value of the counter before adding */
 	Type add(Type i) { return my_atomic_addlint(&m_counter, i); }
 
 	/** @return the value of the counter (non-atomic access)! */
