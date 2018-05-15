@@ -50,16 +50,14 @@ calculated in make_version_string() in sql/sql_show.cc like this:
 because the version is shown with only one dot, we skip the last
 component, i.e. we show M.N.P as M.N */
 #define INNODB_VERSION_SHORT	\
-	(INNODB_VERSION_MAJOR << 8 | INNODB_VERSION_MINOR)
+	(MYSQL_VERSION_MAJOR << 8 | MYSQL_VERSION_MINOR)
 
 #define INNODB_VERSION_STR			\
-	IB_TO_STR(INNODB_VERSION_MAJOR) "."	\
-	IB_TO_STR(INNODB_VERSION_MINOR) "."	\
-	IB_TO_STR(INNODB_VERSION_BUGFIX)
+	IB_TO_STR(MYSQL_VERSION_MAJOR) "."	\
+	IB_TO_STR(MYSQL_VERSION_MINOR) "."	\
+	IB_TO_STR(MYSQL_VERSION_PATCH)
 
-#define REFMAN "http://dev.mysql.com/doc/refman/"	\
-	IB_TO_STR(INNODB_VERSION_MAJOR) "."		\
-	IB_TO_STR(INNODB_VERSION_MINOR) "/en/"
+#define REFMAN "http://dev.mysql.com/doc/refman/5.7/en/"
 
 /** How far ahead should we tell the service manager the timeout
 (time in seconds) */
