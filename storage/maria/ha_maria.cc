@@ -1312,6 +1312,7 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
   old_proc_info= thd_proc_info(thd, "Checking status");
   thd_progress_init(thd, 3);
   error= maria_chk_status(param, file);                // Not fatal
+  /* maria_chk_size() will flush the page cache for this file */
   if (maria_chk_size(param, file))
     error= 1;
   if (!error)
