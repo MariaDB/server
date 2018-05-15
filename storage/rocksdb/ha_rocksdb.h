@@ -653,13 +653,21 @@ class ha_rocksdb : public my_core::handler {
                     enum ha_rkey_function find_flag) const
       MY_ATTRIBUTE((__nonnull__, __warn_unused_result__));
   void setup_iterator_bounds(const Rdb_key_def &kd,
-                             const rocksdb::Slice &eq_cond);
+                             const rocksdb::Slice &eq_cond, 
+                             uchar *lower_bound_buf,
+                             uchar *upper_bound_buf,
+                             rocksdb::Slice *out_lower_bound,
+                             rocksdb::Slice *out_upper_bound);
   bool can_use_bloom_filter(THD *thd, const Rdb_key_def &kd,
                             const rocksdb::Slice &eq_cond,
                             const bool use_all_keys);
   bool check_bloom_and_set_bounds(THD *thd, const Rdb_key_def &kd,
                                   const rocksdb::Slice &eq_cond,
-                                  const bool use_all_keys);
+                                  const bool use_all_keys,
+                                  uchar *lower_bound_buf,
+                                  uchar *upper_bound_buf,
+                                  rocksdb::Slice *out_lower_bound,
+                                  rocksdb::Slice *out_upper_bound);
   void setup_scan_iterator(const Rdb_key_def &kd, rocksdb::Slice *slice,
                            const bool use_all_keys, const uint eq_cond_len)
       MY_ATTRIBUTE((__nonnull__));

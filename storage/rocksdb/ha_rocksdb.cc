@@ -9302,8 +9302,16 @@ int ha_rocksdb::check_and_lock_sk(const uint &key_id,
 
     The bloom filter may need to be disabled for this lookup.
   */
+  uchar min_bound_buf[MAX_KEY_LENGTH];
+  uchar max_bound_buf[MAX_KEY_LENGTH];
+  rocksdb::Slice min_bound_slice;
+  rocksdb::Slice max_bound_slice;
   const bool total_order_seek = !check_bloom_and_set_bounds(
-      ha_thd(), kd, new_slice, all_parts_used);
+      ha_thd(), kd, new_slice, all_parts_used,
+      min_bound_buf,
+      max_bound_buf,
+      &min_bound_slice,
+      &max_bound_slice);
   const bool fill_cache = !THDVAR(ha_thd(), skip_fill_cache);
 
   const rocksdb::Status s =
@@ -9315,7 +9323,7 @@ int ha_rocksdb::check_and_lock_sk(const uint &key_id,
 
   rocksdb::Iterator *const iter = row_info.tx->get_iterator(
       kd.get_cf(), total_order_seek, fill_cache,
-      m_eq_cond_lower_bound_slice, m_eq_cond_upper_bound_slice,
+      min_bound_slice, max_bound_slice,
       true /* read current data */,
       false /* acquire snapshot */);
   /*
@@ -9723,25 +9731,34 @@ int ha_rocksdb::update_write_row(const uchar *const old_data,
  If the index was reverse order, upper bound would be
  0x0000b3eb003f65c5e78857, and lower bound would be
  0x0000b3eb003f65c5e78859. These cover given eq condition range.
+
+  @param lower_bound_buf  IN Buffer for lower bound
+  @param upper_bound_buf  IN Buffer for upper bound
+
+  @param outer_u
 */
 void ha_rocksdb::setup_iterator_bounds(const Rdb_key_def &kd,
-                                       const rocksdb::Slice &eq_cond) {
+                                       const rocksdb::Slice &eq_cond,
+                                       uchar *lower_bound_buf,
+                                       uchar *upper_bound_buf,
+                                       rocksdb::Slice *out_lower_bound,
+                                       rocksdb::Slice *out_upper_bound) {
   uint eq_cond_len = eq_cond.size();
-  memcpy(m_eq_cond_upper_bound, eq_cond.data(), eq_cond_len);
-  kd.successor(m_eq_cond_upper_bound, eq_cond_len);
-  memcpy(m_eq_cond_lower_bound, eq_cond.data(), eq_cond_len);
-  kd.predecessor(m_eq_cond_lower_bound, eq_cond_len);
+  memcpy(upper_bound_buf, eq_cond.data(), eq_cond_len);
+  kd.successor(upper_bound_buf, eq_cond_len);
+  memcpy(lower_bound_buf, eq_cond.data(), eq_cond_len);
+  kd.predecessor(lower_bound_buf, eq_cond_len);
 
   if (kd.m_is_reverse_cf) {
-    m_eq_cond_upper_bound_slice =
-        rocksdb::Slice((const char *)m_eq_cond_lower_bound, eq_cond_len);
-    m_eq_cond_lower_bound_slice =
-        rocksdb::Slice((const char *)m_eq_cond_upper_bound, eq_cond_len);
+    *out_upper_bound =
+        rocksdb::Slice((const char *)lower_bound_buf, eq_cond_len);
+    *out_lower_bound =
+        rocksdb::Slice((const char *)upper_bound_buf, eq_cond_len);
   } else {
-    m_eq_cond_upper_bound_slice =
-        rocksdb::Slice((const char *)m_eq_cond_upper_bound, eq_cond_len);
-    m_eq_cond_lower_bound_slice =
-        rocksdb::Slice((const char *)m_eq_cond_lower_bound, eq_cond_len);
+    *out_upper_bound =
+        rocksdb::Slice((const char *)upper_bound_buf, eq_cond_len);
+    *out_lower_bound =
+        rocksdb::Slice((const char *)lower_bound_buf, eq_cond_len);
   }
 }
 
@@ -9761,7 +9778,11 @@ void ha_rocksdb::setup_scan_iterator(const Rdb_key_def &kd,
   bool skip_bloom = true;
 
   const rocksdb::Slice eq_cond(slice->data(), eq_cond_len);
-  if (check_bloom_and_set_bounds(ha_thd(), kd, eq_cond, use_all_keys)) {
+  if (check_bloom_and_set_bounds(ha_thd(), kd, eq_cond, use_all_keys,
+                                 m_eq_cond_lower_bound,
+                                 m_eq_cond_upper_bound,
+                                 &m_eq_cond_lower_bound_slice,
+                                 &m_eq_cond_upper_bound_slice)) {
     skip_bloom = false;
   }
 
@@ -10943,7 +10964,11 @@ int ha_rocksdb::remove_rows(Rdb_tbl_def *const tbl) {
     kd.get_infimum_key(reinterpret_cast<uchar *>(key_buf), &key_len);
     rocksdb::ColumnFamilyHandle *cf = kd.get_cf();
     const rocksdb::Slice table_key(key_buf, key_len);
-    setup_iterator_bounds(kd, table_key);
+    setup_iterator_bounds(kd, table_key,
+                          m_eq_cond_lower_bound,
+                          m_eq_cond_upper_bound,
+                          &m_eq_cond_lower_bound_slice,
+                          &m_eq_cond_upper_bound_slice);
     opts.iterate_lower_bound = &m_eq_cond_lower_bound_slice;
     opts.iterate_upper_bound = &m_eq_cond_upper_bound_slice;
     std::unique_ptr<rocksdb::Iterator> it(rdb->NewIterator(opts, cf));
@@ -12723,10 +12748,16 @@ void Rdb_background_thread::run() {
 
 bool ha_rocksdb::check_bloom_and_set_bounds(THD *thd, const Rdb_key_def &kd,
                                             const rocksdb::Slice &eq_cond,
-                                            const bool use_all_keys) {
+                                            const bool use_all_keys,
+                                            uchar *lower_bound_buf,
+                                            uchar *upper_bound_buf,
+                                            rocksdb::Slice *out_lower_bound,
+                                            rocksdb::Slice *out_upper_bound) {
   bool can_use_bloom = can_use_bloom_filter(thd, kd, eq_cond, use_all_keys);
   if (!can_use_bloom) {
-    setup_iterator_bounds(kd, eq_cond);
+    setup_iterator_bounds(kd, eq_cond,
+                          lower_bound_buf, upper_bound_buf,
+                          out_lower_bound, out_upper_bound);
   }
   return can_use_bloom;
 }
