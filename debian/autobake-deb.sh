@@ -99,10 +99,13 @@ UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${
 PATCHLEVEL="+maria"
 LOGSTRING="MariaDB build"
 CODENAME="$(lsb_release -sc)"
+if [[ "$CODENAME" == bionic ]]; then
+  EPOCH="1:"
+fi
 
-dch -b -D ${CODENAME} -v "${UPSTREAM}${PATCHLEVEL}~${CODENAME}" "Automatic build with ${LOGSTRING}."
+dch -b -D ${CODENAME} -v "${EPOCH}${UPSTREAM}${PATCHLEVEL}~${CODENAME}" "Automatic build with ${LOGSTRING}."
 
-echo "Creating package version ${UPSTREAM}${PATCHLEVEL}~${CODENAME} ... "
+echo "Creating package version ${EPOCH}${UPSTREAM}${PATCHLEVEL}~${CODENAME} ... "
 
 # Build the package
 # Pass -I so that .git and other unnecessary temporary and source control files
