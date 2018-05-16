@@ -688,7 +688,7 @@ INSERT INTO t1 VALUES (1,'aaa'),(2,'bbb'),(3,'ccc');
 CREATE FULLTEXT INDEX i ON t1 (char_column);
 HANDLER t1 OPEN;
 HANDLER t1 READ i = ('aaa');
-id	char_column
+ERROR HY000: FULLTEXT index `i` does not support this operation
 DROP TABLE t1;
 "----------Test25---------"
 CREATE TABLE t1 ( id INT , char_column VARCHAR(60) CHARACTER SET UTF8 COLLATE UTF8_CROATIAN_CI) ENGINE=InnoDB;

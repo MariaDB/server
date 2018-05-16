@@ -2204,6 +2204,7 @@ static int mysql_test_handler_read(Prepared_statement *stmt,
   if (!(ha_table= mysql_ha_read_prepare(thd, tables, lex->ha_read_mode,
                                         lex->ident.str,
                                         lex->insert_list,
+                                        lex->ha_rkey_mode,
                                         lex->select_lex.where)))
     DBUG_RETURN(1);
 

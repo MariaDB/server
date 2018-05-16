@@ -648,6 +648,7 @@ CREATE TABLE t1 ( id INT , char_column VARCHAR(60) CHARACTER SET UTF8) ENGINE = 
 INSERT INTO t1 VALUES (1,'aaa'),(2,'bbb'),(3,'ccc');
 CREATE FULLTEXT INDEX i ON t1 (char_column);
 HANDLER t1 OPEN;
+--error ER_KEY_DOESNT_SUPPORT
 HANDLER t1 READ i = ('aaa');
 DROP TABLE t1;
 #23. Duplicate key error when there are no unique indexes (procedure test)

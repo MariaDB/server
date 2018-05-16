@@ -618,7 +618,7 @@ static SQL_HANDLER *mysql_ha_find_handler(THD *thd, const LEX_CSTRING *name)
 static bool
 mysql_ha_fix_cond_and_key(SQL_HANDLER *handler, 
                           enum enum_ha_read_modes mode, const char *keyname,
-                          List<Item> *key_expr,
+                          List<Item> *key_expr, enum ha_rkey_function ha_rkey_mode,
                           Item *cond, bool in_prepare)
 {
   THD *thd= handler->thd;
@@ -660,6 +660,18 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
       Item *item;
       key_part_map keypart_map;
       uint key_len;
+      const KEY *c_key= table->s->key_info + handler->keyno;
+
+      if ((c_key->flags & HA_SPATIAL) ||
+           c_key->algorithm == HA_KEY_ALG_FULLTEXT ||
+          (ha_rkey_mode != HA_READ_KEY_EXACT &&
+           (table->file->index_flags(handler->keyno, 0, TRUE) &
+            (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE)) == 0))
+      {
+        my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
+                 table->file->index_type(handler->keyno), keyinfo->name);
+        return 1;
+      }
 
       if (key_expr->elements > keyinfo->user_defined_key_parts)
       {
@@ -667,6 +679,16 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
                  keyinfo->user_defined_key_parts);
         return 1;
       }
+
+      if (key_expr->elements < keyinfo->user_defined_key_parts &&
+               (table->file->index_flags(handler->keyno, 0, TRUE) &
+                HA_ONLY_WHOLE_INDEX))
+      {
+        my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
+                 table->file->index_type(handler->keyno), keyinfo->name);
+        return 1;
+      }
+
       for (keypart_map= key_len=0 ; (item=it_ke++) ; key_part++)
       {
         my_bitmap_map *old_map;
@@ -841,7 +863,8 @@ retry:
       goto err0; // mysql_lock_tables() printed error message already
   }
 
-  if (mysql_ha_fix_cond_and_key(handler, mode, keyname, key_expr, cond, 0))
+  if (mysql_ha_fix_cond_and_key(handler, mode, keyname, key_expr,
+                                ha_rkey_mode, cond, 0))
     goto err;
   mode= handler->mode;
   keyno= handler->keyno;
@@ -1000,14 +1023,16 @@ err0:
 SQL_HANDLER *mysql_ha_read_prepare(THD *thd, TABLE_LIST *tables,
                                    enum enum_ha_read_modes mode,
                                    const char *keyname,
-                                   List<Item> *key_expr, Item *cond)
+                                   List<Item> *key_expr, enum ha_rkey_function ha_rkey_mode,
+                                   Item *cond)
 {
   SQL_HANDLER *handler;
   DBUG_ENTER("mysql_ha_read_prepare");
   if (!(handler= mysql_ha_find_handler(thd, &tables->alias)))
     DBUG_RETURN(0);
   tables->table= handler->table;         // This is used by fix_fields
-  if (mysql_ha_fix_cond_and_key(handler, mode, keyname, key_expr, cond, 1))
+  if (mysql_ha_fix_cond_and_key(handler, mode, keyname, key_expr,
+                                ha_rkey_mode, cond, 1))
     DBUG_RETURN(0);
   DBUG_RETURN(handler);
 }
