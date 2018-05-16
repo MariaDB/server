@@ -99,3 +99,27 @@ f2
 3
 unlock tables;
 DROP TABLE t1,t2,tmp;
+#
+# MDEV-14669 Assertion `file->trn == trn' failed in ha_maria::start_stmt
+#
+CREATE TABLE t1 (i INT) ENGINE=Aria;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (c CHAR(1)) ENGINE=Aria;
+INSERT INTO t2 VALUES ('a'),('b');
+connect  con1,localhost,root,,test;
+LOCK TABLE t1 WRITE;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+connection default;
+DELETE FROM t2 WHERE c < 1;
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'a'
+Warning	1292	Truncated incorrect DOUBLE value: 'b'
+connection con1;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	Table is already up to date
+disconnect con1;
+connection default;
+DROP TABLE t1, t2;
