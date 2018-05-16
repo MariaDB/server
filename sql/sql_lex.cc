@@ -839,9 +839,12 @@ int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
     if ((symbol->tok == NOT_SYM) &&
         (m_thd->variables.sql_mode & MODE_HIGH_NOT_PRECEDENCE))
       return NOT2_SYM;
-    if ((symbol->tok == OR_OR_SYM) &&
-        !(m_thd->variables.sql_mode & MODE_PIPES_AS_CONCAT))
-      return OR2_SYM;
+    if ((symbol->tok == OR2_SYM) &&
+        (m_thd->variables.sql_mode & MODE_PIPES_AS_CONCAT))
+    {
+      return (m_thd->variables.sql_mode & MODE_ORACLE) ?
+             ORACLE_CONCAT_SYM : MYSQL_CONCAT_SYM;
+    }
 
     return symbol->tok;
   }

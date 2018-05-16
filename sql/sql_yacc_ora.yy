@@ -278,10 +278,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 104 shift/reduce conflicts.
+  Currently there are 99 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 104
+%expect 99
 
 /*
    Comments for TOKENS.
@@ -459,6 +459,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  MIN_SYM                       /* SQL-2003-N */
 %token  MODIFIES_SYM                  /* SQL-2003-R */
 %token  MOD_SYM                       /* SQL-2003-N */
+%token  MYSQL_CONCAT_SYM              /* OPERATOR */
 %token  NATURAL                       /* SQL-2003-R */
 %token  NCHAR_STRING
 %token  NE                            /* OPERATOR */
@@ -475,9 +476,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  ON                            /* SQL-2003-R */
 %token  OPTIMIZE
 %token  OPTIONALLY
+%token  ORACLE_CONCAT_SYM             /* INTERNAL */
 %token  OR2_SYM
 %token  ORDER_SYM                     /* SQL-2003-R */
-%token  OR_OR_SYM                     /* OPERATOR */
 %token  OR_SYM                        /* SQL-2003-R */
 %token  OUTER
 %token  OUTFILE
@@ -1040,7 +1041,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 /* A dummy token to force the priority of table_ref production in a join. */
 %left   TABLE_REF_PRIORITY
 %left   SET_VAR
-%left   OR_OR_SYM OR_SYM OR2_SYM
+%left   OR_SYM OR2_SYM
 %left   XOR
 %left   AND_SYM AND_AND_SYM
 %left   BETWEEN_SYM CASE_SYM WHEN_SYM THEN_SYM ELSE
@@ -1048,9 +1049,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   '|'
 %left   '&'
 %left   SHIFT_LEFT SHIFT_RIGHT
-%left   '-' '+'
+%left   '-' '+' ORACLE_CONCAT_SYM
 %left   '*' '/' DIV_SYM MOD_SYM
 %left   '^'
+%left   MYSQL_CONCAT_SYM
 %left   NEG '~'
 %right  NOT_SYM NOT2_SYM
 %right  BINARY COLLATE_SYM
@@ -1196,6 +1198,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         variable variable_aux bool_pri
         predicate bit_expr parenthesized_expr
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
+        primary_expr string_factor_expr mysql_concatenation_expr
         select_sublist_qualified_asterisk
         expr_or_default set_expr_or_default
         geometry_function signed_literal expr_or_literal
@@ -1469,8 +1472,9 @@ END_OF_INPUT
 
 %type <NONE>
         '-' '+' '*' '/' '%' '(' ')'
-        ',' '!' '{' '}' '&' '|' AND_SYM OR_SYM OR_OR_SYM BETWEEN_SYM CASE_SYM
+        ',' '!' '{' '}' '&' '|' AND_SYM OR_SYM BETWEEN_SYM CASE_SYM
         THEN_SYM WHEN_SYM DIV_SYM MOD_SYM OR2_SYM AND_AND_SYM DELETE_SYM
+        MYSQL_CONCAT_SYM ORACLE_CONCAT_SYM
 
 %type <with_clause> opt_with_clause with_clause
 
@@ -9443,14 +9447,14 @@ predicate:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | bit_expr LIKE simple_expr opt_escape
+        | bit_expr LIKE mysql_concatenation_expr opt_escape
           {
             $$= new (thd->mem_root) Item_func_like(thd, $1, $3, $4,
                                                    Lex->escape_used);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | bit_expr not LIKE simple_expr opt_escape
+        | bit_expr not LIKE mysql_concatenation_expr opt_escape
           {
             Item *item= new (thd->mem_root) Item_func_like(thd, $1, $4, $5,
                                                              Lex->escape_used);
@@ -9498,6 +9502,13 @@ bit_expr:
         | bit_expr SHIFT_RIGHT bit_expr %prec SHIFT_RIGHT
           {
             $$= new (thd->mem_root) Item_func_shift_right(thd, $1, $3);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | bit_expr ORACLE_CONCAT_SYM bit_expr
+          {
+            $$= new (thd->mem_root) Item_func_concat_operator_oracle(thd,
+                                                                     $1, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
@@ -9574,7 +9585,7 @@ bit_expr:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | simple_expr
+        | mysql_concatenation_expr %prec '^'
         ;
 
 or:
@@ -9909,26 +9920,27 @@ column_default_non_parenthesized_expr:
           }
         ;
 
-simple_expr:
+primary_expr:
           column_default_non_parenthesized_expr
         | explicit_cursor_attr
-        | simple_expr COLLATE_SYM collation_name %prec NEG
+        | '(' parenthesized_expr ')' { $$= $2; }
+        ;
+
+string_factor_expr:
+          primary_expr
+        | string_factor_expr COLLATE_SYM collation_name
           {
             if (unlikely(!($$= new (thd->mem_root) Item_func_set_collation(thd, $1, $3))))
               MYSQL_YYABORT;
           }
-        | '(' parenthesized_expr ')' { $$= $2; }
-        | BINARY simple_expr %prec NEG
+        ;
+
+simple_expr:
+          string_factor_expr %prec NEG
+        | BINARY simple_expr
           {
             Type_cast_attributes at(&my_charset_bin);
             if (unlikely(!($$= type_handler_long_blob.create_typecast_item(thd, $2, at))))
-              MYSQL_YYABORT;
-          }
-        | simple_expr OR_OR_SYM simple_expr
-          {
-            $$= new (thd->mem_root) Item_func_concat_operator_oracle(thd,
-                                                                     $1, $3);
-            if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
         | '+' simple_expr %prec NEG
@@ -9954,6 +9966,17 @@ simple_expr:
               MYSQL_YYABORT;
           }
         ;
+
+mysql_concatenation_expr:
+          simple_expr
+        | mysql_concatenation_expr MYSQL_CONCAT_SYM simple_expr
+          {
+            $$= new (thd->mem_root) Item_func_concat(thd, $1, $3);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        ;
+
 
 /*
   Function call syntax using official SQL 2003 keywords.
