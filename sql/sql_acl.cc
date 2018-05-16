@@ -108,6 +108,7 @@ class ACL_ACCESS {
 public:
   ulong sort;
   ulong access;
+  ulong deny;
 };
 
 /* ACL_HOST is used if no host is specified */
@@ -223,6 +224,7 @@ public:
   acl_host_and_ip host;
   const char *user,*db;
   ulong initial_access; /* access bits present in the table */
+  ulong initial_deny;
 };
 
 #ifndef DBUG_OFF
@@ -675,6 +677,12 @@ enum enum_acl_tables
 #define FIRST_OPTIONAL_TABLE HOST_TABLE
   HOST_TABLE,
   PROCS_PRIV_TABLE,
+  REVERSE_USER_TABLE,
+  REVERSE_DB_TABLE,
+  REVERSE_TABLES_PRIV_TABLE,
+  REVERSE_COLUMNS_PRIV_TABLE,
+  REVERSE_HOST_TABLE,
+  REVERSE_PROCS_PRIV_TABLE,
   PROXIES_PRIV_TABLE,
   ROLES_MAPPING_TABLE,
   TABLES_MAX // <== always the last
@@ -688,6 +696,12 @@ static const int Table_host= 1 << HOST_TABLE;
 static const int Table_procs_priv= 1 << PROCS_PRIV_TABLE;
 static const int Table_proxies_priv= 1 << PROXIES_PRIV_TABLE;
 static const int Table_roles_mapping= 1 << ROLES_MAPPING_TABLE;
+static const int Table_reverse_user= 1 << REVERSE_USER_TABLE;
+static const int Table_reverse_db= 1 << REVERSE_DB_TABLE;
+static const int Table_reverse_tables_priv= 1 << REVERSE_TABLES_PRIV_TABLE;
+static const int Table_reverse_columns_priv= 1 << REVERSE_COLUMNS_PRIV_TABLE;
+static const int Table_reverse_host= 1 << REVERSE_HOST_TABLE;
+static const int Table_reverse_procs_priv= 1 << REVERSE_PROCS_PRIV_TABLE;
 
 /**
   Base class representing a generic grant table from the mysql database.
@@ -1175,6 +1189,42 @@ class Grant_tables
       link_tables(&m_user_table, prev);
       prev= &m_user_table;
     }
+    if (which_tables & Table_reverse_procs_priv)
+    {
+      r_procs_priv_table.init(lock_type);
+      link_tables(&r_procs_priv_table, prev);
+      prev= &r_procs_priv_table;
+    }
+    if (which_tables & Table_reverse_host)
+    {
+      r_host_table.init(lock_type);
+      link_tables(&r_host_table, prev);
+      prev= &r_host_table;
+    }
+    if (which_tables & Table_reverse_columns_priv)
+    {
+      r_columns_priv_table.init(lock_type);
+      link_tables(&r_columns_priv_table, prev);
+      prev= &r_columns_priv_table;
+    }
+    if (which_tables & Table_reverse_tables_priv)
+    {
+      r_tables_priv_table.init(lock_type);
+      link_tables(&r_tables_priv_table, prev);
+      prev= &r_tables_priv_table;
+    }
+    if (which_tables & Table_reverse_db)
+    {
+      r_db_table.init(lock_type);
+      link_tables(&r_db_table, prev);
+      prev= &r_db_table;
+    }
+    if (which_tables & Table_reverse_user)
+    {
+      r_user_table.init(lock_type);
+      link_tables(&r_user_table, prev);
+      prev= &r_user_table;
+    }
 
     first_table_in_list= prev;
     DBUG_VOID_RETURN;
@@ -1232,6 +1282,14 @@ class Grant_tables
     m_procs_priv_table.compute_num_privilege_cols();
     m_proxies_priv_table.compute_num_privilege_cols();
     m_roles_mapping_table.compute_num_privilege_cols();
+    r_user_table.compute_num_privilege_cols();
+    r_db_table.compute_num_privilege_cols();
+    r_tables_priv_table.compute_num_privilege_cols();
+    r_columns_priv_table.compute_num_privilege_cols();
+    r_host_table.compute_num_privilege_cols();
+    r_procs_priv_table.compute_num_privilege_cols();
+    r_proxies_priv_table.compute_num_privilege_cols();
+    r_roles_mapping_table.compute_num_privilege_cols();
     DBUG_RETURN(0);
   }
 
@@ -1276,6 +1334,36 @@ class Grant_tables
     return m_roles_mapping_table;
   }
 
+  inline const User_table& reverse_user_table() const
+  {
+    return r_user_table;
+  }
+
+  inline const Db_table& reverse_db_table() const
+  {
+    return r_db_table;
+  }
+
+  inline const Tables_priv_table& reverse_tables_priv_table() const
+  {
+    return r_tables_priv_table;
+  }
+
+  inline const Columns_priv_table& reverse_columns_priv_table() const
+  {
+    return r_columns_priv_table;
+  }
+
+  inline const Host_table& reverse_host_table() const
+  {
+    return r_host_table;
+  }
+
+  inline const Procs_priv_table& reverse_procs_priv_table() const
+  {
+    return r_procs_priv_table;
+  }
+
  private:
   User_table m_user_table;
   Db_table m_db_table;
@@ -1285,7 +1373,12 @@ class Grant_tables
   Procs_priv_table m_procs_priv_table;
   Proxies_priv_table m_proxies_priv_table;
   Roles_mapping_table m_roles_mapping_table;
-
+  User_table r_user_table;
+  Db_table r_db_table;
+  Tables_priv_table r_tables_priv_table;
+  Columns_priv_table r_columns_priv_table;
+  Host_table r_host_table;
+  Procs_priv_table r_procs_priv_table;
   /* The grant tables are set-up in a linked list. We keep the head of it. */
   Grant_table_base *first_table_in_list;
   /**
@@ -1710,6 +1803,13 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
 
   grant_version++; /* Privileges updated */
 
+  const Tables_priv_table& reverse_tables_priv= tables.reverse_tables_priv_table();
+  const Columns_priv_table& reverse_columns_priv= tables.reverse_columns_priv_table();
+  const Procs_priv_table& reverse_procs_priv= tables.reverse_procs_priv_table();
+
+  //Populate reverse tables for table, column, procs privileges
+  grant_load(thd, reverse_tables_priv, reverse_columns_priv, reverse_procs_priv);
+
   const Host_table& host_table= tables.host_table();
   init_sql_alloc(&acl_memroot, "ACL", ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
   if (host_table.table_exists()) // "host" table may not exist (e.g. in MySQL 5.6.7+)
@@ -1757,6 +1857,63 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
       {						// Without grant
         if (host.access & CREATE_ACL)
           host.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL | CREATE_TMP_ACL;
+      }
+#endif
+      (void) push_dynamic(&acl_hosts,(uchar*) &host);
+    }
+    my_qsort((uchar*) dynamic_element(&acl_hosts, 0, ACL_HOST*),
+             acl_hosts.elements, sizeof(ACL_HOST),(qsort_cmp) acl_compare);
+    end_read_record(&read_record_info);
+  }
+  freeze_size(&acl_hosts);
+
+  const Host_table& reverse_host_table= tables.reverse_host_table();
+  init_sql_alloc(&acl_memroot, "ACL", ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  if (reverse_host_table.table_exists()) // "host" table may not exist (e.g. in MySQL 5.6.7+)
+  {
+    if (reverse_host_table.init_read_record(&read_record_info, thd))
+      DBUG_RETURN(true);
+    while (!(read_record_info.read_record()))
+    {
+      ACL_HOST host;
+      update_hostname(&host.host, get_field(&acl_memroot, reverse_host_table.host()));
+      host.db= get_field(&acl_memroot, reverse_host_table.db());
+      if (lower_case_table_names && host.db)
+      {
+        /*
+          convert db to lower case and give a warning if the db wasn't
+          already in lower case
+        */
+        char *end = strnmov(tmp_name, host.db, sizeof(tmp_name));
+        if (end >= tmp_name + sizeof(tmp_name))
+        {
+          sql_print_warning(ER_THD(thd, ER_WRONG_DB_NAME), host.db);
+          continue;
+        }
+        my_casedn_str(files_charset_info, host.db);
+        if (strcmp(host.db, tmp_name) != 0)
+          sql_print_warning("'host' entry '%s|%s' had database in mixed "
+                            "case that has been forced to lowercase because "
+                            "lower_case_table_names is set. It will not be "
+                            "possible to remove this privilege using REVOKE.",
+                            host.host.hostname, host.db);
+      }
+      host.deny= reverse_host_table.get_access();
+      host.deny= fix_rights_for_db(host.deny);
+      host.sort= get_sort(2, host.host.hostname, host.db);
+      if (check_no_resolve && hostname_requires_resolving(host.host.hostname))
+      {
+        sql_print_warning("'host' entry '%s|%s' "
+                        "ignored in --skip-name-resolve mode.",
+                         safe_str(host.host.hostname),
+                         safe_str(host.db));
+        continue;
+      }
+#ifndef TO_BE_REMOVED
+      if (reverse_host_table.num_fields() == 8)
+      {           // Without grant
+        if (host.deny | ~CREATE_ACL)
+          host.deny&=~REFERENCES_ACL & ~INDEX_ACL & ~ALTER_ACL & ~CREATE_TMP_ACL;
       }
 #endif
       (void) push_dynamic(&acl_hosts,(uchar*) &host);
@@ -2032,6 +2189,272 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   end_read_record(&read_record_info);
   freeze_size(&acl_users);
 
+//Reverse User Table
+  const User_table& reverse_user_table= tables.reverse_user_table();
+  if (reverse_user_table.init_read_record(&read_record_info, thd))
+    DBUG_RETURN(true);
+
+  username_char_length= MY_MIN(reverse_user_table.user()->char_length(),
+                               USERNAME_CHAR_LENGTH);
+  if (reverse_user_table.password()) // Password column might be missing. (MySQL 5.7.6+)
+  {
+    password_length= reverse_user_table.password()->field_length /
+                     reverse_user_table.password()->charset()->mbmaxlen;
+    if (password_length < SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
+    {
+      sql_print_error("Fatal error: mysql.user table is damaged or in "
+                      "unsupported 3.20 format.");
+      DBUG_RETURN(TRUE);
+    }
+
+    DBUG_PRINT("info",("user table fields: %d, password length: %d",
+                       reverse_user_table.num_fields(), password_length));
+
+    mysql_mutex_lock(&LOCK_global_system_variables);
+    if (password_length < SCRAMBLED_PASSWORD_CHAR_LENGTH)
+    {
+      if (opt_secure_auth)
+      {
+        mysql_mutex_unlock(&LOCK_global_system_variables);
+        sql_print_error("Fatal error: mysql.user table is in old format, "
+                        "but server started with --secure-auth option.");
+        DBUG_RETURN(TRUE);
+      }
+      mysql_user_table_is_in_short_password_format= true;
+      if (global_system_variables.old_passwords)
+        mysql_mutex_unlock(&LOCK_global_system_variables);
+      else
+      {
+        extern sys_var *Sys_old_passwords_ptr;
+        Sys_old_passwords_ptr->value_origin= sys_var::AUTO;
+        global_system_variables.old_passwords= 1;
+        mysql_mutex_unlock(&LOCK_global_system_variables);
+        sql_print_warning("mysql.user table is not updated to new password format; "
+                          "Disabling new password usage until "
+                          "mysql_fix_privilege_tables is run");
+      }
+      thd->variables.old_passwords= 1;
+    }
+    else
+    {
+      mysql_user_table_is_in_short_password_format= false;
+      mysql_mutex_unlock(&LOCK_global_system_variables);
+    }
+  }
+
+  allow_all_hosts=0;
+  while (!(read_record_info.read_record()))
+  {
+    ACL_USER user;
+    bool is_role= FALSE;
+    bzero(&user, sizeof(user));
+    update_hostname(&user.host, get_field(&acl_memroot, reverse_user_table.host()));
+    char *username= get_field(&acl_memroot, reverse_user_table.user());
+    user.user.str= username;
+    user.user.length= safe_strlen(username);
+
+    /*
+       If the user entry is a role, skip password and hostname checks
+       A user can not log in with a role so some checks are not necessary
+    */
+    is_role= reverse_user_table.check_is_role();
+
+    if (is_role && is_invalid_role_name(username))
+    {
+      thd->clear_error(); // the warning is still issued
+      continue;
+    }
+
+    if (!is_role && check_no_resolve &&
+        hostname_requires_resolving(user.host.hostname))
+    {
+      sql_print_warning("'user' entry '%s@%s' "
+                        "ignored in --skip-name-resolve mode.",
+                        safe_str(user.user.str),
+                        safe_str(user.host.hostname));
+      continue;
+    }
+
+    char *password= const_cast<char*>("");
+    if (reverse_user_table.password())
+      password= get_field(&acl_memroot, reverse_user_table.password());
+    size_t password_len= safe_strlen(password);
+    user.auth_string.str= safe_str(password);
+    user.auth_string.length= password_len;
+    set_user_salt(&user, password, password_len);
+
+    if (!is_role && set_user_plugin(&user, password_len))
+      continue;
+
+    {
+      user.deny= reverse_user_table.get_access() | ~GLOBAL_ACLS;
+      /*
+        if it is pre 5.0.1 privilege table then map CREATE privilege on
+        CREATE VIEW & SHOW VIEW privileges
+      */
+      if (reverse_user_table.num_fields() <= 31 && (user.deny | ~CREATE_ACL))
+        user.deny&= (~CREATE_VIEW_ACL & ~SHOW_VIEW_ACL);
+
+      /*
+        if it is pre 5.0.2 privilege table then map CREATE/ALTER privilege on
+        CREATE PROCEDURE & ALTER PROCEDURE privileges
+      */
+      if (reverse_user_table.num_fields() <= 33 && (user.deny | ~CREATE_ACL))
+        user.deny&= ~CREATE_PROC_ACL;
+      if (reverse_user_table.num_fields() <= 33 && (user.deny | ~ALTER_ACL))
+        user.deny&= ~ALTER_PROC_ACL;
+
+      /*
+        pre 5.0.3 did not have CREATE_USER_ACL
+      */
+      if (reverse_user_table.num_fields() <= 36 && (user.deny | ~GRANT_ACL))
+        user.deny&= ~CREATE_USER_ACL;
+
+
+      /*
+        if it is pre 5.1.6 privilege table then map CREATE privilege on
+        CREATE|ALTER|DROP|EXECUTE EVENT
+      */
+      if (reverse_user_table.num_fields() <= 37 && (user.deny | ~SUPER_ACL))
+        user.deny&= ~EVENT_ACL;
+
+      /*
+        if it is pre 5.1.6 privilege then map TRIGGER privilege on CREATE.
+      */
+      if (reverse_user_table.num_fields() <= 38 && (user.deny | ~SUPER_ACL))
+        user.deny&= ~TRIGGER_ACL;
+
+      if (reverse_user_table.num_fields() <= 46 && (user.deny | ~DELETE_ACL))
+        user.deny&= ~DELETE_HISTORY_ACL;
+
+      user.sort= get_sort(2, user.host.hostname, user.user.str);
+      user.hostname_length= safe_strlen(user.host.hostname);
+      user.user_resource.user_conn= 0;
+      user.user_resource.max_statement_time= 0.0;
+
+      /* Starting from 4.0.2 we have more fields */
+      if (reverse_user_table.ssl_type())
+      {
+        char *ssl_type=get_field(thd->mem_root, reverse_user_table.ssl_type());
+        if (!ssl_type)
+          user.ssl_type=SSL_TYPE_NONE;
+        else if (!strcmp(ssl_type, "ANY"))
+          user.ssl_type=SSL_TYPE_ANY;
+        else if (!strcmp(ssl_type, "X509"))
+          user.ssl_type=SSL_TYPE_X509;
+        else  /* !strcmp(ssl_type, "SPECIFIED") */
+          user.ssl_type=SSL_TYPE_SPECIFIED;
+
+        user.ssl_cipher=   get_field(&acl_memroot, reverse_user_table.ssl_cipher());
+        user.x509_issuer=  get_field(&acl_memroot, reverse_user_table.x509_issuer());
+        user.x509_subject= get_field(&acl_memroot, reverse_user_table.x509_subject());
+
+        char *ptr = get_field(thd->mem_root, reverse_user_table.max_questions());
+        user.user_resource.questions=ptr ? atoi(ptr) : 0;
+        ptr = get_field(thd->mem_root, reverse_user_table.max_updates());
+        user.user_resource.updates=ptr ? atoi(ptr) : 0;
+        ptr = get_field(thd->mem_root, reverse_user_table.max_connections());
+        user.user_resource.conn_per_hour= ptr ? atoi(ptr) : 0;
+        if (user.user_resource.questions || user.user_resource.updates ||
+            user.user_resource.conn_per_hour)
+          mqh_used=1;
+
+        if (reverse_user_table.max_user_connections())
+        {
+          /* Starting from 5.0.3 we have max_user_connections field */
+          ptr= get_field(thd->mem_root, reverse_user_table.max_user_connections());
+          user.user_resource.user_conn= ptr ? atoi(ptr) : 0;
+        }
+
+        if (!is_role && reverse_user_table.plugin())
+        {
+          /* We may have plugin & auth_String fields */
+          char *tmpstr= get_field(&acl_memroot, reverse_user_table.plugin());
+          if (tmpstr)
+          {
+            user.plugin.str= tmpstr;
+            user.plugin.length= strlen(user.plugin.str);
+            user.auth_string.str=
+              safe_str(get_field(&acl_memroot,
+                                 reverse_user_table.authentication_string()));
+            user.auth_string.length= strlen(user.auth_string.str);
+
+            if (user.auth_string.length && password_len)
+            {
+              sql_print_warning("'user' entry '%s@%s' has both a password "
+                                "and an authentication plugin specified. The "
+                                "password will be ignored.",
+                                safe_str(user.user.str),
+                                safe_str(user.host.hostname));
+            }
+
+            fix_user_plugin_ptr(&user);
+          }
+        }
+
+        if (reverse_user_table.max_statement_time())
+        {
+          /* Starting from 10.1.1 we can have max_statement_time */
+          ptr= get_field(thd->mem_root,
+                         reverse_user_table.max_statement_time());
+          user.user_resource.max_statement_time= ptr ? atof(ptr) : 0.0;
+        }
+      }
+      else
+      {
+        user.ssl_type=SSL_TYPE_NONE;
+#ifndef TO_BE_REMOVED
+        if (reverse_user_table.num_fields() <= 13)
+        {                        // Without grant
+          if (user.deny | ~CREATE_ACL)
+            user.deny&=~REFERENCES_ACL & ~INDEX_ACL & ~ALTER_ACL;
+        }
+        /* Convert old privileges */
+        user.deny&= ~LOCK_TABLES_ACL & ~CREATE_TMP_ACL & ~SHOW_DB_ACL;
+        if (user.deny | ~FILE_ACL)
+          user.deny&= ~REPL_CLIENT_ACL & ~REPL_SLAVE_ACL;
+        if (user.deny | ~PROCESS_ACL)
+          user.deny&= ~SUPER_ACL & ~EXECUTE_ACL;
+#endif
+      }
+
+      (void) my_init_dynamic_array(&user.role_grants,sizeof(ACL_ROLE *),
+                                   8, 8, MYF(0));
+
+      /* check default role, if any */
+      if (!is_role && reverse_user_table.default_role())
+      {
+        user.default_rolename.str=
+          get_field(&acl_memroot, reverse_user_table.default_role());
+        user.default_rolename.length= safe_strlen(user.default_rolename.str);
+      }
+
+      if (is_role)
+      {
+        DBUG_PRINT("info", ("Found role %s", user.user.str));
+        ACL_ROLE *entry= new (&acl_memroot) ACL_ROLE(&user, &acl_memroot);
+        entry->role_grants = user.role_grants;
+        (void) my_init_dynamic_array(&entry->parent_grantee,
+                                     sizeof(ACL_USER_BASE *), 8, 8, MYF(0));
+        my_hash_insert(&acl_roles, (uchar *)entry);
+
+        continue;
+      }
+      else
+      {
+        DBUG_PRINT("info", ("Found user %s", user.user.str));
+        (void) push_dynamic(&acl_users,(uchar*) &user);
+      }
+      if (!user.host.hostname ||
+      (user.host.hostname[0] == wild_many && !user.host.hostname[1]))
+        allow_all_hosts=1;            // Anyone can connect
+    }
+  }
+  my_qsort((uchar*) dynamic_element(&acl_users,0,ACL_USER*),acl_users.elements,
+       sizeof(ACL_USER),(qsort_cmp) acl_compare);
+  end_read_record(&read_record_info);
+  freeze_size(&acl_users);
+
   const Db_table& db_table= tables.db_table();
   if (db_table.init_read_record(&read_record_info, thd))
     DBUG_RETURN(TRUE);
@@ -2088,6 +2511,71 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     {						// Without grant
       if (db.access & CREATE_ACL)
 	db.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL;
+    }
+#endif
+    (void) push_dynamic(&acl_dbs,(uchar*) &db);
+  }
+  my_qsort((uchar*) dynamic_element(&acl_dbs,0,ACL_DB*),acl_dbs.elements,
+	   sizeof(ACL_DB),(qsort_cmp) acl_compare);
+  end_read_record(&read_record_info);
+  freeze_size(&acl_dbs);
+
+  const Db_table& reverse_db_table= tables.reverse_db_table();
+  if (reverse_db_table.init_read_record(&read_record_info, thd))
+    DBUG_RETURN(TRUE);
+  while (!(read_record_info.read_record()))
+  {
+    ACL_DB db;
+    char *db_name;
+    db.user=get_field(&acl_memroot, reverse_db_table.user());
+    const char *hostname= get_field(&acl_memroot, reverse_db_table.host());
+    if (!hostname && find_acl_role(db.user))
+      hostname= "";
+    update_hostname(&db.host, hostname);
+    db.db= db_name= get_field(&acl_memroot, reverse_db_table.db());
+    if (!db.db)
+    {
+      sql_print_warning("Found an entry in the 'reverse_db' table with empty database name; Skipped");
+      continue;
+    }
+    if (check_no_resolve && hostname_requires_resolving(db.host.hostname))
+    {
+      sql_print_warning("'db' entry '%s %s@%s' "
+                        "ignored in --skip-name-resolve mode.",
+		        db.db, safe_str(db.user), safe_str(db.host.hostname));
+      continue;
+    }
+    db.deny= reverse_db_table.get_access();
+    db.deny=fix_rights_for_db(db.deny);
+    db.initial_deny= db.deny;
+    if (lower_case_table_names)
+    {
+      /*
+        convert db to lower case and give a warning if the db wasn't
+        already in lower case
+      */
+      char *end = strnmov(tmp_name, db.db, sizeof(tmp_name));
+      if (end >= tmp_name + sizeof(tmp_name))
+      {
+        sql_print_warning(ER_THD(thd, ER_WRONG_DB_NAME), db.db);
+        continue;
+      }
+      my_casedn_str(files_charset_info, db_name);
+      if (strcmp(db_name, tmp_name) != 0)
+      {
+        sql_print_warning("'reverse_db' entry '%s %s@%s' had database in mixed "
+                          "case that has been forced to lowercase because "
+                          "lower_case_table_names is set. It will not be "
+                          "possible to remove this privilege using REVOKE.",
+		          db.db, safe_str(db.user), safe_str(db.host.hostname));
+      }
+    }
+    db.sort=get_sort(3,db.host.hostname,db.db,db.user);
+#ifndef TO_BE_REMOVED
+    if (reverse_db_table.num_fields() <=  9)
+    {						// Without grant
+      if (db.deny | ~CREATE_ACL)
+	db.deny&=~REFERENCES_ACL & ~INDEX_ACL & ~ALTER_ACL;
     }
 #endif
     (void) push_dynamic(&acl_dbs,(uchar*) &db);
@@ -2218,7 +2706,8 @@ bool acl_reload(THD *thd)
   int result;
   DBUG_ENTER("acl_reload");
 
-  Grant_tables tables(Table_host | Table_user | Table_db | Table_proxies_priv |
+  Grant_tables tables(Table_host | Table_user | Table_db | Table_proxies_priv  | Table_reverse_user | Table_reverse_db |
+                      Table_reverse_host |
                       Table_roles_mapping, TL_READ);
   /*
     To avoid deadlocks we should obtain table locks before
@@ -7383,7 +7872,8 @@ bool grant_reload(THD *thd)
     obtaining LOCK_grant rwlock.
   */
 
-  Grant_tables tables(Table_tables_priv | Table_columns_priv| Table_procs_priv,
+  Grant_tables tables(Table_tables_priv | Table_columns_priv| Table_procs_priv|
+                     Table_reverse_tables_priv | Table_reverse_columns_priv | Table_reverse_procs_priv,
                       TL_READ);
   if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
@@ -10135,7 +10625,9 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   /* CREATE USER may be skipped on replication client. */
   Grant_tables tables(Table_user | Table_db |
                       Table_tables_priv | Table_columns_priv |
-                      Table_procs_priv | Table_proxies_priv |
+                      Table_procs_priv | Table_reverse_user | Table_reverse_db |
+                      Table_reverse_tables_priv | Table_reverse_columns_priv |
+                      Table_reverse_procs_priv | Table_proxies_priv |
                       Table_roles_mapping, TL_WRITE);
   if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
@@ -10301,7 +10793,9 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   /* DROP USER may be skipped on replication client. */
   Grant_tables tables(Table_user | Table_db |
                       Table_tables_priv | Table_columns_priv |
-                      Table_procs_priv | Table_proxies_priv |
+                      Table_procs_priv | Table_reverse_user | Table_reverse_db |
+                      Table_reverse_tables_priv | Table_reverse_columns_priv |
+                      Table_reverse_procs_priv | Table_proxies_priv |
                       Table_roles_mapping, TL_WRITE);
   if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
@@ -10411,7 +10905,9 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
   /* RENAME USER may be skipped on replication client. */
   Grant_tables tables(Table_user | Table_db |
                       Table_tables_priv | Table_columns_priv |
-                      Table_procs_priv | Table_proxies_priv |
+                      Table_procs_priv | Table_reverse_user | Table_reverse_db |
+                      Table_reverse_tables_priv | Table_reverse_columns_priv |
+                      Table_reverse_procs_priv | Table_proxies_priv |
                       Table_roles_mapping, TL_WRITE);
   if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
@@ -10606,7 +11102,9 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
 
   Grant_tables tables(Table_user | Table_db |
                       Table_tables_priv | Table_columns_priv |
-                      Table_procs_priv | Table_proxies_priv |
+                      Table_procs_priv | Table_reverse_user | Table_reverse_db |
+                      Table_reverse_tables_priv | Table_reverse_columns_priv |
+                      Table_reverse_procs_priv | Table_proxies_priv |
                       Table_roles_mapping, TL_WRITE);
   if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);
@@ -10894,7 +11392,9 @@ bool sp_revoke_privileges(THD *thd, const char *sp_db, const char *sp_name,
 
   Grant_tables tables(Table_user | Table_db |
                       Table_tables_priv | Table_columns_priv |
-                      Table_procs_priv | Table_proxies_priv |
+                      Table_procs_priv | Table_reverse_user | Table_reverse_db |
+                      Table_reverse_tables_priv | Table_reverse_columns_priv |
+                      Table_reverse_procs_priv | Table_proxies_priv |
                       Table_roles_mapping, TL_WRITE);
   if ((result= tables.open_and_lock(thd)))
     DBUG_RETURN(result != 1);

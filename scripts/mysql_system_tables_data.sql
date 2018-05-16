@@ -26,6 +26,24 @@
 -- a plain character
 SELECT LOWER( REPLACE((SELECT REPLACE(@@hostname,'_','\_')),'%','\%') )INTO @current_hostname;
 
+-- Fill "reverse_db" table with default denies for anyone to
+-- access database 'test', 'test1' and 'test2_%' if "reverse_db" table didn't exist
+CREATE TEMPORARY TABLE tmp_reverse_db LIKE db;
+INSERT INTO tmp_reverse_db VALUES ('%','test','','N','N','N','Y','N','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y','Y');
+INSERT INTO tmp_reverse_db VALUES ('%','test1','','N','Y','N','Y','N','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y','Y');
+INSERT INTO tmp_reverse_db VALUES ('%','test2\_%','','N','Y','Y','Y','N','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y','Y');
+INSERT INTO reverse_db SELECT * FROM tmp_reverse_db WHERE @had_db_table=0;
+DROP TABLE tmp_reverse_db;
+
+-- Fill "db" table with default grants for anyone to
+-- access database 'test', 'test1' and 'test2_%' if "db" table didn't exist
+CREATE TEMPORARY TABLE tmp_reverse_db LIKE db;
+INSERT INTO tmp_reverse_db VALUES ('%','test','','Y','Y','Y','Y','Y','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y','Y');
+INSERT INTO tmp_reverse_db VALUES ('%','test1','','Y','Y','Y','Y','N','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y','Y');
+INSERT INTO tmp_reverse_db VALUES ('%','test2\_%','','Y','Y','Y','Y','Y','Y','N','Y','Y','Y','Y','Y','Y','Y','Y','N','N','Y','Y','Y');
+INSERT INTO reverse_db SELECT * FROM tmp_reverse_db WHERE @had_db_table=0;
+DROP TABLE tmp_reverse_db;
+
 -- Fill "user" table with default users allowing root access
 -- from local machine if "user" table didn't exist before
 CREATE TEMPORARY TABLE tmp_user_nopasswd LIKE user;
@@ -47,3 +65,9 @@ INSERT INTO tmp_proxies_priv VALUES ('localhost', 'root', '', '', TRUE, '', now(
 REPLACE INTO tmp_proxies_priv SELECT @current_hostname, 'root', '', '', TRUE, '', now() FROM DUAL WHERE @current_hostname != 'localhost';
 INSERT INTO  proxies_priv SELECT * FROM tmp_proxies_priv WHERE @had_proxies_priv_table=0;
 DROP TABLE tmp_proxies_priv;
+
+CREATE TEMPORARY TABLE tmp_reverse_proxies_priv LIKE reverse_proxies_priv;
+INSERT INTO tmp_reverse_proxies_priv VALUES ('localhost', 'root', '', '', TRUE, '', now());
+REPLACE INTO tmp_reverse_proxies_priv SELECT @current_hostname, 'root', '', '', TRUE, '', now() FROM DUAL WHERE @current_hostname != 'localhost';
+INSERT INTO  proxies_priv SELECT * FROM tmp_reverse_proxies_priv WHERE @had_proxies_priv_table=0;
+DROP TABLE tmp_reverse_proxies_priv;
