@@ -272,7 +272,7 @@ bool
 trx_undo_truncate_tablespace(
 	undo::Truncate*	undo_trunc);
 
-/** Parse MLOG_UNDO_INIT for crash-upgrade from MariaDB 10.2.
+/** Parse MLOG_UNDO_INIT.
 @param[in]	ptr	log record
 @param[in]	end_ptr	end of log record buffer
 @param[in,out]	page	page or NULL
