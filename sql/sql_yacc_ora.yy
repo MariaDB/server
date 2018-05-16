@@ -1044,6 +1044,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   OR_SYM OR2_SYM
 %left   XOR
 %left   AND_SYM AND_AND_SYM
+%left   NOT_SYM
 %left   BETWEEN_SYM CASE_SYM WHEN_SYM THEN_SYM ELSE
 %left   '=' EQUAL_SYM GE '>' LE '<' NE IS LIKE REGEXP IN_SYM
 %left   '|'
@@ -1053,9 +1054,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   '*' '/' DIV_SYM MOD_SYM
 %left   '^'
 %left   MYSQL_CONCAT_SYM
-%left   NEG '~'
-%right  NOT_SYM NOT2_SYM
-%right  BINARY COLLATE_SYM
+%left   NEG '~' NOT2_SYM BINARY
+%left   COLLATE_SYM
 
 %type <lex_str>
         DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
