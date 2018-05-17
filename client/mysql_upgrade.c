@@ -558,8 +558,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
   DBUG_PRINT("enter", ("query: %s", query));
   if ((fd= create_temp_file(query_file_path, 
                             opt_tmpdir[0] ? opt_tmpdir : NULL,
-                            "sql", O_CREAT | O_SHARE | O_RDWR,
-                            MYF(MY_WME))) < 0)
+                            "sql", O_SHARE, MYF(MY_WME))) < 0)
     die("Failed to create temporary file for defaults");
 
   /*
@@ -1176,7 +1175,7 @@ int main(int argc, char **argv)
   cnf_file_path= strmov(defaults_file, "--defaults-file=");
   {
     int fd= create_temp_file(cnf_file_path, opt_tmpdir[0] ? opt_tmpdir : NULL,
-                             "mysql_upgrade-", O_CREAT | O_WRONLY, MYF(MY_FAE));
+                             "mysql_upgrade-", 0, MYF(MY_FAE));
     if (fd < 0)
       die(NULL);
     my_write(fd, USTRING_WITH_LEN( "[client]\n"), MYF(MY_FAE));

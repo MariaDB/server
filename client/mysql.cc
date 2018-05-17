@@ -4205,8 +4205,7 @@ com_edit(String *buffer,char *line __attribute__((unused)))
   const char *editor;
   MY_STAT stat_arg;
 
-  if ((fd=create_temp_file(filename,NullS,"sql", O_CREAT | O_WRONLY,
-			   MYF(MY_WME))) < 0)
+  if ((fd= create_temp_file(filename,NullS,"sql", 0, MYF(MY_WME))) < 0)
     goto err;
   if (buffer->is_empty() && !old_buffer.is_empty())
     (void) my_write(fd,(uchar*) old_buffer.ptr(),old_buffer.length(),

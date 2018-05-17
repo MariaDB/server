@@ -2209,8 +2209,7 @@ int dyn_string_cmp(DYNAMIC_STRING* ds, const char *fname)
   DBUG_ENTER("dyn_string_cmp");
   DBUG_PRINT("enter", ("fname: %s", fname));
 
-  if ((fd= create_temp_file(temp_file_path, TMPDIR,
-                            "tmp", O_CREAT | O_SHARE | O_RDWR,
+  if ((fd= create_temp_file(temp_file_path, TMPDIR, "tmp", O_SHARE,
                             MYF(MY_WME))) < 0)
     die("Failed to create temporary file for ds");
 
@@ -4684,8 +4683,7 @@ void do_perl(struct st_command *command)
 
     /* Create temporary file name */
     if ((fd= create_temp_file(temp_file_path, getenv("MYSQLTEST_VARDIR"),
-                              "tmp", O_CREAT | O_SHARE | O_RDWR,
-                              MYF(MY_WME))) < 0)
+                              "tmp", O_SHARE, MYF(MY_WME))) < 0)
       die("Failed to create temporary file for perl command");
     my_close(fd, MYF(0));
 
