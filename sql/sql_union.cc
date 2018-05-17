@@ -521,7 +521,18 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
         with_element->rec_result=
           new (thd_arg->mem_root) select_union_recursive(thd_arg);
         union_result=  with_element->rec_result;
-        fake_select_lex= NULL;
+        if (fake_select_lex)
+	{
+          if (fake_select_lex->order_list.first ||
+              fake_select_lex->explicit_limit)
+          {
+	    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+                     "global ORDER_BY/LIMIT in recursive CTE spec");
+	    goto err;
+          }
+          fake_select_lex->cleanup();
+          fake_select_lex= NULL;
+        }
       }
       if (!(tmp_result= union_result))
         goto err; /* purecov: inspected */

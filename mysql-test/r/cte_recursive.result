@@ -3233,3 +3233,13 @@ Parent	Child	Path
 654	987	987,
 321	654	987,654,
 DROP TABLE t1;
+#
+# MDEV-16212: recursive CTE with global ORDER BY
+#
+set statement max_recursive_iterations = 2 for
+WITH RECURSIVE qn AS (
+SELECT 1 FROM dual UNION ALL
+SELECT 1 FROM qn
+ORDER BY (SELECT * FROM qn))
+SELECT count(*) FROM qn;
+ERROR 42000: This version of MariaDB doesn't yet support 'global ORDER_BY/LIMIT in recursive CTE spec'

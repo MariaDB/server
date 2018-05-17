@@ -2246,3 +2246,15 @@ FROM cte
 ORDER BY Path;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16212: recursive CTE with global ORDER BY
+--echo #
+
+--error ER_NOT_SUPPORTED_YET
+set statement max_recursive_iterations = 2 for
+WITH RECURSIVE qn AS (
+SELECT 1 FROM dual UNION ALL
+SELECT 1 FROM qn
+ORDER BY (SELECT * FROM qn))
+SELECT count(*) FROM qn;
