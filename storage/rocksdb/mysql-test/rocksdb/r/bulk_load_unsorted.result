@@ -75,9 +75,9 @@ LOAD DATA INFILE <input_file> INTO TABLE t3;
 set rocksdb_bulk_load=0;
 SHOW TABLE STATUS WHERE name LIKE 't%';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	ROCKSDB	10	Fixed	5000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL			0	N
-t2	ROCKSDB	10	Fixed	5000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL			0	N
-t3	ROCKSDB	10	Fixed	5000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+t1	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL			0	N
+t2	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL			0	N
+t3	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
 ANALYZE TABLE t1, t2, t3;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
@@ -85,36 +85,27 @@ test.t2	analyze	status	OK
 test.t3	analyze	status	OK
 SHOW TABLE STATUS WHERE name LIKE 't%';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	ROCKSDB	10	Fixed	5000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL			0	N
-t2	ROCKSDB	10	Fixed	5000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL			0	N
-t3	ROCKSDB	10	Fixed	5000000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
-select count(a) from t1;
-count(a)
-5000000
-select count(b) from t1;
-count(b)
-5000000
-select count(a) from t2;
-count(a)
-5000000
-select count(b) from t2;
-count(b)
-5000000
-select count(a) from t3;
-count(a)
-5000000
-select count(b) from t3;
-count(b)
-5000000
+t1	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL			0	N
+t2	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL			0	N
+t3	ROCKSDB	10	Fixed	2500000	#	#	#	#	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned		0	N
+select count(a),count(b) from t1;
+count(a)	count(b)
+2500000	2500000
+select count(a),count(b) from t2;
+count(a)	count(b)
+2500000	2500000
+select count(a),count(b) from t3;
+count(a)	count(b)
+2500000	2500000
 SELECT * FROM t1 FORCE INDEX (PRIMARY) LIMIT 3;
 a	b
--4999998	5000000
--4999996	4999998
--4999994	4999996
+-2499998	2500000
+-2499996	2499998
+-2499994	2499996
 SELECT * FROM t2 FORCE INDEX (PRIMARY) LIMIT 3;
 a	b
-4999999	-4999997
-4999997	-4999995
-4999995	-4999993
+2499999	-2499997
+2499997	-2499995
+2499995	-2499993
 disconnect other;
 DROP TABLE t1, t2, t3;

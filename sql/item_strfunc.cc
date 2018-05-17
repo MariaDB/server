@@ -5204,3 +5204,23 @@ null:
     my_free(names);
   return NULL;
 }
+
+Item_temptable_rowid::Item_temptable_rowid(TABLE *table_arg)
+  : Item_str_func(table_arg->in_use), table(table_arg)
+{
+  max_length= table->file->ref_length;
+}
+
+void Item_temptable_rowid::fix_length_and_dec()
+{
+  used_tables_cache= table->map;
+  const_item_cache= false;
+}
+
+String *Item_temptable_rowid::val_str(String *str)
+{
+  if (!((null_value= table->null_row)))
+    table->file->position(table->record[0]);
+  str_value.set((char*)(table->file->ref), max_length, &my_charset_bin);
+  return &str_value;
+}

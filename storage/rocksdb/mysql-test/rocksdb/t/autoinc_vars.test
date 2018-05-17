@@ -103,3 +103,16 @@ SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (NULL, 'c');
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #----------------------------------
+--echo # Issue #792 Crash in autoincrement
+--echo #----------------------------------
+
+CREATE TABLE t1(C1 DOUBLE AUTO_INCREMENT KEY,C2 CHAR) ENGINE=ROCKSDB;
+INSERT INTO t1 VALUES(2177,0);
+DROP TABLE t1;
+
+CREATE TABLE t0(c0 BLOB) ENGINE=ROCKSDB;
+INSERT INTO t0 VALUES(0);
+ALTER TABLE t0 AUTO_INCREMENT=0;
+DROP TABLE t0;

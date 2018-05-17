@@ -2167,22 +2167,12 @@ loop_end:
       tbl->prepare_for_position();
       join->map2table[tbl->tablenr]->keep_current_rowid= true;
 
-      Field_string *field= new Field_string(tbl->file->ref_length, 0,
-                                            &field_name,
-                                            &my_charset_bin);
-      if (!field)
-        DBUG_RETURN(1);
-      field->init(tbl);
-      /*
-        The field will be converted to varstring when creating tmp table if
-        table to be updated was created by mysql 4.1. Deny this.
-      */
-      field->can_alter_field_type= 0;
-      Item_field *ifield= new (thd->mem_root) Item_field(join->thd, (Field *) field);
-      if (!ifield)
+      Item_temptable_rowid *item=
+        new (thd->mem_root) Item_temptable_rowid(tbl);
+      if (!item)
          DBUG_RETURN(1);
-      ifield->maybe_null= 0;
-      if (temp_fields.push_back(ifield, thd->mem_root))
+      item->fix_fields(thd, 0);
+      if (temp_fields.push_back(item, thd->mem_root))
         DBUG_RETURN(1);
     } while ((tbl= tbl_it++));
 
@@ -2193,10 +2183,10 @@ loop_end:
     group.direction= ORDER::ORDER_ASC;
     group.item= (Item**) temp_fields.head_ref();
 
-    tmp_param->quick_group=1;
-    tmp_param->field_count=temp_fields.elements;
-    tmp_param->group_parts=1;
-    tmp_param->group_length= table->file->ref_length;
+    tmp_param->quick_group= 1;
+    tmp_param->field_count= temp_fields.elements;
+    tmp_param->func_count=  temp_fields.elements - 1;
+    calc_group_buffer(tmp_param, &group);
     /* small table, ignore SQL_BIG_TABLES */
     my_bool save_big_tables= thd->variables.big_tables; 
     thd->variables.big_tables= FALSE;
@@ -2208,7 +2198,63 @@ loop_end:
       DBUG_RETURN(1);
     tmp_tables[cnt]->file->extra(HA_EXTRA_WRITE_CACHE);
   }
+  join->tmp_table_keep_current_rowid= TRUE;
   DBUG_RETURN(0);
+}
+
+
+static TABLE *item_rowid_table(Item *item)
+{
+  if (item->type() != Item::FUNC_ITEM)
+    return NULL;
+  Item_func *func= (Item_func *)item;
+  if (func->functype() != Item_func::TEMPTABLE_ROWID)
+    return NULL;
+  Item_temptable_rowid *itr= (Item_temptable_rowid *)func;
+  return itr->table;
+}
+
+
+/*
+  multi_update stores a rowid and new field values for every updated row in a
+  temporary table (one temporary table per updated table).  These rowids are
+  obtained via Item_temptable_rowid's by calling handler::position().  But if
+  the join is resolved via a temp table, rowids cannot be obtained from
+  handler::position() in the multi_update::send_data().  So, they're stored in
+  the join's temp table (JOIN::add_fields_for_current_rowid()) and here we
+  replace Item_temptable_rowid's (that would've done handler::position()) with
+  Item_field's (that will simply take the corresponding field value from the
+  temp table).
+*/
+int multi_update::prepare2(JOIN *join)
+{
+  if (!join->need_tmp || !join->tmp_table_keep_current_rowid)
+    return 0;
+
+  // there cannot be many tmp tables in multi-update
+  JOIN_TAB *tmptab= join->join_tab + join->exec_join_tab_cnt();
+
+  for (Item **it= tmptab->tmp_table_param->items_to_copy; *it ; it++)
+  {
+    TABLE *tbl= item_rowid_table(*it);
+    if (!tbl)
+      continue;
+    for (uint i= 0; i < table_count; i++)
+    {
+      for (Item **it2= tmp_table_param[i].items_to_copy; *it2; it2++)
+      {
+        if (item_rowid_table(*it2) != tbl)
+          continue;
+        Item *fld= new (thd->mem_root)
+                        Item_field(thd, (*it)->get_tmp_table_field());
+        if (!fld)
+          return 1;
+        fld->set_result_field((*it2)->get_tmp_table_field());
+        *it2= fld;
+      }
+    }
+  }
+  return 0;
 }
 
 
@@ -2384,29 +2430,11 @@ int multi_update::send_data(List<Item> &not_used_values)
     {
       int error;
       TABLE *tmp_table= tmp_tables[offset];
-      /*
-       For updatable VIEW store rowid of the updated table and
-       rowids of tables used in the CHECK OPTION condition.
-      */
-      uint field_num= 0;
-      List_iterator_fast<TABLE> tbl_it(unupdated_check_opt_tables);
-      /* Set first tbl = table and then tbl to tables from tbl_it */
-      TABLE *tbl= table;
-      do
-      {
-        tbl->file->position(tbl->record[0]);
-        memcpy((char*) tmp_table->field[field_num]->ptr,
-               (char*) tbl->file->ref, tbl->file->ref_length);
-        /*
-         For outer joins a rowid field may have no NOT_NULL_FLAG,
-         so we have to reset NULL bit for this field.
-         (set_notnull() resets NULL bit only if available).
-        */
-        tmp_table->field[field_num]->set_notnull();
-        field_num++;
-      } while ((tbl= tbl_it++));
-
+      if (copy_funcs(tmp_table_param[offset].items_to_copy, thd))
+        DBUG_RETURN(1);
       /* Store regular updated fields in the row. */
+      DBUG_ASSERT(1 + unupdated_check_opt_tables.elements ==
+                  tmp_table_param[offset].func_count);
       fill_record(thd, tmp_table,
                   tmp_table->field + 1 + unupdated_check_opt_tables.elements,
                   *values_for_table[offset], TRUE, FALSE);

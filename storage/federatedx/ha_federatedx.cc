@@ -318,6 +318,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "sql_servers.h"
 #include "sql_analyse.h"                        // append_escaped()
 #include "sql_show.h"                           // append_identifier()
+#include "tztime.h"                             // my_tz_OFFSET0
 
 #ifdef I_AM_PARANOID
 #define MIN_PORT 1023
@@ -339,6 +340,8 @@ static const int bulk_padding= 64;              // bytes "overhead" in packet
 static const uint sizeof_trailing_comma= sizeof(", ") - 1;
 static const uint sizeof_trailing_and= sizeof(" AND ") - 1;
 static const uint sizeof_trailing_where= sizeof(" WHERE ") - 1;
+
+static Time_zone *UTC= 0;
 
 /* Static declaration for handerton */
 static handler *federatedx_create_handler(handlerton *hton,
@@ -860,8 +863,10 @@ uint ha_federatedx::convert_row_to_internal_format(uchar *record,
   Field **field;
   int column= 0;
   my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  Time_zone *saved_time_zone= table->in_use->variables.time_zone;
   DBUG_ENTER("ha_federatedx::convert_row_to_internal_format");
 
+  table->in_use->variables.time_zone= UTC;
   lengths= io->fetch_lengths(result);
 
   for (field= table->field; *field; field++, column++)
@@ -885,6 +890,7 @@ uint ha_federatedx::convert_row_to_internal_format(uchar *record,
     }
     (*field)->move_field_offset(-old_ptr);
   }
+  table->in_use->variables.time_zone= saved_time_zone;
   dbug_tmp_restore_column_map(table->write_set, old_map);
   DBUG_RETURN(0);
 }
@@ -1213,6 +1219,7 @@ bool ha_federatedx::create_where_from_key(String *to,
   char tmpbuff[FEDERATEDX_QUERY_BUFFER_SIZE];
   String tmp(tmpbuff, sizeof(tmpbuff), system_charset_info);
   const key_range *ranges[2]= { start_key, end_key };
+  Time_zone *saved_time_zone= table->in_use->variables.time_zone;
   my_bitmap_map *old_map;
   DBUG_ENTER("ha_federatedx::create_where_from_key");
 
@@ -1220,6 +1227,7 @@ bool ha_federatedx::create_where_from_key(String *to,
   if (start_key == NULL && end_key == NULL)
     DBUG_RETURN(1);
 
+  table->in_use->variables.time_zone= UTC;
   old_map= dbug_tmp_use_all_columns(table, table->write_set);
   for (uint i= 0; i <= 1; i++)
   {
@@ -1397,6 +1405,7 @@ prepare_for_next_key_part:
     }
   }
   dbug_tmp_restore_column_map(table->write_set, old_map);
+  table->in_use->variables.time_zone= saved_time_zone;
 
   if (both_not_null)
     if (tmp.append(STRING_WITH_LEN(") ")))
@@ -1412,6 +1421,7 @@ prepare_for_next_key_part:
 
 err:
   dbug_tmp_restore_column_map(table->write_set, old_map);
+  table->in_use->variables.time_zone= saved_time_zone;
   DBUG_RETURN(1);
 }
 
@@ -1581,6 +1591,12 @@ static FEDERATEDX_SHARE *get_share(const char *table_name, TABLE *table)
   init_alloc_root(&mem_root, "federated", 256, 0, MYF(0));
 
   mysql_mutex_lock(&federatedx_mutex);
+
+  if (unlikely(!UTC))
+  {
+    String tz_00_name(STRING_WITH_LEN("+00:00"), &my_charset_bin);
+    UTC= my_tz_find(current_thd, &tz_00_name);
+  }
 
   tmp_share.share_key= table_name;
   tmp_share.share_key_length= (int)strlen(table_name);
@@ -1978,9 +1994,11 @@ int ha_federatedx::write_row(uchar *buf)
   String insert_field_value_string(insert_field_value_buffer,
                                    sizeof(insert_field_value_buffer),
                                    &my_charset_bin);
+  Time_zone *saved_time_zone= table->in_use->variables.time_zone;
   my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
   DBUG_ENTER("ha_federatedx::write_row");
 
+  table->in_use->variables.time_zone= UTC;
   values_string.length(0);
   insert_field_value_string.length(0);
 
@@ -2033,6 +2051,7 @@ int ha_federatedx::write_row(uchar *buf)
     }
   }
   dbug_tmp_restore_column_map(table->read_set, old_map);
+  table->in_use->variables.time_zone= saved_time_zone;
 
   /*
     if there were no fields, we don't want to add a closing paren
@@ -2340,6 +2359,8 @@ int ha_federatedx::update_row(const uchar *old_data, const uchar *new_data)
     field=oldvalue
   */
 
+  Time_zone *saved_time_zone= table->in_use->variables.time_zone;
+  table->in_use->variables.time_zone= UTC;
   for (Field **field= table->field; *field; field++)
   {
     if (bitmap_is_set(table->write_set, (*field)->field_index))
@@ -2391,6 +2412,7 @@ int ha_federatedx::update_row(const uchar *old_data, const uchar *new_data)
       where_string.append(STRING_WITH_LEN(" AND "));
     }
   }
+  table->in_use->variables.time_zone= saved_time_zone;
 
   /* Remove last ', '. This works as there must be at least on updated field */
   update_string.length(update_string.length() - sizeof_trailing_comma);
@@ -2451,6 +2473,8 @@ int ha_federatedx::delete_row(const uchar *buf)
                share->table_name_length, ident_quote_char);
   delete_string.append(STRING_WITH_LEN(" WHERE "));
 
+  Time_zone *saved_time_zone= table->in_use->variables.time_zone;
+  table->in_use->variables.time_zone= UTC;
   for (Field **field= table->field; *field; field++)
   {
     Field *cur_field= *field;
@@ -2478,6 +2502,7 @@ int ha_federatedx::delete_row(const uchar *buf)
       delete_string.append(STRING_WITH_LEN(" AND "));
     }
   }
+  table->in_use->variables.time_zone= saved_time_zone;
 
   // Remove trailing AND
   delete_string.length(delete_string.length() - sizeof_trailing_and);
@@ -3216,7 +3241,10 @@ int ha_federatedx::delete_all_rows()
   query.length(0);
 
   query.set_charset(system_charset_info);
-  query.append(STRING_WITH_LEN("TRUNCATE "));
+  if (thd->lex->sql_command == SQLCOM_TRUNCATE)
+    query.append(STRING_WITH_LEN("TRUNCATE "));
+  else
+    query.append(STRING_WITH_LEN("DELETE FROM "));
   append_ident(&query, share->table_name, share->table_name_length,
                ident_quote_char);
 
@@ -3583,6 +3611,8 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
   MYSQL mysql;
   char buf[1024];
   String query(buf, sizeof(buf), cs);
+  static LEX_CSTRING cut_clause={STRING_WITH_LEN(" WITH SYSTEM VERSIONING")};
+  int cut_offset;
   MYSQL_RES *res;
   MYSQL_ROW rdata;
   ulong *rlen;
@@ -3593,8 +3623,7 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
 
   mysql_init(&mysql);
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, cs->csname);
-  mysql_options(&mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
-                (char*) &my_true);
+  mysql_options(&mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, (char*)&my_true);
 
   if (!mysql_real_connect(&mysql, tmp_share.hostname, tmp_share.username,
                           tmp_share.password, tmp_share.database,
@@ -3618,6 +3647,10 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
     goto err2;
 
   query.copy(rdata[1], rlen[1], cs);
+  cut_offset= (int)query.length() - (int)cut_clause.length;
+  if (cut_offset > 0 && !memcmp(query.ptr() + cut_offset,
+                                cut_clause.str, cut_clause.length))
+    query.length(cut_offset);
   query.append(STRING_WITH_LEN(" CONNECTION='"), cs);
   query.append_for_single_quote(table_s->connect_string.str,
                                 table_s->connect_string.length);

@@ -2274,6 +2274,7 @@ void st_select_lex::init_query()
   select_n_having_items= 0;
   n_sum_items= 0;
   n_child_sum_items= 0;
+  hidden_bit_fields= 0;
   subquery_in_having= explicit_limit= 0;
   is_item_list_lookup= 0;
   first_execution= 1;
@@ -2810,6 +2811,10 @@ ulong st_select_lex::get_table_join_options()
 
 bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
 {
+
+  if (!((options & SELECT_DISTINCT) && !group_list.elements))
+    hidden_bit_fields= 0;
+
   // find_order_in_list() may need some extra space, so multiply by two.
   order_group_num*= 2;
 
@@ -2824,7 +2829,8 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
                        select_n_reserved +
                        select_n_having_items +
                        select_n_where_fields +
-                       order_group_num) * 5;
+                       order_group_num +
+                       hidden_bit_fields) * 5;
   if (!ref_pointer_array.is_null())
   {
     /*

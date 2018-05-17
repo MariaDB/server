@@ -1063,8 +1063,6 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
   while ((in_subq= li++))
   {
     SELECT_LEX *subq_sel= in_subq->get_select_lex();
-    if (subq_sel->handle_derived(thd->lex, DT_OPTIMIZE))
-      DBUG_RETURN(1);
     if (subq_sel->handle_derived(thd->lex, DT_MERGE))
       DBUG_RETURN(TRUE);
     if (subq_sel->join->transform_in_predicates_into_in_subq(thd))

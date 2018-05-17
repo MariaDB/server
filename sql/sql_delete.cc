@@ -324,13 +324,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_ASSERT(!conds);
     conds= table_list->on_expr;
     table_list->on_expr= NULL;
-
-    // trx_sees() in InnoDB reads row_start
-    if (!table->versioned(VERS_TIMESTAMP))
-    {
-      DBUG_ASSERT(table_list->vers_conditions.type == SYSTEM_TIME_BEFORE);
-      bitmap_set_bit(table->read_set, table->vers_end_field()->field_index);
-    }
   }
 
   if (mysql_handle_list_of_derived(thd->lex, table_list, DT_MERGE_FOR_INSERT))
@@ -951,7 +944,8 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
     if (select_lex->vers_setup_conds(thd, table_list))
       DBUG_RETURN(true);
   }
-  if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num)) ||
+  if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num,
+                              &select_lex->hidden_bit_fields)) ||
       setup_fields(thd, Ref_ptr_array(),
                    field_list, MARK_COLUMNS_READ, NULL, NULL, 0) ||
       setup_conds(thd, table_list, select_lex->leaf_tables, conds) ||

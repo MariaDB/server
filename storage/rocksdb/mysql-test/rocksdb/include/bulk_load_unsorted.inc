@@ -84,7 +84,7 @@ perl;
 my $fn = $ENV{'ROCKSDB_INFILE'};
 open(my $fh, '>', $fn) || die "perl open($fn): $!";
 binmode $fh;
-my $max = 5000000;
+my $max = 2500000;
 my $sign = 1;
 for (my $ii = 0; $ii < $max; $ii++)
 {
@@ -129,12 +129,9 @@ ANALYZE TABLE t1, t2, t3;
 SHOW TABLE STATUS WHERE name LIKE 't%';
 
 # Make sure all the data is there.
-select count(a) from t1;
-select count(b) from t1;
-select count(a) from t2;
-select count(b) from t2;
-select count(a) from t3;
-select count(b) from t3;
+select count(a),count(b) from t1;
+select count(a),count(b) from t2;
+select count(a),count(b) from t3;
 
 SELECT * FROM t1 FORCE INDEX (PRIMARY) LIMIT 3;
 SELECT * FROM t2 FORCE INDEX (PRIMARY) LIMIT 3;

@@ -156,6 +156,7 @@ void Item_subselect::cleanup()
   reset();
   filesort_buffer.free_sort_buffer();
   my_free(sortbuffer.str);
+  sortbuffer.str= 0;
 
   value_assigned= 0;
   expr_cache= 0;

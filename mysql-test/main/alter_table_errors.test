@@ -1,0 +1,10 @@
+--source include/have_innodb.inc
+
+#
+# MDEV-16110 ALTER with ALGORITHM=INPLACE breaks temporary table with virtual columns
+#
+create table t (a int, v int as (a)) engine=innodb;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table t change column a b tinyint, algorithm=inplace;
+show create table t;
+drop table t;

@@ -123,7 +123,7 @@ Item_func_trt_id::get_by_commit_ts(MYSQL_TIME &commit_ts, bool backwards)
   TR_table trt(thd);
   null_value= !trt.query(commit_ts, backwards);
   if (null_value)
-    return 0;
+    return backwards ? ULONGLONG_MAX : 0;
 
   return trt[trt_field]->val_int();
 }

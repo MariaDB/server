@@ -2221,6 +2221,105 @@ select * from (select  date('2018-01-01') as d
 select * from (select  date('2018-01-01') as d) as t
   where t.d between date ('2017-01-01') and date ('2019-01-01');
 
+--echo #
+--echo # MDEV-16088: pushdown into derived defined in the IN subquery
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (e INT, f INT, g INT);
+INSERT INTO t1 VALUES (1,14),(2,13),(1,19),(2,32),(3,24);
+INSERT INTO t2 VALUES (1,19,2),(3,24,1),(1,12,2),(3,11,3),(2,32,1);
+
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e,d_tab.max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) AS max_f
+      FROM t2
+      GROUP BY t2.e
+      HAVING max_f>18
+    ) as d_tab
+    WHERE d_tab.e>1
+  )
+;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e,d_tab.max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) AS max_f
+      FROM t2
+      GROUP BY t2.e
+      HAVING max_f>18
+    ) as d_tab
+    WHERE d_tab.max_f<25
+  )
+;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e, MAX(d_tab.max_f) AS max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) as max_f, t2.g
+      FROM t2
+      GROUP BY t2.e
+    ) as d_tab
+    WHERE d_tab.e>1
+    GROUP BY d_tab.g
+  )
+;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e, MAX(d_tab.max_f) AS max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) as max_f, t2.g
+      FROM t2
+      GROUP BY t2.e
+    ) as d_tab
+    WHERE d_tab.max_f>20
+    GROUP BY d_tab.g
+  )
+;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-15765: pushing condition with IN subquery defined with constants
+--echo #             using substitution
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM
+(
+  SELECT DISTINCT * FROM t1
+) der_tab
+WHERE (a>0 AND a<2 OR a IN (2,3)) AND
+      (a=2 OR 0);
+
+DROP TABLE t1;
+
 # Start of 10.3 tests
 
 --echo #

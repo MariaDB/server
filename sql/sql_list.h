@@ -138,6 +138,13 @@ public:
       first == rhs.first &&
       last == rhs.last;
   }
+  base_list& operator=(const base_list &rhs)
+  {
+    elements= rhs.elements;
+    first= rhs.first;
+    last= elements ? rhs.last : &first;
+    return *this;
+  }
 
   inline void empty() { elements=0; first= &end_of_list; last=&first;}
   inline base_list() { empty(); }
@@ -152,9 +159,7 @@ public:
   */
   inline base_list(const base_list &tmp) :Sql_alloc()
   {
-    elements= tmp.elements;
-    first= tmp.first;
-    last= elements ? tmp.last : &first;
+    *this= tmp;
   }
   /**
     Construct a deep copy of the argument in memory root mem_root.

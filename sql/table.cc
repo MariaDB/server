@@ -5223,14 +5223,25 @@ int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
 
 int TABLE::verify_constraints(bool ignore_failure)
 {
+  /*
+    We have to check is_error() first as we are checking it for each
+    constraint to catch fatal warnings.
+  */
+  if (in_use->is_error())
+    return (VIEW_CHECK_ERROR);
+
   /* go trough check option clauses for fields and table */
   if (check_constraints &&
       !(in_use->variables.option_bits & OPTION_NO_CHECK_CONSTRAINT_CHECKS))
   {
     for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
     {
-      /* yes! NULL is ok, see 4.23.3.4 Table check constraints, part 2, SQL:2016 */
-      if ((*chk)->expr->val_int() == 0 && !(*chk)->expr->null_value)
+      /*
+        yes! NULL is ok.
+        see 4.23.3.4 Table check constraints, part 2, SQL:2016
+      */
+      if (((*chk)->expr->val_int() == 0 && !(*chk)->expr->null_value) ||
+          in_use->is_error())
       {
         my_error(ER_CONSTRAINT_FAILED,
                  MYF(ignore_failure ? ME_JUST_WARNING : 0), (*chk)->name.str,
@@ -5239,7 +5250,11 @@ int TABLE::verify_constraints(bool ignore_failure)
       }
     }
   }
-  return(VIEW_CHECK_OK);
+  /*
+    We have to check in_use() as checking constraints may have generated
+    warnings that should be treated as errors
+  */
+  return(!in_use->is_error() ? VIEW_CHECK_OK : VIEW_CHECK_ERROR);
 }
 
 /*
@@ -8454,8 +8469,8 @@ Item* TABLE_LIST::build_pushable_cond_for_table(THD *thd, Item *cond)
 
       new_cond->argument_list()->push_back(fix, thd->mem_root);
     }
-    if (is_fix_needed)
-      new_cond->fix_fields(thd, 0);
+    if (is_fix_needed && new_cond->fix_fields(thd, 0))
+      return 0;
 
     switch (new_cond->argument_list()->elements) 
     {

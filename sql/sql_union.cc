@@ -499,14 +499,14 @@ void select_union_recursive::cleanup()
 bool select_union_direct::change_result(select_result *new_result)
 {
   result= new_result;
-  return (result->prepare(unit->types, unit) || result->prepare2());
+  return (result->prepare(unit->types, unit) || result->prepare2(NULL));
 }
 
 
 bool select_union_direct::postponed_prepare(List<Item> &types)
 {
   if (result != NULL)
-    return (result->prepare(types, unit) || result->prepare2());
+    return (result->prepare(types, unit) || result->prepare2(NULL));
   else
     return false;
 }
@@ -1932,6 +1932,7 @@ bool st_select_lex::cleanup()
   }
   inner_refs_list.empty();
   exclude_from_table_unique_test= FALSE;
+  hidden_bit_fields= 0;
   DBUG_RETURN(error);
 }
 

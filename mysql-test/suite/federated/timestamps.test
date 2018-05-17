@@ -1,0 +1,45 @@
+source have_federatedx.inc;
+source include/federated.inc;
+
+connection slave;
+set global time_zone='Europe/Moscow';
+set time_zone='Europe/Moscow';
+create table federated.t1 (dt datetime, ts timestamp, unique(ts));
+
+connection master;
+set time_zone='+01:00';
+replace_result $SLAVE_MYPORT SLAVE_PORT;
+eval create table t1 engine=federated connection='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+set @@timestamp=1; # min value
+insert t1 values (now(), now());
+set @@timestamp=2147483647; # max value
+insert t1 values (now(), now());
+set @@timestamp=1067121000; # DST ambiguous (in Europe/Moscow)
+insert t1 values (now(), now());
+set @@timestamp=1067124600; # DST ambiguous (in Europe/Moscow)
+insert t1 values (now(), now());
+set @@timestamp=0;
+
+# reads
+select * from t1;
+
+# deletes
+delete from t1 where ts='1970-01-01 01:00:01';
+select * from t1;
+
+# updates
+insert t1 values ('1970-01-01 01:00:01', now());
+update t1 set ts=dt;
+select * from t1;
+
+# index lookups
+select * from t1 where ts='2003-10-25 23:30:00';
+select * from t1 where ts='2003-10-26 00:30:00';
+
+connection slave;
+select * from federated.t1;
+set global time_zone=default;
+connection master;
+drop table t1;
+source include/federated_cleanup.inc;
