@@ -892,10 +892,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 122 shift/reduce conflicts.
+  Currently there are 99 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 122
+%expect 99
 
 /*
    Comments for TOKENS.
@@ -1670,6 +1670,93 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   MYSQL_CONCAT_SYM
 %left   NEG '~' NOT2_SYM BINARY
 %left   COLLATE_SYM
+
+/*
+  Tokens that can change their meaning from identifier to something else
+  in certain context.
+
+  - TRANSACTION: identifier, history unit:
+      SELECT transaction FROM t1;
+      SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION @var;
+
+  - TIMESTAMP: identifier, literal, history unit:
+      SELECT timestamp FROM t1;
+      SELECT TIMESTAMP '2001-01-01 10:20:30';
+      SELECT * FROM t1 FOR SYSTEM_TIME AS OF TIMESTAMP CONCAT(@date,' ',@time);
+
+  - PERIOD: identifier, period for sytem time:
+      SELECT period FROM t1;
+      ALTER TABLE DROP PERIOD FOR SYSTEM TIME;
+
+  - SYSTEM: identifier, system versioning:
+      SELECT system FROM t1;
+      ALTER TABLE DROP SYSTEM VERSIONIONG;
+
+   Note, we need here only tokens that cause shirt/reduce conflicts
+   with keyword identifiers. For example:
+      opt_clause1: %empty | KEYWORD ... ;
+      clause2: opt_clause1 ident;
+   KEYWORD can appear both in opt_clause1 and in "ident" through the "keyword"
+   rule. So the parser reports a conflict on how to interpret KEYWORD:
+     - as a start of non-empty branch in opt_clause1, or
+     - as an identifier which follows the empty branch in opt_clause1.
+
+   Example#1:
+     alter_list_item:
+       DROP opt_column opt_if_exists_table_element field_ident
+     | DROP SYSTEM VERSIONING_SYM
+   SYSTEM can be a keyword in field_ident, or can be a start of
+   SYSTEM VERSIONING.
+
+   Example#2:
+     system_time_expr: AS OF_SYM history_point
+     history_point: opt_history_unit bit_expr
+     opt_history_unit: | TRANSACTION_SYM
+   TRANSACTION can be a non-empty history unit, or can be an identifier
+   in bit_expr.
+
+   In the grammar below we use %prec to explicitely tell Bison to go
+   through the empty branch in the optional rule only when the lookahead
+   token does not belong to a small set of selected tokens.
+
+   Tokens NEXT_SYM and PREVIOUS_SYM also change their meaning from
+   identifiers to sequence operations when followed by VALUE_SYM:
+      SELECT NEXT VALUE FOR s1, PREVIOUS VALUE FOR s1;
+   but we don't need to list them here as they do not seem to cause
+   conflicts (according to bison -v), as both meanings
+   (as identifier, and as a sequence operation) are parts of the same target
+   column_default_non_parenthesized_expr, and there are no any optional
+   clauses between the start of column_default_non_parenthesized_expr
+   and until NEXT_SYM / PREVIOUS_SYM.
+*/
+%left   PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE
+%left   TRANSACTION_SYM TIMESTAMP PERIOD SYSTEM
+
+
+/*
+  Tokens that can appear in a token contraction on the second place
+  and change the meaning of the previous token.
+
+  - TEXT_STRING: changes the meaning of TIMESTAMP/TIME/DATE
+    from identifier to literal:
+      SELECT timestamp FROM t1;
+      SELECT TIMESTAMP'2001-01-01 00:00:00' FROM t1;
+
+  - Parenthesis: changes the meaning of TIMESTAMP/TIME/DATE
+    from identifiers to CAST-alike functions:
+      SELECT timestamp FROM t1;
+      SELECT timestamp(1) FROM t1;
+
+  - VALUE: changes NEXT and PREVIOUS from identifier to sequence operation:
+      SELECT next, previous FROM t1;
+      SELECT NEXT VALUE FOR s1, PREVIOUS VALUE FOR s1;
+
+  - VERSIONING: changes SYSTEM from identifier to SYSTEM VERSIONING
+      SELECT system FROM t1;
+      ALTER TABLE t1 ADD SYSTEM VERSIONING;
+*/
+%left   PREC_BELOW_CONTRACTION_TOKEN2
+%left   TEXT_STRING '(' VALUE_SYM VERSIONING_SYM
 
 %type <lex_str>
         DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
@@ -8355,7 +8442,7 @@ alter_lock_option:
         ;
 
 opt_column:
-          /* empty */ {}
+          /* empty */ {}     %prec PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE
         | COLUMN_SYM {}
         ;
 
@@ -9239,7 +9326,7 @@ select_options:
         ;
 
 opt_history_unit:
-          /* empty*/
+          /* empty*/         %prec PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE
           {
             $$= VERS_UNDEFINED;
           }
@@ -15440,7 +15527,7 @@ keyword_sp_data_type:
         | BOOLEAN_SYM
         | BOOL_SYM
         | CLOB
-        | DATE_SYM
+        | DATE_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | DATETIME
         | ENUM
         | FIXED_SYM
@@ -15462,8 +15549,8 @@ keyword_sp_data_type:
         | ROW_SYM
         | SERIAL_SYM
         | TEXT_SYM
-        | TIMESTAMP
-        | TIME_SYM
+        | TIMESTAMP          %prec PREC_BELOW_CONTRACTION_TOKEN2
+        | TIME_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | VARCHAR2
         | YEAR_SYM
         ;
@@ -15646,7 +15733,7 @@ keyword_sp_not_data_type:
         | MYSQL_ERRNO_SYM
         | NAME_SYM
         | NAMES_SYM
-        | NEXT_SYM
+        | NEXT_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | NEXTVAL_SYM
         | NEW_SYM
         | NOCACHE_SYM
@@ -15677,7 +15764,7 @@ keyword_sp_not_data_type:
         | PLUGINS_SYM
         | PRESERVE_SYM
         | PREV_SYM
-        | PREVIOUS_SYM
+        | PREVIOUS_SYM       %prec PREC_BELOW_CONTRACTION_TOKEN2
         | PRIVILEGES
         | PROCESS
         | PROCESSLIST_SYM
@@ -15760,7 +15847,7 @@ keyword_sp_not_data_type:
         | TEMPORARY
         | TEMPTABLE_SYM
         | THAN_SYM
-        | TRANSACTION_SYM
+        | TRANSACTION_SYM    %prec PREC_BELOW_CONTRACTION_TOKEN2
         | TRANSACTIONAL_SYM
         | TRIGGERS_SYM
         | TRIM_ORACLE

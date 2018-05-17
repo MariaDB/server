@@ -278,10 +278,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 99 shift/reduce conflicts.
+  Currently there are 94 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 99
+%expect 94
 
 /*
    Comments for TOKENS.
@@ -1056,6 +1056,31 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   MYSQL_CONCAT_SYM
 %left   NEG '~' NOT2_SYM BINARY
 %left   COLLATE_SYM
+
+/*
+  Tokens that can appear in a token contraction on the second place
+  and change the meaning of the previous token.
+
+  - TEXT_STRING: changes the meaning of TIMESTAMP/TIME/DATE
+    from identifier to literal:
+      SELECT timestamp FROM t1;
+      SELECT TIMESTAMP'2001-01-01 00:00:00' FROM t1;
+
+  - Parenthesis: changes the meaning of TIMESTAMP/TIME/DATE
+    from identifier to CAST:
+      SELECT timestamp FROM t1;
+      SELECT timestamp(1) FROM t1;
+
+  - VALUE: changes NEXT and PREVIOUS from identifier to sequence operation:
+      SELECT next, previous FROM t1;
+      SELECT NEXT VALUE FOR s1, PREVIOUS VALUE FOR s1;
+
+  - VERSIONING: changes SYSTEM from identifier to SYSTEM VERSIONING
+      SELECT system FROM t1;
+      ALTER TABLE t1 ADD SYSTEM VERSIONING;
+*/
+%left   PREC_BELOW_CONTRACTION_TOKEN2
+%left   TEXT_STRING '(' VALUE_SYM
 
 %type <lex_str>
         DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
@@ -15253,7 +15278,7 @@ keyword_sp_data_type:
         | BOOLEAN_SYM
         | BOOL_SYM
         | CLOB
-        | DATE_SYM
+        | DATE_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | DATETIME
         | ENUM
         | FIXED_SYM
@@ -15275,8 +15300,8 @@ keyword_sp_data_type:
         | ROW_SYM
         | SERIAL_SYM
         | TEXT_SYM
-        | TIMESTAMP
-        | TIME_SYM
+        | TIMESTAMP          %prec PREC_BELOW_CONTRACTION_TOKEN2
+        | TIME_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | VARCHAR2
         | YEAR_SYM
         ;
@@ -15455,7 +15480,7 @@ keyword_sp_not_data_type:
         | MYSQL_ERRNO_SYM
         | NAME_SYM
         | NAMES_SYM
-        | NEXT_SYM
+        | NEXT_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
         | NEXTVAL_SYM
         | NEW_SYM
         | NOCACHE_SYM
@@ -15486,7 +15511,7 @@ keyword_sp_not_data_type:
         | PLUGINS_SYM
         | PRESERVE_SYM
         | PREV_SYM
-        | PREVIOUS_SYM
+        | PREVIOUS_SYM       %prec PREC_BELOW_CONTRACTION_TOKEN2
         | PRIVILEGES
         | PROCESS
         | PROCESSLIST_SYM
