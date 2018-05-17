@@ -1220,17 +1220,11 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  COMMENT_SYM
 %token  <kwd>  ELSIF_SYM                     /* Oracle, reserved in PL/SQL*/
 %token  <kwd>  GOTO_SYM                      /* Oracle, reserved in PL/SQL*/
-%token  <kwd>  HISTORY_SYM                   /* MYSQL */
 %token  <kwd>  OTHERS_SYM                    /* SQL-2011-N */
 %token  <kwd>  PACKAGE_SYM                   /* Oracle-R */
-%token  <kwd>  PERIOD_SYM                    /* SQL-2011-R */
 %token  <kwd>  RAISE_SYM                     /* Oracle-PLSQL-R */
 %token  <kwd>  ROWTYPE_SYM                   /* Oracle-PLSQL-R */
-%token  <kwd>  SYSTEM                        /* SQL-2011-R */
-%token  <kwd>  SYSTEM_TIME_SYM               /* SQL-2011-R */
-%token  <kwd>  VERSIONING_SYM                /* SQL-2011-R */
 %token  <kwd>  WINDOW_SYM
-%token  <kwd>  WITHOUT                       /* SQL-2003-R */
 
 /*
   Non-reserved keywords
@@ -1260,7 +1254,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  BIT_SYM                       /* MYSQL-FUNC */
 %token  <kwd>  BLOCK_SYM
 %token  <kwd>  BOOL_SYM
-%token  <kwd>  BOOLEAN_SYM                   /* SQL-2003-R */
+%token  <kwd>  BOOLEAN_SYM                   /* SQL-2003-R, PLSQL-R */
 %token  <kwd>  BTREE_SYM
 %token  <kwd>  BYTE_SYM
 %token  <kwd>  CACHE_SYM
@@ -1311,7 +1305,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  DATA_SYM                      /* SQL-2003-N */
 %token  <kwd>  DATETIME
 %token  <kwd>  DATE_FORMAT_SYM               /* MYSQL-FUNC */
-%token  <kwd>  DATE_SYM                      /* SQL-2003-R */
+%token  <kwd>  DATE_SYM                      /* SQL-2003-R, Oracle-R, PLSQL-R */
 %token  <kwd>  DAY_SYM                       /* SQL-2003-R */
 %token  <kwd>  DEALLOCATE_SYM                /* SQL-2003-R */
 %token  <kwd>  DECODE_SYM                    /* Oracle function, non-reserved */
@@ -1376,6 +1370,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  HASH_SYM
 %token  <kwd>  HELP_SYM
 %token  <kwd>  HIGH_PRIORITY
+%token  <kwd>  HISTORY_SYM                   /* MYSQL */
 %token  <kwd>  HOST_SYM
 %token  <kwd>  HOSTS_SYM
 %token  <kwd>  HOUR_SYM                      /* SQL-2003-R */
@@ -1474,7 +1469,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  NOMINVALUE_SYM
 %token  <kwd>  NO_WAIT_SYM
 %token  <kwd>  NOWAIT_SYM
-%token  <kwd>  NUMBER_SYM                    /* SQL-2003-N */
+%token  <kwd>  NUMBER_SYM                    /* SQL-2003-N, Oracle-R, PLSQL-R */
 %token  <kwd>  NVARCHAR_SYM
 %token  <kwd>  OF_SYM                        /* SQL-1992-R, Oracle-R */
 %token  <kwd>  OFFSET_SYM
@@ -1493,6 +1488,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  PARTITIONS_SYM
 %token  <kwd>  PARTITIONING_SYM
 %token  <kwd>  PASSWORD_SYM
+%token  <kwd>  PERIOD_SYM                    /* SQL-2011-R */
 %token  <kwd>  PERSISTENT_SYM
 %token  <kwd>  PHASE_SYM
 %token  <kwd>  PLUGINS_SYM
@@ -1515,7 +1511,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  QUARTER_SYM
 %token  <kwd>  QUERY_SYM
 %token  <kwd>  QUICK
-%token  <kwd>  RAW                           /* Oracle */
+%token  <kwd>  RAW                           /* Oracle-R */
 %token  <kwd>  READ_ONLY_SYM
 %token  <kwd>  REBUILD_SYM
 %token  <kwd>  RECOVER_SYM
@@ -1598,6 +1594,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  SUSPEND_SYM
 %token  <kwd>  SWAPS_SYM
 %token  <kwd>  SWITCHES_SYM
+%token  <kwd>  SYSTEM                        /* SQL-2011-R */
+%token  <kwd>  SYSTEM_TIME_SYM               /* SQL-2011-R */
 %token  <kwd>  TABLES
 %token  <kwd>  TABLESPACE
 %token  <kwd>  TABLE_CHECKSUM_SYM
@@ -1610,7 +1608,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  TIMESTAMP                     /* SQL-2003-R */
 %token  <kwd>  TIMESTAMP_ADD
 %token  <kwd>  TIMESTAMP_DIFF
-%token  <kwd>  TIME_SYM                      /* SQL-2003-R */
+%token  <kwd>  TIME_SYM                      /* SQL-2003-R, Oracle-R */
 %token  <kwd>  TRANSACTION_SYM
 %token  <kwd>  TRANSACTIONAL_SYM
 %token  <kwd>  TRIGGERS_SYM
@@ -1632,8 +1630,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  USER_SYM                      /* SQL-2003-R */
 %token  <kwd>  USE_FRM
 %token  <kwd>  VALUE_SYM                     /* SQL-2003-R */
-%token  <kwd>  VARCHAR2                      /* Oracle */
+%token  <kwd>  VARCHAR2                      /* Oracle-R, PLSQL-R */
 %token  <kwd>  VARIABLES
+%token  <kwd>  VERSIONING_SYM                /* SQL-2011-R */
 %token  <kwd>  VIA_SYM
 %token  <kwd>  VIEW_SYM                      /* SQL-2003-N */
 %token  <kwd>  VIRTUAL_SYM
@@ -1642,6 +1641,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  WEEK_SYM
 %token  <kwd>  WEIGHT_STRING_SYM
 %token  <kwd>  WITHIN
+%token  <kwd>  WITHOUT                       /* SQL-2003-R */
 %token  <kwd>  WORK_SYM                      /* SQL-2003-N */
 %token  <kwd>  WRAPPER_SYM
 %token  <kwd>  WRITE_SYM                     /* SQL-2003-N */
@@ -15437,10 +15437,10 @@ keyword_sp_verb_clause:
 */
 keyword_sp_data_type:
           BIT_SYM
-        | BOOLEAN_SYM              /* PLSQL-R */
+        | BOOLEAN_SYM
         | BOOL_SYM
         | CLOB
-        | DATE_SYM                 /* Oracle-R, PLSQL-R */
+        | DATE_SYM
         | DATETIME
         | ENUM
         | FIXED_SYM
@@ -15454,17 +15454,17 @@ keyword_sp_data_type:
         | MULTIPOLYGON
         | NATIONAL_SYM
         | NCHAR_SYM
-        | NUMBER_SYM                /* Oracle-R, PLSQL-R */
+        | NUMBER_SYM
         | NVARCHAR_SYM
         | POINT_SYM
         | POLYGON
-        | RAW                       /* Oracle-R */
+        | RAW
         | ROW_SYM
         | SERIAL_SYM
         | TEXT_SYM
         | TIMESTAMP
-        | TIME_SYM                  /* Oracle-R */
-        | VARCHAR2                  /* Oracle-R, PLSQL-R */
+        | TIME_SYM
+        | VARCHAR2
         | YEAR_SYM
         ;
 
@@ -15578,7 +15578,7 @@ keyword_sp_not_data_type:
         | IDENTIFIED_SYM
         | IGNORE_SERVER_IDS_SYM
         | INCREMENT_SYM
-        | IMMEDIATE_SYM             /* SQL-2003-R */
+        | IMMEDIATE_SYM
         | INVOKER_SYM
         | IMPORT
         | INDEXES
@@ -15658,7 +15658,7 @@ keyword_sp_not_data_type:
         | NODEGROUP_SYM
         | NONE_SYM
         | NOTFOUND_SYM
-        | OF_SYM                    /* SQL-1999-R, Oracle-R */
+        | OF_SYM
         | OFFSET_SYM
         | OLD_PASSWORD_SYM
         | ONE_SYM
@@ -15708,7 +15708,7 @@ keyword_sp_not_data_type:
         | RESUME_SYM
         | RETURNED_SQLSTATE_SYM
         | RETURNS_SYM
-        | REUSE_SYM                  /* Oracle-R */
+        | REUSE_SYM
         | REVERSE_SYM
         | ROLE_SYM
         | ROLLUP_SYM

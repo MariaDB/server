@@ -1037,6 +1037,11 @@ public:
   uint select_n_where_fields;
   /* reserved for exists 2 in */
   uint select_n_reserved;
+  /*
+   it counts the number of bit fields in the SELECT list. These are used when DISTINCT is
+   converted to a GROUP BY involving BIT fields.
+  */
+  uint hidden_bit_fields;
   enum_parsing_place parsing_place; /* where we are parsing expression */
   enum_parsing_place context_analysis_place; /* where we are in prepare */
   bool with_sum_func;   /* sum function indicator */

@@ -1083,7 +1083,9 @@ JOIN::prepare(TABLE_LIST *tables_init,
       select_lex != select_lex->master_unit()->global_parameters())
     real_og_num+= select_lex->order_list.elements;
 
-  if (setup_wild(thd, tables_list, fields_list, &all_fields, wild_num))
+  DBUG_ASSERT(select_lex->hidden_bit_fields == 0);
+  if (setup_wild(thd, tables_list, fields_list, &all_fields, wild_num,
+                 &select_lex->hidden_bit_fields))
     DBUG_RETURN(-1);
   if (select_lex->setup_ref_array(thd, real_og_num))
     DBUG_RETURN(-1);

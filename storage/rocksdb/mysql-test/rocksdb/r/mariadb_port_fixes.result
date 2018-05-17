@@ -89,3 +89,21 @@ CREATE TABLE t1 (i INT) ENGINE=RocksDB;
 FLUSH TABLE t1 FOR EXPORT;
 ERROR HY000: Storage engine ROCKSDB of the table `test`.`t1` doesn't have this option
 DROP TABLE t1;
+# 
+# MDEV-16154 Server crashes in in myrocks::ha_rocksdb::load_auto_incr_value_from_inde
+# 
+CREATE TABLE t1 (a INT) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 AUTO_INCREMENT 10;
+DROP TABLE t1;
+# 
+# MDEV-16155: UPDATE on RocksDB table with unique constraint does not work
+# 
+CREATE TABLE t1 (a INT, b CHAR(8), UNIQUE INDEX(a)) ENGINE=RocksDB;
+INSERT INTO t1 (a,b) VALUES (1,'foo'),(2,'bar');
+UPDATE t1 SET a=a+100;
+SELECT * FROM t1;
+a	b
+101	foo
+102	bar
+DROP TABLE t1;

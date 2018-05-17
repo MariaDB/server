@@ -6357,19 +6357,15 @@ error:
   return TRUE;
 }
 
-
-/*
-  @brief
-  Mark virtual columns as used in a partitioning expression 
-*/
-
-bool Item_field::vcol_in_partition_func_processor(void *int_arg)
+bool Item_field::post_fix_fields_part_expr_processor(void *int_arg)
 {
   DBUG_ASSERT(fixed);
   if (field->vcol_info)
-  {
     field->vcol_info->mark_as_in_partitioning_expr();
-  }
+  /*
+    Update table_name to be real table name, not the alias. Because alias is
+    reallocated for every statement, and this item has a long life time */
+  table_name= field->table->s->table_name.str;
   return FALSE;
 }
 

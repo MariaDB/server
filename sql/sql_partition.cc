@@ -860,7 +860,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     thd->lex->allow_sum_func= 0;
 
     if (likely(!(error= func_expr->fix_fields(thd, (Item**)&func_expr))))
-      func_expr->walk(&Item::vcol_in_partition_func_processor, 0, NULL);
+      func_expr->walk(&Item::post_fix_fields_part_expr_processor, 0, NULL);
 
     /*
       Restore agg_field/agg_func  and allow_sum_func,

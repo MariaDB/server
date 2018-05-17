@@ -30,3 +30,12 @@ set sql_mode=ansi_quotes;
 show create table t1;
 show create table t2;
 drop table t1, t2;
+set sql_mode=default;
+
+#
+# MDEV-14750 Valgrind Invalid read, ASAN heap-use-after-free in Item_ident::print upon SHOW CREATE on partitioned table
+#
+create table t_partition (f1 int) partition by hash(f1) partitions 2;
+select * from t_partition as tbl;
+show create table t_partition;
+drop table t_partition;

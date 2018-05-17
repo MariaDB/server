@@ -790,4 +790,12 @@ drop table tb;
 
 SET @@tmp_table_size= @tmp_table_size_save;
 
+--echo #
+--echo # MDEV-14695: Assertion `n < m_size' failed in Bounds_checked_array<Element_type>::operator
+--echo #
+
+CREATE TABLE t1 (b1 BIT, b2 BIT, b3 BIT, b4 BIT , b5 BIT, b6 BIT);
+INSERT INTO t1 VALUES (1,0,0,1,0,1),(0,1,0,0,1,0);
+SELECT DISTINCT b1+'0', b2+'0', b3+'0', b4+'0', b5+'0', b6 +'0'   FROM t1;
+DROP TABLE t1;
 --echo End of 5.5 tests

@@ -1,4 +1,3 @@
-DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (
 i int(10) unsigned not null auto_increment primary key,
 a varchar(255) not null,
