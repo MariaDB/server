@@ -159,8 +159,7 @@ static int make_tempfile(char *filename, const char *ext)
 {
   int fd= 0;
 
-  if ((fd=create_temp_file(filename, NullS, ext, O_CREAT | O_WRONLY,
-         MYF(MY_WME))) < 0)
+  if ((fd= create_temp_file(filename, NullS, ext, 0, MYF(MY_WME))) < 0)
   {
     fprintf(stderr, "ERROR: Cannot generate temporary file. Error code: %d.\n",
             fd);

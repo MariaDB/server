@@ -91,22 +91,8 @@ tmpfile_open(ds_ctxt_t *ctxt, const char *path,
 	/* Create a temporary file in tmpdir. The file will be automatically
 	removed on close. Code copied from mysql_tmpfile(). */
 	fd = create_temp_file(tmp_path,xtrabackup_tmpdir,
-			      "xbtemp",
-#ifdef __WIN__
-			      O_BINARY | O_TRUNC | O_SEQUENTIAL |
-			      O_TEMPORARY | O_SHORT_LIVED |
-#endif /* __WIN__ */
-			      O_CREAT | O_EXCL | O_RDWR,
-			      MYF(MY_WME));
-
-#ifndef __WIN__
-	if (fd >= 0) {
-		/* On Windows, open files cannot be removed, but files can be
-		created with the O_TEMPORARY flag to the same effect
-		("delete on close"). */
-		unlink(tmp_path);
-	}
-#endif /* !__WIN__ */
+			      "xbtemp", O_BINARY | O_SEQUENTIAL,
+			      MYF(MY_WME | MY_TEMPORARY));
 
 	if (fd < 0) {
 		return NULL;

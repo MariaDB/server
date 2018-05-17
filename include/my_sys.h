@@ -67,6 +67,7 @@ typedef struct my_aio_result {
 #define MY_WAIT_IF_FULL 32U	/* Wait and try again if disk full error */
 #define MY_IGNORE_BADFD 32U     /* my_sync(): ignore 'bad descriptor' errors */
 #define MY_ENCRYPT      64U     /* Encrypt IO_CACHE temporary files */
+#define MY_TEMPORARY    64U     /* create_temp_file(): delete file at once */
 #define MY_NOSYMLINKS  512U     /* my_open(): don't follow symlinks */
 #define MY_FULL_IO     512U     /* my_read(): loop until I/O is complete */
 #define MY_DONT_CHECK_FILESIZE 128U /* Option to init_io_cache() */

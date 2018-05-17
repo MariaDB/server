@@ -600,8 +600,8 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #endif
 #endif /* O_SHARE */
 
-#ifndef O_TEMPORARY
-#define O_TEMPORARY	0
+#ifndef O_SEQUENTIAL
+#define O_SEQUENTIAL	0
 #endif
 #ifndef O_SHORT_LIVED
 #define O_SHORT_LIVED	0
