@@ -606,17 +606,11 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  COMMENT_SYM
 %token  ELSIF_SYM                     /* Oracle, reserved in PL/SQL*/
 %token  GOTO_SYM                      /* Oracle, reserved in PL/SQL*/
-%token  HISTORY_SYM                   /* MYSQL */
 %token  OTHERS_SYM                    /* SQL-2011-N */
 %token  PACKAGE_SYM                   /* Oracle-R */
-%token  PERIOD_SYM                    /* SQL-2011-R */
 %token  RAISE_SYM                     /* Oracle-PLSQL-R */
 %token  ROWTYPE_SYM                   /* Oracle-PLSQL-R */
-%token  SYSTEM                        /* SQL-2011-R */
-%token  SYSTEM_TIME_SYM               /* SQL-2011-R */
-%token  VERSIONING_SYM                /* SQL-2011-R */
 %token  WINDOW_SYM
-%token  WITHOUT                       /* SQL-2003-R */
 
 /*
   Non-reserved keywords
@@ -762,6 +756,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  HASH_SYM
 %token  <kwd>  HELP_SYM
 %token  <kwd>  HIGH_PRIORITY
+%token  <kwd>  HISTORY_SYM                   /* MYSQL */
 %token  <kwd>  HOST_SYM
 %token  <kwd>  HOSTS_SYM
 %token  <kwd>  HOUR_SYM                      /* SQL-2003-R */
@@ -879,6 +874,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  PARTITIONS_SYM
 %token  <kwd>  PARTITIONING_SYM
 %token  <kwd>  PASSWORD_SYM
+%token  <kwd>  PERIOD_SYM                    /* SQL-2011-R */
 %token  <kwd>  PERSISTENT_SYM
 %token  <kwd>  PHASE_SYM
 %token  <kwd>  PLUGINS_SYM
@@ -984,6 +980,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  SUSPEND_SYM
 %token  <kwd>  SWAPS_SYM
 %token  <kwd>  SWITCHES_SYM
+%token  <kwd>  SYSTEM                        /* SQL-2011-R */
+%token  <kwd>  SYSTEM_TIME_SYM               /* SQL-2011-R */
 %token  <kwd>  TABLES
 %token  <kwd>  TABLESPACE
 %token  <kwd>  TABLE_CHECKSUM_SYM
@@ -1020,6 +1018,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  VALUE_SYM                     /* SQL-2003-R */
 %token  <kwd>  VARCHAR2                      /* Oracle */
 %token  <kwd>  VARIABLES
+%token  <kwd>  VERSIONING_SYM                /* SQL-2011-R */
 %token  <kwd>  VIA_SYM
 %token  <kwd>  VIEW_SYM                      /* SQL-2003-N */
 %token  <kwd>  VIRTUAL_SYM
@@ -1028,6 +1027,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  WEEK_SYM
 %token  <kwd>  WEIGHT_STRING_SYM
 %token  <kwd>  WITHIN
+%token  <kwd>  WITHOUT                       /* SQL-2003-R */
 %token  <kwd>  WORK_SYM                      /* SQL-2003-N */
 %token  <kwd>  WRAPPER_SYM
 %token  <kwd>  WRITE_SYM                     /* SQL-2003-N */
@@ -15102,8 +15102,6 @@ keyword:
     xxx := 10;
 */
 keyword_directly_assignable:
-
-
           ASCII_SYM
         | BACKUP_SYM
         | BINLOG_SYM
@@ -15125,12 +15123,14 @@ keyword_directly_assignable:
         | FORMAT_SYM
         | GET_SYM
         | HELP_SYM
+        | HISTORY_SYM
         | HOST_SYM
         | INSTALL_SYM
         | OPTION
         | OPTIONS_SYM
         | OWNER_SYM
         | PARSER_SYM
+        | PERIOD_SYM
         | PORT_SYM
         | PRECEDING_SYM
         | PREPARE_SYM
@@ -15147,11 +15147,15 @@ keyword_directly_assignable:
         | START_SYM
         | STOP_SYM
         | STORED_SYM
+        | SYSTEM
+        | SYSTEM_TIME_SYM
         | TIES_SYM
         | UNICODE_SYM
         | UNINSTALL_SYM
         | UNBOUNDED_SYM
+        | VERSIONING_SYM
         | WITHIN
+        | WITHOUT
         | WRAPPER_SYM
         | XA_SYM
         | UPGRADE_SYM
