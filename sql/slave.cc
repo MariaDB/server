@@ -6214,6 +6214,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
                     DBUG_ASSERT(debug_sync_service);
                     DBUG_ASSERT(!debug_sync_set_action(current_thd,
                                                        STRING_WITH_LEN(act)));
+                    dbug_rows_event_count = 0;
                   };);
 #endif
   mysql_mutex_lock(&mi->data_lock);
