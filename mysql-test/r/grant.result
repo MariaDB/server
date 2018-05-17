@@ -1647,11 +1647,6 @@ drop user mysqluser11@localhost;
 drop database mysqltest1;
 End of 5.0 tests
 set names utf8;
-grant select on test.* to юзер_юзер@localhost;
-user()
-юзер_юзер@localhost
-revoke all on test.* from юзер_юзер@localhost;
-drop user юзер_юзер@localhost;
 grant select on test.* to очень_длинный_юзер@localhost;
 ERROR HY000: String 'очень_длинный_юзер' is too long for user name (should be no longer than 16)
 set names default;
