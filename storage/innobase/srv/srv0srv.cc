@@ -2876,8 +2876,18 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
 	/* Ensure that all the worker threads quit. */
-	if (srv_n_purge_threads > 1) {
-		srv_release_threads(SRV_WORKER, srv_n_purge_threads - 1);
+	if (ulint n_workers = srv_n_purge_threads - 1) {
+		const srv_slot_t* slot;
+		const srv_slot_t* const end = &srv_sys.sys_threads[
+			srv_sys.n_sys_threads];
+
+		do {
+			srv_release_threads(SRV_WORKER, n_workers);
+			srv_sys_mutex_enter();
+			for (slot = &srv_sys.sys_threads[2];
+			     !slot++->in_use && slot < end; );
+			srv_sys_mutex_exit();
+		} while (slot < end);
 	}
 
 	innobase_destroy_background_thd(thd);
