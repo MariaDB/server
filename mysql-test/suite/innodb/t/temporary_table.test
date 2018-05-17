@@ -476,3 +476,12 @@ UPDATE t1 SET f1 = 0;
 ROLLBACK;
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15874 CREATE TABLE creates extra transaction
+--echo #
+call mtr.add_suppression("Warning 150 Create  table `mysqld.1`.`t1` with foreign key constraint failed. Temporary tables can't have foreign key constraints.*");
+SET FOREIGN_KEY_CHECKS = 0;
+--error ER_CANT_CREATE_TABLE
+CREATE TEMPORARY TABLE t1(f1 INT NOT NULL,
+			  FOREIGN KEY(f1) REFERENCES t0(f1))ENGINE=InnoDB;

@@ -650,3 +650,11 @@ SELECT * FROM t1;
 f1
 0
 DROP TABLE t1;
+#
+# MDEV-15874 CREATE TABLE creates extra transaction
+#
+call mtr.add_suppression("Warning 150 Create  table `mysqld.1`.`t1` with foreign key constraint failed. Temporary tables can't have foreign key constraints.*");
+SET FOREIGN_KEY_CHECKS = 0;
+CREATE TEMPORARY TABLE t1(f1 INT NOT NULL,
+FOREIGN KEY(f1) REFERENCES t0(f1))ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")

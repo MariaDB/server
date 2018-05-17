@@ -4635,6 +4635,11 @@ loop:
 		/**********************************************************/
 		/* The following call adds the foreign key constraints
 		to the data dictionary system tables on disk */
+		trx->op_info = "adding foreign keys";
+
+		trx_start_if_not_started_xa(trx, true);
+
+		trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 
 		error = dict_create_add_foreigns_to_dictionary(
 			local_fk_set, table, trx);
@@ -4829,23 +4834,6 @@ col_loop1:
 			" failed. Parse error in '%s'"
 			" near '%s'.",
 			operation, create_name, start_of_latest_foreign, orig);
-		return(DB_CANNOT_ADD_CONSTRAINT);
-	}
-
-	/* Don't allow foreign keys on partitioned tables yet. */
-	ptr1 = dict_scan_to(ptr, "PARTITION");
-	if (ptr1) {
-		ptr1 = dict_accept(cs, ptr1, "PARTITION", &success);
-		if (success && my_isspace(cs, *ptr1)) {
-			ptr2 = dict_accept(cs, ptr1, "BY", &success);
-			if (success) {
-				my_error(ER_FOREIGN_KEY_ON_PARTITIONED,MYF(0));
-				return(DB_CANNOT_ADD_CONSTRAINT);
-			}
-		}
-	}
-	if (dict_table_is_partition(table)) {
-		my_error(ER_FOREIGN_KEY_ON_PARTITIONED,MYF(0));
 		return(DB_CANNOT_ADD_CONSTRAINT);
 	}
 

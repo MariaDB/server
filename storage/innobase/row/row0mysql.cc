@@ -2651,12 +2651,6 @@ row_table_add_foreign_constraints(
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_a(sql_string);
 
-	trx->op_info = "adding foreign keys";
-
-	trx_start_if_not_started_xa(trx, true);
-
-	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
-
 	err = dict_create_foreign_constraints(
 		trx, sql_string, sql_length, name, reject_fks);
 
