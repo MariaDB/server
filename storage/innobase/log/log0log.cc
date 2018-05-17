@@ -675,9 +675,8 @@ void log_t::files::create(ulint n_files)
   lsn= LOG_START_LSN;
   lsn_offset= LOG_FILE_HDR_SIZE;
 
-  byte* ptr= static_cast<byte*>(ut_zalloc_nokey(LOG_FILE_HDR_SIZE
-						+ OS_FILE_LOG_BLOCK_SIZE
-						* n_files));
+  byte* ptr= static_cast<byte*>(ut_zalloc_nokey(LOG_FILE_HDR_SIZE * n_files
+						+ OS_FILE_LOG_BLOCK_SIZE));
   file_header_bufs_ptr= ptr;
   ptr= static_cast<byte*>(ut_align(ptr, OS_FILE_LOG_BLOCK_SIZE));
 
