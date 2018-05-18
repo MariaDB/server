@@ -1,3 +1,4 @@
+SET sql_mode=ORACLE;
 #
 # MDEV-13384: "window" seems like a reserved column name but it's not listed as one
 #
