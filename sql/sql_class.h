@@ -2513,6 +2513,9 @@ public:
   int binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional);
   int binlog_remove_pending_rows_event(bool clear_maps, bool is_transactional);
 
+  void create_explain_query();
+  void create_explain_query_if_not_exists();
+
   /**
     Determine the binlog format of the current statement.
 

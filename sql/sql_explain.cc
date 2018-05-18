@@ -2410,21 +2410,20 @@ void delete_explain_query(LEX *lex)
 }
 
 
-void create_explain_query(LEX *lex, MEM_ROOT *mem_root)
+void THD::create_explain_query()
 {
   DBUG_ASSERT(!lex->explain);
-  DBUG_ENTER("create_explain_query");
+  DBUG_ENTER("THD::create_explain_query");
 
-  lex->explain= new (mem_root) Explain_query(lex->thd, mem_root);
-  DBUG_ASSERT(mem_root == current_thd->mem_root);
+  lex->explain= new (&main_mem_root) Explain_query(this, &main_mem_root);
 
   DBUG_VOID_RETURN;
 }
 
-void create_explain_query_if_not_exists(LEX *lex, MEM_ROOT *mem_root)
+void THD::create_explain_query_if_not_exists()
 {
   if (!lex->explain)
-    create_explain_query(lex, mem_root);
+    create_explain_query();
 }
 
 

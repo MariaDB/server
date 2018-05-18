@@ -299,7 +299,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
 
-  create_explain_query(thd->lex, thd->mem_root);
+  thd->create_explain_query();
   if (open_and_lock_tables(thd, table_list, TRUE, 0))
     DBUG_RETURN(TRUE);
 

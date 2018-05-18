@@ -1394,7 +1394,7 @@ err:
 
 bool JOIN::build_explain()
 {
-  create_explain_query_if_not_exists(thd->lex, thd->mem_root);
+  thd->create_explain_query_if_not_exists();
   have_query_plan= QEP_AVAILABLE;
   if (save_explain_data(thd->lex->explain, false /* can overwrite */,
                         need_tmp,
