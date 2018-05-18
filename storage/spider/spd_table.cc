@@ -41,6 +41,27 @@
 #include "spd_direct_sql.h"
 #include "spd_malloc.h"
 
+inline MYSQL_THD spider_create_thd()
+{
+  THD *thd;
+  my_thread_init();
+  if (!(thd = new THD()))
+    my_thread_end();
+  else
+  {
+#ifdef HAVE_PSI_INTERFACE
+    mysql_thread_set_psi_id(thd->thread_id);
+#endif
+    thd->thread_stack = (char *) &thd;
+    thd->store_globals();
+  }
+  return thd;
+}
+inline void spider_destroy_thd(MYSQL_THD thd)
+{
+  delete thd;
+}
+
 ulong *spd_db_att_thread_id;
 #ifdef SPIDER_XID_USES_xid_cache_iterate
 #else
@@ -5994,7 +6015,7 @@ int spider_close_connection(
   SPIDER_CONN *conn;
   SPIDER_TRX *trx;
   DBUG_ENTER("spider_close_connection");
-  if (!(trx = (SPIDER_TRX*) *thd_ha_data(thd, spider_hton_ptr)))
+  if (!(trx = (SPIDER_TRX*) thd_get_ha_data(thd, spider_hton_ptr)))
     DBUG_RETURN(0); /* transaction is not started */
 
   trx->tmp_spider->conns = &conn;
@@ -6049,12 +6070,25 @@ int spider_db_done(
   void *p
 ) {
   int roop_count;
+  bool do_delete_thd;
   THD *thd = current_thd, *tmp_thd;
   SPIDER_CONN *conn;
   SPIDER_INIT_ERROR_TABLE *spider_init_error_table;
   SPIDER_TABLE_MON_LIST *table_mon_list;
   SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
   DBUG_ENTER("spider_db_done");
+
+  /* Begin Spider plugin deinit */
+  if (thd)
+    do_delete_thd = FALSE;
+  else
+  {
+    /* Create a thread for Spider plugin deinit */
+    thd = spider_create_thd();
+    if (!thd)
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    do_delete_thd = TRUE;
+  }
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   spider_free_trx(spider_global_trx, TRUE);
@@ -6098,21 +6132,22 @@ int spider_db_done(
     pthread_mutex_destroy(&spider_udf_table_mon_mutexes[roop_count]);
   spider_free(NULL, spider_udf_table_mon_mutexes, MYF(0));
 
-  if (thd && thd_sql_command(thd) == SQLCOM_UNINSTALL_PLUGIN) {
-    pthread_mutex_lock(&spider_allocated_thds_mutex);
-    while ((tmp_thd = (THD *) my_hash_element(&spider_allocated_thds, 0)))
+  pthread_mutex_lock(&spider_allocated_thds_mutex);
+  while ((tmp_thd = (THD *) my_hash_element(&spider_allocated_thds, 0)))
+  {
+    SPIDER_TRX *trx = (SPIDER_TRX *)
+                      thd_get_ha_data(tmp_thd, spider_hton_ptr);
+    if (trx)
     {
-      SPIDER_TRX *trx = (SPIDER_TRX *) *thd_ha_data(tmp_thd, spider_hton_ptr);
-      if (trx)
-      {
-        DBUG_ASSERT(tmp_thd == trx->thd);
-        spider_free_trx(trx, FALSE);
-        *thd_ha_data(tmp_thd, spider_hton_ptr) = (void *) NULL;
-      } else
-        my_hash_delete(&spider_allocated_thds, (uchar *) tmp_thd);
+      DBUG_ASSERT(tmp_thd == trx->thd);
+      spider_free_trx(trx, FALSE);
+      thd_set_ha_data(tmp_thd, spider_hton_ptr, NULL);
     }
-    pthread_mutex_unlock(&spider_allocated_thds_mutex);
+    else
+      my_hash_delete(&spider_allocated_thds, (uchar *) tmp_thd);
   }
+  pthread_mutex_unlock(&spider_allocated_thds_mutex);
+
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   pthread_mutex_lock(&spider_hs_w_conn_mutex);
   while ((conn = (SPIDER_CONN*) my_hash_element(&spider_hs_w_conn_hash, 0)))
@@ -6261,6 +6296,11 @@ int spider_db_done(
         spider_current_alloc_mem[roop_count] ? "NG" : "OK"
       ));
   }
+
+  /* End Spider plugin deinit */
+  if (do_delete_thd)
+    spider_destroy_thd(thd);
+
 /*
 DBUG_ASSERT(0);
 */
