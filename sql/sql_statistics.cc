@@ -1801,6 +1801,7 @@ private:
 public:
 
   bool is_single_comp_pk;
+  bool is_partial_fields_present;
 
   Index_prefix_calc(THD *thd, TABLE *table, KEY *key_info)
     : index_table(table), index_info(key_info)
@@ -1812,7 +1813,7 @@ public:
     prefixes= 0;
     LINT_INIT_STRUCT(calc_state);
 
-    is_single_comp_pk= FALSE;
+    is_partial_fields_present= is_single_comp_pk= FALSE;
     uint pk= table->s->primary_key;
     if ((uint) (table->key_info - key_info) == pk &&
         table->key_info[pk].user_defined_key_parts == 1)
@@ -1834,7 +1835,10 @@ public:
           calculating the values of 'avg_frequency' for prefixes.
 	*/   
         if (!key_info->key_part[i].field->part_of_key.is_set(keyno))
+        {
+          is_partial_fields_present= TRUE;
           break;
+        }
 
         if (!(state->last_prefix=
               new (thd->mem_root) Cached_item_field(thd,
@@ -2633,7 +2637,13 @@ int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
     DBUG_RETURN(rc);
   }
 
-  table->file->ha_start_keyread(index);
+  /*
+    Request "only index read" in case of absence of fields which are
+    partially in the index to avoid problems with partitioning (for example)
+    which want to get whole field value.
+  */
+  if (!index_prefix_calc.is_partial_fields_present)
+    table->file->ha_start_keyread(index);
   table->file->ha_index_init(index, TRUE);
   rc= table->file->ha_index_first(table->record[0]);
   while (rc != HA_ERR_END_OF_FILE)
