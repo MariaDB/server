@@ -674,7 +674,6 @@ struct TABLE_SHARE
   bool crypted;                         /* If .frm file is crypted */
   bool crashed;
   bool is_view;
-  bool deleting;                        /* going to delete this table */
   bool can_cmp_whole_record;
   ulong table_map_id;                   /* for row-based replication */
 
@@ -1616,7 +1615,6 @@ struct TABLE_LIST
   /* link in a global list of all queries tables */
   TABLE_LIST *next_global, **prev_global;
   char		*db, *alias, *table_name, *schema_table_name;
-  char          *option;                /* Used by cache index  */
   Item		*on_expr;		/* Used with outer join */
 
   Item          *sj_on_expr;
@@ -1877,7 +1875,7 @@ struct TABLE_LIST
   /* FRMTYPE_ERROR if any type is acceptable */
   enum frm_type_enum required_type;
   handlerton	*db_type;		/* table_type for handler */
-  char		timestamp_buffer[20];	/* buffer for timestamp (19+1) */
+  char		timestamp_buffer[MAX_DATETIME_WIDTH + 1];
   /*
     This TABLE_LIST object is just placeholder for prelocking, it will be
     used for implicit LOCK TABLES only and won't be used in real statement.
@@ -1897,8 +1895,6 @@ struct TABLE_LIST
     OPEN_STUB
   } open_strategy;
   /* For transactional locking. */
-  int           lock_timeout;           /* NOWAIT or WAIT [X]               */
-  bool          lock_transactional;     /* If transactional lock requested. */
   bool          internal_tmp_table;
   /** TRUE if an alias for this table was specified in the SQL. */
   bool          is_alias;
@@ -1907,16 +1903,12 @@ struct TABLE_LIST
   */
   bool          is_fqtn;
 
-  bool          deleting;               /* going to delete this table */
-
   /* TRUE <=> derived table should be filled right after optimization. */
   bool          fill_me;
   /* TRUE <=> view/DT is merged. */
   /* TODO: replace with derived_type */
   bool          merged;
   bool          merged_for_insert;
-  /* TRUE <=> don't prepare this derived table/view as it should be merged.*/
-  bool          skip_prepare_derived;
 
   /*
     Items created by create_view_field and collected to change them in case
@@ -1925,7 +1917,6 @@ struct TABLE_LIST
   List<Item>    used_items;
   /* Sublist (tail) of persistent used_items */
   List<Item>    persistent_used_items;
-  Item          **materialized_items;
 
   /* View creation context. */
 
