@@ -927,3 +927,22 @@ $$
 DELIMITER ;$$
 SHOW PROCEDURE CODE p1;
 DROP PROCEDURE p1;
+
+--echo #
+--echo # MDEV-14623: Output of show function code does not show FETCH GROUP NEXT ROW
+--echo # for custom aggregates
+--echo #
+
+delimiter |;
+create aggregate function f1(x INT) returns int
+begin
+  declare continue handler for not found return 0;
+  loop
+    fetch group next row;
+    insert into t2 (sal) values (x);
+  end loop;
+end|
+
+delimiter ;|
+show function code f1;
+drop function f1;

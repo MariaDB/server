@@ -1957,7 +1957,7 @@ public:
 
   virtual int execute(THD *thd, uint *nextp);
 
-  virtual void print(String *str){};
+  virtual void print(String *str);
 }; // class sp_instr_agg_cfetch : public sp_instr
 
 

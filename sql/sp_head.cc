@@ -4409,7 +4409,7 @@ sp_instr_cfetch::print(String *str)
 int
 sp_instr_agg_cfetch::execute(THD *thd, uint *nextp)
 {
-  DBUG_ENTER("sp_instr_cfetch::execute");
+  DBUG_ENTER("sp_instr_agg_cfetch::execute");
   int res= 0;
   if (!thd->spcont->instr_ptr)
   {
@@ -4434,7 +4434,16 @@ sp_instr_agg_cfetch::execute(THD *thd, uint *nextp)
   DBUG_RETURN(res);
 }
 
+void
+sp_instr_agg_cfetch::print(String *str)
+{
 
+  uint rsrv= SP_INSTR_UINT_MAXLEN+11;
+
+  if (str->reserve(rsrv))
+    return;
+  str->qs_append(STRING_WITH_LEN("agg_cfetch"));
+}
 
 /*
   sp_instr_cursor_copy_struct class functions
