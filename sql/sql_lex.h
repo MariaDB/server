@@ -907,6 +907,7 @@ public:
   */
   bool subquery_in_having;
   /* TRUE <=> this SELECT is correlated w.r.t. some ancestor select */
+  bool with_all_modifier;  /* used for selects in union */
   bool is_correlated;
   /*
     This variable is required to ensure proper work of subqueries and

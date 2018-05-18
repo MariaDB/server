@@ -2171,6 +2171,7 @@ void st_select_lex::init_select()
   select_limit= 0;      /* denotes the default limit = HA_POS_ERROR */
   offset_limit= 0;      /* denotes the default offset = 0 */
   with_sum_func= 0;
+  with_all_modifier= 0;
   is_correlated= 0;
   cur_pos_in_select_list= UNDEF_POS;
   cond_value= having_value= Item::COND_UNDEF;

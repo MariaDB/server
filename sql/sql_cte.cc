@@ -665,7 +665,6 @@ void With_element::move_anchors_ahead()
 {
   st_select_lex *next_sl;
   st_select_lex *new_pos= spec->first_select();
-  st_select_lex *UNINIT_VAR(last_sl);
   new_pos->linkage= UNION_TYPE;
   for (st_select_lex *sl= new_pos; sl; sl= next_sl)
   {
@@ -673,6 +672,14 @@ void With_element::move_anchors_ahead()
     if (is_anchor(sl))
     {
       sl->move_node(new_pos);
+      if (new_pos == spec->first_select())
+      {
+        enum sub_select_type type= new_pos->linkage;
+        new_pos->linkage= sl->linkage;
+        sl->linkage= type;
+        new_pos->with_all_modifier= sl->with_all_modifier;
+        sl->with_all_modifier= false;
+      }
       new_pos= sl->next_select();
     }
     else if (!sq_rec_ref && no_rec_ref_on_top_level())
@@ -680,10 +687,7 @@ void With_element::move_anchors_ahead()
       sq_rec_ref= find_first_sq_rec_ref_in_select(sl);
       DBUG_ASSERT(sq_rec_ref != NULL);
     }
-    last_sl= sl;
   }
-  if (spec->union_distinct)
-    spec->union_distinct= last_sl;
   first_recursive= new_pos;
 }
 

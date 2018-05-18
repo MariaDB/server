@@ -707,6 +707,7 @@ bool add_select_to_union_list(LEX *lex, bool is_union_distinct,
     return TRUE;
   mysql_init_select(lex);
   lex->current_select->linkage=UNION_TYPE;
+  lex->current_select->with_all_modifier= !is_union_distinct;
   if (is_union_distinct) /* UNION DISTINCT - remember position */
     lex->current_select->master_unit()->union_distinct=
       lex->current_select;

@@ -453,6 +453,23 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   DBUG_ASSERT(thd == thd_arg);
   DBUG_ASSERT(thd == current_thd);
 
+  if (is_recursive && (sl= first_sl->next_select()))
+  {
+    SELECT_LEX *next_sl;
+    for ( ; ; sl= next_sl)
+    {
+      next_sl= sl->next_select();
+      if (!next_sl)
+        break;
+      if (next_sl->with_all_modifier != sl->with_all_modifier)
+      {
+        my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+         "mix of ALL and DISTINCT UNION operations in recursive CTE spec");
+        DBUG_RETURN(TRUE);
+      }
+    }
+  }
+
   describe= additional_options & SELECT_DESCRIBE;
 
   /*
