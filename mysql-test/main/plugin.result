@@ -331,3 +331,34 @@ UNINSTALL PLUGIN example;
 RENAME TABLE t1 TO t2;
 ERROR 42S02: Table 'test.t1' doesn't exist
 DROP TABLE t1;
+#
+# INSTALL IF NOT EXISTS [PLUGIN name] SONAME library /
+# UNINSTALL IF EXISTS PLUGIN|SONAME name
+#
+#
+select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
+plugin_name
+INSTALL PLUGIN IF NOT EXISTS example SONAME 'ha_example';
+select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
+plugin_name
+EXAMPLE
+INSTALL PLUGIN IF NOT EXISTS EXAMPLE SONAME 'ha_example';
+SHOW WARNINGS;
+Level	Code	Message
+Note	1968	Plugin 'EXAMPLE' already installed
+INSTALL SONAME IF NOT EXISTS 'ha_example';
+SHOW WARNINGS;
+Level	Code	Message
+Note	1968	Plugin 'EXAMPLE' already installed
+UNINSTALL PLUGIN IF EXISTS example;
+select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
+plugin_name
+UNUSABLE
+UNINSTALL SONAME IF EXISTS 'ha_example';
+Warnings:
+Note	1305	PLUGIN EXAMPLE does not exist
+SHOW WARNINGS;
+Level	Code	Message
+Note	1305	PLUGIN EXAMPLE does not exist
+select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
+plugin_name

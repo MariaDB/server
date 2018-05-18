@@ -265,3 +265,22 @@ UNINSTALL PLUGIN example;
 --error ER_NO_SUCH_TABLE
 RENAME TABLE t1 TO t2;
 DROP TABLE t1;
+
+--echo #
+--echo # INSTALL IF NOT EXISTS [PLUGIN name] SONAME library /
+--echo # UNINSTALL IF EXISTS PLUGIN|SONAME name
+--echo #
+--echo #
+
+select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
+INSTALL PLUGIN IF NOT EXISTS example SONAME 'ha_example';
+select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
+INSTALL PLUGIN IF NOT EXISTS EXAMPLE SONAME 'ha_example';
+SHOW WARNINGS;
+INSTALL SONAME IF NOT EXISTS 'ha_example';
+SHOW WARNINGS;
+UNINSTALL PLUGIN IF EXISTS example;
+select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
+UNINSTALL SONAME IF EXISTS 'ha_example';
+SHOW WARNINGS;
+select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
