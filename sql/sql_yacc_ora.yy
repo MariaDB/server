@@ -610,7 +610,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  PACKAGE_SYM                   /* Oracle-R */
 %token  RAISE_SYM                     /* Oracle-PLSQL-R */
 %token  ROWTYPE_SYM                   /* Oracle-PLSQL-R */
-%token  WINDOW_SYM
 
 /*
   Non-reserved keywords
@@ -1026,6 +1025,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  WARNINGS
 %token  <kwd>  WEEK_SYM
 %token  <kwd>  WEIGHT_STRING_SYM
+%token  <kwd>  WINDOW_SYM                    /* SQL-2003-R */
 %token  <kwd>  WITHIN
 %token  <kwd>  WITHOUT                       /* SQL-2003-R */
 %token  <kwd>  WORK_SYM                      /* SQL-2003-N */
@@ -1101,8 +1101,9 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         IDENT_sys
         ident
         label_ident
-        ident_or_empty
         sp_decl_ident
+        ident_or_empty
+        ident_table_alias
         ident_directly_assignable
 
 %type <lex_string_with_metadata>
@@ -1120,6 +1121,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <kwd>
         keyword keyword_sp
+        keyword_alias
         keyword_directly_assignable
         keyword_directly_not_assignable
         keyword_sp_data_type
@@ -12019,7 +12021,7 @@ table_alias:
 
 opt_table_alias:
           /* empty */ { $$=0; }
-        | table_alias ident
+        | table_alias ident_table_alias
           {
             $$= (LEX_CSTRING*) thd->memdup(&$2,sizeof(LEX_STRING));
             if (unlikely($$ == NULL))
@@ -14997,6 +14999,15 @@ TEXT_STRING_filesystem:
           }
         ;
 
+ident_table_alias:
+          IDENT_sys
+        | keyword_alias
+          {
+            if (unlikely($$.copy_keyword(thd, &$1)))
+              MYSQL_YYABORT;
+          }
+        ;
+
 ident:
           IDENT_sys
         | keyword
@@ -15114,13 +15125,16 @@ user: user_maybe_role
          }
          ;
 
-/* Keyword that we allow for identifiers (except SP labels) */
-keyword:
+/* Keywords which we allow as table aliases. */
+keyword_alias:
           keyword_sp
         | keyword_directly_assignable
         | keyword_directly_not_assignable
         ;
 
+
+/* Keyword that we allow for identifiers (except SP labels) */
+keyword: keyword_alias | WINDOW_SYM;
 
 /*
   Keywords that we allow in Oracle-style direct assignments:

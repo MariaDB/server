@@ -1224,7 +1224,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  PACKAGE_SYM                   /* Oracle-R */
 %token  <kwd>  RAISE_SYM                     /* Oracle-PLSQL-R */
 %token  <kwd>  ROWTYPE_SYM                   /* Oracle-PLSQL-R */
-%token  <kwd>  WINDOW_SYM
 
 /*
   Non-reserved keywords
@@ -1640,6 +1639,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  WARNINGS
 %token  <kwd>  WEEK_SYM
 %token  <kwd>  WEIGHT_STRING_SYM
+%token  <kwd>  WINDOW_SYM                    /* SQL-2003-R */
 %token  <kwd>  WITHIN
 %token  <kwd>  WITHOUT                       /* SQL-2003-R */
 %token  <kwd>  WORK_SYM                      /* SQL-2003-N */
@@ -15318,10 +15318,8 @@ ident_table_alias:
           IDENT_sys
         | keyword_alias
           {
-            $$.str= thd->strmake($1.str, $1.length);
-            if (unlikely($$.str == NULL))
+            if (unlikely($$.copy_keyword(thd, &$1)))
               MYSQL_YYABORT;
-            $$.length= $1.length;
           }
         ;
 
