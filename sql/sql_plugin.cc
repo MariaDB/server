@@ -1077,7 +1077,7 @@ static st_plugin_int *plugin_insert_or_reuse(struct st_plugin_int *plugin)
   NOTE
     Requires that a write-lock is held on LOCK_system_variables_hash
 */
-static bool plugin_add(MEM_ROOT *tmp_root,
+static bool plugin_add(MEM_ROOT *tmp_root, THD *thd,
                        const LEX_CSTRING *name, LEX_CSTRING *dl, myf MyFlags)
 {
   struct st_plugin_int tmp, *maybe_dupe;
@@ -1088,7 +1088,14 @@ static bool plugin_add(MEM_ROOT *tmp_root,
 
   if (name->str && plugin_find_internal(name, MYSQL_ANY_PLUGIN))
   {
-    my_error(ER_PLUGIN_INSTALLED, MyFlags, name->str);
+    if (thd && thd->lex->create_info.if_not_exists())
+    {
+      my_error(ER_PLUGIN_INSTALLED, MyFlags & ME_WARNING, name->str);
+    }
+    else
+    {
+      my_error(ER_PLUGIN_INSTALLED, MyFlags, name->str);
+    }
     DBUG_RETURN(TRUE);
   }
   /* Clear the whole struct to catch future extensions. */
@@ -1847,7 +1854,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
       the mutex here to satisfy the assert
     */
     mysql_mutex_lock(&LOCK_plugin);
-    plugin_add(tmp_root, &name, &dl, MYF(ME_ERROR_LOG));
+    plugin_add(tmp_root, NULL, &name, &dl, MYF(ME_ERROR_LOG));
     free_root(tmp_root, MYF(MY_MARK_BLOCKS_FREE));
     mysql_mutex_unlock(&LOCK_plugin);
   }
@@ -1902,7 +1909,7 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
         mysql_mutex_lock(&LOCK_plugin);
         free_root(tmp_root, MYF(MY_MARK_BLOCKS_FREE));
         name.str= 0; // load everything
-        if (plugin_add(tmp_root, (LEX_CSTRING*) &name, (LEX_CSTRING*) &dl,
+        if (plugin_add(tmp_root, NULL, (LEX_CSTRING*) &name, (LEX_CSTRING*) &dl,
                        MYF(ME_ERROR_LOG)))
           goto error;
       }
@@ -1910,7 +1917,7 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
       {
         free_root(tmp_root, MYF(MY_MARK_BLOCKS_FREE));
         mysql_mutex_lock(&LOCK_plugin);
-        if (plugin_add(tmp_root, (LEX_CSTRING*) &name, (LEX_CSTRING*) &dl,
+        if (plugin_add(tmp_root, NULL, (LEX_CSTRING*) &name, (LEX_CSTRING*) &dl,
                        MYF(ME_ERROR_LOG)))
           goto error;
       }
@@ -2194,7 +2201,7 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
     mysql_audit_acquire_plugins(thd, event_class_mask);
 
   mysql_mutex_lock(&LOCK_plugin);
-  error= plugin_add(thd->mem_root, name, &dl, MYF(0));
+  error= plugin_add(thd->mem_root, thd, name, &dl, MYF(0));
   if (unlikely(error))
     goto err;
 
@@ -2236,8 +2243,17 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
   if (!(plugin= plugin_find_internal(name, MYSQL_ANY_PLUGIN)) ||
       plugin->state & (PLUGIN_IS_UNINITIALIZED | PLUGIN_IS_DYING))
   {
-    my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "PLUGIN", name->str);
-    return 1;
+    if (thd->lex->if_exists())
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_SP_DOES_NOT_EXIST,
+                          ER_THD(thd, ER_SP_DOES_NOT_EXIST), "PLUGIN", name->str);
+      return 0;
+    }
+    else
+    {
+      my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "PLUGIN", name->str);
+      return 1;
+    }
   }
   if (!plugin->plugin_dl)
   {
