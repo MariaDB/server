@@ -143,6 +143,7 @@ public:
   bool convert(THD *thd, const LEX_CSTRING *str, CHARSET_INFO *cs);
   bool copy_or_convert(THD *thd, const Lex_ident_cli_st *str, CHARSET_INFO *cs);
   bool is_null() const { return str == NULL; }
+  bool to_size_number(THD *thd, ulonglong *to) const;
 };
 
 
@@ -3262,7 +3263,10 @@ public:
   void restore_backup_query_tables_list(Query_tables_list *backup);
 
   bool table_or_sp_used();
+
   bool is_partition_management() const;
+  bool part_values_current(THD *thd);
+  bool part_values_history(THD *thd);
 
   /**
     @brief check if the statement is a single-level join
@@ -3294,6 +3298,11 @@ public:
 
   void init_last_field(Column_definition *field, const LEX_CSTRING *name,
                        const CHARSET_INFO *cs);
+  bool last_field_generated_always_as_row_start_or_end(Lex_ident *p,
+                                                       const char *type,
+                                                       uint flags);
+  bool last_field_generated_always_as_row_start();
+  bool last_field_generated_always_as_row_end();
   bool set_bincmp(CHARSET_INFO *cs, bool bin);
 
   bool get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer);
@@ -3919,6 +3928,15 @@ public:
     }
     return false;
   }
+
+  void tvc_start()
+  {
+    field_list.empty();
+    many_values.empty();
+    insert_list= 0;
+  }
+  bool tvc_finalize();
+  bool tvc_finalize_derived();
 };
 
 

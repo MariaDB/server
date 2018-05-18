@@ -31,6 +31,7 @@
 #include "sql_select.h"
 #include "sql_cte.h"
 #include "sql_signal.h"
+#include "sql_partition.h"
 
 
 void LEX::parse_error(uint err_number)
@@ -7976,4 +7977,172 @@ bool Lex_ident_sys_st::convert(THD *thd,
   str=    tmp.str;
   length= tmp.length;
   return false;
+}
+
+
+bool Lex_ident_sys_st::to_size_number(THD *thd, ulonglong *to) const
+{
+  ulonglong number;
+  uint text_shift_number= 0;
+  longlong prefix_number;
+  const char *start_ptr= str;
+  size_t str_len= length;
+  const char *end_ptr= start_ptr + str_len;
+  int error;
+  prefix_number= my_strtoll10(start_ptr, (char**) &end_ptr, &error);
+  if (likely((start_ptr + str_len - 1) == end_ptr))
+  {
+    switch (end_ptr[0])
+    {
+      case 'g':
+      case 'G': text_shift_number+=30; break;
+      case 'm':
+      case 'M': text_shift_number+=20; break;
+      case 'k':
+      case 'K': text_shift_number+=10; break;
+      default:
+        my_error(ER_WRONG_SIZE_NUMBER, MYF(0));
+        return true;
+    }
+    if (unlikely(prefix_number >> 31))
+    {
+      my_error(ER_SIZE_OVERFLOW_ERROR, MYF(0));
+      return true;
+    }
+    number= prefix_number << text_shift_number;
+  }
+  else
+  {
+    my_error(ER_WRONG_SIZE_NUMBER, MYF(0));
+    return true;
+  }
+  *to= number;
+  return false;
+}
+
+
+bool LEX::part_values_current(THD *thd)
+{
+  partition_element *elem= part_info->curr_part_elem;
+  if (!is_partition_management())
+  {
+    if (unlikely(part_info->part_type != VERSIONING_PARTITION))
+    {
+      my_error(ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME");
+      return true;
+    }
+  }
+  else
+  {
+    DBUG_ASSERT(create_last_non_select_table);
+    DBUG_ASSERT(create_last_non_select_table->table_name.str);
+    // FIXME: other ALTER commands?
+    my_error(ER_VERS_WRONG_PARTS, MYF(0),
+             create_last_non_select_table->table_name.str);
+    return true;
+  }
+  elem->type(partition_element::CURRENT);
+  DBUG_ASSERT(part_info->vers_info);
+  part_info->vers_info->now_part= elem;
+  if (unlikely(part_info->init_column_part(thd)))
+    return true;
+  return false;
+}
+
+
+bool LEX::part_values_history(THD *thd)
+{
+  partition_element *elem= part_info->curr_part_elem;
+  if (!is_partition_management())
+  {
+    if (unlikely(part_info->part_type != VERSIONING_PARTITION))
+    {
+      my_error(ER_PARTITION_WRONG_TYPE, MYF(0), "SYSTEM_TIME");
+      return true;
+    }
+  }
+  else
+  {
+    part_info->vers_init_info(thd);
+    elem->id= UINT_MAX32;
+  }
+  DBUG_ASSERT(part_info->vers_info);
+  if (unlikely(part_info->vers_info->now_part))
+  {
+    DBUG_ASSERT(create_last_non_select_table);
+    DBUG_ASSERT(create_last_non_select_table->table_name.str);
+    my_error(ER_VERS_WRONG_PARTS, MYF(0),
+             create_last_non_select_table->table_name.str);
+    return true;
+  }
+  elem->type(partition_element::HISTORY);
+  if (unlikely(part_info->init_column_part(thd)))
+    return true;
+  return false;
+}
+
+
+bool LEX::last_field_generated_always_as_row_start_or_end(Lex_ident *p,
+                                                          const char *type,
+                                                          uint flag)
+{
+  if (unlikely(p->str))
+  {
+    my_error(ER_VERS_DUPLICATE_ROW_START_END, MYF(0), type,
+             last_field->field_name.str);
+    return true;
+  }
+  last_field->flags|= (flag | NOT_NULL_FLAG);
+  DBUG_ASSERT(p);
+  *p= last_field->field_name;
+  return false;
+}
+
+
+
+bool LEX::last_field_generated_always_as_row_start()
+{
+  Vers_parse_info &info= vers_get_info();
+  Lex_ident *p= &info.as_row.start;
+  return last_field_generated_always_as_row_start_or_end(p, "START",
+                                                         VERS_SYS_START_FLAG);
+}
+
+
+bool LEX::last_field_generated_always_as_row_end()
+{
+  Vers_parse_info &info= vers_get_info();
+  Lex_ident *p= &info.as_row.end;
+  return last_field_generated_always_as_row_start_or_end(p, "END",
+                                                         VERS_SYS_END_FLAG);
+}
+
+
+bool LEX::tvc_finalize()
+{
+  mysql_init_select(this);
+  if (unlikely(!(current_select->tvc=
+               new (thd->mem_root)
+               table_value_constr(many_values,
+                                  current_select,
+                                  current_select->options))))
+    return true;
+  many_values.empty();
+  return false;
+}
+
+
+bool LEX::tvc_finalize_derived()
+{
+  derived_tables|= DERIVED_SUBQUERY;
+  if (unlikely(!expr_allows_subselect || sql_command == (int)SQLCOM_PURGE))
+  {
+    thd->parse_error();
+    return true;
+  }
+  if (current_select->linkage == GLOBAL_OPTIONS_TYPE ||
+      unlikely(mysql_new_select(this, 1, NULL)))
+    return true;
+  current_select->linkage= DERIVED_TABLE_TYPE;
+  return tvc_finalize();
 }
