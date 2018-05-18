@@ -1117,10 +1117,21 @@ int JOIN::optimize()
   {
     create_explain_query_if_not_exists(thd->lex, thd->mem_root);
     have_query_plan= QEP_AVAILABLE;
+
+    /*
+      explain data must be created on the Explain_query::mem_root. Because it's
+      just a memroot, not an arena, explain data must not contain any Items
+    */
+    MEM_ROOT *old_mem_root= thd->mem_root;
+    Item *old_free_list __attribute__((unused))= thd->free_list;
+    thd->mem_root= thd->lex->explain->mem_root;
     save_explain_data(thd->lex->explain, false /* can overwrite */,
                       need_tmp,
                       !skip_sort_order && !no_order && (order || group_list),
                       select_distinct);
+    thd->mem_root= old_mem_root;
+    DBUG_ASSERT(thd->free_list == old_free_list); // no Items were created
+
     uint select_nr= select_lex->select_number;
     JOIN_TAB *curr_tab= join_tab + exec_join_tab_cnt();
     for (uint i= 0; i < aggr_tables; i++, curr_tab++)
@@ -1294,7 +1305,11 @@ JOIN::optimize_inner()
     /*
       The following code will allocate the new items in a permanent
       MEMROOT for prepared statements and stored procedures.
+
+      But first we need to ensure that thd->lex->explain is allocated
+      in the execution arena
     */
+    create_explain_query_if_not_exists(thd->lex, thd->mem_root);
 
     Query_arena *arena, backup;
     arena= thd->activate_stmt_arena_if_needed(&backup);
@@ -24330,7 +24345,7 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta,
 
   if (filesort)
   {
-    eta->pre_join_sort= new Explain_aggr_filesort(thd->mem_root,
+    eta->pre_join_sort= new (thd->mem_root) Explain_aggr_filesort(thd->mem_root,
                                                   thd->lex->analyze_stmt,
                                                   filesort);
   }
