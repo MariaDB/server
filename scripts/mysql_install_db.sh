@@ -307,6 +307,7 @@ then
   langdir="$basedir/sql/share/english"
   srcpkgdatadir="$srcdir/scripts"
   buildpkgdatadir="$builddir/scripts"
+  plugindir="$builddir/plugin/auth_socket/"
 elif test -n "$basedir"
 then
   bindir="$basedir/bin" # only used in the help text
@@ -335,6 +336,7 @@ then
     cannot_find_file fill_help_tables.sql @pkgdata_locations@
     exit 1
   fi
+  plugindir="$basedir/@INSTALL_PLUGINDIR@"
 else
   basedir="@prefix@"
   bindir="@bindir@"
@@ -342,6 +344,7 @@ else
   mysqld="@libexecdir@/mysqld"
   srcpkgdatadir="@pkgdatadir@"
   buildpkgdatadir="@pkgdatadir@"
+  plugindir="@INSTALL_PLUGINDIR@"
 fi
 
 # Set up paths to SQL scripts required for bootstrap
@@ -461,6 +464,7 @@ mysqld_install_cmd_line()
 {
   "$mysqld_bootstrap" $defaults $defaults_group_suffix "$mysqld_opt" --bootstrap $silent_startup\
   "--basedir=$basedir" "--datadir=$ldata" --log-warnings=0 --enforce-storage-engine="" \
+  "--plugin-dir=${plugindir}" \
   $args --max_allowed_packet=8M \
   --net_buffer_length=16K
 }
