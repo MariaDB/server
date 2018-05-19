@@ -24771,7 +24771,7 @@ void save_agg_explain_data(JOIN *join, Explain_select *xpl_sel)
   {
     // Each aggregate means a temp.table
     prev_node= node;
-    node= new Explain_aggr_tmp_table;
+    node= new (thd->mem_root) Explain_aggr_tmp_table;
     node->child= prev_node;
 
     if (join_tab->window_funcs_step)
@@ -24791,14 +24791,14 @@ void save_agg_explain_data(JOIN *join, Explain_select *xpl_sel)
     if (join_tab->distinct)
     {
       prev_node= node;
-      node= new Explain_aggr_remove_dups;
+      node= new (thd->mem_root) Explain_aggr_remove_dups;
       node->child= prev_node;
     }
 
     if (join_tab->filesort)
     {
       Explain_aggr_filesort *eaf =
-        new Explain_aggr_filesort(thd->mem_root, is_analyze, join_tab->filesort);
+        new (thd->mem_root) Explain_aggr_filesort(thd->mem_root, is_analyze, join_tab->filesort);
       prev_node= node;
       node= eaf;
       node->child= prev_node;
