@@ -2591,7 +2591,7 @@ sub setup_vardir() {
       {
         for (<$bindir/storage/*$opt_vs_config/*.dll>,
              <$bindir/plugin/*$opt_vs_config/*.dll>,
-             <$bindir/libmariadb/plugins/*$opt_vs_config/*.dll>,
+             <$bindir/libmariadb$opt_vs_config/*.dll>,
              <$bindir/sql$opt_vs_config/*.dll>)
         {
           my $pname=basename($_);
@@ -2612,6 +2612,7 @@ sub setup_vardir() {
       for (<$bindir/storage/*/*.so>,
            <$bindir/plugin/*/*.so>,
            <$bindir/libmariadb/plugins/*/*.so>,
+           <$bindir/libmariadb/*.so>,
            <$bindir/sql/*.so>)
       {
         my $pname=basename($_);
