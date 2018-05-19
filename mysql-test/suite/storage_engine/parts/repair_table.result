@@ -126,7 +126,6 @@ a	b
 15	o
 Warnings:
 Error	145	Table './test/t1#P#p0' is marked as crashed and should be repaired
-Error	1194	Table 't1' is marked as crashed and should be repaired
 Error	1034	Number of rows changed from 3 to 2
 # Statement ended with one of expected results (0,ER_NOT_KEYFILE,144). 
 # If you got a difference in error message, just add it to rdiff file
@@ -152,7 +151,6 @@ a	b
 15	o
 Warnings:
 Error	145	Table './test/t1#P#p0' is marked as crashed and should be repaired
-Error	1194	Table 't1' is marked as crashed and should be repaired
 Error	1034	Number of rows changed from 2 to 3
 # Statement ended with one of expected results (0,ER_NOT_KEYFILE,144). 
 # If you got a difference in error message, just add it to rdiff file
@@ -177,7 +175,6 @@ a	b
 15	o
 Warnings:
 Error	145	Table './test/t1#P#p1' is marked as crashed and should be repaired
-Error	1194	Table 't1' is marked as crashed and should be repaired
 Error	1034	Number of rows changed from 4 to 3
 # Statement ended with one of expected results (0,ER_NOT_KEYFILE,144). 
 # If you got a difference in error message, just add it to rdiff file
@@ -206,7 +203,6 @@ a	b
 15	o
 Warnings:
 Error	145	Table './test/t1#P#p1' is marked as crashed and should be repaired
-Error	1194	Table 't1' is marked as crashed and should be repaired
 Error	1034	Number of rows changed from 3 to 4
 # Statement ended with one of expected results (0,ER_NOT_KEYFILE,144). 
 # If you got a difference in error message, just add it to rdiff file
