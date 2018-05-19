@@ -1123,3 +1123,33 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP FUNCTION f1;
+#
+# MDEV-14520: Custom aggregate functions work incorrectly with WITH ROLLUP clause
+#
+create aggregate function agg_sum(x INT) returns INT
+begin
+declare z int default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z+x;
+end loop;
+end|
+create table t1 (i int);
+insert into t1 values (1),(2),(2),(3);
+select i, agg_sum(i) from t1 group by i with rollup;
+i	agg_sum(i)
+1	1
+2	4
+3	3
+NULL	8
+#
+# Compare with
+select i, sum(i) from t1 group by i with rollup;
+i	sum(i)
+1	1
+2	4
+3	3
+NULL	8
+drop function agg_sum;
+drop table t1;

@@ -1269,6 +1269,12 @@ Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
   m_sp= sp;
 }
 
+Item_sum_sp::Item_sum_sp(THD *thd, Item_sum_sp *item):
+             Item_sum(thd, item), Item_sp(thd, item)
+{
+  maybe_null= item->maybe_null;
+  quick_group= item->quick_group;
+}
 
 bool
 Item_sum_sp::fix_fields(THD *thd, Item **ref)
@@ -1398,6 +1404,14 @@ Item_sum_sp::func_name() const
 {
   THD *thd= current_thd;
   return Item_sp::func_name(thd);
+}
+
+Item* Item_sum_sp::copy_or_same(THD *thd)
+{
+  Item_sum_sp *copy_item= new (thd->mem_root) Item_sum_sp(thd, this);
+  copy_item->init_result_field(thd, max_length, maybe_null, 
+                               &copy_item->null_value, &copy_item->name);
+  return copy_item;
 }
 
 /***********************************************************************

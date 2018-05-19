@@ -939,3 +939,29 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 DROP FUNCTION f1;
 
+--echo #
+--echo # MDEV-14520: Custom aggregate functions work incorrectly with WITH ROLLUP clause
+--echo #
+
+--delimiter |
+create aggregate function agg_sum(x INT) returns INT
+begin
+declare z int default 0;
+declare continue handler for not found return z;
+loop
+fetch group next row;
+set z= z+x;
+end loop;
+end|
+--delimiter ;
+
+create table t1 (i int);
+insert into t1 values (1),(2),(2),(3);
+select i, agg_sum(i) from t1 group by i with rollup;
+--echo #
+--echo # Compare with
+select i, sum(i) from t1 group by i with rollup;
+
+# Cleanup
+drop function agg_sum;
+drop table t1;

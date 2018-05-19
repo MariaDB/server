@@ -2802,6 +2802,17 @@ Item_sp::Item_sp(THD *thd, Name_resolution_context *context_arg,
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
 }
 
+Item_sp::Item_sp(THD *thd, Item_sp *item):
+         context(item->context), m_name(item->m_name),
+         m_sp(item->m_sp), func_ctx(NULL), sp_result_field(NULL)
+{
+  dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE) +
+                                    sizeof(Query_arena));
+  dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
+  sp_query_arena= (Query_arena *) (dummy_table->s + 1);
+  memset(&sp_mem_root, 0, sizeof(sp_mem_root));
+}
+
 const char *
 Item_sp::func_name(THD *thd) const
 {
