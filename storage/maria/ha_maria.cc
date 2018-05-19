@@ -978,7 +978,7 @@ int_table_flags(HA_NULL_IN_KEY | HA_CAN_FULLTEXT | HA_CAN_SQL_HANDLER |
                 HA_DUPLICATE_POS | HA_CAN_INDEX_BLOBS | HA_AUTO_PART_KEY |
                 HA_FILE_BASED | HA_CAN_GEOMETRY | CANNOT_ROLLBACK_FLAG |
                 HA_CAN_BIT_FIELD | HA_CAN_RTREEKEYS | HA_CAN_REPAIR |
-                HA_CAN_VIRTUAL_COLUMNS |
+                HA_CAN_VIRTUAL_COLUMNS | HA_CAN_EXPORT |
                 HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT),
 can_enable_indexes(1), bulk_insert_single_undo(BULK_INSERT_NONE)
 {}
@@ -1323,6 +1323,7 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
   old_proc_info= thd_proc_info(thd, "Checking status");
   thd_progress_init(thd, 3);
   error= maria_chk_status(param, file);                // Not fatal
+  /* maria_chk_size() will flush the page cache for this file */
   if (maria_chk_size(param, file))
     error= 1;
   if (!error)
@@ -2222,6 +2223,7 @@ end:
       _ma_reenable_logging_for_table(file,
                                      bulk_insert_single_undo ==
                                      BULK_INSERT_SINGLE_UNDO_AND_NO_REPAIR);
+    bulk_insert_single_undo= BULK_INSERT_NONE;  // Safety
   }
   DBUG_RETURN(err);
 }

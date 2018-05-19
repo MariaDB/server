@@ -3417,7 +3417,7 @@ mysql_execute_command(THD *thd)
         TABLE_LIST *duplicate;
         if ((duplicate= unique_table(thd, lex->query_tables,
                                      lex->query_tables->next_global,
-                                     0)))
+                                     CHECK_DUP_FOR_CREATE)))
         {
           update_non_unique_table_error(lex->query_tables, "CREATE",
                                         duplicate);
