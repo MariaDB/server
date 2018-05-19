@@ -46,7 +46,7 @@
     a name that does not already exist.
 
     When passing O_TEMPORARY flag in "mode" the file should
-    be automatically deleted
+    be automatically deleted (Windows only)
 
     The implementation using mkstemp should be considered the
     reference implementation when adding a new or modifying an
@@ -100,7 +100,7 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
     my_errno= tmp;
   }
 
-#elif defined(HAVE_MKSTEMP)
+#elif defined(HAVE_MKSTEMP) || defined(HAVE_MKOSTEMP)
   {
     char prefix_buff[30];
     uint pfx_len;
@@ -118,9 +118,11 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
       DBUG_RETURN(file);
     }
     strmov(convert_dirname(to,dir,NullS),prefix_buff);
+#ifdef HAVE_MKOSTEMP
+    org_file=mkostemp(to, O_CLOEXEC);
+#else
     org_file=mkstemp(to);
-    if (mode & O_TEMPORARY)
-      (void) my_delete(to, MYF(MY_WME | ME_NOINPUT));
+#endif
     file=my_register_filename(org_file, to, FILE_BY_MKSTEMP,
 			      EE_CANTCREATEFILE, MyFlags);
     /* If we didn't manage to register the name, remove the temp file */
