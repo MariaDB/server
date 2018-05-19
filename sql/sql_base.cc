@@ -1373,7 +1373,7 @@ retry:
       DBUG_RETURN(res);
 
     /* Skip if table alias does not match. */
-    if (check_flag & CHECK_DUP_FOR_CREATE)
+    if (check_flag & CHECK_DUP_ALLOW_DIFFERENT_ALIAS)
     {
       if (my_strcasecmp(table_alias_charset, t_alias, res->alias))
         continue;
