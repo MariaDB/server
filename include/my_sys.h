@@ -734,12 +734,6 @@ void my_create_backup_name(char *to, const char *from,
 extern int my_copystat(const char *from, const char *to, int MyFlags);
 extern char * my_filename(File fd);
 
-#ifdef EXTRA_DEBUG
-void my_print_open_files(void);
-#else
-#define my_print_open_files()
-#endif
-
 extern my_bool init_tmpdir(MY_TMPDIR *tmpdir, const char *pathlist);
 extern char *my_tmpdir(MY_TMPDIR *tmpdir);
 extern void free_tmpdir(MY_TMPDIR *tmpdir);
