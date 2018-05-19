@@ -39,7 +39,11 @@ const char *globerrs[GLOBERRS]=
   "Can't get working directory (Errcode: %M)",
   "Can't change dir to '%s' (Errcode: %M)",
   "Warning: '%s' had %d links",
+#ifdef SAFE_STATISTICS
   "Warning: %d files and %d streams is left open\n",
+#else
+  "Warning: %d files and %d streams is left open. Might just be a statistical counting anomaly\n",
+#endif
   "Disk is full writing '%s' (Errcode: %M). Waiting for someone to free space... (Expect up to %d secs delay for server to continue after freeing disk space)",
   "Can't create directory '%s' (Errcode: %M)",
   "Character set '%s' is not a compiled character set and is not specified in the '%s' file",
@@ -55,7 +59,9 @@ const char *globerrs[GLOBERRS]=
   "Can't change permissions of the file '%s' (Errcode: %M)",
   "Can't seek in file '%s' (Errcode: %M)",
   "Can't change mode for file '%s' to 0x%lx (Errcode: %M)",
-  "Warning: Can't copy ownership for file '%s' (Errcode: %M)"
+  "Warning: Can't copy ownership for file '%s' (Errcode: %M)",
+  "File '%s' (fileno: %d) was marked as closed, but was really open",
+  "File '%s' (fileno: %d) was marked as open, but was really closed"
 };
 
 void init_glob_errs(void)
@@ -84,7 +90,11 @@ void init_glob_errs()
   EE(EE_GETWD)		= "Can't get working directory (Errcode: %M)";
   EE(EE_SETWD)		= "Can't change dir to '%s' (Errcode: %M)";
   EE(EE_LINK_WARNING)	= "Warning: '%s' had %d links";
+#ifdef SAFE_STATISTICS
   EE(EE_OPEN_WARNING)	= "Warning: %d files and %d streams is left open\n";
+#else
+  EE(EE_OPEN_WARNING)	= "Warning: %d files and %d streams is left open. Might just be a statistical counting anomaly\n";
+#endif
   EE(EE_DISK_FULL)	= "Disk is full writing '%s' (Errcode: %M). Waiting for someone to free space... (Expect up to %d secs delay for server to continue after freeing disk space)",
   EE(EE_CANT_MKDIR)	="Can't create directory '%s' (Errcode: %M)";
   EE(EE_UNKNOWN_CHARSET)= "Character set '%s' is not a compiled character set and is not specified in the %s file";
@@ -101,6 +111,8 @@ void init_glob_errs()
   EE(EE_CANT_SEEK)      = "Can't seek in file '%s' (Errcode: %M)";
   EE(EE_CANT_CHMOD)    = "Can't change mode for file '%s' to 0x%lx (Errcode: %M)";
   EE(EE_CANT_COPY_OWNERSHIP)= "Warning: Can't copy ownership for file '%s' (Errcode: %M)";
+  EE(EE_FILE_OPEN) = "File '%s' (fileno: %d) was marked as closed, but was really open";
+  EE(EE_FILE_NOT_OPEN) = "File '%s' (fileno: %d) was marked as open, but was really closed";
 }
 #endif
 
