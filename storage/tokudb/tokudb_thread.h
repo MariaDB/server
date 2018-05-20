@@ -38,6 +38,42 @@ extern const pfs_key_t pfs_not_instrumented;
 
 uint my_tid(void);
 
+#if defined(_POSIX_TIMEOUTS) && (_POSIX_TIMEOUTS >= 200112L)
+#else
+inline int pthread_mutex_timedlock(pthread_mutex_t *mutex, struct timespec* ts)
+{
+    int rc;
+    struct timespec cur, dur;
+
+    while ((rc = pthread_mutex_trylock(mutex)) == EBUSY) {
+        clock_gettime(CLOCK_REALTIME, &cur);
+
+        // if timeout, break out the loop
+        if ((cur.tv_sec > ts->tv_sec) || ((cur.tv_sec == ts->tv_sec) && (cur.tv_nsec >= ts->tv_nsec))) {
+            rc = ETIMEDOUT;
+            break;
+        }
+
+        dur.tv_sec = ts->tv_sec - cur.tv_sec;
+        dur.tv_nsec = ts->tv_nsec - cur.tv_nsec;
+        if (dur.tv_nsec < 0) {
+            dur.tv_sec--;
+            dur.tv_nsec += 1000000000;
+        }
+
+        // Sleep 5ms and retry
+        if ((dur.tv_sec != 0) || (dur.tv_nsec > 5000000)) {
+            dur.tv_sec = 0;
+            dur.tv_nsec = 5000000;
+        }
+
+        nanosleep(&dur, NULL);
+    }
+
+    return rc;
+}
+#endif
+
 // Your basic mutex
 class mutex_t {
 public:
