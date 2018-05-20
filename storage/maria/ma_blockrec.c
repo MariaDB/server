@@ -271,6 +271,7 @@
 #include "maria_def.h"
 #include "ma_blockrec.h"
 #include "trnman.h"
+#include "ma_trnman.h"
 #include "ma_key_recover.h"
 #include "ma_recovery_util.h"
 #include <lf.h>
@@ -7488,7 +7489,7 @@ void maria_ignore_trids(MARIA_HA *info)
   if (info->s->base.born_transactional)
   {
     if (!info->trn)
-      _ma_set_trn_for_table(info, &dummy_transaction_object);
+      _ma_set_tmp_trn_for_table(info, &dummy_transaction_object);
     /* Ignore transaction id when row is read */
     info->trn->min_read_from= ~(TrID) 0;
   }

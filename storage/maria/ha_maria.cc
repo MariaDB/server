@@ -37,6 +37,7 @@ C_MODE_START
 #include "ma_checkpoint.h"
 #include "ma_recovery.h"
 C_MODE_END
+#include "ma_trnman.h"
 
 //#include "sql_priv.h"
 #include "protocol.h"
@@ -1384,7 +1385,8 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
   }
 
   /* Reset trn, that may have been set by repair */
-  _ma_set_trn_for_table(file, old_trn);
+  if (old_trn && old_trn != file->trn)
+    _ma_set_trn_for_table(file, old_trn);
   thd_proc_info(thd, old_proc_info);
   thd_progress_end(thd);
   return error ? HA_ADMIN_CORRUPT : HA_ADMIN_OK;
@@ -1518,7 +1520,8 @@ int ha_maria::zerofill(THD * thd, HA_CHECK_OPT *check_opt)
   error=maria_zerofill(param, file, share->open_file_name.str);
 
   /* Reset trn, that may have been set by repair */
-  _ma_set_trn_for_table(file, old_trn);
+  if (old_trn && old_trn != file->trn)
+    _ma_set_trn_for_table(file, old_trn);
 
   if (!error)
   {
@@ -1758,7 +1761,8 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
     maria_lock_database(file, F_UNLCK);
 
   /* Reset trn, that may have been set by repair */
-  _ma_set_trn_for_table(file, old_trn);
+  if (old_trn && old_trn != file->trn)
+    _ma_set_trn_for_table(file, old_trn);
   error= error ? HA_ADMIN_FAILED :
     (optimize_done ?
      (write_log_record_for_repair(param, file) ? HA_ADMIN_FAILED :
@@ -2579,9 +2583,12 @@ int ha_maria::extra(enum ha_extra_function operation)
     without calling commit/rollback in between.  If file->trn is not set
     we can't remove file->share from the transaction list in the extra() call.
 
-    We also ensure that we set file->trn to 0 if THD_TRN is 0 as in
-    this case we have already freed the trn. This can happen when one
-    implicit_commit() is called as part of alter table.
+    In current code we don't have to do this for HA_EXTRA_PREPARE_FOR_RENAME
+    as this is only used the intermediate table used by ALTER TABLE which
+    is not part of the transaction (it's not in the TRN list). Better to
+    keep this for now, to not break anything in a stable release.
+    When HA_EXTRA_PREPARE_FOR_RENAME is not handled below, we can change
+    the warnings in _ma_remove_table_from_trnman() to asserts.
 
     table->in_use is not set in the case this is a done as part of closefrm()
     as part of drop table.
@@ -2594,7 +2601,7 @@ int ha_maria::extra(enum ha_extra_function operation)
   {
     THD *thd= table->in_use;
     TRN *trn= THD_TRN;
-    _ma_set_trn_for_table(file, trn);
+    _ma_set_tmp_trn_for_table(file, trn);
   }
   DBUG_ASSERT(file->s->base.born_transactional || file->trn == 0 ||
               file->trn == &dummy_transaction_object);
@@ -2710,6 +2717,7 @@ int ha_maria::external_lock(THD *thd, int lock_type)
       if (file->trn)
       {
         /* This can only happen with tables created with clone() */
+        DBUG_PRINT("info",("file->trn: %p", file->trn));
         trnman_increment_locked_tables(file->trn);
       }
 
@@ -2730,7 +2738,7 @@ int ha_maria::external_lock(THD *thd, int lock_type)
     }
     else
     {
-      TRN *trn= THD_TRN;
+      TRN *trn= (file->trn != &dummy_transaction_object ? file->trn : 0);
       /* End of transaction */
 
       /*
@@ -2745,8 +2753,7 @@ int ha_maria::external_lock(THD *thd, int lock_type)
       */
       if (_ma_reenable_logging_for_table(file, TRUE))
         DBUG_RETURN(1);
-      /** @todo zero file->trn also in commit and rollback */
-      _ma_set_trn_for_table(file, NULL);        // Safety
+      _ma_reset_trn_for_table(file);
       /*
         Ensure that file->state points to the current number of rows. This
         is needed if someone calls maria_info() without first doing an
@@ -2803,13 +2810,6 @@ int ha_maria::start_stmt(THD *thd, thr_lock_type lock_type)
     DBUG_ASSERT(file->trn == trn);
 
     /*
-      If there was an implicit commit under this LOCK TABLES by a previous
-      statement (like a DDL), at least if that previous statement was about a
-      different ha_maria than 'this' then this->file->trn is a stale
-      pointer. We fix it:
-    */
-    _ma_set_trn_for_table(file, trn);
-    /*
       As external_lock() was already called, don't increment locked_tables.
       Note that we call the function below possibly several times when
       statement starts (once per table). This is ok as long as that function
@@ -2830,6 +2830,23 @@ int ha_maria::start_stmt(THD *thd, thr_lock_type lock_type)
 #endif
   }
   return 0;
+}
+
+
+/*
+  Reset THD_TRN and all file->trn related to the transaction
+  This is needed as some calls, like extra() or external_lock() may access
+  it before next transaction is started
+*/
+
+static void reset_thd_trn(THD *thd, MARIA_HA *first_table)
+{
+  DBUG_ENTER("reset_thd_trn");
+  THD_TRN= NULL;
+  for (MARIA_HA *table= first_table; table ;
+       table= table->trn_next)
+    _ma_reset_trn_for_table(table);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -2856,9 +2873,9 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
   TRN *trn;
   int error;
   uint locked_tables;
-  DYNAMIC_ARRAY used_tables;
-  
+  MARIA_HA *used_tables, *trn_next;
   DBUG_ENTER("ha_maria::implicit_commit");
+
   if (!maria_hton || !(trn= THD_TRN))
     DBUG_RETURN(0);
   if (!new_trn && (thd->locked_tables_mode == LTM_LOCK_TABLES ||
@@ -2876,48 +2893,16 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
 
   locked_tables= trnman_has_locked_tables(trn);
 
-  if (new_trn && trn && trn->used_tables)
-  {
-    MARIA_USED_TABLES *tables;
-    /*
-      Save locked tables so that we can move them to another transaction
-      We are using a dynamic array as locked_tables in some cases can be
-      smaller than the used_tables list (for example when the server does
-      early unlock of tables.
-    */
-
-    my_init_dynamic_array2(&used_tables, sizeof(MARIA_SHARE*), (void*) 0,
-                           locked_tables, 8, MYF(MY_THREAD_SPECIFIC));
-    for (tables= (MARIA_USED_TABLES*) trn->used_tables;
-         tables;
-         tables= tables->next)
-    {
-      if (tables->share->base.born_transactional)
-      {
-        if (insert_dynamic(&used_tables, (uchar*) &tables->share))
-        {
-          error= HA_ERR_OUT_OF_MEM;
-          goto end_and_free;
-        }
-      }
-    }
-  }
-  else
-    bzero(&used_tables, sizeof(used_tables));
-
+  used_tables= (MARIA_HA*) trn->used_instances;
   error= 0;
   if (unlikely(ma_commit(trn)))
     error= 1;
   if (!new_trn)
   {
-    /*
-      To be extra safe, we should also reset file->trn for all open
-      tables as some calls, like extra() may access it. We take care
-      of this in extra() by resetting file->trn if THD_TRN is 0.
-    */
-    THD_TRN= NULL;
+    reset_thd_trn(thd, used_tables);
     goto end;
   }
+
   /*
     We need to create a new transaction and put it in THD_TRN. Indeed,
     tables may be under LOCK TABLES, and so they will start the next
@@ -2927,8 +2912,9 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
   THD_TRN= trn;
   if (unlikely(trn == NULL))
   {
+    reset_thd_trn(thd, used_tables);
     error= HA_ERR_OUT_OF_MEM;
-    goto end_and_free;
+    goto end;
   }
   /*
     Move all locked tables to the new transaction
@@ -2938,35 +2924,25 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
     in check table, we use the table without calling start_stmt().
   */
 
-  uint i;
-  for (i= 0 ; i < used_tables.elements ; i++)
+  for (MARIA_HA *handler= used_tables; handler ;
+       handler= trn_next)
   {
-    MARIA_SHARE *share;
-    LIST *handlers;
+    trn_next= handler->trn_next;
+    DBUG_ASSERT(handler->s->base.born_transactional);
 
-    share= *(dynamic_element(&used_tables, i, MARIA_SHARE**));
-    /* Find table instances that was used in this transaction */
-    for (handlers= share->open_list; handlers; handlers= handlers->next)
+    /* If handler uses versioning */
+    if (handler->s->lock_key_trees)
     {
-      MARIA_HA *handler= (MARIA_HA*) handlers->data;
-      if (handler->external_ref && 
-          ((TABLE*) handler->external_ref)->in_use == thd)
-      {        
-        _ma_set_trn_for_table(handler, trn);
-        /* If handler uses versioning */
-        if (handler->s->lock_key_trees)
-        {
-          if (_ma_setup_live_state(handler))
-            error= HA_ERR_OUT_OF_MEM;
-        }
-      }
+      /* _ma_set_trn_for_table() will be called indirectly */
+      if (_ma_setup_live_state(handler))
+        error= HA_ERR_OUT_OF_MEM;
     }
+    else
+      _ma_set_trn_for_table(handler, trn);
   }
   /* This is just a commit, tables stay locked if they were: */
   trnman_reset_locked_tables(trn, locked_tables);
 
-end_and_free:
-  delete_dynamic(&used_tables);
 end:
   DBUG_RETURN(error);
 }
@@ -3340,10 +3316,10 @@ static int maria_commit(handlerton *hton __attribute__ ((unused)),
   trnman_set_flags(trn, trnman_get_flags(trn) & ~TRN_STATE_INFO_LOGGED);
 
   /* statement or transaction ? */
-  if ((thd->variables.option_bits & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) && !all)
+  if ((thd->variables.option_bits & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
+      !all)
     DBUG_RETURN(0); // end of statement
-  DBUG_PRINT("info", ("THD_TRN set to 0x0"));
-  THD_TRN= 0;
+  reset_thd_trn(thd, (MARIA_HA*) trn->used_instances);
   DBUG_RETURN(ma_commit(trn)); // end of transaction
 }
 
@@ -3360,8 +3336,7 @@ static int maria_rollback(handlerton *hton __attribute__ ((unused)),
     trnman_rollback_statement(trn);
     DBUG_RETURN(0); // end of statement
   }
-  DBUG_PRINT("info", ("THD_TRN set to 0x0"));
-  THD_TRN= 0;
+  reset_thd_trn(thd, (MARIA_HA*) trn->used_instances);
   DBUG_RETURN(trnman_rollback_trn(trn) ?
               HA_ERR_OUT_OF_MEM : 0); // end of transaction
 }
