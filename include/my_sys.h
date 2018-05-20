@@ -329,7 +329,7 @@ typedef struct st_record_cache	/* Used when caching records */
 enum file_type
 {
   UNOPEN = 0, FILE_BY_OPEN, FILE_BY_CREATE, STREAM_BY_FOPEN, STREAM_BY_FDOPEN,
-  FILE_BY_MKSTEMP, FILE_BY_DUP
+  FILE_BY_O_TMPFILE, FILE_BY_MKSTEMP, FILE_BY_DUP
 };
 
 struct st_my_file_info

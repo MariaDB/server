@@ -110,6 +110,29 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
     }
   }
 #elif defined(HAVE_MKSTEMP)
+#if O_TMPFILE
+  static int O_TMPFILE_works= 1;
+
+  if ((MyFlags & MY_TEMPORARY) && O_TMPFILE_works)
+  {
+    /* explictly don't use O_EXCL here has it has a different
+       meaning with O_TMPFILE
+    */
+    if ((file= open(dir, mode | (O_TMPFILE | O_CLOEXEC),
+                    S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)) >= 0)
+    {
+      my_snprintf(to, FN_REFLEN, "%s/#sql/fd=%d", dir, file);
+      file=my_register_filename(file, to, FILE_BY_O_TMPFILE,
+                                EE_CANTCREATEFILE, MyFlags);
+    }
+    else if (errno == EOPNOTSUPP)
+    {
+      fprintf(stderr, "Notice: tempfile option O_TMPFILE not supported on %s (disabling future attempts)", dir);
+      O_TMPFILE_works= 0;
+    }
+  }
+  if (file == -1)
+#endif /* O_TMPFILE */
   {
     char prefix_buff[30];
     uint pfx_len;

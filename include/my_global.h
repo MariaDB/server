@@ -617,6 +617,9 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #else
 #define STR_O_CLOEXEC ""
 #endif
+#ifndef O_TMPFILE
+#define O_TMPFILE       0
+#endif
 #ifndef SOCK_CLOEXEC
 #define SOCK_CLOEXEC    0
 #endif
