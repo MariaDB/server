@@ -61,6 +61,10 @@ enum find_item_error_report_type {REPORT_ALL_ERRORS, REPORT_EXCEPT_NOT_FOUND,
 				  IGNORE_ERRORS, REPORT_EXCEPT_NON_UNIQUE,
                                   IGNORE_EXCEPT_NON_UNIQUE};
 
+/* Flag bits for unique_table() */
+#define CHECK_DUP_ALLOW_DIFFERENT_ALIAS 1
+#define CHECK_DUP_FOR_CREATE 2
+
 uint get_table_def_key(const TABLE_LIST *table_list, const char **key);
 TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
                    uint lock_flags);
@@ -262,7 +266,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint counter, uint flags);
 int decide_logging_format(THD *thd, TABLE_LIST *tables);
 void close_thread_table(THD *thd, TABLE **table_ptr);
 TABLE_LIST *unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
-                         bool check_alias);
+                         uint check_flag);
 bool is_equal(const LEX_STRING *a, const LEX_STRING *b);
 
 class Open_tables_backup;

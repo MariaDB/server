@@ -817,8 +817,9 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
   if (parser_state.init(thd, unparsed_spec.str, unparsed_spec.length))
     goto err;
   lex_start(thd);
+  lex->stmt_lex= old_lex;
   with_select= &lex->select_lex;
-  with_select->select_number= ++thd->stmt_lex->current_select_number;
+  with_select->select_number= ++thd->lex->stmt_lex->current_select_number;
   parse_status= parse_sql(thd, &parser_state, 0);
   if (parse_status)
     goto err;

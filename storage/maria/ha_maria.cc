@@ -1334,6 +1334,7 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
   old_proc_info= thd_proc_info(thd, "Checking status");
   thd_progress_init(thd, 3);
   error= maria_chk_status(param, file);                // Not fatal
+  /* maria_chk_size() will flush the page cache for this file */
   if (maria_chk_size(param, file))
     error= 1;
   if (!error)
@@ -2236,6 +2237,7 @@ end:
       _ma_reenable_logging_for_table(file,
                                      bulk_insert_single_undo ==
                                      BULK_INSERT_SINGLE_UNDO_AND_NO_REPAIR);
+    bulk_insert_single_undo= BULK_INSERT_NONE;  // Safety
   }
   DBUG_RETURN(err);
 }

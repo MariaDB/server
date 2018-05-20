@@ -9761,9 +9761,7 @@ bool mysql_trans_prepare_alter_copy_data(THD *thd)
     
     This needs to be done before external_lock.
   */
-  if (ha_enable_transaction(thd, FALSE))
-    DBUG_RETURN(TRUE);
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(ha_enable_transaction(thd, FALSE) != 0);
 }
 
 
@@ -9816,6 +9814,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   List<Item>   fields;
   List<Item>   all_fields;
   bool auto_increment_field_copied= 0;
+  bool cleanup_done= 0;
   bool init_read_record_done= 0;
   sql_mode_t save_sql_mode= thd->variables.sql_mode;
   ulonglong prev_insert_id, time_to_report_progress;
@@ -9825,15 +9824,23 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   /* Two or 3 stages; Sorting, copying data and update indexes */
   thd_progress_init(thd, 2 + MY_TEST(order));
 
-  if (mysql_trans_prepare_alter_copy_data(thd))
-    DBUG_RETURN(-1);
-
   if (!(copy= new Copy_field[to->s->fields]))
     DBUG_RETURN(-1);				/* purecov: inspected */
 
+  if (mysql_trans_prepare_alter_copy_data(thd))
+  {
+    delete [] copy;
+    DBUG_RETURN(-1);
+  }
+
   /* We need external lock before we can disable/enable keys */
   if (to->file->ha_external_lock(thd, F_WRLCK))
+  {
+    /* Undo call to mysql_trans_prepare_alter_copy_data() */
+    ha_enable_transaction(thd, TRUE);
+    delete [] copy;
     DBUG_RETURN(-1);
+  }
 
   alter_table_manage_keys(to, from->file->indexes_are_disabled(), keys_onoff);
 
@@ -9843,7 +9850,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   from->file->info(HA_STATUS_VARIABLE);
   to->file->ha_start_bulk_insert(from->file->stats.records,
                                  ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
-
   List_iterator<Create_field> it(create);
   Create_field *def;
   copy_end=copy;
@@ -10067,6 +10073,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
   if (!ignore)
     to->file->extra(HA_EXTRA_END_ALTER_COPY);
+
+  cleanup_done= 1;
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
   if (mysql_trans_commit_alter_copy_data(thd))
@@ -10084,6 +10092,15 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   *copied= found_count;
   *deleted=delete_count;
   to->file->ha_release_auto_increment();
+
+  if (!cleanup_done)
+  {
+    /* This happens if we get an error during initialzation of data */
+    DBUG_ASSERT(error);
+    to->file->ha_end_bulk_insert();
+    ha_enable_transaction(thd, TRUE);
+  }
+
   if (to->file->ha_external_lock(thd,F_UNLCK))
     error=1;
   if (error < 0 && !from->s->tmp_table &&
