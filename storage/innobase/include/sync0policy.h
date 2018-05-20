@@ -50,7 +50,7 @@ public:
 			m_mutex(),
 			m_filename(),
 			m_line(),
-			m_thread_id(os_thread_id_t(ULINT_UNDEFINED))
+			m_thread_id(ULINT_UNDEFINED)
 		{
 			/* No op */
 		}
@@ -76,7 +76,8 @@ public:
 		{
 			m_mutex = mutex;
 
-			my_atomic_storelint(&m_thread_id, os_thread_get_curr_id());
+			my_atomic_storelint(&m_thread_id,
+					    ulint(os_thread_get_curr_id()));
 
 			m_filename = filename;
 
