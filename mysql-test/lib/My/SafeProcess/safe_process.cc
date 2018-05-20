@@ -89,6 +89,53 @@ static void die(const char* fmt, ...)
 }
 
 
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+
+
+/*
+  Eventually we may want to adopt kern.corefile parsing code from
+  https://opensource.apple.com/source/xnu/xnu-3247.1.106/bsd/kern/kern_proc.c
+*/
+
+void handle_core(pid_t pid)
+{
+  char corefile[256];
+  int coredump;
+  size_t corefile_size= sizeof(corefile);
+  size_t coredump_size= sizeof(coredump);
+
+  if (sysctlbyname("kern.coredump", &coredump, &coredump_size, 0, 0) ||
+      sysctlbyname("kern.corefile", corefile, &corefile_size, 0, 0))
+  {
+    message("sysctlbyname failed: %d (%s)", errno, strerror(errno));
+    return;
+  }
+
+  if (!coredump)
+  {
+    message("core dumps disabled, to enable run sudo sysctl kern.coredump=1");
+    return;
+  }
+
+  if (!strncmp(corefile, "/cores/core.%P", corefile_size))
+  {
+    char from[256];
+    char *to= from + 7;
+
+    snprintf(from, sizeof(from), "/cores/core.%u", pid);
+    if (!access(from, R_OK))
+    {
+      if (symlink(from, to))
+        message("symlink failed: %d (%s)", errno, strerror(errno));
+    }
+  }
+}
+#else
+void handle_core(pid_t pid __attribute__((unused))) {}
+#endif
+
+
 static int kill_child(bool was_killed)
 {
   int status= 0;
@@ -112,7 +159,10 @@ static int kill_child(bool was_killed)
     }
 
     if (WIFSIGNALED(status))
+    {
       message("Child killed by signal: %d", WTERMSIG(status));
+      handle_core(child_pid);
+    }
 
     return exit_code;
   }
