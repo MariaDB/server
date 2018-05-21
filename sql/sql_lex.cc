@@ -7980,7 +7980,7 @@ bool Lex_ident_sys_st::convert(THD *thd,
 }
 
 
-bool Lex_ident_sys_st::to_size_number(THD *thd, ulonglong *to) const
+bool Lex_ident_sys_st::to_size_number(ulonglong *to) const
 {
   ulonglong number;
   uint text_shift_number= 0;
