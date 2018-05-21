@@ -319,13 +319,13 @@ enum enum_sp_aggregate_type
   GROUP_AGGREGATE
 };
 
-const LEX_STRING sp_data_access_name[]=
+const LEX_CSTRING sp_data_access_name[]=
 {
-  { C_STRING_WITH_LEN("") },
-  { C_STRING_WITH_LEN("CONTAINS SQL") },
-  { C_STRING_WITH_LEN("NO SQL") },
-  { C_STRING_WITH_LEN("READS SQL DATA") },
-  { C_STRING_WITH_LEN("MODIFIES SQL DATA") }
+  { STRING_WITH_LEN("") },
+  { STRING_WITH_LEN("CONTAINS SQL") },
+  { STRING_WITH_LEN("NO SQL") },
+  { STRING_WITH_LEN("READS SQL DATA") },
+  { STRING_WITH_LEN("MODIFIES SQL DATA") }
 };
 
 #define DERIVED_SUBQUERY        1
@@ -3685,7 +3685,7 @@ public:
                                         Item *value);
   sp_variable *sp_add_for_loop_upper_bound(THD *thd, Item *value)
   {
-    LEX_CSTRING name= { C_STRING_WITH_LEN("[upper_bound]") };
+    LEX_CSTRING name= { STRING_WITH_LEN("[upper_bound]") };
     return sp_add_for_loop_variable(thd, &name, value);
   }
   bool sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,

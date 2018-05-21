@@ -371,12 +371,12 @@ public:
   stored_procedure_type type() const { return TYPE_ENUM_PACKAGE; }
   LEX_CSTRING type_lex_cstring() const
   {
-    static LEX_CSTRING m_type_str= {C_STRING_WITH_LEN("PACKAGE")};
+    static LEX_CSTRING m_type_str= {STRING_WITH_LEN("PACKAGE")};
     return m_type_str;
   }
   LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const
   {
-    static LEX_CSTRING m_empty_body= {C_STRING_WITH_LEN("BEGIN END")};
+    static LEX_CSTRING m_empty_body= {STRING_WITH_LEN("BEGIN END")};
     return m_empty_body;
   }
   const char *show_create_routine_col1_caption() const
@@ -404,12 +404,12 @@ public:
   stored_procedure_type type() const { return TYPE_ENUM_PACKAGE_BODY; }
   LEX_CSTRING type_lex_cstring() const
   {
-    static LEX_CSTRING m_type_str= {C_STRING_WITH_LEN("PACKAGE BODY")};
+    static LEX_CSTRING m_type_str= {STRING_WITH_LEN("PACKAGE BODY")};
     return m_type_str;
   }
   LEX_CSTRING empty_body_lex_cstring(sql_mode_t mode) const
   {
-    static LEX_CSTRING m_empty_body= {C_STRING_WITH_LEN("BEGIN END")};
+    static LEX_CSTRING m_empty_body= {STRING_WITH_LEN("BEGIN END")};
     return m_empty_body;
   }
   const char *show_create_routine_col1_caption() const

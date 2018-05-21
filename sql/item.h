@@ -368,11 +368,37 @@ typedef enum monotonicity_info
 
 class sp_rcontext;
 
+/**
+  A helper class to collect different behavior of various kinds of SP variables:
+  - local SP variables and SP parameters
+  - PACKAGE BODY routine variables
+  - (there will be more kinds in the future)
+*/
+
 class Sp_rcontext_handler
 {
 public:
   virtual ~Sp_rcontext_handler() {}
+  /**
+    A prefix used for SP variable names in queries:
+    - EXPLAIN EXTENDED
+    - SHOW PROCEDURE CODE
+    Local variables and SP parameters have empty prefixes.
+    Package body variables are marked with a special prefix.
+    This improves readability of the output of these queries,
+    especially when a local variable or a parameter has the same
+    name with a package body variable.
+  */
   virtual const LEX_CSTRING *get_name_prefix() const= 0;
+  /**
+    At execution time THD->spcont points to the run-time context (sp_rcontext)
+    of the currently executed routine.
+    Local variables store their data in the sp_rcontext pointed by thd->spcont.
+    Package body variables store data in separate sp_rcontext that belongs
+    to the package.
+    This method provides access to the proper sp_rcontext structure,
+    depending on the SP variable kind.
+  */
   virtual sp_rcontext *get_rcontext(sp_rcontext *ctx) const= 0;
 };
 

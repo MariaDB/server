@@ -2514,7 +2514,7 @@ static uint dump_routines_for_db(char *db)
                                      "Create Package Body"};
   char       db_name_buff[NAME_LEN*2+3], name_buff[NAME_LEN*2+3];
   char       *routine_name;
-  int        i;
+  uint       i;
   FILE       *sql_file= md_result_file;
   MYSQL_ROW  row, routine_list_row;
 
@@ -2550,7 +2550,7 @@ static uint dump_routines_for_db(char *db)
     fputs("\t<routines>\n", sql_file);
 
   /* 0, retrieve and dump functions, 1, procedures, etc. */
-  for (i= 0; i < 4; i++)
+  for (i= 0; i < array_elements(routine_type); i++)
   {
     my_snprintf(query_buff, sizeof(query_buff),
                 "SHOW %s STATUS WHERE Db = '%s'",
