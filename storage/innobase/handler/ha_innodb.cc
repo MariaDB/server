@@ -2378,17 +2378,6 @@ static bool is_mysql_datadir_path(const char *path)
                                             TRUE));
 }
 
-static int mysql_tmpfile_path(const char *path, const char *prefix)
-{
-  DBUG_ASSERT(path != NULL);
-  DBUG_ASSERT((strlen(path) + strlen(prefix)) <= FN_REFLEN);
-
-  char filename[FN_REFLEN];
-  File fd = create_temp_file(filename, path, prefix, O_BINARY | O_SEQUENTIAL,
-                             MYF(MY_WME | MY_TEMPORARY));
-  return fd;
-}
-
 /** Creates a temporary file in the location specified by the parameter
 path. If the path is NULL, then it will be created in tmpdir.
 @param[in]	path	location for creating temporary file
@@ -2401,71 +2390,20 @@ innobase_mysql_tmpfile(
 	os_event_wait(srv_allow_writes_event);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
 	File	fd;
+	char filename[FN_REFLEN];
 
 	DBUG_EXECUTE_IF(
 		"innobase_tmpfile_creation_failure",
 		return(OS_FILE_CLOSED);
 	);
 
-	if (path == NULL) {
-		fd = mysql_tmpfile("ib");
-	} else {
-		fd = mysql_tmpfile_path(path, "ib");
-	}
+	fd = create_temp_file(filename, path ? path : mysql_tmpdir, "ib", O_BINARY | O_SEQUENTIAL,
+				MYF(MY_WME | MY_TEMPORARY | MY_NO_REGISTER));
 
 	if (fd < 0)
 		return OS_FILE_CLOSED;
 
-	/* Copy the file descriptor, so that the additional resources
-	allocated by create_temp_file() can be freed by invoking
-	my_close().
-
-	Because the file descriptor returned by this function
-	will be passed to fdopen(), it will be closed by invoking
-	fclose(), which in turn will invoke close() instead of
-	my_close(). */
-
-#ifdef _WIN32
-	/* Note that on Windows, the integer returned by mysql_tmpfile
-	has no relation to C runtime file descriptor. Here, we need
-	to call my_get_osfhandle to get the HANDLE and then convert it
-	to C runtime filedescriptor. */
-
-	HANDLE hFile = my_get_osfhandle(fd);
-	HANDLE hDup;
-	BOOL bOK = DuplicateHandle(
-			GetCurrentProcess(),
-			hFile, GetCurrentProcess(),
-			&hDup, 0, FALSE, DUPLICATE_SAME_ACCESS);
-	my_close(fd, MYF(MY_WME));
-
-	if (!bOK) {
-		my_osmaperr(GetLastError());
-		goto error;
-	}
-	return hDup;
-#else
-#ifdef F_DUPFD_CLOEXEC
-	int fd2 = fcntl(fd, F_DUPFD_CLOEXEC, 0);
-#else
-	int fd2 = dup(fd);
-#endif
-	my_close(fd, MYF(MY_WME));
-	if (fd2 < 0) {
-		set_my_errno(errno);
-		goto error;
-	}
-	return fd2;
-#endif
-
-error:
-	char errbuf[MYSYS_STRERROR_SIZE];
-
-	my_error(EE_OUT_OF_FILERESOURCES,
-		MYF(0),
-		"ib*", errno,
-		my_strerror(errbuf, sizeof(errbuf), errno));
-	return (OS_FILE_CLOSED);
+	return fd;
 }
 
 /*********************************************************************//**
