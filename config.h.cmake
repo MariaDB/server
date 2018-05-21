@@ -421,7 +421,6 @@
 #cmakedefine SIGQUIT @SIGQUIT@
 #cmakedefine SIGPIPE @SIGPIPE@
 #cmakedefine isnan @isnan@
-#cmakedefine finite @finite@
 #cmakedefine popen @popen@
 #cmakedefine pclose @pclose@
 #cmakedefine ssize_t @ssize_t@

@@ -840,9 +840,6 @@ inline unsigned long long my_double2ulonglong(double d)
 
 #ifdef __cplusplus
 #include <cmath>
-#ifndef isfinite
-#define isfinite(X) std::isfinite(X)
-#endif
 #ifndef isnan
 #define isnan(X) std::isnan(X)
 #endif
