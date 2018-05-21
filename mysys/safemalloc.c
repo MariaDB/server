@@ -282,8 +282,8 @@ static void warn(const char *format,...)
   va_list args;
   DBUG_PRINT("error", ("%s", format));
   va_start(args,format);
-  fflush(stderr);
   vfprintf(stderr, format, args);
+  fflush(stderr);
   va_end(args);
 
 #ifdef HAVE_BACKTRACE
