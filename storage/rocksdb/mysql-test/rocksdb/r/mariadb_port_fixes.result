@@ -69,19 +69,19 @@ set global rocksdb_strict_collation_check=@tmp_rscc;
 #
 select plugin_name, plugin_maturity from information_schema.plugins where plugin_name like '%rocksdb%';
 plugin_name	plugin_maturity
-ROCKSDB	Gamma
-ROCKSDB_CFSTATS	Gamma
-ROCKSDB_DBSTATS	Gamma
-ROCKSDB_PERF_CONTEXT	Gamma
-ROCKSDB_PERF_CONTEXT_GLOBAL	Gamma
-ROCKSDB_CF_OPTIONS	Gamma
-ROCKSDB_COMPACTION_STATS	Gamma
-ROCKSDB_GLOBAL_INFO	Gamma
-ROCKSDB_DDL	Gamma
-ROCKSDB_INDEX_FILE_MAP	Gamma
-ROCKSDB_LOCKS	Gamma
-ROCKSDB_TRX	Gamma
-ROCKSDB_DEADLOCK	Gamma
+ROCKSDB	Stable
+ROCKSDB_CFSTATS	Stable
+ROCKSDB_DBSTATS	Stable
+ROCKSDB_PERF_CONTEXT	Stable
+ROCKSDB_PERF_CONTEXT_GLOBAL	Stable
+ROCKSDB_CF_OPTIONS	Stable
+ROCKSDB_COMPACTION_STATS	Stable
+ROCKSDB_GLOBAL_INFO	Stable
+ROCKSDB_DDL	Stable
+ROCKSDB_INDEX_FILE_MAP	Stable
+ROCKSDB_LOCKS	Stable
+ROCKSDB_TRX	Stable
+ROCKSDB_DEADLOCK	Stable
 #
 #  MDEV-12466 : Assertion `thd->transaction.stmt.is_empty() || thd->in_sub_stmt ||  ...
 #
