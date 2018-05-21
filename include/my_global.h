@@ -832,7 +832,7 @@ inline unsigned long long my_double2ulonglong(double d)
 #define finite(x) (1.0 / fabs(x) > 0.0)
 #endif
 
-#ifndef HAVE_ISFINITE
+#ifndef isfinite
 #define isfinite(x) finite(x)
 #endif
 
