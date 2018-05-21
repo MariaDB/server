@@ -227,14 +227,17 @@ FILE *my_fdopen(File Filedes, const char *name, int Flags, myf MyFlags)
       if (my_file_info[Filedes].type != UNOPEN)
       {
         statistic_decrement(my_file_opened, &THR_LOCK_open);		/* File is opened with my_open ! */
+        goto end;
       }
-      else
+      if (!(MyFlags & MY_NO_REGISTER))
       {
         my_file_info[Filedes].name=  my_strdup(name,MyFlags);
+        my_file_info[Filedes].type = STREAM_BY_FDOPEN;
       }
-      my_file_info[Filedes].type = STREAM_BY_FDOPEN;
     }
   }
+
+end:
 
   DBUG_PRINT("exit",("stream: %p", fd));
   DBUG_RETURN(fd);

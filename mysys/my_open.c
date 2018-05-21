@@ -141,10 +141,13 @@ File my_register_filename(File fd, const char *FileName, enum file_type
       statistic_increment(my_file_opened,&THR_LOCK_open);
       DBUG_RETURN(fd);				/* safeguard */
     }
-    my_file_info[fd].name = (char*) my_strdup(FileName, MyFlags);
     statistic_increment(my_file_opened,&THR_LOCK_open);
     statistic_increment(my_file_total_opened,&THR_LOCK_open);
-    my_file_info[fd].type = type_of_file;
+    if (!(MyFlags & MY_NO_REGISTER))
+    {
+      my_file_info[fd].name = (char*) my_strdup(FileName, MyFlags);
+      my_file_info[fd].type = type_of_file;
+    }
     DBUG_PRINT("exit",("fd: %d",fd));
     DBUG_RETURN(fd);
   }
