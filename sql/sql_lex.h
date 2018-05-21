@@ -143,7 +143,7 @@ public:
   bool convert(THD *thd, const LEX_CSTRING *str, CHARSET_INFO *cs);
   bool copy_or_convert(THD *thd, const Lex_ident_cli_st *str, CHARSET_INFO *cs);
   bool is_null() const { return str == NULL; }
-  bool to_size_number(THD *thd, ulonglong *to) const;
+  bool to_size_number(ulonglong *to) const;
 };
 
 

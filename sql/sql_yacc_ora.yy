@@ -67,8 +67,6 @@
 #include "lex_token.h"
 #include "sql_lex.h"
 #include "sql_sequence.h"
-#include "sql_tvc.h"
-#include "vers_utils.h"
 #include "my_base.h"
 
 /* this is to get the bison compilation windows warnings out */
@@ -5100,7 +5098,7 @@ size_number:
           real_ulonglong_num { $$= $1;}
         | IDENT_sys
           {
-            if ($1.to_size_number(thd, &$$))
+            if ($1.to_size_number(&$$))
               MYSQL_YYABORT;
           }
         ;
