@@ -223,6 +223,13 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     my_safe_printf_stderr("\nConnection ID (thread ID): %lu\n",
                           (ulong) thd->thread_id);
     my_safe_printf_stderr("Status: %s\n\n", kreason);
+
+    StringBuffer<128> buf;
+    if (!print_explain_for_slow_log(thd->lex, thd, &buf))
+    {
+      my_safe_printf_stderr("%s\n",  buf.c_ptr_safe());
+    }
+
     my_safe_printf_stderr("%s", "Optimizer switch: ");
     ulonglong optsw= thd->variables.optimizer_switch;
     for (uint i= 0; optimizer_switch_names[i+1]; i++, optsw >>= 1)
