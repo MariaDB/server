@@ -52,7 +52,7 @@ const LEX_CSTRING *Sp_rcontext_handler_local::get_name_prefix() const
 const LEX_CSTRING *Sp_rcontext_handler_package_body::get_name_prefix() const
 {
   static const LEX_CSTRING sp_package_body_variable_prefix_clex_str=
-                           {C_STRING_WITH_LEN("PACKAGE_BODY.")};
+                           {STRING_WITH_LEN("PACKAGE_BODY.")};
   return &sp_package_body_variable_prefix_clex_str;
 }
 
