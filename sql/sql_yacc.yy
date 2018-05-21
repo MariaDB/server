@@ -892,10 +892,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 99 shift/reduce conflicts.
+  Currently there are 72 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 99
+%expect 72
 
 /*
    Comments for TOKENS.
@@ -1658,7 +1658,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   OR_SYM OR2_SYM
 %left   XOR
 %left   AND_SYM AND_AND_SYM
+
+%left   PREC_BELOW_NOT
 %left   NOT_SYM
+
 %left   BETWEEN_SYM CASE_SYM WHEN_SYM THEN_SYM ELSE
 %left   '=' EQUAL_SYM GE '>' LE '<' NE IS LIKE REGEXP IN_SYM
 %left   '|'
@@ -9581,7 +9584,7 @@ expr:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | bool_pri
+        | bool_pri %prec PREC_BELOW_NOT
         ;
 
 bool_pri:
@@ -9717,7 +9720,7 @@ predicate:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | bit_expr
+        | bit_expr %prec PREC_BELOW_NOT
         ;
 
 bit_expr:
