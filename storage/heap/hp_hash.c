@@ -19,6 +19,7 @@
 #include "heapdef.h"
 #include <m_ctype.h>
 
+static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key);
 /*
   Find out how many rows there is in the given range
 
@@ -211,7 +212,7 @@ void hp_movelink(HASH_INFO *pos, HASH_INFO *next_link, HASH_INFO *newlink)
 
 	/* Calc hashvalue for a key */
 
-ulong hp_hashnr(register HP_KEYDEF *keydef, register const uchar *key)
+static ulong hp_hashnr(HP_KEYDEF *keydef, const uchar *key)
 {
   /*register*/ 
   ulong nr=1, nr2=4;
