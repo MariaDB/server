@@ -749,12 +749,6 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
              table_list->table_name.str);
     DBUG_RETURN(TRUE);
   }
-  /*
-    mark the table_list as a target for insert, to skip the DT/view prepare phase 
-    for correct access rights checks
-    TODO: remove this hack
-  */
-  table_list->skip_prepare_derived= TRUE;
 
   if (table_list->lock_type == TL_WRITE_DELAYED)
   {
