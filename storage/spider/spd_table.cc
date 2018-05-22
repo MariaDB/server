@@ -151,9 +151,6 @@ PSI_mutex_key spd_key_mutex_conn;
 PSI_mutex_key spd_key_mutex_hs_r_conn;
 PSI_mutex_key spd_key_mutex_hs_w_conn;
 #endif
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-PSI_mutex_key spd_key_mutex_global_trx;
-#endif
 PSI_mutex_key spd_key_mutex_open_conn;
 PSI_mutex_key spd_key_mutex_allocated_thds;
 PSI_mutex_key spd_key_mutex_mon_table_cache;
@@ -203,9 +200,6 @@ static PSI_mutex_info all_spider_mutexes[]=
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   { &spd_key_mutex_hs_r_conn, "hs_r_conn", PSI_FLAG_GLOBAL},
   { &spd_key_mutex_hs_w_conn, "hs_w_conn", PSI_FLAG_GLOBAL},
-#endif
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-  { &spd_key_mutex_global_trx, "global_trx", PSI_FLAG_GLOBAL},
 #endif
   { &spd_key_mutex_open_conn, "open_conn", PSI_FLAG_GLOBAL},
   { &spd_key_mutex_allocated_thds, "allocated_thds", PSI_FLAG_GLOBAL},
@@ -386,9 +380,6 @@ pthread_mutex_t spider_allocated_thds_mutex;
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
 pthread_attr_t spider_pt_attr;
-
-pthread_mutex_t spider_global_trx_mutex;
-SPIDER_TRX *spider_global_trx;
 #endif
 
 extern pthread_mutex_t spider_mem_calc_mutex;
@@ -6621,10 +6612,6 @@ int spider_db_done(
     do_delete_thd = TRUE;
   }
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-  spider_free_trx(spider_global_trx, TRUE);
-#endif
-
   for (roop_count = SPIDER_DBTON_SIZE - 1; roop_count >= 0; roop_count--)
   {
     if (spider_dbton[roop_count].deinit)
@@ -6807,9 +6794,6 @@ int spider_db_done(
   pthread_mutex_destroy(&spider_mon_table_cache_mutex);
   pthread_mutex_destroy(&spider_allocated_thds_mutex);
   pthread_mutex_destroy(&spider_open_conn_mutex);
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-  pthread_mutex_destroy(&spider_global_trx_mutex);
-#endif
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   pthread_mutex_destroy(&spider_hs_w_conn_mutex);
   pthread_mutex_destroy(&spider_hs_r_conn_mutex);
@@ -7085,18 +7069,6 @@ int spider_db_init(
     error_num = HA_ERR_OUT_OF_MEM;
     goto error_conn_mutex_init;
   }
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&spider_global_trx_mutex, MY_MUTEX_INIT_FAST))
-#else
-  if (mysql_mutex_init(spd_key_mutex_global_trx,
-    &spider_global_trx_mutex, MY_MUTEX_INIT_FAST))
-#endif
-  {
-    error_num = HA_ERR_OUT_OF_MEM;
-    goto error_global_trx_mutex_init;
-  }
-#endif
 #if MYSQL_VERSION_ID < 50500
   if (pthread_mutex_init(&spider_open_conn_mutex, MY_MUTEX_INIT_FAST))
 #else
@@ -7399,16 +7371,9 @@ int spider_db_init(
     }
   }
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-  if (!(spider_global_trx = spider_get_trx(NULL, FALSE, &error_num)))
-    goto error;
-#endif
-
   DBUG_RETURN(0);
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
-error:
-  roop_count = SPIDER_DBTON_SIZE;
 error_init_dbton:
   for (roop_count--; roop_count >= 0; roop_count--)
   {
@@ -7525,10 +7490,6 @@ error_hs_r_conn_mutex_init:
 #endif
   pthread_mutex_destroy(&spider_open_conn_mutex);
 error_open_conn_mutex_init:
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-  pthread_mutex_destroy(&spider_global_trx_mutex);
-error_global_trx_mutex_init:
-#endif
   pthread_mutex_destroy(&spider_conn_mutex);
 error_conn_mutex_init:
   pthread_mutex_destroy(&spider_lgtm_tblhnd_share_mutex);
@@ -10165,7 +10126,7 @@ void *spider_table_bg_crd_action(
         {
           spider_get_conn(share, spider->search_link_idx,
             share->conn_keys[spider->search_link_idx],
-            spider_global_trx, spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
+            trx, spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
             &error_num);
           if (conns[spider->search_link_idx])
           {
