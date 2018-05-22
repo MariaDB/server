@@ -282,10 +282,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 73 shift/reduce conflicts.
+  Currently there are 69 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 73
+%expect 69
 
 /*
    Comments for TOKENS.
@@ -1123,7 +1123,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
    and until NEXT_SYM / PREVIOUS_SYM.
 */
 %left   PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE
-%left   TRANSACTION_SYM TIMESTAMP PERIOD SYSTEM
+%left   TRANSACTION_SYM TIMESTAMP PERIOD_SYM SYSTEM
 
 
 /*
