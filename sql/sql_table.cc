@@ -9844,6 +9844,11 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   alter_table_manage_keys(to, from->file->indexes_are_disabled(), keys_onoff);
 
+  /* Set read map for all fields in from table */
+  from->default_column_bitmaps();
+  bitmap_set_all(from->read_set);
+  from->file->column_bitmaps_signal();
+
   /* We can abort alter table for any table type */
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
