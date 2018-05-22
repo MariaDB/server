@@ -231,6 +231,13 @@ IF(MSVC)
   ENDIF()
 ENDIF()
 
+# Enable ZSTD if available. Upstream rocksdb cmake will use WITH_ZSTD and set
+# defines within their code.
+FIND_PACKAGE(zstd)
+IF (ZSTD_FOUND)
+  SET(WITH_ZSTD ON)
+ENDIF()
+
 IF(GIT_EXECUTABLE)
   EXECUTE_PROCESS(
     COMMAND ${GIT_EXECUTABLE} rev-parse HEAD

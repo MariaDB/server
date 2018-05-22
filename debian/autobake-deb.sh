@@ -73,6 +73,15 @@ then
   sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.3.install
 fi
 
+# If libzstd-dev is not available (before Debian Stretch and Ubuntu Xenial)
+# remove the dependency from server and rocksdb so it can build properly
+if ! apt-cache madison libzstd-dev | grep 'libzstd-dev' >/dev/null 2>&1
+then
+  sed '/libzstd-dev/d' -i debian/control
+  sed '/libzstd1/d' -i debian/control
+fi
+
+
 # Convert gcc version to numberical value. Format is Mmmpp where M is Major
 # version, mm is minor version and p is patch.
 # -dumpfullversion & -dumpversion to make it uniform across old and new (>=7)
