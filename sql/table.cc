@@ -8275,7 +8275,10 @@ bool TABLE_LIST::change_refs_to_fields()
   if (!used_items.elements)
     return FALSE;
 
-  materialized_items= (Item**)thd->calloc(sizeof(void*) * table->s->fields);
+  Item **materialized_items=
+      (Item **)thd->calloc(sizeof(void *) * table->s->fields);
+  if (!materialized_items)
+    return TRUE;
 
   while ((ref= (Item_direct_ref*)li++))
   {

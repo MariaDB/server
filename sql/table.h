@@ -2268,7 +2268,7 @@ struct TABLE_LIST
   /* TABLE_TYPE_UNKNOWN if any type is acceptable */
   Table_type    required_type;
   handlerton	*db_type;		/* table_type for handler */
-  char		timestamp_buffer[20];	/* buffer for timestamp (19+1) */
+  char		timestamp_buffer[MAX_DATETIME_WIDTH + 1];
   /*
     This TABLE_LIST object is just placeholder for prelocking, it will be
     used for implicit LOCK TABLES only and won't be used in real statement.
@@ -2300,8 +2300,6 @@ struct TABLE_LIST
   /* TODO: replace with derived_type */
   bool          merged;
   bool          merged_for_insert;
-  /* TRUE <=> don't prepare this derived table/view as it should be merged.*/
-  bool          skip_prepare_derived;
   bool          sequence;  /* Part of NEXTVAL/CURVAL/LASTVAL */
 
   /*
@@ -2311,7 +2309,6 @@ struct TABLE_LIST
   List<Item>    used_items;
   /* Sublist (tail) of persistent used_items */
   List<Item>    persistent_used_items;
-  Item          **materialized_items;
 
   /* View creation context. */
 
