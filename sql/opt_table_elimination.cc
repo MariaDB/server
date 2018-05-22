@@ -617,7 +617,7 @@ void eliminate_tables(JOIN *join)
     we should also take into account tables mentioned in "val".
   */
   if (join->thd->lex->sql_command == SQLCOM_INSERT_SELECT &&
-      join->select_lex == &thd->lex->select_lex)
+      join->select_lex == thd->lex->first_select_lex())
   {
     List_iterator<Item> val_it(thd->lex->value_list);
     while ((item= val_it++))
@@ -640,7 +640,7 @@ void eliminate_tables(JOIN *join)
       used_tables |= (*(cur_list->item))->used_tables();
   }
   
-  if (join->select_lex == &thd->lex->select_lex)
+  if (join->select_lex == thd->lex->first_select_lex())
   {
 
     /* Multi-table UPDATE: don't eliminate tables referred from SET statement */

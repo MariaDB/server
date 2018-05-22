@@ -758,6 +758,43 @@ public:
 };
 
 
+class st_select_lex;
+
+class Lex_select_lock
+{
+public:
+  struct
+  {
+    uint defined_lock:1;
+    uint update_lock:1;
+    uint defined_timeout:1;
+  };
+  ulong timeout;
+
+
+  void empty()
+  {
+    defined_lock= update_lock= defined_timeout= FALSE;
+    timeout= 0;
+  }
+  void set_to(st_select_lex *sel);
+};
+
+class Lex_select_limit
+{
+public:
+  bool explicit_limit;
+  Item *select_limit, *offset_limit;
+
+  void empty()
+  {
+    explicit_limit= FALSE;
+    select_limit= offset_limit= NULL;
+  }
+};
+
+struct st_order;
+
 class Load_data_param
 {
 protected:

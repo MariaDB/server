@@ -7217,16 +7217,16 @@ int spider_mysql_handler::append_select(
     if (result_list->lock_type != F_WRLCK && spider->lock_mode < 1)
     {
       /* no lock */
-      st_select_lex *select_lex = &spider->trx->thd->lex->select_lex;
+      LEX *lex = spider->trx->thd->lex;
       if (
-        select_lex->sql_cache == SELECT_LEX::SQL_CACHE &&
+        lex->sql_cache == LEX::SQL_CACHE &&
         (spider->share->query_cache_sync & 1)
       ) {
         if (str->reserve(SPIDER_SQL_SQL_CACHE_LEN))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         str->q_append(SPIDER_SQL_SQL_CACHE_STR, SPIDER_SQL_SQL_CACHE_LEN);
       } else if (
-        select_lex->sql_cache == SELECT_LEX::SQL_NO_CACHE &&
+        lex->sql_cache == LEX::SQL_NO_CACHE &&
         (spider->share->query_cache_sync & 2)
       ) {
         if (str->reserve(SPIDER_SQL_SQL_NO_CACHE_LEN))

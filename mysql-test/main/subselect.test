@@ -99,7 +99,8 @@ select (select a from t3), a from t2;
 select * from t2 where t2.a=(select a from t1);
 insert into t3 values (6),(7),(3);
 select * from t2 where t2.b=(select a from t3 order by 1 desc limit 1);
-(select * from t2 where t2.b=(select a from t3 order by 1 desc limit 1)) union (select * from t4 order by a limit 2) limit 3;
+(select * from t2 where t2.b=(select a from t3 order by 1 desc limit 1))
+union (select * from t4 order by a limit 2) order by a limit 3;
 (select * from t2 where t2.b=(select a from t3 order by 1 desc limit 1)) union (select * from t4 where t4.b=(select max(t2.a)*4 from t2) order by a);
 explain extended (select * from t2 where t2.b=(select a from t3 order by 1 desc limit 1)) union (select * from t4 where t4.b=(select max(t2.a)*4 from t2) order by a);
 select (select a from t3 where a<t2.a*4 order by 1 desc limit 1), a from t2;
@@ -2604,8 +2605,6 @@ SELECT sql_no_cache * FROM t1 WHERE NOT EXISTS
    (SELECT i FROM t1)
   );
 
-#TODO:not supported
---error ER_PARSE_ERROR
 SELECT * FROM t1
 WHERE NOT EXISTS (((SELECT i FROM t1) UNION (SELECT i FROM t1)));
 
@@ -4313,7 +4312,7 @@ SELECT * FROM (SELECT 1 a UNION SELECT 1 a ORDER BY a LIMIT 1) t1a;
 # aliases after.
 # 
 SELECT * FROM t1 JOIN  (SELECT 1 UNION SELECT 1) alias ON 1;
---error ER_DERIVED_MUST_HAVE_ALIAS
+--error ER_PARSE_ERROR
 SELECT * FROM t1 JOIN ((SELECT 1 UNION SELECT 1)) ON 1;
 --error ER_PARSE_ERROR
 SELECT * FROM t1 JOIN  (t1 t1a UNION SELECT 1)  ON 1;
@@ -4324,10 +4323,14 @@ SELECT * FROM t1 JOIN  (t1 t1a)  t1a ON 1;
 --error ER_PARSE_ERROR
 SELECT * FROM t1 JOIN ((t1 t1a)) t1a ON 1;
 
+--error ER_PARSE_ERROR
 SELECT * FROM t1 JOIN  (t1 t1a)  ON 1;
+--error ER_PARSE_ERROR
 SELECT * FROM t1 JOIN ((t1 t1a)) ON 1;
 
+--error ER_PARSE_ERROR
 SELECT * FROM (t1 t1a);
+--error ER_PARSE_ERROR
 SELECT * FROM ((t1 t1a));
 
 SELECT * FROM t1 JOIN  (SELECT 1 t1a) alias ON 1;
@@ -4391,12 +4394,9 @@ SELECT * FROM t2 WHERE (a, b) IN (SELECT a, b FROM t2);
 
 # Make sure the parser does not allow nested UNIONs anywhere
 
---error ER_PARSE_ERROR
 SELECT 1 UNION ( SELECT 1 UNION SELECT 1 );
---error ER_PARSE_ERROR
 ( SELECT 1 UNION SELECT 1 ) UNION SELECT 1;
 
---error ER_PARSE_ERROR
 SELECT ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
 --error ER_PARSE_ERROR
 SELECT ( ( SELECT 1 UNION SELECT 1 ) UNION SELECT 1;
@@ -4405,25 +4405,19 @@ SELECT ((SELECT 1 UNION SELECT 1 UNION SELECT 1));
 
 --error ER_PARSE_ERROR
 SELECT * FROM ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
---error ER_DERIVED_MUST_HAVE_ALIAS
+--error ER_PARSE_ERROR
 SELECT * FROM ( ( SELECT 1 UNION SELECT 1 ) UNION SELECT 1 );
 SELECT * FROM ( ( SELECT 1 UNION SELECT 1 ) UNION SELECT 1 ) a;
 SELECT * FROM ( SELECT 1 UNION SELECT 1 UNION SELECT 1 ) a;
 
---error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a =     ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
---error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a = ALL ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
---error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a = ANY ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
---error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a IN    ( SELECT 1 UNION ( SELECT 1 UNION SELECT 1 ) );
 
 --error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a =     ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );
---error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a = ALL ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );
---error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a = ANY ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );
 --error ER_PARSE_ERROR
 SELECT * FROM t1 WHERE a IN    ( ( SELECT 1 UNION SELECT 1 )  UNION SELECT 1 );

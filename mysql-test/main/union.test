@@ -973,13 +973,17 @@ DROP TABLE t1;
 
 #
 # Bug#23345: Wrongly allowed INTO in a non-last select of a UNION.
+# (fixed)
 #
---error 1221
+--error ER_PARSE_ERROR
 (select 1 into @var) union (select 1);
+--error ER_PARSE_ERROR
 (select 1) union (select 1 into @var);
-select @var;
---error 1172
+--error ER_PARSE_ERROR
 (select 2) union (select 1 into @var);
+(select 1) union (select 1) into @var;
+--error ER_TOO_MANY_ROWS
+(select 2) union (select 1) into @var;
 
 #
 # Bug#27848: order-by of union clashes with rollup of select part
@@ -1099,9 +1103,15 @@ SELECT a INTO DUMPFILE 'union.out.file2' FROM (
   SELECT a FROM t1 WHERE 0
 ) alias;
 
+--error ER_PARSE_ERROR
 SELECT a FROM t1 UNION SELECT a INTO @v FROM t1;
+--error ER_PARSE_ERROR
 SELECT a FROM t1 UNION SELECT a INTO OUTFILE 'union.out.file5' FROM t1;
+--error ER_PARSE_ERROR
 SELECT a FROM t1 UNION SELECT a INTO OUTFILE 'union.out.file6' FROM t1;
+SELECT a FROM t1 UNION SELECT a FROM t1 INTO @v ;
+SELECT a FROM t1 UNION SELECT a FROM t1 INTO OUTFILE 'union.out.file5';
+SELECT a FROM t1 UNION SELECT a FROM t1 INTO OUTFILE 'union.out.file6';
 --error ER_PARSE_ERROR
 SELECT a INTO @v FROM t1 UNION SELECT a FROM t1;
 --error ER_PARSE_ERROR
@@ -1361,15 +1371,15 @@ SET @@global.slow_query_log= @old_slow_query_log;
 CREATE TABLE t1 (a int);
 CREATE TABLE t2 (b int);
 CREATE TABLE t3 (c int);
-SELECT a FROM t1 UNION SELECT b FROM t2 JOIN (t3) ON ( t2.b = t3.c );
+SELECT a FROM t1 UNION SELECT b FROM t2 JOIN t3 ON ( t2.b = t3.c );
 
 DROP TABLE t1, t2, t3;
 
 CREATE TABLE t1 (pk int NOT NULL);
 CREATE TABLE t2 (pk int NOT NULL, fk int NOT NULL);
-SELECT t1.pk FROM t1 LEFT JOIN (t2) ON (t1.pk = t2.fk)
+SELECT t1.pk FROM t1 LEFT JOIN t2 ON (t1.pk = t2.fk)
 UNION
-SELECT t1.pk FROM t1 LEFT JOIN (t2) ON (t1.pk = t2.fk);
+SELECT t1.pk FROM t1 LEFT JOIN t2 ON (t1.pk = t2.fk);
 
 DROP TABLE t1,t2;
 

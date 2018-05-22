@@ -220,8 +220,8 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
 
 err:
   my_error(ER_SEQUENCE_INVALID_TABLE_STRUCTURE, MYF(0),
-           lex->select_lex.table_list.first->db.str,
-           lex->select_lex.table_list.first->table_name.str, reason);
+           lex->first_select_lex()->table_list.first->db.str,
+           lex->first_select_lex()->table_list.first->table_name.str, reason);
   DBUG_RETURN(TRUE);
 }
 

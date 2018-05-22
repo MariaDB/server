@@ -153,13 +153,19 @@ End of 5.1 tests
 # Start of 10.2 tests
 #
 (SELECT 1 FROM DUAL PROCEDURE ANALYSE());
-Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
-1	1	1	1	1	0	0	1.0000	0.0000	ENUM('1') NOT NULL
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE())' at line 1
 ((SELECT 1 FROM DUAL PROCEDURE ANALYSE()));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE ANALYSE()))' at line 1
+(SELECT 1 FROM DUAL) PROCEDURE ANALYSE();
 Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
 1	1	1	1	1	0	0	1.0000	0.0000	ENUM('1') NOT NULL
+((SELECT 1 FROM DUAL)) PROCEDURE ANALYSE();
+Field_name	Min_value	Max_value	Min_length	Max_length	Empties_or_zeros	Nulls	Avg_value_or_avg_length	Std	Optimal_fieldtype
+1	1	1	1	1	0	0	1.0000	0.0000	ENUM('1') NOT NULL
+create table t1 (a int);
 SELECT * FROM t1 UNION SELECT * FROM t1 PROCEDURE analyse();
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PROCEDURE analyse()' at line 1
+ERROR 42000: Incorrect usage/placement of 'PROCEDURE'
+drop table t1;
 #
 # MDEV-10030 sql_yacc.yy: Split table_expression and remove PROCEDURE from create_select, select_paren_derived, select_derived2, query_specification
 #

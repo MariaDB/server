@@ -4543,7 +4543,7 @@ double get_sweep_read_cost(const PARAM *param, ha_rows records)
     if (max_cost != DBL_MAX  && (busy_blocks+index_reads_cost) >= n_blocks)
       return 1;
     */
-    JOIN *join= param->thd->lex->select_lex.join;
+    JOIN *join= param->thd->lex->first_select_lex()->join;
     if (!join || join->table_count == 1)
     {
       /* No join, assume reading is done in one 'sweep' */

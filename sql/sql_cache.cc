@@ -4147,13 +4147,13 @@ Query_cache::is_cacheable(THD *thd, LEX *lex,
 
   if (thd->lex->safe_to_cache_query &&
       (thd->variables.query_cache_type == 1 ||
-       (thd->variables.query_cache_type == 2 && (lex->select_lex.options &
-						 OPTION_TO_QUERY_CACHE))) &&
+       (thd->variables.query_cache_type == 2 &&
+        (lex->first_select_lex()->options & OPTION_TO_QUERY_CACHE))) &&
       qc_is_able_to_intercept_result(thd))
   {
     DBUG_PRINT("qcache", ("options: %lx  %lx  type: %u",
                           (long) OPTION_TO_QUERY_CACHE,
-                          (long) lex->select_lex.options,
+                          (long) lex->first_select_lex()->options,
                           (int) thd->variables.query_cache_type));
 
     if (!(table_count= process_and_count_tables(thd, tables_used,
@@ -4174,7 +4174,7 @@ Query_cache::is_cacheable(THD *thd, LEX *lex,
 	     ("not interesting query: %d or not cacheable, options %lx %lx  type: %u  net->vio present: %u",
 	      (int) lex->sql_command,
 	      (long) OPTION_TO_QUERY_CACHE,
-	      (long) lex->select_lex.options,
+	      (long) lex->first_select_lex()->options,
 	      (int) thd->variables.query_cache_type,
               (uint) MY_TEST(qc_is_able_to_intercept_result(thd))));
   DBUG_RETURN(0);

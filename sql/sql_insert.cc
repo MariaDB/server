@@ -241,7 +241,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
   }
   else
   {						// Part field list
-    SELECT_LEX *select_lex= &thd->lex->select_lex;
+    SELECT_LEX *select_lex= thd->lex->first_select_lex();
     Name_resolution_context *context= &select_lex->context;
     Name_resolution_context_state ctx_state;
     int res;
@@ -273,7 +273,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
 
     /* Restore the current context. */
     ctx_state.restore_state(context, table_list);
-    thd->lex->select_lex.no_wrap_view_item= FALSE;
+    thd->lex->first_select_lex()->no_wrap_view_item= FALSE;
 
     if (res)
       DBUG_RETURN(-1);
@@ -657,7 +657,7 @@ static void save_insert_query_plan(THD* thd, TABLE_LIST *table_list)
   bool skip= MY_TEST(table_list->view);
 
   /* Save subquery children */
-  for (SELECT_LEX_UNIT *unit= thd->lex->select_lex.first_inner_unit();
+  for (SELECT_LEX_UNIT *unit= thd->lex->first_select_lex()->first_inner_unit();
        unit;
        unit= unit->next_unit())
   {
@@ -777,7 +777,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   /* mysql_prepare_insert sets table_list->table if it was not set */
   table= table_list->table;
 
-  context= &thd->lex->select_lex.context;
+  context= &thd->lex->first_select_lex()->context;
   /*
     These three asserts test the hypothesis that the resetting of the name
     resolution context below is not necessary at all since the list of local
@@ -1070,7 +1070,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   } while (bulk_parameters_iterations(thd));
 
 values_loop_end:
-  free_underlaid_joins(thd, &thd->lex->select_lex);
+  free_underlaid_joins(thd, thd->lex->first_select_lex());
   joins_freed= TRUE;
 
   /*
@@ -1259,7 +1259,7 @@ abort:
     table->file->ha_release_auto_increment();
 
   if (!joins_freed)
-    free_underlaid_joins(thd, &thd->lex->select_lex);
+    free_underlaid_joins(thd, thd->lex->first_select_lex());
   thd->abort_on_warning= 0;
   DBUG_RETURN(retval);
 }
@@ -1289,7 +1289,7 @@ abort:
 
 static bool check_view_insertability(THD * thd, TABLE_LIST *view)
 {
-  uint num= view->view->select_lex.item_list.elements;
+  uint num= view->view->first_select_lex()->item_list.elements;
   TABLE *table= view->table;
   Field_translator *trans_start= view->field_translation,
 		   *trans_end= trans_start + num;
@@ -1389,10 +1389,12 @@ static bool mysql_prepare_insert_check_table(THD *thd, TABLE_LIST *table_list,
      than INSERT.
   */
 
-  if (setup_tables_and_check_access(thd, &thd->lex->select_lex.context,
-                                    &thd->lex->select_lex.top_join_list,
+  if (setup_tables_and_check_access(thd,
+                                    &thd->lex->first_select_lex()->context,
+                                    &thd->lex->first_select_lex()->
+                                      top_join_list,
                                     table_list,
-                                    thd->lex->select_lex.leaf_tables,
+                                    thd->lex->first_select_lex()->leaf_tables,
                                     select_insert, INSERT_ACL, SELECT_ACL,
                                     TRUE))
     DBUG_RETURN(TRUE);
@@ -1400,7 +1402,7 @@ static bool mysql_prepare_insert_check_table(THD *thd, TABLE_LIST *table_list,
   if (insert_into_view && !fields.elements)
   {
     thd->lex->empty_field_list_on_rset= 1;
-    if (!thd->lex->select_lex.leaf_tables.head()->table ||
+    if (!thd->lex->first_select_lex()->leaf_tables.head()->table ||
         table_list->is_multitable())
     {
       my_error(ER_VIEW_NO_INSERT_FIELD_LIST, MYF(0),
@@ -1474,7 +1476,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                           enum_duplicates duplic, COND **where,
                           bool select_insert)
 {
-  SELECT_LEX *select_lex= &thd->lex->select_lex;
+  SELECT_LEX *select_lex= thd->lex->first_select_lex();
   Name_resolution_context *context= &select_lex->context;
   Name_resolution_context_state ctx_state;
   bool insert_into_view= (table_list->view != 0);
@@ -3516,7 +3518,7 @@ bool Delayed_insert::handle_inserts(void)
 bool mysql_insert_select_prepare(THD *thd)
 {
   LEX *lex= thd->lex;
-  SELECT_LEX *select_lex= &lex->select_lex;
+  SELECT_LEX *select_lex= lex->first_select_lex();
   DBUG_ENTER("mysql_insert_select_prepare");
 
 
@@ -3605,7 +3607,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     select, LEX::current_select should point to the first select while
     we are fixing fields from insert list.
   */
-  lex->current_select= &lex->select_lex;
+  lex->current_select= lex->first_select_lex();
 
   res= (setup_fields(thd, Ref_ptr_array(),
                      values, MARK_COLUMNS_READ, 0, NULL, 0) ||
@@ -3622,7 +3624,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 
   if (info.handle_duplicates == DUP_UPDATE && !res)
   {
-    Name_resolution_context *context= &lex->select_lex.context;
+    Name_resolution_context *context= &lex->first_select_lex()->context;
     Name_resolution_context_state ctx_state;
 
     /* Save the state of the current name resolution context. */
@@ -3632,7 +3634,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     table_list->next_local= 0;
     context->resolve_in_table_list_only(table_list);
 
-    lex->select_lex.no_wrap_view_item= TRUE;
+    lex->first_select_lex()->no_wrap_view_item= TRUE;
     res= res ||
       check_update_fields(thd, context->table_list,
                           *info.update_fields, *info.update_values,
@@ -3643,15 +3645,15 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
                            */
                           true,
                           &map);
-    lex->select_lex.no_wrap_view_item= FALSE;
+    lex->first_select_lex()->no_wrap_view_item= FALSE;
     /*
       When we are not using GROUP BY and there are no ungrouped aggregate functions 
       we can refer to other tables in the ON DUPLICATE KEY part.
       We use next_name_resolution_table descructively, so check it first (views?)
     */
     DBUG_ASSERT (!table_list->next_name_resolution_table);
-    if (lex->select_lex.group_list.elements == 0 &&
-        !lex->select_lex.with_sum_func)
+    if (lex->first_select_lex()->group_list.elements == 0 &&
+        !lex->first_select_lex()->with_sum_func)
       /*
         We must make a single context out of the two separate name resolution contexts :
         the INSERT table and the tables in the SELECT part of INSERT ... SELECT.

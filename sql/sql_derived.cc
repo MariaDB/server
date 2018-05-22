@@ -99,7 +99,8 @@ mysql_handle_derived(LEX *lex, uint phases)
         processed normally.
       */
       if (phases == DT_MERGE_FOR_INSERT &&
-          cursor && cursor->top_table()->select_lex != &lex->select_lex)
+          cursor && (cursor->top_table()->select_lex !=
+                     lex->first_select_lex()))
         continue;
       for (;
 	   cursor && !res;

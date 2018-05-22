@@ -87,7 +87,7 @@ enum enum_used_fields
 static bool init_fields(THD *thd, TABLE_LIST *tables,
 			struct st_find_field *find_fields, uint count)
 {
-  Name_resolution_context *context= &thd->lex->select_lex.context;
+  Name_resolution_context *context= &thd->lex->first_select_lex()->context;
   DBUG_ENTER("init_fields");
   context->resolve_in_table_list_only(tables);
   for (; count-- ; find_fields++)
@@ -719,10 +719,11 @@ static bool mysqld_help_internal(THD *thd, const char *mask)
     Init tables and fields to be usable from items
     tables do not contain VIEWs => we can pass 0 as conds
   */
-  thd->lex->select_lex.context.table_list=
-    thd->lex->select_lex.context.first_name_resolution_table= &tables[0];
-  if (setup_tables(thd, &thd->lex->select_lex.context,
-                   &thd->lex->select_lex.top_join_list,
+  thd->lex->first_select_lex()->context.table_list=
+    thd->lex->first_select_lex()->context.first_name_resolution_table=
+    &tables[0];
+  if (setup_tables(thd, &thd->lex->first_select_lex()->context,
+                   &thd->lex->first_select_lex()->top_join_list,
                    tables, leaves, FALSE, FALSE))
     goto error;
   memcpy((char*) used_fields, (char*) init_used_fields, sizeof(used_fields));

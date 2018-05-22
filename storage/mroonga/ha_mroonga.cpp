@@ -193,7 +193,7 @@ static mysql_mutex_t *mrn_LOCK_open;
 #if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)
 #  define MRN_LEX_GET_TABLE_LIST(lex) (lex)->select_lex->table_list.first
 #else
-#  define MRN_LEX_GET_TABLE_LIST(lex) (lex)->select_lex.table_list.first
+#  define MRN_LEX_GET_TABLE_LIST(lex) (lex)->first_select_lex()->table_list.first
 #endif
 
 #if MYSQL_VERSION_ID >= 50706 && !defined(MRN_MARIADB_P)

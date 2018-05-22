@@ -2733,7 +2733,7 @@ static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
   if (lex->create_info.like())
     return 1;
   // ... create select
-  if (lex->select_lex.item_list.elements)
+  if (lex->first_select_lex()->item_list.elements)
     return 1;
   // ... temporary
   if (create_info->tmp_table())
@@ -4976,13 +4976,13 @@ bool TABLE_LIST::single_table_updatable()
 {
   if (!updatable)
     return false;
-  if (view && view->select_lex.table_list.elements == 1)
+  if (view && view->first_select_lex()->table_list.elements == 1)
   {
     /*
       We need to check deeply only single table views. Multi-table views
       will be turned to multi-table updates and then checked by leaf tables
     */
-    return (((TABLE_LIST *)view->select_lex.table_list.first)->
+    return (((TABLE_LIST *)view->first_select_lex()->table_list.first)->
             single_table_updatable());
   }
   return true;
@@ -5019,7 +5019,8 @@ merge_on_conds(THD *thd, TABLE_LIST *table, bool is_cascaded)
     cond= table->on_expr->copy_andor_structure(thd);
   if (!table->view)
     DBUG_RETURN(cond);
-  for (TABLE_LIST *tbl= (TABLE_LIST*)table->view->select_lex.table_list.first;
+  for (TABLE_LIST *tbl=
+         (TABLE_LIST*)table->view->first_select_lex()->table_list.first;
        tbl;
        tbl= tbl->next_local)
   {
@@ -5061,7 +5062,7 @@ bool TABLE_LIST::prep_check_option(THD *thd, uint8 check_opt_type)
 {
   DBUG_ENTER("TABLE_LIST::prep_check_option");
   bool is_cascaded= check_opt_type == VIEW_CHECK_CASCADED;
-  TABLE_LIST *merge_underlying_list= view->select_lex.get_table_list();
+  TABLE_LIST *merge_underlying_list= view->first_select_lex()->get_table_list();
   for (TABLE_LIST *tbl= merge_underlying_list; tbl; tbl= tbl->next_local)
   {
     /* see comment of check_opt_type parameter */
@@ -5179,7 +5180,7 @@ TABLE_LIST *TABLE_LIST::find_underlying_table(TABLE *table_to_find)
   if (!view)
     return 0;
 
-  for (TABLE_LIST *tbl= view->select_lex.get_table_list();
+  for (TABLE_LIST *tbl= view->first_select_lex()->get_table_list();
        tbl;
        tbl= tbl->next_local)
   {
@@ -5367,7 +5368,8 @@ bool TABLE_LIST::set_insert_values(MEM_ROOT *mem_root)
   {
     DBUG_PRINT("info", ("setting insert_value for view"));
     DBUG_ASSERT(is_view_or_derived() && is_merged_derived());
-    for (TABLE_LIST *tbl= (TABLE_LIST*)view->select_lex.table_list.first;
+    for (TABLE_LIST *tbl=
+           (TABLE_LIST*)view->first_select_lex()->table_list.first;
          tbl;
          tbl= tbl->next_local)
       if (tbl->set_insert_values(mem_root))
@@ -5534,7 +5536,7 @@ void TABLE_LIST::register_want_access(ulong want_access)
   }
   if (!view)
     return;
-  for (TABLE_LIST *tbl= view->select_lex.get_table_list();
+  for (TABLE_LIST *tbl= view->first_select_lex()->get_table_list();
        tbl;
        tbl= tbl->next_local)
     tbl->register_want_access(want_access);
@@ -5726,6 +5728,7 @@ void TABLE_LIST::set_check_materialized()
       The subtree should be already excluded
     */
     DBUG_ASSERT(!derived->first_select()->first_inner_unit() ||
+                derived->first_select()->first_inner_unit()->with_element ||
                 derived->first_select()->first_inner_unit()->first_select()->
                 exclude_from_table_unique_test);
   }
@@ -5742,14 +5745,14 @@ TABLE *TABLE_LIST::get_real_join_table()
       break;
     /* we do not support merging of union yet */
     DBUG_ASSERT(tbl->view == NULL ||
-               tbl->view->select_lex.next_select() == NULL);
+               tbl->view->first_select_lex()->next_select() == NULL);
     DBUG_ASSERT(tbl->derived == NULL ||
                tbl->derived->first_select()->next_select() == NULL);
 
     {
       List_iterator_fast<TABLE_LIST>
         ti(tbl->view != NULL ?
-           tbl->view->select_lex.top_join_list :
+           tbl->view->first_select_lex()->top_join_list :
            tbl->derived->first_select()->top_join_list);
       for (;;)
       {
@@ -5920,7 +5923,7 @@ Item *Field_iterator_view::create_item(THD *thd)
 Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
                         LEX_CSTRING *name)
 {
-  bool save_wrapper= thd->lex->select_lex.no_wrap_view_item;
+  bool save_wrapper= thd->lex->first_select_lex()->no_wrap_view_item;
   Item *field= *field_ref;
   DBUG_ENTER("create_view_field");
 
@@ -5951,8 +5954,9 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   {
     DBUG_RETURN(field);
   }
-  Name_resolution_context *context= view->view ? &view->view->select_lex.context :
-                                    &thd->lex->select_lex.context;
+  Name_resolution_context *context= (view->view ?
+                                     &view->view->first_select_lex()->context:
+                                     &thd->lex->first_select_lex()->context);
   Item *item= (new (thd->mem_root)
                Item_direct_view_ref(thd, context, field_ref, view->alias.str,
                                     name, view));
@@ -8555,7 +8559,7 @@ bool TR_table::query(ulonglong trx_id)
   READ_RECORD info;
   int error;
   List<TABLE_LIST> dummy;
-  SELECT_LEX &slex= thd->lex->select_lex;
+  SELECT_LEX &slex= *(thd->lex->first_select_lex());
   Name_resolution_context_backup backup(slex.context, *this);
   Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_TRX_ID]);
   Item *value= newx Item_int(thd, trx_id);
@@ -8585,7 +8589,7 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
   READ_RECORD info;
   int error;
   List<TABLE_LIST> dummy;
-  SELECT_LEX &slex= thd->lex->select_lex;
+  SELECT_LEX &slex= *(thd->lex->first_select_lex());
   Name_resolution_context_backup backup(slex.context, *this);
   Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_COMMIT_TS]);
   Item *value= newx Item_datetime_literal(thd, &commit_time, 6);

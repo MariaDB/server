@@ -161,12 +161,17 @@ DROP TABLE t1, t2;
 --echo #
 --echo # Start of 10.2 tests
 --echo #
-(SELECT 1 FROM DUAL PROCEDURE ANALYSE());
-((SELECT 1 FROM DUAL PROCEDURE ANALYSE()));
-
-# TODO:
 --error ER_PARSE_ERROR
+(SELECT 1 FROM DUAL PROCEDURE ANALYSE());
+--error ER_PARSE_ERROR
+((SELECT 1 FROM DUAL PROCEDURE ANALYSE()));
+(SELECT 1 FROM DUAL) PROCEDURE ANALYSE();
+((SELECT 1 FROM DUAL)) PROCEDURE ANALYSE();
+
+create table t1 (a int);
+--error ER_CANT_USE_OPTION_HERE
 SELECT * FROM t1 UNION SELECT * FROM t1 PROCEDURE analyse();
+drop table t1;
 
 --echo #
 --echo # MDEV-10030 sql_yacc.yy: Split table_expression and remove PROCEDURE from create_select, select_paren_derived, select_derived2, query_specification

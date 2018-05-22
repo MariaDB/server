@@ -95,6 +95,8 @@ close pfs_cursor;
 signal sqlstate '01000' set message_text='Done', mysql_errno=12000;
 end
 $
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 show variables where
 `Variable_name` != "performance_schema_max_statement_classes" and
 `Variable_name` like "performance_schema%";

@@ -6319,7 +6319,8 @@ public:
 
 inline bool add_item_to_list(THD *thd, Item *item)
 {
-  return thd->lex->current_select->add_item_to_list(thd, item);
+  bool res= thd->lex->current_select->add_item_to_list(thd, item);
+  return res;
 }
 
 inline bool add_value_to_list(THD *thd, Item *value)

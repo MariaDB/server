@@ -318,7 +318,7 @@ int mysql_update(THD *thd,
   SQL_SELECT	*select= NULL;
   SORT_INFO     *file_sort= 0;
   READ_RECORD	info;
-  SELECT_LEX    *select_lex= &thd->lex->select_lex;
+  SELECT_LEX    *select_lex= thd->lex->first_select_lex();
   ulonglong     id;
   List<Item> all_fields;
   killed_state killed_status= NOT_KILLED;
@@ -375,7 +375,7 @@ int mysql_update(THD *thd,
   table->covering_keys= table->s->keys_in_use;
   table->quick_keys.clear_all();
 
-  query_plan.select_lex= &thd->lex->select_lex;
+  query_plan.select_lex= thd->lex->first_select_lex();
   query_plan.table= table;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* Force privilege re-checking for views after they have been opened. */
@@ -1243,7 +1243,7 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
   TABLE *table= table_list->table;
 #endif
   List<Item> all_fields;
-  SELECT_LEX *select_lex= &thd->lex->select_lex;
+  SELECT_LEX *select_lex= thd->lex->first_select_lex();
   DBUG_ENTER("mysql_prepare_update");
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -1520,7 +1520,7 @@ int mysql_multi_update_prepare(THD *thd)
   LEX *lex= thd->lex;
   TABLE_LIST *table_list= lex->query_tables;
   TABLE_LIST *tl;
-  List<Item> *fields= &lex->select_lex.item_list;
+  List<Item> *fields= &lex->first_select_lex()->item_list;
   table_map tables_for_update;
   bool update_view= 0;
   /*
@@ -1562,14 +1562,15 @@ int mysql_multi_update_prepare(THD *thd)
   if (mysql_handle_derived(lex, DT_PREPARE))
     DBUG_RETURN(TRUE);
 
-  if (setup_tables_and_check_access(thd, &lex->select_lex.context,
-                                    &lex->select_lex.top_join_list,
+  if (setup_tables_and_check_access(thd,
+                                    &lex->first_select_lex()->context,
+                                    &lex->first_select_lex()->top_join_list,
                                     table_list,
-                                    lex->select_lex.leaf_tables, FALSE,
-                                    UPDATE_ACL, SELECT_ACL, FALSE))
+                                    lex->first_select_lex()->leaf_tables,
+                                    FALSE, UPDATE_ACL, SELECT_ACL, FALSE))
     DBUG_RETURN(TRUE);
 
-  if (lex->select_lex.handle_derived(thd->lex, DT_MERGE))  
+  if (lex->first_select_lex()->handle_derived(thd->lex, DT_MERGE))
     DBUG_RETURN(TRUE);
 
   if (setup_fields_with_no_wrap(thd, Ref_ptr_array(),
@@ -1592,13 +1593,14 @@ int mysql_multi_update_prepare(THD *thd)
 
   thd->table_map_for_update= tables_for_update= get_table_map(fields);
 
-  if (unsafe_key_update(lex->select_lex.leaf_tables, tables_for_update))
+  if (unsafe_key_update(lex->first_select_lex()->leaf_tables,
+                        tables_for_update))
     DBUG_RETURN(true);
 
   /*
     Setup timestamp handling and locking mode
   */
-  List_iterator<TABLE_LIST> ti(lex->select_lex.leaf_tables);
+  List_iterator<TABLE_LIST> ti(lex->first_select_lex()->leaf_tables);
   while ((tl= ti++))
   {
     TABLE *table= tl->table;
@@ -1691,7 +1693,7 @@ int mysql_multi_update_prepare(THD *thd)
     Check that we are not using table that we are updating, but we should
     skip all tables of UPDATE SELECT itself
   */
-  lex->select_lex.exclude_from_table_unique_test= TRUE;
+  lex->first_select_lex()->exclude_from_table_unique_test= TRUE;
   /* We only need SELECT privilege for columns in the values list */
   ti.rewind();
   while ((tl= ti++))
@@ -1713,7 +1715,7 @@ int mysql_multi_update_prepare(THD *thd)
     Set exclude_from_table_unique_test value back to FALSE. It is needed for
     further check in multi_update::prepare whether to use record cache.
   */
-  lex->select_lex.exclude_from_table_unique_test= FALSE;
+  lex->first_select_lex()->exclude_from_table_unique_test= FALSE;
 
   if (lex->save_prep_leaf_tables())
     DBUG_RETURN(TRUE);
@@ -1742,7 +1744,7 @@ bool mysql_multi_update(THD *thd,
   DBUG_ENTER("mysql_multi_update");
   
   if (!(*result= new (thd->mem_root) multi_update(thd, table_list,
-                                 &thd->lex->select_lex.leaf_tables,
+                                 &thd->lex->first_select_lex()->leaf_tables,
                                  fields, values,
                                  handle_duplicates, ignore)))
   {

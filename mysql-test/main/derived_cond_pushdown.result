@@ -8935,7 +8935,7 @@ EXPLAIN
                     "access_type": "ALL",
                     "rows": 18,
                     "filtered": 100,
-                    "attached_condition": "__3.a > 5 and __3.c > 200",
+                    "attached_condition": "__5.a > 5 and __5.c > 200",
                     "materialized": {
                       "query_block": {
                         "union_result": {
@@ -9561,7 +9561,7 @@ EXPLAIN
                     "access_type": "ALL",
                     "rows": 18,
                     "filtered": 100,
-                    "attached_condition": "__3.a > 4 and __3.c < 130",
+                    "attached_condition": "__5.a > 4 and __5.c < 130",
                     "materialized": {
                       "query_block": {
                         "union_result": {
@@ -9707,7 +9707,7 @@ EXPLAIN
                     "access_type": "ALL",
                     "rows": 18,
                     "filtered": 100,
-                    "attached_condition": "__3.a > 4 and __3.c < 130",
+                    "attached_condition": "__6.a > 4 and __6.c < 130",
                     "materialized": {
                       "query_block": {
                         "union_result": {
@@ -15948,7 +15948,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	a2	eq_ref	PRIMARY	PRIMARY	4	a1.f	1	100.00	Using index
 4	DERIVED	t1	index	PRIMARY	PRIMARY	4	NULL	7	100.00	Using index; Using temporary; Using filesort
 Warnings:
-Note	1003	/* select#1 */ select `s`.`f` AS `f`,`s`.`c` AS `c` from (/* select#2 */ select straight_join `a2`.`f` AS `f`,count(0) AS `c` from ((/* select#4 */ select `test`.`t1`.`f` AS `f`,count(0) AS `c` from `test`.`t1` group by `test`.`t1`.`f`)) `a1` join `test`.`t1` `a2` where `a2`.`f` = `a1`.`f` group by `a2`.`f`) `s`
+Note	1003	/* select#1 */ select `s`.`f` AS `f`,`s`.`c` AS `c` from (/* select#2 */ select straight_join `a2`.`f` AS `f`,count(0) AS `c` from (/* select#4 */ select `test`.`t1`.`f` AS `f`,count(0) AS `c` from `test`.`t1` group by `test`.`t1`.`f`) `a1` join `test`.`t1` `a2` where `a2`.`f` = `a1`.`f` group by `a2`.`f`) `s`
 SELECT * FROM ( SELECT STRAIGHT_JOIN f, COUNT(*) as c FROM v1 GROUP BY f ) AS s;
 f	c
 1	1

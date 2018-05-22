@@ -13,6 +13,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a TINYINT;
 ALTER TABLE t CHANGE COLUMN a a TINYINT;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a TINYINT);
@@ -27,6 +31,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a SMALLINT;
 ALTER TABLE t CHANGE COLUMN a a SMALLINT;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a TINYINT);
@@ -41,6 +49,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a MEDIUMINT;
 ALTER TABLE t CHANGE COLUMN a a MEDIUMINT;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a TINYINT);
@@ -55,6 +67,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a INT;
 ALTER TABLE t CHANGE COLUMN a a INT;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a TINYINT);
@@ -69,6 +85,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a BIGINT;
 ALTER TABLE t CHANGE COLUMN a a BIGINT;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a SMALLINT);
@@ -87,6 +107,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a SMALLINT;
 ALTER TABLE t CHANGE COLUMN a a SMALLINT;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a SMALLINT);
@@ -101,6 +125,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a MEDIUMINT;
 ALTER TABLE t CHANGE COLUMN a a MEDIUMINT;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a SMALLINT);
@@ -115,6 +143,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a INT;
 ALTER TABLE t CHANGE COLUMN a a INT;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a SMALLINT);
@@ -129,6 +161,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a BIGINT;
 ALTER TABLE t CHANGE COLUMN a a BIGINT;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a MEDIUMINT);
@@ -151,6 +187,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a MEDIUMINT;
 ALTER TABLE t CHANGE COLUMN a a MEDIUMINT;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a MEDIUMINT);
@@ -165,6 +205,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a INT;
 ALTER TABLE t CHANGE COLUMN a a INT;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a MEDIUMINT);
@@ -179,6 +223,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a BIGINT;
 ALTER TABLE t CHANGE COLUMN a a BIGINT;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a INT);
@@ -204,6 +252,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a INT;
 ALTER TABLE t CHANGE COLUMN a a INT;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a INT);
@@ -217,6 +269,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a BIGINT;
 ALTER TABLE t CHANGE COLUMN a a BIGINT;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a BIGINT);
@@ -246,6 +302,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a BIGINT;
 ALTER TABLE t CHANGE COLUMN a a BIGINT;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a TINYINT UNSIGNED);
@@ -258,6 +318,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a TINYINT UNSIGNED;
 ALTER TABLE t CHANGE COLUMN a a TINYINT UNSIGNED;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a TINYINT UNSIGNED);
@@ -270,6 +334,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a SMALLINT UNSIGNED;
 ALTER TABLE t CHANGE COLUMN a a SMALLINT UNSIGNED;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a TINYINT UNSIGNED);
@@ -282,6 +350,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a MEDIUMINT UNSIGNED;
 ALTER TABLE t CHANGE COLUMN a a MEDIUMINT UNSIGNED;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a TINYINT UNSIGNED);
@@ -294,6 +366,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a INT UNSIGNED;
 ALTER TABLE t CHANGE COLUMN a a INT UNSIGNED;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a TINYINT UNSIGNED);
@@ -306,6 +382,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a BIGINT UNSIGNED;
 ALTER TABLE t CHANGE COLUMN a a BIGINT UNSIGNED;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a SMALLINT UNSIGNED);
@@ -322,6 +402,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a SMALLINT UNSIGNED;
 ALTER TABLE t CHANGE COLUMN a a SMALLINT UNSIGNED;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a SMALLINT UNSIGNED);
@@ -334,6 +418,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a MEDIUMINT UNSIGNED;
 ALTER TABLE t CHANGE COLUMN a a MEDIUMINT UNSIGNED;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a SMALLINT UNSIGNED);
@@ -346,6 +434,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a INT UNSIGNED;
 ALTER TABLE t CHANGE COLUMN a a INT UNSIGNED;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a SMALLINT UNSIGNED);
@@ -358,6 +450,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a BIGINT UNSIGNED;
 ALTER TABLE t CHANGE COLUMN a a BIGINT UNSIGNED;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a MEDIUMINT UNSIGNED);
@@ -378,6 +474,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a MEDIUMINT UNSIGNED;
 ALTER TABLE t CHANGE COLUMN a a MEDIUMINT UNSIGNED;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a MEDIUMINT UNSIGNED);
@@ -390,6 +490,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a INT UNSIGNED;
 ALTER TABLE t CHANGE COLUMN a a INT UNSIGNED;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a MEDIUMINT UNSIGNED);
@@ -402,6 +506,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a BIGINT UNSIGNED;
 ALTER TABLE t CHANGE COLUMN a a BIGINT UNSIGNED;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a INT UNSIGNED);
@@ -426,6 +534,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a INT UNSIGNED;
 ALTER TABLE t CHANGE COLUMN a a INT UNSIGNED;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a INT UNSIGNED);
@@ -438,6 +550,10 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a BIGINT UNSIGNED;
 ALTER TABLE t CHANGE COLUMN a a BIGINT UNSIGNED;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;
 CREATE TABLE t (a BIGINT UNSIGNED);
@@ -466,5 +582,9 @@ INSERT INTO ti SELECT * from t;
 ALTER TABLE ti CHANGE COLUMN a a BIGINT UNSIGNED;
 ALTER TABLE t CHANGE COLUMN a a BIGINT UNSIGNED;
 include/diff_tables.inc [test.t, test.ti]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DROP TABLE ti;
 DROP TABLE t;

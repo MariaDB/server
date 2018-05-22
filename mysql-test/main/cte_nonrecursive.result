@@ -418,10 +418,10 @@ t2.c in (with t as (select * from t1 where t1.a<5)
 select t2.c from t2,t where t2.c=t.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
+3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 explain
 select t1.a,t1.b from t1,t2
 where t1.a>t2.c and
@@ -461,10 +461,10 @@ t.c in (with t as (select * from t1 where t1.a<5)
 select t2.c from t2,t where t2.c=t.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+4	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
+4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 explain
 select t1.a,t1.b from t1, (select c from t2 where c >= 4) as t
 where t1.a=t.c and
@@ -507,9 +507,9 @@ select t.a, count(*) from t1,t where t1.a=t.a  group by t.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	35	func	1	
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	35	func	1	
+4	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
+4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 explain
 select t.a, count(*)
 from t1,
@@ -597,8 +597,8 @@ explain
 select * from v2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.c	2	
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 # with clause in the specification of a view that whose definition
 # table alias for a with table
 create view v3 as
@@ -863,8 +863,8 @@ SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT 1) AS t1;
 1
 EXPLAIN SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT 1) AS t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+1	PRIMARY	<derived3>	system	NULL	NULL	NULL	NULL	1	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 DROP TABLE t1;
 #
 # MDEV-10058: Suspicious EXPLAIN output for a derived table + WITH + joined table	
@@ -1116,17 +1116,17 @@ select * from cte_e as cte_e1 where a > 1
 union
 select * from cte_e as cte_e2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	14	100.00	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	14	100.00	Using where
+4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
 5	UNION	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
-NULL	UNION RESULT	<union2,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
-6	UNION	<derived9>	ALL	NULL	NULL	NULL	NULL	14	100.00	
-9	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+6	UNION	<derived11>	ALL	NULL	NULL	NULL	NULL	14	100.00	
+11	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
 12	UNION	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
-NULL	UNION RESULT	<union9,12>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+NULL	UNION RESULT	<union11,12>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 NULL	UNION RESULT	<union1,6>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	with cte_e as (with cte_o as (with cte_i as (/* select#4 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 7)/* select#3 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1)/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 3 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1 union /* select#5 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1)/* select#1 */ select `cte_e1`.`a` AS `a` from `cte_e` `cte_e1` where `cte_e1`.`a` > 1 union /* select#6 */ select `cte_e2`.`a` AS `a` from (with cte_o as (with cte_i as (/* select#11 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 7)/* select#10 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1)/* select#9 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 3 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 union /* select#12 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7) `cte_e2`
+Note	1003	with cte_e as (with cte_o as (with cte_i as (select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 7)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 3 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1 union select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1)select `cte_e1`.`a` AS `a` from `cte_e` `cte_e1` where `cte_e1`.`a` > 1 union select `cte_e2`.`a` AS `a` from (with cte_o as (with cte_i as (select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 7)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 3 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 union select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7) `cte_e2`
 drop table t1;
 #
 # MDEV-13753: embedded CTE in a VIEW created in prepared statement

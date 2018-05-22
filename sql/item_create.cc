@@ -3487,12 +3487,11 @@ Create_sp_func::create_with_db(THD *thd, LEX_CSTRING *db, LEX_CSTRING *name,
   sph->add_used_routine(lex, thd, qname);
   if (pkgname.m_name.length)
     sp_handler_package_body.add_used_routine(lex, thd, &pkgname);
+  Name_resolution_context *ctx= lex->current_context();
   if (arg_count > 0)
-    func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(),
-                                           qname, sph, *item_list);
+    func= new (thd->mem_root) Item_func_sp(thd, ctx, qname, sph, *item_list);
   else
-    func= new (thd->mem_root) Item_func_sp(thd, lex->current_context(),
-                                           qname, sph);
+    func= new (thd->mem_root) Item_func_sp(thd, ctx, qname, sph);
 
   lex->safe_to_cache_query= 0;
   return func;

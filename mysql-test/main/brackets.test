@@ -1,0 +1,84 @@
+select 1 union ( select 2 union select 3);
+explain extended
+select 1 union ( select 2 union select 3);
+select 1 union ( select 1 union select 1);
+explain extended
+select 1 union ( select 1 union select 1);
+select 1 union all ( select 1 union select 1);
+explain extended
+select 1 union all ( select 1 union select 1);
+select 1 union ( select 1 union all select 1);
+explain extended
+select 1 union ( select 1 union all select 1);
+select 1 union select 1 union all select 1;
+explain extended
+select 1 union select 1 union all select 1;
+
+(select 1 as a) union (select 2) order by a;
+explain extended
+(select 1 as a) union (select 2) order by a;
+/* select#1 */ select 1 AS `a` union /* select#2 */ select 2 AS `2` order by `a`;
+explain extended
+/* select#1 */ select 1 AS `a` union /* select#2 */ select 2 AS `2` order by `a`;
+
+select 1 union ( select 1 union (select 1 union (select 1 union select 1)));
+explain extended all
+select 1 union ( select 1 union (select 1 union (select 1 union select 1)));
+
+--echo #
+--echo # MDEV-6341: INSERT ... SELECT UNION with parenthesis
+--echo #
+create table t1 (a int, b int);
+insert into t1 (select 1,1 union select 2,2);
+select * from t1 order by 1;
+delete from t1;
+insert into t1 select 1,1 union select 2,2;
+select * from t1 order by 1;
+drop table t1;
+CREATE OR REPLACE TABLE t1 AS SELECT 1 AS a UNION SELECT 2;
+select * from t1 order by 1;
+drop table t1;
+CREATE OR REPLACE TABLE t1 AS (SELECT 1 AS a UNION SELECT 2);
+select * from t1 order by 1;
+drop table t1;
+CREATE OR REPLACE VIEW v1 AS (SELECT 1 AS a);
+show create view v1;
+drop view v1;
+CREATE OR REPLACE VIEW v1 AS SELECT 1 AS a UNION SELECT 2;
+show create view v1;
+drop view v1;
+CREATE OR REPLACE VIEW v1 AS (SELECT 1 AS a UNION SELECT 2);
+show create view v1;
+drop view v1;
+
+
+--echo #
+--echo # MDEV-10028: Syntax error on ((SELECT ...) UNION (SELECT ...))
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (20);
+INSERT INTO t1 VALUES (30);
+
+((SELECT a FROM t1) UNION (SELECT a FROM t1));
+(SELECT * FROM t1 UNION SELECT * FROM t1);
+((SELECT a FROM t1) LIMIT 1);
+SELECT * FROM (SELECT 1 UNION (SELECT 2 UNION SELECT 3)) t1;
+DROP TABLE t1;
+
+--echo #
+--echo # test of several levels of ORDER BY / LIMIT
+--echo #
+create table t1 (a int, b int);
+insert into t1 (a,b) values (1, 100), (2, 200), (3,30), (4,4);
+
+select a,b from t1 order by 1 limit 3;
+(select a,b from t1 order by 1 limit 3) order by 2 limit 2;
+(select 10,1000 union select a,b from t1 order by 1 limit 3) order by 2 limit 2;
+((select a,b from t1 order by 1 limit 3) order by 2 limit 2) order by 1 limit 1;
+((select a,b from t1 order by 1 limit 3) order by 2 limit 2) order by 1;
+
+drop table t1;
+
+--echo # End of 10.4 tests
+

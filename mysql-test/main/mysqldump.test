@@ -2360,7 +2360,7 @@ USE BUG52792;
 SET NAMES utf8;
 CREATE FUNCTION `straße` ( c1 CHAR(20))
   RETURNS CHAR(50) DETERMINISTIC
-RETURN CONCAT(']]>, ', s, '!');
+RETURN CONCAT(']]>, ', c1, '!');
 
 --exec $MYSQL_DUMP --character-sets-dir=$CHARSETSDIR --skip-comments --default-character-set=utf8 --compatible=mysql323 -R -X BUG52792
 

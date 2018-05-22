@@ -7462,7 +7462,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
   TABLE_LIST *first_select_table= (select_insert ?
                                    tables->next_local:
                                    0);
-  SELECT_LEX *select_lex= select_insert ? &thd->lex->select_lex :
+  SELECT_LEX *select_lex= select_insert ? thd->lex->first_select_lex() :
                                           thd->lex->current_select;
   if (select_lex->first_cond_optimization)
   {
@@ -7490,7 +7490,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
       {
         /* new counting for SELECT of INSERT ... SELECT command */
         first_select_table= 0;
-        thd->lex->select_lex.insert_tables= tablenr;
+        thd->lex->first_select_lex()->insert_tables= tablenr;
         tablenr= 0;
       }
       if(table_list->jtbm_subselect)
@@ -8037,7 +8037,7 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
     from subquery of VIEW, because tables of subquery belongs to VIEW
     (see condition before prepare_check_option() call)
   */
-  bool it_is_update= (select_lex == &thd->lex->select_lex) &&
+  bool it_is_update= (select_lex == thd->lex->first_select_lex()) &&
     thd->lex->which_check_option_applicable();
   bool save_is_item_list_lookup= select_lex->is_item_list_lookup;
   TABLE_LIST *derived= select_lex->master_unit()->derived;
@@ -8053,7 +8053,7 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
 
   for (table= tables; table; table= table->next_local)
   {
-    if (select_lex == &thd->lex->select_lex &&
+    if (select_lex == thd->lex->first_select_lex() &&
         select_lex->first_cond_optimization &&
         table->merged_for_insert &&
         table->prepare_where(thd, conds, FALSE))

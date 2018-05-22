@@ -4390,7 +4390,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg, size_t que
         have to use the transactional cache to ensure we don't
         calculate any checksum for the CREATE part.
       */
-      trx_cache= (lex->select_lex.item_list.elements &&
+      trx_cache= (lex->first_select_lex()->item_list.elements &&
                   thd->is_current_stmt_binlog_format_row()) ||
                   (thd->variables.option_bits & OPTION_GTID_BEGIN);
       use_cache= (lex->tmp_table() &&
@@ -7382,8 +7382,9 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
 
       ex.skip_lines = skip_lines;
       List<Item> field_list;
-      thd->lex->select_lex.context.resolve_in_table_list_only(&tables);
-      set_fields(tables.db.str, field_list, &thd->lex->select_lex.context);
+      thd->lex->first_select_lex()->context.resolve_in_table_list_only(&tables);
+      set_fields(tables.db.str,
+                 field_list, &thd->lex->first_select_lex()->context);
       thd->variables.pseudo_thread_id= thread_id;
       if (net)
       {

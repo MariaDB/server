@@ -1288,7 +1288,7 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
   if (!m_sp)
   {
     my_missing_function_error(m_name->m_name, ErrConvDQName(m_name).ptr());
-    context->process_error(thd);
+    process_error(thd);
     return TRUE;
   }
 
@@ -4009,6 +4009,7 @@ bool Item_func_group_concat::setup(THD *thd)
     if (!ref_pointer_array)
       DBUG_RETURN(TRUE);
     memcpy(ref_pointer_array, args, arg_count * sizeof(Item*));
+    DBUG_ASSERT(context);
     if (setup_order(thd, Ref_ptr_array(ref_pointer_array, n_elems),
                     context->table_list, list,  all_fields, *order))
       DBUG_RETURN(TRUE);

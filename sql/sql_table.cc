@@ -4890,7 +4890,7 @@ int create_table_impl(THD *thd,
         /*
           Restart statement transactions for the case of CREATE ... SELECT.
         */
-        if (thd->lex->select_lex.item_list.elements &&
+        if (thd->lex->first_select_lex()->item_list.elements &&
             restart_trans_for_tables(thd, thd->lex->query_tables))
           goto err;
       }
@@ -10291,8 +10291,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       Filesort_tracker dummy_tracker(false);
       Filesort fsort(order, HA_POS_ERROR, true, NULL);
 
-      if (thd->lex->select_lex.setup_ref_array(thd, order_num) ||
-          setup_order(thd, thd->lex->select_lex.ref_pointer_array,
+      if (thd->lex->first_select_lex()->setup_ref_array(thd, order_num) ||
+          setup_order(thd, thd->lex->first_select_lex()->ref_pointer_array,
                       &tables, fields, all_fields, order))
         goto err;
 

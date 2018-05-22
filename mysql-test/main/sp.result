@@ -314,10 +314,12 @@ delete from t1|
 drop procedure b|
 drop procedure if exists b2|
 create procedure b2(x int)
-repeat(select 1 into outfile 'b2');
+repeat(select 1) into outfile 'b2';
 insert into test.t1 values (repeat("b2",3), x);
 set x = x-1;
 until x = 0 end repeat|
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop procedure b2|
 drop procedure if exists c|
 create procedure c(x int)
@@ -4179,6 +4181,7 @@ select v, isnull(v);
 end if;
 end;
 end|
+ERROR 42S22: Unknown column 'undefined_var' in 'field list'
 create procedure bug14643_2()
 begin
 declare continue handler for sqlexception select 'boo' as 'Handler';
@@ -4190,18 +4193,7 @@ select 2;
 end case;
 select undefined_var;
 end|
-call bug14643_1()|
-Handler
-boo
-v	isnull(v)
-NULL	1
-call bug14643_2()|
-Handler
-boo
-Handler
-boo
-drop procedure bug14643_1|
-drop procedure bug14643_2|
+ERROR 42S22: Unknown column 'undefined_var' in 'field list'
 drop procedure if exists bug14304|
 drop table if exists t3, t4|
 create table t3(a int primary key auto_increment)|
@@ -4231,9 +4223,7 @@ create procedure bug14376()
 begin
 declare x int default x;
 end|
-call bug14376()|
 ERROR 42S22: Unknown column 'x' in 'field list'
-drop procedure bug14376|
 create procedure bug14376()
 begin
 declare x int default 42;
@@ -4290,6 +4280,9 @@ select i as  'A local variable in a nested compound statement takes precedence o
 end;
 end;
 end|
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 call bug5967("a - stored procedure parameter")|
 a
 a - stored procedure parameter
@@ -4476,6 +4469,7 @@ select 'no' as 'v';
 end if;
 select 'done' as 'End';
 end|
+ERROR 42S22: Unknown column 'v' in 'field list'
 create procedure bug14498_2()
 begin
 declare continue handler for sqlexception select 'error' as 'Handler';
@@ -4484,6 +4478,7 @@ select 'yes' as 'v';
 end while;
 select 'done' as 'End';
 end|
+ERROR 42S22: Unknown column 'v' in 'field list'
 create procedure bug14498_3()
 begin
 declare continue handler for sqlexception select 'error' as 'Handler';
@@ -4492,6 +4487,7 @@ select 'maybe' as 'v';
 until v end repeat;
 select 'done' as 'End';
 end|
+ERROR 42S22: Unknown column 'v' in 'field list'
 create procedure bug14498_4()
 begin
 declare continue handler for sqlexception select 'error' as 'Handler';
@@ -4505,6 +4501,7 @@ select '?' as 'v';
 end case;
 select 'done' as 'End';
 end|
+ERROR 42S22: Unknown column 'v' in 'field list'
 create procedure bug14498_5()
 begin
 declare continue handler for sqlexception select 'error' as 'Handler';
@@ -4518,38 +4515,7 @@ select '?' as 'v';
 end case;
 select 'done' as 'End';
 end|
-call bug14498_1()|
-Handler
-error
-End
-done
-call bug14498_2()|
-Handler
-error
-End
-done
-call bug14498_3()|
-v
-maybe
-Handler
-error
-End
-done
-call bug14498_4()|
-Handler
-error
-End
-done
-call bug14498_5()|
-Handler
-error
-End
-done
-drop procedure bug14498_1|
-drop procedure bug14498_2|
-drop procedure bug14498_3|
-drop procedure bug14498_4|
-drop procedure bug14498_5|
+ERROR 42S22: Unknown column 'v' in 'field list'
 drop table if exists t3|
 drop procedure if exists bug15231_1|
 drop procedure if exists bug15231_2|
@@ -5797,6 +5763,8 @@ end;
 select 1 from no_such_view limit 1 into x;
 return x;
 end|
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create function func_8407_b() returns int
 begin
 declare x int default 0;
@@ -8339,14 +8307,12 @@ DECLARE name VARCHAR(10);
 SET name="hello";
 call p1(name2);
 END|
+ERROR 42S22: Unknown column 'name2' in 'field list'
 call p2();
 a
 hello
-call p3();
-ERROR 42S22: Unknown column 'name2' in 'field list'
 drop procedure p1;
 drop procedure p2;
-drop procedure p3;
 #
 # MDEV-15328: MariaDB 10.2.13 Crashes upon CALL PROCEDURE PARAM
 # LAST_INSERT_ID ()

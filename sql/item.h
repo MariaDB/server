@@ -5011,8 +5011,10 @@ struct st_sp_security_context;
 
 class Item_sp
 {
-public:
+protected:
+  // Can be NULL in some non-SELECT queries
   Name_resolution_context *context;
+public:
   sp_name *m_name;
   sp_head *m_sp;
   TABLE *dummy_table;
@@ -5034,6 +5036,11 @@ public:
   bool execute_impl(THD *thd, Item **args, uint arg_count);
   bool init_result_field(THD *thd, uint max_length, uint maybe_null,
                          bool *null_value, LEX_CSTRING *name);
+  void process_error(THD *thd)
+  {
+    if (context)
+      context->process_error(thd);
+  }
 };
 
 class Item_ref :public Item_ident,

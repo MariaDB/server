@@ -183,7 +183,11 @@
 #define OPTION_ALLOW_BATCH              (1ULL << 36) // THD, intern (slave)
 #define OPTION_SKIP_REPLICATION         (1ULL << 37) // THD, user
 #define OPTION_RPL_SKIP_PARALLEL        (1ULL << 38)
-#define OPTION_FOUND_COMMENT            (1ULL << 39) // SELECT, intern, parser
+#define OPTION_NO_QUERY_CACHE           (1ULL << 39) // SELECT, user
+#define OPTION_PROCEDURE_CLAUSE         (1ULL << 40) // Internal usage
+
+
+#define OPTION_LEX_FOUND_COMMENT        (1ULL << 0) //  intern, parser
 
 /* The rest of the file is included in the server only */
 #ifndef MYSQL_CLIENT
@@ -358,6 +362,9 @@ enum enum_parsing_place
   IN_ORDER_BY,
   IN_UPDATE_ON_DUP_KEY,
   IN_PART_FUNC,
+  BEFORE_OPT_LIST,
+  AFTER_LIST,
+  FOR_LOOP_BOUND,
   PARSING_PLACE_SIZE /* always should be the last */
 };
 

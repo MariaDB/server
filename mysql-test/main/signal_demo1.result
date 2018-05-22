@@ -75,6 +75,9 @@ end;
 end case;
 end
 $$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create procedure check_pk_inventory(in id integer)
 begin
 declare x integer;
@@ -92,6 +95,8 @@ MYSQL_ERRNO = 10000;
 end if;
 end
 $$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create procedure check_pk_order(in id integer)
 begin
 declare x integer;
@@ -108,6 +113,8 @@ MYSQL_ERRNO = 10000;
 end if;
 end
 $$
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create trigger po_order_bi before insert on po_order
 for each row
 begin

@@ -366,7 +366,6 @@ values (1,2);
 1	2
 1	2
 3	4
-1	2
 # combination of different structures that uses VALUES structures : UNION + UNION ALL
 values (1,2),(3,4)
 union all

@@ -85,6 +85,9 @@ void Item_subselect::init(st_select_lex *select_lex,
   DBUG_ENTER("Item_subselect::init");
   DBUG_PRINT("enter", ("select_lex: %p  this: %p",
                        select_lex, this));
+
+  select_lex->parent_lex->relink_hack(select_lex);
+
   unit= select_lex->master_unit();
 
   if (unit->item)
@@ -123,14 +126,7 @@ void Item_subselect::init(st_select_lex *select_lex,
     else
       engine= new subselect_single_select_engine(select_lex, result, this);
   }
-  {
-    SELECT_LEX *upper= unit->outer_select();
-    if (upper->parsing_place == IN_HAVING)
-      upper->subquery_in_having= 1;
-    /* The subquery is an expression cache candidate */
-    upper->expr_cache_may_be_used[upper->parsing_place]= TRUE;
-  }
-  DBUG_PRINT("info", ("engine: %p", engine));
+  DBUG_PRINT("info", ("engine: 0x%lx", (ulong)engine));
   DBUG_VOID_RETURN;
 }
 
@@ -220,7 +216,8 @@ Item_subselect::~Item_subselect()
   if (own_engine)
     delete engine;
   else
-    engine->cleanup();
+    if (engine)  // can be empty in case of EOM
+      engine->cleanup();
   engine= NULL;
   DBUG_VOID_RETURN;
 }
@@ -243,6 +240,14 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
   thd= thd_param;
 
   DBUG_ASSERT(unit->thd == thd);
+
+  {
+    SELECT_LEX *upper= unit->outer_select();
+    if (upper->parsing_place == IN_HAVING)
+      upper->subquery_in_having= 1;
+    /* The subquery is an expression cache candidate */
+    upper->expr_cache_may_be_used[upper->parsing_place]= TRUE;
+  }
 
   status_var_increment(thd_param->status_var.feature_subquery);
 
@@ -1407,6 +1412,8 @@ Item_exists_subselect::Item_exists_subselect(THD *thd,
   emb_on_expr_nest(NULL), optimizer(0), exists_transformed(0)
 {
   DBUG_ENTER("Item_exists_subselect::Item_exists_subselect");
+
+
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
   max_columns= UINT_MAX;
   null_value= FALSE; //can't be NULL
@@ -1449,6 +1456,7 @@ Item_in_subselect::Item_in_subselect(THD *thd, Item * left_exp,
 {
   DBUG_ENTER("Item_in_subselect::Item_in_subselect");
   DBUG_PRINT("info", ("in_strategy: %u", (uint)in_strategy));
+
   left_expr_orig= left_expr= left_exp;
   /* prepare to possible disassembling the item in convert_subq_to_sj() */
   if (left_exp->type() == Item::ROW_ITEM)

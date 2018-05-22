@@ -824,12 +824,13 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
   */
   if (thd->lex->sql_command == SQLCOM_SHOW_EVENTS)
   {
-    DBUG_ASSERT(thd->lex->select_lex.db.str);
-    if (!is_infoschema_db(&thd->lex->select_lex.db) && // There is no events in I_S
-        check_access(thd, EVENT_ACL, thd->lex->select_lex.db.str,
+    DBUG_ASSERT(thd->lex->first_select_lex()->db.str);
+    if (!is_infoschema_db(&thd->lex->first_select_lex()->db) && // There is no events in I_S
+        check_access(thd, EVENT_ACL, thd->lex->first_select_lex()->db.str,
                      NULL, NULL, 0, 0))
       DBUG_RETURN(1);
-    db= normalize_db_name(thd->lex->select_lex.db.str, db_tmp, sizeof(db_tmp));
+    db= normalize_db_name(thd->lex->first_select_lex()->db.str,
+                          db_tmp, sizeof(db_tmp));
   }
   ret= db_repository->fill_schema_events(thd, tables, db);
 

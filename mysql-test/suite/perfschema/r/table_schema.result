@@ -799,6 +799,8 @@ def	performance_schema	users	TOTAL_CONNECTIONS	3	NULL	NO	bigint	NULL	NULL	19	0	N
 select count(*) from information_schema.columns
 where table_schema="performance_schema" and data_type = "bigint"
    and column_name like "%number_of_bytes" into @count_byte_columns;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select @count_byte_columns > 0;
 @count_byte_columns > 0
 1
@@ -806,12 +808,16 @@ select count(*) from information_schema.columns
 where table_schema="performance_schema" and data_type="bigint"
    and column_name like "%number_of_bytes"
    and column_type not like "%unsigned" into @count_byte_signed;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select (@count_byte_columns - @count_byte_signed) = 0;
 (@count_byte_columns - @count_byte_signed) = 0
 1
 select count(*) from information_schema.columns
 where table_schema="performance_schema" and data_type = "bigint"
    and column_name like "%object_instance_begin" into @count_object_columns;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select @count_object_columns > 0;
 @count_object_columns > 0
 1
@@ -819,6 +825,8 @@ select count(*) from information_schema.columns
 where table_schema="performance_schema" and data_type="bigint"
    and column_name like "%object_instance_begin"
    and column_type like "%unsigned" into @count_object_unsigned;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select (@count_object_columns - @count_object_unsigned) = 0;
 (@count_object_columns - @count_object_unsigned) = 0
 1

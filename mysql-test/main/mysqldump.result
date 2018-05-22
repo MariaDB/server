@@ -2750,6 +2750,8 @@ CREATE PROCEDURE bug9056_proc2(OUT a INT)
 BEGIN
 select sum(id) from t1 into a;
 END //
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 set sql_mode='ansi';
 create procedure `a'b` () select 1;
 set sql_mode='';
@@ -5161,7 +5163,7 @@ USE BUG52792;
 SET NAMES utf8;
 CREATE FUNCTION `straße` ( c1 CHAR(20))
 RETURNS CHAR(50) DETERMINISTIC
-RETURN CONCAT(']]>, ', s, '!');
+RETURN CONCAT(']]>, ', c1, '!');
 <?xml version="1.0"?>
 <mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <database name="BUG52792">
@@ -5170,7 +5172,7 @@ RETURN CONCAT(']]>, ', s, '!');
 <![CDATA[
 CREATE DEFINER=`root`@`localhost` FUNCTION `straße`( c1 CHAR(20)) RETURNS char(50) CHARSET latin1
     DETERMINISTIC
-RETURN CONCAT(']]]]><![CDATA[>, ', s, '!')
+RETURN CONCAT(']]]]><![CDATA[>, ', c1, '!')
 ]]>
 		</routine>
 	</routines>

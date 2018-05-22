@@ -6472,7 +6472,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
       (thd->lex->sql_command == SQLCOM_CREATE_VIEW))
   {
     Security_context *save_security_ctx= thd->security_ctx;
-    if (context->security_ctx)
+    if (context && context->security_ctx)
       thd->security_ctx= context->security_ctx;
 
     /*
@@ -6487,7 +6487,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
 
     if (res)
     {
-      context->process_error(thd);
+      process_error(thd);
       DBUG_RETURN(res);
     }
   }
@@ -6504,7 +6504,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
   if (!(m_sp= sp))
   {
     my_missing_function_error(m_name->m_name, ErrConvDQName(m_name).ptr());
-    context->process_error(thd);
+    process_error(thd);
     DBUG_RETURN(TRUE);
   }
 

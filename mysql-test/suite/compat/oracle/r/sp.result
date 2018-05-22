@@ -1019,9 +1019,7 @@ LOOP
 EXIT WHEN unknown_ident IS NULL;
 END LOOP;
 END$$
-CALL p1;
 ERROR 42S22: Unknown column 'unknown_ident' in 'field list'
-DROP PROCEDURE p1;
 CREATE PROCEDURE p1
 AS
 BEGIN
@@ -1030,9 +1028,7 @@ LOOP
 EXIT label WHEN unknown_ident IS NULL;
 END LOOP;
 END$$
-CALL p1;
 ERROR 42S22: Unknown column 'unknown_ident' in 'field list'
-DROP PROCEDURE p1;
 CREATE PROCEDURE p1
 AS
 BEGIN
@@ -1040,9 +1036,7 @@ LOOP
 CONTINUE WHEN unknown_ident IS NULL;
 END LOOP;
 END$$
-CALL p1;
 ERROR 42S22: Unknown column 'unknown_ident' in 'field list'
-DROP PROCEDURE p1;
 CREATE PROCEDURE p1
 AS
 BEGIN
@@ -1051,9 +1045,7 @@ LOOP
 CONTINUE label WHEN unknown_ident IS NULL;
 END LOOP;
 END$$
-CALL p1;
 ERROR 42S22: Unknown column 'unknown_ident' in 'field list'
-DROP PROCEDURE p1;
 #
 # MDEV-10583 sql_mode=ORACLE: SQL%ROWCOUNT
 #

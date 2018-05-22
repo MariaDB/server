@@ -1,5 +1,7 @@
 drop table if exists t1, t2;
 SELECT * FROM mysql.proc INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/proc.txt';
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 delete from mysql.proc;
 create procedure syntaxerror(t int)|
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
@@ -12,6 +14,8 @@ create table t3 ( x int )|
 insert into t3 values (2), (3)|
 create procedure bad_into(out param int)
 select x from t3 into param|
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 call bad_into(@x)|
 ERROR 42000: Result consisted of more than one row
 drop procedure bad_into|
@@ -439,6 +443,9 @@ create procedure nodb.bug3339() begin end|
 ERROR 42000: Unknown database 'nodb'
 create procedure bug2653_1(a int, out b int)
 set b = aa|
+call bug2653_1(1, @b)|
+ERROR 42S22: Unknown column 'aa' in 'field list'
+drop procedure bug2653_1|
 create procedure bug2653_2(a int, out b int)
 begin
 if aa < 0 then
@@ -447,12 +454,7 @@ else
 set b = a;
 end if;
 end|
-call bug2653_1(1, @b)|
 ERROR 42S22: Unknown column 'aa' in 'field list'
-call bug2653_2(2, @b)|
-ERROR 42S22: Unknown column 'aa' in 'field list'
-drop procedure bug2653_1|
-drop procedure bug2653_2|
 create procedure bug4344() drop procedure bug4344|
 ERROR HY000: Can't drop or alter a PROCEDURE from within another stored routine
 create procedure bug4344() drop function bug4344|
@@ -1067,6 +1069,7 @@ IF bug13037_foo THEN
 SELECT 1;
 END IF;
 END|
+ERROR 42S22: Unknown column 'bug13037_foo' in 'field list'
 CREATE PROCEDURE bug13037_p2()
 BEGIN
 SET @bug13037_foo = bug13037_bar;
@@ -1076,19 +1079,14 @@ BEGIN
 SELECT bug13037_foo;
 END|
 
-CALL bug13037_p1();
+CALL bug13037_p2();
+ERROR 42S22: Unknown column 'bug13037_bar' in 'field list'
+CALL bug13037_p3();
 ERROR 42S22: Unknown column 'bug13037_foo' in 'field list'
 CALL bug13037_p2();
 ERROR 42S22: Unknown column 'bug13037_bar' in 'field list'
 CALL bug13037_p3();
 ERROR 42S22: Unknown column 'bug13037_foo' in 'field list'
-CALL bug13037_p1();
-ERROR 42S22: Unknown column 'bug13037_foo' in 'field list'
-CALL bug13037_p2();
-ERROR 42S22: Unknown column 'bug13037_bar' in 'field list'
-CALL bug13037_p3();
-ERROR 42S22: Unknown column 'bug13037_foo' in 'field list'
-DROP PROCEDURE bug13037_p1;
 DROP PROCEDURE bug13037_p2;
 DROP PROCEDURE bug13037_p3;
 create database mysqltest1;
@@ -2848,6 +2846,8 @@ DECLARE v VARCHAR(5) DEFAULT -1;
 SELECT b FROM t1 WHERE a = 2 INTO v;
 RETURN v;
 END|
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 
 # Here we check that the NOT_FOUND condition raised in f1()
 # is not visible in the outer function (f2), i.e. the continue

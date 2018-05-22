@@ -1327,7 +1327,7 @@ static int
 create_view_query(THD *thd, uchar** buf, size_t* buf_len)
 {
     LEX *lex= thd->lex;
-    SELECT_LEX *select_lex= &lex->select_lex;
+    SELECT_LEX *select_lex= lex->first_select_lex();
     TABLE_LIST *first_table= select_lex->table_list.first;
     TABLE_LIST *views = first_table;
     LEX_USER *definer;
@@ -1419,7 +1419,7 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
   DBUG_ASSERT(table_list || db);
 
   LEX* lex= thd->lex;
-  SELECT_LEX* select_lex= &lex->select_lex;
+  SELECT_LEX* select_lex= lex->first_select_lex();
   TABLE_LIST* first_table= select_lex->table_list.first;
 
   switch (lex->sql_command)

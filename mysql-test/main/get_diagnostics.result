@@ -133,7 +133,7 @@ DROP PROCEDURE p1;
 GET DIAGNOSTICS CONDITION;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 GET DIAGNOSTICS CONDITION a;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+ERROR 42S22: Unknown column 'a' in 'field list'
 GET DIAGNOSTICS CONDITION 1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 GET DIAGNOSTICS CONDITION 1 @var;
@@ -212,9 +212,9 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 GET DIAGNOSTICS CONDITION (1) @var = CLASS_ORIGIN;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(1) @var = CLASS_ORIGIN' at line 1
 GET DIAGNOSTICS CONDITION p1() @var = CLASS_ORIGIN;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '() @var = CLASS_ORIGIN' at line 1
+ERROR 42S22: Unknown column 'p1' in 'field list'
 GET DIAGNOSTICS CONDITION ABS(2) @var = CLASS_ORIGIN;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(2) @var = CLASS_ORIGIN' at line 1
+ERROR 42S22: Unknown column 'ABS' in 'field list'
 GET DIAGNOSTICS CONDITION 1.1 @var = CLASS_ORIGIN;
 GET DIAGNOSTICS CONDITION "1" @var = CLASS_ORIGIN;
 SELECT COUNT(max_questions) INTO @var FROM mysql.user;
@@ -226,10 +226,7 @@ Warnings:
 Error	1758	Invalid condition number
 Error	1758	Invalid condition number
 GET DIAGNOSTICS CONDITION a @var = CLASS_ORIGIN;
-Warnings:
-Error	1758	Invalid condition number
-Error	1758	Invalid condition number
-Error	1054	Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'field list'
 SELECT COUNT(max_questions) INTO @var FROM mysql.user;
 SET @cond = 1;
 GET DIAGNOSTICS CONDITION @cond @var1 = CLASS_ORIGIN;

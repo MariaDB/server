@@ -68,7 +68,7 @@ void select_unit::change_select()
   curr_sel= current_select_number;
   /* New SELECT processing starts */
   DBUG_ASSERT(table->file->inited == 0);
-  step= thd->lex->current_select->linkage;
+  step= thd->lex->current_select->get_linkage();
   switch (step)
   {
   case INTERSECT_TYPE:
@@ -248,7 +248,7 @@ bool select_unit::send_eof()
 {
   if (step != INTERSECT_TYPE ||
       (thd->lex->current_select->next_select() &&
-       thd->lex->current_select->next_select()->linkage == INTERSECT_TYPE))
+       thd->lex->current_select->next_select()->get_linkage() == INTERSECT_TYPE))
   {
     /*
       it is not INTESECT or next SELECT in the sequence is INTERSECT so no
@@ -1417,7 +1417,7 @@ bool st_select_lex_unit::exec()
         union_result->change_select();
       if (fake_select_lex)
       {
-        if (sl != &thd->lex->select_lex)
+        if (sl != thd->lex->first_select_lex())
           fake_select_lex->uncacheable|= sl->uncacheable;
         else
           fake_select_lex->uncacheable= 0;

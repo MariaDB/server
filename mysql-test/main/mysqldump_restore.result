@@ -21,6 +21,10 @@ ALTER TABLE test.t1 RENAME to test.t1_orig;
 # Recreated table: test.t1
 # Original table: test.t1_orig
 include/diff_tables.inc [test.t1, test.t1_orig]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # Cleanup
 DROP TABLE test.t1, test.t1_orig;
 #
@@ -46,6 +50,10 @@ ALTER TABLE test.t1 RENAME to test.t1_orig;
 # Recreated table: test.t1
 # Original table: test.t1_orig
 include/diff_tables.inc [test.t1, test.t1_orig]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # Cleanup
 DROP TABLE test.t1, test.t1_orig;
 #
@@ -64,6 +72,10 @@ ALTER TABLE test.t1 RENAME to test.t1_orig;
 # Recreated table: test.t1
 # Original table: test.t1_orig
 include/diff_tables.inc [test.t1, test.t1_orig]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # Cleanup
 DROP TABLE test.t1, test.t1_orig;
 #
@@ -83,6 +95,10 @@ ALTER TABLE test.t2 RENAME to test.t2_orig;
 # Recreated table: test.t2
 # Original table: test.t2_orig
 include/diff_tables.inc [test.t2, test.t2_orig]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # Cleanup
 DROP TABLE test.t2, test.t2_orig;
 DROP TABLE t1;
@@ -101,6 +117,10 @@ ALTER TABLE test.t1 RENAME to test.t1_orig;
 # Recreated table: test.t1
 # Original table: test.t1_orig
 include/diff_tables.inc [test.t1, test.t1_orig]
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # Cleanup
 DROP TABLE test.t1, test.t1_orig;
 # End tests

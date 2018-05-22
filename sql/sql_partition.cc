@@ -830,7 +830,8 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     goto end;
   table->get_fields_in_item_tree= true;
 
-  func_expr->walk(&Item::change_context_processor, 0, &lex.select_lex.context);
+  func_expr->walk(&Item::change_context_processor, 0,
+                  &lex.first_select_lex()->context);
   thd->where= "partition function";
   /*
     In execution we must avoid the use of thd->change_item_tree since

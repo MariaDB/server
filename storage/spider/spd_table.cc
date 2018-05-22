@@ -9043,8 +9043,14 @@ int spider_set_direct_limit_offset(
   )
     DBUG_RETURN(FALSE);
 
+  /*
+    TODO: following comment is wrong or the check is wrong (correct
+    check for derived table will be something like select_lex->linkage,
+    if they need only top level it is better to check nested level and do
+      not loose UNIONS & Co
+  */
   // must not be derived table
-  if (&thd->lex->select_lex != select_lex)
+  if (thd->lex->first_select_lex() != select_lex)
     DBUG_RETURN(FALSE);
 
   spider->direct_select_offset = offset_limit;

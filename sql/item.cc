@@ -746,7 +746,8 @@ Item_ident::Item_ident(THD *thd, TABLE_LIST *view_arg,
   :Item_result_field(thd), orig_db_name(NullS),
    orig_table_name(view_arg->table_name.str),
    orig_field_name(*field_name_arg),
-   context(&view_arg->view->select_lex.context),
+   /* TODO: suspicious use of first_select_lex */
+   context(&view_arg->view->first_select_lex()->context),
    db_name(NullS), table_name(view_arg->alias.str),
    field_name(*field_name_arg),
    alias_name_used(FALSE), cached_field_index(NO_CACHED_FIELD_INDEX),
@@ -2896,7 +2897,7 @@ bool Item_sp::execute(THD *thd, bool *null_value, Item **args, uint arg_count)
   if (unlikely(execute_impl(thd, args, arg_count)))
   {
     *null_value= 1;
-    context->process_error(thd);
+    process_error(thd);
     if (thd->killed)
       thd->send_kill_message();
     return true;
@@ -2929,7 +2930,7 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
 
   DBUG_ENTER("Item_sp::execute_impl");
 
-  if (context->security_ctx)
+  if (context && context->security_ctx)
   {
     /* Set view definer security context */
     thd->security_ctx= context->security_ctx;
@@ -3108,7 +3109,10 @@ Item_field::Item_field(THD *thd, Field *f)
    have_privileges(0), any_privileges(0)
 {
   set_field(f);
-
+  /*
+    field_name and table_name should not point to garbage
+    if this item is to be reused
+  */
   orig_table_name= table_name;
   orig_field_name= field_name;
   with_field= 1;
@@ -5731,7 +5735,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   Name_resolution_context *outer_context= 0;
   SELECT_LEX *select= 0;
   /* Currently derived tables cannot be correlated */
-  if (current_sel->master_unit()->first_select()->linkage !=
+  if (current_sel->master_unit()->first_select()->get_linkage() !=
       DERIVED_TABLE_TYPE)
     outer_context= context->outer_context;
 
@@ -8287,7 +8291,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
   if (!((*ref)->type() == REF_ITEM &&
        ((Item_ref *)(*ref))->ref_type() == OUTER_REF) &&
       (((*ref)->with_sum_func() && name.str &&
-        !(current_sel->linkage != GLOBAL_OPTIONS_TYPE &&
+        !(current_sel->get_linkage() != GLOBAL_OPTIONS_TYPE &&
           current_sel->having_fix_field)) ||
        !(*ref)->is_fixed()))
   {

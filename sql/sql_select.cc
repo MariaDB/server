@@ -351,7 +351,7 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
                    ulong setup_tables_done_option)
 {
   bool res;
-  SELECT_LEX *select_lex = &lex->select_lex;
+  SELECT_LEX *select_lex= lex->first_select_lex();
   DBUG_ENTER("handle_select");
   MYSQL_SELECT_START(thd->query());
 
@@ -1393,6 +1393,7 @@ err:
 
 bool JOIN::build_explain()
 {
+  DBUG_ENTER("JOIN::build_explain");
   create_explain_query_if_not_exists(thd->lex, thd->mem_root);
   have_query_plan= QEP_AVAILABLE;
 
@@ -1410,8 +1411,7 @@ bool JOIN::build_explain()
   thd->mem_root= old_mem_root;
   DBUG_ASSERT(thd->free_list == old_free_list); // no Items were created
   if (res)
-    return 1;
-
+    DBUG_RETURN(1);
   uint select_nr= select_lex->select_number;
   JOIN_TAB *curr_tab= join_tab + exec_join_tab_cnt();
   for (uint i= 0; i < aggr_tables; i++, curr_tab++)
@@ -1429,7 +1429,7 @@ bool JOIN::build_explain()
                          get_using_temporary_read_tracker();
     }
   }
-  return 0;
+  DBUG_RETURN(0);
 }
 
 
@@ -3791,6 +3791,15 @@ bool JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
                              bool need_tmp_table, bool need_order, 
                              bool distinct)
 {
+  DBUG_ENTER("JOIN::save_explain_data");
+  DBUG_PRINT("enter", ("Save explain Select_lex: %u (%p)  parent lex: %p  stmt_lex: %p  present select: %u (%p)",
+                        select_lex->select_number, select_lex,
+                        select_lex->parent_lex, thd->lex->stmt_lex,
+                        (output->get_select(select_lex->select_number) ?
+                         select_lex->select_number : 0),
+                        (output->get_select(select_lex->select_number) ?
+                         output->get_select(select_lex->select_number)
+                         ->select_lex : NULL)));
   /*
     If there is SELECT in this statement with the same number it must be the
     same SELECT
@@ -3817,8 +3826,9 @@ bool JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
       /* It's a degenerate join */
       message= zero_result_cause ? zero_result_cause : "No tables used";
     }
-    return save_explain_data_intern(thd->lex->explain, need_tmp_table, need_order,
-                                    distinct, message);
+    bool rc= save_explain_data_intern(thd->lex->explain, need_tmp_table,
+                                      need_order, distinct, message);
+    DBUG_RETURN(rc);
   }
   
   /*
@@ -3840,11 +3850,11 @@ bool JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
       {
         if (!(join_tab[i].filesort->tracker=
               new Filesort_tracker(thd->lex->analyze_stmt)))
-          return 1;
+          DBUG_RETURN(1);
       }
     }
   }
-  return 0;
+  DBUG_RETURN(0);
 }
 
 
@@ -4201,10 +4211,10 @@ mysql_select(THD *thd,
       is it single SELECT in derived table, called in derived table
       creation
     */
-    if (select_lex->linkage != DERIVED_TABLE_TYPE ||
+    if (select_lex->get_linkage() != DERIVED_TABLE_TYPE ||
 	(select_options & SELECT_DESCRIBE))
     {
-      if (select_lex->linkage != GLOBAL_OPTIONS_TYPE)
+      if (select_lex->get_linkage() != GLOBAL_OPTIONS_TYPE)
       {
         /*
           Original join tabs might be overwritten at first
@@ -12689,7 +12699,8 @@ void JOIN::join_free()
       !(select_options & SELECT_NO_UNLOCK) &&
       !select_lex->subquery_in_having &&
       (select_lex == (thd->lex->unit.fake_select_lex ?
-                      thd->lex->unit.fake_select_lex : &thd->lex->select_lex)))
+                      thd->lex->unit.fake_select_lex :
+                      thd->lex->first_select_lex())))
   {
     /*
       TODO: unlock tables even if the join isn't top level select in the
@@ -18443,7 +18454,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   new_table.no_rows= table->no_rows;
   if (create_internal_tmp_table(&new_table, table->key_info, start_recinfo,
                                 recinfo,
-                                thd->lex->select_lex.options | 
+                                thd->lex->first_select_lex()->options |
 			        thd->variables.option_bits))
     goto err2;
   if (open_tmp_table(&new_table))
@@ -24959,7 +24970,8 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
     */
     if (real_table->merged_for_insert)
     {
-      TABLE_LIST *view_child= real_table->view->select_lex.table_list.first;
+      TABLE_LIST *view_child=
+        real_table->view->first_select_lex()->table_list.first;
       for (;view_child; view_child= view_child->next_local)
       {
         if (view_child->table == table)
@@ -25412,8 +25424,9 @@ int JOIN::save_explain_data_intern(Explain_query *output,
 {
   JOIN *join= this; /* Legacy: this code used to be a non-member function */
   DBUG_ENTER("JOIN::save_explain_data_intern");
-  DBUG_PRINT("info", ("Select %p, type %s, message %s",
-		      join->select_lex, join->select_lex->type,
+  DBUG_PRINT("info", ("Select %p (%u), type %s, message %s",
+		      join->select_lex,  join->select_lex->select_number,
+                      join->select_lex->type,
 		      message ? message : "NULL"));
   DBUG_ASSERT(have_query_plan == QEP_AVAILABLE);
   /* fake_select_lex is created/printed by Explain_union */
@@ -25439,7 +25452,7 @@ int JOIN::save_explain_data_intern(Explain_query *output,
 
     explain->select_id= join->select_lex->select_number;
     explain->select_type= join->select_lex->type;
-    explain->linkage= select_lex->linkage;
+    explain->linkage= select_lex->get_linkage();
     explain->using_temporary= need_tmp;
     explain->using_filesort=  need_order_arg;
     /* Setting explain->message means that all other members are invalid */
@@ -25462,7 +25475,7 @@ int JOIN::save_explain_data_intern(Explain_query *output,
 
     explain->select_id=   select_lex->select_number;
     explain->select_type= select_lex->type;
-    explain->linkage= select_lex->linkage;
+    explain->linkage= select_lex->get_linkage();
     explain->using_temporary= need_tmp;
     explain->using_filesort=  need_order_arg;
     explain->message= "Storage engine handles GROUP BY";
@@ -25485,7 +25498,7 @@ int JOIN::save_explain_data_intern(Explain_query *output,
     join->select_lex->set_explain_type(true);
     xpl_sel->select_id= join->select_lex->select_number;
     xpl_sel->select_type= join->select_lex->type;
-    xpl_sel->linkage= select_lex->linkage;
+    xpl_sel->linkage= select_lex->get_linkage();
     if (select_lex->master_unit()->derived)
       xpl_sel->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
     
@@ -26068,6 +26081,18 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
   {
     str->append("/* select#");
     str->append_ulonglong(select_number);
+    if (thd->lex->describe & DESCRIBE_EXTENDED2)
+    {
+      str->append("/");
+      str->append_ulonglong(nest_level);
+
+      if (master_unit()->fake_select_lex &&
+          master_unit()->first_select() == this)
+      {
+        str->append(" Filter Select: ");
+        master_unit()->fake_select_lex->print(thd, str, query_type);
+      }
+    }
     str->append(" */ ");
   }
 
@@ -26099,18 +26124,21 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     str->append(STRING_WITH_LEN("sql_buffer_result "));
   if (options & OPTION_FOUND_ROWS)
     str->append(STRING_WITH_LEN("sql_calc_found_rows "));
-  switch (sql_cache)
+  if (this == parent_lex->first_select_lex())
   {
-    case SQL_NO_CACHE:
-      str->append(STRING_WITH_LEN("sql_no_cache "));
-      break;
-    case SQL_CACHE:
-      str->append(STRING_WITH_LEN("sql_cache "));
-      break;
-    case SQL_CACHE_UNSPECIFIED:
-      break;
-    default:
-      DBUG_ASSERT(0);
+    switch (parent_lex->sql_cache)
+    {
+      case LEX::SQL_NO_CACHE:
+        str->append(STRING_WITH_LEN("sql_no_cache "));
+        break;
+      case LEX::SQL_CACHE:
+        str->append(STRING_WITH_LEN("sql_cache "));
+        break;
+      case LEX::SQL_CACHE_UNSPECIFIED:
+        break;
+      default:
+        DBUG_ASSERT(0);
+    }
   }
 
   //Item List

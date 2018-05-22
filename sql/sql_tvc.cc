@@ -295,7 +295,7 @@ int table_value_constr::save_explain_data_intern(THD *thd,
 
   explain->select_id= select_lex->select_number;
   explain->select_type= select_lex->type;
-  explain->linkage= select_lex->linkage;
+  explain->linkage= select_lex->get_linkage();
   explain->using_temporary= false;
   explain->using_filesort= false;
   /* Setting explain->message means that all other members are invalid */
@@ -548,7 +548,7 @@ bool Item_subselect::wrap_tvc_in_derived_table(THD *thd,
   Item *item;
   SELECT_LEX *sq_select; // select for IN subquery;
   sq_select= lex->current_select;
-  sq_select->linkage= tvc_sl->linkage;
+  sq_select->set_linkage(tvc_sl->get_linkage());
   sq_select->parsing_place= SELECT_LIST;
   item= new (thd->mem_root) Item_field(thd, &sq_select->context,
                                        NULL, NULL, &star_clex_str);
@@ -567,7 +567,7 @@ bool Item_subselect::wrap_tvc_in_derived_table(THD *thd,
     goto err;
   tvc_select= lex->current_select;
   derived_unit= tvc_select->master_unit();
-  tvc_select->linkage= DERIVED_TABLE_TYPE;
+  tvc_select->set_linkage(DERIVED_TABLE_TYPE);
 
   lex->current_select= sq_select;
 
@@ -694,7 +694,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   mysql_init_select(lex);
   tvc_select= lex->current_select;
   derived_unit= tvc_select->master_unit();
-  tvc_select->linkage= DERIVED_TABLE_TYPE;
+  tvc_select->set_linkage(DERIVED_TABLE_TYPE);
 
   /* Create TVC used in the transformation */
   if (create_value_list_for_tvc(thd, &values))

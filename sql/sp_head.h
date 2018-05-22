@@ -589,7 +589,8 @@ public:
     if (!oldlex)
       DBUG_RETURN(false); // Nothing to restore
     LEX *sublex= thd->lex;
-    if (thd->restore_from_local_lex_to_old_lex(oldlex))// This restores thd->lex
+    // This restores thd->lex and thd->stmt_lex
+    if (thd->restore_from_local_lex_to_old_lex(oldlex))
       DBUG_RETURN(true);
     if (!sublex->sp_lex_in_use)
     {
