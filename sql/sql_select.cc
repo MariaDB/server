@@ -1396,16 +1396,28 @@ bool JOIN::build_explain()
 {
   create_explain_query_if_not_exists(thd->lex, thd->mem_root);
   have_query_plan= QEP_AVAILABLE;
-  if (save_explain_data(thd->lex->explain, false /* can overwrite */,
+
+  /*
+    explain data must be created on the Explain_query::mem_root. Because it's
+    just a memroot, not an arena, explain data must not contain any Items
+  */
+  MEM_ROOT *old_mem_root= thd->mem_root;
+  Item *old_free_list __attribute__((unused))= thd->free_list;
+  thd->mem_root= thd->lex->explain->mem_root;
+  bool res= save_explain_data(thd->lex->explain, false /* can overwrite */,
                         need_tmp,
                         !skip_sort_order && !no_order && (order || group_list),
-                        select_distinct))
+                        select_distinct);
+  thd->mem_root= old_mem_root;
+  DBUG_ASSERT(thd->free_list == old_free_list); // no Items were created
+  if (res)
     return 1;
+
   uint select_nr= select_lex->select_number;
   JOIN_TAB *curr_tab= join_tab + exec_join_tab_cnt();
   for (uint i= 0; i < aggr_tables; i++, curr_tab++)
   {
-    if (select_nr == INT_MAX) 
+    if (select_nr == INT_MAX)
     {
       /* this is a fake_select_lex of a union */
       select_nr= select_lex->master_unit()->first_select()->select_number;
@@ -1599,7 +1611,11 @@ JOIN::optimize_inner()
     /*
       The following code will allocate the new items in a permanent
       MEMROOT for prepared statements and stored procedures.
+
+      But first we need to ensure that thd->lex->explain is allocated
+      in the execution arena
     */
+    create_explain_query_if_not_exists(thd->lex, thd->mem_root);
 
     Query_arena *arena, backup;
     arena= thd->activate_stmt_arena_if_needed(&backup);
@@ -3722,7 +3738,7 @@ bool JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
                              bool distinct)
 {
   /*
-    If there is SELECT in this statemet with the same number it must be the
+    If there is SELECT in this statement with the same number it must be the
     same SELECT
   */
   DBUG_ASSERT(select_lex->select_number == UINT_MAX ||
@@ -24918,9 +24934,9 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   if (filesort)
   {
     if (!(eta->pre_join_sort=
-          new Explain_aggr_filesort(thd->mem_root,
-                                    thd->lex->analyze_stmt,
-                                    filesort)))
+          new (thd->mem_root) Explain_aggr_filesort(thd->mem_root,
+                                                    thd->lex->analyze_stmt,
+                                                    filesort)))
       return 1;
   }
   
@@ -25358,7 +25374,7 @@ bool save_agg_explain_data(JOIN *join, Explain_select *xpl_sel)
   {
     // Each aggregate means a temp.table
     prev_node= node;
-    if (!(node= new Explain_aggr_tmp_table))
+    if (!(node= new (thd->mem_root) Explain_aggr_tmp_table))
       return 1;
     node->child= prev_node;
 
@@ -25379,7 +25395,7 @@ bool save_agg_explain_data(JOIN *join, Explain_select *xpl_sel)
     if (join_tab->distinct)
     {
       prev_node= node;
-      if (!(node= new Explain_aggr_remove_dups))
+      if (!(node= new (thd->mem_root) Explain_aggr_remove_dups))
         return 1;
       node->child= prev_node;
     }
@@ -25387,7 +25403,7 @@ bool save_agg_explain_data(JOIN *join, Explain_select *xpl_sel)
     if (join_tab->filesort)
     {
       Explain_aggr_filesort *eaf =
-        new Explain_aggr_filesort(thd->mem_root, is_analyze, join_tab->filesort);
+        new (thd->mem_root) Explain_aggr_filesort(thd->mem_root, is_analyze, join_tab->filesort);
       if (!eaf)
         return 1;
       prev_node= node;

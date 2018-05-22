@@ -3239,6 +3239,36 @@ Parent	Child	Path
 654	987	987,
 321	654	987,654,
 DROP TABLE t1;
+#
+# MDEV-16212: recursive CTE with global ORDER BY
+#
+set statement max_recursive_iterations = 2 for
+WITH RECURSIVE qn AS (
+SELECT 1 FROM dual UNION ALL
+SELECT 1 FROM qn
+ORDER BY (SELECT * FROM qn))
+SELECT count(*) FROM qn;
+ERROR 42000: This version of MariaDB doesn't yet support 'global ORDER_BY/LIMIT in recursive CTE spec'
+#
+# MDEV-15581: mix of ALL and DISTINCT UNION in recursive CTE
+#
+create table t1(a int);
+insert into t1 values(1),(2);
+insert into t1 values(1),(2);
+set @c=0, @d=0;
+WITH RECURSIVE qn AS
+(
+select 1,0 as col from t1
+union distinct
+select 1,0 from t1
+union all
+select 3, 0*(@c:=@c+1) from qn where @c<1
+union all
+select 3, 0*(@d:=@d+1) from qn where @d<1
+)
+select * from qn;
+ERROR 42000: This version of MariaDB doesn't yet support 'mix of ALL and DISTINCT UNION operations in recursive CTE spec'
+drop table t1;
 # Start of 10.3 tests
 #
 # MDEV-14217 [db crash] Recursive CTE when SELECT includes new field

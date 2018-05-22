@@ -3591,7 +3591,10 @@ my_bool _ma_reenable_logging_for_table(MARIA_HA *info, my_bool flush_pages)
 
   if (share->now_transactional == share->base.born_transactional ||
       !info->switched_transactional)
+  {
+    info->switched_transactional= FALSE;
     DBUG_RETURN(0);
+  }
   info->switched_transactional= FALSE;
 
   if ((share->now_transactional= share->base.born_transactional))

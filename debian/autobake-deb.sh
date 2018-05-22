@@ -128,10 +128,11 @@ UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${
 PATCHLEVEL="+maria"
 LOGSTRING="MariaDB build"
 CODENAME="$(lsb_release -sc)"
+EPOCH="1:"
 
-dch -b -D ${CODENAME} -v "1:${UPSTREAM}${PATCHLEVEL}~${CODENAME}" "Automatic build with ${LOGSTRING}."
+dch -b -D ${CODENAME} -v "${EPOCH}${UPSTREAM}${PATCHLEVEL}~${CODENAME}" "Automatic build with ${LOGSTRING}."
 
-echo "Creating package version ${UPSTREAM}${PATCHLEVEL}~${CODENAME} ... "
+echo "Creating package version ${EPOCH}${UPSTREAM}${PATCHLEVEL}~${CODENAME} ... "
 
 # On Travis CI, use -b to build binary only packages as there is no need to
 # waste time on generating the source package.

@@ -838,7 +838,7 @@ sp_head::~sp_head()
     thd->lex->sphead= NULL;
     lex_end(thd->lex);
     delete thd->lex;
-    thd->lex= thd->stmt_lex= lex;
+    thd->lex= lex;
   }
 
   my_hash_free(&m_sptabs);
@@ -1155,7 +1155,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
               backup_arena;
   query_id_t old_query_id;
   TABLE *old_derived_tables;
-  LEX *old_lex, *old_stmt_lex;
+  LEX *old_lex;
   Item_change_list old_change_list;
   String old_packet;
   uint old_server_status;
@@ -1262,7 +1262,6 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     do it in each instruction
   */
   old_lex= thd->lex;
-  old_stmt_lex= thd->stmt_lex;
   /*
     We should also save Item tree change list to avoid rollback something
     too early in the calling query.
@@ -1419,7 +1418,6 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   DBUG_ASSERT(thd->Item_change_list::is_empty());
   old_change_list.move_elements_to(thd);
   thd->lex= old_lex;
-  thd->stmt_lex= old_stmt_lex;
   thd->set_query_id(old_query_id);
   DBUG_ASSERT(!thd->derived_tables);
   thd->derived_tables= old_derived_tables;
@@ -3280,7 +3278,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     We should not save old value since it is saved/restored in
     sp_head::execute() when we are entering/leaving routine.
   */
-  thd->lex= thd->stmt_lex= m_lex;
+  thd->lex= m_lex;
 
   thd->set_query_id(next_query_id());
 
@@ -5164,7 +5162,5 @@ err:
 
 ulong sp_head::sp_cache_version() const
 {
-  return m_parent ? m_parent->sp_cache_version() :
-                    m_sp_cache_version;
-
+  return m_parent ? m_parent->sp_cache_version() : m_sp_cache_version;
 }

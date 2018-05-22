@@ -935,7 +935,7 @@ public:
   /*
     Point to the LEX in which it was created, used in view subquery detection.
 
-    TODO: make also st_select_lex::parent_stmt_lex (see THD::stmt_lex)
+    TODO: make also st_select_lex::parent_stmt_lex (see LEX::stmt_lex)
     and use st_select_lex::parent_lex & st_select_lex::parent_stmt_lex
     instead of global (from THD) references where it is possible.
   */
@@ -1084,6 +1084,7 @@ public:
   */
   bool subquery_in_having;
   /* TRUE <=> this SELECT is correlated w.r.t. some ancestor select */
+  bool with_all_modifier;  /* used for selects in union */
   bool is_correlated;
   /*
     This variable is required to ensure proper work of subqueries and
@@ -2805,6 +2806,21 @@ struct LEX: public Query_tables_list
 
   // type information
   CHARSET_INFO *charset;
+  /*
+    LEX which represents current statement (conventional, SP or PS)
+
+    For example during view parsing THD::lex will point to the views LEX and
+    lex::stmt_lex will point to LEX of the statement where the view will be
+    included
+
+    Currently it is used to have always correct select numbering inside
+    statement (LEX::current_select_number) without storing and restoring a
+    global counter which was THD::select_number.
+
+    TODO: make some unified statement representation (now SP has different)
+    to store such data like LEX::current_select_number.
+  */
+  LEX *stmt_lex;
 
   LEX_CSTRING name;
   const char *help_arg;

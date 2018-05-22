@@ -9544,10 +9544,10 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
   }
   else
   {
-    Field *tmp_field= field_arg->field;
-    /* charset doesn't matter here, it's to avoid sigsegv only */
-    tmp_field= new Field_null(0, 0, Field::NONE, &field_arg->field->field_name,
-                          &my_charset_bin);
+    static uchar null_bit=1;
+    /* charset doesn't matter here */
+    Field *tmp_field= new Field_string(0, 0, &null_bit, 1, Field::NONE,
+                                &field_arg->field->field_name, &my_charset_bin);
     if (tmp_field)
     {
       tmp_field->init(field_arg->field->table);

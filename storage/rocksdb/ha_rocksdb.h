@@ -1473,7 +1473,7 @@ private:
 // file name indicating RocksDB data corruption
 std::string rdb_corruption_marker_file_name();
 
-const int MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL= MariaDB_PLUGIN_MATURITY_GAMMA;
+const int MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL= MariaDB_PLUGIN_MATURITY_STABLE;
 
 extern bool prevent_myrocks_loading;
 

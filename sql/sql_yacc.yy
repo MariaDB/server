@@ -571,11 +571,9 @@ bool LEX::add_select_to_union_list(bool is_union_distinct,
     return TRUE;
   mysql_init_select(this);
   current_select->linkage= type;
+  current_select->with_all_modifier= !is_union_distinct;
   if (is_union_distinct) /* UNION DISTINCT - remember position */
-  {
-    current_select->master_unit()->union_distinct=
-      current_select;
-  }
+    current_select->master_unit()->union_distinct= current_select;
   else
     DBUG_ASSERT(type == UNION_TYPE);
   return FALSE;

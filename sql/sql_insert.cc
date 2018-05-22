@@ -1583,7 +1583,8 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   {
     Item *fake_conds= 0;
     TABLE_LIST *duplicate;
-    if ((duplicate= unique_table(thd, table_list, table_list->next_global, 1)))
+    if ((duplicate= unique_table(thd, table_list, table_list->next_global,
+                                 CHECK_DUP_ALLOW_DIFFERENT_ALIAS)))
     {
       update_non_unique_table_error(table_list, "INSERT", duplicate);
       DBUG_RETURN(TRUE);

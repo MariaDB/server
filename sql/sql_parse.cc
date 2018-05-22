@@ -4199,7 +4199,7 @@ mysql_execute_command(THD *thd)
         TABLE_LIST *duplicate;
         if (unlikely((duplicate= unique_table(thd, lex->query_tables,
                                               lex->query_tables->next_global,
-                                              0))))
+                                              CHECK_DUP_FOR_CREATE))))
         {
           update_non_unique_table_error(lex->query_tables, "CREATE",
                                         duplicate);
@@ -7540,8 +7540,9 @@ void THD::reset_for_next_command(bool do_clear_error)
     We also assign stmt_lex in lex_start(), but during bootstrap this
     code is executed first.
   */
-  stmt_lex= &main_lex; stmt_lex->current_select_number= 1;
-  DBUG_PRINT("info", ("Lex %p stmt_lex: %p", lex, stmt_lex));
+  DBUG_ASSERT(lex == &main_lex);
+  main_lex.stmt_lex= &main_lex; main_lex.current_select_number= 1;
+  DBUG_PRINT("info", ("Lex and stmt_lex: %p", &main_lex));
   /*
     Those two lines below are theoretically unneeded as
     THD::cleanup_after_query() should take care of this already.
@@ -7658,7 +7659,7 @@ mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *select_lex)
   {
     if (!(select_lex= new (thd->mem_root) SELECT_LEX()))
       DBUG_RETURN(1);
-    select_lex->select_number= ++thd->stmt_lex->current_select_number;
+    select_lex->select_number= ++thd->lex->stmt_lex->current_select_number;
     select_lex->parent_lex= lex; /* Used in init_query. */
     select_lex->init_query();
     select_lex->init_select();

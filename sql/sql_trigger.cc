@@ -1370,12 +1370,12 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
       List_iterator_fast<LEX_CSTRING> it_connection_cl_name(trigger_list->connection_cl_names);
       List_iterator_fast<LEX_CSTRING> it_db_cl_name(trigger_list->db_cl_names);
       List_iterator_fast<ulonglong> it_create_times(trigger_list->create_times);
-      LEX *old_lex= thd->lex, *old_stmt_lex= thd->stmt_lex;
+      LEX *old_lex= thd->lex;
       LEX lex;
       sp_rcontext *save_spcont= thd->spcont;
       sql_mode_t save_sql_mode= thd->variables.sql_mode;
 
-      thd->lex= thd->stmt_lex= &lex;
+      thd->lex= &lex;
 
       save_db= thd->db;
       thd->reset_db(db);
@@ -1592,7 +1592,6 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
       }
       thd->reset_db(&save_db);
       thd->lex= old_lex;
-      thd->stmt_lex= old_stmt_lex;
       thd->spcont= save_spcont;
       thd->variables.sql_mode= save_sql_mode;
 
@@ -1606,7 +1605,6 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
 err_with_lex_cleanup:
       lex_end(&lex);
       thd->lex= old_lex;
-      thd->stmt_lex= old_stmt_lex;
       thd->spcont= save_spcont;
       thd->variables.sql_mode= save_sql_mode;
       thd->reset_db(&save_db);

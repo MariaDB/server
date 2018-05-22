@@ -4271,6 +4271,9 @@ bool Rdb_ddl_manager::rename(const std::string &from, const std::string &to,
       rec->m_auto_incr_val.load(std::memory_order_relaxed);
   new_rec->m_key_descr_arr = rec->m_key_descr_arr;
 
+  new_rec->m_hidden_pk_val =
+      rec->m_hidden_pk_val.load(std::memory_order_relaxed);
+
   // so that it's not free'd when deleting the old rec
   rec->m_key_descr_arr = nullptr;
 

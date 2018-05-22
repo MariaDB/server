@@ -898,16 +898,23 @@ DECLARE_THREAD(kill_mdl_waiters_thread(void *))
 			break;
 
 		MYSQL_RES *result = xb_mysql_query(mysql,
-			"SELECT ID, COMMAND FROM INFORMATION_SCHEMA.PROCESSLIST "
+			"SELECT ID, COMMAND, INFO FROM INFORMATION_SCHEMA.PROCESSLIST "
 			" WHERE State='Waiting for table metadata lock'",
 			true, true);
 		while (MYSQL_ROW row = mysql_fetch_row(result))
 		{
 			char query[64];
-			msg_ts("Killing MDL waiting query '%s' on connection '%s'\n",
-				row[1], row[0]);
+
+			if (row[1] && !strcmp(row[1], "Killed"))
+				continue;
+
+			msg_ts("Killing MDL waiting %s ('%s') on connection %s\n",
+				row[1], row[2], row[0]);
 			snprintf(query, sizeof(query), "KILL QUERY %s", row[0]);
-			xb_mysql_query(mysql, query, true);
+			if (mysql_query(mysql, query) && (mysql_errno(mysql) != ER_NO_SUCH_THREAD)) {
+				msg("Error: failed to execute query %s: %s\n", query,mysql_error(mysql));
+				exit(EXIT_FAILURE);
+			}
 		}
 	}
 

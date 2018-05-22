@@ -652,11 +652,11 @@ void lex_start(THD *thd)
 void LEX::start(THD *thd_arg)
 {
   DBUG_ENTER("LEX::start");
-  DBUG_PRINT("info", ("This: %p thd_arg->lex: %p thd_arg->stmt_lex: %p",
-             this, thd_arg->lex, thd_arg->stmt_lex));
+  DBUG_PRINT("info", ("This: %p thd_arg->lex: %p", this, thd_arg->lex));
 
   thd= unit.thd= thd_arg;
-  
+  stmt_lex= this; // default, should be rewritten for VIEWs And CTEs
+
   DBUG_ASSERT(!explain);
 
   context_stack.empty();
@@ -2323,6 +2323,7 @@ void st_select_lex::init_select()
   select_limit= 0;      /* denotes the default limit = HA_POS_ERROR */
   offset_limit= 0;      /* denotes the default offset = 0 */
   with_sum_func= 0;
+  with_all_modifier= 0;
   is_correlated= 0;
   cur_pos_in_select_list= UNDEF_POS;
   cond_value= having_value= Item::COND_UNDEF;
