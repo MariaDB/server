@@ -2047,7 +2047,7 @@ SET optimizer_switch= @@global.optimizer_switch;
 set @@tmp_table_size= @@global.tmp_table_size;
 
 --echo #
---echo # mfrv-14515: Wrong results for tableless query with subquery in WHERE
+--echo # mdev-14515: Wrong results for tableless query with subquery in WHERE
 --echo #             and implicit aggregation
 --echo #
 

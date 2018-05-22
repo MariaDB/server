@@ -115,3 +115,17 @@ SELECT a FROM t1 ORDER BY a LIMIT 2 OFFSET 14;
 DROP TABLE t1;
 
 --echo End of 5.1 tests
+
+--echo #
+--echo # mdev-16235: SELECT over a table with LIMIT 0
+--echo #
+
+EXPLAIN
+SELECT * FROM mysql.slow_log WHERE sql_text != 'foo' LIMIT 0;
+SELECT * FROM mysql.slow_log WHERE sql_text != 'foo' LIMIT 0;
+
+EXPLAIN
+SELECT * FROM mysql.help_topic WHERE help_category_id != example LIMIT 0;
+SELECT * FROM mysql.help_topic WHERE help_category_id != example LIMIT 0;
+
+--echo End of 5.5 tests
