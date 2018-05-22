@@ -3511,3 +3511,29 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select TIMESTAMP'2001-01-01 10:20:30' + interval '10' year AS `c1`,TIMESTAMP'2001-01-01 10:20:30' + interval '10' year AS `c2`,TIMESTAMP'2001-01-01 10:20:30' + interval '10' year AS `c3`
+CREATE TABLE t_ts   (a timestamp(6));
+CREATE TABLE t_trig (a timestamp(6));
+CREATE FUNCTION fn_sleep_before_now() returns int
+BEGIN
+INSERT INTO t_ts SET a= current_timestamp(6);
+RETURN 0;
+END//
+CREATE TRIGGER trg_insert_t_ts after INSERT on t_ts for each row
+BEGIN
+INSERT into t_trig set a= current_timestamp(6);
+END//
+SET @sav_slow_query_log= @@session.slow_query_log;
+SET @@session.slow_query_log= ON;
+SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @ts_func;
+SELECT a FROM t_ts   LIMIT 1 into @ts_func;
+SELECT a FROM t_trig LIMIT 1 into @ts_trig;
+DELETE FROM t_ts;
+DELETE FROM t_trig;
+SET @@session.slow_query_log= OFF;
+SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @func_ts;
+SELECT a FROM t_ts   LIMIT 1 into @ts_func;
+SELECT a FROM t_trig LIMIT 1 into @ts_trig;
+SET @@session.slow_query_log= @sav_slow_query_log;
+DROP FUNCTION fn_sleep_before_now;
+DROP TRIGGER trg_insert_t_ts;
+DROP TABLE t_ts, t_trig;

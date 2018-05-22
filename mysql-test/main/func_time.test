@@ -2077,3 +2077,61 @@ EXPLAIN EXTENDED SELECT
   TIMESTAMP'2001-01-01 10:20:30' + INTERVAL '10' YEAR AS c1,
   INTERVAL '10' YEAR + TIMESTAMP'2001-01-01 10:20:30' AS c2,
   +INTERVAL '10' YEAR + TIMESTAMP'2001-01-01 10:20:30' AS c3;
+
+############
+# MDEV-13727
+# Current timestamp functions inside stored functions must return the
+# value of the top-level statement's timestamp (its start time).
+# This must hold regardless of @@slow_query_log option.
+#
+
+CREATE TABLE t_ts   (a timestamp(6));
+CREATE TABLE t_trig (a timestamp(6));
+delimiter //;
+CREATE FUNCTION fn_sleep_before_now() returns int
+BEGIN
+  INSERT INTO t_ts SET a= current_timestamp(6);
+  RETURN 0;
+END//
+CREATE TRIGGER trg_insert_t_ts after INSERT on t_ts for each row
+BEGIN
+  INSERT into t_trig set a= current_timestamp(6);
+END//
+delimiter ;//
+
+SET @sav_slow_query_log= @@session.slow_query_log;
+
+# @@slow_query_log ON check
+SET @@session.slow_query_log= ON;
+SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @ts_func;
+
+SELECT a FROM t_ts   LIMIT 1 into @ts_func;
+SELECT a FROM t_trig LIMIT 1 into @ts_trig;
+if (!`SELECT @ts_cur = @ts_func and @ts_func = @ts_trig`)
+{
+  SELECT @ts_cur, @ts_func, @ts_trig;
+  --die Error: timestamps must be equal but they diverge
+}
+DELETE FROM t_ts;
+DELETE FROM t_trig;
+
+# @@slow_query_log OFF check
+SET @@session.slow_query_log= OFF;
+SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @func_ts;
+SELECT a FROM t_ts   LIMIT 1 into @ts_func;
+SELECT a FROM t_trig LIMIT 1 into @ts_trig;
+if (!`SELECT @ts_cur = @ts_func and @ts_func = @ts_trig`)
+{
+  SELECT @ts_cur, @ts_func, @ts_trig;
+  --die Error: timestamps must be equal but they diverge
+}
+
+# Cleanup
+SET @@session.slow_query_log= @sav_slow_query_log;
+DROP FUNCTION fn_sleep_before_now;
+DROP TRIGGER trg_insert_t_ts;
+DROP TABLE t_ts, t_trig;
+
+#
+# End of MDEV-13727
+###################
