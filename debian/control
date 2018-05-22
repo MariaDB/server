@@ -26,6 +26,7 @@ Build-Depends: bison,
                libssl-dev | libssl1.0-dev,
                libsystemd-dev,
                libxml2-dev,
+               libzstd-dev,
                lsb-release,
                perl (>= 5.6.0),
                po-debconf,
@@ -536,6 +537,7 @@ Description: Connect storage engine for MariaDB
 Package: mariadb-plugin-rocksdb
 Architecture: amd64 arm64 mips64el ppc64el
 Depends: mariadb-server-10.3 (= ${binary:Version}),
+         libzstd1,
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-rocksdb-engine-10.2,
