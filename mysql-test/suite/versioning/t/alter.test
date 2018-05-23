@@ -61,11 +61,16 @@ select row_start from t;
 alter table t drop system versioning;
 show create table t;
 
---error ER_VERS_NOT_VERSIONED
+--error ER_VERS_ALTER_SYSTEM_FIELD
 alter table t add column trx_start timestamp(6) as row start;
 
 alter table t add system versioning;
 show create table t;
+
+--error ER_VERS_ALTER_SYSTEM_FIELD
+alter table t add column trx_start timestamp(6) as row start;
+--error ER_VERS_ALTER_SYSTEM_FIELD
+alter table t modify a int as row start;
 
 alter table t add column b int;
 show create table t;

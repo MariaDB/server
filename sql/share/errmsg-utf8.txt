@@ -7884,7 +7884,7 @@ ER_VERS_NO_TRX_ID
         eng "TRX_ID %llu not found in `mysql.transaction_registry`"
 
 ER_VERS_ALTER_SYSTEM_FIELD
-        eng "Can not change system versioning field %`s"
+        eng "Can not add system property AS ROW START/END for field %`s"
 
 ER_DROP_VERSIONING_SYSTEM_TIME_PARTITION
         eng "Can not DROP SYSTEM VERSIONING for table %`s partitioned BY SYSTEM_TIME"

@@ -7049,11 +7049,12 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     return false;
   }
 
+  if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
   {
     List_iterator_fast<Create_field> it(alter_info->create_list);
     while (Create_field *f= it++)
     {
-      if (f->change.length && f->flags & VERS_SYSTEM_FIELD)
+      if (f->flags & VERS_SYSTEM_FIELD)
       {
         my_error(ER_VERS_ALTER_SYSTEM_FIELD, MYF(0), f->field_name.str);
         return true;

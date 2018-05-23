@@ -8055,12 +8055,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         alter_ctx->datetime_field= def;
         alter_ctx->error_if_not_empty= TRUE;
     }
-    if (def->flags & VERS_SYSTEM_FIELD &&
-        !(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
-    {
-      my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->s->table_name.str);
-      goto err;
-    }
     if (!def->after.str)
       new_create_list.push_back(def, thd->mem_root);
     else

@@ -76,13 +76,17 @@ t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t add column trx_start timestamp(6) as row start;
-ERROR HY000: Table `t` is not system-versioned
+ERROR HY000: Can not add system property AS ROW START/END for field `trx_start`
 alter table t add system versioning;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t add column trx_start timestamp(6) as row start;
+ERROR HY000: Can not add system property AS ROW START/END for field `trx_start`
+alter table t modify a int as row start;
+ERROR HY000: Can not add system property AS ROW START/END for field `a`
 alter table t add column b int;
 show create table t;
 Table	Create Table
@@ -414,10 +418,10 @@ row_end timestamp(6) as row end invisible,
 period for system_time(row_start, row_end)
 ) with system versioning;
 alter table t change column row_start asdf timestamp(6);
-ERROR HY000: Can not change system versioning field `row_start`
+ERROR HY000: Can not add system property AS ROW START/END for field `row_start`
 insert into t values (1);
 alter table t modify column row_start bigint unsigned;
-ERROR HY000: Can not change system versioning field `row_start`
+ERROR HY000: Can not add system property AS ROW START/END for field `row_start`
 set system_versioning_alter_history= SURVIVE;
 ERROR 42000: Variable 'system_versioning_alter_history' can't be set to the value of 'SURVIVE'
 set system_versioning_alter_history= 'DROP';
@@ -527,6 +531,6 @@ use test;
 # MDEV-15956 Strange ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN upon ALTER on versioning column
 create or replace table t1 (i int, j int as (i), s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;
 alter table t1 modify s timestamp(6) as row start;
-ERROR HY000: Can not change system versioning field `s`
+ERROR HY000: Can not add system property AS ROW START/END for field `s`
 drop database test;
 create database test;
