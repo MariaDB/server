@@ -87,3 +87,124 @@ CALL p2('without');
 
 DROP PROCEDURE p2;
 DROP PROCEDURE p1;
+
+
+--echo #
+--echo # MDEV-16244 sql_mode=ORACLE: Some keywords do not work in variable declarations
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER /;
+
+DECLARE
+  do INT;
+BEGIN
+  SELECT do INTO do FROM DUAL;
+END;
+/
+
+DECLARE
+  handler INT;
+BEGIN
+  SELECT handler INTO handler FROM DUAL;
+END;
+/
+
+DECLARE
+  repair INT;
+BEGIN
+  SELECT repair INTO repair FROM DUAL;
+END;
+/
+
+DECLARE
+  shutdown INT;
+BEGIN
+  SELECT shutdown INTO shutdown FROM DUAL;
+END;
+/
+
+DECLARE
+  truncate INT;
+BEGIN
+  SELECT truncate INTO truncate FROM DUAL;
+END;
+/
+
+DECLARE
+  close INT;
+BEGIN
+  SELECT close INTO close FROM DUAL;
+END;
+/
+
+DECLARE
+  commit INT;
+BEGIN
+  SELECT commit INTO commit FROM DUAL;
+END;
+/
+
+DECLARE
+  open INT;
+BEGIN
+  SELECT open INTO open FROM DUAL;
+END;
+/
+
+DECLARE
+  rollback INT;
+BEGIN
+  SELECT rollback INTO rollback FROM DUAL;
+END;
+/
+
+DECLARE
+  savepoint INT;
+BEGIN
+  SELECT savepoint INTO savepoint FROM DUAL;
+END;
+/
+
+DECLARE
+  contains INT;
+BEGIN
+  SELECT contains INTO contains FROM DUAL;
+END;
+/
+
+DECLARE
+  language INT;
+BEGIN
+  SELECT language INTO language FROM DUAL;
+END;
+/
+
+DECLARE
+  no INT;
+BEGIN
+  SELECT no INTO no FROM DUAL;
+END;
+/
+
+DECLARE
+  charset INT;
+BEGIN
+  SELECT charset INTO charset FROM DUAL;
+END;
+/
+DECLARE
+  follows INT;
+BEGIN
+  SELECT follows INTO follows FROM DUAL;
+END;
+/
+
+DECLARE
+  precedes INT;
+BEGIN
+  SELECT precedes INTO precedes FROM DUAL;
+END;
+/
+
+DELIMITER ;/

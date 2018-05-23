@@ -6626,6 +6626,31 @@ Item *LEX::make_item_colon_ident_ident(THD *thd,
 }
 
 
+Item *LEX::make_item_sysvar(THD *thd,
+                            enum_var_type type,
+                            const LEX_CSTRING *name,
+                            const LEX_CSTRING *component)
+
+{
+  Item *item;
+  DBUG_ASSERT(name->str);
+  /*
+    "SELECT @@global.global.variable" is not allowed
+    Note, "global" can come through TEXT_STRING_sys.
+  */
+  if (component->str && unlikely(check_reserved_words(name)))
+  {
+    thd->parse_error();
+    return NULL;
+  }
+  if (unlikely(!(item= get_system_var(thd, type, name, component))))
+    return NULL;
+  if (!((Item_func_get_system_var*) item)->is_written_to_binlog())
+    set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_VARIABLE);
+  return item;
+}
+
+
 Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
                                  const char *start, const char *end)
 {

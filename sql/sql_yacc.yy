@@ -888,10 +888,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
-  Currently there are 68 shift/reduce conflicts.
+  Currently there are 62 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 68
+%expect 62
 
 /*
    Comments for TOKENS.
@@ -1244,7 +1244,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  AVG_ROW_LENGTH
 %token  <kwd>  AVG_SYM                       /* SQL-2003-N */
 %token  <kwd>  BACKUP_SYM
-%token  <kwd>  BEGIN_SYM                     /* SQL-2003-R */
+%token  <kwd>  BEGIN_SYM                     /* SQL-2003-R, PLSQL-R */
 %token  <kwd>  BINLOG_SYM
 %token  <kwd>  BIT_SYM                       /* MYSQL-FUNC */
 %token  <kwd>  BLOCK_SYM
@@ -1318,7 +1318,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  DUPLICATE_SYM
 %token  <kwd>  DYNAMIC_SYM                   /* SQL-2003-R */
 %token  <kwd>  ENABLE_SYM
-%token  <kwd>  END                           /* SQL-2003-R */
+%token  <kwd>  END                           /* SQL-2003-R, PLSQL-R */
 %token  <kwd>  ENDS_SYM
 %token  <kwd>  ENGINES_SYM
 %token  <kwd>  ENGINE_SYM
@@ -1762,7 +1762,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         HEX_NUM HEX_STRING
         LEX_HOSTNAME ULONGLONG_NUM field_ident select_alias ident_or_text
         TEXT_STRING_sys TEXT_STRING_literal
-        opt_component key_cache_name
+        key_cache_name
         sp_opt_label BIN_NUM TEXT_STRING_filesystem
         opt_constraint constraint opt_ident
         sp_block_label opt_place opt_db
@@ -1777,6 +1777,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         sp_decl_ident
         ident_or_empty
         ident_table_alias
+        ident_sysvar_name
 
 %type <lex_string_with_metadata>
         TEXT_STRING
@@ -1792,11 +1793,18 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         ident_cli
 
 %type <kwd>
-        keyword keyword_sp
-        keyword_alias
-        keyword_sp_data_type
-        keyword_sp_not_data_type
-        keyword_sp_verb_clause
+        keyword_data_type
+        keyword_ident
+        keyword_label
+        keyword_sp_block_section
+        keyword_sp_decl
+        keyword_sp_head
+        keyword_sp_var_and_label
+        keyword_sp_var_not_label
+        keyword_sysvar_name
+        keyword_sysvar_type
+        keyword_table_alias
+        keyword_verb_clause
 
 %type <table>
         table_ident table_ident_nodb references xid
@@ -4004,7 +4012,12 @@ condition_information_item_name:
         ;
 
 sp_decl_ident:
-          ident
+          IDENT_sys
+        | keyword_sp_decl
+          {
+            if (unlikely($$.copy_ident_cli(thd, &$1)))
+              MYSQL_YYABORT;
+          }
         ;
 
 sp_decl_idents:
@@ -7630,11 +7643,6 @@ key_part:
 opt_ident:
           /* empty */ { $$= null_clex_str; }
         | field_ident { $$= $1; }
-        ;
-
-opt_component:
-          /* empty */    { $$= null_clex_str; }
-        | '.' ident      { $$= $2; }
         ;
 
 string_list:
@@ -11351,18 +11359,15 @@ variable_aux:
             LEX *lex= Lex;
             lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
           }
-        | '@' opt_var_ident_type ident_or_text opt_component
+        | '@' opt_var_ident_type ident_sysvar_name
           {
-            /* disallow "SELECT @@global.global.variable" */
-            if (unlikely($3.str && $4.str && check_reserved_words(&$3)))
-            {
-              thd->parse_error();
+            if (unlikely(!($$= Lex->make_item_sysvar(thd, $2, &$3))))
               MYSQL_YYABORT;
-            }
-            if (unlikely(!($$= get_system_var(thd, $2, &$3, &$4))))
+          }
+        | '@' opt_var_ident_type ident_sysvar_name '.' ident
+          {
+            if (unlikely(!($$= Lex->make_item_sysvar(thd, $2, &$3, &$5))))
               MYSQL_YYABORT;
-            if (!((Item_func_get_system_var*) $$)->is_written_to_binlog())
-              Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_VARIABLE);
           }
         ;
 
@@ -15152,7 +15157,7 @@ IDENT_cli:
 ident_cli:
           IDENT
         | IDENT_QUOTED
-        | keyword { $$= $1; }
+        | keyword_ident { $$= $1; }
         ;
 
 IDENT_sys:
@@ -15189,16 +15194,32 @@ TEXT_STRING_filesystem:
 
 ident_table_alias:
           IDENT_sys
-        | keyword_alias
+        | keyword_table_alias
           {
             if (unlikely($$.copy_keyword(thd, &$1)))
               MYSQL_YYABORT;
           }
         ;
 
+
+ident_sysvar_name:
+          IDENT_sys
+        | keyword_sysvar_name
+          {
+            if (unlikely($$.copy_keyword(thd, &$1)))
+              MYSQL_YYABORT;
+          }
+        | TEXT_STRING_sys
+          {
+            if (unlikely($$.copy_sys(thd, &$1)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+
 ident:
           IDENT_sys
-        | keyword
+        | keyword_ident
           {
             if (unlikely($$.copy_keyword(thd, &$1)))
               MYSQL_YYABORT;
@@ -15207,7 +15228,7 @@ ident:
 
 label_ident:
           IDENT_sys
-        | keyword_sp
+        | keyword_label
           {
             if (unlikely($$.copy_keyword(thd, &$1)))
               MYSQL_YYABORT;
@@ -15285,15 +15306,74 @@ user: user_maybe_role
          ;
 
 /* Keywords which we allow as table aliases. */
-keyword_alias:
-          keyword_sp
-        | keyword_sp_verb_clause
-        | ASCII_SYM
+keyword_table_alias:
+          keyword_data_type
+        | keyword_sp_block_section
+        | keyword_sp_head
+        | keyword_sp_var_and_label
+        | keyword_sp_var_not_label
+        | keyword_sysvar_type
+        | keyword_verb_clause
+        ;
+
+/* Keyword that we allow for identifiers (except SP labels) */
+keyword_ident:
+          keyword_data_type
+        | keyword_sp_block_section
+        | keyword_sp_head
+        | keyword_sp_var_and_label
+        | keyword_sp_var_not_label
+        | keyword_sysvar_type
+        | keyword_verb_clause
+        | WINDOW_SYM
+        ;
+
+/*
+  Keywords that we allow for labels in SPs.
+  Should not include keywords that start a statement or SP characteristics.
+*/
+keyword_label:
+          keyword_data_type
+        | keyword_sp_var_and_label
+        | keyword_sysvar_type
+        ;
+
+keyword_sysvar_name:
+          keyword_data_type
+        | keyword_sp_block_section
+        | keyword_sp_head
+        | keyword_sp_var_and_label
+        | keyword_sp_var_not_label
+        | keyword_verb_clause
+        | WINDOW_SYM
+        ;
+
+keyword_sp_decl:
+          keyword_data_type
+        | keyword_sp_block_section
+        | keyword_sp_head
+        | keyword_sp_var_and_label
+        | keyword_sp_var_not_label
+        | keyword_sysvar_type
+        | keyword_verb_clause
+        | WINDOW_SYM
+        ;
+
+/*
+  Keywords that we allow in Oracle-style direct assignments:
+    xxx := 10;
+  but do not allow in labels in the default sql_mode:
+    label:
+      stmt1;
+      stmt2;
+  TODO: check if some of them can migrate to keyword_sp_var_and_label.
+*/
+keyword_sp_var_not_label:
+          ASCII_SYM
         | BACKUP_SYM
         | BINLOG_SYM
         | BYTE_SYM
         | CACHE_SYM
-        | CHARSET
         | CHECKSUM_SYM
         | CHECKPOINT_SYM
         | COLUMN_ADD_SYM
@@ -15302,21 +15382,17 @@ keyword_alias:
         | COLUMN_DELETE_SYM
         | COLUMN_GET_SYM
         | COMMENT_SYM
-        | CONTAINS_SYM
         | DEALLOCATE_SYM
         | EXAMINED_SYM
         | EXCLUDE_SYM
         | EXECUTE_SYM
         | FLUSH_SYM
-        | FOLLOWS_SYM
         | FOLLOWING_SYM
         | FORMAT_SYM
         | GET_SYM
         | HELP_SYM
         | HOST_SYM
         | INSTALL_SYM
-        | LANGUAGE_SYM
-        | NO_SYM
         | OPTION
         | OPTIONS_SYM
         | OTHERS_SYM
@@ -15324,7 +15400,6 @@ keyword_alias:
         | PARSER_SYM
         | PERIOD_SYM
         | PORT_SYM
-        | PRECEDES_SYM
         | PRECEDING_SYM
         | PREPARE_SYM
         | REMOVE_SYM
@@ -15350,21 +15425,51 @@ keyword_alias:
         | UPGRADE_SYM
         ;
 
-
-/* Keyword that we allow for identifiers (except SP labels) */
-keyword: keyword_alias | WINDOW_SYM;
-
 /*
- * Keywords that we allow for labels in SPs.
- * Anything that's the beginning of a statement or characteristics
- * must be in keyword above, otherwise we get (harmful) shift/reduce
- * conflicts.
- */
-keyword_sp:
-          keyword_sp_data_type
-        | keyword_sp_not_data_type
-        ;
+  Keywords that can start optional clauses in SP or trigger declarations
+  Allowed as identifiers (e.g. table, column names),
+  but:
+  - not allowed as SP label names
+  - not allowed as variable names in Oracle-style assignments:
+    xxx := 10;
 
+  If we allowed these variables in assignments, there would be conflicts
+  with SP characteristics, or verb clauses, or compound statements, e.g.:
+    CREATE PROCEDURE p1 LANGUAGE ...
+  would be either:
+    CREATE PROCEDURE p1 LANGUAGE SQL BEGIN END;
+  or
+    CREATE PROCEDURE p1 LANGUAGE:=10;
+
+  Note, these variables can still be assigned using quoted identifiers:
+    `do`:= 10;
+    "do":= 10; (when ANSI_QUOTES)
+  or using a SET statement:
+    SET do= 10;
+
+  Note, some of these keywords are reserved keywords in Oracle.
+  In case if heavy grammar conflicts are found in the future,
+  we'll possibly need to make them reserved for sql_mode=ORACLE.
+
+  TODO: Allow these variables as SP lables when sql_mode=ORACLE.
+  TODO: Allow assigning of "SP characteristics" marked variables
+        inside compound blocks.
+  TODO: Allow "follows" and "precedes" as variables in compound blocks:
+        BEGIN
+          follows := 10;
+        END;
+        as they conflict only with non-block FOR EACH ROW statement:
+          CREATE TRIGGER .. FOR EACH ROW follows:= 10;
+          CREATE TRIGGER .. FOR EACH ROW FOLLOWS tr1 a:= 10;
+*/
+keyword_sp_head:
+          CONTAINS_SYM           /* SP characteristic               */
+        | LANGUAGE_SYM           /* SP characteristic               */
+        | NO_SYM                 /* SP characteristic               */
+        | CHARSET                /* SET CHARSET utf8;               */
+        | FOLLOWS_SYM            /* Conflicts with assignment in FOR EACH */
+        | PRECEDES_SYM           /* Conflicts with assignment in FOR EACH */
+        ;
 
 /*
   Keywords that start a statement.
@@ -15373,12 +15478,10 @@ keyword_sp:
   - not allowed as variable names in Oracle-style assignments:
     xxx:=10
 */
-keyword_sp_verb_clause:
-          BEGIN_SYM             /* Compound.    Reserved in Oracle */
-        | CLOSE_SYM             /* Verb clause. Reserved in Oracle */
+keyword_verb_clause:
+          CLOSE_SYM             /* Verb clause. Reserved in Oracle */
         | COMMIT_SYM            /* Verb clause. Reserved in Oracle */
         | DO_SYM                /* Verb clause                     */
-        | END                   /* Compound.    Reserved in Oracle */
         | HANDLER_SYM           /* Verb clause                     */
         | OPEN_SYM              /* Verb clause. Reserved in Oracle */
         | REPAIR                /* Verb clause                     */
@@ -15386,14 +15489,28 @@ keyword_sp_verb_clause:
         | SAVEPOINT_SYM         /* Verb clause. Reserved in Oracle */
         | SHUTDOWN              /* Verb clause                     */
         | TRUNCATE_SYM          /* Verb clause. Reserved in Oracle */
-      ;
+        ;
+
+/*
+  Keywords that start an SP block section.
+*/
+keyword_sp_block_section:
+          BEGIN_SYM
+        | END
+        ;
+
+keyword_sysvar_type:
+          GLOBAL_SYM
+        | LOCAL_SYM
+        | SESSION_SYM
+        ;
 
 
 /*
   These keywords are generally allowed as identifiers,
   but not allowed as non-delimited SP variable names in sql_mode=ORACLE.
 */
-keyword_sp_data_type:
+keyword_data_type:
           BIT_SYM
         | BOOLEAN_SYM
         | BOOL_SYM
@@ -15427,7 +15544,10 @@ keyword_sp_data_type:
         ;
 
 
-keyword_sp_not_data_type:
+/*
+  These keywords are fine for both SP variable names and SP labels.
+*/
+keyword_sp_var_and_label:
           ACTION
         | ADDDATE_SYM
         | ADMIN_SYM
@@ -15525,7 +15645,6 @@ keyword_sp_not_data_type:
         | GENERATED_SYM
         | GET_FORMAT
         | GRANTS
-        | GLOBAL_SYM
         | GOTO_SYM
         | HASH_SYM
         | HARD_SYM
@@ -15556,7 +15675,6 @@ keyword_sp_not_data_type:
         | LESS_SYM
         | LEVEL_SYM
         | LIST_SYM
-        | LOCAL_SYM
         | LOCKS_SYM
         | LOGFILE_SYM
         | LOGS_SYM
@@ -15681,7 +15799,6 @@ keyword_sp_not_data_type:
         | SECOND_SYM
         | SEQUENCE_SYM
         | SERIALIZABLE_SYM
-        | SESSION_SYM
         | SETVAL_SYM
         | SIMPLE_SYM
         | SHARE_SYM
@@ -15933,12 +16050,12 @@ option_value_no_option_type:
             if (unlikely(Lex->set_user_variable(thd, &$2, $4)))
               MYSQL_YYABORT;
           }
-        | '@' '@' opt_var_ident_type ident equal set_expr_or_default
+        | '@' '@' opt_var_ident_type ident_sysvar_name equal set_expr_or_default
           {
             if (unlikely(Lex->set_system_variable($3, &$4, $6)))
               MYSQL_YYABORT;
           }
-        | '@' '@' opt_var_ident_type ident '.' ident equal set_expr_or_default
+        | '@' '@' opt_var_ident_type ident_sysvar_name '.' ident equal set_expr_or_default
           {
             if (unlikely(Lex->set_system_variable(thd, $3, &$4, &$6, $8)))
               MYSQL_YYABORT;
