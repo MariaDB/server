@@ -6567,15 +6567,17 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
 }
 
 
+/**
+   Remove from read_set spurious columns. The write_set has been
+   handled before in table->mark_columns_needed_for_update.
+*/
+
 void THD::binlog_prepare_row_images(TABLE *table)
 {
   DBUG_ENTER("THD::binlog_prepare_row_images");
-  /**
-    Remove from read_set spurious columns. The write_set has been
-    handled before in table->mark_columns_needed_for_update.
-   */
 
-  DBUG_PRINT_BITSET("debug", "table->read_set (before preparing): %s", table->read_set);
+  DBUG_PRINT_BITSET("debug", "table->read_set (before preparing): %s",
+                    table->read_set);
   THD *thd= table->in_use;
 
   /**
@@ -6593,7 +6595,7 @@ void THD::binlog_prepare_row_images(TABLE *table)
     */
     DBUG_ASSERT(table->read_set != &table->tmp_set);
 
-    switch(thd->variables.binlog_row_image)
+    switch (thd->variables.binlog_row_image)
     {
       case BINLOG_ROW_IMAGE_MINIMAL:
         /* MINIMAL: Mark only PK */
@@ -6623,7 +6625,8 @@ void THD::binlog_prepare_row_images(TABLE *table)
                                         table->write_set);
   }
 
-  DBUG_PRINT_BITSET("debug", "table->read_set (after preparing): %s", table->read_set);
+  DBUG_PRINT_BITSET("debug", "table->read_set (after preparing): %s",
+                    table->read_set);
   DBUG_VOID_RETURN;
 }
 

@@ -6566,6 +6566,12 @@ void TABLE::mark_columns_per_binlog_row_image()
         DBUG_ASSERT(FALSE);
       }
     }
+    /*
+      We have to ensure that all virtual columns that are part of read set
+      are calculated.
+    */
+    if (vcol_set)
+      bitmap_union(vcol_set, read_set);
     file->column_bitmaps_signal();
   }
 
@@ -6607,7 +6613,8 @@ bool TABLE::mark_virtual_col(Field *field)
 /* 
   @brief Mark virtual columns for update/insert commands
 
-  @param insert_fl    <-> virtual columns are marked for insert command 
+  @param insert_fl    true if virtual columns are marked for insert command
+                      For the moment this is not used, may be used in future.
 
   @details
     The function marks virtual columns used in a update/insert commands
@@ -6632,7 +6639,8 @@ bool TABLE::mark_virtual_col(Field *field)
     be added to read_set either.
 */
 
-bool TABLE::mark_virtual_columns_for_write(bool insert_fl)
+bool TABLE::mark_virtual_columns_for_write(bool insert_fl
+                                           __attribute__((unused)))
 {
   Field **vfield_ptr, *tmp_vfield;
   bool bitmap_updated= false;
@@ -6642,35 +6650,13 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl)
   {
     tmp_vfield= *vfield_ptr;
     if (bitmap_is_set(write_set, tmp_vfield->field_index))
-      bitmap_updated= mark_virtual_col(tmp_vfield);
+      bitmap_updated|= mark_virtual_col(tmp_vfield);
     else if (tmp_vfield->vcol_info->stored_in_db ||
              (tmp_vfield->flags & (PART_KEY_FLAG | FIELD_IN_PART_FUNC_FLAG)))
     {
-      if (insert_fl)
-      {
-        bitmap_set_bit(write_set, tmp_vfield->field_index);
-        mark_virtual_col(tmp_vfield);
-        bitmap_updated= true;
-      }
-      else
-      {
-        MY_BITMAP *save_read_set= read_set, *save_vcol_set= vcol_set;
-        Item *vcol_item= tmp_vfield->vcol_info->expr;
-        DBUG_ASSERT(vcol_item);
-        bitmap_clear_all(&tmp_set);
-        read_set= vcol_set= &tmp_set;
-        vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
-        read_set= save_read_set;
-        vcol_set= save_vcol_set;
-        if (bitmap_is_overlapping(&tmp_set, write_set))
-        {
-          bitmap_set_bit(write_set, tmp_vfield->field_index);
-          bitmap_set_bit(vcol_set, tmp_vfield->field_index);
-          bitmap_union(read_set, &tmp_set);
-          bitmap_union(vcol_set, &tmp_set);
-          bitmap_updated= true;
-        }
-      }
+      bitmap_set_bit(write_set, tmp_vfield->field_index);
+      mark_virtual_col(tmp_vfield);
+      bitmap_updated= true;
     }
   }
   if (bitmap_updated)
@@ -7262,8 +7248,8 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
     }
 
     /*
-      TODO: get rid of tbl->force_index (on if any FORCE INDEX is specified) and
-      create tbl->force_index_join instead.
+      TODO: get rid of tbl->force_index (on if any FORCE INDEX is specified)
+      and create tbl->force_index_join instead.
       Then use the correct force_index_XX instead of the global one.
     */
     if (!index_join[INDEX_HINT_FORCE].is_clear_all() ||
@@ -7299,15 +7285,21 @@ size_t max_row_length(TABLE *table, const uchar *data)
   size_t length= table_s->reclength + 2 * table_s->fields;
   uint *const beg= table_s->blob_field;
   uint *const end= beg + table_s->blob_fields;
+  my_ptrdiff_t const rec_offset= (my_ptrdiff_t) (data - table->record[0]);
+  DBUG_ENTER("max_row_length");
 
   for (uint *ptr= beg ; ptr != end ; ++ptr)
   {
-    Field_blob* const blob= (Field_blob*) table->field[*ptr];
-    length+= blob->get_length((const uchar*)
-                              (data + blob->offset(table->record[0]))) +
-      HA_KEY_BLOB_LENGTH;
+    Field * const field= table->field[*ptr];
+    if (bitmap_is_set(table->read_set, field->field_index) &&
+        !field->is_null(rec_offset))
+    {
+      Field_blob * const blob= (Field_blob*) field;
+      length+= blob->get_length(rec_offset) + HA_KEY_BLOB_LENGTH;
+    }
   }
-  return length;
+  DBUG_PRINT("exit", ("length: %lld", (longlong) length));
+  DBUG_RETURN(length);
 }
 
 
@@ -7422,7 +7414,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
   Query_arena backup_arena;
   Turn_errors_to_warnings_handler Suppress_errors;
   int error;
-  bool handler_pushed= 0;
+  bool handler_pushed= 0, update_all_columns= 1;
   DBUG_ASSERT(vfield);
 
   if (h->keyread_enabled())
@@ -7439,6 +7431,16 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     in_use->push_internal_handler(&Suppress_errors);
     handler_pushed= 1;
   }
+  else if (update_mode == VCOL_UPDATE_FOR_REPLACE &&
+           in_use->is_current_stmt_binlog_format_row() &&
+           in_use->variables.binlog_row_image != BINLOG_ROW_IMAGE_MINIMAL)
+  {
+    /*
+      If we are doing a replace with not minimal binary logging, we have to
+      calculate all virtual columns.
+    */
+    update_all_columns= 1;
+  }
 
   /* Iterate over virtual fields in the table */
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
@@ -7451,8 +7453,8 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     bool update= 0, swap_values= 0;
     switch (update_mode) {
     case VCOL_UPDATE_FOR_READ:
-      update= !vcol_info->stored_in_db
-           && bitmap_is_set(vcol_set, vf->field_index);
+      update= (!vcol_info->stored_in_db &&
+               bitmap_is_set(vcol_set, vf->field_index));
       swap_values= 1;
       break;
     case VCOL_UPDATE_FOR_DELETE:
@@ -7460,8 +7462,9 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       update= bitmap_is_set(vcol_set, vf->field_index);
       break;
     case VCOL_UPDATE_FOR_REPLACE:
-      update= !vcol_info->stored_in_db && (vf->flags & PART_KEY_FLAG)
-           && bitmap_is_set(vcol_set, vf->field_index);
+      update= ((!vcol_info->stored_in_db && (vf->flags & PART_KEY_FLAG) &&
+                bitmap_is_set(vcol_set, vf->field_index)) ||
+               update_all_columns);
       if (update && (vf->flags & BLOB_FLAG))
       {
         /*
@@ -7478,8 +7481,8 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     case VCOL_UPDATE_INDEXED:
     case VCOL_UPDATE_INDEXED_FOR_UPDATE:
       /* Read indexed fields that was not updated in VCOL_UPDATE_FOR_READ */
-      update= !vcol_info->stored_in_db && (vf->flags & PART_KEY_FLAG) &&
-               bitmap_is_set(vcol_set, vf->field_index);
+      update= (!vcol_info->stored_in_db && (vf->flags & PART_KEY_FLAG) &&
+               !bitmap_is_set(vcol_set, vf->field_index));
       swap_values= 1;
       break;
     }
