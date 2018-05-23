@@ -903,6 +903,8 @@ pthread_handler_t connection_thread(void *arg)
 
 end_thread:
   cn->query_done= 1;
+  mysql_close(cn->mysql);
+  cn->mysql= 0;
   mysql_thread_end();
   pthread_exit(0);
   return 0;
