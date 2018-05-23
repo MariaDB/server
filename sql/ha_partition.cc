@@ -8687,6 +8687,16 @@ err_handler:
      HA_EXTRA_NO_READCHECK=5                 No readcheck on update
      HA_EXTRA_READCHECK=6                    Use readcheck (def)
 
+  HA_EXTRA_REMEMBER_POS:
+  HA_EXTRA_RESTORE_POS:
+    System versioning needs this for MyISAM and Aria tables.
+    On DELETE using PRIMARY KEY:
+    1) handler::ha_index_read_map() saves rowid used for row delete/update
+    2) handler::ha_update_row() can rewrite saved rowid
+    3) handler::ha_delete_row()/handler::ha_update_row() expects saved but got
+       different rowid and operation fails
+    Using those flags prevents harmful side effect of 2)
+
   4) Operations only used by temporary tables for query processing
   ----------------------------------------------------------------
   HA_EXTRA_RESET_STATE:
@@ -8746,8 +8756,6 @@ err_handler:
     Only used MyISAM, only used internally in MyISAM handler, never called
     from server level.
   HA_EXTRA_KEYREAD_CHANGE_POS:
-  HA_EXTRA_REMEMBER_POS:
-  HA_EXTRA_RESTORE_POS:
   HA_EXTRA_PRELOAD_BUFFER_SIZE:
   HA_EXTRA_CHANGE_KEY_TO_DUP:
   HA_EXTRA_CHANGE_KEY_TO_UNIQUE:
@@ -8830,6 +8838,8 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_PREPARE_FOR_DROP:
   case HA_EXTRA_FLUSH_CACHE:
   case HA_EXTRA_PREPARE_FOR_ALTER_TABLE:
+  case HA_EXTRA_REMEMBER_POS:
+  case HA_EXTRA_RESTORE_POS:
   {
     DBUG_RETURN(loop_extra(operation));
   }
