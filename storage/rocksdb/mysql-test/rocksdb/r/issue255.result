@@ -46,7 +46,7 @@ pk
 127
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	ROCKSDB	10	Fixed	2	15	30	0	0	0	127	NULL	NULL	NULL	latin1_swedish_ci	NULL		
+t1	ROCKSDB	#	Fixed	2	#	#	#	#	#	127	NULL	NULL	NULL	latin1_swedish_ci	NULL		
 INSERT INTO t1 VALUES ();
 ERROR 23000: Duplicate entry '127' for key 'PRIMARY'
 SELECT * FROM t1;
