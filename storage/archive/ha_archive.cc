@@ -897,18 +897,19 @@ int ha_archive::real_write_row(uchar *buf, azio_stream *writer)
   the bytes required for the length in the header.
 */
 
-uint32 ha_archive::max_row_length(const uchar *buf)
+uint32 ha_archive::max_row_length(const uchar *record)
 {
   uint32 length= (uint32)(table->s->reclength + table->s->fields*2);
   length+= ARCHIVE_ROW_HEADER_SIZE;
+  my_ptrdiff_t const rec_offset= record - table->record[0];
 
   uint *ptr, *end;
   for (ptr= table->s->blob_field, end=ptr + table->s->blob_fields ;
        ptr != end ;
        ptr++)
   {
-    if (!table->field[*ptr]->is_null())
-      length += 2 + ((Field_blob*)table->field[*ptr])->get_length();
+    if (!table->field[*ptr]->is_null(rec_offset))
+      length += 2 + ((Field_blob*)table->field[*ptr])->get_length(rec_offset);
   }
 
   return length;
@@ -918,9 +919,8 @@ uint32 ha_archive::max_row_length(const uchar *buf)
 unsigned int ha_archive::pack_row(uchar *record, azio_stream *writer)
 {
   uchar *ptr;
-
+  my_ptrdiff_t const rec_offset= record - table->record[0];
   DBUG_ENTER("ha_archive::pack_row");
-
 
   if (fix_rec_buff(max_row_length(record)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM); /* purecov: inspected */
@@ -935,7 +935,7 @@ unsigned int ha_archive::pack_row(uchar *record, azio_stream *writer)
 
   for (Field **field=table->field ; *field ; field++)
   {
-    if (!((*field)->is_null()))
+    if (!((*field)->is_null(rec_offset)))
       ptr= (*field)->pack(ptr, record + (*field)->offset(record));
   }
 
