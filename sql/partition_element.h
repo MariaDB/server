@@ -125,6 +125,7 @@ public:
   bool max_value;                            // MAXVALUE range
   uint32 id;
   bool empty;
+  bool warn_vers_part_full;
 
   // TODO: subclass partition_element by partitioning type to avoid such semantic
   // mixup
@@ -148,7 +149,8 @@ public:
     nodegroup_id(UNDEF_NODEGROUP), has_null_value(FALSE),
     signed_flag(FALSE), max_value(FALSE),
     id(UINT_MAX32),
-    empty(true)
+    empty(true),
+    warn_vers_part_full(true)
   {}
   partition_element(partition_element *part_elem)
   : part_max_rows(part_elem->part_max_rows),
