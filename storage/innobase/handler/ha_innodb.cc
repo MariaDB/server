@@ -354,7 +354,7 @@ thd_destructor_proxy(void *)
 	need to be purged, so they have to be shut down before purge
 	threads if slow shutdown is requested.  */
 	srv_shutdown_bg_undo_sources();
-	srv_purge_wakeup();
+	srv_purge_shutdown();
 
 	destroy_thd(thd);
 	mysql_cond_destroy(&thd_destructor_cond);
