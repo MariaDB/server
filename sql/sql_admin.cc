@@ -302,7 +302,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                               HA_CHECK_OPT* check_opt,
                               const char *operator_name,
                               thr_lock_type lock_type,
-                              bool open_for_modify,
+                              bool org_open_for_modify,
                               bool repair_table_use_frm,
                               uint extra_open_options,
                               int (*prepare_func)(THD *, TABLE_LIST *,
@@ -365,10 +365,11 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   for (table= tables; table; table= table->next_local)
   {
     char table_name[SAFE_NAME_LEN*2+2];
-    char* db = table->db;
+    char *db= table->db;
     bool fatal_error=0;
     bool open_error;
     bool collect_eis=  FALSE;
+    bool open_for_modify= org_open_for_modify;
 
     DBUG_PRINT("admin", ("table: '%s'.'%s'", table->db, table->table_name));
     strxmov(table_name, db, ".", table->table_name, NullS);
@@ -406,8 +407,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
       /*
         CHECK TABLE command is allowed for views as well. Check on alter flags
-        to differentiate from ALTER TABLE...CHECK PARTITION on which view is not
-        allowed.
+        to differentiate from ALTER TABLE...CHECK PARTITION on which view is
+        not allowed.
       */
       if (lex->alter_info.flags & Alter_info::ALTER_ADMIN_PARTITION ||
           view_operator_func == NULL)
@@ -1102,7 +1103,7 @@ send_result_message:
       }
     }
     /* Error path, a admin command failed. */
-    if (thd->transaction_rollback_request)
+    if (thd->transaction_rollback_request || fatal_error)
     {
       /*
         Unlikely, but transaction rollback was requested by one of storage
