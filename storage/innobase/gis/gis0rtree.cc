@@ -1952,7 +1952,7 @@ rtr_estimate_n_rows_in_range(
 
 	mtr.commit();
 
-	if (!isfinite(area)) {
+	if (!std::isfinite(area)) {
 		return(HA_POS_ERROR);
 	}
 

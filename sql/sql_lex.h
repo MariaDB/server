@@ -3630,6 +3630,17 @@ public:
   Item *make_item_colon_ident_ident(THD *thd,
                                     const Lex_ident_cli_st *a,
                                     const Lex_ident_cli_st *b);
+  // For "SELECT @@var", "SELECT @@var.field"
+  Item *make_item_sysvar(THD *thd,
+                         enum_var_type type,
+                         const LEX_CSTRING *name)
+  {
+    return make_item_sysvar(thd, type, name, &null_clex_str);
+  }
+  Item *make_item_sysvar(THD *thd,
+                         enum_var_type type,
+                         const LEX_CSTRING *name,
+                         const LEX_CSTRING *component);
   void sp_block_init(THD *thd, const LEX_CSTRING *label);
   void sp_block_init(THD *thd)
   {

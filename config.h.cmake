@@ -140,7 +140,6 @@
 #cmakedefine HAVE_DECL_FDATASYNC 1
 #cmakedefine HAVE_FEDISABLEEXCEPT 1
 #cmakedefine HAVE_FESETROUND 1
-#cmakedefine HAVE_FINITE 1
 #cmakedefine HAVE_FP_EXCEPT 1
 #cmakedefine HAVE_FSEEKO 1
 #cmakedefine HAVE_FSYNC 1
@@ -422,7 +421,6 @@
 #cmakedefine SIGQUIT @SIGQUIT@
 #cmakedefine SIGPIPE @SIGPIPE@
 #cmakedefine isnan @isnan@
-#cmakedefine finite @finite@
 #cmakedefine popen @popen@
 #cmakedefine pclose @pclose@
 #cmakedefine ssize_t @ssize_t@

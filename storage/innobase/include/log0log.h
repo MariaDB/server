@@ -632,11 +632,11 @@ struct log_t{
 					AND flushed to disk */
 	ulint		n_pending_flushes;/*!< number of currently
 					pending flushes; protected by
-					log_sys_t::mutex */
+					log_sys.mutex */
 	os_event_t	flush_event;	/*!< this event is in the reset state
 					when a flush is running;
 					os_event_set() and os_event_reset()
-					are protected by log_sys_t::mutex */
+					are protected by log_sys.mutex */
 	ulint		n_log_ios;	/*!< number of log i/os initiated thus
 					far */
 	ulint		n_log_ios_old;	/*!< number of log i/o's at the

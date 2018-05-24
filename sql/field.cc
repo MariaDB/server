@@ -2873,7 +2873,7 @@ int Field_decimal::store(double nr)
     return 1;
   }
   
-  if (!isfinite(nr)) // Handle infinity as special case
+  if (!std::isfinite(nr)) // Handle infinity as special case
   {
     overflow(nr < 0.0);
     return 1;

@@ -256,60 +256,13 @@ field_store_string(
 	const char*	str)	/*!< in: NUL-terminated utf-8 string,
 				or NULL */
 {
-	int	ret;
-
-	if (str != NULL) {
-
-		ret = field->store(str, static_cast<uint>(strlen(str)),
-				   system_charset_info);
-		field->set_notnull();
-	} else {
-
-		ret = 0; /* success */
+	if (!str) {
 		field->set_null();
-	}
-
-	return(ret);
-}
-
-/*******************************************************************//**
-Store the name of an index in a MYSQL_TYPE_VARCHAR field.
-Handles the names of incomplete secondary indexes.
-@return 0 on success */
-static
-int
-field_store_index_name(
-/*===================*/
-	Field*		field,		/*!< in/out: target field for
-					storage */
-	const char*	index_name)	/*!< in: NUL-terminated utf-8
-					index name, possibly starting with
-					TEMP_INDEX_PREFIX */
-{
-	int	ret;
-
-	ut_ad(index_name != NULL);
-	ut_ad(field->real_type() == MYSQL_TYPE_VARCHAR ||
-              field->real_type() == MYSQL_TYPE_NULL);
-
-	/* Since TEMP_INDEX_PREFIX is not a valid UTF8, we need to convert
-	it to something else. */
-	if (*index_name == *TEMP_INDEX_PREFIX_STR) {
-		char	buf[NAME_LEN + 1];
-		buf[0] = '?';
-		memcpy(buf + 1, index_name + 1, strlen(index_name));
-		ret = field->store(
-			buf, static_cast<uint>(strlen(buf)),
-			system_charset_info);
-	} else {
-		ret = field->store(
-			index_name, static_cast<uint>(strlen(index_name)),
-			system_charset_info);
+		return 0;
 	}
 
 	field->set_notnull();
-
-	return(ret);
+	return field->store(str, uint(strlen(str)), system_charset_info);
 }
 
 /*******************************************************************//**
@@ -932,12 +885,8 @@ fill_innodb_locks_from_cache(
 			buf, uint(bufend - buf), system_charset_info));
 
 		/* lock_index */
-		if (row->lock_index != NULL) {
-			OK(field_store_index_name(fields[IDX_LOCK_INDEX],
-						  row->lock_index));
-		} else {
-			fields[IDX_LOCK_INDEX]->set_null();
-		}
+		OK(field_store_string(fields[IDX_LOCK_INDEX],
+				      row->lock_index));
 
 		/* lock_space */
 		OK(field_store_ulint(fields[IDX_LOCK_SPACE],
@@ -1711,7 +1660,6 @@ i_s_cmp_per_index_fill_low(
 
 	for (iter = snap.begin(), i = 0; iter != snap.end(); iter++, i++) {
 
-		char		name[192];
 		dict_index_t*	index = dict_index_find_on_id_low(iter->first);
 
 		if (index != NULL) {
@@ -1722,38 +1670,39 @@ i_s_cmp_per_index_fill_low(
 				     db_utf8, sizeof(db_utf8),
 				     table_utf8, sizeof(table_utf8));
 
-			field_store_string(fields[IDX_DATABASE_NAME], db_utf8);
-			field_store_string(fields[IDX_TABLE_NAME], table_utf8);
-			field_store_index_name(fields[IDX_INDEX_NAME],
-					       index->name);
+			status = field_store_string(fields[IDX_DATABASE_NAME],
+						    db_utf8)
+				|| field_store_string(fields[IDX_TABLE_NAME],
+						      table_utf8)
+				|| field_store_string(fields[IDX_INDEX_NAME],
+						      index->name);
 		} else {
 			/* index not found */
-			snprintf(name, sizeof(name),
-				 "index_id:" IB_ID_FMT, iter->first);
-			field_store_string(fields[IDX_DATABASE_NAME],
-					   "unknown");
-			field_store_string(fields[IDX_TABLE_NAME],
-					   "unknown");
-			field_store_string(fields[IDX_INDEX_NAME],
-					   name);
+			char name[MY_INT64_NUM_DECIMAL_DIGITS
+				  + sizeof "index_id: "];
+			fields[IDX_DATABASE_NAME]->set_null();
+			fields[IDX_TABLE_NAME]->set_null();
+			fields[IDX_INDEX_NAME]->set_notnull();
+			status = fields[IDX_INDEX_NAME]->store(
+				name,
+				uint(snprintf(name, sizeof name,
+					      "index_id: " IB_ID_FMT,
+					      iter->first)),
+				system_charset_info);
 		}
 
-		fields[IDX_COMPRESS_OPS]->store(
-			   iter->second.compressed, true);
-
-		fields[IDX_COMPRESS_OPS_OK]->store(
-			   iter->second.compressed_ok, true);
-
-		fields[IDX_COMPRESS_TIME]->store(
-			   iter->second.compressed_usec / 1000000, true);
-
-		fields[IDX_UNCOMPRESS_OPS]->store(
-			   iter->second.decompressed, true);
-
-		fields[IDX_UNCOMPRESS_TIME]->store(
-			   iter->second.decompressed_usec / 1000000, true);
-
-		if (schema_table_store_record(thd, table)) {
+		if (status
+		    || fields[IDX_COMPRESS_OPS]->store(
+			    iter->second.compressed, true)
+		    || fields[IDX_COMPRESS_OPS_OK]->store(
+			    iter->second.compressed_ok, true)
+		    || fields[IDX_COMPRESS_TIME]->store(
+			    iter->second.compressed_usec / 1000000, true)
+		    || fields[IDX_UNCOMPRESS_OPS]->store(
+			    iter->second.decompressed, true)
+		    || fields[IDX_UNCOMPRESS_TIME]->store(
+			    iter->second.decompressed_usec / 1000000, true)
+		    || schema_table_store_record(thd, table)) {
 			status = 1;
 			break;
 		}
@@ -1761,8 +1710,9 @@ i_s_cmp_per_index_fill_low(
 		threads to proceed. This could eventually result in the
 		contents of INFORMATION_SCHEMA.innodb_cmp_per_index being
 		inconsistent, but it is an acceptable compromise. */
-		if (i % 1000 == 0) {
+		if (i == 1000) {
 			mutex_exit(&dict_sys->mutex);
+			i = 0;
 			mutex_enter(&dict_sys->mutex);
 		}
 	}
@@ -4914,9 +4864,11 @@ i_s_innodb_buffer_page_fill(
 
 			mutex_enter(&dict_sys->mutex);
 
-			if (const dict_index_t*	index =
-			    dict_index_get_if_in_cache_low(
-				    page_info->index_id)) {
+			const dict_index_t* index =
+				dict_index_get_if_in_cache_low(
+					page_info->index_id);
+
+			if (index) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
 					index->table->name.m_name,
@@ -4929,17 +4881,22 @@ i_s_innodb_buffer_page_fill(
 							table_name_end
 							- table_name),
 						system_charset_info)
-					|| field_store_index_name(
-						fields
-						[IDX_BUFFER_PAGE_INDEX_NAME],
-						index->name);
+					|| fields[IDX_BUFFER_PAGE_INDEX_NAME]
+					->store(index->name,
+						uint(strlen(index->name)),
+						system_charset_info);
 			}
 
 			mutex_exit(&dict_sys->mutex);
 
 			OK(ret);
 
-			fields[IDX_BUFFER_PAGE_TABLE_NAME]->set_notnull();
+			if (index) {
+				fields[IDX_BUFFER_PAGE_TABLE_NAME]
+					->set_notnull();
+				fields[IDX_BUFFER_PAGE_INDEX_NAME]
+					->set_notnull();
+			}
 		}
 
 		OK(fields[IDX_BUFFER_PAGE_NUM_RECS]->store(
@@ -5630,9 +5587,11 @@ i_s_innodb_buf_page_lru_fill(
 
 			mutex_enter(&dict_sys->mutex);
 
-			if (const dict_index_t* index =
-			    dict_index_get_if_in_cache_low(
-				    page_info->index_id)) {
+			const dict_index_t* index =
+				dict_index_get_if_in_cache_low(
+					page_info->index_id);
+
+			if (index) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
 					index->table->name.m_name,
@@ -5645,17 +5604,22 @@ i_s_innodb_buf_page_lru_fill(
 							table_name_end
 							- table_name),
 						system_charset_info)
-					|| field_store_index_name(
-						fields
-						[IDX_BUF_LRU_PAGE_INDEX_NAME],
-						index->name);
+					|| fields[IDX_BUF_LRU_PAGE_INDEX_NAME]
+					->store(index->name,
+						uint(strlen(index->name)),
+						system_charset_info);
 			}
 
 			mutex_exit(&dict_sys->mutex);
 
 			OK(ret);
 
-			fields[IDX_BUF_LRU_PAGE_TABLE_NAME]->set_notnull();
+			if (index) {
+				fields[IDX_BUF_LRU_PAGE_TABLE_NAME]
+					->set_notnull();
+				fields[IDX_BUF_LRU_PAGE_INDEX_NAME]
+					->set_notnull();
+			}
 		}
 
 		OK(fields[IDX_BUF_LRU_PAGE_NUM_RECS]->store(
@@ -6601,7 +6565,15 @@ i_s_dict_fill_sys_indexes(
 
 	fields = table_to_fill->field;
 
-	OK(field_store_index_name(fields[SYS_INDEX_NAME], index->name));
+	if (*index->name == *TEMP_INDEX_PREFIX_STR) {
+		/* Since TEMP_INDEX_PREFIX_STR is not valid UTF-8, we
+		need to convert it to something else. */
+		*const_cast<char*>(index->name()) = '?';
+	}
+
+	OK(fields[SYS_INDEX_NAME]->store(index->name,
+					 uint(strlen(index->name)),
+					 system_charset_info));
 
 	OK(fields[SYS_INDEX_ID]->store(longlong(index->id), true));
 
