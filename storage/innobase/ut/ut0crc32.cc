@@ -132,6 +132,28 @@ ut_crc32_func_t	ut_crc32 = ut_crc32_sw;
 const char*	ut_crc32_implementation = "Using generic crc32 instructions";
 #endif
 
+#ifdef HAVE_ARMV8_CRC
+extern "C" {
+uint32_t crc32c_aarch64(uint32_t crc, const unsigned char *buffer, uint64_t len);
+};
+static inline
+uint32_t
+ut_crc32_armv8(
+        const byte*     buf,
+        ulint           len)
+{
+        return crc32c_aarch64(0, buf, len);
+}
+#endif
+
+/* For runtime check  */
+#if defined(__GNUC__) && defined(__linux__) && defined(HAVE_ARMV8_CRC)
+extern "C" {
+unsigned int crc32c_arch64_available(void);
+};
+#endif
+
+
 #if (defined(__GNUC__) && defined(__x86_64__)) || defined(_MSC_VER)
 /********************************************************************//**
 Fetches CPU info */
@@ -640,4 +662,14 @@ ut_crc32_init()
 		ut_crc32_implementation = "Using SSE2 crc32 instructions";
 	}
 #endif
+
+
+#if defined(__GNUC__) && defined(__linux__) && defined(HAVE_ARMV8_CRC)
+	if (crc32c_arch64_available()) {
+		ut_crc32 = ut_crc32_armv8;
+		ut_crc32_implementation = "Using Armv8 crc32 instructions";
+
+	}
+#endif
+
 }

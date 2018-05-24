@@ -1,0 +1,39 @@
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
+    include(CheckCXXSourceCompiles)
+
+    CHECK_CXX_SOURCE_COMPILES("
+    #define CRC32CX(crc, value) __asm__(\"crc32cx %w[c], %w[c], %x[v]\":[c]\"+r\"(crc):[v]\"r\"(value))
+    asm(\".arch_extension crc\");
+    unsigned int foo(unsigned int ret) {
+      CRC32CX(ret, 0);
+      return ret;
+    }
+    int main() { foo(0); }" HAVE_ARMV8_CRC)
+
+    CHECK_CXX_SOURCE_COMPILES("
+    asm(\".arch_extension crypto\");
+    unsigned int foo(unsigned int ret) {
+      __asm__(\"pmull  v2.1q,          v2.1d,  v1.1d\");
+      return ret;
+    }
+    int main() { foo(0); }" HAVE_ARMV8_CRYPTO)
+
+    IF(HAVE_ARMV8_CRC)
+      MESSAGE(STATUS " aarch64 crc extensions supported")
+    ENDIF()
+
+    IF(HAVE_ARMV8_CRYPTO)
+      MESSAGE(STATUS " aarch64 crypto extensions supported")
+    ENDIF()
+
+    CHECK_C_COMPILER_FLAG(-march=armv8-a+crc+crypto HAVE_ARMV8_CRC_CRYPTO_INTRINSICS)
+    IF(HAVE_ARMV8_CRC_CRYPTO_INTRINSICS)
+      MESSAGE(STATUS " aarch64 crc+crypto intrinsics supported")
+      SET(ARMV8_CRC_COMPILE_FLAGS "${ARMV8_CRC_COMPILE_FLAGS} -march=armv8-a+crc+crypto")
+    ENDIF()
+
+    SET(CRC32_ARMV8_NEON_LIBRARY crc32_armv8_neon)
+    ADD_SUBDIRECTORY(extra/crc32_armv8_neon)
+
+ENDIF()
+
