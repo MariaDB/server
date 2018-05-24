@@ -33,11 +33,7 @@ ha_checksum my_checksum(ha_checksum crc, const uchar *pos, size_t length)
 #ifdef HAVE_CRC32_VPMSUM
   extern unsigned int crc32ieee_vpmsum(unsigned int crc, const unsigned char *p,
                                     unsigned long len);
-  crc= (ha_checksum) crc32ieee_vpmsum((uint) crc, pos, (uint) length);
-#elif HAVE_ARMV8_CRC
-  extern unsigned int crc32c_aarch64(unsigned int crc, const unsigned char *buffer,
-                                    unsigned long len);
-  crc= (ha_checksum) crc32c_aarch64((uint) crc, pos, (uint) length);
+  crc= (ha_checksum) crc32ieee_vpmsum((uint) crc, pos, (uint) length);  
 #else
   crc= (ha_checksum) crc32((uint)crc, pos, (uint) length);
 #endif
