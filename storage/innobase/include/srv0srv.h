@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -899,6 +899,9 @@ srv_release_threads(enum srv_thread_type type, ulint n);
 /** Wakeup the purge threads. */
 void
 srv_purge_wakeup();
+
+/** Shut down the purge threads. */
+void srv_purge_shutdown();
 
 /** Check if tablespace is being truncated.
 (Ignore system-tablespace as we don't re-create the tablespace

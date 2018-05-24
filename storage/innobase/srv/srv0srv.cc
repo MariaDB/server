@@ -2826,6 +2826,15 @@ srv_purge_wakeup()
 		     || srv_sys.n_threads_active[SRV_PURGE]));
 }
 
+/** Shut down the purge threads. */
+void srv_purge_shutdown()
+{
+	do {
+		ut_ad(!srv_undo_sources);
+		srv_purge_wakeup();
+	} while (srv_sys.sys_threads[SRV_PURGE_SLOT].in_use);
+}
+
 /** Check if tablespace is being truncated.
 (Ignore system-tablespace as we don't re-create the tablespace
 and so some of the action that are suppressed by this function
