@@ -614,6 +614,7 @@ end:
 #endif /* WITH_WSREP */
 }
 
+
 /**
   Build stmt_query to write it in the bin-log
   and get the trigger definer.
@@ -1060,6 +1061,11 @@ Table_triggers_list::~Table_triggers_list()
   for (int i= 0; i < (int)TRG_EVENT_MAX; i++)
     for (int j= 0; j < (int)TRG_ACTION_MAX; j++)
       delete bodies[i][j];
+
+  /* Free blobs used in insert */
+  if (record0_field)
+    for (Field **fld_ptr= record0_field; *fld_ptr; fld_ptr++)
+      (*fld_ptr)->free();
 
   if (record1_field)
     for (Field **fld_ptr= record1_field; *fld_ptr; fld_ptr++)
