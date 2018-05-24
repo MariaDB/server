@@ -897,32 +897,12 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
   while ((field=it++))
   {
     uint recpos;
-    int2store(buff+3, field->length);
     /* The +1 is here becasue the col offset in .frm file have offset 1 */
     recpos= field->offset+1 + (uint) data_offset;
     int3store(buff+5,recpos);
-    int2store(buff+8,field->pack_flag);
-    buff[10]= (uchar) field->unireg_check;
     buff[12]= (uchar) field->interval_id;
-    buff[13]= (uchar) field->real_field_type();
-    if (field->real_field_type() == MYSQL_TYPE_GEOMETRY)
-    {
-      buff[11]= 0;
-      buff[14]= (uchar) field->geom_type;
-#ifndef HAVE_SPATIAL
-      DBUG_ASSERT(0);                           // Should newer happen
-#endif
-    }
-    else if (field->charset) 
-    {
-      buff[11]= (uchar) (field->charset->number >> 8);
-      buff[14]= (uchar) field->charset->number;
-    }
-    else
-    {
-      buff[11]= buff[14]= 0;			// Numerical
-    }
-
+    buff[13]= (uchar) field->type_handler()->real_field_type();
+    field->type_handler()->Column_definition_attributes_frm_pack(field, buff);
     int2store(buff+15, field->comment.length);
     comment_length+= field->comment.length;
     set_if_bigger(int_count,field->interval_id);
@@ -1045,18 +1025,14 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
   {
     Record_addr addr(buff + field->offset + data_offset,
                      null_pos + null_count / 8, null_count & 7);
+    Column_definition_attributes tmp(*field);
+    tmp.interval= field->save_interval ?
+                  field->save_interval : field->interval;
     /* regfield don't have to be deleted as it's allocated on THD::mem_root */
-    Field *regfield= make_field(&share, thd->mem_root, &addr,
-                                (uint32) field->length,
-                                field->pack_flag,
-                                field->type_handler(),
-                                field->charset,
-                                field->geom_type, field->srid,
-                                field->unireg_check,
-                                field->save_interval ? field->save_interval
-                                                     : field->interval,
-                                &field->field_name,
-                                field->flags);
+    Field *regfield= tmp.make_field(&share, thd->mem_root, &addr,
+                                    field->type_handler(),
+                                    &field->field_name,
+                                    field->flags);
     if (!regfield)
     {
       error= 1;

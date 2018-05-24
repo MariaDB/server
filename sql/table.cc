@@ -915,6 +915,54 @@ static uint upgrade_collation(ulong mysql_version, uint cs_number)
 }
 
 
+void Column_definition_attributes::frm_pack_basic(uchar *buff) const
+{
+  int2store(buff + 3, length);
+  int2store(buff + 8, pack_flag);
+  buff[10]= (uchar) unireg_check;
+}
+
+
+void Column_definition_attributes::frm_unpack_basic(const uchar *buff)
+{
+  length=       uint2korr(buff + 3);
+  pack_flag=    uint2korr(buff + 8);
+  unireg_check= (Field::utype) MTYP_TYPENR((uint) buff[10]);
+}
+
+
+void Column_definition_attributes::frm_pack_charset(uchar *buff) const
+{
+  buff[11]= (uchar) (charset->number >> 8);
+  buff[14]= (uchar) charset->number;
+}
+
+
+bool Column_definition_attributes::frm_unpack_charset(TABLE_SHARE *share,
+                                                      const uchar *buff)
+{
+  uint cs_org= buff[14] + (((uint) buff[11]) << 8);
+  uint cs_new= upgrade_collation(share->mysql_version, cs_org);
+  if (cs_org != cs_new)
+    share->incompatible_version|= HA_CREATE_USED_CHARSET;
+  if (cs_new && !(charset= get_charset(cs_new, MYF(0))))
+  {
+    const char *csname= get_charset_name((uint) cs_new);
+    char tmp[10];
+    if (!csname || csname[0] =='?')
+    {
+      my_snprintf(tmp, sizeof(tmp), "#%u", cs_new);
+      csname= tmp;
+    }
+    my_printf_error(ER_UNKNOWN_COLLATION,
+                    "Unknown collation '%s' in table '%-.64s' definition", 
+                    MYF(0), csname, share->table_name.str);
+    return true;
+  }
+  return false;
+}
+
+
 /*
   In MySQL 5.7 the null bits for not stored virtual fields are last.
   Calculate the position for these bits
@@ -1145,6 +1193,38 @@ end:
   DBUG_RETURN(res);
 }
 
+
+static const Type_handler *old_frm_type_handler(uint pack_flag,
+                                                uint interval_nr)
+{
+  enum_field_types field_type= (enum_field_types) f_packtype(pack_flag);
+  DBUG_ASSERT(field_type < 16);
+
+  if (!f_is_alpha(pack_flag))
+    return Type_handler::get_handler_by_real_type(field_type);
+
+  if (!f_is_packed(pack_flag))
+  {
+    if (field_type == MYSQL_TYPE_DECIMAL)  // 3.23 or 4.0 string
+      return &type_handler_string;
+    if (field_type == MYSQL_TYPE_VARCHAR)  // Since mysql-5.0
+      return &type_handler_varchar;
+    return NULL;  // Error (bad frm?)
+  }
+
+  if (f_is_blob(pack_flag))
+    return &type_handler_blob; // QQ: exact type??
+
+  if (interval_nr)
+  {
+    if (f_is_enum(pack_flag))
+      return &type_handler_enum;
+    return &type_handler_set;
+  }
+  return Type_handler::get_handler_by_real_type(field_type);
+}
+
+
 /**
   Read data from a binary .frm file image into a TABLE_SHARE
 
@@ -1191,8 +1271,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   size_t UNINIT_VAR(options_len);
   uchar *vcol_screen_pos;
   const uchar *options= 0;
-  size_t UNINIT_VAR(gis_options_len);
-  const uchar *gis_options= 0;
+  LEX_CUSTRING gis_options= { NULL, 0};
   KEY first_keyinfo;
   uint len;
   uint ext_key_parts= 0;
@@ -1288,10 +1367,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       case EXTRA2_GIS:
 #ifdef HAVE_SPATIAL
         {
-          if (gis_options)
+          if (gis_options.str)
             goto err;
-          gis_options= extra2;
-          gis_options_len= length;
+          gis_options.str= extra2;
+          gis_options.length= length;
         }
 #endif /*HAVE_SPATIAL*/
         break;
@@ -1781,82 +1860,19 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   for (i=0 ; i < share->fields; i++, strpos+=field_pack_length, field_ptr++)
   {
-    uint pack_flag, interval_nr, unireg_type, recpos, field_length;
-    uint vcol_info_length=0;
-    uint vcol_expr_length=0;
-    enum_field_types field_type;
-    CHARSET_INFO *charset=NULL;
-    Field::geometry_type geom_type= Field::GEOM_GEOMETRY;
+    uint interval_nr= 0, recpos;
     LEX_CSTRING comment;
     LEX_CSTRING name;
     Virtual_column_info *vcol_info= 0;
-    uint gis_length, gis_decimals, srid= 0;
-    Field::utype unireg_check;
     const Type_handler *handler;
     uint32 flags= 0;
+    Column_definition_attributes attr;
 
     if (new_frm_ver >= 3)
     {
       /* new frm file in 4.1 */
-      field_length= uint2korr(strpos+3);
       recpos=	    uint3korr(strpos+5);
-      pack_flag=    uint2korr(strpos+8);
-      unireg_type=  (uint) strpos[10];
-      interval_nr=  (uint) strpos[12];
       uint comment_length=uint2korr(strpos+15);
-      field_type=(enum_field_types) (uint) strpos[13];
-
-      /* charset and geometry_type share the same byte in frm */
-      if (field_type == MYSQL_TYPE_GEOMETRY)
-      {
-#ifdef HAVE_SPATIAL
-        uint gis_opt_read;
-        Field_geom::storage_type st_type;
-	geom_type= (Field::geometry_type) strpos[14];
-	charset= &my_charset_bin;
-        gis_opt_read= gis_field_options_read(gis_options, gis_options_len,
-            &st_type, &gis_length, &gis_decimals, &srid);
-        gis_options+= gis_opt_read;
-        gis_options_len-= gis_opt_read;
-#else
-	goto err;
-#endif
-      }
-      else
-      {
-        uint cs_org= strpos[14] + (((uint) strpos[11]) << 8);
-        uint cs_new= upgrade_collation(share->mysql_version, cs_org);
-        if (cs_org != cs_new)
-          share->incompatible_version|= HA_CREATE_USED_CHARSET;
-        if (!cs_new)
-          charset= &my_charset_bin;
-        else if (!(charset= get_charset(cs_new, MYF(0))))
-        {
-          const char *csname= get_charset_name((uint) cs_new);
-          char tmp[10];
-          if (!csname || csname[0] =='?')
-          {
-            my_snprintf(tmp, sizeof(tmp), "#%u", cs_new);
-            csname= tmp;
-          }
-          my_printf_error(ER_UNKNOWN_COLLATION,
-                          "Unknown collation '%s' in table '%-.64s' definition", 
-                          MYF(0), csname, share->table_name.str);
-          goto err;
-        }
-      }
-
-      if ((uchar)field_type == (uchar)MYSQL_TYPE_VIRTUAL)
-      {
-        DBUG_ASSERT(interval_nr); // Expect non-null expression
-        /*
-          MariaDB version 10.0 version.
-          The interval_id byte in the .frm file stores the length of the
-          expression statement for a virtual column.
-        */
-        vcol_info_length= interval_nr;
-        interval_nr= 0;
-      }
 
       if (!comment_length)
       {
@@ -1870,32 +1886,20 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 	comment_pos+=   comment_length;
       }
 
-      if (unireg_type & MYSQL57_GENERATED_FIELD)
+      if ((uchar) strpos[13] == (uchar) MYSQL_TYPE_VIRTUAL)
       {
-        unireg_type&= MYSQL57_GENERATED_FIELD;
-
         /*
-          MySQL 5.7 generated fields
-
-          byte 1        = 1
-          byte 2,3      = expr length
-          byte 4        = stored_in_db
-          byte 5..      = expr
+          MariaDB version 10.0 version.
+          The interval_id byte in the .frm file stores the length of the
+          expression statement for a virtual column.
         */
-        if ((uint)(vcol_screen_pos)[0] != 1)
-          goto err;
-        vcol_info= new (&share->mem_root) Virtual_column_info();
-        vcol_info_length= uint2korr(vcol_screen_pos + 1);
-        DBUG_ASSERT(vcol_info_length);
-        vcol_info->stored_in_db= vcol_screen_pos[3];
-        vcol_info->utf8= 0;
-        vcol_screen_pos+= vcol_info_length + MYSQL57_GCOL_HEADER_SIZE;;
-        share->virtual_fields++;
-        vcol_info_length= 0;
-      }
+        uint vcol_info_length= (uint) strpos[12];
 
-      if (vcol_info_length)
-      {
+        DBUG_ASSERT(vcol_info_length); // Expect non-null expression
+
+        attr.frm_unpack_basic(strpos);
+        if (attr.frm_unpack_charset(share, strpos))
+          goto err;
         /*
           Old virtual field information before 10.2
 
@@ -1909,7 +1913,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
         vcol_info= new (&share->mem_root) Virtual_column_info();
         bool opt_interval_id= (uint)vcol_screen_pos[0] == 2;
-        field_type= (enum_field_types) (uchar) vcol_screen_pos[1];
+        enum_field_types ftype= (enum_field_types) (uchar) vcol_screen_pos[1];
+        if (!(handler= Type_handler::get_handler_by_real_type(ftype)))
+          goto err;
         if (opt_interval_id)
           interval_nr= (uint)vcol_screen_pos[3];
         else if ((uint)vcol_screen_pos[0] != 1)
@@ -1917,26 +1923,63 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         bool stored= vcol_screen_pos[2] & 1;
         vcol_info->stored_in_db= stored;
         vcol_info->set_vcol_type(stored ? VCOL_GENERATED_STORED : VCOL_GENERATED_VIRTUAL);
-        vcol_expr_length= vcol_info_length -
-                          (uint)(FRM_VCOL_OLD_HEADER_SIZE(opt_interval_id));
+        uint vcol_expr_length= vcol_info_length -
+                              (uint)(FRM_VCOL_OLD_HEADER_SIZE(opt_interval_id));
         vcol_info->utf8= 0; // before 10.2.1 the charset was unknown
         int2store(vcol_screen_pos+1, vcol_expr_length); // for parse_vcol_defs()
         vcol_screen_pos+= vcol_info_length;
         share->virtual_fields++;
       }
+      else
+      {
+        interval_nr=  (uint) strpos[12];
+        enum_field_types field_type= (enum_field_types) strpos[13];
+        if (!(handler= Type_handler::get_handler_by_real_type(field_type)))
+          goto err; // Not supported field type
+        if (handler->Column_definition_attributes_frm_unpack(&attr, share,
+                                                             strpos,
+                                                             &gis_options))
+          goto err;
+      }
+
+      if (((uint) strpos[10]) & MYSQL57_GENERATED_FIELD)
+      {
+        attr.unireg_check= Field::NONE;
+
+        /*
+          MySQL 5.7 generated fields
+
+          byte 1        = 1
+          byte 2,3      = expr length
+          byte 4        = stored_in_db
+          byte 5..      = expr
+        */
+        if ((uint)(vcol_screen_pos)[0] != 1)
+          goto err;
+        vcol_info= new (&share->mem_root) Virtual_column_info();
+        uint vcol_info_length= uint2korr(vcol_screen_pos + 1);
+        DBUG_ASSERT(vcol_info_length);
+        vcol_info->stored_in_db= vcol_screen_pos[3];
+        vcol_info->utf8= 0;
+        vcol_screen_pos+= vcol_info_length + MYSQL57_GCOL_HEADER_SIZE;;
+        share->virtual_fields++;
+      }
     }
     else
     {
-      field_length= (uint) strpos[3];
+      attr.length= (uint) strpos[3];
       recpos=	    uint2korr(strpos+4),
-      pack_flag=    uint2korr(strpos+6);
-      pack_flag&=   ~FIELDFLAG_NO_DEFAULT;     // Safety for old files
-      unireg_type=  (uint) strpos[8];
+      attr.pack_flag=    uint2korr(strpos+6);
+      attr.pack_flag&=   ~FIELDFLAG_NO_DEFAULT;     // Safety for old files
+      attr.unireg_check=  (Field::utype) MTYP_TYPENR((uint) strpos[8]);
       interval_nr=  (uint) strpos[10];
 
       /* old frm file */
-      field_type= (enum_field_types) f_packtype(pack_flag);
-      if (f_is_binary(pack_flag))
+      enum_field_types ftype= (enum_field_types) f_packtype(attr.pack_flag);
+      if (!(handler= Type_handler::get_handler_by_real_type(ftype)))
+        goto err; // Not supported field type
+
+      if (f_is_binary(attr.pack_flag))
       {
         /*
           Try to choose the best 4.1 type:
@@ -1944,26 +1987,26 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
            try to find a binary collation for character set.
           - for other types (e.g. BLOB) just use my_charset_bin. 
         */
-        if (!f_is_blob(pack_flag))
+        if (!f_is_blob(attr.pack_flag))
         {
           // 3.23 or 4.0 string
-          if (!(charset= get_charset_by_csname(share->table_charset->csname,
-                                               MY_CS_BINSORT, MYF(0))))
-            charset= &my_charset_bin;
+          if (!(attr.charset= get_charset_by_csname(share->table_charset->csname,
+                                                    MY_CS_BINSORT, MYF(0))))
+            attr.charset= &my_charset_bin;
         }
-        else
-          charset= &my_charset_bin;
       }
       else
-        charset= share->table_charset;
+        attr.charset= share->table_charset;
       bzero((char*) &comment, sizeof(comment));
+      if ((!(handler= old_frm_type_handler(attr.pack_flag, interval_nr))))
+        goto err; // Not supported field type
     }
 
     /* Remove >32 decimals from old files */
     if (share->mysql_version < 100200)
-      pack_flag&= ~FIELDFLAG_LONG_DECIMAL;
+      attr.pack_flag&= ~FIELDFLAG_LONG_DECIMAL;
 
-    if (interval_nr && charset->mbminlen > 1)
+    if (interval_nr && attr.charset->mbminlen > 1)
     {
       /* Unescape UCS2 intervals from HEX notation */
       TYPELIB *interval= share->intervals + interval_nr - 1;
@@ -1971,17 +2014,18 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
 
 #ifndef TO_BE_DELETED_ON_PRODUCTION
-    if (field_type == MYSQL_TYPE_NEWDECIMAL && !share->mysql_version)
+    if (handler->real_field_type() == MYSQL_TYPE_NEWDECIMAL &&
+        !share->mysql_version)
     {
       /*
         Fix pack length of old decimal values from 5.0.3 -> 5.0.4
         The difference is that in the old version we stored precision
         in the .frm table while we now store the display_length
       */
-      uint decimals= f_decimals(pack_flag);
-      field_length= my_decimal_precision_to_length(field_length,
-                                                   decimals,
-                                                   f_is_dec(pack_flag) == 0);
+      uint decimals= f_decimals(attr.pack_flag);
+      attr.length=
+        my_decimal_precision_to_length((uint) attr.length, decimals,
+                                       f_is_dec(attr.pack_flag) == 0);
       sql_print_error("Found incompatible DECIMAL field '%s' in %s; "
                       "Please do \"ALTER TABLE '%s' FORCE\" to fix it!",
                       share->fieldnames.type_names[i], share->table_name.str,
@@ -2012,7 +2056,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
       if (flags & VERS_SYSTEM_FIELD)
       {
-        switch (field_type)
+        switch (handler->real_field_type())
         {
         case MYSQL_TYPE_TIMESTAMP2:
         case MYSQL_TYPE_DATETIME2:
@@ -2034,23 +2078,17 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     }
 
     /* Convert pre-10.2.2 timestamps to use Field::default_value */
-    unireg_check= (Field::utype) MTYP_TYPENR(unireg_type);
     name.str= fieldnames.type_names[i];
     name.length= strlen(name.str);
-    if (!(handler= Type_handler::get_handler_by_real_type(field_type)))
-      goto err; // Not supported field type
+    attr.interval= interval_nr ? share->intervals + interval_nr - 1 : NULL;
     Record_addr addr(record + recpos, null_pos, null_bit_pos);
     *field_ptr= reg_field=
-      make_field(share, &share->mem_root, &addr,
-                 (uint32) field_length, pack_flag, handler, charset,
-                 geom_type, srid, unireg_check,
-                 (interval_nr ? share->intervals + interval_nr - 1 : NULL),
-                 &name, flags);
+      attr.make_field(share, &share->mem_root, &addr, handler, &name, flags);
     if (!reg_field)				// Not supported field type
       goto err;
 
-    if (unireg_check == Field::TIMESTAMP_DNUN_FIELD ||
-        unireg_check == Field::TIMESTAMP_DN_FIELD)
+    if (attr.unireg_check == Field::TIMESTAMP_DNUN_FIELD ||
+        attr.unireg_check == Field::TIMESTAMP_DN_FIELD)
     {
       reg_field->default_value= new (&share->mem_root) Virtual_column_info();
       reg_field->default_value->set_vcol_type(VCOL_DEFAULT);
@@ -2074,10 +2112,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       status_var_increment(thd->status_var.feature_invisible_columns);
     if (!reg_field->invisible)
       share->visible_fields++;
-    if (field_type == MYSQL_TYPE_BIT && !f_bit_as_char(pack_flag))
+    if (handler->real_field_type() == MYSQL_TYPE_BIT &&
+        !f_bit_as_char(attr.pack_flag))
     {
       null_bits_are_used= 1;
-      if ((null_bit_pos+= field_length & 7) > 7)
+      if ((null_bit_pos+= (uint) (attr.length & 7)) > 7)
       {
         null_pos++;
         null_bit_pos-= 8;
@@ -2100,7 +2139,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       }
     }
 
-    if (f_no_default(pack_flag))
+    if (f_no_default(attr.pack_flag))
       reg_field->flags|= NO_DEFAULT_VALUE_FLAG;
 
     if (reg_field->unireg_check == Field::NEXT_NUMBER)

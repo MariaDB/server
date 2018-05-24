@@ -5780,3 +5780,487 @@ void Type_handler_geometry::Item_param_set_param_func(Item_param *param,
 #endif
 
 /***************************************************************************/
+
+Field *Type_handler_row::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  DBUG_ASSERT(attr->length == 0);
+  DBUG_ASSERT(f_maybe_null(attr->pack_flag));
+  return new (mem_root) Field_row(rec.ptr(), name);
+}
+
+
+Field *Type_handler_olddecimal::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_decimal(rec.ptr(), (uint32) attr->length,
+                  rec.null_ptr(), rec.null_bit(),
+                  attr->unireg_check, name,
+                  f_decimals(attr->pack_flag),
+                  f_is_zerofill(attr->pack_flag) != 0,
+                  f_is_dec(attr->pack_flag) == 0);
+}
+
+
+Field *Type_handler_newdecimal::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_new_decimal(rec.ptr(), (uint32) attr->length,
+                      rec.null_ptr(), rec.null_bit(),
+                      attr->unireg_check, name,
+                      f_decimals(attr->pack_flag),
+                      f_is_zerofill(attr->pack_flag) != 0,
+                      f_is_dec(attr->pack_flag) == 0);
+}
+
+
+Field *Type_handler_float::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  int decimals= f_decimals(attr->pack_flag);
+  if (decimals == FLOATING_POINT_DECIMALS)
+    decimals= NOT_FIXED_DEC;
+  return new (mem_root)
+    Field_float(rec.ptr(), (uint32) attr->length,
+                rec.null_ptr(), rec.null_bit(),
+                attr->unireg_check, name, decimals,
+                f_is_zerofill(attr->pack_flag) != 0,
+                f_is_dec(attr->pack_flag)== 0);
+}
+
+
+Field *Type_handler_double::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  int decimals= f_decimals(attr->pack_flag);
+  if (decimals == FLOATING_POINT_DECIMALS)
+    decimals= NOT_FIXED_DEC;
+  return new (mem_root)
+    Field_double(rec.ptr(), (uint32) attr->length,
+                 rec.null_ptr(), rec.null_bit(),
+                 attr->unireg_check, name, decimals,
+                 f_is_zerofill(attr->pack_flag) != 0,
+                 f_is_dec(attr->pack_flag)== 0);
+}
+
+
+Field *Type_handler_tiny::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_tiny(rec.ptr(), (uint32) attr->length, rec.null_ptr(), rec.null_bit(),
+               attr->unireg_check, name,
+               f_is_zerofill(attr->pack_flag) != 0,
+               f_is_dec(attr->pack_flag) == 0);
+}
+
+
+Field *Type_handler_short::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_short(rec.ptr(), (uint32) attr->length,
+                rec.null_ptr(), rec.null_bit(),
+                attr->unireg_check, name,
+                f_is_zerofill(attr->pack_flag) != 0,
+                f_is_dec(attr->pack_flag) == 0);
+}
+
+
+Field *Type_handler_int24::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_medium(rec.ptr(), (uint32) attr->length,
+                 rec.null_ptr(), rec.null_bit(),
+                 attr->unireg_check, name,
+                 f_is_zerofill(attr->pack_flag) != 0,
+                 f_is_dec(attr->pack_flag) == 0);
+}
+
+
+Field *Type_handler_long::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_long(rec.ptr(), (uint32) attr->length, rec.null_ptr(), rec.null_bit(),
+               attr->unireg_check, name,
+               f_is_zerofill(attr->pack_flag) != 0,
+               f_is_dec(attr->pack_flag) == 0);
+}
+
+
+Field *Type_handler_longlong::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  if (flags & (VERS_SYS_START_FLAG|VERS_SYS_END_FLAG))
+    return new (mem_root)
+      Field_vers_trx_id(rec.ptr(), (uint32) attr->length,
+                        rec.null_ptr(), rec.null_bit(),
+                        attr->unireg_check, name,
+                        f_is_zerofill(attr->pack_flag) != 0,
+                        f_is_dec(attr->pack_flag) == 0);
+  return new (mem_root)
+    Field_longlong(rec.ptr(), (uint32) attr->length,
+                   rec.null_ptr(), rec.null_bit(),
+                   attr->unireg_check, name,
+                   f_is_zerofill(attr->pack_flag) != 0,
+                   f_is_dec(attr->pack_flag) == 0);
+}
+
+
+Field *Type_handler_timestamp::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new_Field_timestamp(mem_root,
+                             rec.ptr(), rec.null_ptr(), rec.null_bit(),
+                             attr->unireg_check, name, share,
+                             attr->temporal_dec(MAX_DATETIME_WIDTH));
+}
+
+
+Field *Type_handler_timestamp2::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_timestampf(rec.ptr(), rec.null_ptr(), rec.null_bit(),
+                     attr->unireg_check,
+                     name, share, attr->temporal_dec(MAX_DATETIME_WIDTH));
+}
+
+
+Field *Type_handler_year::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                                   uint32 flags) const
+{
+  return new (mem_root)
+    Field_year(rec.ptr(), (uint32) attr->length, rec.null_ptr(), rec.null_bit(),
+               attr->unireg_check, name);
+}
+
+
+Field *Type_handler_date::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_date(rec.ptr(),rec.null_ptr(),rec.null_bit(),
+               attr->unireg_check, name);
+}
+
+
+Field *Type_handler_newdate::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_newdate(rec.ptr(), rec.null_ptr(), rec.null_bit(),
+                  attr->unireg_check, name);
+}
+
+
+Field *Type_handler_time::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new_Field_time(mem_root, rec.ptr(), rec.null_ptr(), rec.null_bit(),
+                        attr->unireg_check, name,
+                        attr->temporal_dec(MIN_TIME_WIDTH));
+}
+
+
+Field *Type_handler_time2::
+  make_table_field_from_def(TABLE_SHARE *share,  MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_timef(rec.ptr(), rec.null_ptr(), rec.null_bit(),
+                attr->unireg_check, name,
+                attr->temporal_dec(MIN_TIME_WIDTH));
+}
+
+
+Field *Type_handler_datetime::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new_Field_datetime(mem_root, rec.ptr(), rec.null_ptr(), rec.null_bit(),
+                            attr->unireg_check, name,
+                            attr->temporal_dec(MAX_DATETIME_WIDTH));
+}
+
+
+Field *Type_handler_datetime2::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_datetimef(rec.ptr(), rec.null_ptr(), rec.null_bit(),
+                    attr->unireg_check, name,
+                    attr->temporal_dec(MAX_DATETIME_WIDTH));
+}
+
+
+Field *Type_handler_null::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_null(rec.ptr(), (uint32) attr->length, attr->unireg_check,
+               name, attr->charset);
+}
+
+
+Field *Type_handler_bit::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return f_bit_as_char(attr->pack_flag) ?
+     new (mem_root) Field_bit_as_char(rec.ptr(), (uint32) attr->length,
+                                      rec.null_ptr(), rec.null_bit(),
+                                      attr->unireg_check, name) :
+     new (mem_root) Field_bit(rec.ptr(), (uint32) attr->length,
+                              rec.null_ptr(), rec.null_bit(),
+                              bit.ptr(), bit.offs(), attr->unireg_check, name);
+}
+
+
+#ifdef HAVE_SPATIAL
+Field *Type_handler_geometry::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  status_var_increment(current_thd->status_var.feature_gis);
+  return new (mem_root)
+    Field_geom(rec.ptr(), rec.null_ptr(), rec.null_bit(),
+               attr->unireg_check, name, share,
+               attr->pack_flag_to_pack_length(), attr->geom_type, attr->srid);
+}
+#endif
+
+
+Field *Type_handler_string::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_string(rec.ptr(), (uint32) attr->length,
+                 rec.null_ptr(), rec.null_bit(),
+                 attr->unireg_check, name, attr->charset);
+}
+
+
+Field *Type_handler_varchar::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  if (attr->unireg_check == Field::TMYSQL_COMPRESSED)
+    return new (mem_root)
+      Field_varstring_compressed(rec.ptr(), (uint32) attr->length,
+                                 HA_VARCHAR_PACKLENGTH((uint32) attr->length),
+                                 rec.null_ptr(), rec.null_bit(),
+                                 attr->unireg_check, name, share, attr->charset,
+                                 zlib_compression_method);
+  return new (mem_root)
+    Field_varstring(rec.ptr(), (uint32) attr->length,
+                    HA_VARCHAR_PACKLENGTH((uint32) attr->length),
+                    rec.null_ptr(), rec.null_bit(),
+                    attr->unireg_check, name, share, attr->charset);
+}
+
+
+Field *Type_handler_blob_common::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  if (attr->unireg_check == Field::TMYSQL_COMPRESSED)
+    return new (mem_root)
+      Field_blob_compressed(rec.ptr(), rec.null_ptr(), rec.null_bit(),
+                            attr->unireg_check, name, share,
+                            attr->pack_flag_to_pack_length(), attr->charset,
+                            zlib_compression_method);
+  return new (mem_root)
+    Field_blob(rec.ptr(), rec.null_ptr(), rec.null_bit(),
+               attr->unireg_check, name, share,
+               attr->pack_flag_to_pack_length(), attr->charset);
+}
+
+
+Field *Type_handler_enum::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_enum(rec.ptr(), (uint32) attr->length, rec.null_ptr(), rec.null_bit(),
+               attr->unireg_check, name, attr->pack_flag_to_pack_length(),
+               attr->interval, attr->charset);
+}
+
+
+Field *Type_handler_set::
+  make_table_field_from_def(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                            const LEX_CSTRING *name,
+                            const Record_addr &rec, const Bit_addr &bit,
+                            const Column_definition_attributes *attr,
+                            uint32 flags) const
+{
+  return new (mem_root)
+    Field_set(rec.ptr(), (uint32) attr->length, rec.null_ptr(), rec.null_bit(),
+              attr->unireg_check, name, attr->pack_flag_to_pack_length(),
+              attr->interval, attr->charset);
+}
+
+
+/***************************************************************************/
+
+void Type_handler::
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
+                                        uchar *buff) const
+{
+  def->frm_pack_basic(buff);
+  def->frm_pack_charset(buff);
+}
+
+
+#ifdef HAVE_SPATIAL
+void Type_handler_geometry::
+  Column_definition_attributes_frm_pack(const Column_definition_attributes *def,
+                                        uchar *buff) const
+{
+  def->frm_pack_basic(buff);
+  buff[11]= 0;
+  buff[14]= (uchar) def->geom_type;
+}
+#endif
+
+
+/***************************************************************************/
+
+bool Type_handler::
+  Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
+                                          TABLE_SHARE *share,
+                                          const uchar *buffer,
+                                          LEX_CUSTRING *gis_options)
+                                          const
+{
+  attr->frm_unpack_basic(buffer);
+  return attr->frm_unpack_charset(share, buffer);
+}
+
+
+#ifdef HAVE_SPATIAL
+bool Type_handler_geometry::
+  Column_definition_attributes_frm_unpack(Column_definition_attributes *attr,
+                                          TABLE_SHARE *share,
+                                          const uchar *buffer,
+                                          LEX_CUSTRING *gis_options)
+                                          const
+{
+  uint gis_opt_read, gis_length, gis_decimals;
+  Field_geom::storage_type st_type;
+  attr->frm_unpack_basic(buffer);
+  // charset and geometry_type share the same byte in frm
+  attr->geom_type= (Field::geometry_type) buffer[14];
+  gis_opt_read= gis_field_options_read(gis_options->str,
+                                       gis_options->length,
+                                       &st_type, &gis_length,
+                                       &gis_decimals, &attr->srid);
+  gis_options->str+= gis_opt_read;
+  gis_options->length-= gis_opt_read;
+  return false;
+}
+#endif
+
+/***************************************************************************/

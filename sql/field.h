@@ -4072,21 +4072,53 @@ public:
 
 extern const LEX_CSTRING null_clex_str;
 
-Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
-                  const Record_addr *rec,
-                  uint32 field_length,
-                  uint pack_flag, const Type_handler *handler,
-                  CHARSET_INFO *cs,
-                  Field::geometry_type geom_type, uint srid,
-                  Field::utype unireg_check,
-                  TYPELIB *interval, const LEX_CSTRING *field_name,
-                  uint32 flags);
+class Column_definition_attributes
+{
+public:
+  /*
+    At various stages in execution this can be length of field in bytes or
+    max number of characters.
+  */
+  ulonglong length;
+  Field::utype unireg_check;
+  TYPELIB *interval;			// Which interval to use
+  CHARSET_INFO *charset;
+  uint32 srid;
+  Field::geometry_type geom_type;
+  uint pack_flag;
+  Column_definition_attributes()
+   :length(0),
+    unireg_check(Field::NONE),
+    interval(NULL),
+    charset(&my_charset_bin),
+    srid(0),
+    geom_type(Field::GEOM_GEOMETRY),
+    pack_flag(0)
+  { }
+  Column_definition_attributes(const Field *field);
+  Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
+                    const Record_addr *rec,
+                    const Type_handler *handler,
+                    const LEX_CSTRING *field_name,
+                    uint32 flags) const;
+  uint temporal_dec(uint intlen) const
+  {
+    return (uint) (length > intlen ? length - intlen - 1 : 0);
+  }
+  uint pack_flag_to_pack_length() const;
+  void frm_pack_basic(uchar *buff) const;
+  void frm_pack_charset(uchar *buff) const;
+  void frm_unpack_basic(const uchar *buff);
+  bool frm_unpack_charset(TABLE_SHARE *share, const uchar *buff);
+};
+
 
 /*
   Create field class for CREATE TABLE
 */
 class Column_definition: public Sql_alloc,
-                         public Type_handler_hybrid_field_type
+                         public Type_handler_hybrid_field_type,
+                         public Column_definition_attributes
 {
   /**
     Create "interval" from "interval_list".
@@ -4141,11 +4173,6 @@ public:
     WITHOUT_VERSIONING
   };
   Item *on_update;		        // ON UPDATE NOW()
-  /*
-    At various stages in execution this can be length of field in bytes or
-    max number of characters. 
-  */
-  ulonglong length;
   field_visibility_t invisible;
   /*
     The value of `length' as set by parser: is the number of characters
@@ -4153,15 +4180,9 @@ public:
   */
   uint32 char_length;
   uint  decimals, flags, pack_length, key_length;
-  Field::utype unireg_check;
-  TYPELIB *interval;			// Which interval to use
   List<String> interval_list;
-  CHARSET_INFO *charset;
-  uint32 srid;
-  Field::geometry_type geom_type;
   engine_option_value *option_list;
 
-  uint pack_flag;
 
   /*
     This is additinal data provided for any computed(virtual) field.
@@ -4179,11 +4200,9 @@ public:
    :Type_handler_hybrid_field_type(&type_handler_null),
     compression_method_ptr(0),
     comment(null_clex_str),
-    on_update(NULL), length(0), invisible(VISIBLE), decimals(0),
-    flags(0), pack_length(0), key_length(0), unireg_check(Field::NONE),
-    interval(0), charset(&my_charset_bin),
-    srid(0), geom_type(Field::GEOM_GEOMETRY),
-    option_list(NULL), pack_flag(0),
+    on_update(NULL), invisible(VISIBLE), decimals(0),
+    flags(0), pack_length(0), key_length(0),
+    option_list(NULL),
     vcol_info(0), default_value(0), check_constraint(0),
     versioning(VERSIONING_NOT_SET)
   {
@@ -4316,10 +4335,9 @@ public:
                     const Record_addr *addr,
                     const LEX_CSTRING *field_name_arg) const
   {
-    return ::make_field(share, mem_root, addr, (uint32) length,
-                        pack_flag, type_handler(), charset,
-                        geom_type, srid, unireg_check, interval,
-                        field_name_arg, flags);
+    return Column_definition_attributes::make_field(share, mem_root, addr,
+                                                    type_handler(),
+                                                    field_name_arg, flags);
   }
   Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
                     const LEX_CSTRING *field_name_arg) const
@@ -4647,7 +4665,7 @@ bool check_expression(Virtual_column_info *vcol, LEX_CSTRING *name,
 #define FIELDFLAG_DEC_SHIFT		8
 #define FIELDFLAG_MAX_DEC               63U
 
-#define MTYP_TYPENR(type) (type & 127U)	/* Remove bits from type */
+#define MTYP_TYPENR(type) ((type) & 127U) // Remove bits from type
 
 #define f_is_dec(x)		((x) & FIELDFLAG_DECIMAL)
 #define f_is_num(x)		((x) & FIELDFLAG_NUMBER)
