@@ -32,8 +32,8 @@ INSERT INTO t1 VALUES (5);
 SHOW TABLE STATUS LIKE 't1';
 
 INSERT INTO t1 VALUES (1000);
---replace_column 3 # 6 # 7 # 8 # 9 # 10 #
 SELECT * FROM t1;
+--replace_column 3 # 6 # 7 # 8 # 9 # 10 #
 SHOW TABLE STATUS LIKE 't1';
 
 --error ER_DUP_ENTRY
