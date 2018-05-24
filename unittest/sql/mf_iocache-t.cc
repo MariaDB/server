@@ -208,7 +208,7 @@ void mdev10259()
   res= my_b_flush_io_cache(&info, 1);
   ok(res == 0, "flush" INFO_TAIL);
 
-  ulong saved_pos=  my_b_tell(&info);
+  my_off_t saved_pos=  my_b_tell(&info);
   res= reinit_io_cache(&info, READ_CACHE, 0, 0, 0);
   ok(res == 0, "reinit READ_CACHE" INFO_TAIL);
 

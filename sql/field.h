@@ -3319,7 +3319,7 @@ public:
   {
     store_length(ptr, packlength, number);
   }
-  inline uint32 get_length(uint row_offset= 0) const
+  inline uint32 get_length(my_ptrdiff_t row_offset= 0) const
   { return get_length(ptr+row_offset, this->packlength); }
   uint32 get_length(const uchar *ptr, uint packlength) const;
   uint32 get_length(const uchar *ptr_arg) const
