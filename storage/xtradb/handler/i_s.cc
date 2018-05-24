@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4922,9 +4922,11 @@ i_s_innodb_buffer_page_fill(
 
 			mutex_enter(&dict_sys->mutex);
 
-			if (const dict_index_t*	index =
-			    dict_index_get_if_in_cache_low(
-				    page_info->index_id)) {
+			const dict_index_t* index =
+				dict_index_get_if_in_cache_low(
+					page_info->index_id);
+
+			if (index) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
 					index->table_name,
@@ -4947,7 +4949,10 @@ i_s_innodb_buffer_page_fill(
 
 			OK(ret);
 
-			fields[IDX_BUFFER_PAGE_TABLE_NAME]->set_notnull();
+			if (index) {
+				fields[IDX_BUFFER_PAGE_TABLE_NAME]
+					->set_notnull();
+			}
 		}
 
 		OK(fields[IDX_BUFFER_PAGE_NUM_RECS]->store(
@@ -5621,9 +5626,11 @@ i_s_innodb_buf_page_lru_fill(
 
 			mutex_enter(&dict_sys->mutex);
 
-			if (const dict_index_t* index =
-			    dict_index_get_if_in_cache_low(
-				    page_info->index_id)) {
+			const dict_index_t* index =
+				dict_index_get_if_in_cache_low(
+					page_info->index_id);
+
+			if (index) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
 					index->table_name,
@@ -5646,7 +5653,10 @@ i_s_innodb_buf_page_lru_fill(
 
 			OK(ret);
 
-			fields[IDX_BUF_LRU_PAGE_TABLE_NAME]->set_notnull();
+			if (index) {
+				fields[IDX_BUF_LRU_PAGE_TABLE_NAME]
+					->set_notnull();
+			}
 		}
 
 		OK(fields[IDX_BUF_LRU_PAGE_NUM_RECS]->store(
