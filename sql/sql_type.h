@@ -886,28 +886,67 @@ public:
 };
 
 
+class Bit_addr
+{
+  /**
+    Byte where the bit is stored inside a record.
+    If the corresponding Field is a NOT NULL field, this member is NULL.
+  */
+  uchar *m_ptr;
+  /**
+    Offset of the bit inside m_ptr[0], in the range 0..7.
+  */
+  uchar m_offs;
+public:
+  Bit_addr()
+   :m_ptr(NULL),
+    m_offs(0)
+  { }
+  Bit_addr(uchar *ptr, uchar offs)
+   :m_ptr(ptr), m_offs(offs)
+  {
+    DBUG_ASSERT(ptr || offs == 0);
+    DBUG_ASSERT(offs < 8);
+  }
+  Bit_addr(bool maybe_null)
+   :m_ptr(maybe_null ? (uchar *) "" : NULL),
+    m_offs(0)
+  { }
+  uchar *ptr() const { return m_ptr; }
+  uchar offs() const { return m_offs; }
+  uchar bit() const { return m_ptr ? ((uchar) 1) << m_offs : 0; }
+  void inc()
+  {
+    DBUG_ASSERT(m_ptr);
+    m_ptr+= (m_offs == 7);
+    m_offs= (m_offs + 1) & 7;
+  }
+};
+
+
 class Record_addr
 {
+  uchar *m_ptr;      // Position of the field in the record
+  Bit_addr m_null;   // Position and offset of the null bit
 public:
-  uchar *ptr;      // Position to field in record
-  /**
-     Byte where the @c NULL bit is stored inside a record. If this Field is a
-     @c NOT @c NULL field, this member is @c NULL.
-  */
-  uchar *null_ptr;
-  uchar null_bit;  // Bit used to test null bit
   Record_addr(uchar *ptr_arg,
               uchar *null_ptr_arg,
               uchar null_bit_arg)
-   :ptr(ptr_arg),
-    null_ptr(null_ptr_arg),
-    null_bit(null_bit_arg)
+   :m_ptr(ptr_arg),
+    m_null(null_ptr_arg, null_bit_arg)
+  { }
+  Record_addr(uchar *ptr, const Bit_addr &null)
+   :m_ptr(ptr),
+    m_null(null)
   { }
   Record_addr(bool maybe_null)
-   :ptr(NULL),
-    null_ptr(maybe_null ? (uchar*) "" : 0),
-    null_bit(0)
+   :m_ptr(NULL),
+    m_null(maybe_null)
   { }
+  uchar *ptr() const { return m_ptr; }
+  const Bit_addr &null() const { return m_null; }
+  uchar *null_ptr() const { return m_null.ptr(); }
+  uchar null_bit() const { return m_null.bit(); }
 };
 
 

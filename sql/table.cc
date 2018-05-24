@@ -2039,12 +2039,13 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     name.length= strlen(name.str);
     if (!(handler= Type_handler::get_handler_by_real_type(field_type)))
       goto err; // Not supported field type
+    Record_addr addr(record + recpos, null_pos, null_bit_pos);
     *field_ptr= reg_field=
-      make_field(share, &share->mem_root, record+recpos, (uint32) field_length,
-		 null_pos, null_bit_pos, pack_flag, handler, charset,
-		 geom_type, srid, unireg_check,
-		 (interval_nr ? share->intervals+interval_nr-1 : NULL),
-		 &name, flags);
+      make_field(share, &share->mem_root, &addr,
+                 (uint32) field_length, pack_flag, handler, charset,
+                 geom_type, srid, unireg_check,
+                 (interval_nr ? share->intervals + interval_nr - 1 : NULL),
+                 &name, flags);
     if (!reg_field)				// Not supported field type
       goto err;
 

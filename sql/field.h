@@ -4073,8 +4073,8 @@ public:
 extern const LEX_CSTRING null_clex_str;
 
 Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
-                  uchar *ptr, uint32 field_length,
-                  uchar *null_pos, uchar null_bit,
+                  const Record_addr *rec,
+                  uint32 field_length,
                   uint pack_flag, const Type_handler *handler,
                   CHARSET_INFO *cs,
                   Field::geometry_type geom_type, uint srid,
@@ -4313,11 +4313,10 @@ public:
   }
 
   Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
-                    uchar *ptr, uchar *null_pos, uchar null_bit,
+                    const Record_addr *addr,
                     const LEX_CSTRING *field_name_arg) const
   {
-    return ::make_field(share, mem_root, ptr,
-                        (uint32)length, null_pos, null_bit,
+    return ::make_field(share, mem_root, addr, (uint32) length,
                         pack_flag, type_handler(), charset,
                         geom_type, srid, unireg_check, interval,
                         field_name_arg, flags);
@@ -4325,8 +4324,8 @@ public:
   Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,
                     const LEX_CSTRING *field_name_arg) const
   {
-    return make_field(share, mem_root, (uchar *) 0, (uchar *) "", 0,
-                      field_name_arg);
+    Record_addr addr(true);
+    return make_field(share, mem_root, &addr, field_name_arg);
   }
   /* Return true if default is an expression that must be saved explicitely */
   bool has_default_expression();

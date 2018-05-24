@@ -17862,12 +17862,10 @@ bool Virtual_tmp_table::add(List<Spvar_definition> &field_list)
   while ((cdef= it++))
   {
     Field *tmp;
-    if (!(tmp= cdef->make_field(s, in_use->mem_root, 0,
-                             (uchar*) (f_maybe_null(cdef->pack_flag) ? "" : 0),
-                             f_maybe_null(cdef->pack_flag) ? 1 : 0,
-                             &cdef->field_name)))
+    Record_addr addr(f_maybe_null(cdef->pack_flag));
+    if (!(tmp= cdef->make_field(s, in_use->mem_root, &addr, &cdef->field_name)))
       DBUG_RETURN(true);
-     add(tmp);
+    add(tmp);
   }
   DBUG_RETURN(false);
 }

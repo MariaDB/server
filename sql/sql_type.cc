@@ -2004,8 +2004,8 @@ Field *Type_handler_tiny::make_table_field(const LEX_CSTRING *name,
                                            TABLE *table) const
 {
   return new (table->in_use->mem_root)
-         Field_tiny(addr.ptr, attr.max_char_length(),
-                    addr.null_ptr, addr.null_bit,
+         Field_tiny(addr.ptr(), attr.max_char_length(),
+                    addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name, 0/*zerofill*/, attr.unsigned_flag);
 }
 
@@ -2017,8 +2017,8 @@ Field *Type_handler_short::make_table_field(const LEX_CSTRING *name,
 
 {
   return new (table->in_use->mem_root)
-         Field_short(addr.ptr, attr.max_char_length(),
-                     addr.null_ptr, addr.null_bit,
+         Field_short(addr.ptr(), attr.max_char_length(),
+                     addr.null_ptr(), addr.null_bit(),
                      Field::NONE, name, 0/*zerofill*/, attr.unsigned_flag);
 }
 
@@ -2029,8 +2029,8 @@ Field *Type_handler_int24::make_table_field(const LEX_CSTRING *name,
                                             TABLE *table) const
 {
   return new (table->in_use->mem_root)
-         Field_medium(addr.ptr, attr.max_char_length(),
-                      addr.null_ptr, addr.null_bit,
+         Field_medium(addr.ptr(), attr.max_char_length(),
+                      addr.null_ptr(), addr.null_bit(),
                       Field::NONE, name,
                       0/*zerofill*/, attr.unsigned_flag);
 }
@@ -2042,8 +2042,8 @@ Field *Type_handler_long::make_table_field(const LEX_CSTRING *name,
                                            TABLE *table) const
 {
   return new (table->in_use->mem_root)
-         Field_long(addr.ptr, attr.max_char_length(),
-                    addr.null_ptr, addr.null_bit,
+         Field_long(addr.ptr(), attr.max_char_length(),
+                    addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name, 0/*zerofill*/, attr.unsigned_flag);
 }
 
@@ -2054,8 +2054,8 @@ Field *Type_handler_longlong::make_table_field(const LEX_CSTRING *name,
                                                TABLE *table) const
 {
   return new (table->in_use->mem_root)
-         Field_longlong(addr.ptr, attr.max_char_length(),
-                        addr.null_ptr, addr.null_bit,
+         Field_longlong(addr.ptr(), attr.max_char_length(),
+                        addr.null_ptr(), addr.null_bit(),
                         Field::NONE, name,
                         0/*zerofill*/, attr.unsigned_flag);
 }
@@ -2067,8 +2067,8 @@ Field *Type_handler_vers_trx_id::make_table_field(const LEX_CSTRING *name,
                                                TABLE *table) const
 {
   return new (table->in_use->mem_root)
-         Field_vers_trx_id(addr.ptr, attr.max_char_length(),
-                        addr.null_ptr, addr.null_bit,
+         Field_vers_trx_id(addr.ptr(), attr.max_char_length(),
+                        addr.null_ptr(), addr.null_bit(),
                         Field::NONE, name,
                         0/*zerofill*/, attr.unsigned_flag);
 }
@@ -2080,8 +2080,8 @@ Field *Type_handler_float::make_table_field(const LEX_CSTRING *name,
                                             TABLE *table) const
 {
   return new (table->in_use->mem_root)
-         Field_float(addr.ptr, attr.max_char_length(),
-                     addr.null_ptr, addr.null_bit,
+         Field_float(addr.ptr(), attr.max_char_length(),
+                     addr.null_ptr(), addr.null_bit(),
                      Field::NONE, name,
                      (uint8) attr.decimals, 0/*zerofill*/, attr.unsigned_flag);
 }
@@ -2093,8 +2093,8 @@ Field *Type_handler_double::make_table_field(const LEX_CSTRING *name,
                                              TABLE *table) const
 {
   return new (table->in_use->mem_root)
-         Field_double(addr.ptr, attr.max_char_length(),
-                      addr.null_ptr, addr.null_bit,
+         Field_double(addr.ptr(), attr.max_char_length(),
+                      addr.null_ptr(), addr.null_bit(),
                       Field::NONE, name,
                       (uint8) attr.decimals, 0/*zerofill*/, attr.unsigned_flag);
 }
@@ -2115,7 +2115,8 @@ Type_handler_olddecimal::make_table_field(const LEX_CSTRING *name,
   */
   DBUG_ASSERT(0);
   return new (table->in_use->mem_root)
-         Field_decimal(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+         Field_decimal(addr.ptr(), attr.max_length,
+                       addr.null_ptr(), addr.null_bit(),
                        Field::NONE, name, (uint8) attr.decimals,
                        0/*zerofill*/,attr.unsigned_flag);
 }
@@ -2162,7 +2163,7 @@ Type_handler_newdecimal::make_table_field(const LEX_CSTRING *name,
       len= required_length;
   }
   return new (table->in_use->mem_root)
-         Field_new_decimal(addr.ptr, len, addr.null_ptr, addr.null_bit,
+         Field_new_decimal(addr.ptr(), len, addr.null_ptr(), addr.null_bit(),
                            Field::NONE, name,
                            dec, 0/*zerofill*/, attr.unsigned_flag);
 }
@@ -2174,7 +2175,8 @@ Field *Type_handler_year::make_table_field(const LEX_CSTRING *name,
                                            TABLE *table) const
 {
   return new (table->in_use->mem_root)
-         Field_year(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+         Field_year(addr.ptr(), attr.max_length,
+                    addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name);
 }
 
@@ -2186,7 +2188,7 @@ Field *Type_handler_null::make_table_field(const LEX_CSTRING *name,
 
 {
   return new (table->in_use->mem_root)
-         Field_null(addr.ptr, attr.max_length,
+         Field_null(addr.ptr(), attr.max_length,
                     Field::NONE, name, attr.collation.collation);
 }
 
@@ -2198,7 +2200,7 @@ Field *Type_handler_timestamp::make_table_field(const LEX_CSTRING *name,
 
 {
   return new_Field_timestamp(table->in_use->mem_root,
-                             addr.ptr, addr.null_ptr, addr.null_bit,
+                             addr.ptr(), addr.null_ptr(), addr.null_bit(),
                              Field::NONE, name, table->s, attr.decimals);
 }
 
@@ -2214,7 +2216,7 @@ Field *Type_handler_timestamp2::make_table_field(const LEX_CSTRING *name,
     make_table_field() for make_field() purposes in field.cc.
   */
   return new_Field_timestamp(table->in_use->mem_root,
-                             addr.ptr, addr.null_ptr, addr.null_bit,
+                             addr.ptr(), addr.null_ptr(), addr.null_bit(),
                              Field::NONE, name, table->s, attr.decimals);
 }
 
@@ -2226,7 +2228,7 @@ Field *Type_handler_newdate::make_table_field(const LEX_CSTRING *name,
 
 {
   return new (table->in_use->mem_root)
-         Field_newdate(addr.ptr, addr.null_ptr, addr.null_bit,
+         Field_newdate(addr.ptr(), addr.null_ptr(), addr.null_bit(),
                        Field::NONE, name);
 }
 
@@ -2243,7 +2245,7 @@ Field *Type_handler_date::make_table_field(const LEX_CSTRING *name,
   */
   DBUG_ASSERT(0);
   return new (table->in_use->mem_root)
-         Field_date(addr.ptr, addr.null_ptr, addr.null_bit,
+         Field_date(addr.ptr(), addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name);
 }
 
@@ -2255,7 +2257,7 @@ Field *Type_handler_time::make_table_field(const LEX_CSTRING *name,
 
 {
   return new_Field_time(table->in_use->mem_root,
-                        addr.ptr, addr.null_ptr, addr.null_bit,
+                        addr.ptr(), addr.null_ptr(), addr.null_bit(),
                         Field::NONE, name, attr.decimals);
 }
 
@@ -2272,7 +2274,7 @@ Field *Type_handler_time2::make_table_field(const LEX_CSTRING *name,
     make_table_field() for make_field() purposes in field.cc.
   */
   return new_Field_time(table->in_use->mem_root,
-                        addr.ptr, addr.null_ptr, addr.null_bit,
+                        addr.ptr(), addr.null_ptr(), addr.null_bit(),
                         Field::NONE, name, attr.decimals);
 }
 
@@ -2284,7 +2286,7 @@ Field *Type_handler_datetime::make_table_field(const LEX_CSTRING *name,
 
 {
   return new_Field_datetime(table->in_use->mem_root,
-                            addr.ptr, addr.null_ptr, addr.null_bit,
+                            addr.ptr(), addr.null_ptr(), addr.null_bit(),
                             Field::NONE, name, attr.decimals);
 }
 
@@ -2299,7 +2301,7 @@ Field *Type_handler_datetime2::make_table_field(const LEX_CSTRING *name,
     make_table_field() for make_field() purposes in field.cc.
   */
   return new_Field_datetime(table->in_use->mem_root,
-                            addr.ptr, addr.null_ptr, addr.null_bit,
+                            addr.ptr(), addr.null_ptr(), addr.null_bit(),
                             Field::NONE, name, attr.decimals);
 }
 
@@ -2311,8 +2313,8 @@ Field *Type_handler_bit::make_table_field(const LEX_CSTRING *name,
 
 {
   return new (table->in_use->mem_root)
-         Field_bit_as_char(addr.ptr, attr.max_length,
-                           addr.null_ptr, addr.null_bit,
+         Field_bit_as_char(addr.ptr(), attr.max_length,
+                           addr.null_ptr(), addr.null_bit(),
                            Field::NONE, name);
 }
 
@@ -2324,7 +2326,8 @@ Field *Type_handler_string::make_table_field(const LEX_CSTRING *name,
 
 {
   return new (table->in_use->mem_root)
-         Field_string(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+         Field_string(addr.ptr(), attr.max_length,
+                      addr.null_ptr(), addr.null_bit(),
                       Field::NONE, name, attr.collation);
 }
 
@@ -2336,9 +2339,9 @@ Field *Type_handler_varchar::make_table_field(const LEX_CSTRING *name,
 
 {
   return new (table->in_use->mem_root)
-         Field_varstring(addr.ptr, attr.max_length,
+         Field_varstring(addr.ptr(), attr.max_length,
                          HA_VARCHAR_PACKLENGTH(attr.max_length),
-                         addr.null_ptr, addr.null_bit,
+                         addr.null_ptr(), addr.null_bit(),
                          Field::NONE, name,
                          table->s, attr.collation);
 }
@@ -2351,7 +2354,7 @@ Field *Type_handler_tiny_blob::make_table_field(const LEX_CSTRING *name,
 
 {
   return new (table->in_use->mem_root)
-         Field_blob(addr.ptr, addr.null_ptr, addr.null_bit,
+         Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name, table->s,
                     1, attr.collation);
 }
@@ -2364,7 +2367,7 @@ Field *Type_handler_blob::make_table_field(const LEX_CSTRING *name,
 
 {
   return new (table->in_use->mem_root)
-         Field_blob(addr.ptr, addr.null_ptr, addr.null_bit,
+         Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name, table->s,
                     2, attr.collation);
 }
@@ -2378,7 +2381,7 @@ Type_handler_medium_blob::make_table_field(const LEX_CSTRING *name,
 
 {
   return new (table->in_use->mem_root)
-         Field_blob(addr.ptr, addr.null_ptr, addr.null_bit,
+         Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name, table->s,
                     3, attr.collation);
 }
@@ -2391,7 +2394,7 @@ Field *Type_handler_long_blob::make_table_field(const LEX_CSTRING *name,
 
 {
   return new (table->in_use->mem_root)
-         Field_blob(addr.ptr, addr.null_ptr, addr.null_bit,
+         Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name, table->s,
                     4, attr.collation);
 }
@@ -2405,7 +2408,7 @@ Field *Type_handler_geometry::make_table_field(const LEX_CSTRING *name,
                                                TABLE *table) const
 {
   return new (table->in_use->mem_root)
-         Field_geom(addr.ptr, addr.null_ptr, addr.null_bit,
+         Field_geom(addr.ptr(), addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name, table->s, 4,
                     (Field::geometry_type) attr.uint_geometry_type(),
                     0);
@@ -2421,7 +2424,8 @@ Field *Type_handler_enum::make_table_field(const LEX_CSTRING *name,
   TYPELIB *typelib= attr.get_typelib();
   DBUG_ASSERT(typelib);
   return new (table->in_use->mem_root)
-         Field_enum(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+         Field_enum(addr.ptr(), attr.max_length,
+                    addr.null_ptr(), addr.null_bit(),
                     Field::NONE, name,
                     get_enum_pack_length(typelib->count), typelib,
                     attr.collation);
@@ -2437,7 +2441,8 @@ Field *Type_handler_set::make_table_field(const LEX_CSTRING *name,
   TYPELIB *typelib= attr.get_typelib();
   DBUG_ASSERT(typelib);
   return new (table->in_use->mem_root)
-         Field_set(addr.ptr, attr.max_length, addr.null_ptr, addr.null_bit,
+         Field_set(addr.ptr(), attr.max_length,
+                   addr.null_ptr(), addr.null_bit(),
                    Field::NONE, name,
                    get_enum_pack_length(typelib->count), typelib,
                    attr.collation);

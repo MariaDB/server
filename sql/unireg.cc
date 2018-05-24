@@ -1043,12 +1043,11 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
   thd->count_cuted_fields= CHECK_FIELD_WARN;    // To find wrong default values
   while ((field=it++))
   {
+    Record_addr addr(buff + field->offset + data_offset,
+                     null_pos + null_count / 8, null_count & 7);
     /* regfield don't have to be deleted as it's allocated on THD::mem_root */
-    Field *regfield= make_field(&share, thd->mem_root,
-                                buff+field->offset + data_offset,
-                                (uint32)field->length,
-                                null_pos + null_count / 8,
-                                null_count & 7,
+    Field *regfield= make_field(&share, thd->mem_root, &addr,
+                                (uint32) field->length,
                                 field->pack_flag,
                                 field->type_handler(),
                                 field->charset,
