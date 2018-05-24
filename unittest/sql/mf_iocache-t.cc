@@ -187,10 +187,76 @@ void mdev9044()
   close_cached_file(&info);
 }
 
+/* 2 Reads (with my_b_fill) in cache makes second read to fail */
+void mdev10259()
+{
+  int res;
+  uchar buf[200];
+  memset(buf, FILL, sizeof(buf));
+
+  diag("MDEV-10259- mysqld crash with certain statement length and order with"
+         " Galera and encrypt-tmp-files=1");
+
+  init_io_cache_encryption();
+
+  res= open_cached_file(&info, 0, 0, CACHE_SIZE, 0);
+  ok(res == 0, "open_cached_file" INFO_TAIL);
+
+  res= my_b_write(&info, buf, sizeof(buf));
+  ok(res == 0 && info.pos_in_file == 0, "200 write" INFO_TAIL);
+
+  res= my_b_flush_io_cache(&info, 1);
+  ok(res == 0, "flush" INFO_TAIL);
+
+  ulong saved_pos=  my_b_tell(&info);
+  res= reinit_io_cache(&info, READ_CACHE, 0, 0, 0);
+  ok(res == 0, "reinit READ_CACHE" INFO_TAIL);
+
+  res= my_b_fill(&info);
+  ok(res == 200, "fill" INFO_TAIL);
+
+  res= my_b_fill(&info);
+  ok(res == 0, "fill" INFO_TAIL);
+
+  res= my_b_fill(&info);
+  ok(res == 0, "fill" INFO_TAIL);
+
+  res= reinit_io_cache(&info, WRITE_CACHE, saved_pos, 0, 0);
+  ok(res == 0, "reinit WRITE_CACHE" INFO_TAIL);
+
+  res= reinit_io_cache(&info, READ_CACHE, 0, 0, 0);
+  ok(res == 0, "reinit READ_CACHE" INFO_TAIL);
+
+  ok(200 == my_b_bytes_in_cache(&info),"my_b_bytes_in_cache == 200");
+
+  res= my_b_fill(&info);
+  ok(res == 0, "fill" INFO_TAIL);
+
+  res= my_b_fill(&info);
+  ok(res == 0, "fill" INFO_TAIL);
+
+  res= my_b_fill(&info);
+  ok(res == 0, "fill" INFO_TAIL);
+
+  res= reinit_io_cache(&info, WRITE_CACHE, saved_pos, 0, 0);
+  ok(res == 0, "reinit WRITE_CACHE" INFO_TAIL);
+
+  res= reinit_io_cache(&info, READ_CACHE, 0, 0, 0);
+  ok(res == 0, "reinit READ_CACHE" INFO_TAIL);
+
+  ok(200 == my_b_bytes_in_cache(&info),"my_b_bytes_in_cache == 200");
+
+  res= my_b_read(&info, buf, sizeof(buf)) || data_bad(buf, sizeof(buf));
+  ok(res == 0 && info.pos_in_file == 0, "large read" INFO_TAIL);
+
+  close_cached_file(&info);
+
+}
+
 int main(int argc __attribute__((unused)),char *argv[])
 {
   MY_INIT(argv[0]);
-  plan(29);
+  plan(46);
 
   /* temp files with and without encryption */
   encrypt_tmp_files= 1;
@@ -201,6 +267,10 @@ int main(int argc __attribute__((unused)),char *argv[])
 
   /* regression tests */
   mdev9044();
+
+  encrypt_tmp_files= 1;
+  mdev10259();
+  encrypt_tmp_files= 0;
 
   my_end(0);
   return exit_status();

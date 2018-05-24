@@ -99,12 +99,14 @@ TABLE *THD::create_and_open_tmp_table(handlerton *hton,
 
   @param db [IN]                      Database name
   @param table_name [IN]              Table name
+  @param state [IN]                   State of temp table to open
 
   @return Success                     Pointer to first used table instance.
           Failure                     NULL
 */
 TABLE *THD::find_temporary_table(const char *db,
-                                 const char *table_name)
+                                 const char *table_name,
+                                 Temporary_table_state state)
 {
   DBUG_ENTER("THD::find_temporary_table");
 
@@ -121,7 +123,7 @@ TABLE *THD::find_temporary_table(const char *db,
   key_length= create_tmp_table_def_key(key, db, table_name);
 
   locked= lock_temporary_tables();
-  table = find_temporary_table(key, key_length, TMP_TABLE_IN_USE);
+  table=  find_temporary_table(key, key_length, state);
   if (locked)
   {
     DBUG_ASSERT(m_tmp_tables_locked);
@@ -140,16 +142,12 @@ TABLE *THD::find_temporary_table(const char *db,
   @return Success                     Pointer to first used table instance.
           Failure                     NULL
 */
-TABLE *THD::find_temporary_table(const TABLE_LIST *tl)
+TABLE *THD::find_temporary_table(const TABLE_LIST *tl,
+                                 Temporary_table_state state)
 {
   DBUG_ENTER("THD::find_temporary_table");
-
-  if (!has_temporary_tables())
-  {
-    DBUG_RETURN(NULL);
-  }
-
-  TABLE *table= find_temporary_table(tl->get_db_name(), tl->get_table_name());
+  TABLE *table= find_temporary_table(tl->get_db_name(), tl->get_table_name(),
+                                     state);
   DBUG_RETURN(table);
 }
 

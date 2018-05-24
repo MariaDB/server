@@ -4262,6 +4262,12 @@ public:
 
 /* Members related to temporary tables. */
 public:
+  /* Opened table states. */
+  enum Temporary_table_state {
+    TMP_TABLE_IN_USE,
+    TMP_TABLE_NOT_IN_USE,
+    TMP_TABLE_ANY
+  };
   bool has_thd_temporary_tables();
 
   TABLE *create_and_open_tmp_table(handlerton *hton,
@@ -4271,8 +4277,10 @@ public:
                                    const char *table_name,
                                    bool open_in_engine);
 
-  TABLE *find_temporary_table(const char *db, const char *table_name);
-  TABLE *find_temporary_table(const TABLE_LIST *tl);
+  TABLE *find_temporary_table(const char *db, const char *table_name,
+                              Temporary_table_state state= TMP_TABLE_IN_USE);
+  TABLE *find_temporary_table(const TABLE_LIST *tl,
+                              Temporary_table_state state= TMP_TABLE_IN_USE);
 
   TMP_TABLE_SHARE *find_tmp_table_share_w_base_key(const char *key,
                                                    uint key_length);
@@ -4298,13 +4306,6 @@ public:
 private:
   /* Whether a lock has been acquired? */
   bool m_tmp_tables_locked;
-
-  /* Opened table states. */
-  enum Temporary_table_state {
-    TMP_TABLE_IN_USE,
-    TMP_TABLE_NOT_IN_USE,
-    TMP_TABLE_ANY
-  };
 
   bool has_temporary_tables();
   uint create_tmp_table_def_key(char *key, const char *db,

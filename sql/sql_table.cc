@@ -5888,10 +5888,28 @@ drop_create_field:
     List_iterator<Alter_drop> drop_it(alter_info->drop_list);
     Alter_drop *drop;
     bool remove_drop;
+    ulonglong left_flags= 0;
     while ((drop= drop_it++))
     {
+      ulonglong cur_flag= 0;
+      switch (drop->type) {
+      case Alter_drop::COLUMN:
+        cur_flag= Alter_info::ALTER_DROP_COLUMN;
+        break;
+      case Alter_drop::FOREIGN_KEY:
+        cur_flag= Alter_info::DROP_FOREIGN_KEY;
+        break;
+      case Alter_drop::KEY:
+        cur_flag= Alter_info::ALTER_DROP_INDEX;
+        break;
+      default:
+        break;
+      }
       if (!drop->drop_if_exists)
+      {
+        left_flags|= cur_flag;
         continue;
+      }
       remove_drop= TRUE;
       if (drop->type == Alter_drop::COLUMN)
       {
@@ -5980,12 +5998,15 @@ drop_create_field:
                             ER_THD(thd, ER_CANT_DROP_FIELD_OR_KEY),
                             drop->type_name(), drop->name);
         drop_it.remove();
-        if (alter_info->drop_list.is_empty())
-          alter_info->flags&= ~(Alter_info::ALTER_DROP_COLUMN |
-                                Alter_info::ALTER_DROP_INDEX  |
-                                Alter_info::DROP_FOREIGN_KEY);
       }
+      else
+        left_flags|= cur_flag;
     }
+    /* Reset state to what's left in drop list */
+    alter_info->flags&= ~(Alter_info::ALTER_DROP_COLUMN |
+                          Alter_info::ALTER_DROP_INDEX  |
+                          Alter_info::DROP_FOREIGN_KEY);
+    alter_info->flags|= left_flags;
   }
 
   /* ALTER TABLE ADD KEY IF NOT EXISTS */

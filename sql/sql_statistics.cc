@@ -1519,7 +1519,8 @@ public:
 
   ~Stat_table_write_iter()
   {
-    cleanup();
+    /* Ensure that cleanup has been run */
+    DBUG_ASSERT(rowid_buf == 0);
   }
 };
 

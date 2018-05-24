@@ -105,3 +105,15 @@ INSERT INTO t2 (f2) SELECT f3 FROM tmp AS tmp_alias;
 select * from t2;
 unlock tables;
 DROP TABLE t1,t2,tmp;
+
+--echo #
+--echo # MDEV-10378 Assertion `trn' failed in virtual int ha_maria::start_stmt
+--echo #
+
+CREATE TABLE t1 (f1 VARCHAR(3), f2 INT, pk INT, PRIMARY KEY (pk)) ENGINE=Aria;
+INSERT INTO t1 VALUES  ('foo',10,1), ('foo',1,2);
+LOCK TABLE t1 WRITE;
+--error ER_DUP_ENTRY
+ALTER TABLE t1 ADD UNIQUE KEY (f1);
+ALTER TABLE t1 ADD KEY (f2);
+DROP TABLE t1;

@@ -2177,6 +2177,66 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
 DROP TABLE t1;
 #
+# MDEV-15308
+# Assertion `ha_alter_info->alter_info->drop_list.elements > 0' failed
+# in ha_innodb::prepare_inplace_alter_table
+#
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP COLUMN b;
+Warnings:
+Note	1091	Can't DROP FOREIGN KEY `fk`; check that it exists
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP INDEX IF EXISTS fk, DROP COLUMN b;
+Warnings:
+Note	1091	Can't DROP INDEX `fk`; check that it exists
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, c INT, KEY(c)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP COLUMN c;
+Warnings:
+Note	1091	Can't DROP FOREIGN KEY `fk`; check that it exists
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT, c INT, KEY c1(c)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP INDEX c1;
+Warnings:
+Note	1091	Can't DROP FOREIGN KEY `fk`; check that it exists
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP INDEX IF EXISTS fk, DROP COLUMN IF EXISTS c;
+Warnings:
+Note	1091	Can't DROP INDEX `fk`; check that it exists
+Note	1091	Can't DROP COLUMN `c`; check that it exists
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
 # End of 10.0 tests
 #
 #
