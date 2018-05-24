@@ -2477,8 +2477,9 @@ dict_load_indexes(
 			    && static_cast<char>(*field)
 			    == static_cast<char>(*TEMP_INDEX_PREFIX_STR)) {
 				/* Skip indexes whose name starts with
-				TEMP_INDEX_PREFIX, because they will
-				be dropped during crash recovery. */
+				TEMP_INDEX_PREFIX_STR, because they will
+				be dropped by row_merge_drop_temp_indexes()
+				during crash recovery. */
 				goto next_rec;
 			}
 		}

@@ -8169,7 +8169,7 @@ commit_cache_norebuild(
 		(after renaming the indexes), so that in the
 		event of a crash, crash recovery will drop the
 		indexes, because it drops all indexes whose
-		names start with TEMP_INDEX_PREFIX. Once we
+		names start with TEMP_INDEX_PREFIX_STR. Once we
 		have started dropping an index tree, there is
 		no way to roll it back. */
 
