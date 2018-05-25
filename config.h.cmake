@@ -210,7 +210,6 @@
 #cmakedefine HAVE_READLINK 1
 #cmakedefine HAVE_REALPATH 1
 #cmakedefine HAVE_RENAME 1
-#cmakedefine HAVE_RINT 1
 #cmakedefine HAVE_RWLOCK_INIT 1
 #cmakedefine HAVE_SCHED_YIELD 1
 #cmakedefine HAVE_SELECT 1

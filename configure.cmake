@@ -478,7 +478,6 @@ CHECK_SYMBOL_EXISTS(FIONREAD "sys/filio.h" FIONREAD_IN_SYS_FILIO)
 CHECK_SYMBOL_EXISTS(gettimeofday "sys/time.h" HAVE_GETTIMEOFDAY)
 
 CHECK_SYMBOL_EXISTS(log2  math.h HAVE_LOG2)
-CHECK_SYMBOL_EXISTS(rint  math.h HAVE_RINT)
 
 #
 # Test for endianness
