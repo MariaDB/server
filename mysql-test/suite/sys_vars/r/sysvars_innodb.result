@@ -1,6 +1,7 @@
 select * from information_schema.system_variables
 where variable_name like 'innodb%' and
 variable_name not in (
+'innodb_version',                   # always the same as the server version
 'innodb_disallow_writes',           # only available WITH_WSREP
 'innodb_numa_interleave',           # only available WITH_NUMA
 'innodb_sched_priority_cleaner',    # linux only
@@ -2401,20 +2402,6 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	NONE
-VARIABLE_NAME	INNODB_VERSION
-SESSION_VALUE	NULL
-GLOBAL_VALUE	10.3.7
-GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	NULL
-VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	InnoDB version
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NULL
-READ_ONLY	YES
-COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	INNODB_WRITE_IO_THREADS
 SESSION_VALUE	NULL
 GLOBAL_VALUE	2
