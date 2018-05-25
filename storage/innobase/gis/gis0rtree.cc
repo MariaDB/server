@@ -38,6 +38,7 @@ Created 2013/03/27 Allen Lai and Jimmy Yang
 #include "trx0undo.h"
 #include "srv0mon.h"
 #include "gis0geo.h"
+#include <cmath>
 
 /*************************************************************//**
 Initial split nodes info for R-tree split.

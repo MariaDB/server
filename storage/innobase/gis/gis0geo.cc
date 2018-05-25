@@ -30,6 +30,7 @@ Created 2013/03/27 Allen Lai and Jimmy Yang
 #include "mach0data.h"
 
 #include <spatial.h>
+#include <cmath>
 
 /* These definitions are for comparing 2 mbrs. */
 

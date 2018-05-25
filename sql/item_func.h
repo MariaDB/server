@@ -32,6 +32,7 @@ extern "C"				/* Bug in BSDI include file */
 
 #include "sql_udf.h"    // udf_handler
 #include "my_decimal.h" // string2my_decimal
+#include <cmath>
 
 
 class Item_func :public Item_func_or_sum

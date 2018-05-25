@@ -828,10 +828,6 @@ inline unsigned long long my_double2ulonglong(double d)
 #define SIZE_T_MAX      (~((size_t) 0))
 #endif
 
-#ifdef __cplusplus
-#include <cmath>
-#endif
-
 /* Define missing math constants. */
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
