@@ -367,7 +367,7 @@ mbr_join_square(
 
 	/* Check if finite (not infinity or NaN),
 	so we don't get NaN in calculations */
-	if (!isfinite(square)) {
+	if (!std::isfinite(square)) {
 		return DBL_MAX;
 	}
 
