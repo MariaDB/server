@@ -4683,7 +4683,7 @@ int truncate_double(double *nr, uint field_length, uint dec,
   int error= 0;
   double res= *nr;
   
-  if (isnan(res))
+  if (std::isnan(res))
   {
     *nr= 0;
     return -1;

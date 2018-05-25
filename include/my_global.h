@@ -828,16 +828,8 @@ inline unsigned long long my_double2ulonglong(double d)
 #define SIZE_T_MAX      (~((size_t) 0))
 #endif
 
-#ifndef HAVE_ISNAN
-#define isnan(x) ((x) != (x))
-#endif
-#define my_isnan(x) isnan(x)
-
 #ifdef __cplusplus
 #include <cmath>
-#ifndef isnan
-#define isnan(X) std::isnan(X)
-#endif
 #endif
 
 /* Define missing math constants. */
