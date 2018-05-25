@@ -2475,10 +2475,6 @@ mysql_execute_command(THD *thd)
 #endif
   DBUG_ENTER("mysql_execute_command");
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  thd->work_part_info= 0;
-#endif
-
   DBUG_ASSERT(thd->transaction.stmt.is_empty() || thd->in_sub_stmt);
   /*
     Each statement or replication event which might produce deadlock
@@ -3318,6 +3314,7 @@ mysql_execute_command(THD *thd)
       create_info.add(DDL_options_st::OPT_OR_REPLACE_SLAVE_GENERATED);
     }
 
+    thd->work_part_info= 0;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     {
       partition_info *part_info= thd->lex->part_info;

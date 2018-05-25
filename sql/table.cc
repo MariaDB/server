@@ -2233,6 +2233,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
     goto ret;
 
   thd->lex->create_info.db_type= hton;
+  thd->work_part_info= 0;                       // For partitioning
 
   if (tabledef_version.str)
     thd->lex->create_info.tabledef_version= tabledef_version;

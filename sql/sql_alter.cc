@@ -262,8 +262,8 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
         - For temporary MERGE tables we do not track if their child tables are
           base or temporary. As result we can't guarantee that privilege check
-          which was done in presence of temporary child will stay relevant later
-          as this temporary table might be removed.
+          which was done in presence of temporary child will stay relevant
+          later as this temporary table might be removed.
 
       If SELECT_ACL | UPDATE_ACL | DELETE_ACL privileges were not checked for
       the underlying *base* tables, it would create a security breach as in
@@ -303,6 +303,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   create_info.data_file_name= create_info.index_file_name= NULL;
 
   thd->enable_slow_log= opt_log_slow_admin_statements;
+  thd->work_part_info= 0;
 
 #ifdef WITH_WSREP
   TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
