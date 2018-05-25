@@ -279,7 +279,6 @@ MARIA_KEY *_ma_make_key(MARIA_HA *info, MARIA_KEY *int_key, uint keynr,
     }
     else if (keyseg->flag & HA_SWAP_KEY)
     {						/* Numerical column */
-#ifdef HAVE_ISNAN
       if (type == HA_KEYTYPE_FLOAT)
       {
 	float nr;
@@ -303,7 +302,6 @@ MARIA_KEY *_ma_make_key(MARIA_HA *info, MARIA_KEY *int_key, uint keynr,
 	  continue;
 	}
       }
-#endif
       pos+=length;
       while (length--)
       {

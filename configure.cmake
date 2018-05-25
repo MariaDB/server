@@ -475,7 +475,6 @@ ELSE()
   CHECK_SYMBOL_EXISTS(finite  "ieeefp.h" HAVE_FINITE)
 ENDIF()
 CHECK_SYMBOL_EXISTS(log2  math.h HAVE_LOG2)
-CHECK_SYMBOL_EXISTS(isnan math.h HAVE_ISNAN)
 CHECK_SYMBOL_EXISTS(rint  math.h HAVE_RINT)
 
 # isinf() prototype not found on Solaris

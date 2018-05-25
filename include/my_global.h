@@ -811,6 +811,10 @@ inline unsigned long long my_double2ulonglong(double d)
 #define SIZE_T_MAX      (~((size_t) 0))
 #endif
 
+#ifdef __cplusplus
+#include <cmath>
+#endif
+
 #ifndef isfinite
 #ifdef HAVE_FINITE
 #define isfinite(x) finite(x)
@@ -821,11 +825,6 @@ inline unsigned long long my_double2ulonglong(double d)
 #include <cmath>
 static inline bool isfinite(double x) { return std::isfinite(x); }
 #endif /* isfinite */
-
-#ifndef HAVE_ISNAN
-#define isnan(x) ((x) != (x))
-#endif
-#define my_isnan(x) isnan(x)
 
 #ifdef HAVE_ISINF
 #define my_isinf(X) isinf(X)
