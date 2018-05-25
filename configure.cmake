@@ -481,16 +481,6 @@ CHECK_SYMBOL_EXISTS(log2  math.h HAVE_LOG2)
 CHECK_SYMBOL_EXISTS(isnan math.h HAVE_ISNAN)
 CHECK_SYMBOL_EXISTS(rint  math.h HAVE_RINT)
 
-# isinf() prototype not found on Solaris
-CHECK_CXX_SOURCE_COMPILES(
-"#include  <math.h>
-int main() { 
-  isinf(0.0); 
-  return 0;
-}" HAVE_ISINF)
-
-
-
 #
 # Test for endianness
 #

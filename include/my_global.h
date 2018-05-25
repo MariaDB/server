@@ -833,18 +833,10 @@ inline unsigned long long my_double2ulonglong(double d)
 #endif
 #define my_isnan(x) isnan(x)
 
-#ifndef HAVE_ISINF
-#define isinf(X) (!isfinite(X) && !isnan(X))
-#endif
-#define my_isinf(X) isinf(X)
-
 #ifdef __cplusplus
 #include <cmath>
 #ifndef isnan
 #define isnan(X) std::isnan(X)
-#endif
-#ifndef isinf
-#define isinf(X) std::isinf(X)
 #endif
 #endif
 

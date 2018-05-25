@@ -162,7 +162,6 @@
 #cmakedefine HAVE_IN_ADDR_T 1
 #cmakedefine HAVE_INITGROUPS 1
 #cmakedefine HAVE_ISNAN 1
-#cmakedefine HAVE_ISINF 1
 #cmakedefine HAVE_LARGE_PAGE_OPTION 1
 #cmakedefine HAVE_LDIV 1
 #cmakedefine HAVE_LRAND48 1
