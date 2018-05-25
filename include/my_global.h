@@ -826,12 +826,6 @@ inline unsigned long long my_double2ulonglong(double d)
 static inline bool isfinite(double x) { return std::isfinite(x); }
 #endif /* isfinite */
 
-#ifdef HAVE_ISINF
-#define my_isinf(X) isinf(X)
-#else /* !HAVE_ISINF */
-#define my_isinf(X) (!finite(X) && !isnan(X))
-#endif
-
 /* Define missing math constants. */
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
