@@ -4078,6 +4078,16 @@ public:
     DBUG_VOID_RETURN;
   }
 
+  inline enum_binlog_format get_current_stmt_binlog_format()
+  {
+    return current_stmt_binlog_format;
+  }
+
+  inline void set_current_stmt_binlog_format(enum_binlog_format format)
+  {
+    current_stmt_binlog_format= format;
+  }
+
   inline void set_current_stmt_binlog_format_row()
   {
     DBUG_ENTER("set_current_stmt_binlog_format_row");

@@ -2850,17 +2850,19 @@ bool multi_update::send_eof()
           break;
         }
       }
-      ScopedStatementReplication scoped_stmt_rpl(force_stmt ? thd : NULL);
+      enum_binlog_format save_binlog_format;
+      save_binlog_format= thd->get_current_stmt_binlog_format();
+      if (force_stmt)
+        thd->set_current_stmt_binlog_format_stmt();
 
       if (thd->binlog_query(THD::ROW_QUERY_TYPE, thd->query(),
                             thd->query_length(), transactional_tables, FALSE,
                             FALSE, errcode))
-      {
 	local_error= 1;				// Rollback update
-      }
+      thd->set_current_stmt_binlog_format(save_binlog_format);
     }
   }
-  DBUG_ASSERT(trans_safe || !updated || 
+  DBUG_ASSERT(trans_safe || !updated ||
               thd->transaction.stmt.modified_non_trans_table);
 
   if (likely(local_error != 0))
