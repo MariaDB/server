@@ -2262,7 +2262,6 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
     if (unlikely(join->thd->check_killed()))
     {
       /* The user has aborted the execution of the query */
-      join->thd->send_kill_message();
       rc= NESTED_LOOP_KILLED;
       goto finish; 
     }
@@ -2536,7 +2535,6 @@ enum_nested_loop_state JOIN_CACHE::join_null_complements(bool skip_last)
     if (unlikely(join->thd->check_killed()))
     {
       /* The user has aborted the execution of the query */
-      join->thd->send_kill_message();
       rc= NESTED_LOOP_KILLED;
       goto finish;
     }

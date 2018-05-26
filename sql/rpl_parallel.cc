@@ -337,7 +337,7 @@ do_gco_wait(rpl_group_info *rgi, group_commit_orderer *gco,
     thd->set_time_for_next_stage();
     do
     {
-      if (unlikely(thd->check_killed()) && !rgi->worker_error)
+      if (!rgi->worker_error && unlikely(thd->check_killed(1)))
       {
         DEBUG_SYNC(thd, "rpl_parallel_start_waiting_for_prior_killed");
         thd->clear_error();
@@ -404,7 +404,6 @@ do_ftwrl_wait(rpl_group_info *rgi,
         break;
       if (unlikely(thd->check_killed()))
       {
-        thd->send_kill_message();
         slave_output_error_info(rgi, thd);
         signal_error_to_sql_driver_thread(thd, rgi, 1);
         break;
@@ -455,7 +454,6 @@ pool_mark_busy(rpl_parallel_thread_pool *pool, THD *thd)
   {
     if (thd && unlikely(thd->check_killed()))
     {
-      thd->send_kill_message();
       res= 1;
       break;
     }
@@ -573,7 +571,6 @@ rpl_pause_for_ftwrl(THD *thd)
     {
       if (unlikely(thd->check_killed()))
       {
-        thd->send_kill_message();
         err= 1;
         break;
       }
@@ -838,8 +835,8 @@ do_retry:
   }
   DBUG_EXECUTE_IF("inject_mdev8031", {
       /* Simulate pending KILL caught in read_relay_log_description_event(). */
-      if (unlikely(thd->check_killed())) {
-        thd->send_kill_message();
+      if (unlikely(thd->check_killed()))
+      {
         err= 1;
         goto err;
       }
@@ -2077,7 +2074,7 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
         /* The thread is ready to queue into. */
         break;
       }
-      else if (unlikely(rli->sql_driver_thd->check_killed()))
+      else if (unlikely(rli->sql_driver_thd->check_killed(1)))
       {
         unlock_or_exit_cond(rli->sql_driver_thd, &thr->LOCK_rpl_thread,
                             did_enter_cond, old_stage);
@@ -2405,7 +2402,6 @@ rpl_parallel::wait_for_workers_idle(THD *thd)
     {
       if (unlikely(thd->check_killed()))
       {
-        thd->send_kill_message();
         err= 1;
         break;
       }

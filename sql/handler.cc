@@ -2766,7 +2766,7 @@ int handler::ha_rnd_next(uchar *buf)
     if (result != HA_ERR_RECORD_DELETED)
       break;
     status_var_increment(table->in_use->status_var.ha_read_rnd_deleted_count);
-  } while (!table->in_use->check_killed());
+  } while (!table->in_use->check_killed(1));
 
   if (result == HA_ERR_RECORD_DELETED)
     result= HA_ERR_ABORTED_BY_USER;

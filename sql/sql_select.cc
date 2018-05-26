@@ -309,7 +309,7 @@ void dbug_serve_apcs(THD *thd, int n_calls)
     thd_proc_info(thd, "show_explain_trap");
     my_sleep(30000);
     thd_proc_info(thd, save_proc_info);
-    if (unlikely(thd->check_killed()))
+    if (unlikely(thd->check_killed(1)))
       break;
   }
 }
@@ -18482,10 +18482,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
     if (write_err)
       goto err;
     if (unlikely(thd->check_killed()))
-    {
-      thd->send_kill_message();
       goto err_killed;
-    }
   }
   if (!new_table.no_rows && new_table.file->ha_end_bulk_insert())
     goto err;
@@ -19045,7 +19042,6 @@ sub_select_cache(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   if (unlikely(join->thd->check_killed()))
   {
     /* The user has aborted the execution of the query */
-    join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);
   }
   if (!test_if_use_dynamic_range_scan(join_tab))
@@ -19345,7 +19341,6 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
     DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
   if (unlikely(join->thd->check_killed()))       // Aborted by user
   {
-    join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);            /* purecov: inspected */
   }
 
@@ -20705,7 +20700,6 @@ end_write(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 end:
   if (unlikely(join->thd->check_killed()))
   {
-    join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);             /* purecov: inspected */
   }
   DBUG_RETURN(NESTED_LOOP_OK);
@@ -20795,7 +20789,6 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 end:
   if (unlikely(join->thd->check_killed()))
   {
-    join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);             /* purecov: inspected */
   }
   DBUG_RETURN(NESTED_LOOP_OK);
@@ -20845,7 +20838,6 @@ end_unique_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   }
   if (unlikely(join->thd->check_killed()))
   {
-    join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);             /* purecov: inspected */
   }
   DBUG_RETURN(NESTED_LOOP_OK);
@@ -20939,7 +20931,6 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 end:
   if (unlikely(join->thd->check_killed()))
   {
-    join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);             /* purecov: inspected */
   }
   DBUG_RETURN(NESTED_LOOP_OK);
@@ -22572,7 +22563,6 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
   {
     if (unlikely(thd->check_killed()))
     {
-      thd->send_kill_message();
       error=0;
       goto err;
     }
@@ -22688,7 +22678,6 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
     uchar *org_key_pos;
     if (unlikely(thd->check_killed()))
     {
-      thd->send_kill_message();
       error=0;
       goto err;
     }

@@ -4763,7 +4763,7 @@ err:
 
   @retval 0 OK
   @retval 1 error
-  @retval -1 table existed but IF EXISTS was used
+  @retval -1 table existed but IF NOT EXISTS was used
 */
 
 static
@@ -5044,6 +5044,12 @@ warn:
 /**
   Simple wrapper around create_table_impl() to be used
   in various version of CREATE TABLE statement.
+
+  @result
+    1 unspefied error
+    2 error; Don't log create statement
+    0 ok
+    -1 Table was used with IF NOT EXISTS and table existed (warning, not error)
 */
 
 int mysql_create_table_no_lock(THD *thd,
@@ -5090,6 +5096,24 @@ int mysql_create_table_no_lock(THD *thd,
     else
       table_list->table= 0;
     res= sequence_insert(thd, thd->lex, table_list);
+    if (res)
+    {
+      DBUG_ASSERT(thd->is_error());
+      /* Drop the table as it wasn't completely done */
+      if (!mysql_rm_table_no_locks(thd, table_list, 1,
+                                   create_info->tmp_table(),
+                                   false, true /* Sequence*/,
+                                   true /* Don't log_query */,
+                                   true /* Don't free locks */ ))
+      {
+        /*
+          From the user point of view, the table creation failed
+          We return 2 to indicate that this statement doesn't have
+          to be logged.
+        */
+        res= 2;
+      }
+    }
   }
 
   return res;
@@ -5507,7 +5531,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   TABLE_LIST *pos_in_locked_tables= 0;
   Alter_info local_alter_info;
   Alter_table_ctx local_alter_ctx; // Not used
-  bool res= TRUE;
+  int res= 1;
   bool is_trans= FALSE;
   bool do_logging= FALSE;
   uint not_used;
@@ -5812,12 +5836,15 @@ err:
       */
       log_drop_table(thd, &table->db, &table->table_name, create_info->tmp_table());
     }
-    else if (write_bin_log(thd, res ? FALSE : TRUE, thd->query(),
-                           thd->query_length(), is_trans))
+    else if (res != 2)                         // Table was not dropped
+    {
+      if (write_bin_log(thd, res ? FALSE : TRUE, thd->query(),
+                        thd->query_length(), is_trans))
       res= 1;
+    }
   }
 
-  DBUG_RETURN(res);
+  DBUG_RETURN(res != 0);
 }
 
 

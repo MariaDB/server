@@ -7964,10 +7964,7 @@ bool TABLE::insert_all_rows_into_tmp_table(THD *thd,
        
     }  
     if (unlikely(thd->check_killed()))
-    {
-      thd->send_kill_message();
       goto err_killed;
-    }
   }
   if (!tmp_table->no_rows && tmp_table->file->ha_end_bulk_insert())
     goto err;

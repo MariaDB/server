@@ -65,7 +65,6 @@ int Pushdown_query::execute(JOIN *join)
   {
     if (unlikely(thd->check_killed()))
     {
-      thd->send_kill_message();
       handler->end_scan();
       DBUG_RETURN(-1);
     }
