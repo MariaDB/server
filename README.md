@@ -17,10 +17,15 @@ see the Credits appendix.  You can also run 'SHOW authors' to get a
 list of active contributors.
 
 A description of the MariaDB project and a manual can be found at:
+
 https://mariadb.org/
+
 https://mariadb.com/kb/en/
+
 https://mariadb.com/kb/en/mariadb-vs-mysql-features/
+
 https://mariadb.com/kb/en/mariadb-versus-mysql-features/
+
 https://mariadb.com/kb/en/mariadb-versus-mysql-compatibility/
 
 As MariaDB is a full replacement of MySQL, the MySQL manual at
