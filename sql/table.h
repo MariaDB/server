@@ -2672,7 +2672,7 @@ enum get_table_share_flags {
   GTS_FORCE_DISCOVERY      = 16
 };
 
-size_t max_row_length(TABLE *table, const uchar *data);
+size_t max_row_length(TABLE *table, MY_BITMAP const *cols, const uchar *data);
 
 void init_mdl_requests(TABLE_LIST *table_list);
 

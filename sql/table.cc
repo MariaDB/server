@@ -7279,7 +7279,7 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
 }
 
 
-size_t max_row_length(TABLE *table, const uchar *data)
+size_t max_row_length(TABLE *table, MY_BITMAP const *cols, const uchar *data)
 {
   TABLE_SHARE *table_s= table->s;
   size_t length= table_s->reclength + 2 * table_s->fields;
@@ -7291,11 +7291,11 @@ size_t max_row_length(TABLE *table, const uchar *data)
   for (uint *ptr= beg ; ptr != end ; ++ptr)
   {
     Field * const field= table->field[*ptr];
-    if (bitmap_is_set(table->read_set, field->field_index) &&
+    if (bitmap_is_set(cols, field->field_index) &&
         !field->is_null(rec_offset))
     {
       Field_blob * const blob= (Field_blob*) field;
-      length+= blob->get_length(rec_offset) + HA_KEY_BLOB_LENGTH;
+      length+= blob->get_length(rec_offset) + 8; /* max blob store length */
     }
   }
   DBUG_PRINT("exit", ("length: %lld", (longlong) length));

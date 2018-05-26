@@ -6414,7 +6414,8 @@ int THD::binlog_write_row(TABLE* table, bool is_trans,
     Pack records into format for transfer. We are allocating more
     memory than needed, but that doesn't matter.
   */
-  Row_data_memory memory(table, max_row_length(table, record));
+  Row_data_memory memory(table, max_row_length(table, table->rpl_write_set,
+                                               record));
   if (!memory.has_memory())
     return HA_ERR_OUT_OF_MEM;
 
@@ -6451,8 +6452,10 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
   DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
             ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
 
-  size_t const before_maxlen = max_row_length(table, before_record);
-  size_t const after_maxlen  = max_row_length(table, after_record);
+  size_t const before_maxlen= max_row_length(table, table->read_set,
+                                             before_record);
+  size_t const after_maxlen=  max_row_length(table, table->rpl_write_set,
+                                             after_record);
 
   Row_data_memory row_data(table, before_maxlen, after_maxlen);
   if (!row_data.has_memory())
@@ -6528,7 +6531,8 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
      Pack records into format for transfer. We are allocating more
      memory than needed, but that doesn't matter.
   */
-  Row_data_memory memory(table, max_row_length(table, record));
+  Row_data_memory memory(table, max_row_length(table, table->read_set,
+                                               record));
   if (unlikely(!memory.has_memory()))
     return HA_ERR_OUT_OF_MEM;
 
