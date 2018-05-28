@@ -610,7 +610,6 @@ retry:
 		success = os_file_read(
 			request,
 			node->handle, page, 0, psize);
-		srv_stats.page0_read.add(1);
 
 		const ulint	space_id
 			= fsp_header_get_space_id(page);

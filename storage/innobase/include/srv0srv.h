@@ -180,9 +180,6 @@ struct srv_stats_t
 	/** Number of times prefix optimization avoided triggering cluster lookup */
 	ulint_ctr_64_t		n_sec_rec_cluster_reads_avoided;
 
-	/** Number of times page 0 is read from tablespace */
-	ulint_ctr_64_t		page0_read;
-
 	/** Number of encryption_get_latest_key_version calls */
 	ulint_ctr_64_t		n_key_requests;
 
@@ -980,7 +977,6 @@ struct export_var_t{
 	ulint innodb_page_size;			/*!< UNIV_PAGE_SIZE */
 	ulint innodb_pages_created;		/*!< buf_pool->stat.n_pages_created */
 	ulint innodb_pages_read;		/*!< buf_pool->stat.n_pages_read*/
-	ulint innodb_page0_read;		/*!< srv_stats.page0_read */
 	ulint innodb_pages_written;		/*!< buf_pool->stat.n_pages_written */
 	ulint innodb_row_lock_waits;		/*!< srv_n_lock_wait_count */
 	ulint innodb_row_lock_current_waits;	/*!< srv_n_lock_wait_current_count */

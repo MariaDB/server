@@ -1562,7 +1562,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_pages_created = stat.n_pages_created;
 
 	export_vars.innodb_pages_read = stat.n_pages_read;
-	export_vars.innodb_page0_read = srv_stats.page0_read;
 
 	export_vars.innodb_pages_written = stat.n_pages_written;
 
