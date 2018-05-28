@@ -7733,7 +7733,6 @@ mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *select_lex)
   if (move_down)
   {
     SELECT_LEX_UNIT *unit;
-    lex->subqueries= TRUE;
     /* first select_lex of subselect or derived table */
     if (!(unit= new (thd->mem_root) SELECT_LEX_UNIT()))
       DBUG_RETURN(1);
@@ -10079,8 +10078,7 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
     /* Start Digest */
     parser_state->m_digest_psi= MYSQL_DIGEST_START(thd->m_statement_psi);
 
-    if (parser_state->m_input.m_compute_digest ||
-       (parser_state->m_digest_psi != NULL))
+    if (parser_state->m_digest_psi != NULL)
     {
       /*
         If either:

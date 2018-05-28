@@ -3034,7 +3034,7 @@ public:
 
   enum enum_yes_no_unknown tx_chain, tx_release;
   bool safe_to_cache_query;
-  bool subqueries, ignore;
+  bool ignore;
   st_parsing_options parsing_options;
   Alter_info alter_info;
   /*
@@ -3053,7 +3053,6 @@ public:
   sp_name *spname;
   bool sp_lex_in_use;   // Keep track on lex usage in SPs for error handling
   bool all_privileges;
-  bool proxy_priv;
 
   sp_pcontext *spcont;
 
@@ -4141,18 +4140,6 @@ public:
 };
 
 /**
-  Input parameters to the parser.
-*/
-struct Parser_input
-{
-  bool m_compute_digest;
-
-  Parser_input()
-    : m_compute_digest(false)
-  {}
-};
-
-/**
   Internal state of the parser.
   The complete state consist of:
   - state data used during lexical parsing,
@@ -4179,7 +4166,6 @@ public:
   ~Parser_state()
   {}
 
-  Parser_input m_input;
   Lex_input_stream m_lip;
   Yacc_state m_yacc;
 

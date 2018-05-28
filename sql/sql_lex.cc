@@ -698,7 +698,6 @@ void LEX::start(THD *thd_arg)
   describe= 0;
   analyze_stmt= 0;
   explain_json= false;
-  subqueries= FALSE;
   context_analysis_only= 0;
   derived_tables= 0;
   safe_to_cache_query= 1;
