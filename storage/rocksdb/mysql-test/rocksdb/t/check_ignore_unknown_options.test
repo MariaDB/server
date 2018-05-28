@@ -22,5 +22,5 @@ let SEARCH_PATTERN= RocksDB: Compatibility check against existing database optio
 --enable_reconnect
 --exec echo "restart" > $restart_file
 --source include/wait_until_connected_again.inc
---exec find $MYSQLD_DATADIR/#rocksdb/OPTIONS* | sort -n | tail -1 | xargs -0 -I {} -t sh -c "sed -i '/hello=world/d' {}"
+--exec find $MYSQLD_DATADIR/#rocksdb/OPTIONS* | sort -n | tail -1 | xargs -0 -I {} -t sh -c "sed -i'' -e '/hello=world/d' {}"
 select variable_name, variable_value from information_schema.global_variables where variable_name="rocksdb_ignore_unknown_options";
