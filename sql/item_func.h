@@ -2358,8 +2358,8 @@ public:
   Item_func_user_var(THD *thd, Item_func_user_var *item)
     :Item_hybrid_func(thd, item),
     m_var_entry(item->m_var_entry), name(item->name) { }
-  Field *create_tmp_field(bool group, TABLE *table)
-  { return create_table_field_from_handler(table); }
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param);
   Field *create_field_for_create_select(TABLE *table)
   { return create_table_field_from_handler(table); }
   bool check_vcol_func_processor(void *arg);
@@ -2533,6 +2533,12 @@ public:
   uint load_data_fixed_length() const
   {
     return 0;
+  }
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param)
+  {
+    DBUG_ASSERT(0);
+    return NULL;
   }
   /* We should return something different from FIELD_ITEM here */
   enum Type type() const { return STRING_ITEM;}
@@ -2839,6 +2845,8 @@ public:
 
   const Type_handler *type_handler() const;
 
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param);
   Field *create_field_for_create_select(TABLE *table)
   {
     return result_type() != STRING_RESULT ?

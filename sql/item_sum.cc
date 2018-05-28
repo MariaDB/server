@@ -1237,9 +1237,11 @@ Field *Item_sum_hybrid::create_tmp_field(bool group, TABLE *table)
   if (args[0]->type() == Item::FIELD_ITEM)
   {
     Field *field= ((Item_field*) args[0])->field;
-    if ((field= create_tmp_field_from_field(table->in_use, field, &name,
-                                            table, NULL)))
-      field->flags&= ~NOT_NULL_FLAG;
+    if ((field= field->create_tmp_field(table->in_use->mem_root, table, true)))
+    {
+      DBUG_ASSERT((field->flags & NOT_NULL_FLAG) == 0);
+      field->field_name= name;
+    }
     DBUG_RETURN(field);
   }
   DBUG_RETURN(tmp_table_field_from_field_type(table));

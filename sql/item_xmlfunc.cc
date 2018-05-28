@@ -187,6 +187,12 @@ public:
     nodeset->length(0);
   }
   enum Type type() const { return XPATH_NODESET; }
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param)
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
   String *val_str(String *str)
   {
     prepare_nodes();
@@ -592,7 +598,12 @@ public:
   {
     return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
   }
-
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param)
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
   longlong val_int()
   {
     Item_func *comp= (Item_func*)args[1];

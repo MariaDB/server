@@ -1804,10 +1804,6 @@ bool setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 void copy_fields(TMP_TABLE_PARAM *param);
 bool copy_funcs(Item **func_ptr, const THD *thd);
 uint find_shortest_key(TABLE *table, const key_map *usable_keys);
-Field* create_tmp_field_from_field(THD *thd, Field* org_field,
-                                   LEX_CSTRING *name, TABLE *table,
-                                   Item_field *item);
-
 bool is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args);
 
 /* functions from opt_sum.cc */
@@ -2059,12 +2055,6 @@ bool mysql_select(THD *thd,
 void free_underlaid_joins(THD *thd, SELECT_LEX *select);
 bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit,
                          select_result *result);
-Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
-			Item ***copy_func, Field **from_field,
-                        Field **def_field,
-			bool group, bool modify_item,
-			bool table_cant_handle_bit_fields,
-                        bool make_copy_field);
 
 /*
   General routine to change field->ptr of a NULL-terminated array of Field

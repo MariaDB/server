@@ -1562,3 +1562,29 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def					INET_ATON("255.255.255.255.255.255.255.255")	8	21	20	Y	32928	0	63
 INET_ATON("255.255.255.255.255.255.255.255")
 18446744073709551615
+#
+# End of 10.3 tests
+#
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-16309 Split ::create_tmp_field() into virtual methods in Item
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+BEGIN NOT ATOMIC
+DECLARE a TEXT;
+DECLARE c CURSOR FOR SELECT NAME_CONST('x','y') FROM t1;
+OPEN c;
+FETCH c INTO a;
+CLOSE c;
+SELECT a;
+END;
+$$
+a
+y
+DROP TABLE t1;
+#
+# End of 10.4 tests
+#

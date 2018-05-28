@@ -510,7 +510,12 @@ public:
   }
   virtual void make_unique() { force_copy_fields= TRUE; }
   Item *get_tmp_table_item(THD *thd);
-  Field *create_tmp_field(bool group, TABLE *table);
+  virtual Field *create_tmp_field(bool group, TABLE *table);
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param)
+  {
+    return create_tmp_field(param->group(), table);
+  }
   virtual bool collect_outer_ref_processor(void *param);
   bool init_sum_func_check(THD *thd);
   bool check_sum_func(THD *thd, Item **ref);
@@ -1377,6 +1382,11 @@ public:
     fixed= true;
   }
   table_map used_tables() const { return (table_map) 1L; }
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param)
+  {
+    return create_tmp_field_ex_simple(table, src, param);
+  }
   void save_in_result_field(bool no_conversions) { DBUG_ASSERT(0); }
   bool check_vcol_func_processor(void *arg)
   {

@@ -99,7 +99,9 @@ class sp_head;
 class Protocol;
 struct TABLE_LIST;
 void item_init(void);			/* Init item functions */
+class Item_result_field;
 class Item_field;
+class Item_ref;
 class Item_param;
 class user_var_entry;
 class JOIN;
@@ -603,6 +605,70 @@ public:
 };
 
 
+/**
+  A helper class describing what kind of Item created a temporary field.
+  - If m_field is set, then the temporary field was created from Field
+    (e.g. when the Item was Item_field, or Item_ref pointing to Item_field)
+  - If m_default_field is set, then there is a usable DEFAULT value.
+    (e.g. when the Item is Item_field)
+  - If m_item_result_field is set, then the temporary field was created
+    from certain sub-types of Item_result_field (e.g. Item_func)
+  See create_tmp_field() in sql_select.cc for details.
+*/
+
+class Tmp_field_src
+{
+  Field *m_field;
+  Field *m_default_field;
+  Item_result_field *m_item_result_field;
+public:
+  Tmp_field_src()
+   :m_field(0),
+    m_default_field(0),
+    m_item_result_field(0)
+  { }
+  Field *field() const { return m_field; }
+  Field *default_field() const { return m_default_field; }
+  Item_result_field *item_result_field() const { return m_item_result_field; }
+  void set_field(Field *field) { m_field= field; }
+  void set_default_field(Field *field) { m_default_field= field; }
+  void set_item_result_field(Item_result_field *item)
+  { m_item_result_field= item; }
+};
+
+
+/**
+  Parameters for create_tmp_field_ex().
+  See create_tmp_field() in sql_select.cc for details.
+*/
+
+class Tmp_field_param
+{
+  bool m_group;
+  bool m_modify_item;
+  bool m_table_cant_handle_bit_fields;
+  bool m_make_copy_field;
+public:
+  Tmp_field_param(bool group,
+                  bool modify_item,
+                  bool table_cant_handle_bit_fields,
+                  bool make_copy_field)
+   :m_group(group),
+    m_modify_item(modify_item),
+    m_table_cant_handle_bit_fields(table_cant_handle_bit_fields),
+    m_make_copy_field(make_copy_field)
+  { }
+  bool group() const { return m_group; }
+  bool modify_item() const { return m_modify_item; }
+  bool table_cant_handle_bit_fields() const
+  { return m_table_cant_handle_bit_fields; }
+  bool make_copy_field() const { return m_make_copy_field; }
+  void set_modify_item(bool to) { m_modify_item= to; }
+};
+
+
+/****************************************************************************/
+
 class Item: public Value_source,
             public Type_all_attributes
 {
@@ -635,7 +701,7 @@ public:
              SUBSELECT_ITEM, ROW_ITEM, CACHE_ITEM, TYPE_HOLDER,
              PARAM_ITEM, TRIGGER_FIELD_ITEM, DECIMAL_ITEM,
              XPATH_NODESET, XPATH_NODESET_CMP,
-             VIEW_FIXER_ITEM, EXPR_CACHE_ITEM,
+             EXPR_CACHE_ITEM,
              DATE_ITEM};
 
   enum cond_result { COND_UNDEF,COND_OK,COND_TRUE,COND_FALSE };
@@ -681,6 +747,24 @@ protected:
     const Type_handler *h= type_handler()->type_handler_for_tmp_table(this);
     return h->make_and_init_table_field(&name, Record_addr(maybe_null),
                                         *this, table);
+  }
+  /**
+    Create a temporary field for a simple Item, which does not
+    need any special action after the field creation:
+    - is not an Item_field descendant (and not a reference to Item_field)
+    - is not an Item_result_field descendant
+    - does not need to copy any DEFAULT value to the result Field
+    - does not need to set Field::is_created_from_null_item for the result
+    See create_tmp_field_ex() for details on parameters and return values.
+  */
+  Field *create_tmp_field_ex_simple(TABLE *table,
+                                    Tmp_field_src *src,
+                                    const Tmp_field_param *param)
+  {
+    DBUG_ASSERT(!param->make_copy_field());
+    DBUG_ASSERT(!is_result_field());
+    DBUG_ASSERT(type() != NULL_ITEM);
+    return tmp_table_field_from_field_type(table);
   }
   Field *create_tmp_field_int(TABLE *table, uint convert_int_length);
 
@@ -1540,7 +1624,6 @@ public:
     set field of temporary table for Item which can be switched on temporary
     table during query processing (grouping and so on)
   */
-  virtual void set_result_field(Field *field) {}
   virtual bool is_result_field() { return 0; }
   virtual bool is_bool_type() { return false; }
   virtual bool is_json_type() { return false; }
@@ -1817,11 +1900,17 @@ public:
     return Type_handler::type_handler_long_or_longlong(max_char_length());
   }
 
-  virtual Field *create_tmp_field(bool group, TABLE *table)
-  {
-    return tmp_table_field_from_field_type(table);
-  }
-
+  /**
+    Create field for temporary table.
+    @param table          Temporary table
+    @param [OUT] src      Who created the fields
+    @param param          Create parameters
+    @retval               NULL (on error)
+    @retval               a pointer to a newly create Field (on success)
+  */
+  virtual Field *create_tmp_field_ex(TABLE *table,
+                                     Tmp_field_src *src,
+                                     const Tmp_field_param *param)= 0;
   virtual Item_field *field_for_view_update() { return 0; }
 
   virtual bool vers_trx_id() const
@@ -2374,6 +2463,8 @@ protected:
            value == ((Item_basic_value*)item)->val_int() &&
            (value >= 0 || item->unsigned_flag == unsigned_flag);
   }
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param);
 };
 
 
@@ -2455,6 +2546,11 @@ public:
   
   inline bool const_item() const;
   
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param)
+  {
+    return create_tmp_field_ex_simple(table, src, param);
+  }
   inline int save_in_field(Field *field, bool no_conversions);
   inline bool send(Protocol *protocol, st_value *buffer);
   bool check_vcol_func_processor(void *arg) 
@@ -2733,6 +2829,16 @@ public:
     return TRUE;
   }
 
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param)
+  {
+    /*
+      We can get to here when using a CURSOR for a query with NAME_CONST():
+        DECLARE c CURSOR FOR SELECT NAME_CONST('x','y') FROM t1;
+        OPEN c;
+    */
+    return create_tmp_field_ex_simple(table, src, param);
+  }
   int save_in_field(Field *field, bool no_conversions)
   {
     return  value_item->save_in_field(field, no_conversions);
@@ -2778,13 +2884,15 @@ public:
   {}
   ~Item_result_field() {}			/* Required with gcc 2.95 */
   Field *get_tmp_table_field() { return result_field; }
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param);
+  void get_tmp_field_src(Tmp_field_src *src, const Tmp_field_param *param);
   /*
     This implementation of used_tables() used by Item_avg_field and
     Item_variance_field which work when only temporary table left, so theu
     return table map of the temporary table.
   */
   table_map used_tables() const { return 1; }
-  void set_result_field(Field *field) { result_field= field; }
   bool is_result_field() { return true; }
   void save_in_result_field(bool no_conversions)
   {
@@ -2877,6 +2985,12 @@ public:
     Type_std_attributes::set(par_field);
   }
   enum Type type() const { return FIELD_ITEM; }
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param)
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
   double val_real() { return field->val_real(); }
   longlong val_int() { return field->val_int(); }
   String *val_str(String *str) { return field->val_str(str); }
@@ -2992,6 +3106,11 @@ public:
       return &type_handler_null;
     return field->type_handler();
   }
+  Field *create_tmp_field_from_item_field(TABLE *new_table,
+                                          Item_ref *orig_item,
+                                          const Tmp_field_param *param);
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param);
   TYPELIB *get_typelib() const { return field->get_typelib(); }
   uint32 field_flags() const
   {
@@ -3048,7 +3167,6 @@ public:
                                          cond_equal_ref);
   }
   bool is_result_field() { return false; }
-  void set_result_field(Field *field_arg) {}
   void save_in_result_field(bool no_conversions) { }
   Item *get_tmp_table_item(THD *thd);
   bool collect_item_field_processor(void * arg);
@@ -3257,6 +3375,12 @@ public:
     return result_field->type_handler();
   }
 #endif
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param)
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
   void save_in_result_field(bool no_conversions)
   {
     save_in_field(result_field, no_conversions);
@@ -3675,8 +3799,6 @@ public:
   enum Type type() const { return INT_ITEM; }
   const Type_handler *type_handler() const
   { return type_handler_long_or_longlong(); }
-  Field *create_tmp_field(bool group, TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
   Field *create_field_for_create_select(TABLE *table)
   { return tmp_table_field_from_field_type(table); }
   longlong val_int() { DBUG_ASSERT(fixed == 1); return value; }
@@ -4800,6 +4922,8 @@ public:
   Field *get_tmp_table_field()
   { return result_field ? result_field : (*ref)->get_tmp_table_field(); }
   Item *get_tmp_table_item(THD *thd);
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param);
   table_map used_tables() const;		
   void update_used_tables(); 
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
@@ -5549,6 +5673,12 @@ public:
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
 
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param)
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
   void make_send_field(THD *thd, Send_field *field)
   { item->make_send_field(thd, field); }
   table_map used_tables() const { return (table_map) 1L; }
@@ -6518,7 +6648,8 @@ public:
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String*);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  Field *create_tmp_field(bool group, TABLE *table)
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param)
   {
     return Item_type_holder::real_type_handler()->
            make_and_init_table_field(&name, Record_addr(maybe_null),

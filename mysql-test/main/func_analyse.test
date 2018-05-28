@@ -181,3 +181,47 @@ SELECT * FROM t1 NATURAL JOIN (SELECT * FROM t2 PROCEDURE ANALYSE());
 SELECT (SELECT 1 FROM t1 PROCEDURE ANALYSE()) FROM t2;
 --error ER_PARSE_ERROR
 SELECT ((SELECT 1 FROM t1 PROCEDURE ANALYSE())) FROM t2;
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-16309 Split ::create_tmp_field() into virtual methods in Item
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+--vertical_results
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE rec ROW(Field_name TEXT,
+                  Min_value TEXT,
+                  Max_value TEXT,
+                  Min_length TEXT,
+                  Max_length TEXT,
+                  Empties_or_zeros TEXT,
+                  Nulls TEXT,
+                  Avg_value_or_avg_length TEXT,
+                  Std TEXT,
+                  Optimal_fieldtype TEXT);
+  DECLARE c CURSOR FOR SELECT * FROM t1 PROCEDURE analyse();
+  OPEN c;
+  FETCH c INTO rec;
+  CLOSE c;
+  SELECT rec.field_name,
+         rec.Min_value, rec.Max_value,
+         rec.Min_length, rec. Max_length,
+         rec.Empties_or_zeros, rec.Nulls,
+         rec.Avg_value_or_avg_length, rec.Std,
+         rec.Optimal_fieldtype;
+END;
+$$
+DELIMITER ;$$
+--horizontal_results
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

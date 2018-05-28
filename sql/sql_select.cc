@@ -16525,60 +16525,6 @@ const_expression_in_where(COND *cond, Item *comp_item, Field *comp_field,
   Create internal temporary table
 ****************************************************************************/
 
-/**
-  Create field for temporary table from given field.
-
-  @param thd	       Thread handler
-  @param org_field    field from which new field will be created
-  @param name         New field name
-  @param table	       Temporary table
-  @param item	       !=NULL if item->result_field should point to new field.
-                      This is relevant for how fill_record() is going to work:
-                      If item != NULL then fill_record() will update
-                      the record in the original table.
-                      If item == NULL then fill_record() will update
-                      the temporary table
-
-  @retval
-    NULL		on error
-  @retval
-    new_created field
-*/
-
-Field *create_tmp_field_from_field(THD *thd, Field *org_field,
-                                   LEX_CSTRING *name, TABLE *table,
-                                   Item_field *item)
-{
-  Field *new_field;
-
-  new_field= org_field->make_new_field(thd->mem_root, table,
-                                       table == org_field->table);
-  if (new_field)
-  {
-    new_field->init(table);
-    new_field->orig_table= org_field->orig_table;
-    if (item)
-      item->result_field= new_field;
-    else
-      new_field->field_name= *name;
-    new_field->flags|= org_field->flags & NO_DEFAULT_VALUE_FLAG;
-    if (org_field->maybe_null() || (item && item->maybe_null))
-      new_field->flags&= ~NOT_NULL_FLAG;	// Because of outer join
-    if (org_field->type() == MYSQL_TYPE_VAR_STRING ||
-        org_field->type() == MYSQL_TYPE_VARCHAR)
-      table->s->db_create_options|= HA_OPTION_PACK_RECORD;
-    else if (org_field->type() == FIELD_TYPE_DOUBLE)
-      ((Field_double *) new_field)->not_fixed= TRUE;
-    new_field->vcol_info= 0;
-    new_field->cond_selectivity= 1.0;
-    new_field->next_equal_field= NULL;
-    new_field->option_list= NULL;
-    new_field->option_struct= NULL;
-  }
-  return new_field;
-}
-
-
 Field *Item::create_tmp_field_int(TABLE *table, uint convert_int_length)
 {
   const Type_handler *h= &type_handler_long;
@@ -16615,59 +16561,6 @@ Field *Item_sum::create_tmp_field(bool group, TABLE *table)
   }
   if (new_field)
     new_field->init(table);
-  return new_field;
-}
-
-
-static void create_tmp_field_from_item_finalize(THD *thd,
-                                                Field *new_field,
-                                                Item *item,
-                                                Item ***copy_func,
-                                                bool modify_item)
-{
-  if (copy_func &&
-      (item->is_result_field() ||
-       (item->real_item()->is_result_field())))
-    *((*copy_func)++) = item;			// Save for copy_funcs
-  if (modify_item)
-    item->set_result_field(new_field);
-  if (item->type() == Item::NULL_ITEM)
-    new_field->is_created_from_null_item= TRUE;
-}
-
-
-/**
-  Create field for temporary table using type of given item.
-
-  @param thd                   Thread handler
-  @param item                  Item to create a field for
-  @param table                 Temporary table
-  @param copy_func             If set and item is a function, store copy of
-                               item in this array
-  @param modify_item           1 if item->result_field should point to new
-                               item. This is relevent for how fill_record()
-                               is going to work:
-                               If modify_item is 1 then fill_record() will
-                               update the record in the original table.
-                               If modify_item is 0 then fill_record() will
-                               update the temporary table
-  @param convert_blob_length   If >0 create a varstring(convert_blob_length)
-                               field instead of blob.
-
-  @retval
-    0  on error
-  @retval
-    new_created field
-*/
-
-static Field *create_tmp_field_from_item(THD *thd, Item *item, TABLE *table,
-                                         Item ***copy_func, bool modify_item)
-{
-  Field *UNINIT_VAR(new_field);
-  DBUG_ASSERT(thd == table->in_use);
-  if ((new_field= item->create_tmp_field(false, table)))
-    create_tmp_field_from_item_finalize(thd, new_field, item,
-                                        copy_func, modify_item);
   return new_field;
 }
 
@@ -16709,19 +16602,206 @@ Field *Item::create_field_for_schema(THD *thd, TABLE *table)
 
 
 /**
+  Create a temporary field for Item_field (or its descendant),
+  either direct or referenced by an Item_ref.
+*/
+Field *
+Item_field::create_tmp_field_from_item_field(TABLE *new_table,
+                                             Item_ref *orig_item,
+                                             const Tmp_field_param *param)
+{
+  DBUG_ASSERT(!is_result_field());
+  Field *result;
+  /*
+    If item have to be able to store NULLs but underlaid field can't do it,
+    create_tmp_field_from_field() can't be used for tmp field creation.
+  */
+  if (((maybe_null && in_rollup) ||
+      (new_table->in_use->create_tmp_table_for_derived && /* for mat. view/dt */
+       orig_item && orig_item->maybe_null)) &&
+      !field->maybe_null())
+  {
+    /*
+      The item the ref points to may have maybe_null flag set while
+      the ref doesn't have it. This may happen for outer fields
+      when the outer query decided at some point after name resolution phase
+      that this field might be null. Take this into account here.
+    */
+    Record_addr rec(orig_item ? orig_item->maybe_null : maybe_null);
+    const Type_handler *handler= type_handler()->
+                                   type_handler_for_tmp_table(this);
+    result= handler->make_and_init_table_field(&name, rec, *this, new_table);
+  }
+  else if (param->table_cant_handle_bit_fields() &&
+           field->type() == MYSQL_TYPE_BIT)
+  {
+    const Type_handler *handler= type_handler_long_or_longlong();
+    result= handler->make_and_init_table_field(&name,
+                                               Record_addr(maybe_null),
+                                               *this, new_table);
+  }
+  else
+  {
+    LEX_CSTRING *tmp= orig_item ? &orig_item->name : &name;
+    bool tmp_maybe_null= param->modify_item() ? maybe_null :
+                                                field->maybe_null();
+    result= field->create_tmp_field(new_table->in_use->mem_root, new_table,
+                                    tmp_maybe_null);
+    if (result)
+      result->field_name= *tmp;
+  }
+  if (result && param->modify_item())
+    result_field= result;
+  return result;
+}
+
+
+Field *Item_field::create_tmp_field_ex(TABLE *table,
+                                       Tmp_field_src *src,
+                                       const Tmp_field_param *param)
+{
+  DBUG_ASSERT(!is_result_field());
+  Field *result;
+  src->set_field(field);
+  if (!(result= create_tmp_field_from_item_field(table, NULL, param)))
+    return NULL;
+  /*
+    Fields that are used as arguments to the DEFAULT() function already have
+    their data pointers set to the default value during name resolution. See
+    Item_default_value::fix_fields.
+  */
+  if (type() != Item::DEFAULT_VALUE_ITEM && field->eq_def(result))
+    src->set_default_field(field);
+  return result;
+}
+
+
+Field *Item_ref::create_tmp_field_ex(TABLE *table,
+                                     Tmp_field_src *src,
+                                     const Tmp_field_param *param)
+{
+  Item *item= real_item();
+  DBUG_ASSERT(is_result_field());
+  if (item->type() == Item::FIELD_ITEM)
+  {
+    Field *result;
+    Item_field *field= (Item_field*) item;
+    Tmp_field_param prm2(*param);
+    prm2.set_modify_item(false);
+    src->set_field(field->field);
+    if (!(result= field->create_tmp_field_from_item_field(table, this, &prm2)))
+      return NULL;
+    if (param->modify_item())
+      result_field= result;
+    return result;
+  }
+  return Item_result_field::create_tmp_field_ex(table, src, param);
+}
+
+
+void Item_result_field::get_tmp_field_src(Tmp_field_src *src,
+                                          const Tmp_field_param *param)
+{
+  if (param->make_copy_field())
+  {
+    DBUG_ASSERT(result_field);
+    src->set_field(result_field);
+  }
+  else
+  {
+    src->set_item_result_field(this); // Save for copy_funcs
+  }
+}
+
+
+Field *Item_result_field::create_tmp_field_ex(TABLE *table,
+                                              Tmp_field_src *src,
+                                              const Tmp_field_param *param)
+{
+  /*
+    Possible Item types:
+    - Item_cache_wrapper  (only for CREATE..SELECT ?)
+    - Item_func
+    - Item_subselect
+  */
+  DBUG_ASSERT(is_result_field());
+  DBUG_ASSERT(type() != NULL_ITEM);
+  get_tmp_field_src(src, param);
+  Field *result;
+  if ((result= tmp_table_field_from_field_type(table)) && param->modify_item())
+    result_field= result;
+  return result;
+}
+
+
+Field *Item_func_user_var::create_tmp_field_ex(TABLE *table,
+                                               Tmp_field_src *src,
+                                               const Tmp_field_param *param)
+{
+  DBUG_ASSERT(is_result_field());
+  DBUG_ASSERT(type() != NULL_ITEM);
+  get_tmp_field_src(src, param);
+  Field *result;
+  if ((result= create_table_field_from_handler(table)) && param->modify_item())
+    result_field= result;
+  return result;
+}
+
+
+Field *Item_func_sp::create_tmp_field_ex(TABLE *table,
+                                         Tmp_field_src *src,
+                                         const Tmp_field_param *param)
+{
+  Field *result;
+  get_tmp_field_src(src, param);
+  if ((result= sp_result_field->create_tmp_field(table->in_use->mem_root,
+                                                 table)))
+  {
+    result->field_name= name;
+    if (param->modify_item())
+      result_field= result;
+  }
+  return result;
+}
+
+
+Field *Item_basic_value::create_tmp_field_ex(TABLE *table,
+                                             Tmp_field_src *src,
+                                             const Tmp_field_param *param)
+{
+  /*
+    create_tmp_field_ex() for this type of Items is called for:
+    - CREATE TABLE ... SELECT
+    - In ORDER BY: SELECT max(a) FROM t1 GROUP BY a ORDER BY 'const';
+    - In CURSORS:
+        DECLARE c CURSOR FOR SELECT 'test';
+        OPEN c;
+  */
+  DBUG_ASSERT(!param->make_copy_field());
+  DBUG_ASSERT(!is_result_field());
+  Field *result;
+  if ((result= tmp_table_field_from_field_type(table)))
+  {
+    if (type() == Item::NULL_ITEM) // Item_null or Item_param
+      result->is_created_from_null_item= true;
+  }
+  return result;
+}
+
+
+/**
   Create field for temporary table.
 
-  @param thd		Thread handler
-  @param table		Temporary table
-  @param item		Item to create a field for
-  @param type		Type of item (normally item->type)
-  @param copy_func	If set and item is a function, store copy of item
+  @param table         Temporary table
+  @param item          Item to create a field for
+  @param type          Type of item (normally item->type)
+  @param copy_func     If set and item is a function, store copy of item
                        in this array
   @param from_field    if field will be created using other field as example,
                        pointer example field will be written here
-  @param default_field	If field has a default value field, store it here
-  @param group		1 if we are going to do a relative group by on result
-  @param modify_item	1 if item->result_field should point to new item.
+  @param default_field If field has a default value field, store it here
+  @param group         1 if we are going to do a relative group by on result
+  @param modify_item   1 if item->result_field should point to new item.
                        This is relevent for how fill_record() is going to
                        work:
                        If modify_item is 1 then fill_record() will update
@@ -16730,172 +16810,28 @@ Field *Item::create_field_for_schema(THD *thd, TABLE *table)
                        the temporary table
 
   @retval
-    0			on error
+    0                  on error
   @retval
     new_created field
+  Create a temporary field for Item_field (or its descendant),
+  either direct or referenced by an Item_ref.
 */
-
-Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
+Field *create_tmp_field(TABLE *table, Item *item,
                         Item ***copy_func, Field **from_field,
                         Field **default_field,
                         bool group, bool modify_item,
                         bool table_cant_handle_bit_fields,
                         bool make_copy_field)
 {
-  Field *result;
-  Item::Type orig_type= type;
-  Item *orig_item= 0;
-
-  DBUG_ASSERT(thd == table->in_use);
-
-  if (type != Item::FIELD_ITEM &&
-      item->real_item()->type() == Item::FIELD_ITEM)
-  {
-    orig_item= item;
-    item= item->real_item();
-    type= Item::FIELD_ITEM;
-  }
-
-  switch (type) {
-  case Item::TYPE_HOLDER:
-  case Item::SUM_FUNC_ITEM:
-  {
-    result= item->create_tmp_field(group, table);
-    if (!result)
-      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
-    return result;
-  }
-  case Item::FIELD_ITEM:
-  case Item::DEFAULT_VALUE_ITEM:
-  case Item::INSERT_VALUE_ITEM:
-  case Item::TRIGGER_FIELD_ITEM:
-  {
-    Item_field *field= (Item_field*) item;
-    bool orig_modify= modify_item;
-    if (orig_type == Item::REF_ITEM)
-      modify_item= 0;
-    /*
-      If item have to be able to store NULLs but underlaid field can't do it,
-      create_tmp_field_from_field() can't be used for tmp field creation.
-    */
-    if (((field->maybe_null && field->in_rollup) ||      
-	(thd->create_tmp_table_for_derived  &&    /* for mat. view/dt */
-	 orig_item && orig_item->maybe_null)) &&         
-        !field->field->maybe_null())
-    {
-      bool save_maybe_null= FALSE;
-      /*
-        The item the ref points to may have maybe_null flag set while
-        the ref doesn't have it. This may happen for outer fields
-        when the outer query decided at some point after name resolution phase
-        that this field might be null. Take this into account here.
-      */
-      if (orig_item)
-      {
-        save_maybe_null= item->maybe_null;
-        item->maybe_null= orig_item->maybe_null;
-      }
-      result= create_tmp_field_from_item(thd, item, table, NULL,
-                                         modify_item);
-      *from_field= field->field;
-      if (result && modify_item)
-        field->result_field= result;
-      if (orig_item)
-        item->maybe_null= save_maybe_null;
-    } 
-    else if (table_cant_handle_bit_fields && field->field->type() ==
-             MYSQL_TYPE_BIT)
-    {
-      const Type_handler *handler= item->type_handler_long_or_longlong();
-      *from_field= field->field;
-      if ((result=
-             handler->make_and_init_table_field(&item->name,
-                                                Record_addr(item->maybe_null),
-                                                *item, table)))
-        create_tmp_field_from_item_finalize(thd, result, item,
-                                            copy_func, modify_item);
-      if (result && modify_item)
-        field->result_field= result;
-    }
-    else
-    {
-      LEX_CSTRING *tmp= orig_item ? &orig_item->name : &item->name;
-      result= create_tmp_field_from_field(thd, (*from_field= field->field),
-                                          tmp, table,
-                                          modify_item ? field :
-                                          NULL);
-    }
-
-    if (orig_type == Item::REF_ITEM && orig_modify)
-      ((Item_ref*)orig_item)->set_result_field(result);
-    /*
-      Fields that are used as arguments to the DEFAULT() function already have
-      their data pointers set to the default value during name resolution. See
-      Item_default_value::fix_fields.
-    */
-    if (orig_type != Item::DEFAULT_VALUE_ITEM && field->field->eq_def(result))
-      *default_field= field->field;
-    return result;
-  }
-  /* Fall through */
-  case Item::FUNC_ITEM:
-    if (((Item_func *) item)->functype() == Item_func::FUNC_SP)
-    {
-      Item_func_sp *item_func_sp= (Item_func_sp *) item;
-      Field *sp_result_field= item_func_sp->get_sp_result_field();
-
-      if (make_copy_field)
-      {
-        DBUG_ASSERT(item_func_sp->result_field);
-        *from_field= item_func_sp->result_field;
-      }
-      else
-      {
-        *((*copy_func)++)= item;
-      }
-      Field *result_field=
-        create_tmp_field_from_field(thd,
-                                    sp_result_field,
-                                    &item_func_sp->name,
-                                    table,
-                                    NULL);
-
-      if (modify_item)
-        item->set_result_field(result_field);
-
-      return result_field;
-    }
-
-    /* Fall through */
-  case Item::COND_ITEM:
-  case Item::FIELD_AVG_ITEM:
-  case Item::FIELD_STD_ITEM:
-  case Item::SUBSELECT_ITEM:
-    /* The following can only happen with 'CREATE TABLE ... SELECT' */
-  case Item::PROC_ITEM:
-  case Item::INT_ITEM:
-  case Item::REAL_ITEM:
-  case Item::DECIMAL_ITEM:
-  case Item::STRING_ITEM:
-  case Item::DATE_ITEM:
-  case Item::REF_ITEM:
-  case Item::NULL_ITEM:
-  case Item::VARBIN_ITEM:
-  case Item::CACHE_ITEM:
-  case Item::WINDOW_FUNC_ITEM: // psergey-winfunc:
-  case Item::EXPR_CACHE_ITEM:
-  case Item::PARAM_ITEM:
-    if (make_copy_field)
-    {
-      DBUG_ASSERT(((Item_result_field*)item)->result_field);
-      *from_field= ((Item_result_field*)item)->result_field;
-    }
-    return create_tmp_field_from_item(thd, item, table,
-                                      (make_copy_field ? 0 : copy_func),
-                                       modify_item);
-  default:					// Dosen't have to be stored
-    return 0;
-  }
+  Tmp_field_src src;
+  Tmp_field_param prm(group, modify_item, table_cant_handle_bit_fields,
+                      make_copy_field);
+  Field *result= item->create_tmp_field_ex(table, &src, &prm);
+  *from_field= src.field();
+  *default_field= src.default_field();
+  if (src.item_result_field())
+    *((*copy_func)++)= src.item_result_field();
+  return result;
 }
 
 /*
@@ -17202,7 +17138,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
 	{
           Item *tmp_item;
           Field *new_field=
-            create_tmp_field(thd, table, arg, arg->type(), &copy_func,
+            create_tmp_field(table, arg, &copy_func,
                              tmp_from_field, &default_field[fieldnr],
                              group != 0,not_all_columns,
                              distinct, false);
@@ -17252,7 +17188,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     else
     {
       /*
-	The last parameter to create_tmp_field() is a bit tricky:
+	The last parameter to create_tmp_field_ex() is a bit tricky:
 
 	We need to set it to 0 in union, to get fill_record() to modify the
 	temporary table.
@@ -17266,7 +17202,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
       */
       Field *new_field= (param->schema_table) ?
         item->create_field_for_schema(thd, table) :
-        create_tmp_field(thd, table, item, type, &copy_func,
+        create_tmp_field(table, item, &copy_func,
                          tmp_from_field, &default_field[fieldnr],
                          group != 0,
                          !force_copy_fields &&
@@ -17280,7 +17216,6 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
                          */
                          item->marker == 4  || param->bit_fields_as_long,
                          force_copy_fields);
-
       if (!new_field)
       {
 	if (thd->is_fatal_error)
@@ -23466,7 +23401,7 @@ calc_group_buffer(JOIN *join,ORDER *group)
         {
           /*
             Group strings are taken as varstrings and require an length field.
-            A field is not yet created by create_tmp_field()
+            A field is not yet created by create_tmp_field_ex()
             and the sizes should match up.
           */
           key_length+= group_item->max_length + HA_KEY_BLOB_LENGTH;

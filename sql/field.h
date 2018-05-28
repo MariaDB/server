@@ -1228,6 +1228,12 @@ public:
   virtual Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                                uchar *new_ptr, uint32 length,
                                uchar *new_null_ptr, uint new_null_bit);
+  Field *create_tmp_field(MEM_ROOT *root, TABLE *new_table,
+                          bool maybe_null_arg);
+  Field *create_tmp_field(MEM_ROOT *root, TABLE *new_table)
+  {
+    return create_tmp_field(root, new_table, maybe_null());
+  }
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table);
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table, my_ptrdiff_t diff,
                bool stat_flag= FALSE);
@@ -1388,7 +1394,19 @@ public:
     orig_table= table= table_arg;
     set_table_name(&table_arg->alias);
   }
-
+  virtual void init_for_tmp_table(Field *org_field, TABLE *new_table)
+  {
+    init(new_table);
+    orig_table= org_field->orig_table;
+    vcol_info= 0;
+    cond_selectivity= 1.0;
+    next_equal_field= NULL;
+    option_list= NULL;
+    option_struct= NULL;
+    if (org_field->type() == MYSQL_TYPE_VAR_STRING ||
+        org_field->type() == MYSQL_TYPE_VARCHAR)
+      new_table->s->db_create_options|= HA_OPTION_PACK_RECORD;
+  }
   /* maximum possible display length */
   virtual uint32 max_display_length()= 0;
 
@@ -2307,6 +2325,11 @@ public:
       if (dec_arg >= FLOATING_POINT_DECIMALS)
         dec_arg= NOT_FIXED_DEC;
     }
+  void init_for_tmp_table(Field *org_field, TABLE *new_table)
+  {
+    Field::init_for_tmp_table(org_field, new_table);
+    not_fixed= true;
+  }
   const Type_handler *type_handler() const { return &type_handler_double; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_DOUBLE; }
   int  store(const char *to,size_t length,CHARSET_INFO *charset);

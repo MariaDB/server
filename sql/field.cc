@@ -2331,6 +2331,36 @@ Field *Field::new_key_field(MEM_ROOT *root, TABLE *new_table,
 }
 
 
+/**
+  Create field for temporary table from given field.
+
+  @param thd	        Thread handler
+  @param table	        Temporary table
+  @param maybe_null_arg If the result field should be NULL-able,
+                        even if the original field is NOT NULL, e.g. for:
+                        - OUTER JOIN fields
+                        - WITH ROLLUP fields
+                        - arguments of aggregate functions, e.g. SUM(column1)
+  @retval               NULL, on error
+  @retval               pointer to the new field created, on success.
+*/
+
+Field *Field::create_tmp_field(MEM_ROOT *mem_root, TABLE *new_table,
+                               bool maybe_null_arg)
+{
+  Field *new_field;
+
+  if ((new_field= make_new_field(mem_root, new_table, new_table == table)))
+  {
+    new_field->init_for_tmp_table(this, new_table);
+    new_field->flags|= flags & NO_DEFAULT_VALUE_FLAG;
+    if (maybe_null_arg)
+      new_field->flags&= ~NOT_NULL_FLAG; // Because of outer join
+  }
+  return new_field;
+}
+
+
 /* This is used to generate a field in TABLE from TABLE_SHARE */
 
 Field *Field::clone(MEM_ROOT *root, TABLE *new_table)
