@@ -56,7 +56,7 @@ struct READ_RECORD
   Read_func read_record_func;
   THD *thd;
   SQL_SELECT *select;
-  uint ref_length,struct_length,reclength,rec_cache_size,error_offset;
+  uint ref_length, reclength, rec_cache_size, error_offset;
   uchar *ref_pos;				/* pointer to form->refpos */
   uchar *record;
   uchar *rec_buf;                /* to read field values  after filesort */
