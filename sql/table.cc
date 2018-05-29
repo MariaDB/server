@@ -44,6 +44,7 @@
 #include "sql_cte.h"
 #include "ha_sequence.h"
 #include "sql_show.h"
+#include <atomic>
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -79,7 +80,7 @@ LEX_CSTRING MYSQL_PROC_NAME= {STRING_WITH_LEN("proc")};
 */
 static LEX_CSTRING parse_vcol_keyword= { STRING_WITH_LEN("PARSE_VCOL_EXPR ") };
 
-static int64 last_table_id;
+static std::atomic<ulong> last_table_id;
 
 	/* Functions defined in this file */
 
@@ -343,8 +344,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     */
     do
     {
-      share->table_map_id=(ulong) my_atomic_add64_explicit(&last_table_id, 1,
-                                                    MY_MEMORY_ORDER_RELAXED);
+      share->table_map_id=
+        last_table_id.fetch_add(1, std::memory_order_relaxed);
     } while (unlikely(share->table_map_id == ~0UL));
   }
   DBUG_RETURN(share);

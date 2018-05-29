@@ -70,7 +70,7 @@ run_gdb(pid_t parent_pid, const char *gdb_path) {
            "-ex", "thread apply all bt",
            "-ex", "thread apply all bt full",
            exe_buf, pid_buf,
-           NULL);
+           (char*) NULL);
 }
 
 static void
