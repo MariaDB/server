@@ -1216,7 +1216,9 @@ err:
   }
   close_thread_tables(thd);			// Shouldn't be needed
   thd->mdl_context.release_transactional_locks();
+#ifdef WITH_PARTITION_STORAGE_ENGINE
 err2:
+#endif
   thd->resume_subsequent_commits(suspended_wfc);
   DBUG_RETURN(TRUE);
 }

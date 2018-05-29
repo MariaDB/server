@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1177,7 +1177,8 @@ retry:
 #endif
 	ut_ad(btr_search_enabled);
 
-	ut_ad(block->page.id.space() == index->space);
+	ut_ad(index->space == FIL_NULL
+	      || block->page.id.space() == index->space);
 	ut_a(index_id == index->id);
 	ut_a(!dict_index_is_ibuf(index));
 #ifdef UNIV_DEBUG
@@ -1300,15 +1301,10 @@ cleanup:
 	ut_free(folds);
 }
 
-/** Drop any adaptive hash index entries that may point to an index
-page that may be in the buffer pool, when a page is evicted from the
-buffer pool or freed in a file segment.
-@param[in]	page_id		page id
-@param[in]	page_size	page size */
-void
-btr_search_drop_page_hash_when_freed(
-	const page_id_t&	page_id,
-	const page_size_t&	page_size)
+/** Drop possible adaptive hash index entries when a page is evicted
+from the buffer pool or freed in a file, or the index is being dropped.
+@param[in]	page_id		page id */
+void btr_search_drop_page_hash_when_freed(const page_id_t& page_id)
 {
 	buf_block_t*	block;
 	mtr_t		mtr;
@@ -1324,7 +1320,7 @@ btr_search_drop_page_hash_when_freed(
 	are possibly holding, we cannot s-latch the page, but must
 	(recursively) x-latch it, even though we are only reading. */
 
-	block = buf_page_get_gen(page_id, page_size, RW_X_LATCH, NULL,
+	block = buf_page_get_gen(page_id, univ_page_size, RW_X_LATCH, NULL,
 				 BUF_PEEK_IF_IN_POOL, __FILE__, __LINE__,
 				 &mtr, &err);
 

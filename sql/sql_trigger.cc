@@ -623,6 +623,7 @@ end:
 #endif /* WITH_WSREP */
 }
 
+
 /**
   Build stmt_query to write it in the bin-log, the statement to write in
   the trigger file and the trigger definer.
@@ -1182,6 +1183,12 @@ Table_triggers_list::~Table_triggers_list()
       }
     }
   }
+
+  /* Free blobs used in insert */
+  if (record0_field)
+    for (Field **fld_ptr= record0_field; *fld_ptr; fld_ptr++)
+      (*fld_ptr)->free();
+
   if (record1_field)
     for (Field **fld_ptr= record1_field; *fld_ptr; fld_ptr++)
       delete *fld_ptr;

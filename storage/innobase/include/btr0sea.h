@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -129,15 +130,10 @@ btr_search_move_or_delete_hash_entries(
 void
 btr_search_drop_page_hash_index(buf_block_t* block);
 
-/** Drop any adaptive hash index entries that may point to an index
-page that may be in the buffer pool, when a page is evicted from the
-buffer pool or freed in a file segment.
-@param[in]	page_id		page id
-@param[in]	page_size	page size */
-void
-btr_search_drop_page_hash_when_freed(
-	const page_id_t&	page_id,
-	const page_size_t&	page_size);
+/** Drop possible adaptive hash index entries when a page is evicted
+from the buffer pool or freed in a file, or the index is being dropped.
+@param[in]	page_id		page id */
+void btr_search_drop_page_hash_when_freed(const page_id_t& page_id);
 
 /** Updates the page hash index when a single record is inserted on a page.
 @param[in]	cursor	cursor which was positioned to the place to insert

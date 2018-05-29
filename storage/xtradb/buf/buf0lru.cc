@@ -238,8 +238,6 @@ void
 buf_LRU_drop_page_hash_batch(
 /*=========================*/
 	ulint		space_id,	/*!< in: space id */
-	ulint		zip_size,	/*!< in: compressed page size in bytes
-					or 0 for uncompressed pages */
 	const ulint*	arr,		/*!< in: array of page_no */
 	ulint		count)		/*!< in: number of entries in array */
 {
@@ -249,8 +247,7 @@ buf_LRU_drop_page_hash_batch(
 	ut_ad(count <= BUF_LRU_DROP_SEARCH_SIZE);
 
 	for (i = 0; i < count; ++i) {
-		btr_search_drop_page_hash_when_freed(space_id, zip_size,
-						     arr[i]);
+		btr_search_drop_page_hash_when_freed(space_id, arr[i]);
 	}
 }
 
@@ -269,15 +266,6 @@ buf_LRU_drop_page_hash_for_tablespace(
 	buf_page_t*	bpage;
 	ulint*		page_arr;
 	ulint		num_entries;
-	ulint		zip_size;
-
-	zip_size = fil_space_get_zip_size(id);
-
-	if (UNIV_UNLIKELY(zip_size == ULINT_UNDEFINED)) {
-		/* Somehow, the tablespace does not exist.  Nothing to drop. */
-		ut_ad(0);
-		return;
-	}
 
 	page_arr = static_cast<ulint*>(ut_malloc(
 		sizeof(ulint) * BUF_LRU_DROP_SEARCH_SIZE));
@@ -331,8 +319,7 @@ next_page:
 		the latching order. */
 		mutex_exit(&buf_pool->LRU_list_mutex);
 
-		buf_LRU_drop_page_hash_batch(
-			id, zip_size, page_arr, num_entries);
+		buf_LRU_drop_page_hash_batch(id, page_arr, num_entries);
 
 		num_entries = 0;
 
@@ -363,8 +350,30 @@ next_page:
 	mutex_exit(&buf_pool->LRU_list_mutex);
 	
 	/* Drop any remaining batch of search hashed pages. */
-	buf_LRU_drop_page_hash_batch(id, zip_size, page_arr, num_entries);
+	buf_LRU_drop_page_hash_batch(id, page_arr, num_entries);
 	ut_free(page_arr);
+}
+
+/** Drop the adaptive hash index for a tablespace.
+@param[in,out]	table	table */
+UNIV_INTERN void buf_LRU_drop_page_hash_for_tablespace(dict_table_t* table)
+{
+	for (dict_index_t* index = dict_table_get_first_index(table);
+	     index != NULL;
+	     index = dict_table_get_next_index(index)) {
+		if (btr_search_info_get_ref_count(btr_search_get_info(index),
+						  index)) {
+			goto drop_ahi;
+		}
+	}
+
+	return;
+drop_ahi:
+	ulint id = table->space;
+	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
+		buf_LRU_drop_page_hash_for_tablespace(buf_pool_from_array(i),
+						      id);
+	}
 }
 
 /******************************************************************//**
@@ -733,18 +742,11 @@ buf_flush_dirty_pages(buf_pool_t* buf_pool, ulint id, const trx_t* trx)
 /** Empty the flush list for all pages belonging to a tablespace.
 @param[in]	id		tablespace identifier
 @param[in]	trx		transaction, for checking for user interrupt;
-				or NULL if nothing is to be written
-@param[in]	drop_ahi	whether to drop the adaptive hash index */
-UNIV_INTERN
-void
-buf_LRU_flush_or_remove_pages(ulint id, const trx_t* trx, bool drop_ahi)
+				or NULL if nothing is to be written */
+UNIV_INTERN void buf_LRU_flush_or_remove_pages(ulint id, const trx_t* trx)
 {
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
-		buf_pool_t* buf_pool = buf_pool_from_array(i);
-		if (drop_ahi) {
-			buf_LRU_drop_page_hash_for_tablespace(buf_pool, id);
-		}
-		buf_flush_dirty_pages(buf_pool, id, trx);
+		buf_flush_dirty_pages(buf_pool_from_array(i), id, trx);
 	}
 
 	if (trx && !trx_is_interrupted(trx)) {

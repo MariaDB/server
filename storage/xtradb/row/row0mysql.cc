@@ -3540,6 +3540,8 @@ row_truncate_table_for_mysql(
 			fil_space_release(space);
 		}
 
+		buf_LRU_drop_page_hash_for_tablespace(table);
+
 		if (flags != ULINT_UNDEFINED
 		    && fil_discard_tablespace(space_id) == DB_SUCCESS) {
 
@@ -4237,6 +4239,21 @@ row_drop_table_for_mysql(
 		/* Mark the index unusable. */
 		index->page = FIL_NULL;
 		rw_lock_x_unlock(dict_index_get_lock(index));
+	}
+
+	if (table->space != TRX_SYS_SPACE) {
+		/* On DISCARD TABLESPACE, we would not drop the
+		adaptive hash index entries. If the tablespace is
+		missing here, delete-marking the record in SYS_INDEXES
+		would not free any pages in the buffer pool. Thus,
+		dict_index_remove_from_cache() would hang due to
+		adaptive hash index entries existing in the buffer
+		pool.  To prevent this hang, and also to guarantee
+		that btr_search_drop_page_hash_when_freed() will avoid
+		calling btr_search_drop_page_hash_index() while we
+		hold the InnoDB dictionary lock, we will drop any
+		adaptive hash index entries upfront. */
+		buf_LRU_drop_page_hash_for_tablespace(table);
 	}
 
 	/* We use the private SQL parser of Innobase to generate the
