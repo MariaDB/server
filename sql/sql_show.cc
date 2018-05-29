@@ -7288,11 +7288,7 @@ static void store_schema_partitions_record(THD *thd, TABLE *schema_table,
                               strlen(part_elem->tablespace_name), cs);
     else
     {
-      char *ts= showing_table->s->tablespace;
-      if(ts)
-        table->field[24]->store(ts, strlen(ts), cs);
-      else
-        table->field[24]->set_null();
+      table->field[24]->set_null();
     }
   }
   return;
