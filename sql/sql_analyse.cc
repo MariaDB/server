@@ -68,6 +68,25 @@ int compare_decimal2(int* len, const char *s, const char *t)
 }
 
 
+static bool
+prepare_param(THD *thd, Item **item, const char *proc_name, uint pos)
+{
+  if (!(*item)->fixed && (*item)->fix_fields(thd, item))
+  {
+    DBUG_PRINT("info", ("fix_fields() for the parameter %u failed", pos));
+    return true;
+  }
+  if ((*item)->type_handler()->result_type() != INT_RESULT ||
+      !(*item)->basic_const_item() ||
+      (*item)->val_real() < 0)
+  {
+    my_error(ER_WRONG_PARAMETERS_TO_PROCEDURE, MYF(0), proc_name);
+    return true;
+  }
+  return false;
+}
+
+
 Procedure *
 proc_analyse_init(THD *thd, ORDER *param, select_result *result,
 		  List<Item> &field_list)
@@ -88,17 +107,8 @@ proc_analyse_init(THD *thd, ORDER *param, select_result *result,
   else if (param->next)
   {
     // first parameter
-    if (!(*param->item)->fixed && (*param->item)->fix_fields(thd, param->item))
-    {
-      DBUG_PRINT("info", ("fix_fields() for the first parameter failed"));
+    if (prepare_param(thd, param->item, proc_name, 0))
       goto err;
-    }
-    if ((*param->item)->type() != Item::INT_ITEM ||
-	(*param->item)->val_real() < 0)
-    {
-      my_error(ER_WRONG_PARAMETERS_TO_PROCEDURE, MYF(0), proc_name);
-      goto err;
-    }
     pc->max_tree_elements = (uint) (*param->item)->val_int();
     param = param->next;
     if (param->next)  // no third parameter possible
@@ -107,25 +117,12 @@ proc_analyse_init(THD *thd, ORDER *param, select_result *result,
       goto err;
     }
     // second parameter
-    if (!(*param->item)->fixed && (*param->item)->fix_fields(thd, param->item))
-    {
-      DBUG_PRINT("info", ("fix_fields() for the second parameter failed"));
+    if (prepare_param(thd, param->item, proc_name, 1))
       goto err;
-    }
-    if ((*param->item)->type() != Item::INT_ITEM ||
-	(*param->item)->val_real() < 0)
-    {
-      my_error(ER_WRONG_PARAMETERS_TO_PROCEDURE, MYF(0), proc_name);
-      goto err;
-    }
     pc->max_treemem = (uint) (*param->item)->val_int();
   }
-  else if ((*param->item)->type() != Item::INT_ITEM ||
-	   (*param->item)->val_real() < 0)
-  {
-    my_error(ER_WRONG_PARAMETERS_TO_PROCEDURE, MYF(0), proc_name);
+  else if (prepare_param(thd, param->item, proc_name, 0))
     goto err;
-  }
   // if only one parameter was given, it will be the value of max_tree_elements
   else
   {

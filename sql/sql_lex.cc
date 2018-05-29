@@ -2887,8 +2887,7 @@ void st_select_lex::print_order(String *str,
     else
     {
       /* replace numeric reference with equivalent for ORDER constant */
-      if (order->item[0]->type() == Item::INT_ITEM &&
-          order->item[0]->basic_const_item())
+      if (order->item[0]->is_order_clause_position())
       {
         /* make it expression instead of integer constant */
         str->append(STRING_WITH_LEN("''"));
@@ -6850,11 +6849,9 @@ Item *LEX::create_item_limit(THD *thd,
 #endif
   safe_to_cache_query= 0;
 
-  if (item->type() != Item::INT_ITEM)
-  {
-    my_error(ER_WRONG_SPVAR_TYPE_IN_LIMIT, MYF(0));
+  if (!item->is_valid_limit_clause_variable_with_error())
     return NULL;
-  }
+
   item->limit_clause_param= true;
   return item;
 }
@@ -6877,11 +6874,8 @@ Item *LEX::create_item_limit(THD *thd,
   Item_splocal *item;
   if (!(item= create_item_spvar_row_field(thd, rh, a, b, spv, start, end)))
     return NULL;
-  if (item->type() != Item::INT_ITEM)
-  {
-    my_error(ER_WRONG_SPVAR_TYPE_IN_LIMIT, MYF(0));
+  if (!item->is_valid_limit_clause_variable_with_error())
     return NULL;
-  }
   item->limit_clause_param= true;
   return item;
 }

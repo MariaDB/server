@@ -22771,12 +22771,7 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
   uint counter;
   enum_resolution_type resolution;
 
-  /*
-    Local SP variables may be int but are expressions, not positions.
-    (And they can't be used before fix_fields is called for them).
-  */
-  if (order_item->type() == Item::INT_ITEM && order_item->basic_const_item() &&
-      !from_window_spec)
+  if (order_item->is_order_clause_position() && !from_window_spec)
   {						/* Order by position */
     uint count;
     if (order->counter_used)

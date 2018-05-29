@@ -1340,6 +1340,14 @@ public:
     a constant expression. Used in the optimizer to propagate basic constants.
   */
   virtual bool basic_const_item() const { return 0; }
+  /*
+    Test if "this" is an ORDER position (rather than an expression).
+    Notes:
+    - can be called before fix_fields().
+    - local SP variables (even of integer types) are always expressions, not
+      positions. (And they can't be used before fix_fields is called for them).
+  */
+  virtual bool is_order_clause_position() const { return false; }
   /* cloning of constant items (0 if it is not const) */
   virtual Item *clone_item(THD *thd) { return 0; }
   virtual Item* build_clone(THD *thd) { return get_copy(thd); }
@@ -2654,6 +2662,20 @@ public:
   */
   Field *create_field_for_create_select(TABLE *table)
   { return tmp_table_field_from_field_type(table); }
+
+  bool is_valid_limit_clause_variable_with_error() const
+  {
+    /*
+      In case if the variable has an anchored data type, e.g.:
+        DECLARE a TYPE OF t1.a;
+      type_handler() is set to &type_handler_null and this
+      function detects such variable as not valid in LIMIT.
+    */
+    if (type_handler()->is_limit_clause_valid_type())
+      return true;
+    my_error(ER_WRONG_SPVAR_TYPE_IN_LIMIT, MYF(0));
+    return false;
+  }
 };
 
 
@@ -3606,6 +3628,13 @@ public:
     return item_type;
   }
 
+  bool is_order_clause_position() const
+  {
+    DBUG_ASSERT(fixed || state == NO_VALUE);
+    return state == SHORT_DATA_VALUE &&
+           type_handler()->is_order_clause_position_type();
+  }
+
   double val_real()
   {
     return can_return_value() ? value.val_real() : 0e0;
@@ -3808,6 +3837,7 @@ public:
   String *val_str(String*);
   int save_in_field(Field *field, bool no_conversions);
   bool basic_const_item() const { return 1; }
+  bool is_order_clause_position() const { return true; }
   Item *clone_item(THD *thd);
   virtual void print(String *str, enum_query_type query_type);
   Item *neg(THD *thd);

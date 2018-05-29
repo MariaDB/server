@@ -1031,6 +1031,14 @@ public:
   {
     return false;
   }
+  virtual bool is_order_clause_position_type() const
+  {
+    return false;
+  }
+  virtual bool is_limit_clause_valid_type() const
+  {
+    return false;
+  }
   /**
     Check whether a field type can be partially indexed by a key.
     @param  type   field type
@@ -1906,6 +1914,8 @@ class Type_handler_int_result: public Type_handler_numeric
 public:
   Item_result result_type() const { return INT_RESULT; }
   Item_result cmp_type() const { return INT_RESULT; }
+  bool is_order_clause_position_type() const { return true; }
+  bool is_limit_clause_valid_type() const { return true; }
   virtual ~Type_handler_int_result() {}
   const Type_handler *type_handler_for_comparison() const;
   bool subquery_type_allows_materialization(const Item *inner,
