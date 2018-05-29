@@ -58,7 +58,6 @@ struct READ_RECORD
   SQL_SELECT *select;
   uint cache_records;
   uint ref_length,struct_length,reclength,rec_cache_size,error_offset;
-  uint index;
   uchar *ref_pos;				/* pointer to form->refpos */
   uchar *record;
   uchar *rec_buf;                /* to read field values  after filesort */
