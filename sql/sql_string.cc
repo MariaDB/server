@@ -240,8 +240,17 @@ bool String::copy(const char *str,size_t arg_length, CHARSET_INFO *cs)
 {
   if (alloc(arg_length))
     return TRUE;
-  DBUG_ASSERT(arg_length <= UINT_MAX32);
-  if ((str_length=(uint32)arg_length))
+  DBUG_ASSERT(arg_length < UINT_MAX32);
+  if (Ptr == str && arg_length == uint32(str_length))
+  {
+    /*
+      This can happen in some cases. This code is here mainly to avoid
+      warnings from valgrind, but can also be an indication of error.
+    */
+    DBUG_PRINT("warning", ("Copying string on itself: %p  %zu",
+                           str, arg_length));
+  }
+  else if ((str_length=uint32(arg_length)))
     memcpy(Ptr,str,arg_length);
   Ptr[arg_length]=0;
   str_charset=cs;

@@ -6095,10 +6095,28 @@ drop_create_field:
     List_iterator<Alter_drop> drop_it(alter_info->drop_list);
     Alter_drop *drop;
     bool remove_drop;
+    ulonglong left_flags= 0;
     while ((drop= drop_it++))
     {
+      ulonglong cur_flag= 0;
+      switch (drop->type) {
+      case Alter_drop::COLUMN:
+        cur_flag= ALTER_PARSER_DROP_COLUMN;
+        break;
+      case Alter_drop::FOREIGN_KEY:
+        cur_flag= ALTER_DROP_FOREIGN_KEY;
+        break;
+      case Alter_drop::KEY:
+        cur_flag= ALTER_DROP_INDEX;
+        break;
+      default:
+        break;
+      }
       if (!drop->drop_if_exists)
+      {
+        left_flags|= cur_flag;
         continue;
+      }
       remove_drop= TRUE;
       if (drop->type == Alter_drop::COLUMN)
       {
@@ -6190,12 +6208,15 @@ drop_create_field:
                             ER_THD(thd, ER_CANT_DROP_FIELD_OR_KEY),
                             drop->type_name(), drop->name);
         drop_it.remove();
-        if (alter_info->drop_list.is_empty())
-          alter_info->flags&= ~(ALTER_PARSER_DROP_COLUMN |
-                                ALTER_DROP_INDEX  |
-                                ALTER_DROP_FOREIGN_KEY);
       }
+      else
+        left_flags|= cur_flag;
     }
+    /* Reset state to what's left in drop list */
+    alter_info->flags&= ~(ALTER_PARSER_DROP_COLUMN |
+                          ALTER_DROP_INDEX |
+                          ALTER_DROP_FOREIGN_KEY);
+    alter_info->flags|= left_flags;
   }
 
   /* ALTER TABLE ADD KEY IF NOT EXISTS */
@@ -6309,8 +6330,9 @@ remove_key:
       }
     }
   }
-  
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
+  DBUG_ASSERT(thd->work_part_info == 0);
   partition_info *tab_part_info= table->part_info;
   thd->work_part_info= thd->lex->part_info;
   if (tab_part_info)
@@ -9016,6 +9038,10 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        uint order_num, ORDER *order, bool ignore)
 {
   DBUG_ENTER("mysql_alter_table");
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  thd->work_part_info= 0;                       // Used by partitioning
+#endif
 
   /*
     Check if we attempt to alter mysql.slow_log or

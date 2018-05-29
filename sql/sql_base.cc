@@ -1481,15 +1481,15 @@ open_table_get_mdl_lock(THD *thd, Open_table_context *ot_ctx,
   return FALSE;
 }
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
 /* Set all [named] partitions as used. */
 static int set_partitions_as_used(TABLE_LIST *tl, TABLE *t)
 {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (t->part_info)
     return t->file->change_partitions_to_open(tl->partition_names);
-#endif
   return 0;
 }
+#endif
 
 
 /**
@@ -1535,7 +1535,9 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
   MDL_ticket *mdl_ticket;
   TABLE_SHARE *share;
   uint gts_flags;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
   int part_names_error=0;
+#endif
   DBUG_ENTER("open_table");
 
   /*
@@ -1633,7 +1635,9 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       table= best_table;
       table->query_id= thd->query_id;
       DBUG_PRINT("info",("Using locked table"));
+#ifdef WITH_PARTITION_STORAGE_ENGINE
       part_names_error= set_partitions_as_used(table_list, table);
+#endif
       goto reset;
     }
     /*
@@ -1918,7 +1922,9 @@ retry_share:
   {
     DBUG_ASSERT(table->file != NULL);
     MYSQL_REBIND_TABLE(table->file);
+#ifdef WITH_PARTITION_STORAGE_ENGINE
     part_names_error= set_partitions_as_used(table_list, table);
+#endif
   }
   else
   {

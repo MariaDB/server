@@ -1,0 +1,36 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-16229 Replication aborts with ER_VIEW_SELECT_TMPTABLE after
+# half-failed RENAME
+#
+CREATE TABLE t1 (a INT);
+CREATE TEMPORARY TABLE t1 (b INT);
+RENAME TABLE t1 TO tmp, tmp TO t1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE VIEW v AS SELECT * FROM t1;
+ERROR HY000: View's SELECT refers to a temporary table 't1'
+RENAME TABLE t1 TO tmp, t1 TO t2;
+SHOW CREATE TABLE tmp;
+Table	Create Table
+tmp	CREATE TEMPORARY TABLE `tmp` (
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE VIEW v AS SELECT * FROM tmp;
+ERROR HY000: View's SELECT refers to a temporary table 'tmp'
+CREATE VIEW v AS SELECT * FROM t2;
+connection slave;
+connection master;
+DROP VIEW v;
+DROP TABLE tmp;
+DROP TABLE t2;
+include/rpl_end.inc

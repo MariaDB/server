@@ -225,24 +225,17 @@ particular space id.
 @param[in]	count		number of entries in array */
 static
 void
-buf_LRU_drop_page_hash_batch(
-	ulint			space_id,
-	const ulint*		arr,
-	ulint			count)
+buf_LRU_drop_page_hash_batch(ulint space_id, const ulint* arr, ulint count)
 {
 	ut_ad(count <= BUF_LRU_DROP_SEARCH_SIZE);
 
-	for (ulint i = 0; i < count; ++i, ++arr) {
+	for (const ulint* const end = arr + count; arr != end; ) {
 		/* While our only caller
 		buf_LRU_drop_page_hash_for_tablespace()
 		is being executed for DROP TABLE or similar,
-		the table cannot be evicted from the buffer pool.
-		Note: this should not be executed for DROP TABLESPACE,
-		because DROP TABLESPACE would be refused if tables existed
-		in the tablespace, and a previous DROP TABLE would have
-		already removed the AHI entries. */
+		the table cannot be evicted from the buffer pool. */
 		btr_search_drop_page_hash_when_freed(
-			page_id_t(space_id, *arr));
+			page_id_t(space_id, *arr++));
 	}
 }
 
@@ -358,6 +351,28 @@ next_page:
 	/* Drop any remaining batch of search hashed pages. */
 	buf_LRU_drop_page_hash_batch(id, page_arr, num_entries);
 	ut_free(page_arr);
+}
+
+/** Drop the adaptive hash index for a tablespace.
+@param[in,out]	table	table */
+void buf_LRU_drop_page_hash_for_tablespace(dict_table_t* table)
+{
+	for (dict_index_t* index = dict_table_get_first_index(table);
+	     index != NULL;
+	     index = dict_table_get_next_index(index)) {
+		if (btr_search_info_get_ref_count(btr_search_get_info(index),
+						  index)) {
+			goto drop_ahi;
+		}
+	}
+
+	return;
+drop_ahi:
+	ulint id = table->space_id;
+	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
+		buf_LRU_drop_page_hash_for_tablespace(buf_pool_from_array(i),
+						      id);
+	}
 }
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -682,26 +697,13 @@ buf_flush_dirty_pages(
 @param[in]	id		tablespace identifier
 @param[in]	observer	flush observer,
 				or NULL if nothing is to be written */
-void
-buf_LRU_flush_or_remove_pages(
-	ulint		id,
-	FlushObserver*	observer
-#ifdef BTR_CUR_HASH_ADAPT
-	, bool drop_ahi /*!< whether to drop the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
-	)
+void buf_LRU_flush_or_remove_pages(ulint id, FlushObserver* observer)
 {
 	/* Pages in the system tablespace must never be discarded. */
 	ut_ad(id || observer);
 
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
-		buf_pool_t* buf_pool = buf_pool_from_array(i);
-#ifdef BTR_CUR_HASH_ADAPT
-		if (drop_ahi) {
-			buf_LRU_drop_page_hash_for_tablespace(buf_pool, id);
-		}
-#endif /* BTR_CUR_HASH_ADAPT */
-		buf_flush_dirty_pages(buf_pool, id, observer);
+		buf_flush_dirty_pages(buf_pool_from_array(i), id, observer);
 	}
 
 	if (observer && !observer->is_interrupted()) {

@@ -195,13 +195,14 @@ static void mysql_ha_close_childs(THD *thd, TABLE_LIST *current_table_list,
 
 static void mysql_ha_close_table(SQL_HANDLER *handler)
 {
+  DBUG_ENTER("mysql_ha_close_table");
   THD *thd= handler->thd;
   TABLE *table= handler->table;
   TABLE_LIST *current_table_list= NULL, *next_global;
 
   /* check if table was already closed */
   if (!table)
-    return;
+    DBUG_VOID_RETURN;
 
   if ((next_global= table->file->get_next_global_for_child()))
     current_table_list= next_global->parent_l;
@@ -232,6 +233,7 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
   }
   my_free(handler->lock);
   handler->init();
+  DBUG_VOID_RETURN;
 }
 
 /*

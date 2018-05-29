@@ -2698,11 +2698,7 @@ fil_delete_tablespace(
 	To deal with potential read requests, we will check the
 	::stop_new_ops flag in fil_io(). */
 
-	buf_LRU_flush_or_remove_pages(id, NULL
-#ifdef BTR_CUR_HASH_ADAPT
-				      , drop_ahi
-#endif /* BTR_CUR_HASH_ADAPT */
-				      );
+	buf_LRU_flush_or_remove_pages(id, NULL);
 
 	/* If it is a delete then also delete any generated files, otherwise
 	when we drop the database the remove directory will fail. */

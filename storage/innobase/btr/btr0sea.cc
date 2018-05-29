@@ -1145,7 +1145,7 @@ retry:
 #endif
 	ut_ad(btr_search_enabled);
 
-	ut_ad(block->page.id.space() == index->table->space->id);
+	ut_ad(block->page.id.space() == index->table->space_id);
 	ut_a(index_id == index->id);
 	ut_a(!dict_index_is_ibuf(index));
 #ifdef UNIV_DEBUG
@@ -1271,9 +1271,8 @@ cleanup:
 	ut_free(folds);
 }
 
-/** Drop any adaptive hash index entries that may point to an index
-page that may be in the buffer pool, when a page is evicted from the
-buffer pool or freed in a file segment.
+/** Drop possible adaptive hash index entries when a page is evicted
+from the buffer pool or freed in a file, or the index is being dropped.
 @param[in]	page_id		page id */
 void btr_search_drop_page_hash_when_freed(const page_id_t& page_id)
 {
@@ -2056,7 +2055,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 
 			ut_a(!dict_index_is_ibuf(block->index));
 			ut_ad(block->page.id.space()
-			      == block->index->table->space->id);
+			      == block->index->table->space_id);
 
 			page_index_id = btr_page_get_index_id(block->frame);
 

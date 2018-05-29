@@ -2192,7 +2192,8 @@ static void mysqld_exit(int exit_code)
   if (opt_endinfo && global_status_var.global_memory_used)
     fprintf(stderr, "Warning: Memory not freed: %ld\n",
             (long) global_status_var.global_memory_used);
-  if (!opt_debugging && !my_disable_leak_check && exit_code == 0)
+  if (!opt_debugging && !my_disable_leak_check && exit_code == 0 &&
+      debug_assert_on_not_freed_memory)
   {
 #ifdef SAFEMALLOC
     sf_report_leaked_memory(0);

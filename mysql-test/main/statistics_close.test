@@ -1,0 +1,18 @@
+#
+# MDEV-16123 ASAN heap-use-after-free handler::ha_index_or_rnd_end
+# MDEV-13828 Segmentation fault on RENAME TABLE
+#
+
+CREATE TABLE t1 (i int);
+--connect (con1,localhost,root,,test)
+--send
+RENAME TABLE t1 TO t2;
+--connection default
+FLUSH TABLES;
+--connection con1
+--reap
+
+# Cleanup
+--disconnect con1
+--connection default
+DROP TABLE IF EXISTS t1, t2;

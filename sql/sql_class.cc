@@ -6686,7 +6686,8 @@ int THD::binlog_write_row(TABLE* table, bool is_trans,
     Pack records into format for transfer. We are allocating more
     memory than needed, but that doesn't matter.
   */
-  Row_data_memory memory(table, max_row_length(table, record));
+  Row_data_memory memory(table, max_row_length(table, table->rpl_write_set,
+                                               record));
   if (!memory.has_memory())
     return HA_ERR_OUT_OF_MEM;
 
@@ -6723,8 +6724,10 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
   DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
             ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
 
-  size_t const before_maxlen = max_row_length(table, before_record);
-  size_t const after_maxlen  = max_row_length(table, after_record);
+  size_t const before_maxlen= max_row_length(table, table->read_set,
+                                             before_record);
+  size_t const after_maxlen=  max_row_length(table, table->rpl_write_set,
+                                             after_record);
 
   Row_data_memory row_data(table, before_maxlen, after_maxlen);
   if (!row_data.has_memory())
@@ -6800,7 +6803,8 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
      Pack records into format for transfer. We are allocating more
      memory than needed, but that doesn't matter.
   */
-  Row_data_memory memory(table, max_row_length(table, record));
+  Row_data_memory memory(table, max_row_length(table, table->read_set,
+                                               record));
   if (unlikely(!memory.has_memory()))
     return HA_ERR_OUT_OF_MEM;
 
@@ -6839,15 +6843,17 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
 }
 
 
+/**
+   Remove from read_set spurious columns. The write_set has been
+   handled before in table->mark_columns_needed_for_update.
+*/
+
 void THD::binlog_prepare_row_images(TABLE *table)
 {
   DBUG_ENTER("THD::binlog_prepare_row_images");
-  /**
-    Remove from read_set spurious columns. The write_set has been
-    handled before in table->mark_columns_needed_for_update.
-   */
 
-  DBUG_PRINT_BITSET("debug", "table->read_set (before preparing): %s", table->read_set);
+  DBUG_PRINT_BITSET("debug", "table->read_set (before preparing): %s",
+                    table->read_set);
   THD *thd= table->in_use;
 
   /**
@@ -6865,7 +6871,7 @@ void THD::binlog_prepare_row_images(TABLE *table)
     */
     DBUG_ASSERT(table->read_set != &table->tmp_set);
 
-    switch(thd->variables.binlog_row_image)
+    switch (thd->variables.binlog_row_image)
     {
       case BINLOG_ROW_IMAGE_MINIMAL:
         /* MINIMAL: Mark only PK */
@@ -6895,7 +6901,8 @@ void THD::binlog_prepare_row_images(TABLE *table)
                                         table->write_set);
   }
 
-  DBUG_PRINT_BITSET("debug", "table->read_set (after preparing): %s", table->read_set);
+  DBUG_PRINT_BITSET("debug", "table->read_set (after preparing): %s",
+                    table->read_set);
   DBUG_VOID_RETURN;
 }
 

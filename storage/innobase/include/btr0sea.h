@@ -119,11 +119,9 @@ btr_search_move_or_delete_hash_entries(
 			i.e.: it is in state BUF_BLOCK_REMOVE_HASH */
 void btr_search_drop_page_hash_index(buf_block_t* block);
 
-/** Drop any adaptive hash index entries that may point to an index
-page that may be in the buffer pool, when a page is evicted from the
-buffer pool or freed in a file segment.
-@param[in]	page_id		page id
-@param[in]	page_size	page size */
+/** Drop possible adaptive hash index entries when a page is evicted
+from the buffer pool or freed in a file, or the index is being dropped.
+@param[in]	page_id		page id */
 void btr_search_drop_page_hash_when_freed(const page_id_t& page_id);
 
 /** Updates the page hash index when a single record is inserted on a page.

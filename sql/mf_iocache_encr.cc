@@ -49,8 +49,8 @@ static int my_b_encr_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 
   if (pos_in_file == info->end_of_file)
   {
-    info->read_pos= info->read_end= info->buffer;
-    info->pos_in_file= pos_in_file;
+    /*  reading past EOF should not empty the cache */
+    info->read_pos= info->read_end;
     info->error= 0;
     DBUG_RETURN(MY_TEST(Count));
   }

@@ -1623,11 +1623,7 @@ dict_table_rename_in_cache(
 			return(DB_OUT_OF_MEMORY);
 		}
 
-		fil_delete_tablespace(table->space->id
-#ifdef BTR_CUR_HASH_ADAPT
-				      , true
-#endif /* BTR_CUR_HASH_ADAPT */
-				      );
+		fil_delete_tablespace(table->space_id);
 
 		/* Delete any temp file hanging around. */
 		if (os_file_status(filepath, &exists, &ftype)
@@ -2593,28 +2589,13 @@ dict_index_remove_from_cache_low(
 	zero. See also: dict_table_can_be_evicted() */
 
 	do {
-		ulint ref_count = btr_search_info_get_ref_count(info, index);
-
-		if (ref_count == 0) {
+		if (!btr_search_info_get_ref_count(info, index)) {
 			break;
 		}
 
-		/* Sleep for 10ms before trying again. */
-		os_thread_sleep(10000);
-		++retries;
+		buf_LRU_drop_page_hash_for_tablespace(table);
 
-		if (retries % 500 == 0) {
-			/* No luck after 5 seconds of wait. */
-			ib::error() << "Waited for " << retries / 100
-				<< " secs for hash index"
-				" ref_count (" << ref_count << ") to drop to 0."
-				" index: " << index->name
-				<< " table: " << table->name;
-		}
-
-		/* To avoid a hang here we commit suicide if the
-		ref_count doesn't drop to zero in 600 seconds. */
-		ut_a(retries < 60000);
+		ut_a(++retries < 10000);
 	} while (srv_shutdown_state == SRV_SHUTDOWN_NONE || !lru_evict);
 #endif /* BTR_CUR_HASH_ADAPT */
 

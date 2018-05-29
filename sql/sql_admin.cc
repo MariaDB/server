@@ -430,7 +430,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                               HA_CHECK_OPT* check_opt,
                               const char *operator_name,
                               thr_lock_type lock_type,
-                              bool open_for_modify,
+                              bool org_open_for_modify,
                               bool repair_table_use_frm,
                               uint extra_open_options,
                               int (*prepare_func)(THD *, TABLE_LIST *,
@@ -497,6 +497,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     bool fatal_error=0;
     bool open_error;
     bool collect_eis=  FALSE;
+    bool open_for_modify= org_open_for_modify;
 
     DBUG_PRINT("admin", ("table: '%s'.'%s'", db, table->table_name.str));
     strxmov(table_name, db, ".", table->table_name.str, NullS);
@@ -1164,7 +1165,7 @@ send_result_message:
       }
     }
     /* Error path, a admin command failed. */
-    if (thd->transaction_rollback_request)
+    if (thd->transaction_rollback_request || fatal_error)
     {
       /*
         Unlikely, but transaction rollback was requested by one of storage
@@ -1220,7 +1221,9 @@ err:
   }
   close_thread_tables(thd);			// Shouldn't be needed
   thd->mdl_context.release_transactional_locks();
+#ifdef WITH_PARTITION_STORAGE_ENGINE
 err2:
+#endif
   thd->resume_subsequent_commits(suspended_wfc);
   DBUG_RETURN(TRUE);
 }
