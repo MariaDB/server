@@ -65,7 +65,7 @@ local_init(const char *root)
 	{
 		char errbuf[MYSYS_STRERROR_SIZE];
 		my_strerror(errbuf, sizeof(errbuf),my_errno);
-		my_error(EE_CANT_MKDIR, MYF(ME_BELL | ME_WAITTANG),
+		my_error(EE_CANT_MKDIR, MYF(ME_BELL),
 			 root, my_errno,errbuf, my_errno);
 		return NULL;
 	}
@@ -97,7 +97,7 @@ local_open(ds_ctxt_t *ctxt, const char *path,
 	if (my_mkdir(dirpath, 0777, MYF(0)) < 0 && my_errno != EEXIST) {
 		char errbuf[MYSYS_STRERROR_SIZE];
 		my_strerror(errbuf, sizeof(errbuf), my_errno);
-		my_error(EE_CANT_MKDIR, MYF(ME_BELL | ME_WAITTANG),
+		my_error(EE_CANT_MKDIR, MYF(ME_BELL),
 			 dirpath, my_errno, errbuf);
 		return NULL;
 	}

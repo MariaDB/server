@@ -42,7 +42,7 @@ int my_rename(const char *from, const char *to, myf MyFlags)
     my_errno=errno;
     error = -1;
     if (MyFlags & (MY_FAE+MY_WME))
-      my_error(EE_LINK, MYF(ME_BELL+ME_WAITTANG),from,to,my_errno);
+      my_error(EE_LINK, MYF(ME_BELL),from,to,my_errno);
   }
   else if (MyFlags & MY_SYNC_DIR)
   {

@@ -3668,7 +3668,7 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
                       int db_errno)
 {
   char buff[FN_REFLEN];
-  const myf errortype= ME_ERROR+ME_WAITTANG;  // Write fatals error to log
+  const myf errortype= ME_ERROR_LOG;  // Write fatals error to log
   DBUG_ENTER("open_table_error");
   DBUG_PRINT("info", ("error: %d  db_errno: %d", error, db_errno));
 

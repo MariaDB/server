@@ -86,11 +86,11 @@ size_t my_pread(File Filedes, uchar *Buffer, size_t Count, my_off_t offset,
       {
 	if (readbytes == (size_t) -1)
 	  my_error(EE_READ,
-                   MYF(ME_BELL | ME_WAITTANG | (MyFlags & (ME_JUST_INFO | ME_NOREFRESH))),
+                   MYF(ME_BELL | (MyFlags & (ME_JUST_INFO | ME_NOREFRESH))),
 		   my_filename(Filedes),my_errno);
 	else if (MyFlags & (MY_NABP | MY_FNABP))
 	  my_error(EE_EOFERR,
-                   MYF(ME_BELL | ME_WAITTANG | (MyFlags & (ME_JUST_INFO | ME_NOREFRESH))),
+                   MYF(ME_BELL | (MyFlags & (ME_JUST_INFO | ME_NOREFRESH))),
                    my_filename(Filedes),my_errno);
       }
       if (readbytes == (size_t) -1 || (MyFlags & (MY_FNABP | MY_NABP)))
@@ -173,7 +173,7 @@ size_t my_pwrite(int Filedes, const uchar *Buffer, size_t Count,
     if (MyFlags & (MY_NABP | MY_FNABP))
     {
       if (MyFlags & (MY_WME | MY_FAE | MY_FNABP))
-        my_error(EE_WRITE, MYF(ME_BELL | ME_WAITTANG | (MyFlags & (ME_JUST_INFO | ME_NOREFRESH))),
+        my_error(EE_WRITE, MYF(ME_BELL | (MyFlags & (ME_JUST_INFO | ME_NOREFRESH))),
                  my_filename(Filedes),my_errno);
       DBUG_RETURN(MY_FILE_ERROR);		/* Error on write */
     }

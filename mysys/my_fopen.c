@@ -76,7 +76,7 @@ FILE *my_fopen(const char *filename, int flags, myf MyFlags)
   DBUG_PRINT("error",("Got error %d on open",my_errno));
   if (MyFlags & (MY_FFNF | MY_FAE | MY_WME))
     my_error((flags & O_RDONLY) ? EE_FILENOTFOUND : EE_CANTCREATEFILE,
-	     MYF(ME_BELL+ME_WAITTANG), filename, my_errno);
+	     MYF(ME_BELL), filename, my_errno);
   DBUG_RETURN((FILE*) 0);
 } /* my_fopen */
 
@@ -182,8 +182,7 @@ int my_fclose(FILE *fd, myf MyFlags)
   {
     my_errno=errno;
     if (MyFlags & (MY_FAE | MY_WME))
-      my_error(EE_BADCLOSE, MYF(ME_BELL+ME_WAITTANG),
-	       name,errno);
+      my_error(EE_BADCLOSE, MYF(ME_BELL), name, errno);
   }
   else
     statistic_decrement(my_stream_opened, &THR_LOCK_open);
@@ -217,7 +216,7 @@ FILE *my_fdopen(File Filedes, const char *name, int Flags, myf MyFlags)
   {
     my_errno=errno;
     if (MyFlags & (MY_FAE | MY_WME))
-      my_error(EE_CANT_OPEN_STREAM, MYF(ME_BELL+ME_WAITTANG),errno);
+      my_error(EE_CANT_OPEN_STREAM, MYF(ME_BELL), errno);
   }
   else
   {

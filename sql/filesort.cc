@@ -872,8 +872,8 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   DBUG_PRINT("test",("error: %d  indexpos: %d",error,indexpos));
   if (unlikely(error != HA_ERR_END_OF_FILE))
   {
-    file->print_error(error,MYF(ME_ERROR | ME_WAITTANG)); // purecov: inspected
-    DBUG_RETURN(HA_POS_ERROR);			/* purecov: inspected */
+    file->print_error(error,MYF(ME_ERROR));
+    DBUG_RETURN(HA_POS_ERROR);
   }
   if (indexpos && idx &&
       write_keys(param, fs_info, idx, buffpek_pointers, tempfile))

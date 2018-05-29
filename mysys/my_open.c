@@ -101,7 +101,7 @@ int my_close(File fd, myf MyFlags)
     DBUG_PRINT("error",("Got error %d on close",err));
     my_errno=errno;
     if (MyFlags & (MY_FAE | MY_WME))
-      my_error(EE_BADCLOSE, MYF(ME_BELL | ME_WAITTANG | (MyFlags & (ME_JUST_INFO | ME_NOREFRESH))),
+      my_error(EE_BADCLOSE, MYF(ME_BELL | (MyFlags & (ME_JUST_INFO | ME_NOREFRESH))),
                name,errno);
   }
   if (name)
@@ -156,7 +156,7 @@ File my_register_filename(File fd, const char *FileName, enum file_type
     if (my_errno == EMFILE)
       error_message_number= EE_OUT_OF_FILERESOURCES;
     my_error(error_message_number,
-             MYF(ME_BELL | ME_WAITTANG | (MyFlags & (ME_JUST_INFO | ME_NOREFRESH))),
+             MYF(ME_BELL | (MyFlags & (ME_JUST_INFO | ME_NOREFRESH))),
              FileName, my_errno);
   }
   DBUG_RETURN(-1);

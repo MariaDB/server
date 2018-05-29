@@ -2659,7 +2659,7 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, size_t key_length)
 				      key_length + 1);
   if (!new_table)
   {
-    my_error(EE_OUTOFMEMORY, MYF(ME_BELL+ME_FATALERROR),
+    my_error(EE_OUTOFMEMORY, MYF(ME_FATALERROR),
              ALIGN_SIZE(sizeof(TABLE_LIST)) + key_length + 1);
     set_killed(KILL_CONNECTION);
     return 0;

@@ -137,7 +137,7 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
     {
       int tmp=my_errno;
       close(org_file);
-      (void) my_delete(to, MYF(MY_WME | ME_NOINPUT));
+      (void) my_delete(to, MYF(MY_WME));
       my_errno=tmp;
     }
   }

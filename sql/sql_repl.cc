@@ -3840,8 +3840,7 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
   if (!mysql_bin_log.is_open())
   {
     my_message(ER_FLUSH_MASTER_BINLOG_CLOSED,
-               ER_THD(thd, ER_FLUSH_MASTER_BINLOG_CLOSED),
-               MYF(ME_BELL+ME_WAITTANG));
+               ER_THD(thd, ER_FLUSH_MASTER_BINLOG_CLOSED), MYF(0));
     return 1;
   }
 

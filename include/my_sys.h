@@ -105,9 +105,7 @@ typedef struct my_aio_result {
 #define MY_DONT_FREE_DBUG 4U    /* Do not call DBUG_END() in my_end() */
 
 #define ME_BELL         4U      /* Ring bell then printing message */
-#define ME_WAITTANG     0       /* Wait for a user action  */
 #define ME_NOREFRESH    64U     /* Write the error message to error log */
-#define ME_NOINPUT      0       /* Don't use the input library */
 #define ME_JUST_INFO    1024U   /**< not error but just info */
 #define ME_JUST_WARNING 2048U   /**< not error but just warning */
 #define ME_FATALERROR   4096U   /* Fatal statement error */

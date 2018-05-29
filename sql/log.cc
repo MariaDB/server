@@ -2647,7 +2647,7 @@ bool MYSQL_LOG::open(
 #endif
 
   if ((file= mysql_file_open(log_file_key, log_file_name, open_flags,
-                             MYF(MY_WME | ME_WAITTANG))) < 0)
+                             MYF(MY_WME))) < 0)
     goto err;
 
   if (is_fifo)
@@ -4625,7 +4625,7 @@ int MYSQL_BIN_LOG::open_purge_index_file(bool destroy)
   if (!my_b_inited(&purge_index_file))
   {
     if ((file= my_open(purge_index_file_name, O_RDWR | O_CREAT | O_BINARY,
-                       MYF(MY_WME | ME_WAITTANG))) < 0  ||
+                       MYF(MY_WME))) < 0  ||
         init_io_cache(&purge_index_file, file, IO_SIZE,
                       (destroy ? WRITE_CACHE : READ_CACHE),
                       0, 0, MYF(MY_WME | MY_NABP | MY_WAIT_IF_FULL)))
