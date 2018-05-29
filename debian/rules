@@ -6,24 +6,11 @@ export DH_VERBOSE=1
 # see: https://wiki.debian.org/Hardening
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 DPKG_EXPORT_BUILDFLAGS = 1
-include /usr/share/dpkg/buildflags.mk
+include /usr/share/dpkg/default.mk
 
-ARCH := $(shell dpkg-architecture -qDEB_BUILD_ARCH)
-ARCH_OS := $(shell dpkg-architecture -qDEB_BUILD_ARCH_OS)
 BUILDDIR := builddir
-DEB_HOST_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
-DEB_BUILD_GNU_SYSTEM ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_SYSTEM)
-DEB_BUILD_ARCH ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
-DEB_BUILD_ARCH_OS ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH_OS)
-DEBVERSION := $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed 's/^.*-//' )
-DEB_SOURCE_PACKAGE ?= $(strip $(shell egrep '^Source: ' debian/control | cut -f 2 -d ':'))
-DEB_VERSION ?= $(shell dpkg-parsechangelog | egrep '^Version:' | cut -f 2 -d ' ')
-DEB_NOEPOCH_VERSION ?= $(shell echo $(DEB_VERSION) | cut -d: -f2-)
-DEB_UPSTREAM_VERSION ?= $(shell echo $(DEB_NOEPOCH_VERSION) | sed 's/-[^-]*$$//')
-DEB_UPSTREAM_VERSION_MAJOR_MINOR := $(shell echo $(DEB_UPSTREAM_VERSION) | sed -r -n 's/^([0-9]+\.[0-9]+).*/\1/p')
-DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
-DISTRIBUTION := $(shell lsb_release -i -s)
-RELEASE := $(shell lsb_release -r -s)
+DEB_VERSION_REVISION := $(shell echo $(DEB_VERSION) | sed -e 's/^.*-//')
+RELEASE := $(shell lsb_release -r -s) # Use changelog based DEB_DISTRIBUTION instead?
 TMP:=$(CURDIR)/debian/tmp
 
 CC := $(DEB_HOST_GNU_TYPE)-gcc
@@ -40,7 +27,7 @@ else
 endif
 
 # Ignore test suite exit code on unstable platforms
-ifneq (,$(filter $(ARCH),mips mipsel mips64el alpha powerpc sh4 hurd-i386 sparc64 kfreebsd-i386 kfreebsd-amd64))
+ifneq (,$(filter $(DEB_HOST_ARCH),mips mipsel mips64el alpha powerpc sh4 hurd-i386 sparc64 kfreebsd-i386 kfreebsd-amd64))
     TESTSUITE_FAIL_CMD:=true
 else
     TESTSUITE_FAIL_CMD:=exit 1
@@ -83,7 +70,7 @@ override_dh_auto_configure:
 	# Versioned symbols are only available on Linux.
 	# Remove symbols file on kFreeBSD builds so that
 	# dpkg-gensymbols will not fail the build.
-ifneq (,$(filter $(ARCH), kfreebsd-i386 kfreebsd-amd64))
+ifneq (,$(filter $(DEB_HOST_ARCH), kfreebsd-i386 kfreebsd-amd64))
 	rm debian/libmariadb3.symbols
 endif
 
@@ -94,14 +81,14 @@ endif
 	    cmake -DCMAKE_INSTALL_PREFIX=/usr \
 	    $(CMAKEFLAGS) \
 	    -DCOMPILATION_COMMENT="mariadb.org binary distribution" \
-	    -DMYSQL_SERVER_SUFFIX="-$(DEBVERSION)" \
-	    -DSYSTEM_TYPE="debian-$(DEB_BUILD_GNU_SYSTEM)" \
-	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_BUILD_ARCH) \
+	    -DMYSQL_SERVER_SUFFIX="-$(DEB_VERSION_REVISION)" \
+	    -DSYSTEM_TYPE="debian-$(DEB_HOST_GNU_SYSTEM)" \
+	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_HOST_ARCH) \
 	    -DBUILD_CONFIG=mysql_release \
 	    -DINSTALL_LIBDIR=lib/$(DEB_HOST_MULTIARCH) \
 	    -DINSTALL_PLUGINDIR=lib/mysql/plugin \
 	    -DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test \
-	    -DDEB=$(DISTRIBUTION) ..'
+	    -DDEB=$(DEB_VENDOR) ..'
 
 # This is needed, otherwise 'make test' will run before binaries have been built
 override_dh_auto_build:
@@ -114,7 +101,7 @@ override_dh_auto_test:
 	@echo "RULES.$@"
 	dh_testdir
 	# Skip unstable tests if such are defined for arch
-	[ ! -f debian/unstable-tests.$(ARCH) ] || cat debian/unstable-tests.$(ARCH) >> mysql-test/unstable-tests
+	[ ! -f debian/unstable-tests.$(DEB_HOST_ARCH) ] || cat debian/unstable-tests.$(DEB_HOST_ARCH) >> mysql-test/unstable-tests
 	# Run testsuite
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	cd $(BUILDDIR)/mysql-test && ./mtr --force --mem --parallel=$(NUMJOBS) --skip-rpl --suite=main --skip-test-list=unstable-tests  || $(TESTSUITE_FAIL_CMD) ;
@@ -130,7 +117,7 @@ override_dh_auto_install:
 	# otherwise skip it.
 	[ -f $(BUILDDIR)/storage/cassandra/ha_cassandra.so ] || sed -i -e "/Package: mariadb-plugin-cassandra/,+20d" debian/control
 
-ifneq (,$(filter linux,$(DEB_BUILD_ARCH_OS)))
+ifneq (,$(filter linux,$(DEB_HOST_ARCH_OS)))
 	# Copy systemd files to a location available for dh_installinit
 	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.3.mariadb.service
 	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.3.mariadb@.service
