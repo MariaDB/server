@@ -18,7 +18,6 @@
 #define SQL_WINDOW_INCLUDED
 
 #include "filesort.h"
-#include "records.h"
 
 class Item_window_func;
 

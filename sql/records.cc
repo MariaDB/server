@@ -194,7 +194,6 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
   bzero((char*) info,sizeof(*info));
   info->thd=thd;
   info->table=table;
-  info->forms= &info->table;		/* Only one table */
   info->addon_field= addon_field;
   
   if ((table->s->tmp_table == INTERNAL_TMP_TABLE ||
