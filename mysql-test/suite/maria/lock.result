@@ -109,3 +109,4 @@ ALTER TABLE t1 ADD UNIQUE KEY (f1);
 ERROR 23000: Duplicate entry 'foo' for key 'f1'
 ALTER TABLE t1 ADD KEY (f2);
 DROP TABLE t1;
+# End of 10.2 tests
