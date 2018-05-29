@@ -1,3 +1,4 @@
+--source include/have_partition.inc
 let $targetdir=$MYSQLTEST_VARDIR/backup;
 mkdir $targetdir;
 mkdir $MYSQLTEST_VARDIR/partitdata;
