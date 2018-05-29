@@ -189,7 +189,7 @@ bool String::copy(const char *str,uint32 arg_length, CHARSET_INFO *cs)
       This can happen in some cases. This code is here mainly to avoid
       warnings from valgrind, but can also be an indication of error.
     */
-    DBUG_PRINT("warning", ("Copying string on itself: %p  %lu",
+    DBUG_PRINT("warning", ("Copying string on itself: %p  %u",
                            str, arg_length));
   }
   else if ((str_length=arg_length))
