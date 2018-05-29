@@ -729,11 +729,6 @@ public:
   friend bool mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *sel);
   friend bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
                               bool open_view_no_parse);
-  friend bool mysql_derived_prepare(THD *thd, LEX *lex,
-                                  TABLE_LIST *orig_table_list);
-  friend bool mysql_derived_merge(THD *thd, LEX *lex,
-                                  TABLE_LIST *orig_table_list);
-  friend bool TABLE_LIST::init_derived(THD *thd, bool init_view);
 private:
   void fast_exclude();
 };
