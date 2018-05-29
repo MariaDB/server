@@ -52,17 +52,12 @@ struct READ_RECORD
   typedef int (*Setup_func)(struct st_join_table*);
 
   TABLE *table;                                 /* Head-form */
-  //handler *file;
-  TABLE **forms;                                /* head and ref forms */
   Unlock_row_func unlock_row;
   Read_func read_record_func;
   THD *thd;
   SQL_SELECT *select;
-  uint cache_records;
-  uint ref_length,struct_length,reclength,rec_cache_size,error_offset;
-  uint index;
+  uint ref_length,reclength,rec_cache_size,error_offset;
   uchar *ref_pos;				/* pointer to form->refpos */
-  uchar *record;
   uchar *rec_buf;                /* to read field values  after filesort */
   uchar	*cache,*cache_pos,*cache_end,*read_positions;
   struct st_sort_addon_field *addon_field;     /* Pointer to the fields info */
@@ -71,6 +66,7 @@ struct READ_RECORD
   void    (*unpack)(struct st_sort_addon_field *, uchar *, uchar *);
 
   int read_record() { return read_record_func(this); }
+  uchar *record();
 
   /* 
     SJ-Materialization runtime may need to read fields from the materialized

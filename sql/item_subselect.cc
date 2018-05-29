@@ -3874,7 +3874,6 @@ int subselect_single_select_engine::exec()
               tab->save_read_record= tab->read_record.read_record_func;
               tab->read_record.read_record_func= rr_sequential;
               tab->read_first_record= read_first_record_seq;
-              tab->read_record.record= tab->table->record[0];
               tab->read_record.thd= join->thd;
               tab->read_record.ref_length= tab->table->file->ref_length;
               tab->read_record.unlock_row= rr_unlock_row;
@@ -3892,7 +3891,6 @@ int subselect_single_select_engine::exec()
     for (JOIN_TAB **ptab= changed_tabs; ptab != last_changed_tab; ptab++)
     {
       JOIN_TAB *tab= *ptab;
-      tab->read_record.record= 0;
       tab->read_record.ref_length= 0;
       tab->read_first_record= tab->save_read_first_record;
       tab->read_record.read_record_func= tab->save_read_record;
