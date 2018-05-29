@@ -14,6 +14,7 @@ BUILDDIR := builddir
 DEB_HOST_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
 DEB_BUILD_GNU_SYSTEM ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_SYSTEM)
 DEB_BUILD_ARCH ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH)
+DEB_BUILD_ARCH_OS ?= $(shell dpkg-architecture -qDEB_BUILD_ARCH_OS)
 DEBVERSION := $(shell dpkg-parsechangelog | awk '/^Version: / { print $$2 }' | sed 's/^.*-//' )
 DEB_SOURCE_PACKAGE ?= $(strip $(shell egrep '^Source: ' debian/control | cut -f 2 -d ':'))
 DEB_VERSION ?= $(shell dpkg-parsechangelog | egrep '^Version:' | cut -f 2 -d ' ')
@@ -129,9 +130,11 @@ override_dh_auto_install:
 	# otherwise skip it.
 	[ -f $(BUILDDIR)/storage/cassandra/ha_cassandra.so ] || sed -i -e "/Package: mariadb-plugin-cassandra/,+20d" debian/control
 
+ifneq (,$(filter linux,$(DEB_BUILD_ARCH_OS)))
 	# Copy systemd files to a location available for dh_installinit
 	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.3.mariadb.service
 	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.3.mariadb@.service
+endif
 
 	# make install
 	cd $(BUILDDIR) && $(MAKE) install DESTDIR=$(TMP)
