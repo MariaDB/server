@@ -28,12 +28,10 @@
 
 /* static variables */
 
-#undef MYF_RW
 #undef DISK_BUFFER_SIZE
 
 #define MERGEBUFF 15
 #define MERGEBUFF2 31
-#define MYF_RW  MYF(MY_NABP | MY_WME | MY_WAIT_IF_FULL)
 #define DISK_BUFFER_SIZE (IO_SIZE*128)
 
 /* How many keys we can keep in memory */

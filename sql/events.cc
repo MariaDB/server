@@ -401,7 +401,7 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
         my_message_sql(ER_STARTUP,
                        "Event Error: An error occurred while creating query "
                        "string, before writing it into binary log.",
-                       MYF(ME_NOREFRESH));
+                       MYF(ME_ERROR_LOG));
         ret= true;
       }
       else
@@ -926,7 +926,7 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
     my_message(ER_STARTUP,
                "Event Scheduler: An error occurred when initializing "
                "system tables. Disabling the Event Scheduler.",
-               MYF(ME_NOREFRESH));
+               MYF(ME_ERROR_LOG));
     /* Disable the scheduler since the system tables are not up to date */
     opt_event_scheduler= EVENTS_OFF;
     goto end;
@@ -948,7 +948,7 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
   {
     my_message_sql(ER_STARTUP,
                    "Event Scheduler: Error while loading from mysql.event table.",
-                   MYF(ME_NOREFRESH));
+                   MYF(ME_ERROR_LOG));
     res= TRUE; /* fatal error: request unireg_abort */
     goto end;
   }
@@ -1165,7 +1165,7 @@ Events::load_events_from_db(THD *thd)
   {
     my_message_sql(ER_STARTUP,
                    "Event Scheduler: Failed to open table mysql.event",
-                   MYF(ME_NOREFRESH));
+                   MYF(ME_ERROR_LOG));
     DBUG_RETURN(TRUE);
   }
 
@@ -1191,7 +1191,7 @@ Events::load_events_from_db(THD *thd)
                  "Event Scheduler: "
                  "Error while loading events from mysql.event. "
                  "The table probably contains bad data or is corrupted",
-                 MYF(ME_NOREFRESH));
+                 MYF(ME_ERROR_LOG));
       delete et;
       goto end;
     }
@@ -1230,9 +1230,9 @@ Events::load_events_from_db(THD *thd)
   }
   my_printf_error(ER_STARTUP,
                   "Event Scheduler: Loaded %d event%s",
-                  MYF(ME_NOREFRESH |
+                  MYF(ME_ERROR_LOG |
                       (global_system_variables.log_warnings) ?
-                      ME_JUST_INFO: 0),
+                      ME_NOTE: 0),
                   count, (count == 1) ? "" : "s");
   ret= FALSE;
 

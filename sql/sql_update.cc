@@ -974,7 +974,7 @@ update_begin:
           myf flags= 0;
 
           if (table->file->is_fatal_error(error, HA_CHECK_ALL))
-            flags|= ME_FATALERROR; /* Other handler errors are fatal */
+            flags|= ME_FATAL; /* Other handler errors are fatal */
 
           prepare_record_for_error_message(error, table);
 	  table->file->print_error(error,MYF(flags));
@@ -1085,7 +1085,7 @@ update_begin:
   {
     /* purecov: begin inspected */
     prepare_record_for_error_message(loc_error, table);
-    table->file->print_error(loc_error,MYF(ME_FATALERROR));
+    table->file->print_error(loc_error,MYF(ME_FATAL));
     error= 1;
     /* purecov: end */
   }
@@ -2381,7 +2381,7 @@ int multi_update::send_data(List<Item> &not_used_values)
             myf flags= 0;
 
             if (table->file->is_fatal_error(error, HA_CHECK_ALL))
-              flags|= ME_FATALERROR; /* Other handler errors are fatal */
+              flags|= ME_FATAL; /* Other handler errors are fatal */
 
             prepare_record_for_error_message(error, table);
             table->file->print_error(error,MYF(flags));
@@ -2756,7 +2756,7 @@ int multi_update::do_updates()
 err:
   {
     prepare_record_for_error_message(local_error, err_table);
-    err_table->file->print_error(local_error,MYF(ME_FATALERROR));
+    err_table->file->print_error(local_error,MYF(ME_FATAL));
   }
 
 err2:

@@ -766,7 +766,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       else
       {
 	table->file->print_error(error,
-                                 MYF(thd->lex->ignore ? ME_JUST_WARNING : 0));
+                                 MYF(thd->lex->ignore ? ME_WARNING : 0));
         if (thd->is_error())
         {
           error= 1;

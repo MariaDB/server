@@ -5785,14 +5785,14 @@ Ordered_key::cmp_keys_by_row_data(ha_rows a, ha_rows b)
   if (unlikely((error= tbl->file->ha_rnd_pos(tbl->record[0], rowid_a))))
   {
     /* purecov: begin inspected */
-    tbl->file->print_error(error, MYF(ME_FATALERROR));  // Sets fatal_error
+    tbl->file->print_error(error, MYF(ME_FATAL));  // Sets fatal_error
     return 0;
     /* purecov: end */
   }
   if (unlikely((error= tbl->file->ha_rnd_pos(tbl->record[1], rowid_b))))
   {
     /* purecov: begin inspected */
-    tbl->file->print_error(error, MYF(ME_FATALERROR));  // Sets fatal_error
+    tbl->file->print_error(error, MYF(ME_FATAL));  // Sets fatal_error
     return 0;
     /* purecov: end */
   }    
@@ -5874,7 +5874,7 @@ int Ordered_key::cmp_key_with_search_key(rownum_t row_num)
   if (unlikely((error= tbl->file->ha_rnd_pos(tbl->record[0], cur_rowid))))
   {
     /* purecov: begin inspected */
-    tbl->file->print_error(error, MYF(ME_FATALERROR));  // Sets fatal_error
+    tbl->file->print_error(error, MYF(ME_FATAL));  // Sets fatal_error
     return 0;
     /* purecov: end */
   }

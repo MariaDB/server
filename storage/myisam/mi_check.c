@@ -4776,7 +4776,7 @@ static int replace_data_file(HA_CHECK *param, MI_INFO *info, File new_file)
     my_create_backup_name(buff, "", param->backup_time);
     my_printf_error(ER_GET_ERRMSG,
                     "Making backup of data file %s with extension '%s'",
-                    MYF(ME_JUST_INFO | ME_NOREFRESH), share->data_file_name,
+                    MYF(ME_NOTE | ME_ERROR_LOG), share->data_file_name,
                     buff);
   }
 

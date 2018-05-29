@@ -764,7 +764,7 @@ bool With_element::set_unparsed_spec(THD *thd, char *spec_start, char *spec_end)
 
   if (!unparsed_spec.str)
   {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 
              static_cast<int>(unparsed_spec.length));
     return true;
   }

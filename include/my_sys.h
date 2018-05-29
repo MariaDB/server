@@ -104,11 +104,11 @@ typedef struct my_aio_result {
 #define MY_GIVE_INFO	2U	/* Give time info about process*/
 #define MY_DONT_FREE_DBUG 4U    /* Do not call DBUG_END() in my_end() */
 
-#define ME_BELL         4U      /* Ring bell then printing message */
-#define ME_NOREFRESH    64U     /* Write the error message to error log */
-#define ME_JUST_INFO    1024U   /**< not error but just info */
-#define ME_JUST_WARNING 2048U   /**< not error but just warning */
-#define ME_FATALERROR   4096U   /* Fatal statement error */
+#define ME_BELL           4U    /* Ring bell then printing message */
+#define ME_ERROR_LOG      64    /**< write the error message to error log */
+#define ME_NOTE           1024  /**< not error but just info */
+#define ME_WARNING        2048  /**< not error but just warning */
+#define ME_FATAL          4096  /**< fatal statement error */
 
 	/* Bits in last argument to fn_format */
 #define MY_REPLACE_DIR		1U	/* replace dir in name with 'dir' */

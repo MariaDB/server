@@ -549,13 +549,13 @@ static int rotate_single_key(uint key_id)
 
   if (!ver)
   {
-    my_printf_error(ER_UNKNOWN_ERROR, "key %u does not exist", MYF(ME_JUST_WARNING), key_id);
+    my_printf_error(ER_UNKNOWN_ERROR, "key %u does not exist", MYF(ME_WARNING), key_id);
     return -1;
   }
   else if (generate_and_save_datakey(key_id, ver + 1))
   {
     my_printf_error(ER_UNKNOWN_ERROR, "Could not generate datakey for key id= %u, ver= %u",
-      MYF(ME_JUST_WARNING), key_id, ver);
+      MYF(ME_WARNING), key_id, ver);
     return -1;
   }
   else
@@ -566,7 +566,7 @@ static int rotate_single_key(uint key_id)
     if (load_key(&info))
     {
       my_printf_error(ER_UNKNOWN_ERROR, "Could not load datakey for key id= %u, ver= %u",
-        MYF(ME_JUST_WARNING), key_id, ver);
+        MYF(ME_WARNING), key_id, ver);
       return -1;
     }
   }
@@ -591,7 +591,7 @@ static void update_rotate(MYSQL_THD, struct st_mysql_sys_var *, void *, const vo
   if (!master_key_id[0])
   {
     my_printf_error(ER_UNKNOWN_ERROR,
-      "aws_key_management_master_key_id must be set to generate new data keys", MYF(ME_JUST_WARNING));
+      "aws_key_management_master_key_id must be set to generate new data keys", MYF(ME_WARNING));
     return;
   }
   mtx.lock();

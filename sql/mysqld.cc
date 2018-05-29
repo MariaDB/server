@@ -3670,12 +3670,12 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
   DBUG_ASSERT(str != NULL);
   DBUG_ASSERT(error != 0);
 
-  if (MyFlags & ME_JUST_INFO)
+  if (MyFlags & ME_NOTE)
   {
     level= Sql_condition::WARN_LEVEL_NOTE;
     func= sql_print_information;
   }
-  else if (MyFlags & ME_JUST_WARNING)
+  else if (MyFlags & ME_WARNING)
   {
     level= Sql_condition::WARN_LEVEL_WARN;
     func= sql_print_warning;
@@ -3688,7 +3688,7 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
 
   if (likely(thd))
   {
-    if (unlikely(MyFlags & ME_FATALERROR))
+    if (unlikely(MyFlags & ME_FATAL))
       thd->is_fatal_error= 1;
     (void) thd->raise_condition(error, NULL, level, str);
   }
@@ -3698,7 +3698,7 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
   /* When simulating OOM, skip writing to error log to avoid mtr errors */
   DBUG_EXECUTE_IF("simulate_out_of_memory", DBUG_VOID_RETURN;);
 
-  if (unlikely(!thd) || thd->log_all_errors || (MyFlags & ME_NOREFRESH))
+  if (unlikely(!thd) || thd->log_all_errors || (MyFlags & ME_ERROR_LOG))
     (*func)("%s: %s", my_progname_short, str); /* purecov: inspected */
   DBUG_VOID_RETURN;
 }
@@ -9813,10 +9813,10 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     errors.
   */
   if (global_system_variables.log_warnings >= 10)
-    my_global_flags= MY_WME | ME_JUST_INFO;
+    my_global_flags= MY_WME | ME_NOTE;
   /* Log all errors not handled by thd->handle_error() to my_message_sql() */
   if (global_system_variables.log_warnings >= 11)
-    my_global_flags|= ME_NOREFRESH;
+    my_global_flags|= ME_ERROR_LOG;
   if (my_assert_on_error)
     debug_assert_if_crashed_table= 1;
 

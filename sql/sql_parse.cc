@@ -7521,7 +7521,7 @@ bool check_stack_overrun(THD *thd, long margin,
     if (ebuff) {
       my_snprintf(ebuff, MYSQL_ERRMSG_SIZE, ER_THD(thd, ER_STACK_OVERRUN_NEED_MORE),
                   stack_used, my_thread_stack_size, margin);
-      my_message(ER_STACK_OVERRUN_NEED_MORE, ebuff, MYF(ME_FATALERROR));
+      my_message(ER_STACK_OVERRUN_NEED_MORE, ebuff, MYF(ME_FATAL));
       delete [] ebuff;
     }
     return 1;

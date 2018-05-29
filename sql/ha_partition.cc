@@ -6808,7 +6808,7 @@ FT_INFO *ha_partition::ft_init_ext(uint flags, uint inx, String *key)
                           sizeof(FT_INFO *) * m_tot_parts,
                           NullS)))
     {
-      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
+      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));
       DBUG_RETURN(NULL);
     }
     ft_target->part_ft_info= tmp_ft_info;

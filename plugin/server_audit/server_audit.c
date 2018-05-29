@@ -733,7 +733,7 @@ static int user_coll_fill(struct user_coll *c, char *users,
         internal_stop_logging= 1;
         CLIENT_ERROR(1, "User '%.*s' was removed from the"
             " server_audit_excl_users.",
-            MYF(ME_JUST_WARNING), (int) cmp_length, users);
+            MYF(ME_WARNING), (int) cmp_length, users);
         internal_stop_logging= 0;
         blank_user(cmp_user);
         refill_cmp_coll= 1;
@@ -742,7 +742,7 @@ static int user_coll_fill(struct user_coll *c, char *users,
       {
         internal_stop_logging= 1;
         CLIENT_ERROR(1, "User '%.*s' is in the server_audit_incl_users, "
-            "so wasn't added.", MYF(ME_JUST_WARNING), (int) cmp_length, users);
+            "so wasn't added.", MYF(ME_WARNING), (int) cmp_length, users);
         internal_stop_logging= 0;
         remove_user(users);
         continue;
@@ -1050,7 +1050,7 @@ static int start_logging()
                   "Could not create file '%s'.", alt_fname);
       is_active= 0;
       CLIENT_ERROR(1, "SERVER AUDIT plugin can't create file '%s'.",
-          MYF(ME_JUST_WARNING), alt_fname);
+          MYF(ME_WARNING), alt_fname);
       return 1;
     }
     error_header();
@@ -2593,7 +2593,7 @@ static void update_file_path(MYSQL_THD thd,
       {
         error_header();
         fprintf(stderr, "Logging was disabled..\n");
-        CLIENT_ERROR(1, "Logging was disabled.", MYF(ME_JUST_WARNING));
+        CLIENT_ERROR(1, "Logging was disabled.", MYF(ME_WARNING));
       }
       goto exit_func;
     }
@@ -2763,7 +2763,7 @@ static void update_logging(MYSQL_THD thd,
     start_logging();
     if (!logging)
     {
-      CLIENT_ERROR(1, "Logging was disabled.", MYF(ME_JUST_WARNING));
+      CLIENT_ERROR(1, "Logging was disabled.", MYF(ME_WARNING));
     }
   }
   else

@@ -4574,7 +4574,7 @@ sp_instr_set_case_expr::exec_core(THD *thd, uint *nextp)
         thd->spcont->set_case_expr(thd, m_case_expr_id, &null_item))
     {
       /* If this also failed, we have to abort. */
-      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
+      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));
     }
   }
   else

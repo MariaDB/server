@@ -3018,7 +3018,7 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
       of the statement because the field item does not have a field
       pointer at that time
     */
-    myf warn= table->s->frm_version < FRM_VER_EXPRESSSIONS ? ME_JUST_WARNING : 0;
+    myf warn= table->s->frm_version < FRM_VER_EXPRESSSIONS ? ME_WARNING : 0;
     my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(warn),
              "AUTO_INCREMENT", vcol->get_vcol_type_name(), res.name);
     if (!warn)
@@ -5255,7 +5255,7 @@ int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
                             main_view->db.str);
       const char *name_table= (main_view->view ? main_view->view_name.str :
                                main_view->table_name.str);
-      my_error(ER_VIEW_CHECK_FAILED, MYF(ignore_failure ? ME_JUST_WARNING : 0),
+      my_error(ER_VIEW_CHECK_FAILED, MYF(ignore_failure ? ME_WARNING : 0),
                name_db, name_table);
       return ignore_failure ? VIEW_CHECK_SKIP : VIEW_CHECK_ERROR;
     }
@@ -5287,7 +5287,7 @@ int TABLE::verify_constraints(bool ignore_failure)
           in_use->is_error())
       {
         my_error(ER_CONSTRAINT_FAILED,
-                 MYF(ignore_failure ? ME_JUST_WARNING : 0), (*chk)->name.str,
+                 MYF(ignore_failure ? ME_WARNING : 0), (*chk)->name.str,
                  s->db.str, s->table_name.str);
         return ignore_failure ? VIEW_CHECK_SKIP : VIEW_CHECK_ERROR;
       }

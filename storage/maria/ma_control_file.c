@@ -531,7 +531,7 @@ int ma_control_file_write_and_force(LSN last_checkpoint_lsn_arg,
                 "Control file must be from a newer version; zero-ing out %u"
                 " unknown bytes in control file at offset %u", zeroed,
                 cf_changeable_size + cf_create_time_size);
-    ma_message_no_user(ME_JUST_WARNING, msg);
+    ma_message_no_user(ME_WARNING, msg);
   }
   else
   {

@@ -11828,7 +11828,7 @@ create_table_info_t::parse_table_name(
 	}
 
 	if (m_create_info->index_file_name) {
-		my_error(WARN_OPTION_IGNORED, ME_JUST_WARNING,
+		my_error(WARN_OPTION_IGNORED, ME_WARNING,
 			"INDEX DIRECTORY");
 	}
 
@@ -20948,10 +20948,10 @@ ib_senderrf(
 
 	switch (level) {
 	case IB_LOG_LEVEL_INFO:
-		l = ME_JUST_INFO;
+		l = ME_NOTE;
 		break;
 	case IB_LOG_LEVEL_WARN:
-		l = ME_JUST_WARNING;
+		l = ME_WARNING;
 		break;
 	case IB_LOG_LEVEL_ERROR:
 		sd_notifyf(0, "STATUS=InnoDB: Error: %s", str);

@@ -2644,7 +2644,7 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
     default:
       DBUG_ASSERT(0);
       /* We really shouldn't get here, no use in continuing from here */
-      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
+      my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));
       DBUG_RETURN(NULL);
   }
   if (part_info->part_type == VERSIONING_PARTITION)
@@ -5991,7 +5991,7 @@ static bool mysql_change_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
                                                   lpt->pack_frm_data,
                                                   lpt->pack_frm_len))))
   {
-    file->print_error(error, MYF(error != ER_OUTOFMEMORY ? 0 : ME_FATALERROR));
+    file->print_error(error, MYF(error != ER_OUTOFMEMORY ? 0 : ME_FATAL));
   }
 
   if (mysql_trans_commit_alter_copy_data(thd))

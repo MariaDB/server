@@ -27,7 +27,7 @@ struct passwd *my_check_user(const char *user, myf MyFlags)
         my_errno= EPERM;
         if (MyFlags & MY_WME)
           my_printf_error(my_errno, "One can only use the --user switch if "
-                         "running as root", MYF(ME_JUST_WARNING|ME_NOREFRESH));
+                         "running as root", MYF(ME_WARNING|ME_ERROR_LOG));
       }
     }
     DBUG_RETURN(NULL);
@@ -38,7 +38,7 @@ struct passwd *my_check_user(const char *user, myf MyFlags)
     {
       my_errno= EINVAL;
       my_printf_error(my_errno, "Please consult the Knowledge Base to find "
-                      "out how to run mysqld as root!", MYF(ME_NOREFRESH));
+                      "out how to run mysqld as root!", MYF(ME_ERROR_LOG));
     }
     DBUG_RETURN(NULL);
   }
@@ -54,7 +54,7 @@ struct passwd *my_check_user(const char *user, myf MyFlags)
     {
       my_errno= EINVAL;
       my_printf_error(my_errno, "Can't change to run as user '%s'.  Please "
-                      "check that the user exists!", MYF(ME_NOREFRESH), user);
+                      "check that the user exists!", MYF(ME_ERROR_LOG), user);
       DBUG_RETURN(NULL);
     }
   }
@@ -74,7 +74,7 @@ int my_set_user(const char *user, struct passwd *user_info, myf MyFlags)
   {
     my_errno= errno;
     if (MyFlags & MY_WME)
-      my_printf_error(errno, "Cannot change uid/gid (errno: %d)", MYF(ME_NOREFRESH),
+      my_printf_error(errno, "Cannot change uid/gid (errno: %d)", MYF(ME_ERROR_LOG),
                       errno);
     DBUG_RETURN(my_errno);
   }

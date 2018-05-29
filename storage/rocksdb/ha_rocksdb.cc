@@ -6783,7 +6783,7 @@ int ha_rocksdb::create_cfs(
                        tbl_def_arg->full_tablename().c_str(),
                        table_arg->key_info[i].key_part[part].field->field_name.str);
 
-          my_error(ER_INTERNAL_ERROR, MYF(ME_JUST_WARNING), buf);
+          my_error(ER_INTERNAL_ERROR, MYF(ME_WARNING), buf);
         }
       }
     }
@@ -7316,14 +7316,14 @@ int ha_rocksdb::create(const char *const name, TABLE *const table_arg,
     // The `rocksdb_datadir` setting should be used to configure RocksDB data
     // directory.
     print_error(HA_ERR_ROCKSDB_TABLE_DATA_DIRECTORY_NOT_SUPPORTED,
-                MYF(ME_JUST_WARNING));
+                MYF(ME_WARNING));
     DBUG_RETURN(HA_WRONG_CREATE_OPTION);
   }
 
   if (create_info->index_file_name) {
     // Similar check for INDEX DIRECTORY as well.
     print_error(HA_ERR_ROCKSDB_TABLE_INDEX_DIRECTORY_NOT_SUPPORTED,
-                MYF(ME_JUST_WARNING));
+                MYF(ME_WARNING));
     DBUG_RETURN(HA_WRONG_CREATE_OPTION);
   }
 

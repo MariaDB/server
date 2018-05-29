@@ -1807,7 +1807,7 @@ bool ha_myisam::check_and_repair(THD *thd)
       sql_print_information("Making backup of index file %s with extension '%s'",
                             file->s->index_file_name, buff);
       mi_make_backup_of_index(file, check_opt.start_time,
-                              MYF(MY_WME | ME_JUST_WARNING));
+                              MYF(MY_WME | ME_WARNING));
     }
     check_opt.flags=
       (((myisam_recover_options &

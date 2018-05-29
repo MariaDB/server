@@ -192,7 +192,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
 
   length+=ALIGN_SIZE(sizeof(USED_MEM));
   if (!(next = (USED_MEM*) my_malloc(length,
-                                     MYF(MY_WME | ME_FATALERROR |
+                                     MYF(MY_WME | ME_FATAL |
                                          MALLOC_FLAG(mem_root->block_size)))))
   {
     if (mem_root->error_handler)
@@ -247,7 +247,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     get_size= MY_MAX(get_size, block_size);
 
     if (!(next = (USED_MEM*) my_malloc(get_size,
-                                       MYF(MY_WME | ME_FATALERROR |
+                                       MYF(MY_WME | ME_FATAL |
                                            MALLOC_FLAG(mem_root->
                                                        block_size)))))
     {

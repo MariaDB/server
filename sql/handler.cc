@@ -295,7 +295,7 @@ handler *get_ha_partition(partition_info *part_info)
   }
   else
   {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), 
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 
              static_cast<int>(sizeof(ha_partition)));
   }
   DBUG_RETURN(((handler*) partition));
@@ -2543,7 +2543,7 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
       dummy_share.table_name= *alias;
       dummy_table.alias.set(alias->str, alias->length, table_alias_charset);
       file->change_table_ptr(&dummy_table, &dummy_share);
-      file->print_error(error, MYF(intercept ? ME_JUST_WARNING : 0));
+      file->print_error(error, MYF(intercept ? ME_WARNING : 0));
     }
     if (intercept)
       error= 0;
@@ -3561,7 +3561,7 @@ void handler::print_error(int error, myf errflag)
   if (ha_thd()->transaction_rollback_request)
   {
     /* Ensure this becomes a true error */
-    errflag&= ~(ME_JUST_WARNING | ME_JUST_INFO);
+    errflag&= ~(ME_WARNING | ME_NOTE);
   }
 
   int textno= -1; // impossible value
@@ -3696,14 +3696,14 @@ void handler::print_error(int error, myf errflag)
   {
     textno=ER_RECORD_FILE_FULL;
     /* Write the error message to error log */
-    errflag|= ME_NOREFRESH;
+    errflag|= ME_ERROR_LOG;
     break;
   }
   case HA_ERR_INDEX_FILE_FULL:
   {
     textno=ER_INDEX_FILE_FULL;
     /* Write the error message to error log */
-    errflag|= ME_NOREFRESH;
+    errflag|= ME_ERROR_LOG;
     break;
   }
   case HA_ERR_LOCK_WAIT_TIMEOUT:
@@ -3830,14 +3830,14 @@ void handler::print_error(int error, myf errflag)
   if (unlikely(fatal_error))
   {
     /* Ensure this becomes a true error */
-    errflag&= ~(ME_JUST_WARNING | ME_JUST_INFO);
+    errflag&= ~(ME_WARNING | ME_NOTE);
     if ((debug_assert_if_crashed_table ||
                       global_system_variables.log_warnings > 1))
     {
       /*
         Log error to log before we crash or if extended warnings are requested
       */
-      errflag|= ME_NOREFRESH;
+      errflag|= ME_ERROR_LOG;
     }
   }    
 
@@ -4009,7 +4009,8 @@ static bool update_frm_version(TABLE *table)
 
     int4store(version, MYSQL_VERSION_ID);
 
-    if ((result= (int)mysql_file_pwrite(file, (uchar*) version, 4, 51L, MYF_RW)))
+    if ((result= (int)mysql_file_pwrite(file, (uchar*) version, 4, 51L,
+                                        MYF(MY_WME+MY_NABP))))
       goto err;
 
     table->s->mysql_version= MYSQL_VERSION_ID;
@@ -4929,7 +4930,7 @@ int ha_create_table(THD *thd, const char *path,
   {
     if (!thd->is_error())
       my_error(ER_CANT_CREATE_TABLE, MYF(0), db, table_name, error);
-    table.file->print_error(error, MYF(ME_JUST_WARNING));
+    table.file->print_error(error, MYF(ME_WARNING));
     PSI_CALL_drop_table_share(temp_table, share.db.str, (uint)share.db.length,
                               share.table_name.str, (uint)share.table_name.length);
   }

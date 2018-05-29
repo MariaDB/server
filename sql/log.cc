@@ -2789,7 +2789,7 @@ int MYSQL_LOG::generate_new_name(char *new_name, const char *log_name,
       {
         THD *thd= current_thd;
         if (unlikely(thd))
-          my_error(ER_NO_UNIQUE_LOGFILE, MYF(ME_FATALERROR), log_name);
+          my_error(ER_NO_UNIQUE_LOGFILE, MYF(ME_FATAL), log_name);
         sql_print_error(ER_DEFAULT(ER_NO_UNIQUE_LOGFILE), log_name);
 	return 1;
       }
@@ -5194,7 +5194,7 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
         close_on_error= TRUE;
         my_printf_error(ER_ERROR_ON_WRITE,
                         ER_THD_OR_DEFAULT(current_thd, ER_CANT_OPEN_FILE),
-                        MYF(ME_FATALERROR), name, errno);
+                        MYF(ME_FATAL), name, errno);
         goto end;
       }
       bytes_written += r.data_written;
@@ -5263,7 +5263,7 @@ int MYSQL_BIN_LOG::new_file_impl(bool need_lock)
   /* handle reopening errors */
   if (unlikely(error))
   {
-    my_error(ER_CANT_OPEN_FILE, MYF(ME_FATALERROR), file_to_open, error);
+    my_error(ER_CANT_OPEN_FILE, MYF(ME_FATAL), file_to_open, error);
     close_on_error= TRUE;
   }
 
@@ -7745,10 +7745,10 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
   switch (entry->error)
   {
   case ER_ERROR_ON_WRITE:
-    my_error(ER_ERROR_ON_WRITE, MYF(ME_NOREFRESH), name, entry->commit_errno);
+    my_error(ER_ERROR_ON_WRITE, MYF(ME_ERROR_LOG), name, entry->commit_errno);
     break;
   case ER_ERROR_ON_READ:
-    my_error(ER_ERROR_ON_READ, MYF(ME_NOREFRESH),
+    my_error(ER_ERROR_ON_READ, MYF(ME_ERROR_LOG),
              entry->error_cache->file_name, entry->commit_errno);
     break;
   default:
@@ -7759,7 +7759,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
     */
     my_printf_error(entry->error,
                     "Error writing transaction to binary log: %d",
-                    MYF(ME_NOREFRESH), entry->error);
+                    MYF(ME_ERROR_LOG), entry->error);
   }
 
   /*
@@ -7982,7 +7982,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
         when the transaction has been safely committed in the engine.
       */
       leader->cache_mngr->delayed_error= true;
-      my_error(ER_ERROR_ON_WRITE, MYF(ME_NOREFRESH), name, errno);
+      my_error(ER_ERROR_ON_WRITE, MYF(ME_ERROR_LOG), name, errno);
       check_purge= false;
     }
     /* In case of binlog rotate, update the correct current binlog offset. */

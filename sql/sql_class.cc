@@ -1500,7 +1500,7 @@ bool THD::set_db(const LEX_CSTRING *new_db)
     const char *tmp= NULL;
     if (new_db->str)
     {
-      if (!(tmp= my_strndup(new_db->str, new_db->length, MYF(MY_WME | ME_FATALERROR))))
+      if (!(tmp= my_strndup(new_db->str, new_db->length, MYF(MY_WME | ME_FATAL))))
         result= 1;
     }
 
@@ -2659,7 +2659,7 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, size_t key_length)
 				      key_length + 1);
   if (!new_table)
   {
-    my_error(EE_OUTOFMEMORY, MYF(ME_FATALERROR),
+    my_error(EE_OUTOFMEMORY, MYF(ME_FATAL),
              ALIGN_SIZE(sizeof(TABLE_LIST)) + key_length + 1);
     set_killed(KILL_CONNECTION);
     return 0;
@@ -3316,7 +3316,7 @@ int select_export::send_data(List<Item> &items)
       set_if_smaller(estimated_bytes, UINT_MAX32);
       if (cvt_str.realloc((uint32) estimated_bytes))
       {
-        my_error(ER_OUTOFMEMORY, MYF(ME_FATALERROR), (uint32) estimated_bytes);
+        my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), (uint32) estimated_bytes);
         goto err;
       }
 
@@ -3574,7 +3574,7 @@ int select_singlerow_subselect::send_data(List<Item> &items)
   if (it->assigned())
   {
     my_message(ER_SUBQUERY_NO_1_ROW, ER_THD(thd, ER_SUBQUERY_NO_1_ROW),
-               MYF(current_thd->lex->ignore ? ME_JUST_WARNING : 0));
+               MYF(current_thd->lex->ignore ? ME_WARNING : 0));
     DBUG_RETURN(1);
   }
   if (unit->offset_limit_cnt)

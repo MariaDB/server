@@ -184,7 +184,7 @@ void maria_recover_error_handler_hook(uint error, const char *str,
 
 static void print_preamble()
 {
-  ma_message_no_user(ME_JUST_INFO, "starting recovery");
+  ma_message_no_user(ME_NOTE, "starting recovery");
 }
 
 
@@ -516,7 +516,7 @@ end:
     }
     if (!error)
     {
-      ma_message_no_user(ME_JUST_INFO, "recovery done");
+      ma_message_no_user(ME_NOTE, "recovery done");
       maria_recovery_changed_data= 1;
     }
   }

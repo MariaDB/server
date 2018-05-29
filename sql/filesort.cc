@@ -258,7 +258,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     }
     if (memory_available < min_sort_memory)
     {
-      my_error(ER_OUT_OF_SORTMEMORY,MYF(ME_ERROR + ME_FATALERROR));
+      my_error(ER_OUT_OF_SORTMEMORY,MYF(ME_ERROR_LOG + ME_FATAL));
       goto err;
     }
     tracker->report_sort_buffer_size(sort->sort_buffer_size());
@@ -872,7 +872,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   DBUG_PRINT("test",("error: %d  indexpos: %d",error,indexpos));
   if (unlikely(error != HA_ERR_END_OF_FILE))
   {
-    file->print_error(error,MYF(ME_ERROR));
+    file->print_error(error,MYF(ME_ERROR_LOG));
     DBUG_RETURN(HA_POS_ERROR);
   }
   if (indexpos && idx &&

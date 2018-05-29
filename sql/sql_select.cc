@@ -18407,7 +18407,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
       We don't want this error to be converted to a warning, e.g. in case of
       INSERT IGNORE ... SELECT.
     */
-    table->file->print_error(error, MYF(ME_FATALERROR));
+    table->file->print_error(error, MYF(ME_FATAL));
     DBUG_RETURN(1);
   }
   new_table= *table;
@@ -22562,7 +22562,7 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
     if (unlikely(copy_blobs(first_field)))
     {
       my_message(ER_OUTOFMEMORY, ER_THD(thd,ER_OUTOFMEMORY),
-                 MYF(ME_FATALERROR));
+                 MYF(ME_FATAL));
       error=0;
       goto err;
     }
@@ -23469,7 +23469,7 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
       default:
         /* This case should never be choosen */
         DBUG_ASSERT(0);
-        my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
+        my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));
       }
     }
     parts++;

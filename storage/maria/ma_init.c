@@ -146,7 +146,7 @@ my_bool maria_upgrade()
     my_message(HA_ERR_INITIALIZATION,
                "Found old style Maria log files; "
                "Converting them to Aria names",
-               MYF(ME_JUST_INFO));
+               MYF(ME_NOTE));
 
     for (i= 0; i < dir->number_of_files; i++)
     {

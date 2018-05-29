@@ -3506,7 +3506,7 @@ static int mark_recovery_start(const char* log_dir)
   int res;
   DBUG_ENTER("mark_recovery_start");
   if (!(maria_recover_options & HA_RECOVER_ANY))
-    ma_message_no_user(ME_JUST_WARNING, "Please consider using option"
+    ma_message_no_user(ME_WARNING, "Please consider using option"
                        " --aria-recover-options[=...] to automatically check and"
                        " repair tables when logs are removed by option"
                        " --aria-force-start-after-recovery-failures=#");
@@ -3524,7 +3524,7 @@ static int mark_recovery_start(const char* log_dir)
                 " recovery from logs",
                 (res ? "failed to remove some" : "removed all"),
                 recovery_failures);
-    ma_message_no_user((res ? 0 : ME_JUST_WARNING), msg);
+    ma_message_no_user((res ? 0 : ME_WARNING), msg);
   }
   else
     res= ma_control_file_write_and_force(last_checkpoint_lsn, last_logno,

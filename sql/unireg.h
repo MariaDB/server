@@ -56,11 +56,6 @@
 #endif
 #define ER_THD_OR_DEFAULT(thd,X) ((thd) ? ER_THD(thd, (X)) : ER_DEFAULT(X))
 
-
-#define ME_INFO (ME_HOLDTANG | ME_NOREFRESH)
-#define ME_ERROR (ME_BELL | ME_NOREFRESH)
-#define MYF_RW MYF(MY_WME+MY_NABP)		/* Vid my_read & my_write */
-
 #define SPECIAL_USE_LOCKS	1		/* Lock used databases */
 #define SPECIAL_NO_NEW_FUNC	2		/* Skip new functions */
 #define SPECIAL_SKIP_SHOW_DB    4               /* Don't allow 'show db' */

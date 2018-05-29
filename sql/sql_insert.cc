@@ -1719,7 +1719,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         */
         if (info->ignore)
         {
-          table->file->print_error(error, MYF(ME_JUST_WARNING));
+          table->file->print_error(error, MYF(ME_WARNING));
           goto ok_or_after_trg_err; /* Ignoring a not fatal error, return 0 */
         }
         goto err;
@@ -1844,7 +1844,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             {
               if (!(thd->variables.old_behavior &
                     OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE))
-                table->file->print_error(error, MYF(ME_JUST_WARNING));
+                table->file->print_error(error, MYF(ME_WARNING));
               goto ok_or_after_trg_err;
             }
             goto err;
@@ -2026,7 +2026,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
       goto err;
     if (!(thd->variables.old_behavior &
           OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE))
-      table->file->print_error(error, MYF(ME_JUST_WARNING));
+      table->file->print_error(error, MYF(ME_WARNING));
     table->file->restore_auto_increment(prev_insert_id);
     goto ok_or_after_trg_err;
   }
@@ -2360,7 +2360,7 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
       di->thd.set_db(&table_list->db);
       di->thd.set_query(my_strndup(table_list->table_name.str,
                                    table_list->table_name.length,
-                                   MYF(MY_WME | ME_FATALERROR)),
+                                   MYF(MY_WME | ME_FATAL)),
                         table_list->table_name.length, system_charset_info);
       if (di->thd.db.str == NULL || di->thd.query() == NULL)
       {
@@ -2392,7 +2392,7 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
         mysql_mutex_unlock(&di->mutex);
 	di->unlock();
 	delete di;
-	my_error(ER_CANT_CREATE_THREAD, MYF(ME_FATALERROR), error);
+	my_error(ER_CANT_CREATE_THREAD, MYF(ME_FATAL), error);
         goto end_create;
       }
 
@@ -3261,7 +3261,7 @@ bool Delayed_insert::handle_inserts(void)
       or if another thread is removing the current table definition
       from the table cache.
     */
-    my_error(ER_DELAYED_CANT_CHANGE_LOCK, MYF(ME_FATALERROR | ME_NOREFRESH),
+    my_error(ER_DELAYED_CANT_CHANGE_LOCK, MYF(ME_FATAL | ME_ERROR_LOG),
              table->s->table_name.str);
     goto err;
   }
@@ -3434,7 +3434,7 @@ bool Delayed_insert::handle_inserts(void)
 	{
           /* This is not known to happen. */
           my_error(ER_DELAYED_CANT_CHANGE_LOCK,
-                   MYF(ME_FATALERROR | ME_NOREFRESH),
+                   MYF(ME_FATAL | ME_ERROR_LOG),
                    table->s->table_name.str);
           goto err;
 	}
