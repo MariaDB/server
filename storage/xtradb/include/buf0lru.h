@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,6 +36,7 @@ Created 11/5/1995 Heikki Tuuri
 
 // Forward declaration
 struct trx_t;
+struct dict_table_t;
 
 /******************************************************************//**
 Returns TRUE if less than 25 % of the buffer pool is available. This can be
@@ -54,14 +55,15 @@ These are low-level functions
 /** Minimum LRU list length for which the LRU_old pointer is defined */
 #define BUF_LRU_OLD_MIN_LEN	512	/* 8 megabytes of 16k pages */
 
+/** Drop the adaptive hash index for a tablespace.
+@param[in,out]	table	table */
+UNIV_INTERN void buf_LRU_drop_page_hash_for_tablespace(dict_table_t* table);
+
 /** Empty the flush list for all pages belonging to a tablespace.
 @param[in]	id		tablespace identifier
 @param[in]	trx		transaction, for checking for user interrupt;
-				or NULL if nothing is to be written
-@param[in]	drop_ahi	whether to drop the adaptive hash index */
-UNIV_INTERN
-void
-buf_LRU_flush_or_remove_pages(ulint id, const trx_t* trx, bool drop_ahi=false);
+				or NULL if nothing is to be written */
+UNIV_INTERN void buf_LRU_flush_or_remove_pages(ulint id, const trx_t* trx);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /********************************************************************//**

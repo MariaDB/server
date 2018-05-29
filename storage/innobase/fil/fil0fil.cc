@@ -2891,7 +2891,7 @@ fil_delete_tablespace(ulint id, bool drop_ahi)
 	To deal with potential read requests by checking the
 	::stop_new_ops flag in fil_io() */
 
-	buf_LRU_flush_or_remove_pages(id, NULL, drop_ahi);
+	buf_LRU_flush_or_remove_pages(id, NULL);
 
 #endif /* !UNIV_HOTBACKUP */
 
@@ -3002,7 +3002,7 @@ fil_discard_tablespace(
 {
 	dberr_t	err;
 
-	switch (err = fil_delete_tablespace(id, true)) {
+	switch (err = fil_delete_tablespace(id)) {
 	case DB_SUCCESS:
 		break;
 

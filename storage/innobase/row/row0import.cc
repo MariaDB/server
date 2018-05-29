@@ -31,6 +31,7 @@ Created 2012-02-08 by Sunny Bains.
 #endif
 
 #include "btr0pcur.h"
+#include "btr0sea.h"
 #include "que0que.h"
 #include "dict0boot.h"
 #include "ibuf0ibuf.h"
@@ -3982,6 +3983,17 @@ row_import_for_mysql(
 
 		return(row_import_cleanup(prebuilt, trx, err));
 	}
+
+	/* On DISCARD TABLESPACE, we did not drop any adaptive hash
+	index entries. If we replaced the discarded tablespace with a
+	smaller one here, there could still be some adaptive hash
+	index entries that point to cached garbage pages in the buffer
+	pool, because PageConverter::operator() only evicted those
+	pages that were replaced by the imported pages. We must
+	discard all remaining adaptive hash index entries, because the
+	adaptive hash index must be a subset of the table contents;
+	false positives are not tolerated. */
+	buf_LRU_drop_page_hash_for_tablespace(table);
 
 	row_mysql_lock_data_dictionary(trx);
 
