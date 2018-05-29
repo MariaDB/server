@@ -1980,7 +1980,7 @@ int JOIN::optimize_stage2()
   if (!conds && outer_join)
   {
     /* Handle the case where we have an OUTER JOIN without a WHERE */
-    conds= new (thd->mem_root) Item_int(thd, (longlong) 1,1); // Always true
+    conds= new (thd->mem_root) Item_bool(thd, true); // Always true
   }
 
   if (impossible_where)
@@ -2119,7 +2119,7 @@ int JOIN::optimize_stage2()
   if (conds && const_table_map != found_const_table_map &&
       (select_options & SELECT_DESCRIBE))
   {
-    conds=new (thd->mem_root) Item_int(thd, (longlong) 0, 1); // Always false
+    conds=new (thd->mem_root) Item_bool(thd, false); // Always false
   }
 
   /* Cache constant expressions in WHERE, HAVING, ON clauses. */
@@ -2408,7 +2408,7 @@ int JOIN::optimize_stage2()
     having= having->remove_eq_conds(thd, &select_lex->having_value, true);
     if (select_lex->having_value == Item::COND_FALSE)
     {
-      having= new (thd->mem_root) Item_int(thd, (longlong) 0,1);
+      having= new (thd->mem_root) Item_bool(thd, false);
       zero_result_cause= "Impossible HAVING noticed after reading const tables";
       error= 0;
       select_lex->mark_const_derived(zero_result_cause);
@@ -4746,7 +4746,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     if (join->cond_value == Item::COND_FALSE)
     {
       join->impossible_where= true;
-      conds= new (join->thd->mem_root) Item_int(join->thd, (longlong) 0, 1);
+      conds= new (join->thd->mem_root) Item_bool(join->thd, false);
     }
 
     join->cond_equal= NULL;
@@ -10491,7 +10491,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             below to check if we should use 'quick' instead.
           */
           DBUG_PRINT("info", ("Item_int"));
-          tmp= new (thd->mem_root) Item_int(thd, (longlong) 1, 1); // Always true
+          tmp= new (thd->mem_root) Item_bool(thd, true); // Always true
         }
 
       }
@@ -13881,7 +13881,7 @@ COND *Item_cond_and::build_equal_items(THD *thd,
   if (!cond_args->elements && 
       !cond_equal.current_level.elements && 
       !eq_list.elements)
-    return new (thd->mem_root) Item_int(thd, (longlong) 1, 1);
+    return new (thd->mem_root) Item_bool(thd, true);
 
   List_iterator_fast<Item_equal> it(cond_equal.current_level);
   while ((item_equal= it++))
@@ -13988,7 +13988,7 @@ COND *Item_func_eq::build_equal_items(THD *thd,
     Item_equal *item_equal;
     int n= cond_equal.current_level.elements + eq_list.elements;
     if (n == 0)
-      return new (thd->mem_root) Item_int(thd, (longlong) 1, 1);
+      return new (thd->mem_root) Item_bool(thd, true);
     else if (n == 1)
     {
       if ((item_equal= cond_equal.current_level.pop()))
@@ -14378,7 +14378,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
   List<Item> eq_list;
   Item_func_eq *eq_item= 0;
   if (((Item *) item_equal)->const_item() && !item_equal->val_int())
-    return new (thd->mem_root) Item_int(thd, (longlong) 0, 1);
+    return new (thd->mem_root) Item_bool(thd, false);
   Item *item_const= item_equal->get_const();
   Item_equal_fields_iterator it(*item_equal);
   Item *head;
@@ -14386,7 +14386,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
   Item *current_sjm_head= NULL;
 
   DBUG_ASSERT(!cond ||
-              cond->type() == Item::INT_ITEM ||
+              cond->is_bool_literal() ||
               (cond->type() == Item::FUNC_ITEM &&
                ((Item_func *) cond)->functype() == Item_func::EQ_FUNC) ||  
               (cond->type() == Item::COND_ITEM  && 
@@ -14507,13 +14507,13 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
 
       cond AND eq_1 AND eq_2 AND eq_3 AND ...
     
-    'cond' is a parameter for this function, which may be NULL, an Item_int(1),
+    'cond' is a parameter for this function, which may be NULL, an Item_bool(1),
     or an Item_func_eq or an Item_cond_and.
 
     We want to return a well-formed condition: no nested Item_cond_and objects,
     or Item_cond_and with a single child:
     - if 'cond' is an Item_cond_and, we add eq_i as its tail
-    - if 'cond' is Item_int(1), we return eq_i
+    - if 'cond' is Item_bool(1), we return eq_i
     - otherwise, we create our own Item_cond_and and put 'cond' at the front of
       it.
     - if we have only one condition to return, we don't create an Item_cond_and
@@ -14525,10 +14525,10 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
   switch (eq_list.elements)
   {
   case 0:
-    res= cond ? cond : new (thd->mem_root) Item_int(thd, (longlong) 1, 1);
+    res= cond ? cond : new (thd->mem_root) Item_bool(thd, true);
     break;
   case 1:
-    if (!cond || cond->type() ==  Item::INT_ITEM)
+    if (!cond || cond->is_bool_literal())
       res= eq_item;
     break;
   default:
@@ -14670,7 +14670,7 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
           eq_cond= 0;
           break;
         }
-        else if (eq_cond->type() == Item::INT_ITEM && !eq_cond->val_bool()) 
+        else if (eq_cond->is_bool_literal() && !eq_cond->val_bool())
 	{
           /*
             This occurs when eliminate_item_equal() founds that cond is
@@ -14695,7 +14695,7 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
           else
 	  {
              /* Do not add an equality condition if it's always true */ 
-             if (eq_cond->type() != Item::INT_ITEM &&
+             if (!eq_cond->is_bool_literal() &&
                  cond_list->push_front(eq_cond, thd->mem_root))
                eq_cond= 0;
           }
@@ -16295,7 +16295,7 @@ Item_func_isnull::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
 
       */
 
-      Item *item0= new(thd->mem_root) Item_int(thd, (longlong) 0, 1);
+      Item *item0= new(thd->mem_root) Item_bool(thd, false);
       Item *eq_cond= new(thd->mem_root) Item_func_eq(thd, args[0], item0);
       if (!eq_cond)
         return this;

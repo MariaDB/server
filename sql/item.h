@@ -1635,6 +1635,7 @@ public:
   virtual bool is_result_field() { return 0; }
   virtual bool is_bool_type() { return false; }
   virtual bool is_json_type() { return false; }
+  virtual bool is_bool_literal() const { return false; }
   /* This is to handle printing of default values */
   virtual bool need_parentheses_in_default() { return false; }
   virtual void save_in_result_field(bool no_conversions) {}
@@ -3860,7 +3861,9 @@ class Item_bool :public Item_int
 public:
   Item_bool(THD *thd, const char *str_arg, longlong i):
     Item_int(thd, str_arg, i, 1) {}
+  Item_bool(THD *thd, bool i) :Item_int(thd, (longlong) i, 1) { }
   bool is_bool_type() { return true; }
+  bool is_bool_literal() const { return true; }
   Item *neg_transformer(THD *thd);
 };
 
