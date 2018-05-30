@@ -75,9 +75,8 @@ sp_map_item_type(const Type_handler *handler)
 {
   if (handler == &type_handler_row)
     return Item::ROW_ITEM;
-  enum_field_types type= real_type_to_type(handler->real_field_type());
 
-  switch (type) {
+  switch (handler->real_field_type()) {
   case MYSQL_TYPE_BIT:
   case MYSQL_TYPE_TINY:
   case MYSQL_TYPE_SHORT:

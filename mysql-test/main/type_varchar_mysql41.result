@@ -1,0 +1,113 @@
+#
+# MDEV-16325 CREATE..SELECT..UNION creates a wrong field type for old varchar
+#
+CREATE PROCEDURE p1(col VARCHAR(32))
+BEGIN
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_simple AS SELECT col FROM t1old','col',col);
+SHOW CREATE TABLE t2_simple;
+DROP TABLE t2_simple;
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_union_vv AS SELECT col FROM t1old UNION SELECT col FROM t1old','col',col);
+SHOW CREATE TABLE t2_union_vv;
+DROP TABLE t2_union_vv;
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_union_vn AS SELECT col FROM t1old UNION SELECT NULL','col',col);
+SHOW CREATE TABLE t2_union_vn;
+DROP TABLE t2_union_vn;
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_union_nv AS SELECT NULL AS col UNION SELECT col FROM t1old','col',col);
+SHOW CREATE TABLE t2_union_nv;
+DROP TABLE t2_union_nv;
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2 AS SELECT
+    COALESCE(col),
+    COALESCE(col,col),
+    COALESCE(col,NULL),
+    COALESCE(NULL,col)
+  FROM t1old', 'col', col);
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2 AS SELECT
+    LEAST(col,col),
+    LEAST(col,NULL),
+    LEAST(NULL,col)
+  FROM t1old','col',col);
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+END;
+$$
+TRUNCATE TABLE t1old;
+SHOW CREATE TABLE t1old;
+Table	Create Table
+t1old	CREATE TABLE `t1old` (
+  `v` varchar(30)/*old*/ DEFAULT NULL,
+  `c` char(3) DEFAULT NULL,
+  `e` enum('abc','def','ghi') DEFAULT NULL,
+  `t` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('v');
+Table	Create Table
+t2_simple	CREATE TABLE `t2_simple` (
+  `v` varchar(30) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Table	Create Table
+t2_union_vv	CREATE TABLE `t2_union_vv` (
+  `v` varchar(30) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Table	Create Table
+t2_union_vn	CREATE TABLE `t2_union_vn` (
+  `v` varchar(30) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Table	Create Table
+t2_union_nv	CREATE TABLE `t2_union_nv` (
+  `v` varchar(30) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(v)` varchar(30) DEFAULT NULL,
+  `COALESCE(v,v)` varchar(30) DEFAULT NULL,
+  `COALESCE(v,NULL)` varchar(30) DEFAULT NULL,
+  `COALESCE(NULL,v)` varchar(30) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(v,v)` varchar(30) DEFAULT NULL,
+  `LEAST(v,NULL)` varchar(30) DEFAULT NULL,
+  `LEAST(NULL,v)` varchar(30) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1old;
+TRUNCATE TABLE t1old;
+SHOW CREATE TABLE t1old;
+Table	Create Table
+t1old	CREATE TABLE `t1old` (
+  `a` varbinary(255)/*old*/ DEFAULT NULL,
+  `b` varchar(255)/*old*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CALL p1('a');
+Table	Create Table
+t2_simple	CREATE TABLE `t2_simple` (
+  `a` varbinary(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Table	Create Table
+t2_union_vv	CREATE TABLE `t2_union_vv` (
+  `a` varbinary(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Table	Create Table
+t2_union_vn	CREATE TABLE `t2_union_vn` (
+  `a` varbinary(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Table	Create Table
+t2_union_nv	CREATE TABLE `t2_union_nv` (
+  `a` varbinary(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a)` varbinary(255) DEFAULT NULL,
+  `COALESCE(a,a)` varbinary(255) DEFAULT NULL,
+  `COALESCE(a,NULL)` varbinary(255) DEFAULT NULL,
+  `COALESCE(NULL,a)` varbinary(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `LEAST(a,a)` varbinary(255) DEFAULT NULL,
+  `LEAST(a,NULL)` varbinary(255) DEFAULT NULL,
+  `LEAST(NULL,a)` varbinary(255) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1old;
+DROP PROCEDURE p1;

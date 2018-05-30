@@ -1021,6 +1021,28 @@ public:
   virtual const Name name() const= 0;
   virtual enum_field_types field_type() const= 0;
   virtual enum_field_types real_field_type() const { return field_type(); }
+  /**
+    Type code which is used for merging of traditional data types for result
+    (for UNION and for hybrid functions such as COALESCE).
+    Mapping can be done both ways: old->new, new->old, depending
+    on the particular data type implementation:
+    - type_handler_var_string (MySQL-4.1 old VARCHAR) is converted to
+      new VARCHAR before merging.
+      field_type_merge_rules[][] returns new VARCHAR.
+    - type_handler_newdate is converted to old DATE before merging.
+      field_type_merge_rules[][] returns NEWDATE.
+    - Temporal type_handler_xxx2 (new MySQL-5.6 types) are converted to
+      corresponding old type codes before merging (e.g. TIME2->TIME).
+      field_type_merge_rules[][] returns old type codes (e.g. TIME).
+      Then old types codes are supposed to convert to new type codes somehow,
+      but they do not. So UNION and COALESCE create old columns.
+      This is a bug and should be fixed eventually.
+  */
+  virtual enum_field_types traditional_merge_field_type() const
+  {
+    DBUG_ASSERT(is_traditional_type());
+    return field_type();
+  }
   virtual Item_result result_type() const= 0;
   virtual Item_result cmp_type() const= 0;
   virtual enum_mysql_timestamp_type mysql_timestamp_type() const
@@ -3123,6 +3145,10 @@ public:
   const Name name() const { return m_name_var_string; }
   enum_field_types field_type() const { return MYSQL_TYPE_VAR_STRING; }
   enum_field_types real_field_type() const { return MYSQL_TYPE_STRING; }
+  enum_field_types traditional_merge_field_type() const
+  {
+    return MYSQL_TYPE_VARCHAR;
+  }
   const Type_handler *type_handler_for_tmp_table(const Item *item) const
   {
     return varstring_type_handler(item);
@@ -3427,7 +3453,11 @@ class Type_handler_enum: public Type_handler_typelib
 public:
   virtual ~Type_handler_enum() {}
   const Name name() const { return m_name_enum; }
-  virtual enum_field_types real_field_type() const { return MYSQL_TYPE_ENUM; }
+  enum_field_types real_field_type() const { return MYSQL_TYPE_ENUM; }
+  enum_field_types traditional_merge_field_type() const
+  {
+    return MYSQL_TYPE_ENUM;
+  }
   uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -3455,7 +3485,11 @@ class Type_handler_set: public Type_handler_typelib
 public:
   virtual ~Type_handler_set() {}
   const Name name() const { return m_name_set; }
-  virtual enum_field_types real_field_type() const { return MYSQL_TYPE_SET; }
+  enum_field_types real_field_type() const { return MYSQL_TYPE_SET; }
+  enum_field_types traditional_merge_field_type() const
+  {
+    return MYSQL_TYPE_SET;
+  }
   uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;

@@ -467,31 +467,6 @@ inline bool is_temporal_type_with_date(enum_field_types type)
 }
 
 
-/**
-  Convert temporal real types as retuned by field->real_type()
-  to field type as returned by field->type().
-  
-  @param real_type  Real type.
-  @retval           Field type.
-*/
-inline enum_field_types real_type_to_type(enum_field_types real_type)
-{
-  switch (real_type)
-  {
-  case MYSQL_TYPE_TIME2:
-    return MYSQL_TYPE_TIME;
-  case MYSQL_TYPE_DATETIME2:
-    return MYSQL_TYPE_DATETIME;
-  case MYSQL_TYPE_TIMESTAMP2:
-    return MYSQL_TYPE_TIMESTAMP;
-  case MYSQL_TYPE_NEWDATE:
-    return MYSQL_TYPE_DATE;
-  /* Note: NEWDECIMAL is a type, not only a real_type */
-  default: return real_type;
-  }
-}
-
-
 enum enum_vcol_info_type
 {
   VCOL_GENERATED_VIRTUAL, VCOL_GENERATED_STORED,
@@ -873,7 +848,6 @@ public:
   {
     return type_handler()->cmp_type();
   }
-  static enum_field_types field_type_merge(enum_field_types, enum_field_types);
   virtual bool eq(Field *field)
   {
     return (ptr == field->ptr && null_ptr == field->null_ptr &&

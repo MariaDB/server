@@ -13,7 +13,7 @@ t1	CREATE TABLE `t1` (
 show create table vchar;
 Table	Create Table
 vchar	CREATE TABLE `vchar` (
-  `v` varchar(30) DEFAULT NULL,
+  `v` varchar(30)/*old*/ DEFAULT NULL,
   `c` char(3) DEFAULT NULL,
   `e` enum('abc','def','ghi') DEFAULT NULL,
   `t` text DEFAULT NULL

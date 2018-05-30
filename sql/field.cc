@@ -80,15 +80,14 @@ const int FIELDTYPE_LAST=      254;
 const int FIELDTYPE_NUM=       FIELDTYPE_TEAR_FROM + (FIELDTYPE_LAST -
                                                       FIELDTYPE_TEAR_TO);
 
-static inline int field_type2index (enum_field_types field_type)
+static inline int merge_type2index(enum_field_types merge_type)
 {
-  DBUG_ASSERT(real_type_to_type(field_type) < FIELDTYPE_TEAR_FROM ||
-              real_type_to_type(field_type) > FIELDTYPE_TEAR_TO);
-  DBUG_ASSERT(field_type <= FIELDTYPE_LAST);
-  field_type= real_type_to_type(field_type);
-  if (field_type < FIELDTYPE_TEAR_FROM)
-    return field_type;
-  return FIELDTYPE_TEAR_FROM + (field_type - FIELDTYPE_TEAR_TO) - 1;
+  DBUG_ASSERT(merge_type < FIELDTYPE_TEAR_FROM ||
+              merge_type > FIELDTYPE_TEAR_TO);
+  DBUG_ASSERT(merge_type <= FIELDTYPE_LAST);
+  if (merge_type < FIELDTYPE_TEAR_FROM)
+    return merge_type;
+  return FIELDTYPE_TEAR_FROM + (merge_type - FIELDTYPE_TEAR_TO) - 1;
 }
 
 
@@ -913,31 +912,16 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
   }
 };
 
-/**
-  Return type of which can carry value of both given types in UNION result.
-
-  @param a  type for merging
-  @param b  type for merging
-
-  @return
-    type of field
-*/
-
-enum_field_types Field::field_type_merge(enum_field_types a,
-                                         enum_field_types b)
-{
-  return field_types_merge_rules[field_type2index(a)]
-                                [field_type2index(b)];
-}
 
 const Type_handler *
 Type_handler::aggregate_for_result_traditional(const Type_handler *a,
                                                const Type_handler *b)
 {
-  enum_field_types ta= a->real_field_type();
-  enum_field_types tb= b->real_field_type();
-  return
-    Type_handler::get_handler_by_real_type(Field::field_type_merge(ta, tb));
+  enum_field_types ta= a->traditional_merge_field_type();
+  enum_field_types tb= b->traditional_merge_field_type();
+  enum_field_types res= field_types_merge_rules[merge_type2index(ta)]
+                                               [merge_type2index(tb)];
+  return Type_handler::get_handler_by_real_type(res);
 }
 
 
@@ -7296,11 +7280,12 @@ void Field_string::sql_type(String &res) const
   size_t length;
 
   length= cs->cset->snprintf(cs,(char*) res.ptr(),
-                             res.alloced_length(), "%s(%d)",
+                             res.alloced_length(), "%s(%d)%s",
                              (type() == MYSQL_TYPE_VAR_STRING ?
                               (has_charset() ? "varchar" : "varbinary") :
 			      (has_charset() ? "char" : "binary")),
-                             (int) field_length / charset()->mbmaxlen);
+                             (int) field_length / charset()->mbmaxlen,
+                             type() == MYSQL_TYPE_VAR_STRING ? "/*old*/" : "");
   res.length(length);
   if ((thd->variables.sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)) &&
       has_charset() && (charset()->state & MY_CS_BINSORT))

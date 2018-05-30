@@ -1,0 +1,59 @@
+--echo #
+--echo # MDEV-16325 CREATE..SELECT..UNION creates a wrong field type for old varchar
+--echo #
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1(col VARCHAR(32))
+BEGIN
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_simple AS SELECT col FROM t1old','col',col);
+  SHOW CREATE TABLE t2_simple;
+  DROP TABLE t2_simple;
+
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_union_vv AS SELECT col FROM t1old UNION SELECT col FROM t1old','col',col);
+  SHOW CREATE TABLE t2_union_vv;
+  DROP TABLE t2_union_vv;
+
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_union_vn AS SELECT col FROM t1old UNION SELECT NULL','col',col);
+  SHOW CREATE TABLE t2_union_vn;
+  DROP TABLE t2_union_vn;
+
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2_union_nv AS SELECT NULL AS col UNION SELECT col FROM t1old','col',col);
+  SHOW CREATE TABLE t2_union_nv;
+  DROP TABLE t2_union_nv;
+
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2 AS SELECT
+    COALESCE(col),
+    COALESCE(col,col),
+    COALESCE(col,NULL),
+    COALESCE(NULL,col)
+  FROM t1old', 'col', col);
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2 AS SELECT
+    LEAST(col,col),
+    LEAST(col,NULL),
+    LEAST(NULL,col)
+  FROM t1old','col',col);
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+copy_file $MYSQL_TEST_DIR/std_data/vchar.frm $MYSQLD_DATADIR/test/t1old.frm;
+TRUNCATE TABLE t1old;
+SHOW CREATE TABLE t1old;
+CALL p1('v');
+DROP TABLE t1old;
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+copy_file $MYSQL_TEST_DIR/std_data/bug19371.frm $MYSQLD_DATADIR/test/t1old.frm;
+TRUNCATE TABLE t1old;
+SHOW CREATE TABLE t1old;
+CALL p1('a');
+DROP TABLE t1old;
+
+DROP PROCEDURE p1;
