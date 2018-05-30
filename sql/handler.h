@@ -631,43 +631,41 @@ typedef ulonglong alter_table_operations;
                                        ALTER_DROP_STORED_COLUMN)
 #define ALTER_COLUMN_DEFAULT          ALTER_CHANGE_COLUMN_DEFAULT
 
-#define ALTER_DROP_HISTORICAL        (1ULL << 35)
-
 // Add non-unique, non-primary index
-#define ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX  (1ULL << 36)
+#define ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX  (1ULL << 35)
 
 // Drop non-unique, non-primary index
-#define ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX (1ULL << 37)
+#define ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX (1ULL << 36)
 
 // Add unique, non-primary index
-#define ALTER_ADD_UNIQUE_INDEX               (1ULL << 38)
+#define ALTER_ADD_UNIQUE_INDEX               (1ULL << 37)
 
 // Drop unique, non-primary index
-#define ALTER_DROP_UNIQUE_INDEX              (1ULL << 39)
+#define ALTER_DROP_UNIQUE_INDEX              (1ULL << 38)
 
 // Add primary index
-#define ALTER_ADD_PK_INDEX                   (1ULL << 40)
+#define ALTER_ADD_PK_INDEX                   (1ULL << 39)
 
 // Drop primary index
-#define ALTER_DROP_PK_INDEX                  (1ULL << 41)
+#define ALTER_DROP_PK_INDEX                  (1ULL << 40)
 
 // Virtual generated column
-#define ALTER_ADD_VIRTUAL_COLUMN             (1ULL << 42)
+#define ALTER_ADD_VIRTUAL_COLUMN             (1ULL << 41)
 // Stored base (non-generated) column
-#define ALTER_ADD_STORED_BASE_COLUMN         (1ULL << 43)
+#define ALTER_ADD_STORED_BASE_COLUMN         (1ULL << 42)
 // Stored generated column
-#define ALTER_ADD_STORED_GENERATED_COLUMN    (1ULL << 44)
+#define ALTER_ADD_STORED_GENERATED_COLUMN    (1ULL << 43)
 
 // Drop column
-#define ALTER_DROP_VIRTUAL_COLUMN            (1ULL << 45)
-#define ALTER_DROP_STORED_COLUMN             (1ULL << 46)
+#define ALTER_DROP_VIRTUAL_COLUMN            (1ULL << 44)
+#define ALTER_DROP_STORED_COLUMN             (1ULL << 45)
 
 // Rename column (verified; ALTER_RENAME_COLUMN may use original name)
-#define ALTER_COLUMN_NAME          	     (1ULL << 47)
+#define ALTER_COLUMN_NAME          	     (1ULL << 46)
 
 // Change column datatype
-#define ALTER_VIRTUAL_COLUMN_TYPE            (1ULL << 48)
-#define ALTER_STORED_COLUMN_TYPE             (1ULL << 49)
+#define ALTER_VIRTUAL_COLUMN_TYPE            (1ULL << 47)
+#define ALTER_STORED_COLUMN_TYPE             (1ULL << 48)
 
 /**
   Change column datatype in such way that new type has compatible
@@ -675,45 +673,45 @@ typedef ulonglong alter_table_operations;
   possible to perform change by only updating data dictionary
   without changing table rows.
 */
-#define ALTER_COLUMN_EQUAL_PACK_LENGTH       (1ULL << 50)
+#define ALTER_COLUMN_EQUAL_PACK_LENGTH       (1ULL << 49)
 
 // Reorder column
-#define ALTER_STORED_COLUMN_ORDER            (1ULL << 51)
+#define ALTER_STORED_COLUMN_ORDER            (1ULL << 50)
 
 // Reorder column
-#define ALTER_VIRTUAL_COLUMN_ORDER           (1ULL << 52)
+#define ALTER_VIRTUAL_COLUMN_ORDER           (1ULL << 51)
 
 // Change column from NOT NULL to NULL
-#define ALTER_COLUMN_NULLABLE                (1ULL << 53)
+#define ALTER_COLUMN_NULLABLE                (1ULL << 52)
 
 // Change column from NULL to NOT NULL
-#define ALTER_COLUMN_NOT_NULLABLE            (1ULL << 54)
+#define ALTER_COLUMN_NOT_NULLABLE            (1ULL << 53)
 
 // Change column generation expression
-#define ALTER_VIRTUAL_GCOL_EXPR              (1ULL << 55)
-#define ALTER_STORED_GCOL_EXPR               (1ULL << 56)
+#define ALTER_VIRTUAL_GCOL_EXPR              (1ULL << 54)
+#define ALTER_STORED_GCOL_EXPR               (1ULL << 55)
 
 // column's engine options changed, something in field->option_struct
-#define ALTER_COLUMN_OPTION                  (1ULL << 57)
+#define ALTER_COLUMN_OPTION                  (1ULL << 56)
 
 // MySQL alias for the same thing:
-#define ALTER_COLUMN_STORAGE_TYPE            (1ULL << 58)
+#define ALTER_COLUMN_STORAGE_TYPE            ALTER_COLUMN_OPTION
 
 // Change the column format of column
-#define ALTER_COLUMN_COLUMN_FORMAT           (1ULL << 59)
+#define ALTER_COLUMN_COLUMN_FORMAT           (1ULL << 57)
 
 /**
   Changes in generated columns that affect storage,
   for example, when a vcol type or expression changes
   and this vcol is indexed or used in a partitioning expression
 */
-#define ALTER_COLUMN_VCOL                    (1ULL << 60)
+#define ALTER_COLUMN_VCOL                    (1ULL << 58)
 
 /**
   ALTER TABLE for a partitioned table. The engine needs to commit
   online alter of all partitions atomically (using group_commit_ctx)
 */
-#define ALTER_PARTITIONED                    (1ULL << 61)
+#define ALTER_PARTITIONED                    (1ULL << 59)
 
 /*
   Flags set in partition_flags when altering partitions

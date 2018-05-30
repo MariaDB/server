@@ -1700,8 +1700,7 @@ row_merge_read_clustered_index(
 	ut_stage_alter_t*	stage,
 	double 			pct_cost,
 	row_merge_block_t*	crypt_block,
-	struct TABLE*		eval_table,
-	bool			drop_historical)
+	struct TABLE*		eval_table)
 {
 	dict_index_t*		clust_index;	/* Clustered index */
 	mem_heap_t*		row_heap;	/* Heap memory to create
@@ -2298,7 +2297,7 @@ end_of_index:
 		}
 
 		if (old_table->versioned()) {
-			if ((!new_table->versioned() || drop_historical)
+			if (!new_table->versioned()
 			    && clust_index->vers_history_row(rec, offsets)) {
 				continue;
 			}
@@ -4548,7 +4547,6 @@ this function and it will be passed to other functions for further accounting.
 @param[in]	add_v		new virtual columns added along with indexes
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
-@param[in]	drop_historical	whether to drop historical system rows
 @return DB_SUCCESS or error code */
 dberr_t
 row_merge_build_indexes(
@@ -4567,8 +4565,7 @@ row_merge_build_indexes(
 	bool			skip_pk_sort,
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
-	struct TABLE*		eval_table,
-	bool			drop_historical)
+	struct TABLE*		eval_table)
 {
 	merge_file_t*		merge_files;
 	row_merge_block_t*	block;
@@ -4732,7 +4729,7 @@ row_merge_build_indexes(
 		fts_sort_idx, psort_info, merge_files, key_numbers,
 		n_indexes, defaults, add_v, col_map, add_autoinc,
 		sequence, block, skip_pk_sort, &tmpfd, stage,
-		pct_cost, crypt_block, eval_table, drop_historical);
+		pct_cost, crypt_block, eval_table);
 
 	stage->end_phase_read_pk();
 

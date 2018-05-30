@@ -99,7 +99,6 @@ static const alter_table_operations INNOBASE_ALTER_DATA
 /** Operations for altering a table that InnoDB does not care about */
 static const alter_table_operations INNOBASE_INPLACE_IGNORE
 	= ALTER_COLUMN_DEFAULT
-	| ALTER_CHANGE_COLUMN_DEFAULT
 	| ALTER_PARTITIONED
 	| ALTER_COLUMN_COLUMN_FORMAT
 	| ALTER_COLUMN_STORAGE_TYPE
@@ -7205,8 +7204,7 @@ ok_exit:
 		ctx->add_index, ctx->add_key_numbers, ctx->num_to_add_index,
 		altered_table, ctx->defaults, ctx->col_map,
 		ctx->add_autoinc, ctx->sequence, ctx->skip_pk_sort,
-		ctx->m_stage, add_v, eval_table,
-		ha_alter_info->handler_flags & ALTER_DROP_HISTORICAL);
+		ctx->m_stage, add_v, eval_table);
 
 #ifndef DBUG_OFF
 oom:
