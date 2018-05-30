@@ -3660,7 +3660,7 @@ extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
 void my_message_sql(uint error, const char *str, myf MyFlags)
 {
-  THD *thd= current_thd;
+  THD *thd= MyFlags & ME_ERROR_LOG_ONLY ? NULL : current_thd;
   Sql_condition::enum_warning_level level;
   sql_print_message_func func;
   DBUG_ENTER("my_message_sql");
@@ -3669,6 +3669,8 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
 
   DBUG_ASSERT(str != NULL);
   DBUG_ASSERT(error != 0);
+  DBUG_ASSERT((MyFlags & ~(ME_BELL | ME_ERROR_LOG | ME_ERROR_LOG_ONLY |
+                           ME_NOTE | ME_WARNING | ME_FATAL)) == 0);
 
   if (MyFlags & ME_NOTE)
   {

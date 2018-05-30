@@ -106,6 +106,7 @@ typedef struct my_aio_result {
 
 #define ME_BELL           4U    /* Ring bell then printing message */
 #define ME_ERROR_LOG      64    /**< write the error message to error log */
+#define ME_ERROR_LOG_ONLY 128   /**< write the error message to error log only */
 #define ME_NOTE           1024  /**< not error but just info */
 #define ME_WARNING        2048  /**< not error but just warning */
 #define ME_FATAL          4096  /**< fatal statement error */

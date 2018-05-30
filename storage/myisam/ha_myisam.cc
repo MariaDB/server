@@ -158,7 +158,7 @@ static void mi_check_print_msg(HA_CHECK *param,	const char* msg_type,
   if (param->testflag & (T_CREATE_MISSING_KEYS | T_SAFE_REPAIR |
 			 T_AUTO_REPAIR))
   {
-    my_message(ER_NOT_KEYFILE, msgbuf, MYF(MY_WME));
+    my_message(ER_NOT_KEYFILE, msgbuf, MYF(0));
     if (thd->variables.log_warnings > 2 && ! thd->log_all_errors)
       sql_print_error("%s.%s: %s", param->db_name, param->table_name, msgbuf);
     return;

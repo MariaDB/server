@@ -2181,16 +2181,16 @@ void MYSQL_BIN_LOG::set_write_error(THD *thd, bool is_transactional)
   {
     if (is_transactional)
     {
-      my_message(ER_TRANS_CACHE_FULL, ER_THD(thd, ER_TRANS_CACHE_FULL), MYF(MY_WME));
+      my_message(ER_TRANS_CACHE_FULL, ER_THD(thd, ER_TRANS_CACHE_FULL), MYF(0));
     }
     else
     {
-      my_message(ER_STMT_CACHE_FULL, ER_THD(thd, ER_STMT_CACHE_FULL), MYF(MY_WME));
+      my_message(ER_STMT_CACHE_FULL, ER_THD(thd, ER_STMT_CACHE_FULL), MYF(0));
     }
   }
   else
   {
-    my_error(ER_ERROR_ON_WRITE, MYF(MY_WME), name, errno);
+    my_error(ER_ERROR_ON_WRITE, MYF(0), name, errno);
   }
 
   DBUG_VOID_RETURN;

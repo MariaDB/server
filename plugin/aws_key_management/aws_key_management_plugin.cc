@@ -229,7 +229,7 @@ static int aws_init()
   client = new KMSClient(clientConfiguration);
   if (!client)
   {
-    my_printf_error(ER_UNKNOWN_ERROR, "Can not initialize KMS client", ME_ERROR_LOG | ME_WARNING);
+    my_printf_error(ER_UNKNOWN_ERROR, "Can't initialize KMS client", ME_ERROR_LOG_ONLY | ME_WARNING);
     return -1;
   }
   return 0;
@@ -331,12 +331,12 @@ static int load_key(KEY_INFO *info)
 
   if (!ret)
   {
-    my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: loaded key %u, version %u, key length %u bit", ME_ERROR_LOG | ME_NOTE,
+    my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: loaded key %u, version %u, key length %u bit", ME_ERROR_LOG_ONLY | ME_NOTE,
       info->key_id, info->key_version,(uint)info->length*8);
   }
   else
   {
-    my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: key %u, version %u could not be decrypted", ME_ERROR_LOG | ME_WARNING,
+    my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: key %u, version %u could not be decrypted", ME_ERROR_LOG_ONLY | ME_WARNING,
       info->key_id, info->key_version);
   }
   return ret;
@@ -435,13 +435,13 @@ static  int read_and_decrypt_key(const char *path, KEY_INFO *info)
   ifstream ifs(path, ios::binary | ios::ate);
   if (!ifs.good())
   {
-    my_printf_error(ER_UNKNOWN_ERROR, "can't open file %s", ME_ERROR_LOG, path);
+    my_printf_error(ER_UNKNOWN_ERROR, "can't open file %s", ME_ERROR_LOG_ONLY, path);
     return(-1);
   }
   size_t pos = (size_t)ifs.tellg();
   if (!pos || pos == SIZE_T_MAX)
   {
-    my_printf_error(ER_UNKNOWN_ERROR, "invalid key file %s", ME_ERROR_LOG, path);
+    my_printf_error(ER_UNKNOWN_ERROR, "invalid key file %s", ME_ERROR_LOG_ONLY, path);
     return(-1);
   }
   std::vector<char>  contents(pos);
@@ -456,7 +456,7 @@ static  int read_and_decrypt_key(const char *path, KEY_INFO *info)
 
   if (decrypt(input, &plaintext, &errmsg))
   {
-      my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: Decrypt failed for %s : %s", ME_ERROR_LOG, path,
+      my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: Decrypt failed for %s : %s", ME_ERROR_LOG_ONLY, path,
       errmsg.c_str());
       return -1;
   }
@@ -465,7 +465,7 @@ static  int read_and_decrypt_key(const char *path, KEY_INFO *info)
 
   if (len > sizeof(info->data))
   {
-    my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: encoding key too large for %s", ME_ERROR_LOG, path);
+    my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: encoding key too large for %s", ME_ERROR_LOG_ONLY, path);
     return(ENCRYPTION_KEY_BUFFER_TOO_SMALL);
   }
   memcpy(info->data, plaintext.GetUnderlyingData(), len);
@@ -491,7 +491,7 @@ int aws_generate_encrypted_key(Aws::Utils::ByteBuffer *result)
   outcome= client->GenerateDataKeyWithoutPlaintext(request);
   if (!outcome.IsSuccess())
   {
-    my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin : GenerateDataKeyWithoutPlaintext failed : %s - %s", ME_ERROR_LOG,
+    my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin : GenerateDataKeyWithoutPlaintext failed : %s - %s", ME_ERROR_LOG_ONLY,
       outcome.GetError().GetExceptionName().c_str(),
       outcome.GetError().GetMessage().c_str());
     return(-1);
@@ -524,19 +524,19 @@ static int generate_and_save_datakey(uint keyid, uint version)
   int fd= open(filename, O_WRONLY |O_CREAT|O_BINARY, IF_WIN(_S_IREAD, S_IRUSR| S_IRGRP| S_IROTH));
   if (fd < 0)
   {
-    my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: Can't create file %s", ME_ERROR_LOG, filename);
+    my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: Can't create file %s", ME_ERROR_LOG_ONLY, filename);
     return(-1);
   }
   unsigned int len= (unsigned int)byteBuffer.GetLength();
   if (write(fd, byteBuffer.GetUnderlyingData(), len) != len)
   {
-    my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: can't write to %s", ME_ERROR_LOG, filename);
+    my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: can't write to %s", ME_ERROR_LOG_ONLY, filename);
     close(fd);
     unlink(filename);
     return(-1);
   }
   close(fd);
-  my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: generated encrypted datakey for key id=%u, version=%u", ME_ERROR_LOG | ME_NOTE,
+  my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: generated encrypted datakey for key id=%u, version=%u", ME_ERROR_LOG_ONLY | ME_NOTE,
     keyid, version);
   return(0);
 }

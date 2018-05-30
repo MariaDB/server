@@ -32,10 +32,11 @@ extern "C" {
 #include <stdlib.h>
 #endif
 
-#define ME_ERROR_LOG    64      /* Write the message to the error log */
-#define ME_NOTE         1024    /* Not an error, just a note */
-#define ME_WARNING      2048    /* Not an error, just a warning */
-#define ME_FATAL        4096    /* Fatal statement error */
+#define ME_ERROR_LOG        64 /* Write the message to the error log */
+#define ME_ERROR_LOG_ONLY  128 /* Write the error message to error log only */
+#define ME_NOTE           1024 /* Not an error, just a note */
+#define ME_WARNING        2048 /* Not an error, just a warning */
+#define ME_FATAL          4096 /* Fatal statement error */
 
 extern struct my_print_error_service_st {
   void (*my_error_func)(unsigned int nr, unsigned long MyFlags, ...);
