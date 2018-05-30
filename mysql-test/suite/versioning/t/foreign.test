@@ -1,6 +1,5 @@
+--source suite/versioning/key_type.inc
 --source suite/versioning/common.inc
-
-let $KEY_TYPE= primary key;
 
 --echo #################
 --echo # Test RESTRICT #

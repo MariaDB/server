@@ -3172,7 +3172,7 @@ row_upd_clust_step(
 		row_upd_eval_new_vals(node->update);
 	}
 
-	if (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE) {
+	if (!node->is_delete && node->cmpl_info & UPD_NODE_NO_ORD_CHANGE) {
 
 		err = row_upd_clust_rec(
 			flags, node, index, offsets, &heap, thr, &mtr);
@@ -3217,7 +3217,10 @@ row_upd_clust_step(
 			goto exit_func;
 		}
 
-		node->state = UPD_NODE_UPDATE_SOME_SEC;
+		ut_ad(node->is_delete != PLAIN_DELETE);
+		node->state = node->is_delete ?
+			UPD_NODE_UPDATE_ALL_SEC :
+			UPD_NODE_UPDATE_SOME_SEC;
 	}
 
 	node->index = dict_table_get_next_index(index);
