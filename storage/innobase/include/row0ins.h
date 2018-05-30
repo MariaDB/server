@@ -145,7 +145,10 @@ row_ins_sec_index_entry(
 /*====================*/
 	dict_index_t*	index,	/*!< in: secondary index */
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
-	que_thr_t*	thr)	/*!< in: query thread */
+	que_thr_t*	thr,	/*!< in: query thread */
+	bool		check_ref) /*!< in: TRUE if we want to check that
+				the referenced table is ok, FALSE if we
+				want to check the foreign key table */
 	MY_ATTRIBUTE((warn_unused_result));
 /***********************************************************//**
 Inserts a row to a table. This is a high-level function used in

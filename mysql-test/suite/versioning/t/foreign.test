@@ -1,6 +1,5 @@
+--source suite/versioning/key_type.inc
 --source suite/versioning/common.inc
-
-let $KEY_TYPE= primary key;
 
 --echo #################
 --echo # Test RESTRICT #
@@ -331,19 +330,21 @@ select count(*) from subchild;
 
 drop table subchild, child, parent;
 
+--echo #
+--echo # MDEV-18057 Assertion `(node->state == 5) || (node->state == 6)' failed in row_upd_sec_step upon DELETE after UPDATE failed due to FK violation
+--echo #
+create or replace table t1 (f1 int, key(f1)) engine=innodb;
+create or replace table t2 (f2 int, foreign key (f2) references t1 (f1)) engine=innodb with system versioning;
 
-CREATE TABLE t1 (f1 INT, KEY(f1)) ENGINE=InnoDB;
-CREATE TABLE t2 (f2 INT, FOREIGN KEY (f2) REFERENCES t1 (f1)) ENGINE=InnoDB WITH SYSTEM VERSIONING;
+set foreign_key_checks= off;
+insert ignore into t2 values (1);
 
-SET FOREIGN_KEY_CHECKS= OFF;
-INSERT IGNORE INTO t2 VALUES (1);
-
-SET FOREIGN_KEY_CHECKS= ON;
+set foreign_key_checks= on;
 --error ER_NO_REFERENCED_ROW_2
-UPDATE t2 SET f2= 2;
-DELETE FROM t2;
+update t2 set f2= 2;
+delete from t2;
 
-DROP TABLE t2, t1;
+drop table t2, t1;
 
 --echo #
 --echo # MDEV-18879 Corrupted record inserted by FOREIGN KEY operation

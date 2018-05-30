@@ -298,15 +298,18 @@ select count(*) from subchild;
 count(*)
 0
 drop table subchild, child, parent;
-CREATE TABLE t1 (f1 INT, KEY(f1)) ENGINE=InnoDB;
-CREATE TABLE t2 (f2 INT, FOREIGN KEY (f2) REFERENCES t1 (f1)) ENGINE=InnoDB WITH SYSTEM VERSIONING;
-SET FOREIGN_KEY_CHECKS= OFF;
-INSERT IGNORE INTO t2 VALUES (1);
-SET FOREIGN_KEY_CHECKS= ON;
-UPDATE t2 SET f2= 2;
+#
+# MDEV-18057 Assertion `(node->state == 5) || (node->state == 6)' failed in row_upd_sec_step upon DELETE after UPDATE failed due to FK violation
+#
+create or replace table t1 (f1 int, key(f1)) engine=innodb;
+create or replace table t2 (f2 int, foreign key (f2) references t1 (f1)) engine=innodb with system versioning;
+set foreign_key_checks= off;
+insert ignore into t2 values (1);
+set foreign_key_checks= on;
+update t2 set f2= 2;
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
-DELETE FROM t2;
-DROP TABLE t2, t1;
+delete from t2;
+drop table t2, t1;
 #
 # MDEV-18879 Corrupted record inserted by FOREIGN KEY operation
 #
