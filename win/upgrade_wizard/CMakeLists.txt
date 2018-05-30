@@ -11,6 +11,9 @@ IF(CMAKE_USING_VC_FREE_TOOLS)
 ENDIF()
 
 # We need MFC
+# /permissive- flag does not play well with MFC, disable it.
+STRING(REPLACE "/permissive-"  "" CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS}")
+
 FIND_PACKAGE(MFC)
 IF(NOT MFC_FOUND)
   IF(BUILD_RELEASE)
