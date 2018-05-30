@@ -431,7 +431,7 @@ btr_search_info_get_ref_count(
 {
 	ulint ret = 0;
 
-	if (!btr_search_enabled || !index->table->space) {
+	if (!btr_search_enabled) {
 		return(ret);
 	}
 

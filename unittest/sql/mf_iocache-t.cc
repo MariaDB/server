@@ -213,14 +213,14 @@ void mdev10259()
   res= reinit_io_cache(&info, READ_CACHE, 0, 0, 0);
   ok(res == 0, "reinit READ_CACHE" INFO_TAIL);
 
-  res= my_b_fill(&info);
-  ok(res == 200, "fill" INFO_TAIL);
+  size_t s= my_b_fill(&info);
+  ok(s == 200, "fill" INFO_TAIL);
 
-  res= my_b_fill(&info);
-  ok(res == 0, "fill" INFO_TAIL);
+  s= my_b_fill(&info);
+  ok(s == 0, "fill" INFO_TAIL);
 
-  res= my_b_fill(&info);
-  ok(res == 0, "fill" INFO_TAIL);
+  s= my_b_fill(&info);
+  ok(s == 0, "fill" INFO_TAIL);
 
   res= reinit_io_cache(&info, WRITE_CACHE, saved_pos, 0, 0);
   ok(res == 0, "reinit WRITE_CACHE" INFO_TAIL);
@@ -230,14 +230,14 @@ void mdev10259()
 
   ok(200 == my_b_bytes_in_cache(&info),"my_b_bytes_in_cache == 200");
 
-  res= my_b_fill(&info);
-  ok(res == 0, "fill" INFO_TAIL);
+  s= my_b_fill(&info);
+  ok(s == 0, "fill" INFO_TAIL);
 
-  res= my_b_fill(&info);
-  ok(res == 0, "fill" INFO_TAIL);
+  s= my_b_fill(&info);
+  ok(s == 0, "fill" INFO_TAIL);
 
-  res= my_b_fill(&info);
-  ok(res == 0, "fill" INFO_TAIL);
+  s= my_b_fill(&info);
+  ok(s == 0, "fill" INFO_TAIL);
 
   res= reinit_io_cache(&info, WRITE_CACHE, saved_pos, 0, 0);
   ok(res == 0, "reinit WRITE_CACHE" INFO_TAIL);
