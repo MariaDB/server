@@ -54,10 +54,6 @@ Smart ALTER TABLE
 #include "ha_innodb.h"
 #include "ut0new.h"
 #include "ut0stage.h"
-#ifdef WITH_WSREP
-//#include "wsrep_api.h"
-#include <sql_acl.h>	// PROCESS_ACL
-#endif
 
 static const char *MSG_UNSUPPORTED_ALTER_ONLINE_ON_VIRTUAL_COLUMN=
 			"INPLACE ADD or DROP of virtual columns cannot be "
