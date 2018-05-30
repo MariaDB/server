@@ -19,9 +19,10 @@
 #pragma interface                      /* gcc class implementation */
 #endif
 
+#include "table.h"
+
 struct st_join_table;
 class handler;
-struct TABLE;
 class THD;
 class SQL_SELECT;
 class Copy_field;
@@ -66,7 +67,7 @@ struct READ_RECORD
   void    (*unpack)(struct st_sort_addon_field *, uchar *, uchar *);
 
   int read_record() { return read_record_func(this); }
-  uchar *record();
+  uchar *record() { return table->record[0]; }
 
   /* 
     SJ-Materialization runtime may need to read fields from the materialized

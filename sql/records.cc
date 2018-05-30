@@ -49,8 +49,6 @@ static int rr_index_last(READ_RECORD *info);
 static int rr_index(READ_RECORD *info);
 static int rr_index_desc(READ_RECORD *info);
 
-uchar *READ_RECORD::record() { return table->record[0]; }
-
 /**
   Initialize READ_RECORD structure to perform full index scan in desired 
   direction using read_record.read_record() interface
@@ -663,7 +661,7 @@ static int rr_from_cache(READ_RECORD *info)
       int3store(ref_position,(long) i);
       ref_position+=3;
     }
-    my_qsort(info->read_positions, length, STRUCT_LENGTH, (qsort_cmp)rr_cmp);
+    my_qsort(info->read_positions, length, STRUCT_LENGTH, (qsort_cmp) rr_cmp);
 
     position=info->read_positions;
     for (i=0 ; i < length ; i++)
