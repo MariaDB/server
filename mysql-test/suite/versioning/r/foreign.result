@@ -2,7 +2,8 @@
 # Test RESTRICT #
 #################
 create table parent(
-id int unique key
+id int,
+KEY_TYPE (id)
 ) engine innodb;
 create table child(
 parent_id int,
@@ -35,7 +36,8 @@ drop table parent;
 # Test when clustered index is a foreign key #
 ##############################################
 create table parent(
-id int(10) unsigned unique key
+id int(10) unsigned,
+KEY_TYPE (id)
 ) engine innodb;
 create table child(
 parent_id int(10) unsigned primary key,
@@ -54,7 +56,8 @@ drop table parent;
 # Test CASCADE #
 ################
 create table parent(
-id int unique key
+id int,
+KEY_TYPE (id)
 ) engine innodb;
 create table child(
 parent_id int,
@@ -87,7 +90,8 @@ parent_id
 drop table child;
 drop table parent;
 create or replace table parent (
-id int primary key,
+id int,
+KEY_TYPE(id),
 sys_start SYS_DATATYPE as row start invisible,
 sys_end SYS_DATATYPE as row end invisible,
 period for system_time(sys_start, sys_end)
@@ -110,7 +114,8 @@ x	parent_id
 drop table child;
 drop table parent;
 create or replace table parent (
-id int primary key
+id int,
+KEY_TYPE(id)
 )
 engine innodb;
 create or replace table child (
@@ -138,8 +143,9 @@ drop table parent;
 #################
 # Test SET NULL #
 #################
-create or replace table parent(
-id int unique key
+create table parent(
+id int,
+KEY_TYPE (id)
 ) engine innodb;
 create or replace table child(
 parent_id int,
@@ -183,7 +189,8 @@ drop table parent;
 # Parent table is foreign #
 ###########################
 create or replace table parent(
-id int unique key,
+id int,
+KEY_TYPE (id),
 sys_start SYS_DATATYPE as row start invisible,
 sys_end SYS_DATATYPE as row end invisible,
 period for system_time(sys_start, sys_end)
@@ -214,7 +221,8 @@ drop table parent;
 # crash on DELETE #
 ###################
 create or replace table a (
-cola int(10) primary key,
+cola int(10),
+KEY_TYPE (cola),
 v_cola int(10) as (cola mod 10) virtual,
 sys_start SYS_DATATYPE as row start invisible,
 sys_end SYS_DATATYPE as row end invisible,

@@ -1,11 +1,15 @@
 --source suite/versioning/common.inc
 
+let $KEY_TYPE= primary key;
+
 --echo #################
 --echo # Test RESTRICT #
 --echo #################
 
-create table parent(
-  id int unique key
+--replace_result "$KEY_TYPE" KEY_TYPE
+eval create table parent(
+  id int,
+  $KEY_TYPE (id)
 ) engine innodb;
 
 --replace_result $sys_datatype_expl SYS_DATATYPE
@@ -42,8 +46,10 @@ drop table parent;
 --echo # Test when clustered index is a foreign key #
 --echo ##############################################
 
-create table parent(
-  id int(10) unsigned unique key
+--replace_result "$KEY_TYPE" KEY_TYPE
+eval create table parent(
+  id int(10) unsigned,
+  $KEY_TYPE (id)
 ) engine innodb;
 
 --replace_result $sys_datatype_expl SYS_DATATYPE
@@ -68,8 +74,10 @@ drop table parent;
 --echo # Test CASCADE #
 --echo ################
 
-create table parent(
-  id int unique key
+--replace_result "$KEY_TYPE" KEY_TYPE
+eval create table parent(
+  id int,
+  $KEY_TYPE (id)
 ) engine innodb;
 
 --replace_result $sys_datatype_expl SYS_DATATYPE
@@ -99,9 +107,10 @@ select * from child for system_time all;
 drop table child;
 drop table parent;
 
---replace_result $sys_datatype_expl SYS_DATATYPE
+--replace_result $sys_datatype_expl SYS_DATATYPE "$KEY_TYPE" KEY_TYPE
 eval create or replace table parent (
-  id int primary key,
+  id int,
+  $KEY_TYPE(id),
   sys_start $sys_datatype_expl as row start invisible,
   sys_end $sys_datatype_expl as row end invisible,
   period for system_time(sys_start, sys_end)
@@ -126,8 +135,10 @@ select * from child;
 drop table child;
 drop table parent;
 
-create or replace table parent (
-  id int primary key
+--replace_result "$KEY_TYPE" KEY_TYPE
+eval create or replace table parent (
+  id int,
+  $KEY_TYPE(id)
 )
 engine innodb;
 
@@ -158,8 +169,10 @@ drop table parent;
 --echo # Test SET NULL #
 --echo #################
 
-create or replace table parent(
-  id int unique key
+--replace_result "$KEY_TYPE" KEY_TYPE
+eval create table parent(
+  id int,
+  $KEY_TYPE (id)
 ) engine innodb;
 
 --replace_result $sys_datatype_expl SYS_DATATYPE
@@ -196,9 +209,10 @@ drop table parent;
 --echo # Parent table is foreign #
 --echo ###########################
 
---replace_result $sys_datatype_expl SYS_DATATYPE
+--replace_result $sys_datatype_expl SYS_DATATYPE "$KEY_TYPE" KEY_TYPE
 eval create or replace table parent(
-  id int unique key,
+  id int,
+  $KEY_TYPE (id),
   sys_start $sys_datatype_expl as row start invisible,
   sys_end $sys_datatype_expl as row end invisible,
   period for system_time(sys_start, sys_end)
@@ -236,9 +250,10 @@ drop table parent;
 --echo # crash on DELETE #
 --echo ###################
 
---replace_result $sys_datatype_expl SYS_DATATYPE
+--replace_result $sys_datatype_expl SYS_DATATYPE "$KEY_TYPE" KEY_TYPE
 eval create or replace table a (
-  cola int(10) primary key,
+  cola int(10),
+  $KEY_TYPE (cola),
   v_cola int(10) as (cola mod 10) virtual,
   sys_start $sys_datatype_expl as row start invisible,
   sys_end $sys_datatype_expl as row end invisible,

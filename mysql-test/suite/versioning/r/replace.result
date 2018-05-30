@@ -1,4 +1,11 @@
-call create_table('t', 'x int');
+create or replace table t(
+id int,
+KEY_TYPE(id),
+x int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time(row_start, row_end)
+) with system versioning;
 insert t values (1, 2);
 replace t values (1, 3);
 select *, row_end>TIMESTAMP'2038-01-01 00:00:00' as current from t for system_time all
