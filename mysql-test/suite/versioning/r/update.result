@@ -241,3 +241,27 @@ B2	salary
 1	2500
 drop table t1;
 drop table t2;
+### Issue tempesta-tech/mariadb#365, bug 7 (duplicate of historical row)
+create or replace table t1 (a int primary key, b int)
+with system versioning engine myisam;
+insert into t1 (a) values (1);
+replace t1 values (1,2),(1,3),(2,4);
+#
+# MDEV-14829 Assertion `0' failed in Protocol::end_statement upon concurrent UPDATE
+#
+create or replace table t1 (pk int, a char(3), b char(3), primary key(pk))
+engine=innodb with system versioning;
+insert into t1 (pk) values (1);
+connect  con1,localhost,root,,test;
+start transaction;
+select * from t1 for update;
+pk	a	b
+1	NULL	NULL
+connection default;
+update t1 set b = 'foo';
+connection con1;
+update t1 set a = 'bar';
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+disconnect con1;
+connection default;
+drop table t1;
