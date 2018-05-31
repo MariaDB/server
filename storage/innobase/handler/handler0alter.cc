@@ -72,6 +72,11 @@ static const alter_table_operations INNOBASE_ONLINE_CREATE
 	= ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX
 	| ALTER_ADD_UNIQUE_INDEX;
 
+/** Operations that require filling in default values for columns */
+static const alter_table_operations INNOBASE_DEFAULTS
+	= ALTER_COLUMN_NOT_NULLABLE
+	| ALTER_ADD_STORED_BASE_COLUMN;
+
 /** Operations for rebuilding a table in place */
 static const alter_table_operations INNOBASE_ALTER_REBUILD
 	= ALTER_ADD_PK_INDEX
@@ -79,10 +84,9 @@ static const alter_table_operations INNOBASE_ALTER_REBUILD
 	| ALTER_CHANGE_CREATE_OPTION
 	/* CHANGE_CREATE_OPTION needs to check create_option_need_rebuild() */
 	| ALTER_COLUMN_NULLABLE
-	| ALTER_COLUMN_NOT_NULLABLE
+	| INNOBASE_DEFAULTS
 	| ALTER_STORED_COLUMN_ORDER
 	| ALTER_DROP_STORED_COLUMN
-	| ALTER_ADD_STORED_BASE_COLUMN
 	| ALTER_RECREATE_TABLE
 	/*
 	| ALTER_STORED_COLUMN_TYPE
@@ -129,10 +133,6 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| INNOBASE_FOREIGN_OPERATIONS
 	| ALTER_COLUMN_EQUAL_PACK_LENGTH
 	| ALTER_DROP_VIRTUAL_COLUMN;
-
-static const alter_table_operations INNOBASE_DEFAULTS
-	= ALTER_COLUMN_NOT_NULLABLE
-	| ALTER_ADD_COLUMN;
 
 struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 {
@@ -3309,8 +3309,7 @@ innobase_build_col_map(
 		    + dict_table_get_n_v_cols(old_table)
 		    >= table->s->fields + DATA_N_SYS_COLS);
 	DBUG_ASSERT(!!defaults == !!(ha_alter_info->handler_flags
-				     & (ALTER_ADD_COLUMN
-				        | ALTER_COLUMN_NOT_NULLABLE)));
+				     & INNOBASE_DEFAULTS));
 	DBUG_ASSERT(!defaults || dtuple_get_n_fields(defaults)
 		    == dict_table_get_n_cols(new_table));
 
