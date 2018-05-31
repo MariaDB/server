@@ -41,6 +41,7 @@ create index idx12672_1 on t4 (a1,a2,b,c);
 create index idx12672_2 on t4 (a1,a2,b);
 analyze table t4;
 Table	Op	Msg_type	Msg_text
+test.t4	analyze	status	Engine-independent statistics collected
 test.t4	analyze	status	OK
 select distinct a1 from t4 where pk_col not in (1,2,3,4);
 a1

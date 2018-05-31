@@ -561,6 +561,7 @@ update t2 set key2=key1;
 alter table t2 add key(key2);
 analyze table t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 flush tables;
 # Table tsubq must use 'ref' + Using filesort (not 'index' w/o filesort)

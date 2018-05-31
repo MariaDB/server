@@ -2146,7 +2146,7 @@ insert into t2 values (1),(2);
 delete from t1 where i=1;
 show status like 'Opened_tables';
 Variable_name	Value
-Opened_tables	3
+Opened_tables	6
 select * from t1;
 i
 2

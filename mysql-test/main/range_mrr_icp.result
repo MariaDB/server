@@ -418,7 +418,9 @@ count(*)
 1026
 analyze table t1,t2;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 explain select * from t1, t2  where t1.uid=t2.uid AND t1.uid > 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -1888,6 +1890,7 @@ alter table t1 add key2 int not null, add index i2(key2);
 update t1 set key2=key1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 create table t2 (a int);
 insert into t2 values (1),(2),(3),(4),(5),(6),(7),(8);
@@ -2086,6 +2089,7 @@ insert into t2 select * from t2;
 insert into t2 values (0, 0, 0, 0), (1, 1, 1, 1);
 analyze table t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 select a, b from t2 where (a, b) in ((0, 0), (1, 1));
 a	b
@@ -2478,7 +2482,7 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["d"],
       "rows": 3,
-      "filtered": 100,
+      "filtered": 55,
       "index_condition": "t2.d is not null",
       "attached_condition": "(t2.d,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((2,2)))",
       "mrr_type": "Rowid-ordered scan"
@@ -2535,8 +2539,8 @@ insert into t2 values
 explain select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	5	NULL	6	Using index condition; Rowid-ordered scan
-1	SIMPLE	t2	ref	idx1,idx2	idx1	5	test.t1.a	12	Using where
+1	SIMPLE	t2	range	idx1,idx2	idx1	5	NULL	8	Using index condition; Using where; Rowid-ordered scan
+1	SIMPLE	t1	ref	idx	idx	5	test.t2.d	8	
 explain format=json select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
 EXPLAIN
@@ -2544,88 +2548,88 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "t1",
-      "access_type": "range",
-      "possible_keys": ["idx"],
-      "key": "idx",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "rows": 6,
-      "filtered": 100,
-      "index_condition": "t1.a is not null",
-      "mrr_type": "Rowid-ordered scan"
-    },
-    "table": {
       "table_name": "t2",
-      "access_type": "ref",
+      "access_type": "range",
       "possible_keys": ["idx1", "idx2"],
       "key": "idx1",
       "key_length": "5",
       "used_key_parts": ["d"],
-      "ref": ["test.t1.a"],
-      "rows": 12,
-      "filtered": 100,
-      "attached_condition": "(t1.a,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1"
+      "rows": 8,
+      "filtered": 12.5,
+      "index_condition": "t2.d is not null",
+      "attached_condition": "(t2.d,t2.e) in (<cache>((3,3)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1",
+      "mrr_type": "Rowid-ordered scan"
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["idx"],
+      "key": "idx",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t2.d"],
+      "rows": 8,
+      "filtered": 100
     }
   }
 }
 select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
 a	b	c	d	e	f
+3	2	uuuw	3	3	i
+3	2	uuua	3	3	i
 3	3	zzzz	3	3	i
-3	3	zzzz	3	3	i
-7	8	xxxxx	7	7	h
+3	3	zyxw	3	3	i
+3	3	zzza	3	3	i
+3	3	zyxa	3	3	i
 7	7	xxxyy	7	7	h
-3	3	zyxw	3	3	i
-3	3	zyxw	3	3	i
-3	2	uuuw	3	3	i
-3	2	uuuw	3	3	i
-3	3	zzza	3	3	i
-3	3	zzza	3	3	i
-7	8	xxxxa	7	7	h
 7	7	xxxya	7	7	h
-3	3	zyxa	3	3	i
-3	3	zyxa	3	3	i
+7	8	xxxxx	7	7	h
+7	8	xxxxa	7	7	h
+3	2	uuuw	3	3	i
 3	2	uuua	3	3	i
-3	2	uuua	3	3	i
+3	3	zzzz	3	3	i
+3	3	zyxw	3	3	i
+3	3	zzza	3	3	i
+3	3	zyxa	3	3	i
 prepare stmt from "select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1";
 execute stmt;
 a	b	c	d	e	f
+3	2	uuuw	3	3	i
+3	2	uuua	3	3	i
 3	3	zzzz	3	3	i
-3	3	zzzz	3	3	i
-7	8	xxxxx	7	7	h
+3	3	zyxw	3	3	i
+3	3	zzza	3	3	i
+3	3	zyxa	3	3	i
 7	7	xxxyy	7	7	h
-3	3	zyxw	3	3	i
-3	3	zyxw	3	3	i
-3	2	uuuw	3	3	i
-3	2	uuuw	3	3	i
-3	3	zzza	3	3	i
-3	3	zzza	3	3	i
-7	8	xxxxa	7	7	h
 7	7	xxxya	7	7	h
-3	3	zyxa	3	3	i
-3	3	zyxa	3	3	i
+7	8	xxxxx	7	7	h
+7	8	xxxxa	7	7	h
+3	2	uuuw	3	3	i
 3	2	uuua	3	3	i
-3	2	uuua	3	3	i
+3	3	zzzz	3	3	i
+3	3	zyxw	3	3	i
+3	3	zzza	3	3	i
+3	3	zyxa	3	3	i
 execute stmt;
 a	b	c	d	e	f
+3	2	uuuw	3	3	i
+3	2	uuua	3	3	i
 3	3	zzzz	3	3	i
-3	3	zzzz	3	3	i
-7	8	xxxxx	7	7	h
+3	3	zyxw	3	3	i
+3	3	zzza	3	3	i
+3	3	zyxa	3	3	i
 7	7	xxxyy	7	7	h
-3	3	zyxw	3	3	i
-3	3	zyxw	3	3	i
-3	2	uuuw	3	3	i
-3	2	uuuw	3	3	i
-3	3	zzza	3	3	i
-3	3	zzza	3	3	i
-7	8	xxxxa	7	7	h
 7	7	xxxya	7	7	h
-3	3	zyxa	3	3	i
-3	3	zyxa	3	3	i
+7	8	xxxxx	7	7	h
+7	8	xxxxa	7	7	h
+3	2	uuuw	3	3	i
 3	2	uuua	3	3	i
-3	2	uuua	3	3	i
+3	3	zzzz	3	3	i
+3	3	zyxw	3	3	i
+3	3	zzza	3	3	i
+3	3	zyxa	3	3	i
 deallocate prepare stmt;
 insert into t1 select * from t1;
 # join order: (t2,t1) with ref access of t1
@@ -2649,7 +2653,7 @@ EXPLAIN
       "key_length": "5",
       "used_key_parts": ["e"],
       "rows": 6,
-      "filtered": 100,
+      "filtered": 6.7308,
       "attached_condition": "(t2.d,t2.e) in (<cache>((4,4)),<cache>((7,7)),<cache>((8,8))) and octet_length(t2.f) = 1 and t2.d is not null",
       "mrr_type": "Rowid-ordered scan"
     },
@@ -3005,6 +3009,7 @@ insert into t1 select a+15, concat(b,'yy') from t1;
 insert into t1 select a+100, concat(b,'xx') from t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 select cast(count(a)/count(distinct a) as unsigned) as rec_per_key from t1;
 rec_per_key
@@ -3023,7 +3028,7 @@ a	b
 set eq_range_index_dive_limit=2;
 explain select * from t1 where a in (8, 15, 31, 1, 9);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	5	NULL	10	Using index condition; Rowid-ordered scan
+1	SIMPLE	t1	range	idx	idx	5	NULL	5	Using index condition; Rowid-ordered scan
 select * from t1 where a in (8, 15, 31, 1, 9);
 a	b
 1	yy

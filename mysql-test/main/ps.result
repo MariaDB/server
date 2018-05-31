@@ -1381,9 +1381,11 @@ test.t1	optimize	status	Table is already up to date
 prepare stmt from "analyze table t1";
 execute stmt;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 execute stmt;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 prepare stmt from "repair table t1, t2, t3";
 execute stmt;
@@ -1410,13 +1412,19 @@ test.t3	optimize	status	Table is already up to date
 prepare stmt from "analyze table t1, t2, t3";
 execute stmt;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	Table is already up to date
 execute stmt;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	Table is already up to date
 prepare stmt from "repair table t1, t4, t3";
 execute stmt;
@@ -1449,11 +1457,13 @@ execute stmt;
 Table	Op	Msg_type	Msg_text
 test.t4	analyze	Error	Table 'test.t4' doesn't exist
 test.t4	analyze	status	Operation failed
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 execute stmt;
 Table	Op	Msg_type	Msg_text
 test.t4	analyze	Error	Table 'test.t4' doesn't exist
 test.t4	analyze	status	Operation failed
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 deallocate prepare stmt;
 drop table t1, t2, t3;
@@ -1520,6 +1530,7 @@ Field	Type	Null	Key	Default	Extra
 i	int(11)	YES		NULL	
 execute stmt_analyze;
 Table	Op	Msg_type	Msg_text
+mysqltest_long_database_name_to_thrash_heap.t1	analyze	status	Engine-independent statistics collected
 mysqltest_long_database_name_to_thrash_heap.t1	analyze	status	Table is already up to date
 execute stmt_optimize;
 Table	Op	Msg_type	Msg_text
@@ -2136,7 +2147,10 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 call proc_1();
 show open tables from mysql;
@@ -2146,7 +2160,10 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 call proc_1();
 show open tables from mysql;
@@ -2156,7 +2173,10 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 call proc_1();
 show open tables from mysql;
@@ -2166,7 +2186,10 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 flush tables;
 create function func_1() returns int begin flush tables; return 1; end|
@@ -2181,7 +2204,10 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 prepare abc from "flush tables";
 execute abc;
@@ -2192,7 +2218,10 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 execute abc;
 show open tables from mysql;
@@ -2202,7 +2231,10 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 execute abc;
 show open tables from mysql;
@@ -2212,7 +2244,10 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
+mysql	column_stats	0	0
 mysql	general_log	0	0
+mysql	index_stats	0	0
+mysql	table_stats	0	0
 mysql	user	0	0
 flush tables;
 deallocate prepare abc;
@@ -5221,6 +5256,7 @@ CREATE PROCEDURE p1(tn VARCHAR(32))
 EXECUTE IMMEDIATE CONCAT('ANALYZE TABLE ',tn);
 CALL p1('t1');
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 DROP PROCEDURE p1;
 DROP TABLE t1;

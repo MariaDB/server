@@ -365,6 +365,7 @@ connection server_1;
 ALTER TABLE t2 COMMENT "123abc";
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 INSERT INTO t1 VALUES (1,2);
 INSERT INTO t1 VALUES (2,2);
@@ -485,6 +486,7 @@ SET @old_server_id= @@SESSION.server_id;
 SET SESSION server_id= 100;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SET SESSION server_id= @old_server_id;
 INSERT INTO t1 VALUES (37,0);

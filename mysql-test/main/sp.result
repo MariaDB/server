@@ -2293,9 +2293,11 @@ create procedure bug3843()
 analyze table t1|
 call bug3843()|
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 call bug3843()|
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 select 1+2|
 1+2
@@ -4331,8 +4333,11 @@ test.t3	optimize	status	OK
 test.v1	optimize	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	optimize	status	Operation failed
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	Table is already up to date
 test.v1	analyze	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	analyze	status	Operation failed
@@ -4350,8 +4355,11 @@ test.t3	optimize	status	OK
 test.v1	optimize	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	optimize	status	Operation failed
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	Table is already up to date
 test.v1	analyze	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	analyze	status	Operation failed
@@ -4369,8 +4377,11 @@ test.t3	optimize	status	OK
 test.v1	optimize	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	optimize	status	Operation failed
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	Table is already up to date
 test.v1	analyze	Error	'test.v1' is not of type 'BASE TABLE'
 test.v1	analyze	status	Operation failed

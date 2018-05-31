@@ -30,6 +30,7 @@ repeat('0123456789', 10)
 from t1;
 analyze table t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 # The following must not use "Range checked for each record":
 explain select * from t0 left join t2 on t2.a <t0.a and t2.b between 50 and 250;

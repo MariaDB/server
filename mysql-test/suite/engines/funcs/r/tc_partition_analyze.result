@@ -33,6 +33,7 @@ t1	CREATE TABLE `t1` (
  PARTITION `p5` VALUES LESS THAN MAXVALUE ENGINE = ENGINE)
 ALTER TABLE t1 ANALYZE PARTITION p1,p2;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM t1 ORDER BY c1;
 c1	c2

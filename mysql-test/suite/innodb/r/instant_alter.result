@@ -236,6 +236,7 @@ UPDATE t2 SET c1 = repeat(id, 4000);
 connection analyze;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
@@ -246,6 +247,7 @@ ROLLBACK;
 connection analyze;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
@@ -257,6 +259,7 @@ UPDATE t2 SET d1 = repeat(id, 200);
 connection analyze;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
@@ -267,6 +270,7 @@ ROLLBACK;
 connection analyze;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
@@ -386,6 +390,7 @@ COMMIT;
 connection analyze;
 ANALYZE TABLE big;
 Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
 test.big	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';
@@ -409,6 +414,7 @@ test.big	385477733
 connection analyze;
 ANALYZE TABLE big;
 Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
 test.big	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';
@@ -422,6 +428,7 @@ test.big	1705165209
 connection analyze;
 ANALYZE TABLE big;
 Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
 test.big	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';
@@ -740,6 +747,7 @@ UPDATE t2 SET c1 = repeat(id, 4000);
 connection analyze;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
@@ -750,6 +758,7 @@ ROLLBACK;
 connection analyze;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
@@ -761,6 +770,7 @@ UPDATE t2 SET d1 = repeat(id, 200);
 connection analyze;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
@@ -771,6 +781,7 @@ ROLLBACK;
 connection analyze;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
@@ -890,6 +901,7 @@ COMMIT;
 connection analyze;
 ANALYZE TABLE big;
 Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
 test.big	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';
@@ -913,6 +925,7 @@ test.big	385477733
 connection analyze;
 ANALYZE TABLE big;
 Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
 test.big	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';
@@ -926,6 +939,7 @@ test.big	1705165209
 connection analyze;
 ANALYZE TABLE big;
 Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
 test.big	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';
@@ -1244,6 +1258,7 @@ UPDATE t2 SET c1 = repeat(id, 4000);
 connection analyze;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
@@ -1254,6 +1269,7 @@ ROLLBACK;
 connection analyze;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
@@ -1265,6 +1281,7 @@ UPDATE t2 SET d1 = repeat(id, 200);
 connection analyze;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
@@ -1275,6 +1292,7 @@ ROLLBACK;
 connection analyze;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t2';
@@ -1394,6 +1412,7 @@ COMMIT;
 connection analyze;
 ANALYZE TABLE big;
 Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
 test.big	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';
@@ -1417,6 +1436,7 @@ test.big	385477733
 connection analyze;
 ANALYZE TABLE big;
 Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
 test.big	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';
@@ -1430,6 +1450,7 @@ test.big	1705165209
 connection analyze;
 ANALYZE TABLE big;
 Table	Op	Msg_type	Msg_text
+test.big	analyze	status	Engine-independent statistics collected
 test.big	analyze	status	OK
 SELECT clust_index_size FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/big';

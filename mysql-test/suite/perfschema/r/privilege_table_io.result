@@ -110,6 +110,8 @@ wait/io/table/sql/handler	handler.cc:	TABLE	mysql	roles_mapping	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	mysql	tables_priv	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	mysql	procs_priv	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	mysql	servers	fetch	NULL
+wait/io/table/sql/handler	handler.cc:	TABLE	mysql	table_stats	fetch	NULL
+wait/io/table/sql/handler	handler.cc:	TABLE	mysql	column_stats	fetch	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	test	marker	insert	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	test	marker	insert	NULL
 wait/io/table/sql/handler	handler.cc:	TABLE	test	marker	insert	NULL

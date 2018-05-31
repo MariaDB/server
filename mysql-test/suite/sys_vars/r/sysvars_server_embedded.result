@@ -2729,10 +2729,10 @@ ENUM_VALUE_LIST	index_merge,index_merge_union,index_merge_sort_union,index_merge
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_USE_CONDITION_SELECTIVITY
-SESSION_VALUE	1
-GLOBAL_VALUE	1
+SESSION_VALUE	4
+GLOBAL_VALUE	4
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	1
+DEFAULT_VALUE	4
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	Controls selectivity of which conditions the optimizer takes into account to calculate cardinality of a partial join when it searches for the best execution plan Meaning: 1 - use selectivity of index backed range conditions to calculate the cardinality of a partial join if the last joined table is accessed by full table scan or an index scan, 2 - use selectivity of index backed range conditions to calculate the cardinality of a partial join in any case, 3 - additionally always use selectivity of range conditions that are not backed by any index to calculate the cardinality of a partial join, 4 - use histograms to calculate selectivity of range conditions that are not backed by any index to calculate the cardinality of a partial join.5 - additionally use selectivity of certain non-range predicates calculated on record samples
@@ -4507,10 +4507,10 @@ ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	USE_STAT_TABLES
-SESSION_VALUE	NEVER
-GLOBAL_VALUE	NEVER
+SESSION_VALUE	PREFERABLY
+GLOBAL_VALUE	PREFERABLY
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	NEVER
+DEFAULT_VALUE	PREFERABLY
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	ENUM
 VARIABLE_COMMENT	Specifies how to use system statistics tables

@@ -552,6 +552,7 @@ INSERT INTO t1 VALUES(100, 'test');
 ******************** ANALYZE ********************
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test_rpl.t1	analyze	status	Engine-independent statistics collected
 test_rpl.t1	analyze	status	OK
 
 ******************** CHECK TABLE ********************

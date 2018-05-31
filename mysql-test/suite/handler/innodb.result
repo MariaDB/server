@@ -810,6 +810,7 @@ ERROR 42S02: Unknown table 't1' in HANDLER
 handler t1 open;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 handler t1 read next;
 ERROR 42S02: Unknown table 't1' in HANDLER
@@ -930,6 +931,7 @@ handler t1 open;
 lock tables t1 write;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 unlock tables;
 handler t1 read next;
