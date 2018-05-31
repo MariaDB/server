@@ -1125,6 +1125,7 @@ public:
   virtual bool can_return_text() const { return true; }
   virtual bool can_return_date() const { return true; }
   virtual bool can_return_time() const { return true; }
+  virtual bool is_bool_type() const { return false; }
   virtual bool is_general_purpose_string_type() const { return false; }
   virtual uint Item_time_precision(Item *item) const;
   virtual uint Item_datetime_precision(Item *item) const;
@@ -2330,6 +2331,16 @@ public:
                                    uint32 flags) const;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const;
+};
+
+
+class Type_handler_bool: public Type_handler_long
+{
+  static const Name m_name_bool;
+public:
+  const Name name() const { return m_name_bool; }
+  bool is_bool_type() const { return true; }
+  bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const;
 };
 
 
@@ -3615,6 +3626,7 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_medium_blob type_handler_medium_blob;
 extern MYSQL_PLUGIN_IMPORT Type_handler_long_blob   type_handler_long_blob;
 extern MYSQL_PLUGIN_IMPORT Type_handler_blob        type_handler_blob;
 
+extern MYSQL_PLUGIN_IMPORT Type_handler_bool        type_handler_bool;
 extern MYSQL_PLUGIN_IMPORT Type_handler_tiny        type_handler_tiny;
 extern MYSQL_PLUGIN_IMPORT Type_handler_short       type_handler_short;
 extern MYSQL_PLUGIN_IMPORT Type_handler_int24       type_handler_int24;

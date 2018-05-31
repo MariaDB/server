@@ -4920,3 +4920,25 @@ ERROR HY000: Illegal parameter data type geometry for operation 'is_used_lock'
 #
 # End of 10.3 tests
 #
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-16351 JSON_OBJECT() treats hybrid functions with boolean arguments as numbers
+#
+SELECT ST_SRID(TRUE);
+ERROR HY000: Illegal parameter data type boolean for operation 'srid'
+SELECT ST_SRID(COALESCE(TRUE,TRUE));
+ERROR HY000: Illegal parameter data type boolean for operation 'srid'
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT ST_SRID((SELECT MAX(a)>3 FROM t1));
+ERROR HY000: Illegal parameter data type boolean for operation 'srid'
+SELECT ST_SRID(MAX(a>3)) FROM t1;
+ERROR HY000: Illegal parameter data type boolean for operation 'srid'
+SELECT ST_SRID((SELECT MAX(a>3) FROM t1));
+ERROR HY000: Illegal parameter data type boolean for operation 'srid'
+DROP TABLE t1;
+#
+# End of 10.4 tests
+#

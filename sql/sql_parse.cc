@@ -9664,8 +9664,9 @@ Item *negate_expression(THD *thd, Item *expr)
   {
     /* it is NOT(NOT( ... )) */
     Item *arg= ((Item_func *) expr)->arguments()[0];
+    const Type_handler *fh= arg->fixed_type_handler();
     enum_parsing_place place= thd->lex->current_select->parsing_place;
-    if (arg->is_bool_type() || place == IN_WHERE || place == IN_HAVING)
+    if ((fh && fh->is_bool_type()) || place == IN_WHERE || place == IN_HAVING)
       return arg;
     /*
       if it is not boolean function then we have to emulate value of

@@ -1397,7 +1397,7 @@ null_return:
 
 static int append_json_value(String *str, Item *item, String *tmp_val)
 {
-  if (item->is_bool_type())
+  if (item->type_handler()->is_bool_type())
   {
     longlong v_int= item->val_int();
     const char *t_f;

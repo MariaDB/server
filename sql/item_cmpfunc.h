@@ -215,8 +215,8 @@ public:
   Item_bool_func(THD *thd, Item *a, Item *b, Item *c): Item_int_func(thd, a, b, c) {}
   Item_bool_func(THD *thd, List<Item> &list): Item_int_func(thd, list) { }
   Item_bool_func(THD *thd, Item_bool_func *item) :Item_int_func(thd, item) {}
-  const Type_handler *type_handler() const { return &type_handler_long; }
-  bool is_bool_type() { return true; }
+  const Type_handler *type_handler() const { return &type_handler_bool; }
+  const Type_handler *fixed_type_handler() const { return &type_handler_bool; }
   virtual CHARSET_INFO *compare_collation() const { return NULL; }
   void fix_length_and_dec() { decimals=0; max_length=1; }
   uint decimal_precision() const { return 1; }

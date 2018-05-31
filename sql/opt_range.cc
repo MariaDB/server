@@ -13031,7 +13031,8 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
 
         if (args[0] && args[1]) // this is a binary function or BETWEEN
         {
-          DBUG_ASSERT(pred->is_bool_type());
+          DBUG_ASSERT(pred->fixed_type_handler());
+          DBUG_ASSERT(pred->fixed_type_handler()->is_bool_type());
           Item_bool_func *bool_func= (Item_bool_func*) pred;
           Field *field= min_max_arg_item->field;
           if (!args[2]) // this is a binary function

@@ -424,3 +424,53 @@ SELECT
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-16351 JSON_OBJECT() treats hybrid functions with boolean arguments as numbers
+--echo #
+
+--vertical_results
+SELECT
+  JSON_OBJECT("cond", true) AS j1,
+  JSON_OBJECT("cond", COALESCE(true, false)) j2,
+  JSON_OBJECT("cond", COALESCE(COALESCE(true, false))) j3;
+--horizontal_results
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT JSON_OBJECT('x',(SELECT MAX(a)=4 FROM t1));
+SELECT JSON_OBJECT('x',(SELECT MAX(a)=3 FROM t1));
+SELECT JSON_OBJECT('x',(SELECT MAX(a)=2 FROM t1));
+
+SELECT JSON_OBJECT('x',MAX(a=4)) FROM t1;
+SELECT JSON_OBJECT('x',MAX(a=3)) FROM t1;
+SELECT JSON_OBJECT('x',MAX(a=2)) FROM t1;
+
+SELECT JSON_OBJECT('x',(SELECT MAX(a=4) FROM t1));
+SELECT JSON_OBJECT('x',(SELECT MAX(a=3) FROM t1));
+SELECT JSON_OBJECT('x',(SELECT MAX(a=2) FROM t1));
+
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a)=4 FROM t1))='{"x": true}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a)=4 FROM t1))='{"x": false}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a)=3 FROM t1))='{"x": true}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a)=3 FROM t1))='{"x": false}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a)=2 FROM t1))='{"x": true}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a)=2 FROM t1))='{"x": false}' THEN a END;
+
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=4) FROM t1))='{"x": true}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=4) FROM t1))='{"x": false}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=3) FROM t1))='{"x": true}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=3) FROM t1))='{"x": false}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=2) FROM t1))='{"x": true}' THEN a END;
+SELECT * FROM t1 WHERE CASE WHEN JSON_OBJECT('x', (SELECT MAX(a=2) FROM t1))='{"x": false}' THEN a END;
+
+
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

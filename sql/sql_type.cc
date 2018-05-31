@@ -26,6 +26,7 @@ Type_handler_row         type_handler_row;
 
 Type_handler_null        type_handler_null;
 
+Type_handler_bool        type_handler_bool;
 Type_handler_tiny        type_handler_tiny;
 Type_handler_short       type_handler_short;
 Type_handler_long        type_handler_long;
@@ -452,6 +453,7 @@ const Name
   Type_handler_set::m_name_set(STRING_WITH_LEN("set"));
 
 const Name
+  Type_handler_bool::m_name_bool(STRING_WITH_LEN("boolean")),
   Type_handler_tiny::m_name_tiny(STRING_WITH_LEN("tinyint")),
   Type_handler_short::m_name_short(STRING_WITH_LEN("smallint")),
   Type_handler_long::m_name_int(STRING_WITH_LEN("int")),
@@ -2818,8 +2820,21 @@ bool Type_handler_typelib::
   TYPELIB *typelib= NULL;
   for (uint i= 0; i < nitems; i++)
   {
-    if ((typelib= items[i]->get_typelib()))
-      break;
+    TYPELIB *typelib2;
+    if ((typelib2= items[i]->get_typelib()))
+    {
+      if (typelib)
+      {
+        /*
+          Two ENUM/SET columns found. We convert such combinations to VARCHAR.
+          This may change in the future to preserve ENUM/SET
+          if typelib definitions are equal.
+        */
+        handler->set_handler(&type_handler_varchar);
+        return func->aggregate_attributes_string(func_name, items, nitems);
+      }
+      typelib= typelib2;
+    }
   }
   DBUG_ASSERT(typelib); // There must be at least one typelib
   func->set_typelib(typelib);
@@ -2974,6 +2989,13 @@ bool Type_handler_int_result::
 {
   return Item_sum_hybrid_fix_length_and_dec_numeric(func,
                                                     &type_handler_longlong);
+}
+
+
+bool Type_handler_bool::
+       Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
+{
+  return Item_sum_hybrid_fix_length_and_dec_numeric(func, &type_handler_bool);
 }
 
 

@@ -2595,7 +2595,6 @@ SELECT ST_SRID(1);
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 SELECT ST_SRID('test');
 
-
 --echo # Item_bool_func_args_geometry
 
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
@@ -2989,4 +2988,31 @@ SELECT IS_USED_LOCK(POINT(1,1));
 
 --echo #
 --echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-16351 JSON_OBJECT() treats hybrid functions with boolean arguments as numbers
+--echo #
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT ST_SRID(TRUE);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT ST_SRID(COALESCE(TRUE,TRUE));
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT ST_SRID((SELECT MAX(a)>3 FROM t1));
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT ST_SRID(MAX(a>3)) FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT ST_SRID((SELECT MAX(a>3) FROM t1));
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
 --echo #

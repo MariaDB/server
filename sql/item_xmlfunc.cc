@@ -855,7 +855,9 @@ String *Item_nodeset_func_elementbyindex::val_nodeset(String *nodeset)
                                                                    flt->pos,
                                                                    size);
     int index= (int) (args[1]->val_int()) - 1;
-    if (index >= 0 && (flt->pos == (uint) index || args[1]->is_bool_type()))
+    if (index >= 0 &&
+        (flt->pos == (uint) index ||
+         (args[1]->type_handler()->is_bool_type())))
       ((XPathFilter*)nodeset)->append_element(flt->num, pos++);
   }
   return nodeset;
@@ -1803,7 +1805,8 @@ my_xpath_parse_AxisSpecifier_NodeTest_opt_Predicate_list(MY_XPATH *xpath)
 
     xpath->item= nodeset2bool(xpath, xpath->item);
 
-    if (xpath->item->is_bool_type())
+    const Type_handler *fh;
+    if ((fh= xpath->item->fixed_type_handler()) && fh->is_bool_type())
     {
       xpath->context= new (xpath->thd->mem_root)
         Item_nodeset_func_predicate(xpath->thd, prev_context,

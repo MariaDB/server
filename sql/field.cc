@@ -917,6 +917,27 @@ const Type_handler *
 Type_handler::aggregate_for_result_traditional(const Type_handler *a,
                                                const Type_handler *b)
 {
+  if (a == b)
+  {
+    /*
+      If two traditional handlers are equal, quickly return "a".
+      Some handlers (e.g. Type_handler_bool) pretend to be traditional,
+      but in fact they are not traditional in full extent, they are
+      only sub-types for now (and don't have a corresponding Field_xxx yet).
+      Here we preserve such handlers during aggregation.
+      As a result, COALESCE(true,true) preserves the "boolean" data type.
+
+      Need to do this conversion for deprecated data types,
+      similar to what field_type_merge_rules[][] does.
+    */
+    switch (a->field_type()) {
+    case MYSQL_TYPE_DECIMAL:     return &type_handler_newdecimal;
+    case MYSQL_TYPE_DATE:        return &type_handler_newdate;
+    case MYSQL_TYPE_VAR_STRING:  return &type_handler_varchar;
+    default: break;
+    }
+    return a;
+  }
   enum_field_types ta= a->traditional_merge_field_type();
   enum_field_types tb= b->traditional_merge_field_type();
   enum_field_types res= field_types_merge_rules[merge_type2index(ta)]

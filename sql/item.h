@@ -918,6 +918,21 @@ public:
     return type_handler()->field_type();
   }
   virtual const Type_handler *type_handler() const= 0;
+  /**
+    Detects if an Item has a fixed data type which is known
+    even before fix_fields().
+    Currently it's important only to find Items with a fixed boolean
+    data type. More item types can be marked in the future as having
+    a fixed data type (e.g. all literals, all fixed type functions, etc).
+
+    @retval  NULL if the Item type is not known before fix_fields()
+    @retval  the pointer to the data type handler, if the data type
+             is known before fix_fields().
+  */
+  virtual const Type_handler *fixed_type_handler() const
+  {
+    return NULL;
+  }
   virtual uint field_flags() const
   {
     return 0;
@@ -1633,7 +1648,6 @@ public:
     table during query processing (grouping and so on)
   */
   virtual bool is_result_field() { return 0; }
-  virtual bool is_bool_type() { return false; }
   virtual bool is_json_type() { return false; }
   virtual bool is_bool_literal() const { return false; }
   /* This is to handle printing of default values */
@@ -3862,9 +3876,12 @@ public:
   Item_bool(THD *thd, const char *str_arg, longlong i):
     Item_int(thd, str_arg, i, 1) {}
   Item_bool(THD *thd, bool i) :Item_int(thd, (longlong) i, 1) { }
-  bool is_bool_type() { return true; }
   bool is_bool_literal() const { return true; }
   Item *neg_transformer(THD *thd);
+  const Type_handler *type_handler() const
+  { return &type_handler_bool; }
+  const Type_handler *fixed_type_handler() const
+  { return &type_handler_bool; }
 };
 
 
