@@ -11,7 +11,7 @@
 #define HWCAP_CRC32 (1 << 7)
 #endif
 
-unsigned int crc32c_arch64_available(void)
+unsigned int crc32c_aarch64_available(void)
 {
 	unsigned long auxv = getauxval(AT_HWCAP);
 	return (auxv & HWCAP_CRC32) != 0;

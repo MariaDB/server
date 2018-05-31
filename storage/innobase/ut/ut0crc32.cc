@@ -149,7 +149,7 @@ ut_crc32_armv8(
 /* For runtime check  */
 #if defined(__GNUC__) && defined(__linux__) && defined(HAVE_ARMV8_CRC)
 extern "C" {
-unsigned int crc32c_arch64_available(void);
+unsigned int crc32c_aarch64_available(void);
 };
 #endif
 
@@ -665,7 +665,7 @@ ut_crc32_init()
 
 
 #if defined(__GNUC__) && defined(__linux__) && defined(HAVE_ARMV8_CRC)
-	if (crc32c_arch64_available()) {
+	if (crc32c_aarch64_available()) {
 		ut_crc32 = ut_crc32_armv8;
 		ut_crc32_implementation = "Using Armv8 crc32 instructions";
 
