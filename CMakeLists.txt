@@ -166,7 +166,7 @@ INCLUDE(install_macros)
 INCLUDE(systemd)
 INCLUDE(mysql_add_executable)
 INCLUDE(compile_flags)
-INCLUDE(crc32-vpmsum)
+INCLUDE(crc32)
 
 # Handle options
 OPTION(DISABLE_SHARED 
