@@ -81,6 +81,16 @@ then
   sed '/libzstd1/d' -i debian/control
 fi
 
+# The binaries should be fully hardened by default. However TokuDB compilation seems to fail on
+# Debian Jessie and older and on Ubuntu Xenial and older with the following error message:
+#   /usr/bin/ld.bfd.real: /tmp/ccOIwjFo.ltrans0.ltrans.o: relocation R_X86_64_PC32 against symbol
+#   `toku_product_name_strings' can not be used when making a shared object; recompile with -fPIC
+# Therefore we need to disable PIE on those releases using debhelper as proxy for detection.
+if ! apt-cache madison debhelper | grep 'debhelper *| *1[0-9]\.' >/dev/null 2>&1
+then
+  sed 's/hardening=+all$/hardening=+all,-pie/' -i debian/rules
+fi
+
 
 # Convert gcc version to numberical value. Format is Mmmpp where M is Major
 # version, mm is minor version and p is patch.
