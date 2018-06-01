@@ -2536,17 +2536,10 @@ int multi_update::do_updates()
     not its dependencies
   */
   while(TABLE *tbl= check_opt_it++)
-  {
-    if (tbl->vcol_set)
-    {
-      bitmap_clear_all(tbl->vcol_set);
-      for (Field **vf= tbl->vfield; *vf; vf++)
-      {
+    if (Field **vf= tbl->vfield)
+      for (; *vf; vf++)
         if (bitmap_is_set(tbl->read_set, (*vf)->field_index))
-          tbl->mark_virtual_col(*vf);
-      }
-    }
-  }
+          (*vf)->vcol_info->expr->walk(&Item::register_field_in_read_map, 1, 0);
 
   for (cur_table= update_tables; cur_table; cur_table= cur_table->next_local)
   {

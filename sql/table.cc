@@ -3465,17 +3465,6 @@ partititon_err:
                  (my_bitmap_map*) bitmaps, share->fields, FALSE);
   bitmaps+= bitmap_size;
 
-  /* Don't allocate vcol_bitmap if we don't need it */
-  if (share->virtual_fields)
-  {
-    if (!(outparam->def_vcol_set= (MY_BITMAP*)
-          alloc_root(&outparam->mem_root, sizeof(*outparam->def_vcol_set))))
-      goto err;
-    my_bitmap_init(outparam->def_vcol_set,
-                   (my_bitmap_map*) bitmaps, share->fields, FALSE);
-    bitmaps+= bitmap_size;
-  }
-
   my_bitmap_init(&outparam->has_value_set,
                  (my_bitmap_map*) bitmaps, share->fields, FALSE);
   bitmaps+= bitmap_size;
@@ -6285,13 +6274,12 @@ void TABLE::clear_column_bitmaps()
     Reset column read/write usage. It's identical to:
     bitmap_clear_all(&table->def_read_set);
     bitmap_clear_all(&table->def_write_set);
-    if (s->virtual_fields) bitmap_clear_all(table->def_vcol_set);
     The code assumes that the bitmaps are allocated after each other, as
     guaranteed by open_table_from_share()
   */
   bzero((char*) def_read_set.bitmap,
         s->column_bitmap_size * (s->virtual_fields ? 3 : 2));
-  column_bitmaps_set(&def_read_set, &def_write_set, def_vcol_set);
+  column_bitmaps_set(&def_read_set, &def_write_set);
   rpl_write_set= 0;                             // Safety
 }
 
@@ -6439,11 +6427,7 @@ void TABLE::mark_columns_needed_for_delete()
     for (reg_field= field ; *reg_field ; reg_field++)
     {
       if ((*reg_field)->flags & PART_KEY_FLAG)
-      {
-        bitmap_set_bit(read_set, (*reg_field)->field_index);
-        if ((*reg_field)->vcol_info)
-          mark_virtual_col(*reg_field);
-      }
+        mark_column_with_deps(*reg_field);
     }
     need_signal= true;
   }
@@ -6522,13 +6506,7 @@ void TABLE::mark_columns_needed_for_update()
       if (any_written && !all_read)
       {
         for (KEY_PART_INFO *kp= k->key_part; kp < kpend; kp++)
-        {
-          int idx= kp->fieldnr - 1;
-          if (bitmap_fast_test_and_set(read_set, idx))
-            continue;
-          if (field[idx]->vcol_info)
-            mark_virtual_col(field[idx]);
-        }
+          mark_column_with_deps(field[kp->fieldnr - 1]);
       }
     }
     need_signal= true;
@@ -6725,47 +6703,10 @@ void TABLE::mark_columns_per_binlog_row_image()
         DBUG_ASSERT(FALSE);
       }
     }
-    /*
-      We have to ensure that all virtual columns that are part of read set
-      are calculated.
-    */
-    if (vcol_set)
-      bitmap_union(vcol_set, read_set);
     file->column_bitmaps_signal();
   }
 
   DBUG_VOID_RETURN;
-}
-
-/*
-   @brief Mark a column as virtual used by the query
-
-   @param field           the field for the column to be marked
-
-   @details
-     The function marks the column for 'field' as virtual (computed)
-     in the bitmap vcol_set.
-     If the column is marked for the first time the expression to compute
-     the column is traversed and all columns that are occurred there are
-     marked in the read_set of the table.
-
-   @retval
-     TRUE       if column is marked for the first time
-   @retval
-     FALSE      otherwise
-*/
-
-bool TABLE::mark_virtual_col(Field *field)
-{
-  bool res;
-  DBUG_ASSERT(field->vcol_info);
-  if (!(res= bitmap_fast_test_and_set(vcol_set, field->field_index)))
-  {
-    Item *vcol_item= field->vcol_info->expr;
-    DBUG_ASSERT(vcol_item);
-    vcol_item->walk(&Item::register_field_in_read_map, 1, 0);
-  }
-  return res;
 }
 
 
@@ -6809,12 +6750,12 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl
   {
     tmp_vfield= *vfield_ptr;
     if (bitmap_is_set(write_set, tmp_vfield->field_index))
-      bitmap_updated|= mark_virtual_col(tmp_vfield);
+      bitmap_updated|= mark_virtual_column_with_deps(tmp_vfield);
     else if (tmp_vfield->vcol_info->stored_in_db ||
              (tmp_vfield->flags & (PART_KEY_FLAG | FIELD_IN_PART_FUNC_FLAG)))
     {
       bitmap_set_bit(write_set, tmp_vfield->field_index);
-      mark_virtual_col(tmp_vfield);
+      mark_virtual_column_with_deps(tmp_vfield);
       bitmap_updated= true;
     }
   }
@@ -6904,8 +6845,6 @@ void TABLE::mark_columns_used_by_check_constraints(void)
 void TABLE::mark_check_constraint_columns_for_read(void)
 {
   bitmap_union(read_set, s->check_set);
-  if (vcol_set)
-    bitmap_union(vcol_set, s->check_set);
 }
 
 
@@ -7667,16 +7606,16 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     switch (update_mode) {
     case VCOL_UPDATE_FOR_READ:
       update= (!vcol_info->stored_in_db &&
-               bitmap_is_set(vcol_set, vf->field_index));
+               bitmap_is_set(read_set, vf->field_index));
       swap_values= 1;
       break;
     case VCOL_UPDATE_FOR_DELETE:
     case VCOL_UPDATE_FOR_WRITE:
-      update= bitmap_is_set(vcol_set, vf->field_index);
+      update= bitmap_is_set(read_set, vf->field_index);
       break;
     case VCOL_UPDATE_FOR_REPLACE:
       update= ((!vcol_info->stored_in_db && (vf->flags & PART_KEY_FLAG) &&
-                bitmap_is_set(vcol_set, vf->field_index)) ||
+                bitmap_is_set(read_set, vf->field_index)) ||
                update_all_columns);
       if (update && (vf->flags & BLOB_FLAG))
       {
@@ -7695,7 +7634,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     case VCOL_UPDATE_INDEXED_FOR_UPDATE:
       /* Read indexed fields that was not updated in VCOL_UPDATE_FOR_READ */
       update= (!vcol_info->stored_in_db && (vf->flags & PART_KEY_FLAG) &&
-               !bitmap_is_set(vcol_set, vf->field_index));
+               !bitmap_is_set(read_set, vf->field_index));
       swap_values= 1;
       break;
     }

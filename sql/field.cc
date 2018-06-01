@@ -63,7 +63,7 @@ const char field_separator=',';
                         ((ulong) ((1LL << MY_MIN(arg, 4) * 8) - 1))
 
 #define ASSERT_COLUMN_MARKED_FOR_READ DBUG_ASSERT(!table || (!table->read_set || bitmap_is_set(table->read_set, field_index)))
-#define ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED DBUG_ASSERT(is_stat_field || !table || (!table->write_set || bitmap_is_set(table->write_set, field_index) || (table->vcol_set && bitmap_is_set(table->vcol_set, field_index))))
+#define ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED DBUG_ASSERT(is_stat_field || !table || (!table->write_set || bitmap_is_set(table->write_set, field_index) || bitmap_is_set(table->read_set, field_index)))
 
 #define FLAGSTR(S,F) ((S) & (F) ? #F " " : "")
 

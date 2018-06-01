@@ -1479,7 +1479,6 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler,
 {
   handler *save_file= file, *org_file;
   THD *thd= head->in_use;
-  MY_BITMAP * const save_vcol_set= head->vcol_set;
   MY_BITMAP * const save_read_set= head->read_set;
   MY_BITMAP * const save_write_set= head->write_set;
   DBUG_ENTER("QUICK_RANGE_SELECT::init_ror_merged_scan");
@@ -1537,14 +1536,14 @@ end:
   org_file= head->file;
   head->file= file;
 
-  head->column_bitmaps_set_no_signal(&column_bitmap, &column_bitmap, &column_bitmap);
+  head->column_bitmaps_set_no_signal(&column_bitmap, &column_bitmap);
   head->prepare_for_keyread(index, &column_bitmap);
   head->prepare_for_position();
 
   head->file= org_file;
 
   /* Restore head->read_set (and write_set) to what they had before the call */
-  head->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
+  head->column_bitmaps_set(save_read_set, save_write_set);
  
   if (reset())
   {
@@ -1559,7 +1558,7 @@ end:
   DBUG_RETURN(0);
 
 failure:
-  head->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
+  head->column_bitmaps_set(save_read_set, save_write_set);
   delete file;
   file= save_file;
   DBUG_RETURN(1);
@@ -11350,7 +11349,6 @@ int QUICK_RANGE_SELECT::reset()
   HANDLER_BUFFER empty_buf;
   MY_BITMAP * const save_read_set= head->read_set;
   MY_BITMAP * const save_write_set= head->write_set;
-  MY_BITMAP * const save_vcol_set= head->vcol_set;
   DBUG_ENTER("QUICK_RANGE_SELECT::reset");
   last_range= NULL;
   cur_range= (QUICK_RANGE**) ranges.buffer;
@@ -11364,8 +11362,7 @@ int QUICK_RANGE_SELECT::reset()
   }
 
   if (in_ror_merged_scan)
-    head->column_bitmaps_set_no_signal(&column_bitmap, &column_bitmap,
-                                       &column_bitmap);
+    head->column_bitmaps_set_no_signal(&column_bitmap, &column_bitmap);
 
   if (file->inited == handler::NONE)
   {
@@ -11411,8 +11408,7 @@ int QUICK_RANGE_SELECT::reset()
 err:
   /* Restore bitmaps set on entry */
   if (in_ror_merged_scan)
-    head->column_bitmaps_set_no_signal(save_read_set, save_write_set,
-                                       save_vcol_set);
+    head->column_bitmaps_set_no_signal(save_read_set, save_write_set);
   DBUG_RETURN(error);
 }
 
@@ -11443,16 +11439,13 @@ int QUICK_RANGE_SELECT::get_next()
 
   MY_BITMAP * const save_read_set= head->read_set;
   MY_BITMAP * const save_write_set= head->write_set;
-  MY_BITMAP * const save_vcol_set= head->vcol_set;
   /*
     We don't need to signal the bitmap change as the bitmap is always the
     same for this head->file
   */
-  head->column_bitmaps_set_no_signal(&column_bitmap, &column_bitmap,
-                                     &column_bitmap);
+  head->column_bitmaps_set_no_signal(&column_bitmap, &column_bitmap);
   result= file->multi_range_read_next(&dummy);
-  head->column_bitmaps_set_no_signal(save_read_set, save_write_set,
-                                     save_vcol_set);
+  head->column_bitmaps_set_no_signal(save_read_set, save_write_set);
   DBUG_RETURN(result);
 }
 

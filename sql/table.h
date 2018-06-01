@@ -1150,8 +1150,6 @@ public:
   MY_BITMAP     cond_set;   /* used to mark fields from sargable conditions*/
   /* Active column sets */
   MY_BITMAP     *read_set, *write_set, *rpl_write_set;
-  /* Set if using virtual fields */
-  MY_BITMAP     *vcol_set, *def_vcol_set;
   /* On INSERT: fields that the user specified a value for */
   MY_BITMAP	has_value_set;
 
@@ -1372,7 +1370,9 @@ public:
   void mark_columns_needed_for_delete(void);
   void mark_columns_needed_for_insert(void);
   void mark_columns_per_binlog_row_image(void);
-  bool mark_virtual_col(Field *field);
+  inline bool mark_column_with_deps(Field *field);
+  inline bool mark_virtual_column_with_deps(Field *field);
+  inline void mark_virtual_column_deps(Field *field);
   bool mark_virtual_columns_for_write(bool insert_fl);
   bool check_virtual_columns_marked_for_read();
   bool check_virtual_columns_marked_for_write();
@@ -1394,39 +1394,21 @@ public:
     if (file)
       file->column_bitmaps_signal();
   }
-  inline void column_bitmaps_set(MY_BITMAP *read_set_arg,
-                                 MY_BITMAP *write_set_arg,
-                                 MY_BITMAP *vcol_set_arg)
-  {
-    read_set= read_set_arg;
-    write_set= write_set_arg;
-    vcol_set= vcol_set_arg;
-    if (file)
-      file->column_bitmaps_signal();
-  }
   inline void column_bitmaps_set_no_signal(MY_BITMAP *read_set_arg,
                                            MY_BITMAP *write_set_arg)
   {
     read_set= read_set_arg;
     write_set= write_set_arg;
   }
-  inline void column_bitmaps_set_no_signal(MY_BITMAP *read_set_arg,
-                                           MY_BITMAP *write_set_arg,
-                                           MY_BITMAP *vcol_set_arg)
-  {
-    read_set= read_set_arg;
-    write_set= write_set_arg;
-    vcol_set= vcol_set_arg;
-  }
   inline void use_all_columns()
   {
     column_bitmaps_set(&s->all_set, &s->all_set);
   }
+  inline void use_all_stored_columns();
   inline void default_column_bitmaps()
   {
     read_set= &def_read_set;
     write_set= &def_write_set;
-    vcol_set= def_vcol_set;                     /* Note that this may be 0 */
     rpl_write_set= 0;
   }
   /** Should this instance of the table be reopened? */

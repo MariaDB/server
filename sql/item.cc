@@ -934,11 +934,12 @@ bool Item_field::register_field_in_read_map(void *arg)
     return res;
 
   if (field->vcol_info &&
-      !bitmap_fast_test_and_set(field->table->vcol_set, field->field_index))
+      !bitmap_fast_test_and_set(field->table->read_set, field->field_index))
   {
     res= field->vcol_info->expr->walk(&Item::register_field_in_read_map,1,arg);
   }
-  bitmap_set_bit(field->table->read_set, field->field_index);
+  else
+    bitmap_set_bit(field->table->read_set, field->field_index);
   return res;
 }
 

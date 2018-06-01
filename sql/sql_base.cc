@@ -5412,43 +5412,27 @@ static void update_field_dependencies(THD *thd, Field *field, TABLE *table)
   DBUG_ENTER("update_field_dependencies");
   if (should_mark_column(thd->column_usage))
   {
-    MY_BITMAP *bitmap;
-
     /*
       We always want to register the used keys, as the column bitmap may have
       been set for all fields (for example for view).
     */
-      
     table->covering_keys.intersect(field->part_of_key);
 
-    if (field->vcol_info)
-      table->mark_virtual_col(field);
-
     if (thd->column_usage == MARK_COLUMNS_READ)
-      bitmap= table->read_set;
-    else
-      bitmap= table->write_set;
-
-    /* 
-       The test-and-set mechanism in the bitmap is not reliable during
-       multi-UPDATE statements under MARK_COLUMNS_READ mode
-       (thd->column_usage == MARK_COLUMNS_READ), as this bitmap contains
-       only those columns that are used in the SET clause. I.e they are being
-       set here. See multi_update::prepare()
-    */
-    if (bitmap_fast_test_and_set(bitmap, field->field_index))
     {
-      if (thd->column_usage == MARK_COLUMNS_WRITE)
+      if (table->mark_column_with_deps(field))
+        DBUG_VOID_RETURN; // Field was already marked
+    }
+    else
+    {
+      if (bitmap_fast_test_and_set(table->write_set, field->field_index))
       {
         DBUG_PRINT("warning", ("Found duplicated field"));
         thd->dup_field= field;
+        DBUG_VOID_RETURN;
       }
-      else
-      {
-        DBUG_PRINT("note", ("Field found before"));
-      }
-      DBUG_VOID_RETURN;
     }
+
     table->used_fields++;
   }
   if (table->get_fields_in_item_tree)
@@ -7865,18 +7849,9 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
 
       if ((field= field_iterator.field()))
       {
-        /* Mark fields as used to allow storage engine to optimze access */
-        bitmap_set_bit(field->table->read_set, field->field_index);
-        /*
-          Mark virtual fields for write and others that the virtual fields
-          depend on for read.
-        */
-        if (field->vcol_info)
-          field->table->mark_virtual_col(field);
+        field->table->mark_column_with_deps(field);
         if (table)
-        {
           table->covering_keys.intersect(field->part_of_key);
-        }
         if (tables->is_natural_join)
         {
           TABLE *field_table;

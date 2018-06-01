@@ -10659,7 +10659,7 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
         ha_checksum crc= 0;
         uchar null_mask=256 -  (1 << t->s->last_null_bit_pos);
 
-        t->use_all_columns();
+        t->use_all_stored_columns();
 
         if (t->file->ha_rnd_init(1))
           protocol->store_null();

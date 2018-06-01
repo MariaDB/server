@@ -433,8 +433,6 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
 
   /* Always read all columns */
   table->read_set= &table->s->all_set;
-  if (table->vcol_set)
-    table->vcol_set= &table->s->all_set;
 
   /* Restore the state. */
   thd->set_open_tables(backup_open_tables);

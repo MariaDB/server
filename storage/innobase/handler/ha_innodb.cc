@@ -5269,7 +5269,7 @@ ha_innobase::keys_to_use_for_scanning()
 /****************************************************************//**
 Ensures that if there's a concurrent inplace ADD INDEX, being-indexed virtual
 columns are computed. They are not marked as indexed in the old table, so the
-server won't add them to the vcol_set automatically */
+server won't add them to the read_set automatically */
 void
 ha_innobase::column_bitmaps_signal()
 /*================================*/
@@ -5289,7 +5289,7 @@ ha_innobase::column_bitmaps_signal()
 		if (col->ord_part ||
 		    (dict_index_is_online_ddl(clust_index) &&
 		     row_log_col_is_indexed(clust_index, num_v))) {
-			table->mark_virtual_col(table->vfield[j]);
+			table->mark_virtual_column_with_deps(table->vfield[j]);
 		}
 		num_v++;
 	}
@@ -10765,9 +10765,8 @@ prepare_vcol_for_base_setup(
 	ut_ad(col->base_col == NULL);
 
 	MY_BITMAP *old_read_set = field->table->read_set;
-	MY_BITMAP *old_vcol_set = field->table->vcol_set;
 
-	field->table->read_set = field->table->vcol_set = &field->table->tmp_set;
+	field->table->read_set = &field->table->tmp_set;
 
 	bitmap_clear_all(&field->table->tmp_set);
 	field->vcol_info->expr->walk(
@@ -10779,7 +10778,6 @@ prepare_vcol_for_base_setup(
 						* col->base_col)));
 	}
 	field->table->read_set= old_read_set;
-	field->table->vcol_set= old_vcol_set;
 }
 
 

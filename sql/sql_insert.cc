@@ -2605,10 +2605,6 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
       share->default_fields)
   {
     bool error_reported= FALSE;
-    if (unlikely(!(copy->def_vcol_set=
-                   (MY_BITMAP*) alloc_root(client_thd->mem_root,
-                                           sizeof(MY_BITMAP)))))
-      goto error;
     if (unlikely(parse_vcol_defs(client_thd, client_thd->mem_root, copy,
                                  &error_reported)))
       goto error;
@@ -2627,15 +2623,6 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   copy->def_write_set.bitmap= ((my_bitmap_map*)
                                (bitmap + share->column_bitmap_size));
   bitmaps_used= 2;
-  if (share->virtual_fields)
-  {
-    my_bitmap_init(copy->def_vcol_set,
-                   (my_bitmap_map*) (bitmap +
-                                     bitmaps_used*share->column_bitmap_size),
-                   share->fields, FALSE);
-    bitmaps_used++;
-    copy->vcol_set= copy->def_vcol_set;
-  }
   if (share->default_fields || share->default_expressions)
   {
     my_bitmap_init(&copy->has_value_set,

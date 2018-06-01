@@ -3193,13 +3193,7 @@ public:
       TABLE *tab= field->table;
       tab->covering_keys.intersect(field->part_of_key);
       if (tab->read_set)
-        bitmap_fast_test_and_set(tab->read_set, field->field_index);
-      /* 
-        Do not mark a self-referecing virtual column.
-        Such virtual columns are reported as invalid.
-      */
-      if (field->vcol_info && tab->vcol_set)
-        tab->mark_virtual_col(field);
+        tab->mark_column_with_deps(field);
     }
   }
   void update_used_tables()
@@ -6837,6 +6831,41 @@ inline bool Virtual_column_info::is_equal(const Virtual_column_info* vcol) const
 inline void Virtual_column_info::print(String* str)
 {
   expr->print_for_table_def(str);
+}
+
+inline bool TABLE::mark_column_with_deps(Field *field)
+{
+  bool res;
+  if (!(res= bitmap_fast_test_and_set(read_set, field->field_index)))
+  {
+    if (field->vcol_info)
+      mark_virtual_column_deps(field);
+  }
+  return res;
+}
+
+inline bool TABLE::mark_virtual_column_with_deps(Field *field)
+{
+  bool res;
+  DBUG_ASSERT(field->vcol_info);
+  if (!(res= bitmap_fast_test_and_set(read_set, field->field_index)))
+    mark_virtual_column_deps(field);
+  return res;
+}
+
+inline void TABLE::mark_virtual_column_deps(Field *field)
+{
+  DBUG_ASSERT(field->vcol_info);
+  DBUG_ASSERT(field->vcol_info->expr);
+  field->vcol_info->expr->walk(&Item::register_field_in_read_map, 1, 0);
+}
+
+inline void TABLE::use_all_stored_columns()
+{
+  bitmap_set_all(read_set);
+  if (Field **vf= vfield)
+    for (; *vf; vf++)
+      bitmap_clear_bit(read_set, (*vf)->field_index);
 }
 
 #endif /* SQL_ITEM_INCLUDED */

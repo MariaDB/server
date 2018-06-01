@@ -946,7 +946,6 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
   }
   param->fix_record= compute_vcols;
   table->use_all_columns();
-  table->vcol_set= &table->s->all_set;
 }
 
 void ha_myisam::restore_vcos_after_repair()

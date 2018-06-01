@@ -4360,7 +4360,7 @@ void SELECT_LEX::update_used_tables()
           tab->covering_keys= tab->s->keys_for_keyread;
           tab->covering_keys.intersect(tab->keys_in_use_for_query);
           /*
-            View/derived was merged. Need to recalculate read_set/vcol_set
+            View/derived was merged. Need to recalculate read_set
             bitmaps here. For example:
               CREATE VIEW v1 AS SELECT f1,f2,f3 FROM t1;
               SELECT f1 FROM v1;
@@ -4369,8 +4369,6 @@ void SELECT_LEX::update_used_tables()
             be in the read_set.
           */
           bitmap_clear_all(tab->read_set);
-          if (tab->vcol_set)
-            bitmap_clear_all(tab->vcol_set);
           break;
         }
       }

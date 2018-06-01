@@ -710,7 +710,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   uchar *ref_pos, *next_pos, ref_buff[MAX_REFLENGTH];
   TABLE *sort_form;
   handler *file;
-  MY_BITMAP *save_read_set, *save_write_set, *save_vcol_set;
+  MY_BITMAP *save_read_set, *save_write_set;
   Item *sort_cond;
   ha_rows retval;
   DBUG_ENTER("find_all_keys");
@@ -745,13 +745,11 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   /* Remember original bitmaps */
   save_read_set=  sort_form->read_set;
   save_write_set= sort_form->write_set;
-  save_vcol_set=  sort_form->vcol_set;
 
   /* Set up temporary column read map for columns used by sort */
   DBUG_ASSERT(save_read_set != &sort_form->tmp_set);
   bitmap_clear_all(&sort_form->tmp_set);
-  sort_form->column_bitmaps_set(&sort_form->tmp_set, &sort_form->tmp_set, 
-                                &sort_form->tmp_set);
+  sort_form->column_bitmaps_set(&sort_form->tmp_set, &sort_form->tmp_set);
   register_used_fields(param);
   if (quick_select)
     select->quick->add_used_key_part_to_set();
@@ -809,16 +807,12 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
         */
         MY_BITMAP *tmp_read_set= sort_form->read_set;
         MY_BITMAP *tmp_write_set= sort_form->write_set;
-        MY_BITMAP *tmp_vcol_set= sort_form->vcol_set;
 
         if (select->cond->with_subquery())
-          sort_form->column_bitmaps_set(save_read_set, save_write_set,
-                                        save_vcol_set);
+          sort_form->column_bitmaps_set(save_read_set, save_write_set);
         write_record= (select->skip_record(thd) > 0);
         if (select->cond->with_subquery())
-          sort_form->column_bitmaps_set(tmp_read_set,
-                                        tmp_write_set,
-                                        tmp_vcol_set);
+          sort_form->column_bitmaps_set(tmp_read_set, tmp_write_set);
       }
       else
         write_record= true;
@@ -864,7 +858,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   }
 
   /* Signal we should use orignal column read and write maps */
-  sort_form->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
+  sort_form->column_bitmaps_set(save_read_set, save_write_set);
 
   if (unlikely(thd->is_error()))
     DBUG_RETURN(HA_POS_ERROR);
@@ -885,7 +879,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
   DBUG_RETURN(retval);
 
 err:
-  sort_form->column_bitmaps_set(save_read_set, save_write_set, save_vcol_set);
+  sort_form->column_bitmaps_set(save_read_set, save_write_set);
   DBUG_RETURN(HA_POS_ERROR);
 } /* find_all_keys */
 
