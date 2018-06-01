@@ -22,6 +22,7 @@
 #include "mysys_priv.h"
 #include <m_string.h>
 #include <signal.h>
+#include <my_cpu.h>
 
 pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
 mysql_mutex_t THR_LOCK_malloc, THR_LOCK_open,
@@ -451,77 +452,23 @@ safe_mutex_t **my_thread_var_mutex_in_use()
 }
 
 
-#define SECONDS_TO_WAIT_FOR_KILL 2
-#if !defined(__WIN__) && defined(HAVE_SELECT)
-/* my_sleep() can wait for sub second times */
-#define WAIT_FOR_KILL_TRY_TIMES 20
-#else
-#define WAIT_FOR_KILL_TRY_TIMES 2
-#endif
-
-
 void my_thread_interrupt_wait(struct st_my_thread_var *thread_var,
                               my_bool do_abort)
 {
+  mysql_cond_t *cond;
+
   if (!thread_var)
     return;
 
   mysql_mutex_lock(&thread_var->mutex);
   if (do_abort)         // Don't abort locks
     thread_var->abort= 1;
-
-  /*
-    This broadcast could be up in the air if the victim thread
-    exits the cond in the time between read and broadcast, but that is
-    ok since all we want to do is to make the victim thread get out
-    of waiting on current_cond.
-    If we see a non-zero current_cond: it cannot be an old value (because
-    then exit_cond() should have run and it can't because we have mutex); so
-    it is the true value but maybe current_mutex is not yet non-zero (we're
-    in the middle of enter_cond() and there is a "memory order
-    inversion"). So we test the mutex too to not lock 0.
-
-    Note that there is a small chance we fail to kill. If victim has locked
-    current_mutex, but hasn't yet entered enter_cond() (which means that
-    current_cond and current_mutex are 0), then the victim will not get
-    a signal and it may wait "forever" on the cond (until
-    we issue a second KILL or the status it's waiting for happens).
-    It's true that we have set its thd->killed but it may not
-    see it immediately and so may have time to reach the cond_wait().
-
-    However, where possible, we test for killed once again after
-    enter_cond(). This should make the signaling as safe as possible.
-    However, there is still a small chance of failure on platforms with
-    instruction or memory write reordering.
-
-    We have to do the loop with trylock, because if we would use
-    pthread_mutex_lock(), we can cause a deadlock as we are here locking
-    the thread_var->mutex and thread_var->current_mutex in a different order
-    than in the thread we are trying to kill.
-    We only sleep for 2 seconds as we don't want to have LOCK_thd_data
-    locked too long time.
-
-    There is a small change we may not succeed in aborting a thread that
-    is not yet waiting for a mutex, but as this happens only for a
-    thread that was doing something else when the kill was issued and
-    which should detect the kill flag before it starts to wait, this
-    should be good enough.
-  */
-  if (thread_var->current_cond && thread_var->current_mutex)
+  while ((cond= thread_var->current_cond))
   {
-    uint i;
-    for (i= 0; i < WAIT_FOR_KILL_TRY_TIMES * SECONDS_TO_WAIT_FOR_KILL; i++)
-    {
-      int ret= mysql_mutex_trylock(thread_var->current_mutex);
-      mysql_cond_broadcast(thread_var->current_cond);
-      if (!ret)
-      {
-        /* Signal is sure to get through */
-        mysql_mutex_unlock(thread_var->current_mutex);
-        break;
-      }
-      my_sleep(1000000L / WAIT_FOR_KILL_TRY_TIMES);
-    }
+    mysql_mutex_unlock(&thread_var->mutex);
+    mysql_cond_broadcast(cond);
+    LF_BACKOFF();
+    mysql_mutex_lock(&thread_var->mutex);
   }
   mysql_mutex_unlock(&thread_var->mutex);
 }
