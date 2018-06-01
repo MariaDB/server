@@ -4579,8 +4579,7 @@ end_with_restore_list:
                                   select_lex->order_list.elements,
                                   select_lex->order_list.first,
                                   unit->select_limit_cnt,
-                                  lex->duplicates, lex->ignore,
-                                  &found, &updated);
+                                  lex->ignore, &found, &updated);
     MYSQL_UPDATE_DONE(res, found, updated);
     /* mysql_update return 2 if we need to switch to multi-update */
     if (up_result != 2)
