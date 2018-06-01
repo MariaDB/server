@@ -4291,10 +4291,9 @@ innobase_end(handlerton*, ha_panic_function)
 			my_atomic_loadptr_explicit(
 			reinterpret_cast<void**>(&srv_running),
 			MY_MEMORY_ORDER_RELAXED));
-		if (!abort_loop && running) {
+		if (!abort_loop) {
 			// may be UNINSTALL PLUGIN statement
-			running->abort = 1;
-			mysql_cond_broadcast(running->current_cond);
+			my_thread_interrupt_wait(running, TRUE);
 		}
 
 		if (!srv_read_only_mode) {

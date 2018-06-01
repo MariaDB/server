@@ -730,6 +730,9 @@ extern uint my_thread_end_wait_time;
 extern my_bool safe_mutex_deadlock_detector;
 #define my_thread_var (_my_thread_var())
 #define my_errno my_thread_var->thr_errno
+extern void my_thread_interrupt_wait(struct st_my_thread_var *thread_var,
+                                     my_bool do_abort);
+
 /*
   Keep track of shutdown,signal, and main threads so that my_end() will not
   report errors with them

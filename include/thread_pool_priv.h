@@ -57,7 +57,6 @@ bool thd_is_transaction_active(THD *thd);
 int thd_connection_has_data(THD *thd);
 void thd_set_net_read_write(THD *thd, uint val);
 uint thd_get_net_read_write(THD *thd);
-void thd_set_mysys_var(THD *thd, st_my_thread_var *mysys_var);
 my_socket thd_get_fd(THD *thd);
 int thd_store_globals(THD* thd);
 

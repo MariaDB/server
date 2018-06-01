@@ -1734,28 +1734,7 @@ static void close_connections(void)
     tmp->set_killed(KILL_SERVER_HARD);
     MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (tmp));
     mysql_mutex_lock(&tmp->LOCK_thd_kill);
-    if (tmp->mysys_var)
-    {
-      tmp->mysys_var->abort=1;
-      mysql_mutex_lock(&tmp->mysys_var->mutex);
-      if (tmp->mysys_var->current_cond)
-      {
-        uint i;
-        for (i=0; i < 2; i++)
-        {
-          int ret= mysql_mutex_trylock(tmp->mysys_var->current_mutex);
-          mysql_cond_broadcast(tmp->mysys_var->current_cond);
-          if (!ret)
-          {
-            /* Thread has surely got the signal, unlock and abort */
-            mysql_mutex_unlock(tmp->mysys_var->current_mutex);
-            break;
-          }
-          sleep(1);
-        }
-      }
-      mysql_mutex_unlock(&tmp->mysys_var->mutex);
-    }
+    my_thread_interrupt_wait(tmp->mysys_var, TRUE);
     mysql_mutex_unlock(&tmp->LOCK_thd_kill);
   }
   mysql_mutex_unlock(&LOCK_thread_count); // For unlink from list
@@ -1824,18 +1803,7 @@ static void close_connections(void)
       sql_print_information("closing wsrep system thread");
       tmp->set_killed(KILL_CONNECTION);
       MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (tmp));
-      if (tmp->mysys_var)
-      {
-        tmp->mysys_var->abort=1;
-        mysql_mutex_lock(&tmp->mysys_var->mutex);
-        if (tmp->mysys_var->current_cond)
-        {
-          mysql_mutex_lock(tmp->mysys_var->current_mutex);
-          mysql_cond_broadcast(tmp->mysys_var->current_cond);
-          mysql_mutex_unlock(tmp->mysys_var->current_mutex);
-        }
-        mysql_mutex_unlock(&tmp->mysys_var->mutex);
-      }
+      my_thread_interrupt_wait(tmp->mysys_var, TRUE);
     }
 #endif
     DBUG_PRINT("quit",("Unlocking LOCK_thread_count"));
