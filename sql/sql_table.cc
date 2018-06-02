@@ -10202,10 +10202,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   alter_table_manage_keys(to, from->file->indexes_are_disabled(), keys_onoff);
 
-  /* Set read map for all fields in from table */
   from->default_column_bitmaps();
-  bitmap_set_all(from->read_set);
-  from->file->column_bitmaps_signal();
 
   /* We can abort alter table for any table type */
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
@@ -10235,7 +10232,11 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         if (def->field == from->found_next_number_field)
           thd->variables.sql_mode|= MODE_NO_AUTO_VALUE_ON_ZERO;
       }
-      (copy_end++)->set(*ptr,def->field,0);
+      if (!(*ptr)->vcol_info)
+      {
+        bitmap_set_bit(from->read_set, def->field->field_index);
+        (copy_end++)->set(*ptr,def->field,0);
+      }
     }
     else
     {
@@ -10303,6 +10304,11 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   {
     from_row_end= from->vers_end_field();
   }
+
+  if (from_row_end)
+    bitmap_set_bit(from->read_set, from_row_end->field_index);
+
+  from->file->column_bitmaps_signal();
 
   THD_STAGE_INFO(thd, stage_copy_to_tmp_table);
   /* Tell handler that we have values for all columns in the to table */
