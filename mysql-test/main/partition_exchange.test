@@ -523,3 +523,16 @@ UNLOCK TABLES;
 dec $count;
 }
 DROP TABLE t, t2, tp;
+
+--echo #
+--echo # Assertion `!part_elem->tablespace_name && !table_create_info->tablespace' 
+--echo #                failed during EXCHANGE PARTITION with different TABLESPACE.
+--echo #
+CREATE TABLE t1 (a VARCHAR(200)) PARTITION BY KEY(a) partitions 10;
+ALTER TABLE t1 ADD PARTITION (PARTITION pm TABLESPACE = `innodb_file_per_table`);
+CREATE TABLE t2 like t1;
+ALTER TABLE t2 REMOVE PARTITIONING;
+--error ER_PARTITION_EXCHANGE_DIFFERENT_OPTION
+ALTER TABLE t1 EXCHANGE PARTITION pm WITH TABLE t2;
+DROP TABLE t1, t2;
+

@@ -100,7 +100,7 @@ fil_compress_page(
 	int comp_level = int(level);
 	ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
 	ulint write_size = 0;
-#if HAVE_LZO
+#if defined(HAVE_LZO)
 	lzo_uint write_size_lzo = write_size;
 #endif
 	/* Cache to avoid change during function execution */
@@ -117,17 +117,17 @@ fil_compress_page(
 
 	if (!out_buf) {
 		allocated = true;
-		ulint size = UNIV_PAGE_SIZE;
+		ulint size = srv_page_size;
 
 		/* Both snappy and lzo compression methods require that
 		output buffer used for compression is bigger than input
 		buffer. Increase the allocated buffer size accordingly. */
-#if HAVE_SNAPPY
+#if defined(HAVE_SNAPPY)
 		if (comp_method == PAGE_SNAPPY_ALGORITHM) {
 			size = snappy_max_compressed_length(size);
 		}
 #endif
-#if HAVE_LZO
+#if defined(HAVE_LZO)
 		if (comp_method == PAGE_LZO_ALGORITHM) {
 			size += LZO1X_1_15_MEM_COMPRESS;
 		}
@@ -155,14 +155,14 @@ fil_compress_page(
 	/* If no compression level was provided to this table, use system
 	default level */
 	if (comp_level == 0) {
-		comp_level = page_zip_level;
+		comp_level = int(page_zip_level);
 	}
 
 	DBUG_LOG("compress", "Preparing for space "
 		 << (space ? space->id : 0) << " '"
 		 << (space ? space->name : "(import)") << "' len " << len);
 
-	write_size = UNIV_PAGE_SIZE - header_len;
+	write_size = srv_page_size - header_len;
 
 	switch(comp_method) {
 #ifdef HAVE_LZ4
@@ -185,11 +185,11 @@ fil_compress_page(
 #ifdef HAVE_LZO
 	case PAGE_LZO_ALGORITHM:
 		err = lzo1x_1_15_compress(
-			buf, len, out_buf+header_len, &write_size_lzo, out_buf+UNIV_PAGE_SIZE);
+			buf, len, out_buf+header_len, &write_size_lzo, out_buf+srv_page_size);
 
 		write_size = write_size_lzo;
 
-		if (err != LZO_E_OK || write_size > UNIV_PAGE_SIZE-header_len) {
+		if (err != LZO_E_OK || write_size > srv_page_size-header_len) {
 			goto err_exit;
 		}
 
@@ -209,7 +209,7 @@ fil_compress_page(
 			&out_pos,
 			(size_t)write_size);
 
-		if (err != LZMA_OK || out_pos > UNIV_PAGE_SIZE-header_len) {
+		if (err != LZMA_OK || out_pos > srv_page_size-header_len) {
 			write_size = out_pos;
 			goto err_exit;
 		}
@@ -232,7 +232,7 @@ fil_compress_page(
 			0,
 			0);
 
-		if (err != BZ_OK || write_size > UNIV_PAGE_SIZE-header_len) {
+		if (err != BZ_OK || write_size > srv_page_size-header_len) {
 			goto err_exit;
 		}
 		break;
@@ -243,7 +243,7 @@ fil_compress_page(
 	case PAGE_SNAPPY_ALGORITHM:
 	{
 		snappy_status cstatus;
-		write_size = snappy_max_compressed_length(UNIV_PAGE_SIZE);
+		write_size = snappy_max_compressed_length(srv_page_size);
 
 		cstatus = snappy_compress(
 			(const char *)buf,
@@ -251,7 +251,7 @@ fil_compress_page(
 			(char *)(out_buf+header_len),
 			(size_t*)&write_size);
 
-		if (cstatus != SNAPPY_OK || write_size > UNIV_PAGE_SIZE-header_len) {
+		if (cstatus != SNAPPY_OK || write_size > srv_page_size-header_len) {
 			err = (int)cstatus;
 			goto err_exit;
 		}
@@ -310,9 +310,9 @@ fil_compress_page(
 		byte *comp_page;
 		byte *uncomp_page;
 
-		comp_page = static_cast<byte *>(ut_malloc_nokey(UNIV_PAGE_SIZE));
-		uncomp_page = static_cast<byte *>(ut_malloc_nokey(UNIV_PAGE_SIZE));
-		memcpy(comp_page, out_buf, UNIV_PAGE_SIZE);
+		comp_page = static_cast<byte *>(ut_malloc_nokey(srv_page_size));
+		uncomp_page = static_cast<byte *>(ut_malloc_nokey(srv_page_size));
+		memcpy(comp_page, out_buf, srv_page_size);
 
 		fil_decompress_page(uncomp_page, comp_page, ulong(len), NULL);
 
@@ -439,8 +439,8 @@ fil_decompress_page(
 
 	// If no buffer was given, we need to allocate temporal buffer
 	if (page_buf == NULL) {
-		in_buf = static_cast<byte *>(ut_malloc_nokey(UNIV_PAGE_SIZE));
-		memset(in_buf, 0, UNIV_PAGE_SIZE);
+		in_buf = static_cast<byte *>(ut_malloc_nokey(srv_page_size));
+		memset(in_buf, 0, srv_page_size);
 	} else {
 		in_buf = page_buf;
 	}
@@ -472,7 +472,7 @@ fil_decompress_page(
 	/* Get the actual size of compressed page */
 	actual_size = mach_read_from_2(buf+FIL_PAGE_DATA);
 	/* Check if payload size is corrupted */
-	if (actual_size == 0 || actual_size > UNIV_PAGE_SIZE) {
+	if (actual_size == 0 || actual_size > srv_page_size) {
 		ib::error() << "Corruption: We try to uncompress corrupted page"
 			    << " actual size: " << actual_size
 			    << " compression method: "
@@ -527,7 +527,7 @@ fil_decompress_page(
 
 		olen = olen_lzo;
 
-		if (err != LZO_E_OK || (olen == 0 || olen > UNIV_PAGE_SIZE)) {
+		if (err != LZO_E_OK || (olen == 0 || olen > srv_page_size)) {
 			len = olen;
 			goto err_exit;
 			if (return_error) {
@@ -557,7 +557,7 @@ fil_decompress_page(
 			len);
 
 
-		if (ret != LZMA_OK || (dst_pos == 0 || dst_pos > UNIV_PAGE_SIZE)) {
+		if (ret != LZMA_OK || (dst_pos == 0 || dst_pos > srv_page_size)) {
 			len = dst_pos;
 			goto err_exit;
 			if (return_error) {
@@ -570,7 +570,7 @@ fil_decompress_page(
 #endif /* HAVE_LZMA */
 #ifdef HAVE_BZIP2
 	case PAGE_BZIP2_ALGORITHM: {
-		unsigned int dst_pos = UNIV_PAGE_SIZE;
+		unsigned int dst_pos = srv_page_size;
 
 		err = BZ2_bzBuffToBuffDecompress(
 			(char *)in_buf,
@@ -580,7 +580,7 @@ fil_decompress_page(
 			1,
 			0);
 
-		if (err != BZ_OK || (dst_pos == 0 || dst_pos > UNIV_PAGE_SIZE)) {
+		if (err != BZ_OK || (dst_pos == 0 || dst_pos > srv_page_size)) {
 			len = dst_pos;
 			goto err_exit;
 			if (return_error) {
@@ -594,7 +594,7 @@ fil_decompress_page(
 	case PAGE_SNAPPY_ALGORITHM:
 	{
 		snappy_status cstatus;
-		ulint olen = UNIV_PAGE_SIZE;
+		ulint olen = srv_page_size;
 
 		cstatus = snappy_uncompress(
 			(const char *)(buf+header_len),
@@ -602,7 +602,7 @@ fil_decompress_page(
 			(char *)in_buf,
 			(size_t*)&olen);
 
-		if (cstatus != SNAPPY_OK || (olen == 0 || olen > UNIV_PAGE_SIZE)) {
+		if (cstatus != SNAPPY_OK || (olen == 0 || olen > srv_page_size)) {
 			err = (int)cstatus;
 			len = olen;
 			goto err_exit;
@@ -651,6 +651,6 @@ err_exit:
 		    << fil_get_compression_alg_name(compression_alg) << ".";
 
 	buf_page_print(buf, univ_page_size);
-	fil_space_release_for_io(space);
+	space->release_for_io();
 	ut_ad(0);
 }

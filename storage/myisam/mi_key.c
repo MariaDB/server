@@ -150,7 +150,6 @@ uint _mi_make_key(register MI_INFO *info, uint keynr, uchar *key,
     }
     else if (keyseg->flag & HA_SWAP_KEY)
     {						/* Numerical column */
-#ifdef HAVE_ISNAN
       if (type == HA_KEYTYPE_FLOAT)
       {
 	float nr;
@@ -174,7 +173,6 @@ uint _mi_make_key(register MI_INFO *info, uint keynr, uchar *key,
 	  continue;
 	}
       }
-#endif
       pos+=length;
       while (length--)
       {

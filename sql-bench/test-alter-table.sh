@@ -202,9 +202,10 @@ while ($field_count > $opt_start_field_count)
   $count++;
   $end=max($field_count-$add,$opt_start_field_count);
   $fields="";
-  while(--$field_count >= $end)
+  while ($field_count > $end)
   {
     $fields.=",DROP i${field_count}";
+    $field_count--;
   }
   $dbh->do("ALTER TABLE bench " . substr($fields,1) . $server->{'drop_attr'})
   || die $DBI::errstr;
@@ -219,6 +220,39 @@ if ($estimated)
 else
 { print "Time"; }
 print " for alter_table_drop ($count): " .
+  timestr(timediff($end_time, $loop_time),"all") . "\n\n";
+
+####
+#### Add fields in middle of the table
+####
+
+goto skip_dropcol if (!$limits->{'alter_table_after'});
+
+$count=0;
+while ($field_count < $opt_field_count)
+{
+  $count++;
+  $end=min($field_count+$add,$opt_field_count);
+  $fields="";
+  $tmp="ADD ";
+  while ($field_count < $end)
+  {
+    $field_count++;
+    $fields.=",$tmp i${field_count} integer after i1";
+    $tmp="" if (!$multi_add);			# Adabas
+  }
+  do_query($dbh,"ALTER TABLE bench " . substr($fields,1));
+  $end_time=new Benchmark;
+  last if ($estimated=predict_query_time($loop_time,$end_time,\$count,$count,
+					 $opt_field_count/$add+1));
+}
+
+$end_time=new Benchmark;
+if ($estimated)
+{ print "Estimated time"; }
+else
+{ print "Time"; }
+print " for alter_table_add_in_middle ($count): " .
   timestr(timediff($end_time, $loop_time),"all") . "\n\n";
 
 skip_dropcol:

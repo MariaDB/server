@@ -1301,3 +1301,24 @@ Pos	Instruction
 28	jump 4
 29	cpop 1
 DROP PROCEDURE p1;
+#
+# MDEV-14623: Output of show function code does not show FETCH GROUP NEXT ROW
+# for custom aggregates
+#
+create aggregate function f1(x INT) returns int
+begin
+declare continue handler for not found return 0;
+loop
+fetch group next row;
+insert into t2 (sal) values (x);
+end loop;
+end|
+show function code f1;
+Pos	Instruction
+0	hpush_jump 2 1 CONTINUE
+1	freturn int 0
+2	agg_cfetch
+3	stmt 5 "insert into t2 (sal) values (x)"
+4	jump 2
+5	hpop 1
+drop function f1;

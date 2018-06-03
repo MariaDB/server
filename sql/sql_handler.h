@@ -80,5 +80,6 @@ void mysql_ha_rm_temporary_tables(THD *thd);
 SQL_HANDLER *mysql_ha_read_prepare(THD *thd, TABLE_LIST *tables,
                                    enum enum_ha_read_modes mode,
                                    const char *keyname,
-                                   List<Item> *key_expr, Item *cond);
+                                   List<Item> *key_expr, enum ha_rkey_function ha_rkey_mode,
+                                   Item *cond);
 #endif

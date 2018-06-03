@@ -682,7 +682,6 @@ void With_element::move_anchors_ahead()
 {
   st_select_lex *next_sl;
   st_select_lex *new_pos= spec->first_select();
-  st_select_lex *UNINIT_VAR(last_sl);
   new_pos->linkage= UNION_TYPE;
   for (st_select_lex *sl= new_pos; sl; sl= next_sl)
   {
@@ -690,6 +689,14 @@ void With_element::move_anchors_ahead()
     if (is_anchor(sl))
     {
       sl->move_node(new_pos);
+      if (new_pos == spec->first_select())
+      {
+        enum sub_select_type type= new_pos->linkage;
+        new_pos->linkage= sl->linkage;
+        sl->linkage= type;
+        new_pos->with_all_modifier= sl->with_all_modifier;
+        sl->with_all_modifier= false;
+      }
       new_pos= sl->next_select();
     }
     else if (!sq_rec_ref && no_rec_ref_on_top_level())
@@ -697,10 +704,7 @@ void With_element::move_anchors_ahead()
       sq_rec_ref= find_first_sq_rec_ref_in_select(sl);
       DBUG_ASSERT(sq_rec_ref != NULL);
     }
-    last_sl= sl;
   }
-  if (spec->union_distinct)
-    spec->union_distinct= last_sl;
   first_recursive= new_pos;
 }
 
@@ -829,8 +833,9 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
   if (parser_state.init(thd, (char*) unparsed_spec.str, (unsigned int)unparsed_spec.length))
     goto err;
   lex_start(thd);
+  lex->stmt_lex= old_lex;
   with_select= &lex->select_lex;
-  with_select->select_number= ++thd->stmt_lex->current_select_number;
+  with_select->select_number= ++thd->lex->stmt_lex->current_select_number;
   parse_status= parse_sql(thd, &parser_state, 0);
   if (parse_status)
     goto err;
@@ -978,7 +983,7 @@ bool With_element::prepare_unreferenced(THD *thd)
 
   thd->lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
   if (!spec->prepared &&
-      (spec->prepare(thd, 0, 0) ||
+      (spec->prepare(spec->derived, 0, 0) ||
        rename_columns_of_derived_unit(thd, spec) ||
        check_duplicate_names(thd, first_sl->item_list, 1)))
     rc= true;
@@ -1189,7 +1194,7 @@ bool st_select_lex::check_unrestricted_recursive(bool only_standard_compliant)
 
 
   /* Check conditions 3-4 for restricted specification*/
-  if (with_sum_func ||
+  if ((with_sum_func && !with_elem->is_anchor(this)) ||
       (with_elem->contains_sq_with_recursive_reference()))
     with_elem->get_owner()->add_unrestricted(
                               with_elem->get_mutually_recursive());
@@ -1414,7 +1419,7 @@ bool With_element::instantiate_tmp_tables()
   {
     if (!rec_table->is_created() &&
         instantiate_tmp_table(rec_table,
-                              rec_result->tmp_table_param.keyinfo,
+                              rec_table->s->key_info,
                               rec_result->tmp_table_param.start_recinfo,
                               &rec_result->tmp_table_param.recinfo,
                               0))

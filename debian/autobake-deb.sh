@@ -48,7 +48,7 @@ fi
 if ! apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
 then
   sed '/libcrack2-dev/d' -i debian/control
-  sed '/Package: mariadb-plugin-cracklib/,+9d' -i debian/control
+  sed '/Package: mariadb-plugin-cracklib/,+11d' -i debian/control
 fi
 
 # If libpcre3-dev (>= 2:8.35-3.2~) is not available (before Debian Jessie or Ubuntu Wily)
@@ -72,6 +72,15 @@ then
   sed '/galera_recovery/d' -i debian/mariadb-server-10.3.install
   sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.3.install
 fi
+
+# If libzstd-dev is not available (before Debian Stretch and Ubuntu Xenial)
+# remove the dependency from server and rocksdb so it can build properly
+if ! apt-cache madison libzstd-dev | grep 'libzstd-dev' >/dev/null 2>&1
+then
+  sed '/libzstd-dev/d' -i debian/control
+  sed '/libzstd1/d' -i debian/control
+fi
+
 
 # Convert gcc version to numberical value. Format is Mmmpp where M is Major
 # version, mm is minor version and p is patch.
@@ -128,10 +137,11 @@ UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${
 PATCHLEVEL="+maria"
 LOGSTRING="MariaDB build"
 CODENAME="$(lsb_release -sc)"
+EPOCH="1:"
 
-dch -b -D ${CODENAME} -v "1:${UPSTREAM}${PATCHLEVEL}~${CODENAME}" "Automatic build with ${LOGSTRING}."
+dch -b -D ${CODENAME} -v "${EPOCH}${UPSTREAM}${PATCHLEVEL}~${CODENAME}" "Automatic build with ${LOGSTRING}."
 
-echo "Creating package version ${UPSTREAM}${PATCHLEVEL}~${CODENAME} ... "
+echo "Creating package version ${EPOCH}${UPSTREAM}${PATCHLEVEL}~${CODENAME} ... "
 
 # On Travis CI, use -b to build binary only packages as there is no need to
 # waste time on generating the source package.

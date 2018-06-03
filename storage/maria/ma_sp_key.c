@@ -77,7 +77,6 @@ MARIA_KEY *_ma_sp_make_key(MARIA_HA *info, MARIA_KEY *ret_key, uint keynr,
     DBUG_ASSERT(keyseg->type == HA_KEYTYPE_DOUBLE);
 
     val= mbr[start / sizeof (double)];
-#ifdef HAVE_ISNAN
     if (isnan(val))
     {
       bzero(key, length);
@@ -85,7 +84,6 @@ MARIA_KEY *_ma_sp_make_key(MARIA_HA *info, MARIA_KEY *ret_key, uint keynr,
       len+= length;
       continue;
     }
-#endif
 
     if (keyseg->flag & HA_SWAP_KEY)
     {

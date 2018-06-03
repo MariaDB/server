@@ -30,7 +30,7 @@ Created Nov 14, 2013 Vasil Dimov
 #include "univ.i"
 #include "fsp0types.h"
 
-#define FIELD_REF_SIZE 20
+#define FIELD_REF_SIZE 20U
 
 /** A BLOB field reference full of zero, for use in assertions and
 tests.Initially, BLOB field references are set to zero, in

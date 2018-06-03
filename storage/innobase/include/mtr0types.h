@@ -100,13 +100,13 @@ enum mlog_id_t {
 	/** Create an index page */
 	MLOG_PAGE_CREATE = 19,
 
-	/** insert an undo log record (used in MariaDB 10.2) */
+	/** insert an undo log record */
 	MLOG_UNDO_INSERT = 20,
 
 	/** erase an undo log page end (used in MariaDB 10.2) */
 	MLOG_UNDO_ERASE_END = 21,
 
-	/** initialize a page in an undo log (used in MariaDB 10.2) */
+	/** initialize a page in an undo log */
 	MLOG_UNDO_INIT = 22,
 
 	/** reuse an insert undo log header (used in MariaDB 10.2) */

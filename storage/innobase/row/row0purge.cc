@@ -414,7 +414,7 @@ row_purge_remove_sec_if_poss_leaf(
 
 	log_free_check();
 	ut_ad(index->table == node->table);
-	ut_ad(!dict_table_is_temporary(index->table));
+	ut_ad(!index->table->is_temporary());
 	mtr_start(&mtr);
 	index->set_modified(mtr);
 
@@ -806,12 +806,12 @@ skip_secondaries:
 			can calculate from node->roll_ptr the file
 			address of the new_val data */
 
-			internal_offset
-				= ((const byte*)
-				   dfield_get_data(&ufield->new_val))
-				- undo_rec;
+			internal_offset = ulint(
+				static_cast<const byte*>
+				(dfield_get_data(&ufield->new_val))
+				- undo_rec);
 
-			ut_a(internal_offset < UNIV_PAGE_SIZE);
+			ut_a(internal_offset < srv_page_size);
 
 			trx_undo_decode_roll_ptr(node->roll_ptr,
 						 &is_insert, &rseg_id,
@@ -937,7 +937,7 @@ try_again:
 		goto err_exit;
 	}
 
-	ut_ad(!dict_table_is_temporary(node->table));
+	ut_ad(!node->table->is_temporary());
 
 	if (!fil_table_accessible(node->table)) {
 		dict_table_close(node->table, FALSE, FALSE);
@@ -972,8 +972,7 @@ try_again:
 
 	clust_index = dict_table_get_first_index(node->table);
 
-	if (clust_index == NULL
-	    || dict_index_is_corrupted(clust_index)) {
+	if (!clust_index || clust_index->is_corrupted()) {
 		/* The table was corrupt in the data dictionary.
 		dict_set_corrupted() works on an index, and
 		we do not have an index to call it with. */

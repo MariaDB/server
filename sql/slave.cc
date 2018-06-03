@@ -223,7 +223,7 @@ static void set_slave_max_allowed_packet(THD *thd, MYSQL *mysql)
 void init_thread_mask(int* mask,Master_info* mi,bool inverse)
 {
   bool set_io = mi->slave_running, set_sql = mi->rli.slave_running;
-  register int tmp_mask=0;
+  int tmp_mask=0;
   DBUG_ENTER("init_thread_mask");
 
   if (set_io)
@@ -344,8 +344,15 @@ gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_CSTRING *table_name)
     goto end;
   mysql_parse(thd, thd->query(), thd->query_length(), &parser_state,
               FALSE, FALSE);
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
     err= 1;
+  /* The warning is relevant to 10.3 and earlier. */
+  sql_print_warning("The automatically created table '%s' name may not be "
+                    "entirely in lowercase. The table name will be converted "
+                    "to lowercase to any future upgrade to 10.4.0 and later "
+                    "version where it will be auto-created at once "
+                    "in lowercase.",
+                    table_name->str);
 end:
   thd->variables.option_bits= thd_saved_option;
   thd->reset_query();
@@ -356,7 +363,7 @@ end:
 static void
 handle_gtid_pos_auto_create_request(THD *thd, void *hton)
 {
-  int err;
+  int UNINIT_VAR(err);
   plugin_ref engine= NULL, *auto_engines;
   rpl_slave_state::gtid_pos_table *entry;
   StringBuffer<FN_REFLEN> loc_table_name;
@@ -739,7 +746,7 @@ int init_slave()
 
     thd->reset_globals();
     delete thd;
-    if (error)
+    if (unlikely(error))
     {
       sql_print_error("Failed to create slave threads");
       goto err;
@@ -885,7 +892,7 @@ bool init_slave_skip_errors(const char* arg)
   if (!arg || !*arg)                            // No errors defined
     goto end;
 
-  if (my_bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR,0))
+  if (unlikely(my_bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR,0)))
     DBUG_RETURN(1);
 
   use_slave_mask= 1;
@@ -978,10 +985,10 @@ bool init_slave_transaction_retry_errors(const char* arg)
       p++;
   }
 
-  if (!(slave_transaction_retry_errors=
-        (uint *) my_once_alloc(sizeof(int) *
-                               slave_transaction_retry_error_length,
-                               MYF(MY_WME))))
+  if (unlikely(!(slave_transaction_retry_errors=
+                 (uint *) my_once_alloc(sizeof(int) *
+                                        slave_transaction_retry_error_length,
+                                        MYF(MY_WME)))))
     DBUG_RETURN(1);
 
   /*
@@ -1030,11 +1037,12 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
     }
     else
       mi->rli.abort_slave=1;
-    if ((error=terminate_slave_thread(mi->rli.sql_driver_thd, sql_lock,
-                                      &mi->rli.stop_cond,
-                                      &mi->rli.slave_running,
-                                      skip_lock)) &&
-        !force_all)
+    if (unlikely((error= terminate_slave_thread(mi->rli.sql_driver_thd,
+                                                sql_lock,
+                                                &mi->rli.stop_cond,
+                                                &mi->rli.slave_running,
+                                                skip_lock))) &&
+                 !force_all)
       DBUG_RETURN(error);
     retval= error;
 
@@ -1052,11 +1060,11 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
   {
     DBUG_PRINT("info",("Terminating IO thread"));
     mi->abort_slave=1;
-    if ((error=terminate_slave_thread(mi->io_thd, io_lock,
-                                      &mi->stop_cond,
-                                      &mi->slave_running,
-                                      skip_lock)) &&
-        !force_all)
+    if (unlikely((error= terminate_slave_thread(mi->io_thd, io_lock,
+                                                &mi->stop_cond,
+                                                &mi->slave_running,
+                                                skip_lock))) &&
+                 !force_all)
       DBUG_RETURN(error);
     if (!retval)
       retval= error;
@@ -1232,8 +1240,9 @@ int start_slave_thread(
   }
   start_id= *slave_run_id;
   DBUG_PRINT("info",("Creating new slave thread"));
-  if ((error = mysql_thread_create(thread_key,
-                           &th, &connection_attrib, h_func, (void*)mi)))
+  if (unlikely((error= mysql_thread_create(thread_key,
+                                           &th, &connection_attrib, h_func,
+                                           (void*)mi))))
   {
     sql_print_error("Can't create slave thread (errno= %d).", error);
     if (start_lock)
@@ -1346,7 +1355,7 @@ int start_slave_threads(THD *thd,
     mi->rli.restart_gtid_pos.reset();
   }
 
-  if (!error && (thread_mask & SLAVE_IO))
+  if (likely(!error) && likely((thread_mask & SLAVE_IO)))
     error= start_slave_thread(
 #ifdef HAVE_PSI_INTERFACE
                               key_thread_slave_io,
@@ -1355,7 +1364,7 @@ int start_slave_threads(THD *thd,
                               cond_io,
                               &mi->slave_running, &mi->slave_run_id,
                               mi);
-  if (!error && (thread_mask & SLAVE_SQL))
+  if (likely(!error) && likely(thread_mask & SLAVE_SQL))
   {
     error= start_slave_thread(
 #ifdef HAVE_PSI_INTERFACE
@@ -1365,7 +1374,7 @@ int start_slave_threads(THD *thd,
                               cond_sql,
                               &mi->rli.slave_running, &mi->rli.slave_run_id,
                               mi);
-    if (error)
+    if (unlikely(error))
       terminate_slave_threads(mi, thread_mask & SLAVE_IO, !need_slave_mutex);
   }
   DBUG_RETURN(error);
@@ -2337,7 +2346,8 @@ past_checksum:
   */
   if (opt_replicate_events_marked_for_skip == RPL_SKIP_FILTER_ON_MASTER)
   {
-    if (mysql_real_query(mysql, STRING_WITH_LEN("SET skip_replication=1")))
+    if (unlikely(mysql_real_query(mysql,
+                                  STRING_WITH_LEN("SET skip_replication=1"))))
     {
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
@@ -2381,7 +2391,7 @@ past_checksum:
                          STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_ANNOTATE))),
         mysql_real_query(mysql, STRING_WITH_LEN("SET @mariadb_slave_capability="
                          STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_MINE))));
-    if (rc)
+    if (unlikely(rc))
     {
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
@@ -2457,7 +2467,7 @@ after_set_capability:
     query_str.append(STRING_WITH_LEN("'"), system_charset_info);
 
     rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
-    if (rc)
+    if (unlikely(rc))
     {
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
@@ -2490,7 +2500,7 @@ after_set_capability:
     }
 
     rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
-    if (rc)
+    if (unlikely(rc))
     {
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
@@ -2523,7 +2533,7 @@ after_set_capability:
     }
 
     rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
-    if (rc)
+    if (unlikely(rc))
     {
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
@@ -2559,7 +2569,7 @@ after_set_capability:
       query_str.append(STRING_WITH_LEN("'"), system_charset_info);
 
       rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
-      if (rc)
+      if (unlikely(rc))
       {
         err_code= mysql_errno(mysql);
         if (is_network_error(err_code))
@@ -3121,6 +3131,19 @@ void show_master_info_get_fields(THD *thd, List<Item> *field_list,
   field_list->push_back(new (mem_root)
                         Item_empty_string(thd, "Slave_SQL_Running_State",
                                           20));
+  field_list->push_back(new (mem_root)
+                       Item_return_int(thd, "Slave_DDL_Groups", 20,
+                                       MYSQL_TYPE_LONGLONG),
+                       mem_root);
+  field_list->push_back(new (mem_root)
+                       Item_return_int(thd, "Slave_Non_Transactional_Groups", 20,
+                                       MYSQL_TYPE_LONGLONG),
+                        mem_root);
+  field_list->push_back(new (mem_root)
+                       Item_return_int(thd, "Slave_Transactional_Groups", 20,
+                                       MYSQL_TYPE_LONGLONG),
+                        mem_root);
+
   if (full)
   {
     field_list->push_back(new (mem_root)
@@ -3350,6 +3373,17 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
       protocol->store_null();
     // Slave_SQL_Running_State
     protocol->store(slave_sql_running_state, &my_charset_bin);
+
+    uint64 events;
+    events= (uint64)my_atomic_load64_explicit((volatile int64 *)
+              &mi->total_ddl_groups, MY_MEMORY_ORDER_RELAXED);
+    protocol->store(events);
+    events= (uint64)my_atomic_load64_explicit((volatile int64 *)
+              &mi->total_non_trans_groups, MY_MEMORY_ORDER_RELAXED);
+    protocol->store(events);
+    events= (uint64)my_atomic_load64_explicit((volatile int64 *)
+              &mi->total_trans_groups, MY_MEMORY_ORDER_RELAXED);
+    protocol->store(events);
 
     if (full)
     {
@@ -3650,7 +3684,7 @@ static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings,
 #endif
 
   len = cli_safe_read_reallen(mysql, network_read_len);
-  if (len == packet_error || (long) len < 1)
+  if (unlikely(len == packet_error || (long) len < 1))
   {
     if (mysql_errno(mysql) == ER_NET_READ_INTERRUPTED)
     {
@@ -3715,7 +3749,7 @@ has_temporary_error(THD *thd)
     error or not. This is currently the case for Incident_log_event,
     which sets no message. Return FALSE.
   */
-  if (!thd->is_error())
+  if (!likely(thd->is_error()))
     DBUG_RETURN(0);
 
   current_errno= thd->get_stmt_da()->sql_errno();
@@ -3936,7 +3970,7 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
       TODO: Replace this with a decent error message when merged
       with BUG#24954 (which adds several new error message).
     */
-    if (error)
+    if (unlikely(error))
     {
       rli->report(ERROR_LEVEL, ER_UNKNOWN_ERROR, rgi->gtid_info(),
                   "It was not possible to update the positions"
@@ -4327,19 +4361,19 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       update_log_pos failed: this should not happen, so we don't
       retry.
     */
-    if (exec_res == 2)
+    if (unlikely(exec_res == 2))
       DBUG_RETURN(1);
 
 #ifdef WITH_WSREP
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     if (thd->wsrep_conflict_state == NO_CONFLICT)
     {
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
 #endif /* WITH_WSREP */
     if (slave_trans_retries)
     {
       int UNINIT_VAR(temp_err);
-      if (exec_res && (temp_err= has_temporary_error(thd)))
+      if (unlikely(exec_res) && (temp_err= has_temporary_error(thd)))
       {
         const char *errmsg;
         rli->clear_error();
@@ -4412,7 +4446,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #ifdef WITH_WSREP
     }
     else
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
 #endif /* WITH_WSREP */
 
     thread_safe_increment64(&rli->executed_entries);
@@ -4776,7 +4810,7 @@ connected:
       if (check_io_slave_killed(mi, NullS))
         goto err;
 
-      if (event_len == packet_error)
+      if (unlikely(event_len == packet_error))
       {
         uint mysql_error_number= mysql_errno(mysql);
         switch (mysql_error_number) {
@@ -5079,7 +5113,7 @@ slave_output_error_info(rpl_group_info *rgi, THD *thd)
   Relay_log_info *rli= rgi->rli;
   uint32 const last_errno= rli->last_error().number;
 
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
   {
     char const *const errmsg= thd->get_stmt_da()->message();
 
@@ -5123,7 +5157,7 @@ slave_output_error_info(rpl_group_info *rgi, THD *thd)
       udf_error = true;
     sql_print_warning("Slave: %s Error_code: %d", err->get_message_text(), err->get_sql_errno());
   }
-  if (udf_error)
+  if (unlikely(udf_error))
   {
     StringBuffer<100> tmp;
     if (rli->mi->using_gtid != Master_info::USE_GTID_NO)
@@ -5251,6 +5285,10 @@ pthread_handler_t handle_slave_sql(void *arg)
     applied. In all other cases it must be FALSE.
   */
   thd->variables.binlog_annotate_row_events= 0;
+
+  /* Ensure that slave can exeute any alter table it gets from master */
+  thd->variables.alter_algorithm= (ulong) Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT;
+
   add_to_active_threads(thd);
   /*
     We are going to set slave_running to 1. Assuming slave I/O thread is
@@ -5403,7 +5441,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   if (opt_init_slave.length)
   {
     execute_init_command(thd, &opt_init_slave, &LOCK_sys_init_slave);
-    if (thd->is_slave_error)
+    if (unlikely(thd->is_slave_error))
     {
       rli->report(ERROR_LEVEL, thd->get_stmt_da()->sql_errno(), NULL,
                   "Slave SQL thread aborted. Can't execute init_slave query");
@@ -6069,7 +6107,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
 {
   int error= 0;
   StringBuffer<1024> error_msg;
-  ulonglong inc_pos;
+  ulonglong inc_pos= 0;
   ulonglong event_pos;
   Relay_log_info *rli= &mi->rli;
   mysql_mutex_t *log_lock= rli->relay_log.get_log_lock();
@@ -6908,7 +6946,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   }
   mysql_mutex_unlock(log_lock);
 
-  if (!error &&
+  if (likely(!error) &&
       mi->using_gtid != Master_info::USE_GTID_NO &&
       mi->events_queued_since_last_gtid > 0 &&
       ( (mi->last_queued_gtid_standalone &&
@@ -6957,11 +6995,11 @@ err:
     Do not print ER_SLAVE_RELAY_LOG_WRITE_FAILURE error here, as the caller
     handle_slave_io() prints it on return.
   */
-  if (error && error != ER_SLAVE_RELAY_LOG_WRITE_FAILURE)
+  if (unlikely(error) && error != ER_SLAVE_RELAY_LOG_WRITE_FAILURE)
     mi->report(ERROR_LEVEL, error, NULL, ER_DEFAULT(error),
                error_msg.ptr());
 
-  if(is_malloc)
+  if (unlikely(is_malloc))
     my_free((void *)new_buf);
 
   DBUG_RETURN(error);
@@ -7428,7 +7466,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
     }
     if (opt_reckless_slave)                     // For mysql-test
       cur_log->error = 0;
-    if (cur_log->error < 0)
+    if (unlikely(cur_log->error < 0))
     {
       errmsg = "slave SQL thread aborted because of I/O error";
       if (hot_log)

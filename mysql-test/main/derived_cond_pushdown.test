@@ -2221,6 +2221,105 @@ select * from (select  date('2018-01-01') as d
 select * from (select  date('2018-01-01') as d) as t
   where t.d between date ('2017-01-01') and date ('2019-01-01');
 
+--echo #
+--echo # MDEV-16088: pushdown into derived defined in the IN subquery
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (e INT, f INT, g INT);
+INSERT INTO t1 VALUES (1,14),(2,13),(1,19),(2,32),(3,24);
+INSERT INTO t2 VALUES (1,19,2),(3,24,1),(1,12,2),(3,11,3),(2,32,1);
+
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e,d_tab.max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) AS max_f
+      FROM t2
+      GROUP BY t2.e
+      HAVING max_f>18
+    ) as d_tab
+    WHERE d_tab.e>1
+  )
+;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e,d_tab.max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) AS max_f
+      FROM t2
+      GROUP BY t2.e
+      HAVING max_f>18
+    ) as d_tab
+    WHERE d_tab.max_f<25
+  )
+;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e, MAX(d_tab.max_f) AS max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) as max_f, t2.g
+      FROM t2
+      GROUP BY t2.e
+    ) as d_tab
+    WHERE d_tab.e>1
+    GROUP BY d_tab.g
+  )
+;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e, MAX(d_tab.max_f) AS max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) as max_f, t2.g
+      FROM t2
+      GROUP BY t2.e
+    ) as d_tab
+    WHERE d_tab.max_f>20
+    GROUP BY d_tab.g
+  )
+;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-15765: pushing condition with IN subquery defined with constants
+--echo #             using substitution
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM
+(
+  SELECT DISTINCT * FROM t1
+) der_tab
+WHERE (a>0 AND a<2 OR a IN (2,3)) AND
+      (a=2 OR 0);
+
+DROP TABLE t1;
+
 # Start of 10.3 tests
 
 --echo #
@@ -2670,4 +2769,46 @@ EXPLAIN EXTENDED
 SELECT * FROM v1 JOIN v2 ON v1.f = v2.f;
 
 DROP VIEW v1,v2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15899: derived with WF without any key access
+--echo #
+
+create table t1 (f1 int, f2 int, f4 int);
+insert into t1 values
+  (3,1,1), (3,0,9), (0,1,8), (9,0,0), (3,0,9);
+
+let $q=
+with
+cte as (select  median(f2) over (partition by f1) as k1 from t1 order by f1),
+cte1 as (select median(f4) over (partition by f1) as k2 from t1)
+select k1,k2 from cte1, cte;
+
+eval $q;
+eval explain $q;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-16104: embedded splittable materialized derived/views
+--echo #
+
+CREATE TABLE t1 (f int PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t1
+  VALUES (3), (7), (1), (4), (8), (5), (9);
+
+CREATE ALGORITHM=MERGE VIEW v1 AS
+SELECT a2.*
+FROM
+  ( SELECT f, COUNT(*) as c FROM t1 GROUP BY f ) AS a1
+  JOIN
+  t1 AS a2
+  USING (f);
+
+EXPLAIN EXTENDED
+SELECT * FROM ( SELECT STRAIGHT_JOIN f, COUNT(*) as c FROM v1 GROUP BY f ) AS s;
+SELECT * FROM ( SELECT STRAIGHT_JOIN f, COUNT(*) as c FROM v1 GROUP BY f ) AS s;
+
+DROP VIEW v1;
 DROP TABLE t1;

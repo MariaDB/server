@@ -62,7 +62,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "row0merge.h"
 
 /** Log records are stored in the hash table in chunks at most of this size;
-this must be less than UNIV_PAGE_SIZE as it is stored in the buffer pool */
+this must be less than srv_page_size as it is stored in the buffer pool */
 #define RECV_DATA_BLOCK_SIZE	(MEM_MAX_ALLOC_IN_BUF - sizeof(recv_data_t))
 
 /** Read-ahead area in applying log records to file pages */
@@ -79,7 +79,7 @@ volatile bool	recv_recovery_on;
 bool	recv_needed_recovery;
 #ifdef UNIV_DEBUG
 /** TRUE if writing to the redo log (mtr_commit) is forbidden.
-Protected by log_sys->mutex. */
+Protected by log_sys.mutex. */
 bool	recv_no_log_write = false;
 #endif /* UNIV_DEBUG */
 
@@ -522,7 +522,7 @@ DECLARE_THREAD(recv_writer_thread)(
 
 		/* Wait till we get a signal to clean the LRU list.
 		Bounded by max wait time of 100ms. */
-		ib_uint64_t      sig_count = os_event_reset(buf_flush_event);
+		int64_t      sig_count = os_event_reset(buf_flush_event);
 		os_event_wait_time_low(buf_flush_event, 100000, sig_count);
 
 		mutex_enter(&recv_sys->writer_mutex);
@@ -631,57 +631,46 @@ recv_sys_debug_free(void)
 	mutex_exit(&(recv_sys->mutex));
 }
 
-/** Read a log segment to a buffer.
-@param[out]	buf		buffer
-@param[in]	group		redo log files
-@param[in, out]	start_lsn	in : read area start, out: the last read valid lsn
+/** Read a log segment to log_sys.buf.
+@param[in,out]	start_lsn	in: read area start,
+out: the last read valid lsn
 @param[in]	end_lsn		read area end
-@param[out] invalid_block - invalid, (maybe incompletely written) block encountered
-@return	false, if invalid block encountered (e.g checksum mismatch), true otherwise */
-bool
-log_group_read_log_seg(
-	byte*			buf,
-	const log_group_t*	group,
-	lsn_t			*start_lsn,
-	lsn_t			end_lsn)
+@return	whether no invalid blocks (e.g checksum mismatch) were found */
+bool log_t::files::read_log_seg(lsn_t* start_lsn, lsn_t end_lsn)
 {
 	ulint	len;
-	lsn_t	source_offset;
 	bool success = true;
-	ut_ad(log_mutex_own());
+	ut_ad(log_sys.mutex.is_owned());
 	ut_ad(!(*start_lsn % OS_FILE_LOG_BLOCK_SIZE));
 	ut_ad(!(end_lsn % OS_FILE_LOG_BLOCK_SIZE));
-
+	byte* buf = log_sys.buf;
 loop:
-	source_offset = log_group_calc_lsn_offset(*start_lsn, group);
+	lsn_t source_offset = calc_lsn_offset(*start_lsn);
 
 	ut_a(end_lsn - *start_lsn <= ULINT_MAX);
 	len = (ulint) (end_lsn - *start_lsn);
 
 	ut_ad(len != 0);
 
-	const bool at_eof = (source_offset % group->file_size) + len
-		> group->file_size;
+	const bool at_eof = (source_offset % file_size) + len > file_size;
 	if (at_eof) {
 		/* If the above condition is true then len (which is ulint)
 		is > the expression below, so the typecast is ok */
-		len = (ulint) (group->file_size -
-			(source_offset % group->file_size));
+		len = ulint(file_size - (source_offset % file_size));
 	}
 
-	log_sys->n_log_ios++;
+	log_sys.n_log_ios++;
 
 	MONITOR_INC(MONITOR_LOG_IO);
 
-	ut_a(source_offset / UNIV_PAGE_SIZE <= ULINT_MAX);
+	ut_a((source_offset >> srv_page_size_shift) <= ULINT_MAX);
 
-	const ulint	page_no
-		= (ulint) (source_offset / univ_page_size.physical());
+	const ulint	page_no = ulint(source_offset >> srv_page_size_shift);
 
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
 	       univ_page_size,
-	       (ulint) (source_offset % univ_page_size.physical()),
+	       ulint(source_offset & (srv_page_size - 1)),
 	       len, buf, NULL);
 
 	for (ulint l = 0; l < len; l += OS_FILE_LOG_BLOCK_SIZE,
@@ -699,7 +688,7 @@ loop:
 			break;
 		}
 
-		if (innodb_log_checksums || group->is_encrypted()) {
+		if (innodb_log_checksums || is_encrypted()) {
 			ulint crc = log_block_calc_checksum_crc32(buf);
 			ulint cksum = log_block_get_checksum(buf);
 
@@ -722,7 +711,7 @@ loop:
 				break;
 			}
 
-			if (group->is_encrypted()) {
+			if (is_encrypted()) {
 				log_crypt(buf, *start_lsn,
 					  OS_FILE_LOG_BLOCK_SIZE, true);
 			}
@@ -760,14 +749,10 @@ recv_synchronize_groups()
 	the block is always incomplete */
 
 	lsn_t start_lsn = ut_uint64_align_down(recovered_lsn,
-						     OS_FILE_LOG_BLOCK_SIZE);
-	log_group_read_log_seg(log_sys->buf, &log_sys->log,
-			       &start_lsn, start_lsn + OS_FILE_LOG_BLOCK_SIZE);
-
-	/* Update the fields in the group struct to correspond to
-	recovered_lsn */
-
-	log_group_set_fields(&log_sys->log, recovered_lsn);
+					       OS_FILE_LOG_BLOCK_SIZE);
+	log_sys.log.read_log_seg(&start_lsn,
+				 start_lsn + OS_FILE_LOG_BLOCK_SIZE);
+	log_sys.log.set_fields(recovered_lsn);
 
 	/* Copy the checkpoint info to the log; remember that we have
 	incremented checkpoint_no by one, and the info will not be written
@@ -793,19 +778,17 @@ recv_check_log_header_checksum(
 }
 
 /** Find the latest checkpoint in the format-0 log header.
-@param[out]	max_group	log group, or NULL
 @param[out]	max_field	LOG_CHECKPOINT_1 or LOG_CHECKPOINT_2
 @return error code or DB_SUCCESS */
 static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
-recv_find_max_checkpoint_0(log_group_t** max_group, ulint* max_field)
+recv_find_max_checkpoint_0(ulint* max_field)
 {
-	log_group_t*	group = &log_sys->log;
 	ib_uint64_t	max_no = 0;
 	ib_uint64_t	checkpoint_no;
-	byte*		buf	= log_sys->checkpoint_buf;
+	byte*		buf	= log_sys.checkpoint_buf;
 
-	ut_ad(group->format == 0);
+	ut_ad(log_sys.log.format == 0);
 
 	/** Offset of the first checkpoint checksum */
 	static const uint CHECKSUM_1 = 288;
@@ -816,11 +799,11 @@ recv_find_max_checkpoint_0(log_group_t** max_group, ulint* max_field)
 	/** Least significant bits of the checkpoint offset */
 	static const uint OFFSET_LOW32 = 16;
 
-	*max_group = NULL;
+	bool found = false;
 
 	for (ulint field = LOG_CHECKPOINT_1; field <= LOG_CHECKPOINT_2;
 	     field += LOG_CHECKPOINT_2 - LOG_CHECKPOINT_1) {
-		log_group_header_read(group, field);
+		log_header_read(field);
 
 		if (static_cast<uint32_t>(ut_fold_binary(buf, CHECKSUM_1))
 		    != mach_read_from_4(buf + CHECKSUM_1)
@@ -847,21 +830,21 @@ recv_find_max_checkpoint_0(log_group_t** max_group, ulint* max_field)
 			    mach_read_from_8(buf + LOG_CHECKPOINT_LSN)));
 
 		if (checkpoint_no >= max_no) {
-			*max_group = group;
+			found = true;
 			*max_field = field;
 			max_no = checkpoint_no;
 
-			group->state = LOG_GROUP_OK;
+			log_sys.log.state = LOG_GROUP_OK;
 
-			group->lsn = mach_read_from_8(
+			log_sys.log.lsn = mach_read_from_8(
 				buf + LOG_CHECKPOINT_LSN);
-			group->lsn_offset = static_cast<ib_uint64_t>(
+			log_sys.log.lsn_offset = static_cast<ib_uint64_t>(
 				mach_read_from_4(buf + OFFSET_HIGH32)) << 32
 				| mach_read_from_4(buf + OFFSET_LOW32);
 		}
 	}
 
-	if (*max_group != NULL) {
+	if (found) {
 		return(DB_SUCCESS);
 	}
 
@@ -883,13 +866,10 @@ dberr_t
 recv_log_format_0_recover(lsn_t lsn)
 {
 	log_mutex_enter();
-	log_group_t*	group = &log_sys->log;
-	const lsn_t	source_offset
-		= log_group_calc_lsn_offset(lsn, group);
+	const lsn_t	source_offset = log_sys.log.calc_lsn_offset(lsn);
 	log_mutex_exit();
-	const ulint	page_no
-		= (ulint) (source_offset / univ_page_size.physical());
-	byte*		buf = log_sys->buf;
+	const ulint	page_no = ulint(source_offset >> srv_page_size_shift);
+	byte*		buf = log_sys.buf;
 
 	static const char* NO_UPGRADE_RECOVERY_MSG =
 		"Upgrade after a crash is not supported."
@@ -898,9 +878,9 @@ recv_log_format_0_recover(lsn_t lsn)
 	fil_io(IORequestLogRead, true,
 	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
 	       univ_page_size,
-	       (ulint) ((source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1))
-			% univ_page_size.physical()),
-		OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
+	       ulint((source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1))
+		     & (srv_page_size - 1)),
+	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
 
 	if (log_block_calc_checksum_format_0(buf)
 	    != log_block_get_checksum(buf)
@@ -921,11 +901,11 @@ recv_log_format_0_recover(lsn_t lsn)
 	recv_sys->parse_start_lsn = recv_sys->recovered_lsn
 		= recv_sys->scanned_lsn
 		= recv_sys->mlog_checkpoint_lsn = lsn;
-	log_sys->last_checkpoint_lsn = log_sys->next_checkpoint_lsn
-		= log_sys->lsn = log_sys->write_lsn
-		= log_sys->current_flush_lsn = log_sys->flushed_to_disk_lsn
+	log_sys.last_checkpoint_lsn = log_sys.next_checkpoint_lsn
+		= log_sys.lsn = log_sys.write_lsn
+		= log_sys.current_flush_lsn = log_sys.flushed_to_disk_lsn
 		= lsn;
-	log_sys->next_checkpoint_no = 0;
+	log_sys.next_checkpoint_no = 0;
 	return(DB_SUCCESS);
 }
 
@@ -935,26 +915,23 @@ recv_log_format_0_recover(lsn_t lsn)
 dberr_t
 recv_find_max_checkpoint(ulint* max_field)
 {
-	log_group_t*	group;
 	ib_uint64_t	max_no;
 	ib_uint64_t	checkpoint_no;
 	ulint		field;
 	byte*		buf;
 
-	group = &log_sys->log;
-
 	max_no = 0;
 	*max_field = 0;
 
-	buf = log_sys->checkpoint_buf;
+	buf = log_sys.checkpoint_buf;
 
-	group->state = LOG_GROUP_CORRUPTED;
+	log_sys.log.state = LOG_GROUP_CORRUPTED;
 
-	log_group_header_read(group, 0);
+	log_header_read(0);
 	/* Check the header page checksum. There was no
 	checksum in the first redo log format (version 0). */
-	group->format = mach_read_from_4(buf + LOG_HEADER_FORMAT);
-	if (group->format != LOG_HEADER_FORMAT_3_23
+	log_sys.log.format = mach_read_from_4(buf + LOG_HEADER_FORMAT);
+	if (log_sys.log.format != LOG_HEADER_FORMAT_3_23
 	    && !recv_check_log_header_checksum(buf)) {
 		ib::error() << "Invalid redo log header checksum.";
 		return(DB_CORRUPTION);
@@ -966,9 +943,9 @@ recv_find_max_checkpoint(ulint* max_field)
 	/* Ensure that the string is NUL-terminated. */
 	creator[LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR] = 0;
 
-	switch (group->format) {
+	switch (log_sys.log.format) {
 	case LOG_HEADER_FORMAT_3_23:
-		return(recv_find_max_checkpoint_0(&group, max_field));
+		return(recv_find_max_checkpoint_0(max_field));
 	case LOG_HEADER_FORMAT_10_2:
 	case LOG_HEADER_FORMAT_10_2 | LOG_HEADER_FORMAT_ENCRYPTED:
 	case LOG_HEADER_FORMAT_CURRENT:
@@ -983,7 +960,7 @@ recv_find_max_checkpoint(ulint* max_field)
 	for (field = LOG_CHECKPOINT_1; field <= LOG_CHECKPOINT_2;
 	     field += LOG_CHECKPOINT_2 - LOG_CHECKPOINT_1) {
 
-		log_group_header_read(group, field);
+		log_header_read(field);
 
 		const ulint crc32 = log_block_calc_checksum_crc32(buf);
 		const ulint cksum = log_block_get_checksum(buf);
@@ -998,7 +975,7 @@ recv_find_max_checkpoint(ulint* max_field)
 			continue;
 		}
 
-		if (group->is_encrypted()
+		if (log_sys.is_encrypted()
 		    && !log_crypt_read_checkpoint_buf(buf)) {
 			ib::error() << "Reading checkpoint"
 				" encryption info failed.";
@@ -1016,12 +993,12 @@ recv_find_max_checkpoint(ulint* max_field)
 		if (checkpoint_no >= max_no) {
 			*max_field = field;
 			max_no = checkpoint_no;
-			group->state = LOG_GROUP_OK;
-			group->lsn = mach_read_from_8(
+			log_sys.log.state = LOG_GROUP_OK;
+			log_sys.log.lsn = mach_read_from_8(
 				buf + LOG_CHECKPOINT_LSN);
-			group->lsn_offset = mach_read_from_8(
+			log_sys.log.lsn_offset = mach_read_from_8(
 				buf + LOG_CHECKPOINT_OFFSET);
-			log_sys->next_checkpoint_no = checkpoint_no;
+			log_sys.next_checkpoint_no = checkpoint_no;
 		}
 	}
 
@@ -1369,12 +1346,11 @@ parse_log:
 		break;
 	case MLOG_UNDO_INIT:
 		/* Allow anything in page_type when creating a page. */
-		ptr = trx_undo_parse_page_init(ptr, end_ptr, page, mtr);
+		ptr = trx_undo_parse_page_init(ptr, end_ptr, page);
 		break;
 	case MLOG_UNDO_HDR_REUSE:
 		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
-		ptr = trx_undo_parse_page_header_reuse(ptr, end_ptr, page,
-						       mtr);
+		ptr = trx_undo_parse_page_header_reuse(ptr, end_ptr, page);
 		break;
 	case MLOG_UNDO_HDR_CREATE:
 		ut_ad(!page || page_type == FIL_PAGE_UNDO_LOG);
@@ -1454,7 +1430,7 @@ parse_log:
 		break;
 	case MLOG_FILE_WRITE_CRYPT_DATA:
 		dberr_t err;
-		ptr = const_cast<byte*>(fil_parse_write_crypt_data(ptr, end_ptr, block, &err));
+		ptr = const_cast<byte*>(fil_parse_write_crypt_data(ptr, end_ptr, &err));
 
 		if (err != DB_SUCCESS) {
 			recv_sys->found_corrupt_log = TRUE;
@@ -1563,13 +1539,13 @@ recv_add_to_hash_table(
 	ut_ad(type != MLOG_INDEX_LOAD);
 	ut_ad(type != MLOG_TRUNCATE);
 
-	len = rec_end - body;
+	len = ulint(rec_end - body);
 
 	recv = static_cast<recv_t*>(
 		mem_heap_alloc(recv_sys->heap, sizeof(recv_t)));
 
 	recv->type = type;
-	recv->len = rec_end - body;
+	recv->len = ulint(rec_end - body);
 	recv->start_lsn = start_lsn;
 	recv->end_lsn = end_lsn;
 
@@ -1598,13 +1574,13 @@ recv_add_to_hash_table(
 
 	prev_field = &(recv->data);
 
-	/* Store the log record body in chunks of less than UNIV_PAGE_SIZE:
+	/* Store the log record body in chunks of less than srv_page_size:
 	recv_sys->heap grows into the buffer pool, and bigger chunks could not
 	be allocated */
 
 	while (rec_end > body) {
 
-		len = rec_end - body;
+		len = ulint(rec_end - body);
 
 		if (len > RECV_DATA_BLOCK_SIZE) {
 			len = RECV_DATA_BLOCK_SIZE;
@@ -1753,7 +1729,7 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 	while (recv) {
 		end_lsn = recv->end_lsn;
 
-		ut_ad(end_lsn <= log_sys->log.scanned_lsn);
+		ut_ad(end_lsn <= log_sys.log.scanned_lsn);
 
 		if (recv->len > RECV_DATA_BLOCK_SIZE) {
 			/* We have to copy the record body to a separate
@@ -1811,7 +1787,7 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 
 			end_lsn = recv->start_lsn + recv->len;
 			mach_write_to_8(FIL_PAGE_LSN + page, end_lsn);
-			mach_write_to_8(UNIV_PAGE_SIZE
+			mach_write_to_8(srv_page_size
 					- FIL_PAGE_END_LSN_OLD_CHKSUM
 					+ page, end_lsn);
 
@@ -1828,7 +1804,7 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 		recv = UT_LIST_GET_NEXT(rec_list, recv);
 	}
 
-	fil_space_release(space);
+	space->release();
 
 #ifdef UNIV_ZIP_DEBUG
 	if (fil_page_index_page_check(page)) {
@@ -2167,7 +2143,7 @@ recv_parse_log_rec(
 							      end_ptr));
 	}
 
-	return(new_ptr - ptr);
+	return ulint(new_ptr - ptr);
 }
 
 /*******************************************************//**
@@ -2226,7 +2202,7 @@ recv_report_corrupt_log(
 	const ulint	before
 		= std::min(recv_previous_parsed_rec_offset, limit);
 	const ulint	after
-		= std::min(recv_sys->len - (ptr - recv_sys->buf), limit);
+		= std::min(recv_sys->len - ulint(ptr - recv_sys->buf), limit);
 
 	ib::info() << "Hex dump starting " << before << " bytes before and"
 		" ending " << after << " bytes after the corrupted record:";
@@ -2234,7 +2210,7 @@ recv_report_corrupt_log(
 	ut_print_buf(stderr,
 		     recv_sys->buf
 		     + recv_previous_parsed_rec_offset - before,
-		     ptr - recv_sys->buf + before + after
+		     ulint(ptr - recv_sys->buf) + before + after
 		     - recv_previous_parsed_rec_offset);
 	putc('\n', stderr);
 
@@ -2343,9 +2319,7 @@ loop:
 			/* Do nothing */
 			break;
 		case MLOG_CHECKPOINT:
-#if SIZE_OF_MLOG_CHECKPOINT != 1 + 8
-# error SIZE_OF_MLOG_CHECKPOINT != 1 + 8
-#endif
+			compile_time_assert(SIZE_OF_MLOG_CHECKPOINT == 1 + 8);
 			lsn = mach_read_from_8(ptr + 1);
 
 			DBUG_PRINT("ib_log",
@@ -2869,7 +2843,6 @@ recv_scan_log_recs(
 
 /** Scans log from a buffer and stores new log data to the parsing buffer.
 Parses and hashes the log records if new data found.
-@param[in,out]	group			log group
 @param[in]	checkpoint_lsn		latest checkpoint log sequence number
 @param[in,out]	contiguous_lsn		log sequence number
 until which all redo log has been scanned
@@ -2879,7 +2852,6 @@ can be applied to the tablespaces
 static
 bool
 recv_group_scan_log_recs(
-	log_group_t*	group,
 	lsn_t		checkpoint_lsn,
 	lsn_t*		contiguous_lsn,
 	bool		last_phase)
@@ -2908,12 +2880,12 @@ recv_group_scan_log_recs(
 	lsn_t	end_lsn;
 	store_t	store_to_hash	= recv_sys->mlog_checkpoint_lsn == 0
 		? STORE_NO : (last_phase ? STORE_IF_EXISTS : STORE_YES);
-	ulint	available_mem	= UNIV_PAGE_SIZE
+	ulint	available_mem	= srv_page_size
 		* (buf_pool_get_n_pages()
 		   - (recv_n_pool_free_frames * srv_buf_pool_instances));
 
-	group->scanned_lsn = end_lsn = *contiguous_lsn = ut_uint64_align_down(
-		*contiguous_lsn, OS_FILE_LOG_BLOCK_SIZE);
+	log_sys.log.scanned_lsn = end_lsn = *contiguous_lsn =
+		ut_uint64_align_down(*contiguous_lsn, OS_FILE_LOG_BLOCK_SIZE);
 
 	do {
 		if (last_phase && store_to_hash == STORE_NO) {
@@ -2928,15 +2900,13 @@ recv_group_scan_log_recs(
 		start_lsn = ut_uint64_align_down(end_lsn,
 						 OS_FILE_LOG_BLOCK_SIZE);
 		end_lsn = start_lsn;
-		log_group_read_log_seg(
-			log_sys->buf, group, &end_lsn,
-			start_lsn + RECV_SCAN_SIZE);
+		log_sys.log.read_log_seg(&end_lsn, start_lsn + RECV_SCAN_SIZE);
 	} while (end_lsn != start_lsn
 		 && !recv_scan_log_recs(
-			 available_mem, &store_to_hash, log_sys->buf,
+			 available_mem, &store_to_hash, log_sys.buf,
 			 checkpoint_lsn,
 			 start_lsn, end_lsn,
-			 contiguous_lsn, &group->scanned_lsn));
+			 contiguous_lsn, &log_sys.log.scanned_lsn));
 
 	if (recv_sys->found_corrupt_log || recv_sys->found_corrupt_fs) {
 		DBUG_RETURN(false);
@@ -2944,7 +2914,7 @@ recv_group_scan_log_recs(
 
 	DBUG_PRINT("ib_log", ("%s " LSN_PF " completed",
 			      last_phase ? "rescan" : "scan",
-			      group->scanned_lsn));
+			      log_sys.log.scanned_lsn));
 
 	DBUG_RETURN(store_to_hash == STORE_NO);
 }
@@ -3125,7 +3095,6 @@ of first system tablespace page
 dberr_t
 recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 {
-	log_group_t*	group;
 	ulint		max_cp_field;
 	lsn_t		checkpoint_lsn;
 	bool		rescan;
@@ -3153,39 +3122,35 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	log_mutex_enter();
 
-	/* Look for the latest checkpoint from any of the log groups */
-
 	err = recv_find_max_checkpoint(&max_cp_field);
 
 	if (err != DB_SUCCESS) {
 
-		srv_start_lsn = recv_sys->recovered_lsn = log_sys->lsn;
+		srv_start_lsn = recv_sys->recovered_lsn = log_sys.lsn;
 		log_mutex_exit();
 		return(err);
 	}
 
-	log_group_header_read(&log_sys->log, max_cp_field);
+	log_header_read(max_cp_field);
 
-	buf = log_sys->checkpoint_buf;
+	buf = log_sys.checkpoint_buf;
 
 	checkpoint_lsn = mach_read_from_8(buf + LOG_CHECKPOINT_LSN);
 	checkpoint_no = mach_read_from_8(buf + LOG_CHECKPOINT_NO);
 
-	/* Start reading the log groups from the checkpoint lsn up. The
-	variable contiguous_lsn contains an lsn up to which the log is
-	known to be contiguously written to all log groups. */
-
+	/* Start reading the log from the checkpoint lsn. The variable
+	contiguous_lsn contains an lsn up to which the log is known to
+	be contiguously written. */
 	recv_sys->mlog_checkpoint_lsn = 0;
 
-	ut_ad(RECV_SCAN_SIZE <= log_sys->buf_size);
+	ut_ad(RECV_SCAN_SIZE <= srv_log_buffer_size);
 
-	group = &log_sys->log;
 	const lsn_t	end_lsn = mach_read_from_8(
 		buf + LOG_CHECKPOINT_END_LSN);
 
 	ut_ad(recv_sys->n_addrs == 0);
 	contiguous_lsn = checkpoint_lsn;
-	switch (group->format) {
+	switch (log_sys.log.format) {
 	case 0:
 		log_mutex_exit();
 		return(recv_log_format_0_recover(checkpoint_lsn));
@@ -3203,8 +3168,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	}
 
 	/* Look for MLOG_CHECKPOINT. */
-	recv_group_scan_log_recs(group, checkpoint_lsn, &contiguous_lsn,
-				 false);
+	recv_group_scan_log_recs(checkpoint_lsn, &contiguous_lsn, false);
 	/* The first scan should not have stored or applied any records. */
 	ut_ad(recv_sys->n_addrs == 0);
 	ut_ad(!recv_sys->found_corrupt_fs);
@@ -3221,7 +3185,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	}
 
 	if (recv_sys->mlog_checkpoint_lsn == 0) {
-		lsn_t scan_lsn = group->scanned_lsn;
+		lsn_t scan_lsn = log_sys.log.scanned_lsn;
 		if (!srv_read_only_mode && scan_lsn != checkpoint_lsn) {
 			log_mutex_exit();
 			ib::error err;
@@ -3234,12 +3198,12 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 			return(DB_ERROR);
 		}
 
-		group->scanned_lsn = checkpoint_lsn;
+		log_sys.log.scanned_lsn = checkpoint_lsn;
 		rescan = false;
 	} else {
 		contiguous_lsn = checkpoint_lsn;
 		rescan = recv_group_scan_log_recs(
-			group, checkpoint_lsn, &contiguous_lsn, false);
+			checkpoint_lsn, &contiguous_lsn, false);
 
 		if ((recv_sys->found_corrupt_log && !srv_force_recovery)
 		    || recv_sys->found_corrupt_fs) {
@@ -3285,7 +3249,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		}
 	}
 
-	log_sys->lsn = recv_sys->recovered_lsn;
+	log_sys.lsn = recv_sys->recovered_lsn;
 
 	if (recv_needed_recovery) {
 		bool missing_tablespace = false;
@@ -3310,8 +3274,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 			lsn_t recent_stored_lsn = recv_sys->last_stored_lsn;
 			rescan = recv_group_scan_log_recs(
-				group, checkpoint_lsn,
-				&recent_stored_lsn, false);
+				checkpoint_lsn, &recent_stored_lsn, false);
 
 			ut_ad(!recv_sys->found_corrupt_fs);
 
@@ -3342,8 +3305,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		if (rescan) {
 			contiguous_lsn = checkpoint_lsn;
 
-			recv_group_scan_log_recs(group, checkpoint_lsn,
-						 &contiguous_lsn, true);
+			recv_group_scan_log_recs(
+				checkpoint_lsn, &contiguous_lsn, true);
 
 			if ((recv_sys->found_corrupt_log
 			     && !srv_force_recovery)
@@ -3356,12 +3319,11 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		ut_ad(!rescan || recv_sys->n_addrs == 0);
 	}
 
-	/* We currently have only one log group */
+	if (log_sys.log.scanned_lsn < checkpoint_lsn
+	    || log_sys.log.scanned_lsn < recv_max_page_lsn) {
 
-	if (group->scanned_lsn < checkpoint_lsn
-	    || group->scanned_lsn < recv_max_page_lsn) {
-
-		ib::error() << "We scanned the log up to " << group->scanned_lsn
+		ib::error() << "We scanned the log up to "
+			<< log_sys.log.scanned_lsn
 			<< ". A checkpoint was at " << checkpoint_lsn << " and"
 			" the maximum LSN on a database page was "
 			<< recv_max_page_lsn << ". It is possible that the"
@@ -3377,11 +3339,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		return(DB_ERROR);
 	}
 
-	/* Synchronize the uncorrupted log groups to the most up-to-date log
-	group; we also copy checkpoint info to groups */
-
-	log_sys->next_checkpoint_lsn = checkpoint_lsn;
-	log_sys->next_checkpoint_no = checkpoint_no + 1;
+	log_sys.next_checkpoint_lsn = checkpoint_lsn;
+	log_sys.next_checkpoint_no = checkpoint_no + 1;
 
 	recv_synchronize_groups();
 
@@ -3391,24 +3350,24 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 		srv_start_lsn = recv_sys->recovered_lsn;
 	}
 
-	log_sys->buf_free = (ulint) log_sys->lsn % OS_FILE_LOG_BLOCK_SIZE;
-	log_sys->buf_next_to_write = log_sys->buf_free;
-	log_sys->write_lsn = log_sys->lsn;
+	log_sys.buf_free = ulong(log_sys.lsn % OS_FILE_LOG_BLOCK_SIZE);
+	log_sys.buf_next_to_write = log_sys.buf_free;
+	log_sys.write_lsn = log_sys.lsn;
 
-	log_sys->last_checkpoint_lsn = checkpoint_lsn;
+	log_sys.last_checkpoint_lsn = checkpoint_lsn;
 
 	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL) {
 		/* Write a MLOG_CHECKPOINT marker as the first thing,
 		before generating any other redo log. This ensures
 		that subsequent crash recovery will be possible even
 		if the server were killed soon after this. */
-		fil_names_clear(log_sys->last_checkpoint_lsn, true);
+		fil_names_clear(log_sys.last_checkpoint_lsn, true);
 	}
 
 	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
-		    log_sys->lsn - log_sys->last_checkpoint_lsn);
+		    log_sys.lsn - log_sys.last_checkpoint_lsn);
 
-	log_sys->next_checkpoint_no = ++checkpoint_no;
+	log_sys.next_checkpoint_no = ++checkpoint_no;
 
 	mutex_enter(&recv_sys->mutex);
 
@@ -3514,26 +3473,26 @@ recv_reset_logs(
 {
 	ut_ad(log_mutex_own());
 
-	log_sys->lsn = ut_uint64_align_up(lsn, OS_FILE_LOG_BLOCK_SIZE);
+	log_sys.lsn = ut_uint64_align_up(lsn, OS_FILE_LOG_BLOCK_SIZE);
 
-	log_sys->log.lsn = log_sys->lsn;
-	log_sys->log.lsn_offset = LOG_FILE_HDR_SIZE;
+	log_sys.log.lsn = log_sys.lsn;
+	log_sys.log.lsn_offset = LOG_FILE_HDR_SIZE;
 
-	log_sys->buf_next_to_write = 0;
-	log_sys->write_lsn = log_sys->lsn;
+	log_sys.buf_next_to_write = 0;
+	log_sys.write_lsn = log_sys.lsn;
 
-	log_sys->next_checkpoint_no = 0;
-	log_sys->last_checkpoint_lsn = 0;
+	log_sys.next_checkpoint_no = 0;
+	log_sys.last_checkpoint_lsn = 0;
 
-	memset(log_sys->buf, 0, log_sys->buf_size);
-	log_block_init(log_sys->buf, log_sys->lsn);
-	log_block_set_first_rec_group(log_sys->buf, LOG_BLOCK_HDR_SIZE);
+	memset(log_sys.buf, 0, srv_log_buffer_size);
+	log_block_init(log_sys.buf, log_sys.lsn);
+	log_block_set_first_rec_group(log_sys.buf, LOG_BLOCK_HDR_SIZE);
 
-	log_sys->buf_free = LOG_BLOCK_HDR_SIZE;
-	log_sys->lsn += LOG_BLOCK_HDR_SIZE;
+	log_sys.buf_free = LOG_BLOCK_HDR_SIZE;
+	log_sys.lsn += LOG_BLOCK_HDR_SIZE;
 
 	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
-		    (log_sys->lsn - log_sys->last_checkpoint_lsn));
+		    (log_sys.lsn - log_sys.last_checkpoint_lsn));
 
 	log_mutex_exit();
 

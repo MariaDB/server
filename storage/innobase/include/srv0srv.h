@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -48,7 +48,6 @@ Created 10/10/1995 Heikki Tuuri
 #include "mysql/psi/psi.h"
 
 #include "univ.i"
-#include "log0log.h"
 #include "os0event.h"
 #include "que0types.h"
 #include "trx0types.h"
@@ -81,7 +80,7 @@ struct srv_stats_t
 	lsn_ctr_1_t		os_log_written;
 
 	/** Number of writes being done to the log files.
-	Protected by log_sys->write_mutex. */
+	Protected by log_sys.write_mutex. */
 	ulint_ctr_1_t		os_log_pending_writes;
 
 	/** We increase this counter, when we don't have enough
@@ -148,7 +147,7 @@ struct srv_stats_t
 	ulint_ctr_1_t		n_lock_wait_count;
 
 	/** Number of threads currently waiting on database locks */
-	simple_counter<ulint, true> n_lock_wait_current_count;
+	simple_atomic_counter<>	n_lock_wait_current_count;
 
 	/** Number of rows read. */
 	ulint_ctr_64_t		n_rows_read;
@@ -337,17 +336,15 @@ extern const ulint	SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 
 extern char*	srv_log_group_home_dir;
 
-/** Maximum number of srv_n_log_files, or innodb_log_files_in_group */
-#define SRV_N_LOG_FILES_MAX 100
 extern ulong	srv_n_log_files;
 /** The InnoDB redo log file size, or 0 when changing the redo log format
 at startup (while disallowing writes to the redo log). */
 extern ulonglong	srv_log_file_size;
-extern ulint	srv_log_buffer_size;
+extern ulong	srv_log_buffer_size;
 extern ulong	srv_flush_log_at_trx_commit;
 extern uint	srv_flush_log_at_timeout;
 extern ulong	srv_log_write_ahead_size;
-extern char	srv_adaptive_flushing;
+extern my_bool	srv_adaptive_flushing;
 extern my_bool	srv_flush_sync;
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
@@ -397,8 +394,8 @@ extern ulint	srv_lock_table_size;
 extern ulint	srv_n_file_io_threads;
 extern my_bool	srv_random_read_ahead;
 extern ulong	srv_read_ahead_threshold;
-extern ulint	srv_n_read_io_threads;
-extern ulint	srv_n_write_io_threads;
+extern ulong	srv_n_read_io_threads;
+extern ulong	srv_n_write_io_threads;
 
 /* Defragmentation, Origianlly facebook default value is 100, but it's too high */
 #define SRV_DEFRAGMENT_FREQUENCY_DEFAULT 40
@@ -431,8 +428,6 @@ is 5% of the max where max is srv_io_capacity.  */
 to treat NULL value when collecting statistics. It is not defined
 as enum type because the configure option takes unsigned integer type. */
 extern ulong	srv_innodb_stats_method;
-
-extern char*	srv_file_flush_method_str;
 
 extern ulint	srv_max_n_open_files;
 
@@ -468,7 +463,7 @@ extern my_bool			srv_stats_include_delete_marked;
 extern unsigned long long	srv_stats_modified_counter;
 extern my_bool			srv_stats_sample_traditional;
 
-extern ibool	srv_use_doublewrite_buf;
+extern my_bool	srv_use_doublewrite_buf;
 extern ulong	srv_doublewrite_batch_size;
 extern ulong	srv_checksum_algorithm;
 
@@ -660,10 +655,9 @@ extern PSI_stage_info	srv_stage_buffer_pool_load;
 #endif /* HAVE_PSI_STAGE_INTERFACE */
 
 
-/** Alternatives for the file flush option in Unix; see the InnoDB manual
-about what these mean */
+/** Alternatives for innodb_flush_method */
 enum srv_flush_t {
-	SRV_FSYNC = 1,	/*!< fsync, the default */
+	SRV_FSYNC = 0,	/*!< fsync, the default */
 	SRV_O_DSYNC,	/*!< open log files in O_SYNC mode */
 	SRV_LITTLESYNC,	/*!< do not call os_file_flush()
 				when writing data files, but do flush
@@ -675,18 +669,21 @@ enum srv_flush_t {
 				the reason for which is that some FS
 				do not flush meta-data when
 				unbuffered IO happens */
-	SRV_O_DIRECT_NO_FSYNC,
+	SRV_O_DIRECT_NO_FSYNC
 				/*!< do not use fsync() when using
 				direct IO i.e.: it can be set to avoid
 				the fsync() call that we make when
 				using SRV_UNIX_O_DIRECT. However, in
 				this case user/DBA should be sure about
 				the integrity of the meta-data */
-	SRV_ALL_O_DIRECT_FSYNC
+#ifdef _WIN32
+	,SRV_ALL_O_DIRECT_FSYNC
 				/*!< Traditional Windows appoach to open 
 				all files without caching, and do FileFlushBuffers()*/
+#endif
 };
-extern enum srv_flush_t	srv_file_flush_method;
+/** innodb_flush_method */
+extern ulong srv_file_flush_method;
 
 /** Alternatives for srv_force_recovery. Non-zero values are intended
 to help the user get a damaged database up so that he can dump intact
@@ -900,6 +897,9 @@ srv_release_threads(enum srv_thread_type type, ulint n);
 void
 srv_purge_wakeup();
 
+/** Shut down the purge threads. */
+void srv_purge_shutdown();
+
 /** Check if tablespace is being truncated.
 (Ignore system-tablespace as we don't re-create the tablespace
 and so some of the action that are suppressed by this function
@@ -920,16 +920,10 @@ srv_was_tablespace_truncated(const fil_space_t* space);
 #ifdef UNIV_DEBUG
 /** Disables master thread. It's used by:
 	SET GLOBAL innodb_master_thread_disabled_debug = 1 (0).
-@param[in]	thd		thread handle
-@param[in]	var		pointer to system variable
-@param[out]	var_ptr		where the formal string goes
 @param[in]	save		immediate result from check function */
 void
-srv_master_thread_disabled_debug_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save);
+srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
+					const void* save);
 #endif /* UNIV_DEBUG */
 
 /** Status variables to be passed to MySQL */
@@ -974,7 +968,7 @@ struct export_var_t{
 	ulint innodb_os_log_fsyncs;		/*!< fil_n_log_flushes */
 	ulint innodb_os_log_pending_writes;	/*!< srv_os_log_pending_writes */
 	ulint innodb_os_log_pending_fsyncs;	/*!< fil_n_pending_log_flushes */
-	ulint innodb_page_size;			/*!< UNIV_PAGE_SIZE */
+	ulint innodb_page_size;			/*!< srv_page_size */
 	ulint innodb_pages_created;		/*!< buf_pool->stat.n_pages_created */
 	ulint innodb_pages_read;		/*!< buf_pool->stat.n_pages_read*/
 	ulint innodb_pages_written;		/*!< buf_pool->stat.n_pages_written */

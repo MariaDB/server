@@ -2799,7 +2799,7 @@ bool compute_window_func(THD *thd,
 
       /* Check if we found any error in the window function while adding values
          through cursors. */
-      if (thd->is_error() || thd->is_killed())
+      if (unlikely(thd->is_error() || thd->is_killed()))
         break;
 
 
@@ -2931,7 +2931,7 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
 bool Window_funcs_sort::exec(JOIN *join)
 {
   THD *thd= join->thd;
-  JOIN_TAB *join_tab= join->join_tab + join->exec_join_tab_cnt();
+  JOIN_TAB *join_tab= join->join_tab + join->total_join_tab_cnt();
 
   /* Sort the table based on the most specific sorting criteria of
      the window functions. */

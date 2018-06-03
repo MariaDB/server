@@ -158,9 +158,8 @@ dict_stats_should_ignore_index(
 /*===========================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	return((index->type & DICT_FTS)
-	       || dict_index_is_corrupted(index)
-	       || dict_index_is_spatial(index)
+	return((index->type & (DICT_FTS | DICT_SPATIAL))
+	       || index->is_corrupted()
 	       || index->to_be_dropped
 	       || !index->is_committed());
 }
@@ -919,7 +918,7 @@ dict_stats_update_transient(
 
 	index = dict_table_get_first_index(table);
 
-	if (dict_table_is_discarded(table)) {
+	if (!table->space) {
 		/* Nothing to do. */
 		dict_stats_empty_table(table, true);
 		return;
@@ -1039,10 +1038,10 @@ dict_stats_analyze_index_level(
 	memset(n_diff, 0x0, n_uniq * sizeof(n_diff[0]));
 
 	/* Allocate space for the offsets header (the allocation size at
-	offsets[0] and the REC_OFFS_HEADER_SIZE bytes), and n_fields + 1,
+	offsets[0] and the REC_OFFS_HEADER_SIZE bytes), and n_uniq + 1,
 	so that this will never be less than the size calculated in
 	rec_get_offsets_func(). */
-	i = (REC_OFFS_HEADER_SIZE + 1 + 1) + index->n_fields;
+	i = (REC_OFFS_HEADER_SIZE + 1 + 1) + n_uniq;
 
 	heap = mem_heap_create((2 * sizeof *rec_offsets) * i);
 	rec_offsets = static_cast<ulint*>(
@@ -1158,8 +1157,7 @@ dict_stats_analyze_index_level(
 					n_uniq, &heap);
 
 				prev_rec = rec_copy_prefix_to_buf(
-					prev_rec, index,
-					rec_offs_n_fields(prev_rec_offsets),
+					prev_rec, index, n_uniq,
 					&prev_rec_buf, &prev_rec_buf_size);
 
 				prev_rec_is_copied = true;
@@ -1232,7 +1230,7 @@ dict_stats_analyze_index_level(
 			btr_pcur_move_to_next_user_rec() will release the
 			latch on the page that prev_rec is on */
 			prev_rec = rec_copy_prefix_to_buf(
-				rec, index, rec_offs_n_fields(rec_offsets),
+				rec, index, n_uniq,
 				&prev_rec_buf, &prev_rec_buf_size);
 			prev_rec_is_copied = true;
 
@@ -2231,7 +2229,7 @@ dict_stats_update_persistent(
 	index = dict_table_get_first_index(table);
 
 	if (index == NULL
-	    || dict_index_is_corrupted(index)
+	    || index->is_corrupted()
 	    || (index->type | DICT_UNIQUE) != (DICT_CLUSTERED | DICT_UNIQUE)) {
 
 		/* Table definition is corrupt */
@@ -2332,7 +2330,7 @@ dict_stats_save_index_stat(
 	pars_info_add_str_literal(pinfo, "table_name", table_utf8);
 	pars_info_add_str_literal(pinfo, "index_name", index->name);
 	UNIV_MEM_ASSERT_RW_ABORT(&last_update, 4);
-	pars_info_add_int4_literal(pinfo, "last_update", (lint)last_update);
+	pars_info_add_int4_literal(pinfo, "last_update", uint32(last_update));
 	UNIV_MEM_ASSERT_RW_ABORT(stat_name, strlen(stat_name));
 	pars_info_add_str_literal(pinfo, "stat_name", stat_name);
 	UNIV_MEM_ASSERT_RW_ABORT(&stat_value, 8);
@@ -2464,7 +2462,7 @@ dict_stats_save(
 
 	pars_info_add_str_literal(pinfo, "database_name", db_utf8);
 	pars_info_add_str_literal(pinfo, "table_name", table_utf8);
-	pars_info_add_int4_literal(pinfo, "last_update", (lint)now);
+	pars_info_add_int4_literal(pinfo, "last_update", uint32(now));
 	pars_info_add_ull_literal(pinfo, "n_rows", table->stat_n_rows);
 	pars_info_add_ull_literal(pinfo, "clustered_index_size",
 		table->stat_clustered_index_size);
@@ -2910,7 +2908,7 @@ dict_stats_fetch_index_stats_step(
 
 		/* extract 12 from "n_diff_pfx12..." into n_pfx
 		note that stat_name does not have a terminating '\0' */
-		n_pfx = (num_ptr[0] - '0') * 10 + (num_ptr[1] - '0');
+		n_pfx = ulong(num_ptr[0] - '0') * 10 + ulong(num_ptr[1] - '0');
 
 		ulint	n_uniq = index->n_uniq;
 

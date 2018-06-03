@@ -89,7 +89,54 @@ static void die(const char* fmt, ...)
 }
 
 
-static void kill_child(bool was_killed)
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+
+
+/*
+  Eventually we may want to adopt kern.corefile parsing code from
+  https://opensource.apple.com/source/xnu/xnu-3247.1.106/bsd/kern/kern_proc.c
+*/
+
+void handle_core(pid_t pid)
+{
+  char corefile[256];
+  int coredump;
+  size_t corefile_size= sizeof(corefile);
+  size_t coredump_size= sizeof(coredump);
+
+  if (sysctlbyname("kern.coredump", &coredump, &coredump_size, 0, 0) ||
+      sysctlbyname("kern.corefile", corefile, &corefile_size, 0, 0))
+  {
+    message("sysctlbyname failed: %d (%s)", errno, strerror(errno));
+    return;
+  }
+
+  if (!coredump)
+  {
+    message("core dumps disabled, to enable run sudo sysctl kern.coredump=1");
+    return;
+  }
+
+  if (!strncmp(corefile, "/cores/core.%P", corefile_size))
+  {
+    char from[256];
+    char *to= from + 7;
+
+    snprintf(from, sizeof(from), "/cores/core.%u", pid);
+    if (!access(from, R_OK))
+    {
+      if (symlink(from, to))
+        message("symlink failed: %d (%s)", errno, strerror(errno));
+    }
+  }
+}
+#else
+void handle_core(pid_t pid __attribute__((unused))) {}
+#endif
+
+
+static int kill_child(bool was_killed)
 {
   int status= 0;
 
@@ -108,15 +155,18 @@ static void kill_child(bool was_killed)
       exit_code= WEXITSTATUS(status);
       message("Child exit: %d", exit_code);
       // Exit with exit status of the child
-      exit(exit_code);
+      return exit_code;
     }
 
     if (WIFSIGNALED(status))
+    {
       message("Child killed by signal: %d", WTERMSIG(status));
+      handle_core(child_pid);
+    }
 
-    exit(exit_code);
+    return exit_code;
   }
-  exit(5);
+  return 5;
 }
 
 
@@ -136,7 +186,7 @@ extern "C" void handle_signal(int sig)
   terminated= 1;
 
   if (child_pid > 0)
-    kill_child(sig == SIGCHLD);
+    _exit(kill_child(sig == SIGCHLD));
 
   // Ignore further signals
   signal(SIGTERM, SIG_IGN);
@@ -300,8 +350,6 @@ int main(int argc, char* const argv[] )
     /* Wait for parent or child to die */
     sleep(1);
   }
-  kill_child(0);
-
-  return 4;
+  return kill_child(0);
 }
 

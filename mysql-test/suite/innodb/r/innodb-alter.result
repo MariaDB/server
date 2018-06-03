@@ -419,8 +419,6 @@ ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation require
 ALTER TABLE t1 ADD FULLTEXT INDEX (ct),
 CHANGE c1 pk INT, ALTER c2 SET DEFAULT 42, RENAME TO tt,
 ALGORITHM=INPLACE, LOCK=SHARED;
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 SELECT i.NAME,i.POS,i.MTYPE,i.PRTYPE,i.LEN
 FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS i
 INNER JOIN sys_tables st ON i.TABLE_ID=st.TABLE_ID;
@@ -485,8 +483,6 @@ ALTER TABLE t1o DROP COLUMN FTS_DOC_ID, ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot drop or rename FTS_DOC_ID. Try ALGORITHM=COPY
 ALTER TABLE t1o DROP COLUMN FTS_DOC_ID, DROP INDEX ct, ALGORITHM=INPLACE;
 ALTER TABLE t1o ADD FULLTEXT INDEX(ct), ADD COLUMN cu TEXT;
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 ALTER TABLE t1o ADD FULLTEXT INDEX(cu), ADD COLUMN FTS_DOC_ID BIGINT,
 ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: InnoDB presently supports one FULLTEXT index creation at a time. Try ALGORITHM=COPY
@@ -702,8 +698,6 @@ FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
 WHERE name LIKE '%FTS_%' ORDER BY 1, 2;
 prefix	name
 ALTER TABLE t ADD FULLTEXT INDEX(t);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 SELECT sc.pos, sc.NAME FROM information_schema.innodb_sys_columns sc
 INNER JOIN information_schema.innodb_sys_tables st
 ON sc.TABLE_ID=st.TABLE_ID
@@ -877,6 +871,25 @@ DROP TABLE dest_db.t1;
 DROP TABLE source_db.t1;
 DROP DATABASE source_db;
 DROP DATABASE dest_db;
+#
+# BUG #26334149 MYSQL CRASHES WHEN FULL TEXT INDEXES IBD FILES ARE
+# ORPHANED DUE TO RENAME TABLE
+#
+CREATE DATABASE db1;
+USE db1;
+CREATE TABLE notes (
+id int(11) NOT NULL AUTO_INCREMENT,
+body text COLLATE utf8_unicode_ci,
+PRIMARY KEY (id)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8
+COLLATE=utf8_unicode_ci
+ROW_FORMAT=COMPRESSED;
+ALTER TABLE notes ADD FULLTEXT INDEX index_ft_body (body(255));
+DROP INDEX index_ft_body ON notes;
+CREATE DATABASE db2;
+RENAME TABLE db1.notes TO db2.notes;
+DROP DATABASE db1;
+DROP DATABASE db2;
 USE test;
 #
 # MDEV-14038 ALTER TABLE does not exit on error with InnoDB + bad default function

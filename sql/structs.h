@@ -754,12 +754,6 @@ public:
 };
 
 
-struct Lex_string_with_pos_st: public LEX_CSTRING
-{
-  const char *m_pos;
-};
-
-
 class Load_data_param
 {
 protected:

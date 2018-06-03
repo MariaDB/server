@@ -60,7 +60,7 @@ row_vers_non_virtual_fields_equal(
 
 	for (const dict_field_t* ifield = index->fields; ifield != end;
 	     ifield++) {
-		if (!dict_col_is_virtual(ifield->col)
+		if (!ifield->col->is_virtual()
 		    && cmp_dfield_dfield(a++, b++)) {
 			return false;
 		}
@@ -420,29 +420,6 @@ row_vers_impl_x_locked(
 	return(trx);
 }
 
-/*****************************************************************//**
-Finds out if we must preserve a delete marked earlier version of a clustered
-index record, because it is >= the purge view.
-@param[in]	trx_id		transaction id in the version
-@param[in]	name		table name
-@param[in,out]	mtr		mini transaction holding the latch on the
-				clustered index record; it will also hold
-				the latch on purge_view
-@return TRUE if earlier version should be preserved */
-ibool
-row_vers_must_preserve_del_marked(
-/*==============================*/
-	trx_id_t		trx_id,
-	const table_name_t&	name,
-	mtr_t*			mtr)
-{
-	ut_ad(!rw_lock_own(&(purge_sys.latch), RW_LOCK_S));
-
-	mtr_s_lock(&purge_sys.latch, mtr);
-
-	return(!purge_sys.view.changes_visible(trx_id,	name));
-}
-
 /** build virtual column value from current cluster index record data
 @param[in,out]	row		the cluster index row in dtuple form
 @param[in]	clust_index	clustered index
@@ -461,7 +438,7 @@ row_vers_build_clust_v_col(
 		const dict_field_t* ind_field = dict_index_get_nth_field(
 				index, i);
 
-		if (dict_col_is_virtual(ind_field->col)) {
+		if (ind_field->col->is_virtual()) {
 			const dict_v_col_t*       col;
 
 			col = reinterpret_cast<const dict_v_col_t*>(
@@ -560,7 +537,7 @@ row_vers_build_cur_vrow_low(
 				 = dict_index_get_nth_field(index, i);
 			const dict_col_t*	col = ind_field->col;
 
-			if (!dict_col_is_virtual(col)) {
+			if (!col->is_virtual()) {
 				continue;
 			}
 
@@ -644,7 +621,7 @@ row_vers_vc_matches_cluster(
 		for (const dict_field_t *ifield = index->fields,
 			     *const end = &index->fields[index->n_fields];
 		     ifield != end; ifield++, a++, b++) {
-			if (!dict_col_is_virtual(ifield->col)) {
+			if (!ifield->col->is_virtual()) {
 				if (cmp_dfield_dfield(a, b)) {
 					return false;
 				}
@@ -708,7 +685,7 @@ row_vers_vc_matches_cluster(
 			const dict_col_t*	col = ind_field->col;
 			field1 = dtuple_get_nth_field(ientry, i);
 
-			if (!dict_col_is_virtual(col)) {
+			if (!col->is_virtual()) {
 				continue;
 			}
 
@@ -773,7 +750,6 @@ func_exit:
 @param[in]	clust_index	cluster index
 @param[in]	clust_offsets	cluster rec offset
 @param[in]	index		secondary index
-@param[in]	ientry		secondary index rec
 @param[in]	roll_ptr	roll_ptr for the purge record
 @param[in]	trx_id		transaction ID on the purging record
 @param[in,out]	heap		heap memory
@@ -788,7 +764,6 @@ row_vers_build_cur_vrow(
 	dict_index_t*	clust_index,
 	ulint**		clust_offsets,
 	dict_index_t*	index,
-	const dtuple_t*	ientry,
 	roll_ptr_t	roll_ptr,
 	trx_id_t	trx_id,
 	mem_heap_t*	heap,
@@ -993,7 +968,7 @@ safe_to_purge:
 		associated with current cluster index */
 		cur_vrow = row_vers_build_cur_vrow(
 			also_curr, rec, clust_index, &clust_offsets,
-			index, ientry, roll_ptr, trx_id, heap, v_heap, mtr);
+			index, roll_ptr, trx_id, heap, v_heap, mtr);
 	}
 
 	version = rec;

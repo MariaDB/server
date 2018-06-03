@@ -369,7 +369,7 @@ sub init_data
   @class_of_service=
     $server->create("class_of_service",
 		    ["class_code char(2) NOT NULL",
-		     "rank tinyint(2) NOT NULL",
+		     "`rank` tinyint(2) NOT NULL",
 		     "class_description char(80) NOT NULL"],
 		    ["PRIMARY KEY (class_code)"]);
   @code_description=

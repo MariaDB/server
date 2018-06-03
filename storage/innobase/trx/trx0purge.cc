@@ -161,11 +161,11 @@ purge_graph_build()
 void purge_sys_t::create()
 {
   ut_ad(this == &purge_sys);
-  ut_ad(!is_initialised());
+  ut_ad(!enabled());
+  ut_ad(!event);
   event= os_event_create(0);
-  n_stop= 0;
-  running= false;
-  state= PURGE_STATE_INIT;
+  ut_ad(event);
+  m_paused= 0;
   query= purge_graph_build();
   n_submitted= 0;
   n_completed= 0;
@@ -178,29 +178,28 @@ void purge_sys_t::create()
   rw_lock_create(trx_purge_latch_key, &latch, SYNC_PURGE_LATCH);
   mutex_create(LATCH_ID_PURGE_SYS_PQ, &pq_mutex);
   undo_trunc.create();
-  m_initialised = true;
 }
 
 /** Close the purge subsystem on shutdown. */
 void purge_sys_t::close()
 {
-	ut_ad(this == &purge_sys);
-	if (!is_initialised()) return;
+  ut_ad(this == &purge_sys);
+  if (!event) return;
 
-	m_initialised = false;
-	trx_t* trx = query->trx;
-	que_graph_free(query);
-	ut_ad(!trx->id);
-	ut_ad(trx->state == TRX_STATE_ACTIVE);
-	trx->state = TRX_STATE_NOT_STARTED;
-	trx_free(trx);
-	rw_lock_free(&latch);
-	/* rw_lock_free() already called latch.~rw_lock_t(); tame the
-	debug assertions when the destructor will be called once more. */
-	ut_ad(latch.magic_n == 0);
-	ut_d(latch.magic_n = RW_LOCK_MAGIC_N);
-	mutex_free(&pq_mutex);
-	os_event_destroy(event);
+  m_enabled= false;
+  trx_t* trx = query->trx;
+  que_graph_free(query);
+  ut_ad(!trx->id);
+  ut_ad(trx->state == TRX_STATE_ACTIVE);
+  trx->state= TRX_STATE_NOT_STARTED;
+  trx_free(trx);
+  rw_lock_free(&latch);
+  /* rw_lock_free() already called latch.~rw_lock_t(); tame the
+  debug assertions when the destructor will be called once more. */
+  ut_ad(latch.magic_n == 0);
+  ut_d(latch.magic_n= RW_LOCK_MAGIC_N);
+  mutex_free(&pq_mutex);
+  os_event_destroy(event);
 }
 
 /*================ UNDO LOG HISTORY LIST =============================*/
@@ -274,11 +273,10 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	in THD::cleanup() invoked from unlink_thd(), and we may also
 	continue to execute user transactions. */
 	ut_ad(srv_undo_sources
-	      || ((srv_startup_is_before_trx_rollback_phase
-		   || trx_rollback_is_active)
-		  && purge_sys.state == PURGE_STATE_INIT)
-	      || (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND
-		  && purge_sys.state == PURGE_STATE_DISABLED)
+	      || (!purge_sys.enabled()
+		  && (srv_startup_is_before_trx_rollback_phase
+		      || trx_rollback_is_active
+		      || srv_force_recovery >= SRV_FORCE_NO_BACKGROUND))
 	      || ((trx->undo_no == 0 || trx->mysql_thd
 		   || trx->internal)
 		  && srv_fast_shutdown));
@@ -583,8 +581,8 @@ namespace undo {
 			return(DB_IO_ERROR);
 		}
 
-		ulint	sz = UNIV_PAGE_SIZE;
-		void*	buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+		ulint	sz = srv_page_size;
+		void*	buf = ut_zalloc_nokey(sz + srv_page_size);
 		if (buf == NULL) {
 			os_file_close(handle);
 			delete[] log_file_name;
@@ -592,7 +590,7 @@ namespace undo {
 		}
 
 		byte*	log_buf = static_cast<byte*>(
-			ut_align(buf, UNIV_PAGE_SIZE));
+			ut_align(buf, srv_page_size));
 
 		IORequest	request(IORequest::WRITE);
 
@@ -643,8 +641,8 @@ namespace undo {
 			return;
 		}
 
-		ulint	sz = UNIV_PAGE_SIZE;
-		void*	buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+		ulint	sz = srv_page_size;
+		void*	buf = ut_zalloc_nokey(sz + srv_page_size);
 		if (buf == NULL) {
 			os_file_close(handle);
 			os_file_delete(innodb_log_file_key, log_file_name);
@@ -653,7 +651,7 @@ namespace undo {
 		}
 
 		byte*	log_buf = static_cast<byte*>(
-			ut_align(buf, UNIV_PAGE_SIZE));
+			ut_align(buf, srv_page_size));
 
 		mach_write_to_4(log_buf, undo::s_magic);
 
@@ -711,8 +709,8 @@ namespace undo {
 				return(false);
 			}
 
-			ulint	sz = UNIV_PAGE_SIZE;
-			void*	buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+			ulint	sz = srv_page_size;
+			void*	buf = ut_zalloc_nokey(sz + srv_page_size);
 			if (buf == NULL) {
 				os_file_close(handle);
 				os_file_delete(innodb_log_file_key,
@@ -722,7 +720,7 @@ namespace undo {
 			}
 
 			byte*	log_buf = static_cast<byte*>(
-				ut_align(buf, UNIV_PAGE_SIZE));
+				ut_align(buf, srv_page_size));
 
 			IORequest	request(IORequest::READ);
 
@@ -800,7 +798,7 @@ trx_purge_mark_undo_for_truncate(
 	for (ulint i = 1; i <= srv_undo_tablespaces_active; i++) {
 
 		if (fil_space_get_size(space_id)
-		    > (srv_max_undo_log_size / srv_page_size)) {
+		    > (srv_max_undo_log_size >> srv_page_size_shift)) {
 			/* Tablespace qualifies for truncate. */
 			undo_trunc->mark(space_id);
 			undo::Truncate::add_space_to_trunc_list(space_id);
@@ -1296,7 +1294,7 @@ trx_purge_get_next_rec(
 	} else {
 		page = page_align(rec2);
 
-		purge_sys.offset = rec2 - page;
+		purge_sys.offset = ulint(rec2 - page);
 		purge_sys.page_no = page_get_page_no(page);
 		purge_sys.tail.undo_no = trx_undo_rec_get_undo_no(rec2);
 
@@ -1591,110 +1589,63 @@ trx_purge(
 	return(n_pages_handled);
 }
 
-/*******************************************************************//**
-Get the purge state.
-@return purge state. */
-purge_state_t
-trx_purge_state(void)
-/*=================*/
+/** Stop purge during FLUSH TABLES FOR EXPORT */
+void purge_sys_t::stop()
 {
-	purge_state_t	state;
+  rw_lock_x_lock(&latch);
 
-	rw_lock_x_lock(&purge_sys.latch);
+  if (!enabled_latched())
+  {
+    /* Shutdown must have been initiated during FLUSH TABLES FOR EXPORT. */
+    ut_ad(!srv_undo_sources);
+    rw_lock_x_unlock(&latch);
+    return;
+  }
 
-	state = purge_sys.state;
+  ut_ad(srv_n_purge_threads > 0);
 
-	rw_lock_x_unlock(&purge_sys.latch);
+  if (0 == my_atomic_add32_explicit(&m_paused, 1, MY_MEMORY_ORDER_RELAXED))
+  {
+    /* We need to wakeup the purge thread in case it is suspended, so
+    that it can acknowledge the state change. */
+    const int64_t sig_count = os_event_reset(event);
+    rw_lock_x_unlock(&latch);
+    ib::info() << "Stopping purge";
+    srv_purge_wakeup();
+    /* Wait for purge coordinator to signal that it is suspended. */
+    os_event_wait_low(event, sig_count);
+    MONITOR_ATOMIC_INC(MONITOR_PURGE_STOP_COUNT);
+    return;
+  }
 
-	return(state);
+  rw_lock_x_unlock(&latch);
+
+  if (running())
+  {
+    ib::info() << "Waiting for purge to stop";
+    while (running())
+      os_thread_sleep(10000);
+  }
 }
 
-/*******************************************************************//**
-Stop purge and wait for it to stop, move to PURGE_STATE_STOP. */
-void
-trx_purge_stop(void)
-/*================*/
+/** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
+void purge_sys_t::resume()
 {
-	rw_lock_x_lock(&purge_sys.latch);
+   if (!enabled())
+   {
+     /* Shutdown must have been initiated during FLUSH TABLES FOR EXPORT. */
+     ut_ad(!srv_undo_sources);
+     return;
+   }
 
-	switch (purge_sys.state) {
-	case PURGE_STATE_INIT:
-	case PURGE_STATE_DISABLED:
-		ut_error;
-	case PURGE_STATE_EXIT:
-		/* Shutdown must have been initiated during
-		FLUSH TABLES FOR EXPORT. */
-		ut_ad(!srv_undo_sources);
-unlock:
-		rw_lock_x_unlock(&purge_sys.latch);
-		break;
-	case PURGE_STATE_STOP:
-		ut_ad(srv_n_purge_threads > 0);
-		++purge_sys.n_stop;
-		if (!purge_sys.running) {
-			goto unlock;
-		}
-		ib::info() << "Waiting for purge to stop";
-		do {
-			rw_lock_x_unlock(&purge_sys.latch);
-			os_thread_sleep(10000);
-			rw_lock_x_lock(&purge_sys.latch);
-		} while (purge_sys.running);
-		goto unlock;
-	case PURGE_STATE_RUN:
-		ut_ad(srv_n_purge_threads > 0);
-		++purge_sys.n_stop;
-		ib::info() << "Stopping purge";
+   int32_t paused= my_atomic_add32_explicit(&m_paused, -1,
+                                            MY_MEMORY_ORDER_RELAXED);
+   ut_a(paused);
 
-		/* We need to wakeup the purge thread in case it is suspended,
-		so that it can acknowledge the state change. */
-
-		const int64_t sig_count = os_event_reset(purge_sys.event);
-		purge_sys.state = PURGE_STATE_STOP;
-		srv_purge_wakeup();
-		rw_lock_x_unlock(&purge_sys.latch);
-		/* Wait for purge coordinator to signal that it
-		is suspended. */
-		os_event_wait_low(purge_sys.event, sig_count);
-	}
-
-	MONITOR_INC_VALUE(MONITOR_PURGE_STOP_COUNT, 1);
-}
-
-/*******************************************************************//**
-Resume purge, move to PURGE_STATE_RUN. */
-void
-trx_purge_run(void)
-/*===============*/
-{
-	rw_lock_x_lock(&purge_sys.latch);
-
-	switch (purge_sys.state) {
-	case PURGE_STATE_EXIT:
-		/* Shutdown must have been initiated during
-		FLUSH TABLES FOR EXPORT. */
-		ut_ad(!srv_undo_sources);
-		break;
-	case PURGE_STATE_INIT:
-	case PURGE_STATE_DISABLED:
-		ut_error;
-
-	case PURGE_STATE_RUN:
-		ut_a(!purge_sys.n_stop);
-		break;
-	case PURGE_STATE_STOP:
-		ut_a(purge_sys.n_stop);
-		if (--purge_sys.n_stop == 0) {
-
-			ib::info() << "Resuming purge";
-
-			purge_sys.state = PURGE_STATE_RUN;
-		}
-
-		MONITOR_INC_VALUE(MONITOR_PURGE_RESUME_COUNT, 1);
-	}
-
-	rw_lock_x_unlock(&purge_sys.latch);
-
-	srv_purge_wakeup();
+   if (paused == 1)
+   {
+     ib::info() << "Resuming purge";
+     srv_purge_wakeup();
+     MONITOR_ATOMIC_INC(MONITOR_PURGE_RESUME_COUNT);
+   }
 }

@@ -1,0 +1,30 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+CREATE TABLE t1 (
+  id int primary key
+);
+
+CREATE TABLE t2 (
+  id int primary key ,
+  f_id int DEFAULT NULL, FOREIGN KEY(f_id)  REFERENCES t1 (id)
+);
+
+insert into t1 select 1;
+
+--disable_query_log
+--let $count=200
+--echo #Running 200 insert in t2 table
+while($count)
+{
+  #Repeatedly execute the following SQL until you generate thousands of data
+  --eval insert into t2 values ($count, 1);
+  --dec $count
+}
+--enable_query_log
+
+select count(*) from t2;
+delete from t2;
+delete from t1;
+drop table t2,t1;

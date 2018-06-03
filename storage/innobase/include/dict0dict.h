@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, 2018, MariaDB Corporation.
 
@@ -683,7 +683,7 @@ dict_table_get_next_index(
 
 /* Skip corrupted index */
 #define dict_table_skip_corrupt_index(index)			\
-	while (index && dict_index_is_corrupted(index)) {	\
+	while (index && index->is_corrupted()) {		\
 		index = dict_table_get_next_index(index);	\
 	}
 
@@ -939,8 +939,7 @@ dict_table_has_atomic_blobs(const dict_table_t* table)
 @param[in]	zip_ssize	Zip Shift Size
 @param[in]	use_data_dir	Table uses DATA DIRECTORY
 @param[in]	page_compressed Table uses page compression
-@param[in]	page_compression_level Page compression level
-@param[in]	not_used        For future */
+@param[in]	page_compression_level Page compression level */
 UNIV_INLINE
 void
 dict_tf_set(
@@ -949,8 +948,7 @@ dict_tf_set(
 	ulint		zip_ssize,
 	bool		use_data_dir,
 	bool		page_compressed,
-	ulint		page_compression_level,
-	ulint		not_used);
+	ulint		page_compression_level);
 
 /** Convert a 32 bit integer table flags to the 32 bit FSP Flags.
 Fsp Flags are written into the tablespace header at the offset
@@ -1079,7 +1077,9 @@ dict_make_room_in_cache(
 	ulint		max_tables,	/*!< in: max tables allowed in cache */
 	ulint		pct_check);	/*!< in: max percent to check */
 
-#define BIG_ROW_SIZE	1024
+/** Clears the virtual column's index list before index is being freed.
+@param[in]  index   Index being freed */
+void dict_index_remove_from_v_col_list(dict_index_t* index);
 
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
@@ -1772,16 +1772,6 @@ dict_table_is_corrupted(
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /**********************************************************************//**
-Check whether the index is corrupted.
-@return nonzero for corrupted index, zero for valid indexes */
-UNIV_INLINE
-ulint
-dict_index_is_corrupted(
-/*====================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/**********************************************************************//**
 Flags an index and table corrupted both in the data dictionary cache
 and in the system table SYS_INDEXES. */
 void
@@ -1844,18 +1834,6 @@ dict_tf2_is_valid(
 	ulint	flags,
 	ulint	flags2);
 
-/********************************************************************//**
-Check if the tablespace for the table has been discarded.
-@return true if the tablespace has been discarded. */
-UNIV_INLINE
-bool
-dict_table_is_discarded(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table to check */
-	MY_ATTRIBUTE((warn_unused_result));
-
-#define dict_table_is_temporary(table) (table)->is_temporary()
-
 /*********************************************************************//**
 This function should be called whenever a page is successfully
 compressed. Updates the compression padding information. */
@@ -1896,7 +1874,6 @@ dict_index_node_ptr_max_size(
 /*=========================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((warn_unused_result));
-#define dict_col_is_virtual(col) (col)->is_virtual()
 
 /** encode number of columns and number of virtual columns in one
 4 bytes value. We could do this because the number of columns in

@@ -481,7 +481,7 @@ mtr_write_log(
 	ut_ad(!recv_no_log_write);
 	DBUG_PRINT("ib_log",
 		   (ULINTPF " extra bytes written at " LSN_PF,
-		    len, log_sys->lsn));
+		    len, log_sys.lsn));
 
 	log_reserve_and_open(len);
 	log->for_each_block(write_log);
@@ -489,10 +489,9 @@ mtr_write_log(
 }
 
 /** Start a mini-transaction.
-@param sync		true if it is a synchronous mini-transaction
-@param read_only	true if read only mini-transaction */
+@param sync		true if it is a synchronous mini-transaction */
 void
-mtr_t::start(bool sync, bool read_only)
+mtr_t::start(bool sync)
 {
 	UNIV_MEM_INVALID(this, sizeof(*this));
 
@@ -610,9 +609,7 @@ mtr_t::commit_checkpoint(
 
 	if (write_mlog_checkpoint) {
 		byte*	ptr = m_impl.m_log.push<byte*>(SIZE_OF_MLOG_CHECKPOINT);
-#if SIZE_OF_MLOG_CHECKPOINT != 9
-# error SIZE_OF_MLOG_CHECKPOINT != 9
-#endif
+		compile_time_assert(SIZE_OF_MLOG_CHECKPOINT == 1 + 8);
 		*ptr = MLOG_CHECKPOINT;
 		mach_write_to_8(ptr + 1, checkpoint_lsn);
 	}
@@ -624,7 +621,7 @@ mtr_t::commit_checkpoint(
 	if (write_mlog_checkpoint) {
 		DBUG_PRINT("ib_log",
 			   ("MLOG_CHECKPOINT(" LSN_PF ") written at " LSN_PF,
-			    checkpoint_lsn, log_sys->lsn));
+			    checkpoint_lsn, log_sys.lsn));
 	}
 }
 
@@ -774,7 +771,7 @@ mtr_t::Command::prepare_write()
 	case MTR_LOG_NONE:
 		ut_ad(m_impl->m_log.size() == 0);
 		log_mutex_enter();
-		m_end_lsn = m_start_lsn = log_sys->lsn;
+		m_end_lsn = m_start_lsn = log_sys.lsn;
 		return(0);
 	case MTR_LOG_ALL:
 		break;
@@ -785,8 +782,8 @@ mtr_t::Command::prepare_write()
 	ut_ad(len > 0);
 	ut_ad(n_recs > 0);
 
-	if (len > log_sys->buf_size / 2) {
-		log_buffer_extend((len + 1) * 2);
+	if (len > srv_log_buffer_size / 2) {
+		log_buffer_extend(ulong((len + 1) * 2));
 	}
 
 	ut_ad(m_impl->m_n_log_recs == n_recs);

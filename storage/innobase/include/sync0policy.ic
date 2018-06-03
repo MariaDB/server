@@ -88,7 +88,7 @@ void MutexDebug<Mutex>::locked(
 }
 
 template <typename Mutex>
-void MutexDebug<Mutex>::release(const Mutex* mutex)
+void MutexDebug<Mutex>::release(const Mutex*)
 	UNIV_NOTHROW
 {
 	ut_ad(is_owned());

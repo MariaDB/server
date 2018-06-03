@@ -17,7 +17,7 @@
 #pragma implementation // gcc: Class implementation
 #endif
 
-#if _MSC_VER>=1400
+#if defined(_MSC_VER) && _MSC_VER>=1400
 #define _CRT_SECURE_NO_DEPRECATE 1
 #define _CRT_NONSTDC_NO_DEPRECATE 1
 #endif
@@ -65,7 +65,7 @@
 #define MSG_WAITALL 0
 #endif
 
-#if _MSC_VER>=1400
+#if defined(_MSC_VER) && _MSC_VER>=1400
 #pragma warning(push,4)
 #endif
 
@@ -2539,12 +2539,6 @@ char * ha_sphinx::UnpackString ()
 }
 
 
-static inline const char * FixNull ( const char * s )
-{
-	return s ? s : "(null)";
-}
-
-
 bool ha_sphinx::UnpackSchema ()
 {
 	SPH_ENTER_METHOD();
@@ -3450,7 +3444,7 @@ int ha_sphinx::create ( const char * name, TABLE * table_arg, HA_CREATE_INFO * )
 			strcasecmp ( table_arg->key_info[0].key_part[0].field->field_name.str, table->field[2]->field_name.str ) )
 		{
 			my_snprintf ( sError, sizeof(sError), "%s: there must be an index on '%s' column",
-				name, table->field[2]->field_name.str );
+				name, table_arg->field[2]->field_name.str );
 			break;
 		}
 

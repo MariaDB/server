@@ -7089,7 +7089,7 @@ ER_IDENT_CAUSES_TOO_LONG_PATH
   eng "Long database name and identifier for object resulted in path length exceeding %d characters. Path: '%s'"
 
 ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL
-  eng "cannot silently convert NULL values, as required in this SQL_MODE"
+  eng "cannot convert NULL to non-constant DEFAULT"
 
 ER_MUST_CHANGE_PASSWORD_LOGIN
   eng "Your password has expired. To log in you must change it using a client that supports expired passwords"
@@ -7859,8 +7859,8 @@ ER_VERS_ALTER_ENGINE_PROHIBITED
 ER_VERS_RANGE_PROHIBITED
         eng "SYSTEM_TIME range selector is not allowed"
 
-ER_UNUSED_26
-        eng "You should never see it"
+ER_CONFLICTING_FOR_SYSTEM_TIME
+        eng "Conflicting FOR SYSTEM_TIME clauses in WITH RECURSIVE"
 
 ER_VERS_TABLE_MUST_HAVE_COLUMNS
         eng "Table %`s must have at least one versioned column"
@@ -7913,3 +7913,9 @@ ER_INDEX_FILE_FULL
         eng "The index file for table '%-.192s' is full"
 ER_UPDATED_COLUMN_ONLY_ONCE
         eng "The column %`s.%`s cannot be changed more than once in a single UPDATE statement"
+ER_EMPTY_ROW_IN_TVC
+        eng "Row with no elements is not allowed in table value constructor in this context"
+ER_VERS_QUERY_IN_PARTITION
+        eng "SYSTEM_TIME partitions in table %`s does not support historical query"
+ER_KEY_DOESNT_SUPPORT
+        eng "%s index %`s does not support this operation"

@@ -292,3 +292,53 @@ SELECT a, a+0;
 END;
 $$
 ERROR 22007: Illegal set 'a,b' value found during parsing
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-16117 SP with a single FOR statement creates but further fails to load
+#
+CREATE PROCEDURE p1()
+FOR i IN 1..10 DO
+set @x = 5;
+END FOR;
+$$
+CALL p1;
+SELECT body FROM mysql.proc WHERE db='test' AND specific_name='p1';
+body
+FOR i IN 1..10 DO
+set @x = 5;
+END FOR
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() WITH t1 AS (SELECT 1) SELECT 1;
+$$
+CALL p1;
+1
+1
+SELECT body FROM mysql.proc WHERE db='test' AND specific_name='p1';
+body
+WITH t1 AS (SELECT 1) SELECT 1
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1() VALUES (1);
+$$
+CALL p1;
+1
+1
+SELECT body FROM mysql.proc WHERE db='test' AND specific_name='p1';
+body
+VALUES (1)
+DROP PROCEDURE p1;
+CREATE FUNCTION f1() RETURNS INT
+FOR i IN 1..10 DO
+RETURN 1;
+END FOR;
+$$
+SELECT f1();
+f1()
+1
+SELECT body FROM mysql.proc WHERE db='test' AND specific_name='f1';
+body
+FOR i IN 1..10 DO
+RETURN 1;
+END FOR
+DROP FUNCTION f1;

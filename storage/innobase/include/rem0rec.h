@@ -738,9 +738,7 @@ rec_offs_any_flag(const ulint* offsets, ulint flag)
 /** Determine if the offsets are for a record containing off-page columns.
 @param[in]	offsets	rec_get_offsets()
 @return nonzero if any off-page columns exist */
-inline
-ulint
-rec_offs_any_extern(const ulint* offsets)
+inline bool rec_offs_any_extern(const ulint* offsets)
 {
 	return rec_offs_any_flag(offsets, REC_OFFS_EXTERNAL);
 }
@@ -963,14 +961,26 @@ rec_get_converted_size_temp(
 @param[in]	rec	temporary file record
 @param[in]	index	index of that the record belongs to
 @param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
-@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED
-*/
+@param[in]	n_core	number of core fields (index->n_core_fields)
+@param[in]	status	REC_STATUS_ORDINARY or REC_STATUS_COLUMNS_ADDED */
 void
 rec_init_offsets_temp(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	ulint*			offsets,
+	ulint			n_core,
 	rec_comp_status_t	status = REC_STATUS_ORDINARY)
+	MY_ATTRIBUTE((nonnull));
+/** Determine the offset to each field in temporary file.
+@param[in]	rec	temporary file record
+@param[in]	index	index of that the record belongs to
+@param[in,out]	offsets	offsets to the fields; in: rec_offs_n_fields(offsets)
+*/
+void
+rec_init_offsets_temp(
+	const rec_t*		rec,
+	const dict_index_t*	index,
+	ulint*			offsets)
 	MY_ATTRIBUTE((nonnull));
 
 /** Convert a data tuple prefix to the temporary file format.

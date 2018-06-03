@@ -635,8 +635,6 @@ trx_rollback_active(
 	que_fork_t*	fork;
 	que_thr_t*	thr;
 	roll_node_t*	roll_node;
-	dict_table_t*	table;
-	ibool		dictionary_locked = FALSE;
 	const trx_id_t	trx_id = trx->id;
 
 	ut_ad(trx_id);
@@ -659,9 +657,11 @@ trx_rollback_active(
 
 	trx_roll_crash_recv_trx	= trx;
 
-	if (trx_get_dict_operation(trx) != TRX_DICT_OP_NONE) {
+	const bool dictionary_locked = trx_get_dict_operation(trx)
+		!= TRX_DICT_OP_NONE;
+
+	if (dictionary_locked) {
 		row_mysql_lock_data_dictionary(trx);
-		dictionary_locked = TRUE;
 	}
 
 	que_run_threads(thr);
@@ -679,27 +679,16 @@ trx_rollback_active(
 
 	ut_a(trx->lock.que_state == TRX_QUE_RUNNING);
 
-	if (trx_get_dict_operation(trx) != TRX_DICT_OP_NONE
-	    && trx->table_id != 0) {
+	if (!dictionary_locked || !trx->table_id) {
+	} else if (dict_table_t* table = dict_table_open_on_id(
+			   trx->table_id, TRUE, DICT_TABLE_OP_NORMAL)) {
+		ib::info() << "Dropping table " << table->name
+			   << ", with id " << trx->table_id
+			   << " in recovery";
 
-		ut_ad(dictionary_locked);
+		dict_table_close_and_drop(trx, table);
 
-		/* If the transaction was for a dictionary operation,
-		we drop the relevant table only if it is not flagged
-		as DISCARDED. If it still exists. */
-
-		table = dict_table_open_on_id(
-			trx->table_id, TRUE, DICT_TABLE_OP_NORMAL);
-
-		if (table && !dict_table_is_discarded(table)) {
-			ib::warn() << "Dropping table '" << table->name
-				<< "', with id " << trx->table_id
-				<< " in recovery";
-
-			dict_table_close_and_drop(trx, table);
-
-			trx_commit_for_mysql(trx);
-		}
+		trx_commit_for_mysql(trx);
 	}
 
 	ib::info() << "Rolled back recovered transaction " << trx_id;
@@ -895,8 +884,6 @@ static
 void
 trx_roll_try_truncate(trx_t* trx)
 {
-	ut_ad(mutex_own(&trx->undo_mutex));
-
 	trx->pages_undone = 0;
 
 	undo_no_t	undo_no		= trx->undo_no;
@@ -934,8 +921,6 @@ trx_roll_pop_top_rec(
 	trx_undo_t*	undo,	/*!< in: undo log */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
-	ut_ad(mutex_own(&trx->undo_mutex));
-
 	page_t*	undo_page = trx_undo_page_get_s_latched(
 		page_id_t(undo->rseg->space->id, undo->top_page_no), mtr);
 
@@ -946,8 +931,8 @@ trx_roll_pop_top_rec(
 		true, mtr);
 
 	if (prev_rec == NULL) {
-
-		undo->empty = TRUE;
+		undo->top_undo_no = IB_ID_MAX;
+		ut_ad(undo->empty());
 	} else {
 		page_t*	prev_rec_page = page_align(prev_rec);
 
@@ -957,8 +942,9 @@ trx_roll_pop_top_rec(
 		}
 
 		undo->top_page_no = page_get_page_no(prev_rec_page);
-		undo->top_offset  = prev_rec - prev_rec_page;
+		undo->top_offset  = ulint(prev_rec - prev_rec_page);
 		undo->top_undo_no = trx_undo_rec_get_undo_no(prev_rec);
+		ut_ad(!undo->empty());
 	}
 
 	return(undo_page + offset);
@@ -973,49 +959,55 @@ trx_roll_pop_top_rec(
 trx_undo_rec_t*
 trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 {
-	mutex_enter(&trx->undo_mutex);
-
 	if (trx->pages_undone >= TRX_ROLL_TRUNC_THRESHOLD) {
 		trx_roll_try_truncate(trx);
 	}
 
-	trx_undo_t*	undo;
+	trx_undo_t*	undo	= NULL;
 	trx_undo_t*	insert	= trx->rsegs.m_redo.old_insert;
 	trx_undo_t*	update	= trx->rsegs.m_redo.undo;
 	trx_undo_t*	temp	= trx->rsegs.m_noredo.undo;
 	const undo_no_t	limit	= trx->roll_limit;
 
-	ut_ad(!insert || !update || insert->empty || update->empty
+	ut_ad(!insert || !update || insert->empty() || update->empty()
 	      || insert->top_undo_no != update->top_undo_no);
-	ut_ad(!insert || !temp || insert->empty || temp->empty
+	ut_ad(!insert || !temp || insert->empty() || temp->empty()
 	      || insert->top_undo_no != temp->top_undo_no);
-	ut_ad(!update || !temp || update->empty || temp->empty
+	ut_ad(!update || !temp || update->empty() || temp->empty()
 	      || update->top_undo_no != temp->top_undo_no);
 
 	if (UNIV_LIKELY_NULL(insert)
-	    && !insert->empty && limit <= insert->top_undo_no) {
-		if (update && !update->empty
-		    && update->top_undo_no > insert->top_undo_no) {
+	    && !insert->empty() && limit <= insert->top_undo_no) {
+		undo = insert;
+	}
+
+	if (update && !update->empty() && update->top_undo_no >= limit) {
+		if (!undo) {
 			undo = update;
-		} else {
-			undo = insert;
+		} else if (undo->top_undo_no < update->top_undo_no) {
+			undo = update;
 		}
-	} else if (update && !update->empty && limit <= update->top_undo_no) {
-		undo = update;
-	} else if (temp && !temp->empty && limit <= temp->top_undo_no) {
-		undo = temp;
-	} else {
+	}
+
+	if (temp && !temp->empty() && temp->top_undo_no >= limit) {
+		if (!undo) {
+			undo = temp;
+		} else if (undo->top_undo_no < temp->top_undo_no) {
+			undo = temp;
+		}
+	}
+
+	if (undo == NULL) {
 		trx_roll_try_truncate(trx);
 		/* Mark any ROLLBACK TO SAVEPOINT completed, so that
 		if the transaction object is committed and reused
 		later, we will default to a full ROLLBACK. */
 		trx->roll_limit = 0;
 		trx->in_rollback = false;
-		mutex_exit(&trx->undo_mutex);
 		return(NULL);
 	}
 
-	ut_ad(!undo->empty);
+	ut_ad(!undo->empty());
 	ut_ad(limit <= undo->top_undo_no);
 
 	*roll_ptr = trx_undo_build_roll_ptr(
@@ -1047,12 +1039,7 @@ trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 		break;
 	}
 
-	ut_ad(trx_roll_check_undo_rec_ordering(
-		undo_no, undo->rseg->space->id, trx));
-
 	trx->undo_no = undo_no;
-	trx->undo_rseg_space = undo->rseg->space->id;
-	mutex_exit(&trx->undo_mutex);
 
 	trx_undo_rec_t*	undo_rec_copy = trx_undo_rec_copy(undo_rec, heap);
 	mtr.commit();

@@ -873,9 +873,8 @@ CACHE INDEX t3 IN keycache1;
 LOAD INDEX INTO CACHE t3;
 
 --echo #
---echo # RENAME (doesn't work for temporary tables, thus should fail).
+--echo # RENAME should work for temporary tables
 --echo #
---error ER_TABLEACCESS_DENIED_ERROR
 RENAME TABLE t3 TO t3_1;
 
 --echo #

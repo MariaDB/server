@@ -1,0 +1,10 @@
+create table t (a int, v int as (a)) engine=innodb;
+alter table t change column a b tinyint, algorithm=inplace;
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `v` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+drop table t;

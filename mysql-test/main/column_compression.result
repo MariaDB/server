@@ -1336,15 +1336,33 @@ a	LENGTH(a)
 DROP TABLE t1;
 CREATE TABLE t1(a TINYTEXT COMPRESSED);
 SET column_compression_threshold=300;
+INSERT INTO t1 VALUES(REPEAT('a', 254));
+INSERT INTO t1 VALUES(REPEAT(' ', 254));
 INSERT INTO t1 VALUES(REPEAT('a', 255));
 ERROR 22001: Data too long for column 'a' at row 1
 INSERT INTO t1 VALUES(REPEAT(' ', 255));
 Warnings:
 Note	1265	Data truncated for column 'a' at row 1
+INSERT INTO t1 VALUES(REPEAT('a', 256));
+ERROR 22001: Data too long for column 'a' at row 1
+INSERT INTO t1 VALUES(REPEAT(' ', 256));
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 1
+INSERT INTO t1 VALUES(REPEAT('a', 257));
+ERROR 22001: Data too long for column 'a' at row 1
+INSERT INTO t1 VALUES(REPEAT(' ', 257));
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 1
 SET column_compression_threshold=DEFAULT;
-SELECT a, LENGTH(a) FROM t1;
-a	LENGTH(a)
-                                                                                                                                                                                                                                                              	254
+SELECT LEFT(a, 10), LENGTH(a) FROM t1 ORDER BY 1;
+LEFT(a, 10)	LENGTH(a)
+          	254
+          	254
+          	254
+          	254
+aaaaaaaaaa	254
 DROP TABLE t1;
 # Corner case: VARCHAR(255) COMPRESSED must have 2 bytes pack length
 CREATE TABLE t1(a VARCHAR(255) COMPRESSED);
@@ -1360,6 +1378,32 @@ SELECT a, LENGTH(a) FROM t1;
 a	LENGTH(a)
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	255
 DROP TABLE t1;
+CREATE TABLE t1(a VARCHAR(65531) COMPRESSED);
+SET column_compression_threshold=65537;
+INSERT INTO t1 VALUES(REPEAT('a', 65530));
+INSERT INTO t1 VALUES(REPEAT(' ', 65530));
+INSERT INTO t1 VALUES(REPEAT('a', 65531));
+INSERT INTO t1 VALUES(REPEAT(' ', 65531));
+INSERT INTO t1 VALUES(REPEAT('a', 65532));
+ERROR 22001: Data too long for column 'a' at row 1
+INSERT INTO t1 VALUES(REPEAT(' ', 65532));
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+INSERT INTO t1 VALUES(REPEAT('a', 65533));
+ERROR 22001: Data too long for column 'a' at row 1
+INSERT INTO t1 VALUES(REPEAT(' ', 65533));
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SET column_compression_threshold=DEFAULT;
+SELECT LEFT(a, 10), LENGTH(a) FROM t1 ORDER BY 1, 2;
+LEFT(a, 10)	LENGTH(a)
+          	65530
+          	65531
+          	65531
+          	65531
+aaaaaaaaaa	65530
+aaaaaaaaaa	65531
+DROP TABLE t1;
 #
 # MDEV-14929 - AddressSanitizer: memcpy-param-overlap in
 #              Field_longstr::compress
@@ -1372,4 +1416,59 @@ b
 bar
 foo
 SET SESSION optimizer_switch=DEFAULT;
+DROP TABLE t1;
+#
+# MDEV-15762 - VARCHAR(0) COMPRESSED crashes the server
+#
+CREATE TABLE t1(a VARCHAR(0) COMPRESSED);
+INSERT INTO t1 VALUES('a');
+ERROR 22001: Data too long for column 'a' at row 1
+INSERT INTO t1 VALUES(' ');
+Warnings:
+Note	1265	Data truncated for column 'a' at row 1
+SELECT LENGTH(a) FROM t1;
+LENGTH(a)
+0
+DROP TABLE t1;
+#
+# MDEV-15763 - VARCHAR(1) COMPRESSED crashes the server
+#
+CREATE TABLE t1(a VARCHAR(1) COMPRESSED);
+SET column_compression_threshold=0;
+INSERT INTO t1 VALUES('a');
+SET column_compression_threshold=DEFAULT;
+DROP TABLE t1;
+#
+# MDEV-15938 - TINYTEXT CHARACTER SET utf8 COMPRESSED truncates data
+#
+CREATE TABLE t1(a TINYTEXT COMPRESSED, b TINYTEXT) CHARACTER SET utf8;
+INSERT INTO t1 VALUES (REPEAT(_latin1'a', 254), REPEAT(_latin1'a', 254));
+SELECT CHAR_LENGTH(a), CHAR_LENGTH(b), LEFT(a, 10), LEFT(b, 10) FROM t1;
+CHAR_LENGTH(a)	CHAR_LENGTH(b)	LEFT(a, 10)	LEFT(b, 10)
+254	254	aaaaaaaaaa	aaaaaaaaaa
+DROP TABLE t1;
+#
+# MDEV-16134 Wrong I_S.COLUMNS.CHARACTER_XXX_LENGTH value for compressed columns
+#
+CREATE TABLE t1
+(
+a VARCHAR(10) CHARACTER SET latin1 COMPRESSED,
+b VARCHAR(10) CHARACTER SET utf8 COMPRESSED
+);
+SELECT COLUMN_NAME, CHARACTER_MAXIMUM_LENGTH, CHARACTER_OCTET_LENGTH
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1' AND COLUMN_NAME IN ('a','b')
+ORDER BY COLUMN_NAME;
+COLUMN_NAME	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH
+a	10	10
+b	10	30
+DROP TABLE t1;
+#
+# MDEV-15592 - Column COMPRESSED should select a 'high order' datatype
+#
+CREATE TABLE t1(a TINYTEXT COMPRESSED);
+INSERT INTO t1 VALUES(REPEAT('a', 255));
+SELECT LEFT(a, 10), LENGTH(a) FROM t1;
+LEFT(a, 10)	LENGTH(a)
+aaaaaaaaaa	255
 DROP TABLE t1;

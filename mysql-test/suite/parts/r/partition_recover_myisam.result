@@ -18,7 +18,6 @@ a
 11
 Warnings:
 Error	145	Table 't1_will_crash' is marked as crashed and should be repaired
-Error	1194	Table 't1_will_crash' is marked as crashed and should be repaired
 Error	1034	1 client is using or hasn't closed the table properly
 Error	1034	Size of indexfile is: 1024        Should be: 2048
 Error	1034	Size of datafile is: 77       Should be: 7
@@ -48,7 +47,6 @@ a
 11
 Warnings:
 Error	145	Table 't1_will_crash#P#p1' is marked as crashed and should be repaired
-Error	1194	Table 't1_will_crash' is marked as crashed and should be repaired
 Error	1034	1 client is using or hasn't closed the table properly
 Error	1034	Size of indexfile is: 1024        Should be: 2048
 Error	1034	Size of datafile is: 28       Should be: 7

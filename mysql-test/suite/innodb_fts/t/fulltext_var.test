@@ -3,15 +3,6 @@
 #
 --source include/have_innodb.inc
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
-if (`select plugin_auth_version <= "5.6.10" from information_schema.plugins where plugin_name='innodb'`)
-{
-  --skip Not fixed in InnoDB 5.6.10 or earlier
-}
-
 # Save ft_boolean_syntax variable
 let $saved_ft_boolean_syntax=`select @@global.ft_boolean_syntax`;
 

@@ -153,5 +153,229 @@ select x, row_start <  row_end from t1 for system_time all;
 x	row_start <  row_end
 4	1
 2	1
+# MDEV-16010 Too many rows with AS OF point_in_the_past_or_NULL
+create or replace table t1 (
+x int,
+row_start bigint unsigned as row start invisible,
+row_end bigint unsigned as row end invisible,
+period for system_time (row_start, row_end)
+) with system versioning engine innodb;
+insert into t1 (x) values (1);
+delete from t1;
+select * from t1 for system_time as of timestamp'1990-1-1 00:00';
+x
+select * from t1 for system_time as of NULL;
+x
+# MDEV-16024 transaction_registry.begin_timestamp is wrong for explicit transactions
+create or replace table t1 (
+x int(11) default null,
+row_start bigint(20) unsigned generated always as row start invisible,
+row_end bigint(20) unsigned generated always as row end invisible,
+period for system_time (row_start, row_end)
+) engine=innodb with system versioning;
+begin;
+set @ts1= now(6);
+insert into t1 values (1);
+commit;
+select row_start from t1 into @trx_id;
+select trt_begin_ts(@trx_id) <= @ts1 as BEGIN_TS_GOOD;
+BEGIN_TS_GOOD
+1
 drop database test;
 create database test;
+use test;
+#
+# MDEV-16100 FOR SYSTEM_TIME erroneously resolves string user variables as transaction IDs
+#
+CREATE TABLE t1 (
+x INT,
+sys_trx_start BIGINT UNSIGNED AS ROW START,
+sys_trx_end   BIGINT UNSIGNED AS ROW END,
+PERIOD FOR SYSTEM_TIME (sys_trx_start, sys_trx_end)
+) WITH SYSTEM VERSIONING ENGINE=INNODB;
+INSERT INTO t1 (x) VALUES (1);
+SET @ts= DATE_ADD(NOW(), INTERVAL 1 YEAR);
+EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION @ts;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME ALL where trt_trx_sees(`test`.`t1`.`sys_trx_end`,@`ts`) and trt_trx_sees_eq(@`ts`,`test`.`t1`.`sys_trx_start`)
+EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF TIMESTAMP @ts;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME ALL where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
+EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF @ts;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME ALL where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
+DROP TABLE t1;
+#
+# Testing AS OF with expressions of various kinds and data types
+#
+CREATE TABLE t1
+(
+x INT,
+sys_trx_start BIGINT UNSIGNED AS ROW START INVISIBLE,
+sys_trx_end   BIGINT UNSIGNED AS ROW END INVISIBLE,
+PERIOD FOR SYSTEM_TIME (sys_trx_start, sys_trx_end)
+) WITH SYSTEM VERSIONING;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2
+(
+x INT,
+sys_trx_start TIMESTAMP(6) AS ROW START INVISIBLE,
+sys_trx_end   TIMESTAMP(6) AS ROW END INVISIBLE,
+PERIOD FOR SYSTEM_TIME (sys_trx_start, sys_trx_end)
+) WITH SYSTEM VERSIONING;
+INSERT INTO t2 VALUES (1);
+#
+# ROW is not supported
+#
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (1,1);
+ERROR HY000: Illegal parameter data type row for operation 'FOR SYSTEM_TIME'
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (1,1);
+ERROR HY000: Illegal parameter data type row for operation 'FOR SYSTEM_TIME'
+#
+# DOUBLE is not supported, use explicit CAST
+#
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF RAND();
+ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (RAND());
+ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF COALESCE(RAND());
+ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF RAND();
+ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (RAND());
+ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF COALESCE(RAND());
+ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
+#
+# DECIMAL is not supported, use explicit CAST
+#
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF 10.1;
+ERROR HY000: Illegal parameter data type decimal for operation 'FOR SYSTEM_TIME'
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF COALESCE(10.1);
+ERROR HY000: Illegal parameter data type decimal for operation 'FOR SYSTEM_TIME'
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF 10.1;
+ERROR HY000: Illegal parameter data type decimal for operation 'FOR SYSTEM_TIME'
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF COALESCE(10.1);
+ERROR HY000: Illegal parameter data type decimal for operation 'FOR SYSTEM_TIME'
+#
+# YEAR is not supported, use explicit CAST
+#
+BEGIN NOT ATOMIC
+DECLARE var YEAR;
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+ERROR HY000: Illegal parameter data type year for operation 'FOR SYSTEM_TIME'
+BEGIN NOT ATOMIC
+DECLARE var YEAR;
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+ERROR HY000: Illegal parameter data type year for operation 'FOR SYSTEM_TIME'
+#
+# ENUM is not supported, use explicit CAST
+#
+BEGIN NOT ATOMIC
+DECLARE var ENUM('xxx') DEFAULT 'xxx';
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+ERROR HY000: Illegal parameter data type enum for operation 'FOR SYSTEM_TIME'
+BEGIN NOT ATOMIC
+DECLARE var ENUM('xxx') DEFAULT 'xxx';
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+ERROR HY000: Illegal parameter data type enum for operation 'FOR SYSTEM_TIME'
+#
+# SET is not supported, use explicit CAST
+#
+BEGIN NOT ATOMIC
+DECLARE var SET('xxx') DEFAULT 'xxx';
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+ERROR HY000: Illegal parameter data type set for operation 'FOR SYSTEM_TIME'
+BEGIN NOT ATOMIC
+DECLARE var SET('xxx') DEFAULT 'xxx';
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+ERROR HY000: Illegal parameter data type set for operation 'FOR SYSTEM_TIME'
+#
+# BIT is resolved to TRANSACTION
+#
+BEGIN NOT ATOMIC
+DECLARE var BIT(10);
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+x
+BEGIN NOT ATOMIC
+DECLARE var BIT(10);
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
+END;
+$$
+ERROR HY000: Transaction system versioning for `t2` is not supported
+#
+# String literals resolve to TIMESTAMP
+#
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF '2038-12-30 00:00:00';
+x
+1
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF '2038-12-30 00:00:00';
+x
+#
+# HEX hybrids resolve to TRANSACTION
+#
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (0x60);
+x
+1
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (0x60);
+ERROR HY000: Transaction system versioning for `t2` is not supported
+#
+# BIT literals resolve to TRANSACTION
+#
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (b'1100000');
+x
+1
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (b'1100000');
+ERROR HY000: Transaction system versioning for `t2` is not supported
+DROP TABLE t1, t2;
+#
+# MDEV-16094 Crash when using AS OF with a stored function
+#
+CREATE FUNCTION fts() RETURNS DATETIME RETURN '2001-01-01 10:20:30';
+CREATE FUNCTION ftx() RETURNS BIGINT UNSIGNED RETURN 1;
+CREATE TABLE ttx
+(
+x INT,
+start_timestamp BIGINT UNSIGNED GENERATED ALWAYS AS ROW START,
+end_timestamp   BIGINT UNSIGNED GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME(start_timestamp, end_timestamp)
+) ENGINE=InnoDB WITH SYSTEM VERSIONING;
+CREATE TABLE tts
+(
+x INT,
+start_timestamp TIMESTAMP(6) GENERATED ALWAYS AS ROW START,
+end_timestamp   TIMESTAMP(6) GENERATED ALWAYS AS ROW END,
+PERIOD FOR SYSTEM_TIME(start_timestamp, end_timestamp)
+) ENGINE=InnoDB WITH SYSTEM VERSIONING;
+SELECT * FROM tts FOR SYSTEM_TIME AS OF fts();
+x	start_timestamp	end_timestamp
+SELECT * FROM tts FOR SYSTEM_TIME AS OF ftx();
+ERROR HY000: Transaction system versioning for `tts` is not supported
+SELECT * FROM ttx FOR SYSTEM_TIME AS OF fts();
+x	start_timestamp	end_timestamp
+SELECT * FROM ttx FOR SYSTEM_TIME AS OF ftx();
+x	start_timestamp	end_timestamp
+DROP TABLE tts;
+DROP TABLE ttx;
+DROP FUNCTION fts;
+DROP FUNCTION ftx;

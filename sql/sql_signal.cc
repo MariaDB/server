@@ -319,7 +319,7 @@ int Sql_cmd_common_signal::eval_signal_informations(THD *thd, Sql_condition *con
     The various item->val_xxx() methods don't return an error code,
     but flag thd in case of failure.
   */
-  if (! thd->is_error())
+  if (likely(!thd->is_error()))
     result= 0;
 
 end:

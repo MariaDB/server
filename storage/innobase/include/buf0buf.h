@@ -1577,7 +1577,7 @@ public:
 	bool            encrypted;	/*!< page is still encrypted */
 
 	ulint           real_size;	/*!< Real size of the page
-					Normal pages == UNIV_PAGE_SIZE
+					Normal pages == srv_page_size
 					page compressed pages, payload
 					size alligned to sector boundary.
 					*/
@@ -1712,9 +1712,9 @@ struct buf_block_t{
 					buf_pool->page_hash can point
 					to buf_page_t or buf_block_t */
 	byte*		frame;		/*!< pointer to buffer frame which
-					is of size UNIV_PAGE_SIZE, and
+					is of size srv_page_size, and
 					aligned to an address divisible by
-					UNIV_PAGE_SIZE */
+					srv_page_size */
 	BPageLock	lock;		/*!< read-write lock of the buffer
 					frame */
 	UT_LIST_NODE_T(buf_block_t) unzip_LRU;
@@ -1874,7 +1874,7 @@ struct buf_block_t{
 /**********************************************************************//**
 Compute the hash fold value for blocks in buf_pool->zip_hash. */
 /* @{ */
-#define BUF_POOL_ZIP_FOLD_PTR(ptr) ((ulint) (ptr) / UNIV_PAGE_SIZE)
+#define BUF_POOL_ZIP_FOLD_PTR(ptr) (ulint(ptr) >> srv_page_size_shift)
 #define BUF_POOL_ZIP_FOLD(b) BUF_POOL_ZIP_FOLD_PTR((b)->frame)
 #define BUF_POOL_ZIP_FOLD_BPAGE(b) BUF_POOL_ZIP_FOLD((buf_block_t*) (b))
 /* @} */

@@ -1,0 +1,17 @@
+SET sql_mode=ORACLE;
+#
+# MDEV-13384: "window" seems like a reserved column name but it's not listed as one
+#
+# Currently we allow window as an identifier, except for table aliases.
+#
+CREATE TABLE door (id INT, window VARCHAR(10));
+SELECT id
+FROM door as window;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'window' at line 2
+SELECT id, window
+FROM door;
+id	window
+SELECT id, window
+FROM door as window;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'window' at line 2
+DROP TABLE door;

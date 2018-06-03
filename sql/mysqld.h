@@ -241,7 +241,7 @@ extern int max_user_connections;
 extern volatile ulong cached_thread_count;
 extern ulong what_to_log,flush_time;
 extern uint max_prepared_stmt_count, prepared_stmt_count;
-extern ulong open_files_limit;
+extern MYSQL_PLUGIN_IMPORT ulong open_files_limit;
 extern ulonglong binlog_cache_size, binlog_stmt_cache_size, binlog_file_cache_size;
 extern ulonglong max_binlog_cache_size, max_binlog_stmt_cache_size;
 extern ulong max_binlog_size;
@@ -302,7 +302,9 @@ extern my_bool encrypt_binlog;
 extern my_bool encrypt_tmp_disk_tables, encrypt_tmp_files;
 extern ulong encryption_algorithm;
 extern const char *encryption_algorithm_names[];
-extern const char *quoted_string;
+extern long opt_secure_timestamp;
+
+enum secure_timestamp { SECTIME_NO, SECTIME_SUPER, SECTIME_REPL, SECTIME_YES };
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP

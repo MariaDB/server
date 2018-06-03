@@ -18,6 +18,7 @@
 # - with annotated events, default checksums and minimal binlog row image
 #
 
+--source include/have_partition.inc
 --source encryption_algorithms.inc
 --source include/have_innodb.inc
 --enable_connect_log

@@ -417,7 +417,8 @@ private:
 	/** Flags to use for opening the data file */
 	os_file_create_t	m_open_flags;
 
-	/** size in database pages */
+	/** size in megabytes or pages; converted from megabytes to
+	pages in SysTablespace::normalize_size() */
 	ulint			m_size;
 
 	/** ordinal position of this datafile in the tablespace */
@@ -480,7 +481,7 @@ public:
 		/* No op - base constructor is called. */
 	}
 
-	RemoteDatafile(const char* name, ulint size, ulint order)
+	RemoteDatafile(const char*, ulint, ulint)
 		:
 		m_link_filepath()
 	{
@@ -501,12 +502,6 @@ public:
 	{
 		return(m_link_filepath);
 	}
-
-	/** Set the link filepath. Use default datadir, the base name of
-	the path provided without its suffix, plus DOT_ISL.
-	@param[in]	path	filepath which contains a basename to use.
-				If NULL, use m_name as the basename. */
-	void set_link_filepath(const char* path);
 
 	/** Create a link filename based on the contents of m_name,
 	open that file, and read the contents into m_filepath.

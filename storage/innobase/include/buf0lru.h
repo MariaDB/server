@@ -51,18 +51,20 @@ These are low-level functions
 /** Minimum LRU list length for which the LRU_old pointer is defined */
 #define BUF_LRU_OLD_MIN_LEN	512	/* 8 megabytes of 16k pages */
 
+#ifdef BTR_CUR_HASH_ADAPT
+struct dict_table_t;
+/** Drop the adaptive hash index for a tablespace.
+@param[in,out]	table	table */
+void buf_LRU_drop_page_hash_for_tablespace(dict_table_t* table);
+#else
+# define buf_LRU_drop_page_hash_for_tablespace(table)
+#endif /* BTR_CUR_HASH_ADAPT */
+
 /** Empty the flush list for all pages belonging to a tablespace.
 @param[in]	id		tablespace identifier
 @param[in,out]	observer	flush observer,
 				or NULL if nothing is to be written */
-void
-buf_LRU_flush_or_remove_pages(
-	ulint		id,
-	FlushObserver*	observer
-#ifdef BTR_CUR_HASH_ADAPT
-	, bool drop_ahi = false /*!< whether to drop the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
-	);
+void buf_LRU_flush_or_remove_pages(ulint id, FlushObserver* observer);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /********************************************************************//**

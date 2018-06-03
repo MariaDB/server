@@ -522,8 +522,8 @@ struct upd_node_t{
 	ibool		searched_update;
 				/* TRUE if searched update, FALSE if
 				positioned */
-	ibool		in_mysql_interface;
-				/* TRUE if the update node was created
+	bool		in_mysql_interface;
+				/* whether the update node was created
 				for the MySQL interface */
 	dict_foreign_t*	foreign;/* NULL or pointer to a foreign key
 				constraint if this update node is used in

@@ -62,9 +62,9 @@
 
 bool check_reserved_words(const LEX_CSTRING *name)
 {
-  if (!my_strcasecmp(system_charset_info, name->str, "GLOBAL") ||
-      !my_strcasecmp(system_charset_info, name->str, "LOCAL") ||
-      !my_strcasecmp(system_charset_info, name->str, "SESSION"))
+  if (lex_string_eq(name, STRING_WITH_LEN("GLOBAL")) ||
+      lex_string_eq(name, STRING_WITH_LEN("LOCAL")) ||
+      lex_string_eq(name, STRING_WITH_LEN("SESSION")))
     return TRUE;
   return FALSE;
 }
@@ -148,6 +148,7 @@ void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
     with_sum_func|= item->with_sum_func;
     with_window_func|= item->with_window_func;
     with_field|= item->with_field;
+    with_param|= item->with_param;
   }
 }
 
@@ -367,6 +368,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
 	maybe_null=1;
 
       with_sum_func= with_sum_func || item->with_sum_func;
+      with_param= with_param || item->with_param;
       with_window_func= with_window_func || item->with_window_func;
       with_field= with_field || item->with_field;
       used_tables_and_const_cache_join(item);
@@ -376,7 +378,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
   if (check_arguments())
     return true;
   fix_length_and_dec();
-  if (thd->is_error()) // An error inside fix_length_and_dec occurred
+  if (unlikely(thd->is_error())) // An error inside fix_length_and_dec occurred
     return TRUE;
   fixed= 1;
   return FALSE;
@@ -1149,7 +1151,8 @@ double Item_double_typecast::val_real()
   if ((null_value= args[0]->null_value))
     return 0.0;
 
-  if ((error= truncate_double(&tmp, max_length, decimals, 0, DBL_MAX)))
+  if (unlikely((error= truncate_double(&tmp, max_length, decimals, 0,
+                                       DBL_MAX))))
   {
     THD *thd= current_thd;
     push_warning_printf(thd,
@@ -1935,6 +1938,9 @@ void Item_func_neg::fix_length_and_dec_double()
   set_handler(&type_handler_double);
   decimals= args[0]->decimals; // Preserve NOT_FIXED_DEC
   max_length= args[0]->max_length + 1;
+  // Limit length with something reasonable
+  uint32 mlen= type_handler()->max_display_length(this);
+  set_if_smaller(max_length, mlen);
   unsigned_flag= false;
 }
 
@@ -2503,12 +2509,12 @@ double my_double_round(double value, longlong dec, bool dec_unsigned,
   volatile double value_div_tmp= value / tmp;
   volatile double value_mul_tmp= value * tmp;
 
-  if (!dec_negative && my_isinf(tmp)) // "dec" is too large positive number
+  if (!dec_negative && std::isinf(tmp)) // "dec" is too large positive number
     return value;
 
-  if (dec_negative && my_isinf(tmp))
+  if (dec_negative && std::isinf(tmp))
     tmp2= 0.0;
-  else if (!dec_negative && my_isinf(value_mul_tmp))
+  else if (!dec_negative && std::isinf(value_mul_tmp))
     tmp2= value;
   else if (truncate)
   {
@@ -2738,7 +2744,7 @@ bool Item_func_min_max::get_date_native(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     longlong res= args[i]->val_datetime_packed();
 
     /* Check if we need to stop (because of error or KILL) and stop the loop */
-    if (args[i]->null_value)
+    if (unlikely(args[i]->null_value))
       return (null_value= 1);
 
     if (i == 0 || (res < min_max ? cmp_sign : -cmp_sign) > 0)
@@ -2747,7 +2753,7 @@ bool Item_func_min_max::get_date_native(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   unpack_time(min_max, ltime, mysql_timestamp_type());
 
   if (!(fuzzy_date & TIME_TIME_ONLY) &&
-      ((null_value= check_date_with_warn(ltime, fuzzy_date,
+      unlikely((null_value= check_date_with_warn(ltime, fuzzy_date,
                                          MYSQL_TIMESTAMP_ERROR))))
     return true;
 
@@ -3074,8 +3080,8 @@ longlong Item_func_ord::val_int()
 #ifdef USE_MB
   if (use_mb(res->charset()))
   {
-    register const char *str=res->ptr();
-    register uint32 n=0, l=my_ismbchar(res->charset(),str,str+res->length());
+    const char *str=res->ptr();
+    uint32 n=0, l=my_ismbchar(res->charset(),str,str+res->length());
     if (!l)
       return (longlong)((uchar) *str);
     while (l--)
@@ -3297,6 +3303,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 	func->maybe_null=1;
       func->with_sum_func= func->with_sum_func || item->with_sum_func;
       func->with_field= func->with_field || item->with_field;
+      func->with_param= func->with_param || item->with_param;
       func->With_subquery_cache::join(item);
       func->used_tables_and_const_cache_join(item);
       f_args.arg_type[i]=item->result_type();
@@ -3376,7 +3383,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       }
     }
     Udf_func_init init= u_d->func_init;
-    if ((error=(uchar) init(&initid, &f_args, init_msg_buff)))
+    if (unlikely((error=(uchar) init(&initid, &f_args, init_msg_buff))))
     {
       my_error(ER_CANT_INITIALIZE_UDF, MYF(0),
                u_d->name.str, init_msg_buff);
@@ -3394,7 +3401,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
     func->decimals=MY_MIN(initid.decimals,NOT_FIXED_DEC);
   }
   initialized=1;
-  if (error)
+  if (unlikely(error))
   {
     my_error(ER_CANT_INITIALIZE_UDF, MYF(0),
              u_d->name.str, ER_THD(thd, ER_UNKNOWN_ERROR));
@@ -3406,7 +3413,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 
 bool udf_handler::get_arguments()
 {
-  if (error)
+  if (unlikely(error))
     return 1;					// Got an error earlier
   char *to= num_buffer;
   uint str_count=0;
@@ -3481,7 +3488,7 @@ String *udf_handler::val_str(String *str,String *save_str)
   char *res=func(&initid, &f_args, (char*) str->ptr(), &res_length,
 		 &is_null_tmp, &error);
   DBUG_PRINT("info", ("udf func returned, res_length: %lu", res_length));
-  if (is_null_tmp || !res || error)		// The !res is for safety
+  if (is_null_tmp || !res || unlikely(error))	// The !res is for safety
   {
     DBUG_PRINT("info", ("Null or error"));
     DBUG_RETURN(0);
@@ -3517,7 +3524,7 @@ my_decimal *udf_handler::val_decimal(my_bool *null_value, my_decimal *dec_buf)
     u_d->func;
 
   char *res= func(&initid, &f_args, buf, &res_length, &is_null, &error);
-  if (is_null || error)
+  if (is_null || unlikely(error))
   {
     *null_value= 1;
     return 0;
@@ -4078,7 +4085,7 @@ longlong Item_func_get_lock::val_int()
   thd->push_internal_handler(&lock_wait_timeout_handler);
   bool error= thd->mdl_context.acquire_lock(&ull_request, timeout);
   (void) thd->pop_internal_handler();
-  if (error)
+  if (unlikely(error))
   {
     if (lock_wait_timeout_handler.m_lock_wait_timeout)
       null_value= 0;
@@ -5351,13 +5358,14 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
                                                                new (thd->mem_root) Item_null(thd))),
                            thd->mem_root);
     /* Create the variable if the above allocations succeeded */
-    if (thd->is_fatal_error || sql_set_variables(thd, &tmp_var_list, false))
+    if (unlikely(thd->is_fatal_error) ||
+        unlikely(sql_set_variables(thd, &tmp_var_list, false)))
     {
       thd->lex= sav_lex;
       goto err;
     }
     thd->lex= sav_lex;
-    if (!(var_entry= get_variable(&thd->user_vars, name, 0)))
+    if (unlikely(!(var_entry= get_variable(&thd->user_vars, name, 0))))
       goto err;
   }
   else if (var_entry->used_query_id == thd->query_id ||
@@ -5386,8 +5394,8 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
     destroyed.
   */
   size= ALIGN_SIZE(sizeof(BINLOG_USER_VAR_EVENT)) + var_entry->length;
-  if (!(user_var_event= (BINLOG_USER_VAR_EVENT *)
-        alloc_root(thd->user_var_events_alloc, size)))
+  if (unlikely(!(user_var_event= (BINLOG_USER_VAR_EVENT *)
+                 alloc_root(thd->user_var_events_alloc, size))))
     goto err;
 
   user_var_event->value= (char*) user_var_event +
@@ -5436,7 +5444,7 @@ void Item_func_get_user_var::fix_length_and_dec()
     'm_var_entry' is NULL only if there occurred an error during the call to
     get_var_with_binlog.
   */
-  if (!error && m_var_entry)
+  if (likely(!error && m_var_entry))
   {
     unsigned_flag= m_var_entry->unsigned_flag;
     max_length= (uint32)m_var_entry->length;
@@ -5927,8 +5935,8 @@ bool Item_func_match::init_search(THD *thd, bool no_order)
     for (uint i= 1; i < arg_count; i++)
       fields.push_back(args[i]);
     concat_ws= new (thd->mem_root) Item_func_concat_ws(thd, fields);
-    if (thd->is_fatal_error)
-      DBUG_RETURN(1);                           // OOM
+    if (unlikely(thd->is_fatal_error))
+      DBUG_RETURN(1);                           // OOM in new or push_back
     /*
       Above function used only to get value and do not need fix_fields for it:
       Item_string - basic constant
@@ -6803,7 +6811,7 @@ longlong Item_func_nextval::val_int()
   entry->value= value;
   entry->set_version(table);
 
-  if (error)                                    // Warning already printed
+  if (unlikely(error))                          // Warning already printed
     entry->null_value= null_value= 1;           // For not strict mode
   DBUG_RETURN(value);
 }
@@ -6915,7 +6923,7 @@ longlong Item_func_setval::val_int()
   DBUG_ASSERT(table && table->s->sequence);
   thd= table->in_use;
 
-  if (thd->count_cuted_fields == CHECK_FIELD_EXPRESSION)
+  if (unlikely(thd->count_cuted_fields == CHECK_FIELD_EXPRESSION))
   {
     /* Alter table checking if function works */
     null_value= 0;
@@ -6924,7 +6932,7 @@ longlong Item_func_setval::val_int()
 
   value= nextval;
   error= table->s->sequence->set_value(table, nextval, round, is_used);
-  if (error)
+  if (unlikely(error))
   {
     null_value= 1;
     value= 0;

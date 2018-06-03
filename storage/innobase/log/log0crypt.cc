@@ -62,7 +62,9 @@ struct crypt_info_t {
 static crypt_info_t info;
 
 /** Crypt info when upgrading from 10.1 */
-static crypt_info_t infos[5];
+static crypt_info_t infos[5 * 2];
+/** First unused slot in infos[] */
+static size_t infos_used;
 
 /*********************************************************************//**
 Get a log block's start lsn.
@@ -78,28 +80,6 @@ log_block_get_start_lsn(
 		(lsn & (lsn_t)0xffffffff00000000ULL) |
 		(((log_block_no - 1) & (lsn_t)0x3fffffff) << 9);
 	return start_lsn;
-}
-
-/*********************************************************************//**
-Get crypt info from checkpoint.
-@return a crypt info or NULL if not present. */
-static
-const crypt_info_t*
-get_crypt_info(ulint checkpoint_no)
-{
-	/* a log block only stores 4-bytes of checkpoint no */
-	checkpoint_no &= 0xFFFFFFFF;
-	for (unsigned i = 0; i < 5; i++) {
-		const crypt_info_t* it = &infos[i];
-
-		if (it->key_version && it->checkpoint_no == checkpoint_no) {
-			return it;
-		}
-	}
-
-	/* If checkpoint contains more than one key and we did not
-	find the correct one use the first one. */
-	return infos;
 }
 
 /** Encrypt or decrypt log blocks.
@@ -166,9 +146,7 @@ log_crypt(byte* buf, lsn_t lsn, ulint size, bool decrypt)
 @param[in,out]	info	encryption key
 @param[in]	upgrade	whether to use the key in MariaDB 10.1 format
 @return whether the operation was successful */
-static
-bool
-init_crypt_key(crypt_info_t* info, bool upgrade = false)
+static bool init_crypt_key(crypt_info_t* info, bool upgrade = false)
 {
 	byte	mysqld_key[MY_AES_MAX_KEY_LENGTH];
 	uint	keylen = sizeof mysqld_key;
@@ -219,7 +197,7 @@ bool
 log_crypt_init()
 {
 	ut_ad(log_mutex_own());
-	ut_ad(log_sys->is_encrypted());
+	ut_ad(log_sys.is_encrypted());
 
 	info.key_version = encryption_key_get_latest_version(
 		LOG_DEFAULT_ENCRYPTION_KEY);
@@ -253,8 +231,20 @@ log_crypt_101_read_checkpoint(const byte* buf)
 	const size_t n = *buf++ == 2 ? std::min(unsigned(*buf++), 5U) : 0;
 
 	for (size_t i = 0; i < n; i++) {
-		struct crypt_info_t& info = infos[i];
-		info.checkpoint_no = mach_read_from_4(buf);
+		struct crypt_info_t& info = infos[infos_used];
+		unsigned checkpoint_no = mach_read_from_4(buf);
+		for (size_t j = 0; j < infos_used; j++) {
+			if (infos[j].checkpoint_no == checkpoint_no) {
+				/* Do not overwrite an existing slot. */
+				goto next_slot;
+			}
+		}
+		if (infos_used >= UT_ARR_SIZE(infos)) {
+			ut_ad(!"too many checkpoint pages");
+			goto next_slot;
+		}
+		infos_used++;
+		info.checkpoint_no = checkpoint_no;
 		info.key_version = mach_read_from_4(buf + 4);
 		memcpy(info.crypt_msg.bytes, buf + 8, sizeof info.crypt_msg);
 		memcpy(info.crypt_nonce.bytes, buf + 24,
@@ -263,6 +253,7 @@ log_crypt_101_read_checkpoint(const byte* buf)
 		if (!init_crypt_key(&info, true)) {
 			return false;
 		}
+next_slot:
 		buf += 4 + 4 + 2 * MY_AES_BLOCK_SIZE;
 	}
 
@@ -278,13 +269,19 @@ log_crypt_101_read_block(byte* buf)
 {
 	ut_ad(log_block_calc_checksum_format_0(buf)
 	      != log_block_get_checksum(buf));
-	const crypt_info_t* info = get_crypt_info(
-		log_block_get_checkpoint_no(buf));
-
-	if (!info || info->key_version == 0) {
-		return false;
+	const uint32_t checkpoint_no
+		= uint32_t(log_block_get_checkpoint_no(buf));
+	const crypt_info_t* info = infos;
+	for (const crypt_info_t* const end = info + infos_used; info < end;
+	     info++) {
+		if (info->key_version
+		    && info->checkpoint_no == checkpoint_no) {
+			goto found;
+		}
 	}
 
+	return false;
+found:
 	byte dst[OS_FILE_LOG_BLOCK_SIZE];
 	uint dst_len;
 	byte aes_ctr_iv[MY_AES_BLOCK_SIZE];
@@ -313,9 +310,7 @@ log_crypt_101_read_block(byte* buf)
 				  LOG_DEFAULT_ENCRYPTION_KEY,
 				  info->key_version);
 
-	if (rc != MY_AES_OK || dst_len != src_len
-	    || log_block_calc_checksum_format_0(dst)
-	    != log_block_get_checksum(dst)) {
+	if (rc != MY_AES_OK || dst_len != src_len) {
 		return false;
 	}
 

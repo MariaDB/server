@@ -133,7 +133,6 @@ Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs);
   @param[in]     table Table containing read_set and fields for the row.
 */
 void append_row_to_str(String &str, const uchar *row, TABLE *table);
-void mem_alloc_error(size_t size);
 void truncate_partition_filename(char *path);
 
 /*

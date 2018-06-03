@@ -1479,8 +1479,8 @@ srv_mon_set_module_control(
 	mon_option_t	set_option)	/*!< in: Turn on/off reset the
 					counter */
 {
-	ulint	ix;
-	ulint	start_id;
+	lint	ix;
+	lint	start_id;
 	ibool	set_current_module = FALSE;
 
 	ut_a(module_id <= NUM_MONITOR);
@@ -1827,7 +1827,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_page_size */
 	case MONITOR_OVLD_SRV_PAGE_SIZE:
-		value = UNIV_PAGE_SIZE;
+		value = srv_page_size;
 		break;
 
 	case MONITOR_OVLD_RWLOCK_S_SPIN_WAITS:
@@ -1989,11 +1989,11 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_LSN_FLUSHDISK:
-		value = (mon_type_t) log_sys->flushed_to_disk_lsn;
+		value = (mon_type_t) log_sys.flushed_to_disk_lsn;
 		break;
 
 	case MONITOR_OVLD_LSN_CURRENT:
-		value = (mon_type_t) log_sys->lsn;
+		value = (mon_type_t) log_sys.lsn;
 		break;
 
 	case MONITOR_OVLD_BUF_OLDEST_LSN:
@@ -2001,15 +2001,15 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_LSN_CHECKPOINT:
-		value = (mon_type_t) log_sys->last_checkpoint_lsn;
+		value = (mon_type_t) log_sys.last_checkpoint_lsn;
 		break;
 
 	case MONITOR_OVLD_MAX_AGE_ASYNC:
-		value = log_sys->max_modified_age_async;
+		value = log_sys.max_modified_age_async;
 		break;
 
 	case MONITOR_OVLD_MAX_AGE_SYNC:
-		value = log_sys->max_modified_age_sync;
+		value = log_sys.max_modified_age_sync;
 		break;
 
 #ifdef BTR_CUR_HASH_ADAPT

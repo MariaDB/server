@@ -270,10 +270,11 @@ my_bool Expression_cache_tmptable::put_value(Item *value)
 
   *(items.head_ref())= value;
   fill_record(table_thd, cache_table, cache_table->field, items, TRUE, TRUE);
-  if (table_thd->is_error())
+  if (unlikely(table_thd->is_error()))
     goto err;;
 
-  if ((error= cache_table->file->ha_write_tmp_row(cache_table->record[0])))
+  if (unlikely((error=
+                cache_table->file->ha_write_tmp_row(cache_table->record[0]))))
   {
     /* create_myisam_from_heap will generate error if needed */
     if (cache_table->file->is_fatal_error(error, HA_CHECK_DUP))

@@ -173,14 +173,14 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
     error= 1;
   }
 
-  if (!silent && !error)
+  if (likely(!silent && !error))
   {
     binlog_error= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-    if (!binlog_error)
+    if (likely(!binlog_error))
       my_ok(thd);
   }
 
-  if (!error)
+  if (likely(!error))
     query_cache_invalidate3(thd, table_list, 0);
 
 err:
@@ -223,7 +223,7 @@ do_rename_temporary(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table,
   new_alias= (lower_case_table_names == 2) ? &new_table->alias :
                                              &new_table->table_name;
 
-  if (is_temporary_table(new_table))
+  if (thd->find_temporary_table(new_table, THD::TMP_TABLE_ANY))
   {
     my_error(ER_TABLE_EXISTS_ERROR, MYF(0), new_alias->str);
     DBUG_RETURN(1);                     // This can't be skipped
@@ -332,7 +332,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
   {
     my_error(ER_NO_SUCH_TABLE, MYF(0), ren_table->db.str, old_alias.str);
   }
-  if (rc && !skip_error)
+  if (unlikely(rc && !skip_error))
     DBUG_RETURN(1);
 
   DBUG_RETURN(0);

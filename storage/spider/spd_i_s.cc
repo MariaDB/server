@@ -164,6 +164,6 @@ struct st_maria_plugin spider_i_s_alloc_mem_maria =
   NULL,
   NULL,
   "1.0",
-  MariaDB_PLUGIN_MATURITY_GAMMA,
+  MariaDB_PLUGIN_MATURITY_STABLE
 };
 #endif

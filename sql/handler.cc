@@ -698,7 +698,7 @@ int ha_end()
     So if flag is equal to HA_PANIC_CLOSE, the deallocate
     the errors.
   */
-  if (ha_finish_errors())
+  if (unlikely(ha_finish_errors()))
     error= 1;
 
   DBUG_RETURN(error);
@@ -1197,7 +1197,7 @@ int ha_prepare(THD *thd)
       handlerton *ht= ha_info->ht();
       if (ht->prepare)
       {
-        if (prepare_or_error(ht, thd, all))
+        if (unlikely(prepare_or_error(ht, thd, all)))
         {
           ha_rollback_trans(thd, all);
           error=1;
@@ -1475,7 +1475,7 @@ int ha_commit_trans(THD *thd, bool all)
       Sic: we know that prepare() is not NULL since otherwise
       trans->no_2pc would have been set.
     */
-    if (prepare_or_error(ht, thd, all))
+    if (unlikely(prepare_or_error(ht, thd, all)))
       goto err;
 
     need_prepare_ordered|= (ht->prepare_ordered != NULL);
@@ -2525,7 +2525,7 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
   dummy_table.s= &dummy_share;
 
   path= get_canonical_filename(file, path, tmp_path);
-  if ((error= file->ha_delete_table(path)))
+  if (unlikely((error= file->ha_delete_table(path))))
   {
     /*
       it's not an error if the table doesn't exist in the engine.
@@ -2681,7 +2681,7 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
 
   set_partitions_to_open(partitions_to_open);
 
-  if ((error=open(name,mode,test_if_locked)))
+  if (unlikely((error=open(name,mode,test_if_locked))))
   {
     if ((error == EACCES || error == EROFS) && mode == O_RDWR &&
 	(table->db_stat & HA_TRY_READ_ONLY))
@@ -2690,7 +2690,7 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
       error=open(name,O_RDONLY,test_if_locked);
     }
   }
-  if (error)
+  if (unlikely(error))
   {
     my_errno= error;                            /* Safeguard */
     DBUG_PRINT("error",("error: %d  errno: %d",error,errno));
@@ -2759,19 +2759,27 @@ int handler::ha_rnd_next(uchar *buf)
               m_lock_type != F_UNLCK);
   DBUG_ASSERT(inited == RND);
 
-  TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
-    { result= rnd_next(buf); })
-  if (!result)
+  do
   {
-    update_rows_read();
-    if (table->vfield && buf == table->record[0])
-      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
+    TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
+      { result= rnd_next(buf); })
+    if (result != HA_ERR_RECORD_DELETED)
+      break;
+    status_var_increment(table->in_use->status_var.ha_read_rnd_deleted_count);
+  } while (!table->in_use->check_killed(1));
+
+  if (result == HA_ERR_RECORD_DELETED)
+    result= HA_ERR_ABORTED_BY_USER;
+  else
+  {
+    if (!result)
+    {
+      update_rows_read();
+      if (table->vfield && buf == table->record[0])
+        table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
+    }
     increment_statistics(&SSV::ha_read_rnd_next_count);
   }
-  else if (result == HA_ERR_RECORD_DELETED)
-    increment_statistics(&SSV::ha_read_rnd_deleted_count);
-  else
-    increment_statistics(&SSV::ha_read_rnd_next_count);
 
   table->status=result ? STATUS_NOT_FOUND: 0;
   DBUG_RETURN(result);
@@ -2789,7 +2797,9 @@ int handler::ha_rnd_pos(uchar *buf, uchar *pos)
   TABLE_IO_WAIT(tracker, m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
     { result= rnd_pos(buf, pos); })
   increment_statistics(&SSV::ha_read_rnd_count);
-  if (!result)
+  if (result == HA_ERR_RECORD_DELETED)
+    result= HA_ERR_KEY_NOT_FOUND;
+  else if (!result)
   {
     update_rows_read();
     if (table->vfield && buf == table->record[0])
@@ -2967,7 +2977,7 @@ bool handler::ha_was_semi_consistent_read()
 int handler::ha_rnd_init_with_error(bool scan)
 {
   int error;
-  if (!(error= ha_rnd_init(scan)))
+  if (likely(!(error= ha_rnd_init(scan))))
     return 0;
   table->file->print_error(error, MYF(0));
   return error;
@@ -2983,7 +2993,7 @@ int handler::ha_rnd_init_with_error(bool scan)
 */
 int handler::read_first_row(uchar * buf, uint primary_key)
 {
-  register int error;
+  int error;
   DBUG_ENTER("handler::read_first_row");
 
   /*
@@ -2994,23 +3004,22 @@ int handler::read_first_row(uchar * buf, uint primary_key)
   if (stats.deleted < 10 || primary_key >= MAX_KEY ||
       !(index_flags(primary_key, 0, 0) & HA_READ_ORDER))
   {
-    if (!(error= ha_rnd_init(1)))
+    if (likely(!(error= ha_rnd_init(1))))
     {
-      while ((error= ha_rnd_next(buf)) == HA_ERR_RECORD_DELETED)
-        /* skip deleted row */;
+      error= ha_rnd_next(buf);
       const int end_error= ha_rnd_end();
-      if (!error)
+      if (likely(!error))
         error= end_error;
     }
   }
   else
   {
     /* Find the first row through the primary key */
-    if (!(error= ha_index_init(primary_key, 0)))
+    if (likely(!(error= ha_index_init(primary_key, 0))))
     {
       error= ha_index_first(buf);
       const int end_error= ha_index_end();
-      if (!error)
+      if (likely(!error))
         error= end_error;
     }
   }
@@ -3430,7 +3439,7 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
     *nb_reserved_values= 1;
   }
 
-  if (error)
+  if (unlikely(error))
   {
     if (error == HA_ERR_END_OF_FILE || error == HA_ERR_KEY_NOT_FOUND)
       /* No entry found, that's fine */;
@@ -3818,7 +3827,7 @@ void handler::print_error(int error, myf errflag)
     }
   }
   DBUG_ASSERT(textno > 0);
-  if (fatal_error)
+  if (unlikely(fatal_error))
   {
     /* Ensure this becomes a true error */
     errflag&= ~(ME_JUST_WARNING | ME_JUST_INFO);
@@ -3945,7 +3954,7 @@ int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
   if (table->s->frm_version < FRM_VER_TRUE_VARCHAR)
     return HA_ADMIN_NEEDS_ALTER;
 
-  if ((error= check_collation_compatibility()))
+  if (unlikely((error= check_collation_compatibility())))
     return error;
     
   return check_for_upgrade(check_opt);
@@ -4023,7 +4032,8 @@ uint handler::get_dup_key(int error)
               m_lock_type != F_UNLCK);
   DBUG_ENTER("handler::get_dup_key");
   table->file->errkey  = (uint) -1;
-  if (error == HA_ERR_FOUND_DUPP_KEY || error == HA_ERR_FOREIGN_DUPLICATE_KEY ||
+  if (error == HA_ERR_FOUND_DUPP_KEY ||
+      error == HA_ERR_FOREIGN_DUPLICATE_KEY ||
       error == HA_ERR_FOUND_DUPP_UNIQUE || error == HA_ERR_NULL_IN_SPATIAL ||
       error == HA_ERR_DROP_INDEX_FK)
     table->file->info(HA_STATUS_ERRKEY | HA_STATUS_NO_LOCK);
@@ -4087,14 +4097,14 @@ int handler::rename_table(const char * from, const char * to)
   start_ext= bas_ext();
   for (ext= start_ext; *ext ; ext++)
   {
-    if (rename_file_ext(from, to, *ext))
+    if (unlikely(rename_file_ext(from, to, *ext)))
     {
       if ((error=my_errno) != ENOENT)
 	break;
       error= 0;
     }
   }
-  if (error)
+  if (unlikely(error))
   {
     /* Try to revert the rename. Ignore errors. */
     for (; ext >= start_ext; ext--)
@@ -4138,15 +4148,15 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
 
   if (table->s->mysql_version < MYSQL_VERSION_ID)
   {
-    if ((error= check_old_types()))
+    if (unlikely((error= check_old_types())))
       return error;
     error= ha_check_for_upgrade(check_opt);
-    if (error && (error != HA_ADMIN_NEEDS_CHECK))
+    if (unlikely(error && (error != HA_ADMIN_NEEDS_CHECK)))
       return error;
-    if (!error && (check_opt->sql_flags & TT_FOR_UPGRADE))
+    if (unlikely(!error && (check_opt->sql_flags & TT_FOR_UPGRADE)))
       return 0;
   }
-  if ((error= check(thd, check_opt)))
+  if (unlikely((error= check(thd, check_opt))))
     return error;
   /* Skip updating frm version if not main handler. */
   if (table->file != this)
@@ -4469,20 +4479,8 @@ handler::check_if_supported_inplace_alter(TABLE *altered_table,
   DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 }
 
-
-/*
-   Default implementation to support in-place alter table
-   and old online add/drop index API
-*/
-
-void handler::notify_table_changed()
-{
-  ha_create_partitioning_metadata(table->s->path.str, NULL, CHF_INDEX_FLAG);
-}
-
-
 void Alter_inplace_info::report_unsupported_error(const char *not_supported,
-                                                  const char *try_instead)
+                                                  const char *try_instead) const
 {
   if (unsupported_reason == NULL)
     my_error(ER_ALTER_OPERATION_NOT_SUPPORTED, MYF(0),
@@ -4579,7 +4577,6 @@ handler::ha_create_partitioning_metadata(const char *name,
   */
   DBUG_ASSERT(m_lock_type == F_UNLCK ||
               (!old_name && strcmp(name, table_share->path.str)));
-  mark_trx_read_write();
 
   return create_partitioning_metadata(name, old_name, action_flag);
 }
@@ -4669,7 +4666,7 @@ int ha_enable_transaction(THD *thd, bool on)
       is an optimization hint that storage engine is free to ignore.
       So, let's commit an open transaction (if any) now.
     */
-    if (!(error= ha_commit_trans(thd, 0)))
+    if (likely(!(error= ha_commit_trans(thd, 0))))
       error= trans_commit_implicit(thd);
   }
   DBUG_RETURN(error);
@@ -4770,7 +4767,8 @@ void handler::update_global_table_stats()
   if (rows_read + rows_changed == 0)
     return;                                     // Nothing to update.
 
-  DBUG_ASSERT(table->s && table->s->table_cache_key.str);
+  DBUG_ASSERT(table->s);
+  DBUG_ASSERT(table->s->table_cache_key.str);
 
   mysql_mutex_lock(&LOCK_global_table_stats);
   /* Gets the global table stats, creating one if necessary. */
@@ -4927,7 +4925,7 @@ int ha_create_table(THD *thd, const char *path,
 
   error= table.file->ha_create(name, &table, create_info);
 
-  if (error)
+  if (unlikely(error))
   {
     if (!thd->is_error())
       my_error(ER_CANT_CREATE_TABLE, MYF(0), db, table_name, error);
@@ -5082,7 +5080,7 @@ static my_bool discover_handlerton(THD *thd, plugin_ref plugin,
     int error= hton->discover_table(hton, thd, share);
     if (error != HA_ERR_NO_SUCH_TABLE)
     {
-      if (error)
+      if (unlikely(error))
       {
         if (!share->error)
         {
@@ -5719,12 +5717,12 @@ int handler::index_read_idx_map(uchar * buf, uint index, const uchar * key,
   int error, UNINIT_VAR(error1);
 
   error= ha_index_init(index, 0);
-  if (!error)
+  if (likely(!error))
   {
     error= index_read_map(buf, key, keypart_map, find_flag);
     error1= ha_index_end();
   }
-  return error ?  error : error1;
+  return error ? error : error1;
 }
 
 
@@ -5861,7 +5859,7 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
     We also check thd->is_error() as Innodb may return 0 even if
     there was an error.
   */
-  if (!result && !thd->is_error())
+  if (likely(!result && !thd->is_error()))
     my_eof(thd);
   else if (!thd->is_error())
     my_error(ER_GET_ERRNO, MYF(0), errno, hton_name(db_type)->str);
@@ -6124,7 +6122,7 @@ int handler::ha_external_lock(THD *thd, int lock_type)
 
   DBUG_EXECUTE_IF("external_lock_failure", error= HA_ERR_GENERIC;);
 
-  if (error == 0 || lock_type == F_UNLCK)
+  if (likely(error == 0 || lock_type == F_UNLCK))
   {
     m_lock_type= lock_type;
     cached_table_flags= table_flags();
@@ -6245,10 +6243,10 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
 int handler::update_first_row(uchar *new_data)
 {
   int error;
-  if (!(error= ha_rnd_init(1)))
+  if (likely(!(error= ha_rnd_init(1))))
   {
     int end_error;
-    if (!(error= ha_rnd_next(table->record[1])))
+    if (likely(!(error= ha_rnd_next(table->record[1]))))
     {
       /*
         We have to do the memcmp as otherwise we may get error 169 from InnoDB
@@ -6257,7 +6255,7 @@ int handler::update_first_row(uchar *new_data)
         error= update_row(table->record[1], new_data);
     }
     end_error= ha_rnd_end();
-    if (!error)
+    if (likely(!error))
       error= end_error;
     /* Logging would be wrong if update_row works but ha_rnd_end fails */
     DBUG_ASSERT(!end_error || error != 0);
@@ -6374,7 +6372,8 @@ void handler::use_hidden_primary_key()
 Handler_share *handler::get_ha_share_ptr()
 {
   DBUG_ENTER("handler::get_ha_share_ptr");
-  DBUG_ASSERT(ha_share && table_share);
+  DBUG_ASSERT(ha_share);
+  DBUG_ASSERT(table_share);
 
 #ifndef DBUG_OFF
   if (table_share->tmp_table == NO_TMP_TABLE)
@@ -6854,7 +6853,8 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
   f->flags= flags | NOT_NULL_FLAG;
   if (integer)
   {
-    f->set_handler(&type_handler_longlong);
+    DBUG_ASSERT(0); // Not implemented yet
+    f->set_handler(&type_handler_vers_trx_id);
     f->length= MY_INT64_NUM_DECIMAL_DIGITS - 1;
     f->flags|= UNSIGNED_FLAG;
   }
@@ -6884,8 +6884,8 @@ static bool vers_create_sys_field(THD *thd, const char *field_name,
   return false;
 }
 
-const LString_i Vers_parse_info::default_start= "row_start";
-const LString_i Vers_parse_info::default_end= "row_end";
+const Lex_ident Vers_parse_info::default_start= "row_start";
+const Lex_ident Vers_parse_info::default_end= "row_end";
 
 bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
 {
@@ -7055,7 +7055,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     {
       if (f->change.length && f->flags & VERS_SYSTEM_FIELD)
       {
-        my_error(ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN, MYF(0));
+        my_error(ER_VERS_ALTER_SYSTEM_FIELD, MYF(0), f->field_name.str);
         return true;
       }
     }
@@ -7079,10 +7079,12 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     // copy info from existing table
     create_info->options|= HA_VERSIONED_TABLE;
 
-    DBUG_ASSERT(share->vers_start_field() && share->vers_end_field());
-    LString_i start(share->vers_start_field()->field_name);
-    LString_i end(share->vers_end_field()->field_name);
-    DBUG_ASSERT(start.ptr() && end.ptr());
+    DBUG_ASSERT(share->vers_start_field());
+    DBUG_ASSERT(share->vers_end_field());
+    Lex_ident start(share->vers_start_field()->field_name);
+    Lex_ident end(share->vers_end_field()->field_name);
+    DBUG_ASSERT(start.str);
+    DBUG_ASSERT(end.str);
 
     as_row= start_end_t(start, end);
     system_time= as_row;
@@ -7186,8 +7188,8 @@ bool Vers_parse_info::need_check(const Alter_info *alter_info) const
          alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING || *this;
 }
 
-bool Vers_parse_info::check_conditions(const LString &table_name,
-                                       const LString &db) const
+bool Vers_parse_info::check_conditions(const Lex_table_name &table_name,
+                                       const Lex_table_name &db) const
 {
   if (!as_row.start || !as_row.end)
   {
@@ -7217,7 +7219,8 @@ bool Vers_parse_info::check_conditions(const LString &table_name,
   return false;
 }
 
-bool Vers_parse_info::check_sys_fields(const LString &table_name, const LString &db,
+bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
+                                       const Lex_table_name &db,
                                        Alter_info *alter_info, bool native)
 {
   if (check_conditions(table_name, db))

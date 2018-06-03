@@ -52,7 +52,7 @@ const LEX_CSTRING *Sp_rcontext_handler_local::get_name_prefix() const
 const LEX_CSTRING *Sp_rcontext_handler_package_body::get_name_prefix() const
 {
   static const LEX_CSTRING sp_package_body_variable_prefix_clex_str=
-                           {C_STRING_WITH_LEN("PACKAGE_BODY.")};
+                           {STRING_WITH_LEN("PACKAGE_BODY.")};
   return &sp_package_body_variable_prefix_clex_str;
 }
 
@@ -196,11 +196,12 @@ bool sp_rcontext::init_var_table(THD *thd,
 */
 static inline bool
 check_column_grant_for_type_ref(THD *thd, TABLE_LIST *table_list,
-                                const char *str, size_t length)
+                                const char *str, size_t length,
+                                Field *fld)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   table_list->table->grant.want_privilege= SELECT_ACL;
-  return check_column_grant_in_table_ref(thd, table_list, str, length);
+  return check_column_grant_in_table_ref(thd, table_list, str, length, fld);
 #else
   return false;
 #endif
@@ -234,11 +235,11 @@ bool Qualified_column_ident::resolve_type_ref(THD *thd, Column_definition *def)
       !open_tables_only_view_structure(thd, table_list,
                                        thd->mdl_context.has_locks()))
   {
-    if ((src= lex.query_tables->table->find_field_by_name(&m_column)))
+    if (likely((src= lex.query_tables->table->find_field_by_name(&m_column))))
     {
       if (!(rc= check_column_grant_for_type_ref(thd, table_list,
                                                 m_column.str,
-                                                m_column.length)))
+                                                m_column.length, src)))
       {
         *def= Column_definition(thd, src, NULL/*No defaults,no constraints*/);
         def->flags&= (uint) ~NOT_NULL_FLAG;
@@ -302,7 +303,7 @@ bool Table_ident::resolve_table_rowtype_ref(THD *thd,
       LEX_CSTRING tmp= src[0]->field_name;
       Spvar_definition *def;
       if ((rc= check_column_grant_for_type_ref(thd, table_list,
-                                               tmp.str, tmp.length)) ||
+                                               tmp.str, tmp.length,src[0])) ||
           (rc= !(src[0]->field_name.str= thd->strmake(tmp.str, tmp.length))) ||
           (rc= !(def= new (thd->mem_root) Spvar_definition(thd, *src))))
         break;
@@ -486,14 +487,14 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
     handlers from this context are applicable: try to locate one
     in the outer scope.
   */
-  if (thd->is_fatal_sub_stmt_error && m_in_sub_stmt)
+  if (unlikely(thd->is_fatal_sub_stmt_error) && m_in_sub_stmt)
     DBUG_RETURN(false);
 
   Diagnostics_area *da= thd->get_stmt_da();
   const sp_handler *found_handler= NULL;
   const Sql_condition *found_condition= NULL;
 
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
   {
     found_handler=
       cur_spi->m_ctx->find_handler(da->get_error_condition_identity());

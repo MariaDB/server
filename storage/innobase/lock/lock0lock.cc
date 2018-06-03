@@ -445,7 +445,7 @@ lock_sec_rec_cons_read_sees(
 	/* NOTE that we might call this function while holding the search
 	system latch. */
 
-	if (dict_table_is_temporary(index->table)) {
+	if (index->table->is_temporary()) {
 
 		/* Temp-tables are not shared across connections and multiple
 		transactions from different connections cannot simultaneously
@@ -1975,7 +1975,7 @@ lock_rec_lock(
     trx_mutex_enter(trx);
     if (lock_rec_get_next_on_page(lock) ||
         lock->trx != trx ||
-        lock->type_mode != (mode | LOCK_REC) ||
+        lock->type_mode != (ulint(mode) | LOCK_REC) ||
         lock_rec_get_n_bits(lock) <= heap_no)
     {
       /* Do nothing if the trx already has a strong enough lock on rec */
@@ -2470,7 +2470,8 @@ lock_rec_inherit_to_gap(
 			 && lock_get_mode(lock) ==
 			 (lock->trx->duplicates ? LOCK_S : LOCK_X))) {
 			lock_rec_add_to_queue(
-				LOCK_REC | LOCK_GAP | lock_get_mode(lock),
+				LOCK_REC | LOCK_GAP
+				| ulint(lock_get_mode(lock)),
 				heir_block, heir_heap_no, lock->index,
 				lock->trx, FALSE);
 		}
@@ -2506,7 +2507,8 @@ lock_rec_inherit_to_gap_if_gap_lock(
 			|| !lock_rec_get_rec_not_gap(lock))) {
 
 			lock_rec_add_to_queue(
-				LOCK_REC | LOCK_GAP | lock_get_mode(lock),
+				LOCK_REC | LOCK_GAP
+				| ulint(lock_get_mode(lock)),
 				block, heir_heap_no, lock->index,
 				lock->trx, FALSE);
 		}
@@ -3770,7 +3772,7 @@ lock_table_enqueue_waiting(
 #endif /* WITH_WSREP */
 
 	/* Enqueue the lock request that will wait to be granted */
-	lock = lock_table_create(table, mode | LOCK_WAIT, trx
+	lock = lock_table_create(table, ulint(mode) | LOCK_WAIT, trx
 #ifdef WITH_WSREP
 				 , c_lock
 #endif
@@ -3881,7 +3883,7 @@ lock_table(
 	locking overhead */
 	if ((flags & BTR_NO_LOCKING_FLAG)
 	    || srv_read_only_mode
-	    || dict_table_is_temporary(table)) {
+	    || table->is_temporary()) {
 
 		return(DB_SUCCESS);
 	}
@@ -3929,13 +3931,14 @@ lock_table(
 	mode: this trx may have to wait */
 
 	if (wait_for != NULL) {
-		err = lock_table_enqueue_waiting(mode | flags, table, thr
+		err = lock_table_enqueue_waiting(ulint(mode) | flags, table,
+						 thr
 #ifdef WITH_WSREP
 						 , wait_for
 #endif
 						 );
 	} else {
-		lock_table_create(table, mode | flags, trx);
+		lock_table_create(table, ulint(mode) | flags, trx);
 
 		ut_a(!flags || mode == LOCK_S || mode == LOCK_X);
 
@@ -4617,44 +4620,15 @@ lock_print_info_summary(
 
 	fprintf(file,
 		"Purge done for trx's n:o < " TRX_ID_FMT
-		" undo n:o < " TRX_ID_FMT " state: ",
+		" undo n:o < " TRX_ID_FMT " state: %s\n"
+		"History list length " ULINTPF "\n",
 		purge_sys.tail.trx_no(),
-		purge_sys.tail.undo_no);
-
-	/* Note: We are reading the state without the latch. One because it
-	will violate the latching order and two because we are merely querying
-	the state of the variable for display. */
-
-	switch (purge_sys.state){
-	case PURGE_STATE_INIT:
-		/* Should never be in this state while the system is running. */
-		ut_error;
-
-	case PURGE_STATE_EXIT:
-		fprintf(file, "exited");
-		break;
-
-	case PURGE_STATE_DISABLED:
-		fprintf(file, "disabled");
-		break;
-
-	case PURGE_STATE_RUN:
-		fprintf(file, "running");
-		/* Check if it is waiting for more data to arrive. */
-		if (!purge_sys.running) {
-			fprintf(file, " but idle");
-		}
-		break;
-
-	case PURGE_STATE_STOP:
-		fprintf(file, "stopped");
-		break;
-	}
-
-	fprintf(file, "\n");
-
-	fprintf(file,
-		"History list length " ULINTPF "\n", trx_sys.history_size());
+		purge_sys.tail.undo_no,
+		purge_sys.enabled()
+		? (purge_sys.running() ? "running"
+		   : purge_sys.paused() ? "stopped" : "running but idle")
+		: "disabled",
+		trx_sys.history_size());
 
 #ifdef PRINT_NUM_OF_LOCK_STRUCTS
 	fprintf(file,
@@ -5235,13 +5209,12 @@ lock_rec_block_validate(
 
 		mtr_commit(&mtr);
 
-		fil_space_release(space);
+		space->release();
 	}
 }
 
 
-static my_bool lock_validate_table_locks(rw_trx_hash_element_t *element,
-                                         void *arg)
+static my_bool lock_validate_table_locks(rw_trx_hash_element_t *element, void*)
 {
   ut_ad(lock_mutex_own());
   mutex_enter(&element->mutex);
@@ -5347,7 +5320,7 @@ lock_rec_insert_check_and_lock(
 		return(DB_SUCCESS);
 	}
 
-	ut_ad(!dict_table_is_temporary(index->table));
+	ut_ad(!index->table->is_temporary());
 
 	dberr_t		err;
 	lock_t*		lock;
@@ -5478,7 +5451,6 @@ lock_rec_convert_impl_to_expl_for_trx(
 	const buf_block_t*	block,	/*!< in: buffer block of rec */
 	const rec_t*		rec,	/*!< in: user record on page */
 	dict_index_t*		index,	/*!< in: index of record */
-	const ulint*		offsets,/*!< in: rec_get_offsets(rec, index) */
 	trx_t*			trx,	/*!< in/out: active transaction */
 	ulint			heap_no)/*!< in: rec heap number to lock */
 {
@@ -5623,7 +5595,7 @@ lock_rec_convert_impl_to_expl(
 		trx cannot be committed until the ref count is zero. */
 
 		lock_rec_convert_impl_to_expl_for_trx(
-			block, rec, index, offsets, trx, heap_no);
+			block, rec, index, trx, heap_no);
 	}
 }
 
@@ -5660,7 +5632,7 @@ lock_clust_rec_modify_check_and_lock(
 		return(DB_SUCCESS);
 	}
 	ut_ad(!rec_is_default_row(rec, index));
-	ut_ad(!dict_table_is_temporary(index->table));
+	ut_ad(!index->table->is_temporary());
 
 	heap_no = rec_offs_comp(offsets)
 		? rec_get_heap_no_new(rec)
@@ -5718,7 +5690,7 @@ lock_sec_rec_modify_check_and_lock(
 
 		return(DB_SUCCESS);
 	}
-	ut_ad(!dict_table_is_temporary(index->table));
+	ut_ad(!index->table->is_temporary());
 
 	heap_no = page_rec_get_heap_no(rec);
 
@@ -5801,7 +5773,7 @@ lock_sec_rec_read_check_and_lock(
 
 	if ((flags & BTR_NO_LOCKING_FLAG)
 	    || srv_read_only_mode
-	    || dict_table_is_temporary(index->table)) {
+	    || index->table->is_temporary()) {
 
 		return(DB_SUCCESS);
 	}
@@ -5820,7 +5792,7 @@ lock_sec_rec_read_check_and_lock(
 					      index, offsets);
 	}
 
-	err = lock_rec_lock(FALSE, mode | gap_mode,
+	err = lock_rec_lock(FALSE, ulint(mode) | gap_mode,
 			    block, heap_no, index, thr);
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
@@ -5871,7 +5843,7 @@ lock_clust_rec_read_check_and_lock(
 
 	if ((flags & BTR_NO_LOCKING_FLAG)
 	    || srv_read_only_mode
-	    || dict_table_is_temporary(index->table)) {
+	    || index->table->is_temporary()) {
 
 		return(DB_SUCCESS);
 	}
@@ -5884,7 +5856,8 @@ lock_clust_rec_read_check_and_lock(
 					      index, offsets);
 	}
 
-	err = lock_rec_lock(FALSE, mode | gap_mode, block, heap_no, index, thr);
+	err = lock_rec_lock(FALSE, ulint(mode) | gap_mode,
+			    block, heap_no, index, thr);
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
 
@@ -6602,10 +6575,10 @@ lock_trx_has_rec_x_lock(
 
 	lock_mutex_enter();
 	ut_a(lock_table_has(trx, table, LOCK_IX)
-	     || dict_table_is_temporary(table));
+	     || table->is_temporary());
 	ut_a(lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP,
 			       block, heap_no, trx)
-	     || dict_table_is_temporary(table));
+	     || table->is_temporary());
 	lock_mutex_exit();
 	return(true);
 }

@@ -101,12 +101,10 @@ dict_create_sys_tables_tuple(
 
 	/* If there is any virtual column, encode it in N_COLS */
 	mach_write_to_4(ptr, dict_table_encode_n_col(
-				static_cast<ulint>(table->n_cols
-						   - DATA_N_SYS_COLS),
-				static_cast<ulint>(table->n_v_def))
-			| ((table->flags & DICT_TF_COMPACT) << 31));
+				ulint(table->n_cols - DATA_N_SYS_COLS),
+				ulint(table->n_v_def))
+			| (ulint(table->flags & DICT_TF_COMPACT) << 31));
 	dfield_set_data(dfield, ptr, 4);
-
 
 	/* 5: TYPE (table flags) -----------------------------*/
 	dfield = dtuple_get_nth_field(
@@ -194,7 +192,7 @@ dict_create_sys_columns_tuple(
 		v_col_no = column->ind;
 	} else {
 		column = dict_table_get_nth_col(table, i);
-		ut_ad(!dict_col_is_virtual(column));
+		ut_ad(!column->is_virtual());
 	}
 
 	sys_columns = dict_sys->sys_columns;
@@ -833,7 +831,7 @@ dict_create_index_tree_step(
 
 	dberr_t		err = DB_SUCCESS;
 
-	if (!index->is_readable() || dict_table_is_discarded(index->table)) {
+	if (!index->is_readable()) {
 		node->page_no = FIL_NULL;
 	} else {
 		index->set_modified(mtr);
@@ -875,11 +873,7 @@ dict_create_index_tree_in_mem(
 	mtr_t		mtr;
 
 	ut_ad(mutex_own(&dict_sys->mutex));
-
-	if (index->type == DICT_FTS) {
-		/* FTS index does not need an index tree */
-		return(DB_SUCCESS);
-	}
+	ut_ad(!(index->type & DICT_FTS));
 
 	mtr_start(&mtr);
 	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
@@ -887,7 +881,7 @@ dict_create_index_tree_in_mem(
 	/* Currently this function is being used by temp-tables only.
 	Import/Discard of temp-table is blocked and so this assert. */
 	ut_ad(index->is_readable());
-	ut_ad(!dict_table_is_discarded(index->table));
+	ut_ad(!(index->table->flags2 & DICT_TF2_DISCARDED));
 
 	index->page = btr_create(index->type, index->table->space,
 				 index->id, index, NULL, &mtr);
@@ -1350,9 +1344,10 @@ dict_create_index_step(
 		      == ((dict_index_is_clust(node->index)
 			   && node->table->supports_instant())
 			  ? dict_index_t::NO_CORE_NULL_BYTES
-			  : UT_BITS_IN_BYTES(node->index->n_nullable)));
+			  : UT_BITS_IN_BYTES(
+				  unsigned(node->index->n_nullable))));
 		node->index->n_core_null_bytes = UT_BITS_IN_BYTES(
-			node->index->n_nullable);
+			unsigned(node->index->n_nullable));
 		node->state = INDEX_CREATE_INDEX_TREE;
 	}
 
@@ -1931,7 +1926,8 @@ dict_create_add_foreign_to_dictionary(
 				  foreign->referenced_table_name);
 
 	pars_info_add_int4_literal(info, "n_cols",
-				   foreign->n_fields + (foreign->type << 24));
+				   ulint(foreign->n_fields)
+				   | (ulint(foreign->type) << 24));
 
 	DBUG_PRINT("dict_create_add_foreign_to_dictionary",
 		   ("'%s', '%s', '%s', %d", foreign->id, name,

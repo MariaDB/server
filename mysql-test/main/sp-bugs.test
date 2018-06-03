@@ -321,3 +321,53 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-16117 SP with a single FOR statement creates but further fails to load
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+  FOR i IN 1..10 DO
+      set @x = 5;
+  END FOR;
+$$
+DELIMITER ;$$
+CALL p1;
+SELECT body FROM mysql.proc WHERE db='test' AND specific_name='p1';
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1() WITH t1 AS (SELECT 1) SELECT 1;
+$$
+DELIMITER ;$$
+CALL p1;
+SELECT body FROM mysql.proc WHERE db='test' AND specific_name='p1';
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1() VALUES (1);
+$$
+DELIMITER ;$$
+CALL p1;
+SELECT body FROM mysql.proc WHERE db='test' AND specific_name='p1';
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+  FOR i IN 1..10 DO
+    RETURN 1;
+  END FOR;
+$$
+DELIMITER ;$$
+SELECT f1();
+SELECT body FROM mysql.proc WHERE db='test' AND specific_name='f1';
+DROP FUNCTION f1;

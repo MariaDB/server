@@ -67,6 +67,7 @@ typedef struct my_aio_result {
 #define MY_WAIT_IF_FULL 32U	/* Wait and try again if disk full error */
 #define MY_IGNORE_BADFD 32U     /* my_sync(): ignore 'bad descriptor' errors */
 #define MY_ENCRYPT      64U     /* Encrypt IO_CACHE temporary files */
+#define MY_TEMPORARY    64U     /* create_temp_file(): delete file at once */
 #define MY_NOSYMLINKS  512U     /* my_open(): don't follow symlinks */
 #define MY_FULL_IO     512U     /* my_read(): loop until I/O is complete */
 #define MY_DONT_CHECK_FILESIZE 128U /* Option to init_io_cache() */
@@ -573,21 +574,21 @@ static inline my_bool my_b_write_byte(IO_CACHE *info, uchar chr)
 static inline size_t my_b_fill(IO_CACHE *info)
 {
   info->read_pos= info->read_end;
-  return _my_b_read(info,0,0) ? 0 : info->read_end - info->read_pos;
+  return _my_b_read(info,0,0) ? 0 : (size_t) (info->read_end - info->read_pos);
 }
 
 static inline my_off_t my_b_tell(const IO_CACHE *info)
 {
   if (info->type == WRITE_CACHE) {
-    return info->pos_in_file + (info->write_pos - info->request_pos);
+    return info->pos_in_file + (my_off_t)(info->write_pos - info->request_pos);
 
   }
-  return info->pos_in_file + (info->read_pos - info->request_pos);
+  return info->pos_in_file + (my_off_t) (info->read_pos - info->request_pos);
 }
 
 static inline my_off_t my_b_write_tell(const IO_CACHE *info)
 {
-  return info->pos_in_file + (info->write_pos - info->write_buffer);
+  return info->pos_in_file + (my_off_t) (info->write_pos - info->write_buffer);
 }
 
 static inline uchar* my_b_get_buffer_start(const IO_CACHE *info)
@@ -597,7 +598,7 @@ static inline uchar* my_b_get_buffer_start(const IO_CACHE *info)
 
 static inline size_t my_b_get_bytes_in_buffer(const IO_CACHE *info)
 {
-  return info->read_end - info->request_pos;
+  return (size_t) (info->read_end - info->request_pos);
 }
 
 static inline my_off_t my_b_get_pos_in_file(const IO_CACHE *info)
@@ -608,9 +609,9 @@ static inline my_off_t my_b_get_pos_in_file(const IO_CACHE *info)
 static inline size_t my_b_bytes_in_cache(const IO_CACHE *info)
 {
   if (info->type == WRITE_CACHE) {
-    return info->write_end - info->write_pos;
+    return (size_t) (info->write_end - info->write_pos);
   }
-  return info->read_end - info->read_pos;
+  return (size_t) (info->read_end - info->read_pos);
 }
 
 int      my_b_copy_to_file(IO_CACHE *cache, FILE *file);
@@ -732,12 +733,6 @@ void my_create_backup_name(char *to, const char *from,
                            time_t backup_time_stamp);
 extern int my_copystat(const char *from, const char *to, int MyFlags);
 extern char * my_filename(File fd);
-
-#ifdef EXTRA_DEBUG
-void my_print_open_files(void);
-#else
-#define my_print_open_files()
-#endif
 
 extern my_bool init_tmpdir(MY_TMPDIR *tmpdir, const char *pathlist);
 extern char *my_tmpdir(MY_TMPDIR *tmpdir);

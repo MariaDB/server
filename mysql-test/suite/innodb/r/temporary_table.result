@@ -638,3 +638,23 @@ t1	CREATE TEMPORARY TABLE `t1` (
   `j` int(11) DEFAULT NULL,
   PRIMARY KEY (`i`) KEY_BLOCK_SIZE=8
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+DROP TABLE t1;
+CREATE TEMPORARY TABLE t1(f1 INT, KEY(f1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(NULL);
+UPDATE t1 SET f1 = 0;
+START TRANSACTION;
+UPDATE t1 SET f1 = 4;
+UPDATE t1 SET f1 = 0;
+ROLLBACK;
+SELECT * FROM t1;
+f1
+0
+DROP TABLE t1;
+#
+# MDEV-15874 CREATE TABLE creates extra transaction
+#
+call mtr.add_suppression("Warning 150 Create  table `mysqld.1`.`t1` with foreign key constraint failed. Temporary tables can't have foreign key constraints.*");
+SET FOREIGN_KEY_CHECKS = 0;
+CREATE TEMPORARY TABLE t1(f1 INT NOT NULL,
+FOREIGN KEY(f1) REFERENCES t0(f1))ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")

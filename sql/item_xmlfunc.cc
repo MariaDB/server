@@ -2646,6 +2646,10 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
     sp_variable *spv;
     const Sp_rcontext_handler *rh;
     LEX *lex;
+    /*
+      We call lex->find_variable() rather than thd->lex->spcont->find_variable()
+      to make sure package body variables are properly supported.
+    */
     if ((lex= thd->lex) &&
         (spv= lex->find_variable(&name, &rh)))
     {

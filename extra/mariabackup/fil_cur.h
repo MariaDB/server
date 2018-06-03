@@ -28,6 +28,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include <my_dir.h>
 #include "read_filt.h"
 #include "srv0start.h"
+#include "srv0srv.h"
 
 struct xb_fil_cur_t {
 	pfs_os_file_t	file;		/*!< source file handle */

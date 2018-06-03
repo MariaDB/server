@@ -1,0 +1,9 @@
+[mariadb]
+# See https://mariadb.com/kb/en/tokudb-differences/ for differences
+# between TokuDB in MariaDB and TokuDB from http://www.tokutek.com/
+
+plugin-load-add=ha_tokudb.so
+
+[mysqld_safe]
+# it might be necessary to uncomment the following line if jemalloc >= 5.0.0
+@cnf_malloc_lib@

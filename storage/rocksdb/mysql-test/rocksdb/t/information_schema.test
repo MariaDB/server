@@ -19,8 +19,8 @@ drop table t1;
 
 --let $max_index_id = query_get_value(SELECT * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type = 'MAX_INDEX_ID', VALUE, 1)
 --replace_result $max_index_id max_index_id
-select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
-select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
+select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type<>'DDL_DROP_INDEX_ONGOING';
+select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type<>'DDL_DROP_INDEX_ONGOING';
 SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=0;
 
 select VALUE into @keysIn from INFORMATION_SCHEMA.ROCKSDB_COMPACTION_STATS where CF_NAME = 'default' and LEVEL = 'Sum' and TYPE = 'KeyIn';

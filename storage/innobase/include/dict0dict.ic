@@ -311,7 +311,7 @@ dict_index_is_spatial(
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
-	return(index->type & DICT_SPATIAL);
+	return ulint(UNIV_EXPECT(index->type & DICT_SPATIAL, 0));
 }
 
 /** Check whether the index contains a virtual column
@@ -372,7 +372,7 @@ dict_table_get_n_user_cols(
 	/* n_cols counts stored columns only. A table may contain
 	virtual columns and no user-specified stored columns at all. */
 	ut_ad(table->n_cols >= DATA_N_SYS_COLS);
-	return(table->n_cols - DATA_N_SYS_COLS);
+	return unsigned(table->n_cols) - DATA_N_SYS_COLS;
 }
 
 /********************************************************************//**
@@ -519,13 +519,8 @@ dict_table_get_sys_col(
 	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
 {
 	dict_col_t*	col;
-
-	ut_ad(table);
-	ut_ad(sys < DATA_N_SYS_COLS);
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
-	col = dict_table_get_nth_col(table, table->n_cols - DATA_N_SYS_COLS
-				     + sys);
+	col = dict_table_get_nth_col(table,
+				     dict_table_get_sys_col_no(table, sys));
 	ut_ad(col->mtype == DATA_SYS);
 	ut_ad(col->prtype == (sys | DATA_NOT_NULL));
 
@@ -547,7 +542,7 @@ dict_table_get_sys_col_no(
 	ut_ad(sys < DATA_N_SYS_COLS);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
-	return(table->n_cols - DATA_N_SYS_COLS + sys);
+	return unsigned(table->n_cols) + (sys - DATA_N_SYS_COLS);
 }
 
 /********************************************************************//**
@@ -560,11 +555,6 @@ dict_table_is_comp(
 	const dict_table_t*	table)	/*!< in: table */
 {
 	ut_ad(table);
-
-#if DICT_TF_COMPACT != 1
-#error "DICT_TF_COMPACT must be 1"
-#endif
-
 	return (table->flags & DICT_TF_COMPACT) != 0;
 }
 
@@ -600,8 +590,8 @@ dict_tf_is_valid_not_redundant(ulint flags)
 		for the uncompressed page format */
 		return(false);
 	} else if (zip_ssize > PAGE_ZIP_SSIZE_MAX
-		   || zip_ssize > UNIV_PAGE_SIZE_SHIFT
-		   || UNIV_PAGE_SIZE_SHIFT > UNIV_ZIP_SIZE_SHIFT_MAX) {
+		   || zip_ssize > srv_page_size_shift
+		   || srv_page_size_shift > UNIV_ZIP_SIZE_SHIFT_MAX) {
 		/* KEY_BLOCK_SIZE is out of bounds, or
 		ROW_FORMAT=COMPRESSED is not supported with this
 		innodb_page_size (only up to 16KiB) */
@@ -703,8 +693,7 @@ dict_tf_get_rec_format(
 @param[in]	zip_ssize	Zip Shift Size
 @param[in]	use_data_dir	Table uses DATA DIRECTORY
 @param[in]	page_compressed Table uses page compression
-@param[in]	page_compression_level Page compression level
-@param[in]	not_used        For future */
+@param[in]	page_compression_level Page compression level */
 UNIV_INLINE
 void
 dict_tf_set(
@@ -714,8 +703,7 @@ dict_tf_set(
 	ulint		zip_ssize,
 	bool		use_data_dir,
 	bool		page_compressed,
-	ulint		page_compression_level,
-	ulint		not_used)
+	ulint		page_compression_level)
 {
 	switch (format) {
 	case REC_FORMAT_REDUNDANT:
@@ -857,7 +845,7 @@ dict_tf_get_page_size(
 
 	ut_ad(zip_size <= UNIV_ZIP_SIZE_MAX);
 
-	return(page_size_t(zip_size, univ_page_size.logical(), true));
+	return(page_size_t(zip_size, srv_page_size, true));
 }
 
 /*********************************************************************//**
@@ -1187,7 +1175,7 @@ ulint
 dict_index_get_space_reserve(void)
 /*==============================*/
 {
-	return(UNIV_PAGE_SIZE / 16);
+	return(srv_page_size / 16);
 }
 
 /********************************************************************//**
@@ -1402,33 +1390,6 @@ dict_table_is_corrupted(
 	return(table->corrupted);
 }
 
-/********************************************************************//**
-Check whether the index is corrupted.
-@return nonzero for corrupted index, zero for valid indexes */
-UNIV_INLINE
-ulint
-dict_index_is_corrupted(
-/*====================*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return((index->type & DICT_CORRUPT)
-	        || (index->table && index->table->corrupted));
-}
-
-/********************************************************************//**
-Check if the tablespace for the table has been discarded.
-@return true if the tablespace has been discarded. */
-UNIV_INLINE
-bool
-dict_table_is_discarded(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table to check */
-{
-	return(DICT_TF2_FLAG_IS_SET(table, DICT_TF2_DISCARDED));
-}
-
 /** Check if the table is found is a file_per_table tablespace.
 This test does not use table flags2 since some REDUNDANT tables in the
 system tablespace may have garbage in the MIX_LEN field where flags2 is
@@ -1450,16 +1411,8 @@ bool
 dict_table_is_file_per_table(
 	const dict_table_t*	table)	/*!< in: table to check */
 {
-	bool is_file_per_table = table->space != fil_system.sys_space
+	return table->space != fil_system.sys_space
 		&& table->space != fil_system.temp_space;
-
-	/* If the table is file-per-table and it is not redundant, then
-	it should have the flags2 bit for DICT_TF2_USE_FILE_PER_TABLE. */
-	ut_ad(!is_file_per_table
-	      || !DICT_TF_GET_COMPACT(table->flags)
-	      || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_USE_FILE_PER_TABLE));
-
-	return(is_file_per_table);
 }
 
 /** Get reference count.

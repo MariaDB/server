@@ -189,15 +189,6 @@
 #define __builtin_expect(x, expected_value) (x)
 #endif
 
-/**
-  The semantics of builtin_expect() are that
-  1) its two arguments are long
-  2) it's likely that they are ==
-  Those of our likely(x) are that x can be bool/int/longlong/pointer.
-*/
-#define likely(x)	__builtin_expect(((x) != 0),1)
-#define unlikely(x)	__builtin_expect(((x) != 0),0)
-
 /* Fix problem with S_ISLNK() on Linux */
 #if defined(TARGET_OS_LINUX) || defined(__GLIBC__)
 #undef  _GNU_SOURCE
@@ -383,6 +374,36 @@ C_MODE_END
 #if defined(HAVE_CRYPT_H)
 #include <crypt.h>
 #endif
+
+/* Add checking if we are using likely/unlikely wrong */
+#ifdef CHECK_UNLIKELY
+C_MODE_START
+extern void init_my_likely(), end_my_likely(FILE *);
+extern int my_likely_ok(const char *file_name, uint line);
+extern int my_likely_fail(const char *file_name, uint line);
+C_MODE_END
+
+#define likely(A) ((A) ? (my_likely_ok(__FILE__, __LINE__),1) : (my_likely_fail(__FILE__, __LINE__), 0))
+#define unlikely(A) ((A) ? (my_likely_fail(__FILE__, __LINE__),1) : (my_likely_ok(__FILE__, __LINE__), 0))
+/*
+  These macros should be used when the check fails often when running benchmarks but
+  we know for sure that the check is correct in a production environment
+*/
+#define checked_likely(A) (A)
+#define checked_unlikely(A) (A)
+#else
+/**
+  The semantics of builtin_expect() are that
+  1) its two arguments are long
+  2) it's likely that they are ==
+  Those of our likely(x) are that x can be bool/int/longlong/pointer.
+*/
+
+#define likely(x)	__builtin_expect(((x) != 0),1)
+#define unlikely(x)	__builtin_expect(((x) != 0),0)
+#define checked_likely(x) likely(x)
+#define checked_unlikely(x) unlikely(x)
+#endif /* CHECK_UNLIKELY */
 
 /*
   A lot of our programs uses asserts, so better to always include it
@@ -579,8 +600,8 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #endif
 #endif /* O_SHARE */
 
-#ifndef O_TEMPORARY
-#define O_TEMPORARY	0
+#ifndef O_SEQUENTIAL
+#define O_SEQUENTIAL	0
 #endif
 #ifndef O_SHORT_LIVED
 #define O_SHORT_LIVED	0
@@ -710,7 +731,7 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #define closesocket(A)	close(A)
 #endif
 
-#if (_MSC_VER)
+#if defined(_MSC_VER)
 #if !defined(_WIN64)
 inline double my_ulonglong2double(unsigned long long value)
 {
@@ -807,37 +828,6 @@ inline unsigned long long my_double2ulonglong(double d)
 #define SIZE_T_MAX      (~((size_t) 0))
 #endif
 
-#ifndef HAVE_FINITE
-#define finite(x) (1.0 / fabs(x) > 0.0)
-#endif
-
-#ifndef isfinite
-#define isfinite(x) finite(x)
-#endif
-
-#ifndef HAVE_ISNAN
-#define isnan(x) ((x) != (x))
-#endif
-#define my_isnan(x) isnan(x)
-
-#ifndef HAVE_ISINF
-#define isinf(X) (!isfinite(X) && !isnan(X))
-#endif
-#define my_isinf(X) isinf(X)
-
-#ifdef __cplusplus
-#include <cmath>
-#ifndef isfinite
-#define isfinite(X) std::isfinite(X)
-#endif
-#ifndef isnan
-#define isnan(X) std::isnan(X)
-#endif
-#ifndef isinf
-#define isinf(X) std::isinf(X)
-#endif
-#endif
-
 /* Define missing math constants. */
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -847,17 +837,6 @@ inline unsigned long long my_double2ulonglong(double d)
 #endif
 #ifndef M_LN2
 #define M_LN2 0.69314718055994530942
-#endif
-
-#ifndef HAVE_LOG2
-/*
-  This will be slightly slower and perhaps a tiny bit less accurate than
-  doing it the IEEE754 way but log2() should be available on C99 systems.
-*/
-static inline double log2(double x)
-{
-  return (log(x) / M_LN2);
-}
 #endif
 
 /*
@@ -1166,7 +1145,7 @@ typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 
 /* Provide __func__ macro definition for platforms that miss it. */
 #if !defined (__func__)
-#if __STDC_VERSION__ < 199901L
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ < 199901L
 #  if __GNUC__ >= 2
 #    define __func__ __FUNCTION__
 #  else
@@ -1184,41 +1163,6 @@ typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 #  define __func__ "<unknown>"
 #endif
 #endif /* !defined(__func__) */
-
-#ifndef HAVE_RINT
-/**
-   All integers up to this number can be represented exactly as double precision
-   values (DBL_MANT_DIG == 53 for IEEE 754 hardware).
-*/
-#define MAX_EXACT_INTEGER ((1LL << DBL_MANT_DIG) - 1)
-
-/**
-   rint(3) implementation for platforms that do not have it.
-   Always rounds to the nearest integer with ties being rounded to the nearest
-   even integer to mimic glibc's rint() behavior in the "round-to-nearest"
-   FPU mode. Hardware-specific optimizations are possible (frndint on x86).
-   Unlike this implementation, hardware will also honor the FPU rounding mode.
-*/
-
-static inline double rint(double x)
-{
-  double f, i;
-  f = modf(x, &i);
-  /*
-    All doubles with absolute values > MAX_EXACT_INTEGER are even anyway,
-    no need to check it.
-  */
-  if (x > 0.0)
-    i += (double) ((f > 0.5) || (f == 0.5 &&
-                                 i <= (double) MAX_EXACT_INTEGER &&
-                                 (longlong) i % 2));
-  else
-    i -= (double) ((f < -0.5) || (f == -0.5 &&
-                                  i >= (double) -MAX_EXACT_INTEGER &&
-                                  (longlong) i % 2));
-  return i;
-}
-#endif /* HAVE_RINT */
 
 /* 
   MYSQL_PLUGIN_IMPORT macro is used to export mysqld data
@@ -1258,7 +1202,7 @@ static inline double rint(double x)
   CMake using getconf
 */
 #if !defined(CPU_LEVEL1_DCACHE_LINESIZE) || CPU_LEVEL1_DCACHE_LINESIZE == 0
-  #if CPU_LEVEL1_DCACHE_LINESIZE == 0
+  #if defined(CPU_LEVEL1_DCACHE_LINESIZE) && CPU_LEVEL1_DCACHE_LINESIZE == 0
     #undef CPU_LEVEL1_DCACHE_LINESIZE
   #endif
 
@@ -1279,5 +1223,4 @@ static inline double rint(double x)
 #else
 #define NOT_FIXED_DEC           FLOATING_POINT_DECIMALS
 #endif
-
 #endif /* my_global_h */

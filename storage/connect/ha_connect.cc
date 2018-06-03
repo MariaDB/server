@@ -108,13 +108,8 @@
 #define MYSQL_SERVER 1
 #define DONT_DEFINE_VOID
 #include <my_global.h>
-#include "sql_class.h"
-#include "create_options.h"
-#include "mysql_com.h"
-#include "field.h"
 #include "sql_parse.h"
 #include "sql_base.h"
-#include <sys/stat.h>
 #include "sql_partition.h"
 #undef  OFFSET
 
@@ -237,8 +232,6 @@ char   *GetJavaWrapper(void);
 uint    GetWorkSize(void);
 void    SetWorkSize(uint);
 extern "C" const char *msglang(void);
-
-static char *strz(PGLOBAL g, LEX_STRING &ls);
 
 static void PopUser(PCONNECT xp);
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
@@ -5571,7 +5564,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				} // endif p
 
 			} else if (ttp != TAB_ODBC || !(fnc & (FNC_TABLE | FNC_COL)))
-				tab = (char *) table_s->table_name.str; // Default value
+			  tab = (char*)table_s->table_name.str;   // Default value
 
 		} // endif tab
 
@@ -6882,12 +6875,12 @@ bool ha_connect::NoFieldOptionChange(TABLE *tab)
     @retval   HA_ALTER_ERROR                  Unexpected error.
     @retval   HA_ALTER_INPLACE_NOT_SUPPORTED  Not supported, must use copy.
     @retval   HA_ALTER_INPLACE_EXCLUSIVE_LOCK Supported, but requires X lock.
-    @retval   HA_ALTER_INPLACE_SHARED_LOCK_AFTER_PREPARE
+    @retval   HA_ALTER_INPLACE_COPY_LOCK
                                               Supported, but requires SNW lock
                                               during main phase. Prepare phase
                                               requires X lock.
     @retval   HA_ALTER_INPLACE_SHARED_LOCK    Supported, but requires SNW lock.
-    @retval   HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE
+    @retval   HA_ALTER_INPLACE_COPY_NO_LOCK
                                               Supported, concurrent reads/writes
                                               allowed. However, prepare phase
                                               requires X lock.

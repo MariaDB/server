@@ -68,10 +68,6 @@ the OS actually supports it: Win 95 does not, NT does. */
 /** File handle */
 typedef HANDLE os_file_t;
 
-/** Convert a C file descriptor to a native file handle
-@param fd file descriptor
-@return native file handle */
-# define OS_FILE_FROM_FD(fd) (HANDLE) _get_osfhandle(fd)
 
 #else /* _WIN32 */
 
@@ -80,14 +76,9 @@ typedef DIR*	os_file_dir_t;	/*!< directory stream */
 /** File handle */
 typedef int	os_file_t;
 
-/** Convert a C file descriptor to a native file handle
-@param fd file descriptor
-@return native file handle */
-# define OS_FILE_FROM_FD(fd) fd
-
 #endif /* _WIN32 */
 
-static const os_file_t OS_FILE_CLOSED = os_file_t(~0);
+static const os_file_t OS_FILE_CLOSED = IF_WIN(os_file_t(INVALID_HANDLE_VALUE),-1);
 
 /** File descriptor with optional PERFORMANCE_SCHEMA instrumentation */
 struct pfs_os_file_t
@@ -843,17 +834,9 @@ The wrapper functions have the prefix of "innodb_". */
 	pfs_os_file_read_no_error_handling_func(			\
 		type, file, buf, offset, n, o, __FILE__, __LINE__)
 
-# define os_file_read_no_error_handling_int_fd(type, file, buf, offset, n) \
-	pfs_os_file_read_no_error_handling_int_fd_func(			\
-		type, file, buf, offset, n, __FILE__, __LINE__)
-
 # define os_file_write(type, name, file, buf, offset, n)	\
 	pfs_os_file_write_func(type, name, file, buf, offset,	\
 			       n, __FILE__, __LINE__)
-
-# define os_file_write_int_fd(type, name, file, buf, offset, n)		\
-	pfs_os_file_write_int_fd_func(type, name, file, buf, offset,	\
-		n, __FILE__, __LINE__)
 
 # define os_file_flush(file)					\
 	pfs_os_file_flush_func(file, __FILE__, __LINE__)
@@ -1564,7 +1547,7 @@ path. If the path is NULL then it will be created on --tmpdir location.
 This function is defined in ha_innodb.cc.
 @param[in]	path	location for creating temporary file
 @return temporary file descriptor, or < 0 on error */
-int
+os_file_t
 innobase_mysql_tmpfile(
 	const char*	path);
 

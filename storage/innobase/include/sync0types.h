@@ -108,16 +108,6 @@ V
 Transaction system header
 |
 V
-Transaction undo mutex			The undo log entry must be written
-|					before any index page is modified.
-|					Transaction undo mutex is for the undo
-|					logs the analogue of the tree latch
-|					for a B-tree. If a thread has the
-|					trx undo mutex reserved, it is allowed
-|					to latch the undo log pages in any
-|					order, and also after it has acquired
-|					the fsp latch.
-V
 Rollback segment mutex			The rollback segment mutex must be
 |					reserved, if, e.g., a new page must
 |					be added to an undo log. The rollback
@@ -256,7 +246,6 @@ enum latch_level_t {
 	SYNC_RSEG_HEADER_NEW,
 	SYNC_NOREDO_RSEG,
 	SYNC_REDO_RSEG,
-	SYNC_TRX_UNDO,
 	SYNC_PURGE_LATCH,
 	SYNC_TREE_NODE,
 	SYNC_TREE_NODE_FROM_HASH,
@@ -338,7 +327,6 @@ enum latch_id_t {
 	LATCH_ID_SRV_MISC_TMPFILE,
 	LATCH_ID_SRV_MONITOR_FILE,
 	LATCH_ID_BUF_DBLWR,
-	LATCH_ID_TRX_UNDO,
 	LATCH_ID_TRX_POOL,
 	LATCH_ID_TRX_POOL_MANAGER,
 	LATCH_ID_TRX,
@@ -1198,50 +1186,43 @@ static inline void my_atomic_storelint(ulint *A, ulint B)
 #endif
 }
 
-/** Simple counter aligned to CACHE_LINE_SIZE
-@tparam	Type	the integer type of the counter
-@tparam	atomic	whether to use atomic memory access */
-template <typename Type = ulint, bool atomic = false>
+/** Simple non-atomic counter aligned to CACHE_LINE_SIZE
+@tparam	Type	the integer type of the counter */
+template <typename Type>
 struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
 {
 	/** Increment the counter */
 	Type inc() { return add(1); }
 	/** Decrement the counter */
-	Type dec() { return sub(1); }
+	Type dec() { return add(Type(~0)); }
 
 	/** Add to the counter
 	@param[in]	i	amount to be added
 	@return	the value of the counter after adding */
-	Type add(Type i)
-	{
-		compile_time_assert(!atomic || sizeof(Type) == sizeof(lint));
-		if (atomic) {
-#ifdef _MSC_VER
-// Suppress type conversion/ possible loss of data warning
-#pragma warning (push)
-#pragma warning (disable : 4244)
-#endif
-			return Type(my_atomic_addlint(reinterpret_cast<ulint*>
-						      (&m_counter), i));
-#ifdef _MSC_VER
-#pragma warning (pop)
-#endif
-		} else {
-			return m_counter += i;
-		}
-	}
-	/** Subtract from the counter
-	@param[in]	i	amount to be subtracted
-	@return	the value of the counter after adding */
-	Type sub(Type i)
-	{
-		compile_time_assert(!atomic || sizeof(Type) == sizeof(lint));
-		if (atomic) {
-			return Type(my_atomic_addlint(&m_counter, -lint(i)));
-		} else {
-			return m_counter -= i;
-		}
-	}
+	Type add(Type i) { return m_counter += i; }
+
+	/** @return the value of the counter */
+	operator Type() const { return m_counter; }
+
+private:
+	/** The counter */
+	Type	m_counter;
+};
+
+/** Simple atomic counter aligned to CACHE_LINE_SIZE
+@tparam	Type	lint or ulint */
+template <typename Type = ulint>
+struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_atomic_counter
+{
+	/** Increment the counter */
+	Type inc() { return add(1); }
+	/** Decrement the counter */
+	Type dec() { return add(Type(~0)); }
+
+	/** Add to the counter
+	@param[in]	i	amount to be added
+	@return	the value of the counter before adding */
+	Type add(Type i) { return my_atomic_addlint(&m_counter, i); }
 
 	/** @return the value of the counter (non-atomic access)! */
 	operator Type() const { return m_counter; }

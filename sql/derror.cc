@@ -232,7 +232,8 @@ static File open_error_msg_file(const char *file_name, const char *language,
   ret->errors=      uint2korr(head+12);
   ret->sections=    uint2korr(head+14);
 
-  if (ret->max_error < error_messages || ret->sections != MAX_ERROR_RANGES)
+  if (unlikely(ret->max_error < error_messages ||
+               ret->sections != MAX_ERROR_RANGES))
   {
     sql_print_error("\
 Error message file '%s' had only %d error messages, but it should contain at least %d error messages.\nCheck that the above file is the right version for this program!",
@@ -276,8 +277,8 @@ bool read_texts(const char *file_name, const char *language,
   struct st_msg_file msg_file;
   DBUG_ENTER("read_texts");
 
-  if ((file= open_error_msg_file(file_name, language, error_messages,
-                                 &msg_file)) == FERR)
+  if (unlikely((file= open_error_msg_file(file_name, language, error_messages,
+                                          &msg_file)) == FERR))
     DBUG_RETURN(1);
 
   if (!(*data= (const char***)

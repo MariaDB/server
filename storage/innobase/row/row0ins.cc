@@ -359,7 +359,8 @@ row_ins_clust_index_entry_by_modify(
 		cursor->index, entry, rec, NULL, true,
 		thr_get_trx(thr), heap, mysql_table);
 	if (mode != BTR_MODIFY_TREE) {
-		ut_ad((mode & ~BTR_ALREADY_S_LATCHED) == BTR_MODIFY_LEAF);
+		ut_ad((mode & ulint(~BTR_ALREADY_S_LATCHED))
+		      == BTR_MODIFY_LEAF);
 
 		/* Try optimistic updating of the record, keeping changes
 		within the page */
@@ -640,7 +641,7 @@ row_ins_cascade_calc_update_vec(
 				    && dict_table_is_fts_column(
 					table->fts->indexes,
 					dict_col_get_no(col),
-					dict_col_is_virtual(col))
+					col->is_virtual())
 					!= ULINT_UNDEFINED) {
 					affects_fulltext = true;
 				}
@@ -914,8 +915,7 @@ row_ins_invalidate_query_cache(
 	const char*	name)		/*!< in: table name prefixed with
 					database name and a '/' character */
 {
-	ulint	len = strlen(name) + 1;
-	innobase_invalidate_query_cache(thr_get_trx(thr), name, len);
+	innobase_invalidate_query_cache(thr_get_trx(thr), name);
 }
 
 
@@ -1300,9 +1300,9 @@ row_ins_foreign_check_on_constraint(
 			if (!affects_fulltext
 			    && table->fts && dict_table_is_fts_column(
 				    table->fts->indexes,
-				    dict_index_get_nth_col_no(index, i),
-				    dict_col_is_virtual(
-					    dict_index_get_nth_col(index, i)))
+				    dict_index_get_nth_col(index, i)->ind,
+				    dict_index_get_nth_col(index, i)
+				    ->is_virtual())
 			    != ULINT_UNDEFINED) {
 				affects_fulltext = true;
 			}
@@ -1329,9 +1329,8 @@ row_ins_foreign_check_on_constraint(
 		for (ulint i = 0; i < foreign->n_fields; i++) {
 			if (dict_table_is_fts_column(
 				table->fts->indexes,
-				dict_index_get_nth_col_no(index, i),
-				dict_col_is_virtual(
-					dict_index_get_nth_col(index, i)))
+				dict_index_get_nth_col(index, i)->ind,
+				dict_index_get_nth_col(index, i)->is_virtual())
 			    != ULINT_UNDEFINED) {
 				affects_fulltext = true;
 				break;
@@ -2577,7 +2576,7 @@ row_ins_clust_index_entry_low(
 
 	mtr_start(&mtr);
 
-	if (dict_table_is_temporary(index->table)) {
+	if (index->table->is_temporary()) {
 		/* Disable REDO logging as the lifetime of temp-tables is
 		limited to server or connection lifetime and so REDO
 		information is not needed on restart for recovery.
@@ -2638,7 +2637,7 @@ row_ins_clust_index_entry_low(
 	}
 #endif /* UNIV_DEBUG */
 
-	if (UNIV_UNLIKELY(entry->info_bits)) {
+	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
 		ut_ad(entry->info_bits == REC_INFO_DEFAULT_ROW);
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 		ut_ad(index->is_instant());
@@ -2739,7 +2738,7 @@ do_insert:
 		rec_t*	insert_rec;
 
 		if (mode != BTR_MODIFY_TREE) {
-			ut_ad((mode & ~BTR_ALREADY_S_LATCHED)
+			ut_ad((mode & ulint(~BTR_ALREADY_S_LATCHED))
 			      == BTR_MODIFY_LEAF);
 			err = btr_cur_optimistic_insert(
 				flags, cursor, &offsets, &offsets_heap,
@@ -3132,7 +3131,7 @@ row_ins_sec_index_entry_low(
 
 		if (err == DB_SUCCESS && dict_index_is_spatial(index)
 		    && rtr_info.mbr_adj) {
-			err = rtr_ins_enlarge_mbr(&cursor, thr, &mtr);
+			err = rtr_ins_enlarge_mbr(&cursor, &mtr);
 		}
 	} else {
 		rec_t*		insert_rec;
@@ -3146,7 +3145,7 @@ row_ins_sec_index_entry_low(
 			if (err == DB_SUCCESS
 			    && dict_index_is_spatial(index)
 			    && rtr_info.mbr_adj) {
-				err = rtr_ins_enlarge_mbr(&cursor, thr, &mtr);
+				err = rtr_ins_enlarge_mbr(&cursor, &mtr);
 			}
 		} else {
 			ut_ad(mode == BTR_MODIFY_TREE);
@@ -3171,7 +3170,7 @@ row_ins_sec_index_entry_low(
 			if (err == DB_SUCCESS
 				   && dict_index_is_spatial(index)
 				   && rtr_info.mbr_adj) {
-				err = rtr_ins_enlarge_mbr(&cursor, thr, &mtr);
+				err = rtr_ins_enlarge_mbr(&cursor, &mtr);
 			}
 		}
 
@@ -3228,7 +3227,7 @@ row_ins_clust_index_entry(
 	n_uniq = dict_index_is_unique(index) ? index->n_uniq : 0;
 
 	ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
-		: dict_table_is_temporary(index->table)
+		: index->table->is_temporary()
 		? BTR_NO_LOCKING_FLAG : 0;
 	const ulint	orig_n_fields = entry->n_fields;
 
@@ -3314,7 +3313,7 @@ row_ins_sec_index_entry(
 	/* Try first optimistic descent to the B-tree */
 
 	log_free_check();
-	ulint flags = dict_table_is_temporary(index->table)
+	ulint flags = index->table->is_temporary()
 		? BTR_NO_LOCKING_FLAG
 		: 0;
 
@@ -3446,7 +3445,7 @@ row_ins_index_entry_set_vals(
 			col = ind_field->col;
 		}
 
-		if (dict_col_is_virtual(col)) {
+		if (col->is_virtual()) {
 			const dict_v_col_t*     v_col
 				= reinterpret_cast<const dict_v_col_t*>(col);
 			ut_ad(dtuple_get_n_fields(row)
@@ -3754,7 +3753,7 @@ row_ins(
 			}
 		}
 
-		if (node->duplicate && dict_table_is_temporary(node->table)) {
+		if (node->duplicate && node->table->is_temporary()) {
 			ut_ad(thr_get_trx(thr)->error_state
 			      == DB_DUPLICATE_KEY);
 			/* For TEMPORARY TABLE, we won't lock anything,
@@ -3774,8 +3773,7 @@ row_ins(
 			node->index = NULL; node->entry = NULL; break;);
 
 		/* Skip corrupted secondary index and its entry */
-		while (node->index && dict_index_is_corrupted(node->index)) {
-
+		while (node->index && node->index->is_corrupted()) {
 			node->index = dict_table_get_next_index(node->index);
 			node->entry = UT_LIST_GET_NEXT(tuple_list, node->entry);
 		}

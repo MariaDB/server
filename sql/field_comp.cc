@@ -21,11 +21,30 @@
 #include <zlib.h>
 
 
+/**
+  Compresses string using zlib
+
+  @param[out]    to         destination buffer for compressed data
+  @param[in]     from       data to compress
+  @param[in]     length     from length
+
+  Requirement is such that string stored at `to' must not exceed `from' length.
+  Otherwise 0 is returned and caller stores string uncompressed.
+
+  `to' must be large enough to hold `length' bytes.
+
+  length == 1 is an edge case that may break stream.avail_out calculation: at
+  least 2 bytes required to store metadata.
+*/
+
 static uint compress_zlib(THD *thd, char *to, const char *from, uint length)
 {
   uint level= thd->variables.column_compression_zlib_level;
 
-  if (level > 0)
+  /* Caller takes care of empty strings. */
+  DBUG_ASSERT(length);
+
+  if (level > 0 && length > 1)
   {
     z_stream stream;
     int wbits= thd->variables.column_compression_zlib_wrap ? MAX_WBITS :
@@ -40,6 +59,7 @@ static uint compress_zlib(THD *thd, char *to, const char *from, uint length)
     stream.avail_in= length;
     stream.next_in= (Bytef*) from;
 
+    DBUG_ASSERT(length >= static_cast<uint>(original_pack_length) + 1);
     stream.avail_out= length - original_pack_length - 1;
     stream.next_out= (Bytef*) to + original_pack_length + 1;
 

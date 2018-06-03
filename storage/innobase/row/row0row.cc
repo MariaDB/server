@@ -113,11 +113,10 @@ row_build_index_entry_low(
 			col_no = dict_col_get_no(col);
 			dfield = dtuple_get_nth_field(entry, i);
 		}
-#if DATA_MISSING != 0
-# error "DATA_MISSING != 0"
-#endif
 
-		if (dict_col_is_virtual(col)) {
+		compile_time_assert(DATA_MISSING == 0);
+
+		if (col->is_virtual()) {
 			const dict_v_col_t*	v_col
 				= reinterpret_cast<const dict_v_col_t*>(col);
 
@@ -357,7 +356,7 @@ addition of new virtual columns.
 				of an index, or NULL if
 				index->table should be
 				consulted instead
-@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	defaults	default values of added/changed columns, or NULL
 @param[in]	add_v		new virtual columns added
 				along with new indexes
 @param[in]	col_map		mapping of old column
@@ -375,7 +374,7 @@ row_build_low(
 	const rec_t*		rec,
 	const ulint*		offsets,
 	const dict_table_t*	col_table,
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 	const dict_add_v_col_t*	add_v,
 	const ulint*		col_map,
 	row_ext_t**		ext,
@@ -441,13 +440,13 @@ row_build_low(
 
 	if (!col_table) {
 		ut_ad(!col_map);
-		ut_ad(!add_cols);
+		ut_ad(!defaults);
 		col_table = index->table;
 	}
 
-	if (add_cols) {
+	if (defaults) {
 		ut_ad(col_map);
-		row = dtuple_copy(add_cols, heap);
+		row = dtuple_copy(defaults, heap);
 		/* dict_table_copy_types() would set the fields to NULL */
 		for (ulint i = 0; i < dict_table_get_n_cols(col_table); i++) {
 			dict_col_copy_type(
@@ -594,9 +593,9 @@ row_build(
 					of an index, or NULL if
 					index->table should be
 					consulted instead */
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 					/*!< in: default values of
-					added columns, or NULL */
+					added and changed columns, or NULL */
 	const ulint*		col_map,/*!< in: mapping of old column
 					numbers to new ones, or NULL */
 	row_ext_t**		ext,	/*!< out, own: cache of
@@ -606,7 +605,7 @@ row_build(
 					 the memory needed is allocated */
 {
 	return(row_build_low(type, index, rec, offsets, col_table,
-			     add_cols, NULL, col_map, ext, heap));
+			     defaults, NULL, col_map, ext, heap));
 }
 
 /** An inverse function to row_build_index_entry. Builds a row from a
@@ -622,7 +621,7 @@ addition of new virtual columns.
 				of an index, or NULL if
 				index->table should be
 				consulted instead
-@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	defaults	default values of added, changed columns, or NULL
 @param[in]	add_v		new virtual columns added
 				along with new indexes
 @param[in]	col_map		mapping of old column
@@ -639,14 +638,14 @@ row_build_w_add_vcol(
 	const rec_t*		rec,
 	const ulint*		offsets,
 	const dict_table_t*	col_table,
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 	const dict_add_v_col_t*	add_v,
 	const ulint*		col_map,
 	row_ext_t**		ext,
 	mem_heap_t*		heap)
 {
 	return(row_build_low(type, index, rec, offsets, col_table,
-			     add_cols, add_v, col_map, ext, heap));
+			     defaults, add_v, col_map, ext, heap));
 }
 
 /** Convert an index record to a data tuple.
@@ -910,9 +909,8 @@ row_build_row_ref_in_tuple(
 					held as long as the row
 					reference is used! */
 	const dict_index_t*	index,	/*!< in: secondary index */
-	ulint*			offsets,/*!< in: rec_get_offsets(rec, index)
+	ulint*			offsets)/*!< in: rec_get_offsets(rec, index)
 					or NULL */
-	trx_t*			trx)	/*!< in: transaction */
 {
 	const dict_index_t*	clust_index;
 	dfield_t*		dfield;
@@ -1014,7 +1012,7 @@ row_search_on_row_ref(
 
 	index = dict_table_get_first_index(table);
 
-	if (UNIV_UNLIKELY(ref->info_bits)) {
+	if (UNIV_UNLIKELY(ref->info_bits != 0)) {
 		ut_ad(ref->info_bits == REC_INFO_DEFAULT_ROW);
 		ut_ad(ref->n_fields <= index->n_uniq);
 		btr_pcur_open_at_index_side(true, index, mode, pcur, true, 0,
@@ -1186,7 +1184,7 @@ row_raw_format_int(
 		value = mach_read_int_type(
 			(const byte*) data, data_len, unsigned_type);
 
-		ret = snprintf(
+		ret = (ulint) snprintf(
 			buf, buf_size,
 			unsigned_type ? "%llu" : "%lld", (longlong) value)+1;
 	} else {

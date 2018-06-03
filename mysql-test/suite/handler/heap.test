@@ -18,7 +18,7 @@ CREATE TABLE t1(a INT, b INT, KEY(a), KEY b using btree (b), KEY ab using btree(
 INSERT INTO t1 VALUES (2, 20), (2,20), (1, 10), (4, 40), (3, 30), (5,50), (6,50);
 
 HANDLER t1 OPEN;
-HANDLER t1 READ a>=(2) limit 3;
+HANDLER t1 READ a=(2) limit 3;
 HANDLER t1 READ a PREV;
 HANDLER t1 READ a PREV;
 HANDLER t1 READ a PREV;
@@ -85,3 +85,21 @@ HANDLER t1 CLOSE;
 DROP TABLE t1;
 
 --echo End of 5.3 tests
+
+--echo #
+--echo # MDEV-15813 ASAN use-after-poison in hp_hashnr upon
+--echo #            HANDLER READ on a versioned HEAP table
+--echo #
+
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL, CONSTRAINT PRIMARY KEY (a, b), UNIQUE ba(b, a) USING HASH) ENGINE=HEAP;
+INSERT INTO t1 VALUES (1, 10), (2, 20), (3,30), (4,40);
+HANDLER t1 OPEN AS m;
+HANDLER m READ `PRIMARY`= (3,30);
+--error ER_KEY_DOESNT_SUPPORT
+HANDLER m READ `PRIMARY`> (3,30);
+HANDLER m READ `ba`= (30,3);
+--error ER_KEY_DOESNT_SUPPORT
+HANDLER m READ `ba`= (30);
+HANDLER m CLOSE;
+DROP TABLE t1;
+

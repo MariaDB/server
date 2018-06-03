@@ -47,14 +47,24 @@ public:
   */
   enum enum_alter_table_algorithm
   {
-    // In-place if supported, copy otherwise.
+/*
+  Use thd->variables.alter_algorithm for alter method. If this is also
+  default then use the fastest possible ALTER TABLE method
+  (INSTANT, NOCOPY, INPLACE, COPY)
+*/
     ALTER_TABLE_ALGORITHM_DEFAULT,
+
+    // Copy if supported, error otherwise.
+    ALTER_TABLE_ALGORITHM_COPY,
 
     // In-place if supported, error otherwise.
     ALTER_TABLE_ALGORITHM_INPLACE,
 
-    // Copy if supported, error otherwise.
-    ALTER_TABLE_ALGORITHM_COPY
+    // No Copy will refuse any operation which does rebuild.
+    ALTER_TABLE_ALGORITHM_NOCOPY,
+
+    // Instant should allow any operation that changes metadata only.
+    ALTER_TABLE_ALGORITHM_INSTANT
   };
 
 
@@ -67,7 +77,7 @@ public:
     // Maximum supported level of concurency for the given operation.
     ALTER_TABLE_LOCK_DEFAULT,
 
-    // Allow concurrent reads & writes. If not supported, give erorr.
+    // Allow concurrent reads & writes. If not supported, give error.
     ALTER_TABLE_LOCK_NONE,
 
     // Allow concurrent reads only. If not supported, give error.
@@ -173,6 +183,45 @@ public:
   */
 
   bool set_requested_lock(const LEX_CSTRING *str);
+
+  /**
+     Returns the algorithm value in the format "algorithm=value"
+  */
+  const char* algorithm() const;
+
+  /**
+     Returns the lock value in the format "lock=value"
+  */
+  const char* lock() const;
+
+  /**
+     Check whether the given result can be supported
+     with the specified user alter algorithm.
+
+     @param  thd            Thread handle
+     @param  result         Operation supported for inplace alter
+     @param  ha_alter_info  Structure describing changes to be done
+                            by ALTER TABLE and holding data during
+                            in-place alter
+     @retval false  Supported operation
+     @retval true   Not supported value
+  */
+  bool supports_algorithm(THD *thd, enum_alter_inplace_result result,
+                          const Alter_inplace_info *ha_alter_info);
+
+  /**
+     Check whether the given result can be supported
+     with the specified user lock type.
+
+     @param  result         Operation supported for inplace alter
+     @param  ha_alter_info  Structure describing changes to be done
+                            by ALTER TABLE and holding data during
+                            in-place alter
+     @retval false  Supported lock type
+     @retval true   Not supported value
+  */
+  bool supports_lock(THD *thd, enum_alter_inplace_result result,
+                     const Alter_inplace_info *ha_alter_info);
 
 private:
   Alter_info &operator=(const Alter_info &rhs); // not implemented

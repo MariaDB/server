@@ -1,4 +1,4 @@
-SET(TOKUDB_VERSION 5.6.38-83.0)
+SET(TOKUDB_VERSION 5.6.39-83.1)
 # PerconaFT only supports x86-64 and cmake-2.8.9+
 IF(CMAKE_VERSION VERSION_LESS "2.8.9")
   MESSAGE(STATUS "CMake 2.8.9 or higher is required by TokuDB")
@@ -35,7 +35,7 @@ SET(TOKUDB_SOURCES
     tokudb_thread.cc
     tokudb_dir_cmd.cc)
 MYSQL_ADD_PLUGIN(tokudb ${TOKUDB_SOURCES} STORAGE_ENGINE MODULE_ONLY
-                 COMPONENT tokudb-engine CONFIG tokudb.cnf)
+                 COMPONENT tokudb-engine CONFIG ${CMAKE_CURRENT_BINARY_DIR}/tokudb.cnf)
 
 IF(NOT TARGET tokudb)
   RETURN()
@@ -46,6 +46,33 @@ CHECK_JEMALLOC()
 
 IF(NOT LIBJEMALLOC)
   MESSAGE(WARNING "TokuDB is enabled, but jemalloc is not. This configuration is not supported")
+ELSEIF(LIBJEMALLOC STREQUAL jemalloc)
+  FIND_LIBRARY(LIBJEMALLOC_SO jemalloc)
+  IF(NOT LIBJEMALLOC_SO)
+    MESSAGE(FATAL_ERROR "jemalloc is present, but cannot be found?")
+  ENDIF()
+  GET_FILENAME_COMPONENT(LIBJEMALLOC_PATH ${LIBJEMALLOC_SO} REALPATH CACHE)
+ENDIF()
+
+IF(LIBJEMALLOC_PATH AND RPM MATCHES fedora28) # TODO check for jemalloc version
+  UNSET(LIBJEMALLOC)
+  GET_DIRECTORY_PROPERTY(V DIRECTORY ${CMAKE_SOURCE_DIR} DEFINITION CPACK_RPM_tokudb-engine_PACKAGE_REQUIRES)
+  SET(CPACK_RPM_tokudb-engine_PACKAGE_REQUIRES "${V} jemalloc" PARENT_SCOPE)
+  SET(systemd_env "Environment=\"LD_PRELOAD=${LIBJEMALLOC_PATH}\"") #"
+  SET(cnf_malloc_lib "malloc-lib=${LIBJEMALLOC_PATH}")
+ELSEIF(LIBJEMALLOC_PATH)
+  SET(systemd_env "#Environment=\"LD_PRELOAD=${LIBJEMALLOC_PATH}\"") #"
+  SET(cnf_malloc_lib "#malloc-lib=${LIBJEMALLOC_PATH}")
+ELSE()
+  SET(systemd_env "#Environment=\"LD_PRELOAD=/path/to/libjemalloc.so\"") #"
+  SET(cnf_malloc_lib "#malloc-lib=/path/to/libjemalloc.so")
+ENDIF()
+CONFIGURE_FILE(tokudb.cnf.in tokudb.cnf @ONLY)
+CONFIGURE_FILE(tokudb.conf.in tokudb.conf @ONLY)
+IF(INSTALL_SYSCONFDIR)
+  INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tokudb.conf
+          DESTINATION ${INSTALL_SYSCONFDIR}/systemd/system/mariadb.service.d/
+          COMPONENT tokudb-engine)
 ENDIF()
 
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-vla" DEBUG)

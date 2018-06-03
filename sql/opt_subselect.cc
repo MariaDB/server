@@ -1063,8 +1063,6 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
   while ((in_subq= li++))
   {
     SELECT_LEX *subq_sel= in_subq->get_select_lex();
-    if (subq_sel->handle_derived(thd->lex, DT_OPTIMIZE))
-      DBUG_RETURN(1);
     if (subq_sel->handle_derived(thd->lex, DT_MERGE))
       DBUG_RETURN(TRUE);
     if (subq_sel->join->transform_in_predicates_into_in_subq(thd))
@@ -3708,8 +3706,7 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
   sjm= emb_sj_nest->sj_mat_info;
   thd= tab->join->thd;
   /* First the calls come to the materialization function */
-  //List<Item> &item_list= emb_sj_nest->sj_subq_pred->unit->first_select()->item_list;
-  
+
   DBUG_ASSERT(sjm->is_used);
   /* 
     Set up the table to write to, do as select_union::create_result_table does
@@ -3718,10 +3715,22 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
   sjm->sjm_table_param.bit_fields_as_long= TRUE;
   SELECT_LEX *subq_select= emb_sj_nest->sj_subq_pred->unit->first_select();
   const LEX_CSTRING sj_materialize_name= { STRING_WITH_LEN("sj-materialize") };
-  Ref_ptr_array p_items= subq_select->ref_pointer_array;
-  for (uint i= 0; i < subq_select->item_list.elements; i++)
-    sjm->sjm_table_cols.push_back(p_items[i], thd->mem_root);
-  
+  List_iterator<Item> it(subq_select->item_list);
+  Item *item;
+  while((item= it++))
+  {
+    /*
+      This semi-join replaced the subquery (subq_select) and so on
+      re-executing it will not be prepared. To use the Items from its
+      select list we have to prepare (fix_fields) them
+    */
+    if (!item->fixed && item->fix_fields(thd, it.ref()))
+      DBUG_RETURN(TRUE);
+    item= *(it.ref()); // it can be changed by fix_fields
+    DBUG_ASSERT(!item->name.length || item->name.length == strlen(item->name.str));
+    sjm->sjm_table_cols.push_back(item, thd->mem_root);
+  }
+
   sjm->sjm_table_param.field_count= subq_select->item_list.elements;
   sjm->sjm_table_param.force_not_null_cols= TRUE;
 
@@ -4352,7 +4361,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     }
   }
 
-  if (thd->is_fatal_error)			// If end of memory
+  if (unlikely(thd->is_fatal_error))            // If end of memory
     goto err;
   share->db_record_offset= 1;
   table->no_rows= 1;              		// We don't need the data
@@ -4361,10 +4370,11 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   recinfo++;
   if (share->db_type() == TMP_ENGINE_HTON)
   {
-    if (create_internal_tmp_table(table, keyinfo, start_recinfo, &recinfo, 0))
+    if (unlikely(create_internal_tmp_table(table, keyinfo, start_recinfo,
+                                           &recinfo, 0)))
       goto err;
   }
-  if (open_tmp_table(table))
+  if (unlikely(open_tmp_table(table)))
     goto err;
 
   thd->mem_root= mem_root_save;
@@ -4476,7 +4486,7 @@ int SJ_TMP_TABLE::sj_weedout_check_row(THD *thd)
   }
 
   error= tmp_table->file->ha_write_tmp_row(tmp_table->record[0]);
-  if (error)
+  if (unlikely(error))
   {
     /* create_internal_tmp_table_from_heap will generate error if needed */
     if (!tmp_table->file->is_fatal_error(error, HA_CHECK_DUP))
@@ -5297,7 +5307,8 @@ enum_nested_loop_state join_tab_execution_startup(JOIN_TAB *tab)
       hash_sj_engine->materialize_join->exec();
       hash_sj_engine->is_materialized= TRUE; 
 
-      if (hash_sj_engine->materialize_join->error || tab->join->thd->is_fatal_error)
+      if (unlikely(hash_sj_engine->materialize_join->error) ||
+          unlikely(tab->join->thd->is_fatal_error))
         DBUG_RETURN(NESTED_LOOP_ERROR);
     }
   }
@@ -6316,6 +6327,7 @@ bool JOIN::choose_tableless_subquery_plan()
       tmp_having= having;
     }
   }
+  exec_const_cond= conds;
   return FALSE;
 }
 

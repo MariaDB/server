@@ -1297,10 +1297,15 @@ public:
 
   Item_sum_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name,
               sp_head *sp, List<Item> &list);
+  Item_sum_sp(THD *thd, Item_sum_sp *item);
 
   enum Sumfunctype sum_func () const
   {
     return SP_AGGREGATE_FUNC;
+  }
+  Field *create_field_for_create_select(TABLE *table)
+  {
+    return create_table_field_from_handler(table);
   }
   void fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);
@@ -1362,6 +1367,7 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_sp>(thd, this); }
+  Item *copy_or_same(THD *thd);
 };
 
 /* Items to get the value of a stored sum function */

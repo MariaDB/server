@@ -370,11 +370,37 @@ typedef enum monotonicity_info
 
 class sp_rcontext;
 
+/**
+  A helper class to collect different behavior of various kinds of SP variables:
+  - local SP variables and SP parameters
+  - PACKAGE BODY routine variables
+  - (there will be more kinds in the future)
+*/
+
 class Sp_rcontext_handler
 {
 public:
   virtual ~Sp_rcontext_handler() {}
+  /**
+    A prefix used for SP variable names in queries:
+    - EXPLAIN EXTENDED
+    - SHOW PROCEDURE CODE
+    Local variables and SP parameters have empty prefixes.
+    Package body variables are marked with a special prefix.
+    This improves readability of the output of these queries,
+    especially when a local variable or a parameter has the same
+    name with a package body variable.
+  */
   virtual const LEX_CSTRING *get_name_prefix() const= 0;
+  /**
+    At execution time THD->spcont points to the run-time context (sp_rcontext)
+    of the currently executed routine.
+    Local variables store their data in the sp_rcontext pointed by thd->spcont.
+    Package body variables store data in separate sp_rcontext that belongs
+    to the package.
+    This method provides access to the proper sp_rcontext structure,
+    depending on the SP variable kind.
+  */
   virtual sp_rcontext *get_rcontext(sp_rcontext *ctx) const= 0;
 };
 
@@ -804,6 +830,12 @@ protected:
       value= NULL;
     return value;
   }
+  bool get_date_from_item(Item *item, MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    bool rc= item->get_date(ltime, fuzzydate);
+    null_value= MY_TEST(rc || item->null_value);
+    return rc;
+  }
   /*
     This method is used if the item was not null but convertion to
     TIME/DATE/DATETIME failed. We return a zero date if allowed,
@@ -837,6 +869,7 @@ public:
                                            of a query with ROLLUP */ 
   bool null_value;			/* if item is null */
   bool with_sum_func;                   /* True if item contains a sum func */
+  bool with_param;                      /* True if contains an SP parameter */
   bool with_window_func;             /* True if item contains a window func */
   /**
     True if any item except Item_sum contains a field. Set during parsing.
@@ -948,6 +981,10 @@ public:
   virtual const Type_handler *cast_to_int_type_handler() const
   {
     return type_handler();
+  }
+  virtual const Type_handler *type_handler_for_system_time() const
+  {
+    return real_type_handler();
   }
   /* result_type() of an item specifies how the value should be returned */
   Item_result result_type() const
@@ -1647,6 +1684,7 @@ public:
     set field of temporary table for Item which can be switched on temporary
     table during query processing (grouping and so on)
   */
+  virtual void set_result_field(Field *field) {}
   virtual bool is_result_field() { return 0; }
   virtual bool is_json_type() { return false; }
   virtual bool is_bool_literal() const { return false; }
@@ -1819,7 +1857,7 @@ public:
     fields.
   */
   virtual bool check_partition_func_processor(void *arg) { return 1;}
-  virtual bool vcol_in_partition_func_processor(void *arg) { return 0; }
+  virtual bool post_fix_fields_part_expr_processor(void *arg) { return 0; }
   virtual bool rename_fields_processor(void *arg) { return 0; }
   /** Processor used to check acceptability of an item in the defining
       expression for a virtual column 
@@ -1936,8 +1974,6 @@ public:
                                      const Tmp_field_param *param)= 0;
   virtual Item_field *field_for_view_update() { return 0; }
 
-  virtual bool vers_trx_id() const
-  { return false; }
   virtual Item *neg_transformer(THD *thd) { return NULL; }
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg)
   { return this; }
@@ -2184,7 +2220,7 @@ template <class T>
 inline Item* get_item_copy (THD *thd, T* item)
 {
   Item *copy= new (get_thd_memroot(thd)) T(*item);
-  if (copy)
+  if (likely(copy))
     copy->register_in(thd);
   return copy;
 }	
@@ -2332,7 +2368,7 @@ public:
   Item_args(THD *thd, Item *a, Item *b, Item *c)
   {
     arg_count= 0;
-    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 3)))
+    if (likely((args= (Item**) thd_alloc(thd, sizeof(Item*) * 3))))
     {
       arg_count= 3;
       args[0]= a; args[1]= b; args[2]= c;
@@ -2341,7 +2377,7 @@ public:
   Item_args(THD *thd, Item *a, Item *b, Item *c, Item *d)
   {
     arg_count= 0;
-    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 4)))
+    if (likely((args= (Item**) thd_alloc(thd, sizeof(Item*) * 4))))
     {
       arg_count= 4;
       args[0]= a; args[1]= b; args[2]= c; args[3]= d;
@@ -2350,7 +2386,7 @@ public:
   Item_args(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e)
   {
     arg_count= 5;
-    if ((args= (Item**) thd_alloc(thd, sizeof(Item*) * 5)))
+    if (likely((args= (Item**) thd_alloc(thd, sizeof(Item*) * 5))))
     {
       arg_count= 5;
       args[0]= a; args[1]= b; args[2]= c; args[3]= d; args[4]= e;
@@ -2676,7 +2712,7 @@ public:
     based on result_type(), which is less exact.
   */
   Field *create_field_for_create_select(TABLE *table)
-  { return tmp_table_field_from_field_type(table); }
+  { return create_table_field_from_handler(table); }
 
   bool is_valid_limit_clause_variable_with_error() const
   {
@@ -2930,6 +2966,7 @@ public:
     return table map of the temporary table.
   */
   table_map used_tables() const { return 1; }
+  void set_result_field(Field *field) { result_field= field; }
   bool is_result_field() { return true; }
   void save_in_result_field(bool no_conversions)
   {
@@ -3019,7 +3056,7 @@ public:
                       const char *table_name_arg):
     Item(thd), field(par_field), db_name(db_arg), table_name(table_name_arg)
   {
-    Type_std_attributes::set(par_field);
+    Type_std_attributes::set(par_field->type_std_attributes());
   }
   enum Type type() const { return FIELD_ITEM; }
   Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
@@ -3149,10 +3186,6 @@ public:
   Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param);
   TYPELIB *get_typelib() const { return field->get_typelib(); }
-  uint32 field_flags() const
-  {
-    return field->flags;
-  }
   enum_monotonicity_info get_monotonicity_info() const
   {
     return MONOTONIC_STRICT_INCREASING;
@@ -3204,7 +3237,7 @@ public:
                                          cond_equal_ref);
   }
   bool is_result_field() { return false; }
-  void save_in_result_field(bool no_conversions) { }
+  void save_in_result_field(bool no_conversions);
   Item *get_tmp_table_item(THD *thd);
   bool collect_item_field_processor(void * arg);
   bool add_field_to_set_processor(void * arg);
@@ -3213,7 +3246,7 @@ public:
   bool register_field_in_write_map(void *arg);
   bool register_field_in_bitmap(void *arg);
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
-  bool vcol_in_partition_func_processor(void *bool_arg);
+  bool post_fix_fields_part_expr_processor(void *bool_arg);
   bool check_valid_arguments_processor(void *bool_arg);
   bool check_field_expression_processor(void *arg);
   bool enumerate_field_refs_processor(void *arg);
@@ -3249,7 +3282,6 @@ public:
   uint32 max_display_length() const { return field->max_display_length(); }
   Item_field *field_for_view_update() { return this; }
   int fix_outer_field(THD *thd, Field **field, Item **reference);
-  virtual bool vers_trx_id() const;
   virtual Item *update_value_transformer(THD *thd, uchar *select_arg);
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg);
@@ -4444,7 +4476,7 @@ public:
   {
     // following assert is redundant, because fixed=1 assigned in constructor
     DBUG_ASSERT(fixed == 1);
-    ulonglong value= (ulonglong) Item_hex_hybrid::val_int();
+    longlong value= Item_hex_hybrid::val_int();
     int2my_decimal(E_DEC_FATAL_ERROR, value, TRUE, decimal_value);
     return decimal_value;
   }
@@ -4454,6 +4486,10 @@ public:
     return field->store_hex_hybrid(str_value.ptr(), str_value.length());
   }
   const Type_handler *cast_to_int_type_handler() const
+  {
+    return &type_handler_longlong;
+  }
+  const Type_handler *type_handler_for_system_time() const
   {
     return &type_handler_longlong;
   }
@@ -4889,6 +4925,7 @@ public:
   */
   Field *sp_result_field;
   Item_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name_arg);
+  Item_sp(THD *thd, Item_sp *item);
   const char *func_name(THD *thd) const;
   void cleanup();
   bool sp_check_access(THD *thd);
@@ -5120,12 +5157,6 @@ public:
         ((Item_field *) item)->field && item->const_item())
       return 0;
     return cleanup_processor(arg);
-  }
-  virtual bool vers_trx_id() const
-  {
-    DBUG_ASSERT(ref);
-    DBUG_ASSERT(*ref);
-    return (*ref)->vers_trx_id();
   }
 };
 
@@ -6635,29 +6666,14 @@ class Item_type_holder: public Item,
 {
 protected:
   TYPELIB *enum_set_typelib;
-private:
-  void init_flags(Item *item)
-  {
-    if (item->real_type() == Item::FIELD_ITEM)
-    {
-      Item_field *item_field= (Item_field *)item->real_item();
-      m_flags|= (item_field->field->flags &
-               (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG));
-      // TODO: additional field flag?
-      m_vers_trx_id= item_field->field->vers_trx_id();
-    }
-  }
 public:
   Item_type_holder(THD *thd, Item *item)
    :Item(thd, item),
     Type_handler_hybrid_field_type(item->real_type_handler()),
-    enum_set_typelib(0),
-    m_flags(0),
-    m_vers_trx_id(false)
+    enum_set_typelib(0)
   {
     DBUG_ASSERT(item->fixed);
     maybe_null= item->maybe_null;
-    init_flags(item);
   }
   Item_type_holder(THD *thd,
                    Item *item,
@@ -6667,27 +6683,20 @@ public:
    :Item(thd),
     Type_handler_hybrid_field_type(handler),
     Type_geometry_attributes(handler, attr),
-    enum_set_typelib(attr->get_typelib()),
-    m_flags(0),
-    m_vers_trx_id(false)
+    enum_set_typelib(attr->get_typelib())
   {
     name= item->name;
     Type_std_attributes::set(*attr);
     maybe_null= maybe_null_arg;
-    init_flags(item);
   }
 
   const Type_handler *type_handler() const
   {
-    const Type_handler *handler= m_vers_trx_id ?
-      &type_handler_vers_trx_id :
-      Type_handler_hybrid_field_type::type_handler();
-    return handler->type_handler_for_item_field();
+    return Type_handler_hybrid_field_type::type_handler()->
+             type_handler_for_item_field();
   }
   const Type_handler *real_type_handler() const
   {
-    if (m_vers_trx_id)
-      return &type_handler_vers_trx_id;
     return Type_handler_hybrid_field_type::type_handler();
   }
 
@@ -6715,18 +6724,6 @@ public:
   }
   Item* get_copy(THD *thd) { return 0; }
 
-private:
-  uint m_flags;
-  bool m_vers_trx_id;
-public:
-  uint32 field_flags() const
-  {
-    return m_flags;
-  }
-  virtual bool vers_trx_id() const
-  {
-    return m_vers_trx_id;
-  }
 };
 
 

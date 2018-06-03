@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2002, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2002, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -423,7 +423,7 @@ private:
   bool m_print_once;
 
 public:
-  Proc_table_intact() : m_print_once(TRUE) {}
+  Proc_table_intact() : m_print_once(TRUE) { has_keys= TRUE; }
 
 protected:
   void report_error(uint code, const char *fmt, ...);
@@ -780,6 +780,7 @@ Sp_handler::db_find_and_cache_routine(THD *thd,
   Silence DEPRECATED SYNTAX warnings when loading a stored procedure
   into the cache.
 */
+
 struct Silence_deprecated_warning : public Internal_error_handler
 {
 public:
@@ -1002,7 +1003,7 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
 
     if (type() == TYPE_ENUM_PACKAGE_BODY)
     {
-      sp_package *package= sphp[0]->get_package();
+      sp_package *package= (*sphp)->get_package();
       List_iterator<LEX> it(package->m_routine_implementations);
       for (LEX *lex; (lex= it++); )
       {
@@ -1078,6 +1079,7 @@ sp_returns_type(THD *thd, String &result, const sp_head *sp)
   @return       SP_OK on success, or SP_DELETE_ROW_FAILED on error.
   used to indicate about errors.
 */
+
 int
 Sp_handler::sp_drop_routine_internal(THD *thd,
                                      const Database_qualified_name *name,
@@ -1111,7 +1113,7 @@ Sp_handler::sp_find_and_drop_routine(THD *thd, TABLE *table,
                                      const Database_qualified_name *name) const
 {
   int ret;
-  if (SP_OK != (ret= db_find_routine_aux(thd, name, table)))
+  if ((ret= db_find_routine_aux(thd, name, table)) != SP_OK)
     return ret;
   return sp_drop_routine_internal(thd, name, table);
 }
@@ -1123,11 +1125,23 @@ Sp_handler_package_spec::
                            const Database_qualified_name *name) const
 {
   int ret;
-  if (SP_OK != (ret= db_find_routine_aux(thd, name, table)))
+  if ((ret= db_find_routine_aux(thd, name, table)) != SP_OK)
     return ret;
+  /*
+    When we do "DROP PACKAGE pkg", we should also perform
+    "DROP PACKAGE BODY pkg" automatically.
+  */
   ret= sp_handler_package_body.sp_find_and_drop_routine(thd, table, name);
   if (ret != SP_KEY_NOT_FOUND && ret != SP_OK)
-    return ret;
+  {
+    /*
+      - SP_KEY_NOT_FOUND means that "CREATE PACKAGE pkg" did not
+        have a correspoinding "CREATE PACKAGE BODY pkg" yet.
+      - SP_OK means that "CREATE PACKAGE pkg" had a correspoinding
+        "CREATE PACKAGE BODY pkg", which was successfully dropped.
+    */
+    return ret; // Other codes mean an unexpecte error
+  }
   return Sp_handler::sp_find_and_drop_routine(thd, table, name);
 }
 
@@ -1231,7 +1245,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
           DBUG_ASSERT(0);
           ret= SP_OK;
         }
-        if (ret)
+        if (ret != SP_OK)
           goto done;
       }
       else if (lex->create_info.if_not_exists())
@@ -1565,7 +1579,7 @@ Sp_handler::sp_drop_routine(THD *thd,
   if (!(table= open_proc_table_for_update(thd)))
     DBUG_RETURN(SP_OPEN_TABLE_FAILED);
 
-  if (SP_OK == (ret= sp_find_and_drop_routine(thd, table, name)) &&
+  if ((ret= sp_find_and_drop_routine(thd, table, name)) == SP_OK &&
       write_bin_log(thd, TRUE, thd->query(), thd->query_length()))
     ret= SP_INTERNAL_ERROR;
   /*
@@ -1916,6 +1930,7 @@ Sp_handler::sp_show_create_routine(THD *thd,
   and return it as a 0-terminated string
     'pkg.name' -> 'pkg\0'
 */
+
 class Prefix_name_buf: public LEX_CSTRING
 {
   char m_buf[SAFE_NAME_LEN + 1];
@@ -1948,6 +1963,7 @@ public:
   - either returns the original SP,
   - or makes and returns a new clone of SP
 */
+
 sp_head *
 Sp_handler::sp_clone_and_link_routine(THD *thd,
                                       const Database_qualified_name *name,
@@ -2015,7 +2031,7 @@ Sp_handler::sp_clone_and_link_routine(THD *thd,
       1. Cut the package name prefix from the routine name: 'pkg1.p1' -> 'p1',
          to have db_load_routine() generate and parse a query like this:
            CREATE PROCEDURE p1 ...;
-         rether than:
+         rather than:
            CREATE PROCEDURE pkg1.p1 ...;
          The latter would be misinterpreted by the parser as a standalone
          routine 'p1' in the database 'pkg1', which is not what we need.
@@ -2126,6 +2142,7 @@ Sp_handler::sp_find_routine(THD *thd, const Database_qualified_name *name,
   @retval non-NULL   - a pointer to an sp_head object
   @retval NULL       - an error happened.
 */
+
 sp_head *
 Sp_handler::sp_find_package_routine(THD *thd,
                                     const LEX_CSTRING pkgname_str,
@@ -2168,6 +2185,7 @@ Sp_handler::sp_find_package_routine(THD *thd,
   @retval non-NULL  - a pointer to an sp_head object
   @retval NULL      - an error happened
 */
+
 sp_head *
 Sp_handler::sp_find_package_routine(THD *thd,
                                     const Database_qualified_name *name,
@@ -2275,7 +2293,7 @@ bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
   {
     Sroutine_hash_entry *rn=
       (Sroutine_hash_entry *)arena->alloc(sizeof(Sroutine_hash_entry));
-    if (!rn)              // OOM. Error will be reported using fatal_error().
+    if (unlikely(!rn)) // OOM. Error will be reported using fatal_error().
       return FALSE;
     rn->mdl_request.init(key, MDL_SHARED, MDL_TRANSACTION);
     if (my_hash_insert(&prelocking_ctx->sroutines, (uchar *)rn))
@@ -2301,6 +2319,7 @@ bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
   It's used during parsing of CREATE PACKAGE BODY,
   to load the corresponding CREATE PACKAGE.
 */
+
 int
 Sp_handler::sp_cache_routine_reentrant(THD *thd,
                                        const Database_qualified_name *name,
@@ -2315,7 +2334,7 @@ Sp_handler::sp_cache_routine_reentrant(THD *thd,
 }
 
 
-/*
+/**
   Check if a routine has a declaration in the CREATE PACKAGE statement,
   by looking up in thd->sp_package_spec_cache, and by loading from mysql.proc
   if needed.
@@ -2340,6 +2359,7 @@ Sp_handler::sp_cache_routine_reentrant(THD *thd,
   After the call of this function, the package specification is always cached,
   unless a fatal error happens.
 */
+
 static bool
 is_package_public_routine(THD *thd,
                           const LEX_CSTRING &db,
@@ -2356,7 +2376,7 @@ is_package_public_routine(THD *thd,
 }
 
 
-/*
+/**
   Check if a routine has a declaration in the CREATE PACKAGE statement
   by looking up in sp_package_spec_cache.
 
@@ -2373,6 +2393,7 @@ is_package_public_routine(THD *thd,
   The package specification (i.e. the CREATE PACKAGE statement) for
   the current package body must already be loaded and cached at this point.
 */
+
 static bool
 is_package_public_routine_quick(THD *thd,
                                 const LEX_CSTRING &db,
@@ -2388,10 +2409,11 @@ is_package_public_routine_quick(THD *thd,
 }
 
 
-/*
+/**
   Check if a qualified name, e.g. "CALL name1.name2",
   refers to a known routine in the package body "pkg".
 */
+
 static bool
 is_package_body_routine(THD *thd, sp_package *pkg,
                         const LEX_CSTRING &name1,
@@ -2404,11 +2426,12 @@ is_package_body_routine(THD *thd, sp_package *pkg,
 }
 
 
-/*
+/**
   Resolve a qualified routine reference xxx.yyy(), between:
   - A standalone routine: xxx.yyy
   - A package routine:    current_database.xxx.yyy
 */
+
 bool Sp_handler::
   sp_resolve_package_routine_explicit(THD *thd,
                                       sp_head *caller,
@@ -2444,11 +2467,12 @@ bool Sp_handler::
 }
 
 
-/*
+/**
   Resolve a non-qualified routine reference yyy(), between:
   - A standalone routine: current_database.yyy
   - A package routine:    current_database.current_package.yyy
 */
+
 bool Sp_handler::
   sp_resolve_package_routine_implicit(THD *thd,
                                       sp_head *caller,
@@ -2534,6 +2558,7 @@ bool Sp_handler::
   @retval         false   on success
   @retval         true    on error (e.g. EOM, could not read CREATE PACKAGE)
 */
+
 bool
 Sp_handler::sp_resolve_package_routine(THD *thd,
                                        sp_head *caller,
@@ -2787,7 +2812,7 @@ int Sp_handler::sp_cache_routine(THD *thd,
         an error with it's return value without calling my_error(), we
         set the generic "mysql.proc table corrupt" error here.
       */
-      if (! thd->is_error())
+      if (!thd->is_error())
       {
         my_error(ER_SP_PROC_TABLE_CORRUPT, MYF(0),
                  ErrConvDQName(name).ptr(), ret);
@@ -2813,6 +2838,7 @@ int Sp_handler::sp_cache_routine(THD *thd,
   @retval false      - loaded or does not exists
   @retval true       - error while loading mysql.proc
 */
+
 int
 Sp_handler::sp_cache_package_routine(THD *thd,
                                      const LEX_CSTRING &pkgname_cstr,
@@ -2831,7 +2857,7 @@ Sp_handler::sp_cache_package_routine(THD *thd,
     sp_package *pkg= ph ? ph->get_package() : NULL;
     LEX_CSTRING tmp= name->m_name;
     const char *dot= strrchr(tmp.str, '.');
-    size_t prefix_length= dot ? dot - tmp.str + 1 : NULL;
+    size_t prefix_length= dot ? dot - tmp.str + 1 : 0;
     tmp.str+= prefix_length;
     tmp.length-= prefix_length;
     LEX *rlex= pkg ? pkg->m_routine_implementations.find(tmp, type()) : NULL;
@@ -2856,6 +2882,7 @@ Sp_handler::sp_cache_package_routine(THD *thd,
   @retval false      - loaded or does not exists
   @retval true       - error while loading mysql.proc
 */
+
 int Sp_handler::sp_cache_package_routine(THD *thd,
                                          const Database_qualified_name *name,
                                          bool lookup_only, sp_head **sp) const
@@ -2873,6 +2900,7 @@ int Sp_handler::sp_cache_package_routine(THD *thd,
   @return
     Returns false on success, true on (alloc) failure.
 */
+
 bool
 Sp_handler::show_create_sp(THD *thd, String *buf,
                            const LEX_CSTRING &db,
@@ -3015,15 +3043,15 @@ Sp_handler::sp_load_for_information_schema(THD *thd, TABLE *proc_table,
 
 LEX_CSTRING Sp_handler_procedure::empty_body_lex_cstring(sql_mode_t mode) const
 {
-  static LEX_CSTRING m_empty_body_std= {C_STRING_WITH_LEN("BEGIN END")};
-  static LEX_CSTRING m_empty_body_ora= {C_STRING_WITH_LEN("AS BEGIN NULL; END")};
+  static LEX_CSTRING m_empty_body_std= {STRING_WITH_LEN("BEGIN END")};
+  static LEX_CSTRING m_empty_body_ora= {STRING_WITH_LEN("AS BEGIN NULL; END")};
   return mode & MODE_ORACLE ? m_empty_body_ora : m_empty_body_std;
 }
 
 
 LEX_CSTRING Sp_handler_function::empty_body_lex_cstring(sql_mode_t mode) const
 {
-  static LEX_CSTRING m_empty_body_std= {C_STRING_WITH_LEN("RETURN NULL")};
-  static LEX_CSTRING m_empty_body_ora= {C_STRING_WITH_LEN("AS BEGIN RETURN NULL; END")};
+  static LEX_CSTRING m_empty_body_std= {STRING_WITH_LEN("RETURN NULL")};
+  static LEX_CSTRING m_empty_body_ora= {STRING_WITH_LEN("AS BEGIN RETURN NULL; END")};
   return mode & MODE_ORACLE ? m_empty_body_ora : m_empty_body_std;
 }

@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -45,7 +45,7 @@ Created 6/2/1994 Heikki Tuuri
 
 /** Maximum record size which can be stored on a page, without using the
 special big record storage structure */
-#define	BTR_PAGE_MAX_REC_SIZE	(UNIV_PAGE_SIZE / 2 - 200)
+#define	BTR_PAGE_MAX_REC_SIZE	(srv_page_size / 2 - 200)
 
 /** @brief Maximum depth of a B-tree in InnoDB.
 
@@ -153,23 +153,23 @@ free the pages of externally stored fields. */
 record is in spatial index */
 #define BTR_RTREE_DELETE_MARK	524288U
 
-#define BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode)			\
-	((latch_mode) & btr_latch_mode(~(BTR_INSERT			\
-					 | BTR_DELETE_MARK		\
-					 | BTR_RTREE_UNDO_INS		\
-					 | BTR_RTREE_DELETE_MARK	\
-					 | BTR_DELETE			\
-					 | BTR_ESTIMATE			\
-					 | BTR_IGNORE_SEC_UNIQUE	\
-					 | BTR_ALREADY_S_LATCHED	\
-					 | BTR_LATCH_FOR_INSERT		\
-					 | BTR_LATCH_FOR_DELETE		\
-					 | BTR_MODIFY_EXTERNAL)))
+#define BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode)		\
+	((latch_mode) & ulint(~(BTR_INSERT			\
+				| BTR_DELETE_MARK		\
+				| BTR_RTREE_UNDO_INS		\
+				| BTR_RTREE_DELETE_MARK		\
+				| BTR_DELETE			\
+				| BTR_ESTIMATE			\
+				| BTR_IGNORE_SEC_UNIQUE		\
+				| BTR_ALREADY_S_LATCHED		\
+				| BTR_LATCH_FOR_INSERT		\
+				| BTR_LATCH_FOR_DELETE		\
+				| BTR_MODIFY_EXTERNAL)))
 
-#define BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode)			\
-	((latch_mode) & btr_latch_mode(~(BTR_LATCH_FOR_INSERT		\
-					 | BTR_LATCH_FOR_DELETE		\
-					 | BTR_MODIFY_EXTERNAL)))
+#define BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode)		\
+	((latch_mode) & ulint(~(BTR_LATCH_FOR_INSERT		\
+				| BTR_LATCH_FOR_DELETE		\
+				| BTR_MODIFY_EXTERNAL)))
 
 /**************************************************************//**
 Report that an index page is corrupted. */

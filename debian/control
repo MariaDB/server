@@ -8,7 +8,6 @@ Build-Depends: bison,
                debhelper (>= 9),
                dh-apparmor,
                dh-systemd,
-               dpatch,
                gdb,
                libaio-dev [linux-any],
                libboost-dev,
@@ -26,6 +25,7 @@ Build-Depends: bison,
                libssl-dev | libssl1.0-dev,
                libsystemd-dev,
                libxml2-dev,
+               libzstd-dev,
                lsb-release,
                perl (>= 5.6.0),
                po-debconf,
@@ -40,6 +40,7 @@ Vcs-Git: https://github.com/MariaDB/server.git
 
 Package: libmariadb-dev
 Architecture: any
+Multi-Arch: same
 Section: libdevel
 Depends: libmariadb3 (= ${binary:Version}),
          zlib1g-dev,
@@ -91,6 +92,7 @@ Description: MariaDB Connector/C, compatibility symlinks
 
 Package: libmariadb3
 Architecture: any
+Multi-Arch: same
 Section: libs
 Depends: mariadb-common,
          ${misc:Depends},
@@ -167,6 +169,7 @@ Description: Virtual package to satisfy external libmysqlclient18 depends
 
 Package: libmariadbd-dev
 Architecture: any
+Multi-Arch: same
 Section: libdevel
 Provides: libmysqld-dev
 Pre-Depends: ${misc:Pre-Depends}
@@ -186,10 +189,10 @@ Description: MariaDB embedded database, development files
 
 Package: libmariadbd19
 Architecture: any
+Multi-Arch: same
 Section: libs
 Depends: ${misc:Depends},
          ${shlibs:Depends}
-Multi-Arch: same
 Breaks: libmariadbd-dev (<< ${source:Version})
 Replaces: libmariadbd-dev (<< ${source:Version})
 Description: MariaDB embedded database, shared library
@@ -418,10 +421,7 @@ Recommends: libhtml-template-perl
 Pre-Depends: adduser (>= 3.40),
              debconf,
              mariadb-common (>= ${source:Version})
-Depends: bsdutils,
-         coreutils,
-         findutils,
-         galera-3 (>=25.3),
+Depends: galera-3 (>=25.3),
          gawk,
          iproute2,
          libdbi-perl,
@@ -536,6 +536,7 @@ Description: Connect storage engine for MariaDB
 Package: mariadb-plugin-rocksdb
 Architecture: amd64 arm64 mips64el ppc64el
 Depends: mariadb-server-10.3 (= ${binary:Version}),
+         libzstd1,
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-rocksdb-engine-10.2,
@@ -655,7 +656,10 @@ Replaces: mariadb-gssapi-server-10.1,
           mariadb-gssapi-server-10.2,
           mariadb-gssapi-server-10.3
 Description: GSSAPI authentication plugin for MariaDB server
- This package contains the server components.
+ This plugin includes support for Kerberos on Unix, but can also be used for
+ Windows authentication with or without domain environment.
+ .
+ This package contains the server parts.
 
 Package: mariadb-plugin-gssapi-client
 Architecture: any
@@ -670,7 +674,10 @@ Replaces: mariadb-gssapi-client-10.1,
           mariadb-gssapi-client-10.2,
           mariadb-gssapi-client-10.3
 Description: GSSAPI authentication plugin for MariaDB client
- This package contains the client components.
+ This plugin includes support for Kerberos on Unix, but can also be used for
+ Windows authentication with or without domain environment.
+ .
+ This package contains the client parts.
 
 Package: mariadb-backup
 Architecture: any
@@ -683,6 +690,10 @@ Depends: mariadb-client-core-10.3,
          ${shlibs:Depends}
 Description: Backup tool for MariaDB server
  This backup tool is guaranteed to be compatible with MariaDB.
+ Based on Xtrabackup, but improved to work with MariaDB.
+ .
+ Plese refer to the MariaDB Knowledge Base on more information on
+ how to use this tool.
 
 Package: mariadb-plugin-cracklib-password-check
 Architecture: any
@@ -693,6 +704,9 @@ Depends: libcrack2 (>= 2.9.0),
 Description: CrackLib Password Validation Plugin for MariaDB
  This password validation plugin uses cracklib to allow only
  sufficiently secure (as defined by cracklib) user passwords in MariaDB.
+ .
+ Plese refer to the MariaDB Knowledge Base on more information on
+ how to use this tool.
 
 Package: mariadb-test
 Architecture: any
@@ -733,6 +747,7 @@ Description: MariaDB database regression test suite
 
 Package: mariadb-test-data
 Architecture: all
+Multi-Arch: foreign
 Depends: ${misc:Depends}
 Breaks: mariadb-test-10.0,
         mariadb-test-10.1,

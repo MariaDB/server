@@ -205,6 +205,7 @@ DROP TABLE t1;
 #   and reverse() function
 #
 # Problem # 1 (original report): wrong parsing of ucs2 data
+SET character_set_connection=ucs2;
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp.txt';
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp.txt' INTO TABLE t1 CHARACTER SET ucs2
@@ -4595,6 +4596,37 @@ Field	Type	Null	Key	Default	Extra
 c1	mediumtext	YES		NULL	
 DROP TABLE t1;
 set sql_mode=default;
+#
+# MDEV-15624 Changing the default character set to utf8mb4 changes query evaluation in a very surprising way
+#
+SET NAMES utf8;
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT COUNT(DISTINCT c) FROM (SELECT id, REPLACE(uuid_short(), '0', CAST('o' AS CHAR CHARACTER SET ucs2)) AS c FROM t1) AS d1;
+COUNT(DISTINCT c)
+3
+SELECT DISTINCT REPLACE(uuid_short(), '0', CAST('o' AS CHAR CHARACTER SET ucs2)) AS c FROM t1;
+c
+xxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxx
+SELECT COUNT(DISTINCT c) FROM (SELECT id, INSERT(uuid_short(), 1, 1, CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1) AS d1;
+COUNT(DISTINCT c)
+3
+SELECT DISTINCT INSERT(uuid_short(), 1, 1, CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1;
+c
+xxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxx
+SELECT COUNT(DISTINCT c) FROM (SELECT id, CONCAT(uuid_short(), CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1) AS d1;
+COUNT(DISTINCT c)
+3
+SELECT DISTINCT CONCAT(uuid_short(), CAST('0' AS CHAR CHARACTER SET ucs2)) AS c FROM t1;
+c
+xxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxx
+DROP TABLE t1;
 #
 # End of 5.5 tests
 #

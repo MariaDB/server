@@ -293,7 +293,7 @@ static my_bool put_dbopt(const char *dbname, Schema_specification_st *create)
     strmov(opt->name, dbname);
     opt->name_length= length;
     
-    if ((error= my_hash_insert(&dboptions, (uchar*) opt)))
+    if (unlikely((error= my_hash_insert(&dboptions, (uchar*) opt))))
     {
       my_free(opt);
       goto end;
@@ -338,7 +338,7 @@ static void del_dbopt(const char *path)
 static bool write_db_opt(THD *thd, const char *path,
                          Schema_specification_st *create)
 {
-  register File file;
+  File file;
   char buf[256]; // Should be enough for one option
   bool error=1;
 
@@ -724,7 +724,7 @@ mysql_alter_db_internal(THD *thd, const LEX_CSTRING *db,
      "table name to file name" encoding.
   */
   build_table_filename(path, sizeof(path) - 1, db->str, "", MY_DB_OPT_FILE, 0);
-  if ((error=write_db_opt(thd, path, create_info)))
+  if (unlikely((error=write_db_opt(thd, path, create_info))))
     goto exit;
 
   /* Change options if current database is being altered. */
@@ -754,7 +754,7 @@ mysql_alter_db_internal(THD *thd, const LEX_CSTRING *db,
       These DDL methods and logging are protected with the exclusive
       metadata lock on the schema.
     */
-    if ((error= mysql_bin_log.write(&qinfo)))
+    if (unlikely((error= mysql_bin_log.write(&qinfo))))
       goto exit;
   }
   my_ok(thd, result);
@@ -938,7 +938,7 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists, bool silen
   thd->pop_internal_handler();
 
 update_binlog:
-  if (!silent && !error)
+  if (!silent && likely(!error))
   {
     const char *query;
     ulong query_length;
@@ -993,8 +993,7 @@ update_binlog:
       if (ha_table_exists(thd, &tbl->db, &tbl->table_name))
         continue;
 
-      tbl_name_len= my_snprintf(quoted_name, sizeof(quoted_name),
-                                quoted_string,
+      tbl_name_len= my_snprintf(quoted_name, sizeof(quoted_name), "%`s",
                                 tbl->table_name.str);
       tbl_name_len++;                           /* +1 for the comma */
       if (query_pos + tbl_name_len + 1 >= query_end)
@@ -1036,7 +1035,7 @@ exit:
     SELECT DATABASE() in the future). For this we free() thd->db and set
     it to 0.
   */
-  if (thd->db.str && cmp_db_names(&thd->db, db) && !error)
+  if (unlikely(thd->db.str && cmp_db_names(&thd->db, db) && !error))
   {
     mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
     SESSION_TRACKER_CHANGED(thd, CURRENT_SCHEMA_TRACKER, NULL);
@@ -1179,9 +1178,9 @@ static my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error)
   if (pos > path && pos[-1] == FN_LIBCHAR)
     *--pos=0;
 
-  if ((error= my_readlink(tmp2_path, path, MYF(MY_WME))) < 0)
+  if (unlikely((error= my_readlink(tmp2_path, path, MYF(MY_WME))) < 0))
     DBUG_RETURN(1);
-  if (!error)
+  if (likely(!error))
   {
     if (mysql_file_delete(key_file_misc, path, MYF(send_error ? MY_WME : 0)))
     {
@@ -1196,7 +1195,7 @@ static my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error)
 
   if (pos > path && pos[-1] == FN_LIBCHAR)
     *--pos=0;
-  if (rmdir(path) < 0 && send_error)
+  if (unlikely(rmdir(path) < 0 && send_error))
   {
     my_error(ER_DB_DROP_RMDIR, MYF(0), path, errno);
     DBUG_RETURN(1);
@@ -1697,15 +1696,16 @@ bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
   length= build_table_filename(path, sizeof(path)-1, old_db->str, "", "", 0);
   if (length && path[length-1] == FN_LIBCHAR)
     path[length-1]=0;                            // remove ending '\'
-  if ((error= my_access(path,F_OK)))
+  if (unlikely((error= my_access(path,F_OK))))
   {
     my_error(ER_BAD_DB_ERROR, MYF(0), old_db->str);
     goto exit;
   }
 
   /* Step1: Create the new database */
-  if ((error= mysql_create_db_internal(thd, &new_db,
-                                       DDL_options(), &create_info, 1)))
+  if (unlikely((error= mysql_create_db_internal(thd, &new_db,
+                                                DDL_options(), &create_info,
+                                                1))))
     goto exit;
 
   /* Step2: Move tables to the new database */

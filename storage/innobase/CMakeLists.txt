@@ -153,7 +153,7 @@ MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
   DEFAULT RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES
 	${ZLIB_LIBRARY}
-	${CRC32_VPMSUM_LIBRARY}
+	${CRC32_LIBRARY}
 	${NUMA_LIBRARY}
 	${LIBSYSTEMD}
 	${LINKER_SCRIPT})
@@ -179,6 +179,7 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
       mtr/mtr0mtr.cc
       row/row0merge.cc
       row/row0mysql.cc
+      row/row0trunc.cc
       srv/srv0srv.cc
       COMPILE_FLAGS "-O0"
       )

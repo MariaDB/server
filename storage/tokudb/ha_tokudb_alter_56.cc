@@ -257,13 +257,13 @@ static bool only_flags(ulong bits, ulong mask) {
 
 // HA_ALTER_INPLACE_EXCLUSIVE_LOCK: prepare and alter runs with MDL X
 
-// HA_ALTER_INPLACE_SHARED_LOCK_AFTER_PREPARE: prepare runs with MDL X,
+// HA_ALTER_INPLACE_COPY_LOCK: prepare runs with MDL X,
 //  alter runs with MDL SNW
 
 // HA_ALTER_INPLACE_SHARED_LOCK: prepare and alter methods called with MDL SNW,
 //  concurrent reads, no writes
 
-// HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE: prepare runs with MDL X,
+// HA_ALTER_INPLACE_COPY_NO_LOCK: prepare runs with MDL X,
 //  alter runs with MDL SW
 
 // HA_ALTER_INPLACE_NO_LOCK: prepare and alter methods called with MDL SW,
@@ -319,7 +319,9 @@ enum_alter_inplace_result ha_tokudb::check_if_supported_inplace_alter(
                 // we grab an exclusive MDL for the drop index.
                 result = HA_ALTER_INPLACE_EXCLUSIVE_LOCK;
             } else {
-                result = HA_ALTER_INPLACE_SHARED_LOCK_AFTER_PREPARE;
+		/* FIXME: MDEV-16099 Use alter algorithm=nocopy
+		or algorithm=instant for non-InnoDB engine */
+                result = HA_ALTER_INPLACE_COPY_LOCK;
 
                 // someday, allow multiple hot indexes via alter table add key.
                 // don't forget to change the store_lock function.
@@ -336,7 +338,9 @@ enum_alter_inplace_result ha_tokudb::check_if_supported_inplace_alter(
                     tokudb::sysvars::create_index_online(thd)) {
                     // external_lock set WRITE_ALLOW_WRITE which allows writes
                     // concurrent with the index creation
-                    result = HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE; 
+                    /* FIXME: MDEV-16099 Use alter algorithm=nocopy
+		    or algorithm=instant for non-InnoDB engine */
+                    result = HA_ALTER_INPLACE_COPY_NO_LOCK;
                 }
             }
         }
@@ -509,7 +513,9 @@ enum_alter_inplace_result ha_tokudb::check_if_supported_inplace_alter(
                 ALTER_RECREATE_TABLE |
                 ALTER_COLUMN_DEFAULT)) {
         ctx->optimize_needed = true;
-        result = HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE;
+        /* FIXME: MDEV-16099 Use alter algorithm=nocopy
+        or algorithm=instant for non-InnoDB engine */
+        result = HA_ALTER_INPLACE_COPY_NO_LOCK;
     }
 #endif
 

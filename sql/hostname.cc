@@ -460,7 +460,7 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
       entry->m_last_seen= now;
       *connect_errors= entry->m_errors.m_connect;
 
-      if (entry->m_errors.m_connect >= max_connect_errors)
+      if (unlikely(entry->m_errors.m_connect >= max_connect_errors))
       {
         entry->m_errors.m_host_blocked++;
         entry->set_error_timestamps(now);

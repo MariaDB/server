@@ -104,7 +104,8 @@ typedef struct st_mysql_time_status
 
 static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
 {
-  status->warnings= status->precision= 0;
+  status->warnings= 0;
+  status->precision= 0;
 }
 
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,

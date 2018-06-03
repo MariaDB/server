@@ -98,6 +98,7 @@ extern ulong			srv_checksum_algorithm;
 static ulint physical_page_size;  /* Page size in bytes on disk. */
 static ulint logical_page_size;   /* Page size when uncompressed. */
 ulong srv_page_size;
+ulong srv_page_size_shift;
 page_size_t			univ_page_size(0, 0, false);
 /* Current page number (0 based). */
 unsigned long long		cur_page_num;
@@ -308,16 +309,16 @@ const page_size_t
 get_page_size(
 	byte*	buf)
 {
-	const ulint	flags = mach_read_from_4(buf + FIL_PAGE_DATA
+	const unsigned	flags = mach_read_from_4(buf + FIL_PAGE_DATA
 						 + FSP_SPACE_FLAGS);
 
-	const ulint	ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
+	const ulong	ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
 
-	if (ssize == 0) {
-		srv_page_size = UNIV_PAGE_SIZE_ORIG;
-	} else {
-		srv_page_size = ((UNIV_ZIP_SIZE_MIN >> 1) << ssize);
-	}
+	srv_page_size_shift = ssize
+		? UNIV_ZIP_SIZE_SHIFT_MIN - 1 + ssize
+		: UNIV_PAGE_SIZE_SHIFT_ORIG;
+
+	srv_page_size = 1U << srv_page_size_shift;
 
 	univ_page_size.copy_from(
 		page_size_t(srv_page_size, srv_page_size, false));
@@ -1703,7 +1704,6 @@ int main(
 		ulint zip_size = page_size.is_compressed() ? page_size.logical() : 0;
 		logical_page_size = page_size.is_compressed() ? zip_size : 0;
 		physical_page_size = page_size.physical();
-		srv_page_size = (ulong)page_size.logical();
 		bool is_compressed = FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
 
 		if (page_size.physical() > UNIV_ZIP_SIZE_MIN) {

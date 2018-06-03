@@ -470,7 +470,7 @@ typedef struct st_join_table {
   Window_funcs_computation* window_funcs_step;
 
   /**
-    List of topmost expressions in the select list. The *next* JOIN TAB
+    List of topmost expressions in the select list. The *next* JOIN_TAB
     in the plan should use it to obtain correct values. Same applicable to
     all_fields. These lists are needed because after tmp tables functions
     will be turned to fields. These variables are pointing to
@@ -1438,6 +1438,9 @@ public:
   
   enum { QEP_NOT_PRESENT_YET, QEP_AVAILABLE, QEP_DELETED} have_query_plan;
 
+  // if keep_current_rowid=true, whether they should be saved in temporary table
+  bool tmp_table_keep_current_rowid;
+
   /*
     Additional WHERE and HAVING predicates to be considered for IN=>EXISTS
     subquery transformation of a JOIN object.
@@ -1548,6 +1551,7 @@ public:
     pushdown_query= 0;
     original_join_tab= 0;
     explain= NULL;
+    tmp_table_keep_current_rowid= 0;
 
     all_fields= fields_arg;
     if (&fields_list != &fields_arg)      /* Avoid valgrind-warning */
@@ -1576,6 +1580,15 @@ public:
   bool only_const_tables()  { return const_tables == table_count; }
   /* Number of tables actually joined at the top level */
   uint exec_join_tab_cnt() { return tables_list ? top_join_tab_count : 0; }
+
+  /*
+    Number of tables in the join which also includes the temporary tables
+    created for GROUP BY, DISTINCT , WINDOW FUNCTION etc.
+  */
+  uint total_join_tab_cnt()
+  {
+    return exec_join_tab_cnt() + aggr_tables - 1;
+  }
 
   int prepare(TABLE_LIST *tables, uint wind_num,
 	      COND *conds, uint og_num, ORDER *order, bool skip_order_by,
@@ -1774,6 +1787,7 @@ private:
   void cleanup_item_list(List<Item> &items) const;
   bool add_having_as_table_cond(JOIN_TAB *tab);
   bool make_aggr_tables_info();
+  bool add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *fields);
 };
 
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};
@@ -2370,6 +2384,7 @@ int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table,
 #define RATIO_TO_PACK_ROWS	       2
 #define MIN_STRING_LENGTH_TO_PACK_ROWS   10
 
+void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group);
 TABLE *create_tmp_table(THD *thd,TMP_TABLE_PARAM *param,List<Item> &fields,
 			ORDER *group, bool distinct, bool save_sum_fields,
 			ulonglong select_options, ha_rows rows_limit,

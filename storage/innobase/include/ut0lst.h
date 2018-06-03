@@ -426,7 +426,7 @@ Gets the last node in a two-way list.
 @return last node, or NULL if the list is empty */
 #define UT_LIST_GET_LAST(BASE)		(BASE).end
 
-struct	NullValidate { void operator()(const void* elem) { } };
+struct	NullValidate { void operator()(const void*) { } };
 
 /********************************************************************//**
 Iterate over all the elements and call the functor for each element.

@@ -999,7 +999,7 @@ bool Aggregator_distinct::add()
       */
       return tree->unique_add(table->record[0] + table->s->null_bytes);
     }
-    if ((error= table->file->ha_write_tmp_row(table->record[0])) &&
+    if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))) &&
         table->file->is_fatal_error(error, HA_CHECK_DUP))
       return TRUE;
     return FALSE;
@@ -1133,6 +1133,7 @@ Item_sum_num::fix_fields(THD *thd, Item **ref)
       return TRUE;
     set_if_bigger(decimals, args[i]->decimals);
     m_with_subquery|= args[i]->with_subquery();
+    with_param|= args[i]->with_param;
     with_window_func|= args[i]->with_window_func;
   }
   result_field=0;
@@ -1166,6 +1167,7 @@ Item_sum_hybrid::fix_fields(THD *thd, Item **ref)
     DBUG_RETURN(TRUE);
 
   m_with_subquery= args[0]->with_subquery();
+  with_param= args[0]->with_param;
   with_window_func|= args[0]->with_window_func;
 
   fix_length_and_dec();
@@ -1269,6 +1271,12 @@ Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
   m_sp= sp;
 }
 
+Item_sum_sp::Item_sum_sp(THD *thd, Item_sum_sp *item):
+             Item_sum(thd, item), Item_sp(thd, item)
+{
+  maybe_null= item->maybe_null;
+  quick_group= item->quick_group;
+}
 
 bool
 Item_sum_sp::fix_fields(THD *thd, Item **ref)
@@ -1388,7 +1396,7 @@ Item_sum_sp::fix_length_and_dec()
 {
   DBUG_ENTER("Item_sum_sp::fix_length_and_dec");
   DBUG_ASSERT(sp_result_field);
-  Type_std_attributes::set(sp_result_field);
+  Type_std_attributes::set(sp_result_field->type_std_attributes());
   Item_sum::fix_length_and_dec();
   DBUG_VOID_RETURN;
 }
@@ -1398,6 +1406,14 @@ Item_sum_sp::func_name() const
 {
   THD *thd= current_thd;
   return Item_sp::func_name(thd);
+}
+
+Item* Item_sum_sp::copy_or_same(THD *thd)
+{
+  Item_sum_sp *copy_item= new (thd->mem_root) Item_sum_sp(thd, this);
+  copy_item->init_result_field(thd, max_length, maybe_null, 
+                               &copy_item->null_value, &copy_item->name);
+  return copy_item;
 }
 
 /***********************************************************************
@@ -2027,7 +2043,7 @@ double Item_sum_std::val_real()
 {
   DBUG_ASSERT(fixed == 1);
   double nr= Item_sum_variance::val_real();
-  if (my_isinf(nr))
+  if (std::isinf(nr))
     return DBL_MAX;
   DBUG_ASSERT(nr >= 0.0);
   return sqrt(nr);
@@ -2458,7 +2474,7 @@ Item *Item_sum_max::copy_or_same(THD* thd)
 
 bool Item_sum_max::add()
 {
-  Item *tmp_item;
+  Item * UNINIT_VAR(tmp_item);
   DBUG_ENTER("Item_sum_max::add");
   DBUG_PRINT("enter", ("this: %p", this));
 
@@ -2663,7 +2679,7 @@ void Item_sum_num::reset_field()
 
 void Item_sum_hybrid::reset_field()
 {
-  Item *tmp_item, *arg0;
+  Item *UNINIT_VAR(tmp_item), *arg0;
   DBUG_ENTER("Item_sum_hybrid::reset_field");
 
   arg0= args[0];
@@ -3020,7 +3036,7 @@ Item *Item_sum_avg::result_item(THD *thd, Field *field)
 void Item_sum_hybrid::update_field()
 {
   DBUG_ENTER("Item_sum_hybrid::update_field");
-  Item *tmp_item;
+  Item *UNINIT_VAR(tmp_item);
   if (unlikely(direct_added))
   {
     tmp_item= args[0];
@@ -3900,6 +3916,7 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
         args[i]->check_cols(1))
       return TRUE;
     m_with_subquery|= args[i]->with_subquery();
+    with_param|= args[i]->with_param;
     with_window_func|= args[i]->with_window_func;
   }
 

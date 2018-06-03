@@ -483,8 +483,7 @@ frm_error:
     my_error(ER_FPARSER_BAD_HEADER, MYF(0), file_name->str);
     DBUG_RETURN(0);
   }
-  else
-    DBUG_RETURN(parser); // upper level have to check parser->ok()
+  DBUG_RETURN(parser); // upper level have to check parser->ok()
 }
 
 

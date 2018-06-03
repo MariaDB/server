@@ -108,7 +108,7 @@ row_merge_create_fts_sort_index(
 		? DATA_VARCHAR : DATA_VARMYSQL;
 	field->col->mbminlen = idx_field->col->mbminlen;
 	field->col->mbmaxlen = idx_field->col->mbmaxlen;
-	field->col->len = HA_FT_MAXCHARLEN * field->col->mbmaxlen;
+	field->col->len = HA_FT_MAXCHARLEN * unsigned(field->col->mbmaxlen);
 
 	field->fixed_len = 0;
 
@@ -255,7 +255,7 @@ row_fts_psort_info_init(
 				dup->index);
 
 			if (row_merge_file_create(psort_info[j].merge_file[i],
-						  path) < 0) {
+						  path) == OS_FILE_CLOSED) {
 				goto func_exit;
 			}
 
@@ -415,9 +415,9 @@ row_merge_fts_doc_add_word_for_parser(
 	ut_ad(t_ctx);
 
 	str.f_str = (byte*)(word);
-	str.f_len = word_len;
+	str.f_len = ulint(word_len);
 	str.f_n_char = fts_get_token_size(
-		(CHARSET_INFO*)param->cs, word, word_len);
+		(CHARSET_INFO*)param->cs, word, ulint(word_len));
 
 	/* JAN: TODO: MySQL 5.7 FTS
 	ut_ad(boolean_info->position >= 0);
@@ -776,7 +776,7 @@ DECLARE_THREAD(fts_parallel_tokenization)(
 	merge_file_t**		merge_file;
 	row_merge_block_t**	block;
 	row_merge_block_t**	crypt_block;
-	int			tmpfd[FTS_NUM_AUX_INDEX];
+	pfs_os_file_t		tmpfd[FTS_NUM_AUX_INDEX];
 	ulint			mycount[FTS_NUM_AUX_INDEX];
 	ib_uint64_t		total_rec = 0;
 	ulint			num_doc_processed = 0;
@@ -1029,7 +1029,7 @@ exit:
 		}
 
 		tmpfd[i] = row_merge_file_create_low(path);
-		if (tmpfd[i] < 0) {
+		if (tmpfd[i] == OS_FILE_CLOSED) {
 			error = DB_OUT_OF_MEMORY;
 			goto func_exit;
 		}
@@ -1041,12 +1041,12 @@ exit:
 				       crypt_block[i], table->space->id);
 
 		if (error != DB_SUCCESS) {
-			close(tmpfd[i]);
+			os_file_close(tmpfd[i]);
 			goto func_exit;
 		}
 
 		total_rec += merge_file[i]->n_rec;
-		close(tmpfd[i]);
+		os_file_close(tmpfd[i]);
 	}
 
 func_exit:
@@ -1135,7 +1135,7 @@ row_fts_start_parallel_merge(
 /*=========================*/
 	fts_psort_t*	merge_info)	/*!< in: parallel sort info */
 {
-	int		i = 0;
+	ulint		i = 0;
 
 	/* Kick off merge/insert threads */
 	for (i = 0; i <  FTS_NUM_AUX_INDEX; i++) {
@@ -1375,10 +1375,10 @@ row_fts_insert_tuple(
 Propagate a newly added record up one level in the selection tree
 @return parent where this value propagated to */
 static
-int
+ulint
 row_fts_sel_tree_propagate(
 /*=======================*/
-	int		propogated,	/*<! in: tree node propagated */
+	ulint		propogated,	/*<! in: tree node propagated */
 	int*		sel_tree,	/*<! in: selection tree */
 	const mrec_t**	mrec,		/*<! in: sort record */
 	ulint**		offsets,	/*<! in: record offsets */
@@ -1417,7 +1417,7 @@ row_fts_sel_tree_propagate(
 
 	sel_tree[parent] = selected;
 
-	return(static_cast<int>(parent));
+	return parent;
 }
 
 /*********************************************************************//**
@@ -1437,8 +1437,8 @@ row_fts_sel_tree_update(
 	ulint	i;
 
 	for (i = 1; i <= height; i++) {
-		propagated = static_cast<ulint>(row_fts_sel_tree_propagate(
-			static_cast<int>(propagated), sel_tree, mrec, offsets, index));
+		propagated = row_fts_sel_tree_propagate(
+			propagated, sel_tree, mrec, offsets, index);
 	}
 
 	return(sel_tree[0]);
@@ -1518,7 +1518,7 @@ row_fts_build_sel_tree(
 {
 	ulint	treelevel = 1;
 	ulint	num = 2;
-	int	i = 0;
+	ulint	i = 0;
 	ulint	start;
 
 	/* No need to build selection tree if we only have two merge threads */
@@ -1533,13 +1533,13 @@ row_fts_build_sel_tree(
 
 	start = (ulint(1) << treelevel) - 1;
 
-	for (i = 0; i < (int) fts_sort_pll_degree; i++) {
-		sel_tree[i + start] = i;
+	for (i = 0; i < fts_sort_pll_degree; i++) {
+		sel_tree[i + start] = int(i);
 	}
 
-	for (i = static_cast<int>(treelevel) - 1; i >= 0; i--) {
+	for (i = treelevel; --i; ) {
 		row_fts_build_sel_tree_level(
-			sel_tree, static_cast<ulint>(i), mrec, offsets, index);
+			sel_tree, i, mrec, offsets, index);
 	}
 
 	return(treelevel);
@@ -1570,7 +1570,7 @@ row_fts_merge_insert(
 	ib_alloc_t*		heap_alloc;
 	ulint			i;
 	mrec_buf_t**		buf;
-	int*			fd;
+	pfs_os_file_t*			fd;
 	byte**			block;
 	byte**			crypt_block;
 	const mrec_t**		mrec;
@@ -1579,7 +1579,7 @@ row_fts_merge_insert(
 	ulint			height;
 	ulint			start;
 	fts_psort_insert_t	ins_ctx;
-	ulint			count_diag = 0;
+	uint64_t		count_diag = 0;
 	fts_table_t		fts_table;
 	char			aux_table_name[MAX_FULL_NAME_LEN];
 	dict_table_t*		aux_table;
@@ -1612,7 +1612,7 @@ row_fts_merge_insert(
 		heap, sizeof(*offsets) * fts_sort_pll_degree);
 	buf = (mrec_buf_t**) mem_heap_alloc(
 		heap, sizeof(*buf) * fts_sort_pll_degree);
-	fd = (int*) mem_heap_alloc(heap, sizeof(*fd) * fts_sort_pll_degree);
+	fd = (pfs_os_file_t*) mem_heap_alloc(heap, sizeof(*fd) * fts_sort_pll_degree);
 	block = (byte**) mem_heap_alloc(
 		heap, sizeof(*block) * fts_sort_pll_degree);
 	crypt_block = (byte**) mem_heap_alloc(
@@ -1645,7 +1645,7 @@ row_fts_merge_insert(
 		buf[i] = static_cast<mrec_buf_t*>(
 			mem_heap_alloc(heap, sizeof *buf[i]));
 
-		count_diag += (int) psort_info[i].merge_file[id]->n_rec;
+		count_diag += psort_info[i].merge_file[id]->n_rec;
 	}
 
 	if (fts_enable_diag_print) {
@@ -1737,7 +1737,7 @@ row_fts_merge_insert(
 	height = row_fts_build_sel_tree(sel_tree, (const mrec_t **) mrec,
 					offsets, index);
 
-	start = (1 << height) - 1;
+	start = (1U << height) - 1;
 
 	/* Fetch sorted records from sort buffer and insert them into
 	corresponding FTS index auxiliary tables */

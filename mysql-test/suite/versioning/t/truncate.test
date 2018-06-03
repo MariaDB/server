@@ -1,3 +1,4 @@
+--source suite/versioning/common.inc
 --source include/have_partition.inc
 --source suite/versioning/engines.inc
 
@@ -6,7 +7,13 @@ create table t (a int);
 delete history from t before system_time now();
 
 # TRUNCATE is not DELETE and trigger must not be called.
-create or replace table t (a int) with system versioning;
+--replace_result $sys_datatype_expl SYS_TYPE
+eval create or replace table t (
+  a int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning;
 insert into t values (1);
 update t set a=2;
 set @test = 'correct';
@@ -16,7 +23,13 @@ delete history from t;
 select @test from t;
 drop table t;
 
-create table t (a int) with system versioning;
+--replace_result $sys_datatype_expl SYS_TYPE
+eval create or replace table t (
+  a int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning;
 insert into t values (1), (2);
 update t set a=11 where a=1;
 --real_sleep 0.01
@@ -45,7 +58,6 @@ drop procedure truncate_sp;
 --echo # Truncate partitioned
 create or replace table t (a int)
 with system versioning
-engine myisam
 partition by system_time limit 1 (
     partition p0 history,
     partition p1 history,
@@ -57,7 +69,13 @@ delete history from t;
 select * from t for system_time all;
 
 --echo # VIEW
-create or replace table t (i int) with system versioning;
+--replace_result $sys_datatype_expl SYS_TYPE
+eval create or replace table t (
+  i int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning;
 delete history from t;
 create or replace view v as select * from t;
 --error ER_IT_IS_A_VIEW
@@ -88,3 +106,6 @@ delete history from v before system_time now(6);
 unlock tables;
 drop view v;
 drop table t;
+
+drop database test;
+create database test;

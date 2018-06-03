@@ -61,11 +61,11 @@ struct ib_sequence_t;
 
 /** @brief Block size for I/O operations in merge sort.
 
-The minimum is UNIV_PAGE_SIZE, or page_get_free_space_of_empty()
+The minimum is srv_page_size, or page_get_free_space_of_empty()
 rounded to a power of 2.
 
 When not creating a PRIMARY KEY that contains column prefixes, this
-can be set as small as UNIV_PAGE_SIZE / 2. */
+can be set as small as srv_page_size / 2. */
 typedef byte	row_merge_block_t;
 
 /** @brief Secondary buffer for I/O operations of merge records.
@@ -101,7 +101,7 @@ struct row_merge_buf_t {
 
 /** Information about temporary files used in merge sort */
 struct merge_file_t {
-	int		fd;		/*!< file descriptor */
+	pfs_os_file_t	fd;		/*!< file descriptor */
 	ulint		offset;		/*!< file offset (end of file) */
 	ib_uint64_t	n_rec;		/*!< number of records in the file */
 };
@@ -193,7 +193,7 @@ row_merge_drop_temp_indexes(void);
 UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
 @param[in]	path	location for creating temporary merge files, or NULL
 @return File descriptor */
-int
+pfs_os_file_t
 row_merge_file_create_low(
 	const char*	path)
 	MY_ATTRIBUTE((warn_unused_result));
@@ -203,7 +203,7 @@ if UNIV_PFS_IO is defined. */
 void
 row_merge_file_destroy_low(
 /*=======================*/
-	int		fd);	/*!< in: merge file descriptor */
+	const pfs_os_file_t&	fd);	/*!< in: merge file descriptor */
 
 /*********************************************************************//**
 Provide a new pathname for a table that is being renamed if it belongs to
@@ -308,7 +308,7 @@ old_table unless creating a PRIMARY KEY
 @param[in]	n_indexes	size of indexes[]
 @param[in,out]	table		MySQL table, for reporting erroneous key value
 if applicable
-@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	defaults	default values of added, changed columns, or NULL
 @param[in]	col_map		mapping of old column numbers to new ones, or
 NULL if old_table == new_table
 @param[in]	add_autoinc	number of added AUTO_INCREMENT columns, or
@@ -322,7 +322,6 @@ this function and it will be passed to other functions for further accounting.
 @param[in]	add_v		new virtual columns added along with indexes
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
-@param[in]	drop_historical	whether to drop historical system rows
 @return DB_SUCCESS or error code */
 dberr_t
 row_merge_build_indexes(
@@ -334,15 +333,14 @@ row_merge_build_indexes(
 	const ulint*		key_numbers,
 	ulint			n_indexes,
 	struct TABLE*		table,
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 	const ulint*		col_map,
 	ulint			add_autoinc,
 	ib_sequence_t&		sequence,
 	bool			skip_pk_sort,
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
-	struct TABLE*		eval_table,
-	bool			drop_historical)
+	struct TABLE*		eval_table)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**
@@ -372,7 +370,7 @@ UNIV_INTERN
 bool
 row_merge_write(
 /*============*/
-	int		fd,	/*!< in: file descriptor */
+	const pfs_os_file_t&	fd,	/*!< in: file descriptor */
 	ulint		offset,	/*!< in: offset where to write,
 				in number of row_merge_block_t elements */
 	const void*	buf,	/*!< in: data */
@@ -393,7 +391,7 @@ row_merge_buf_empty(
 @param[out]	merge_file	merge file structure
 @param[in]	path		location for creating temporary file, or NULL
 @return file descriptor, or -1 on failure */
-int
+pfs_os_file_t
 row_merge_file_create(
 	merge_file_t*	merge_file,
 	const char*	path)
@@ -421,7 +419,7 @@ row_merge_sort(
 	const row_merge_dup_t*	dup,
 	merge_file_t*		file,
 	row_merge_block_t*	block,
-	int*			tmpfd,
+	pfs_os_file_t*		tmpfd,
 	const bool		update_progress,
 	const double	pct_progress,
 	const double	pct_cost,
@@ -460,7 +458,7 @@ row_merge_file_destroy(
 bool
 row_merge_read(
 /*===========*/
-	int			fd,	/*!< in: file descriptor */
+	const pfs_os_file_t&	fd,	/*!< in: file descriptor */
 	ulint			offset,	/*!< in: offset where to read
 					in number of row_merge_block_t
 					elements */
@@ -479,7 +477,7 @@ row_merge_read_rec(
 	mrec_buf_t*		buf,	/*!< in/out: secondary buffer */
 	const byte*		b,	/*!< in: pointer to record */
 	const dict_index_t*	index,	/*!< in: index of the record */
-	int			fd,	/*!< in: file descriptor */
+	const pfs_os_file_t&	fd,	/*!< in: file descriptor */
 	ulint*			foffs,	/*!< in/out: file offset */
 	const mrec_t**		mrec,	/*!< out: pointer to merge record,
 					or NULL on end of list

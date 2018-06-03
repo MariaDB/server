@@ -48,7 +48,7 @@ lock_wait_table_print(void)
 
 	const srv_slot_t*	slot = lock_sys.waiting_threads;
 
-	for (ulint i = 0; i < OS_THREAD_MAX_N; i++, ++slot) {
+	for (ulint i = 0; i < srv_max_n_threads; i++, ++slot) {
 
 		fprintf(stderr,
 			"Slot %lu: thread type %lu,"
@@ -72,7 +72,7 @@ lock_wait_table_release_slot(
 	srv_slot_t*	slot)		/*!< in: slot to release */
 {
 #ifdef UNIV_DEBUG
-	srv_slot_t*	upper = lock_sys.waiting_threads + OS_THREAD_MAX_N;
+	srv_slot_t*	upper = lock_sys.waiting_threads + srv_max_n_threads;
 #endif /* UNIV_DEBUG */
 
 	lock_wait_mutex_enter();
@@ -142,7 +142,7 @@ lock_wait_table_reserve_slot(
 
 	slot = lock_sys.waiting_threads;
 
-	for (i = OS_THREAD_MAX_N; i--; ++slot) {
+	for (i = srv_max_n_threads; i--; ++slot) {
 		if (!slot->in_use) {
 			slot->in_use = TRUE;
 			slot->thr = thr;
@@ -163,13 +163,13 @@ lock_wait_table_reserve_slot(
 			}
 
 			ut_ad(lock_sys.last_slot
-			      <= lock_sys.waiting_threads + OS_THREAD_MAX_N);
+			      <= lock_sys.waiting_threads + srv_max_n_threads);
 
 			return(slot);
 		}
 	}
 
-	ib::error() << "There appear to be " << OS_THREAD_MAX_N << " user"
+	ib::error() << "There appear to be " << srv_max_n_threads << " user"
 		" threads currently waiting inside InnoDB, which is the upper"
 		" limit. Cannot continue operation. Before aborting, we print"
 		" a list of waiting threads.";
@@ -290,7 +290,7 @@ lock_wait_suspend_thread(
 		if (ut_usectime(&sec, &ms) == -1) {
 			start_time = -1;
 		} else {
-			start_time = static_cast<int64_t>(sec) * 1000000 + ms;
+			start_time = int64_t(sec) * 1000000 + int64_t(ms);
 		}
 	}
 
@@ -378,31 +378,27 @@ lock_wait_suspend_thread(
 	lock_wait_table_release_slot(slot);
 
 	if (thr->lock_state == QUE_THR_LOCK_ROW) {
-		ulint	diff_time;
-
-		if (ut_usectime(&sec, &ms) == -1) {
+		int64_t	diff_time;
+		if (start_time == -1 || ut_usectime(&sec, &ms) == -1) {
 			finish_time = -1;
+			diff_time = 0;
 		} else {
-			finish_time = static_cast<int64_t>(sec) * 1000000 + ms;
-		}
+			finish_time = int64_t(sec) * 1000000 + int64_t(ms);
+			diff_time = std::max<int64_t>(
+				0, finish_time - start_time);
+			srv_stats.n_lock_wait_time.add(diff_time);
 
-		diff_time = (finish_time > start_time) ?
-			    (ulint) (finish_time - start_time) : 0;
+			/* Only update the variable if we successfully
+			retrieved the start and finish times. See Bug#36819. */
+			if (ulint(diff_time) > lock_sys.n_lock_max_wait_time) {
+				lock_sys.n_lock_max_wait_time
+					= ulint(diff_time);
+			}
+			/* Record the lock wait time for this thread */
+			thd_storage_lock_wait(trx->mysql_thd, diff_time);
+		}
 
 		srv_stats.n_lock_wait_current_count.dec();
-		srv_stats.n_lock_wait_time.add(diff_time);
-
-		/* Only update the variable if we successfully
-		retrieved the start and finish times. See Bug#36819. */
-		if (diff_time > lock_sys.n_lock_max_wait_time
-		    && start_time != -1
-		    && finish_time != -1) {
-
-			lock_sys.n_lock_max_wait_time = diff_time;
-		}
-
-		/* Record the lock wait time for this thread */
-		thd_set_lock_wait_time(trx->mysql_thd, diff_time);
 
 		DBUG_EXECUTE_IF("lock_instrument_slow_query_log",
 			os_thread_sleep(1000););

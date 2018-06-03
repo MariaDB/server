@@ -60,32 +60,6 @@ trx_purge(
 	ulint	n_purge_threads,	/*!< in: number of purge tasks to
 					submit to task queue. */
 	bool	truncate);		/*!< in: truncate history if true */
-/*******************************************************************//**
-Stop purge and wait for it to stop, move to PURGE_STATE_STOP. */
-void
-trx_purge_stop(void);
-/*================*/
-/*******************************************************************//**
-Resume purge, move to PURGE_STATE_RUN. */
-void
-trx_purge_run(void);
-/*================*/
-
-/** Purge states */
-enum purge_state_t {
-	PURGE_STATE_INIT,		/*!< Purge instance created */
-	PURGE_STATE_RUN,		/*!< Purge should be running */
-	PURGE_STATE_STOP,		/*!< Purge should be stopped */
-	PURGE_STATE_EXIT,		/*!< Purge has been shutdown */
-	PURGE_STATE_DISABLED		/*!< Purge was never started */
-};
-
-/*******************************************************************//**
-Get the purge state.
-@return purge state. */
-purge_state_t
-trx_purge_state(void);
-/*=================*/
 
 /** Rollback segements from a given transaction with trx-no
 scheduled for purge. */
@@ -396,29 +370,20 @@ namespace undo {
 /** The control structure used in the purge operation */
 class purge_sys_t
 {
-  bool m_initialised;
 public:
+	/** signal state changes; os_event_reset() and os_event_set()
+	are protected by rw_lock_x_lock(latch) */
 	MY_ALIGNED(CACHE_LINE_SIZE)
-	rw_lock_t	latch;		/*!< The latch protecting the purge
-					view. A purge operation must acquire an
-					x-latch here for the instant at which
-					it changes the purge view: an undo
-					log operation can prevent this by
-					obtaining an s-latch here. It also
-					protects state and running */
+	os_event_t	event;
+	/** latch protecting view, m_enabled */
 	MY_ALIGNED(CACHE_LINE_SIZE)
-	os_event_t	event;		/*!< State signal event;
-					os_event_set() and os_event_reset()
-					are protected by purge_sys_t::latch
-					X-lock */
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	ulint		n_stop;		/*!< Counter to track number stops */
-
-	volatile bool	running;	/*!< true, if purge is active,
-					we check this without the latch too */
-	volatile purge_state_t	state;	/*!< Purge coordinator thread states,
-					we check this in several places
-					without holding the latch. */
+	rw_lock_t	latch;
+private:
+	/** whether purge is enabled; protected by latch and my_atomic */
+	int32_t		m_enabled;
+	/** number of pending stop() calls without resume() */
+	int32_t		m_paused;
+public:
 	que_t*		query;		/*!< The query graph which will do the
 					parallelized purge operation */
 	MY_ALIGNED(CACHE_LINE_SIZE)
@@ -494,10 +459,7 @@ public:
     uninitialised. Real initialisation happens in create().
   */
 
-  purge_sys_t() : m_initialised(false) {}
-
-
-  bool is_initialised() const { return m_initialised; }
+  purge_sys_t() : event(NULL), m_enabled(false) {}
 
 
   /** Create the instance */
@@ -505,6 +467,49 @@ public:
 
   /** Close the purge system on shutdown */
   void close();
+
+  /** @return whether purge is enabled */
+  bool enabled()
+  {
+    return my_atomic_load32_explicit(&m_enabled, MY_MEMORY_ORDER_RELAXED);
+  }
+  /** @return whether purge is enabled */
+  bool enabled_latched()
+  {
+    ut_ad(rw_lock_own_flagged(&latch, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
+    return bool(m_enabled);
+  }
+  /** @return whether the purge coordinator is paused */
+  bool paused()
+  { return my_atomic_load32_explicit(&m_paused, MY_MEMORY_ORDER_RELAXED); }
+  /** @return whether the purge coordinator is paused */
+  bool paused_latched()
+  {
+    ut_ad(rw_lock_own_flagged(&latch, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
+    return m_paused != 0;
+  }
+
+  /** Enable purge at startup. Not protected by latch; the main thread
+  will wait for purge_sys.enabled() in srv_start() */
+  void coordinator_startup()
+  {
+    ut_ad(!enabled());
+    my_atomic_store32_explicit(&m_enabled, true, MY_MEMORY_ORDER_RELAXED);
+  }
+
+  /** Disable purge at shutdown */
+  void coordinator_shutdown()
+  {
+    ut_ad(enabled());
+    my_atomic_store32_explicit(&m_enabled, false, MY_MEMORY_ORDER_RELAXED);
+  }
+
+  /** @return whether the purge coordinator thread is active */
+  bool running();
+  /** Stop purge during FLUSH TABLES FOR EXPORT */
+  void stop();
+  /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
+  void resume();
 };
 
 /** The global data structure coordinating a purge */

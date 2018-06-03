@@ -1738,7 +1738,7 @@ connection default;
 CREATE TABLE t1(a INT, b INT, KEY(a), KEY b using btree (b), KEY ab using btree(a, b)) engine=memory;
 INSERT INTO t1 VALUES (2, 20), (2,20), (1, 10), (4, 40), (3, 30), (5,50), (6,50);
 HANDLER t1 OPEN;
-HANDLER t1 READ a>=(2) limit 3;
+HANDLER t1 READ a=(2) limit 3;
 a	b
 2	20
 2	20
@@ -1841,3 +1841,22 @@ ERROR HY000: Storage engine MEMORY of the table `test`.`t1` doesn't have this op
 HANDLER t1 CLOSE;
 DROP TABLE t1;
 End of 5.3 tests
+#
+# MDEV-15813 ASAN use-after-poison in hp_hashnr upon
+#            HANDLER READ on a versioned HEAP table
+#
+CREATE TABLE t1 (a INT NOT NULL, b INT NOT NULL, CONSTRAINT PRIMARY KEY (a, b), UNIQUE ba(b, a) USING HASH) ENGINE=HEAP;
+INSERT INTO t1 VALUES (1, 10), (2, 20), (3,30), (4,40);
+HANDLER t1 OPEN AS m;
+HANDLER m READ `PRIMARY`= (3,30);
+a	b
+3	30
+HANDLER m READ `PRIMARY`> (3,30);
+ERROR HY000: HASH index `PRIMARY` does not support this operation
+HANDLER m READ `ba`= (30,3);
+a	b
+3	30
+HANDLER m READ `ba`= (30);
+ERROR HY000: HASH index `ba` does not support this operation
+HANDLER m CLOSE;
+DROP TABLE t1;

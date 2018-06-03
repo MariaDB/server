@@ -225,7 +225,6 @@ struct TrxFactory {
 			&trx_named_savept_t::trx_savepoints);
 
 		mutex_create(LATCH_ID_TRX, &trx->mutex);
-		mutex_create(LATCH_ID_TRX_UNDO, &trx->undo_mutex);
 
 		lock_trx_alloc_locks(trx);
 	}
@@ -252,7 +251,6 @@ struct TrxFactory {
 		ut_free(trx->detailed_error);
 
 		mutex_free(&trx->mutex);
-		mutex_free(&trx->undo_mutex);
 
 		trx->mod_tables.~trx_mod_tables_t();
 
@@ -490,6 +488,12 @@ void trx_free(trx_t*& trx)
 	ut_ad(trx->will_lock == 0);
 
 	trx_pools->mem_free(trx);
+	/* Unpoison the memory for innodb_monitor_set_option;
+	it is operating also on the freed transaction objects. */
+	MEM_UNDEFINED(&trx->mutex, sizeof trx->mutex);
+	/* Declare the contents as initialized for Valgrind;
+	we checked that it was initialized in trx_pools->mem_free(trx). */
+	UNIV_MEM_VALID(&trx->mutex, sizeof trx->mutex);
 
 	trx = NULL;
 }
@@ -563,8 +567,7 @@ trx_resurrect_table_locks(
 	      trx_state_eq(trx, TRX_STATE_PREPARED));
 	ut_ad(undo->rseg == trx->rsegs.m_redo.rseg);
 
-	if (undo->empty) {
-
+	if (undo->empty()) {
 		return;
 	}
 
@@ -679,12 +682,7 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
   else
     trx->rsegs.m_redo.undo= undo;
 
-  if (!undo->empty)
-  {
-    trx->undo_no= undo->top_undo_no + 1;
-    trx->undo_rseg_space= undo->rseg->space->id;
-  }
-
+  trx->undo_no= undo->top_undo_no + 1;
   trx->rsegs.m_redo.rseg= rseg;
   /*
     For transactions with active data will not have rseg size = 1
@@ -717,7 +715,6 @@ trx_lists_init_at_db_start()
 {
 	ut_a(srv_is_being_started);
 	ut_ad(!srv_was_started);
-	ut_ad(!purge_sys.is_initialised());
 
 	if (srv_operation == SRV_OPERATION_RESTORE) {
 		/* mariabackup --prepare only deals with
@@ -777,8 +774,7 @@ trx_lists_init_at_db_start()
 				ut_ad(trx->rsegs.m_redo.rseg->trx_ref_count);
 
 				trx->rsegs.m_redo.undo = undo;
-				if (!undo->empty
-				    && undo->top_undo_no >= trx->undo_no) {
+				if (undo->top_undo_no >= trx->undo_no) {
 					if (trx_state_eq(trx,
 							 TRX_STATE_ACTIVE)) {
 						rows_to_undo -= trx->undo_no;
@@ -787,7 +783,6 @@ trx_lists_init_at_db_start()
 					}
 
 					trx->undo_no = undo->top_undo_no + 1;
-					trx->undo_rseg_space = rseg->space->id;
 				}
 				trx_resurrect_table_locks(trx, undo);
 			}
@@ -1114,9 +1109,6 @@ trx_write_serialisation_history(
 	undo log to the purge queue. */
 	trx_serialise(trx);
 
-	/* It is not necessary to acquire trx->undo_mutex here because
-	only a single OS thread is allowed to commit this transaction.
-	The undo logs will be processed and purged later. */
 	if (UNIV_LIKELY_NULL(old_insert)) {
 		UT_LIST_REMOVE(rseg->old_insert_list, old_insert);
 		trx_purge_add_undo_to_history(trx, old_insert, mtr);
@@ -1746,7 +1738,6 @@ trx_mark_sql_stat_end(
 		break;
 	case TRX_STATE_NOT_STARTED:
 		trx->undo_no = 0;
-		trx->undo_rseg_space = 0;
 		/* fall through */
 	case TRX_STATE_ACTIVE:
 		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
@@ -1969,10 +1960,6 @@ trx_prepare_low(trx_t* trx)
 
 	mtr_t	mtr;
 
-	/* It is not necessary to acquire trx->undo_mutex here because
-	only the owning (connection) thread of the transaction is
-	allowed to perform XA PREPARE. */
-
 	if (trx_undo_t* undo = trx->rsegs.m_noredo.undo) {
 		ut_ad(undo->rseg == trx->rsegs.m_noredo.rseg);
 
@@ -2127,7 +2114,7 @@ int trx_recover_for_mysql(XID *xid_list, uint len)
   if (arg.count)
     ib::info() << arg.count
                << " transactions in prepared state after recovery";
-  return(arg.count);
+  return int(arg.count);
 }
 
 

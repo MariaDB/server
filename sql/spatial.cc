@@ -406,7 +406,7 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
       key_buf[key_len++]= (uchar)je->s.c_next | 0x20; /* make it lowercase. */
     }
 
-    if (je->s.error)
+    if (unlikely(je->s.error))
       goto err_return;
 
     if (key_len == type_keyname_len &&
@@ -1956,6 +1956,7 @@ bool Gis_multi_point::init_from_json(json_engine_t *je, bool er_on_3D,
 
   if (je->s.error)
     return TRUE;
+
   if (n_points == 0)
   {
     je->s.error= Geometry::GEOJ_EMPTY_COORDINATES;
@@ -2231,6 +2232,7 @@ bool Gis_multi_line_string::init_from_json(json_engine_t *je, bool er_on_3D,
 
     n_line_strings++;
   }
+
   if (je->s.error)
     return TRUE;
 
@@ -2629,8 +2631,10 @@ bool Gis_multi_polygon::init_from_json(json_engine_t *je, bool er_on_3D,
 
     n_polygons++;
   }
+
   if (je->s.error)
     return TRUE;
+
   if (n_polygons == 0)
   {
     je->s.error= Geometry::GEOJ_EMPTY_COORDINATES;

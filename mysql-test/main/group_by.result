@@ -2832,3 +2832,14 @@ select distinct 1 from t1 group by a,b with rollup limit 1;
 1
 1
 drop table t1;
+#
+# MDEV-16170
+# Server crashes in Item_null_result::type_handler on SELECT with ROLLUP
+#
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('2032-10-08');
+SELECT d != '2023-03-04' AS f, COUNT(*) FROM t1 GROUP BY d WITH ROLLUP;
+f	COUNT(*)
+1	1
+NULL	1
+DROP TABLE t1;

@@ -1,0 +1,11 @@
+CREATE TABLE t1 (i int);
+connect  con1,localhost,root,,test;
+RENAME TABLE t1 TO t2;
+connection default;
+FLUSH TABLES;
+connection con1;
+disconnect con1;
+connection default;
+DROP TABLE IF EXISTS t1, t2;
+Warnings:
+Note	1051	Unknown table 'test.t1'

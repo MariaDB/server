@@ -96,7 +96,7 @@ public:
 		for (;;) {
 
 			if (!btr_pcur_is_on_user_rec(&m_pcur)
-			    || !callback.match(&m_mtr, &m_pcur)) {
+			    || !callback.match(&m_pcur)) {
 
 				/* The end of of the index has been reached. */
 				err = DB_END_OF_INDEX;
@@ -195,10 +195,9 @@ public:
 	}
 
 	/**
-	@param mtr		mini-transaction covering the iteration
 	@param pcur		persistent cursor used for iteration
 	@return true if the table id column matches. */
-	bool match(mtr_t* mtr, btr_pcur_t* pcur) const
+	bool match(btr_pcur_t* pcur) const
 	{
 		ulint		len;
 		const byte*	field;
@@ -352,8 +351,8 @@ public:
 		}
 
 
-		ulint	sz = UNIV_PAGE_SIZE;
-		void*	buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+		ulint	sz = srv_page_size;
+		void*	buf = ut_zalloc_nokey(sz + srv_page_size);
 		if (buf == 0) {
 			os_file_close(handle);
 			return(DB_OUT_OF_MEMORY);
@@ -361,7 +360,7 @@ public:
 
 		/* Align the memory for file i/o if we might have O_DIRECT set*/
 		byte*	log_buf = static_cast<byte*>(
-			ut_align(buf, UNIV_PAGE_SIZE));
+			ut_align(buf, srv_page_size));
 
 		lsn_t	lsn = log_get_lsn();
 
@@ -383,7 +382,7 @@ public:
 				ut_ad(err == DB_FAIL);
 				ut_free(buf);
 				sz *= 2;
-				buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+				buf = ut_zalloc_nokey(sz + srv_page_size);
 				DBUG_EXECUTE_IF("ib_err_trunc_oom_logging",
 						ut_free(buf);
 						buf = 0;);
@@ -392,7 +391,7 @@ public:
 					return(DB_OUT_OF_MEMORY);
 				}
 				log_buf = static_cast<byte*>(
-					ut_align(buf, UNIV_PAGE_SIZE));
+					ut_align(buf, srv_page_size));
 			}
 
 		} while (err != DB_SUCCESS);
@@ -664,8 +663,8 @@ TruncateLogParser::parse(
 		return(DB_IO_ERROR);
 	}
 
-	ulint	sz = UNIV_PAGE_SIZE;
-	void*	buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+	ulint	sz = srv_page_size;
+	void*	buf = ut_zalloc_nokey(sz + srv_page_size);
 	if (buf == 0) {
 		os_file_close(handle);
 		return(DB_OUT_OF_MEMORY);
@@ -674,7 +673,7 @@ TruncateLogParser::parse(
 	IORequest	request(IORequest::READ);
 
 	/* Align the memory for file i/o if we might have O_DIRECT set*/
-	byte*	log_buf = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
+	byte*	log_buf = static_cast<byte*>(ut_align(buf, srv_page_size));
 
 	do {
 		err = os_file_read(request, handle, log_buf, 0, sz);
@@ -714,7 +713,7 @@ TruncateLogParser::parse(
 
 			sz *= 2;
 
-			buf = ut_zalloc_nokey(sz + UNIV_PAGE_SIZE);
+			buf = ut_zalloc_nokey(sz + srv_page_size);
 
 			if (buf == 0) {
 				os_file_close(handle);
@@ -725,7 +724,7 @@ TruncateLogParser::parse(
 			}
 
 			log_buf = static_cast<byte*>(
-				ut_align(buf, UNIV_PAGE_SIZE));
+				ut_align(buf, srv_page_size));
 		}
 	} while (err != DB_SUCCESS);
 
@@ -866,15 +865,13 @@ public:
 	/**
 	Look for table-id in SYS_XXXX tables without loading the table.
 
-	@param mtr	mini-transaction covering the read
 	@param pcur	persistent cursor used for reading
-	@return DB_SUCCESS or error code */
-	dberr_t operator()(mtr_t* mtr, btr_pcur_t* pcur);
-
-private:
-	// Disably copying
-	TableLocator(const TableLocator&);
-	TableLocator& operator=(const TableLocator&);
+	@return DB_SUCCESS */
+	dberr_t operator()(mtr_t*, btr_pcur_t*)
+	{
+		m_table_found = true;
+		return(DB_SUCCESS);
+	}
 
 private:
 	/** Set to true if table is present */
@@ -882,11 +879,10 @@ private:
 };
 
 /**
-@param mtr	mini-transaction covering the read
 @param pcur	persistent cursor used for reading
 @return DB_SUCCESS or error code */
 dberr_t
-TruncateLogger::operator()(mtr_t* mtr, btr_pcur_t* pcur)
+TruncateLogger::operator()(mtr_t*, btr_pcur_t* pcur)
 {
 	ulint			len;
 	const byte*		field;
@@ -1089,20 +1085,6 @@ CreateIndex::operator()(mtr_t* mtr, btr_pcur_t* pcur) const
 }
 
 /**
-Look for table-id in SYS_XXXX tables without loading the table.
-
-@param mtr	mini-transaction covering the read
-@param pcur	persistent cursor used for reading
-@return DB_SUCCESS */
-dberr_t
-TableLocator::operator()(mtr_t* mtr, btr_pcur_t* pcur)
-{
-	m_table_found = true;
-
-	return(DB_SUCCESS);
-}
-
-/**
 Rollback the transaction and release the index locks.
 Drop indexes if table is corrupted so that drop/create
 sequence works as expected.
@@ -1203,7 +1185,7 @@ row_truncate_complete(
 
 	DEBUG_SYNC_C("ib_trunc_table_trunc_completing");
 
-	if (!dict_table_is_temporary(table)) {
+	if (!table->is_temporary()) {
 
 		DBUG_EXECUTE_IF("ib_trunc_crash_before_log_removal",
 				log_buffer_flush_to_disk();
@@ -1224,7 +1206,7 @@ row_truncate_complete(
 
 	/* If non-temp file-per-table tablespace... */
 	if (is_file_per_table
-	    && !dict_table_is_temporary(table)
+	    && !table->is_temporary()
 	    && fsp_flags != ULINT_UNDEFINED) {
 
 		/* This function will reset back the stop_new_ops
@@ -1484,7 +1466,7 @@ row_truncate_update_system_tables(
 {
 	dberr_t		err	= DB_SUCCESS;
 
-	ut_a(!dict_table_is_temporary(table));
+	ut_a(!table->is_temporary());
 
 	err = row_truncate_update_table_id(table->id, new_id, FALSE, trx);
 
@@ -1598,7 +1580,7 @@ dberr_t
 row_truncate_sanity_checks(
 	const dict_table_t* table)
 {
-	if (dict_table_is_discarded(table)) {
+	if (!table->space) {
 
 		return(DB_TABLESPACE_DELETED);
 
@@ -1771,7 +1753,7 @@ row_truncate_table_for_mysql(
 
 	}
 
-	if (!dict_table_is_temporary(table)) {
+	if (!table->is_temporary()) {
 		trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 	}
 
@@ -1804,12 +1786,10 @@ row_truncate_table_for_mysql(
 	/* Step-6: Truncate operation can be rolled back in case of error
 	till some point. Associate rollback segment to record undo log. */
 	if (!table->is_temporary()) {
-		mutex_enter(&trx->undo_mutex);
 		mtr_t mtr;
 		mtr.start();
 		trx_undo_assign(trx, &err, &mtr);
 		mtr.commit();
-		mutex_exit(&trx->undo_mutex);
 
 		DBUG_EXECUTE_IF("ib_err_trunc_assigning_undo_log",
 				err = DB_ERROR;);
@@ -1848,7 +1828,7 @@ row_truncate_table_for_mysql(
 	we need to use index locks to sync up */
 	dict_table_x_lock_indexes(table);
 
-	if (!dict_table_is_temporary(table)) {
+	if (!table->is_temporary()) {
 		fsp_flags = table->space
 			? table->space->flags
 			: ULINT_UNDEFINED;
@@ -2028,7 +2008,7 @@ row_truncate_table_for_mysql(
 			DBUG_SUICIDE(););
 
 	/* Step-10: Re-create new indexes. */
-	if (!dict_table_is_temporary(table)) {
+	if (!table->is_temporary()) {
 
 		CreateIndex	createIndex(table, no_redo);
 
@@ -2068,7 +2048,7 @@ row_truncate_table_for_mysql(
 	on-disk (INNODB_SYS_TABLES). INNODB_SYS_INDEXES also needs to
 	be updated to reflect updated root-page-no of new index created
 	and updated table-id. */
-	if (dict_table_is_temporary(table)) {
+	if (table->is_temporary()) {
 
 		dict_table_change_id_in_cache(table, new_id);
 		err = DB_SUCCESS;
@@ -2201,10 +2181,11 @@ fil_recreate_tablespace(
 		byte*	buf;
 		page_t*	page;
 
-		buf = static_cast<byte*>(ut_zalloc_nokey(3 * UNIV_PAGE_SIZE));
+		buf = static_cast<byte*>(
+			ut_zalloc_nokey(3U << srv_page_size_shift));
 
 		/* Align the memory for file i/o */
-		page = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
+		page = static_cast<byte*>(ut_align(buf, srv_page_size));
 
 		flags |= FSP_FLAGS_PAGE_SSIZE();
 
@@ -2215,7 +2196,7 @@ fil_recreate_tablespace(
 
 		page_zip_des_t  page_zip;
 		page_zip_set_size(&page_zip, page_size.physical());
-		page_zip.data = page + UNIV_PAGE_SIZE;
+		page_zip.data = page + srv_page_size;
 
 #ifdef UNIV_DEBUG
 		page_zip.m_start =
@@ -2324,7 +2305,7 @@ fil_recreate_tablespace(
 
 	truncate_t::s_fix_up_active = false;
 func_exit:
-	fil_space_release(space);
+	space->release();
 	return(err);
 }
 
@@ -2617,7 +2598,7 @@ truncate_t::update_root_page_no(
 
 		pars_info_add_ull_literal(
 			info, "index_id",
-			(mark_index_corrupted ? -1 : it->m_id));
+			(mark_index_corrupted ? IB_ID_MAX : it->m_id));
 
 		err = que_eval_sql(
 			info,

@@ -70,7 +70,6 @@ blind_delete_without_tx_api: MDEV-12286: rocksdb.blind_delete_without_tx_api tes
 unique_check: wrong error number
 autoinc_vars_thread: debug sync point wait timed out
 information_schema: MDEV-14372: unstable testcase
-bloomfilter: MDEV-14562
 
 ##
 ## Tests that fail for some other reason

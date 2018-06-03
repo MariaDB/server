@@ -66,7 +66,6 @@ uint sp_make_key(register MI_INFO *info, uint keynr, uchar *key,
     DBUG_ASSERT(keyseg->type == HA_KEYTYPE_DOUBLE);
     
     val= mbr[start / sizeof (double)];
-#ifdef HAVE_ISNAN
     if (isnan(val))
     {
       bzero(key, length);
@@ -74,7 +73,6 @@ uint sp_make_key(register MI_INFO *info, uint keynr, uchar *key,
       len+= length;
       continue;
     }
-#endif
 
     if (keyseg->flag & HA_SWAP_KEY)
     {

@@ -218,6 +218,4 @@ struct trx_named_savept_t{
 					transaction */
 };
 
-#include "trx0roll.ic"
-
 #endif

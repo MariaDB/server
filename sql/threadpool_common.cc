@@ -171,7 +171,7 @@ void tp_callback(TP_connection *c)
 
   c->state = TP_STATE_RUNNING;
 
-  if (!thd)
+  if (unlikely(!thd))
   {
     /* No THD, need to login first. */
     DBUG_ASSERT(c->connect);

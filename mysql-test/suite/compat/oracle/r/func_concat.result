@@ -255,3 +255,70 @@ SELECT * FROM v1;
 test
 1
 DROP VIEW v1;
+#
+# MDEV-16186 Concatenation operator || returns wrong results in sql_mode=ORACLE
+#
+SELECT -1<<1||1 AS a FROM DUAL;
+a
+18446744073709549568
+SELECT -1||0<<1 AS a FROM DUAL;
+a
+18446744073709551596
+EXPLAIN EXTENDED SELECT -1<<1||1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select -1 << concat_operator_oracle(1,1) AS "a"
+EXPLAIN EXTENDED SELECT -1||0<<1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(-1,0) << 1 AS "a"
+SELECT -1+1||1 AS a FROM DUAL;
+a
+01
+SELECT -1||0+1 AS a FROM DUAL;
+a
+-9
+EXPLAIN EXTENDED SELECT -1+1||1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(-1 + 1,1) AS "a"
+EXPLAIN EXTENDED SELECT -1||0+1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(-1,0) + 1 AS "a"
+SELECT 1*1||-1 AS a FROM DUAL;
+a
+1-1
+SELECT 1||1*-1 AS a FROM DUAL;
+a
+1-1
+EXPLAIN EXTENDED SELECT 1*1||-1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(1 * 1,-1) AS "a"
+EXPLAIN EXTENDED SELECT 1||1*-1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(1,1 * -1) AS "a"
+SELECT -1^1||1 AS a FROM DUAL;
+a
+184467440737095516141
+SELECT -1||0^1 AS a FROM DUAL;
+a
+-11
+EXPLAIN EXTENDED SELECT -1^1||1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(-1 ^ 1,1) AS "a"
+EXPLAIN EXTENDED SELECT -1||0^1 AS a FROM DUAL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select concat_operator_oracle(-1,0 ^ 1) AS "a"

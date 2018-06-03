@@ -170,7 +170,7 @@ use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 my_bool	srv_use_native_aio;
 my_bool	srv_numa_interleave;
-/** copy of innodb_use_atomic_writes; @see innobase_init() */
+/** copy of innodb_use_atomic_writes; @see innodb_init_params() */
 my_bool	srv_use_atomic_writes;
 /** innodb_compression_algorithm; used with page compression */
 ulong	innodb_compression_algorithm;
@@ -189,15 +189,15 @@ ulong	srv_n_log_files;
 /** The InnoDB redo log file size, or 0 when changing the redo log format
 at startup (while disallowing writes to the redo log). */
 ulonglong	srv_log_file_size;
-/** copy of innodb_log_buffer_size, but in database pages */
-ulint		srv_log_buffer_size;
+/** innodb_log_buffer_size, in bytes */
+ulong		srv_log_buffer_size;
 /** innodb_flush_log_at_trx_commit */
 ulong		srv_flush_log_at_trx_commit;
 /** innodb_flush_log_at_timeout */
 uint		srv_flush_log_at_timeout;
 /** innodb_page_size */
 ulong		srv_page_size;
-/** log2 of innodb_page_size; @see innobase_init() */
+/** log2 of innodb_page_size; @see innodb_init_params() */
 ulong		srv_page_size_shift;
 /** innodb_log_write_ahead_size */
 ulong		srv_log_write_ahead_size;
@@ -262,10 +262,10 @@ ulint	srv_lock_table_size	= ULINT_MAX;
 /** innodb_idle_flush_pct */
 ulong	srv_idle_flush_pct;
 
-/** copy of innodb_read_io_threads */
-ulint	srv_n_read_io_threads;
-/** copy of innodb_write_io_threads */
-ulint	srv_n_write_io_threads;
+/** innodb_read_io_threads */
+ulong	srv_n_read_io_threads;
+/** innodb_write_io_threads */
+ulong	srv_n_write_io_threads;
 
 /** innodb_random_read_ahead */
 my_bool	srv_random_read_ahead;
@@ -278,13 +278,10 @@ ulong	srv_read_ahead_threshold;
 buffer in terms of percentage of the buffer pool. */
 uint	srv_change_buffer_max_size;
 
-char*	srv_file_flush_method_str;
+ulong	srv_file_flush_method;
 
 
-enum srv_flush_t	srv_file_flush_method = IF_WIN(SRV_ALL_O_DIRECT_FSYNC,SRV_FSYNC);
-
-
-/** copy of innodb_open_files, initialized by innobase_init() */
+/** copy of innodb_open_files; @see innodb_init_params() */
 ulint	srv_max_n_open_files;
 
 /** innodb_io_capacity */
@@ -381,8 +378,7 @@ unsigned long long srv_stats_modified_counter;
 based on number of configured pages */
 my_bool	srv_stats_sample_traditional;
 
-/** copy of innodb_doublewrite */
-ibool	srv_use_doublewrite_buf;
+my_bool	srv_use_doublewrite_buf;
 
 /** innodb_doublewrite_batch_size (a debug parameter) specifies the
 number of pages to use in LRU and flush_list batch flushing.
@@ -616,6 +612,12 @@ struct srv_sys_t{
 };
 
 static srv_sys_t	srv_sys;
+
+/** @return whether the purge coordinator thread is active */
+bool purge_sys_t::running()
+{
+  return my_atomic_loadlint(&srv_sys.n_threads_active[SRV_PURGE]);
+}
 
 /** Event to signal srv_monitor_thread. Not protected by a mutex.
 Set after setting srv_print_innodb_monitor. */
@@ -860,7 +862,8 @@ srv_suspend_thread_low(
 	ut_a(!slot->suspended);
 	slot->suspended = TRUE;
 
-	if ((lint)my_atomic_addlint(&srv_sys.n_threads_active[type], -1) < 0) {
+	if (lint(my_atomic_addlint(&srv_sys.n_threads_active[type], ulint(-1)))
+	    < 0) {
 		ut_error;
 	}
 
@@ -1112,40 +1115,15 @@ srv_free(void)
 }
 
 /*********************************************************************//**
-Normalizes init parameter values to use units we use inside InnoDB. */
-static
-void
-srv_normalize_init_values(void)
-/*===========================*/
-{
-	srv_sys_space.normalize();
-
-	srv_tmp_space.normalize();
-
-	srv_log_buffer_size /= UNIV_PAGE_SIZE;
-
-	srv_lock_table_size = 5 * (srv_buf_pool_size / UNIV_PAGE_SIZE);
-}
-
-/*********************************************************************//**
 Boots the InnoDB server. */
 void
 srv_boot(void)
 /*==========*/
 {
-	/* Transform the init parameter values given by MySQL to
-	use units we use inside InnoDB: */
-
-	srv_normalize_init_values();
-
 	sync_check_init();
-	/* Reset the system variables in the recovery module. */
 	recv_sys_var_init();
 	trx_pool_init();
 	row_mysql_init();
-
-	/* Initialize this module */
-
 	srv_init();
 }
 
@@ -1537,7 +1515,7 @@ srv_export_innodb_status(void)
 	export_vars.innodb_have_atomic_builtins = 0;
 #endif
 
-	export_vars.innodb_page_size = UNIV_PAGE_SIZE;
+	export_vars.innodb_page_size = srv_page_size;
 
 	export_vars.innodb_log_waits = srv_stats.log_waits;
 
@@ -1923,19 +1901,8 @@ srv_get_active_thread_type(void)
 
 	srv_sys_mutex_exit();
 
-	if (ret == SRV_NONE && srv_shutdown_state != SRV_SHUTDOWN_NONE
-	    && purge_sys.is_initialised()) {
-		/* Check only on shutdown. */
-		switch (trx_purge_state()) {
-		case PURGE_STATE_RUN:
-		case PURGE_STATE_STOP:
-			ret = SRV_PURGE;
-			break;
-		case PURGE_STATE_INIT:
-		case PURGE_STATE_DISABLED:
-		case PURGE_STATE_EXIT:
-			break;
-		}
+	if (ret == SRV_NONE && purge_sys.enabled()) {
+		ret = SRV_PURGE;
 	}
 
 	return(ret);
@@ -1974,7 +1941,7 @@ srv_wake_purge_thread_if_not_active()
 {
 	ut_ad(!srv_sys_mutex_own());
 
-	if (purge_sys.state == PURGE_STATE_RUN
+	if (purge_sys.enabled() && !purge_sys.paused()
 	    && !my_atomic_loadlint(&srv_sys.n_threads_active[SRV_PURGE])
 	    && trx_sys.history_size()) {
 
@@ -2122,16 +2089,10 @@ srv_master_do_disabled_loop(void)
 
 /** Disables master thread. It's used by:
 	SET GLOBAL innodb_master_thread_disabled_debug = 1 (0).
-@param[in]	thd		thread handle
-@param[in]	var		pointer to system variable
-@param[out]	var_ptr		where the formal string goes
 @param[in]	save		immediate result from check function */
 void
-srv_master_thread_disabled_debug_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save)
+srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
+					const void* save)
 {
 	/* This method is protected by mutex, as every SET GLOBAL .. */
 	ut_ad(srv_master_thread_disabled_event != NULL);
@@ -2399,10 +2360,6 @@ DECLARE_THREAD(srv_master_thread)(
 	ut_a(slot == srv_sys.sys_threads);
 
 loop:
-	if (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND) {
-		goto suspend_thread;
-	}
-
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 
 		srv_master_sleep();
@@ -2417,7 +2374,6 @@ loop:
 		}
 	}
 
-suspend_thread:
 	switch (srv_shutdown_state) {
 	case SRV_SHUTDOWN_NONE:
 		break;
@@ -2441,10 +2397,6 @@ suspend_thread:
 
 	srv_suspend_thread(slot);
 
-	/* DO NOT CHANGE THIS STRING. innobase_start_or_create_for_mysql()
-	waits for database activity to die down when converting < 4.1.x
-	databases, and relies on this string being exactly as it is. InnoDB
-	manual also mentions this string in several places. */
 	srv_main_thread_op_info = "waiting for server activity";
 
 	srv_resume_thread(slot);
@@ -2536,19 +2488,11 @@ DECLARE_THREAD(srv_worker_thread)(
 
 			srv_wake_purge_thread_if_not_active();
 		}
-
-		/* Note: we are checking the state without holding the
-		purge_sys.latch here. */
-	} while (purge_sys.state != PURGE_STATE_EXIT);
+	} while (purge_sys.enabled());
 
 	srv_free_slot(slot);
 
-	rw_lock_x_lock(&purge_sys.latch);
-
-	ut_a(!purge_sys.running);
-	ut_a(purge_sys.state == PURGE_STATE_EXIT);
-
-	rw_lock_x_unlock(&purge_sys.latch);
+	ut_ad(!purge_sys.enabled());
 
 #ifdef UNIV_DEBUG_THREAD_CREATION
 	ib::info() << "Purge worker thread exiting, id "
@@ -2646,8 +2590,7 @@ srv_do_purge(ulint* n_total_purged)
 			/* The previous round still did some work. */
 			continue;
 		}
-	} while (n_pages_purged > 0
-		 && purge_sys.state == PURGE_STATE_RUN
+	} while (n_pages_purged > 0 && !purge_sys.paused()
 		 && !srv_purge_should_exit());
 
 	return(rseg_history_len);
@@ -2675,12 +2618,6 @@ srv_purge_coordinator_suspend(
 	int64_t		sig_count = srv_suspend_thread(slot);
 
 	do {
-		rw_lock_x_lock(&purge_sys.latch);
-
-		purge_sys.running = false;
-
-		rw_lock_x_unlock(&purge_sys.latch);
-
 		/* We don't wait right away on the the non-timed wait because
 		we want to signal the thread that wants to suspend purge. */
 		const bool wait = stop
@@ -2693,13 +2630,10 @@ srv_purge_coordinator_suspend(
 
 		rw_lock_x_lock(&purge_sys.latch);
 
-		stop = (srv_shutdown_state == SRV_SHUTDOWN_NONE
-			&& purge_sys.state == PURGE_STATE_STOP);
+		stop = srv_shutdown_state == SRV_SHUTDOWN_NONE
+			&& purge_sys.paused_latched();
 
 		if (!stop) {
-			ut_a(purge_sys.n_stop == 0);
-			purge_sys.running = true;
-
 			if (timeout
 			    && rseg_history_len < 5000
 			    && rseg_history_len == trx_sys.history_size()) {
@@ -2713,8 +2647,6 @@ srv_purge_coordinator_suspend(
 				stop = true;
 			}
 		} else {
-			ut_a(purge_sys.n_stop > 0);
-
 			/* Signal that we are suspended. */
 			os_event_set(purge_sys.event);
 		}
@@ -2742,15 +2674,9 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 	ut_ad(!srv_read_only_mode);
 	ut_a(srv_n_purge_threads >= 1);
-	ut_a(trx_purge_state() == PURGE_STATE_INIT);
 	ut_a(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
 
-	rw_lock_x_lock(&purge_sys.latch);
-
-	purge_sys.running = true;
-	purge_sys.state = PURGE_STATE_RUN;
-
-	rw_lock_x_unlock(&purge_sys.latch);
+	purge_sys.coordinator_startup();
 
 #ifdef UNIV_PFS_THREAD
 	pfs_register_thread(srv_purge_thread_key);
@@ -2771,8 +2697,7 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 		if (srv_shutdown_state == SRV_SHUTDOWN_NONE
 		    && srv_undo_sources
-		    && (n_total_purged == 0
-			|| purge_sys.state == PURGE_STATE_STOP)) {
+		    && (n_total_purged == 0 || purge_sys.paused())) {
 
 			srv_purge_coordinator_suspend(slot, rseg_history_len);
 		}
@@ -2796,16 +2721,13 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 	/* Note that we are shutting down. */
 	rw_lock_x_lock(&purge_sys.latch);
-
-	purge_sys.state = PURGE_STATE_EXIT;
+	purge_sys.coordinator_shutdown();
 
 	/* If there are any pending undo-tablespace truncate then clear
 	it off as we plan to shutdown the purge thread. */
 	purge_sys.undo_trunc.clear();
 
-	purge_sys.running = false;
-
-	/* Ensure that the wait in trx_purge_stop() will terminate. */
+	/* Ensure that the wait in purge_sys_t::stop() will terminate. */
 	os_event_set(purge_sys.event);
 
 	rw_lock_x_unlock(&purge_sys.latch);
@@ -2816,8 +2738,18 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
 	/* Ensure that all the worker threads quit. */
-	if (srv_n_purge_threads > 1) {
-		srv_release_threads(SRV_WORKER, srv_n_purge_threads - 1);
+	if (ulint n_workers = srv_n_purge_threads - 1) {
+		const srv_slot_t* slot;
+		const srv_slot_t* const end = &srv_sys.sys_threads[
+			srv_sys.n_sys_threads];
+
+		do {
+			srv_release_threads(SRV_WORKER, n_workers);
+			srv_sys_mutex_enter();
+			for (slot = &srv_sys.sys_threads[2];
+			     !slot++->in_use && slot < end; );
+			srv_sys_mutex_exit();
+		} while (slot < end);
 	}
 
 	innobase_destroy_background_thd(thd);
@@ -2872,6 +2804,7 @@ void
 srv_purge_wakeup()
 {
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!sync_check_iterate(sync_check()));
 
 	if (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND) {
 		return;
@@ -2890,6 +2823,15 @@ srv_purge_wakeup()
 					     MY_MEMORY_ORDER_RELAXED)
 		 && (srv_sys.n_threads_active[SRV_WORKER]
 		     || srv_sys.n_threads_active[SRV_PURGE]));
+}
+
+/** Shut down the purge threads. */
+void srv_purge_shutdown()
+{
+	do {
+		ut_ad(!srv_undo_sources);
+		srv_purge_wakeup();
+	} while (srv_sys.sys_threads[SRV_PURGE_SLOT].in_use);
 }
 
 /** Check if tablespace is being truncated.

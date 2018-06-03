@@ -166,13 +166,11 @@ trx_undo_get_first_rec(
 	mtr_t*			mtr);
 
 /** Allocate an undo log page.
-@param[in,out]	trx	transaction
 @param[in,out]	undo	undo log
 @param[in,out]	mtr	mini-transaction that does not hold any page latch
 @return	X-latched block if success
 @retval	NULL	on failure */
-buf_block_t*
-trx_undo_add_page(trx_t* trx, trx_undo_t* undo, mtr_t* mtr)
+buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Free the last undo log page. The caller must hold the rseg mutex.
@@ -274,7 +272,7 @@ bool
 trx_undo_truncate_tablespace(
 	undo::Truncate*	undo_trunc);
 
-/** Parse MLOG_UNDO_INIT for crash-upgrade from MariaDB 10.2.
+/** Parse MLOG_UNDO_INIT.
 @param[in]	ptr	log record
 @param[in]	end_ptr	end of log record buffer
 @param[in,out]	page	page or NULL
@@ -282,23 +280,17 @@ trx_undo_truncate_tablespace(
 @return	end of log record
 @retval	NULL	if the log record is incomplete */
 byte*
-trx_undo_parse_page_init(
-	const byte*	ptr,
-	const byte*	end_ptr,
-	page_t*		page,
-	mtr_t*		mtr);
+trx_undo_parse_page_init(const byte* ptr, const byte* end_ptr, page_t* page);
 /** Parse MLOG_UNDO_HDR_REUSE for crash-upgrade from MariaDB 10.2.
 @param[in]	ptr	redo log record
 @param[in]	end_ptr	end of log buffer
 @param[in,out]	page	undo page or NULL
-@param[in,out]	mtr	mini-transaction
 @return end of log record or NULL */
 byte*
 trx_undo_parse_page_header_reuse(
 	const byte*	ptr,
 	const byte*	end_ptr,
-	page_t*		page,
-	mtr_t*		mtr);
+	page_t*		page);
 
 /** Parse the redo log entry of an undo log page header create.
 @param[in]	ptr	redo log record
@@ -343,8 +335,8 @@ trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no,
 
 #ifndef UNIV_INNOCHECKSUM
 
-/** Transaction undo log memory object; this is protected by the undo_mutex
-in the corresponding transaction object */
+/** Transaction undo log memory object; modified by the thread associated
+with the transaction. */
 
 struct trx_undo_t {
 	/*-----------------------------*/
@@ -370,8 +362,6 @@ struct trx_undo_t {
 					top_page_no during a rollback */
 	ulint		size;		/*!< current size in pages */
 	/*-----------------------------*/
-	ulint		empty;		/*!< TRUE if the stack of undo log
-					records is currently empty */
 	ulint		top_page_no;	/*!< page number where the latest undo
 					log record was catenated; during
 					rollback the page from which the latest
@@ -379,11 +369,16 @@ struct trx_undo_t {
 	ulint		top_offset;	/*!< offset of the latest undo record,
 					i.e., the topmost element in the undo
 					log if we think of it as a stack */
-	undo_no_t	top_undo_no;	/*!< undo number of the latest record */
+	undo_no_t	top_undo_no;	/*!< undo number of the latest record
+					(IB_ID_MAX if the undo log is empty) */
 	buf_block_t*	guess_block;	/*!< guess for the buffer block where
 					the top page might reside */
 	ulint		withdraw_clock;	/*!< the withdraw clock value of the
 					buffer pool when guess_block was stored */
+
+	/** @return whether the undo log is empty */
+	bool empty() const { return top_undo_no == IB_ID_MAX; }
+
 	/*-----------------------------*/
 	UT_LIST_NODE_T(trx_undo_t) undo_list;
 					/*!< undo log objects in the rollback
@@ -418,7 +413,7 @@ struct trx_undo_t {
 at most this many bytes used; we must leave space at least for one new undo
 log header on the page */
 
-#define TRX_UNDO_PAGE_REUSE_LIMIT	(3 * UNIV_PAGE_SIZE / 4)
+#define TRX_UNDO_PAGE_REUSE_LIMIT	(3 << (srv_page_size_shift - 2))
 
 /* An update undo log segment may contain several undo logs on its first page
 if the undo logs took so little space that the segment could be cached and

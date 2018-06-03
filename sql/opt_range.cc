@@ -1595,7 +1595,7 @@ int QUICK_ROR_INTERSECT_SELECT::init_ror_merged_scan(bool reuse_handler,
       selects.
     */
     int error= quick->init_ror_merged_scan(TRUE, local_alloc);
-    if (error)
+    if (unlikely(error))
       DBUG_RETURN(error);
     quick->file->extra(HA_EXTRA_KEYREAD_PRESERVE_FIELDS);
   }
@@ -1619,7 +1619,8 @@ int QUICK_ROR_INTERSECT_SELECT::init_ror_merged_scan(bool reuse_handler,
     quick->record= head->record[0];
   }
 
-  if (need_to_fetch_row && head->file->ha_rnd_init_with_error(false))
+  if (need_to_fetch_row &&
+      unlikely(head->file->ha_rnd_init_with_error(false)))
   {
     DBUG_PRINT("error", ("ROR index_merge rnd_init call failed"));
     DBUG_RETURN(1);
@@ -1793,9 +1794,9 @@ int QUICK_ROR_UNION_SELECT::reset()
   List_iterator_fast<QUICK_SELECT_I> it(quick_selects);
   while ((quick= it++))
   {
-    if ((error= quick->reset()))
+    if (unlikely((error= quick->reset())))
       DBUG_RETURN(error);
-    if ((error= quick->get_next()))
+    if (unlikely((error= quick->get_next())))
     {
       if (error == HA_ERR_END_OF_FILE)
         continue;
@@ -1805,12 +1806,12 @@ int QUICK_ROR_UNION_SELECT::reset()
     queue_insert(&queue, (uchar*)quick);
   }
   /* Prepare for ha_rnd_pos calls. */
-  if (head->file->inited && (error= head->file->ha_rnd_end()))
+  if (head->file->inited && unlikely((error= head->file->ha_rnd_end())))
   {
     DBUG_PRINT("error", ("ROR index_merge rnd_end call failed"));
     DBUG_RETURN(error);
   }
-  if ((error= head->file->ha_rnd_init(false)))
+  if (unlikely((error= head->file->ha_rnd_init(false))))
   {
     DBUG_PRINT("error", ("ROR index_merge rnd_init call failed"));
     DBUG_RETURN(error);
@@ -10835,8 +10836,9 @@ QUICK_RANGE_SELECT *get_quick_select_for_ref(THD *thd, TABLE *table,
     goto err;
   quick->records= records;
 
-  if ((cp_buffer_from_ref(thd, table, ref) && thd->is_fatal_error) ||
-      !(range= new(alloc) QUICK_RANGE()))
+  if ((cp_buffer_from_ref(thd, table, ref) &&
+       unlikely(thd->is_fatal_error)) ||
+      unlikely(!(range= new(alloc) QUICK_RANGE())))
     goto err;                                   // out of memory
 
   range->min_key= range->max_key= ref->key_buff;
@@ -10845,8 +10847,8 @@ QUICK_RANGE_SELECT *get_quick_select_for_ref(THD *thd, TABLE *table,
     make_prev_keypart_map(ref->key_parts);
   range->flag= EQ_RANGE;
 
-  if (!(quick->key_parts=key_part=(KEY_PART *)
-	alloc_root(&quick->alloc,sizeof(KEY_PART)*ref->key_parts)))
+  if (unlikely(!(quick->key_parts=key_part=(KEY_PART *)
+                 alloc_root(&quick->alloc,sizeof(KEY_PART)*ref->key_parts))))
     goto err;
   
   max_used_key_len=0;
@@ -11164,103 +11166,100 @@ int QUICK_ROR_INTERSECT_SELECT::get_next()
   uint last_rowid_count=0;
   DBUG_ENTER("QUICK_ROR_INTERSECT_SELECT::get_next");
 
-  do
+  /* Get a rowid for first quick and save it as a 'candidate' */
+  qr= quick_it++;
+  quick= qr->quick;
+  error= quick->get_next();
+  if (cpk_quick)
   {
-    /* Get a rowid for first quick and save it as a 'candidate' */
-    qr= quick_it++;
-    quick= qr->quick;
-    error= quick->get_next();
-    if (cpk_quick)
+    while (!error && !cpk_quick->row_in_ranges())
     {
-      while (!error && !cpk_quick->row_in_ranges())
-      {
-        quick->file->unlock_row(); /* row not in range; unlock */
-        error= quick->get_next();
-      }
+      quick->file->unlock_row(); /* row not in range; unlock */
+      error= quick->get_next();
     }
-    if (error)
-      DBUG_RETURN(error);
+  }
+  if (unlikely(error))
+    DBUG_RETURN(error);
 
-    /* Save the read key tuple */
+  /* Save the read key tuple */
+  key_copy(qr->key_tuple, record, head->key_info + quick->index,
+           quick->max_used_key_length);
+
+  quick->file->position(quick->record);
+  memcpy(last_rowid, quick->file->ref, head->file->ref_length);
+  last_rowid_count= 1;
+  quick_with_last_rowid= quick;
+
+  while (last_rowid_count < quick_selects.elements)
+  {
+    if (!(qr= quick_it++))
+    {
+      quick_it.rewind();
+      qr= quick_it++;
+    }
+    quick= qr->quick;
+
+    do
+    {
+      DBUG_EXECUTE_IF("innodb_quick_report_deadlock",
+                      DBUG_SET("+d,innodb_report_deadlock"););
+      if (unlikely((error= quick->get_next())))
+      {
+        /* On certain errors like deadlock, trx might be rolled back.*/
+        if (!thd->transaction_rollback_request)
+          quick_with_last_rowid->file->unlock_row();
+        DBUG_RETURN(error);
+      }
+      quick->file->position(quick->record);
+      cmp= head->file->cmp_ref(quick->file->ref, last_rowid);
+      if (cmp < 0)
+      {
+        /* This row is being skipped.  Release lock on it. */
+        quick->file->unlock_row();
+      }
+    } while (cmp < 0);
+
     key_copy(qr->key_tuple, record, head->key_info + quick->index,
              quick->max_used_key_length);
 
-    quick->file->position(quick->record);
-    memcpy(last_rowid, quick->file->ref, head->file->ref_length);
-    last_rowid_count= 1;
-    quick_with_last_rowid= quick;
-
-    while (last_rowid_count < quick_selects.elements)
+    /* Ok, current select 'caught up' and returned ref >= cur_ref */
+    if (cmp > 0)
     {
-      if (!(qr= quick_it++))
+      /* Found a row with ref > cur_ref. Make it a new 'candidate' */
+      if (cpk_quick)
       {
-        quick_it.rewind();
-        qr= quick_it++;
-      }
-      quick= qr->quick;
-
-      do
-      {
-        DBUG_EXECUTE_IF("innodb_quick_report_deadlock",
-                        DBUG_SET("+d,innodb_report_deadlock"););
-        if ((error= quick->get_next()))
+        while (!cpk_quick->row_in_ranges())
         {
-          /* On certain errors like deadlock, trx might be rolled back.*/
-          if (!thd->transaction_rollback_request)
-            quick_with_last_rowid->file->unlock_row();
-          DBUG_RETURN(error);
+          quick->file->unlock_row(); /* row not in range; unlock */
+          if (unlikely((error= quick->get_next())))
+          {
+            /* On certain errors like deadlock, trx might be rolled back.*/
+            if (!thd->transaction_rollback_request)
+              quick_with_last_rowid->file->unlock_row();
+            DBUG_RETURN(error);
+          }
         }
         quick->file->position(quick->record);
-        cmp= head->file->cmp_ref(quick->file->ref, last_rowid);
-        if (cmp < 0)
-        {
-          /* This row is being skipped.  Release lock on it. */
-          quick->file->unlock_row();
-        }
-      } while (cmp < 0);
+      }
+      memcpy(last_rowid, quick->file->ref, head->file->ref_length);
+      quick_with_last_rowid->file->unlock_row();
+      last_rowid_count= 1;
+      quick_with_last_rowid= quick;
 
+      //save the fields here
       key_copy(qr->key_tuple, record, head->key_info + quick->index,
                quick->max_used_key_length);
-
-      /* Ok, current select 'caught up' and returned ref >= cur_ref */
-      if (cmp > 0)
-      {
-        /* Found a row with ref > cur_ref. Make it a new 'candidate' */
-        if (cpk_quick)
-        {
-          while (!cpk_quick->row_in_ranges())
-          {
-            quick->file->unlock_row(); /* row not in range; unlock */
-            if ((error= quick->get_next()))
-            {
-              /* On certain errors like deadlock, trx might be rolled back.*/
-              if (!thd->transaction_rollback_request)
-                quick_with_last_rowid->file->unlock_row();
-              DBUG_RETURN(error);
-            }
-          }
-          quick->file->position(quick->record);
-        }
-        memcpy(last_rowid, quick->file->ref, head->file->ref_length);
-        quick_with_last_rowid->file->unlock_row();
-        last_rowid_count= 1;
-        quick_with_last_rowid= quick;
-
-        //save the fields here
-        key_copy(qr->key_tuple, record, head->key_info + quick->index,
-                 quick->max_used_key_length);
-      }
-      else
-      {
-        /* current 'candidate' row confirmed by this select */
-        last_rowid_count++;
-      }
     }
+    else
+    {
+      /* current 'candidate' row confirmed by this select */
+      last_rowid_count++;
+    }
+  }
 
-    /* We get here if we got the same row ref in all scans. */
-    if (need_to_fetch_row)
-      error= head->file->ha_rnd_pos(head->record[0], last_rowid);
-  } while (error == HA_ERR_RECORD_DELETED);
+  /* We get here if we got the same row ref in all scans. */
+  if (need_to_fetch_row)
+    error= head->file->ha_rnd_pos(head->record[0], last_rowid);
 
   if (!need_to_fetch_row)
   {
@@ -11304,44 +11303,41 @@ int QUICK_ROR_UNION_SELECT::get_next()
 
   do
   {
-    do
+    if (!queue.elements)
+      DBUG_RETURN(HA_ERR_END_OF_FILE);
+    /* Ok, we have a queue with >= 1 scans */
+
+    quick= (QUICK_SELECT_I*)queue_top(&queue);
+    memcpy(cur_rowid, quick->last_rowid, rowid_length);
+
+    /* put into queue rowid from the same stream as top element */
+    if ((error= quick->get_next()))
     {
-      if (!queue.elements)
-        DBUG_RETURN(HA_ERR_END_OF_FILE);
-      /* Ok, we have a queue with >= 1 scans */
+      if (error != HA_ERR_END_OF_FILE)
+        DBUG_RETURN(error);
+      queue_remove_top(&queue);
+    }
+    else
+    {
+      quick->save_last_pos();
+      queue_replace_top(&queue);
+    }
 
-      quick= (QUICK_SELECT_I*)queue_top(&queue);
-      memcpy(cur_rowid, quick->last_rowid, rowid_length);
+    if (!have_prev_rowid)
+    {
+      /* No rows have been returned yet */
+      dup_row= FALSE;
+      have_prev_rowid= TRUE;
+    }
+    else
+      dup_row= !head->file->cmp_ref(cur_rowid, prev_rowid);
+  } while (dup_row);
 
-      /* put into queue rowid from the same stream as top element */
-      if ((error= quick->get_next()))
-      {
-        if (error != HA_ERR_END_OF_FILE)
-          DBUG_RETURN(error);
-        queue_remove_top(&queue);
-      }
-      else
-      {
-        quick->save_last_pos();
-        queue_replace_top(&queue);
-      }
+  tmp= cur_rowid;
+  cur_rowid= prev_rowid;
+  prev_rowid= tmp;
 
-      if (!have_prev_rowid)
-      {
-        /* No rows have been returned yet */
-        dup_row= FALSE;
-        have_prev_rowid= TRUE;
-      }
-      else
-        dup_row= !head->file->cmp_ref(cur_rowid, prev_rowid);
-    } while (dup_row);
-
-    tmp= cur_rowid;
-    cur_rowid= prev_rowid;
-    prev_rowid= tmp;
-
-    error= head->file->ha_rnd_pos(quick->record, prev_rowid);
-  } while (error == HA_ERR_RECORD_DELETED);
+  error= head->file->ha_rnd_pos(quick->record, prev_rowid);
   DBUG_RETURN(error);
 }
 
@@ -11363,7 +11359,7 @@ int QUICK_RANGE_SELECT::reset()
   if (file->inited == handler::RND)
   {
     /* Handler could be left in this state by MRR */
-    if ((error= file->ha_rnd_end()))
+    if (unlikely((error= file->ha_rnd_end())))
       DBUG_RETURN(error);
   }
 
@@ -11375,7 +11371,7 @@ int QUICK_RANGE_SELECT::reset()
   {
     DBUG_EXECUTE_IF("bug14365043_2",
                     DBUG_SET("+d,ha_index_init_fail"););
-    if ((error= file->ha_index_init(index,1)))
+    if (unlikely((error= file->ha_index_init(index,1))))
     {
         file->print_error(error, MYF(0));
         goto err;
@@ -11718,7 +11714,7 @@ int QUICK_SELECT_DESC::get_next()
     if (last_range->flag & NO_MAX_RANGE)        // Read last record
     {
       int local_error;
-      if ((local_error= file->ha_index_last(record)))
+      if (unlikely((local_error= file->ha_index_last(record))))
 	DBUG_RETURN(local_error);		// Empty table
       if (cmp_prev(last_range) == 0)
 	DBUG_RETURN(0);

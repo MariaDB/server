@@ -37,12 +37,16 @@
 
 
 /**
-  A string with metadata.
+  A string with metadata. Usually points to a string in the client
+  character set, but unlike Lex_ident_cli_st (see below) it does not
+  necessarily point to a query fragment. It can also point to memory
+  of other kinds (e.g. an additional THD allocated memory buffer
+  not overlapping with the current query text).
+
   We'll add more flags here eventually, to know if the string has, e.g.:
   - multi-byte characters
   - bad byte sequences
   - backslash escapes:   'a\nb'
-  - separator escapes:   'a''b'
   and reuse the original query fragments instead of making the string
   copy too early, in Lex_input_stream::get_text().
   This will allow to avoid unnecessary copying, as well as
@@ -50,9 +54,30 @@
 */
 struct Lex_string_with_metadata_st: public LEX_CSTRING
 {
+private:
   bool m_is_8bit; // True if the string has 8bit characters
+  char m_quote;   // Quote character, or 0 if not quoted
 public:
   void set_8bit(bool is_8bit) { m_is_8bit= is_8bit; }
+  void set_metadata(bool is_8bit, char quote)
+  {
+    m_is_8bit= is_8bit;
+    m_quote= quote;
+  }
+  void set(const char *s, size_t len, bool is_8bit, char quote)
+  {
+    str= s;
+    length= len;
+    set_metadata(is_8bit, quote);
+  }
+  void set(const LEX_CSTRING *s, bool is_8bit, char quote)
+  {
+    ((LEX_CSTRING &)*this)= *s;
+    set_metadata(is_8bit, quote);
+  }
+  bool is_8bit() const { return m_is_8bit; }
+  bool is_quoted() const { return m_quote != '\0'; }
+  char quote() const { return m_quote; }
   // Get string repertoire by the 8-bit flag and the character set
   uint repertoire(CHARSET_INFO *cs) const
   {
@@ -63,6 +88,76 @@ public:
   uint repertoire() const
   {
     return !m_is_8bit ? MY_REPERTOIRE_ASCII : MY_REPERTOIRE_UNICODE30;
+  }
+};
+
+
+/*
+  Used to store identifiers in the client character set.
+  Points to a query fragment.
+*/
+struct Lex_ident_cli_st: public Lex_string_with_metadata_st
+{
+public:
+  void set_keyword(const char *s, size_t len)
+  {
+    set(s, len, false, '\0');
+  }
+  void set_ident(const char *s, size_t len, bool is_8bit)
+  {
+    set(s, len, is_8bit, '\0');
+  }
+  void set_ident_quoted(const char *s, size_t len, bool is_8bit, char quote)
+  {
+    set(s, len, is_8bit, quote);
+  }
+  void set_unquoted(const LEX_CSTRING *s, bool is_8bit)
+  {
+    set(s, is_8bit, '\0');
+  }
+  const char *pos() const { return str - is_quoted(); }
+  const char *end() const { return str + length + is_quoted(); }
+};
+
+
+class Lex_ident_cli: public Lex_ident_cli_st
+{
+public:
+  Lex_ident_cli(const LEX_CSTRING *s, bool is_8bit)
+  {
+    set_unquoted(s, is_8bit);
+  }
+  Lex_ident_cli(const char *s, size_t len)
+  {
+    set_ident(s, len, false);
+  }
+};
+
+
+struct Lex_ident_sys_st: public LEX_CSTRING
+{
+public:
+  bool copy_ident_cli(THD *thd, const Lex_ident_cli_st *str);
+  bool copy_keyword(THD *thd, const Lex_ident_cli_st *str);
+  bool copy_sys(THD *thd, const LEX_CSTRING *str);
+  bool convert(THD *thd, const LEX_CSTRING *str, CHARSET_INFO *cs);
+  bool copy_or_convert(THD *thd, const Lex_ident_cli_st *str, CHARSET_INFO *cs);
+  bool is_null() const { return str == NULL; }
+  bool to_size_number(ulonglong *to) const;
+};
+
+
+class Lex_ident_sys: public Lex_ident_sys_st
+{
+public:
+  Lex_ident_sys(THD *thd, const Lex_ident_cli_st *str)
+  {
+    if (copy_ident_cli(thd, str))
+      ((LEX_CSTRING &) *this)= null_clex_str;
+  }
+  Lex_ident_sys()
+  {
+    ((LEX_CSTRING &) *this)= null_clex_str;
   }
 };
 
@@ -173,7 +268,7 @@ struct LEX_TYPE
 #define LEX_YYSTYPE void *
 #else
 #include "lex_symbol.h"
-#if MYSQL_LEX
+#ifdef MYSQL_LEX
 #include "item_func.h"            /* Cast_target used in sql_yacc.h */
 #include "sql_get_diagnostics.h"  /* Types used in sql_yacc.h */
 #include "sp_pcontext.h"
@@ -186,13 +281,13 @@ struct LEX_TYPE
 #endif
 
 // describe/explain types
-#define DESCRIBE_NORMAL		1
-#define DESCRIBE_EXTENDED	2
+#define DESCRIBE_NORMAL         1
+#define DESCRIBE_EXTENDED       2
 /*
   This is not within #ifdef because we want "EXPLAIN PARTITIONS ..." to produce
   additional "partitions" column even if partitioning is not compiled in.
 */
-#define DESCRIBE_PARTITIONS	4
+#define DESCRIBE_PARTITIONS     4
 
 #ifdef MYSQL_SERVER
 
@@ -224,24 +319,24 @@ enum enum_sp_aggregate_type
   GROUP_AGGREGATE
 };
 
-const LEX_STRING sp_data_access_name[]=
+const LEX_CSTRING sp_data_access_name[]=
 {
-  { C_STRING_WITH_LEN("") },
-  { C_STRING_WITH_LEN("CONTAINS SQL") },
-  { C_STRING_WITH_LEN("NO SQL") },
-  { C_STRING_WITH_LEN("READS SQL DATA") },
-  { C_STRING_WITH_LEN("MODIFIES SQL DATA") }
+  { STRING_WITH_LEN("") },
+  { STRING_WITH_LEN("CONTAINS SQL") },
+  { STRING_WITH_LEN("NO SQL") },
+  { STRING_WITH_LEN("READS SQL DATA") },
+  { STRING_WITH_LEN("MODIFIES SQL DATA") }
 };
 
-#define DERIVED_SUBQUERY	1
-#define DERIVED_VIEW		2
+#define DERIVED_SUBQUERY        1
+#define DERIVED_VIEW            2
 #define DERIVED_WITH            4
 
 enum enum_view_create_mode
 {
-  VIEW_CREATE_NEW,		// check that there are not such VIEW/table
-  VIEW_ALTER,			// check that VIEW .frm with such name exists
-  VIEW_CREATE_OR_REPLACE	// check only that there are not such table
+  VIEW_CREATE_NEW,              // check that there are not such VIEW/table
+  VIEW_ALTER,                   // check that VIEW .frm with such name exists
+  VIEW_CREATE_OR_REPLACE        // check only that there are not such table
 };
 
 
@@ -273,8 +368,8 @@ enum enum_drop_mode
 };
 
 /* Options to add_table_to_list() */
-#define TL_OPTION_UPDATING	1
-#define TL_OPTION_FORCE_INDEX	2
+#define TL_OPTION_UPDATING      1
+#define TL_OPTION_FORCE_INDEX   2
 #define TL_OPTION_IGNORE_LEAVES 4
 #define TL_OPTION_ALIAS         8
 #define TL_OPTION_SEQUENCE      16
@@ -749,7 +844,7 @@ public:
 
   st_select_lex *union_distinct; /* pointer to the last UNION DISTINCT */
   bool describe; /* union exec() called for EXPLAIN */
-  Procedure *last_procedure;	 /* Pointer to procedure, if such exists */
+  Procedure *last_procedure;     /* Pointer to procedure, if such exists */
 
   bool columns_are_renamed;
 
@@ -770,7 +865,8 @@ public:
   bool is_excluded() { return prev == NULL; }
 
   /* UNION methods */
-  bool prepare(THD *thd, select_result *result, ulong additional_options);
+  bool prepare(TABLE_LIST *derived_arg, select_result *sel_result,
+               ulong additional_options);
   bool optimize();
   bool exec();
   bool exec_recursive();
@@ -839,7 +935,7 @@ public:
   /*
     Point to the LEX in which it was created, used in view subquery detection.
 
-    TODO: make also st_select_lex::parent_stmt_lex (see THD::stmt_lex)
+    TODO: make also st_select_lex::parent_stmt_lex (see LEX::stmt_lex)
     and use st_select_lex::parent_lex & st_select_lex::parent_stmt_lex
     instead of global (from THD) references where it is possible.
   */
@@ -859,7 +955,7 @@ public:
 
   List<Item>          item_list;  /* list of fields & expressions */
   List<Item>          pre_fix; /* above list before fix_fields */
-  bool	              is_item_list_lookup;
+  bool                is_item_list_lookup;
   /* 
     Usualy it is pointer to ftfunc_list_alloc, but in union used to create fake
     select_lex for calling mysql_select under results of union
@@ -942,6 +1038,11 @@ public:
   uint select_n_where_fields;
   /* reserved for exists 2 in */
   uint select_n_reserved;
+  /*
+   it counts the number of bit fields in the SELECT list. These are used when DISTINCT is
+   converted to a GROUP BY involving BIT fields.
+  */
+  uint hidden_bit_fields;
   enum_parsing_place parsing_place; /* where we are parsing expression */
   enum_parsing_place context_analysis_place; /* where we are in prepare */
   bool with_sum_func;   /* sum function indicator */
@@ -983,6 +1084,7 @@ public:
   */
   bool subquery_in_having;
   /* TRUE <=> this SELECT is correlated w.r.t. some ancestor select */
+  bool with_all_modifier;  /* used for selects in union */
   bool is_correlated;
   /*
     This variable is required to ensure proper work of subqueries and
@@ -1087,11 +1189,11 @@ public:
   bool add_order_to_list(THD *thd, Item *item, bool asc);
   bool add_gorder_to_list(THD *thd, Item *item, bool asc);
   TABLE_LIST* add_table_to_list(THD *thd, Table_ident *table,
-				LEX_CSTRING *alias,
-				ulong table_options,
-				thr_lock_type flags= TL_UNLOCK,
+                                LEX_CSTRING *alias,
+                                ulong table_options,
+                                thr_lock_type flags= TL_UNLOCK,
                                 enum_mdl_type mdl_type= MDL_SHARED_READ,
-				List<Index_hint> *hints= 0,
+                                List<Index_hint> *hints= 0,
                                 List<String> *partition_names= 0,
                                 LEX_STRING *option= 0);
   TABLE_LIST* get_table_list();
@@ -1242,7 +1344,7 @@ public:
   void collect_grouping_fields(THD *thd, ORDER *grouping_list);
   void check_cond_extraction_for_grouping_fields(Item *cond);
   Item *build_cond_for_grouping_fields(THD *thd, Item *cond,
-				       bool no_to_clones);
+                                       bool no_to_clones);
   
   List<Window_spec> window_specs;
   void prepare_add_window_spec(THD *thd);
@@ -2065,6 +2167,16 @@ public:
   void reset(char *buff, size_t length);
 
   /**
+    The main method to scan the next token, with token contraction processing
+    for LALR(2) resolution, e.g. translate "WITH" followed by "ROLLUP"
+    to a single token WITH_ROLLUP_SYM.
+  */
+  int lex_token(union YYSTYPE *yylval, THD *thd);
+
+  void reduce_digest_token(uint token_left, uint token_right);
+
+private:
+  /**
     Set the echo mode.
 
     When echo is true, characters parsed from the raw input stream are
@@ -2193,39 +2305,12 @@ public:
 
   /**
     End of file indicator for the query text to parse.
-    @return true if there are no more characters to parse
-  */
-  bool eof()
-  {
-    return (m_ptr >= m_end_of_query);
-  }
-
-  /**
-    End of file indicator for the query text to parse.
     @param n number of characters expected
     @return true if there are less than n characters to parse
   */
   bool eof(int n)
   {
     return ((m_ptr + n) >= m_end_of_query);
-  }
-
-  /** Get the raw query buffer. */
-  const char *get_buf()
-  {
-    return m_buf;
-  }
-
-  /** Get the pre-processed query buffer. */
-  const char *get_cpp_buf()
-  {
-    return m_cpp_buf;
-  }
-
-  /** Get the end of the raw query buffer. */
-  const char *get_end_of_query()
-  {
-    return m_end_of_query;
   }
 
   /** Mark the stream position as the start of a new token. */
@@ -2250,10 +2335,65 @@ public:
     m_cpp_tok_start= m_cpp_ptr;
   }
 
+  /**
+    Get the maximum length of the utf8-body buffer.
+    The utf8 body can grow because of the character set conversion and escaping.
+  */
+  size_t get_body_utf8_maximum_length(THD *thd);
+
+  /** Get the length of the current token, in the raw buffer. */
+  uint yyLength()
+  {
+    /*
+      The assumption is that the lexical analyser is always 1 character ahead,
+      which the -1 account for.
+    */
+    DBUG_ASSERT(m_ptr > m_tok_start);
+    return (uint) ((m_ptr - m_tok_start) - 1);
+  }
+
+  /**
+    Test if a lookahead token was already scanned by lex_token(),
+    for LALR(2) resolution.
+  */
+  bool has_lookahead() const
+  {
+    return lookahead_token >= 0;
+  }
+
+public:
+
+  /**
+    End of file indicator for the query text to parse.
+    @return true if there are no more characters to parse
+  */
+  bool eof()
+  {
+    return (m_ptr >= m_end_of_query);
+  }
+
+  /** Get the raw query buffer. */
+  const char *get_buf()
+  {
+    return m_buf;
+  }
+
+  /** Get the pre-processed query buffer. */
+  const char *get_cpp_buf()
+  {
+    return m_cpp_buf;
+  }
+
+  /** Get the end of the raw query buffer. */
+  const char *get_end_of_query()
+  {
+    return m_end_of_query;
+  }
+
   /** Get the token start position, in the raw buffer. */
   const char *get_tok_start()
   {
-    return m_tok_start;
+    return has_lookahead() ? m_tok_start_prev : m_tok_start;
   }
 
   void set_cpp_tok_start(const char *pos)
@@ -2267,39 +2407,16 @@ public:
     return m_tok_end;
   }
 
-  /** Get the previous token start position, in the raw buffer. */
-  const char *get_tok_start_prev()
-  {
-    return m_tok_start_prev;
-  }
-
   /** Get the current stream pointer, in the raw buffer. */
   const char *get_ptr()
   {
     return m_ptr;
   }
 
-  /** Get the length of the current token, in the raw buffer. */
-  uint yyLength()
-  {
-    /*
-      The assumption is that the lexical analyser is always 1 character ahead,
-      which the -1 account for.
-    */
-    DBUG_ASSERT(m_ptr > m_tok_start);
-    return (uint) ((m_ptr - m_tok_start) - 1);
-  }
-
-  /** Get the previus token start position, in the pre-processed buffer. */
-  const char *get_cpp_start_prev()
-  {
-    return m_cpp_tok_start_prev;
-  }
-
   /** Get the token start position, in the pre-processed buffer. */
   const char *get_cpp_tok_start()
   {
-    return m_cpp_tok_start;
+    return has_lookahead() ? m_cpp_tok_start_prev : m_cpp_tok_start;
   }
 
   /** Get the token end position, in the pre-processed buffer. */
@@ -2353,32 +2470,19 @@ public:
     return (size_t) (m_body_utf8_ptr - m_body_utf8);
   }
 
-  /**
-    Get the maximum length of the utf8-body buffer.
-    The utf8 body can grow because of the character set conversion and escaping.
-  */
-  size_t get_body_utf8_maximum_length(THD *thd);
-
   void body_utf8_start(THD *thd, const char *begin_ptr);
   void body_utf8_append(const char *ptr);
   void body_utf8_append(const char *ptr, const char *end_ptr);
   void body_utf8_append_ident(THD *thd,
-                              const LEX_CSTRING *txt,
+                              const Lex_string_with_metadata_st *txt,
                               const char *end_ptr);
   void body_utf8_append_escape(THD *thd,
                                const LEX_CSTRING *txt,
                                CHARSET_INFO *txt_cs,
                                const char *end_ptr,
                                my_wc_t sep);
-  /** Current thread. */
-  THD *m_thd;
 
-  /** Current line number. */
-  uint yylineno;
-
-  /** Interface with bison, value of the last token parsed. */
-  LEX_YYSTYPE yylval;
-
+private:
   /**
     LALR(2) resolution, look ahead token.
     Value of the next token to return, if any,
@@ -2395,9 +2499,20 @@ public:
 
   void add_digest_token(uint token, LEX_YYSTYPE yylval);
 
-  void reduce_digest_token(uint token_left, uint token_right);
+  bool consume_comment(int remaining_recursions_permitted);
+  int lex_one_token(union YYSTYPE *yylval, THD *thd);
+  int find_keyword(Lex_ident_cli_st *str, uint len, bool function);
+  LEX_CSTRING get_token(uint skip, uint length);
+  int scan_ident_sysvar(THD *thd, Lex_ident_cli_st *str);
+  int scan_ident_start(THD *thd, Lex_ident_cli_st *str);
+  int scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
+                        CHARSET_INFO **cs, my_lex_states *);
+  int scan_ident_delimited(THD *thd, Lex_ident_cli_st *str);
+  bool get_7bit_or_8bit_ident(THD *thd, uchar *last_char);
 
-private:
+  /** Current thread. */
+  THD *m_thd;
+
   /** Pointer to the current position in the raw input stream. */
   char *m_ptr;
 
@@ -2483,6 +2598,15 @@ public:
   */
   bool multi_statements;
 
+  /** Current line number. */
+  uint yylineno;
+
+  /**
+    Current statement digest instrumentation.
+  */
+  sql_digest_state* m_digest;
+
+private:
   /** State of the lexical analyser for comments. */
   enum_comment_state in_comment;
   enum_comment_state in_comment_saved;
@@ -2509,12 +2633,8 @@ public:
     NOTE: this member must be used within MYSQLlex() function only.
   */
   CHARSET_INFO *m_underscore_cs;
-
-  /**
-    Current statement digest instrumentation. 
-  */
-  sql_digest_state* m_digest;
 };
+
 
 /**
   Abstract representation of a statement.
@@ -2691,10 +2811,25 @@ struct LEX: public Query_tables_list
 
   // type information
   CHARSET_INFO *charset;
+  /*
+    LEX which represents current statement (conventional, SP or PS)
+
+    For example during view parsing THD::lex will point to the views LEX and
+    lex::stmt_lex will point to LEX of the statement where the view will be
+    included
+
+    Currently it is used to have always correct select numbering inside
+    statement (LEX::current_select_number) without storing and restoring a
+    global counter which was THD::select_number.
+
+    TODO: make some unified statement representation (now SP has different)
+    to store such data like LEX::current_select_number.
+  */
+  LEX *stmt_lex;
 
   LEX_CSTRING name;
   const char *help_arg;
-  const char *backup_dir;			/* For RESTORE/BACKUP */
+  const char *backup_dir;                       /* For RESTORE/BACKUP */
   const char* to_log;                           /* For PURGE MASTER LOGS TO */
   const char* x509_subject,*x509_issuer,*ssl_cipher;
   String *wild; /* Wildcard in SHOW {something} LIKE 'wild'*/ 
@@ -2732,7 +2867,7 @@ struct LEX: public Query_tables_list
   List<Key_part_spec> ref_list;
   List<LEX_USER>      users_list;
   List<LEX_COLUMN>    columns;
-  List<Item>	      *insert_list,field_list,value_list,update_list;
+  List<Item>          *insert_list,field_list,value_list,update_list;
   List<List_item>     many_values;
   List<set_var_base>  var_list;
   List<set_var_base>  stmt_var_list; //SET_STATEMENT values
@@ -2785,10 +2920,10 @@ public:
   Column_definition *last_field;
   Item_sum *in_sum_func;
   udf_func udf;
-  HA_CHECK_OPT   check_opt;			// check/repair options
+  HA_CHECK_OPT   check_opt;                        // check/repair options
   Table_specification_st create_info;
   Key *last_key;
-  LEX_MASTER_INFO mi;				// used by CHANGE MASTER
+  LEX_MASTER_INFO mi;                              // used by CHANGE MASTER
   LEX_SERVER_OPTIONS server_options;
   LEX_CSTRING relay_log_connection_name;
   USER_RESOURCES mqh;
@@ -2827,7 +2962,7 @@ public:
   */
   bool parse_vcol_expr;
 
-  enum SSL_type ssl_type;			/* defined in violite.h */
+  enum SSL_type ssl_type;                       // defined in violite.h
   enum enum_duplicates duplicates;
   enum enum_tx_isolation tx_isolation;
   enum enum_ha_read_modes ha_read_mode;
@@ -2888,7 +3023,7 @@ public:
   List<Item> prepared_stmt_params;
   sp_head *sphead;
   sp_name *spname;
-  bool sp_lex_in_use;	/* Keep track on lex usage in SPs for error handling */
+  bool sp_lex_in_use;   // Keep track on lex usage in SPs for error handling
   bool all_privileges;
   bool proxy_priv;
 
@@ -3149,7 +3284,10 @@ public:
   void restore_backup_query_tables_list(Query_tables_list *backup);
 
   bool table_or_sp_used();
+
   bool is_partition_management() const;
+  bool part_values_current(THD *thd);
+  bool part_values_history(THD *thd);
 
   /**
     @brief check if the statement is a single-level join
@@ -3181,6 +3319,11 @@ public:
 
   void init_last_field(Column_definition *field, const LEX_CSTRING *name,
                        const CHARSET_INFO *cs);
+  bool last_field_generated_always_as_row_start_or_end(Lex_ident *p,
+                                                       const char *type,
+                                                       uint flags);
+  bool last_field_generated_always_as_row_start();
+  bool last_field_generated_always_as_row_end();
   bool set_bincmp(CHARSET_INFO *cs, bool bin);
 
   bool get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer);
@@ -3304,20 +3447,42 @@ public:
 
   bool sp_open_cursor(THD *thd, const LEX_CSTRING *name,
                       List<sp_assignment_lex> *parameters);
-  Item_splocal *create_item_for_sp_var(LEX_CSTRING *name, sp_variable *spvar,
-                                       const char *start, const char *end);
+  Item_splocal *create_item_for_sp_var(const Lex_ident_cli_st *name,
+                                       sp_variable *spvar);
 
-  Item *create_item_ident_nosp(THD *thd, LEX_CSTRING *name);
-  Item *create_item_ident_sp(THD *thd, LEX_CSTRING *name,
-                             const char *start, const char *end);
-  Item *create_item_ident(THD *thd, LEX_CSTRING *name,
-                          const char *start, const char *end)
+  Item *create_item_qualified_asterisk(THD *thd, const Lex_ident_sys_st *name);
+  Item *create_item_qualified_asterisk(THD *thd,
+                                       const Lex_ident_sys_st *a,
+                                       const Lex_ident_sys_st *b);
+  Item *create_item_qualified_asterisk(THD *thd, const Lex_ident_cli_st *cname)
   {
-    return sphead ?
-           create_item_ident_sp(thd, name, start, end) :
-           create_item_ident_nosp(thd, name);
+    Lex_ident_sys name(thd, cname);
+    if (name.is_null())
+      return NULL; // EOM
+    return create_item_qualified_asterisk(thd, &name);
+  }
+  Item *create_item_qualified_asterisk(THD *thd,
+                                       const Lex_ident_cli_st *ca,
+                                       const Lex_ident_cli_st *cb)
+  {
+    Lex_ident_sys a(thd, ca), b(thd, cb);
+    if (a.is_null() || b.is_null())
+      return NULL; // EOM
+    return create_item_qualified_asterisk(thd, &a, &b);
   }
 
+  Item *create_item_ident_nosp(THD *thd, Lex_ident_sys_st *name);
+  Item *create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
+                             const char *start, const char *end);
+  Item *create_item_ident(THD *thd, Lex_ident_cli_st *cname)
+  {
+    Lex_ident_sys name(thd, cname);
+    if (name.is_null())
+      return NULL; // EOM
+    return sphead ?
+           create_item_ident_sp(thd, &name, cname->pos(), cname->end()) :
+           create_item_ident_nosp(thd, &name);
+  }
   /*
     Create an Item corresponding to a qualified name: a.b
     when the parser is out of an SP context.
@@ -3332,8 +3497,8 @@ public:
     - Item_ref
   */
   Item *create_item_ident_nospvar(THD *thd,
-                                  const LEX_CSTRING *a,
-                                  const LEX_CSTRING *b);
+                                  const Lex_ident_sys_st *a,
+                                  const Lex_ident_sys_st *b);
   /*
     Create an Item corresponding to a ROW field valiable:  var.field
       @param THD        - THD, for mem_root
@@ -3347,8 +3512,8 @@ public:
   */
   Item_splocal *create_item_spvar_row_field(THD *thd,
                                             const Sp_rcontext_handler *rh,
-                                            const LEX_CSTRING *var,
-                                            const LEX_CSTRING *field,
+                                            const Lex_ident_sys *var,
+                                            const Lex_ident_sys *field,
                                             sp_variable *spvar,
                                             const char *start,
                                             const char *end);
@@ -3361,15 +3526,11 @@ public:
       @param thd         - THD, for mem_root
       @param a           - the first name
       @param b           - the second name
-      @param start       - position in the query (for binary log)
-      @param end         - end in the query (for binary log)
       @retval            - NULL on error, or a pointer to a new Item.
   */
   Item *create_item_ident(THD *thd,
-                          const LEX_CSTRING *a,
-                          const LEX_CSTRING *b,
-                          const char *start,
-                          const char *end);
+                          const Lex_ident_cli_st *a,
+                          const Lex_ident_cli_st *b);
   /*
     Create an item from its qualified name.
     Depending on context, it can be a table field, a table field reference,
@@ -3381,9 +3542,27 @@ public:
       @retval            - NULL on error, or a pointer to a new Item.
   */
   Item *create_item_ident(THD *thd,
-                          const LEX_CSTRING *a,
-                          const LEX_CSTRING *b,
-                          const LEX_CSTRING *c);
+                          const Lex_ident_sys_st *a,
+                          const Lex_ident_sys_st *b,
+                          const Lex_ident_sys_st *c);
+
+  Item *create_item_ident(THD *thd,
+                          const Lex_ident_cli_st *ca,
+                          const Lex_ident_cli_st *cb,
+                          const Lex_ident_cli_st *cc)
+  {
+    Lex_ident_sys b(thd, cb), c(thd, cc);
+    if (b.is_null() || c.is_null())
+      return NULL;
+    if (ca->pos() == cb->pos())  // SELECT .t1.col1
+    {
+      DBUG_ASSERT(ca->length == 0);
+      Lex_ident_sys none;
+      return create_item_ident(thd, &none, &b, &c);
+    }
+    Lex_ident_sys a(thd, ca);
+    return a.is_null() ? NULL : create_item_ident(thd, &a, &b, &c);
+  }
 
   /*
     Create an item for "NEXT VALUE FOR sequence_name"
@@ -3408,16 +3587,11 @@ public:
     Create an item for a name in LIMIT clause: LIMIT var
       @param THD         - THD, for mem_root
       @param var_name    - the variable name
-      @param start       - position in the query (for binary log)
-      @param end         - end in the query (for binary log)
       @retval            - a new Item corresponding to the SP variable,
                            or NULL on error
                            (non in SP, unknown variable, wrong data type).
   */
-  Item *create_item_limit(THD *thd,
-                          const LEX_CSTRING *var_name,
-                          const char *start,
-                          const char *end);
+  Item *create_item_limit(THD *thd, const Lex_ident_cli_st *var_name);
 
   /*
     Create an item for a qualified name in LIMIT clause: LIMIT var.field
@@ -3432,14 +3606,14 @@ public:
                             wrong data type).
   */
   Item *create_item_limit(THD *thd,
-                          const LEX_CSTRING *var_name,
-                          const LEX_CSTRING *field_name,
-                          const char *start,
-                          const char *end);
+                          const Lex_ident_cli_st *var_name,
+                          const Lex_ident_cli_st *field_name);
 
   Item *make_item_func_replace(THD *thd, Item *org, Item *find, Item *replace);
   Item *make_item_func_substr(THD *thd, Item *a, Item *b, Item *c);
   Item *make_item_func_substr(THD *thd, Item *a, Item *b);
+  Item *make_item_func_call_generic(THD *thd, Lex_ident_cli_st *db,
+                                    Lex_ident_cli_st *name, List<Item> *args);
   my_var *create_outvar(THD *thd, const LEX_CSTRING *name);
 
   /*
@@ -3457,7 +3631,21 @@ public:
 
   Item *create_and_link_Item_trigger_field(THD *thd, const LEX_CSTRING *name,
                                            bool new_row);
-
+  // For syntax with colon, e.g. :NEW.a  or :OLD.a
+  Item *make_item_colon_ident_ident(THD *thd,
+                                    const Lex_ident_cli_st *a,
+                                    const Lex_ident_cli_st *b);
+  // For "SELECT @@var", "SELECT @@var.field"
+  Item *make_item_sysvar(THD *thd,
+                         enum_var_type type,
+                         const LEX_CSTRING *name)
+  {
+    return make_item_sysvar(thd, type, name, &null_clex_str);
+  }
+  Item *make_item_sysvar(THD *thd,
+                         enum_var_type type,
+                         const LEX_CSTRING *name,
+                         const LEX_CSTRING *component);
   void sp_block_init(THD *thd, const LEX_CSTRING *label);
   void sp_block_init(THD *thd)
   {
@@ -3529,7 +3717,7 @@ public:
                                         Item *value);
   sp_variable *sp_add_for_loop_upper_bound(THD *thd, Item *value)
   {
-    LEX_CSTRING name= { C_STRING_WITH_LEN("[upper_bound]") };
+    LEX_CSTRING name= { STRING_WITH_LEN("[upper_bound]") };
     return sp_add_for_loop_variable(thd, &name, value);
   }
   bool sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
@@ -3753,6 +3941,34 @@ public:
     return create_info.vers_info;
   }
   sp_package *get_sp_package() const;
+
+  /**
+    Check if the select is a simple select (not an union).
+    @retval
+      0 ok
+    @retval
+      1 error   ; In this case the error messege is sent to the client
+  */
+  bool check_simple_select(const LEX_CSTRING *option)
+  {
+    if (current_select != &select_lex)
+    {
+      char command[80];
+      strmake(command, option->str, MY_MIN(option->length, sizeof(command)-1));
+      my_error(ER_CANT_USE_OPTION_HERE, MYF(0), command);
+      return true;
+    }
+    return false;
+  }
+
+  void tvc_start()
+  {
+    field_list.empty();
+    many_values.empty();
+    insert_list= 0;
+  }
+  bool tvc_finalize();
+  bool tvc_finalize_derived();
 };
 
 

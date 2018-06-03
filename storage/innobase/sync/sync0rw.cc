@@ -302,8 +302,8 @@ rw_lock_s_lock_spin(
 {
 	ulint		i = 0;	/* spin round count */
 	sync_array_t*	sync_arr;
-	ulint		spin_count = 0;
-	uint64_t	count_os_wait = 0;
+	lint		spin_count = 0;
+	int64_t		count_os_wait = 0;
 
 	/* We reuse the thread id to index into the counter, cache
 	it here for efficiency. */
@@ -430,9 +430,9 @@ rw_lock_x_lock_wait_func(
 	unsigned	line)	/*!< in: line where requested */
 {
 	ulint		i = 0;
-	ulint		n_spins = 0;
+	lint		n_spins = 0;
 	sync_array_t*	sync_arr;
-	uint64_t	count_os_wait = 0;
+	int64_t		count_os_wait = 0;
 
 	ut_ad(my_atomic_load32_explicit(&lock->lock_word, MY_MEMORY_ORDER_RELAXED) <= threshold);
 
@@ -682,8 +682,8 @@ rw_lock_x_lock_func(
 {
 	ulint		i = 0;
 	sync_array_t*	sync_arr;
-	ulint		spin_count = 0;
-	uint64_t	count_os_wait = 0;
+	lint		spin_count = 0;
+	int64_t		count_os_wait = 0;
 
 	ut_ad(rw_lock_validate(lock));
 	ut_ad(!rw_lock_own(lock, RW_LOCK_S));
@@ -714,7 +714,7 @@ lock_loop:
 		}
 
 		HMT_medium();
-		spin_count += i;
+		spin_count += lint(i);
 
 		if (i >= srv_n_spin_wait_rounds) {
 
@@ -780,9 +780,9 @@ rw_lock_sx_lock_func(
 {
 	ulint		i = 0;
 	sync_array_t*	sync_arr;
-	ulint		spin_count = 0;
-	uint64_t	count_os_wait = 0;
-	ulint		spin_wait_count = 0;
+	lint		spin_count = 0;
+	int64_t		count_os_wait = 0;
+	lint		spin_wait_count = 0;
 
 	ut_ad(rw_lock_validate(lock));
 	ut_ad(!rw_lock_own(lock, RW_LOCK_S));
@@ -814,7 +814,7 @@ lock_loop:
 			i++;
 		}
 
-		spin_count += i;
+		spin_count += lint(i);
 
 		if (i >= srv_n_spin_wait_rounds) {
 

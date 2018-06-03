@@ -111,3 +111,27 @@ create table t1 (id int auto_increment primary key, datecol datetime, check (dat
 insert into t1 (datecol) values (now());
 insert into t1 (datecol) values (now());
 drop table t1;
+
+#
+# MDEV-15461 Check Constraints with binary logging makes insert inconsistent
+#
+
+CREATE TABLE t1 (
+  EmployeeID SMALLINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  FirstName VARCHAR(30) NOT NULL CHECK (CHAR_LENGTH(FirstName > 2))
+);
+
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES (NULL, 'Ken');
+SHOW WARNINGS;
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
+SHOW WARNINGS;
+INSERT IGNORE INTO t1 VALUES (NULL, 'Ken');
+INSERT IGNORE INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
+set sql_mode="";
+INSERT INTO t1 VALUES (NULL, 'Ken');
+INSERT INTO t1 VALUES (NULL, 'Ken'),(NULL, 'Brian');
+set sql_mode=default;
+select * from t1;
+drop table t1;

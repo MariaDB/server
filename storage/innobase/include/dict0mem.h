@@ -109,7 +109,7 @@ are described in fsp0fsp.h. */
 /** dict_table_t::flags bit 0 is equal to 0 if the row format = Redundant */
 #define DICT_TF_REDUNDANT		0	/*!< Redundant row format. */
 /** dict_table_t::flags bit 0 is equal to 1 if the row format = Compact */
-#define DICT_TF_COMPACT			1	/*!< Compact row format. */
+#define DICT_TF_COMPACT			1U	/*!< Compact row format. */
 
 /** This bitmask is used in SYS_TABLES.N_COLS to set and test whether
 the Compact page format is used, i.e ROW_FORMAT != REDUNDANT */
@@ -866,8 +866,8 @@ struct dict_index_t{
 				in a clustered index record, if the fields
 				before it are known to be of a fixed size,
 				0 otherwise */
-#if (1<<MAX_KEY_LENGTH_BITS) < MAX_KEY_LENGTH
-# error (1<<MAX_KEY_LENGTH_BITS) < MAX_KEY_LENGTH
+#if (1<<MAX_KEY_LENGTH_BITS) < HA_MAX_KEY_LENGTH
+# error (1<<MAX_KEY_LENGTH_BITS) < HA_MAX_KEY_LENGTH
 #endif
 	unsigned	n_user_defined_cols:10;
 				/*!< number of columns the user defined to
@@ -1045,18 +1045,19 @@ struct dict_index_t{
 		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
 	}
 
+	/** @return whether the index is corrupted */
+	inline bool is_corrupted() const;
+
 	/** Determine how many fields of a given prefix can be set NULL.
 	@param[in]	n_prefix	number of fields in the prefix
 	@return	number of fields 0..n_prefix-1 that can be set NULL */
 	unsigned get_n_nullable(ulint n_prefix) const
 	{
-		DBUG_ASSERT(is_instant());
 		DBUG_ASSERT(n_prefix > 0);
 		DBUG_ASSERT(n_prefix <= n_fields);
 		unsigned n = n_nullable;
 		for (; n_prefix < n_fields; n_prefix++) {
 			const dict_col_t* col = fields[n_prefix].col;
-			DBUG_ASSERT(is_dummy || col->is_instant());
 			DBUG_ASSERT(!col->is_virtual());
 			n -= col->is_nullable();
 		}
@@ -1093,7 +1094,7 @@ struct dict_index_t{
 			fields[i].col->remove_instant();
 		}
 		n_core_fields = n_fields;
-		n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
+		n_core_null_bytes = UT_BITS_IN_BYTES(unsigned(n_nullable));
 	}
 
 	/** Check if record in clustered index is historical row.
@@ -1453,7 +1454,7 @@ struct dict_table_t {
 	/** @return whether the table supports transactions */
 	bool no_rollback() const
 	{
-		return !(~flags & DICT_TF_MASK_NO_ROLLBACK);
+		return !(~unsigned(flags) & DICT_TF_MASK_NO_ROLLBACK);
         }
 	/** @return whether this is a temporary table */
 	bool is_temporary() const
@@ -1514,7 +1515,7 @@ struct dict_table_t {
 	void inc_fk_checks()
 	{
 #ifdef UNIV_DEBUG
-		lint fk_checks=
+		lint fk_checks= (lint)
 #endif
 		my_atomic_addlint(&n_foreign_key_checks_running, 1);
 		ut_ad(fk_checks >= 0);
@@ -1522,9 +1523,9 @@ struct dict_table_t {
 	void dec_fk_checks()
 	{
 #ifdef UNIV_DEBUG
-		lint fk_checks=
+		lint fk_checks= (lint)
 #endif
-		my_atomic_addlint(&n_foreign_key_checks_running, -1);
+		my_atomic_addlint(&n_foreign_key_checks_running, ulint(-1));
 		ut_ad(fk_checks > 0);
 	}
 
@@ -1920,10 +1921,7 @@ inline void dict_index_t::set_modified(mtr_t& mtr) const
 	mtr.set_named_space(table->space);
 }
 
-inline bool dict_index_t::is_readable() const
-{
-	return(UNIV_LIKELY(!table->file_unreadable));
-}
+inline bool dict_index_t::is_readable() const { return table->is_readable(); }
 
 inline bool dict_index_t::is_instant() const
 {
@@ -1934,6 +1932,13 @@ inline bool dict_index_t::is_instant() const
 	ut_ad(n_core_fields == n_fields || table->supports_instant());
 	ut_ad(n_core_fields == n_fields || !table->is_temporary());
 	return(n_core_fields != n_fields);
+}
+
+inline bool dict_index_t::is_corrupted() const
+{
+	return UNIV_UNLIKELY(online_status >= ONLINE_INDEX_ABORTED
+			     || (type & DICT_CORRUPT)
+			     || (table && table->corrupted));
 }
 
 /*******************************************************************//**

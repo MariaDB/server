@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -477,7 +477,7 @@ row_mysql_store_col_in_innobase_format(
 			case 4:
 				/* space=0x00000020 */
 				/* Trim "half-chars", just in case. */
-				col_len &= ~3;
+				col_len &= ~3U;
 
 				while (col_len >= 4
 				       && ptr[col_len - 4] == 0x00
@@ -490,7 +490,7 @@ row_mysql_store_col_in_innobase_format(
 			case 2:
 				/* space=0x0020 */
 				/* Trim "half-chars", just in case. */
-				col_len &= ~1;
+				col_len &= ~1U;
 
 				while (col_len >= 2 && ptr[col_len - 2] == 0x00
 				       && ptr[col_len - 1] == 0x20) {
@@ -1369,7 +1369,7 @@ row_insert_for_mysql(
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
 	ut_a(prebuilt->magic_n2 == ROW_PREBUILT_ALLOCATED);
 
-	if (dict_table_is_discarded(prebuilt->table)) {
+	if (!prebuilt->table->space) {
 
 		ib::error() << "The table " << prebuilt->table->name
 			<< " doesn't have a corresponding tablespace, it was"
@@ -1518,8 +1518,7 @@ error_exit:
 			doc_ids difference should not exceed
 			FTS_DOC_ID_MAX_STEP value. */
 
-			if (next_doc_id > 1
-			    && doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
+			if (doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
 				 ib::error() << "Doc ID " << doc_id
 					<< " is too big. Its difference with"
 					" largest used Doc ID "
@@ -1621,7 +1620,7 @@ row_create_update_node_for_mysql(
 
 	node = upd_node_create(heap);
 
-	node->in_mysql_interface = TRUE;
+	node->in_mysql_interface = true;
 	node->is_delete = NO_DELETE;
 	node->searched_update = FALSE;
 	node->select = NULL;
@@ -2456,10 +2455,8 @@ err_exit:
 
 		if (dict_table_is_file_per_table(table)
 		    && fil_delete_tablespace(table->space->id) != DB_SUCCESS) {
-
-			ib::error() << "Not able to delete tablespace "
-				<< table->space << " of table "
-				<< table->name << "!";
+			ib::error() << "Cannot delete the file of table "
+				<< table->name;
 		}
 		/* fall through */
 
@@ -2581,7 +2578,7 @@ row_create_index_for_mysql(
 		if (index) {
 			ut_ad(!index->is_instant());
 			index->n_core_null_bytes = UT_BITS_IN_BYTES(
-				index->n_nullable);
+				unsigned(index->n_nullable));
 
 			err = dict_create_index_tree_in_mem(index, trx);
 
@@ -2653,12 +2650,6 @@ row_table_add_foreign_constraints(
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_a(sql_string);
-
-	trx->op_info = "adding foreign keys";
-
-	trx_start_if_not_started_xa(trx, true);
-
-	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 
 	err = dict_create_foreign_constraints(
 		trx, sql_string, sql_length, name, reject_fks);
@@ -3160,11 +3151,7 @@ row_discard_tablespace(
 	}
 
 	/* Discard the physical file that is used for the tablespace. */
-	err = fil_delete_tablespace(table->space_id
-#ifdef BTR_CUR_HASH_ADAPT
-				   , true
-#endif /* BTR_CUR_HASH_ADAPT */
-				   );
+	err = fil_delete_tablespace(table->space_id);
 	switch (err) {
 	case DB_IO_ERROR:
 		ib::warn() << "ALTER TABLE " << table->name
@@ -3221,7 +3208,7 @@ row_discard_tablespace_for_mysql(
 
 	if (table == 0) {
 		err = DB_TABLE_NOT_FOUND;
-	} else if (dict_table_is_temporary(table)) {
+	} else if (table->is_temporary()) {
 
 		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 			    ER_CANNOT_DISCARD_TEMPORARY_TABLE);
@@ -3331,16 +3318,15 @@ fil_wait_crypt_bg_threads(
 		if (now >= last + 30) {
 			ib::warn()
 				<< "Waited " << now - start
-				<< " seconds for ref-count on table: "
-				<< table->name << " space: " << table->space;
+				<< " seconds for ref-count on table "
+				<< table->name;
 			last = now;
 		}
 		if (now >= start + 300) {
 			ib::warn()
 				<< "After " << now - start
 				<< " seconds, gave up waiting "
-				<< "for ref-count on table: " << table->name
-				<< " space: " << table->space;
+				<< "for ref-count on table " << table->name;
 			break;
 		}
 	}
@@ -3714,6 +3700,21 @@ defer:
 		/* Mark the index unusable. */
 		index->page = FIL_NULL;
 		rw_lock_x_unlock(dict_index_get_lock(index));
+	}
+
+	if (table->space_id != TRX_SYS_SPACE) {
+		/* On DISCARD TABLESPACE, we would not drop the
+		adaptive hash index entries. If the tablespace is
+		missing here, delete-marking the record in SYS_INDEXES
+		would not free any pages in the buffer pool. Thus,
+		dict_index_remove_from_cache() would hang due to
+		adaptive hash index entries existing in the buffer
+		pool.  To prevent this hang, and also to guarantee
+		that btr_search_drop_page_hash_when_freed() will avoid
+		calling btr_search_drop_page_hash_index() while we
+		hold the InnoDB dictionary lock, we will drop any
+		adaptive hash index entries upfront. */
+		buf_LRU_drop_page_hash_for_tablespace(table);
 	}
 
 	/* Deleting a row from SYS_INDEXES table will invoke
@@ -4347,7 +4348,7 @@ row_rename_table_for_mysql(
 		goto funct_exit;
 
 	} else if (!table->is_readable() && !table->space
-		   && !dict_table_is_discarded(table)) {
+		   && !(table->flags2 & DICT_TF2_DISCARDED)) {
 
 		err = DB_TABLE_NOT_FOUND;
 
@@ -4581,7 +4582,8 @@ row_rename_table_for_mysql(
 	}
 
 	if (err == DB_SUCCESS
-	    && dict_table_has_fts_index(table)
+	    && (dict_table_has_fts_index(table)
+	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
 	    && !dict_tables_have_same_db(old_name, new_name)) {
 		err = fts_rename_aux_tables(table, new_name, trx);
 		if (err != DB_TABLE_NOT_FOUND) {
@@ -4802,7 +4804,8 @@ row_scan_index_for_mysql(
 		return(DB_SUCCESS);
 	}
 
-	ulint bufsize = ut_max(UNIV_PAGE_SIZE, prebuilt->mysql_row_len);
+	ulint bufsize = std::max<ulint>(srv_page_size,
+					prebuilt->mysql_row_len);
 	buf = static_cast<byte*>(ut_malloc_nokey(bufsize));
 	heap = mem_heap_create(100);
 

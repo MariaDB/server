@@ -1638,15 +1638,20 @@ int spider_check_and_set_sql_log_off(
   SPIDER_CONN *conn,
   int *need_mon
 ) {
-  bool internal_sql_log_off;
+  int internal_sql_log_off;
   DBUG_ENTER("spider_check_and_set_sql_log_off");
 
   internal_sql_log_off = spider_param_internal_sql_log_off(thd);
-  if (internal_sql_log_off)
+  if (internal_sql_log_off != -1)
   {
-    spider_conn_queue_sql_log_off(conn, TRUE);
-  } else {
-    spider_conn_queue_sql_log_off(conn, FALSE);
+    if (internal_sql_log_off)
+    {
+      spider_conn_queue_sql_log_off(conn, TRUE);
+    }
+    else
+    {
+      spider_conn_queue_sql_log_off(conn, FALSE);
+    }
   }
 /*
   if (internal_sql_log_off && conn->sql_log_off != 1)
@@ -2811,7 +2816,7 @@ int spider_internal_xa_commit_by_xid(
   SPIDER_TRX *trx,
   XID* xid
 ) {
-  TABLE *table_xa, *table_xa_member;
+  TABLE *table_xa, *table_xa_member= 0;
   int error_num;
   char xa_key[MAX_KEY_LENGTH];
   char xa_member_key[MAX_KEY_LENGTH];
@@ -3046,7 +3051,7 @@ int spider_internal_xa_rollback_by_xid(
   SPIDER_TRX *trx,
   XID* xid
 ) {
-  TABLE *table_xa, *table_xa_member;
+  TABLE *table_xa, *table_xa_member= 0;
   int error_num;
   char xa_key[MAX_KEY_LENGTH];
   char xa_member_key[MAX_KEY_LENGTH];

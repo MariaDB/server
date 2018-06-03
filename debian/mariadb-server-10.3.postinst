@@ -91,7 +91,7 @@ case "$1" in
           mv "$targetdir" "$mysql_tmp"
           cat << EOF > "$mysql_tmp/README"
 
-Ff you're reading this, it's most likely because you had replaced /var/lib/mysql
+If you're reading this, it's most likely because you had replaced /var/lib/mysql
 with a symlink, then upgraded to a new version of mysql, and then dpkg
 removed your symlink (see #182747 and others). The mysql packages noticed
 that this happened, and as a workaround have restored it. However, because
@@ -141,7 +141,9 @@ EOF
     # Debian: beware of the bashisms...
     # Debian: can safely run on upgrades with existing databases
     set +e
-    bash /usr/bin/mysql_install_db --rpm --cross-bootstrap --user=mysql --disable-log-bin 2>&1 | $ERR_LOGGER
+    bash /usr/bin/mysql_install_db --rpm --cross-bootstrap --user=mysql \
+                                   --disable-log-bin --skip-test-db 2>&1 | \
+                                   $ERR_LOGGER
     set -e
 
 

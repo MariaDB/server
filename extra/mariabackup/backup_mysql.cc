@@ -48,6 +48,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include <limits>
 #include "common.h"
 #include "xtrabackup.h"
+#include "srv0srv.h"
 #include "mysql_version.h"
 #include "backup_copy.h"
 #include "backup_mysql.h"
@@ -93,7 +94,7 @@ time_t history_lock_time;
 
 MYSQL *mysql_connection;
 
-my_bool opt_ssl_verify_server_cert;
+extern my_bool opt_ssl_verify_server_cert, opt_use_ssl;
 
 MYSQL *
 xb_mysql_connect()
@@ -480,7 +481,7 @@ get_mysql_vars(MYSQL *connection)
 			innodb_data_file_path_var, MYF(MY_FAE));
 	}
 
-	if (innodb_data_home_dir_var && *innodb_data_home_dir_var) {
+	if (innodb_data_home_dir_var) {
 		innobase_data_home_dir = my_strdup(
 			innodb_data_home_dir_var, MYF(MY_FAE));
 	}
@@ -897,16 +898,23 @@ DECLARE_THREAD(kill_mdl_waiters_thread(void *))
 			break;
 
 		MYSQL_RES *result = xb_mysql_query(mysql,
-			"SELECT ID, COMMAND FROM INFORMATION_SCHEMA.PROCESSLIST "
+			"SELECT ID, COMMAND, INFO FROM INFORMATION_SCHEMA.PROCESSLIST "
 			" WHERE State='Waiting for table metadata lock'",
 			true, true);
 		while (MYSQL_ROW row = mysql_fetch_row(result))
 		{
 			char query[64];
-			msg_ts("Killing MDL waiting query '%s' on connection '%s'\n",
-				row[1], row[0]);
+
+			if (row[1] && !strcmp(row[1], "Killed"))
+				continue;
+
+			msg_ts("Killing MDL waiting %s ('%s') on connection %s\n",
+				row[1], row[2], row[0]);
 			snprintf(query, sizeof(query), "KILL QUERY %s", row[0]);
-			xb_mysql_query(mysql, query, true);
+			if (mysql_query(mysql, query) && (mysql_errno(mysql) != ER_NO_SUCH_THREAD)) {
+				msg("Error: failed to execute query %s: %s\n", query,mysql_error(mysql));
+				exit(EXIT_FAILURE);
+			}
 		}
 	}
 
@@ -1607,6 +1615,44 @@ cleanup:
 
 extern const char *innodb_checksum_algorithm_names[];
 
+#ifdef _WIN32
+#include <algorithm>
+#endif
+
+static std::string make_local_paths(const char *data_file_path)
+{
+	if (strchr(data_file_path, '/') == 0
+#ifdef _WIN32
+		&& strchr(data_file_path, '\\') == 0
+#endif
+		){
+		return std::string(data_file_path);
+	}
+
+	std::ostringstream buf;
+
+	char *dup = strdup(innobase_data_file_path);
+	ut_a(dup);
+	char *p;
+	char * token = strtok_r(dup, ";", &p);
+	while (token) {
+		if (buf.tellp())
+			buf << ";";
+
+		char *fname = strrchr(token, '/');
+#ifdef _WIN32
+		fname = std::max(fname,strrchr(token, '\\'));
+#endif
+		if (fname)
+			buf << fname + 1;
+		else
+			buf << token;
+		token = strtok_r(NULL, ";", &p);
+	}
+	free(dup);
+	return buf.str();
+}
+
 bool write_backup_config_file()
 {
 	int rc= backup_file_printf("backup-my.cnf",
@@ -1623,7 +1669,7 @@ bool write_backup_config_file()
 		"%s%s\n"
 		"%s\n",
 		innodb_checksum_algorithm_names[srv_checksum_algorithm],
-		innobase_data_file_path,
+		make_local_paths(innobase_data_file_path).c_str(),
 		srv_n_log_files,
 		srv_log_file_size,
 		srv_page_size,

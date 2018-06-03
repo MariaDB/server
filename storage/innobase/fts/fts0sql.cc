@@ -116,7 +116,8 @@ fts_get_table_name_prefix(
 
 	prefix_name_len = dbname_len + 4 + len + 1;
 
-	prefix_name = static_cast<char*>(ut_malloc_nokey(prefix_name_len));
+	prefix_name = static_cast<char*>(
+		ut_malloc_nokey(unsigned(prefix_name_len)));
 
 	len = sprintf(prefix_name, "%.*sFTS_%s",
 		      dbname_len, fts_table->parent, table_id);
@@ -198,16 +199,13 @@ Parse an SQL string.
 que_t*
 fts_parse_sql_no_dict_lock(
 /*=======================*/
-	fts_table_t*	fts_table,	/*!< in: FTS aux table info */
 	pars_info_t*	info,		/*!< in: info struct, or NULL */
 	const char*	sql)		/*!< in: SQL string to evaluate */
 {
 	char*		str;
 	que_t*		graph;
 
-#ifdef UNIV_DEBUG
 	ut_ad(mutex_own(&dict_sys->mutex));
-#endif
 
 	str = ut_str3cat(fts_sql_begin, sql, fts_sql_end);
 

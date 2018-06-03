@@ -545,7 +545,6 @@ static int create_db_instance()
   }
 
   CreateDirectory("mysql",NULL);
-  CreateDirectory("test", NULL);
 
   /*
     Set data directory permissions for both current user and 

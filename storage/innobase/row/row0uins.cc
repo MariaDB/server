@@ -433,7 +433,7 @@ row_undo_ins_parse_undo_rec(
 		ut_ad(dict_table_is_file_per_table(table)
 		      == !is_system_tablespace(table->space->id));
 		size_t len = mach_read_from_2(node->undo_rec)
-			+ node->undo_rec - ptr - 2;
+			+ size_t(node->undo_rec - ptr) - 2;
 		ptr[len] = 0;
 		const char* name = reinterpret_cast<char*>(ptr);
 		if (strcmp(table->name.m_name, name)) {

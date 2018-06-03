@@ -2568,7 +2568,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
 2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.c>3 AND
 (t1.a,t1.b,t1.c) IN
@@ -2623,7 +2623,8 @@ EXPLAIN
                         "table_name": "t2",
                         "access_type": "ALL",
                         "rows": 12,
-                        "filtered": 100
+                        "filtered": 100,
+                        "attached_condition": "t2.e < 5"
                       }
                     }
                   }
@@ -2677,7 +2678,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
 2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.a>1 AND
 (t1.a,t1.b,t1.c) IN
@@ -2731,7 +2732,8 @@ EXPLAIN
                         "table_name": "t2",
                         "access_type": "ALL",
                         "rows": 12,
-                        "filtered": 100
+                        "filtered": 100,
+                        "attached_condition": "t2.e < 5 and t2.e > 1"
                       }
                     }
                   }
@@ -2786,7 +2788,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
 1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
 2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
+3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.a>1 AND t1.c<100 AND
 (t1.a,t1.b,t1.c) IN
@@ -2841,7 +2843,8 @@ EXPLAIN
                         "table_name": "t2",
                         "access_type": "ALL",
                         "rows": 12,
-                        "filtered": 100
+                        "filtered": 100,
+                        "attached_condition": "t2.e < 5 and t2.e > 1"
                       }
                     }
                   }
@@ -2965,7 +2968,7 @@ EXPLAIN
               "materialized": {
                 "query_block": {
                   "select_id": 3,
-                  "having_condition": "max_g > 25",
+                  "having_condition": "max_g > 25 and t2.e < 5 and t2.e > 1",
                   "filesort": {
                     "sort_key": "t2.f",
                     "temporary_table": {
@@ -3116,7 +3119,7 @@ EXPLAIN
               "materialized": {
                 "query_block": {
                   "select_id": 3,
-                  "having_condition": "max_g > 25",
+                  "having_condition": "max_g > 25 and t2.e < 5 and t2.e > 1",
                   "filesort": {
                     "sort_key": "t2.f",
                     "temporary_table": {
@@ -3268,7 +3271,7 @@ EXPLAIN
               "materialized": {
                 "query_block": {
                   "select_id": 3,
-                  "having_condition": "max_g > 25",
+                  "having_condition": "max_g > 25 and t2.e < 5 and t2.e > 1",
                   "filesort": {
                     "sort_key": "t2.f",
                     "temporary_table": {
