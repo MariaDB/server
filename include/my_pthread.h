@@ -730,6 +730,15 @@ extern uint my_thread_end_wait_time;
 extern my_bool safe_mutex_deadlock_detector;
 #define my_thread_var (_my_thread_var())
 #define my_errno my_thread_var->thr_errno
+extern void my_thread_interruptable_wait(
+  struct st_my_thread_var *thread_var,
+  mysql_cond_t *cond,
+  mysql_mutex_t *mutex);
+extern int my_thread_interruptable_timedwait(
+  struct st_my_thread_var *thread_var,
+  mysql_cond_t *cond,
+  mysql_mutex_t *mutex,
+  struct timespec *wait_timeout);
 extern void my_thread_interrupt_wait(struct st_my_thread_var *thread_var,
                                      my_bool do_abort);
 

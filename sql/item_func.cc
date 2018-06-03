@@ -3856,7 +3856,8 @@ int Interruptible_wait::wait(mysql_cond_t *cond, mysql_mutex_t *mutex)
     if (cmp_timespec(timeout, m_abs_timeout) > 0)
       timeout= m_abs_timeout;
 
-    error= mysql_cond_timedwait(cond, mutex, &timeout);
+    error= my_thread_interruptable_timedwait(m_thd->mysys_var, cond, mutex,
+                                             &timeout);
     if (error == ETIMEDOUT || error == ETIME)
     {
       /* Return error if timed out or connection is broken. */
@@ -4387,8 +4388,6 @@ longlong Item_func_sleep::val_int()
   mysql_mutex_lock(&LOCK_item_func_sleep);
 
   THD_STAGE_INFO(thd, stage_user_sleep);
-  thd->mysys_var->current_mutex= &LOCK_item_func_sleep;
-  thd->mysys_var->current_cond=  &cond;
 
   error= 0;
   thd_wait_begin(thd, THD_WAIT_SLEEP);
@@ -4401,10 +4400,6 @@ longlong Item_func_sleep::val_int()
   }
   thd_wait_end(thd);
   mysql_mutex_unlock(&LOCK_item_func_sleep);
-  mysql_mutex_lock(&thd->mysys_var->mutex);
-  thd->mysys_var->current_mutex= 0;
-  thd->mysys_var->current_cond=  0;
-  mysql_mutex_unlock(&thd->mysys_var->mutex);
 
   mysql_cond_destroy(&cond);
 

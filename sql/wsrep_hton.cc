@@ -383,22 +383,14 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
          thd->killed == NOT_KILLED            &&
          !shutdown_in_progress)
   {
-
-    mysql_mutex_unlock(&LOCK_wsrep_replaying);
     mysql_mutex_unlock(&thd->LOCK_thd_data);
-
-    mysql_mutex_lock(&thd->mysys_var->mutex);
     thd_proc_info(thd, "WSREP waiting on replaying");
-    thd->mysys_var->current_mutex= &LOCK_wsrep_replaying;
-    thd->mysys_var->current_cond=  &COND_wsrep_replaying;
-    mysql_mutex_unlock(&thd->mysys_var->mutex);
 
-    mysql_mutex_lock(&LOCK_wsrep_replaying);
     // Using timedwait is a hack to avoid deadlock in case if BF victim
     // misses the signal.
     struct timespec wtime = {0, 1000000};
-    mysql_cond_timedwait(&COND_wsrep_replaying, &LOCK_wsrep_replaying,
-			 &wtime);
+    my_thread_interruptable_timedwait(thd->mysys_var, &COND_wsrep_replaying,
+                                      &LOCK_wsrep_replaying, &wtime);
 
     if (replay_round++ % 100000 == 0)
       WSREP_DEBUG("commit waiting for replaying: replayers %d, thd: %lld "
@@ -407,11 +399,6 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
                   thd->wsrep_conflict_state, replay_round);
 
     mysql_mutex_unlock(&LOCK_wsrep_replaying);
-
-    mysql_mutex_lock(&thd->mysys_var->mutex);
-    thd->mysys_var->current_mutex= 0;
-    thd->mysys_var->current_cond=  0;
-    mysql_mutex_unlock(&thd->mysys_var->mutex);
 
     mysql_mutex_lock(&thd->LOCK_thd_data);
     mysql_mutex_lock(&LOCK_wsrep_replaying);

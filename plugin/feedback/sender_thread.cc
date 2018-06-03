@@ -97,8 +97,6 @@ static int prepare_for_fill(TABLE_LIST *tables)
   if (thd->store_globals())
     return 1;
 
-  thd->mysys_var->current_cond= &sleep_condition;
-  thd->mysys_var->current_mutex= &sleep_mutex;
   thd->proc_info="feedback";
   thd->set_command(COM_SLEEP);
   thd->system_thread= SYSTEM_THREAD_EVENT_WORKER; // whatever
@@ -153,7 +151,8 @@ static int slept_ok(time_t sec)
 
   mysql_mutex_lock(&sleep_mutex);
   while (!going_down() && ret != ETIMEDOUT)
-    ret= mysql_cond_timedwait(&sleep_condition, &sleep_mutex, &abstime);
+    ret= my_thread_interruptable_timedwait(my_thread_var, &sleep_condition,
+                                           &sleep_mutex, &abstime);
   mysql_mutex_unlock(&sleep_mutex);
 
   return !going_down();

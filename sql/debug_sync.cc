@@ -1396,31 +1396,8 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
 
     if (action->wait_for.length())
     {
-      mysql_mutex_t *old_mutex= NULL;
-      mysql_cond_t  *old_cond= NULL;
-      bool           restore_current_mutex;
       int             error= 0;
       struct timespec abstime;
-
-      /*
-        We don't use enter_cond()/exit_cond(). They do not save old
-        mutex and cond. This would prohibit the use of DEBUG_SYNC
-        between other places of enter_cond() and exit_cond().
-
-        We need to check for existence of thd->mysys_var to also make
-        it possible to use DEBUG_SYNC framework in scheduler when this
-        variable has been set to NULL.
-      */
-      if (thd->mysys_var)
-      {
-        old_mutex= thd->mysys_var->current_mutex;
-        old_cond= thd->mysys_var->current_cond;
-        restore_current_mutex = true;
-        thd->mysys_var->current_mutex= &debug_sync_global.ds_mutex;
-        thd->mysys_var->current_cond= &debug_sync_global.ds_cond;
-      }
-      else
-        restore_current_mutex = false;
 
       set_timespec(abstime, action->timeout);
       DBUG_EXECUTE("debug_sync_exec", {
@@ -1439,9 +1416,20 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
       while (stringcmp(&debug_sync_global.ds_signal, &action->wait_for) &&
              !thd->killed && opt_debug_sync_timeout)
       {
-        error= mysql_cond_timedwait(&debug_sync_global.ds_cond,
-                                    &debug_sync_global.ds_mutex,
-                                    &abstime);
+        /*
+          We need to check for existence of thd->mysys_var to also make
+          it possible to use DEBUG_SYNC framework in scheduler when this
+          variable has been set to NULL.
+        */
+        if (thd->mysys_var)
+          error= my_thread_interruptable_timedwait(thd->mysys_var,
+                                                   &debug_sync_global.ds_cond,
+                                                   &debug_sync_global.ds_mutex,
+                                                   &abstime);
+        else
+          error= mysql_cond_timedwait(&debug_sync_global.ds_cond,
+                                      &debug_sync_global.ds_mutex,
+                                      &abstime);
         DBUG_EXECUTE("debug_sync", {
             /* Functions as DBUG_PRINT args can change keyword and line nr. */
             const char *sig_glob= debug_sync_global.ds_signal.c_ptr();
@@ -1481,16 +1469,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         is locked. (See comment in THD::exit_cond().)
       */
       mysql_mutex_unlock(&debug_sync_global.ds_mutex);
-      if (restore_current_mutex)
-      {
-        mysql_mutex_lock(&thd->mysys_var->mutex);
-        thd->mysys_var->current_mutex= old_mutex;
-        thd->mysys_var->current_cond= old_cond;
-        thd_proc_info(thd, old_proc_info);
-        mysql_mutex_unlock(&thd->mysys_var->mutex);
-      }
-      else
-        thd_proc_info(thd, old_proc_info);
+      thd_proc_info(thd, old_proc_info);
     }
     else
     {

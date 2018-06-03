@@ -452,6 +452,60 @@ safe_mutex_t **my_thread_var_mutex_in_use()
 }
 
 
+static int before_interruptable_wait(struct st_my_thread_var *thread_var,
+                                     mysql_cond_t *cond, mysql_mutex_t *mutex)
+{
+  mysql_mutex_lock(&thread_var->mutex);
+  if (unlikely(thread_var->abort))
+  {
+    mysql_mutex_unlock(&thread_var->mutex);
+    return 0;
+  }
+  thread_var->current_mutex= mutex;
+  thread_var->current_cond= cond;
+  mysql_mutex_unlock(&thread_var->mutex);
+  return 1;
+}
+
+
+static void after_interruptable_wait(struct st_my_thread_var *thread_var)
+{
+  mysql_mutex_lock(&thread_var->mutex);
+  thread_var->current_mutex= 0;
+  thread_var->current_cond= 0;
+  mysql_mutex_unlock(&thread_var->mutex);
+}
+
+
+void my_thread_interruptable_wait(
+  struct st_my_thread_var *thread_var,
+  mysql_cond_t *cond,
+  mysql_mutex_t *mutex)
+{
+  if (before_interruptable_wait(thread_var, cond, mutex))
+  {
+    mysql_cond_wait(cond, mutex);
+    after_interruptable_wait(thread_var);
+  }
+}
+
+
+int my_thread_interruptable_timedwait(
+  struct st_my_thread_var *thread_var,
+  mysql_cond_t *cond,
+  mysql_mutex_t *mutex,
+  struct timespec *wait_timeout)
+{
+  if (before_interruptable_wait(thread_var, cond, mutex))
+  {
+    int rc= mysql_cond_timedwait(cond, mutex, wait_timeout);
+    after_interruptable_wait(thread_var);
+    return rc;
+  }
+  return 0;
+}
+
+
 void my_thread_interrupt_wait(struct st_my_thread_var *thread_var,
                               my_bool do_abort)
 {

@@ -3048,12 +3048,6 @@ pthread_handler_t handle_delayed_insert(void *arg)
         set_timespec(abstime, delayed_insert_timeout);
 
         /* Information for pthread_kill */
-        mysql_mutex_unlock(&di->mutex);
-        mysql_mutex_lock(&di->thd.mysys_var->mutex);
-        di->thd.mysys_var->current_mutex= &di->mutex;
-        di->thd.mysys_var->current_cond= &di->cond;
-        mysql_mutex_unlock(&di->thd.mysys_var->mutex);
-        mysql_mutex_lock(&di->mutex);
         THD_STAGE_INFO(&(di->thd), stage_waiting_for_insert);
 
         DBUG_PRINT("info",("Waiting for someone to insert rows"));
@@ -3061,7 +3055,9 @@ pthread_handler_t handle_delayed_insert(void *arg)
         {
           int error;
           mysql_audit_release(thd);
-          error= mysql_cond_timedwait(&di->cond, &di->mutex, &abstime);
+          error= my_thread_interruptable_timedwait(di->thd.mysys_var,
+                                                   &di->cond, &di->mutex,
+                                                   &abstime);
 #ifdef EXTRA_DEBUG
           if (error && error != EINTR && error != ETIMEDOUT)
           {
@@ -3073,13 +3069,6 @@ pthread_handler_t handle_delayed_insert(void *arg)
           if (error == ETIMEDOUT || error == ETIME)
             thd->set_killed(KILL_CONNECTION);
         }
-        /* We can't lock di->mutex and mysys_var->mutex at the same time */
-        mysql_mutex_unlock(&di->mutex);
-        mysql_mutex_lock(&di->thd.mysys_var->mutex);
-        di->thd.mysys_var->current_mutex= 0;
-        di->thd.mysys_var->current_cond= 0;
-        mysql_mutex_unlock(&di->thd.mysys_var->mutex);
-        mysql_mutex_lock(&di->mutex);
       }
       DBUG_PRINT("delayed",
                  ("thd->killed: %d  di->tables_in_use: %d  thd->lock: %d",

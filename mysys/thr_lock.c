@@ -546,8 +546,6 @@ wait_for_lock(struct st_lock_list *wait, THR_LOCK_DATA *data,
   statistic_increment(locks_waited, &THR_LOCK_lock);
 
   /* Set up control struct to allow others to abort locks */
-  thread_var->current_mutex= &data->lock->mutex;
-  thread_var->current_cond=  cond;
   data->cond= cond;
 
   proc_info_hook(NULL, &stage_waiting_for_table_level_lock,
@@ -573,7 +571,9 @@ wait_for_lock(struct st_lock_list *wait, THR_LOCK_DATA *data,
   set_timespec(wait_timeout, lock_wait_timeout);
   while (!thread_var->abort || in_wait_list)
   {
-    int rc= mysql_cond_timedwait(cond, &data->lock->mutex, &wait_timeout);
+    int rc= my_thread_interruptable_timedwait(thread_var, cond,
+                                              &data->lock->mutex,
+                                              &wait_timeout);
     /*
       We must break the wait if one of the following occurs:
       - the connection has been aborted (!thread_var->abort), but
@@ -640,12 +640,6 @@ wait_for_lock(struct st_lock_list *wait, THR_LOCK_DATA *data,
     check_locks(data->lock,"got wait_for_lock", data->type, 0);
   }
   mysql_mutex_unlock(&data->lock->mutex);
-
-  /* The following must be done after unlock of lock->mutex */
-  mysql_mutex_lock(&thread_var->mutex);
-  thread_var->current_mutex= 0;
-  thread_var->current_cond=  0;
-  mysql_mutex_unlock(&thread_var->mutex);
 
   proc_info_hook(NULL, &old_stage, NULL, __func__, __FILE__, __LINE__);
 

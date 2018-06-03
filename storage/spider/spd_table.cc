@@ -81,8 +81,6 @@ inline MYSQL_THD spider_create_sys_thd(SPIDER_THREAD *thread)
   if (thd)
   {
     SPIDER_set_next_thread_id(thd);
-    thd->mysys_var->current_cond = &thread->cond;
-    thd->mysys_var->current_mutex = &thread->mutex;
   }
   return thd;
 }
@@ -9939,7 +9937,7 @@ void *spider_table_bg_sts_action(
     {
       DBUG_PRINT("info",("spider bg sts has no job"));
       thread->thd_wait = TRUE;
-      pthread_cond_wait(&thread->cond, &thread->mutex);
+      my_thread_interruptable_wait(thd->mysys_var, &thread->cond, &thread->mutex);
       thread->thd_wait = FALSE;
       if (thd->killed)
         thread->killed = TRUE;
@@ -10020,7 +10018,7 @@ void *spider_table_bg_sts_action(
     if (thread->first_free_wait)
     {
       pthread_cond_signal(&thread->sync_cond);
-      pthread_cond_wait(&thread->cond, &thread->mutex);
+      my_thread_interruptable_wait(thd->mysys_var, &thread->cond, &thread->mutex);
       if (thd->killed)
         thread->killed = TRUE;
     }
@@ -10091,7 +10089,7 @@ void *spider_table_bg_crd_action(
     {
       DBUG_PRINT("info",("spider bg crd has no job"));
       thread->thd_wait = TRUE;
-      pthread_cond_wait(&thread->cond, &thread->mutex);
+      my_thread_interruptable_wait(thd->mysys_var, &thread->cond, &thread->mutex);
       thread->thd_wait = FALSE;
       if (thd->killed)
         thread->killed = TRUE;
@@ -10173,7 +10171,7 @@ void *spider_table_bg_crd_action(
     if (thread->first_free_wait)
     {
       pthread_cond_signal(&thread->sync_cond);
-      pthread_cond_wait(&thread->cond, &thread->mutex);
+      my_thread_interruptable_wait(thd->mysys_var, &thread->cond, &thread->mutex);
       if (thd->killed)
         thread->killed = TRUE;
     }

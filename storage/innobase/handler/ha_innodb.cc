@@ -300,16 +300,14 @@ thd_destructor_proxy(void *)
 	THD *thd= create_thd();
 	thd_proc_info(thd, "InnoDB shutdown handler");
 
-	myvar->current_mutex = &thd_destructor_mutex;
-	myvar->current_cond = &thd_destructor_cond;
-
 	mysql_mutex_lock(&thd_destructor_mutex);
 	my_atomic_storeptr_explicit(reinterpret_cast<void**>(&srv_running),
 				    myvar,
 				    MY_MEMORY_ORDER_RELAXED);
 	/* wait until the server wakes the THD to abort and die */
 	while (!srv_running->abort)
-		mysql_cond_wait(&thd_destructor_cond, &thd_destructor_mutex);
+		my_thread_interruptable_wait(myvar, &thd_destructor_cond,
+                                             &thd_destructor_mutex);
 	mysql_mutex_unlock(&thd_destructor_mutex);
 	my_atomic_storeptr_explicit(reinterpret_cast<void**>(&srv_running),
 				    NULL,
