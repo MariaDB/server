@@ -706,8 +706,7 @@ struct st_my_thread_var
   int thr_errno;
   mysql_cond_t suspend;
   mysql_mutex_t mutex;
-  mysql_mutex_t * volatile current_mutex;
-  mysql_cond_t * volatile current_cond;
+  mysql_cond_t *current_cond;
   pthread_t pthread_self;
   my_thread_id id, dbug_id;
   int volatile abort;

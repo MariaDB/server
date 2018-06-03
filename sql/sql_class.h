@@ -3337,14 +3337,10 @@ public:
 #endif
 
   inline void
-  enter_cond(mysql_cond_t *cond, mysql_mutex_t* mutex,
-             const PSI_stage_info *stage, PSI_stage_info *old_stage,
+  enter_cond(const PSI_stage_info *stage, PSI_stage_info *old_stage,
              const char *src_function, const char *src_file,
              int src_line)
   {
-    mysql_mutex_assert_owner(mutex);
-    mysys_var->current_mutex = mutex;
-    mysys_var->current_cond = cond;
     if (old_stage)
       backup_stage(old_stage);
     if (stage)
@@ -3354,20 +3350,8 @@ public:
                         const char *src_function, const char *src_file,
                         int src_line)
   {
-    /*
-      Putting the mutex unlock in thd->exit_cond() ensures that
-      mysys_var->current_mutex is always unlocked _before_ mysys_var->mutex is
-      locked (if that would not be the case, you'll get a deadlock if someone
-      does a THD::awake() on you).
-    */
-    mysql_mutex_unlock(mysys_var->current_mutex);
-    mysql_mutex_lock(&mysys_var->mutex);
-    mysys_var->current_mutex = 0;
-    mysys_var->current_cond = 0;
     if (stage)
       enter_stage(stage, src_function, src_file, src_line);
-    mysql_mutex_unlock(&mysys_var->mutex);
-    return;
   }
   virtual int is_killed() { return killed; }
   virtual THD* get_thd() { return this; }
@@ -6305,22 +6289,19 @@ extern pthread_attr_t *get_connection_attrib(void);
    function. After being waken up, @f thd_exit_cond should be called.
 
    @param thd      The thread entering the condition, NULL means current thread
-   @param cond     The condition the thread is going to wait for
-   @param mutex    The mutex associated with the condition, this must be
-                   held before call this function
    @param stage    The new process message for the thread
    @param old_stage The old process message for the thread
    @param src_function The caller source function name
    @param src_file The caller source file name
    @param src_line The caller source line number
 */
-void thd_enter_cond(MYSQL_THD thd, mysql_cond_t *cond, mysql_mutex_t *mutex,
+void thd_enter_cond(MYSQL_THD thd,
                     const PSI_stage_info *stage, PSI_stage_info *old_stage,
                     const char *src_function, const char *src_file,
                     int src_line);
 
-#define THD_ENTER_COND(P1, P2, P3, P4, P5) \
-  thd_enter_cond(P1, P2, P3, P4, P5, __func__, __FILE__, __LINE__)
+#define THD_ENTER_COND(P1, P2, P3) \
+  thd_enter_cond(P1, P2, P3, __func__, __FILE__, __LINE__)
 
 /**
    Set thread leaving a condition

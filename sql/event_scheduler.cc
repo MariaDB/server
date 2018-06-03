@@ -760,27 +760,28 @@ Event_scheduler::cond_wait(THD *thd, struct timespec *abstime, const PSI_stage_i
                            const char *src_func, const char *src_file, uint src_line)
 {
   DBUG_ENTER("Event_scheduler::cond_wait");
+  DBUG_PRINT("info", ("mysql_cond_%swait", abstime? "timed":""));
   waiting_on_cond= TRUE;
   mutex_last_unlocked_at_line= src_line;
   mutex_scheduler_data_locked= FALSE;
   mutex_last_unlocked_in_func= src_func;
   if (thd)
-    thd->enter_cond(&COND_state, &LOCK_scheduler_state, stage,
-                    NULL, src_func, src_file, src_line);
-
-  DBUG_PRINT("info", ("mysql_cond_%swait", abstime? "timed":""));
-  if (!abstime)
-    mysql_cond_wait(&COND_state, &LOCK_scheduler_state);
-  else
-    mysql_cond_timedwait(&COND_state, &LOCK_scheduler_state, abstime);
-  if (thd)
   {
-    /*
-      This will free the lock so we need to relock. Not the best thing to
-      do but we need to obey cond_wait()
-    */
+    thd->enter_cond(stage, NULL, src_func, src_file, src_line);
+    if (!abstime)
+      my_thread_interruptable_wait(thd->mysys_var, &COND_state,
+                                   &LOCK_scheduler_state);
+    else
+      my_thread_interruptable_timedwait(thd->mysys_var, &COND_state,
+                                        &LOCK_scheduler_state, abstime);
     thd->exit_cond(NULL, src_func, src_file, src_line);
-    LOCK_DATA();
+  }
+  else
+  {
+    if (!abstime)
+      mysql_cond_wait(&COND_state, &LOCK_scheduler_state);
+    else
+      mysql_cond_timedwait(&COND_state, &LOCK_scheduler_state, abstime);
   }
   mutex_last_locked_in_func= src_func;
   mutex_last_locked_at_line= src_line;

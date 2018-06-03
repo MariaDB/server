@@ -461,7 +461,6 @@ static int before_interruptable_wait(struct st_my_thread_var *thread_var,
     mysql_mutex_unlock(&thread_var->mutex);
     return 0;
   }
-  thread_var->current_mutex= mutex;
   thread_var->current_cond= cond;
   mysql_mutex_unlock(&thread_var->mutex);
   return 1;
@@ -471,7 +470,6 @@ static int before_interruptable_wait(struct st_my_thread_var *thread_var,
 static void after_interruptable_wait(struct st_my_thread_var *thread_var)
 {
   mysql_mutex_lock(&thread_var->mutex);
-  thread_var->current_mutex= 0;
   thread_var->current_cond= 0;
   mysql_mutex_unlock(&thread_var->mutex);
 }

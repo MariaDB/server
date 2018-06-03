@@ -146,14 +146,14 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
 
     int wait_res= 0;
     PSI_stage_info old_stage;
-    caller_thd->ENTER_COND(&apc_request.COND_request, LOCK_thd_kill_ptr,
-                           &stage_show_explain, &old_stage);
+    caller_thd->ENTER_COND(&stage_show_explain, &old_stage);
     /* todo: how about processing other errors here? */
     while (!apc_request.processed && (wait_res != ETIMEDOUT))
     {
       /* We own LOCK_thd_kill_ptr */
-      wait_res= mysql_cond_timedwait(&apc_request.COND_request,
-                                     LOCK_thd_kill_ptr, &abstime);
+      wait_res= my_thread_interruptable_timedwait(caller_thd->mysys_var,
+                                                  &apc_request.COND_request,
+                                                  LOCK_thd_kill_ptr, &abstime);
                                       // &apc_request.LOCK_request, &abstime);
       if (caller_thd->killed)
         break;
@@ -176,9 +176,7 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
       /* Request was successfully executed and dequeued by the target thread */
       res= FALSE;
     }
-    /* 
-      exit_cond() will call mysql_mutex_unlock(LOCK_thd_kill_ptr) for us:
-    */
+    mysql_mutex_unlock(LOCK_thd_kill_ptr);
     caller_thd->EXIT_COND(&old_stage);
 
     /* Destroy all APC request data */

@@ -1068,8 +1068,7 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
 
   mysql_mutex_lock(&m_LOCK_wait_status);
 
-  owner->ENTER_COND(&m_COND_wait_status, &m_LOCK_wait_status,
-                    wait_state_name, & old_stage);
+  owner->ENTER_COND(wait_state_name, &old_stage);
   thd_wait_begin(NULL, THD_WAIT_META_DATA_LOCK);
   while (!m_wait_status && !owner->is_killed() &&
          wait_result != ETIMEDOUT && wait_result != ETIME)
@@ -1086,12 +1085,17 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
                  };);
     if (wsrep_thd_is_BF(owner->get_thd(), false))
     {
-      wait_result= mysql_cond_wait(&m_COND_wait_status, &m_LOCK_wait_status);
+      wait_result= 0;
+      my_thread_interruptable_wait(owner->get_thd()->mysys_var,
+                                   &m_COND_wait_status,
+                                   &m_LOCK_wait_status);
     }
     else
 #endif /* WITH_WSREP */
-    wait_result= mysql_cond_timedwait(&m_COND_wait_status, &m_LOCK_wait_status,
-                                      abs_timeout);
+    wait_result= my_thread_interruptable_timedwait(owner->get_thd()->mysys_var,
+                                                   &m_COND_wait_status,
+                                                   &m_LOCK_wait_status,
+                                                   abs_timeout);
   }
   thd_wait_end(NULL);
 
@@ -1116,6 +1120,7 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
   }
   result= m_wait_status;
 
+  mysql_mutex_unlock(&m_LOCK_wait_status);
   owner->EXIT_COND(& old_stage);
 
   DBUG_RETURN(result);

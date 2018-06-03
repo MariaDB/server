@@ -437,7 +437,6 @@ class Repl_semi_sync_master
   void lock();
   void unlock();
   void cond_broadcast();
-  int  cond_timewait(struct timespec *wait_time);
 
   /* Is semi-sync replication on? */
   bool is_on() {

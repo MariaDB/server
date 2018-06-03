@@ -771,15 +771,17 @@ Event_queue::cond_wait(THD *thd, struct timespec *abstime, const PSI_stage_info 
   mutex_queue_data_locked= FALSE;
   mutex_last_unlocked_in_func= src_func;
 
-  thd->enter_cond(&COND_queue_state, &LOCK_event_queue, stage, NULL, src_func, src_file, src_line);
+  thd->enter_cond(stage, NULL, src_func, src_file, src_line);
 
   if (!thd->killed)
   {
     DBUG_PRINT("info", ("pthread_cond_%swait", abstime ? "timed" : ""));
     if (!abstime)
-      mysql_cond_wait(&COND_queue_state, &LOCK_event_queue);
+      my_thread_interruptable_wait(thd->mysys_var, &COND_queue_state,
+                                   &LOCK_event_queue);
     else
-      mysql_cond_timedwait(&COND_queue_state, &LOCK_event_queue, abstime);
+      my_thread_interruptable_timedwait(thd->mysys_var, &COND_queue_state,
+                                        &LOCK_event_queue, abstime);
   }
 
   mutex_last_locked_in_func= src_func;
@@ -787,13 +789,7 @@ Event_queue::cond_wait(THD *thd, struct timespec *abstime, const PSI_stage_info 
   mutex_queue_data_locked= TRUE;
   waiting_on_cond= FALSE;
 
-  /*
-    This will free the lock so we need to relock. Not the best thing to
-    do but we need to obey cond_wait()
-  */
   thd->exit_cond(NULL, src_func, src_file, src_line);
-  lock_data(src_func, src_line);
-
   DBUG_VOID_RETURN;
 }
 

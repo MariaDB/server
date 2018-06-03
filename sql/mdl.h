@@ -31,13 +31,11 @@ bool  ok_for_lower_case_names(const char *name);
 /**
   @def ENTER_COND(C, M, S, O)
   Start a wait on a condition.
-  @param C the condition to wait on
-  @param M the associated mutex
   @param S the new stage to enter
   @param O the previous stage
   @sa EXIT_COND().
 */
-#define ENTER_COND(C, M, S, O) enter_cond(C, M, S, O, __func__, __FILE__, __LINE__)
+#define ENTER_COND(S, O) enter_cond(S, O, __func__, __FILE__, __LINE__)
 
 /**
   @def EXIT_COND(S)
@@ -59,10 +57,8 @@ public:
   /**
     Enter a condition wait.
     For @c enter_cond() / @c exit_cond() to work the mutex must be held before
-    @c enter_cond(); this mutex is then released by @c exit_cond().
-    Usage must be: lock mutex; enter_cond(); your code; exit_cond().
-    @param cond the condition to wait on
-    @param mutex the associated mutex
+    @c enter_cond();
+    Usage must be: lock mutex; enter_cond(); your code; unlock mutex; exit_cond().
     @param [in] stage the stage to enter, or NULL
     @param [out] old_stage the previous stage, or NULL
     @param src_function function name of the caller
@@ -71,8 +67,7 @@ public:
     @sa ENTER_COND(), THD::enter_cond()
     @sa EXIT_COND(), THD::exit_cond()
   */
-  virtual void enter_cond(mysql_cond_t *cond, mysql_mutex_t *mutex,
-                          const PSI_stage_info *stage, PSI_stage_info *old_stage,
+  virtual void enter_cond(const PSI_stage_info *stage, PSI_stage_info *old_stage,
                           const char *src_function, const char *src_file,
                           int src_line) = 0;
 

@@ -178,19 +178,18 @@ rpl_slave_state::check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi)
     */
     if (!did_enter_cond)
     {
-      thd->ENTER_COND(&elem->COND_gtid_ignore_duplicates, &LOCK_slave_state,
-                      &stage_gtid_wait_other_connection, &old_stage);
+      thd->ENTER_COND(&stage_gtid_wait_other_connection, &old_stage);
       did_enter_cond= true;
     }
-    mysql_cond_wait(&elem->COND_gtid_ignore_duplicates,
-                    &LOCK_slave_state);
+    my_thread_interruptable_wait(thd->mysys_var,
+                                 &elem->COND_gtid_ignore_duplicates,
+                                 &LOCK_slave_state);
   }
 
 err:
+  mysql_mutex_unlock(&LOCK_slave_state);
   if (did_enter_cond)
     thd->EXIT_COND(&old_stage);
-  else
-    mysql_mutex_unlock(&LOCK_slave_state);
   return res;
 }
 
@@ -2546,10 +2545,9 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
         mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
         remove_from_wait_queue(he, &elem);
         promote_new_waiter(he);
+        mysql_mutex_unlock(&LOCK_gtid_waiting);
         if (did_enter_cond)
           thd->EXIT_COND(&old_stage);
-        else
-          mysql_mutex_unlock(&LOCK_gtid_waiting);
         my_error(ER_OUT_OF_RESOURCES, MYF(0));
         return 1;
       }
@@ -2589,24 +2587,21 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
         }
 
         /* Release the large lock, and do the small wait. */
+        mysql_mutex_unlock(&LOCK_gtid_waiting);
         if (did_enter_cond)
         {
           thd->EXIT_COND(&old_stage);
           did_enter_cond= false;
         }
-        else
-          mysql_mutex_unlock(&LOCK_gtid_waiting);
-        thd->ENTER_COND(&slave_state_elem->COND_wait_gtid,
-                        &rpl_global_gtid_slave_state->LOCK_slave_state,
-                        &stage_master_gtid_wait_primary, &old_stage);
+        thd->ENTER_COND(&stage_master_gtid_wait_primary, &old_stage);
         do
         {
           if (unlikely(thd->check_killed(1)))
             break;
           else if (wait_until)
           {
-            int err=
-              mysql_cond_timedwait(&slave_state_elem->COND_wait_gtid,
+            int err= my_thread_interruptable_timedwait(thd->mysys_var,
+                                   &slave_state_elem->COND_wait_gtid,
                                    &rpl_global_gtid_slave_state->LOCK_slave_state,
                                    wait_until);
             if (err == ETIMEDOUT || err == ETIME)
@@ -2616,8 +2611,9 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
             }
           }
           else
-            mysql_cond_wait(&slave_state_elem->COND_wait_gtid,
-                            &rpl_global_gtid_slave_state->LOCK_slave_state);
+            my_thread_interruptable_wait(thd->mysys_var,
+                                         &slave_state_elem->COND_wait_gtid,
+                                         &rpl_global_gtid_slave_state->LOCK_slave_state);
         } while (slave_state_elem->gtid_waiter == &elem);
         wakeup_seq_no= slave_state_elem->highest_seq_no;
         /*
@@ -2633,6 +2629,7 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
           else if (slave_state_elem->min_wait_seq_no <= seq_no)
             elem.do_small_wait= false;
         }
+        mysql_mutex_unlock(&rpl_global_gtid_slave_state->LOCK_slave_state);
         thd->EXIT_COND(&old_stage);
 
         mysql_mutex_lock(&LOCK_gtid_waiting);
@@ -2649,8 +2646,7 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
       /* Do the large wait. */
       if (!did_enter_cond)
       {
-        thd->ENTER_COND(&thd->COND_wakeup_ready, &LOCK_gtid_waiting,
-                        &stage_master_gtid_wait, &old_stage);
+        thd->ENTER_COND(&stage_master_gtid_wait, &old_stage);
         did_enter_cond= true;
       }
       while (!elem.done && likely(!thd->check_killed(1)))
@@ -2658,13 +2654,15 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
         thd_wait_begin(thd, THD_WAIT_BINLOG);
         if (wait_until)
         {
-          int err= mysql_cond_timedwait(&thd->COND_wakeup_ready,
+          int err= my_thread_interruptable_timedwait(thd->mysys_var,
+                                        &thd->COND_wakeup_ready,
                                         &LOCK_gtid_waiting, wait_until);
           if (err == ETIMEDOUT || err == ETIME)
             timed_out= true;
         }
         else
-          mysql_cond_wait(&thd->COND_wakeup_ready, &LOCK_gtid_waiting);
+          my_thread_interruptable_wait(thd->mysys_var, &thd->COND_wakeup_ready,
+                                       &LOCK_gtid_waiting);
         thd_wait_end(thd);
         if (elem.do_small_wait || timed_out)
           break;
@@ -2689,10 +2687,9 @@ gtid_waiting::wait_for_gtid(THD *thd, rpl_gtid *wait_gtid,
     }
   }
 
+  mysql_mutex_unlock(&LOCK_gtid_waiting);
   if (did_enter_cond)
     thd->EXIT_COND(&old_stage);
-  else
-    mysql_mutex_unlock(&LOCK_gtid_waiting);
   if (thd->killed)
     thd->send_kill_message();
 #endif  /* HAVE_REPLICATION */

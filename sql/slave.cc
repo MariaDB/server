@@ -500,9 +500,7 @@ handle_slave_background(void *arg __attribute__((unused)))
     slave_background_kill_t *kill_list;
     slave_background_gtid_pos_create_t *create_list;
 
-    thd->ENTER_COND(&COND_slave_background, &LOCK_slave_background,
-                    &stage_slave_background_wait_request,
-                    &old_stage);
+    thd->ENTER_COND(&stage_slave_background_wait_request, &old_stage);
     for (;;)
     {
       stop= abort_loop || thd->killed || slave_background_thread_stop;
@@ -510,11 +508,13 @@ handle_slave_background(void *arg __attribute__((unused)))
       create_list= slave_background_gtid_pos_create_list;
       if (stop || kill_list || create_list)
         break;
-      mysql_cond_wait(&COND_slave_background, &LOCK_slave_background);
+      my_thread_interruptable_wait(thd->mysys_var, &COND_slave_background,
+                                   &LOCK_slave_background);
     }
 
     slave_background_kill_list= NULL;
     slave_background_gtid_pos_create_list= NULL;
+    mysql_mutex_unlock(&LOCK_slave_background);
     thd->EXIT_COND(&old_stage);
 
     while (kill_list)
@@ -1265,9 +1265,7 @@ int start_slave_thread(
     {
       DBUG_PRINT("sleep",("Waiting for slave thread to start"));
       PSI_stage_info saved_stage= {0, "", 0};
-      thd->ENTER_COND(start_cond, cond_lock,
-                      & stage_waiting_for_slave_thread_to_start,
-                      & saved_stage);
+      thd->ENTER_COND(&stage_waiting_for_slave_thread_to_start, &saved_stage);
       /*
         It is not sufficient to test this at loop bottom. We must test
         it after registering the mutex in enter_cond(). If the kill
@@ -1275,9 +1273,8 @@ int start_slave_thread(
         registered, we could otherwise go waiting though thd->killed is
         set.
       */
-      mysql_cond_wait(start_cond, cond_lock);
+      my_thread_interruptable_wait(thd->mysys_var, start_cond, cond_lock);
       thd->EXIT_COND(& saved_stage);
-      mysql_mutex_lock(cond_lock); // re-acquire it as exit_cond() released
     }
   }
   if (start_lock)
@@ -2680,18 +2677,17 @@ static bool wait_for_relay_log_space(Relay_log_info* rli)
   DBUG_ENTER("wait_for_relay_log_space");
 
   mysql_mutex_lock(&rli->log_space_lock);
-  thd->ENTER_COND(&rli->log_space_cond,
-                  &rli->log_space_lock,
-                  &stage_waiting_for_relay_log_space,
-                  &old_stage);
+  thd->ENTER_COND(&stage_waiting_for_relay_log_space, &old_stage);
   while (rli->log_space_limit < rli->log_space_total &&
          !(slave_killed=io_slave_killed(mi)) &&
          !rli->ignore_log_space_limit)
-    mysql_cond_wait(&rli->log_space_cond, &rli->log_space_lock);
+    my_thread_interruptable_wait(thd->mysys_var, &rli->log_space_cond,
+                                 &rli->log_space_lock);
 
   ignore_log_space_limit= rli->ignore_log_space_limit;
   rli->ignore_log_space_limit= 0;
 
+  mysql_mutex_unlock(&rli->log_space_lock);
   thd->EXIT_COND(&old_stage);
 
   /* 
@@ -3592,16 +3588,14 @@ static bool slave_sleep(THD *thd, time_t seconds,
   /* Absolute system time at which the sleep time expires. */
   set_timespec(abstime, seconds);
   mysql_mutex_lock(lock);
-  thd->ENTER_COND(cond, lock, NULL, NULL);
-
   while (! (ret= func(info)))
   {
-    int error= mysql_cond_timedwait(cond, lock, &abstime);
+    int error= my_thread_interruptable_timedwait(thd->mysys_var, cond, lock,
+                                                 &abstime);
     if (error == ETIMEDOUT || error == ETIME)
       break;
   }
-  /* Implicitly unlocks the mutex. */
-  thd->EXIT_COND(NULL);
+  mysql_mutex_unlock(lock);
   return ret;
 }
 

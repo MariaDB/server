@@ -476,18 +476,6 @@ void Repl_semi_sync_master::cond_broadcast()
   mysql_cond_broadcast(&COND_binlog_send);
 }
 
-int Repl_semi_sync_master::cond_timewait(struct timespec *wait_time)
-{
-  int wait_res;
-
-  DBUG_ENTER("Repl_semi_sync_master::cond_timewait()");
-
-  wait_res= mysql_cond_timedwait(&COND_binlog_send,
-                                 &LOCK_binlog, wait_time);
-
-  DBUG_RETURN(wait_res);
-}
-
 void Repl_semi_sync_master::add_slave()
 {
   lock();
@@ -796,9 +784,7 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
     lock();
 
     /* This must be called after acquired the lock */
-    THD_ENTER_COND(thd, &COND_binlog_send, &LOCK_binlog,
-                   & stage_waiting_for_semi_sync_ack_from_slave,
-                   & old_stage);
+    thd->ENTER_COND(&stage_waiting_for_semi_sync_ack_from_slave, &old_stage);
 
     /* This is the real check inside the mutex. */
     if (!get_master_enabled() || !is_on())
@@ -882,7 +868,10 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
                               m_wait_timeout,
                               m_wait_file_name, (ulong)m_wait_file_pos));
 
-      wait_result = cond_timewait(&abstime);
+      wait_result= my_thread_interruptable_timedwait(thd->mysys_var,
+                                                     &COND_binlog_send,
+                                                     &LOCK_binlog, &abstime);
+
       rpl_semi_sync_master_wait_sessions--;
 
       if (wait_result != 0)
@@ -935,9 +924,8 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
     else
       rpl_semi_sync_master_no_transactions++;
 
-    /* The lock held will be released by thd_exit_cond, so no need to
-       call unlock() here */
-    THD_EXIT_COND(thd, &old_stage);
+    mysql_mutex_unlock(&LOCK_binlog);
+    thd->EXIT_COND(&old_stage);
   }
 
   DBUG_RETURN(0);

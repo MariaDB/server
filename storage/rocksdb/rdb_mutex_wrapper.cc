@@ -87,17 +87,7 @@ Rdb_cond_var::WaitFor(const std::shared_ptr<TransactionDBMutex> mutex_arg,
   mysql_mutex_assert_owner(mutex_ptr);
 
   if (current_thd && mutex_obj->m_old_stage_info.count(current_thd) == 0) {
-    THD_ENTER_COND(current_thd, &m_cond, mutex_ptr, &stage_waiting_on_row_lock2,
-                   &old_stage);
-    /*
-      After the mysql_cond_timedwait we need make this call
-
-        THD_EXIT_COND(thd, &old_stage);
-
-      to inform the SQL layer that KILLable wait has ended. However,
-      that will cause mutex to be released. Defer the release until the mutex
-      that is unlocked by RocksDB's Pessimistic Transactions system.
-    */
+    THD_ENTER_COND(current_thd, &stage_waiting_on_row_lock2, &old_stage);
     mutex_obj->set_unlock_action(&old_stage);
   }
 
@@ -105,7 +95,8 @@ Rdb_cond_var::WaitFor(const std::shared_ptr<TransactionDBMutex> mutex_arg,
   bool killed = false;
 
   do {
-    res = mysql_cond_timedwait(&m_cond, mutex_ptr, &wait_timeout);
+    res = my_thread_interruptable_timedwait(my_thread_var, &m_cond, mutex_ptr,
+                                            &wait_timeout);
 
 #ifndef STANDALONE_UNITTEST
     if (current_thd)
@@ -204,7 +195,7 @@ void Rdb_mutex::UnLock() {
     const std::shared_ptr<PSI_stage_info> old_stage =
         m_old_stage_info[current_thd];
     m_old_stage_info.erase(current_thd);
-    /* The following will call mysql_mutex_unlock */
+    mysql_mutex_unlock(&m_mutex);
     THD_EXIT_COND(current_thd, old_stage.get());
     return;
   }

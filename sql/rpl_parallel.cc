@@ -116,10 +116,11 @@ wait_for_pending_deadlock_kill(THD *thd, rpl_group_info *rgi)
   PSI_stage_info old_stage;
 
   mysql_mutex_lock(&thd->LOCK_wakeup_ready);
-  thd->ENTER_COND(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready,
-                  &stage_waiting_for_deadlock_kill, &old_stage);
+  thd->ENTER_COND(&stage_waiting_for_deadlock_kill, &old_stage);
   while (rgi->killed_for_retry == rpl_group_info::RETRY_KILL_PENDING)
-    mysql_cond_wait(&thd->COND_wakeup_ready, &thd->LOCK_wakeup_ready);
+    my_thread_interruptable_wait(thd->mysys_var, &thd->COND_wakeup_ready,
+                                 &thd->LOCK_wakeup_ready);
+  mysql_mutex_unlock(&thd->LOCK_wakeup_ready);
   thd->EXIT_COND(&old_stage);
 }
 
@@ -272,13 +273,12 @@ static void
 unlock_or_exit_cond(THD *thd, mysql_mutex_t *lock, bool *did_enter_cond,
                     PSI_stage_info *old_stage)
 {
+  mysql_mutex_unlock(lock);
   if (*did_enter_cond)
   {
     thd->EXIT_COND(old_stage);
     *did_enter_cond= false;
   }
-  else
-    mysql_mutex_unlock(lock);
 }
 
 
@@ -329,9 +329,7 @@ do_gco_wait(rpl_group_info *rgi, group_commit_orderer *gco,
   if (wait_count > entry->count_committing_event_groups)
   {
     DEBUG_SYNC(thd, "rpl_parallel_start_waiting_for_prior");
-    thd->ENTER_COND(&gco->COND_group_commit_orderer,
-                    &entry->LOCK_parallel_entry,
-                    &stage_waiting_for_prior_transaction_to_start_commit,
+    thd->ENTER_COND(&stage_waiting_for_prior_transaction_to_start_commit,
                     old_stage);
     *did_enter_cond= true;
     thd->set_time_for_next_stage();
@@ -353,8 +351,9 @@ do_gco_wait(rpl_group_info *rgi, group_commit_orderer *gco,
           executed, and things will progress quickly towards stop.
         */
       }
-      mysql_cond_wait(&gco->COND_group_commit_orderer,
-                      &entry->LOCK_parallel_entry);
+      my_thread_interruptable_wait(thd->mysys_var,
+                                   &gco->COND_group_commit_orderer,
+                                   &entry->LOCK_parallel_entry);
     } while (wait_count > entry->count_committing_event_groups);
   }
 
@@ -394,8 +393,7 @@ do_ftwrl_wait(rpl_group_info *rgi,
   */
   if (unlikely(sub_id > entry->pause_sub_id))
   {
-    thd->ENTER_COND(&entry->COND_parallel_entry, &entry->LOCK_parallel_entry,
-                    &stage_waiting_for_ftwrl, old_stage);
+    thd->ENTER_COND(&stage_waiting_for_ftwrl, old_stage);
     *did_enter_cond= true;
     thd->set_time_for_next_stage();
     do
@@ -408,7 +406,8 @@ do_ftwrl_wait(rpl_group_info *rgi,
         signal_error_to_sql_driver_thread(thd, rgi, 1);
         break;
       }
-      mysql_cond_wait(&entry->COND_parallel_entry, &entry->LOCK_parallel_entry);
+      my_thread_interruptable_wait(thd->mysys_var, &entry->COND_parallel_entry,
+                                   &entry->LOCK_parallel_entry);
     } while (sub_id > entry->pause_sub_id);
 
     /*
@@ -446,8 +445,7 @@ pool_mark_busy(rpl_parallel_thread_pool *pool, THD *thd)
   mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
   if (thd)
   {
-    thd->ENTER_COND(&pool->COND_rpl_thread_pool, &pool->LOCK_rpl_thread_pool,
-                    &stage_waiting_for_rpl_thread_pool, &old_stage);
+    thd->ENTER_COND(&stage_waiting_for_rpl_thread_pool, &old_stage);
     thd->set_time_for_next_stage();
   }
   while (pool->busy)
@@ -457,14 +455,14 @@ pool_mark_busy(rpl_parallel_thread_pool *pool, THD *thd)
       res= 1;
       break;
     }
-    mysql_cond_wait(&pool->COND_rpl_thread_pool, &pool->LOCK_rpl_thread_pool);
+    my_thread_interruptable_wait(thd->mysys_var, &pool->COND_rpl_thread_pool,
+                                 &pool->LOCK_rpl_thread_pool);
   }
   if (!res)
     pool->busy= true;
+  mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
   if (thd)
     thd->EXIT_COND(&old_stage);
-  else
-    mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
 
   return res;
 }
@@ -562,8 +560,7 @@ rpl_pause_for_ftwrl(THD *thd)
     ++e->need_sub_id_signal;
     if (e->pause_sub_id == (uint64)ULONGLONG_MAX)
       e->pause_sub_id= e->largest_started_sub_id;
-    thd->ENTER_COND(&e->COND_parallel_entry, &e->LOCK_parallel_entry,
-                    &stage_waiting_for_ftwrl_threads_to_pause, &old_stage);
+    thd->ENTER_COND(&stage_waiting_for_ftwrl_threads_to_pause, &old_stage);
     thd->set_time_for_next_stage();
     while (e->pause_sub_id < (uint64)ULONGLONG_MAX &&
            e->last_committed_sub_id < e->pause_sub_id &&
@@ -574,9 +571,11 @@ rpl_pause_for_ftwrl(THD *thd)
         err= 1;
         break;
       }
-      mysql_cond_wait(&e->COND_parallel_entry, &e->LOCK_parallel_entry);
+      my_thread_interruptable_wait(thd->mysys_var, &e->COND_parallel_entry,
+                                   &e->LOCK_parallel_entry);
     };
     --e->need_sub_id_signal;
+    mysql_mutex_unlock(&e->LOCK_parallel_entry);
     thd->EXIT_COND(&old_stage);
     if (err)
       break;
@@ -1065,8 +1064,7 @@ handle_rpl_parallel_thread(void *arg)
     uint wait_count= 0;
     rpl_parallel_thread::queued_event *qev, *next_qev;
 
-    thd->ENTER_COND(&rpt->COND_rpl_thread, &rpt->LOCK_rpl_thread,
-                    &stage_waiting_for_work_from_sql_thread, &old_stage);
+    thd->ENTER_COND(&stage_waiting_for_work_from_sql_thread, &old_stage);
     /*
       There are 4 cases that should cause us to wake up:
        - Events have been queued for us to handle.
@@ -1084,9 +1082,11 @@ handle_rpl_parallel_thread(void *arg)
     {
       if (!wait_count++)
         thd->set_time_for_next_stage();
-      mysql_cond_wait(&rpt->COND_rpl_thread, &rpt->LOCK_rpl_thread);
+      my_thread_interruptable_wait(thd->mysys_var, &rpt->COND_rpl_thread,
+                                   &rpt->LOCK_rpl_thread);
     }
     rpt->dequeue1(events);
+    mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
     thd->EXIT_COND(&old_stage);
 
   more_events:
@@ -2096,23 +2096,18 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
         */
         if (!*did_enter_cond)
         {
-          /*
-            We need to do the debug_sync before ENTER_COND().
-            Because debug_sync changes the thd->mysys_var->current_mutex,
-            and this can cause THD::awake to use the wrong mutex.
-          */
           DBUG_EXECUTE_IF("rpl_parallel_wait_queue_max",
             {
               debug_sync_set_action(rli->sql_driver_thd,
                         STRING_WITH_LEN("now SIGNAL wait_queue_ready"));
             };);
-          rli->sql_driver_thd->ENTER_COND(&thr->COND_rpl_thread_queue,
-                                          &thr->LOCK_rpl_thread,
-                                          &stage_waiting_for_room_in_worker_thread,
+          rli->sql_driver_thd->ENTER_COND(&stage_waiting_for_room_in_worker_thread,
                                           old_stage);
           *did_enter_cond= true;
         }
-        mysql_cond_wait(&thr->COND_rpl_thread_queue, &thr->LOCK_rpl_thread);
+        my_thread_interruptable_wait(rli->sql_driver_thd->mysys_var,
+                                     &thr->COND_rpl_thread_queue,
+                                     &thr->LOCK_rpl_thread);
       }
     }
   }
@@ -2396,8 +2391,7 @@ rpl_parallel::wait_for_workers_idle(THD *thd)
     e= (struct rpl_parallel_entry *)my_hash_element(&domain_hash, i);
     mysql_mutex_lock(&e->LOCK_parallel_entry);
     ++e->need_sub_id_signal;
-    thd->ENTER_COND(&e->COND_parallel_entry, &e->LOCK_parallel_entry,
-                    &stage_waiting_for_workers_idle, &old_stage);
+    thd->ENTER_COND(&stage_waiting_for_workers_idle, &old_stage);
     while (e->current_sub_id > e->last_committed_sub_id)
     {
       if (unlikely(thd->check_killed()))
@@ -2405,9 +2399,11 @@ rpl_parallel::wait_for_workers_idle(THD *thd)
         err= 1;
         break;
       }
-      mysql_cond_wait(&e->COND_parallel_entry, &e->LOCK_parallel_entry);
+      my_thread_interruptable_wait(thd->mysys_var, &e->COND_parallel_entry,
+                                   &e->LOCK_parallel_entry);
     }
     --e->need_sub_id_signal;
+    mysql_mutex_unlock(&e->LOCK_parallel_entry);
     thd->EXIT_COND(&old_stage);
     if (err)
       return err;

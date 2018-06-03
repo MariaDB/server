@@ -29,24 +29,15 @@
   A fake THD with enter_cond/exit_cond and some other members.
 */
 PSI_stage_info stage_show_explain;
-class THD 
+class THD
 {
-  mysql_mutex_t* thd_mutex; 
 public:
   bool killed;
+  st_my_thread_var *mysys_var;
 
-  THD() : killed(FALSE) {}
-  inline const char* ENTER_COND(mysql_cond_t *cond, mysql_mutex_t* mutex,
-                                PSI_stage_info*, PSI_stage_info*)
-  {
-    mysql_mutex_assert_owner(mutex);
-    thd_mutex= mutex;
-    return NULL;
-  }
-  inline void EXIT_COND(PSI_stage_info*)
-  {
-    mysql_mutex_unlock(thd_mutex);
-  }
+  THD(): killed(FALSE), mysys_var(my_thread_var) {}
+  const char *ENTER_COND(PSI_stage_info*, PSI_stage_info*) { return NULL; }
+  void EXIT_COND(PSI_stage_info*) {}
 };
 
 #include "../sql/my_apc.h"

@@ -393,7 +393,7 @@ void set_thd_stage_info(void *thd_arg,
     thd->enter_stage(new_stage, calling_func, calling_file, calling_line);
 }
 
-void thd_enter_cond(MYSQL_THD thd, mysql_cond_t *cond, mysql_mutex_t *mutex,
+void thd_enter_cond(MYSQL_THD thd,
                     const PSI_stage_info *stage, PSI_stage_info *old_stage,
                     const char *src_function, const char *src_file,
                     int src_line)
@@ -401,8 +401,7 @@ void thd_enter_cond(MYSQL_THD thd, mysql_cond_t *cond, mysql_mutex_t *mutex,
   if (!thd)
     thd= current_thd;
 
-  return thd->enter_cond(cond, mutex, stage, old_stage, src_function, src_file,
-                         src_line);
+  return thd->enter_cond(stage, old_stage, src_function, src_file, src_line);
 }
 
 void thd_exit_cond(MYSQL_THD thd, const PSI_stage_info *stage,
@@ -7430,11 +7429,10 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
 
   mysql_mutex_lock(&LOCK_wait_commit);
   DEBUG_SYNC(thd, "wait_for_prior_commit_waiting");
-  thd->ENTER_COND(&COND_wait_commit, &LOCK_wait_commit,
-                  &stage_waiting_for_prior_transaction_to_commit,
-                  &old_stage);
+  thd->ENTER_COND(&stage_waiting_for_prior_transaction_to_commit, &old_stage);
   while ((loc_waitee= this->waitee) && likely(!thd->check_killed(1)))
-    mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
+    my_thread_interruptable_wait(thd->mysys_var, &COND_wait_commit,
+                                 &LOCK_wait_commit);
   if (!loc_waitee)
   {
     if (wakeup_error)
@@ -7455,7 +7453,8 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
     mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
     do
     {
-      mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
+      my_thread_interruptable_wait(thd->mysys_var, &COND_wait_commit,
+                                   &LOCK_wait_commit);
     } while (this->waitee);
     if (wakeup_error)
       my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
@@ -7469,15 +7468,10 @@ wait_for_commit::wait_for_prior_commit2(THD *thd)
   if (!wakeup_error)
     wakeup_error= ER_QUERY_INTERRUPTED;
   my_message(wakeup_error, ER_THD(thd, wakeup_error), MYF(0));
-  thd->EXIT_COND(&old_stage);
-  /*
-    Must do the DEBUG_SYNC() _after_ exit_cond(), as DEBUG_SYNC is not safe to
-    use within enter_cond/exit_cond.
-  */
   DEBUG_SYNC(thd, "wait_for_prior_commit_killed");
-  return wakeup_error;
 
 end:
+  mysql_mutex_unlock(&LOCK_wait_commit);
   thd->EXIT_COND(&old_stage);
   return wakeup_error;
 }

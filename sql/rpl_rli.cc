@@ -808,8 +808,7 @@ int Relay_log_info::wait_for_pos(THD* thd, String* log_name,
 
   set_timespec(abstime,timeout);
   mysql_mutex_lock(&data_lock);
-  thd->ENTER_COND(&data_cond, &data_lock,
-                  &stage_waiting_for_the_slave_thread_to_advance_position,
+  thd->ENTER_COND(&stage_waiting_for_the_slave_thread_to_advance_position,
                   &old_stage);
   /*
      This function will abort when it notices that some CHANGE MASTER or
@@ -937,10 +936,12 @@ int Relay_log_info::wait_for_pos(THD* thd, String* log_name,
         even if its condition is always immediately signaled (case of a loaded
         master).
       */
-      error= mysql_cond_timedwait(&data_cond, &data_lock, &abstime);
+      error= my_thread_interruptable_timedwait(thd->mysys_var,
+                                               &data_cond, &data_lock,
+                                               &abstime);
     }
     else
-      mysql_cond_wait(&data_cond, &data_lock);
+      my_thread_interruptable_wait(thd->mysys_var, &data_cond, &data_lock);
     thd_wait_end(thd);
     DBUG_PRINT("info",("Got signal of master update or timed out"));
     if (error == ETIMEDOUT || error == ETIME)
@@ -954,6 +955,7 @@ int Relay_log_info::wait_for_pos(THD* thd, String* log_name,
   }
 
 err:
+  mysql_mutex_unlock(&data_lock);
   thd->EXIT_COND(&old_stage);
   DBUG_PRINT("exit",("killed: %d  abort: %d  slave_running: %d \
 improper_arguments: %d  timed_out: %d",

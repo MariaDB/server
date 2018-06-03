@@ -7437,12 +7437,12 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
       */
       wfc->opaque_pointer= orig_entry;
       DEBUG_SYNC(orig_entry->thd, "group_commit_waiting_for_prior");
-      orig_entry->thd->ENTER_COND(&wfc->COND_wait_commit,
-                                  &wfc->LOCK_wait_commit,
-                                  &stage_waiting_for_prior_transaction_to_commit,
+      orig_entry->thd->ENTER_COND(&stage_waiting_for_prior_transaction_to_commit,
                                   &old_stage);
       while ((loc_waitee= wfc->waitee) && !orig_entry->thd->check_killed(1))
-        mysql_cond_wait(&wfc->COND_wait_commit, &wfc->LOCK_wait_commit);
+        my_thread_interruptable_wait(orig_entry->thd->mysys_var,
+                                     &wfc->COND_wait_commit,
+                                     &wfc->LOCK_wait_commit);
       wfc->opaque_pointer= NULL;
       DBUG_PRINT("info", ("After waiting for prior commit, queued_by_other=%d",
                  orig_entry->queued_by_other));
@@ -7458,7 +7458,9 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
           mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
           do
           {
-            mysql_cond_wait(&wfc->COND_wait_commit, &wfc->LOCK_wait_commit);
+            my_thread_interruptable_wait(orig_entry->thd->mysys_var,
+                                         &wfc->COND_wait_commit,
+                                         &wfc->LOCK_wait_commit);
           } while (wfc->waitee);
         }
         else
@@ -7468,6 +7470,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
           mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
           wfc->waitee= NULL;
 
+          mysql_mutex_unlock(&wfc->LOCK_wait_commit);
           orig_entry->thd->EXIT_COND(&old_stage);
           /* Interrupted by kill. */
           DEBUG_SYNC(orig_entry->thd, "group_commit_waiting_for_prior_killed");
@@ -7479,6 +7482,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
           DBUG_RETURN(-1);
         }
       }
+      mysql_mutex_unlock(&wfc->LOCK_wait_commit);
       orig_entry->thd->EXIT_COND(&old_stage);
     }
     else
@@ -8333,10 +8337,10 @@ void MYSQL_BIN_LOG::wait_for_update_relay_log(THD* thd)
   DBUG_ENTER("wait_for_update_relay_log");
 
   mysql_mutex_assert_owner(&LOCK_log);
-  thd->ENTER_COND(&COND_relay_log_updated, &LOCK_log,
-                  &stage_slave_has_read_all_relay_log,
-                  &old_stage);
-  mysql_cond_wait(&COND_relay_log_updated, &LOCK_log);
+  thd->ENTER_COND(&stage_slave_has_read_all_relay_log, &old_stage);
+  my_thread_interruptable_wait(thd->mysys_var, &COND_relay_log_updated,
+                               &LOCK_log);
+  mysql_mutex_unlock(&LOCK_log);
   thd->EXIT_COND(&old_stage);
   DBUG_VOID_RETURN;
 }
@@ -8366,10 +8370,13 @@ int MYSQL_BIN_LOG::wait_for_update_binlog_end_pos(THD* thd,
   thd_wait_begin(thd, THD_WAIT_BINLOG);
   mysql_mutex_assert_owner(get_binlog_end_pos_lock());
   if (!timeout)
-    mysql_cond_wait(&COND_bin_log_updated, get_binlog_end_pos_lock());
+    my_thread_interruptable_wait(thd->mysys_var, &COND_bin_log_updated,
+                                 get_binlog_end_pos_lock());
   else
-    ret= mysql_cond_timedwait(&COND_bin_log_updated, get_binlog_end_pos_lock(),
-                              timeout);
+    ret= my_thread_interruptable_timedwait(thd->mysys_var,
+                                           &COND_bin_log_updated,
+                                           get_binlog_end_pos_lock(),
+                                           timeout);
   thd_wait_end(thd);
   DBUG_RETURN(ret);
 }
