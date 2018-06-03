@@ -6296,6 +6296,8 @@ bool Type_handler_geometry::
 }
 #endif
 
+/***************************************************************************/
+
 bool Type_handler::Vers_history_point_resolve_unit(THD *thd,
                                                    Vers_history_point *point)
                                                    const

@@ -8018,21 +8018,6 @@ void st_select_lex::pushdown_cond_into_where_clause(THD *thd, Item *cond,
 
   *remaining_cond= cond;
 }
-
-
-Item *LEX::create_item_qualified_asterisk(THD *thd,
-                                          const Lex_ident_sys_st *name)
-{
-  Item *item;
-  if (!(item= new (thd->mem_root) Item_field(thd, current_context(),
-                                             NullS, name->str,
-                                             &star_clex_str)))
-    return NULL;
-  current_select->with_wild++;
-  return item;
-}
-
-
 Item *LEX::make_item_func_call_generic(THD *thd, Lex_ident_cli_st *cdb,
                                        Lex_ident_cli_st *cname, List<Item> *args)
 {
@@ -8064,6 +8049,19 @@ Item *LEX::make_item_func_call_generic(THD *thd, Lex_ident_cli_st *cdb,
   Create_qfunc *builder= find_qualified_function_builder(thd);
   DBUG_ASSERT(builder);
   return builder->create_with_db(thd, &db, &name, true, args);
+}
+
+
+Item *LEX::create_item_qualified_asterisk(THD *thd,
+                                          const Lex_ident_sys_st *name)
+{
+  Item *item;
+  if (!(item= new (thd->mem_root) Item_field(thd, current_context(),
+                                             NullS, name->str,
+                                             &star_clex_str)))
+    return NULL;
+  current_select->with_wild++;
+  return item;
 }
 
 

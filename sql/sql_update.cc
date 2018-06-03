@@ -2245,11 +2245,11 @@ int multi_update::prepare2(JOIN *join)
       {
         if (item_rowid_table(*it2) != tbl)
           continue;
-        Item *fld= new (thd->mem_root)
-                        Item_field(thd, (*it)->get_tmp_table_field());
+        Item_field *fld= new (thd->mem_root)
+                             Item_field(thd, (*it)->get_tmp_table_field());
         if (!fld)
           return 1;
-        fld->set_result_field((*it2)->get_tmp_table_field());
+        fld->result_field= (*it2)->get_tmp_table_field();
         *it2= fld;
       }
     }
@@ -2636,10 +2636,10 @@ int multi_update::do_updates()
       uint field_num= 0;
       do
       {
-        uchar *ref=
-          ((Field_varstring *) tmp_table->field[field_num])->get_data();  
-        if (unlikely((local_error=
-                      tbl->file->ha_rnd_pos(tbl->record[0], ref))))
+        String rowid;
+        tmp_table->field[field_num]->val_str(&rowid);
+        if (unlikely((local_error= tbl->file->ha_rnd_pos(tbl->record[0],
+                                                         (uchar*)rowid.ptr()))))
         {
           err_table= tbl;
           goto err;

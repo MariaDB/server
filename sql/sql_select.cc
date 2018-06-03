@@ -1750,7 +1750,7 @@ JOIN::optimize_inner()
     if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
       DBUG_RETURN(1);
   }
-     
+
   if (unlikely(thd->is_error()))
   {
     error= 1;
@@ -17280,8 +17280,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
                          */
                          item->marker == 4  || param->bit_fields_as_long,
                          force_copy_fields);
-
-      if (unlikely(!new_field))
+      if (!new_field)
       {
 	if (unlikely(thd->is_fatal_error))
 	  goto err;				// Got OOM

@@ -7746,8 +7746,8 @@ Item *Item::build_pushable_cond(THD *thd,
       if (new_cond->argument_list()->push_back(fix, thd->mem_root))
         return 0;
     }
-    if (is_fix_needed)
-      new_cond->fix_fields(thd, 0);
+    if (is_fix_needed && new_cond->fix_fields(thd, 0))
+      return 0;
 
     switch (new_cond->argument_list()->elements)
     {

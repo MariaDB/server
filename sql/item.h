@@ -966,10 +966,6 @@ public:
   {
     return NULL;
   }
-  virtual uint field_flags() const
-  {
-    return 0;
-  }
   const Type_handler *type_handler_for_comparison() const
   {
     return type_handler()->type_handler_for_comparison();
@@ -1684,7 +1680,6 @@ public:
     set field of temporary table for Item which can be switched on temporary
     table during query processing (grouping and so on)
   */
-  virtual void set_result_field(Field *field) {}
   virtual bool is_result_field() { return 0; }
   virtual bool is_json_type() { return false; }
   virtual bool is_bool_literal() const { return false; }
@@ -2966,7 +2961,6 @@ public:
     return table map of the temporary table.
   */
   table_map used_tables() const { return 1; }
-  void set_result_field(Field *field) { result_field= field; }
   bool is_result_field() { return true; }
   void save_in_result_field(bool no_conversions)
   {
@@ -3433,17 +3427,10 @@ public:
   Field *result_field;
   Item_null_result(THD *thd): Item_null(thd), result_field(0) {}
   bool is_result_field() { return result_field != 0; }
-#if MARIADB_VERSION_ID < 100300
   enum_field_types field_type() const
   {
     return result_field->type();
   }
-#else
-  const Type_handler *type_handler() const
-  {
-    return result_field->type_handler();
-  }
-#endif
   Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
