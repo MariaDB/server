@@ -7543,6 +7543,20 @@ public:
   }
 };
 
+
+/*
+  to satisfy ASSERT_COLUMN_MARKED_FOR_WRITE Field's assert we temporarily
+  mark field for write before storing the generated value in it
+*/
+#ifndef DBUG_OFF
+#define DBUG_FIX_WRITE_SET(f) bool _write_set_fixed= !bitmap_fast_test_and_set(write_set, (f)->field_index)
+#define DBUG_RESTORE_WRITE_SET(f) if (_write_set_fixed) bitmap_clear_bit(write_set, (f)->field_index)
+#else
+#define DBUG_FIX_WRITE_SET(f)
+#define DBUG_RESTORE_WRITE_SET(f)
+#endif
+
+
 /*
   @brief Compute values for virtual columns used in query
 
@@ -7643,8 +7657,10 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     {
       int field_error __attribute__((unused)) = 0;
       /* Compute the actual value of the virtual fields */
+      DBUG_FIX_WRITE_SET(vf);
       if (vcol_info->expr->save_in_field(vf, 0))
         field_error= error= 1;
+      DBUG_RESTORE_WRITE_SET(vf);
       DBUG_PRINT("info", ("field '%s' - updated  error: %d",
                           vf->field_name.str, field_error));
       if (swap_values && (vf->flags & BLOB_FLAG))
@@ -7678,7 +7694,9 @@ int TABLE::update_virtual_field(Field *vf)
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
   bitmap_clear_all(&tmp_set);
   vf->vcol_info->expr->walk(&Item::update_vcol_processor, 0, &tmp_set);
+  DBUG_FIX_WRITE_SET(vf);
   vf->vcol_info->expr->save_in_field(vf, 0);
+  DBUG_RESTORE_WRITE_SET(vf);
   in_use->restore_active_arena(expr_arena, &backup_arena);
   DBUG_RETURN(in_use->is_error());
 }

@@ -62,8 +62,12 @@ const char field_separator=',';
 #define BLOB_PACK_LENGTH_TO_MAX_LENGH(arg) \
                         ((ulong) ((1LL << MY_MIN(arg, 4) * 8) - 1))
 
-#define ASSERT_COLUMN_MARKED_FOR_READ DBUG_ASSERT(!table || (!table->read_set || bitmap_is_set(table->read_set, field_index)))
-#define ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED DBUG_ASSERT(is_stat_field || !table || (!table->write_set || bitmap_is_set(table->write_set, field_index) || bitmap_is_set(table->read_set, field_index)))
+#define ASSERT_COLUMN_MARKED_FOR_READ \
+  DBUG_ASSERT(!table || !table->read_set || \
+              bitmap_is_set(table->read_set, field_index))
+#define ASSERT_COLUMN_MARKED_FOR_WRITE \
+  DBUG_ASSERT(is_stat_field || !table || !table->write_set || \
+              bitmap_is_set(table->write_set, field_index))
 
 #define FLAGSTR(S,F) ((S) & (F) ? #F " " : "")
 
@@ -2038,7 +2042,7 @@ longlong Field::convert_decimal2longlong(const my_decimal *val,
 
 int Field_int::store_decimal(const my_decimal *val)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int err= 0;
   longlong i= convert_decimal2longlong(val, unsigned_flag, &err);
   return MY_TEST(err | store(i, unsigned_flag));
@@ -2206,7 +2210,7 @@ void Field_num::make_send_field(Send_field *field)
 
 int Field_str::store_decimal(const my_decimal *d)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   double val;
   /* TODO: use decimal2string? */
   int err= warn_if_overflow(my_decimal2double(E_DEC_FATAL_ERROR &
@@ -2278,7 +2282,7 @@ bool Field::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 
 int Field::store_time_dec(const MYSQL_TIME *ltime, uint dec)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   char buff[MAX_DATE_STRING_REP_LENGTH];
   uint length= (uint) my_TIME_to_str(ltime, buff, dec);
   /* Avoid conversion when field character set is ASCII compatible */
@@ -2535,7 +2539,7 @@ void Field_decimal::overflow(bool negative)
 
 int Field_decimal::store(const char *from_arg, size_t len, CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmp(buff,sizeof(buff), &my_charset_bin);
   const uchar *from= (uchar*) from_arg;
@@ -2901,7 +2905,7 @@ int Field_decimal::store(const char *from_arg, size_t len, CHARSET_INFO *cs)
 
 int Field_decimal::store(double nr)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   if (unsigned_flag && nr < 0)
   {
     overflow(1);
@@ -2939,7 +2943,7 @@ int Field_decimal::store(double nr)
 
 int Field_decimal::store(longlong nr, bool unsigned_val)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   char buff[22];
   uint length, int_part;
   char fyllchar;
@@ -3160,7 +3164,7 @@ void Field_new_decimal::set_value_on_overflow(my_decimal *decimal_value,
 bool Field_new_decimal::store_value(const my_decimal *decimal_value,
                                     int *native_error)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error= 0;
   DBUG_ENTER("Field_new_decimal::store_value");
 #ifndef DBUG_OFF
@@ -3218,7 +3222,7 @@ bool Field_new_decimal::store_value(const my_decimal *decimal_value)
 int Field_new_decimal::store(const char *from, size_t length,
                              CHARSET_INFO *charset_arg)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   my_decimal decimal_value;
   THD *thd= get_thd();
   DBUG_ENTER("Field_new_decimal::store(char*)");
@@ -3302,7 +3306,7 @@ int Field_new_decimal::store(const char *from, size_t length,
 
 int Field_new_decimal::store(double nr)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   my_decimal decimal_value;
   int err;
   THD *thd= get_thd();
@@ -3327,7 +3331,7 @@ int Field_new_decimal::store(double nr)
 
 int Field_new_decimal::store(longlong nr, bool unsigned_val)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   my_decimal decimal_value;
   int err;
 
@@ -3349,7 +3353,7 @@ int Field_new_decimal::store(longlong nr, bool unsigned_val)
 
 int Field_new_decimal::store_decimal(const my_decimal *decimal_value)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   return store_value(decimal_value);
 }
 
@@ -3608,7 +3612,7 @@ int Field_int::store_time_dec(const MYSQL_TIME *ltime, uint dec_arg)
 
 int Field_tiny::store(const char *from,size_t len,CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error;
   longlong rnd;
   
@@ -3620,7 +3624,7 @@ int Field_tiny::store(const char *from,size_t len,CHARSET_INFO *cs)
 
 int Field_tiny::store(double nr)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error= 0;
   nr=rint(nr);
   if (unsigned_flag)
@@ -3663,7 +3667,7 @@ int Field_tiny::store(double nr)
 
 int Field_tiny::store(longlong nr, bool unsigned_val)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error= 0;
 
   if (unsigned_flag)
@@ -3768,7 +3772,7 @@ void Field_tiny::sql_type(String &res) const
 
 int Field_short::store(const char *from,size_t len,CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int store_tmp;
   int error;
   longlong rnd;
@@ -3782,7 +3786,7 @@ int Field_short::store(const char *from,size_t len,CHARSET_INFO *cs)
 
 int Field_short::store(double nr)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error= 0;
   int16 res;
   nr=rint(nr);
@@ -3827,7 +3831,7 @@ int Field_short::store(double nr)
 
 int Field_short::store(longlong nr, bool unsigned_val)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error= 0;
   int16 res;
 
@@ -3942,7 +3946,7 @@ void Field_short::sql_type(String &res) const
 
 int Field_medium::store(const char *from,size_t len,CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int store_tmp;
   int error;
   longlong rnd;
@@ -3956,7 +3960,7 @@ int Field_medium::store(const char *from,size_t len,CHARSET_INFO *cs)
 
 int Field_medium::store(double nr)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error= 0;
   nr=rint(nr);
   if (unsigned_flag)
@@ -4002,7 +4006,7 @@ int Field_medium::store(double nr)
 
 int Field_medium::store(longlong nr, bool unsigned_val)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error= 0;
 
   if (unsigned_flag)
@@ -4140,7 +4144,7 @@ void Field_medium::sql_type(String &res) const
 
 int Field_long::store(const char *from,size_t len,CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   long store_tmp;
   int error;
   longlong rnd;
@@ -4154,7 +4158,7 @@ int Field_long::store(const char *from,size_t len,CHARSET_INFO *cs)
 
 int Field_long::store(double nr)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error= 0;
   int32 res;
   nr=rint(nr);
@@ -4199,7 +4203,7 @@ int Field_long::store(double nr)
 
 int Field_long::store(longlong nr, bool unsigned_val)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error= 0;
   int32 res;
 
@@ -4313,7 +4317,7 @@ void Field_long::sql_type(String &res) const
 
 int Field_longlong::store(const char *from,size_t len,CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error= 0;
   char *end;
   ulonglong tmp;
@@ -4336,7 +4340,7 @@ int Field_longlong::store(const char *from,size_t len,CHARSET_INFO *cs)
 
 int Field_longlong::store(double nr)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   Converter_double_to_longlong conv(nr, unsigned_flag);
 
   if (unlikely(conv.error()))
@@ -4349,7 +4353,7 @@ int Field_longlong::store(double nr)
 
 int Field_longlong::store(longlong nr, bool unsigned_val)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error= 0;
 
   if (unlikely(nr < 0))                         // Only possible error
@@ -4460,7 +4464,7 @@ void Field_longlong::sql_type(String &res) const
 
 void Field_longlong::set_max()
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   set_notnull();
   int8store(ptr, unsigned_flag ? ULONGLONG_MAX : LONGLONG_MAX);
 }
@@ -4497,7 +4501,7 @@ int Field_float::store(const char *from,size_t len,CHARSET_INFO *cs)
 
 int Field_float::store(double nr)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error= truncate_double(&nr, field_length,
                              not_fixed ? NOT_FIXED_DEC : dec,
                              unsigned_flag, FLT_MAX);
@@ -4676,7 +4680,7 @@ int Field_double::store(const char *from,size_t len,CHARSET_INFO *cs)
 
 int Field_double::store(double nr)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error= truncate_double(&nr, field_length,
                              not_fixed ? NOT_FIXED_DEC : dec,
                              unsigned_flag, DBL_MAX);
@@ -5061,7 +5065,7 @@ int Field_timestamp::store_TIME_with_warning(THD *thd, MYSQL_TIME *l_time,
                                              int was_cut,
                                              bool have_smth_to_conv)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   uint error = 0;
   my_time_t timestamp;
 
@@ -5536,7 +5540,7 @@ void Field_timestampf::store_TIME(my_time_t timestamp, ulong sec_part)
 void Field_timestampf::set_max()
 {
   DBUG_ENTER("Field_timestampf::set_max");
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   DBUG_ASSERT(dec == TIME_SECOND_PART_DIGITS);
 
   set_notnull();
@@ -5612,7 +5616,7 @@ int Field_temporal_with_date::store_TIME_with_warning(MYSQL_TIME *ltime,
   Sql_condition::enum_warning_level trunc_level= Sql_condition::WARN_LEVEL_WARN;
   int ret= 2;
   
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
 
   if (was_cut == 0 && have_smth_to_conv == 0) // special case: zero date
   {
@@ -5795,7 +5799,7 @@ int Field_time::store_TIME_with_warning(MYSQL_TIME *ltime,
                                         int was_cut,
                                         int have_smth_to_conv)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
 
   if (!have_smth_to_conv)
   {
@@ -6261,7 +6265,7 @@ bool Field_timef::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 
 int Field_year::store(const char *from, size_t len,CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   char *end;
   int error;
   longlong nr= cs->cset->strntoull10rnd(cs, from, len, 0, &end, &error);
@@ -6309,7 +6313,7 @@ int Field_year::store(double nr)
 
 int Field_year::store(longlong nr, bool unsigned_val)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   if (nr < 0 || (nr >= 100 && nr <= 1900) || nr > 2155)
   {
     *ptr= 0;
@@ -7001,7 +7005,7 @@ Field_longstr::report_if_important_data(const char *pstr, const char *end,
 
 int Field_string::store(const char *from, size_t length,CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   uint copy_length;
   int rc;
 
@@ -7047,7 +7051,7 @@ int Field_str::store(longlong nr, bool unsigned_val)
 
 int Field_str::store(double nr)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   char buff[DOUBLE_TO_STRING_CONVERSION_BUFFER_SIZE];
   uint local_char_length= MY_MIN(sizeof(buff),
                                  field_length / field_charset->mbmaxlen);
@@ -7551,7 +7555,7 @@ int Field_varstring::save_field_metadata(uchar *metadata_ptr)
 
 int Field_varstring::store(const char *from,size_t length,CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   uint copy_length;
   int rc;
 
@@ -8089,7 +8093,7 @@ String *Field_longstr::uncompress(String *val_buffer, String *val_ptr,
 int Field_varstring_compressed::store(const char *from, size_t length,
                                       CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   uint compressed_length;
   int rc= compress((char*) get_data(), field_length, from, (uint) length,
                    Field_varstring_compressed::max_display_length(),
@@ -8221,7 +8225,7 @@ int Field_blob::copy_value(Field_blob *from)
 
 int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   size_t copy_length, new_length;
   uint copy_len;
   char *tmp;
@@ -8703,7 +8707,7 @@ uint Field_blob::is_equal(Create_field *new_field)
 int Field_blob_compressed::store(const char *from, size_t length,
                                  CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   uint compressed_length;
   uint max_length= max_data_length();
   uint to_length= (uint) MY_MIN(max_length,
@@ -9046,7 +9050,7 @@ void Field_enum::store_type(ulonglong value)
 
 int Field_enum::store(const char *from,size_t length,CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int err= 0;
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmpstr(buff,sizeof(buff), &my_charset_bin);
@@ -9098,7 +9102,7 @@ int Field_enum::store(double nr)
 
 int Field_enum::store(longlong nr, bool unsigned_val)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error= 0;
   if ((ulonglong) nr > typelib->count || nr == 0)
   {
@@ -9229,7 +9233,7 @@ Field *Field_enum::make_new_field(MEM_ROOT *root, TABLE *new_table,
 
 int Field_set::store(const char *from,size_t length,CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   bool got_warning= 0;
   int err= 0;
   char *not_used;
@@ -9269,7 +9273,7 @@ int Field_set::store(const char *from,size_t length,CHARSET_INFO *cs)
 
 int Field_set::store(longlong nr, bool unsigned_val)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int error= 0;
   ulonglong max_nr;
 
@@ -9648,7 +9652,7 @@ uint Field_bit::is_equal(Create_field *new_field)
                        
 int Field_bit::store(const char *from, size_t length, CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int delta;
 
   for (; length && !*from; from++, length--)          // skip left 0's
@@ -10084,7 +10088,7 @@ Field_bit_as_char::Field_bit_as_char(uchar *ptr_arg, uint32 len_arg,
 
 int Field_bit_as_char::store(const char *from, size_t length, CHARSET_INFO *cs)
 {
-  ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
+  ASSERT_COLUMN_MARKED_FOR_WRITE;
   int delta;
   uchar bits= (uchar) (field_length & 7);
 
