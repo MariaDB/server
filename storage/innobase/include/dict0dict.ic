@@ -314,20 +314,6 @@ dict_index_is_spatial(
 	return ulint(UNIV_EXPECT(index->type & DICT_SPATIAL, 0));
 }
 
-/** Check whether the index contains a virtual column
-@param[in]	index	index
-@return	nonzero for the index has virtual column, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_has_virtual(
-	const dict_index_t*	index)
-{
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return(index->type & DICT_VIRTUAL);
-}
-
 /********************************************************************//**
 Check whether the index is the insert buffer tree.
 @return nonzero for insert buffer, zero for other indexes */

@@ -588,6 +588,10 @@ struct dict_col_t{
 					3072 (REC_VERSION_56_MAX_INDEX_COL_LEN)
 					bytes. */
 
+	/** Detach the column from an index.
+	@param[in]	index	index to be detached from */
+	inline void detach(const dict_index_t& index);
+
 	/** Data for instantly added columns */
 	struct {
 		/** original default value of instantly added column */
@@ -1045,8 +1049,23 @@ struct dict_index_t{
 		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
 	}
 
+	/** @return whether the index includes virtual columns */
+	bool has_virtual() const { return type & DICT_VIRTUAL; }
+
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
+
+	/** Detach the columns from the index that is to be freed. */
+	void detach_columns()
+	{
+		if (has_virtual()) {
+			for (unsigned i = 0; i < n_fields; i++) {
+				fields[i].col->detach(*this);
+			}
+
+			n_fields = 0;
+		}
+	}
 
 	/** Determine how many fields of a given prefix can be set NULL.
 	@param[in]	n_prefix	number of fields in the prefix
@@ -1111,6 +1130,26 @@ struct dict_index_t{
 	bool
 	vers_history_row(const rec_t* rec, bool &history_row);
 };
+
+/** Detach a column from an index.
+@param[in]	index	index to be detached from */
+inline void dict_col_t::detach(const dict_index_t& index)
+{
+	if (!is_virtual()) {
+		return;
+	}
+
+	if (dict_v_idx_list* v_indexes = reinterpret_cast<const dict_v_col_t*>
+	    (this)->v_indexes) {
+		for (dict_v_idx_list::iterator i = v_indexes->begin();
+		     i != v_indexes->end(); i++) {
+			if (i->index == &index) {
+				v_indexes->erase(i);
+				return;
+			}
+		}
+	}
+}
 
 /** The status of online index creation */
 enum online_index_status {

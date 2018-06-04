@@ -1462,3 +1462,19 @@ a	b
 4	5
 4	3
 DROP TABLE t1;
+#
+# MDEV-16353: unreferenced CTE specified by query with UNION
+#
+with cte as
+(select 1 union select 2 union select 3)
+select 1 as f;
+f
+1
+create table t1 (a int);
+insert into t1 values (2), (1), (7), (1), (4);
+with cte as
+(select * from t1 where a < 2 union select * from t1 where a > 5)
+select 2 as f;
+f
+2
+drop table t1;

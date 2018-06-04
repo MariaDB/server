@@ -731,13 +731,9 @@ dict_index_is_spatial(
 /*==================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((warn_unused_result));
-/** Check whether the index contains a virtual column.
-@param[in]	index	index
-@return	nonzero for index on virtual column, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_has_virtual(
-	const dict_index_t*	index);
+
+#define dict_index_has_virtual(index) (index)->has_virtual()
+
 /********************************************************************//**
 Check whether the index is the insert buffer tree.
 @return nonzero for insert buffer, zero for other indexes */

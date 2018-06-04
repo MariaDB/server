@@ -581,7 +581,7 @@ row_upd_changes_field_size_or_external(
 		/* We should ignore virtual field if the index is not
 		a virtual index */
 		if (upd_fld_is_virtual_col(upd_field)
-		    && dict_index_has_virtual(index) != DICT_VIRTUAL) {
+		    && !index->has_virtual()) {
 			continue;
 		}
 
