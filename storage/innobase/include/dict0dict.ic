@@ -72,16 +72,6 @@ dict_col_copy_type(
 	type->mbminlen = col->mbminlen;
 	type->mbmaxlen = col->mbmaxlen;
 }
-/** Check if a column is a virtual column
-@param[in]      col     column
-@return true if it is a virtual column, false otherwise */
-UNIV_INLINE
-bool
-dict_col_is_virtual(
-	const dict_col_t*	col)
-{
-	return(col->prtype & DATA_VIRTUAL);
-}
 
 #ifdef UNIV_DEBUG
 /*********************************************************************//**
@@ -323,20 +313,6 @@ dict_index_is_spatial(
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return(index->type & DICT_SPATIAL);
-}
-
-/** Check whether the index contains a virtual column
-@param[in]	index	index
-@return	nonzero for the index has virtual column, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_has_virtual(
-	const dict_index_t*	index)
-{
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return(index->type & DICT_VIRTUAL);
 }
 
 /********************************************************************//**

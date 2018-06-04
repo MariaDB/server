@@ -2676,37 +2676,7 @@ dict_index_remove_from_cache_low(
 	UT_LIST_REMOVE(table->indexes, index);
 
 	/* Remove the index from affected virtual column index list */
-	if (dict_index_has_virtual(index)) {
-		const dict_col_t*	col;
-		const dict_v_col_t*	vcol;
-
-		for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
-			col =  dict_index_get_nth_col(index, i);
-			if (dict_col_is_virtual(col)) {
-				vcol = reinterpret_cast<const dict_v_col_t*>(
-					col);
-
-				/* This could be NULL, when we do add virtual
-				column, add index together. We do not need to
-				track this virtual column's index */
-				if (vcol->v_indexes == NULL) {
-					continue;
-				}
-
-				dict_v_idx_list::iterator	it;
-
-				for (it = vcol->v_indexes->begin();
-				     it != vcol->v_indexes->end(); ++it) {
-					dict_v_idx_t	v_index = *it;
-					if (v_index.index == index) {
-						vcol->v_indexes->erase(it);
-						break;
-					}
-				}
-			}
-
-		}
-	}
+	index->detach_columns();
 
 	dict_mem_index_free(index);
 }

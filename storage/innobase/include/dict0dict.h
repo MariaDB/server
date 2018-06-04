@@ -750,13 +750,9 @@ dict_index_is_spatial(
 /*==================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((warn_unused_result));
-/** Check whether the index contains a virtual column.
-@param[in]	index	index
-@return	nonzero for index on virtual column, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_has_virtual(
-	const dict_index_t*	index);
+
+#define dict_index_has_virtual(index) (index)->has_virtual()
+
 /********************************************************************//**
 Check whether the index is the insert buffer tree.
 @return nonzero for insert buffer, zero for other indexes */
@@ -1964,13 +1960,8 @@ dict_index_node_ptr_max_size(
 /*=========================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((warn_unused_result));
-/** Check if a column is a virtual column
-@param[in]	col	column
-@return true if it is a virtual column, false otherwise */
-UNIV_INLINE
-bool
-dict_col_is_virtual(
-	const dict_col_t*	col);
+
+#define dict_col_is_virtual(col) (col)->is_virtual()
 
 /** encode number of columns and number of virtual columns in one
 4 bytes value. We could do this because the number of columns in
