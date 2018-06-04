@@ -2524,11 +2524,8 @@ protected:
 
 class Item_basic_constant :public Item_basic_value
 {
-  table_map used_table_map;
 public:
-  Item_basic_constant(THD *thd): Item_basic_value(thd), used_table_map(0) {};
-  void set_used_tables(table_map map) { used_table_map= map; }
-  table_map used_tables() const { return used_table_map; }
+  Item_basic_constant(THD *thd): Item_basic_value(thd) {};
   bool check_vcol_func_processor(void *arg) { return FALSE;}
   virtual Item_basic_constant *make_string_literal_concat(THD *thd,
                                                           const LEX_CSTRING *)
@@ -6248,12 +6245,15 @@ protected:
     cache_value() will set this flag to TRUE.
   */
   bool value_cached;
+
+  table_map used_table_map;
 public:
   Item_cache(THD *thd):
     Item_basic_constant(thd),
     Type_handler_hybrid_field_type(&type_handler_string),
     example(0), cached_field(0),
-    value_cached(0)
+    value_cached(0),
+    used_table_map(0)
   {
     fixed= 1;
     maybe_null= 1;
@@ -6264,7 +6264,8 @@ protected:
     Item_basic_constant(thd),
     Type_handler_hybrid_field_type(handler),
     example(0), cached_field(0),
-    value_cached(0)
+    value_cached(0),
+    used_table_map(0)
   {
     fixed= 1;
     maybe_null= 1;
@@ -6281,6 +6282,9 @@ public:
       cached_field= ((Item_field *)item)->field;
     return 0;
   };
+
+  void set_used_tables(table_map map) { used_table_map= map; }
+  table_map used_tables() const { return used_table_map; }
   enum Type type() const { return CACHE_ITEM; }
 
   const Type_handler *type_handler() const
