@@ -78,11 +78,11 @@ TARGET_LINK_LIBRARIES(mysys dbug strings mysys_ssl ${ZLIB_LIBRARY}
 DTRACE_INSTRUMENT(mysys)
 
 IF(HAVE_BFD_H)
-  TARGET_LINK_LIBRARIES(mysys bfd)
+  TARGET_LINK_LIBRARIES(mysys bfd) 
 ENDIF(HAVE_BFD_H)
 
 IF (WIN32)
-  TARGET_LINK_LIBRARIES(mysys IPHLPAPI)
+  TARGET_LINK_LIBRARIES(mysys IPHLPAPI) 
 ENDIF(WIN32)
 
 # Need explicit pthread for gcc -fsanitize=address

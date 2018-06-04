@@ -169,7 +169,7 @@ INCLUDE(compile_flags)
 INCLUDE(crc32)
 
 # Handle options
-OPTION(DISABLE_SHARED
+OPTION(DISABLE_SHARED 
  "Don't build shared libraries, compile code as position-dependent" OFF)
 IF(DISABLE_SHARED)
   SET(WITHOUT_DYNAMIC_PLUGINS 1)

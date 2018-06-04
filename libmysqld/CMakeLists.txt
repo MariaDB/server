@@ -438,7 +438,7 @@ IF(NOT DISABLE_SHARED)
   IF(UNIX)
     # Name the shared library, handle versioning (provides same api as client
     # library hence the same version)
-    SET_TARGET_PROPERTIES(libmysqld PROPERTIES
+    SET_TARGET_PROPERTIES(libmysqld PROPERTIES 
       OUTPUT_NAME mariadbd
       SOVERSION "${SHARED_LIB_MAJOR_VERSION}")
     INSTALL_SYMLINK(libmysqld.so libmysqld ${INSTALL_LIBDIR} ${COMPONENT_LIBMYSQLD})
