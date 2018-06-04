@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -159,7 +159,7 @@ static bool init_crypt_key(crypt_info_t* info, bool upgrade = false)
 			<< "Obtaining redo log encryption key version "
 			<< info->key_version << " failed (" << rc
 			<< "). Maybe the key or the required encryption "
-			<< " key management plugin was not found.";
+			"key management plugin was not found.";
 		return false;
 	}
 
@@ -279,7 +279,12 @@ log_crypt_101_read_block(byte* buf)
 		}
 	}
 
-	return false;
+	if (infos_used == 0) {
+		return false;
+	}
+	/* MariaDB Server 10.1 would use the first key if it fails to
+	find a key for the current checkpoint. */
+	info = infos;
 found:
 	byte dst[OS_FILE_LOG_BLOCK_SIZE];
 	uint dst_len;
