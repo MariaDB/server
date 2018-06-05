@@ -2541,6 +2541,10 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     mysql->client_flag|= CLIENT_MULTI_RESULTS;
 
 #ifdef HAVE_OPENSSL
+  if (mysql->options.ssl_key || mysql->options.ssl_cert ||
+      mysql->options.ssl_ca || mysql->options.ssl_capath ||
+      mysql->options.ssl_cipher)
+    mysql->options.use_ssl = 1;
   if (mysql->options.use_ssl)
     mysql->client_flag|= CLIENT_SSL;
 #endif /* HAVE_OPENSSL */
