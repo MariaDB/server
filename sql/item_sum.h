@@ -1385,7 +1385,6 @@ public:
     decimals= item->decimals;
     max_length= item->max_length;
     unsigned_flag= item->unsigned_flag;
-    fixed= true;
   }
   table_map used_tables() const { return (table_map) 1L; }
   Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,

@@ -392,7 +392,7 @@ Item_func::quick_fix_field()
   {
     for (arg=args, arg_end=args+arg_count; arg != arg_end ; arg++)
     {
-      if (!(*arg)->fixed)
+      if (!(*arg)->is_fixed())
         (*arg)->quick_fix_field();
     }
   }
@@ -5522,10 +5522,9 @@ bool Item_func_get_user_var::set_value(THD *thd,
 
 bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
 {
-  DBUG_ASSERT(fixed == 0);
+  DBUG_ASSERT(!is_fixed());
   DBUG_ASSERT(thd->lex->exchange);
-  if (Item::fix_fields(thd, ref) ||
-      !(entry= get_variable(&thd->user_vars, &org_name, 1)))
+  if (!(entry= get_variable(&thd->user_vars, &org_name, 1)))
     return TRUE;
   entry->type= STRING_RESULT;
   /*

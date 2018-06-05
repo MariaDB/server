@@ -173,7 +173,7 @@ bool get_type_attributes_for_tvc(THD *thd,
     Item *item;
     for (uint holder_pos= 0 ; (item= it++); holder_pos++)
     {
-      DBUG_ASSERT(item->fixed);
+      DBUG_ASSERT(item->is_fixed());
       holders[holder_pos].add_argument(item);
     }
   }
@@ -251,7 +251,6 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
                                        holders[pos].type_handler(),
                                        &holders[pos]/*Type_all_attributes*/,
                                        holders[pos].get_maybe_null());
-    new_holder->fix_fields(thd, 0);
     sl->item_list.push_back(new_holder);
   }
   

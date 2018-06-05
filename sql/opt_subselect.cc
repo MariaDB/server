@@ -822,7 +822,7 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
 {
   DBUG_ENTER("subquery_types_allow_materialization");
 
-  DBUG_ASSERT(in_subs->left_expr->fixed);
+  DBUG_ASSERT(in_subs->left_expr->is_fixed());
 
   List_iterator<Item> it(in_subs->unit->first_select()->item_list);
   uint elements= in_subs->unit->first_select()->item_list.elements;
@@ -898,7 +898,7 @@ bool make_in_exists_conversion(THD *thd, JOIN *join, Item_in_subselect *item)
   /* 
     We're going to finalize IN->EXISTS conversion. 
     Normally, IN->EXISTS conversion takes place inside the 
-    Item_subselect::fix_fields() call, where item_subselect->fixed==FALSE (as
+    Item_subselect::fix_fields() call, where item_subselect->is_fixed()==FALSE (as
     fix_fields() haven't finished yet) and item_subselect->changed==FALSE (as 
     the conversion haven't been finalized)
 
@@ -925,7 +925,7 @@ bool make_in_exists_conversion(THD *thd, JOIN *join, Item_in_subselect *item)
   item->fixed= 1;
 
   Item *substitute= item->substitution;
-  bool do_fix_fields= !item->substitution->fixed;
+  bool do_fix_fields= !item->substitution->is_fixed();
   /*
     The Item_subselect has already been wrapped with Item_in_optimizer, so we
     should search for item->optimizer, not 'item'.
@@ -1261,7 +1261,7 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
     in_subq->fixed= 1;
 
     Item *substitute= in_subq->substitution;
-    bool do_fix_fields= !in_subq->substitution->fixed;
+    bool do_fix_fields= !in_subq->substitution->is_fixed();
     Item **tree= (in_subq->emb_on_expr_nest == NO_JOIN_NEST)?
                    &join->conds : &(in_subq->emb_on_expr_nest->on_expr);
     Item *replace_me= in_subq->original_item();
@@ -1734,7 +1734,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
                      subq_lex->ref_pointer_array[i]);
       if (!item_eq)
         DBUG_RETURN(TRUE);
-      DBUG_ASSERT(subq_pred->left_expr->element_index(i)->fixed);
+      DBUG_ASSERT(subq_pred->left_expr->element_index(i)->is_fixed());
       if (subq_pred->left_expr_orig->element_index(i) !=
           subq_pred->left_expr->element_index(i))
         thd->change_item_tree(item_eq->arguments(),
@@ -6038,8 +6038,8 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
   /* A strategy must be chosen earlier. */
   DBUG_ASSERT(in_subs->has_strategy());
   DBUG_ASSERT(in_to_exists_where || in_to_exists_having);
-  DBUG_ASSERT(!in_to_exists_where || in_to_exists_where->fixed);
-  DBUG_ASSERT(!in_to_exists_having || in_to_exists_having->fixed);
+  DBUG_ASSERT(!in_to_exists_where || in_to_exists_where->is_fixed());
+  DBUG_ASSERT(!in_to_exists_having || in_to_exists_having->is_fixed());
 
   /* The original QEP of the subquery. */
   Join_plan_state save_qep(table_count);

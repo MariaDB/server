@@ -1299,7 +1299,7 @@ bool Item_in_optimizer::fix_left(THD *thd)
     cache->store(args[0]);
     cache->cache_value();
   }
-  if (args[1]->fixed)
+  if (args[1]->is_fixed())
   {
     /* to avoid overriding is called to update left expression */
     used_tables_and_const_cache_join(args[1]);

@@ -323,7 +323,7 @@ end:
     set= m_set_signal_information.m_item[i];
     if (set)
     {
-      if (set->fixed)
+      if (set->is_fixed())
         set->cleanup();
     }
   }

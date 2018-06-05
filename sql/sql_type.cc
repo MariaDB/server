@@ -4919,7 +4919,7 @@ uint Type_handler_string_result::Item_temporal_precision(Item *item,
   StringBuffer<64> buf;
   String *tmp;
   MYSQL_TIME_STATUS status;
-  DBUG_ASSERT(item->fixed);
+  DBUG_ASSERT(item->is_fixed());
   if ((tmp= item->val_str(&buf)) &&
       !(is_time ?
         str_to_time(tmp->charset(), tmp->ptr(), tmp->length(),

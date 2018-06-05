@@ -91,7 +91,7 @@ void Item_row::cleanup()
 {
   DBUG_ENTER("Item_row::cleanup");
 
-  Item::cleanup();
+  Item_fixed_hybrid::cleanup();
   /* Reset to the original values */
   used_tables_and_const_cache_init();
   with_null= 0;

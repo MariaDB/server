@@ -8651,7 +8651,7 @@ int init_ftfuncs(THD *thd, SELECT_LEX *select_lex, bool no_order)
     Item_func_match *ifm;
 
     while ((ifm=li++))
-      if (unlikely(!ifm->fixed))
+      if (unlikely(!ifm->is_fixed()))
         /*
           it mean that clause where was FT function was removed, so we have
           to remove the function from the list.
@@ -8886,7 +8886,7 @@ void unfix_fields(List<Item> &fields)
   List_iterator<Item> li(fields);
   Item *item;
   while ((item= li++))
-    item->fixed= 0;
+    item->unfix_fields();
 }
 
 

@@ -890,7 +890,7 @@ bool Aggregator_distinct::setup(THD *thd)
     item_sum->null_value= item_sum->maybe_null= 1;
     item_sum->quick_group= 0;
 
-    DBUG_ASSERT(item_sum->get_arg(0)->fixed);
+    DBUG_ASSERT(item_sum->get_arg(0)->is_fixed());
 
     arg= item_sum->get_arg(0);
     if (arg->const_item())

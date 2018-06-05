@@ -2498,14 +2498,14 @@ public:
   in List<Item> and desire to place this code somewhere near other functions
   working with user variables.
 */
-class Item_user_var_as_out_param :public Item,
+class Item_user_var_as_out_param :public Item_fixed_hybrid,
                                   public Load_data_outvar
 {
   LEX_CSTRING org_name;
   user_var_entry *entry;
 public:
   Item_user_var_as_out_param(THD *thd, const LEX_CSTRING *a)
-  :Item(thd)
+  :Item_fixed_hybrid(thd)
   {
     DBUG_ASSERT(a->length < UINT_MAX32);
     org_name= *a;

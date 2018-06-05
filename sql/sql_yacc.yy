@@ -14702,11 +14702,6 @@ hex_or_bin_String:
                                                            $1.length);
             if (unlikely(tmp == NULL))
               MYSQL_YYABORT;
-            /*
-              it is OK only emulate fix_fields, because we need only
-              value of constant
-            */
-            tmp->quick_fix_field();
             $$= tmp->val_str((String*) 0);
           }
         | HEX_STRING
@@ -14715,7 +14710,6 @@ hex_or_bin_String:
                                                            $1.length);
             if (unlikely(tmp == NULL))
               MYSQL_YYABORT;
-            tmp->quick_fix_field();
             $$= tmp->val_str((String*) 0);
           }
         | BIN_NUM
@@ -14728,7 +14722,6 @@ hex_or_bin_String:
               it is OK only emulate fix_fields, because we need only
               value of constant
             */
-            tmp->quick_fix_field();
             $$= tmp->val_str((String*) 0);
           }
         ;

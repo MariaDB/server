@@ -509,7 +509,7 @@ public:
     Item_geometry_func::fix_length_and_dec();
     for (unsigned int i= 0; i < arg_count; ++i)
     {
-      if (args[i]->fixed && args[i]->field_type() != MYSQL_TYPE_GEOMETRY)
+      if (args[i]->is_fixed() && args[i]->field_type() != MYSQL_TYPE_GEOMETRY)
       {
         String str;
         args[i]->print(&str, QT_NO_DATA_EXPANSION);

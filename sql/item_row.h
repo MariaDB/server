@@ -33,7 +33,7 @@
    Item which stores (x,y,...) and ROW(x,y,...).
    Note that this can be recursive: ((x,y),(z,t)) is a ROW of ROWs.
 */
-class Item_row: public Item,
+class Item_row: public Item_fixed_hybrid,
                 private Item_args,
                 private Used_tables_and_const_cache,
                 private With_subquery_cache
@@ -45,11 +45,13 @@ class Item_row: public Item,
   */
   bool with_null;
 public:
-  Item_row(THD *thd, List<Item> &list):
-  Item(thd), Item_args(thd, list), not_null_tables_cache(0), with_null(0)
+  Item_row(THD *thd, List<Item> &list)
+   :Item_fixed_hybrid(thd), Item_args(thd, list),
+    not_null_tables_cache(0), with_null(0)
   { }
-  Item_row(THD *thd, Item_row *row):
-    Item(thd), Item_args(thd, static_cast<Item_args*>(row)), Used_tables_and_const_cache(),
+  Item_row(THD *thd, Item_row *row)
+   :Item_fixed_hybrid(thd), Item_args(thd, static_cast<Item_args*>(row)),
+    Used_tables_and_const_cache(),
     not_null_tables_cache(0), with_null(0)
   { }
 
