@@ -23,6 +23,7 @@
 #include <m_string.h>
 #include <signal.h>
 #include <my_cpu.h>
+#include <my_atomic.h>
 
 pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
 mysql_mutex_t THR_LOCK_malloc, THR_LOCK_open,
@@ -107,13 +108,11 @@ void my_thread_destroy_internal_mutex(void)
 
 static void my_thread_init_thr_mutex(struct st_my_thread_var *var)
 {
-  mysql_mutex_init(key_my_thread_var_mutex, &var->mutex, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_my_thread_var_suspend, &var->suspend, NULL);
 }
 
 static void my_thread_destory_thr_mutex(struct st_my_thread_var *var)
 {
-  mysql_mutex_destroy(&var->mutex);
   mysql_cond_destroy(&var->suspend);
 }
 
@@ -452,41 +451,50 @@ safe_mutex_t **my_thread_var_mutex_in_use()
 }
 
 
-static int before_interruptable_wait(struct st_my_thread_var *thread_var,
-                                     mysql_cond_t *cond, mysql_mutex_t *mutex)
-{
-  mysql_mutex_lock(&thread_var->mutex);
-  if (unlikely(thread_var->abort))
-  {
-    mysql_mutex_unlock(&thread_var->mutex);
-    return 0;
-  }
-  thread_var->current_cond= cond;
-  mysql_mutex_unlock(&thread_var->mutex);
-  return 1;
-}
+/**
+  Starts interruptable wait for condition variable to be signalled.
 
+  Concurrent thread may interrupt condition variable wait by calling
+  my_thread_interrupt_wait().
 
-static void after_interruptable_wait(struct st_my_thread_var *thread_var)
-{
-  mysql_mutex_lock(&thread_var->mutex);
-  thread_var->current_cond= 0;
-  mysql_mutex_unlock(&thread_var->mutex);
-}
+  Condition variable wait is interruptable when thread_var->current_cond != 0.
 
+  No wait is performed if thread_var->abort is 1.
+
+  Implementation is based on atomic operations with MY_MEMORY_ORDER_SEQ_CST.
+  This strong memory order is required to address famous load after store
+  problem: thread_var->current_cond store must happen before thread_var->abort
+  load.
+
+  @sa mysql_cond_wait()
+  @sa pthread_cond_wait()
+  @sa my_thread_interruptable_timedwait()
+  @sa my_thread_interrupt_wait()
+*/
 
 void my_thread_interruptable_wait(
   struct st_my_thread_var *thread_var,
   mysql_cond_t *cond,
   mysql_mutex_t *mutex)
 {
-  if (before_interruptable_wait(thread_var, cond, mutex))
-  {
+  my_atomic_storeptr_explicit(&thread_var->current_cond, cond,
+                              MY_MEMORY_ORDER_SEQ_CST);
+  if (likely(!my_atomic_load32_explicit(&thread_var->abort,
+                                        MY_MEMORY_ORDER_SEQ_CST)))
     mysql_cond_wait(cond, mutex);
-    after_interruptable_wait(thread_var);
-  }
+  my_atomic_storeptr_explicit(&thread_var->current_cond, 0,
+                              MY_MEMORY_ORDER_SEQ_CST);
 }
 
+
+/**
+  Starts interruptable timedwait for condition variable to be signalled.
+
+  @sa mysql_cond_timedwait()
+  @sa pthread_cond_timedwait()
+  @sa my_thread_interruptable_wait()
+  @sa my_thread_interrupt_wait()
+*/
 
 int my_thread_interruptable_timedwait(
   struct st_my_thread_var *thread_var,
@@ -494,15 +502,57 @@ int my_thread_interruptable_timedwait(
   mysql_mutex_t *mutex,
   struct timespec *wait_timeout)
 {
-  if (before_interruptable_wait(thread_var, cond, mutex))
-  {
-    int rc= mysql_cond_timedwait(cond, mutex, wait_timeout);
-    after_interruptable_wait(thread_var);
-    return rc;
-  }
-  return 0;
+  int rc= 0;
+  my_atomic_storeptr_explicit(&thread_var->current_cond, cond,
+                              MY_MEMORY_ORDER_SEQ_CST);
+  if (likely(!my_atomic_load32_explicit(&thread_var->abort,
+                                        MY_MEMORY_ORDER_SEQ_CST)))
+
+    rc= mysql_cond_timedwait(cond, mutex, wait_timeout);
+  my_atomic_storeptr_explicit(&thread_var->current_cond, 0,
+                              MY_MEMORY_ORDER_SEQ_CST);
+  return rc;
 }
 
+
+/**
+  Interrupts condition variable wait in concurrent thread started by
+  my_thread_interruptable_wait() or my_thread_interruptable_timedwait().
+
+  Caller must protect thread_var against concurrent deinitalisation or
+  destruction. E.g. as of this writing thd->mysys_var is intended to be
+  protected by thd->LOCK_thd_kill.
+
+  For some non-obvious reason we don't set `thread_var->abort= 1` for
+  delayed insert threads (and sometimes for system threads) in certain
+  cases. This behaviour was preserved, although it doesn't look alright.
+
+  Compared to previous implementation, this one guarantees that condition
+  variable wait (if there was any) in concurrent thread is interrupted when
+  this function returns.
+
+  Subsequent attempts to start new wait in concurrent thread will cause
+  my_thread_interruptable_wait() and my_thread_interruptable_timedwait()
+  to return immediately until thread_var->abort is 1.
+
+  Compared to previous implementation, we don't limit execution time for
+  this function as synchronisation protocol is now trivial and concurrent
+  thread doesn't do anything expensive while it is in "interruptable wait"
+  state.
+
+  OTOH concurrent thread has to re-acquire corresponding mutex. If this mutex
+  deadlocks, my_thread_interrupt_wait() would get stuck too.
+
+  Implementation is based on atomic operations with MY_MEMORY_ORDER_SEQ_CST.
+  This strong memory order is required to address famous load after store
+  problem: thread_var->abort store must happen before thread_var->current_cond
+  load.
+
+  @sa my_thread_interrupt_wait()
+  @sa my_thread_interrupt_timedwait()
+  @sa mysql_cond_broadcast()
+  @sa pthread_cond_broadcast()
+*/
 
 void my_thread_interrupt_wait(struct st_my_thread_var *thread_var,
                               my_bool do_abort)
@@ -512,17 +562,14 @@ void my_thread_interrupt_wait(struct st_my_thread_var *thread_var,
   if (!thread_var)
     return;
 
-  mysql_mutex_lock(&thread_var->mutex);
   if (do_abort)         // Don't abort locks
-    thread_var->abort= 1;
-  while ((cond= thread_var->current_cond))
+    my_atomic_store32_explicit(&thread_var->abort, 1, MY_MEMORY_ORDER_SEQ_CST);
+  while ((cond= my_atomic_loadptr_explicit(&thread_var->current_cond,
+                                           MY_MEMORY_ORDER_SEQ_CST)))
   {
-    mysql_mutex_unlock(&thread_var->mutex);
     mysql_cond_broadcast(cond);
     LF_BACKOFF();
-    mysql_mutex_lock(&thread_var->mutex);
   }
-  mysql_mutex_unlock(&thread_var->mutex);
 }
 
 
