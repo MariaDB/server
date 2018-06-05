@@ -1840,7 +1840,7 @@ maria_declare_plugin(archive)
   &archive_storage_engine,
   "ARCHIVE",
   "Brian Aker, MySQL AB",
-  "Archive storage engine",
+  "gzip-compresses tables for a low storage footprint",
   PLUGIN_LICENSE_GPL,
   archive_db_init, /* Plugin Init */
   archive_db_done, /* Plugin Deinit */
