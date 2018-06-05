@@ -797,8 +797,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     */
     trg_field->setup_field(thd, table, NULL);
 
-    if (!trg_field->fixed &&
-        trg_field->fix_fields(thd, (Item **)0))
+    if (trg_field->fix_fields_if_needed(thd, (Item **)0))
       DBUG_RETURN(true);
   }
 

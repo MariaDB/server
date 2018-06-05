@@ -630,8 +630,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
     /* This can only be true for temp tables */
     if (table->query_id != thd->query_id)
       cond->cleanup();                          // File was reopened
-    if ((!cond->fixed &&
-	 cond->fix_fields(thd, &cond)) || cond->check_cols(1))
+    if (cond->fix_fields_if_needed_for_bool(thd, &cond))
       return 1;
   }
 
@@ -695,10 +694,9 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
       {
         my_bitmap_map *old_map;
 	/* note that 'item' can be changed by fix_fields() call */
-        if ((!item->fixed &&
-             item->fix_fields(thd, it_ke.ref())) ||
-	    (item= *it_ke.ref())->check_cols(1))
+        if (item->fix_fields_if_needed_for_scalar(thd, it_ke.ref()))
           return 1;
+        item= *it_ke.ref();
 	if (item->used_tables() & ~(RAND_TABLE_BIT | PARAM_TABLE_BIT))
         {
           my_error(ER_WRONG_ARGUMENTS,MYF(0),"HANDLER ... READ");

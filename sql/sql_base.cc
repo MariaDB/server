@@ -5641,8 +5641,7 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name, si
       calls fix_fields on that item), it's just a check during table
       reopening for columns that was dropped by the concurrent connection.
     */
-    if (!nj_col->table_field->fixed &&
-        nj_col->table_field->fix_fields(thd, &ref))
+    if (nj_col->table_field->fix_fields_if_needed(thd, &ref))
     {
       DBUG_PRINT("info", ("column '%s' was dropped by the concurrent connection",
                           nj_col->table_field->name.str));
@@ -7343,8 +7342,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
     if (make_pre_fix)
       pre_fix->push_back(item, thd->stmt_arena->mem_root);
 
-    if ((!item->fixed && item->fix_fields(thd, it.ref())) ||
-	(item= *(it.ref()))->check_cols(1))
+    if (item->fix_fields_if_needed_for_scalar(thd, it.ref()))
     {
       thd->lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
       thd->lex->allow_sum_func= save_allow_sum_func;
@@ -7352,6 +7350,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
       DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
       DBUG_RETURN(TRUE); /* purecov: inspected */
     }
+    item= *(it.ref()); // Item might have changed in fix_fields()
     if (!ref.is_null())
     {
       ref[0]= item;
@@ -7982,9 +7981,8 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
       {
         thd->where="on clause";
         embedded->on_expr->mark_as_condition_AND_part(embedded);
-        if ((!embedded->on_expr->fixed &&
-             embedded->on_expr->fix_fields(thd, &embedded->on_expr)) ||
-            embedded->on_expr->check_cols(1))
+        if (embedded->on_expr->fix_fields_if_needed_for_bool(thd,
+                                                           &embedded->on_expr))
           return TRUE;
       }
       /*
@@ -7994,7 +7992,7 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
       if (embedded->sj_subq_pred)
       {
         Item **left_expr= &embedded->sj_subq_pred->left_expr;
-        if (!(*left_expr)->fixed && (*left_expr)->fix_fields(thd, left_expr))
+        if ((*left_expr)->fix_fields_if_needed(thd, left_expr))
           return TRUE;
       }
 
@@ -8092,8 +8090,7 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
     if ((*conds)->type() == Item::FIELD_ITEM && !derived)
       wrap_ident(thd, conds);
     (*conds)->mark_as_condition_AND_part(NO_JOIN_NEST);
-    if ((!(*conds)->fixed && (*conds)->fix_fields(thd, conds)) ||
-	(*conds)->check_cols(1))
+    if ((*conds)->fix_fields_if_needed_for_bool(thd, conds))
       goto err_no_arena;
   }
 

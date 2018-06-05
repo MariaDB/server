@@ -3328,7 +3328,7 @@ public:
     List_iterator_fast<Item> param_it(prepared_stmt_params);
     while (Item *param= param_it++)
     {
-      if (param->fix_fields(thd, 0) || param->check_cols(1))
+      if (param->fix_fields_if_needed_for_scalar(thd, 0))
         return true;
     }
     return false;

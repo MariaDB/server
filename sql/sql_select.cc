@@ -531,7 +531,7 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
     ref->outer_ref= new_ref;
     ref->ref= &ref->outer_ref;
 
-    if (!ref->fixed && ref->fix_fields(thd, 0))
+    if (ref->fix_fields_if_needed(thd, 0))
       return TRUE;
     thd->lex->used_tables|= item->used_tables();
     thd->lex->current_select->select_list_tables|= item->used_tables();
@@ -1140,9 +1140,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
     if (having->type() == Item::REF_ITEM &&
         ((Item_ref *)having)->ref_type() == Item_ref::REF)
       wrap_ident(thd, &having);
-    bool having_fix_rc= (!having->fixed &&
-			 (having->fix_fields(thd, &having) ||
-			  having->check_cols(1)));
+    bool having_fix_rc= having->fix_fields_if_needed_for_bool(thd, &having);
     select_lex->having_fix_field= 0;
 
     if (unlikely(having_fix_rc || thd->is_error()))
@@ -2667,10 +2665,10 @@ bool JOIN::add_having_as_table_cond(JOIN_TAB *tab)
                                                 sort_table_cond)))
         DBUG_RETURN(true);
     }
-    if (tab->select->cond && !tab->select->cond->fixed)
-      tab->select->cond->fix_fields(thd, 0);
-    if (tab->pre_idx_push_select_cond && !tab->pre_idx_push_select_cond->fixed)
-      tab->pre_idx_push_select_cond->fix_fields(thd, 0);
+    if (tab->select->cond)
+      tab->select->cond->fix_fields_if_needed(thd, 0);
+    if (tab->pre_idx_push_select_cond)
+      tab->pre_idx_push_select_cond->fix_fields_if_needed(thd, 0);
     tab->select->pre_idx_push_select_cond= tab->pre_idx_push_select_cond;
     tab->set_select_cond(tab->select->cond, __LINE__);
     tab->select_cond->top_level_item();
@@ -9340,7 +9338,7 @@ bool JOIN::inject_cond_into_where(Item *injected_cond)
   }
 
   where_item= and_items(thd, conds, where_item);
-  if (!where_item->fixed && where_item->fix_fields(thd, 0))
+  if (where_item->fix_fields_if_needed(thd, 0))
     return true;
   thd->change_item_tree(&select_lex->where, where_item);
   select_lex->where->top_level_item();
@@ -22896,8 +22894,8 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
       original field name, we should additionally check if we have conflict
       for this name (in case if we would perform lookup in all tables).
     */
-    if (resolution == RESOLVED_BEHIND_ALIAS && !order_item->fixed &&
-        order_item->fix_fields(thd, order->item))
+    if (resolution == RESOLVED_BEHIND_ALIAS &&
+        order_item->fix_fields_if_needed_for_order_by(thd, order->item))
       return TRUE;
 
     /* Lookup the current GROUP field in the FROM clause. */
@@ -22978,11 +22976,10 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
     We check order_item->fixed because Item_func_group_concat can put
     arguments for which fix_fields already was called.    
   */
-  if (!order_item->fixed &&
-      (order_item->fix_fields(thd, order->item) ||
-       (order_item= *order->item)->check_cols(1) ||
-       thd->is_error()))
+  if (order_item->fix_fields_if_needed_for_order_by(thd, order->item) ||
+      thd->is_error())
     return TRUE; /* Wrong field. */
+  order_item= *order->item; // Item can change during fix_fields()
 
   if (!add_to_all_fields)
     return FALSE;
@@ -24280,7 +24277,7 @@ static bool add_ref_to_table_cond(THD *thd, JOIN_TAB *join_tab)
     {
       Item *new_cond= and_conds(thd, cond_copy,
                                 join_tab->select->pre_idx_push_select_cond);
-      if (!new_cond->fixed && new_cond->fix_fields(thd, &new_cond))
+      if (new_cond->fix_fields_if_needed(thd, &new_cond))
         error= 1;
       join_tab->pre_idx_push_select_cond=
         join_tab->select->pre_idx_push_select_cond= new_cond;

@@ -620,8 +620,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
       char const *save_where= thd->where;
       thd->where= "IN/ALL/ANY subquery";
 
-      bool failure= !in_subs->left_expr->fixed &&
-                     in_subs->left_expr->fix_fields(thd, &in_subs->left_expr);
+      bool failure= in_subs->left_expr->fix_fields_if_needed(thd,
+                                                          &in_subs->left_expr);
       thd->lex->current_select= current;
       thd->where= save_where;
       if (failure)
@@ -1666,8 +1666,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   */
   SELECT_LEX *save_lex= thd->lex->current_select;
   thd->lex->current_select=subq_lex;
-  if (!subq_pred->left_expr->fixed &&
-       subq_pred->left_expr->fix_fields(thd, &subq_pred->left_expr))
+  if (subq_pred->left_expr->fix_fields_if_needed(thd, &subq_pred->left_expr))
     DBUG_RETURN(TRUE);
   thd->lex->current_select=save_lex;
 
@@ -1777,8 +1776,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     to check for this at name resolution stage, but as a legacy of IN->EXISTS
     we have in here).
   */
-  if (!sj_nest->sj_on_expr->fixed &&
-      sj_nest->sj_on_expr->fix_fields(thd, &sj_nest->sj_on_expr))
+  if (sj_nest->sj_on_expr->fix_fields_if_needed(thd, &sj_nest->sj_on_expr))
   {
     DBUG_RETURN(TRUE);
   }
@@ -1804,9 +1802,8 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     emb_tbl_nest->on_expr= and_items(thd, emb_tbl_nest->on_expr,
                                      sj_nest->sj_on_expr);
     emb_tbl_nest->on_expr->top_level_item();
-    if (!emb_tbl_nest->on_expr->fixed &&
-         emb_tbl_nest->on_expr->fix_fields(thd,
-                                           &emb_tbl_nest->on_expr))
+    if (emb_tbl_nest->on_expr->fix_fields_if_needed(thd,
+                                                    &emb_tbl_nest->on_expr))
     {
       DBUG_RETURN(TRUE);
     }
@@ -1822,9 +1819,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     */
     save_lex= thd->lex->current_select;
     thd->lex->current_select=parent_join->select_lex;
-    if (!parent_join->conds->fixed &&
-         parent_join->conds->fix_fields(thd,
-                                        &parent_join->conds))
+    if (parent_join->conds->fix_fields_if_needed(thd, &parent_join->conds))
     {
       DBUG_RETURN(1);
     }
@@ -3724,7 +3719,7 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
       re-executing it will not be prepared. To use the Items from its
       select list we have to prepare (fix_fields) them
     */
-    if (!item->fixed && item->fix_fields(thd, it.ref()))
+    if (item->fix_fields_if_needed(thd, it.ref()))
       DBUG_RETURN(TRUE);
     item= *(it.ref()); // it can be changed by fix_fields
     DBUG_ASSERT(!item->name.length || item->name.length == strlen(item->name.str));
@@ -5572,8 +5567,7 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
         Item *sj_conds= hash_sj_engine->semi_join_conds;
 
         (*join_where)= and_items(thd, *join_where, sj_conds);
-        if (!(*join_where)->fixed)
-          (*join_where)->fix_fields(thd, join_where);
+        (*join_where)->fix_fields_if_needed(thd, join_where);
       }
       table->table->maybe_null= MY_TEST(join->mixed_implicit_grouping);
     }

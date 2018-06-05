@@ -3709,8 +3709,7 @@ mysql_execute_command(THD *thd)
 
     Item **it= lex->value_list.head_ref();
     if (!(*it)->basic_const_item() ||
-        (!(*it)->fixed && (*it)->fix_fields(lex->thd, it)) || 
-        (*it)->check_cols(1))
+        (*it)->fix_fields_if_needed_for_scalar(lex->thd, it))
     {
       my_message(ER_SET_CONSTANTS_ONLY, ER_THD(thd, ER_SET_CONSTANTS_ONLY),
 		 MYF(0));
@@ -3819,8 +3818,7 @@ mysql_execute_command(THD *thd)
       goto error;
     /* PURGE MASTER LOGS BEFORE 'data' */
     it= (Item *)lex->value_list.head();
-    if ((!it->fixed && it->fix_fields(lex->thd, &it)) ||
-        it->check_cols(1))
+    if (it->fix_fields_if_needed_for_scalar(lex->thd, &it))
     {
       my_error(ER_WRONG_ARGUMENTS, MYF(0), "PURGE LOGS BEFORE");
       goto error;
@@ -5680,7 +5678,7 @@ end_with_restore_list:
     if (lex->kill_type == KILL_TYPE_ID || lex->kill_type == KILL_TYPE_QUERY)
     {
       Item *it= (Item *)lex->value_list.head();
-      if ((!it->fixed && it->fix_fields(lex->thd, &it)) || it->check_cols(1))
+      if (it->fix_fields_if_needed_for_scalar(lex->thd, &it))
       {
         my_message(ER_SET_CONSTANTS_ONLY, ER_THD(thd, ER_SET_CONSTANTS_ONLY),
                    MYF(0));

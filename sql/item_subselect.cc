@@ -302,8 +302,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
 	engine->exclude();
       substitution= 0;
       thd->where= "checking transformed subquery";
-      if (!(*ref)->fixed)
-	res= (*ref)->fix_fields(thd, ref);
+      res= (*ref)->fix_fields_if_needed(thd, ref);
       goto end;
 
     }
@@ -2181,7 +2180,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
         row_value_transformer?
       */
       item->name= in_additional_cond;
-      if (!item->fixed && item->fix_fields(thd, 0))
+      if (item->fix_fields_if_needed(thd, 0))
         DBUG_RETURN(true);
       *where_item= item;
     }
@@ -2504,7 +2503,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
 
   if (*where_item)
   {
-    if (!(*where_item)->fixed && (*where_item)->fix_fields(thd, 0))
+    if ((*where_item)->fix_fields_if_needed(thd, 0))
       DBUG_RETURN(true);
     (*where_item)->top_level_item();
   }
@@ -2651,7 +2650,7 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
     }
 
     where_item= and_items(thd, join_arg->conds, where_item);
-    if (!where_item->fixed && where_item->fix_fields(thd, 0))
+    if (where_item->fix_fields_if_needed(thd, 0))
       DBUG_RETURN(true);
     // TIMOUR TODO: call optimize_cond() for the new where clause
     thd->change_item_tree(&select_lex->where, where_item);
@@ -3117,7 +3116,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
         exp= optimizer;
     }
     upper_not->arguments()[0]= exp;
-    if (!exp->fixed && exp->fix_fields(thd, upper_not->arguments()))
+    if (exp->fix_fields_if_needed(thd, upper_not->arguments()))
     {
       res= TRUE;
       goto out;
@@ -3315,8 +3314,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
     }
   }
 
-  if (left_expr && !left_expr->fixed &&
-      left_expr->fix_fields(thd_arg, &left_expr))
+  if (left_expr && left_expr->fix_fields_if_needed(thd_arg, &left_expr))
     goto err;
   else
   if (Item_subselect::fix_fields(thd_arg, ref))
@@ -4999,8 +4997,8 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
     Repeat name resolution for 'cond' since cond is not part of any
     clause of the query, and it is not 'fixed' during JOIN::prepare.
   */
-  if (semi_join_conds && !semi_join_conds->fixed &&
-      semi_join_conds->fix_fields(thd, (Item**)&semi_join_conds))
+  if (semi_join_conds &&
+      semi_join_conds->fix_fields_if_needed(thd, (Item**)&semi_join_conds))
     DBUG_RETURN(TRUE);
   /* Let our engine reuse this query plan for materialization. */
   materialize_join= materialize_engine->join;

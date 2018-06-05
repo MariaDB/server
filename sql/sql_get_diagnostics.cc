@@ -217,8 +217,7 @@ Condition_information::aggregate(THD *thd, const Diagnostics_area *da)
   DBUG_ENTER("Condition_information::aggregate");
 
   /* Prepare the expression for evaluation. */
-  if (!m_cond_number_expr->fixed &&
-      m_cond_number_expr->fix_fields(thd, &m_cond_number_expr))
+  if (m_cond_number_expr->fix_fields_if_needed(thd, &m_cond_number_expr))
     DBUG_RETURN(true);
 
   cond_number= m_cond_number_expr->val_int();

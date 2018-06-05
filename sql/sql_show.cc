@@ -8455,8 +8455,7 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
       Field_translator *end= table_list->field_translation_end;
       for (transl= table_list->field_translation; transl < end; transl++)
       {
-        if (!transl->item->fixed &&
-            transl->item->fix_fields(thd, &transl->item))
+        if (transl->item->fix_fields_if_needed(thd, &transl->item))
           DBUG_RETURN(1);
       }
       DBUG_RETURN(0);
@@ -8473,10 +8472,8 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
     {
       transl->item= item;
       transl->name= item->name;
-      if (!item->fixed && item->fix_fields(thd, &transl->item))
-      {
+      if (item->fix_fields_if_needed(thd, &transl->item))
         DBUG_RETURN(1);
-      }
     }
     table_list->field_translation= org_transl;
     table_list->field_translation_end= transl;

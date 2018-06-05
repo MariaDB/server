@@ -768,8 +768,7 @@ int set_var::check(THD *thd)
   if (!value)
     return 0;
 
-  if ((!value->fixed &&
-       value->fix_fields(thd, &value)) || value->check_cols(1))
+  if (value->fix_fields_if_needed_for_scalar(thd, &value))
     return -1;
   if (var->check_update_type(value))
   {
@@ -803,8 +802,7 @@ int set_var::light_check(THD *thd)
   if (type == OPT_GLOBAL && check_global_access(thd, SUPER_ACL))
     return 1;
 
-  if (value && ((!value->fixed && value->fix_fields(thd, &value)) ||
-                value->check_cols(1)))
+  if (value && value->fix_fields_if_needed_for_scalar(thd, &value))
     return -1;
   return 0;
 }

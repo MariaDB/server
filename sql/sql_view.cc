@@ -1938,7 +1938,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
     DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
     for (Field_translator *fld= trans; fld < end_of_trans; fld++)
     {
-      if (!fld->item->fixed && fld->item->fix_fields(thd, &fld->item))
+      if (fld->item->fix_fields_if_needed(thd, &fld->item))
       {
         thd->column_usage= saved_column_usage;
         DBUG_RETURN(TRUE);

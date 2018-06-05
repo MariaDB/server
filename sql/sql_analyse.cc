@@ -88,7 +88,7 @@ proc_analyse_init(THD *thd, ORDER *param, select_result *result,
   else if (param->next)
   {
     // first parameter
-    if (!(*param->item)->fixed && (*param->item)->fix_fields(thd, param->item))
+    if ((*param->item)->fix_fields_if_needed(thd, param->item))
     {
       DBUG_PRINT("info", ("fix_fields() for the first parameter failed"));
       goto err;
@@ -107,7 +107,7 @@ proc_analyse_init(THD *thd, ORDER *param, select_result *result,
       goto err;
     }
     // second parameter
-    if (!(*param->item)->fixed && (*param->item)->fix_fields(thd, param->item))
+    if ((*param->item)->fix_fields_if_needed(thd, param->item))
     {
       DBUG_PRINT("info", ("fix_fields() for the second parameter failed"));
       goto err;

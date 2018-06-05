@@ -1242,7 +1242,7 @@ bool Item_in_optimizer::fix_left(THD *thd)
     ref0= &(((Item_in_subselect *)args[1])->left_expr);
     args[0]= ((Item_in_subselect *)args[1])->left_expr;
   }
-  if ((!(*ref0)->fixed && (*ref0)->fix_fields(thd, ref0)) ||
+  if ((*ref0)->fix_fields_if_needed(thd, ref0) ||
       (!cache && !(cache= (*ref0)->get_cache(thd))))
     DBUG_RETURN(1);
   /*
@@ -1327,7 +1327,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   if (args[0]->maybe_null)
     maybe_null=1;
 
-  if (!args[1]->fixed && args[1]->fix_fields(thd, args+1))
+  if (args[1]->fix_fields_if_needed(thd, args + 1))
     return TRUE;
   if (!invisible_mode() &&
       ((sub && ((col= args[0]->cols()) != sub->engine->cols())) ||
@@ -4586,11 +4586,9 @@ Item_cond::fix_fields(THD *thd, Item **ref)
         thd->restore_active_arena(arena, &backup);
     }
 
-    // item can be substituted in fix_fields
-    if ((!item->fixed &&
-	 item->fix_fields(thd, li.ref())) ||
-	(item= *li.ref())->check_cols(1))
+    if (item->fix_fields_if_needed_for_bool(thd, li.ref()))
       return TRUE; /* purecov: inspected */
+    item= *li.ref(); // item can be substituted in fix_fields
     used_tables_cache|=     item->used_tables();
     if (item->const_item() && !item->with_param &&
         !item->is_expensive() && !cond_has_datetime_is_null(item))
@@ -5306,7 +5304,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
   if (Item_bool_func2::fix_fields(thd, ref) ||
-      escape_item->fix_fields(thd, &escape_item) ||
+      escape_item->fix_fields_if_needed_for_scalar(thd, &escape_item) ||
       fix_escape_item(thd, escape_item, &cmp_value1, escape_used_in_parsing,
                       cmp_collation.collation, &escape))
     return TRUE;

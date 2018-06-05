@@ -327,10 +327,8 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
 
   for (uint i= 0; i < arg_count; i++)
   {
-    Item *item= args[i];
     // 'item' can be changed during fix_fields
-    if ((!item->fixed && item->fix_fields(thd, args)) ||
-        (item= args[i])->check_cols(1))
+    if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
   }
   Type_std_attributes::set(args[0]);

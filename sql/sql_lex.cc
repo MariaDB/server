@@ -2682,15 +2682,9 @@ ha_rows st_select_lex::get_offset()
   if (offset_limit)
   {
     // see comment for st_select_lex::get_limit()
-    bool fix_fields_successful= true;
-    if (!offset_limit->fixed)
-    {
-      fix_fields_successful= !offset_limit->fix_fields(master_unit()->thd,
-                                                       NULL);
-
-      DBUG_ASSERT(fix_fields_successful);
-    }
-    val= fix_fields_successful ? offset_limit->val_uint() : HA_POS_ERROR;
+    bool err= offset_limit->fix_fields_if_needed(master_unit()->thd, NULL);
+    DBUG_ASSERT(!err);
+    val= err ? HA_POS_ERROR : offset_limit->val_uint();
   }
 
   return (ha_rows)val;
@@ -2729,15 +2723,9 @@ ha_rows st_select_lex::get_limit()
       fix_fields() implementation. Also added runtime check against a result
       of fix_fields() in order to handle error condition in non-debug build.
     */
-    bool fix_fields_successful= true;
-    if (!select_limit->fixed)
-    {
-      fix_fields_successful= !select_limit->fix_fields(master_unit()->thd,
-                                                       NULL);
-
-      DBUG_ASSERT(fix_fields_successful);
-    }
-    val= fix_fields_successful ? select_limit->val_uint() : HA_POS_ERROR;
+    bool err= select_limit->fix_fields_if_needed(master_unit()->thd, NULL);
+    DBUG_ASSERT(!err);
+    val= err ? HA_POS_ERROR : select_limit->val_uint();
   }
 
   return (ha_rows)val;

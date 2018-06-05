@@ -1656,8 +1656,7 @@ static bool mysql_test_call_fields(Prepared_statement *stmt,
 
   while ((item= it++))
   {
-    if ((!item->fixed && item->fix_fields(thd, it.ref())) ||
-        item->check_cols(1))
+    if (item->fix_fields_if_needed_for_scalar(thd, it.ref()))
       goto err;
   }
   DBUG_RETURN(FALSE);
@@ -2665,8 +2664,7 @@ end:
 
 bool LEX::get_dynamic_sql_string(LEX_CSTRING *dst, String *buffer)
 {
-  if (prepared_stmt_code->fix_fields(thd, NULL) ||
-      prepared_stmt_code->check_cols(1))
+  if (prepared_stmt_code->fix_fields_if_needed_for_scalar(thd, NULL))
     return true;
 
   const String *str= prepared_stmt_code->val_str(buffer);

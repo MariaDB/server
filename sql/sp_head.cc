@@ -99,7 +99,7 @@ sp_map_item_type(const Type_handler *handler)
 
 bool Item_splocal::append_for_log(THD *thd, String *str)
 {
-  if (fix_fields(thd, NULL))
+  if (fix_fields_if_needed(thd, NULL))
     return true;
 
   if (limit_clause_param)
@@ -137,7 +137,7 @@ bool Item_splocal::append_value_for_log(THD *thd, String *str)
 
 bool Item_splocal_row_field::append_for_log(THD *thd, String *str)
 {
-  if (fix_fields(thd, NULL))
+  if (fix_fields_if_needed(thd, NULL))
     return true;
 
   if (limit_clause_param)
@@ -373,16 +373,14 @@ Item *THD::sp_prepare_func_item(Item **it_addr, uint cols)
 Item *THD::sp_fix_func_item(Item **it_addr)
 {
   DBUG_ENTER("THD::sp_fix_func_item");
-  if (!(*it_addr)->fixed &&
-      (*it_addr)->fix_fields(this, it_addr))
+  if ((*it_addr)->fix_fields_if_needed(this, it_addr))
   {
     DBUG_PRINT("info", ("fix_fields() failed"));
     DBUG_RETURN(NULL);
   }
   it_addr= (*it_addr)->this_item_addr(this, it_addr);
 
-  if (!(*it_addr)->fixed &&
-      (*it_addr)->fix_fields(this, it_addr))
+  if ((*it_addr)->fix_fields_if_needed(this, it_addr))
   {
     DBUG_PRINT("info", ("fix_fields() failed"));
     DBUG_RETURN(NULL);
