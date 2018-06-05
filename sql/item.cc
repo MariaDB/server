@@ -3631,6 +3631,35 @@ longlong Item_field::val_int_endpoint(bool left_endp, bool *incl_endp)
   return null_value? LONGLONG_MIN : res;
 }
 
+
+bool Item_basic_value::eq(const Item *item, bool binary_cmp) const
+{
+  const Item_basic_value *other= item->get_item_basic_value();
+  Type other_type;
+  // Exclude CACHE_OTEM and VARBIN_ITEM
+  if (!other ||
+      (other_type= other->type()) == CACHE_ITEM ||
+      other_type == VARBIN_ITEM)
+    return false;
+  const Type_handler *h= type_handler()->type_handler_for_comparison();
+  bool res= (h == other->type_handler()->type_handler_for_comparison()) &&
+            (binary_cmp ? h->Item_basic_value_bin_eq(this, other) :
+                          h->Item_basic_value_eq(this, other));
+  DBUG_EXECUTE_IF("Item_basic_value",
+                  push_warning_printf(current_thd,
+                  Sql_condition::WARN_LEVEL_NOTE,
+                  ER_UNKNOWN_ERROR, "%seq=%d a=%s'%.*s' b=%s'%.*s'",
+                  binary_cmp ? "bin_" : "",
+                  (int) res,
+                  type_handler()->name().ptr(),
+                  (int) name.length, name.str,
+                  other->type_handler()->name().ptr(),
+                  (int) other->name.length, other->name.str
+                  ););
+  return res;
+}
+
+
 /**
   Create an item from a string we KNOW points to a valid longlong
   end \\0 terminated number string.
@@ -4697,10 +4726,20 @@ bool Item_param::convert_str_value(THD *thd)
 bool Item_param::basic_const_item() const
 {
   DBUG_ASSERT(has_valid_state());
-  if (state == NO_VALUE ||
-      (state == SHORT_DATA_VALUE && type_handler()->cmp_type() == TIME_RESULT))
-    return FALSE;
-  return TRUE;
+  switch (state) {
+  case LONG_DATA_VALUE:
+  case NULL_VALUE:
+    return true;
+  case SHORT_DATA_VALUE:
+    return type_handler()->cmp_type() != TIME_RESULT;
+  case DEFAULT_VALUE:
+  case IGNORE_VALUE:
+    invalid_default_param();
+    return false;
+  case NO_VALUE:
+    break;
+  }
+  return false;
 }
 
 
@@ -4760,48 +4799,6 @@ Item_param::clone_item(THD *thd)
   return 0;
 }
 
-
-bool Item_param::value_eq(const Item *item, bool binary_cmp) const
-{
-  switch (value.type_handler()->cmp_type()) {
-  case INT_RESULT:
-    return int_eq(value.integer, item);
-  case REAL_RESULT:
-    return real_eq(value.real, item);
-  case STRING_RESULT:
-    return str_eq(&value.m_string, item, binary_cmp);
-  case DECIMAL_RESULT:
-  case TIME_RESULT:
-  case ROW_RESULT:
-    break;
-  }
-  return false;
-}
-
-
-bool
-Item_param::eq(const Item *item, bool binary_cmp) const
-{
-  if (!basic_const_item())
-    return FALSE;
-
-  // There's no "default". See comments in Item_param::save_in_field().
-  switch (state) {
-  case IGNORE_VALUE:
-  case DEFAULT_VALUE:
-    invalid_default_param();
-    return false;
-  case NULL_VALUE:
-    return null_eq(item);
-  case SHORT_DATA_VALUE:
-  case LONG_DATA_VALUE:
-    return value_eq(item, binary_cmp);
-  case NO_VALUE:
-    return false;
-  }
-  DBUG_ASSERT(0); // Garbage
-  return FALSE;
-}
 
 /* End of Item_param related */
 

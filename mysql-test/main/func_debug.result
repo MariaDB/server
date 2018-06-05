@@ -1655,3 +1655,104 @@ Note	1105	DBUG: [1] arg=2 handler=0 (time)
 Note	1105	DBUG: [2] arg=3 handler=2 (datetime)
 SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
 SET SESSION debug_dbug="-d,Item_func_in";
+#
+#  MDEV-16408 Remove tests for Item::type() in Item_basic_value::eq()
+#
+SET SESSION debug_dbug="+d,Item_basic_value";
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM t1 WHERE a BETWEEN 1 AND 1.0;
+a
+1
+Warnings:
+Note	1105	bin_eq=0 a=int'1' b=decimal'1.0'
+SELECT * FROM t1 WHERE a BETWEEN 1 AND 1;
+a
+1
+Warnings:
+Note	1105	bin_eq=1 a=int'1' b=int'1'
+SELECT * FROM t1 WHERE a BETWEEN 0 AND 1;
+a
+1
+Warnings:
+Note	1105	bin_eq=0 a=int'0' b=int'1'
+SELECT * FROM t1 WHERE a BETWEEN 0 AND -1;
+a
+Warnings:
+Note	1105	bin_eq=0 a=int'0' b=int''
+SELECT * FROM t1 WHERE a BETWEEN -1 AND -1;
+a
+Warnings:
+Note	1105	bin_eq=1 a=int'' b=int''
+SELECT * FROM t1 WHERE a BETWEEN -0000000000000001 AND -1;
+a
+Warnings:
+Note	1105	bin_eq=1 a=bigint'' b=int''
+SELECT * FROM t1 WHERE a BETWEEN -1 AND 18446744073709551615;
+a
+1
+2
+3
+Warnings:
+Note	1105	bin_eq=0 a=int'' b=bigint'18446744073709551615'
+SELECT * FROM t1 WHERE a BETWEEN -1 AND 18446744073709551616;
+a
+1
+2
+3
+Warnings:
+Note	1105	bin_eq=0 a=int'' b=decimal'18446744073709551616'
+SELECT * FROM t1 WHERE a BETWEEN 1e2 AND 100e0;
+a
+Warnings:
+Note	1105	bin_eq=1 a=double'1e2' b=double'100e0'
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN 1 AND ?' USING 1;
+a
+1
+Warnings:
+Note	1105	bin_eq=1 a=int'1' b=int'?'
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN -1 AND ?' USING 18446744073709551615;
+a
+1
+2
+3
+Warnings:
+Note	1105	bin_eq=0 a=int'' b=bigint'?'
+EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE a BETWEEN -1 AND ?' USING 18446744073709551616;
+a
+1
+2
+3
+Warnings:
+Note	1105	bin_eq=0 a=int'' b=decimal'?'
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(10,3));
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM t1 WHERE a BETWEEN 1.0 AND 1.0;
+a
+1.000
+DROP TABLE t1;
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:00'),('00:00:01');
+SELECT * FROM t1 WHERE a BETWEEN TIME'00:00:00' AND TIME'00:00:00';
+a
+00:00:00
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('0'),('1'),('2');
+SELECT * FROM t1 WHERE a BETWEEN '0' AND '0';
+a
+0
+Warnings:
+Note	1105	eq=1 a=varchar'0' b=varchar'0'
+SELECT * FROM t1 WHERE a BETWEEN '0' AND ' 0';
+a
+Warnings:
+Note	1105	eq=0 a=varchar'0' b=varchar'0'
+SELECT * FROM t1 WHERE a BETWEEN '0' AND '0 ';
+a
+0
+Warnings:
+Note	1105	eq=1 a=varchar'0' b=varchar'0 '
+DROP TABLE t1;
+SET SESSION debug_dbug="-d,Item_basic_value";

@@ -6356,3 +6356,65 @@ bool Type_handler_general_purpose_string::
 }
 
 /***************************************************************************/
+
+bool Type_handler_null::Item_basic_value_eq(const Item_basic_value *a,
+                                            const Item_basic_value *b)
+                                            const
+{
+  return a->basic_const_item() &&
+         b->basic_const_item();
+}
+
+
+bool Type_handler_real_result::Item_basic_value_eq(const Item_basic_value *a,
+                                                   const Item_basic_value *b)
+                                                   const
+{
+  return a->basic_const_item() &&
+         b->basic_const_item() &&
+         const_cast<Item_basic_value*>(a)->val_real() ==
+         const_cast<Item_basic_value*>(b)->val_real();
+}
+
+
+bool Type_handler_int_result::Item_basic_value_eq(const Item_basic_value *a,
+                                                  const Item_basic_value *b)
+                                                  const
+{
+  longlong value;
+  return a->basic_const_item() &&
+         b->basic_const_item() &&
+         (value= const_cast<Item_basic_value*>(a)->val_int()) ==
+         const_cast<Item_basic_value*>(b)->val_int() &&
+         (value >= 0 || a->unsigned_flag == b->unsigned_flag);
+}
+
+
+bool Type_handler_string_result::Item_basic_value_eq(const Item_basic_value *a,
+                                                     const Item_basic_value *b)
+                                                     const
+{
+  if (!a->basic_const_item() ||
+      !b->basic_const_item() ||
+       a->collation.collation != b->collation.collation)
+    return false;
+  String *sa= const_cast<Item_basic_value*>(a)->val_str(NULL);
+  String *sb= const_cast<Item_basic_value*>(b)->val_str(NULL);
+  return sa->eq(sb, a->collation.collation);
+}
+
+
+bool
+Type_handler_string_result::Item_basic_value_bin_eq(const Item_basic_value *a,
+                                                    const Item_basic_value *b)
+                                                    const
+{
+  if (!a->basic_const_item() ||
+      !b->basic_const_item())
+    return false;
+  String *sa= const_cast<Item_basic_value*>(a)->val_str(NULL);
+  String *sb= const_cast<Item_basic_value*>(b)->val_str(NULL);
+  return sa->bin_eq(sb);
+}
+
+/***************************************************************************/

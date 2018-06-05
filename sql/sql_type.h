@@ -30,6 +30,7 @@ class Field;
 class Column_definition;
 class Column_definition_attributes;
 class Item;
+class Item_basic_value;
 class Item_param;
 class Item_cache;
 class Item_func_or_sum;
@@ -1390,6 +1391,16 @@ public:
     return NULL;
   }
   virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
+  virtual bool Item_basic_value_eq(const Item_basic_value *a,
+                                   const Item_basic_value *b) const
+  {
+    return false;
+  }
+  virtual bool Item_basic_value_bin_eq(const Item_basic_value *a,
+                                       const Item_basic_value *b) const
+  {
+    return Item_basic_value_eq(a, b);
+  }
   virtual bool Item_hybrid_func_fix_attributes(THD *thd,
                                                const char *name,
                                                Type_handler_hybrid_field_type *,
@@ -1866,6 +1877,8 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  bool Item_basic_value_eq(const Item_basic_value *a,
+                           const Item_basic_value *b) const;
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_param_set_from_value(THD *thd,
@@ -2145,6 +2158,8 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  bool Item_basic_value_eq(const Item_basic_value *a,
+                                   const Item_basic_value *b) const;
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_param_set_from_value(THD *thd,
@@ -2308,6 +2323,10 @@ public:
                                          const Schema_specification_st *schema)
                                          const;
   uint32 max_display_length(const Item *item) const;
+  bool Item_basic_value_eq(const Item_basic_value *a,
+                           const Item_basic_value *b) const;
+  bool Item_basic_value_bin_eq(const Item_basic_value *a,
+                               const Item_basic_value *b) const;
   uint Item_time_precision(Item *item) const
   {
     return Item_temporal_precision(item, true);
@@ -3296,6 +3315,13 @@ public:
   const Type_handler *type_handler_for_union(const Item *) const;
   uint32 max_display_length(const Item *item) const { return 0; }
   uint32 calc_pack_length(uint32 length) const { return 0; }
+  bool Item_basic_value_eq(const Item_basic_value *a,
+                           const Item_basic_value *b) const;
+  bool Item_basic_value_bin_eq(const Item_basic_value *a,
+                               const Item_basic_value *b) const
+  {
+    return Type_handler_null::Item_basic_value_eq(a, b);
+  }
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,

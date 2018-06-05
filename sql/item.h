@@ -99,6 +99,7 @@ class sp_head;
 class Protocol;
 struct TABLE_LIST;
 void item_init(void);			/* Init item functions */
+class Item_basic_value;
 class Item_result_field;
 class Item_field;
 class Item_ref;
@@ -2077,6 +2078,7 @@ public:
     delete this;
   }
 
+  virtual const Item_basic_value *get_item_basic_value() const { return NULL; }
   virtual Item_splocal *get_item_splocal() { return 0; }
   virtual Rewritable_query_parameter *get_rewritable_query_parameter()
   { return 0; }
@@ -2503,22 +2505,6 @@ public:
 */
 class Item_basic_value :public Item
 {
-  bool is_basic_value(const Item *item, Type type_arg) const
-  {
-    return item->basic_const_item() && item->type() == type_arg;
-  }
-  bool is_basic_value(Type type_arg) const
-  {
-    return basic_const_item() && type() == type_arg;
-  }
-  bool str_eq(const String *value,
-              const String *other, CHARSET_INFO *cs, bool binary_cmp) const
-  {
-    return binary_cmp ?
-      value->bin_eq(other) :
-      collation.collation == cs && value->eq(other, collation.collation);
-  }
-
 protected:
   // Value metadata, e.g. to make string processing easier
   class Metadata: private MY_STRING_METADATA
@@ -2555,37 +2541,11 @@ protected:
     fix_charset_and_length(str.charset(), dv, Metadata(&str));
   }
   Item_basic_value(THD *thd): Item(thd) {}
-  /*
-    In the xxx_eq() methods below we need to cast off "const" to
-    call val_xxx(). This is OK for Item_basic_constant and Item_param.
-  */
-  bool null_eq(const Item *item) const
-  {
-    DBUG_ASSERT(is_basic_value(NULL_ITEM));
-    return item->type() == NULL_ITEM;
-  }
-  bool str_eq(const String *value, const Item *item, bool binary_cmp) const
-  {
-    DBUG_ASSERT(is_basic_value(STRING_ITEM));
-    return is_basic_value(item, STRING_ITEM) &&
-           str_eq(value, ((Item_basic_value*)item)->val_str(NULL),
-                  item->collation.collation, binary_cmp);
-  }
-  bool real_eq(double value, const Item *item) const
-  {
-    DBUG_ASSERT(is_basic_value(REAL_ITEM));
-    return is_basic_value(item, REAL_ITEM) &&
-           value == ((Item_basic_value*)item)->val_real();
-  }
-  bool int_eq(longlong value, const Item *item) const
-  {
-    DBUG_ASSERT(is_basic_value(INT_ITEM));
-    return is_basic_value(item, INT_ITEM) &&
-           value == ((Item_basic_value*)item)->val_int() &&
-           (value >= 0 || item->unsigned_flag == unsigned_flag);
-  }
+public:
   Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param);
+  const Item_basic_value *get_item_basic_value() const { return this; }
+  bool eq(const Item *item, bool binary_cmp) const;
 };
 
 
@@ -2983,6 +2943,7 @@ public:
   bool check_partition_func_processor(void *int_arg) { return false;}
   bool const_item() const { return true; }
   bool basic_const_item() const { return true; }
+  const Item_basic_value *get_item_basic_value() const { return this; }
 };
 
 
@@ -3448,7 +3409,6 @@ public:
     collation.set(cs, DERIVATION_IGNORABLE, MY_REPERTOIRE_ASCII);
   }
   enum Type type() const { return NULL_ITEM; }
-  bool eq(const Item *item, bool binary_cmp) const { return null_eq(item); }
   double val_real();
   longlong val_int();
   String *val_str(String *str);
@@ -3694,7 +3654,6 @@ class Item_param :public Item_basic_value,
   PValue value;
 
   const String *value_query_val_str(THD *thd, String* str) const;
-  bool value_eq(const Item *item, bool binary_cmp) const;
   Item *value_clone_item(THD *thd);
   bool can_return_value() const;
 
@@ -3861,12 +3820,6 @@ public:
   */
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   Item *clone_item(THD *thd);
-  /*
-    Implement by-value equality evaluation if parameter value
-    is set and is a basic constant (integer, real or string).
-    Otherwise return FALSE.
-  */
-  bool eq(const Item *item, bool binary_cmp) const;
   void set_param_type_and_swap_value(Item_param *from);
 
   Rewritable_query_parameter *get_rewritable_query_parameter()
@@ -3942,8 +3895,6 @@ public:
   Item *neg(THD *thd);
   uint decimal_precision() const
   { return (uint) (max_length - MY_TEST(value < 0)); }
-  bool eq(const Item *item, bool binary_cmp) const
-  { return int_eq(value, item); }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_int>(thd, this); }
 };
@@ -4084,8 +4035,6 @@ public:
   Item *clone_item(THD *thd);
   Item *neg(THD *thd);
   virtual void print(String *str, enum_query_type query_type);
-  bool eq(const Item *item, bool binary_cmp) const
-  { return real_eq(value, item); }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_float>(thd, this); }
 };
@@ -4204,10 +4153,6 @@ public:
   }
   int save_in_field(Field *field, bool no_conversions);
   const Type_handler *type_handler() const { return &type_handler_varchar; }
-  bool eq(const Item *item, bool binary_cmp) const
-  {
-    return str_eq(&str_value, item, binary_cmp);
-  }
   Item *clone_item(THD *thd);
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   {
