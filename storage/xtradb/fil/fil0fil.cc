@@ -862,7 +862,6 @@ fil_mutex_enter_and_prepare_for_io(
 	ibool		success;
 	ibool		print_info	= FALSE;
 	ulint		count		= 0;
-	ulint		count2		= 0;
 
 retry:
 	mutex_enter(&fil_system->mutex);
@@ -878,46 +877,6 @@ retry:
 	}
 
 	space = fil_space_get_by_id(space_id);
-
-	if (space != NULL && space->stop_ios) {
-		/* We are going to do a rename file and want to stop new i/o's
-		for a while */
-
-		if (count2 > 20000) {
-			fputs("InnoDB: Warning: tablespace ", stderr);
-			ut_print_filename(stderr, space->name);
-			fprintf(stderr,
-				" has i/o ops stopped for a long time %lu\n",
-				(ulong) count2);
-		}
-
-		mutex_exit(&fil_system->mutex);
-
-#ifndef UNIV_HOTBACKUP
-
-		/* Wake the i/o-handler threads to make sure pending
-		i/o's are performed */
-		os_aio_simulated_wake_handler_threads();
-
-		/* The sleep here is just to give IO helper threads a
-		bit of time to do some work. It is not required that
-		all IO related to the tablespace being renamed must
-		be flushed here as we do fil_flush() in
-		fil_rename_tablespace() as well. */
-		os_thread_sleep(20000);
-
-#endif /* UNIV_HOTBACKUP */
-
-		/* Flush tablespaces so that we can close modified
-		files in the LRU list */
-		fil_flush_file_spaces(FIL_TABLESPACE);
-
-		os_thread_sleep(20000);
-
-		count2++;
-
-		goto retry;
-	}
 
 	if (fil_system->n_open < fil_system->max_n_open) {
 
@@ -2950,7 +2909,6 @@ fil_rename_tablespace(
 	ibool		success;
 	fil_space_t*	space;
 	fil_node_t*	node;
-	ulint		count		= 0;
 	char*		new_path;
 	char*		old_name;
 	char*		old_path;
@@ -2958,24 +2916,9 @@ fil_rename_tablespace(
 
 	ut_a(id != 0);
 
-retry:
-	count++;
-
-	if (!(count % 1000)) {
-		ut_print_timestamp(stderr);
-		fputs("  InnoDB: Warning: problems renaming ", stderr);
-		ut_print_filename(stderr,
-				  old_name_in ? old_name_in : not_given);
-		fputs(" to ", stderr);
-		ut_print_filename(stderr, new_name);
-		fprintf(stderr, ", %lu iterations\n", (ulong) count);
-	}
-
 	mutex_enter(&fil_system->mutex);
 
 	space = fil_space_get_by_id(id);
-
-	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_1", space = NULL; );
 
 	if (space == NULL) {
 		ib_logf(IB_LOG_LEVEL_ERROR,
@@ -2988,53 +2931,10 @@ retry:
 		return(FALSE);
 	}
 
-	if (count > 25000) {
-		space->stop_ios = FALSE;
-		mutex_exit(&fil_system->mutex);
-
-		return(FALSE);
-	}
-
-	/* We temporarily close the .ibd file because we do not trust that
-	operating systems can rename an open file. For the closing we have to
-	wait until there are no pending i/o's or flushes on the file. */
-
-	space->stop_ios = TRUE;
-
 	/* The following code must change when InnoDB supports
 	multiple datafiles per tablespace. */
 	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
 	node = UT_LIST_GET_FIRST(space->chain);
-
-	if (node->n_pending > 0
-	    || node->n_pending_flushes > 0
-	    || node->being_extended) {
-		/* There are pending i/o's or flushes or the file is
-		currently being extended, sleep for a while and
-		retry */
-
-		mutex_exit(&fil_system->mutex);
-
-		os_thread_sleep(20000);
-
-		goto retry;
-
-	} else if (node->modification_counter > node->flush_counter) {
-		/* Flush the space */
-
-		mutex_exit(&fil_system->mutex);
-
-		os_thread_sleep(20000);
-
-		fil_flush(id);
-
-		goto retry;
-
-	} else if (node->open) {
-		/* Close the file */
-
-		fil_node_close_file(node, fil_system);
-	}
 
 	/* Check that the old name in the space is right */
 
@@ -3054,16 +2954,8 @@ retry:
 		space, node, new_name, new_path);
 
 	if (success) {
-
-		DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
-			goto skip_second_rename; );
-
 		success = os_file_rename(
 			innodb_file_data_key, old_path, new_path);
-
-		DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
-skip_second_rename:
-			success = FALSE; );
 
 		if (!success) {
 			/* We have to revert the changes we made
@@ -3073,8 +2965,6 @@ skip_second_rename:
 					space, node, old_name, old_path));
 		}
 	}
-
-	space->stop_ios = FALSE;
 
 	mutex_exit(&fil_system->mutex);
 

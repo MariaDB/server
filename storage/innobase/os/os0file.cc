@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -1186,7 +1186,8 @@ os_file_create_simple_func(
 		/* Use default security attributes and no template file. */
 
 		file = CreateFile(
-			(LPCTSTR) name, access, FILE_SHARE_READ, NULL,
+			(LPCTSTR) name, access,
+			FILE_SHARE_READ | FILE_SHARE_DELETE, NULL,
 			create_flag, attributes, NULL);
 
 		if (file == INVALID_HANDLE_VALUE) {
@@ -1314,7 +1315,7 @@ os_file_create_simple_no_error_handling_func(
 	DWORD		access;
 	DWORD		create_flag;
 	DWORD		attributes	= 0;
-	DWORD		share_mode	= FILE_SHARE_READ;
+	DWORD		share_mode	= FILE_SHARE_READ | FILE_SHARE_DELETE;
 	ut_a(name);
 
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
@@ -1554,7 +1555,7 @@ os_file_create_func(
 
 #ifdef __WIN__
 	DWORD		create_flag;
-	DWORD		share_mode	= FILE_SHARE_READ;
+	DWORD		share_mode	= FILE_SHARE_READ | FILE_SHARE_DELETE;
 
 	on_error_no_exit = create_mode & OS_FILE_ON_ERROR_NO_EXIT
 		? TRUE : FALSE;
