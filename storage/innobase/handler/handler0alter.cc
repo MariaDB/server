@@ -58,10 +58,6 @@ Smart ALTER TABLE
 #include "ha_innodb.h"
 #include "ut0new.h"
 #include "ut0stage.h"
-#ifdef WITH_WSREP
-//#include "wsrep_api.h"
-#include <sql_acl.h>	// PROCESS_ACL
-#endif
 
 static const char *MSG_UNSUPPORTED_ALTER_ONLINE_ON_VIRTUAL_COLUMN=
 			"INPLACE ADD or DROP of virtual columns cannot be "
@@ -288,6 +284,16 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	/** Determine if the table will be rebuilt.
 	@return whether the table will be rebuilt */
 	bool need_rebuild () const { return(old_table != new_table); }
+
+	/** Clear uncommmitted added indexes after a failed operation. */
+	void clear_added_indexes()
+	{
+		for (ulint i = 0; i < num_to_add_index; i++) {
+			if (!add_index[i]->is_committed()) {
+				add_index[i]->detach_columns();
+			}
+		}
+	}
 
 	/** Convert table-rebuilding ALTER to instant ALTER. */
 	void prepare_instant()
@@ -6726,7 +6732,8 @@ check_if_can_drop_indexes:
 		for (dict_index_t* index = dict_table_get_first_index(indexed_table);
 		     index != NULL; index = dict_table_get_next_index(index)) {
 
-			if (!index->to_be_dropped && index->is_corrupted()) {
+			if (!index->to_be_dropped && index->is_committed()
+			    && index->is_corrupted()) {
 				my_error(ER_INDEX_CORRUPT, MYF(0), index->name());
 				goto err_exit;
 			}
@@ -7293,6 +7300,7 @@ oom:
 	that we hold at most a shared lock on the table. */
 	m_prebuilt->trx->error_info = NULL;
 	ctx->trx->error_state = DB_SUCCESS;
+	ctx->clear_added_indexes();
 
 	DBUG_RETURN(true);
 }

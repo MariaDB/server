@@ -360,7 +360,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
 	We can't yet set item to *arg as fix_fields may change *arg
 	We shouldn't call fix_fields() twice, so check 'fixed' field first
       */
-      if ((!(*arg)->fixed && (*arg)->fix_fields(thd, arg)))
+      if ((*arg)->fix_fields_if_needed(thd, arg))
 	return TRUE;				/* purecov: inspected */
       item= *arg;
 
@@ -3279,13 +3279,10 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 	 arg != arg_end ;
 	 arg++,i++)
     {
-      if (!(*arg)->fixed &&
-          (*arg)->fix_fields(thd, arg))
-	DBUG_RETURN(1);
+      if ((*arg)->fix_fields_if_needed_for_scalar(thd, arg))
+	DBUG_RETURN(true);
       // we can't assign 'item' before, because fix_fields() can change arg
       Item *item= *arg;
-      if (item->check_cols(1))
-	DBUG_RETURN(TRUE);
       /*
 	TODO: We should think about this. It is not always
 	right way just to set an UDF result to return my_charset_bin

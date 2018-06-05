@@ -4915,10 +4915,8 @@ bool TABLE_LIST::prep_where(THD *thd, Item **conds,
   {
     if (where->fixed)
       where->update_used_tables();
-    if (!where->fixed && where->fix_fields(thd, &where))
-    {
+    else if (where->fix_fields(thd, &where))
       DBUG_RETURN(TRUE);
-    }
 
     /*
       check that it is not VIEW in which we insert with INSERT SELECT
@@ -4948,12 +4946,12 @@ bool TABLE_LIST::prep_where(THD *thd, Item **conds,
       }
       if (tbl == 0)
       {
-        if (*conds && !(*conds)->fixed)
-          res= (*conds)->fix_fields(thd, conds);
+        if (*conds)
+          res= (*conds)->fix_fields_if_needed_for_bool(thd, conds);
         if (!res)
           *conds= and_conds(thd, *conds, where->copy_andor_structure(thd));
-        if (*conds && !(*conds)->fixed && !res)
-          res= (*conds)->fix_fields(thd, conds);
+        if (*conds && !res)
+          res= (*conds)->fix_fields_if_needed_for_bool(thd, conds);
       }
       if (arena)
         thd->restore_active_arena(arena, &backup);
@@ -5100,12 +5098,8 @@ bool TABLE_LIST::prep_check_option(THD *thd, uint8 check_opt_type)
   {
     const char *save_where= thd->where;
     thd->where= "check option";
-    if ((!check_option->fixed &&
-         check_option->fix_fields(thd, &check_option)) ||
-        check_option->check_cols(1))
-    {
+    if (check_option->fix_fields_if_needed_for_bool(thd, &check_option))
       DBUG_RETURN(TRUE);
-    }
     thd->where= save_where;
   }
   DBUG_RETURN(FALSE);
@@ -8736,7 +8730,7 @@ bool Vers_history_point::resolve_unit(THD *thd)
 {
   if (!item)
     return false;
-  if (!item->fixed && item->fix_fields(thd, &item))
+  if (item->fix_fields_if_needed(thd, &item))
     return true;
   return item->this_item()->type_handler_for_system_time()->
            Vers_history_point_resolve_unit(thd, this);

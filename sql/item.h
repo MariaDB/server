@@ -902,6 +902,23 @@ public:
   void init_make_send_field(Send_field *tmp_field,enum enum_field_types type);
   virtual void cleanup();
   virtual void make_send_field(THD *thd, Send_field *field);
+
+  bool fix_fields_if_needed(THD *thd, Item **ref)
+  {
+    return fixed ? false : fix_fields(thd, ref);
+  }
+  bool fix_fields_if_needed_for_scalar(THD *thd, Item **ref)
+  {
+    return fix_fields_if_needed(thd, ref) || check_cols(1);
+  }
+  bool fix_fields_if_needed_for_bool(THD *thd, Item **ref)
+  {
+    return fix_fields_if_needed_for_scalar(thd, ref);
+  }
+  bool fix_fields_if_needed_for_order_by(THD *thd, Item **ref)
+  {
+    return fix_fields_if_needed_for_scalar(thd, ref);
+  }
   virtual bool fix_fields(THD *, Item **);
   /*
     Fix after some tables has been pulled out. Basically re-calculate all
@@ -5164,8 +5181,7 @@ public:
 
   bool fix_fields(THD *thd, Item **it)
   {
-    if ((!(*ref)->fixed && (*ref)->fix_fields(thd, ref)) ||
-        (*ref)->check_cols(1))
+    if ((*ref)->fix_fields_if_needed_for_scalar(thd, ref))
       return TRUE;
     return Item_ref::fix_fields(thd, it);
   }
@@ -5203,8 +5219,7 @@ public:
   bool fix_fields(THD *thd, Item **it)
   {
     DBUG_ASSERT(ident->type() == FIELD_ITEM || ident->type() == REF_ITEM);
-    if ((!ident->fixed && ident->fix_fields(thd, ref)) ||
-        ident->check_cols(1))
+    if (ident->fix_fields_if_needed_for_scalar(thd, ref))
       return TRUE;
     set_properties();
     return FALSE;

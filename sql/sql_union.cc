@@ -1008,7 +1008,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
     {
       if (with_element)
       {
-        if (derived_arg->with->rename_columns_of_derived_unit(thd, this))
+        if (with_element->rename_columns_of_derived_unit(thd, this))
           goto err;
         if (check_duplicate_names(thd, sl->item_list, 0))
           goto err;

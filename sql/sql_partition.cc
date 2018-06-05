@@ -146,7 +146,7 @@ Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs)
   item= item->safe_charset_converter(thd, cs);
   context->table_list= NULL;
   thd->where= "convert character set partition constant";
-  if (!item || item->fix_fields(thd, (Item**)NULL))
+  if (item->fix_fields_if_needed(thd, (Item**)NULL))
     item= NULL;
   thd->where= save_where;
   context->table_list= save_list;
@@ -854,7 +854,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     const nesting_map saved_allow_sum_func= thd->lex->allow_sum_func;
     thd->lex->allow_sum_func= 0;
 
-    if (likely(!(error= func_expr->fix_fields(thd, (Item**)&func_expr))))
+    if (likely(!(error= func_expr->fix_fields_if_needed(thd, (Item**)&func_expr))))
       func_expr->walk(&Item::post_fix_fields_part_expr_processor, 0, NULL);
 
     /*

@@ -71,7 +71,7 @@ int compare_decimal2(int* len, const char *s, const char *t)
 static bool
 prepare_param(THD *thd, Item **item, const char *proc_name, uint pos)
 {
-  if (!(*item)->fixed && (*item)->fix_fields(thd, item))
+  if ((*item)->fix_fields_if_needed(thd, item))
   {
     DBUG_PRINT("info", ("fix_fields() for the parameter %u failed", pos));
     return true;

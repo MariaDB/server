@@ -611,8 +611,7 @@ int send_variant_2_list(MEM_ROOT *mem_root, Protocol *protocol,
 SQL_SELECT *prepare_simple_select(THD *thd, Item *cond,
 				  TABLE *table, int *error)
 {
-  if (!cond->fixed)
-    cond->fix_fields(thd, &cond);	// can never fail
+  cond->fix_fields_if_needed(thd, &cond);  // can never fail
 
   /* Assume that no indexes cover all required fields */
   table->covering_keys.clear_all();

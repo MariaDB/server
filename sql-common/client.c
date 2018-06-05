@@ -3123,9 +3123,6 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     DBUG_RETURN(0);
   }
 
-  if (set_connect_attributes(mysql, buff, sizeof(buff)))
-    DBUG_RETURN(0);
-
   mysql->methods= &client_methods;
   mysql->client_flag=0;			/* For handshake */
 
@@ -3578,6 +3575,8 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     mysql->server_capabilities&= ~CLIENT_SECURE_CONNECTION;
 
   mysql->client_flag= client_flag;
+
+  set_connect_attributes(mysql, buff, sizeof(buff));
 
   /*
     Part 2: invoke the plugin to send the authentication data to the server

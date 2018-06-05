@@ -858,12 +858,11 @@ recv_find_max_checkpoint_0(ulint* max_field)
 
 /** Determine if a pre-MySQL 5.7.9/MariaDB 10.2.2 redo log is clean.
 @param[in]	lsn	checkpoint LSN
+@param[in]	crypt	whether the log might be encrypted
 @return error code
 @retval	DB_SUCCESS	if the redo log is clean
 @retval DB_ERROR	if the redo log is corrupted or dirty */
-static
-dberr_t
-recv_log_format_0_recover(lsn_t lsn)
+static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 {
 	log_mutex_enter();
 	const lsn_t	source_offset = log_sys.log.calc_lsn_offset(lsn);
@@ -891,7 +890,13 @@ recv_log_format_0_recover(lsn_t lsn)
 	}
 
 	if (log_block_get_data_len(buf)
-	    != (source_offset & (OS_FILE_LOG_BLOCK_SIZE - 1))) {
+	    == (source_offset & (OS_FILE_LOG_BLOCK_SIZE - 1))) {
+	} else if (crypt) {
+		ib::error() << "Cannot decrypt log for upgrading."
+			" The encrypted log was created"
+			" before MariaDB 10.2.2.";
+		return DB_ERROR;
+	} else {
 		ib::error() << NO_UPGRADE_RECOVERY_MSG << ".";
 		return(DB_ERROR);
 	}
@@ -3153,7 +3158,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	switch (log_sys.log.format) {
 	case 0:
 		log_mutex_exit();
-		return(recv_log_format_0_recover(checkpoint_lsn));
+		return recv_log_format_0_recover(checkpoint_lsn,
+						 buf[20 + 32 * 9] == 2);
 	default:
 		if (end_lsn == 0) {
 			break;

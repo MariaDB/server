@@ -1830,6 +1830,7 @@ Item_field *Item_splocal::get_variable(sp_rcontext *ctx) const
 
 bool Item_splocal::fix_fields(THD *thd, Item **ref)
 {
+  DBUG_ASSERT(!fixed);
   Item *item= get_variable(thd->spcont);
   set_handler(item->type_handler());
   return fix_fields_from_item(thd, ref, item);
@@ -1957,6 +1958,7 @@ bool Item_splocal::check_cols(uint n)
 
 bool Item_splocal_row_field::fix_fields(THD *thd, Item **ref)
 {
+  DBUG_ASSERT(!fixed);
   Item *item= get_variable(thd->spcont)->element_index(m_field_idx);
   return fix_fields_from_item(thd, ref, item);
 }
@@ -2014,6 +2016,7 @@ bool Item_splocal_row_field::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 
 bool Item_splocal_row_field_by_name::fix_fields(THD *thd, Item **it)
 {
+  DBUG_ASSERT(!fixed);
   m_thd= thd;
   if (get_rcontext(thd->spcont)->find_row_field_by_name_or_error(&m_field_idx,
                                                                  m_var_idx,
@@ -2234,10 +2237,8 @@ bool Item_name_const::fix_fields(THD *thd, Item **ref)
   String s(buf, sizeof(buf), &my_charset_bin);
   s.length(0);
 
-  if ((!value_item->fixed &&
-       value_item->fix_fields(thd, &value_item)) ||
-      (!name_item->fixed &&
-       name_item->fix_fields(thd, &name_item)) ||
+  if (value_item->fix_fields_if_needed(thd, &value_item) ||
+      name_item->fix_fields_if_needed(thd, &name_item) ||
       !value_item->const_item() ||
       !name_item->const_item() ||
       !(item_name= name_item->val_str(&s))) // Can't have a NULL name 
@@ -9249,8 +9250,7 @@ bool Item_direct_view_ref::fix_fields(THD *thd, Item **reference)
         bitmap_set_bit(fld->table->read_set, fld->field_index);
     }
   }
-  else if (!(*ref)->fixed &&
-           ((*ref)->fix_fields(thd, ref)))
+  else if ((*ref)->fix_fields_if_needed(thd, ref))
     return TRUE;
 
   if (Item_direct_ref::fix_fields(thd, reference))
@@ -9278,7 +9278,7 @@ bool Item_outer_ref::fix_fields(THD *thd, Item **reference)
 {
   bool err;
   /* outer_ref->check_cols() will be made in Item_direct_ref::fix_fields */
-  if ((*ref) && !(*ref)->fixed && ((*ref)->fix_fields(thd, reference)))
+  if ((*ref) && (*ref)->fix_fields_if_needed(thd, reference))
     return TRUE;
   err= Item_direct_ref::fix_fields(thd, reference);
   if (!outer_ref)
@@ -9517,7 +9517,7 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
     fixed= 1;
     return FALSE;
   }
-  if (!arg->fixed && arg->fix_fields(thd, &arg))
+  if (arg->fix_fields_if_needed(thd, &arg))
     goto error;
 
 
@@ -9862,14 +9862,8 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 {
   Item *item= thd->sp_prepare_func_item(it);
 
-  if (!item)
+  if (!item || fix_fields_if_needed(thd, NULL))
     return true;
-
-  if (!fixed)
-  {
-    if (fix_fields(thd, NULL))
-      return true;
-  }
 
   // NOTE: field->table->copy_blobs should be false here, but let's
   // remember the value at runtime to avoid subtle bugs.

@@ -1057,9 +1057,8 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
          field->real_field_type() == MYSQL_TYPE_GEOMETRY))
     {
       Item *expr= field->default_value->expr;
-
-      int res= !expr->fixed && // may be already fixed if ALTER TABLE
-                expr->fix_fields(thd, &expr);
+      // may be already fixed if ALTER TABLE
+      int res= expr->fix_fields_if_needed(thd, &expr);
       if (!res)
         res= expr->save_in_field(regfield, 1);
       if (!res && (field->flags & BLOB_FLAG))

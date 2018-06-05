@@ -1012,3 +1012,21 @@ SELECT a FROM cte;
 WITH cte(a,b) AS (SELECT 4,5 UNION SELECT 4,3) SELECT a,b FROM cte;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16353: unreferenced CTE specified by query with UNION
+--echo #
+
+with cte as
+  (select 1 union select 2 union select 3)
+select 1 as f;
+
+create table t1 (a int);
+insert into t1 values (2), (1), (7), (1), (4);
+
+with cte as
+  (select * from t1 where a < 2 union select * from t1 where a > 5)
+select 2 as f;
+
+drop table t1;
+ 

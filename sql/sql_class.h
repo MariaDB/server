@@ -1007,8 +1007,6 @@ public:
   { return state == STMT_PREPARED || state == STMT_EXECUTED; }
   inline bool is_conventional() const
   { return state == STMT_CONVENTIONAL_EXECUTION; }
-  inline bool is_sp_execute() const
-  { return is_stored_procedure; }
 
   inline void* alloc(size_t size) { return alloc_root(mem_root,size); }
   inline void* calloc(size_t size)

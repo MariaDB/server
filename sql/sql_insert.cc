@@ -1317,7 +1317,7 @@ static bool check_view_insertability(THD * thd, TABLE_LIST *view)
   /* check simplicity and prepare unique test of view */
   for (trans= trans_start; trans != trans_end; trans++)
   {
-    if (!trans->item->fixed && trans->item->fix_fields(thd, &trans->item))
+    if (trans->item->fix_fields_if_needed(thd, &trans->item))
     {
       thd->column_usage= saved_column_usage;
       DBUG_RETURN(TRUE);
