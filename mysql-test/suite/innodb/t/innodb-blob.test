@@ -5,11 +5,13 @@
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
 
-# DEBUG_SYNC must be compiled in.
+--source include/have_debug.inc
 --source include/have_debug_sync.inc
 
 # Embedded server does not support restarting
 --source include/not_embedded.inc
+
+FLUSH TABLES;
 
 CREATE TABLE t1 (a INT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
