@@ -837,6 +837,8 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_DROP_INDEX]|=      CF_HA_CLOSE;
   sql_command_flags[SQLCOM_PRELOAD_KEYS]|=    CF_HA_CLOSE;
   sql_command_flags[SQLCOM_ASSIGN_TO_KEYCACHE]|=  CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_RENAME_TABLE]|=    CF_HA_CLOSE;
+
 
   /*
     Mark statements that always are disallowed in read-only

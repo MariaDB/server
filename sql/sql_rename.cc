@@ -65,8 +65,6 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
     DBUG_RETURN(1);
   }
 
-  mysql_ha_rm_tables(thd, table_list);
-
   if (logger.is_log_table_enabled(QUERY_LOG_GENERAL) ||
       logger.is_log_table_enabled(QUERY_LOG_SLOW))
   {
