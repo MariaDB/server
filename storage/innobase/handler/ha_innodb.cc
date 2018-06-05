@@ -2849,8 +2849,7 @@ ha_innobase::ha_innobase(
 		  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0 ) |
 		  HA_CAN_FULLTEXT_EXT | HA_CAN_EXPORT),
 	start_of_scan(0),
-	num_write_row(0),
-	ha_partition_stats(NULL)
+	num_write_row(0)
 {}
 
 /*********************************************************************//**
@@ -16747,13 +16746,6 @@ innodb_max_dirty_pages_pct_lwm_update(
 	}
 
 	srv_max_dirty_pages_pct_lwm = in_val;
-}
-
-UNIV_INTERN
-void
-ha_innobase::set_partition_owner_stats(ha_statistics *stats)
-{
-	ha_partition_stats= stats;
 }
 
 /************************************************************//**
