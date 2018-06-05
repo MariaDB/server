@@ -313,6 +313,7 @@ static void *timer_handler(void *arg __attribute__((unused)))
 
 static mysql_cond_t COND_thread_count;
 static mysql_mutex_t LOCK_thread_count;
+static mysql_mutex_t test_mutex;
 static uint thread_count, benchmark_runs, test_to_run= 1;
 
 static void send_signal(void *arg)
@@ -321,9 +322,9 @@ static void send_signal(void *arg)
 #if defined(MAIN)
   printf("sending signal\n"); fflush(stdout);
 #endif
-  mysql_mutex_lock(&current_my_thread_var->mutex);
+  mysql_mutex_lock(&test_mutex);
   mysql_cond_signal(&current_my_thread_var->suspend);
-  mysql_mutex_unlock(&current_my_thread_var->mutex);
+  mysql_mutex_unlock(&test_mutex);
 }
 
 
@@ -343,7 +344,7 @@ static void run_thread_test(int param)
     wait_time=param ? 11-i : i;
     start_time= my_hrtime();
 
-    mysql_mutex_lock(&current_my_thread_var->mutex);
+    mysql_mutex_lock(&test_mutex);
     if (thr_timer_settime(&timer_data, wait_time * 1000000))
     {
       printf("Thread: %s  timers aborted\n",my_thread_name());
@@ -360,7 +361,7 @@ static void run_thread_test(int param)
       {
 	printf("Thread: %s  Waiting %d sec\n",my_thread_name(),wait_time);
         mysql_cond_wait(&current_my_thread_var->suspend,
-                        &current_my_thread_var->mutex);
+                        &test_mutex);
 
       }
       if (!timer_data.expired)
@@ -370,7 +371,7 @@ static void run_thread_test(int param)
 	break;
       }
     }
-    mysql_mutex_unlock(&current_my_thread_var->mutex);
+    mysql_mutex_unlock(&test_mutex);
     printf("Thread: %s  Slept for %g (%d) sec\n",my_thread_name(),
 	   (int) (my_hrtime().val-start_time.val)/1000000.0, wait_time);
     fflush(stdout);
@@ -502,6 +503,7 @@ static void run_test()
   }
 
   mysql_mutex_init(0, &LOCK_thread_count, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(0, &test_mutex, MY_MUTEX_INIT_FAST);
   mysql_cond_init(0, &COND_thread_count, NULL);
 
   thr_setconcurrency(3);
@@ -533,6 +535,7 @@ static void run_test()
   mysql_mutex_unlock(&LOCK_thread_count);
   DBUG_ASSERT(timer_queue.elements == 1);
   end_thr_timer();
+  mysql_mutex_destroy(&test_mutex);
   printf("Test succeeded\n");
   DBUG_VOID_RETURN;
 }

@@ -244,9 +244,7 @@ wait_server_to_start(THD *thd, volatile int& shutdown_flag)
     pthread_cond_timedwait(&COND_server_started, &LOCK_server_started,
       &abstime);
     pthread_mutex_unlock(&LOCK_server_started);
-    pthread_mutex_lock(&thd->mysys_var->mutex);
     killed_state st = thd->killed;
-    pthread_mutex_unlock(&thd->mysys_var->mutex);
     DBG_SHUT(fprintf(stderr, "HNDSOCK wsts kst %d\n", (int)st));
     pthread_mutex_lock(&LOCK_server_started);
     if (st != NOT_KILLED) {
@@ -352,9 +350,7 @@ dbcontext::term_thread()
 bool
 dbcontext::check_alive()
 {
-  pthread_mutex_lock(&thd->mysys_var->mutex);
   killed_state st = thd->killed;
-  pthread_mutex_unlock(&thd->mysys_var->mutex);
   DBG_SHUT(fprintf(stderr, "chk HNDSOCK kst %p %p %d %zu\n", thd, &thd->killed,
     (int)st, sizeof(*thd)));
   if (st != NOT_KILLED) {
