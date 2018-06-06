@@ -2547,7 +2547,7 @@ public:
     return NULL;
   }
   /* We should return something different from FIELD_ITEM here */
-  enum Type type() const { return STRING_ITEM;}
+  enum Type type() const { return CONST_ITEM;}
   double val_real();
   longlong val_int();
   String *val_str(String *str);

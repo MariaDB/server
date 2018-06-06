@@ -2746,7 +2746,9 @@ const Item * ha_sphinx::cond_push ( const Item *cond )
 		if ( !m_pShare->m_bSphinxQL )
 		{
 			// on non-QL tables, intercept query=value condition for SELECT
-			if (!( args[0]->type()==Item::FIELD_ITEM && args[1]->type()==Item::STRING_ITEM ))
+			if (!( args[0]->type()==Item::FIELD_ITEM &&
+			       args[1]->is_of_type(Item::CONST_ITEM,
+			                           STRING_RESULT)))
 				break;
 
 			Item_field * pField = (Item_field *) args[0];
@@ -2762,7 +2764,9 @@ const Item * ha_sphinx::cond_push ( const Item *cond )
 
 		} else
 		{
-			if (!( args[0]->type()==Item::FIELD_ITEM && args[1]->type()==Item::INT_ITEM ))
+			if (!( args[0]->type()==Item::FIELD_ITEM &&
+			       args[1]->is_of_type(Item::CONST_ITEM,
+			                           INT_RESULT)))
 				break;
 
 			// on QL tables, intercept id=value condition for DELETE

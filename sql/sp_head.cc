@@ -70,32 +70,6 @@ static void reset_start_time_for_sp(THD *thd)
 }
 
 
-Item::Type
-sp_map_item_type(const Type_handler *handler)
-{
-  if (handler == &type_handler_row)
-    return Item::ROW_ITEM;
-
-  switch (handler->real_field_type()) {
-  case MYSQL_TYPE_BIT:
-  case MYSQL_TYPE_TINY:
-  case MYSQL_TYPE_SHORT:
-  case MYSQL_TYPE_LONG:
-  case MYSQL_TYPE_LONGLONG:
-  case MYSQL_TYPE_INT24:
-    return Item::INT_ITEM;
-  case MYSQL_TYPE_DECIMAL:
-  case MYSQL_TYPE_NEWDECIMAL:
-    return Item::DECIMAL_ITEM;
-  case MYSQL_TYPE_FLOAT:
-  case MYSQL_TYPE_DOUBLE:
-    return Item::REAL_ITEM;
-  default:
-    return Item::STRING_ITEM;
-  }
-}
-
-
 bool Item_splocal::append_for_log(THD *thd, String *str)
 {
   if (fix_fields_if_needed(thd, NULL))

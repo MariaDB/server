@@ -1806,10 +1806,10 @@ Item_splocal::Item_splocal(THD *thd,
   Rewritable_query_parameter(pos_in_q, len_in_q),
   Type_handler_hybrid_field_type(handler),
   m_rcontext_handler(rh),
-  m_var_idx(sp_var_idx)
+  m_var_idx(sp_var_idx),
+  m_type(handler == &type_handler_row ? ROW_ITEM : CONST_ITEM)
 {
   maybe_null= TRUE;
-  m_type= sp_map_item_type(handler);
 }
 
 
@@ -3635,11 +3635,8 @@ longlong Item_field::val_int_endpoint(bool left_endp, bool *incl_endp)
 bool Item_basic_value::eq(const Item *item, bool binary_cmp) const
 {
   const Item_basic_value *other= item->get_item_basic_value();
-  Type other_type;
-  // Exclude CACHE_OTEM and VARBIN_ITEM
-  if (!other ||
-      (other_type= other->type()) == CACHE_ITEM ||
-      other_type == VARBIN_ITEM)
+  // Exclude CACHE_ITEM and VARBIN_ITEM
+  if (!other || type() != other->type())
     return false;
   const Type_handler *h= type_handler()->type_handler_for_comparison();
   bool res= (h == other->type_handler()->type_handler_for_comparison()) &&
@@ -4040,8 +4037,6 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
   */
   Type_handler_hybrid_field_type(&type_handler_null),
   state(NO_VALUE),
-  /* Don't pretend to be a literal unless value for this item is set. */
-  item_type(PARAM_ITEM),
   m_empty_string_is_null(false),
   indicator(STMT_INDICATOR_NONE),
   m_out_param_info(NULL),
@@ -4080,7 +4075,6 @@ void Item_param::set_null()
   max_length= 0;
   decimals= 0;
   state= NULL_VALUE;
-  fix_type(Item::NULL_ITEM);
   DBUG_VOID_RETURN;
 }
 
@@ -4095,7 +4089,6 @@ void Item_param::set_int(longlong i, uint32 max_length_arg)
   decimals= 0;
   maybe_null= 0;
   null_value= 0;
-  fix_type(Item::INT_ITEM);
   DBUG_VOID_RETURN;
 }
 
@@ -4110,7 +4103,6 @@ void Item_param::set_double(double d)
   decimals= NOT_FIXED_DEC;
   maybe_null= 0;
   null_value= 0;
-  fix_type(Item::REAL_ITEM);
   DBUG_VOID_RETURN;
 }
 
@@ -4143,7 +4135,6 @@ void Item_param::set_decimal(const char *str, ulong length)
                                                  decimals, unsigned_flag);
   maybe_null= 0;
   null_value= 0;
-  fix_type(Item::DECIMAL_ITEM);
   DBUG_VOID_RETURN;
 }
 
@@ -4161,7 +4152,6 @@ void Item_param::set_decimal(const my_decimal *dv, bool unsigned_arg)
                                              decimals, unsigned_flag);
   maybe_null= 0;
   null_value= 0;
-  fix_type(Item::DECIMAL_ITEM);
 }
 
 
@@ -4173,7 +4163,6 @@ void Item_param::fix_temporal(uint32 max_length_arg, uint decimals_arg)
   decimals= decimals_arg;
   maybe_null= 0;
   null_value= 0;
-  fix_type(Item::DATE_ITEM);
 }
 
 
@@ -4258,7 +4247,6 @@ bool Item_param::set_str(const char *str, ulong length,
   null_value= 0;
   /* max_length and decimals are set after charset conversion */
   /* sic: str may be not null-terminated, don't add DBUG_PRINT here */
-  fix_type(Item::STRING_ITEM);
   DBUG_RETURN(FALSE);
 }
 
@@ -4292,7 +4280,6 @@ bool Item_param::set_longdata(const char *str, ulong length)
   state= LONG_DATA_VALUE;
   maybe_null= 0;
   null_value= 0;
-  fix_type(Item::STRING_ITEM);
 
   DBUG_RETURN(FALSE);
 }
@@ -4394,15 +4381,6 @@ void Item_param::reset()
   state= NO_VALUE;
   maybe_null= 1;
   null_value= 0;
-  /*
-    Don't reset item_type to PARAM_ITEM: it's only needed to guard
-    us from item optimizations at prepare stage, when item doesn't yet
-    contain a literal of some kind.
-    In all other cases when this object is accessed its value is
-    set (this assumption is guarded by 'state' and
-    DBUG_ASSERTS(state != NO_VALUE) in all Item_param::get_*
-    methods).
-  */
   DBUG_VOID_RETURN;
 }
 
@@ -4441,7 +4419,6 @@ int Item_param::save_in_field(Field *field, bool no_conversions)
 
 bool Item_param::can_return_value() const
 {
-  DBUG_ASSERT(has_valid_state());
   // There's no "default". See comments in Item_param::save_in_field().
   switch (state) {
   case SHORT_DATA_VALUE:
@@ -4725,7 +4702,6 @@ bool Item_param::convert_str_value(THD *thd)
 
 bool Item_param::basic_const_item() const
 {
-  DBUG_ASSERT(has_valid_state());
   switch (state) {
   case LONG_DATA_VALUE:
   case NULL_VALUE:
@@ -4853,7 +4829,6 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
 {
   Type_std_attributes::set(src);
   set_handler(src->type_handler());
-  item_type= src->item_type;
 
   maybe_null= src->maybe_null;
   null_value= src->null_value;

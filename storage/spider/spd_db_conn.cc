@@ -8449,6 +8449,35 @@ int spider_db_flush_logs(
   DBUG_RETURN(0);
 }
 
+int spider_db_print_item_type_default(
+  Item *item,
+  ha_spider *spider,
+  spider_string *str
+) {
+  DBUG_ENTER("spider_db_print_item_type_default");
+  THD *thd = spider->trx->thd;
+  SPIDER_SHARE *share = spider->share;
+  if (spider_param_skip_default_condition(thd,
+    share->skip_default_condition))
+    DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+  if (str)
+  {
+    if (spider->share->access_charset->cset == system_charset_info->cset)
+    {
+#if MYSQL_VERSION_ID < 50500
+      item->print(str->get_str(), QT_IS);
+#else
+      item->print(str->get_str(), QT_TO_SYSTEM_CHARSET);
+#endif
+    } else {
+      item->print(str->get_str(), QT_ORDINARY);
+    }
+    str->mem_calc();
+  }
+  DBUG_RETURN(0);
+}
+
+
 int spider_db_print_item_type(
   Item *item,
   ha_spider *spider,
@@ -8483,14 +8512,25 @@ int spider_db_print_item_type(
     case Item::ROW_ITEM:
       DBUG_RETURN(spider_db_open_item_row((Item_row *) item, spider, str,
         alias, alias_length, dbton_id, use_fields, fields));
-    case Item::STRING_ITEM:
-      DBUG_RETURN(spider_db_open_item_string(item, spider, str,
-        alias, alias_length, dbton_id, use_fields, fields));
-    case Item::INT_ITEM:
-    case Item::REAL_ITEM:
-    case Item::DECIMAL_ITEM:
-      DBUG_RETURN(spider_db_open_item_int(item, spider, str,
-        alias, alias_length, dbton_id, use_fields, fields));
+    case Item::CONST_ITEM:
+    {
+      switch (item->cmp_type()) {
+      case ROW_RESULT:
+        DBUG_ASSERT(0);
+        // fall through
+      case TIME_RESULT:
+        DBUG_RETURN(spider_db_print_item_type_default(item, spider, str));
+      case STRING_RESULT:
+        DBUG_RETURN(spider_db_open_item_string(item, spider, str,
+          alias, alias_length, dbton_id, use_fields, fields));
+      case INT_RESULT:
+      case REAL_RESULT:
+      case DECIMAL_RESULT:
+        DBUG_RETURN(spider_db_open_item_int(item, spider, str,
+          alias, alias_length, dbton_id, use_fields, fields));
+      }
+      DBUG_ASSERT(0);
+    }
     case Item::CACHE_ITEM:
       DBUG_RETURN(spider_db_open_item_cache((Item_cache *)item, spider, str,
         alias, alias_length, dbton_id, use_fields, fields));
@@ -8504,26 +8544,7 @@ int spider_db_print_item_type(
 #endif
       DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
     default:
-      THD *thd = spider->trx->thd;
-      SPIDER_SHARE *share = spider->share;
-      if (spider_param_skip_default_condition(thd,
-        share->skip_default_condition))
-        DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
-      if (str)
-      {
-        if (spider->share->access_charset->cset == system_charset_info->cset)
-        {
-#if MYSQL_VERSION_ID < 50500
-          item->print(str->get_str(), QT_IS);
-#else
-          item->print(str->get_str(), QT_TO_SYSTEM_CHARSET);
-#endif
-        } else {
-          item->print(str->get_str(), QT_ORDINARY);
-        }
-        str->mem_calc();
-      }
-      break;
+      DBUG_RETURN(spider_db_print_item_type_default(item, spider, str));
   }
   DBUG_RETURN(0);
 }

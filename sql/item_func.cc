@@ -1919,7 +1919,7 @@ void Item_func_neg::fix_length_and_dec_int()
     longlong val= args[0]->val_int();
     if ((ulonglong) val >= (ulonglong) LONGLONG_MIN &&
         ((ulonglong) val != (ulonglong) LONGLONG_MIN ||
-          args[0]->type() != INT_ITEM))        
+         !args[0]->is_of_type(CONST_ITEM, INT_RESULT)))
     {
       /*
         Ensure that result is converted to DECIMAL, as longlong can't hold

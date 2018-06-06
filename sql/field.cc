@@ -10630,7 +10630,7 @@ Field *Column_definition_attributes::make_field(TABLE_SHARE *share,
 
 bool Field_vers_trx_id::test_if_equality_guarantees_uniqueness(const Item* item) const
 {
-  return item->type() == Item::DATE_ITEM;
+  return item->is_of_type(Item::CONST_ITEM, TIME_RESULT);
 }
 
 

@@ -720,16 +720,28 @@ public:
   static void operator delete(void *ptr, MEM_ROOT *mem_root) {}
 
   enum Type {FIELD_ITEM= 0, FUNC_ITEM, SUM_FUNC_ITEM,
-             WINDOW_FUNC_ITEM, STRING_ITEM,
-	     INT_ITEM, REAL_ITEM, NULL_ITEM, VARBIN_ITEM,
-	     COPY_STR_ITEM, FIELD_AVG_ITEM, DEFAULT_VALUE_ITEM,
-	     PROC_ITEM,COND_ITEM, REF_ITEM, FIELD_STD_ITEM,
-	     FIELD_VARIANCE_ITEM, INSERT_VALUE_ITEM,
+             WINDOW_FUNC_ITEM,
+             /*
+               NOT NULL literal-alike constants, which do not change their
+               value during an SQL statement execution, but can optionally
+               change their value between statements:
+               - Item_literal               - real NOT NULL constants
+               - Item_param                 - can change between statements
+               - Item_splocal               - can change between statements
+               - Item_user_var_as_out_param - hack
+               Note, Item_user_var_as_out_param actually abuses the type code.
+               It should be moved out of the Item tree eventually.
+             */
+             CONST_ITEM,
+             NULL_ITEM,     // Item_null or Item_param bound to NULL
+             VARBIN_ITEM,
+             COPY_STR_ITEM, FIELD_AVG_ITEM, DEFAULT_VALUE_ITEM,
+             PROC_ITEM,COND_ITEM, REF_ITEM, FIELD_STD_ITEM,
+             FIELD_VARIANCE_ITEM, INSERT_VALUE_ITEM,
              SUBSELECT_ITEM, ROW_ITEM, CACHE_ITEM, TYPE_HOLDER,
-             PARAM_ITEM, TRIGGER_FIELD_ITEM, DECIMAL_ITEM,
+             PARAM_ITEM, TRIGGER_FIELD_ITEM,
              XPATH_NODESET, XPATH_NODESET_CMP,
-             EXPR_CACHE_ITEM,
-             DATE_ITEM};
+             EXPR_CACHE_ITEM};
 
   enum cond_result { COND_UNDEF,COND_OK,COND_TRUE,COND_FALSE };
 
@@ -1077,6 +1089,10 @@ public:
     return type_handler()->Item_get_cache(thd, this);
   }
   virtual enum Type type() const =0;
+  bool is_of_type(Type t, Item_result cmp) const
+  {
+    return type() == t && cmp_type() == cmp;
+  }
   /*
     real_type() is the type of base item.  This is same as type() for
     most items, except Item_ref() and Item_cache_wrapper() where it
@@ -2940,6 +2956,7 @@ class Item_literal: public Item_basic_constant
 public:
   Item_literal(THD *thd): Item_basic_constant(thd)
   { }
+  enum Type type() const { return CONST_ITEM; }
   bool check_partition_func_processor(void *int_arg) { return false;}
   bool const_item() const { return true; }
   bool basic_const_item() const { return true; }
@@ -3518,8 +3535,8 @@ class Item_param :public Item_basic_value,
       All Item_param::set_xxx() make sure to do so.
       In the state with an assigned value:
       - Item_param::basic_const_item() returns true
-      - Item::type() returns NULL_ITEM, INT_ITEM, REAL_ITEM, DECIMAL_ITEM,
-        DATE_ITEM, STRING_ITEM, depending on the value assigned.
+      - Item::type() returns NULL_ITEM or CONST_ITEM,
+        depending on the value assigned.
       So in this state Item_param behaves in many cases like a literal.
 
       When Item_param::cleanup() is called:
@@ -3541,20 +3558,6 @@ class Item_param :public Item_basic_value,
     NO_VALUE, NULL_VALUE, SHORT_DATA_VALUE, LONG_DATA_VALUE,
     DEFAULT_VALUE, IGNORE_VALUE
   } state;
-
-  enum Type item_type;
-
-  bool has_valid_state() const
-  {
-    return item_type == PARAM_ITEM || state > NO_VALUE;
-  }
-
-  void fix_type(Type type)
-  {
-    item_type= type;
-    DBUG_ASSERT(is_fixed());
-    DBUG_ASSERT(has_valid_state());
-  }
 
   void fix_temporal(uint32 max_length_arg, uint decimals_arg);
 
@@ -3677,13 +3680,21 @@ public:
 
   enum Type type() const
   {
-    DBUG_ASSERT(has_valid_state());
-    return item_type;
+    // Don't pretend to be a constant unless value for this item is set.
+    switch (state) {
+    case NO_VALUE:         return PARAM_ITEM;
+    case NULL_VALUE:       return NULL_ITEM;
+    case SHORT_DATA_VALUE: return CONST_ITEM;
+    case LONG_DATA_VALUE:  return CONST_ITEM;
+    case DEFAULT_VALUE:    return PARAM_ITEM;
+    case IGNORE_VALUE:     return PARAM_ITEM;
+    }
+    DBUG_ASSERT(0);
+    return PARAM_ITEM;
   }
 
   bool is_order_clause_position() const
   {
-    DBUG_ASSERT(has_valid_state());
     return state == SHORT_DATA_VALUE &&
            type_handler()->is_order_clause_position_type();
   }
@@ -3783,12 +3794,10 @@ public:
   */
   bool const_item() const
   {
-    DBUG_ASSERT(has_valid_state());
     return state != NO_VALUE;
   }
   virtual table_map used_tables() const
   {
-    DBUG_ASSERT(has_valid_state());
     return state != NO_VALUE ? (table_map)0 : PARAM_TABLE_BIT;
   }
   virtual void print(String *str, enum_query_type query_type);
@@ -3878,7 +3887,6 @@ public:
       unsigned_flag= flag;
     }
   Item_int(THD *thd, const char *str_arg, size_t length=64);
-  enum Type type() const { return INT_ITEM; }
   const Type_handler *type_handler() const
   { return type_handler_long_or_longlong(); }
   Field *create_field_for_create_select(TABLE *table)
@@ -3977,7 +3985,6 @@ public:
   Item_decimal(THD *thd, double val, int precision, int scale);
   Item_decimal(THD *thd, const uchar *bin, int precision, int scale);
 
-  enum Type type() const { return DECIMAL_ITEM; }
   const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   longlong val_int();
   double val_real();
@@ -4015,7 +4022,6 @@ public:
     decimals= (uint8) decimal_par;
   }
   int save_in_field(Field *field, bool no_conversions);
-  enum Type type() const { return REAL_ITEM; }
   const Type_handler *type_handler() const { return &type_handler_double; }
   double val_real() { return value; }
   longlong val_int()
@@ -4139,7 +4145,6 @@ public:
   {
     str_value.print(to);
   }
-  enum Type type() const { return STRING_ITEM; }
   double val_real();
   longlong val_int();
   String *val_str(String*)
@@ -4554,7 +4559,6 @@ public:
     decimals= dec_arg;
     cached_time= *ltime;
   }
-  enum Type type() const { return DATE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const;
 
   bool is_null()
@@ -6217,7 +6221,7 @@ public:
   for any value.
 */
 
-class Item_cache: public Item_basic_constant,
+class Item_cache: public Item_basic_value,
                   public Type_handler_hybrid_field_type
 {
 protected:
@@ -6240,7 +6244,7 @@ protected:
   table_map used_table_map;
 public:
   Item_cache(THD *thd):
-    Item_basic_constant(thd),
+    Item_basic_value(thd),
     Type_handler_hybrid_field_type(&type_handler_string),
     example(0), cached_field(0),
     value_cached(0),
@@ -6251,7 +6255,7 @@ public:
   }
 protected:
   Item_cache(THD *thd, const Type_handler *handler):
-    Item_basic_constant(thd),
+    Item_basic_value(thd),
     Type_handler_hybrid_field_type(handler),
     example(0), cached_field(0),
     value_cached(0),
@@ -6308,7 +6312,7 @@ public:
   void cleanup()
   {
     clear();
-    Item_basic_constant::cleanup();
+    Item_basic_value::cleanup();
   }
   /**
      Check if saved item has a non-NULL value.

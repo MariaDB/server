@@ -179,17 +179,17 @@ namespace mrn {
     NormalizedType normalized_type = normalize_field_type(field_type);
     switch (normalized_type) {
     case STRING_TYPE:
-      if (value_item->type() == Item::STRING_ITEM &&
+      if (value_item->is_of_type(Item::CONST_ITEM, STRING_RESULT) &&
           func_type == Item_func::EQ_FUNC) {
         convertable = have_index(field_item, GRN_OP_EQUAL);
       }
       break;
     case INT_TYPE:
       if (field_type == MYSQL_TYPE_ENUM) {
-        convertable = (value_item->type() == Item::STRING_ITEM ||
-                       value_item->type() == Item::INT_ITEM);
+        convertable = value_item->is_of_type(Item::CONST_ITEM, STRING_RESULT) ||
+                      value_item->is_of_type(Item::CONST_ITEM, INT_RESULT);
       } else {
-        convertable = value_item->type() == Item::INT_ITEM;
+        convertable = value_item->is_of_type(Item::CONST_ITEM, INT_RESULT);
       }
       break;
     case TIME_TYPE:
@@ -215,14 +215,14 @@ namespace mrn {
     NormalizedType normalized_type = normalize_field_type(field_type);
     switch (normalized_type) {
     case STRING_TYPE:
-      if (min_item->type() == Item::STRING_ITEM &&
-          max_item->type() == Item::STRING_ITEM) {
+      if (min_item->is_of_type(Item::CONST_ITEM, STRING_RESULT) &&
+          max_item->is_of_type(Item::CONST_ITEM, STRING_RESULT)) {
         convertable = have_index(field_item, GRN_OP_LESS);
       }
       break;
     case INT_TYPE:
-      if (min_item->type() == Item::INT_ITEM &&
-          max_item->type() == Item::INT_ITEM) {
+      if (min_item->is_of_type(Item::CONST_ITEM, INT_RESULT) &&
+          max_item->is_of_type(Item::CONST_ITEM, INT_RESULT)) {
         convertable = have_index(field_item, GRN_OP_LESS);
       }
       break;
@@ -587,7 +587,7 @@ namespace mrn {
     case INT_TYPE:
       grn_obj_reinit(ctx_, &value_, GRN_DB_INT64, 0);
       if (field_type == MYSQL_TYPE_ENUM) {
-        if (const_item->type() == Item::STRING_ITEM) {
+        if (const_item->is_of_type(Item::CONST_ITEM, STRING_RESULT)) {
           String *string;
           string = const_item->val_str(NULL);
           Field_enum *enum_field = static_cast<Field_enum *>(field_item->field);
