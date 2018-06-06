@@ -58,6 +58,7 @@ Created 4/20/1996 Heikki Tuuri
 
 #ifdef WITH_WSREP
 #include "../../../wsrep/wsrep_api.h"
+#include "wsrep_mysqld_c.h"
 #endif /* WITH_WSREP */
 
 /*************************************************************************
@@ -1435,15 +1436,26 @@ run_again:
 				if (check_ref) {
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
+					enum wsrep_key_type key_type = WSREP_KEY_EXCLUSIVE;
+					if (upd_node != NULL) {
+						key_type = WSREP_KEY_SHARED;
+					} else {
+						switch (wsrep_certification_rules) {
+						case WSREP_CERTIFICATION_RULES_STRICT:
+							key_type = WSREP_KEY_EXCLUSIVE;
+							break;
+						case WSREP_CERTIFICATION_RULES_OPTIMIZED:
+							key_type = WSREP_KEY_SEMI;
+							break;
+						}
+					}
 					err = wsrep_append_foreign_key(
 						thr_get_trx(thr),
 						foreign,
 						rec,
 						check_index,
 						check_ref,
-						upd_node != NULL
-							? WSREP_KEY_SHARED
-							: WSREP_KEY_EXCLUSIVE);
+						key_type);
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {

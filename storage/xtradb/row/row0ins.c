@@ -58,6 +58,7 @@ Created 4/20/1996 Heikki Tuuri
 
 #ifdef WITH_WSREP
 #include "../../../wsrep/wsrep_api.h"
+#include "wsrep_mysqld_c.h"
 #endif /* WITH_WSREP */
 
 /*************************************************************************

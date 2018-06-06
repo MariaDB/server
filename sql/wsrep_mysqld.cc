@@ -51,6 +51,7 @@ ulong   wsrep_max_ws_size              = 1073741824UL;//max ws (RBR buffer) size
 ulong   wsrep_max_ws_rows              = 65536; // max number of rows in ws
 int     wsrep_to_isolation             = 0; // # of active TO isolation threads
 my_bool wsrep_certify_nonPK            = 1; // certify, even when no primary key
+ulong   wsrep_certification_rules      = WSREP_CERTIFICATION_RULES_STRICT;
 long    wsrep_max_protocol_version     = 3; // maximum protocol version to use
 ulong   wsrep_forced_binlog_format     = BINLOG_FORMAT_UNSPEC;
 my_bool wsrep_recovery                 = 0; // recovery

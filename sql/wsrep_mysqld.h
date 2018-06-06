@@ -20,6 +20,7 @@
 typedef struct st_mysql_show_var SHOW_VAR;
 #include <sql_priv.h>
 #include "../wsrep/wsrep_api.h"
+#include "wsrep_mysqld_c.h"
 
 #define WSREP_UNDEFINED_TRX_ID ULONGLONG_MAX
 
@@ -57,7 +58,6 @@ enum wsrep_consistency_check_mode {
     CONSISTENCY_CHECK_DECLARED,
     CONSISTENCY_CHECK_RUNNING,
 };
-
 
 // Global wsrep parameters
 extern wsrep_t*    wsrep;
