@@ -3231,8 +3231,7 @@ ha_innobase::ha_innobase(
 		  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0 ) |
 		  HA_CAN_FULLTEXT_EXT | HA_CAN_EXPORT),
 	start_of_scan(0),
-	num_write_row(0),
-	ha_partition_stats(NULL)
+	num_write_row(0)
 {}
 
 /*********************************************************************//**
@@ -14486,6 +14485,7 @@ ha_innobase::optimize(
 
 	This works OK otherwise, but MySQL locks the entire table during
 	calls to OPTIMIZE, which is undesirable. */
+	bool try_alter = true;
 
 	if (srv_defragment) {
 		int err;
@@ -14493,7 +14493,7 @@ ha_innobase::optimize(
 		err = defragment_table(prebuilt->table->name, NULL, false);
 
 		if (err == 0) {
-			return (HA_ADMIN_OK);
+			try_alter = false;
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				err,
@@ -14501,9 +14501,7 @@ ha_innobase::optimize(
 				prebuilt->table->name, err);
 
 			if(err == ER_SP_ALREADY_EXISTS) {
-				return (HA_ADMIN_OK);
-			} else {
-				return (HA_ADMIN_TRY_ALTER);
+				try_alter = false;
 			}
 		}
 	}
@@ -14514,11 +14512,10 @@ ha_innobase::optimize(
 			fts_sync_table(prebuilt->table, false, true, false);
 			fts_optimize_table(prebuilt->table);
 		}
-		return(HA_ADMIN_OK);
-	} else {
-
-		return(HA_ADMIN_TRY_ALTER);
+		try_alter = false;
 	}
+
+	return try_alter ? HA_ADMIN_TRY_ALTER : HA_ADMIN_OK;
 }
 
 /*******************************************************************//**
@@ -17488,13 +17485,6 @@ innodb_max_dirty_pages_pct_lwm_update(
 	}
 
 	srv_max_dirty_pages_pct_lwm = in_val;
-}
-
-UNIV_INTERN
-void
-ha_innobase::set_partition_owner_stats(ha_statistics *stats)
-{
-	ha_partition_stats= stats;
 }
 
 /************************************************************//**

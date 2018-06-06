@@ -14626,6 +14626,7 @@ ha_innobase::optimize(
 
 	This works OK otherwise, but MySQL locks the entire table during
 	calls to OPTIMIZE, which is undesirable. */
+	bool try_alter = true;
 
 	/* TODO: Defragment is disabled for now */
 	if (srv_defragment) {
@@ -14634,17 +14635,15 @@ ha_innobase::optimize(
 		err = defragment_table(m_prebuilt->table->name.m_name, NULL, false);
 
 		if (err == 0) {
-			return (HA_ADMIN_OK);
+			try_alter = false;
 		} else {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				err,
 				"InnoDB: Cannot defragment table %s: returned error code %d\n",
 				m_prebuilt->table->name, err);
 
-			if (err == ER_SP_ALREADY_EXISTS) {
-				return (HA_ADMIN_OK);
-			} else {
-				return (HA_ADMIN_TRY_ALTER);
+			if(err == ER_SP_ALREADY_EXISTS) {
+				try_alter = false;
 			}
 		}
 	}
@@ -14655,11 +14654,10 @@ ha_innobase::optimize(
 			fts_sync_table(m_prebuilt->table, false, true, false);
 			fts_optimize_table(m_prebuilt->table);
 		}
-		return(HA_ADMIN_OK);
-	} else {
-
-		return(HA_ADMIN_TRY_ALTER);
+		try_alter = false;
 	}
+
+	return try_alter ? HA_ADMIN_TRY_ALTER : HA_ADMIN_OK;
 }
 
 /*******************************************************************//**

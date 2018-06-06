@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -100,8 +100,6 @@ class ha_innobase: public handler
 					or undefined */
 	uint		num_write_row;	/*!< number of write_row() calls */
 
-	ha_statistics*	ha_partition_stats; /*!< stats of the partition owner
-					handler (if there is one) */
 	uint store_key_val_for_row(uint keynr, char* buff, uint buff_len,
                                    const uchar* record);
 	inline void update_thd(THD* thd);
@@ -318,7 +316,6 @@ class ha_innobase: public handler
 		Alter_inplace_info*	ha_alter_info,
 		bool			commit);
 	/** @} */
-	void set_partition_owner_stats(ha_statistics *stats);
 	bool check_if_incompatible_data(HA_CREATE_INFO *info,
 					uint table_changes);
 
