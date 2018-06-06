@@ -281,10 +281,6 @@ struct fil_space_t {
 				an insert buffer merge request for a
 				page because it actually was for the
 				previous incarnation of the space */
-	ibool		stop_ios;/*!< TRUE if we want to rename the
-				.ibd file of tablespace and want to
-				stop temporarily posting of new i/o
-				requests on the file */
 	bool		stop_new_ops;
 				/*!< we set this TRUE when we start
 				deleting a single-table tablespace.
