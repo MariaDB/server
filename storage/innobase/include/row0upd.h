@@ -510,7 +510,8 @@ struct upd_t{
 enum delete_mode_t {
 	NO_DELETE = 0,		/*!< this operation does not delete */
 	PLAIN_DELETE,		/*!< ordinary delete */
-	VERSIONED_DELETE	/*!< update old and insert a new row */
+	TRX_ID_DELETE,		/*!< update old and insert a new row */
+	TIMESTAMP_DELETE,	/*!< treat FOREIGN check as DELETE one */
 };
 
 /* Update node structure which also implements the delete operation

@@ -8861,13 +8861,13 @@ ha_innobase::update_row(
 		const bool vers_ins_row = vers_set_fields
 			&& thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE;
 
-		/* This is not a delete */
-		m_prebuilt->upd_node->is_delete =
-			(vers_set_fields && !vers_ins_row) ||
-			(thd_sql_command(m_user_thd) == SQLCOM_DELETE &&
-				table->versioned(VERS_TIMESTAMP))
-			? VERSIONED_DELETE
-			: NO_DELETE;
+		if (vers_set_fields && !vers_ins_row) {
+			m_prebuilt->upd_node->is_delete = TRX_ID_DELETE;
+		} else if (thd_sql_command(m_user_thd) == SQLCOM_DELETE) {
+			m_prebuilt->upd_node->is_delete = TIMESTAMP_DELETE;
+		} else {
+			m_prebuilt->upd_node->is_delete = NO_DELETE;
+		}
 
 		innobase_srv_conc_enter_innodb(m_prebuilt);
 
@@ -8977,7 +8977,7 @@ ha_innobase::delete_row(
 	m_prebuilt->upd_node->is_delete = table->versioned_write(VERS_TRX_ID)
 		&& table->vers_end_field()->is_max()
 		&& trx->id != table->vers_start_id()
-		? VERSIONED_DELETE
+		? TRX_ID_DELETE
 		: PLAIN_DELETE;
 
 	innobase_srv_conc_enter_innodb(m_prebuilt);

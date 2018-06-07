@@ -44,6 +44,7 @@
 #include "sql_derived.h"                        // mysql_handle_list_of_derived
                                                 // end_read_record
 #include "sql_partition.h"       // make_used_partitions_str
+#include "sql_update.h"
 
 #define MEM_STRIP_BUF_SIZE ((size_t) thd->variables.sortbuff_size)
 
@@ -347,6 +348,21 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 	       table_list->view_db.str, table_list->view_name.str);
     DBUG_RETURN(TRUE);
   }
+
+  if (!truncate_history && table_list->table->versioned(VERS_TIMESTAMP))
+  {
+    if (update_precheck(thd, table_list))
+      DBUG_RETURN(true);
+
+    List<Item> unused1;
+    List<Item> unused2;
+    ha_rows found= 0;
+    ha_rows updated= 0;
+    DBUG_RETURN(mysql_update_inner(thd, table_list, unused1, unused2, conds,
+                                   order_list->elements, order, limit, false,
+                                   &found, &updated));
+  }
+
   table->map=1;
   query_plan.select_lex= &thd->lex->select_lex;
   query_plan.table= table;
@@ -424,9 +440,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   has_triggers= (table->triggers &&
                  table->triggers->has_delete_triggers());
   if (!with_select && !using_limit && const_cond_result &&
-      (!thd->is_current_stmt_binlog_format_row() &&
-       !has_triggers)
-      && !table->versioned(VERS_TIMESTAMP))
+      !thd->is_current_stmt_binlog_format_row() && !has_triggers &&
+      !truncate_history)
   {
     /* Update the table->file->stats.records number */
     table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
@@ -746,7 +761,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
         break;
       }
 
-      error= table->delete_row();
+      error= table->file->ha_delete_row(table->record[0]);
       if (likely(!error))
       {
 	deleted++;

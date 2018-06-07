@@ -266,109 +266,19 @@ static void prepare_record_for_error_message(int error, TABLE *table)
   DBUG_VOID_RETURN;
 }
 
-
-/*
-  Process usual UPDATE
-
-  SYNOPSIS
-    mysql_update()
-    thd			thread handler
-    fields		fields for update
-    values		values of fields for update
-    conds		WHERE clause expression
-    order_num		number of elemen in ORDER BY clause
-    order		ORDER BY clause list
-    limit		limit clause
-    handle_duplicates	how to handle duplicates
-
-  RETURN
-    0  - OK
-    2  - privilege check and openning table passed, but we need to convert to
-         multi-update because of view substitution
-    1  - error
-*/
-
-int mysql_update(THD *thd,
-                 TABLE_LIST *table_list,
-                 List<Item> &fields,
-		 List<Item> &values,
-                 COND *conds,
-                 uint order_num, ORDER *order,
-		 ha_rows limit,
-		 enum enum_duplicates handle_duplicates, bool ignore,
-                 ha_rows *found_return, ha_rows *updated_return)
+int mysql_update_inner(THD *thd, TABLE_LIST *table_list, List<Item> &fields,
+                       List<Item> &values, COND *conds, uint order_num,
+                       ORDER *order, ha_rows limit, bool ignore,
+                       ha_rows *found_return, ha_rows *updated_return)
 {
-  bool		using_limit= limit != HA_POS_ERROR;
-  bool          safe_update= thd->variables.option_bits & OPTION_SAFE_UPDATES;
-  bool          used_key_is_modified= FALSE, transactional_table;
-  bool          will_batch= FALSE;
-  bool		can_compare_record;
-  int           res;
-  int		error, loc_error;
-  ha_rows       dup_key_found;
-  bool          need_sort= TRUE;
-  bool          reverse= FALSE;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  uint		want_privilege;
-#endif
-  uint          table_count= 0;
-  ha_rows	updated, found;
-  key_map	old_covering_keys;
-  TABLE		*table;
-  SQL_SELECT	*select= NULL;
-  SORT_INFO     *file_sort= 0;
-  READ_RECORD	info;
-  SELECT_LEX    *select_lex= &thd->lex->select_lex;
-  ulonglong     id;
-  List<Item> all_fields;
-  killed_state killed_status= NOT_KILLED;
-  bool has_triggers, binlog_is_row, do_direct_update= FALSE;
+  DBUG_ENTER("mysql_update_inner");
+
+  TABLE *table= table_list->table;
+  SELECT_LEX *select_lex= &thd->lex->select_lex;
+
   Update_plan query_plan(thd->mem_root);
-  Explain_update *explain;
-  TABLE_LIST *update_source_table;
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
-
-  // For System Versioning (may need to insert new fields to a table).
-  ha_rows updated_sys_ver= 0;
-
-  DBUG_ENTER("mysql_update");
-
-  create_explain_query(thd->lex, thd->mem_root);
-  if (open_tables(thd, &table_list, &table_count, 0))
-    DBUG_RETURN(1);
-
-  /* Prepare views so they are handled correctly */
-  if (mysql_handle_derived(thd->lex, DT_INIT))
-    DBUG_RETURN(1);
-
-  if (((update_source_table=unique_table(thd, table_list,
-                                        table_list->next_global, 0)) ||
-        table_list->is_multitable()))
-  {
-    DBUG_ASSERT(update_source_table || table_list->view != 0);
-    DBUG_PRINT("info", ("Switch to multi-update"));
-    /* pass counter value */
-    thd->lex->table_count= table_count;
-    /* convert to multiupdate */
-    DBUG_RETURN(2);
-  }
-  if (lock_tables(thd, table_list, table_count, 0))
-    DBUG_RETURN(1);
-
-  THD_STAGE_INFO(thd, stage_init_update);
-  if (table_list->handle_derived(thd->lex, DT_MERGE_FOR_INSERT))
-    DBUG_RETURN(1);
-  if (table_list->handle_derived(thd->lex, DT_PREPARE))
-    DBUG_RETURN(1);
-
-  table= table_list->table;
-
-  if (!table_list->single_table_updatable())
-  {
-    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
-    DBUG_RETURN(1);
-  }
   query_plan.updating_a_view= MY_TEST(table_list->view);
   
   /* Calculate "table->covering_keys" based on the WHERE */
@@ -379,13 +289,13 @@ int mysql_update(THD *thd,
   query_plan.table= table;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* Force privilege re-checking for views after they have been opened. */
-  want_privilege= (table_list->view ? UPDATE_ACL :
-                   table_list->grant.want_privilege);
+  uint want_privilege=
+      table_list->view ? UPDATE_ACL : table_list->grant.want_privilege;
 #endif
   if (mysql_prepare_update(thd, table_list, &conds, order_num, order))
     DBUG_RETURN(1);
 
-  old_covering_keys= table->covering_keys;		// Keys used in WHERE
+  key_map old_covering_keys= table->covering_keys; // Keys used in WHERE
   /* Check the fields we are going to modify */
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   table_list->grant.want_privilege= table->grant.want_privilege= want_privilege;
@@ -433,9 +343,33 @@ int mysql_update(THD *thd,
   if (select_lex->optimize_unflattened_subqueries(false))
     DBUG_RETURN(TRUE);
 
+  List<Item> unused;
   if (select_lex->inner_refs_list.elements &&
-    fix_inner_refs(thd, all_fields, select_lex, select_lex->ref_pointer_array))
+      fix_inner_refs(thd, unused, select_lex, select_lex->ref_pointer_array))
     DBUG_RETURN(1);
+
+  bool do_direct_update= false;
+  SORT_INFO *file_sort= NULL;
+  READ_RECORD info;
+  ha_rows updated= 0;
+  ha_rows found= 0;
+  bool transactional_table= table->file->has_transactions();
+  killed_state killed_status = NOT_KILLED;
+  // For System Versioning (may need to insert new fields to a table).
+  ha_rows updated_sys_ver= 0;
+  ha_rows dup_key_found= 0;
+  bool can_compare_record= true;
+  bool will_batch = false;
+  bool binlog_is_row= false;
+  bool has_triggers= false;
+  int error= 0;
+  SQL_SELECT *select= NULL;
+  const bool safe_update= thd->variables.option_bits & OPTION_SAFE_UPDATES;
+  bool need_sort= true;
+  bool used_key_is_modified= false;
+  bool reverse= false;
+  const bool using_limit= limit != HA_POS_ERROR;
+
 
   if (conds)
   {
@@ -577,6 +511,7 @@ int mysql_update(THD *thd,
   */
   if (thd->lex->describe)
     goto produce_explain_and_leave;
+  Explain_update *explain;
   if (!(explain= query_plan.save_explain_update_data(query_plan.mem_root, thd)))
     goto err;
 
@@ -816,15 +751,12 @@ update_begin:
   if (init_read_record(&info, thd, table, select, file_sort, 0, 1, FALSE))
     goto err;
 
-  updated= found= 0;
   /*
     Generate an error (in TRADITIONAL mode) or warning
     when trying to set a NOT NULL field to NULL.
   */
   thd->count_cuted_fields= CHECK_FIELD_WARN;
   thd->cuted_fields=0L;
-
-  transactional_table= table->file->has_transactions();
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
   if (do_direct_update)
@@ -883,13 +815,18 @@ update_begin:
 
       found++;
 
-      if (!can_compare_record || compare_record(table))
+      if (!can_compare_record || compare_record(table) ||
+          thd->lex->sql_command == SQLCOM_DELETE)
       {
+        if (table->versioned(VERS_TIMESTAMP) &&
+            thd->lex->sql_command == SQLCOM_DELETE)
+          table->vers_update_end();
         if (table->default_field && table->update_default_fields(1, ignore))
         {
           error= 1;
           break;
         }
+        int res;
         if ((res= table_list->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
         {
@@ -1070,7 +1007,8 @@ update_begin:
                     thd->set_killed(KILL_QUERY);
                   };);
   error= (killed_status == NOT_KILLED)?  error : 1;
-  
+
+  int loc_error;
   if (likely(error) &&
       will_batch &&
       (loc_error= table->file->exec_bulk_update(&dup_key_found)))
@@ -1159,9 +1097,6 @@ update_end:
     table->file->cond_pop();
   }
 
-  /* If LAST_INSERT_ID(X) was used, report X */
-  id= thd->arg_of_last_insert_id_function ?
-    thd->first_successful_insert_id_in_prev_stmt : 0;
 
   if (likely(error < 0) && likely(!thd->lex->analyze_stmt))
   {
@@ -1175,6 +1110,10 @@ update_end:
                   ER_THD(thd, ER_UPDATE_INFO_WITH_SYSTEM_VERSIONING),
                   (ulong) found, (ulong) updated, (ulong) updated_sys_ver,
                   (ulong) thd->get_stmt_da()->current_statement_warn_count());
+    /* If LAST_INSERT_ID(X) was used, report X */
+    ulonglong id= thd->arg_of_last_insert_id_function
+                      ? thd->first_successful_insert_id_in_prev_stmt
+                      : 0;
     my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
           id, buff);
     DBUG_PRINT("info",("%ld records updated", (long) updated));
@@ -1218,6 +1157,80 @@ emit_explain_and_leave:
   delete select;
   free_underlaid_joins(thd, select_lex);
   DBUG_RETURN((err2 || thd->is_error()) ? 1 : 0);
+}
+
+
+/*
+  Process usual UPDATE
+
+  SYNOPSIS
+    mysql_update()
+    thd			thread handler
+    fields		fields for update
+    values		values of fields for update
+    conds		WHERE clause expression
+    order_num		number of elemen in ORDER BY clause
+    order		ORDER BY clause list
+    limit		limit clause
+    handle_duplicates	how to handle duplicates
+
+  RETURN
+    0  - OK
+    2  - privilege check and openning table passed, but we need to convert to
+         multi-update because of view substitution
+    1  - error
+*/
+
+int mysql_update(THD *thd, TABLE_LIST *table_list, List<Item> &fields,
+                 List<Item> &values, COND *conds, uint order_num, ORDER *order,
+                 ha_rows limit, enum enum_duplicates handle_duplicates,
+                 bool ignore, ha_rows *found_return, ha_rows *updated_return)
+{
+  uint          table_count= 0;
+  TABLE		*table;
+  TABLE_LIST *update_source_table;
+
+  DBUG_ENTER("mysql_update");
+
+  create_explain_query(thd->lex, thd->mem_root);
+  if (open_tables(thd, &table_list, &table_count, 0))
+    DBUG_RETURN(1);
+
+  /* Prepare views so they are handled correctly */
+  if (mysql_handle_derived(thd->lex, DT_INIT))
+    DBUG_RETURN(1);
+
+  if (((update_source_table=unique_table(thd, table_list,
+                                        table_list->next_global, 0)) ||
+        table_list->is_multitable()))
+  {
+    DBUG_ASSERT(update_source_table || table_list->view != 0);
+    DBUG_PRINT("info", ("Switch to multi-update"));
+    /* pass counter value */
+    thd->lex->table_count= table_count;
+    /* convert to multiupdate */
+    DBUG_RETURN(2);
+  }
+  if (lock_tables(thd, table_list, table_count, 0))
+    DBUG_RETURN(1);
+
+  THD_STAGE_INFO(thd, stage_init_update);
+  if (table_list->handle_derived(thd->lex, DT_MERGE_FOR_INSERT))
+    DBUG_RETURN(1);
+  if (table_list->handle_derived(thd->lex, DT_PREPARE))
+    DBUG_RETURN(1);
+
+  table= table_list->table;
+
+  if (!table_list->single_table_updatable())
+  {
+    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
+    DBUG_RETURN(1);
+  }
+
+  DBUG_RETURN(mysql_update_inner(thd, table_list, fields, values, conds,
+                                 order_num, order, limit, ignore, found_return,
+                                 updated_return));
 }
 
 /*

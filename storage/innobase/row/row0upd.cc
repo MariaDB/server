@@ -3492,6 +3492,6 @@ Do not touch other fields at all.
 void upd_node_t::make_versioned_delete(const trx_t* trx)
 {
 	update->n_fields = 0;
-	is_delete = VERSIONED_DELETE;
+	is_delete = TRX_ID_DELETE;
 	make_versioned_helper(trx, table->vers_end);
 }

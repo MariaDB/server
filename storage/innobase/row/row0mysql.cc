@@ -1866,7 +1866,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	ut_ad(!prebuilt->versioned_write || node->table->versioned());
 
 	if (prebuilt->versioned_write) {
-		if (node->is_delete == VERSIONED_DELETE) {
+		if (node->is_delete == TRX_ID_DELETE) {
 			node->make_versioned_delete(trx);
 		} else if (node->update->affects_versioned()) {
 			node->make_versioned_update(trx);
