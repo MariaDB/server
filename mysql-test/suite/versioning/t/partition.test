@@ -315,15 +315,6 @@ create or replace trigger tr before insert on t2
 for each row select count(*) from t1 into @a;
 insert into t2 values (1);
 
---echo # MDEV-14741 Assertion `(trx)->start_file == 0' failed in row_truncate_table_for_mysql()
-create or replace table t1 (i int) with system versioning
-partition by system_time interval 1 hour (
-  partition p1 history,
-  partition pn current);
-set autocommit= off;
-truncate table t1;
-set autocommit= on;
-
 --echo # MDEV-14747 ALTER PARTITION BY SYSTEM_TIME after LOCK TABLES
 create or replace table t1 (x int) with system versioning;
 lock table t1 write;

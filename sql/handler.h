@@ -4753,7 +4753,7 @@ int ha_discover_table(THD *thd, TABLE_SHARE *share);
 int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable);
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
-                     handlerton **hton= 0, bool *is_sequence= 0);
+                     handlerton **hton= 0, bool *is_sequence= 0, bool *is_versioned= 0);
 #endif
 
 /* key cache */

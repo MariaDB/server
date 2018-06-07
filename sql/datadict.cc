@@ -46,10 +46,11 @@ static int read_string(File file, uchar**to, size_t length)
 
   engine_name is a LEX_CSTRING, where engine_name->str must point to
   a buffer of at least NAME_CHAR_LEN+1 bytes.
-  If engine_name is 0, then the function will only test if the file is a
-  view or not
+  If both engine_name and is_versioned are 0, then the function will
+  only test if the file is a view or not
 
   @param[out] is_sequence  1 if table is a SEQUENCE, 0 otherwise
+  @param[out] is_versioned 1 if table is  versioned, 0 otherwise
 
   @retval  TABLE_TYPE_UNKNOWN   error  - file can't be opened
   @retval  TABLE_TYPE_NORMAL    table
@@ -58,13 +59,14 @@ static int read_string(File file, uchar**to, size_t length)
 */
 
 Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
-                       bool *is_sequence)
+                       bool *is_sequence, bool *is_versioned)
 {
   File file;
   uchar header[40];     //"TYPE=VIEW\n" it is 10 characters
   size_t error;
   Table_type type= TABLE_TYPE_UNKNOWN;
   uchar dbt;
+  bool need_engine= engine_name;
   DBUG_ENTER("dd_frm_type");
 
   *is_sequence= 0;
@@ -98,33 +100,30 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
     goto err;
   }
 
-  /* engine_name is 0 if we only want to know if table is view or not */
-  if (!engine_name)
-    goto err;
-
   if (!is_binary_frm_header(header))
     goto err;
 
   dbt= header[3];
 
-  if (((header[39] >> 4) & 3) == HA_CHOICE_YES)
+  if (((header[39] >> 4) & 3) == HA_CHOICE_YES && is_sequence)
   {
     DBUG_PRINT("info", ("Sequence found"));
     *is_sequence= 1;
   }
 
   /* cannot use ha_resolve_by_legacy_type without a THD */
-  if (thd && dbt < DB_TYPE_FIRST_DYNAMIC)
+  if (thd && dbt < DB_TYPE_FIRST_DYNAMIC && engine_name)
   {
     handlerton *ht= ha_resolve_by_legacy_type(thd, (enum legacy_db_type)dbt);
     if (ht)
     {
       *engine_name= hton2plugin[ht->slot]->name;
-      goto err;
+      need_engine= false;
     }
   }
 
   /* read the true engine name */
+  if (need_engine || is_versioned)
   {
     MY_STAT state;  
     uchar *frm_image= 0;
@@ -139,7 +138,7 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
     if (read_string(file, &frm_image, (size_t)state.st_size))
       goto err;
 
-    if ((n_length= uint4korr(frm_image+55)))
+    if (need_engine && (n_length= uint4korr(frm_image+55)))
     {
       uint record_offset= uint2korr(frm_image+6)+
                       ((uint2korr(frm_image+14) == 0xffff ?
@@ -163,6 +162,14 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
                   engine_name->length= len);
         }
       }
+    }
+
+    if (is_versioned)
+    {
+      extra2_fields extra2;
+      dd_read_extra2(frm_image, (size_t)state.st_size, &extra2);
+      *is_versioned = extra2.system_period;
+
     }
 
     my_free(frm_image);
@@ -217,3 +224,83 @@ bool dd_recreate_table(THD *thd, const char *db, const char *table_name,
   DBUG_RETURN(error);
 }
 
+
+bool dd_read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
+{
+  const uchar *extra2= frm_image + 64;
+
+  DBUG_ENTER("dd_read_extra2");
+
+  memset(fields, 0, sizeof(extra2_fields));
+
+  if (*extra2 != '/')   // old frm had '/' there
+  {
+    const uchar *e2end= extra2 + len;
+    while (extra2 + 3 <= e2end)
+    {
+      uchar type= *extra2++;
+      size_t length= *extra2++;
+      if (!length)
+      {
+        if (extra2 + 2 >= e2end)
+          DBUG_RETURN(true);
+        length= uint2korr(extra2);
+        extra2+= 2;
+        if (length < 256)
+          DBUG_RETURN(true);
+      }
+      if (extra2 + length > e2end)
+        DBUG_RETURN(true);
+      switch (type) {
+        case EXTRA2_TABLEDEF_VERSION:
+          if (fields->version.str) // see init_from_sql_statement_string()
+          {
+            if (length != fields->version.length)
+              DBUG_RETURN(true);
+          }
+          else
+          {
+            fields->version.str= extra2;
+            fields->version.length= length;
+          }
+          break;
+        case EXTRA2_ENGINE_TABLEOPTS:
+          if (fields->options.str)
+            DBUG_RETURN(true);
+          fields->options.str= extra2;
+          fields->options.length= length;
+          break;
+        case EXTRA2_DEFAULT_PART_ENGINE:
+          fields->engine.set((char*)extra2, length);
+          break;
+        case EXTRA2_GIS:
+#ifdef HAVE_SPATIAL
+          if (fields->gis.str)
+            DBUG_RETURN(true);
+          fields->gis.str= extra2;
+          fields->gis.length= length;
+#endif /*HAVE_SPATIAL*/
+          break;
+        case EXTRA2_PERIOD_FOR_SYSTEM_TIME:
+          if (fields->system_period || length != 2 * sizeof(uint16))
+            DBUG_RETURN(true);
+          fields->system_period = extra2;
+          break;
+        case EXTRA2_FIELD_FLAGS:
+          if (fields->field_flags.str)
+            DBUG_RETURN(true);
+          fields->field_flags.str= extra2;
+          fields->field_flags.length= length;
+          break;
+        default:
+          /* abort frm parsing if it's an unknown but important extra2 value */
+          if (type >= EXTRA2_ENGINE_IMPORTANT)
+            DBUG_RETURN(true);
+      }
+      extra2+= length;
+    }
+    if (extra2 != e2end)
+      DBUG_RETURN(true);
+  }
+  DBUG_RETURN(false);
+}

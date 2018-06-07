@@ -3639,7 +3639,7 @@ bool Rdb_validate_tbls::check_frm_file(const std::string &fullpath,
   char eng_type_buf[NAME_CHAR_LEN+1];
   LEX_CSTRING eng_type_str = {eng_type_buf, 0}; 
   bool is_sequence;
-  enum Table_type type = dd_frm_type(nullptr, fullfilename.c_ptr(), &eng_type_str, &is_sequence);
+  enum Table_type type = dd_frm_type(nullptr, fullfilename.c_ptr(), &eng_type_str, &is_sequence, NULL);
   if (type == TABLE_TYPE_UNKNOWN) {
     sql_print_warning("RocksDB: Failed to open/read .from file: %s",
                       fullfilename.ptr());

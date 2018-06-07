@@ -7921,3 +7921,6 @@ ER_KEY_DOESNT_SUPPORT
         eng "%s index %`s does not support this operation"
 ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD
 	eng "Changing table options requires the table to be rebuilt"
+
+ER_TRUNCATE_ILLEGAL_VERS
+        eng "Cannot truncate a versioned table"

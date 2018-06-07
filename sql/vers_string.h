@@ -63,6 +63,11 @@ class Lex_cstring : public LEX_CSTRING
     str= _str;
     length= _len;
   }
+  LEX_CUSTRING as_custring() const
+  {
+    LEX_CUSTRING res= { (const uchar *)str, length };
+    return res;
+  }
 };
 
 template <class Compare>

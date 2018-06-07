@@ -958,7 +958,7 @@ bool Column_definition_attributes::frm_unpack_charset(TABLE_SHARE *share,
       csname= tmp;
     }
     my_printf_error(ER_UNKNOWN_COLLATION,
-                    "Unknown collation '%s' in table '%-.64s' definition", 
+                    "Unknown collation '%s' in table '%-.64s' definition",
                     MYF(0), csname, share->table_name.str);
     return true;
   }
@@ -1256,7 +1256,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint i;
   bool use_hash, mysql57_null_bits= 0;
   char *keynames, *names, *comment_pos;
-  const uchar *forminfo, *extra2;
+  const uchar *forminfo;
   const uchar *frm_image_end = frm_image + frm_length;
   uchar *record, *null_flags, *null_pos, *UNINIT_VAR(mysql57_vcol_null_pos);
   const uchar *disk_buff, *strpos;
@@ -1271,21 +1271,18 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   my_bitmap_map *bitmaps;
   bool null_bits_are_used;
   uint vcol_screen_length;
-  size_t UNINIT_VAR(options_len);
   uchar *vcol_screen_pos;
-  const uchar *options= 0;
-  LEX_CUSTRING gis_options= { NULL, 0};
+  LEX_CUSTRING options;
   KEY first_keyinfo;
   uint len;
   uint ext_key_parts= 0;
   plugin_ref se_plugin= 0;
-  const uchar *system_period= 0;
   bool vers_can_native= false;
-  const uchar *extra2_field_flags= 0;
-  size_t extra2_field_flags_length= 0;
 
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
+  extra2_fields extra2;
+
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
 
   keyinfo= &first_keyinfo;
@@ -1314,90 +1311,25 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   /* Length of the MariaDB extra2 segment in the form file. */
   len = uint2korr(frm_image+4);
-  extra2= frm_image + 64;
 
-  if (*extra2 != '/')   // old frm had '/' there
-  {
-    const uchar *e2end= extra2 + len;
-    while (extra2 + 3 <= e2end)
-    {
-      uchar type= *extra2++;
-      size_t length= *extra2++;
-      if (!length)
-      {
-        if (extra2 + 2 >= e2end)
-          goto err;
-        length= uint2korr(extra2);
-        extra2+= 2;
-        if (length < 256)
-          goto err;
-      }
-      if (extra2 + length > e2end)
-        goto err;
-      switch (type) {
-      case EXTRA2_TABLEDEF_VERSION:
-        if (tabledef_version.str) // see init_from_sql_statement_string()
-        {
-          if (length != tabledef_version.length ||
-              memcmp(extra2, tabledef_version.str, length))
-            goto err;
-        }
-        else
-        {
-          tabledef_version.length= length;
-          tabledef_version.str= (uchar*)memdup_root(&mem_root, extra2, length);
-          if (!tabledef_version.str)
-            goto err;
-        }
-        break;
-      case EXTRA2_ENGINE_TABLEOPTS:
-        if (options)
-          goto err;
-        /* remember but delay parsing until we have read fields and keys */
-        options= extra2;
-        options_len= length;
-        break;
-      case EXTRA2_DEFAULT_PART_ENGINE:
+  dd_read_extra2(frm_image, len, &extra2);
+  tabledef_version.length= extra2.version.length;
+  tabledef_version.str= (uchar*)memdup_root(&mem_root, extra2.version.str,
+                                                       extra2.version.length);
+  if (!tabledef_version.str)
+    goto err;
+
+  /* remember but delay parsing until we have read fields and keys */
+  options= extra2.options;
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-        {
-          LEX_CSTRING name= { (char*)extra2, length };
-          share->default_part_plugin= ha_resolve_by_name(NULL, &name, false);
-          if (!share->default_part_plugin)
-            goto err;
-        }
-#endif
-        break;
-      case EXTRA2_GIS:
-#ifdef HAVE_SPATIAL
-        {
-          if (gis_options.str)
-            goto err;
-          gis_options.str= extra2;
-          gis_options.length= length;
-        }
-#endif /*HAVE_SPATIAL*/
-        break;
-      case EXTRA2_PERIOD_FOR_SYSTEM_TIME:
-        if (system_period || length != 2 * sizeof(uint16))
-          goto err;
-        system_period = extra2;
-        break;
-      case EXTRA2_FIELD_FLAGS:
-        if (extra2_field_flags)
-          goto err;
-        extra2_field_flags= extra2;
-        extra2_field_flags_length= length;
-        break;
-      default:
-        /* abort frm parsing if it's an unknown but important extra2 value */
-        if (type >= EXTRA2_ENGINE_IMPORTANT)
-          goto err;
-      }
-      extra2+= length;
-    }
-    if (extra2 != e2end)
+  if (extra2.engine)
+  {
+    share->default_part_plugin= ha_resolve_by_name(NULL, &extra2.engine, false);
+    if (!share->default_part_plugin)
       goto err;
   }
+#endif
 
   if (frm_length < FRM_HEADER_SIZE + len ||
       !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + len)))
@@ -1674,11 +1606,11 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     if (share->db_create_options & HA_OPTION_TEXT_CREATE_OPTIONS_legacy)
     {
-      if (options)
+      if (options.str)
         goto err;
-      options_len= uint4korr(next_chunk);
-      options= next_chunk + 4;
-      next_chunk+= options_len + 4;
+      options.length= uint4korr(next_chunk);
+      options.str= next_chunk + 4;
+      next_chunk+= options.length + 4;
     }
     DBUG_ASSERT(next_chunk <= buff_end);
   }
@@ -1706,7 +1638,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   disk_buff= frm_image + pos + FRM_FORMINFO_SIZE;
   share->fields= uint2korr(forminfo+258);
-  if (extra2_field_flags && extra2_field_flags_length != share->fields)
+  if (extra2.field_flags.str && extra2.field_flags.length != share->fields)
     goto err;
   pos= uint2korr(forminfo+260);   /* Length of all screens */
   n_length= uint2korr(forminfo+268);
@@ -1841,7 +1773,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
 
   /* Set system versioning information. */
-  if (system_period == NULL)
+  if (extra2.system_period == NULL)
   {
     versioned= VERS_UNDEFINED;
     row_start_field= 0;
@@ -1850,8 +1782,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   else
   {
     DBUG_PRINT("info", ("Setting system versioning informations"));
-    uint16 row_start= uint2korr(system_period);
-    uint16 row_end= uint2korr(system_period + sizeof(uint16));
+    uint16 row_start= uint2korr(extra2.system_period);
+    uint16 row_end= uint2korr(extra2.system_period + sizeof(uint16));
     if (row_start >= share->fields || row_end >= share->fields)
       goto err;
     DBUG_PRINT("info", ("Columns with system versioning: [%d, %d]", row_start, row_end));
@@ -1943,7 +1875,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           goto err; // Not supported field type
         if (handler->Column_definition_attributes_frm_unpack(&attr, share,
                                                              strpos,
-                                                             &gis_options))
+                                                             &extra2.gis))
           goto err;
       }
 
@@ -2105,9 +2037,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     reg_field->comment=comment;
     reg_field->vcol_info= vcol_info;
     reg_field->flags|= flags;
-    if (extra2_field_flags)
+    if (extra2.field_flags.str)
     {
-      uchar flags= *extra2_field_flags++;
+      uchar flags= *extra2.field_flags.str++;
       if (flags & VERS_OPTIMIZED_UPDATE)
         reg_field->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
 
@@ -2614,10 +2546,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
               (uint) (share->table_check_constraints -
                       share->field_check_constraints));
 
-  if (options)
+  if (options.str)
   {
-    DBUG_ASSERT(options_len);
-    if (engine_table_options_frm_read(options, options_len, share))
+    DBUG_ASSERT(options.length);
+    if (engine_table_options_frm_read(options.str, options.length, share))
       goto err;
   }
   if (parse_engine_table_options(thd, handler_file->partition_ht(), share))
