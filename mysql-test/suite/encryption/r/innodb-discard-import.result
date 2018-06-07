@@ -1,5 +1,8 @@
 call mtr.add_suppression("InnoDB: Tablespace for table .* is set as discarded.");
 call mtr.add_suppression("InnoDB: Cannot calculate statistics for table .* because the .ibd file is missing. Please refer to .* for how to resolve the issue.");
+SET @innodb_file_format_orig = @@GLOBAL.innodb_file_format;
+SET @innodb_file_per_table_orig = @@GLOBAL.innodb_file_per_table;
+SET @innodb_compression_algo = @@GLOBAL.innodb_compression_algorithm;
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
 SET GLOBAL innodb_compression_algorithm = 1;
@@ -134,3 +137,6 @@ NOT FOUND /tmpres/ in t3.ibd
 NOT FOUND /mysql/ in t4.ibd
 DROP PROCEDURE innodb_insert_proc;
 DROP TABLE t1,t2,t3,t4;
+SET GLOBAL innodb_file_format = @innodb_file_format_orig;
+SET GLOBAL innodb_file_per_table = @innodb_file_per_table_orig;
+SET GLOBAL innodb_compression_algorithm = @innodb_compression_algo;
