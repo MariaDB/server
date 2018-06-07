@@ -172,7 +172,6 @@ typedef struct xb_filter_entry_struct	xb_filter_entry_t;
 lsn_t checkpoint_lsn_start;
 lsn_t checkpoint_no_start;
 static lsn_t log_copy_scanned_lsn;
-static bool log_copying;
 static bool log_copying_running;
 static bool io_watching_thread_running;
 
@@ -2452,25 +2451,12 @@ skip:
 	return(FALSE);
 }
 
-/** How to copy a redo log segment in backup */
-enum copy_logfile {
-	/** Initial copying: copy at least one block */
-	COPY_FIRST,
-	/** Tracking while copying data files */
-	COPY_ONLINE,
-	/** Final copying: copy until the end of the log */
-	COPY_LAST
-};
-
 /** Copy redo log blocks to the data sink.
-@param[in]	copy		how to copy the log
-@param[in]	start_lsn	buffer start LSN
-@param[in]	end_lsn		buffer end LSN
-@return	last scanned LSN (equals to last copied LSN if copy=COPY_LAST)
+@param start_lsn	buffer start LSN
+@param end_lsn		buffer end LSN
+@return	last scanned LSN
 @retval	0	on failure */
-static
-lsn_t
-xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
+static lsn_t xtrabackup_copy_log(lsn_t start_lsn, lsn_t end_lsn)
 {
 	lsn_t	scanned_lsn	= start_lsn;
 	const byte* log_block = log_sys->buf;
@@ -2485,6 +2471,9 @@ xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
 		    && scanned_checkpoint - checkpoint >= 0x80000000UL) {
 			/* Garbage from a log buffer flush which was made
 			before the most recent database recovery */
+			msg("mariabackup: checkpoint wrap: "
+			    LSN_PF ",%zx,%zx\n",
+			    scanned_lsn, scanned_checkpoint, checkpoint);
 			break;
 		}
 
@@ -2505,6 +2494,8 @@ xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
 			   >= OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE
 			   || data_len <= LOG_BLOCK_HDR_SIZE) {
 			/* We got a garbage block (abrupt end of the log). */
+			msg("mariabackup: garbage block: " LSN_PF ",%zu\n",
+			    scanned_lsn, data_len);
 			break;
 		} else {
 			/* We got a partial block (abrupt end of the log). */
@@ -2524,7 +2515,7 @@ xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
 
 	log_sys->log.scanned_lsn = scanned_lsn;
 
-	end_lsn = copy == COPY_LAST
+	end_lsn = metadata_to_lsn
 		? ut_uint64_align_up(scanned_lsn, OS_FILE_LOG_BLOCK_SIZE)
 		: scanned_lsn & ~lsn_t(OS_FILE_LOG_BLOCK_SIZE - 1);
 
@@ -2544,10 +2535,8 @@ xtrabackup_copy_log(copy_logfile copy, lsn_t start_lsn, lsn_t end_lsn)
 }
 
 /** Copy redo log until the current end of the log is reached
-@param copy	how to copy the log
 @return	whether the operation failed */
-static bool
-xtrabackup_copy_logfile(copy_logfile copy)
+static bool xtrabackup_copy_logfile()
 {
 	ut_a(dst_log_file != NULL);
 	ut_ad(recv_sys != NULL);
@@ -2560,33 +2549,29 @@ xtrabackup_copy_logfile(copy_logfile copy)
 
 	start_lsn = ut_uint64_align_down(log_copy_scanned_lsn,
 					 OS_FILE_LOG_BLOCK_SIZE);
-	/* When copying the first or last part of the log, retry a few
-	times to ensure that all log up to the last checkpoint will be
-	read. */
 	do {
 		end_lsn = start_lsn + RECV_SCAN_SIZE;
 
 		xtrabackup_io_throttling();
 
 		log_mutex_enter();
-
 		lsn_t lsn= start_lsn;
-		for(int retries= 0; retries < 100; retries++) {
+		for (int retries= 0; retries < 100; retries++) {
 			if (log_group_read_log_seg(log_sys->buf, &log_sys->log,
-				&lsn, end_lsn)){
+						   &lsn, end_lsn)
+			    || lsn != start_lsn) {
 				break;
 			}
-			msg("Retrying read of a redo log block");
+			msg("Retrying read of log at LSN=" LSN_PF "\n", lsn);
 			my_sleep(1000);
 		}
 
-		start_lsn = xtrabackup_copy_log(copy, start_lsn, lsn);
+		start_lsn = (lsn == start_lsn)
+			? 0 : xtrabackup_copy_log(start_lsn, lsn);
 
 		log_mutex_exit();
 
 		if (!start_lsn) {
-			ds_close(dst_log_file);
-			dst_log_file = NULL;
 			msg("mariabackup: Error: xtrabackup_copy_logfile()"
 			    " failed.\n");
 			return(true);
@@ -2612,12 +2597,23 @@ static os_thread_ret_t log_copying_thread(void*)
 	*/
 	my_thread_init();
 
-	do {
+	for (;;) {
 		os_event_reset(log_copying_stop);
 		os_event_wait_time_low(log_copying_stop,
 				       xtrabackup_log_copy_interval * 1000ULL,
 				       0);
-	} while (log_copying && xtrabackup_copy_logfile(COPY_ONLINE));
+		if (xtrabackup_copy_logfile()) {
+			break;
+		}
+
+		log_mutex_enter();
+		bool completed = metadata_to_lsn
+			&& metadata_to_lsn < log_copy_scanned_lsn;
+		log_mutex_exit();
+		if (completed) {
+			break;
+		}
+	}
 
 	log_copying_running = false;
 	my_thread_end();
@@ -2632,7 +2628,7 @@ static os_thread_ret_t io_watching_thread(void*)
 	/* currently, for --backup only */
 	ut_a(xtrabackup_backup);
 
-	while (log_copying) {
+	while (log_copying_running && !metadata_to_lsn) {
 		os_thread_sleep(1000000); /*1 sec*/
 		io_ticket = xtrabackup_throttle;
 		os_event_set(wait_throttle);
@@ -3662,16 +3658,16 @@ end:
 
 static void stop_backup_threads()
 {
-	log_copying = false;
-
-	if (log_copying_stop) {
+	if (log_copying_stop && log_copying_running) {
 		os_event_set(log_copying_stop);
-		msg("mariabackup: Stopping log copying thread.\n");
+		fputs("mariabackup: Stopping log copying thread", stderr);
+		fflush(stderr);
 		while (log_copying_running) {
-			msg(".");
+			putc('.', stderr);
+			fflush(stderr);
 			os_thread_sleep(200000); /*0.2 sec*/
 		}
-		msg("\n");
+		putc('\n', stderr);
 		os_event_destroy(log_copying_stop);
 	}
 
@@ -3686,10 +3682,10 @@ static void stop_backup_threads()
 
 /** Implement the core of --backup
 @return	whether the operation succeeded */
-static
-bool
-xtrabackup_backup_low()
+static bool xtrabackup_backup_low()
 {
+	ut_ad(!metadata_to_lsn);
+
 	/* read the latest checkpoint lsn */
 	{
 		ulint	max_cp_field;
@@ -3698,13 +3694,16 @@ xtrabackup_backup_low()
 
 		if (recv_find_max_checkpoint(&max_cp_field) == DB_SUCCESS
 		    && log_sys->log.format != 0) {
+			if (max_cp_field == LOG_CHECKPOINT_1) {
+				log_group_header_read(&log_sys->log,
+						      max_cp_field);
+			}
 			metadata_to_lsn = mach_read_from_8(
 				log_sys->checkpoint_buf + LOG_CHECKPOINT_LSN);
 			msg("mariabackup: The latest check point"
 			    " (for incremental): '" LSN_PF "'\n",
 			    metadata_to_lsn);
 		} else {
-			metadata_to_lsn = 0;
 			msg("mariabackup: Error: recv_find_max_checkpoint() failed.\n");
 		}
 		log_mutex_exit();
@@ -3712,11 +3711,7 @@ xtrabackup_backup_low()
 
 	stop_backup_threads();
 
-	if (!dst_log_file || xtrabackup_copy_logfile(COPY_LAST)) {
-		return false;
-	}
-
-	if (ds_close(dst_log_file)) {
+	if (ds_close(dst_log_file) || !metadata_to_lsn) {
 		dst_log_file = NULL;
 		return false;
 	}
@@ -3795,6 +3790,7 @@ xtrabackup_backup_func()
 	srv_read_only_mode = TRUE;
 
 	srv_operation = SRV_OPERATION_BACKUP;
+	metadata_to_lsn = 0;
 
 	if (xb_close_files)
 		msg("mariabackup: warning: close-files specified. Use it "
@@ -3805,7 +3801,12 @@ xtrabackup_backup_func()
 	/* initialize components */
         if(innodb_init_param()) {
 fail:
+		metadata_to_lsn = log_copying_running;
 		stop_backup_threads();
+		if (dst_log_file) {
+			ds_close(dst_log_file);
+			dst_log_file = NULL;
+		}
 		if (fil_system) {
 			innodb_shutdown();
 		}
@@ -3813,7 +3814,6 @@ fail:
 	}
 
 	xb_normalize_init_values();
-
 
 	if (srv_file_flush_method_str == NULL) {
 		/* These are the default options */
@@ -4058,9 +4058,7 @@ reread_log_header:
 		goto log_write_fail;
 	}
 
-	/* start flag */
-	log_copying = TRUE;
-
+	log_copying_running = true;
 	/* start io throttle */
 	if(xtrabackup_throttle) {
 		os_thread_id_t io_watching_thread_id;
@@ -4078,6 +4076,8 @@ reread_log_header:
 	if (err != DB_SUCCESS) {
 		msg("mariabackup: error: xb_load_tablespaces() failed with"
 		    " error %s.\n", ut_strerr(err));
+fail_before_log_copying_thread_start:
+		log_copying_running = false;
 		goto fail;
 	}
 
@@ -4085,11 +4085,10 @@ reread_log_header:
 	log_copy_scanned_lsn = checkpoint_lsn_start;
 	recv_sys->recovered_lsn = log_copy_scanned_lsn;
 
-	if (xtrabackup_copy_logfile(COPY_FIRST))
-		goto fail;
+	if (xtrabackup_copy_logfile())
+		goto fail_before_log_copying_thread_start;
 
 	log_copying_stop = os_event_create(0);
-	log_copying_running = true;
 	os_thread_create(log_copying_thread, NULL, &log_copying_thread_id);
 
 	/* FLUSH CHANGED_PAGE_BITMAPS call */
