@@ -2567,3 +2567,25 @@ let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/bug11505.sql;
 let SEARCH_PATTERN=Database: mysql;
 exec $MYSQL_DUMP mysql func  > $SEARCH_FILE;
 source include/search_pattern_in_file.inc;
+
+--echo #
+--echo # MDEV-15021: mysqldump --tables --routines generates non importable
+--echo #             dump file
+--echo #
+--echo # Check the order in which routines are written in the dump. Routines
+--echo # need to be printed before views, in case views make use of them.
+--echo #
+use test;
+CREATE FUNCTION f() RETURNS INT RETURN 1;
+CREATE VIEW v1 AS SELECT f();
+ 
+--exec $MYSQL_DUMP -uroot test --routines --tables v1 > $MYSQLTEST_VARDIR/test.dmp
+ 
+DROP VIEW v1;
+DROP FUNCTION f;
+ 
+--exec $MYSQL -uroot test < $MYSQLTEST_VARDIR/test.dmp
+ 
+--echo # Cleanup
+DROP VIEW v1;
+DROP FUNCTION f;
