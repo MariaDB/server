@@ -56,9 +56,7 @@ extern xb_page_bitmap *changed_page_bitmap;
 extern char		*xtrabackup_incremental;
 extern my_bool		xtrabackup_incremental_force_scan;
 
-extern lsn_t		metadata_from_lsn;
 extern lsn_t		metadata_to_lsn;
-extern lsn_t		metadata_last_lsn;
 
 extern xb_stream_fmt_t	xtrabackup_stream_fmt;
 extern ibool		xtrabackup_stream;

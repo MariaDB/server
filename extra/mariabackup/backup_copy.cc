@@ -1205,6 +1205,7 @@ cleanup:
 
 
 
+static
 bool
 backup_files(const char *from, bool prep_mode)
 {

@@ -202,9 +202,9 @@ my_bool opt_ssl_verify_server_cert;
 /* === metadata of backup === */
 #define XTRABACKUP_METADATA_FILENAME "xtrabackup_checkpoints"
 char metadata_type[30] = ""; /*[full-backuped|log-applied|incremental]*/
-lsn_t metadata_from_lsn;
+static lsn_t metadata_from_lsn;
 lsn_t metadata_to_lsn;
-lsn_t metadata_last_lsn;
+static lsn_t metadata_last_lsn;
 
 static ds_file_t*	dst_log_file;
 
