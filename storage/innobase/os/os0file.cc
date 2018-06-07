@@ -3844,7 +3844,8 @@ os_file_create_simple_func(
 		/* Use default security attributes and no template file. */
 
 		file = CreateFile(
-			(LPCTSTR) name, access, FILE_SHARE_READ, NULL,
+			(LPCTSTR) name, access,
+			FILE_SHARE_READ | FILE_SHARE_DELETE, NULL,
 			create_flag, attributes, NULL);
 
 		if (file == INVALID_HANDLE_VALUE) {
@@ -4088,7 +4089,7 @@ os_file_create_func(
 	DWORD		create_flag;
 	DWORD		share_mode = srv_operation != SRV_OPERATION_NORMAL
 		? FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
-		: FILE_SHARE_READ;
+		: FILE_SHARE_READ | FILE_SHARE_DELETE;
 
 	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
 		WAIT_ALLOW_WRITES();
@@ -4294,7 +4295,7 @@ os_file_create_simple_no_error_handling_func(
 	DWORD		attributes	= 0;
 	DWORD		share_mode = srv_operation != SRV_OPERATION_NORMAL
 		? FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
-		: FILE_SHARE_READ;
+		: FILE_SHARE_READ | FILE_SHARE_DELETE;
 
 	ut_a(name);
 

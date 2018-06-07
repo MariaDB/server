@@ -1106,7 +1106,7 @@ fil_mutex_enter_and_prepare_for_io(
 /*===============================*/
 	ulint	space_id)	/*!< in: space id */
 {
-	for (ulint count = 0, count2 = 0;;) {
+	for (ulint count = 0;;) {
 		mutex_enter(&fil_system.mutex);
 
 		if (space_id >= SRV_LOG_SPACE_FIRST_ID) {
@@ -1118,41 +1118,6 @@ fil_mutex_enter_and_prepare_for_io(
 
 		if (space == NULL) {
 			break;
-		}
-
-		if (space->stop_ios) {
-			ut_ad(space->id != 0);
-			/* We are going to do a rename file and want to stop
-			new i/o's for a while. */
-
-			if (count2 > 20000) {
-				ib::warn() << "Tablespace " << space->name
-					<< " has i/o ops stopped for a long"
-					" time " << count2;
-			}
-
-			mutex_exit(&fil_system.mutex);
-
-			/* Wake the i/o-handler threads to make sure pending
-			i/o's are performed */
-			os_aio_simulated_wake_handler_threads();
-
-			/* The sleep here is just to give IO helper threads a
-			bit of time to do some work. It is not required that
-			all IO related to the tablespace being renamed must
-			be flushed here as we do fil_flush() in
-			fil_rename_tablespace() as well. */
-			os_thread_sleep(20000);
-
-			/* Flush tablespaces so that we can close modified
-			files in the LRU list */
-			fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
-
-			os_thread_sleep(20000);
-
-			count2++;
-
-			continue;
 		}
 
 		fil_node_t*	node = UT_LIST_GET_LAST(space->chain);
@@ -3027,86 +2992,33 @@ fil_rename_tablespace(
 	const char*	new_name,
 	const char*	new_path_in)
 {
-	bool		sleep		= false;
-	bool		flush		= false;
 	fil_space_t*	space;
 	fil_node_t*	node;
-	ulint		count		= 0;
 	ut_a(id != 0);
 
 	ut_ad(strchr(new_name, '/') != NULL);
-retry:
-	count++;
-
-	if (!(count % 1000)) {
-		ib::warn() << "Cannot rename file " << old_path
-			<< " (space id " << id << "), retried " << count
-			<< " times."
-			" There are either pending IOs or flushes or"
-			" the file is being extended.";
-	}
 
 	mutex_enter(&fil_system.mutex);
 
 	space = fil_space_get_by_id(id);
-
-	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_1", space = NULL; );
 
 	if (space == NULL) {
 		ib::error() << "Cannot find space id " << id
 			<< " in the tablespace memory cache, though the file '"
 			<< old_path
 			<< "' in a rename operation should have that id.";
-func_exit:
 		mutex_exit(&fil_system.mutex);
 		return(false);
 	}
-
-	if (count > 25000) {
-		space->stop_ios = false;
-		goto func_exit;
-	}
-
-	/* We temporarily close the .ibd file because we do not trust that
-	operating systems can rename an open file. For the closing we have to
-	wait until there are no pending i/o's or flushes on the file. */
-
-	space->stop_ios = true;
 
 	/* The following code must change when InnoDB supports
 	multiple datafiles per tablespace. */
 	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
 	node = UT_LIST_GET_FIRST(space->chain);
-
-	if (node->n_pending > 0
-	    || node->n_pending_flushes > 0
-	    || node->being_extended) {
-		/* There are pending i/o's or flushes or the file is
-		currently being extended, sleep for a while and
-		retry */
-		sleep = true;
-	} else if (node->modification_counter > node->flush_counter) {
-		/* Flush the space */
-		sleep = flush = true;
-	} else if (node->is_open()) {
-		/* Close the file */
-
-		fil_node_close_file(node);
-	}
+	space->n_pending_ops++;
 
 	mutex_exit(&fil_system.mutex);
 
-	if (sleep) {
-		os_thread_sleep(20000);
-
-		if (flush) {
-			fil_flush(id);
-		}
-
-		sleep = flush = false;
-		goto retry;
-	}
-	ut_ad(space->stop_ios);
 	char*	new_file_name = new_path_in == NULL
 		? fil_make_filepath(NULL, new_name, IBD, false)
 		: mem_strdup(new_path_in);
@@ -3125,19 +3037,13 @@ func_exit:
 	/* log_sys.mutex is above fil_system.mutex in the latching order */
 	ut_ad(log_mutex_own());
 	mutex_enter(&fil_system.mutex);
+	ut_ad(space->n_pending_ops);
+	space->n_pending_ops--;
 	ut_ad(space->name == old_space_name);
 	ut_ad(node->name == old_file_name);
 
-	bool	success;
-
-	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
-			goto skip_rename; );
-
-	success = os_file_rename(
+	bool	success = os_file_rename(
 		innodb_data_file_key, old_file_name, new_file_name);
-
-	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
-			skip_rename: success = false; );
 
 	ut_ad(node->name == old_file_name);
 
@@ -3159,8 +3065,6 @@ func_exit:
 		old_space_name = new_space_name;
 	}
 
-	ut_ad(space->stop_ios);
-	space->stop_ios = false;
 	mutex_exit(&fil_system.mutex);
 
 	ut_free(old_file_name);

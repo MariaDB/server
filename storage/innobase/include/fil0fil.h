@@ -85,10 +85,6 @@ struct fil_space_t {
 				Protected by log_sys.mutex.
 				If and only if this is nonzero, the
 				tablespace will be in named_spaces. */
-	bool		stop_ios;/*!< true if we want to rename the
-				.ibd file of tablespace and want to
-				stop temporarily posting of new i/o
-				requests on the file */
 	bool		stop_new_ops;
 				/*!< we set this true when we start
 				deleting a single-table tablespace.
