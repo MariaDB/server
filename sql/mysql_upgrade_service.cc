@@ -468,7 +468,7 @@ int main(int argc, char **argv)
   log("Phase 3/8: Starting mysqld for upgrade");
   mysqld_process= (HANDLE)run_tool(P_NOWAIT, mysqld_path,
     defaults_file_param, "--skip-networking",  "--skip-grant-tables", 
-    "--enable-named-pipe",  socket_param, NULL);
+    "--enable-named-pipe",  socket_param,"--skip-slave-start", NULL);
 
   if (mysqld_process == INVALID_HANDLE_VALUE)
   {
