@@ -3639,12 +3639,15 @@ void handler::print_error(int error, myf errflag)
     if ((debug_assert_if_crashed_table ||
                       global_system_variables.log_warnings > 1))
     {
+      THD *thd= ha_thd();
       /*
         Log error to log before we crash or if extended warnings are requested
       */
       errflag|= ME_NOREFRESH;
+      if (thd && thd->is_optimistic_slave_worker())
+        errflag|= ME_LOG_AS_WARN;
     }
-  }    
+  }
 
   /* if we got an OS error from a file-based engine, specify a path of error */
   if (error < HA_ERR_FIRST && bas_ext()[0])

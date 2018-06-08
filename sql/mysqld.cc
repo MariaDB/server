@@ -3517,6 +3517,16 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
     level= Sql_condition::WARN_LEVEL_WARN;
     func= sql_print_warning;
   }
+  else if (MyFlags & ME_LOG_AS_WARN)
+  {
+    /*
+      Typical use case is optimistic parallel slave where DA needs to hold
+      an error condition caused by the current error, but the error-log
+      level is relaxed to the warning one.
+    */
+    level= Sql_condition::WARN_LEVEL_ERROR;
+    func= sql_print_warning;
+  }
   else
   {
     level= Sql_condition::WARN_LEVEL_ERROR;

@@ -112,6 +112,7 @@ typedef struct my_aio_result {
 #define ME_JUST_INFO    1024    /**< not error but just info */
 #define ME_JUST_WARNING 2048    /**< not error but just warning */
 #define ME_FATALERROR   4096    /* Fatal statement error */
+#define ME_LOG_AS_WARN  8192    /* is error but error-logged as warning */
 
 	/* Bits in last argument to fn_format */
 #define MY_REPLACE_DIR		1	/* replace dir in name with 'dir' */

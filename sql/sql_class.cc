@@ -7100,6 +7100,13 @@ bool THD::rgi_have_temporary_tables()
   return rgi_slave->rli->save_temporary_tables != 0;
 }
 
+bool THD::is_optimistic_slave_worker()
+{
+  DBUG_ASSERT(system_thread != SYSTEM_THREAD_SLAVE_SQL || rgi_slave);
+
+  return system_thread == SYSTEM_THREAD_SLAVE_SQL && rgi_slave &&
+    rgi_slave->speculation == rpl_group_info::SPECULATE_OPTIMISTIC;
+}
 
 void
 wait_for_commit::reinit()
