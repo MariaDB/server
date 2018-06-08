@@ -28,9 +28,9 @@ ${SSL_INTERNAL_INCLUDE_DIRS}
 )
 
 SET(GEN_SOURCES
-${CMAKE_BINARY_DIR}/sql/sql_yacc.h 
+${CMAKE_BINARY_DIR}/sql/sql_yacc.hh 
 ${CMAKE_BINARY_DIR}/sql/sql_yacc.cc
-${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.h
+${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.hh
 ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc
 ${CMAKE_BINARY_DIR}/sql/lex_hash.h 
 )

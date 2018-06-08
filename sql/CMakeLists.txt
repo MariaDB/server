@@ -45,23 +45,10 @@ ${CMAKE_BINARY_DIR}/sql
 ${WSREP_INCLUDES}
 )
 
-SET(GEN_SOURCES
-${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h 
-${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.h
-${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
-${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
-${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
-)
-
-SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES}
-                            PROPERTIES GENERATED 1)
 
 
-IF(NOT CMAKE_CROSSCOMPILING)
-  ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc
-    ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h)
-ENDIF()
+
+
 
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
@@ -151,7 +138,10 @@ SET (SQL_SOURCE
                table_cache.cc encryption.cc temporary_tables.cc
                proxy_protocol.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
-               ${GEN_SOURCES}
+               ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
+               ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
+               ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
+               ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${MYSYS_LIBWRAP_SOURCE}
 )
   
@@ -173,7 +163,6 @@ MYSQL_ADD_PLUGIN(sql_sequence ha_sequence.cc STORAGE_ENGINE MANDATORY STATIC_ONL
 RECOMPILE_FOR_EMBEDDED)
 
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
-ADD_DEPENDENCIES(sql GenServerSource)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
   mysys mysys_ssl dbug strings vio pcre
@@ -339,40 +328,48 @@ IF(WITH_MYSQLD_LDFLAGS)
      "${MYSQLD_LINK_FLAGS} ${WITH_MYSQLD_LDFLAGS}")
 ENDIF()
 
-INCLUDE(${CMAKE_SOURCE_DIR}/cmake/bison.cmake)
+
+FIND_PACKAGE(BISON 2.0)
+
 
 # Handle out-of-source build from source package with possibly broken 
 # bison. Copy bison output to from source to build directory, if not already 
 # there
-IF (NOT BISON_USABLE)
-IF (NOT ${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
-  IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.cc)
-    IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc)
-      CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.cc 
-        ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc COPYONLY)
-      CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.h
-        ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h COPYONLY)
+IF (NOT BISON_FOUND)
+  IF (NOT ${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
+    FOREACH(file sql_yacc.cc sql_yacc.hh sql_yacc_ora.cc sql_yacc_ora.hh)
+    IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${file} AND (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${file}))
+        CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}
+        ${CMAKE_CURRENT_BINARY_DIR}/${file} COPYONLY)
     ENDIF()
+    ENDFOREACH()
   ENDIF()
+
+  IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc)
+     # Output files are missing, bail out.
+      SET(ERRMSG
+         "Bison (GNU parser generator) is required to build MySQL."
+         "Please install bison."
+      )
+      IF(WIN32)
+       SET(ERRMSG ${ERRMSG}
+       "You can download bison from http://gnuwin32.sourceforge.net/packages/bison.htm "
+       "Choose 'Complete package, except sources' installation. We recommend to "
+       "install bison into a directory without spaces, e.g C:\\GnuWin32.")
+      ENDIF()
+      MESSAGE(FATAL_ERROR ${ERRMSG})
+  ENDIF()
+ELSE()
+  BISON_TARGET(gen_sql_yacc ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
+             COMPILE_FLAGS "-p MYSQL")
+
+  BISON_TARGET(gen_sql_yacc_ora ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc_ora.yy ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
+             COMPILE_FLAGS "-p ORA")
 ENDIF()
-ENDIF()
 
-RUN_BISON(
-  ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy 
-  ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-  ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.h
-  MYSQL
-)
-
-RUN_BISON(
-  ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc_ora.yy
-  ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
-  ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.h
-  ORA
-)
-
-# Gen_lex_hash
 IF(NOT CMAKE_CROSSCOMPILING)
+  ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc
+   ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.hh)
   ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
 ENDIF()
 
@@ -388,11 +385,11 @@ TARGET_LINK_LIBRARIES(mysql_tzinfo_to_sql mysys mysys_ssl)
 
 ADD_CUSTOM_TARGET( 
         GenServerSource
-        DEPENDS ${GEN_SOURCES}
+        DEPENDS
+        ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
+        ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
+        ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
 )
-
-#Need this only for embedded
-SET_TARGET_PROPERTIES(GenServerSource PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
 IF(WIN32 OR HAVE_DLOPEN AND NOT DISABLE_SHARED)
   ADD_LIBRARY(udf_example MODULE udf_example.c udf_example.def)
@@ -406,8 +403,8 @@ CONFIGURE_FILE(
 
 ADD_CUSTOM_TARGET(dist 
   COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/make_dist.cmake
-  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc.h
-  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.h
+  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc.hh
+  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.hh
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 

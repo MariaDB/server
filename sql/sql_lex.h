@@ -269,10 +269,10 @@ struct LEX_TYPE
 #else
 #include "lex_symbol.h"
 #ifdef MYSQL_LEX
-#include "item_func.h"            /* Cast_target used in sql_yacc.h */
-#include "sql_get_diagnostics.h"  /* Types used in sql_yacc.h */
+#include "item_func.h"            /* Cast_target used in sql_yacc.hh */
+#include "sql_get_diagnostics.h"  /* Types used in sql_yacc.hh */
 #include "sp_pcontext.h"
-#include "sql_yacc.h"
+#include "sql_yacc.hh"
 #define LEX_YYSTYPE YYSTYPE *
 #else
 #define LEX_YYSTYPE void *
