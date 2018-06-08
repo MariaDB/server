@@ -4940,5 +4940,29 @@ SELECT ST_SRID((SELECT MAX(a>3) FROM t1));
 ERROR HY000: Illegal parameter data type boolean for operation 'srid'
 DROP TABLE t1;
 #
+# Mixing GEOMETRY with HEX hybrid
+#
+SELECT 0x60=POINT(1,1), POINT(1,1)=0x60;
+0x60=POINT(1,1)	POINT(1,1)=0x60
+0	0
+CREATE TABLE t1 AS SELECT
+COALESCE(0x60,POINT(1,1)),
+COALESCE(POINT(1,1),0x60),
+LEAST(0x60,POINT(1,1)),
+LEAST(POINT(1,1),0x60);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `COALESCE(0x60,POINT(1,1))` longblob DEFAULT NULL,
+  `COALESCE(POINT(1,1),0x60)` longblob DEFAULT NULL,
+  `LEAST(0x60,POINT(1,1))` longblob DEFAULT NULL,
+  `LEAST(POINT(1,1),0x60)` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SELECT 0x60+POINT(1,1);
+ERROR HY000: Illegal parameter data types bigint and geometry for operation '+'
+SELECT POINT(1,1)+0x60;
+ERROR HY000: Illegal parameter data types geometry and bigint for operation '+'
+#
 # End of 10.4 tests
 #

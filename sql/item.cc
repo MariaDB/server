@@ -3634,24 +3634,40 @@ longlong Item_field::val_int_endpoint(bool left_endp, bool *incl_endp)
 
 bool Item_basic_value::eq(const Item *item, bool binary_cmp) const
 {
-  const Item_basic_value *other= item->get_item_basic_value();
-  // Exclude CACHE_ITEM and VARBIN_ITEM
-  if (!other || type() != other->type())
-    return false;
-  const Type_handler *h= type_handler()->type_handler_for_comparison();
-  bool res= (h == other->type_handler()->type_handler_for_comparison()) &&
-            (binary_cmp ? h->Item_basic_value_bin_eq(this, other) :
-                          h->Item_basic_value_eq(this, other));
+  const Item_const *c0, *c1;
+  const Type_handler *h0, *h1;
+  /*
+    - Test get_item_const() for NULL filters out Item_param
+      bound in a way that needs a data type conversion
+      (e.g. non-integer value in a LIMIT clause).
+      Item_param::get_item_const() return NULL in such cases.
+    - Test for type_handler_for_comparison() equality makes sure
+      that values of different data type groups do not get detected
+      as equal (e.g. numbers vs strings, time vs datetime).
+    - Test for cast_to_int_type_handler() equality distinguishes
+      values with dual properties. For example, VARCHAR 'abc' and hex
+      hybrid 0x616263 are equal in string context, but they are not equal
+      if the hybrid appears in integer context (it behaves as integer then).
+      Here we have no full information about the context, so treat them
+      as not equal.
+      QQ: We could pass Value_source::Context here instead of
+      "bool binary_cmp", to make substitution more delicate.
+      See Field::get_equal_const_item().
+  */
+  bool res= (c0= get_item_const()) &&
+            (c1= item->get_item_const()) &&
+            (h0= type_handler())->type_handler_for_comparison() ==
+            (h1= item->type_handler())->type_handler_for_comparison() &&
+            h0->cast_to_int_type_handler()->type_handler_for_comparison() ==
+            h1->cast_to_int_type_handler()->type_handler_for_comparison() &&
+            h0->Item_const_eq(c0, c1, binary_cmp);
   DBUG_EXECUTE_IF("Item_basic_value",
                   push_warning_printf(current_thd,
                   Sql_condition::WARN_LEVEL_NOTE,
-                  ER_UNKNOWN_ERROR, "%seq=%d a=%s'%.*s' b=%s'%.*s'",
-                  binary_cmp ? "bin_" : "",
-                  (int) res,
-                  type_handler()->name().ptr(),
-                  (int) name.length, name.str,
-                  other->type_handler()->name().ptr(),
-                  (int) other->name.length, other->name.str
+                  ER_UNKNOWN_ERROR, "%seq=%d a=%s b=%s",
+                  binary_cmp ? "bin_" : "", (int) res,
+                  DbugStringItemTypeValue(current_thd, this).c_ptr(),
+                  DbugStringItemTypeValue(current_thd, item).c_ptr()
                   ););
   return res;
 }
@@ -3834,24 +3850,6 @@ void Item_decimal::print(String *str, enum_query_type query_type)
 {
   my_decimal2string(E_DEC_FATAL_ERROR, &decimal_value, 0, 0, 0, &str_value);
   str->append(str_value);
-}
-
-
-bool Item_decimal::eq(const Item *item, bool binary_cmp) const
-{
-  if (type() == item->type() && item->basic_const_item())
-  {
-    /*
-      We need to cast off const to call val_decimal(). This should
-      be OK for a basic constant. Additionally, we can pass 0 as
-      a true decimal constant will return its internal decimal
-      storage and ignore the argument.
-    */
-    Item *arg= (Item*) item;
-    my_decimal *value= arg->val_decimal(0);
-    return !my_decimal_cmp(&decimal_value, value);
-  }
-  return 0;
 }
 
 
@@ -7278,15 +7276,6 @@ Item_bin_string::Item_bin_string(THD *thd, const char *str, size_t str_length):
   collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
 }
 
-
-bool Item_temporal_literal::eq(const Item *item, bool binary_cmp) const
-{
-  return
-    item->basic_const_item() && type() == item->type() &&
-    field_type() == ((Item_temporal_literal *) item)->field_type() &&
-    !my_time_compare(&cached_time,
-                     &((Item_temporal_literal *) item)->cached_time);
-}
 
 void Item_date_literal::print(String *str, enum_query_type query_type)
 {

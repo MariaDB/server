@@ -225,3 +225,35 @@ DROP FUNCTION sint64;
 #
 # End of 10.3 tests
 #
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-11362 True condition elimination does not work for DECIMAL and temporal dynamic SQL parameters
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1+a<=>1+a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING 1,1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>1+a' USING 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1+a<=>?+a' USING 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
+DROP TABLE t1;
+#
+# End of 10.4 tests
+#

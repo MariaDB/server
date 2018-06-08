@@ -551,3 +551,24 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-11362 True condition elimination does not work for DECIMAL and temporal dynamic SQL parameters
+--echo #
+
+CREATE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (1),(2),(3);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1e0+a<=>1e0+a;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING 1e0,1e0;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>1e0+a' USING 1e0;
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1e0+a<=>?+a' USING 1e0;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

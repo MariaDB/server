@@ -30,7 +30,7 @@ class Field;
 class Column_definition;
 class Column_definition_attributes;
 class Item;
-class Item_basic_value;
+class Item_const;
 class Item_param;
 class Item_cache;
 class Item_func_or_sum;
@@ -1168,6 +1168,10 @@ public:
   {
     return this;
   }
+  virtual const Type_handler *type_handler_for_system_time() const
+  {
+    return this;
+  }
   virtual CHARSET_INFO *charset_for_protocol(const Item *item) const;
   virtual const Type_handler*
   type_handler_adjusted_to_max_octet_length(uint max_octet_length,
@@ -1391,15 +1395,10 @@ public:
     return NULL;
   }
   virtual bool set_comparator_func(Arg_comparator *cmp) const= 0;
-  virtual bool Item_basic_value_eq(const Item_basic_value *a,
-                                   const Item_basic_value *b) const
+  virtual bool Item_const_eq(const Item_const *a, const Item_const *b,
+                             bool binary_cmp) const
   {
     return false;
-  }
-  virtual bool Item_basic_value_bin_eq(const Item_basic_value *a,
-                                       const Item_basic_value *b) const
-  {
-    return Item_basic_value_eq(a, b);
   }
   virtual bool Item_hybrid_func_fix_attributes(THD *thd,
                                                const char *name,
@@ -1877,8 +1876,8 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
-  bool Item_basic_value_eq(const Item_basic_value *a,
-                           const Item_basic_value *b) const;
+  bool Item_const_eq(const Item_const *a, const Item_const *b,
+                     bool binary_cmp) const;
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_param_set_from_value(THD *thd,
@@ -1956,6 +1955,8 @@ public:
   uint32 max_display_length(const Item *item) const;
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
+  bool Item_const_eq(const Item_const *a, const Item_const *b,
+                     bool binary_cmp) const;
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   void Item_param_set_param_func(Item_param *param,
@@ -2158,8 +2159,8 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
-  bool Item_basic_value_eq(const Item_basic_value *a,
-                                   const Item_basic_value *b) const;
+  bool Item_const_eq(const Item_const *a, const Item_const *b,
+                     bool binary_cmp) const;
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_param_set_from_value(THD *thd,
@@ -2239,6 +2240,8 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  bool Item_const_eq(const Item_const *a, const Item_const *b,
+                     bool binary_cmp) const;
   bool Item_param_set_from_value(THD *thd,
                                  Item_param *param,
                                  const Type_all_attributes *attr,
@@ -2323,10 +2326,8 @@ public:
                                          const Schema_specification_st *schema)
                                          const;
   uint32 max_display_length(const Item *item) const;
-  bool Item_basic_value_eq(const Item_basic_value *a,
-                           const Item_basic_value *b) const;
-  bool Item_basic_value_bin_eq(const Item_basic_value *a,
-                               const Item_basic_value *b) const;
+  bool Item_const_eq(const Item_const *a, const Item_const *b,
+                     bool binary_cmp) const;
   uint Item_time_precision(Item *item) const
   {
     return Item_temporal_precision(item, true);
@@ -3315,13 +3316,8 @@ public:
   const Type_handler *type_handler_for_union(const Item *) const;
   uint32 max_display_length(const Item *item) const { return 0; }
   uint32 calc_pack_length(uint32 length) const { return 0; }
-  bool Item_basic_value_eq(const Item_basic_value *a,
-                           const Item_basic_value *b) const;
-  bool Item_basic_value_bin_eq(const Item_basic_value *a,
-                               const Item_basic_value *b) const
-  {
-    return Type_handler_null::Item_basic_value_eq(a, b);
-  }
+  bool Item_const_eq(const Item_const *a, const Item_const *b,
+                     bool binary_cmp) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
@@ -3465,6 +3461,17 @@ public:
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const;
   bool adjust_spparam_type(Spvar_definition *def, Item *from) const;
+};
+
+
+class Type_handler_hex_hybrid: public Type_handler_varchar
+{
+  static const Name m_name_hex_hybrid;
+public:
+  virtual ~Type_handler_hex_hybrid() {}
+  const Name name() const { return m_name_hex_hybrid; }
+  const Type_handler *cast_to_int_type_handler() const;
+  const Type_handler *type_handler_for_system_time() const;
 };
 
 
@@ -3871,6 +3878,7 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_set         type_handler_set;
 extern MYSQL_PLUGIN_IMPORT Type_handler_string      type_handler_string;
 extern MYSQL_PLUGIN_IMPORT Type_handler_var_string  type_handler_var_string;
 extern MYSQL_PLUGIN_IMPORT Type_handler_varchar     type_handler_varchar;
+extern MYSQL_PLUGIN_IMPORT Type_handler_hex_hybrid  type_handler_hex_hybrid;
 
 extern MYSQL_PLUGIN_IMPORT Type_handler_tiny_blob   type_handler_tiny_blob;
 extern MYSQL_PLUGIN_IMPORT Type_handler_medium_blob type_handler_medium_blob;

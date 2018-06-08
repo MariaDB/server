@@ -889,3 +889,78 @@ DROP TABLE t1;
 #
 # End of 10.3 tests
 #
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-11362 True condition elimination does not work for DECIMAL and temporal dynamic SQL parameters
+#
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2001-01-01'),('2001-01-02'),('2001-01-03');
+# Equal values
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(DATE'2001:01:01',a)<=>COALESCE(DATE'2001-01-01',a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(?,a)' USING DATE'2001-01-01',DATE'2001-01-01';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(DATE''2001-01-01'',a)<=>COALESCE(?,a)' USING DATE'2001-01-01';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(DATE''2001-01-01'',a)' USING DATE'2001-01-01';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
+# Equal values but of different data types (should not propagate)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(DATE'2001:01:01',a)<=>COALESCE(TIMESTAMP'2001-01-01 00:00:00',a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(DATE'2001-01-01',`test`.`t1`.`a`) <=> coalesce(TIMESTAMP'2001-01-01 00:00:00',`test`.`t1`.`a`)
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(?,a)' USING DATE'2001-01-01',TIMESTAMP'2001-01-01 00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(<cache>(DATE'2001-01-01'),`test`.`t1`.`a`) <=> coalesce(<cache>(TIMESTAMP'2001-01-01 00:00:00'),`test`.`t1`.`a`)
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(DATE''2001-01-01'',a)<=>COALESCE(?,a)' USING TIMESTAMP'2001-01-01 00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(DATE'2001-01-01',`test`.`t1`.`a`) <=> coalesce(<cache>(TIMESTAMP'2001-01-01 00:00:00'),`test`.`t1`.`a`)
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(DATE''2001-01-01'',a)' USING TIMESTAMP'2001-01-01 00:00:00';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(<cache>(TIMESTAMP'2001-01-01 00:00:00'),`test`.`t1`.`a`) <=> coalesce(DATE'2001-01-01',`test`.`t1`.`a`)
+# Not equal values
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(DATE'2001-01-01',a)<=>COALESCE(DATE'2001-01-02',a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(DATE'2001-01-01',`test`.`t1`.`a`) <=> coalesce(DATE'2001-01-02',`test`.`t1`.`a`)
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(?,a)' USING DATE'2001-01-01',DATE'2001-01-02';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(<cache>(DATE'2001-01-01'),`test`.`t1`.`a`) <=> coalesce(<cache>(DATE'2001-01-02'),`test`.`t1`.`a`)
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(DATE''2001-01-01'',a)<=>COALESCE(?,a)' USING DATE'2001-01-02';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(DATE'2001-01-01',`test`.`t1`.`a`) <=> coalesce(<cache>(DATE'2001-01-02'),`test`.`t1`.`a`)
+EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(DATE''2001-01-01'',a)' USING DATE'2001-01-02';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(<cache>(DATE'2001-01-02'),`test`.`t1`.`a`) <=> coalesce(DATE'2001-01-01',`test`.`t1`.`a`)
+DROP TABLE t1;
+#
+# End of 10.4 tests
+#

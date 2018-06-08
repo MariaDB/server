@@ -694,6 +694,20 @@ public:
 };
 
 
+class Item_const
+{
+public:
+  virtual ~Item_const() {}
+  virtual const Type_all_attributes *get_type_all_attributes_from_const() const= 0;
+  virtual bool const_is_null() const { return false; }
+  virtual const longlong *const_ptr_longlong() const { return NULL; }
+  virtual const double *const_ptr_double() const { return NULL; }
+  virtual const my_decimal *const_ptr_my_decimal() const { return NULL; }
+  virtual const MYSQL_TIME *const_ptr_mysql_time() const { return NULL; }
+  virtual const String *const_ptr_string() const { return NULL; }
+};
+
+
 /****************************************************************************/
 
 class Item: public Value_source,
@@ -734,7 +748,6 @@ public:
              */
              CONST_ITEM,
              NULL_ITEM,     // Item_null or Item_param bound to NULL
-             VARBIN_ITEM,
              COPY_STR_ITEM, FIELD_AVG_ITEM, DEFAULT_VALUE_ITEM,
              PROC_ITEM,COND_ITEM, REF_ITEM, FIELD_STD_ITEM,
              FIELD_VARIANCE_ITEM, INSERT_VALUE_ITEM,
@@ -1026,13 +1039,9 @@ public:
   {
     return type_handler();
   }
-  virtual const Type_handler *cast_to_int_type_handler() const
+  const Type_handler *cast_to_int_type_handler() const
   {
-    return type_handler();
-  }
-  virtual const Type_handler *type_handler_for_system_time() const
-  {
-    return real_type_handler();
+    return real_type_handler()->cast_to_int_type_handler();
   }
   /* result_type() of an item specifies how the value should be returned */
   Item_result result_type() const
@@ -2093,7 +2102,7 @@ public:
     delete this;
   }
 
-  virtual const Item_basic_value *get_item_basic_value() const { return NULL; }
+  virtual const Item_const *get_item_const() const { return NULL; }
   virtual Item_splocal *get_item_splocal() { return 0; }
   virtual Rewritable_query_parameter *get_rewritable_query_parameter()
   { return 0; }
@@ -2276,6 +2285,25 @@ inline Item* get_item_copy (THD *thd, T* item)
     copy->register_in(thd);
   return copy;
 }	
+
+
+#ifndef DBUG_OFF
+/**
+  A helper class to print the data type and the value for an Item
+  in debug builds.
+*/
+class DbugStringItemTypeValue: public StringBuffer<128>
+{
+public:
+  DbugStringItemTypeValue(THD *thd, const Item *item)
+  {
+    append('(');
+    append(item->type_handler()->name().ptr());
+    append(')');
+    const_cast<Item*>(item)->print(this, QT_EXPLAIN);
+  }
+};
+#endif
 
 
 /*
@@ -2518,7 +2546,8 @@ public:
 /**
   A common class for Item_basic_constant and Item_param
 */
-class Item_basic_value :public Item
+class Item_basic_value :public Item,
+                        public Item_const
 {
 protected:
   // Value metadata, e.g. to make string processing easier
@@ -2559,8 +2588,9 @@ protected:
 public:
   Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param);
-  const Item_basic_value *get_item_basic_value() const { return this; }
   bool eq(const Item *item, bool binary_cmp) const;
+  const Type_all_attributes *get_type_all_attributes_from_const() const
+  { return this; }
 };
 
 
@@ -2569,6 +2599,7 @@ class Item_basic_constant :public Item_basic_value
 public:
   Item_basic_constant(THD *thd): Item_basic_value(thd) {};
   bool check_vcol_func_processor(void *arg) { return false; }
+  const Item_const *get_item_const() const { return this; }
   virtual Item_basic_constant *make_string_literal_concat(THD *thd,
                                                           const LEX_CSTRING *)
   {
@@ -2959,7 +2990,6 @@ public:
   bool check_partition_func_processor(void *int_arg) { return false;}
   bool const_item() const { return true; }
   bool basic_const_item() const { return true; }
-  const Item_basic_value *get_item_basic_value() const { return this; }
 };
 
 
@@ -3202,10 +3232,6 @@ public:
     const Type_handler *handler= field->type_handler();
     return handler->type_handler_for_item_field();
   }
-  const Type_handler *cast_to_int_type_handler() const
-  {
-    return field->type_handler()->cast_to_int_type_handler();
-  }
   const Type_handler *real_type_handler() const
   {
     if (field->is_created_from_null_item)
@@ -3436,6 +3462,7 @@ public:
   const Type_handler *type_handler() const { return &type_handler_null; }
   bool basic_const_item() const { return 1; }
   Item *clone_item(THD *thd);
+  bool const_is_null() const { return true; }
   bool is_null() { return 1; }
 
   virtual inline void print(String *str, enum_query_type query_type)
@@ -3698,6 +3725,39 @@ public:
            type_handler()->is_order_clause_position_type();
   }
 
+  const Item_const *get_item_const() const
+  {
+    switch (state) {
+    case SHORT_DATA_VALUE:
+    case LONG_DATA_VALUE:
+    case NULL_VALUE:
+      return this;
+    case IGNORE_VALUE:
+    case DEFAULT_VALUE:
+    case NO_VALUE:
+      break;
+    }
+    return NULL;
+  }
+
+  bool const_is_null() const { return state == NULL_VALUE; }
+  bool can_return_const_value(Item_result type) const
+  {
+    return can_return_value() &&
+           value.type_handler()->cmp_type() == type &&
+           type_handler()->cmp_type() == type;
+  }
+  const longlong *const_ptr_longlong() const
+  { return can_return_const_value(INT_RESULT) ? &value.integer : NULL; }
+  const double *const_ptr_double() const
+  { return can_return_const_value(REAL_RESULT) ? &value.real : NULL; }
+  const my_decimal *const_ptr_my_decimal() const
+  { return can_return_const_value(DECIMAL_RESULT) ? &value.m_decimal : NULL; }
+  const MYSQL_TIME *const_ptr_mysql_time() const
+  { return can_return_const_value(TIME_RESULT) ? &value.time : NULL; }
+  const String *const_ptr_string() const
+  { return can_return_const_value(STRING_RESULT) ? &value.m_string : NULL; }
+
   double val_real()
   {
     return can_return_value() ? value.val_real() : 0e0;
@@ -3890,6 +3950,7 @@ public:
   { return type_handler_long_or_longlong(); }
   Field *create_field_for_create_select(TABLE *table)
   { return tmp_table_field_from_field_type(table); }
+  const longlong *const_ptr_longlong() const { return &value; }
   longlong val_int() { return value; }
   longlong val_int_min() const { return value; }
   double val_real() { return (double) value; }
@@ -3989,12 +4050,12 @@ public:
   double val_real();
   String *val_str(String*);
   my_decimal *val_decimal(my_decimal *val) { return &decimal_value; }
+  const my_decimal *const_ptr_my_decimal() const { return &decimal_value; }
   int save_in_field(Field *field, bool no_conversions);
   Item *clone_item(THD *thd);
   virtual void print(String *str, enum_query_type query_type);
   Item *neg(THD *thd);
   uint decimal_precision() const { return decimal_value.precision(); }
-  bool eq(const Item *, bool binary_cmp) const;
   void set_decimal_value(my_decimal *value_par);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_decimal>(thd, this); }
@@ -4022,6 +4083,7 @@ public:
   }
   int save_in_field(Field *field, bool no_conversions);
   const Type_handler *type_handler() const { return &type_handler_double; }
+  const double *const_ptr_double() const { return &value; }
   double val_real() { return value; }
   longlong val_int()
   {
@@ -4146,6 +4208,10 @@ public:
   }
   double val_real();
   longlong val_int();
+  const String *const_ptr_string() const
+  {
+    return &str_value;
+  }
   String *val_str(String*)
   {
     return (String*) &str_value;
@@ -4424,18 +4490,12 @@ public:
   {
     hex_string_init(thd, str, str_length);
   }
-  enum Type type() const { return VARBIN_ITEM; }
   const Type_handler *type_handler() const { return &type_handler_varchar; }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
   {
     return const_charset_converter(thd, tocs, true);
   }
-  bool eq(const Item *item, bool binary_cmp) const
-  {
-    return item->basic_const_item() && item->type() == type() &&
-           item->cast_to_int_type_handler() == cast_to_int_type_handler() &&
-           str_value.bin_eq(&((Item_hex_constant*)item)->str_value);
-  }
+  const String *const_ptr_string() const { return &str_value; }
   String *val_str(String*) { return &str_value; }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   {
@@ -4455,6 +4515,7 @@ public:
   Item_hex_hybrid(THD *thd): Item_hex_constant(thd) {}
   Item_hex_hybrid(THD *thd, const char *str, size_t str_length):
     Item_hex_constant(thd, str, str_length) {}
+  const Type_handler *type_handler() const { return &type_handler_hex_hybrid; }
   uint decimal_precision() const;
   double val_real()
   { 
@@ -4474,14 +4535,6 @@ public:
   {
     field->set_notnull();
     return field->store_hex_hybrid(str_value.ptr(), str_value.length());
-  }
-  const Type_handler *cast_to_int_type_handler() const
-  {
-    return &type_handler_longlong;
-  }
-  const Type_handler *type_handler_for_system_time() const
-  {
-    return &type_handler_longlong;
   }
   void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd)
@@ -4558,8 +4611,8 @@ public:
     decimals= dec_arg;
     cached_time= *ltime;
   }
-  bool eq(const Item *item, bool binary_cmp) const;
 
+  const MYSQL_TIME *const_ptr_mysql_time() const { return &cached_time; }
   bool is_null()
   { return is_null_from_temporal(); }
   bool get_date_with_sql_mode(MYSQL_TIME *to);
@@ -6220,7 +6273,7 @@ public:
   for any value.
 */
 
-class Item_cache: public Item_basic_value,
+class Item_cache: public Item,
                   public Type_handler_hybrid_field_type
 {
 protected:
@@ -6243,7 +6296,7 @@ protected:
   table_map used_table_map;
 public:
   Item_cache(THD *thd):
-    Item_basic_value(thd),
+    Item(thd),
     Type_handler_hybrid_field_type(&type_handler_string),
     example(0), cached_field(0),
     value_cached(0),
@@ -6254,7 +6307,7 @@ public:
   }
 protected:
   Item_cache(THD *thd, const Type_handler *handler):
-    Item_basic_value(thd),
+    Item(thd),
     Type_handler_hybrid_field_type(handler),
     example(0), cached_field(0),
     value_cached(0),
@@ -6281,6 +6334,11 @@ public:
 
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param)
+  {
+    return create_tmp_field_ex_simple(table, src, param);
+  }
 
   virtual void keep_array() {}
   virtual void print(String *str, enum_query_type query_type);
@@ -6311,7 +6369,7 @@ public:
   void cleanup()
   {
     clear();
-    Item_basic_value::cleanup();
+    Item::cleanup();
   }
   /**
      Check if saved item has a non-NULL value.

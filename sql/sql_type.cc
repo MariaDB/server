@@ -57,6 +57,7 @@ Type_handler_set         type_handler_set;
 Type_handler_string      type_handler_string;
 Type_handler_var_string  type_handler_var_string;
 Type_handler_varchar     type_handler_varchar;
+Type_handler_hex_hybrid  type_handler_hex_hybrid;
 static Type_handler_varchar_compressed type_handler_varchar_compressed;
 
 Type_handler_tiny_blob   type_handler_tiny_blob;
@@ -91,6 +92,9 @@ bool Type_handler_data::init()
     m_type_aggregator_for_result.add(&type_handler_geometry,
                                      &type_handler_geometry,
                                      &type_handler_geometry) ||
+    m_type_aggregator_for_result.add(&type_handler_geometry,
+                                     &type_handler_hex_hybrid,
+                                     &type_handler_long_blob) ||
     m_type_aggregator_for_result.add(&type_handler_geometry,
                                      &type_handler_tiny_blob,
                                      &type_handler_long_blob) ||
@@ -434,6 +438,7 @@ const Name
   Type_handler_string::m_name_char(STRING_WITH_LEN("char")),
   Type_handler_var_string::m_name_var_string(STRING_WITH_LEN("varchar")),
   Type_handler_varchar::m_name_varchar(STRING_WITH_LEN("varchar")),
+  Type_handler_hex_hybrid::m_name_hex_hybrid(STRING_WITH_LEN("hex_hybrid")),
   Type_handler_tiny_blob::m_name_tinyblob(STRING_WITH_LEN("tinyblob")),
   Type_handler_medium_blob::m_name_mediumblob(STRING_WITH_LEN("mediumblob")),
   Type_handler_long_blob::m_name_longblob(STRING_WITH_LEN("longblob")),
@@ -6357,64 +6362,92 @@ bool Type_handler_general_purpose_string::
 
 /***************************************************************************/
 
-bool Type_handler_null::Item_basic_value_eq(const Item_basic_value *a,
-                                            const Item_basic_value *b)
-                                            const
+bool Type_handler_null::Item_const_eq(const Item_const *a,
+                                      const Item_const *b,
+                                      bool binary_cmp) const
 {
-  return a->basic_const_item() &&
-         b->basic_const_item();
+  return true;
 }
 
 
-bool Type_handler_real_result::Item_basic_value_eq(const Item_basic_value *a,
-                                                   const Item_basic_value *b)
-                                                   const
+bool Type_handler_real_result::Item_const_eq(const Item_const *a,
+                                             const Item_const *b,
+                                             bool binary_cmp) const
 {
-  return a->basic_const_item() &&
-         b->basic_const_item() &&
-         const_cast<Item_basic_value*>(a)->val_real() ==
-         const_cast<Item_basic_value*>(b)->val_real();
+  const double *va= a->const_ptr_double();
+  const double *vb= b->const_ptr_double();
+  return va[0] == vb[0];
 }
 
 
-bool Type_handler_int_result::Item_basic_value_eq(const Item_basic_value *a,
-                                                  const Item_basic_value *b)
-                                                  const
+bool Type_handler_int_result::Item_const_eq(const Item_const *a,
+                                            const Item_const *b,
+                                            bool binary_cmp) const
 {
-  longlong value;
-  return a->basic_const_item() &&
-         b->basic_const_item() &&
-         (value= const_cast<Item_basic_value*>(a)->val_int()) ==
-         const_cast<Item_basic_value*>(b)->val_int() &&
-         (value >= 0 || a->unsigned_flag == b->unsigned_flag);
+  const longlong *va= a->const_ptr_longlong();
+  const longlong *vb= b->const_ptr_longlong();
+  bool res= va[0] == vb[0] &&
+            (va[0] >= 0 ||
+             (a->get_type_all_attributes_from_const()->unsigned_flag ==
+              b->get_type_all_attributes_from_const()->unsigned_flag));
+  return res;
 }
 
 
-bool Type_handler_string_result::Item_basic_value_eq(const Item_basic_value *a,
-                                                     const Item_basic_value *b)
-                                                     const
+bool Type_handler_string_result::Item_const_eq(const Item_const *a,
+                                               const Item_const *b,
+                                               bool binary_cmp) const
 {
-  if (!a->basic_const_item() ||
-      !b->basic_const_item() ||
-       a->collation.collation != b->collation.collation)
-    return false;
-  String *sa= const_cast<Item_basic_value*>(a)->val_str(NULL);
-  String *sb= const_cast<Item_basic_value*>(b)->val_str(NULL);
-  return sa->eq(sb, a->collation.collation);
+  const String *sa= a->const_ptr_string();
+  const String *sb= b->const_ptr_string();
+  return binary_cmp ? sa->bin_eq(sb) :
+    a->get_type_all_attributes_from_const()->collation.collation ==
+    b->get_type_all_attributes_from_const()->collation.collation &&
+    sa->eq(sb, a->get_type_all_attributes_from_const()->collation.collation);
 }
 
 
 bool
-Type_handler_string_result::Item_basic_value_bin_eq(const Item_basic_value *a,
-                                                    const Item_basic_value *b)
-                                                    const
+Type_handler_decimal_result::Item_const_eq(const Item_const *a,
+                                           const Item_const *b,
+                                           bool binary_cmp) const
 {
-  if (!a->basic_const_item() ||
-      !b->basic_const_item())
-    return false;
-  String *sa= const_cast<Item_basic_value*>(a)->val_str(NULL);
-  String *sb= const_cast<Item_basic_value*>(b)->val_str(NULL);
-  return sa->bin_eq(sb);
+  const my_decimal *da= a->const_ptr_my_decimal();
+  const my_decimal *db= b->const_ptr_my_decimal();
+  return !my_decimal_cmp(da, db) &&
+         (!binary_cmp ||
+          a->get_type_all_attributes_from_const()->decimals ==
+          b->get_type_all_attributes_from_const()->decimals);
 }
+
+
+bool
+Type_handler_temporal_result::Item_const_eq(const Item_const *a,
+                                            const Item_const *b,
+                                            bool binary_cmp) const
+{
+  const MYSQL_TIME *ta= a->const_ptr_mysql_time();
+  const MYSQL_TIME *tb= b->const_ptr_mysql_time();
+  return !my_time_compare(ta, tb) &&
+         (!binary_cmp ||
+          a->get_type_all_attributes_from_const()->decimals ==
+          b->get_type_all_attributes_from_const()->decimals);
+}
+
+/***************************************************************************/
+
+const Type_handler *
+Type_handler_hex_hybrid::cast_to_int_type_handler() const
+{
+  return &type_handler_longlong;
+}
+
+
+const Type_handler *
+Type_handler_hex_hybrid::type_handler_for_system_time() const
+{
+  return &type_handler_longlong;
+}
+
 
 /***************************************************************************/
