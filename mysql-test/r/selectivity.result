@@ -356,13 +356,13 @@ and o_orderkey = l_orderkey
 group by c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice
 order by o_totalprice desc, o_orderdate;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	6005	0.00	Using temporary; Using filesort
-1	PRIMARY	orders	eq_ref	PRIMARY,i_o_custkey	PRIMARY	4	<subquery2>.l_orderkey	1	100.00	Using where
+1	PRIMARY	orders	ALL	PRIMARY,i_o_custkey	NULL	NULL	NULL	1500	100.00	Using where; Using temporary; Using filesort
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	dbt3_s001.orders.o_orderkey	1	100.00	
 1	PRIMARY	customer	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.orders.o_custkey	1	100.00	
-1	PRIMARY	lineitem	ref	PRIMARY,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	<subquery2>.l_orderkey	4	100.00	
+1	PRIMARY	lineitem	ref	PRIMARY,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey_quantity	4	dbt3_s001.orders.o_orderkey	4	100.00	Using index
 2	MATERIALIZED	lineitem	index	NULL	i_l_orderkey_quantity	13	NULL	6005	100.00	Using index
 Warnings:
-Note	1003	select `dbt3_s001`.`customer`.`c_name` AS `c_name`,`dbt3_s001`.`customer`.`c_custkey` AS `c_custkey`,`dbt3_s001`.`orders`.`o_orderkey` AS `o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE` AS `o_orderdate`,`dbt3_s001`.`orders`.`o_totalprice` AS `o_totalprice`,sum(`dbt3_s001`.`lineitem`.`l_quantity`) AS `sum(l_quantity)` from  <materialize> (select `dbt3_s001`.`lineitem`.`l_orderkey` from `dbt3_s001`.`lineitem` group by `dbt3_s001`.`lineitem`.`l_orderkey` having (sum(`dbt3_s001`.`lineitem`.`l_quantity`) > 250)) join `dbt3_s001`.`customer` join `dbt3_s001`.`orders` join `dbt3_s001`.`lineitem` where ((`dbt3_s001`.`customer`.`c_custkey` = `dbt3_s001`.`orders`.`o_custkey`) and (`dbt3_s001`.`orders`.`o_orderkey` = `<subquery2>`.`l_orderkey`) and (`dbt3_s001`.`lineitem`.`l_orderkey` = `<subquery2>`.`l_orderkey`)) group by `dbt3_s001`.`customer`.`c_name`,`dbt3_s001`.`customer`.`c_custkey`,`dbt3_s001`.`orders`.`o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE`,`dbt3_s001`.`orders`.`o_totalprice` order by `dbt3_s001`.`orders`.`o_totalprice` desc,`dbt3_s001`.`orders`.`o_orderDATE`
+Note	1003	select `dbt3_s001`.`customer`.`c_name` AS `c_name`,`dbt3_s001`.`customer`.`c_custkey` AS `c_custkey`,`dbt3_s001`.`orders`.`o_orderkey` AS `o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE` AS `o_orderdate`,`dbt3_s001`.`orders`.`o_totalprice` AS `o_totalprice`,sum(`dbt3_s001`.`lineitem`.`l_quantity`) AS `sum(l_quantity)` from  <materialize> (select `dbt3_s001`.`lineitem`.`l_orderkey` from `dbt3_s001`.`lineitem` group by `dbt3_s001`.`lineitem`.`l_orderkey` having (sum(`dbt3_s001`.`lineitem`.`l_quantity`) > 250)) join `dbt3_s001`.`customer` join `dbt3_s001`.`orders` join `dbt3_s001`.`lineitem` where ((`dbt3_s001`.`customer`.`c_custkey` = `dbt3_s001`.`orders`.`o_custkey`) and (`<subquery2>`.`l_orderkey` = `dbt3_s001`.`orders`.`o_orderkey`) and (`dbt3_s001`.`lineitem`.`l_orderkey` = `dbt3_s001`.`orders`.`o_orderkey`)) group by `dbt3_s001`.`customer`.`c_name`,`dbt3_s001`.`customer`.`c_custkey`,`dbt3_s001`.`orders`.`o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE`,`dbt3_s001`.`orders`.`o_totalprice` order by `dbt3_s001`.`orders`.`o_totalprice` desc,`dbt3_s001`.`orders`.`o_orderDATE`
 select 
 c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice, sum(l_quantity)
 from customer, orders, lineitem
@@ -1535,6 +1535,68 @@ t
 10:00:00
 11:00:00
 DROP TABLE t1;
+#
+# MDEV-16374: filtered shows 0 for materilization scan for a semi join, which makes optimizer
+# always pick materialization scan over materialization lookup
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int);
+insert into t1 values (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(10,10),
+(11,11),(12,12),(13,13),(14,14),(15,15);
+set @@optimizer_use_condition_selectivity=2;
+explain extended select * from t1 where a in (select max(a) from t1 group by b);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	16	100.00	Using temporary
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from  <materialize> (select max(`test`.`t1`.`a`) from `test`.`t1` group by `test`.`t1`.`b`) join `test`.`t1` where (`<subquery2>`.`max(a)` = `test`.`t1`.`a`)
+select * from t1 where a in (select max(a) from t1 group by b);
+a	b
+0	0
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+7	7
+8	8
+9	9
+10	10
+11	11
+12	12
+13	13
+14	14
+15	15
+set @@optimizer_use_condition_selectivity=1;
+explain extended select * from t1 where a in (select max(a) from t1 group by b);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	100.00	
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	16	100.00	Using temporary
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from  <materialize> (select max(`test`.`t1`.`a`) from `test`.`t1` group by `test`.`t1`.`b`) join `test`.`t1` where (`<subquery2>`.`max(a)` = `test`.`t1`.`a`)
+select * from t1 where a in (select max(a) from t1 group by b);
+a	b
+0	0
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+7	7
+8	8
+9	9
+10	10
+11	11
+12	12
+13	13
+14	14
+15	15
+drop table t1,t0;
 set histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set use_stat_tables=@save_use_stat_tables;
