@@ -1,5 +1,4 @@
 -- source include/have_innodb.inc
--- source include/not_embedded.inc
 
 set default_storage_engine= innodb;
 
@@ -411,3 +410,85 @@ DROP TABLE tts;
 DROP TABLE ttx;
 DROP FUNCTION fts;
 DROP FUNCTION ftx;
+
+--echo #
+--echo # MDEV-16330 Allow instant change of WITH SYSTEM VERSIONING column attribute
+--echo #
+
+SET @@SYSTEM_VERSIONING_ALTER_HISTORY=KEEP;
+CREATE TABLE t (
+  a INT,
+  b INT,
+  row_start BIGINT UNSIGNED AS ROW START INVISIBLE,
+  row_end BIGINT UNSIGNED AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME(row_start, row_end)
+) WITH SYSTEM VERSIONING ENGINE=INNODB;
+
+INSERT INTO t VALUES (1,1);
+
+--echo # without table rebuild
+SELECT c.prtype FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS AS c
+  INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES AS t
+    ON c.table_id=t.table_id
+  WHERE t.name='test/t' AND c.name='a';
+--enable_info
+ALTER TABLE t
+  CHANGE a a INT WITHOUT SYSTEM VERSIONING;
+--disable_info
+SELECT c.prtype FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS AS c
+  INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES AS t
+    ON c.table_id=t.table_id
+  WHERE t.name='test/t' AND c.name='a';
+
+UPDATE t SET a=11;
+SELECT COUNT(*) FROM t FOR SYSTEM_TIME ALL;
+
+--echo # with table rebuild
+SELECT c.prtype FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS AS c
+  INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES AS t
+    ON c.table_id=t.table_id
+  WHERE t.name='test/t' AND c.name='a';
+--enable_info
+ALTER TABLE t
+  CHANGE a a INT WITH SYSTEM VERSIONING,
+  ADD PRIMARY KEY pk(a);
+--disable_info
+SELECT c.prtype FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS AS c
+  INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES AS t
+    ON c.table_id=t.table_id
+  WHERE t.name='test/t' AND c.name='a';
+
+UPDATE t SET a=1;
+SELECT COUNT(*) FROM t FOR SYSTEM_TIME ALL;
+
+SHOW CREATE TABLE t;
+
+-- echo # handles VIRTUAL columns too
+CREATE OR REPLACE TABLE t (
+  a INT AS (b + 1),
+  b INT,
+  row_start BIGINT UNSIGNED AS ROW START INVISIBLE,
+  row_end BIGINT UNSIGNED AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME(row_start, row_end)
+) WITH SYSTEM VERSIONING ENGINE=INNODB;
+
+INSERT INTO t VALUES (DEFAULT, 1);
+
+SELECT c.prtype FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS AS c
+  INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES AS t
+    ON c.table_id=t.table_id
+  WHERE t.name='test/t' AND c.name='b';
+--enable_info
+ALTER TABLE t
+  CHANGE b b INT WITHOUT SYSTEM VERSIONING;
+--disable_info
+SELECT c.prtype FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS AS c
+  INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES AS t
+    ON c.table_id=t.table_id
+  WHERE t.name='test/t' AND c.name='b';
+
+UPDATE t SET b=11;
+SELECT COUNT(*) FROM t FOR SYSTEM_TIME ALL;
+
+DROP TABLE t;
+SET @@SYSTEM_VERSIONING_ALTER_HISTORY=ERROR;
