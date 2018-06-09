@@ -3739,10 +3739,16 @@ longlong Type_handler_string_result::
   return func->val_int_cmp_string();
 }
 
-longlong Type_handler_temporal_result::
+longlong Type_handler_temporal_with_date::
            Item_func_between_val_int(Item_func_between *func) const
 {
-  return func->val_int_cmp_temporal();
+  return func->val_int_cmp_datetime();
+}
+
+longlong Type_handler_time_common::
+           Item_func_between_val_int(Item_func_between *func) const
+{
+  return func->val_int_cmp_time();
 }
 
 longlong Type_handler_int_result::
@@ -6449,5 +6455,80 @@ Type_handler_hex_hybrid::type_handler_for_system_time() const
   return &type_handler_longlong;
 }
 
+
+/***************************************************************************/
+
+bool Type_handler_row::Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
+                                     Item *a, Item *b) const
+{
+  DBUG_ASSERT(0);
+  return false;
+}
+
+
+bool Type_handler_int_result::Item_eq_value(THD *thd,
+                                            const Type_cmp_attributes *attr,
+                                            Item *a, Item *b) const
+{
+  longlong value0= a->val_int();
+  longlong value1= b->val_int();
+  return !a->null_value && !b->null_value && value0 == value1 &&
+         (value0 >= 0 || a->unsigned_flag == b->unsigned_flag);
+}
+
+
+bool Type_handler_real_result::Item_eq_value(THD *thd,
+                                             const Type_cmp_attributes *attr,
+                                             Item *a, Item *b) const
+{
+  double value0= a->val_real();
+  double value1= b->val_real();
+  return !a->null_value && !b->null_value && value0 == value1;
+}
+
+
+bool Type_handler_time_common::Item_eq_value(THD *thd,
+                                             const Type_cmp_attributes *attr,
+                                             Item *a, Item *b) const
+{
+  longlong value0= a->val_time_packed();
+  longlong value1= b->val_time_packed();
+  return !a->null_value && !b->null_value && value0 == value1;
+}
+
+
+bool Type_handler_temporal_with_date::Item_eq_value(THD *thd,
+                                                    const Type_cmp_attributes *attr,
+                                                    Item *a, Item *b) const
+{
+  longlong value0= a->val_datetime_packed();
+  longlong value1= b->val_datetime_packed();
+  return !a->null_value && !b->null_value && value0 == value1;
+}
+
+
+bool Type_handler_string_result::Item_eq_value(THD *thd,
+                                               const Type_cmp_attributes *attr,
+                                               Item *a, Item *b) const
+{
+  String *va, *vb;
+  StringBuffer<128> cmp_value1, cmp_value2;
+  return (va= a->val_str(&cmp_value1)) &&
+         (vb= b->val_str(&cmp_value2)) &&
+          va->eq(vb, attr->compare_collation());
+}
+
+
+bool Type_handler_decimal_result::Item_eq_value(THD *thd,
+                                                const Type_cmp_attributes *attr,
+                                                Item *a, Item *b) const
+{
+  my_decimal *va, *vb;
+  my_decimal cmp_value1, cmp_value2;
+  return (va= a->val_decimal(&cmp_value1)) &&
+         (vb= b->val_decimal(&cmp_value2)) &&
+         !my_decimal_cmp(va, vb);
+
+}
 
 /***************************************************************************/

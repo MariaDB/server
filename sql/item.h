@@ -1676,12 +1676,6 @@ public:
     return get_date_result(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
   }
 
-  // Get a temporal value in packed DATE/DATETIME or TIME format
-  longlong val_temporal_packed(enum_field_types f_type)
-  {
-    return f_type == MYSQL_TYPE_TIME ? val_time_packed() :
-                                       val_datetime_packed();
-  }
   bool get_seconds(ulonglong *sec, ulong *sec_part);
   virtual bool get_date_result(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return get_date(ltime,fuzzydate); }

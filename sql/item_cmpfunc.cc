@@ -2117,23 +2117,25 @@ bool Item_func_between::fix_length_and_dec_temporal(THD *thd)
 }
 
 
-longlong Item_func_between::val_int_cmp_temporal()
+longlong Item_func_between::val_int_cmp_datetime()
 {
-  enum_field_types f_type= m_comparator.type_handler()->field_type();
-  longlong value= args[0]->val_temporal_packed(f_type), a, b;
+  longlong value= args[0]->val_datetime_packed(), a, b;
   if ((null_value= args[0]->null_value))
     return 0;
-  a= args[1]->val_temporal_packed(f_type);
-  b= args[2]->val_temporal_packed(f_type);
-  if (!args[1]->null_value && !args[2]->null_value)
-    return (longlong) ((value >= a && value <= b) != negated);
-  if (args[1]->null_value && args[2]->null_value)
-    null_value= true;
-  else if (args[1]->null_value)
-    null_value= value <= b;                    // not null if false range.
-  else
-    null_value= value >= a;
-  return (longlong) (!null_value && negated);
+  a= args[1]->val_datetime_packed();
+  b= args[2]->val_datetime_packed();
+  return val_int_cmp_int_finalize(value, a, b);
+}
+
+
+longlong Item_func_between::val_int_cmp_time()
+{
+  longlong value= args[0]->val_time_packed(), a, b;
+  if ((null_value= args[0]->null_value))
+    return 0;
+  a= args[1]->val_time_packed();
+  b= args[2]->val_time_packed();
+  return val_int_cmp_int_finalize(value, a, b);
 }
 
 
@@ -2172,18 +2174,22 @@ longlong Item_func_between::val_int_cmp_int()
     return 0;					/* purecov: inspected */
   a= args[1]->val_int();
   b= args[2]->val_int();
+  return val_int_cmp_int_finalize(value, a, b);
+}
+
+
+bool Item_func_between::val_int_cmp_int_finalize(longlong value,
+                                                 longlong a,
+                                                 longlong b)
+{
   if (!args[1]->null_value && !args[2]->null_value)
     return (longlong) ((value >= a && value <= b) != negated);
   if (args[1]->null_value && args[2]->null_value)
     null_value= true;
   else if (args[1]->null_value)
-  {
     null_value= value <= b;			// not null if false range.
-  }
   else
-  {
     null_value= value >= a;
-  }
   return (longlong) (!null_value && negated);
 }
 
@@ -3653,9 +3659,18 @@ void in_time::set(uint pos,Item *item)
   buff->unsigned_flag= 1L;
 }
 
-uchar *in_temporal::get_value_internal(Item *item, enum_field_types f_type)
+uchar *in_datetime::get_value(Item *item)
 {
-  tmp.val= item->val_temporal_packed(f_type);
+  tmp.val= item->val_datetime_packed();
+  if (item->null_value)
+    return 0;
+  tmp.unsigned_flag= 1L;
+  return (uchar*) &tmp;
+}
+
+uchar *in_time::get_value(Item *item)
+{
+  tmp.val= item->val_time_packed();
   if (item->null_value)
     return 0;
   tmp.unsigned_flag= 1L;
@@ -4008,14 +4023,6 @@ int cmp_item_decimal::compare(cmp_item *arg)
 cmp_item* cmp_item_decimal::make_same()
 {
   return new cmp_item_decimal();
-}
-
-
-void cmp_item_temporal::store_value_internal(Item *item,
-                                             enum_field_types f_type)
-{
-  value= item->val_temporal_packed(f_type);
-  m_null_value= item->null_value;
 }
 
 
@@ -6262,76 +6269,53 @@ void Item_equal::add_const(THD *thd, Item *c)
     equal_items.push_front(c, thd->mem_root);
     return;
   }
-  Item *const_item= get_const();
-  switch (Item_equal::compare_type_handler()->cmp_type()) {
-  case TIME_RESULT:
-    {
-      enum_field_types f_type= context_field->field_type();
-      longlong value0= c->val_temporal_packed(f_type);
-      longlong value1= const_item->val_temporal_packed(f_type);
-      cond_false= c->null_value || const_item->null_value || value0 != value1;
-      break;
-    }
-  case STRING_RESULT:
-    {
-      String *str1, *str2;
-      /*
-        Suppose we have an expression (with a string type field) like this:
-          WHERE field=const1 AND field=const2 ...
 
-        For all pairs field=constXXX we know that:
+  /*
+    Suppose we have an expression (with a string type field) like this:
+      WHERE field=const1 AND field=const2 ...
 
-        - Item_func_eq::fix_length_and_dec() performed collation and character
-        set aggregation and added character set converters when needed.
-        Note, the case like:
-          WHERE field=const1 COLLATE latin1_bin AND field=const2
-        is not handled here, because the field would be replaced to
-        Item_func_set_collation, which cannot get into Item_equal.
-        So all constXXX that are handled by Item_equal
-        already have compatible character sets with "field".
+    For all pairs field=constXXX we know that:
 
-        - Also, Field_str::test_if_equality_guarantees_uniqueness() guarantees
-        that the comparison collation of all equalities handled by Item_equal
-        match the the collation of the field.
+    - Item_func_eq::fix_length_and_dec() performed collation and character
+    set aggregation and added character set converters when needed.
+    Note, the case like:
+      WHERE field=const1 COLLATE latin1_bin AND field=const2
+    is not handled here, because the field would be replaced to
+    Item_func_set_collation, which cannot get into Item_equal.
+    So all constXXX that are handled by Item_equal
+    already have compatible character sets with "field".
 
-        Therefore, at Item_equal::add_const() time all constants constXXX
-        should be directly comparable to each other without an additional
-        character set conversion.
-        It's safe to do val_str() for "const_item" and "c" and compare
-        them according to the collation of the *field*.
+    - Also, Field_str::test_if_equality_guarantees_uniqueness() guarantees
+    that the comparison collation of all equalities handled by Item_equal
+    match the the collation of the field.
 
-        So in a script like this:
-          CREATE TABLE t1 (a VARCHAR(10) COLLATE xxx);
-          INSERT INTO t1 VALUES ('a'),('A');
-          SELECT * FROM t1 WHERE a='a' AND a='A';
-        Item_equal::add_const() effectively rewrites the condition to:
-          SELECT * FROM t1 WHERE a='a' AND 'a' COLLATE xxx='A';
-        and then to:
-          SELECT * FROM t1 WHERE a='a'; // if the two constants were equal
-                                        // e.g. in case of latin1_swedish_ci
-        or to:
-          SELECT * FROM t1 WHERE FALSE; // if the two constants were not equal
-                                        // e.g. in case of latin1_bin
+    Therefore, at Item_equal::add_const() time all constants constXXX
+    should be directly comparable to each other without an additional
+    character set conversion.
+    It's safe to do val_str() for "const_item" and "c" and compare
+    them according to the collation of the *field*.
 
-        Note, both "const_item" and "c" can return NULL, e.g.:
-          SELECT * FROM t1 WHERE a=NULL    AND a='const';
-          SELECT * FROM t1 WHERE a='const' AND a=NULL;
-          SELECT * FROM t1 WHERE a='const' AND a=(SELECT MAX(a) FROM t2)
-      */
-      cond_false= !(str1= const_item->val_str(&cmp_value1)) ||
-                  !(str2= c->val_str(&cmp_value2)) ||
-                  !str1->eq(str2, compare_collation());
-      break;
-    }
-  default:
-    {
-      Item_func_eq *func= new (thd->mem_root) Item_func_eq(thd, c, const_item);
-      if (func->set_cmp_func())
-        return;
-      func->quick_fix_field();
-      cond_false= !func->val_int();
-    }
-  }
+    So in a script like this:
+      CREATE TABLE t1 (a VARCHAR(10) COLLATE xxx);
+      INSERT INTO t1 VALUES ('a'),('A');
+      SELECT * FROM t1 WHERE a='a' AND a='A';
+    Item_equal::add_const() effectively rewrites the condition to:
+      SELECT * FROM t1 WHERE a='a' AND 'a' COLLATE xxx='A';
+    and then to:
+      SELECT * FROM t1 WHERE a='a'; // if the two constants were equal
+                                    // e.g. in case of latin1_swedish_ci
+    or to:
+      SELECT * FROM t1 WHERE FALSE; // if the two constants were not equal
+                                    // e.g. in case of latin1_bin
+
+    Note, both "const_item" and "c" can return NULL, e.g.:
+      SELECT * FROM t1 WHERE a=NULL    AND a='const';
+      SELECT * FROM t1 WHERE a='const' AND a=NULL;
+      SELECT * FROM t1 WHERE a='const' AND a=(SELECT MAX(a) FROM t2)
+  */
+
+  cond_false= !Item_equal::compare_type_handler()->Item_eq_value(thd, this, c,
+                                                                 get_const());
   if (with_const && equal_items.elements == 1)
     cond_true= TRUE;
   if (cond_false || cond_true)

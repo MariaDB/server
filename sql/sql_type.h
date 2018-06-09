@@ -836,6 +836,14 @@ public:
 };
 
 
+class Type_cmp_attributes
+{
+public:
+  virtual ~Type_cmp_attributes() { }
+  virtual CHARSET_INFO *compare_collation() const= 0;
+};
+
+
 class Type_cast_attributes
 {
   CHARSET_INFO *m_charset;
@@ -1400,6 +1408,8 @@ public:
   {
     return false;
   }
+  virtual bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
+                             Item *a, Item *b) const= 0;
   virtual bool Item_hybrid_func_fix_attributes(THD *thd,
                                                const char *name,
                                                Type_handler_hybrid_field_type *,
@@ -1623,6 +1633,8 @@ public:
     DBUG_ASSERT(0);
     return 0;
   }
+  bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
+                     Item *a, Item *b) const;
   uint Item_decimal_precision(const Item *item) const
   {
     DBUG_ASSERT(0);
@@ -1878,6 +1890,8 @@ public:
                   SORT_FIELD_ATTR *attr) const;
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                      bool binary_cmp) const;
+  bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
+                     Item *a, Item *b) const;
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_param_set_from_value(THD *thd,
@@ -1957,6 +1971,8 @@ public:
                              const Type_cast_attributes &attr) const;
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                      bool binary_cmp) const;
+  bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
+                     Item *a, Item *b) const;
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   void Item_param_set_param_func(Item_param *param,
@@ -2161,6 +2177,8 @@ public:
                   SORT_FIELD_ATTR *attr) const;
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                      bool binary_cmp) const;
+  bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
+                     Item *a, Item *b) const;
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_param_set_from_value(THD *thd,
@@ -2282,7 +2300,6 @@ public:
   bool Item_func_min_max_get_date(Item_func_min_max*,
                                   MYSQL_TIME *, ulonglong fuzzydate) const;
   bool Item_func_between_fix_length_and_dec(Item_func_between *func) const;
-  longlong Item_func_between_val_int(Item_func_between *func) const;
   bool Item_func_in_fix_comparator_compatible_types(THD *thd,
                                                     Item_func_in *) const;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const;
@@ -2328,6 +2345,8 @@ public:
   uint32 max_display_length(const Item *item) const;
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                      bool binary_cmp) const;
+  bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
+                     Item *a, Item *b) const;
   uint Item_time_precision(Item *item) const
   {
     return Item_temporal_precision(item, true);
@@ -2847,6 +2866,8 @@ public:
   }
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
+  bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
+                     Item *a, Item *b) const;
   uint Item_decimal_scale(const Item *item) const
   {
     return Item_decimal_scale_with_seconds(item);
@@ -2885,6 +2906,7 @@ public:
                                             ulonglong fuzzydate) const;
   bool Item_func_min_max_get_date(Item_func_min_max*,
                                   MYSQL_TIME *, ulonglong fuzzydate) const;
+  longlong Item_func_between_val_int(Item_func_between *func) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   bool set_comparator_func(Arg_comparator *cmp) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
@@ -2952,6 +2974,8 @@ class Type_handler_temporal_with_date: public Type_handler_temporal_result
 {
 public:
   virtual ~Type_handler_temporal_with_date() {}
+  bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
+                     Item *a, Item *b) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {
@@ -2962,6 +2986,7 @@ public:
   bool set_comparator_func(Arg_comparator *cmp) const;
   cmp_item *make_cmp_item(THD *thd, CHARSET_INFO *cs) const;
   in_vector *make_in_vector(THD *, const Item_func_in *, uint nargs) const;
+  longlong Item_func_between_val_int(Item_func_between *func) const;
 };
 
 

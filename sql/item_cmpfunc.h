@@ -152,7 +152,8 @@ public:
 class SEL_ARG;
 struct KEY_PART;
 
-class Item_bool_func :public Item_int_func
+class Item_bool_func :public Item_int_func,
+                      public Type_cmp_attributes
 {
 protected:
   /*
@@ -217,7 +218,7 @@ public:
   Item_bool_func(THD *thd, Item_bool_func *item) :Item_int_func(thd, item) {}
   const Type_handler *type_handler() const { return &type_handler_bool; }
   const Type_handler *fixed_type_handler() const { return &type_handler_bool; }
-  virtual CHARSET_INFO *compare_collation() const { return NULL; }
+  CHARSET_INFO *compare_collation() const { return NULL; }
   void fix_length_and_dec() { decimals=0; max_length=1; }
   uint decimal_precision() const { return 1; }
   bool need_parentheses_in_default() { return true; }
@@ -891,6 +892,7 @@ class Item_func_between :public Item_func_opt_neg
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value);
+  bool val_int_cmp_int_finalize(longlong value, longlong a, longlong b);
 public:
   String value0,value1,value2;
   Item_func_between(THD *thd, Item *a, Item *b, Item *c):
@@ -931,7 +933,8 @@ public:
   { return get_item_copy<Item_func_between>(thd, this); }
 
   longlong val_int_cmp_string();
-  longlong val_int_cmp_temporal();
+  longlong val_int_cmp_datetime();
+  longlong val_int_cmp_time();
   longlong val_int_cmp_int();
   longlong val_int_cmp_real();
   longlong val_int_cmp_decimal();
@@ -1404,8 +1407,6 @@ public:
 */
 class in_temporal :public in_longlong
 {
-protected:
-  uchar *get_value_internal(Item *item, enum_field_types f_type);
 public:
   /* Cache for the left item. */
 
@@ -1418,8 +1419,6 @@ public:
     Item_datetime *dt= static_cast<Item_datetime*>(item);
     dt->set(val->val, type_handler()->mysql_timestamp_type());
   }
-  uchar *get_value(Item *item)
-  { return get_value_internal(item, type_handler()->field_type()); }
   friend int cmp_longlong(void *cmp_arg, packed_longlong *a,packed_longlong *b);
 };
 
@@ -1431,6 +1430,7 @@ public:
    :in_temporal(thd, elements)
   {}
   void set(uint pos,Item *item);
+  uchar *get_value(Item *item);
   const Type_handler *type_handler() const { return &type_handler_datetime2; }
 };
 
@@ -1442,6 +1442,7 @@ public:
    :in_temporal(thd, elements)
   {}
   void set(uint pos,Item *item);
+  uchar *get_value(Item *item);
   const Type_handler *type_handler() const { return &type_handler_time2; }
 };
 
@@ -1616,7 +1617,6 @@ class cmp_item_temporal: public cmp_item_scalar
 {
 protected:
   longlong value;
-  void store_value_internal(Item *item, enum_field_types type);
 public:
   cmp_item_temporal() {}
   int compare(cmp_item *ci);
@@ -1631,7 +1631,8 @@ public:
   { }
   void store_value(Item *item)
   {
-    store_value_internal(item, MYSQL_TYPE_DATETIME);
+    value= item->val_datetime_packed();
+    m_null_value= item->null_value;
   }
   int cmp_not_null(const Value *val);
   int cmp(Item *arg);
@@ -1647,7 +1648,8 @@ public:
   { }
   void store_value(Item *item)
   {
-    store_value_internal(item, MYSQL_TYPE_TIME);
+    value= item->val_time_packed();
+    m_null_value= item->null_value;
   }
   int cmp_not_null(const Value *val);
   int cmp(Item *arg);
@@ -3081,7 +3083,6 @@ class Item_equal: public Item_bool_func
 
   const Type_handler *m_compare_handler;
   CHARSET_INFO *m_compare_collation;
-  String cmp_value1, cmp_value2;
 public:
 
   COND_EQUAL *upper_levels;       /* multiple equalities of upper and levels */
