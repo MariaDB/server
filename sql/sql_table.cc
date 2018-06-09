@@ -6530,15 +6530,15 @@ static bool fill_alter_inplace_info(THD *thd,
     ALTER_DROP_INDEX are replaced with versions that have higher granuality.
   */
 
-  ha_alter_info->handler_flags|= (alter_info->flags &
-                                  ~(ALTER_ADD_INDEX |
-                                    ALTER_DROP_INDEX |
-                                    ALTER_PARSER_ADD_COLUMN |
-                                    ALTER_PARSER_DROP_COLUMN |
-                                    ALTER_COLUMN_ORDER |
-                                    ALTER_RENAME_COLUMN |
-                                    ALTER_CHANGE_COLUMN |
-                                    ALTER_COLUMN_UNVERSIONED));
+  alter_table_operations flags_to_remove=
+      ALTER_ADD_INDEX | ALTER_DROP_INDEX | ALTER_PARSER_ADD_COLUMN |
+      ALTER_PARSER_DROP_COLUMN | ALTER_COLUMN_ORDER | ALTER_RENAME_COLUMN |
+      ALTER_CHANGE_COLUMN;
+
+  if (!table->file->native_versioned())
+    flags_to_remove|= ALTER_COLUMN_UNVERSIONED;
+
+  ha_alter_info->handler_flags|= (alter_info->flags & ~flags_to_remove);
   /*
     Comparing new and old default values of column is cumbersome.
     So instead of using such a comparison for detecting if default

@@ -87,7 +87,6 @@ static const alter_table_operations INNOBASE_ALTER_REBUILD
 	/*
 	| ALTER_STORED_COLUMN_TYPE
 	*/
-	| ALTER_COLUMN_UNVERSIONED
 	| ALTER_ADD_SYSTEM_VERSIONING
 	| ALTER_DROP_SYSTEM_VERSIONING
 	;
@@ -128,6 +127,7 @@ static const alter_table_operations INNOBASE_ALTER_INSTANT
 	| ALTER_ADD_VIRTUAL_COLUMN
 	| INNOBASE_FOREIGN_OPERATIONS
 	| ALTER_COLUMN_EQUAL_PACK_LENGTH
+	| ALTER_COLUMN_UNVERSIONED
 	| ALTER_DROP_VIRTUAL_COLUMN;
 
 struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
@@ -8433,6 +8433,188 @@ innobase_update_foreign_cache(
 	DBUG_RETURN(err);
 }
 
+/** Changes SYS_COLUMNS.PRTYPE for one column.
+@param[in,out]	trx	transaction
+@param[in]	table_name	table name
+@param[in]	tableid	table ID as in SYS_TABLES
+@param[in]	pos	column position
+@param[in]	prtype	new precise type
+@return		boolean flag
+@retval	true	on failure
+@retval false	on success */
+static
+bool
+change_field_versioning_try(
+	trx_t* trx,
+	const char* table_name,
+	const table_id_t tableid,
+	const ulint pos,
+	const ulint prtype)
+{
+	DBUG_ENTER("change_field_versioning_try");
+
+	pars_info_t* info = pars_info_create();
+
+	pars_info_add_int4_literal(info, "prtype", prtype);
+	pars_info_add_ull_literal(info,"tableid", tableid);
+	pars_info_add_int4_literal(info, "pos", pos);
+
+	dberr_t error = que_eval_sql(info,
+				     "PROCEDURE CHANGE_COLUMN_MTYPE () IS\n"
+				     "BEGIN\n"
+				     "UPDATE SYS_COLUMNS SET PRTYPE=:prtype\n"
+				     "WHERE TABLE_ID=:tableid AND POS=:pos;\n"
+				     "END;\n",
+				     false, trx);
+
+	if (error != DB_SUCCESS) {
+		my_error_innodb(error, table_name, 0);
+		trx->error_state = DB_SUCCESS;
+		trx->op_info = "";
+		DBUG_RETURN(true);
+	}
+
+	DBUG_RETURN(false);
+}
+
+/** Changes fields WITH/WITHOUT SYSTEM VERSIONING property in SYS_COLUMNS.
+@param[in]	ha_alter_info	alter info
+@param[in]	ctx	alter inplace context
+@param[in]	trx	transaction
+@param[in]	table	old table
+@return		boolean flag
+@retval	true	on failure
+@retval false	on success */
+static
+bool
+change_fields_versioning_try(
+	const Alter_inplace_info* ha_alter_info,
+	const ha_innobase_inplace_ctx* ctx,
+	trx_t* trx,
+	const TABLE* table)
+{
+	DBUG_ENTER("change_fields_versioning_try");
+
+	DBUG_ASSERT(ha_alter_info);
+	DBUG_ASSERT(ctx);
+
+	if (!(ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED)){
+		DBUG_RETURN(false);
+	}
+
+	uint virtual_count = 0;
+
+	List_iterator_fast<Create_field> it(
+	    ha_alter_info->alter_info->create_list);
+
+	for (uint i = 0; i < table->s->fields; i++) {
+		const Field* field = table->field[i];
+
+		if (innobase_is_v_fld(field)) {
+			virtual_count++;
+			continue;
+		}
+
+		const Create_field* create_field = NULL;
+		while (const Create_field* cf = it++) {
+			if (cf->field == field) {
+				create_field = cf;
+				break;
+			}
+		}
+		it.rewind();
+		DBUG_ASSERT(create_field);
+
+		if (create_field->versioning
+		    == Column_definition::VERSIONING_NOT_SET) {
+			continue;
+		}
+
+		const dict_table_t* new_table = ctx->new_table;
+		ulint pos = i - virtual_count;
+		const dict_col_t* col = dict_table_get_nth_col(new_table, pos);
+
+		DBUG_ASSERT(!col->vers_sys_start());
+		DBUG_ASSERT(!col->vers_sys_end());
+
+		ulint new_prtype
+		    = create_field->versioning
+			      == Column_definition::WITHOUT_VERSIONING
+			  ? col->prtype & ~DATA_VERSIONED
+			  : col->prtype | DATA_VERSIONED;
+
+		if (change_field_versioning_try(trx, table->s->table_name.str,
+						new_table->id, pos,
+						new_prtype)) {
+			DBUG_RETURN(true);
+		}
+	}
+
+	DBUG_RETURN(false);
+}
+
+/** Changes WITH/WITHOUT SYSTEM VERSIONING for fields
+in the data dictionary cache.
+@param ha_alter_info Data used during in-place alter
+@param ctx In-place ALTER TABLE context
+@param table MySQL table as it is before the ALTER operation */
+static
+void
+change_fields_versioning_cache(
+	Alter_inplace_info*		ha_alter_info,
+	const ha_innobase_inplace_ctx*	ctx,
+	const TABLE*			table)
+{
+	DBUG_ENTER("change_fields_versioning");
+
+	DBUG_ASSERT(ha_alter_info);
+	DBUG_ASSERT(ctx);
+	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED);
+
+	uint virtual_count = 0;
+
+	List_iterator_fast<Create_field> it(
+	    ha_alter_info->alter_info->create_list);
+
+	for (uint i = 0; i < table->s->fields; i++) {
+		const Field* field = table->field[i];
+
+		if (innobase_is_v_fld(field)) {
+			virtual_count++;
+			continue;
+		}
+
+		const Create_field* create_field = NULL;
+		while (const Create_field* cf = it++) {
+			if (cf->field == field) {
+				create_field = cf;
+				break;
+			}
+		}
+		it.rewind();
+		DBUG_ASSERT(create_field);
+
+		dict_col_t* col
+		    = dict_table_get_nth_col(ctx->new_table, i - virtual_count);
+
+		if (create_field->versioning
+		    == Column_definition::WITHOUT_VERSIONING) {
+
+			DBUG_ASSERT(!col->vers_sys_start());
+			DBUG_ASSERT(!col->vers_sys_end());
+			col->prtype &= ~DATA_VERSIONED;
+		} else if (create_field->versioning
+			   == Column_definition::WITH_VERSIONING) {
+
+			DBUG_ASSERT(!col->vers_sys_start());
+			DBUG_ASSERT(!col->vers_sys_end());
+			col->prtype |= DATA_VERSIONED;
+		}
+	}
+
+	DBUG_VOID_RETURN;
+}
+
 /** Commit the changes made during prepare_inplace_alter_table()
 and inplace_alter_table() inside the data dictionary tables,
 when rebuilding the table.
@@ -8742,6 +8924,10 @@ commit_try_norebuild(
 		DBUG_RETURN(true);
 	}
 
+	if (change_fields_versioning_try(ha_alter_info, ctx, trx, old_table)) {
+		DBUG_RETURN(true);
+	}
+
 	dberr_t	error;
 
 	/* We altered the table in place. Mark the indexes as committed. */
@@ -8945,6 +9131,10 @@ commit_cache_norebuild(
 	if (!ctx->is_instant()) {
 		innobase_rename_or_enlarge_columns_cache(
 			ha_alter_info, table, ctx->new_table);
+	}
+
+	if (ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED) {
+		change_fields_versioning_cache(ha_alter_info, ctx, table);
 	}
 
 #ifdef MYSQL_RENAME_INDEX
