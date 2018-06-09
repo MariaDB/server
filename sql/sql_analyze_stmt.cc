@@ -39,7 +39,7 @@ void Filesort_tracker::print_json_members(Json_writer *writer)
     if (r_limit == 0)
       writer->add_str(varied_str);
     else
-      writer->add_ll((longlong) rint(r_limit/get_r_loops()));
+      writer->add_ll((longlong) rint(r_limit));
   }
 
   writer->add_member("r_used_priority_queue"); 

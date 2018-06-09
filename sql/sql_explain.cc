@@ -1642,7 +1642,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     {
       /* Get r_filtered value from filesort */
       if (fs_tracker->get_r_loops())
-        writer->add_double(fs_tracker->get_r_filtered());
+        writer->add_double(fs_tracker->get_r_filtered()*100);
       else
         writer->add_null();
     }

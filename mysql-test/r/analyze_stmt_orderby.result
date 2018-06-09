@@ -303,7 +303,7 @@ ANALYZE
           "r_rows": 10,
           "r_total_time_ms": "REPLACED",
           "filtered": 100,
-          "r_filtered": 1,
+          "r_filtered": 100,
           "attached_condition": "(t0.a is not null)"
         }
       }
