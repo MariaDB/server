@@ -663,13 +663,13 @@ exit:
             __LINE__, \
             fn, \
             r, \
-            max_acceptable_lsn.lsn, \
+            (ulonglong)max_acceptable_lsn.lsn, \
             r0, \
-            checkpoint_lsn_0.lsn, \
-            checkpoint_count_0, \
+            (ulonglong)checkpoint_lsn_0.lsn, \
+            (ulonglong)checkpoint_count_0, \
             r1, \
-            checkpoint_lsn_1.lsn, \
-            checkpoint_count_1);
+            (ulonglong)checkpoint_lsn_1.lsn, \
+            (ulonglong)checkpoint_count_1);
 
 int toku_deserialize_ft_from(int fd,
                              const char *fn,
