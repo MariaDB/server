@@ -17,6 +17,12 @@ IF(NOT LIBJEMALLOC)
   MESSAGE(WARNING "TokuDB is enabled, but jemalloc is not. This configuration is not supported")
 ENDIF()
 
+CHECK_C_COMPILER_FLAG("-Wshadow" HAVE_WSHADOW)
+IF (HAVE_WSHADOW)
+  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-shadow")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-shadow")
+ENDIF()
+
 IF (HAVE_WVLA)
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-vla")
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-vla")
