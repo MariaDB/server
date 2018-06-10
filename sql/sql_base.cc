@@ -6160,6 +6160,9 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name,
       column reference. See create_view_field() for details.
     */
     item= nj_col->create_item(thd);
+    if (!item)
+      DBUG_RETURN(NULL);
+
     /*
      *ref != NULL means that *ref contains the item that we need to
      replace. If the item was aliased by the user, set the alias to

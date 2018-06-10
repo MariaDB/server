@@ -5336,6 +5336,8 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   Item *item= new Item_direct_view_ref(&view->view->select_lex.context,
                                        field_ref, view->alias,
                                        name, view);
+  if (!item)
+    return NULL;
   /*
     Force creation of nullable item for the result tmp table for outer joined
     views/derived tables.

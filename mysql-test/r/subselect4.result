@@ -2499,7 +2499,7 @@ SELECT 2 IN (SELECT 2 from DUAL WHERE 1 != 1);
 SET optimizer_switch= @@global.optimizer_switch;
 set @@tmp_table_size= @@global.tmp_table_size;
 #
-# mfrv-14515: Wrong results for tableless query with subquery in WHERE
+# mdev-14515: Wrong results for tableless query with subquery in WHERE
 #             and implicit aggregation
 #
 create table t1 (i1 int, i2 int);
