@@ -826,7 +826,7 @@ int toku_ftnode_fetch_callback(CACHEFILE UU(cachefile),
                 __FILE__,
                 __LINE__,
                 toku_cachefile_fname_in_env(cachefile),
-                blocknum.b);
+                (longlong)blocknum.b);
         } else {
             fprintf(
                 stderr,
@@ -836,7 +836,7 @@ int toku_ftnode_fetch_callback(CACHEFILE UU(cachefile),
                 __FILE__,
                 __LINE__,
                 toku_cachefile_fname_in_env(cachefile),
-                blocknum.b,
+                (longlong)blocknum.b,
                 r);
         }
         // make absolutely sure we crash before doing anything else.
