@@ -663,6 +663,12 @@ protected:
   SEL_TREE *get_mm_tree_for_const(RANGE_OPT_PARAM *param);
 
   Field *create_tmp_field(bool group, TABLE *table, uint convert_int_length);
+  /*
+    This method is used if the item was not null but convertion to
+    TIME/DATE/DATETIME failed. We return a zero date if allowed,
+    otherwise - null.
+  */
+  bool make_zero_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
 
 public:
   /*
@@ -2565,6 +2571,7 @@ public:
   longlong val_int();
   String *val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   int save_in_field(Field *field, bool no_conversions);
   int save_safe_in_field(Field *field);
   bool send(Protocol *protocol, String *str);

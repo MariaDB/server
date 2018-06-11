@@ -1287,7 +1287,7 @@ bool Item::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
                                                 ltime, fuzzydate,
                                                 field_name_or_null()))
       goto err;
-    break;
+    return null_value= false;
   }
   case REAL_RESULT:
   {
@@ -1295,7 +1295,7 @@ bool Item::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
     if (null_value || double_to_datetime_with_warn(value, ltime, fuzzydate,
                                                    field_name_or_null()))
       goto err;
-    break;
+    return null_value= false;
   }
   case DECIMAL_RESULT:
   {
@@ -1304,7 +1304,7 @@ bool Item::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
         decimal_to_datetime_with_warn(res, ltime, fuzzydate,
                                       field_name_or_null()))
       goto err;
-    break;
+    return null_value= false;
   }
   case STRING_RESULT:
   {
@@ -1314,15 +1314,20 @@ bool Item::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
         str_to_datetime_with_warn(res->charset(), res->ptr(), res->length(),
                                   ltime, fuzzydate))
       goto err;
-    break;
+    return null_value= false;
   }
   default:
+    null_value= true;
     DBUG_ASSERT(0);
   }
 
-  return null_value= 0;
-
 err:
+  return null_value|= make_zero_date(ltime, fuzzydate);
+}
+
+
+bool Item::make_zero_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
   /*
     if the item was not null and convertion failed, we return a zero date
     if allowed, otherwise - null.
@@ -1344,7 +1349,7 @@ err:
     */
     ltime->time_type= MYSQL_TIMESTAMP_TIME;
   }
-  return null_value|= !(fuzzydate & TIME_FUZZY_DATES);
+  return !(fuzzydate & TIME_FUZZY_DATES);
 }
 
 bool Item::get_seconds(ulonglong *sec, ulong *sec_part)
@@ -3129,6 +3134,15 @@ String *Item_null::val_str(String *str)
 my_decimal *Item_null::val_decimal(my_decimal *decimal_value)
 {
   return 0;
+}
+
+
+bool Item_null::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  // following assert is redundant, because fixed=1 assigned in constructor
+  DBUG_ASSERT(fixed == 1);
+  make_zero_date(ltime, fuzzydate);
+  return (null_value= true);
 }
 
 
