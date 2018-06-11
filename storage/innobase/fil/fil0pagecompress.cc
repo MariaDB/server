@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -501,8 +501,7 @@ fil_decompress_page(
 
 	/* Do not try to uncompressed pages that are not compressed */
 	if (ptype !=  FIL_PAGE_PAGE_COMPRESSED &&
-		ptype != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED &&
-		ptype != FIL_PAGE_TYPE_COMPRESSED) {
+		ptype != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 		return;
 	}
 
