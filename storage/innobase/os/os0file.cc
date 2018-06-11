@@ -1939,6 +1939,24 @@ loop:
 #endif
 }
 
+/** Handle RENAME error.
+@param name	old name of the file
+@param new_name	new name of the file */
+static void os_file_handle_rename_error(const char* name, const char* new_name)
+{
+	if (os_file_get_last_error(true) != OS_FILE_DISK_FULL) {
+		ib_logf(IB_LOG_LEVEL_ERROR, "Cannot rename file '%s' to '%s'",
+			name, new_name);
+	} else if (!os_has_said_disk_full) {
+		os_has_said_disk_full = true;
+		/* Disk full error is reported irrespective of the
+		on_error_silent setting. */
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Full disk prevents renaming file '%s' to '%s'",
+			name, new_name);
+	}
+}
+
 /***********************************************************************//**
 NOTE! Use the corresponding macro os_file_rename(), not directly this function!
 Renames a file (can also move it to another directory). It is safest that the
@@ -1974,8 +1992,7 @@ os_file_rename_func(
 		return(TRUE);
 	}
 
-	os_file_handle_error_no_exit(oldpath, "rename", FALSE);
-
+	os_file_handle_rename_error(oldpath, newpath);
 	return(FALSE);
 #else
 	int	ret;
@@ -1983,8 +2000,7 @@ os_file_rename_func(
 	ret = rename(oldpath, newpath);
 
 	if (ret != 0) {
-		os_file_handle_error_no_exit(oldpath, "rename", FALSE);
-
+		os_file_handle_rename_error(oldpath, newpath);
 		return(FALSE);
 	}
 
