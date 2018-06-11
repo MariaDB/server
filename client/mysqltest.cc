@@ -1507,7 +1507,7 @@ void free_used_memory()
       dynstr_free(&(*q)->content);
     my_free((*q));
   }
-  for (i= 0; i < 10; i++)
+  for (i= 0; i < 12; i++)
   {
     if (var_reg[i].alloced_len)
       my_free(var_reg[i].str_val);
