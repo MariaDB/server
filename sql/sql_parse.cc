@@ -4792,7 +4792,6 @@ mysql_execute_command(THD *thd)
         }
       }
     }
-    
     /* DDL and binlog write order are protected by metadata locks. */
     res= mysql_rm_table(thd, first_table, lex->if_exists(), lex->tmp_table(),
                         lex->table_type == TABLE_TYPE_SEQUENCE);
@@ -7966,6 +7965,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   LEX_CSTRING alias_str;
   LEX *lex= thd->lex;
   DBUG_ENTER("add_table_to_list");
+  int same_name= 0;
 
   if (unlikely(!table))
     DBUG_RETURN(0);				// End of memory
@@ -8068,8 +8068,23 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
                                   tables->alias.str) &&
                    !cmp(&ptr->db, &tables->db) && ! tables->sequence))
       {
-	my_error(ER_NONUNIQ_TABLE, MYF(0), alias_str.str); /* purecov: tested */
-	DBUG_RETURN(0);				/* purecov: tested */
+        if ((lex->sql_command==SQLCOM_DROP_TABLE && thd->temporary_tables) ||
+            (lex->create_info.like() && !lex->create_info.or_replace()))
+        {
+          /* In case of dropping tables/create table like, 
+           * it is allowed to have same name for base  and temp tables */
+          if (same_name>1)
+          {
+            my_error(ER_NONUNIQ_TABLE, MYF(0), alias_str.str); /* purecov: tested */
+            DBUG_RETURN(0);
+          }
+          same_name++;
+        }
+        else
+        {
+          my_error(ER_NONUNIQ_TABLE, MYF(0), alias_str.str); /* purecov: tested */
+          DBUG_RETURN(0);				/* purecov: tested */
+        }
       }
     }
   }
