@@ -326,7 +326,7 @@ let $wait_condition=
         info = "alter table t1 engine=csv";
 --source include/wait_condition.inc
 connection default;
---error ER_ILLEGAL_HA
+--error ER_ILLEGAL_HA,ER_KEY_DOES_NOT_EXITS
 handler t1 read a next;
 handler t1 close;
 connection con1;

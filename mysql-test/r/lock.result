@@ -407,7 +407,7 @@ LOCK TABLE t1 WRITE;
 HANDLER t1 OPEN;
 ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 HANDLER t1 READ FIRST;
-ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+Got one of the listed errors
 HANDLER t1 CLOSE;
 ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 UNLOCK TABLES;
