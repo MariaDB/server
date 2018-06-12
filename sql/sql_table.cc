@@ -5930,7 +5930,9 @@ drop_create_field:
 
       /* Check if the table already has a PRIMARY KEY */
       if (key->type == Key::PRIMARY &&
-          table->s->primary_key != MAX_KEY)
+          table->s->primary_key != MAX_KEY &&
+          (keyname=  table->s->key_info[table->s->primary_key].name) &&
+          my_strcasecmp(system_charset_info, keyname, primary_key_name) == 0)
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
             ER_DUP_KEYNAME, ER(ER_MULTIPLE_PRI_KEY));
