@@ -2736,6 +2736,15 @@ void mysql_sql_stmt_prepare(THD *thd)
     DBUG_VOID_RETURN;
   }
 
+#if MYSQL_VERSION_ID < 100200
+  /*
+    Backpoiting MDEV-14603 from 10.2 to 10.1
+    Remove the code between #if..#endif when merging.
+  */
+  Item_change_list change_list_save_point;
+  thd->change_list.move_elements_to(&change_list_save_point);
+#endif
+
   if (stmt->prepare(query, query_len))
   {
     /* Statement map deletes the statement on erase */
@@ -2743,6 +2752,15 @@ void mysql_sql_stmt_prepare(THD *thd)
   }
   else
     my_ok(thd, 0L, 0L, "Statement prepared");
+
+#if MYSQL_VERSION_ID < 100200
+  /*
+    Backpoiting MDEV-14603 from 10.2 to 10.1
+    Remove the code between #if..#endif when merging.
+  */
+  thd->rollback_item_tree_changes();
+  change_list_save_point.move_elements_to(&thd->change_list);
+#endif
 
   DBUG_VOID_RETURN;
 }
@@ -3039,7 +3057,27 @@ void mysql_sql_stmt_execute(THD *thd)
   */
   Item *free_list_backup= thd->free_list;
   thd->free_list= NULL; // Hide the external (e.g. "SET STATEMENT") Items
+
+#if MYSQL_VERSION_ID < 100200
+  /*
+    Backpoiting MDEV-14603 from 10.2 to 10.1
+    Remove the code between #if..#endif when merging.
+  */
+  Item_change_list change_list_save_point;
+  thd->change_list.move_elements_to(&change_list_save_point);
+#endif
+
   (void) stmt->execute_loop(&expanded_query, FALSE, NULL, NULL);
+
+#if MYSQL_VERSION_ID < 100200
+  /*
+    Backpoiting MDEV-14603 from 10.2 to 10.1
+    Remove the code between #if..#endif when merging.
+  */
+  thd->rollback_item_tree_changes();
+  change_list_save_point.move_elements_to(&thd->change_list);
+#endif
+
   thd->free_items();    // Free items created by execute_loop()
   /*
     Now restore the "external" (e.g. "SET STATEMENT") Item list.

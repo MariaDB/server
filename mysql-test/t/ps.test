@@ -3876,3 +3876,58 @@ FROM
   ) X;
 drop table t1;
 --echo # End of 5.5 tests
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-12060 Crash in EXECUTE IMMEDIATE with an expression returning a GRANT command
+--echo # (the 10.1 part)
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p2 ()
+BEGIN
+  SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR PREPARE stmt FROM 'SELECT 1';
+  EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+END;
+/
+DELIMITER ;/
+CALL p2();
+DROP PROCEDURE p2;
+
+
+DELIMITER /;
+BEGIN NOT ATOMIC
+  SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR PREPARE stmt FROM 'SELECT 1';
+  EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN NOT ATOMIC
+  SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR PREPARE stmt FROM 'SELECT 1';
+  DEALLOCATE PREPARE stmt;
+END;
+/
+DELIMITER ;/
+
+
+DELIMITER /;
+BEGIN NOT ATOMIC
+  PREPARE stmt FROM 'SELECT 1';
+  SET STATEMENT join_cache_level=CAST(CONCAT(_utf8'6',_latin1'') AS INT) FOR EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+END;
+/
+DELIMITER ;/
+
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
