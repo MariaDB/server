@@ -9773,3 +9773,88 @@ static void get_cs_converted_string_value(THD *thd,
   return;
 }
 #endif
+
+/**
+  Dumps a text description of a thread, its security context
+  (user, host) and the current query.
+
+  @param thd thread context
+  @param buffer pointer to preferred result buffer
+  @param length length of buffer
+  @param max_query_len how many chars of query to copy (0 for all)
+
+  @return Pointer to string
+*/
+
+extern "C"
+char *thd_get_error_context_description(THD *thd, char *buffer,
+                                        unsigned int length,
+                                        unsigned int max_query_len)
+{
+  String str(buffer, length, &my_charset_latin1);
+  const Security_context *sctx= &thd->main_security_ctx;
+  char header[256];
+  int len;
+
+  mysql_mutex_lock(&LOCK_thread_count);
+
+  len= my_snprintf(header, sizeof(header),
+                   "MySQL thread id %lu, OS thread handle 0x%lx, query id %lu",
+                   thd->thread_id, (ulong) thd->real_id, (ulong) thd->query_id);
+  str.length(0);
+  str.append(header, len);
+
+  if (sctx->host)
+  {
+    str.append(' ');
+    str.append(sctx->host);
+  }
+
+  if (sctx->ip)
+  {
+    str.append(' ');
+    str.append(sctx->ip);
+  }
+
+  if (sctx->user)
+  {
+    str.append(' ');
+    str.append(sctx->user);
+  }
+
+  /* Don't wait if LOCK_thd_data is used as this could cause a deadlock */
+  if (!mysql_mutex_trylock(&thd->LOCK_thd_data))
+  {
+    if (const char *info= thread_state_info(thd))
+    {
+      str.append(' ');
+      str.append(info);
+    }
+
+    if (thd->query())
+    {
+      if (max_query_len < 1)
+        len= thd->query_length();
+      else
+        len= MY_MIN(thd->query_length(), max_query_len);
+      str.append('\n');
+      str.append(thd->query(), len);
+    }
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
+  mysql_mutex_unlock(&LOCK_thread_count);
+
+  if (str.c_ptr_safe() == buffer)
+    return buffer;
+
+  /*
+    We have to copy the new string to the destination buffer because the string
+    was reallocated to a larger buffer to be able to fit.
+  */
+  DBUG_ASSERT(buffer != NULL);
+  length= MY_MIN(str.length(), length-1);
+  memcpy(buffer, str.c_ptr_quick(), length);
+  /* Make sure that the new string is null terminated */
+  buffer[length]= '\0';
+  return buffer;
+}
