@@ -4386,9 +4386,6 @@ DROP TABLE t1;
 --echo # End of MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
 --echo #
 
---echo #
---echo # End of 10.2 tests
---echo #
 
 
 --echo #
@@ -4650,3 +4647,56 @@ execute stmt;
 execute stmt;
 execute stmt;
 drop table t1;
+
+
+--echo #
+--echo # MDEV-12060 Crash in EXECUTE IMMEDIATE with an expression returning a GRANT command
+--echo #
+
+CREATE ROLE testrole;
+DELIMITER /;
+CREATE OR REPLACE PROCEDURE p1() 
+BEGIN
+END;
+/
+DELIMITER ;/
+
+DELIMITER /;
+CREATE PROCEDURE p2 (wgrp VARCHAR(10))
+BEGIN
+  EXECUTE IMMEDIATE concat('GRANT EXECUTE ON PROCEDURE p1 TO ',wgrp);
+END;
+/
+DELIMITER ;/
+CALL p2('testrole');
+DROP PROCEDURE p2;
+
+DELIMITER /;
+CREATE PROCEDURE p2 ()
+BEGIN
+  EXECUTE IMMEDIATE concat(_utf8'GRANT EXECUTE ON PROCEDURE p1 TO ',_latin1'testrole');
+END;
+/
+DELIMITER ;/
+CALL p2();
+DROP PROCEDURE p2;
+
+DELIMITER /;
+CREATE PROCEDURE p2 ()
+BEGIN
+  PREPARE stmt FROM concat(_utf8'GRANT EXECUTE ON PROCEDURE p1 TO ',_latin1' testrole');
+  EXECUTE stmt;
+  DEALLOCATE PREPARE stmt;
+END;
+/
+DELIMITER ;/
+CALL p2();
+DROP PROCEDURE p2;
+
+DROP PROCEDURE p1;
+DROP ROLE testrole;
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
