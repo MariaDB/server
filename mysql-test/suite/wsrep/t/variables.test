@@ -118,6 +118,20 @@ sleep 3;
 SHOW STATUS LIKE 'threads_connected';
 SHOW STATUS LIKE 'wsrep_thread_count';
 
+#
+# privileges for wsrep_on
+#
+set wsrep_on=0;
+set wsrep_on=1;
+create user test@localhost;
+connect con1,localhost,test;
+set auto_increment_increment=10;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+set wsrep_on=0;
+disconnect con1;
+connection default;
+drop user test@localhost;
+
 --echo #
 --echo # MDEV#6411: Setting set @@global.wsrep_sst_auth=NULL causes crash
 --echo #

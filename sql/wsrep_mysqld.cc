@@ -13,6 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
+#include <sql_plugin.h> // SHOW_MY_BOOL
 #include <mysqld.h>
 #include <sql_class.h>
 #include <sql_parse.h>
@@ -288,8 +289,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
 
   if (memcmp(&cluster_uuid, &view->state_id.uuid, sizeof(wsrep_uuid_t)))
   {
-    memcpy((wsrep_uuid_t*)&cluster_uuid, &view->state_id.uuid,
-           sizeof(cluster_uuid));
+    memcpy(&cluster_uuid, &view->state_id.uuid, sizeof(cluster_uuid));
 
     wsrep_uuid_print (&cluster_uuid, cluster_uuid_str,
                       sizeof(cluster_uuid_str));
@@ -335,7 +335,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
       // version change
       if (view->proto_ver != wsrep_protocol_version)
       {
-          my_bool wsrep_ready_saved= wsrep_ready;
+          my_bool wsrep_ready_saved= wsrep_ready_get();
           wsrep_ready_set(FALSE);
           WSREP_INFO("closing client connections for "
                      "protocol change %ld -> %d",
@@ -450,16 +450,34 @@ out:
   return WSREP_CB_SUCCESS;
 }
 
-void wsrep_ready_set (my_bool x)
+my_bool wsrep_ready_set (my_bool x)
 {
   WSREP_DEBUG("Setting wsrep_ready to %d", x);
   if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
-  if (wsrep_ready != x)
+  my_bool ret= (wsrep_ready != x);
+  if (ret)
   {
     wsrep_ready= x;
     mysql_cond_signal (&COND_wsrep_ready);
   }
   mysql_mutex_unlock (&LOCK_wsrep_ready);
+  return ret;
+}
+
+my_bool wsrep_ready_get (void)
+{
+  if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
+  my_bool ret= wsrep_ready;
+  mysql_mutex_unlock (&LOCK_wsrep_ready);
+  return ret;
+}
+
+int wsrep_show_ready(THD *thd, SHOW_VAR *var, char *buff)
+{
+  var->type= SHOW_MY_BOOL;
+  var->value= buff;
+  *((my_bool *)buff)= wsrep_ready_get();
+  return 0;
 }
 
 // Wait until wsrep has reached ready state
@@ -478,17 +496,8 @@ void wsrep_ready_wait ()
 static void wsrep_synced_cb(void* app_ctx)
 {
   WSREP_INFO("Synchronized with group, ready for connections");
-  bool signal_main= false;
-  if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
-  if (!wsrep_ready)
-  {
-    wsrep_ready= TRUE;
-    mysql_cond_signal (&COND_wsrep_ready);
-    signal_main= true;
-
-  }
+  my_bool signal_main= wsrep_ready_set(TRUE);
   wsrep_config_state.set(WSREP_MEMBER_SYNCED);
-  mysql_mutex_unlock (&LOCK_wsrep_ready);
 
   if (signal_main)
   {
@@ -960,6 +969,8 @@ bool wsrep_must_sync_wait (THD* thd, uint mask)
 {
   return (thd->variables.wsrep_sync_wait & mask) &&
     thd->variables.wsrep_on &&
+    !(thd->variables.wsrep_dirty_reads &&
+      !is_update_query(thd->lex->sql_command)) &&
     !thd->in_active_multi_stmt_transaction() &&
     thd->wsrep_conflict_state != REPLAYING &&
     thd->wsrep_sync_wait_gtid.seqno == WSREP_SEQNO_UNDEFINED;
@@ -1007,17 +1018,7 @@ bool wsrep_sync_wait (THD* thd, uint mask)
   return false;
 }
 
-/*
- * Helpers to deal with TOI key arrays
- */
-typedef struct wsrep_key_arr
-{
-    wsrep_key_t* keys;
-    size_t       keys_len;
-} wsrep_key_arr_t;
-
-
-static void wsrep_keys_free(wsrep_key_arr_t* key_arr)
+void wsrep_keys_free(wsrep_key_arr_t* key_arr)
 {
     for (size_t i= 0; i < key_arr->keys_len; ++i)
     {
@@ -1082,11 +1083,11 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
 }
 
 /* Prepare key list from db/table and table_list */
-static bool wsrep_prepare_keys_for_isolation(THD*              thd,
-                                             const char*       db,
-                                             const char*       table,
-                                             const TABLE_LIST* table_list,
-                                             wsrep_key_arr_t*  ka)
+bool wsrep_prepare_keys_for_isolation(THD*              thd,
+                                      const char*       db,
+                                      const char*       table,
+                                      const TABLE_LIST* table_list,
+                                      wsrep_key_arr_t*  ka)
 {
   ka->keys= 0;
   ka->keys_len= 0;
@@ -1814,7 +1815,7 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
     }
     else if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
     {
-      WSREP_DEBUG("DROP caused BF abort");
+      WSREP_DEBUG("DROP caused BF abort, conf %d", granted_thd->wsrep_conflict_state);
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
       wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);

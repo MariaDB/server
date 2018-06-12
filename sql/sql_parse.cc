@@ -2915,6 +2915,7 @@ mysql_execute_command(THD *thd)
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
     execute_show_status(thd, all_tables);
+
     break;
   }
   case SQLCOM_SHOW_EXPLAIN:
@@ -3961,7 +3962,7 @@ end_with_restore_list:
   case SQLCOM_INSERT_SELECT:
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
-    select_result *sel_result;
+    select_insert *sel_result;
     bool explain= MY_TEST(lex->describe);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     if (WSREP_CLIENT(thd) &&

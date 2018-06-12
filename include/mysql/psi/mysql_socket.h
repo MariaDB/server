@@ -562,6 +562,12 @@ inline_mysql_socket_socket
       (key, (const my_socket*)&mysql_socket.fd, NULL, 0);
   }
 #endif
+
+  /* SOCK_CLOEXEC isn't always a number - can't preprocessor compare */
+#if defined(HAVE_FCNTL) && defined(FD_CLOEXEC) && !defined(HAVE_SOCK_CLOEXEC)
+  (void) fcntl(mysql_socket.fd, F_SETFD, FD_CLOEXEC);
+#endif
+
   return mysql_socket;
 }
 

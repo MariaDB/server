@@ -4377,6 +4377,7 @@ handler::ha_create_partitioning_metadata(const char *name,
   DBUG_ASSERT(m_lock_type == F_UNLCK ||
               (!old_name && strcmp(name, table_share->path.str)));
 
+
   return create_partitioning_metadata(name, old_name, action_flag);
 }
 
@@ -6165,6 +6166,12 @@ void ha_fake_trx_id(THD *thd)
 
   if (!WSREP(thd))
   {
+    DBUG_VOID_RETURN;
+  }
+
+  if (thd->wsrep_ws_handle.trx_id != WSREP_UNDEFINED_TRX_ID)
+  {
+    WSREP_DEBUG("fake trx id skipped: %lu", thd->wsrep_ws_handle.trx_id);
     DBUG_VOID_RETURN;
   }
 

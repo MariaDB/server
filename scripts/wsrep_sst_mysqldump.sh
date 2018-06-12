@@ -131,7 +131,7 @@ SET_GTID_BINLOG_STATE=""
 SQL_LOG_BIN_OFF=""
 
 # Safety check
-if echo $SERVER_VERSION | grep '^10.1' > /dev/null
+if [ ${SERVER_VERSION%%.*} != '5' ]
 then
   # If binary logging is enabled on the joiner node, we need to copy donor's
   # gtid_binlog_state to joiner. In order to do that, a RESET MASTER must be

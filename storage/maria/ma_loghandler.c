@@ -935,7 +935,7 @@ static File create_logfile_by_number_no_cache(uint32 file_no)
   /* TODO: add O_DIRECT to open flags (when buffer is aligned) */
   if ((file= mysql_file_create(key_file_translog,
                                translog_filename_by_fileno(file_no, path),
-                               0, O_BINARY | O_RDWR, MYF(MY_WME))) < 0)
+                               0, O_BINARY | O_RDWR | O_CLOEXEC, MYF(MY_WME))) < 0)
   {
     DBUG_PRINT("error", ("Error %d during creating file '%s'", errno, path));
     translog_stop_writing();
@@ -973,7 +973,7 @@ static File open_logfile_by_number_no_cache(uint32 file_no)
   /* TODO: use mysql_file_create() */
   if ((file= mysql_file_open(key_file_translog,
                              translog_filename_by_fileno(file_no, path),
-                             log_descriptor.open_flags,
+                             log_descriptor.open_flags | O_CLOEXEC,
                              MYF(MY_WME))) < 0)
   {
     DBUG_PRINT("error", ("Error %d during opening file '%s'", errno, path));
@@ -3243,7 +3243,7 @@ static my_bool translog_get_last_page_addr(TRANSLOG_ADDRESS *addr,
     File fd;
     if ((fd= mysql_file_open(key_file_translog,
                              translog_filename_by_fileno(file_no, path),
-                             O_RDONLY, (no_errors ? MYF(0) : MYF(MY_WME)))) < 0)
+                             O_RDONLY | O_CLOEXEC, (no_errors ? MYF(0) : MYF(MY_WME)))) < 0)
     {
       my_errno= errno;
       DBUG_PRINT("error", ("Error %d during opening file #%d",

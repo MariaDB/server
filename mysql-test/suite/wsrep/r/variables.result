@@ -207,6 +207,13 @@ Threads_connected	1
 SHOW STATUS LIKE 'wsrep_thread_count';
 Variable_name	Value
 wsrep_thread_count	11
+set wsrep_on=0;
+set wsrep_on=1;
+create user test@localhost;
+set auto_increment_increment=10;
+set wsrep_on=0;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+drop user test@localhost;
 #
 # MDEV#6411: Setting set @@global.wsrep_sst_auth=NULL causes crash
 #

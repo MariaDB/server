@@ -5128,7 +5128,7 @@ err_during_init:
   */
   if (WSREP_ON && wsrep_node_dropped && wsrep_restart_slave)
   {
-    if (wsrep_ready)
+    if (wsrep_ready_get())
     {
       WSREP_INFO("Slave error due to node temporarily non-primary"
                  "SQL slave will continue");

@@ -2576,7 +2576,7 @@ bool MYSQL_LOG::open(
   File file= -1;
   my_off_t seek_offset;
   bool is_fifo = false;
-  int open_flags= O_CREAT | O_BINARY;
+  int open_flags= O_CREAT | O_BINARY | O_CLOEXEC;
   DBUG_ENTER("MYSQL_LOG::open");
   DBUG_PRINT("enter", ("log_type: %d", (int) log_type_arg));
 
@@ -3296,7 +3296,7 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
             ".index", opt);
   if ((index_file_nr= mysql_file_open(m_key_file_log_index,
                                       index_file_name,
-                                      O_RDWR | O_CREAT | O_BINARY,
+                                      O_RDWR | O_CREAT | O_BINARY | O_CLOEXEC,
                                       MYF(MY_WME))) < 0 ||
        mysql_file_sync(index_file_nr, MYF(MY_WME)) ||
        init_io_cache(&index_file, index_file_nr,
@@ -8967,14 +8967,14 @@ int TC_LOG_MMAP::open(const char *opt_name)
   tc_log_page_size= my_getpagesize();
 
   fn_format(logname,opt_name,mysql_data_home,"",MY_UNPACK_FILENAME);
-  if ((fd= mysql_file_open(key_file_tclog, logname, O_RDWR, MYF(0))) < 0)
+  if ((fd= mysql_file_open(key_file_tclog, logname, O_RDWR | O_CLOEXEC, MYF(0))) < 0)
   {
     if (my_errno != ENOENT)
       goto err;
     if (using_heuristic_recover())
       return 1;
     if ((fd= mysql_file_create(key_file_tclog, logname, CREATE_MODE,
-                               O_RDWR, MYF(MY_WME))) < 0)
+                               O_RDWR | O_CLOEXEC, MYF(MY_WME))) < 0)
       goto err;
     inited=1;
     file_length= opt_tc_log_size;

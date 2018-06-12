@@ -1422,7 +1422,7 @@ os_file_create_simple_func(
 	}
 
 	do {
-		file = ::open(name, create_flag, os_innodb_umask);
+		file = ::open(name, create_flag | O_CLOEXEC, os_innodb_umask);
 
 		if (file == -1) {
 			*success = FALSE;
@@ -1605,7 +1605,7 @@ os_file_create_simple_no_error_handling_func(
 		return(file);
 	}
 
-	file = open(name, create_flag, os_innodb_umask);
+	file = ::open(name, create_flag | O_CLOEXEC, os_innodb_umask);
 
 	*success = file != -1;
 
@@ -1970,7 +1970,7 @@ os_file_create_func(
 #endif /* O_SYNC */
 
 	do {
-		file = open(name, create_flag, os_innodb_umask);
+		file = ::open(name, create_flag | O_CLOEXEC, os_innodb_umask);
 
 		if (file == -1) {
 			const char*	operation;
@@ -3455,7 +3455,7 @@ os_file_get_status(
 
 		access = !srv_read_only_mode ? O_RDWR : O_RDONLY;
 
-		fh = ::open(path, access, os_innodb_umask);
+		fh = ::open(path, access | O_CLOEXEC, os_innodb_umask);
 
 		if (fh == -1) {
 			stat_info->rw_perm = false;

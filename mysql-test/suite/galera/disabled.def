@@ -27,3 +27,6 @@ galera_ssl_upgrade : MDEV-13549 Galera test failures
 galera.MW-329 : wsrep_local_replays not stable
 galera.MW-328A : have_deadlocks test not stable
 query_cache : MDEV-15805 Test failure on galera.query_cache
+MW-416 : MDEV-13549 Galera test failures
+galera_wan : MDEV-13549 Galera test failures
+MW-388 : MDEV-13549 Galera test failures

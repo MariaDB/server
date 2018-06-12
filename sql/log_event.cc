@@ -4415,22 +4415,6 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
       else
         thd->variables.collation_database= thd->db_charset;
 
-      {
-        const CHARSET_INFO *cs= thd->charset();
-        /*
-          We cannot ask for parsing a statement using a character set
-          without state_maps (parser internal data).
-        */
-        if (!cs->state_map)
-        {
-          rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
-                      ER_THD(thd, ER_SLAVE_FATAL_ERROR),
-                      "character_set cannot be parsed");
-          thd->is_slave_error= true;
-          goto end;
-        }
-      }
-
       /*
         Record any GTID in the same transaction, so slave state is
         transactionally consistent.

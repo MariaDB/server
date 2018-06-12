@@ -600,6 +600,8 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #endif
 #ifndef SOCK_CLOEXEC
 #define SOCK_CLOEXEC    0
+#else
+#define HAVE_SOCK_CLOEXEC
 #endif
 
 /* additional file share flags for win32 */

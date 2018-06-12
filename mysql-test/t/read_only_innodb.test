@@ -246,15 +246,6 @@ SELECT * FROM temp1, temp2;
 DROP TABLE temp1, temp2;
 
 --echo
---echo # MDEV-14185 CREATE TEMPORARY TABLE AS SELECT causes error 1290 with read_only and InnoDB.
---echo
-
-CREATE TEMPORARY TABLE temp1 ENGINE=INNODB AS SELECT a FROM t1;
-SELECT * FROM temp1;
-DROP TABLE temp1;
-
-
---echo
 --echo # Disconnect and cleanup
 --echo
 disconnect con1;

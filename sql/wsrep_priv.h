@@ -26,7 +26,7 @@
 #include <pthread.h>
 #include <cstdio>
 
-void    wsrep_ready_set (my_bool x);
+my_bool wsrep_ready_set (my_bool x);
 
 ssize_t wsrep_sst_prepare   (void** msg);
 wsrep_cb_status wsrep_sst_donate_cb (void* app_ctx,
