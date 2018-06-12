@@ -209,7 +209,6 @@ static char*	innobase_disable_monitor_counter;
 static char*	innobase_reset_monitor_counter;
 static char*	innobase_reset_all_monitor_counter;
 
-static ulong	innodb_change_buffering;
 static ulong	innodb_flush_method;
 
 /* This variable can be set in the server configure file, specifying
@@ -3859,7 +3858,6 @@ static int innodb_init_params()
 	}
 
 	DBUG_ASSERT(innodb_change_buffering <= IBUF_USE_ALL);
-	ibuf_use = ibuf_use_t(innodb_change_buffering);
 
 	/* Check that interdependent parameters have sane values. */
 	if (srv_max_buf_pool_modified_pct < srv_max_dirty_pages_pct_lwm) {
