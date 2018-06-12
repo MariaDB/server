@@ -303,3 +303,45 @@ eval $q;
 eval explain $q;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-16225: wrong resultset from query with semijoin=on
+--echo #
+
+CREATE TABLE t1 (
+  `id` int(10)  NOT NULL AUTO_INCREMENT,
+  `local_name` varchar(64) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=latin1;
+
+insert  into t1(`id`,`local_name`) values
+(1,'Cash Advance'),
+(2,'Cash Advance'),
+(3,'Rollover'),
+(4,'AL Installment'),
+(5,'AL Installment'),
+(6,'AL Installment'),
+(7,'AL Installment'),
+(8,'AL Installment'),
+(9,'AL Installment'),
+(10,'Internet Payday'),
+(11,'Rollover - Internet Payday'),
+(12,'AL Monthly Installment'),
+(13,'AL Semi-Monthly Installment');
+
+explain
+SELECT SQL_NO_CACHE t.id
+FROM t1 t
+WHERE (
+        t.id IN (SELECT A.id FROM t1 AS A WHERE A.local_name IN (SELECT B.local_name FROM t1 AS B WHERE B.id IN (0,4,12,13,1,10,3,11)))
+        OR
+        (t.id IN (0,4,12,13,1,10,3,11))
+);
+SELECT SQL_NO_CACHE t.id
+FROM t1 t
+WHERE (
+        t.id IN (SELECT A.id FROM t1 AS A WHERE A.local_name IN (SELECT B.local_name FROM t1 AS B WHERE B.id IN (0,4,12,13,1,10,3,11)))
+        OR
+        (t.id IN (0,4,12,13,1,10,3,11))
+);
+drop table t1;

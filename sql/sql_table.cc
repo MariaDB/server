@@ -5957,8 +5957,11 @@ drop_create_field:
         continue;
 
       /* Check if the table already has a PRIMARY KEY */
-      bool dup_primary_key= key->type == Key::PRIMARY &&
-                            table->s->primary_key != MAX_KEY;
+      bool dup_primary_key=
+            key->type == Key::PRIMARY &&
+            table->s->primary_key != MAX_KEY &&
+            (keyname= table->s->key_info[table->s->primary_key].name) &&
+            my_strcasecmp(system_charset_info, keyname, primary_key_name) == 0;
       if (dup_primary_key)
         goto remove_key;
 

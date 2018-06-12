@@ -44,6 +44,7 @@ IF(NOT LIBJEMALLOC)
   MESSAGE(WARNING "TokuDB is enabled, but jemalloc is not. This configuration is not supported")
 ENDIF()
 
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-shadow")
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-vla" DEBUG)
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-implicit-fallthrough")
 

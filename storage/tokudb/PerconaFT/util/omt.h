@@ -127,7 +127,7 @@ public:
         paranoid_invariant(index != NODE_NULL);
         m_index = index;
     }
-} __attribute__((__packed__,aligned(4)));
+} ;
 
 template<>
 class subtree_templated<true> {
@@ -184,7 +184,7 @@ public:
     inline void disable_bit(void) {
         m_bitfield &= MASK_INDEX;
     }
-} __attribute__((__packed__)) ;
+} ;
 
 template<typename omtdata_t, bool subtree_supports_marks>
 class omt_node_templated {
@@ -197,7 +197,7 @@ public:
     // this needs to be in both implementations because we don't have
     // a "static if" the caller can use
     inline void clear_stolen_bits(void) {}
-} __attribute__((__packed__,aligned(4)));
+} ;
 
 template<typename omtdata_t>
 class omt_node_templated<omtdata_t, true> {
@@ -234,7 +234,7 @@ public:
         this->unset_marked_bit();
         this->unset_marks_below_bit();
     }
-} __attribute__((__packed__,aligned(4)));
+} ;
 
 }
 

@@ -2470,7 +2470,7 @@ maria_declare_plugin(myisam)
   &myisam_storage_engine,
   "MyISAM",
   "MySQL AB",
-  "MyISAM storage engine",
+  "Non-transactional engine with good performance and small data footprint",
   PLUGIN_LICENSE_GPL,
   myisam_init, /* Plugin Init */
   NULL, /* Plugin Deinit */
