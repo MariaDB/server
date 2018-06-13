@@ -607,7 +607,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
   Keywords that have different reserved status in std/oracle modes.
 */
 %token  BODY_SYM                      /* Oracle-R   */
-%token  COMMENT_SYM
 %token  ELSIF_SYM                     /* Oracle, reserved in PL/SQL*/
 %token  GOTO_SYM                      /* Oracle, reserved in PL/SQL*/
 %token  OTHERS_SYM                    /* SQL-2011-N */
@@ -670,6 +669,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  COLUMN_GET_SYM
 %token  <kwd>  COLUMN_SYM                    /* SQL-2003-R */
 %token  <kwd>  COLUMN_NAME_SYM               /* SQL-2003-N */
+%token  <kwd>  COMMENT_SYM                   /* Oracle-R   */
 %token  <kwd>  COMMITTED_SYM                 /* SQL-2003-N */
 %token  <kwd>  COMMIT_SYM                    /* SQL-2003-R */
 %token  <kwd>  COMPACT_SYM
@@ -15593,6 +15593,7 @@ keyword_sp_var_not_label:
         | COLUMN_CREATE_SYM
         | COLUMN_DELETE_SYM
         | COLUMN_GET_SYM
+        | COMMENT_SYM
         | DEALLOCATE_SYM
         | EXAMINED_SYM
         | EXCLUDE_SYM
