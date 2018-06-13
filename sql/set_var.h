@@ -426,6 +426,7 @@ CHARSET_INFO *get_old_charset_by_name(const char *old_name);
 int sys_var_init();
 int sys_var_add_options(DYNAMIC_ARRAY *long_options, int parse_flags);
 void sys_var_end(void);
+bool check_has_super(sys_var *self, THD *thd, set_var *var);
 
 #endif
 

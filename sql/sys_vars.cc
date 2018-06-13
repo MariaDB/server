@@ -428,7 +428,7 @@ error_if_in_trans_or_substatement(THD *thd, int in_substatement_error,
   return false;
 }
 
-static bool check_has_super(sys_var *self, THD *thd, set_var *var)
+bool check_has_super(sys_var *self, THD *thd, set_var *var)
 {
   DBUG_ASSERT(self->scope() != sys_var::GLOBAL);// don't abuse check_has_super()
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
