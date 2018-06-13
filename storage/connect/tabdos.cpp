@@ -704,7 +704,7 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
 //      savmin = cdp->GetBmap();
 //      cdp->SetBmap(PlugSubAlloc(g, NULL, block * sizeof(int)));
 
-        if (trace)
+        if (trace(1))
           htrc("Dval(%p) Bmap(%p) col(%d) %s Block=%d lg=%d\n",
               cdp->GetDval(), cdp->GetBmap(), i, cdp->GetName(), block, lg);
 
@@ -729,7 +729,7 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
           memset(cdp->GetMax(), 0, block * lg);
           } // endif Type
 
-        if (trace)
+        if (trace(1))
           htrc("min(%p) max(%p) col(%d) %s Block=%d lg=%d\n",
               cdp->GetMin(), cdp->GetMax(), i, cdp->GetName(), block, lg);
 
@@ -901,7 +901,7 @@ bool TDBDOS::SaveBlockValues(PGLOBAL g)
             "wb", (int)errno, filename);
     strcat(strcat(g->Message, ": "), strerror(errno));
 
-    if (trace)
+    if (trace(1))
       htrc("%s\n", g->Message);
 
     return true;
@@ -1634,7 +1634,7 @@ int TDBDOS::TestBlock(PGLOBAL g)
         To_Filter = NULL; // So remove filter
       } // endswitch Beval
 
-    if (trace)
+    if (trace(1))
       htrc("BF Eval Beval=%d\n", Beval);
 
     } // endif To_BlkFil
@@ -1647,8 +1647,8 @@ int TDBDOS::TestBlock(PGLOBAL g)
 /***********************************************************************/
 int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   {
-  int     k, n, rc = RC_OK;
-  bool    fixed, doit, sep, b = (pxdf != NULL);
+	int     k, n, rc = RC_OK;
+	bool    fixed, doit, sep, b = (pxdf != NULL);
   PCOL   *keycols, colp;
   PIXDEF  xdp, sxp = NULL;
   PKPDEF  kdp;
@@ -1694,8 +1694,8 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
 
 	try {
 		// Allocate all columns that will be used by indexes.
-		// This must be done before opening the table so specific
-		// column initialization can be done (in particular by TDBVCT)
+	// This must be done before opening the table so specific
+	// column initialization can be done (in particular by TDBVCT)
 		for (n = 0, xdp = pxdf; xdp; xdp = xdp->GetNext())
 			for (kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext()) {
 				if (!(colp = ColDB(g, kdp->GetName(), 0))) {
@@ -1779,7 +1779,7 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
 				return RC_INFO;     // Error or Physical table does not exist
 
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
 		rc = RC_FX;
 	} catch (const char *msg) {
@@ -1902,7 +1902,7 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
       } // endif brc
 
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
 		brc = true;
 	} catch (const char *msg) {
@@ -2001,7 +2001,7 @@ int TDBDOS::Cardinality(PGLOBAL g)
         if (len >= 0) {
           int rec;
 
-          if (trace)
+          if (trace(1))
             htrc("Estimating lines len=%d ending=%d/n",
                   len, ((PDOSDEF)To_Def)->Ending);
 
@@ -2018,7 +2018,7 @@ int TDBDOS::Cardinality(PGLOBAL g)
 
           Cardinal = (len + rec - 1) / rec;
 
-          if (trace)
+          if (trace(1))
             htrc("avglen=%d MaxSize%d\n", rec, Cardinal);
 
           } // endif len
@@ -2048,7 +2048,7 @@ int TDBDOS::GetMaxSize(PGLOBAL g)
     if (len >= 0) {
       int rec;
 
-      if (trace)
+      if (trace(1))
         htrc("Estimating lines len=%d ending=%d/n",
               len, ((PDOSDEF)To_Def)->Ending);
 
@@ -2059,7 +2059,7 @@ int TDBDOS::GetMaxSize(PGLOBAL g)
       rec = EstimatedLength() + ((PDOSDEF)To_Def)->Ending;
       MaxSize = (len + rec - 1) / rec;
 
-      if (trace)
+      if (trace(1))
         htrc("avglen=%d MaxSize%d\n", rec, MaxSize);
 
       } // endif len
@@ -2108,7 +2108,7 @@ bool TDBDOS::IsUsingTemp(PGLOBAL)
 /***********************************************************************/
 bool TDBDOS::OpenDB(PGLOBAL g)
   {
-  if (trace)
+  if (trace(1))
     htrc("DOS OpenDB: tdbp=%p tdb=R%d use=%d mode=%d\n",
           this, Tdb_No, Use, Mode);
 
@@ -2184,7 +2184,7 @@ bool TDBDOS::OpenDB(PGLOBAL g)
   } else
     memset(To_Line, 0, linelen);
 
-  if (trace)
+  if (trace(1))
     htrc("OpenDos: R%hd mode=%d To_Line=%p\n", Tdb_No, Mode, To_Line);
 
   if (SkipHeader(g))         // When called from CSV/FMT files
@@ -2202,7 +2202,7 @@ bool TDBDOS::OpenDB(PGLOBAL g)
 /***********************************************************************/
 int TDBDOS::ReadDB(PGLOBAL g)
   {
-  if (trace > 1)
+  if (trace(2))
     htrc("DOS ReadDB: R%d Mode=%d key=%p link=%p Kindex=%p To_Line=%p\n",
           GetTdb_No(), Mode, To_Key_Col, To_Link, To_Kindex, To_Line);
 
@@ -2227,7 +2227,7 @@ int TDBDOS::ReadDB(PGLOBAL g)
         if (SetRecpos(g, recpos))
           return RC_FX;
 
-        if (trace > 1)
+        if (trace(2))
           htrc("File position is now %d\n", GetRecpos());
 
         if (Mode == MODE_READ)
@@ -2243,7 +2243,7 @@ int TDBDOS::ReadDB(PGLOBAL g)
 
     } // endif To_Kindex
 
-  if (trace > 1)
+  if (trace(2))
     htrc(" ReadDB: this=%p To_Line=%p\n", this, To_Line);
 
   /*********************************************************************/
@@ -2279,14 +2279,14 @@ bool TDBDOS::PrepareWriting(PGLOBAL)
 /***********************************************************************/
 int TDBDOS::WriteDB(PGLOBAL g)
   {
-  if (trace > 1)
+  if (trace(2))
     htrc("DOS WriteDB: R%d Mode=%d \n", Tdb_No, Mode);
 
   // Make the line to write
   if (PrepareWriting(g))
     return RC_FX;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("Write: line is='%s'\n", To_Line);
 
   // Now start the writing process
@@ -2403,7 +2403,7 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PCSZ am)
     Dcm = (*p) ? atoi(p) : GetScale();
     } // endif fmt
 
-  if (trace)
+  if (trace(1))
     htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
 
   } // end of DOSCOL constructor
@@ -2518,7 +2518,7 @@ void DOSCOL::ReadColumn(PGLOBAL g)
   double  dval;
   PTDBDOS tdbp = (PTDBDOS)To_Tdb;
 
-  if (trace > 1)
+  if (trace(2))
     htrc(
       "DOS ReadColumn: col %s R%d coluse=%.4X status=%.4X buf_type=%d\n",
          Name, tdbp->GetTdb_No(), ColUse, Status, Buf_Type);
@@ -2607,13 +2607,13 @@ void DOSCOL::WriteColumn(PGLOBAL g)
   int     i, k, len, field;
   PTDBDOS tdbp = (PTDBDOS)To_Tdb;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("DOS WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
           Name, tdbp->GetTdb_No(), ColUse, Status);
 
   p = tdbp->To_Line + Deplac;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("Lrecl=%d deplac=%d int=%d\n", tdbp->Lrecl, Deplac, Long);
 
   field = Long;
@@ -2630,7 +2630,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
 
     } // endif Ftype
 
-  if (trace > 1)
+  if (trace(2))
     htrc("Long=%d field=%d coltype=%d colval=%p\n",
           Long, field, Buf_Type, Value);
 
@@ -2703,7 +2703,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
     } else                 // Standard CONNECT format
       p2 = Value->ShowValue(Buf, field);
 
-    if (trace)
+    if (trace(1))
       htrc("new length(%p)=%d\n", p2, strlen(p2));
 
     if ((len = strlen(p2)) > field) {
@@ -2714,7 +2714,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
         if (p2[i] == '.')
           p2[i] = Dsp; 
 
-    if (trace > 1)
+    if (trace(2))
       htrc("buffer=%s\n", p2);
 
     /*******************************************************************/
@@ -2724,7 +2724,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
       memset(p, ' ', field);
       memcpy(p, p2, len);
 
-      if (trace > 1)
+      if (trace(2))
         htrc(" col write: '%.*s'\n", len, p);
 
       } // endif Use
@@ -2881,4 +2881,3 @@ bool DOSCOL::AddDistinctValue(PGLOBAL g)
   } // end of AddDistinctValue
 
 /* ------------------------------------------------------------------- */
-

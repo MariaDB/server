@@ -669,6 +669,7 @@ public:
   bool null_value;			/* if item is null */
   bool unsigned_flag;
   bool with_sum_func;                   /* True if item contains a sum func */
+  bool with_param;                      /* True if contains an SP parameter */
   /**
     True if any item except Item_sum_func contains a field. Set during parsing.
   */

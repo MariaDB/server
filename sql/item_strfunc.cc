@@ -379,7 +379,7 @@ String *Item_func_aes_encrypt::val_str(String *str2)
   DBUG_ASSERT(fixed == 1);
   char key_buff[80];
   String tmp_key_value(key_buff, sizeof(key_buff), system_charset_info);
-  String *sptr= args[0]->val_str(&str_value);		// String to encrypt
+  String *sptr= args[0]->val_str(&tmp_value);		// String to encrypt
   String *key=  args[1]->val_str(&tmp_key_value);	// key
   int aes_length;
   if (sptr && key) // we need both arguments to be not NULL
@@ -418,7 +418,7 @@ String *Item_func_aes_decrypt::val_str(String *str)
   String *sptr, *key;
   DBUG_ENTER("Item_func_aes_decrypt::val_str");
 
-  sptr= args[0]->val_str(&str_value);		// String to decrypt
+  sptr= args[0]->val_str(&tmp_value);		// String to decrypt
   key=  args[1]->val_str(&tmp_key_value);	// Key
   if (sptr && key)  			// Need to have both arguments not NULL
   {

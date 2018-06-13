@@ -1,3 +1,4 @@
+set connect_enable_mongo=1;
 #
 # Test the MONGO table type
 #
@@ -376,3 +377,4 @@ planner	167	41.750000
 postcard	23	5.750000
 DROP TABLE t1;
 true
+set connect_enable_mongo=0;

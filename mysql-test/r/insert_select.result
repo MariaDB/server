@@ -854,3 +854,12 @@ INSERT IGNORE INTO t1 SELECT t1.a FROM t1,t1 t2,t1 t3,t1 t4,t1 t5,t1 t6,t1 t7;
 SET GLOBAL myisam_data_pointer_size = @old_myisam_data_pointer_size;
 DROP TABLE t1;
 End of 5.1 tests
+create table t1 (i int);
+create table t2 as select values(i) as a from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` binary(0) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1, t2;
+End of 5.5 tests

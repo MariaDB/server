@@ -124,8 +124,8 @@ bool MYSQLDEF::GetServerInfo(PGLOBAL g, const char *server_name)
     DBUG_RETURN(true);
     } // endif server
 
-  DBUG_PRINT("info", ("get_server_by_name returned server at %lx",
-                      (size_t) server));
+  DBUG_PRINT("info", ("get_server_by_name returned server at %p",
+                     server));
 
   // TODO: We need to examine which of these can really be NULL
   Hostname = PlugDup(g, server->host);
@@ -203,7 +203,7 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
       // Otherwise, straight server name, 
       Tabname = (b) ? GetStringCatInfo(g, "Tabname", Name) : NULL;
 
-    if (trace)
+    if (trace(1))
       htrc("server: %s  TableName: %s", url, Tabname);
 
     Server = url;
@@ -567,7 +567,7 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g, bool mx)
     return true;
   } // endif Query
 
-  if (trace)
+  if (trace(33))
     htrc("Query=%s\n", Query->GetStr());
 
   return false;
@@ -681,7 +681,7 @@ bool TDBMYSQL::MakeCommand(PGLOBAL g)
       strlwr(strcpy(name, Name));     // Not a keyword
 
     if ((p = strstr(qrystr, name))) {
-      Query->Set(Qrystr, p - qrystr);
+      Query->Set(Qrystr, (uint)(p - qrystr));
 
       if (qtd && *(p-1) == ' ') {
         Query->Append('`');
@@ -1042,7 +1042,7 @@ int TDBMYSQL::SendCommand(PGLOBAL g)
     sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
     PushWarning(g, this, 0);    // 0 means a Note
 
-    if (trace)
+    if (trace(1))
       htrc("%s\n", g->Message);
 
     if (w && Myc.ExecSQL(g, "SHOW WARNINGS") == RC_OK) {
@@ -1109,7 +1109,7 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const key_range *kr)
 		Mode = MODE_READ;
 	} // endif's op
 
-	if (trace)
+	if (trace(33))
 		htrc("MYSQL ReadKey: Query=%s\n", Query->GetStr());
 
 	m_Rc = Myc.ExecSQL(g, Query->GetStr());
@@ -1124,7 +1124,7 @@ int TDBMYSQL::ReadDB(PGLOBAL g)
   {
   int rc;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("MySQL ReadDB: R%d Mode=%d\n", GetTdb_No(), Mode);
 
   if (Mode == MODE_UPDATE || Mode == MODE_DELETE)
@@ -1137,7 +1137,7 @@ int TDBMYSQL::ReadDB(PGLOBAL g)
   N++;
   Fetched = ((rc = Myc.Fetch(g, -1)) == RC_OK);
 
-  if (trace > 1)
+  if (trace(2))
     htrc(" Read: rc=%d\n", rc);
 
   return rc;
@@ -1220,7 +1220,7 @@ void TDBMYSQL::CloseDB(PGLOBAL g)
     Myc.Close();
     } // endif Myc
 
-  if (trace)
+  if (trace(1))
     htrc("MySQL CloseDB: closing %s rc=%d\n", Name, m_Rc);
 
   } // end of CloseDB
@@ -1248,7 +1248,7 @@ MYSQLCOL::MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
   Slen = 0;
   Rank = -1;            // Not known yet
 
-  if (trace)
+  if (trace(1))
     htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
 
   } // end of MYSQLCOL constructor
@@ -1279,7 +1279,7 @@ MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PCSZ am)
   Slen = 0;
   Rank = i;
 
-  if (trace)
+  if (trace(1))
     htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
 
   } // end of MYSQLCOL constructor
@@ -1409,7 +1409,7 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
       tdbp->Fetched = true;
 
   if ((buf = ((PTDBMY)To_Tdb)->Myc.GetCharField(Rank))) {
-    if (trace > 1)
+    if (trace(2))
       htrc("MySQL ReadColumn: name=%s buf=%s\n", Name, buf);
 
     // TODO: have a true way to differenciate temporal values
@@ -1679,7 +1679,7 @@ MYXCOL::MYXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
 MYXCOL::MYXCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PCSZ am)
       : MYSQLCOL(fld, tdbp, i, am)
   {
-  if (trace)
+  if (trace(1))
     htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
 
   } // end of MYSQLCOL constructor

@@ -46,7 +46,8 @@ struct st_ma_transaction
   LF_PINS              *pins;
   WT_THD               *wt;
   mysql_mutex_t         state_lock;
-  void                 *used_tables;  /**< Tables used by transaction */
+  void                 *used_tables;  /**< Table shares used by transaction */
+  void                 *used_instances; /* table files used by transaction */
   TRN                  *next, *prev;
   TrID                 trid, min_read_from, commit_trid;
   LSN		       rec_lsn, undo_lsn;

@@ -423,3 +423,13 @@ SET GLOBAL myisam_data_pointer_size = @old_myisam_data_pointer_size;
 DROP TABLE t1;
 
 --echo End of 5.1 tests
+
+#
+# MDEV-15318 CREATE .. SELECT VALUES produces invalid table structure
+#
+create table t1 (i int);
+create table t2 as select values(i) as a from t1;
+show create table t2;
+drop table t1, t2;
+
+--echo End of 5.5 tests

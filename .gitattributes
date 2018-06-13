@@ -23,6 +23,7 @@ pcre/testdata/greppatN4 -text
 *.frm binary
 *.MYD binary
 *.MYI binary
+*.jar binary
 
 *.c     diff=cpp
 *.h     diff=cpp

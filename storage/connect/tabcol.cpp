@@ -33,7 +33,7 @@ XTAB::XTAB(LPCSTR name, LPCSTR srcdef) : Name(name)
   Schema = NULL;
   Qualifier = NULL;
 
-  if (trace)
+  if (trace(1))
     htrc("XTAB: making new TABLE %s %s\n", Name, Srcdef);
 
   } // end of XTAB constructor
@@ -49,7 +49,7 @@ XTAB::XTAB(PTABLE tp) : Name(tp->Name)
   Schema = tp->Schema;
   Qualifier = tp->Qualifier;
 
-  if (trace)
+  if (trace(1))
     htrc(" making copy TABLE %s %s\n", Name, SVP(Srcdef));
 
   } // end of XTAB constructor
@@ -61,7 +61,7 @@ PTABLE XTAB::Link(PTABLE tab2)
   {
   PTABLE tabp;
 
-  if (trace)
+  if (trace(1))
     htrc("Linking tables %s... to %s\n", Name, tab2->Name);
 
   for (tabp = this; tabp->Next; tabp = tabp->Next) ;
@@ -117,7 +117,7 @@ COLUMN::COLUMN(LPCSTR name) : Name(name)
   To_Col = NULL;
   Qualifier = NULL;
 
-  if (trace)
+  if (trace(1))
     htrc(" making new COLUMN %s\n", Name);
 
   } // end of COLUMN constructor

@@ -576,6 +576,7 @@ struct st_maria_handler
 {
   MARIA_SHARE *s;			/* Shared between open:s */
   struct st_ma_transaction *trn;        /* Pointer to active transaction */
+  struct st_maria_handler *trn_next;
   MARIA_STATUS_INFO *state, state_save;
   MARIA_STATUS_INFO *state_start;       /* State at start of transaction */
   MARIA_USED_TABLES *used_tables;
@@ -823,19 +824,6 @@ struct st_maria_handler
 #define _ma_max_key_length() ((maria_block_size - MAX_KEYPAGE_HEADER_SIZE)/3 - MARIA_INDEX_OVERHEAD_SIZE)
 #define get_pack_length(length) ((length) >= 255 ? 3 : 1)
 #define _ma_have_versioning(info) ((info)->row_flag & ROW_FLAG_TRANSID)
-
-/**
-   Sets table's trn and prints debug information
-   @param tbl              MARIA_HA of table
-   @param newtrn           what to put into tbl->trn
-   @note cast of newtrn is because %p of NULL gives warning (NULL is int)
-*/
-#define _ma_set_trn_for_table(tbl, newtrn) do {                         \
-    DBUG_PRINT("info",("table: %p  trn: %p -> %p",                      \
-                       (tbl), (tbl)->trn, (void *)(newtrn)));           \
-    (tbl)->trn= (newtrn);                                               \
-  } while (0)
-
 
 #define MARIA_MIN_BLOCK_LENGTH	20		/* Because of delete-link */
 /* Don't use to small record-blocks */

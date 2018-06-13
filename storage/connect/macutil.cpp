@@ -230,13 +230,13 @@ bool MACINFO::GetOneInfo(PGLOBAL g, int flag, void *v, int lv)
     case 11:                    // Description
       if ((p = strstr(Curp->Description, " - Packet Scheduler Miniport"))) {
         strncpy(buf, Curp->Description, p - Curp->Description);
-        i = p - Curp->Description;
+        i = (int)(p - Curp->Description);
         strncpy(buf, Curp->Description, i);
         buf[i] = 0;
         p = buf;
       } else if ((p = strstr(Curp->Description,
                   " - Miniport d'ordonnancement de paquets"))) {
-        i = p - Curp->Description;
+        i = (int)(p - Curp->Description);
         strncpy(buf, Curp->Description, i);
         buf[i] = 0;
         p = buf;

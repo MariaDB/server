@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2012, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1820,12 +1820,9 @@ PageConverter::update_records(
 
 	m_rec_iter.open(block);
 
-	if (!page_is_leaf(block->frame)) {
-		return DB_SUCCESS;
-	}
-
 	while (!m_rec_iter.end()) {
 		rec_t*	rec = m_rec_iter.current();
+
 		ibool	deleted = rec_get_deleted_flag(rec, comp);
 
 		/* For the clustered index we have to adjust the BLOB
@@ -1927,7 +1924,7 @@ PageConverter::update_index_page(
 		return(DB_SUCCESS);
 	}
 
-	return(update_records(block));
+	return page_is_leaf(block->frame) ? update_records(block) : DB_SUCCESS;
 }
 
 /**

@@ -155,10 +155,11 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
 {
   THD *thd= handler->thd;
   TABLE *table= handler->table;
+  DBUG_ENTER("mysql_ha_close_table");
 
   /* check if table was already closed */
   if (!table)
-    return;
+    DBUG_VOID_RETURN;
 
   if (!table->s->tmp_table)
   {
@@ -184,6 +185,7 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
   }
   my_free(handler->lock);
   handler->init();
+  DBUG_VOID_RETURN;
 }
 
 /*

@@ -345,7 +345,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       _ma_decrement_open_count(info, 0);
     if (info->trn)
     {
-      _ma_remove_table_from_trnman(share, info->trn);
+      _ma_remove_table_from_trnman(info);
       /* Ensure we don't point to the deleted data in trn */
       info->state= info->state_start= &share->state.state;
     }
@@ -408,7 +408,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     if (info->trn)
     {
       mysql_mutex_lock(&share->intern_lock);
-      _ma_remove_table_from_trnman(share, info->trn);
+      _ma_remove_table_from_trnman(info);
       /* Ensure we don't point to the deleted data in trn */
       info->state= info->state_start= &share->state.state;
       mysql_mutex_unlock(&share->intern_lock);    

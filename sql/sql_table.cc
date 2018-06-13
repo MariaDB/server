@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5059,7 +5059,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
       This should always work as we have a meta lock on the table.
      */
     thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
-    if (thd->locked_tables_list.reopen_tables(thd))
+    if (thd->locked_tables_list.reopen_tables(thd, false))
     {
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
       result= 1;
@@ -5408,7 +5408,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
       This should always work as we have a meta lock on the table.
      */
     thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
-    if (thd->locked_tables_list.reopen_tables(thd))
+    if (thd->locked_tables_list.reopen_tables(thd, false))
     {
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
       res= 1;                                   // We got an error
@@ -5808,10 +5808,28 @@ drop_create_field:
     List_iterator<Alter_drop> drop_it(alter_info->drop_list);
     Alter_drop *drop;
     bool remove_drop;
+    ulonglong left_flags= 0;
     while ((drop= drop_it++))
     {
+      ulonglong cur_flag= 0;
+      switch (drop->type) {
+      case Alter_drop::COLUMN:
+        cur_flag= Alter_info::ALTER_DROP_COLUMN;
+        break;
+      case Alter_drop::FOREIGN_KEY:
+        cur_flag= Alter_info::DROP_FOREIGN_KEY;
+        break;
+      case Alter_drop::KEY:
+        cur_flag= Alter_info::ALTER_DROP_INDEX;
+        break;
+      default:
+        break;
+      }
       if (!drop->drop_if_exists)
+      {
+        left_flags|= cur_flag;
         continue;
+      }
       remove_drop= TRUE;
       if (drop->type == Alter_drop::COLUMN)
       {
@@ -5887,12 +5905,15 @@ drop_create_field:
             ER_CANT_DROP_FIELD_OR_KEY, ER(ER_CANT_DROP_FIELD_OR_KEY),
             drop->name);
         drop_it.remove();
-        if (alter_info->drop_list.is_empty())
-          alter_info->flags&= ~(Alter_info::ALTER_DROP_COLUMN |
-                                Alter_info::ALTER_DROP_INDEX  |
-                                Alter_info::DROP_FOREIGN_KEY);
       }
+      else
+        left_flags|= cur_flag;
     }
+    /* Reset state to what's left in drop list */
+    alter_info->flags&= ~(Alter_info::ALTER_DROP_COLUMN |
+                          Alter_info::ALTER_DROP_INDEX  |
+                          Alter_info::DROP_FOREIGN_KEY);
+    alter_info->flags|= left_flags;
   }
 
   /* ALTER TABLE ADD KEY IF NOT EXISTS */
@@ -7239,7 +7260,7 @@ static bool mysql_inplace_alter_table(THD *thd,
                               HA_EXTRA_PREPARE_FOR_RENAME :
                               HA_EXTRA_NOT_USED,
                               NULL);
-    if (thd->locked_tables_list.reopen_tables(thd))
+    if (thd->locked_tables_list.reopen_tables(thd, false))
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
     /* QQ; do something about metadata locks ? */
   }
@@ -9224,7 +9245,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
 end_inplace:
 
-  if (thd->locked_tables_list.reopen_tables(thd))
+  if (thd->locked_tables_list.reopen_tables(thd, false))
     goto err_with_mdl_after_alter;
 
   THD_STAGE_INFO(thd, stage_end);
@@ -9356,9 +9377,7 @@ bool mysql_trans_prepare_alter_copy_data(THD *thd)
     
     This needs to be done before external_lock.
   */
-  if (ha_enable_transaction(thd, FALSE))
-    DBUG_RETURN(TRUE);
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(ha_enable_transaction(thd, FALSE) != 0);
 }
 
 
@@ -9409,6 +9428,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   ha_rows examined_rows;
   ha_rows found_rows;
   bool auto_increment_field_copied= 0;
+  bool cleanup_done= 0;
   ulonglong save_sql_mode= thd->variables.sql_mode;
   ulonglong prev_insert_id, time_to_report_progress;
   Field **dfield_ptr= to->default_field;
@@ -9417,15 +9437,23 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   /* Two or 3 stages; Sorting, copying data and update indexes */
   thd_progress_init(thd, 2 + MY_TEST(order));
 
-  if (mysql_trans_prepare_alter_copy_data(thd))
-    DBUG_RETURN(-1);
-
   if (!(copy= new Copy_field[to->s->fields]))
     DBUG_RETURN(-1);				/* purecov: inspected */
 
+  if (mysql_trans_prepare_alter_copy_data(thd))
+  {
+    delete [] copy;
+    DBUG_RETURN(-1);
+  }
+
   /* We need external lock before we can disable/enable keys */
   if (to->file->ha_external_lock(thd, F_WRLCK))
+  {
+    /* Undo call to mysql_trans_prepare_alter_copy_data() */
+    ha_enable_transaction(thd, TRUE);
+    delete [] copy;
     DBUG_RETURN(-1);
+  }
 
   alter_table_manage_keys(to, from->file->indexes_are_disabled(), keys_onoff);
 
@@ -9435,7 +9463,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   from->file->info(HA_STATUS_VARIABLE);
   to->file->ha_start_bulk_insert(from->file->stats.records,
                                  ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
-
   List_iterator<Create_field> it(create);
   Create_field *def;
   copy_end=copy;
@@ -9637,7 +9664,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
   end_read_record(&info);
   free_io_cache(from);
-  delete [] copy;
 
   THD_STAGE_INFO(thd, stage_enabling_keys);
   thd_progress_next_stage(thd);
@@ -9652,6 +9678,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     to->file->print_error(my_errno,MYF(0));
     error= 1;
   }
+  cleanup_done= 1;
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
   if (mysql_trans_commit_alter_copy_data(thd))
@@ -9663,6 +9690,16 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   *copied= found_count;
   *deleted=delete_count;
   to->file->ha_release_auto_increment();
+  delete [] copy;
+
+  if (!cleanup_done)
+  {
+    /* This happens if we get an error during initialzation of data */
+    DBUG_ASSERT(error);
+    to->file->ha_end_bulk_insert();
+    ha_enable_transaction(thd, TRUE);
+  }
+
   if (to->file->ha_external_lock(thd,F_UNLCK))
     error=1;
   if (error < 0 && to->file->extra(HA_EXTRA_PREPARE_FOR_RENAME))

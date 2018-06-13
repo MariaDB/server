@@ -16,9 +16,3 @@ tmp	CREATE TABLE `tmp` (
   `NULL` binary(0) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE tmp;
-CREATE TABLE t1 (a VARCHAR(3)) ENGINE=InnoDB;
-INSERT INTO t1 VALUES ('foo'),('bar');
-FLUSH TABLES;
-CREATE TEMPORARY TABLE tmp ENGINE=InnoDB AS SELECT VALUES(a) FROM t1;
-ERROR HY000: Can't create table `test`.`tmp` (errno: -1 "Internal error < 0 (Not system error)")
-DROP TABLE t1;

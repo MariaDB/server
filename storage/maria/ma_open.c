@@ -19,6 +19,8 @@
 #include "ma_sp_defs.h"
 #include "ma_rt_index.h"
 #include "ma_blockrec.h"
+#include "trnman.h"
+#include "ma_trnman.h"
 #include <m_ctype.h>
 
 #if defined(MSDOS) || defined(__WIN__)
@@ -183,7 +185,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
   if (!share->base.born_transactional)   /* For transactional ones ... */
   {
     /* ... force crash if no trn given */
-    _ma_set_trn_for_table(&info, &dummy_transaction_object);
+    _ma_set_tmp_trn_for_table(&info, &dummy_transaction_object);
     info.state= &share->state.state;	/* Change global values by default */
   }
   else

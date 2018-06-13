@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2018, MariaDB Corporation.
 
@@ -137,8 +137,6 @@ dict_mem_table_create(
 	} else {
 		table->fts = NULL;
 	}
-
-	table->is_corrupt = FALSE;
 
 #endif /* !UNIV_HOTBACKUP */
 

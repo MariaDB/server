@@ -363,7 +363,7 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 bool JAVAConn::Open(PGLOBAL g)
 {
 	bool		 brc = true, err = false;
-	jboolean jt = (trace > 0);
+	jboolean jt = (trace(1));
 
 	// Link or check whether jvm library was linked
 	if (GetJVM(g))
@@ -430,7 +430,7 @@ bool JAVAConn::Open(PGLOBAL g)
 			jpop->Append(cp);
 		} // endif cp
 
-		if (trace) {
+		if (trace(1)) {
 			htrc("ClassPath=%s\n", ClassPath);
 			htrc("CLASSPATH=%s\n", cp);
 			htrc("%s\n", jpop->GetStr());
@@ -486,7 +486,7 @@ bool JAVAConn::Open(PGLOBAL g)
 				break;
 		} // endswitch rc
 
-		if (trace)
+		if (trace(1))
 			htrc("%s\n", g->Message);
 
 		if (brc)

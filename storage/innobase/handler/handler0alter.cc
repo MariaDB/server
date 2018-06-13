@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1594,6 +1594,7 @@ innobase_create_index_def(
 
 	if (key_clustered) {
 		DBUG_ASSERT(!(key->flags & HA_FULLTEXT));
+		DBUG_ASSERT(key->flags & HA_NOSAME);
 		index->ind_type |= DICT_CLUSTERED;
 	} else if (key->flags & HA_FULLTEXT) {
 		DBUG_ASSERT(!(key->flags & HA_KEYFLAG_MASK
@@ -1909,14 +1910,9 @@ innobase_create_key_defs(
 		ulint	primary_key_number;
 
 		if (new_primary) {
-			if (n_add == 0) {
-				DBUG_ASSERT(got_default_clust);
-				DBUG_ASSERT(altered_table->s->primary_key
-					    == 0);
-				primary_key_number = 0;
-			} else {
-				primary_key_number = *add;
-			}
+			DBUG_ASSERT(n_add || got_default_clust);
+			DBUG_ASSERT(n_add || !altered_table->s->primary_key);
+			primary_key_number = altered_table->s->primary_key;
 		} else if (got_default_clust) {
 			/* Create the GEN_CLUST_INDEX */
 			index_def_t*	index = indexdef++;
@@ -4300,12 +4296,16 @@ rollback_inplace_alter_table(
 	row_mysql_lock_data_dictionary(ctx->trx);
 
 	if (ctx->need_rebuild()) {
-		dberr_t	err;
-		ulint	flags	= ctx->new_table->flags;
-
 		/* DML threads can access ctx->new_table via the
 		online rebuild log. Free it first. */
 		innobase_online_rebuild_log_free(prebuilt->table);
+	}
+
+	if (!ctx->new_table) {
+		ut_ad(ctx->need_rebuild());
+	} else if (ctx->need_rebuild()) {
+		dberr_t	err;
+		ulint	flags	= ctx->new_table->flags;
 
 		/* Since the FTS index specific auxiliary tables has
 		not yet registered with "table->fts" by fts_add_index(),
@@ -4762,13 +4762,15 @@ processed_field:
 }
 
 /** Get the auto-increment value of the table on commit.
-@param ha_alter_info	Data used during in-place alter
-@param ctx		In-place ALTER TABLE context
-@param altered_table	MySQL table that is being altered
-@param old_table	MySQL table as it is before the ALTER operation
-@return the next auto-increment value (0 if not present) */
+@param[in] ha_alter_info	Data used during in-place alter
+@param[in,out] ctx		In-place ALTER TABLE context
+				return autoinc value in ctx->max_autoinc
+@param altered_table[in]	MySQL table that is being altered
+@param old_table[in]	MySQL table as it is before the ALTER operation
+retval true Failure
+@retval false Success*/
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
-ulonglong
+bool
 commit_get_autoinc(
 /*===============*/
 	Alter_inplace_info*	ha_alter_info,
@@ -4776,23 +4778,28 @@ commit_get_autoinc(
 	const TABLE*		altered_table,
 	const TABLE*		old_table)
 {
-	ulonglong		max_autoinc;
 
 	DBUG_ENTER("commit_get_autoinc");
 
 	if (!altered_table->found_next_number_field) {
 		/* There is no AUTO_INCREMENT column in the table
 		after the ALTER operation. */
-		max_autoinc = 0;
+		ctx->max_autoinc = 0;
 	} else if (ctx->add_autoinc != ULINT_UNDEFINED) {
 		/* An AUTO_INCREMENT column was added. Get the last
 		value from the sequence, which may be based on a
 		supplied AUTO_INCREMENT value. */
-		max_autoinc = ctx->sequence.last();
+		ctx->max_autoinc = ctx->sequence.last();
 	} else if ((ha_alter_info->handler_flags
 		    & Alter_inplace_info::CHANGE_CREATE_OPTION)
 		   && (ha_alter_info->create_info->used_fields
 		       & HA_CREATE_USED_AUTO)) {
+
+		/* Check if the table is discarded */
+		if(dict_table_is_discarded(ctx->old_table)) {
+			DBUG_RETURN(true);
+		}
+
 		/* An AUTO_INCREMENT value was supplied, but the table was not
 		rebuilt. Get the user-supplied value or the last value from the
 		sequence. */
@@ -4807,7 +4814,8 @@ commit_get_autoinc(
 		dict_index_t*	index = dict_table_get_index_on_name(
 			ctx->old_table, autoinc_key->name);
 
-		max_autoinc = ha_alter_info->create_info->auto_increment_value;
+		ctx->max_autoinc =
+			ha_alter_info->create_info->auto_increment_value;
 
 		dict_table_autoinc_lock(ctx->old_table);
 
@@ -4816,8 +4824,8 @@ commit_get_autoinc(
 
 		if (err != DB_SUCCESS) {
 			ut_ad(0);
-			max_autoinc = 0;
-		} else if (max_autoinc <= max_value_table) {
+			ctx->max_autoinc = 0;
+		} else if (ctx->max_autoinc <= max_value_table) {
 			ulonglong	col_max_value;
 			ulonglong	offset;
 
@@ -4825,7 +4833,7 @@ commit_get_autoinc(
 				old_table->found_next_number_field);
 
 			offset = ctx->prebuilt->autoinc_offset;
-			max_autoinc = innobase_next_autoinc(
+			ctx->max_autoinc = innobase_next_autoinc(
 				max_value_table, 1, 1, offset,
 				col_max_value);
 		}
@@ -4835,11 +4843,11 @@ commit_get_autoinc(
 		Read the old counter value from the table. */
 		ut_ad(old_table->found_next_number_field);
 		dict_table_autoinc_lock(ctx->old_table);
-		max_autoinc = ctx->old_table->autoinc;
+		ctx->max_autoinc = ctx->old_table->autoinc;
 		dict_table_autoinc_unlock(ctx->old_table);
 	}
 
-	DBUG_RETURN(max_autoinc);
+	DBUG_RETURN(false);
 }
 
 /** Add or drop foreign key constraints to the data dictionary tables,
@@ -5665,21 +5673,6 @@ ha_innobase::commit_inplace_alter_table(
 	ut_ad(prebuilt->table == ctx0->old_table);
 	ha_alter_info->group_commit_ctx = NULL;
 
-	/* Free the ctx->trx of other partitions, if any. We will only
-	use the ctx0->trx here. Others may have been allocated in
-	the prepare stage. */
-
-	for (inplace_alter_handler_ctx** pctx = &ctx_array[1]; *pctx;
-	     pctx++) {
-		ha_innobase_inplace_ctx*	ctx
-			= static_cast<ha_innobase_inplace_ctx*>(*pctx);
-
-		if (ctx->trx) {
-			trx_free_for_mysql(ctx->trx);
-			ctx->trx = NULL;
-		}
-	}
-
 	trx_start_if_not_started_xa(prebuilt->trx);
 
 	for (inplace_alter_handler_ctx** pctx = ctx_array; *pctx; pctx++) {
@@ -5821,8 +5814,13 @@ ha_innobase::commit_inplace_alter_table(
 
 		DBUG_ASSERT(new_clustered == ctx->need_rebuild());
 
-		ctx->max_autoinc = commit_get_autoinc(
-			ha_alter_info, ctx, altered_table, table);
+		if (commit_get_autoinc(ha_alter_info, ctx, altered_table,
+			table)) {
+			fail = true;
+			my_error(ER_TABLESPACE_DISCARDED, MYF(0),
+				 table->s->table_name.str);
+			goto rollback_trx;
+		}
 
 		if (ctx->need_rebuild()) {
 			ctx->tmp_name = dict_mem_create_temporary_tablename(
@@ -5853,6 +5851,8 @@ ha_innobase::commit_inplace_alter_table(
 		}
 #endif
 	}
+
+rollback_trx:
 
 	/* Commit or roll back the changes to the data dictionary. */
 
@@ -6045,10 +6045,6 @@ foreign_fail:
 	covering all partitions. */
 	share->idx_trans_tbl.index_count = 0;
 
-	if (trx == ctx0->trx) {
-		ctx0->trx = NULL;
-	}
-
 	/* Tell the InnoDB server that there might be work for
 	utility threads: */
 
@@ -6071,8 +6067,29 @@ foreign_fail:
 		}
 
 		row_mysql_unlock_data_dictionary(trx);
-		trx_free_for_mysql(trx);
+		if (trx != ctx0->trx) {
+			trx_free_for_mysql(trx);
+		}
 		DBUG_RETURN(true);
+	}
+
+	if (trx == ctx0->trx) {
+		ctx0->trx = NULL;
+	}
+
+	/* Free the ctx->trx of other partitions, if any. We will only
+	use the ctx0->trx here. Others may have been allocated in
+	the prepare stage. */
+
+	for (inplace_alter_handler_ctx** pctx = &ctx_array[1]; *pctx;
+	     pctx++) {
+		ha_innobase_inplace_ctx*	ctx
+			= static_cast<ha_innobase_inplace_ctx*>(*pctx);
+
+		if (ctx->trx) {
+			trx_free_for_mysql(ctx->trx);
+			ctx->trx = NULL;
+		}
 	}
 
 	/* Release the table locks. */

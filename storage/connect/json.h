@@ -20,7 +20,8 @@ enum JTYP {TYPE_NULL = TYPE_VOID,
            TYPE_BINT = TYPE_BIGINT,
 					 TYPE_DTM  = TYPE_DATE,
 					 TYPE_INTG = TYPE_INT,
-					 TYPE_JSON = 12,
+					 TYPE_VAL  = 12,
+					 TYPE_JSON,
            TYPE_JAR, 
            TYPE_JOB, 
            TYPE_JVAL};
@@ -157,6 +158,7 @@ class JSON : public BLOCK {
 //virtual PJVAL  AddValue(PGLOBAL g, PJVAL jvp = NULL, int *x = NULL) {X return NULL;}
   virtual PJPR   AddPair(PGLOBAL g, PCSZ key) {X return NULL;}
 	virtual PJAR   GetKeyList(PGLOBAL g) {X return NULL;}
+	virtual PJAR   GetValList(PGLOBAL g) {X return NULL;}
 	virtual PJVAL  GetValue(const char *key) {X return NULL;}
   virtual PJOB   GetObject(void) {return NULL;}
   virtual PJAR   GetArray(void) {return NULL;}
@@ -205,6 +207,7 @@ class JOBJECT : public JSON {
   virtual PJOB  GetObject(void) {return this;}
   virtual PJVAL GetValue(const char* key);
 	virtual PJAR  GetKeyList(PGLOBAL g);
+	virtual PJAR  GetValList(PGLOBAL g);
 	virtual PSZ   GetText(PGLOBAL g, PSZ text);
 	virtual bool  Merge(PGLOBAL g, PJSON jsp);
 	virtual void  SetValue(PGLOBAL g, PJVAL jvp, PCSZ key);
@@ -258,8 +261,7 @@ class JVALUE : public JSON {
   friend bool  SerializeValue(JOUT *, PJVAL);
  public:
   JVALUE(void) : JSON() {Clear();}
-  JVALUE(PJSON jsp) : JSON()
-		{Jsp = jsp; Value = NULL; Next = NULL; Del = false; Size = 1;}
+	JVALUE(PJSON jsp);
 	JVALUE(PGLOBAL g, PVAL valp);
 	JVALUE(PGLOBAL g, PCSZ strp);
 

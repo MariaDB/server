@@ -25,3 +25,20 @@ INSERT INTO t1 VALUES (2,0),(3,33),(4,0),(5,55),(6,66),(7,0),(8,88),(9,99);
 ALTER TABLE t1 ENABLE KEYS;
 SELECT * FROM t1 WHERE i = 0 OR pk BETWEEN 6 AND 10;
 DROP TABLE t1;
+
+#
+# MDEV-14943
+# Assertion `block->type == PAGECACHE_EMPTY_PAGE || block->type == type ||
+# type == PAGECACHE_LSN_PAGE || type == PAGECACHE_READ_UNKNOWN_PAGE ||
+# block->type == PAGECACHE_READ_UNKNOWN_PAGE' failed in pagecache_read upon
+# CREATE ... SELECT from Aria table
+#
+
+CREATE TABLE t1 (f INT) ENGINE=Aria transactional=1;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1),(2);
+--error ER_BAD_FIELD_ERROR
+ALTER TABLE t1 ORDER BY unknown_column;
+SHOW CREATE TABLE t1;
+CREATE TABLE t2 SELECT * FROM t1;
+DROP TABLE t1, t2;

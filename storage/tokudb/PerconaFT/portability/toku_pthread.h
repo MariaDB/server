@@ -168,11 +168,7 @@ typedef struct toku_mutex_aligned {
     }
 #else  // __linux__, at least
 #define ZERO_COND_INITIALIZER \
-    {                         \
-        {                     \
-            { 0 }             \
-        }                     \
-    }
+    {}
 #endif
 
 static inline void toku_mutexattr_init(toku_pthread_mutexattr_t *attr) {

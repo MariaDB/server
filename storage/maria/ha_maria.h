@@ -193,6 +193,7 @@ public:
 private:
   DsMrr_impl ds_mrr;
   friend ICP_RESULT index_cond_func_maria(void *arg);
+  friend void reset_thd_trn(THD *thd);
 };
 
 #endif /* HA_MARIA_INCLUDED */
