@@ -41,6 +41,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "os0proc.h"
 #include "log0log.h"
 #include "srv0srv.h"
+#include "my_atomic.h"
 #include <ostream>
 
 // Forward declaration
@@ -1516,8 +1517,10 @@ NOTE! The definition appears here only for other modules of this
 directory (buf) to see it. Do not use from outside! */
 
 typedef struct {
-	bool		reserved;	/*!< true if this slot is reserved
+private:
+	int32		reserved;	/*!< true if this slot is reserved
 					*/
+public:
 	byte*           crypt_buf;	/*!< for encryption the data needs to be
 					copied to a separate buffer before it's
 					encrypted&written. this as a page can be
@@ -1528,6 +1531,21 @@ typedef struct {
 	byte*		out_buf;	/*!< resulting buffer after
 					encryption/compression. This is a
 					pointer and not allocated. */
+
+	/** Release the slot */
+	void release()
+	{
+		my_atomic_store32_explicit(&reserved, false,
+					   MY_MEMORY_ORDER_RELAXED);
+	}
+
+	/** Acquire the slot
+	@return whether the slot was acquired */
+	bool acquire()
+	{
+		return !my_atomic_fas32_explicit(&reserved, true,
+						 MY_MEMORY_ORDER_RELAXED);
+	}
 } buf_tmp_buffer_t;
 
 /** The common buffer control block structure

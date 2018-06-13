@@ -175,9 +175,6 @@ struct fil_space_t {
 	/** MariaDB encryption data */
 	fil_space_crypt_t* crypt_data;
 
-	/** True if we have already printed compression failure */
-	bool		printed_compression_failure;
-
 	/** True if the device this filespace is on supports atomic writes */
 	bool		atomic_write_supported;
 

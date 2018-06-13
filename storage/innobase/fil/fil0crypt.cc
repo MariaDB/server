@@ -665,57 +665,38 @@ fil_space_encrypt(
 #ifdef UNIV_DEBUG
 	if (tmp) {
 		/* Verify that encrypted buffer is not corrupted */
-		byte* tmp_mem = (byte *)malloc(UNIV_PAGE_SIZE);
 		dberr_t err = DB_SUCCESS;
 		byte* src = src_frame;
 		bool page_compressed_encrypted = (mach_read_from_2(tmp+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
-		byte* comp_mem = NULL;
-		byte* uncomp_mem = NULL;
+		byte uncomp_mem[UNIV_PAGE_SIZE_MAX];
+		byte tmp_mem[UNIV_PAGE_SIZE_MAX];
 
 		if (page_compressed_encrypted) {
-			comp_mem = (byte *)malloc(UNIV_PAGE_SIZE);
-			uncomp_mem = (byte *)malloc(UNIV_PAGE_SIZE);
-			memcpy(comp_mem, src_frame, UNIV_PAGE_SIZE);
-			fil_decompress_page(uncomp_mem, comp_mem,
-					    srv_page_size, NULL);
-			src = uncomp_mem;
+			memcpy(uncomp_mem, src, srv_page_size);
+			ulint unzipped1 = fil_page_decompress(
+				tmp_mem, uncomp_mem);
+			ut_ad(unzipped1);
+			if (unzipped1 != srv_page_size) {
+				src = uncomp_mem;
+			}
 		}
 
-		bool corrupted1 = buf_page_is_corrupted(true, src, page_size, space);
-		bool ok = fil_space_decrypt(crypt_data, tmp_mem, page_size, tmp, &err);
+		ut_ad(!buf_page_is_corrupted(true, src, page_size, space));
+		ut_ad(fil_space_decrypt(crypt_data, tmp_mem, page_size, tmp,
+					&err));
+		ut_ad(err == DB_SUCCESS);
 
 		/* Need to decompress the page if it was also compressed */
 		if (page_compressed_encrypted) {
-			memcpy(comp_mem, tmp_mem, UNIV_PAGE_SIZE);
-			fil_decompress_page(tmp_mem, comp_mem,
-					    srv_page_size, NULL);
+			byte buf[UNIV_PAGE_SIZE_MAX];
+			memcpy(buf, tmp_mem, srv_page_size);
+			ulint unzipped2 = fil_page_decompress(tmp_mem, buf);
+			ut_ad(unzipped2);
 		}
 
-		bool corrupted = buf_page_is_corrupted(true, tmp_mem, page_size, space);
-		memcpy(tmp_mem+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, src+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 8);
-		bool different = memcmp(src, tmp_mem, page_size.physical());
-
-		if (!ok || corrupted || corrupted1 || err != DB_SUCCESS || different) {
-			fprintf(stderr, "ok %d corrupted %d corrupted1 %d err %d different %d\n",
-				ok , corrupted, corrupted1, err, different);
-			fprintf(stderr, "src_frame\n");
-			buf_page_print(src_frame, page_size);
-			fprintf(stderr, "encrypted_frame\n");
-			buf_page_print(tmp, page_size);
-			fprintf(stderr, "decrypted_frame\n");
-			buf_page_print(tmp_mem, page_size);
-			ut_ad(0);
-		}
-
-		free(tmp_mem);
-
-		if (comp_mem) {
-			free(comp_mem);
-		}
-
-		if (uncomp_mem) {
-			free(uncomp_mem);
-		}
+		memcpy(tmp_mem + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
+		       src + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 8);
+		ut_ad(!memcmp(src, tmp_mem, page_size.physical()));
 	}
 #endif /* UNIV_DEBUG */
 

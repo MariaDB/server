@@ -5040,6 +5040,11 @@ ibuf_check_bitmap_on_import(
 			continue;
 		}
 
+		if (!bitmap_page) {
+			mutex_exit(&ibuf_mutex);
+			return DB_CORRUPTION;
+		}
+
 		for (i = FSP_IBUF_BITMAP_OFFSET + 1;
 		     i < page_size.physical();
 		     i++) {
