@@ -4984,9 +4984,11 @@ static Item** find_field_in_group_list(Item *find_item, ORDER *group_list)
     in the SELECT clause of Q.
     - Search for a column named col_ref_i [in table T_j]
     in the GROUP BY clause of Q.
-    - If found different columns with the same name in GROUP BY and SELECT
-    - issue a warning and return the GROUP BY column,
-    - otherwise
+    - If found different columns with the same name in GROUP BY and SELECT:
+    - if the condition that uses this column name is pushed down into
+    the HAVING clause return the SELECT column
+    - else issue a warning and return the GROUP BY column.
+    - Otherwise
     - if the MODE_ONLY_FULL_GROUP_BY mode is enabled return error
     - else return the found SELECT column.
 
@@ -5025,7 +5027,8 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
     
     /* Check if the fields found in SELECT and GROUP BY are the same field. */
     if (group_by_ref && (select_ref != not_found_item) &&
-        !((*group_by_ref)->eq(*select_ref, 0)))
+        !((*group_by_ref)->eq(*select_ref, 0)) &&
+        (!select->having_fix_field_for_pushed_cond))
     {
       ambiguous_fields= TRUE;
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,

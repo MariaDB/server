@@ -1350,9 +1350,11 @@ JOIN::optimize_inner()
     if (having)
     {
       select_lex->having_fix_field= 1;
+      select_lex->having_fix_field_for_pushed_cond= 1;
       if (having->fix_fields(thd, &having))
         DBUG_RETURN(1);
       select_lex->having_fix_field= 0;
+      select_lex->having_fix_field_for_pushed_cond= 0;
     }
   }
   

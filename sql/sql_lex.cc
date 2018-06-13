@@ -2107,6 +2107,7 @@ void st_select_lex::init_query()
   cond_pushed_into_where= cond_pushed_into_having= 0;
   olap= UNSPECIFIED_OLAP_TYPE;
   having_fix_field= 0;
+  having_fix_field_for_pushed_cond= 0;
   context.select_lex= this;
   context.init();
   /*
