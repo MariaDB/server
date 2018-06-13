@@ -4746,9 +4746,9 @@ buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 		ib_logf(IB_LOG_LEVEL_ERROR,
 			"The page [page id: space=%u"
 			", page number=%u]"
-			" in file %s cannot be decrypted.",
+			" in file '%s' cannot be decrypted.",
 			bpage->space, bpage->offset,
-			space->name);
+			space->chain.start->name);
 
 		ib_logf(IB_LOG_LEVEL_INFO,
 			"However key management plugin or used key_version " ULINTPF
