@@ -8354,3 +8354,14 @@ drop procedure p3;
 CREATE PROCEDURE foo ( IN i INT UNSIGNED ) BEGIN END;
 CALL foo( LAST_INSERT_ID() );
 DROP PROCEDURE foo;
+#
+# MDEV-15870 Using aggregate and window function in unexpected places can crash the server
+#
+CREATE PROCEDURE p1 (a TEXT) BEGIN END;
+CALL p1(RANK() OVER (ORDER BY 1));
+ERROR HY000: Window function is allowed only in SELECT list and ORDER BY clause
+CALL p1(ROW_NUMBER() OVER ());
+ERROR HY000: Window function is allowed only in SELECT list and ORDER BY clause
+CALL p1(SUM(1));
+ERROR HY000: Invalid use of group function
+DROP PROCEDURE p1;

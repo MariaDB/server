@@ -9865,3 +9865,17 @@ drop procedure p3;
 CREATE PROCEDURE foo ( IN i INT UNSIGNED ) BEGIN END;
 CALL foo( LAST_INSERT_ID() );
 DROP PROCEDURE foo;
+
+
+--echo #
+--echo # MDEV-15870 Using aggregate and window function in unexpected places can crash the server
+--echo #
+
+CREATE PROCEDURE p1 (a TEXT) BEGIN END;
+--error ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION
+CALL p1(RANK() OVER (ORDER BY 1));
+--error ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION
+CALL p1(ROW_NUMBER() OVER ());
+--error ER_INVALID_GROUP_FUNC_USE
+CALL p1(SUM(1));
+DROP PROCEDURE p1;
