@@ -2267,16 +2267,16 @@ static const char *thread_state_info(THD *tmp)
     else
       return "Reading from net";
   }
-  else
+#else
+  if (tmp->get_command() == COM_SLEEP)
+    return "";
 #endif
-  {
-    if (tmp->proc_info)
-      return tmp->proc_info;
-    else if (tmp->mysys_var && tmp->mysys_var->current_cond)
-      return "Waiting on cond";
-    else
-      return NULL;
-  }
+  if (tmp->proc_info)
+    return tmp->proc_info;
+  else if (tmp->mysys_var && tmp->mysys_var->current_cond)
+    return "Waiting on cond";
+  else
+    return NULL;
 }
 
 void mysqld_list_processes(THD *thd,const char *user, bool verbose)
