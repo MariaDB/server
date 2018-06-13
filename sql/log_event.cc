@@ -13155,8 +13155,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
   }
 
   // Handle INSERT.
-  // Set vers fields when replicating from not system-versioned table.
-  if (m_type == WRITE_ROWS_EVENT_V1 && table->versioned(VERS_TIMESTAMP))
+  if (table->versioned(VERS_TIMESTAMP))
   {
     ulong sec_part;
     bitmap_set_bit(table->read_set, table->vers_start_field()->field_index);
