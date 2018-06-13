@@ -42,6 +42,12 @@ Created 2012-02-08 by Sunny Bains.
 #include "srv0start.h"
 #include "row0quiesce.h"
 #include "fil0pagecompress.h"
+#ifdef HAVE_LZO
+#include "lzo/lzo1x.h"
+#endif
+#ifdef HAVE_SNAPPY
+#include "snappy-c.h"
+#endif
 
 #include <vector>
 
@@ -3365,15 +3371,30 @@ fil_iterate(
 	os_offset_t		offset;
 	ulint			n_bytes = iter.n_io_buffers * iter.page_size;
 
+	const ulint buf_size = srv_page_size
+#ifdef HAVE_LZO
+		+ LZO1X_1_15_MEM_COMPRESS
+#elif defined HAVE_SNAPPY
+		+ snappy_max_compressed_length(srv_page_size)
+#endif
+		;
+	byte* page_compress_buf = static_cast<byte*>(
+		ut_malloc_low(buf_size, false));
 	ut_ad(!srv_read_only_mode);
+
+	if (!page_compress_buf) {
+		return DB_OUT_OF_MEMORY;
+	}
 
 	/* TODO: For ROW_FORMAT=COMPRESSED tables we do a lot of useless
 	copying for non-index pages. Unfortunately, it is
 	required by buf_zip_decompress() */
+	dberr_t err = DB_SUCCESS;
 
 	for (offset = iter.start; offset < iter.end; offset += n_bytes) {
 		if (callback.is_interrupted()) {
-			return DB_INTERRUPTED;
+			err = DB_INTERRUPTED;
+			goto func_exit;
 		}
 
 		byte*		io_buffer = iter.io_buffer;
@@ -3404,12 +3425,13 @@ fil_iterate(
 		if (!os_file_read_no_error_handling(iter.file, readptr,
 						    offset, n_bytes)) {
 			ib_logf(IB_LOG_LEVEL_ERROR, "os_file_read() failed");
-			return DB_IO_ERROR;
+			err = DB_IO_ERROR;
+			goto func_exit;
 		}
 
 		bool		updated = false;
-		ulint		n_pages_read = (ulint) n_bytes / iter.page_size;
 		const ulint 	size = iter.page_size;
+		ulint		n_pages_read = ulint(n_bytes) / size;
 		block->page.offset = offset / size;
 
 		for (ulint i = 0; i < n_pages_read;
@@ -3438,11 +3460,11 @@ page_corrupted:
 					UINT64PF " looks corrupted.",
 					callback.filename(),
 					ulong(offset / size), offset);
-				return DB_CORRUPTION;
+				err = DB_CORRUPTION;
+				goto func_exit;
 			}
 
 			bool decrypted = false;
-			dberr_t	err = DB_SUCCESS;
 			byte*	dst = io_buffer + (i * size);
 			bool frame_changed = false;
 			ulint page_type = mach_read_from_2(src+FIL_PAGE_TYPE);
@@ -3450,6 +3472,10 @@ page_corrupted:
 				= page_type
 				== FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
 				|| page_type == FIL_PAGE_PAGE_COMPRESSED;
+
+			if (page_compressed && block->page.zip.data) {
+				goto page_corrupted;
+			}
 
 			if (!encrypted) {
 			} else if (!mach_read_from_4(
@@ -3476,7 +3502,7 @@ not_encrypted:
 					iter.page_size, src, &err);
 
 				if (err != DB_SUCCESS) {
-					return err;
+					goto func_exit;
 				}
 
 				if (!decrypted) {
@@ -3489,8 +3515,12 @@ not_encrypted:
 			/* If the original page is page_compressed, we need
 			to decompress it before adjusting further. */
 			if (page_compressed) {
-				fil_decompress_page(NULL, dst, ulong(size),
-						    NULL);
+				ulint compress_length = fil_page_decompress(
+					page_compress_buf, dst);
+				ut_ad(compress_length != srv_page_size);
+				if (compress_length == 0) {
+					goto page_corrupted;
+				}
 				updated = true;
 			} else if (buf_page_is_corrupted(
 					   false,
@@ -3501,7 +3531,7 @@ not_encrypted:
 			}
 
 			if ((err = callback(block)) != DB_SUCCESS) {
-				return err;
+				goto func_exit;
 			} else if (!updated) {
 				updated = buf_block_get_state(block)
 					== BUF_BLOCK_FILE_PAGE;
@@ -3551,19 +3581,17 @@ not_encrypted:
 			src =  io_buffer + (i * size);
 
 			if (page_compressed) {
-				ulint len = 0;
-
-				fil_compress_page(
-					NULL,
-					src,
-					NULL,
-					size,
-					0,/* FIXME: compression level */
-					512,/* FIXME: use proper block size */
-					encrypted,
-					&len);
-
 				updated = true;
+				if (fil_page_compress(
+					    src,
+					    page_compress_buf,
+					    0,/* FIXME: compression level */
+					    512,/* FIXME: proper block size */
+					    encrypted)) {
+					/* FIXME: remove memcpy() */
+					memcpy(src, page_compress_buf,
+					       srv_page_size);
+				}
 			}
 
 			/* If tablespace is encrypted, encrypt page before we
@@ -3600,11 +3628,14 @@ not_encrypted:
 				offset, (ulint) n_bytes)) {
 
 			ib_logf(IB_LOG_LEVEL_ERROR, "os_file_write() failed");
-			return DB_IO_ERROR;
+			err = DB_IO_ERROR;
+			goto func_exit;
 		}
 	}
 
-	return DB_SUCCESS;
+func_exit:
+	ut_free(page_compress_buf);
+	return err;
 }
 
 /********************************************************************//**

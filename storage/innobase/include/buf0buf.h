@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -39,6 +39,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "ut0rbt.h"
 #include "os0proc.h"
 #include "log0log.h"
+#include "my_atomic.h"
 
 /** @name Modes for buf_page_get_gen */
 /* @{ */
@@ -1506,45 +1507,16 @@ buf_page_encrypt_before_write(
 	buf_page_t*	bpage,
 	byte*		src_frame);
 
-/**********************************************************************
-The hook that is called after page is written to disk.
-The function releases any resources needed for encryption that was allocated
-in buf_page_encrypt_before_write */
-UNIV_INTERN
-ibool
-buf_page_encrypt_after_write(
-/*=========================*/
-	buf_page_t* page); /*!< in/out: buffer page that was flushed */
-
-/********************************************************************//**
-The hook that is called just before a page is read from disk.
-The function allocates memory that is used to temporarily store disk content
-before getting decrypted */
-UNIV_INTERN
-byte*
-buf_page_decrypt_before_read(
-/*=========================*/
-	buf_page_t* page, /*!< in/out: buffer page read from disk */
-	ulint	zip_size);  /*!< in: compressed page size, or 0 */
-
-/********************************************************************//**
-The hook that is called just after a page is read from disk.
-The function decrypt disk content into buf_page_t and releases the
-temporary buffer that was allocated in buf_page_decrypt_before_read */
-UNIV_INTERN
-bool
-buf_page_decrypt_after_read(
-/*========================*/
-	buf_page_t* page); /*!< in/out: buffer page read from disk */
-
 /** @brief The temporary memory structure.
 
 NOTE! The definition appears here only for other modules of this
 directory (buf) to see it. Do not use from outside! */
 
 typedef struct {
-	bool		reserved;	/*!< true if this slot is reserved
+private:
+	int32		reserved;	/*!< true if this slot is reserved
 					*/
+public:
 	byte*           crypt_buf;	/*!< for encryption the data needs to be
 					copied to a separate buffer before it's
 					encrypted&written. this as a page can be
@@ -1555,6 +1527,21 @@ typedef struct {
 	byte*		out_buf;	/*!< resulting buffer after
 					encryption/compression. This is a
 					pointer and not allocated. */
+
+	/** Release the slot */
+	void release()
+	{
+		my_atomic_store32_explicit(&reserved, false,
+					   MY_MEMORY_ORDER_RELAXED);
+	}
+
+	/** Acquire the slot
+	@return whether the slot was acquired */
+	bool acquire()
+	{
+		return !my_atomic_fas32_explicit(&reserved, true,
+						 MY_MEMORY_ORDER_RELAXED);
+	}
 } buf_tmp_buffer_t;
 
 /** The common buffer control block structure

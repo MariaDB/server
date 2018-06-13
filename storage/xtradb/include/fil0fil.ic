@@ -68,7 +68,6 @@ fil_get_page_type_name(
 	}
 
 	return "PAGE TYPE CORRUPTED";
-
 }
 
 /****************************************************************//**

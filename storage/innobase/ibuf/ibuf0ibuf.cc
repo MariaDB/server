@@ -5177,6 +5177,11 @@ ibuf_check_bitmap_on_import(
 		bitmap_page = ibuf_bitmap_get_map_page(
 			space_id, page_no, zip_size, &mtr);
 
+		if (!bitmap_page) {
+			mutex_exit(&ibuf_mutex);
+			return DB_CORRUPTION;
+		}
+
 		for (i = FSP_IBUF_BITMAP_OFFSET + 1; i < page_size; i++) {
 			const ulint	offset = page_no + i;
 

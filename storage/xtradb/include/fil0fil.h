@@ -340,9 +340,6 @@ struct fil_space_t {
 	corrupted page. */
 	bool		is_corrupt;
 				/*!< true if tablespace corrupted */
-	bool		printed_compression_failure;
-				/*!< true if we have already printed
-				compression failure */
 	fil_space_crypt_t* crypt_data;
 				/*!< tablespace crypt data or NULL */
 	ulint		file_block_size;

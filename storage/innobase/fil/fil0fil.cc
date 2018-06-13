@@ -342,19 +342,6 @@ fil_space_get_by_id(
 	return(space);
 }
 
-/****************************************************************//**
-Get space id from fil node */
-ulint
-fil_node_get_space_id(
-/*==================*/
-        fil_node_t*     node)           /*!< in: Compressed node*/
-{
-	ut_ad(node);
-	ut_ad(node->space);
-
-	return (node->space->id);
-}
-
 /*******************************************************************//**
 Returns the table space by a given name, NULL if not found. */
 UNIV_INLINE
