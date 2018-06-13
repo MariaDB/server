@@ -5302,17 +5302,8 @@ int ha_rocksdb::load_hidden_pk_value() {
   active_index = m_tbl_def->m_key_count - 1;
   const uint8 save_table_status = table->status;
 
-  /*
-    We should read the latest committed value in the database.
-    That is, if we have an open transaction with a snapshot, we should not use
-    it as we may get old data. Start a new transaction to read the latest
-    value.
-  */
-  Rdb_transaction *const temp_tx = new Rdb_transaction_impl(table->in_use);
-  temp_tx->start_tx();
-  Rdb_transaction *&tx = get_tx_from_thd(table->in_use);
-  Rdb_transaction *save_tx= tx;
-  tx= temp_tx;
+  Rdb_transaction *const tx = get_or_create_tx(table->in_use);
+  const bool is_new_snapshot = !tx->has_snapshot();
 
   longlong hidden_pk_id = 1;
   // Do a lookup.
@@ -5322,8 +5313,9 @@ int ha_rocksdb::load_hidden_pk_value() {
     */
     auto err = read_hidden_pk_id_from_rowkey(&hidden_pk_id);
     if (err) {
-        delete tx;
-        tx= save_tx;
+      if (is_new_snapshot) {
+        tx->release_snapshot();
+      }
       return err;
     }
 
@@ -5335,8 +5327,9 @@ int ha_rocksdb::load_hidden_pk_value() {
          !m_tbl_def->m_hidden_pk_val.compare_exchange_weak(old, hidden_pk_id)) {
   }
 
-  delete tx;
-  tx= save_tx;
+  if (is_new_snapshot) {
+    tx->release_snapshot();
+  }
 
   table->status = save_table_status;
   active_index = save_active_index;
