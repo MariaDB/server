@@ -41,15 +41,14 @@ case "$1" in
             addr_no_bracket=${WSREP_SST_OPT_ADDR#\[}
             readonly WSREP_SST_OPT_HOST_UNESCAPED=${addr_no_bracket%%\]*}
             readonly WSREP_SST_OPT_HOST="[${WSREP_SST_OPT_HOST_UNESCAPED}]"
-            remain=${WSREP_SST_OPT_ADDR#*\]}
-            remain=${remain#*:}
             ;;
         *)
             readonly WSREP_SST_OPT_HOST=${WSREP_SST_OPT_ADDR%%[:/]*}
             readonly WSREP_SST_OPT_HOST_UNESCAPED=$WSREP_SST_OPT_HOST
-            remain=${WSREP_SST_OPT_ADDR#*:}
             ;;
         esac
+        remain=${WSREP_SST_OPT_ADDR#${WSREP_SST_OPT_HOST}}
+        remain=${remain#:}
         readonly WSREP_SST_OPT_ADDR_PORT=${remain%%/*}
         remain=${remain#*/}
         readonly WSREP_SST_OPT_MODULE=${remain%%/*}
