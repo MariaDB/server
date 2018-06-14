@@ -303,7 +303,6 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   create_info.data_file_name= create_info.index_file_name= NULL;
 
   thd->enable_slow_log= opt_log_slow_admin_statements;
-  thd->work_part_info= 0;
 
 #ifdef WITH_WSREP
   TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);

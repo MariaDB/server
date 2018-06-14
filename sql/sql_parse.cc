@@ -3315,7 +3315,6 @@ mysql_execute_command(THD *thd)
       create_info.add(DDL_options_st::OPT_OR_REPLACE_SLAVE_GENERATED);
     }
 
-    thd->work_part_info= 0;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     {
       partition_info *part_info= thd->lex->part_info;

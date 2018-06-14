@@ -6060,7 +6060,6 @@ remove_key:
     }
   }
   
-  DBUG_ASSERT(thd->work_part_info == 0);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *tab_part_info= table->part_info;
   thd->work_part_info= thd->lex->part_info;
@@ -8414,8 +8413,6 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                        uint order_num, ORDER *order, bool ignore)
 {
   DBUG_ENTER("mysql_alter_table");
-
-  thd->work_part_info= 0;                       // Used by partitioning
 
   /*
     Check if we attempt to alter mysql.slow_log or
