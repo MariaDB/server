@@ -23,18 +23,31 @@
 #ifndef TAO_CRYPT_AES_HPP
 #define TAO_CRYPT_AES_HPP
 
+#include <stdio.h>
 #include "misc.hpp"
 #include "modes.hpp"
-
 
 #if defined(TAOCRYPT_X86ASM_AVAILABLE) && defined(TAO_ASM)
     #define DO_AES_ASM
 #endif
 
-
-
 namespace TaoCrypt {
 
+#ifdef HAVE_ARMV8_CRC_CRYPTO_INTRINSICS
+    #include <arm_neon.h>
+    #define EXPND_R_KEY_MSIZE 60*4
+
+    #if defined(__BYTE_ORDER__)
+        #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+            #define LITTLE_ENDIAN_ORDER
+        #else
+            #define BIG_ENDIAN_ORDER
+        #endif
+    #else
+        #error macro __BYTE_ORDER__ is not defined in host compiler
+    #endif
+   //#define ARMV8_CE_DEBUG
+#endif
 
 enum { AES_BLOCK_SIZE = 16 };
 
@@ -49,6 +62,10 @@ public:
 
 #ifdef DO_AES_ASM
     void Process(byte*, const byte*, word32);
+#endif
+#ifdef HAVE_ARMV8_CRC_CRYPTO_INTRINSICS
+    void Process(byte*, const byte*, word32);
+    void armv8_aes_blkcrypt(int, uint8x16_t*, const uint8x16_t*);
 #endif
     void SetKey(const byte* key, word32 sz, CipherDir fake = ENCRYPTION);
     void SetIV(const byte* iv) { memcpy(r_, iv, BLOCK_SIZE); }

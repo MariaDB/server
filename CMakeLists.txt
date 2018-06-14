@@ -167,6 +167,7 @@ INCLUDE(systemd)
 INCLUDE(mysql_add_executable)
 INCLUDE(compile_flags)
 INCLUDE(crc32)
+INCLUDE(armv8_crypto)
 
 # Handle options
 OPTION(DISABLE_SHARED 

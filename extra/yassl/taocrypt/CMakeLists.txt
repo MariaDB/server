@@ -30,5 +30,5 @@ SET(TAOCRYPT_SOURCES		src/aes.cpp src/aestables.cpp src/algebra.cpp src/arc4.cpp
                                 include/rabbit.hpp include/hc128.hpp)
 
 ADD_CONVENIENCE_LIBRARY(taocrypt ${TAOCRYPT_SOURCES})
+SET_TARGET_PROPERTIES(taocrypt PROPERTIES COMPILE_FLAGS "${ARMV8_NEON_COMPILE_FLAGS}")
 RESTRICT_SYMBOL_EXPORTS(taocrypt)
-
