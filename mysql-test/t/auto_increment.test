@@ -397,3 +397,11 @@ insert into t1 values(null);
 select last_insert_id();
 select * from t1;
 drop table t1;
+
+
+--echo #
+--echo # MDEV-15352 AUTO_INCREMENT breaks after updating a column value to a negative number
+--echo #
+
+SET @engine='MyISAM';
+--source include/autoinc_mdev15353.inc

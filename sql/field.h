@@ -851,9 +851,14 @@ public:
   { return store(ls->str, (uint32) ls->length, cs); }
   virtual double val_real(void)=0;
   virtual longlong val_int(void)=0;
+  /*
+    Get ulonglong representation.
+    Negative values are truncated to 0.
+  */
   virtual ulonglong val_uint(void)
   {
-    return (ulonglong) val_int();
+    longlong nr= val_int();
+    return nr < 0 ? 0 : (ulonglong) nr;
   }
   virtual bool val_bool(void)= 0;
   virtual my_decimal *val_decimal(my_decimal *);
@@ -1898,6 +1903,7 @@ public:
   int  store_decimal(const my_decimal *);
   double val_real(void);
   longlong val_int(void);
+  ulonglong val_uint(void);
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String*, String *);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
@@ -1925,15 +1931,34 @@ public:
 };
 
 
-class Field_tiny :public Field_num {
+class Field_integer: public Field_num
+{
+public:
+  Field_integer(uchar *ptr_arg, uint32 len_arg,
+                uchar *null_ptr_arg, uchar null_bit_arg,
+                enum utype unireg_check_arg, const char *field_name_arg,
+                bool zero_arg, bool unsigned_arg)
+   :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+               unireg_check_arg, field_name_arg, 0,
+               zero_arg, unsigned_arg)
+  { }
+  ulonglong val_uint()
+  {
+    longlong nr= val_int();
+    return nr < 0 && !unsigned_flag ? 0 : (ulonglong) nr;
+  }
+};
+
+
+class Field_tiny :public Field_integer {
 public:
   Field_tiny(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
-	     uchar null_bit_arg,
-	     enum utype unireg_check_arg, const char *field_name_arg,
-	     bool zero_arg, bool unsigned_arg)
-    :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-	       unireg_check_arg, field_name_arg,
-	       0, zero_arg,unsigned_arg)
+             uchar null_bit_arg,
+             enum utype unireg_check_arg, const char *field_name_arg,
+             bool zero_arg, bool unsigned_arg)
+    :Field_integer(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+                   unireg_check_arg, field_name_arg,
+                   zero_arg, unsigned_arg)
     {}
   enum_field_types type() const { return MYSQL_TYPE_TINY;}
   enum ha_base_keytype key_type() const
@@ -1969,20 +1994,20 @@ public:
 };
 
 
-class Field_short :public Field_num {
+class Field_short :public Field_integer {
 public:
   Field_short(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
-	      uchar null_bit_arg,
-	      enum utype unireg_check_arg, const char *field_name_arg,
-	      bool zero_arg, bool unsigned_arg)
-    :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-	       unireg_check_arg, field_name_arg,
-	       0, zero_arg,unsigned_arg)
+              uchar null_bit_arg,
+              enum utype unireg_check_arg, const char *field_name_arg,
+              bool zero_arg, bool unsigned_arg)
+    :Field_integer(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+                   unireg_check_arg, field_name_arg,
+                   zero_arg, unsigned_arg)
     {}
   Field_short(uint32 len_arg,bool maybe_null_arg, const char *field_name_arg,
-	      bool unsigned_arg)
-    :Field_num((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0,0,
-	       NONE, field_name_arg, 0, 0, unsigned_arg)
+              bool unsigned_arg)
+    :Field_integer((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, 0,
+                   NONE, field_name_arg, 0, unsigned_arg)
     {}
   enum_field_types type() const { return MYSQL_TYPE_SHORT;}
   enum ha_base_keytype key_type() const
@@ -2009,15 +2034,15 @@ public:
   { return unpack_int16(to, from, from_end); }
 };
 
-class Field_medium :public Field_num {
+class Field_medium :public Field_integer {
 public:
   Field_medium(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
-	      uchar null_bit_arg,
-	      enum utype unireg_check_arg, const char *field_name_arg,
-	      bool zero_arg, bool unsigned_arg)
-    :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-	       unireg_check_arg, field_name_arg,
-	       0, zero_arg,unsigned_arg)
+              uchar null_bit_arg,
+              enum utype unireg_check_arg, const char *field_name_arg,
+              bool zero_arg, bool unsigned_arg)
+    :Field_integer(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+                   unireg_check_arg, field_name_arg,
+                   zero_arg, unsigned_arg)
     {}
   enum_field_types type() const { return MYSQL_TYPE_INT24;}
   enum ha_base_keytype key_type() const
@@ -2043,20 +2068,20 @@ public:
 };
 
 
-class Field_long :public Field_num {
+class Field_long :public Field_integer {
 public:
   Field_long(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
-	     uchar null_bit_arg,
-	     enum utype unireg_check_arg, const char *field_name_arg,
-	     bool zero_arg, bool unsigned_arg)
-    :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-	       unireg_check_arg, field_name_arg,
-	       0, zero_arg,unsigned_arg)
+             uchar null_bit_arg,
+             enum utype unireg_check_arg, const char *field_name_arg,
+             bool zero_arg, bool unsigned_arg)
+    :Field_integer(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+                   unireg_check_arg, field_name_arg,
+                   zero_arg, unsigned_arg)
     {}
   Field_long(uint32 len_arg,bool maybe_null_arg, const char *field_name_arg,
-	     bool unsigned_arg)
-    :Field_num((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0,0,
-	       NONE, field_name_arg,0,0,unsigned_arg)
+             bool unsigned_arg)
+    :Field_integer((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, 0,
+                   NONE, field_name_arg, 0, unsigned_arg)
     {}
   enum_field_types type() const { return MYSQL_TYPE_LONG;}
   enum ha_base_keytype key_type() const
@@ -2088,21 +2113,21 @@ public:
 };
 
 
-class Field_longlong :public Field_num {
+class Field_longlong :public Field_integer {
 public:
   Field_longlong(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
-	      uchar null_bit_arg,
-	      enum utype unireg_check_arg, const char *field_name_arg,
-	      bool zero_arg, bool unsigned_arg)
-    :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-	       unireg_check_arg, field_name_arg,
-	       0, zero_arg,unsigned_arg)
+              uchar null_bit_arg,
+              enum utype unireg_check_arg, const char *field_name_arg,
+              bool zero_arg, bool unsigned_arg)
+    :Field_integer(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
+                   unireg_check_arg, field_name_arg,
+                   zero_arg, unsigned_arg)
     {}
   Field_longlong(uint32 len_arg,bool maybe_null_arg,
-		 const char *field_name_arg,
-		  bool unsigned_arg)
-    :Field_num((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0,0,
-	       NONE, field_name_arg,0,0,unsigned_arg)
+                 const char *field_name_arg,
+                  bool unsigned_arg)
+    :Field_integer((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, 0,
+                   NONE, field_name_arg,0, unsigned_arg)
     {}
   enum_field_types type() const { return MYSQL_TYPE_LONGLONG;}
   enum ha_base_keytype key_type() const
