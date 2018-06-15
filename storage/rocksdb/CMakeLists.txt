@@ -5,6 +5,9 @@ MACRO(SKIP_ROCKSDB_PLUGIN msg)
   RETURN()
 ENDMACRO()
 
+# DO NOT MERGE THIS TO ANY BRANCH!!!
+SKIP_ROCKSDB_PLUGIN("Not GA quality in the compatibility branch")
+
 IF (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/Makefile")
   SKIP_ROCKSDB_PLUGIN("Missing Makefile in rocksdb directory. Try \"git submodule update\".")
 ENDIF()
