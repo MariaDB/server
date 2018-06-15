@@ -57,9 +57,12 @@ sed -i -e "s/\\\${LIBSSL}/${LIBSSL}/g" debian/control
 #
 echo "Incrementing changelog and starting build scripts"
 
-dch -b -D ${CODENAME} -v "${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE_EXTRA:+-${RELEASE_EXTRA}}1~${CODENAME}" "Automatic build with ${LOGSTRING}."
+if [[ "$CODENAME" == bionic ]]; then
+  EPOCH="1:"
+fi
+dch -b -D ${CODENAME} -v "${EPOCH}${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE_EXTRA:+-${RELEASE_EXTRA}}1~${CODENAME}" "Automatic build with ${LOGSTRING}."
 
-echo "Creating package version ${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE_EXTRA:+-${RELEASE_EXTRA}}1~${CODENAME} ... "
+echo "Creating package version ${EPOCH}${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE_EXTRA:+-${RELEASE_EXTRA}}1~${CODENAME} ... "
 
 # Build the package.
 # Pass -I so that .git and other unnecessary temporary and source control files
