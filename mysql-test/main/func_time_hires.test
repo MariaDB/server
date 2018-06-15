@@ -106,3 +106,24 @@ alter table t1 modify f1 varchar(100);
 select time(f1) from t1;
 select time(f1) from t1 union all select time(f1 + interval 1 second) from t1;
 drop table t1;
+
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-10182 Bad value when inserting COALESCE(CURRENT_TIMESTAMP) into a DECIMAL column
+--echo #
+
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30.000000');
+CREATE TABLE t1 (a DECIMAL(30,0));
+INSERT INTO t1 VALUES (CURRENT_TIMESTAMP(6));
+INSERT INTO t1 VALUES (COALESCE(CURRENT_TIMESTAMP(6)));
+SELECT * FROM t1;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
