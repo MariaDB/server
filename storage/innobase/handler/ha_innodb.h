@@ -28,6 +28,10 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #pragma interface			/* gcc class implementation */
 #endif
 
+#ifdef WITH_WSREP
+#include "../../../wsrep/wsrep_api.h"
+#endif /* WITH_WSREP */
+
 /* Structure defines translation table between mysql index and innodb
 index structures */
 typedef struct innodb_idx_translate_struct {
@@ -115,7 +119,7 @@ class ha_innobase: public handler
 	int info_low(uint flag, bool called_from_analyze);
 
 #ifdef WITH_WSREP
-	int wsrep_append_keys(THD *thd, bool shared,
+	int wsrep_append_keys(THD *thd, wsrep_key_type key_type,
 			      const uchar* record0, const uchar* record1);
 #endif
 	/* Init values for the class: */
