@@ -2469,9 +2469,10 @@ skip:
 /** Copy redo log blocks to the data sink.
 @param start_lsn	buffer start LSN
 @param end_lsn		buffer end LSN
+@param last		whether we are copying the final part of the log
 @return	last scanned LSN
 @retval	0	on failure */
-static lsn_t xtrabackup_copy_log(lsn_t start_lsn, lsn_t end_lsn)
+static lsn_t xtrabackup_copy_log(lsn_t start_lsn, lsn_t end_lsn, bool last)
 {
 	lsn_t	scanned_lsn	= start_lsn;
 	const byte* log_block = log_sys->buf;
@@ -2530,7 +2531,7 @@ static lsn_t xtrabackup_copy_log(lsn_t start_lsn, lsn_t end_lsn)
 
 	log_sys->log.scanned_lsn = scanned_lsn;
 
-	end_lsn = metadata_to_lsn
+	end_lsn = last
 		? ut_uint64_align_up(scanned_lsn, OS_FILE_LOG_BLOCK_SIZE)
 		: scanned_lsn & ~lsn_t(OS_FILE_LOG_BLOCK_SIZE - 1);
 
@@ -2550,8 +2551,9 @@ static lsn_t xtrabackup_copy_log(lsn_t start_lsn, lsn_t end_lsn)
 }
 
 /** Copy redo log until the current end of the log is reached
+@param last	whether we are copying the final part of the log
 @return	whether the operation failed */
-static bool xtrabackup_copy_logfile()
+static bool xtrabackup_copy_logfile(bool last = false)
 {
 	ut_a(dst_log_file != NULL);
 	ut_ad(recv_sys != NULL);
@@ -2582,7 +2584,7 @@ static bool xtrabackup_copy_logfile()
 		}
 
 		start_lsn = (lsn == start_lsn)
-			? 0 : xtrabackup_copy_log(start_lsn, lsn);
+			? 0 : xtrabackup_copy_log(start_lsn, lsn, last);
 
 		log_mutex_exit();
 
@@ -3725,6 +3727,11 @@ static bool xtrabackup_backup_low()
 	}
 
 	stop_backup_threads();
+
+	if (metadata_to_lsn && xtrabackup_copy_logfile(true)) {
+		ds_close(dst_log_file);
+		return false;
+	}
 
 	if (ds_close(dst_log_file) || !metadata_to_lsn) {
 		dst_log_file = NULL;
