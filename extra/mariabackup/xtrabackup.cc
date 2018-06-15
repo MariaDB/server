@@ -4,7 +4,7 @@ MariaBackup: hot backup tool for InnoDB
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
 Yasufumi Kinoshita, Ignacio Nin and Baron Schwartz.
-(c) 2017, MariaDB Corporation.
+(c) 2017, 2018, MariaDB Corporation.
 Portions written by Marko Mäkelä.
 
 This program is free software; you can redistribute it and/or modify
@@ -109,6 +109,7 @@ int sys_var_init();
 char xtrabackup_real_target_dir[FN_REFLEN] = "./xtrabackup_backupfiles/";
 char *xtrabackup_target_dir= xtrabackup_real_target_dir;
 static my_bool xtrabackup_version;
+static my_bool verbose;
 my_bool xtrabackup_backup;
 my_bool xtrabackup_prepare;
 my_bool xtrabackup_copy_back;
@@ -696,6 +697,9 @@ enum options_xtrabackup
 
 struct my_option xb_client_options[] =
 {
+  {"verbose", 'V', "display verbose output",
+   (G_PTR*) &verbose, (G_PTR*) &verbose, 0, GET_BOOL, NO_ARG,
+   FALSE, 0, 0, 0, 0, 0},
   {"version", 'v', "print xtrabackup version information",
    (G_PTR *) &xtrabackup_version, (G_PTR *) &xtrabackup_version, 0, GET_BOOL,
    NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1756,7 +1760,7 @@ innodb_init_param(void)
 	srv_max_n_open_files = (ulint) innobase_open_files;
 	srv_innodb_status = (ibool) innobase_create_status_file;
 
-	srv_print_verbose_log = 1;
+	srv_print_verbose_log = verbose ? 2 : 1;
 
 	/* Store the default charset-collation number of this MySQL
 	installation */
@@ -3730,6 +3734,7 @@ static bool xtrabackup_backup_low()
 
 	if (metadata_to_lsn && xtrabackup_copy_logfile(true)) {
 		ds_close(dst_log_file);
+		dst_log_file = NULL;
 		return false;
 	}
 
