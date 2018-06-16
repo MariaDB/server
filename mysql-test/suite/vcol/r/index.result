@@ -1,0 +1,38 @@
+CREATE TABLE t1 (a int, b int as (a+1) virtual, c int as (b+1) virtual, index(c)) engine=myisam;
+insert into t1 (a) values (1),(2),(3);
+update t1 set a=5 where a=3;
+delete from t1 where a=1;
+select * from t1;
+a	b	c
+2	3	4
+5	6	7
+select * from t1 where c=7;
+a	b	c
+5	6	7
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select * from t1;
+a	b	c
+2	3	4
+5	6	7
+drop table t1;
+CREATE TABLE t1 (a int, b int as (a+1) virtual, c int as (b+1) virtual, index(c)) engine=innodb;
+insert into t1 (a) values (1),(2),(3);
+update t1 set a=5 where a=3;
+delete from t1 where a=1;
+select * from t1;
+a	b	c
+2	3	4
+5	6	7
+select * from t1 where c=7;
+a	b	c
+5	6	7
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+select * from t1;
+a	b	c
+2	3	4
+5	6	7
+drop table t1;

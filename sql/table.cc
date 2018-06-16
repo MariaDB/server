@@ -3357,7 +3357,7 @@ partititon_err:
     }
   }
 
-  outparam->mark_columns_used_by_check_constraints();
+  outparam->mark_columns_used_by_virtual_fields();
 
   if (share->table_category == TABLE_CATEGORY_LOG)
   {
@@ -6293,11 +6293,12 @@ void TABLE::mark_columns_needed_for_delete()
     Field **reg_field;
     for (reg_field= field ; *reg_field ; reg_field++)
     {
-      if ((*reg_field)->flags & PART_KEY_FLAG)
+      Field *cur_field= *reg_field;
+      if (cur_field->flags & (PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG))
       {
-        bitmap_set_bit(read_set, (*reg_field)->field_index);
-        if ((*reg_field)->vcol_info)
-          mark_virtual_col(*reg_field);
+        bitmap_set_bit(read_set, cur_field->field_index);
+        if (cur_field->vcol_info)
+          bitmap_set_bit(vcol_set, cur_field->field_index);
       }
     }
     need_signal= true;
@@ -6655,7 +6656,8 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl
     if (bitmap_is_set(write_set, tmp_vfield->field_index))
       bitmap_updated|= mark_virtual_col(tmp_vfield);
     else if (tmp_vfield->vcol_info->stored_in_db ||
-             (tmp_vfield->flags & (PART_KEY_FLAG | FIELD_IN_PART_FUNC_FLAG)))
+             (tmp_vfield->flags & (PART_KEY_FLAG | FIELD_IN_PART_FUNC_FLAG |
+                                   PART_INDIRECT_KEY_FLAG)))
     {
       bitmap_set_bit(write_set, tmp_vfield->field_index);
       mark_virtual_col(tmp_vfield);
@@ -6668,27 +6670,64 @@ bool TABLE::mark_virtual_columns_for_write(bool insert_fl
 }
 
 /*
-  Mark fields used by check constraints.
+  Mark fields used by check constraints into s->check_set.
+  Mark all fields used in an expression that is part of an index
+  with PART_INDIRECT_KEY_FLAG
+
   This is done once for the TABLE_SHARE the first time the table is opened.
   The marking must be done non-destructively to handle the case when
   this could be run in parallely by two threads
 */
 
-void TABLE::mark_columns_used_by_check_constraints(void)
+void TABLE::mark_columns_used_by_virtual_fields(void)
 {
   MY_BITMAP *save_read_set;
-  /* If there is no check constraints or if check_set is already initialized */
-  if (!s->check_set || s->check_set_initialized)
+  Field **vfield_ptr;
+
+  /* If there is virtual fields are already initialized */
+  if (s->check_set_initialized)
     return;
 
-  save_read_set= read_set;
-  read_set= s->check_set;
+  if (s->tmp_table == NO_TMP_TABLE)
+    mysql_mutex_lock(&s->LOCK_share);
+  if (s->check_set)
+  {
+    /* Mark fields used by check constraint */
+    save_read_set= read_set;
+    read_set= s->check_set;
 
-  for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
-    (*chk)->expr->walk(&Item::register_field_in_read_map, 1, 0);
+    for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
+      (*chk)->expr->walk(&Item::register_field_in_read_map, 1, 0);
+    read_set= save_read_set;
+  }
 
-  read_set= save_read_set;
+  /*
+    mark all fields that part of a virtual indexed field with
+    PART_INDIRECT_KEY_FLAG. This is used to ensure that all fields
+    that are part of an index exits before write/delete/update.
+
+    As this code is only executed once per open share, it's reusing
+    existing functionality instead of adding an extra argument to
+    add_field_to_set_processor or adding another processor.
+  */
+  if (vfield)
+  {
+    for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
+    {
+      if ((*vfield_ptr)->flags & PART_KEY_FLAG)
+        (*vfield_ptr)->vcol_info->expr->walk(&Item::add_field_to_set_processor,
+                                             1, this);
+    }
+    for (uint i= 0 ; i < s->fields ; i++)
+    {
+      if (bitmap_is_set(&tmp_set, i))
+        field[i]->flags|= PART_INDIRECT_KEY_FLAG;
+    }
+    bitmap_clear_all(&tmp_set);
+  }
   s->check_set_initialized= 1;
+  if (s->tmp_table == NO_TMP_TABLE)
+    mysql_mutex_unlock(&s->LOCK_share);
 }
 
 /* Add fields used by CHECK CONSTRAINT to read map */
@@ -7465,7 +7504,8 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       update= bitmap_is_set(vcol_set, vf->field_index);
       break;
     case VCOL_UPDATE_FOR_REPLACE:
-      update= ((!vcol_info->stored_in_db && (vf->flags & PART_KEY_FLAG) &&
+      update= ((!vcol_info->stored_in_db &&
+                (vf->flags & (PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG)) &&
                 bitmap_is_set(vcol_set, vf->field_index)) ||
                update_all_columns);
       if (update && (vf->flags & BLOB_FLAG))
@@ -7484,7 +7524,8 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
     case VCOL_UPDATE_INDEXED:
     case VCOL_UPDATE_INDEXED_FOR_UPDATE:
       /* Read indexed fields that was not updated in VCOL_UPDATE_FOR_READ */
-      update= (!vcol_info->stored_in_db && (vf->flags & PART_KEY_FLAG) &&
+      update= (!vcol_info->stored_in_db &&
+               (vf->flags & (PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG)) &&
                !bitmap_is_set(vcol_set, vf->field_index));
       swap_values= 1;
       break;

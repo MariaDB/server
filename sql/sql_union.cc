@@ -185,7 +185,7 @@ select_union::create_result_table(THD *thd_arg, List<Item> *column_types,
 
   table->keys_in_use_for_query.clear_all();
   for (uint i=0; i < table->s->fields; i++)
-    table->field[i]->flags &= ~PART_KEY_FLAG;
+    table->field[i]->flags &= ~(PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG);
 
   if (create_table)
   {
@@ -219,7 +219,7 @@ select_union_recursive::create_result_table(THD *thd_arg,
 
   incr_table->keys_in_use_for_query.clear_all();
   for (uint i=0; i < table->s->fields; i++)
-    incr_table->field[i]->flags &= ~PART_KEY_FLAG;
+    incr_table->field[i]->flags &= ~(PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG);
 
   TABLE *rec_table= 0;
   if (! (rec_table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
@@ -230,7 +230,7 @@ select_union_recursive::create_result_table(THD *thd_arg,
 
   rec_table->keys_in_use_for_query.clear_all();
   for (uint i=0; i < table->s->fields; i++)
-    rec_table->field[i]->flags &= ~PART_KEY_FLAG;
+    rec_table->field[i]->flags &= ~(PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG);
 
   if (rec_tables.push_back(rec_table))
     return true;
