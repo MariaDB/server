@@ -513,6 +513,10 @@ err_return:
 bool Item_func_json_value::check_and_get_value(json_engine_t *je, String *res,
                                                int *error)
 {
+  CHARSET_INFO *json_cs;
+  const uchar *js;
+  uint js_len;
+
   if (!json_value_scalar(je))
   {
     /* We only look for scalar values! */
@@ -521,7 +525,22 @@ bool Item_func_json_value::check_and_get_value(json_engine_t *je, String *res,
     return true;
   }
 
-  return st_append_json(res, je->s.cs, je->value, je->value_len); 
+  if (je->value_type == JSON_VALUE_TRUE ||
+      je->value_type == JSON_VALUE_FALSE)
+  {
+    json_cs= &my_charset_utf8mb4_bin;
+    js= (const uchar *) ((je->value_type == JSON_VALUE_TRUE) ? "1" : "0");
+    js_len= 1;
+  }
+  else
+  {
+    json_cs= je->s.cs;
+    js= je->value;
+    js_len= je->value_len;
+  }
+
+
+  return st_append_json(res, json_cs, js, js_len); 
 }
 
 

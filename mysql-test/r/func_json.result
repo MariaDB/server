@@ -739,3 +739,6 @@ drop table t1;
 select json_extract('{"test":8.437e-5}','$.test');
 json_extract('{"test":8.437e-5}','$.test')
 8.437e-5
+select json_value('{"b":true}','$.b')=1;
+json_value('{"b":true}','$.b')=1
+1

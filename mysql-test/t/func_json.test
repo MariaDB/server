@@ -398,3 +398,10 @@ drop table t1;
 
 select json_extract('{"test":8.437e-5}','$.test');
 
+#
+# MDEV-15905 select json_value('{"b":true}','$.b')=1 --> false with
+#    "Truncated incorrect DOUBLE value: 'true'"
+#
+select json_value('{"b":true}','$.b')=1;
+
+
