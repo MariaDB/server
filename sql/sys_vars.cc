@@ -2522,6 +2522,7 @@ export const char *optimizer_switch_names[]=
   "split_materialized",
   "condition_pushdown_for_subquery",
   "rowid_filter",
+  "condition_pushdown_from_having",
   "default", 
   NullS
 };

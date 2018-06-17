@@ -1872,6 +1872,15 @@ public:
   */
   virtual bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred)
   { return false; }
+  /*
+    TRUE if the expression depends only on grouping fields of sel
+    or can be converted to such an expression using equalities.
+    It also checks if the expression doesn't contain stored procedures,
+    subqueries or randomly generated elements.
+    Not to be used for AND/OR formulas.
+  */
+  virtual bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
+  { return false; }
 
   virtual bool switch_to_nullable_fields_processor(void *arg) { return 0; }
   virtual bool find_function_processor (void *arg) { return 0; }
@@ -2274,7 +2283,6 @@ public:
   {
     return excl_dep_on_in_subq_left_part((Item_in_subselect *)arg);
   }
-  Item *get_corresponding_field_in_insubq(Item_in_subselect *subq_pred);
   Item *build_pushable_cond(THD *thd,
                             Pushdown_checker checker,
                             uchar *arg);
@@ -2288,9 +2296,24 @@ public:
   /*
     Checks if this item consists in the left part of arg IN subquery predicate
   */
-  bool pushable_equality_checker_for_subquery(uchar *arg)
+  bool pushable_equality_checker_for_subquery(uchar *arg);
+  /*
+    Checks if this item is of the type FIELD_ITEM or REF_ITEM so it
+    can be pushed as the part of the equality into the WHERE clause.
+  */
+  bool pushable_equality_checker_for_having_pushdown(uchar *arg);
+  /*
+    Checks if this item consists in the GROUP BY of the SELECT arg
+  */
+  bool dep_on_grouping_fields_checker(uchar *arg)
+  { return excl_dep_on_grouping_fields((st_select_lex *) arg); }
+  /*
+    Checks if this item consists in the GROUP BY of the SELECT arg
+    with respect to the pushdown from HAVING into WHERE clause limitations.
+  */
+  bool dep_on_grouping_fields_checker_for_having_pushdown(uchar *arg)
   {
-    return get_corresponding_field_in_insubq((Item_in_subselect *)arg);
+    return excl_dep_on_group_fields_for_having_pushdown((st_select_lex *) arg);
   }
 };
 
@@ -2496,6 +2519,19 @@ protected:
       if (args[i]->const_item())
         continue;
       if (!args[i]->excl_dep_on_in_subq_left_part(subq_pred))
+        return false;
+    }
+    return true;
+  }
+  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
+  {
+    for (uint i= 0; i < arg_count; i++)
+    {
+      if (args[i]->type() == Item::SUBSELECT_ITEM)
+        return false;
+      if (args[i]->const_item())
+        continue;
+      if (!args[i]->excl_dep_on_group_fields_for_having_pushdown(sel))
         return false;
     }
     return true;
@@ -3453,6 +3489,8 @@ public:
   bool excl_dep_on_table(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred);
+  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
+  { return excl_dep_on_grouping_fields(sel); }
   bool cleanup_excluding_fields_processor(void *arg)
   { return field ? 0 : cleanup_processor(arg); }
   bool cleanup_excluding_const_fields_processor(void *arg)
@@ -5211,6 +5249,7 @@ public:
   Item *get_tmp_table_item(THD *thd);
   Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param);
+  Item* propagate_equal_fields(THD *, const Context &, COND_EQUAL *);
   table_map used_tables() const;		
   void update_used_tables(); 
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
@@ -5342,6 +5381,8 @@ public:
   { return (*ref)->excl_dep_on_grouping_fields(sel); }
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred)
   { return (*ref)->excl_dep_on_in_subq_left_part(subq_pred); }
+  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
+  { return (*ref)->excl_dep_on_group_fields_for_having_pushdown(sel); }
   bool cleanup_excluding_fields_processor(void *arg)
   {
     Item *item= real_item();
@@ -5656,6 +5697,7 @@ public:
   bool excl_dep_on_table(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred);
+  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel);
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
   Item *derived_field_transformer_for_where(THD *thd, uchar *arg);
   Item *grouping_field_transformer_for_where(THD *thd, uchar *arg);

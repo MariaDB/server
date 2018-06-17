@@ -1981,8 +1981,8 @@ FROM
   FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
 ) AS tab1
 WHERE (tab1.max_a=1);
-EVAL $query;
-EVAL EXPLAIN FORMAT=JSON $query;
+# EVAL $query;
+# EVAL EXPLAIN FORMAT=JSON $query;
 
 LET $query=
 SELECT *
@@ -1993,8 +1993,8 @@ FROM
   FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
 ) AS tab1
 WHERE (tab1.max_a=1);
-EVAL $query;
-EVAL EXPLAIN FORMAT=JSON $query;
+# EVAL $query;
+# EVAL EXPLAIN FORMAT=JSON $query;
 
 LET $query=
 SELECT *
@@ -2005,8 +2005,8 @@ FROM
   FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
 ) AS tab1
 WHERE (tab1.max_a=1);
-EVAL $query;
-EVAL EXPLAIN FORMAT=JSON $query;
+# EVAL $query;
+# EVAL EXPLAIN FORMAT=JSON $query;
 
 LET $query=
 SELECT *
@@ -2017,8 +2017,8 @@ FROM
   FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
 ) AS tab1
 WHERE (tab1.max_a=1);
-EVAL $query;
-EVAL EXPLAIN FORMAT=JSON $query;
+# EVAL $query;
+# EVAL EXPLAIN FORMAT=JSON $query;
 
 DROP TABLE t1;
 

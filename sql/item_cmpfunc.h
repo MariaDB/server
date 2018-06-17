@@ -3198,7 +3198,11 @@ public:
     return used_tables() & tab_map;
   }
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred);
-
+  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel);
+  bool create_pushable_equalities(THD *thd, List<Item> *equalities,
+                                  Pushdown_checker checker, uchar *arg);
+  /* Return the number of elements in this multiple equality */
+  uint elements_count() { return equal_items.elements; }
   friend class Item_equal_fields_iterator;
   bool count_sargable_conds(void *arg);
   friend class Item_equal_iterator<List_iterator_fast,Item>;
@@ -3218,12 +3222,17 @@ public:
   COND_EQUAL *upper_levels;       /* multiple equalities of upper and levels */
   List<Item_equal> current_level; /* list of multiple equalities of 
                                      the current and level           */
+  uint references;                /* number of conditions that have
+                                     reference on this COND_EQUAL */
+  uint work_references;           /* same as references */
   COND_EQUAL()
   { 
     upper_levels= 0;
+    references= 0;
+    work_references= 0;
   }
   COND_EQUAL(Item_equal *item, MEM_ROOT *mem_root)
-   :upper_levels(0)
+   :upper_levels(0), references(0), work_references(0)
   {
     current_level.push_back(item, mem_root);
   }
@@ -3231,10 +3240,26 @@ public:
   {
     max_members= cond_equal.max_members;
     upper_levels= cond_equal.upper_levels;
+    references= cond_equal.references;
+    work_references= cond_equal.work_references;
     if (cond_equal.current_level.is_empty())
       current_level.empty();
     else
       current_level= cond_equal.current_level;
+  }
+  bool is_empty()
+  {
+    return (current_level.elements == 0);
+  }
+  void increase_references()
+  {
+    references++;
+    work_references++;
+  }
+  void clean_references()
+  {
+    references= 0;
+    work_references= 0;
   }
 };
 

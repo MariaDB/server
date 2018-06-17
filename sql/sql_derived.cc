@@ -1458,10 +1458,10 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
          sl->find_common_window_func_partition_fields(thd);
       if (!common_partition_fields)
         continue;
-      sl->collect_grouping_fields(thd, common_partition_fields);
+      sl->collect_grouping_fields_for_derived(thd, common_partition_fields);
     }
     else
-      sl->collect_grouping_fields(thd, sl->group_list.first);
+      sl->collect_grouping_fields_for_derived(thd, sl->group_list.first);
 
     Item *remaining_cond= NULL;
     /* Do 4-6 */
@@ -1483,9 +1483,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     if (!remaining_cond)
       continue;
 
-    remaining_cond->walk(&Item::cleanup_excluding_const_fields_processor,
-                         0, 0);
-    sl->cond_pushed_into_having= remaining_cond;
+    sl->mark_or_conds_to_avoid_pushdown(remaining_cond);
   }
   thd->lex->current_select= save_curr_select;
   DBUG_RETURN(false);

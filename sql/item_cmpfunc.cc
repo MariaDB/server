@@ -6493,6 +6493,8 @@ Item_equal::Item_equal(THD *thd, Item_equal *item_equal):
   with_const= item_equal->with_const;
   cond_false= item_equal->cond_false;
   upper_levels= item_equal->upper_levels;
+  if (item_equal->upper_levels)
+    item_equal->upper_levels->increase_references();
 }
 
 
@@ -7322,4 +7324,100 @@ Item_bool_rowready_func2* Le_creator::create(THD *thd, Item *a, Item *b) const
 Item_bool_rowready_func2* Le_creator::create_swap(THD *thd, Item *a, Item *b) const
 {
   return new(thd->mem_root) Item_func_ge(thd, b, a);
+}
+
+
+bool
+Item_equal::excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
+{
+  Item_equal_fields_iterator it(*this);
+  Item *item;
+
+  while ((item=it++))
+  {
+    if (item->excl_dep_on_group_fields_for_having_pushdown(sel))
+    {
+      if (upper_levels)
+        upper_levels->references--;
+      set_extraction_flag(FULL_EXTRACTION_FL);
+      return true;
+    }
+  }
+  return false;
+}
+
+
+/**
+  @brief
+    Create from this multiple equality equalities that can be pushed down
+
+  @param thd         the thread handle
+  @param equalities  the result list of created equalities
+  @param checker     the checker callback function to be applied to the nodes
+                     of the tree of the object
+  @param arg         parameter to be passed to the checker
+
+  @details
+    The method traverses this multiple equality trying to create from it
+    new equalities that can be pushed down. It creates equalities with
+    the constant used in this multiple equality if it exists or the first
+    item for which checker returns non-NULL result and all other items
+    in this multiple equality for which checker returns non-NULL result.
+
+    Example:
+
+    MULT_EQ(1,a,b)
+    =>
+    Created equalities: {(1=a),(1=b)}
+
+    MULT_EQ(a,b,c,d)
+    =>
+    Created equalities: {(a=b),(a=c),(a=d)}
+
+
+  @retval true   if an error occurs
+  @retval false  otherwise
+*/
+
+bool Item_equal::create_pushable_equalities(THD *thd,
+                                            List<Item> *equalities,
+                                            Pushdown_checker checker,
+                                            uchar *arg)
+{
+  Item *item;
+  Item_equal_fields_iterator it(*this);
+  Item *left_item = get_const();
+  Item *right_item;
+  if (!left_item)
+  {
+    while ((item=it++))
+    {
+      left_item= ((item->*checker) (arg)) ? item : NULL;
+      if (left_item)
+        break;
+    }
+  }
+  if (!left_item)
+    return false;
+
+  while ((item=it++))
+  {
+    right_item= ((item->*checker) (arg)) ? item : NULL;
+    if (!right_item)
+      continue;
+    Item_func_eq *eq= 0;
+    Item *left_item_clone= left_item->build_clone(thd);
+    Item *right_item_clone= item->build_clone(thd);
+    if (left_item_clone && right_item_clone)
+    {
+      left_item_clone->set_item_equal(NULL);
+      right_item_clone->set_item_equal(NULL);
+      eq= new (thd->mem_root) Item_func_eq(thd,
+                                           right_item_clone,
+                                           left_item_clone);
+    }
+    if (eq && equalities->push_back(eq, thd->mem_root))
+      return true;
+  }
+  return false;
 }

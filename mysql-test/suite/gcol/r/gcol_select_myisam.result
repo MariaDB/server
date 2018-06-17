@@ -1080,6 +1080,7 @@ Warning	1292	Truncated incorrect DOUBLE value: 'c'
 Warning	1292	Truncated incorrect DOUBLE value: 't'
 Warning	1292	Truncated incorrect DOUBLE value: 'm'
 Warning	1292	Truncated incorrect DOUBLE value: 'd'
+Warning	1292	Truncated incorrect DOUBLE value: 'd'
 DROP TABLE cc;
 SET sql_mode=@save_old_sql_mode;
 #

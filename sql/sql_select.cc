@@ -1870,10 +1870,10 @@ JOIN::optimize_inner()
       select_lex->having_fix_field_for_pushed_cond= 0;
     }
   }
-  
+
   conds= optimize_cond(this, conds, join_list, FALSE,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
-  
+
   if (thd->is_error())
   {
     error= 1;
@@ -1881,6 +1881,32 @@ JOIN::optimize_inner()
     DBUG_RETURN(1);
   }
 
+  having= optimize_cond(this, having, join_list, TRUE,
+                        &having_value, &having_equal);
+
+  if (thd->is_error())
+  {
+    error= 1;
+    DBUG_PRINT("error",("Error from optimize_cond"));
+    DBUG_RETURN(1);
+  }
+
+  if (thd->lex->sql_command == SQLCOM_SELECT &&
+      optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING))
+  {
+    having=
+      select_lex->pushdown_from_having_into_where(thd, having);
+    if (select_lex->attach_to_conds.elements != 0)
+    {
+      conds= and_new_conditions_to_optimized_cond(thd, conds, &cond_equal,
+                                                  select_lex->attach_to_conds,
+                                                  &cond_value, true);
+      if (conds && !conds->is_fixed() && conds->fix_fields(thd, &conds))
+        DBUG_RETURN(1);
+      sel->attach_to_conds.empty();
+    }
+  }
+  
   if (optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY))
   {
     TABLE_LIST *tbl;
@@ -1899,11 +1925,46 @@ JOIN::optimize_inner()
   if (eq_list.elements != 0)
   {
     conds= and_new_conditions_to_optimized_cond(thd, conds, &cond_equal,
-                                                eq_list, &cond_value);
+                                                eq_list, &cond_value, false);
 
     if (!conds &&
         cond_value != Item::COND_FALSE && cond_value != Item::COND_TRUE)
       DBUG_RETURN(TRUE);
+  }
+
+  {
+    if (select_lex->where)
+    {
+      select_lex->cond_value= cond_value;
+      if (sel->where != conds && cond_value == Item::COND_OK)
+        thd->change_item_tree(&sel->where, conds);
+    }
+    if (select_lex->having)
+    {
+      select_lex->having_value= having_value;
+      if (sel->having != having && having_value == Item::COND_OK)
+        thd->change_item_tree(&sel->having, having);
+    }
+    if (cond_value == Item::COND_FALSE || having_value == Item::COND_FALSE ||
+        (!unit->select_limit_cnt && !(select_options & OPTION_FOUND_ROWS)))
+    {                                          /* Impossible cond */
+      if (unit->select_limit_cnt)
+      {
+        DBUG_PRINT("info", (having_value == Item::COND_FALSE ?
+                              "Impossible HAVING" : "Impossible WHERE"));
+        zero_result_cause=  having_value == Item::COND_FALSE ?
+                             "Impossible HAVING" : "Impossible WHERE";
+      }
+      else
+      {
+        DBUG_PRINT("info", ("Zero limit"));
+        zero_result_cause= "Zero limit";
+      }
+      table_count= top_join_tab_count= 0;
+      error= 0;
+      subq_exit_fl= true;
+      goto setup_subq_exit;
+    }
   }
 
   if (optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED))
@@ -1942,50 +2003,6 @@ JOIN::optimize_inner()
     /* Run optimize phase for all derived tables/views used in this SELECT. */
     if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
       DBUG_RETURN(1);
-  }
-
-  {
-    having= optimize_cond(this, having, join_list, TRUE,
-                          &having_value, &having_equal);
-
-    if (unlikely(thd->is_error()))
-    {
-      error= 1;
-      DBUG_PRINT("error",("Error from optimize_cond"));
-      DBUG_RETURN(1);
-    }
-    if (select_lex->where)
-    {
-      select_lex->cond_value= cond_value;
-      if (sel->where != conds && cond_value == Item::COND_OK)
-        thd->change_item_tree(&sel->where, conds);
-    }  
-    if (select_lex->having)
-    {
-      select_lex->having_value= having_value;
-      if (sel->having != having && having_value == Item::COND_OK)
-        thd->change_item_tree(&sel->having, having);    
-    }
-    if (cond_value == Item::COND_FALSE || having_value == Item::COND_FALSE || 
-        (!unit->select_limit_cnt && !(select_options & OPTION_FOUND_ROWS)))
-    {						/* Impossible cond */
-      if (unit->select_limit_cnt)
-      {
-        DBUG_PRINT("info", (having_value == Item::COND_FALSE ?
-                              "Impossible HAVING" : "Impossible WHERE"));
-        zero_result_cause=  having_value == Item::COND_FALSE ?
-                             "Impossible HAVING" : "Impossible WHERE";
-      }
-      else
-      {
-        DBUG_PRINT("info", ("Zero limit"));
-        zero_result_cause= "Zero limit";
-      }
-      table_count= top_join_tab_count= 0;
-      error= 0;
-      subq_exit_fl= true;
-      goto setup_subq_exit;
-    }
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -2260,6 +2277,22 @@ int JOIN::optimize_stage2()
     conds->update_used_tables();
     DBUG_EXECUTE("where",
                  print_where(conds,
+                             "after substitute_best_equal",
+                             QT_ORDINARY););
+  }
+  if (having)
+  {
+    having= substitute_for_best_equal_field(thd, NO_PARTICULAR_TAB, having,
+                                            having_equal, map2table);
+    if (thd->is_error())
+    {
+      error= 1;
+      DBUG_PRINT("error",("Error from substitute_for_best_equal"));
+      DBUG_RETURN(1);
+    }
+    having->update_used_tables();
+    DBUG_EXECUTE("having",
+                 print_where(having,
                              "after substitute_best_equal",
                              QT_ORDINARY););
   }
@@ -5177,7 +5210,11 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       {
         if (*s->on_expr_ref && s->cond_equal &&
 	    s->cond_equal->upper_levels == orig_cond_equal)
+        {
           s->cond_equal->upper_levels= join->cond_equal;
+          if (s->cond_equal->upper_levels)
+            s->cond_equal->upper_levels->references++;
+        }
       }
     }
   }
@@ -14171,14 +14208,16 @@ bool check_simple_equality(THD *thd, const Item::Context &ctx,
   Item *orig_left_item= left_item;
   Item *orig_right_item= right_item;
   if (left_item->type() == Item::REF_ITEM &&
-      ((Item_ref*)left_item)->ref_type() == Item_ref::VIEW_REF)
+      (((Item_ref*)left_item)->ref_type() == Item_ref::VIEW_REF ||
+      ((Item_ref*)left_item)->ref_type() == Item_ref::REF))
   {
     if (((Item_ref*)left_item)->get_depended_from())
       return FALSE;
     left_item= left_item->real_item();
   }
   if (right_item->type() == Item::REF_ITEM &&
-      ((Item_ref*)right_item)->ref_type() == Item_ref::VIEW_REF)
+      (((Item_ref*)right_item)->ref_type() == Item_ref::VIEW_REF ||
+      ((Item_ref*)right_item)->ref_type() == Item_ref::REF))
   {
     if (((Item_ref*)right_item)->get_depended_from())
       return FALSE;
@@ -14736,6 +14775,8 @@ COND *Item_func_eq::build_equal_items(THD *thd,
         set_if_bigger(thd->lex->current_select->max_equal_elems,
                       item_equal->n_field_items());  
         item_equal->upper_levels= inherited;
+        if (inherited)
+          inherited->increase_references();
         if (cond_equal_ref)
           *cond_equal_ref= new (thd->mem_root) COND_EQUAL(item_equal,
                                                           thd->mem_root);
@@ -14770,6 +14811,8 @@ COND *Item_func_eq::build_equal_items(THD *thd,
       and_cond->update_used_tables();
       if (cond_equal_ref)
         *cond_equal_ref= &and_cond->m_cond_equal;
+      if (inherited)
+        inherited->increase_references();
       return and_cond;
     }
   }
@@ -14895,6 +14938,8 @@ static COND *build_equal_items(JOIN *join, COND *cond,
     if (*cond_equal_ref)
     {
       (*cond_equal_ref)->upper_levels= inherited;
+      if (inherited)
+        inherited->increase_references();
       inherited= *cond_equal_ref;
     }
   }
@@ -15227,11 +15272,8 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
       */
       Item *head_item= (!item_const && current_sjm && 
                         current_sjm_head != field_item) ? current_sjm_head: head;
-      Item *head_real_item=  head_item->real_item();
-      if (head_real_item->type() == Item::FIELD_ITEM)
-        head_item= head_real_item;
-      
-      eq_item= new (thd->mem_root) Item_func_eq(thd, field_item->real_item(), head_item);
+
+      eq_item= new (thd->mem_root) Item_func_eq(thd, field_item, head_item);
 
       if (!eq_item || eq_item->set_cmp_func())
         return 0;

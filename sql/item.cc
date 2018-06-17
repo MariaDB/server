@@ -2825,6 +2825,8 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
 
 Item* Item_ref::build_clone(THD *thd)
 {
+  if (thd->having_pushdown)
+    return real_item()->build_clone(thd);
   Item_ref *copy= (Item_ref *) get_copy(thd);
   if (unlikely(!copy) ||
       unlikely(!(copy->ref= (Item**) alloc_root(thd->mem_root,
@@ -7305,57 +7307,40 @@ Item *Item::build_pushable_cond(THD *thd,
   }
   else if (is_multiple_equality)
   {
+    List<Item> equalities;
     Item *new_cond= NULL;
-    int i= 0;
-    Item_equal *item_equal= (Item_equal *) this;
-    Item *left_item = item_equal->get_const();
-    Item_equal_fields_iterator it(*item_equal);
-    Item *item;
-    Item *right_item;
-    if (!left_item)
-    {
-      while ((item=it++))
-      {
-        left_item= ((item->*checker) (arg)) ? item : NULL;
-        if (left_item)
-          break;
-      }
-    }
-    if (!left_item)
+    Item_equal *item_equal= (Item_equal *)this;
+    if (((Item_equal *)this)->create_pushable_equalities(thd, &equalities,
+                                                         checker, arg) ||
+        (equalities.elements == 0))
       return 0;
-    while ((item=it++))
+
+    if (thd->having_pushdown)
     {
-      right_item= ((item->*checker) (arg)) ? item : NULL;
-      if (!right_item)
-        continue;
-      Item_func_eq *eq= 0;
-      Item *left_item_clone= left_item->build_clone(thd);
-      Item *right_item_clone= item->build_clone(thd);
-      if (left_item_clone && right_item_clone)
-      {
-        left_item_clone->set_item_equal(NULL);
-        right_item_clone->set_item_equal(NULL);
-        eq= new (thd->mem_root) Item_func_eq(thd, right_item_clone,
-                                             left_item_clone);
-      }
-      if (eq)
-      {
-        i++;
-        switch (i)
-        {
-        case 1:
-          new_cond= eq;
-          break;
-        case 2:
-          new_cond= new (thd->mem_root) Item_cond_and(thd, new_cond, eq);
-          break;
-        default:
-          if (((Item_cond_and*)new_cond)->argument_list()->push_back(eq,
-                                                                thd->mem_root))
-            return 0;
-          break;
-        }
-      }
+      /* Creates multiple equalities from equalities that can be pushed */
+      Item::cond_result cond_value;
+      COND_EQUAL *cond_equal= new (thd->mem_root) COND_EQUAL();
+      new_cond= and_new_conditions_to_optimized_cond(thd, new_cond,
+                                                     &cond_equal,
+                                                     equalities,
+                                                     &cond_value,
+                                                     false);
+      if (equalities.elements ==
+          (item_equal->elements_count()-1) && item_equal->upper_levels)
+        item_equal->upper_levels->work_references--;
+      return new_cond;
+    }
+
+    switch (equalities.elements)
+    {
+    case 0:
+      return 0;
+    case 1:
+      new_cond= equalities.head();
+      break;
+    default:
+      new_cond= new (thd->mem_root) Item_cond_and(thd, equalities);
+      break;
     }
     if (new_cond && new_cond->fix_fields(thd, &new_cond))
       return 0;
@@ -7500,45 +7485,11 @@ Item *Item_direct_view_ref::derived_field_transformer_for_where(THD *thd,
   return (*ref);
 }
 
-static
-Field_pair *find_matching_grouping_field(Item *item,
-					 st_select_lex *sel)
-{
-  DBUG_ASSERT(item->type() == Item::FIELD_ITEM ||
-              (item->type() == Item::REF_ITEM &&
-               ((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF)); 
-  List_iterator<Field_pair> li(sel->grouping_tmp_fields);
-  Field_pair *gr_field;
-  Item_field *field_item= (Item_field *) (item->real_item());
-  while ((gr_field= li++))
-  {
-    if (field_item->field == gr_field->field)
-      return gr_field;
-  }
-  Item_equal *item_equal= item->get_item_equal();
-  if (item_equal)
-  {
-    Item_equal_fields_iterator it(*item_equal);
-    Item *equal_item;
-    while ((equal_item= it++))
-    {
-      field_item= (Item_field *) (equal_item->real_item());
-      li.rewind();
-      while ((gr_field= li++))
-      {
-        if (field_item->field == gr_field->field)
-	  return gr_field;
-      }
-    }
-  }
-  return NULL;
-}
-    
 
 Item *Item_field::grouping_field_transformer_for_where(THD *thd, uchar *arg)
 {
   st_select_lex *sel= (st_select_lex *)arg;
-  Field_pair *gr_field= find_matching_grouping_field(this, sel);
+  Field_pair *gr_field= find_matching_field_pair(this, sel->grouping_tmp_fields);
   if (gr_field)
   {
     Item *producing_clone=
@@ -7548,6 +7499,15 @@ Item *Item_field::grouping_field_transformer_for_where(THD *thd, uchar *arg)
     return producing_clone;
   }
   return this;
+}
+
+
+bool Item::pushable_equality_checker_for_having_pushdown(uchar *arg)
+{
+  return (type() == Item::FIELD_ITEM ||
+          (type() == Item::REF_ITEM &&
+          ((((Item_ref *) this)->ref_type() == Item_ref::VIEW_REF) ||
+          (((Item_ref *) this)->ref_type() == Item_ref::REF))));
 }
 
 
@@ -7563,7 +7523,8 @@ Item_direct_view_ref::grouping_field_transformer_for_where(THD *thd,
   if (!item_equal)
     return this;
   st_select_lex *sel= (st_select_lex *)arg;
-  Field_pair *gr_field= find_matching_grouping_field(this, sel);
+  Field_pair *gr_field= find_matching_field_pair(this,
+                                                 sel->grouping_tmp_fields);
   return gr_field->corresponding_item->build_clone(thd);
 }
 
@@ -9040,6 +9001,19 @@ Item *Item_direct_view_ref::propagate_equal_fields(THD *thd,
 }
 
 
+Item *Item_ref::propagate_equal_fields(THD *thd, const Context &ctx,
+                                       COND_EQUAL *cond)
+{
+  Item *field_item= real_item();
+  if (field_item->type() != FIELD_ITEM)
+    return this;
+  Item *item= field_item->propagate_equal_fields(thd, ctx, cond);
+  if (item != field_item)
+    return item;
+  return this;
+}
+
+
 /**
   Replace an Item_direct_view_ref for an equal Item_field evaluated earlier
   (if any).
@@ -9082,6 +9056,20 @@ Item *Item_direct_view_ref::replace_equal_field(THD *thd, uchar *arg)
 }
 
 
+bool Item_field::excl_dep_on_table(table_map tab_map)
+{
+  return used_tables() == tab_map ||
+         (item_equal && (item_equal->used_tables() & tab_map));
+}
+
+
+bool
+Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
+{
+  return find_matching_field_pair(this, sel->grouping_tmp_fields) != NULL;
+}
+
+
 bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
 {
   table_map used= used_tables();
@@ -9097,14 +9085,26 @@ bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
   return (*ref)->excl_dep_on_table(tab_map);
 }
 
+
 bool Item_direct_view_ref::excl_dep_on_grouping_fields(st_select_lex *sel)
 {
   if (item_equal)
   {
     DBUG_ASSERT(real_item()->type() == Item::FIELD_ITEM);
-    return find_matching_grouping_field(this, sel) != NULL;
+    return (find_matching_field_pair(this, sel->grouping_tmp_fields) != NULL);
   }    
   return (*ref)->excl_dep_on_grouping_fields(sel);
+}
+
+
+bool Item_direct_view_ref::excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
+{
+  if (item_equal)
+  {
+    DBUG_ASSERT(real_item()->type() == Item::FIELD_ITEM);
+    return (find_matching_field_pair(this, sel->grouping_tmp_fields) != NULL);
+  }
+  return (*ref)->excl_dep_on_group_fields_for_having_pushdown(sel);
 }
 
 
@@ -10456,17 +10456,6 @@ const char *dbug_print(SELECT_LEX_UNIT *x) { return dbug_print_unit(x);   }
 
 #endif /*DBUG_OFF*/
 
-bool Item_field::excl_dep_on_table(table_map tab_map)
-{
-  return used_tables() == tab_map || 
-         (item_equal && (item_equal->used_tables() & tab_map)); 
-}
-
-bool
-Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
-{
-  return find_matching_grouping_field(this, sel) != NULL;
-}
 
 
 void Item::register_in(THD *thd)

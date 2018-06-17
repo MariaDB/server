@@ -327,6 +327,11 @@ public:
     return this;
   }
 
+  bool has_rand_bit()
+  {
+    return used_tables() & RAND_TABLE_BIT;
+  }
+
   bool excl_dep_on_table(table_map tab_map)
   {
     if (used_tables() & OUTER_REF_TABLE_BIT)
@@ -343,6 +348,13 @@ public:
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred)
   {
     return Item_args::excl_dep_on_in_subq_left_part(subq_pred);
+  }
+
+  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
+  {
+    if (has_rand_bit())
+      return false;
+    return Item_args::excl_dep_on_group_fields_for_having_pushdown(sel);
   }
 
   /*
@@ -2313,6 +2325,8 @@ public:
   {
     return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
+  bool excl_dep_on_grouping_fields(st_select_lex *sel)
+  { return false; }
 };
 
 
@@ -3210,6 +3224,8 @@ public:
     not_null_tables_cache= 0;
     return 0;
   }
+  bool excl_dep_on_group_fields_for_having_pushdown(st_select_lex *sel)
+  { return false; }
 };
 
 

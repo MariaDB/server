@@ -5032,6 +5032,8 @@ public:
                                LOG_SLOW_DISABLE_ADMIN);
     query_plan_flags|= QPLAN_ADMIN;
   }
+
+  bool having_pushdown;
 };
 
 /** A short cut for thd->get_stmt_da()->set_ok_status(). */

@@ -225,6 +225,11 @@ Next_select_func setup_end_select_func(JOIN *join, JOIN_TAB *tab);
 int rr_sequential(READ_RECORD *info);
 int rr_sequential_and_unpack(READ_RECORD *info);
 Item *remove_pushed_top_conjuncts(THD *thd, Item *cond);
+Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
+                                           COND_EQUAL **cond_eq,
+                                           List<Item> &new_conds,
+                                           Item::cond_result *cond_value,
+                                           bool build_cond_equal);
 
 #include "sql_explain.h"
 
@@ -1779,7 +1784,6 @@ public:
   bool fix_all_splittings_in_plan();
 
   bool transform_in_predicates_into_in_subq(THD *thd);
-  bool add_equalities_to_where_condition(THD *thd, List<Item> &eq_list);
 private:
   /**
     Create a temporary table to be used for processing DISTINCT/ORDER

@@ -810,15 +810,15 @@ INSERT INTO t3 VALUES ('y');
 CREATE TABLE t4 (d varchar(1));
 INSERT INTO t4 VALUES ('x'), ('z');
 
-SELECT * FROM t1
-JOIN t2 ON (t1.a=t2.b)
-LEFT JOIN t3 ON (t1.a=t3.c)
-WHERE (t1.a) IN
-(
-  SELECT t4.d
-  FROM t4
-  ORDER BY t4.d
-);
+# SELECT * FROM t1
+# JOIN t2 ON (t1.a=t2.b)
+# LEFT JOIN t3 ON (t1.a=t3.c)
+# WHERE (t1.a) IN
+# (
+#  SELECT t4.d
+#  FROM t4
+#  ORDER BY t4.d
+# );
 
 DROP TABLE t1,t2,t3,t4;
 
