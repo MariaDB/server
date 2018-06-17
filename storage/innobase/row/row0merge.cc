@@ -534,6 +534,8 @@ row_merge_buf_add(
 	ulint			bucket = 0;
 	doc_id_t		write_doc_id;
 	ulint			n_row_added = 0;
+	VCOL_STORAGE*		vcol_storage= 0;
+	byte*			record;
 	DBUG_ENTER("row_merge_buf_add");
 
 	if (buf->n_tuples >= buf->max_tuples) {
@@ -606,14 +608,21 @@ row_merge_buf_add(
 				dict_index_t*	clust_index
 					= dict_table_get_first_index(new_table);
 
+                                if (!vcol_storage &&
+                                    innobase_allocate_row_for_vcol(trx->mysql_thd, clust_index, v_heap, &my_table, &record, &vcol_storage)) {
+					*err = DB_OUT_OF_MEMORY;
+					goto error;
+				}
+
 				row_field = innobase_get_computed_value(
 					row, v_col, clust_index,
 					v_heap, NULL, ifield, trx->mysql_thd,
-					my_table, old_table, NULL, NULL);
+					my_table, record, old_table, NULL,
+					NULL);
 
 				if (row_field == NULL) {
 					*err = DB_COMPUTE_VALUE_FAILED;
-					DBUG_RETURN(0);
+					goto error;
 				}
 				dfield_copy(field, row_field);
 			} else {
@@ -649,7 +658,7 @@ row_merge_buf_add(
 						ib::warn() << "FTS Doc ID is"
 							" zero. Record"
 							" skipped";
-						DBUG_RETURN(0);
+						goto error;
 					}
 				}
 
@@ -797,7 +806,7 @@ row_merge_buf_add(
 	/* If this is FTS index, we already populated the sort buffer, return
 	here */
 	if (index->type & DICT_FTS) {
-		DBUG_RETURN(n_row_added);
+		goto end;
 	}
 
 #ifdef UNIV_DEBUG
@@ -831,7 +840,7 @@ row_merge_buf_add(
 
 	/* Reserve bytes for the end marker of row_merge_block_t. */
 	if (buf->total_size + data_size >= srv_sort_buf_size) {
-		DBUG_RETURN(0);
+		goto error;
 	}
 
 	buf->total_size += data_size;
@@ -850,7 +859,15 @@ row_merge_buf_add(
 		mem_heap_empty(conv_heap);
 	}
 
+end:
+        if (vcol_storage)
+		innobase_free_row_for_vcol(vcol_storage);
 	DBUG_RETURN(n_row_added);
+
+error:
+        if (vcol_storage)
+		innobase_free_row_for_vcol(vcol_storage);
+        DBUG_RETURN(0);
 }
 
 /*************************************************************//**

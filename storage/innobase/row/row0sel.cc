@@ -179,6 +179,8 @@ row_sel_sec_rec_is_for_clust_rec(
 	ulint*		clust_offs	= clust_offsets_;
 	ulint*		sec_offs	= sec_offsets_;
 	ibool		is_equal	= TRUE;
+	VCOL_STORAGE*	vcol_storage= 0;
+	byte*		record;
 
 	rec_offs_init(clust_offsets_);
 	rec_offs_init(sec_offsets_);
@@ -226,6 +228,17 @@ row_sel_sec_rec_is_for_clust_rec(
 			dfield_t*		vfield;
 			row_ext_t*		ext;
 
+			if (!vcol_storage)
+			{
+				TABLE *mysql_table= thr->prebuilt->m_mysql_table;
+				innobase_allocate_row_for_vcol(thr_get_trx(thr)->mysql_thd,
+							       clust_index,
+							       &heap,
+							       &mysql_table,
+							       &record,
+							       &vcol_storage);
+			}
+
 			v_col = reinterpret_cast<const dict_v_col_t*>(col);
 
 			row = row_build(ROW_COPY_POINTERS,
@@ -237,8 +250,8 @@ row_sel_sec_rec_is_for_clust_rec(
 					row, v_col, clust_index,
 					&heap, NULL, NULL,
 					thr_get_trx(thr)->mysql_thd,
-					thr->prebuilt->m_mysql_table, NULL,
-					NULL, NULL);
+					thr->prebuilt->m_mysql_table,
+					record, NULL, NULL, NULL);
 
 			clust_len = vfield->len;
 			clust_field = static_cast<byte*>(vfield->data);
@@ -326,6 +339,8 @@ inequal:
 
 func_exit:
 	if (UNIV_LIKELY_NULL(heap)) {
+		if (UNIV_LIKELY_NULL(vcol_storage))
+			innobase_free_row_for_vcol(vcol_storage);
 		mem_heap_free(heap);
 	}
 	return(is_equal);

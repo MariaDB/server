@@ -21760,6 +21760,77 @@ innobase_get_field_from_update_vector(
 	return (NULL);
 }
 
+
+/**
+   Allocate a heap and record for calculating virtual fields
+   Used mainly for virtual fields in indexes
+
+@param[in]      thd             MariaDB THD
+@param[in]      index           Index in use
+@param[out]	heap		Heap that holds temporary row
+@param[in,out]	mysql_table	MariaDB table
+@param[out]	rec		Pointer to allocated MariaDB record
+@param[out]	storage         Internal storage for blobs etc
+
+@return         FALSE ok
+@return         TRUE malloc failure
+*/
+
+bool innobase_allocate_row_for_vcol(
+				    THD *	  thd,
+				    dict_index_t* index,
+				    mem_heap_t**  heap,
+				    TABLE**	  table,
+				    byte**	  record,
+				    VCOL_STORAGE** storage)
+{
+	TABLE *maria_table;
+	String *blob_value_storage;
+	if (!*table)
+		*table= innobase_find_mysql_table_for_vc(thd, index->table);
+	maria_table= *table;
+	if (!*heap && !(*heap= mem_heap_create(srv_page_size)))
+	{
+		*storage= 0;
+		return TRUE;
+	}
+	*record= static_cast<byte*>(mem_heap_alloc(*heap,
+                                                   maria_table->s->reclength));
+	*storage= static_cast<VCOL_STORAGE*>
+          (mem_heap_alloc(*heap, sizeof(**storage)));
+	blob_value_storage= static_cast<String*>
+          (mem_heap_alloc(*heap,
+                          maria_table->s->virtual_not_stored_blob_fields *
+                          sizeof(String)));
+	if (!*record || !*storage || !blob_value_storage)
+	{
+		*storage= 0;
+		return TRUE;
+	}
+	(*storage)->maria_table= maria_table;
+	(*storage)->innobase_record= *record;
+	(*storage)->maria_record= maria_table->field[0]->record_ptr();
+	(*storage)->blob_value_storage= blob_value_storage;
+
+	maria_table->move_fields(maria_table->field, *record,
+				 (*storage)->maria_record);
+	maria_table->remember_blob_values(blob_value_storage);
+
+	return FALSE;
+}
+
+
+/** Free memory allocated by innobase_allocate_row_for_vcol() */
+
+void innobase_free_row_for_vcol(VCOL_STORAGE *storage)
+{
+	TABLE *maria_table= storage->maria_table;
+	maria_table->move_fields(maria_table->field, storage->maria_record,
+                                 storage->innobase_record);
+        maria_table->restore_blob_values(storage->blob_value_storage);
+}
+
+
 /** Get the computed value by supplying the base column values.
 @param[in,out]	row		the data row
 @param[in]	col		virtual column
@@ -21785,12 +21856,12 @@ innobase_get_computed_value(
 	const dict_field_t*	ifield,
 	THD*			thd,
 	TABLE*			mysql_table,
+	byte*			mysql_rec,
 	const dict_table_t*	old_table,
 	upd_t*			parent_update,
 	dict_foreign_t*		foreign)
 {
 	byte		rec_buf2[REC_VERSION_56_MAX_INDEX_COL_LEN];
-	byte*		mysql_rec;
 	byte*		buf;
 	dfield_t*	field;
 	ulint		len;
@@ -21803,6 +21874,7 @@ innobase_get_computed_value(
 
 	ut_ad(index->table->vc_templ);
 	ut_ad(thd != NULL);
+	ut_ad(mysql_table);
 
 	const mysql_row_templ_t*
 			vctempl =  index->table->vc_templ->vtempl[
@@ -21819,14 +21891,6 @@ innobase_get_computed_value(
 	} else {
 		buf = rec_buf2;
 	}
-
-	if (!mysql_table) {
-		mysql_table = innobase_find_mysql_table_for_vc(thd, index->table);
-	}
-
-	ut_ad(mysql_table);
-
-	mysql_rec = mysql_table->record[0];
 
 	for (ulint i = 0; i < col->num_base; i++) {
 		dict_col_t*			base_col = col->base_col[i];

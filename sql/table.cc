@@ -2434,6 +2434,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         reg_field->vcol_info= vcol_info;
         share->virtual_fields++;
         share->stored_fields--;
+        if (reg_field->flags & BLOB_FLAG)
+          share->virtual_not_stored_blob_fields++;
         /* Correct stored_rec_length as non stored fields are last */
         recpos= (uint) (reg_field->ptr - record);
         if (share->stored_rec_length >= recpos)
@@ -6772,6 +6774,52 @@ void TABLE::move_fields(Field **ptr, const uchar *to, const uchar *from)
     {
       (*ptr)->move_field_offset(diff);
     } while (*(++ptr));
+  }
+}
+
+
+/*
+  Store all allocated virtual fields blob values
+  Used by InnoDB when calculating virtual fields for it's own internal
+  records
+*/
+
+void TABLE::remember_blob_values(String *blob_storage)
+{
+  Field **vfield_ptr;
+  for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
+  {
+    if ((*vfield_ptr)->type() == MYSQL_TYPE_BLOB &&
+        !(*vfield_ptr)->vcol_info->stored_in_db)
+    {
+      Field_blob *blob= ((Field_blob*) *vfield_ptr);
+      memcpy((void*) blob_storage, (void*) &blob->value, sizeof(blob->value));
+      blob_storage++;
+      blob->value.release();
+    }
+  }
+}
+
+
+/*
+  Restore all allocated virtual fields blob values
+  Used by InnoDB when calculating virtual fields for it's own internal
+  records
+*/
+
+void TABLE::restore_blob_values(String *blob_storage)
+{
+  Field **vfield_ptr;
+  for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
+  {
+    if ((*vfield_ptr)->type() == MYSQL_TYPE_BLOB &&
+        !(*vfield_ptr)->vcol_info->stored_in_db)
+    {
+      Field_blob *blob= ((Field_blob*) *vfield_ptr);
+      blob->value.free();
+      memcpy((void*) &blob->value, (void*) blob_storage, sizeof(blob->value));
+      blob_storage++;
+    }
   }
 }
 
