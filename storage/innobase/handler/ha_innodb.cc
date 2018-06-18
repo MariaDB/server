@@ -3167,6 +3167,83 @@ AUTOCOMMIT==0 or we are inside BEGIN ... COMMIT. Thus transactions no longer
 put restrictions on the use of the query cache.
 */
 
+/** Check if mysql can allow the transaction to read from/store to
+the query cache.
+@param[in]	table	table object
+@param[in]	trx	transaction object
+@return whether the storing or retrieving from the query cache is permitted */
+static bool innobase_query_caching_table_check_low(
+	const dict_table_t*	table,
+	trx_t*			trx)
+{
+	/* The following conditions will decide the query cache
+	retrieval or storing into:
+
+	(1) There should not be any locks on the table.
+	(2) Someother trx shouldn't invalidate the cache before this
+	transaction started.
+	(3) Read view shouldn't exist. If exists then the view
+	low_limit_id should be greater than or equal to the transaction that
+	invalidates the cache for the particular table.
+
+	For read-only transaction: should satisfy (1) and (3)
+	For read-write transaction: should satisfy (1), (2), (3) */
+
+	if (lock_table_get_n_locks(table)) {
+		return false;
+	}
+
+	if (trx->id && trx->id < table->query_cache_inv_trx_id) {
+		return false;
+	}
+
+	return !MVCC::is_view_active(trx->read_view)
+		|| trx->read_view->low_limit_id()
+		>= table->query_cache_inv_trx_id;
+}
+
+/** Checks if MySQL at the moment is allowed for this table to retrieve a
+consistent read result, or store it to the query cache.
+@param[in,out]	trx		transaction
+@param[in]	norm_name	concatenation of database name,
+				'/' char, table name
+@return whether storing or retrieving from the query cache is permitted */
+static bool innobase_query_caching_table_check(
+	trx_t*		trx,
+	const char*	norm_name)
+{
+	dict_table_t*   table = dict_table_open_on_name(
+		norm_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+
+	if (table == NULL) {
+		return false;
+	}
+
+	/* Start the transaction if it is not started yet */
+	trx_start_if_not_started(trx, false);
+
+	bool allow = innobase_query_caching_table_check_low(table, trx);
+
+	dict_table_close(table, FALSE, FALSE);
+
+	if (allow) {
+		/* If the isolation level is high, assign a read view for the
+		transaction if it does not yet have one */
+
+		if (trx->isolation_level >= TRX_ISO_REPEATABLE_READ
+		    && !srv_read_only_mode
+		    && !MVCC::is_view_active(trx->read_view)) {
+
+			/* Start the transaction if it is not started yet */
+			trx_start_if_not_started(trx, false);
+
+			trx_sys->mvcc->view_open(trx->read_view, trx);
+		}
+	}
+
+	return allow;
+}
+
 /******************************************************************//**
 The MySQL query cache uses this to check from InnoDB if the query cache at
 the moment is allowed to operate on an InnoDB table. The SQL query must
@@ -3242,7 +3319,7 @@ innobase_query_caching_of_table_permitted(
 
 	innobase_register_trx(innodb_hton_ptr, thd, trx);
 
-	return(row_search_check_if_query_cache_permitted(trx, norm_name));
+	return innobase_query_caching_table_check(trx, norm_name);
 }
 
 /*****************************************************************//**

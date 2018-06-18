@@ -5906,60 +5906,6 @@ func_exit:
 }
 
 /*******************************************************************//**
-Checks if MySQL at the moment is allowed for this table to retrieve a
-consistent read result, or store it to the query cache.
-@return whether storing or retrieving from the query cache is permitted */
-bool
-row_search_check_if_query_cache_permitted(
-/*======================================*/
-	trx_t*		trx,		/*!< in: transaction object */
-	const char*	norm_name)	/*!< in: concatenation of database name,
-					'/' char, table name */
-{
-	dict_table_t*	table = dict_table_open_on_name(
-		norm_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
-
-	if (table == NULL) {
-
-		return(false);
-	}
-
-	/* Start the transaction if it is not started yet */
-
-	trx_start_if_not_started(trx, false);
-
-	/* If there are locks on the table or some trx has invalidated the
-	cache before this transaction started then this transaction cannot
-	read/write from/to the cache.
-
-	If a read view has not been created for the transaction then it doesn't
-	really matter what this transaction sees. If a read view was created
-	then the view low_limit_id is the max trx id that this transaction
-	saw at the time of the read view creation.  */
-
-	const bool ret = lock_table_get_n_locks(table) == 0
-		&& ((trx->id != 0 && trx->id >= table->query_cache_inv_id)
-		    || !MVCC::is_view_active(trx->read_view)
-		    || trx->read_view->low_limit_id()
-		    >= table->query_cache_inv_id);
-	if (ret) {
-		/* If the isolation level is high, assign a read view for the
-		transaction if it does not yet have one */
-
-		if (trx->isolation_level >= TRX_ISO_REPEATABLE_READ
-		    && !srv_read_only_mode
-		    && !MVCC::is_view_active(trx->read_view)) {
-
-			trx_sys->mvcc->view_open(trx->read_view, trx);
-		}
-	}
-
-	dict_table_close(table, FALSE, FALSE);
-
-	return(ret);
-}
-
-/*******************************************************************//**
 Read the AUTOINC column from the current row. If the value is less than
 0 and the type is not unsigned then we reset the value to 0.
 @return value read from the column */
