@@ -456,13 +456,11 @@ bool VCTCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
 
     if (tdbp->Txfp->GetAmType() == TYPE_AM_VMP && ok) {
       Blk = AllocValBlock(g, (void*)1, Buf_Type, tdbp->Txfp->Nrec,
-                                                  Format.Length,
-                                                  Format.Prec, check);
+                          Format.Length, Format.Prec, check, true, Unsigned);
       Status |= BUF_MAPPED;  // Will point into mapped file
     } else
       Blk = AllocValBlock(g, NULL, Buf_Type, tdbp->Txfp->Nrec,
-                                             Format.Length,
-                                             Format.Prec, check);
+                          Format.Length, Format.Prec, check, true, Unsigned);
     } // endif Mode
 
   return false;
