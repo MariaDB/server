@@ -3919,13 +3919,16 @@ static bool update_user_table(THD *thd, const User_table& user_table,
     DBUG_RETURN(1);      /* purecov: deadcode */
   }
   store_record(table,record[1]);
-  /* If the password column is missing, we use the
-     authentication_string column. */
-  if (user_table.password())
-    user_table.password()->store(new_password, new_password_len, system_charset_info);
-  else
+
+  if (user_table.plugin())
+  {
     set_authentication_plugin_from_password(user_table, new_password,
                                             new_password_len);
+    new_password_len= 0;
+  }
+
+  if (user_table.password())
+    user_table.password()->store(new_password, new_password_len, system_charset_info);
 
 
   if ((error=table->file->ha_update_row(table->record[1],table->record[0])) &&
