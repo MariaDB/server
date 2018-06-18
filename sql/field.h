@@ -825,9 +825,14 @@ public:
   }
   virtual double val_real(void)=0;
   virtual longlong val_int(void)=0;
+  /*
+    Get ulonglong representation.
+    Negative values are truncated to 0.
+  */
   virtual ulonglong val_uint(void)
   {
-    return (ulonglong) val_int();
+    longlong nr= val_int();
+    return nr < 0 ? 0 : (ulonglong) nr;
   }
   virtual bool val_bool(void)= 0;
   virtual my_decimal *val_decimal(my_decimal *);
@@ -1671,6 +1676,8 @@ public:
   bool eq_def(const Field *field) const;
   Copy_func *get_copy_func(const Field *from) const
   {
+    if (unsigned_flag && from->cmp_type() == DECIMAL_RESULT)
+      return do_field_decimal;
     return do_field_int;
   }
   int save_in_field(Field *to)
@@ -1965,6 +1972,7 @@ public:
   int  store_decimal(const my_decimal *);
   double val_real(void);
   longlong val_int(void);
+  ulonglong val_uint(void);
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String*, String *);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
@@ -2011,6 +2019,11 @@ public:
   int store_decimal(const my_decimal *);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_int() != 0; }
+  ulonglong val_uint()
+  {
+    longlong nr= val_int();
+    return nr < 0 && !unsigned_flag ? 0 : (ulonglong) nr;
+  }
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   virtual const Type_limits_int *type_limits_int() const= 0;
@@ -4047,6 +4060,8 @@ public:
   }
   Copy_func *get_copy_func(const Field *from) const
   {
+    if (from->cmp_type() == DECIMAL_RESULT)
+      return do_field_decimal;
     return do_field_int;
   }
   int save_in_field(Field *to) { return to->store(val_int(), true); }

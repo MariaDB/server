@@ -40,6 +40,12 @@ Created 2012-02-08 by Sunny Bains.
 #include "fil0pagecompress.h"
 #include "trx0undo.h"
 #include "ut0new.h"
+#ifdef HAVE_LZO
+#include "lzo/lzo1x.h"
+#endif
+#ifdef HAVE_SNAPPY
+#include "snappy-c.h"
+#endif
 
 #include <vector>
 
@@ -406,12 +412,9 @@ public:
 	updated then its state must be set to BUF_PAGE_NOT_USED. For
 	compressed tables the page descriptor memory will be at offset:
 		block->frame + srv_page_size;
-	@param offset - physical offset within the file
-	@param block - block read from file, note it is not from the buffer pool
+	@param block block read from file, note it is not from the buffer pool
 	@retval DB_SUCCESS or error code. */
-	virtual dberr_t operator()(
-		os_offset_t	offset,
-		buf_block_t*	block) UNIV_NOTHROW = 0;
+	virtual dberr_t operator()(buf_block_t* block) UNIV_NOTHROW = 0;
 
 	/** @return the tablespace identifier */
 	ulint get_space_id() const { return m_space; }
@@ -628,12 +631,9 @@ struct FetchIndexRootPages : public AbstractCallback {
 	virtual ~FetchIndexRootPages() UNIV_NOTHROW { }
 
 	/** Called for each block as it is read from the file.
-	@param offset physical offset in the file
 	@param block block to convert, it is not from the buffer pool.
 	@retval DB_SUCCESS or error code. */
-	virtual dberr_t operator() (
-		os_offset_t	offset,
-		buf_block_t*	block) UNIV_NOTHROW;
+	dberr_t operator()(buf_block_t* block) UNIV_NOTHROW;
 
 	/** Update the import configuration that will be used to import
 	the tablespace. */
@@ -650,13 +650,9 @@ struct FetchIndexRootPages : public AbstractCallback {
 determine the exact row format. We can't get that from the tablespace
 header flags alone.
 
-@param offset physical offset in the file
 @param block block to convert, it is not from the buffer pool.
 @retval DB_SUCCESS or error code. */
-dberr_t
-FetchIndexRootPages::operator() (
-	os_offset_t	offset,
-	buf_block_t*	block) UNIV_NOTHROW
+dberr_t FetchIndexRootPages::operator()(buf_block_t* block) UNIV_NOTHROW
 {
 	if (is_interrupted()) return DB_INTERRUPTED;
 
@@ -664,15 +660,7 @@ FetchIndexRootPages::operator() (
 
 	ulint	page_type = fil_page_get_type(page);
 
-	if (block->page.id.page_no() * m_page_size.physical() != offset) {
-
-		ib::error() << "Page offset doesn't match file offset:"
-			" page offset: " << block->page.id.page_no()
-			<< ", file offset: "
-			<< (offset / m_page_size.physical());
-
-		return DB_CORRUPTION;
-	} else if (page_type == FIL_PAGE_TYPE_XDES) {
+	if (page_type == FIL_PAGE_TYPE_XDES) {
 		return set_current_xdes(block->page.id.page_no(), page);
 	} else if (fil_page_index_page_check(page)
 		   && !is_free(block->page.id.page_no())
@@ -826,12 +814,9 @@ public:
 	}
 
 	/** Called for each block as it is read from the file.
-	@param offset physical offset in the file
 	@param block block to convert, it is not from the buffer pool.
 	@retval DB_SUCCESS or error code. */
-	virtual dberr_t operator() (
-		os_offset_t	offset,
-		buf_block_t*	block) UNIV_NOTHROW;
+	dberr_t operator()(buf_block_t* block) UNIV_NOTHROW;
 private:
 	/** Update the page, set the space id, max trx id and index id.
 	@param block block read from file
@@ -1948,8 +1933,7 @@ PageConverter::update_page(
 updated then its state must be set to BUF_PAGE_NOT_USED.
 @param block block read from file, note it is not from the buffer pool
 @retval DB_SUCCESS or error code. */
-dberr_t
-PageConverter::operator() (os_offset_t, buf_block_t* block) UNIV_NOTHROW
+dberr_t PageConverter::operator()(buf_block_t* block) UNIV_NOTHROW
 {
 	/* If we already had an old page with matching number
 	in the buffer pool, evict it now, because
@@ -3285,15 +3269,29 @@ fil_iterate(
 	const ulint	 	size = callback.get_page_size().physical();
 	ulint			n_bytes = iter.n_io_buffers * size;
 
+	const ulint buf_size = srv_page_size
+#ifdef HAVE_LZO
+		+ LZO1X_1_15_MEM_COMPRESS
+#elif defined HAVE_SNAPPY
+		+ snappy_max_compressed_length(srv_page_size)
+#endif
+		;
+	byte* page_compress_buf = static_cast<byte*>(malloc(buf_size));
 	ut_ad(!srv_read_only_mode);
+
+	if (!page_compress_buf) {
+		return DB_OUT_OF_MEMORY;
+	}
 
 	/* TODO: For ROW_FORMAT=COMPRESSED tables we do a lot of useless
 	copying for non-index pages. Unfortunately, it is
 	required by buf_zip_decompress() */
+	dberr_t err = DB_SUCCESS;
 
 	for (offset = iter.start; offset < iter.end; offset += n_bytes) {
 		if (callback.is_interrupted()) {
-			return DB_INTERRUPTED;
+			err = DB_INTERRUPTED;
+			goto func_exit;
 		}
 
 		byte*		io_buffer = iter.io_buffer;
@@ -3323,11 +3321,12 @@ fil_iterate(
 		IORequest	read_request(IORequest::READ);
 		read_request.disable_partial_io_warnings();
 
-		dberr_t	err = os_file_read_no_error_handling(
+		err = os_file_read_no_error_handling(
 			read_request, iter.file, readptr, offset, n_bytes, 0);
 		if (err != DB_SUCCESS) {
 			ib::error() << iter.filepath
 				    << ": os_file_read() failed";
+			goto func_exit;
 		}
 
 		bool		updated = false;
@@ -3338,18 +3337,9 @@ fil_iterate(
 		for (ulint i = 0; i < n_pages_read;
 		     block->page.id.set_page_no(block->page.id.page_no() + 1),
 		     ++i, page_off += size, block->frame += size) {
-			bool decrypted = false;
-			err = DB_SUCCESS;
 			byte*	src = readptr + i * size;
-			byte*	dst = io_buffer + i * size;
-			bool frame_changed = false;
-			ulint page_type = mach_read_from_2(src+FIL_PAGE_TYPE);
-			const bool page_compressed
-				= page_type
-				== FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
-				|| page_type == FIL_PAGE_PAGE_COMPRESSED;
 			const ulint page_no = page_get_page_no(src);
-			if (!page_no && page_off) {
+			if (!page_no && block->page.id.page_no()) {
 				const ulint* b = reinterpret_cast<const ulint*>
 					(src);
 				const ulint* const e = b + size / sizeof *b;
@@ -3364,54 +3354,84 @@ fil_iterate(
 				continue;
 			}
 
-			if (page_no != page_off / size) {
+			if (page_no != block->page.id.page_no()) {
+page_corrupted:
+				ib::warn() << callback.filename()
+					   << ": Page " << (offset / size)
+					   << " at offset " << offset
+					   << " looks corrupted.";
+				err = DB_CORRUPTION;
+				goto func_exit;
+			}
+
+			const bool page_compressed
+				= fil_page_is_compressed_encrypted(src)
+				|| fil_page_is_compressed(src);
+
+			if (page_compressed && block->page.zip.data) {
 				goto page_corrupted;
 			}
 
-			if (encrypted) {
+			bool decrypted = false;
+			byte* dst = io_buffer + i * size;
+			bool frame_changed = false;
+
+			if (!encrypted) {
+			} else if (!mach_read_from_4(
+					   FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+					   + src)) {
+not_encrypted:
+				if (!page_compressed
+				    && !block->page.zip.data) {
+					block->frame = src;
+					frame_changed = true;
+				} else {
+					ut_ad(dst != src);
+					memcpy(dst, src, size);
+				}
+			} else {
+				if (!fil_space_verify_crypt_checksum(
+					    src, callback.get_page_size(),
+					    block->page.id.space(),
+					    block->page.id.page_no())) {
+					goto page_corrupted;
+				}
+
 				decrypted = fil_space_decrypt(
 					iter.crypt_data, dst,
 					callback.get_page_size(), src, &err);
 
 				if (err != DB_SUCCESS) {
-					return err;
+					goto func_exit;
 				}
 
-				if (decrypted) {
-					updated = true;
-				} else {
-					if (!page_compressed
-					    && !block->page.zip.data) {
-						block->frame = src;
-						frame_changed = true;
-					} else {
-						ut_ad(dst != src);
-						memcpy(dst, src, size);
-					}
+				if (!decrypted) {
+					goto not_encrypted;
 				}
+
+				updated = true;
 			}
 
 			/* If the original page is page_compressed, we need
 			to decompress it before adjusting further. */
 			if (page_compressed) {
-				fil_decompress_page(NULL, dst, ulong(size),
-						    NULL);
+				ulint compress_length = fil_page_decompress(
+					page_compress_buf, dst);
+				ut_ad(compress_length != srv_page_size);
+				if (compress_length == 0) {
+					goto page_corrupted;
+				}
 				updated = true;
 			} else if (buf_page_is_corrupted(
 					   false,
 					   encrypted && !frame_changed
 					   ? dst : src,
 					   callback.get_page_size(), NULL)) {
-page_corrupted:
-				ib::warn() << callback.filename()
-					   << ": Page " << (offset / size)
-					   << " at offset " << offset
-					   << " looks corrupted.";
-				return DB_CORRUPTION;
+				goto page_corrupted;
 			}
 
-			if ((err = callback(page_off, block)) != DB_SUCCESS) {
-				return err;
+			if ((err = callback(block)) != DB_SUCCESS) {
+				goto func_exit;
 			} else if (!updated) {
 				updated = buf_block_get_state(block)
 					== BUF_BLOCK_FILE_PAGE;
@@ -3461,20 +3481,18 @@ page_corrupted:
 			src =  io_buffer + (i * size);
 
 			if (page_compressed) {
-				ulint len = 0;
-
-				fil_compress_page(
-					NULL,
-					src,
-					NULL,
-					size,
-					0,/* FIXME: compression level */
-					512,/* FIXME: use proper block size */
-					encrypted,
-					&len);
-				ut_ad(len <= size);
-				memset(src + len, 0, size - len);
 				updated = true;
+				if (ulint len = fil_page_compress(
+					    src,
+					    page_compress_buf,
+					    0,/* FIXME: compression level */
+					    512,/* FIXME: proper block size */
+					    encrypted)) {
+					/* FIXME: remove memcpy() */
+					memcpy(src, page_compress_buf, len);
+					memset(src + len, 0,
+					       srv_page_size - len);
+				}
 			}
 
 			/* Encrypt the page if encryption was used. */
@@ -3506,12 +3524,14 @@ page_corrupted:
 					    writeptr, offset, n_bytes);
 
 			if (err != DB_SUCCESS) {
-				return err;
+				goto func_exit;
 			}
 		}
 	}
 
-	return DB_SUCCESS;
+func_exit:
+	free(page_compress_buf);
+	return err;
 }
 
 /********************************************************************//**

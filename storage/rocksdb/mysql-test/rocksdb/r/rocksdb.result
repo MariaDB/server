@@ -959,6 +959,7 @@ rocksdb_print_snapshot_conflict_queries	OFF
 rocksdb_rate_limiter_bytes_per_sec	0
 rocksdb_read_free_rpl_tables	
 rocksdb_records_in_range	50
+rocksdb_remove_mariabackup_checkpoint	OFF
 rocksdb_reset_stats	OFF
 rocksdb_seconds_between_stat_computes	3600
 rocksdb_signal_drop_index_thread	OFF

@@ -1064,6 +1064,11 @@ public:
   bool automatic_brackets; /* dummy select for INTERSECT precedence */
   /* TRUE when having fix field called in processing of this SELECT */
   bool having_fix_field;
+  /*
+    TRUE when fix field is called for a new condition pushed into the
+    HAVING clause of this SELECT
+  */
+  bool having_fix_field_for_pushed_cond;
   /* List of references to fields referenced from inner selects */
   List<Item_outer_ref> inner_refs_list;
   /* Number of Item_sum-derived objects in this SELECT */

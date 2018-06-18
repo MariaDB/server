@@ -33,3 +33,10 @@ select _rowid,t1._rowid,skey,sval from t1;
 drop table t1;
 
 # End of 4.1 tests
+
+--echo #
+--echo # MDEV-15352 AUTO_INCREMENT breaks after updating a column value to a negative number
+--echo #
+
+SET @engine='MEMORY';
+--source include/autoinc_mdev15353.inc

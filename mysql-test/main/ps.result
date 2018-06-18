@@ -4921,9 +4921,6 @@ DROP TABLE t1;
 # End of MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
 #
 #
-# End of 10.2 tests
-#
-#
 # MDEV-11360 Dynamic SQL: DEFAULT as a bind parameter
 #
 CREATE TABLE t1 (a INT DEFAULT 10, b INT DEFAULT NULL);
@@ -5251,3 +5248,39 @@ execute stmt;
 execute stmt;
 execute stmt;
 drop table t1;
+#
+# MDEV-12060 Crash in EXECUTE IMMEDIATE with an expression returning a GRANT command
+#
+CREATE ROLE testrole;
+CREATE OR REPLACE PROCEDURE p1() 
+BEGIN
+END;
+/
+CREATE PROCEDURE p2 (wgrp VARCHAR(10))
+BEGIN
+EXECUTE IMMEDIATE concat('GRANT EXECUTE ON PROCEDURE p1 TO ',wgrp);
+END;
+/
+CALL p2('testrole');
+DROP PROCEDURE p2;
+CREATE PROCEDURE p2 ()
+BEGIN
+EXECUTE IMMEDIATE concat(_utf8'GRANT EXECUTE ON PROCEDURE p1 TO ',_latin1'testrole');
+END;
+/
+CALL p2();
+DROP PROCEDURE p2;
+CREATE PROCEDURE p2 ()
+BEGIN
+PREPARE stmt FROM concat(_utf8'GRANT EXECUTE ON PROCEDURE p1 TO ',_latin1' testrole');
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+END;
+/
+CALL p2();
+DROP PROCEDURE p2;
+DROP PROCEDURE p1;
+DROP ROLE testrole;
+#
+# End of 10.2 tests
+#

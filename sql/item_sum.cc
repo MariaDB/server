@@ -72,14 +72,14 @@ size_t Item_sum::ram_limitation(THD *thd)
 bool Item_sum::init_sum_func_check(THD *thd)
 {
   SELECT_LEX *curr_sel= thd->lex->current_select;
-  if (!curr_sel->name_visibility_map)
+  if (curr_sel && !curr_sel->name_visibility_map)
   {
     for (SELECT_LEX *sl= curr_sel; sl; sl= sl->context.outer_select())
     {
       curr_sel->name_visibility_map|= (1 << sl-> nest_level);
     }
   }
-  if (!(thd->lex->allow_sum_func & curr_sel->name_visibility_map))
+  if (!curr_sel || !(thd->lex->allow_sum_func & curr_sel->name_visibility_map))
   {
     my_message(ER_INVALID_GROUP_FUNC_USE, ER_THD(thd, ER_INVALID_GROUP_FUNC_USE),
                MYF(0));

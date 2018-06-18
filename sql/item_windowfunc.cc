@@ -86,9 +86,9 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
 
-  enum_parsing_place place= thd->lex->current_select->context_analysis_place;
-
-  if (!(place == SELECT_LIST || place == IN_ORDER_BY))
+  if (!thd->lex->current_select ||
+      (thd->lex->current_select->context_analysis_place != SELECT_LIST &&
+       thd->lex->current_select->context_analysis_place != IN_ORDER_BY))
   {
     my_error(ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION, MYF(0));
     return true;

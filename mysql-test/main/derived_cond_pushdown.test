@@ -2320,6 +2320,62 @@ WHERE (a>0 AND a<2 OR a IN (2,3)) AND
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-16386: pushing condition into the HAVING clause when ambiguous
+--echo #             fields warning appears
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+
+INSERT INTO t1 VALUES (1,2),(2,3),(3,4);
+
+LET $query=
+SELECT * FROM
+(
+  SELECT t1.b AS a
+  FROM t1
+  GROUP BY t1.a
+) dt
+WHERE (dt.a=2);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM
+(
+  SELECT t1.b AS a
+  FROM t1
+  GROUP BY t1.a
+  HAVING (t1.a<3)
+) dt
+WHERE (dt.a>1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM
+(
+  SELECT 'ab' AS a
+  FROM t1
+  GROUP BY t1.a
+) dt
+WHERE (dt.a='ab');
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM
+(
+  SELECT 1 AS a
+  FROM t1
+  GROUP BY t1.a
+) dt
+WHERE (dt.a=1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1;
+
 # Start of 10.3 tests
 
 --echo #

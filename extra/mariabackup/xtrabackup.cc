@@ -146,6 +146,8 @@ char *xtrabackup_tmpdir;
 char *xtrabackup_tables;
 char *xtrabackup_tables_file;
 char *xtrabackup_tables_exclude;
+char *xb_rocksdb_datadir;
+my_bool xb_backup_rocksdb = 1;
 
 typedef std::list<regex_t> regex_list_t;
 static regex_list_t regex_include_list;
@@ -683,7 +685,9 @@ enum options_xtrabackup
   OPT_XTRA_TABLES_EXCLUDE,
   OPT_XTRA_DATABASES_EXCLUDE,
   OPT_PROTOCOL,
-  OPT_LOCK_DDL_PER_TABLE
+  OPT_LOCK_DDL_PER_TABLE,
+  OPT_ROCKSDB_DATADIR,
+  OPT_BACKUP_ROCKSDB
 };
 
 struct my_option xb_client_options[] =
@@ -1182,7 +1186,7 @@ struct my_option xb_server_options[] =
   "The algorithm InnoDB uses for page checksumming. [CRC32, STRICT_CRC32, "
    "INNODB, STRICT_INNODB, NONE, STRICT_NONE]", &srv_checksum_algorithm,
    &srv_checksum_algorithm, &innodb_checksum_algorithm_typelib, GET_ENUM,
-   REQUIRED_ARG, SRV_CHECKSUM_ALGORITHM_INNODB, 0, 0, 0, 0, 0},
+   REQUIRED_ARG, SRV_CHECKSUM_ALGORITHM_CRC32, 0, 0, 0, 0, 0},
 
   {"innodb_undo_directory", OPT_INNODB_UNDO_DIRECTORY,
    "Directory where undo tablespace files live, this path can be absolute.",
@@ -1226,6 +1230,17 @@ struct my_option xb_server_options[] =
    "before xtrabackup starts to copy it and until the backup is completed.",
    (uchar*) &opt_lock_ddl_per_table, (uchar*) &opt_lock_ddl_per_table, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+
+  {"rocksdb-datadir", OPT_ROCKSDB_DATADIR, "RocksDB data directory."
+   "This option is only  used with --copy-back or --move-back option",
+  &xb_rocksdb_datadir, &xb_rocksdb_datadir,
+  0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
+
+  { "backup-rocksdb", OPT_BACKUP_ROCKSDB, "Backup rocksdb data, if rocksdb plugin is installed."
+   "Used only with --backup option. Can be useful for partial backups, to exclude all rocksdb data",
+   &xb_backup_rocksdb, &xb_backup_rocksdb,
+   0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0 },
+
 
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
