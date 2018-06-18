@@ -307,7 +307,7 @@ then
   langdir="$basedir/sql/share/english"
   srcpkgdatadir="$srcdir/scripts"
   buildpkgdatadir="$builddir/scripts"
-  plugindir="$builddir/plugin/auth_socket/"
+  plugindir="$builddir/plugin/auth_socket"
 elif test -n "$basedir"
 then
   bindir="$basedir/bin" # only used in the help text
@@ -336,7 +336,7 @@ then
     cannot_find_file fill_help_tables.sql @pkgdata_locations@
     exit 1
   fi
-  plugindir="$basedir/@INSTALL_PLUGINDIR@"
+  plugindir=`find_in_dirs --dir auth_socket.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin`
 else
   basedir="@prefix@"
   bindir="@bindir@"
@@ -344,7 +344,7 @@ else
   mysqld="@libexecdir@/mysqld"
   srcpkgdatadir="@pkgdatadir@"
   buildpkgdatadir="@pkgdatadir@"
-  plugindir="@INSTALL_PLUGINDIR@"
+  plugindir="@pkgplugindir@"
 fi
 
 # Set up paths to SQL scripts required for bootstrap

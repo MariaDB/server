@@ -48,11 +48,9 @@ REPLACE INTO tmp_user_nopasswd VALUES ('127.0.0.1','root','','Y','Y','Y','Y','Y'
 REPLACE INTO tmp_user_nopasswd VALUES ('::1','root','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'','','N','N', '', 0);
 -- More secure root account using unix socket auth.
 INSERT INTO tmp_user_socket VALUES ('localhost',IFNULL(@auth_root_socket, 'root'),'','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','','','','',0,0,0,0,'unix_socket','','N', 'N','', 0);
--- Need aria support to lookup information_schema.plugins (result is tmptable)
 IF @auth_root_socket is not null THEN
-  IF exists (SELECT 1 FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'aria' AND support IN ('YES', 'DEFAULT', 'ENABLED')) THEN
-    IF not exists(select 1 from information_schema.plugins where plugin_name='unix_socket') THEN
-       INSTALL SONAME 'auth_socket'; END IF; END IF; END IF;
+  IF not exists(select 1 from information_schema.plugins where plugin_name='unix_socket') THEN
+     INSTALL SONAME 'auth_socket'; END IF; END IF;
 -- Anonymous user with no privileges.
 INSERT INTO tmp_user_anonymous (host,user) VALUES ('localhost','');
 INSERT INTO tmp_user_anonymous (host,user) SELECT @current_hostname,'' FROM dual WHERE @current_hostname != 'localhost';
