@@ -1,4 +1,5 @@
 --source suite/versioning/engines.inc
+--source suite/versioning/common.inc
 --source include/have_partition.inc
 --source include/master-slave.inc
 
@@ -132,5 +133,27 @@ update t1 set i = 0;
 sync_slave_with_master;
 connection master;
 drop table t1;
+
+--echo # MDEV-16372 ER_BASE64_DECODE_ERROR upon replaying binary log with system table
+flush logs;
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $datadir= `select @@datadir`
+set @@session.time_zone='+00:00';
+replace_result $sys_datatype_expl SYS_TYPE;
+eval create table t1 (
+  x int unsigned,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning;
+insert into t1 values (1);
+update t1 set x= 2 where x = 1;
+flush logs;
+drop table t1;
+--exec $MYSQL_BINLOG -v $datadir/$binlog_file | $MYSQL test
+select *, check_row(row_start, row_end) from t1 for system_time all;
+
+drop database test;
+create database test;
 
 --source include/rpl_end.inc

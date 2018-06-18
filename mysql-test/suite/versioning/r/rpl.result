@@ -164,4 +164,23 @@ update t1 set i = 0;
 connection slave;
 connection master;
 drop table t1;
+# MDEV-16372 ER_BASE64_DECODE_ERROR upon replaying binary log with system table
+flush logs;
+set @@session.time_zone='+00:00';
+create table t1 (
+x int unsigned,
+row_start SYS_TYPE as row start invisible,
+row_end SYS_TYPE as row end invisible,
+period for system_time (row_start, row_end))
+with system versioning;
+insert into t1 values (1);
+update t1 set x= 2 where x = 1;
+flush logs;
+drop table t1;
+select *, check_row(row_start, row_end) from t1 for system_time all;
+x	check_row(row_start, row_end)
+2	CURRENT ROW
+1	HISTORICAL ROW
+drop database test;
+create database test;
 include/rpl_end.inc
