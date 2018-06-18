@@ -3672,6 +3672,10 @@ void free_table_map_log_event(Table_map_log_event *event)
   delete event;
 }
 
+static
+bool describe_event(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
+                    Rows_log_event *ev);
+
 bool Log_event::print_base64(IO_CACHE* file,
                              PRINT_EVENT_INFO* print_event_info,
                              bool more)
@@ -3741,13 +3745,21 @@ bool Log_event::print_base64(IO_CACHE* file,
     }
 
     if (my_b_tell(file) == 0)
+    {
       if (unlikely(my_b_write_string(file, "\nBINLOG '\n")))
         error= 1;
+      else
+        print_event_info->inside_binlog= true;
+    }
     if (likely(!error) && unlikely(my_b_printf(file, "%s\n", tmp_str)))
       error= 1;
     if (!more && likely(!error))
+    {
       if (unlikely(my_b_printf(file, "'%s\n", print_event_info->delimiter)))
         error= 1;
+      else
+        print_event_info->inside_binlog= false;
+    }
     my_free(tmp_str);
     if (unlikely(error))
       goto err;
@@ -3832,44 +3844,24 @@ bool Log_event::print_base64(IO_CACHE* file,
       break;
     }
 
-    if (ev)
+    if (print_event_info->inside_binlog && print_event_info->verbose)
     {
-      bool error= 0;
-
-#ifdef WHEN_FLASHBACK_REVIEW_READY
-      ev->need_flashback_review= need_flashback_review;
+      if (ev)
+        print_event_info->verbose_events.append(ev);
+    }
+    else
+    {
       if (print_event_info->verbose)
       {
-        if (ev->print_verbose(file, print_event_info))
-          goto err;
-      }
-      else
-      {
-        IO_CACHE tmp_cache;
-
-        if (open_cached_file(&tmp_cache, NULL, NULL, 0,
-                              MYF(MY_WME | MY_NABP)))
+        Dynamic_array<Rows_log_event *> &evs= print_event_info->verbose_events;
+        for (size_t i= 0; i < evs.elements(); ++i)
         {
-          delete ev;
-          goto err;
+          if (describe_event(file, print_event_info, evs.at(i)))
+            goto err;
         }
-
-        error= ev->print_verbose(&tmp_cache, print_event_info);
-        close_cached_file(&tmp_cache);
-        if (unlikely(error))
-        {
-          delete ev;
-          goto err;
-        }
+        evs.clear();
       }
-#else
-      if (print_event_info->verbose)
-        error= ev->print_verbose(file, print_event_info);
-      else
-        ev->count_row_events(print_event_info);
-#endif
-      delete ev;
-      if (unlikely(error))
+      if (ev && describe_event(file, print_event_info, ev))
         goto err;
     }
   }
@@ -3877,6 +3869,52 @@ bool Log_event::print_base64(IO_CACHE* file,
 
 err:
   DBUG_RETURN(1);
+}
+
+
+static
+bool describe_event(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
+                    Rows_log_event *ev)
+{
+  bool error= 0;
+
+#ifdef WHEN_FLASHBACK_REVIEW_READY
+  ev->need_flashback_review= need_flashback_review;
+  if (print_event_info->verbose)
+  {
+    if (ev->print_verbose(file, print_event_info))
+    {
+      delete ev;
+      return true;
+    }
+  }
+  else
+  {
+    IO_CACHE tmp_cache;
+
+    if (open_cached_file(&tmp_cache, NULL, NULL, 0,
+                          MYF(MY_WME | MY_NABP)))
+    {
+      delete ev;
+      return true;
+    }
+
+    error= ev->print_verbose(&tmp_cache, print_event_info);
+    close_cached_file(&tmp_cache);
+    if (unlikely(error))
+    {
+      delete ev;
+      return true;
+    }
+  }
+#else
+  if (print_event_info->verbose)
+    error= ev->print_verbose(file, print_event_info);
+  else
+    ev->count_row_events(print_event_info);
+#endif
+  delete ev;
+  return error;
 }
 
 
@@ -5997,8 +6035,12 @@ bool Start_log_event_v3::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       !print_event_info->short_form)
   {
     if (print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS)
+    {
       if (my_b_printf(&cache, "BINLOG '\n"))
         goto err;
+      else
+        print_event_info->inside_binlog= true;
+    }
     if (print_base64(&cache, print_event_info, FALSE))
       goto err;
     print_event_info->printed_fd_event= TRUE;
@@ -14692,6 +14734,7 @@ st_print_event_info::st_print_event_info()
   short_form= false;
   skip_replication= 0;
   printed_fd_event=FALSE;
+  inside_binlog= false;
   file= 0;
   base64_output_mode=BASE64_OUTPUT_UNSPEC;
   open_cached_file(&head_cache, NULL, NULL, 0, flags);
