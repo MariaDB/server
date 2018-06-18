@@ -3864,7 +3864,8 @@ void set_authentication_plugin_from_password(const User_table& user_table,
                                              const char* password,
                                              uint password_length)
 {
-  if (password_length == SCRAMBLED_PASSWORD_CHAR_LENGTH)
+  if (password_length == SCRAMBLED_PASSWORD_CHAR_LENGTH ||
+      password_length == 0)
   {
     user_table.plugin()->store(native_password_plugin_name.str,
                                native_password_plugin_name.length,
