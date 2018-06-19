@@ -746,6 +746,23 @@ set sql_mode=@save_sql_mode;
 drop table t1;
 
 --echo #
+--echo # mdev-16235: impossible HAVING in query without aggregation
+--echo #
+
+explain extended
+select * from mysql.help_topic where example = 'foo' having description is null;
+
+select * from mysql.help_topic where example = 'foo' having description is null;
+
+--echo #
+--echo # End of 5. tests
+--echo #
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
 --echo # Bug mdev-5160: two-way join with HAVING over the second table
 --echo #
 
