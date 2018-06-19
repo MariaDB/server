@@ -450,17 +450,6 @@ Description: Connect storage engine for MariaDB
  other interesting features.
  This package contains the Connect plugin for MariaDB.
 
-Package: mariadb-plugin-rocksdb
-Architecture: any
-Depends: mariadb-server-10.2 (= ${binary:Version}),
-         ${misc:Depends},
-         ${shlibs:Depends}
-Recommends: python-mysqldb
-Description: RocksDB storage engine for MariaDB
- The RocksDB storage engine is a high performance storage engine, aimed
- at maximising storage efficiency while maintaining InnoDB-like performance.
- This package contains the RocksDB plugin for MariaDB.
-
 Package: mariadb-plugin-oqgraph
 Architecture: any
 Depends: libjudydebian1,
