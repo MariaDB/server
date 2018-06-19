@@ -4674,7 +4674,7 @@ public:
     also to make printing of items inherited from Item_sum uniform.
   */
   virtual const char *func_name() const= 0;
-  virtual void fix_length_and_dec()= 0;
+  virtual bool fix_length_and_dec()= 0;
   bool const_item() const { return const_item_cache; }
   table_map used_tables() const { return used_tables_cache; }
   Item* build_clone(THD *thd);

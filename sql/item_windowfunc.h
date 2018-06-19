@@ -526,10 +526,11 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
   bool add();
   const Type_handler *type_handler() const { return &type_handler_double; }
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
+    return FALSE;
   }
 
   void setup_window_func(THD *thd, Window_spec *window_spec);
@@ -614,10 +615,11 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
   void update_field() {}
   const Type_handler *type_handler() const { return &type_handler_double; }
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
+    return FALSE;
   }
   
   Item *get_copy(THD *thd)
@@ -820,10 +822,11 @@ public:
   const Type_handler *type_handler() const
   {return Type_handler_hybrid_field_type::type_handler();}
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
+    return FALSE;
   }
 
   Item *get_copy(THD *thd)
@@ -950,10 +953,11 @@ public:
   const Type_handler *type_handler() const
   {return Type_handler_hybrid_field_type::type_handler();}
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
+    return FALSE;
   }
 
   Item *get_copy(THD *thd)
@@ -1292,9 +1296,10 @@ public:
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                               List<Item> &fields, uint flags);
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals = window_func()->decimals;
+    return FALSE;
   }
 
   const char* func_name() const { return "WF"; }

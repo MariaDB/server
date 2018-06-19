@@ -4961,7 +4961,12 @@ int create_table_impl(THD *thd,
     file= mysql_create_frm_image(thd, orig_db, orig_table_name, create_info,
                                  alter_info, create_table_mode, key_info,
                                  key_count, frm);
-    if (!file)
+    /*
+    TODO: remove this check of thd->is_error() (now it intercept
+    errors in some val_*() methoids and bring some single place to
+    such error interception).
+    */
+    if (!file || thd->is_error())
       goto err;
     if (rea_create_table(thd, frm, path, db->str, table_name->str, create_info,
                          file, frm_only))
@@ -7621,10 +7626,15 @@ static bool mysql_inplace_alter_table(THD *thd,
   /*
     Replace the old .FRM with the new .FRM, but keep the old name for now.
     Rename to the new name (if needed) will be handled separately below.
+
+    TODO: remove this check of thd->is_error() (now it intercept
+    errors in some val_*() methoids and bring some single place to
+    such error interception).
   */
   if (mysql_rename_table(db_type, &alter_ctx->new_db, &alter_ctx->tmp_name,
                          &alter_ctx->db, &alter_ctx->alias,
-                         FN_FROM_IS_TMP | NO_HA_TABLE))
+                         FN_FROM_IS_TMP | NO_HA_TABLE) ||
+                         thd->is_error())
   {
     // Since changes were done in-place, we can't revert them.
     (void) quick_rm_table(thd, db_type,

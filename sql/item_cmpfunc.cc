@@ -449,7 +449,7 @@ bool Item_func::setup_args_and_comparator(THD *thd, Arg_comparator *cmp)
 }
 
 
-void Item_bool_rowready_func2::fix_length_and_dec()
+bool Item_bool_rowready_func2::fix_length_and_dec()
 {
   max_length= 1;				     // Function returns 0 or 1
 
@@ -458,8 +458,8 @@ void Item_bool_rowready_func2::fix_length_and_dec()
     we have to check for out of memory conditions here
   */
   if (!args[0] || !args[1])
-    return;
-  setup_args_and_comparator(current_thd, &cmp);
+    return FALSE;
+  return setup_args_and_comparator(current_thd, &cmp);
 }
 
 
@@ -1107,12 +1107,13 @@ int Arg_comparator::compare_e_str_json()
 }
 
 
-void Item_func_truth::fix_length_and_dec()
+bool Item_func_truth::fix_length_and_dec()
 {
   maybe_null= 0;
   null_value= 0;
   decimals= 0;
   max_length= 1;
+  return FALSE;
 }
 
 
@@ -1731,10 +1732,11 @@ longlong Item_func_eq::val_int()
 
 /** Same as Item_func_eq, but NULL = NULL. */
 
-void Item_func_equal::fix_length_and_dec()
+bool Item_func_equal::fix_length_and_dec()
 {
-  Item_bool_rowready_func2::fix_length_and_dec();
+  bool rc= Item_bool_rowready_func2::fix_length_and_dec();
   maybe_null=null_value=0;
+  return rc;
 }
 
 longlong Item_func_equal::val_int()
@@ -1831,7 +1833,7 @@ bool Item_func_interval::fix_fields(THD *thd, Item **ref)
 }
 
 
-void Item_func_interval::fix_length_and_dec()
+bool Item_func_interval::fix_length_and_dec()
 {
   uint rows= row->cols();
   
@@ -1849,10 +1851,13 @@ void Item_func_interval::fix_length_and_dec()
       not_null_consts&= el->const_item() && !el->is_null();
     }
 
-    if (not_null_consts &&
-        (intervals= (interval_range*) current_thd->alloc(sizeof(interval_range) *
-                                                         (rows - 1))))
+    if (not_null_consts)
     {
+      intervals= (interval_range*) current_thd->alloc(sizeof(interval_range) *
+                                                         (rows - 1));
+      if (!intervals)
+        return TRUE;
+
       if (use_decimal_comparison)
       {
         for (uint i= 1; i < rows; i++)
@@ -1893,6 +1898,7 @@ void Item_func_interval::fix_length_and_dec()
   with_sum_func= with_sum_func || row->with_sum_func;
   with_param= with_param || row->with_param;
   with_field= with_field || row->with_field;
+  return FALSE;
 }
 
 
@@ -2053,7 +2059,7 @@ void Item_func_between::fix_after_pullout(st_select_lex *new_parent,
   eval_not_null_tables(NULL);
 }
 
-void Item_func_between::fix_length_and_dec()
+bool Item_func_between::fix_length_and_dec()
 {
   max_length= 1;
 
@@ -2062,15 +2068,16 @@ void Item_func_between::fix_length_and_dec()
     we have to check for out of memory conditions here
   */
   if (!args[0] || !args[1] || !args[2])
-    return;
+    return TRUE;
   if (m_comparator.aggregate_for_comparison(Item_func_between::func_name(),
                                             args, 3, true))
   {
     DBUG_ASSERT(current_thd->is_error());
-    return;
+    return TRUE;
   }
 
-  m_comparator.type_handler()->Item_func_between_fix_length_and_dec(this);
+  return m_comparator.type_handler()->
+    Item_func_between_fix_length_and_dec(this);
 }
 
 
@@ -2093,7 +2100,7 @@ bool Item_func_between::fix_length_and_dec_numeric(THD *thd)
       }
     }
   }
-  return false;
+  return FALSE;
 }
 
 
@@ -2455,7 +2462,7 @@ void Item_func_nullif::update_used_tables()
 
 
 
-void
+bool
 Item_func_nullif::fix_length_and_dec()
 {
   /*
@@ -2605,6 +2612,8 @@ Item_func_nullif::fix_length_and_dec()
     m_cache= args[0]->cmp_type() == STRING_RESULT ?
              new (thd->mem_root) Item_cache_str_for_nullif(thd, args[0]) :
              args[0]->get_cache(thd);
+    if (!m_cache)
+      return TRUE;
     m_cache->setup(thd, args[0]);
     m_cache->store(args[0]);
     m_cache->set_used_tables(args[0]->used_tables());
@@ -2618,7 +2627,8 @@ Item_func_nullif::fix_length_and_dec()
   fix_char_length(args[2]->max_char_length());
   maybe_null=1;
   m_arg0= args[0];
-  setup_args_and_comparator(thd, &cmp);
+  if (setup_args_and_comparator(thd, &cmp))
+    return TRUE;
   /*
     A special code for EXECUTE..PREPARE.
 
@@ -2658,6 +2668,7 @@ Item_func_nullif::fix_length_and_dec()
   */
   if (args[0] == m_arg0)
     m_arg0= NULL;
+  return FALSE;
 }
 
 
@@ -3053,26 +3064,26 @@ bool Item_func_case_simple::prepare_predicant_and_values(THD *thd,
 }
 
 
-void Item_func_case_searched::fix_length_and_dec()
+bool Item_func_case_searched::fix_length_and_dec()
 {
   THD *thd= current_thd;
-  aggregate_then_and_else_arguments(thd, when_count());
+  return aggregate_then_and_else_arguments(thd, when_count());
 }
 
 
-void Item_func_case_simple::fix_length_and_dec()
+bool Item_func_case_simple::fix_length_and_dec()
 {
   THD *thd= current_thd;
-  if (!aggregate_then_and_else_arguments(thd, when_count() + 1))
-    aggregate_switch_and_when_arguments(thd, false);
+  return (aggregate_then_and_else_arguments(thd, when_count() + 1) ||
+          aggregate_switch_and_when_arguments(thd, false));
 }
 
 
-void Item_func_decode_oracle::fix_length_and_dec()
+bool Item_func_decode_oracle::fix_length_and_dec()
 {
   THD *thd= current_thd;
-  if (!aggregate_then_and_else_arguments(thd, when_count() + 1))
-    aggregate_switch_and_when_arguments(thd, true);
+  return (aggregate_then_and_else_arguments(thd, when_count() + 1) ||
+          aggregate_switch_and_when_arguments(thd, true));
 }
 
 
@@ -4178,7 +4189,7 @@ bool Item_func_in::prepare_predicant_and_values(THD *thd, uint *found_types)
 }
 
 
-void Item_func_in::fix_length_and_dec()
+bool Item_func_in::fix_length_and_dec()
 {
   THD *thd= current_thd;
   uint found_types;
@@ -4188,18 +4199,20 @@ void Item_func_in::fix_length_and_dec()
   if (prepare_predicant_and_values(thd, &found_types))
   {
     DBUG_ASSERT(thd->is_error()); // Must set error
-    return;
+    return TRUE;
   }
 
   if (arg_types_compatible) // Bisection condition #1
   {
-    m_comparator.type_handler()->
-      Item_func_in_fix_comparator_compatible_types(thd, this);
+    if (m_comparator.type_handler()->
+        Item_func_in_fix_comparator_compatible_types(thd, this))
+      return TRUE;
   }
   else
   {
     DBUG_ASSERT(m_comparator.cmp_type() != ROW_RESULT);
-    fix_for_scalar_comparison_using_cmp_items(thd, found_types);
+    if ( fix_for_scalar_comparison_using_cmp_items(thd, found_types))
+      return TRUE;
   }
 
   DBUG_EXECUTE_IF("Item_func_in",
@@ -4207,6 +4220,7 @@ void Item_func_in::fix_length_and_dec()
                   ER_UNKNOWN_ERROR, "DBUG: types_compatible=%s bisect=%s",
                   arg_types_compatible ? "yes" : "no",
                   array != NULL ? "yes" : "no"););
+  return FALSE;
 }
 
 
@@ -4634,7 +4648,8 @@ Item_cond::fix_fields(THD *thd, Item **ref)
     with_window_func|= item->with_window_func;
     maybe_null|=       item->maybe_null;
   }
-  fix_length_and_dec();
+  if (fix_length_and_dec())
+    return TRUE;
   fixed= 1;
   return FALSE;
 }
@@ -5669,16 +5684,16 @@ bool Item_func_regex::fix_fields(THD *thd, Item **ref)
   return Item_bool_func::fix_fields(thd, ref);
 }
 
-void
+bool
 Item_func_regex::fix_length_and_dec()
 {
-  Item_bool_func::fix_length_and_dec();
-
-  if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
-    return;
+  if (Item_bool_func::fix_length_and_dec() ||
+      agg_arg_charsets_for_comparison(cmp_collation, args, 2))
+    return TRUE;
 
   re.init(cmp_collation.collation, 0);
   re.fix_owner(this, args[0], args[1]);
+  return FALSE;
 }
 
 
@@ -5702,15 +5717,16 @@ bool Item_func_regexp_instr::fix_fields(THD *thd, Item **ref)
 }
 
 
-void
+bool
 Item_func_regexp_instr::fix_length_and_dec()
 {
   if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
-    return;
+    return TRUE;
 
   re.init(cmp_collation.collation, 0);
   re.fix_owner(this, args[0], args[1]);
   max_length= MY_INT32_NUM_DECIMAL_DIGITS; // See also Item_func_locate
+  return FALSE;
 }
 
 
@@ -6653,7 +6669,8 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
   }
   if (prev_equal_field && last_equal_field != first_equal_field)
     last_equal_field->next_equal_field= first_equal_field;
-  fix_length_and_dec();
+  if (fix_length_and_dec())
+    return TRUE;
   fixed= 1;
   return FALSE;
 }
@@ -6739,11 +6756,12 @@ longlong Item_equal::val_int()
 }
 
 
-void Item_equal::fix_length_and_dec()
+bool Item_equal::fix_length_and_dec()
 {
   Item *item= get_first(NO_PARTICULAR_TAB, NULL);
   const Type_handler *handler= item->type_handler();
   eval_item= handler->make_cmp_item(current_thd, item->collation.collation);
+  return eval_item == NULL;
 }
 
 

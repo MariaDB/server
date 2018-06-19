@@ -197,7 +197,7 @@ public:
     const_item_cache= 0;
     forced_const= TRUE; 
   }
-  virtual void fix_length_and_dec();
+  virtual bool fix_length_and_dec();
   table_map used_tables() const;
   table_map not_null_tables() const { return 0; }
   bool const_item() const;
@@ -306,7 +306,7 @@ public:
   bool val_bool();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   const Type_handler *type_handler() const;
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
 
   uint cols() const;
   Item* element_index(uint i) { return reinterpret_cast<Item*>(row[i]); }
@@ -404,7 +404,7 @@ public:
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return get_date_from_int(ltime, fuzzydate); }
   bool fix_fields(THD *thd, Item **ref);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   void print(String *str, enum_query_type query_type);
   bool select_transformer(JOIN *join);
   void top_level_item() { abort_on_null=1; }
@@ -627,7 +627,7 @@ public:
   void print(String *str, enum_query_type query_type);
   enum precedence precedence() const { return CMP_PRECEDENCE; }
   bool fix_fields(THD *thd, Item **ref);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool const_item() const
   {
@@ -808,7 +808,7 @@ public:
   void set_thd(THD *thd_arg);
   THD * get_thd() { return thd ? thd : current_thd; }
   virtual int prepare(THD *)= 0;
-  virtual void fix_length_and_dec(Item_cache** row)= 0;
+  virtual bool fix_length_and_dec(Item_cache** row)= 0;
   /*
     Execute the engine
 
@@ -849,7 +849,7 @@ public:
   virtual int get_identifier() { DBUG_ASSERT(0); return 0; }
   virtual void force_reexecution() {}
 protected:
-  void set_row(List<Item> &item_list, Item_cache **row);
+  bool set_row(List<Item> &item_list, Item_cache **row);
 };
 
 
@@ -865,7 +865,7 @@ public:
 				 Item_subselect *item);
   void cleanup();
   int prepare(THD *thd);
-  void fix_length_and_dec(Item_cache** row);
+  bool fix_length_and_dec(Item_cache** row);
   int exec();
   uint cols() const;
   uint8 uncacheable();
@@ -901,7 +901,7 @@ public:
 			 Item_subselect *item);
   void cleanup();
   int prepare(THD *);
-  void fix_length_and_dec(Item_cache** row);
+  bool fix_length_and_dec(Item_cache** row);
   int exec();
   uint cols() const;
   uint8 uncacheable();
@@ -959,7 +959,7 @@ public:
   ~subselect_uniquesubquery_engine();
   void cleanup();
   int prepare(THD *);
-  void fix_length_and_dec(Item_cache** row);
+  bool fix_length_and_dec(Item_cache** row);
   int exec();
   uint cols() const { return 1; }
   uint8 uncacheable() { return UNCACHEABLE_DEPENDENT_INJECTED; }
@@ -1108,7 +1108,7 @@ public:
     TODO: factor out all these methods in a base subselect_index_engine class
     because all of them have dummy implementations and should never be called.
   */
-  void fix_length_and_dec(Item_cache** row);//=>base class
+  bool fix_length_and_dec(Item_cache** row);//=>base class
   void exclude(); //=>base class
   //=>base class
   bool change_result(Item_subselect *si,
@@ -1381,7 +1381,7 @@ public:
                                  uint count_columns_with_nulls_arg);
   int prepare(THD *thd_arg) { set_thd(thd_arg); return 0; }
   int exec();
-  void fix_length_and_dec(Item_cache**) {}
+  bool fix_length_and_dec(Item_cache**) { return FALSE; }
   uint cols() const { /* TODO: what is the correct value? */ return 1; }
   uint8 uncacheable() { return UNCACHEABLE_DEPENDENT; }
   void exclude() {}

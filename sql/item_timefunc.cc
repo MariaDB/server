@@ -954,7 +954,7 @@ longlong Item_func_month::val_int()
 }
 
 
-void Item_func_monthname::fix_length_and_dec()
+bool Item_func_monthname::fix_length_and_dec()
 {
   THD* thd= current_thd;
   CHARSET_INFO *cs= thd->variables.collation_connection;
@@ -962,7 +962,8 @@ void Item_func_monthname::fix_length_and_dec()
   collation.set(cs, DERIVATION_COERCIBLE, locale->repertoire());
   decimals=0;
   max_length= locale->max_month_name_length * collation.collation->mbmaxlen;
-  maybe_null=1; 
+  maybe_null=1;
+  return FALSE;
 }
 
 
@@ -1102,7 +1103,7 @@ longlong Item_func_weekday::val_int()
                                  odbc_type) + MY_TEST(odbc_type);
 }
 
-void Item_func_dayname::fix_length_and_dec()
+bool Item_func_dayname::fix_length_and_dec()
 {
   THD* thd= current_thd;
   CHARSET_INFO *cs= thd->variables.collation_connection;
@@ -1110,7 +1111,8 @@ void Item_func_dayname::fix_length_and_dec()
   collation.set(cs, DERIVATION_COERCIBLE, locale->repertoire());
   decimals=0;
   max_length= locale->max_day_name_length * collation.collation->mbmaxlen;
-  maybe_null=1; 
+  maybe_null=1;
+  return FALSE;
 }
 
 
@@ -1842,7 +1844,7 @@ overflow:
   return 0;
 }
 
-void Item_func_date_format::fix_length_and_dec()
+bool Item_func_date_format::fix_length_and_dec()
 {
   THD* thd= current_thd;
   if (!is_time_format)
@@ -1881,6 +1883,7 @@ void Item_func_date_format::fix_length_and_dec()
     set_if_smaller(max_length,MAX_BLOB_WIDTH);
   }
   maybe_null=1;					// If wrong date
+  return FALSE;
 }
 
 
@@ -2034,13 +2037,14 @@ null_date:
 }
 
 
-void Item_func_from_unixtime::fix_length_and_dec()
-{ 
+bool Item_func_from_unixtime::fix_length_and_dec()
+{
   THD *thd= current_thd;
   thd->time_zone_used= 1;
   tz= thd->variables.time_zone;
   fix_attributes_datetime_not_fixed_dec(args[0]->decimals);
   maybe_null= true;
+  return FALSE;
 }
 
 
@@ -2112,7 +2116,7 @@ void Item_func_convert_tz::cleanup()
 }
 
 
-void Item_date_add_interval::fix_length_and_dec()
+bool Item_date_add_interval::fix_length_and_dec()
 {
   enum_field_types arg0_field_type;
 
@@ -2121,7 +2125,7 @@ void Item_date_add_interval::fix_length_and_dec()
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
              args[0]->type_handler()->name().ptr(),
              "interval", func_name());
-    return;
+    return TRUE;
   }
   /*
     The field type for the result of an Item_datefunc is defined as
@@ -2189,6 +2193,7 @@ void Item_date_add_interval::fix_length_and_dec()
     fix_char_length_temporal_not_fixed_dec(MAX_DATETIME_WIDTH, dec);
   }
   maybe_null= true;
+  return FALSE;
 }
 
 
@@ -2259,7 +2264,7 @@ void Item_extract::print(String *str, enum_query_type query_type)
   str->append(')');
 }
 
-void Item_extract::fix_length_and_dec()
+bool Item_extract::fix_length_and_dec()
 {
   maybe_null=1;					// If wrong date
   switch (int_type) {
@@ -2285,6 +2290,7 @@ void Item_extract::fix_length_and_dec()
   case INTERVAL_SECOND_MICROSECOND: set_time_length(8); break; // ssffffff
   case INTERVAL_LAST: DBUG_ASSERT(0); break; /* purecov: deadcode */
   }
+  return FALSE;
 }
 
 
@@ -2688,7 +2694,7 @@ err:
 }
 
 
-void Item_func_add_time::fix_length_and_dec()
+bool Item_func_add_time::fix_length_and_dec()
 {
   enum_field_types arg0_field_type;
 
@@ -2698,7 +2704,7 @@ void Item_func_add_time::fix_length_and_dec()
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
              args[0]->type_handler()->name().ptr(),
              args[1]->type_handler()->name().ptr(), func_name());
-    return;
+    return TRUE;
   }
   /*
     The field type for the result of an Item_func_add_time function is defined
@@ -2734,6 +2740,7 @@ void Item_func_add_time::fix_length_and_dec()
     fix_char_length_temporal_not_fixed_dec(MAX_DATETIME_WIDTH, dec);
   }
   maybe_null= true;
+  return FALSE;
 }
 
 /**
@@ -3220,7 +3227,7 @@ get_date_time_result_type(const char *format, uint length)
 }
 
 
-void Item_func_str_to_date::fix_length_and_dec()
+bool Item_func_str_to_date::fix_length_and_dec()
 {
   if (!args[0]->type_handler()->is_traditional_type() ||
       !args[1]->type_handler()->is_traditional_type())
@@ -3228,10 +3235,10 @@ void Item_func_str_to_date::fix_length_and_dec()
     my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
              args[0]->type_handler()->name().ptr(),
              args[1]->type_handler()->name().ptr(), func_name());
-    return;
+    return TRUE;
   }
   if (agg_arg_charsets(collation, args, 2, MY_COLL_ALLOW_CONV, 1))
-    return;
+    return TRUE;
   if (collation.collation->mbminlen > 1)
     internal_charset= &my_charset_utf8mb4_general_ci;
 
@@ -3275,6 +3282,7 @@ void Item_func_str_to_date::fix_length_and_dec()
     }
   }
   cached_timestamp_type= mysql_timestamp_type();
+  return FALSE;
 }
 
 

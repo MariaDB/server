@@ -388,11 +388,13 @@ longlong Item_func_json_valid::val_int()
 }
 
 
-void Item_func_json_exists::fix_length_and_dec()
+bool Item_func_json_exists::fix_length_and_dec()
 {
-  Item_bool_func::fix_length_and_dec();
+  if (Item_bool_func::fix_length_and_dec())
+    return TRUE;
   maybe_null= 1;
   path.set_constant_flag(args[1]->const_item());
+  return FALSE;
 }
 
 
@@ -439,12 +441,13 @@ err_return:
 }
 
 
-void Item_func_json_value::fix_length_and_dec()
+bool Item_func_json_value::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   path.set_constant_flag(args[1]->const_item());
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -546,7 +549,7 @@ bool Item_func_json_query::check_and_get_value(json_engine_t *je, String *res,
 }
 
 
-void Item_func_json_quote::fix_length_and_dec()
+bool Item_func_json_quote::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8mb4_bin);
   /*
@@ -554,6 +557,7 @@ void Item_func_json_quote::fix_length_and_dec()
     of the argument turn into '\uXXXX\uXXXX', which is 12.
   */
   max_length= args[0]->max_length * 12 + 2;
+  return FALSE;
 }
 
 
@@ -581,12 +585,13 @@ String *Item_func_json_quote::val_str(String *str)
 }
 
 
-void Item_func_json_unquote::fix_length_and_dec()
+bool Item_func_json_unquote::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8_general_ci,
                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= args[0]->max_length;
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -702,13 +707,14 @@ void Item_json_str_multipath::cleanup()
 }
 
 
-void Item_func_json_extract::fix_length_and_dec()
+bool Item_func_json_extract::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length * (arg_count - 1);
 
   mark_constant_paths(paths, args+1, arg_count-1);
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -937,14 +943,14 @@ double Item_func_json_extract::val_real()
 }
 
 
-void Item_func_json_contains::fix_length_and_dec()
+bool Item_func_json_contains::fix_length_and_dec()
 {
   a2_constant= args[1]->const_item();
   a2_parsed= FALSE;
   maybe_null= 1;
   if (arg_count > 2)
     path.set_constant_flag(args[2]->const_item());
-  Item_bool_func::fix_length_and_dec();
+  return Item_bool_func::fix_length_and_dec();
 }
 
 
@@ -1190,13 +1196,13 @@ bool Item_func_json_contains_path::fix_fields(THD *thd, Item **ref)
 }
 
 
-void Item_func_json_contains_path::fix_length_and_dec()
+bool Item_func_json_contains_path::fix_length_and_dec()
 {
   ooa_constant= args[1]->const_item();
   ooa_parsed= FALSE;
   maybe_null= 1;
   mark_constant_paths(paths, args+2, arg_count-2);
-  Item_bool_func::fix_length_and_dec();
+  return Item_bool_func::fix_length_and_dec();
 }
 
 
@@ -1455,7 +1461,7 @@ append_null:
 }
 
 
-void Item_func_json_array::fix_length_and_dec()
+bool Item_func_json_array::fix_length_and_dec()
 {
   ulonglong char_length= 2;
   uint n_arg;
@@ -1468,17 +1474,18 @@ void Item_func_json_array::fix_length_and_dec()
                   DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
     tmp_val.set_charset(&my_charset_utf8_general_ci);
     max_length= 2;
-    return;
+    return FALSE;
   }
 
   if (agg_arg_charsets_for_string_result(collation, args, arg_count))
-    return;
+    return TRUE;
 
   for (n_arg=0 ; n_arg < arg_count ; n_arg++)
     char_length+= args[n_arg]->max_char_length() + 4;
 
   fix_char_length_ulonglong(char_length);
   tmp_val.set_charset(collation.collation);
+  return FALSE;
 }
 
 
@@ -1522,7 +1529,7 @@ err_return:
 }
 
 
-void Item_func_json_array_append::fix_length_and_dec()
+bool Item_func_json_array_append::fix_length_and_dec()
 {
   uint n_arg;
   ulonglong char_length;
@@ -1537,6 +1544,7 @@ void Item_func_json_array_append::fix_length_and_dec()
   }
 
   fix_char_length_ulonglong(char_length);
+  return FALSE;
 }
 
 
@@ -2124,12 +2132,13 @@ null_return:
 }
 
 
-void Item_func_json_length::fix_length_and_dec()
+bool Item_func_json_length::fix_length_and_dec()
 {
   if (arg_count > 1)
     path.set_constant_flag(args[1]->const_item());
   maybe_null= 1;
   max_length= 10;
+  return FALSE;
 }
 
 
@@ -2269,11 +2278,12 @@ longlong Item_func_json_depth::val_int()
 }
 
 
-void Item_func_json_type::fix_length_and_dec()
+bool Item_func_json_type::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8_general_ci);
   max_length= 12;
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -2326,7 +2336,7 @@ error:
 }
 
 
-void Item_func_json_insert::fix_length_and_dec()
+bool Item_func_json_insert::fix_length_and_dec()
 {
   uint n_arg;
   ulonglong char_length;
@@ -2342,6 +2352,7 @@ void Item_func_json_insert::fix_length_and_dec()
 
   fix_char_length_ulonglong(char_length);
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -2586,13 +2597,14 @@ return_null:
 }
 
 
-void Item_func_json_remove::fix_length_and_dec()
+bool Item_func_json_remove::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
 
   mark_constant_paths(paths, args+1, arg_count-1);
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -2772,13 +2784,14 @@ null_return:
 }
 
 
-void Item_func_json_keys::fix_length_and_dec()
+bool Item_func_json_keys::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   maybe_null= 1;
   if (arg_count > 1)
     path.set_constant_flag(args[1]->const_item());
+  return FALSE;
 }
 
 
@@ -2939,7 +2952,7 @@ bool Item_func_json_search::fix_fields(THD *thd, Item **ref)
 
 static const uint SQR_MAX_BLOB_WIDTH= (uint) sqrt(MAX_BLOB_WIDTH);
 
-void Item_func_json_search::fix_length_and_dec()
+bool Item_func_json_search::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
 
@@ -2961,6 +2974,7 @@ void Item_func_json_search::fix_length_and_dec()
   if (arg_count > 4)
     mark_constant_paths(paths, args+4, arg_count-4);
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -3138,11 +3152,12 @@ const char *Item_func_json_format::func_name() const
 }
 
 
-void Item_func_json_format::fix_length_and_dec()
+bool Item_func_json_format::fix_length_and_dec()
 {
   decimals= 0;
   max_length= args[0]->max_length;
   maybe_null= 1;
+  return FALSE;
 }
 
 
