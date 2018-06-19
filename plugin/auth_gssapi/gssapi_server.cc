@@ -44,21 +44,21 @@ static char* get_default_principal_name()
 
   if(krb5_init_context(&context))
   {
-    my_printf_error(0, "GSSAPI plugin : krb5_init_context failed",
+    my_printf_error(1, "GSSAPI plugin : krb5_init_context failed",
                     ME_ERROR_LOG | ME_WARNING);
     goto cleanup;
   }
 
   if (krb5_sname_to_principal(context, NULL, "mariadb", KRB5_NT_SRV_HST, &principal))
   {
-    my_printf_error(0, "GSSAPI plugin :  krb5_sname_to_principal failed",
+    my_printf_error(1, "GSSAPI plugin :  krb5_sname_to_principal failed",
                     ME_ERROR_LOG | ME_WARNING);
     goto cleanup;
   }
 
   if (krb5_unparse_name(context, principal, &unparsed_name))
   {
-    my_printf_error(0, "GSSAPI plugin :  krb5_unparse_name failed",
+    my_printf_error(1, "GSSAPI plugin :  krb5_unparse_name failed",
                     ME_ERROR_LOG | ME_WARNING);
     goto cleanup;
   }
@@ -66,7 +66,7 @@ static char* get_default_principal_name()
   /* Check for entry in keytab */
   if (krb5_kt_read_service_key(context, NULL, principal, 0, (krb5_enctype)0, &key))
   {
-    my_printf_error(0, "GSSAPI plugin : default principal '%s' not found in keytab",
+    my_printf_error(1, "GSSAPI plugin : default principal '%s' not found in keytab",
                     ME_ERROR_LOG | ME_WARNING, unparsed_name);
     goto cleanup;
   }
@@ -104,7 +104,7 @@ int plugin_init()
   /* import service principal from plain text */
   if(srv_principal_name && srv_principal_name[0])
   {
-    my_printf_error(0, "GSSAPI plugin : using principal name '%s'",
+    my_printf_error(1, "GSSAPI plugin : using principal name '%s'",
                     ME_ERROR_LOG | ME_NOTE, srv_principal_name);
     principal_name_buf.length= strlen(srv_principal_name);
     principal_name_buf.value= srv_principal_name;
