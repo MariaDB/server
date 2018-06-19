@@ -1261,7 +1261,6 @@ JOIN::optimize_inner()
       {
         DBUG_PRINT("info", ("Zero limit"));
         zero_result_cause= "Zero limit";
-        conds= 0;
       }
       table_count= top_join_tab_count= 0;
       error= 0;
