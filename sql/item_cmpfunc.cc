@@ -4438,7 +4438,7 @@ Item *Item_func_in::build_clone(THD *thd, MEM_ROOT *mem_root)
   {
     if (array && clone->create_array(thd))
         return NULL;
-    memcpy(&clone->cmp_items, &cmp_items, sizeof(cmp_items));
+    bzero(&clone->cmp_items, sizeof(cmp_items));
   }
   return clone;
 }

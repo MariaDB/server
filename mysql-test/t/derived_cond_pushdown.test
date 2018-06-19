@@ -1801,3 +1801,42 @@ EVAL $query;
 EVAL EXPLAIN FORMAT=JSON $query;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16517: pushdown condition with the IN predicate defined
+--echo #             with non-constant values
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2),(1,3);
+
+LET $query=
+SELECT * FROM
+(
+  SELECT t1.a
+  FROM t1
+  WHERE 1 IN (0,t1.a)
+  GROUP BY t1.a
+) AS dt1
+JOIN
+(
+  SELECT t1.a
+  FROM t1
+  WHERE 1 IN (0,t1.a)
+) AS dt2
+ON dt1.a = dt2.a;
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM
+(
+  SELECT t1.a,MAX(t1.b)
+  FROM t1
+  GROUP BY t1.a
+) AS dt, t1
+WHERE dt.a=t1.a AND dt.a IN (1,t1.a);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1;
