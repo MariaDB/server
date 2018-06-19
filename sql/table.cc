@@ -1462,7 +1462,11 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
 
       if ((uchar)field_type == (uchar)MYSQL_TYPE_VIRTUAL)
       {
-        DBUG_ASSERT(interval_nr); // Expect non-null expression
+        if (!interval_nr) // Expect non-null expression
+        {
+          error= 4;
+          goto err;
+        }
         /* 
           The interval_id byte in the .frm file stores the length of the
           expression statement for a virtual column.
