@@ -4194,7 +4194,6 @@ reexecute:
 
   thd->m_reprepare_observer= NULL;
 #ifdef WITH_WSREP
-
   if (WSREP_ON)
   {
     mysql_mutex_lock(&thd->LOCK_thd_data);

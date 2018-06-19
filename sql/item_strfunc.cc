@@ -5230,18 +5230,16 @@ String *Item_temptable_rowid::val_str(String *str)
 
 String * Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
 {
-  wsrep_gtid_t gtid;
-  wsrep_thd_last_written_gtid(current_thd, &gtid);
-  
-  if (gtid_str.alloc(WSREP_GTID_STR_LEN))
+  wsrep::gtid gtid= current_thd->wsrep_cs().last_written_gtid();
+  if (gtid_str.alloc(wsrep::gtid_c_str_len()))
   {
-    my_error(ER_OUTOFMEMORY, WSREP_GTID_STR_LEN);
+    my_error(ER_OUTOFMEMORY, wsrep::gtid_c_str_len());
     null_value= true;
     return NULL;
   }
-  int gtid_len = wsrep_gtid_print(&gtid,
-                                  (char*)gtid_str.ptr(),
-                                  WSREP_GTID_STR_LEN);
+
+  ssize_t gtid_len= gtid_print_to_c_str(gtid, (char*)gtid_str.ptr(),
+                                        wsrep::gtid_c_str_len());
   if (gtid_len < 0)
   {
     my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), func_name(),
@@ -5255,18 +5253,17 @@ String * Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
 
 String * Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
 {
-  wsrep_gtid_t gtid;
-  wsrep_last_committed_id(&gtid);
-  
-  if (gtid_str.alloc(WSREP_GTID_STR_LEN))
+  /* TODO: Should call Wsrep_server_state.instance().last_committed_gtid()
+     instead. */
+  wsrep::gtid gtid= Wsrep_server_state::instance().provider().last_committed_gtid();
+  if (gtid_str.alloc(wsrep::gtid_c_str_len()))
   {
-    my_error(ER_OUTOFMEMORY, WSREP_GTID_STR_LEN);
+    my_error(ER_OUTOFMEMORY, wsrep::gtid_c_str_len());
     null_value= true;
     return NULL;
   }
-  int gtid_len= wsrep_gtid_print(&gtid,
-                                 (char*)gtid_str.ptr(),
-                                 WSREP_GTID_STR_LEN);
+  ssize_t gtid_len= wsrep::gtid_print_to_c_str(gtid, (char*)gtid_str.ptr(),
+                                               wsrep::gtid_c_str_len());
   if (gtid_len < 0)
   {
     my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), func_name(),
@@ -5307,13 +5304,14 @@ longlong Item_func_wsrep_sync_wait_upto::val_int()
     return 1LL;
   }
 
-  wsrep_status_t status= wsrep_sync_wait_upto(current_thd, &gtid, timeout);
+  enum wsrep::provider::status status=
+      wsrep_sync_wait_upto(current_thd, &gtid, timeout);
 
-  if (status != WSREP_OK)
+  if (status)
   {
     int err;
     switch (status) {
-    case WSREP_TRX_MISSING:
+    case wsrep::provider::error_transaction_missing:
       err= ER_WRONG_ARGUMENTS;
       break;
     default:

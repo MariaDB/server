@@ -44,6 +44,9 @@
 #include "compat56.h"
 #include "wsrep_mysqld.h"
 #include "sql_insert.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#endif
 #else
 #include "mysqld_error.h"
 #endif /* MYSQL_CLIENT */
@@ -11432,10 +11435,10 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 #ifdef HAVE_QUERY_CACHE
 #ifdef WITH_WSREP
     /*
-       Moved invalidation right before the call to rows_event_stmt_cleanup(),
-       to avoid query cache being polluted with stale entries.
+      Moved invalidation right before the call to rows_event_stmt_cleanup(),
+      to avoid query cache being polluted with stale entries,
     */
-    if (! (WSREP(thd) && (thd->wsrep_exec_mode == REPL_RECV)))
+    if (! (WSREP(thd) && wsrep_thd_is_applying(thd)))
     {
 #endif /* WITH_WSREP */
     query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
@@ -11642,7 +11645,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     restore_empty_query_table_list(thd->lex);
 
 #if defined(WITH_WSREP) && defined(HAVE_QUERY_CACHE)
-    if (WSREP(thd) && thd->wsrep_exec_mode == REPL_RECV)
+    if (WSREP(thd) && wsrep_thd_is_applying(thd))
     {
       query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
     }

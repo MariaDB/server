@@ -22,7 +22,7 @@ SET SESSION wsrep_sync_wait=0;
 # Must return 'OFF'
 SHOW STATUS LIKE 'wsrep_ready';
 
-# Must return 'Non-primary'
+# Must return 'Disconnected'
 SHOW STATUS LIKE 'wsrep_cluster_status';
 
 --error ER_UNKNOWN_COM_ERROR

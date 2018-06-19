@@ -52,6 +52,7 @@ Created 4/20/1996 Heikki Tuuri
 #include "gis0geo.h"
 #include "wsrep_mysqld.h"
 #include "wsrep_schema.h"
+#include "mysql/service_wsrep.h"
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there

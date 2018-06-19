@@ -18,6 +18,10 @@
 
 #include "sql_acl.h"                            /* GLOBAL_ACLS */
 
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#endif /* WITH_WSREP */
+
 class Comp_creator;
 class Item;
 class Object_creation_ctx;
@@ -187,5 +191,54 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
                    bool no_errors)
 { return false; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS*/
+
+/* These were under the INNODB_COMPATIBILITY_HOOKS */
+
+bool check_global_access(THD *thd, ulong want_access);
+
+inline bool is_supported_parser_charset(const CHARSET_INFO *cs)
+{
+  return (cs->mbminlen == 1);
+}
+#ifdef WITH_WSREP
+
+#define WSREP_MYSQL_DB (char *)"mysql"
+#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)              \
+  if (WSREP(thd) && wsrep_thd_is_local(thd) &&                          \
+      wsrep_to_isolation_begin(thd, db_, table_, table_list_)) goto error;
+
+#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_) \
+  if (WSREP(thd) && wsrep_thd_is_local(thd) &&                          \
+      wsrep_to_isolation_begin(thd, db_, table_,                        \
+                               table_list_, alter_info_))               \
+    goto error;
+
+#define WSREP_TO_ISOLATION_END                                          \
+  if ((WSREP(thd) && thd && wsrep_thd_is_local_toi(thd)) ||       \
+      wsrep_thd_is_in_rsu(thd))                                         \
+    wsrep_to_isolation_end(thd);
+
+/* Checks if lex->no_write_to_binlog is set for statements that use
+  LOCAL or NO_WRITE_TO_BINLOG
+*/
+#define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)                   \
+  if (WSREP(thd) && !thd->lex->no_write_to_binlog                                   \
+         && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) goto error;
+
+#define WSREP_SYNC_WAIT(thd_, before_)                                           \
+    { if (WSREP_CLIENT(thd_) &&                                                  \
+          wsrep_sync_wait(thd_, before_)) goto error; }
+
+#else
+
+#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)
+#define WSREP_TO_ISOLATION_END
+#define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)
+#define WSREP_SYNC_WAIT(thd_, before_)
+
+#endif /* WITH_WSREP */
+
+
+extern "C" bool sqlcom_can_generate_row_events(enum enum_sql_command command);
 
 #endif /* SQL_PARSE_INCLUDED */

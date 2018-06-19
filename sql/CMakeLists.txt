@@ -16,8 +16,12 @@
 
 
 IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
-  SET(WSREP_INCLUDES ${CMAKE_SOURCE_DIR}/wsrep)
   SET(WSREP_SOURCES
+    wsrep_client_service.cc
+    wsrep_high_priority_service.cc
+    wsrep_server_service.cc
+    wsrep_storage_service.cc
+    wsrep_server_state.cc
     wsrep_utils.cc
     wsrep_xid.cc
     wsrep_check_opts.cc
@@ -35,6 +39,7 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_sr.cc
     wsrep_trans_observer.cc
     wsrep_plugin.cc
+    service_wsrep.cc
   )
   SET(WSREP_LIB wsrep)
 ELSE()

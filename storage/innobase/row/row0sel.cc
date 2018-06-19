@@ -58,7 +58,6 @@ Created 12/19/1997 Heikki Tuuri
 #include "ut0new.h"
 #include "m_string.h" /* for my_sys.h */
 #include "my_sys.h" /* DEBUG_SYNC_C */
-#include "wsrep_schema.h"
 
 #include "my_compare.h" /* enum icp_result */
 #include "thr_lock.h"

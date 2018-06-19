@@ -37,7 +37,11 @@
                       // reset_host_errors
 #include "sql_acl.h"  // acl_getroot, NO_ACCESS, SUPER_ACL
 #include "sql_callback.h"
+
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h" /* wsrep open/close */
 #include "wsrep_mysqld.h"
+#endif /* WITH_WSREP */
 #include "proxy_protocol.h"
 
 HASH global_user_stats, global_client_stats, global_table_stats;
@@ -1177,16 +1181,6 @@ exit:
 void end_connection(THD *thd)
 {
   NET *net= &thd->net;
-#ifdef WITH_WSREP
-  if (WSREP(thd))
-  {
-    wsrep_status_t rcode= wsrep->free_connection(wsrep, thd->thread_id);
-    if (rcode) {
-      WSREP_WARN("wsrep failed to free connection context: %lld  code: %d",
-                 (longlong) thd->thread_id, rcode);
-    }
-  }
-#endif /* WITH_WSREP */
   plugin_thdvar_cleanup(thd);
 
   if (thd->user_connect)
@@ -1321,7 +1315,7 @@ bool thd_prepare_connection(THD *thd)
 
   prepare_new_connection_state(thd);
 #ifdef WITH_WSREP
-  thd->wsrep_client_thread= 1;
+  thd->wsrep_client_thread= true;
 #endif /* WITH_WSREP */
   return FALSE;
 }
@@ -1383,7 +1377,6 @@ void do_handle_one_connection(CONNECT *connect)
   thd->thread_stack= (char*) &thd;
   if (setup_connection_thread_globals(thd))
     return;
-
   for (;;)
   {
     bool create_user= TRUE;
@@ -1394,6 +1387,9 @@ void do_handle_one_connection(CONNECT *connect)
       create_user= FALSE;
       goto end_thread;
     }      
+#ifdef WITH_WSREP
+    wsrep_open(thd);
+#endif /* WITH_WSREP */
 
     while (thd_is_connection_alive(thd))
     {
@@ -1404,13 +1400,9 @@ void do_handle_one_connection(CONNECT *connect)
     end_connection(thd);
 
 #ifdef WITH_WSREP
-  if (WSREP(thd))
-  {
-    mysql_mutex_lock(&thd->LOCK_thd_data);
-    thd->set_wsrep_query_state(QUERY_EXITING);
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
-  }
-#endif
+    wsrep_close(thd);
+#endif /* WITH_WSREP */
+
 end_thread:
     close_connection(thd);
 

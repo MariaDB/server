@@ -11,7 +11,7 @@ SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 INSERT INTO t1 VALUES (2, "bbbbbaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 SET GLOBAL wsrep_provider_options = 'signal=gcs_core_after_frag_send';
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR HY000: Got error 6 during COMMIT
 INSERT INTO t1 VALUES (3, "cccccaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 SELECT * FROM t1;
 f1	f2

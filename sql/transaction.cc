@@ -24,6 +24,9 @@
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_acl.h"
 #include "semisync_master.h"
+#ifdef WITH_WSREP
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
 
 #ifndef EMBEDDED_LIBRARY
 /**
@@ -186,6 +189,12 @@ bool trans_begin(THD *thd, uint flags)
       ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
     DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
     res= MY_TEST(ha_commit_trans(thd, TRUE));
+#ifdef WITH_WSREP
+    if (wsrep_thd_is_local(thd))
+    {
+      res= res || wsrep_after_statement(thd);
+    }
+#endif /* WITH_WSREP */
   }
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
@@ -246,8 +255,14 @@ bool trans_begin(THD *thd, uint flags)
   }
 
 #ifdef WITH_WSREP
-  if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd))
-    DBUG_RETURN(TRUE);
+  if (wsrep_thd_is_local(thd))
+  {
+    if (wsrep_sync_wait(thd))
+      DBUG_RETURN(TRUE);
+    if (!thd->tx_read_only &&
+        wsrep_start_transaction(thd, thd->wsrep_next_trx_id()))
+      DBUG_RETURN(TRUE);
+  }
 #endif /* WITH_WSREP */
 
   thd->variables.option_bits|= OPTION_BEGIN;

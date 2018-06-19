@@ -152,20 +152,6 @@ TABLE *get_purge_table(THD *thd);
 
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 
-static inline wsrep_ws_handle_t*
-wsrep_ws_handle(THD* thd) {
-	return wsrep_ws_handle_for_trx(wsrep_thd_ws_handle(thd),
-				       wsrep_thd_next_trx_id(thd));
-}
-
-static int
-wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
-			my_bool signal);
-static void
-wsrep_fake_trx_id(handlerton* hton, THD *thd);
-static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
-static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
-
 extern bool wsrep_prepare_key_for_innodb(
 	THD* thd,
 	const uchar *cache_key,
@@ -1885,6 +1871,13 @@ thd_to_trx_id(
 }
 #endif /* WITH_WSREP */
 
+#ifdef WITH_WSREP
+static int
+wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
+			my_bool signal);
+static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
+static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
+#endif
 /********************************************************************//**
 Increments innobase_active_counter and every INNOBASE_WAKE_INTERVALth
 time calls srv_active_wake_master_thread. This function should be used
@@ -4108,10 +4101,10 @@ static int innodb_init(void* p)
 		| HTON_NATIVE_SYS_VERSIONING;
 
 #ifdef WITH_WSREP
-	innobase_hton->abort_transaction=wsrep_abort_transaction;
-	innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
-	innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
-	innobase_hton->fake_trx_id=wsrep_fake_trx_id;
+        innobase_hton->wsrep_abort_transaction=wsrep_abort_transaction;
+        innobase_hton->wsrep_set_checkpoint=innobase_wsrep_set_checkpoint;
+        innobase_hton->wsrep_get_checkpoint=innobase_wsrep_get_checkpoint;
+        innobase_hton->wsrep_fake_trx_id=NULL;
 #endif /* WITH_WSREP */
 
 	innobase_hton->tablefile_extensions = ha_innobase_exts;
@@ -4588,10 +4581,12 @@ innobase_commit(
 
 #ifdef WITH_WSREP
 		/* Serialisation history has been written, so the
-		commit is now ordered. */
-		if (trx->mysql_thd) {
-			(void)wsrep_ordered_commit_if_no_binlog(trx->mysql_thd);
-		}
+		commit is now ordered.
+		This seems to be problematic with load data splitting.
+		Commented out for now. */
+		// if (trx->mysql_thd) {
+		//		(void)wsrep_ordered_commit_if_no_binlog(trx->mysql_thd);
+		// }
 #endif /* WITH_WSREP */
 
 		/* Now do a write + flush of logs. */
@@ -8167,9 +8162,9 @@ ha_innobase::write_row(
 						wsrep_thd_query(m_user_thd) :
 						(char *)"void");
 					error= DB_SUCCESS;
-					wsrep_thd_set_conflict_state(
-						m_user_thd, MUST_ABORT);
-                                        innobase_srv_conc_exit_innodb(m_prebuilt);
+					wsrep_thd_self_abort(current_thd);
+                                        innobase_srv_conc_exit_innodb(
+						prebuilt->trx);
                                         /* jump straight to func exit over
                                          * later wsrep hooks */
                                         goto func_exit;
@@ -8237,15 +8232,16 @@ report_error:
 		error, m_prebuilt->table->flags, m_user_thd);
 
 #ifdef WITH_WSREP
-	if (!error_result                                  &&
-	    wsrep_thd_exec_mode(m_user_thd) == LOCAL_STATE &&
-	    wsrep_on(m_user_thd)                           &&
-	    !wsrep_consistency_check(m_user_thd)           &&
-	    !wsrep_thd_ignore_table(m_user_thd)) {
-		if (wsrep_append_keys(m_user_thd, false, record, NULL))
-		{
-			DBUG_PRINT("wsrep", ("row key failed"));
-			error_result = HA_ERR_INTERNAL_ERROR;
+	if (!error_result && wsrep_thd_is_local(user_thd)           &&
+	    wsrep_on(user_thd) && !wsrep_consistency_check(user_thd)      &&
+	    (sql_command != SQLCOM_CREATE_TABLE)                          &&
+	    (sql_command != SQLCOM_LOAD ||
+	     thd_binlog_format(user_thd) == BINLOG_FORMAT_ROW)) {
+
+		if (wsrep_append_keys(user_thd, WSREP_KEY_EXCLUSIVE, record,
+				      NULL)) {
+ 			DBUG_PRINT("wsrep", ("row key failed"));
+ 			error_result = HA_ERR_INTERNAL_ERROR;
 			goto wsrep_error;
 		}
 	}
@@ -8938,10 +8934,9 @@ func_exit:
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS                            &&
-	    wsrep_thd_exec_mode(m_user_thd) == LOCAL_STATE &&
-	    wsrep_on(m_user_thd)                           &&
-	    !wsrep_thd_ignore_table(m_user_thd)) {
+	if (error == DB_SUCCESS && wsrep_thd_is_local(m_user_thd) &&
+            wsrep_on(m_user_thd)) {
+
 		DBUG_PRINT("wsrep", ("update row key"));
 
 		if (wsrep_append_keys(m_user_thd, false, old_row, new_row)) {
@@ -9004,11 +8999,12 @@ ha_innobase::delete_row(
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (error == DB_SUCCESS                            &&
-	    wsrep_thd_exec_mode(m_user_thd) == LOCAL_STATE &&
-	    wsrep_on(m_user_thd)                           &&
+	if (error == DB_SUCCESS && wsrep_thd_is_local(m_user_thd) &&
+            wsrep_on(m_user_thd)                                  &&
 	    !wsrep_thd_ignore_table(m_user_thd)) {
-		if (wsrep_append_keys(m_user_thd, false, record, NULL)) {
+
+		if (wsrep_append_keys(m_user_thd, WSREP_KEY_EXCLUSIVE, record,
+				      NULL)) {
 			DBUG_PRINT("wsrep", ("delete fail"));
 			error = (dberr_t) HA_ERR_INTERNAL_ERROR;
 			goto wsrep_error;
@@ -10253,6 +10249,11 @@ wsrep_append_foreign_key(
 	ibool		referenced,	/*!<in: is check for referenced table */
 	ibool		shared)		/*!<in: is shared access */
 {
+	THD* thd = (THD*)trx->mysql_thd;
+	int rcode = 0;
+	char cache_key[513] = {'\0'};
+	int cache_key_len;
+
 	ut_a(trx);
 	THD*  thd = (THD*)trx->mysql_thd;
 	ulint rcode = DB_SUCCESS;
@@ -10261,7 +10262,7 @@ wsrep_append_foreign_key(
 	bool const copy = true;
 
 	if (!wsrep_on(trx->mysql_thd) ||
-	    wsrep_thd_exec_mode(thd) != LOCAL_STATE) {
+	    wsrep_thd_is_local(trx->mysql_thd) == false) {
 		return DB_SUCCESS;
 	}
 
@@ -10402,17 +10403,7 @@ wsrep_append_foreign_key(
 			    wsrep_thd_query(thd) : "void");
 		return DB_ERROR;
 	}
-
-	struct wsrep_st *wsrep= get_wsrep();
-
-	rcode = (int)wsrep->append_key(
-		wsrep,
-		wsrep_ws_handle(thd),
-		&wkey,
-		1,
-		shared ? WSREP_KEY_SHARED : WSREP_KEY_EXCLUSIVE,
-                copy);
-
+	rcode = wsrep_thd_append_key(thd, &wkey, 1, (key_type == WSREP_KEY_SHARED) ? wsrep_key_shared : wsrep_key_exclusive);
 	if (rcode) {
 		DBUG_PRINT("wsrep", ("row key failed: " ULINTPF, rcode));
 		WSREP_ERROR("Appending cascaded fk row key failed: %s, "
@@ -10436,7 +10427,6 @@ wsrep_append_key(
 )
 {
 	DBUG_ENTER("wsrep_append_key");
-	bool const copy = true;
         DBUG_PRINT("enter",
                    ("thd: %lld trx: %lld", wsrep_thd_thread_id(thd),
                     (long long)trx->id));
@@ -10466,15 +10456,11 @@ wsrep_append_key(
 		DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 	}
 
-	struct wsrep_st *wsrep= get_wsrep();
-
-	int rcode = (int)wsrep->append_key(
-			       wsrep,
-			       wsrep_ws_handle(thd),
-			       &wkey,
-			       1,
-			       shared ? WSREP_KEY_SHARED : WSREP_KEY_EXCLUSIVE,
-                               copy);
+	int rcode = wsrep_thd_append_key(
+		thd,
+		&wkey,
+		1,
+		(key_type == WSREP_KEY_SHARED) ? wsrep_key_shared : wsrep_key_exclusive);
 	if (rcode) {
 		DBUG_PRINT("wsrep", ("row key failed: %d", rcode));
 		WSREP_WARN("Appending row key failed: %s, %d",
@@ -15448,8 +15434,7 @@ ha_innobase::external_lock(
 
 		if (!skip) {
 #ifdef WITH_WSREP
-			if (!wsrep_on(thd) || wsrep_thd_exec_mode(thd) == LOCAL_STATE)
-			{
+			if (!wsrep_on(thd) || wsrep_thd_is_local(m_user_thd)) {
 #endif /* WITH_WSREP */
 			my_error(ER_BINLOG_STMT_MODE_AND_ROW_ENGINE, MYF(0),
 			         " InnoDB is limited to row-logging when"
@@ -18730,26 +18715,20 @@ wsrep_innobase_kill_one_trx(
 			   bf_trx ? bf_trx->id : 0);
 		DBUG_RETURN(1);
 	}
-
-	if (wsrep_thd_trx_id(thd) == WSREP_UNDEFINED_TRX_ID) {
-		wsrep_ws_handle(thd);
-	}
-
 	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 
 	wsrep_thd_LOCK(thd);
-	WSREP_DEBUG("BF kill (" ULINTPF ", seqno: " INT64PF
-		    "), victim: (%lu) trx: " TRX_ID_FMT,
-		    signal, bf_seqno,
-		    thd_get_thread_id(thd),
-		    victim_trx->id);
+	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%llu) trx: %llu",
+ 		    signal, (long long)bf_seqno,
+ 		    (long long)wsrep_thd_thread_id(thd),
+		    (long long)victim_trx->id);
 
-	WSREP_DEBUG("Aborting query: %s conf %d trx: %lu",
+	WSREP_DEBUG("Aborting query: %s conf %s trx: %lld",
 		    (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void",
-		    wsrep_thd_conflict_state(thd, FALSE),
-		    wsrep_thd_ws_handle(thd)->trx_id);
+		    wsrep_thd_transaction_state_str(thd),
+		    wsrep_thd_transaction_id(thd));
 
-	if (wsrep_bf_abort(bf_thd, thd, signal))
+	if (wsrep_thd_bf_abort(bf_thd, thd, signal))
 	{
 		victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
 
@@ -18803,41 +18782,20 @@ wsrep_abort_transaction(
 	DBUG_ENTER("wsrep_innobase_abort_thd");
 	trx_t* victim_trx = thd_to_trx(victim_thd);
 	trx_t* bf_trx     = (bf_thd) ? thd_to_trx(bf_thd) : NULL;
-	if (wsrep_debug)
+	if (victim_trx)
 	{
-		wsrep_thd_LOCK(victim_thd);
-		WSREP_DEBUG("abort transaction: BF: %s victim: %s conf: %d",
-			wsrep_thd_query(bf_thd),
-			wsrep_thd_query(victim_thd),
-                            wsrep_thd_conflict_state(victim_thd, FALSE));
-		wsrep_thd_UNLOCK(victim_thd);
-	}
-
-	if (wsrep_debug)
-	{
-		wsrep_thd_LOCK(victim_thd);
-		WSREP_DEBUG("abort transaction: BF: %s victim: %s conf: %d",
-			wsrep_thd_query(bf_thd),
-			wsrep_thd_query(victim_thd),
-			wsrep_thd_get_conflict_state(victim_thd));
-		wsrep_thd_UNLOCK(victim_thd);
-	}
-
-	if (victim_trx) {
 		lock_mutex_enter();
 		trx_mutex_enter(victim_trx);
-		int rcode = wsrep_innobase_kill_one_trx(bf_thd, bf_trx,
-                                                        victim_trx, signal);
-		lock_mutex_exit();
+		int rcode= wsrep_innobase_kill_one_trx(bf_thd, bf_trx,
+						       victim_trx, signal);
 		trx_mutex_exit(victim_trx);
+		lock_mutex_exit();
 		wsrep_srv_conc_cancel_wait(victim_trx);
 		DBUG_RETURN(rcode);
-	} else {
-		WSREP_DEBUG("victim does not have transaction");
-		wsrep_thd_LOCK(victim_thd);
-		wsrep_thd_set_conflict_state(victim_thd, MUST_ABORT);
-		wsrep_thd_UNLOCK(victim_thd);
-		wsrep_thd_awake(victim_thd, signal);
+	}
+	else
+	{
+		wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
 	}
 
 	DBUG_RETURN(-1);

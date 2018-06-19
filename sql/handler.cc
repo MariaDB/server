@@ -52,6 +52,7 @@
 #endif
 #include "semisync_master.h"
 
+#include "mysql/service_wsrep.h"
 #include "wsrep_mysqld.h"
 #include "wsrep.h"
 #include "wsrep_xid.h"
@@ -254,6 +255,9 @@ handlerton *ha_checktype(THD *thd, handlerton *hton, bool no_substitute)
 
   if (no_substitute)
     return NULL;
+#ifdef WITH_WSREP
+  (void)wsrep_after_rollback(thd, false);
+#endif /* WITH_WSREP */
 
   return ha_default_handlerton(thd);
 } /* ha_checktype */
@@ -1252,18 +1256,6 @@ ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
 
   for (ha_info= ha_list; ha_info; ha_info= ha_info->next())
   {
-#ifdef WITH_WSREP
-    /*
-      Thd has wsrep_schema.SR open and may operate it
-      during prepare phase, set InnoDB ha_info read_write.
-     */
-    if (WSREP_CLIENT(thd) && thd->wsrep_is_streaming() &&
-        wsrep_SR_store && wsrep_SR_store_type == WSREP_SR_STORE_TABLE &&
-        ha_info->ht()->db_type == DB_TYPE_INNODB)
-    {
-      ha_info->set_trx_read_write();
-    }
-#endif /* WITH_WSREP */
     if (ha_info->is_trx_read_write())
       ++rw_ha_count;
 
@@ -1372,6 +1364,9 @@ int ha_commit_trans(THD *thd, bool all)
     DBUG_RETURN(2);
   }
 
+#ifdef WITH_WSREP
+  bool trans_was_empty= true;
+#endif /* WITH_WSREP */
 #ifdef WITH_ARIA_STORAGE_ENGINE
     ha_maria::implicit_commit(thd, TRUE);
 #endif
@@ -1466,6 +1461,12 @@ int ha_commit_trans(THD *thd, bool all)
     }
   }
 #endif
+#ifdef WITH_WSREP
+  if (trans->rw_ha_count)
+  {
+    trans_was_empty= false;
+  }
+#endif /* WITH_WSREP */
 
   if (trans->no_2pc || (rw_ha_count <= 1))
   {
@@ -1614,6 +1615,13 @@ end:
     */
     thd->mdl_context.release_lock(mdl_request.ticket);
   }
+#ifdef WITH_WSREP
+  if (WSREP(thd) && all && !error && trans_was_empty)
+  {
+    wsrep_commit_empty(thd, all);
+  }
+#endif /* WITH_WSREP */
+
   DBUG_RETURN(error);
 }
 
@@ -2383,6 +2391,13 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
       my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
       error=1;
     }
+#ifdef WITH_WSREP
+    if (ht->db_type == DB_TYPE_INNODB)
+    {
+      WSREP_DEBUG("ha_rollback_to_savepoint: run after_rollback hook");
+      (void) wsrep_after_rollback(thd, !thd->in_sub_stmt);
+    }
+#endif // WITH_WSREP
     status_var_increment(thd->status_var.ha_rollback_count);
     ha_info_next= ha_info->next();
     ha_info->reset(); /* keep it conveniently zero-filled */
@@ -2404,7 +2419,7 @@ int ha_savepoint(THD *thd, SAVEPOINT *sv)
     Register binlog hton for savepoint processing if wsrep binlog
     emulation is on.
    */
-  if (WSREP(thd))
+  if (WSREP_EMULATE_BINLOG(thd) && wsrep_thd_is_local(thd))
   {
     wsrep_register_binlog_handler(thd, thd->in_multi_stmt_transaction_mode());
   }
@@ -6273,7 +6288,7 @@ static int wsrep_after_row(THD *thd)
   /* enforce wsrep_max_ws_rows */
   thd->wsrep_affected_rows++;
   if (wsrep_max_ws_rows &&
-      thd->wsrep_exec_mode != REPL_RECV &&
+      wsrep_thd_is_local(thd) &&
       thd->wsrep_affected_rows > wsrep_max_ws_rows)
   {
     trans_rollback_stmt(thd) || trans_rollback(thd);
@@ -6282,10 +6297,6 @@ static int wsrep_after_row(THD *thd)
   }
   else if (wsrep_after_row(thd, false))
   {
-    if (!thd->get_stmt_da()->is_error())
-    {
-      wsrep_override_error(thd, ER_LOCK_DEADLOCK);
-    }
     DBUG_RETURN(ER_LOCK_DEADLOCK);
   }
   DBUG_RETURN(0);
@@ -6614,7 +6625,7 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   DBUG_ENTER("ha_abort_transaction");
   if (!WSREP(bf_thd) &&
       !(bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU &&
-        bf_thd->wsrep_exec_mode == TOTAL_ORDER)) {
+        wsrep_thd_is_toi(bf_thd))) {
     DBUG_RETURN(0);
   }
 

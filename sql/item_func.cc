@@ -59,6 +59,9 @@
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
 #define sp_restore_security_context(A,B) while (0) {}
 #endif
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#endif /* WITH_WSREP */
 
 bool check_reserved_words(const LEX_CSTRING *name)
 {
@@ -2613,7 +2616,7 @@ void Item_func_rand::seed_random(Item *arg)
   THD *thd= current_thd;
   if (WSREP(thd))
   {
-    if (thd->wsrep_exec_mode==REPL_RECV)
+    if (wsrep_thd_is_applying(current_thd)) 
       tmp= thd->wsrep_rand;
     else
       tmp= thd->wsrep_rand= (uint32) arg->val_int();

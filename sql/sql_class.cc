@@ -65,10 +65,17 @@
 #include "sql_parse.h"                          // is_update_query
 #include "sql_callback.h"
 #include "lock.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
 #include "wsrep_mysqld.h"
+#include "wsrep_binlog.h" /* wsrep_fragment_unit() */
 #include "wsrep_thd.h"
 #include "sql_connect.h"
 #include "my_atomic.h"
+#endif /* WITH_WSREP */
+#include "lock.h"
+#include "global_threads.h"
+#include "mysqld.h"
 
 #ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
@@ -626,6 +633,12 @@ char *thd_security_context(THD *thd,
   return thd_get_error_context_description(thd, buffer, length, max_query_len);
 }
 #endif
+#ifdef WITH_WSREP
+extern "C" bool wsrep_consistency_check(void *thd)
+{
+  return ((THD*)thd)->wsrep_consistency_check == CONSISTENCY_CHECK_RUNNING;
+}
+#endif /* WITH_WSREP */
 
 /**
   Implementation of Drop_table_error_handler::handle_condition().
@@ -721,6 +734,16 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
    derived_tables_processing(FALSE),
    waiting_on_group_commit(FALSE), has_waiter(FALSE),
    spcont(NULL),
+#ifdef WITH_WSREP
+/* wsrep-lib */
+   m_wsrep_client_service(this, m_wsrep_client_state),
+   m_wsrep_client_state(this,
+                        m_wsrep_mutex,
+                        m_wsrep_cond,
+                        Wsrep_server_state::instance(),
+                        m_wsrep_client_service,
+                        wsrep::client_id(thread_id)),
+#endif
    m_parser_state(NULL),
 #if defined(ENABLED_DEBUG_SYNC)
    debug_sync_control(0),
@@ -872,15 +895,12 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   wsrep_retry_query_len   = 0;
   wsrep_retry_command     = COM_CONNECT;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
-  wsrep_status_vars       = 0;
   wsrep_mysql_replicated  = 0;
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
-  wsrep_fragments_sent    = 0;
-  wsrep_trx_fragment_size = 0;
-  wsrep_SR_thd            = false;
   wsrep_rbr_buf           = NULL;
   wsrep_nbo_ctx           = NULL;
+
   wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
   wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
   wsrep_affected_rows     = 0;
@@ -1150,7 +1170,17 @@ Sql_condition* THD::raise_condition(uint sql_errno,
 
     is_slave_error=  1; // needed to catch query errors during replication
 
+#ifdef WITH_WSREP
+    /*
+      With wsrep we allow converting BF abort error to warning if
+      errors are ignored.
+     */
+    if (lex->current_select &&
+        lex->current_select->no_error && !is_fatal_error &&
+        (wsrep_trx().bf_aborted() || wsrep_retry_counter))
+#else
     if (!da->is_error())
+#endif /* WITH_WSREP */
     {
       set_row_count_func(-1);
       da->set_error_status(sql_errno, msg, sqlstate, ucid, cond);
@@ -1321,37 +1351,30 @@ void THD::init(bool skip_lock)
   first_successful_insert_id_in_prev_stmt_for_binlog= 0;
   first_successful_insert_id_in_cur_stmt= 0;
 #ifdef WITH_WSREP
-  wsrep_exec_mode= wsrep_applier ? REPL_RECV :  LOCAL_STATE;
-  m_wsrep_conflict_state= NO_CONFLICT;
-  m_wsrep_query_state= QUERY_IDLE;
   wsrep_last_query_id= 0;
   wsrep_xid.null();
   wsrep_skip_locking= FALSE;
-  wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
-  wsrep_node_uuid(wsrep_trx_meta.stid.node);
-  wsrep_trx_meta.stid.trx= WSREP_UNDEFINED_TRX_ID;
-  wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
   wsrep_converted_lock_session= false;
   wsrep_retry_counter= 0;
-  wsrep_rgi= NULL;
   wsrep_PA_safe= true;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
   wsrep_mysql_replicated  = 0;
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
-  wsrep_fragments_sent    = 0;
-  wsrep_trx_fragment_size = 0;
-  wsrep_SR_thd            = false;
   wsrep_rbr_buf           = NULL;
   wsrep_nbo_ctx           = NULL;
-  wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
-  wsrep_last_written_gtid = WSREP_GTID_UNDEFINED;
-  wsrep_SR_rollback_replicated_for_trx = WSREP_UNDEFINED_TRX_ID;
   wsrep_affected_rows     = 0;
   m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
 #endif /* WITH_WSREP */
+  if (!wsrep_applier && variables.wsrep_trx_fragment_size)
+  {
+    wsrep_cs().enable_streaming(wsrep_fragment_unit(variables.wsrep_trx_fragment_unit),
+                                variables.wsrep_trx_fragment_size);
+  }
+#endif
+  binlog_row_event_extra_data= 0;
 
   if (variables.sql_log_bin)
     variables.option_bits|= OPTION_BIN_LOG;
@@ -1567,77 +1590,26 @@ void THD::cleanup(void)
   DBUG_ENTER("THD::cleanup");
   DBUG_ASSERT(cleanup_done == 0);
 
-#ifdef WITH_WSREP
-  if (this->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
-  {
-      WSREP_LOG_THD(this, "THD::cleanup");
-  }
-  /*
-    Before cleanup make sure that all wsrep transactions
-    will be rolled back.
-  */
-  if (WSREP_CLIENT_NNULL(this))
-  {
-    mysql_mutex_lock(&this->LOCK_thd_data);
-    DBUG_ASSERT(this->wsrep_query_state() == QUERY_EXITING);
-    /*
-      Background rollback is in process
-    */
-    if (this->wsrep_is_rolling_back())
-    {
-      /*
-        Rollback thread is rolling back a transaction for this thd,
-        wait until it has finished.
-      */
-      while (this->wsrep_is_rolling_back())
-      {
-        mysql_mutex_unlock(&this->LOCK_thd_data);
-        my_sleep(1000);
-        mysql_mutex_lock(&this->LOCK_thd_data);
-      }
-      DBUG_ASSERT(this->wsrep_conflict_state() == ABORTED);
-    }
-
-    /*
-      BF abort happened while the client was idle.
-    */
-    if (this->wsrep_conflict_state() == ABORTED)
-    {
-      wsrep_cleanup_transaction(this);
-    }
-
-    if (this->wsrep_conflict_state() == MUST_ABORT)
-    {
-      wsrep_client_rollback(this);
-    }
-
-    mysql_mutex_unlock(&this->LOCK_thd_data);
-
-    trans_rollback(this);
-    mysql_mutex_lock(&this->LOCK_thd_data);
-
-    if (this->wsrep_exec_mode == LOCAL_ROLLBACK ||
-        this->wsrep_conflict_state() == ABORTING)
-    {
-      wsrep_post_rollback(this);
-      wsrep_cleanup_transaction(this);
-    }
-
-    DBUG_ASSERT(this->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID &&
-                this->wsrep_conflict_state() == NO_CONFLICT);
-
-    mysql_mutex_unlock(&this->LOCK_thd_data);
-  }
-
-  this->wsrep_client_thread= 0;
-#endif /* WITH_WSREP */
   set_killed(KILL_CONNECTION);
+  DEBUG_SYNC(this, "thd_cleanup_start");
 #ifdef ENABLE_WHEN_BINLOG_WILL_BE_ABLE_TO_PREPARE
   if (transaction.xid_state.xa_state == XA_PREPARED)
   {
 #error xid_state in the cache should be replaced by the allocated value
   }
 #endif
+  {
+    transaction.xid_state.xa_state= XA_NOTR;
+    trans_rollback(this);
+    xid_cache_delete(&transaction.xid_state);
+  }
+#ifdef WITH_WSREP
+  if (wsrep_cs().state() != wsrep::client_state::s_none)
+  {
+    wsrep_cs().cleanup();
+  }
+  wsrep_client_thread= false;
+#endif /* WITH_WSREP */
 
   mysql_ha_cleanup(this);
   locked_tables_list.unlock_locked_tables(this);
@@ -1754,6 +1726,9 @@ void THD::reset_for_reuse()
 #ifdef SIGNAL_WITH_VIO_CLOSE
   active_vio = 0;
 #endif
+#ifdef WITH_WSREP
+  wsrep_free_status(this);
+#endif /* WITH_WSREP */
 }
 
 
@@ -2419,7 +2394,6 @@ void THD::cleanup_after_query()
 #endif
 
 #ifdef WITH_WSREP
-  wsrep_sync_wait_gtid= WSREP_GTID_UNDEFINED;
   if (!in_active_multi_stmt_transaction())
     wsrep_affected_rows= 0;
 #endif /* WITH_WSREP */
@@ -5660,11 +5634,7 @@ void THD::set_query_and_id(char *query_arg, uint32 query_length_arg,
   mysql_mutex_unlock(&LOCK_thd_data);
   query_id= new_query_id;
 #ifdef WITH_WSREP
-  if (WSREP_NNULL(this) && wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
-  {
-    set_wsrep_next_trx_id(query_id);
-    WSREP_DEBUG("assigned new next trx id: %lu", wsrep_next_trx_id());
-  }
+  set_wsrep_next_trx_id(query_id);
 #endif /* WITH_WSREP */
 }
 

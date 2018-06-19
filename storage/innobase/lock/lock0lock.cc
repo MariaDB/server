@@ -1117,10 +1117,10 @@ wsrep_kill_victim(
 
 	my_bool bf_other = wsrep_thd_is_BF(lock->trx->mysql_thd, TRUE);
 
-	if ((bf_this && !bf_other) ||
-//		(bf_this && bf_other && wsrep_trx_order_before(
-//			trx->mysql_thd, lock->trx->mysql_thd))) {
-            (bf_this)) {
+	if ((!bf_other) ||
+		(bf_other && wsrep_thd_order_before(
+			trx->mysql_thd, lock->trx->mysql_thd))) {
+		ut_ad(bf_this);
 
 		if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 			if (wsrep_debug) {
@@ -1442,9 +1442,11 @@ lock_rec_create_low(
 		lock_t *hash	= (lock_t *)c_lock->hash;
 		lock_t *prev	= NULL;
 
-		while (hash && wsrep_thd_is_BF(hash->trx->mysql_thd, TRUE)
-		       && wsrep_trx_order_before(hash->trx->mysql_thd,
-						 trx->mysql_thd)) {
+		while (hash 						       &&
+		       wsrep_thd_is_BF(((lock_t *)hash)->trx->mysql_thd, TRUE) &&
+		       wsrep_thd_order_before(
+				((lock_t *)hash)->trx->mysql_thd, 
+				trx->mysql_thd)) {
 			prev = hash;
 			hash = (lock_t *)hash->hash;
 		}
@@ -4027,6 +4029,10 @@ lock_table_dequeue(
 	ut_a(lock_get_type_low(in_lock) == LOCK_TABLE);
 
 	lock_t*	lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, in_lock);
+	trx = ctx->wait_lock->trx;
+#ifdef WITH_WSREP
+	wsrep_handle_SR_rollback(ctx->start->mysql_thd, trx->mysql_thd);
+#endif
 
 	lock_table_remove_low(in_lock);
 

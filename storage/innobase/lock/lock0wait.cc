@@ -36,7 +36,9 @@ Created 25/5/2010 Sunny Bains
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "lock0priv.h"
-
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#endif /* WITH_WSREP */
 /*********************************************************************//**
 Print the contents of the lock_sys_t::waiting_threads array. */
 static

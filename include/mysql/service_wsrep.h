@@ -5,20 +5,7 @@
 #else
 
 /* Copyright (c) 2015 MariaDB Corporation Ab
-
-   This program is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; version 2 of the License.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
-
+                 2018 Codership Oy <info@codership.com>
 /**
   @file
   wsrep service
@@ -227,10 +214,105 @@ void wsrep_thd_awake(THD *thd, my_bool signal);
 void wsrep_thd_set_conflict_state(THD *thd, enum wsrep_conflict_state state);
 bool wsrep_thd_ignore_table(THD *thd);
 void wsrep_thd_xid(const void *thd_ptr, void *xid, size_t xid_size);
+
+
+/* from mysql wsrep-lib */
+#include "my_global.h"
+#include "my_pthread.h"
+/* Must match to definition in sql/mysqld.h */
+typedef int64 query_id_t;
+
+extern "C" my_bool wsrep_global_on();
+
+/* Return true if wsrep is enabled for a thd. This means that
+   wsrep is enabled globally and the thd has wsrep on */
+extern "C" my_bool wsrep_on(const void* thd);
+/* Lock thd wsrep lock */
+extern "C" void wsrep_thd_LOCK(void* thd);
+/* Unlock thd wsrep lock */
+extern "C" void wsrep_thd_UNLOCK(void* thd);
+
+/* Return true if thd has wsrep_on */
+extern "C" my_bool wsrep_thd_is_wsrep_on(const void* thd);
+/* Return thd id */
+extern "C" my_thread_id wsrep_thd_thread_id(const void* thd);
+
+/* Return thd client state string */
+extern "C" const char* wsrep_thd_client_state_str(const void* thd);
+/* Return thd client mode string */
+extern "C" const char* wsrep_thd_client_mode_str(const void* thd);
+/* Return thd transaction state string */
+extern "C" const char* wsrep_thd_transaction_state_str(const void* thd);
+
+/* Return current query id */
+extern "C" query_id_t wsrep_thd_query_id(const void* thd);
+/* Return current query */
+extern "C" const char* wsrep_thd_query(const void* thd);
+/* Return current transaction id */
+extern "C" query_id_t wsrep_thd_transaction_id(const void* thd);
+/* Return sequence number associated to current transaction or TOI */
+extern "C" long long wsrep_thd_trx_seqno(const void* thd);
+/* Mark thd own transaction as aborted */
+extern "C" void wsrep_thd_self_abort(void *thd);
+/* Return true if thd is in replicating mode */
+extern "C" my_bool wsrep_thd_is_local(const void *thd);
+/* Return true if thd is in high priority mode */
+/* todo: rename to is_high_priority() */
+extern "C" my_bool wsrep_thd_is_applying(const void *thd);
+/* Return true if thd is in TOI mode */
+extern "C" my_bool wsrep_thd_is_toi(const void* thd);
+/* Return true if thd is in replicating TOI mode */
+extern "C" my_bool wsrep_thd_is_local_toi(const void* thd);
+/* Return true if thd is in RSU mode */
+extern "C" my_bool wsrep_thd_is_in_rsu(const void* thd);
+/* Return true if thd is in applying TOI mode */
+// extern "C" my_bool wsrep_thd_is_applying_toi(const void* thd);
+/* Return true if thd is in BF mode, either high_priority or TOI */
+extern "C" my_bool wsrep_thd_is_BF(const void* thd, my_bool sync);
+/* Return true if thd is streaming */
+extern "C" my_bool wsrep_thd_is_SR(const void* thd);
+extern "C" void wsrep_handle_SR_rollback(void *BF_thd_ptr, void *victim_thd_ptr);
+/* Return XID associated to thd */
+extern "C" void wsrep_thd_xid(const void* thd, void* xid, size_t size);
+/* Return true if XID is wsrep XID */
+extern "C" int wsrep_is_wsrep_xid(const void*);
+/* Return thd retry counter */
+extern "C" int wsrep_thd_retry_counter(const void*);
+/* Signal thd to awake from wait */
+extern "C" void wsrep_thd_awake(const void* thd, my_bool signal);
+/* BF abort victim_thd */
+extern "C" my_bool wsrep_thd_bf_abort(const void* bf_thd, void* victim_thd,
+                                      my_bool signal);
+/* Return true if left thd is ordered before right thd */
+extern "C" my_bool wsrep_thd_order_before(const void* left, const void* right);
+/* Return true if thd should skip locking. This means that the thd
+   is operating on shared resource inside commit order critical section. */
+extern "C" my_bool wsrep_thd_skip_locking(const void*);
+/* Return true if thd is aborting */
+extern "C" my_bool wsrep_thd_is_aborting(const void*);
+// extern int wsrep_debug;
+
+
+enum Wsrep_key_type
+{
+    wsrep_key_shared,
+    wsrep_key_semi_shared,
+    wsrep_key_semi_exclusive,
+    wsrep_key_exclusive
+};
+struct wsrep_key;
+struct wsrep_key_array;
+extern "C" int wsrep_thd_append_key(void*,
+                                    const struct wsrep_key* key,
+                                    int n_keys,
+                                    enum Wsrep_key_type);
+#ifdef __cplusplus
+#include <string>
+extern const std::string sr_table_name_full_str;
+#endif /* __cplusplus */
+
 #endif
 
 #ifdef __cplusplus
 //}
 #endif
-
-

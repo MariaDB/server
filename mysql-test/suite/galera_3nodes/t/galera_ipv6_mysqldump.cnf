@@ -8,15 +8,21 @@ wsrep-cluster-address=gcomm://
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;gmcast.listen_addr=tcp://[::]:@mysqld.1.#galera_port;ist.recv_addr=[::1]:@mysqld.1.#ist_port'
 wsrep_sst_receive_address='[::1]:@mysqld.1.#sst_port'
 wsrep_node_incoming_address='[::1]:@mysqld.1.port'
+wsrep_causal_reads=0
+wsrep_sync_wait=0
 
 [mysqld.2]
 wsrep_cluster_address='gcomm://[::1]:@mysqld.1.#galera_port'
 wsrep_provider_options='base_port=@mysqld.2.#galera_port;gmcast.listen_addr=tcp://[::]:@mysqld.2.#galera_port;ist.recv_addr=[::1]:@mysqld.2.#ist_port'
 wsrep_sst_receive_address='[::1]:@mysqld.2.#sst_port'
 wsrep_node_incoming_address='[::1]:@mysqld.2.port'
+wsrep_causal_reads=0
+wsrep_sync_wait=0
 
 [mysqld.3]
 wsrep_cluster_address='gcomm://[::1]:@mysqld.1.#galera_port'
 wsrep_provider_options='base_port=@mysqld.3.#galera_port;gmcast.listen_addr=tcp://[::]:@mysqld.3.#galera_port;ist.recv_addr=[::1]:@mysqld.3.#ist_port'
 wsrep_sst_receive_address='[::1]:@mysqld.3.#sst_port'
 wsrep_node_incoming_address='[::1]:@mysqld.3.port'
+wsrep_causal_reads=0
+wsrep_sync_wait=0

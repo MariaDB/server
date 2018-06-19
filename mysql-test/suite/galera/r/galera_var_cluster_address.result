@@ -15,7 +15,7 @@ Variable_name	Value
 wsrep_ready	OFF
 SHOW STATUS LIKE 'wsrep_cluster_status';
 Variable_name	Value
-wsrep_cluster_status	non-Primary
+wsrep_cluster_status	Disconnected
 SHOW STATUS LIKE 'wsrep_local_state';
 Variable_name	Value
 wsrep_local_state	0

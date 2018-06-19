@@ -70,6 +70,8 @@
 #include "scheduler.h"
 #include <waiting_threads.h>
 #include "debug_sync.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
 #include "wsrep_mysqld.h"
 #include "wsrep_var.h"
 #include "wsrep_thd.h"
@@ -1727,7 +1729,7 @@ static void close_connections(void)
 
 #ifdef WITH_WSREP
     /* skip wsrep system threads as well */
-    if (WSREP(tmp) && (tmp->wsrep_exec_mode==REPL_RECV || tmp->wsrep_applier))
+    if (WSREP(tmp) && (wsrep_thd_is_applying(tmp) || tmp->wsrep_applier))
       continue;
 #endif
     tmp->set_killed(KILL_SERVER_HARD);
@@ -1820,7 +1822,7 @@ static void close_connections(void)
      *       The code here makes sure mysqld will not hang during shutdown
      *       even if wsrep provider has problems in shutting down.
      */
-    if (WSREP(tmp) && tmp->wsrep_exec_mode==REPL_RECV)
+    if (WSREP(tmp) && wsrep_thd_is_applying(tmp))
     {
       sql_print_information("closing wsrep system thread");
       tmp->set_killed(KILL_CONNECTION);
@@ -2040,7 +2042,9 @@ static void __cdecl kill_server(int sig_ptr)
 
   if (wsrep_inited == 1)
     wsrep_deinit(true);
-
+#ifdef WITH_WSREP
+  wsrep_deinit_server();
+#endif
   if (sig != MYSQL_KILL_SIGNAL &&
       sig != 0)
     unireg_abort(1);				/* purecov: inspected */
@@ -2141,8 +2145,7 @@ extern "C" void unireg_abort(int exit_code)
   disable_log_notes= 1;
 
 #ifdef WITH_WSREP
-  /* Check if wsrep class is used. If yes, then cleanup wsrep */
-  if (wsrep)
+  if (Wsrep_server_state::instance().state() != wsrep::server_state::s_disconnected)
   {
     /*
       Signal SE init waiters to exit with error status
@@ -2154,7 +2157,7 @@ extern "C" void unireg_abort(int exit_code)
     */
     wsrep_close_client_connections(FALSE, NULL);
     shutdown_in_progress= 1;
-    wsrep->disconnect(wsrep);
+    Wsrep_server_state::instance().disconnect();
     WSREP_INFO("Service disconnected.");
     wsrep_close_threads(NULL); /* this won't close all threads */
     sleep(1); /* so give some time to exit for those which can */
@@ -5311,7 +5314,8 @@ static int init_server_components()
   wsrep_thr_init();
 #endif
 
-  if (WSREP_ON && !wsrep_recovery && !opt_abort) /* WSREP BEFORE SE */
+  if (wsrep_init_server()) unireg_abort(1);
+  if (!wsrep_recovery)
   {
     if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
     {
@@ -5351,22 +5355,6 @@ static int init_server_components()
     // enable normal operation in case no provider is specified
     wsrep_ready_set(TRUE);
     global_system_variables.wsrep_on = 0;
-#ifdef OUT
-    wsrep_init_args args;
-    args.logger_cb = wsrep_log_cb;
-    args.options = (wsrep_provider_options) ?
-            wsrep_provider_options : "";
-    int rcode = wsrep->init(wsrep, &args);
-    if (rcode)
-    {
-      DBUG_PRINT("wsrep",("wsrep::init() failed: %d", rcode));
-      WSREP_ERROR("wsrep::init() failed: %d, must shutdown", rcode);
-      wsrep->free(wsrep);
-      free(wsrep);
-      wsrep = NULL;
-    }
-    return rcode;
-#endif
   }
 
   if (opt_bin_log)
@@ -5679,7 +5667,6 @@ static void create_shutdown_thread()
                                            handle_shutdown, 0))))
     sql_print_warning("Can't create thread to handle shutdown requests"
                       " (errno= %d)", error);
-
   // On "Stop Service" we have to do regular shutdown
   Service.SetShutdownEvent(hEventShutdown);
 #endif /* __WIN__ */
@@ -6138,6 +6125,7 @@ int mysqld_main(int argc, char **argv)
         wsrep_init_startup (false);
       }
 
+      wsrep_init_globals();
       wsrep_create_appliers(wsrep_slave_threads - 1);
     }
   }
@@ -10264,8 +10252,7 @@ void refresh_status(THD *thd)
   /* Reset some global variables */
   reset_status_vars();
 #ifdef WITH_WSREP
-  if (WSREP_ON)
-    wsrep->stats_reset(wsrep);
+  Wsrep_server_state::instance().provider().reset_status();
 #endif /* WITH_WSREP */
 
   /* Reset the counters of all key caches (default and named). */

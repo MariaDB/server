@@ -64,6 +64,9 @@
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
 #include "wsrep_sr.h"
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
+
 
 bool
 No_such_table_error_handler::handle_condition(THD *,
@@ -3984,15 +3987,6 @@ bool open_tables(THD *thd, const DDL_options_st &options,
 
   thd->current_tablenr= 0;
 restart:
-#ifdef WITH_WSREP
-  if (WSREP_CLIENT(thd) &&
-      (thd->wsrep_is_streaming() ||
-       thd->variables.wsrep_trx_fragment_size > 0) &&
-      wsrep_may_produce_SR_step(thd))
-  {
-    wsrep_prepare_SR_for_open_tables(thd, start);
-  }
-#endif /* WITH_WSREP */
   /*
     Close HANDLER tables which are marked for flush or against which there
     are pending exclusive metadata locks. This is needed both in order to
@@ -4239,8 +4233,8 @@ restart:
       (*start)                                         &&
       (*start)->table                                  &&
       (*start)->table->file->ht == myisam_hton         &&
-      wsrep_thd_exec_mode(thd) == LOCAL_STATE          &&
-      !is_stat_table(&(*start)->db, &(*start)->alias)    &&
+      wsrep_thd_is_local(thd)                          &&
+      !is_stat_table(&(*start)->db, &(*start)->alias)  &&
       thd->get_command() != COM_STMT_PREPARE           &&
       ((thd->lex->sql_command == SQLCOM_INSERT         ||
         thd->lex->sql_command == SQLCOM_INSERT_SELECT  ||
@@ -4251,7 +4245,10 @@ restart:
         thd->lex->sql_command == SQLCOM_LOAD           ||
         thd->lex->sql_command == SQLCOM_DELETE)))
   {
-    WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
+      wsrep_before_rollback(thd, true);
+      wsrep_after_rollback(thd, true);
+      wsrep_after_statement(thd);
+      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
   }
 
 error:

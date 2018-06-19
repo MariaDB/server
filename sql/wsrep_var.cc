@@ -159,7 +159,7 @@ bool wsrep_set_local_position(THD* thd, const char* const value,
   wsrep_seqno_t const seqno = strtoll(value + uuid_len + 1, NULL, 10);
 
   if (sst) {
-    wsrep_sst_received (thd, wsrep, uuid, seqno, NULL, 0, false);
+    wsrep_sst_received (thd, uuid, seqno, NULL, 0);
   } else {
     // initialization
     local_uuid = uuid;
@@ -261,21 +261,21 @@ static bool refresh_provider_options()
 
   WSREP_DEBUG("refresh_provider_options: %s", 
               (wsrep_provider_options) ? wsrep_provider_options : "null");
-  char* opts= wsrep->options_get(wsrep);
-  if (opts)
+
+  try
   {
-    wsrep_provider_options_init(opts);
+    std::string opts= Wsrep_server_state::instance().provider().options();
+    wsrep_provider_options_init(opts.c_str());
     get_provider_option_value(wsrep_provider_options,
                               (char*)"repl.max_ws_size",
                               &wsrep_max_ws_size);
-    free(opts);
+    return false;
   }
-  else
+  catch (...)
   {
     WSREP_ERROR("Failed to get provider options");
     return true;
   }
-  return false;
 }
 
 static int wsrep_provider_verify (const char* provider_str)
@@ -398,9 +398,9 @@ bool wsrep_provider_options_check(sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_provider_options_update(sys_var *self, THD* thd, enum_var_type type)
 {
-  DBUG_ASSERT(wsrep);
-  wsrep_status_t ret= wsrep->options_set(wsrep, wsrep_provider_options);
-  if (ret != WSREP_OK)
+  enum wsrep::provider::status ret=
+    Wsrep_server_state::instance().provider().options(wsrep_provider_options);
+  if (ret)
   {
     WSREP_ERROR("Set options returned %d", ret);
     refresh_provider_options();
@@ -623,17 +623,17 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
     }
     return false;
   }
-  wsrep_status_t ret(WSREP_WARNING);
+  int ret= 1;
   if (new_wsrep_desync) {
-    ret = wsrep->desync (wsrep);
-    if (ret != WSREP_OK) {
-      WSREP_WARN ("SET desync failed %d for schema: %s, query: %s",
-                  ret, thd->get_db(), thd->query());
+    ret= Wsrep_server_state::instance().provider().desync();
+    if (ret) {
+      WSREP_WARN ("SET desync failed %d for schema: %s, query: %s", ret,
+                  (thd->db ? thd->db : "(null)"), WSREP_QUERY(thd));
       my_error (ER_CANNOT_USER, MYF(0), "'desync'", thd->query());
       return true;
     }
   } else {
-    ret = wsrep->resync (wsrep);
+    ret= Wsrep_server_state::instance().provider().resync();
     if (ret != WSREP_OK) {
       WSREP_WARN ("SET resync failed %d for schema: %s, query: %s", ret,
                   thd->get_db(), thd->query());
@@ -688,18 +688,33 @@ bool wsrep_trx_fragment_size_check (sys_var *self, THD* thd, set_var* var)
   return false;
 }
 
+bool wsrep_trx_fragment_size_update(sys_var* self, THD *thd, enum_var_type)
+{
+  WSREP_INFO("wsrep_trx_fragment_size_update: %lu", thd->variables.wsrep_trx_fragment_size);
+  if (thd->variables.wsrep_trx_fragment_size)
+  {
+    return thd->wsrep_cs().enable_streaming(
+      thd->wsrep_sr().fragment_unit(),
+      thd->variables.wsrep_trx_fragment_size);
+  }
+  else
+  {
+    thd->wsrep_cs().disable_streaming();
+    return false;
+  }
+}
+
 bool wsrep_max_ws_size_update (sys_var *self, THD *thd, enum_var_type)
 {
   DBUG_ASSERT(wsrep);
 
   char max_ws_size_opt[128];
   my_snprintf(max_ws_size_opt, sizeof(max_ws_size_opt),
-              "repl.max_ws_size=%lu", wsrep_max_ws_size);
-  wsrep_status_t ret= wsrep->options_set(wsrep, max_ws_size_opt);
-  if (ret != WSREP_OK)
+              "repl.max_ws_size=%d", wsrep_max_ws_size);
+  enum wsrep::provider::status ret= Wsrep_server_state::instance().provider().options(max_ws_size_opt);
+  if (ret)
   {
     WSREP_ERROR("Set options returned %d", ret);
-    refresh_provider_options();
     return true;
   }
   return refresh_provider_options();
@@ -731,20 +746,20 @@ static int show_var_cmp(const void *var1, const void *var2)
  * Status variables stuff below
  */
 static inline void
-wsrep_assign_to_mysql (SHOW_VAR* mysql, wsrep_stats_var* wsrep)
+wsrep_assign_to_mysql (SHOW_VAR* mysql, wsrep_stats_var* wsrep_var)
 {
-  mysql->name = wsrep->name;
-  switch (wsrep->type) {
+  mysql->name = wsrep_var->name;
+  switch (wsrep_var->type) {
   case WSREP_VAR_INT64:
-    mysql->value = (char*) &wsrep->value._int64;
+    mysql->value = (char*) &wsrep_var->value._int64;
     mysql->type  = SHOW_LONGLONG;
     break;
   case WSREP_VAR_STRING:
-    mysql->value = (char*) &wsrep->value._string;
+    mysql->value = (char*) &wsrep_var->value._string;
     mysql->type  = SHOW_CHAR_PTR;
     break;
   case WSREP_VAR_DOUBLE:
-    mysql->value = (char*) &wsrep->value._double;
+    mysql->value = (char*) &wsrep_var->value._double;
     mysql->type  = SHOW_DOUBLE;
     break;
   }
@@ -811,19 +826,9 @@ static void export_wsrep_status_to_mysql(THD* thd)
 {
   int wsrep_status_len, i;
 
-  wsrep_free_status(thd);
+  thd->wsrep_status_vars = Wsrep_server_state::instance().status();
 
-  thd->wsrep_status_vars = wsrep->stats_get(wsrep);
-
-  if (!thd->wsrep_status_vars) {
-    return;
-  }
-
-  for (wsrep_status_len = 0;
-       thd->wsrep_status_vars[wsrep_status_len].name != NULL;
-       wsrep_status_len++) {
-      /* */
-  }
+  wsrep_status_len= thd->wsrep_status_vars.size();
 
 #if DYNAMIC
   if (wsrep_status_len != mysql_status_len) {
@@ -845,7 +850,11 @@ static void export_wsrep_status_to_mysql(THD* thd)
 #endif
 
   for (i = 0; i < wsrep_status_len; i++)
-    wsrep_assign_to_mysql (mysql_status_vars + i, thd->wsrep_status_vars + i);
+  {
+    mysql_status_vars[i].name= (char*)thd->wsrep_status_vars[i].name().c_str();
+    mysql_status_vars[i].value= (char*)thd->wsrep_status_vars[i].value().c_str();
+    mysql_status_vars[i].type= SHOW_CHAR;
+  }
 
   mysql_status_vars[wsrep_status_len].name  = NullS;
   mysql_status_vars[wsrep_status_len].value = NullS;
@@ -865,9 +874,5 @@ int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff)
 
 void wsrep_free_status (THD* thd)
 {
-  if (thd->wsrep_status_vars)
-  {
-    wsrep->stats_free (wsrep, thd->wsrep_status_vars);
-    thd->wsrep_status_vars = 0;
-  }
+  thd->wsrep_status_vars.clear();
 }

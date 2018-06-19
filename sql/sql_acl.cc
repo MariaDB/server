@@ -54,6 +54,9 @@
 #include "sql_array.h"
 #include "sql_hset.h"
 #include "password.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#endif /* WITH_WSREP */
 
 #include "sql_plugin_compat.h"
 

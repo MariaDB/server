@@ -40,11 +40,11 @@ SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
 
 --connection node_1
 SET SESSION wsrep_sync_wait = 0;
-SET SESSION DEBUG_SYNC = 'wsrep_after_replication SIGNAL wsrep_after_replication_reached WAIT_FOR wsrep_after_replication_continue';
+SET SESSION DEBUG_SYNC = 'wsrep_after_certification SIGNAL wsrep_after_certification_reached WAIT_FOR wsrep_after_certification_continue';
 --send CALL insert_proc ();
 
 --connection node_1a
-SET SESSION DEBUG_SYNC = "now WAIT_FOR wsrep_after_replication_reached";
+SET SESSION DEBUG_SYNC = "now WAIT_FOR wsrep_after_certification_reached";
 
 
 SET GLOBAL DEBUG_DBUG = "";

@@ -51,6 +51,10 @@ Created 12/27/1996 Heikki Tuuri
 #include "trx0rec.h"
 #include "fts0fts.h"
 #include "fts0types.h"
+#ifdef WITH_WSREP
+extern my_bool wsrep_debug;
+#include "mysql/service_wsrep.h"
+#endif
 #include <algorithm>
 #include <mysql/plugin.h>
 #include <mysql/service_wsrep.h>

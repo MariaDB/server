@@ -21,21 +21,7 @@
 
 #include "sql_class.h" // THD class
 
-void wsrep_set_apply_format(THD* thd, Format_description_log_event* ev);
-Format_description_log_event* wsrep_get_apply_format(THD* thd);
 
-int               wsrep_apply_events(THD*        thd,
-                                     const void* events_buf,
-                                     size_t      buf_len);
-
-/* wsrep callback prototypes */
-
-wsrep_cb_status_t wsrep_apply_cb(void*                    ctx,
-                                 const wsrep_ws_handle_t* ws_handle,
-                                 uint32_t                 flags,
-                                 const wsrep_buf_t*       buf,
-                                 const wsrep_trx_meta_t*  meta,
-                                 wsrep_bool_t*            exit_loop);
 
 /* Applier error codes, when nothing better is available. */
 #define WSREP_RET_SUCCESS      0 // Success
@@ -69,6 +55,8 @@ private:
   size_t len_;
 };
 
+class Format_description_log_event;
+void wsrep_set_apply_format(THD*, Format_description_log_event*);
 int wsrep_apply(void*                   ctx,
                 uint32_t                flags,
                 const wsrep_buf_t*      buf,

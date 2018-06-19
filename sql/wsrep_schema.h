@@ -1,4 +1,4 @@
-/* Copyright (C) 2015-2017 Codership Oy <info@codership.com>
+/* Copyright (C) 2015-2018 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,10 @@
 #ifndef WSREP_SCHEMA_H
 #define WSREP_SCHEMA_H
 
+/* wsrep-lib */
+#include "wsrep_types.h"
+
+
 #include "mysqld.h"
 #include "thr_lock.h" /* enum thr_lock_type */
 #include "../wsrep/wsrep_api.h"
@@ -28,6 +32,7 @@
   Forward decls
 */
 class THD;
+class Relay_log_info;
 struct TABLE;
 struct TABLE_LIST;
 struct st_mysql_lex_string;
@@ -58,7 +63,7 @@ class Wsrep_schema
   /*
     Store wsrep view info into wsrep schema.
   */
-  int store_view(const wsrep_view_info_t*);
+  int store_view(THD*, const Wsrep_view& view);
 
   /*
     Restore view info from stable storage.
@@ -73,56 +78,76 @@ class Wsrep_schema
    */
   THD* append_frag(const wsrep_trx_meta_t&, uint32_t,
                    const unsigned char*, size_t);
-
-  /*
-    Update fragment sequence number and commits.
-    Use in combination with append_frag().
-   */
-  int update_frag_seqno(THD* thd, const wsrep_trx_meta_t&);
-
-  /*
-    Rollback and release thd returned from append_frag().
-   */
-  void release_SR_thd(THD* thd);
-
-  /*
+  /**
     Append transaction fragment to fragment storage.
-    Starts a trx using the given THD, does not commit.
-   */
-  int append_frag_apply(THD* thd, const wsrep_trx_meta_t&,
-                        uint32_t, const unsigned char*, size_t);
+    Transaction must have been started for THD before this call.
+    In order to make changes durable, transaction must be committed
+    separately after this call.
 
-  /*
-    Append transaction fragment to fragment storage.
-    Starts a trx using a THD from thd_pool and commits.
-   */
-  int append_frag_commit(const wsrep_trx_meta_t&, uint32_t,
-                         const unsigned char*, size_t);
+    @param thd THD object
+    @param server_id Wsrep server identifier
+    @param transaction_id Transaction identifier
+    @param flags Flags for the fragment
+    @param data Fragment data buffer
 
-  /*
-    Remove transaction from fragment storage in thd's transaction context
-   */
-  int remove_trx(THD* thd, wsrep_fragment_set* fragments);
-
-  /*
-    Remove transaction from fragment storage
-   */
-  int rollback_trx(THD* thd);
-
-  /*
-    Restore and apply all transaction fragments from fragment storage
+    @return Zero in case of success, non-zero on failure.
   */
-  int restore_frags();
+  int append_fragment(THD* thd,
+                      const wsrep::id& server_id,
+                      wsrep::transaction_id transaction_id,
+                      wsrep::seqno seqno,
+                      int flags,
+                      const wsrep::const_buffer& data);
+  /**
+     Update existing fragment meta data. The fragment must have been
+     inserted before using append_fragment().
 
-  /*
-    Replay a transaction from fragments stored in wsrep schema
-   */
-  int replay_trx(THD*, const wsrep_trx_meta_t&);
+     @param thd THD object
+     @param ws_meta Wsrep meta data
 
-  /*
-    Init TABLE_LIST entry for SR table
+     @return Zero in case of success, non-zero on failure.
    */
-  void init_SR_table(TABLE_LIST *table);
+  int update_fragment_meta(THD* thd,
+                           const wsrep::ws_meta& ws_meta);
+
+  /**
+     Remove fragments from storage. This method must be called
+     inside active transaction. Fragment removal will be committed
+     once the transaction commits.
+
+     @param thd Pointer to THD object
+     @param server_id Identifier of the running server
+     @param transaction_id Identifier of the current transaction
+     @param fragments Vector of fragment seqnos to be removed
+  */
+  int remove_fragments(THD*                             thd,
+                       const wsrep::id&                 server_id,
+                       wsrep::transaction_id            transaction_id,
+                       const std::vector<wsrep::seqno>& fragments);
+
+  /**
+     Replay a transaction from stored fragments. The caller must have
+     started a transaction for a thd.
+
+     @param thd Pointer to THD object
+     @param ws_meta Write set meta data for commit fragment.
+     @param fragments Vector of fragments to be replayed
+
+     @return Zero on success, non-zero on failure.
+  */
+  int replay_transaction(THD* thd,
+                         Relay_log_info* rli,
+                         const wsrep::ws_meta& ws_meta,
+                         const std::vector<wsrep::seqno>& fragments);
+
+  /**
+     Recover streaming transactions from SR table.
+     This method should be called after storage enignes are initialized.
+     It will scan SR table and replay found streaming transactions.
+
+     @return Zero on success, non-zero on failure.
+  */
+  int recover_sr_transactions();
 
   /*
     Close wsrep schema.
@@ -137,5 +162,6 @@ class Wsrep_schema
   Wsrep_thd_pool* thd_pool_;
 };
 
+extern Wsrep_schema* wsrep_schema;
 
 #endif /* !WSREP_SCHEMA_H */

@@ -599,22 +599,7 @@ thd_get_work_part_info(
 struct trx_t;
 #ifdef WITH_WSREP
 #include <mysql/service_wsrep.h>
-#ifdef OUT
-extern "C" bool wsrep_thd_is_wsrep_on(THD *thd);
-
-extern "C" void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode);
-extern "C" void wsrep_thd_set_query_state(
-	THD *thd, enum wsrep_query_state state);
-
-extern "C" void wsrep_thd_set_trx_to_replay(THD *thd, uint64 trx_id);
-
-extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
-extern "C" time_t wsrep_thd_query_start(THD *thd);
-extern "C" query_id_t wsrep_thd_query_id(THD *thd);
-extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
-extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
-#endif
-#endif
+#endif /* WITH_WSREP */
 
 extern const struct _ft_vft ft_vft_result;
 

@@ -18,8 +18,7 @@
 #ifndef WSREP_THD_H
 #define WSREP_THD_H
 
-#ifdef WITH_WSREP
-
+#include "mysql/service_wsrep.h"
 #include "sql_class.h"
 #include "wsrep_utils.h"
 #include <deque>
@@ -92,28 +91,12 @@ void wsrep_replay_transaction(THD *thd);
 void wsrep_create_appliers(long threads);
 void wsrep_create_rollbacker();
 
+bool wsrep_bf_abort(const THD*, THD*);
 int  wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr,
                                 my_bool signal);
-#ifndef OUT
-/*
-  PA = Parallel Applying (on the slave side)
-*/
 extern void  wsrep_thd_set_PA_safe(void *thd_ptr, my_bool safe);
-//extern my_bool  wsrep_thd_is_BF(THD *thd, my_bool sync);
-extern my_bool  wsrep_thd_is_BF(void *thd_ptr, my_bool sync);
-extern my_bool wsrep_thd_is_wsrep(void *thd_ptr);
-
-//enum wsrep_conflict_state wsrep_thd_conflict_state(void *thd_ptr, my_bool sync);
-//extern int wsrep_thd_conflict_state(void *thd_ptr, my_bool sync);
-//extern char* wsrep_thd_query(void *thd_ptr);
-extern "C" my_bool  wsrep_thd_is_BF_or_commit(void *thd_ptr, my_bool sync);
-extern "C" my_bool  wsrep_thd_is_local(void *thd_ptr, my_bool sync);
-int  wsrep_thd_in_locking_session(void *thd_ptr);
 THD* wsrep_start_SR_THD(char *thread_stack);
 void wsrep_end_SR_THD(THD* thd);
-extern my_bool  wsrep_thd_is_SR(void *thd_ptr);
-extern my_bool wsrep_thd_skip_locking(void *thd);
-#endif
 
 /**
    Helper functions to override error status
@@ -132,6 +115,7 @@ extern my_bool wsrep_thd_skip_locking(void *thd);
 
 static inline void wsrep_override_error(THD *thd, uint error)
 {
+  DBUG_ASSERT(error != ER_ERROR_DURING_COMMIT);
   Diagnostics_area *da= thd->get_stmt_da();
   if (da->is_ok() ||
       da->is_eof() ||
@@ -150,7 +134,7 @@ static inline void wsrep_override_error(THD *thd, uint error)
    Override error with additional wsrep status.
  */
 static inline void wsrep_override_error(THD *thd, uint error,
-                                        wsrep_status_t status)
+                                        enum wsrep::provider::status status)
 {
   Diagnostics_area *da= thd->get_stmt_da();
   if (da->is_ok() ||
@@ -165,6 +149,40 @@ static inline void wsrep_override_error(THD *thd, uint error,
   }
 }
 
+static inline void wsrep_override_error(THD* thd,
+                                        wsrep::client_error ce,
+                                        enum wsrep::provider::status status)
+{
+    DBUG_ASSERT(ce != wsrep::e_success);
+    switch (ce)
+    {
+    case wsrep::e_error_during_commit:
+      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, status);
+      break;
+    case wsrep::e_deadlock_error:
+      wsrep_override_error(thd, ER_LOCK_DEADLOCK);
+      break;
+    case wsrep::e_interrupted_error:
+      wsrep_override_error(thd, ER_QUERY_INTERRUPTED);
+      break;
+    case wsrep::e_size_exceeded_error:
+      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, status);
+      break;
+    case wsrep::e_append_fragment_error:
+      /* TODO: Figure out better error number */
+      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, status);
+      break;
+    case wsrep::e_not_supported_error:
+      wsrep_override_error(thd, ER_NOT_SUPPORTED_YET);
+      break;
+    case wsrep::e_timeout_error:
+      wsrep_override_error(thd, ER_LOCK_WAIT_TIMEOUT);
+      break;
+    default:
+      wsrep_override_error(thd, ER_UNKNOWN_ERROR);
+      break;
+    }
+}
 
 /**
    Helper function to log THD wsrep context.
@@ -178,7 +196,7 @@ static inline void wsrep_log_thd(THD *thd,
                                  const char *function)
 {
   WSREP_DEBUG("%s %s\n"
-              "    thd: %llu thd_ptr: %p exec_mode: %s query_state: %s conflict_state: %s\n"
+              "    thd: %lu thd_ptr: %p client_mode: %s client_state: %s trx_state: %s\n"
               "    next_trx_id: %lld trx_id: %lld seqno: %lld\n"
               "    is_streaming: %d fragments: %zu\n"
               "    sql_errno: %u message: %s\n"
@@ -191,14 +209,14 @@ static inline void wsrep_log_thd(THD *thd,
               message ? message : "",
               thd->thread_id,
               thd,
-              wsrep_thd_exec_mode_str(thd),
-              wsrep_thd_query_state_str(thd),
-              wsrep_thd_conflict_state_str(thd),
+              wsrep_thd_client_mode_str(thd),
+              wsrep_thd_client_state_str(thd),
+              wsrep_thd_transaction_state_str(thd),
               (long long)thd->wsrep_next_trx_id(),
               (long long)thd->wsrep_trx_id(),
-              (long long)thd->wsrep_trx_meta.gtid.seqno,
-              thd->wsrep_is_streaming(),
-              thd->wsrep_SR_fragments.size(),
+              wsrep_thd_trx_seqno(thd),
+              thd->wsrep_trx().is_streaming(),
+              thd->wsrep_sr().fragments().size(),
               (thd->get_stmt_da()->is_error() ? thd->get_stmt_da()->sql_errno() : 0),
               (thd->get_stmt_da()->is_error() ? thd->get_stmt_da()->message() : "")
 #ifdef WSREP_THD_LOG_QUERIES

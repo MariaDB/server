@@ -561,8 +561,9 @@ void Protocol::end_statement()
   /*
     sanity check, don't send end statement while replaying
   */
-  DBUG_ASSERT(thd->wsrep_conflict_state_unsafe() != REPLAYING);
-  if (WSREP(thd) && thd->wsrep_conflict_state_unsafe()== REPLAYING)
+  DBUG_ASSERT(thd->wsrep_trx().state() != wsrep::transaction::s_replaying);
+  if (WSREP(thd) && thd->wsrep_trx().state() ==
+      wsrep::transaction::s_replaying)
   {
     WSREP_ERROR("attempting net_end_statement while replaying");
     return;

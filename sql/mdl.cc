@@ -24,9 +24,12 @@
 #include <mysql/plugin.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/psi/mysql_stage.h>
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#include "debug_sync.h"
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
-
+#endif /* WITH_WSREP */
 #ifdef HAVE_PSI_INTERFACE
 static PSI_mutex_key key_MDL_wait_LOCK_wait_status;
 

@@ -22,6 +22,8 @@ INSERT INTO t1 VALUES (REPEAT('f', 512));
 --let $wait_condition = SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
 
 --connection node_1
+# Deadlock error instead of dupkey since the transaction is SR and
+# statement rollback is not safe.
 --error ER_LOCK_DEADLOCK
 INSERT INTO t1 VALUES (REPEAT('c', 512));
 

@@ -19,9 +19,22 @@
 #include "my_global.h"
 
 #define WSREP_FRAG_BYTES      0
-#define WSREP_FRAG_EVENTS     1
-#define WSREP_FRAG_ROWS       2
-#define WSREP_FRAG_STATEMENTS 3
+#define WSREP_FRAG_ROWS       1
+#define WSREP_FRAG_STATEMENTS 2
+#include "wsrep/streaming_context.hpp"
+static inline enum wsrep::streaming_context::fragment_unit
+wsrep_fragment_unit(ulong unit)
+{
+  switch (unit)
+  {
+  case WSREP_FRAG_BYTES: return wsrep::streaming_context::bytes;
+  case WSREP_FRAG_ROWS: return wsrep::streaming_context::row;
+  case WSREP_FRAG_STATEMENTS: return wsrep::streaming_context::statement;
+  default:
+    DBUG_ASSERT(0);
+    return wsrep::streaming_context::bytes;
+  }
+}
 
 #define WSREP_SR_STORE_NONE      0
 #define WSREP_SR_STORE_FILE      1
@@ -36,17 +49,6 @@ class wsrep_SR_trx;
 
 #define HEAP_PAGE_SIZE 65536 /* 64K */
 #define WSREP_MAX_WS_SIZE 2147483647 /* 2GB */
-
-bool  wsrep_fragment_full(THD *thd);
-void  wsrep_reset_SR_trans(THD *thd);
-void  wsrep_reset_SR_fill(THD *thd);
-int   wsrep_append_SR_trans(THD *thd, ulong unit, ulong size, bool replicate);
-bool  wsrep_fragmented(THD *thd);
-void  wsrep_step_fragment_base(THD *thd, ulong size);
-ulong wsrep_get_fragment_base(THD *thd);
-void wsrep_append_fill_rate(THD*, ulong);
-void wsrep_reset_fragment_fill(THD*, ulong);
-ulong wsrep_get_fragment_fill(THD*);
 
 /*
   Write the contents of a cache to a memory buffer.
@@ -65,10 +67,9 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len);
   @param len  total amount of data written
   @return     wsrep error status
  */
-wsrep_trx_status wsrep_write_cache(wsrep_t*  wsrep,
-                                   THD*      thd,
-                                   IO_CACHE* cache,
-                                   size_t*   len);
+int  wsrep_write_cache(THD*      thd,
+                       IO_CACHE* cache,
+                       size_t*   len);
 
 /* Dump replication buffer to disk */
 void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len);
@@ -79,6 +80,14 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
 
 int wsrep_binlog_close_connection(THD* thd);
 uint wsrep_get_trans_cache_position(THD *thd);
+
+/**
+   Write a skip event into binlog.
+
+   @param thd Thread object pointer
+   @return Zero in case of success, non-zero on failure.
+*/
+int wsrep_write_skip_event(THD* thd);
 
 /*
   Write dummy event into binlog in place of unused GTID.

@@ -21,13 +21,13 @@
 static int wsrep_plugin_init(void *p)
 {
   WSREP_INFO("wsrep_plugin_init()");
-  return wsrep_register_trans_observer(p);
+  return 0;
 }
 
 static int wsrep_plugin_deinit(void *p)
 {
   WSREP_INFO("wsrep_plugin_deinit()");
-  return wsrep_unregister_trans_observer(p);
+  return 0;
 }
 
 struct Mysql_replication wsrep_plugin= {

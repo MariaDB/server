@@ -63,25 +63,16 @@ void set_thd_stage_info(void *thd,
 #include "rpl_gtid.h"
 
 #ifdef WITH_WSREP
-#include <vector>
+/* wsrep-lib */
+#include "wsrep_client_service.h"
+#include "wsrep_client_state.h"
+#include "wsrep_mutex.h"
+#include "wsrep_condition_variable.h"
+
 #include "wsrep_mysqld.h"
-#include "wsrep_binlog.h"
-struct wsrep_thd_shadow {
-  ulonglong            options;
-  uint                 server_status;
-  enum wsrep_exec_mode wsrep_exec_mode;
-  Vio                  *vio;
-  ulong                tx_isolation;
-  char                 *db;
-  size_t               db_length;
-  my_hrtime_t          user_time;
-  longlong             row_count_func;
-};
-#include <map>
-#include <set>
-#include <string>
-typedef std::map<std::string, std::set<std::string> > wsrep_key_set;
-#endif /* WITH_WSREP */
+class Wsrep_applier_service;
+
+#endif
 class Reprepare_observer;
 class Relay_log_info;
 struct rpl_group_info;
@@ -4688,7 +4679,6 @@ public:
   const bool                wsrep_applier; /* dedicated slave applier thread */
   bool                      wsrep_applier_closing; /* applier marked to close */
   bool                      wsrep_client_thread; /* to identify client threads*/
-  enum wsrep_exec_mode      wsrep_exec_mode;
   query_id_t                wsrep_last_query_id;
   XID                       wsrep_xid;
 
@@ -4697,221 +4687,12 @@ public:
   that only modifies the wsrep_schema.SR table. */
   my_bool                   wsrep_skip_locking;
 
-  /*
-    Delegated rollback:
-
-    Wsrep_query_state, wsrep_conflict_state and wsrep_exec_mode define
-    together the state for rollback process. In most of the cases the
-    client thread will handle the rollback, but if the BF abort happens when
-    the client thread is in QUERY_IDLE state, the rollback process
-    is delegated to rollbacker thread. In this case rollbacker thread
-    will do the rollback on behalf of client thread and will leave
-    the states into the following
-    * wsrep_query_state = QUERY_IDLE
-    * wsrep_conflict_state = ABORTED
-    * wsrep_exec_mode = LOCAL_ROLLBACK
-   */
-
-  /*
-    Set wsrep_query_state
-
-    Asserts LOCK_thd_data ownership.
-   */
-  void set_wsrep_query_state(enum wsrep_query_state state)
-  {
-    mysql_mutex_assert_owner(&LOCK_thd_data);
-    /*
-      State machine:
-
-      QI - QUERY_IDLE
-      QX - QUERY_EXEC
-      QC - QUERY_COMMITTING
-      QOC - QUERY_ORDERED_COMMIT
-      QE - QUERY_EXITING
-
-           |---> QE
-           |
-      o--> QI <-> QX -> QC -> QOC 
-                  ^     |      |
-                  |-------------
-     */
-    static const bool allowed[QUERY_EXITING + 1][QUERY_EXITING + 1] =
-    {
-      /* QI     QX     QC     QOC,   QE    To / From  */
-      {  false, true,  false, false, true   }, /* QI  */
-      {  true , false, true,  false, false  }, /* QX  */
-      {  false, true,  false, true,  false  }, /* QC  */
-      {  false, true,  false, false, false  }, /* QOC */
-      {  false, false, false, false, false  }  /* QE  */
-    };
-    if (allowed[m_wsrep_query_state][state] == false)
-    {
-      WSREP_DEBUG("Unallowed query state change %d -> %d",
-                  m_wsrep_query_state, state);
-    }
-    DBUG_ASSERT(allowed[m_wsrep_query_state][state] == true);
-    m_wsrep_query_state= state;
-  }
-
-  /*
-    Return current wsrep_query_state
-
-    Asserts LOCK_thd_data ownership
-   */
-  enum wsrep_query_state wsrep_query_state() const
-  {
-    mysql_mutex_assert_owner(&LOCK_thd_data);
-    return m_wsrep_query_state;
-  }
-
-  /*
-    Return current wsrep_query_state
-
-    Does not assert LOCK_thd_data ownership, useful for
-    debugging and logging where strict access is not
-    absolutely required.
-   */
-  enum wsrep_query_state wsrep_query_state_unsafe() const
-  {
-    return m_wsrep_query_state;
-  }
-
-  void set_wsrep_conflict_state(enum wsrep_conflict_state state)
-  {
-    mysql_mutex_assert_owner(&LOCK_thd_data);
-    /*
-      State machine
-
-      NC - NO_CONFLICT
-      MA - MUST_ABORT
-      AB - ABORTING
-      AD - ABORTED
-      MR - MUST_REPLAY
-      RI - REPLAYING
-      RA - RETRY_AUTOCOMMIT
-      CF - CERT_FAILURE
-
-      1) BF abort
-      2) Cert failure or rollback
-      3) Pre commit returns success, so the transaction must be replayed
-      4) Pre commit return certification failure, cleanup after certification
-         failure
-      5) Post rollback phase
-      6) Is autocommit and wsrep_retry_autocommit is set
-      7) Simultaneous certification failure and BF abort
-
-                         4                      5
-          -> NC <-----------------> CF -------------------
-          |  ^^                     | 7                  |
-          |  ||     1            2  |                    |
-          | 6||-----------> MA --------> AB ------> AD <-|
-          |  |              |            ^          |
-          |  |-> RA         | 3          |          |
-          |                 |            |          |
-          |                  -> MR -> RI -          |
-          |                           |             |
-          |------------------------------------------
-
-     */
-
-    static const bool allowed[CERT_FAILURE + 1][CERT_FAILURE + 1] =
-    {
-      /* NC     MA     AB     AD     MR     RI     RA     CF   To / From */
-      {  false, true,  false, false, false, false, true,  true  }, /* NC */
-      {  true,  false, true,  false, true,  false, false, false }, /* MA */
-      {  false, false, false, true,  false, false, false, false }, /* AB */
-      {  true , false, false, false, false, false, false, false }, /* AD */
-      {  false, false, false, false, false, true,  false, false }, /* MR */
-      {  true,  false, true,  false, false, false, false, false }, /* RI */
-      {  true,  false, false, false, false, false, false, false }, /* RA */
-      {  true,  false, true,  true,  false, false, false, false }  /* CF */
-    };
-    if (allowed[m_wsrep_conflict_state][state] == false)
-    {
-      WSREP_DEBUG("Unallowed conflict state change %d -> %d",
-                  m_wsrep_conflict_state, state);
-    }
-    DBUG_ASSERT(allowed[m_wsrep_conflict_state][state] == true);
-
-    /*
-      Sanity checks agains query state and thread context
-    */
-    switch (state)
-    {
-    case MUST_ABORT:
-      break;
-    default:
-      /*
-        Only the current thread context may change the state apart from
-        NC -> MA transition.
-      */
-      DBUG_ASSERT(this == current_thd);
-      break;
-    }
-#ifndef DBUG_OFF
-    if (state == NO_CONFLICT)
-    {
-      m_wsrep_conflict_state_history.clear();
-    }
-    else
-    {
-      m_wsrep_conflict_state_history.push_back(m_wsrep_conflict_state);
-    }
-#endif /* DBUG_OFF */
-    m_wsrep_conflict_state= state;
-  }
-
-  /*
-    Return wsrep_conflict_state
-
-    Asserts LOCK_thd_data ownership
-   */
-  enum wsrep_conflict_state wsrep_conflict_state() const
-  {
-    mysql_mutex_assert_owner(&LOCK_thd_data);
-    return m_wsrep_conflict_state;
-  }
-
-  /*
-    Return wsrep_conflict_state
-
-    Does not assert LOCK_thd_data ownership, useful mostly
-    for debugging and logging where strict access is not
-    aboslutely required.
-   */
-  enum wsrep_conflict_state wsrep_conflict_state_unsafe() const
-  {
-    return m_wsrep_conflict_state;
-  }
-
-  /*
-    Check if wsrep rollback process has started
-   */
-  bool wsrep_is_rolling_back() const
-  {
-    return (wsrep_conflict_state() == MUST_ABORT ||
-            wsrep_conflict_state() == ABORTING);
-  }
-
-private:
-  enum wsrep_query_state    m_wsrep_query_state;
-  enum wsrep_conflict_state m_wsrep_conflict_state;
-#ifndef DBUG_OFF
-  std::vector<enum wsrep_conflict_state> m_wsrep_conflict_state_history;
-#endif /* DBUG_OFF */
-public:
 
   // changed from wsrep_seqno_t to wsrep_trx_meta_t in wsrep API rev 75
-  // wsrep_seqno_t             wsrep_trx_seqno;
-  wsrep_trx_meta_t          wsrep_trx_meta;
   uint32                    wsrep_rand;
-  Relay_log_info            *wsrep_rli;
   rpl_group_info            *wsrep_rgi;
   bool                      wsrep_converted_lock_session;
-  wsrep_ws_handle_t         wsrep_ws_handle;
-#ifdef WSREP_PROC_INFO
-  // char                      wsrep_info[128]; /* string for dynamic proc info */
-#endif /* WSREP_PROC_INFO */
+  char                      wsrep_info[128]; /* string for dynamic proc info */
   ulong                     wsrep_retry_counter; // of autocommit
   bool                      wsrep_PA_safe;
   char*                     wsrep_retry_query;
@@ -4919,7 +4700,7 @@ public:
   enum enum_server_command  wsrep_retry_command;
   enum wsrep_consistency_check_mode 
                             wsrep_consistency_check;
-  wsrep_stats_var*          wsrep_status_vars;
+  std::vector<wsrep::provider::status_variable> wsrep_status_vars;
   int                       wsrep_mysql_replicated;
   const char*               wsrep_TOI_pre_query; /* a query to apply before 
                                                     the actual TOI query */
@@ -4931,59 +4712,23 @@ public:
   rpl_sid                   wsrep_po_sid;
 #endif /* GTID_SUPPORT */
   void                      *wsrep_apply_format;
-  char                      wsrep_info[128]; /* string for dynamic proc info */
+  bool                      wsrep_apply_toi; /* applier processing in TOI */
+  uchar*                    wsrep_rbr_buf;
+  Wsrep_nbo_ctx*            wsrep_nbo_ctx; // Context for non-blocking operations
+  wsrep_gtid_t              wsrep_sync_wait_gtid;
+  //  wsrep_gtid_t              wsrep_last_written_gtid;
+  ulong                     wsrep_affected_rows;
+  bool                      wsrep_has_ignored_error;
+  bool                      wsrep_replicate_GTID;
+  bool                      wsrep_skip_wsrep_GTID;
+
   /*
     When enabled, do not replicate/binlog updates from the current table that's
     being processed. At the moment, it is used to keep mysql.gtid_slave_pos
     table updates from being replicated to other nodes via galera replication.
   */
   bool                      wsrep_ignore_table;
-  bool                      wsrep_apply_toi; /* applier processing in TOI */
-  ulong                     wsrep_fragments_sent; // # of fragments replicated
-                                                  //   for trx
-  bool                      wsrep_SR_thd; // is applier THD for streaming
-                                          // transaction
-  wsrep_trx_id_t            wsrep_SR_rollback_replicated_for_trx;
-  wsrep_fragment_set        wsrep_SR_fragments;
-  wsrep_key_set             wsrep_SR_keys;
-  TABLE_LIST                wsrep_SR_table;
-  uchar*                    wsrep_rbr_buf;
-  Wsrep_nbo_ctx*            wsrep_nbo_ctx; // Context for non-blocking operations
-  wsrep_gtid_t              wsrep_sync_wait_gtid;
-  wsrep_gtid_t              wsrep_last_written_gtid;
-  ulong                     wsrep_affected_rows;
-  bool                      wsrep_has_ignored_error;
-  bool                      wsrep_replicate_GTID;
-  bool                      wsrep_skip_wsrep_GTID;
-
-  bool wsrep_is_streaming()
-  {
-    return ((wsrep_fragments_sent > 0) &&
-            (wsrep_exec_mode == LOCAL_STATE  ||
-             wsrep_exec_mode == LOCAL_COMMIT ||
-             wsrep_exec_mode == LOCAL_ROLLBACK));
-  }
-
-  /*
-    Return true if the current transaction has been assigned a valid sequence
-    number.
-  */
-  bool wsrep_trx_has_seqno() const
-  {
-      DBUG_ASSERT(wsrep_trx_meta.gtid.seqno == WSREP_SEQNO_UNDEFINED ||
-                  wsrep_trx_meta.gtid.seqno > 0);
-      return (wsrep_trx_meta.gtid.seqno > 0);
-  }
-
-  /*
-    Return true if current transaction must go through commit ordering.
-    This is the case if the transaction has been assigned valid seqno
-    and has been assigned write set handle.
-   */
-  bool wsrep_trx_must_order_commit() const
-  {
-      return (wsrep_ws_handle.opaque && wsrep_trx_has_seqno());
-  }
+  
 
   /*
     Transaction id:
@@ -5021,7 +4766,23 @@ public:
 
 private:
   wsrep_trx_id_t m_wsrep_next_trx_id; /* cast from query_id_t */
+  /* wsrep-lib */
+  Wsrep_mutex m_wsrep_mutex;
+  Wsrep_condition_variable m_wsrep_cond;
+  Wsrep_client_service m_wsrep_client_service;
+  Wsrep_client_state m_wsrep_client_state;
+
 public:
+  Wsrep_client_state& wsrep_cs() { return m_wsrep_client_state; }
+  const Wsrep_client_state& wsrep_cs() const { return m_wsrep_client_state; }
+  const wsrep::transaction& wsrep_trx() const
+  { return m_wsrep_client_state.transaction(); }
+  const wsrep::streaming_context& wsrep_sr() const
+  { return m_wsrep_client_state.transaction().streaming_context(); }
+  /* Pointer to applier service for streaming THDs. This is needed to
+     be able to delete applier service object in case of background
+     rollback. */
+  Wsrep_applier_service* wsrep_applier_service;
 #endif /* WITH_WSREP */
 
   /* Handling of timeouts for commands */

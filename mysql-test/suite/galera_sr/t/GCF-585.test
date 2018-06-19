@@ -11,6 +11,10 @@ set autocommit=off;
 set session wsrep_trx_fragment_size=1;
 start transaction;
 insert into t1 values (1);
+# If we try to INSERT a duplicate key, ER_LOCK_DEADLOCK is the only possible
+# outcome at this point. Notice that ER_DUP_ENTRY is NOT an option here
+# because we were forced to rollback the whole transaction (not just the
+# statement)
 --error ER_LOCK_DEADLOCK
 insert into t1 values (2),(1);
 alter table t1 drop primary key;

@@ -38,13 +38,15 @@ static THD* wsrep_thd_pool_new_thd()
   thd->prior_thr_create_utime= thd->start_utime= thd->thr_create_utime;
   (void) mysql_mutex_unlock(&LOCK_thread_count);
 
+  /* */
   thd->variables.wsrep_on     = 0;
+  /* No binlogging */
   thd->variables.sql_log_bin  = 0;
   thd->variables.option_bits &= ~OPTION_BIN_LOG;
+  /* No general log */
+  thd->variables.option_bits |= OPTION_LOG_OFF;
+  /* Read committed isolation to avoid gap locking */
   thd->variables.tx_isolation = ISO_READ_COMMITTED;
-
-  thd->wsrep_exec_mode = REPL_RECV;
-  //  thd->wsrep_exec_mode = LOCAL_STATE;
 
   return thd;
 }
@@ -118,3 +120,4 @@ void Wsrep_thd_pool::release_thd(THD* thd)
     delete thd;
   }
 }
+
