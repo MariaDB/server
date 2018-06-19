@@ -525,19 +525,24 @@ then
   s_echo "To start mysqld at boot time you have to copy"
   s_echo "support-files/mysql.server to the right place for your system"
 
-  echo
-  echo "PLEASE REMEMBER TO SET A PASSWORD FOR THE MariaDB root USER !"
-  echo "To do so, start the server, then issue the following commands:"
-  echo
-  echo "'$bindir/mysqladmin' -u root password 'new-password'"
-  echo "'$bindir/mysqladmin' -u root -h $hostname password 'new-password'"
-  echo
-  echo "Alternatively you can run:"
-  echo "'$bindir/mysql_secure_installation'"
-  echo
-  echo "which will also give you the option of removing the test"
-  echo "databases and anonymous user created by default.  This is"
-  echo "strongly recommended for production servers."
+  if test "$auth_root_authentication_method" = normal
+  then
+    echo
+    echo
+    echo "PLEASE REMEMBER TO SET A PASSWORD FOR THE MariaDB root USER !"
+    echo "To do so, start the server, then issue the following commands:"
+    echo
+    echo "'$bindir/mysqladmin' -u root password 'new-password'"
+    echo "'$bindir/mysqladmin' -u root -h $hostname password 'new-password'"
+    echo
+    echo "Alternatively you can run:"
+    echo "'$bindir/mysql_secure_installation'"
+    echo
+    echo "which will also give you the option of removing the test"
+    echo "databases and anonymous user created by default.  This is"
+    echo "strongly recommended for production servers."
+  fi
+
   echo
   echo "See the MariaDB Knowledgebase at http://mariadb.com/kb or the"
   echo "MySQL manual for more instructions."
