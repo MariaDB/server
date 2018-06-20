@@ -152,6 +152,37 @@ static bool write_execute_load_query_log_event(THD *, sql_exchange*, const
            char*, const char*, bool, enum enum_duplicates, bool, bool, int);
 #endif /* EMBEDDED_LIBRARY */
 
+static bool choose_table_to_insert(TABLE_LIST *view, List<Item> &fields_vars)
+{
+  DBUG_ENTER("choose_table_to_insert");
+
+  table_map tables= 0;
+  List_iterator_fast<Item> it(fields_vars);
+
+  Item *item= NULL;
+  while ((item= it++))
+    tables|= item->used_tables();
+
+  tables&= ~PSEUDO_TABLE_BITS;
+
+  TABLE_LIST *underlying= NULL;
+  if (view->check_single_table(&underlying, tables, view) || underlying == NULL)
+  {
+    my_error(ER_VIEW_MULTIUPDATE, MYF(0), view->view_db.str,
+             view->view_name.str);
+    DBUG_RETURN(true);
+  }
+
+  view->table= underlying->table;
+  if (!underlying->single_table_updatable())
+  {
+    my_error(ER_NON_INSERTABLE_TABLE, MYF(0), view->alias, "LOAD");
+    DBUG_RETURN(true);
+  }
+
+  DBUG_RETURN(false);
+}
+
 /*
   Execute LOAD DATA query
 
@@ -322,6 +353,12 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
     /* Fix the expressions in SET clause */
     if (setup_fields(thd, 0, set_values, MARK_COLUMNS_READ, 0, NULL, 0))
       DBUG_RETURN(TRUE);
+  }
+
+  if (table_list->is_view() && table_list->is_merged_derived() &&
+      choose_table_to_insert(table_list, fields_vars))
+  {
+    DBUG_RETURN(TRUE);
   }
 
   prepare_triggers_for_insert_stmt(table);
