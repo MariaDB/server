@@ -2086,3 +2086,17 @@ DROP TABLE t1,t2;
 --echo #
 --echo # Start of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-16489 when lead() returns null on a datetime field, the result is treated as the literal string '[NULL]'
+--echo #
+
+CREATE TABLE t1 (d datetime);
+INSERT INTO t1 VALUES ('2018-01-01 00:00:00'),('2018-02-01 00:00:00');
+SELECT *, LEAD(d) OVER (ORDER BY d) AS x FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (d time);
+INSERT INTO t1 VALUES ('00:00:01'),('00:00:02');
+SELECT *, LEAD(d) OVER (ORDER BY d) AS x FROM t1;
+DROP TABLE t1;
