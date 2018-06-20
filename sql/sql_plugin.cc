@@ -2263,7 +2263,6 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
 
   if (!opt_noacl && check_table_access(thd, DELETE_ACL, &tables, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
