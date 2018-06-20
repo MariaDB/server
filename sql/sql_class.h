@@ -4168,12 +4168,6 @@ public:
        (THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
         THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL));
   }
-
-  /*
-    Returns true when the thread handle belongs to a slave worker thread
-    running in the optimistic execution mode.
-  */
-  bool is_optimistic_slave_worker();
 };
 
 

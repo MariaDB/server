@@ -4,11 +4,6 @@
 --let $rpl_topology=1->2
 --source include/rpl_init.inc
 
---connection server_2
-call mtr.add_suppression("Warning.*Deadlock found when trying to get lock; try restarting transaction");
-# The following instruction is a part of the proof of MDEV-13577 fixes, below.
-call mtr.add_suppression("Warning.*mysqld: Can't find record in 't2'");
-
 --connection server_1
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
@@ -500,6 +495,7 @@ DELETE FROM t2;
 
 # The 1st of the following two trx:s a blocker on slave
 --connection server_2
+set global log_warnings=2;
 BEGIN;
 INSERT INTO t1 SET a=1;
 
@@ -546,6 +542,7 @@ DELETE FROM t2;
 #
 --connection server_2
 --source include/stop_slave.inc
+set global log_warnings=default;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 --source include/start_slave.inc

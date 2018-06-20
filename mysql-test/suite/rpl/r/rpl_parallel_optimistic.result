@@ -1,6 +1,4 @@
 include/rpl_init.inc [topology=1->2]
-call mtr.add_suppression("Warning.*Deadlock found when trying to get lock; try restarting transaction");
-call mtr.add_suppression("Warning.*mysqld: Can't find record in 't2'");
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
@@ -549,6 +547,7 @@ DELETE FROM t1;
 DELETE FROM t2;
 include/save_master_gtid.inc
 include/sync_with_master_gtid.inc
+set global log_warnings=2;
 BEGIN;
 INSERT INTO t1 SET a=1;
 SET @save.binlog_format=@@session.binlog_format;
@@ -567,6 +566,7 @@ DELETE FROM t2;
 include/save_master_gtid.inc
 include/sync_with_master_gtid.inc
 include/stop_slave.inc
+set global log_warnings=default;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
