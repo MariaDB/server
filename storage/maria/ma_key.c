@@ -728,7 +728,7 @@ ulonglong ma_retrieve_auto_increment(const uchar *key, uint8 key_type)
 
   switch (key_type) {
   case HA_KEYTYPE_INT8:
-    s_value= (longlong) *(const char*)key;
+    s_value= (longlong) *(const signed char*) key;
     break;
   case HA_KEYTYPE_BINARY:
     value=(ulonglong)  *key;
