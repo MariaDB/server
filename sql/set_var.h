@@ -243,6 +243,12 @@ protected:
   uchar *global_var_ptr()
   { return ((uchar*)&global_system_variables) + offset; }
 
+  void *max_var_ptr()
+  {
+    return scope() == SESSION ? (((uchar*)&max_system_variables) + offset) :
+                                0;
+  }
+
   friend class Session_sysvars_tracker;
   friend class Session_tracker;
 };

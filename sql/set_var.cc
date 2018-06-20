@@ -452,6 +452,22 @@ void sys_var::do_deprecated_warning(THD *thd)
 
   @retval         true on error, false otherwise (warning or ok)
  */
+
+
+bool throw_bounds_warning(THD *thd, const char *name,const char *v)
+{
+  if (thd->variables.sql_mode & MODE_STRICT_ALL_TABLES)
+  {
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, v);
+    return true;
+  }
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_TRUNCATED_WRONG_VALUE,
+                      ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), name, v);
+  return false;
+}
+
+
 bool throw_bounds_warning(THD *thd, const char *name,
                           bool fixed, bool is_unsigned, longlong v)
 {
@@ -469,9 +485,7 @@ bool throw_bounds_warning(THD *thd, const char *name,
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;
     }
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE,
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), name, buf);
+    return throw_bounds_warning(thd, name, buf);
   }
   return false;
 }
@@ -489,9 +503,7 @@ bool throw_bounds_warning(THD *thd, const char *name, bool fixed, double v)
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;
     }
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE,
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), name, buf);
+    return throw_bounds_warning(thd, name, buf);
   }
   return false;
 }
