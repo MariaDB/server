@@ -3802,6 +3802,7 @@ public:
            sp_for_loop_cursor_finalize(thd, loop) :
            sp_for_loop_intrange_finalize(thd, loop);
   }
+  bool sp_for_loop_outer_block_finalize(THD *thd, const Lex_for_loop_st &loop);
   /* End of FOR LOOP methods */
 
   bool add_signal_statement(THD *thd, const class sp_condition_value *value);

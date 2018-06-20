@@ -4729,9 +4729,7 @@ sp_labeled_control:
           }
           pop_sp_loop_label                    // The inner WHILE block
           {
-            Lex_spblock tmp;
-            tmp.curs= MY_TEST($4.m_implicit_cursor);
-            if (unlikely(Lex->sp_block_finalize(thd, tmp))) // The outer DECLARE..BEGIN..END
+            if (unlikely(Lex->sp_for_loop_outer_block_finalize(thd, $4)))
               MYSQL_YYABORT;
           }
         | sp_label REPEAT_SYM
@@ -4781,12 +4779,10 @@ sp_unlabeled_control:
           sp_proc_stmts1
           END FOR_SYM
           {
-            Lex_spblock tmp;
-            tmp.curs= MY_TEST($3.m_implicit_cursor);
             if (unlikely(Lex->sp_for_loop_finalize(thd, $3)))
               MYSQL_YYABORT;
             Lex->sp_pop_loop_empty_label(thd); // The inner WHILE block
-            if (unlikely(Lex->sp_block_finalize(thd, tmp))) // The outer DECLARE..BEGIN..END
+            if (unlikely(Lex->sp_for_loop_outer_block_finalize(thd, $3)))
               MYSQL_YYABORT;
           }
         | REPEAT_SYM
