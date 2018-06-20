@@ -26,4 +26,4 @@ ELSE()
 ENDIF()
 
 TARGET_LINK_LIBRARIES(explain_filename-t sql mytap)
-MY_ADD_TEST(explain_filename explain_filename-t)
+ADD_TEST(explain_filename explain_filename-t)
