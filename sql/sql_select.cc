@@ -16814,7 +16814,10 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
       if (result && modify_item)
         field->result_field= result;
       if (orig_item)
+      {
         item->maybe_null= save_maybe_null;
+        result->field_name= orig_item->name;
+      }
     } 
     else if (table_cant_handle_bit_fields && field->field->type() ==
              MYSQL_TYPE_BIT)
