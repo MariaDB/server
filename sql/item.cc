@@ -202,6 +202,19 @@ String *Item::val_str_ascii(String *str)
 }
 
 
+String *Item::val_str_ascii_revert_empty_string_is_null(THD *thd, String *str)
+{
+  String *res= val_str_ascii(str);
+  if (!res && (thd->variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
+  {
+    null_value= false;
+    str->set("", 0, &my_charset_latin1);
+    return str;
+  }
+  return res;
+}
+
+
 String *Item::val_str(String *str, String *converter, CHARSET_INFO *cs)
 {
   String *res= val_str(str);

@@ -1171,7 +1171,13 @@ public:
       Similar to val_str()
   */
   virtual String *val_str_ascii(String *str);
-  
+
+  /*
+    Returns the result of val_str_ascii(), translating NULLs back
+    to empty strings (if MODE_EMPTY_STRING_IS_NULL is set).
+  */
+  String *val_str_ascii_revert_empty_string_is_null(THD *thd, String *str);
+
   /*
     Returns the val_str() value converted to the given character set.
   */

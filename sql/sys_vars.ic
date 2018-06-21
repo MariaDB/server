@@ -1354,7 +1354,8 @@ public:
 
     if (var->value->result_type() == STRING_RESULT)
     {
-      if (!(res=var->value->val_str_ascii(&str)))
+      if (!(res= var->value->val_str_ascii_revert_empty_string_is_null(thd,
+                                                                       &str)))
         return true;
       else
       {
