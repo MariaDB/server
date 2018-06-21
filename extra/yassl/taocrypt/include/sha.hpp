@@ -29,6 +29,19 @@
     #define DO_SHA_ASM
 #endif
 
+#ifdef HAVE_ARMV8_CRC_CRYPTO_INTRINSICS
+    #include <arm_neon.h>
+    #if defined(__BYTE_ORDER__)
+        #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+            #define LITTLE_ENDIAN_ORDER
+        #else
+            #define BIG_ENDIAN_ORDER
+        #endif
+    #else
+        #error macro __BYTE_ORDER__ is not defined in host compiler
+    #endif
+#endif
+
 namespace TaoCrypt {
 
 
