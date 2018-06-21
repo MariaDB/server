@@ -1866,3 +1866,12 @@ pUpTo10	p-10sp1	This is a long comment (2050 ascii characters)   50 pUpTo10 part
 pMax	pMaxsp0	This is a long comment (2050 ascii characters)   50 pMax partition comment .80-!
 pMax	pMaxsp1	This is a long comment (2050 ascii characters)   50 pMax partition comment .80-!
 DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (
+pk INT PRIMARY KEY,
+c CHAR(3) NOT NULL,
+v CHAR(4) AS (c) VIRTUAL
+) WITH SYSTEM VERSIONING PARTITION BY HASH(pk);
+INSERT INTO t1 (pk,c) VALUES (1,'foo'),(2,'bar');
+UPDATE t1 SET v = 'qux' WHERE pk = 2;
+ERROR HY000: The value specified for generated column 'v' in table 't1' ignored
+DROP TABLE t1;
