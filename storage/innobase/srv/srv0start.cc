@@ -840,6 +840,10 @@ srv_undo_tablespaces_init(bool create_new_db)
 	ut_a(srv_undo_tablespaces <= TRX_SYS_N_RSEGS);
 	ut_a(!create_new_db || srv_operation == SRV_OPERATION_NORMAL);
 
+	if (srv_undo_tablespaces == 1) { /* 1 is not allowed, make it 0 */
+		srv_undo_tablespaces = 0;
+	}
+
 	memset(undo_tablespace_ids, 0x0, sizeof(undo_tablespace_ids));
 
 	/* Create the undo spaces only if we are creating a new
