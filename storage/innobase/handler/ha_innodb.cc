@@ -2541,7 +2541,11 @@ innobase_mysql_tmpfile(
 			}
 		}
 #else
+#ifdef F_DUPFD_CLOEXEC
+		fd2 = fcntl(fd, F_DUPFD_CLOEXEC, 0);
+#else
 		fd2 = dup(fd);
+#endif
 #endif
 		if (fd2 < 0) {
 			char errbuf[MYSYS_STRERROR_SIZE];
@@ -8484,13 +8488,12 @@ report_error:
 		error, m_prebuilt->table->flags, m_user_thd);
 
 #ifdef WITH_WSREP
-	if (!error_result                                  &&
-	    wsrep_thd_exec_mode(m_user_thd) == LOCAL_STATE &&
-	    wsrep_on(m_user_thd)                           &&
-	    !wsrep_consistency_check(m_user_thd)           &&
-	    !wsrep_thd_ignore_table(m_user_thd)) {
-		if (wsrep_append_keys(m_user_thd, false, record, NULL))
-		{
+	if (!error_result
+	    && wsrep_on(m_user_thd)
+	    && wsrep_thd_exec_mode(m_user_thd) == LOCAL_STATE
+	    && !wsrep_consistency_check(m_user_thd)
+	    && !wsrep_thd_ignore_table(m_user_thd)) {
+		if (wsrep_append_keys(m_user_thd, false, record, NULL)) {
 			DBUG_PRINT("wsrep", ("row key failed"));
 			error_result = HA_ERR_INTERNAL_ERROR;
 			goto wsrep_error;
@@ -19671,8 +19674,10 @@ wsrep_innobase_kill_one_trx(
 		    thd_get_thread_id(thd),
 		    victim_trx->id);
 
-	WSREP_DEBUG("Aborting query: %s",
-		  (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void");
+	WSREP_DEBUG("Aborting query: %s conf %d trx: %lu",
+		    (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void",
+		    wsrep_thd_conflict_state(thd, FALSE),
+		    wsrep_thd_ws_handle(thd)->trx_id);
 
 	wsrep_thd_LOCK(thd);
         DBUG_EXECUTE_IF("sync.wsrep_after_BF_victim_lock",
@@ -19735,7 +19740,7 @@ wsrep_innobase_kill_one_trx(
 			wsrep_t *wsrep= get_wsrep();
 			rcode = wsrep->abort_pre_commit(
 				wsrep, bf_seqno,
-				(wsrep_trx_id_t)victim_trx->id
+				(wsrep_trx_id_t)wsrep_thd_ws_handle(thd)->trx_id
 			);
 
 			switch (rcode) {
@@ -19860,12 +19865,14 @@ wsrep_abort_transaction(
 	my_bool signal)
 {
 	DBUG_ENTER("wsrep_innobase_abort_thd");
-	trx_t* victim_trx = thd_to_trx(victim_thd);
-	trx_t* bf_trx     = (bf_thd) ? thd_to_trx(bf_thd) : NULL;
+	
+	trx_t* victim_trx	= thd_to_trx(victim_thd);
+	trx_t* bf_trx		= (bf_thd) ? thd_to_trx(bf_thd) : NULL;
 
-	WSREP_DEBUG("abort transaction: BF: %s victim: %s",
-		    wsrep_thd_query(bf_thd),
-		    wsrep_thd_query(victim_thd));
+	WSREP_DEBUG("abort transaction: BF: %s victim: %s victim conf: %d",
+			wsrep_thd_query(bf_thd),
+			wsrep_thd_query(victim_thd),
+			wsrep_thd_conflict_state(victim_thd, FALSE));
 
 	if (victim_trx) {
 		lock_mutex_enter();
@@ -19917,8 +19924,8 @@ innobase_wsrep_get_checkpoint(
 	XID* xid)
 {
 	DBUG_ASSERT(hton == innodb_hton_ptr);
-        trx_sys_read_wsrep_checkpoint(xid);
-        return 0;
+	trx_sys_read_wsrep_checkpoint(xid);
+	return 0;
 }
 
 static

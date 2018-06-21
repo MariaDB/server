@@ -62,6 +62,9 @@ bool wsrep_on_check(sys_var *self, THD* thd, set_var* var)
 {
   bool new_wsrep_on= (bool)var->save_result.ulonglong_value;
 
+  if (check_has_super(self, thd, var))
+    return true;
+
   if (new_wsrep_on && innodb_lock_schedule_algorithm != 0) {
     my_message(ER_WRONG_ARGUMENTS, " WSREP (galera) can't be enabled "
 	    "if innodb_lock_schedule_algorithm=VATS. Please configure"

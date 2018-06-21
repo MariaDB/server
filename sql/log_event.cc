@@ -5216,22 +5216,6 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
       else
         thd->variables.collation_database= thd->db_charset;
 
-      {
-        const CHARSET_INFO *cs= thd->charset();
-        /*
-          We cannot ask for parsing a statement using a character set
-          without state_maps (parser internal data).
-        */
-        if (!cs->state_map)
-        {
-          rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
-                      ER_THD(thd, ER_SLAVE_FATAL_ERROR),
-                      "character_set cannot be parsed");
-          thd->is_slave_error= true;
-          goto end;
-        }
-      }
-
       /*
         Record any GTID in the same transaction, so slave state is
         transactionally consistent.
@@ -13036,6 +13020,16 @@ void issue_long_find_row_warning(Log_event_type type,
 }
 
 
+/*
+  HA_ERR_KEY_NOT_FOUND is a fatal error normally, but it's an expected
+  error in speculate optimistic mode, so use something non-fatal instead
+*/
+static int row_not_found_error(rpl_group_info *rgi)
+{
+  return rgi->speculation != rpl_group_info::SPECULATE_OPTIMISTIC
+         ? HA_ERR_KEY_NOT_FOUND : HA_ERR_RECORD_CHANGED;
+}
+
 /**
   Locate the current row in event's table.
 
@@ -13123,8 +13117,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     if (error)
     {
       DBUG_PRINT("info",("rnd_pos returns error %d",error));
-      if (error == HA_ERR_RECORD_DELETED)
-        error= HA_ERR_KEY_NOT_FOUND;
+      if (error == HA_ERR_RECORD_DELETED || error == HA_ERR_KEY_NOT_FOUND)
+        error= row_not_found_error(rgi);
       table->file->print_error(error, MYF(0));
     }
     DBUG_RETURN(error);
@@ -13189,8 +13183,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
                                                HA_READ_KEY_EXACT)))
     {
       DBUG_PRINT("info",("no record matching the key found in the table"));
-      if (error == HA_ERR_RECORD_DELETED)
-        error= HA_ERR_KEY_NOT_FOUND;
+      if (error == HA_ERR_RECORD_DELETED || error == HA_ERR_KEY_NOT_FOUND)
+        error= row_not_found_error(rgi);
       table->file->print_error(error, MYF(0));
       table->file->ha_index_end();
       goto end;

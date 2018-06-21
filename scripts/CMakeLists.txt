@@ -331,6 +331,22 @@ ELSE()
       COMPONENT ${${file}_COMPONENT}
      )
   ENDFOREACH()
+  SET (wsrep_sst_rsync_wan ${CMAKE_CURRENT_BINARY_DIR}/wsrep_sst_rsync_wan)
+  ADD_CUSTOM_COMMAND(
+    OUTPUT ${wsrep_sst_rsync_wan}
+    COMMAND ${CMAKE_COMMAND} ARGS -E create_symlink
+      wsrep_sst_rsync
+      wsrep_sst_rsync_wan
+  )
+  ADD_CUSTOM_TARGET(symlink_wsrep_sst_rsync
+      ALL
+      DEPENDS ${wsrep_sst_rsync_wan}
+  )
+  INSTALL(
+    FILES  ${wsrep_sst_rsync_wan}
+    DESTINATION ${INSTALL_BINDIR}
+    COMPONENT Server
+  )
 
   FOREACH(file ${WSREP_SOURCE})
     CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh
@@ -344,7 +360,6 @@ ELSE()
       COMPONENT ${${file}_COMPONENT}
      )
   ENDFOREACH()
-
 ENDIF()
 
 # Install libgcc as  mylibgcc.a

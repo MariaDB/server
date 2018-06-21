@@ -304,9 +304,6 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   create_info.data_file_name= create_info.index_file_name= NULL;
 
   thd->enable_slow_log= opt_log_slow_admin_statements;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  thd->work_part_info= 0;
-#endif
 
 #ifdef WITH_WSREP
   if ((!thd->is_current_stmt_binlog_format_row() ||

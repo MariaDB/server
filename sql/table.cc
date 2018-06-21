@@ -1795,7 +1795,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
       if ((uchar)field_type == (uchar)MYSQL_TYPE_VIRTUAL)
       {
-        DBUG_ASSERT(interval_nr); // Expect non-null expression
+        if (!interval_nr) // Expect non-null expression
+          goto err;
         /*
           MariaDB version 10.0 version.
           The interval_id byte in the .frm file stores the length of the
@@ -5824,6 +5825,8 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   Item *item= (new (thd->mem_root)
                Item_direct_view_ref(thd, context, field_ref, view->alias,
                                     name, view));
+  if (!item)
+    return NULL;
   /*
     Force creation of nullable item for the result tmp table for outer joined
     views/derived tables.
@@ -8092,7 +8095,15 @@ int TABLE_LIST::fetch_number_of_rows()
 {
   int error= 0;
   if (jtbm_subselect)
+  {
+    if (jtbm_subselect->is_jtbm_merged)
+    {
+      table->file->stats.records= (ha_rows)jtbm_subselect->jtbm_record_count;
+      set_if_bigger(table->file->stats.records, 2);
+      table->used_stat_records= table->file->stats.records;
+    }
     return 0;
+  }
   if (is_materialized_derived() && !fill_me)
 
   {

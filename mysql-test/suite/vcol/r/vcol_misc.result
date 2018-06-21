@@ -352,6 +352,16 @@ a	b	c
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #
+# MDEV-15834 The code in TABLE_SHARE::init_from_binary_frm_image() is not safe
+#
+SHOW TABLES;
+Tables_in_test
+t1
+SHOW CREATE TABLE t1;
+ERROR HY000: Incorrect information in file: './test/t1.frm'
+ALTER TABLE t1;
+ERROR HY000: Incorrect information in file: './test/t1.frm'
+#
 # End of 5.5 tests
 #
 #

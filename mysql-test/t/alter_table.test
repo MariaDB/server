@@ -1839,6 +1839,21 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-14668 ADD PRIMARY KEY IF NOT EXISTS on composite key
+--echo #
+CREATE TABLE t1 (
+        `ID` BIGINT(20) NOT NULL,
+            `RANK` MEDIUMINT(4) NOT NULL,
+                `CHECK_POINT` BIGINT(20) NOT NULL,
+                    UNIQUE INDEX `HORIZON_UIDX01` (`ID`, `RANK`)
+    ) ENGINE=InnoDB;
+
+ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS (`ID`, `CHECK_POINT`);
+SHOW CREATE TABLE t1;
+ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS (`ID`, `CHECK_POINT`);
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.0 tests
 --echo #
 

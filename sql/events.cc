@@ -462,8 +462,7 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
 
   if (check_access(thd, EVENT_ACL, parse_data->dbname.str, NULL, NULL, 0, 0))
     DBUG_RETURN(TRUE);
-
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   if (lock_object_name(thd, MDL_key::EVENT,
                        parse_data->dbname.str, parse_data->name.str))
@@ -592,8 +591,7 @@ Events::drop_event(THD *thd, LEX_STRING dbname, LEX_STRING name, bool if_exists)
 
   if (check_access(thd, EVENT_ACL, dbname.str, NULL, NULL, 0, 0))
     DBUG_RETURN(TRUE);
-
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /*
     Turn off row binlogging of this statement and use statement-based so
@@ -619,7 +617,7 @@ Events::drop_event(THD *thd, LEX_STRING dbname, LEX_STRING name, bool if_exists)
 #ifdef WITH_WSREP
 error:
   DBUG_RETURN(TRUE);
-#endif
+#endif /* WITH_WSREP */
 }
 
 

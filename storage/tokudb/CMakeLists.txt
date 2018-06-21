@@ -75,6 +75,7 @@ IF(INSTALL_SYSCONFDIR)
           COMPONENT tokudb-engine)
 ENDIF()
 
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-shadow")
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-vla" DEBUG)
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-implicit-fallthrough")
 

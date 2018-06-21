@@ -1,3 +1,4 @@
+--source include/big_test.inc
 --source include/galera_cluster.inc
 
 --source suite/galera/include/galera_sst_set_mysqldump.inc

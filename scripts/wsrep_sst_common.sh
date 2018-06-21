@@ -35,12 +35,24 @@ case "$1" in
         #
         # Break address string into host:port/path parts
         #
-        readonly WSREP_SST_OPT_HOST=${WSREP_SST_OPT_ADDR%%[:/]*}
-        readonly WSREP_SST_OPT_HOST_UNESCAPED=`echo "$WSREP_SST_OPT_HOST"|awk '{if(match($0,/^\[.*\]$/)) $0=substr($0,2,RLENGTH-2);print}'`
-        readonly WSREP_SST_OPT_ADDR_PORT=$(echo $WSREP_SST_OPT_ADDR | \
-                cut -d ']' -f 2 | cut -s -d ':' -f 2 | cut -d '/' -f 1)
+        case "${WSREP_SST_OPT_ADDR}" in
+        \[*)
+            # IPv6
+            addr_no_bracket=${WSREP_SST_OPT_ADDR#\[}
+            readonly WSREP_SST_OPT_HOST_UNESCAPED=${addr_no_bracket%%\]*}
+            readonly WSREP_SST_OPT_HOST="[${WSREP_SST_OPT_HOST_UNESCAPED}]"
+            ;;
+        *)
+            readonly WSREP_SST_OPT_HOST=${WSREP_SST_OPT_ADDR%%[:/]*}
+            readonly WSREP_SST_OPT_HOST_UNESCAPED=$WSREP_SST_OPT_HOST
+            ;;
+        esac
+        remain=${WSREP_SST_OPT_ADDR#${WSREP_SST_OPT_HOST}}
+        remain=${remain#:}
+        readonly WSREP_SST_OPT_ADDR_PORT=${remain%%/*}
+        remain=${remain#*/}
+        readonly WSREP_SST_OPT_MODULE=${remain%%/*}
         readonly WSREP_SST_OPT_PATH=${WSREP_SST_OPT_ADDR#*/}
-        readonly WSREP_SST_OPT_MODULE=${WSREP_SST_OPT_PATH%%/*}
         remain=${WSREP_SST_OPT_PATH#*/}
         readonly WSREP_SST_OPT_LSN=${remain%%/*}
         remain=${remain#*/}
@@ -120,10 +132,10 @@ done
 readonly WSREP_SST_OPT_BYPASS
 readonly WSREP_SST_OPT_BINLOG
 
-if [ -n "${WSREP_SST_OPT_ADDR:-}" ]; then
+if [ -n "${WSREP_SST_OPT_ADDR_PORT:-}" ]; then
   if [ -n "${WSREP_SST_OPT_PORT:-}" ]; then
-    if [ -n "$WSREP_SST_OPT_ADDR_PORT" -a "$WSREP_SST_OPT_PORT" != "$WSREP_SST_OPT_ADDR_PORT" ]; then
-      wsrep_log_error "port in --port=$WSREP_SST_OPT_PORT differs from port in --address=$WSREP_SST_OPT_ADDR"
+    if [ "$WSREP_SST_OPT_PORT" != "$WSREP_SST_OPT_ADDR_PORT" ]; then
+      echo "WSREP_SST: [ERROR] port in --port=$WSREP_SST_OPT_PORT differs from port in --address=$WSREP_SST_OPT_ADDR" >&2
       exit 2
     fi
   else

@@ -199,7 +199,7 @@ int main(int argc, char **argv)
     die("database creation failed");
   }
 
-  printf("Creation of the database was successfull");
+  printf("Creation of the database was successful");
   return 0;
 }
 

@@ -453,7 +453,6 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     my_error(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER, MYF(0));
     DBUG_RETURN(TRUE);
   }
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
   if (!create)
   {
@@ -515,6 +514,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     if (err_status)
       goto end;
   }
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /* We should have only one table in table list. */
   DBUG_ASSERT(tables->next_global == 0);

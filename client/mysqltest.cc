@@ -8747,6 +8747,7 @@ void init_re(void)
     "[[:space:]]*SELECT[[:space:]]|"
     "[[:space:]]*CREATE[[:space:]]+TABLE[[:space:]]|"
     "[[:space:]]*DO[[:space:]]|"
+    "[[:space:]]*HANDLER[[:space:]]+.*[[:space:]]+READ[[:space:]]|"
     "[[:space:]]*SET[[:space:]]+OPTION[[:space:]]|"
     "[[:space:]]*DELETE[[:space:]]+MULTI[[:space:]]|"
     "[[:space:]]*UPDATE[[:space:]]+MULTI[[:space:]]|"
