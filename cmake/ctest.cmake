@@ -2,7 +2,7 @@
 INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/cmake_parse_arguments.cmake)
 
 MACRO(MY_ADD_TEST name)
-  ADD_TEST(NAME ${name} COMMAND ${name}-t CONFIGURATIONS default_ignore)
+  ADD_TEST(${name} ${name}-t)
 ENDMACRO()
 
 MACRO (MY_ADD_TESTS)
