@@ -649,7 +649,7 @@ public:
   void get_dynamic_partition_info(PARTITION_STATS *stat_info,
                                   uint part_id);
   virtual int extra(enum ha_extra_function operation);
-  virtual int extra_opt(enum ha_extra_function operation, ulong cachesize);
+  virtual int extra_opt(enum ha_extra_function operation, ulong arg);
   virtual int reset(void);
   virtual uint count_query_cache_dependant_tables(uint8 *tables_type);
   virtual my_bool
@@ -659,6 +659,8 @@ public:
                                           uint *n);
 
 private:
+  typedef int handler_callback(handler *, void *);
+
   my_bool reg_query_cache_dependant_table(THD *thd,
                                           char *engine_key,
                                           uint engine_key_len,
@@ -669,7 +671,7 @@ private:
                                           **block_table,
                                           handler *file, uint *n);
   static const uint NO_CURRENT_PART_ID;
-  int loop_extra(enum ha_extra_function operation);
+  int loop_partitions(handler_callback callback, void *param);
   int loop_extra_alter(enum ha_extra_function operations);
   void late_extra_cache(uint partition_id);
   void late_extra_no_cache(uint partition_id);
