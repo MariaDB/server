@@ -206,7 +206,7 @@ btr_search_check_free_space_in_heap(const dict_index_t* index)
 	be enough free space in the hash table. */
 
 	if (heap->free_block == NULL) {
-		buf_block_t*	block = buf_block_alloc(NULL);
+		buf_block_t*	block = buf_block_alloc();
 		rw_lock_t*	ahi_latch = btr_get_search_latch(index);
 
 		rw_lock_x_lock(ahi_latch);
@@ -408,12 +408,12 @@ void btr_search_disable(bool need_mutex)
 /** Enable the adaptive hash search system. */
 void btr_search_enable()
 {
-	buf_pool_mutex_enter_all();
+	mutex_enter(&buf_pool->mutex);
 	if (srv_buf_pool_old_size != srv_buf_pool_size) {
-		buf_pool_mutex_exit_all();
+		mutex_exit(&buf_pool->mutex);
 		return;
 	}
-	buf_pool_mutex_exit_all();
+	mutex_exit(&buf_pool->mutex);
 
 	btr_search_x_lock_all();
 	btr_search_enabled = true;
@@ -1060,11 +1060,7 @@ fail:
 
 	/* Increment the page get statistics though we did not really
 	fix the page: for user info only */
-	{
-		buf_pool_t*	buf_pool = buf_pool_from_bpage(&block->page);
-
-		++buf_pool->stat.n_page_gets;
-	}
+	++buf_pool->stat.n_page_gets;
 
 	return(TRUE);
 }
@@ -1978,23 +1974,23 @@ btr_search_hash_table_validate(ulint hash_table_id)
 	rec_offs_init(offsets_);
 
 	btr_search_x_lock_all();
-	buf_pool_mutex_enter_all();
+	mutex_enter(&buf_pool->mutex);
 
 	cell_count = hash_get_n_cells(
-			btr_search_sys->hash_tables[hash_table_id]);
+		btr_search_sys->hash_tables[hash_table_id]);
 
 	for (i = 0; i < cell_count; i++) {
 		/* We release search latches every once in a while to
 		give other queries a chance to run. */
 		if ((i != 0) && ((i % chunk_size) == 0)) {
 
-			buf_pool_mutex_exit_all();
+			mutex_exit(&buf_pool->mutex);
 			btr_search_x_unlock_all();
 
 			os_thread_yield();
 
 			btr_search_x_lock_all();
-			buf_pool_mutex_enter_all();
+			mutex_enter(&buf_pool->mutex);
 
 			ulint	curr_cell_count = hash_get_n_cells(
 				btr_search_sys->hash_tables[hash_table_id]);
@@ -2016,10 +2012,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 			const buf_block_t*	block
 				= buf_block_from_ahi((byte*) node->data);
 			const buf_block_t*	hash_block;
-			buf_pool_t*		buf_pool;
 			index_id_t		page_index_id;
-
-			buf_pool = buf_pool_from_bpage((buf_page_t*) block);
 
 			if (UNIV_LIKELY(buf_block_get_state(block)
 					== BUF_BLOCK_FILE_PAGE)) {
@@ -2030,7 +2023,6 @@ btr_search_hash_table_validate(ulint hash_table_id)
 				(BUF_BLOCK_REMOVE_HASH, see the
 				assertion and the comment below) */
 				hash_block = buf_block_hash_get(
-					buf_pool,
 					block->page.id);
 			} else {
 				hash_block = NULL;
@@ -2105,14 +2097,13 @@ btr_search_hash_table_validate(ulint hash_table_id)
 		/* We release search latches every once in a while to
 		give other queries a chance to run. */
 		if (i != 0) {
-
-			buf_pool_mutex_exit_all();
+			mutex_exit(&buf_pool->mutex);
 			btr_search_x_unlock_all();
 
 			os_thread_yield();
 
 			btr_search_x_lock_all();
-			buf_pool_mutex_enter_all();
+			mutex_enter(&buf_pool->mutex);
 
 			ulint	curr_cell_count = hash_get_n_cells(
 				btr_search_sys->hash_tables[hash_table_id]);
@@ -2135,7 +2126,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 		}
 	}
 
-	buf_pool_mutex_exit_all();
+	mutex_exit(&buf_pool->mutex);
 	btr_search_x_unlock_all();
 
 	if (UNIV_LIKELY_NULL(heap)) {

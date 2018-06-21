@@ -285,7 +285,7 @@ mem_heap_create_block_func(
 				return(NULL);
 			}
 		} else {
-			buf_block = buf_block_alloc(NULL);
+			buf_block = buf_block_alloc();
 		}
 
 		block = (mem_block_t*) buf_block->frame;

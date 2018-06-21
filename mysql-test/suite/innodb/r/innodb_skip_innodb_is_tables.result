@@ -27,11 +27,11 @@ database_name	table_name	index_name	compress_ops	compress_ops_ok	compress_time	u
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_cmp_per_index_reset but the InnoDB storage engine is not installed
 select * from information_schema.innodb_cmpmem;
-page_size	buffer_pool_instance	pages_used	pages_free	relocation_ops	relocation_time
+page_size	pages_used	pages_free	relocation_ops	relocation_time
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_cmpmem but the InnoDB storage engine is not installed
 select * from information_schema.innodb_cmpmem_reset;
-page_size	buffer_pool_instance	pages_used	pages_free	relocation_ops	relocation_time
+page_size	pages_used	pages_free	relocation_ops	relocation_time
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_cmpmem_reset but the InnoDB storage engine is not installed
 select * from information_schema.innodb_metrics;
@@ -337,11 +337,11 @@ WORD	FIRST_DOC_ID	LAST_DOC_ID	DOC_COUNT	DOC_ID	POSITION
 select * from information_schema.innodb_ft_config;
 KEY	VALUE
 select * from information_schema.innodb_buffer_page;
-POOL_ID	BLOCK_ID	SPACE	PAGE_NUMBER	PAGE_TYPE	FLUSH_TYPE	FIX_COUNT	IS_HASHED	NEWEST_MODIFICATION	OLDEST_MODIFICATION	ACCESS_TIME	TABLE_NAME	INDEX_NAME	NUMBER_RECORDS	DATA_SIZE	COMPRESSED_SIZE	PAGE_STATE	IO_FIX	IS_OLD	FREE_PAGE_CLOCK
+BLOCK_ID	SPACE	PAGE_NUMBER	PAGE_TYPE	FLUSH_TYPE	FIX_COUNT	IS_HASHED	NEWEST_MODIFICATION	OLDEST_MODIFICATION	ACCESS_TIME	TABLE_NAME	INDEX_NAME	NUMBER_RECORDS	DATA_SIZE	COMPRESSED_SIZE	PAGE_STATE	IO_FIX	IS_OLD	FREE_PAGE_CLOCK
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_buffer_page but the InnoDB storage engine is not installed
 select * from information_schema.innodb_buffer_page_lru;
-POOL_ID	LRU_POSITION	SPACE	PAGE_NUMBER	PAGE_TYPE	FLUSH_TYPE	FIX_COUNT	IS_HASHED	NEWEST_MODIFICATION	OLDEST_MODIFICATION	ACCESS_TIME	TABLE_NAME	INDEX_NAME	NUMBER_RECORDS	DATA_SIZE	COMPRESSED_SIZE	COMPRESSED	IO_FIX	IS_OLD	FREE_PAGE_CLOCK
+LRU_POSITION	SPACE	PAGE_NUMBER	PAGE_TYPE	FLUSH_TYPE	FIX_COUNT	IS_HASHED	NEWEST_MODIFICATION	OLDEST_MODIFICATION	ACCESS_TIME	TABLE_NAME	INDEX_NAME	NUMBER_RECORDS	DATA_SIZE	COMPRESSED_SIZE	COMPRESSED	IO_FIX	IS_OLD	FREE_PAGE_CLOCK
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_buffer_page_lru but the InnoDB storage engine is not installed
 select * from information_schema.innodb_buffer_stats;
