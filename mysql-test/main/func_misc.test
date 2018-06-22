@@ -1203,3 +1203,18 @@ SELECT INET_ATON("255.255.255.255.255.255.255.255");
 
 --enable_ps_protocol
 --disable_metadata
+
+--echo #
+--echo # MDEV-8049 name_const() is not consistent about its signess
+--echo #
+
+--enable_metadata
+--disable_ps_protocol
+SELECT 18446744073709551615 AS c1, name_const('a',18446744073709551615) AS c2;
+--enable_ps_protocol
+--disable_metadata
+
+CREATE TABLE t1 AS SELECT 18446744073709551615 AS c1, name_const('a',18446744073709551615) AS c2;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
