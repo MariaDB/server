@@ -86,7 +86,7 @@ then
 fi
 if [[ $GCCVERSION -lt 40800 ]]
 then
-  sed '/Package: mariadb-plugin-aws-key-management-10.2/,+13d' -i debian/control
+  sed '/Package: mariadb-plugin-aws-key-management-10.2/,+12d' -i debian/control
 fi
 
 

@@ -590,7 +590,6 @@ Architecture: any
 Breaks: mariadb-aws-key-management-10.1
 Replaces: mariadb-aws-key-management-10.1
 Depends: mariadb-server-10.2,
-         libcurl3,
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Amazon Web Service Key Management Service Plugin for MariaDB
