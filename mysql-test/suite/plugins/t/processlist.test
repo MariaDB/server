@@ -8,7 +8,8 @@ start transaction;
 insert t1 values (1);
 let id=`select connection_id()`;
 connect con2,localhost,root;
-let s=query_get_value(show engine innodb status,Status,1);
+replace_regex /\"/-/; #"
+let s=`show engine innodb status`;
 disable_query_log;
 eval select regexp_replace("$s", '(?s)^.*MySQL thread id $id,.*root([^\n]*)\n.*', '\\\\1') as `state from show engine innodb status`;
 eval select state as `state from show processlist` from information_schema.processlist where id = $id;
