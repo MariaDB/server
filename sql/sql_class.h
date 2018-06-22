@@ -3674,6 +3674,10 @@ public:
     lex_str->length= length;
     return lex_str;
   }
+  LEX_CSTRING *make_clex_string(const LEX_CSTRING from)
+  {
+    return make_clex_string(from.str, from.length);
+  }
 
   // Allocate LEX_STRING for character set conversion
   bool alloc_lex_string(LEX_STRING *dst, size_t length)
