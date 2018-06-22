@@ -7039,7 +7039,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
 
   if (alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING)
   {
-    if (!share->versioned)
+    if (!share->versioned || create_info->versioned())
     {
       my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name);
       return true;

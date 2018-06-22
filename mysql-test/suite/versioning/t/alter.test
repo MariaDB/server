@@ -469,5 +469,48 @@ alter table t add check (a > 0);
 insert into t values (0);
 insert into t values (2);
 
+--echo # MDEV-16490 It's possible to make a system versioned table without any versioning field
+
+set @@system_versioning_alter_history=keep;
+create or replace table t (a int) with system versioning engine=innodb;
+--error ER_VERS_TABLE_MUST_HAVE_COLUMNS
+alter table t change column a a int without system versioning;
+
+alter table t
+  change column a a int without system versioning,
+  add column b int with system versioning;
+show create table t;
+
+--error ER_VERS_NOT_VERSIONED
+alter table t
+  change column b b int without system versioning,
+  drop system versioning;
+
+--error ER_VERS_NOT_VERSIONED
+alter table t
+  change column a a int with system versioning,
+  drop system versioning;
+show create table t;
+
+alter table t
+  change column a new_a int,
+  drop system versioning;
+show create table t;
+
+alter table t add system versioning;
+alter table t change column new_a a int without system versioning;
+show create table t;
+
+--error ER_VERS_TABLE_MUST_HAVE_COLUMNS
+alter table t
+  add column c int,
+  change column c c int without system versioning,
+  change column b b int without system versioning;
+
+alter table t
+  add column c int without system versioning,
+  change column c c int,
+  change column b b int without system versioning;
+
 drop database test;
 create database test;

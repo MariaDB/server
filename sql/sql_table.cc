@@ -8473,11 +8473,21 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
   }
 
-  if (table->versioned() && !(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING) &&
-      new_create_list.elements == VERSIONING_FIELDS)
+  if (table->versioned())
   {
-    my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0), table->s->table_name.str);
-    goto err;
+    uint versioned_fields= 0;
+    field_it.rewind();
+    while (Create_field *f= field_it++)
+    {
+      if (!(f->flags & VERS_UPDATE_UNVERSIONED_FLAG))
+        versioned_fields++;
+    }
+    if (!(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING) &&
+        versioned_fields == VERSIONING_FIELDS)
+    {
+      my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0), table->s->table_name.str);
+      goto err;
+    }
   }
 
   if (!create_info->comment.str)
