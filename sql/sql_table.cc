@@ -8511,13 +8511,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
   }
 
-  if (table->versioned() && !(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING) &&
-      new_create_list.elements == VERSIONING_FIELDS)
-  {
-    my_error(ER_VERS_TABLE_MUST_HAVE_COLUMNS, MYF(0), table->s->table_name.str);
-    goto err;
-  }
-
   if (!create_info->comment.str)
   {
     create_info->comment.str= table->s->comment.str;
@@ -9549,6 +9542,12 @@ do_continue:;
 
   if (mysql_prepare_alter_table(thd, table, create_info, alter_info,
                                 &alter_ctx))
+  {
+    DBUG_RETURN(true);
+  }
+
+  if (create_info->vers_check_system_fields(thd, alter_info,
+                                            table->s->table_name, table->s->db))
   {
     DBUG_RETURN(true);
   }
@@ -11170,7 +11169,9 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
     else
     {
       if (create_info.vers_fix_system_fields(thd, &alter_info, *create_table) ||
-	  create_info.vers_check_system_fields(thd, &alter_info, *create_table))
+          create_info.vers_check_system_fields(thd, &alter_info,
+                                               create_table->table_name,
+                                               create_table->db))
 	goto end_with_restore_list;
 
       /*

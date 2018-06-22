@@ -4185,8 +4185,7 @@ TABLE *select_create::create_table_from_items(THD *thd,
   if (!opt_explicit_defaults_for_timestamp)
     promote_first_timestamp_column(&alter_info->create_list);
 
-  if (create_info->vers_fix_system_fields(thd, alter_info, *create_table,
-                                          true))
+  if (create_info->vers_fix_system_fields(thd, alter_info, *create_table))
     DBUG_RETURN(NULL);
 
   while ((item=it++))
@@ -4225,7 +4224,10 @@ TABLE *select_create::create_table_from_items(THD *thd,
     alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
 
-  if (create_info->vers_check_system_fields(thd, alter_info, *create_table))
+  if (create_info->vers_check_system_fields(thd, alter_info,
+                                            create_table->table_name,
+                                            create_table->db,
+                                            select_field_count))
     DBUG_RETURN(NULL);
 
   DEBUG_SYNC(thd,"create_table_select_before_create");
