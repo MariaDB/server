@@ -1247,7 +1247,7 @@ struct my_option xb_server_options[] =
   &xb_rocksdb_datadir, &xb_rocksdb_datadir,
   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
 
-  { "backup-rocksdb", OPT_BACKUP_ROCKSDB, "Backup rocksdb data, if rocksdb plugin is installed."
+  { "rocksdb-backup", OPT_BACKUP_ROCKSDB, "Backup rocksdb data, if rocksdb plugin is installed."
    "Used only with --backup option. Can be useful for partial backups, to exclude all rocksdb data",
    &xb_backup_rocksdb, &xb_backup_rocksdb,
    0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0 },
