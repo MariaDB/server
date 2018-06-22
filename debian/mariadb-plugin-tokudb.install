@@ -1,4 +1,5 @@
 etc/mysql/conf.d/tokudb.cnf etc/mysql/mariadb.conf.d
+etc/systemd/system/mariadb.service.d/tokudb.conf
 usr/bin/tokuftdump
 usr/lib/mysql/plugin/ha_tokudb.so
 usr/share/doc/mariadb-server-10.2/README.md usr/share/doc/mariadb-plugin-tokudb/README.md
