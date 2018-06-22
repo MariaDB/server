@@ -1551,7 +1551,7 @@ struct handlerton
     the select statement 'select, otherwise return NULL
   */
   select_handler *(*create_select) (THD *thd, SELECT_LEX *select);
-   
+
    /*********************************************************************
      Table discovery API.
      It allows the server to "discover" tables that exist in the storage
@@ -2163,18 +2163,20 @@ struct Table_scope_and_contents_source_st:
   }
 
   bool fix_create_fields(THD *thd, Alter_info *alter_info,
-                         const TABLE_LIST &create_table,
-                         bool create_select= false);
+                         const TABLE_LIST &create_table);
   bool fix_period_fields(THD *thd, Alter_info *alter_info);
-  bool check_fields(THD *thd, Alter_info *alter_info, TABLE_LIST &create_table);
+  bool check_fields(THD *thd, Alter_info *alter_info, const TABLE_LIST &create_table,
+                    int select_count= 0);
   bool check_period_fields(THD *thd, Alter_info *alter_info);
 
   bool vers_fix_system_fields(THD *thd, Alter_info *alter_info,
-                              const TABLE_LIST &create_table,
-                              bool create_select= false);
+                         const TABLE_LIST &create_table);
 
   bool vers_check_system_fields(THD *thd, Alter_info *alter_info,
-                                const TABLE_LIST &create_table);
+                                const Lex_table_name &table_name,
+                                const Lex_table_name &db,
+                                int select_count= 0);
+
 };
 
 
@@ -2661,7 +2663,7 @@ public:
   {
     return IO_COEFF*io_count*avg_io_cost +
            IO_COEFF*idx_io_count*idx_avg_io_cost +
-           CPU_COEFF*cpu_cost + 
+           CPU_COEFF*cpu_cost +
            MEM_COEFF*mem_cost + IMPORT_COEFF*import_cost;
   }
 
