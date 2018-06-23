@@ -6888,21 +6888,23 @@ bool Vers_parse_info::is_end(const Create_field &f) const
   return f.flags & VERS_SYS_END_FLAG;
 }
 
-static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int flags, bool integer)
+bool
+Vers_parse_info::create_sys_field(THD *thd, const char *field_name,
+                                  Alter_info *alter_info, int flags)
 {
   Create_field *f= new (thd->mem_root) Create_field();
   if (!f)
-    return NULL;
+    return true;
 
   memset(f, 0, sizeof(*f));
   f->field_name.str= field_name;
   f->field_name.length= strlen(field_name);
   f->charset= system_charset_info;
   f->flags= flags | NOT_NULL_FLAG;
-  if (integer)
+  if (check_unit == VERS_TRX_ID)
   {
     DBUG_ASSERT(0); // Not implemented yet
-    f->set_handler(&type_handler_vers_trx_id);
+    f->set_handler(&type_handler_longlong);
     f->length= MY_INT64_NUM_DECIMAL_DIGITS - 1;
     f->flags|= UNSIGNED_FLAG;
   }
@@ -6914,16 +6916,6 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
   f->invisible= DBUG_EVALUATE_IF("sysvers_show", VISIBLE, INVISIBLE_SYSTEM);
 
   if (f->check(thd))
-    return NULL;
-
-  return f;
-}
-
-static bool vers_create_sys_field(THD *thd, const char *field_name,
-                                  Alter_info *alter_info, int flags)
-{
-  Create_field *f= vers_init_sys_field(thd, field_name, flags, false);
-  if (!f)
     return true;
 
   alter_info->flags|= ALTER_PARSER_ADD_COLUMN;
@@ -6946,8 +6938,8 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
   system_time= start_end_t(default_start, default_end);
   as_row= system_time;
 
-  if (vers_create_sys_field(thd, default_start, alter_info, VERS_SYS_START_FLAG) ||
-      vers_create_sys_field(thd, default_end, alter_info, VERS_SYS_END_FLAG))
+  if (create_sys_field(thd, default_start, alter_info, VERS_SYS_START_FLAG) ||
+      create_sys_field(thd, default_end, alter_info, VERS_SYS_END_FLAG))
   {
     return true;
   }
@@ -7043,16 +7035,6 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   }
 
   return false;
-}
-
-
-bool Table_scope_and_contents_source_st::vers_check_system_fields(
-       THD *thd, Alter_info *alter_info, const TABLE_LIST &create_table)
-{
-  if (!(options & HA_VERSIONED_TABLE))
-    return false;
-  return vers_info.check_sys_fields(create_table.table_name, create_table.db,
-                                    alter_info, vers_native(thd));
 }
 
 
@@ -7159,12 +7141,10 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if (fix_implicit(thd, alter_info))
     return true;
 
-  if (alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING)
-  {
-    bool native= create_info->vers_native(thd);
-    if (check_sys_fields(table_name, share->db, alter_info, native))
+  if ((alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING) &&
+      create_info->vers_check_system_fields(thd, alter_info,
+                                            share->table_name, share->db))
       return true;
-  }
 
   return false;
 }
@@ -7267,11 +7247,18 @@ bool Vers_parse_info::check_conditions(const Lex_table_name &table_name,
   return false;
 }
 
-bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
-                                       const Lex_table_name &db,
-                                       Alter_info *alter_info, bool native)
+
+bool Table_scope_and_contents_source_st::vers_check_system_fields(
+  THD *thd, Alter_info *alter_info, const Lex_table_name &table_name,
+  const Lex_table_name &db)
 {
-  if (check_conditions(table_name, db))
+  if (!(options & HA_VERSIONED_TABLE))
+    return false;
+
+  bool native= vers_native(thd);
+  vers_sys_type_t &check_unit= vers_info.check_unit;
+
+  if (vers_info.check_conditions(table_name, db))
     return true;
 
   List_iterator<Create_field> it(alter_info->create_list);
