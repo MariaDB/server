@@ -755,6 +755,7 @@ GRANT EXECUTE ON PROCEDURE `test`.`sp1` TO 'root'@'localhost'
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 drop procedure sp1;
 set password='';
+update mysql.user set plugin='';
 #
 # MDEV-13396 Unexpected "alter routine comand defined" during CREATE OR REPLACE PROCEDURE
 #
