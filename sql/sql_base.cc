@@ -7806,7 +7806,8 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         Field_iterator_natural_join).
         But view fields can never be invisible.
       */
-      if ((field= field_iterator.field()) && field->invisible != VISIBLE)
+      if ((field= field_iterator.field()) &&
+          DBUG_EVALUATE_IF("sysvers_show", false, field->invisible != VISIBLE))
         continue;
 
       Item *item;

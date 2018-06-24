@@ -25,11 +25,6 @@ show create table tt3;
 --disconnect con1
 --connection default
 
-set debug_dbug='+d,sysvers_show';
-
-show create table t3;
-create table t4 (a int);
-show create table t4;
-
 set global debug_dbug=@old_dbug;
-drop table t1, t2, t3, t4;
+drop database test;
+create database test;
