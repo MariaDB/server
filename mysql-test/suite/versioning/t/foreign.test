@@ -192,6 +192,29 @@ select *, current_row(sys_end) as current_row from child for system_time all ord
 drop table child;
 drop table parent;
 
+--echo # ignore history rows on ALTER
+create table parent(
+  id int unique key
+);
+
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create table child(
+  parent_id int,
+  sys_start $sys_datatype_expl as row start invisible,
+  sys_end $sys_datatype_expl as row end invisible,
+  period for system_time(sys_start, sys_end)
+) with system versioning;
+
+insert into child values (1);
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
+--error ER_NO_REFERENCED_ROW_2
+alter table child add foreign key (parent_id) references parent (id);
+delete from child;
+alter table child add foreign key (parent_id) references parent (id);
+
+drop table child;
+drop table parent;
+
 --echo ###########################
 --echo # Parent table is foreign #
 --echo ###########################

@@ -9125,8 +9125,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
         DBUG_RETURN(true);
       }
     }
-    if (alter_info->data_modifying() && !thd->slave_thread &&
-        thd->variables.vers_alter_history == VERS_ALTER_HISTORY_ERROR)
+    if (alter_info->vers_prohibited(thd))
     {
       my_error(ER_VERS_ALTER_NOT_ALLOWED, MYF(0),
                table_list->db.str, table_list->table_name.str);
