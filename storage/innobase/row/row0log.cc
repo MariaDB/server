@@ -1624,7 +1624,7 @@ blob_done:
 			Field* field = log->old_table->field[col_no];
 
 			field->set_warning(Sql_condition::WARN_LEVEL_WARN,
-					   WARN_DATA_TRUNCATED, 1, log->n_rows);
+					   WARN_DATA_TRUNCATED, 1, ulong(log->n_rows));
 
 			if (!log->allow_not_null) {
 				/* We got a NULL value for a NOT NULL column. */
