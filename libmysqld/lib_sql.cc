@@ -654,6 +654,7 @@ void end_embedded_server()
     copy_arguments_ptr=0;
     clean_up(0);
     clean_up_mutexes();
+    mysql_embedded_init= 0;
   }
 }
 
