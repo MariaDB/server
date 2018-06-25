@@ -1368,6 +1368,18 @@ public:
     orig_table= table= table_arg;
     set_table_name(&table_arg->alias);
   }
+  void init_for_make_new_field(TABLE *new_table_arg, TABLE *orig_table_arg)
+  {
+    init(new_table_arg);
+    /*
+      Normally orig_table is different from table only if field was
+      created via ::make_new_field.  Here we alter the type of field,
+      so ::make_new_field is not applicable. But we still need to
+      preserve the original field metadata for the client-server
+      protocol.
+    */
+    orig_table= orig_table_arg;
+  }
 
   /* maximum possible display length */
   virtual uint32 max_display_length()= 0;
@@ -1828,6 +1840,7 @@ public:
                 unireg_check_arg, field_name_arg,
                 dec_arg, zero_arg, unsigned_arg)
     {}
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   enum_field_types type() const { return MYSQL_TYPE_DECIMAL;}
   enum ha_base_keytype key_type() const
   { return zerofill ? HA_KEYTYPE_BINARY : HA_KEYTYPE_NUM; }
