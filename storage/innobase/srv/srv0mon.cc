@@ -796,11 +796,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_TRX_ROLLBACK_SAVEPOINT},
 
-	{"trx_rollback_active", "transaction",
-	 "Number of resurrected active transactions rolled back",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_TRX_ROLLBACK_ACTIVE},
-
 	{"trx_active_transactions", "transaction",
 	 "Number of active transactions",
 	 MONITOR_NONE,
