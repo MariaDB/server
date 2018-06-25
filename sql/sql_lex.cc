@@ -5484,7 +5484,8 @@ LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
     spvar->field_def.set_cursor_rowtype_ref(offset);
     sp_instr_cursor_copy_struct *instr=
       new (thd->mem_root) sp_instr_cursor_copy_struct(sphead->instructions(),
-                                                      spcont, pcursor->lex(),
+                                                      spcont, offset,
+                                                      pcursor->lex(),
                                                       spvar->offset);
     if (instr == NULL || sphead->add_instr(instr))
      return true;
@@ -5925,7 +5926,6 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
     my_error(ER_SP_DUP_CURS, MYF(0), name->str);
     return true;
   }
-  cursor_stmt->set_cursor_name(name);
 
   if (unlikely(spcont->add_cursor(name, param_ctx, cursor_stmt)))
     return true;

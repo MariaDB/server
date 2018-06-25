@@ -4506,7 +4506,7 @@ void
 sp_instr_cursor_copy_struct::print(String *str)
 {
   sp_variable *var= m_ctx->find_variable(m_var);
-  const LEX_CSTRING *name= m_lex_keeper.cursor_name();
+  const LEX_CSTRING *name= m_ctx->find_cursor(m_cursor);
   str->append(STRING_WITH_LEN("cursor_copy_struct "));
   str->append(name);
   str->append(' ');
@@ -5001,7 +5001,8 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
 
   sp_instr *instr_copy_struct=
     new (thd->mem_root) sp_instr_cursor_copy_struct(instructions(),
-                                                    spcont, pcursor->lex(),
+                                                    spcont, coffset,
+                                                    pcursor->lex(),
                                                     index->offset);
   if (instr_copy_struct == NULL || add_instr(instr_copy_struct))
     return true;

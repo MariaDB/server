@@ -3177,8 +3177,6 @@ public:
     return NULL;
   }
 
-  virtual const LEX_CSTRING *cursor_name() const { return &null_clex_str; }
-
   void start(THD *thd);
 
   inline bool is_ps_or_view_context_analysis()
