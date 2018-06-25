@@ -245,10 +245,8 @@ x
 insert into t1 values (7), (8);
 Warnings:
 Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
-### warn about full partition
+### don't warn 2nd time about full partition
 delete from t1;
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
 select * from t1 partition (p1) order by x;
 x
 4

@@ -216,7 +216,7 @@ select * from t1 partition (p0);
 select * from t1 partition (p1);
 
 insert into t1 values (7), (8);
---echo ### warn about full partition
+--echo ### don't warn 2nd time about full partition
 delete from t1;
 select * from t1 partition (p1) order by x;
 
