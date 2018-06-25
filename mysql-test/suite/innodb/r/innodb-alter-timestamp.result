@@ -2,16 +2,18 @@ CREATE TABLE t1 (i1 INT UNSIGNED NULL DEFAULT 42) ENGINE=innodb;
 INSERT INTO t1 VALUES(NULL);
 ALTER TABLE t1 CHANGE i1 i1 INT UNSIGNED NOT NULL DEFAULT rand(),
 ALGORITHM=INPLACE;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: cannot convert NULL to non-constant DEFAULT. Try ALGORITHM=COPY
+ERROR 01000: Data truncated for column 'i1' at row 1
 ALTER TABLE t1 CHANGE i1 i1 INT UNSIGNED NOT NULL DEFAULT rand(),
 ALGORITHM=COPY;
 ERROR 01000: Data truncated for column 'i1' at row 1
 ALTER TABLE t1 CHANGE i1 id INT UNSIGNED NOT NULL AUTO_INCREMENT,
 ADD PRIMARY KEY(id), ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Cannot change column type INPLACE. Try ALGORITHM=COPY
-ALTER TABLE t1 ADD PRIMARY KEY(i1), ALGORITHM=INPLACE;
+ALTER IGNORE TABLE t1 ADD PRIMARY KEY(i1), ALGORITHM=INPLACE;
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Warning	1265	Data truncated for column 'i1' at row 1
 ALTER TABLE t1 CHANGE i1 id INT UNSIGNED NOT NULL AUTO_INCREMENT;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0

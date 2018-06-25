@@ -7412,6 +7412,11 @@ static bool mysql_inplace_alter_table(THD *thd,
   bool reopen_tables= false;
   bool res;
 
+  /*
+    Set the truncated column values of thd as warning
+    for alter table.
+  */
+  thd->count_cuted_fields = CHECK_FIELD_WARN;
   DBUG_ENTER("mysql_inplace_alter_table");
 
   /*

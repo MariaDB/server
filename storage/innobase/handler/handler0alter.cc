@@ -203,8 +203,12 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	/** original column names of the table */
 	const char* const old_col_names;
 
-	/** Whether alter ignore issued. */
-	const bool	ignore;
+	/** Allow non-null conversion.
+	(1) Alter ignore should allow the conversion
+	irrespective of sql mode.
+	(2) Don't allow the conversion in strict mode
+	(3) Allow the conversion only in non-strict mode. */
+	const bool	allow_not_null;
 
 	ha_innobase_inplace_ctx(row_prebuilt_t*& prebuilt_arg,
 				dict_index_t** drop_arg,
@@ -222,7 +226,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 				ulint add_autoinc_arg,
 				ulonglong autoinc_col_min_value_arg,
 				ulonglong autoinc_col_max_value_arg,
-				bool ignore_flag) :
+				bool allow_not_null_flag) :
 		inplace_alter_handler_ctx(),
 		prebuilt (prebuilt_arg),
 		add_index (0), add_key_numbers (0), num_to_add_index (0),
@@ -250,7 +254,7 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 		old_n_cols(prebuilt_arg->table->n_cols),
 		old_cols(prebuilt_arg->table->cols),
 		old_col_names(prebuilt_arg->table->col_names),
-		ignore(ignore_flag)
+		allow_not_null(allow_not_null_flag)
 	{
 		ut_ad(old_n_cols >= DATA_N_SYS_COLS);
 #ifdef UNIV_DEBUG
@@ -919,18 +923,6 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_INSTANT);
 	}
 
-	/* Only support NULL -> NOT NULL change if strict table sql_mode
-	is set. Fall back to COPY for conversion if not strict tables.
-	In-Place will fail with an error when trying to convert
-	NULL to a NOT NULL value. */
-	if ((ha_alter_info->handler_flags
-	     & ALTER_COLUMN_NOT_NULLABLE)
-	    && !thd_is_strict_mode(m_user_thd)) {
-		ha_alter_info->unsupported_reason = my_get_err_msg(
-			ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_NOT_NULL);
-		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-	}
-
 	/* DROP PRIMARY KEY is only allowed in combination with ADD
 	PRIMARY KEY. */
 	if ((ha_alter_info->handler_flags
@@ -1253,20 +1245,6 @@ ha_innobase::check_if_supported_inplace_alter(
 				}
 				break;
 			default:
-				/* Changing from NULL to NOT NULL and
-				set the default constant values. */
-				if (f->real_maybe_null()
-				    && !(*af)->real_maybe_null()) {
-
-					if (is_non_const_value(*af)) {
-						break;
-					}
-
-					if (!set_default_value(*af)) {
-						break;
-					}
-				}
-
 				/* For any other data type, NULL
 				values are not converted.
 				(An AUTO_INCREMENT attribute cannot
@@ -3252,20 +3230,23 @@ innobase_check_foreigns(
 }
 
 /** Convert a default value for ADD COLUMN.
-
-@param heap Memory heap where allocated
-@param dfield InnoDB data field to copy to
-@param field MySQL value for the column
-@param comp nonzero if in compact format */
-static MY_ATTRIBUTE((nonnull))
-void
-innobase_build_col_map_add(
-/*=======================*/
+@param[in,out]	heap		Memory heap where allocated
+@param[out]	dfield		InnoDB data field to copy to
+@param[in]	field		MySQL value for the column
+@param[in]	old_field	Old field or NULL if new col is added	
+@param[in]	comp		nonzero if in compact format. */
+static void innobase_build_col_map_add(
 	mem_heap_t*	heap,
 	dfield_t*	dfield,
 	const Field*	field,
+	const Field*	old_field,
 	ulint		comp)
 {
+	if (old_field && old_field->real_maybe_null()
+	    && field->real_maybe_null()) {
+		return;
+	}
+
 	if (field->is_real_null()) {
 		dfield_set_null(dfield);
 		return;
@@ -3275,7 +3256,7 @@ innobase_build_col_map_add(
 
 	byte*	buf	= static_cast<byte*>(mem_heap_alloc(heap, size));
 
-	const byte*	mysql_data = field->ptr;
+	const byte*	mysql_data = old_field ? old_field->ptr : field->ptr;
 
 	row_mysql_store_col_in_innobase_format(
 		dfield, buf, true, mysql_data, size, comp);
@@ -3362,16 +3343,15 @@ innobase_build_col_map(
 				const Field* altered_field =
 					altered_table->field[i + num_v];
 
-				if (field->real_maybe_null()
-				    && !altered_field->real_maybe_null()) {
-					/* Don't consider virtual column.
-					NULL to NOT NULL is not applicable
-					for virtual column. */
+				if (defaults) {
 					innobase_build_col_map_add(
-						heap, dtuple_get_nth_field(
+						heap,
+						dtuple_get_nth_field(
 							defaults, i),
 						altered_field,
-						dict_table_is_comp(new_table));
+						field,
+						dict_table_is_comp(
+							new_table));
 				}
 
 				col_map[old_i - num_old_v] = i;
@@ -3383,6 +3363,7 @@ innobase_build_col_map(
 		innobase_build_col_map_add(
 			heap, dtuple_get_nth_field(defaults, i),
 			altered_table->field[i + num_v],
+			NULL,
 			dict_table_is_comp(new_table));
 found_col:
 		if (is_v) {
@@ -5611,7 +5592,8 @@ new_table_failed:
 				!(ha_alter_info->handler_flags
 				  & ALTER_ADD_PK_INDEX),
 				ctx->defaults, ctx->col_map, path,
-				ctx->ignore);
+				old_table,
+				ctx->allow_not_null);
 			rw_lock_x_unlock(&clust_index->lock);
 
 			if (!ok) {
@@ -5669,7 +5651,9 @@ error_handling_drop_uncached:
 					ctx->prebuilt->trx,
 					index,
 					NULL, true, NULL, NULL,
-					path, ctx->ignore);
+					path, old_table,
+					ctx->allow_not_null);
+
 				rw_lock_x_unlock(&index->lock);
 
 				if (!ok) {
@@ -6850,7 +6834,8 @@ err_exit:
 					ha_alter_info->online,
 					heap, indexed_table,
 					col_names, ULINT_UNDEFINED, 0, 0,
-					ha_alter_info->ignore);
+					(ha_alter_info->ignore
+					 || !thd_is_strict_mode(m_user_thd)));
 		}
 
 		DBUG_ASSERT(m_prebuilt->trx->dict_operation_lock_mode == 0);
@@ -6978,7 +6963,8 @@ found_col:
 		heap, m_prebuilt->table, col_names,
 		add_autoinc_col_no,
 		ha_alter_info->create_info->auto_increment_value,
-		autoinc_col_max_value, ha_alter_info->ignore);
+		autoinc_col_max_value,
+		ha_alter_info->ignore || !thd_is_strict_mode(m_user_thd));
 
 	DBUG_RETURN(prepare_inplace_alter_table_dict(
 			    ha_alter_info, altered_table, table,
@@ -7210,7 +7196,7 @@ ok_exit:
 		ctx->add_index, ctx->add_key_numbers, ctx->num_to_add_index,
 		altered_table, ctx->defaults, ctx->col_map,
 		ctx->add_autoinc, ctx->sequence, ctx->skip_pk_sort,
-		ctx->m_stage, add_v, eval_table);
+		ctx->m_stage, add_v, eval_table, ctx->allow_not_null);
 
 #ifndef DBUG_OFF
 oom:

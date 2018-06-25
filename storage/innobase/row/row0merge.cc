@@ -1674,6 +1674,7 @@ stage->inc() will be called for each page read.
 @param[in,out]	crypt_block	crypted file buffer
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
+@param[in]	allow_not_null	allow null to not-null conversion
 @return DB_SUCCESS or error */
 static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
@@ -1700,7 +1701,8 @@ row_merge_read_clustered_index(
 	ut_stage_alter_t*	stage,
 	double 			pct_cost,
 	row_merge_block_t*	crypt_block,
-	struct TABLE*		eval_table)
+	struct TABLE*		eval_table,
+	bool			allow_not_null)
 {
 	dict_index_t*		clust_index;	/* Clustered index */
 	mem_heap_t*		row_heap;	/* Heap memory to create
@@ -1914,6 +1916,7 @@ row_merge_read_clustered_index(
 
 	mach_write_to_8(new_sys_trx_start, trx->id);
 	mach_write_to_8(new_sys_trx_end, TRX_ID_MAX);
+	ulong	n_rows = 0;
 
 	/* Scan the clustered index. */
 	for (;;) {
@@ -2046,6 +2049,8 @@ end_of_index:
 
 		rec = page_cur_get_rec(cur);
 
+		n_rows++;
+
 		if (online) {
 			offsets = rec_get_offsets(rec, clust_index, NULL, true,
 						  ULINT_UNDEFINED, &row_heap);
@@ -2174,14 +2179,22 @@ end_of_index:
 			ut_ad(dfield_get_type(field)->prtype & DATA_NOT_NULL);
 
 			if (dfield_is_null(field)) {
-				const dfield_t& default_field
-					= defaults->fields[nonnull[i]];
 
-				if (default_field.data == NULL) {
+				Field* null_field =
+					table->field[nonnull[i]];
+
+				null_field->set_warning(
+					Sql_condition::WARN_LEVEL_WARN,
+					WARN_DATA_TRUNCATED, 1, n_rows);
+
+				if (!allow_not_null) {
 					err = DB_INVALID_NULL;
 					trx->error_key_num = 0;
 					goto func_exit;
 				}
+
+				const dfield_t& default_field
+					= defaults->fields[nonnull[i]];
 
 				*field = default_field;
 			}
@@ -4547,6 +4560,7 @@ this function and it will be passed to other functions for further accounting.
 @param[in]	add_v		new virtual columns added along with indexes
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
+@param[in]	allow_not_null	allow the conversion from null to not-null
 @return DB_SUCCESS or error code */
 dberr_t
 row_merge_build_indexes(
@@ -4565,7 +4579,8 @@ row_merge_build_indexes(
 	bool			skip_pk_sort,
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
-	struct TABLE*		eval_table)
+	struct TABLE*		eval_table,
+	bool			allow_not_null)
 {
 	merge_file_t*		merge_files;
 	row_merge_block_t*	block;
@@ -4729,7 +4744,7 @@ row_merge_build_indexes(
 		fts_sort_idx, psort_info, merge_files, key_numbers,
 		n_indexes, defaults, add_v, col_map, add_autoinc,
 		sequence, block, skip_pk_sort, &tmpfd, stage,
-		pct_cost, crypt_block, eval_table);
+		pct_cost, crypt_block, eval_table, allow_not_null);
 
 	stage->end_phase_read_pk();
 

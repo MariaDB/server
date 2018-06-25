@@ -1086,6 +1086,9 @@ test	t2	idx4	3	1.1304
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS() INDEXES ALL;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	Note	Data truncated for column 'avg_frequency' at row 1
+test.t2	analyze	Note	Data truncated for column 'avg_frequency' at row 1
+test.t2	analyze	Note	Data truncated for column 'avg_frequency' at row 1
 test.t2	analyze	status	OK
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 db_name	table_name	index_name	prefix_arity	avg_frequency
@@ -1146,6 +1149,11 @@ test	t2	idx4	4	1.0000
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	Note	Data truncated for column 'avg_length' at row 1
+test.t2	analyze	Note	Data truncated for column 'avg_frequency' at row 1
+test.t2	analyze	Note	Data truncated for column 'avg_frequency' at row 1
+test.t2	analyze	Note	Data truncated for column 'avg_frequency' at row 1
+test.t2	analyze	Note	Data truncated for column 'avg_frequency' at row 1
 test.t2	analyze	status	OK
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 db_name	table_name	index_name	prefix_arity	avg_frequency
@@ -1171,6 +1179,8 @@ test	t2	idx3	1	8.5000
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS() INDEXES ALL;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	Note	Data truncated for column 'avg_frequency' at row 1
+test.t2	analyze	Note	Data truncated for column 'avg_frequency' at row 1
 test.t2	analyze	status	OK
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 db_name	table_name	index_name	prefix_arity	avg_frequency

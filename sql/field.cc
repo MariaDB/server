@@ -11135,6 +11135,7 @@ uint32 Field_blob::max_display_length() const
   @param level            - level of message (Note/Warning/Error)
   @param code             - error code of message to be produced
   @param cut_increment    - whenever we should increase cut fields count
+  @current_row            - current row number
 
   @note
     This function won't produce warning or notes or increase cut fields counter
@@ -11152,7 +11153,7 @@ uint32 Field_blob::max_display_length() const
 
 bool 
 Field::set_warning(Sql_condition::enum_warning_level level, uint code,
-                   int cut_increment) const
+                   int cut_increment, ulong current_row) const
 {
   /*
     If this field was created only for type conversion purposes it
@@ -11163,7 +11164,8 @@ Field::set_warning(Sql_condition::enum_warning_level level, uint code,
   {
     thd->cuted_fields+= cut_increment;
     push_warning_printf(thd, level, code, ER_THD(thd, code), field_name.str,
-                        thd->get_stmt_da()->current_row_for_warning());
+                        current_row ? current_row
+                        : thd->get_stmt_da()->current_row_for_warning());
     return 0;
   }
   return level >= Sql_condition::WARN_LEVEL_WARN;

@@ -61,7 +61,9 @@ row_log_allocate(
 	const ulint*	col_map,/*!< in: mapping of old column
 				numbers to new ones, or NULL if !table */
 	const char*	path,	/*!< in: where to create temporary file */
-	bool		ignore) /*!< in: Whether alter ignore issued */
+	const TABLE*	old_table,	/*!< in:table definition before alter */
+	bool		allow_not_null) /*!< in: allow null to non-null
+					conversion */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
 /******************************************************//**
