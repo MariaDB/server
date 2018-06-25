@@ -3,4 +3,4 @@
 	url = https://github.com/MariaDB/mariadb-connector-c
 [submodule "storage/rocksdb/rocksdb"]
 	path = storage/rocksdb/rocksdb
-	url = https://github.com/facebook/rocksdb.git
+	url = https://github.com/spetrunia/rocksdb.git
