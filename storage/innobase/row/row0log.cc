@@ -233,6 +233,7 @@ struct row_log_t {
 				defaults */
 	const TABLE*	old_table; /*< Use old table in case of error. */
 
+	uint64_t	n_rows; /*< Number of rows read from the table */
 	/** Determine whether the log should be in the 'instant ADD' format
 	@param[in]	index	the clustered index of the source table
 	@return	whether to use the 'instant ADD COLUMN' format */
@@ -1483,16 +1484,15 @@ row_log_table_apply_convert_mrec(
 	const mrec_t*		mrec,		/*!< in: merge record */
 	dict_index_t*		index,		/*!< in: index of mrec */
 	const ulint*		offsets,	/*!< in: offsets of mrec */
-	const row_log_t*	log,		/*!< in: rebuild context */
+	row_log_t*		log,		/*!< in: rebuild context */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
 	dberr_t*		error)		/*!< out: DB_SUCCESS or
 						DB_MISSING_HISTORY or
 						reason of failure */
 {
 	dtuple_t*	row;
-	static ulong	n_rows = index->table->stat_n_rows;
 
-	n_rows++;
+	log->n_rows++;
 	*error = DB_SUCCESS;
 
 	/* This is based on row_build(). */
@@ -1624,7 +1624,7 @@ blob_done:
 			Field* field = log->old_table->field[col_no];
 
 			field->set_warning(Sql_condition::WARN_LEVEL_WARN,
-					   WARN_DATA_TRUNCATED, 1, n_rows);
+					   WARN_DATA_TRUNCATED, 1, log->n_rows);
 
 			if (!log->allow_not_null) {
 				/* We got a NULL value for a NOT NULL column. */
@@ -1736,7 +1736,7 @@ row_log_table_apply_insert(
 	row_merge_dup_t*	dup)		/*!< in/out: for reporting
 						duplicate key errors */
 {
-	const row_log_t*log	= dup->index->online_log;
+	row_log_t*log	= dup->index->online_log;
 	dberr_t		error;
 	const dtuple_t*	row	= row_log_table_apply_convert_mrec(
 		mrec, dup->index, offsets, log, heap, &error);
@@ -2007,7 +2007,7 @@ row_log_table_apply_update(
 						of the old value,
 						or PRIMARY KEY if same_pk */
 {
-	const row_log_t*log	= dup->index->online_log;
+	row_log_t*	log	= dup->index->online_log;
 	const dtuple_t*	row;
 	dict_index_t*	index	= dict_table_get_first_index(log->table);
 	mtr_t		mtr;
@@ -3072,6 +3072,10 @@ row_log_table_apply(
 	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_S));
 	clust_index = dict_table_get_first_index(old_table);
 
+	if (clust_index->online_log->n_rows == 0) {
+		clust_index->online_log->n_rows = old_table->stat_n_rows;
+	}
+
 	rw_lock_x_lock(dict_index_get_lock(clust_index));
 
 	if (!clust_index->online_log) {
@@ -3166,6 +3170,7 @@ row_log_allocate(
 	ut_ad(!table || log->is_instant(index) == index->is_instant());
 	log->allow_not_null = allow_not_null;
 	log->old_table = old_table;
+	log->n_rows = 0;
 
 	dict_index_set_online_status(index, ONLINE_INDEX_CREATION);
 	index->online_log = log;

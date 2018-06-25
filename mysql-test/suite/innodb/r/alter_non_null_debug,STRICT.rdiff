@@ -9,7 +9,3 @@
 < 2	0
 ---
 > 2	NULL
-71c68
-< Warning	1265	Data truncated for column 'c2' at row 7
----
-> Warning	1265	Data truncated for column 'c2' at row 6
