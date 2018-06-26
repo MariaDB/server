@@ -3960,8 +3960,8 @@ public:
         return TRUE;
       }
       /* This will allow to throw an error later for non-CTE references */
-      *p_db= (char *) no_db;
       *p_db_length= strlen(no_db);
+      *p_db= strmake(no_db, *p_db_length);
     }
     else
     {
