@@ -52,9 +52,11 @@ These are low-level functions
 
 #ifdef BTR_CUR_HASH_ADAPT
 struct dict_table_t;
-/** Drop the adaptive hash index for a tablespace.
-@param[in,out]	table	table */
-void buf_LRU_drop_page_hash_for_tablespace(dict_table_t* table);
+/** Try to drop the adaptive hash index for a tablespace.
+@param[in,out]	table	table
+@return	whether anything was dropped */
+bool buf_LRU_drop_page_hash_for_tablespace(dict_table_t* table)
+	MY_ATTRIBUTE((warn_unused_result,nonnull));
 #else
 # define buf_LRU_drop_page_hash_for_tablespace(table)
 #endif /* BTR_CUR_HASH_ADAPT */

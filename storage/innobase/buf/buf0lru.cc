@@ -356,9 +356,10 @@ next_page:
 	ut_free(page_arr);
 }
 
-/** Drop the adaptive hash index for a tablespace.
-@param[in,out]	table	table */
-void buf_LRU_drop_page_hash_for_tablespace(dict_table_t* table)
+/** Try to drop the adaptive hash index for a tablespace.
+@param[in,out]	table	table
+@return	whether anything was dropped */
+bool buf_LRU_drop_page_hash_for_tablespace(dict_table_t* table)
 {
 	for (dict_index_t* index = dict_table_get_first_index(table);
 	     index != NULL;
@@ -369,13 +370,15 @@ void buf_LRU_drop_page_hash_for_tablespace(dict_table_t* table)
 		}
 	}
 
-	return;
+	return false;
 drop_ahi:
 	ulint id = table->space;
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
 		buf_LRU_drop_page_hash_for_tablespace(buf_pool_from_array(i),
 						      id);
 	}
+
+	return true;
 }
 #endif /* BTR_CUR_HASH_ADAPT */
 

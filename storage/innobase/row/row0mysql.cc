@@ -63,6 +63,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "trx0rec.h"
 #include "trx0roll.h"
 #include "trx0undo.h"
+#include "srv0start.h"
 #include "row0ext.h"
 #include "ut0new.h"
 
@@ -3422,12 +3423,35 @@ row_drop_table_for_mysql(
 	/* make sure background stats thread is not running on the table */
 	ut_ad(!(table->stats_bg_flag & BG_STAT_IN_PROGRESS));
 
-	/* Delete the link file if used. */
-	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-		RemoteDatafile::delete_link_file(name);
-	}
-
 	if (!dict_table_is_temporary(table)) {
+		if (table->space != TRX_SYS_SPACE) {
+			/* On DISCARD TABLESPACE, we would not drop the
+			adaptive hash index entries. If the tablespace is
+			missing here, delete-marking the record in SYS_INDEXES
+			would not free any pages in the buffer pool. Thus,
+			dict_index_remove_from_cache() would hang due to
+			adaptive hash index entries existing in the buffer
+			pool.  To prevent this hang, and also to guarantee
+			that btr_search_drop_page_hash_when_freed() will avoid
+			calling btr_search_drop_page_hash_index() while we
+			hold the InnoDB dictionary lock, we will drop any
+			adaptive hash index entries upfront. */
+			while (buf_LRU_drop_page_hash_for_tablespace(table)) {
+				if (trx_is_interrupted(trx)
+				    || srv_shutdown_state
+				    != SRV_SHUTDOWN_NONE) {
+					err = DB_INTERRUPTED;
+					table->to_be_dropped = false;
+					dict_table_close(table, true, false);
+					goto funct_exit;
+				}
+			}
+
+			/* Delete the link file if used. */
+			if (DICT_TF_HAS_DATA_DIR(table->flags)) {
+				RemoteDatafile::delete_link_file(name);
+			}
+		}
 
 		dict_stats_recalc_pool_del(table);
 		dict_stats_defrag_pool_del(table, NULL);
@@ -3626,21 +3650,6 @@ row_drop_table_for_mysql(
 	/* As we don't insert entries to SYSTEM TABLES for temp-tables
 	we need to avoid running removal of these entries. */
 	if (!dict_table_is_temporary(table)) {
-		if (table->space != TRX_SYS_SPACE) {
-			/* On DISCARD TABLESPACE, we would not drop the
-			adaptive hash index entries. If the tablespace is
-			missing here, delete-marking the record in SYS_INDEXES
-			would not free any pages in the buffer pool. Thus,
-			dict_index_remove_from_cache() would hang due to
-			adaptive hash index entries existing in the buffer
-			pool.  To prevent this hang, and also to guarantee
-			that btr_search_drop_page_hash_when_freed() will avoid
-			calling btr_search_drop_page_hash_index() while we
-			hold the InnoDB dictionary lock, we will drop any
-			adaptive hash index entries upfront. */
-			buf_LRU_drop_page_hash_for_tablespace(table);
-		}
-
 		/* We use the private SQL parser of Innobase to generate the
 		query graphs needed in deleting the dictionary data from system
 		tables in Innobase. Deleting a row from SYS_INDEXES table also
