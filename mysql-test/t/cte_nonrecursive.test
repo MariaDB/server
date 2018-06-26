@@ -1029,4 +1029,31 @@ with cte as
 select 2 as f;
 
 drop table t1;
- 
+
+--echo #
+--echo # MDEV-16473: query with CTE when no database is set
+--echo #
+
+create database db_mdev_16473;
+use db_mdev_16473;
+drop database db_mdev_16473;
+
+--echo # Now no default database is set
+select database();
+
+with cte as (select 1 as a) select * from cte;
+
+create database db_mdev_16473;
+create table db_mdev_16473.t1 (a int);
+insert into db_mdev_16473.t1 values (2), (7), (3), (1);
+with cte as (select * from db_mdev_16473.t1) select * from cte;
+
+--error ER_NO_DB_ERROR
+with cte as (select * from db_mdev_16473.t1)
+select * from cte, t1 as t where cte.a=t.a;
+with cte as (select * from db_mdev_16473.t1)
+select * from cte, db_mdev_16473.t1 as t where cte.a=t.a;
+
+drop database db_mdev_16473;
+
+use test;

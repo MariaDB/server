@@ -156,6 +156,8 @@ struct LEX_TYPE
 extern const LEX_STRING null_lex_str;
 extern const LEX_STRING empty_lex_str;
 
+extern const char *no_db;
+
 enum enum_sp_suid_behaviour
 {
   SP_IS_DEFAULT_SUID= 0,

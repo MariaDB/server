@@ -3330,6 +3330,14 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
   /*
     Not a placeholder: must be a base/temporary table or a view. Let us open it.
   */
+
+  if (tables->db == no_db)
+  {
+    my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
+    error= TRUE;
+    goto end;
+  }
+
   if (tables->table)
   {
     /*

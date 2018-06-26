@@ -3946,11 +3946,28 @@ public:
   {
     if (db == NULL)
     {
-      my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
-      return TRUE;
+      /*
+        No default database is set. In this case if it's guaranteed that
+        no CTE can be used in the statement then we can throw an error right
+        now at the parser stage. Otherwise the decision about throwing such
+        a message must be postponed until a post-parser stage when we are able
+        to resolve all CTE names as we don't need this message to be thrown
+        for any CTE references.
+      */
+      if (!lex->with_clauses_list)
+      {
+        my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
+        return TRUE;
+      }
+      /* This will allow to throw an error later for non-CTE references */
+      *p_db= (char *) no_db;
+      *p_db_length= strlen(no_db);
     }
-    *p_db= strmake(db, db_length);
-    *p_db_length= db_length;
+    else
+    {
+     *p_db= strmake(db, db_length);
+     *p_db_length= db_length;
+    }
     return FALSE;
   }
   thd_scheduler event_scheduler;
