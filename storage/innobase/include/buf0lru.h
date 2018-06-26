@@ -53,9 +53,11 @@ These are low-level functions
 /** Minimum LRU list length for which the LRU_old pointer is defined */
 #define BUF_LRU_OLD_MIN_LEN	512	/* 8 megabytes of 16k pages */
 
-/** Drop the adaptive hash index for a tablespace.
-@param[in,out]	table	table */
-UNIV_INTERN void buf_LRU_drop_page_hash_for_tablespace(dict_table_t* table);
+/** Try to drop the adaptive hash index for a tablespace.
+@param[in,out]	table	table
+@return	whether anything was dropped */
+UNIV_INTERN bool buf_LRU_drop_page_hash_for_tablespace(dict_table_t* table)
+	MY_ATTRIBUTE((warn_unused_result,nonnull));
 
 /** Empty the flush list for all pages belonging to a tablespace.
 @param[in]	id		tablespace identifier
