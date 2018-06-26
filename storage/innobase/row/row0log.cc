@@ -3052,13 +3052,15 @@ func_exit:
 @param[in,out]	stage		performance schema accounting object, used by
 ALTER TABLE. stage->begin_phase_log_table() will be called initially and then
 stage->inc() will be called for each block of log that is applied.
+@param[in]	new_table	Altered table
 @return DB_SUCCESS, or error code on failure */
 dberr_t
 row_log_table_apply(
 	que_thr_t*		thr,
 	dict_table_t*		old_table,
 	struct TABLE*		table,
-	ut_stage_alter_t*	stage)
+	ut_stage_alter_t*	stage,
+	dict_table_t*		new_table)
 {
 	dberr_t		error;
 	dict_index_t*	clust_index;
@@ -3073,7 +3075,7 @@ row_log_table_apply(
 	clust_index = dict_table_get_first_index(old_table);
 
 	if (clust_index->online_log->n_rows == 0) {
-		clust_index->online_log->n_rows = old_table->stat_n_rows;
+		clust_index->online_log->n_rows = new_table->stat_n_rows;
 	}
 
 	rw_lock_x_lock(dict_index_get_lock(clust_index));

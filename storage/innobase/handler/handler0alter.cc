@@ -7205,7 +7205,7 @@ oom:
 		DEBUG_SYNC_C("row_log_table_apply1_before");
 		error = row_log_table_apply(
 			ctx->thr, m_prebuilt->table, altered_table,
-			ctx->m_stage);
+			ctx->m_stage, ctx->new_table);
 	}
 
 	/* Init online ddl status variables */
@@ -8685,7 +8685,8 @@ commit_try_rebuild(
 		error = row_log_table_apply(
 			ctx->thr, user_table, altered_table,
 			static_cast<ha_innobase_inplace_ctx*>(
-				ha_alter_info->handler_ctx)->m_stage);
+				ha_alter_info->handler_ctx)->m_stage,
+			ctx->new_table);
 
 		if (s_templ) {
 			ut_ad(ctx->need_rebuild());

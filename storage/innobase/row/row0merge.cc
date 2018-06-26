@@ -1682,7 +1682,7 @@ row_merge_read_clustered_index(
 	trx_t*			trx,
 	struct TABLE*		table,
 	const dict_table_t*	old_table,
-	const dict_table_t*	new_table,
+	dict_table_t*		new_table,
 	bool			online,
 	dict_index_t**		index,
 	dict_index_t*		fts_sort_idx,
@@ -1916,7 +1916,7 @@ row_merge_read_clustered_index(
 
 	mach_write_to_8(new_sys_trx_start, trx->id);
 	mach_write_to_8(new_sys_trx_end, TRX_ID_MAX);
-	ulong	n_rows = 0;
+	uint64_t	n_rows = 0;
 
 	/* Scan the clustered index. */
 	for (;;) {
@@ -2048,8 +2048,6 @@ end_of_index:
 		}
 
 		rec = page_cur_get_rec(cur);
-
-		n_rows++;
 
 		if (online) {
 			offsets = rec_get_offsets(rec, clust_index, NULL, true,
@@ -2185,7 +2183,8 @@ end_of_index:
 
 				null_field->set_warning(
 					Sql_condition::WARN_LEVEL_WARN,
-					WARN_DATA_TRUNCATED, 1, n_rows);
+					WARN_DATA_TRUNCATED, 1,
+					ulong(n_rows + 1));
 
 				if (!allow_not_null) {
 					err = DB_INVALID_NULL;
@@ -2328,6 +2327,7 @@ write_buffers:
 		/* Build all entries for all the indexes to be created
 		in a single scan of the clustered index. */
 
+		n_rows++;
 		ulint	s_idx_cnt = 0;
 		bool	skip_sort = skip_pk_sort
 			&& dict_index_is_clust(merge_buf[0]->index);
@@ -2708,6 +2708,10 @@ write_buffers:
 		}
 
 		if (row == NULL) {
+			if (old_table != new_table) {
+				new_table->stat_n_rows = n_rows;
+			}
+
 			goto all_done;
 		}
 
