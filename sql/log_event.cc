@@ -12169,10 +12169,6 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     int error;
     DBUG_PRINT("info",("locating record using primary key (position)"));
 
-    if (!table->file->inited &&
-        (error= table->file->ha_rnd_init_with_error(0)))
-      DBUG_RETURN(error);
-
     error= table->file->ha_rnd_pos_by_record(table->record[0]);
     if (error)
     {

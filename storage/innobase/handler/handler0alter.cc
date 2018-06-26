@@ -3677,6 +3677,12 @@ check_if_ok_to_rename:
 		goto err_exit_no_heap;
 	}
 
+	/* Preserve this flag, because it currenlty can't be changed during
+	ALTER TABLE*/
+	if (flags2 & DICT_TF2_USE_TABLESPACE) {
+		flags |= prebuilt->table->flags & 1U << DICT_TF_POS_DATA_DIR;
+	}
+
 	max_col_len = DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(flags);
 
 	/* Check each index's column length to make sure they do not
