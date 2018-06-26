@@ -974,10 +974,6 @@ public:
 
   enum_state state;
 
-protected:
-  friend class sp_head;
-  bool is_stored_procedure;
-
 public:
   /* We build without RTTI, so dynamic_cast can't be used. */
   enum Type
@@ -986,8 +982,7 @@ public:
   };
 
   Query_arena(MEM_ROOT *mem_root_arg, enum enum_state state_arg) :
-    free_list(0), mem_root(mem_root_arg), state(state_arg),
-    is_stored_procedure(state_arg == STMT_INITIALIZED_FOR_SP ? true : false)
+    free_list(0), mem_root(mem_root_arg), state(state_arg)
   { INIT_ARENA_DBUG_INFO; }
   /*
     This constructor is used only when Query_arena is created as
