@@ -408,6 +408,22 @@ static int generate_binlog_opt_val(char** ret)
   return 0;
 }
 
+static int generate_binlog_index_opt_val(char** ret)
+{
+  DBUG_ASSERT(ret);
+  *ret= NULL;
+  if (opt_binlog_index_name) {
+    *ret= strcmp(opt_binlog_index_name, "0") ?
+      my_strdup(opt_binlog_index_name, MYF(0)) : my_strdup("", MYF(0));
+  }
+  else
+  {
+    *ret= my_strdup("", MYF(0));
+  }
+  if (!*ret) return -ENOMEM;
+  return 0;
+}
+
 static void* sst_joiner_thread (void* a)
 {
   sst_thread_arg* arg= (sst_thread_arg*) a;
@@ -595,7 +611,9 @@ static ssize_t sst_prepare_other (const char*  method,
   }
 
   const char* binlog_opt= "";
+  const char* binlog_index_opt= "";
   char* binlog_opt_val= NULL;
+  char* binlog_index_opt_val= NULL;
 
   int ret;
   if ((ret= generate_binlog_opt_val(&binlog_opt_val)))
@@ -604,7 +622,15 @@ static ssize_t sst_prepare_other (const char*  method,
                 ret);
     return ret;
   }
+
+  if ((ret= generate_binlog_index_opt_val(&binlog_index_opt_val)))
+  {
+    WSREP_ERROR("sst_prepare_other(): generate_binlog_index_opt_val() failed %d",
+                ret);
+  }
+
   if (strlen(binlog_opt_val)) binlog_opt= WSREP_SST_OPT_BINLOG;
+  if (strlen(binlog_index_opt_val)) binlog_index_opt= WSREP_SST_OPT_BINLOG_INDEX;
 
   make_wsrep_defaults_file();
 
@@ -615,11 +641,14 @@ static ssize_t sst_prepare_other (const char*  method,
                  WSREP_SST_OPT_DATA " '%s' "
                  " %s "
                  WSREP_SST_OPT_PARENT " '%d'"
-                 " %s '%s' ",
+                 " %s '%s'"
+	         " %s '%s'",
                  method, addr_in, mysql_real_data_home,
                  wsrep_defaults_file,
-                 (int)getpid(), binlog_opt, binlog_opt_val);
+                 (int)getpid(), binlog_opt, binlog_opt_val,
+                 binlog_index_opt, binlog_index_opt_val);
   my_free(binlog_opt_val);
+  my_free(binlog_index_opt_val);
 
   if (ret < 0 || ret >= cmd_len)
   {

@@ -20,6 +20,7 @@ set -u
 
 WSREP_SST_OPT_BYPASS=0
 WSREP_SST_OPT_BINLOG=""
+WSREP_SST_OPT_BINLOG_INDEX=""
 WSREP_SST_OPT_DATA=""
 WSREP_SST_OPT_AUTH=${WSREP_SST_OPT_AUTH:-}
 WSREP_SST_OPT_USER=${WSREP_SST_OPT_USER:-}
@@ -120,6 +121,10 @@ case "$1" in
         WSREP_SST_OPT_BINLOG="$2"
         shift
         ;;
+    '--binlog-index')
+	WSREP_SST_OPT_BINLOG_INDEX="$2"
+	shift
+	;;
     '--gtid-domain-id')
         readonly WSREP_SST_OPT_GTID_DOMAIN_ID="$2"
         shift
@@ -133,6 +138,7 @@ shift
 done
 readonly WSREP_SST_OPT_BYPASS
 readonly WSREP_SST_OPT_BINLOG
+readonly WSREP_SST_OPT_BINLOG_INDEX
 
 if [ -n "${WSREP_SST_OPT_ADDR_PORT:-}" ]; then
   if [ -n "${WSREP_SST_OPT_PORT:-}" ]; then

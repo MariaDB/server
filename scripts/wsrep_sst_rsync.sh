@@ -105,6 +105,14 @@ if ! [ -z $WSREP_SST_OPT_BINLOG ]
 then
     BINLOG_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG)
     BINLOG_FILENAME=$(basename $WSREP_SST_OPT_BINLOG)
+    BINLOG_INDEX_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG)
+    BINLOG_INDEX_FILENAME=$(basename $WSREP_SST_OPT_BINLOG)
+fi
+
+if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
+then
+    BINLOG_INDEX_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG_INDEX)
+    BINLOG_INDEX_FILENAME=$(basename $WSREP_SST_OPT_BINLOG_INDEX)
 fi
 
 WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
@@ -210,19 +218,29 @@ EOF
         if ! [ -z $WSREP_SST_OPT_BINLOG ]
         then
             # Prepare binlog files
-            pushd $BINLOG_DIRNAME &> /dev/null
-            binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_FILENAME}.index)
+            OLD_PWD="$(pwd)"
+            cd $BINLOG_DIRNAME
+
+            if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
+               binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_FILENAME}.index)
+            then
+               cd $BINLOG_INDEX_DIRNAME
+               binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_INDEX_FILENAME}.index)
+            fi
+
+            cd $BINLOG_DIRNAME
             binlog_files=""
             for ii in $binlog_files_full
             do
                 binlog_files="$binlog_files $(basename $ii)"
             done
+
             if ! [ -z "$binlog_files" ]
             then
                 wsrep_log_info "Preparing binlog files for transfer:"
                 tar -cvf $BINLOG_TAR_FILE $binlog_files >&2
             fi
-            popd &> /dev/null
+            cd "$OLD_PWD"
         fi
 
         # first, the normal directories, so that we can detect incompatible protocol
@@ -276,7 +294,8 @@ EOF
         fi
 
         # then, we parallelize the transfer of database directories, use . so that pathconcatenation works
-        pushd "$WSREP_SST_OPT_DATA" >/dev/null
+        OLD_PWD="$(pwd)"
+        cd $WSREP_SST_OPT_DATA
 
         count=1
         [ "$OS" == "Linux" ] && count=$(grep -c processor /proc/cpuinfo)
@@ -290,7 +309,7 @@ EOF
              $WHOLE_FILE_OPT --exclude '*/ib_logfile*' "$WSREP_SST_OPT_DATA"/{}/ \
              rsync://$WSREP_SST_OPT_ADDR/{} >&2 || RC=$?
 
-        popd >/dev/null
+        cd "$OLD_PWD"
 
         if [ $RC -ne 0 ]; then
             wsrep_log_error "find/rsync returned code $RC:"
@@ -420,7 +439,9 @@ EOF
     if ! [ -z $WSREP_SST_OPT_BINLOG ]
     then
 
-        pushd $BINLOG_DIRNAME &> /dev/null
+        OLD_PWD="$(pwd)"
+        cd $BINLOG_DIRNAME
+
         if [ -f $BINLOG_TAR_FILE ]
         then
             # Clean up old binlog files first
@@ -429,10 +450,14 @@ EOF
             tar -xvf $BINLOG_TAR_FILE >&2
             for ii in $(ls -1 ${BINLOG_FILENAME}.*)
             do
-                echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_FILENAME}.index
+                if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
+                  echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_FILENAME}.index
+		then
+                  echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_INDEX_DIRNAME}/${BINLOG_INDEX_FILENAME}.index
+                fi
             done
         fi
-        popd &> /dev/null
+        cd "$OLD_PWD"
     fi
     if [ -r "$MAGIC_FILE" ]
     then
