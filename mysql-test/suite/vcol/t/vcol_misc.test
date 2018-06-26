@@ -327,8 +327,10 @@ SET sql_mode=DEFAULT;
 
 --copy_file std_data/frm/t1.frm $MYSQLD_DATADIR/test/t1.frm
 SHOW TABLES;
+--replace_result $MYSQLD_DATADIR ./
 --error ER_NOT_FORM_FILE
 SHOW CREATE TABLE t1;
+--replace_result $MYSQLD_DATADIR ./
 --error ER_NOT_FORM_FILE
 ALTER TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/t1.frm
