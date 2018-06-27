@@ -425,28 +425,26 @@ bool sp_rcontext::set_return_value(THD *thd, Item **return_value_item)
 }
 
 
-bool sp_rcontext::push_cursor(THD *thd, sp_lex_keeper *lex_keeper)
+void sp_rcontext::push_cursor(sp_cursor *c)
 {
-  /*
-    We should create cursors in the callers arena, as
-    it could be (and usually is) used in several instructions.
-  */
-  sp_cursor *c= new (callers_arena->mem_root) sp_cursor(thd, lex_keeper);
-
-  if (c == NULL)
-    return true;
-
   m_cstack[m_ccount++]= c;
-  return false;
 }
 
 
-void sp_rcontext::pop_cursors(size_t count)
+void sp_rcontext::pop_cursor(THD *thd)
+{
+  DBUG_ASSERT(m_ccount > 0);
+  if (m_cstack[m_ccount - 1]->is_open())
+    m_cstack[m_ccount - 1]->close(thd);
+  m_ccount--;
+}
+
+
+void sp_rcontext::pop_cursors(THD *thd, size_t count)
 {
   DBUG_ASSERT(m_ccount >= count);
-
   while (count--)
-    delete m_cstack[--m_ccount];
+    pop_cursor(thd);
 }
 
 
@@ -733,22 +731,6 @@ bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
 ///////////////////////////////////////////////////////////////////////////
 
 
-sp_cursor::sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper):
-   result(thd_arg),
-   m_lex_keeper(lex_keeper),
-   server_side_cursor(NULL),
-   m_fetch_count(0),
-   m_row_count(0),
-   m_found(false)
-{
-  /*
-    currsor can't be stored in QC, so we should prevent opening QC for
-    try to write results which are absent.
-  */
-  lex_keeper->disable_query_cache();
-}
-
-
 /*
   Open an SP cursor
 
@@ -811,8 +793,7 @@ int sp_cursor::close(THD *thd)
                MYF(0));
     return -1;
   }
-  m_row_count= m_fetch_count= 0;
-  m_found= false;
+  sp_cursor_statistics::reset();
   destroy();
   return 0;
 }

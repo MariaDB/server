@@ -293,23 +293,20 @@ public:
   // Cursors.
   /////////////////////////////////////////////////////////////////////////
 
-  /// Create a new sp_cursor instance and push it to the cursor stack.
+  /// Push a cursor to the cursor stack.
   ///
-  /// @param lex_keeper SP-instruction execution helper.
-  /// @param i          Cursor-push instruction.
+  /// @param cursor The cursor
   ///
-  /// @return error flag.
-  /// @retval false on success.
-  /// @retval true on error.
-  bool push_cursor(THD *thd, sp_lex_keeper *lex_keeper);
+  void push_cursor(sp_cursor *cur);
 
+  void pop_cursor(THD *thd);
   /// Pop and delete given number of sp_cursor instance from the cursor stack.
   ///
   /// @param count Number of cursors to pop & delete.
-  void pop_cursors(size_t count);
+  void pop_cursors(THD *thd, size_t count);
 
-  void pop_all_cursors()
-  { pop_cursors(m_ccount); }
+  void pop_all_cursors(THD *thd)
+  { pop_cursors(thd, m_ccount); }
 
   sp_cursor *get_cursor(uint i) const
   { return m_cstack[i]; }
@@ -428,75 +425,5 @@ private:
   /// Array of CASE expression holders.
   Bounds_checked_array<Item_cache *> m_case_expr_holders;
 }; // class sp_rcontext : public Sql_alloc
-
-///////////////////////////////////////////////////////////////////////////
-// sp_cursor declaration.
-///////////////////////////////////////////////////////////////////////////
-
-class Server_side_cursor;
-typedef class st_select_lex_unit SELECT_LEX_UNIT;
-
-/* A mediator between stored procedures and server side cursors */
-
-class sp_cursor : public Sql_alloc
-{
-private:
-  /// An interceptor of cursor result set used to implement
-  /// FETCH <cname> INTO <varlist>.
-  class Select_fetch_into_spvars: public select_result_interceptor
-  {
-    List<sp_variable> *spvar_list;
-    uint field_count;
-    bool send_data_to_variable_list(List<sp_variable> &vars, List<Item> &items);
-  public:
-    Select_fetch_into_spvars(THD *thd_arg): select_result_interceptor(thd_arg) {}
-    uint get_field_count() { return field_count; }
-    void set_spvar_list(List<sp_variable> *vars) { spvar_list= vars; }
-
-    virtual bool send_eof() { return FALSE; }
-    virtual int send_data(List<Item> &items);
-    virtual int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-};
-
-public:
-  sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper);
-
-  virtual ~sp_cursor()
-  { destroy(); }
-
-  sp_lex_keeper *get_lex_keeper() { return m_lex_keeper; }
-
-  int open(THD *thd);
-
-  int open_view_structure_only(THD *thd);
-
-  int close(THD *thd);
-
-  my_bool is_open()
-  { return MY_TEST(server_side_cursor); }
-
-  bool found() const
-  { return m_found; }
-
-  ulonglong row_count() const
-  { return m_row_count; }
-
-  ulonglong fetch_count() const
-  { return m_fetch_count; }
-
-  int fetch(THD *, List<sp_variable> *vars, bool error_on_no_data);
-
-  bool export_structure(THD *thd, Row_definition_list *list);
-
-private:
-  Select_fetch_into_spvars result;
-  sp_lex_keeper *m_lex_keeper;
-  Server_side_cursor *server_side_cursor;
-  ulonglong m_fetch_count; // Number of FETCH commands since last OPEN
-  ulonglong m_row_count;   // Number of successful FETCH since last OPEN
-  bool m_found;            // If last FETCH fetched a row
-  void destroy();
-
-}; // class sp_cursor : public Sql_alloc
 
 #endif /* _SP_RCONTEXT_H_ */

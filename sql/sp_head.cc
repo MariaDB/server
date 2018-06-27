@@ -1406,7 +1406,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   /* Only pop cursors when we're done with group aggregate running. */
   if (m_chistics.agg_type != GROUP_AGGREGATE ||
       (m_chistics.agg_type == GROUP_AGGREGATE && thd->spcont->quit_func))
-    thd->spcont->pop_all_cursors(); // To avoid memory leaks after an error
+    thd->spcont->pop_all_cursors(thd); // To avoid memory leaks after an error
 
   /* Restore all saved */
   if (m_chistics.agg_type == GROUP_AGGREGATE)
@@ -4186,11 +4186,13 @@ sp_instr_cpush::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cpush::execute");
 
-  int ret= thd->spcont->push_cursor(thd, &m_lex_keeper);
+  sp_cursor::reset(thd, &m_lex_keeper);
+  m_lex_keeper.disable_query_cache();
+  thd->spcont->push_cursor(this);
 
   *nextp= m_ip+1;
 
-  DBUG_RETURN(ret);
+  DBUG_RETURN(false);
 }
 
 
@@ -4224,7 +4226,7 @@ int
 sp_instr_cpop::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cpop::execute");
-  thd->spcont->pop_cursors(m_count);
+  thd->spcont->pop_cursors(thd, m_count);
   *nextp= m_ip+1;
   DBUG_RETURN(0);
 }

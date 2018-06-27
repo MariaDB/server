@@ -1757,7 +1757,8 @@ private:
 
 
 /** This is DECLARE CURSOR */
-class sp_instr_cpush : public sp_instr
+class sp_instr_cpush : public sp_instr,
+                       public sp_cursor
 {
   sp_instr_cpush(const sp_instr_cpush &); /**< Prevent use of these */
   void operator=(sp_instr_cpush &);
