@@ -782,7 +782,7 @@ DECLARE_THREAD(btr_defragment_thread)(void*)
 			err = dict_stats_save_defrag_stats(index);
 			if (err != DB_SUCCESS) {
 				ib::error() << "Saving defragmentation stats for table "
-					    << index->table->name.m_name
+					    << index->table->name
 					    << " index " << index->name()
 					    << " failed with error " << err;
 			} else {
@@ -790,7 +790,7 @@ DECLARE_THREAD(btr_defragment_thread)(void*)
 
 				if (err != DB_SUCCESS) {
 					ib::error() << "Saving defragmentation summary for table "
-					    << index->table->name.m_name
+					    << index->table->name
 					    << " index " << index->name()
 					    << " failed with error " << err;
 				}

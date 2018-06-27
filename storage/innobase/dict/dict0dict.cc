@@ -574,7 +574,7 @@ dict_table_close_and_drop(
 	if (err != DB_SUCCESS) {
 		ib::error() << "At " << __FILE__ << ":" << __LINE__
 			    << " row_merge_drop_table returned error: " << err
-			    << " table: " << table->name.m_name;
+			    << " table: " << table->name;
 	}
 }
 
