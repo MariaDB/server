@@ -862,7 +862,7 @@ update_begin:
   THD_STAGE_INFO(thd, stage_updating);
   while (!(error=info.read_record()) && !thd->killed)
   {
-    if (table->versioned() && !table->vers_end_field()->is_max())
+    if (table->vers_write && !table->vers_end_field()->is_max())
     {
       continue;
     }
@@ -1166,7 +1166,7 @@ update_end:
   if (likely(error < 0) && likely(!thd->lex->analyze_stmt))
   {
     char buff[MYSQL_ERRMSG_SIZE];
-    if (!table->versioned(VERS_TIMESTAMP))
+    if (!table->versioned(VERS_TIMESTAMP) || !table->vers_write)
       my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO), (ulong) found,
                   (ulong) updated,
                   (ulong) thd->get_stmt_da()->current_statement_warn_count());
@@ -2311,7 +2311,7 @@ int multi_update::send_data(List<Item> &not_used_values)
     if (table->status & (STATUS_NULL_ROW | STATUS_UPDATED))
       continue;
 
-    if (table->versioned() && !table->vers_end_field()->is_max())
+    if (table->vers_write && !table->vers_end_field()->is_max())
     {
       continue;
     }
