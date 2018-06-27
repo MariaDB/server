@@ -4964,5 +4964,12 @@ ERROR HY000: Illegal parameter data types bigint and geometry for operation '+'
 SELECT POINT(1,1)+0x60;
 ERROR HY000: Illegal parameter data types geometry and bigint for operation '+'
 #
+# MDEV-16454 Bad results for IN with ROW
+#
+SELECT (1,0) IN ((POINT(1,1),0),(0,0));
+ERROR HY000: Illegal parameter data types int and geometry for operation 'in'
+SELECT (1,(0,0)) IN ((1,(POINT(1,1),0)),(0,(0,0)));
+ERROR HY000: Illegal parameter data types int and geometry for operation 'in'
+#
 # End of 10.4 tests
 #

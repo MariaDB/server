@@ -690,3 +690,27 @@ SELECT
   TIME'00:00:00'='' AS c1_true,
   TIME'00:00:00' IN ('', TIME'10:20:30') AS c2_true,
   TIME'00:00:00' NOT IN ('', TIME'10:20:30') AS c3_false;
+
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-16454 Bad results for IN with ROW
+--echo #
+SELECT (18446744073709551615,0) IN ((18446744073709551614,0),(-1,0));
+
+SELECT '0x' IN (0);
+SELECT '0x' IN (0,1);
+SELECT ('0x',1) IN ((0,1));
+SELECT ('0x',1) IN ((0,1),(1,1));
+
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

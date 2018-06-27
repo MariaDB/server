@@ -909,3 +909,38 @@ Warnings:
 Warning	1292	Truncated incorrect time value: ''
 Warning	1292	Truncated incorrect time value: ''
 Warning	1292	Truncated incorrect time value: ''
+#
+# End of 10.3 tests
+#
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-16454 Bad results for IN with ROW
+#
+SELECT (18446744073709551615,0) IN ((18446744073709551614,0),(-1,0));
+(18446744073709551615,0) IN ((18446744073709551614,0),(-1,0))
+0
+SELECT '0x' IN (0);
+'0x' IN (0)
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '0x'
+SELECT '0x' IN (0,1);
+'0x' IN (0,1)
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '0x'
+SELECT ('0x',1) IN ((0,1));
+('0x',1) IN ((0,1))
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '0x'
+SELECT ('0x',1) IN ((0,1),(1,1));
+('0x',1) IN ((0,1),(1,1))
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '0x'
+#
+# End of 10.4 tests
+#

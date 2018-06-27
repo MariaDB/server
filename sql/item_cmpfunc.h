@@ -2415,12 +2415,19 @@ class cmp_item_row :public cmp_item
 {
   cmp_item **comparators;
   uint n;
+  bool alloc_comparators(THD *thd, uint n);
+  bool aggregate_row_elements_for_comparison(THD *thd,
+                                             Type_handler_hybrid_field_type *cmp,
+                                             Item_args *tmp,
+                                             const char *funcname,
+                                             uint col,
+                                             uint level);
 public:
   cmp_item_row(): comparators(0), n(0) {}
   ~cmp_item_row();
   void store_value(Item *item);
-  bool alloc_comparators(THD *thd, uint n);
-  bool prepare_comparators(THD *, Item **args, uint arg_count);
+  bool prepare_comparators(THD *, const char *funcname,
+                           const Item_args *args, uint level);
   int cmp(Item *arg);
   int cmp_not_null(const Value *val)
   {

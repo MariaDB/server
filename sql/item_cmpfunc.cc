@@ -34,29 +34,6 @@
 #include "sql_time.h"                  // make_truncated_value_warning
 #include "sql_base.h"                  // dynamic_column_error_message
 
-/**
-  find an temporal type (item) that others will be converted to
-  for the purpose of comparison.
-
-  this is the type that will be used in warnings like
-  "Incorrect <<TYPE>> value".
-*/
-static Item *find_date_time_item(Item **args, uint nargs, uint col)
-{
-  Item *date_arg= 0, **arg, **arg_end;
-  for (arg= args, arg_end= args + nargs; arg != arg_end ; arg++)
-  {
-    Item *item= arg[0]->element_index(col);
-    if (item->cmp_type() != TIME_RESULT)
-      continue;
-    if (item->field_type() == MYSQL_TYPE_DATETIME)
-      return item;
-    if (!date_arg)
-      date_arg= item;
-  }
-  return date_arg;
-}
-
 
 /*
   Compare row signature of two expressions
@@ -3882,39 +3859,15 @@ bool cmp_item_row::alloc_comparators(THD *thd, uint cols)
 void cmp_item_row::store_value(Item *item)
 {
   DBUG_ENTER("cmp_item_row::store_value");
-  THD *thd= current_thd;
-  if (!alloc_comparators(thd, item->cols()))
+  DBUG_ASSERT(comparators);
+  DBUG_ASSERT(n == item->cols());
+  item->bring_value();
+  item->null_value= 0;
+  for (uint i=0; i < n; i++)
   {
-    item->bring_value();
-    item->null_value= 0;
-    for (uint i=0; i < n; i++)
-    {
-      if (!comparators[i])
-      {
-        /**
-          Comparators for the row elements that have temporal data types
-          are installed at initialization time by prepare_comparators().
-          Here we install comparators for the other data types.
-          There is a bug in the below code. See MDEV-11511.
-          When performing:
-           (predicant0,predicant1) IN ((value00,value01),(value10,value11))
-          It uses only the data type and the collation of the predicant
-          elements only. It should be fixed to aggregate the data type and
-          the collation for all elements at the N-th positions of the
-          predicate and all values:
-          - predicate0, value00, value01
-          - predicate1, value10, value11
-        */
-        Item *elem= item->element_index(i);
-        const Type_handler *handler= elem->type_handler();
-        DBUG_ASSERT(elem->cmp_type() != TIME_RESULT);
-        if (!(comparators[i]=
-              handler->make_cmp_item(thd, elem->collation.collation)))
-	  break;					// new failed
-      }
-      comparators[i]->store_value(item->element_index(i));
-      item->null_value|= item->element_index(i)->null_value;
-    }
+    DBUG_ASSERT(comparators[i]);
+    comparators[i]->store_value(item->element_index(i));
+    item->null_value|= item->element_index(i)->null_value;
   }
   DBUG_VOID_RETURN;
 }
@@ -4283,25 +4236,84 @@ bool Item_func_in::value_list_convert_const_to_int(THD *thd)
 }
 
 
-/**
-  Historically this code installs comparators at initialization time
-  for temporal ROW elements only. All other comparators are installed later,
-  during the first store_value(). This causes the bug MDEV-11511.
-  See also comments in cmp_item_row::store_value().
-*/
-bool cmp_item_row::prepare_comparators(THD *thd, Item **args, uint arg_count)
+bool cmp_item_row::
+      aggregate_row_elements_for_comparison(THD *thd,
+                                            Type_handler_hybrid_field_type *cmp,
+                                            Item_args *tmp,
+                                            const char *funcname,
+                                            uint col,
+                                            uint level)
 {
+  DBUG_EXECUTE_IF("cmp_item",
+  {
+    for (uint i= 0 ; i < tmp->argument_count(); i++)
+    {
+      Item *arg= tmp->arguments()[i];
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_UNKNOWN_ERROR, "DBUG: %s[%d,%d] handler=%s",
+                          String_space(level).c_ptr(), col, i,
+                          arg->type_handler()->name().ptr());
+    }
+  }
+  );
+  bool err= cmp->aggregate_for_comparison(funcname, tmp->arguments(),
+                                          tmp->argument_count(), true);
+  DBUG_EXECUTE_IF("cmp_item",
+  {
+    if (!err)
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_UNKNOWN_ERROR, "DBUG: %s=> handler=%s",
+                          String_space(level).c_ptr(),
+                          cmp->type_handler()->name().ptr());
+  }
+  );
+  return err;
+}
+
+
+bool cmp_item_row::prepare_comparators(THD *thd, const char *funcname,
+                                       const Item_args *args, uint level)
+{
+  DBUG_EXECUTE_IF("cmp_item",
+                  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                  ER_UNKNOWN_ERROR, "DBUG: %sROW(%d args) level=%d",
+                  String_space(level).c_ptr(),
+                  args->argument_count(), level););
+  DBUG_ASSERT(args->argument_count() > 0);
+  if (alloc_comparators(thd, args->arguments()[0]->cols()))
+    return true;
+  DBUG_ASSERT(n == args->arguments()[0]->cols());
   for (uint col= 0; col < n; col++)
   {
-    Item *date_arg= find_date_time_item(args, arg_count, col);
-    if (date_arg)
+    Item_args tmp;
+    Type_handler_hybrid_field_type cmp;
+
+    if (tmp.alloc_and_extract_row_elements(thd, args, col) ||
+        aggregate_row_elements_for_comparison(thd, &cmp, &tmp,
+                                              funcname, col, level + 1))
+      return true;
+
+    /*
+      There is a legacy bug (MDEV-11511) in the code below,
+      which should be fixed eventually.
+      When performing:
+       (predicant0,predicant1) IN ((value00,value01),(value10,value11))
+      It uses only the data type and the collation of the predicant
+      elements only. It should be fixed to take into account the data type and
+      the collation for all elements at the N-th positions of the
+      predicate and all values:
+      - predicate0, value00, value01
+      - predicate1, value10, value11
+    */
+    Item *item0= args->arguments()[0]->element_index(col);
+    CHARSET_INFO *collation= item0->collation.collation;
+    if (!(comparators[col]= cmp.type_handler()->make_cmp_item(thd, collation)))
+      return true;
+    if (cmp.type_handler() == &type_handler_row)
     {
-      // TODO: do like the scalar comparators do
-      const Type_handler *h= date_arg->type_handler();
-      comparators[col]= h->field_type() == MYSQL_TYPE_TIME ?
-                        (cmp_item *) new (thd->mem_root) cmp_item_time() :
-                        (cmp_item *) new (thd->mem_root) cmp_item_datetime();
-      if (!comparators[col])
+      // Prepare comparators for ROW elements recursively
+      cmp_item_row *row= static_cast<cmp_item_row*>(comparators[col]);
+      if (row->prepare_comparators(thd, funcname, &tmp, level + 1))
         return true;
     }
   }
@@ -4311,19 +4323,10 @@ bool cmp_item_row::prepare_comparators(THD *thd, Item **args, uint arg_count)
 
 bool Item_func_in::fix_for_row_comparison_using_bisection(THD *thd)
 {
-  uint cols= args[0]->cols();
   if (unlikely(!(array= new (thd->mem_root) in_row(thd, arg_count-1, 0))))
     return true;
   cmp_item_row *cmp= &((in_row*)array)->tmp;
-  if (cmp->alloc_comparators(thd, cols) ||
-      cmp->prepare_comparators(thd, args, arg_count))
-    return true;
-  /*
-    Only DATETIME items comparators were initialized.
-    Call store_value() to setup others.
-  */
-  cmp->store_value(args[0]);
-  if (unlikely(thd->is_fatal_error))            // OOM
+  if (cmp->prepare_comparators(thd, func_name(), this, 0))
     return true;
   fix_in_vector();
   return false;
@@ -4362,8 +4365,7 @@ bool Item_func_in::fix_for_row_comparison_using_cmp_items(THD *thd)
   DBUG_ASSERT(get_comparator_type_handler(0) == &type_handler_row);
   DBUG_ASSERT(get_comparator_cmp_item(0));
   cmp_item_row *cmp_row= (cmp_item_row*) get_comparator_cmp_item(0);
-  return cmp_row->alloc_comparators(thd, args[0]->cols()) ||
-         cmp_row->prepare_comparators(thd, args, arg_count);
+  return cmp_row->prepare_comparators(thd, func_name(), this, 0);
 }
 
 

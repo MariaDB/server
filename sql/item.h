@@ -2520,6 +2520,30 @@ public:
   {
     args[arg_count++]= item;
   }
+  /**
+    Extract row elements from the given position.
+    For example, for this input:  (1,2),(3,4),(5,6)
+      pos=0 will extract  (1,3,5)
+      pos=1 will extract  (2,4,6)
+    @param  thd  - current thread, to allocate memory on its mem_root
+    @param  rows - an array of compatible ROW-type items
+    @param  pos  - the element position to extract
+  */
+  bool alloc_and_extract_row_elements(THD *thd, const Item_args *rows, uint pos)
+  {
+    DBUG_ASSERT(rows->argument_count() > 0);
+    DBUG_ASSERT(rows->arguments()[0]->cols() > pos);
+    if (alloc_arguments(thd, rows->argument_count()))
+      return true;
+    for (uint i= 0; i < rows->argument_count(); i++)
+    {
+      DBUG_ASSERT(rows->arguments()[0]->cols() == rows->arguments()[i]->cols());
+      Item *arg= rows->arguments()[i]->element_index(pos);
+      add_argument(arg);
+    }
+    DBUG_ASSERT(argument_count() == rows->argument_count());
+    return false;
+  }
   inline Item **arguments() const { return args; }
   inline uint argument_count() const { return arg_count; }
   inline void remove_arguments() { arg_count=0; }

@@ -1821,3 +1821,117 @@ Warnings:
 Note	1105	eq=0 a=(varchar)'a' b=(hex_hybrid)'a'
 DROP TABLE t1;
 SET SESSION debug_dbug="-d,Item_basic_value";
+#
+# MDEV-16454 Bad results for IN with ROW
+#
+SET SESSION debug_dbug="+d,cmp_item";
+SET SESSION debug_dbug="+d,Item_func_in";
+SET SESSION debug_dbug="+d,Predicant_to_list_comparator";
+SELECT (18446744073709551615,0) IN ((18446744073709551614,0),(-1,0));
+(18446744073709551615,0) IN ((18446744073709551614,0),(-1,0))
+0
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (row)
+Note	1105	DBUG: [1] arg=2 handler=0 (row)
+Note	1105	DBUG: ROW(3 args) level=0
+Note	1105	DBUG:  [0,0] handler=bigint
+Note	1105	DBUG:  [0,1] handler=bigint
+Note	1105	DBUG:  [0,2] handler=int
+Note	1105	DBUG:  => handler=decimal
+Note	1105	DBUG:  [1,0] handler=int
+Note	1105	DBUG:  [1,1] handler=int
+Note	1105	DBUG:  [1,2] handler=int
+Note	1105	DBUG:  => handler=bigint
+Note	1105	DBUG: types_compatible=yes bisect=yes
+SELECT (1,(0,0)) IN ((1,(1,0)),(0,(0,0)));
+(1,(0,0)) IN ((1,(1,0)),(0,(0,0)))
+0
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (row)
+Note	1105	DBUG: [1] arg=2 handler=0 (row)
+Note	1105	DBUG: ROW(3 args) level=0
+Note	1105	DBUG:  [0,0] handler=int
+Note	1105	DBUG:  [0,1] handler=int
+Note	1105	DBUG:  [0,2] handler=int
+Note	1105	DBUG:  => handler=bigint
+Note	1105	DBUG:  [1,0] handler=row
+Note	1105	DBUG:  [1,1] handler=row
+Note	1105	DBUG:  [1,2] handler=row
+Note	1105	DBUG:  => handler=row
+Note	1105	DBUG:  ROW(3 args) level=1
+Note	1105	DBUG:   [0,0] handler=int
+Note	1105	DBUG:   [0,1] handler=int
+Note	1105	DBUG:   [0,2] handler=int
+Note	1105	DBUG:   => handler=bigint
+Note	1105	DBUG:   [1,0] handler=int
+Note	1105	DBUG:   [1,1] handler=int
+Note	1105	DBUG:   [1,2] handler=int
+Note	1105	DBUG:   => handler=bigint
+Note	1105	DBUG: types_compatible=yes bisect=yes
+SELECT (1,(0,0),3) IN ((1,(1,0),3),(0,(0,0),3));
+(1,(0,0),3) IN ((1,(1,0),3),(0,(0,0),3))
+0
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (row)
+Note	1105	DBUG: [1] arg=2 handler=0 (row)
+Note	1105	DBUG: ROW(3 args) level=0
+Note	1105	DBUG:  [0,0] handler=int
+Note	1105	DBUG:  [0,1] handler=int
+Note	1105	DBUG:  [0,2] handler=int
+Note	1105	DBUG:  => handler=bigint
+Note	1105	DBUG:  [1,0] handler=row
+Note	1105	DBUG:  [1,1] handler=row
+Note	1105	DBUG:  [1,2] handler=row
+Note	1105	DBUG:  => handler=row
+Note	1105	DBUG:  ROW(3 args) level=1
+Note	1105	DBUG:   [0,0] handler=int
+Note	1105	DBUG:   [0,1] handler=int
+Note	1105	DBUG:   [0,2] handler=int
+Note	1105	DBUG:   => handler=bigint
+Note	1105	DBUG:   [1,0] handler=int
+Note	1105	DBUG:   [1,1] handler=int
+Note	1105	DBUG:   [1,2] handler=int
+Note	1105	DBUG:   => handler=bigint
+Note	1105	DBUG:  [2,0] handler=int
+Note	1105	DBUG:  [2,1] handler=int
+Note	1105	DBUG:  [2,2] handler=int
+Note	1105	DBUG:  => handler=bigint
+Note	1105	DBUG: types_compatible=yes bisect=yes
+SELECT '0x' IN (0);
+'0x' IN (0)
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '0x'
+SELECT '0x' IN (0,1);
+'0x' IN (0,1)
+1
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (double)
+Note	1105	DBUG: [1] arg=2 handler=0 (double)
+Note	1105	DBUG: types_compatible=yes bisect=yes
+Warning	1292	Truncated incorrect DOUBLE value: '0x'
+SELECT ('0x',1) IN ((0,1));
+('0x',1) IN ((0,1))
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '0x'
+SELECT ('0x',1) IN ((0,1),(1,1));
+('0x',1) IN ((0,1),(1,1))
+1
+Warnings:
+Note	1105	DBUG: [0] arg=1 handler=0 (row)
+Note	1105	DBUG: [1] arg=2 handler=0 (row)
+Note	1105	DBUG: ROW(3 args) level=0
+Note	1105	DBUG:  [0,0] handler=varchar
+Note	1105	DBUG:  [0,1] handler=int
+Note	1105	DBUG:  [0,2] handler=int
+Note	1105	DBUG:  => handler=double
+Note	1105	DBUG:  [1,0] handler=int
+Note	1105	DBUG:  [1,1] handler=int
+Note	1105	DBUG:  [1,2] handler=int
+Note	1105	DBUG:  => handler=bigint
+Note	1105	DBUG: types_compatible=yes bisect=yes
+Warning	1292	Truncated incorrect DOUBLE value: '0x'
+SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
+SET SESSION debug_dbug="-d,Item_func_in";
+SET SESSION debug_dbug="-d,cmp_item";
