@@ -254,5 +254,7 @@ BEGIN
 END;
 /
 DELIMITER ;/
+enable_prepare_warnings;
 SELECT test.comment() FROM DUAL;
+disable_prepare_warnings;
 DROP FUNCTION comment;
