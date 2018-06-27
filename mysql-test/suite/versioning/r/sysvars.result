@@ -129,4 +129,99 @@ a
 show status like "Feature_system_versioning";
 Variable_name	Value
 Feature_system_versioning	2
-drop table t;
+#
+# MDEV-16546 System versioning setting to allow history modification
+#
+set system_versioning_modify_history= on;
+create or replace table t (
+a int primary key,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end)
+) with system versioning;
+insert into t values (1);
+update t set a= 2;
+## UPDATE of historical row
+update t set row_start= @s1, row_end= @e1 where a= 1;
+## UPDATE of current row
+update t set row_start= @s2, row_end= @e2 where a= 2;
+## INSERT historical row
+insert into t (a, row_start, row_end) values (3, @s3, @e3);
+## normal INSERT
+insert into t (a) values (4);
+select * from t;
+a
+4
+## normal UPDATE
+update t set a= 5;
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end == row_start
+2	ERROR: row_end < row_start
+3	HISTORICAL ROW
+4	HISTORICAL ROW
+5	CURRENT ROW
+## Multi-row INSERT
+create or replace table t2 like t;
+insert into t2 (a, row_start, row_end) values (1, @s1, @e1), (2, @s2, @e2);
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end == row_start
+2	ERROR: row_end < row_start
+## INSERT..SELECT
+create or replace table t2 like t;
+insert into t2 (a, row_start, row_end) select a, row_start, row_end from t for system_time all;
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end == row_start
+2	ERROR: row_end < row_start
+3	HISTORICAL ROW
+4	HISTORICAL ROW
+5	CURRENT ROW
+## Multi-UPDATE
+update t, t2 set t.row_start= @s1, t2.row_start= @s1, t.row_end= @s1, t2.row_end= @s1 where t.a > 3 and t2.a > 3;
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end == row_start
+2	ERROR: row_end < row_start
+3	HISTORICAL ROW
+4	ERROR: row_end == row_start
+5	ERROR: row_end == row_start
+select *, check_row(row_start, row_end) from t2 for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end == row_start
+2	ERROR: row_end < row_start
+3	HISTORICAL ROW
+4	ERROR: row_end == row_start
+5	ERROR: row_end == row_start
+## REPLACE
+replace t (a, row_start, row_end) values (1, @s3, @e1), (2, @e2, @e2);
+select *, check_row(row_start, row_end) from t for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end < row_start
+2	ERROR: row_end == row_start
+3	HISTORICAL ROW
+4	ERROR: row_end == row_start
+5	ERROR: row_end == row_start
+## Honor secure_timestamp option
+insert into t (a, row_start, row_end) values (6, @s3, @e3);
+ERROR HY000: The value specified for generated column 'row_start' in table 't' ignored
+show warnings;
+Level	Code	Message
+Warning	4144	Modifying history is prohibited, set `secure_timestamp` to NO or SUPER
+Error	1906	The value specified for generated column 'row_start' in table 't' ignored
+Error	1906	The value specified for generated column 'row_end' in table 't' ignored
+insert into t (a, row_start, row_end) values (7, @s3, @e3);
+ERROR HY000: The value specified for generated column 'row_start' in table 't' ignored
+show warnings;
+Level	Code	Message
+Warning	4144	Modifying history is prohibited, set `secure_timestamp` to NO or SUPER
+Error	1906	The value specified for generated column 'row_start' in table 't' ignored
+Error	1906	The value specified for generated column 'row_end' in table 't' ignored
+insert into t (a, row_start, row_end) values (8, @s3, @e3);
+create user nobody;
+use test;
+insert into t (a, row_start, row_end) values (9, @s3, @e3);
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+drop database test;
+create database test;

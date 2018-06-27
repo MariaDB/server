@@ -729,6 +729,7 @@ typedef struct system_variables
 
   vers_asof_timestamp_t vers_asof_timestamp;
   ulong vers_alter_history;
+  my_bool vers_modify_history;
 } SV;
 
 /**
@@ -4829,6 +4830,9 @@ public:
                                LOG_SLOW_DISABLE_ADMIN);
     query_plan_flags|= QPLAN_ADMIN;
   }
+
+  bool modify_history_warned;
+  bool vers_modify_history();
 };
 
 inline void add_to_active_threads(THD *thd)

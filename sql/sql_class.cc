@@ -638,9 +638,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
    m_stmt_da(&main_da),
    tdc_hash_pins(0),
    xid_hash_pins(0),
-   m_tmp_tables_locked(false)
+   m_tmp_tables_locked(false),
 #ifdef WITH_WSREP
-  ,
    wsrep_applier(is_wsrep_applier),
    wsrep_applier_closing(false),
    wsrep_client_thread(false),
@@ -648,8 +647,9 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
    wsrep_po_handle(WSREP_PO_INITIALIZER),
    wsrep_po_cnt(0),
    wsrep_apply_format(0),
-   wsrep_ignore_table(false)
+   wsrep_ignore_table(false),
 #endif
+   modify_history_warned(false)
 {
   ulong tmp;
   bzero(&variables, sizeof(variables));
@@ -3780,6 +3780,7 @@ void THD::end_statement()
   lex_end(lex);
   delete lex->result;
   lex->result= 0;
+  modify_history_warned= false;
   /* Note that free_list is freed in cleanup_after_query() */
 
   /*
@@ -7019,6 +7020,35 @@ static bool protect_against_unsafe_warning_flood(int unsafe_type)
     }
   }
   DBUG_RETURN(unsafe_warning_suppression_active[unsafe_type]);
+}
+
+bool THD::vers_modify_history()
+{
+  if (!variables.vers_modify_history)
+    return false;
+  enum_sql_command c= lex->sql_command;
+  if (c != SQLCOM_UPDATE && c != SQLCOM_INSERT && c != SQLCOM_INSERT_SELECT &&
+      c != SQLCOM_UPDATE_MULTI && c != SQLCOM_REPLACE)
+    return false;
+  if (opt_secure_timestamp >= SECTIME_REPL)
+  {
+    if (!modify_history_warned)
+    {
+      push_warning_printf(this, Sql_condition::WARN_LEVEL_WARN,
+                          WARN_VERS_MODIFY_HISTORY,
+                          ER_THD(this, WARN_VERS_MODIFY_HISTORY));
+      modify_history_warned= true;
+    }
+    return false;
+  }
+  if (opt_secure_timestamp == SECTIME_SUPER &&
+      !(security_ctx->master_access & SUPER_ACL))
+  {
+    my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "SUPER");
+    return false;
+  }
+  return true;
+
 }
 
 MYSQL_TIME THD::query_start_TIME()

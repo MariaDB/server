@@ -6246,6 +6246,13 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     else if (!from_field)
       goto error;
 
+    if (from_field != view_ref_found &&
+        from_field->vers_sys_field() && thd->vers_modify_history())
+    {
+      DBUG_ASSERT(from_field->table);
+      DBUG_ASSERT(from_field->table->versioned());
+      from_field->table->vers_write= false;
+    }
     table_list= (cached_table ? cached_table :
                  from_field != view_ref_found ?
                  from_field->table->pos_in_table_list : 0);
