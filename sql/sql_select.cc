@@ -738,7 +738,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
   {
     for (table= tables; table; table= table->next_local)
     {
-      if (table->table && table->table->versioned())
+      if (table->table && table->table->versioned() && table->table->vers_write)
         versioned_tables++;
       else if (table->vers_conditions.is_set() &&
               (table->is_non_derived() || !table->vers_conditions.used))
