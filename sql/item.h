@@ -110,6 +110,7 @@ struct KEY_FIELD;
 struct SARGABLE_PARAM;
 class RANGE_OPT_PARAM;
 class SEL_TREE;
+class With_sum_func_cache;
 
 enum precedence {
   LOWEST_PRECEDENCE,
@@ -894,7 +895,6 @@ public:
   bool in_rollup;                       /* If used in GROUP BY list
                                            of a query with ROLLUP */ 
   bool null_value;			/* if item is null */
-  bool with_sum_func;                   /* True if item contains a sum func */
   bool with_param;                      /* True if contains an SP parameter */
   bool with_window_func;             /* True if item contains a window func */
   /**
@@ -2178,6 +2178,9 @@ public:
   */
   virtual bool with_subquery() const { DBUG_ASSERT(is_fixed()); return false; }
 
+  virtual bool with_sum_func() const { return false; }
+  virtual With_sum_func_cache* get_with_sum_func_cache() { return NULL; }
+
   Item* set_expr_cache(THD *thd);
 
   virtual Item_equal *get_item_equal() { return NULL; }
@@ -2298,6 +2301,47 @@ public:
   }
 };
 #endif
+
+class With_sum_func_cache
+{
+protected:
+  bool m_with_sum_func; // True if the owner item contains a sum func
+public:
+  With_sum_func_cache()
+   :m_with_sum_func(false)
+  { }
+  With_sum_func_cache(const Item *a)
+   :m_with_sum_func(a->with_sum_func())
+  { }
+  With_sum_func_cache(const Item *a, const Item *b)
+   :m_with_sum_func(a->with_sum_func() || b->with_sum_func())
+  { }
+  With_sum_func_cache(const Item *a, const Item *b, const Item *c)
+   :m_with_sum_func(a->with_sum_func() || b->with_sum_func() ||
+                    c->with_sum_func())
+  { }
+  With_sum_func_cache(const Item *a, const Item *b, const Item *c,
+                      const Item *d)
+   :m_with_sum_func(a->with_sum_func() || b->with_sum_func() ||
+                    c->with_sum_func() || d->with_sum_func())
+  { }
+  With_sum_func_cache(const Item *a, const Item *b, const Item *c,
+                      const Item *d, const Item *e)
+   :m_with_sum_func(a->with_sum_func() || b->with_sum_func() ||
+                    c->with_sum_func() || d->with_sum_func() ||
+                    e->with_sum_func())
+  { }
+  void set_with_sum_func() { m_with_sum_func= true; }
+  void reset_with_sum_func() { m_with_sum_func= false; }
+  void copy_with_sum_func(const Item *item)
+  {
+    m_with_sum_func= item->with_sum_func();
+  }
+  void join_with_sum_func(const Item *item)
+  {
+    m_with_sum_func|= item->with_sum_func();
+  }
+};
 
 
 /*
@@ -4962,7 +5006,8 @@ public:
                          bool *null_value, LEX_CSTRING *name);
 };
 
-class Item_ref :public Item_ident
+class Item_ref :public Item_ident,
+                protected With_sum_func_cache
 {
 protected:
   void set_properties();
@@ -4998,7 +5043,8 @@ public:
 
   /* Constructor need to process subselect with temporary tables (see Item) */
   Item_ref(THD *thd, Item_ref *item)
-    :Item_ident(thd, item), set_properties_only(0), ref(item->ref) {}
+    :Item_ident(thd, item), With_sum_func_cache(*item),
+     set_properties_only(0), ref(item->ref) {}
   enum Type type() const		{ return REF_ITEM; }
   enum Type real_type() const           { return ref ? (*ref)->type() :
                                           REF_ITEM; }
@@ -5185,6 +5231,8 @@ public:
       return 0;
     return cleanup_processor(arg);
   }
+  bool with_sum_func() const { return m_with_sum_func; }
+  With_sum_func_cache* get_with_sum_func_cache() { return this; }
 };
 
 
@@ -5272,7 +5320,8 @@ class Expression_cache_tracker;
 */
 
 class Item_cache_wrapper :public Item_result_field,
-                          public With_subquery_cache
+                          public With_subquery_cache,
+                          protected With_sum_func_cache
 {
 private:
   /* Pointer on the cached expression */
@@ -5300,6 +5349,8 @@ public:
   enum Type type() const { return EXPR_CACHE_ITEM; }
   enum Type real_type() const { return orig_item->type(); }
   bool with_subquery() const { DBUG_ASSERT(fixed); return m_with_subquery; }
+  bool with_sum_func() const { return m_with_sum_func; }
+  With_sum_func_cache* get_with_sum_func_cache() { return this; }
 
   bool set_cache(THD *thd);
   Expression_cache_tracker* init_tracker(MEM_ROOT *mem_root);

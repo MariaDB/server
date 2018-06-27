@@ -506,7 +506,7 @@ Item::Item(THD *thd):
 {
   DBUG_ASSERT(thd);
   marker= 0;
-  maybe_null=null_value=with_sum_func=with_window_func=with_field=0;
+  maybe_null= null_value= with_window_func= with_field= false;
   in_rollup= 0;
   with_param= 0;
 
@@ -550,7 +550,6 @@ Item::Item(THD *thd, Item *item):
   maybe_null(item->maybe_null),
   in_rollup(item->in_rollup),
   null_value(item->null_value),
-  with_sum_func(item->with_sum_func),
   with_param(item->with_param),
   with_window_func(item->with_window_func),
   with_field(item->with_field),
@@ -2351,7 +2350,7 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
   else
   {
     /* Not a SUM() function */
-    if (unlikely((!with_sum_func && !(split_flags & SPLIT_SUM_SELECT))))
+    if (unlikely((!with_sum_func() && !(split_flags & SPLIT_SUM_SELECT))))
     {
       /*
         This is not a SUM function and there are no SUM functions inside.
@@ -2359,7 +2358,7 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
       */
       return;
     }
-    if (likely(with_sum_func ||
+    if (likely(with_sum_func() ||
                (type() == FUNC_ITEM &&
                 (((Item_func *) this)->functype() ==
                  Item_func::ISNOTNULLTEST_FUNC ||
@@ -5551,7 +5550,7 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
     ref->alias_name_used= TRUE;
 
   /* If this is a non-aggregated field inside HAVING, search in GROUP BY. */
-  if (select->having_fix_field && !ref->with_sum_func && group_list)
+  if (select->having_fix_field && !ref->with_sum_func() && group_list)
   {
     group_by_ref= find_field_in_group_list(ref, group_list);
     
@@ -8270,13 +8269,13 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
   */
   if (!((*ref)->type() == REF_ITEM &&
        ((Item_ref *)(*ref))->ref_type() == OUTER_REF) &&
-      (((*ref)->with_sum_func && name.str &&
+      (((*ref)->with_sum_func() && name.str &&
         !(current_sel->linkage != GLOBAL_OPTIONS_TYPE &&
           current_sel->having_fix_field)) ||
        !(*ref)->is_fixed()))
   {
     my_error(ER_ILLEGAL_REFERENCE, MYF(0),
-             name.str, ((*ref)->with_sum_func?
+             name.str, ((*ref)->with_sum_func() ?
                     "reference to group function":
                     "forward reference in item list"));
     goto error;
@@ -8302,7 +8301,7 @@ void Item_ref::set_properties()
     We have to remember if we refer to a sum function, to ensure that
     split_sum_func() doesn't try to change the reference.
   */
-  with_sum_func= (*ref)->with_sum_func;
+  copy_with_sum_func(*ref);
   with_param= (*ref)->with_param;
   with_window_func= (*ref)->with_window_func;
   with_field= (*ref)->with_field;
@@ -8728,7 +8727,7 @@ Item_cache_wrapper::Item_cache_wrapper(THD *thd, Item *item_arg):
   DBUG_ASSERT(orig_item->is_fixed());
   Type_std_attributes::set(orig_item);
   maybe_null= orig_item->maybe_null;
-  with_sum_func= orig_item->with_sum_func;
+  copy_with_sum_func(orig_item);
   with_param= orig_item->with_param;
   with_field= orig_item->with_field;
   name= item_arg->name;
@@ -9117,7 +9116,7 @@ int Item_cache_wrapper::save_in_field(Field *to, bool no_conversions)
 
 Item* Item_cache_wrapper::get_tmp_table_item(THD *thd)
 {
-  if (!orig_item->with_sum_func && !orig_item->const_item())
+  if (!orig_item->with_sum_func() && !orig_item->const_item())
     return new (thd->mem_root) Item_temptable_field(thd, result_field);
   return copy_or_same(thd);
 }

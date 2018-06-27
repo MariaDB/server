@@ -47,7 +47,8 @@ class Cached_item;
 /* base class for subselects */
 
 class Item_subselect :public Item_result_field,
-                      protected Used_tables_and_const_cache
+                      protected Used_tables_and_const_cache,
+                      protected With_sum_func_cache
 {
   bool value_assigned;   /* value already assigned to subselect */
   bool own_engine;  /* the engine was not taken from other Item_subselect */
@@ -184,6 +185,8 @@ public:
   }
   bool fix_fields(THD *thd, Item **ref);
   bool with_subquery() const { DBUG_ASSERT(fixed); return true; }
+  bool with_sum_func() const { return m_with_sum_func; }
+  With_sum_func_cache* get_with_sum_func_cache() { return this; }
   bool mark_as_dependent(THD *thd, st_select_lex *select, Item *item);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   void recalc_used_tables(st_select_lex *new_parent, bool after_pullout);

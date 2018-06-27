@@ -933,7 +933,7 @@ bool Item_subselect::const_item() const
 
 Item *Item_subselect::get_tmp_table_item(THD *thd_arg)
 {
-  if (!with_sum_func && !const_item())
+  if (!Item_subselect::with_sum_func() && !const_item())
     return new (thd->mem_root) Item_temptable_field(thd_arg, result_field);
   return copy_or_same(thd_arg);
 }
@@ -1136,7 +1136,7 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
   if (!select_lex->master_unit()->is_unit_op() &&
       !select_lex->table_list.elements &&
       select_lex->item_list.elements == 1 &&
-      !select_lex->item_list.head()->with_sum_func &&
+      !select_lex->item_list.head()->with_sum_func() &&
       /*
 	We cant change name of Item_field or Item_ref, because it will
 	prevent it's correct resolving, but we should save name of

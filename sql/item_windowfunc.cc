@@ -120,7 +120,6 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
 
   const_item_cache= false;
   with_window_func= true;
-  with_sum_func= false;
 
   fix_length_and_dec();
 
