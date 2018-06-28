@@ -139,7 +139,7 @@ static bool execute_show_status(THD *, TABLE_LIST *);
 static bool check_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
 
 const char *any_db="*any*";	// Special symbol for check_access
-const char *no_db="*none*";     // Used when no default db is set
+const char *no_db="*";          // Used when no default db is set
 
 const LEX_STRING command_name[257]={
   { C_STRING_WITH_LEN("Sleep") },           //0
@@ -8188,6 +8188,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     DBUG_RETURN(0);
   else
     ptr->is_fqtn= FALSE;
+  ptr->no_default_db= !thd->db && !(lex->sphead && lex->sphead->m_name.str);
 
   ptr->alias= alias_str;
   ptr->is_alias= alias ? TRUE : FALSE;

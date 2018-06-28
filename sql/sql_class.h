@@ -3959,7 +3959,10 @@ public:
         my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
         return TRUE;
       }
-      /* This will allow to throw an error later for non-CTE references */
+      /*
+        It does not matter what database name is set in this case
+        because it will never be used after parser stage
+      */
       *p_db_length= strlen(no_db);
       *p_db= strmake(no_db, *p_db_length);
     }
