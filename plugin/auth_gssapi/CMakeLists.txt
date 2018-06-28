@@ -3,7 +3,7 @@ IF (WIN32)
 ENDIF()
 
 IF(USE_SSPI)
-  SET(GSSAPI_LIBS secur32)
+  SET(GSSAPI_LIBRARIES secur32)
   ADD_DEFINITIONS(-DPLUGIN_SSPI)
   SET(GSSAPI_CLIENT sspi_client.cc)
   SET(GSSAPI_SERVER sspi_server.cc)
@@ -12,14 +12,14 @@ ELSE()
  SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
  FIND_PACKAGE(GSSAPI)
  IF(GSSAPI_FOUND)
-   INCLUDE_DIRECTORIES(${GSSAPI_INCS})
+   INCLUDE_DIRECTORIES(${GSSAPI_INCLUDE_DIR})
    ADD_DEFINITIONS(-DPLUGIN_GSSAPI)
    SET(GSSAPI_CLIENT gssapi_client.cc)
    SET(GSSAPI_SERVER gssapi_server.cc)
    SET(GSSAPI_ERRMSG gssapi_errmsg.cc)
 
-   SET(CMAKE_REQUIRED_INCLUDES ${GSSAPI_INCS})
-   SET(CMAKE_REQUIRED_LIBRARIES ${GSSAPI_LIBS})
+   SET(CMAKE_REQUIRED_INCLUDES ${GSSAPI_INCLUDE_DIR})
+   SET(CMAKE_REQUIRED_LIBRARIES ${GSSAPI_LIBRARIES})
    INCLUDE(CheckCXXSymbolExists)
    CHECK_CXX_SYMBOL_EXISTS(krb5_free_unparsed_name "krb5.h" HAVE_KRB5_FREE_UNPARSED_NAME)
    IF(HAVE_KRB5_FREE_UNPARSED_NAME)
@@ -34,14 +34,14 @@ ENDIF ()
 
 
 MYSQL_ADD_PLUGIN(auth_gssapi server_plugin.cc ${GSSAPI_SERVER} ${GSSAPI_ERRMSG}
-                 LINK_LIBRARIES ${GSSAPI_LIBS} 
+                 LINK_LIBRARIES ${GSSAPI_LIBRARIES}
                  COMPONENT gssapi-server
                  MODULE_ONLY)
 
 # disabled in favor of libmariadb/plugins/auth/auth_gssapi_client.c
 #
 #MYSQL_ADD_PLUGIN(auth_gssapi_client client_plugin.cc ${GSSAPI_CLIENT} ${GSSAPI_ERRMSG}
-#                 LINK_LIBRARIES ${GSSAPI_LIBS COMPONENT ClientPlugins}
+#                 LINK_LIBRARIES ${GSSAPI_LIBRARIES COMPONENT ClientPlugins}
 #                 COMPONENT gssapi-client
 #                 CLIENT
 #                 MODULE_ONLY)

@@ -1,98 +1,325 @@
-# - Try to detect the GSSAPI support
+# - Try to find GSSAPI
 # Once done this will define
 #
-#  GSSAPI_FOUND - system supports GSSAPI
-#  GSSAPI_INCS - the GSSAPI include directory
-#  GSSAPI_LIBS - the libraries needed to use GSSAPI
-#  GSSAPI_FLAVOR - the type of API - MIT or HEIMDAL
-
-# Copyright (c) 2006, Pino Toscano, <toscano.pino@tiscali.it>
+#  KRB5_CONFIG - Path to krb5-config
+#  GSSAPI_ROOT_DIR - Set this variable to the root installation of GSSAPI
 #
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions
-# are met:
+# Read-Only variables:
+#  GSSAPI_FLAVOR_MIT - set to TURE if MIT Kerberos has been found
+#  GSSAPI_FLAVOR_HEIMDAL - set to TRUE if Heimdal Keberos has been found
+#  GSSAPI_FOUND - system has GSSAPI
+#  GSSAPI_INCLUDE_DIR - the GSSAPI include directory
+#  GSSAPI_LIBRARIES - Link these to use GSSAPI
+#  GSSAPI_DEFINITIONS - Compiler switches required for using GSSAPI
 #
-# 1. Redistributions of source code must retain the copyright
-#    notice, this list of conditions and the following disclaimer.
-# 2. Redistributions in binary form must reproduce the copyright
-#    notice, this list of conditions and the following disclaimer in the
-#    documentation and/or other materials provided with the distribution.
-# 3. The name of the author may not be used to endorse or promote products 
-#    derived from this software without specific prior written permission.
+#=============================================================================
+#  Copyright (c) 2013 Andreas Schneider <asn@cryptomilk.org>
 #
-# THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
-# IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
-# OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
-# IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
-# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
-# NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
-# THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#  Distributed under the OSI-approved BSD License (the "License");
+#  see accompanying file Copyright.txt for details.
+#
+#  This software is distributed WITHOUT ANY WARRANTY; without even the
+#  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#  See the License for more information.
+#=============================================================================
+#
 
+find_path(GSSAPI_ROOT_DIR
+    NAMES
+        include/gssapi.h
+        include/gssapi/gssapi.h
+    HINTS
+        ${_GSSAPI_ROOT_HINTS}
+    PATHS
+        ${_GSSAPI_ROOT_PATHS}
+)
+mark_as_advanced(GSSAPI_ROOT_DIR)
 
-if(GSSAPI_LIBS AND GSSAPI_FLAVOR)
+if (UNIX)
+    find_program(KRB5_CONFIG
+        NAMES
+            krb5-config
+        PATHS
+            ${GSSAPI_ROOT_DIR}/bin
+            /opt/local/bin)
+    mark_as_advanced(KRB5_CONFIG)
 
-  # in cache already
-  set(GSSAPI_FOUND TRUE)
+    if (KRB5_CONFIG)
+        # Check if we have MIT KRB5
+        execute_process(
+            COMMAND
+                ${KRB5_CONFIG} --vendor
+            RESULT_VARIABLE
+                _GSSAPI_VENDOR_RESULT
+            OUTPUT_VARIABLE
+                _GSSAPI_VENDOR_STRING)
 
-else(GSSAPI_LIBS AND GSSAPI_FLAVOR)
+        if ((_GSSAPI_VENDOR_STRING MATCHES ".*Massachusetts.*") OR (_GSSAPI_VENDOR_STRING
+                        MATCHES ".*MITKerberosShim.*"))
+            set(GSSAPI_FLAVOR_MIT TRUE)
+        else()
+            execute_process(
+                COMMAND
+                    ${KRB5_CONFIG} --libs gssapi
+                RESULT_VARIABLE
+                    _GSSAPI_LIBS_RESULT
+                OUTPUT_VARIABLE
+                    _GSSAPI_LIBS_STRING)
 
-  find_program(KRB5_CONFIG NAMES krb5-config heimdal-krb5-config PATHS
-     /opt/local/bin
-     ONLY_CMAKE_FIND_ROOT_PATH               # this is required when cross compiling with cmake 2.6 and ignored with cmake 2.4, Alex
-  )
-  mark_as_advanced(KRB5_CONFIG)
+            if (_GSSAPI_LIBS_STRING MATCHES ".*roken.*")
+                set(GSSAPI_FLAVOR_HEIMDAL TRUE)
+            endif()
+        endif()
 
-  #reset vars
-  set(GSSAPI_INCS)
-  set(GSSAPI_LIBS)
-  set(GSSAPI_FLAVOR)
+        # Get the include dir
+        execute_process(
+            COMMAND
+                ${KRB5_CONFIG} --cflags gssapi
+            RESULT_VARIABLE
+                _GSSAPI_INCLUDE_RESULT
+            OUTPUT_VARIABLE
+                _GSSAPI_INCLUDE_STRING)
+        string(REGEX REPLACE "(\r?\n)+$" "" _GSSAPI_INCLUDE_STRING "${_GSSAPI_INCLUDE_STRING}")
+        string(REGEX REPLACE " *-I" "" _GSSAPI_INCLUDEDIR "${_GSSAPI_INCLUDE_STRING}")
+    endif()
 
-  if(KRB5_CONFIG)
-  
-    set(HAVE_KRB5_GSSAPI TRUE)
-    exec_program(${KRB5_CONFIG} ARGS --libs gssapi RETURN_VALUE _return_VALUE OUTPUT_VARIABLE GSSAPI_LIBS)
-    if(_return_VALUE)
-      message(STATUS "GSSAPI configure check failed.")
-      set(HAVE_KRB5_GSSAPI FALSE)
-    endif(_return_VALUE)
-  
-    exec_program(${KRB5_CONFIG} ARGS --cflags gssapi RETURN_VALUE _return_VALUE OUTPUT_VARIABLE GSSAPI_INCS)
-    string(REGEX REPLACE "(\r?\n)+$" "" GSSAPI_INCS "${GSSAPI_INCS}")
-    string(REGEX REPLACE " *-I" ";" GSSAPI_INCS "${GSSAPI_INCS}")
+    if (NOT GSSAPI_FLAVOR_MIT AND NOT GSSAPI_FLAVOR_HEIMDAL)
+        # Check for HEIMDAL
+        find_package(PkgConfig)
+        if (PKG_CONFIG_FOUND)
+            pkg_check_modules(_GSSAPI heimdal-gssapi)
+        endif (PKG_CONFIG_FOUND)
 
-    exec_program(${KRB5_CONFIG} ARGS --vendor RETURN_VALUE _return_VALUE OUTPUT_VARIABLE gssapi_flavor_tmp)
-    set(GSSAPI_FLAVOR_MIT)
-    if(gssapi_flavor_tmp MATCHES ".*Massachusetts.*")
-      set(GSSAPI_FLAVOR "MIT")
-    else(gssapi_flavor_tmp MATCHES ".*Massachusetts.*")
-      set(GSSAPI_FLAVOR "HEIMDAL")
-    endif(gssapi_flavor_tmp MATCHES ".*Massachusetts.*")
+        if (_GSSAPI_FOUND)
+            set(GSSAPI_FLAVOR_HEIMDAL TRUE)
+        else()
+            find_path(_GSSAPI_ROKEN
+                NAMES
+                    roken.h
+                PATHS
+                    ${GSSAPI_ROOT_DIR}/include
+                    ${_GSSAPI_INCLUDEDIR})
+            if (_GSSAPI_ROKEN)
+                set(GSSAPI_FLAVOR_HEIMDAL TRUE)
+            endif()
+        endif ()
+    endif()
+endif (UNIX)
 
-    if(NOT HAVE_KRB5_GSSAPI)
-      if (gssapi_flavor_tmp MATCHES "Sun Microsystems.*")
-         message(STATUS "Solaris Kerberos does not have GSSAPI; this is normal.")
-         set(GSSAPI_LIBS)
-         set(GSSAPI_INCS)
-      else(gssapi_flavor_tmp MATCHES "Sun Microsystems.*")
-         message(WARNING "${KRB5_CONFIG} failed unexpectedly.")
-      endif(gssapi_flavor_tmp MATCHES "Sun Microsystems.*")
-    endif(NOT HAVE_KRB5_GSSAPI)
+find_path(GSSAPI_INCLUDE_DIR
+    NAMES
+        gssapi.h
+        gssapi/gssapi.h
+    PATHS
+        ${GSSAPI_ROOT_DIR}/include
+        ${_GSSAPI_INCLUDEDIR}
+)
 
-    if(GSSAPI_LIBS) # GSSAPI_INCS can be also empty, so don't rely on that
-      set(GSSAPI_FOUND TRUE CACHE STRING "")
-      message(STATUS "Found GSSAPI: ${GSSAPI_LIBS}")
+if (GSSAPI_FLAVOR_MIT)
+    find_library(GSSAPI_LIBRARY
+        NAMES
+            gssapi_krb5
+        PATHS
+            ${GSSAPI_ROOT_DIR}/lib
+            ${_GSSAPI_LIBDIR}
+    )
 
-      set(GSSAPI_INCS ${GSSAPI_INCS} CACHE STRING "")
-      set(GSSAPI_LIBS ${GSSAPI_LIBS} CACHE STRING "")
-      set(GSSAPI_FLAVOR ${GSSAPI_FLAVOR} CACHE STRING "")
+    find_library(KRB5_LIBRARY
+        NAMES
+            krb5
+        PATHS
+            ${GSSAPI_ROOT_DIR}/lib
+            ${_GSSAPI_LIBDIR}
+    )
 
-      mark_as_advanced(GSSAPI_INCS GSSAPI_LIBS GSSAPI_FLAVOR)
+    find_library(K5CRYPTO_LIBRARY
+        NAMES
+            k5crypto
+        PATHS
+            ${GSSAPI_ROOT_DIR}/lib
+            ${_GSSAPI_LIBDIR}
+    )
 
-    endif(GSSAPI_LIBS)
-  
-  endif(KRB5_CONFIG)
+    find_library(COM_ERR_LIBRARY
+        NAMES
+            com_err
+        PATHS
+            ${GSSAPI_ROOT_DIR}/lib
+            ${_GSSAPI_LIBDIR}
+    )
 
-endif(GSSAPI_LIBS AND GSSAPI_FLAVOR)
+    if (GSSAPI_LIBRARY)
+        set(GSSAPI_LIBRARIES
+            ${GSSAPI_LIBRARIES}
+            ${GSSAPI_LIBRARY}
+        )
+    endif (GSSAPI_LIBRARY)
+
+    if (KRB5_LIBRARY)
+        set(GSSAPI_LIBRARIES
+            ${GSSAPI_LIBRARIES}
+            ${KRB5_LIBRARY}
+        )
+    endif (KRB5_LIBRARY)
+
+    if (K5CRYPTO_LIBRARY)
+        set(GSSAPI_LIBRARIES
+            ${GSSAPI_LIBRARIES}
+            ${K5CRYPTO_LIBRARY}
+        )
+    endif (K5CRYPTO_LIBRARY)
+
+    if (COM_ERR_LIBRARY)
+        set(GSSAPI_LIBRARIES
+            ${GSSAPI_LIBRARIES}
+            ${COM_ERR_LIBRARY}
+        )
+    endif (COM_ERR_LIBRARY)
+endif (GSSAPI_FLAVOR_MIT)
+
+if (GSSAPI_FLAVOR_HEIMDAL)
+    find_library(GSSAPI_LIBRARY
+        NAMES
+            gssapi
+        PATHS
+            ${GSSAPI_ROOT_DIR}/lib
+            ${_GSSAPI_LIBDIR}
+    )
+
+    find_library(KRB5_LIBRARY
+        NAMES
+            krb5
+        PATHS
+            ${GSSAPI_ROOT_DIR}/lib
+            ${_GSSAPI_LIBDIR}
+    )
+
+    find_library(HCRYPTO_LIBRARY
+        NAMES
+            hcrypto
+        PATHS
+            ${GSSAPI_ROOT_DIR}/lib
+            ${_GSSAPI_LIBDIR}
+    )
+
+    find_library(COM_ERR_LIBRARY
+        NAMES
+            com_err
+        PATHS
+            ${GSSAPI_ROOT_DIR}/lib
+            ${_GSSAPI_LIBDIR}
+    )
+
+    find_library(HEIMNTLM_LIBRARY
+        NAMES
+            heimntlm
+        PATHS
+            ${GSSAPI_ROOT_DIR}/lib
+            ${_GSSAPI_LIBDIR}
+    )
+
+    find_library(HX509_LIBRARY
+        NAMES
+            hx509
+        PATHS
+            ${GSSAPI_ROOT_DIR}/lib
+            ${_GSSAPI_LIBDIR}
+    )
+
+    find_library(ASN1_LIBRARY
+        NAMES
+            asn1
+        PATHS
+            ${GSSAPI_ROOT_DIR}/lib
+            ${_GSSAPI_LIBDIR}
+    )
+
+    find_library(WIND_LIBRARY
+        NAMES
+            wind
+        PATHS
+            ${GSSAPI_ROOT_DIR}/lib
+            ${_GSSAPI_LIBDIR}
+    )
+
+    find_library(ROKEN_LIBRARY
+        NAMES
+            roken
+        PATHS
+            ${GSSAPI_ROOT_DIR}/lib
+            ${_GSSAPI_LIBDIR}
+    )
+
+    if (GSSAPI_LIBRARY)
+        set(GSSAPI_LIBRARIES
+            ${GSSAPI_LIBRARIES}
+            ${GSSAPI_LIBRARY}
+        )
+    endif (GSSAPI_LIBRARY)
+
+    if (KRB5_LIBRARY)
+        set(GSSAPI_LIBRARIES
+            ${GSSAPI_LIBRARIES}
+            ${KRB5_LIBRARY}
+        )
+    endif (KRB5_LIBRARY)
+
+    if (HCRYPTO_LIBRARY)
+        set(GSSAPI_LIBRARIES
+            ${GSSAPI_LIBRARIES}
+            ${HCRYPTO_LIBRARY}
+        )
+    endif (HCRYPTO_LIBRARY)
+
+    if (COM_ERR_LIBRARY)
+        set(GSSAPI_LIBRARIES
+            ${GSSAPI_LIBRARIES}
+            ${COM_ERR_LIBRARY}
+        )
+    endif (COM_ERR_LIBRARY)
+
+    if (HEIMNTLM_LIBRARY)
+        set(GSSAPI_LIBRARIES
+            ${GSSAPI_LIBRARIES}
+            ${HEIMNTLM_LIBRARY}
+        )
+    endif (HEIMNTLM_LIBRARY)
+
+    if (HX509_LIBRARY)
+        set(GSSAPI_LIBRARIES
+            ${GSSAPI_LIBRARIES}
+            ${HX509_LIBRARY}
+        )
+    endif (HX509_LIBRARY)
+
+    if (ASN1_LIBRARY)
+        set(GSSAPI_LIBRARIES
+            ${GSSAPI_LIBRARIES}
+            ${ASN1_LIBRARY}
+        )
+    endif (ASN1_LIBRARY)
+
+    if (WIND_LIBRARY)
+        set(GSSAPI_LIBRARIES
+            ${GSSAPI_LIBRARIES}
+            ${WIND_LIBRARY}
+        )
+    endif (WIND_LIBRARY)
+
+    if (ROKEN_LIBRARY)
+        set(GSSAPI_LIBRARIES
+            ${GSSAPI_LIBRARIES}
+            ${WIND_LIBRARY}
+        )
+    endif (ROKEN_LIBRARY)
+endif (GSSAPI_FLAVOR_HEIMDAL)
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(GSSAPI DEFAULT_MSG GSSAPI_LIBRARIES GSSAPI_INCLUDE_DIR)
+
+if (GSSAPI_INCLUDE_DIRS AND GSSAPI_LIBRARIES)
+    set(GSSAPI_FOUND TRUE)
+endif (GSSAPI_INCLUDE_DIRS AND GSSAPI_LIBRARIES)
+
+# show the GSSAPI_INCLUDE_DIRS and GSSAPI_LIBRARIES variables only in the advanced view
+mark_as_advanced(GSSAPI_INCLUDE_DIRS GSSAPI_LIBRARIES)
