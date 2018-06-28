@@ -139,7 +139,6 @@ static bool execute_show_status(THD *, TABLE_LIST *);
 static bool check_rename_table(THD *, TABLE_LIST *, TABLE_LIST *);
 
 const char *any_db="*any*";	// Special symbol for check_access
-const char *no_db="*";          // Used when no default db is set
 
 const LEX_STRING command_name[257]={
   { C_STRING_WITH_LEN("Sleep") },           //0
@@ -6685,11 +6684,7 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
   THD_STAGE_INFO(thd, stage_checking_permissions);
   if ((!db || !db[0]) && !thd->db && !dont_check_global_grants)
   {
-    DBUG_PRINT("error",("No database"));
-    if (!no_errors)
-      my_message(ER_NO_DB_ERROR, ER_THD(thd, ER_NO_DB_ERROR),
-                 MYF(0));                       /* purecov: tested */
-    DBUG_RETURN(TRUE);				/* purecov: tested */
+    DBUG_RETURN(FALSE); // CTE reference or an error later
   }
 
   if ((db != NULL) && (db != any_db))
@@ -8188,7 +8183,6 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     DBUG_RETURN(0);
   else
     ptr->is_fqtn= FALSE;
-  ptr->no_default_db= !thd->db && !(lex->sphead && lex->sphead->m_name.str);
 
   ptr->alias= alias_str;
   ptr->is_alias= alias ? TRUE : FALSE;
@@ -8301,7 +8295,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   lex->add_to_query_tables(ptr);
 
   // Pure table aliases do not need to be locked:
-  if (!MY_TEST(table_options & TL_OPTION_ALIAS))
+  if (ptr->db && !(table_options & TL_OPTION_ALIAS))
   {
     ptr->mdl_request.init(MDL_key::TABLE, ptr->db, ptr->table_name, mdl_type,
                           MDL_TRANSACTION);

@@ -2095,8 +2095,7 @@ struct TABLE_LIST
       qualified name (<db_name>.<table_name>).
   */
   bool          is_fqtn;
-  /** TRUE if no default database is defined for the table name */
-  bool          no_default_db;
+
   /* TRUE <=> derived table should be filled right after optimization. */
   bool          fill_me;
   /* TRUE <=> view/DT is merged. */

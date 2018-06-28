@@ -1056,11 +1056,4 @@ select * from cte, db_mdev_16473.t1 as t where cte.a=t.a;
 
 drop database db_mdev_16473;
 
-create database `*` ;
-create table `*`.t1 (a int);
-insert into `*`.t1 values (2), (7), (3), (1);
-use `*`;
-select * from t1;
-drop database `*`;
-
 use test;
