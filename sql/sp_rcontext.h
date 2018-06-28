@@ -31,6 +31,7 @@
 class sp_cursor;
 class sp_lex_keeper;
 class sp_instr_cpush;
+class sp_instr_hpush_jump;
 class Query_arena;
 class sp_head;
 class Item_cache;
@@ -86,27 +87,6 @@ private:
   // Prevent use of copying constructor and operator.
   sp_rcontext(const sp_rcontext &);
   void operator=(sp_rcontext &);
-
-private:
-  /// This is an auxillary class to store entering instruction pointer for an
-  /// SQL-handler.
-  class sp_handler_entry : public Sql_alloc
-  {
-  public:
-    /// Handler definition (from parsing context).
-    const sp_handler *handler;
-
-    /// Instruction pointer to the first instruction.
-    uint first_ip;
-
-    /// The constructor.
-    ///
-    /// @param _handler   sp_handler object.
-    /// @param _first_ip  first instruction pointer.
-    sp_handler_entry(const sp_handler *_handler, uint _first_ip)
-     :handler(_handler), first_ip(_first_ip)
-    { }
-  };
 
 public:
   /// This class stores basic information about SQL-condition, such as:
@@ -235,18 +215,16 @@ public:
   // SQL-handlers.
   /////////////////////////////////////////////////////////////////////////
 
-  /// Create a new sp_handler_entry instance and push it to the handler call
-  /// stack.
+  /// Push an sp_instr_hpush_jump instance to the handler call stack.
   ///
-  /// @param handler  SQL-handler object.
-  /// @param first_ip First instruction pointer of the handler.
+  /// @param entry    The condition handler entry
   ///
   /// @return error flag.
   /// @retval false on success.
   /// @retval true on error.
-  bool push_handler(sp_handler *handler, uint first_ip);
+  bool push_handler(sp_instr_hpush_jump *entry);
 
-  /// Pop and delete given number of sp_handler_entry instances from the handler
+  /// Pop and delete given number of instances from the handler
   /// call stack.
   ///
   /// @param count Number of handler entries to pop & delete.
@@ -411,7 +389,7 @@ private:
   bool m_in_sub_stmt;
 
   /// Stack of visible handlers.
-  Dynamic_array<sp_handler_entry *> m_handlers;
+  Dynamic_array<sp_instr_hpush_jump *> m_handlers;
 
   /// Stack of caught SQL conditions.
   Dynamic_array<Handler_call_frame *> m_handler_call_stack;

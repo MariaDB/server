@@ -4027,7 +4027,7 @@ sp_instr_hpush_jump::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_hpush_jump::execute");
 
-  int ret= thd->spcont->push_handler(m_handler, m_ip + 1);
+  int ret= thd->spcont->push_handler(this);
 
   *nextp= m_dest;
 

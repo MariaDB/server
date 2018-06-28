@@ -448,19 +448,9 @@ void sp_rcontext::pop_cursors(THD *thd, size_t count)
 }
 
 
-bool sp_rcontext::push_handler(sp_handler *handler, uint first_ip)
+bool sp_rcontext::push_handler(sp_instr_hpush_jump *entry)
 {
-  /*
-    We should create handler entries in the callers arena, as
-    they could be (and usually are) used in several instructions.
-  */
-  sp_handler_entry *he=
-    new (callers_arena->mem_root) sp_handler_entry(handler, first_ip);
-
-  if (he == NULL)
-    return true;
-
-  return m_handlers.append(he);
+  return m_handlers.append(entry);
 }
 
 
@@ -548,12 +538,12 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
 
   DBUG_ASSERT(found_condition);
 
-  sp_handler_entry *handler_entry= NULL;
+  sp_instr_hpush_jump *handler_entry= NULL;
   for (size_t i= 0; i < m_handlers.elements(); ++i)
   {
-    sp_handler_entry *h= m_handlers.at(i);
+    sp_instr_hpush_jump *h= m_handlers.at(i);
 
-    if (h->handler == found_handler)
+    if (h->get_handler() == found_handler)
     {
       handler_entry= h;
       break;
@@ -582,7 +572,7 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
   // Mark active conditions so that they can be deleted when the handler exits.
   da->mark_sql_conditions_for_removal();
 
-  uint continue_ip= handler_entry->handler->type == sp_handler::CONTINUE ?
+  uint continue_ip= handler_entry->get_handler()->type == sp_handler::CONTINUE ?
     cur_spi->get_cont_dest() : 0;
 
   /* End aborted result set. */
@@ -601,7 +591,7 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
     new (callers_arena->mem_root) Handler_call_frame(cond_info, continue_ip);
   m_handler_call_stack.append(frame);
 
-  *ip= handler_entry->first_ip;
+  *ip= handler_entry->m_ip + 1;
 
   DBUG_RETURN(true);
 }

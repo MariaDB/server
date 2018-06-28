@@ -1677,8 +1677,6 @@ public:
   { return m_handler; }
 
 private:
-
-private:
   /// Handler.
   sp_handler *m_handler;
 
