@@ -33,6 +33,12 @@ The interface to the operating system file i/o primitives
 Created 10/21/1995 Heikki Tuuri
 *******************************************************/
 
+/* Need some Windows 8 constants and structs.*/
+#ifdef _WIN32_WINNT
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0602
+#endif
+
 #ifndef UNIV_INNOCHECKSUM
 
 #include "ha_prototypes.h"
@@ -4062,6 +4068,32 @@ next_file:
 	return(status);
 }
 
+/** Check that IO of specific size is possible for the file
+opened with FILE_FLAG_NO_BUFFERING.
+
+The requirement is that IO is multiple of the disk sector size.
+
+@param[in]	file      file handle
+@param[in]	io_size   expected io size
+@return true - unbuffered io of requested size is possible, false otherwise.
+
+@note: this function only works correctly with Windows 8 or later,
+(GetFileInformationByHandleEx with FileStorageInfo is only supported there).
+It will return true on earlier Windows version.
+ */
+static bool unbuffered_io_possible(HANDLE file, size_t io_size)
+{
+	FILE_STORAGE_INFO info;
+	if (GetFileInformationByHandleEx(
+		file, FileStorageInfo, &info, sizeof(info))) {
+			ULONG sector_size = info.LogicalBytesPerSector;
+			if (sector_size)
+				return io_size % sector_size == 0;
+	}
+	return true;
+}
+
+
 /** NOTE! Use the corresponding macro os_file_create(), not directly
 this function!
 Opens an existing file or creates a new.
@@ -4237,46 +4269,57 @@ os_file_create_func(
 		access |= GENERIC_WRITE;
 	}
 
-	do {
+	for (;;) {
+		const  char *operation;
+
 		/* Use default security attributes and no template file. */
 		file = CreateFile(
-			(LPCTSTR) name, access, share_mode, NULL,
+			name, access, share_mode, NULL,
 			create_flag, attributes, NULL);
 
-		if (file == INVALID_HANDLE_VALUE) {
-			const char*	operation;
-
-			operation = (create_mode == OS_FILE_CREATE
-				     && !read_only)
-				? "create" : "open";
-
-			*success = false;
-
-			if (on_error_no_exit) {
-				retry = os_file_handle_error_no_exit(
-					name, operation, on_error_silent);
-			} else {
-				retry = os_file_handle_error(name, operation);
-			}
-		} else {
-
-			retry = false;
-
-			*success = true;
-
-			if (srv_use_native_aio && ((attributes & FILE_FLAG_OVERLAPPED) != 0)) {
-				/* Bind the file handle to completion port. Completion port
-				might not be created yet, in some stages of backup, but
-				must always be there for the server.*/
-				HANDLE port =(type == OS_LOG_FILE)?
-					log_completion_port : data_completion_port;
-				ut_a(port || srv_operation != SRV_OPERATION_NORMAL);
-				if (port) {
-					ut_a(CreateIoCompletionPort(file, port, 0, 0));
-				}
-			}
+		/* If FILE_FLAG_NO_BUFFERING was set, check if this can work at all,
+		for expected IO sizes. Reopen without the unbuffered flag, if it is won't work*/
+		if ((file != INVALID_HANDLE_VALUE)
+			&& (attributes & FILE_FLAG_NO_BUFFERING)
+			&& (type == OS_LOG_FILE)
+			&& !unbuffered_io_possible(file, OS_FILE_LOG_BLOCK_SIZE)) {
+				ut_a(CloseHandle(file));
+				attributes &= ~FILE_FLAG_NO_BUFFERING;
+				continue;
 		}
-	} while (retry);
+
+		*success = (file != INVALID_HANDLE_VALUE);
+		if (*success) {
+			break;
+		}
+
+		operation = (create_mode == OS_FILE_CREATE && !read_only) ?
+			"create" : "open";
+
+		if (on_error_no_exit) {
+			retry = os_file_handle_error_no_exit(
+				name, operation, on_error_silent);
+		}
+		else {
+			retry = os_file_handle_error(name, operation);
+		}
+
+		if (!retry) {
+			break;
+		}
+	}
+
+	if (*success && srv_use_native_aio &&  (attributes & FILE_FLAG_OVERLAPPED)) {
+		/* Bind the file handle to completion port. Completion port
+		might not be created yet, in some stages of backup, but
+		must always be there for the server.*/
+		HANDLE port = (type == OS_LOG_FILE) ?
+			log_completion_port : data_completion_port;
+		ut_a(port || srv_operation != SRV_OPERATION_NORMAL);
+		if (port) {
+			ut_a(CreateIoCompletionPort(file, port, 0, 0));
+		}
+	}
 
 	return(file);
 }
