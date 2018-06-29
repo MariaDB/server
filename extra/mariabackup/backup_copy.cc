@@ -623,11 +623,14 @@ static
 int
 mkdirp(const char *pathname, int Flags, myf MyFlags)
 {
-	char parent[PATH_MAX], *p;
+	char *parent, *p;
+	int len = strlen(pathname) + 1;
 
 	/* make a parent directory path */
-	strncpy(parent, pathname, sizeof(parent));
-	parent[sizeof(parent) - 1] = 0;
+	if (!(parent= (char *)malloc(len)))
+          return(-1);
+	strncpy(parent, pathname, len);
+	parent[len-1]= 0;
 
 	for (p = parent + strlen(parent);
 	    !is_path_separator(*p) && p != parent; p--);
@@ -636,19 +639,23 @@ mkdirp(const char *pathname, int Flags, myf MyFlags)
 
 	/* try to make parent directory */
 	if (p != parent && mkdirp(parent, Flags, MyFlags) != 0) {
+		free(parent);
 		return(-1);
 	}
 
 	/* make this one if parent has been made */
 	if (my_mkdir(pathname, Flags, MyFlags) == 0) {
+		free(parent);
 		return(0);
 	}
 
 	/* if it already exists that is fine */
 	if (errno == EEXIST) {
+		free(parent);
 		return(0);
 	}
 
+	free(parent);
 	return(-1);
 }
 
@@ -658,17 +665,24 @@ bool
 equal_paths(const char *first, const char *second)
 {
 #ifdef HAVE_REALPATH
-	char real_first[PATH_MAX];
-	char real_second[PATH_MAX];
+	char *real_first, *real_second;
+	int result;
 
-	if (realpath(first, real_first) == NULL) {
-		return false;
-	}
-	if (realpath(second, real_second) == NULL) {
+	real_first = realpath(first, 0);
+	if (real_first == NULL) {
 		return false;
 	}
 
-	return (strcmp(real_first, real_second) == 0);
+	real_second = realpath(second, 0);
+	if (real_second == NULL) {
+		free(real_first);
+		return false;
+	}
+
+	result = strcmp(real_first, real_second);
+	free(real_first);
+	free(real_second);
+	return result == 0;
 #else
 	return strcmp(first, second) == 0;
 #endif
