@@ -177,8 +177,6 @@ script:
            -DWITH_SSL=system -DWITH_ZLIB=system
   - make -j 4
   - cd mysql-test
-# With ASAN use --thread-stack=400K to account for overhead
-# Test timeout needs to be 10 (minutes) or less due to travis job timeout
   - travis_wait 30 ./mtr --force --max-test-fail=20 --parallel=4 --testcase-timeout=${TEST_CASE_TIMEOUT}
          --suite=${MYSQL_TEST_SUITES}
          --skip-test-list=unstable-tests
