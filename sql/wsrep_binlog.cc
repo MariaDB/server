@@ -324,7 +324,7 @@ void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len)
   if (len < 0)
   {
     WSREP_ERROR("snprintf error: %d, skipping dump.", len);
-    DBUG_VOID_RETURN;
+    return;
   }
 
   char *filename= (char *)malloc(len++);
