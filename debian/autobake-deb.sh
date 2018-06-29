@@ -129,6 +129,8 @@ Description: Amazon Web Service Key Management Service Plugin for MariaDB
  Services Key Management Service for managing encryption keys used for MariaDB
  data-at-rest encryption.
 EOF
+
+  sed -i -e "/-DPLUGIN_AWS_KEY_MANAGEMENT=NO/d" debian/rules
 fi
 
 # Mroonga, TokuDB never built on Travis CI anyway, see build flags above
