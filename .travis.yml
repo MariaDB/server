@@ -17,6 +17,7 @@ compiler:
   - clang
 
 cache:
+  timeout: 300
   apt: true
   ccache: true
   directories:
@@ -24,12 +25,12 @@ cache:
 
 env:
   matrix:
-    - CC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
-    - CC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
-    - CC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
-    - CC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
-    - CC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb
-    - CC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
+    - CC_VERSION=5 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
+    - CC_VERSION=5 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
+    - CC_VERSION=5 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
+    - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
+    - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb
+    - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
 
 matrix:
   exclude:
@@ -85,26 +86,26 @@ matrix:
         - export MTR_MEM=/tmp
         - env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
         - ccache --show-stats
-  # Until OSX becomes a bit more stable: MDEV-12435
+  # Until OSX becomes a bit more stable: MDEV-12435 MDEV-16213
   allow_failures:
     - os: osx
       compiler: clang
-      env: CC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
+      env: CC_VERSION=5 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
     - os: osx
       compiler: clang
-      env: CC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
+      env: CC_VERSION=5 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
     - os: osx
       compiler: clang
-      env: CC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
+      env: CC_VERSION=5 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
     - os: osx
       compiler: clang
-      env: CC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
+      env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
     - os: osx
       compiler: clang
-      env: CC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb
+      env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb
     - os: osx
       compiler: clang
-      env: CC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
+      env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
 
 addons:
   apt:
@@ -121,7 +122,6 @@ addons:
       - llvm-5.0-dev
       - clang-6.0
       - llvm-6.0-dev
-#      - libasan0
       - bison
       - chrpath
       - cmake
@@ -160,10 +160,12 @@ before_install:
       brew link ccache;
     fi
 
-script:
+before_script:
+  - df -h
   - ccache --version
   - ccache --show-stats
-  - ccache --max-size=1000M
+
+script:
 # following modules are disabled after sourcing .travis.compiler.sh:
 # clang disabled: mroonga just generates too many warnings with clang and travis stops the job
 # cland disabled: tokudb has fatal warnings
@@ -172,16 +174,17 @@ script:
   - cmake .
            -DCMAKE_BUILD_TYPE=${TYPE}
            ${CMAKE_OPT}
-           -DWITH_SSL=system -DWITH_ZLIB=system -DPLUGIN_AWS_KEY_MANAGEMENT=DYNAMIC -DAWS_SDK_EXTERNAL_PROJECT=ON
+           -DWITH_SSL=system -DWITH_ZLIB=system
   - make -j 4
   - cd mysql-test
-# With ASAN --thread-stack=400K to account for overhead
+# With ASAN use --thread-stack=400K to account for overhead
 # Test timeout needs to be 10 (minutes) or less due to travis job timeout
-  - ./mtr --force --max-test-fail=20 --parallel=4 --testcase-timeout=4
+  - travis_wait 30 ./mtr --force --max-test-fail=20 --parallel=4 --testcase-timeout=${TEST_CASE_TIMEOUT}
          --suite=${MYSQL_TEST_SUITES}
          --skip-test-list=unstable-tests
          --skip-test=binlog.binlog_unsafe
   - ccache --show-stats
+  - df -h
 
 notifications:
   irc:
