@@ -26,7 +26,7 @@ then
   sed 's|DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test|DINSTALL_MYSQLTESTDIR=false|' -i debian/rules
 
   # Also skip building RocksDB and TokuDB to save even more time and disk space
-  sed 's|-DDEB|-DPLUGIN_TOKUDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_SPIDER=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_SPHINX=NO -DDEB|' -i debian/rules
+  sed 's|-DDEB|-DPLUGIN_TOKUDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_SPIDER=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_SPHINX=NO -WITH_EMBEDDED_SERVER=OFF -DDEB|' -i debian/rules
 fi
 
 
@@ -139,6 +139,7 @@ then
   sed -i -e "/Package: mariadb-plugin-spider/,+18d" debian/control
   sed -i -e "/Package: mariadb-plugin-oqgraph/,+16d" debian/control
   sed -i -e "/usr\/lib\/mysql\/plugin\/ha_sphinx.so/d" debian/mariadb-server-10.3.install
+  sed -i -e "/Package: libmariadbd-dev/,+19d" debian/control
 fi
 
 # Adjust changelog, add new version
