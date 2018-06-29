@@ -136,6 +136,9 @@ if [[ $TRAVIS ]]
 then
   sed -i -e "/Package: mariadb-plugin-tokudb/,+17d" debian/control
   sed -i -e "/Package: mariadb-plugin-mroonga/,+16d" debian/control
+  sed -i -e "/Package: mariadb-plugin-spider/,+18d" debian/control
+  sed -i -e "/Package: mariadb-plugin-oqgraph/,+16d" debian/control
+  sed -i -e "/usr\/lib\/mysql\/plugin\/ha_sphinx.so/d" debian/mariadb-server-10.3.install
 fi
 
 # Adjust changelog, add new version
