@@ -10,10 +10,10 @@ function exclude_modules() {
 CMAKE_OPT="${CMAKE_OPT} -DPLUGIN_TOKUDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_SPHINX=NO"
 # exclude storage engines not being tested in current job
 if [[ ! "${MYSQL_TEST_SUITES}" =~ "archive" ]]; then
-CMAKE_OPT="${CMAKE_OPT} -DPLUGIN_ARCHIVE=NO"
+  CMAKE_OPT="${CMAKE_OPT} -DPLUGIN_ARCHIVE=NO"
 fi
 if [[ ! "${MYSQL_TEST_SUITES}" =~ "rocksdb" ]]; then
-CMAKE_OPT="${CMAKE_OPT} -DPLUGIN_ROCKSDB=NO"
+  CMAKE_OPT="${CMAKE_OPT} -DPLUGIN_ROCKSDB=NO"
 fi
 }
 
