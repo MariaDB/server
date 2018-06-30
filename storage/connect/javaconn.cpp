@@ -153,7 +153,7 @@ bool JAVAConn::Check(jint rc)
 
 		if (exc != nullptr && tid != nullptr) {
 			jstring s = (jstring)env->CallObjectMethod(exc, tid);
-			const char *utf = env->GetStringUTFChars(s, (jboolean)false);
+			const char *utf = env->GetStringUTFChars(s, NULL);
 			env->DeleteLocalRef(s);
 			Msg = PlugDup(m_G, utf);
 		} else
@@ -162,7 +162,7 @@ bool JAVAConn::Check(jint rc)
 		env->ExceptionClear();
 	} else if (rc < 0) {
 		s = (jstring)env->CallObjectMethod(job, errid);
-		Msg = (char*)env->GetStringUTFChars(s, (jboolean)false);
+		Msg = (char*)env->GetStringUTFChars(s, NULL);
 	} else
 		Msg = NULL;
 
