@@ -36,19 +36,12 @@ fi
 # Debian policy and targeting Debian Sid. Then case-by-case run in autobake-deb.sh
 # tests for backwards compatibility and strip away parts on older builders.
 
-# If iproute2 is not available (before Debian Jessie and Ubuntu Trusty)
-# fall back to the old iproute package.
-if ! apt-cache madison iproute2 | grep 'iproute2 *|' >/dev/null 2>&1
-then
- sed 's/iproute2/iproute/' -i debian/control
-fi
-
 # If libcrack2 (>= 2.9.0) is not available (before Debian Jessie and Ubuntu Trusty)
 # clean away the cracklib stanzas so the package can build without them.
 if ! apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
 then
   sed '/libcrack2-dev/d' -i debian/control
-  sed '/Package: mariadb-plugin-cracklib/,+11d' -i debian/control
+  sed '/Package: mariadb-plugin-cracklib/,+9d' -i debian/control
 fi
 
 # If libpcre3-dev (>= 2:8.35-3.2~) is not available (before Debian Jessie or Ubuntu Wily)
@@ -120,8 +113,7 @@ Breaks: mariadb-aws-key-management-10.1,
         mariadb-aws-key-management-10.2
 Replaces: mariadb-aws-key-management-10.1,
           mariadb-aws-key-management-10.2
-Depends: libcurl3,
-         mariadb-server-10.3,
+Depends: mariadb-server-10.3,
          \${misc:Depends},
          \${shlibs:Depends}
 Description: Amazon Web Service Key Management Service Plugin for MariaDB
@@ -134,8 +126,8 @@ fi
 # Mroonga, TokuDB never built on Travis CI anyway, see build flags above
 if [[ $TRAVIS ]]
 then
-  sed -i -e "/Package: mariadb-plugin-tokudb/,+17d" debian/control
-  sed -i -e "/Package: mariadb-plugin-mroonga/,+16d" debian/control
+  sed -i -e "/Package: mariadb-plugin-tokudb/,+19d" debian/control
+  sed -i -e "/Package: mariadb-plugin-mroonga/,+17d" debian/control
 fi
 
 # Adjust changelog, add new version

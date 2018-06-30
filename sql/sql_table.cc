@@ -6237,8 +6237,11 @@ drop_create_field:
         continue;
 
       /* Check if the table already has a PRIMARY KEY */
-      bool dup_primary_key= key->type == Key::PRIMARY &&
-                            table->s->primary_key != MAX_KEY;
+      bool dup_primary_key=
+            key->type == Key::PRIMARY &&
+            table->s->primary_key != MAX_KEY &&
+            (keyname= table->s->key_info[table->s->primary_key].name.str) &&
+            my_strcasecmp(system_charset_info, keyname, primary_key_name) == 0;
       if (dup_primary_key)
         goto remove_key;
 
@@ -6337,7 +6340,6 @@ remove_key:
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  DBUG_ASSERT(thd->work_part_info == 0);
   partition_info *tab_part_info= table->part_info;
   thd->work_part_info= thd->lex->part_info;
   if (tab_part_info)
@@ -9053,10 +9055,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        uint order_num, ORDER *order, bool ignore)
 {
   DBUG_ENTER("mysql_alter_table");
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  thd->work_part_info= 0;                       // Used by partitioning
-#endif
 
   /*
     Check if we attempt to alter mysql.slow_log or

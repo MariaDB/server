@@ -397,6 +397,21 @@ drop table t1;
 
 select json_extract('{"test":8.437e-5}','$.test');
 
+#
+# MDEV-15905 select json_value('{"b":true}','$.b')=1 --> false with
+#    "Truncated incorrect DOUBLE value: 'true'"
+#
+select json_value('{"b":true}','$.b')=1;
+
+#
+# MDEV-16209 JSON_EXTRACT in query crashes server.
+#
+
+CREATE TABLE t1 (c VARCHAR(8));
+INSERT INTO t1 VALUES ('foo'),('bar');
+SELECT * FROM t1 WHERE c IN (JSON_EXTRACT('{"a":"b"}', '$.*'));
+DROP TABLE t1;
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

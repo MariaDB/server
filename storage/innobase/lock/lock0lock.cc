@@ -4325,7 +4325,7 @@ lock_release(
 				block the use of the MySQL query cache for
 				all currently active transactions. */
 
-				table->query_cache_inv_id = max_trx_id;
+				table->query_cache_inv_trx_id = max_trx_id;
 			}
 
 			lock_table_dequeue(lock);

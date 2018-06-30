@@ -5727,7 +5727,7 @@ sub lldb_arguments {
   $input = $input ? "< $input" : "";
 
   # write init file for mysqld or client
-  mtr_tofile($lldb_init_file, "set args $str $input\n");
+  mtr_tofile($lldb_init_file, "process launch --stop-at-entry -- $str $input\n");
 
     print "\nTo start lldb for $type, type in another window:\n";
     print "cd $glob_mysql_test_dir && lldb -s $lldb_init_file $$exe\n";

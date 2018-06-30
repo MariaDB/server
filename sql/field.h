@@ -1405,6 +1405,18 @@ public:
     orig_table= table= table_arg;
     set_table_name(&table_arg->alias);
   }
+  void init_for_make_new_field(TABLE *new_table_arg, TABLE *orig_table_arg)
+  {
+    init(new_table_arg);
+    /*
+      Normally orig_table is different from table only if field was
+      created via ::make_new_field.  Here we alter the type of field,
+      so ::make_new_field is not applicable. But we still need to
+      preserve the original field metadata for the client-server
+      protocol.
+    */
+    orig_table= orig_table_arg;
+  }
 
   /* maximum possible display length */
   virtual uint32 max_display_length() const= 0;
@@ -1892,6 +1904,7 @@ public:
                 unireg_check_arg, field_name_arg,
                 dec_arg, zero_arg, unsigned_arg)
     {}
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   const Type_handler *type_handler() const { return &type_handler_olddecimal; }
   enum ha_base_keytype key_type() const
   { return zerofill ? HA_KEYTYPE_BINARY : HA_KEYTYPE_NUM; }
@@ -3763,6 +3776,10 @@ public:
   uint32 char_length() const;
   uint32 octet_length() const;
   uint is_equal(Create_field *new_field);
+
+  friend void TABLE::remember_blob_values(String *blob_storage);
+  friend void TABLE::restore_blob_values(String *blob_storage);
+
 private:
   int save_field_metadata(uchar *first_byte);
 };
@@ -4343,7 +4360,7 @@ public:
     length*= charset->mbmaxlen;
     if (real_field_type() == MYSQL_TYPE_VARCHAR && compression_method())
       length++;
-    DBUG_ASSERT(length <= UINT_MAX32);
+    set_if_smaller(length, UINT_MAX32);
     key_length= (uint) length;
     pack_length= type_handler()->calc_pack_length((uint32) length);
   }

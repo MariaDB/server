@@ -372,8 +372,8 @@ mysqltest_1@127.0.0.1
 set password = password('changed');
 disconnect b12302;
 connection default;
-select host, length(password) from mysql.user where user like 'mysqltest\_1';
-host	length(password)
+select host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
+host	length(authentication_string)
 127.0.0.1	41
 revoke all on mysqltest_1.* from mysqltest_1@'127.0.0.1';
 delete from mysql.user where user like 'mysqltest\_1';
@@ -387,8 +387,8 @@ mysqltest_1@127.0.0.0/255.0.0.0
 set password = password('changed');
 disconnect b12302_2;
 connection default;
-select host, length(password) from mysql.user where user like 'mysqltest\_1';
-host	length(password)
+select host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
+host	length(authentication_string)
 127.0.0.0/255.0.0.0	41
 revoke all on mysqltest_1.* from mysqltest_1@'127.0.0.0/255.0.0.0';
 delete from mysql.user where user like 'mysqltest\_1';

@@ -13,3 +13,5 @@ execute stmt;
 set password = '';
 set default role NONE;
 drop role r1;
+#cleanup after MDEV-16238
+update mysql.user set plugin='';

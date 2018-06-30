@@ -1023,6 +1023,8 @@ grant execute on procedure sp1 to current_user() identified by 'barfoo';
 show grants;
 drop procedure sp1;
 set password='';
+#cleanup after MDEV-16238
+update mysql.user set plugin='';
 
 --echo #
 --echo # MDEV-13396 Unexpected "alter routine comand defined" during CREATE OR REPLACE PROCEDURE

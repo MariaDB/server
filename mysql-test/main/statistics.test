@@ -819,6 +819,32 @@ set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivi
 drop table t1,t2;
 
 --echo #
+--echo # MDEV-16507: statistics for temporary tables should not be used
+--echo #
+
+SET
+@save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+SET @@use_stat_tables = preferably ;
+SET @@optimizer_use_condition_selectivity = 4;
+
+CREATE TABLE t1 (
+  TIMESTAMP TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ON UPDATE CURRENT_TIMESTAMP
+);
+
+SET @had_t1_table= @@warning_count != 0;
+CREATE TEMPORARY TABLE tmp_t1 LIKE t1;
+INSERT INTO tmp_t1 VALUES (now());
+INSERT INTO t1 SELECT * FROM tmp_t1 WHERE @had_t1_table=0;
+DROP TABLE t1;
+
+SET
+use_stat_tables=@save_use_stat_tables;
+SET
+optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+--echo # End of 10.0 tests
+
+--echo #
 --echo # MDEV-9590: Always print "Engine-independent statistic" warnings and
 --echo # might be filtering columns unintentionally from engines
 --echo #

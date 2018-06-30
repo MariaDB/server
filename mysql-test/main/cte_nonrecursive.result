@@ -1478,3 +1478,37 @@ select 2 as f;
 f
 2
 drop table t1;
+#
+# MDEV-16473: query with CTE when no database is set
+#
+create database db_mdev_16473;
+use db_mdev_16473;
+drop database db_mdev_16473;
+# Now no default database is set
+select database();
+database()
+NULL
+with cte as (select 1 as a) select * from cte;
+a
+1
+create database db_mdev_16473;
+create table db_mdev_16473.t1 (a int);
+insert into db_mdev_16473.t1 values (2), (7), (3), (1);
+with cte as (select * from db_mdev_16473.t1) select * from cte;
+a
+2
+7
+3
+1
+with cte as (select * from db_mdev_16473.t1)
+select * from cte, t1 as t where cte.a=t.a;
+ERROR 3D000: No database selected
+with cte as (select * from db_mdev_16473.t1)
+select * from cte, db_mdev_16473.t1 as t where cte.a=t.a;
+a	a
+2	2
+7	7
+3	3
+1	1
+drop database db_mdev_16473;
+use test;

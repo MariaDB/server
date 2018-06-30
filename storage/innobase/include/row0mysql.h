@@ -879,6 +879,44 @@ struct SysIndexCallback {
 	virtual void operator()(mtr_t* mtr, btr_pcur_t* pcur) throw() = 0;
 };
 
+
+/** Storage for calculating virtual columns */
+
+class String;
+struct VCOL_STORAGE
+{
+	TABLE *maria_table;
+	byte *innobase_record;
+	byte *maria_record;
+	String *blob_value_storage;
+};
+
+/**
+   Allocate a heap and record for calculating virtual fields
+   Used mainly for virtual fields in indexes
+
+@param[in]	thd		MariaDB THD
+@param[in]	index		Index in use
+@param[out]	heap		Heap that holds temporary row
+@param[in,out]	mysql_table	MariaDB table
+@param[out]	rec		Pointer to allocated MariaDB record
+@param[out]	storage		Internal storage for blobs etc
+
+@return		FALSE ok
+@return		TRUE  malloc failure
+*/
+
+bool innobase_allocate_row_for_vcol(
+				    THD *	  thd,
+				    dict_index_t* index,
+				    mem_heap_t**  heap,
+				    TABLE**	  table,
+				    byte**	  record,
+				    VCOL_STORAGE** storage);
+
+/** Free memory allocated by innobase_allocate_row_for_vcol() */
+void innobase_free_row_for_vcol(VCOL_STORAGE *storage);
+
 /** Get the computed value by supplying the base column values.
 @param[in,out]	row		the data row
 @param[in]	col		virtual column
@@ -903,6 +941,7 @@ innobase_get_computed_value(
 	const dict_field_t*	ifield,
 	THD*			thd,
 	TABLE*			mysql_table,
+	byte*			mysql_rec,
 	const dict_table_t*	old_table,
 	upd_t*			parent_update,
 	dict_foreign_t*		foreign);

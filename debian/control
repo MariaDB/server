@@ -423,7 +423,7 @@ Pre-Depends: adduser (>= 3.40),
              mariadb-common (>= ${source:Version})
 Depends: galera-3 (>=25.3),
          gawk,
-         iproute2,
+         iproute | iproute2,
          libdbi-perl,
          lsb-base (>= 3.0-10),
          lsof,
@@ -569,6 +569,7 @@ Description: OQGraph storage engine for MariaDB
 Package: mariadb-plugin-tokudb
 Architecture: amd64
 Depends: mariadb-server-10.3 (= ${binary:Version}),
+         libjemalloc1 (>= 3.0.0~),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-server-10.0,
@@ -704,9 +705,6 @@ Depends: libcrack2 (>= 2.9.0),
 Description: CrackLib Password Validation Plugin for MariaDB
  This password validation plugin uses cracklib to allow only
  sufficiently secure (as defined by cracklib) user passwords in MariaDB.
- .
- Plese refer to the MariaDB Knowledge Base on more information on
- how to use this tool.
 
 Package: mariadb-test
 Architecture: any

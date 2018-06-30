@@ -6436,6 +6436,13 @@ check_if_ok_to_rename:
 		goto err_exit_no_heap;
 	}
 
+	if (info.flags2() & DICT_TF2_USE_FILE_PER_TABLE) {
+		/* Preserve the DATA DIRECTORY attribute, because it
+		currently cannot be changed during ALTER TABLE. */
+		info.flags_set(m_prebuilt->table->flags
+			       & 1U << DICT_TF_POS_DATA_DIR);
+	}
+
 	max_col_len = DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(info.flags());
 
 	/* Check each index's column length to make sure they do not
@@ -9974,12 +9981,11 @@ foreign_fail:
 			error = row_merge_drop_table(trx, ctx->old_table);
 
 			if (error != DB_SUCCESS) {
-				ib::error() << "Inplace alter table " << ctx->old_table->name.m_name
+				ib::error() << "Inplace alter table " << ctx->old_table->name
 					    << " dropping copy of the old table failed error "
 					    << error
 					    << ". tmp_name " << (ctx->tmp_name ? ctx->tmp_name : "N/A")
-					    << " new_table " << (ctx->new_table ? ctx->new_table->name.m_name
-						    : "N/A");
+					    << " new_table " << ctx->new_table->name;
 			}
 
 			trx_commit_for_mysql(trx);
