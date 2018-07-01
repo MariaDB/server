@@ -33,6 +33,7 @@
 #include "set_var.h"
 #include "sp_head.h"
 #include "sp.h"
+#include "item_float_bits.h"
 #include "item_inetfunc.h"
 #include "sql_time.h"
 
@@ -911,6 +912,19 @@ class Create_func_distance : public Create_func_arg2
 #endif
 
 
+class Create_func_double_to_int64_bits : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_double_to_int64_bits s_singleton;
+
+protected:
+  Create_func_double_to_int64_bits() {}
+  virtual ~Create_func_double_to_int64_bits() {}
+};
+
+
 class Create_func_elt : public Create_native_func
 {
 public:
@@ -1097,6 +1111,19 @@ public:
 protected:
   Create_func_floor() {}
   virtual ~Create_func_floor() {}
+};
+
+
+class Create_func_float_to_int32_bits : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_float_to_int32_bits s_singleton;
+
+protected:
+  Create_func_float_to_int32_bits() {}
+  virtual ~Create_func_float_to_int32_bits() {}
 };
 
 
@@ -1384,6 +1411,32 @@ public:
 protected:
   Create_func_inet6_ntoa() {}
   virtual ~Create_func_inet6_ntoa() {}
+};
+
+
+class Create_func_int32_bits_to_float : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_int32_bits_to_float s_singleton;
+
+protected:
+  Create_func_int32_bits_to_float() {}
+  virtual ~Create_func_int32_bits_to_float() {}
+};
+
+
+class Create_func_int64_bits_to_double : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_int64_bits_to_double s_singleton;
+
+protected:
+  Create_func_int64_bits_to_double() {}
+  virtual ~Create_func_int64_bits_to_double() {}
 };
 
 
@@ -4261,6 +4314,15 @@ Create_func_distance::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 #endif
 
 
+Create_func_double_to_int64_bits Create_func_double_to_int64_bits::s_singleton;
+
+Item*
+Create_func_double_to_int64_bits::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_double_to_int64_bits(thd, arg1);
+}
+
+
 Create_func_elt Create_func_elt::s_singleton;
 
 Item*
@@ -4484,6 +4546,15 @@ Item*
 Create_func_find_in_set::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
   return new (thd->mem_root) Item_func_find_in_set(thd, arg1, arg2);
+}
+
+
+Create_func_float_to_int32_bits Create_func_float_to_int32_bits::s_singleton;
+
+Item*
+Create_func_float_to_int32_bits::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_float_to_int32_bits(thd, arg1);
 }
 
 
@@ -4857,6 +4928,24 @@ Item*
 Create_func_hex::create_1_arg(THD *thd, Item *arg1)
 {
   return new (thd->mem_root) Item_func_hex(thd, arg1);
+}
+
+
+Create_func_int32_bits_to_float Create_func_int32_bits_to_float::s_singleton;
+
+Item*
+Create_func_int32_bits_to_float::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_int32_bits_to_float(thd, arg1);
+}
+
+
+Create_func_int64_bits_to_double Create_func_int64_bits_to_double::s_singleton;
+
+Item*
+Create_func_int64_bits_to_double::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_int64_bits_to_double(thd, arg1);
 }
 
 
@@ -7042,6 +7131,7 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("DES_ENCRYPT") }, BUILDER(Create_func_des_encrypt)},
   { { STRING_WITH_LEN("DIMENSION") }, GEOM_BUILDER(Create_func_dimension)},
   { { STRING_WITH_LEN("DISJOINT") }, GEOM_BUILDER(Create_func_mbr_disjoint)},
+  { { STRING_WITH_LEN("DOUBLE_TO_INT64_BITS") }, BUILDER(Create_func_double_to_int64_bits)},
   { { STRING_WITH_LEN("ELT") }, BUILDER(Create_func_elt)},
   { { STRING_WITH_LEN("ENCODE") }, BUILDER(Create_func_encode)},
   { { STRING_WITH_LEN("ENCRYPT") }, BUILDER(Create_func_encrypt)},
@@ -7054,6 +7144,7 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("EXTRACTVALUE") }, BUILDER(Create_func_xml_extractvalue)},
   { { STRING_WITH_LEN("FIELD") }, BUILDER(Create_func_field)},
   { { STRING_WITH_LEN("FIND_IN_SET") }, BUILDER(Create_func_find_in_set)},
+  { { STRING_WITH_LEN("FLOAT_TO_INT32_BITS") }, BUILDER(Create_func_float_to_int32_bits)},
   { { STRING_WITH_LEN("FLOOR") }, BUILDER(Create_func_floor)},
   { { STRING_WITH_LEN("FORMAT") }, BUILDER(Create_func_format)},
   { { STRING_WITH_LEN("FOUND_ROWS") }, BUILDER(Create_func_found_rows)},
@@ -7079,6 +7170,8 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("INET_NTOA") }, BUILDER(Create_func_inet_ntoa)},
   { { STRING_WITH_LEN("INET6_ATON") }, BUILDER(Create_func_inet6_aton)},
   { { STRING_WITH_LEN("INET6_NTOA") }, BUILDER(Create_func_inet6_ntoa)},
+  { { STRING_WITH_LEN("INT32_BITS_TO_FLOAT") }, BUILDER(Create_func_int32_bits_to_float)},
+  { { STRING_WITH_LEN("INT64_BITS_TO_DOUBLE") }, BUILDER(Create_func_int64_bits_to_double)},
   { { STRING_WITH_LEN("IS_IPV4") }, BUILDER(Create_func_is_ipv4)},
   { { STRING_WITH_LEN("IS_IPV6") }, BUILDER(Create_func_is_ipv6)},
   { { STRING_WITH_LEN("IS_IPV4_COMPAT") }, BUILDER(Create_func_is_ipv4_compat)},

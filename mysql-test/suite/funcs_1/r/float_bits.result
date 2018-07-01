@@ -1,0 +1,437 @@
+SELECT float_to_int32_bits(1.0);
+float_to_int32_bits(1.0)
+1065353216
+SELECT int32_bits_to_float(1065353216);
+int32_bits_to_float(1065353216)
+1
+SELECT float_to_int32_bits(-12.5);
+float_to_int32_bits(-12.5)
+-1052246016
+SELECT int32_bits_to_float(-1052246016);
+int32_bits_to_float(-1052246016)
+-12.5
+SELECT double_to_int64_bits(1.0);
+double_to_int64_bits(1.0)
+4607182418800017408
+SELECT int64_bits_to_double(4607182418800017408);
+int64_bits_to_double(4607182418800017408)
+1
+SELECT double_to_int64_bits(-12.5);
+double_to_int64_bits(-12.5)
+-4600145544382251008
+SELECT int64_bits_to_double(-4600145544382251008);
+int64_bits_to_double(-4600145544382251008)
+-12.5
+CREATE TABLE t1
+(
+id bigint,
+d double,
+PRIMARY KEY (id)
+);
+INSERT INTO t1 VALUES (1, 0.671437), (2, -1.5);
+SELECT id, d FROM t1;
+id	d
+1	0.671437
+2	-1.5
+SELECT 'with double-precision floating point (64 bit)\n we get the results we asked for every time:' AS _docs;
+_docs
+with double-precision floating point (64 bit)
+ we get the results we asked for every time:
+SELECT id, d FROM t1 WHERE d = 0.671437;
+id	d
+1	0.671437
+SELECT id, d FROM t1 WHERE d = -1.5;
+id	d
+2	-1.5
+CREATE TABLE t2
+(
+id int,
+f float,
+PRIMARY KEY (id)
+);
+INSERT INTO t2 VALUES (1, 0.671437), (2, -1.5);
+SELECT id,f FROM t2;
+id	f
+1	0.671437
+2	-1.5
+SELECT 'with single-precision float (32 bit)\n we DO NOT get the results we asked for every time,\n just sometimes:' AS _docs;
+_docs
+with single-precision float (32 bit)
+ we DO NOT get the results we asked for every time,
+ just sometimes:
+SELECT id, f FROM t2 WHERE f = 0.671437;
+id	f
+SELECT id, f FROM t2 WHERE f = -1.5;
+id	f
+2	-1.5
+SELECT 'with interchange values, we can get what we expect:' AS _docs;
+_docs
+with interchange values, we can get what we expect:
+SELECT id, f FROM t2
+WHERE float_to_int32_bits(f) = float_to_int32_bits(0.671437);
+id	f
+1	0.671437
+SELECT id, f FROM t2
+WHERE float_to_int32_bits(f) = float_to_int32_bits(-1.5);
+id	f
+2	-1.5
+SELECT 'Some corner case values for double-precision' AS _docs;
+_docs
+Some corner case values for double-precision
+INSERT INTO t1 VALUES
+(3, NULL),
+(4, 0),
+(5,  1.7976931348623157E+308),
+(6, -1.7976931348623157E+308),
+(7,  2.2250738585072014E-308),
+(8, -2.2250738585072014E-308);
+SELECT	id,
+d,
+double_to_int64_bits(d),
+int64_bits_to_double(double_to_int64_bits(d)),
+d = int64_bits_to_double(double_to_int64_bits(d))
+FROM t1;
+id	d	double_to_int64_bits(d)	int64_bits_to_double(double_to_int64_bits(d))	d = int64_bits_to_double(double_to_int64_bits(d))
+1	0.671437	4604222986391281943	0.671437	1
+2	-1.5	-4613937818241073152	-1.5	1
+3	NULL	NULL	NULL	NULL
+4	0	0	0	1
+5	1.7976931348623157e308	9218868437227405311	1.7976931348623157e308	1
+6	-1.7976931348623157e308	-4503599627370497	-1.7976931348623157e308	1
+7	2.2250738585072014e-308	4503599627370496	2.2250738585072014e-308	1
+8	-2.2250738585072014e-308	-9218868437227405312	-2.2250738585072014e-308	1
+SELECT 'Some corner case values for single-precision' AS _docs;
+_docs
+Some corner case values for single-precision
+INSERT INTO t2 VALUES
+(3, NULL),
+(4, 0),
+(5,  3.402823466E+38),
+(6, -3.402823466E+38),
+(7,  1.175494351E-38),
+(8, -1.175494351E-38);
+SELECT	id,
+f,
+float_to_int32_bits(f),
+int32_bits_to_float(float_to_int32_bits(f)),
+f = int32_bits_to_float(float_to_int32_bits(f))
+FROM t2;
+id	f	float_to_int32_bits(f)	int32_bits_to_float(float_to_int32_bits(f))	f = int32_bits_to_float(float_to_int32_bits(f))
+1	0.671437	1059840844	0.6714370250701904	1
+2	-1.5	-1077936128	-1.5	1
+3	NULL	NULL	NULL	NULL
+4	0	0	0	1
+5	3.40282e38	2139095039	3.4028234663852886e38	1
+6	-3.40282e38	-8388609	-3.4028234663852886e38	1
+7	1.17549e-38	8388608	1.1754943508222875e-38	1
+8	-1.17549e-38	-2139095040	-1.1754943508222875e-38	1
+SELECT 'demonstrate sign flexibility:' AS _docs;
+_docs
+demonstrate sign flexibility:
+SELECT int32_bits_to_float(2222222222);
+int32_bits_to_float(2222222222)
+-2.8731448850517216e-36
+SELECT int32_bits_to_float(-2072745074);
+int32_bits_to_float(-2072745074)
+-2.8731448850517216e-36
+SELECT int64_bits_to_double(9999999999999999999);
+int64_bits_to_double(9999999999999999999)
+-9.630676049668686e-257
+SELECT int64_bits_to_double(-8446744073709551617);
+int64_bits_to_double(-8446744073709551617)
+-9.630676049668686e-257
+SELECT 'demonstrate negative-zero:' AS _docs;
+_docs
+demonstrate negative-zero:
+SELECT int32_bits_to_float(-2147483648);
+int32_bits_to_float(-2147483648)
+-0
+SELECT float_to_int32_bits(-0.000000000000000000000e+00);
+float_to_int32_bits(-0.000000000000000000000e+00)
+-2147483648
+SELECT int64_bits_to_double(-9223372036854775808);
+int64_bits_to_double(-9223372036854775808)
+-0
+SELECT double_to_int64_bits(-0.000000000000000000000e+00);
+double_to_int64_bits(-0.000000000000000000000e+00)
+-9223372036854775808
+SELECT 'demonstrate +/- infinities are NULL' AS _docs;
+_docs
+demonstrate +/- infinities are NULL
+SELECT int32_bits_to_float(-8388608), '-inf';
+int32_bits_to_float(-8388608)	-inf
+NULL	-inf
+SELECT int32_bits_to_float(2139095040), 'inf';
+int32_bits_to_float(2139095040)	inf
+NULL	inf
+SELECT int64_bits_to_double(-4503599627370496), '-inf';
+int64_bits_to_double(-4503599627370496)	-inf
+NULL	-inf
+SELECT int64_bits_to_double(9218868437227405312), 'inf';
+int64_bits_to_double(9218868437227405312)	inf
+NULL	inf
+SELECT 'demonstrate a variety of NAN values' AS _docs;
+_docs
+demonstrate a variety of NAN values
+SELECT int32_bits_to_float(-8388607), '-nan';
+int32_bits_to_float(-8388607)	-nan
+NULL	-nan
+SELECT int32_bits_to_float(-4194306), '-nan';
+int32_bits_to_float(-4194306)	-nan
+NULL	-nan
+SELECT int32_bits_to_float(-4194303), '-nan';
+int32_bits_to_float(-4194303)	-nan
+NULL	-nan
+SELECT int32_bits_to_float(-2), '-nan';
+int32_bits_to_float(-2)	-nan
+NULL	-nan
+SELECT int32_bits_to_float(-1), '-nan';
+int32_bits_to_float(-1)	-nan
+NULL	-nan
+SELECT int32_bits_to_float(2139095041), 'nan';
+int32_bits_to_float(2139095041)	nan
+NULL	nan
+SELECT int32_bits_to_float(2143289342), 'nan';
+int32_bits_to_float(2143289342)	nan
+NULL	nan
+SELECT int32_bits_to_float(2143289345), 'nan';
+int32_bits_to_float(2143289345)	nan
+NULL	nan
+SELECT int32_bits_to_float(2147483646), 'nan';
+int32_bits_to_float(2147483646)	nan
+NULL	nan
+SELECT int32_bits_to_float(2147483647), 'nan';
+int32_bits_to_float(2147483647)	nan
+NULL	nan
+SELECT int64_bits_to_double(-4503599627370495), '-nan';
+int64_bits_to_double(-4503599627370495)	-nan
+NULL	-nan
+SELECT int64_bits_to_double(-2251799813685250), '-nan';
+int64_bits_to_double(-2251799813685250)	-nan
+NULL	-nan
+SELECT int64_bits_to_double(-2251799813685247), '-nan';
+int64_bits_to_double(-2251799813685247)	-nan
+NULL	-nan
+SELECT int64_bits_to_double(-2), '-nan';
+int64_bits_to_double(-2)	-nan
+NULL	-nan
+SELECT int64_bits_to_double(-1), '-nan';
+int64_bits_to_double(-1)	-nan
+NULL	-nan
+SELECT int64_bits_to_double(9218868437227405313), 'nan';
+int64_bits_to_double(9218868437227405313)	nan
+NULL	nan
+SELECT int64_bits_to_double(9221120237041090558), 'nan';
+int64_bits_to_double(9221120237041090558)	nan
+NULL	nan
+SELECT int64_bits_to_double(9221120237041090561), 'nan';
+int64_bits_to_double(9221120237041090561)	nan
+NULL	nan
+SELECT int64_bits_to_double(9223372036854775806), 'nan';
+int64_bits_to_double(9223372036854775806)	nan
+NULL	nan
+SELECT int64_bits_to_double(9223372036854775807), 'nan';
+int64_bits_to_double(9223372036854775807)	nan
+NULL	nan
+SELECT 'demonstrate data type guarding' AS _docs;
+_docs
+demonstrate data type guarding
+CREATE TABLE g1 (g POINT);
+INSERT INTO g1 VALUES (PointFromText('POINT(10 10)'));
+SELECT int32_bits_to_float(g) FROM g1;
+ERROR HY000: Illegal parameter data type geometry for operation 'uint32_bits_to_float'
+SELECT int64_bits_to_double(g) FROM g1;
+ERROR HY000: Illegal parameter data type geometry for operation 'uint64_bits_to_double'
+SELECT 'Test some round-tripping with boundary condition\n values of single-precision. Note that the values will\n be displayed as "real" by item_func which has double-\n precision, however, they will continue to round-trip\n as expected.' AS _docs;
+_docs
+Test some round-tripping with boundary condition
+ values of single-precision. Note that the values will
+ be displayed as "real" by item_func which has double-
+ precision, however, they will continue to round-trip
+ as expected.
+CREATE TABLE t3(i32 int, f32 float);
+INSERT INTO t3 VALUES
+(-2147483647, -1.401298464324817070924e-45),
+(-2143289346, -5.877468951514508890210e-39),
+(-2143289343, -5.877473155409901864661e-39),
+(-2139095042, -1.175494070562594643005e-38),
+(-2130706433, -2.350988561514728583456e-38),
+(-1090519040, -5.000000000000000000000e-01),
+(-1082130433, -9.999999403953552246094e-01),
+(-1082130432, -1.000000000000000000000e+00),
+(-1056964609, -7.999999523162841796875e+00),
+(-16777216, -1.701411834604692317317e+38),
+(-8388609, -3.402823466385288598117e+38),
+(0, 0.000000000000000000000e+00),
+(1, 1.401298464324817070924e-45),
+(4194302, 5.877468951514508890210e-39),
+(8388606, 1.175494070562594643005e-38),
+(16777215, 2.350988561514728583456e-38),
+(1056964608, 5.000000000000000000000e-01),
+(1065353215, 9.999999403953552246094e-01),
+(1065353216, 1.000000000000000000000e+00),
+(1090519039, 7.999999523162841796875e+00),
+(2130706432, 1.701411834604692317317e+38),
+(2139095039, 3.402823466385288598117e+38);
+SELECT	(float_to_int32_bits(f32) = float_to_int32_bits(int32_bits_to_float(i32))) AS round_trip_ok,
+f32 AS expect_f,
+int32_bits_to_float(float_to_int32_bits(f32)) AS round_trip_fif,
+int32_bits_to_float(i32) AS i32_to_float,
+i32 AS expect_i,
+float_to_int32_bits(int32_bits_to_float(i32)) AS round_trip_ifi,
+float_to_int32_bits(f32) AS f32_to_int32
+FROM t3 ORDER BY i32;
+round_trip_ok	expect_f	round_trip_fif	i32_to_float	expect_i	round_trip_ifi	f32_to_int32
+1	-1.4013e-45	-1.401298464324817e-45	-1.401298464324817e-45	-2147483647	-2147483647	-2147483647
+1	-5.87747e-39	-5.877468951514509e-39	-5.877468951514509e-39	-2143289346	-2143289346	-2143289346
+1	-5.87747e-39	-5.877473155409902e-39	-5.877473155409902e-39	-2143289343	-2143289343	-2143289343
+1	-1.17549e-38	-1.1754940705625946e-38	-1.1754940705625946e-38	-2139095042	-2139095042	-2139095042
+1	-2.35099e-38	-2.3509885615147286e-38	-2.3509885615147286e-38	-2130706433	-2130706433	-2130706433
+1	-0.5	-0.5	-0.5	-1090519040	-1090519040	-1090519040
+1	-1	-0.9999999403953552	-0.9999999403953552	-1082130433	-1082130433	-1082130433
+1	-1	-1	-1	-1082130432	-1082130432	-1082130432
+1	-8	-7.999999523162842	-7.999999523162842	-1056964609	-1056964609	-1056964609
+1	-1.70141e38	-1.7014118346046923e38	-1.7014118346046923e38	-16777216	-16777216	-16777216
+1	-3.40282e38	-3.4028234663852886e38	-3.4028234663852886e38	-8388609	-8388609	-8388609
+1	0	0	0	0	0	0
+1	1.4013e-45	1.401298464324817e-45	1.401298464324817e-45	1	1	1
+1	5.87747e-39	5.877468951514509e-39	5.877468951514509e-39	4194302	4194302	4194302
+1	1.17549e-38	1.1754940705625946e-38	1.1754940705625946e-38	8388606	8388606	8388606
+1	2.35099e-38	2.3509885615147286e-38	2.3509885615147286e-38	16777215	16777215	16777215
+1	0.5	0.5	0.5	1056964608	1056964608	1056964608
+1	1	0.9999999403953552	0.9999999403953552	1065353215	1065353215	1065353215
+1	1	1	1	1065353216	1065353216	1065353216
+1	8	7.999999523162842	7.999999523162842	1090519039	1090519039	1090519039
+1	1.70141e38	1.7014118346046923e38	1.7014118346046923e38	2130706432	2130706432	2130706432
+1	3.40282e38	3.4028234663852886e38	3.4028234663852886e38	2139095039	2139095039	2139095039
+SELECT 'Next we test round-tripping with boundary condition\n values of double-precision.' AS _docs;
+_docs
+Next we test round-tripping with boundary condition
+ values of double-precision.
+CREATE TABLE t4 (i64 bigint, d64 double);
+INSERT INTO t4 VALUES
+(-9223372036854775807, -4.940656458412465441766e-324),
+(-9221120237041090562, -1.112536929253599703414e-308),
+(-9214364837600034817, -4.450147717014402272115e-308),
+(-4620693217682128896, -5.000000000000000000000e-01),
+(-4616189618054758401, -9.999999999999998889777e-01),
+(-4616189618054758400, -1.000000000000000000000e+00),
+(-4602678819172646913, -7.999999999999999111822e+00),
+(-9007199254740992, -8.988465674311579538647e+307),
+(-9007199254740991, -8.988465674311581534487e+307),
+(-6755399441055746, -1.348269851146736531629e+308),
+(-4503599627370497, -1.797693134862315708145e+308),
+(0, 0.000000000000000000000e+00),
+(1, 4.940656458412465441766e-324),
+(2251799813685246, 1.112536929253599703414e-308),
+(9007199254740991, 4.450147717014402272115e-308),
+(4602678819172646912, 5.000000000000000000000e-01),
+(4607182418800017407, 9.999999999999998889777e-01),
+(4607182418800017408, 1.000000000000000000000e+00),
+(4620693217682128895, 7.999999999999999111822e+00),
+(9214364837600034816, 8.988465674311579538647e+307),
+(9214364837600034817, 8.988465674311581534487e+307),
+(9216616637413720062, 1.348269851146736531629e+308),
+(9218868437227405311, 1.797693134862315708145e+308);
+SELECT	(double_to_int64_bits(d64) = double_to_int64_bits(int64_bits_to_double(i64))) AS round_trip_ok,
+d64 AS expect_f,
+int64_bits_to_double(double_to_int64_bits(d64)) AS round_trip_fif,
+int64_bits_to_double(i64) AS i64_to_double,
+i64 AS expect_i,
+double_to_int64_bits(int64_bits_to_double(i64)) AS round_trip_ifi,
+double_to_int64_bits(d64) AS d64_to_int64
+FROM t4 ORDER BY i64;
+round_trip_ok	expect_f	round_trip_fif	i64_to_double	expect_i	round_trip_ifi	d64_to_int64
+1	-5e-324	-5e-324	-5e-324	-9223372036854775807	-9223372036854775807	-9223372036854775807
+1	-1.1125369292535997e-308	-1.1125369292535997e-308	-1.1125369292535997e-308	-9221120237041090562	-9221120237041090562	-9221120237041090562
+1	-4.4501477170144023e-308	-4.4501477170144023e-308	-4.4501477170144023e-308	-9214364837600034817	-9214364837600034817	-9214364837600034817
+1	-0.5	-0.5	-0.5	-4620693217682128896	-4620693217682128896	-4620693217682128896
+1	-0.9999999999999999	-0.9999999999999999	-0.9999999999999999	-4616189618054758401	-4616189618054758401	-4616189618054758401
+1	-1	-1	-1	-4616189618054758400	-4616189618054758400	-4616189618054758400
+1	-7.999999999999999	-7.999999999999999	-7.999999999999999	-4602678819172646913	-4602678819172646913	-4602678819172646913
+1	-8.98846567431158e307	-8.98846567431158e307	-8.98846567431158e307	-9007199254740992	-9007199254740992	-9007199254740992
+1	-8.988465674311582e307	-8.988465674311582e307	-8.988465674311582e307	-9007199254740991	-9007199254740991	-9007199254740991
+1	-1.3482698511467365e308	-1.3482698511467365e308	-1.3482698511467365e308	-6755399441055746	-6755399441055746	-6755399441055746
+1	-1.7976931348623157e308	-1.7976931348623157e308	-1.7976931348623157e308	-4503599627370497	-4503599627370497	-4503599627370497
+1	0	0	0	0	0	0
+1	5e-324	5e-324	5e-324	1	1	1
+1	1.1125369292535997e-308	1.1125369292535997e-308	1.1125369292535997e-308	2251799813685246	2251799813685246	2251799813685246
+1	4.4501477170144023e-308	4.4501477170144023e-308	4.4501477170144023e-308	9007199254740991	9007199254740991	9007199254740991
+1	0.5	0.5	0.5	4602678819172646912	4602678819172646912	4602678819172646912
+1	0.9999999999999999	0.9999999999999999	0.9999999999999999	4607182418800017407	4607182418800017407	4607182418800017407
+1	1	1	1	4607182418800017408	4607182418800017408	4607182418800017408
+1	7.999999999999999	7.999999999999999	7.999999999999999	4620693217682128895	4620693217682128895	4620693217682128895
+1	8.98846567431158e307	8.98846567431158e307	8.98846567431158e307	9214364837600034816	9214364837600034816	9214364837600034816
+1	8.988465674311582e307	8.988465674311582e307	8.988465674311582e307	9214364837600034817	9214364837600034817	9214364837600034817
+1	1.3482698511467365e308	1.3482698511467365e308	1.3482698511467365e308	9216616637413720062	9216616637413720062	9216616637413720062
+1	1.7976931348623157e308	1.7976931348623157e308	1.7976931348623157e308	9218868437227405311	9218868437227405311	9218868437227405311
+SELECT 'The int32_bits_to_float is an Item_real_func, which is always type double.\nIf we get a 32-bit Item_float_func, we shouls switch to that.' AS _note;
+_note
+The int32_bits_to_float is an Item_real_func, which is always type double.
+If we get a 32-bit Item_float_func, we shouls switch to that.
+CREATE TABLE t5 (
+f0 DOUBLE NOT NULL,
+f1 DOUBLE,
+i0 BIGINT NOT NULL,
+i1 BIGINT);
+CREATE TABLE t6 AS SELECT
+double_to_int64_bits(f0),
+double_to_int64_bits(f1),
+int64_bits_to_double(i0),
+int64_bits_to_double(i1),
+float_to_int32_bits(f0),
+float_to_int32_bits(f1),
+int32_bits_to_float(i0),
+int32_bits_to_float(i1)
+FROM t5;
+SHOW CREATE TABLE t6;
+Table	Create Table
+t6	CREATE TABLE `t6` (
+  `double_to_int64_bits(f0)` bigint(20) NOT NULL,
+  `double_to_int64_bits(f1)` bigint(20) DEFAULT NULL,
+  `int64_bits_to_double(i0)` double DEFAULT NULL,
+  `int64_bits_to_double(i1)` double DEFAULT NULL,
+  `float_to_int32_bits(f0)` int(10) NOT NULL,
+  `float_to_int32_bits(f1)` int(10) DEFAULT NULL,
+  `int32_bits_to_float(i0)` double DEFAULT NULL,
+  `int32_bits_to_float(i1)` double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT 'Again, the int32_bits_to_float is an Item_real_func, which is always type double.' AS _note;
+_note
+Again, the int32_bits_to_float is an Item_real_func, which is always type double.
+CREATE TABLE t7 (
+f0 FLOAT NOT NULL,
+f1 FLOAT,
+i0 INT NOT NULL,
+i1 INT);
+CREATE TABLE t8 AS SELECT
+float_to_int32_bits(f0),
+float_to_int32_bits(f1),
+int32_bits_to_float(i0),
+int32_bits_to_float(i1),
+double_to_int64_bits(f0),
+double_to_int64_bits(f1),
+int64_bits_to_double(i0),
+int64_bits_to_double(i1)
+FROM t7;
+SHOW CREATE TABLE t8;
+Table	Create Table
+t8	CREATE TABLE `t8` (
+  `float_to_int32_bits(f0)` int(10) NOT NULL,
+  `float_to_int32_bits(f1)` int(10) DEFAULT NULL,
+  `int32_bits_to_float(i0)` double DEFAULT NULL,
+  `int32_bits_to_float(i1)` double DEFAULT NULL,
+  `double_to_int64_bits(f0)` bigint(20) NOT NULL,
+  `double_to_int64_bits(f1)` bigint(20) DEFAULT NULL,
+  `int64_bits_to_double(i0)` double DEFAULT NULL,
+  `int64_bits_to_double(i1)` double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE g1;
+DROP TABLE t3;
+DROP TABLE t4;
+DROP TABLE t5;
+DROP TABLE t6;
+DROP TABLE t7;
+DROP TABLE t8;
