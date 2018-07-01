@@ -4829,35 +4829,50 @@ n_field_mismatch:
 				field->col, page_is_comp(page));
 		}
 
+		if (!len_is_stored(len)) {
+			field++;
+			continue;
+		}
+
 		/* Note that if fixed_size != 0, it equals the
 		length of a fixed-size column in the clustered index.
 		We should adjust it here.
 		A prefix index of the column is of fixed, but different
 		length.  When fixed_size == 0, prefix_len is the maximum
 		length of the prefix index column. */
+		{
+			bool wrong_size = false;
+			if (field->prefix_len) {
+				wrong_size = len > field->prefix_len;
+			} else if (fixed_size) {
+				if (page_is_comp(page)) {
+					wrong_size = len != fixed_size;
+				} else {
+					/* Actual size may by smaller after
+					INSTANT ALTER CHARSET */
+					wrong_size = len > fixed_size;
+				}
+			}
 
-		if (len_is_stored(len)
-		    && (field->prefix_len
-			? len > field->prefix_len
-			: (fixed_size && len != fixed_size))) {
+			if (!wrong_size) {
+				field++;
+				continue;
+			}
+		}
 len_mismatch:
-			btr_index_rec_validate_report(page, rec, index);
-			ib::error	error;
+		btr_index_rec_validate_report(page, rec, index);
 
-			error << "Field " << i << " len is " << len
-				<< ", should be " << fixed_size;
+		ib::error error;
 
-			if (dump_on_error) {
-				error << "; ";
-				rec_print(error.m_oss, rec,
-					  rec_get_info_bits(
-						  rec, rec_offs_comp(offsets)),
-					  offsets);
-			}
-			if (heap) {
-				mem_heap_free(heap);
-			}
-			return(FALSE);
+		error << "Field " << i << " len is " << len << ", should be "
+		      << fixed_size;
+
+		if (dump_on_error) {
+			error << "; ";
+			rec_print(
+			    error.m_oss, rec,
+			    rec_get_info_bits(rec, rec_offs_comp(offsets)),
+			    offsets);
 		}
 
 		field++;

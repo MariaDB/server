@@ -7063,11 +7063,29 @@ uint Field::is_equal(Create_field *new_field)
 
 uint Field_str::is_equal(Create_field *new_field)
 {
-  return new_field->type_handler() == type_handler() &&
-         new_field->charset == field_charset &&
-         new_field->length == max_display_length();
-}
+  if (new_field->type_handler() != type_handler())
+  {
+    return IS_EQUAL_NO;
+  }
+  if (new_field->length != max_display_length())
+  {
+    return IS_EQUAL_NO;
+  }
 
+  bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
+                                             part_of_a_key))
+  {
+    return IS_EQUAL_NO;
+  }
+
+  if (field_charset != new_field->charset)
+  {
+    return IS_EQUAL_PACK_LENGTH;
+  }
+
+  return IS_EQUAL_YES;
+}
 
 int Field_longstr::store_decimal(const my_decimal *d)
 {
@@ -7901,18 +7919,41 @@ Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
 
 uint Field_varstring::is_equal(Create_field *new_field)
 {
-  if (new_field->type_handler() == type_handler() &&
-      new_field->charset == field_charset &&
-      !new_field->compression_method() == !compression_method())
+  if (new_field->type_handler() != type_handler())
   {
-    if (new_field->length == field_length)
-      return IS_EQUAL_YES;
-    if (new_field->length > field_length &&
-	((new_field->length <= 255 && field_length <= 255) ||
-	 (new_field->length > 255 && field_length > 255)))
-      return IS_EQUAL_PACK_LENGTH; // VARCHAR, longer variable length
+    return IS_EQUAL_NO;
   }
-  return IS_EQUAL_NO;
+  if (!new_field->compression_method() != !compression_method())
+  {
+    return IS_EQUAL_NO;
+  }
+  if (field_length > new_field->length)
+  {
+    return IS_EQUAL_NO;
+  }
+  // this one depends on InnoDB row_format internals
+  if (field_length <= 255 && new_field->length > 255)
+  {
+    return IS_EQUAL_NO;
+  }
+
+  bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
+                                             part_of_a_key))
+  {
+    return IS_EQUAL_NO;
+  }
+
+  if (field_charset != new_field->charset)
+  {
+    return IS_EQUAL_PACK_LENGTH;
+  }
+  if (field_length != new_field->length)
+  {
+    return IS_EQUAL_PACK_LENGTH;
+  }
+
+  return IS_EQUAL_YES;
 }
 
 
@@ -8678,10 +8719,32 @@ uint Field_blob::max_packed_col_length(uint max_length)
 
 uint Field_blob::is_equal(Create_field *new_field)
 {
-  return new_field->type_handler() == type_handler() &&
-         new_field->charset == field_charset &&
-         new_field->pack_length == pack_length() &&
-         !new_field->compression_method() == !compression_method();
+  if (new_field->type_handler() != type_handler())
+  {
+    return IS_EQUAL_NO;
+  }
+  if (!new_field->compression_method() != !compression_method())
+  {
+    return IS_EQUAL_NO;
+  }
+  if (new_field->pack_length != pack_length())
+  {
+    return IS_EQUAL_NO;
+  }
+
+  bool part_of_a_key= !new_field->field->part_of_key.is_clear_all();
+  if (!Type_handler::Charsets_are_compatible(field_charset, new_field->charset,
+                                             part_of_a_key))
+  {
+    return IS_EQUAL_NO;
+  }
+
+  if (field_charset != new_field->charset)
+  {
+    return IS_EQUAL_PACK_LENGTH;
+  }
+
+  return IS_EQUAL_YES;
 }
 
 

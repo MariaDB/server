@@ -107,7 +107,8 @@ static const alter_table_operations INNOBASE_INPLACE_IGNORE
 	| ALTER_VIRTUAL_GCOL_EXPR
 	| ALTER_DROP_CHECK_CONSTRAINT
 	| ALTER_RENAME
-	| ALTER_COLUMN_INDEX_LENGTH;
+	| ALTER_COLUMN_INDEX_LENGTH
+	| ALTER_CONVERT_TO;
 
 /** Operations on foreign key definitions (changing the schema only) */
 static const alter_table_operations INNOBASE_FOREIGN_OPERATIONS
@@ -1450,6 +1451,134 @@ check_v_col_in_order(
 	}
 
 	return(true);
+}
+
+/** Handle a special latin1_swedish_ci for MTYPE
+@param[in]	create_field	new versioned of field
+@param[in]	col	column in InnoDB
+@result	possibly fixed MTYPE for a new version of field */
+static int
+get_mtype_after_instant_alter_charset(const Create_field& create_field,
+				      const dict_col_t& col)
+{
+	int result = col.mtype;
+	const bool new_is_latin1 = create_field.charset == &my_charset_latin1;
+	if (col.mtype == DATA_VARMYSQL && new_is_latin1) {
+		result = DATA_VARCHAR;
+	} else if (col.mtype == DATA_MYSQL && new_is_latin1) {
+		result = DATA_CHAR;
+	} else if (col.mtype == DATA_VARCHAR && !new_is_latin1) {
+		result = DATA_VARMYSQL;
+	} else if (col.mtype == DATA_CHAR && !new_is_latin1) {
+		result = DATA_MYSQL;
+	}
+	return result;
+}
+
+/** Try update charset info in SYS_COLUMNS for a givent table and fields.
+@param[in,out]	trx	transaction
+@param[in]	fields	list of table fields
+@param[in]	new_table	new InnoDB table
+@result	true if udpate was succeded */
+static bool
+change_charset_instant_try(trx_t* trx, List<Create_field>& fields,
+			   const dict_table_t* new_table,
+			   const HA_CREATE_INFO& create_info)
+{
+	List_iterator_fast<Create_field> it(fields);
+
+	while (Create_field* create_field = it++) {
+		Field* field = create_field->field;
+		if (!field) {
+			continue;
+		}
+		if (field->is_equal(create_field) != IS_EQUAL_PACK_LENGTH) {
+			continue;
+		}
+		if (field->charset() == create_field->charset) {
+			continue;
+		}
+
+		uint new_charset_number = create_field->charset->number;
+		TABLE* old_table = field->table;
+		uint innodb_idx = innodb_col_no(field);
+		const dict_col_t* col
+		    = dict_table_get_nth_col(new_table, innodb_idx);
+		uint new_prtype
+		    = (col->prtype & 0xffff) | (new_charset_number << 16);
+		uint new_len = create_field->charset->mbmaxlen
+			       * create_field->char_length;
+		uint new_mtype = get_mtype_after_instant_alter_charset(
+		    *create_field, *col);
+
+		pars_info_t* info = pars_info_create();
+
+		pars_info_add_int4_literal(info, "prtype", new_prtype);
+		pars_info_add_int4_literal(info, "len", new_len);
+		pars_info_add_ull_literal(info, "tableid", new_table->id);
+		pars_info_add_int4_literal(info, "pos", innodb_idx);
+		pars_info_add_int4_literal(info, "mtype", new_mtype);
+
+		dberr_t error
+		    = que_eval_sql(info,
+				   "PROCEDURE UPDATE_SYS_COLUMNS_PROC () IS\n"
+				   "BEGIN\n"
+				   "UPDATE SYS_COLUMNS SET PRTYPE=:prtype,\n"
+				   "LEN=:len,\n"
+				   "MTYPE=:mtype\n"
+				   "WHERE TABLE_ID=:tableid AND POS=:pos;\n"
+				   "END;\n",
+				   false, trx);
+
+		if (error != DB_SUCCESS) {
+			my_error_innodb(error, old_table->s->table_name.str, 0);
+			trx->error_state = DB_SUCCESS;
+			trx->op_info = "";
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/** Update InnoDB table cache to match column definition
+after INSTANT ALTER CHARSET
+@param[in]	fields	list of new table fields
+@param[in,out]	new_table	table cache */
+static void
+change_charset_instant_cache(List<Create_field>& fields,
+			     dict_table_t* new_table,
+			     const HA_CREATE_INFO& create_info)
+{
+	List_iterator_fast<Create_field> it(fields);
+
+	while (Create_field* create_field = it++) {
+		Field* field = create_field->field;
+		if (!field) {
+			continue;
+		}
+		if (field->is_equal(create_field) != IS_EQUAL_PACK_LENGTH) {
+			continue;
+		}
+		if (field->charset() == create_field->charset) {
+			continue;
+		}
+
+		dict_col_t* col
+		    = dict_table_get_nth_col(new_table, innodb_col_no(field));
+		uint new_charset_number = create_field->charset->number;
+		uint new_prtype
+		    = (col->prtype & 0xffff) | (new_charset_number << 16);
+		uint new_len = create_field->pack_length;
+		uint new_mbmaxlen = create_field->charset->mbmaxlen;
+		uint new_mtype = get_mtype_after_instant_alter_charset(
+		    *create_field, *col);
+
+		col->prtype = new_prtype;
+		col->mtype = new_mtype;
+		col->len = new_len;
+		col->mbmaxlen = new_mbmaxlen;
+	}
 }
 
 /** Determine if an instant operation is possible for altering columns.
@@ -9138,6 +9267,7 @@ innobase_enlarge_columns_try(
 			if (cf->field == *fp) {
 				if ((*fp)->is_equal(cf)
 				    == IS_EQUAL_PACK_LENGTH
+				    && (*fp)->charset() == cf->charset
 				    && innobase_enlarge_column_try(
 					    user_table, trx, table_name,
 					    idx, static_cast<ulint>(cf->length), is_v)) {
@@ -9864,7 +9994,7 @@ to the data dictionary cache and the file system.
 inline MY_ATTRIBUTE((nonnull))
 void
 commit_cache_rebuild(
-/*=================*/
+	Alter_inplace_info*		ha_alter_info,
 	ha_innobase_inplace_ctx*	ctx)
 {
 	dberr_t		error;
@@ -10159,6 +10289,13 @@ commit_try_norebuild(
 		}
 	}
 
+	if ((ha_alter_info->handler_flags & ALTER_COLUMN_EQUAL_PACK_LENGTH)
+	    && change_charset_instant_try(
+		trx, ha_alter_info->alter_info->create_list, ctx->new_table,
+		*ha_alter_info->create_info)) {
+		DBUG_RETURN(true);
+	}
+
 	DBUG_RETURN(innobase_instant_try(ha_alter_info, ctx, altered_table,
 					 old_table, trx));
 }
@@ -10370,6 +10507,12 @@ commit_cache_norebuild(
 #ifdef MYSQL_RENAME_INDEX
 	rename_indexes_in_cache(ctx, ha_alter_info);
 #endif
+
+	if (ha_alter_info->handler_flags & ALTER_COLUMN_EQUAL_PACK_LENGTH) {
+		change_charset_instant_cache(
+		    ha_alter_info->alter_info->create_list, ctx->new_table,
+		    *ha_alter_info->create_info);
+	}
 
 	ctx->new_table->fts_doc_id_index
 		= ctx->new_table->fts
@@ -10977,7 +11120,7 @@ ha_innobase::commit_inplace_alter_table(
 				   ("table: %s", ctx->old_table->name.m_name));
 
 			/* Rename the tablespace files. */
-			commit_cache_rebuild(ctx);
+			commit_cache_rebuild(ha_alter_info, ctx);
 
 			error = innobase_update_foreign_cache(ctx, m_user_thd);
 			if (error != DB_SUCCESS) {
