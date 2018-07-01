@@ -29,6 +29,12 @@ then
   sed 's|-DDEB|-DWITHOUT_TOKUDB_STORAGE_ENGINE=true -DWITHOUT_MROONGA_STORAGE_ENGINE=true -DWITHOUT_ROCKSDB_STORAGE_ENGINE=true -DDEB|' -i debian/rules
 fi
 
+# Convert gcc version to numberical value. Format is Mmmpp where M is Major
+# version, mm is minor version and p is patch.
+# -dumpfullversion & -dumpversion to make it uniform across old and new (>=7)
+GCCVERSION=$(gcc -dumpfullversion -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' \
+                                                     -e 's/\.\([0-9]\)/0\1/g'     \
+                                                     -e 's/^[0-9]\{3,4\}$/&00/')
 
 # Look up distro-version specific stuff
 #
@@ -78,19 +84,12 @@ fi
 # Debian Jessie and older and on Ubuntu Xenial and older with the following error message:
 #   /usr/bin/ld.bfd.real: /tmp/ccOIwjFo.ltrans0.ltrans.o: relocation R_X86_64_PC32 against symbol
 #   `toku_product_name_strings' can not be used when making a shared object; recompile with -fPIC
-# Therefore we need to disable PIE on those releases using debhelper as proxy for detection.
-if ! apt-cache madison debhelper | grep 'debhelper *| *1[0-9]\.' >/dev/null 2>&1
+# Therefore we need to disable PIE on those releases using gcc as proxy for detection.
+if [[ $GCCVERSION -lt 60000 ]]
 then
   sed 's/hardening=+all$/hardening=+all,-pie/' -i debian/rules
 fi
 
-
-# Convert gcc version to numberical value. Format is Mmmpp where M is Major
-# version, mm is minor version and p is patch.
-# -dumpfullversion & -dumpversion to make it uniform across old and new (>=7)
-GCCVERSION=$(gcc -dumpfullversion -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' \
-                                                     -e 's/\.\([0-9]\)/0\1/g'     \
-						     -e 's/^[0-9]\{3,4\}$/&00/')
 # Don't build rocksdb package if gcc version is less than 4.8 or we are running on
 # x86 32 bit.
 if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]] || [[ $TRAVIS ]]
