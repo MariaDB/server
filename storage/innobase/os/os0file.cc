@@ -4326,6 +4326,7 @@ os_file_create_func(
 			&& !unbuffered_io_possible(file, OS_FILE_LOG_BLOCK_SIZE)) {
 				ut_a(CloseHandle(file));
 				attributes &= ~FILE_FLAG_NO_BUFFERING;
+				create_flag = OPEN_ALWAYS;
 				continue;
 		}
 
