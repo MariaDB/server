@@ -18,9 +18,12 @@ then
   # On Travis-CI, the log must stay under 4MB so make the build less verbose
   sed -i -e '/Add support for verbose builds/,+2d' debian/rules
 
-  # Don't include test suite package on Travis-CI to make the build time shorter
-  sed '/Package: mariadb-test-data/,+26d' -i debian/control
-  sed '/Package: mariadb-test/,+34d' -i debian/control
+  # Don't include test suite package or large plugins on Travis-CI to make the build time shorter
+  sed -e '/^Package: mariadb-test/,/^$/d' \
+      -e '/^Package: mariadb-plugin-tokudb/,/^$/d' \
+      -e '/^Package: mariadb-plugin-mroonga/,/^$/d' \
+      -e '/^Package: mariadb-plugin-rocksdb/,/^$/d' \
+      -i debian/control
 
   # Don't build the test package at all to save time and disk space
   sed 's|DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test|DINSTALL_MYSQLTESTDIR=false|' -i debian/rules
