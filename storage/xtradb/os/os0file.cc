@@ -1691,6 +1691,7 @@ os_file_set_atomic_writes(
 #endif
 }
 
+#ifdef _WIN32
 /** Check that IO of specific size is possible for the file
 opened with FILE_FLAG_NO_BUFFERING.
 
@@ -1715,6 +1716,7 @@ static bool unbuffered_io_possible(HANDLE file, size_t io_size)
 	}
 	return true;
 }
+#endif
 
 /****************************************************************//**
 NOTE! Use the corresponding macro os_file_create(), not directly
