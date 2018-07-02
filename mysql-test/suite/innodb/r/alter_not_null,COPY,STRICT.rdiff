@@ -64,7 +64,7 @@
 < 10	0
 ---
 > 10	NULL
-88,89c70,71
+98,99c80,81
 < affected rows: 0
 < info: Records: 0  Duplicates: 0  Warnings: 1
 ---

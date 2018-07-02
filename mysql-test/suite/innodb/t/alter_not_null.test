@@ -1,19 +1,10 @@
---source include/have_innodb.inc
-set @@sql_mode = 'STRICT_TRANS_TABLES';
+--source alter_sql_mode.inc
 
-CREATE TABLE t1(a INT, v INT AS (a), c INT, d INT NOT NULL, e INT) ENGINE=InnoDB;
-ALTER TABLE t1 DROP COLUMN c, CHANGE COLUMN e e INT NOT NULL, ALGORITHM=INPLACE;
-DROP TABLE t1;
+let $sql_mode = `SELECT @@SQL_MODE`;
+let $error_code = 0;
 
-CREATE TABLE t1 (a INT, v INT AS (a), d INT NOT NULL, e INT) ENGINE=InnoDB;
-ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
-DROP TABLE t1;
+if ($sql_mode == "STRICT_TRANS_TABLES") {
+ let $error_code = WARN_DATA_TRUNCATED;
+}
 
---echo #
---echo # MDEV-16126 Crash or ASAN heap-buffer-overflow in
---echo # mach_read_from_n_little_endian upon ALTER TABLE with blob
---echo #
-
-CREATE TABLE t1(a INT, v INT AS (a), b INT, c BLOB) ENGINE=InnoDB;
-ALTER TABLE t1 ADD PRIMARY KEY(b);
-DROP TABLE t1;
+--source include/alter_not_null.inc
