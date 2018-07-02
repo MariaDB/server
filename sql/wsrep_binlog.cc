@@ -327,11 +327,11 @@ void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len)
     return;
   }
 
-  char *filename= (char *)malloc(len++);
+  char *filename= (char *)malloc(len+1);
   int len1= snprintf(filename, len, "%s/GRA_%ld_%lld.log",
                     wsrep_data_home_dir, thd->thread_id,
                     (long long)wsrep_thd_trx_seqno(thd));
-  if (len >= len1)
+  if (len > len1)
   {
     WSREP_ERROR("RBR dump path truncated: %d, skipping dump.", len);
     free(filename);
@@ -466,22 +466,22 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
 
   longlong thd_trx_seqno= (long long)wsrep_thd_trx_seqno(thd);
 
-  int len= my_snprintf(NULL, 0, "%s/GRA_%ld_%lld_v2.log",
-                       wsrep_data_home_dir, thd->thread_id,
-                       thd_trx_seqno);
+  int len= snprintf(NULL, 0, "%s/GRA_%ld_%lld_v2.log",
+                    wsrep_data_home_dir, thd->thread_id,
+                    thd_trx_seqno);
 
   char *filename;
-  if (len < 0 || !(filename= (char*)malloc(len++)))
+  if (len < 0 || !(filename= (char*)malloc(len+1)))
   {
     WSREP_ERROR("snprintf error: %d, skipping dump.", len);
     DBUG_VOID_RETURN;
   }
 
-  int len1= my_snprintf(filename, len, "%s/GRA_%ld_%lld_v2.log",
-                        wsrep_data_home_dir, thd->thread_id,
-                        thd_trx_seqno);
+  int len1= snprintf(filename, len, "%s/GRA_%ld_%lld_v2.log",
+                     wsrep_data_home_dir, thd->thread_id,
+                     thd_trx_seqno);
 
-  if (len >= len1)
+  if (len > len1)
   {
     WSREP_ERROR("RBR dump path truncated: %d, skipping dump.", len);
     free(filename);
