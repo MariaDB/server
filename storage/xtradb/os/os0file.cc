@@ -1691,6 +1691,31 @@ os_file_set_atomic_writes(
 #endif
 }
 
+/** Check that IO of specific size is possible for the file
+opened with FILE_FLAG_NO_BUFFERING.
+
+The requirement is that IO is multiple of the disk sector size.
+
+@param[in]	file      file handle
+@param[in]	io_size   expected io size
+@return true - unbuffered io of requested size is possible, false otherwise.
+
+@note: this function only works correctly with Windows 8 or later,
+(GetFileInformationByHandleEx with FileStorageInfo is only supported there).
+It will return true on earlier Windows version.
+*/
+static bool unbuffered_io_possible(HANDLE file, size_t io_size)
+{
+	FILE_STORAGE_INFO info;
+	if (GetFileInformationByHandleEx(
+		file, FileStorageInfo, &info, sizeof(info))) {
+		ULONG sector_size = info.LogicalBytesPerSector;
+		if (sector_size)
+			return io_size % sector_size == 0;
+	}
+	return true;
+}
+
 /****************************************************************//**
 NOTE! Use the corresponding macro os_file_create(), not directly
 this function!
@@ -1850,6 +1875,18 @@ os_file_create_func(
 		file.m_file = CreateFile(
 			(LPCTSTR) name, access, share_mode, NULL,
 			create_flag, attributes, NULL);
+
+		/* If FILE_FLAG_NO_BUFFERING was set, check if this can work at all,
+		for expected IO sizes. Reopen without the unbuffered flag, if it is won't work*/
+		if ((file.m_file != INVALID_HANDLE_VALUE)
+			&& (attributes & FILE_FLAG_NO_BUFFERING)
+			&& (type == OS_LOG_FILE)
+			&& !unbuffered_io_possible(file.m_file, OS_FILE_LOG_BLOCK_SIZE)) {
+			ut_a(CloseHandle(file.m_file));
+			attributes &= ~FILE_FLAG_NO_BUFFERING;
+			create_flag = OPEN_ALWAYS;
+			continue;
+		}
 
 		if (file.m_file == INVALID_HANDLE_VALUE) {
 			const char*	operation;
