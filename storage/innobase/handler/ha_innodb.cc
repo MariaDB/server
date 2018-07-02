@@ -11344,10 +11344,11 @@ create_index(
 	/* Even though we've defined max_supported_key_part_length, we
 	still do our own checking using field_lengths to be absolutely
 	sure we don't create too long indexes. */
+	ulint flags = table->flags;
 
 	error = convert_error_code_to_mysql(
 		row_create_index_for_mysql(index, trx, field_lengths),
-		table->flags, NULL);
+		flags, NULL);
 
 	my_free(field_lengths);
 
@@ -12400,12 +12401,13 @@ create_table_info_t::create_table()
 		/* Create an index which is used as the clustered index;
 		order the rows by their row id which is internally generated
 		by InnoDB */
+		ulint flags = m_table->flags;
 		dict_index_t* index = dict_mem_index_create(
 			m_table, innobase_index_reserve_name,
 			DICT_CLUSTERED, 0);
 		error = convert_error_code_to_mysql(
 			row_create_index_for_mysql(index, m_trx, NULL),
-			m_table->flags, m_thd);
+			flags, m_thd);
 		if (error) {
 			DBUG_RETURN(error);
 		}
