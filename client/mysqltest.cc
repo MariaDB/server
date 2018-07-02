@@ -5910,6 +5910,7 @@ do_handle_error:
     var_set_errno(mysql_errno(con));
     handle_error(command, mysql_errno(con), mysql_error(con),
 		 mysql_sqlstate(con), ds);
+    mysql_close(con);
     return 0; /* Not connected */
   }
 
