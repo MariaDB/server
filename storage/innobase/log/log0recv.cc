@@ -1684,6 +1684,11 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 
 	ut_ad(recv_needed_recovery);
 
+	if (UNIV_UNLIKELY(srv_print_verbose_log == 2)) {
+		fprintf(stderr, "Applying log to page %u:%u\n",
+			recv_addr->space, recv_addr->page_no);
+	}
+
 	DBUG_LOG("ib_log", "Applying log to page " << block->page.id);
 
 	recv_addr->state = RECV_BEING_PROCESSED;
@@ -1777,6 +1782,13 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 
 				modification_to_page = TRUE;
 				start_lsn = recv->start_lsn;
+			}
+
+			if (UNIV_UNLIKELY(srv_print_verbose_log == 2)) {
+				fprintf(stderr, "apply " LSN_PF ":"
+					" %d len " ULINTPF " page %u:%u\n",
+					recv->start_lsn, recv->type, recv->len,
+					recv_addr->space, recv_addr->page_no);
 			}
 
 			DBUG_LOG("ib_log", "apply " << recv->start_lsn << ": "
@@ -2326,6 +2338,16 @@ loop:
 		case MLOG_CHECKPOINT:
 			compile_time_assert(SIZE_OF_MLOG_CHECKPOINT == 1 + 8);
 			lsn = mach_read_from_8(ptr + 1);
+
+			if (UNIV_UNLIKELY(srv_print_verbose_log == 2)) {
+				fprintf(stderr,
+					"MLOG_CHECKPOINT(" LSN_PF ") %s at "
+					LSN_PF "\n", lsn,
+					lsn != checkpoint_lsn ? "ignored"
+					: recv_sys->mlog_checkpoint_lsn
+					? "reread" : "read",
+					recv_sys->recovered_lsn);
+			}
 
 			DBUG_PRINT("ib_log",
 				   ("MLOG_CHECKPOINT(" LSN_PF ") %s at "

@@ -228,6 +228,7 @@ void wsrep_log(void (*fun)(const char *, ...), const char *format, ...);
 
 #define WSREP_QUERY(thd) (thd->query())
 
+extern my_bool wsrep_ready_get();
 extern void wsrep_ready_wait();
 
 class Ha_trx_info;
@@ -320,6 +321,18 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
 bool wsrep_node_is_donor();
 bool wsrep_node_is_synced();
 
+typedef struct wsrep_key_arr
+{
+    wsrep_key_t* keys;
+    size_t       keys_len;
+} wsrep_key_arr_t;
+bool wsrep_prepare_keys_for_isolation(THD*              thd,
+                                      const char*       db,
+                                      const char*       table,
+                                      const TABLE_LIST* table_list,
+                                      wsrep_key_arr_t*  ka);
+void wsrep_keys_free(wsrep_key_arr_t* key_arr);
+
 #define WSREP_BINLOG_FORMAT(my_format)                         \
    ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ?     \
    wsrep_forced_binlog_format : my_format)
@@ -353,6 +366,5 @@ bool wsrep_node_is_synced();
 #define wsrep_thr_deinit() do {} while(0)
 #define wsrep_running_threads (0)
 #define WSREP_BINLOG_FORMAT(my_format) my_format
-
 #endif /* WITH_WSREP */
 #endif /* WSREP_MYSQLD_H */

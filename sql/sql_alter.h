@@ -32,14 +32,7 @@ public:
 
   enum enum_enable_or_disable { LEAVE_AS_IS, ENABLE, DISABLE };
 
-  bool data_modifying() const
-  {
-    return flags & (
-      ALTER_PARSER_ADD_COLUMN |
-      ALTER_PARSER_DROP_COLUMN |
-      ALTER_CHANGE_COLUMN |
-      ALTER_COLUMN_ORDER);
-  }
+  bool vers_prohibited(THD *thd) const;
 
   /**
      The different values of the ALGORITHM clause.

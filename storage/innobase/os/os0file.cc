@@ -2703,7 +2703,7 @@ os_file_create_simple_func(
 	bool	retry;
 
 	do {
-		file = open(name, create_flag, os_innodb_umask);
+		file = open(name, create_flag | O_CLOEXEC, os_innodb_umask);
 
 		if (file == -1) {
 			*success = false;
@@ -3005,7 +3005,7 @@ os_file_create_func(
 	bool		retry;
 
 	do {
-		file = open(name, create_flag, os_innodb_umask);
+		file = open(name, create_flag | O_CLOEXEC, os_innodb_umask);
 
 		if (file == -1) {
 			const char*	operation;
@@ -3139,7 +3139,7 @@ os_file_create_simple_no_error_handling_func(
 		return(OS_FILE_CLOSED);
 	}
 
-	file = open(name, create_flag, os_innodb_umask);
+	file = open(name, create_flag | O_CLOEXEC, os_innodb_umask);
 
 	*success = (file != -1);
 
@@ -4990,12 +4990,12 @@ os_file_write_func(
 			<< offset << ", " << n
 			<< " bytes should have been written,"
 			" only " << n_bytes << " were written."
-			" Operating system error number " << errno << "."
+			" Operating system error number " << IF_WIN(GetLastError(),errno) << "."
 			" Check that your OS and file system"
 			" support files of this size."
 			" Check also that the disk is not full"
 			" or a disk quota exceeded.";
-
+#ifndef _WIN32
 		if (strerror(errno) != NULL) {
 
 			ib::error()
@@ -5004,7 +5004,7 @@ os_file_write_func(
 		}
 
 		ib::info() << OPERATING_SYSTEM_ERROR_MSG;
-
+#endif
 		os_has_said_disk_full = true;
 	}
 

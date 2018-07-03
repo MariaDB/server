@@ -458,7 +458,7 @@ error_if_in_trans_or_substatement(THD *thd, int in_substatement_error,
   return false;
 }
 
-static bool check_has_super(sys_var *self, THD *thd, set_var *var)
+bool check_has_super(sys_var *self, THD *thd, set_var *var)
 {
   DBUG_ASSERT(self->scope() != sys_var::GLOBAL);// don't abuse check_has_super()
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -702,6 +702,8 @@ static Sys_var_struct Sys_character_set_client(
        offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_cs_client),
        ON_UPDATE(fix_thd_charset));
+// for check changing
+export sys_var *Sys_character_set_client_ptr= &Sys_character_set_client;
 
 static Sys_var_struct Sys_character_set_connection(
        "character_set_connection", "The character set used for "
@@ -711,6 +713,8 @@ static Sys_var_struct Sys_character_set_connection(
        offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_charset_not_null),
        ON_UPDATE(fix_thd_charset));
+// for check changing
+export sys_var *Sys_character_set_connection_ptr= &Sys_character_set_connection;
 
 static Sys_var_struct Sys_character_set_results(
        "character_set_results", "The character set used for returning "
@@ -718,6 +722,8 @@ static Sys_var_struct Sys_character_set_results(
        SESSION_VAR(character_set_results), NO_CMD_LINE,
        offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_charset));
+// for check changing
+export sys_var *Sys_character_set_results_ptr= &Sys_character_set_results;
 
 static Sys_var_struct Sys_character_set_filesystem(
        "character_set_filesystem", "The filesystem character set",
@@ -1907,6 +1913,8 @@ static Sys_var_last_gtid Sys_last_gtid(
        "or the empty string if none.",
        READ_ONLY sys_var::ONLY_SESSION, NO_CMD_LINE);
 
+export sys_var *Sys_last_gtid_ptr= &Sys_last_gtid; // for check changing
+
 
 uchar *
 Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base)
@@ -1917,8 +1925,9 @@ Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base)
   bool first= true;
 
   str.length(0);
-  if ((thd->last_commit_gtid.seq_no > 0 &&
-       rpl_slave_state_tostring_helper(&str, &thd->last_commit_gtid, &first)) ||
+  rpl_gtid gtid= thd->get_last_commit_gtid();
+  if ((gtid.seq_no > 0 &&
+       rpl_slave_state_tostring_helper(&str, &gtid, &first)) ||
       !(p= thd->strmake(str.ptr(), str.length())))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));

@@ -179,6 +179,7 @@ enum enum_indicator_type
 #define BINCMP_FLAG	131072U		/* Intern: Used by sql_yacc */
 #define GET_FIXED_FIELDS_FLAG (1U << 18) /* Used to get fields in item tree */
 #define FIELD_IN_PART_FUNC_FLAG (1U << 19)/* Field part of partition func */
+#define PART_INDIRECT_KEY_FLAG (1U << 20)
 
 /**
   Intern: Field in TABLE object for new version of altered table,

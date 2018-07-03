@@ -244,7 +244,7 @@ const char *my_open_parent_dir_nosymlinks(const char *pathname, int *pdfd)
       return pathname + (s - buf);
     }
 
-    fd = openat(dfd, s, O_NOFOLLOW | O_PATH);
+    fd = openat(dfd, s, O_NOFOLLOW | O_PATH | O_CLOEXEC);
     if (fd < 0)
       goto err;
 

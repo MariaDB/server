@@ -434,6 +434,19 @@ row_vers_build_clust_v_col(
 	mem_heap_t*	heap)
 {
 	mem_heap_t*	local_heap = NULL;
+	VCOL_STORAGE	*vcol_storage= NULL;
+	THD*		thd= current_thd;
+	TABLE*		maria_table= 0;
+	byte*		record= 0;
+
+	ut_ad(dict_index_has_virtual(index));
+
+	innobase_allocate_row_for_vcol(thd, index,
+				       &local_heap,
+				       &maria_table,
+				       &record,
+				       &vcol_storage);
+
 	for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
 		const dict_field_t* ind_field = dict_index_get_nth_field(
 				index, i);
@@ -446,15 +459,18 @@ row_vers_build_clust_v_col(
 
 			innobase_get_computed_value(
 				row, col, clust_index, &local_heap,
-				heap, NULL, current_thd, NULL, NULL,
+				heap, NULL, thd, maria_table, record, NULL,
 				NULL, NULL);
 		}
 	}
 
 	if (local_heap) {
+		if (vcol_storage)
+			innobase_free_row_for_vcol(vcol_storage);
 		mem_heap_free(local_heap);
 	}
 }
+
 /** Build latest virtual column data from undo log
 @param[in]	in_purge	whether this is the purge thread
 @param[in]	rec		clustered index record

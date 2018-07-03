@@ -3211,6 +3211,7 @@ public:
     query_id_t first_query_id;
   } binlog_evt_union;
 
+  mysql_cond_t              COND_wsrep_thd;
   /**
     Internal parser state.
     Note that since the parser is not re-entrant, we keep only one parser
@@ -3668,6 +3669,10 @@ public:
     tmp[length]= 0;
     lex_str->length= length;
     return lex_str;
+  }
+  LEX_CSTRING *make_clex_string(const LEX_CSTRING from)
+  {
+    return make_clex_string(from.str, from.length);
   }
 
   // Allocate LEX_STRING for character set conversion
@@ -4175,18 +4180,33 @@ public:
   {
     if (db.str == NULL)
     {
-      my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
-      return TRUE;
+      /*
+        No default database is set. In this case if it's guaranteed that
+        no CTE can be used in the statement then we can throw an error right
+        now at the parser stage. Otherwise the decision about throwing such
+        a message must be postponed until a post-parser stage when we are able
+        to resolve all CTE names as we don't need this message to be thrown
+        for any CTE references.
+      */
+      if (!lex->with_clauses_list)
+      {
+        my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
+        return TRUE;
+      }
+      /* This will allow to throw an error later for non-CTE references */
+      to->str= NULL;
+      to->length= 0;
+      return FALSE;
     }
+
     to->str= strmake(db.str, db.length);
     to->length= db.length;
     return to->str == NULL;                     /* True on error */
   }
   /* Get db name or "". Use for printing current db */
   const char *get_db()
-  {
-    return db.str ? db.str : "";
-  }
+  { return safe_str(db.str); }
+
   thd_scheduler event_scheduler;
 
 public:
@@ -4553,7 +4573,13 @@ public:
     The GTID assigned to the last commit. If no GTID was assigned to any commit
     so far, this is indicated by last_commit_gtid.seq_no == 0.
   */
-  rpl_gtid last_commit_gtid;
+private:
+  rpl_gtid m_last_commit_gtid;
+
+public:
+  rpl_gtid get_last_commit_gtid() { return m_last_commit_gtid; }
+  void set_last_commit_gtid(rpl_gtid &gtid);
+
 
   LF_PINS *tdc_hash_pins;
   LF_PINS *xid_hash_pins;
@@ -6054,6 +6080,7 @@ public:
   void prepare_to_read_rows();
 };
 
+class my_var_sp;
 class my_var : public Sql_alloc  {
 public:
   const LEX_CSTRING name;
@@ -6062,7 +6089,7 @@ public:
   my_var(const LEX_CSTRING *j, enum type s) : name(*j), scope(s) { }
   virtual ~my_var() {}
   virtual bool set(THD *thd, Item *val) = 0;
-  virtual class my_var_sp *get_my_var_sp() { return NULL; }
+  virtual my_var_sp *get_my_var_sp() { return NULL; }
 };
 
 class my_var_sp: public my_var {
@@ -6348,8 +6375,6 @@ inline int handler::ha_ft_read(uchar *buf)
 inline int handler::ha_rnd_pos_by_record(uchar *buf)
 {
   int error= rnd_pos_by_record(buf);
-  if (!error)
-    update_rows_read();
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }

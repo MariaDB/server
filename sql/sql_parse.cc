@@ -3689,6 +3689,7 @@ mysql_execute_command(THD *thd)
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_SHOW);
     execute_show_status(thd, all_tables);
+
     break;
   }
   case SQLCOM_SHOW_EXPLAIN:
@@ -4753,7 +4754,7 @@ end_with_restore_list:
   case SQLCOM_INSERT_SELECT:
   {
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
-    select_result *sel_result;
+    select_insert *sel_result;
     bool explain= MY_TEST(lex->describe);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     if (WSREP_CLIENT(thd) &&
@@ -6753,11 +6754,7 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
     THD_STAGE_INFO(thd, stage_checking_permissions);
   if (unlikely((!db || !db[0]) && !thd->db.str && !dont_check_global_grants))
   {
-    DBUG_PRINT("error",("No database"));
-    if (!no_errors)
-      my_message(ER_NO_DB_ERROR, ER_THD(thd, ER_NO_DB_ERROR),
-                 MYF(0));                       /* purecov: tested */
-    DBUG_RETURN(TRUE);				/* purecov: tested */
+    DBUG_RETURN(FALSE); // CTE reference or an error later
   }
 
   if (likely((db != NULL) && (db != any_db)))
@@ -8384,7 +8381,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   lex->add_to_query_tables(ptr);
 
   // Pure table aliases do not need to be locked:
-  if (!MY_TEST(table_options & TL_OPTION_ALIAS))
+  if (ptr->db.str && !(table_options & TL_OPTION_ALIAS))
   {
     ptr->mdl_request.init(MDL_key::TABLE, ptr->db.str, ptr->table_name.str,
                           mdl_type,

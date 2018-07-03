@@ -5,5 +5,4 @@
 plugin-load-add=ha_tokudb.so
 
 [mysqld_safe]
-# it might be necessary to uncomment the following line if jemalloc >= 5.0.0
 @cnf_malloc_lib@

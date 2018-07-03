@@ -454,6 +454,22 @@ void sys_var::do_deprecated_warning(THD *thd)
 
   @retval         true on error, false otherwise (warning or ok)
  */
+
+
+bool throw_bounds_warning(THD *thd, const char *name,const char *v)
+{
+  if (thd->variables.sql_mode & MODE_STRICT_ALL_TABLES)
+  {
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, v);
+    return true;
+  }
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_TRUNCATED_WRONG_VALUE,
+                      ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), name, v);
+  return false;
+}
+
+
 bool throw_bounds_warning(THD *thd, const char *name,
                           bool fixed, bool is_unsigned, longlong v)
 {
@@ -471,9 +487,7 @@ bool throw_bounds_warning(THD *thd, const char *name,
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;
     }
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE,
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), name, buf);
+    return throw_bounds_warning(thd, name, buf);
   }
   return false;
 }
@@ -491,9 +505,7 @@ bool throw_bounds_warning(THD *thd, const char *name, bool fixed, double v)
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;
     }
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE,
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), name, buf);
+    return throw_bounds_warning(thd, name, buf);
   }
   return false;
 }
@@ -1006,24 +1018,12 @@ int set_var_collation_client::update(THD *thd)
 #ifndef EMBEDDED_LIBRARY
   if (thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->is_enabled())
   {
-    sys_var *svar;
-    mysql_mutex_lock(&LOCK_plugin);
-    if ((svar= find_sys_var_ex(thd, "character_set_client",
-                               sizeof("character_set_client") - 1,
-                               false, true)))
-      thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
-        mark_as_changed(thd, (LEX_CSTRING*)svar);
-    if ((svar= find_sys_var_ex(thd, "character_set_results",
-                             sizeof("character_set_results") - 1,
-                               false, true)))
-      thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
-        mark_as_changed(thd, (LEX_CSTRING*)svar);
-    if ((svar= find_sys_var_ex(thd, "character_set_connection",
-                                sizeof("character_set_connection") - 1,
-                               false, true)))
-      thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
-        mark_as_changed(thd, (LEX_CSTRING*)svar);
-    mysql_mutex_unlock(&LOCK_plugin);
+    thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+      mark_as_changed(thd, (LEX_CSTRING*)Sys_character_set_client_ptr);
+    thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+      mark_as_changed(thd, (LEX_CSTRING*)Sys_character_set_results_ptr);
+    thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
+      mark_as_changed(thd, (LEX_CSTRING*)Sys_character_set_connection_ptr);
   }
   thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
 #endif //EMBEDDED_LIBRARY

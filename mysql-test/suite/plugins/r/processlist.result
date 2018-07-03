@@ -1,0 +1,9 @@
+create table t1 (a int) engine=innodb;
+start transaction;
+insert t1 values (1);
+connect con2,localhost,root;
+state from show engine innodb status, must be empty
+ 
+disconnect con2;
+connection default;
+drop table t1;

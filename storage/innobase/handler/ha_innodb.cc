@@ -2445,7 +2445,11 @@ innobase_mysql_tmpfile(
 	}
 	return hDup;
 #else
+#ifdef F_DUPFD_CLOEXEC
+	int fd2 = fcntl(fd, F_DUPFD_CLOEXEC, 0);
+#else
 	int fd2 = dup(fd);
+#endif
 	my_close(fd, MYF(MY_WME));
 	if (fd2 < 0) {
 		set_my_errno(errno);
@@ -3080,6 +3084,83 @@ AUTOCOMMIT==0 or we are inside BEGIN ... COMMIT. Thus transactions no longer
 put restrictions on the use of the query cache.
 */
 
+/** Check if mysql can allow the transaction to read from/store to
+the query cache.
+@param[in]	table	table object
+@param[in]	trx	transaction object
+@return whether the storing or retrieving from the query cache is permitted */
+static bool innobase_query_caching_table_check_low(
+	const dict_table_t*	table,
+	trx_t*			trx)
+{
+	/* The following conditions will decide the query cache
+	retrieval or storing into:
+
+	(1) There should not be any locks on the table.
+	(2) Someother trx shouldn't invalidate the cache before this
+	transaction started.
+	(3) Read view shouldn't exist. If exists then the view
+	low_limit_id should be greater than or equal to the transaction that
+	invalidates the cache for the particular table.
+
+	For read-only transaction: should satisfy (1) and (3)
+	For read-write transaction: should satisfy (1), (2), (3) */
+
+	if (lock_table_get_n_locks(table)) {
+		return false;
+	}
+
+	if (trx->id && trx->id < table->query_cache_inv_trx_id) {
+		return false;
+	}
+
+	return !trx->read_view.is_open()
+		|| trx->read_view.low_limit_id()
+		>= table->query_cache_inv_trx_id;
+}
+
+/** Checks if MySQL at the moment is allowed for this table to retrieve a
+consistent read result, or store it to the query cache.
+@param[in,out]	trx		transaction
+@param[in]	norm_name	concatenation of database name,
+				'/' char, table name
+@return whether storing or retrieving from the query cache is permitted */
+static bool innobase_query_caching_table_check(
+	trx_t*		trx,
+	const char*	norm_name)
+{
+	dict_table_t*   table = dict_table_open_on_name(
+		norm_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+
+	if (table == NULL) {
+		return false;
+	}
+
+	/* Start the transaction if it is not started yet */
+	trx_start_if_not_started(trx, false);
+
+	bool allow = innobase_query_caching_table_check_low(table, trx);
+
+	dict_table_close(table, FALSE, FALSE);
+
+	if (allow) {
+		/* If the isolation level is high, assign a read view for the
+		transaction if it does not yet have one */
+
+		if (trx->isolation_level >= TRX_ISO_REPEATABLE_READ
+		    && !srv_read_only_mode
+		    && !trx->read_view.is_open()) {
+
+			/* Start the transaction if it is not started yet */
+			trx_start_if_not_started(trx, false);
+
+			trx->read_view.open(trx);
+		}
+	}
+
+	return allow;
+}
+
 /******************************************************************//**
 The MySQL query cache uses this to check from InnoDB if the query cache at
 the moment is allowed to operate on an InnoDB table. The SQL query must
@@ -3155,7 +3236,7 @@ innobase_query_caching_of_table_permitted(
 
 	innobase_register_trx(innodb_hton_ptr, thd, trx);
 
-	return(row_search_check_if_query_cache_permitted(trx, norm_name));
+	return innobase_query_caching_table_check(trx, norm_name);
 }
 
 /*****************************************************************//**
@@ -8222,13 +8303,12 @@ report_error:
 		error, m_prebuilt->table->flags, m_user_thd);
 
 #ifdef WITH_WSREP
-	if (!error_result                                  &&
-	    wsrep_thd_exec_mode(m_user_thd) == LOCAL_STATE &&
-	    wsrep_on(m_user_thd)                           &&
-	    !wsrep_consistency_check(m_user_thd)           &&
-	    !wsrep_thd_ignore_table(m_user_thd)) {
-		if (wsrep_append_keys(m_user_thd, false, record, NULL))
-		{
+	if (!error_result
+	    && wsrep_on(m_user_thd)
+	    && wsrep_thd_exec_mode(m_user_thd) == LOCAL_STATE
+	    && !wsrep_consistency_check(m_user_thd)
+	    && !wsrep_thd_ignore_table(m_user_thd)) {
+		if (wsrep_append_keys(m_user_thd, false, record, NULL)) {
 			DBUG_PRINT("wsrep", ("row key failed"));
 			error_result = HA_ERR_INTERNAL_ERROR;
 			goto wsrep_error;
@@ -18725,8 +18805,10 @@ wsrep_innobase_kill_one_trx(
 		    thd_get_thread_id(thd),
 		    victim_trx->id);
 
-	WSREP_DEBUG("Aborting query: %s",
-		  (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void");
+	WSREP_DEBUG("Aborting query: %s conf %d trx: %lu",
+		    (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void",
+		    wsrep_thd_conflict_state(thd, FALSE),
+		    wsrep_thd_ws_handle(thd)->trx_id);
 
 	wsrep_thd_LOCK(thd);
         DBUG_EXECUTE_IF("sync.wsrep_after_BF_victim_lock",
@@ -18789,7 +18871,7 @@ wsrep_innobase_kill_one_trx(
 			wsrep_t *wsrep= get_wsrep();
 			rcode = wsrep->abort_pre_commit(
 				wsrep, bf_seqno,
-				(wsrep_trx_id_t)victim_trx->id
+				(wsrep_trx_id_t)wsrep_thd_ws_handle(thd)->trx_id
 			);
 
 			switch (rcode) {
@@ -18914,12 +18996,14 @@ wsrep_abort_transaction(
 	my_bool signal)
 {
 	DBUG_ENTER("wsrep_innobase_abort_thd");
-	trx_t* victim_trx = thd_to_trx(victim_thd);
-	trx_t* bf_trx     = (bf_thd) ? thd_to_trx(bf_thd) : NULL;
 
-	WSREP_DEBUG("abort transaction: BF: %s victim: %s",
-		    wsrep_thd_query(bf_thd),
-		    wsrep_thd_query(victim_thd));
+	trx_t* victim_trx	= thd_to_trx(victim_thd);
+	trx_t* bf_trx		= (bf_thd) ? thd_to_trx(bf_thd) : NULL;
+
+	WSREP_DEBUG("abort transaction: BF: %s victim: %s victim conf: %d",
+			wsrep_thd_query(bf_thd),
+			wsrep_thd_query(victim_thd),
+			wsrep_thd_conflict_state(victim_thd, FALSE));
 
 	if (victim_trx) {
 		lock_mutex_enter();
@@ -20702,6 +20786,77 @@ innobase_get_field_from_update_vector(
 	return (NULL);
 }
 
+
+/**
+   Allocate a heap and record for calculating virtual fields
+   Used mainly for virtual fields in indexes
+
+@param[in]      thd             MariaDB THD
+@param[in]      index           Index in use
+@param[out]	heap		Heap that holds temporary row
+@param[in,out]	mysql_table	MariaDB table
+@param[out]	rec		Pointer to allocated MariaDB record
+@param[out]	storage         Internal storage for blobs etc
+
+@return         FALSE ok
+@return         TRUE malloc failure
+*/
+
+bool innobase_allocate_row_for_vcol(
+				    THD *	  thd,
+				    dict_index_t* index,
+				    mem_heap_t**  heap,
+				    TABLE**	  table,
+				    byte**	  record,
+				    VCOL_STORAGE** storage)
+{
+	TABLE *maria_table;
+	String *blob_value_storage;
+	if (!*table)
+		*table= innobase_find_mysql_table_for_vc(thd, index->table);
+	maria_table= *table;
+	if (!*heap && !(*heap= mem_heap_create(srv_page_size)))
+	{
+		*storage= 0;
+		return TRUE;
+	}
+	*record= static_cast<byte*>(mem_heap_alloc(*heap,
+                                                   maria_table->s->reclength));
+	*storage= static_cast<VCOL_STORAGE*>
+          (mem_heap_alloc(*heap, sizeof(**storage)));
+	blob_value_storage= static_cast<String*>
+          (mem_heap_alloc(*heap,
+                          maria_table->s->virtual_not_stored_blob_fields *
+                          sizeof(String)));
+	if (!*record || !*storage || !blob_value_storage)
+	{
+		*storage= 0;
+		return TRUE;
+	}
+	(*storage)->maria_table= maria_table;
+	(*storage)->innobase_record= *record;
+	(*storage)->maria_record= maria_table->field[0]->record_ptr();
+	(*storage)->blob_value_storage= blob_value_storage;
+
+	maria_table->move_fields(maria_table->field, *record,
+				 (*storage)->maria_record);
+	maria_table->remember_blob_values(blob_value_storage);
+
+	return FALSE;
+}
+
+
+/** Free memory allocated by innobase_allocate_row_for_vcol() */
+
+void innobase_free_row_for_vcol(VCOL_STORAGE *storage)
+{
+	TABLE *maria_table= storage->maria_table;
+	maria_table->move_fields(maria_table->field, storage->maria_record,
+                                 storage->innobase_record);
+        maria_table->restore_blob_values(storage->blob_value_storage);
+}
+
+
 /** Get the computed value by supplying the base column values.
 @param[in,out]	row		the data row
 @param[in]	col		virtual column
@@ -20727,12 +20882,12 @@ innobase_get_computed_value(
 	const dict_field_t*	ifield,
 	THD*			thd,
 	TABLE*			mysql_table,
+	byte*			mysql_rec,
 	const dict_table_t*	old_table,
 	upd_t*			parent_update,
 	dict_foreign_t*		foreign)
 {
 	byte		rec_buf2[REC_VERSION_56_MAX_INDEX_COL_LEN];
-	byte*		mysql_rec;
 	byte*		buf;
 	dfield_t*	field;
 	ulint		len;
@@ -20745,6 +20900,7 @@ innobase_get_computed_value(
 
 	ut_ad(index->table->vc_templ);
 	ut_ad(thd != NULL);
+	ut_ad(mysql_table);
 
 	const mysql_row_templ_t*
 			vctempl =  index->table->vc_templ->vtempl[
@@ -20761,14 +20917,6 @@ innobase_get_computed_value(
 	} else {
 		buf = rec_buf2;
 	}
-
-	if (!mysql_table) {
-		mysql_table = innobase_find_mysql_table_for_vc(thd, index->table);
-	}
-
-	ut_ad(mysql_table);
-
-	mysql_rec = mysql_table->record[0];
 
 	for (ulint i = 0; i < col->num_base; i++) {
 		dict_col_t*			base_col = col->base_col[i];

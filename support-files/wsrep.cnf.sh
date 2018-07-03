@@ -30,6 +30,9 @@ bind-address=0.0.0.0
 ## WSREP options
 ##
 
+# Enable wsrep
+wsrep_on=1
+
 # Full path to wsrep provider library or 'none'
 wsrep_provider=none
 
