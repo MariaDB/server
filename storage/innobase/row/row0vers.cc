@@ -126,14 +126,22 @@ row_vers_impl_x_locked_low(
 		DBUG_RETURN(0);
 	}
 
-	trx_t*	trx = trx_sys.find(caller_trx, trx_id);
+	trx_t*	trx;
 
-	if (trx == 0) {
-		/* The transaction that modified or inserted clust_rec is no
-		longer active, or it is corrupt: no implicit lock on rec */
-		lock_check_trx_id_sanity(trx_id, clust_rec, clust_index, clust_offsets);
-		mem_heap_free(heap);
-		DBUG_RETURN(0);
+	if (trx_id == caller_trx->id) {
+		trx = caller_trx;
+		trx->reference();
+	} else {
+		trx = trx_sys.find(caller_trx, trx_id);
+		if (trx == 0) {
+			/* The transaction that modified or inserted
+			clust_rec is no longer active, or it is
+			corrupt: no implicit lock on rec */
+			lock_check_trx_id_sanity(trx_id, clust_rec,
+						 clust_index, clust_offsets);
+			mem_heap_free(heap);
+			DBUG_RETURN(0);
+		}
 	}
 
 	comp = page_rec_is_comp(rec);

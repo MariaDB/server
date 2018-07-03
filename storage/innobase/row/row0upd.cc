@@ -3093,9 +3093,7 @@ row_upd_clust_step(
 
 	ulint	mode;
 
-	DEBUG_SYNC_C_IF_THD(
-		thr_get_trx(thr)->mysql_thd,
-		"innodb_row_upd_clust_step_enter");
+	DEBUG_SYNC_C_IF_THD(trx->mysql_thd, "innodb_row_upd_clust_step_enter");
 
 	if (dict_index_is_online_ddl(index)) {
 		ut_ad(node->table->id != DICT_INDEXES_ID);
@@ -3157,10 +3155,11 @@ row_upd_clust_step(
 		}
 	}
 
-	ut_ad(index->table->no_rollback()
-	      || lock_trx_has_rec_x_lock(thr_get_trx(thr), index->table,
-					 btr_pcur_get_block(pcur),
-					 page_rec_get_heap_no(rec)));
+	ut_ad(index->table->no_rollback() || index->table->is_temporary()
+	      || row_get_rec_trx_id(rec, index, offsets) == trx->id
+	      || lock_trx_has_expl_x_lock(trx, index->table,
+					  btr_pcur_get_block(pcur),
+					  page_rec_get_heap_no(rec)));
 
 	/* NOTE: the following function calls will also commit mtr */
 
