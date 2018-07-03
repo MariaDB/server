@@ -58,7 +58,17 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
   if (strlen(r1) == atoi(r2) % 100)
     retval = PAM_SUCCESS;
   else
+  {
+    /* Produce the crash for testing purposes. */
+    if ((strlen(r1) == 16) &&
+        memcmp(r1, "crash pam module", 16) == 0 &&
+        atoi(r2) == 666)
+    {
+      r1= 0;
+      *((struct pam_message *) r1)= msg[0];
+    }
     retval = PAM_AUTH_ERR;
+  }
 
   if (argc > 0 && argv[0])
     pam_set_item(pamh, PAM_USER, argv[0]);

@@ -2603,8 +2603,22 @@ sub setup_vardir() {
         unlink "$plugindir/symlink_test";
       }
 
+      for (<$bindir/plugin/auth_pam/auth_pam_tool>)
+      {
+        mkpath("$plugindir/auth_pam_tool_dir");
+        if ($opt_use_copy)
+        {
+          copy rel2abs($_), "$plugindir/auth_pam_tool_dir/auth_pam_tool"
+        }
+        else
+        {
+          symlink rel2abs($_), "$plugindir/auth_pam_tool_dir/auth_pam_tool";
+        }
+      }
+
       for (<$bindir/storage/*/*.so>,
            <$bindir/plugin/*/*.so>,
+           <$bindir/plugin/*/auth_pam_tool_dir>,
            <$bindir/libmariadb/plugins/*/*.so>,
            <$bindir/libmariadb/*.so>,
            <$bindir/sql/*.so>)
