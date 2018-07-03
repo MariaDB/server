@@ -38,7 +38,8 @@ public:
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_trt_ts>(thd, this); }
-  void fix_length_and_dec() { fix_attributes_datetime(decimals); }
+  bool fix_length_and_dec()
+  { fix_attributes_datetime(decimals); return FALSE; }
 };
 
 class Item_func_trt_id : public Item_longlong_func
@@ -69,10 +70,11 @@ public:
     return NULL;
   }
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
-    Item_int_func::fix_length_and_dec();
+    bool res= Item_int_func::fix_length_and_dec();
     max_length= 20;
+    return res;
   }
 
   longlong val_int();

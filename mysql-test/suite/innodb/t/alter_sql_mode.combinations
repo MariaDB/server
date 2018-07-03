@@ -1,0 +1,5 @@
+[STRICT]
+--sql_mode=STRICT_TRANS_TABLES
+
+[NON-STRICT]
+--sql_mode=

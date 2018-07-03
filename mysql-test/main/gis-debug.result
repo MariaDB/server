@@ -469,7 +469,6 @@ Note	1105	DBUG:  [0,0] handler=int
 Note	1105	DBUG:  [0,1] handler=geometry
 Note	1105	DBUG:  [0,2] handler=int
 Error	4078	Illegal parameter data types int and geometry for operation 'in'
-Note	1105	DBUG: types_compatible=yes bisect=yes
 SELECT (1,(0,0)) IN ((1,(POINT(1,1),0)),(0,(0,0)));
 ERROR HY000: Illegal parameter data types int and geometry for operation 'in'
 SHOW WARNINGS;
@@ -490,7 +489,6 @@ Note	1105	DBUG:   [0,0] handler=int
 Note	1105	DBUG:   [0,1] handler=geometry
 Note	1105	DBUG:   [0,2] handler=int
 Error	4078	Illegal parameter data types int and geometry for operation 'in'
-Note	1105	DBUG: types_compatible=yes bisect=yes
 SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
 SET SESSION debug_dbug="-d,Item_func_in";
 SET SESSION debug_dbug="-d,cmp_item";

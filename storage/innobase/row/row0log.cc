@@ -39,6 +39,7 @@ Created 2011-05-26 Marko Makela
 #include "ut0stage.h"
 #include "trx0rec.h"
 
+#include <sql_class.h>
 #include <algorithm>
 #include <map>
 
@@ -226,10 +227,13 @@ struct row_log_t {
 	table could be emptied, so that table->is_instant() no longer holds,
 	but all log records must be in the "instant" format. */
 	unsigned	n_core_fields;
-	bool		ignore; /*!< Whether the alter ignore is being used;
+	bool		allow_not_null; /*!< Whether the alter ignore is being
+				used or if the sql mode is non-strict mode;
 				if not, NULL values will not be converted to
 				defaults */
+	const TABLE*	old_table; /*< Use old table in case of error. */
 
+	uint64_t	n_rows; /*< Number of rows read from the table */
 	/** Determine whether the log should be in the 'instant ADD' format
 	@param[in]	index	the clustered index of the source table
 	@return	whether to use the 'instant ADD COLUMN' format */
@@ -1107,6 +1111,7 @@ table
 @param[in]	i		rec field corresponding to col
 @param[in]	page_size	page size of the old table
 @param[in]	max_len		maximum length of dfield
+@param[in]	log		row log for the table
 @retval DB_INVALID_NULL		if a NULL value is encountered
 @retval DB_TOO_BIG_INDEX_COL	if the maximum prefix length is exceeded */
 static
@@ -1120,8 +1125,7 @@ row_log_table_get_pk_col(
 	ulint			i,
 	const page_size_t&	page_size,
 	ulint			max_len,
-	bool			ignore,
-	const dtuple_t*		defaults)
+	const row_log_t*	log)
 {
 	const byte*	field;
 	ulint		len;
@@ -1129,12 +1133,16 @@ row_log_table_get_pk_col(
 	field = rec_get_nth_field(rec, offsets, i, &len);
 
 	if (len == UNIV_SQL_NULL) {
-		if (!ignore || !defaults->fields[i].data) {
+
+		if (!log->allow_not_null) {
 			return(DB_INVALID_NULL);
 		}
 
-		field = static_cast<const byte*>(defaults->fields[i].data);
-		len = defaults->fields[i].len;
+		ulint n_default_cols = i - DATA_N_SYS_COLS;
+
+		field = static_cast<const byte*>(
+			log->defaults->fields[n_default_cols].data);
+		len = log->defaults->fields[i - DATA_N_SYS_COLS].len;
 	}
 
 	if (rec_offs_nth_extern(offsets, i)) {
@@ -1298,8 +1306,7 @@ row_log_table_get_pk(
 
 				log->error = row_log_table_get_pk_col(
 					ifield, dfield, *heap,
-					rec, offsets, i, page_size, max_len,
-					log->ignore, log->defaults);
+					rec, offsets, i, page_size, max_len, log);
 
 				if (log->error != DB_SUCCESS) {
 err_exit:
@@ -1477,7 +1484,7 @@ row_log_table_apply_convert_mrec(
 	const mrec_t*		mrec,		/*!< in: merge record */
 	dict_index_t*		index,		/*!< in: index of mrec */
 	const ulint*		offsets,	/*!< in: offsets of mrec */
-	const row_log_t*	log,		/*!< in: rebuild context */
+	row_log_t*		log,		/*!< in: rebuild context */
 	mem_heap_t*		heap,		/*!< in/out: memory heap */
 	dberr_t*		error)		/*!< out: DB_SUCCESS or
 						DB_MISSING_HISTORY or
@@ -1485,6 +1492,7 @@ row_log_table_apply_convert_mrec(
 {
 	dtuple_t*	row;
 
+	log->n_rows++;
 	*error = DB_SUCCESS;
 
 	/* This is based on row_build(). */
@@ -1613,8 +1621,12 @@ blob_done:
 
 			const dfield_t& default_field
 				= log->defaults->fields[col_no];
+			Field* field = log->old_table->field[col_no];
 
-			if (!log->ignore || !default_field.data) {
+			field->set_warning(Sql_condition::WARN_LEVEL_WARN,
+					   WARN_DATA_TRUNCATED, 1, ulong(log->n_rows));
+
+			if (!log->allow_not_null) {
 				/* We got a NULL value for a NOT NULL column. */
 				*error = DB_INVALID_NULL;
 				return NULL;
@@ -1724,7 +1736,7 @@ row_log_table_apply_insert(
 	row_merge_dup_t*	dup)		/*!< in/out: for reporting
 						duplicate key errors */
 {
-	const row_log_t*log	= dup->index->online_log;
+	row_log_t*log	= dup->index->online_log;
 	dberr_t		error;
 	const dtuple_t*	row	= row_log_table_apply_convert_mrec(
 		mrec, dup->index, offsets, log, heap, &error);
@@ -1995,7 +2007,7 @@ row_log_table_apply_update(
 						of the old value,
 						or PRIMARY KEY if same_pk */
 {
-	const row_log_t*log	= dup->index->online_log;
+	row_log_t*	log	= dup->index->online_log;
 	const dtuple_t*	row;
 	dict_index_t*	index	= dict_table_get_first_index(log->table);
 	mtr_t		mtr;
@@ -3040,13 +3052,15 @@ func_exit:
 @param[in,out]	stage		performance schema accounting object, used by
 ALTER TABLE. stage->begin_phase_log_table() will be called initially and then
 stage->inc() will be called for each block of log that is applied.
+@param[in]	new_table	Altered table
 @return DB_SUCCESS, or error code on failure */
 dberr_t
 row_log_table_apply(
 	que_thr_t*		thr,
 	dict_table_t*		old_table,
 	struct TABLE*		table,
-	ut_stage_alter_t*	stage)
+	ut_stage_alter_t*	stage,
+	dict_table_t*		new_table)
 {
 	dberr_t		error;
 	dict_index_t*	clust_index;
@@ -3059,6 +3073,10 @@ row_log_table_apply(
 
 	ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_S));
 	clust_index = dict_table_get_first_index(old_table);
+
+	if (clust_index->online_log->n_rows == 0) {
+		clust_index->online_log->n_rows = new_table->stat_n_rows;
+	}
 
 	rw_lock_x_lock(dict_index_get_lock(clust_index));
 
@@ -3109,7 +3127,9 @@ row_log_allocate(
 	const ulint*	col_map,/*!< in: mapping of old column
 				numbers to new ones, or NULL if !table */
 	const char*	path,	/*!< in: where to create temporary file */
-	const bool	ignore) /*!< in: alter ignore issued */
+	const TABLE*	old_table,	/*!< in: table definition before alter */
+	const bool	allow_not_null) /*!< in: allow null to not-null
+					conversion */
 {
 	row_log_t*	log;
 	DBUG_ENTER("row_log_allocate");
@@ -3150,7 +3170,9 @@ row_log_allocate(
 	log->path = path;
 	log->n_core_fields = index->n_core_fields;
 	ut_ad(!table || log->is_instant(index) == index->is_instant());
-	log->ignore=ignore;
+	log->allow_not_null = allow_not_null;
+	log->old_table = old_table;
+	log->n_rows = 0;
 
 	dict_index_set_online_status(index, ONLINE_INDEX_CREATION);
 	index->online_log = log;

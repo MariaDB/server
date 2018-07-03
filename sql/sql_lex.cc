@@ -2255,6 +2255,7 @@ void st_select_lex::init_query()
   cond_pushed_into_where= cond_pushed_into_having= 0;
   olap= UNSPECIFIED_OLAP_TYPE;
   having_fix_field= 0;
+  having_fix_field_for_pushed_cond= 0;
   context.select_lex= this;
   context.init();
   /*
@@ -5480,7 +5481,8 @@ LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
     spvar->field_def.set_cursor_rowtype_ref(offset);
     sp_instr_cursor_copy_struct *instr=
       new (thd->mem_root) sp_instr_cursor_copy_struct(sphead->instructions(),
-                                                      spcont, pcursor->lex(),
+                                                      spcont, offset,
+                                                      pcursor->lex(),
                                                       spvar->offset);
     if (instr == NULL || sphead->add_instr(instr))
      return true;
@@ -5887,6 +5889,26 @@ bool LEX::sp_for_loop_cursor_finalize(THD *thd, const Lex_for_loop_st &loop)
   return sp_while_loop_finalize(thd);
 }
 
+bool LEX::sp_for_loop_outer_block_finalize(THD *thd,
+                                           const Lex_for_loop_st &loop)
+{
+  Lex_spblock tmp;
+  tmp.curs= MY_TEST(loop.m_implicit_cursor);
+  if (unlikely(sp_block_finalize(thd, tmp))) // The outer DECLARE..BEGIN..END
+    return true;
+  if (!loop.is_for_loop_explicit_cursor())
+    return false;
+  /*
+    Explicit cursor FOR loop must close the cursor automatically.
+    Note, implicit cursor FOR loop does not need to close the cursor,
+    it's closed by sp_instr_cpop.
+  */
+  sp_instr_cclose *ic= new (thd->mem_root)
+                       sp_instr_cclose(sphead->instructions(), spcont,
+                                       loop.m_cursor_offset);
+  return ic == NULL || sphead->add_instr(ic);
+}
+
 /***************************************************************************/
 
 bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
@@ -5901,7 +5923,6 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
     my_error(ER_SP_DUP_CURS, MYF(0), name->str);
     return true;
   }
-  cursor_stmt->set_cursor_name(name);
 
   if (unlikely(spcont->add_cursor(name, param_ctx, cursor_stmt)))
     return true;

@@ -2235,6 +2235,29 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #
+# MDEV-14668 ADD PRIMARY KEY IF NOT EXISTS on composite key
+#
+CREATE TABLE t1 (
+`ID` BIGINT(20) NOT NULL,
+`RANK` MEDIUMINT(4) NOT NULL,
+`CHECK_POINT` BIGINT(20) NOT NULL,
+UNIQUE INDEX `HORIZON_UIDX01` (`ID`, `RANK`)
+) ENGINE=InnoDB;
+ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS (`ID`, `CHECK_POINT`);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `ID` bigint(20) NOT NULL,
+  `RANK` mediumint(4) NOT NULL,
+  `CHECK_POINT` bigint(20) NOT NULL,
+  PRIMARY KEY (`ID`,`CHECK_POINT`),
+  UNIQUE KEY `HORIZON_UIDX01` (`ID`,`RANK`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS (`ID`, `CHECK_POINT`);
+Warnings:
+Note	1061	Multiple primary key defined
+DROP TABLE t1;
+#
 # End of 10.0 tests
 #
 #
@@ -2379,6 +2402,17 @@ t1	CREATE TABLE `t1` (
   CONSTRAINT `new` CHECK (octet_length(`b`) > 0)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
+#
+# MDEV-11071: Assertion `thd->transaction.stmt.is_empty()' failed
+# in Locked_tables_list::unlock_locked_tables
+#
+CREATE TABLE t1 (d DATETIME DEFAULT CURRENT_TIMESTAMP, i INT) ENGINE=InnoDB;
+INSERT INTO t1 (i) VALUES (1),(1);
+LOCK TABLE t1 WRITE;
+ALTER TABLE t1 ADD UNIQUE(i);
+ERROR 23000: Duplicate entry '1' for key 'i'
+UNLOCK TABLES;
+DROP TABLE t1;
 #
 # End of 10.2 tests
 #

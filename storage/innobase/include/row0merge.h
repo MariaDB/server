@@ -322,6 +322,7 @@ this function and it will be passed to other functions for further accounting.
 @param[in]	add_v		new virtual columns added along with indexes
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
+@param[in]	allow_non_null	allow the conversion from null to not-null
 @return DB_SUCCESS or error code */
 dberr_t
 row_merge_build_indexes(
@@ -340,7 +341,8 @@ row_merge_build_indexes(
 	bool			skip_pk_sort,
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
-	struct TABLE*		eval_table)
+	struct TABLE*		eval_table,
+	bool			allow_non_null)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**

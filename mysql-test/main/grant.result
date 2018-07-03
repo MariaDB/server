@@ -1451,6 +1451,7 @@ CURRENT_USER()
 root@localhost
 SET PASSWORD FOR CURRENT_USER() = PASSWORD("admin");
 SET PASSWORD FOR CURRENT_USER() = PASSWORD("");
+update mysql.user set plugin='';
 
 # Bug#57952
 

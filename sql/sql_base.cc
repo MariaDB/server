@@ -1572,6 +1572,12 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     DBUG_RETURN(true);
   }
 
+  if (!table_list->db.str)
+  {
+    my_error(ER_NO_DB_ERROR, MYF(0));
+    DBUG_RETURN(true);
+  }
+
   key_length= get_table_def_key(table_list, &key);
 
   /*
@@ -5585,6 +5591,9 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name, si
       column reference. See create_view_field() for details.
     */
     item= nj_col->create_item(thd);
+    if (!item)
+      DBUG_RETURN(NULL);
+
     /*
      *ref != NULL means that *ref contains the item that we need to
      replace. If the item was aliased by the user, set the alias to

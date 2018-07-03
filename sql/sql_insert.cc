@@ -1970,13 +1970,12 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             error= table->file->ha_delete_row(table->record[1]);
           else
           {
-            DBUG_ASSERT(table->insert_values);
-            store_record(table,insert_values);
-            restore_record(table,record[1]);
+            store_record(table, record[2]);
+            restore_record(table, record[1]);
             table->vers_update_end();
             error= table->file->ha_update_row(table->record[1],
                                               table->record[0]);
-            restore_record(table,insert_values);
+            restore_record(table, record[2]);
           }
           if (unlikely(error))
             goto err;
@@ -4562,12 +4561,44 @@ bool select_create::send_eof()
   */
   if (!table->s->tmp_table)
   {
+#ifdef WITH_WSREP
+    if (WSREP_ON)
+    {
+      /*
+         append table level exclusive key for CTAS
+      */
+      wsrep_key_arr_t key_arr= {0, 0};
+      wsrep_prepare_keys_for_isolation(thd,
+                                       create_table->db.str,
+                                       create_table->table_name.str,
+                                       table_list,
+                                       &key_arr);
+      int rcode = wsrep->append_key(
+                                wsrep,
+                                &thd->wsrep_ws_handle,
+                                key_arr.keys, //&wkey,
+                                key_arr.keys_len,
+                                WSREP_KEY_EXCLUSIVE,
+                                false);
+      wsrep_keys_free(&key_arr);
+      if (rcode) {
+        DBUG_PRINT("wsrep", ("row key failed: %d", rcode));
+        WSREP_ERROR("Appending table key for CTAS failed: %s, %d",
+                    (wsrep_thd_query(thd)) ?
+                    wsrep_thd_query(thd) : "void", rcode);
+        return true;
+      }
+      /* If commit fails, we should be able to reset the OK status. */
+      thd->get_stmt_da()->set_overwrite_status(TRUE);
+    }
+#endif /* WITH_WSREP */
     trans_commit_stmt(thd);
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
       trans_commit_implicit(thd);
 #ifdef WITH_WSREP
     if (WSREP_ON)
     {
+      thd->get_stmt_da()->set_overwrite_status(FALSE);
       mysql_mutex_lock(&thd->LOCK_thd_data);
       if (thd->wsrep_conflict_state != NO_CONFLICT)
       {

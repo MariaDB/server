@@ -739,6 +739,14 @@ drop table t1;
 select json_extract('{"test":8.437e-5}','$.test');
 json_extract('{"test":8.437e-5}','$.test')
 8.437e-5
+select json_value('{"b":true}','$.b')=1;
+json_value('{"b":true}','$.b')=1
+1
+CREATE TABLE t1 (c VARCHAR(8));
+INSERT INTO t1 VALUES ('foo'),('bar');
+SELECT * FROM t1 WHERE c IN (JSON_EXTRACT('{"a":"b"}', '$.*'));
+c
+DROP TABLE t1;
 #
 # End of 10.2 tests
 #

@@ -28,6 +28,7 @@
 #include <sql_priv.h>
 #include "set_var.h"
 
+extern bool throw_bounds_warning(THD *thd, const char *name,const char *v);
 extern bool throw_bounds_warning(THD *thd, const char *name,
                                  bool fixed, bool is_unsigned, longlong v);
 extern bool throw_bounds_warning(THD *thd, const char *name, bool fixed,

@@ -47,6 +47,12 @@
 #include "probes_mysql.h"
 #include "proxy_protocol.h"
 
+#ifdef EMBEDDED_LIBRARY
+#undef MYSQL_SERVER
+#undef MYSQL_CLIENT
+#define MYSQL_CLIENT
+#endif /*EMBEDDED_LIBRARY */
+
 /*
   to reduce the number of ifdef's in the code
 */

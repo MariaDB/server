@@ -749,6 +749,9 @@ public:
 	ulint flags() const
 	{ return(m_flags); }
 
+	/** Update table flags. */
+	void flags_set(ulint flags) { m_flags |= flags; }
+
 	/** Get table flags2. */
 	ulint flags2() const
 	{ return(m_flags2); }

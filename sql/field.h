@@ -800,9 +800,14 @@ public:
   }
   virtual double val_real(void)=0;
   virtual longlong val_int(void)=0;
+  /*
+    Get ulonglong representation.
+    Negative values are truncated to 0.
+  */
   virtual ulonglong val_uint(void)
   {
-    return (ulonglong) val_int();
+    longlong nr= val_int();
+    return nr < 0 ? 0 : (ulonglong) nr;
   }
   virtual bool val_bool(void)= 0;
   virtual my_decimal *val_decimal(my_decimal *);
@@ -1343,7 +1348,7 @@ public:
   virtual uint repertoire(void) const { return MY_REPERTOIRE_UNICODE30; }
   virtual int set_time() { return 1; }
   bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
-                   int cuted_increment) const;
+                   int cuted_increment, ulong current_row=0) const;
 protected:
   bool set_warning(unsigned int code, int cuted_increment) const
   {
@@ -1393,6 +1398,19 @@ public:
         org_field->type() == MYSQL_TYPE_VARCHAR)
       new_table->s->db_create_options|= HA_OPTION_PACK_RECORD;
   }
+  void init_for_make_new_field(TABLE *new_table_arg, TABLE *orig_table_arg)
+  {
+    init(new_table_arg);
+    /*
+      Normally orig_table is different from table only if field was
+      created via ::make_new_field.  Here we alter the type of field,
+      so ::make_new_field is not applicable. But we still need to
+      preserve the original field metadata for the client-server
+      protocol.
+    */
+    orig_table= orig_table_arg;
+  }
+
   /* maximum possible display length */
   virtual uint32 max_display_length() const= 0;
   /**
@@ -1663,6 +1681,8 @@ public:
   bool eq_def(const Field *field) const;
   Copy_func *get_copy_func(const Field *from) const
   {
+    if (unsigned_flag && from->cmp_type() == DECIMAL_RESULT)
+      return do_field_decimal;
     return do_field_int;
   }
   int save_in_field(Field *to)
@@ -1877,6 +1897,7 @@ public:
                 unireg_check_arg, field_name_arg,
                 dec_arg, zero_arg, unsigned_arg)
     {}
+  Field *make_new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   const Type_handler *type_handler() const { return &type_handler_olddecimal; }
   enum ha_base_keytype key_type() const
   { return zerofill ? HA_KEYTYPE_BINARY : HA_KEYTYPE_NUM; }
@@ -1957,6 +1978,7 @@ public:
   int  store_decimal(const my_decimal *);
   double val_real(void);
   longlong val_int(void);
+  ulonglong val_uint(void);
   my_decimal *val_decimal(my_decimal *);
   String *val_str(String*, String *);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
@@ -2003,6 +2025,11 @@ public:
   int store_decimal(const my_decimal *);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool() { return val_int() != 0; }
+  ulonglong val_uint()
+  {
+    longlong nr= val_int();
+    return nr < 0 && !unsigned_flag ? 0 : (ulonglong) nr;
+  }
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   virtual const Type_limits_int *type_limits_int() const= 0;
@@ -3747,6 +3774,10 @@ public:
   uint32 char_length() const;
   uint32 octet_length() const;
   uint is_equal(Create_field *new_field);
+
+  friend void TABLE::remember_blob_values(String *blob_storage);
+  friend void TABLE::restore_blob_values(String *blob_storage);
+
 private:
   int save_field_metadata(uchar *first_byte);
 };
@@ -4044,6 +4075,8 @@ public:
   }
   Copy_func *get_copy_func(const Field *from) const
   {
+    if (from->cmp_type() == DECIMAL_RESULT)
+      return do_field_decimal;
     return do_field_int;
   }
   int save_in_field(Field *to) { return to->store(val_int(), true); }
@@ -4344,7 +4377,7 @@ public:
     length*= charset->mbmaxlen;
     if (real_field_type() == MYSQL_TYPE_VARCHAR && compression_method())
       length++;
-    DBUG_ASSERT(length <= UINT_MAX32);
+    set_if_smaller(length, UINT_MAX32);
     key_length= (uint) length;
     pack_length= type_handler()->calc_pack_length((uint32) length);
   }

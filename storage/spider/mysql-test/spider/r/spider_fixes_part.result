@@ -214,6 +214,37 @@ id
 10000
 connection master_1;
 
+Crash from b4a2baffa82e5c07b96a1c752228560dcac1359b (MDEV-11084)
+Fixed with 4968049799193394d442f26b4e3a8d95b185be72
+Spider crashed if the first partition was not used first
+connection master_1;
+CREATE TABLE ta_l2 (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_COMMENT2_P_2_1
+INSERT INTO ta_l2 SELECT a, b, c FROM tb_l;
+Query a Spider table only using the second partition
+SELECT a,b,c FROM ta_l2 PARTITION (pt2);
+a	b	c
+4	d	2003-11-30 05:01:03
+5	c	2001-12-31 23:59:59
+Query a Spider table only using the first partition
+SELECT a,b,c FROM ta_l2 PARTITION (pt1);
+a	b	c
+1	a	2008-08-01 10:21:39
+2	b	2000-01-01 00:00:00
+3	e	2007-06-04 20:03:11
+Query a Spider table by all paritions, then the second partition
+SELECT min(a), max(a), min(b), max(b) FROM ta_l2;
+min(a)	max(a)	min(b)	max(b)
+1	5	a	e
+SELECT a,b,c FROM ta_l2 PARTITION (pt2);
+a	b	c
+4	d	2003-11-30 05:01:03
+5	c	2001-12-31 23:59:59
+
 deinit
 connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;

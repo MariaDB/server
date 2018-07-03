@@ -532,6 +532,8 @@ row_merge_buf_add(
 	ulint			bucket = 0;
 	doc_id_t		write_doc_id;
 	ulint			n_row_added = 0;
+	VCOL_STORAGE*		vcol_storage= 0;
+	byte*			record;
 	DBUG_ENTER("row_merge_buf_add");
 
 	if (buf->n_tuples >= buf->max_tuples) {
@@ -604,14 +606,21 @@ row_merge_buf_add(
 				dict_index_t*	clust_index
 					= dict_table_get_first_index(new_table);
 
+                                if (!vcol_storage &&
+                                    innobase_allocate_row_for_vcol(trx->mysql_thd, clust_index, v_heap, &my_table, &record, &vcol_storage)) {
+					*err = DB_OUT_OF_MEMORY;
+					goto error;
+				}
+
 				row_field = innobase_get_computed_value(
 					row, v_col, clust_index,
 					v_heap, NULL, ifield, trx->mysql_thd,
-					my_table, old_table, NULL, NULL);
+					my_table, record, old_table, NULL,
+					NULL);
 
 				if (row_field == NULL) {
 					*err = DB_COMPUTE_VALUE_FAILED;
-					DBUG_RETURN(0);
+					goto error;
 				}
 				dfield_copy(field, row_field);
 			} else {
@@ -647,7 +656,7 @@ row_merge_buf_add(
 						ib::warn() << "FTS Doc ID is"
 							" zero. Record"
 							" skipped";
-						DBUG_RETURN(0);
+						goto error;
 					}
 				}
 
@@ -795,7 +804,7 @@ row_merge_buf_add(
 	/* If this is FTS index, we already populated the sort buffer, return
 	here */
 	if (index->type & DICT_FTS) {
-		DBUG_RETURN(n_row_added);
+		goto end;
 	}
 
 #ifdef UNIV_DEBUG
@@ -829,7 +838,7 @@ row_merge_buf_add(
 
 	/* Reserve bytes for the end marker of row_merge_block_t. */
 	if (buf->total_size + data_size >= srv_sort_buf_size) {
-		DBUG_RETURN(0);
+		goto error;
 	}
 
 	buf->total_size += data_size;
@@ -848,7 +857,15 @@ row_merge_buf_add(
 		mem_heap_empty(conv_heap);
 	}
 
+end:
+        if (vcol_storage)
+		innobase_free_row_for_vcol(vcol_storage);
 	DBUG_RETURN(n_row_added);
+
+error:
+        if (vcol_storage)
+		innobase_free_row_for_vcol(vcol_storage);
+        DBUG_RETURN(0);
 }
 
 /*************************************************************//**
@@ -1674,6 +1691,7 @@ stage->inc() will be called for each page read.
 @param[in,out]	crypt_block	crypted file buffer
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
+@param[in]	allow_not_null	allow null to not-null conversion
 @return DB_SUCCESS or error */
 static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
@@ -1681,7 +1699,7 @@ row_merge_read_clustered_index(
 	trx_t*			trx,
 	struct TABLE*		table,
 	const dict_table_t*	old_table,
-	const dict_table_t*	new_table,
+	dict_table_t*		new_table,
 	bool			online,
 	dict_index_t**		index,
 	dict_index_t*		fts_sort_idx,
@@ -1700,7 +1718,8 @@ row_merge_read_clustered_index(
 	ut_stage_alter_t*	stage,
 	double 			pct_cost,
 	row_merge_block_t*	crypt_block,
-	struct TABLE*		eval_table)
+	struct TABLE*		eval_table,
+	bool			allow_not_null)
 {
 	dict_index_t*		clust_index;	/* Clustered index */
 	mem_heap_t*		row_heap;	/* Heap memory to create
@@ -1914,6 +1933,7 @@ row_merge_read_clustered_index(
 
 	mach_write_to_8(new_sys_trx_start, trx->id);
 	mach_write_to_8(new_sys_trx_end, TRX_ID_MAX);
+	uint64_t	n_rows = 0;
 
 	/* Scan the clustered index. */
 	for (;;) {
@@ -2174,14 +2194,23 @@ end_of_index:
 			ut_ad(dfield_get_type(field)->prtype & DATA_NOT_NULL);
 
 			if (dfield_is_null(field)) {
-				const dfield_t& default_field
-					= defaults->fields[nonnull[i]];
 
-				if (default_field.data == NULL) {
+				Field* null_field =
+					table->field[nonnull[i]];
+
+				null_field->set_warning(
+					Sql_condition::WARN_LEVEL_WARN,
+					WARN_DATA_TRUNCATED, 1,
+					ulong(n_rows + 1));
+
+				if (!allow_not_null) {
 					err = DB_INVALID_NULL;
 					trx->error_key_num = 0;
 					goto func_exit;
 				}
+
+				const dfield_t& default_field
+					= defaults->fields[nonnull[i]];
 
 				*field = default_field;
 			}
@@ -2315,6 +2344,7 @@ write_buffers:
 		/* Build all entries for all the indexes to be created
 		in a single scan of the clustered index. */
 
+		n_rows++;
 		ulint	s_idx_cnt = 0;
 		bool	skip_sort = skip_pk_sort
 			&& dict_index_is_clust(merge_buf[0]->index);
@@ -2695,6 +2725,10 @@ write_buffers:
 		}
 
 		if (row == NULL) {
+			if (old_table != new_table) {
+				new_table->stat_n_rows = n_rows;
+			}
+
 			goto all_done;
 		}
 
@@ -4547,6 +4581,7 @@ this function and it will be passed to other functions for further accounting.
 @param[in]	add_v		new virtual columns added along with indexes
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
+@param[in]	allow_not_null	allow the conversion from null to not-null
 @return DB_SUCCESS or error code */
 dberr_t
 row_merge_build_indexes(
@@ -4565,7 +4600,8 @@ row_merge_build_indexes(
 	bool			skip_pk_sort,
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
-	struct TABLE*		eval_table)
+	struct TABLE*		eval_table,
+	bool			allow_not_null)
 {
 	merge_file_t*		merge_files;
 	row_merge_block_t*	block;
@@ -4729,7 +4765,7 @@ row_merge_build_indexes(
 		fts_sort_idx, psort_info, merge_files, key_numbers,
 		n_indexes, defaults, add_v, col_map, add_autoinc,
 		sequence, block, skip_pk_sort, &tmpfd, stage,
-		pct_cost, crypt_block, eval_table);
+		pct_cost, crypt_block, eval_table, allow_not_null);
 
 	stage->end_phase_read_pk();
 

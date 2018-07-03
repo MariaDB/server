@@ -1029,6 +1029,7 @@ SQL_HANDLER *mysql_ha_read_prepare(THD *thd, TABLE_LIST *tables,
   if (!(handler= mysql_ha_find_handler(thd, &tables->alias)))
     DBUG_RETURN(0);
   tables->table= handler->table;         // This is used by fix_fields
+  handler->table->pos_in_table_list= tables;
   if (mysql_ha_fix_cond_and_key(handler, mode, keyname, key_expr,
                                 ha_rkey_mode, cond, 1))
     DBUG_RETURN(0);

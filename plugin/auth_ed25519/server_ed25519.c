@@ -101,7 +101,7 @@ maria_declare_plugin(ed25519)
   NULL,
   NULL,
   "1.0-alpha",
-  MariaDB_PLUGIN_MATURITY_BETA
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
 

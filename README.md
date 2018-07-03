@@ -1,3 +1,8 @@
+Code status:
+------------
+
+* [![tests status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.3)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.3 branch)
+
 ## MariaDB: drop-in replacement for MySQL
 
 MariaDB is designed as a drop-in replacement of MySQL(R) with more
@@ -68,8 +73,3 @@ The code for MariaDB, including all revision history, can be found at:
 https://github.com/MariaDB/server
 
 ***************************************************************************
-
-Code status:
-------------
-
-* [![tests status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.2)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.2 branch)

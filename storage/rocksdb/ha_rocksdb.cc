@@ -479,6 +479,7 @@ static uint32_t rocksdb_access_hint_on_compaction_start;
 static char *rocksdb_compact_cf_name;
 static char *rocksdb_checkpoint_name;
 static my_bool rocksdb_signal_drop_index_thread;
+static my_bool rocksdb_signal_remove_mariabackup_checkpoint;
 static my_bool rocksdb_strict_collation_check = 1;
 static my_bool rocksdb_ignore_unknown_options = 1;
 static my_bool rocksdb_enable_2pc = 0;
@@ -514,6 +515,67 @@ std::atomic<uint64_t> rocksdb_row_lock_deadlocks(0);
 std::atomic<uint64_t> rocksdb_row_lock_wait_timeouts(0);
 std::atomic<uint64_t> rocksdb_snapshot_conflict_errors(0);
 std::atomic<uint64_t> rocksdb_wal_group_syncs(0);
+
+
+
+/*
+  Remove directory with files in it.
+  Used to remove checkpoint created by mariabackup.
+*/
+#ifdef _WIN32
+#include <direct.h> /* unlink*/
+#ifndef F_OK
+#define F_OK 0
+#endif
+#endif
+
+static int rmdir_force(const char *dir) {
+  if (access(dir, F_OK))
+    return true;
+
+  char path[FN_REFLEN];
+  char sep[] = {FN_LIBCHAR, 0};
+  int err = 0;
+
+  MY_DIR *dir_info = my_dir(dir, MYF(MY_DONT_SORT | MY_WANT_STAT));
+  if (!dir_info)
+    return 1;
+
+  for (uint i = 0; i < dir_info->number_of_files; i++) {
+    FILEINFO *file = dir_info->dir_entry + i;
+
+    strxnmov(path, sizeof(path), dir, sep, file->name, NULL);
+
+    err = my_delete(path, 0);
+
+    if (err) {
+      break;
+    }
+  }
+
+  my_dirend(dir_info);
+
+  if (!err)
+    err = rmdir(dir);
+
+  return (err == 0) ? HA_EXIT_SUCCESS : HA_EXIT_FAILURE;
+}
+
+
+static void rocksdb_remove_mariabackup_checkpoint(
+    my_core::THD *const,
+    struct st_mysql_sys_var *const ,
+    void *const var_ptr, const void *const) {
+  std::string mariabackup_checkpoint_dir(rocksdb_datadir);
+
+  mariabackup_checkpoint_dir.append("/mariabackup-checkpoint");
+
+  if (unlink(mariabackup_checkpoint_dir.c_str())  == 0)
+    return;
+
+  rmdir_force(mariabackup_checkpoint_dir.c_str());
+}
+
 
 static std::unique_ptr<rocksdb::DBOptions> rdb_init_rocksdb_db_options(void) {
   auto o = std::unique_ptr<rocksdb::DBOptions>(new rocksdb::DBOptions());
@@ -1312,6 +1374,11 @@ static MYSQL_SYSVAR_STR(create_checkpoint, rocksdb_checkpoint_name,
                         rocksdb_create_checkpoint,
                         rocksdb_create_checkpoint_stub, "");
 
+static MYSQL_SYSVAR_BOOL(remove_mariabackup_checkpoint,
+                         rocksdb_signal_remove_mariabackup_checkpoint,
+                         PLUGIN_VAR_RQCMDARG, "Remove mariabackup checkpoint",
+                         nullptr, rocksdb_remove_mariabackup_checkpoint, FALSE);
+
 static MYSQL_SYSVAR_BOOL(signal_drop_index_thread,
                          rocksdb_signal_drop_index_thread, PLUGIN_VAR_RQCMDARG,
                          "Wake up drop index thread", nullptr,
@@ -1675,7 +1742,7 @@ static struct st_mysql_sys_var *rocksdb_system_variables[] = {
     MYSQL_SYSVAR(datadir),
   MYSQL_SYSVAR(supported_compression_types),
     MYSQL_SYSVAR(create_checkpoint),
-
+    MYSQL_SYSVAR(remove_mariabackup_checkpoint),
     MYSQL_SYSVAR(checksums_pct),
     MYSQL_SYSVAR(store_row_debug_checksums),
     MYSQL_SYSVAR(verify_row_debug_checksums),
@@ -5235,17 +5302,8 @@ int ha_rocksdb::load_hidden_pk_value() {
   active_index = m_tbl_def->m_key_count - 1;
   const uint8 save_table_status = table->status;
 
-  /*
-    We should read the latest committed value in the database.
-    That is, if we have an open transaction with a snapshot, we should not use
-    it as we may get old data. Start a new transaction to read the latest
-    value.
-  */
-  Rdb_transaction *const temp_tx = new Rdb_transaction_impl(table->in_use);
-  temp_tx->start_tx();
-  Rdb_transaction *&tx = get_tx_from_thd(table->in_use);
-  Rdb_transaction *save_tx= tx;
-  tx= temp_tx;
+  Rdb_transaction *const tx = get_or_create_tx(table->in_use);
+  const bool is_new_snapshot = !tx->has_snapshot();
 
   longlong hidden_pk_id = 1;
   // Do a lookup.
@@ -5255,8 +5313,9 @@ int ha_rocksdb::load_hidden_pk_value() {
     */
     auto err = read_hidden_pk_id_from_rowkey(&hidden_pk_id);
     if (err) {
-        delete tx;
-        tx= save_tx;
+      if (is_new_snapshot) {
+        tx->release_snapshot();
+      }
       return err;
     }
 
@@ -5268,8 +5327,9 @@ int ha_rocksdb::load_hidden_pk_value() {
          !m_tbl_def->m_hidden_pk_val.compare_exchange_weak(old, hidden_pk_id)) {
   }
 
-  delete tx;
-  tx= save_tx;
+  if (is_new_snapshot) {
+    tx->release_snapshot();
+  }
 
   table->status = save_table_status;
   active_index = save_active_index;

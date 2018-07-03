@@ -82,7 +82,7 @@ public:
     maybe_null= TRUE;
   }
   bool fix_fields(THD *thd, Item **ref);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   bool const_item() const
   {
     return const_item_cache && (!nodeset_func || nodeset_func->const_item());

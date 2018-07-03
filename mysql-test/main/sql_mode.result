@@ -780,3 +780,27 @@ END;
 $$
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'error;
 END' at line 4
+#
+# End of 10.2 tests
+#
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-16471 mysqldump throws "Variable 'sql_mode' can't be set to the value of 'NULL' (1231)"
+#
+SET sql_mode='ORACLE,EMPTY_STRING_IS_NULL';
+SELECT @@sql_mode;
+@@sql_mode
+PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,EMPTY_STRING_IS_NULL,SIMULTANEOUS_ASSIGNMENT
+SELECT '' AS empty;
+empty
+NULL
+SET sql_mode='';
+SELECT @@sql_mode;
+@@sql_mode
+
+SET sql_mode=DEFAULT;
+#
+# End of 10.3 tests
+#

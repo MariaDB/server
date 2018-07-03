@@ -388,11 +388,13 @@ longlong Item_func_json_valid::val_int()
 }
 
 
-void Item_func_json_exists::fix_length_and_dec()
+bool Item_func_json_exists::fix_length_and_dec()
 {
-  Item_bool_func::fix_length_and_dec();
+  if (Item_bool_func::fix_length_and_dec())
+    return TRUE;
   maybe_null= 1;
   path.set_constant_flag(args[1]->const_item());
+  return FALSE;
 }
 
 
@@ -439,12 +441,13 @@ err_return:
 }
 
 
-void Item_func_json_value::fix_length_and_dec()
+bool Item_func_json_value::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   path.set_constant_flag(args[1]->const_item());
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -510,6 +513,10 @@ err_return:
 bool Item_func_json_value::check_and_get_value(json_engine_t *je, String *res,
                                                int *error)
 {
+  CHARSET_INFO *json_cs;
+  const uchar *js;
+  uint js_len;
+
   if (!json_value_scalar(je))
   {
     /* We only look for scalar values! */
@@ -518,7 +525,22 @@ bool Item_func_json_value::check_and_get_value(json_engine_t *je, String *res,
     return true;
   }
 
-  return st_append_json(res, je->s.cs, je->value, je->value_len); 
+  if (je->value_type == JSON_VALUE_TRUE ||
+      je->value_type == JSON_VALUE_FALSE)
+  {
+    json_cs= &my_charset_utf8mb4_bin;
+    js= (const uchar *) ((je->value_type == JSON_VALUE_TRUE) ? "1" : "0");
+    js_len= 1;
+  }
+  else
+  {
+    json_cs= je->s.cs;
+    js= je->value;
+    js_len= je->value_len;
+  }
+
+
+  return st_append_json(res, json_cs, js, js_len); 
 }
 
 
@@ -546,7 +568,7 @@ bool Item_func_json_query::check_and_get_value(json_engine_t *je, String *res,
 }
 
 
-void Item_func_json_quote::fix_length_and_dec()
+bool Item_func_json_quote::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8mb4_bin);
   /*
@@ -554,6 +576,7 @@ void Item_func_json_quote::fix_length_and_dec()
     of the argument turn into '\uXXXX\uXXXX', which is 12.
   */
   max_length= args[0]->max_length * 12 + 2;
+  return FALSE;
 }
 
 
@@ -581,12 +604,13 @@ String *Item_func_json_quote::val_str(String *str)
 }
 
 
-void Item_func_json_unquote::fix_length_and_dec()
+bool Item_func_json_unquote::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8_general_ci,
                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= args[0]->max_length;
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -702,13 +726,14 @@ void Item_json_str_multipath::cleanup()
 }
 
 
-void Item_func_json_extract::fix_length_and_dec()
+bool Item_func_json_extract::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length * (arg_count - 1);
 
   mark_constant_paths(paths, args+1, arg_count-1);
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -937,14 +962,14 @@ double Item_func_json_extract::val_real()
 }
 
 
-void Item_func_json_contains::fix_length_and_dec()
+bool Item_func_json_contains::fix_length_and_dec()
 {
   a2_constant= args[1]->const_item();
   a2_parsed= FALSE;
   maybe_null= 1;
   if (arg_count > 2)
     path.set_constant_flag(args[2]->const_item());
-  Item_bool_func::fix_length_and_dec();
+  return Item_bool_func::fix_length_and_dec();
 }
 
 
@@ -1190,13 +1215,13 @@ bool Item_func_json_contains_path::fix_fields(THD *thd, Item **ref)
 }
 
 
-void Item_func_json_contains_path::fix_length_and_dec()
+bool Item_func_json_contains_path::fix_length_and_dec()
 {
   ooa_constant= args[1]->const_item();
   ooa_parsed= FALSE;
   maybe_null= 1;
   mark_constant_paths(paths, args+2, arg_count-2);
-  Item_bool_func::fix_length_and_dec();
+  return Item_bool_func::fix_length_and_dec();
 }
 
 
@@ -1455,7 +1480,7 @@ append_null:
 }
 
 
-void Item_func_json_array::fix_length_and_dec()
+bool Item_func_json_array::fix_length_and_dec()
 {
   ulonglong char_length= 2;
   uint n_arg;
@@ -1468,17 +1493,18 @@ void Item_func_json_array::fix_length_and_dec()
                   DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
     tmp_val.set_charset(&my_charset_utf8_general_ci);
     max_length= 2;
-    return;
+    return FALSE;
   }
 
   if (agg_arg_charsets_for_string_result(collation, args, arg_count))
-    return;
+    return TRUE;
 
   for (n_arg=0 ; n_arg < arg_count ; n_arg++)
     char_length+= args[n_arg]->max_char_length() + 4;
 
   fix_char_length_ulonglong(char_length);
   tmp_val.set_charset(collation.collation);
+  return FALSE;
 }
 
 
@@ -1522,7 +1548,7 @@ err_return:
 }
 
 
-void Item_func_json_array_append::fix_length_and_dec()
+bool Item_func_json_array_append::fix_length_and_dec()
 {
   uint n_arg;
   ulonglong char_length;
@@ -1537,6 +1563,7 @@ void Item_func_json_array_append::fix_length_and_dec()
   }
 
   fix_char_length_ulonglong(char_length);
+  return FALSE;
 }
 
 
@@ -2124,12 +2151,13 @@ null_return:
 }
 
 
-void Item_func_json_length::fix_length_and_dec()
+bool Item_func_json_length::fix_length_and_dec()
 {
   if (arg_count > 1)
     path.set_constant_flag(args[1]->const_item());
   maybe_null= 1;
   max_length= 10;
+  return FALSE;
 }
 
 
@@ -2269,11 +2297,12 @@ longlong Item_func_json_depth::val_int()
 }
 
 
-void Item_func_json_type::fix_length_and_dec()
+bool Item_func_json_type::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8_general_ci);
   max_length= 12;
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -2326,7 +2355,7 @@ error:
 }
 
 
-void Item_func_json_insert::fix_length_and_dec()
+bool Item_func_json_insert::fix_length_and_dec()
 {
   uint n_arg;
   ulonglong char_length;
@@ -2342,6 +2371,7 @@ void Item_func_json_insert::fix_length_and_dec()
 
   fix_char_length_ulonglong(char_length);
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -2586,13 +2616,14 @@ return_null:
 }
 
 
-void Item_func_json_remove::fix_length_and_dec()
+bool Item_func_json_remove::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
 
   mark_constant_paths(paths, args+1, arg_count-1);
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -2772,13 +2803,14 @@ null_return:
 }
 
 
-void Item_func_json_keys::fix_length_and_dec()
+bool Item_func_json_keys::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   maybe_null= 1;
   if (arg_count > 1)
     path.set_constant_flag(args[1]->const_item());
+  return FALSE;
 }
 
 
@@ -2939,7 +2971,7 @@ bool Item_func_json_search::fix_fields(THD *thd, Item **ref)
 
 static const uint SQR_MAX_BLOB_WIDTH= (uint) sqrt(MAX_BLOB_WIDTH);
 
-void Item_func_json_search::fix_length_and_dec()
+bool Item_func_json_search::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
 
@@ -2961,6 +2993,7 @@ void Item_func_json_search::fix_length_and_dec()
   if (arg_count > 4)
     mark_constant_paths(paths, args+4, arg_count-4);
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -3138,11 +3171,12 @@ const char *Item_func_json_format::func_name() const
 }
 
 
-void Item_func_json_format::fix_length_and_dec()
+bool Item_func_json_format::fix_length_and_dec()
 {
   decimals= 0;
   max_length= args[0]->max_length;
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -3198,34 +3232,44 @@ String *Item_func_json_format::val_json(String *str)
 
 int Arg_comparator::compare_json_str_basic(Item *j, Item *s)
 {
-  String *res1,*res2;
-  json_value_types type;
-  char *value;
-  int value_len, c_len;
-  Item_func_json_extract *e= (Item_func_json_extract *) j;
+  String *js,*str;
+  int c_len;
+  json_engine_t je;
 
-  if ((res1= e->read_json(&value1, &type, &value, &value_len)))
+  if ((js= j->val_str(&value1)))
   {
-    if ((res2= s->val_str(&value2)))
-    {
-      if (type == JSON_VALUE_STRING)
-      {
-        if (value1.realloc_with_extra_if_needed(value_len) ||
-            (c_len= json_unescape(value1.charset(), (uchar *) value,
-                                  (uchar *) value+value_len,
-                                  &my_charset_utf8_general_ci,
-                                  (uchar *) value1.ptr(),
-                                  (uchar *) (value1.ptr() + value_len))) < 0)
-          goto error;
-        value1.length(c_len);
-        res1= &value1;
-      }
+    json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
+                    (const uchar *) js->ptr()+js->length());
+     if (json_read_value(&je))
+       goto error;
+     if (je.value_type == JSON_VALUE_STRING)
+     {
+       if (value2.realloc_with_extra_if_needed(je.value_len) ||
+         (c_len= json_unescape(js->charset(), je.value,
+                               je.value + je.value_len,
+                               &my_charset_utf8_general_ci,
+                               (uchar *) value2.ptr(),
+                               (uchar *) (value2.ptr() + je.value_len))) < 0)
+         goto error;
 
-      if (set_null)
-        owner->null_value= 0;
-      return sortcmp(res1, res2, compare_collation());
-    }
+       value2.length(c_len);
+       js= &value2;
+       str= &value1;
+     }
+     else
+     {
+       str= &value2;
+     }
+
+
+     if ((str= s->val_str(str)))
+     {
+       if (set_null)
+         owner->null_value= 0;
+       return sortcmp(js, str, compare_collation());
+     }
   }
+
 error:
   if (set_null)
     owner->null_value= 1;

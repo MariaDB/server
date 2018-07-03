@@ -569,7 +569,7 @@ dict_table_close_and_drop(
 	if (err != DB_SUCCESS) {
 		ib::error() << "At " << __FILE__ << ":" << __LINE__
 			    << " row_merge_drop_table returned error: " << err
-			    << " table: " << table->name.m_name;
+			    << " table: " << table->name;
 	}
 }
 
@@ -2589,11 +2589,10 @@ dict_index_remove_from_cache_low(
 	zero. See also: dict_table_can_be_evicted() */
 
 	do {
-		if (!btr_search_info_get_ref_count(info, index)) {
+		if (!btr_search_info_get_ref_count(info, index)
+		    || !buf_LRU_drop_page_hash_for_tablespace(table)) {
 			break;
 		}
-
-		buf_LRU_drop_page_hash_for_tablespace(table);
 
 		ut_a(++retries < 10000);
 	} while (srv_shutdown_state == SRV_SHUTDOWN_NONE || !lru_evict);

@@ -86,9 +86,9 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
 
-  enum_parsing_place place= thd->lex->current_select->context_analysis_place;
-
-  if (!(place == SELECT_LIST || place == IN_ORDER_BY))
+  if (!thd->lex->current_select ||
+      (thd->lex->current_select->context_analysis_place != SELECT_LIST &&
+       thd->lex->current_select->context_analysis_place != IN_ORDER_BY))
   {
     my_error(ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION, MYF(0));
     return true;
@@ -121,7 +121,8 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
   const_item_cache= false;
   with_window_func= true;
 
-  fix_length_and_dec();
+  if (fix_length_and_dec())
+    return TRUE;
 
   max_length= window_func()->max_length;
   maybe_null= window_func()->maybe_null;
@@ -361,7 +362,8 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
   maybe_null= 1;
   result_field=0;
   null_value=1;
-  fix_length_and_dec();
+  if (fix_length_and_dec())
+    return TRUE;
 
   if (check_sum_func(thd, ref))
     return TRUE;
@@ -441,7 +443,7 @@ bool Item_sum_hybrid_simple::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   if (null_value)
-    return 0;
+    return true;
   bool retval= value->get_date(ltime, fuzzydate);
   if ((null_value= value->null_value))
     DBUG_ASSERT(retval == true);

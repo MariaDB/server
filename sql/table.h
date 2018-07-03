@@ -687,8 +687,11 @@ struct TABLE_SHARE
   */
   uint null_bytes_for_compare;
   uint fields;                          /* number of fields */
-  uint stored_fields;                   /* number of stored fields, purely virtual not included */
+  /* number of stored fields, purely virtual not included */
+  uint stored_fields;
   uint virtual_fields;                  /* number of purely virtual fields */
+  /* number of purely virtual not stored blobs */
+  uint virtual_not_stored_blob_fields;
   uint null_fields;                     /* number of null fields */
   uint blob_fields;                     /* number of blob fields */
   uint varchar_fields;                  /* number of varchar fields */
@@ -1377,7 +1380,7 @@ public:
   bool check_virtual_columns_marked_for_read();
   bool check_virtual_columns_marked_for_write();
   void mark_default_fields_for_write(bool insert_fl);
-  void mark_columns_used_by_check_constraints(void);
+  void mark_columns_used_by_virtual_fields(void);
   void mark_check_constraint_columns_for_read(void);
   int verify_constraints(bool ignore_failure);
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg)
@@ -1459,6 +1462,8 @@ public:
   { return (my_ptrdiff_t) (s->default_values - record[0]); }
 
   void move_fields(Field **ptr, const uchar *to, const uchar *from);
+  void remember_blob_values(String *blob_storage);
+  void restore_blob_values(String *blob_storage);
 
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);

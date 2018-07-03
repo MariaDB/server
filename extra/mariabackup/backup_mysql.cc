@@ -187,6 +187,7 @@ xb_mysql_query(MYSQL *connection, const char *query, bool use_result,
 
 		if (!use_result) {
 			mysql_free_result(mysql_result);
+			mysql_result = NULL;
 		}
 	}
 
@@ -1784,12 +1785,17 @@ mdl_lock_table(ulint space_id)
   MYSQL_RES *mysql_result = xb_mysql_query(mdl_con, oss.str().c_str(), true, true);
 
   while (MYSQL_ROW row = mysql_fetch_row(mysql_result)) {
+
+    DBUG_EXECUTE_IF("rename_during_mdl_lock_table",
+      if (strcmp(row[0], "test/t1") == 0)
+        xb_mysql_query(mysql_connection, "RENAME TABLE test.t1 to test.t2", false, true
+    ););
+
     std::string full_table_name =  ut_get_name(0,row[0]);
     std::ostringstream lock_query;
     lock_query << "SELECT 1 FROM " << full_table_name  << " LIMIT 0";
-
     msg_ts("Locking MDL for %s\n", full_table_name.c_str());
-    xb_mysql_query(mdl_con, lock_query.str().c_str(), false, false);
+    xb_mysql_query(mdl_con, lock_query.str().c_str(), false, true);
   }
 
   pthread_mutex_unlock(&mdl_lock_con_mutex);

@@ -1,0 +1,25 @@
+
+--source include/no_protocol.inc
+--source include/not_embedded.inc
+
+SELECT @@session.character_set_connection;
+SET @@session.session_track_system_variables='character_set_connection';
+
+--echo # tracking info on
+--enable_session_track_info
+SET NAMES 'utf8';
+SET NAMES 'big5';
+--disable_session_track_info
+--echo # tracking info on once
+--enable_session_track_info ONCE
+SET NAMES 'utf8';
+SET NAMES 'big5';
+--echo # tracking info on
+--enable_session_track_info
+SET NAMES 'utf8';
+--echo # tracking info off once
+--disable_session_track_info ONCE
+SET NAMES 'big5';
+--disable_session_track_info
+
+SET @@session.session_track_system_variables= default;

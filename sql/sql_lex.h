@@ -269,10 +269,10 @@ struct LEX_TYPE
 #else
 #include "lex_symbol.h"
 #ifdef MYSQL_LEX
-#include "item_func.h"            /* Cast_target used in sql_yacc.h */
-#include "sql_get_diagnostics.h"  /* Types used in sql_yacc.h */
+#include "item_func.h"            /* Cast_target used in sql_yacc.hh */
+#include "sql_get_diagnostics.h"  /* Types used in sql_yacc.hh */
 #include "sp_pcontext.h"
-#include "sql_yacc.h"
+#include "sql_yacc.hh"
 #define LEX_YYSTYPE YYSTYPE *
 #else
 #define LEX_YYSTYPE void *
@@ -1064,6 +1064,11 @@ public:
   bool automatic_brackets; /* dummy select for INTERSECT precedence */
   /* TRUE when having fix field called in processing of this SELECT */
   bool having_fix_field;
+  /*
+    TRUE when fix field is called for a new condition pushed into the
+    HAVING clause of this SELECT
+  */
+  bool having_fix_field_for_pushed_cond;
   /* List of references to fields referenced from inner selects */
   List<Item_outer_ref> inner_refs_list;
   /* Number of Item_sum-derived objects in this SELECT */
@@ -3177,8 +3182,6 @@ public:
     return NULL;
   }
 
-  virtual const LEX_CSTRING *cursor_name() const { return &null_clex_str; }
-
   void start(THD *thd);
 
   inline bool is_ps_or_view_context_analysis()
@@ -3802,6 +3805,7 @@ public:
            sp_for_loop_cursor_finalize(thd, loop) :
            sp_for_loop_intrange_finalize(thd, loop);
   }
+  bool sp_for_loop_outer_block_finalize(THD *thd, const Lex_for_loop_st &loop);
   /* End of FOR LOOP methods */
 
   bool add_signal_statement(THD *thd, const class sp_condition_value *value);

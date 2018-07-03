@@ -29,4 +29,12 @@ replace t values (1, 3);
 select *, current_row(row_end) as current from t for system_time all order by x;
 drop table t;
 
---source suite/versioning/common_finish.inc
+--echo # MDEV-15645 Assertion `table->insert_values' failed in write_record upon REPLACE into a view with underlying versioned table
+create or replace table t1 (a int, b int, primary key (a), unique(b)) with system versioning;
+insert into t1 values (1,1);
+create or replace table t2 (c int);
+create or replace view v as select t1.* from t1 join t2;
+replace into v (a, b) select a, b from t1;
+
+drop database test;
+create database test;

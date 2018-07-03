@@ -448,3 +448,54 @@ BEGIN
 SELECT precedes INTO precedes FROM DUAL;
 END;
 /
+#
+# MDEV-16464 Oracle Comp.: Sql-Error on "SELECT name, comment FROM mysql.proc"
+#
+SET sql_mode=ORACLE;
+SELECT name, comment FROM mysql.proc WHERE db='test';
+name	comment
+CREATE TABLE comment (comment INT);
+SELECT comment FROM comment;
+comment
+SELECT comment comment FROM comment comment;
+comment
+SELECT comment AS comment FROM comment AS comment;
+comment
+DROP TABLE comment;
+DECLARE
+comment INT;
+BEGIN
+SELECT comment INTO comment FROM DUAL;
+END;
+/
+CREATE PROCEDURE comment COMMENT 'test' AS
+BEGIN
+SELECT 1;
+END;
+/
+BEGIN
+comment;
+END;
+/
+1
+1
+CALL comment();
+1
+1
+CALL comment;
+1
+1
+DROP PROCEDURE comment;
+CREATE FUNCTION comment RETURN INT COMMENT 'test' AS
+BEGIN
+RETURN 1;
+END;
+/
+Warnings:
+Note	1585	This function 'comment' has the same name as a native function
+SELECT test.comment() FROM DUAL;
+test.comment()
+1
+Warnings:
+Note	1585	This function 'comment' has the same name as a native function
+DROP FUNCTION comment;

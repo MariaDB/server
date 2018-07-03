@@ -1,0 +1,42 @@
+7,8c7,8
+< affected rows: 0
+< info: Records: 0  Duplicates: 0  Warnings: 1
+---
+> affected rows: 1
+> info: Records: 1  Duplicates: 0  Warnings: 1
+21,22c21,22
+< affected rows: 0
+< info: Records: 0  Duplicates: 0  Warnings: 1
+---
+> affected rows: 1
+> info: Records: 1  Duplicates: 0  Warnings: 1
+35,36c35,36
+< affected rows: 0
+< info: Records: 0  Duplicates: 0  Warnings: 1
+---
+> affected rows: 1
+> info: Records: 1  Duplicates: 0  Warnings: 1
+49,50c49,50
+< affected rows: 0
+< info: Records: 0  Duplicates: 0  Warnings: 1
+---
+> affected rows: 1
+> info: Records: 1  Duplicates: 0  Warnings: 1
+63,64c63,64
+< affected rows: 0
+< info: Records: 0  Duplicates: 0  Warnings: 1
+---
+> affected rows: 1
+> info: Records: 1  Duplicates: 0  Warnings: 1
+77,78c77,78
+< affected rows: 0
+< info: Records: 0  Duplicates: 0  Warnings: 1
+---
+> affected rows: 1
+> info: Records: 1  Duplicates: 0  Warnings: 1
+98,99c98,99
+< affected rows: 0
+< info: Records: 0  Duplicates: 0  Warnings: 1
+---
+> affected rows: 1
+> info: Records: 1  Duplicates: 0  Warnings: 1

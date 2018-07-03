@@ -6291,6 +6291,7 @@ bool JOIN::choose_tableless_subquery_plan()
           functions produce empty subquery result. There is no need to further
           rewrite the subquery because it will not be executed at all.
         */
+        exec_const_cond= 0;
         return FALSE;
       }
 
@@ -6322,7 +6323,7 @@ bool JOIN::choose_tableless_subquery_plan()
       tmp_having= having;
     }
   }
-  exec_const_cond= conds;
+  exec_const_cond= zero_result_cause ? 0 : conds;
   return FALSE;
 }
 

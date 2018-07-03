@@ -1379,7 +1379,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   /* Only pop cursors when we're done with group aggregate running. */
   if (m_chistics.agg_type != GROUP_AGGREGATE ||
       (m_chistics.agg_type == GROUP_AGGREGATE && thd->spcont->quit_func))
-    thd->spcont->pop_all_cursors(); // To avoid memory leaks after an error
+    thd->spcont->pop_all_cursors(thd); // To avoid memory leaks after an error
 
   /* Restore all saved */
   if (m_chistics.agg_type == GROUP_AGGREGATE)
@@ -2709,7 +2709,6 @@ sp_head::restore_thd_mem_root(THD *thd)
   Item *flist= free_list;	// The old list
   set_query_arena(thd);         // Get new free_list and mem_root
   state= STMT_INITIALIZED_FOR_SP;
-  is_stored_procedure= true;
 
   DBUG_PRINT("info", ("mem_root %p returned from thd mem root %p",
                       &mem_root, &thd->mem_root));
@@ -4001,7 +4000,7 @@ sp_instr_hpush_jump::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_hpush_jump::execute");
 
-  int ret= thd->spcont->push_handler(m_handler, m_ip + 1);
+  int ret= thd->spcont->push_handler(this);
 
   *nextp= m_dest;
 
@@ -4160,11 +4159,13 @@ sp_instr_cpush::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cpush::execute");
 
-  int ret= thd->spcont->push_cursor(thd, &m_lex_keeper);
+  sp_cursor::reset(thd, &m_lex_keeper);
+  m_lex_keeper.disable_query_cache();
+  thd->spcont->push_cursor(this);
 
   *nextp= m_ip+1;
 
-  DBUG_RETURN(ret);
+  DBUG_RETURN(false);
 }
 
 
@@ -4198,7 +4199,7 @@ int
 sp_instr_cpop::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cpop::execute");
-  thd->spcont->pop_cursors(m_count);
+  thd->spcont->pop_cursors(thd, m_count);
   *nextp= m_ip+1;
   DBUG_RETURN(0);
 }
@@ -4479,7 +4480,7 @@ void
 sp_instr_cursor_copy_struct::print(String *str)
 {
   sp_variable *var= m_ctx->find_variable(m_var);
-  const LEX_CSTRING *name= m_lex_keeper.cursor_name();
+  const LEX_CSTRING *name= m_ctx->find_cursor(m_cursor);
   str->append(STRING_WITH_LEN("cursor_copy_struct "));
   str->append(name);
   str->append(' ');
@@ -4974,7 +4975,8 @@ bool sp_head::add_for_loop_open_cursor(THD *thd, sp_pcontext *spcont,
 
   sp_instr *instr_copy_struct=
     new (thd->mem_root) sp_instr_cursor_copy_struct(instructions(),
-                                                    spcont, pcursor->lex(),
+                                                    spcont, coffset,
+                                                    pcursor->lex(),
                                                     index->offset);
   if (instr_copy_struct == NULL || add_instr(instr_copy_struct))
     return true;

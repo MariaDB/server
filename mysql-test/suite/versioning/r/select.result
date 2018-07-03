@@ -557,6 +557,18 @@ i
 call p(3);
 i
 1
+#
+# MDEV-15947 ASAN heap-use-after-free in Item_ident::print or in my_strcasecmp_utf8 or unexpected ER_BAD_FIELD_ERROR upon call of stored procedure reading from versioned table
+#
+create or replace table t1 (i int) with system versioning;
+create or replace procedure p() select * from t1;
+call p;
+i
+flush tables;
+call p;
+i
+call p;
+i
 drop procedure p;
 drop table t1;
 call verify_trt_dummy(34);

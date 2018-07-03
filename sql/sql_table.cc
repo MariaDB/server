@@ -4961,7 +4961,12 @@ int create_table_impl(THD *thd,
     file= mysql_create_frm_image(thd, orig_db, orig_table_name, create_info,
                                  alter_info, create_table_mode, key_info,
                                  key_count, frm);
-    if (!file)
+    /*
+    TODO: remove this check of thd->is_error() (now it intercept
+    errors in some val_*() methoids and bring some single place to
+    such error interception).
+    */
+    if (!file || thd->is_error())
       goto err;
     if (rea_create_table(thd, frm, path, db->str, table_name->str, create_info,
                          file, frm_only))
@@ -6232,8 +6237,11 @@ drop_create_field:
         continue;
 
       /* Check if the table already has a PRIMARY KEY */
-      bool dup_primary_key= key->type == Key::PRIMARY &&
-                            table->s->primary_key != MAX_KEY;
+      bool dup_primary_key=
+            key->type == Key::PRIMARY &&
+            table->s->primary_key != MAX_KEY &&
+            (keyname= table->s->key_info[table->s->primary_key].name.str) &&
+            my_strcasecmp(system_charset_info, keyname, primary_key_name) == 0;
       if (dup_primary_key)
         goto remove_key;
 
@@ -6332,7 +6340,6 @@ remove_key:
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  DBUG_ASSERT(thd->work_part_info == 0);
   partition_info *tab_part_info= table->part_info;
   thd->work_part_info= thd->lex->part_info;
   if (tab_part_info)
@@ -6530,15 +6537,15 @@ static bool fill_alter_inplace_info(THD *thd,
     ALTER_DROP_INDEX are replaced with versions that have higher granuality.
   */
 
-  ha_alter_info->handler_flags|= (alter_info->flags &
-                                  ~(ALTER_ADD_INDEX |
-                                    ALTER_DROP_INDEX |
-                                    ALTER_PARSER_ADD_COLUMN |
-                                    ALTER_PARSER_DROP_COLUMN |
-                                    ALTER_COLUMN_ORDER |
-                                    ALTER_RENAME_COLUMN |
-                                    ALTER_CHANGE_COLUMN |
-                                    ALTER_COLUMN_UNVERSIONED));
+  alter_table_operations flags_to_remove=
+      ALTER_ADD_INDEX | ALTER_DROP_INDEX | ALTER_PARSER_ADD_COLUMN |
+      ALTER_PARSER_DROP_COLUMN | ALTER_COLUMN_ORDER | ALTER_RENAME_COLUMN |
+      ALTER_CHANGE_COLUMN;
+
+  if (!table->file->native_versioned())
+    flags_to_remove|= ALTER_COLUMN_UNVERSIONED;
+
+  ha_alter_info->handler_flags|= (alter_info->flags & ~flags_to_remove);
   /*
     Comparing new and old default values of column is cumbersome.
     So instead of using such a comparison for detecting if default
@@ -7407,6 +7414,11 @@ static bool mysql_inplace_alter_table(THD *thd,
   bool reopen_tables= false;
   bool res;
 
+  /*
+    Set the truncated column values of thd as warning
+    for alter table.
+  */
+  thd->count_cuted_fields = CHECK_FIELD_WARN;
   DBUG_ENTER("mysql_inplace_alter_table");
 
   /*
@@ -7621,10 +7633,15 @@ static bool mysql_inplace_alter_table(THD *thd,
   /*
     Replace the old .FRM with the new .FRM, but keep the old name for now.
     Rename to the new name (if needed) will be handled separately below.
+
+    TODO: remove this check of thd->is_error() (now it intercept
+    errors in some val_*() methoids and bring some single place to
+    such error interception).
   */
   if (mysql_rename_table(db_type, &alter_ctx->new_db, &alter_ctx->tmp_name,
                          &alter_ctx->db, &alter_ctx->alias,
-                         FN_FROM_IS_TMP | NO_HA_TABLE))
+                         FN_FROM_IS_TMP | NO_HA_TABLE) ||
+                         thd->is_error())
   {
     // Since changes were done in-place, we can't revert them.
     (void) quick_rm_table(thd, db_type,
@@ -9039,10 +9056,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 {
   DBUG_ENTER("mysql_alter_table");
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  thd->work_part_info= 0;                       // Used by partitioning
-#endif
-
   /*
     Check if we attempt to alter mysql.slow_log or
     mysql.general_log table and return an error if
@@ -9115,8 +9128,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
         DBUG_RETURN(true);
       }
     }
-    if (alter_info->data_modifying() && !thd->slave_thread &&
-        thd->variables.vers_alter_history == VERS_ALTER_HISTORY_ERROR)
+    if (alter_info->vers_prohibited(thd))
     {
       my_error(ER_VERS_ALTER_NOT_ALLOWED, MYF(0),
                table_list->db.str, table_list->table_name.str);

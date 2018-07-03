@@ -1265,6 +1265,9 @@ SELECT CURRENT_USER();
 SET PASSWORD FOR CURRENT_USER() = PASSWORD("admin");
 SET PASSWORD FOR CURRENT_USER() = PASSWORD("");
 
+#cleanup after MDEV-16238
+update mysql.user set plugin='';
+
 #
 # Bug#57952: privilege change is not taken into account by EXECUTE.
 #

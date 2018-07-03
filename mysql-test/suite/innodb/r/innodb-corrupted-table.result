@@ -1,5 +1,5 @@
-call mtr.add_suppression("Table .* has a primary key in InnoDB data dictionary, but not in MariaDB.*");
-call mtr.add_suppression("InnoDB: Table .* contains .* indexes inside InnoDB, which is different from the number of indexes .* defined in the MariaDB.*");
+call mtr.add_suppression("Table .* has a primary key in InnoDB data dictionary, but not in MariaDB");
+call mtr.add_suppression("InnoDB: Table .* contains .* indexes inside InnoDB");
 create table t1 (pk int, i int, key(i)) engine=InnoDB;
 insert into t1 values (1,1),(2,2);
 flush tables;

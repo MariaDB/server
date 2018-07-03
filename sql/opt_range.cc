@@ -6528,6 +6528,8 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     if (ror_intersect_add(intersect, cpk_scan, TRUE) && 
         (intersect->total_cost < min_cost))
       intersect_best= intersect; //just set pointer here
+    else
+      cpk_scan= 0; // Don't use cpk_scan
   }
   else
     cpk_scan= 0;                                // Don't use cpk_scan

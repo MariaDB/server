@@ -85,10 +85,6 @@ struct fil_space_t {
 				Protected by log_sys.mutex.
 				If and only if this is nonzero, the
 				tablespace will be in named_spaces. */
-	bool		stop_ios;/*!< true if we want to rename the
-				.ibd file of tablespace and want to
-				stop temporarily posting of new i/o
-				requests on the file */
 	bool		stop_new_ops;
 				/*!< we set this true when we start
 				deleting a single-table tablespace.
@@ -175,9 +171,6 @@ struct fil_space_t {
 
 	/** MariaDB encryption data */
 	fil_space_crypt_t* crypt_data;
-
-	/** True if we have already printed compression failure */
-	bool		printed_compression_failure;
 
 	/** True if the device this filespace is on supports atomic writes */
 	bool		atomic_write_supported;

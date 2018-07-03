@@ -55,6 +55,9 @@ extern "C" void unireg_clear(int exit_code)
   DBUG_VOID_RETURN;
 }
 
+
+static my_bool mysql_embedded_init= 0;
+
 /*
   Wrapper error handler for embedded server to call client/server error 
   handler based on whether thread is in client/server context
@@ -518,6 +521,8 @@ int init_embedded_server(int argc, char **argv, char **groups)
   const char *fake_groups[] = { "server", "embedded", 0 };
   my_bool acl_error;
 
+  DBUG_ASSERT(mysql_embedded_init == 0);
+
   if (my_thread_init())
     return 1;
 
@@ -637,15 +642,20 @@ int init_embedded_server(int argc, char **argv, char **groups)
   }
 
   execute_ddl_log_recovery();
+  mysql_embedded_init= 1;
   return 0;
 }
 
 void end_embedded_server()
 {
-  my_free(copy_arguments_ptr);
-  copy_arguments_ptr=0;
-  clean_up(0);
-  clean_up_mutexes();
+  if (mysql_embedded_init)
+  {
+    my_free(copy_arguments_ptr);
+    copy_arguments_ptr=0;
+    clean_up(0);
+    clean_up_mutexes();
+    mysql_embedded_init= 0;
+  }
 }
 
 

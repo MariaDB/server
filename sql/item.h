@@ -1320,7 +1320,13 @@ public:
       Similar to val_str()
   */
   virtual String *val_str_ascii(String *str);
-  
+
+  /*
+    Returns the result of val_str_ascii(), translating NULLs back
+    to empty strings (if MODE_EMPTY_STRING_IS_NULL is set).
+  */
+  String *val_str_ascii_revert_empty_string_is_null(THD *thd, String *str);
+
   /*
     Returns the val_str() value converted to the given character set.
   */
@@ -4993,7 +4999,7 @@ public:
     also to make printing of items inherited from Item_sum uniform.
   */
   virtual const char *func_name() const= 0;
-  virtual void fix_length_and_dec()= 0;
+  virtual bool fix_length_and_dec()= 0;
   bool const_item() const { return const_item_cache; }
   table_map used_tables() const { return used_tables_cache; }
   Item* build_clone(THD *thd);

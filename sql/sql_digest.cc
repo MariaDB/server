@@ -32,7 +32,7 @@
 #include "sql_get_diagnostics.h"
 
 /* Generated code */
-#include "sql_yacc.h"
+#include "sql_yacc.hh"
 #define LEX_TOKEN_WITH_DEFINITION
 #include "lex_token.h"
 

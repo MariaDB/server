@@ -720,6 +720,10 @@ public:
     *this= other;
   }
   bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
+  bool is_for_loop_explicit_cursor() const
+  {
+    return is_for_loop_cursor() && !m_implicit_cursor;
+  }
 };
 
 

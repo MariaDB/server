@@ -3095,7 +3095,7 @@ bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
 
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
-    if (!tl->is_view_or_derived() && tl->table)
+    if (!tl->is_view_or_derived() && !is_temporary_table(tl) && tl->table)
     {
       TABLE_SHARE *table_share= tl->table->s;
       if (table_share && 
@@ -3107,7 +3107,7 @@ bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
 
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
-    if (!tl->is_view_or_derived() && tl->table)
+    if (!tl->is_view_or_derived() && !is_temporary_table(tl) && tl->table)
     {
       TABLE_SHARE *table_share= tl->table->s;
       if (table_share && 
@@ -3236,7 +3236,7 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
 
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
-    if (!tl->is_view_or_derived() && tl->table)
+    if (!tl->is_view_or_derived() && !is_temporary_table(tl) && tl->table)
     { 
       TABLE_SHARE *table_share= tl->table->s;
       if (table_share && 

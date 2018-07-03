@@ -3766,7 +3766,8 @@ bool hostname_requires_resolving(const char *hostname)
 void set_authentication_plugin_from_password(const User_table& user_table,
                                              const char* password, size_t password_length)
 {
-  if (password_length == SCRAMBLED_PASSWORD_CHAR_LENGTH)
+  if (password_length == SCRAMBLED_PASSWORD_CHAR_LENGTH ||
+      password_length == 0)
   {
     user_table.plugin()->store(native_password_plugin_name.str,
                                native_password_plugin_name.length,
@@ -3821,13 +3822,16 @@ static bool update_user_table(THD *thd, const User_table& user_table,
     DBUG_RETURN(1);      /* purecov: deadcode */
   }
   store_record(table,record[1]);
-  /* If the password column is missing, we use the
-     authentication_string column. */
-  if (user_table.password())
-    user_table.password()->store(new_password, new_password_len, system_charset_info);
-  else
+
+  if (user_table.plugin())
+  {
     set_authentication_plugin_from_password(user_table, new_password,
                                             new_password_len);
+    new_password_len= 0;
+  }
+
+  if (user_table.password())
+    user_table.password()->store(new_password, new_password_len, system_charset_info);
 
 
   if (unlikely(error= table->file->ha_update_row(table->record[1],
@@ -7540,7 +7544,7 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
                          INSERT_ACL : SELECT_ACL);
     }
 
-    if (tl->with ||
+    if (tl->with || !tl->db.str ||
         (tl->select_lex &&
          (tl->with= tl->select_lex->find_table_def_in_with_clauses(tl))))
       continue;
