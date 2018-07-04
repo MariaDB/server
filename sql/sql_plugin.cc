@@ -280,6 +280,7 @@ struct st_mysql_sys_var
   MYSQL_PLUGIN_VAR_HEADER;
 };
 
+enum install_status { INSTALL_GOOD, INSTALL_FAIL_WARN_OK, INSTALL_FAIL_NOT_OK };
 /*
   sys_var class for access to all plugin variables visible to the user
 */
@@ -1077,8 +1078,8 @@ static st_plugin_int *plugin_insert_or_reuse(struct st_plugin_int *plugin)
   NOTE
     Requires that a write-lock is held on LOCK_system_variables_hash
 */
-static bool plugin_add(MEM_ROOT *tmp_root, THD *thd,
-                       const LEX_CSTRING *name, LEX_CSTRING *dl, myf MyFlags)
+static enum install_status plugin_add(MEM_ROOT *tmp_root, bool if_not_exists,
+                                      const LEX_CSTRING *name, LEX_CSTRING *dl, myf MyFlags)
 {
   struct st_plugin_int tmp, *maybe_dupe;
   struct st_maria_plugin *plugin;
@@ -1088,21 +1089,22 @@ static bool plugin_add(MEM_ROOT *tmp_root, THD *thd,
 
   if (name->str && plugin_find_internal(name, MYSQL_ANY_PLUGIN))
   {
-    if (thd && thd->lex->create_info.if_not_exists())
+    if (if_not_exists)
     {
-      my_error(ER_PLUGIN_INSTALLED, MyFlags & ME_WARNING, name->str);
+      my_error(ER_PLUGIN_INSTALLED, MyFlags | ME_NOTE, name->str);
+      DBUG_RETURN(INSTALL_FAIL_WARN_OK);
     }
     else
     {
       my_error(ER_PLUGIN_INSTALLED, MyFlags, name->str);
+      DBUG_RETURN(INSTALL_FAIL_NOT_OK);
     }
-    DBUG_RETURN(TRUE);
   }
   /* Clear the whole struct to catch future extensions. */
   bzero((char*) &tmp, sizeof(tmp));
   fix_dl_name(tmp_root, dl);
   if (! (tmp.plugin_dl= plugin_dl_add(dl, MyFlags)))
-    DBUG_RETURN(TRUE);
+    DBUG_RETURN(INSTALL_FAIL_NOT_OK);
   /* Find plugin by name */
   for (plugin= tmp.plugin_dl->plugins; plugin->info; plugin++)
   {
@@ -1128,7 +1130,7 @@ static bool plugin_add(MEM_ROOT *tmp_root, THD *thd,
       if (plugin->name != maybe_dupe->plugin->name)
       {
         my_error(ER_UDF_EXISTS, MyFlags, plugin->name);
-        DBUG_RETURN(TRUE);
+        DBUG_RETURN(INSTALL_FAIL_NOT_OK);
       }
       dupes++;
       continue; // already installed
@@ -1180,7 +1182,7 @@ static bool plugin_add(MEM_ROOT *tmp_root, THD *thd,
     init_alloc_root(&tmp_plugin_ptr->mem_root, "plugin", 4096, 4096, MYF(0));
 
     if (name->str)
-      DBUG_RETURN(FALSE); // all done
+      DBUG_RETURN(INSTALL_GOOD); // all done
 
     oks++;
     tmp.plugin_dl->ref_count++;
@@ -1198,7 +1200,9 @@ err:
     my_error(ER_CANT_FIND_DL_ENTRY, MyFlags, name->str);
 
   plugin_dl_del(tmp.plugin_dl);
-  DBUG_RETURN(errs > 0 || oks + dupes == 0);
+  if (errs > 0 || oks + dupes == 0)
+    DBUG_RETURN(INSTALL_FAIL_NOT_OK);
+  DBUG_RETURN(INSTALL_GOOD);
 }
 
 static void plugin_variables_deinit(struct st_plugin_int *plugin)
@@ -1854,7 +1858,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
       the mutex here to satisfy the assert
     */
     mysql_mutex_lock(&LOCK_plugin);
-    plugin_add(tmp_root, NULL, &name, &dl, MYF(ME_ERROR_LOG));
+    plugin_add(tmp_root, false, &name, &dl, MYF(ME_ERROR_LOG));
     free_root(tmp_root, MYF(MY_MARK_BLOCKS_FREE));
     mysql_mutex_unlock(&LOCK_plugin);
   }
@@ -1909,16 +1913,16 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
         mysql_mutex_lock(&LOCK_plugin);
         free_root(tmp_root, MYF(MY_MARK_BLOCKS_FREE));
         name.str= 0; // load everything
-        if (plugin_add(tmp_root, NULL, (LEX_CSTRING*) &name, (LEX_CSTRING*) &dl,
-                       MYF(ME_ERROR_LOG)))
+        if (plugin_add(tmp_root, false, (LEX_CSTRING*) &name, (LEX_CSTRING*) &dl,
+                       MYF(ME_ERROR_LOG)) != INSTALL_GOOD)
           goto error;
       }
       else
       {
         free_root(tmp_root, MYF(MY_MARK_BLOCKS_FREE));
         mysql_mutex_lock(&LOCK_plugin);
-        if (plugin_add(tmp_root, NULL, (LEX_CSTRING*) &name, (LEX_CSTRING*) &dl,
-                       MYF(ME_ERROR_LOG)))
+        if (plugin_add(tmp_root, false, (LEX_CSTRING*) &name, (LEX_CSTRING*) &dl,
+                       MYF(ME_ERROR_LOG)) != INSTALL_GOOD)
           goto error;
       }
       mysql_mutex_unlock(&LOCK_plugin);
@@ -2153,7 +2157,7 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
   TABLE_LIST tables;
   TABLE *table;
   LEX_CSTRING dl= *dl_arg;
-  bool error;
+  enum install_status error;
   int argc=orig_argc;
   char **argv=orig_argv;
   unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
@@ -2201,12 +2205,13 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
     mysql_audit_acquire_plugins(thd, event_class_mask);
 
   mysql_mutex_lock(&LOCK_plugin);
-  error= plugin_add(thd->mem_root, thd, name, &dl, MYF(0));
-  if (unlikely(error))
+  error= plugin_add(thd->mem_root, thd->lex->create_info.if_not_exists(), name, &dl, MYF(0));
+  if (unlikely(error != INSTALL_GOOD))
     goto err;
 
   if (name->str)
-    error= finalize_install(thd, table, name, &argc, argv);
+    error= finalize_install(thd, table, name, &argc, argv)
+             ? INSTALL_FAIL_NOT_OK : INSTALL_GOOD;
   else
   {
     st_plugin_dl *plugin_dl= plugin_dl_find(&dl);
@@ -2214,11 +2219,12 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
     for (plugin= plugin_dl->plugins; plugin->info; plugin++)
     {
       LEX_CSTRING str= { plugin->name, strlen(plugin->name) };
-      error|= finalize_install(thd, table, &str, &argc, argv);
+      if (finalize_install(thd, table, &str, &argc, argv))
+        error= INSTALL_FAIL_NOT_OK;
     }
   }
 
-  if (unlikely(error))
+  if (unlikely(error != INSTALL_GOOD))
   {
     reap_needed= true;
     reap_plugins();
@@ -2227,7 +2233,7 @@ err:
   mysql_mutex_unlock(&LOCK_plugin);
   if (argv)
     free_defaults(argv);
-  DBUG_RETURN(error);
+  DBUG_RETURN(error == INSTALL_FAIL_NOT_OK);
 #ifdef WITH_WSREP
 error:
   DBUG_RETURN(TRUE);
@@ -2375,8 +2381,15 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
     }
     else
     {
-      my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "SONAME", dl.str);
-      error= true;
+      if (thd->lex->if_exists())
+      {
+        my_error(ER_SP_DOES_NOT_EXIST, ME_NOTE, "SONAME", dl.str);
+      }
+      else
+      {
+        error= true;
+        my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "SONAME", dl.str);
+      }
     }
   }
   reap_plugins();

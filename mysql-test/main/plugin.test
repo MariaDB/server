@@ -272,15 +272,38 @@ DROP TABLE t1;
 --echo #
 --echo #
 
-select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
+select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
 INSTALL PLUGIN IF NOT EXISTS example SONAME 'ha_example';
-select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
-INSTALL PLUGIN IF NOT EXISTS EXAMPLE SONAME 'ha_example';
+select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
+
+--replace_regex /\.dll/.so/
+--error ER_PLUGIN_INSTALLED
+INSTALL PLUGIN example SONAME 'ha_example';
+
+INSTALL PLUGIN IF NOT EXISTS example SONAME 'ha_example';
 SHOW WARNINGS;
-INSTALL SONAME IF NOT EXISTS 'ha_example';
-SHOW WARNINGS;
+
 UNINSTALL PLUGIN IF EXISTS example;
-select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
+select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
+
+UNINSTALL PLUGIN IF EXISTS example;
+SHOW WARNINGS;
+
+--error 1305
+UNINSTALL PLUGIN example;
+
+INSTALL SONAME IF NOT EXISTS 'ha_example';
+
+select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
+
+# note: installing soname multiple times doesn't cause errors or warnings
+INSTALL SONAME IF NOT EXISTS 'ha_example';
+
+UNINSTALL SONAME IF EXISTS 'ha_example';
+
 UNINSTALL SONAME IF EXISTS 'ha_example';
 SHOW WARNINGS;
-select plugin_name from information_schema.plugins where plugin_library like 'ha_example%';
+select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
+
+--error 1305
+UNINSTALL SONAME 'ha_example';
