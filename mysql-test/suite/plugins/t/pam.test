@@ -1,4 +1,4 @@
-
+let $PAM_PLUGIN_VERSION= $AUTH_PAM_SO;
 --source pam_init.inc
 
 --write_file $MYSQLTEST_VARDIR/tmp/pam_good.txt

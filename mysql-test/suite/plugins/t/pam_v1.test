@@ -1,4 +1,4 @@
-
+let $PAM_PLUGIN_VERSION= $AUTH_PAM_V1_SO;
 --source pam_init.inc
 
 --write_file $MYSQLTEST_VARDIR/tmp/pam_good.txt
@@ -24,12 +24,6 @@ EOF
 --echo #
 --error 1
 --exec $MYSQL_TEST -u test_pam --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_bad.txt
-
---echo #
---echo # pam module crashes
---echo #
---error 1
---exec $MYSQL_TEST -u crash_pam_tool --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_good.txt
 
 --remove_file $MYSQLTEST_VARDIR/tmp/pam_good.txt
 --remove_file $MYSQLTEST_VARDIR/tmp/pam_bad.txt
