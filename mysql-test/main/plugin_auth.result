@@ -345,6 +345,9 @@ FLUSH PRIVILEGES;
 # Executing 'mysqladmin'
 mysqld is alive
 # Executing 'mysqldump'
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 # Executing 'mysql_upgrade'
 #
 # Bug #59657: Move the client authentication_pam plugin into the 

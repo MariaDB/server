@@ -48,6 +48,7 @@
 #include <m_ctype.h>
 #include <hash.h>
 #include <stdarg.h>
+#include <sql_const.h>
 
 #include "client_priv.h"
 #include "mysql.h"
@@ -164,6 +165,7 @@ static char *shared_memory_base_name=0;
 #endif
 static uint opt_protocol= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
+static char time_zone_str[MAX_TIME_ZONE_NAME_LENGTH];
 
 /*
 Dynamic_string wrapper functions. In this file use these
@@ -690,6 +692,11 @@ static const char *fix_for_comment(const char *ident)
 }
 
 
+static void switch_time_zone(FILE *sql_file, const char *save_var,
+                             const char *delimiter, const char *time_zone);
+static void restore_time_zone(FILE *sql_file, const char *save_var,
+                              const char *delimiter);
+
 static void write_header(FILE *sql_file, char *db_name)
 {
   if (opt_xml)
@@ -705,56 +712,54 @@ static void write_header(FILE *sql_file, char *db_name)
     fputs(">\n", sql_file);
     check_io(sql_file);
   }
-  else if (!opt_compact)
+  else
   {
-    print_comment(sql_file, 0,
-                  "-- MySQL dump %s  Distrib %s, for %s (%s)\n--\n",
-                  DUMP_VERSION, MYSQL_SERVER_VERSION, SYSTEM_TYPE,
-                  MACHINE_TYPE);
-    print_comment(sql_file, 0, "-- Host: %s    ",
-                  fix_for_comment(current_host ? current_host : "localhost"));
-    print_comment(sql_file, 0, "Database: %s\n",
-                  fix_for_comment(db_name ? db_name : ""));
-    print_comment(sql_file, 0,
-                  "-- ------------------------------------------------------\n"
-                 );
-    print_comment(sql_file, 0, "-- Server version\t%s\n",
-                  mysql_get_server_info(&mysql_connection));
+    if (!opt_compact)
+    {
+      print_comment(sql_file, 0,
+                    "-- MySQL dump %s  Distrib %s, for %s (%s)\n--\n",
+                    DUMP_VERSION, MYSQL_SERVER_VERSION, SYSTEM_TYPE,
+                    MACHINE_TYPE);
+      print_comment(sql_file, 0, "-- Host: %s    ",
+                    fix_for_comment(current_host ? current_host : "localhost"));
+      print_comment(sql_file, 0, "Database: %s\n",
+                    fix_for_comment(db_name ? db_name : ""));
+      print_comment(sql_file, 0,
+                    "-- ------------------------------------------------------\n"
+                  );
+      print_comment(sql_file, 0, "-- Server version\t%s\n",
+                    mysql_get_server_info(&mysql_connection));
 
-    if (!opt_logging)
-      fprintf(sql_file,
+      if (!opt_logging)
+        fprintf(sql_file,
 "\n/*M!100101 SET LOCAL SQL_LOG_OFF=0, LOCAL SLOW_QUERY_LOG=0 */;");
 
-    if (opt_set_charset)
-      fprintf(sql_file,
+      if (opt_set_charset)
+        fprintf(sql_file,
 "\n/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;"
 "\n/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;"
 "\n/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;"
 "\n/*!40101 SET NAMES %s */;\n",default_charset);
 
-    if (opt_tz_utc)
-    {
-      fprintf(sql_file, "/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;\n");
-      fprintf(sql_file, "/*!40103 SET TIME_ZONE='+00:00' */;\n");
-    }
-
-    if (!path)
-    {
-      if (!opt_no_create_info)
+      if (!path)
       {
-        /* We don't need unique checks as the table is created just before */
-        fprintf(md_result_file,"\
+        if (!opt_no_create_info)
+        {
+          /* We don't need unique checks as the table is created just before */
+          fprintf(md_result_file,"\
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;\n");
-      }
-      fprintf(md_result_file,"\
+        }
+        fprintf(md_result_file,"\
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;\n\
 ");
+      }
+      fprintf(sql_file,
+              "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='%s%s%s' */;\n"
+              "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n",
+              path?"":"NO_AUTO_VALUE_ON_ZERO",compatible_mode_normal_str[0]==0?"":",",
+              compatible_mode_normal_str);
     }
-    fprintf(sql_file,
-            "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='%s%s%s' */;\n"
-            "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n",
-            path?"":"NO_AUTO_VALUE_ON_ZERO",compatible_mode_normal_str[0]==0?"":",",
-            compatible_mode_normal_str);
+    switch_time_zone(sql_file, "OLD_TIME_ZONE", ";", time_zone_str);
     check_io(sql_file);
   }
 } /* write_header */
@@ -767,40 +772,41 @@ static void write_footer(FILE *sql_file)
     fputs("</mysqldump>\n", sql_file);
     check_io(sql_file);
   }
-  else if (!opt_compact)
+  else
   {
-    if (opt_tz_utc)
-      fprintf(sql_file,"/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;\n");
+    restore_time_zone(sql_file, "OLD_TIME_ZONE", ";");
 
-    fprintf(sql_file,"\n/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;\n");
-    if (!path)
+    if (!opt_compact)
     {
-      fprintf(md_result_file,"\
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;\n");
-      if (!opt_no_create_info)
+      fprintf(sql_file,"\n/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;\n");
+      if (!path)
       {
         fprintf(md_result_file,"\
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;\n");
+        if (!opt_no_create_info)
+        {
+          fprintf(md_result_file,"\
 /*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;\n");
+        }
       }
-    }
-    if (opt_set_charset)
-      fprintf(sql_file,
+      if (opt_set_charset)
+        fprintf(sql_file,
 "/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;\n"
 "/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;\n"
 "/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;\n");
-    fprintf(sql_file,
-            "/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;\n");
-    fputs("\n", sql_file);
+      fprintf(sql_file,
+              "/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;\n");
+      fputs("\n", sql_file);
 
-    if (opt_dump_date)
-    {
-      char time_str[20];
-      get_date(time_str, GETDATE_DATE_TIME, 0);
-      print_comment(sql_file, 0, "-- Dump completed on %s\n", time_str);
+      if (opt_dump_date)
+      {
+        char time_str[20];
+        get_date(time_str, GETDATE_DATE_TIME, 0);
+        print_comment(sql_file, 0, "-- Dump completed on %s\n", time_str);
+      }
+      else
+        print_comment(sql_file, 0, "-- Dump completed\n");
     }
-    else
-      print_comment(sql_file, 0, "-- Dump completed\n");
-
     check_io(sql_file);
   }
 } /* write_footer */
@@ -1503,12 +1509,14 @@ static void restore_sql_mode(FILE *sql_file,
 
 
 static void switch_time_zone(FILE *sql_file,
+                             const char *save_var,
                              const char *delimiter,
                              const char *time_zone)
 {
   fprintf(sql_file,
-          "/*!50003 SET @saved_time_zone      = @@time_zone */ %s\n"
-          "/*!50003 SET time_zone             = '%s' */ %s\n",
+          "/*!40103 SET @%s      = @@time_zone */ %s\n"
+          "/*!40103 SET time_zone             = '%s' */ %s\n",
+          save_var,
           (const char *) delimiter,
 
           (const char *) time_zone,
@@ -1517,10 +1525,12 @@ static void switch_time_zone(FILE *sql_file,
 
 
 static void restore_time_zone(FILE *sql_file,
+                              const char *save_var,
                               const char *delimiter)
 {
   fprintf(sql_file,
-          "/*!50003 SET time_zone             = @saved_time_zone */ %s\n",
+          "/*!40103 SET time_zone             = @%s */ %s\n",
+          save_var,
           (const char *) delimiter);
 }
 
@@ -1769,6 +1779,42 @@ static int connect_to_db(char *host, char *user,char *passwd)
     my_snprintf(buff, sizeof(buff), "/*!40103 SET TIME_ZONE='+00:00' */");
     if (mysql_query_with_error_report(mysql, 0, buff))
       DBUG_RETURN(1);
+    strncpy(time_zone_str, "+00:00", sizeof(time_zone_str));
+  }
+  else
+  {
+    my_snprintf(buff, sizeof(buff), "/*!40103 SELECT @@TIME_ZONE */");
+    MYSQL_RES  *result;
+    MYSQL_ROW  row;
+    if (mysql_query_with_error_report(mysql, &result, buff))
+      DBUG_RETURN(1);
+    row= mysql_fetch_row(result);
+    if (!row)
+      DBUG_RETURN(1);
+    if (0 != strcmp(row[0], "SYSTEM"))
+    {
+      strncpy(time_zone_str, row[0], sizeof(time_zone_str));
+      mysql_free_result(result);
+    }
+    else
+    {
+      // Convert SYSTEM timezone to corresponding UTC offset
+      mysql_free_result(result);
+      my_snprintf(buff, sizeof(buff),
+                  "/*!50000 SELECT TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW()) */");
+      if (mysql_query_with_error_report(mysql, &result, buff))
+        DBUG_RETURN(1);
+      row= mysql_fetch_row(result);
+      if (!row)
+        DBUG_RETURN(1);
+      int tz_offset= atoi(row[0]);
+      mysql_free_result(result);
+      snprintf(time_zone_str, sizeof(time_zone_str), "%+03d:00", tz_offset);
+      // SYSTEM timezone may be affected by DST, so we can't use it for data retrieval
+      my_snprintf(buff, sizeof(buff), "/*!40103 SET TIME_ZONE='%s' */", time_zone_str);
+      if (mysql_query_with_error_report(mysql, NULL, buff))
+        DBUG_RETURN(1);
+    }
   }
   DBUG_RETURN(0);
 } /* connect_to_db */
@@ -2412,7 +2458,7 @@ static uint dump_events_for_db(char *db)
 
           switch_sql_mode(sql_file, delimiter, row[1]);
 
-          switch_time_zone(sql_file, delimiter, row[2]);
+          switch_time_zone(sql_file, "saved_time_zone", delimiter, row[2]);
 
           query_str= cover_definer_clause(row[3], strlen(row[3]),
                                           C_STRING_WITH_LEN("50117"),
@@ -2425,7 +2471,7 @@ static uint dump_events_for_db(char *db)
                   (const char *) delimiter);
 
           my_free(query_str);
-          restore_time_zone(sql_file, delimiter);
+          restore_time_zone(sql_file, "saved_time_zone", delimiter);
           restore_sql_mode(sql_file, delimiter);
 
           if (mysql_num_fields(event_res) >= 7)
@@ -5219,6 +5265,7 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
       mysql_free_result(master);
       if (!ignore_errors)
       {
+        fflush(md_result_file);
         /* SHOW MASTER STATUS reports nothing and --force is not enabled */
         fprintf(stderr, "%s: Error: Binlogging on server not active\n",
                 my_progname_short);

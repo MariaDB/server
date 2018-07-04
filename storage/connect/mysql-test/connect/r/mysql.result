@@ -229,12 +229,15 @@ a
 20
 30
 # Start of mysqldump ------
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mysql://root@localhost:PORT/test/t1' `TABLE_TYPE`='MYSQL';
 /*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 # End of mysqldump ------
 DROP TABLE t2;
 DROP TABLE t1;

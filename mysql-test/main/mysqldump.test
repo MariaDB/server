@@ -2720,3 +2720,33 @@ select * from t2;
 select * from t3;
 desc t3;
 drop database d;
+use test;
+
+--echo #
+--echo # MDEV-16684 Wrong timestamps on restore from mysqldump --compact
+--echo #
+--echo ## Check UTC
+create or replace table td (t timestamp);
+set @ts= timestamp'2000-01-01 00:00';
+insert into td values (@ts);
+--exec $MYSQL_DUMP --compact test > $MYSQLTEST_VARDIR/tmp/td.sql
+drop table td;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/td.sql
+select 'Correct!' as result from td where t = @ts;
+
+--echo ## Check local timezone
+set global time_zone= 'Europe/Moscow';
+--exec $MYSQL_DUMP --compact --skip-tz-utc test > $MYSQLTEST_VARDIR/tmp/td.sql
+drop table td;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/td.sql
+select 'Correct!' as result from td where t = @ts;
+
+--echo ## Check SYSTEM timezone
+set global time_zone= SYSTEM;
+--exec $MYSQL_DUMP --compact --skip-tz-utc test > $MYSQLTEST_VARDIR/tmp/td.sql
+drop table td;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/td.sql
+select 'Correct!' as result from td where t = @ts;
+
+drop table td;
+--remove_file $MYSQLTEST_VARDIR/tmp/td.sql

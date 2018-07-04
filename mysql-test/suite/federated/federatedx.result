@@ -2243,6 +2243,8 @@ connection master;
 CREATE TABLE t1(id VARCHAR(20) NOT NULL, PRIMARY KEY(id)) ENGINE=FEDERATED 
 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
 # Dump table t1 using mysqldump tool
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (
@@ -2250,6 +2252,7 @@ CREATE TABLE `t1` (
   PRIMARY KEY (`id`)
 ) ENGINE=FEDERATED DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
 /*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 DROP TABLE t1;
 connection slave;
 #Switch to Connection Slave
