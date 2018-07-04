@@ -50,6 +50,9 @@ Created 4/20/1996 Heikki Tuuri
 #include "fts0types.h"
 #include "m_string.h"
 #include "gis0geo.h"
+#ifdef WITH_WSREP
+extern my_bool wsrep_debug;
+#endif
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -1867,6 +1870,24 @@ do_possible_lock_wait:
 			&check_table->n_foreign_key_checks_running, 1);
 
 		lock_wait_suspend_thread(thr);
+#ifdef WITH_WSREP
+		trx_mutex_enter(trx);
+		switch (trx->error_state) {
+		case DB_DEADLOCK:
+			if (wsrep_debug) {
+				ib::info() <<
+				"WSREP: innodb trx state changed during wait "
+				<< " trx: " << trx->id << " with error_state: "
+				<< trx->error_state << " err: " << err;
+			}
+			err = trx->error_state;
+			break;
+		default:
+			break;
+		}
+		trx_mutex_exit(trx);
+
+#endif /* WITH_WSREP */
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
 
