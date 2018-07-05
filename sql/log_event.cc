@@ -13250,6 +13250,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
         /* else fall through to index scan */
       }
     }
+    // MyRocks: wait for prior commit before using non-unique index scan
+    thd->wait_for_prior_commit();
 
     is_index_scan=true;
 
@@ -13278,6 +13280,8 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
   }
   else
   {
+    // MyRocks: wait for prior commit before using non-unique index scan
+    thd->wait_for_prior_commit();
     DBUG_PRINT("info",("locating record using table scan (rnd_next)"));
     /* We use this to test that the correct key is used in test cases. */
     DBUG_EXECUTE_IF("slave_crash_if_table_scan", abort(););
