@@ -936,7 +936,7 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list,
   List<Item> all_fields;
 
   *delete_while_scanning= true;
-  thd->lex->allow_sum_func= 0;
+  thd->lex->allow_sum_func.clear_all();
   if (setup_tables_and_check_access(thd, &thd->lex->select_lex.context,
                                     &thd->lex->select_lex.top_join_list,
                                     table_list, 

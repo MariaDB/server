@@ -7372,8 +7372,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   thd->column_usage= column_usage;
   DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
   if (allow_sum_func)
-    thd->lex->allow_sum_func|=
-      (nesting_map)1 << thd->lex->current_select->nest_level;
+    thd->lex->allow_sum_func.set_bit(thd->lex->current_select->nest_level);
   thd->where= THD::DEFAULT_WHERE;
   save_is_item_list_lookup= thd->lex->current_select->is_item_list_lookup;
   thd->lex->current_select->is_item_list_lookup= 0;

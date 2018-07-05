@@ -33,6 +33,10 @@
 #include "sql_tvc.h"
 #include "item.h"
 
+/* Used for flags of nesting constructs */
+#define SELECT_NESTING_MAP_SIZE 64
+typedef Bitmap<SELECT_NESTING_MAP_SIZE> nesting_map;
+
 /* YACC and LEX Definitions */
 
 

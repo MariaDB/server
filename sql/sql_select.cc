@@ -645,7 +645,7 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   const bool saved_non_agg_field_used= select->non_agg_field_used();
   DBUG_ENTER("setup_without_group");
 
-  thd->lex->allow_sum_func&= ~((nesting_map)1 << select->nest_level);
+  thd->lex->allow_sum_func.clear_bit(select->nest_level);
   res= setup_conds(thd, tables, leaves, conds);
   if (thd->lex->current_select->first_cond_optimization)
   {
@@ -658,18 +658,18 @@ setup_without_group(THD *thd, Ref_ptr_array ref_pointer_array,
   /* it's not wrong to have non-aggregated columns in a WHERE */
   select->set_non_agg_field_used(saved_non_agg_field_used);
 
-  thd->lex->allow_sum_func|= (nesting_map)1 << select->nest_level;
+  thd->lex->allow_sum_func.set_bit(select->nest_level);
   
   save_place= thd->lex->current_select->context_analysis_place;
   thd->lex->current_select->context_analysis_place= IN_ORDER_BY;
   res= res || setup_order(thd, ref_pointer_array, tables, fields, all_fields,
                           order);
-  thd->lex->allow_sum_func&= ~((nesting_map)1 << select->nest_level);
+  thd->lex->allow_sum_func.clear_bit(select->nest_level);
   thd->lex->current_select->context_analysis_place= IN_GROUP_BY;
   res= res || setup_group(thd, ref_pointer_array, tables, fields, all_fields,
                           group, hidden_group_fields);
   thd->lex->current_select->context_analysis_place= save_place;
-  thd->lex->allow_sum_func|= (nesting_map)1 << select->nest_level;
+  thd->lex->allow_sum_func.set_bit(select->nest_level);
   res= res || setup_windows(thd, ref_pointer_array, tables, fields, all_fields,
                             win_specs, win_funcs);
   thd->lex->allow_sum_func= save_allow_sum_func;
@@ -1117,7 +1117,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
                        select_lex->master_unit()->global_parameters())
   {
     nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
-    thd->lex->allow_sum_func|= (nesting_map)1 << select_lex->nest_level;
+    thd->lex->allow_sum_func.set_bit(select_lex->nest_level);
     thd->where= "order clause";
     for (ORDER *order= select_lex->order_list.first; order; order= order->next)
     {
@@ -1135,7 +1135,7 @@ JOIN::prepare(TABLE_LIST *tables_init,
   {
     nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
     thd->where="having clause";
-    thd->lex->allow_sum_func|= (nesting_map)1 << select_lex_arg->nest_level;
+    thd->lex->allow_sum_func.set_bit(select_lex_arg->nest_level);
     select_lex->having_fix_field= 1;
     /*
       Wrap alone field in HAVING clause in case it will be outer field

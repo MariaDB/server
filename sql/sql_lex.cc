@@ -734,7 +734,7 @@ void LEX::start(THD *thd_arg)
   profile_options= PROFILE_NONE;
   nest_level=0 ;
   select_lex.nest_level_base= &unit;
-  allow_sum_func= 0;
+  allow_sum_func.clear_all();
   in_sum_func= NULL;
 
   used_tables= 0;
@@ -2335,7 +2335,7 @@ void st_select_lex::init_select()
   m_non_agg_field_used= false;
   m_agg_func_used= false;
   m_custom_agg_func_used= false;
-  name_visibility_map= 0;
+  name_visibility_map.clear_all();
   with_dep= 0;
   join= 0;
   lock_type= TL_READ_DEFAULT;
