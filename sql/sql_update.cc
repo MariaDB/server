@@ -957,6 +957,7 @@ update_begin:
             if (table->versioned(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
+              table->mark_columns_per_binlog_row_image();
               error= vers_insert_history_row(table);
               restore_record(table, record[2]);
             }

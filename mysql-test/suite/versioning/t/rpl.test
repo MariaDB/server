@@ -153,6 +153,20 @@ drop table t1;
 --exec $MYSQL_BINLOG -v $datadir/$binlog_file | $MYSQL test
 select *, check_row(row_start, row_end) from t1 for system_time all;
 
+--echo # MDEV-16252: MINIMAL binlog_row_image does not work for versioned tables
+set @old_row_image= @@binlog_row_image;
+set binlog_row_image= minimal;
+
+create or replace table t1 (pk int, i int, primary key(pk))
+with system versioning;
+insert into t1 values (1,10),(2,20);
+update t1 set i = 0;
+
+--sync_slave_with_master
+--connection master
+drop table t1;
+set binlog_row_image= @old_row_image;
+
 drop database test;
 create database test;
 
