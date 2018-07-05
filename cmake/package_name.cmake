@@ -135,7 +135,7 @@ IF(NOT VERSION)
 
   SET(package_name "mariadb${PRODUCT_TAG}-${VERSION}-${SYSTEM_NAME_AND_PROCESSOR}")
 
-  MESSAGE(STATUS "Packaging as: ${package_name}")
+  MESSAGE_ONCE(package_name "Packaging as: ${package_name}")
 
   # Sometimes package suffix is added (something like "-icc-glibc23")
   IF(PACKAGE_SUFFIX)
