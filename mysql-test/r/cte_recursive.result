@@ -3314,10 +3314,10 @@ WITH recursive cte AS
 (SELECT 1 a UNION SELECT cte.* FROM cte natural join t1)
 SELECT * FROM cte  limit 1
 );
-SELECT func();;
 connect  con1,localhost,root,,;
-KILL QUERY 4;
+SELECT func();
+connection default;
+KILL QUERY 5;
 DROP FUNCTION func;
 DROP TABLE t1;
 disconnect con1;
-connection default;
