@@ -10078,7 +10078,8 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
          ((thd->variables.sql_mode & MODE_ORACLE) ?
           ORAparse(thd) :
           MYSQLparse(thd)) != 0;
-  DBUG_ASSERT(opt_bootstrap | mysql_parse_status || thd->lex->select_stack_top == 0);
+  DBUG_ASSERT(opt_bootstrap || mysql_parse_status ||
+              thd->lex->select_stack_top == 0);
   thd->lex->current_select= thd->lex->first_select_lex();
 
   /*
