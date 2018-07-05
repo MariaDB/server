@@ -3052,7 +3052,7 @@ public:
     required a local context, the parser pops the top-most context.
   */
   List<Name_resolution_context> context_stack;
-  SELECT_LEX *select_stack[MAX_SELECT_NESTING];
+  SELECT_LEX *select_stack[MAX_SELECT_NESTING + 1];
   uint select_stack_top;
 
   SQL_I_List<ORDER> proc_list;
@@ -3444,7 +3444,7 @@ public:
                          select_stack_head()->select_number :
                          0),
                         select_lex, select_lex->select_number));
-    if (unlikely(select_stack_top == MAX_SELECT_NESTING))
+    if (unlikely(select_stack_top > MAX_SELECT_NESTING))
     {
       my_error(ER_TOO_HIGH_LEVEL_OF_NESTING_FOR_SELECT, MYF(0));
       DBUG_RETURN(TRUE);
