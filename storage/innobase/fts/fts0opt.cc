@@ -2657,7 +2657,7 @@ fts_optimize_new_table(
 			empty_slot = i;
 		} else if (slot->table == table) {
 			/* Already exists in our optimize queue. */
-			ut_ad(slot->table_id = table->id);
+			ut_ad(slot->table_id == table->id);
 			return(FALSE);
 		}
 	}
