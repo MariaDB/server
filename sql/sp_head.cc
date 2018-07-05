@@ -29,6 +29,7 @@
 #include "sql_array.h"         // Dynamic_array
 #include "log_event.h"         // Query_log_event
 #include "sql_derived.h"       // mysql_handle_derived
+#include "sql_cte.h"
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation
@@ -3000,7 +3001,8 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
 #endif
 
   if (open_tables)
-    res= instr->exec_open_and_lock_tables(thd, m_lex->query_tables);
+    res= check_dependencies_in_with_clauses(m_lex->with_clauses_list) ||
+         instr->exec_open_and_lock_tables(thd, m_lex->query_tables);
 
   if (!res)
   {
