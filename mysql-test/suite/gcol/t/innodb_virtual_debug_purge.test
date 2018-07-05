@@ -124,7 +124,7 @@ SELECT * FROM t1;
 
 DROP TABLE t1;
 
-# Test adding virutal index on existing virtual column
+# Test adding index on existing virtual column
 CREATE TABLE t1 (a INT, b INT, c INT GENERATED ALWAYS AS(a+b));
 
 INSERT INTO t1(a, b) VALUES (1, 1), (2, 2), (3, 3), (4, 4);
@@ -156,7 +156,9 @@ INSERT INTO t1(a, b) VALUES (8, 8);
 COMMIT;
 
 --echo # wait for purge to process the deleted/updated records.
+let $wait_all_purged=1;
 --source ../../innodb/include/wait_all_purged.inc
+let $wait_all_purged=0;
 
 SET DEBUG_SYNC= 'now SIGNAL purged';
 
