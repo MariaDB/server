@@ -6981,6 +6981,7 @@ dict_foreign_qualify_index(
 		}
 
 		if (dict_col_is_virtual(field->col)) {
+			col_name = "";
 			for (ulint j = 0; j < table->n_v_def; j++) {
 				col_name = dict_table_get_v_col_name(table, j);
 				if (innobase_strcasecmp(field->name,col_name) == 0) {
