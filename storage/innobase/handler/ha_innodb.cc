@@ -2971,7 +2971,7 @@ ha_innobase::update_thd(
 		   m_user_thd, thd));
 
 	/* The table should have been opened in ha_innobase::open(). */
-	ut_ad(m_prebuilt->table->n_ref_count > 0);
+	DBUG_ASSERT(m_prebuilt->table->get_ref_count() > 0);
 
 	trx_t*	trx = check_trx_exists(thd);
 
@@ -13917,7 +13917,7 @@ ha_innobase::info_low(
 	m_prebuilt->trx->op_info = "returning various info to MariaDB";
 
 	ib_table = m_prebuilt->table;
-	ut_ad(ib_table->n_ref_count > 0);
+	DBUG_ASSERT(ib_table->get_ref_count() > 0);
 
 	if (flag & HA_STATUS_TIME) {
 		if (is_analyze || innobase_stats_on_metadata) {

@@ -1,3 +1,4 @@
+--source include/not_embedded.inc
 create table t1 (a int, b varchar(32));
 insert into t1 values
 (4,'aaaa' ), (7,'bb'), (1,'ccc'), (4,'dd');
@@ -2282,6 +2283,77 @@ select 3, 0*(@d:=@d+1) from qn where @d<1
 select * from qn;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-16629: function with recursive CTE using a base table
+--echo #
+
+CREATE TABLE t1 (id int);
+INSERT INTO t1 VALUES (0), (1),(2);
+
+WITH recursive cte AS
+(SELECT id FROM t1 UNION SELECT 3 FROM cte)
+SELECT count(id) FROM cte;
+
+CREATE OR REPLACE FUNCTION func() RETURNS int
+RETURN
+(
+  WITH recursive cte AS
+  (SELECT id FROM t1 UNION SELECT 3 FROM cte)
+  SELECT count(id) FROM cte
+);
+
+SELECT func();
+
+DROP FUNCTION func;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16661: function with recursive CTE using no base tables
+--echo #             (fixed by the patch for MDEV-16629)
+--echo #
+
+CREATE OR REPLACE FUNCTION func() RETURNS int
+RETURN
+(
+  WITH RECURSIVE cte AS
+  (SELECT 1 as id UNION SELECT * FROM cte)
+  SELECT count(id) FROM cte
+);
+
+SELECT func();
+
+DROP FUNCTION func;
+
+--echo #
+--echo # MDEV-15151: function with recursive CTE using no base tables
+--echo #             (duplicate of  MDEV-16661)
+--echo #
+
+--connection default
+
+CREATE TABLE t1 (id int  KEY);
+INSERT INTO t1 VALUES (0), (1),(2);
+
+CREATE OR REPLACE FUNCTION func() RETURNS int
+RETURN
+(
+  WITH recursive cte AS
+  (SELECT 1 a UNION SELECT cte.* FROM cte natural join t1)
+  SELECT * FROM cte  limit 1
+);
+
+--connect (con1,localhost,root,,)
+--let $conid= `SELECT CONNECTION_ID()`
+--send SELECT func()
+
+--connection default
+--eval KILL QUERY $conid
+--source include/restart_mysqld.inc
+
+DROP FUNCTION func;
+DROP TABLE t1;
+--disconnect con1
 
 --echo # Start of 10.3 tests
 

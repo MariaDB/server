@@ -1307,7 +1307,7 @@ void btr_search_drop_page_hash_when_freed(const page_id_t& page_id)
 			/* In all our callers, the table handle should
 			be open, or we should be in the process of
 			dropping the table (preventing eviction). */
-			ut_ad(index->table->n_ref_count > 0
+			ut_ad(index->table->get_ref_count() > 0
 			      || mutex_own(&dict_sys->mutex));
 			btr_search_drop_page_hash_index(block);
 		}
