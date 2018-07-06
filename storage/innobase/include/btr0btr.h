@@ -115,7 +115,15 @@ enum btr_latch_mode {
 	/** Attempt to purge a secondary index record
 	while holding the dict_index_t::lock S-latch. */
 	BTR_PURGE_LEAF_ALREADY_S_LATCHED = BTR_PURGE_LEAF
-	| BTR_ALREADY_S_LATCHED
+	| BTR_ALREADY_S_LATCHED,
+
+	/** In the case of BTR_MODIFY_TREE, the caller specifies
+	the intention to delete record only. It is used to optimize
+	block->lock range.*/
+	BTR_LATCH_FOR_DELETE = 65536,
+
+	/** Attempt to purge a secondary index record in the tree. */
+	BTR_PURGE_TREE = BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE
 };
 
 /** This flag ORed to btr_latch_mode says that we do the search in query
@@ -130,10 +138,6 @@ the insert buffer to speed up inserts */
 /** In the case of BTR_MODIFY_TREE, the caller specifies the intention
 to insert record only. It is used to optimize block->lock range.*/
 #define BTR_LATCH_FOR_INSERT	32768U
-
-/** In the case of BTR_MODIFY_TREE, the caller specifies the intention
-to delete record only. It is used to optimize block->lock range.*/
-#define BTR_LATCH_FOR_DELETE	65536U
 
 /** This flag is for undo insert of rtree. For rtree, we need this flag
 to find proper rec to undo insert.*/
