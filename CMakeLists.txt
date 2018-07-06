@@ -14,12 +14,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.3)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.7)
 
-# explicitly set the policy to OLD
-# (cannot use NEW, not everyone is on cmake-2.8.12 yet)
 IF(POLICY CMP0022)
-  CMAKE_POLICY(SET CMP0022 OLD)
+  CMAKE_POLICY(SET CMP0022 NEW)
 ENDIF()
 
 # We use the LOCATION target property (CMP0026)

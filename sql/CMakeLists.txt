@@ -307,8 +307,7 @@ TARGET_LINK_LIBRARIES(mysqld sql)
 # Provide plugins with minimal set of libraries
 SET(INTERFACE_LIBS ${LIBRT})
 IF(INTERFACE_LIBS)
- SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_INTERFACE_LIBRARIES 
-  "${INTERFACE_LIBS}")
+  TARGET_LINK_LIBRARIES(mysqld LINK_PUBLIC ${INTERFACE_LIBS})
 ENDIF()
 
 # On Solaris, some extra effort is required in order to get dtrace probes
