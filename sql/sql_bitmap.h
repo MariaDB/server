@@ -119,10 +119,6 @@ public:
       uint4korr(static_cast<const uchar *>
                 (static_cast<const void *>(buffer)));
   }
-  uint bits_set()
-  {
-    return bitmap_bits_set(&map);
-  }
   class Iterator
   {
     Bitmap &map;
@@ -211,17 +207,6 @@ public:
   public:
     Iterator(Bitmap<64> &map2) : Table_map_iterator(map2.map) {}
   };
-  uint bits_set()
-  {
-    //TODO: use my_count_bits()
-    uint res= 0, i= 0;
-    for (; i < 64 ; i++)
-    {
-      if (map & ((ulonglong)1<<i))
-        res++;
-    }
-    return res;
-  }
 };
 
 
