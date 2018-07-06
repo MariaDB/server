@@ -156,7 +156,7 @@ INSERT INTO t1(a, b) VALUES (8, 8);
 COMMIT;
 
 --echo # wait for purge to process the deleted/updated records.
-let $wait_all_purged=1;
+let $wait_all_purged=2;
 --source ../../innodb/include/wait_all_purged.inc
 let $wait_all_purged=0;
 
@@ -217,11 +217,53 @@ SET DEBUG_SYNC='now WAIT_FOR halfway';
 COMMIT;
 --source ../../innodb/include/wait_all_purged.inc
 SET DEBUG_SYNC='now SIGNAL purged';
-disconnect prevent_purge;
 
 connection default;
 reap;
 DROP TABLE t1;
+
+CREATE TABLE t1 (y YEAR, vy YEAR AS (y) VIRTUAL UNIQUE, pk INT PRIMARY KEY)
+ENGINE=InnoDB;
+
+INSERT INTO t1 (pk,y) VALUES (1,2022);
+CREATE TABLE t2(f1 INT NOT NULL, PRIMARY KEY(f1))ENGINE=InnoDB;
+
+SET GLOBAL debug_dbug = '+d,ib_purge_virtual_index_callback';
+
+BEGIN;
+INSERT INTO t2(f1) VALUES(1);
+connection prevent_purge;
+SET DEBUG_SYNC=RESET;
+start transaction with consistent snapshot;
+connection default;
+COMMIT;
+
+connect(truncate,localhost,root,,);
+REPLACE INTO t1(pk, y) SELECT pk,y FROM t1;
+SET DEBUG_SYNC='row_trunc_before_dict_lock SIGNAL commit WAIT_FOR release';
+send TRUNCATE TABLE t1;
+
+connection prevent_purge;
+SET DEBUG_SYNC='now WAIT_FOR commit';
+COMMIT;
+SET DEBUG_SYNC='now SIGNAL purge_start';
+disconnect prevent_purge;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR purge_start';
+let $wait_all_purged=2;
+--source ../../innodb/include/wait_all_purged.inc
+let $wait_all_purged=0;
+SET DEBUG_SYNC='now SIGNAL release';
+SET GLOBAL debug_dbug=@old_dbug;
+
+connection truncate;
+reap;
+disconnect truncate;
+
+connection default;
+--source ../../innodb/include/wait_all_purged.inc
+DROP TABLE t1, t2;
 
 --source include/wait_until_count_sessions.inc
 set debug_sync=reset;

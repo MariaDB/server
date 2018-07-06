@@ -128,7 +128,7 @@ void destroy_thd(MYSQL_THD thd);
 void reset_thd(MYSQL_THD thd);
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 			const char *tb, size_t tblen);
-TABLE *get_purge_table(THD *thd);
+void close_thread_tables(THD* thd);
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 #define tc_size  400
@@ -20622,63 +20622,154 @@ innobase_index_cond(
 	return handler_index_cond_check(file);
 }
 
-
-/** Find or open a mysql table for the virtual column template
-@param[in]	thd	mysql thread handle
-@param[in,out]	table	InnoDB table whose virtual column template is to be updated
-@return TABLE if successful or NULL */
-static TABLE *
-innobase_find_mysql_table_for_vc(
-/*=============================*/
-	THD*		thd,
-	dict_table_t*	table)
+/** Parse the table file name into table name and database name.
+@param[in]	tbl_name	InnoDB table name
+@param[out]	dbname		database name buffer (NAME_LEN + 1 bytes)
+@param[out]	tblname		table name buffer (NAME_LEN + 1 bytes)
+@param[out]	dbnamelen	database name length
+@param[out]	tblnamelen	table name length
+@return true if the table name is parsed properly. */
+static bool table_name_parse(
+	const table_name_t&	tbl_name,
+	char*			dbname,
+	char*			tblname,
+	ulint&			dbnamelen,
+	ulint&			tblnamelen)
 {
-	TABLE *mysql_table;
-	bool	bg_thread = THDVAR(thd, background_thread);
+	dbnamelen = dict_get_db_name_len(tbl_name.m_name);
+	char db_buf[MAX_DATABASE_NAME_LEN  + 1];
+	char tbl_buf[MAX_TABLE_NAME_LEN + 1];
 
-	if (bg_thread) {
-		if ((mysql_table = get_purge_table(thd))) {
-			return mysql_table;
+	ut_ad(dbnamelen > 0);
+	ut_ad(dbnamelen <= MAX_DATABASE_NAME_LEN);
+
+	memcpy(db_buf, tbl_name.m_name, dbnamelen);
+	db_buf[dbnamelen] = 0;
+
+	tblnamelen = strlen(tbl_name.m_name + dbnamelen + 1);
+	memcpy(tbl_buf, tbl_name.m_name + dbnamelen + 1, tblnamelen);
+	tbl_buf[tblnamelen] = 0;
+
+	filename_to_tablename(db_buf, dbname, MAX_DATABASE_NAME_LEN + 1, true);
+
+	if (tblnamelen > TEMP_FILE_PREFIX_LENGTH
+	    && !strncmp(tbl_buf, TEMP_FILE_PREFIX, TEMP_FILE_PREFIX_LENGTH)) {
+		return false;
+	}
+
+	if (char *is_part = strchr(tbl_buf, '#')) {
+		*is_part = '\0';
+	}
+
+	filename_to_tablename(tbl_buf, tblname, MAX_TABLE_NAME_LEN + 1, true);
+	return true;
+}
+
+
+/** Acquire metadata lock and MariaDB table handle for an InnoDB table.
+@param[in,out]	thd	thread handle
+@param[in,out]	table	InnoDB table
+@return MariaDB table handle
+@retval NULL if the table does not exist, is unaccessible or corrupted. */
+static TABLE* innodb_acquire_mdl(THD* thd, dict_table_t* table)
+{
+	char	db_buf[NAME_LEN + 1], db_buf1[NAME_LEN + 1];
+	char	tbl_buf[NAME_LEN + 1], tbl_buf1[NAME_LEN + 1];
+	ulint	db_buf_len, db_buf1_len;
+	ulint	tbl_buf_len, tbl_buf1_len;
+
+	if (!table_name_parse(table->name, db_buf, tbl_buf,
+			      db_buf_len, tbl_buf_len)) {
+		ut_ad(!"invalid table name");
+		return NULL;
+	}
+
+	const table_id_t table_id = table->id;
+retry_mdl:
+	const bool unaccessible = !table->is_readable() || table->corrupted;
+	table->release();
+
+	if (unaccessible) {
+		return NULL;
+	}
+
+	TABLE*	mariadb_table = open_purge_table(thd, db_buf, db_buf_len,
+						 tbl_buf, tbl_buf_len);
+
+	table = dict_table_open_on_id(table_id, false, DICT_TABLE_OP_NORMAL);
+
+	if (table == NULL) {
+		/* Table is dropped. */
+		goto fail;
+	}
+
+	if (!fil_table_accessible(table)) {
+release_fail:
+		table->release();
+fail:
+		if (mariadb_table) {
+			close_thread_tables(thd);
 		}
+
+		return NULL;
+	}
+
+	if (!table_name_parse(table->name, db_buf1, tbl_buf1,
+			      db_buf1_len, tbl_buf1_len)) {
+		ut_ad(!"invalid table name");
+		goto release_fail;
+	}
+
+	if (!mariadb_table) {
+	} else if (!strcmp(db_buf, db_buf1) && !strcmp(tbl_buf, tbl_buf1)) {
+		return mariadb_table;
 	} else {
-		if (table->vc_templ->mysql_table_query_id == thd_get_query_id(thd)) {
+		/* Table is renamed. So release MDL for old name and try
+		to acquire the MDL for new table name. */
+		close_thread_tables(thd);
+	}
+
+	strcpy(tbl_buf, tbl_buf1);
+	strcpy(db_buf, db_buf1);
+	tbl_buf_len = tbl_buf1_len;
+	db_buf_len = db_buf1_len;
+	goto retry_mdl;
+}
+
+/** Find or open a table handle for the virtual column template
+@param[in]	thd	thread handle
+@param[in,out]	table	InnoDB table whose virtual column template
+			is to be updated
+@return table handle
+@retval NULL if the table is dropped, unaccessible or corrupted
+for purge thread */
+static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
+{
+	if (THDVAR(thd, background_thread)) {
+		/* Purge thread acquires dict_operation_lock while
+		processing undo log record. Release the dict_operation_lock
+		before acquiring MDL on the table. */
+		rw_lock_s_unlock(dict_operation_lock);
+		return innodb_acquire_mdl(thd, table);
+	} else {
+		if (table->vc_templ->mysql_table_query_id
+		    == thd_get_query_id(thd)) {
 			return table->vc_templ->mysql_table;
 		}
 	}
 
-	char	dbname[MAX_DATABASE_NAME_LEN + 1];
-	char	tbname[MAX_TABLE_NAME_LEN + 1];
-	char*	name = table->name.m_name;
-	uint	dbnamelen = (uint) dict_get_db_name_len(name);
-	uint	tbnamelen = (uint) strlen(name) - dbnamelen - 1;
-	char	t_dbname[MAX_DATABASE_NAME_LEN + 1];
-	char	t_tbname[MAX_TABLE_NAME_LEN + 1];
+	char	db_buf[NAME_LEN + 1];
+	char	tbl_buf[NAME_LEN + 1];
+	ulint	db_buf_len, tbl_buf_len;
 
-	strncpy(dbname, name, dbnamelen);
-	dbname[dbnamelen] = 0;
-	strncpy(tbname, name + dbnamelen + 1, tbnamelen);
-	tbname[tbnamelen] =0;
-
-	/* For partition table, remove the partition name and use the
-	"main" table name to build the template */
-	 char*	is_part = is_partition(tbname);
-
-	if (is_part != NULL) {
-		*is_part = '\0';
+	if (!table_name_parse(table->name, db_buf, tbl_buf,
+			      db_buf_len, tbl_buf_len)) {
+		ut_ad(!"invalid table name");
+		return NULL;
 	}
 
-	dbnamelen = filename_to_tablename(dbname, t_dbname,
-					  MAX_DATABASE_NAME_LEN + 1);
-	tbnamelen = filename_to_tablename(tbname, t_tbname,
-					  MAX_TABLE_NAME_LEN + 1);
-
-	if (bg_thread) {
-		return open_purge_table(thd, t_dbname, dbnamelen,
-					t_tbname, tbnamelen);
-	}
-
-	mysql_table = find_fk_open_table(thd, t_dbname, dbnamelen,
-					t_tbname, tbnamelen);
+	TABLE* mysql_table = find_fk_open_table(thd, db_buf, db_buf_len,
+						tbl_buf, tbl_buf_len);
 
 	table->vc_templ->mysql_table = mysql_table;
 	table->vc_templ->mysql_table_query_id = thd_get_query_id(thd);
@@ -20697,7 +20788,7 @@ innobase_init_vc_templ(
 
 	table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
 
-	TABLE	*mysql_table= innobase_find_mysql_table_for_vc(current_thd, table);
+	TABLE	*mysql_table= innodb_find_table_for_vc(current_thd, table);
 
 	ut_ad(mysql_table);
 	if (!mysql_table) {
@@ -20791,15 +20882,16 @@ innobase_get_field_from_update_vector(
    Allocate a heap and record for calculating virtual fields
    Used mainly for virtual fields in indexes
 
-@param[in]      thd             MariaDB THD
-@param[in]      index           Index in use
+@param[in]	thd		MariaDB THD
+@param[in]	index		Index in use
 @param[out]	heap		Heap that holds temporary row
-@param[in,out]	mysql_table	MariaDB table
-@param[out]	rec		Pointer to allocated MariaDB record
-@param[out]	storage         Internal storage for blobs etc
+@param[in,out]	table		MariaDB table
+@param[out]	record		Pointer to allocated MariaDB record
+@param[out]	storage		Internal storage for blobs etc
 
-@return         FALSE ok
-@return         TRUE malloc failure
+@retval		false on success
+@retval		true on malloc failure or failed to open the maria table
+		for purge thread.
 */
 
 bool innobase_allocate_row_for_vcol(
@@ -20813,7 +20905,12 @@ bool innobase_allocate_row_for_vcol(
 	TABLE *maria_table;
 	String *blob_value_storage;
 	if (!*table)
-		*table= innobase_find_mysql_table_for_vc(thd, index->table);
+		*table= innodb_find_table_for_vc(thd, index->table);
+
+	/* For purge thread, there is a possiblity that table could have
+	dropped, corrupted or unaccessible. */
+	if (!*table)
+		return true;
 	maria_table= *table;
 	if (!*heap && !(*heap= mem_heap_create(srv_page_size)))
 	{

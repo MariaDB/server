@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -51,5 +52,56 @@ struct row_log_t;
 
 /* MySQL data types */
 struct TABLE;
+
+/** Purge virtual column node information. */
+struct purge_vcol_info_t
+{
+	/** Is there a possible need to evaluate virtual columns? */
+	bool	requested;
+	/** Do we have to evaluate virtual columns (using mariadb_table)? */
+	bool	used;
+
+	/** True if it is used for the first time. */
+	bool	first_use;
+
+	/** MariaDB table opened for virtual column computation. */
+	TABLE*	mariadb_table;
+
+	/** Reset the state. */
+	void reset()
+	{
+		requested = false;
+		used = false;
+		first_use = false;
+		mariadb_table = NULL;
+	}
+
+	/** Validate the virtual column information.
+	@return true if the mariadb table opened successfully
+	or doesn't try to calculate virtual column. */
+	bool validate() const { return !used || mariadb_table; }
+
+	/** Note that the virtual column information is needed. */
+	void set_used()
+	{
+		ut_ad(requested);
+
+		if (first_use) {
+			first_use = false;
+			ut_ad(used);
+			return;
+		}
+
+		first_use = used = true;
+	}
+
+	/** Check whether it fetches mariadb table for the first time.
+	@return true if first time tries to open mariadb table. */
+	bool is_first_fetch() const
+	{
+		ut_ad(!first_use || used);
+		return first_use;
+	}
+};
 
 #endif

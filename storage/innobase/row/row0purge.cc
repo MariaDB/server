@@ -136,7 +136,8 @@ row_purge_remove_clust_if_poss_low(
 	ulint			offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_);
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S));
+	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
+	      || node->vcol_info.used);
 
 	index = dict_table_get_first_index(node->table);
 
@@ -230,8 +231,55 @@ row_purge_remove_clust_if_poss(
 	return(false);
 }
 
-/***********************************************************//**
-Determines if it is possible to remove a secondary index entry.
+/** Tries to store secondary index cursor before openin mysql table for
+virtual index condition computation.
+@param[in,out]	node		row purge node
+@param[in]	index		secondary index
+@param[in,out]	sec_pcur	secondary index cursor
+@param[in,out]	sec_mtr		mini-transaction which holds
+				secondary index entry */
+static void row_purge_store_vsec_cur(
+        purge_node_t*   node,
+        dict_index_t*   index,
+        btr_pcur_t*     sec_pcur,
+        mtr_t*          sec_mtr)
+{
+	row_purge_reposition_pcur(BTR_SEARCH_LEAF, node, sec_mtr);
+
+	if (!node->found_clust) {
+		return;
+	}
+
+	node->vcol_info.requested = true;
+
+	btr_pcur_store_position(sec_pcur, sec_mtr);
+
+	btr_pcurs_commit_specify_mtr(&node->pcur, sec_pcur, sec_mtr);
+}
+
+/** Tries to restore secondary index cursor after opening the mysql table
+@param[in,out]	node	row purge node
+@param[in]	index	secondary index
+@param[in,out]	sec_mtr	mini-transaction which holds secondary index entry
+@param[in]	is_tree	true=pessimistic purge,
+			false=optimistic (leaf-page only)
+@return false in case of restore failure. */
+static bool row_purge_restore_vsec_cur(
+	purge_node_t*	node,
+	dict_index_t*	index,
+	btr_pcur_t*	sec_pcur,
+	mtr_t*		sec_mtr,
+	bool		is_tree)
+{
+	sec_mtr->start();
+	index->set_modified(*sec_mtr);
+
+	return btr_pcur_restore_position(
+		is_tree ? BTR_PURGE_TREE : BTR_PURGE_LEAF,
+		sec_pcur, sec_mtr);
+}
+
+/** Determines if it is possible to remove a secondary index entry.
 Removal is possible if the secondary index entry does not refer to any
 not delete marked version of a clustered index record where DB_TRX_ID
 is newer than the purge view.
@@ -244,25 +292,66 @@ inserts a record that the secondary index entry would refer to.
 However, in that case, the user transaction would also re-insert the
 secondary index entry after purge has removed it and released the leaf
 page latch.
+@param[in,out]	node		row purge node
+@param[in]	index		secondary index
+@param[in]	entry		secondary index entry
+@param[in,out]	sec_pcur	secondary index cursor or NULL
+				if it is called for purge buffering
+				operation.
+@param[in,out]	sec_mtr		mini-transaction which holds
+				secondary index entry or NULL if it is
+				called for purge buffering operation.
+@param[in]	is_tree		true=pessimistic purge,
+				false=optimistic (leaf-page only)
 @return true if the secondary index record can be purged */
 bool
 row_purge_poss_sec(
-/*===============*/
-	purge_node_t*	node,	/*!< in/out: row purge node */
-	dict_index_t*	index,	/*!< in: secondary index */
-	const dtuple_t*	entry)	/*!< in: secondary index entry */
+	purge_node_t*	node,
+	dict_index_t*	index,
+	const dtuple_t*	entry,
+	btr_pcur_t*	sec_pcur,
+	mtr_t*		sec_mtr,
+	bool		is_tree)
 {
 	bool	can_delete;
 	mtr_t	mtr;
 
 	ut_ad(!dict_index_is_clust(index));
+
+	const bool	store_cur = sec_mtr && !node->vcol_info.used
+		&& dict_index_has_virtual(index);
+
+	if (store_cur) {
+		row_purge_store_vsec_cur(node, index, sec_pcur, sec_mtr);
+
+		/* The PRIMARY KEY value was not found in the clustered
+		index. The secondary index record found. We can purge
+		the secondary index record. */
+		if (!node->vcol_info.requested) {
+			ut_ad(!node->found_clust);
+			return true;
+		}
+	}
+
+retry_purge_sec:
 	mtr_start(&mtr);
 
 	can_delete = !row_purge_reposition_pcur(BTR_SEARCH_LEAF, node, &mtr)
-		|| !row_vers_old_has_index_entry(TRUE,
+		|| !row_vers_old_has_index_entry(true,
 						 btr_pcur_get_rec(&node->pcur),
 						 &mtr, index, entry,
-						 node->roll_ptr, node->trx_id);
+						 node->roll_ptr, node->trx_id,
+						 &node->vcol_info);
+
+	if (node->vcol_info.is_first_fetch()) {
+		if (node->vcol_info.mariadb_table) {
+			goto retry_purge_sec;
+		}
+
+		node->table = NULL;
+		sec_pcur = NULL;
+		return false;
+	}
 
 	/* Persistent cursor is closed if reposition fails. */
 	if (node->found_clust) {
@@ -271,7 +360,12 @@ row_purge_poss_sec(
 		mtr_commit(&mtr);
 	}
 
-	return(can_delete);
+	if (store_cur && !row_purge_restore_vsec_cur(
+		    node, index, sec_pcur, sec_mtr, is_tree)) {
+		return false;
+	}
+
+	return can_delete;
 }
 
 /***************************************************************
@@ -287,7 +381,6 @@ row_purge_remove_sec_if_poss_tree(
 	const dtuple_t*	entry)	/*!< in: index entry */
 {
 	btr_pcur_t		pcur;
-	btr_cur_t*		btr_cur;
 	ibool			success	= TRUE;
 	dberr_t			err;
 	mtr_t			mtr;
@@ -348,16 +441,16 @@ row_purge_remove_sec_if_poss_tree(
 		ut_error;
 	}
 
-	btr_cur = btr_pcur_get_btr_cur(&pcur);
-
 	/* We should remove the index record if no later version of the row,
 	which cannot be purged yet, requires its existence. If some requires,
 	we should do nothing. */
 
-	if (row_purge_poss_sec(node, index, entry)) {
+	if (row_purge_poss_sec(node, index, entry, &pcur, &mtr, true)) {
+
 		/* Remove the index record, which should have been
 		marked for deletion. */
-		if (!rec_get_deleted_flag(btr_cur_get_rec(btr_cur),
+		if (!rec_get_deleted_flag(btr_cur_get_rec(
+						btr_pcur_get_btr_cur(&pcur)),
 					  dict_table_is_comp(index->table))) {
 			ib::error()
 				<< "tried to purge non-delete-marked record"
@@ -365,15 +458,18 @@ row_purge_remove_sec_if_poss_tree(
 				<< " of table " << index->table->name
 				<< ": tuple: " << *entry
 				<< ", record: " << rec_index_print(
-					btr_cur_get_rec(btr_cur), index);
+					btr_cur_get_rec(
+						btr_pcur_get_btr_cur(&pcur)),
+					index);
 
 			ut_ad(0);
 
 			goto func_exit;
 		}
 
-		btr_cur_pessimistic_delete(&err, FALSE, btr_cur, 0,
-					   false, &mtr);
+		btr_cur_pessimistic_delete(&err, FALSE,
+					   btr_pcur_get_btr_cur(&pcur),
+					   0, false, &mtr);
 		switch (UNIV_EXPECT(err, DB_SUCCESS)) {
 		case DB_SUCCESS:
 			break;
@@ -383,6 +479,13 @@ row_purge_remove_sec_if_poss_tree(
 		default:
 			ut_error;
 		}
+	}
+
+	if (node->vcol_op_failed()) {
+		ut_ad(mtr.has_committed());
+		ut_ad(!pcur.old_rec_buf);
+		ut_ad(pcur.pos_state == BTR_PCUR_NOT_POSITIONED);
+		return false;
 	}
 
 func_exit:
@@ -445,8 +548,10 @@ row_purge_remove_sec_if_poss_leaf(
 		index->is_committed(). */
 		ut_ad(!dict_index_is_online_ddl(index));
 
-		/* Change buffering is disabled for spatial index. */
-		mode = dict_index_is_spatial(index)
+		/* Change buffering is disabled for spatial index and
+		virtual index. */
+		mode = (dict_index_is_spatial(index)
+			|| dict_index_has_virtual(index))
 			? BTR_MODIFY_LEAF
 			: BTR_PURGE_LEAF;
 	}
@@ -474,7 +579,7 @@ row_purge_remove_sec_if_poss_leaf(
 	case ROW_FOUND:
 		/* Before attempting to purge a record, check
 		if it is safe to do so. */
-		if (row_purge_poss_sec(node, index, entry)) {
+		if (row_purge_poss_sec(node, index, entry, &pcur, &mtr, false)) {
 			btr_cur_t* btr_cur = btr_pcur_get_btr_cur(&pcur);
 
 			/* Only delete-marked records should be purged. */
@@ -540,6 +645,12 @@ row_purge_remove_sec_if_poss_leaf(
 				success = false;
 			}
 		}
+
+		if (node->vcol_op_failed()) {
+			btr_pcur_close(&pcur);
+			return false;
+		}
+
 		/* (The index entry is still needed,
 		or the deletion succeeded) */
 		/* fall through */
@@ -586,6 +697,10 @@ row_purge_remove_sec_if_poss(
 		return;
 	}
 retry:
+	if (node->vcol_op_failed()) {
+		return;
+	}
+
 	success = row_purge_remove_sec_if_poss_tree(node, index, entry);
 	/* The delete operation may fail if we have little
 	file space left: TODO: easiest to crash the database
@@ -652,6 +767,12 @@ row_purge_del_mark(
 				node->row, NULL, node->index,
 				heap, ROW_BUILD_FOR_PURGE);
 			row_purge_remove_sec_if_poss(node, node->index, entry);
+
+			if (node->vcol_op_failed()) {
+				mem_heap_free(heap);
+				return false;
+			}
+
 			mem_heap_empty(heap);
 		}
 
@@ -667,11 +788,10 @@ row_purge_del_mark(
 whose old history can no longer be observed.
 @param[in,out]	node	purge node
 @param[in,out]	mtr	mini-transaction (will be started and committed) */
-static
-void
-row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
+static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 {
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S));
+	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
+	      || node->vcol_info.used);
 	/* Reset DB_TRX_ID, DB_ROLL_PTR for old records. */
 	mtr->start();
 
@@ -746,7 +866,8 @@ row_purge_upd_exist_or_extern_func(
 {
 	mem_heap_t*	heap;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S));
+	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
+	      || node->vcol_info.used);
 	ut_ad(!node->table->skip_alter_undo);
 
 	if (node->rec_type == TRX_UNDO_UPD_DEL_REC
@@ -1107,10 +1228,15 @@ row_purge(
 			bool purged = row_purge_record(
 				node, undo_rec, thr, updated_extern);
 
-			rw_lock_s_unlock(dict_operation_lock);
+			if (!node->vcol_info.used) {
+				rw_lock_s_unlock(dict_operation_lock);
+			}
+
+			ut_ad(!rw_lock_own(dict_operation_lock, RW_LOCK_S));
 
 			if (purged
-			    || srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+			    || srv_shutdown_state != SRV_SHUTDOWN_NONE
+			    || node->vcol_op_failed()) {
 				return;
 			}
 
@@ -1141,6 +1267,8 @@ row_purge_end(
 	node->undo_recs = NULL;
 
 	node->done = TRUE;
+
+	node->vcol_info.reset();
 
 	ut_a(thr->run_node != NULL);
 
@@ -1189,6 +1317,7 @@ row_purge_step(
 			row_purge_end(thr);
 		} else {
 			thr->run_node = node;
+			node->vcol_info.reset();
 		}
 	} else {
 		row_purge_end(thr);
