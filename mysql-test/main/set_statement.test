@@ -1130,3 +1130,10 @@ while ($1)
 --enable_query_log
 --echo # @rnd should be 0
 select @rnd;
+
+create table t (a int);
+SET sql_mode=ORACLE;
+SET STATEMENT myisam_sort_buffer_size=800000 FOR OPTIMIZE TABLE t;
+SET sql_mode=default;
+drop table t;
+

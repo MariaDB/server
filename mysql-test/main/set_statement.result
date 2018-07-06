@@ -1225,3 +1225,10 @@ set @rnd=1;
 select @rnd;
 @rnd
 0
+create table t (a int);
+SET sql_mode=ORACLE;
+SET STATEMENT myisam_sort_buffer_size=800000 FOR OPTIMIZE TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	optimize	status	Table is already up to date
+SET sql_mode=default;
+drop table t;

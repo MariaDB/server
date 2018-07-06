@@ -13176,10 +13176,11 @@ table_list:
 table_name:
           table_ident
           {
-            if (unlikely(!Select->add_table_to_list(thd, $1, NULL,
-                                                    TL_OPTION_UPDATING,
-                                                    YYPS->m_lock_type,
-                                                    YYPS->m_mdl_type)))
+            if (!thd->lex->current_select_or_default()->
+                                           add_table_to_list(thd, $1, NULL,
+                                           TL_OPTION_UPDATING,
+                                           YYPS->m_lock_type,
+                                           YYPS->m_mdl_type))
               MYSQL_YYABORT;
           }
         ;
