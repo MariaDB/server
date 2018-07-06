@@ -117,11 +117,12 @@ static int prepare_for_fill(TABLE_LIST *tables)
 
   tables->init_one_table(&INFORMATION_SCHEMA_NAME, &tbl_name, 0, TL_READ);
   tables->schema_table= i_s_feedback;
+  tables->select_lex= thd->lex->first_select_lex();
+  DBUG_ASSERT(tables->select_lex);
   tables->table= create_schema_table(thd, tables);
   if (!tables->table)
     return 1;
 
-  tables->select_lex= thd->lex->current_select;
   tables->table->pos_in_table_list= tables;
 
   return 0;
