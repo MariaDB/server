@@ -1871,7 +1871,6 @@ do_possible_lock_wait:
 
 		lock_wait_suspend_thread(thr);
 #ifdef WITH_WSREP
-		trx_mutex_enter(trx);
 		switch (trx->error_state) {
 		case DB_DEADLOCK:
 			if (wsrep_debug) {
@@ -1885,8 +1884,6 @@ do_possible_lock_wait:
 		default:
 			break;
 		}
-		trx_mutex_exit(trx);
-
 #endif /* WITH_WSREP */
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
