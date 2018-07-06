@@ -159,21 +159,17 @@ ENDFUNCTION()
 
 
 # Install symbolic link to CMake target. 
-# the link is created in the same directory as target
+# the link is created in the current build directory
 # and extension will be the same as for target file.
 MACRO(INSTALL_SYMLINK linkname target destination component)
 IF(UNIX)
-  GET_TARGET_PROPERTY(location ${target} LOCATION)
-  GET_FILENAME_COMPONENT(path ${location} PATH)
-  GET_FILENAME_COMPONENT(name ${location} NAME)
-  SET(output ${path}/${linkname})
+  SET(output ${CMAKE_CURRENT_BINARY_DIR}/${linkname})
   ADD_CUSTOM_COMMAND(
     OUTPUT ${output}
-    COMMAND ${CMAKE_COMMAND} ARGS -E remove -f ${output}
+    COMMAND ${CMAKE_COMMAND} ARGS -E remove -f ${linkname}
     COMMAND ${CMAKE_COMMAND} ARGS -E create_symlink 
-      ${name} 
+      $<TARGET_FILE_NAME:${target}>
       ${linkname}
-    WORKING_DIRECTORY ${path}
     DEPENDS ${target}
     )
   
@@ -259,8 +255,7 @@ FUNCTION(MYSQL_INSTALL_TARGETS)
     ENDIF()
     # Install man pages on Unix
     IF(UNIX)
-      GET_TARGET_PROPERTY(target_location ${target} LOCATION)
-      INSTALL_MANPAGE(${target_location})
+      INSTALL_MANPAGE($<TARGET_FILE:${target}>)
     ENDIF()
   ENDFOREACH()
 
@@ -277,6 +272,7 @@ SET(DEBUGBUILDDIR "${BINARY_PARENTDIR}/debug" CACHE INTERNAL "Directory of debug
 
 
 FUNCTION(INSTALL_DEBUG_TARGET target)
+  RETURN() # XXX unused?
   CMAKE_PARSE_ARGUMENTS(ARG
   ""
   "DESTINATION;RENAME;PDB_DESTINATION;COMPONENT"
