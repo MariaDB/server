@@ -1,0 +1,5 @@
+SET GLOBAL wsrep_provider_options = 'pc.weight=3';
+SHOW GLOBAL VARIABLES LIKE 'wsrep_provider_options';
+Variable_name	Value
+wsrep_provider_options	pc.weight = 3
+SET GLOBAL wsrep_provider_options = 'pc.weight=1';
