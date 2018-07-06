@@ -556,20 +556,6 @@ innobase_index_cond(
 	void*	file)	/*!< in/out: pointer to ha_innobase */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/******************************************************************//**
-Gets information on the durability property requested by thread.
-Used when writing either a prepare or commit record to the log
-buffer.
-@return the durability property. */
-
-#include <dur_prop.h>
-
-enum durability_properties
-thd_requested_durability(
-/*=====================*/
-	const THD* thd)	/*!< in: thread handle */
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Update the system variable with the given value of the InnoDB
 buffer pool size.
 @param[in]	buf_pool_size	given value of buffer pool size.*/
