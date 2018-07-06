@@ -126,7 +126,7 @@ void Item_subselect::init(st_select_lex *select_lex,
     else
       engine= new subselect_single_select_engine(select_lex, result, this);
   }
-  DBUG_PRINT("info", ("engine: 0x%lx", (ulong)engine));
+  DBUG_PRINT("info", ("engine: %p", engine));
   DBUG_VOID_RETURN;
 }
 
