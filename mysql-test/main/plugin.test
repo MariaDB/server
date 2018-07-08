@@ -292,12 +292,8 @@ SHOW WARNINGS;
 --error 1305
 UNINSTALL PLUGIN example;
 
-INSTALL SONAME IF NOT EXISTS 'ha_example';
-
+INSTALL SONAME 'ha_example';
 select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
-
-# note: installing soname multiple times doesn't cause errors or warnings
-INSTALL SONAME IF NOT EXISTS 'ha_example';
 
 UNINSTALL SONAME IF EXISTS 'ha_example';
 

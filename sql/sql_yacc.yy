@@ -17500,15 +17500,12 @@ install:
             lex->comment= $4;
             lex->ident= $6;
           }
-        | INSTALL_SYM SONAME_SYM opt_if_not_exists TEXT_STRING_sys
+        | INSTALL_SYM SONAME_SYM TEXT_STRING_sys
           {
             LEX *lex= Lex;
-            lex->create_info.init();
-            if (lex->add_create_options_with_check($3))
-              MYSQL_YYABORT;
             lex->sql_command= SQLCOM_INSTALL_PLUGIN;
             lex->comment= null_clex_str;
-            lex->ident= $4;
+            lex->ident= $3;
           }
         ;
 
