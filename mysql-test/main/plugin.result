@@ -361,12 +361,11 @@ Level	Code	Message
 Note	1305	PLUGIN example does not exist
 UNINSTALL PLUGIN example;
 ERROR 42000: PLUGIN example does not exist
-INSTALL SONAME IF NOT EXISTS 'ha_example';
+INSTALL SONAME 'ha_example';
 select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
 PLUGIN_NAME	PLUGIN_STATUS	PLUGIN_TYPE
 EXAMPLE	ACTIVE	STORAGE ENGINE
 UNUSABLE	ACTIVE	DAEMON
-INSTALL SONAME IF NOT EXISTS 'ha_example';
 UNINSTALL SONAME IF EXISTS 'ha_example';
 UNINSTALL SONAME IF EXISTS 'ha_example';
 Warnings:
