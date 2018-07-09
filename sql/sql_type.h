@@ -1031,6 +1031,9 @@ public:
 class Type_handler
 {
 protected:
+  static const Name m_version_default;
+  static const Name m_version_mysql56;
+  static const Name m_version_mariadb53;
   String *print_item_value_csstr(THD *thd, Item *item, String *str) const;
   String *print_item_value_temporal(THD *thd, Item *item, String *str,
                                      const Name &type_name, String *buf) const;
@@ -1096,6 +1099,7 @@ public:
                                                  const Type_handler *h2);
 
   virtual const Name name() const= 0;
+  virtual const Name version() const { return m_version_default; }
   virtual enum_field_types field_type() const= 0;
   virtual enum_field_types real_field_type() const { return field_type(); }
   /**
@@ -1253,6 +1257,9 @@ public:
   virtual Field *make_conversion_table_field(TABLE *TABLE,
                                              uint metadata,
                                              const Field *target) const= 0;
+  // Automatic upgrade, e.g. for ALTER TABLE t1 FORCE
+  virtual void Column_definition_implicit_upgrade(Column_definition *c) const
+  { }
   virtual bool Column_definition_fix_attributes(Column_definition *c) const= 0;
   virtual bool Column_definition_prepare_stage1(THD *thd,
                                                 MEM_ROOT *mem_root,
@@ -2878,6 +2885,7 @@ public:
     return Item_divisor_precision_increment_with_seconds(item);
   }
   const Type_handler *type_handler_for_comparison() const;
+  void Column_definition_implicit_upgrade(Column_definition *c) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
@@ -2923,6 +2931,7 @@ class Type_handler_time: public Type_handler_time_common
 public:
   static uint hires_bytes(uint dec) { return m_hires_bytes[dec]; }
   virtual ~Type_handler_time() {}
+  const Name version() const { return m_version_mariadb53; }
   uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -2948,6 +2957,7 @@ class Type_handler_time2: public Type_handler_time_common
 {
 public:
   virtual ~Type_handler_time2() {}
+  const Name version() const { return m_version_mysql56; }
   enum_field_types real_field_type() const { return MYSQL_TYPE_TIME2; }
   uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
@@ -3082,6 +3092,7 @@ public:
   }
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
+  void Column_definition_implicit_upgrade(Column_definition *c) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
   uint Item_decimal_scale(const Item *item) const
   {
@@ -3115,6 +3126,7 @@ class Type_handler_datetime: public Type_handler_datetime_common
 public:
   static uint hires_bytes(uint dec) { return m_hires_bytes[dec]; }
   virtual ~Type_handler_datetime() {}
+  const Name version() const { return m_version_mariadb53; }
   uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -3140,6 +3152,7 @@ class Type_handler_datetime2: public Type_handler_datetime_common
 {
 public:
   virtual ~Type_handler_datetime2() {}
+  const Name version() const { return m_version_mysql56; }
   enum_field_types real_field_type() const { return MYSQL_TYPE_DATETIME2; }
   uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
@@ -3178,6 +3191,7 @@ public:
   {
     return true;
   }
+  void Column_definition_implicit_upgrade(Column_definition *c) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
   uint Item_decimal_scale(const Item *item) const
   {
@@ -3211,6 +3225,7 @@ class Type_handler_timestamp: public Type_handler_timestamp_common
 public:
   static uint sec_part_bytes(uint dec) { return m_sec_part_bytes[dec]; }
   virtual ~Type_handler_timestamp() {}
+  const Name version() const { return m_version_mariadb53; }
   uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
@@ -3236,6 +3251,7 @@ class Type_handler_timestamp2: public Type_handler_timestamp_common
 {
 public:
   virtual ~Type_handler_timestamp2() {}
+  const Name version() const { return m_version_mysql56; }
   enum_field_types real_field_type() const { return MYSQL_TYPE_TIMESTAMP2; }
   uint32 calc_pack_length(uint32 length) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
@@ -3436,6 +3452,7 @@ public:
   {
     return varstring_type_handler(item);
   }
+  void Column_definition_implicit_upgrade(Column_definition *c) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,

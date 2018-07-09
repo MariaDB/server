@@ -472,6 +472,11 @@ const Name
   Type_handler_datetime_common::m_name_datetime(STRING_WITH_LEN("datetime")),
   Type_handler_timestamp_common::m_name_timestamp(STRING_WITH_LEN("timestamp"));
 
+const Name
+  Type_handler::m_version_default(STRING_WITH_LEN("")),
+  Type_handler::m_version_mariadb53(STRING_WITH_LEN("mariadb-5.3")),
+  Type_handler::m_version_mysql56(STRING_WITH_LEN("mysql-5.6"));
+
 
 const Type_limits_int
   Type_handler_tiny::m_limits_sint8=      Type_limits_sint8(),
@@ -6532,3 +6537,40 @@ bool Type_handler_decimal_result::Item_eq_value(THD *thd,
 }
 
 /***************************************************************************/
+
+void Type_handler_var_string::
+  Column_definition_implicit_upgrade(Column_definition *c) const
+{
+  // Change old VARCHAR to new VARCHAR
+  c->set_handler(&type_handler_varchar);
+}
+
+
+void Type_handler_time_common::
+  Column_definition_implicit_upgrade(Column_definition *c) const
+{
+  if (opt_mysql56_temporal_format)
+    c->set_handler(&type_handler_time2);
+  else
+    c->set_handler(&type_handler_time);
+}
+
+
+void Type_handler_datetime_common::
+  Column_definition_implicit_upgrade(Column_definition *c) const
+{
+  if (opt_mysql56_temporal_format)
+    c->set_handler(&type_handler_datetime2);
+  else
+    c->set_handler(&type_handler_datetime);
+}
+
+
+void Type_handler_timestamp_common::
+  Column_definition_implicit_upgrade(Column_definition *c) const
+{
+  if (opt_mysql56_temporal_format)
+    c->set_handler(&type_handler_timestamp2);
+  else
+    c->set_handler(&type_handler_timestamp);
+}

@@ -10709,11 +10709,6 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
     key_length/= charset->mbmaxlen;
     break;
   case MYSQL_TYPE_STRING:
-    /* Change CHAR -> VARCHAR if dynamic record length */
-    if (old_field->type() == MYSQL_TYPE_VAR_STRING)
-      set_handler(&type_handler_varchar);
-    /* fall through */
-
   case MYSQL_TYPE_ENUM:
   case MYSQL_TYPE_SET:
   case MYSQL_TYPE_VARCHAR:
@@ -10760,6 +10755,8 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   interval_list.empty(); // prepare_interval_field() needs this
 
   char_length= (uint)length;
+
+  type_handler()->Column_definition_implicit_upgrade(this);
 
   /*
     Copy the default (constant/function) from the column object orig_field, if
