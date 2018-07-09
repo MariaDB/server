@@ -8266,9 +8266,26 @@ set_max_autoinc:
 					ulonglong	increment;
 					dberr_t		err;
 
+#ifdef WITH_WSREP
+                                        /* Applier threads which are processing
+                                        ROW events and don't go through server
+                                        level autoinc processing, therefore
+                                        m_prebuilt autoinc values don't get
+                                        properly assigned. Fetch values from
+                                        server side. */
+                                        if (wsrep_on(current_thd) &&
+                                            wsrep_thd_exec_mode(current_thd) == REPL_RECV)
+                                        {
+                                                wsrep_thd_auto_increment_variables(current_thd, &offset, &increment);
+                                        }
+                                        else
+                                        {
+#endif /* WITH_WSREP */
 					offset = m_prebuilt->autoinc_offset;
 					increment = m_prebuilt->autoinc_increment;
-
+#ifdef WITH_WSREP
+                                        }
+#endif /* WITH_WSREP */
 					auto_inc = innobase_next_autoinc(
 						auto_inc,
 						1, increment, offset,
@@ -8965,14 +8982,45 @@ ha_innobase::update_row(
 		/* A value for an AUTO_INCREMENT column
 		was specified in the UPDATE statement. */
 
-		autoinc = innobase_next_autoinc(
-			autoinc, 1,
-			m_prebuilt->autoinc_increment,
-			m_prebuilt->autoinc_offset,
-			innobase_get_int_col_max_value(
-				table->found_next_number_field));
+		ulonglong	col_max_value;
 
-		error = innobase_set_max_autoinc(autoinc);
+		/* We need the upper limit of the col type to check for
+		whether we update the table autoinc counter or not. */
+		col_max_value =
+			table->found_next_number_field->get_max_int_value();
+
+		if (autoinc <= col_max_value && autoinc != 0) {
+
+			ulonglong	offset;
+			ulonglong	increment;
+
+#ifdef WITH_WSREP
+                        /* Applier threads which are processing
+                           ROW events and don't go through server
+                           level autoinc processing, therefore
+                           m_prebuilt autoinc values don't get
+                           properly assigned. Fetch values from
+                           server side. */
+                        if (wsrep_on(current_thd) &&
+                            wsrep_thd_exec_mode(current_thd) == REPL_RECV)
+                        {
+                                wsrep_thd_auto_increment_variables(
+                                    current_thd, &offset, &increment);
+                        }
+                        else
+                        {
+#endif /* WITH_WSREP */
+			offset = m_prebuilt->autoinc_offset;
+			increment = m_prebuilt->autoinc_increment;
+#ifdef WITH_WSREP
+                        }
+#endif /* WITH_WSREP */
+
+			autoinc = innobase_next_autoinc(
+				autoinc, 1, increment, offset, col_max_value);
+
+			error = innobase_set_max_autoinc(autoinc);
+		}
 
 		if (m_prebuilt->table->persistent_autoinc) {
 			/* Update the PAGE_ROOT_AUTO_INC. Yes, we do
