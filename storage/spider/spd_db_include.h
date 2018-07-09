@@ -17,6 +17,7 @@
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
 #include "hstcpcli.hpp"
 #endif
+#include "tztime.h"
 
 #define SPIDER_DBTON_SIZE 15
 

@@ -838,8 +838,18 @@ int spider_db_flush_logs(
   ha_spider *spider
 );
 
+Field *spider_db_find_field_in_item_list(
+  Item **item_list,
+  uint item_count,
+  uint start_item,
+  spider_string *str,
+  const char *func_name,
+  int func_name_length
+);
+
 int spider_db_print_item_type(
   Item *item,
+  Field *field,
   ha_spider *spider,
   spider_string *str,
   const char *alias,
@@ -930,6 +940,7 @@ int spider_db_open_item_row(
 
 int spider_db_open_item_string(
   Item *item,
+  Field *field,
   ha_spider *spider,
   spider_string *str,
   const char *alias,
@@ -941,6 +952,7 @@ int spider_db_open_item_string(
 
 int spider_db_open_item_int(
   Item *item,
+  Field *field,
   ha_spider *spider,
   spider_string *str,
   const char *alias,
@@ -952,6 +964,7 @@ int spider_db_open_item_int(
 
 int spider_db_open_item_cache(
   Item_cache *item_cache,
+  Field *field,
   ha_spider *spider,
   spider_string *str,
   const char *alias,
@@ -963,6 +976,7 @@ int spider_db_open_item_cache(
 
 int spider_db_open_item_insert_value(
   Item_insert_value *item_insert_value,
+  Field *field,
   ha_spider *spider,
   spider_string *str,
   const char *alias,

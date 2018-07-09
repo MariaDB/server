@@ -13,6 +13,8 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+#include "tztime.h"
+
 class spider_db_mysql_util: public spider_db_util
 {
 public:

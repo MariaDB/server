@@ -11142,13 +11142,14 @@ int ha_partition::end_bulk_delete()
 
   SYNOPSIS
     direct_update_rows_init()
+    update fields             Pointer to the list of fields to update
 
   RETURN VALUE
     >0                        Error
     0                         Success
 */
 
-int ha_partition::direct_update_rows_init()
+int ha_partition::direct_update_rows_init(List<Item> *update_fields)
 {
   int error;
   uint i, found;
@@ -11174,8 +11175,8 @@ int ha_partition::direct_update_rows_init()
     {
       file= m_file[i];
       if (unlikely((error= (m_pre_calling ?
-                            file->pre_direct_update_rows_init() :
-                            file->direct_update_rows_init()))))
+                            file->pre_direct_update_rows_init(update_fields) :
+                            file->direct_update_rows_init(update_fields)))))
       {
         DBUG_PRINT("info", ("partition FALSE by storage engine"));
         DBUG_RETURN(error);
@@ -11213,20 +11214,21 @@ int ha_partition::direct_update_rows_init()
 
   SYNOPSIS
     pre_direct_update_rows_init()
+    update fields             Pointer to the list of fields to update
 
   RETURN VALUE
     >0                        Error
     0                         Success
 */
 
-int ha_partition::pre_direct_update_rows_init()
+int ha_partition::pre_direct_update_rows_init(List<Item> *update_fields)
 {
   bool save_m_pre_calling;
   int error;
   DBUG_ENTER("ha_partition::pre_direct_update_rows_init");
   save_m_pre_calling= m_pre_calling;
   m_pre_calling= TRUE;
-  error= direct_update_rows_init();
+  error= direct_update_rows_init(update_fields);
   m_pre_calling= save_m_pre_calling;
   DBUG_RETURN(error);
 }
