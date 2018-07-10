@@ -1,3 +1,5 @@
+--source include/have_debug.inc
+
 --echo #
 --echo # Start of 10.4 tests
 --echo #
