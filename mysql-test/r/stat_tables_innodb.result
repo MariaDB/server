@@ -543,6 +543,13 @@ use test;
 drop database db1;
 drop database db2;
 drop table t1;
+#
+# MDEV-16552: [10.0] ASAN global-buffer-overflow in is_stat_table / statistics_for_tables_is_needed
+#
+SET use_stat_tables = PREFERABLY;
+SELECT CONVERT_TZ( '1991-09-20 10:11:02', '+00:00', 'GMT' );
+CONVERT_TZ( '1991-09-20 10:11:02', '+00:00', 'GMT' )
+NULL
 set use_stat_tables=@save_use_stat_tables;
 set optimizer_switch=@save_optimizer_switch_for_stat_tables_test;
 SET SESSION STORAGE_ENGINE=DEFAULT;
