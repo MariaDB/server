@@ -3532,7 +3532,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       first= tablenr - sjm->tables + 1;
       join->best_positions[first].n_sj_tables= sjm->tables;
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE;
-      join->sjm_lookup_tables|= s->table->map;
+      for (uint i= first; i < first+ sjm->tables; i++)
+        join->sjm_lookup_tables |= join->best_positions[i].table->table->map;
     }
     else if (pos->sj_strategy == SJ_OPT_MATERIALIZE_SCAN)
     {
