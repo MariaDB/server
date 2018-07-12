@@ -96,8 +96,8 @@ IF(NOT CPACK_SOURCE_PACKAGE_FILE_NAME)
     SET(CPACK_SOURCE_PACKAGE_FILE_NAME "mysql-cluster-gpl-${NDBVERSION}")
   ENDIF()
 ENDIF()
-SET(CPACK_PACKAGE_CONTACT "MariaDB team <info@montyprogram.com>")
-SET(CPACK_PACKAGE_VENDOR "Monty Program AB")
+SET(CPACK_PACKAGE_CONTACT "MariaDB team <maria-developers@lists.launchpad.net>")
+SET(CPACK_PACKAGE_VENDOR "MariaDB Corporation")
 SET(CPACK_SOURCE_GENERATOR "TGZ")
 
 # Defintions for windows version resources
