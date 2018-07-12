@@ -916,7 +916,7 @@ String *Item_func_point::val_str(String *str)
 
   if ((null_value= (args[0]->null_value ||
                     args[1]->null_value ||
-                    str->realloc(4/*SRID*/ + 1 + 4 + SIZEOF_STORED_DOUBLE * 2))))
+                    str->alloc(4/*SRID*/ + 1 + 4 + SIZEOF_STORED_DOUBLE * 2))))
     return 0;
 
   str->set_charset(&my_charset_bin);

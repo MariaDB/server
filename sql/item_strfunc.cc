@@ -255,7 +255,7 @@ String *Item_func_sha2::val_str_ascii(String *str)
     Since we're subverting the usual String methods, we must make sure that
     the destination has space for the bytes we're about to write.
   */
-  str->realloc((uint) digest_length*2 + 1); /* Each byte as two nybbles */
+  str->alloc((uint) digest_length*2 + 1); /* Each byte as two nybbles */
 
   /* Convert the large number to a string-hex representation. */
   array_to_hex((char *) str->ptr(), digest_buf, (uint)digest_length);
@@ -762,7 +762,7 @@ String *Item_func_des_encrypt::val_str(String *str)
 
   tail= 8 - (res_length % 8);                   // 1..8 marking extra length
   res_length+=tail;
-  if (tmp_arg.realloc(res_length))
+  if (tmp_arg.alloc(res_length))
     goto error;
   tmp_arg.length(0);
   tmp_arg.append(res->ptr(), res->length());
@@ -770,7 +770,6 @@ String *Item_func_des_encrypt::val_str(String *str)
   if (tmp_arg.append(append_str, tail) || str->alloc(res_length+1))
     goto error;
   tmp_arg[res_length-1]=tail;                   // save extra length
-  str->realloc(res_length+1);
   str->length(res_length+1);
   str->set_charset(&my_charset_bin);
   (*str)[0]=(char) (128 | key_number);
@@ -1017,7 +1016,7 @@ String *Item_func_concat_ws::val_str(String *str)
         {
           uint new_len = MY_MAX(tmp_value.alloced_length() * 2, concat_len);
 
-          if (tmp_value.realloc(new_len))
+          if (tmp_value.alloc(new_len))
             goto null;
         }
       }
@@ -1072,8 +1071,7 @@ String *Item_func_reverse::val_str(String *str)
   /* An empty string is a special case as the string pointer may be null */
   if (!res->length())
     return make_empty_result();
-  if (str->alloced_length() < res->length() &&
-      str->realloc(res->length()))
+  if (str->alloc(res->length()))
   {
     null_value= 1;
     return 0;
@@ -4178,7 +4176,7 @@ String *Item_func_compress::val_str(String *str)
 
   // Check new_size overflow: new_size <= res->length()
   if (((uint32) (new_size+5) <= res->length()) || 
-      str->realloc((uint32) new_size + 4 + 1))
+      str->alloc((uint32) new_size + 4 + 1))
   {
     null_value= 1;
     return 0;
@@ -4250,7 +4248,7 @@ String *Item_func_uncompress::val_str(String *str)
                                          max_allowed_packet));
     goto err;
   }
-  if (str->realloc((uint32)new_size))
+  if (str->alloc((uint32)new_size))
     goto err;
 
   if ((err= uncompress((Byte*)str->ptr(), &new_size,
@@ -4279,7 +4277,7 @@ String *Item_func_uuid::val_str(String *str)
   DBUG_ASSERT(fixed == 1);
   uchar guid[MY_UUID_SIZE];
 
-  str->realloc(MY_UUID_STRING_LENGTH+1);
+  str->alloc(MY_UUID_STRING_LENGTH+1);
   str->length(MY_UUID_STRING_LENGTH);
   str->set_charset(system_charset_info);
   my_uuid(guid);

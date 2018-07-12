@@ -103,8 +103,7 @@ bool String::realloc_raw(size_t alloc_length)
                                              (thread_specific ?
                                               MY_THREAD_SPECIFIC : 0)))))
     {
-      if (str_length > len - 1)
-        str_length= 0;
+      DBUG_ASSERT(str_length < len);
       if (str_length)				// Avoid bugs in memcpy on AIX
 	memcpy(new_ptr,Ptr,str_length);
       new_ptr[str_length]=0;

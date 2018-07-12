@@ -480,8 +480,7 @@ static void make_base_query(String *new_query,
   /* We do not support UCS2, UTF16, UTF32 as a client character set */
   DBUG_ASSERT(current_thd->variables.character_set_client->mbminlen == 1);
 
-  new_query->length(0);           // Don't copy anything from old buffer
-  if (new_query->realloc(query_length + additional_length))
+  if (new_query->alloc(query_length + additional_length))
   {
     /*
       We could not allocate the query.  Use original query for
