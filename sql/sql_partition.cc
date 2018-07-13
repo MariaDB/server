@@ -4664,6 +4664,76 @@ bool compare_partition_options(HA_CREATE_INFO *table_create_info,
 }
 
 
+/**
+  InnoDB currently doesn't allow changing DATA DIRECTORY or INDEX DIRECTORY for
+  its partitions.
+
+  @param thd  THD
+  @param part_elem partition_element to check
+  @param add_or_reorg_part interesting type of ALTER TABLE
+*/
+static void warn_if_needed_for_innodb(THD *thd,
+                                      const partition_element *part_elem,
+                                      const handlerton *default_engine_type)
+{
+  DBUG_ASSERT(part_elem);
+  DBUG_ASSERT(default_engine_type);
+
+  if (part_elem->engine_type &&
+      part_elem->engine_type->db_type != DB_TYPE_INNODB)
+    return;
+
+  if (default_engine_type->db_type != DB_TYPE_INNODB)
+    return;
+
+  if (part_elem->data_file_name)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        WARN_INNODB_PARTITION_OPTION_IGNORED,
+                        ER(WARN_INNODB_PARTITION_OPTION_IGNORED),
+                        "DATA DIRECTORY");
+  }
+  if (part_elem->index_file_name)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        WARN_INNODB_PARTITION_OPTION_IGNORED,
+                        ER(WARN_INNODB_PARTITION_OPTION_IGNORED),
+                        "INDEX DIRECTORY");
+  }
+}
+
+/**
+  Currently changing DATA DIRECTORY and INDEX DIRECTORY for InnoDB partitions is
+  not possible. This function warns on that case.
+
+  @param thd THD
+  @param tab_part_info old partition info
+  @param alt_part_info new partition info
+*/
+static void possibly_warn_on_innodb_special_case(THD *thd,
+                                                 partition_info *tab_part_info,
+                                                 partition_info *alt_part_info)
+{
+  const handlerton *default_engine_type= tab_part_info->default_engine_type;
+  const uint num_parts_new= alt_part_info->partitions.elements;
+  for (List_iterator_fast<partition_element> it(alt_part_info->partitions);
+       partition_element *part_elem= it++;)
+  {
+    if (alt_part_info->is_sub_partitioned())
+    {
+      for (List_iterator_fast<partition_element> it2(part_elem->subpartitions);
+           const partition_element *sub_part_elem= it2++;)
+      {
+        warn_if_needed_for_innodb(thd, sub_part_elem, default_engine_type);
+      }
+    }
+    else
+    {
+      warn_if_needed_for_innodb(thd, part_elem, default_engine_type);
+    }
+  }
+}
+
 /*
   Prepare for ALTER TABLE of partition structure
 
@@ -5393,6 +5463,8 @@ state of p1.
       {
         goto err;
       }
+
+      possibly_warn_on_innodb_special_case(thd, tab_part_info, alt_part_info);
 /*
 Online handling:
 REORGANIZE PARTITION:

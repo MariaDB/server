@@ -7114,3 +7114,5 @@ ER_TABLE_DEFINITION_TOO_BIG
 ER_PLUGIN_INSTALLED
         eng "Plugin '%-.192s' already installed"
         rus "Плагин '%-.192s' уже установлен"
+WARN_INNODB_PARTITION_OPTION_IGNORED
+  eng "<%-.64s> option ignored for InnoDB partition"
