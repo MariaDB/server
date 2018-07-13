@@ -1918,8 +1918,6 @@ protected:
   bool m_is_two_phase = false;
 
 private:
-  /* Number of RockDB savepoints taken */
-  int m_n_savepoints;
   /*
     Number of write operations this transaction had when we took the last
     savepoint (the idea is not to take another savepoint if we haven't made
@@ -2493,7 +2491,6 @@ public:
       entire transaction.
     */
     do_set_savepoint();
-    m_n_savepoints= 1;
     m_writes_at_last_savepoint= m_write_count;
   }
 
@@ -2510,7 +2507,6 @@ public:
     {
       do_set_savepoint();
       m_writes_at_last_savepoint= m_write_count;
-      m_n_savepoints++;
     }
   }
 
@@ -2521,10 +2517,14 @@ public:
   void rollback_to_stmt_savepoint() {
     if (m_writes_at_last_savepoint != m_write_count) {
       do_rollback_to_savepoint();
-      if (!--m_n_savepoints) {
-        do_set_savepoint();
-        m_n_savepoints= 1;
-      }
+      /*
+        RollbackToSavePoint "removes the most recent SetSavePoint()", so
+        we need to set it again so that next statement can roll back to this
+        stage.
+        It's ok to do it here at statement end (instead of doing it at next
+        statement start) because setting a savepoint is cheap.
+      */
+      do_set_savepoint();
       m_writes_at_last_savepoint= m_write_count;
     }
   }
