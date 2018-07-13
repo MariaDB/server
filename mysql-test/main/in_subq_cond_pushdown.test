@@ -757,3 +757,19 @@ EVAL EXPLAIN FORMAT=JSON $query;
 
 DROP TABLE t1,t2,t3;
 DROP VIEW v1,v2;
+
+--echo #
+--echo # MDEV-16721: IN-subquery defined with the AUTO-INCREMENT column
+--echo #             and used with the ZEROFILL column
+--echo #
+
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY);
+CREATE TABLE t2 (b INT ZEROFILL);
+
+INSERT INTO t2 VALUES (2), (3);
+
+SELECT *
+FROM t2
+WHERE t2.b IN (SELECT MIN(t1.a) from t1);
+
+DROP TABLE t1, t2;

@@ -5738,7 +5738,8 @@ bool execute_degenerate_jtbm_semi_join(THD *thd,
         new (thd->mem_root) Item_func_eq(thd,
                                          subq_pred->left_expr->element_index(i),
                                          new_sink->row[i]);
-      if (!eq_cond || eq_list.push_back(eq_cond, thd->mem_root))
+      if (!eq_cond || eq_cond->fix_fields(thd, NULL) ||
+          eq_list.push_back(eq_cond, thd->mem_root))
         DBUG_RETURN(TRUE);
     }
   }
