@@ -165,6 +165,12 @@ ENDIF()
 OPTION (WITH_UNIT_TESTS "Compile MySQL with unit tests" ON)
 MARK_AS_ADVANCED(CYBOZU BACKUP_TEST WITHOUT_SERVER DISABLE_SHARED)
 
+IF (WITHOUT_SERVER)
+  SET (SKIP_COMPONENTS "Server|IniFiles|SuportFiles|Readme")
+ELSE()
+  SET (SKIP_COMPONENTS "N-O-N-E")
+ENDIF()
+
 OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system libraries. Only set it you never plan to distribute the resulting binaries" OFF)
 
 include(CheckCSourceCompiles)

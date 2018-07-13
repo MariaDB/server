@@ -41,12 +41,14 @@ ELSE()
   SET(inst_location ${INSTALL_SUPPORTFILESDIR})
 ENDIF()
 
+IF (NOT WITHOUT_SERVER)
 FOREACH(inifile my-huge my-innodb-heavy-4G my-large my-medium my-small)
   CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${inifile}.cnf.sh 
                  ${CMAKE_CURRENT_BINARY_DIR}/${inifile}.${ini_file_extension} @ONLY)
   INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/${inifile}.${ini_file_extension}
           DESTINATION ${inst_location} COMPONENT IniFiles)
 ENDFOREACH()
+ENDIF()
 
 IF(UNIX)
   SET(prefix ${CMAKE_INSTALL_PREFIX})
