@@ -5257,6 +5257,8 @@ mysql_rename_table(handlerton *base, const char *old_db,
   delete file;
   if (error == HA_ERR_WRONG_COMMAND)
     my_error(ER_NOT_SUPPORTED_YET, MYF(0), "ALTER TABLE");
+  else if (error ==  ENOTDIR)
+    my_error(ER_BAD_DB_ERROR, MYF(0), new_db);
   else if (error)
     my_error(ER_ERROR_ON_RENAME, MYF(0), from, to, error);
   else if (!(flags & FN_IS_TMP))
