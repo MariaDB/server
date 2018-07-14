@@ -336,3 +336,23 @@ SELECT pk FROM t1;
 DROP TABLE t1;
 
 set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # MDEV-16760: CREATE OR REPLACE TABLE after ANALYZE TABLE
+--echo #
+
+SET use_stat_tables= PREFERABLY;
+
+CREATE TABLE t1 (pk int PRIMARY KEY, c varchar(32));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ANALYZE TABLE t1;
+SELECT * FROM t1;
+SELECT * FROM mysql.column_stats;
+
+CREATE OR REPLACE TABLE t1 (pk int PRIMARY KEY, a char(7));
+SELECT * FROM t1;
+SELECT * FROM mysql.column_stats;
+
+DROP TABLE t1;
+
+set use_stat_tables=@save_use_stat_tables;
