@@ -308,6 +308,7 @@ then
   srcpkgdatadir="$srcdir/scripts"
   buildpkgdatadir="$builddir/scripts"
   plugindir="$builddir/plugin/auth_socket"
+  pamtooldir="$builddir/plugin/auth_pam"
 elif test -n "$basedir"
 then
   bindir="$basedir/bin" # only used in the help text
@@ -337,6 +338,7 @@ then
     exit 1
   fi
   plugindir=`find_in_dirs --dir auth_socket.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin`
+  pamtooldir=$plugindir
 else
   basedir="@prefix@"
   bindir="@bindir@"
@@ -345,6 +347,7 @@ else
   srcpkgdatadir="@pkgdatadir@"
   buildpkgdatadir="@pkgdatadir@"
   plugindir="@pkgplugindir@"
+  pamtooldir="@pkgplugindir@"
 fi
 
 # Set up paths to SQL scripts required for bootstrap
@@ -445,6 +448,23 @@ done
 
 if test -n "$user"
 then
+  chown $user "$pamtooldir/auth_pam_tool_dir"
+  if test $? -ne 0
+  then
+      echo "Cannot change ownership of the '$pamtooldir/auth_pam_tool_dir' directory"
+      echo " to the '$user' user. Check that you have the necessary permissions and try again."
+      exit 1
+  fi
+  if test -z "$srcdir"
+  then
+    chown 0 "$pamtooldir/auth_pam_tool_dir/auth_pam_tool"
+    if test $? -ne 0
+    then
+        echo "Couldn't set an owner to '$pamtooldir/auth_pam_tool_dir/auth_pam_tool'."
+        echo " It must be root, the PAM authentication plugin doesn't work otherwise.."
+        echo
+    fi
+  fi
   args="$args --user=$user"
 fi
 
