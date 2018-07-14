@@ -15,6 +15,7 @@ Aaron
 Aaron
 Ababa
 Ababa
+create temporary table tmp select * from mysql.user where host="localhost" and user="root";
 connection slave;
 STOP SLAVE;
 connection master;
@@ -65,5 +66,7 @@ n
 3456
 connection master;
 DROP TABLE t1;
+replace into mysql.user select * from tmp;
+drop temporary table tmp;
 connection slave;
 include/rpl_end.inc
