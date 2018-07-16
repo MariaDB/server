@@ -644,6 +644,27 @@ send_donor()
 
 }
 
+monitor_process()
+{
+    local sst_stream_pid=$1
+
+    while true ; do
+
+        if ! ps --pid "${WSREP_SST_OPT_PARENT}" &>/dev/null; then
+            wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly." 
+            kill -- -"${WSREP_SST_OPT_PARENT}"
+            exit 32
+        fi
+
+        if ! ps --pid "${sst_stream_pid}" &>/dev/null; then 
+            break
+        fi
+
+        sleep 0.1
+
+    done
+}
+
 if [[ ! -x `which $INNOBACKUPEX_BIN` ]];then 
     wsrep_log_error "${INNOBACKUPEX_BIN} not in path: $PATH"
     exit 2
@@ -932,7 +953,7 @@ then
 
         MAGIC_FILE="${DATA}/${INFO_FILE}"
         wsrep_log_info "Waiting for SST streaming to complete!"
-        wait $jpid
+        monitor_process $jpid
 
         get_proc
 
