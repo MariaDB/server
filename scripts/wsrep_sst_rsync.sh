@@ -126,6 +126,7 @@ FILTER=(-f '- /lost+found'
         -f '+ /wsrep_sst_binlog.tar'
         -f '+ /ib_lru_dump'
         -f '+ /ibdata*'
+        -f '+ /undo*'
         -f '+ /*/'
         -f '- /*')
 
