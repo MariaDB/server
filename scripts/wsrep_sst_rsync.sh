@@ -120,8 +120,14 @@ fi
 #         --exclude '*.[0-9][0-9][0-9][0-9][0-9][0-9]' --exclude '*.index')
 
 # New filter - exclude everything except dirs (schemas) and innodb files
-FILTER=(-f '- /lost+found' -f '- /.fseventsd' -f '- /.Trashes'
-        -f '+ /wsrep_sst_binlog.tar' -f '+ /ib_lru_dump' -f '+ /ibdata*' -f '+ /*/' -f '- /*')
+FILTER=(-f '- /lost+found'
+        -f '- /.fseventsd'
+        -f '- /.Trashes'
+        -f '+ /wsrep_sst_binlog.tar'
+        -f '+ /ib_lru_dump'
+        -f '+ /ibdata*'
+        -f '+ /*/'
+        -f '- /*')
 
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
