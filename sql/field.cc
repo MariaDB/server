@@ -7942,7 +7942,13 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
     return 0;
   }
 
-  if (table->blob_storage)    // GROUP_CONCAT with ORDER BY | DISTINCT
+  /*
+    For min/max fields of statistical data 'table' is set to NULL.
+    It could not be otherwise as this data is shared by many instances
+    of the same base table.
+  */
+
+  if (table && table->blob_storage)    // GROUP_CONCAT with ORDER BY | DISTINCT
   {
     DBUG_ASSERT(!f_is_hex_escape(flags));
     DBUG_ASSERT(field_charset == cs);
