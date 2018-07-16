@@ -203,6 +203,17 @@ a	check_row(row_start, row_end)
 3	HISTORICAL ROW
 4	ERROR: row_end == row_start
 5	ERROR: row_end == row_start
+## LOAD DATA
+select *, row_start, row_end from t for system_time all into outfile 'DATAFILE';
+create or replace table t3 like t;
+load data infile 'DATAFILE' into table t3 (a, row_start, row_end);
+select *, check_row(row_start, row_end) from t3 for system_time all order by a;
+a	check_row(row_start, row_end)
+1	ERROR: row_end < row_start
+2	ERROR: row_end == row_start
+3	HISTORICAL ROW
+4	ERROR: row_end == row_start
+5	ERROR: row_end == row_start
 ## Honor secure_timestamp option
 insert into t (a, row_start, row_end) values (6, @s3, @e3);
 ERROR HY000: The value specified for generated column 'row_start' in table 't' ignored

@@ -134,6 +134,16 @@ select *, check_row(row_start, row_end) from t2 for system_time all order by a;
 replace t (a, row_start, row_end) values (1, @s3, @e1), (2, @e2, @e2);
 select *, check_row(row_start, row_end) from t for system_time all order by a;
 
+--echo ## LOAD DATA
+--let DATAFILE= $MYSQLTEST_VARDIR/tmp/test_sysvars_t.data
+--replace_result $DATAFILE DATAFILE
+eval select *, row_start, row_end from t for system_time all into outfile '$DATAFILE';
+create or replace table t3 like t;
+--replace_result $DATAFILE DATAFILE
+eval load data infile '$DATAFILE' into table t3 (a, row_start, row_end);
+select *, check_row(row_start, row_end) from t3 for system_time all order by a;
+--remove_file $DATAFILE
+
 --echo ## Honor secure_timestamp option
 --let $restart_parameters= --secure-timestamp=YES --system-versioning-modify-history=on
 --source include/restart_mysqld.inc
