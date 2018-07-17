@@ -2750,3 +2750,9 @@ select 'Correct!' as result from td where t = @ts;
 
 drop table td;
 --remove_file $MYSQLTEST_VARDIR/tmp/td.sql
+
+#
+# MDEV-16733 mysqldump --tab and --xml options are conflicting
+#
+--error 1
+--exec $MYSQL_DUMP --xml --tab=$MYSQLTEST_VARDIR/tmp
