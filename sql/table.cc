@@ -7264,3 +7264,9 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
   };
   return names + opt;
 }
+
+bool fk_modifies_child(enum_fk_option opt)
+{
+  static bool can_write[]= { false, false, true, true, false, true };
+  return can_write[opt];
+}

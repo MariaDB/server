@@ -1447,6 +1447,7 @@ typedef struct st_foreign_key_info
 } FOREIGN_KEY_INFO;
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
+bool fk_modifies_child(enum_fk_option opt);
 
 #define MY_I_S_MAYBE_NULL 1
 #define MY_I_S_UNSIGNED   2

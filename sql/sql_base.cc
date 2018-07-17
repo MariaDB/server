@@ -4883,12 +4883,11 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
       while ((fk= fk_list_it++))
       {
         // FK_OPTION_RESTRICT and FK_OPTION_NO_ACTION only need read access
-        static bool can_write[]= { true, false, true, true, false, true };
         uint8 op= table_list->trg_event_map;
         thr_lock_type lock_type;
 
-        if ((op & (1 << TRG_EVENT_DELETE) && can_write[fk->delete_method])
-         || (op & (1 << TRG_EVENT_UPDATE) && can_write[fk->update_method]))
+        if ((op & (1 << TRG_EVENT_DELETE) && fk_modifies_child(fk->delete_method))
+         || (op & (1 << TRG_EVENT_UPDATE) && fk_modifies_child(fk->update_method)))
           lock_type= TL_WRITE_ALLOW_WRITE;
         else
           lock_type= TL_READ;
