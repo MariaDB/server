@@ -1429,6 +1429,9 @@ enum enum_schema_table_state
   PROCESSED_BY_JOIN_EXEC
 };
 
+enum enum_fk_option { FK_OPTION_UNDEF, FK_OPTION_RESTRICT, FK_OPTION_CASCADE,
+               FK_OPTION_SET_NULL, FK_OPTION_NO_ACTION, FK_OPTION_SET_DEFAULT};
+
 typedef struct st_foreign_key_info
 {
   LEX_STRING *foreign_id;
@@ -1436,12 +1439,14 @@ typedef struct st_foreign_key_info
   LEX_STRING *foreign_table;
   LEX_STRING *referenced_db;
   LEX_STRING *referenced_table;
-  LEX_STRING *update_method;
-  LEX_STRING *delete_method;
+  enum_fk_option update_method;
+  enum_fk_option delete_method;
   LEX_STRING *referenced_key_name;
   List<LEX_STRING> foreign_fields;
   List<LEX_STRING> referenced_fields;
 } FOREIGN_KEY_INFO;
+
+LEX_CSTRING *fk_option_name(enum_fk_option opt);
 
 #define MY_I_S_MAYBE_NULL 1
 #define MY_I_S_UNSIGNED   2

@@ -7251,3 +7251,16 @@ double KEY::actual_rec_per_key(uint i)
           read_stats->get_avg_frequency(i) : (double) rec_per_key[i]);
 }
 
+LEX_CSTRING *fk_option_name(enum_fk_option opt)
+{
+  static LEX_CSTRING names[]=
+  {
+    { STRING_WITH_LEN("???") },
+    { STRING_WITH_LEN("RESTRICT") },
+    { STRING_WITH_LEN("CASCADE") },
+    { STRING_WITH_LEN("SET NULL") },
+    { STRING_WITH_LEN("NO ACTION") },
+    { STRING_WITH_LEN("SET DEFAULT") }
+  };
+  return names + opt;
+}

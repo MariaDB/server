@@ -730,29 +730,29 @@ innobase_set_foreign_key_option(
 	ut_ad(!foreign->type);
 
 	switch (fk_key->delete_opt) {
-	case Foreign_key::FK_OPTION_NO_ACTION:
-	case Foreign_key::FK_OPTION_RESTRICT:
-	case Foreign_key::FK_OPTION_DEFAULT:
+	case FK_OPTION_NO_ACTION:
+	case FK_OPTION_RESTRICT:
+	case FK_OPTION_SET_DEFAULT:
 		foreign->type = DICT_FOREIGN_ON_DELETE_NO_ACTION;
 		break;
-	case Foreign_key::FK_OPTION_CASCADE:
+	case FK_OPTION_CASCADE:
 		foreign->type = DICT_FOREIGN_ON_DELETE_CASCADE;
 		break;
-	case Foreign_key::FK_OPTION_SET_NULL:
+	case FK_OPTION_SET_NULL:
 		foreign->type = DICT_FOREIGN_ON_DELETE_SET_NULL;
 		break;
 	}
 
 	switch (fk_key->update_opt) {
-	case Foreign_key::FK_OPTION_NO_ACTION:
-	case Foreign_key::FK_OPTION_RESTRICT:
-	case Foreign_key::FK_OPTION_DEFAULT:
+	case FK_OPTION_NO_ACTION:
+	case FK_OPTION_RESTRICT:
+	case FK_OPTION_SET_DEFAULT:
 		foreign->type |= DICT_FOREIGN_ON_UPDATE_NO_ACTION;
 		break;
-	case Foreign_key::FK_OPTION_CASCADE:
+	case FK_OPTION_CASCADE:
 		foreign->type |= DICT_FOREIGN_ON_UPDATE_CASCADE;
 		break;
-	case Foreign_key::FK_OPTION_SET_NULL:
+	case FK_OPTION_SET_NULL:
 		foreign->type |= DICT_FOREIGN_ON_UPDATE_SET_NULL;
 		break;
 	}
