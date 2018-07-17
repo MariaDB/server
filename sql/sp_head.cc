@@ -4231,7 +4231,7 @@ sp_head::add_used_tables_to_table_list(THD *thd,
       table->init_one_table_for_prelocking(key_buff, stab->db_length,
            key_buff + stab->db_length + 1, stab->table_name_length,
            key_buff + stab->db_length + stab->table_name_length + 2,
-           stab->lock_type, belong_to_view, stab->trg_event_map,
+           stab->lock_type, true, belong_to_view, stab->trg_event_map,
            query_tables_last_ptr);
 
       tab_buff+= ALIGN_SIZE(sizeof(TABLE_LIST));

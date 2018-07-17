@@ -1713,6 +1713,7 @@ struct TABLE_LIST
                              size_t table_name_length_arg,
                              const char *alias_arg,
                              enum thr_lock_type lock_type_arg,
+                             bool routine,
                              TABLE_LIST *belong_to_view_arg,
                              uint8 trg_event_map_arg,
                              TABLE_LIST ***last_ptr)
@@ -1720,7 +1721,8 @@ struct TABLE_LIST
     init_one_table(db_name_arg, db_length_arg, table_name_arg,
                    table_name_length_arg, alias_arg, lock_type_arg);
     cacheable_table= 1;
-    prelocking_placeholder= 1;
+    prelocking_placeholder= routine ? ROUTINE : FK;
+    open_type= routine ? OT_TEMPORARY_OR_BASE : OT_BASE_ONLY;
     belong_to_view= belong_to_view_arg;
     trg_event_map= trg_event_map_arg;
 
@@ -2004,7 +2006,7 @@ struct TABLE_LIST
     This TABLE_LIST object is just placeholder for prelocking, it will be
     used for implicit LOCK TABLES only and won't be used in real statement.
   */
-  bool          prelocking_placeholder;
+  enum { USER, ROUTINE, FK } prelocking_placeholder;
   /**
      Indicates that if TABLE_LIST object corresponds to the table/view
      which requires special handling.

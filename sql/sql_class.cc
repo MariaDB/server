@@ -5082,7 +5082,8 @@ has_write_table_with_auto_increment_and_select(TABLE_LIST *tables)
   for(TABLE_LIST *table= tables; table; table= table->next_global)
   {
      if (!table->placeholder() &&
-        (table->lock_type <= TL_READ_NO_INSERT))
+         table->lock_type <= TL_READ_NO_INSERT &&
+         table->prelocking_placeholder != TABLE_LIST::FK)
       {
         has_select= true;
         break;
