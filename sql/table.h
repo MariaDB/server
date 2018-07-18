@@ -1695,6 +1695,14 @@ struct TABLE_LIST
                              const char *alias_arg,
                              enum thr_lock_type lock_type_arg)
   {
+    enum enum_mdl_type mdl_type;
+    if (lock_type_arg >= TL_WRITE_ALLOW_WRITE)
+      mdl_type= MDL_SHARED_WRITE;
+    else if (lock_type_arg == TL_READ_NO_INSERT)
+      mdl_type= MDL_SHARED_NO_WRITE;
+    else
+      mdl_type= MDL_SHARED_READ;
+
     bzero((char*) this, sizeof(*this));
     db= (char*) db_name_arg;
     db_length= db_length_arg;
@@ -1702,10 +1710,7 @@ struct TABLE_LIST
     table_name_length= table_name_length_arg;
     alias= (char*) (alias_arg ? alias_arg : table_name_arg);
     lock_type= lock_type_arg;
-    mdl_request.init(MDL_key::TABLE, db, table_name,
-                     (lock_type >= TL_WRITE_ALLOW_WRITE) ?
-                     MDL_SHARED_WRITE : MDL_SHARED_READ,
-                     MDL_TRANSACTION);
+    mdl_request.init(MDL_key::TABLE, db, table_name, mdl_type, MDL_TRANSACTION);
   }
 
   inline void init_one_table_for_prelocking(const char *db_name_arg,

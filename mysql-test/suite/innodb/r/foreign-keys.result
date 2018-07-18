@@ -51,3 +51,39 @@ c	d
 6	30
 drop table t2, t1;
 drop user foo;
+create table t1 (f1 int primary key) engine=innodb;
+create table t2 (f2 int primary key) engine=innodb;
+create table t3 (f3 int primary key, foreign key (f3) references t2(f2)) engine=innodb;
+insert into t1 values (1),(2),(3),(4),(5);
+insert into t2 values (1),(2),(3),(4),(5);
+insert into t3 values (1),(2),(3),(4),(5);
+connect con1,localhost,root;
+set debug_sync='alter_table_before_rename_result_table signal g1 wait_for g2';
+alter table t2 add constraint foreign key (f2) references t1(f1) on delete cascade on update cascade;
+connection default;
+set debug_sync='before_execute_sql_command wait_for g1';
+update t1 set f1 = f1 + 100000 limit 2;
+connect con2,localhost,root;
+kill query UPDATE;
+disconnect con2;
+connection default;
+ERROR 70100: Query execution was interrupted
+set debug_sync='now signal g2';
+connection con1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f2` int(11) NOT NULL,
+  PRIMARY KEY (`f2`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+disconnect con1;
+connection default;
+select * from t2 where f2 not in (select f1 from t1);
+f2
+select * from t3 where f3 not in (select f2 from t2);
+f3
+drop table t3;
+drop table t2;
+drop table t1;
+set debug_sync='reset';

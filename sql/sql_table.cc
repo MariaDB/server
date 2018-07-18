@@ -9057,8 +9057,10 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                        alter_ctx.tmp_name, strlen(alter_ctx.tmp_name),
                        alter_ctx.tmp_name, TL_READ_NO_INSERT);
     /* Table is in thd->temporary_tables */
-    (void) open_temporary_table(thd, &tbl);
+    if (open_temporary_table(thd, &tbl))
+      goto err_new_table_cleanup;
     new_table= tbl.table;
+    DBUG_ASSERT(new_table);
   }
   else
   {
@@ -9067,9 +9069,48 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     new_table= open_table_uncached(thd, new_db_type, alter_ctx.get_tmp_path(),
                                    alter_ctx.new_db, alter_ctx.tmp_name,
                                    true, true);
+    if (!new_table)
+      goto err_new_table_cleanup;
+
+    /*
+      Normally, an attempt to modify an FK parent table will cause
+      FK children to be prelocked, so the table-being-altered cannot
+      be modified by a cascade FK action, because ALTER holds a lock
+      and prelocking will wait.
+
+      But if a new FK is being added by this very ALTER, then the target
+      table is not locked yet (it's a temporary table). So, we have to
+      lock FK parents explicitly.
+    */
+    if (alter_info->flags & Alter_info::ADD_FOREIGN_KEY)
+    {
+      List <FOREIGN_KEY_INFO> fk_list;
+      List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
+      FOREIGN_KEY_INFO *fk;
+
+      /* tables_opened can be > 1 only for MERGE tables */
+      DBUG_ASSERT(tables_opened == 1);
+      DBUG_ASSERT(&table_list->next_global == thd->lex->query_tables_last);
+
+      new_table->file->get_foreign_key_list(thd, &fk_list);
+      while ((fk= fk_list_it++))
+      {
+        if (table_already_fk_prelocked(table_list, fk->referenced_db,
+                                       fk->referenced_table, TL_READ_NO_INSERT))
+          continue;
+
+        TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+        tl->init_one_table_for_prelocking(fk->referenced_db->str, fk->referenced_db->length,
+                           fk->referenced_table->str, fk->referenced_table->length,
+                           NULL, TL_READ_NO_INSERT, false, NULL, 0,
+                           &thd->lex->query_tables_last);
+      }
+
+      if (open_tables(thd, &table_list->next_global, &tables_opened, 0,
+                      &alter_prelocking_strategy))
+        goto err_new_table_cleanup;
+    }
   }
-  if (!new_table)
-    goto err_new_table_cleanup;
   /*
     Note: In case of MERGE table, we do not attach children. We do not
     copy data for MERGE tables. Only the children have data.
