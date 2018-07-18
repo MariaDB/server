@@ -33,7 +33,6 @@ ssystag=""
 XTRABACKUP_PID=""
 SST_PORT=""
 REMOTEIP=""
-REMOTEHOST=""
 tcert=""
 tpem=""
 tkey=""
@@ -225,7 +224,7 @@ get_transfer()
                 tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=${tpem},cafile=${tcert}${sockopt} stdio"
             else
                 wsrep_log_info "Encrypting with cert=${tpem}, cafile=${tcert}"
-                tcmd="socat -u stdio openssl-connect:${REMOTEHOST}:${TSST_PORT},cert=${tpem},cafile=${tcert}${sockopt}"
+                tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},cafile=${tcert}${sockopt}"
             fi
         elif [[ $encrypt -eq 3 ]];then
             wsrep_log_info "Using openssl based encryption with socat: with key and crt"
@@ -248,7 +247,7 @@ get_transfer()
                     tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},key=${tkey},verify=0${sockopt}"
                 else
                     wsrep_log_info "Encrypting with cert=${tpem}, key=${tkey}, cafile=${tcert}"
-                    tcmd="socat -u stdio openssl-connect:${REMOTEHOST}:${TSST_PORT},cert=${tpem},key=${tkey},cafile=${tcert}${sockopt}"
+                    tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},key=${tkey},cafile=${tcert}${sockopt}"
                 fi
             fi
 
@@ -518,10 +517,6 @@ setup_ports()
     if [[ "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
         SST_PORT=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $2 }')
         REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F ':' '{ print $1 }')
-        REMOTEHOST=$(getent hosts $REMOTEIP | awk '{ print $2 }')
-        if [[ -z $REMOTEHOST ]];then
-            REMOTEHOST=$REMOTEIP
-        fi
         lsn=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $4 }')
         sst_ver=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $5 }')
     else
