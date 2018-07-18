@@ -6311,7 +6311,7 @@ dict_table_get_index_on_name(
 
 	while (index != NULL) {
 		if (index->is_committed() == committed
-		    && innobase_strcasecmp(index->name, name) == 0) {
+		    && strcmp(index->name, name) == 0) {
 
 			return(index);
 		}
