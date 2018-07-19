@@ -42,6 +42,20 @@ XNo_vt1
 2
 4
 5
+# MDEV-16764 Crash on delete from sql-versioned table with update trigger
+create or replace table log_tbl(log varchar(4));
+create or replace procedure log(s varchar(4)) insert into log_tbl values(s);
+create trigger tr2upd before update on t1 for each row call log('>UPD');
+create trigger tr1upd after  update on t1 for each row call log('<UPD');
+create trigger tr2del before delete on t1 for each row call log('>DEL');
+create trigger tr1del after  delete on t1 for each row call log('<DEL');
+delete from t1 where XNo = 4;
+select * from log_tbl;
+log
+>DEL
+<DEL
+drop procedure log;
+drop table log_tbl;
 drop view vt1;
 drop table t1;
 create or replace table t1(
