@@ -8800,6 +8800,19 @@ ha_innobase::update_row(
 	upd_t*		uvect = row_get_prebuilt_update_vector(m_prebuilt);
 	ib_uint64_t	autoinc;
 
+	bool force_insert= table->versioned_write(VERS_TRX_ID)
+	                   && table->vers_start_id() == 0;
+
+	if (force_insert) {
+		table->vers_start_field()->store(trx->id);
+
+		Field *start= table->vers_start_field();
+		trx_id_t old_trx_id= uint8korr(start->ptr_in_record(old_row));
+
+		/* avoid double versioned insert on the same transaction and same row */
+		force_insert= (old_trx_id != trx->id);
+	}
+
 	/* Build an update vector from the modified fields in the rows
 	(uses m_upd_buf of the handle) */
 
@@ -8819,7 +8832,7 @@ ha_innobase::update_row(
 		DBUG_RETURN(HA_ERR_RECORD_IS_THE_SAME);
 	} else {
 		const bool vers_set_fields = m_prebuilt->versioned_write
-			&& m_prebuilt->upd_node->update->affects_versioned();
+			&& (m_prebuilt->upd_node->update->affects_versioned() || force_insert);
 		const bool vers_ins_row = vers_set_fields
 			&& thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE;
 
@@ -8838,7 +8851,8 @@ ha_innobase::update_row(
 		if (error == DB_SUCCESS && vers_ins_row
 		    /* Multiple UPDATE of same rows in single transaction create
 		       historical rows only once. */
-		    && trx->id != table->vers_start_id()) {
+		    && (trx->id != table->vers_start_id() || force_insert)
+		    && trx->id != table->vers_end_id()){
 			error = row_insert_for_mysql((byte*) old_row,
 						     m_prebuilt,
 						     ROW_INS_HISTORICAL);
