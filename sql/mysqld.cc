@@ -5505,6 +5505,11 @@ int win_main(int argc, char **argv)
 int mysqld_main(int argc, char **argv)
 #endif
 {
+#ifndef _WIN32
+  /* We can't close stdin just now, because it may be booststrap mode. */
+  bool please_close_stdin= fcntl(STDIN_FILENO, F_GETFD) >= 0;
+#endif
+
   /*
     Perform basic thread library and malloc initialization,
     to be able to read defaults files and parse options.
@@ -5892,7 +5897,7 @@ int mysqld_main(int argc, char **argv)
 
 #ifndef _WIN32
   // try to keep fd=0 busy
-  if (!freopen("/dev/null", "r", stdin))
+  if (please_close_stdin && !freopen("/dev/null", "r", stdin))
   {
     // fall back on failure
     fclose(stdin);
