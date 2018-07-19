@@ -326,11 +326,16 @@ void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len)
     WSREP_ERROR("snprintf error: %d, skipping dump.", len);
     return;
   }
+  /*
+    len doesn't count the \0 end-of-string. Use len+1 below
+    to alloc and pass as an argument to snprintf.
+  */
 
   char *filename= (char *)malloc(len+1);
-  int len1= snprintf(filename, len, "%s/GRA_%ld_%lld.log",
+  int len1= snprintf(filename, len+1, "%s/GRA_%ld_%lld.log",
                     wsrep_data_home_dir, thd->thread_id,
                     (long long)wsrep_thd_trx_seqno(thd));
+
   if (len > len1)
   {
     WSREP_ERROR("RBR dump path truncated: %d, skipping dump.", len);
@@ -469,7 +474,10 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
   int len= snprintf(NULL, 0, "%s/GRA_%ld_%lld_v2.log",
                     wsrep_data_home_dir, thd->thread_id,
                     thd_trx_seqno);
-
+  /*
+    len doesn't count the \0 end-of-string. Use len+1 below
+    to alloc and pass as an argument to snprintf.
+  */
   char *filename;
   if (len < 0 || !(filename= (char*)malloc(len+1)))
   {
@@ -477,7 +485,7 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
     DBUG_VOID_RETURN;
   }
 
-  int len1= snprintf(filename, len, "%s/GRA_%ld_%lld_v2.log",
+  int len1= snprintf(filename, len+1, "%s/GRA_%ld_%lld_v2.log",
                      wsrep_data_home_dir, thd->thread_id,
                      thd_trx_seqno);
 
