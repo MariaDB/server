@@ -291,38 +291,39 @@ static void prepare_record_for_error_message(int error, TABLE *table)
 int mysql_update(THD *thd,
                  TABLE_LIST *table_list,
                  List<Item> &fields,
-		 List<Item> &values,
+                 List<Item> &values,
                  COND *conds,
                  uint order_num, ORDER *order,
-		 ha_rows limit,
-		 enum enum_duplicates handle_duplicates, bool ignore,
+                 ha_rows limit,
+                 enum enum_duplicates handle_duplicates, bool ignore,
                  ha_rows *found_return, ha_rows *updated_return)
 {
-  bool		using_limit= limit != HA_POS_ERROR;
+  bool          using_limit= limit != HA_POS_ERROR;
   bool          safe_update= thd->variables.option_bits & OPTION_SAFE_UPDATES;
   bool          used_key_is_modified= FALSE, transactional_table;
   bool          will_batch= FALSE;
-  bool		can_compare_record;
+  bool          can_compare_record;
   int           res;
-  int		error, loc_error;
+  int           error, loc_error;
   ha_rows       dup_key_found;
   bool          need_sort= TRUE;
   bool          reverse= FALSE;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  uint		want_privilege;
+  uint          want_privilege;
 #endif
   uint          table_count= 0;
-  ha_rows	updated, found;
-  key_map	old_covering_keys;
-  TABLE		*table;
-  SQL_SELECT	*select= NULL;
+  ha_rows       updated, found;
+  key_map       old_covering_keys;
+  TABLE         *table;
+  SQL_SELECT    *select= NULL;
   SORT_INFO     *file_sort= 0;
-  READ_RECORD	info;
+  READ_RECORD   info;
   SELECT_LEX    *select_lex= &thd->lex->select_lex;
   ulonglong     id;
   List<Item> all_fields;
   killed_state killed_status= NOT_KILLED;
   bool has_triggers, binlog_is_row, do_direct_update= FALSE;
+  trg_event_type event;
   Update_plan query_plan(thd->mem_root);
   Explain_update *explain;
   TABLE_LIST *update_source_table;
@@ -502,7 +503,7 @@ int mysql_update(THD *thd,
     if (safe_update && !using_limit)
     {
       my_message(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE,
-		 ER_THD(thd, ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE), MYF(0));
+      ER_THD(thd, ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE), MYF(0));
       goto err;
     }
   }
@@ -585,11 +586,12 @@ int mysql_update(THD *thd,
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
                   dbug_serve_apcs(thd, 1););
 
+  event= thd->lex->sql_command == SQLCOM_DELETE ? TRG_EVENT_DELETE
+                                                : TRG_EVENT_UPDATE;
+
   has_triggers= (table->triggers &&
-                 (table->triggers->has_triggers(TRG_EVENT_UPDATE,
-                                                TRG_ACTION_BEFORE) ||
-                 table->triggers->has_triggers(TRG_EVENT_UPDATE,
-                                               TRG_ACTION_AFTER)));
+                 (table->triggers->has_triggers(event, TRG_ACTION_BEFORE) ||
+                 table->triggers->has_triggers(event, TRG_ACTION_AFTER)));
   DBUG_PRINT("info", ("has_triggers: %s", has_triggers ? "TRUE" : "FALSE"));
   binlog_is_row= thd->is_current_stmt_binlog_format_row();
   DBUG_PRINT("info", ("binlog_is_row: %s", binlog_is_row ? "TRUE" : "FALSE"));
@@ -670,7 +672,7 @@ int mysql_update(THD *thd,
         thd->lex->explain->get_upd_del_plan()->filesort_tracker;
 
       if (!(file_sort= filesort(thd, table, &fsort, fs_tracker)))
-	goto err;
+        goto err;
       thd->inc_examined_row_count(file_sort->examined_rows);
 
       /*
@@ -698,8 +700,8 @@ int mysql_update(THD *thd,
       explain->buf_tracker.on_scan_init();
       IO_CACHE tempfile;
       if (open_cached_file(&tempfile, mysql_tmpdir,TEMP_PREFIX,
-			   DISK_BUFFER_SIZE, MYF(MY_WME)))
-	goto err;
+                           DISK_BUFFER_SIZE, MYF(MY_WME)))
+        goto err;
 
       /* If quick select is used, initialize it before retrieving rows. */
       if (select && select->quick && select->quick->reset())
@@ -740,26 +742,26 @@ int mysql_update(THD *thd,
       {
         explain->buf_tracker.on_record_read();
         thd->inc_examined_row_count(1);
-	if (!select || (error= select->skip_record(thd)) > 0)
-	{
+        if (!select || (error= select->skip_record(thd)) > 0)
+        {
           if (table->file->ha_was_semi_consistent_read())
-	    continue;  /* repeat the read of the same row if it still exists */
+            continue;  /* repeat the read of the same row if it still exists */
 
           explain->buf_tracker.on_record_after_where();
-	  table->file->position(table->record[0]);
-	  if (unlikely(my_b_write(&tempfile,table->file->ref,
+          table->file->position(table->record[0]);
+          if (unlikely(my_b_write(&tempfile,table->file->ref,
                                   table->file->ref_length)))
-	  {
-	    error=1; /* purecov: inspected */
-	    break; /* purecov: inspected */
-	  }
-	  if (!--limit && using_limit)
-	  {
-	    error= -1;
-	    break;
-	  }
-	}
-	else
+          {
+            error=1; /* purecov: inspected */
+            break; /* purecov: inspected */
+          }
+          if (!--limit && using_limit)
+          {
+            error= -1;
+            break;
+          }
+        }
+        else
         {
           /*
             Don't try unlocking the row if skip_record reported an
@@ -777,7 +779,7 @@ int mysql_update(THD *thd,
         }
       }
       if (unlikely(thd->killed) && !error)
-	error= 1;				// Aborted
+        error= 1;				// Aborted
       limit= tmp_limit;
       table->file->try_semi_consistent_read(0);
       end_read_record(&info);
@@ -785,24 +787,24 @@ int mysql_update(THD *thd,
       /* Change select to use tempfile */
       if (select)
       {
-	delete select->quick;
-	if (select->free_cond)
-	  delete select->cond;
-	select->quick=0;
-	select->cond=0;
+        delete select->quick;
+        if (select->free_cond)
+          delete select->cond;
+        select->quick=0;
+        select->cond=0;
       }
       else
       {
-	if (!(select= new SQL_SELECT))
+        if (!(select= new SQL_SELECT))
           goto err;
-	select->head=table;
+        select->head=table;
       }
 
       if (unlikely(reinit_io_cache(&tempfile,READ_CACHE,0L,0,0)))
-	error= 1; /* purecov: inspected */
+        error= 1; /* purecov: inspected */
       select->file= tempfile;			// Read row ptrs from this file
        if (unlikely(error >= 0))
-	goto err;
+         goto err;
 
       table->file->ha_end_keyread();
       table->column_bitmaps_set(save_read_set, save_write_set);
@@ -881,7 +883,7 @@ update_begin:
       store_record(table,record[1]);
 
       if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
-                                               TRG_EVENT_UPDATE))
+                                               event))
         break; /* purecov: inspected */
 
       found++;
@@ -987,7 +989,7 @@ update_begin:
       }
 
       if (table->triggers &&
-          unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
+          unlikely(table->triggers->process_triggers(thd, event,
                                                      TRG_ACTION_AFTER, TRUE)))
       {
         error= 1;
@@ -1073,7 +1075,7 @@ update_begin:
                     thd->set_killed(KILL_QUERY);
                   };);
   error= (killed_status == NOT_KILLED)?  error : 1;
-  
+
   if (likely(error) &&
       will_batch &&
       (loc_error= table->file->exec_bulk_update(&dup_key_found)))
