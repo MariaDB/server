@@ -272,7 +272,7 @@ parse_cnf()
 
     # use default if we haven't found a value
     if [ -z $reval ]; then
-        [ -n $3 ] && reval=$3
+        [ -n "$3" ] && reval=$3
     fi
     echo $reval
 }
