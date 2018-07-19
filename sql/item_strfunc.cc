@@ -1572,19 +1572,10 @@ String *Item_str_conv::val_str(String *str)
                     str->alloc((alloced_length= res->length() * multiply)))))
     return 0;
 
-  if (multiply == 1)
-  {
-    str->copy(*res); // Should not fail (it was alloced above)
-    len= converter(collation.collation, (char*) str->ptr(), str->length(),
-                                        (char*) str->ptr(), alloced_length);
-  }
-  else
-  {
-    len= converter(collation.collation, (char*) res->ptr(), res->length(),
-                                        (char*) str->ptr(), alloced_length);
-    str->set_charset(collation.collation);
-  }
+  len= converter(collation.collation, (char*) res->ptr(), res->length(),
+                                      (char*) str->ptr(), alloced_length);
   DBUG_ASSERT(len <= alloced_length);
+  str->set_charset(collation.collation);
   str->length(len);
   return str;
 }
