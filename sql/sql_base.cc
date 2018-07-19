@@ -8609,8 +8609,10 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
   int result;
   Table_triggers_list *triggers= table->triggers;
 
-  result= fill_record(thd, table, fields, values, ignore_errors,
-                      event == TRG_EVENT_UPDATE);
+  bool update= event == TRG_EVENT_UPDATE ||
+               (event == TRG_EVENT_DELETE && table->versioned(VERS_TIMESTAMP));
+
+  result= fill_record(thd, table, fields, values, ignore_errors, update);
 
   if (!result && triggers)
   {
