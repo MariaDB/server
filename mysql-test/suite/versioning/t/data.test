@@ -1,4 +1,5 @@
 --source suite/versioning/common.inc
+--echo # mysqldump --dump-history
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1), (2);
 delete from t1 where x = 1;
@@ -106,6 +107,47 @@ eval load data infile '$TMP/t2.txt' into table t2 (x, row_start, row_end);
 set system_versioning_modify_history= OFF;
 select *, check_row(row_start, row_end) from t1 for system_time all;
 select *, check_row(row_start, row_end) from t2 for system_time all;
+
+--echo # mysqldump --asof-timestamp
+create or replace table t1 (x int) with system versioning;
+set system_versioning_modify_history= ON;
+eval
+insert into t1 (x, row_start, row_end) values
+  (1, '1990-01-01 00:00', '1990-08-03 00:00'),
+  (2, '1990-08-01 00:00', '1991-01-02 00:00'),
+  (3, '1991-08-01 00:00', $sys_datatype_max);
+set system_versioning_modify_history= OFF;
+
+--exec $MYSQL_DUMP --databases test > $TMP/current.sql
+--exec $MYSQL_DUMP --asof-timestamp='1990-01-02 00:00' --databases test > $TMP/asof_01.sql
+--exec $MYSQL_DUMP --asof-timestamp='1990-08-02 00:00' --databases test > $TMP/asof_02.sql
+--exec $MYSQL_DUMP --asof-timestamp='1990-08-04 00:00' --databases test > $TMP/asof_03.sql
+--exec $MYSQL_DUMP --dump-history --asof-timestamp='1990-08-04 00:00' --databases test > $TMP/asof_04.sql
+## Forged query protection
+--error 1
+--exec $MYSQL_DUMP --asof-timestamp="1990-08-04 00:00' where 'abc" --databases test
+
+drop table t1;
+--echo ## Current data
+set @t1= now(6);
+--exec $MYSQL test < $TMP/current.sql
+select *, check_row(row_start, row_end), row_start >= @t1 from t1 for system_time all;
+drop table t1;
+--echo ## --asof-timestamp='1990-01-02 00:00'
+--exec $MYSQL test < $TMP/asof_01.sql
+select *, row_start, row_end from t1 for system_time all;
+drop table t1;
+--echo ## --asof-timestamp='1990-08-02 00:00'
+--exec $MYSQL test < $TMP/asof_02.sql
+select *, row_start, row_end from t1 for system_time all;
+drop table t1;
+--echo ## --asof-timestamp='1990-08-04 00:00'
+--exec $MYSQL test < $TMP/asof_03.sql
+select *, row_start, row_end from t1 for system_time all;
+drop table t1;
+--echo ## --dump-history --asof-timestamp='1990-08-04 00:00'
+--exec $MYSQL test < $TMP/asof_04.sql
+select *, row_start, row_end from t1 for system_time all;
 
 --remove_files_wildcard $TMP *.sql
 --remove_files_wildcard $TMP *.txt
