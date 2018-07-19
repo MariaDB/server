@@ -8114,6 +8114,11 @@ Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
     */
     else if (err == 1 && field->result_type() == INT_RESULT)
     {
+      if (type == EQ_FUNC || type == EQUAL_FUNC) // e.g. tinyint = 200
+      {
+        tree= new (alloc) SEL_ARG_IMPOSSIBLE(field);
+        goto end;
+      }
       if (type == LT_FUNC && (value->val_int() > 0))
         type= LE_FUNC;
       else if (type == GT_FUNC &&

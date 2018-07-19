@@ -197,5 +197,16 @@ EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1+a<=>?+a' USING 1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-15759 Expect "Impossible WHERE" for indexed_int_column=out_of_range_int_constant
+--echo #
+
+CREATE TABLE t1 (a TINYINT, KEY(a));
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5);
+EXPLAIN SELECT * FROM t1 WHERE a=200;
+EXPLAIN SELECT * FROM t1 WHERE a<=>200;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
