@@ -508,7 +508,9 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     if (err_status)
       goto end;
   }
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
+  if (thd->wsrep_exec_mode == LOCAL_STATE)
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /* We should have only one table in table list. */
   DBUG_ASSERT(tables->next_global == 0);
