@@ -78,6 +78,20 @@ public:
                   EXTRACT_FUNC, CHAR_TYPECAST_FUNC, FUNC_SP, UDF_FUNC,
                   NEG_FUNC, GSYSVAR_FUNC, IN_OPTIMIZER_FUNC, DYNCOL_FUNC,
                   JSON_EXTRACT_FUNC };
+  static scalar_comparison_op functype_to_scalar_comparison_op(Functype type)
+  {
+    switch (type) {
+    case EQ_FUNC:    return SCALAR_CMP_EQ;
+    case EQUAL_FUNC: return SCALAR_CMP_EQUAL;
+    case LT_FUNC:    return SCALAR_CMP_LT;
+    case LE_FUNC:    return SCALAR_CMP_LE;
+    case GE_FUNC:    return SCALAR_CMP_GE;
+    case GT_FUNC:    return SCALAR_CMP_GT;
+    default: break;
+    }
+    DBUG_ASSERT(0);
+    return SCALAR_CMP_EQ;
+  }
   enum Type type() const { return FUNC_ITEM; }
   virtual enum Functype functype() const   { return UNKNOWN_FUNC; }
   Item_func(THD *thd): Item_func_or_sum(thd)

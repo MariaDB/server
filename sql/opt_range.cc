@@ -1892,6 +1892,118 @@ SEL_ARG::SEL_ARG(Field *field_,uint8 part_,
   left=right= &null_element;
 }
 
+
+/*
+  A number of helper classes:
+    SEL_ARG_LE, SEL_ARG_LT, SEL_ARG_GT, SEL_ARG_GE,
+  to share the code between:
+    Field::stored_field_make_mm_leaf()
+    Field::stored_field_make_mm_leaf_exact()
+*/
+class SEL_ARG_LE: public SEL_ARG
+{
+public:
+  SEL_ARG_LE(const uchar *key, Field *field)
+   :SEL_ARG(field, key, key)
+  {
+    if (!field->real_maybe_null())
+      min_flag= NO_MIN_RANGE;     // From start
+    else
+    {
+      min_value= is_null_string;
+      min_flag= NEAR_MIN;        // > NULL
+    }
+  }
+};
+
+
+class SEL_ARG_LT: public SEL_ARG_LE
+{
+public:
+  /*
+    Use this constructor if value->save_in_field() went precisely,
+    without any data rounding or truncation.
+  */
+  SEL_ARG_LT(const uchar *key, Field *field)
+   :SEL_ARG_LE(key, field)
+  { max_flag= NEAR_MAX; }
+  /*
+    Use this constructor if value->save_in_field() returned success,
+    but we don't know if rounding or truncation happened
+    (as some Field::store() do not report minor data changes).
+  */
+  SEL_ARG_LT(THD *thd, const uchar *key, Field *field, Item *value)
+   :SEL_ARG_LE(key, field)
+  {
+    if (stored_field_cmp_to_item(thd, field, value) == 0)
+      max_flag= NEAR_MAX;
+  }
+};
+
+
+class SEL_ARG_GT: public SEL_ARG
+{
+public:
+  /*
+    Use this constructor if value->save_in_field() went precisely,
+    without any data rounding or truncation.
+  */
+  SEL_ARG_GT(const uchar *key, const KEY_PART *key_part, Field *field)
+   :SEL_ARG(field, key, key)
+  {
+    // Don't use open ranges for partial key_segments
+    if (!(key_part->flag & HA_PART_KEY_SEG))
+      min_flag= NEAR_MIN;
+    max_flag= NO_MAX_RANGE;
+  }
+  /*
+    Use this constructor if value->save_in_field() returned success,
+    but we don't know if rounding or truncation happened
+    (as some Field::store() do not report minor data changes).
+  */
+  SEL_ARG_GT(THD *thd, const uchar *key,
+             const KEY_PART *key_part, Field *field, Item *value)
+   :SEL_ARG(field, key, key)
+  {
+    // Don't use open ranges for partial key_segments
+    if ((!(key_part->flag & HA_PART_KEY_SEG)) &&
+        (stored_field_cmp_to_item(thd, field, value) <= 0))
+      min_flag= NEAR_MIN;
+    max_flag= NO_MAX_RANGE;
+  }
+};
+
+
+class SEL_ARG_GE: public SEL_ARG
+{
+public:
+  /*
+    Use this constructor if value->save_in_field() went precisely,
+    without any data rounding or truncation.
+  */
+  SEL_ARG_GE(const uchar *key, Field *field)
+   :SEL_ARG(field, key, key)
+  {
+    max_flag= NO_MAX_RANGE;
+  }
+  /*
+    Use this constructor if value->save_in_field() returned success,
+    but we don't know if rounding or truncation happened
+    (as some Field::store() do not report minor data changes).
+  */
+  SEL_ARG_GE(THD *thd, const uchar *key,
+             const KEY_PART *key_part, Field *field, Item *value)
+   :SEL_ARG(field, key, key)
+  {
+    // Don't use open ranges for partial key_segments
+    if ((!(key_part->flag & HA_PART_KEY_SEG)) &&
+        (stored_field_cmp_to_item(thd, field, value) < 0))
+      min_flag= NEAR_MIN;
+    max_flag= NO_MAX_RANGE;
+  }
+};
+
+
 SEL_ARG *SEL_ARG::clone(RANGE_OPT_PARAM *param, SEL_ARG *new_parent, 
                         SEL_ARG **next_arg)
 {
@@ -8015,52 +8127,112 @@ Item_func_like::get_mm_leaf(RANGE_OPT_PARAM *param,
 SEL_ARG *
 Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
                             Field *field, KEY_PART *key_part,
-                            Item_func::Functype type, Item *value)
+                            Item_func::Functype functype, Item *value)
 {
-  uint maybe_null=(uint) field->real_maybe_null();
-  SEL_ARG *tree= 0;
-  MEM_ROOT *alloc= param->mem_root;
-  uchar *str;
-  int err;
   DBUG_ENTER("Item_bool_func::get_mm_leaf");
-
   DBUG_ASSERT(value); // IS NULL and IS NOT NULL are handled separately
-
   if (key_part->image_type != Field::itRAW)
     DBUG_RETURN(0);   // e.g. SPATIAL index
+  DBUG_RETURN(field->get_mm_leaf(param, key_part, this,
+                                 functype_to_scalar_comparison_op(functype),
+                                 value));
+}
 
-  if (param->using_real_indexes &&
-      !field->optimize_range(param->real_keynr[key_part->key],
-                             key_part->part) &&
-      type != EQ_FUNC &&
-      type != EQUAL_FUNC)
-    goto end;                                   // Can't optimize this
 
-  if (!field->can_optimize_range(this, value,
-                                 type == EQUAL_FUNC || type == EQ_FUNC))
-    goto end;
+bool Field::can_optimize_scalar_range(const RANGE_OPT_PARAM *param,
+                                      const KEY_PART *key_part,
+                                      const Item_bool_func *cond,
+                                      scalar_comparison_op op,
+                                      const Item *value) const
+{
+  bool is_eq_func= op == SCALAR_CMP_EQ || op == SCALAR_CMP_EQUAL;
+  if ((param->using_real_indexes &&
+       !optimize_range(param->real_keynr[key_part->key],
+                       key_part->part) && !is_eq_func) ||
+      !can_optimize_range(cond, value, is_eq_func))
+    return false;
+  return true;
+}
 
-  err= value->save_in_field_no_warnings(field, 1);
+
+uchar *Field::make_key_image(MEM_ROOT *mem_root, const KEY_PART *key_part)
+{
+  DBUG_ENTER("Field::make_key_image");
+  uint maybe_null= (uint) real_maybe_null();
+  uchar *str;
+  if (!(str= (uchar*) alloc_root(mem_root, key_part->store_length + 1)))
+    DBUG_RETURN(0);
+  if (maybe_null)
+    *str= (uchar) is_real_null();        // Set to 1 if null
+  get_key_image(str + maybe_null, key_part->length, key_part->image_type);
+  DBUG_RETURN(str);
+}
+
+
+SEL_ARG *Field::stored_field_make_mm_leaf_truncated(RANGE_OPT_PARAM *param,
+                                                    scalar_comparison_op op,
+                                                    Item *value)
+{
+  DBUG_ENTER("Field::stored_field_make_mm_leaf_truncated");
+  if ((op == SCALAR_CMP_EQ || op == SCALAR_CMP_EQUAL) &&
+      value->result_type() == item_cmp_type(result_type(),
+                                            value->result_type()))
+    DBUG_RETURN(new (param->mem_root) SEL_ARG_IMPOSSIBLE(this));
+  /*
+    TODO: We should return trees of the type SEL_ARG::IMPOSSIBLE
+    for the cases like int_field > 999999999999999999999999 as well.
+  */
+  DBUG_RETURN(0);
+}
+
+
+SEL_ARG *Field_num::get_mm_leaf(RANGE_OPT_PARAM *prm, KEY_PART *key_part,
+                                const Item_bool_func *cond,
+                                scalar_comparison_op op, Item *value)
+{
+  DBUG_ENTER("Field_num::get_mm_leaf");
+  if (!can_optimize_scalar_range(prm, key_part, cond, op, value))
+    DBUG_RETURN(0);
+  int err= value->save_in_field_no_warnings(this, 1);
+  if ((op != SCALAR_CMP_EQUAL && is_real_null()) || err < 0)
+    DBUG_RETURN(&null_element);
+  if (err > 0 && cmp_type() != value->result_type())
+    DBUG_RETURN(stored_field_make_mm_leaf_truncated(prm, op, value));
+  DBUG_RETURN(stored_field_make_mm_leaf(prm, key_part, op, value));
+}
+
+
+SEL_ARG *Field_temporal::get_mm_leaf(RANGE_OPT_PARAM *prm, KEY_PART *key_part,
+                                     const Item_bool_func *cond,
+                                     scalar_comparison_op op, Item *value)
+{
+  DBUG_ENTER("Field_temporal::get_mm_leaf");
+  if (!can_optimize_scalar_range(prm, key_part, cond, op, value))
+    DBUG_RETURN(0);
+  int err= value->save_in_field_no_warnings(this, 1);
+  if ((op != SCALAR_CMP_EQUAL && is_real_null()) || err < 0)
+    DBUG_RETURN(&null_element);
+  if (err > 0)
+    DBUG_RETURN(stored_field_make_mm_leaf_truncated(prm, op, value));
+  DBUG_RETURN(stored_field_make_mm_leaf(prm, key_part, op, value));
+}
+
+
+SEL_ARG *Field_date_common::get_mm_leaf(RANGE_OPT_PARAM *prm,
+                                        KEY_PART *key_part,
+                                        const Item_bool_func *cond,
+                                        scalar_comparison_op op,
+                                        Item *value)
+{
+  DBUG_ENTER("Field_date_common::get_mm_leaf");
+  if (!can_optimize_scalar_range(prm, key_part, cond, op, value))
+    DBUG_RETURN(0);
+  int err= value->save_in_field_no_warnings(this, 1);
+  if ((op != SCALAR_CMP_EQUAL && is_real_null()) || err < 0)
+    DBUG_RETURN(&null_element);
   if (err > 0)
   {
-    if (field->type_handler() == &type_handler_enum ||
-        field->type_handler() == &type_handler_set)
-    {
-      if (type == EQ_FUNC || type == EQUAL_FUNC)
-        tree= new (alloc) SEL_ARG_IMPOSSIBLE(field);
-      goto end;
-    }
-
-    if (err == 2 && field->cmp_type() == STRING_RESULT)
-    {
-      if (type == EQ_FUNC || type == EQUAL_FUNC)
-        tree= new (alloc) SEL_ARG_IMPOSSIBLE(field);
-      else
-        tree= NULL; /*  Cannot infer anything */
-      goto end;
-    }
-
-    if (err == 3 && field->type() == FIELD_TYPE_DATE)
+    if (err == 3)
     {
       /*
         We were saving DATETIME into a DATE column, the conversion went ok
@@ -8080,81 +8252,86 @@ Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
         be done together with other types at the end of this function
         (grep for stored_field_cmp_to_item)
       */
-      if (type == EQ_FUNC || type == EQUAL_FUNC)
-      {
-        tree= new (alloc) SEL_ARG_IMPOSSIBLE(field);
-        goto end;
-      }
-      // Continue with processing non-equality ranges
+      if (op == SCALAR_CMP_EQ || op == SCALAR_CMP_EQUAL)
+        DBUG_RETURN(new (prm->mem_root) SEL_ARG_IMPOSSIBLE(this));
+      DBUG_RETURN(stored_field_make_mm_leaf(prm, key_part, op, value));
     }
-    else if (field->cmp_type() != value->result_type())
-    {
-      if ((type == EQ_FUNC || type == EQUAL_FUNC) &&
-          value->result_type() == item_cmp_type(field->result_type(),
-                                                value->result_type()))
-      {
-        tree= new (alloc) SEL_ARG_IMPOSSIBLE(field);
-        goto end;
-      }
-      else
-      {
-        /*
-          TODO: We should return trees of the type SEL_ARG::IMPOSSIBLE
-          for the cases like int_field > 999999999999999999999999 as well.
-        */
-        tree= 0;
-        goto end;
-      }
-    }
+    DBUG_RETURN(stored_field_make_mm_leaf_truncated(prm, op, value));
+  }
+  DBUG_RETURN(stored_field_make_mm_leaf(prm, key_part, op, value));
+}
 
-    /*
-      guaranteed at this point:  err > 0; field and const of same type
-      If an integer got bounded (e.g. to within 0..255 / -128..127)
-      for < or >, set flags as for <= or >= (no NEAR_MAX / NEAR_MIN)
-    */
-    else if (err == 1 && field->result_type() == INT_RESULT)
-    {
-      if (type == EQ_FUNC || type == EQUAL_FUNC) // e.g. tinyint = 200
-      {
-        tree= new (alloc) SEL_ARG_IMPOSSIBLE(field);
-        goto end;
-      }
-      if (type == LT_FUNC && (value->val_int() > 0))
-        type= LE_FUNC;
-      else if (type == GT_FUNC &&
-               (field->type() != FIELD_TYPE_BIT) &&
-               !((Field_num*)field)->unsigned_flag &&
-               !value->unsigned_flag &&
-               (value->val_int() < 0))
-        type= GE_FUNC;
-    }
-  }
-  else if (err < 0)
-  {
-    /* This happens when we try to insert a NULL field in a not null column */
-    tree= &null_element;                        // cmp with NULL is never TRUE
-    goto end;
-  }
 
-  /*
-    Any sargable predicate except "<=>" involving NULL as a constant is always
-    FALSE
-  */
-  if (type != EQUAL_FUNC && field->is_real_null())
+SEL_ARG *Field_str::get_mm_leaf(RANGE_OPT_PARAM *prm, KEY_PART *key_part,
+                                const Item_bool_func *cond,
+                                scalar_comparison_op op, Item *value)
+{
+  DBUG_ENTER("Field_str::get_mm_leaf");
+  if (!can_optimize_scalar_range(prm, key_part, cond, op, value))
+    DBUG_RETURN(0);
+  int err= value->save_in_field_no_warnings(this, 1);
+  if ((op != SCALAR_CMP_EQUAL && is_real_null()) || err < 0)
+    DBUG_RETURN(&null_element);
+  if (err > 0)
   {
-    tree= &null_element;
-    goto end;
+    if (op == SCALAR_CMP_EQ || op == SCALAR_CMP_EQUAL)
+      DBUG_RETURN(new (prm->mem_root) SEL_ARG_IMPOSSIBLE(this));
+    DBUG_RETURN(NULL); /*  Cannot infer anything */
   }
-  
-  str= (uchar*) alloc_root(alloc, key_part->store_length+1);
-  if (!str)
-    goto end;
-  if (maybe_null)
-    *str= (uchar) field->is_real_null();        // Set to 1 if null
-  field->get_key_image(str+maybe_null, key_part->length,
-                       key_part->image_type);
-  if (!(tree= new (alloc) SEL_ARG(field, str, str)))
-    goto end;                                   // out of memory
+  DBUG_RETURN(stored_field_make_mm_leaf(prm, key_part, op, value));
+}
+
+
+SEL_ARG *Field::get_mm_leaf_int(RANGE_OPT_PARAM *prm, KEY_PART *key_part,
+                                const Item_bool_func *cond,
+                                scalar_comparison_op op, Item *value,
+                                bool unsigned_field)
+{
+  DBUG_ENTER("Field::get_mm_leaf_int");
+  if (!can_optimize_scalar_range(prm, key_part, cond, op, value))
+    DBUG_RETURN(0);
+  int err= value->save_in_field_no_warnings(this, 1);
+  if ((op != SCALAR_CMP_EQUAL && is_real_null()) || err < 0)
+    DBUG_RETURN(&null_element);
+  if (err > 0)
+  {
+    if (value->result_type() != INT_RESULT)
+      DBUG_RETURN(stored_field_make_mm_leaf_truncated(prm, op, value));
+    else
+      DBUG_RETURN(stored_field_make_mm_leaf_bounded_int(prm, key_part,
+                                                        op, value,
+                                                        unsigned_field));
+  }
+  if (value->result_type() != INT_RESULT)
+    DBUG_RETURN(stored_field_make_mm_leaf(prm, key_part, op, value));
+  DBUG_RETURN(stored_field_make_mm_leaf_exact(prm, key_part, op, value));
+}
+
+
+/*
+  This method is called when:
+  - value->save_in_field_no_warnings() returned err > 0
+  - and both field and "value" are of integer data types
+  If an integer got bounded (e.g. to within 0..255 / -128..127)
+  for < or >, set flags as for <= or >= (no NEAR_MAX / NEAR_MIN)
+*/
+
+SEL_ARG *Field::stored_field_make_mm_leaf_bounded_int(RANGE_OPT_PARAM *param,
+                                                      KEY_PART *key_part,
+                                                      scalar_comparison_op op,
+                                                      Item *value,
+                                                      bool unsigned_field)
+{
+  DBUG_ENTER("Field::stored_field_make_mm_leaf_bounded_int");
+  if (op == SCALAR_CMP_EQ || op == SCALAR_CMP_EQUAL) // e.g. tinyint = 200
+    DBUG_RETURN(new (param->mem_root) SEL_ARG_IMPOSSIBLE(this));
+  longlong item_val= value->val_int();
+
+  if (op == SCALAR_CMP_LT && item_val > 0)
+    op= SCALAR_CMP_LE; // e.g. rewrite (tinyint < 200) to (tinyint <= 127)
+  else if (op == SCALAR_CMP_GT && !unsigned_field &&
+           !value->unsigned_flag && item_val < 0)
+    op= SCALAR_CMP_GE; // e.g. rewrite (tinyint > -200) to (tinyint >= -128)
 
   /*
     Check if we are comparing an UNSIGNED integer with a negative constant.
@@ -8167,66 +8344,74 @@ Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
     negative integers (which otherwise fails because at query execution time
     negative integers are cast to unsigned if compared with unsigned).
    */
-  if (field->result_type() == INT_RESULT &&
-      value->result_type() == INT_RESULT &&
-      ((field->type() == FIELD_TYPE_BIT || 
-       ((Field_num *) field)->unsigned_flag) && 
-       !value->unsigned_flag))
+  if (unsigned_field && !value->unsigned_flag && item_val < 0)
   {
-    longlong item_val= value->val_int();
-    if (item_val < 0)
-    {
-      if (type == LT_FUNC || type == LE_FUNC)
-      {
-        tree->type= SEL_ARG::IMPOSSIBLE;
-        goto end;
-      }
-      if (type == GT_FUNC || type == GE_FUNC)
-      {
-        tree= 0;
-        goto end;
-      }
-    }
+    if (op == SCALAR_CMP_LT || op == SCALAR_CMP_LE) // e.g. uint < -1
+      DBUG_RETURN(new (param->mem_root) SEL_ARG_IMPOSSIBLE(this));
+    if (op == SCALAR_CMP_GT || op == SCALAR_CMP_GE) // e.g. uint > -1
+      DBUG_RETURN(0);
   }
+  DBUG_RETURN(stored_field_make_mm_leaf_exact(param, key_part, op, value));
+}
 
-  switch (type) {
-  case LT_FUNC:
-    if (stored_field_cmp_to_item(param->thd, field, value) == 0)
-      tree->max_flag=NEAR_MAX;
-    /* fall through */
-  case LE_FUNC:
-    if (!maybe_null)
-      tree->min_flag=NO_MIN_RANGE;		/* From start */
-    else
-    {						// > NULL
-      tree->min_value=is_null_string;
-      tree->min_flag=NEAR_MIN;
-    }
-    break;
-  case GT_FUNC:
-    /* Don't use open ranges for partial key_segments */
-    if ((!(key_part->flag & HA_PART_KEY_SEG)) &&
-        (stored_field_cmp_to_item(param->thd, field, value) <= 0))
-      tree->min_flag=NEAR_MIN;
-    tree->max_flag= NO_MAX_RANGE;
-    break;
-  case GE_FUNC:
-    /* Don't use open ranges for partial key_segments */
-    if ((!(key_part->flag & HA_PART_KEY_SEG)) &&
-        (stored_field_cmp_to_item(param->thd, field, value) < 0))
-      tree->min_flag= NEAR_MIN;
-    tree->max_flag=NO_MAX_RANGE;
-    break;
-  case EQ_FUNC:
-  case EQUAL_FUNC:
-    break;
-  default:
-    DBUG_ASSERT(0);
+
+SEL_ARG *Field::stored_field_make_mm_leaf(RANGE_OPT_PARAM *param,
+                                          KEY_PART *key_part,
+                                          scalar_comparison_op op,
+                                          Item *value)
+{
+  DBUG_ENTER("Field::stored_field_make_mm_leaf");
+  THD *thd= param->thd;
+  MEM_ROOT *mem_root= param->mem_root;
+  uchar *str;
+  if (!(str= make_key_image(param->mem_root, key_part)))
+    DBUG_RETURN(0);
+
+  switch (op) {
+  case SCALAR_CMP_LE:
+    DBUG_RETURN(new (mem_root) SEL_ARG_LE(str, this));
+  case SCALAR_CMP_LT:
+    DBUG_RETURN(new (mem_root) SEL_ARG_LT(thd, str, this, value));
+  case SCALAR_CMP_GT:
+    DBUG_RETURN(new (mem_root) SEL_ARG_GT(thd, str, key_part, this, value));
+  case SCALAR_CMP_GE:
+    DBUG_RETURN(new (mem_root) SEL_ARG_GE(thd, str, key_part, this, value));
+  case SCALAR_CMP_EQ:
+  case SCALAR_CMP_EQUAL:
+    DBUG_RETURN(new (mem_root) SEL_ARG(this, str, str));
     break;
   }
+  DBUG_ASSERT(0);
+  DBUG_RETURN(NULL);
+}
 
-end:
-  DBUG_RETURN(tree);
+
+SEL_ARG *Field::stored_field_make_mm_leaf_exact(RANGE_OPT_PARAM *param,
+                                                KEY_PART *key_part,
+                                                scalar_comparison_op op,
+                                                Item *value)
+{
+  DBUG_ENTER("Field::stored_field_make_mm_leaf_exact");
+  uchar *str;
+  if (!(str= make_key_image(param->mem_root, key_part)))
+    DBUG_RETURN(0);
+
+  switch (op) {
+  case SCALAR_CMP_LE:
+    DBUG_RETURN(new (param->mem_root) SEL_ARG_LE(str, this));
+  case SCALAR_CMP_LT:
+    DBUG_RETURN(new (param->mem_root) SEL_ARG_LT(str, this));
+  case SCALAR_CMP_GT:
+    DBUG_RETURN(new (param->mem_root) SEL_ARG_GT(str, key_part, this));
+  case SCALAR_CMP_GE:
+    DBUG_RETURN(new (param->mem_root) SEL_ARG_GE(str, this));
+  case SCALAR_CMP_EQ:
+  case SCALAR_CMP_EQUAL:
+    DBUG_RETURN(new (param->mem_root) SEL_ARG(this, str, str));
+    break;
+  }
+  DBUG_ASSERT(0);
+  DBUG_RETURN(NULL);
 }
 
 

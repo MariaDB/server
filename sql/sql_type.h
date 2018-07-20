@@ -77,6 +77,17 @@ struct SORT_FIELD_ATTR;
 class Vers_history_point;
 
 
+enum scalar_comparison_op
+{
+  SCALAR_CMP_EQ,
+  SCALAR_CMP_EQUAL,
+  SCALAR_CMP_LT,
+  SCALAR_CMP_LE,
+  SCALAR_CMP_GE,
+  SCALAR_CMP_GT
+};
+
+
 /**
   Class Time is designed to store valid TIME values.
 
@@ -1184,6 +1195,8 @@ public:
   {
     return this;
   }
+  virtual int
+  stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const= 0;
   virtual CHARSET_INFO *charset_for_protocol(const Item *item) const;
   virtual const Type_handler*
   type_handler_adjusted_to_max_octet_length(uint max_octet_length,
@@ -1562,6 +1575,11 @@ public:
     return ROW_RESULT;
   }
   const Type_handler *type_handler_for_comparison() const;
+  int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
   bool subquery_type_allows_materialization(const Item *inner,
                                             const Item *outer) const
   {
@@ -1888,6 +1906,7 @@ public:
   Item_result cmp_type() const { return REAL_RESULT; }
   virtual ~Type_handler_real_result() {}
   const Type_handler *type_handler_for_comparison() const;
+  int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const;
   bool subquery_type_allows_materialization(const Item *inner,
                                             const Item *outer) const;
   void make_sort_key(uchar *to, Item *item, const SORT_FIELD_ATTR *sort_field,
@@ -1965,6 +1984,7 @@ public:
   Item_result cmp_type() const { return DECIMAL_RESULT; }
   virtual ~Type_handler_decimal_result() {};
   const Type_handler *type_handler_for_comparison() const;
+  int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const;
   bool subquery_type_allows_materialization(const Item *inner,
                                             const Item *outer) const;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
@@ -2174,6 +2194,7 @@ public:
   bool is_limit_clause_valid_type() const { return true; }
   virtual ~Type_handler_int_result() {}
   const Type_handler *type_handler_for_comparison() const;
+  int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const;
   bool subquery_type_allows_materialization(const Item *inner,
                                             const Item *outer) const;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
@@ -2237,6 +2258,7 @@ public:
   bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const;
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const;
+
 };
 
 
@@ -2331,6 +2353,7 @@ public:
   CHARSET_INFO *charset_for_protocol(const Item *item) const;
   virtual ~Type_handler_string_result() {}
   const Type_handler *type_handler_for_comparison() const;
+  int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const;
   const Type_handler *
   type_handler_adjusted_to_max_octet_length(uint max_octet_length,
                                             CHARSET_INFO *cs) const;
@@ -2885,6 +2908,7 @@ public:
     return Item_divisor_precision_increment_with_seconds(item);
   }
   const Type_handler *type_handler_for_comparison() const;
+  int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const;
   void Column_definition_implicit_upgrade(Column_definition *c) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
@@ -2986,6 +3010,7 @@ public:
   virtual ~Type_handler_temporal_with_date() {}
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                      Item *a, Item *b) const;
+  int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const
   {

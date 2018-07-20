@@ -48,6 +48,9 @@ class Item_equal;
 class Virtual_tmp_table;
 class Qualified_column_ident;
 class Table_ident;
+class SEL_ARG;
+class RANGE_OPT_PARAM;
+struct KEY_PART;
 
 enum enum_check_fields
 {
@@ -847,6 +850,10 @@ public:
    to be quoted when used in constructing an SQL query.
   */
   virtual bool str_needs_quotes() { return FALSE; }
+  const Type_handler *type_handler_for_comparison() const
+  {
+    return type_handler()->type_handler_for_comparison();
+  }
   Item_result result_type () const
   {
     return type_handler()->result_type();
@@ -1375,6 +1382,59 @@ protected:
   }
   int warn_if_overflow(int op_result);
   Copy_func *get_identical_copy_func() const;
+  bool can_optimize_scalar_range(const RANGE_OPT_PARAM *param,
+                                 const KEY_PART *key_part,
+                                 const Item_bool_func *cond,
+                                 scalar_comparison_op op,
+                                 const Item *value) const;
+  uchar *make_key_image(MEM_ROOT *mem_root, const KEY_PART *key_part);
+  SEL_ARG *get_mm_leaf_int(RANGE_OPT_PARAM *param, KEY_PART *key_part,
+                           const Item_bool_func *cond,
+                           scalar_comparison_op op, Item *value,
+                           bool unsigned_field);
+  /*
+    Make a leaf tree for the cases when the value was stored
+    to the field exactly, without any truncation, rounding or adjustments.
+    For example, if we stored an INT value into an INT column,
+    and value->save_in_field_no_warnings() returned 0,
+    we know that the value was stored exactly.
+  */
+  SEL_ARG *stored_field_make_mm_leaf_exact(RANGE_OPT_PARAM *param,
+                                           KEY_PART *key_part,
+                                           scalar_comparison_op op,
+                                           Item *value);
+  /*
+    Make a leaf tree for the cases when we don't know if
+    the value was stored to the field without any data loss,
+    or was modified to a smaller or a greater value.
+    Used for the data types whose methods Field::store*()
+    silently adjust the value. This is the most typical case.
+  */
+  SEL_ARG *stored_field_make_mm_leaf(RANGE_OPT_PARAM *param,
+                                     KEY_PART *key_part,
+                                     scalar_comparison_op op, Item *value);
+  /*
+    Make a leaf tree when an INT value was stored into a field of INT type,
+    and some truncation happened. Tries to adjust the range search condition
+    when possible, e.g. "tinytint < 300" -> "tinyint <= 127".
+    Can also return SEL_ARG_IMPOSSIBLE(), and NULL (not sargable).
+  */
+  SEL_ARG *stored_field_make_mm_leaf_bounded_int(RANGE_OPT_PARAM *param,
+                                                 KEY_PART *key_part,
+                                                 scalar_comparison_op op,
+                                                 Item *value,
+                                                 bool unsigned_field);
+  /*
+    Make a leaf tree when some truncation happened during
+    value->save_in_field_no_warning(this), and we cannot yet adjust the range
+    search condition for the current combination of the field and the value
+    data types.
+    Returns SEL_ARG_IMPOSSIBLE() for "=" and "<=>".
+    Returns NULL (not sargable) for other comparison operations.
+  */
+  SEL_ARG *stored_field_make_mm_leaf_truncated(RANGE_OPT_PARAM *prm,
+                                               scalar_comparison_op,
+                                               Item *value);
 public:
   void set_table_name(String *alias)
   {
@@ -1547,6 +1607,10 @@ public:
                                   const Item *item,
                                   bool is_eq_func) const;
 
+  virtual SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
+                               const Item_bool_func *cond,
+                               scalar_comparison_op op, Item *value)= 0;
+
   bool can_optimize_outer_join_table_elimination(const Item_bool_func *cond,
                                                  const Item *item) const
   {
@@ -1708,6 +1772,9 @@ public:
   {
     return pos_in_interval_val_real(min, max);
   }
+  SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
+                       const Item_bool_func *cond,
+                       scalar_comparison_op op, Item *value);
 };
 
 
@@ -1764,6 +1831,9 @@ public:
     return pos_in_interval_val_str(min, max, length_size());
   }
   bool test_if_equality_guarantees_uniqueness(const Item *const_item) const;
+  SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
+                       const Item_bool_func *cond,
+                       scalar_comparison_op op, Item *value);
 };
 
 /* base class for Field_string, Field_varstring and Field_blob */
@@ -2060,6 +2130,12 @@ public:
   {
     uint32 prec= type_limits_int()->precision();
     return Information_schema_numeric_attributes(prec, 0);
+  }
+  SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
+                       const Item_bool_func *cond,
+                       scalar_comparison_op op, Item *value)
+  {
+    return get_mm_leaf_int(param, key_part, cond, op, value, unsigned_flag);
   }
 };
 
@@ -2543,6 +2619,9 @@ public:
   {
     return true;
   }
+  SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
+                       const Item_bool_func *cond,
+                       scalar_comparison_op op, Item *value);
 };
 
 
@@ -2823,14 +2902,31 @@ public:
 };
 
 
-class Field_date :public Field_temporal_with_date {
+class Field_date_common: public Field_temporal_with_date
+{
+public:
+  Field_date_common(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
+                    enum utype unireg_check_arg,
+                    const LEX_CSTRING *field_name_arg)
+    :Field_temporal_with_date(ptr_arg, MAX_DATE_WIDTH,
+                              null_ptr_arg, null_bit_arg,
+                              unireg_check_arg, field_name_arg)
+  {}
+  SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
+                       const Item_bool_func *cond,
+                       scalar_comparison_op op, Item *value);
+};
+
+
+class Field_date :public Field_date_common
+{
   void store_TIME(MYSQL_TIME *ltime);
   bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
 public:
   Field_date(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg)
-    :Field_temporal_with_date(ptr_arg, MAX_DATE_WIDTH, null_ptr_arg, null_bit_arg,
-                              unireg_check_arg, field_name_arg) {}
+    :Field_date_common(ptr_arg, null_ptr_arg, null_bit_arg,
+                       unireg_check_arg, field_name_arg) {}
   const Type_handler *type_handler() const { return &type_handler_date; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_ULONG_INT; }
   int reset(void) { ptr[0]=ptr[1]=ptr[2]=ptr[3]=0; return 0; }
@@ -2858,14 +2954,15 @@ public:
 };
 
 
-class Field_newdate :public Field_temporal_with_date {
+class Field_newdate :public Field_date_common
+{
   void store_TIME(MYSQL_TIME *ltime);
   bool get_TIME(MYSQL_TIME *ltime, const uchar *pos, ulonglong fuzzydate) const;
 public:
   Field_newdate(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
 		enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg)
-    :Field_temporal_with_date(ptr_arg, MAX_DATE_WIDTH, null_ptr_arg, null_bit_arg,
-                              unireg_check_arg, field_name_arg)
+    :Field_date_common(ptr_arg, null_ptr_arg, null_bit_arg,
+                       unireg_check_arg, field_name_arg)
     {}
   const Type_handler *type_handler() const { return &type_handler_newdate; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_UINT24; }
@@ -4180,6 +4277,12 @@ public:
   }
   void hash(ulong *nr, ulong *nr2);
 
+  SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
+                       const Item_bool_func *cond,
+                       scalar_comparison_op op, Item *value)
+  {
+    return get_mm_leaf_int(param, key_part, cond, op, value, true);
+  }
 private:
   virtual size_t do_last_null_byte() const;
   int save_field_metadata(uchar *first_byte);

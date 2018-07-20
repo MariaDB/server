@@ -6574,3 +6574,92 @@ void Type_handler_timestamp_common::
   else
     c->set_handler(&type_handler_timestamp);
 }
+
+
+/***************************************************************************/
+
+
+int Type_handler_temporal_with_date::stored_field_cmp_to_item(THD *thd,
+                                                              Field *field,
+                                                              Item *item) const
+{
+  MYSQL_TIME field_time, item_time, item_time2, *item_time_cmp= &item_time;
+  field->get_date(&field_time, TIME_INVALID_DATES);
+  item->get_date(&item_time, TIME_INVALID_DATES);
+  if (item_time.time_type == MYSQL_TIMESTAMP_TIME &&
+      time_to_datetime(thd, &item_time, item_time_cmp= &item_time2))
+    return 1;
+  return my_time_compare(&field_time, item_time_cmp);
+}
+
+
+int Type_handler_time_common::stored_field_cmp_to_item(THD *thd,
+                                                       Field *field,
+                                                       Item *item) const
+{
+  MYSQL_TIME field_time, item_time;
+  field->get_time(&field_time);
+  item->get_time(&item_time);
+  return my_time_compare(&field_time, &item_time);
+}
+
+
+int Type_handler_string_result::stored_field_cmp_to_item(THD *thd,
+                                                         Field *field,
+                                                         Item *item) const
+{
+  StringBuffer<MAX_FIELD_WIDTH> item_tmp;
+  StringBuffer<MAX_FIELD_WIDTH> field_tmp;
+  String *item_result= item->val_str(&item_tmp);
+  /*
+    Some implementations of Item::val_str(String*) actually modify
+    the field Item::null_value, hence we can't check it earlier.
+  */
+  if (item->null_value)
+    return 0;
+  String *field_result= field->val_str(&field_tmp);
+  return sortcmp(field_result, item_result, field->charset());
+}
+
+
+int Type_handler_int_result::stored_field_cmp_to_item(THD *thd,
+                                                      Field *field,
+                                                      Item *item) const
+{
+  DBUG_ASSERT(0); // Not used yet
+  return 0;
+}
+
+
+int Type_handler_decimal_result::stored_field_cmp_to_item(THD *thd,
+                                                          Field *field,
+                                                          Item *item) const
+{
+  my_decimal item_buf, *item_val, field_buf, *field_val;
+  item_val= item->val_decimal(&item_buf);
+  if (item->null_value)
+    return 0;
+  field_val= field->val_decimal(&field_buf);
+  return my_decimal_cmp(field_val, item_val);
+}
+
+
+int Type_handler_real_result::stored_field_cmp_to_item(THD *thd,
+                                                       Field *field,
+                                                       Item *item) const
+{
+  /*
+    The patch for Bug#13463415 started using this function for comparing
+    BIGINTs. That uncovered a bug in Visual Studio 32bit optimized mode.
+    Prefixing the auto variables with volatile fixes the problem....
+  */
+  volatile double result= item->val_real();
+  if (item->null_value)
+    return 0;
+  volatile double field_result= field->val_real();
+  if (field_result < result)
+    return -1;
+  else if (field_result > result)
+    return 1;
+  return 0;
+}

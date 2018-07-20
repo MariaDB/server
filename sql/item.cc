@@ -6507,7 +6507,7 @@ Item *Item_field::replace_equal_field(THD *thd, uchar *arg)
         comparison context, and it's safe to replace it to the constant from
         item_equal.
       */
-      DBUG_ASSERT(type_handler()->type_handler_for_comparison()->cmp_type() ==
+      DBUG_ASSERT(type_handler_for_comparison()->cmp_type() ==
                   item_equal->compare_type_handler()->cmp_type());
       return const_item2;
     }
@@ -9941,73 +9941,14 @@ void resolve_const_item(THD *thd, Item **ref, Item *comp_item)
 
 int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
 {
-  Item_result res_type=item_cmp_type(field->result_type(),
-				     item->result_type());
-  /*
-    We have to check field->cmp_type() instead of res_type,
-    as result_type() - and thus res_type - can never be TIME_RESULT (yet).
-  */
-  if (field->cmp_type() == TIME_RESULT)
+  Type_handler_hybrid_field_type cmp(field->type_handler_for_comparison());
+  if (cmp.aggregate_for_comparison(item->type_handler_for_comparison()))
   {
-    MYSQL_TIME field_time, item_time, item_time2, *item_time_cmp= &item_time;
-    if (field->type() == MYSQL_TYPE_TIME)
-    {
-      field->get_time(&field_time);
-      item->get_time(&item_time);
-    }
-    else
-    {
-      field->get_date(&field_time, TIME_INVALID_DATES);
-      item->get_date(&item_time, TIME_INVALID_DATES);
-      if (item_time.time_type == MYSQL_TIMESTAMP_TIME)
-        if (time_to_datetime(thd, &item_time, item_time_cmp= &item_time2))
-          return 1;
-    }
-    return my_time_compare(&field_time, item_time_cmp);
-  }
-  if (res_type == STRING_RESULT)
-  {
-    char item_buff[MAX_FIELD_WIDTH];
-    char field_buff[MAX_FIELD_WIDTH];
-    
-    String item_tmp(item_buff,sizeof(item_buff),&my_charset_bin);
-    String field_tmp(field_buff,sizeof(field_buff),&my_charset_bin);
-    String *item_result= item->val_str(&item_tmp);
-    /*
-      Some implementations of Item::val_str(String*) actually modify
-      the field Item::null_value, hence we can't check it earlier.
-    */
-    if (item->null_value)
-      return 0;
-    String *field_result= field->val_str(&field_tmp);
-    return sortcmp(field_result, item_result, field->charset());
-  }
-  if (res_type == INT_RESULT)
-    return 0;					// Both are of type int
-  if (res_type == DECIMAL_RESULT)
-  {
-    my_decimal item_buf, *item_val,
-               field_buf, *field_val;
-    item_val= item->val_decimal(&item_buf);
-    if (item->null_value)
-      return 0;
-    field_val= field->val_decimal(&field_buf);
-    return my_decimal_cmp(field_val, item_val);
-  }
-  /*
-    The patch for Bug#13463415 started using this function for comparing
-    BIGINTs. That uncovered a bug in Visual Studio 32bit optimized mode.
-    Prefixing the auto variables with volatile fixes the problem....
-  */
-  volatile double result= item->val_real();
-  if (item->null_value)
+    // At fix_fields() time we checked that "field" and "item" are comparable
+    DBUG_ASSERT(0);
     return 0;
-  volatile double field_result= field->val_real();
-  if (field_result < result)
-    return -1;
-  else if (field_result > result)
-    return 1;
-  return 0;
+  }
+  return cmp.type_handler()->stored_field_cmp_to_item(thd, field, item);
 }
 
 
