@@ -1324,6 +1324,11 @@ sub command_line_setup {
     mtr_print_thick_line('#');
   }
 
+  if ( $opt_gdb )
+  {
+    $opt_gdb=~ tr/;/\n/s;
+  }
+
   if ( @opt_experimentals )
   {
     # $^O on Windows considered not generic enough
@@ -5675,10 +5680,8 @@ target remote | /usr/lib64/valgrind/../../bin/vgdb
 EOF
   } else {
     mtr_tofile($gdb_init_file,
-      join("\n",
-        "set args @$$args $input",
-        split /;/, $opt_gdb
-        ));
+      "set args @$$args $input".
+      ($opt_gdb ? "\n${opt_gdb}" : ""));
   }
 
   if ( $opt_manual_gdb )
