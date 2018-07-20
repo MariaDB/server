@@ -181,11 +181,11 @@ grant select on *.* to 'mysqltest_2';
 grant insert on test.* to 'mysqltest_2';
 grant update on test.t1 to 'mysqltest_2';
 grant update (c2) on test.t2 to 'mysqltest_2';
-select host,user,password from mysql.user where user like 'mysqltest_%' order by host,user,password;
-host	user	password
-%	mysqltest_1	
-%	mysqltest_2	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
-%	mysqltest_3	fffffffffffffffffffffffffffffffffffffffff
+select host,user from mysql.user where user like 'mysqltest_%' order by host,user;
+host	user
+%	mysqltest_1
+%	mysqltest_2
+%	mysqltest_3
 select host,db,user from mysql.db where user like 'mysqltest_%' order by host,db,user;
 host	db	user
 %	test	mysqltest_2
@@ -206,10 +206,10 @@ GRANT INSERT ON "test".* TO 'mysqltest_2'@'%'
 GRANT UPDATE (c2) ON "test"."t2" TO 'mysqltest_2'@'%'
 GRANT UPDATE ON "test"."t1" TO 'mysqltest_2'@'%'
 drop user 'mysqltest_1';
-select host,user,password from mysql.user where user like 'mysqltest_%' order by host,user,password;
-host	user	password
-%	mysqltest_2	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
-%	mysqltest_3	fffffffffffffffffffffffffffffffffffffffff
+select host,user from mysql.user where user like 'mysqltest_%' order by host,user;
+host	user
+%	mysqltest_2
+%	mysqltest_3
 select host,db,user from mysql.db where user like 'mysqltest_%' order by host,db,user;
 host	db	user
 %	test	mysqltest_2
@@ -223,10 +223,10 @@ host	db	user	table_name	column_name
 show grants for 'mysqltest_1';
 ERROR 42000: There is no such grant defined for user 'mysqltest_1' on host '%'
 rename user 'mysqltest_2' to 'mysqltest_1';
-select host,user,password from mysql.user where user like 'mysqltest_%' order by host,user,password;
-host	user	password
-%	mysqltest_1	*BD447CBA355AF58578D3AE33BA2E2CD388BA08D1
-%	mysqltest_3	fffffffffffffffffffffffffffffffffffffffff
+select host,user from mysql.user where user like 'mysqltest_%' order by host,user;
+host	user
+%	mysqltest_1
+%	mysqltest_3
 select host,db,user from mysql.db where user like 'mysqltest_%' order by host,db,user;
 host	db	user
 %	test	mysqltest_1
@@ -430,13 +430,13 @@ create database TESTDB;
 create table t2(a int);
 create temporary table t1 as select * from mysql.user;
 delete from mysql.user where host='localhost';
-INSERT INTO mysql.user (host, user, password) VALUES
+INSERT INTO mysql.user (host, user, authentication_string) VALUES
 ('%','mysqltest_1',password('password'));
 Warnings:
 Warning	1364	Field 'ssl_cipher' doesn't have a default value
 Warning	1364	Field 'x509_issuer' doesn't have a default value
 Warning	1364	Field 'x509_subject' doesn't have a default value
-Warning	1364	Field 'authentication_string' doesn't have a default value
+UPDATE mysql.user SET plugin="mysql_native_password";
 INSERT INTO mysql.db (host, db, user, select_priv) VALUES
 ('%','TESTDB','mysqltest_1','Y');
 FLUSH PRIVILEGES;
@@ -555,28 +555,28 @@ End of 5.0 tests
 USE mysql;
 SELECT LEFT(CURRENT_USER(),INSTR(CURRENT_USER(),'@')-1) INTO @u;
 SELECT MID(CURRENT_USER(),INSTR(CURRENT_USER(),'@')+1)  INTO @h;
-SELECT password FROM user WHERE user=@u AND host=@h INTO @pwd;
+SELECT authentication_string FROM user WHERE user=@u AND host=@h INTO @pwd;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
-SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
-user	host	password	insert_priv
+SELECT user,host,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
+user	host	authentication_string	insert_priv
 root	localhost		Y
 UPDATE user SET insert_priv='N' WHERE user=@u AND host=@h;
-SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
-user	host	password	insert_priv
+SELECT user,host,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
+user	host	authentication_string	insert_priv
 root	localhost		N
 GRANT INSERT ON *.* TO CURRENT_USER();
-SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
-user	host	password	insert_priv
+SELECT user,host,authentication_string,insert_priv FROM user WHERE user=@u AND host=@h;
+user	host	authentication_string	insert_priv
 root	localhost		Y
 UPDATE user SET insert_priv='N' WHERE user=@u AND host=@h;
 GRANT INSERT ON *.* TO CURRENT_USER() IDENTIFIED BY 'keksdose';
-SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
-user	host	password	insert_priv
+SELECT user,host, authentication_string, insert_priv FROM user WHERE user=@u AND host=@h;
+user	host	authentication_string	insert_priv
 root	localhost	*0BB7188CF0DE9B403BA66E9DD810D82652D002EB	Y
-UPDATE user SET password=@pwd WHERE user=@u AND host=@h;
-SELECT user,host,password,insert_priv FROM user WHERE user=@u AND host=@h;
-user	host	password	insert_priv
+UPDATE user SET authentication_string=@pwd WHERE user=@u AND host=@h;
+SELECT user, host, authentication_string, insert_priv FROM user WHERE user=@u AND host=@h;
+user	host	authentication_string	insert_priv
 root	localhost		Y
 FLUSH PRIVILEGES;
 USE test;

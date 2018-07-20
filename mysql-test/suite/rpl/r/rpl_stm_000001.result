@@ -83,8 +83,8 @@ connection master1;
 drop table t1;
 create table t1 (n int);
 insert into t1 values(3456);
-insert ignore into mysql.user (Host, User, Password)
-VALUES ("10.10.10.%", "blafasel2", password("blafasel2"));
+insert ignore into mysql.user (Host, User)
+VALUES ("10.10.10.%", "blafasel2");
 Warnings:
 Warning	1364	Field 'ssl_cipher' doesn't have a default value
 Warning	1364	Field 'x509_issuer' doesn't have a default value

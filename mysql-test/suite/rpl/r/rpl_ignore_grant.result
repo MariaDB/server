@@ -32,8 +32,8 @@ grant select on *.* to rpl_ignore_grant@localhost;
 connection master;
 set password for rpl_ignore_grant@localhost=password("does it work?");
 connection slave;
-select password<>_binary'' from mysql.user where user=_binary'rpl_ignore_grant';
-password<>_binary''
+select authentication_string<>_binary'' from mysql.user where user=_binary'rpl_ignore_grant';
+authentication_string<>_binary''
 0
 connection master;
 delete from mysql.user where user=_binary'rpl_ignore_grant';

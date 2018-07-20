@@ -1,21 +1,21 @@
 CREATE USER IF NOT EXISTS u1@localhost IDENTIFIED BY 'pw1';
-SELECT password FROM mysql.user WHERE user='u1';
-password
+SELECT authentication_string FROM mysql.user WHERE user='u1';
+authentication_string
 *2B602296A79E0A8784ACC5C88D92E46588CCA3C3
 CREATE USER IF NOT EXISTS u1@localhost IDENTIFIED BY 'pw2';
 Warnings:
 Note	1973	Can't create user 'u1'@'localhost'; it already exists
-SELECT password FROM mysql.user WHERE user='u1';
-password
+SELECT authentication_string FROM mysql.user WHERE user='u1';
+authentication_string
 *2B602296A79E0A8784ACC5C88D92E46588CCA3C3
 CREATE OR REPLACE USER u1@localhost IDENTIFIED BY 'pw3';
-SELECT password FROM mysql.user WHERE user='u1';
-password
+SELECT authentication_string FROM mysql.user WHERE user='u1';
+authentication_string
 *77B4A70CEFD76DB9415F36D291E74C110D2738E0
 CREATE OR REPLACE USER IF NOT EXISTS u1@localhost IDENTIFIED BY 'pw4';
 ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
-SELECT password FROM mysql.user WHERE user='u1';
-password
+SELECT authentication_string FROM mysql.user WHERE user='u1';
+authentication_string
 *77B4A70CEFD76DB9415F36D291E74C110D2738E0
 DROP USER IF EXISTS u1@localhost;
 DROP USER IF EXISTS u1@localhost;

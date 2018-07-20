@@ -66,7 +66,9 @@ connect (fail_con,localhost,test,zorro,test2);
 connect (fail_con,localhost,test,zorro,);
 
 # check if old password version also works
-update mysql.user set password=old_password("gambling2") where user=_binary"test";
+update mysql.user set authentication_string=old_password("gambling2") where user=_binary"test";
+# update plugin column to old because of usage of 'authentication_string' column
+update mysql.user set plugin="mysql_old_password" where plugin="mysql_native_password";
 flush privileges;
 
 connect (con10,localhost,test,gambling2,);
@@ -417,7 +419,7 @@ connection default;
 #
 update mysql.user set plugin='mysql_native_password' where user = 'mysqltest_up1';
 update mysql.user set plugin='mysql_old_password' where user = 'mysqltest_up2';
-select user, password, plugin, authentication_string from mysql.user
+select user, plugin, authentication_string from mysql.user
                   where user like 'mysqltest_up_';
 flush privileges;                  
 

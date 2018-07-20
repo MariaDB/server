@@ -368,7 +368,6 @@ DROP USER uplain@localhost;
 INSERT IGNORE INTO mysql.user(
 Host, 
 User, 
-Password,  
 Select_priv, 
 Insert_priv,
 Update_priv, 
@@ -406,7 +405,7 @@ max_updates,
 max_connections)
 VALUES (
 'localhost', 
-'inserttest', '', 
+'inserttest',
 'Y', 'Y', 'Y', 'Y', 'Y', 'Y', 'Y', 'Y', 'Y', 'Y', 'Y', 'Y',
 'Y', 'Y',  'Y', 'Y', 'Y', 'Y', 'Y', 'Y', 'Y', 
 /*!50001 'Y', 'Y', 'Y', 'Y', 'Y', */'', '', '', '', '0', '0', '0');

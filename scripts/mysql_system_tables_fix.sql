@@ -154,7 +154,7 @@ alter table user change max_questions max_questions int(11) unsigned DEFAULT 0  
 
 
 alter table db comment='Database privileges';
-alter table user comment='Users and global privileges';
+alter table host comment='Host privileges;  Merged with database privileges';
 alter table func comment='User defined functions';
 
 # Convert all tables to UTF-8 with binary collation
@@ -166,11 +166,8 @@ ALTER TABLE user
 
 # In MySQL 5.7.6 the Password column is removed. Recreate it to preserve the number
 # of columns MariaDB expects in the user table.
-ALTER TABLE user
-  ADD Password char(41) character set latin1 collate latin1_bin NOT NULL default '' AFTER User;
 
 ALTER TABLE user
-  MODIFY Password char(41) character set latin1 collate latin1_bin NOT NULL default '',
   MODIFY Select_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
   MODIFY Insert_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
   MODIFY Update_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,

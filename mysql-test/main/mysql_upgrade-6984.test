@@ -11,13 +11,14 @@
 # In this setup MYSQL_UPGRADE cannot continue after issuing FLUSH PRIVILEGES
 #
 
-update mysql.user set password=password("foo") where user='root';
+update mysql.user set authentication_string=password("foo") where user='root';
+update mysql.user set plugin="mysql_native_password"; 
 
 --exec $MYSQL_UPGRADE
 
 connect(con1,localhost,root,foo,,,);
 
-update mysql.user set password='' where user='root';
+update mysql.user set authentication_string='' where user='root';
 flush privileges;
 # Load event table
 set global event_scheduler=OFF;

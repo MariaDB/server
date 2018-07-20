@@ -19,7 +19,6 @@ grant delete on mysqltest.* to mysqltest_1@localhost;
 select * from mysql.user where user="mysqltest_1";
 Host	localhost
 User	mysqltest_1
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -95,7 +94,6 @@ grant usage on *.* to mysqltest_1@localhost with max_queries_per_hour 10 max_sta
 select * from mysql.user where user="mysqltest_1";
 Host	localhost
 User	mysqltest_1
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -147,7 +145,6 @@ grant usage on *.* to mysqltest_1@localhost with max_updates_per_hour 20 max_con
 select * from mysql.user where user="mysqltest_1";
 Host	localhost
 User	mysqltest_1
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N

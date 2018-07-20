@@ -738,7 +738,6 @@ select column_name, privileges from columns
 where table_name='user' and column_name like '%o%';
 column_name	privileges
 Host	select,insert,update,references
-Password	select,insert,update,references
 Drop_priv	select,insert,update,references
 Reload_priv	select,insert,update,references
 Shutdown_priv	select,insert,update,references

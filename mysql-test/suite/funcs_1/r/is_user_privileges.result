@@ -89,7 +89,6 @@ SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
 Host	localhost
 User	testuser1
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -136,7 +135,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser2
-Password	
 Select_priv	N
 Insert_priv	Y
 Update_priv	Y
@@ -183,7 +181,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser3
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -254,7 +251,6 @@ SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
 Host	localhost
 User	testuser1
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -301,7 +297,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser2
-Password	
 Select_priv	N
 Insert_priv	Y
 Update_priv	Y
@@ -348,7 +343,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser3
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -405,7 +399,6 @@ SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
 Host	localhost
 User	testuser1
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -452,7 +445,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser2
-Password	
 Select_priv	N
 Insert_priv	Y
 Update_priv	Y
@@ -499,7 +491,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser3
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -578,7 +569,6 @@ SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
 Host	localhost
 User	testuser1
-Password	
 Select_priv	Y
 Insert_priv	N
 Update_priv	N
@@ -625,7 +615,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser2
-Password	
 Select_priv	N
 Insert_priv	Y
 Update_priv	Y
@@ -672,7 +661,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser3
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -743,7 +731,6 @@ SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
 Host	localhost
 User	testuser1
-Password	
 Select_priv	Y
 Insert_priv	N
 Update_priv	N
@@ -790,7 +777,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser2
-Password	
 Select_priv	N
 Insert_priv	Y
 Update_priv	Y
@@ -837,7 +823,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser3
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -894,7 +879,6 @@ SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
 Host	localhost
 User	testuser1
-Password	
 Select_priv	Y
 Insert_priv	N
 Update_priv	N
@@ -941,7 +925,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser2
-Password	
 Select_priv	N
 Insert_priv	Y
 Update_priv	Y
@@ -988,7 +971,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser3
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -1097,7 +1079,6 @@ SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
 Host	localhost
 User	testuser1
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -1144,7 +1125,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser2
-Password	
 Select_priv	N
 Insert_priv	Y
 Update_priv	Y
@@ -1191,7 +1171,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser3
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -1295,7 +1274,6 @@ SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
 Host	localhost
 User	testuser1
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -1342,7 +1320,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser2
-Password	
 Select_priv	N
 Insert_priv	Y
 Update_priv	Y
@@ -1389,7 +1366,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser3
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -1446,7 +1422,6 @@ SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
 Host	localhost
 User	testuser1
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -1493,7 +1468,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser2
-Password	
 Select_priv	N
 Insert_priv	Y
 Update_priv	Y
@@ -1540,7 +1514,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser3
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -1604,7 +1577,6 @@ SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
 Host	localhost
 User	testuser1
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -1651,7 +1623,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser2
-Password	
 Select_priv	N
 Insert_priv	Y
 Update_priv	Y
@@ -1698,7 +1669,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser3
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -1777,7 +1747,6 @@ SELECT * FROM mysql.user
 WHERE user LIKE 'testuser%' ORDER BY host, user;
 Host	localhost
 User	testuser1
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N
@@ -1824,7 +1793,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser2
-Password	
 Select_priv	N
 Insert_priv	Y
 Update_priv	Y
@@ -1871,7 +1839,6 @@ default_role
 max_statement_time	0.000000
 Host	localhost
 User	testuser3
-Password	
 Select_priv	N
 Insert_priv	N
 Update_priv	N

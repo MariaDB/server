@@ -1,4 +1,5 @@
-update mysql.user set password=password("foo") where user='root';
+update mysql.user set authentication_string=password("foo") where user='root';
+update mysql.user set plugin="mysql_native_password";
 Phase 1/7: Checking and upgrading mysql database
 Processing databases
 mysql
@@ -62,6 +63,6 @@ test
 Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
 connect con1,localhost,root,foo,,,;
-update mysql.user set password='' where user='root';
+update mysql.user set authentication_string='' where user='root';
 flush privileges;
 set global event_scheduler=OFF;
