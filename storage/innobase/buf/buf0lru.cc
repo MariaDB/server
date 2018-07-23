@@ -1630,8 +1630,8 @@ func_exit:
 	}
 
 	/* buf_LRU_block_remove_hashed() releases the hash_lock */
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X)
-	      && !rw_lock_own(hash_lock, RW_LOCK_S));
+	ut_ad(!rw_lock_own_flagged(hash_lock,
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	/* We have just freed a BUF_BLOCK_FILE_PAGE. If b != NULL
 	then it was a compressed page with an uncompressed frame and
@@ -2184,9 +2184,8 @@ buf_LRU_free_one_page(
 	}
 
 	/* buf_LRU_block_remove_hashed() releases hash_lock and block_mutex */
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X)
-	      && !rw_lock_own(hash_lock, RW_LOCK_S));
-
+	ut_ad(!rw_lock_own_flagged(hash_lock,
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 	ut_ad(!mutex_own(block_mutex));
 }
 

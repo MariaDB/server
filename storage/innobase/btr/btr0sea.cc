@@ -529,10 +529,10 @@ btr_search_update_block_hash_info(
 	buf_block_t*		block,
 	const btr_cur_t*	cursor)
 {
-	ut_ad(!rw_lock_own(btr_get_search_latch(cursor->index), RW_LOCK_S));
-	ut_ad(!rw_lock_own(btr_get_search_latch(cursor->index), RW_LOCK_X));
-	ut_ad(rw_lock_own(&block->lock, RW_LOCK_S)
-	      || rw_lock_own(&block->lock, RW_LOCK_X));
+	ut_ad(!rw_lock_own_flagged(btr_get_search_latch(cursor->index),
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
+	ut_ad(rw_lock_own_flagged(&block->lock,
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	info->last_hash_succ = FALSE;
 
@@ -607,8 +607,8 @@ btr_search_update_hash_ref(
 
 	ut_ad(cursor->flag == BTR_CUR_HASH_FAIL);
 	ut_ad(rw_lock_own(btr_get_search_latch(cursor->index), RW_LOCK_X));
-	ut_ad(rw_lock_own(&(block->lock), RW_LOCK_S)
-	      || rw_lock_own(&(block->lock), RW_LOCK_X));
+	ut_ad(rw_lock_own_flagged(&block->lock,
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 	ut_ad(page_align(btr_cur_get_rec(cursor)) == block->frame);
 	ut_ad(page_is_leaf(block->frame));
 	assert_block_ahi_valid(block);
@@ -667,8 +667,8 @@ btr_search_info_update_slow(
 	buf_block_t*	block;
 	ibool		build_index;
 
-	ut_ad(!rw_lock_own(btr_get_search_latch(cursor->index), RW_LOCK_S));
-	ut_ad(!rw_lock_own(btr_get_search_latch(cursor->index), RW_LOCK_X));
+	ut_ad(!rw_lock_own_flagged(btr_get_search_latch(cursor->index),
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	block = btr_cur_get_block(cursor);
 
@@ -1138,8 +1138,8 @@ retry:
 
 	ut_ad(block->page.buf_fix_count == 0
 	      || buf_block_get_state(block) == BUF_BLOCK_REMOVE_HASH
-	      || rw_lock_own(&block->lock, RW_LOCK_S)
-	      || rw_lock_own(&block->lock, RW_LOCK_X));
+	      || rw_lock_own_flagged(&block->lock,
+				     RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 	ut_ad(page_is_leaf(block->frame));
 
 	/* We must not dereference index here, because it could be freed
@@ -1393,8 +1393,8 @@ btr_search_build_page_hash_index(
 	ut_ad(page_is_leaf(block->frame));
 
 	ut_ad(!rw_lock_own(btr_get_search_latch(index), RW_LOCK_X));
-	ut_ad(rw_lock_own(&(block->lock), RW_LOCK_S)
-	      || rw_lock_own(&(block->lock), RW_LOCK_X));
+	ut_ad(rw_lock_own_flagged(&block->lock,
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	btr_search_s_lock(index);
 

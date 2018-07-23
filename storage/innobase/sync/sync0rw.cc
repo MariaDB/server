@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1097,11 +1097,11 @@ rw_lock_own_flagged(
 
 		const rw_lock_debug_t*	info = *it;
 
-		ut_ad(os_thread_eq(info->thread_id, os_thread_get_curr_id()));
-
-		if (info->pass != 0) {
+		if (info->pass) {
 			continue;
 		}
+
+		ut_ad(os_thread_eq(info->thread_id, os_thread_get_curr_id()));
 
 		switch (info->lock_type) {
 		case RW_LOCK_S:

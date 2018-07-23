@@ -1102,8 +1102,8 @@ sel_set_rtr_rec_lock(
 	rw_lock_x_lock(&(match->block.lock));
 retry:
 	cur_block = btr_pcur_get_block(pcur);
-        ut_ad(rw_lock_own(&(match->block.lock), RW_LOCK_X)
-              || rw_lock_own(&(match->block.lock), RW_LOCK_S));
+	ut_ad(rw_lock_own_flagged(&match->block.lock,
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 	ut_ad(page_is_leaf(buf_block_get_frame(cur_block)));
 
 	err = lock_sec_rec_read_check_and_lock(

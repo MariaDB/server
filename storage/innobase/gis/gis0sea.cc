@@ -258,9 +258,8 @@ rtr_pcur_getnext_from_path(
 		rtr_info->tree_savepoints[tree_idx] = mtr_set_savepoint(mtr);
 
 #ifdef UNIV_RTR_DEBUG
-		ut_ad(!(rw_lock_own(&btr_cur->page_cur.block->lock, RW_LOCK_X)
-			||
-			rw_lock_own(&btr_cur->page_cur.block->lock, RW_LOCK_S))
+		ut_ad(!(rw_lock_own_flagged(&btr_cur->page_cur.block->lock,
+					    RW_LOCK_FLAG_X | RW_LOCK_FLAG_S))
 			|| my_latch_mode == BTR_MODIFY_TREE
 			|| my_latch_mode == BTR_CONT_MODIFY_TREE
 			|| !page_is_leaf(buf_block_get_frame(

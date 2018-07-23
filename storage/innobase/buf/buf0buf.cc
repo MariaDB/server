@@ -4448,8 +4448,9 @@ loop:
 		case BUF_GET_IF_IN_POOL_OR_WATCH:
 		case BUF_PEEK_IF_IN_POOL:
 		case BUF_EVICT_IF_IN_POOL:
-			ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X));
-			ut_ad(!rw_lock_own(hash_lock, RW_LOCK_S));
+			ut_ad(!rw_lock_own_flagged(
+				      hash_lock,
+				      RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 			return(NULL);
 		}
 
@@ -4785,8 +4786,8 @@ evict_from_pool:
 	ut_ad(block == fix_block);
 	ut_ad(fix_block->page.buf_fix_count > 0);
 
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X));
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_S));
+	ut_ad(!rw_lock_own_flagged(hash_lock,
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	ut_ad(buf_block_get_state(fix_block) == BUF_BLOCK_FILE_PAGE);
 
@@ -4962,8 +4963,8 @@ evict_from_pool:
 	ut_a(ibuf_count_get(fix_block->page.id) == 0);
 #endif
 
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X));
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_S));
+	ut_ad(!rw_lock_own_flagged(hash_lock,
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	return(fix_block);
 }
@@ -5639,8 +5640,8 @@ func_exit:
 		ibuf_mtr_commit(&mtr);
 	}
 
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X));
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_S));
+	ut_ad(!rw_lock_own_flagged(hash_lock,
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 	ut_ad(!bpage || buf_page_in_file(bpage));
 
 	return(bpage);

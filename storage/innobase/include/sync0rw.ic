@@ -281,8 +281,7 @@ rw_lock_s_lock_func(
 	the threads which have s-locked a latch. This would use some CPU
 	time. */
 
-	ut_ad(!rw_lock_own(lock, RW_LOCK_S)); /* see NOTE above */
-	ut_ad(!rw_lock_own(lock, RW_LOCK_X));
+	ut_ad(!rw_lock_own_flagged(lock, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	if (!rw_lock_s_lock_low(lock, pass, file_name, line)) {
 
