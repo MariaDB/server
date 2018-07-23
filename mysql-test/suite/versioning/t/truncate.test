@@ -107,5 +107,15 @@ unlock tables;
 drop view v;
 drop table t;
 
+#
+# MDEV-16783 Assertion `!conds' failed in mysql_delete upon 2nd execution of SP with DELETE HISTORY
+#
+create table t1 (i int) with system versioning;
+create procedure pr() delete history from t1 before system_time now();
+call pr;
+call pr;
+drop procedure pr;
+drop table t1;
+
 drop database test;
 create database test;

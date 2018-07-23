@@ -323,12 +323,16 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_ASSERT(table);
 
     DBUG_ASSERT(!conds || thd->stmt_arena->is_stmt_execute());
-    if (select_lex->vers_setup_conds(thd, table_list))
-      DBUG_RETURN(TRUE);
 
-    DBUG_ASSERT(!conds);
-    conds= table_list->on_expr;
-    table_list->on_expr= NULL;
+    // conds could be cached from previous SP call
+    if (!conds)
+    {
+      if (select_lex->vers_setup_conds(thd, table_list))
+        DBUG_RETURN(TRUE);
+
+      conds= table_list->on_expr;
+      table_list->on_expr= NULL;
+    }
   }
 
   if (mysql_handle_list_of_derived(thd->lex, table_list, DT_MERGE_FOR_INSERT))
