@@ -323,6 +323,8 @@ row_purge_poss_sec(
 
 	if (store_cur) {
 		row_purge_store_vsec_cur(node, index, sec_pcur, sec_mtr);
+		ut_ad(sec_mtr->has_committed()
+		      == node->vcol_info.is_requested());
 
 		/* The PRIMARY KEY value was not found in the clustered
 		index. The secondary index record found. We can purge
@@ -346,7 +348,15 @@ retry_purge_sec:
 	if (node->vcol_info.is_first_fetch()) {
 		ut_ad(store_cur);
 
-		if (node->vcol_info.table()) {
+		const TABLE* t= node->vcol_info.table();
+		DBUG_LOG("purge", "retry " << t
+			 << (is_tree ? " tree" : " leaf")
+			 << index->name << "," << index->table->name
+			 << ": " << rec_printer(entry).str());
+
+		ut_ad(mtr.has_committed());
+
+		if (t) {
 			node->vcol_info.set_used();
 			goto retry_purge_sec;
 		}
@@ -360,8 +370,10 @@ retry_purge_sec:
 	if (node->found_clust) {
 		btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
 	} else {
-		mtr_commit(&mtr);
+		mtr.commit();
 	}
+
+	ut_ad(mtr.has_committed());
 
 	if (store_cur && !row_purge_restore_vsec_cur(
 		    node, index, sec_pcur, sec_mtr, is_tree)) {
