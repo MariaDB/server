@@ -345,6 +345,7 @@ retry_purge_sec:
 
 	if (node->vcol_info.is_first_fetch()) {
 		if (node->vcol_info.mariadb_table) {
+			node->vcol_info.set_used();
 			goto retry_purge_sec;
 		}
 

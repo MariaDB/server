@@ -92,7 +92,9 @@ struct purge_vcol_info_t
 			return;
 		}
 
-		first_use = used = true;
+		if (!used) {
+			first_use = used = true;
+		}
 	}
 
 	/** Check whether it fetches mariadb table for the first time.
