@@ -35,6 +35,7 @@ Created 2012-08-21 Sunny Bains
 
 #include "ut0new.h"
 #include "srv0start.h"
+#include "fil0fil.h"
 
 #include <map>
 #include <vector>
@@ -910,19 +911,10 @@ LatchDebug::check_order(
 
 	case SYNC_TREE_NODE:
 
-		{
-			const latch_t*	fsp_latch;
-
-			fsp_latch = find(latches, SYNC_FSP);
-
-			ut_a((fsp_latch != NULL
-			      && fsp_latch->is_temp_fsp())
-			     || find(latches, SYNC_INDEX_TREE) != 0
-			     || find(latches, SYNC_DICT_OPERATION)
-			     || basic_check(latches,
-					    level, SYNC_TREE_NODE - 1));
-		}
-
+		ut_a(find(latches, SYNC_FSP) == &fil_system.temp_space->latch
+		     || find(latches, SYNC_INDEX_TREE)
+		     || find(latches, SYNC_DICT_OPERATION)
+		     || basic_check(latches, level, SYNC_TREE_NODE - 1));
 		break;
 
 	case SYNC_TREE_NODE_NEW:
