@@ -8,11 +8,7 @@ insert t1 values (1);
 delete from t1;
 set timestamp=unix_timestamp('2001-02-04 10:20:50');
 insert t1 values (2);
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
 delete from t1;
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: partition `p1` is full, add more HISTORY partitions
 select subpartition_name,partition_description,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
 subpartition_name	partition_description	table_rows
 p1sp0	2001-02-04 10:20:30	1
