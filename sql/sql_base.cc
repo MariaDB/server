@@ -1039,6 +1039,12 @@ retry:
     if (res->table && (res->table == table->table))
       continue;
 
+    /* Skip if table is tmp table */
+    if (check_flag & CHECK_DUP_SKIP_TEMP_TABLE &&
+        res->table && res->table->s->tmp_table != NO_TMP_TABLE)
+    {
+      continue;
+    }
     if (check_flag & CHECK_DUP_FOR_CREATE)
       DBUG_RETURN(res);
 
