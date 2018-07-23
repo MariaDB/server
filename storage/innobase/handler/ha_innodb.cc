@@ -147,15 +147,12 @@ void close_thread_tables(THD* thd);
 #include <mysql/service_md5.h>
 #include "wsrep_sst.h"
 
-extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
-
 static inline wsrep_ws_handle_t*
 wsrep_ws_handle(THD* thd, const trx_t* trx) {
 	return wsrep_ws_handle_for_trx(wsrep_thd_ws_handle(thd),
 				       (wsrep_trx_id_t)trx->id);
 }
 
-extern TC_LOG* tc_log;
 extern void wsrep_cleanup_transaction(THD *thd);
 static int
 wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
