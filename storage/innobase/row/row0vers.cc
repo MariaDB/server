@@ -457,7 +457,7 @@ row_vers_build_clust_v_col(
 
 	if (vcol_info != NULL) {
 		vcol_info->set_used();
-		maria_table = vcol_info->mariadb_table;
+		maria_table = vcol_info->table();
 	}
 
 	innobase_allocate_row_for_vcol(thd, index,
@@ -466,9 +466,8 @@ row_vers_build_clust_v_col(
 				       &record,
 				       &vcol_storage);
 
-	if (vcol_info && !vcol_info->mariadb_table) {
-		vcol_info->mariadb_table = maria_table;
-		ut_ad(!maria_table || vcol_info->is_first_fetch());
+	if (vcol_info && !vcol_info->table()) {
+		vcol_info->set_table(maria_table);
 		goto func_exit;
 	}
 
@@ -834,7 +833,7 @@ row_vers_build_cur_vrow(
 					  rec, *clust_offsets,
 					  NULL, NULL, NULL, NULL, heap);
 
-		if (vcol_info && !vcol_info->used) {
+		if (vcol_info && !vcol_info->is_used()) {
 			mtr->commit();
 		}
 
@@ -955,7 +954,7 @@ row_vers_old_has_index_entry(
 			if (trx_undo_roll_ptr_is_insert(t_roll_ptr)
 			    || dbug_v_purge) {
 
-				if (vcol_info && !vcol_info->used) {
+				if (vcol_info && !vcol_info->is_used()) {
 					mtr->commit();
 				}
 
