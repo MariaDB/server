@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -50,10 +50,10 @@ PageBulk::init()
 
 	mtr = static_cast<mtr_t*>(
 		mem_heap_alloc(m_heap, sizeof(mtr_t)));
-	mtr_start(mtr);
+	mtr->start();
 	mtr_x_lock(dict_index_get_lock(m_index), mtr);
-	mtr_set_log_mode(mtr, MTR_LOG_NO_REDO);
-	mtr_set_flush_observer(mtr, m_flush_observer);
+	mtr->set_log_mode(MTR_LOG_NO_REDO);
+	mtr->set_flush_observer(m_flush_observer);
 
 	if (m_page_no == FIL_NULL) {
 		mtr_t	alloc_mtr;
@@ -597,18 +597,14 @@ PageBulk::release()
 dberr_t
 PageBulk::latch()
 {
-	ibool	ret;
-
-	mtr_start(m_mtr);
+	m_mtr->start();
 	mtr_x_lock(dict_index_get_lock(m_index), m_mtr);
-	mtr_set_log_mode(m_mtr, MTR_LOG_NO_REDO);
-	mtr_set_flush_observer(m_mtr, m_flush_observer);
+	m_mtr->set_log_mode(MTR_LOG_NO_REDO);
+	m_mtr->set_flush_observer(m_flush_observer);
 
-	/* TODO: need a simple and wait version of buf_page_optimistic_get. */
-	ret = buf_page_optimistic_get(RW_X_LATCH, m_block, m_modify_clock,
-				      __FILE__, __LINE__, m_mtr);
 	/* In case the block is S-latched by page_cleaner. */
-	if (!ret) {
+	if (!buf_page_optimistic_get(RW_X_LATCH, m_block, m_modify_clock,
+				     __FILE__, __LINE__, m_mtr)) {
 		page_id_t       page_id(dict_index_get_space(m_index), m_page_no);
 		page_size_t     page_size(dict_table_page_size(m_index->table));
 
