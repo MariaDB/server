@@ -5622,6 +5622,7 @@ finish:
 #ifdef WITH_WSREP
     else if (thd->spcont &&
              (thd->wsrep_conflict_state == MUST_ABORT ||
+              thd->wsrep_conflict_state == ABORTED    ||
               thd->wsrep_conflict_state == CERT_FAILURE))
     {
       /*
@@ -7017,7 +7018,9 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
 	      com_statement_info[thd->get_command()].m_key);
       MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, thd->query(),
 	                       thd->query_length());
+      WSREP_DEBUG("Retry autocommit query: %s", thd->query());
     }
+
     mysql_parse(thd, rawbuf, length, parser_state);
 
     if (WSREP(thd)) {
@@ -7031,6 +7034,11 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
 
       if (thd->wsrep_conflict_state == MUST_REPLAY)
       {
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+	if (thd->lex->explain)
+          delete_explain_query(thd->lex);
+        mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+
         wsrep_replay_transaction(thd);
       }
 
@@ -7044,7 +7052,7 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
             thd->lex->sql_command != SQLCOM_SELECT  &&
             (thd->wsrep_retry_counter < thd->variables.wsrep_retry_autocommit))
         {
-          WSREP_DEBUG("wsrep retrying AC query: %s", 
+          WSREP_DEBUG("wsrep retrying AC query: %s",
                       (thd->query()) ? thd->query() : "void");
 
 	  /* Performance Schema Interface instrumentation, end */
@@ -7061,27 +7069,31 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
         }
         else
         {
-          WSREP_DEBUG("%s, thd: %lu is_AC: %d, retry: %lu - %lu SQL: %s", 
-                      (thd->wsrep_conflict_state == ABORTED) ? 
+          WSREP_DEBUG("%s, thd: %lu is_AC: %d, retry: %lu - %lu SQL: %s",
+                      (thd->wsrep_conflict_state == ABORTED) ?
                       "BF Aborted" : "cert failure",
-                      thd->thread_id, is_autocommit, thd->wsrep_retry_counter, 
+                      thd->thread_id, is_autocommit, thd->wsrep_retry_counter,
                       thd->variables.wsrep_retry_autocommit, thd->query());
           my_error(ER_LOCK_DEADLOCK, MYF(0), "wsrep aborted transaction");
-          thd->killed= NOT_KILLED;
           thd->wsrep_conflict_state= NO_CONFLICT;
           if (thd->wsrep_conflict_state != REPLAYING)
             thd->wsrep_retry_counter= 0;             //  reset
         }
+
+	mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+	thd->reset_killed();
       }
       else
       {
         set_if_smaller(thd->wsrep_retry_counter, 0); // reset; eventually ok
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       }
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     }
 
     /* If retry is requested clean up explain structure */
-    if (thd->wsrep_conflict_state == RETRY_AUTOCOMMIT && thd->lex->explain)
+    if ((thd->wsrep_conflict_state == RETRY_AUTOCOMMIT ||
+	 thd->wsrep_conflict_state == MUST_REPLAY )
+	&& thd->lex->explain)
         delete_explain_query(thd->lex);
 
   }  while (thd->wsrep_conflict_state== RETRY_AUTOCOMMIT);

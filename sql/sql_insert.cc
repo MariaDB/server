@@ -4333,6 +4333,8 @@ bool select_create::send_eof()
   if (!table->s->tmp_table)
   {
 #ifdef WITH_WSREP
+    if (WSREP_ON)
+    {
       /*
          append table level exclusive key for CTAS
       */
@@ -4359,22 +4361,26 @@ bool select_create::send_eof()
       }
       /* If commit fails, we should be able to reset the OK status. */
       thd->get_stmt_da()->set_overwrite_status(TRUE);
+    }
 #endif /* WITH_WSREP */
     trans_commit_stmt(thd);
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
       trans_commit_implicit(thd);
 #ifdef WITH_WSREP
-    thd->get_stmt_da()->set_overwrite_status(FALSE);
+    if (WSREP_ON)
+    {
+      thd->get_stmt_da()->set_overwrite_status(FALSE);
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
       if (thd->wsrep_conflict_state != NO_CONFLICT)
       {
-        WSREP_DEBUG("select_create commit failed, thd: %lu err: %d %s", 
+        WSREP_DEBUG("select_create commit failed, thd: %lu err: %d %s",
                     thd->thread_id, thd->wsrep_conflict_state, thd->query());
         mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
         abort_result_set();
         DBUG_RETURN(true);
       }
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    }
 #endif /* WITH_WSREP */
   }
   else if (!thd->is_current_stmt_binlog_format_row())

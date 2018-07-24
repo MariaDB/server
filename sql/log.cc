@@ -1707,16 +1707,8 @@ binlog_trans_log_truncate(THD *thd, my_off_t pos)
 int binlog_init(void *p)
 {
   binlog_hton= (handlerton *)p;
-#ifdef WITH_WSREP
-  if (WSREP_ON)
-    binlog_hton->state= SHOW_OPTION_YES;
-  else
-  {
-#endif /* WITH_WSREP */
-  binlog_hton->state=opt_bin_log ? SHOW_OPTION_YES : SHOW_OPTION_NO;
-#ifdef WITH_WSREP
-  }
-#endif /* WITH_WSREP */
+  binlog_hton->state= (WSREP_ON || opt_bin_log) ? SHOW_OPTION_YES
+                                                : SHOW_OPTION_NO;
   binlog_hton->db_type=DB_TYPE_BINLOG;
   binlog_hton->savepoint_offset= sizeof(my_off_t);
   binlog_hton->close_connection= binlog_close_connection;
