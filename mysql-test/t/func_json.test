@@ -413,3 +413,12 @@ INSERT INTO t1 VALUES ('foo'),('bar');
 SELECT * FROM t1 WHERE c IN (JSON_EXTRACT('{"a":"b"}', '$.*'));
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-16814 CREATE TABLE SELECT JSON_QUOTE(multibyte_charset_expr) makes a field of a wrong length
+--echo #
+
+CREATE TABLE t1 AS SELECT
+  JSON_QUOTE(_latin1'foo') AS c1,
+  JSON_QUOTE(_utf8'foo') AS c2;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

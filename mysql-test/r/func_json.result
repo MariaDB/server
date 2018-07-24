@@ -297,7 +297,7 @@ json_quote('foo')
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `json_quote('foo')` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+  `json_quote('foo')` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select json_merge('string');
@@ -746,4 +746,17 @@ CREATE TABLE t1 (c VARCHAR(8));
 INSERT INTO t1 VALUES ('foo'),('bar');
 SELECT * FROM t1 WHERE c IN (JSON_EXTRACT('{"a":"b"}', '$.*'));
 c
+DROP TABLE t1;
+#
+# MDEV-16814 CREATE TABLE SELECT JSON_QUOTE(multibyte_charset_expr) makes a field of a wrong length
+#
+CREATE TABLE t1 AS SELECT
+JSON_QUOTE(_latin1'foo') AS c1,
+JSON_QUOTE(_utf8'foo') AS c2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `c2` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
