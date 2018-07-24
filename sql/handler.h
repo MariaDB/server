@@ -4407,12 +4407,12 @@ private:
   /* Perform initialization for a direct update request */
 public:
   int ha_direct_update_rows(ha_rows *update_rows);
-  virtual int direct_update_rows_init()
+  virtual int direct_update_rows_init(List<Item> *update_fields)
   {
     return HA_ERR_WRONG_COMMAND;
   }
 private:
-  virtual int pre_direct_update_rows_init()
+  virtual int pre_direct_update_rows_init(List<Item> *update_fields)
   {
     return HA_ERR_WRONG_COMMAND;
   }

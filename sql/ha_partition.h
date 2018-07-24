@@ -620,8 +620,8 @@ public:
   virtual int bulk_update_row(const uchar *old_data, const uchar *new_data,
                               ha_rows *dup_key_found);
   virtual int update_row(const uchar * old_data, const uchar * new_data);
-  virtual int direct_update_rows_init();
-  virtual int pre_direct_update_rows_init();
+  virtual int direct_update_rows_init(List<Item> *update_fields);
+  virtual int pre_direct_update_rows_init(List<Item> *update_fields);
   virtual int direct_update_rows(ha_rows *update_rows);
   virtual int pre_direct_update_rows();
   virtual bool start_bulk_delete();

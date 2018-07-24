@@ -587,35 +587,29 @@ public:
   );
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-  inline int direct_update_rows_init()
+  inline int direct_update_rows_init(List<Item> *update_fields)
   {
-    return direct_update_rows_init(2, NULL, 0, FALSE, NULL);
+    return direct_update_rows_init(update_fields, 2, NULL, 0, FALSE, NULL);
   }
-  int direct_update_rows_init(
-    uint mode,
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted,
-    const uchar *new_data
-  );
+  int direct_update_rows_init(List<Item> *update_fields, uint mode,
+                              KEY_MULTI_RANGE *ranges, uint range_count,
+                              bool sorted, const uchar *new_data);
 #else
-  int direct_update_rows_init();
+  int direct_update_rows_init(List<Item> *update_fields);
 #endif
 #ifdef HA_CAN_BULK_ACCESS
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-  inline int pre_direct_update_rows_init()
+  inline int pre_direct_update_rows_init(List<Item> *update_fields)
   {
-    return pre_direct_update_rows_init(2, NULL, 0, FALSE, NULL);
+    return pre_direct_update_rows_init(update_fields,
+                                       2, NULL, 0, FALSE, NULL);
   }
-  int pre_direct_update_rows_init(
-    uint mode,
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted,
-    uchar *new_data
-  );
+  int pre_direct_update_rows_init(List<Item> *update_fields,
+                                  uint mode, KEY_MULTI_RANGE *ranges,
+                                  uint range_count, bool sorted,
+                                  uchar *new_data);
 #else
-  int pre_direct_update_rows_init();
+  int pre_direct_update_rows_init(List<Item> *update_fields);
 #endif
 #endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS

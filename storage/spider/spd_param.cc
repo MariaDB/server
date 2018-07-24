@@ -929,26 +929,6 @@ bool spider_param_sync_autocommit(
 }
 
 /*
-  FALSE: no sync
-  TRUE:  sync
- */
-static MYSQL_THDVAR_BOOL(
-  sync_time_zone, /* name */
-  PLUGIN_VAR_OPCMDARG, /* opt */
-  "Sync time_zone", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  FALSE /* def */
-);
-
-bool spider_param_sync_time_zone(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_sync_time_zone");
-  DBUG_RETURN(THDVAR(thd, sync_time_zone));
-}
-
-/*
   FALSE: not use
   TRUE:  use
  */
@@ -3332,7 +3312,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(block_size),
   MYSQL_SYSVAR(selupd_lock_mode),
   MYSQL_SYSVAR(sync_autocommit),
-  MYSQL_SYSVAR(sync_time_zone),
   MYSQL_SYSVAR(use_default_database),
   MYSQL_SYSVAR(internal_sql_log_off),
   MYSQL_SYSVAR(bulk_size),
