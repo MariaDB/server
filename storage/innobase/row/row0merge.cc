@@ -2404,8 +2404,6 @@ write_buffers:
 							BtrBulk(index[i],
 								trx->id,
 								observer));
-
-						clust_btr_bulk->init();
 					} else {
 						clust_btr_bulk->latch();
 					}
@@ -2519,7 +2517,6 @@ write_buffers:
 
 					BtrBulk	btr_bulk(index[i], trx->id,
 							 observer);
-					btr_bulk.init();
 
 					err = row_merge_insert_index_tuples(
 						trx->id, index[i], old_table,
@@ -4888,7 +4885,6 @@ wait_again:
 			if (error == DB_SUCCESS) {
 				BtrBulk	btr_bulk(sort_idx, trx->id,
 						 flush_observer);
-				btr_bulk.init();
 
 				pct_cost = (COST_BUILD_INDEX_STATIC +
 					(total_dynamic_cost * merge_files[i].offset /

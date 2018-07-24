@@ -292,18 +292,9 @@ public:
 	/** Destructor */
 	~BtrBulk()
 	{
-		UT_DELETE(m_page_bulks);
-
 #ifdef UNIV_DEBUG
 		fil_space_dec_redo_skipped_count(m_index->space);
 #endif /* UNIV_DEBUG */
-	}
-
-	/** Initialization
-	Note: must be called right after constructor. */
-	void init()
-	{
-		m_page_bulks = UT_NEW_NOKEY(page_bulk_vector());
 	}
 
 	/** Insert a tuple
@@ -379,7 +370,7 @@ private:
 	FlushObserver*		m_flush_observer;
 
 	/** Page cursor vector for all level */
-	page_bulk_vector*	m_page_bulks;
+	page_bulk_vector	m_page_bulks;
 };
 
 #endif

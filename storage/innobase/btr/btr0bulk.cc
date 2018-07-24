@@ -730,10 +730,10 @@ BtrBulk::logFreeCheck()
 void
 BtrBulk::release()
 {
-	ut_ad(m_root_level + 1 == m_page_bulks->size());
+	ut_ad(m_root_level + 1 == m_page_bulks.size());
 
 	for (ulint level = 0; level <= m_root_level; level++) {
-		PageBulk*    page_bulk = m_page_bulks->at(level);
+		PageBulk*    page_bulk = m_page_bulks.at(level);
 
 		page_bulk->release();
 	}
@@ -743,10 +743,10 @@ BtrBulk::release()
 void
 BtrBulk::latch()
 {
-	ut_ad(m_root_level + 1 == m_page_bulks->size());
+	ut_ad(m_root_level + 1 == m_page_bulks.size());
 
 	for (ulint level = 0; level <= m_root_level; level++) {
-		PageBulk*    page_bulk = m_page_bulks->at(level);
+		PageBulk*    page_bulk = m_page_bulks.at(level);
 		page_bulk->latch();
 	}
 }
@@ -764,7 +764,7 @@ BtrBulk::insert(
 	dberr_t		err = DB_SUCCESS;
 
 	/* Check if we need to create a PageBulk for the level. */
-	if (level + 1 > m_page_bulks->size()) {
+	if (level + 1 > m_page_bulks.size()) {
 		PageBulk*	new_page_bulk
 			= UT_NEW_NOKEY(PageBulk(m_index, m_trx_id, FIL_NULL,
 						level, m_flush_observer));
@@ -773,16 +773,16 @@ BtrBulk::insert(
 			return(err);
 		}
 
-		m_page_bulks->push_back(new_page_bulk);
-		ut_ad(level + 1 == m_page_bulks->size());
+		m_page_bulks.push_back(new_page_bulk);
+		ut_ad(level + 1 == m_page_bulks.size());
 		m_root_level = level;
 
 		is_left_most = true;
 	}
 
-	ut_ad(m_page_bulks->size() > level);
+	ut_ad(m_page_bulks.size() > level);
 
-	PageBulk*	page_bulk = m_page_bulks->at(level);
+	PageBulk*	page_bulk = m_page_bulks.at(level);
 
 	if (is_left_most && level > 0 && page_bulk->getRecNo() == 0) {
 		/* The node pointer must be marked as the predefined minimum
@@ -838,7 +838,7 @@ BtrBulk::insert(
 
 		/* Set new page bulk to page_bulks. */
 		ut_ad(sibling_page_bulk->getLevel() <= m_root_level);
-		m_page_bulks->at(level) = sibling_page_bulk;
+		m_page_bulks.at(level) = sibling_page_bulk;
 
 		UT_DELETE(page_bulk);
 		page_bulk = sibling_page_bulk;
@@ -871,11 +871,11 @@ BtrBulk::insert(
 	if (big_rec != NULL) {
 		ut_ad(dict_index_is_clust(m_index));
 		ut_ad(page_bulk->getLevel() == 0);
-		ut_ad(page_bulk == m_page_bulks->at(0));
+		ut_ad(page_bulk == m_page_bulks.at(0));
 
 		/* Release all latched but leaf node. */
 		for (ulint level = 1; level <= m_root_level; level++) {
-			PageBulk*    page_bulk = m_page_bulks->at(level);
+			PageBulk*    page_bulk = m_page_bulks.at(level);
 
 			page_bulk->release();
 		}
@@ -884,7 +884,7 @@ BtrBulk::insert(
 
 		/* Latch */
 		for (ulint level = 1; level <= m_root_level; level++) {
-			PageBulk*    page_bulk = m_page_bulks->at(level);
+			PageBulk*    page_bulk = m_page_bulks.at(level);
 			page_bulk->latch();
 		}
 	}
@@ -909,17 +909,17 @@ BtrBulk::finish(dberr_t	err)
 
 	ut_ad(!dict_table_is_temporary(m_index->table));
 
-	if (m_page_bulks->size() == 0) {
+	if (m_page_bulks.size() == 0) {
 		/* The table is empty. The root page of the index tree
 		is already in a consistent state. No need to flush. */
 		return(err);
 	}
 
-	ut_ad(m_root_level + 1 == m_page_bulks->size());
+	ut_ad(m_root_level + 1 == m_page_bulks.size());
 
 	/* Finish all page bulks */
 	for (ulint level = 0; level <= m_root_level; level++) {
-		PageBulk*	page_bulk = m_page_bulks->at(level);
+		PageBulk*	page_bulk = m_page_bulks.at(level);
 
 		last_page_no = page_bulk->getPageNo();
 
