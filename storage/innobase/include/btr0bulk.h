@@ -63,7 +63,7 @@ public:
 		:
 		m_heap(NULL),
 		m_index(index),
-		m_mtr(NULL),
+		m_mtr(),
 		m_trx_id(trx_id),
 		m_block(NULL),
 		m_page(NULL),
@@ -206,8 +206,8 @@ private:
 	/** The index B-tree */
 	dict_index_t*	m_index;
 
-	/** The min-transaction */
-	mtr_t*		m_mtr;
+	/** The mini-transaction */
+	mtr_t		m_mtr;
 
 	/** The transaction id */
 	trx_id_t	m_trx_id;

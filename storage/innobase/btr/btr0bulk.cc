@@ -39,7 +39,6 @@ Note: we commit all mtrs on failure.
 dberr_t
 PageBulk::init()
 {
-	mtr_t*		mtr;
 	buf_block_t*	new_block;
 	page_t*		new_page;
 	page_zip_des_t*	new_page_zip;
@@ -48,12 +47,10 @@ PageBulk::init()
 	ut_ad(m_heap == NULL);
 	m_heap = mem_heap_create(1000);
 
-	mtr = static_cast<mtr_t*>(
-		mem_heap_alloc(m_heap, sizeof(mtr_t)));
-	mtr->start();
-	mtr_x_lock(dict_index_get_lock(m_index), mtr);
-	mtr->set_log_mode(MTR_LOG_NO_REDO);
-	mtr->set_flush_observer(m_flush_observer);
+	m_mtr.start();
+	mtr_x_lock(&m_index->lock, &m_mtr);
+	m_mtr.set_log_mode(MTR_LOG_NO_REDO);
+	m_mtr.set_flush_observer(m_flush_observer);
 
 	if (m_page_no == FIL_NULL) {
 		mtr_t	alloc_mtr;
@@ -70,21 +67,21 @@ PageBulk::init()
 		success = fsp_reserve_free_extents(&n_reserved, m_index->space,
 						   1, FSP_NORMAL, &alloc_mtr);
 		if (!success) {
-			mtr_commit(&alloc_mtr);
-			mtr_commit(mtr);
+			alloc_mtr.commit();
+			m_mtr.commit();
 			return(DB_OUT_OF_FILE_SPACE);
 		}
 
 		/* Allocate a new page. */
 		new_block = btr_page_alloc(m_index, 0, FSP_UP, m_level,
-					   &alloc_mtr, mtr);
+					   &alloc_mtr, &m_mtr);
 
 		if (n_reserved > 0) {
 			fil_space_release_free_extents(m_index->space,
 						       n_reserved);
 		}
 
-		mtr_commit(&alloc_mtr);
+		alloc_mtr.commit();
 
 		new_page = buf_block_get_frame(new_block);
 		new_page_zip = buf_block_get_page_zip(new_block);
@@ -92,25 +89,25 @@ PageBulk::init()
 
 		if (new_page_zip) {
 			page_create_zip(new_block, m_index, m_level, 0,
-					NULL, mtr);
+					NULL, &m_mtr);
 		} else {
 			ut_ad(!dict_index_is_spatial(m_index));
-			page_create(new_block, mtr,
+			page_create(new_block, &m_mtr,
 				    dict_table_is_comp(m_index->table),
 				    false);
-			btr_page_set_level(new_page, NULL, m_level, mtr);
+			btr_page_set_level(new_page, NULL, m_level, &m_mtr);
 		}
 
-		btr_page_set_next(new_page, NULL, FIL_NULL, mtr);
-		btr_page_set_prev(new_page, NULL, FIL_NULL, mtr);
+		btr_page_set_next(new_page, NULL, FIL_NULL, &m_mtr);
+		btr_page_set_prev(new_page, NULL, FIL_NULL, &m_mtr);
 
-		btr_page_set_index_id(new_page, NULL, m_index->id, mtr);
+		btr_page_set_index_id(new_page, NULL, m_index->id, &m_mtr);
 	} else {
 		page_id_t	page_id(dict_index_get_space(m_index), m_page_no);
 		page_size_t	page_size(dict_table_page_size(m_index->table));
 
 		new_block = btr_block_get(page_id, page_size,
-					  RW_X_LATCH, m_index, mtr);
+					  RW_X_LATCH, m_index, &m_mtr);
 
 		new_page = buf_block_get_frame(new_block);
 		new_page_zip = buf_block_get_page_zip(new_block);
@@ -119,14 +116,13 @@ PageBulk::init()
 
 		ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
 
-		btr_page_set_level(new_page, NULL, m_level, mtr);
+		btr_page_set_level(new_page, NULL, m_level, &m_mtr);
 	}
 
 	if (!m_level && dict_index_is_sec_or_ibuf(m_index)) {
-		page_update_max_trx_id(new_block, NULL, m_trx_id, mtr);
+		page_update_max_trx_id(new_block, NULL, m_trx_id, &m_mtr);
 	}
 
-	m_mtr = mtr;
 	m_block = new_block;
 	m_block->skip_flush_check = true;
 	m_page = new_page;
@@ -314,7 +310,7 @@ PageBulk::commit(
 		}
 	}
 
-	mtr_commit(m_mtr);
+	m_mtr.commit();
 }
 
 /** Compress a page of compressed table
@@ -326,7 +322,7 @@ PageBulk::compress()
 	ut_ad(m_page_zip != NULL);
 
 	return(page_zip_compress(m_page_zip, m_page, m_index,
-				 page_zip_level, NULL, m_mtr));
+				 page_zip_level, NULL, &m_mtr));
 }
 
 /** Get node pointer
@@ -478,7 +474,7 @@ void
 PageBulk::setNext(
 	ulint		next_page_no)
 {
-	btr_page_set_next(m_page, NULL, next_page_no, m_mtr);
+	btr_page_set_next(m_page, NULL, next_page_no, &m_mtr);
 }
 
 /** Set previous page
@@ -487,7 +483,7 @@ void
 PageBulk::setPrev(
 	ulint		prev_page_no)
 {
-	btr_page_set_prev(m_page, NULL, prev_page_no, m_mtr);
+	btr_page_set_prev(m_page, NULL, prev_page_no, &m_mtr);
 }
 
 /** Check if required space is available in the page for the rec to be inserted.
@@ -560,7 +556,7 @@ PageBulk::storeExt(
 	page_cur->block = m_block;
 
 	dberr_t	err = btr_store_big_rec_extern_fields(
-		&btr_pcur, offsets, big_rec, m_mtr, BTR_STORE_INSERT_BULK);
+		&btr_pcur, offsets, big_rec, &m_mtr, BTR_STORE_INSERT_BULK);
 
 	ut_ad(page_offset(m_cur_rec) == page_offset(page_cur->rec));
 
@@ -586,27 +582,27 @@ PageBulk::release()
 	/* No other threads can modify this block. */
 	m_modify_clock = buf_block_get_modify_clock(m_block);
 
-	mtr_commit(m_mtr);
+	m_mtr.commit();
 }
 
 /** Start mtr and latch the block */
 dberr_t
 PageBulk::latch()
 {
-	m_mtr->start();
-	mtr_x_lock(dict_index_get_lock(m_index), m_mtr);
-	m_mtr->set_log_mode(MTR_LOG_NO_REDO);
-	m_mtr->set_flush_observer(m_flush_observer);
+	m_mtr.start();
+	mtr_x_lock(&m_index->lock, &m_mtr);
+	m_mtr.set_log_mode(MTR_LOG_NO_REDO);
+	m_mtr.set_flush_observer(m_flush_observer);
 
 	/* In case the block is S-latched by page_cleaner. */
 	if (!buf_page_optimistic_get(RW_X_LATCH, m_block, m_modify_clock,
-				     __FILE__, __LINE__, m_mtr)) {
+				     __FILE__, __LINE__, &m_mtr)) {
 		page_id_t       page_id(dict_index_get_space(m_index), m_page_no);
 		page_size_t     page_size(dict_table_page_size(m_index->table));
 
 		m_block = buf_page_get_gen(page_id, page_size, RW_X_LATCH,
 					   m_block, BUF_GET_IF_IN_POOL,
-					   __FILE__, __LINE__, m_mtr, &m_err);
+					   __FILE__, __LINE__, &m_mtr, &m_err);
 
 		if (m_err != DB_SUCCESS) {
 			return (m_err);
