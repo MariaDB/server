@@ -285,6 +285,32 @@ bool Type_std_attributes::count_string_length(const char *func_name,
 }
 
 
+/*
+  Find a handler by its ODBC literal data type.
+
+  @param type_str  - data type name, not necessarily 0-terminated
+  @retval          - a pointer to data type handler if type_str points
+                     to a known ODBC literal data type, or NULL otherwise
+*/
+const Type_handler *
+Type_handler::odbc_literal_type_handler(const LEX_CSTRING *type_str)
+{
+  if (type_str->length == 1)
+  {
+    if (type_str->str[0] == 'd')      // {d'2001-01-01'}
+      return &type_handler_newdate;
+    else if (type_str->str[0] == 't') // {t'10:20:30'}
+      return &type_handler_time2;
+  }
+  else if (type_str->length == 2)     // {ts'2001-01-01 10:20:30'}
+  {
+    if (type_str->str[0] == 't' && type_str->str[1] == 's')
+      return &type_handler_datetime2;
+  }
+  return NULL; // Not a known ODBC literal type
+}
+
+
 /**
   This method is used by:
   - Item_user_var_as_out_param::field_type()
@@ -6662,4 +6688,95 @@ int Type_handler_real_result::stored_field_cmp_to_item(THD *thd,
   else if (field_result > result)
     return 1;
   return 0;
+}
+
+
+/***************************************************************************/
+
+
+static bool have_important_literal_warnings(const MYSQL_TIME_STATUS *status)
+{
+  return (status->warnings & ~MYSQL_TIME_NOTE_TRUNCATED) != 0;
+}
+
+
+static void literal_warn(THD *thd, const Item *item,
+                         const char *str, size_t length, CHARSET_INFO *cs,
+                         const MYSQL_TIME *ltime,
+                         const MYSQL_TIME_STATUS *st,
+                         const char *typestr, bool send_error)
+{
+  if (likely(item))
+  {
+    if (st->warnings) // e.g. a note on nanosecond truncation
+    {
+      ErrConvString err(str, length, cs);
+      make_truncated_value_warning(thd,
+                                   Sql_condition::time_warn_level(st->warnings),
+                                   &err, ltime->time_type, 0);
+    }
+  }
+  else if (send_error)
+  {
+    ErrConvString err(str, length, cs);
+    my_error(ER_WRONG_VALUE, MYF(0), typestr, err.ptr());
+  }
+}
+
+
+Item_literal *
+Type_handler_date_common::create_literal_item(THD *thd,
+                                              const char *str,
+                                              size_t length,
+                                              CHARSET_INFO *cs,
+                                              bool send_error) const
+{
+  MYSQL_TIME_STATUS st;
+  MYSQL_TIME ltime;
+  Item_literal *item= NULL;
+  sql_mode_t flags= sql_mode_for_dates(thd);
+  if (!str_to_datetime(cs, str, length, &ltime, flags, &st) &&
+      ltime.time_type == MYSQL_TIMESTAMP_DATE && !st.warnings)
+    item= new (thd->mem_root) Item_date_literal(thd, &ltime);
+  literal_warn(thd, item, str, length, cs, &ltime, &st, "DATE", send_error);
+  return item;
+}
+
+
+Item_literal *
+Type_handler_temporal_with_date::create_literal_item(THD *thd,
+                                                     const char *str,
+                                                     size_t length,
+                                                     CHARSET_INFO *cs,
+                                                     bool send_error) const
+{
+  MYSQL_TIME_STATUS st;
+  MYSQL_TIME ltime;
+  Item_literal *item= NULL;
+  sql_mode_t flags= sql_mode_for_dates(thd);
+  if (!str_to_datetime(cs, str, length, &ltime, flags, &st) &&
+      ltime.time_type == MYSQL_TIMESTAMP_DATETIME &&
+      !have_important_literal_warnings(&st))
+    item= new (thd->mem_root) Item_datetime_literal(thd, &ltime, st.precision);
+  literal_warn(thd, item, str, length, cs, &ltime, &st, "DATETIME", send_error);
+  return item;
+}
+
+
+Item_literal *
+Type_handler_time_common::create_literal_item(THD *thd,
+                                              const char *str,
+                                              size_t length,
+                                              CHARSET_INFO *cs,
+                                              bool send_error) const
+{
+  MYSQL_TIME_STATUS st;
+  MYSQL_TIME ltime;
+  Item_literal *item= NULL;
+  if (!str_to_time(cs, str, length, &ltime, 0, &st) &&
+      ltime.time_type == MYSQL_TIMESTAMP_TIME &&
+      !have_important_literal_warnings(&st))
+    item= new (thd->mem_root) Item_time_literal(thd, &ltime, st.precision);
+  literal_warn(thd, item, str, length, cs, &ltime, &st, "TIME", send_error);
+  return item;
 }

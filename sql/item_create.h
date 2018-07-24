@@ -191,21 +191,6 @@ protected:
 #endif
 
 
-Item *create_temporal_literal(THD *thd,
-                              const char *str, size_t length,
-                              CHARSET_INFO *cs,
-                              enum_field_types type,
-                              bool send_error);
-inline
-Item *create_temporal_literal(THD *thd, const String *str,
-                              enum_field_types type,
-                              bool send_error)
-{
-  return create_temporal_literal(thd,
-                                 str->ptr(), str->length(), str->charset(),
-                                 type, send_error);
-}
-
 struct Native_func_registry
 {
   LEX_CSTRING name;

@@ -6951,14 +6951,18 @@ Item_string::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
 */
 Item *Item_string::make_odbc_literal(THD *thd, const LEX_CSTRING *typestr)
 {
-  enum_field_types type= odbc_temporal_literal_type(typestr);
-  Item *res= type == MYSQL_TYPE_STRING ? this :
-             create_temporal_literal(thd, val_str(NULL), type, false);
+  Item_literal *res;
+  const Type_handler *h;
+  if (collation.repertoire == MY_REPERTOIRE_ASCII &&
+      str_value.length() < MAX_DATE_STRING_REP_LENGTH * 4 &&
+      (h= Type_handler::odbc_literal_type_handler(typestr)) &&
+      (res= h->create_literal_item(thd, val_str(NULL), false)))
+    return res;
   /*
-    create_temporal_literal() returns NULL if failed to parse the string,
+    h->create_literal_item() returns NULL if failed to parse the string,
     or the string format did not match the type, e.g.:  {d'2001-01-01 10:10:10'}
   */
-  return res ? res : this;
+  return this;
 }
 
 

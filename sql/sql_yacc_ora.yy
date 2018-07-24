@@ -9387,8 +9387,9 @@ history_point:
           TIMESTAMP TEXT_STRING
           {
             Item *item;
-            if (!(item= create_temporal_literal(thd, $2.str, $2.length, YYCSCL,
-                                                MYSQL_TYPE_DATETIME, true)))
+            if (!(item= type_handler_datetime2.create_literal_item(thd,
+                                                      $2.str, $2.length,
+                                                      YYCSCL, true)))
               MYSQL_YYABORT;
             $$= Vers_history_point(VERS_TIMESTAMP, item);
           }
@@ -15046,26 +15047,23 @@ NUM_literal:
 temporal_literal:
         DATE_SYM TEXT_STRING
           {
-            if (unlikely(!($$= create_temporal_literal(thd, $2.str, $2.length,
-                                                       YYCSCL,
-                                                       MYSQL_TYPE_DATE,
-                                                       true))))
+            if (unlikely(!($$= type_handler_newdate.create_literal_item(thd,
+                                                           $2.str, $2.length,
+                                                           YYCSCL, true))))
               MYSQL_YYABORT;
           }
         | TIME_SYM TEXT_STRING
           {
-            if (unlikely(!($$= create_temporal_literal(thd, $2.str, $2.length,
-                                                       YYCSCL,
-                                                       MYSQL_TYPE_TIME,
-                                                       true))))
+            if (unlikely(!($$= type_handler_time2.create_literal_item(thd,
+                                                         $2.str, $2.length,
+                                                         YYCSCL, true))))
               MYSQL_YYABORT;
           }
         | TIMESTAMP TEXT_STRING
           {
-            if (unlikely(!($$= create_temporal_literal(thd, $2.str, $2.length,
-                                                       YYCSCL,
-                                                       MYSQL_TYPE_DATETIME,
-                                                       true))))
+            if (unlikely(!($$= type_handler_datetime2.create_literal_item(thd,
+                                                             $2.str, $2.length,
+                                                             YYCSCL, true))))
               MYSQL_YYABORT;
           }
         ;

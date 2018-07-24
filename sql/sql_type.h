@@ -31,6 +31,7 @@ class Column_definition;
 class Column_definition_attributes;
 class Item;
 class Item_const;
+class Item_literal;
 class Item_param;
 class Item_cache;
 class Item_func_or_sum;
@@ -1077,6 +1078,7 @@ protected:
                                                     enum_field_types type)
                                                     const;
 public:
+  static const Type_handler *odbc_literal_type_handler(const LEX_CSTRING *str);
   static const Type_handler *blob_type_handler(uint max_octet_length);
   static const Type_handler *string_type_handler(uint max_octet_length);
   static const Type_handler *bit_and_int_mixture_handler(uint max_char_len);
@@ -1416,6 +1418,32 @@ public:
                                                Item *src,
                                                const Item *cmp) const= 0;
   virtual Item_cache *Item_get_cache(THD *thd, const Item *item) const= 0;
+  /**
+    A builder for literals with data type name prefix, e.g.:
+      TIME'00:00:00', DATE'2001-01-01', TIMESTAMP'2001-01-01 00:00:00'.
+    @param thd          The current thread
+    @param str          Character literal
+    @param length       Length of str
+    @param cs           Character set of the string
+    @param send_error   Whether to generate an error on failure
+
+    @retval             A pointer to a new Item on success
+                        NULL on error (wrong literal value, EOM)
+  */
+  virtual Item_literal *create_literal_item(THD *thd,
+                                            const char *str, size_t length,
+                                            CHARSET_INFO *cs,
+                                            bool send_error) const
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
+  Item_literal *create_literal_item(THD *thd, const String *str,
+                                    bool send_error) const
+  {
+    return create_literal_item(thd, str->ptr(), str->length(), str->charset(),
+                               send_error);
+  }
   virtual Item *create_typecast_item(THD *thd, Item *item,
                                      const Type_cast_attributes &attr) const
   {
@@ -2894,6 +2922,8 @@ public:
   {
     return MYSQL_TIMESTAMP_TIME;
   }
+  Item_literal *create_literal_item(THD *thd, const char *str, size_t length,
+                                    CHARSET_INFO *cs, bool send_error) const;
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
@@ -3008,6 +3038,8 @@ class Type_handler_temporal_with_date: public Type_handler_temporal_result
 {
 public:
   virtual ~Type_handler_temporal_with_date() {}
+  Item_literal *create_literal_item(THD *thd, const char *str, size_t length,
+                                    CHARSET_INFO *cs, bool send_error) const;
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                      Item *a, Item *b) const;
   int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const;
@@ -3037,6 +3069,8 @@ public:
   {
     return MYSQL_TIMESTAMP_DATE;
   }
+  Item_literal *create_literal_item(THD *thd, const char *str, size_t length,
+                                    CHARSET_INFO *cs, bool send_error) const;
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
