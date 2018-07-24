@@ -575,7 +575,7 @@ bool Item_func_json_quote::fix_length_and_dec()
     Odd but realistic worst case is when all characters
     of the argument turn into '\uXXXX\uXXXX', which is 12.
   */
-  max_length= args[0]->max_length * 12 + 2;
+  fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * 12 + 2);
   return FALSE;
 }
 
