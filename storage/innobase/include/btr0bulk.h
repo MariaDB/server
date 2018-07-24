@@ -279,7 +279,6 @@ public:
 		trx_id_t	trx_id,
 		FlushObserver*	observer)
 		:
-		m_heap(NULL),
 		m_index(index),
 		m_trx_id(trx_id),
 		m_flush_observer(observer)
@@ -293,7 +292,6 @@ public:
 	/** Destructor */
 	~BtrBulk()
 	{
-		mem_heap_free(m_heap);
 		UT_DELETE(m_page_bulks);
 
 #ifdef UNIV_DEBUG
@@ -305,9 +303,6 @@ public:
 	Note: must be called right after constructor. */
 	void init()
 	{
-		ut_ad(m_heap == NULL);
-		m_heap = mem_heap_create(1000);
-
 		m_page_bulks = UT_NEW_NOKEY(page_bulk_vector());
 	}
 
@@ -371,9 +366,6 @@ private:
 	void logFreeCheck();
 
 private:
-	/** Memory heap for allocation */
-	mem_heap_t*		m_heap;
-
 	/** B-tree index */
 	dict_index_t*		m_index;
 

@@ -763,8 +763,6 @@ BtrBulk::insert(
 	bool		is_left_most = false;
 	dberr_t		err = DB_SUCCESS;
 
-	ut_ad(m_heap != NULL);
-
 	/* Check if we need to create a PageBulk for the level. */
 	if (level + 1 > m_page_bulks->size()) {
 		PageBulk*	new_page_bulk
