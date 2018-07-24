@@ -1,0 +1,60 @@
+# MDEV-16812 Semisync slave io thread segfaults at STOP-SLAVE handling
+#
+# The test verifies that the semisync-enabled slave io thread
+# finishes off as specified in particular trying to connect even to a shut down
+# master for a semisync firewell routine.
+
+source include/not_embedded.inc;
+source include/have_debug.inc;
+source include/master-slave.inc;
+
+--connection master
+
+--let $sav_enabled_master=`SELECT @@GLOBAL.rpl_semi_sync_master_enabled `
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
+
+--connection slave
+source include/stop_slave.inc;
+--let $sav_enabled_slave=`SELECT @@GLOBAL.rpl_semi_sync_slave_enabled `
+SET @@GLOBAL. rpl_semi_sync_slave_enabled = 1;
+source include/start_slave.inc;
+
+--connection master
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SET a=1;
+
+--sync_slave_with_master
+
+connection master;
+--echo # Shutdown master
+--let $rpl_server_number=1
+source include/rpl_stop_server.inc;
+
+--connection slave
+--source include/stop_slave.inc
+
+#connection master;
+--echo # Restart master
+--let $rpl_server_number=1
+source include/rpl_start_server.inc;
+
+#
+# Clean up
+#
+--connection slave
+--source include/stop_slave.inc
+--source include/start_slave.inc
+
+--connection master
+SET @@GLOBAL.debug_dbug="";
+--eval SET @@GLOBAL. rpl_semi_sync_master_enabled = $sav_enabled_master
+
+--connection master
+DROP TABLE t1;
+
+--sync_slave_with_master
+source include/stop_slave.inc;
+--eval SET @@GLOBAL. rpl_semi_sync_slave_enabled = $sav_enabled_slave
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc
