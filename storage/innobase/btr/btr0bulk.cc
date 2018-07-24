@@ -122,9 +122,7 @@ PageBulk::init()
 		btr_page_set_level(new_page, NULL, m_level, mtr);
 	}
 
-	if (dict_index_is_sec_or_ibuf(m_index)
-	    && !dict_table_is_temporary(m_index->table)
-	    && page_is_leaf(new_page)) {
+	if (!m_level && dict_index_is_sec_or_ibuf(m_index)) {
 		page_update_max_trx_id(new_block, NULL, m_trx_id, mtr);
 	}
 
@@ -310,9 +308,7 @@ PageBulk::commit(
 		ut_ad(page_validate(m_page, m_index));
 
 		/* Set no free space left and no buffered changes in ibuf. */
-		if (!dict_index_is_clust(m_index)
-		    && !dict_table_is_temporary(m_index->table)
-		    && page_is_leaf(m_page)) {
+		if (!dict_index_is_clust(m_index) && page_is_leaf(m_page)) {
 			ibuf_set_bitmap_for_bulk_load(
 				m_block, innobase_fill_factor == 100);
 		}

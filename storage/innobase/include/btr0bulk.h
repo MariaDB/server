@@ -84,6 +84,7 @@ public:
 		m_err(DB_SUCCESS)
 	{
 		ut_ad(!dict_index_is_spatial(m_index));
+		ut_ad(!dict_table_is_temporary(m_index->table));
 	}
 
 	/** Deconstructor */
