@@ -1449,6 +1449,11 @@ public:
   virtual bool exists2in_processor(uchar *opt_arg) { return 0; }
   virtual bool find_selective_predicates_list_processor(uchar *opt_arg)
   { return 0; }
+  bool cleanup_is_expensive_cache_processor(uchar *arg)
+  {
+    is_expensive_cache= (int8)(-1);
+    return 0;
+  }
 
   /* To call bool function for all arguments */
   struct bool_func_call_args
