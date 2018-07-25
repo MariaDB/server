@@ -1,0 +1,95 @@
+SELECT @@innodb_stats_persistent;
+@@innodb_stats_persistent
+1
+CREATE TABLE t1 (f1 INTEGER NOT NULL AUTO_INCREMENT PRIMARY KEY, f2 INTEGER DEFAULT NULL) ENGINE=InnoDB;
+INSERT INTO t1(f1) values (NULL);
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+INSERT INTO t1(f1) select NULL from t1;
+SELECT count(1) from t1;
+count(1)
+16384
+SET AUTOCOMMIT=OFF;
+INSERT INTO t1 VALUES (9999999,NULL);
+SELECT SLEEP(1000);;
+ALTER TABLE t1 CHANGE f2 f2 INTEGER NOT NULL DEFAULT 1;
+Warnings:
+Warning	1265	Data truncated for column 'f2' at row 1
+Warning	1265	Data truncated for column 'f2' at row 2
+Warning	1265	Data truncated for column 'f2' at row 3
+Warning	1265	Data truncated for column 'f2' at row 4
+Warning	1265	Data truncated for column 'f2' at row 5
+Warning	1265	Data truncated for column 'f2' at row 6
+Warning	1265	Data truncated for column 'f2' at row 7
+Warning	1265	Data truncated for column 'f2' at row 8
+Warning	1265	Data truncated for column 'f2' at row 9
+Warning	1265	Data truncated for column 'f2' at row 10
+Warning	1265	Data truncated for column 'f2' at row 11
+Warning	1265	Data truncated for column 'f2' at row 12
+Warning	1265	Data truncated for column 'f2' at row 13
+Warning	1265	Data truncated for column 'f2' at row 14
+Warning	1265	Data truncated for column 'f2' at row 15
+Warning	1265	Data truncated for column 'f2' at row 16
+Warning	1265	Data truncated for column 'f2' at row 17
+Warning	1265	Data truncated for column 'f2' at row 18
+Warning	1265	Data truncated for column 'f2' at row 19
+Warning	1265	Data truncated for column 'f2' at row 20
+Warning	1265	Data truncated for column 'f2' at row 21
+Warning	1265	Data truncated for column 'f2' at row 22
+Warning	1265	Data truncated for column 'f2' at row 23
+Warning	1265	Data truncated for column 'f2' at row 24
+Warning	1265	Data truncated for column 'f2' at row 25
+Warning	1265	Data truncated for column 'f2' at row 26
+Warning	1265	Data truncated for column 'f2' at row 27
+Warning	1265	Data truncated for column 'f2' at row 28
+Warning	1265	Data truncated for column 'f2' at row 29
+Warning	1265	Data truncated for column 'f2' at row 30
+Warning	1265	Data truncated for column 'f2' at row 31
+Warning	1265	Data truncated for column 'f2' at row 32
+Warning	1265	Data truncated for column 'f2' at row 33
+Warning	1265	Data truncated for column 'f2' at row 34
+Warning	1265	Data truncated for column 'f2' at row 35
+Warning	1265	Data truncated for column 'f2' at row 36
+Warning	1265	Data truncated for column 'f2' at row 37
+Warning	1265	Data truncated for column 'f2' at row 38
+Warning	1265	Data truncated for column 'f2' at row 39
+Warning	1265	Data truncated for column 'f2' at row 40
+Warning	1265	Data truncated for column 'f2' at row 41
+Warning	1265	Data truncated for column 'f2' at row 42
+Warning	1265	Data truncated for column 'f2' at row 43
+Warning	1265	Data truncated for column 'f2' at row 44
+Warning	1265	Data truncated for column 'f2' at row 45
+Warning	1265	Data truncated for column 'f2' at row 46
+Warning	1265	Data truncated for column 'f2' at row 47
+Warning	1265	Data truncated for column 'f2' at row 48
+Warning	1265	Data truncated for column 'f2' at row 49
+Warning	1265	Data truncated for column 'f2' at row 50
+Warning	1265	Data truncated for column 'f2' at row 51
+Warning	1265	Data truncated for column 'f2' at row 52
+Warning	1265	Data truncated for column 'f2' at row 53
+Warning	1265	Data truncated for column 'f2' at row 54
+Warning	1265	Data truncated for column 'f2' at row 55
+Warning	1265	Data truncated for column 'f2' at row 56
+Warning	1265	Data truncated for column 'f2' at row 57
+Warning	1265	Data truncated for column 'f2' at row 58
+Warning	1265	Data truncated for column 'f2' at row 59
+Warning	1265	Data truncated for column 'f2' at row 60
+Warning	1265	Data truncated for column 'f2' at row 61
+Warning	1265	Data truncated for column 'f2' at row 62
+Warning	1265	Data truncated for column 'f2' at row 63
+Warning	1265	Data truncated for column 'f2' at row 64
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+wsrep_local_aborts_increment
+1
+DROP TABLE t1;

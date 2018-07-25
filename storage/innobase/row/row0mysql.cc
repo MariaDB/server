@@ -70,6 +70,13 @@ Created 9/17/2000 Heikki Tuuri
 #include "ha_prototypes.h"
 #include <algorithm>
 
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#include "wsrep.h"
+#include "log.h"
+#include "wsrep_mysqld.h"
+#endif
+
 /** Provide optional 4.x backwards compatibility for 5.0 and above */
 UNIV_INTERN ibool	row_rollback_on_timeout	= FALSE;
 
@@ -1093,6 +1100,7 @@ UNIV_INLINE
 void
 row_update_statistics_if_needed(
 /*============================*/
+	trx_t*		trx,
 	dict_table_t*	table)	/*!< in: table */
 {
 	ib_uint64_t	counter;
@@ -1113,6 +1121,16 @@ row_update_statistics_if_needed(
 	if (dict_stats_is_persistent_enabled(table)) {
 		if (counter > n_rows / 10 /* 10% */
 		    && dict_stats_auto_recalc_is_enabled(table)) {
+
+#ifdef WITH_WSREP
+			if (wsrep_on(trx->mysql_thd) &&
+			    wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+				WSREP_DEBUG("Avoiding background statistics"
+					    " calculation for table %s",
+					    table->name);
+				return;
+			}
+#endif /* WITH_WSREP */
 
 			dict_stats_recalc_pool_add(table);
 			table->stat_modified_counter = 0;
@@ -1537,7 +1555,8 @@ error_exit:
 		ut_memcpy(prebuilt->row_id, node->row_id_buf, DATA_ROW_ID_LEN);
 	}
 
-	row_update_statistics_if_needed(table);
+	row_update_statistics_if_needed(trx, table);
+
 	trx->op_info = "";
 
 	return(err);
@@ -1921,7 +1940,7 @@ run_again:
 	that changes indexed columns, UPDATEs that change only non-indexed
 	columns would not affect statistics. */
 	if (node->is_delete || !(node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)) {
-		row_update_statistics_if_needed(prebuilt->table);
+		row_update_statistics_if_needed(trx, prebuilt->table);
 	} else {
 		/* Update the table modification counter even when
 		non-indexed columns change if statistics is initialized. */
@@ -2158,7 +2177,7 @@ run_again:
 		}
 	}
 
-	row_update_statistics_if_needed(table);
+	row_update_statistics_if_needed(trx, table);
 
 	return(err);
 }
