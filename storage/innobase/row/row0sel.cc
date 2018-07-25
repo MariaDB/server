@@ -5023,6 +5023,13 @@ wrong_offs:
 			if (!rec_get_deleted_flag(rec, comp)) {
 				goto no_gap_lock;
 			}
+
+			/* At most one transaction can be active
+			for temporary table. */
+			if (dict_table_is_temporary(clust_index->table)) {
+				goto no_gap_lock;
+			}
+
 			if (index == clust_index) {
 				trx_id_t trx_id = row_get_rec_trx_id(
 					rec, index, offsets);

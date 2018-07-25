@@ -114,6 +114,8 @@ row_vers_impl_x_locked_low(
 	trx_id = row_get_rec_trx_id(clust_rec, clust_index, clust_offsets);
 	corrupt = FALSE;
 
+	ut_ad(!dict_table_is_temporary(clust_index->table));
+
 	trx_t*	trx = trx_rw_is_active(trx_id, &corrupt, true);
 
 	if (trx == 0) {
