@@ -1098,6 +1098,13 @@ JOIN::optimize()
   if (optimize_constant_subqueries())
     DBUG_RETURN(1);
 
+  if (conds && conds->has_subquery())
+    (void) conds->walk(&Item::cleanup_is_expensive_cache_processor,
+                       0, (uchar*)0);
+  if (having && having->has_subquery())
+    (void) having->walk(&Item::cleanup_is_expensive_cache_processor,
+                       0, (uchar*)0);
+
   if (setup_jtbm_semi_joins(this, join_list, &conds))
     DBUG_RETURN(1);
 

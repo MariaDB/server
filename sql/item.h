@@ -1234,6 +1234,11 @@ public:
   { 
     return FALSE;
   }
+  bool cleanup_is_expensive_cache_processor(uchar *arg)
+  {
+    is_expensive_cache= (int8)(-1);
+    return 0;
+  }
 
   /* To call bool function for all arguments */
   struct bool_func_call_args
