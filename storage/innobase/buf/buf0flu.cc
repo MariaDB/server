@@ -967,7 +967,7 @@ buf_flush_init_for_writing(
 		}
 	}
 
-	uint32_t checksum= 0;
+	uint32_t checksum = BUF_NO_CHECKSUM_MAGIC;
 
 	switch (srv_checksum_algorithm_t(srv_checksum_algorithm)) {
 	case SRV_CHECKSUM_ALGORITHM_INNODB:
@@ -990,7 +990,6 @@ buf_flush_init_for_writing(
 		break;
 	case SRV_CHECKSUM_ALGORITHM_NONE:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-		checksum = BUF_NO_CHECKSUM_MAGIC;
 		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM,
 				checksum);
 		break;

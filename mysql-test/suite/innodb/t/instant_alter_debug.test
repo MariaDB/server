@@ -192,25 +192,9 @@ ROLLBACK;
 disconnect stop_purge;
 
 # Wait for purge to empty the table.
-# (This is based on wait_all_purged.inc, but there are 2 transactions
-# from the pending ALTER TABLE t1 FORCE.)
-
-let $wait_counter= 300;
-while ($wait_counter)
-{
-    --replace_regex /.*History list length ([0-9]+).*/\1/
-    let $remaining= `SHOW ENGINE INNODB STATUS`;
-    if ($remaining == 'InnoDB		2')
-    {
-        let $wait_counter= 0;
-    }
-    if ($wait_counter)
-    {
-        real_sleep 0.1;
-        dec $wait_counter;
-    }
-}
-echo $remaining transactions not purged;
+let $wait_all_purged=2;
+--source include/wait_all_purged.inc
+let $wait_all_purged=0;
 
 SET DEBUG_SYNC='now SIGNAL logged';
 disconnect ddl;

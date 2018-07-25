@@ -7755,10 +7755,9 @@ void Field_varstring::sql_type(String &res) const
   size_t length;
 
   length= cs->cset->snprintf(cs,(char*) res.ptr(),
-                             res.alloced_length(), "%s(%d)",
+                             res.alloced_length(), "%s(%u)",
                               (has_charset() ? "varchar" : "varbinary"),
-                             (int) field_length / charset()->mbmaxlen -
-                             MY_TEST(compression_method()));
+                              (uint) char_length());
   res.length(length);
   if ((thd->variables.sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)) &&
       has_charset() && (charset()->state & MY_CS_BINSORT))

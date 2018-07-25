@@ -7,8 +7,15 @@ eval LOAD DATA INFILE '$LOAD_FILE' INTO TABLE t1;
 SELECT * FROM t1  ORDER BY word LIMIT 10;
 
 #
+# Save password row for root
+#
+
+create temporary table tmp select * from mysql.user where host="localhost" and user="root";
+
+#
 # Test slave with wrong password
 #
+
 save_master_pos;
 connection slave;
 sync_with_master;
@@ -24,6 +31,7 @@ connection master;
 real_sleep 2;
 SET PASSWORD FOR root@"localhost" = PASSWORD('');
 # Give slave time to connect (will retry every second)
+
 sleep 2;
 
 CREATE TABLE t3(n INT);
@@ -80,4 +88,9 @@ SELECT n FROM t1;
 
 connection master;
 DROP TABLE t1;
+
+# resttore old passwords
+replace into mysql.user select * from tmp;
+drop temporary table tmp;
+
 sync_slave_with_master;

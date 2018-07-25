@@ -144,6 +144,18 @@ static inline bool btr_search_own_any(ulint mode)
 	}
 	return(false);
 }
+
+/** @return whether this thread holds any of the search latches */
+static inline bool btr_search_own_any()
+{
+	for (ulint i = btr_ahi_parts; i--; ) {
+		if (rw_lock_own_flagged(btr_search_latches[i],
+					RW_LOCK_FLAG_X | RW_LOCK_FLAG_S)) {
+			return true;
+		}
+	}
+	return false;
+}
 #endif /* UNIV_DEBUG */
 
 /** Get the adaptive hash search index latch for a b-tree.

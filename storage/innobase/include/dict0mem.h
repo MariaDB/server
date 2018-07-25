@@ -1481,7 +1481,11 @@ struct dict_table_t {
 
 	/** Get reference count.
 	@return current value of n_ref_count */
-	inline ulint get_ref_count() const;
+	inline int32 get_ref_count()
+	{
+		return my_atomic_load32_explicit(&n_ref_count,
+						 MY_MEMORY_ORDER_RELAXED);
+	}
 
 	/** Acquire the table handle. */
 	inline void acquire();
@@ -1928,13 +1932,11 @@ struct dict_table_t {
 	It is protected by lock_sys.mutex. */
 	ulint					n_rec_locks;
 
-#ifndef DBUG_ASSERT_EXISTS
 private:
-#endif
 	/** Count of how many handles are opened to this table. Dropping of the
 	table is NOT allowed until this count gets to zero. MySQL does NOT
 	itself check the number of open handles at DROP. */
-	ulint					n_ref_count;
+	int32					n_ref_count;
 
 public:
 	/** List of locks on the table. Protected by lock_sys.mutex. */

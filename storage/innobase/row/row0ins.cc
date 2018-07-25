@@ -3863,7 +3863,7 @@ row_ins_step(
 		/* No-rollback tables should only be written to by a
 		single thread at a time, but there can be multiple
 		concurrent readers. We must hold an open table handle. */
-		DBUG_ASSERT(node->table->n_ref_count > 0);
+		DBUG_ASSERT(node->table->get_ref_count() > 0);
 		DBUG_ASSERT(node->ins_type == INS_DIRECT);
 		/* No-rollback tables can consist only of a single index. */
 		DBUG_ASSERT(UT_LIST_GET_LEN(node->entry_list) == 1);

@@ -10,7 +10,6 @@ call mtr.add_suppression("Table .* in the InnoDB data dictionary has tablespace 
 let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
 let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
 
-SELECT @@GLOBAL.innodb_flush_log_at_trx_commit;
 CREATE TABLE t1(i INT PRIMARY KEY auto_increment, a int) ENGINE INNODB;
 --source ../../suite/innodb/include/no_checkpoint_start.inc
 ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;

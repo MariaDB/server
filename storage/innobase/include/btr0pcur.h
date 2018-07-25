@@ -301,6 +301,21 @@ btr_pcur_commit_specify_mtr(
 /*========================*/
 	btr_pcur_t*	pcur,	/*!< in: persistent cursor */
 	mtr_t*		mtr);	/*!< in: mtr to commit */
+
+/** Commits the mtr and sets the clustered index pcur and secondary index
+pcur latch mode to BTR_NO_LATCHES, that is, the cursor becomes detached.
+Function btr_pcur_store_position should be used for both cursor before
+calling this, if restoration of cursor is wanted later.
+@param[in]	pcur		persistent cursor
+@param[in]	sec_pcur	secondary index persistent cursor
+@param[in]	mtr		mtr to commit */
+UNIV_INLINE
+void
+btr_pcurs_commit_specify_mtr(
+	btr_pcur_t*	pcur,
+	btr_pcur_t*	sec_pcur,
+	mtr_t*		mtr);
+
 /*********************************************************//**
 Moves the persistent cursor to the next record in the tree. If no records are
 left, the cursor stays 'after last in tree'.

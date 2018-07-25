@@ -789,19 +789,21 @@ const lock_t*
 lock_trx_has_sys_table_locks(
 /*=========================*/
 	const trx_t*	trx)	/*!< in: transaction to check */
-	MY_ATTRIBUTE((warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/*******************************************************************//**
-Check if the transaction holds an exclusive lock on a record.
-@return whether the locks are held */
+/** Check if the transaction holds an explicit exclusive lock on a record.
+@param[in]	trx	transaction
+@param[in]	table	table
+@param[in]	block	leaf page
+@param[in]	heap_no	heap number identifying the record
+@return whether an explicit X-lock is held */
 bool
-lock_trx_has_rec_x_lock(
-/*====================*/
+lock_trx_has_expl_x_lock(
 	const trx_t*		trx,	/*!< in: transaction to check */
 	const dict_table_t*	table,	/*!< in: table to check */
 	const buf_block_t*	block,	/*!< in: buffer block of the record */
 	ulint			heap_no)/*!< in: record heap number */
-	MY_ATTRIBUTE((warn_unused_result));
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #endif /* UNIV_DEBUG */
 
 /**

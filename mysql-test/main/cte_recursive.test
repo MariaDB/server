@@ -2283,6 +2283,47 @@ select * from qn;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-16629: function with recursive CTE using a base table
+--echo #
+
+CREATE TABLE t1 (id int);
+INSERT INTO t1 VALUES (0), (1),(2);
+
+WITH recursive cte AS
+(SELECT id FROM t1 UNION SELECT 3 FROM cte)
+SELECT count(id) FROM cte;
+
+CREATE OR REPLACE FUNCTION func() RETURNS int
+RETURN
+(
+  WITH recursive cte AS
+  (SELECT id FROM t1 UNION SELECT 3 FROM cte)
+  SELECT count(id) FROM cte
+);
+
+SELECT func();
+
+DROP FUNCTION func;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16661: function with recursive CTE using no base tables
+--echo #             (fixed by the patch for MDEV-16629)
+--echo #
+
+CREATE OR REPLACE FUNCTION func() RETURNS int
+RETURN
+(
+  WITH RECURSIVE cte AS
+  (SELECT 1 as id UNION SELECT * FROM cte)
+  SELECT count(id) FROM cte
+);
+
+SELECT func();
+
+DROP FUNCTION func;
+
 --echo # Start of 10.3 tests
 
 --echo #

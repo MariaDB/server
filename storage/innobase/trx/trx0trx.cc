@@ -761,7 +761,7 @@ trx_lists_init_at_db_start()
 		for (undo = UT_LIST_GET_FIRST(rseg->undo_list);
 		     undo != NULL;
 		     undo = UT_LIST_GET_NEXT(undo_list, undo)) {
-			trx_t *trx = trx_sys.rw_trx_hash.find(0, undo->trx_id);
+			trx_t *trx = trx_sys.find(0, undo->trx_id, false);
 			if (!trx) {
 				trx_resurrect(undo, rseg, start_time,
 					      &rows_to_undo, false);

@@ -1757,6 +1757,8 @@ row_truncate_table_for_mysql(
 		trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 	}
 
+	DEBUG_SYNC_C("row_trunc_before_dict_lock");
+
 	/* Step-3: Validate ownership of needed locks (Exclusive lock).
 	Ownership will also ensure there is no active SQL queries, INSERT,
 	SELECT, .....*/

@@ -329,8 +329,8 @@ row_log_online_op(
 
 	ut_ad(dtuple_validate(tuple));
 	ut_ad(dtuple_get_n_fields(tuple) == dict_index_get_n_fields(index));
-	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_S)
-	      || rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
+	ut_ad(rw_lock_own_flagged(&index->lock,
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	if (index->is_corrupted()) {
 		return;
