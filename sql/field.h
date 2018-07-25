@@ -1484,12 +1484,21 @@ public:
   /* convert decimal to longlong with overflow check */
   longlong convert_decimal2longlong(const my_decimal *val, bool unsigned_flag,
                                     int *err);
+  /*
+    Maximum number of bytes in character representation.
+    - For string types it is equal to the field capacity, in bytes.
+    - For non-string types it represents the longest possible string length
+      after conversion to string.
+  */
+  virtual uint32 character_octet_length() const
+  {
+    return field_length;
+  }
   /* The max. number of characters */
   virtual uint32 char_length() const
   {
     return field_length / charset()->mbmaxlen;
   }
-
   virtual geometry_type get_geometry_type()
   {
     /* shouldn't get here. */
@@ -1812,6 +1821,7 @@ public:
   enum Derivation derivation(void) const { return field_derivation; }
   bool binary() const { return field_charset == &my_charset_bin; }
   uint32 max_display_length() const { return field_length; }
+  uint32 character_octet_length() const { return field_length; }
   uint32 char_length() const { return field_length / field_charset->mbmaxlen; }
   Information_schema_character_attributes
     information_schema_character_attributes() const
@@ -3571,6 +3581,7 @@ private:
     str.append(STRING_WITH_LEN(" /*!100301 COMPRESSED*/"));
   }
   uint32 max_display_length() const { return field_length - 1; }
+  uint32 character_octet_length() const { return field_length - 1; }
   uint32 char_length() const
   {
     return (field_length - 1) / field_charset->mbmaxlen;
@@ -3703,7 +3714,7 @@ public:
   Information_schema_character_attributes
     information_schema_character_attributes() const
   {
-    uint32 octets= Field_blob::octet_length();
+    uint32 octets= Field_blob::character_octet_length();
     uint32 chars= octets / field_charset->mbminlen;
     return Information_schema_character_attributes(octets, chars);
   }
@@ -3869,7 +3880,7 @@ public:
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
   uint32 max_display_length() const;
   uint32 char_length() const;
-  uint32 octet_length() const;
+  uint32 character_octet_length() const;
   uint is_equal(Create_field *new_field);
 
   friend void TABLE::remember_blob_values(String *blob_storage);

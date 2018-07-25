@@ -10653,7 +10653,7 @@ bool Field_vers_trx_id::test_if_equality_guarantees_uniqueness(const Item* item)
 
 
 Column_definition_attributes::Column_definition_attributes(const Field *field)
- :length(field->field_length),
+ :length(field->character_octet_length() / field->charset()->mbmaxlen),
   unireg_check(field->unireg_check),
   interval(NULL),
   charset(field->charset()), // May be NULL ptr
@@ -10682,6 +10682,8 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   compression_method_ptr= 0;
   versioning= VERSIONING_NOT_SET;
   invisible= old_field->invisible;
+  interval_list.empty(); // prepare_interval_field() needs this
+  char_length= (uint) length;
 
   if (orig_field)
   {
@@ -10699,61 +10701,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
     check_constraint= 0;
   }
 
-  switch (real_field_type()) {
-  case MYSQL_TYPE_TINY_BLOB:
-  case MYSQL_TYPE_BLOB:
-  case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_LONG_BLOB:
-    length/= charset->mbmaxlen;
-    key_length/= charset->mbmaxlen;
-    break;
-  case MYSQL_TYPE_STRING:
-  case MYSQL_TYPE_ENUM:
-  case MYSQL_TYPE_SET:
-  case MYSQL_TYPE_VARCHAR:
-  case MYSQL_TYPE_VAR_STRING:
-    /* This is corrected in create_length_to_internal_length */
-    length= (length+charset->mbmaxlen-1) / charset->mbmaxlen -
-            MY_TEST(old_field->compression_method());
-    break;
-#ifdef HAVE_SPATIAL
-  case MYSQL_TYPE_GEOMETRY:
-    geom_type= ((Field_geom*)old_field)->geom_type;
-    srid= ((Field_geom*)old_field)->srid;
-    break;
-#endif
-  case MYSQL_TYPE_YEAR:
-    if (length != 4)
-    {
-      char buff[sizeof("YEAR()") + MY_INT64_NUM_DECIMAL_DIGITS + 1];
-      my_snprintf(buff, sizeof(buff), "YEAR(%llu)", length);
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                          ER_WARN_DEPRECATED_SYNTAX,
-                          ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
-                          buff, "YEAR(4)");
-    }
-    break;
-  case MYSQL_TYPE_FLOAT:
-  case MYSQL_TYPE_DOUBLE:
-    /*
-      Floating points are stored with FLOATING_POINT_DECIMALS but internally
-      in MariaDB used with NOT_FIXED_DEC, which is >= FLOATING_POINT_DECIMALS.
-    */
-    if (decimals >= FLOATING_POINT_DECIMALS)
-      decimals= NOT_FIXED_DEC;
-    break;
-  default:
-    break;
-  }
-
-  if (flags & (ENUM_FLAG | SET_FLAG))
-    interval= ((Field_enum*) old_field)->typelib;
-  else
-    interval=0;
-
-  interval_list.empty(); // prepare_interval_field() needs this
-
-  char_length= (uint)length;
+  type_handler()->Column_definition_reuse_fix_attributes(thd, this, old_field);
 
   type_handler()->Column_definition_implicit_upgrade(this);
 
@@ -10837,11 +10785,11 @@ Column_definition::redefine_stage1_common(const Column_definition *dup_field,
 
 uint32 Field_blob::char_length() const
 {
-  return Field_blob::octet_length();
+  return Field_blob::character_octet_length();
 }
 
 
-uint32 Field_blob::octet_length() const
+uint32 Field_blob::character_octet_length() const
 {
   switch (packlength)
   {

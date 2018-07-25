@@ -1275,7 +1275,17 @@ public:
   // Automatic upgrade, e.g. for ALTER TABLE t1 FORCE
   virtual void Column_definition_implicit_upgrade(Column_definition *c) const
   { }
+  // Fix attributes after the parser
   virtual bool Column_definition_fix_attributes(Column_definition *c) const= 0;
+  /*
+    Fix attributes from an existing field. Used for:
+    - ALTER TABLE (for columns that do not change)
+    - DECLARE var TYPE OF t1.col1; (anchored SP variables)
+  */
+  virtual void Column_definition_reuse_fix_attributes(THD *thd,
+                                                      Column_definition *c,
+                                                      const Field *field) const
+  { }
   virtual bool Column_definition_prepare_stage1(THD *thd,
                                                 MEM_ROOT *mem_root,
                                                 Column_definition *c,
@@ -1630,6 +1640,12 @@ public:
   {
     return false;
   }
+  void Column_definition_reuse_fix_attributes(THD *thd,
+                                              Column_definition *c,
+                                              const Field *field) const
+  {
+    DBUG_ASSERT(0);
+  }
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
@@ -1934,6 +1950,9 @@ public:
   Item_result cmp_type() const { return REAL_RESULT; }
   virtual ~Type_handler_real_result() {}
   const Type_handler *type_handler_for_comparison() const;
+  void Column_definition_reuse_fix_attributes(THD *thd,
+                                              Column_definition *c,
+                                              const Field *field) const;
   int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const;
   bool subquery_type_allows_materialization(const Item *inner,
                                             const Item *outer) const;
@@ -2766,6 +2785,9 @@ public:
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
+  void Column_definition_reuse_fix_attributes(THD *thd,
+                                              Column_definition *c,
+                                              const Field *field) const;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const
@@ -3605,6 +3627,9 @@ public:
   }
   bool is_param_long_data_type() const { return true; }
   bool Column_definition_fix_attributes(Column_definition *c) const;
+  void Column_definition_reuse_fix_attributes(THD *thd,
+                                              Column_definition *c,
+                                              const Field *field) const;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const;
@@ -3732,6 +3757,9 @@ public:
                                           const uchar *buffer,
                                           LEX_CUSTRING *gis_options) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
+  void Column_definition_reuse_fix_attributes(THD *thd,
+                                              Column_definition *c,
+                                              const Field *field) const;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
@@ -3802,6 +3830,9 @@ public:
                                        Type_handler_hybrid_field_type *,
                                        Type_all_attributes *atrr,
                                        Item **items, uint nitems) const;
+  void Column_definition_reuse_fix_attributes(THD *thd,
+                                              Column_definition *c,
+                                              const Field *field) const;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,

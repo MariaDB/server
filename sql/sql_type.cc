@@ -1642,6 +1642,70 @@ bool Type_handler_bit::
 
 /*************************************************************************/
 
+void Type_handler_blob_common::
+       Column_definition_reuse_fix_attributes(THD *thd,
+                                              Column_definition *def,
+                                              const Field *field) const
+{
+  DBUG_ASSERT(def->key_length == 0);
+}
+
+
+void Type_handler_typelib::
+       Column_definition_reuse_fix_attributes(THD *thd,
+                                              Column_definition *def,
+                                              const Field *field) const
+{
+  DBUG_ASSERT(def->flags & (ENUM_FLAG | SET_FLAG));
+  def->interval= field->get_typelib();
+}
+
+
+#ifdef HAVE_SPATIAL
+void Type_handler_geometry::
+       Column_definition_reuse_fix_attributes(THD *thd,
+                                              Column_definition *def,
+                                              const Field *field) const
+{
+  def->geom_type= ((Field_geom*) field)->geom_type;
+  def->srid= ((Field_geom*) field)->srid;
+}
+#endif
+
+
+void Type_handler_year::
+       Column_definition_reuse_fix_attributes(THD *thd,
+                                              Column_definition *def,
+                                              const Field *field) const
+{
+  if (def->length != 4)
+  {
+    char buff[sizeof("YEAR()") + MY_INT64_NUM_DECIMAL_DIGITS + 1];
+    my_snprintf(buff, sizeof(buff), "YEAR(%llu)", def->length);
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_WARN_DEPRECATED_SYNTAX,
+                        ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
+                        buff, "YEAR(4)");
+  }
+}
+
+
+void Type_handler_real_result::
+       Column_definition_reuse_fix_attributes(THD *thd,
+                                              Column_definition *def,
+                                              const Field *field) const
+{
+  /*
+    Floating points are stored with FLOATING_POINT_DECIMALS but internally
+    in MariaDB used with NOT_FIXED_DEC, which is >= FLOATING_POINT_DECIMALS.
+  */
+  if (def->decimals >= FLOATING_POINT_DECIMALS)
+    def->decimals= NOT_FIXED_DEC;
+}
+
+
+/*************************************************************************/
+
 bool Type_handler::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
