@@ -141,3 +141,10 @@ select * from tmp;
 select * from t2;
 drop table tmp,t2;
 
+#
+# MDEV-11741 handler::ha_reset(): Assertion `bitmap_is_set_all(&table->s->all_set)' failed or server crash in mi_reset or buffer overrun or unexpected ER_CANT_REMOVE_ALL_FIELDS
+#
+create table t1 (a int) engine=memory;
+--error ER_BAD_DB_ERROR
+rename table t1 to non_existent.t2;
+drop table t1;

@@ -1368,6 +1368,10 @@ DROP TABLE t1;
 SELECT _ujis 0x8EA0;
 
 
+SET NAMES ujis;
+--source include/ctype_mdev13118.inc
+
+
 --echo #
 --echo # End of 10.0 tests
 --echo #
