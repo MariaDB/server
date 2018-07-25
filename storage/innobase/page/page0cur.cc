@@ -2,6 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -834,18 +835,19 @@ page_cur_open_on_rnd_user_rec(
 	} while (rnd--);
 }
 
-/***********************************************************//**
-Writes the log record of a record insert on a page. */
-static
+/** Write a redo log record of inserting a record into an index page.
+@param[in]	insert_rec	inserted record
+@param[in]	rec_size	rec_get_size(insert_rec)
+@param[in]	cursor_rec	predecessor of insert_rec
+@param[in,out]	index		index tree
+@param[in,out]	mtr		mini-transaction */
 void
 page_cur_insert_rec_write_log(
-/*==========================*/
-	rec_t*		insert_rec,	/*!< in: inserted physical record */
-	ulint		rec_size,	/*!< in: insert_rec size */
-	rec_t*		cursor_rec,	/*!< in: record the
-					cursor is pointing to */
-	dict_index_t*	index,		/*!< in: record descriptor */
-	mtr_t*		mtr)		/*!< in: mini-transaction handle */
+	const rec_t*	insert_rec,
+	ulint		rec_size,
+	const rec_t*	cursor_rec,
+	dict_index_t*	index,
+	mtr_t*		mtr)
 {
 	ulint	cur_rec_size;
 	ulint	extra_size;

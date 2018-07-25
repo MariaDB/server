@@ -371,9 +371,8 @@ public:
 		m_interrupted = true;
 	}
 
-	/** Check whether trx is interrupted
-	@return true if trx is interrupted */
-	bool check_interrupted();
+	/** Check whether the operation has been interrupted */
+	void check_interrupted();
 
 	/** Flush dirty pages. */
 	void flush();
@@ -395,7 +394,7 @@ private:
 	const ulint		m_space_id;
 
 	/** Trx instance */
-	trx_t* const		m_trx;
+	const trx_t* const	m_trx;
 
 	/** Performance schema accounting object, used by ALTER TABLE.
 	If not NULL, then stage->begin_phase_flush() will be called initially,

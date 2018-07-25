@@ -274,7 +274,6 @@ private:
 #define FTS_PENDING_DOC_MEMORY_LIMIT	1000000
 
 /** Insert sorted data tuples to the index.
-@param[in]	trx_id		transaction identifier
 @param[in]	index		index to be inserted
 @param[in]	old_table	old table
 @param[in]	fd		file descriptor
@@ -289,7 +288,6 @@ and then stage->inc() will be called for each record that is processed.
 static	MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_merge_insert_index_tuples(
-	trx_id_t		trx_id,
 	dict_index_t*		index,
 	const dict_table_t*	old_table,
 	int			fd,
@@ -2402,14 +2400,14 @@ write_buffers:
 					if (clust_btr_bulk == NULL) {
 						clust_btr_bulk = UT_NEW_NOKEY(
 							BtrBulk(index[i],
-								trx->id,
-								observer));
+								trx,
+								observer/**/));
 					} else {
 						clust_btr_bulk->latch();
 					}
 
 					err = row_merge_insert_index_tuples(
-						trx->id, index[i], old_table,
+						index[i], old_table,
 						-1, NULL, buf, clust_btr_bulk,
 						table_total_rows,
 						curr_progress,
@@ -2515,11 +2513,11 @@ write_buffers:
 						trx->error_key_num = i;
 						goto all_done;);
 
-					BtrBulk	btr_bulk(index[i], trx->id,
+					BtrBulk	btr_bulk(index[i], trx,
 							 observer);
 
 					err = row_merge_insert_index_tuples(
-						trx->id, index[i], old_table,
+						index[i], old_table,
 						-1, NULL, buf, &btr_bulk,
 						table_total_rows,
 						curr_progress,
@@ -3375,7 +3373,6 @@ row_merge_mtuple_to_dtuple(
 }
 
 /** Insert sorted data tuples to the index.
-@param[in]	trx_id		transaction identifier
 @param[in]	index		index to be inserted
 @param[in]	old_table	old table
 @param[in]	fd		file descriptor
@@ -3390,7 +3387,6 @@ and then stage->inc() will be called for each record that is processed.
 static	MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_merge_insert_index_tuples(
-	trx_id_t		trx_id,
 	dict_index_t*		index,
 	const dict_table_t*	old_table,
 	int			fd,
@@ -3428,7 +3424,6 @@ row_merge_insert_index_tuples(
 	ut_ad(!srv_read_only_mode);
 	ut_ad(!(index->type & DICT_FTS));
 	ut_ad(!dict_index_is_spatial(index));
-	ut_ad(trx_id);
 
 	if (stage != NULL) {
 		stage->begin_phase_insert();
@@ -4632,11 +4627,15 @@ row_merge_build_indexes(
 	we use bulk load to create all types of indexes except spatial index,
 	for which redo logging is enabled. If we create only spatial indexes,
 	we don't need to flush dirty pages at all. */
-	bool	need_flush_observer = (old_table != new_table);
+	bool	need_flush_observer = bool(innodb_log_optimize_ddl);
 
-	for (i = 0; i < n_indexes; i++) {
-		if (!dict_index_is_spatial(indexes[i])) {
-			need_flush_observer = true;
+	if (need_flush_observer) {
+		need_flush_observer = old_table != new_table;
+
+		for (i = 0; i < n_indexes; i++) {
+			if (!dict_index_is_spatial(indexes[i])) {
+				need_flush_observer = true;
+			}
 		}
 	}
 
@@ -4883,7 +4882,7 @@ wait_again:
 				os_thread_sleep(20000000););  /* 20 sec */
 
 			if (error == DB_SUCCESS) {
-				BtrBulk	btr_bulk(sort_idx, trx->id,
+				BtrBulk	btr_bulk(sort_idx, trx,
 						 flush_observer);
 
 				pct_cost = (COST_BUILD_INDEX_STATIC +
@@ -4903,7 +4902,7 @@ wait_again:
 				}
 
 				error = row_merge_insert_index_tuples(
-					trx->id, sort_idx, old_table,
+					sort_idx, old_table,
 					merge_files[i].fd, block, NULL,
 					&btr_bulk,
 					merge_files[i].n_rec, pct_progress, pct_cost,
@@ -4936,14 +4935,16 @@ wait_again:
 			ut_ad(sort_idx->online_status
 			      == ONLINE_INDEX_COMPLETE);
 		} else {
-			ut_ad(need_flush_observer);
+			if (flush_observer) {
+				flush_observer->flush();
+				row_merge_write_redo(indexes[i]);
+			}
+
 			if (global_system_variables.log_warnings > 2) {
 				sql_print_information(
 					"InnoDB: Online DDL : Applying"
 					" log to index");
 			}
-			flush_observer->flush();
-			row_merge_write_redo(indexes[i]);
 
 			DEBUG_SYNC_C("row_log_apply_before");
 			error = row_log_apply(trx, sort_idx, table, stage);

@@ -1,0 +1,37 @@
+SET GLOBAL innodb_log_optimize_ddl=OFF;
+CREATE TABLE tz(id BIGINT PRIMARY KEY, i INT)
+ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+INSERT INTO tz(id) select * from seq_1_to_10000;
+CREATE TABLE tr(id BIGINT PRIMARY KEY, i INT)
+ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO tr(id) select * from seq_1_to_10000;
+CREATE TABLE td(id BIGINT PRIMARY KEY, i INT)
+ENGINE=InnoDB;
+INSERT INTO td(id) select * from seq_1_to_10000;
+CREATE PROCEDURE a()
+BEGIN
+ALTER TABLE tz ADD INDEX(i);
+ALTER TABLE tr ADD INDEX(i);
+ALTER TABLE td ADD INDEX(i);
+END //
+call a();
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+DROP PROCEDURE a;
+CHECK TABLE tz,tr,td;
+Table	Op	Msg_type	Msg_text
+test.tz	check	status	OK
+test.tr	check	status	OK
+test.td	check	status	OK
+SELECT COUNT(*) FROM tz;
+COUNT(*)
+10000
+SELECT COUNT(*) FROM tr;
+COUNT(*)
+10000
+SELECT COUNT(*) FROM td;
+COUNT(*)
+10000
+DROP TABLE tz,tr,td;

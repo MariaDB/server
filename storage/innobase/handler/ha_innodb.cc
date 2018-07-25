@@ -20359,6 +20359,13 @@ static MYSQL_SYSVAR_BOOL(log_compressed_pages, page_zip_log_pages,
   " compression algorithm doesn't change.",
   NULL, NULL, TRUE);
 
+static MYSQL_SYSVAR_BOOL(log_optimize_ddl, innodb_log_optimize_ddl,
+  PLUGIN_VAR_OPCMDARG,
+  "Reduce redo logging when natively creating indexes or rebuilding tables."
+  " Setting this OFF avoids delay due to page flushing and"
+  " allows concurrent backup.",
+  NULL, NULL, TRUE);
+
 static MYSQL_SYSVAR_ULONG(autoextend_increment,
   sys_tablespace_auto_extend_increment,
   PLUGIN_VAR_RQCMDARG,
@@ -21278,6 +21285,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_write_ahead_size),
   MYSQL_SYSVAR(log_group_home_dir),
   MYSQL_SYSVAR(log_compressed_pages),
+  MYSQL_SYSVAR(log_optimize_ddl),
   MYSQL_SYSVAR(max_dirty_pages_pct),
   MYSQL_SYSVAR(max_dirty_pages_pct_lwm),
   MYSQL_SYSVAR(adaptive_flushing_lwm),
