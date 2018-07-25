@@ -14,7 +14,7 @@ connection slave;
 sync_with_master;
 STOP SLAVE;
 connection master;
-SET PASSWORD FOR root@"localhost" = PASSWORD('foo');
+UPDATE mysql.user SET password=password('foo') WHERE host='localhost' AND user='root';
 connection slave;
 START SLAVE;
 connection master;
@@ -22,7 +22,7 @@ connection master;
 # Give slave time to do at last one failed connect retry
 # This one must be short so that the slave will not stop retrying
 real_sleep 2;
-SET PASSWORD FOR root@"localhost" = PASSWORD('');
+UPDATE mysql.user SET password=password('') WHERE host='localhost' AND user='root';
 # Give slave time to connect (will retry every second)
 sleep 2;
 
