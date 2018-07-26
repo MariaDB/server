@@ -1368,6 +1368,13 @@ JOIN::optimize_inner()
   conds= optimize_cond(this, conds, join_list, FALSE,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
   
+  if (thd->is_error())
+  {
+    error= 1;
+    DBUG_PRINT("error",("Error from optimize_cond"));
+    DBUG_RETURN(1);
+  }
+
   if (thd->lex->sql_command == SQLCOM_SELECT &&
       optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED))
   {
@@ -1402,13 +1409,6 @@ JOIN::optimize_inner()
       DBUG_RETURN(1);
   }
      
-  if (thd->is_error())
-  {
-    error= 1;
-    DBUG_PRINT("error",("Error from optimize_cond"));
-    DBUG_RETURN(1);
-  }
-
   {
     having= optimize_cond(this, having, join_list, TRUE,
                           &having_value, &having_equal);
