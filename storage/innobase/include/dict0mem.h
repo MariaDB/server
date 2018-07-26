@@ -593,7 +593,7 @@ struct dict_col_t{
 	inline void detach(const dict_index_t& index);
 
 	/** Data for instantly added columns */
-	struct {
+	struct def_t {
 		/** original default value of instantly added column */
 		const void*	data;
 		/** len of data, or UNIV_SQL_DEFAULT if unavailable */
