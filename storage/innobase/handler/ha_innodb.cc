@@ -8987,7 +8987,7 @@ ha_innobase::update_row(
 		/* We need the upper limit of the col type to check for
 		whether we update the table autoinc counter or not. */
 		col_max_value =
-			table->found_next_number_field->get_max_int_value();
+			table->next_number_field->get_max_int_value();
 
 		if (autoinc <= col_max_value && autoinc != 0) {
 
