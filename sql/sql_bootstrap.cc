@@ -17,7 +17,10 @@
 #include "mariadb.h"
 #include <ctype.h>
 #include <string.h>
+#include <signal.h>
 #include "sql_bootstrap.h"
+
+extern volatile sig_atomic_t kill_in_progress;
 
 int read_bootstrap_query(char *query, int *query_length,
                          fgets_input_t input, fgets_fn_t fgets_fn, int *error)
@@ -37,7 +40,7 @@ int read_bootstrap_query(char *query, int *query_length,
       *error= fgets_error;
 
     if (fgets_error != 0)
-      return READ_BOOTSTRAP_ERROR;
+      return kill_in_progress ? READ_BOOTSTRAP_EOF : READ_BOOTSTRAP_ERROR;
       
     if (line == NULL)
       return (query_len == 0) ? READ_BOOTSTRAP_EOF : READ_BOOTSTRAP_ERROR;

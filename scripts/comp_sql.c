@@ -40,6 +40,8 @@
 
 FILE *in, *out;
 
+volatile sig_atomic_t kill_in_progress= 0;
+
 static void die(const char *fmt, ...)
 {
   va_list args;

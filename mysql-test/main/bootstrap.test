@@ -106,3 +106,22 @@ use test;
 EOF
 --exec $MYSQLD_BOOTSTRAP_CMD --ignore-db-dirs='some_dir' --ignore-db-dirs='some_dir' < $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
 --remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
+
+--echo #
+--echo # MDEV-16825 SIGSEGV after SIGINT in bootstrap mode
+--echo #
+--perl
+use POSIX qw(WNOHANG);
+my $wait= 5; # seconds to wait process shutdown
+$|= 1;
+my $pid= open(BOOTSTRAP, '|-',  $ENV{'MYSQLD_BOOTSTRAP_CMD'})
+  or die $ENV{'MYSQLD_BOOTSTRAP_CMD'}. ": $!";
+print BOOTSTRAP "select 1;\n"; # make sure process accepts input
+kill INT => $pid;
+my $status;
+while ($wait-- && ($status= waitpid($pid, WNOHANG)) < 1)
+{
+  sleep 1;
+}
+print $status != $pid ? "Failed!\n" : "Success!\n";
+EOF
