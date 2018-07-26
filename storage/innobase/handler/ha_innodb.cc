@@ -8402,9 +8402,26 @@ set_max_autoinc:
 					ulonglong	increment;
 					dberr_t		err;
 
+#ifdef WITH_WSREP
+                                        /* Applier threads which are processing
+                                        ROW events and don't go through server
+                                        level autoinc processing, therefore
+                                        m_prebuilt autoinc values don't get
+                                        properly assigned. Fetch values from
+                                        server side. */
+                                        if (wsrep_on(current_thd) &&
+                                            wsrep_thd_exec_mode(current_thd) == REPL_RECV)
+                                        {
+                                                wsrep_thd_auto_increment_variables(current_thd, &offset, &increment);
+                                        }
+                                        else
+                                        {
+#endif /* WITH_WSREP */
 					offset = prebuilt->autoinc_offset;
 					increment = prebuilt->autoinc_increment;
-
+#ifdef WITH_WSREP
+                                        }
+#endif /* WITH_WSREP */
 					auto_inc = innobase_next_autoinc(
 						auto_inc,
 						1, increment, offset,
@@ -8918,16 +8935,35 @@ ha_innobase::update_row(
 
 		/* We need the upper limit of the col type to check for
 		whether we update the table autoinc counter or not. */
-		col_max_value = innobase_get_int_col_max_value(
-			table->next_number_field);
+		col_max_value =
+			table->next_number_field->get_max_int_value();
 
 		if (auto_inc <= col_max_value && auto_inc != 0) {
 
 			ulonglong	offset;
 			ulonglong	increment;
 
+#ifdef WITH_WSREP
+                        /* Applier threads which are processing
+                           ROW events and don't go through server
+                           level autoinc processing, therefore
+                           m_prebuilt autoinc values don't get
+                           properly assigned. Fetch values from
+                           server side. */
+                        if (wsrep_on(current_thd) &&
+                            wsrep_thd_exec_mode(current_thd) == REPL_RECV)
+                        {
+                                wsrep_thd_auto_increment_variables(
+                                    current_thd, &offset, &increment);
+                        }
+                        else
+                        {
+#endif /* WITH_WSREP */
 			offset = prebuilt->autoinc_offset;
 			increment = prebuilt->autoinc_increment;
+#ifdef WITH_WSREP
+                        }
+#endif /* WITH_WSREP */
 
 			auto_inc = innobase_next_autoinc(
 				auto_inc, 1, increment, offset, col_max_value);
