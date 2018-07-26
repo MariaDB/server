@@ -2439,15 +2439,7 @@ public:
   {
     return TRUE;
   }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_sp>(thd, mem_root, this); }
-  Item *build_clone(THD *thd, MEM_ROOT *mem_root)
-  {
-    Item_func_sp *clone= (Item_func_sp *) Item_func::build_clone(thd, mem_root);
-    if (clone)
-      clone->sp_result_field= NULL;
-    return clone;
-  }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
   bool eval_not_null_tables(void *opt_arg)
   {
     not_null_tables_cache= 0;

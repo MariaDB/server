@@ -2117,16 +2117,7 @@ public:
   bool fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
   enum precedence precedence() const { return CMP_PRECEDENCE; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_regex>(thd, mem_root, this); }
-  Item *build_clone(THD *thd, MEM_ROOT *mem_root)
-  {
-    Item_func_regex *clone= (Item_func_regex*) Item_bool_func::build_clone(thd, mem_root);
-    if (clone)
-      clone->re.reset();
-    return clone;
-  }
-
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
   void print(String *str, enum_query_type query_type)
   {
     print_op(str, query_type);
@@ -2154,8 +2145,7 @@ public:
   bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec();
   const char *func_name() const { return "regexp_instr"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_regexp_instr>(thd, mem_root, this); }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 };
 
 

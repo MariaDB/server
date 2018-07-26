@@ -9827,3 +9827,50 @@ WHERE (SELECT  BIT_COUNT(t2.i1)
 FROM (t2 JOIN t3)) IS NULL;
 ERROR 21000: Subquery returns more than 1 row
 DROP TABLE t1, t2, t3;
+#
+# MDEV-16614 signal 7 after calling stored procedure, that uses regexp
+#
+CREATE PROCEDURE p1(m1 varchar(5), m2 varchar(5))
+BEGIN
+SELECT a FROM
+(SELECT "aa" a) t
+JOIN (SELECT "aa" b) t1 on t.a=t1.b
+WHERE t.a regexp m1 and t1.b regexp m2
+GROUP BY a;
+END$$
+CALL p1('a','a');
+a
+aa
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1(m1 varchar(5))
+BEGIN
+SELECT a FROM (SELECT "aa" a) t WHERE t.a regexp m1;
+END$$
+CALL p1('a');
+a
+aa
+DROP PROCEDURE p1;
+SELECT a FROM (SELECT "aa" a) t WHERE REGEXP_INSTR(t.a, (SELECT MAX('aa') FROM DUAL LIMIT 1));
+a
+aa
+CREATE OR REPLACE FUNCTION f1(a VARCHAR(10), b VARCHAR(10)) RETURNS INT
+BEGIN
+RETURN 1;
+END;$$
+CREATE OR REPLACE PROCEDURE p1(m1 varchar(5))
+BEGIN
+SELECT a FROM (SELECT "aa" a) t WHERE f1(t.a, m1);
+END$$
+CALL p1('a');
+a
+aa
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+CREATE OR REPLACE FUNCTION f1(a VARCHAR(10), b VARCHAR(10)) RETURNS INT
+BEGIN
+RETURN 1;
+END;$$
+SELECT a FROM (SELECT "aa" a) t WHERE f1(t.a, (SELECT MAX('aa') FROM DUAL LIMIT 1));
+a
+aa
+DROP FUNCTION f1;
