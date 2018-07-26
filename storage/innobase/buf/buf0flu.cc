@@ -3769,18 +3769,12 @@ FlushObserver::~FlushObserver()
 	DBUG_LOG("flush", "~FlushObserver(): trx->id=" << m_trx->id);
 }
 
-/** Check whether trx is interrupted
-@return true if trx is interrupted */
-bool
-FlushObserver::check_interrupted()
+/** Check whether the operation has been interrupted */
+void FlushObserver::check_interrupted()
 {
 	if (trx_is_interrupted(m_trx)) {
 		interrupted();
-
-		return(true);
 	}
-
-	return(false);
 }
 
 /** Notify observer of a flush

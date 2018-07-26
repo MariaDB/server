@@ -1642,6 +1642,13 @@ JOIN::optimize_inner()
   if (optimize_constant_subqueries())
     DBUG_RETURN(1);
 
+  if (conds && conds->with_subquery())
+    (void) conds->walk(&Item::cleanup_is_expensive_cache_processor,
+                       0, (void *) 0);
+  if (having && having->with_subquery())
+    (void) having->walk(&Item::cleanup_is_expensive_cache_processor,
+			0, (void *) 0);
+
   if (setup_jtbm_semi_joins(this, join_list, &conds))
     DBUG_RETURN(1);
 

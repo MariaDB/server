@@ -126,6 +126,8 @@ row_vers_impl_x_locked_low(
 		DBUG_RETURN(0);
 	}
 
+	ut_ad(!clust_index->table->is_temporary());
+
 	trx_t*	trx;
 
 	if (trx_id == caller_trx->id) {
