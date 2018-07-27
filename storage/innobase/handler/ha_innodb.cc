@@ -8260,8 +8260,6 @@ set_max_autoinc:
 				/* This should filter out the negative
 				values set explicitly by the user. */
 				if (auto_inc <= col_max_value) {
-					ut_a(m_prebuilt->autoinc_increment > 0);
-
 					ulonglong	offset;
 					ulonglong	increment;
 					dberr_t		err;
@@ -8281,6 +8279,7 @@ set_max_autoinc:
                                         else
                                         {
 #endif /* WITH_WSREP */
+					ut_a(m_prebuilt->autoinc_increment > 0);
 					offset = m_prebuilt->autoinc_offset;
 					increment = m_prebuilt->autoinc_increment;
 #ifdef WITH_WSREP
@@ -8987,7 +8986,7 @@ ha_innobase::update_row(
 		/* We need the upper limit of the col type to check for
 		whether we update the table autoinc counter or not. */
 		col_max_value =
-			table->next_number_field->get_max_int_value();
+			table->found_next_number_field->get_max_int_value();
 
 		if (autoinc <= col_max_value && autoinc != 0) {
 
