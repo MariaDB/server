@@ -2476,4 +2476,21 @@ a
 drop procedure prepare_data;
 set @@optimizer_switch= @save_optimizer_switch;
 drop table t1,t2,t3;
+CREATE TABLE t1 ( id int NOT NULL, key(id));
+INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19);
+CREATE TABLE t2 (i1 int NOT NULL, i2 int NOT NULL);
+INSERT INTO t2 VALUES  (11,11),(12,12),(13,13);
+CREATE VIEW v1 AS SELECT t2.i1 FROM t2 where t2.i1 = t2.i2;
+explain SELECT 1 FROM t1 where t1.id IN (SELECT v1.i1 from v1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	
+1	PRIMARY	t1	ref	id	id	4	test.t2.i1	2	Using index
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+SELECT 1 FROM t1 where t1.id IN (SELECT v1.i1 from v1);
+1
+1
+1
+1
+drop table t1,t2;
+drop view v1;
 # End of 5.5 tests
