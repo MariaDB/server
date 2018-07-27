@@ -72,6 +72,7 @@ ulong mysqld_net_retry_count = 10L;
 ulong open_files_limit;
 ulong opt_binlog_rows_event_max_size;
 ulonglong test_flags = 0;
+ulong opt_binlog_rows_event_max_encoded_size= MAX_MAX_ALLOWED_PACKET;
 static uint opt_protocol= 0;
 static FILE *result_file;
 static char *result_file_name= 0;
@@ -813,7 +814,12 @@ write_event_header_and_base64(Log_event *ev, FILE *result_file,
 
   /* Write header and base64 output to cache */
   ev->print_header(head, print_event_info, FALSE);
-  ev->print_base64(body, print_event_info, FALSE);
+
+  DBUG_ASSERT(print_event_info->base64_output_mode == BASE64_OUTPUT_ALWAYS);
+
+  ev->print_base64(body, print_event_info,
+                   print_event_info->base64_output_mode !=
+                   BASE64_OUTPUT_DECODE_ROWS);
 
   /* Read data from cache and write to result file */
   if (copy_event_cache_to_file_and_reinit(head, result_file) ||
@@ -852,7 +858,9 @@ static bool print_base64(PRINT_EVENT_INFO *print_event_info, Log_event *ev)
     return 1;
   }
   ev->print(result_file, print_event_info);
-  return print_event_info->head_cache.error == -1;
+  return
+    print_event_info->head_cache.error == -1 ||
+    print_event_info->body_cache.error == -1;
 }
 
 
@@ -1472,6 +1480,15 @@ that may lead to an endless loop.",
    "This value must be a multiple of 256.",
    &opt_binlog_rows_event_max_size, &opt_binlog_rows_event_max_size, 0,
    GET_ULONG, REQUIRED_ARG, UINT_MAX,  256, ULONG_MAX,  0, 256,  0},
+#ifndef DBUG_OFF
+  {"debug-binlog-row-event-max-encoded-size", 0,
+   "The maximum size of base64-encoded rows-event in one BINLOG pseudo-query "
+   "instance. When the computed actual size exceeds the limit "
+   "the BINLOG's argument string is fragmented in two.",
+   &opt_binlog_rows_event_max_encoded_size,
+   &opt_binlog_rows_event_max_encoded_size, 0,
+   GET_ULONG, REQUIRED_ARG, UINT_MAX/4,  256, ULONG_MAX,  0, 256,  0},
+#endif
   {"verify-binlog-checksum", 'c', "Verify checksum binlog events.",
    (uchar**) &opt_verify_binlog_checksum, (uchar**) &opt_verify_binlog_checksum,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},

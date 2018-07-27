@@ -1850,12 +1850,17 @@ void Old_rows_log_event::pack_info(Protocol *protocol)
 
 
 #ifdef MYSQL_CLIENT
+/* Method duplicates Rows_log_event's one */
 void Old_rows_log_event::print_helper(FILE *file,
                                       PRINT_EVENT_INFO *print_event_info,
                                       char const *const name)
 {
   IO_CACHE *const head= &print_event_info->head_cache;
   IO_CACHE *const body= &print_event_info->body_cache;
+  bool do_print_encoded=
+    print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
+    !print_event_info->short_form;
+
   if (!print_event_info->short_form)
   {
     bool const last_stmt_event= get_flags(STMT_END_F);
@@ -1863,13 +1868,18 @@ void Old_rows_log_event::print_helper(FILE *file,
     my_b_printf(head, "\t%s: table id %lu%s\n",
                 name, m_table_id,
                 last_stmt_event ? " flags: STMT_END_F" : "");
-    print_base64(body, print_event_info, !last_stmt_event);
+    print_base64(body, print_event_info, do_print_encoded);
   }
 
   if (get_flags(STMT_END_F))
   {
-    copy_event_cache_to_file_and_reinit(head, file);
-    copy_event_cache_to_file_and_reinit(body, file);
+    if (copy_event_cache_to_file_and_reinit(head, file))
+    {
+      head->error= -1;
+      return;
+    }
+    copy_cache_to_file_wrapped(file, body, do_print_encoded,
+                               print_event_info->delimiter);
   }
 }
 #endif

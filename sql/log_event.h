@@ -1157,7 +1157,7 @@ public:
   void print_header(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
                     bool is_more);
   void print_base64(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info,
-                    bool is_more);
+                    bool do_print_encoded);
 #endif
   /*
     read_log_event() functions read an event from a binlog or relay
@@ -4891,14 +4891,21 @@ public:
   virtual int get_data_size() { return IGNORABLE_HEADER_LEN; }
 };
 
+#ifdef MYSQL_CLIENT
+void copy_cache_to_file_wrapped(FILE *file,
+                                PRINT_EVENT_INFO *print_event_info,
+                                IO_CACHE *body,
+                                bool do_wrap);
+#endif
 
 static inline bool copy_event_cache_to_file_and_reinit(IO_CACHE *cache,
                                                        FILE *file)
 {
-  return         
-    my_b_copy_to_file(cache, file) ||
+  return
+    my_b_copy_all_to_file(cache, file) ||
     reinit_io_cache(cache, WRITE_CACHE, 0, FALSE, TRUE);
 }
+
 
 #ifdef MYSQL_SERVER
 /*****************************************************************************

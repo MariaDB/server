@@ -7950,8 +7950,17 @@ binlog_base64_event:
           {
             Lex->sql_command = SQLCOM_BINLOG_BASE64_EVENT;
             Lex->comment= $2;
+            Lex->ident.str=    NULL;
+            Lex->ident.length= 0;
           }
-        ;
+          |
+          BINLOG_SYM '@' ident_or_text ',' '@' ident_or_text
+          {
+            Lex->sql_command = SQLCOM_BINLOG_BASE64_EVENT;
+            Lex->comment= $3;
+            Lex->ident=   $6;
+          }
+          ;
 
 check_view_or_table:
           table_or_tables table_list opt_mi_check_type
