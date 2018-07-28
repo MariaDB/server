@@ -16,6 +16,7 @@
 #include <my_sys.h>
 #include <my_crypt.h>
 #include <tap.h>
+#include <mysql/psi/mysql_file.h>
 
 /*** tweaks and stubs for encryption code to compile ***************/
 #define KEY_SIZE (128/8)
@@ -285,11 +286,53 @@ void mdev14014()
   close_cached_file(&info);
 }
 
+void mdev14014_2()
+{
+  int res;
+  uchar buf_o[200];
+  uchar buf_i[200];
+  File file= -1;
+  const char *log_file_name="my.log";
+  IO_CACHE log;
+
+  memset(buf_i,    0, sizeof( buf_i));
+  memset(buf_o, FILL, sizeof(buf_o));
+
+  diag("MDEV-14014 Dump thread reads past last 'officially' written byte");
+
+  init_io_cache_encryption();
+  file= my_open(//key_file_binlog,
+                log_file_name, O_CREAT | O_RDWR | O_BINARY | O_SHARE,
+                MYF(MY_WME));
+  ok(file >= 0, "mysql_file_open");
+  res= init_io_cache(&log, file, IO_SIZE*2, WRITE_CACHE, 0, 0,
+                     MYF(MY_WME|MY_DONT_CHECK_FILESIZE));
+  ok(res == 0, "init_io_cache");
+  //res= open_cached_file(&info, 0, 0, CACHE_SIZE, 0);
+  //ok(res == 0, "open_cached_file" INFO_TAIL);
+
+  res= my_b_write(&log, buf_o, sizeof(buf_o));
+  ok(res == 0, "buffer is written" INFO_TAIL);
+
+  res= my_b_flush_io_cache(&log, 1);
+  ok(res == 0, "flush" INFO_TAIL);
+
+  res= reinit_io_cache(&log, READ_CACHE, 0, 0, 0);
+  ok(res == 0, "reinit READ_CACHE" INFO_TAIL);
+
+  log.end_of_file= 100;
+  res= my_b_read(&log, buf_i, sizeof(buf_i));
+  ok(res == 1 && buf_i[100] == 0 && buf_i[200-1] == 0,
+     "short read leaves buf_i[100..200-1] == 0");
+
+  close_cached_file(&log);
+}
+
 
 int main(int argc __attribute__((unused)),char *argv[])
 {
   MY_INIT(argv[0]);
-  plan(51);
+  plan(57);
 
   /* temp files with and without encryption */
   encrypt_tmp_files= 1;
@@ -306,6 +349,7 @@ int main(int argc __attribute__((unused)),char *argv[])
   encrypt_tmp_files= 0;
 
   mdev14014();
+  mdev14014_2();
 
   my_end(0);
   return exit_status();

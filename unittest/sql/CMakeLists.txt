@@ -34,3 +34,7 @@ ADD_EXECUTABLE(mf_iocache-t mf_iocache-t.cc ../../sql/mf_iocache_encr.cc)
 TARGET_LINK_LIBRARIES(mf_iocache-t mysys mytap)
 ADD_DEPENDENCIES(mf_iocache-t GenError)
 MY_ADD_TEST(mf_iocache)
+
+# ADD_EXECUTABLE(my_io_cache_conc-t my_io_cache_conc-t.cc)
+# TARGET_LINK_LIBRARIES(my_io_cache_conc-t mysys)
+# MY_ADD_TEST(my_io_cache_conc)
