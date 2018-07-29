@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2018, Oracle and/or its affiliates.
    Copyright (c) 2010, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
@@ -9655,6 +9655,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
 
   if (Field::result_merge_type(fld_type) == DECIMAL_RESULT)
   {
+    collation.set_numeric();
     decimals= min(max(decimals, item->decimals), DECIMAL_MAX_SCALE);
     int item_int_part= item->decimal_int_part();
     int item_prec = max(prev_decimal_int_part, item_int_part) + decimals;
