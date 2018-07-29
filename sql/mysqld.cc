@@ -784,12 +784,14 @@ mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
 mysql_prlock_t LOCK_system_variables_hash;
 mysql_cond_t COND_thread_count, COND_start_thread;
 pthread_t signal_thread;
+pthread_t *bootstrap_thread= NULL;
 pthread_attr_t connection_attrib;
 mysql_mutex_t LOCK_server_started;
 mysql_cond_t COND_server_started;
 
 int mysqld_server_started=0, mysqld_server_initialized= 0;
 File_parser_dummy_hook file_parser_dummy_hook;
+volatile sig_atomic_t kill_in_progress= 0;
 
 /* replication parameters, if master_host is not NULL, we are a slave */
 uint report_port= 0;
@@ -801,7 +803,6 @@ char *opt_logname, *opt_slow_logname, *opt_bin_logname;
 
 /* Static variables */
 
-static volatile sig_atomic_t kill_in_progress;
 my_bool opt_stack_trace;
 my_bool opt_expect_abort= 0, opt_bootstrap= 0;
 static my_bool opt_myisam_log;
@@ -1651,6 +1652,10 @@ static void close_connections(void)
 #endif
     close_server_sock();
   }
+#ifndef DONT_USE_THR_ALARM
+  if (bootstrap_thread)
+    pthread_kill(*bootstrap_thread, thr_client_alarm);
+#endif
   mysql_mutex_unlock(&LOCK_start_thread);
 #endif /* __WIN__ */
 
@@ -1761,7 +1766,8 @@ static void close_connections(void)
   mysql_mutex_unlock(&LOCK_thread_count); // For unlink from list
 
   Events::deinit();
-  slave_prepare_for_shutdown();
+  if (!opt_bootstrap)
+    slave_prepare_for_shutdown();
   mysql_bin_log.stop_background_thread();
   ack_receiver.stop();
 
@@ -6468,6 +6474,7 @@ static void bootstrap(MYSQL_FILE *file)
     delete thd;
     DBUG_VOID_RETURN;
   }
+  bootstrap_thread= &thd->real_id;
   /* Wait for thread to die */
   mysql_mutex_lock(&LOCK_thread_count);
   while (in_bootstrap)

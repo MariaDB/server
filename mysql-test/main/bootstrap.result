@@ -26,3 +26,7 @@ select * from mysql.plugin;
 name	dl
 EXAMPLE	ha_example.so
 truncate table mysql.plugin;
+#
+# MDEV-16825 SIGSEGV after SIGINT in bootstrap mode
+#
+Success!
