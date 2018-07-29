@@ -1063,6 +1063,8 @@ rw_lock_get_debug_info(const rw_lock_t* lock, Infos* infos)
 
 	rw_lock_debug_mutex_enter();
 
+	infos->reserve(UT_LIST_GET_LEN(lock->debug_list));
+
 	for (info = UT_LIST_GET_FIRST(lock->debug_list);
 	     info != NULL;
 	     info = UT_LIST_GET_NEXT(list, info)) {
