@@ -5924,6 +5924,7 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
         Item *item;
         while ((item=li++))
         {
+          item->update_used_tables();
           if (eq_list.push_back(item, thd->mem_root))
             DBUG_RETURN(TRUE);
         }

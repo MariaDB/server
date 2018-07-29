@@ -773,3 +773,22 @@ FROM t2
 WHERE t2.b IN (SELECT MIN(t1.a) from t1);
 
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-16730: server fault caused by pushdown into the derived table
+--echo #             condition that joins IN subquery and parent select
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2), (3);
+
+SELECT *
+FROM (SELECT DISTINCT * FROM t1) AS tbl
+WHERE tbl.a IN
+(
+  SELECT COUNT(t1.a)
+  FROM t1
+  WHERE (t1.a!=1)
+);
+
+DROP TABLE t1;
