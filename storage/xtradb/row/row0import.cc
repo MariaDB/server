@@ -1333,11 +1333,57 @@ row_import::match_schema(
 {
 	/* Do some simple checks. */
 
-	if ((m_table->flags ^ m_flags) & ~DICT_TF_MASK_DATA_DIR) {
+	if (ulint mismatch = (m_table->flags ^ m_flags)
+	    & ~DICT_TF_MASK_DATA_DIR) {
+		const char* msg;
+		if (mismatch & DICT_TF_MASK_ZIP_SSIZE) {
+			if ((m_table->flags & DICT_TF_MASK_ZIP_SSIZE)
+			    && (m_flags & DICT_TF_MASK_ZIP_SSIZE)) {
+				switch (m_flags & DICT_TF_MASK_ZIP_SSIZE) {
+				case 0U << DICT_TF_POS_ZIP_SSIZE:
+					goto uncompressed;
+				case 1U << DICT_TF_POS_ZIP_SSIZE:
+					msg = "ROW_FORMAT=COMPRESSED"
+						" KEY_BLOCK_SIZE=1";
+					break;
+				case 2U << DICT_TF_POS_ZIP_SSIZE:
+					msg = "ROW_FORMAT=COMPRESSED"
+						" KEY_BLOCK_SIZE=2";
+					break;
+				case 3U << DICT_TF_POS_ZIP_SSIZE:
+					msg = "ROW_FORMAT=COMPRESSED"
+						" KEY_BLOCK_SIZE=4";
+					break;
+				case 4U << DICT_TF_POS_ZIP_SSIZE:
+					msg = "ROW_FORMAT=COMPRESSED"
+						" KEY_BLOCK_SIZE=8";
+					break;
+				case 5U << DICT_TF_POS_ZIP_SSIZE:
+					msg = "ROW_FORMAT=COMPRESSED"
+						" KEY_BLOCK_SIZE=16";
+					break;
+				default:
+					msg = "strange KEY_BLOCK_SIZE";
+				}
+			} else if (m_flags & DICT_TF_MASK_ZIP_SSIZE) {
+				msg = "ROW_FORMAT=COMPRESSED";
+			} else {
+				goto uncompressed;
+			}
+		} else {
+uncompressed:
+			msg = (m_flags & DICT_TF_MASK_ATOMIC_BLOBS)
+				? "ROW_FORMAT=DYNAMIC"
+				: (m_flags & DICT_TF_MASK_COMPACT)
+				? "ROW_FORMAT=COMPACT"
+				: "ROW_FORMAT=REDUNDANT";
+		}
+
 		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
 			"Table flags don't match, server table has 0x%x"
-			" and the meta-data file has 0x%lx",
-			m_table->flags, ulong(m_flags));
+			" and the meta-data file has 0x%lx;"
+			" .cfg file uses %s",
+			m_table->flags, ulong(m_flags), msg);
 
 		return(DB_ERROR);
 	} else if (m_table->n_cols != m_n_cols) {
