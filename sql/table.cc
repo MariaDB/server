@@ -573,7 +573,6 @@ inline bool is_system_table_name(const char *name, size_t length)
 
 enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
 {
-  bool error_given= false;
   File file;
   uchar *buf;
   uchar head[FRM_HEADER_SIZE];
@@ -602,8 +601,9 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   {
     if ((flags & GTS_TABLE) && (flags & GTS_USE_DISCOVERY))
     {
-      ha_discover_table(thd, share);
-      error_given= true;
+      if (!ha_discover_table(thd, share) && !(flags & GTS_NO_ERROR_IF_MISSING))
+          open_table_error(share, OPEN_FRM_OPEN_ERROR, ENOENT);
+      DBUG_RETURN(share->error);
     }
     goto err_not_open;
   }
@@ -668,16 +668,14 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   frmlen= read_length + sizeof(head);
 
   share->init_from_binary_frm_image(thd, false, buf, frmlen);
-  error_given= true; // init_from_binary_frm_image has already called my_error()
   my_free(buf);
-
-  goto err_not_open;
+  DBUG_RETURN(share->error);
 
 err:
   mysql_file_close(file, MYF(MY_WME));
 
 err_not_open:
-  if (unlikely(share->error && !error_given))
+  if (unlikely(share->error))
   {
     share->open_errno= my_errno;
     open_table_error(share, share->error, share->open_errno);

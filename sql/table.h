@@ -2876,7 +2876,8 @@ enum get_table_share_flags {
   GTS_VIEW                 = 2,
   GTS_NOLOCK               = 4,
   GTS_USE_DISCOVERY        = 8,
-  GTS_FORCE_DISCOVERY      = 16
+  GTS_FORCE_DISCOVERY      = 16,
+  GTS_NO_ERROR_IF_MISSING  = 32,
 };
 
 size_t max_row_length(TABLE *table, MY_BITMAP const *cols, const uchar *data);
