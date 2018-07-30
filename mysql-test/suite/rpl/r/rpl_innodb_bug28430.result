@@ -51,6 +51,10 @@ DELETE FROM test.regular_tbl WHERE id = del_count;
 SET del_count = del_count - 2;
 END WHILE;
 END|
+Warnings:
+Level	Warning
+Code	1287
+Message	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CREATE PROCEDURE test.proc_bykey()
 BEGIN
 DECLARE ins_count INT DEFAULT 1000;
@@ -72,6 +76,10 @@ DELETE FROM test.bykey_tbl WHERE id = del_count;
 SET del_count = del_count - 2;
 END WHILE;
 END|
+Warnings:
+Level	Warning
+Code	1287
+Message	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CREATE PROCEDURE test.proc_byrange()
 BEGIN
 DECLARE ins_count INT DEFAULT 1000;
@@ -93,6 +101,10 @@ DELETE FROM test.byrange_tbl WHERE id = del_count;
 SET del_count = del_count - 2;
 END WHILE;
 END|
+Warnings:
+Level	Warning
+Code	1287
+Message	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 begin;
 CALL test.proc_norm();
 commit;
