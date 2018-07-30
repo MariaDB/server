@@ -1452,19 +1452,16 @@ i_s_cmp_fill_low(
 		clear it.  We could introduce mutex protection, but it
 		could cause a measureable performance hit in
 		page0zip.cc. */
-		table->field[1]->store(
-			static_cast<double>(zip_stat->compressed));
-		table->field[2]->store(
-			static_cast<double>(zip_stat->compressed_ok));
-		table->field[3]->store(
-			static_cast<double>(zip_stat->compressed_usec / 1000000));
-		table->field[4]->store(
-			static_cast<double>(zip_stat->decompressed));
-		table->field[5]->store(
-			static_cast<double>(zip_stat->decompressed_usec / 1000000));
+		table->field[1]->store(zip_stat->compressed, true);
+		table->field[2]->store(zip_stat->compressed_ok, true);
+		table->field[3]->store(zip_stat->compressed_usec / 1000000,
+				       true);
+		table->field[4]->store(zip_stat->decompressed, true);
+		table->field[5]->store(zip_stat->decompressed_usec / 1000000,
+				       true);
 
 		if (reset) {
-			memset(zip_stat, 0, sizeof *zip_stat);
+			new (zip_stat) page_zip_stat_t();
 		}
 
 		if (schema_table_store_record(thd, table)) {

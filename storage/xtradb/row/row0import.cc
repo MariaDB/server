@@ -105,18 +105,18 @@ struct row_index_t {
 struct row_import {
 	row_import() UNIV_NOTHROW
 		:
-		m_table(),
-		m_version(),
-		m_hostname(),
-		m_table_name(),
-		m_autoinc(),
-		m_page_size(),
-		m_flags(),
-		m_n_cols(),
-		m_cols(),
-		m_col_names(),
-		m_n_indexes(),
-		m_indexes(),
+		m_table(NULL),
+		m_version(0),
+		m_hostname(NULL),
+		m_table_name(NULL),
+		m_autoinc(0),
+		m_page_size(0),
+		m_flags(0),
+		m_n_cols(0),
+		m_cols(NULL),
+		m_col_names(NULL),
+		m_n_indexes(0),
+		m_indexes(NULL),
 		m_missing(true) { }
 
 	~row_import() UNIV_NOTHROW;
@@ -3557,8 +3557,6 @@ row_import_for_mysql(
 	rw_lock_s_lock_func(&dict_operation_lock, 0, __FILE__, __LINE__);
 
 	row_import	cfg;
-
-	memset(&cfg, 0x0, sizeof(cfg));
 
 	err = row_import_read_cfg(table, trx->mysql_thd, cfg);
 
