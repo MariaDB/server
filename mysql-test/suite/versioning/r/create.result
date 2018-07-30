@@ -1,24 +1,35 @@
 drop table if exists t1;
 create table t1 (
 x1 int unsigned,
-Sys_start SYS_DATATYPE as row start invisible comment 'start',
-Sys_end SYS_DATATYPE as row end invisible comment 'end',
-period for system_time (Sys_start, Sys_end)
+row_start SYS_DATATYPE as row start invisible comment 'start',
+row_end SYS_DATATYPE as row end invisible comment 'end',
+period for system_time (row_start, row_end),
+v int as (x1) virtual,
+s int as (x1) stored
 ) with system versioning;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x1` int(10) unsigned DEFAULT NULL,
-  `Sys_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START INVISIBLE COMMENT 'start',
-  `Sys_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END INVISIBLE COMMENT 'end',
-  PERIOD FOR SYSTEM_TIME (`Sys_start`, `Sys_end`)
+  `row_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START INVISIBLE COMMENT 'start',
+  `row_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END INVISIBLE COMMENT 'end',
+  `v` int(11) GENERATED ALWAYS AS (`x1`) VIRTUAL,
+  `s` int(11) GENERATED ALWAYS AS (`x1`) STORED,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+show columns from t1;
+Field	Type	Null	Key	Default	Extra
+x1	int(10) unsigned	YES		NULL	
+row_start	SYS_DATATYPE	NO		NULL	ROW START GENERATED, INVISIBLE
+row_end	SYS_DATATYPE	NO		NULL	ROW END GENERATED, INVISIBLE
+v	int(11)	YES		NULL	VIRTUAL GENERATED
+s	int(11)	YES		NULL	STORED GENERATED
 select table_catalog,table_schema,table_name,table_type,version,table_rows,avg_row_length,data_free,auto_increment,check_time,table_collation,checksum,create_options,table_comment from information_schema.tables where table_name='t1';
 table_catalog	def
 table_schema	test
 table_name	t1
 table_type	SYSTEM VERSIONED
-version	10
+version	11
 table_rows	0
 avg_row_length	0
 data_free	0
@@ -47,7 +58,7 @@ generation_expression	NULL
 table_catalog	def
 table_schema	test
 table_name	t1
-column_name	Sys_start
+column_name	row_start
 ordinal_position	2
 column_default	NULL
 character_maximum_length	NULL
@@ -55,14 +66,14 @@ character_octet_length	NULL
 character_set_name	NULL
 collation_name	NULL
 column_key	
-extra	INVISIBLE
+extra	ROW START GENERATED, INVISIBLE
 column_comment	start
 is_generated	ALWAYS
 generation_expression	ROW START
 table_catalog	def
 table_schema	test
 table_name	t1
-column_name	Sys_end
+column_name	row_end
 ordinal_position	3
 column_default	NULL
 character_maximum_length	NULL
@@ -70,10 +81,40 @@ character_octet_length	NULL
 character_set_name	NULL
 collation_name	NULL
 column_key	
-extra	INVISIBLE
+extra	ROW END GENERATED, INVISIBLE
 column_comment	end
 is_generated	ALWAYS
 generation_expression	ROW END
+table_catalog	def
+table_schema	test
+table_name	t1
+column_name	v
+ordinal_position	4
+column_default	NULL
+character_maximum_length	NULL
+character_octet_length	NULL
+character_set_name	NULL
+collation_name	NULL
+column_key	
+extra	VIRTUAL GENERATED
+column_comment	
+is_generated	ALWAYS
+generation_expression	`x1`
+table_catalog	def
+table_schema	test
+table_name	t1
+column_name	s
+ordinal_position	5
+column_default	NULL
+character_maximum_length	NULL
+character_octet_length	NULL
+character_set_name	NULL
+collation_name	NULL
+column_key	
+extra	STORED GENERATED
+column_comment	
+is_generated	ALWAYS
+generation_expression	`x1`
 # Implicit fields test
 create or replace table t1 (
 x2 int unsigned
