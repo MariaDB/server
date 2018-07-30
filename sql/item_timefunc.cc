@@ -1482,67 +1482,12 @@ String *Item_temporal_func::val_str(String *str)
 }
 
 
-bool Item_temporal_hybrid_func::fix_temporal_type(MYSQL_TIME *ltime)
-{
-  if (ltime->time_type < 0) /* MYSQL_TIMESTAMP_NONE, MYSQL_TIMESTAMP_ERROR */
-    return false;
-
-  if (ltime->time_type != MYSQL_TIMESTAMP_TIME)
-    goto date_or_datetime_value;
-
-  /* Convert TIME to DATE or DATETIME */
-  switch (field_type())
-  {
-  case MYSQL_TYPE_DATE:
-  case MYSQL_TYPE_DATETIME:
-  case MYSQL_TYPE_TIMESTAMP:
-    {
-      MYSQL_TIME tmp;
-      if (time_to_datetime_with_warn(current_thd, ltime, &tmp, 0))
-        return (null_value= true);
-      *ltime= tmp;
-      if (field_type() == MYSQL_TYPE_DATE)
-        datetime_to_date(ltime);
-      return false;
-    }
-  case MYSQL_TYPE_TIME:
-  case MYSQL_TYPE_STRING: /* DATE_ADD, ADDTIME can return VARCHAR */
-    return false;
-  default:
-    DBUG_ASSERT(0);
-    return (null_value= true);
-  }
-
-date_or_datetime_value:
-  /* Convert DATE or DATETIME to TIME, DATE, or DATETIME */
-  switch (field_type())
-  {
-  case MYSQL_TYPE_TIME:
-    datetime_to_time(ltime);
-    return false;
-  case MYSQL_TYPE_DATETIME:
-  case MYSQL_TYPE_TIMESTAMP:
-    date_to_datetime(ltime);
-    return false;
-  case MYSQL_TYPE_DATE:
-    datetime_to_date(ltime);
-    return false;
-  case MYSQL_TYPE_STRING: /* DATE_ADD, ADDTIME can return VARCHAR */
-    return false;
-  default:
-    DBUG_ASSERT(0);
-    return (null_value= true);
-  }
-  return false;
-}
-
-
 String *Item_temporal_hybrid_func::val_str_ascii(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   MYSQL_TIME ltime;
 
-  if (get_date(&ltime, 0) || fix_temporal_type(&ltime) ||
+  if (get_date(&ltime, 0) ||
       (null_value= my_TIME_to_str(&ltime, str, decimals)))
     return (String *) 0;
 
@@ -2201,11 +2146,45 @@ bool Item_date_add_interval::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
   INTERVAL interval;
 
-  if (args[0]->get_date(ltime,
-                        field_type() == MYSQL_TYPE_TIME ?
-                        TIME_TIME_ONLY : 0) ||
-      get_interval_value(args[1], int_type, &interval))
-    return (null_value=1);
+  if (field_type() == MYSQL_TYPE_TIME)
+  {
+    Time t(args[0]);
+    if (!t.is_valid_time())
+      return (null_value= true);
+    t.copy_to_mysql_time(ltime);
+  }
+  else if (field_type() == MYSQL_TYPE_DATETIME)
+  {
+    THD *thd= current_thd;
+    if (args[0]->field_type() == MYSQL_TYPE_TIME)
+    {
+      // time_expr + INTERVAL {YEAR|QUARTER|MONTH|WEEK|YEAR_MONTH}
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_DATETIME_FUNCTION_OVERFLOW,
+                          ER_THD(thd, ER_DATETIME_FUNCTION_OVERFLOW),
+                          "time");
+      return (null_value= true);
+    }
+    Datetime dt(thd, args[0], 0);
+    if (!dt.is_valid_datetime())
+      return (null_value= true);
+    dt.copy_to_mysql_time(ltime);
+  }
+  else if (field_type() == MYSQL_TYPE_DATE)
+  {
+    Date d(current_thd, args[0], 0);
+    if (!d.is_valid_date())
+      return (null_value= true);
+    d.copy_to_mysql_time(ltime);
+  }
+  else
+  {
+    if (args[0]->get_date(ltime, 0))
+      return (null_value=true);
+  }
+
+  if (get_interval_value(args[1], int_type, &interval))
+    return (null_value= true);
 
   if (ltime->time_type != MYSQL_TIMESTAMP_TIME &&
       check_date_with_warn(ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE,
@@ -2756,64 +2735,35 @@ bool Item_func_add_time::fix_length_and_dec()
 bool Item_func_add_time::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME l_time1, l_time2;
-  bool is_time= 0;
-  long days, microseconds;
-  longlong seconds;
-  int l_sign= sign;
+  MYSQL_TIME l_time2;
 
   if (Item_func_add_time::field_type() == MYSQL_TYPE_DATETIME)
   {
     // TIMESTAMP function OR the first argument is DATE/DATETIME/TIMESTAMP
-    if (get_arg0_date(&l_time1, 0) || 
-        args[1]->get_time(&l_time2) ||
-        l_time1.time_type == MYSQL_TIMESTAMP_TIME || 
-        l_time2.time_type != MYSQL_TIMESTAMP_TIME)
-      return (null_value= 1);
+    Datetime dt(current_thd, args[0], 0);
+    return (null_value= (!dt.is_valid_datetime() ||
+                         args[1]->get_time(&l_time2) ||
+                         Sec6_add(dt.get_mysql_time(), &l_time2, sign).
+                           to_datetime(ltime)));
   }
-  else
+
+  if (Item_func_add_time::field_type() == MYSQL_TYPE_TIME)
   {
-    // ADDTIME function AND the first argument is TIME
-    if (args[0]->get_time(&l_time1) || 
-        args[1]->get_time(&l_time2) ||
-        l_time2.time_type != MYSQL_TIMESTAMP_TIME)
-      return (null_value= 1);
-    is_time= (l_time1.time_type == MYSQL_TIMESTAMP_TIME);
+    // ADDTIME() and the first argument is TIME
+    Time t(args[0]);
+    return (null_value= (!t.is_valid_time() ||
+                         args[1]->get_time(&l_time2) ||
+                         Sec6_add(t.get_mysql_time(), &l_time2, sign).
+                           to_time(ltime, decimals)));
   }
-  if (l_time1.neg != l_time2.neg)
-    l_sign= -l_sign;
-  
-  bzero(ltime, sizeof(*ltime));
-  
-  ltime->neg= calc_time_diff(&l_time1, &l_time2, -l_sign,
-			      &seconds, &microseconds);
 
-  /*
-    If first argument was negative and diff between arguments
-    is non-zero we need to swap sign to get proper result.
-  */
-  if (l_time1.neg && (seconds || microseconds))
-    ltime->neg= 1-ltime->neg;         // Swap sign of result
-
-  if (!is_time && ltime->neg)
-    return (null_value= 1);
-
-  days= (long) (seconds / SECONDS_IN_24H);
-
-  calc_time_from_sec(ltime, (long)(seconds % SECONDS_IN_24H), microseconds);
-
-  ltime->time_type= is_time ? MYSQL_TIMESTAMP_TIME : MYSQL_TIMESTAMP_DATETIME;
-
-  if (!is_time)
-  {
-    if (get_date_from_daynr(days,&ltime->year,&ltime->month,&ltime->day) ||
-        !ltime->day)
-      return (null_value= 1);
-    return (null_value= 0);
-  }
-  
-  ltime->hour+= days*24;
-  return (null_value= adjust_time_range_with_warn(ltime, decimals));
+  // Detect a proper timestamp type based on the argument values
+  MYSQL_TIME l_time1;
+  if (args[0]->get_time(&l_time1) || args[1]->get_time(&l_time2))
+    return (null_value= true);
+  Sec6_add add(&l_time1, &l_time2, sign);
+  return (null_value= (l_time1.time_type == MYSQL_TIMESTAMP_TIME ?
+                       add.to_time(ltime, decimals) : add.to_datetime(ltime)));
 }
 
 

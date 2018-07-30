@@ -89,6 +89,65 @@ enum scalar_comparison_op
 };
 
 
+/*
+  A heler class to perform additive operations between
+  two MYSQL_TIME structures and return the result as a
+  combination of seconds, microseconds and sign.
+*/
+class Sec6_add
+{
+  longlong m_sec;  // number of seconds
+  long m_usec;     // number of microseconds
+  bool m_neg;      // false if positive, true if negative
+  bool m_error;    // false if the value is OK, true otherwise
+  void to_hh24mmssff(MYSQL_TIME *ltime, timestamp_type tstype) const
+  {
+    bzero(ltime, sizeof(*ltime));
+    ltime->neg= m_neg;
+    calc_time_from_sec(ltime, (long) (m_sec % SECONDS_IN_24H), m_usec);
+    ltime->time_type= tstype;
+  }
+public:
+  /*
+    @param ltime1 - the first value to add (must be a valid DATE,TIME,DATETIME)
+    @param ltime2 - the second value to add (must be a valid TIME)
+    @param sign   - the sign of the operation
+                    (+1 for addition, -1 for subtraction)
+  */
+  Sec6_add(const MYSQL_TIME *ltime1, const MYSQL_TIME *ltime2, int sign)
+  {
+    DBUG_ASSERT(sign == -1 || sign == 1);
+    DBUG_ASSERT(!ltime1->neg || ltime1->time_type == MYSQL_TIMESTAMP_TIME);
+    if (!(m_error= (ltime2->time_type != MYSQL_TIMESTAMP_TIME)))
+    {
+      if (ltime1->neg != ltime2->neg)
+        sign= -sign;
+      m_neg= calc_time_diff(ltime1, ltime2, -sign, &m_sec, &m_usec);
+      if (ltime1->neg && (m_sec || m_usec))
+        m_neg= !m_neg; // Swap sign
+    }
+  }
+  bool to_time(MYSQL_TIME *ltime, uint decimals) const
+  {
+    if (m_error)
+      return true;
+    to_hh24mmssff(ltime, MYSQL_TIMESTAMP_TIME);
+    ltime->hour+= to_days_abs() * 24;
+    return adjust_time_range_with_warn(ltime, decimals);
+  }
+  bool to_datetime(MYSQL_TIME *ltime) const
+  {
+    if (m_error || m_neg)
+      return true;
+    to_hh24mmssff(ltime, MYSQL_TIMESTAMP_DATETIME);
+    return get_date_from_daynr(to_days_abs(),
+                               &ltime->year, &ltime->month, &ltime->day) ||
+           !ltime->day;
+  }
+  long to_days_abs() const { return (long) (m_sec / SECONDS_IN_24H); }
+};
+
+
 /**
   Class Time is designed to store valid TIME values.
 
@@ -354,6 +413,17 @@ public:
   {
     DBUG_ASSERT(is_valid_date_slow());
     return this;
+  }
+  bool copy_to_mysql_time(MYSQL_TIME *ltime) const
+  {
+    if (time_type == MYSQL_TIMESTAMP_NONE)
+    {
+      ltime->time_type= MYSQL_TIMESTAMP_NONE;
+      return true;
+    }
+    DBUG_ASSERT(is_valid_date_slow());
+    *ltime= *this;
+    return false;
   }
 };
 
