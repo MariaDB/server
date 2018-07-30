@@ -334,18 +334,16 @@ x
 #
 # HEX hybrids resolve to TRANSACTION
 #
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF (0x60);
-x
-1
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF (0x60);
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (0xFFFFFFFF);
+ERROR HY000: TRX_ID 4294967295 not found in `mysql.transaction_registry`
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (0xFFFFFFFF);
 ERROR HY000: Transaction system versioning for `t2` is not supported
 #
 # BIT literals resolve to TRANSACTION
 #
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF (b'1100000');
-x
-1
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF (b'1100000');
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF (b'11111111111111111111111111111111');
+ERROR HY000: TRX_ID 4294967295 not found in `mysql.transaction_registry`
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF (b'11111111111111111111111111111111');
 ERROR HY000: Transaction system versioning for `t2` is not supported
 DROP TABLE t1, t2;
 #

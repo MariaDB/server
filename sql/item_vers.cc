@@ -62,10 +62,7 @@ Item_func_trt_ts::get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
 
   null_value= !trt.query(trx_id);
   if (null_value)
-  {
-    my_error(ER_VERS_NO_TRX_ID, MYF(0), (longlong) trx_id);
     return true;
-  }
 
   return trt[trt_field]->get_date(res, fuzzy_date);
 }
