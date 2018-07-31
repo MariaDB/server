@@ -1314,8 +1314,7 @@ trx_undo_mem_create_at_db_start(
 	/* Read X/Open XA transaction identification if it exists, or
 	set it to NULL. */
 
-	memset(&xid, 0, sizeof(xid));
-	xid.formatID = -1;
+	xid.null();
 
 	if (xid_exists == TRUE) {
 		trx_undo_read_xid(undo_header, &xid);

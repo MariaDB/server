@@ -8319,8 +8319,13 @@ bool JOIN_TAB::keyuse_is_valid_for_access_in_chosen_plan(JOIN *join,
   st_select_lex *sjm_sel= emb_sj_nest->sj_subq_pred->unit->first_select(); 
   for (uint i= 0; i < sjm_sel->item_list.elements; i++)
   {
-    if (sjm_sel->ref_pointer_array[i] == keyuse->val)
-      return true;
+    DBUG_ASSERT(sjm_sel->ref_pointer_array[i]->real_item()->type() == Item::FIELD_ITEM);
+    if (keyuse->val->real_item()->type() == Item::FIELD_ITEM)
+    {
+      Field *field = ((Item_field*)sjm_sel->ref_pointer_array[i]->real_item())->field;
+      if (field->eq(((Item_field*)keyuse->val->real_item())->field))
+        return true;
+    }
   }
   return false; 
 }
