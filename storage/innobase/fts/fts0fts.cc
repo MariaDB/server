@@ -268,7 +268,7 @@ FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	sync		sync state
 @param[in]	unlock_cache	whether unlock cache lock when write node
 @param[in]	wait		whether wait when a sync is in progress
-@param[in]      has_dict        whether has dict operation lock
+@param[in]	has_dict	whether has dict operation lock
 @return DB_SUCCESS if all OK */
 static
 dberr_t
@@ -3962,6 +3962,9 @@ fts_sync_write_words(
 
 		word = rbt_value(fts_tokenizer_word_t, rbt_node);
 
+		DBUG_EXECUTE_IF("fts_instrument_write_words_before_select_index",
+				os_thread_sleep(300000););
+
 		selected = fts_select_index(
 			index_cache->charset, word->text.f_str,
 			word->text.f_len);
@@ -4526,7 +4529,7 @@ FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	sync		sync state
 @param[in]	unlock_cache	whether unlock cache lock when write node
 @param[in]	wait		whether wait when a sync is in progress
-@param[in]      has_dict        whether has dict operation lock
+@param[in]	has_dict	whether has dict operation lock
 @return DB_SUCCESS if all OK */
 static
 dberr_t
@@ -4588,15 +4591,13 @@ begin_sync:
 			continue;
 		}
 
+		DBUG_EXECUTE_IF("fts_instrument_sync_before_syncing",
+				os_thread_sleep(300000););
 		index_cache->index->index_fts_syncing = true;
-		DBUG_EXECUTE_IF("fts_instrument_sync_sleep_drop_waits",
-				os_thread_sleep(10000000);
-				);
 
 		error = fts_sync_index(sync, index_cache);
 
-		if (error != DB_SUCCESS && !sync->interrupted) {
-
+		if (error != DB_SUCCESS) {
 			goto end_sync;
 		}
 	}
@@ -4631,8 +4632,8 @@ end_sync:
 	}
 
 	rw_lock_x_lock(&cache->lock);
-	/* Clear fts syncing flags of any indexes incase sync is
-	interrupeted */
+	/* Clear fts syncing flags of any indexes in case sync is
+	interrupted */
 	for (i = 0; i < ib_vector_size(cache->indexes); ++i) {
 		static_cast<fts_index_cache_t*>(
 			ib_vector_get(cache->indexes, i))

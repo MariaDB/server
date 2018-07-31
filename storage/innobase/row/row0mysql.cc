@@ -3399,6 +3399,10 @@ row_truncate_table_for_mysql(
 		return (row_mysql_get_table_status(table, trx, true));
 	}
 
+	if (table->fts) {
+		fts_optimize_remove_table(table);
+	}
+
 	trx_start_for_ddl(trx, TRX_DICT_OP_TABLE);
 
 	trx->op_info = "truncating table";
@@ -3822,6 +3826,9 @@ next_rec:
 
 		/* Reset the Doc ID in cache to 0 */
 		if (has_internal_doc_id && table->fts->cache) {
+			DBUG_EXECUTE_IF("ib_trunc_sleep_before_fts_cache_clear",
+					os_thread_sleep(10000000););
+
 			table->fts->fts_status |= TABLE_DICT_LOCKED;
 			fts_update_next_doc_id(trx, table, NULL, 0);
 			fts_cache_clear(table->fts->cache);
@@ -3844,6 +3851,11 @@ funct_exit:
                 memcached operationse. */
                 table->memcached_sync_count = 0;
         }
+
+	/* Add the table back to FTS optimize background thread. */
+	if (table->fts) {
+		fts_optimize_add_table(table);
+	}
 
 	row_mysql_unlock_data_dictionary(trx);
 
