@@ -399,7 +399,7 @@ public:
   }
   void no_rows_in_result();
 
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
+  const Type_handler *type_handler() const { return &type_handler_bool; }
   longlong val_int();
   double val_real();
   String *val_str(String*);
@@ -627,7 +627,6 @@ public:
   double val_real();
   String *val_str(String*);
   my_decimal *val_decimal(my_decimal *);
-  void update_null_value () { (void) val_bool(); }
   bool val_bool();
   bool test_limit(st_select_lex_unit *unit);
   void print(String *str, enum_query_type query_type);

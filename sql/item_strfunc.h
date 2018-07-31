@@ -67,11 +67,6 @@ public:
   const Type_handler *type_handler() const { return string_type_handler(); }
   void left_right_max_length();
   bool fix_fields(THD *thd, Item **ref);
-  void update_null_value()
-  {
-    StringBuffer<MAX_FIELD_WIDTH> tmp;
-    (void) val_str(&tmp);
-  }
 };
 
 

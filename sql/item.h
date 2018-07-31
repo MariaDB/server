@@ -1398,8 +1398,6 @@ public:
 
   // Get TIME, DATE or DATETIME using proper sql_mode flags for the field type
   bool get_temporal_with_sql_mode(MYSQL_TIME *ltime);
-  // Check NULL value for a TIME, DATE or DATETIME expression
-  bool is_null_from_temporal();
 
   int save_time_in_field(Field *field, bool no_conversions);
   int save_date_in_field(Field *field, bool no_conversions);
@@ -1699,35 +1697,7 @@ public:
   */
   virtual void update_null_value ()
   {
-    switch (cmp_type()) {
-    case INT_RESULT:
-      (void) val_int();
-      break;
-    case REAL_RESULT:
-      (void) val_real();
-      break;
-    case DECIMAL_RESULT:
-      {
-        my_decimal tmp;
-        (void) val_decimal(&tmp);
-      }
-      break;
-    case TIME_RESULT:
-      {
-        MYSQL_TIME ltime;
-        (void) get_temporal_with_sql_mode(&ltime);
-      }
-      break;
-    case STRING_RESULT:
-      {
-        StringBuffer<MAX_FIELD_WIDTH> tmp;
-        (void) val_str(&tmp);
-      }
-      break;
-    case ROW_RESULT:
-      DBUG_ASSERT(0);
-      null_value= true;
-    }
+    return type_handler()->Item_update_null_value(this);
   }
 
   /*
@@ -4653,8 +4623,6 @@ public:
   }
 
   const MYSQL_TIME *const_ptr_mysql_time() const { return &cached_time; }
-  bool is_null()
-  { return is_null_from_temporal(); }
   bool get_date_with_sql_mode(MYSQL_TIME *to);
   String *val_str(String *str)
   { return val_string_from_date(str); }

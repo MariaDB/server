@@ -7287,6 +7287,21 @@ pk	i	c	pk	i	c
 1	10	foo	1	10	foo
 DROP TABLE t;
 # End of 10.2 tests
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-16861 Split Item::update_null_value() into a new virtual method in Type_handler
+#
+SELECT ROW(1,2) = EXISTS (SELECT 1);
+ERROR HY000: Illegal parameter data types row and boolean for operation '='
+SELECT ROW(1,2) = 1 IN (SELECT 1 UNION SELECT 2);
+ERROR HY000: Illegal parameter data types row and boolean for operation '='
+SELECT ROW(1,2) = (1 = ANY (SELECT 1 UNION SELECT 2));
+ERROR HY000: Illegal parameter data types row and boolean for operation '='
+#
+# End of 10.4 tests
+#
 set optimizer_switch=default;
 select @@optimizer_switch like '%subquery_cache=on%';
 @@optimizer_switch like '%subquery_cache=on%'

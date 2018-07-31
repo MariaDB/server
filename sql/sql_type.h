@@ -1420,6 +1420,7 @@ public:
 
   virtual uint32 max_display_length(const Item *item) const= 0;
   virtual uint32 calc_pack_length(uint32 length) const= 0;
+  virtual void Item_update_null_value(Item *item) const= 0;
   virtual bool Item_save_in_value(Item *item, st_value *value) const= 0;
   virtual void Item_param_setup_conversion(THD *thd, Item_param *) const {}
   virtual void Item_param_set_param_func(Item_param *param,
@@ -1789,6 +1790,7 @@ public:
     DBUG_ASSERT(0);
     return true;
   }
+  void Item_update_null_value(Item *item) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const
   {
     DBUG_ASSERT(0);
@@ -2041,6 +2043,7 @@ public:
                                  Item_param *param,
                                  const Type_all_attributes *attr,
                                  const st_value *value) const;
+  void Item_update_null_value(Item *item) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
@@ -2129,6 +2132,7 @@ public:
   {
     return Item_send_str(item, protocol, buf);
   }
+  void Item_update_null_value(Item *item) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
@@ -2330,6 +2334,7 @@ public:
                                  Item_param *param,
                                  const Type_all_attributes *attr,
                                  const st_value *value) const;
+  void Item_update_null_value(Item *item) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
@@ -2503,6 +2508,7 @@ public:
     return Item_temporal_precision(item, false);
   }
   uint Item_decimal_precision(const Item *item) const;
+  void Item_update_null_value(Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   void Item_param_setup_conversion(THD *thd, Item_param *) const;
   void Item_param_set_param_func(Item_param *param,
@@ -2740,6 +2746,7 @@ class Type_handler_bool: public Type_handler_long
 public:
   const Name name() const { return m_name_bool; }
   bool is_bool_type() const { return true; }
+  void Item_update_null_value(Item *item) const;
   bool Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *) const;
 };
 
@@ -3038,6 +3045,7 @@ public:
   {
     return Item_send_time(item, protocol, buf);
   }
+  void Item_update_null_value(Item *item) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
@@ -3140,6 +3148,7 @@ public:
   {
     return Item_send_date(item, protocol, buf);
   }
+  void Item_update_null_value(Item *item) const;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions) const;
   Item *make_const_item_for_comparison(THD *, Item *src, const Item *cmp) const;
   bool set_comparator_func(Arg_comparator *cmp) const;

@@ -5632,7 +5632,7 @@ void Item_func_get_system_var::update_null_value()
   THD *thd= current_thd;
   int save_no_errors= thd->no_errors;
   thd->no_errors= TRUE;
-  Item::update_null_value();
+  type_handler()->Item_update_null_value(this);
   thd->no_errors= save_no_errors;
 }
 

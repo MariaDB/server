@@ -276,13 +276,6 @@ bool Item::get_temporal_with_sql_mode(MYSQL_TIME *ltime)
 }
 
 
-bool Item::is_null_from_temporal()
-{
-  MYSQL_TIME ltime;
-  return get_temporal_with_sql_mode(&ltime);
-}
-
-
 longlong Item::val_int_from_str(int *error)
 {
   char buff[MAX_FIELD_WIDTH];
@@ -7488,7 +7481,7 @@ void Item_field::update_null_value()
 
   no_errors= thd->no_errors;
   thd->no_errors= 1;
-  Item::update_null_value();
+  type_handler()->Item_update_null_value(this);
   thd->no_errors= no_errors;
 }
 

@@ -2619,6 +2619,61 @@ uint32 Type_handler_general_purpose_int::max_display_length(const Item *item)
 
 /*************************************************************************/
 
+void Type_handler_row::Item_update_null_value(Item *item) const
+{
+  DBUG_ASSERT(0);
+  item->null_value= true;
+}
+
+
+void Type_handler_time_common::Item_update_null_value(Item *item) const
+{
+  MYSQL_TIME ltime;
+  (void) item->get_date(&ltime, TIME_TIME_ONLY);
+}
+
+
+void Type_handler_temporal_with_date::Item_update_null_value(Item *item) const
+{
+  MYSQL_TIME ltime;
+  (void) item->get_date(&ltime, sql_mode_for_dates(current_thd));
+}
+
+
+void Type_handler_string_result::Item_update_null_value(Item *item) const
+{
+  StringBuffer<MAX_FIELD_WIDTH> tmp;
+  (void) item->val_str(&tmp);
+}
+
+
+void Type_handler_real_result::Item_update_null_value(Item *item) const
+{
+  (void) item->val_real();
+}
+
+
+void Type_handler_decimal_result::Item_update_null_value(Item *item) const
+{
+  my_decimal tmp;
+  (void) item->val_decimal(&tmp);
+}
+
+
+void Type_handler_int_result::Item_update_null_value(Item *item) const
+{
+  (void) item->val_int();
+}
+
+
+void Type_handler_bool::Item_update_null_value(Item *item) const
+{
+  (void) item->val_bool();
+}
+
+
+/*************************************************************************/
+
 int Type_handler_time_common::Item_save_in_field(Item *item, Field *field,
                                                  bool no_conversions) const
 {

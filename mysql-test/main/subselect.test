@@ -6145,3 +6145,23 @@ SELECT * FROM t t1 RIGHT JOIN t t2 ON (t2.pk = t1.pk)
 DROP TABLE t;
 
 --echo # End of 10.2 tests
+
+
+--echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-16861 Split Item::update_null_value() into a new virtual method in Type_handler
+--echo #
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT ROW(1,2) = EXISTS (SELECT 1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT ROW(1,2) = 1 IN (SELECT 1 UNION SELECT 2);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT ROW(1,2) = (1 = ANY (SELECT 1 UNION SELECT 2));
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
