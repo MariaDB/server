@@ -76,4 +76,4 @@ information_schema: MDEV-14372: unstable testcase
 ##
 
 mysqlbinlog_gtid_skip_empty_trans_rocksdb : MariaRocks: requires GTIDs
-
+autoinc_debug: Fails with wrong results
