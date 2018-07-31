@@ -23,7 +23,7 @@
 #
 ##############################################################################
 
-# Based on 10.0 5e67567b158db5d294b11b310ff35a454f58d034
+# Based on 10.0 e52315a4a2c7e752e786f9fcf63b0b5685b0d474
 
 main.alter_table                   : Modified in 10.0.36
 main.assign_key_cache              : Added in 10.0.36
@@ -89,12 +89,15 @@ main.statistics                    : Modified in 10.0.36
 main.statistics_close              : Added in 10.0.36
 main.stat_tables                   : Modified in 10.0.36
 main.stat_tables_par_innodb        : MDEV-14155 - wrong rounding
+main.subselect                     : Modified in 10.0.36
 main.subselect_innodb              : MDEV-10614 - sporadic wrong results
 main.subselect_sj                  : Modified in 10.0.36
+main.subselect_sj_mat              : Modified in 10.0.36
 main.subselect_sj2_mat             : Modified in 10.0.36
 main.subselect4                    : Modified in 10.0.36
 main.tc_heuristic_recover          : MDEV-15200 - wrong error on mysqld_stub_cmd
 main.type_datetime                 : MDEV-14322 - wrong result
+main.union                         : Modified in 10.0.36
 main.xa                            : MDEV-11769 - lock wait timeout
 
 #----------------------------------------------------------------
@@ -159,6 +162,7 @@ innodb.innodb_bug48024                       : MDEV-14352 - Assertion failure
 innodb.innodb_bug54044                       : Modified in 10.0.36
 innodb.innodb-mdev7046                       : Modified in 10.0.36
 innodb.innodb_monitor                        : MDEV-10939 - Testcase timeout
+innodb.innodb-wl5522                         : Modified in 10.0.36
 innodb.log_file_size                         : MDEV-15668 - Not found pattern
 innodb.recovery_shutdown                     : MDEV-15671 - Warning: database page corruption
 innodb.rename_table                          : Added in 10.0.36
@@ -168,6 +172,7 @@ innodb.xa_recovery                           : MDEV-15279 - mysqld got exception
 innodb_fts.basic                             : Added in 10.0.36
 innodb_fts.innodb-fts-fic                    : MDEV-14154 - Assertion failure
 innodb_fts.innodb_fts_misc_debug             : MDEV-14156 - Unexpected warning
+innodb_fts.sync_ddl                          : Added in 10.0.36
 
 #----------------------------------------------------------------
 
@@ -214,7 +219,7 @@ perfschema_stress.* : MDEV-10996 - tests not maintained
 #----------------------------------------------------------------
 
 plugins.feedback_plugin_send     : MDEV-7932 - ssl failed for url, MDEV-11118 - wrong result
-plugins.processlist              : MDEV-16818 - Syntax error; added in 10.0.36
+plugins.processlist              : MDEV-16818 - Added in 10.0.36
 plugins.server_audit             : MDEV-9562 - crashes on sol10-sparc; modified in 10.0.36
 plugins.thread_pool_server_audit : MDEV-9562 - crashes on sol10-sparc, MDEV-14295 - wrong result
 
