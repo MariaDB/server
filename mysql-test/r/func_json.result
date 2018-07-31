@@ -760,3 +760,9 @@ t1	CREATE TABLE `t1` (
   `c2` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-16054 simple json functions flatline cpu on garbage input.
+#
+select json_array(1,uuid(),compress(5.140264e+307));
+json_array(1,uuid(),compress(5.140264e+307))
+NULL
