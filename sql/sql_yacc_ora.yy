@@ -10413,7 +10413,7 @@ function_call_keyword_timestamp:
           }
         | TIMESTAMP '(' expr ',' expr ')'
           {
-            $$= new (thd->mem_root) Item_func_add_time(thd, $3, $5, 1, 0);
+            $$= new (thd->mem_root) Item_func_timestamp(thd, $3, $5);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }

@@ -667,6 +667,8 @@ class Item_datetimefunc :public Item_temporal_func
 public:
   Item_datetimefunc(THD *thd): Item_temporal_func(thd) {}
   Item_datetimefunc(THD *thd, Item *a): Item_temporal_func(thd, a) {}
+  Item_datetimefunc(THD *thd, Item *a, Item *b):
+    Item_temporal_func(thd, a, b) {}
   Item_datetimefunc(THD *thd, Item *a, Item *b, Item *c):
     Item_temporal_func(thd, a, b ,c) {}
   const Type_handler *type_handler() const { return &type_handler_datetime2; }
@@ -1229,19 +1231,49 @@ public:
 };
 
 
+class Item_func_timestamp :public Item_datetimefunc
+{
+  bool check_arguments() const
+  {
+    return args[0]->check_type_can_return_date(func_name()) ||
+           args[1]->check_type_can_return_time(func_name());
+  }
+public:
+  Item_func_timestamp(THD *thd, Item *a, Item *b)
+   :Item_datetimefunc(thd, a, b)
+  { }
+  const char *func_name() const { return "timestamp"; }
+  bool fix_length_and_dec()
+  {
+    uint dec= MY_MAX(args[0]->datetime_precision(), args[1]->time_precision());
+    fix_attributes_datetime(dec);
+    maybe_null= true;
+    return false;
+  }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
+  {
+    Datetime dt(current_thd, args[0], 0);
+    MYSQL_TIME ltime2;
+    return (null_value= (!dt.is_valid_datetime() ||
+                         args[1]->get_time(&ltime2) ||
+                         Sec6_add(dt.get_mysql_time(), &ltime2, 1).
+                           to_datetime(ltime)));
+  }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_timestamp>(thd, this); }
+};
+
+
 class Item_func_add_time :public Item_temporal_hybrid_func
 {
-  const bool is_date;
   int sign;
-
 public:
-  Item_func_add_time(THD *thd, Item *a, Item *b, bool type_arg, bool neg_arg):
-    Item_temporal_hybrid_func(thd, a, b), is_date(type_arg)
-  { sign= neg_arg ? -1 : 1; }
+  Item_func_add_time(THD *thd, Item *a, Item *b, bool neg_arg)
+   :Item_temporal_hybrid_func(thd, a, b), sign(neg_arg ? -1 : 1)
+  { }
   bool fix_length_and_dec();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
-  void print(String *str, enum_query_type query_type);
-  const char *func_name() const { return "add_time"; }
+  const char *func_name() const { return sign > 0 ? "addtime" : "subtime"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_add_time>(thd, this); }
 };

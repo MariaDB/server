@@ -3636,7 +3636,7 @@ Create_func_addtime Create_func_addtime::s_singleton;
 Item*
 Create_func_addtime::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_add_time(thd, arg1, arg2, 0, 0);
+  return new (thd->mem_root) Item_func_add_time(thd, arg1, arg2, false);
 }
 
 
@@ -6657,7 +6657,7 @@ Create_func_subtime Create_func_subtime::s_singleton;
 Item*
 Create_func_subtime::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_func_add_time(thd, arg1, arg2, 0, 1);
+  return new (thd->mem_root) Item_func_add_time(thd, arg1, arg2, true);
 }
 
 

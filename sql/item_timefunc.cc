@@ -2698,8 +2698,7 @@ bool Item_func_add_time::fix_length_and_dec()
   arg0_field_type= args[0]->field_type();
   if (arg0_field_type == MYSQL_TYPE_DATE ||
       arg0_field_type == MYSQL_TYPE_DATETIME ||
-      arg0_field_type == MYSQL_TYPE_TIMESTAMP ||
-      is_date)
+      arg0_field_type == MYSQL_TYPE_TIMESTAMP)
   {
     uint dec= MY_MAX(args[0]->datetime_precision(), args[1]->time_precision());
     set_handler(&type_handler_datetime2);
@@ -2764,27 +2763,6 @@ bool Item_func_add_time::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   Sec6_add add(&l_time1, &l_time2, sign);
   return (null_value= (l_time1.time_type == MYSQL_TIMESTAMP_TIME ?
                        add.to_time(ltime, decimals) : add.to_datetime(ltime)));
-}
-
-
-void Item_func_add_time::print(String *str, enum_query_type query_type)
-{
-  if (is_date)
-  {
-    DBUG_ASSERT(sign > 0);
-    str->append(STRING_WITH_LEN("timestamp("));
-  }
-  else
-  {
-    if (sign > 0)
-      str->append(STRING_WITH_LEN("addtime("));
-    else
-      str->append(STRING_WITH_LEN("subtime("));
-  }
-  args[0]->print(str, query_type);
-  str->append(',');
-  args[1]->print(str, query_type);
-  str->append(')');
 }
 
 
