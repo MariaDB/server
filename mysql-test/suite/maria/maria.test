@@ -1990,3 +1990,28 @@ aria_page_checksum=$default_checksum,
 aria_log_file_size=$default_log_file_size;
 --enable_result_log
 --enable_query_log
+
+
+--echo #
+--echo # Start of 5.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-16534 PPC64: Unexpected error with a negative values into auto-increment columns in HEAP, MyISAM, ARIA
+--echo #
+
+CREATE TABLE t1 (
+  id TINYINT NOT NULL AUTO_INCREMENT,
+  name CHAR(30) NOT NULL,
+  PRIMARY KEY (id)
+) ENGINE=ARIA;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (name) VALUES ('dog');
+UPDATE t1 SET id=-1 WHERE id=1;
+INSERT INTO t1 (name) VALUES ('cat');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 5.5 tests
+--echo #

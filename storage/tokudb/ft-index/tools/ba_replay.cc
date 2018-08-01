@@ -638,7 +638,7 @@ int main(int argc, char *argv[]) {
                                    it == candidate_strategies.begin() ? &stats : &dummy_stats);
 
         struct fragmentation_report aggregate_report;
-        memset(&aggregate_report, 0, sizeof(aggregate_report));
+        memset(static_cast<void *>(&aggregate_report), 0, sizeof(aggregate_report));
         for (map<uint64_t, struct fragmentation_report>::iterator rp = reports.begin();
              rp != reports.end(); rp++) {
             const struct fragmentation_report &report = rp->second;

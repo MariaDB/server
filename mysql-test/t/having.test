@@ -744,3 +744,12 @@ SELECT a, COUNT(a) as ct FROM t1 GROUP BY a HAVING ct>0;
 set sql_mode=@save_sql_mode;
 
 drop table t1;
+
+--echo #
+--echo # mdev-16235: impossible HAVING in query without aggregation
+--echo #
+
+explain extended
+select * from mysql.help_topic where example = 'foo' having description is null;
+
+select * from mysql.help_topic where example = 'foo' having description is null;

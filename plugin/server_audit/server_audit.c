@@ -15,7 +15,7 @@
 
 
 #define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.4.3"
+#define PLUGIN_STR_VERSION "1.4.4"
 
 #define _my_thread_var loc_thread_var
 
@@ -366,16 +366,17 @@ static MYSQL_SYSVAR_STR(excl_users, excl_users, PLUGIN_VAR_RQCMDARG,
 /* bits in the event filter. */
 #define EVENT_CONNECT 1
 #define EVENT_QUERY_ALL 2
-#define EVENT_QUERY 58
+#define EVENT_QUERY 122
 #define EVENT_TABLE 4
 #define EVENT_QUERY_DDL 8
 #define EVENT_QUERY_DML 16
 #define EVENT_QUERY_DCL 32
+#define EVENT_QUERY_DML_NO_SELECT 64
 
 static const char *event_names[]=
 {
   "CONNECT", "QUERY", "TABLE", "QUERY_DDL", "QUERY_DML", "QUERY_DCL",
-  NULL
+  "QUERY_DML_NO_SELECT", NULL
 };
 static TYPELIB events_typelib=
 {
@@ -383,7 +384,7 @@ static TYPELIB events_typelib=
 };
 static MYSQL_SYSVAR_SET(events, events, PLUGIN_VAR_RQCMDARG,
        "Specifies the set of events to monitor. Can be CONNECT, QUERY, TABLE,"
-           " QUERY_DDL, QUERY_DML, QUERY_DCL.",
+           " QUERY_DDL, QUERY_DML, QUERY_DML_NO_SELECT, QUERY_DCL.",
        NULL, NULL, 0, &events_typelib);
 #define OUTPUT_SYSLOG 0
 #define OUTPUT_FILE 1
@@ -850,6 +851,21 @@ struct sa_keyword dml_keywords[]=
   {6, "DELETE", 0, SQLCOM_DML},
   {6, "INSERT", 0, SQLCOM_DML},
   {6, "SELECT", 0, SQLCOM_DML},
+  {6, "UPDATE", 0, SQLCOM_DML},
+  {7, "HANDLER", 0, SQLCOM_DML},
+  {7, "REPLACE", 0, SQLCOM_DML},
+  {0, NULL, 0, SQLCOM_DML}
+};
+
+
+struct sa_keyword dml_no_select_keywords[]=
+{
+  {2, "DO", 0, SQLCOM_DML},
+  {4, "CALL", 0, SQLCOM_DML},
+  {4, "LOAD", &data_word, SQLCOM_DML},
+  {4, "LOAD", &xml_word, SQLCOM_DML},
+  {6, "DELETE", 0, SQLCOM_DML},
+  {6, "INSERT", 0, SQLCOM_DML},
   {6, "UPDATE", 0, SQLCOM_DML},
   {7, "HANDLER", 0, SQLCOM_DML},
   {7, "REPLACE", 0, SQLCOM_DML},
@@ -1635,6 +1651,11 @@ static int log_statement_ex(const struct connection_info *cn,
     if (events & EVENT_QUERY_DML)
     {
       if (filter_query_type(query, dml_keywords))
+        goto do_log_query;
+    }
+    if (events & EVENT_QUERY_DML_NO_SELECT)
+    {
+      if (filter_query_type(query, dml_no_select_keywords))
         goto do_log_query;
     }
     if (events & EVENT_QUERY_DCL)

@@ -712,3 +712,14 @@ a	ct
 4	2
 set sql_mode=@save_sql_mode;
 drop table t1;
+#
+# mdev-16235: impossible HAVING in query without aggregation
+#
+explain extended
+select * from mysql.help_topic where example = 'foo' having description is null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+Warnings:
+Note	1003	select `mysql`.`help_topic`.`help_topic_id` AS `help_topic_id`,`mysql`.`help_topic`.`name` AS `name`,`mysql`.`help_topic`.`help_category_id` AS `help_category_id`,`mysql`.`help_topic`.`description` AS `description`,`mysql`.`help_topic`.`example` AS `example`,`mysql`.`help_topic`.`url` AS `url` from `mysql`.`help_topic` where (`mysql`.`help_topic`.`example` = 'foo') having 0
+select * from mysql.help_topic where example = 'foo' having description is null;
+help_topic_id	name	help_category_id	description	example	url

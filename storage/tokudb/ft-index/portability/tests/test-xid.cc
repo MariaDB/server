@@ -103,11 +103,18 @@ PATENT RIGHTS GRANT:
 #if defined(HAVE_PTHREAD_NP_H)
 # include <pthread_np.h>
 #endif
+#if defined(HAVE_PTHREAD_H)
+# include <pthread.h>
+#endif
 
 // since we implement the same thing here as in toku_os_gettid, this test
 // is pretty pointless
 static int gettid(void) {
-#if defined(__NR_gettid)
+#if defined(HAVE_PTHREAD_THREADID_NP)
+    uint64_t result;
+    pthread_threadid_np(NULL, &result);
+    return (int) result;
+#elif defined(__NR_gettid)
     return syscall(__NR_gettid);
 #elif defined(SYS_gettid)
     return syscall(SYS_gettid);

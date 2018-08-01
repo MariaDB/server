@@ -121,6 +121,13 @@ select 2;
 /*! select 2*/;
 /*comment*/ select 2;
 drop table t1;
+set global server_audit_events='query_dml_no_select';
+create table t1(id int);
+insert into t1 values (1), (2);
+select * from t1;
+select 2;
+drop table t1;
+
 set global server_audit_events='';
 
 set global server_audit_query_log_limit= 15;

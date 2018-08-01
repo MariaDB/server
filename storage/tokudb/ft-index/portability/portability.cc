@@ -115,6 +115,9 @@ PATENT RIGHTS GRANT:
 #if defined(HAVE_SYS_SYSCTL_H)
 # include <sys/sysctl.h>
 #endif
+#if defined(HAVE_PTHREAD_H)
+# include <pthread.h>
+#endif
 #if defined(HAVE_PTHREAD_NP_H)
 # include <pthread_np.h>
 #endif
@@ -154,7 +157,11 @@ toku_os_getpid(void) {
 
 int
 toku_os_gettid(void) {
-#if defined(__NR_gettid)
+#if defined(HAVE_PTHREAD_THREADID_NP)
+    uint64_t result;
+    pthread_threadid_np(NULL, &result);
+    return (int) result; // Used for instrumentation so overflow is ok here.
+#elif defined(__NR_gettid)
     return syscall(__NR_gettid);
 #elif defined(SYS_gettid)
     return syscall(SYS_gettid);

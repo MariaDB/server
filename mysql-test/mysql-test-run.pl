@@ -641,50 +641,59 @@ sub run_test_server ($$$) {
 	    my $worker_savename= basename($worker_savedir);
 	    my $savedir= "$opt_vardir/log/$worker_savename";
 
+            # Move any core files from e.g. mysqltest
+            foreach my $coref (glob("core*"), glob("*.dmp"))
+            {
+              mtr_report(" - found '$coref', moving it to '$worker_savedir'");
+              move($coref, $worker_savedir);
+            }
+
+            find(
+            {
+              no_chdir => 1,
+              wanted => sub
+              {
+                my $core_file= $File::Find::name;
+                my $core_name= basename($core_file);
+
+                # Name beginning with core, not ending in .gz
+                if (($core_name =~ /^core/ and $core_name !~ /\.gz$/)
+                    or (IS_WINDOWS and $core_name =~ /\.dmp$/))
+                {
+                  # Ending with .dmp
+                  mtr_report(" - found '$core_name'",
+                             "($num_saved_cores/$opt_max_save_core)");
+
+                  My::CoreDump->show($core_file, $exe_mysqld, $opt_parallel);
+
+                  # Limit number of core files saved
+                  if ($opt_max_save_core > 0 &&
+                      $num_saved_cores >= $opt_max_save_core)
+                  {
+                    mtr_report(" - deleting it, already saved",
+                               "$opt_max_save_core");
+                    unlink("$core_file");
+                  }
+                  else
+                  {
+                    mtr_compress_file($core_file) unless @opt_cases;
+                    ++$num_saved_cores;
+                  }
+                }
+              }
+            },
+            $worker_savedir);
+
 	    if ($opt_max_save_datadir > 0 &&
 		$num_saved_datadir >= $opt_max_save_datadir)
 	    {
 	      mtr_report(" - skipping '$worker_savedir/'");
 	      rmtree($worker_savedir);
 	    }
-	    else {
+            else
+            {
 	      mtr_report(" - saving '$worker_savedir/' to '$savedir/'");
 	      rename($worker_savedir, $savedir);
-	      # Move any core files from e.g. mysqltest
-	      foreach my $coref (glob("core*"), glob("*.dmp"))
-	      {
-		mtr_report(" - found '$coref', moving it to '$savedir'");
-                move($coref, $savedir);
-              }
-	      if ($opt_max_save_core > 0) {
-		# Limit number of core files saved
-		find({ no_chdir => 1,
-		       wanted => sub {
-			 my $core_file= $File::Find::name;
-			 my $core_name= basename($core_file);
-
-			 # Name beginning with core, not ending in .gz
-			 if (($core_name =~ /^core/ and $core_name !~ /\.gz$/)
-			     or (IS_WINDOWS and $core_name =~ /\.dmp$/)){
-                                                       # Ending with .dmp
-			   mtr_report(" - found '$core_name'",
-				      "($num_saved_cores/$opt_max_save_core)");
-
-			   My::CoreDump->show($core_file, $exe_mysqld, $opt_parallel);
-
-			   if ($num_saved_cores >= $opt_max_save_core) {
-			     mtr_report(" - deleting it, already saved",
-					"$opt_max_save_core");
-			     unlink("$core_file");
-			   } else {
-			     mtr_compress_file($core_file) unless @opt_cases;
-			   }
-			   ++$num_saved_cores;
-			 }
-		       }
-		     },
-		     $savedir);
-	      }
 	    }
 	    resfile_print_test();
 	    $num_saved_datadir++;
@@ -6046,7 +6055,7 @@ sub lldb_arguments {
   $input = $input ? "< $input" : "";
 
   # write init file for mysqld or client
-  mtr_tofile($lldb_init_file, "set args $str $input\n");
+  mtr_tofile($lldb_init_file, "process launch --stop-at-entry -- $str $input\n");
 
     print "\nTo start lldb for $type, type in another window:\n";
     print "cd $glob_mysql_test_dir && lldb -s $lldb_init_file $$exe\n";

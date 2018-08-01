@@ -1574,15 +1574,7 @@ drop database mysqltest1;
 
 
 --echo End of 5.0 tests
-
-#
-# Bug#21432 Database/Table name limited to 64 bytes, not chars, problems with multi-byte
-#
 set names utf8;
-grant select on test.* to юзер_юзер@localhost;
---exec $MYSQL --default-character-set=utf8 --user=юзер_юзер -e "select user()"
-revoke all on test.* from юзер_юзер@localhost;
-drop user юзер_юзер@localhost;
 --error ER_WRONG_STRING_LENGTH
 grant select on test.* to очень_длинный_юзер@localhost;
 set names default;
@@ -1667,6 +1659,9 @@ use test;
 #
 # Bug#16470 crash on grant if old grant tables
 #
+
+call mtr.add_suppression("Can't open and lock privilege tables");
+
 --echo FLUSH PRIVILEGES without procs_priv table.
 RENAME TABLE mysql.procs_priv TO mysql.procs_gone;
 --error ER_NO_SUCH_TABLE

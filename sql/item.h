@@ -644,6 +644,7 @@ public:
   bool null_value;			/* if item is null */
   bool unsigned_flag;
   bool with_sum_func;                   /* True if item contains a sum func */
+  bool with_param;                      /* True if contains an SP parameter */
   /**
     True if any item except Item_sum_func contains a field. Set during parsing.
   */
@@ -1232,6 +1233,11 @@ public:
   virtual bool limit_index_condition_pushdown_processor(uchar *opt_arg)
   { 
     return FALSE;
+  }
+  bool cleanup_is_expensive_cache_processor(uchar *arg)
+  {
+    is_expensive_cache= (int8)(-1);
+    return 0;
   }
 
   /* To call bool function for all arguments */

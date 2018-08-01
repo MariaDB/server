@@ -1800,7 +1800,7 @@ maria_declare_plugin(csv)
   &csv_storage_engine,
   "CSV",
   "Brian Aker, MySQL AB",
-  "CSV storage engine",
+  "Stores tables as CSV files",
   PLUGIN_LICENSE_GPL,
   tina_init_func, /* Plugin Init */
   tina_done_func, /* Plugin Deinit */
