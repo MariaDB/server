@@ -5624,7 +5624,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
           if (equality->fix_fields(thd, NULL))
             return NULL;
         }
-        *cond_eq= &new_cond_equal;
+        (*cond_eq)->copy(new_cond_equal);
       }
       new_conds_list.append((List<Item> *)&new_cond_equal.current_level);
     }
