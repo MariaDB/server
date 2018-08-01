@@ -40,8 +40,6 @@ class Item_func :public Item_func_or_sum,
 {
   void sync_with_sum_func_and_with_field(List<Item> &list);
 protected:
-  String *val_str_from_val_str_ascii(String *str, String *str2);
-
   virtual bool check_arguments() const
   {
     return check_argument_types_scalar(0, arg_count);
@@ -188,6 +186,8 @@ public:
     update_null_value();
     return null_value; 
   }
+  String *val_str_from_val_str_ascii(String *str, String *str2);
+
   void signal_divide_by_null();
   friend class udf_handler;
   Field *create_field_for_create_select(TABLE *table)
@@ -446,6 +446,64 @@ public:
   void set_geometry_type(uint type)
   {
     Type_geometry_attributes::set_geometry_type(type);
+  }
+};
+
+
+class Item_handled_func: public Item_func
+{
+public:
+  class Handler
+  {
+  public:
+    virtual ~Handler() { }
+    virtual String *val_str(Item_handled_func *, String *) const= 0;
+    virtual String *val_str_ascii(Item_handled_func *, String *) const= 0;
+    virtual double val_real(Item_handled_func *) const= 0;
+    virtual longlong val_int(Item_handled_func *) const= 0;
+    virtual my_decimal *val_decimal(Item_handled_func *, my_decimal *) const= 0;
+    virtual bool get_date(Item_handled_func *, MYSQL_TIME *, ulonglong fuzzydate) const= 0;
+    virtual const Type_handler *return_type_handler() const= 0;
+    virtual bool fix_length_and_dec(Item_handled_func *) const= 0;
+  };
+protected:
+  const Handler *m_func_handler;
+public:
+  Item_handled_func(THD *thd, Item *a)
+   :Item_func(thd, a), m_func_handler(NULL) { }
+  Item_handled_func(THD *thd, Item *a, Item *b)
+   :Item_func(thd, a, b), m_func_handler(NULL) { }
+  void set_func_handler(const Handler *handler)
+  {
+    m_func_handler= handler;
+  }
+  const Type_handler *type_handler() const
+  {
+    return m_func_handler->return_type_handler();
+  }
+  String *val_str(String *to)
+  {
+    return m_func_handler->val_str(this, to);
+  }
+  String *val_str_ascii(String *to)
+  {
+    return m_func_handler->val_str_ascii(this, to);
+  }
+  double val_real()
+  {
+    return m_func_handler->val_real(this);
+  }
+  longlong val_int()
+  {
+    return m_func_handler->val_int(this);
+  }
+  my_decimal *val_decimal(my_decimal *to)
+  {
+    return m_func_handler->val_decimal(this, to);
+  }
+  bool get_date(MYSQL_TIME *to, ulonglong fuzzydate)
+  {
+    return m_func_handler->get_date(this, to, fuzzydate);
   }
 };
 

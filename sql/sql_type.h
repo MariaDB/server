@@ -367,6 +367,11 @@ protected:
   {
     make_from_item(thd, item, flags);
   }
+public:
+  bool check_date_with_warn(ulonglong flags)
+  {
+    return ::check_date_with_warn(this, flags, MYSQL_TIMESTAMP_ERROR);
+  }
 };
 
 
