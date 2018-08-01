@@ -2022,3 +2022,23 @@ EVAL $query;
 EVAL EXPLAIN FORMAT=JSON $query;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16803: pushdown condition with IN predicate in the derived table
+--echo #             defined with several SELECT statements
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2),(3,2),(1,1);
+
+SELECT * FROM
+(
+  SELECT a,b,1 as c
+  FROM t1
+  UNION ALL
+  SELECT a,b,2 as c
+  FROM t1
+) AS tab
+WHERE ((a,b) IN ((1,2),(3,2)));
+
+DROP TABLE t1;

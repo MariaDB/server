@@ -10220,3 +10220,24 @@ EXPLAIN
   }
 }
 DROP TABLE t1;
+#
+# MDEV-16803: pushdown condition with IN predicate in the derived table
+#             defined with several SELECT statements
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2),(3,2),(1,1);
+SELECT * FROM
+(
+SELECT a,b,1 as c
+FROM t1
+UNION ALL
+SELECT a,b,2 as c
+FROM t1
+) AS tab
+WHERE ((a,b) IN ((1,2),(3,2)));
+a	b	c
+1	2	1
+3	2	1
+1	2	2
+3	2	2
+DROP TABLE t1;
