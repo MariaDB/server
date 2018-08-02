@@ -164,6 +164,7 @@ protected:
     double d= (double) num + frac / (double) TIME_SECOND_PART_FACTOR;
     return negate ? -d : d;
   }
+  longlong to_packed() const { return ::pack_time(this); }
 public:
 };
 
@@ -373,8 +374,8 @@ public:
   {
     DBUG_ASSERT(is_valid_time_slow());
     DBUG_ASSERT(other->is_valid_time_slow());
-    longlong p0= pack_time(this);
-    longlong p1= pack_time(other);
+    longlong p0= to_packed();
+    longlong p1= other->to_packed();
     if (p0 < p1)
       return -1;
     if (p0 > p1)
@@ -414,6 +415,10 @@ public:
   my_decimal *to_decimal(my_decimal *to)
   {
     return is_valid_time() ? Temporal::to_decimal(to) : bad_to_decimal(to);
+  }
+  longlong to_packed() const
+  {
+    return is_valid_time() ? Temporal::to_packed() : 0;
   }
 };
 
@@ -459,6 +464,8 @@ public:
   {
     return ::check_date_with_warn(this, flags, MYSQL_TIMESTAMP_ERROR);
   }
+  static sql_mode_t comparison_flags_for_get_date()
+  { return TIME_INVALID_DATES | TIME_FUZZY_DATES; }
 };
 
 
@@ -665,6 +672,10 @@ public:
   my_decimal *to_decimal(my_decimal *to)
   {
     return is_valid_datetime() ? Temporal::to_decimal(to) : bad_to_decimal(to);
+  }
+  longlong to_packed() const
+  {
+    return is_valid_datetime() ? Temporal::to_packed() : 0;
   }
 };
 

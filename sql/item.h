@@ -1654,15 +1654,13 @@ public:
   // Get a DATE or DATETIME value in numeric packed format for comparison
   virtual longlong val_datetime_packed()
   {
-    ulonglong fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES;
-    Datetime dt(current_thd, this, fuzzydate);
-    return dt.is_valid_datetime() ? pack_time(dt.get_mysql_time()) : 0;
+    ulonglong fuzzydate= Datetime::comparison_flags_for_get_date();
+    return Datetime(current_thd, this, fuzzydate).to_packed();
   }
   // Get a TIME value in numeric packed format for comparison
   virtual longlong val_time_packed()
   {
-    Time tm(this, Time::comparison_flags_for_get_date());
-    return tm.is_valid_time() ? pack_time(tm.get_mysql_time()) : 0;
+    return Time(this, Time::comparison_flags_for_get_date()).to_packed();
   }
   longlong val_datetime_packed_result();
   longlong val_time_packed_result()
@@ -6491,8 +6489,6 @@ class Item_cache_temporal: public Item_cache_int
 protected:
   Item_cache_temporal(THD *thd, const Type_handler *handler);
 public:
-  longlong val_datetime_packed();
-  longlong val_time_packed();
   bool cache_value();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   int save_in_field(Field *field, bool no_conversions);
@@ -6517,6 +6513,15 @@ public:
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_cache_time>(thd, this); }
   Item *make_literal(THD *);
+  longlong val_datetime_packed()
+  {
+    ulonglong fuzzy= Datetime::comparison_flags_for_get_date();
+    return has_value() ? Datetime(current_thd, this, fuzzy).to_longlong() : 0;
+  }
+  longlong val_time_packed()
+  {
+    return has_value() ? value : 0;
+  }
   longlong val_int()
   {
     return has_value() ? Time(this).to_longlong() : 0;
@@ -6544,6 +6549,14 @@ public:
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_cache_datetime>(thd, this); }
   Item *make_literal(THD *);
+  longlong val_datetime_packed()
+  {
+    return has_value() ? value : 0;
+  }
+  longlong val_time_packed()
+  {
+    return Time(this, Time::comparison_flags_for_get_date()).to_packed();
+  }
   longlong val_int()
   {
     return has_value() ? Datetime(this).to_longlong() : 0;
@@ -6571,6 +6584,14 @@ public:
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_cache_date>(thd, this); }
   Item *make_literal(THD *);
+  longlong val_datetime_packed()
+  {
+    return has_value() ? value : 0;
+  }
+  longlong val_time_packed()
+  {
+    return Time(this, Time::comparison_flags_for_get_date()).to_packed();
+  }
   longlong val_int() { return has_value() ? Date(this).to_longlong() : 0; }
   double val_real() { return has_value() ? Date(this).to_double() : 0; }
   String *val_str(String *to)

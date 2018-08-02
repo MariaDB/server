@@ -118,7 +118,7 @@ void Item::push_note_converted_to_positive_complement(THD *thd)
 longlong Item::val_datetime_packed_result()
 {
   MYSQL_TIME ltime, tmp;
-  if (get_date_result(&ltime, TIME_FUZZY_DATES | TIME_INVALID_DATES))
+  if (get_date_result(&ltime, Datetime::comparison_flags_for_get_date()))
     return 0;
   if (ltime.time_type != MYSQL_TIMESTAMP_TIME)
     return pack_time(&ltime);
@@ -9993,32 +9993,6 @@ Item_cache_temporal::Item_cache_temporal(THD *thd, const Type_handler *handler)
 {
   if (mysql_timestamp_type() == MYSQL_TIMESTAMP_ERROR)
     set_handler(&type_handler_datetime2);
-}
-
-
-longlong Item_cache_temporal::val_datetime_packed()
-{
-  if (Item_cache_temporal::field_type() == MYSQL_TYPE_TIME)
-    return Item::val_datetime_packed(); // TIME-to-DATETIME conversion needed
-  if ((!value_cached && !cache_value()) || null_value)
-  {
-    null_value= TRUE;
-    return 0;
-  }
-  return value;
-}
-
-
-longlong Item_cache_temporal::val_time_packed()
-{
-  if (Item_cache_temporal::field_type() != MYSQL_TYPE_TIME)
-    return Item::val_time_packed(); // DATETIME-to-TIME conversion needed
-  if ((!value_cached && !cache_value()) || null_value)
-  {
-    null_value= TRUE;
-    return 0;
-  }
-  return value;
 }
 
 

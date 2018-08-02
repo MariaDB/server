@@ -5800,7 +5800,7 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
   case ANY_SUBST:
     if (!is_temporal_type_with_date(const_item->field_type()))
     {
-      Datetime dt(thd, const_item, TIME_FUZZY_DATES | TIME_INVALID_DATES);
+      Datetime dt(thd, const_item, Datetime::comparison_flags_for_get_date());
       if (!dt.is_valid_datetime())
         return NULL;
       return new (thd->mem_root)
@@ -6633,7 +6633,7 @@ Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
     if (!is_temporal_type_with_date(const_item->field_type()))
     {
       // Get the value of const_item with conversion from TIME to DATETIME
-      Datetime dt(thd, const_item, TIME_FUZZY_DATES | TIME_INVALID_DATES);
+      Datetime dt(thd, const_item, Datetime::comparison_flags_for_get_date());
       if (!dt.is_valid_datetime())
         return NULL;
       /*
