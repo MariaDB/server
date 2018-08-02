@@ -1,0 +1,5 @@
+call mtr.add_suppression("InnoDB: (Operating system error|The error means|Cannot rename file)");
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+RENAME TABLE t1 TO non_existing_db.t1;
+ERROR HY000: Error on rename of '**path-to-t1**' to '**path-to-non-existing-db-t1**' (errno: -1 "Internal error < 0 (Not system error)")
+DROP TABLE t1;

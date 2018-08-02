@@ -1,6 +1,6 @@
 #ifndef SQL_COMMON_INCLUDED
 #define SQL_COMMON_INCLUDED
-/* Copyright (c) 2003, 2012, Oracle and/or its affiliates.
+/* Copyright (c) 2003, 2018, Oracle and/or its affiliates.
    Copyright (c) 2010, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify

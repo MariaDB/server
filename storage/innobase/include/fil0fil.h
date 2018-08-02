@@ -256,10 +256,6 @@ struct fil_space_t {
 				the space corresponds to a table in the InnoDB
 				data dictionary; so we can print a warning of
 				orphaned tablespaces */
-	ibool		stop_ios;/*!< TRUE if we want to rename the
-				.ibd file of tablespace and want to
-				stop temporarily posting of new i/o
-				requests on the file */
 	ibool		stop_new_ops;
 				/*!< we set this TRUE when we start
 				deleting a single-table tablespace.

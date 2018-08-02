@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2012, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -105,18 +105,18 @@ struct row_index_t {
 struct row_import {
 	row_import() UNIV_NOTHROW
 		:
-		m_table(),
-		m_version(),
-		m_hostname(),
-		m_table_name(),
-		m_autoinc(),
-		m_page_size(),
-		m_flags(),
-		m_n_cols(),
-		m_cols(),
-		m_col_names(),
-		m_n_indexes(),
-		m_indexes(),
+		m_table(NULL),
+		m_version(0),
+		m_hostname(NULL),
+		m_table_name(NULL),
+		m_autoinc(0),
+		m_page_size(0),
+		m_flags(0),
+		m_n_cols(0),
+		m_cols(NULL),
+		m_col_names(NULL),
+		m_n_indexes(0),
+		m_indexes(NULL),
 		m_missing(true) { }
 
 	~row_import() UNIV_NOTHROW;
@@ -1333,17 +1333,63 @@ row_import::match_schema(
 {
 	/* Do some simple checks. */
 
-	if ((m_table->flags ^ m_flags) & ~DICT_TF_MASK_DATA_DIR) {
+	if (ulint mismatch = (m_table->flags ^ m_flags)
+	    & ~DICT_TF_MASK_DATA_DIR) {
+		const char* msg;
+		if (mismatch & DICT_TF_MASK_ZIP_SSIZE) {
+			if ((m_table->flags & DICT_TF_MASK_ZIP_SSIZE)
+			    && (m_flags & DICT_TF_MASK_ZIP_SSIZE)) {
+				switch (m_flags & DICT_TF_MASK_ZIP_SSIZE) {
+				case 0U << DICT_TF_POS_ZIP_SSIZE:
+					goto uncompressed;
+				case 1U << DICT_TF_POS_ZIP_SSIZE:
+					msg = "ROW_FORMAT=COMPRESSED"
+						" KEY_BLOCK_SIZE=1";
+					break;
+				case 2U << DICT_TF_POS_ZIP_SSIZE:
+					msg = "ROW_FORMAT=COMPRESSED"
+						" KEY_BLOCK_SIZE=2";
+					break;
+				case 3U << DICT_TF_POS_ZIP_SSIZE:
+					msg = "ROW_FORMAT=COMPRESSED"
+						" KEY_BLOCK_SIZE=4";
+					break;
+				case 4U << DICT_TF_POS_ZIP_SSIZE:
+					msg = "ROW_FORMAT=COMPRESSED"
+						" KEY_BLOCK_SIZE=8";
+					break;
+				case 5U << DICT_TF_POS_ZIP_SSIZE:
+					msg = "ROW_FORMAT=COMPRESSED"
+						" KEY_BLOCK_SIZE=16";
+					break;
+				default:
+					msg = "strange KEY_BLOCK_SIZE";
+				}
+			} else if (m_flags & DICT_TF_MASK_ZIP_SSIZE) {
+				msg = "ROW_FORMAT=COMPRESSED";
+			} else {
+				goto uncompressed;
+			}
+		} else {
+uncompressed:
+			msg = (m_flags & DICT_TF_MASK_ATOMIC_BLOBS)
+				? "ROW_FORMAT=DYNAMIC"
+				: (m_flags & DICT_TF_MASK_COMPACT)
+				? "ROW_FORMAT=COMPACT"
+				: "ROW_FORMAT=REDUNDANT";
+		}
+
 		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
 			"Table flags don't match, server table has 0x%x"
-			" and the meta-data file has 0x%lx",
-			m_table->flags, ulong(m_flags));
+			" and the meta-data file has 0x%lx;"
+			" .cfg file uses %s",
+			m_table->flags, ulong(m_flags), msg);
 
 		return(DB_ERROR);
 	} else if (m_table->n_cols != m_n_cols) {
 		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
-			"Number of columns don't match, table has %u"
-			" columns but the tablespace meta-data file has "
+			"Number of columns don't match, table has %u "
+			"columns but the tablespace meta-data file has "
 			ULINTPF " columns",
 			m_table->n_cols, m_n_cols);
 
@@ -1820,13 +1866,8 @@ PageConverter::update_records(
 
 	m_rec_iter.open(block);
 
-	if (!page_is_leaf(block->frame)) {
-		return DB_SUCCESS;
-	}
-
 	while (!m_rec_iter.end()) {
 		rec_t*	rec = m_rec_iter.current();
-
 		ibool	deleted = rec_get_deleted_flag(rec, comp);
 
 		/* For the clustered index we have to adjust the BLOB
@@ -1928,11 +1969,7 @@ PageConverter::update_index_page(
 		return(DB_SUCCESS);
 	}
 
-	if (!page_is_leaf(block->frame)) {
-		return (DB_SUCCESS);
-	}
-
-	return(update_records(block));
+	return page_is_leaf(block->frame) ? update_records(block) : DB_SUCCESS;
 }
 
 /**
@@ -3520,8 +3557,6 @@ row_import_for_mysql(
 	rw_lock_s_lock_func(&dict_operation_lock, 0, __FILE__, __LINE__);
 
 	row_import	cfg;
-
-	memset(&cfg, 0x0, sizeof(cfg));
 
 	err = row_import_read_cfg(table, trx->mysql_thd, cfg);
 

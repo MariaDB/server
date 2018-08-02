@@ -66,7 +66,7 @@ my_bool _ma_setup_live_state(MARIA_HA *info)
     DBUG_RETURN(1);
 
   trn= info->trn;
-  for (tables= (MARIA_USED_TABLES*) info->trn->used_tables;
+  for (tables= (MARIA_USED_TABLES*) trn->used_tables;
        tables;
        tables= tables->next)
   {
@@ -551,6 +551,7 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
     my_free(tables);
   }
   trn->used_tables= 0;
+  trn->used_instances= 0;
   DBUG_RETURN(error);
 }
 
@@ -565,18 +566,25 @@ my_bool _ma_trnman_end_trans_hook(TRN *trn, my_bool commit,
      share->internal_lock must be locked when function is called
 */
 
-void _ma_remove_table_from_trnman(MARIA_SHARE *share, TRN *trn)
+void _ma_remove_table_from_trnman(MARIA_HA *info)
 {
+  MARIA_SHARE *share= info->s;
+  TRN *trn= info->trn;
   MARIA_USED_TABLES *tables, **prev;
+  MARIA_HA *handler, **prev_file;
   DBUG_ENTER("_ma_remove_table_from_trnman");
   DBUG_PRINT("enter", ("trn: %p  used_tables: %p  share: %p  in_trans: %d",
                        trn, trn->used_tables, share, share->in_trans));
 
   mysql_mutex_assert_owner(&share->intern_lock);
+
+  if (trn == &dummy_transaction_object)
+    DBUG_VOID_RETURN;
   
-  for (prev= (MARIA_USED_TABLES**) (char*) &trn->used_tables, tables= *prev;
-       tables;
-       tables= *prev)
+  /* First remove share from used_tables */
+  for (prev= (MARIA_USED_TABLES**) (char*) &trn->used_tables;
+       (tables= *prev);
+       prev= &tables->next)
   {
     if (tables->share == share)
     {
@@ -585,8 +593,36 @@ void _ma_remove_table_from_trnman(MARIA_SHARE *share, TRN *trn)
       my_free(tables);
       break;
     }
-    prev= &tables->next;
   }
+  if (tables != 0)
+  {
+    /*
+      This can only happens in case of rename of intermediate table as
+      part of alter table
+    */
+    DBUG_PRINT("warning", ("share: %p where not in used_tables_list", share));
+  }
+
+  /* unlink table from used_instances */
+  for (prev_file= (MARIA_HA**) &trn->used_instances;
+       (handler= *prev_file);
+       prev_file= &handler->trn_next)
+  {
+    if (handler == info)
+    {
+      *prev_file= info->trn_next;
+      break;
+    }
+  }
+  if (handler != 0)
+  {
+    /*
+      This can only happens in case of rename of intermediate table as
+      part of alter table
+    */
+    DBUG_PRINT("warning", ("table: %p where not in used_instances", info));
+  }
+  info->trn= 0;                                 /* Not part of trans anymore */
   DBUG_VOID_RETURN;
 }
 

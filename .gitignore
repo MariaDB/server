@@ -462,3 +462,9 @@ UpgradeLog*.htm
 
 # Microsoft Fakes
 FakesAssemblies/
+
+# macOS garbage
+.DS_Store
+
+# QtCreator && CodeBlocks
+*.cbp

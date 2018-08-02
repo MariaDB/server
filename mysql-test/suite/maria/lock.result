@@ -99,3 +99,13 @@ f2
 3
 unlock tables;
 DROP TABLE t1,t2,tmp;
+#
+# MDEV-10378 Assertion `trn' failed in virtual int ha_maria::start_stmt
+#
+CREATE TABLE t1 (f1 VARCHAR(3), f2 INT, pk INT, PRIMARY KEY (pk)) ENGINE=Aria;
+INSERT INTO t1 VALUES  ('foo',10,1), ('foo',1,2);
+LOCK TABLE t1 WRITE;
+ALTER TABLE t1 ADD UNIQUE KEY (f1);
+ERROR 23000: Duplicate entry 'foo' for key 'f1'
+ALTER TABLE t1 ADD KEY (f2);
+DROP TABLE t1;

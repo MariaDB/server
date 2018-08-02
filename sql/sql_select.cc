@@ -1207,6 +1207,13 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
   if (optimize_constant_subqueries())
     DBUG_RETURN(1);
 
+  if (conds && conds->has_subquery())
+    (void) conds->walk(&Item::cleanup_is_expensive_cache_processor,
+                       0, (uchar*)0);
+  if (having && having->has_subquery())
+    (void) having->walk(&Item::cleanup_is_expensive_cache_processor,
+                       0, (uchar*)0);
+
   if (setup_jtbm_semi_joins(this, join_list, &conds))
     DBUG_RETURN(1);
 
@@ -1245,10 +1252,18 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
     if (cond_value == Item::COND_FALSE || having_value == Item::COND_FALSE || 
         (!unit->select_limit_cnt && !(select_options & OPTION_FOUND_ROWS)))
     {						/* Impossible cond */
-      DBUG_PRINT("info", (having_value == Item::COND_FALSE ? 
-                            "Impossible HAVING" : "Impossible WHERE"));
-      zero_result_cause=  having_value == Item::COND_FALSE ?
-                           "Impossible HAVING" : "Impossible WHERE";
+      if (unit->select_limit_cnt)
+      {
+        DBUG_PRINT("info", (having_value == Item::COND_FALSE ?
+                              "Impossible HAVING" : "Impossible WHERE"));
+        zero_result_cause=  having_value == Item::COND_FALSE ?
+                             "Impossible HAVING" : "Impossible WHERE";
+      }
+      else
+      {
+        DBUG_PRINT("info", ("Zero limit"));
+        zero_result_cause= "Zero limit";
+      }
       table_count= top_join_tab_count= 0;
       error= 0;
       goto setup_subq_exit;
@@ -3665,8 +3680,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   int ref_changed;
   do
   {
-  more_const_tables_found:
     ref_changed = 0;
+  more_const_tables_found:
     found_ref=0;
 
     /*
@@ -3831,7 +3846,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	}
       }
     }
-  } while (join->const_table_map & found_ref && ref_changed);
+  } while (ref_changed);
  
   join->sort_by_table= get_sort_by_table(join->order, join->group_list,
                                          join->select_lex->leaf_tables,
@@ -8147,8 +8162,13 @@ bool JOIN_TAB::keyuse_is_valid_for_access_in_chosen_plan(JOIN *join,
   st_select_lex *sjm_sel= emb_sj_nest->sj_subq_pred->unit->first_select(); 
   for (uint i= 0; i < sjm_sel->item_list.elements; i++)
   {
-    if (sjm_sel->ref_pointer_array[i] == keyuse->val)
-      return true;
+    DBUG_ASSERT(sjm_sel->ref_pointer_array[i]->real_item()->type() == Item::FIELD_ITEM);
+    if (keyuse->val->real_item()->type() == Item::FIELD_ITEM)
+    {
+      Field *field = ((Item_field*)sjm_sel->ref_pointer_array[i]->real_item())->field;
+      if (field->eq(((Item_field*)keyuse->val->real_item())->field))
+        return true;
+    }
   }
   return false; 
 }
@@ -8707,7 +8727,6 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
       if (first_keyuse)
       {
         key_parts++;
-        first_keyuse= FALSE;
       }
       else
       {
@@ -8717,7 +8736,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
           if (curr->keypart == keyuse->keypart &&
               !(~used_tables & curr->used_tables) &&
               join_tab->keyuse_is_valid_for_access_in_chosen_plan(join,
-                                                                  keyuse) &&
+                                                                  curr) &&
               are_tables_local(join_tab, curr->used_tables))
             break;
         }
@@ -8725,6 +8744,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
            key_parts++;
       }
     }
+    first_keyuse= FALSE;
     keyuse++;
   } while (keyuse->table == table && keyuse->is_for_hash_join());
   if (!key_parts)
@@ -9584,7 +9604,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
     table_map current_map;
     i= join->const_tables;
     for (tab= first_depth_first_tab(join); tab;
-         tab= next_depth_first_tab(join, tab), i++)
+         tab= next_depth_first_tab(join, tab))
     {
       bool is_hj;
       /*
@@ -10055,6 +10075,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         }
         first_inner_tab= first_inner_tab->first_upper;       
       }
+      if (!tab->bush_children)
+        i++;
     }
   }
   DBUG_RETURN(0);
@@ -24803,21 +24825,18 @@ void JOIN::set_allowed_join_cache_types()
 
 void JOIN::save_query_plan(Join_plan_state *save_to)
 {
-  if (keyuse.elements)
-  {
-    DYNAMIC_ARRAY tmp_keyuse;
-    /* Swap the current and the backup keyuse internal arrays. */
-    tmp_keyuse= keyuse;
-    keyuse= save_to->keyuse; /* keyuse is reset to an empty array. */
-    save_to->keyuse= tmp_keyuse;
+  DYNAMIC_ARRAY tmp_keyuse;
+  /* Swap the current and the backup keyuse internal arrays. */
+  tmp_keyuse= keyuse;
+  keyuse= save_to->keyuse; /* keyuse is reset to an empty array. */
+  save_to->keyuse= tmp_keyuse;
 
-    for (uint i= 0; i < table_count; i++)
-    {
-      save_to->join_tab_keyuse[i]= join_tab[i].keyuse;
-      join_tab[i].keyuse= NULL;
-      save_to->join_tab_checked_keys[i]= join_tab[i].checked_keys;
-      join_tab[i].checked_keys.clear_all();
-    }
+  for (uint i= 0; i < table_count; i++)
+  {
+    save_to->join_tab_keyuse[i]= join_tab[i].keyuse;
+    join_tab[i].keyuse= NULL;
+    save_to->join_tab_checked_keys[i]= join_tab[i].checked_keys;
+    join_tab[i].checked_keys.clear_all();
   }
   memcpy((uchar*) save_to->best_positions, (uchar*) best_positions,
          sizeof(POSITION) * (table_count + 1));
@@ -24855,20 +24874,17 @@ void JOIN::reset_query_plan()
 
 void JOIN::restore_query_plan(Join_plan_state *restore_from)
 {
-  if (restore_from->keyuse.elements)
+  DYNAMIC_ARRAY tmp_keyuse;
+  tmp_keyuse= keyuse;
+  keyuse= restore_from->keyuse;
+  restore_from->keyuse= tmp_keyuse;
+
+  for (uint i= 0; i < table_count; i++)
   {
-    DYNAMIC_ARRAY tmp_keyuse;
-    tmp_keyuse= keyuse;
-    keyuse= restore_from->keyuse;
-    restore_from->keyuse= tmp_keyuse;
-
-    for (uint i= 0; i < table_count; i++)
-    {
-      join_tab[i].keyuse= restore_from->join_tab_keyuse[i];
-      join_tab[i].checked_keys= restore_from->join_tab_checked_keys[i];
-    }
-
+    join_tab[i].keyuse= restore_from->join_tab_keyuse[i];
+    join_tab[i].checked_keys= restore_from->join_tab_checked_keys[i];
   }
+
   memcpy((uchar*) best_positions, (uchar*) restore_from->best_positions,
          sizeof(POSITION) * (table_count + 1));
   /* Restore SJM nests */

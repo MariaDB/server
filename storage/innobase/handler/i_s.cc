@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1452,19 +1452,16 @@ i_s_cmp_fill_low(
 		clear it.  We could introduce mutex protection, but it
 		could cause a measureable performance hit in
 		page0zip.cc. */
-		table->field[1]->store(
-			static_cast<double>(zip_stat->compressed));
-		table->field[2]->store(
-			static_cast<double>(zip_stat->compressed_ok));
-		table->field[3]->store(
-			static_cast<double>(zip_stat->compressed_usec / 1000000));
-		table->field[4]->store(
-			static_cast<double>(zip_stat->decompressed));
-		table->field[5]->store(
-			static_cast<double>(zip_stat->decompressed_usec / 1000000));
+		table->field[1]->store(zip_stat->compressed, true);
+		table->field[2]->store(zip_stat->compressed_ok, true);
+		table->field[3]->store(zip_stat->compressed_usec / 1000000,
+				       true);
+		table->field[4]->store(zip_stat->decompressed, true);
+		table->field[5]->store(zip_stat->decompressed_usec / 1000000,
+				       true);
 
 		if (reset) {
-			memset(zip_stat, 0, sizeof *zip_stat);
+			new (zip_stat) page_zip_stat_t();
 		}
 
 		if (schema_table_store_record(thd, table)) {
@@ -4955,9 +4952,11 @@ i_s_innodb_buffer_page_fill(
 
 			mutex_enter(&dict_sys->mutex);
 
-			if (const dict_index_t*	index =
-			    dict_index_get_if_in_cache_low(
-				    page_info->index_id)) {
+			const dict_index_t* index =
+				dict_index_get_if_in_cache_low(
+					page_info->index_id);
+
+			if (index) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
 					index->table_name,
@@ -4980,7 +4979,10 @@ i_s_innodb_buffer_page_fill(
 
 			OK(ret);
 
-			fields[IDX_BUFFER_PAGE_TABLE_NAME]->set_notnull();
+			if (index) {
+				fields[IDX_BUFFER_PAGE_TABLE_NAME]
+					->set_notnull();
+			}
 		}
 
 		OK(fields[IDX_BUFFER_PAGE_NUM_RECS]->store(
@@ -5657,9 +5659,11 @@ i_s_innodb_buf_page_lru_fill(
 
 			mutex_enter(&dict_sys->mutex);
 
-			if (const dict_index_t* index =
-			    dict_index_get_if_in_cache_low(
-				    page_info->index_id)) {
+			const dict_index_t* index =
+				dict_index_get_if_in_cache_low(
+					page_info->index_id);
+
+			if (index) {
 				table_name_end = innobase_convert_name(
 					table_name, sizeof(table_name),
 					index->table_name,
@@ -5682,7 +5686,10 @@ i_s_innodb_buf_page_lru_fill(
 
 			OK(ret);
 
-			fields[IDX_BUF_LRU_PAGE_TABLE_NAME]->set_notnull();
+			if (index) {
+				fields[IDX_BUF_LRU_PAGE_TABLE_NAME]
+					->set_notnull();
+			}
 		}
 
 		OK(fields[IDX_BUF_LRU_PAGE_NUM_RECS]->store(

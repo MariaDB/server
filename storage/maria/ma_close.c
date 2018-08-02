@@ -36,6 +36,8 @@ int maria_close(register MARIA_HA *info)
 
   /* Check that we have unlocked key delete-links properly */
   DBUG_ASSERT(info->key_del_used == 0);
+  /* Check that file is not part of any uncommited transactions */
+  DBUG_ASSERT(info->trn == 0 || info->trn == &dummy_transaction_object);
 
   if (share->reopen == 1)
   {

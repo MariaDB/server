@@ -705,10 +705,9 @@ LOAD INDEX INTO CACHE t3;
 Table	Op	Msg_type	Msg_text
 mysqltest_db1.t3	preload_keys	status	OK
 #
-# RENAME (doesn't work for temporary tables, thus should fail).
+# RENAME should work for temporary tables
 #
 RENAME TABLE t3 TO t3_1;
-ERROR 42000: INSERT, CREATE command denied to user 'mysqltest_u1'@'localhost' for table 't3_1'
 #
 # HANDLER OPEN/READ/CLOSE.
 #

@@ -5903,6 +5903,11 @@ int win_main(int argc, char **argv)
 int mysqld_main(int argc, char **argv)
 #endif
 {
+#ifndef _WIN32
+  /* We can't close stdin just now, because it may be booststrap mode. */
+  bool please_close_stdin= fcntl(STDIN_FILENO, F_GETFD) >= 0;
+#endif
+
   /*
     Perform basic thread library and malloc initialization,
     to be able to read defaults files and parse options.
@@ -6280,13 +6285,11 @@ int mysqld_main(int argc, char **argv)
                          (char*) "" : mysqld_unix_port),
                          mysqld_port,
                          MYSQL_COMPILATION_COMMENT);
-
-  // try to keep fd=0 busy
-  if (!freopen(IF_WIN("NUL","/dev/null"), "r", stdin))
-  {
-    // fall back on failure
+#ifndef _WIN32
+  /* Only close stdin if it was open initinally. */
+  if (please_close_stdin)
     fclose(stdin);
-  }
+#endif
 
 #if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
   Service.SetRunning();

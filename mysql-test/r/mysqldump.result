@@ -5404,3 +5404,18 @@ DELIMITER ;
 ALTER DATABASE `a\"'``b` CHARACTER SET utf8 COLLATE utf8_general_ci ;
 DROP DATABASE `a\"'``b`;
 FOUND /Database: mysql/ in bug11505.sql
+#
+# MDEV-15021: Fix the order in which routines are called
+#
+use test;
+CREATE FUNCTION f() RETURNS INT RETURN 1;
+CREATE VIEW v1 AS SELECT f();
+# Running mysqldump -uroot test --routines --tables v1 > **vardir**/test.dmp
+DROP VIEW v1;
+DROP FUNCTION f;
+# Running mysql -uroot test < **vardir**/test.dmp
+#
+# Cleanup after succesful import.
+#
+DROP VIEW v1;
+DROP FUNCTION f;

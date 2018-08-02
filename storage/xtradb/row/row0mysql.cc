@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1442,8 +1442,7 @@ error_exit:
 			doc_ids difference should not exceed
 			FTS_DOC_ID_MAX_STEP value. */
 
-			if (next_doc_id > 1
-			    && doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
+			if (doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
 				fprintf(stderr,
 					"InnoDB: Doc ID " UINT64PF " is too"
 					" big. Its difference with largest"
@@ -3329,6 +3328,10 @@ row_truncate_table_for_mysql(
 		return(DB_TABLESPACE_NOT_FOUND);
 	}
 
+	if (table->fts) {
+		fts_optimize_remove_table(table);
+	}
+
 	trx_start_for_ddl(trx, TRX_DICT_OP_TABLE);
 
 	trx->op_info = "truncating table";
@@ -3735,6 +3738,9 @@ next_rec:
 
 		/* Reset the Doc ID in cache to 0 */
 		if (has_internal_doc_id && table->fts->cache) {
+			DBUG_EXECUTE_IF("ib_trunc_sleep_before_fts_cache_clear",
+					os_thread_sleep(10000000););
+
 			table->fts->fts_status |= TABLE_DICT_LOCKED;
 			fts_update_next_doc_id(trx, table, NULL, 0);
 			fts_cache_clear(table->fts->cache);
@@ -3757,6 +3763,11 @@ funct_exit:
                 memcached operationse. */
                 table->memcached_sync_count = 0;
         }
+
+	/* Add the table back to FTS optimize background thread. */
+	if (table->fts) {
+		fts_optimize_add_table(table);
+	}
 
 	row_mysql_unlock_data_dictionary(trx);
 
@@ -5169,7 +5180,8 @@ row_rename_table_for_mysql(
 		}
 	}
 
-	if (dict_table_has_fts_index(table)
+	if ((dict_table_has_fts_index(table)
+	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
 	    && !dict_tables_have_same_db(old_name, new_name)) {
 		err = fts_rename_aux_tables(table, new_name, trx);
 		if (err != DB_TABLE_NOT_FOUND) {

@@ -3576,6 +3576,12 @@ check_if_ok_to_rename:
 		goto err_exit_no_heap;
 	}
 
+	/* Preserve this flag, because it currenlty can't be changed during
+	ALTER TABLE*/
+	if (flags2 & DICT_TF2_USE_TABLESPACE) {
+		flags |= prebuilt->table->flags & 1U << DICT_TF_POS_DATA_DIR;
+	}
+
 	max_col_len = DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(flags);
 
 	/* Check each index's column length to make sure they do not
@@ -4300,12 +4306,16 @@ rollback_inplace_alter_table(
 	row_mysql_lock_data_dictionary(ctx->trx);
 
 	if (ctx->need_rebuild()) {
-		dberr_t	err;
-		ulint	flags	= ctx->new_table->flags;
-
 		/* DML threads can access ctx->new_table via the
 		online rebuild log. Free it first. */
 		innobase_online_rebuild_log_free(prebuilt->table);
+	}
+
+	if (!ctx->new_table) {
+		ut_ad(ctx->need_rebuild());
+	} else if (ctx->need_rebuild()) {
+		dberr_t	err;
+		ulint	flags	= ctx->new_table->flags;
 
 		/* Since the FTS index specific auxiliary tables has
 		not yet registered with "table->fts" by fts_add_index(),
@@ -5673,21 +5683,6 @@ ha_innobase::commit_inplace_alter_table(
 	ut_ad(prebuilt->table == ctx0->old_table);
 	ha_alter_info->group_commit_ctx = NULL;
 
-	/* Free the ctx->trx of other partitions, if any. We will only
-	use the ctx0->trx here. Others may have been allocated in
-	the prepare stage. */
-
-	for (inplace_alter_handler_ctx** pctx = &ctx_array[1]; *pctx;
-	     pctx++) {
-		ha_innobase_inplace_ctx*	ctx
-			= static_cast<ha_innobase_inplace_ctx*>(*pctx);
-
-		if (ctx->trx) {
-			trx_free_for_mysql(ctx->trx);
-			ctx->trx = NULL;
-		}
-	}
-
 	trx_start_if_not_started_xa(prebuilt->trx);
 
 	for (inplace_alter_handler_ctx** pctx = ctx_array; *pctx; pctx++) {
@@ -5719,24 +5714,24 @@ ha_innobase::commit_inplace_alter_table(
 	trx_t*		trx		= ctx0->trx;
 	bool		fail		= false;
 
-	if (new_clustered) {
-		for (inplace_alter_handler_ctx** pctx = ctx_array;
-		     *pctx; pctx++) {
-			ha_innobase_inplace_ctx*	ctx
-				= static_cast<ha_innobase_inplace_ctx*>(*pctx);
-			DBUG_ASSERT(ctx->need_rebuild());
+	/* Stop background FTS operations. */
+	for (inplace_alter_handler_ctx** pctx = ctx_array;
+			 *pctx; pctx++) {
+		ha_innobase_inplace_ctx*	ctx
+			= static_cast<ha_innobase_inplace_ctx*>(*pctx);
 
+		DBUG_ASSERT(new_clustered == ctx->need_rebuild());
+
+		if (new_clustered) {
 			if (ctx->old_table->fts) {
 				ut_ad(!ctx->old_table->fts->add_wq);
-				fts_optimize_remove_table(
-					ctx->old_table);
+				fts_optimize_remove_table(ctx->old_table);
 			}
+		}
 
-			if (ctx->new_table->fts) {
-				ut_ad(!ctx->new_table->fts->add_wq);
-				fts_optimize_remove_table(
-					ctx->new_table);
-			}
+		if (ctx->new_table->fts) {
+			ut_ad(!ctx->new_table->fts->add_wq);
+			fts_optimize_remove_table(ctx->new_table);
 		}
 	}
 
@@ -5781,39 +5776,38 @@ ha_innobase::commit_inplace_alter_table(
 
 	/* Make a concurrent Drop fts Index to wait until sync of that
 	fts index is happening in the background */
-	for (;;) {
+	for (int retry_count = 0;;) {
 		bool    retry = false;
 
 		for (inplace_alter_handler_ctx** pctx = ctx_array;
 		    *pctx; pctx++) {
-			int count =0;
 			ha_innobase_inplace_ctx*        ctx
 				= static_cast<ha_innobase_inplace_ctx*>(*pctx);
 			DBUG_ASSERT(new_clustered == ctx->need_rebuild());
 
 			if (dict_fts_index_syncing(ctx->old_table)) {
-				count++;
-				if (count == 100) {
-					fprintf(stderr,
-					"Drop index waiting for background sync"
-					"to finish\n");
-				}
 				retry = true;
+				break;
 			}
 
 			if (new_clustered && dict_fts_index_syncing(ctx->new_table)) {
-				count++;
-				if (count == 100) {
-					fprintf(stderr,
-                                        "Drop index waiting for background sync"
-                                        "to finish\n");
-				}
 				retry = true;
+				break;
 			}
 		}
 
-		 if (!retry) {
+		if (!retry) {
 			 break;
+		}
+
+		/* Print a message if waiting for a long time. */
+		if (retry_count < 100) {
+			retry_count++;
+		} else {
+			ib_logf(IB_LOG_LEVEL_INFO,
+				"Drop index waiting for background sync"
+				" to finish");
+			retry_count = 0;
 		}
 
 		DICT_BG_YIELD(trx);
@@ -6060,10 +6054,6 @@ foreign_fail:
 	covering all partitions. */
 	share->idx_trans_tbl.index_count = 0;
 
-	if (trx == ctx0->trx) {
-		ctx0->trx = NULL;
-	}
-
 	/* Tell the InnoDB server that there might be work for
 	utility threads: */
 
@@ -6083,11 +6073,37 @@ foreign_fail:
 			ut_a(fts_check_cached_index(ctx->old_table));
 			DBUG_INJECT_CRASH("ib_commit_inplace_crash_fail",
 					  crash_fail_inject_count++);
+
+			/* Restart the FTS background operations. */
+			if (ctx->old_table->fts) {
+				fts_optimize_add_table(ctx->old_table);
+			}
 		}
 
 		row_mysql_unlock_data_dictionary(trx);
-		trx_free_for_mysql(trx);
+		if (trx != ctx0->trx) {
+			trx_free_for_mysql(trx);
+		}
 		DBUG_RETURN(true);
+	}
+
+	if (trx == ctx0->trx) {
+		ctx0->trx = NULL;
+	}
+
+	/* Free the ctx->trx of other partitions, if any. We will only
+	use the ctx0->trx here. Others may have been allocated in
+	the prepare stage. */
+
+	for (inplace_alter_handler_ctx** pctx = &ctx_array[1]; *pctx;
+	     pctx++) {
+		ha_innobase_inplace_ctx*	ctx
+			= static_cast<ha_innobase_inplace_ctx*>(*pctx);
+
+		if (ctx->trx) {
+			trx_free_for_mysql(ctx->trx);
+			ctx->trx = NULL;
+		}
 	}
 
 	/* Release the table locks. */
@@ -6110,8 +6126,6 @@ foreign_fail:
 			dict_table_autoinc_unlock(t);
 		}
 
-		bool	add_fts	= false;
-
 		/* Publish the created fulltext index, if any.
 		Note that a fulltext index can be created without
 		creating the clustered index, if there already exists
@@ -6126,14 +6140,14 @@ foreign_fail:
 				is left unset when a drop proceeds the add. */
 				DICT_TF2_FLAG_SET(ctx->new_table, DICT_TF2_FTS);
 				fts_add_index(index, ctx->new_table);
-				add_fts = true;
 			}
 		}
 
 		ut_d(dict_table_check_for_dup_indexes(
 			     ctx->new_table, CHECK_ALL_COMPLETE));
 
-		if (add_fts) {
+		/* Start/Restart the FTS background operations. */
+		if (ctx->new_table->fts) {
 			fts_optimize_add_table(ctx->new_table);
 		}
 

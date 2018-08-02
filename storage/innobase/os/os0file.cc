@@ -1194,7 +1194,8 @@ os_file_create_simple_func(
 		/* Use default security attributes and no template file. */
 
 		file = CreateFile(
-			(LPCTSTR) name, access, FILE_SHARE_READ, NULL,
+			(LPCTSTR) name, access,
+			FILE_SHARE_READ | FILE_SHARE_DELETE, NULL,
 			create_flag, attributes, NULL);
 
 		if (file == INVALID_HANDLE_VALUE) {
@@ -1324,7 +1325,7 @@ os_file_create_simple_no_error_handling_func(
 	DWORD		access;
 	DWORD		create_flag;
 	DWORD		attributes	= 0;
-	DWORD		share_mode	= FILE_SHARE_READ;
+	DWORD		share_mode	= FILE_SHARE_READ | FILE_SHARE_DELETE;
 	ut_a(name);
 
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
@@ -1566,7 +1567,7 @@ os_file_create_func(
 
 #ifdef __WIN__
 	DWORD		create_flag;
-	DWORD		share_mode	= FILE_SHARE_READ;
+	DWORD		share_mode	= FILE_SHARE_READ | FILE_SHARE_DELETE;
 
 	on_error_no_exit = create_mode & OS_FILE_ON_ERROR_NO_EXIT
 		? TRUE : FALSE;
@@ -1955,6 +1956,24 @@ loop:
 #endif
 }
 
+/** Handle RENAME error.
+@param name	old name of the file
+@param new_name	new name of the file */
+static void os_file_handle_rename_error(const char* name, const char* new_name)
+{
+	if (os_file_get_last_error(true) != OS_FILE_DISK_FULL) {
+		ib_logf(IB_LOG_LEVEL_ERROR, "Cannot rename file '%s' to '%s'",
+			name, new_name);
+	} else if (!os_has_said_disk_full) {
+		os_has_said_disk_full = true;
+		/* Disk full error is reported irrespective of the
+		on_error_silent setting. */
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Full disk prevents renaming file '%s' to '%s'",
+			name, new_name);
+	}
+}
+
 /***********************************************************************//**
 NOTE! Use the corresponding macro os_file_rename(), not directly this function!
 Renames a file (can also move it to another directory). It is safest that the
@@ -1990,8 +2009,7 @@ os_file_rename_func(
 		return(TRUE);
 	}
 
-	os_file_handle_error_no_exit(oldpath, "rename", FALSE);
-
+	os_file_handle_rename_error(oldpath, newpath);
 	return(FALSE);
 #else
 	int	ret;
@@ -2000,8 +2018,7 @@ os_file_rename_func(
 	ret = rename(oldpath, newpath);
 
 	if (ret != 0) {
-		os_file_handle_error_no_exit(oldpath, "rename", FALSE);
-
+		os_file_handle_rename_error(oldpath, newpath);
 		return(FALSE);
 	}
 

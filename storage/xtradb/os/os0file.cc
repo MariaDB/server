@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -1310,7 +1310,8 @@ os_file_create_simple_func(
 		/* Use default security attributes and no template file. */
 
 		file = CreateFile(
-			(LPCTSTR) name, access, FILE_SHARE_READ, NULL,
+			(LPCTSTR) name, access,
+			FILE_SHARE_READ | FILE_SHARE_DELETE, NULL,
 			create_flag, attributes, NULL);
 
 		if (file == INVALID_HANDLE_VALUE) {
@@ -1471,7 +1472,7 @@ os_file_create_simple_no_error_handling_func(
 	DWORD		access;
 	DWORD		create_flag;
 	DWORD		attributes	= 0;
-	DWORD		share_mode	= FILE_SHARE_READ;
+	DWORD		share_mode	= FILE_SHARE_READ | FILE_SHARE_DELETE;
 	ut_a(name);
 
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
@@ -1703,6 +1704,33 @@ os_file_set_atomic_writes(
 #endif
 }
 
+#ifdef _WIN32
+/** Check that IO of specific size is possible for the file
+opened with FILE_FLAG_NO_BUFFERING.
+
+The requirement is that IO is multiple of the disk sector size.
+
+@param[in]	file      file handle
+@param[in]	io_size   expected io size
+@return true - unbuffered io of requested size is possible, false otherwise.
+
+@note: this function only works correctly with Windows 8 or later,
+(GetFileInformationByHandleEx with FileStorageInfo is only supported there).
+It will return true on earlier Windows version.
+*/
+static bool unbuffered_io_possible(HANDLE file, size_t io_size)
+{
+	FILE_STORAGE_INFO info;
+	if (GetFileInformationByHandleEx(
+		file, FileStorageInfo, &info, sizeof(info))) {
+		ULONG sector_size = info.LogicalBytesPerSector;
+		if (sector_size)
+			return io_size % sector_size == 0;
+	}
+	return true;
+}
+#endif
+
 /****************************************************************//**
 NOTE! Use the corresponding macro os_file_create(), not directly
 this function!
@@ -1750,7 +1778,7 @@ os_file_create_func(
 
 #ifdef __WIN__
 	DWORD		create_flag;
-	DWORD		share_mode	= FILE_SHARE_READ;
+	DWORD		share_mode	= FILE_SHARE_READ | FILE_SHARE_DELETE;
 
 	on_error_no_exit = create_mode & OS_FILE_ON_ERROR_NO_EXIT
 		? TRUE : FALSE;
@@ -1862,6 +1890,18 @@ os_file_create_func(
 		file.m_file = CreateFile(
 			(LPCTSTR) name, access, share_mode, NULL,
 			create_flag, attributes, NULL);
+
+		/* If FILE_FLAG_NO_BUFFERING was set, check if this can work at all,
+		for expected IO sizes. Reopen without the unbuffered flag, if it is won't work*/
+		if ((file.m_file != INVALID_HANDLE_VALUE)
+			&& (attributes & FILE_FLAG_NO_BUFFERING)
+			&& (type == OS_LOG_FILE)
+			&& !unbuffered_io_possible(file.m_file, OS_FILE_LOG_BLOCK_SIZE)) {
+			ut_a(CloseHandle(file.m_file));
+			attributes &= ~FILE_FLAG_NO_BUFFERING;
+			create_flag = OPEN_ALWAYS;
+			continue;
+		}
 
 		if (file.m_file == INVALID_HANDLE_VALUE) {
 			const char*	operation;
@@ -2163,6 +2203,24 @@ loop:
 #endif
 }
 
+/** Handle RENAME error.
+@param name	old name of the file
+@param new_name	new name of the file */
+static void os_file_handle_rename_error(const char* name, const char* new_name)
+{
+	if (os_file_get_last_error(true) != OS_FILE_DISK_FULL) {
+		ib_logf(IB_LOG_LEVEL_ERROR, "Cannot rename file '%s' to '%s'",
+			name, new_name);
+	} else if (!os_has_said_disk_full) {
+		os_has_said_disk_full = true;
+		/* Disk full error is reported irrespective of the
+		on_error_silent setting. */
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Full disk prevents renaming file '%s' to '%s'",
+			name, new_name);
+	}
+}
+
 /***********************************************************************//**
 NOTE! Use the corresponding macro os_file_rename(), not directly this function!
 Renames a file (can also move it to another directory). It is safest that the
@@ -2198,7 +2256,7 @@ os_file_rename_func(
 		return(TRUE);
 	}
 
-	os_file_handle_error_no_exit(oldpath, "rename", FALSE);
+	os_file_handle_rename_error(oldpath, newpath);
 
 	return(FALSE);
 #else
@@ -2208,7 +2266,7 @@ os_file_rename_func(
 	ret = rename(oldpath, newpath);
 
 	if (ret != 0) {
-		os_file_handle_error_no_exit(oldpath, "rename", FALSE);
+		os_file_handle_rename_error(oldpath, newpath);
 
 		return(FALSE);
 	}

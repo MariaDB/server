@@ -29,4 +29,3 @@ ENDIF()
 
 TARGET_LINK_LIBRARIES(explain_filename-t sql mytap)
 ADD_TEST(explain_filename explain_filename-t)
-

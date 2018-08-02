@@ -326,7 +326,7 @@ else
   $opt->{basedir} = '@prefix@';
   $bindir         = '@bindir@';
   $extra_bindir   = $bindir;
-  $mysqld         = '@libexecdir@/mysqld';
+  $mysqld         = '@sbindir@/mysqld';
   $pkgdatadir     = '@pkgdatadir@';
   $scriptdir      = '@scriptdir@';
 }

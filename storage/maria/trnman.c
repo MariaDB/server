@@ -366,6 +366,7 @@ TRN *trnman_new_trn(WT_THD *wt)
   trn->commit_trid=  MAX_TRID;
   trn->rec_lsn= trn->undo_lsn= trn->first_undo_lsn= 0;
   trn->used_tables= 0;
+  trn->used_instances= 0;
 
   trn->locked_tables= 0;
   trn->flags= 0;
