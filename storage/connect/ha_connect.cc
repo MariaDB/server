@@ -2742,7 +2742,7 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
             case TIME_RESULT:
               pp->Type= TYPE_DATE;
               pp->Value= PlugSubAlloc(g, NULL, sizeof(int));
-              *((int*)pp->Value)= (int)pval->val_int_from_date();
+              *((int*)pp->Value)= (int) Temporal_hybrid(pval).to_longlong();
               break;
             case REAL_RESULT:
               pp->Type= TYPE_DOUBLE;

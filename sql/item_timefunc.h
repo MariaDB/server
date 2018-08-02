@@ -581,29 +581,17 @@ public:
 };
 
 
-class Item_temporal_func: public Item_func
+class Item_datefunc :public Item_func
 {
 public:
-  Item_temporal_func(THD *thd): Item_func(thd) {}
-  Item_temporal_func(THD *thd, Item *a): Item_func(thd, a) {}
-  Item_temporal_func(THD *thd, Item *a, Item *b): Item_func(thd, a, b) {}
-  Item_temporal_func(THD *thd, Item *a, Item *b, Item *c): Item_func(thd, a, b, c) {}
-  String *val_str(String *str);
-  longlong val_int() { return val_int_from_date(); }
-  double val_real() { return val_real_from_date(); }
-  bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date) { DBUG_ASSERT(0); return 1; }
-  my_decimal *val_decimal(my_decimal *decimal_value)
-  { return  val_decimal_from_date(decimal_value); }
-};
-
-
-class Item_datefunc :public Item_temporal_func
-{
-public:
-  Item_datefunc(THD *thd): Item_temporal_func(thd) { }
-  Item_datefunc(THD *thd, Item *a): Item_temporal_func(thd, a) { }
-  Item_datefunc(THD *thd, Item *a, Item *b): Item_temporal_func(thd, a, b) { }
+  Item_datefunc(THD *thd): Item_func(thd) { }
+  Item_datefunc(THD *thd, Item *a): Item_func(thd, a) { }
+  Item_datefunc(THD *thd, Item *a, Item *b): Item_func(thd, a, b) { }
   const Type_handler *type_handler() const { return &type_handler_newdate; }
+  longlong val_int() { return Date(this).to_longlong(); }
+  double val_real() { return Date(this).to_double(); }
+  String *val_str(String *to) { return Date(this).to_string(to); }
+  my_decimal *val_decimal(my_decimal *to) { return Date(this).to_decimal(to); }
   bool fix_length_and_dec()
   {
     fix_attributes_date();
@@ -613,28 +601,34 @@ public:
 };
 
 
-class Item_timefunc :public Item_temporal_func
+class Item_timefunc :public Item_func
 {
 public:
-  Item_timefunc(THD *thd): Item_temporal_func(thd) {}
-  Item_timefunc(THD *thd, Item *a): Item_temporal_func(thd, a) {}
-  Item_timefunc(THD *thd, Item *a, Item *b): Item_temporal_func(thd, a, b) {}
-  Item_timefunc(THD *thd, Item *a, Item *b, Item *c):
-    Item_temporal_func(thd, a, b ,c) {}
+  Item_timefunc(THD *thd): Item_func(thd) {}
+  Item_timefunc(THD *thd, Item *a): Item_func(thd, a) {}
+  Item_timefunc(THD *thd, Item *a, Item *b): Item_func(thd, a, b) {}
+  Item_timefunc(THD *thd, Item *a, Item *b, Item *c): Item_func(thd, a, b ,c) {}
   const Type_handler *type_handler() const { return &type_handler_time2; }
+  longlong val_int() { return Time(this).to_longlong(); }
+  double val_real() { return Time(this).to_double(); }
+  String *val_str(String *to) { return Time(this).to_string(to, decimals); }
+  my_decimal *val_decimal(my_decimal *to) { return Time(this).to_decimal(to); }
 };
 
 
-class Item_datetimefunc :public Item_temporal_func
+class Item_datetimefunc :public Item_func
 {
 public:
-  Item_datetimefunc(THD *thd): Item_temporal_func(thd) {}
-  Item_datetimefunc(THD *thd, Item *a): Item_temporal_func(thd, a) {}
-  Item_datetimefunc(THD *thd, Item *a, Item *b):
-    Item_temporal_func(thd, a, b) {}
+  Item_datetimefunc(THD *thd): Item_func(thd) {}
+  Item_datetimefunc(THD *thd, Item *a): Item_func(thd, a) {}
+  Item_datetimefunc(THD *thd, Item *a, Item *b): Item_func(thd, a, b) {}
   Item_datetimefunc(THD *thd, Item *a, Item *b, Item *c):
-    Item_temporal_func(thd, a, b ,c) {}
+    Item_func(thd, a, b ,c) {}
   const Type_handler *type_handler() const { return &type_handler_datetime2; }
+  longlong val_int() { return Datetime(this).to_longlong(); }
+  double val_real() { return Datetime(this).to_double(); }
+  String *val_str(String *to) { return Datetime(this).to_string(to, decimals); }
+  my_decimal *val_decimal(my_decimal *to) { return Datetime(this).to_decimal(to); }
 };
 
 
@@ -1116,22 +1110,16 @@ public:
 };
 
 
-class Item_temporal_typecast: public Item_temporal_func
+class Item_date_typecast :public Item_datefunc
 {
 public:
-  Item_temporal_typecast(THD *thd, Item *a): Item_temporal_func(thd, a) {}
-  virtual const char *cast_type() const = 0;
-  void print(String *str, enum_query_type query_type);
-};
-
-class Item_date_typecast :public Item_temporal_typecast
-{
-public:
-  Item_date_typecast(THD *thd, Item *a): Item_temporal_typecast(thd, a) {}
+  Item_date_typecast(THD *thd, Item *a): Item_datefunc(thd, a) {}
   const char *func_name() const { return "cast_as_date"; }
+  void print(String *str, enum_query_type query_type)
+  {
+    print_cast_temporal(str, query_type);
+  }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
-  const char *cast_type() const { return "date"; }
-  const Type_handler *type_handler() const { return &type_handler_newdate; }
   bool fix_length_and_dec()
   {
     return args[0]->type_handler()->Item_date_typecast_fix_length_and_dec(this);
@@ -1141,15 +1129,17 @@ public:
 };
 
 
-class Item_time_typecast :public Item_temporal_typecast
+class Item_time_typecast :public Item_timefunc
 {
 public:
   Item_time_typecast(THD *thd, Item *a, uint dec_arg):
-    Item_temporal_typecast(thd, a) { decimals= dec_arg; }
+    Item_timefunc(thd, a) { decimals= dec_arg; }
   const char *func_name() const { return "cast_as_time"; }
+  void print(String *str, enum_query_type query_type)
+  {
+    print_cast_temporal(str, query_type);
+  }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
-  const char *cast_type() const { return "time"; }
-  const Type_handler *type_handler() const { return &type_handler_time2; }
   bool fix_length_and_dec()
   {
     return args[0]->type_handler()->
@@ -1160,14 +1150,16 @@ public:
 };
 
 
-class Item_datetime_typecast :public Item_temporal_typecast
+class Item_datetime_typecast :public Item_datetimefunc
 {
 public:
   Item_datetime_typecast(THD *thd, Item *a, uint dec_arg):
-    Item_temporal_typecast(thd, a) { decimals= dec_arg; }
+    Item_datetimefunc(thd, a) { decimals= dec_arg; }
   const char *func_name() const { return "cast_as_datetime"; }
-  const char *cast_type() const { return "datetime"; }
-  const Type_handler *type_handler() const { return &type_handler_datetime2; }
+  void print(String *str, enum_query_type query_type)
+  {
+    print_cast_temporal(str, query_type);
+  }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   bool fix_length_and_dec()
   {
@@ -1400,35 +1392,7 @@ public:
 
 /*****************************************************************************/
 
-/**
-  Abstract class for functions returning TIME, DATE, DATETIME or string values,
-  whose data type depends on parameters and is set at fix_fields time.
-*/
-class Func_handler_temporal_hybrid: public Item_handled_func::Handler
-{
-public:
-  double val_real(Item_handled_func *item) const
-  {
-    return item->val_real_from_date();
-  }
-  longlong val_int(Item_handled_func *item) const
-  {
-    return item->val_int_from_date();
-  }
-  my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
-  {
-    return item->val_decimal_from_date(to);
-  }
-  String *val_str(Item_handled_func *item, String *to) const
-  {
-    StringBuffer<MAX_FIELD_WIDTH> ascii_buf;
-    return item->val_str_from_val_str_ascii(to, &ascii_buf);
-  }
-  String *val_str_ascii(Item_handled_func *, String *to) const;
-};
-
-
-class Func_handler_date_add_interval: public Func_handler_temporal_hybrid
+class Func_handler_date_add_interval
 {
 protected:
   static uint interval_dec(const Item *item, interval_type int_type)
@@ -1462,13 +1426,10 @@ protected:
 
 
 class Func_handler_date_add_interval_datetime:
-  public Func_handler_date_add_interval
+        public Item_handled_func::Handler_datetime,
+        public Func_handler_date_add_interval
 {
 public:
-  const Type_handler *return_type_handler() const
-  {
-    return &type_handler_datetime2;
-  }
   bool fix_length_and_dec(Item_handled_func *item) const
   {
     uint dec= MY_MAX(item->arguments()[0]->datetime_precision(),
@@ -1490,25 +1451,18 @@ public:
 
 
 class Func_handler_date_add_interval_datetime_arg0_time:
-  public Func_handler_date_add_interval_datetime
+        public Func_handler_date_add_interval_datetime
 {
 public:
   bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const;
 };
 
 
-class Func_handler_date_add_interval_date: public Func_handler_date_add_interval
+class Func_handler_date_add_interval_date:
+        public Item_handled_func::Handler_date,
+        public Func_handler_date_add_interval
 {
 public:
-  const Type_handler *return_type_handler() const
-  {
-    return &type_handler_newdate;
-  }
-  bool fix_length_and_dec(Item_handled_func *item) const
-  {
-    item->fix_attributes_date();
-    return false;
-  }
   bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
   {
     Date d(current_thd, item->arguments()[0], 0);
@@ -1522,13 +1476,11 @@ public:
 };
 
 
-class Func_handler_date_add_interval_time: public Func_handler_date_add_interval
+class Func_handler_date_add_interval_time:
+        public Item_handled_func::Handler_time,
+        public Func_handler_date_add_interval
 {
 public:
-  const Type_handler *return_type_handler() const
-  {
-    return &type_handler_time2;
-  }
   bool fix_length_and_dec(Item_handled_func *item) const
   {
     uint dec= MY_MAX(item->arguments()[0]->time_precision(),
@@ -1549,13 +1501,10 @@ public:
 
 
 class Func_handler_date_add_interval_string:
-  public Func_handler_date_add_interval
+        public Item_handled_func::Handler_temporal_string,
+        public Func_handler_date_add_interval
 {
 public:
-  const Type_handler *return_type_handler() const
-  {
-    return &type_handler_string;
-  }
   bool fix_length_and_dec(Item_handled_func *item) const
   {
     uint dec= MY_MAX(item->arguments()[0]->datetime_precision(),
@@ -1578,25 +1527,22 @@ public:
 };
 
 
-
-class Func_handler_add_time: public Func_handler_temporal_hybrid
+class Func_handler_sign
 {
 protected:
   int m_sign;
-  Func_handler_add_time(int sign) :m_sign(sign) { }
+  Func_handler_sign(int sign) :m_sign(sign) { }
 };
 
 
-class Func_handler_add_time_datetime: public Func_handler_add_time
+class Func_handler_add_time_datetime:
+        public Item_handled_func::Handler_datetime,
+        public Func_handler_sign
 {
 public:
   Func_handler_add_time_datetime(int sign)
-   :Func_handler_add_time(sign)
+   :Func_handler_sign(sign)
   { }
-  const Type_handler *return_type_handler() const
-  {
-    return &type_handler_datetime2;
-  }
   bool fix_length_and_dec(Item_handled_func *item) const
   {
     uint dec= MY_MAX(item->arguments()[0]->datetime_precision(),
@@ -1617,16 +1563,14 @@ public:
 };
 
 
-class Func_handler_add_time_time: public Func_handler_add_time
+class Func_handler_add_time_time:
+        public Item_handled_func::Handler_time,
+        public Func_handler_sign
 {
 public:
   Func_handler_add_time_time(int sign)
-   :Func_handler_add_time(sign)
+   :Func_handler_sign(sign)
   { }
-  const Type_handler *return_type_handler() const
-  {
-    return &type_handler_time2;
-  }
   bool fix_length_and_dec(Item_handled_func *item) const
   {
     uint dec= MY_MAX(item->arguments()[0]->time_precision(),
@@ -1647,16 +1591,14 @@ public:
 };
 
 
-class Func_handler_add_time_string: public Func_handler_add_time
+class Func_handler_add_time_string:
+        public Item_handled_func::Handler_temporal_string,
+        public Func_handler_sign
 {
 public:
   Func_handler_add_time_string(int sign)
-   :Func_handler_add_time(sign)
+   :Func_handler_sign(sign)
   { }
-  const Type_handler *return_type_handler() const
-  {
-    return &type_handler_string;
-  }
   bool fix_length_and_dec(Item_handled_func *item) const
   {
     uint dec= MY_MAX(item->arguments()[0]->decimals,
@@ -1678,17 +1620,18 @@ public:
     return (item->null_value= (l_time1.time_type == MYSQL_TIMESTAMP_TIME ?
                                add.to_time(to, item->decimals) :
                                add.to_datetime(to)));
-
   }
 };
 
 
-class Func_handler_str_to_date_datetime: public Func_handler_temporal_hybrid
+class Func_handler_str_to_date_datetime_sec:
+        public Item_handled_func::Handler_datetime
 {
 public:
-  const Type_handler *return_type_handler() const
+  bool fix_length_and_dec(Item_handled_func *item) const
   {
-    return &type_handler_datetime2;
+    item->fix_attributes_datetime(0);
+    return false;
   }
   bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
   {
@@ -1698,20 +1641,8 @@ public:
 };
 
 
-class Func_handler_str_to_date_datetime_sec:
-  public Func_handler_str_to_date_datetime
-{
-public:
-  bool fix_length_and_dec(Item_handled_func *item) const
-  {
-    item->fix_attributes_datetime(0);
-    return false;
-  }
-};
-
-
 class Func_handler_str_to_date_datetime_usec:
-  public Func_handler_str_to_date_datetime
+        public Item_handled_func::Handler_datetime
 {
 public:
   bool fix_length_and_dec(Item_handled_func *item) const
@@ -1719,36 +1650,28 @@ public:
     item->fix_attributes_datetime(TIME_SECOND_PART_DIGITS);
     return false;
   }
+  bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
+  {
+    return static_cast<Item_func_str_to_date*>(item)->
+             get_date_common(to, fuzzy, MYSQL_TIMESTAMP_DATETIME);
+  }
 };
 
 
-class Func_handler_str_to_date_date: public Func_handler_temporal_hybrid
+class Func_handler_str_to_date_date: public Item_handled_func::Handler_date
 {
 public:
-  const Type_handler *return_type_handler() const
-  {
-    return &type_handler_newdate;
-  }
   bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
   {
     return static_cast<Item_func_str_to_date*>(item)->
              get_date_common(to, fuzzy, MYSQL_TIMESTAMP_DATE);
   }
-  bool fix_length_and_dec(Item_handled_func *item) const
-  {
-    item->fix_attributes_date();
-    return false;
-  }
 };
 
 
-class Func_handler_str_to_date_time: public Func_handler_temporal_hybrid
+class Func_handler_str_to_date_time: public Item_handled_func::Handler_time
 {
 public:
-  const Type_handler *return_type_handler() const
-  {
-    return &type_handler_time2;
-  }
   bool get_date(Item_handled_func *item, MYSQL_TIME *to, ulonglong fuzzy) const
   {
     if (static_cast<Item_func_str_to_date*>(item)->

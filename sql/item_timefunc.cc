@@ -1498,31 +1498,6 @@ bool get_interval_value(Item *args,interval_type int_type, INTERVAL *interval)
 }
 
 
-String *Item_temporal_func::val_str(String *str)
-{
-  DBUG_ASSERT(fixed == 1);
-  return val_string_from_date(str);
-}
-
-
-String *Func_handler_temporal_hybrid::val_str_ascii(Item_handled_func *item,
-                                                    String *str) const
-{
-  DBUG_ASSERT(item->is_fixed());
-  MYSQL_TIME ltime;
-
-  if (get_date(item, &ltime, 0) ||
-      (item->null_value= my_TIME_to_str(&ltime, str, item->decimals)))
-    return (String *) 0;
-
-  /* Check that the returned timestamp type matches to the function type */
-  DBUG_ASSERT(item->field_type() == MYSQL_TYPE_STRING ||
-              ltime.time_type == MYSQL_TIMESTAMP_NONE ||
-              ltime.time_type == return_type_handler()->mysql_timestamp_type());
-  return str;
-}
-
-
 bool Item_func_from_days::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
   longlong value=args[0]->val_int();
@@ -1668,7 +1643,7 @@ bool Item_func_now::fix_fields(THD *thd, Item **items)
              func_name(), TIME_SECOND_PART_DIGITS);
     return 1;
   }
-  return Item_temporal_func::fix_fields(thd, items);
+  return Item_datetimefunc::fix_fields(thd, items);
 }
 
 void Item_func_now::print(String *str, enum_query_type query_type)
@@ -1695,7 +1670,7 @@ int Item_func_now_local::save_in_field(Field *field, bool no_conversions)
     return 0;
   }
   else
-    return Item_temporal_func::save_in_field(field, no_conversions);
+    return Item_datetimefunc::save_in_field(field, no_conversions);
 }
 
 
@@ -2081,7 +2056,7 @@ bool Item_func_convert_tz::get_date(MYSQL_TIME *ltime,
 void Item_func_convert_tz::cleanup()
 {
   from_tz_cached= to_tz_cached= 0;
-  Item_temporal_func::cleanup();
+  Item_datetimefunc::cleanup();
 }
 
 
@@ -2327,13 +2302,14 @@ bool Item_char_typecast::eq(const Item *item, bool binary_cmp) const
   return 1;
 }
 
-void Item_temporal_typecast::print(String *str, enum_query_type query_type)
+void Item_func::print_cast_temporal(String *str, enum_query_type query_type)
 {
   char buf[32];
   str->append(STRING_WITH_LEN("cast("));
   args[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" as "));
-  str->append(cast_type());
+  const Name name= type_handler()->name();
+  str->append(name.ptr(), name.length());
   if (decimals && decimals != NOT_FIXED_DEC)
   {
     str->append('(');

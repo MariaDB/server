@@ -130,6 +130,26 @@ bool Type_handler_data::init()
 Type_handler_data *type_handler_data= NULL;
 
 
+my_decimal *Temporal::to_decimal(my_decimal *to) const
+{
+  return date2my_decimal(this, to);
+}
+
+
+my_decimal *Temporal::bad_to_decimal(my_decimal *to) const
+{
+  my_decimal_set_zero(to);
+  return NULL;
+}
+
+
+Temporal_hybrid::Temporal_hybrid(THD *thd, Item *item)
+{
+  if (item->get_date(this, sql_mode_for_dates(thd)))
+    time_type= MYSQL_TIMESTAMP_NONE;
+}
+
+
 void Time::make_from_item(Item *item, const Options opt)
 {
   if (item->get_date(this, opt.get_date_flags()))
@@ -162,6 +182,12 @@ void Temporal_with_date::make_from_item(THD *thd, Item *item, sql_mode_t flags)
     else
       *(static_cast<MYSQL_TIME*>(this))= tmp;
   }
+}
+
+
+void Temporal_with_date::make_from_item(THD *thd, Item *item)
+{
+  return make_from_item(thd, item, sql_mode_for_dates(thd));
 }
 
 
@@ -4118,10 +4144,31 @@ String *Type_handler_string_result::
 }
 
 
-String *Type_handler_temporal_result::
+String *Type_handler_time_common::
           Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
 {
-  return func->val_string_from_date(str);
+  return Time(func).to_string(str, func->decimals);
+}
+
+
+String *Type_handler_date_common::
+          Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
+{
+  return Date(func).to_string(str);
+}
+
+
+String *Type_handler_datetime_common::
+          Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
+{
+  return Datetime(func).to_string(str, func->decimals);
+}
+
+
+String *Type_handler_timestamp_common::
+          Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
+{
+  return Datetime(func).to_string(str, func->decimals);
 }
 
 

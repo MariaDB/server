@@ -77,6 +77,7 @@ struct TABLE;
 struct SORT_FIELD_ATTR;
 class Vers_history_point;
 
+#define my_charset_numeric      my_charset_latin1
 
 enum scalar_comparison_op
 {
@@ -148,6 +149,62 @@ public:
 };
 
 
+class Temporal: protected MYSQL_TIME
+{
+protected:
+  bool is_valid_temporal() const
+  {
+    DBUG_ASSERT(time_type != MYSQL_TIMESTAMP_ERROR);
+    return time_type != MYSQL_TIMESTAMP_NONE;
+  }
+  my_decimal *bad_to_decimal(my_decimal *to) const;
+  my_decimal *to_decimal(my_decimal *to) const;
+  static double to_double(bool negate, ulonglong num, ulong frac)
+  {
+    double d= (double) num + frac / (double) TIME_SECOND_PART_FACTOR;
+    return negate ? -d : d;
+  }
+public:
+};
+
+
+/*
+  Use this class when you need to get a MYSQL_TIME from an Item
+  using Item's native timestamp type, without automatic timestamp
+  type conversion.
+*/
+class Temporal_hybrid: private Temporal
+{
+public:
+  Temporal_hybrid(THD *thd, Item *item);
+  Temporal_hybrid(Item *item) { *this= Temporal_hybrid(current_thd, item); }
+  longlong to_longlong() const
+  {
+    if (!is_valid_temporal())
+      return 0;
+    ulonglong v= TIME_to_ulonglong(this);
+    return neg ? -(longlong) v : (longlong) v;
+  }
+  double to_double() const
+  {
+    return is_valid_temporal() ? TIME_to_double(this) : 0;
+  }
+  my_decimal *to_decimal(my_decimal *to)
+  {
+    return is_valid_temporal() ? Temporal::to_decimal(to) : bad_to_decimal(to);
+  }
+  String *to_string(String *str, uint dec) const
+  {
+    if (!is_valid_temporal())
+      return NULL;
+    str->set_charset(&my_charset_numeric);
+    if (!str->alloc(MAX_DATE_STRING_REP_LENGTH))
+      str->length(my_TIME_to_str(this, const_cast<char*>(str->ptr()), dec));
+    return str;
+  }
+};
+
+
 /**
   Class Time is designed to store valid TIME values.
 
@@ -166,7 +223,7 @@ public:
   Time derives from MYSQL_TIME privately to make sure it is accessed
   externally only in the valid state.
 */
-class Time: private MYSQL_TIME
+class Time: private Temporal
 {
 public:
   enum datetime_to_time_mode_t
@@ -333,6 +390,31 @@ public:
   {
     return neg ? -to_seconds_abs() : to_seconds_abs();
   }
+  longlong to_longlong() const
+  {
+    if (!is_valid_time())
+      return 0;
+    ulonglong v= TIME_to_ulonglong_time(this);
+    return neg ? -(longlong) v : (longlong) v;
+  }
+  double to_double() const
+  {
+    return !is_valid_time() ? 0 :
+           Temporal::to_double(neg, TIME_to_ulonglong_time(this), second_part);
+  }
+  String *to_string(String *str, uint dec) const
+  {
+    if (!is_valid_time())
+      return NULL;
+    str->set_charset(&my_charset_numeric);
+    if (!str->alloc(MAX_DATE_STRING_REP_LENGTH))
+      str->length(my_time_to_str(this, const_cast<char*>(str->ptr()), dec));
+    return str;
+  }
+  my_decimal *to_decimal(my_decimal *to)
+  {
+    return is_valid_time() ? Temporal::to_decimal(to) : bad_to_decimal(to);
+  }
 };
 
 
@@ -359,13 +441,18 @@ public:
   it is accessed externally only in the valid state.
 */
 
-class Temporal_with_date: protected MYSQL_TIME
+class Temporal_with_date: protected Temporal
 {
 protected:
   void make_from_item(THD *thd, Item *item, sql_mode_t flags);
+  void make_from_item(THD *thd, Item *item);
   Temporal_with_date(THD *thd, Item *item, sql_mode_t flags)
   {
     make_from_item(thd, item, flags);
+  }
+  Temporal_with_date(THD *thd, Item *item)
+  {
+    make_from_item(thd, item);
   }
 public:
   bool check_date_with_warn(ulonglong flags)
@@ -403,6 +490,20 @@ public:
       datetime_to_date(this);
     DBUG_ASSERT(is_valid_value_slow());
   }
+  Date(THD *thd, Item *item)
+   :Temporal_with_date(thd, item)
+  {
+    if (time_type == MYSQL_TIMESTAMP_DATETIME)
+      datetime_to_date(this);
+    DBUG_ASSERT(is_valid_value_slow());
+  }
+  Date(Item *item)
+   :Temporal_with_date(current_thd, item)
+  {
+    if (time_type == MYSQL_TIMESTAMP_DATETIME)
+      datetime_to_date(this);
+    DBUG_ASSERT(is_valid_value_slow());
+  }
   Date(const Temporal_with_date *d)
    :Temporal_with_date(*d)
   {
@@ -429,6 +530,27 @@ public:
     DBUG_ASSERT(is_valid_date_slow());
     *ltime= *this;
     return false;
+  }
+  longlong to_longlong() const
+  {
+    return is_valid_date() ? (longlong) TIME_to_ulonglong_date(this) : 0LL;
+  }
+  double to_double() const
+  {
+    return (double) to_longlong();
+  }
+  String *to_string(String *str) const
+  {
+    if (!is_valid_date())
+      return NULL;
+    str->set_charset(&my_charset_numeric);
+    if (!str->alloc(MAX_DATE_STRING_REP_LENGTH))
+      str->length(my_date_to_str(this, const_cast<char*>(str->ptr())));
+    return str;
+  }
+  my_decimal *to_decimal(my_decimal *to)
+  {
+    return is_valid_date() ? Temporal::to_decimal(to) : bad_to_decimal(to);
   }
 };
 
@@ -457,6 +579,20 @@ class Datetime: public Temporal_with_date
 public:
   Datetime(THD *thd, Item *item, sql_mode_t flags)
    :Temporal_with_date(thd, item, flags)
+  {
+    if (time_type == MYSQL_TIMESTAMP_DATE)
+      date_to_datetime(this);
+    DBUG_ASSERT(is_valid_value_slow());
+  }
+  Datetime(THD *thd, Item *item)
+   :Temporal_with_date(thd, item)
+  {
+    if (time_type == MYSQL_TIMESTAMP_DATE)
+      date_to_datetime(this);
+    DBUG_ASSERT(is_valid_value_slow());
+  }
+  Datetime(Item *item)
+   :Temporal_with_date(current_thd, item)
   {
     if (time_type == MYSQL_TIMESTAMP_DATE)
       date_to_datetime(this);
@@ -507,6 +643,29 @@ public:
     ltime->time_type= type;
     return false;
   }
+  longlong to_longlong() const
+  {
+    return is_valid_datetime() ?
+           (longlong) TIME_to_ulonglong_datetime(this) : 0LL;
+  }
+  double to_double() const
+  {
+    return !is_valid_datetime() ? 0 :
+      Temporal::to_double(neg, TIME_to_ulonglong_datetime(this), second_part);
+  }
+  String *to_string(String *str, uint dec) const
+  {
+    if (!is_valid_datetime())
+      return NULL;
+    str->set_charset(&my_charset_numeric);
+    if (!str->alloc(MAX_DATE_STRING_REP_LENGTH))
+      str->length(my_datetime_to_str(this, const_cast<char*>(str->ptr()), dec));
+    return str;
+  }
+  my_decimal *to_decimal(my_decimal *to)
+  {
+    return is_valid_datetime() ? Temporal::to_decimal(to) : bad_to_decimal(to);
+  }
 };
 
 /*
@@ -534,7 +693,6 @@ public:
 #define MY_COLL_CMP_CONV   (MY_COLL_ALLOW_CONV | MY_COLL_DISALLOW_NONE)
 
 
-#define my_charset_numeric      my_charset_latin1
 #define MY_REPERTOIRE_NUMERIC   MY_REPERTOIRE_ASCII
 
 
@@ -2448,7 +2606,6 @@ public:
   bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
-  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
   double Item_func_min_max_val_real(Item_func_min_max *) const;
   longlong Item_func_min_max_val_int(Item_func_min_max *) const;
   my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
@@ -3071,6 +3228,7 @@ public:
   bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *,
                                             MYSQL_TIME *,
                                             ulonglong fuzzydate) const;
+  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
   bool Item_func_min_max_get_date(Item_func_min_max*,
                                   MYSQL_TIME *, ulonglong fuzzydate) const;
   longlong Item_func_between_val_int(Item_func_between *func) const;
@@ -3183,6 +3341,7 @@ public:
   uint Item_decimal_precision(const Item *item) const;
   String *print_item_value(THD *thd, Item *item, String *str) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
+  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
@@ -3274,6 +3433,7 @@ public:
   }
   String *print_item_value(THD *thd, Item *item, String *str) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
+  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,
@@ -3373,6 +3533,7 @@ public:
   }
   String *print_item_value(THD *thd, Item *item, String *str) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
+  String *Item_func_min_max_val_str(Item_func_min_max *, String *) const;
   bool Item_hybrid_func_fix_attributes(THD *thd,
                                        const char *name,
                                        Type_handler_hybrid_field_type *,

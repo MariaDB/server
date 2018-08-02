@@ -264,18 +264,6 @@ String *Item::val_string_from_decimal(String *str)
 }
 
 
-/*
- All val_xxx_from_date() must call this method, to expose consistent behaviour
- regarding SQL_MODE when converting DATE/DATETIME to other data types.
-*/
-bool Item::get_temporal_with_sql_mode(MYSQL_TIME *ltime)
-{
-  return get_date(ltime, field_type() == MYSQL_TYPE_TIME
-                          ? TIME_TIME_ONLY
-                          : sql_mode_for_dates(current_thd));
-}
-
-
 longlong Item::val_int_from_str(int *error)
 {
   char buff[MAX_FIELD_WIDTH];
@@ -326,21 +314,6 @@ longlong Item::val_int_unsigned_typecast_from_int()
 }
 
 
-String *Item::val_string_from_date(String *str)
-{
-  MYSQL_TIME ltime;
-  if (get_temporal_with_sql_mode(&ltime) ||
-      str->alloc(MAX_DATE_STRING_REP_LENGTH))
-  {
-    null_value= 1;
-    return (String *) 0;
-  }
-  str->length(my_TIME_to_str(&ltime, const_cast<char*>(str->ptr()), decimals));
-  str->set_charset(&my_charset_numeric);
-  return str;
-}
-
-
 my_decimal *Item::val_decimal_from_real(my_decimal *decimal_value)
 {
   double nr= val_real();
@@ -369,54 +342,6 @@ my_decimal *Item::val_decimal_from_string(my_decimal *decimal_value)
     return 0;
 
   return decimal_from_string_with_check(decimal_value, res);
-}
-
-
-my_decimal *Item::val_decimal_from_date(my_decimal *decimal_value)
-{
-  DBUG_ASSERT(is_fixed());
-  MYSQL_TIME ltime;
-  if (get_temporal_with_sql_mode(&ltime))
-  {
-    my_decimal_set_zero(decimal_value);
-    null_value= 1;                               // set NULL, stop processing
-    return 0;
-  }
-  return date2my_decimal(&ltime, decimal_value);
-}
-
-
-my_decimal *Item::val_decimal_from_time(my_decimal *decimal_value)
-{
-  DBUG_ASSERT(is_fixed());
-  MYSQL_TIME ltime;
-  if (get_time(&ltime))
-  {
-    my_decimal_set_zero(decimal_value);
-    return 0;
-  }
-  return date2my_decimal(&ltime, decimal_value);
-}
-
-
-longlong Item::val_int_from_date()
-{
-  DBUG_ASSERT(is_fixed());
-  MYSQL_TIME ltime;
-  if (get_temporal_with_sql_mode(&ltime))
-    return 0;
-  longlong v= TIME_to_ulonglong(&ltime);
-  return ltime.neg ? -v : v;
-}
-
-
-double Item::val_real_from_date()
-{
-  DBUG_ASSERT(is_fixed());
-  MYSQL_TIME ltime;
-  if (get_temporal_with_sql_mode(&ltime))
-    return 0;
-  return TIME_to_double(&ltime);
 }
 
 
@@ -10094,50 +10019,6 @@ longlong Item_cache_temporal::val_time_packed()
     return 0;
   }
   return value;
-}
-
-
-String *Item_cache_temporal::val_str(String *str)
-{
-  if (!has_value())
-  {
-    null_value= true;
-    return NULL;
-  }
-  return val_string_from_date(str);
-}
-
-
-my_decimal *Item_cache_temporal::val_decimal(my_decimal *decimal_value)
-{
-  if ((!value_cached && !cache_value()) || null_value)
-  {
-    null_value= true;
-    return NULL;
-  }
-  return val_decimal_from_date(decimal_value);
-}
-
-
-longlong Item_cache_temporal::val_int()
-{
-  if ((!value_cached && !cache_value()) || null_value)
-  {
-    null_value= true;
-    return 0;
-  }
-  return val_int_from_date();
-}
-
-
-double Item_cache_temporal::val_real()
-{
-  if ((!value_cached && !cache_value()) || null_value)
-  {
-    null_value= true;
-    return 0;
-  }
-  return val_real_from_date();
 }
 
 

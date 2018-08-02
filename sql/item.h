@@ -1379,14 +1379,10 @@ public:
   String *val_string_from_real(String *str);
   String *val_string_from_int(String *str);
   String *val_string_from_decimal(String *str);
-  String *val_string_from_date(String *str);
   my_decimal *val_decimal_from_real(my_decimal *decimal_value);
   my_decimal *val_decimal_from_int(my_decimal *decimal_value);
   my_decimal *val_decimal_from_string(my_decimal *decimal_value);
-  my_decimal *val_decimal_from_date(my_decimal *decimal_value);
-  my_decimal *val_decimal_from_time(my_decimal *decimal_value);
   longlong val_int_from_decimal();
-  longlong val_int_from_date();
   longlong val_int_from_real()
   {
     DBUG_ASSERT(is_fixed());
@@ -1394,10 +1390,6 @@ public:
   }
   longlong val_int_from_str(int *error);
   double val_real_from_decimal();
-  double val_real_from_date();
-
-  // Get TIME, DATE or DATETIME using proper sql_mode flags for the field type
-  bool get_temporal_with_sql_mode(MYSQL_TIME *ltime);
 
   int save_time_in_field(Field *field, bool no_conversions);
   int save_date_in_field(Field *field, bool no_conversions);
@@ -4623,15 +4615,6 @@ public:
   }
 
   const MYSQL_TIME *const_ptr_mysql_time() const { return &cached_time; }
-  bool get_date_with_sql_mode(MYSQL_TIME *to);
-  String *val_str(String *str)
-  { return val_string_from_date(str); }
-  longlong val_int()
-  { return val_int_from_date(); }
-  double val_real()
-  { return val_real_from_date(); }
-  my_decimal *val_decimal(my_decimal *decimal_value)
-  { return  val_decimal_from_date(decimal_value); }
   int save_in_field(Field *field, bool no_conversions)
   { return save_date_in_field(field, no_conversions); }
 };
@@ -4659,6 +4642,10 @@ public:
   const Type_handler *type_handler() const { return &type_handler_newdate; }
   void print(String *str, enum_query_type query_type);
   Item *clone_item(THD *thd);
+  longlong val_int() { return Date(this).to_longlong(); }
+  double val_real() { return Date(this).to_double(); }
+  String *val_str(String *to) { return Date(this).to_string(to); }
+  my_decimal *val_decimal(my_decimal *to) { return Date(this).to_decimal(to); }
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_date_literal>(thd, this); }
@@ -4679,6 +4666,10 @@ public:
   const Type_handler *type_handler() const { return &type_handler_time2; }
   void print(String *str, enum_query_type query_type);
   Item *clone_item(THD *thd);
+  longlong val_int() { return Time(this).to_longlong(); }
+  double val_real() { return Time(this).to_double(); }
+  String *val_str(String *to) { return Time(this).to_string(to, decimals); }
+  my_decimal *val_decimal(my_decimal *to) { return Time(this).to_decimal(to); }
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_time_literal>(thd, this); }
@@ -4701,6 +4692,16 @@ public:
   const Type_handler *type_handler() const { return &type_handler_datetime2; }
   void print(String *str, enum_query_type query_type);
   Item *clone_item(THD *thd);
+  longlong val_int() { return Datetime(this).to_longlong(); }
+  double val_real() { return Datetime(this).to_double(); }
+  String *val_str(String *to)
+  {
+    return Datetime(this).to_string(to, decimals);
+  }
+  my_decimal *val_decimal(my_decimal *to)
+  {
+    return Datetime(this).to_decimal(to);
+  }
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_datetime_literal>(thd, this); }
@@ -6490,12 +6491,8 @@ class Item_cache_temporal: public Item_cache_int
 protected:
   Item_cache_temporal(THD *thd, const Type_handler *handler);
 public:
-  String* val_str(String *str);
-  my_decimal *val_decimal(my_decimal *);
-  longlong val_int();
   longlong val_datetime_packed();
   longlong val_time_packed();
-  double val_real();
   bool cache_value();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   int save_in_field(Field *field, bool no_conversions);
@@ -6520,6 +6517,22 @@ public:
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_cache_time>(thd, this); }
   Item *make_literal(THD *);
+  longlong val_int()
+  {
+    return has_value() ? Time(this).to_longlong() : 0;
+  }
+  double val_real()
+  {
+    return has_value() ? Time(this).to_double() : 0;
+  }
+  String *val_str(String *to)
+  {
+    return has_value() ? Time(this).to_string(to, decimals) : NULL;
+  }
+  my_decimal *val_decimal(my_decimal *to)
+  {
+    return has_value() ? Time(this).to_decimal(to) : NULL;
+  }
 };
 
 
@@ -6531,6 +6544,22 @@ public:
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_cache_datetime>(thd, this); }
   Item *make_literal(THD *);
+  longlong val_int()
+  {
+    return has_value() ? Datetime(this).to_longlong() : 0;
+  }
+  double val_real()
+  {
+    return has_value() ? Datetime(this).to_double() : 0;
+  }
+  String *val_str(String *to)
+  {
+    return has_value() ? Datetime(this).to_string(to, decimals) : NULL;
+  }
+  my_decimal *val_decimal(my_decimal *to)
+  {
+    return has_value() ? Datetime(this).to_decimal(to) : NULL;
+  }
 };
 
 
@@ -6542,6 +6571,16 @@ public:
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_cache_date>(thd, this); }
   Item *make_literal(THD *);
+  longlong val_int() { return has_value() ? Date(this).to_longlong() : 0; }
+  double val_real() { return has_value() ? Date(this).to_double() : 0; }
+  String *val_str(String *to)
+  {
+    return has_value() ? Date(this).to_string(to) : NULL;
+  }
+  my_decimal *val_decimal(my_decimal *to)
+  {
+    return has_value() ? Date(this).to_decimal(to) : NULL;
+  }
 };
 
 

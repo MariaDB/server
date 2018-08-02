@@ -55,6 +55,7 @@ protected:
   bool check_argument_types_can_return_text(uint start, uint end) const;
   bool check_argument_types_can_return_date(uint start, uint end) const;
   bool check_argument_types_can_return_time(uint start, uint end) const;
+  void print_cast_temporal(String *str, enum_query_type query_type);
 public:
 
   table_map not_null_tables_cache;
@@ -466,6 +467,135 @@ public:
     virtual const Type_handler *return_type_handler() const= 0;
     virtual bool fix_length_and_dec(Item_handled_func *) const= 0;
   };
+
+  /**
+    Abstract class for functions returning TIME, DATE, DATETIME or string values,
+    whose data type depends on parameters and is set at fix_fields time.
+  */
+  class Handler_temporal: public Handler
+  {
+  public:
+    String *val_str(Item_handled_func *item, String *to) const
+    {
+      StringBuffer<MAX_FIELD_WIDTH> ascii_buf;
+      return item->val_str_from_val_str_ascii(to, &ascii_buf);
+    }
+  };
+
+  /**
+    Abstract class for functions returning strings,
+    which are generated from get_date() results,
+    when get_date() can return different MYSQL_TIMESTAMP_XXX per row.
+  */
+  class Handler_temporal_string: public Handler_temporal
+  {
+  public:
+    const Type_handler *return_type_handler() const
+    {
+      return &type_handler_string;
+    }
+    double val_real(Item_handled_func *item) const
+    {
+      return Temporal_hybrid(item).to_double();
+    }
+    longlong val_int(Item_handled_func *item) const
+    {
+      return Temporal_hybrid(item).to_longlong();
+    }
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    {
+      return Temporal_hybrid(item).to_decimal(to);
+    }
+    String *val_str_ascii(Item_handled_func *item, String *to) const
+    {
+      return Temporal_hybrid(item).to_string(to, item->decimals);
+    }
+  };
+
+
+  class Handler_date: public Handler_temporal
+  {
+  public:
+    const Type_handler *return_type_handler() const
+    {
+      return &type_handler_newdate;
+    }
+    bool fix_length_and_dec(Item_handled_func *item) const
+    {
+      item->fix_attributes_date();
+      return false;
+    }
+    double val_real(Item_handled_func *item) const
+    {
+      return Date(item).to_double();
+    }
+    longlong val_int(Item_handled_func *item) const
+    {
+      return Date(item).to_longlong();
+    }
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    {
+      return Date(item).to_decimal(to);
+    }
+    String *val_str_ascii(Item_handled_func *item, String *to) const
+    {
+      return Date(item).to_string(to);
+    }
+  };
+
+
+  class Handler_time: public Handler_temporal
+  {
+  public:
+    const Type_handler *return_type_handler() const
+    {
+      return &type_handler_time2;
+    }
+    double val_real(Item_handled_func *item) const
+    {
+      return Time(item).to_double();
+    }
+    longlong val_int(Item_handled_func *item) const
+    {
+      return Time(item).to_longlong();
+    }
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    {
+      return Time(item).to_decimal(to);
+    }
+    String *val_str_ascii(Item_handled_func *item, String *to) const
+    {
+      return Time(item).to_string(to, item->decimals);
+    }
+  };
+
+
+  class Handler_datetime: public Handler_temporal
+  {
+  public:
+    const Type_handler *return_type_handler() const
+    {
+      return &type_handler_datetime2;
+    }
+    double val_real(Item_handled_func *item) const
+    {
+      return Datetime(item).to_double();
+    }
+    longlong val_int(Item_handled_func *item) const
+    {
+      return Datetime(item).to_longlong();
+    }
+    my_decimal *val_decimal(Item_handled_func *item, my_decimal *to) const
+    {
+      return Datetime(item).to_decimal(to);
+    }
+    String *val_str_ascii(Item_handled_func *item, String *to) const
+    {
+      return Datetime(item).to_string(to, item->decimals);
+    }
+  };
+
+
 protected:
   const Handler *m_func_handler;
 public:
