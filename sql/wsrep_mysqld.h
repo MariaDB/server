@@ -326,8 +326,10 @@ extern PSI_mutex_key key_LOCK_wsrep_slave_threads;
 extern PSI_mutex_key key_LOCK_wsrep_desync;
 #endif /* HAVE_PSI_INTERFACE */
 struct TABLE_LIST;
+class Alter_info;
 int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
-                             const TABLE_LIST* table_list);
+                             const TABLE_LIST* table_list,
+                             Alter_info* alter_info = NULL);
 void wsrep_to_isolation_end(THD *thd);
 void wsrep_cleanup_transaction(THD *thd);
 int wsrep_to_buf_helper(

@@ -215,6 +215,11 @@ inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)                   \
   if (WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) goto error;
 
+#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_) \
+  if (WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_,                \
+                                             table_list_, alter_info_))       \
+    goto error;
+
 #define WSREP_TO_ISOLATION_END                                              \
   if (WSREP(thd) || (thd && thd->wsrep_exec_mode==TOTAL_ORDER))             \
     wsrep_to_isolation_end(thd);
