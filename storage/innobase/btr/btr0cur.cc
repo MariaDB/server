@@ -65,6 +65,8 @@ Created 10/16/1994 Heikki Tuuri
 #include "lock0lock.h"
 #include "zlib.h"
 #include "srv0start.h"
+#include "mysql_com.h"
+#include "dict0stats.h"
 
 /** Buffered B-tree operation types, introduced as part of delete buffering. */
 enum btr_op_t {
@@ -771,6 +773,22 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 			rec_max_size += (srv_page_size == UNIV_PAGE_SIZE_MAX)
 				? REDUNDANT_REC_MAX_DATA_SIZE
 				: page_get_free_space_of_empty(FALSE) / 2;
+		} else if (field_max_size == NAME_LEN && i == 1
+			   && (!strcmp(index->table->name.m_name,
+				       TABLE_STATS_NAME)
+			       || !strcmp(index->table->name.m_name,
+					  INDEX_STATS_NAME))) {
+			ut_ad(!strcmp(field->name, "table_name"));
+			/* Interpret "table_name" as VARCHAR(199) even
+			if it was incorrectly defined as VARCHAR(64).
+			While the caller of ha_innobase enforces the
+			maximum length on any data written, the InnoDB
+			internal SQL parser will happily write as much
+			data as is provided. The purpose of this hack
+			is to avoid InnoDB hangs after persistent
+			statistics on partitioned tables are
+			deleted. */
+			field_max_size = 199 * SYSTEM_CHARSET_MBMAXLEN;
 		}
 		field_ext_max_size = field_max_size < 256 ? 1 : 2;
 

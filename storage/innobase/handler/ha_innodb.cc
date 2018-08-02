@@ -5459,15 +5459,16 @@ ha_innobase::max_supported_key_length() const
 
 	switch (UNIV_PAGE_SIZE) {
 	case 4096:
-		return(768);
+		/* Hack: allow mysql.innodb_index_stats to be created. */
+		/* FIXME: rewrite this API, and in sql_table.cc consider
+		that in index-organized tables (such as InnoDB), secondary
+		index records will be padded with the PRIMARY KEY, instead
+		of some short ROWID or record heap address. */
+		return(1173);
 	case 8192:
 		return(1536);
 	default:
-#ifdef WITH_WSREP
 		return(3500);
-#else
-		return(3500);
-#endif
 	}
 }
 

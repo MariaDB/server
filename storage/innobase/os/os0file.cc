@@ -3307,7 +3307,8 @@ os_file_get_status_posix(
 {
 	int	ret = stat(path, statinfo);
 
-	if (ret && (errno == ENOENT || errno == ENOTDIR)) {
+	if (ret && (errno == ENOENT || errno == ENOTDIR
+		    || errno == ENAMETOOLONG)) {
 		/* file does not exist */
 
 		return(DB_NOT_FOUND);
@@ -4697,7 +4698,8 @@ os_file_get_status_win32(
 {
 	int	ret = _stat64(path, statinfo);
 
-	if (ret && (errno == ENOENT || errno == ENOTDIR)) {
+	if (ret && (errno == ENOENT || errno == ENOTDIR
+		    || errno == ENAMETOOLONG)) {
 		/* file does not exist */
 
 		return(DB_NOT_FOUND);
