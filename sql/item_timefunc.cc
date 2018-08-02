@@ -2817,27 +2817,6 @@ bool Item_func_add_time::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 }
 
 
-void Item_func_add_time::print(String *str, enum_query_type query_type)
-{
-  if (is_date)
-  {
-    DBUG_ASSERT(sign > 0);
-    str->append(STRING_WITH_LEN("timestamp("));
-  }
-  else
-  {
-    if (sign > 0)
-      str->append(STRING_WITH_LEN("addtime("));
-    else
-      str->append(STRING_WITH_LEN("subtime("));
-  }
-  args[0]->print(str, query_type);
-  str->append(',');
-  args[1]->print(str, query_type);
-  str->append(')');
-}
-
-
 /**
   TIMEDIFF(t,s) is a time function that calculates the 
   time value between a start and end time.

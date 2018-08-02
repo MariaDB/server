@@ -1245,8 +1245,10 @@ public:
   { sign= neg_arg ? -1 : 1; }
   bool fix_length_and_dec();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
-  void print(String *str, enum_query_type query_type);
-  const char *func_name() const { return "add_time"; }
+  const char *func_name() const
+  {
+    return is_date ? "timestamp" : sign > 0 ? "addtime" : "subtime";
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_add_time>(thd, this); }
 };
