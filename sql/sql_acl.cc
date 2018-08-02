@@ -7190,7 +7190,7 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   mysql_mutex_lock(&acl_cache->lock);
 
  if ((au= find_acl_user(combo->host.str= (char *) sctx->priv_host,
-                        combo->user.str, FALSE)))
+                        combo->user.str, TRUE)))
     goto found_acl;
 
   mysql_mutex_unlock(&acl_cache->lock);
