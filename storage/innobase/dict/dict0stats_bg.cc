@@ -32,6 +32,12 @@ Created Apr 25, 2012 Vasil Dimov
 #include "srv0start.h"
 #include "ut0new.h"
 #include "fil0fil.h"
+#ifdef WITH_WSREP
+# include "mysql/service_wsrep.h"
+# include "wsrep.h"
+# include "log.h"
+# include "wsrep_mysqld.h"
+#endif
 
 #include <vector>
 
@@ -146,11 +152,18 @@ dict_stats_recalc_pool_add(
 	os_event_set(dict_stats_event);
 }
 
+#ifdef WITH_WSREP
+/** Update the table modification counter and if necessary,
+schedule new estimates for table and index statistics to be calculated.
+@param[in,out]	table	persistent or temporary table
+@param[in]	thd	current session */
+void dict_stats_update_if_needed(dict_table_t* table, THD* thd)
+#else
 /** Update the table modification counter and if necessary,
 schedule new estimates for table and index statistics to be calculated.
 @param[in,out]	table	persistent or temporary table */
-void
-dict_stats_update_if_needed(dict_table_t* table)
+void dict_stats_update_if_needed_func(dict_table_t* table)
+#endif
 {
 	ut_ad(table->stat_initialized);
 	ut_ad(!mutex_own(&dict_sys->mutex));
@@ -161,6 +174,15 @@ dict_stats_update_if_needed(dict_table_t* table)
 	if (dict_stats_is_persistent_enabled(table)) {
 		if (counter > n_rows / 10 /* 10% */
 		    && dict_stats_auto_recalc_is_enabled(table)) {
+
+#ifdef WITH_WSREP
+			if (thd && wsrep_on(thd) && wsrep_thd_is_BF(thd, 0)) {
+				WSREP_DEBUG("Avoiding background statistics"
+					    " calculation for table %s",
+					    table->name.m_name);
+				return;
+			}
+#endif /* WITH_WSREP */
 
 			dict_stats_recalc_pool_add(table);
 			table->stat_modified_counter = 0;

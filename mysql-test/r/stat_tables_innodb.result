@@ -543,6 +543,135 @@ use test;
 drop database db1;
 drop database db2;
 drop table t1;
+#
+# MDEV-16552: [10.0] ASAN global-buffer-overflow in is_stat_table / statistics_for_tables_is_needed
+#
+SET use_stat_tables = PREFERABLY;
+SELECT CONVERT_TZ( '1991-09-20 10:11:02', '+00:00', 'GMT' );
+CONVERT_TZ( '1991-09-20 10:11:02', '+00:00', 'GMT' )
+NULL
+set use_stat_tables=@save_use_stat_tables;
+#
+# MDEV-16757: manual addition of min/max statistics for BLOB
+#
+SET use_stat_tables= PREFERABLY;
+CREATE TABLE t1 (pk INT PRIMARY KEY, t TEXT);
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 't'
+test.t1	analyze	status	OK
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	pk	1	2	0.0000	4.0000	1.0000	0	NULL	NULL
+DELETE FROM mysql.column_stats
+WHERE db_name='test' AND table_name='t1' AND column_name='t';
+INSERT INTO mysql.column_stats VALUES
+('test','t1','t','bar','foo', 0.0, 3.0, 1.0, 0, NULL, NULL);
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	pk	1	2	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	t	bar	foo	0.0000	3.0000	1.0000	0	NULL	NULL
+SELECT pk FROM t1;
+pk
+1
+2
+DROP TABLE t1;
+set use_stat_tables=@save_use_stat_tables;
+#
+# MDEV-16760: CREATE OR REPLACE TABLE after ANALYZE TABLE
+#
+SET use_stat_tables= PREFERABLY;
+CREATE TABLE t1 (pk int PRIMARY KEY, c varchar(32));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM t1;
+pk	c
+1	foo
+2	bar
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	pk	1	2	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	c	bar	foo	0.0000	3.0000	1.0000	0	NULL	NULL
+CREATE OR REPLACE TABLE t1 (pk int PRIMARY KEY, a char(7));
+SELECT * FROM t1;
+pk	a
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+DROP TABLE t1;
+set use_stat_tables=@save_use_stat_tables;
+#
+# MDEV-16757: manual addition of min/max statistics for BLOB
+#
+SET use_stat_tables= PREFERABLY;
+CREATE TABLE t1 (pk INT PRIMARY KEY, t TEXT);
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 't'
+test.t1	analyze	status	OK
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	pk	1	2	0.0000	4.0000	1.0000	0	NULL	NULL
+DELETE FROM mysql.column_stats
+WHERE db_name='test' AND table_name='t1' AND column_name='t';
+INSERT INTO mysql.column_stats VALUES
+('test','t1','t','bar','foo', 0.0, 3.0, 1.0, 0, NULL, NULL);
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	pk	1	2	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	t	bar	foo	0.0000	3.0000	1.0000	0	NULL	NULL
+SELECT pk FROM t1;
+pk
+1
+2
+DROP TABLE t1;
+set use_stat_tables=@save_use_stat_tables;
+#
+# MDEV-16760: CREATE OR REPLACE TABLE after ANALYZE TABLE
+#
+SET use_stat_tables= PREFERABLY;
+CREATE TABLE t1 (pk int PRIMARY KEY, c varchar(32));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM t1;
+pk	c
+1	foo
+2	bar
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	pk	1	2	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	c	bar	foo	0.0000	3.0000	1.0000	0	NULL	NULL
+CREATE OR REPLACE TABLE t1 (pk int PRIMARY KEY, a char(7));
+SELECT * FROM t1;
+pk	a
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+DROP TABLE t1;
+set use_stat_tables=@save_use_stat_tables;
+#
+# MDEV-16711:CREATE OR REPLACE TABLE introducing BLOB column
+#
+SET use_stat_tables= PREFERABLY;
+CREATE TABLE t1 (pk INT PRIMARY KEY, t CHAR(60));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+CREATE OR REPLACE TABLE t1 (pk INT PRIMARY KEY, t TEXT);
+SELECT MAX(pk) FROM t1;
+MAX(pk)
+NULL
+DROP TABLE t1;
 set use_stat_tables=@save_use_stat_tables;
 set optimizer_switch=@save_optimizer_switch_for_stat_tables_test;
 SET SESSION STORAGE_ENGINE=DEFAULT;

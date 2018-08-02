@@ -4795,6 +4795,10 @@ int create_table_impl(THD *thd,
     {
       if (options.or_replace())
       {
+        LEX_STRING db_name= {(char *) db, strlen(db)};
+        LEX_STRING tab_name= {(char *) table_name, strlen(table_name)};
+        (void) delete_statistics_for_table(thd, &db_name, &tab_name);
+
         TABLE_LIST table_list;
         table_list.init_one_table(db, strlen(db), table_name,
                                   strlen(table_name), table_name,
@@ -5326,6 +5330,8 @@ mysql_rename_table(handlerton *base, const char *old_db,
   delete file;
   if (error == HA_ERR_WRONG_COMMAND)
     my_error(ER_NOT_SUPPORTED_YET, MYF(0), "ALTER TABLE");
+  else if (error ==  ENOTDIR)
+    my_error(ER_BAD_DB_ERROR, MYF(0), new_db);
   else if (error)
     my_error(ER_ERROR_ON_RENAME, MYF(0), from, to, error);
   else if (!(flags & FN_IS_TMP))

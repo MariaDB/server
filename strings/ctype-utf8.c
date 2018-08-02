@@ -5140,12 +5140,13 @@ my_toupper_utf8mb3(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
 }
 
 
-static size_t my_caseup_utf8(CHARSET_INFO *cs, char *src, size_t srclen,
+static size_t my_caseup_utf8(CHARSET_INFO *cs, const char *src, size_t srclen,
                              char *dst, size_t dstlen)
 {
   my_wc_t wc;
   int srcres, dstres;
-  char *srcend= src + srclen, *dstend= dst + dstlen, *dst0= dst;
+  const char *srcend= src + srclen;
+  char *dstend= dst + dstlen, *dst0= dst;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(src != dst || cs->caseup_multiply == 1);
 
@@ -5218,12 +5219,13 @@ static size_t my_caseup_str_utf8(CHARSET_INFO *cs, char *src)
 }
 
 
-static size_t my_casedn_utf8(CHARSET_INFO *cs, char *src, size_t srclen,
+static size_t my_casedn_utf8(CHARSET_INFO *cs, const char *src, size_t srclen,
                              char *dst, size_t dstlen)
 {
   my_wc_t wc;
   int srcres, dstres;
-  char *srcend= src + srclen, *dstend= dst + dstlen, *dst0= dst;
+  const char *srcend= src + srclen;
+  char *dstend= dst + dstlen, *dst0= dst;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(src != dst || cs->casedn_multiply == 1);
 
@@ -7567,12 +7569,13 @@ my_toupper_utf8mb4(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
 
 
 static size_t
-my_caseup_utf8mb4(CHARSET_INFO *cs, char *src, size_t srclen,
+my_caseup_utf8mb4(CHARSET_INFO *cs, const char *src, size_t srclen,
                   char *dst, size_t dstlen)
 {
   my_wc_t wc;
   int srcres, dstres;
-  char *srcend= src + srclen, *dstend= dst + dstlen, *dst0= dst;
+  const char *srcend= src + srclen;
+  char *dstend= dst + dstlen, *dst0= dst;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(src != dst || cs->caseup_multiply == 1);
 
@@ -7662,12 +7665,13 @@ my_caseup_str_utf8mb4(CHARSET_INFO *cs, char *src)
 
 static size_t
 my_casedn_utf8mb4(CHARSET_INFO *cs,
-                  char *src, size_t srclen,
+                  const char *src, size_t srclen,
                   char *dst, size_t dstlen)
 {
   my_wc_t wc;
   int srcres, dstres;
-  char *srcend= src + srclen, *dstend= dst + dstlen, *dst0= dst;
+  const char *srcend= src + srclen;
+  char *dstend= dst + dstlen, *dst0= dst;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   DBUG_ASSERT(src != dst || cs->casedn_multiply == 1);
 
