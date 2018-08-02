@@ -4260,11 +4260,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   }
 
   /* Give warnings for not supported table options */
-#if defined(WITH_ARIA_STORAGE_ENGINE)
   extern handlerton *maria_hton;
-  if (file->partition_ht() != maria_hton)
-#endif
-    if (create_info->transactional)
+  if (file->partition_ht() != maria_hton && create_info->transactional &&
+      !file->has_transaction_manager())
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_ILLEGAL_HA_CREATE_OPTION,
                           ER_THD(thd, ER_ILLEGAL_HA_CREATE_OPTION),
@@ -9563,8 +9561,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   }
 
   DEBUG_SYNC(thd, "alter_table_before_create_table_no_lock");
-  /* We can abort alter table for any table type */
-  thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
   /*
     Create .FRM for new version of table with a temporary name.
@@ -9594,7 +9590,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                            C_ALTER_TABLE_FRM_ONLY, NULL,
                            &key_info, &key_count, &frm);
   reenable_binlog(thd);
-  thd->abort_on_warning= false;
   if (unlikely(error))
   {
     my_free(const_cast<uchar*>(frm.str));

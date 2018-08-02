@@ -2,6 +2,18 @@
 
 --source include/have_maria.inc
 
+#
+# Ensure that we don't get warnings from mysql.proc (used by check_mysqld)
+#
+
+--disable_query_log
+--disable_warnings
+--disable_result_log
+select count(*) from mysql.proc;
+--enable_result_log
+--enable_warnings
+--enable_query_log
+
 --disable_query_log
 # Note: \\. matches a single period. We use '.' as directory separator to 
 # account for Unix and Windows variation.

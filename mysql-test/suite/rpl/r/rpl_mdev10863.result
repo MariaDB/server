@@ -46,6 +46,6 @@ SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 SET GLOBAL max_relay_log_size= @old_max_relay;
 include/start_slave.inc
 connection server_1;
-ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 DROP TABLE t1;
 include/rpl_end.inc

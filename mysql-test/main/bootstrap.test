@@ -1,3 +1,4 @@
+--source include/not_embedded.inc
 #
 # test mysqld in bootstrap mode
 #
@@ -15,7 +16,9 @@ let $MYSQLD_BOOTSTRAP_CMD= $MYSQLD_BOOTSTRAP_CMD --datadir=$MYSQLD_DATADIR --def
 use test;
 CREATE TABLE t1(a int);
 EOF
+--source include/kill_mysqld.inc
 --exec $MYSQLD_BOOTSTRAP_CMD < $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+--source include/start_mysqld.inc
 drop table t1;
 remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql;
 #
@@ -25,9 +28,11 @@ remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql;
 use test;
 CREATE TABLE t1;
 EOF
+--source include/kill_mysqld.inc
 --error 1
 --exec $MYSQLD_BOOTSTRAP_CMD  < $MYSQLTEST_VARDIR/tmp/bootstrap_error.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
 # Table t1 should not exists
+--source include/start_mysqld.inc
 --error 1051
 drop table t1;
 remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_error.sql;
@@ -35,17 +40,15 @@ remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_error.sql;
 #
 # Bootstrap with a query larger than 2*thd->net.max_packet
 #
-set @my_max_allowed_packet= @@max_allowed_packet;
-set global max_allowed_packet=64*@@max_allowed_packet;
 --disable_query_log
 create table t1 select 2 as a, concat(repeat('MySQL', @@max_allowed_packet/10), ';') as b;
 eval select * into outfile '$MYSQLTEST_VARDIR/tmp/long_query.sql' from t1;
 --enable_query_log
+--source include/kill_mysqld.inc
 --error 1
 --exec $MYSQLD_BOOTSTRAP_CMD < $MYSQLTEST_VARDIR/tmp/long_query.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
 remove_file $MYSQLTEST_VARDIR/tmp/long_query.sql;
-
-set global max_allowed_packet=@my_max_allowed_packet;
+--source include/start_mysqld.inc
 drop table t1;
 
 --echo End of 5.1 tests
@@ -62,8 +65,10 @@ SELECT 'bug' as '' FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
 #
 # MDEV-13063 Server crashes in intern_plugin_lock or assertion `plugin_ptr->ref_count == 1' fails in plugin_init
 #
+--source include/kill_mysqld.inc
 --error 1
 --exec $MYSQLD_BOOTSTRAP_CMD --myisam_recover_options=NONE
+--source include/start_mysqld.inc
 
 --echo End of 5.5 tests
 
@@ -73,6 +78,7 @@ SELECT 'bug' as '' FROM INFORMATION_SCHEMA.ENGINES WHERE engine='innodb'
 # Check that --bootstrap can install and uninstall plugins
 #
 let $PLUGIN_DIR=`select @@plugin_dir`;
+--source include/kill_mysqld.inc
 --write_file $MYSQLTEST_VARDIR/tmp/install_plugin.sql
 install soname 'ha_example';
 uninstall plugin unusable;
@@ -90,6 +96,7 @@ create table t1(a int) engine=example charset=latin1;
 EOF
 --exec $MYSQLD_BOOTSTRAP_CMD --plugin-dir=$PLUGIN_DIR < $MYSQLTEST_VARDIR/tmp/bootstrap_plugins.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
 --remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_plugins.sql
+--source include/start_mysqld.inc
 flush tables;
 show create table t1;
 drop table t1;
@@ -104,5 +111,7 @@ truncate table mysql.plugin;
 --write_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
 use test;
 EOF
+--source include/kill_mysqld.inc
 --exec $MYSQLD_BOOTSTRAP_CMD --ignore-db-dirs='some_dir' --ignore-db-dirs='some_dir' < $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
 --remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
+--source include/start_mysqld.inc

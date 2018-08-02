@@ -453,6 +453,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
     share->state.state_length=base_pos;
     /* For newly opened tables we reset the error-has-been-printed flag */
     share->state.changed&= ~STATE_CRASHED_PRINTED;
+    share->state.org_changed= share->state.changed;
 
     if (!(open_flags & HA_OPEN_FOR_REPAIR) &&
 	((share->state.changed & STATE_CRASHED_FLAGS) ||
@@ -800,17 +801,27 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
                                    share->state.is_of_horizon) > 0) ||
                 !LSN_VALID(share->state.skip_redo_lsn) ||
                 (cmp_translog_addr(share->state.create_rename_lsn,
-                                   share->state.skip_redo_lsn) > 0)) &&
-               !(open_flags & HA_OPEN_FOR_REPAIR))
+                                   share->state.skip_redo_lsn) > 0)))
       {
-        /*
-          If in Recovery, it will not work. If LSN is invalid and not
-          LSN_NEEDS_NEW_STATE_LSNS, header must be corrupted.
-          In both cases, must repair.
-        */
-        my_errno=((share->state.changed & STATE_CRASHED_ON_REPAIR) ?
-                  HA_ERR_CRASHED_ON_REPAIR : HA_ERR_CRASHED_ON_USAGE);
-        goto err;
+        if (!(open_flags & HA_OPEN_FOR_REPAIR))
+        {
+          /*
+            If in Recovery, it will not work. If LSN is invalid and not
+            LSN_NEEDS_NEW_STATE_LSNS, header must be corrupted.
+            In both cases, must repair.
+          */
+          my_errno=((share->state.changed & STATE_CRASHED_ON_REPAIR) ?
+                    HA_ERR_CRASHED_ON_REPAIR : HA_ERR_CRASHED_ON_USAGE);
+          goto err;
+        }
+        else
+        {
+          /*
+            Open in repair mode. Ensure that we mark the table crashed, so
+            that we run auto_repair on it
+          */
+          maria_mark_crashed_share(share);
+        }
       }
       else if (!(open_flags & HA_OPEN_FOR_REPAIR))
       {

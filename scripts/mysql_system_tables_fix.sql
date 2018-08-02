@@ -25,7 +25,7 @@
 # adding a 'SHOW WARNINGS' after the statement.
 
 set sql_mode='';
-set storage_engine=MyISAM;
+set storage_engine=Aria;
 set enforce_storage_engine=NULL;
 
 ALTER TABLE user add File_priv enum('N','Y') COLLATE utf8_general_ci NOT NULL;
@@ -66,7 +66,7 @@ ALTER TABLE tables_priv
   MODIFY User char(80) NOT NULL default '',
   MODIFY Table_name char(64) NOT NULL default '',
   MODIFY Grantor char(141) NOT NULL default '',
-  ENGINE=MyISAM,
+  ENGINE=Aria,
   CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin;
 
 ALTER TABLE tables_priv
@@ -94,7 +94,7 @@ ALTER TABLE columns_priv
   MODIFY User char(80) NOT NULL default '',
   MODIFY Table_name char(64) NOT NULL default '',
   MODIFY Column_name char(64) NOT NULL default '',
-  ENGINE=MyISAM,
+  ENGINE=Aria,
   CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin,
   COMMENT='Column privileges';
 
@@ -163,7 +163,7 @@ alter table func comment='User defined functions';
 ALTER TABLE user
   MODIFY Host char(60) NOT NULL default '',
   MODIFY User char(80) NOT NULL default '',
-  ENGINE=MyISAM, CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin;
+  ENGINE=Aria, CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin;
 
 # In MySQL 5.7.6 the Password column is removed. Recreate it to preserve the number
 # of columns MariaDB expects in the user table.
@@ -199,7 +199,7 @@ ALTER TABLE db
   MODIFY Host char(60) NOT NULL default '',
   MODIFY Db char(64) NOT NULL default '',
   MODIFY User char(80) NOT NULL default '',
-  ENGINE=MyISAM, CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin;
+  ENGINE=Aria, CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin;
 ALTER TABLE db
   MODIFY  Select_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
   MODIFY  Insert_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
@@ -217,7 +217,7 @@ ALTER TABLE db
 ALTER TABLE host
   MODIFY Host char(60) NOT NULL default '',
   MODIFY Db char(64) NOT NULL default '',
-  ENGINE=MyISAM, CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin;
+  ENGINE=Aria, CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin;
 ALTER TABLE host
   MODIFY Select_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
   MODIFY Insert_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
@@ -233,7 +233,7 @@ ALTER TABLE host
   MODIFY Lock_tables_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 
 ALTER TABLE func
-  ENGINE=MyISAM, CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin;
+  ENGINE=Aria, CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin;
 ALTER TABLE func
   MODIFY type enum ('function','aggregate') COLLATE utf8_general_ci NOT NULL;
 
@@ -383,7 +383,7 @@ UPDATE user LEFT JOIN db USING (Host,User) SET Create_user_priv='Y'
 #
 
 ALTER TABLE procs_priv
-  ENGINE=MyISAM,
+  ENGINE=Aria,
   CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin;
 
 ALTER TABLE procs_priv
@@ -773,3 +773,35 @@ ALTER TABLE help_topic MODIFY url TEXT NOT NULL;
 
 # MDEV-7383 - varbinary on mix/max of column_stats
 alter table column_stats modify min_value varbinary(255) DEFAULT NULL, modify max_value varbinary(255) DEFAULT NULL;
+
+--
+-- Ensure that all tables are of type Aria and transactional
+--
+
+ALTER TABLE user ENGINE=Aria transactional=1;
+ALTER TABLE db ENGINE=Aria transactional=1;
+ALTER TABLE host ENGINE=Aria transactional=1;
+ALTER TABLE func ENGINE=Aria transactional=1;
+ALTER TABLE procs_priv ENGINE=Aria transactional=1;
+ALTER TABLE tables_priv ENGINE=Aria transactional=1;
+ALTER TABLE columns_priv ENGINE=Aria transactional=1;
+ALTER TABLE roles_mapping ENGINE=Aria transactional=1;
+ALTER TABLE plugin ENGINE=Aria transactional=1;
+ALTER TABLE servers ENGINE=Aria transactional=1;
+ALTER TABLE time_zone_name ENGINE=Aria transactional=1;
+ALTER TABLE time_zone ENGINE=Aria transactional=1;
+ALTER TABLE time_zone_transition ENGINE=Aria transactional=1;
+ALTER TABLE time_zone_transition_type ENGINE=Aria transactional=1;
+ALTER TABLE time_zone_leap_second ENGINE=Aria transactional=1;
+ALTER TABLE proc ENGINE=Aria transactional=1;
+ALTER TABLE event ENGINE=Aria transactional=1;
+ALTER TABLE proxies_priv ENGINE=Aria transactional=1;
+
+-- The folloing tables doesn't have to be transactional
+ALTER TABLE help_topic ENGINE=Aria transactional=0;
+ALTER TABLE help_category ENGINE=Aria transactional=0;
+ALTER TABLE help_relation ENGINE=Aria transactional=0;
+ALTER TABLE help_keyword ENGINE=Aria transactional=0;
+ALTER TABLE table_stats ENGINE=Aria transactional=0;
+ALTER TABLE column_stats ENGINE=Aria transactional=0;
+ALTER TABLE index_stats ENGINE=Aria transactional=0;

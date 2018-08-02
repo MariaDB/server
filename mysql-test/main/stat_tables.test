@@ -191,7 +191,7 @@ FLUSH TABLE t1;
 SET use_stat_tables='never';
 EXPLAIN SELECT * FROM t1;
 
---move_file $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MYD $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MYD.save
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MAD $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MAD.save
 
 FLUSH TABLES;
 SET use_stat_tables='preferably';
@@ -200,7 +200,7 @@ EXPLAIN SELECT * FROM t1;
 --enable_warnings
 
 # Cleanup
---move_file $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MYD.save $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MYD
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MAD.save $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MAD
 DROP TABLE t1;
 
 set use_stat_tables=@save_use_stat_tables;

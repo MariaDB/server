@@ -175,6 +175,7 @@ typedef struct st_maria_state_info
   uint sortkey;				/* sorted by this key (not used) */
   uint open_count;
   uint changed;                         /* Changed since maria_chk */
+  uint org_changed;                     /* Changed since open */
   /**
      Birthday of the table: no record in the log before this LSN should ever
      be applied to the table. Updated when created, renamed, explicitly
@@ -602,7 +603,7 @@ struct st_maria_handler
 {
   MARIA_SHARE *s;			/* Shared between open:s */
   struct st_ma_transaction *trn;        /* Pointer to active transaction */
-  struct st_maria_handler *trn_next;
+  struct st_maria_handler *trn_next,**trn_prev;
   MARIA_STATUS_INFO *state, state_save;
   MARIA_STATUS_INFO *state_start;       /* State at start of transaction */
   MARIA_USED_TABLES *used_tables;

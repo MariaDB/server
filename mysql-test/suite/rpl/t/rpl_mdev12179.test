@@ -44,7 +44,7 @@ SELECT * FROM t1 ORDER BY a;
 SET sql_log_bin=0;
 # Reset storage engine for mysql.gtid_slave_pos in case an earlier test
 # might have changed it to InnoDB.
-ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 CREATE TABLE mysql.gtid_slave_pos_innodb LIKE mysql.gtid_slave_pos;
 ALTER TABLE mysql.gtid_slave_pos_innodb ENGINE=InnoDB;
 INSERT INTO mysql.gtid_slave_pos_innodb SELECT * FROM mysql.gtid_slave_pos;
@@ -128,7 +128,7 @@ SELECT table_name, engine FROM information_schema.tables
 
 --source include/stop_slave.inc
 SET sql_log_bin=0;
-ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 SET sql_log_bin=1;
 
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect

@@ -1271,6 +1271,7 @@ int ha_maria::close(void)
   MARIA_HA *tmp= file;
   if (!tmp)
     return 0;
+  DBUG_ASSERT(file->trn == 0 || file->trn == &dummy_transaction_object);
   file= 0;
   return maria_close(tmp);
 }
@@ -3985,7 +3986,7 @@ maria_declare_plugin(aria)
   &maria_storage_engine,
   "Aria",
   "Monty Program Ab",
-  "Crash-safe tables with MyISAM heritage",
+  "Crash-safe tables with MyISAM heritage. Used for internal temporary tables and privilege tables",
   PLUGIN_LICENSE_GPL,
   ha_maria_init,                /* Plugin Init      */
   NULL,                         /* Plugin Deinit    */

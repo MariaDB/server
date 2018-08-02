@@ -3225,7 +3225,7 @@ public:
 
   /*
     True if changes to the table is persistent (no rollback)
-    This is manly used to decide how to log changes to the table in
+    This is mainly used to decide how to log changes to the table in
     the binary log.
   */
   bool has_transactions()

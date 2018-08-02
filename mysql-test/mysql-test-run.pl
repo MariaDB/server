@@ -3240,8 +3240,8 @@ sub mysql_install_db {
                             $bootstrap_sql_file);
 
       # mysql.gtid_slave_pos was created in InnoDB, but many tests
-      # run without InnoDB. Alter it to MyISAM now
-      mtr_tofile($bootstrap_sql_file, "ALTER TABLE gtid_slave_pos ENGINE=MyISAM;\n");
+      # run without InnoDB. Alter it to Aria now
+      mtr_tofile($bootstrap_sql_file, "ALTER TABLE gtid_slave_pos ENGINE=Aria transactional=0;\n");
     }
     else
     {
@@ -4478,6 +4478,7 @@ sub extract_warning_lines ($$) {
      qr|Access denied for user|,
      qr|Aborted connection|,
      qr|table.*is full|,
+     qr|\[ERROR\] mysqld: \Z|,  # Warning from Aria recovery
      qr|Linux Native AIO|, # warning that aio does not work on /dev/shm
      qr|InnoDB: io_setup\(\) attempt|,
      qr|InnoDB: io_setup\(\) failed with EAGAIN|,

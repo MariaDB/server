@@ -644,7 +644,7 @@ bool tdc_init(void)
 
 void tdc_start_shutdown(void)
 {
-  DBUG_ENTER("table_def_start_shutdown");
+  DBUG_ENTER("tdc_start_shutdown");
   if (tdc_inited)
   {
     /*

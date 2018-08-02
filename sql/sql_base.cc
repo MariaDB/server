@@ -597,6 +597,7 @@ bool close_cached_connection_tables(THD *thd, LEX_CSTRING *connection)
 
 static void mark_used_tables_as_free_for_reuse(THD *thd, TABLE *table)
 {
+  DBUG_ENTER("mark_used_tables_as_free_for_reuse");
   for (; table ; table= table->next)
   {
     DBUG_ASSERT(table->pos_in_locked_tables == NULL ||
@@ -607,6 +608,7 @@ static void mark_used_tables_as_free_for_reuse(THD *thd, TABLE *table)
       table->file->ha_reset();
     }
   }
+  DBUG_VOID_RETURN;
 }
 
 

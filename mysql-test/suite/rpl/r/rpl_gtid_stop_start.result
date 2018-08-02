@@ -159,7 +159,7 @@ a
 8
 9
 SET sql_log_bin= 0;
-ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 SET sql_log_bin= 1;
 include/start_slave.inc
 connection server_1;

@@ -243,10 +243,10 @@ then
             exit $RC
         fi
 
-        # second, we transfer InnoDB log files
+        # second, we transfer InnoDB and Aria log files
         rsync --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' -f '- **' "$WSREP_LOG_DIR/" \
+              $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' -f '+ /aria_log.*' -f '+ /aria_log_control' -f '- **' "$WSREP_LOG_DIR/" \
               rsync://$WSREP_SST_OPT_ADDR-log_dir >&2 || RC=$?
 
         if [ $RC -ne 0 ]; then
@@ -266,7 +266,7 @@ then
              -print0 | xargs -I{} -0 -P $count \
              rsync --owner --group --perms --links --specials \
              --ignore-times --inplace --recursive --delete --quiet \
-             $WHOLE_FILE_OPT --exclude '*/ib_logfile*' "$WSREP_SST_OPT_DATA"/{}/ \
+             $WHOLE_FILE_OPT --exclude '*/ib_logfile*' --exclude "*/aria_log.*" --exclude "*/aria_log_control" "$WSREP_SST_OPT_DATA"/{}/ \
              rsync://$WSREP_SST_OPT_ADDR/{} >&2 || RC=$?
 
         cd "$OLD_PWD"

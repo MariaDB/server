@@ -9,7 +9,7 @@
 # back). So fix it to make sure we are consistent, in case an earlier test case
 # left it as InnoDB.
 SET sql_log_bin=0;
-ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 SET sql_log_bin=1;
 --source include/start_slave.inc
 
