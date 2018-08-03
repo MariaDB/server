@@ -142,7 +142,7 @@ trx_create(void)
 
 	trx->global_read_view_heap = mem_heap_create(256);
 
-	trx->xid.formatID = -1;
+	trx->xid.null();
 
 	trx->op_info = "";
 

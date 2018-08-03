@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -111,6 +111,14 @@ struct fts_tokenize_ctx {
 	ib_rbt_t*		cached_stopword;/*!< in: stopword list */
 	dfield_t		sort_field[FTS_NUM_FIELDS_SORT];
 						/*!< in: sort field */
+
+	fts_tokenize_ctx() :
+		processed_len(0), init_pos(0), buf_used(0),
+		rows_added(), cached_stopword(NULL), sort_field()
+	{
+		memset(rows_added, 0, sizeof rows_added);
+		memset(sort_field, 0, sizeof sort_field);
+	}
 };
 
 typedef struct fts_tokenize_ctx fts_tokenize_ctx_t;
