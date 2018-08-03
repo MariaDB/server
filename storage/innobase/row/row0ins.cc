@@ -1629,7 +1629,8 @@ row_ins_check_foreign_constraint(
 
 	if (check_table == NULL
 	    || !check_table->is_readable()
-	    || check_index == NULL) {
+	    || check_index == NULL
+	    || fil_space_get(check_table->space)->is_being_truncated) {
 
 		if (!srv_read_only_mode && check_ref) {
 			FILE*	ef = dict_foreign_err_file;

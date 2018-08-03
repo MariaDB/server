@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2015, 2018, MariaDB Corporation.
@@ -65,6 +65,8 @@ Created 10/16/1994 Heikki Tuuri
 #include "lock0lock.h"
 #include "zlib.h"
 #include "srv0start.h"
+#include "mysql_com.h"
+#include "dict0stats.h"
 
 /** Buffered B-tree operation types, introduced as part of delete buffering. */
 enum btr_op_t {
@@ -586,13 +588,15 @@ btr_cur_will_modify_tree(
 	first record and following compress might delete the record and causes
 	the uppper level node_ptr modification. */
 
+	const ulint n_recs = page_get_n_recs(page);
+
 	if (lock_intention <= BTR_INTENTION_BOTH) {
 		ulint	margin;
 
 		/* check delete will cause. (BTR_INTENTION_BOTH
 		or BTR_INTENTION_DELETE) */
 		/* first, 2nd, 2nd-last and last records are 4 records */
-		if (page_get_n_recs(page) < 5) {
+		if (n_recs < 5) {
 			return(true);
 		}
 
@@ -638,8 +642,7 @@ btr_cur_will_modify_tree(
 		/* Once we invoke the btr_cur_limit_optimistic_insert_debug,
 		we should check it here in advance, since the max allowable
 		records in a page is limited. */
-		LIMIT_OPTIMISTIC_INSERT_DEBUG(page_get_n_recs(page),
-					      return(true));
+		LIMIT_OPTIMISTIC_INSERT_DEBUG(n_recs, return true);
 
 		/* needs 2 records' space for the case the single split and
 		insert cannot fit.
@@ -652,18 +655,16 @@ btr_cur_will_modify_tree(
 		    || max_size < rec_size * 2) {
 			return(true);
 		}
-		/* TODO: optimize this condition for compressed page.
-		this is based on the worst compress rate.
-		currently looking only uncompressed page, but we can look
-		also compressed page page_zip_available() if already in the
-		buffer pool */
+
+		/* TODO: optimize this condition for ROW_FORMAT=COMPRESSED.
+		This is based on the worst case, and we could invoke
+		page_zip_available() on the block->page.zip. */
 		/* needs 2 records' space also for worst compress rate. */
 		if (page_size.is_compressed()
 		    && page_zip_empty_size(index->n_fields,
 					   page_size.physical())
-		       < rec_size * 2 + page_get_data_size(page)
-			 + page_dir_calc_reserved_space(
-				page_get_n_recs(page) + 2) + 1) {
+		    <= rec_size * 2 + page_get_data_size(page)
+		    + page_dir_calc_reserved_space(n_recs + 2)) {
 			return(true);
 		}
 	}
@@ -699,6 +700,114 @@ btr_cur_need_opposite_intention(
 
 	ut_error;
 	return(false);
+}
+
+/**
+@param[in]	index b-tree
+@return maximum size of a node pointer record in bytes */
+static ulint btr_node_ptr_max_size(const dict_index_t* index)
+{
+	if (dict_index_is_ibuf(index)) {
+		/* cannot estimate accurately */
+		/* This is universal index for change buffer.
+		The max size of the entry is about max key length * 2.
+		(index key + primary key to be inserted to the index)
+		(The max key length is UNIV_PAGE_SIZE / 16 * 3 at
+		 ha_innobase::max_supported_key_length(),
+		 considering MAX_KEY_LENGTH = 3072 at MySQL imposes
+		 the 3500 historical InnoDB value for 16K page size case.)
+		For the universal index, node_ptr contains most of the entry.
+		And 512 is enough to contain ibuf columns and meta-data */
+		return srv_page_size / 8 * 3 + 512;
+	}
+
+	/* Each record has page_no, length of page_no and header. */
+	ulint comp = dict_table_is_comp(index->table);
+	ulint rec_max_size = comp
+		? REC_NODE_PTR_SIZE + 1 + REC_N_NEW_EXTRA_BYTES
+		+ UT_BITS_IN_BYTES(index->n_nullable)
+		: REC_NODE_PTR_SIZE + 2 + REC_N_OLD_EXTRA_BYTES
+		+ 2 * index->n_fields;
+
+	/* Compute the maximum possible record size. */
+	for (ulint i = 0; i < dict_index_get_n_unique_in_tree(index); i++) {
+		const dict_field_t*	field
+			= dict_index_get_nth_field(index, i);
+		const dict_col_t*	col
+			= dict_field_get_col(field);
+		ulint			field_max_size;
+		ulint			field_ext_max_size;
+
+		/* Determine the maximum length of the index field. */
+
+		field_max_size = dict_col_get_fixed_size(col, comp);
+		if (field_max_size) {
+			/* dict_index_add_col() should guarantee this */
+			ut_ad(!field->prefix_len
+			      || field->fixed_len == field->prefix_len);
+			/* Fixed lengths are not encoded
+			in ROW_FORMAT=COMPACT. */
+			rec_max_size += field_max_size;
+			continue;
+		}
+
+		field_max_size = dict_col_get_max_size(col);
+		if (UNIV_UNLIKELY(!field_max_size)) {
+			/* SYS_FOREIGN.ID is defined as CHAR in the
+			InnoDB internal SQL parser, which translates
+			into the incorrect VARCHAR(0).  InnoDB does
+			not enforce maximum lengths of columns, so
+			that is why any data can be inserted in the
+			first place.
+
+			Likewise, SYS_FOREIGN.FOR_NAME,
+			SYS_FOREIGN.REF_NAME, SYS_FOREIGN_COLS.ID, are
+			defined as CHAR, and also they are part of a key. */
+
+			ut_ad(!strcmp(index->table->name.m_name,
+				      "SYS_FOREIGN")
+			      || !strcmp(index->table->name.m_name,
+					 "SYS_FOREIGN_COLS"));
+			ut_ad(!comp);
+
+			rec_max_size += (srv_page_size == UNIV_PAGE_SIZE_MAX)
+				? REDUNDANT_REC_MAX_DATA_SIZE
+				: page_get_free_space_of_empty(FALSE) / 2;
+		} else if (field_max_size == NAME_LEN && i == 1
+			   && (!strcmp(index->table->name.m_name,
+				       TABLE_STATS_NAME)
+			       || !strcmp(index->table->name.m_name,
+					  INDEX_STATS_NAME))) {
+			ut_ad(!strcmp(field->name, "table_name"));
+			/* Interpret "table_name" as VARCHAR(199) even
+			if it was incorrectly defined as VARCHAR(64).
+			While the caller of ha_innobase enforces the
+			maximum length on any data written, the InnoDB
+			internal SQL parser will happily write as much
+			data as is provided. The purpose of this hack
+			is to avoid InnoDB hangs after persistent
+			statistics on partitioned tables are
+			deleted. */
+			field_max_size = 199 * SYSTEM_CHARSET_MBMAXLEN;
+		}
+		field_ext_max_size = field_max_size < 256 ? 1 : 2;
+
+		if (field->prefix_len
+		    && field->prefix_len < field_max_size) {
+			field_max_size = field->prefix_len;
+		}
+
+		if (comp) {
+			/* Add the extra size for ROW_FORMAT=COMPACT.
+			For ROW_FORMAT=REDUNDANT, these bytes were
+			added to rec_max_size before this loop. */
+			rec_max_size += field_ext_max_size;
+		}
+
+		rec_max_size += field_max_size;
+	}
+
+	return rec_max_size;
 }
 
 /********************************************************************//**
@@ -1028,7 +1137,7 @@ btr_cur_search_to_nth_level(
 	page_id_t		page_id(space, dict_index_get_page(index));
 
 	if (root_leaf_rw_latch == RW_X_LATCH) {
-		node_ptr_max_size = dict_index_node_ptr_max_size(index);
+		node_ptr_max_size = btr_node_ptr_max_size(index);
 	}
 
 	up_match = 0;
@@ -2128,7 +2237,7 @@ btr_cur_open_at_index_side_func(
 	const page_size_t&	page_size = dict_table_page_size(index->table);
 
 	if (root_leaf_rw_latch == RW_X_LATCH) {
-		node_ptr_max_size = dict_index_node_ptr_max_size(index);
+		node_ptr_max_size = btr_node_ptr_max_size(index);
 	}
 
 	height = ULINT_UNDEFINED;
@@ -2487,7 +2596,7 @@ btr_cur_open_at_rnd_pos_func(
 	dberr_t			err = DB_SUCCESS;
 
 	if (root_leaf_rw_latch == RW_X_LATCH) {
-		node_ptr_max_size = dict_index_node_ptr_max_size(index);
+		node_ptr_max_size = btr_node_ptr_max_size(index);
 	}
 
 	height = ULINT_UNDEFINED;
@@ -5162,7 +5271,6 @@ btr_cur_pessimistic_delete(
 		btr_discard_page(cursor, mtr);
 
 		ret = TRUE;
-
 		goto return_after_reservations;
 	}
 
@@ -5236,22 +5344,44 @@ btr_cur_pessimistic_delete(
 		}
 	}
 
-	page_cur_delete_rec(btr_cur_get_page_cur(cursor), index, offsets, mtr);
+	/* SPATIAL INDEX never use SX locks; we can allow page merges
+	while holding X lock on the spatial index tree.
+	Do not allow merges of non-leaf B-tree pages unless it is
+	safe to do so. */
+	{
+		const bool allow_merge = page_is_leaf(page)
+			|| dict_index_is_spatial(index)
+			|| btr_cur_will_modify_tree(
+				index, page, BTR_INTENTION_DELETE, rec,
+				btr_node_ptr_max_size(index),
+				block->page.size, mtr);
+		page_cur_delete_rec(btr_cur_get_page_cur(cursor), index,
+				    offsets, mtr);
 #ifdef UNIV_ZIP_DEBUG
-	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
+		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-	/* btr_check_node_ptr() needs parent block latched */
-	ut_ad(!parent_latched || btr_check_node_ptr(index, block, mtr));
+		ut_ad(!parent_latched
+		      || btr_check_node_ptr(index, block, mtr));
+
+		if (!ret && btr_cur_compress_recommendation(cursor, mtr)) {
+			if (UNIV_LIKELY(allow_merge)) {
+				ret = btr_cur_compress_if_useful(
+					cursor, FALSE, mtr);
+			} else {
+				ib::warn() << "Not merging page "
+					   << block->page.id
+					   << " in index " << index->name
+					   << " of " << index->table->name;
+				ut_ad(!"MDEV-14637");
+			}
+		}
+	}
 
 return_after_reservations:
 	*err = DB_SUCCESS;
 
 	mem_heap_free(heap);
-
-	if (ret == FALSE) {
-		ret = btr_cur_compress_if_useful(cursor, FALSE, mtr);
-	}
 
 	if (!srv_read_only_mode
 	    && page_is_leaf(page)

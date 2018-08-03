@@ -2140,93 +2140,6 @@ dict_col_name_is_reserved(
 }
 
 /****************************************************************//**
-Return maximum size of the node pointer record.
-@return maximum size of the record in bytes */
-ulint
-dict_index_node_ptr_max_size(
-/*=========================*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ulint	comp;
-	ulint	i;
-	/* maximum possible storage size of a record */
-	ulint	rec_max_size;
-
-	if (dict_index_is_ibuf(index)) {
-		/* cannot estimate accurately */
-		/* This is universal index for change buffer.
-		The max size of the entry is about max key length * 2.
-		(index key + primary key to be inserted to the index)
-		(The max key length is UNIV_PAGE_SIZE / 16 * 3 at
-		 ha_innobase::max_supported_key_length(),
-		 considering MAX_KEY_LENGTH = 3072 at MySQL imposes
-		 the 3500 historical InnoDB value for 16K page size case.)
-		For the universal index, node_ptr contains most of the entry.
-		And 512 is enough to contain ibuf columns and meta-data */
-		return(UNIV_PAGE_SIZE / 8 * 3 + 512);
-	}
-
-	comp = dict_table_is_comp(index->table);
-
-	/* Each record has page_no, length of page_no and header. */
-	rec_max_size = comp
-		? REC_NODE_PTR_SIZE + 1 + REC_N_NEW_EXTRA_BYTES
-		: REC_NODE_PTR_SIZE + 2 + REC_N_OLD_EXTRA_BYTES;
-
-	if (comp) {
-		/* Include the "null" flags in the
-		maximum possible record size. */
-		rec_max_size += UT_BITS_IN_BYTES(index->n_nullable);
-	} else {
-		/* For each column, include a 2-byte offset and a
-		"null" flag. */
-		rec_max_size += 2 * index->n_fields;
-	}
-
-	/* Compute the maximum possible record size. */
-	for (i = 0; i < dict_index_get_n_unique_in_tree(index); i++) {
-		const dict_field_t*	field
-			= dict_index_get_nth_field(index, i);
-		const dict_col_t*	col
-			= dict_field_get_col(field);
-		ulint			field_max_size;
-		ulint			field_ext_max_size;
-
-		/* Determine the maximum length of the index field. */
-
-		field_max_size = dict_col_get_fixed_size(col, comp);
-		if (field_max_size) {
-			/* dict_index_add_col() should guarantee this */
-			ut_ad(!field->prefix_len
-			      || field->fixed_len == field->prefix_len);
-			/* Fixed lengths are not encoded
-			in ROW_FORMAT=COMPACT. */
-			rec_max_size += field_max_size;
-			continue;
-		}
-
-		field_max_size = dict_col_get_max_size(col);
-		field_ext_max_size = field_max_size < 256 ? 1 : 2;
-
-		if (field->prefix_len
-		    && field->prefix_len < field_max_size) {
-			field_max_size = field->prefix_len;
-		}
-
-		if (comp) {
-			/* Add the extra size for ROW_FORMAT=COMPACT.
-			For ROW_FORMAT=REDUNDANT, these bytes were
-			added to rec_max_size before this loop. */
-			rec_max_size += field_ext_max_size;
-		}
-
-		rec_max_size += field_max_size;
-	}
-
-	return(rec_max_size);
-}
-
-/****************************************************************//**
 If a record of this index might not fit on a single B-tree page,
 return TRUE.
 @return TRUE if the index record could become too big */
@@ -6577,8 +6490,17 @@ dict_table_schema_check(
 		compare column types and flags */
 
 		/* check length for exact match */
-		if (req_schema->columns[i].len != table->cols[j].len) {
-
+		if (req_schema->columns[i].len == table->cols[j].len) {
+		} else if (!strcmp(req_schema->table_name, TABLE_STATS_NAME)
+			   || !strcmp(req_schema->table_name,
+				      INDEX_STATS_NAME)) {
+			ut_ad(table->cols[j].len < req_schema->columns[i].len);
+			ib::warn() << "Table " << req_schema->table_name
+				   << " has length mismatch in the"
+				   << " column name "
+				   << req_schema->columns[i].name
+				   << ".  Please run mysql_upgrade";
+		} else {
 			CREATE_TYPES_NAMES();
 
 			snprintf(errstr, errstr_sz,
