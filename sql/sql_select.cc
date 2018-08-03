@@ -16360,9 +16360,8 @@ Item_func_isnull::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
   {
     Field *field= ((Item_field*) real_item)->field;
 
-    if (((field->type() == MYSQL_TYPE_DATE) ||
-         (field->type() == MYSQL_TYPE_DATETIME)) &&
-         (field->flags & NOT_NULL_FLAG))
+    if ((field->flags & NOT_NULL_FLAG) &&
+        field->type_handler()->cond_notnull_field_isnull_to_field_eq_zero())
     {
       /* fix to replace 'NULL' dates with '0' (shreeve@uci.edu) */
       /*

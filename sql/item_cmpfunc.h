@@ -2518,9 +2518,8 @@ public:
     {
       Field *field=((Item_field*) args[0]->real_item())->field;
 
-      if (((field->type() == MYSQL_TYPE_DATE) ||
-          (field->type() == MYSQL_TYPE_DATETIME)) &&
-          (field->flags & NOT_NULL_FLAG))
+      if ((field->flags & NOT_NULL_FLAG) &&
+          field->type_handler()->cond_notnull_field_isnull_to_field_eq_zero())
         return true;
     }
     return false;

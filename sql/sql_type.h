@@ -1399,6 +1399,17 @@ public:
   {
     return false;
   }
+  /*
+    Returns true if this data type supports a hack that
+      WHERE notnull_column IS NULL
+    finds zero values, e.g.:
+      WHERE date_notnull_column IS NULL        ->
+      WHERE date_notnull_column = '0000-00-00'
+  */
+  virtual bool cond_notnull_field_isnull_to_field_eq_zero() const
+  {
+    return false;
+  }
   /**
     Check whether a field type can be partially indexed by a key.
     @param  type   field type
@@ -3344,6 +3355,10 @@ public:
   {
     return MYSQL_TIMESTAMP_DATE;
   }
+  bool cond_notnull_field_isnull_to_field_eq_zero() const
+  {
+    return true;
+  }
   Item_literal *create_literal_item(THD *thd, const char *str, size_t length,
                                     CHARSET_INFO *cs, bool send_error) const;
   Item *create_typecast_item(THD *thd, Item *item,
@@ -3424,6 +3439,10 @@ public:
   enum_mysql_timestamp_type mysql_timestamp_type() const
   {
     return MYSQL_TIMESTAMP_DATETIME;
+  }
+  bool cond_notnull_field_isnull_to_field_eq_zero() const
+  {
+    return true;
   }
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const;
