@@ -413,7 +413,8 @@ bool JOIN::check_for_splittable_materialized()
 
         for (cand= cand_start; cand < cand_end; cand++)
         {
-          if (cand->underlying_field->field_index + 1 == fldnr)
+          if (cand->underlying_field->table == table &&
+              cand->underlying_field->field_index + 1 == fldnr)
 	  {
             cand->is_usable_for_ref_access= true;
             break;

@@ -2986,3 +2986,36 @@ END;$$
 DELIMITER ;$$
 SELECT a FROM (SELECT "aa" a) t WHERE f1(t.a, (SELECT MAX('aa') FROM DUAL LIMIT 1));
 DROP FUNCTION f1;
+
+--echo #
+--echo # MDEV-16801: splittable materialized derived/views with
+--echo #             one grouping field from table without keys
+--echo #
+
+CREATE TABLE t1 (a int, b int, INDEX idx_a(a), INDEX idx_b(b)) ENGINE=MYISAM;
+CREATE TABLE t2 (c int) ENGINE=MYISAM;
+CREATE TABLE t3 (d int) ENGINE=MYISAM;
+INSERT INTO t1 VALUES
+  (77,7), (11,1), (33,3), (44,4), (8,88),
+  (78,7), (98,9), (38,3), (28,2), (79,7),
+  (58,5), (42,4), (71,7), (27,2), (91,9);
+INSERT INTO t1 SELECT a+100, b+10 FROM t1;
+INSERT INTO t2 VALUES
+  (100), (700), (200), (100), (200);
+INSERT INTO t3 VALUES
+  (3), (4), (1), (8), (3);
+
+ANALYZE tables t1,t2,t3;
+
+let $q=
+SELECT *
+  FROM t3,
+       (SELECT t1.b, t2.c
+          FROM  t1, t2
+            GROUP BY t1.b,t2.c) dt
+WHERE t3.d = dt.b;
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+DROP TABLE t1,t2,t3;
