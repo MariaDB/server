@@ -626,6 +626,19 @@
 }
 
 #
+# Warning caused by small memory leak in _dl_init
+#
+
+{
+   dl_init memory leak
+   Memcheck:Leak
+   fun:malloc
+   obj:*/libstdc++.so*
+   fun:call_init.part*
+   fun:_dl_init
+}
+
+#
 # In glibc (checked version 2.7), inet_ntoa allocates an 18-byte
 # per-thread static buffer for the return value. That memory is freed
 # at thread exit, however if called from the main thread, Valgrind

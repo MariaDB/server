@@ -761,6 +761,12 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 #
+# MDEV-16054 simple json functions flatline cpu on garbage input.
+#
+select json_array(1,uuid(),compress(5.140264e+307));
+json_array(1,uuid(),compress(5.140264e+307))
+NULL
+#
 # End of 10.2 tests
 #
 #

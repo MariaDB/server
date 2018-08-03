@@ -192,8 +192,7 @@ void wsrep_sst_grab ()
 // Wait for end of SST
 bool wsrep_sst_wait ()
 {
-  struct timespec wtime = {WSREP_TIMEDWAIT_SECONDS, 0};
-  uint32 total_wtime = 0;
+  double total_wtime = 0;
 
   if (mysql_mutex_lock (&LOCK_wsrep_sst))
     abort();
@@ -202,14 +201,18 @@ bool wsrep_sst_wait ()
 
   while (!sst_complete)
   {
+    struct timespec wtime;
+    set_timespec(wtime, WSREP_TIMEDWAIT_SECONDS);
+    time_t start_time = time(NULL);
     mysql_cond_timedwait (&COND_wsrep_sst, &LOCK_wsrep_sst, &wtime);
+    time_t end_time = time(NULL);
 
     if (!sst_complete)
     {
-      total_wtime += wtime.tv_sec;
-      WSREP_DEBUG("Waiting for SST to complete. waited %u secs.", total_wtime);
+      total_wtime += difftime(end_time, start_time);
+      WSREP_DEBUG("Waiting for SST to complete. current seqno: %ld waited %f secs.", local_seqno, total_wtime);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP state transfer ongoing, current seqno: %ld", local_seqno);
+        "WSREP state transfer ongoing, current seqno: %ld waited %f secs", local_seqno, total_wtime);
     }
   }
 
@@ -1365,19 +1368,22 @@ void wsrep_SE_init_grab()
 
 void wsrep_SE_init_wait()
 {
-  struct timespec wtime = {WSREP_TIMEDWAIT_SECONDS, 0};
-  uint32 total_wtime=0;
+  double total_wtime=0;
 
   while (SE_initialized == false)
   {
+    struct timespec wtime;
+    set_timespec(wtime, WSREP_TIMEDWAIT_SECONDS);
+    time_t start_time = time(NULL);
     mysql_cond_timedwait (&COND_wsrep_sst_init, &LOCK_wsrep_sst_init, &wtime);
+    time_t end_time = time(NULL);
 
     if (!SE_initialized)
     {
-      total_wtime += wtime.tv_sec;
-      WSREP_DEBUG("Waiting for SST to complete. waited %u secs.", total_wtime);
+      total_wtime += difftime(end_time, start_time);
+      WSREP_DEBUG("Waiting for SST to complete. current seqno: %ld waited %f secs.", local_seqno, total_wtime);
       service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
-        "WSREP SE initialization ongoing.");
+        "WSREP state transfer ongoing, current seqno: %ld waited %f secs", local_seqno, total_wtime);
     }
   }
 

@@ -805,7 +805,6 @@ DECLARE_THREAD(fts_parallel_tokenization)(
 	merge_file = psort_info->merge_file;
 	blob_heap = mem_heap_create(512);
 	memset(&doc, 0, sizeof(doc));
-	memset(&t_ctx, 0, sizeof(t_ctx));
 	memset(mycount, 0, FTS_NUM_AUX_INDEX * sizeof(int));
 
 	doc.charset = fts_index_get_charset(

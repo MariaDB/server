@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
    Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
@@ -10984,17 +10984,12 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   if (!(combo=(LEX_USER*) thd->alloc(sizeof(LEX_USER))))
     DBUG_RETURN(TRUE);
 
-  combo->user.str= sctx->user;
+  combo->user.str= (char *) sctx->priv_user;
 
   mysql_mutex_lock(&acl_cache->lock);
 
-  if ((au= find_user_wild(combo->host.str=(char*)sctx->host_or_ip, combo->user.str)))
-    goto found_acl;
-  if ((au= find_user_wild(combo->host.str=(char*)sctx->host, combo->user.str)))
-    goto found_acl;
-  if ((au= find_user_wild(combo->host.str=(char*)sctx->ip, combo->user.str)))
-    goto found_acl;
-  if ((au= find_user_wild(combo->host.str=(char*)"%", combo->user.str)))
+ if ((au= find_user_wild(combo->host.str= (char *) sctx->priv_host,
+                         combo->user.str)))
     goto found_acl;
 
   mysql_mutex_unlock(&acl_cache->lock);

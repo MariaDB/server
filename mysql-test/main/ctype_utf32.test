@@ -983,6 +983,14 @@ SET @arg00=_binary 0x00FF;
 EXECUTE stmt USING @arg00;
 DEALLOCATE PREPARE stmt;
 
+
+#
+# MDEV-13118 Wrong results with LOWER and UPPER and subquery
+#
+SET NAMEs utf8, character_set_connection=utf32;
+--source include/ctype_mdev13118.inc
+
+
 --echo #
 --echo # End of 10.0 tests
 --echo #

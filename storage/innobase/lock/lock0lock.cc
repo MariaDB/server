@@ -1750,7 +1750,10 @@ lock_rec_enqueue_waiting(
 		lock_prdt_set_prdt(lock, prdt);
 	}
 
-	if (const trx_t* victim =
+	if (
+#ifdef UNIV_DEBUG
+	    const trx_t* victim =
+#endif
 	    DeadlockChecker::check_and_resolve(lock, trx)) {
 		ut_ad(victim == trx);
 		lock_reset_lock_and_trx_wait(lock);

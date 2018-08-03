@@ -2134,6 +2134,22 @@ DROP VIEW v1;
 UNION
 (SELECT 2, 2);
 ERROR 42S02: Table 'test.v1' doesn't exist
+#
+# Bug#27197235 USER VARIABLE + UINON + DECIMAL COLUMN RETURNS
+#              WRONG VALUES
+#
+SET NAMES utf8;
+SET @advertAcctId = 1000003;
+select @advertAcctId as a from dual union all select 1.0 from dual;
+a
+1000003.0
+1.0
+SET NAMES latin1;
+SET @advertAcctId = 1000003;
+select @advertAcctId as a from dual union all select 1.0 from dual;
+a
+1000003.0
+1.0
 End of 5.5 tests
 #
 # WL#1763 Avoid creating temporary table in UNION ALL

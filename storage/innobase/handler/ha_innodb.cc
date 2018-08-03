@@ -5324,15 +5324,16 @@ ha_innobase::max_supported_key_length() const
 
 	switch (srv_page_size) {
 	case 4096:
-		return(768);
+		/* Hack: allow mysql.innodb_index_stats to be created. */
+		/* FIXME: rewrite this API, and in sql_table.cc consider
+		that in index-organized tables (such as InnoDB), secondary
+		index records will be padded with the PRIMARY KEY, instead
+		of some short ROWID or record heap address. */
+		return(1173);
 	case 8192:
 		return(1536);
 	default:
-#ifdef WITH_WSREP
 		return(3500);
-#else
-		return(3500);
-#endif
 	}
 }
 
@@ -10071,8 +10072,7 @@ ha_innobase::ft_init_ext(
 		const_cast<char*>(query));
 
 	// FIXME: support ft_init_ext_with_hints(), pass LIMIT
-	// FIXME: use trx
-	dberr_t	error = fts_query(index, flags, q, query_len, &result);
+	dberr_t	error = fts_query(trx, index, flags, q, query_len, &result);
 
 	if (error != DB_SUCCESS) {
 		my_error(convert_error_code_to_mysql(error, 0, NULL), MYF(0));
@@ -13266,6 +13266,36 @@ innobase_rename_table(
 
 	row_mysql_lock_data_dictionary(trx);
 
+	dict_table_t*   table = dict_table_open_on_name(norm_from, TRUE, FALSE,
+							DICT_ERR_IGNORE_NONE);
+
+	/* Since DICT_BG_YIELD has sleep for 250 milliseconds,
+	Convert lock_wait_timeout unit from second to 250 milliseconds */
+	long int lock_wait_timeout = thd_lock_wait_timeout(trx->mysql_thd) * 4;
+	if (table != NULL) {
+		for (dict_index_t* index = dict_table_get_first_index(table);
+		     index != NULL;
+		     index = dict_table_get_next_index(index)) {
+
+			if (index->type & DICT_FTS) {
+				/* Found */
+				while (index->index_fts_syncing
+					&& !trx_is_interrupted(trx)
+					&& (lock_wait_timeout--) > 0) {
+					DICT_BG_YIELD(trx);
+				}
+			}
+		}
+		dict_table_close(table, TRUE, FALSE);
+	}
+
+	/* FTS sync is in progress. We shall timeout this operation */
+	if (lock_wait_timeout < 0) {
+		error = DB_LOCK_WAIT_TIMEOUT;
+		row_mysql_unlock_data_dictionary(trx);
+		DBUG_RETURN(error);
+	}
+
 	error = row_rename_table_for_mysql(norm_from, norm_to, trx, TRUE);
 
 	if (error != DB_SUCCESS) {
@@ -13395,6 +13425,10 @@ ha_innobase::rename_table(
 		my_error(ER_TABLE_EXISTS_ERROR, MYF(0), to);
 
 		error = DB_ERROR;
+	} else if (error == DB_LOCK_WAIT_TIMEOUT) {
+		my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0), to);
+
+		error = DB_LOCK_WAIT;
 	}
 
 	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));

@@ -71,81 +71,8 @@ get_case_info_for_ch(CHARSET_INFO *cs, uint page, uint offs)
 
 
 /*
-  For character sets which don't change octet length in case conversion.
-*/
-size_t my_caseup_mb(CHARSET_INFO * cs, char *src, size_t srclen,
-                    char *dst __attribute__((unused)),
-                    size_t dstlen __attribute__((unused)))
-{
-  register uint32 l;
-  register char *srcend= src + srclen;
-  register const uchar *map= cs->to_upper;
-
-  DBUG_ASSERT(cs->caseup_multiply == 1);
-  DBUG_ASSERT(src == dst && srclen == dstlen);
-  DBUG_ASSERT(cs->mbmaxlen == 2);
-  
-  while (src < srcend)
-  {
-    if ((l=my_ismbchar(cs, src, srcend)))
-    {
-      MY_UNICASE_CHARACTER *ch;
-      if ((ch= get_case_info_for_ch(cs, (uchar) src[0], (uchar) src[1])))
-      {
-        *src++= ch->toupper >> 8;
-        *src++= ch->toupper & 0xFF;
-      }
-      else
-        src+= l;
-    }
-    else 
-    {
-      *src=(char) map[(uchar) *src];
-      src++;
-    }
-  }
-  return srclen;
-}
-
-
-size_t my_casedn_mb(CHARSET_INFO * cs, char *src, size_t srclen,
-                    char *dst __attribute__((unused)),
-                    size_t dstlen __attribute__((unused)))
-{
-  register uint32 l;
-  register char *srcend= src + srclen;
-  register const uchar *map=cs->to_lower;
-
-  DBUG_ASSERT(cs->casedn_multiply == 1);
-  DBUG_ASSERT(src == dst && srclen == dstlen);  
-  DBUG_ASSERT(cs->mbmaxlen == 2);
-  
-  while (src < srcend)
-  {
-    if ((l= my_ismbchar(cs, src, srcend)))
-    {
-      MY_UNICASE_CHARACTER *ch;
-      if ((ch= get_case_info_for_ch(cs, (uchar) src[0], (uchar) src[1])))
-      {
-        *src++= ch->tolower >> 8;
-        *src++= ch->tolower & 0xFF;
-      }
-      else
-        src+= l;
-    }
-    else
-    {
-      *src= (char) map[(uchar)*src];
-      src++;
-    }
-  }
-  return srclen;
-}
-
-
-/*
-  Case folding functions for character set
-  where case conversion can change string octet length.
+  Case folding functions for CJK character set.
+  Case conversion can optionally reduce string octet length.
   For example, in EUCKR,
     _euckr 0xA9A5 == "LATIN LETTER DOTLESS I" (Turkish letter)
   is upper-cased to to
@@ -153,13 +80,14 @@ size_t my_casedn_mb(CHARSET_INFO * cs, char *src, size_t srclen,
   Length is reduced in this example from two bytes to one byte.
 */
 static size_t
-my_casefold_mb_varlen(CHARSET_INFO *cs,
-                      char *src, size_t srclen,
-                      char *dst, size_t dstlen __attribute__((unused)),
-                      const uchar *map,
-                      size_t is_upper)
+my_casefold_mb(CHARSET_INFO *cs,
+               const char *src, size_t srclen,
+               char *dst, size_t dstlen __attribute__((unused)),
+               const uchar *map,
+               size_t is_upper)
 {
-  char *srcend= src + srclen, *dst0= dst;
+  const char *srcend= src + srclen;
+  char *dst0= dst;
 
   DBUG_ASSERT(cs->mbmaxlen == 2);
 
@@ -193,22 +121,22 @@ my_casefold_mb_varlen(CHARSET_INFO *cs,
 
 
 size_t
-my_casedn_mb_varlen(CHARSET_INFO * cs, char *src, size_t srclen,
+my_casedn_mb(CHARSET_INFO * cs, const char *src, size_t srclen,
                     char *dst, size_t dstlen)
 {
   DBUG_ASSERT(dstlen >= srclen * cs->casedn_multiply); 
   DBUG_ASSERT(src != dst || cs->casedn_multiply == 1);
-  return my_casefold_mb_varlen(cs, src, srclen, dst, dstlen, cs->to_lower, 0);
+  return my_casefold_mb(cs, src, srclen, dst, dstlen, cs->to_lower, 0);
 }
 
 
 size_t
-my_caseup_mb_varlen(CHARSET_INFO * cs, char *src, size_t srclen,
-                    char *dst, size_t dstlen)
+my_caseup_mb(CHARSET_INFO * cs, const char *src, size_t srclen,
+             char *dst, size_t dstlen)
 {
   DBUG_ASSERT(dstlen >= srclen * cs->caseup_multiply);
   DBUG_ASSERT(src != dst || cs->caseup_multiply == 1);
-  return my_casefold_mb_varlen(cs, src, srclen, dst, dstlen, cs->to_upper, 1);
+  return my_casefold_mb(cs, src, srclen, dst, dstlen, cs->to_upper, 1);
 }
 
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2017, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2018, Oracle and/or its affiliates. All rights reserved.
    Copyright (c) 2009, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
@@ -236,6 +236,10 @@ int mi_lock_database(MI_INFO *info, int lock_type)
       info->invalidator=info->s->invalidator;
       share->w_locks++;
       share->tot_locks++;
+
+      DBUG_EXECUTE_IF("simulate_incorrect_share_wlock_value",
+                      DEBUG_SYNC_C("after_share_wlock_increment"););
+
       info->s->in_use= list_add(info->s->in_use, &info->in_use);
       break;
     default:

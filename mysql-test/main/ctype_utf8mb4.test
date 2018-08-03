@@ -1959,6 +1959,14 @@ DROP TABLE t1;
 
 SET NAMES default;
 
+
+#
+# MDEV-13118 Wrong results with LOWER and UPPER and subquery
+#
+SET NAMES utf8mb4;
+--source include/ctype_mdev13118.inc
+
+
 --echo #
 --echo # End of 10.0 tests
 --echo #

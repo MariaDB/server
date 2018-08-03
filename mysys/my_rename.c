@@ -39,7 +39,10 @@ int my_rename(const char *from, const char *to, myf MyFlags)
   if (link(from, to) || unlink(from))
   {
 #endif
-    my_errno=errno;
+    if (errno == ENOENT && !access(from, F_OK))
+      my_errno= ENOTDIR;
+    else
+      my_errno= errno;
     error = -1;
     if (MyFlags & (MY_FAE+MY_WME))
       my_error(EE_LINK, MYF(ME_BELL+ME_WAITTANG),from,to,my_errno);

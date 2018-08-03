@@ -1675,6 +1675,13 @@ JOIN::optimize_inner()
   conds= optimize_cond(this, conds, join_list, FALSE,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
   
+  if (thd->is_error())
+  {
+    error= 1;
+    DBUG_PRINT("error",("Error from optimize_cond"));
+    DBUG_RETURN(1);
+  }
+
   if (thd->lex->sql_command == SQLCOM_SELECT &&
       optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED))
   {
@@ -1712,13 +1719,6 @@ JOIN::optimize_inner()
     /* Run optimize phase for all derived tables/views used in this SELECT. */
     if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
       DBUG_RETURN(1);
-  }
-     
-  if (unlikely(thd->is_error()))
-  {
-    error= 1;
-    DBUG_PRINT("error",("Error from optimize_cond"));
-    DBUG_RETURN(1);
   }
 
   {
@@ -4570,8 +4570,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   int ref_changed;
   do
   {
-  more_const_tables_found:
     ref_changed = 0;
+  more_const_tables_found:
     found_ref=0;
 
     /*
@@ -4740,7 +4740,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	}
       }
     }
-  } while (join->const_table_map & found_ref && ref_changed);
+  } while (ref_changed);
  
   join->sort_by_table= get_sort_by_table(join->order, join->group_list,
                                          join->select_lex->leaf_tables,
@@ -8977,8 +8977,13 @@ bool JOIN_TAB::keyuse_is_valid_for_access_in_chosen_plan(JOIN *join,
   st_select_lex *sjm_sel= emb_sj_nest->sj_subq_pred->unit->first_select(); 
   for (uint i= 0; i < sjm_sel->item_list.elements; i++)
   {
-    if (sjm_sel->ref_pointer_array[i] == keyuse->val)
-      return true;
+    DBUG_ASSERT(sjm_sel->ref_pointer_array[i]->real_item()->type() == Item::FIELD_ITEM);
+    if (keyuse->val->real_item()->type() == Item::FIELD_ITEM)
+    {
+      Field *field = ((Item_field*)sjm_sel->ref_pointer_array[i]->real_item())->field;
+      if (field->eq(((Item_field*)keyuse->val->real_item())->field))
+        return true;
+    }
   }
   return false; 
 }
@@ -9626,7 +9631,6 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
       if (first_keyuse)
       {
         key_parts++;
-        first_keyuse= FALSE;
       }
       else
       {
@@ -9636,7 +9640,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
           if (curr->keypart == keyuse->keypart &&
               !(~used_tables & curr->used_tables) &&
               join_tab->keyuse_is_valid_for_access_in_chosen_plan(join,
-                                                                  keyuse) &&
+                                                                  curr) &&
               are_tables_local(join_tab, curr->used_tables))
             break;
         }
@@ -9644,6 +9648,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
            key_parts++;
       }
     }
+    first_keyuse= FALSE;
     keyuse++;
   } while (keyuse->table == table && keyuse->is_for_hash_join());
   if (!key_parts)

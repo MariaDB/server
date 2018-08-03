@@ -1161,6 +1161,59 @@ DROP TABLE t1,t2;
 SET optimizer_switch=@save_optimizer_switch;
 
 --echo #
+--echo # MDEV-16512
+--echo # Server crashes in find_field_in_table_ref on 2nd execution of SP referring to
+--echo # non-existing field
+--echo #
+
+CREATE TABLE t (i INT);
+CREATE PROCEDURE p() SELECT t1.f FROM t AS t1 JOIN t AS t2 USING (f);
+--error ER_BAD_FIELD_ERROR
+CALL p;
+--error ER_BAD_FIELD_ERROR
+CALL p;
+FLUSH TABLES;
+--error ER_BAD_FIELD_ERROR
+CALL p;
+DROP TABLE t;
+
+#
+# Fix the table definition to match the using
+#
+
+CREATE TABLE t (f INT);
+#
+# The following shouldn't fail as the table is now matching the using
+#
+--error ER_BAD_FIELD_ERROR
+CALL p;
+DROP TABLE t;
+CREATE TABLE t (i INT);
+--error ER_BAD_FIELD_ERROR
+CALL p;
+DROP PROCEDURE p;
+DROP TABLE t;
+
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (a INT);
+CREATE TABLE t3 (a INT, c INT);
+CREATE TABLE t4 (a INT, c INT);
+CREATE TABLE t5 (a INT, c INT);
+CREATE PROCEDURE p1() SELECT c FROM t1 JOIN (t2 LEFT JOIN t3 USING (a) LEFT JOIN t4 USING (a)
+LEFT JOIN t5 USING (a)) USING (a);
+--error ER_NON_UNIQ_ERROR
+CALL p1;
+--error ER_NON_UNIQ_ERROR
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1,t2,t3,t4,t5;
+
+--echo #
+--echo # End of MariaDB 5.5 tests
+--echo #
+
+
+--echo #
 --echo # Bug #35268: Parser can't handle STRAIGHT_JOIN with USING
 --echo #                   
 

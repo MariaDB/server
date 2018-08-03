@@ -6772,7 +6772,7 @@ int del_global_index_stats_for_table(THD *thd, uchar* cache_key, size_t cache_ke
 
 /* Remove a table from global table statistics */
 
-int del_global_table_stat(THD *thd, LEX_CSTRING *db, LEX_CSTRING *table)
+int del_global_table_stat(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table)
 {
   TABLE_STATS *table_stats;
   int res = 0;

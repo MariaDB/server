@@ -273,8 +273,6 @@ row_undo_ins_remove_sec_low(
 	enum row_search_result	search_result;
 	const bool		modify_leaf = mode == BTR_MODIFY_LEAF;
 
-	memset(&pcur, 0, sizeof(pcur));
-
 	row_mtr_start(&mtr, index, !modify_leaf);
 
 	if (modify_leaf) {
@@ -631,7 +629,8 @@ row_undo_ins(
 			already be holding dict_sys->mutex, which
 			would be acquired when updating statistics. */
 			if (!dict_locked) {
-				dict_stats_update_if_needed(node->table);
+				dict_stats_update_if_needed(
+					node->table, node->trx->mysql_thd);
 			}
 		}
 	}
