@@ -1570,7 +1570,7 @@ String *Item_str_conv::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   String *res;
-  uint32 alloced_length, len;
+  size_t alloced_length, len;
 
   if ((null_value= (!(res= args[0]->val_str(&tmp_value)) ||
                     str->alloc((alloced_length= res->length() * multiply)))))
