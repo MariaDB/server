@@ -2112,7 +2112,7 @@ not_freed:
 	}
 
 	if (b) {
-		memcpy(b, bpage, sizeof *b);
+		new (b) buf_page_t(*bpage);
 	}
 
 	if (!buf_LRU_block_remove_hashed(bpage, zip)) {

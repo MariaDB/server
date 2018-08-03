@@ -276,7 +276,7 @@ trx_create(void)
 	trx->distinct_page_access_hash = NULL;
 	trx->take_stats = FALSE;
 
-	trx->xid.formatID = -1;
+	trx->xid.null();
 
 	trx->op_info = "";
 
