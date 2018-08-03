@@ -2244,5 +2244,26 @@ DROP USER foo@'127.0.0.1';
 
 --echo # End of Bug#12766319
 
+#
+# Bug#27230925: HANDLE_FATAL_SIGNAL (SIG=11) IN SHOW_ROUTINE_GRANTS
+#
+create user foo@localhost;
+create database foodb;
+grant create routine on foodb.* to foo@localhost;
+connect con1,localhost,foo;
+create procedure fooproc() select 'i am fooproc';
+show grants;
+disconnect con1;
+connection default;
+rename table mysql.procs_priv to mysql.procs_priv1;
+error ER_NO_SUCH_TABLE;
+flush privileges;
+show grants for foo@localhost;
+rename table mysql.procs_priv1 to mysql.procs_priv;
+drop user foo@localhost;
+drop procedure fooproc;
+drop database foodb;
+
+
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc
