@@ -4019,7 +4019,7 @@ fts_query(
 	if (trx_is_interrupted(trx)) {
 		error = DB_INTERRUPTED;
 		ut_free(lc_query_str);
-		if (result != NULL) {
+		if (*result) {
 			fts_query_free_result(*result);
 		}
 		goto func_exit;
