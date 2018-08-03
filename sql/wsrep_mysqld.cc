@@ -538,6 +538,9 @@ int wsrep_init()
             wsrep->provider_vendor,  sizeof(provider_vendor) - 1);
   }
 
+  if (!wsrep_data_home_dir || strlen(wsrep_data_home_dir) == 0)
+    wsrep_data_home_dir = mysql_real_data_home;
+
   char node_addr[512]= { 0, };
   size_t const node_addr_max= sizeof(node_addr) - 1;
   if (!wsrep_node_address || !strcmp(wsrep_node_address, ""))
@@ -933,9 +936,15 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
                                             wsrep_key_arr_t* ka)
 {
   wsrep_key_t* tmp;
-  tmp= (wsrep_key_t*)my_realloc(ka->keys,
-                                (ka->keys_len + 1) * sizeof(wsrep_key_t),
-                                MYF(0));
+
+  if (!ka->keys)
+    tmp= (wsrep_key_t*)my_malloc((ka->keys_len + 1) * sizeof(wsrep_key_t),
+                                 MYF(0));
+  else
+    tmp= (wsrep_key_t*)my_realloc(ka->keys,
+                                 (ka->keys_len + 1) * sizeof(wsrep_key_t),
+                                 MYF(0));
+
   if (!tmp)
   {
     WSREP_ERROR("Can't allocate memory for key_array");
@@ -1409,6 +1418,9 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
     break;
   case SQLCOM_ALTER_EVENT:
     buf_err= wsrep_alter_event_query(thd, &buf, &buf_len);
+    break;
+  case SQLCOM_DROP_TABLE:
+    buf_err= wsrep_drop_table_query(thd, &buf, &buf_len);
     break;
   case SQLCOM_CREATE_ROLE:
     if (sp_process_definer(thd))
