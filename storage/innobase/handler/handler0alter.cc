@@ -77,8 +77,8 @@ static const alter_table_operations INNOBASE_DEFAULTS
 static const alter_table_operations INNOBASE_ALTER_REBUILD
 	= ALTER_ADD_PK_INDEX
 	| ALTER_DROP_PK_INDEX
-	| ALTER_CHANGE_CREATE_OPTION
-	/* CHANGE_CREATE_OPTION needs to check create_option_need_rebuild() */
+	| ALTER_OPTIONS
+	/* ALTER_OPTIONS needs to check create_option_need_rebuild() */
 	| ALTER_COLUMN_NULLABLE
 	| INNOBASE_DEFAULTS
 	| ALTER_STORED_COLUMN_ORDER
@@ -498,8 +498,7 @@ static bool create_option_need_rebuild(
 	const Alter_inplace_info*	ha_alter_info,
 	const TABLE*			table)
 {
-	DBUG_ASSERT(ha_alter_info->handler_flags
-		    & ALTER_CHANGE_CREATE_OPTION);
+	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_OPTIONS);
 
 	if (ha_alter_info->create_info->used_fields
 	    & (HA_CREATE_USED_ROW_FORMAT
@@ -541,7 +540,7 @@ innobase_need_rebuild(
 {
 	if ((ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE
 					      | INNOBASE_ALTER_INSTANT))
-	    == ALTER_CHANGE_CREATE_OPTION) {
+	    == ALTER_OPTIONS) {
 		return create_option_need_rebuild(ha_alter_info, table);
 	}
 
@@ -662,8 +661,7 @@ instant_alter_column_possible(
 		return false;
 	}
 
-	if (~ha_alter_info->handler_flags
-	    & ALTER_ADD_STORED_BASE_COLUMN) {
+	if (~ha_alter_info->handler_flags & ALTER_ADD_STORED_BASE_COLUMN) {
 		return false;
 	}
 
@@ -686,13 +684,11 @@ instant_alter_column_possible(
 	columns. */
 	if (ha_alter_info->handler_flags
 	    & ((INNOBASE_ALTER_REBUILD | INNOBASE_ONLINE_CREATE)
-	       & ~ALTER_ADD_STORED_BASE_COLUMN
-	       & ~ALTER_CHANGE_CREATE_OPTION)) {
+	       & ~ALTER_ADD_STORED_BASE_COLUMN & ~ALTER_OPTIONS)) {
 		return false;
 	}
 
-	return !(ha_alter_info->handler_flags
-		 & ALTER_CHANGE_CREATE_OPTION)
+	return !(ha_alter_info->handler_flags & ALTER_OPTIONS)
 		|| !create_option_need_rebuild(ha_alter_info, table);
 }
 
@@ -5457,8 +5453,7 @@ not_instant_add_column:
 			}
 		}
 
-		if (ha_alter_info->handler_flags
-		    & ALTER_CHANGE_CREATE_OPTION) {
+		if (ha_alter_info->handler_flags & ALTER_OPTIONS) {
 			const ha_table_option_struct& alt_opt=
 				*ha_alter_info->create_info->option_struct;
 			const ha_table_option_struct& opt=
@@ -6827,7 +6822,7 @@ err_exit:
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
 	    || ((ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE
 						  | INNOBASE_ALTER_INSTANT))
-		== ALTER_CHANGE_CREATE_OPTION
+		== ALTER_OPTIONS
 		&& !create_option_need_rebuild(ha_alter_info, table))) {
 
 		if (heap) {
@@ -7107,8 +7102,9 @@ ok_exit:
 		DBUG_RETURN(false);
 	}
 
-	if ((ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)
-	    == ALTER_CHANGE_CREATE_OPTION
+	if ((ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE
+					      | INNOBASE_ALTER_INSTANT))
+	    == ALTER_OPTIONS
 	    && !create_option_need_rebuild(ha_alter_info, table)) {
 		goto ok_exit;
 	}
