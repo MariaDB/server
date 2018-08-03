@@ -1041,8 +1041,7 @@ trx_start_low(
 	}
 
 #ifdef WITH_WSREP
-        memset(&trx->xid, 0, sizeof(trx->xid));
-        trx->xid.formatID = -1;
+        trx->xid.null();
 #endif /* WITH_WSREP */
 
 	/* The initial value for trx->no: TRX_ID_MAX is used in
