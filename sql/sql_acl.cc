@@ -2891,7 +2891,8 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   ulong query_length= 0;
   bool clear_role= FALSE;
   char buff[512];
-  enum_binlog_format save_binlog_format;
+  enum_binlog_format save_binlog_format=
+    thd->get_current_stmt_binlog_format();
   const CSET_STRING query_save __attribute__((unused)) = thd->query_string;
 
   DBUG_ENTER("acl_set_default_role");
@@ -2922,6 +2923,7 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   if (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0))
   {
     thd->set_query(buff, query_length, system_charset_info);
+    // Attention!!! here is implicit goto error;
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, (char*)"user", NULL);
   }
 
