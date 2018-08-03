@@ -51,4 +51,4 @@ galera_admin : MDEV-13549 Galera test failures
 MW-416 : MDEV-13549 Galera test failures
 galera_wan : MDEV-13549 Galera test failures
 MW-388 : MDEV-13549 Galera test failures
-galera#505 : Requires galera library version 25.3.24
+
