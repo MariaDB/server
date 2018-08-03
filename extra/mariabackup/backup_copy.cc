@@ -472,6 +472,21 @@ struct datafile_cur_t {
 	size_t		buf_size;
 	size_t		buf_read;
 	size_t		buf_offset;
+
+	explicit datafile_cur_t(const char* filename = NULL) :
+		file(), thread_n(0), orig_buf(NULL), buf(NULL), buf_size(0),
+		buf_read(0), buf_offset(0)
+	{
+		memset(rel_path, 0, sizeof rel_path);
+		if (filename) {
+			strncpy(abs_path, filename, sizeof abs_path);
+			abs_path[(sizeof abs_path) - 1] = 0;
+		} else {
+			abs_path[0] = '\0';
+		}
+		rel_path[0] = '\0';
+		memset(&statinfo, 0, sizeof statinfo);
+	}
 };
 
 static
@@ -490,9 +505,7 @@ datafile_open(const char *file, datafile_cur_t *cursor, uint thread_n)
 {
 	bool		success;
 
-	memset(cursor, 0, sizeof(datafile_cur_t));
-
-	strncpy(cursor->abs_path, file, sizeof(cursor->abs_path));
+	new (cursor) datafile_cur_t(file);
 
 	/* Get the relative path for the destination tablespace name, i.e. the
 	one that can be appended to the backup root directory. Non-system

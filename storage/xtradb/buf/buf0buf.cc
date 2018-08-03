@@ -1994,7 +1994,7 @@ buf_relocate(
 	}
 #endif /* UNIV_DEBUG */
 
-	memcpy(dpage, bpage, sizeof *dpage);
+	new (dpage) buf_page_t(*bpage);
 
 	ut_d(bpage->in_LRU_list = FALSE);
 	ut_d(bpage->in_page_hash = FALSE);

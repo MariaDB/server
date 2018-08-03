@@ -1611,7 +1611,7 @@ func_exit:
 	} else if (buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE) {
 		b = buf_page_alloc_descriptor();
 		ut_a(b);
-		memcpy(b, bpage, sizeof *b);
+		new (b) buf_page_t(*bpage);
 	}
 
 	ut_ad(buf_pool_mutex_own(buf_pool));

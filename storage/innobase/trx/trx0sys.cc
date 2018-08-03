@@ -336,11 +336,12 @@ trx_sys_read_wsrep_checkpoint(XID* xid)
 	if ((magic = mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
 					+ TRX_SYS_WSREP_XID_MAGIC_N_FLD))
 	    != TRX_SYS_WSREP_XID_MAGIC_N) {
-		memset(xid, 0, sizeof(*xid));
-		long long seqno= -1;
-		memcpy(xid->data + 24, &seqno, sizeof(long long));
-		xid->formatID = -1;
-		mtr_commit(&mtr);
+		mtr.commit();
+		xid->null();
+		xid->gtrid_length = 0;
+		xid->bqual_length = 0;
+		memset(xid->data, 0, sizeof xid->data);
+		memset(xid->data + 24, 0xff, 8);
 		return false;
 	}
 

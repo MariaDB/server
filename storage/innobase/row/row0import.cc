@@ -2409,8 +2409,6 @@ row_import_cfg_read_index_fields(
 
 	dict_field_t*	field = index->m_fields;
 
-	memset(field, 0x0, sizeof(*field) * n_fields);
-
 	for (ulint i = 0; i < n_fields; ++i, ++field) {
 		byte*		ptr = row;
 
@@ -2427,6 +2425,8 @@ row_import_cfg_read_index_fields(
 
 			return(DB_IO_ERROR);
 		}
+
+		new (field) dict_field_t();
 
 		field->prefix_len = mach_read_from_4(ptr);
 		ptr += sizeof(ib_uint32_t);

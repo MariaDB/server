@@ -3344,7 +3344,7 @@ buf_relocate(
 	}
 #endif /* UNIV_DEBUG */
 
-	memcpy(dpage, bpage, sizeof *dpage);
+	new (dpage) buf_page_t(*bpage);
 
 	/* Important that we adjust the hazard pointer before
 	removing bpage from LRU list. */
