@@ -3559,3 +3559,12 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where subtime(`test`.`t1`.`a`,TIME'00:00:01') = TIME'00:00:09' and addtime(`test`.`t1`.`a`,TIME'00:00:01') <= TIME'00:00:09'
 DROP TABLE t1;
+#
+# MDEV-15363 Wrong result for CAST(LAST_DAY(TIME'00:00:00') AS TIME)
+#
+SELECT
+LAST_DAY(TIME'00:00:00') AS c1,
+CAST(CAST(LAST_DAY(TIME'00:00:00') AS DATE) AS TIME) AS c2,
+CAST(LAST_DAY(TIME'00:00:00') AS TIME) AS c3;
+c1	c2	c3
+2018-08-31	00:00:00	00:00:00
