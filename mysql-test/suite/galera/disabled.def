@@ -30,3 +30,4 @@ query_cache : MDEV-15805 Test failure on galera.query_cache
 MW-416 : MDEV-13549 Galera test failures
 galera_wan : MDEV-13549 Galera test failures
 MW-388 : MDEV-13549 Galera test failures
+galera_sst_mysqldump_with_key : MDEV-16890 Galera test failure
