@@ -2214,8 +2214,8 @@ buf_page_realloc(
 	if (buf_page_can_relocate(&block->page)) {
 		mutex_enter(&new_block->mutex);
 
-		memcpy(new_block->frame, block->frame, UNIV_PAGE_SIZE);
-		memcpy(&new_block->page, &block->page, sizeof block->page);
+		memcpy(new_block->frame, block->frame, srv_page_size);
+		new (&new_block->page) buf_page_t(block->page);
 
 		/* relocate LRU list */
 		ut_ad(block->page.in_LRU_list);
