@@ -1370,7 +1370,7 @@ static int prepare_export()
   // which is* unfortunately* still necessary to get mysqld up
   if (strncmp(orig_argv1,"--defaults-file=",16) == 0)
   {
-    sprintf(cmdline, 
+    snprintf(cmdline, sizeof cmdline,
      IF_WIN("\"","") "\"%s\" --mysqld \"%s\" "
       " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0"
