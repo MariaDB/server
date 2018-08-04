@@ -644,13 +644,10 @@ int
 mkdirp(const char *pathname, int Flags, myf MyFlags)
 {
 	char *parent, *p;
-	int len = strlen(pathname) + 1;
 
 	/* make a parent directory path */
-	if (!(parent= (char *)malloc(len)))
+	if (!(parent= strdup(pathname)))
           return(-1);
-	strncpy(parent, pathname, len);
-	parent[len-1]= 0;
 
 	for (p = parent + strlen(parent);
 	    !is_path_separator(*p) && p != parent; p--);
