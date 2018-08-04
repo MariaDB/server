@@ -76,7 +76,7 @@ echo "Creating package version ${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE
 
 # Build the package.
 #
-fakeroot dpkg-buildpackage -us -uc
+fakeroot dpkg-buildpackage -us -uc -j$(nproc)
 
 [ -e debian/autorm-file ] && rm -vf `cat debian/autorm-file`
 
