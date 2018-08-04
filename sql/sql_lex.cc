@@ -8763,7 +8763,6 @@ void st_select_lex_unit::reset_distinct()
     if (sl->distinct)
     {
       union_distinct= sl;
-      return;
     }
   }
 }

@@ -207,4 +207,16 @@ a	b
 1	100
 3	30
 drop table t1;
+#
+# MDEV-16359: union with 3 selects in brackets
+#
+select 1 union select 1 union select 1;
+1
+1
+(select 1 union select 1 union select 1);
+1
+1
+((select 1) union (select 1) union (select 1));
+1
+1
 # End of 10.4 tests

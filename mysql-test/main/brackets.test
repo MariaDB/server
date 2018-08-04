@@ -80,5 +80,13 @@ select a,b from t1 order by 1 limit 3;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-16359: union with 3 selects in brackets
+--echo #
+
+select 1 union select 1 union select 1;
+(select 1 union select 1 union select 1);
+((select 1) union (select 1) union (select 1));
+
 --echo # End of 10.4 tests
 
