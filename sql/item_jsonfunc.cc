@@ -479,7 +479,7 @@ String *Item_func_json_value::val_str(String *str)
                   (const uchar *) js->ptr() + js->length());
 
   str->length(0);
-  str->set_charset(&my_charset_utf8mb4_bin);
+  str->set_charset(collation.collation);
 
   path.cur_step= path.p.steps;
 continue_search:
