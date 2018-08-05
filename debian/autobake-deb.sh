@@ -16,11 +16,11 @@ export DEB_BUILD_OPTIONS="nocheck $DEB_BUILD_OPTIONS"
 if [[ $TRAVIS ]]
 then
   # On Travis-CI, the log must stay under 4MB so make the build less verbose
-  sed -i -e '/Add support for verbose builds/,+2d' debian/rules
+  sed -i -e '/Add support for verbose builds/,/^$/d' debian/rules
 
   # Don't include test suite package on Travis-CI to make the build time shorter
-  sed '/Package: mariadb-test-data/,+28d' -i debian/control
-  sed '/Package: mariadb-test$/,+38d' -i debian/control
+  sed '/Package: mariadb-test-data/,/^$/d' -i debian/control
+  sed '/Package: mariadb-test$/,/^$/d' -i debian/control
 
   # Don't build the test package at all to save time and disk space
   sed 's|DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test|DINSTALL_MYSQLTESTDIR=false|' -i debian/rules
@@ -47,7 +47,7 @@ GCCVERSION=$(gcc -dumpfullversion -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g
 if ! apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
 then
   sed '/libcrack2-dev/d' -i debian/control
-  sed '/Package: mariadb-plugin-cracklib/,+9d' -i debian/control
+  sed '/Package: mariadb-plugin-cracklib/,/^$/d' -i debian/control
 fi
 
 # If libpcre3-dev (>= 2:8.35-3.2~) is not available (before Debian Jessie or Ubuntu Wily)
@@ -94,7 +94,7 @@ fi
 # x86 32 bit.
 if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]] || [[ $TRAVIS ]]
 then
-  sed '/Package: mariadb-plugin-rocksdb/,+15d' -i debian/control
+  sed '/Package: mariadb-plugin-rocksdb/,/^$/d' -i debian/control
 fi
 
 # AWS SDK requires c++11 -capable compiler.
@@ -127,12 +127,12 @@ fi
 # Mroonga, TokuDB never built on Travis CI anyway, see build flags above
 if [[ $TRAVIS ]]
 then
-  sed -i -e "/Package: mariadb-plugin-tokudb/,+19d" debian/control
-  sed -i -e "/Package: mariadb-plugin-mroonga/,+17d" debian/control
-  sed -i -e "/Package: mariadb-plugin-spider/,+18d" debian/control
-  sed -i -e "/Package: mariadb-plugin-oqgraph/,+16d" debian/control
+  sed -i -e "/Package: mariadb-plugin-tokudb/,/^$/d" debian/control
+  sed -i -e "/Package: mariadb-plugin-mroonga/,/^$/d" debian/control
+  sed -i -e "/Package: mariadb-plugin-spider/,/^$/d" debian/control
+  sed -i -e "/Package: mariadb-plugin-oqgraph/,/^$/d" debian/control
   sed -i -e "/usr\/lib\/mysql\/plugin\/ha_sphinx.so/d" debian/mariadb-server-10.4.install
-  sed -i -e "/Package: libmariadbd-dev/,+19d" debian/control
+  sed -i -e "/Package: libmariadbd-dev/,/^$/d" debian/control
 fi
 
 # Adjust changelog, add new version
