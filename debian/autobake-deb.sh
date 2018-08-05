@@ -67,9 +67,9 @@ then
   sed 's/ --with systemd//' -i debian/rules
   sed '/systemd/d' -i debian/rules
   sed '/\.service/d' -i debian/rules
-  sed '/galera_new_cluster/d' -i debian/mariadb-server-10.3.install
-  sed '/galera_recovery/d' -i debian/mariadb-server-10.3.install
-  sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.3.install
+  sed '/galera_new_cluster/d' -i debian/mariadb-server-10.4.install
+  sed '/galera_recovery/d' -i debian/mariadb-server-10.4.install
+  sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.4.install
 fi
 
 # If libzstd-dev is not available (before Debian Stretch and Ubuntu Xenial)
@@ -112,7 +112,7 @@ Breaks: mariadb-aws-key-management-10.1,
         mariadb-aws-key-management-10.2
 Replaces: mariadb-aws-key-management-10.1,
           mariadb-aws-key-management-10.2
-Depends: mariadb-server-10.3,
+Depends: mariadb-server-10.4,
          \${misc:Depends},
          \${shlibs:Depends}
 Description: Amazon Web Service Key Management Service Plugin for MariaDB
@@ -131,7 +131,7 @@ then
   sed -i -e "/Package: mariadb-plugin-mroonga/,+17d" debian/control
   sed -i -e "/Package: mariadb-plugin-spider/,+18d" debian/control
   sed -i -e "/Package: mariadb-plugin-oqgraph/,+16d" debian/control
-  sed -i -e "/usr\/lib\/mysql\/plugin\/ha_sphinx.so/d" debian/mariadb-server-10.3.install
+  sed -i -e "/usr\/lib\/mysql\/plugin\/ha_sphinx.so/d" debian/mariadb-server-10.4.install
   sed -i -e "/Package: libmariadbd-dev/,+19d" debian/control
 fi
 
