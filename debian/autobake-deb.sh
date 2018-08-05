@@ -20,7 +20,7 @@ then
 
   # Don't include test suite package on Travis-CI to make the build time shorter
   sed '/Package: mariadb-test-data/,+28d' -i debian/control
-  sed '/Package: mariadb-test/,+36d' -i debian/control
+  sed '/Package: mariadb-test$/,+38d' -i debian/control
 
   # Don't build the test package at all to save time and disk space
   sed 's|DINSTALL_MYSQLTESTDIR=share/mysql/mysql-test|DINSTALL_MYSQLTESTDIR=false|' -i debian/rules
@@ -94,7 +94,7 @@ fi
 # x86 32 bit.
 if [[ $GCCVERSION -lt 40800 ]] || [[ $(arch) =~ i[346]86 ]] || [[ $TRAVIS ]]
 then
-  sed '/Package: mariadb-plugin-rocksdb/,+14d' -i debian/control
+  sed '/Package: mariadb-plugin-rocksdb/,+15d' -i debian/control
 fi
 
 # AWS SDK requires c++11 -capable compiler.
