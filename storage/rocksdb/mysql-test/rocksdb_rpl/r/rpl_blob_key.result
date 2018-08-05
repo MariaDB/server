@@ -1,0 +1,9 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (b BLOB, i INT, KEY(b(8))) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (REPEAT('a',9),1);
+UPDATE t1 SET i = 2;
+connection slave;
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc
