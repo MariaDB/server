@@ -244,7 +244,20 @@ const char *my_open_parent_dir_nosymlinks(const char *pathname, int *pdfd)
       return pathname + (s - buf);
     }
 
-    fd = openat(dfd, s, O_NOFOLLOW | O_PATH | O_CLOEXEC);
+    /*
+     * Linux accepts dfd = -1 for root, but this is not a standard
+     * behavior documented by OpenGroup XSH
+     * http://pubs.opengroup.org/onlinepubs/9699919799/functions/open.html
+     * At least on NetBSD, calling openat() with dfd = -1 fails with EBADF.
+     * Since s has been tested to be an absolute parth, just use open()
+     * on non Linux systems for the same result.
+     */
+#ifndef linux
+    if (dfd == -1)
+      fd = open(s, O_NOFOLLOW | O_PATH | O_CLOEXEC);
+    else
+#endif
+      fd = openat(dfd, s, O_NOFOLLOW | O_PATH | O_CLOEXEC);
     if (fd < 0)
       goto err;
 
