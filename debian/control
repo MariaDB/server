@@ -562,8 +562,7 @@ Description: Connect storage engine for MariaDB
 
 Package: mariadb-plugin-rocksdb
 Architecture: amd64 arm64 mips64el ppc64el
-Depends: libzstd1,
-         mariadb-server-10.4 (= ${binary:Version}),
+Depends: mariadb-server-10.4 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-rocksdb-engine-10.2,
