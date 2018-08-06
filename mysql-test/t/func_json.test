@@ -440,3 +440,11 @@ select JSON_VALUE(json_col, '$.key1')= _latin1 X'53EC' from t1;
 select REPLACE(JSON_VALUE(json_col, '$.key1'), 'null', '') = _latin1 X'53EC' from t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-16750 JSON_SET mishandles unicode every second pair of arguments.
+--echo #
+
+SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6);
+SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6, '$.b', _utf8 0xC3B6);
+SELECT JSON_SET('{}', '$.a', _utf8 X'C3B6', '$.x', 1, '$.b', _utf8 X'C3B6');
+

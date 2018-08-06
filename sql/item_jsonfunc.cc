@@ -2384,8 +2384,9 @@ String *Item_func_json_insert::val_str(String *str)
   if ((null_value= args[0]->null_value))
     return 0;
 
-  str->set_charset(js->charset());
-  json_string_set_cs(&key_name, js->charset());
+  str->set_charset(collation.collation);
+  tmp_js.set_charset(collation.collation);
+  json_string_set_cs(&key_name, collation.collation);
 
   for (n_arg=1, n_path=0; n_arg < arg_count; n_arg+=2, n_path++)
   {
@@ -2599,7 +2600,6 @@ continue_point:
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
   str->length(0);
-  str->set_charset(js->charset());
   if (json_nice(&je, str, Item_func_json_format::LOOSE))
     goto js_error;
 
