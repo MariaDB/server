@@ -412,9 +412,18 @@ delimiter //
 create procedure mysql.spider_plugin_installer()
 begin
   set @win_plugin := IF(@@version_compile_os like 'Win%', 1, 0);
+  set @have_spider_i_s_plugin := 0;
+  select @have_spider_i_s_plugin := 1 from INFORMATION_SCHEMA.plugins where PLUGIN_NAME = 'SPIDER';
   set @have_spider_plugin := 0;
-  select @have_spider_plugin := 1 from INFORMATION_SCHEMA.plugins where PLUGIN_NAME = 'SPIDER';
-  if @have_spider_plugin = 0 then 
+  select @have_spider_plugin := 1 from mysql.plugin where name = 'spider';
+  if @have_spider_i_s_plugin = 0 then
+    if @have_spider_plugin = 1 then
+      -- spider plugin is present in mysql.plugin but not in
+      -- information_schema.plugins.  Remove spider plugin entry
+      -- in mysql.plugin first.
+      delete from mysql.plugin where name = 'spider';
+    end if;
+    -- Install spider plugin
     if @win_plugin = 0 then 
       install plugin spider soname 'ha_spider.so';
     else
@@ -423,7 +432,16 @@ begin
   end if;
   set @have_spider_i_s_alloc_mem_plugin := 0;
   select @have_spider_i_s_alloc_mem_plugin := 1 from INFORMATION_SCHEMA.plugins where PLUGIN_NAME = 'SPIDER_ALLOC_MEM';
-  if @have_spider_i_s_alloc_mem_plugin = 0 then 
+  set @have_spider_alloc_mem_plugin := 0;
+  select @have_spider_alloc_mem_plugin := 1 from mysql.plugin where name = 'spider_alloc_mem';
+  if @have_spider_i_s_alloc_mem_plugin = 0 then
+    if @have_spider_alloc_mem_plugin = 1 then
+      -- spider_alloc_mem plugin is present in mysql.plugin but not in
+      -- information_schema.plugins.  Remove spider_alloc_mem plugin entry
+      -- in mysql.plugin first.
+      delete from mysql.plugin where name = 'spider_alloc_mem';
+    end if;
+    -- Install spider_alloc_mem plugin
     if @win_plugin = 0 then 
       install plugin spider_alloc_mem soname 'ha_spider.so';
     else

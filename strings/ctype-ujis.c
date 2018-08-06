@@ -67161,12 +67161,12 @@ get_case_info_for_ch(CHARSET_INFO *cs, uint plane, uint page, uint offs)
 */
 static size_t
 my_casefold_ujis(CHARSET_INFO *cs,
-                 char *src, size_t srclen,
+                 const char *src, size_t srclen,
                  char *dst, size_t dstlen __attribute__((unused)),
                  const uchar * const map,
                  size_t is_upper)
 {
-  char *srcend= src + srclen, *dst0= dst;
+  const char *srcend= src + srclen, *dst0= dst;
 
   while (src < srcend)
   {
@@ -67208,7 +67208,7 @@ my_casefold_ujis(CHARSET_INFO *cs,
   LOWER()
 */
 size_t
-my_casedn_ujis(CHARSET_INFO * cs, char *src, size_t srclen,
+my_casedn_ujis(CHARSET_INFO * cs, const char *src, size_t srclen,
                char *dst, size_t dstlen)
 {
   DBUG_ASSERT(dstlen >= srclen * cs->casedn_multiply); 
@@ -67221,7 +67221,7 @@ my_casedn_ujis(CHARSET_INFO * cs, char *src, size_t srclen,
   UPPER()
 */
 size_t
-my_caseup_ujis(CHARSET_INFO * cs, char *src, size_t srclen,
+my_caseup_ujis(CHARSET_INFO * cs, const char *src, size_t srclen,
                char *dst, size_t dstlen)
 {
   DBUG_ASSERT(dstlen >= srclen * cs->caseup_multiply);

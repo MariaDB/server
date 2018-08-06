@@ -222,8 +222,8 @@ row_undo_mod_clust(
 	ut_ad(thr_get_trx(thr) == node->trx);
 	ut_ad(node->trx->dict_operation_lock_mode);
 	ut_ad(node->trx->in_rollback);
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
-	      || rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own_flagged(dict_operation_lock,
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	log_free_check();
 	pcur = &node->pcur;
@@ -543,7 +543,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	clustered index entry, because there is no MVCC or purge. */
 	if (node->table->is_temporary()
 	    || row_vers_old_has_index_entry(
-		    FALSE, btr_pcur_get_rec(&node->pcur),
+		    false, btr_pcur_get_rec(&node->pcur),
 		    &mtr_vers, index, entry, 0, 0)) {
 		err = btr_cur_del_mark_set_sec_rec(BTR_NO_LOCKING_FLAG,
 						   btr_cur, TRUE, thr, &mtr);
@@ -1351,7 +1351,8 @@ rollback_clust:
 			already be holding dict_sys->mutex, which
 			would be acquired when updating statistics. */
 			if (update_statistics && !dict_locked) {
-				dict_stats_update_if_needed(node->table);
+				dict_stats_update_if_needed(
+					node->table, node->trx->mysql_thd);
 			} else {
 				node->table->stat_modified_counter++;
 			}

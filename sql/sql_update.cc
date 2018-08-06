@@ -615,6 +615,9 @@ int mysql_update(THD *thd,
       - Note that Spider can handle ORDER BY and LIMIT in a cluster with
         one data node.  These conditions are therefore checked in
         direct_update_rows_init().
+    - Update fields include a unique timestamp field
+      - The storage engine may not be able to avoid false duplicate key
+        errors.  This condition is checked in direct_update_rows_init().
 
     Direct update does not require a WHERE clause
 
@@ -637,7 +640,7 @@ int mysql_update(THD *thd,
 
     if (!table->file->info_push(INFO_KIND_UPDATE_FIELDS, &fields) &&
         !table->file->info_push(INFO_KIND_UPDATE_VALUES, &values) &&
-        !table->file->direct_update_rows_init())
+        !table->file->direct_update_rows_init(&fields))
     {
       do_direct_update= TRUE;
 

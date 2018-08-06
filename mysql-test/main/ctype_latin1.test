@@ -262,6 +262,9 @@ SELECT * FROM v1;
 DROP VIEW v1;
 DROP TABLE t1;
 
+SET NAMES latin1;
+--source include/ctype_mdev13118.inc
+
 
 --echo #
 --echo # End of 10.0 tests

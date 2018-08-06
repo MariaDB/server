@@ -61,13 +61,6 @@ savepoint. */
 @return	old mode */
 #define mtr_set_log_mode(m, d)	(m)->set_log_mode((d))
 
-/** Get the flush observer of a mini-transaction.
-@return flush observer object */
-#define mtr_get_flush_observer(m)	(m)->get_flush_observer()
-
-/** Set the flush observer of a mini-transaction. */
-#define mtr_set_flush_observer(m, d)	(m)->set_flush_observer((d))
-
 /** Read 1 - 4 bytes from a file page buffered in the buffer pool.
 @return	value read */
 #define mtr_read_ulint(p, t, m)	(m)->read_ulint((p), (t))

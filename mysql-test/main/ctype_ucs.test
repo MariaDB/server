@@ -992,6 +992,10 @@ DROP TABLE t1;
 SET optimizer_switch=@save_optimizer_switch;
 
 
+SET NAMES utf8, character_set_connection=ucs2;
+--source include/ctype_mdev13118.inc
+
+
 --echo #
 --echo # End of 10.0 tests
 --echo #

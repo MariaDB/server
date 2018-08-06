@@ -301,6 +301,21 @@ btr_pcur_commit_specify_mtr(
 /*========================*/
 	btr_pcur_t*	pcur,	/*!< in: persistent cursor */
 	mtr_t*		mtr);	/*!< in: mtr to commit */
+
+/** Commits the mtr and sets the clustered index pcur and secondary index
+pcur latch mode to BTR_NO_LATCHES, that is, the cursor becomes detached.
+Function btr_pcur_store_position should be used for both cursor before
+calling this, if restoration of cursor is wanted later.
+@param[in]	pcur		persistent cursor
+@param[in]	sec_pcur	secondary index persistent cursor
+@param[in]	mtr		mtr to commit */
+UNIV_INLINE
+void
+btr_pcurs_commit_specify_mtr(
+	btr_pcur_t*	pcur,
+	btr_pcur_t*	sec_pcur,
+	mtr_t*		mtr);
+
 /*********************************************************//**
 Moves the persistent cursor to the next record in the tree. If no records are
 left, the cursor stays 'after last in tree'.
@@ -522,6 +537,18 @@ struct btr_pcur_t{
 	byte*		old_rec_buf;
 	/** old_rec_buf size if old_rec_buf is not NULL */
 	ulint		buf_size;
+
+	btr_pcur_t() :
+		btr_cur(), latch_mode(0), old_stored(false), old_rec(NULL),
+		old_n_fields(0), rel_pos(btr_pcur_pos_t(0)),
+		block_when_stored(NULL),
+		modify_clock(0), withdraw_clock(0),
+		pos_state(BTR_PCUR_NOT_POSITIONED),
+		search_mode(PAGE_CUR_UNSUPP), trx_if_known(NULL),
+		old_rec_buf(NULL), buf_size(0)
+	{
+		btr_cur.init();
+	}
 
 	/** Return the index of this persistent cursor */
 	dict_index_t*	index() const { return(btr_cur.index); }

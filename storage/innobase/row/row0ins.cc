@@ -1660,7 +1660,8 @@ row_ins_check_foreign_constraint(
 
 	if (check_table == NULL
 	    || !check_table->is_readable()
-	    || check_index == NULL) {
+	    || check_index == NULL
+	    || check_table->space->is_being_truncated) {
 
 		if (!srv_read_only_mode && check_ref) {
 			FILE*	ef = dict_foreign_err_file;
@@ -3863,7 +3864,7 @@ row_ins_step(
 		/* No-rollback tables should only be written to by a
 		single thread at a time, but there can be multiple
 		concurrent readers. We must hold an open table handle. */
-		DBUG_ASSERT(node->table->n_ref_count > 0);
+		DBUG_ASSERT(node->table->get_ref_count() > 0);
 		DBUG_ASSERT(node->ins_type == INS_DIRECT);
 		/* No-rollback tables can consist only of a single index. */
 		DBUG_ASSERT(UT_LIST_GET_LEN(node->entry_list) == 1);

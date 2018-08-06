@@ -1359,12 +1359,14 @@ i_s_cmp_fill_low(
 		page0zip.cc. */
 		table->field[1]->store(zip_stat->compressed, true);
 		table->field[2]->store(zip_stat->compressed_ok, true);
-		table->field[3]->store(zip_stat->compressed_usec / 1000000, true);
+		table->field[3]->store(zip_stat->compressed_usec / 1000000,
+				       true);
 		table->field[4]->store(zip_stat->decompressed, true);
-		table->field[5]->store(zip_stat->decompressed_usec / 1000000, true);
+		table->field[5]->store(zip_stat->decompressed_usec / 1000000,
+				       true);
 
 		if (reset) {
-			memset(zip_stat, 0, sizeof *zip_stat);
+			new (zip_stat) page_zip_stat_t();
 		}
 
 		if (schema_table_store_record(thd, table)) {

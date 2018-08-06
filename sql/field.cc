@@ -7715,10 +7715,9 @@ void Field_varstring::sql_type(String &res) const
   size_t length;
 
   length= cs->cset->snprintf(cs,(char*) res.ptr(),
-                             res.alloced_length(), "%s(%d)",
+                             res.alloced_length(), "%s(%u)",
                               (has_charset() ? "varchar" : "varbinary"),
-                             (int) field_length / charset()->mbmaxlen -
-                             MY_TEST(compression_method()));
+                              (uint) char_length());
   res.length(length);
   if ((thd->variables.sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)) &&
       has_charset() && (charset()->state & MY_CS_BINSORT))
@@ -8218,7 +8217,13 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
     return 0;
   }
 
-  if (table->blob_storage)    // GROUP_CONCAT with ORDER BY | DISTINCT
+  /*
+    For min/max fields of statistical data 'table' is set to NULL.
+    It could not be otherwise as this data is shared by many instances
+    of the same base table.
+  */
+
+  if (table && table->blob_storage)    // GROUP_CONCAT with ORDER BY | DISTINCT
   {
     DBUG_ASSERT(!f_is_hex_escape(flags));
     DBUG_ASSERT(field_charset == cs);

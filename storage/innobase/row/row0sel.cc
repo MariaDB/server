@@ -1100,8 +1100,8 @@ sel_set_rtr_rec_lock(
 	rw_lock_x_lock(&(match->block.lock));
 retry:
 	cur_block = btr_pcur_get_block(pcur);
-        ut_ad(rw_lock_own(&(match->block.lock), RW_LOCK_X)
-              || rw_lock_own(&(match->block.lock), RW_LOCK_S));
+	ut_ad(rw_lock_own_flagged(&match->block.lock,
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 	ut_ad(page_is_leaf(buf_block_get_frame(cur_block)));
 
 	err = lock_sec_rec_read_check_and_lock(
@@ -4973,6 +4973,13 @@ wrong_offs:
 			if (!rec_get_deleted_flag(rec, comp)) {
 				goto no_gap_lock;
 			}
+
+			/* At most one transaction can be active
+			for temporary table. */
+			if (clust_index->table->is_temporary()) {
+				goto no_gap_lock;
+			}
+
 			if (index == clust_index) {
 				trx_id_t trx_id = row_get_rec_trx_id(
 					rec, index, offsets);

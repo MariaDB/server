@@ -239,7 +239,12 @@ cannot_find_file()
   echo
   echo "If you compiled from source, you need to either run 'make install' to"
   echo "copy the software into the correct location ready for operation."
-  echo "If you don't want to do a full install, you can use the --srcddir"
+  echo "If you don't want to do a full install, you can use the --srcdir"
+  echo "option to only install the mysql database and privilege tables"
+  echo
+  echo "If you compiled from source, you need to either run 'make install' to"
+  echo "copy the software into the correct location ready for operation."
+  echo "If you don't want to do a full install, you can use the --srcdir"
   echo "option to only install the mysql database and privilege tables"
   echo
   echo "If you are using a binary release, you must either be at the top"
@@ -341,7 +346,7 @@ else
   basedir="@prefix@"
   bindir="@bindir@"
   resolveip="$bindir/resolveip"
-  mysqld="@libexecdir@/mysqld"
+  mysqld="@sbindir@/mysqld"
   srcpkgdatadir="@pkgdatadir@"
   buildpkgdatadir="@pkgdatadir@"
   plugindir="@pkgplugindir@"

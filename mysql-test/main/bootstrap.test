@@ -106,3 +106,12 @@ use test;
 EOF
 --exec $MYSQLD_BOOTSTRAP_CMD --ignore-db-dirs='some_dir' --ignore-db-dirs='some_dir' < $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
 --remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
+
+#
+# MDEV-13397 MariaDB upgrade fail when using default_time_zone
+#
+--write_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql
+use test;
+EOF
+--exec $MYSQLD_BOOTSTRAP_CMD --default-time-zone=Europe/Moscow < $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1
+--remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_9969.sql

@@ -2528,17 +2528,16 @@ write_buffers:
 					if (clust_btr_bulk == NULL) {
 						clust_btr_bulk = UT_NEW_NOKEY(
 							BtrBulk(index[i],
-								trx->id,
-								observer));
-
-						clust_btr_bulk->init();
+								trx,
+								observer/**/));
 					} else {
 						clust_btr_bulk->latch();
 					}
 
 					err = row_merge_insert_index_tuples(
 						index[i], old_table,
-						OS_FILE_CLOSED, NULL, buf, clust_btr_bulk,
+						OS_FILE_CLOSED, NULL, buf,
+						clust_btr_bulk,
 						table_total_rows,
 						curr_progress,
 						pct_cost,
@@ -2643,13 +2642,13 @@ write_buffers:
 						trx->error_key_num = i;
 						goto all_done;);
 
-					BtrBulk	btr_bulk(index[i], trx->id,
+					BtrBulk	btr_bulk(index[i], trx,
 							 observer);
-					btr_bulk.init();
 
 					err = row_merge_insert_index_tuples(
 						index[i], old_table,
-						OS_FILE_CLOSED, NULL, buf, &btr_bulk,
+						OS_FILE_CLOSED, NULL, buf,
+						&btr_bulk,
 						table_total_rows,
 						curr_progress,
 						pct_cost,
@@ -4673,11 +4672,15 @@ row_merge_build_indexes(
 	we use bulk load to create all types of indexes except spatial index,
 	for which redo logging is enabled. If we create only spatial indexes,
 	we don't need to flush dirty pages at all. */
-	bool	need_flush_observer = (old_table != new_table);
+	bool	need_flush_observer = bool(innodb_log_optimize_ddl);
 
-	for (i = 0; i < n_indexes; i++) {
-		if (!dict_index_is_spatial(indexes[i])) {
-			need_flush_observer = true;
+	if (need_flush_observer) {
+		need_flush_observer = old_table != new_table;
+
+		for (i = 0; i < n_indexes; i++) {
+			if (!dict_index_is_spatial(indexes[i])) {
+				need_flush_observer = true;
+			}
 		}
 	}
 
@@ -4921,9 +4924,8 @@ wait_again:
 				os_thread_sleep(20000000););  /* 20 sec */
 
 			if (error == DB_SUCCESS) {
-				BtrBulk	btr_bulk(sort_idx, trx->id,
+				BtrBulk	btr_bulk(sort_idx, trx,
 						 flush_observer);
-				btr_bulk.init();
 
 				pct_cost = (COST_BUILD_INDEX_STATIC +
 					(total_dynamic_cost * merge_files[i].offset /
@@ -4976,14 +4978,16 @@ wait_again:
 			ut_ad(sort_idx->online_status
 			      == ONLINE_INDEX_COMPLETE);
 		} else {
-			ut_ad(need_flush_observer);
+			if (flush_observer) {
+				flush_observer->flush();
+				row_merge_write_redo(indexes[i]);
+			}
+
 			if (global_system_variables.log_warnings > 2) {
 				sql_print_information(
 					"InnoDB: Online DDL : Applying"
 					" log to index");
 			}
-			flush_observer->flush();
-			row_merge_write_redo(indexes[i]);
 
 			DEBUG_SYNC_C("row_log_apply_before");
 			error = row_log_apply(trx, sort_idx, table, stage);

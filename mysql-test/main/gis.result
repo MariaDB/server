@@ -4128,17 +4128,17 @@ ERROR HY000: Illegal parameter data types geometry and interval for operation 'd
 SELECT INTERVAL 10 DAY + POINT(1,1);
 ERROR HY000: Illegal parameter data types geometry and interval for operation 'date_add_interval'
 SELECT ADDTIME(POINT(1,1), '10:10:10');
-ERROR HY000: Illegal parameter data types geometry and varchar for operation 'add_time'
+ERROR HY000: Illegal parameter data types geometry and varchar for operation 'addtime'
 SELECT ADDTIME('10:10:10', POINT(1,1));
-ERROR HY000: Illegal parameter data types varchar and geometry for operation 'add_time'
+ERROR HY000: Illegal parameter data types varchar and geometry for operation 'addtime'
 SELECT ADDTIME(POINT(1,1), TIME'10:10:10');
-ERROR HY000: Illegal parameter data types geometry and time for operation 'add_time'
+ERROR HY000: Illegal parameter data types geometry and time for operation 'addtime'
 SELECT ADDTIME(TIME'10:10:10', POINT(1,1));
-ERROR HY000: Illegal parameter data types time and geometry for operation 'add_time'
+ERROR HY000: Illegal parameter data types time and geometry for operation 'addtime'
 SELECT ADDTIME(POINT(1,1), TIMESTAMP'2001-01-01 10:10:10');
-ERROR HY000: Illegal parameter data types geometry and datetime for operation 'add_time'
+ERROR HY000: Illegal parameter data types geometry and datetime for operation 'addtime'
 SELECT ADDTIME(TIMESTAMP'2001-01-01 10:10:10', POINT(1,1));
-ERROR HY000: Illegal parameter data types datetime and geometry for operation 'add_time'
+ERROR HY000: Illegal parameter data types datetime and geometry for operation 'addtime'
 SELECT STR_TO_DATE(POINT(1,1),'%M %d,%Y');
 ERROR HY000: Illegal parameter data types geometry and varchar for operation 'str_to_date'
 SELECT STR_TO_DATE('2001-01-01', POINT(1,1));

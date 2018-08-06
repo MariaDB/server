@@ -5925,6 +5925,39 @@ SET join_buffer_space_limit= default;
 set optimizer_switch=@save_optimizer_switch;
 DROP TABLE t1,t4,t5,t2;
 #
+# MDEV-16603: BNLH for query with materialized semi-join
+#
+set join_cache_level=4;
+CREATE TABLE t1 ( i1 int, v1 varchar(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (7,'x');
+CREATE TABLE t2 (i1 int, v1 varchar(1), KEY v1 (v1,i1)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES
+(NULL,'x'),(1,'x'),(3,'x'),(5,'x'),(8,'x'),(48,'x'),
+(228,'x'),(3,'y'),(1,'z'),(9,'z');
+CREATE TABLE temp
+SELECT t1.i1 AS f1, t1.v1 AS f2 FROM (t2 JOIN t1 ON (t1.v1 = t2.v1));
+SELECT * FROM temp
+WHERE (f1,f2) IN (SELECT t1.i1, t1.v1 FROM (t2 JOIN t1 ON (t1.v1 = t2.v1)));
+f1	f2
+7	x
+7	x
+7	x
+7	x
+7	x
+7	x
+7	x
+EXPLAIN EXTENDED SELECT * FROM temp
+WHERE (f1,f2) IN (SELECT t1.i1, t1.v1 FROM (t2 JOIN t1 ON (t1.v1 = t2.v1)));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	temp	hash_ALL	NULL	#hash#$hj	9	test.t1.i1,test.t1.v1	7	100.00	Using where; Using join buffer (flat, BNLH join)
+2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+2	MATERIALIZED	t2	hash_index	v1	#hash#v1:v1	4:9	test.t1.v1	10	10.00	Using index; Using join buffer (flat, BNLH join)
+Warnings:
+Note	1003	select `test`.`temp`.`f1` AS `f1`,`test`.`temp`.`f2` AS `f2` from `test`.`temp` semi join (`test`.`t2` join `test`.`t1`) where `test`.`temp`.`f1` = `test`.`t1`.`i1` and `test`.`t2`.`v1` = `test`.`t1`.`v1` and `test`.`temp`.`f2` = `test`.`t1`.`v1`
+DROP TABLE t1,t2,temp;
+SET join_cache_level = default;
+#
 # MDEV-5123 Remove duplicated conditions pushed both to join_tab->select_cond and join_tab->cache_select->cond for blocked joins.
 #
 set join_cache_level=default;

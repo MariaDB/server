@@ -1862,14 +1862,6 @@ const char*
 dict_tf_to_row_format_string(
 /*=========================*/
 	ulint	table_flag);		/*!< in: row format setting */
-/****************************************************************//**
-Return maximum size of the node pointer record.
-@return maximum size of the record in bytes */
-ulint
-dict_index_node_ptr_max_size(
-/*=========================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** encode number of columns and number of virtual columns in one
 4 bytes value. We could do this because the number of columns in

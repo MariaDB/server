@@ -593,7 +593,7 @@ struct dict_col_t{
 	inline void detach(const dict_index_t& index);
 
 	/** Data for instantly added columns */
-	struct {
+	struct def_t {
 		/** original default value of instantly added column */
 		const void*	data;
 		/** len of data, or UNIV_SQL_DEFAULT if unavailable */
@@ -770,6 +770,9 @@ struct dict_field_t{
 	unsigned	fixed_len:10;	/*!< 0 or the fixed length of the
 					column if smaller than
 					DICT_ANTELOPE_MAX_INDEX_COL_LEN */
+
+	/** Zero-initialize all fields */
+	dict_field_t() : col(NULL), name(NULL), prefix_len(0), fixed_len(0) {}
 
 	/** Check whether two index fields are equivalent.
 	@param[in]	old	the other index field
@@ -1481,7 +1484,11 @@ struct dict_table_t {
 
 	/** Get reference count.
 	@return current value of n_ref_count */
-	inline ulint get_ref_count() const;
+	inline int32 get_ref_count()
+	{
+		return my_atomic_load32_explicit(&n_ref_count,
+						 MY_MEMORY_ORDER_RELAXED);
+	}
 
 	/** Acquire the table handle. */
 	inline void acquire();
@@ -1928,13 +1935,11 @@ struct dict_table_t {
 	It is protected by lock_sys.mutex. */
 	ulint					n_rec_locks;
 
-#ifndef DBUG_ASSERT_EXISTS
 private:
-#endif
 	/** Count of how many handles are opened to this table. Dropping of the
 	table is NOT allowed until this count gets to zero. MySQL does NOT
 	itself check the number of open handles at DROP. */
-	ulint					n_ref_count;
+	int32					n_ref_count;
 
 public:
 	/** List of locks on the table. Protected by lock_sys.mutex. */

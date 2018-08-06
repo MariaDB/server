@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4475,6 +4475,10 @@ int update_state_info(HA_CHECK *param, MI_INFO *info,uint update)
     int error;
     uint r_locks=share->r_locks,w_locks=share->w_locks;
     share->r_locks= share->w_locks= share->tot_locks= 0;
+
+    DBUG_EXECUTE_IF("simulate_incorrect_share_wlock_value",
+                    DEBUG_SYNC_C("after_share_wlock_set_to_0"););
+
     error=_mi_writeinfo(info,WRITEINFO_NO_UNLOCK);
     share->r_locks=r_locks;
     share->w_locks=w_locks;
