@@ -6845,7 +6845,7 @@ Item *Item_field::update_value_transformer(uchar *select_arg)
 void Item_field::print(String *str, enum_query_type query_type)
 {
   if (field && field->table->const_table &&
-      !(query_type & QT_NO_DATA_EXPANSION))
+      !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)))
   {
     print_value(str);
     return;
