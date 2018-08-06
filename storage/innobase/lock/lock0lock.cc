@@ -4963,7 +4963,7 @@ lock_table_create(
 	UT_LIST_ADD_LAST(trx_locks, trx->lock.trx_locks, lock);
 
 #ifdef WITH_WSREP
-	if (c_lock) {
+	if (c_lock && wsrep_on_trx(trx)) {
 		if (wsrep_thd_is_wsrep(trx->mysql_thd)
 		    && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 			UT_LIST_INSERT_AFTER(
@@ -5202,9 +5202,10 @@ lock_table_enqueue_waiting(
 	/* Enqueue the lock request that will wait to be granted */
 
 #ifdef WITH_WSREP
-	if (trx->lock.was_chosen_as_deadlock_victim) {
+	if (trx->lock.was_chosen_as_deadlock_victim && wsrep_on_trx(trx)) {
 		return(DB_DEADLOCK);
 	}
+
 	lock = lock_table_create(c_lock, table, mode | LOCK_WAIT, trx);
 #else
  	lock = lock_table_create(table, mode | LOCK_WAIT, trx);
