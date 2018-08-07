@@ -102,10 +102,6 @@
 extern "C" HINSTANCE s_hModule;           // Saved module handle
 #endif  // !__WIN__
 
-#if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
-bool MongoEnabled(void);
-#endif   // JAVA_SUPPORT || CMGO_SUPPORT
-
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 
 /***********************************************************************/

@@ -548,3 +548,7 @@ public:
   uint    int_table_flags;            // Inherited from MyISAM
   bool    enable_activate_all_index;  // Inherited from MyISAM
 };  // end of ha_connect class definition
+
+#if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
+bool MongoEnabled(void);
+#endif   // JAVA_SUPPORT || CMGO_SUPPORT
