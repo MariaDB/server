@@ -278,10 +278,13 @@ public:
   */
   inline void swap(base_list &rhs)
   {
+    list_node **rhs_last=rhs.last;
     swap_variables(list_node *, first, rhs.first);
-    swap_variables(list_node **, last, rhs.last);
     swap_variables(uint, elements, rhs.elements);
+    rhs.last= last == &first ? &rhs.first : last;
+    last = rhs_last == &rhs.first ? &first : rhs_last;
   }
+
   inline list_node* last_node() { return *last; }
   inline list_node* first_node() { return first;}
   inline void *head() { return first->info; }

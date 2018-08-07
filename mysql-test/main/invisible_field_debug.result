@@ -369,3 +369,8 @@ t1	1	invisible	1	c	A	NULL	NULL	NULL	YES	BTREE
 t1	1	invisible_2	1	invisible	A	NULL	NULL	NULL	YES	BTREE		
 drop table t1;
 set @old_debug= @@debug_dbug;
+CREATE TABLE t1 (i INT );
+SET debug_dbug="+d,test_completely_invisible,test_invisible_index";
+CREATE TABLE t2 LIKE t1;
+SET debug_dbug= DEFAULT;
+DROP TABLE t1, t2;
