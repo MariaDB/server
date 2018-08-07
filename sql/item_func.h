@@ -2946,15 +2946,7 @@ public:
   {
     return TRUE;
   }
-  Item *get_copy(THD *thd)
-  { return get_item_copy<Item_func_sp>(thd, this); }
-  Item *build_clone(THD *thd)
-  {
-    Item_func_sp *clone= (Item_func_sp *) Item_func::build_clone(thd);
-    if (clone)
-      clone->sp_result_field= NULL;
-    return clone;
-  }
+  Item *get_copy(THD *) { return 0; }
   bool eval_not_null_tables(void *opt_arg)
   {
     not_null_tables_cache= 0;

@@ -2496,30 +2496,15 @@ os_file_fsync_posix(
 			os_thread_sleep(200000);
 			break;
 
-		case EIO:
-
-			++failures;
-			ut_a(failures < 1000);
-
-			if (!(failures % 100)) {
-
-				ib::warn()
-					<< "fsync(): "
-					<< "An error occurred during "
-					<< "synchronization,"
-					<< " retrying";
-			}
-
-			/* 0.2 sec */
-			os_thread_sleep(200000);
-			break;
-
 		case EINTR:
 
 			++failures;
 			ut_a(failures < 2000);
 			break;
 
+		case EIO:
+			ib::error() << "fsync() returned EIO, aborting";
+			/* fall through */
 		default:
 			ut_error;
 			break;
@@ -3325,7 +3310,8 @@ os_file_get_status_posix(
 {
 	int	ret = stat(path, statinfo);
 
-	if (ret && (errno == ENOENT || errno == ENOTDIR)) {
+	if (ret && (errno == ENOENT || errno == ENOTDIR
+		    || errno == ENAMETOOLONG)) {
 		/* file does not exist */
 
 		return(DB_NOT_FOUND);
@@ -4665,7 +4651,8 @@ os_file_get_status_win32(
 {
 	int	ret = _stat64(path, statinfo);
 
-	if (ret && (errno == ENOENT || errno == ENOTDIR)) {
+	if (ret && (errno == ENOENT || errno == ENOTDIR
+		    || errno == ENAMETOOLONG)) {
 		/* file does not exist */
 
 		return(DB_NOT_FOUND);

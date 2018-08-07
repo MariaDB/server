@@ -222,8 +222,8 @@ row_undo_mod_clust(
 	ut_ad(thr_get_trx(thr) == node->trx);
 	ut_ad(node->trx->dict_operation_lock_mode);
 	ut_ad(node->trx->in_rollback);
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
-	      || rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own_flagged(dict_operation_lock,
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	log_free_check();
 	pcur = &node->pcur;
@@ -1351,7 +1351,8 @@ rollback_clust:
 			already be holding dict_sys->mutex, which
 			would be acquired when updating statistics. */
 			if (update_statistics && !dict_locked) {
-				dict_stats_update_if_needed(node->table);
+				dict_stats_update_if_needed(
+					node->table, node->trx->mysql_thd);
 			} else {
 				node->table->stat_modified_counter++;
 			}

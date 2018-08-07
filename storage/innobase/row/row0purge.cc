@@ -137,7 +137,7 @@ row_purge_remove_clust_if_poss_low(
 	rec_offs_init(offsets_);
 
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
-	      || node->vcol_info.used);
+	      || node->vcol_info.is_used());
 
 	index = dict_table_get_first_index(node->table);
 
@@ -250,7 +250,7 @@ static void row_purge_store_vsec_cur(
 		return;
 	}
 
-	node->vcol_info.requested = true;
+	node->vcol_info.set_requested();
 
 	btr_pcur_store_position(sec_pcur, sec_mtr);
 
@@ -318,16 +318,18 @@ row_purge_poss_sec(
 
 	ut_ad(!dict_index_is_clust(index));
 
-	const bool	store_cur = sec_mtr && !node->vcol_info.used
+	const bool	store_cur = sec_mtr && !node->vcol_info.is_used()
 		&& dict_index_has_virtual(index);
 
 	if (store_cur) {
 		row_purge_store_vsec_cur(node, index, sec_pcur, sec_mtr);
+		ut_ad(sec_mtr->has_committed()
+		      == node->vcol_info.is_requested());
 
 		/* The PRIMARY KEY value was not found in the clustered
 		index. The secondary index record found. We can purge
 		the secondary index record. */
-		if (!node->vcol_info.requested) {
+		if (!node->vcol_info.is_requested()) {
 			ut_ad(!node->found_clust);
 			return true;
 		}
@@ -344,7 +346,18 @@ retry_purge_sec:
 						 &node->vcol_info);
 
 	if (node->vcol_info.is_first_fetch()) {
-		if (node->vcol_info.mariadb_table) {
+		ut_ad(store_cur);
+
+		const TABLE* t= node->vcol_info.table();
+		DBUG_LOG("purge", "retry " << t
+			 << (is_tree ? " tree" : " leaf")
+			 << index->name << "," << index->table->name
+			 << ": " << rec_printer(entry).str());
+
+		ut_ad(mtr.has_committed());
+
+		if (t) {
+			node->vcol_info.set_used();
 			goto retry_purge_sec;
 		}
 
@@ -357,8 +370,10 @@ retry_purge_sec:
 	if (node->found_clust) {
 		btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
 	} else {
-		mtr_commit(&mtr);
+		mtr.commit();
 	}
+
+	ut_ad(mtr.has_committed());
 
 	if (store_cur && !row_purge_restore_vsec_cur(
 		    node, index, sec_pcur, sec_mtr, is_tree)) {
@@ -791,7 +806,7 @@ whose old history can no longer be observed.
 static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 {
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
-	      || node->vcol_info.used);
+	      || node->vcol_info.is_used());
 	/* Reset DB_TRX_ID, DB_ROLL_PTR for old records. */
 	mtr->start();
 
@@ -867,7 +882,7 @@ row_purge_upd_exist_or_extern_func(
 	mem_heap_t*	heap;
 
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_S)
-	      || node->vcol_info.used);
+	      || node->vcol_info.is_used());
 	ut_ad(!node->table->skip_alter_undo);
 
 	if (node->rec_type == TRX_UNDO_UPD_DEL_REC
@@ -1141,9 +1156,9 @@ row_purge_record_func(
 /*==================*/
 	purge_node_t*	node,		/*!< in: row purge node */
 	trx_undo_rec_t*	undo_rec,	/*!< in: record to purge */
-#ifdef UNIV_DEBUG
+#if defined UNIV_DEBUG || defined WITH_WSREP
 	const que_thr_t*thr,		/*!< in: query thread */
-#endif /* UNIV_DEBUG */
+#endif /* UNIV_DEBUG || WITH_WSREP */
 	bool		updated_extern)	/*!< in: whether external columns
 					were updated */
 {
@@ -1164,7 +1179,9 @@ row_purge_record_func(
 		if (purged) {
 			if (node->table->stat_initialized
 			    && srv_stats_include_delete_marked) {
-				dict_stats_update_if_needed(node->table);
+				dict_stats_update_if_needed(
+					node->table,
+					thr->graph->trx->mysql_thd);
 			}
 			MONITOR_INC(MONITOR_N_DEL_ROW_PURGE);
 		}
@@ -1199,13 +1216,13 @@ row_purge_record_func(
 	return(purged);
 }
 
-#ifdef UNIV_DEBUG
+#if defined UNIV_DEBUG || defined WITH_WSREP
 # define row_purge_record(node,undo_rec,thr,updated_extern)	\
 	row_purge_record_func(node,undo_rec,thr,updated_extern)
-#else /* UNIV_DEBUG */
+#else /* UNIV_DEBUG || WITH_WSREP */
 # define row_purge_record(node,undo_rec,thr,updated_extern)	\
 	row_purge_record_func(node,undo_rec,updated_extern)
-#endif /* UNIV_DEBUG */
+#endif /* UNIV_DEBUG || WITH_WSREP */
 
 /***********************************************************//**
 Fetches an undo log record and does the purge for the recorded operation.
@@ -1228,7 +1245,7 @@ row_purge(
 			bool purged = row_purge_record(
 				node, undo_rec, thr, updated_extern);
 
-			if (!node->vcol_info.used) {
+			if (!node->vcol_info.is_used()) {
 				rw_lock_s_unlock(dict_operation_lock);
 			}
 

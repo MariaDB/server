@@ -1480,7 +1480,6 @@ fil_space_create(
 	rw_lock_create(fil_space_latch_key, &space->latch, SYNC_FSP);
 
 	if (space->purpose == FIL_TYPE_TEMPORARY) {
-		ut_d(space->latch.set_temp_fsp());
 		/* SysTablespace::open_or_create() would pass
 		size!=0 to fil_node_create(), so first_time_open
 		would not hold in fil_node_open_file(), and we

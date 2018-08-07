@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2009, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2009, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -31,6 +31,9 @@ Created Jan 06, 2010 Vasil Dimov
 
 #include "dict0types.h"
 #include "trx0types.h"
+
+#define TABLE_STATS_NAME        "mysql/innodb_table_stats"
+#define INDEX_STATS_NAME        "mysql/innodb_index_stats"
 
 enum dict_stats_upd_option_t {
 	DICT_STATS_RECALC_PERSISTENT,/* (re) calculate the
@@ -110,12 +113,21 @@ dict_stats_deinit(
 	dict_table_t*	table)	/*!< in/out: table */
 	MY_ATTRIBUTE((nonnull));
 
+#ifdef WITH_WSREP
+/** Update the table modification counter and if necessary,
+schedule new estimates for table and index statistics to be calculated.
+@param[in,out]	table	persistent or temporary table
+@param[in]	thd	current session */
+void dict_stats_update_if_needed(dict_table_t* table, THD* thd)
+	MY_ATTRIBUTE((nonnull(1)));
+#else
 /** Update the table modification counter and if necessary,
 schedule new estimates for table and index statistics to be calculated.
 @param[in,out]	table	persistent or temporary table */
-void
-dict_stats_update_if_needed(dict_table_t* table)
+void dict_stats_update_if_needed_func(dict_table_t* table)
 	MY_ATTRIBUTE((nonnull));
+# define dict_stats_update_if_needed(t,thd) dict_stats_update_if_needed_func(t)
+#endif
 
 /*********************************************************************//**
 Calculates new estimates for table and index statistics. The statistics

@@ -979,8 +979,7 @@ struct latch_t {
 		UNIV_NOTHROW
 		:
 		m_id(id),
-		m_rw_lock(),
-		m_temp_fsp() { }
+		m_rw_lock() {}
 
 	/** Destructor */
 	virtual ~latch_t() UNIV_NOTHROW { }
@@ -1014,24 +1013,6 @@ struct latch_t {
 		return(sync_latch_get_level(m_id));
 	}
 
-	/** @return true if the latch is for a temporary file space*/
-	bool is_temp_fsp() const
-		UNIV_NOTHROW
-	{
-		return(m_temp_fsp);
-	}
-
-	/** Set the temporary tablespace flag. (For internal temporary
-	tables, MySQL 5.7 does not always acquire the index->lock. We
-	need to figure out the context and add some special rules
-	during the checks.) */
-	void set_temp_fsp()
-		UNIV_NOTHROW
-	{
-		ut_ad(get_id() == LATCH_ID_FIL_SPACE);
-		m_temp_fsp = true;
-	}
-
 	/** @return the latch name, m_id must be set  */
 	const char* get_name() const
 		UNIV_NOTHROW
@@ -1047,9 +1028,6 @@ struct latch_t {
 	/** true if it is a rw-lock. In debug mode, rw_lock_t derives from
 	this class and sets this variable. */
 	bool		m_rw_lock;
-
-	/** true if it is an temporary space latch */
-	bool		m_temp_fsp;
 };
 
 /** Subclass this to iterate over a thread's acquired latch levels. */

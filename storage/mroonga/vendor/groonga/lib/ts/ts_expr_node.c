@@ -562,7 +562,7 @@ inline static grn_ts_bool
 grn_ts_op_not_equal_float(grn_ts_float lhs, grn_ts_float rhs)
 {
   /* To suppress warnings, "lhs != rhs" is not used. */
-  return (lhs < rhs) || (lhs > rhs);
+  return !grn_ts_op_equal_float(lhs, rhs);
 }
 
 /* grn_ts_op_not_equal_time() returns lhs != rhs. */

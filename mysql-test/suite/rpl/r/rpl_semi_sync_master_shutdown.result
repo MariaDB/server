@@ -1,0 +1,33 @@
+include/master-slave.inc
+[connection master]
+connection master;
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
+connection slave;
+include/stop_slave.inc
+SET @@GLOBAL. rpl_semi_sync_slave_enabled = 1;
+include/start_slave.inc
+connection master;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SET a=1;
+connection slave;
+connection master;
+# Shutdown master
+include/rpl_stop_server.inc [server_number=1]
+connection slave;
+include/stop_slave.inc
+# Restart master
+include/rpl_start_server.inc [server_number=1]
+connection slave;
+include/stop_slave.inc
+Warnings:
+Note	1255	Slave already has been stopped
+include/start_slave.inc
+connection master;
+SET @@GLOBAL.debug_dbug="";
+SET @@GLOBAL. rpl_semi_sync_master_enabled = 0;
+connection master;
+DROP TABLE t1;
+connection slave;
+include/stop_slave.inc
+SET @@GLOBAL. rpl_semi_sync_slave_enabled = 0;
+include/rpl_end.inc

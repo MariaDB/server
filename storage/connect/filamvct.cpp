@@ -65,11 +65,6 @@
 extern int num_read, num_there;                          // Statistics
 static int num_write;
 
-#if defined(UNIX)
-// Add dummy strerror  (NGC)
-char *strerror(int num);
-#endif   // UNIX
-
 /***********************************************************************/
 /*  Header containing block info for not split VEC tables.             */
 /*  Block and last values can be calculated from NumRec and Nrec.      */
