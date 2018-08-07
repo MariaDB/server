@@ -863,6 +863,7 @@ protected:
     null_value= MY_TEST(rc || item->null_value);
     return rc;
   }
+public:
   /*
     This method is used if the item was not null but convertion to
     TIME/DATE/DATETIME failed. We return a zero date if allowed,
@@ -870,7 +871,6 @@ protected:
   */
   bool make_zero_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
 
-public:
   /*
     Cache val_str() into the own buffer, e.g. to evaluate constant
     expressions with subqueries in the ORDER/GROUP clauses.
@@ -1197,7 +1197,6 @@ public:
   {
     return cast_to_int_type_handler()->Item_val_int_unsigned_typecast(this);
   }
-  longlong val_int_unsigned_typecast_from_decimal();
   longlong val_int_unsigned_typecast_from_int();
   longlong val_int_unsigned_typecast_from_str();
   /*
@@ -1378,18 +1377,15 @@ public:
   /* Helper functions, see item_sum.cc */
   String *val_string_from_real(String *str);
   String *val_string_from_int(String *str);
-  String *val_string_from_decimal(String *str);
   my_decimal *val_decimal_from_real(my_decimal *decimal_value);
   my_decimal *val_decimal_from_int(my_decimal *decimal_value);
   my_decimal *val_decimal_from_string(my_decimal *decimal_value);
-  longlong val_int_from_decimal();
   longlong val_int_from_real()
   {
     DBUG_ASSERT(is_fixed());
     return Converter_double_to_longlong_with_warn(val_real(), false).result();
   }
   longlong val_int_from_str(int *error);
-  double val_real_from_decimal();
 
   int save_time_in_field(Field *field, bool no_conversions);
   int save_date_in_field(Field *field, bool no_conversions);
@@ -1613,7 +1609,6 @@ public:
   bool get_date_from_int(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_date_from_year(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_date_from_real(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  bool get_date_from_decimal(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_date_from_string(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_time(MYSQL_TIME *ltime)
   { return get_date(ltime, Time::flags_for_get_date()); }
@@ -4068,20 +4063,24 @@ public:
                CHARSET_INFO *charset);
   Item_decimal(THD *thd, const char *str, const my_decimal *val_arg,
                uint decimal_par, uint length);
-  Item_decimal(THD *thd, my_decimal *value_par);
+  Item_decimal(THD *thd, const my_decimal *value_par);
   Item_decimal(THD *thd, longlong val, bool unsig);
   Item_decimal(THD *thd, double val, int precision, int scale);
   Item_decimal(THD *thd, const uchar *bin, int precision, int scale);
 
   const Type_handler *type_handler() const { return &type_handler_newdecimal; }
-  longlong val_int();
-  double val_real();
-  String *val_str(String*);
+  longlong val_int() { return decimal_value.to_longlong(unsigned_flag); }
+  double val_real() { return decimal_value.to_double(); }
+  String *val_str(String *to) { return decimal_value.to_string(to); }
   my_decimal *val_decimal(my_decimal *val) { return &decimal_value; }
   const my_decimal *const_ptr_my_decimal() const { return &decimal_value; }
   int save_in_field(Field *field, bool no_conversions);
   Item *clone_item(THD *thd);
-  virtual void print(String *str, enum_query_type query_type);
+  virtual void print(String *str, enum_query_type query_type)
+  {
+    decimal_value.to_string(&str_value);
+    str->append(str_value);
+  }
   Item *neg(THD *thd);
   uint decimal_precision() const { return decimal_value.precision(); }
   void set_decimal_value(my_decimal *value_par);
@@ -5955,7 +5954,7 @@ public:
   longlong val_int();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   {
-    return get_date_from_decimal(ltime, fuzzydate);
+    return VDec(this).to_datetime_with_warn(ltime, fuzzydate, this);
   }
   void copy();
   Item *get_copy(THD *thd)
@@ -6637,7 +6636,7 @@ public:
   String* val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
-  { return get_date_from_decimal(ltime, fuzzydate); }
+  { return VDec(this).to_datetime_with_warn(ltime, fuzzydate, this); }
   bool cache_value();
   Item *convert_to_basic_const_item(THD *thd);
   Item *get_copy(THD *thd)

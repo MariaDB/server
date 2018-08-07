@@ -413,8 +413,8 @@ void Field::do_field_real(Copy_field *copy)
 
 void Field::do_field_decimal(Copy_field *copy)
 {
-  my_decimal value;
-  copy->to_field->store_decimal(copy->from_field->val_decimal(&value));
+  my_decimal value(copy->from_field);
+  copy->to_field->store_decimal(&value);
 }
 
 

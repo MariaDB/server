@@ -3587,18 +3587,15 @@ bool select_max_min_finder_subselect::cmp_int()
 bool select_max_min_finder_subselect::cmp_decimal()
 {
   Item *maxmin= ((Item_singlerow_subselect *)item)->element_index(0);
-  my_decimal cval, *cvalue= cache->val_decimal(&cval);
-  my_decimal mval, *mvalue= maxmin->val_decimal(&mval);
+  VDec cvalue(cache), mvalue(maxmin);
 
   /* Ignore NULLs for ANY and keep them for ALL subqueries */
-  if (cache->null_value)
-    return (is_all && !maxmin->null_value) || (!is_all && maxmin->null_value);
-  if (maxmin->null_value)
+  if (cvalue.is_null())
+    return (is_all && !mvalue.is_null()) || (!is_all && mvalue.is_null());
+  if (mvalue.is_null())
     return !is_all;
 
-  if (fmax)
-    return (my_decimal_cmp(cvalue, mvalue) > 0) ;
-  return (my_decimal_cmp(cvalue,mvalue) < 0);
+  return fmax ? cvalue.cmp(mvalue) > 0 : cvalue.cmp(mvalue) < 0;
 }
 
 bool select_max_min_finder_subselect::cmp_str()

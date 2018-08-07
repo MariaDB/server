@@ -1450,9 +1450,18 @@ public:
     dec_bin_size(item->dec_bin_size)
   { }
   const Type_handler *type_handler() const { return &type_handler_newdecimal; }
-  double val_real() { return val_real_from_decimal(); }
-  longlong val_int() { return val_int_from_decimal(); }
-  String *val_str(String *str) { return val_string_from_decimal(str); }
+  double val_real()
+  {
+    return VDec(this).to_double();
+  }
+  longlong val_int()
+  {
+    return VDec(this).to_longlong(unsigned_flag);
+  }
+  String *val_str(String *str)
+  {
+    return VDec(this).to_string_round(str, decimals);
+  }
   my_decimal *val_decimal(my_decimal *);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_avg_field_decimal>(thd, this); }
@@ -1656,9 +1665,18 @@ public:
     Item_udf_sum(thd, udf_arg, list) {}
   Item_sum_udf_decimal(THD *thd, Item_sum_udf_decimal *item)
     :Item_udf_sum(thd, item) {}
-  String *val_str(String *);
-  double val_real();
-  longlong val_int();
+  String *val_str(String *str)
+  {
+    return VDec(this).to_string_round(str, decimals);
+  }
+  double val_real()
+  {
+    return VDec(this).to_double();
+  }
+  longlong val_int()
+  {
+    return VDec(this).to_longlong(unsigned_flag);
+  }
   my_decimal *val_decimal(my_decimal *);
   const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   bool fix_length_and_dec() { fix_num_length_and_dec(); return FALSE; }

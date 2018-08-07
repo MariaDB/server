@@ -2732,9 +2732,7 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
         goto return_null;
 
       uint bin_size= my_decimal_get_binary_size(precision, decimals);
-      my_decimal dec;
-      binary2my_decimal(E_DEC_FATAL_ERROR, (uchar*) ptr, &dec,
-                        precision, decimals);
+      my_decimal dec((const uchar *) ptr, precision, decimals);
       int length= DECIMAL_MAX_STR_LENGTH;
       char buff[DECIMAL_MAX_STR_LENGTH + 1];
       decimal2string(&dec, buff, &length, 0, 0, 0);
@@ -9038,11 +9036,8 @@ void User_var_log_event::pack_info(Protocol* protocol)
       String buf(buf_mem, sizeof(buf_mem), system_charset_info);
       char buf2[DECIMAL_MAX_STR_LENGTH+1];
       String str(buf2, sizeof(buf2), &my_charset_bin);
-      my_decimal dec;
       buf.length(0);
-      binary2my_decimal(E_DEC_FATAL_ERROR, (uchar*) (val+2), &dec, val[0],
-                        val[1]);
-      my_decimal2string(E_DEC_FATAL_ERROR, &dec, 0, 0, 0, &str);
+      my_decimal((const uchar *) (val + 2), val[0], val[1]).to_string(&str);
       if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
           buf.append(buf2))
         return;

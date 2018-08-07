@@ -1640,12 +1640,7 @@ longlong Item_sum_sum::val_int()
   if (aggr)
     aggr->endup();
   if (result_type() == DECIMAL_RESULT)
-  {
-    longlong result;
-    my_decimal2int(E_DEC_FATAL_ERROR, dec_buffs + curr_dec_buff, unsigned_flag,
-                   &result);
-    return result;
-  }
+    return dec_buffs[curr_dec_buff].to_longlong(unsigned_flag);
   return val_int_from_real();
 }
 
@@ -1656,7 +1651,7 @@ double Item_sum_sum::val_real()
   if (aggr)
     aggr->endup();
   if (result_type() == DECIMAL_RESULT)
-    my_decimal2double(E_DEC_FATAL_ERROR, dec_buffs + curr_dec_buff, &sum);
+    sum= dec_buffs[curr_dec_buff].to_double();
   return sum;
 }
 
@@ -1666,7 +1661,7 @@ String *Item_sum_sum::val_str(String *str)
   if (aggr)
     aggr->endup();
   if (result_type() == DECIMAL_RESULT)
-    return val_string_from_decimal(str);
+    return VDec(this).to_string_round(str, decimals);
   return val_string_from_real(str);
 }
 
@@ -2032,7 +2027,7 @@ String *Item_sum_avg::val_str(String *str)
   if (aggr)
     aggr->endup();
   if (result_type() == DECIMAL_RESULT)
-    return val_string_from_decimal(str);
+    return VDec(this).to_string_round(str, decimals);
   return val_string_from_real(str);
 }
 
@@ -2749,11 +2744,11 @@ void Item_sum_hybrid::reset_field()
   }
   case DECIMAL_RESULT:
   {
-    my_decimal value_buff, *arg_dec= arg0->val_decimal(&value_buff);
+    VDec arg_dec(arg0);
 
     if (maybe_null)
     {
-      if (arg0->null_value)
+      if (arg_dec.is_null())
         result_field->set_null();
       else
         result_field->set_notnull();
@@ -2762,9 +2757,7 @@ void Item_sum_hybrid::reset_field()
       We must store zero in the field as we will use the field value in
       add()
     */
-    if (!arg_dec)                               // Null
-      arg_dec= &decimal_zero;
-    result_field->store_decimal(arg_dec);
+    result_field->store_decimal(arg_dec.ptr_or(&decimal_zero));
     break;
   }
   case ROW_RESULT:
@@ -2787,15 +2780,10 @@ void Item_sum_sum::reset_field()
   DBUG_ASSERT (aggr->Aggrtype() != Aggregator::DISTINCT_AGGREGATOR);
   if (result_type() == DECIMAL_RESULT)
   {
-    my_decimal value, *arg_val;
     if (unlikely(direct_added))
-      arg_val= &direct_sum_decimal;
+      result_field->store_decimal(&direct_sum_decimal);
     else
-    {
-      if (!(arg_val= args[0]->val_decimal(&value)))
-        arg_val= &decimal_zero;                 // Null
-    }
-    result_field->store_decimal(arg_val);
+      result_field->store_decimal(VDec(args[0]).ptr_or(&decimal_zero));
   }
   else
   {
@@ -2848,15 +2836,9 @@ void Item_sum_avg::reset_field()
   if (result_type() == DECIMAL_RESULT)
   {
     longlong tmp;
-    my_decimal value, *arg_dec= args[0]->val_decimal(&value);
-    if (args[0]->null_value)
-    {
-      arg_dec= &decimal_zero;
-      tmp= 0;
-    }
-    else
-      tmp= 1;
-    my_decimal2binary(E_DEC_FATAL_ERROR, arg_dec, res, f_precision, f_scale);
+    VDec value(args[0]);
+    tmp= value.is_null() ? 0 : 1;
+    value.to_binary(res, f_precision, f_scale);
     res+= dec_bin_size;
     int8store(res, tmp);
   }
@@ -2923,9 +2905,8 @@ void Item_sum_sum::update_field()
     {
       if (!result_field->is_null())
       {
-        my_decimal field_value;
-        my_decimal *field_val= result_field->val_decimal(&field_value);
-        my_decimal_add(E_DEC_FATAL_ERROR, dec_buffs, arg_val, field_val);
+        my_decimal field_value(result_field);
+        my_decimal_add(E_DEC_FATAL_ERROR, dec_buffs, arg_val, &field_value);
         result_field->store_decimal(dec_buffs);
       }
       else
@@ -2992,15 +2973,14 @@ void Item_sum_avg::update_field()
 
   if (result_type() == DECIMAL_RESULT)
   {
-    my_decimal value, *arg_val= args[0]->val_decimal(&value);
-    if (!args[0]->null_value)
+    VDec tmp(args[0]);
+    if (!tmp.is_null())
     {
       binary2my_decimal(E_DEC_FATAL_ERROR, res,
                         dec_buffs + 1, f_precision, f_scale);
       field_count= sint8korr(res + dec_bin_size);
-      my_decimal_add(E_DEC_FATAL_ERROR, dec_buffs, arg_val, dec_buffs + 1);
-      my_decimal2binary(E_DEC_FATAL_ERROR, dec_buffs,
-                        res, f_precision, f_scale);
+      my_decimal_add(E_DEC_FATAL_ERROR, dec_buffs, tmp.ptr(), dec_buffs + 1);
+      dec_buffs->to_binary(res, f_precision, f_scale);
       res+= dec_bin_size;
       field_count++;
       int8store(res, field_count);
@@ -3195,9 +3175,7 @@ my_decimal *Item_avg_field_decimal::val_decimal(my_decimal *dec_buf)
   if ((null_value= !count))
     return 0;
 
-  my_decimal dec_count, dec_field;
-  binary2my_decimal(E_DEC_FATAL_ERROR,
-                    field->ptr, &dec_field, f_precision, f_scale);
+  my_decimal dec_count, dec_field(field->ptr, f_precision, f_scale);
   int2my_decimal(E_DEC_FATAL_ERROR, count, 0, &dec_count);
   my_decimal_div(E_DEC_FATAL_ERROR, dec_buf,
                  &dec_field, &dec_count, prec_increment);
@@ -3308,24 +3286,6 @@ String *Item_sum_udf_float::val_str(String *str)
 my_decimal *Item_sum_udf_float::val_decimal(my_decimal *dec)
 {
   return val_decimal_from_real(dec);
-}
-
-
-String *Item_sum_udf_decimal::val_str(String *str)
-{
-  return val_string_from_decimal(str);
-}
-
-
-double Item_sum_udf_decimal::val_real()
-{
-  return val_real_from_decimal();
-}
-
-
-longlong Item_sum_udf_decimal::val_int()
-{
-  return val_int_from_decimal();
 }
 
 

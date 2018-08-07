@@ -1114,9 +1114,8 @@ Type_handler_decimal_result::make_sort_key(uchar *to, Item *item,
     }
     *to++= 1;
   }
-  my_decimal2binary(E_DEC_FATAL_ERROR, dec_val, to,
-                    item->max_length - (item->decimals ? 1 : 0),
-                    item->decimals);
+  dec_val->to_binary(to, item->max_length - (item->decimals ? 1 : 0),
+                     item->decimals);
 }
 
 

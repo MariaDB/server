@@ -90,6 +90,126 @@ enum scalar_comparison_op
 };
 
 
+class Dec_ptr
+{
+protected:
+  my_decimal *m_ptr;
+  Dec_ptr() { }
+public:
+  bool is_null() const { return m_ptr == NULL; }
+  const my_decimal *ptr() const { return m_ptr; }
+  const my_decimal *ptr_or(const my_decimal *def) const
+  {
+    return m_ptr ? m_ptr : def;
+  }
+  my_decimal *to_decimal(my_decimal *to) const
+  {
+    if (!m_ptr)
+      return NULL;
+    *to= *m_ptr;
+    return to;
+  }
+  double to_double() const { return m_ptr ? m_ptr->to_double() : 0.0; }
+  longlong to_longlong(bool unsigned_flag)
+  { return m_ptr ? m_ptr->to_longlong(unsigned_flag) : 0; }
+  bool to_bool() const { return m_ptr ? m_ptr->to_bool() : false; }
+  bool to_datetime_with_warn(MYSQL_TIME *to, ulonglong fuzzydate,
+                             const char *field_name)
+  {
+    return m_ptr ? m_ptr->to_datetime_with_warn(to, fuzzydate, field_name) :
+                   true;
+  }
+  bool to_datetime_with_warn(MYSQL_TIME *to, ulonglong fuzzydate, Item *item);
+  String *to_string(String *to) const
+  {
+    return m_ptr ? m_ptr->to_string(to) : NULL;
+  }
+  String *to_string(String *to, uint prec, uint dec, char filler)
+  {
+    return m_ptr ? m_ptr->to_string(to, prec, dec, filler) : NULL;
+  }
+  int to_binary(uchar *bin, int prec, int scale) const
+  {
+    return (m_ptr ? m_ptr : &decimal_zero)->to_binary(bin, prec, scale);
+  }
+  int cmp(const my_decimal *dec) const
+  {
+    DBUG_ASSERT(m_ptr);
+    DBUG_ASSERT(dec);
+    return m_ptr->cmp(dec);
+  }
+  int cmp(const Dec_ptr &other) const
+  {
+    return cmp(other.m_ptr);
+  }
+};
+
+
+// A helper class to handle results of val_decimal(), date_op(), etc.
+class Dec_ptr_and_buffer: public Dec_ptr
+{
+protected:
+  my_decimal m_buffer;
+public:
+  int round_to(my_decimal *to, uint scale, decimal_round_mode mode)
+  {
+    DBUG_ASSERT(m_ptr);
+    return m_ptr->round_to(to, scale, mode);
+  }
+  int round_self(uint scale, decimal_round_mode mode)
+  {
+    return round_to(&m_buffer, scale, mode);
+  }
+  String *to_string_round(String *to, uint dec)
+  {
+    /*
+      decimal_round() allows from==to
+      So it's save even if m_ptr points to m_buffer before this call:
+    */
+    return m_ptr ? m_ptr->to_string_round(to, dec, &m_buffer) : NULL;
+  }
+};
+
+
+// A helper class to handle val_decimal() results.
+class VDec: public Dec_ptr_and_buffer
+{
+public:
+  VDec(): Dec_ptr_and_buffer() { }
+  VDec(Item *item);
+  void set(Item *a);
+};
+
+
+// A helper class to handler decimal_op() results.
+class VDec_op: public Dec_ptr_and_buffer
+{
+public:
+  VDec_op(Item_func_hybrid_field_type *item);
+};
+
+
+/*
+  Get and cache val_decimal() values for two items.
+  If the first value appears to be NULL, the second value is not evaluated.
+*/
+class VDec2_lazy
+{
+public:
+  VDec m_a;
+  VDec m_b;
+  VDec2_lazy(Item *a, Item *b) :m_a(a)
+  {
+    if (!m_a.is_null())
+      m_b.set(b);
+  }
+  bool has_null() const
+  {
+    return m_a.is_null() || m_b.is_null();
+  }
+};
+
+
 /*
   A heler class to perform additive operations between
   two MYSQL_TIME structures and return the result as a
@@ -2289,7 +2409,11 @@ public:
   Item_result cmp_type() const { return DECIMAL_RESULT; }
   virtual ~Type_handler_decimal_result() {};
   const Type_handler *type_handler_for_comparison() const;
-  int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const;
+  int stored_field_cmp_to_item(THD *thd, Field *field, Item *item) const
+  {
+    VDec item_val(item);
+    return item_val.is_null() ? 0 : my_decimal(field).cmp(item_val.ptr());
+  }
   bool subquery_type_allows_materialization(const Item *inner,
                                             const Item *outer) const;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const;
@@ -2304,7 +2428,11 @@ public:
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                      bool binary_cmp) const;
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
-                     Item *a, Item *b) const;
+                     Item *a, Item *b) const
+  {
+    VDec va(a), vb(b);
+    return va.ptr() && vb.ptr() && !va.cmp(vb);
+  }
   uint Item_decimal_precision(const Item *item) const;
   bool Item_save_in_value(Item *item, st_value *value) const;
   void Item_param_set_param_func(Item_param *param,
@@ -2331,10 +2459,19 @@ public:
   bool Item_sum_sum_fix_length_and_dec(Item_sum_sum *) const;
   bool Item_sum_avg_fix_length_and_dec(Item_sum_avg *) const;
   bool Item_sum_variance_fix_length_and_dec(Item_sum_variance *) const;
-  bool Item_val_bool(Item *item) const;
-  bool Item_get_date(Item *item, MYSQL_TIME *ltime, ulonglong fuzzydate) const;
+  bool Item_val_bool(Item *item) const
+  {
+    return VDec(item).to_bool();
+  }
+  bool Item_get_date(Item *item, MYSQL_TIME *ltime, ulonglong fuzzydate) const
+  {
+    return VDec(item).to_datetime_with_warn(ltime, fuzzydate, item);
+  }
   longlong Item_val_int_signed_typecast(Item *item) const;
-  longlong Item_val_int_unsigned_typecast(Item *item) const;
+  longlong Item_val_int_unsigned_typecast(Item *item) const
+  {
+    return VDec(item).to_longlong(true);
+  }
   String *Item_func_hex_val_str_ascii(Item_func_hex *item, String *str) const;
   String *Item_func_hybrid_field_type_val_str(Item_func_hybrid_field_type *,
                                               String *) const;

@@ -679,12 +679,6 @@ class Item_func_hybrid_field_type: public Item_hybrid_func
     DBUG_ASSERT((res != NULL) ^ null_value);
     return res;
   }
-  my_decimal *decimal_op_with_null_check(my_decimal *decimal_buffer)
-  {
-    my_decimal *res= decimal_op(decimal_buffer);
-    DBUG_ASSERT((res != NULL) ^ null_value);
-    return res;
-  }
   bool make_zero_mysql_time(MYSQL_TIME *ltime, ulonglong fuzzydate)
   {
     bzero(ltime, sizeof(*ltime));
@@ -697,10 +691,6 @@ public:
   {
     return str_op_with_null_check(&str_value);
   }
-  my_decimal *val_decimal_from_decimal_op(my_decimal *dec)
-  {
-    return decimal_op_with_null_check(dec);
-  }
   longlong val_int_from_int_op()
   {
     return int_op();
@@ -711,7 +701,6 @@ public:
   }
 
   // Value methods that involve conversion
-  String *val_str_from_decimal_op(String *str);
   String *val_str_from_real_op(String *str);
   String *val_str_from_int_op(String *str);
   String *val_str_from_date_op(String *str);
@@ -725,19 +714,16 @@ public:
 
   longlong val_int_from_str_op();
   longlong val_int_from_real_op();
-  longlong val_int_from_decimal_op();
   longlong val_int_from_date_op();
   longlong val_int_from_time_op();
 
   double val_real_from_str_op();
-  double val_real_from_decimal_op();
   double val_real_from_date_op();
   double val_real_from_time_op();
   double val_real_from_int_op();
 
   bool get_date_from_str_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_date_from_real_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  bool get_date_from_decimal_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_date_from_int_op(MYSQL_TIME *ltime, ulonglong fuzzydate);
 
 public:
@@ -1179,12 +1165,12 @@ public:
     fix_char_length(my_decimal_precision_to_length_no_truncation(len, dec,
                                                                  unsigned_flag));
   }
-  String *val_str(String *str);
-  double val_real();
-  longlong val_int();
+  String *val_str(String *str) { return VDec(this).to_string(str); }
+  double val_real() { return VDec(this).to_double(); }
+  longlong val_int() { return VDec(this).to_longlong(unsigned_flag); }
   my_decimal *val_decimal(my_decimal*);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
-  { return get_date_from_decimal(ltime, fuzzydate); }
+  { return VDec(this).to_datetime_with_warn(ltime, fuzzydate, this); }
   const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   void fix_length_and_dec_generic() {}
   bool fix_length_and_dec()
@@ -2204,6 +2190,18 @@ protected:
   udf_handler udf;
   bool is_expensive_processor(void *arg) { return TRUE; }
 
+  class VDec_udf: public Dec_ptr_and_buffer
+  {
+  public:
+    VDec_udf(Item_udf_func *func, udf_handler *udf)
+    {
+      my_bool tmp_null_value;
+      m_ptr= udf->val_decimal(&tmp_null_value, &m_buffer);
+      DBUG_ASSERT(is_null() == tmp_null_value);
+      func->null_value= is_null();
+    }
+  };
+
 public:
   Item_udf_func(THD *thd, udf_func *udf_arg):
     Item_func(thd), udf(udf_arg) {}
@@ -2343,10 +2341,19 @@ public:
     Item_udf_func(thd, udf_arg) {}
   Item_func_udf_decimal(THD *thd, udf_func *udf_arg, List<Item> &list):
     Item_udf_func(thd, udf_arg, list) {}
-  longlong val_int();
-  double val_real();
+  longlong val_int()
+  {
+    return VDec_udf(this, &udf).to_longlong(unsigned_flag);
+  }
+  double val_real()
+  {
+    return VDec_udf(this, &udf).to_double();
+  }
   my_decimal *val_decimal(my_decimal *);
-  String *val_str(String *str);
+  String *val_str(String *str)
+  {
+    return VDec_udf(this, &udf).to_string_round(str, decimals);
+  }
   const Type_handler *type_handler() const { return &type_handler_newdecimal; }
   bool fix_length_and_dec() { fix_num_length_and_dec(); return FALSE; }
   Item *get_copy(THD *thd)

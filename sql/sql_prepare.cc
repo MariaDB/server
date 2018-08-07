@@ -5298,16 +5298,8 @@ bool Protocol_local::store_longlong(longlong value, bool unsigned_flag)
 
 bool Protocol_local::store_decimal(const my_decimal *value)
 {
-  char buf[DECIMAL_MAX_STR_LENGTH];
-  String str(buf, sizeof (buf), &my_charset_bin);
-  int rc;
-
-  rc= my_decimal2string(E_DEC_FATAL_ERROR, value, 0, 0, 0, &str);
-
-  if (rc)
-    return TRUE;
-
-  return store_column(str.ptr(), str.length());
+  StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
+  return value->to_string(&str) ? store_column(str.ptr(), str.length()) : true;
 }
 
 

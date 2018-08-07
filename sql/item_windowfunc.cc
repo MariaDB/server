@@ -513,11 +513,11 @@ void Item_sum_hybrid_simple::reset_field()
   }
   case DECIMAL_RESULT:
   {
-    my_decimal value_buff, *arg_dec= args[0]->val_decimal(&value_buff);
+    VDec arg_dec(args[0]);
 
     if (maybe_null)
     {
-      if (args[0]->null_value)
+      if (arg_dec.is_null())
         result_field->set_null();
       else
         result_field->set_notnull();
@@ -526,9 +526,7 @@ void Item_sum_hybrid_simple::reset_field()
       We must store zero in the field as we will use the field value in
       add()
     */
-    if (!arg_dec)                               // Null
-      arg_dec= &decimal_zero;
-    result_field->store_decimal(arg_dec);
+    result_field->store_decimal(arg_dec.ptr_or(&decimal_zero));
     break;
   }
   case ROW_RESULT:

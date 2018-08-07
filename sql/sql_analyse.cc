@@ -478,30 +478,28 @@ void field_real::add()
 void field_decimal::add()
 {
   /*TODO - remove rounding stuff after decimal_div returns proper frac */
-  my_decimal dec_buf, *dec= item->val_decimal(&dec_buf);
-  my_decimal rounded;
+  VDec vdec(item);
   uint length;
   TREE_ELEMENT *element;
 
-  if (item->null_value)
+  if (vdec.is_null())
   {
     nulls++;
     return;
   }
 
-  my_decimal_round(E_DEC_FATAL_ERROR, dec, item->decimals, FALSE,&rounded);
-  dec= &rounded;
+  my_decimal dec;
+  vdec.round_to(&dec, item->decimals, HALF_UP);
 
-  length= my_decimal_string_length(dec);
+  length= my_decimal_string_length(&dec);
 
-  if (decimal_is_zero(dec))
+  if (decimal_is_zero(&dec))
     empty++;
 
   if (room_in_tree)
   {
     uchar buf[DECIMAL_MAX_FIELD_SIZE];
-    my_decimal2binary(E_DEC_FATAL_ERROR, dec, buf,
-                      item->max_length, item->decimals);
+    dec.to_binary(buf, item->max_length, item->decimals);
     if (!(element = tree_insert(&tree, (void*)buf, 0, tree.custom_arg)))
     {
       room_in_tree = 0;    // Remove tree, out of RAM ?
@@ -521,18 +519,18 @@ void field_decimal::add()
   if (!found)
   {
     found = 1;
-    min_arg = max_arg = sum[0] = *dec;
-    my_decimal_mul(E_DEC_FATAL_ERROR, sum_sqr, dec, dec);
+    min_arg = max_arg = sum[0] = dec;
+    my_decimal_mul(E_DEC_FATAL_ERROR, sum_sqr, &dec, &dec);
     cur_sum= 0;
     min_length = max_length = length;
   }
-  else if (!decimal_is_zero(dec))
+  else if (!decimal_is_zero(&dec))
   {
     int next_cur_sum= cur_sum ^ 1;
     my_decimal sqr_buf;
 
-    my_decimal_add(E_DEC_FATAL_ERROR, sum+next_cur_sum, sum+cur_sum, dec);
-    my_decimal_mul(E_DEC_FATAL_ERROR, &sqr_buf, dec, dec);
+    my_decimal_add(E_DEC_FATAL_ERROR, sum+next_cur_sum, sum+cur_sum, &dec);
+    my_decimal_mul(E_DEC_FATAL_ERROR, &sqr_buf, &dec, &dec);
     my_decimal_add(E_DEC_FATAL_ERROR,
                    sum_sqr+next_cur_sum, sum_sqr+cur_sum, &sqr_buf);
     cur_sum= next_cur_sum;
@@ -540,13 +538,13 @@ void field_decimal::add()
       min_length = length;
     if (length > max_length)
       max_length = length;
-    if (my_decimal_cmp(dec, &min_arg) < 0)
+    if (dec.cmp(&min_arg) < 0)
     {
-      min_arg= *dec;
+      min_arg= dec;
     }
-    if (my_decimal_cmp(dec, &max_arg) > 0)
+    if (dec.cmp(&max_arg) > 0)
     {
-      max_arg= *dec;
+      max_arg= dec;
     }
   }
 }
@@ -1000,7 +998,7 @@ void field_decimal::get_opt_type(String *answer,
   uint length;
 
   my_decimal_set_zero(&zero);
-  my_bool is_unsigned= (my_decimal_cmp(&zero, &min_arg) >= 0);
+  my_bool is_unsigned= (zero.cmp(&min_arg) >= 0);
 
   length= sprintf(buff, "DECIMAL(%d, %d)",
                   (int) (max_length - (item->decimals ? 1 : 0)),
@@ -1013,14 +1011,14 @@ void field_decimal::get_opt_type(String *answer,
 
 String *field_decimal::get_min_arg(String *str)
 {
-  my_decimal2string(E_DEC_FATAL_ERROR, &min_arg, 0, 0, '0', str);
+  min_arg.to_string_native(str, 0, 0, '0');
   return str;
 }
 
 
 String *field_decimal::get_max_arg(String *str)
 {
-  my_decimal2string(E_DEC_FATAL_ERROR, &max_arg, 0, 0, '0', str);
+  max_arg.to_string_native(str, 0, 0, '0');
   return str;
 }
 
@@ -1038,10 +1036,10 @@ String *field_decimal::avg(String *s, ha_rows rows)
   int2my_decimal(E_DEC_FATAL_ERROR, rows - nulls, FALSE, &num);
   my_decimal_div(E_DEC_FATAL_ERROR, &avg_val, sum+cur_sum, &num, prec_increment);
   /* TODO remove this after decimal_div returns proper frac */
-  my_decimal_round(E_DEC_FATAL_ERROR, &avg_val,
+  avg_val.round_to(&rounded_avg,
                    MY_MIN(sum[cur_sum].frac + prec_increment, DECIMAL_MAX_SCALE),
-                   FALSE,&rounded_avg);
-  my_decimal2string(E_DEC_FATAL_ERROR, &rounded_avg, 0, 0, '0', s);
+                   HALF_UP);
+  rounded_avg.to_string_native(s, 0, 0, '0');
   return s;
 }
 
@@ -1054,7 +1052,6 @@ String *field_decimal::std(String *s, ha_rows rows)
     return s;
   }
   my_decimal num, tmp, sum2, sum2d;
-  double std_sqr;
   int prec_increment= current_thd->variables.div_precincrement;
 
   int2my_decimal(E_DEC_FATAL_ERROR, rows - nulls, FALSE, &num);
@@ -1062,7 +1059,7 @@ String *field_decimal::std(String *s, ha_rows rows)
   my_decimal_div(E_DEC_FATAL_ERROR, &tmp, &sum2, &num, prec_increment);
   my_decimal_sub(E_DEC_FATAL_ERROR, &sum2, sum_sqr+cur_sum, &tmp);
   my_decimal_div(E_DEC_FATAL_ERROR, &tmp, &sum2, &num, prec_increment);
-  my_decimal2double(E_DEC_FATAL_ERROR, &tmp, &std_sqr);
+  double std_sqr= tmp.to_double();
   s->set_real(((double) std_sqr <= 0.0 ? 0.0 : sqrt(std_sqr)),
          MY_MIN(item->decimals + prec_increment, NOT_FIXED_DEC), my_thd_charset);
 
@@ -1114,12 +1111,9 @@ int collect_decimal(uchar *element, element_count count,
     info->str->append(',');
   else
     info->found = 1;
-  my_decimal dec;
-  binary2my_decimal(E_DEC_FATAL_ERROR, element, &dec,
-                    info->item->max_length, info->item->decimals);
-  
+  my_decimal dec(element, info->item->max_length, info->item->decimals);
   info->str->append('\'');
-  my_decimal2string(E_DEC_FATAL_ERROR, &dec, 0, 0, '0', &s);
+  dec.to_string_native(&s, 0, 0, '0');
   info->str->append(s);
   info->str->append('\'');
   return 0;

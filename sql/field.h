@@ -813,7 +813,7 @@ public:
     return nr < 0 ? 0 : (ulonglong) nr;
   }
   virtual bool val_bool(void)= 0;
-  virtual my_decimal *val_decimal(my_decimal *);
+  virtual my_decimal *val_decimal(my_decimal *)=0;
   inline String *val_str(String *str) { return val_str(str, str); }
   /*
      val_str(buf1, buf2) gets two buffers and should use them as follows:
@@ -1956,7 +1956,7 @@ public:
     return Field_num::memcpy_field_possible(from) &&
            field_length >= from->field_length;
   }
-  int store_decimal(const my_decimal *);
+  int store_decimal(const my_decimal *dec) { return store(dec->to_double()); }
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   my_decimal *val_decimal(my_decimal *);
@@ -2039,8 +2039,8 @@ public:
   }
   int save_in_field(Field *to)
   {
-    my_decimal buff;
-    return to->store_decimal(val_decimal(&buff));
+    my_decimal tmp(ptr, precision, dec);
+    return to->store_decimal(&tmp);
   }
   bool memcpy_field_possible(const Field *from) const
   {
@@ -2056,17 +2056,33 @@ public:
   int  store(longlong nr, bool unsigned_val);
   int  store_time_dec(const MYSQL_TIME *ltime, uint dec);
   int  store_decimal(const my_decimal *);
-  double val_real(void);
-  longlong val_int(void);
-  ulonglong val_uint(void);
+  double val_real(void)
+  {
+    return my_decimal(ptr, precision, dec).to_double();
+  }
+  longlong val_int(void)
+  {
+    return my_decimal(ptr, precision, dec).to_longlong(unsigned_flag);
+  }
+  ulonglong val_uint(void)
+  {
+    return (ulonglong) my_decimal(ptr, precision, dec).to_longlong(true);
+  }
   my_decimal *val_decimal(my_decimal *);
-  String *val_str(String*, String *);
-  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  String *val_str(String *val_buffer, String *val_ptr __attribute__((unused)))
+  {
+    uint fixed_precision= zerofill ? precision : 0;
+    return my_decimal(ptr, precision, dec).
+             to_string(val_buffer, fixed_precision, dec, '0');
+  }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    return my_decimal(ptr, precision, dec).
+             to_datetime_with_warn(ltime, fuzzydate, field_name.str);
+  }
   bool val_bool()
   {
-    my_decimal decimal_value;
-    my_decimal *val= val_decimal(&decimal_value);
-    return val ? !my_decimal_is_zero(val) : 0;
+    return my_decimal(ptr, precision, dec).to_bool();
   }
   int cmp(const uchar *, const uchar *);
   void sort_string(uchar *buff, uint length);

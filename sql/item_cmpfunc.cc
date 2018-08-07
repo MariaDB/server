@@ -795,17 +795,15 @@ int Arg_comparator::compare_real()
 
 int Arg_comparator::compare_decimal()
 {
-  my_decimal decimal1;
-  my_decimal *val1= (*a)->val_decimal(&decimal1);
-  if (!(*a)->null_value)
+  VDec val1(*a);
+  if (!val1.is_null())
   {
-    my_decimal decimal2;
-    my_decimal *val2= (*b)->val_decimal(&decimal2);
-    if (!(*b)->null_value)
+    VDec val2(*b);
+    if (!val2.is_null())
     {
       if (set_null)
         owner->null_value= 0;
-      return my_decimal_cmp(val1, val2);
+      return val1.cmp(val2);
     }
   }
   if (set_null)
@@ -824,12 +822,10 @@ int Arg_comparator::compare_e_real()
 
 int Arg_comparator::compare_e_decimal()
 {
-  my_decimal decimal1, decimal2;
-  my_decimal *val1= (*a)->val_decimal(&decimal1);
-  my_decimal *val2= (*b)->val_decimal(&decimal2);
-  if ((*a)->null_value || (*b)->null_value)
-    return MY_TEST((*a)->null_value && (*b)->null_value);
-  return MY_TEST(my_decimal_cmp(val1, val2) == 0);
+  VDec val1(*a), val2(*b);
+  if (val1.is_null() || val1.is_null())
+    return MY_TEST(val1.is_null() && val2.is_null());
+  return MY_TEST(val1.cmp(val2) == 0);
 }
 
 
@@ -1951,11 +1947,11 @@ longlong Item_func_interval::val_int()
         ((el->result_type() == DECIMAL_RESULT) ||
          (el->result_type() == INT_RESULT)))
     {
-      my_decimal e_dec_buf, *e_dec= el->val_decimal(&e_dec_buf);
+      VDec e_dec(el);
       /* Skip NULL ranges. */
-      if (el->null_value)
+      if (e_dec.is_null())
         continue;
-      if (my_decimal_cmp(e_dec, dec) > 0)
+      if (e_dec.cmp(dec) > 0)
         return i - 1;
     }
     else 
@@ -2180,21 +2176,19 @@ bool Item_func_between::val_int_cmp_int_finalize(longlong value,
 
 longlong Item_func_between::val_int_cmp_decimal()
 {
-  my_decimal dec_buf, *dec= args[0]->val_decimal(&dec_buf),
-             a_buf, *a_dec, b_buf, *b_dec;
-  if ((null_value=args[0]->null_value))
+  VDec dec(args[0]);
+  if ((null_value= dec.is_null()))
     return 0;					/* purecov: inspected */
-  a_dec= args[1]->val_decimal(&a_buf);
-  b_dec= args[2]->val_decimal(&b_buf);
-  if (!args[1]->null_value && !args[2]->null_value)
-    return (longlong) ((my_decimal_cmp(dec, a_dec) >= 0 &&
-                        my_decimal_cmp(dec, b_dec) <= 0) != negated);
-  if (args[1]->null_value && args[2]->null_value)
+  VDec a_dec(args[1]), b_dec(args[2]);
+  if (!a_dec.is_null() && !b_dec.is_null())
+    return (longlong) ((dec.cmp(a_dec) >= 0 &&
+                        dec.cmp(b_dec) <= 0) != negated);
+  if (a_dec.is_null() && b_dec.is_null())
     null_value= true;
-  else if (args[1]->null_value)
-    null_value= (my_decimal_cmp(dec, b_dec) <= 0);
+  else if (a_dec.is_null())
+    null_value= (dec.cmp(b_dec) <= 0);
   else
-    null_value= (my_decimal_cmp(dec, a_dec) >= 0);
+    null_value= (dec.cmp(a_dec) >= 0);
   return (longlong) (!null_value && negated);
 }
 
@@ -3971,9 +3965,8 @@ int cmp_item_decimal::cmp_not_null(const Value *val)
 
 int cmp_item_decimal::cmp(Item *arg)
 {
-  my_decimal tmp_buf, *tmp= arg->val_decimal(&tmp_buf);
-  return (m_null_value || arg->null_value) ?
-    UNKNOWN : (my_decimal_cmp(&value, tmp) != 0);
+  VDec tmp(arg);
+  return m_null_value || tmp.is_null() ? UNKNOWN : (tmp.cmp(&value) != 0);
 }
 
 

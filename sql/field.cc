@@ -1933,14 +1933,6 @@ Field::unpack(uchar* to, const uchar *from, const uchar *from_end,
 }
 
 
-my_decimal *Field::val_decimal(my_decimal *decimal)
-{
-  /* This never have to be called */
-  DBUG_ASSERT(0);
-  return 0;
-}
-
-
 void Field_num::add_zerofill_and_unsigned(String &res) const
 {
   if (unsigned_flag)
@@ -3170,7 +3162,7 @@ void Field_new_decimal::set_value_on_overflow(my_decimal *decimal_value,
   Otherwise sets maximal number that can be stored in the field.
 
   @param       decimal_value   my_decimal
-  @param [OUT] native_error    the error returned by my_decimal2binary().
+  @param [OUT] native_error    the error returned by my_decimal::to_binary().
 
   @retval
     0 ok
@@ -3208,8 +3200,8 @@ bool Field_new_decimal::store_value(const my_decimal *decimal_value,
   }
 #endif
 
-  *native_error= my_decimal2binary(E_DEC_FATAL_ERROR & ~E_DEC_OVERFLOW,
-                                   decimal_value, ptr, precision, dec);
+  *native_error= decimal_value->to_binary(ptr, precision, dec,
+                                          E_DEC_FATAL_ERROR & ~E_DEC_OVERFLOW);
 
   if (unlikely(*native_error == E_DEC_OVERFLOW))
   {
@@ -3217,7 +3209,7 @@ bool Field_new_decimal::store_value(const my_decimal *decimal_value,
     DBUG_PRINT("info", ("overflow"));
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
     set_value_on_overflow(&buff, decimal_value->sign());
-    my_decimal2binary(E_DEC_FATAL_ERROR, &buff, ptr, precision, dec);
+    buff.to_binary(ptr, precision, dec);
     error= 1;
   }
   DBUG_EXECUTE("info", print_decimal_buff(decimal_value, (uchar *) ptr,
@@ -3382,37 +3374,6 @@ int Field_new_decimal::store_time_dec(const MYSQL_TIME *ltime, uint dec_arg)
 }
 
 
-double Field_new_decimal::val_real(void)
-{
-  ASSERT_COLUMN_MARKED_FOR_READ;
-  double dbl;
-  my_decimal decimal_value;
-  my_decimal2double(E_DEC_FATAL_ERROR, val_decimal(&decimal_value), &dbl);
-  return dbl;
-}
-
-
-longlong Field_new_decimal::val_int(void)
-{
-  ASSERT_COLUMN_MARKED_FOR_READ;
-  longlong i;
-  my_decimal decimal_value;
-  my_decimal2int(E_DEC_FATAL_ERROR, val_decimal(&decimal_value),
-                 unsigned_flag, &i);
-  return i;
-}
-
-
-ulonglong Field_new_decimal::val_uint(void)
-{
-  ASSERT_COLUMN_MARKED_FOR_READ;
-  longlong i;
-  my_decimal decimal_value;
-  my_decimal2int(E_DEC_FATAL_ERROR, val_decimal(&decimal_value), true, &i);
-  return i;
-}
-
-
 my_decimal* Field_new_decimal::val_decimal(my_decimal *decimal_value)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
@@ -3422,27 +3383,6 @@ my_decimal* Field_new_decimal::val_decimal(my_decimal *decimal_value)
   DBUG_EXECUTE("info", print_decimal_buff(decimal_value, (uchar *) ptr,
                                           bin_size););
   DBUG_RETURN(decimal_value);
-}
-
-
-String *Field_new_decimal::val_str(String *val_buffer,
-                                   String *val_ptr __attribute__((unused)))
-{
-  ASSERT_COLUMN_MARKED_FOR_READ;
-  my_decimal decimal_value;
-  uint fixed_precision= zerofill ? precision : 0;
-  my_decimal2string(E_DEC_FATAL_ERROR, val_decimal(&decimal_value),
-                    fixed_precision, dec, '0', val_buffer);
-  val_buffer->set_charset(&my_charset_numeric);
-  return val_buffer;
-}
-
-
-bool Field_new_decimal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
-{
-  my_decimal value;
-  return decimal_to_datetime_with_warn(val_decimal(&value),
-                                       ltime, fuzzydate, field_name.str);
 }
 
 
@@ -3600,8 +3540,8 @@ Item *Field_new_decimal::get_equal_const_item(THD *thd, const Context &ctx,
     if (const_item->field_type() != MYSQL_TYPE_NEWDECIMAL ||
         const_item->decimal_scale() != decimals())
     {
-      my_decimal *val, val_buffer, val_buffer2;
-      if (!(val= const_item->val_decimal(&val_buffer)))
+      VDec val(const_item);
+      if (val.is_null())
       {
         DBUG_ASSERT(0);
         return const_item;
@@ -3611,9 +3551,9 @@ Item *Field_new_decimal::get_equal_const_item(THD *thd, const Context &ctx,
         See comments about truncation in the same place in
         Field_time::get_equal_const_item().
       */
-      my_decimal_round(E_DEC_FATAL_ERROR, val, decimals(), true, &val_buffer2);
-      return new (thd->mem_root) Item_decimal(thd, field_name.str,
-                                              &val_buffer2,
+      my_decimal tmp;
+      val.round_to(&tmp, decimals(), TRUNCATE);
+      return new (thd->mem_root) Item_decimal(thd, field_name.str, &tmp,
                                               decimals(), field_length);
     }
     break;
@@ -4852,13 +4792,6 @@ Converter_double_to_longlong::push_warning(THD *thd,
                       unsigned_flag ? "UNSIGNED INT" : "INT");
 }
 
-
-int Field_real::store_decimal(const my_decimal *dm)
-{
-  double dbl;
-  my_decimal2double(E_DEC_FATAL_ERROR, dm, &dbl);
-  return store(dbl);
-}
 
 int Field_real::store_time_dec(const MYSQL_TIME *ltime, uint dec_arg)
 {
@@ -7115,9 +7048,8 @@ uint Field_str::is_equal(Create_field *new_field)
 
 int Field_longstr::store_decimal(const my_decimal *d)
 {
-  char buff[DECIMAL_MAX_STR_LENGTH+1];
-  String str(buff, sizeof(buff), &my_charset_numeric);
-  my_decimal2string(E_DEC_FATAL_ERROR, d, 0, 0, 0, &str);
+  StringBuffer<DECIMAL_MAX_STR_LENGTH+1> str;
+  d->to_string(&str);
   return store(str.ptr(), str.length(), str.charset());
 }
 

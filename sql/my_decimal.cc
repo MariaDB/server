@@ -20,6 +20,7 @@
 
 #ifndef MYSQL_CLIENT
 #include "sql_class.h"                          // THD
+#include "field.h"
 #endif
 
 #define DIG_BASE     1000000000
@@ -95,9 +96,8 @@ int decimal_operation_results(int result, const char *value, const char *type)
     @retval E_DEC_OOM
 */
 
-int my_decimal2string(uint mask, const my_decimal *d,
-                      uint fixed_prec, uint fixed_dec,
-                      char filler, String *str)
+int my_decimal::to_string_native(String *str, uint fixed_prec, uint fixed_dec,
+                                 char filler, uint mask) const
 {
   /*
     Calculate the size of the string: For DECIMAL(a,b), fixed_prec==a
@@ -113,11 +113,11 @@ int my_decimal2string(uint mask, const my_decimal *d,
   */
   int length= (fixed_prec
                ? (fixed_prec + ((fixed_prec == fixed_dec) ? 1 : 0) + 1)
-               : my_decimal_string_length(d));
+               : my_decimal_string_length(this));
   int result;
   if (str->alloc(length))
     return check_result(mask, E_DEC_OOM);
-  result= decimal2string((decimal_t*) d, (char*) str->ptr(),
+  result= decimal2string(this, (char*) str->ptr(),
                          &length, (int)fixed_prec, fixed_dec,
                          filler);
   str->length(length);
@@ -156,8 +156,8 @@ str_set_decimal(uint mask, const my_decimal *val,
 {
   if (!(cs->state & MY_CS_NONASCII))
   {
-    /* For ASCII-compatible character sets we can use my_decimal2string */
-    my_decimal2string(mask, val, fixed_prec, fixed_dec, filler, str);
+    // For ASCII-compatible character sets we can use to_string_native()
+    val->to_string_native(str, fixed_prec, fixed_dec, filler, mask);
     str->set_charset(cs);
     return FALSE;
   }
@@ -165,14 +165,13 @@ str_set_decimal(uint mask, const my_decimal *val,
   {
     /*
       For ASCII-incompatible character sets (like UCS2) we
-      call my_decimal2string() on a temporary buffer first,
+      call my_string_native() on a temporary buffer first,
       and then convert the result to the target character
       with help of str->copy().
     */
     uint errors;
-    char buf[DECIMAL_MAX_STR_LENGTH];
-    String tmp(buf, sizeof(buf), &my_charset_latin1);
-    my_decimal2string(mask, val, fixed_prec, fixed_dec, filler, &tmp);
+    StringBuffer<DECIMAL_MAX_STR_LENGTH> tmp;
+    val->to_string_native(&tmp, fixed_prec, fixed_dec, filler, mask);
     return str->copy(tmp.ptr(), tmp.length(), &my_charset_latin1, cs, &errors);
   }
 }
@@ -182,7 +181,7 @@ str_set_decimal(uint mask, const my_decimal *val,
   Convert from decimal to binary representation
 
   SYNOPSIS
-    my_decimal2binary()
+    to_binary()
     mask        error processing mask
     d           number for conversion
     bin         pointer to buffer where to write result
@@ -199,12 +198,11 @@ str_set_decimal(uint mask, const my_decimal *val,
     E_DEC_OVERFLOW
 */
 
-int my_decimal2binary(uint mask, const my_decimal *d, uchar *bin, int prec,
-		      int scale)
+int my_decimal::to_binary(uchar *bin, int prec, int scale, uint mask) const
 {
   int err1= E_DEC_OK, err2;
   my_decimal rounded;
-  my_decimal2decimal(d, &rounded);
+  my_decimal2decimal(this, &rounded);
   rounded.frac= decimal_actual_fraction(&rounded);
   if (scale < rounded.frac)
   {
@@ -365,6 +363,26 @@ int my_decimal2int(uint mask, const decimal_t *d, bool unsigned_flag,
                               "INT");
   }
   return res;
+}
+
+
+longlong my_decimal::to_longlong(bool unsigned_flag) const
+{
+  longlong result;
+  my_decimal2int(E_DEC_FATAL_ERROR, this, unsigned_flag, &result);
+  return result;
+}
+
+
+my_decimal::my_decimal(Field *field)
+{
+  init();
+  DBUG_ASSERT(!field->is_null());
+#ifndef DBUG_OFF
+  my_decimal *dec=
+#endif
+  field->val_decimal(this);
+  DBUG_ASSERT(dec == this);
 }
 
 

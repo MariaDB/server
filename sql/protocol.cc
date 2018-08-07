@@ -1195,9 +1195,8 @@ bool Protocol_text::store_decimal(const my_decimal *d)
               field_types[field_pos] == MYSQL_TYPE_NEWDECIMAL);
   field_pos++;
 #endif
-  char buff[DECIMAL_MAX_STR_LENGTH];
-  String str(buff, sizeof(buff), &my_charset_bin);
-  (void) my_decimal2string(E_DEC_FATAL_ERROR, d, 0, 0, 0, &str);
+  StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
+  (void) d->to_string(&str);
   return net_store_data((uchar*) str.ptr(), str.length());
 }
 
@@ -1446,9 +1445,8 @@ bool Protocol_binary::store_decimal(const my_decimal *d)
               field_types[field_pos] == MYSQL_TYPE_NEWDECIMAL);
   field_pos++;
 #endif
-  char buff[DECIMAL_MAX_STR_LENGTH];
-  String str(buff, sizeof(buff), &my_charset_bin);
-  (void) my_decimal2string(E_DEC_FATAL_ERROR, d, 0, 0, 0, &str);
+  StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
+  (void) d->to_string(&str);
   return store(str.ptr(), str.length(), str.charset());
 }
 

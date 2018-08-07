@@ -1511,3 +1511,10 @@ void unpack_time(longlong packed, MYSQL_TIME *my_time,
     break;
   }
 }
+
+
+bool my_decimal::to_datetime_with_warn(MYSQL_TIME *to, ulonglong fuzzydate,
+                                       const char *field_name)
+{
+  return decimal_to_datetime_with_warn(this, to, fuzzydate, field_name);
+}

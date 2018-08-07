@@ -130,6 +130,37 @@ bool Type_handler_data::init()
 Type_handler_data *type_handler_data= NULL;
 
 
+
+void VDec::set(Item *item)
+{
+  m_ptr= item->val_decimal(&m_buffer);
+  DBUG_ASSERT((m_ptr == NULL) == item->null_value);
+}
+
+
+VDec::VDec(Item *item)
+{
+  m_ptr= item->val_decimal(&m_buffer);
+  DBUG_ASSERT((m_ptr == NULL) == item->null_value);
+}
+
+
+VDec_op::VDec_op(Item_func_hybrid_field_type *item)
+{
+  m_ptr= item->decimal_op(&m_buffer);
+  DBUG_ASSERT((m_ptr == NULL) == item->null_value);
+}
+
+
+bool Dec_ptr::to_datetime_with_warn(MYSQL_TIME *to, ulonglong fuzzydate,
+                                    Item *item)
+{
+  if (to_datetime_with_warn(to, fuzzydate, item->field_name_or_null()))
+    return item->null_value|= item->make_zero_date(to, fuzzydate);
+  return item->null_value= false;
+}
+
+
 my_decimal *Temporal::to_decimal(my_decimal *to) const
 {
   return date2my_decimal(this, to);
@@ -3419,15 +3450,6 @@ bool Type_handler_int_result::Item_val_bool(Item *item) const
   return item->val_int() != 0;
 }
 
-bool Type_handler_decimal_result::Item_val_bool(Item *item) const
-{
-  my_decimal decimal_value;
-  my_decimal *val= item->val_decimal(&decimal_value);
-  if (val)
-    return !my_decimal_is_zero(val);
-  return false;
-}
-
 bool Type_handler_temporal_result::Item_val_bool(Item *item) const
 {
   return item->val_real() != 0.0;
@@ -3459,13 +3481,6 @@ bool Type_handler_real_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
                                              ulonglong fuzzydate) const
 {
   return item->get_date_from_real(ltime, fuzzydate);
-}
-
-
-bool Type_handler_decimal_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
-                                             ulonglong fuzzydate) const
-{
-  return item->get_date_from_decimal(ltime, fuzzydate);
 }
 
 
@@ -3532,12 +3547,6 @@ longlong Type_handler_int_result::
   return item->val_int_unsigned_typecast_from_int();
 }
 
-longlong Type_handler_decimal_result::
-           Item_val_int_unsigned_typecast(Item *item) const
-{
-  return item->val_int_unsigned_typecast_from_decimal();
-}
-
 longlong Type_handler_temporal_result::
            Item_val_int_unsigned_typecast(Item *item) const
 {
@@ -3598,7 +3607,7 @@ Type_handler_decimal_result::Item_func_hybrid_field_type_val_str(
                                               Item_func_hybrid_field_type *item,
                                               String *str) const
 {
-  return item->val_str_from_decimal_op(str);
+  return VDec_op(item).to_string_round(str, item->decimals);
 }
 
 
@@ -3607,7 +3616,7 @@ Type_handler_decimal_result::Item_func_hybrid_field_type_val_real(
                                               Item_func_hybrid_field_type *item)
                                               const
 {
-  return item->val_real_from_decimal_op();
+  return VDec_op(item).to_double();
 }
 
 
@@ -3616,7 +3625,7 @@ Type_handler_decimal_result::Item_func_hybrid_field_type_val_int(
                                               Item_func_hybrid_field_type *item)
                                               const
 {
-  return item->val_int_from_decimal_op();
+  return VDec_op(item).to_longlong(item->unsigned_flag);
 }
 
 
@@ -3625,7 +3634,7 @@ Type_handler_decimal_result::Item_func_hybrid_field_type_val_decimal(
                                               Item_func_hybrid_field_type *item,
                                               my_decimal *dec) const
 {
-  return item->val_decimal_from_decimal_op(dec);
+  return VDec_op(item).to_decimal(dec);
 }
 
 
@@ -3635,7 +3644,7 @@ Type_handler_decimal_result::Item_func_hybrid_field_type_get_date(
                                              MYSQL_TIME *ltime,
                                              ulonglong fuzzydate) const
 {
-  return item->get_date_from_decimal_op(ltime, fuzzydate);
+  return VDec_op(item).to_datetime_with_warn(ltime, fuzzydate, item);
 }
 
 
@@ -4182,7 +4191,7 @@ String *Type_handler_int_result::
 String *Type_handler_decimal_result::
           Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
 {
-  return func->val_string_from_decimal(str);
+  return VDec(func).to_string_round(str, func->decimals);
 }
 
 
@@ -5628,11 +5637,10 @@ Item *Type_handler_real_result::
 Item *Type_handler_decimal_result::
   make_const_item_for_comparison(THD *thd, Item *item, const Item *cmp) const
 {
-  my_decimal decimal_value;
-  my_decimal *result= item->val_decimal(&decimal_value);
-  if (item->null_value)
+  VDec result(item);
+  if (result.is_null())
     return new (thd->mem_root) Item_null(thd, item->name.str);
-  return new (thd->mem_root) Item_decimal(thd, item->name.str, result,
+  return new (thd->mem_root) Item_decimal(thd, item->name.str, result.ptr(),
                                           item->max_length, item->decimals);
 }
 
@@ -6617,7 +6625,7 @@ Type_handler_decimal_result::Item_const_eq(const Item_const *a,
 {
   const my_decimal *da= a->const_ptr_my_decimal();
   const my_decimal *db= b->const_ptr_my_decimal();
-  return !my_decimal_cmp(da, db) &&
+  return !da->cmp(db) &&
          (!binary_cmp ||
           a->get_type_all_attributes_from_const()->decimals ==
           b->get_type_all_attributes_from_const()->decimals);
@@ -6716,18 +6724,6 @@ bool Type_handler_string_result::Item_eq_value(THD *thd,
 }
 
 
-bool Type_handler_decimal_result::Item_eq_value(THD *thd,
-                                                const Type_cmp_attributes *attr,
-                                                Item *a, Item *b) const
-{
-  my_decimal *va, *vb;
-  my_decimal cmp_value1, cmp_value2;
-  return (va= a->val_decimal(&cmp_value1)) &&
-         (vb= b->val_decimal(&cmp_value2)) &&
-         !my_decimal_cmp(va, vb);
-
-}
-
 /***************************************************************************/
 
 void Type_handler_var_string::
@@ -6820,19 +6816,6 @@ int Type_handler_int_result::stored_field_cmp_to_item(THD *thd,
 {
   DBUG_ASSERT(0); // Not used yet
   return 0;
-}
-
-
-int Type_handler_decimal_result::stored_field_cmp_to_item(THD *thd,
-                                                          Field *field,
-                                                          Item *item) const
-{
-  my_decimal item_buf, *item_val, field_buf, *field_val;
-  item_val= item->val_decimal(&item_buf);
-  if (item->null_value)
-    return 0;
-  field_val= field->val_decimal(&field_buf);
-  return my_decimal_cmp(field_val, item_val);
 }
 
 

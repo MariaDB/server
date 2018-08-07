@@ -2745,14 +2745,10 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
               *((int*)pp->Value)= (int) Temporal_hybrid(pval).to_longlong();
               break;
             case REAL_RESULT:
-              pp->Type= TYPE_DOUBLE;
-              pp->Value= PlugSubAlloc(g, NULL, sizeof(double));
-              *((double*)pp->Value)= pval->val_real();
-              break;
             case DECIMAL_RESULT:
               pp->Type= TYPE_DOUBLE;
               pp->Value= PlugSubAlloc(g, NULL, sizeof(double));
-              *((double*)pp->Value)= pval->val_real_from_decimal();
+              *((double*)pp->Value)= pval->val_real();
               break;
             case ROW_RESULT:
               DBUG_ASSERT(0);

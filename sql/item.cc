@@ -253,17 +253,6 @@ String *Item::val_string_from_int(String *str)
 }
 
 
-String *Item::val_string_from_decimal(String *str)
-{
-  my_decimal dec_buf, *dec= val_decimal(&dec_buf);
-  if (null_value)
-    return 0;
-  my_decimal_round(E_DEC_FATAL_ERROR, dec, decimals, FALSE, &dec_buf);
-  my_decimal2string(E_DEC_FATAL_ERROR, &dec_buf, 0, 0, 0, str);
-  return str;
-}
-
-
 longlong Item::val_int_from_str(int *error)
 {
   char buff[MAX_FIELD_WIDTH];
@@ -342,41 +331,6 @@ my_decimal *Item::val_decimal_from_string(my_decimal *decimal_value)
     return 0;
 
   return decimal_from_string_with_check(decimal_value, res);
-}
-
-
-double Item::val_real_from_decimal()
-{
-  /* Note that fix_fields may not be called for Item_avg_field items */
-  double result;
-  my_decimal value_buff, *dec_val= val_decimal(&value_buff);
-  if (null_value)
-    return 0.0;
-  my_decimal2double(E_DEC_FATAL_ERROR, dec_val, &result);
-  return result;
-}
-
-
-longlong Item::val_int_from_decimal()
-{
-  /* Note that fix_fields may not be called for Item_avg_field items */
-  longlong result;
-  my_decimal value, *dec_val= val_decimal(&value);
-  if (null_value)
-    return 0;
-  my_decimal2int(E_DEC_FATAL_ERROR, dec_val, unsigned_flag, &result);
-  return result;
-}
-
-
-longlong Item::val_int_unsigned_typecast_from_decimal()
-{
-  longlong result;
-  my_decimal tmp, *dec= val_decimal(&tmp);
-  if (null_value)
-    return 0;
-  my_decimal2int(E_DEC_FATAL_ERROR, dec, 1, &result);
-  return result;
 }
 
 
@@ -1404,17 +1358,6 @@ bool Item::get_date_from_real(MYSQL_TIME *ltime, ulonglong fuzzydate)
 }
 
 
-bool Item::get_date_from_decimal(MYSQL_TIME *ltime, ulonglong fuzzydate)
-{
-  my_decimal value, *res;
-  if (!(res= val_decimal(&value)) ||
-      decimal_to_datetime_with_warn(res, ltime, fuzzydate,
-                                    field_name_or_null()))
-    return null_value|= make_zero_date(ltime, fuzzydate);
-  return null_value= false;
-}
-
-
 bool Item::get_date_from_string(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   char buff[40];
@@ -1463,10 +1406,8 @@ bool Item::get_seconds(ulonglong *sec, ulong *sec_part)
     *sec_part= 0;
     return neg;
   }
-  my_decimal tmp, *dec= val_decimal(&tmp);
-  if (!dec)
-    return 0;
-  return my_decimal2seconds(dec, sec, sec_part);
+  VDec tmp(this);
+  return tmp.is_null() ? 0 : my_decimal2seconds(tmp.ptr(), sec, sec_part);
 }
 
 const MY_LOCALE *Item::locale_from_val_str()
@@ -3737,7 +3678,7 @@ Item_decimal::Item_decimal(THD *thd, const char *str, const my_decimal *val_arg,
 }
 
 
-Item_decimal::Item_decimal(THD *thd, my_decimal *value_par):
+Item_decimal::Item_decimal(THD *thd, const my_decimal *value_par):
   Item_num(thd)
 {
   my_decimal2decimal(value_par, &decimal_value);
@@ -3750,41 +3691,12 @@ Item_decimal::Item_decimal(THD *thd, my_decimal *value_par):
 
 
 Item_decimal::Item_decimal(THD *thd, const uchar *bin, int precision, int scale):
-  Item_num(thd)
+  Item_num(thd),
+  decimal_value(bin, precision, scale)
 {
-  binary2my_decimal(E_DEC_FATAL_ERROR, bin,
-                    &decimal_value, precision, scale);
   decimals= (uint8) decimal_value.frac;
   max_length= my_decimal_precision_to_length_no_truncation(precision, decimals,
                                                            unsigned_flag);
-}
-
-
-longlong Item_decimal::val_int()
-{
-  longlong result;
-  my_decimal2int(E_DEC_FATAL_ERROR, &decimal_value, unsigned_flag, &result);
-  return result;
-}
-
-double Item_decimal::val_real()
-{
-  double result;
-  my_decimal2double(E_DEC_FATAL_ERROR, &decimal_value, &result);
-  return result;
-}
-
-String *Item_decimal::val_str(String *result)
-{
-  result->set_charset(&my_charset_numeric);
-  my_decimal2string(E_DEC_FATAL_ERROR, &decimal_value, 0, 0, 0, result);
-  return result;
-}
-
-void Item_decimal::print(String *str, enum_query_type query_type)
-{
-  my_decimal2string(E_DEC_FATAL_ERROR, &decimal_value, 0, 0, 0, &str_value);
-  str->append(str_value);
 }
 
 
@@ -4405,11 +4317,7 @@ double Item_param::PValue::val_real() const
   case INT_RESULT:
     return (double) integer;
   case DECIMAL_RESULT:
-  {
-    double result;
-    my_decimal2double(E_DEC_FATAL_ERROR, &m_decimal, &result);
-    return result;
-  }
+    return m_decimal.to_double();
   case STRING_RESULT:
     return double_from_string_with_check(&m_string);
   case TIME_RESULT:
@@ -4434,11 +4342,7 @@ longlong Item_param::PValue::val_int(const Type_std_attributes *attr) const
   case INT_RESULT:
     return integer;
   case DECIMAL_RESULT:
-  {
-    longlong i;
-    my_decimal2int(E_DEC_FATAL_ERROR, &m_decimal, attr->unsigned_flag, &i);
-    return i;
-  }
+    return m_decimal.to_longlong(attr->unsigned_flag);
   case STRING_RESULT:
     return longlong_from_string_with_check(&m_string);
   case TIME_RESULT:
@@ -4488,7 +4392,7 @@ String *Item_param::PValue::val_str(String *str,
     str->set(integer, &my_charset_bin);
     return str;
   case DECIMAL_RESULT:
-    if (my_decimal2string(E_DEC_FATAL_ERROR, &m_decimal, 0, 0, 0, str) <= 1)
+    if (m_decimal.to_string_native(str, 0, 0, 0) <= 1)
       return str;
     return NULL;
   case TIME_RESULT:
@@ -4529,8 +4433,7 @@ const String *Item_param::value_query_val_str(THD *thd, String *str) const
     str->set_real(value.real, NOT_FIXED_DEC, &my_charset_bin);
     return str;
   case DECIMAL_RESULT:
-    if (my_decimal2string(E_DEC_FATAL_ERROR, &value.m_decimal,
-                          0, 0, 0, str) > 1)
+    if (value.m_decimal.to_string_native(str, 0, 0, 0) > 1)
       return &my_null_string;
     return str;
   case TIME_RESULT:
@@ -5093,37 +4996,19 @@ int Item_copy_decimal::save_in_field(Field *field, bool no_conversions)
 
 String *Item_copy_decimal::val_str(String *result)
 {
-  if (null_value)
-    return (String *) 0;
-  result->set_charset(&my_charset_bin);
-  my_decimal2string(E_DEC_FATAL_ERROR, &cached_value, 0, 0, 0, result);
-  return result;
+  return null_value ? NULL : cached_value.to_string(result);
 }
 
 
 double Item_copy_decimal::val_real()
 {
-  if (null_value)
-    return 0.0;
-  else
-  {
-    double result;
-    my_decimal2double(E_DEC_FATAL_ERROR, &cached_value, &result);
-    return result;
-  }
+  return null_value ? 0.0 : cached_value.to_double();
 }
 
 
 longlong Item_copy_decimal::val_int()
 {
-  if (null_value)
-    return 0;
-  else
-  {
-    longlong result;
-    my_decimal2int(E_DEC_FATAL_ERROR, &cached_value, unsigned_flag, &result);
-    return result;
-  }
+  return null_value ? 0 : cached_value.to_longlong(unsigned_flag);
 }
 
 
@@ -6797,12 +6682,11 @@ int Item::save_real_in_field(Field *field, bool no_conversions)
 
 int Item::save_decimal_in_field(Field *field, bool no_conversions)
 {
-  my_decimal decimal_value;
-  my_decimal *value= val_decimal(&decimal_value);
-  if (null_value)
+  VDec value(this);
+  if (value.is_null())
     return set_field_to_null_with_conversions(field, no_conversions);
   field->set_notnull();
-  return field->store_decimal(value);
+  return field->store_decimal(value.ptr());
 }
 
 
@@ -10168,30 +10052,18 @@ bool Item_cache_decimal::cache_value()
 
 double Item_cache_decimal::val_real()
 {
-  double res;
-  if (!has_value())
-    return 0.0;
-  my_decimal2double(E_DEC_FATAL_ERROR, &decimal_value, &res);
-  return res;
+  return !has_value() ? 0.0 : decimal_value.to_double();
 }
 
 longlong Item_cache_decimal::val_int()
 {
-  longlong res;
-  if (!has_value())
-    return 0;
-  my_decimal2int(E_DEC_FATAL_ERROR, &decimal_value, unsigned_flag, &res);
-  return res;
+  return !has_value() ? 0 : decimal_value.to_longlong(unsigned_flag);
 }
 
 String* Item_cache_decimal::val_str(String *str)
 {
-  if (!has_value())
-    return NULL;
-  my_decimal_round(E_DEC_FATAL_ERROR, &decimal_value, decimals, FALSE,
-                   &decimal_value);
-  my_decimal2string(E_DEC_FATAL_ERROR, &decimal_value, 0, 0, 0, str);
-  return str;
+  return !has_value() ? NULL :
+         decimal_value.to_string_round(str, decimals, &decimal_value);
 }
 
 my_decimal *Item_cache_decimal::val_decimal(my_decimal *val)
@@ -10212,9 +10084,8 @@ Item *Item_cache_decimal::convert_to_basic_const_item(THD *thd)
     new_item= (Item*) new (thd->mem_root) Item_null(thd);
   else
   {
-     my_decimal decimal_value;
-     my_decimal *result= val_decimal(&decimal_value);
-     new_item= (Item*) new (thd->mem_root) Item_decimal(thd, result);
+     VDec tmp(this);
+     new_item= (Item*) new (thd->mem_root) Item_decimal(thd, tmp.ptr());
   }
   return new_item;
 } 
