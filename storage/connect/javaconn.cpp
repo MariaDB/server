@@ -82,29 +82,6 @@ GETDEF JAVAConn::GetDefaultJavaVMInitArgs = NULL;
 #endif  // !_DEBUG
 
 /***********************************************************************/
-/*  Allocate the structure used to refer to the result set.            */
-/***********************************************************************/
-static JCATPARM *AllocCatInfo(PGLOBAL g, JCATINFO fid, PCSZ db,
-	PCSZ tab, PQRYRES qrp)
-{
-	JCATPARM *cap;
-
-#if defined(_DEBUG)
-	assert(qrp);
-#endif
-
-	if ((cap = (JCATPARM *)PlgDBSubAlloc(g, NULL, sizeof(JCATPARM)))) {
-		memset(cap, 0, sizeof(JCATPARM));
-		cap->Id = fid;
-		cap->Qrp = qrp;
-		cap->DB = db;
-		cap->Tab = tab;
-	} // endif cap
-
-	return cap;
-} // end of AllocCatInfo
-
-/***********************************************************************/
 /*  JAVAConn construction/destruction.                                 */
 /***********************************************************************/
 JAVAConn::JAVAConn(PGLOBAL g, PCSZ wrapper)
