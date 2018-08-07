@@ -549,7 +549,7 @@ void localtime_to_TIME(MYSQL_TIME *to, struct tm *from)
 }
 
 
-void calc_time_from_sec(MYSQL_TIME *to, long seconds, long microseconds)
+void calc_time_from_sec(MYSQL_TIME *to, ulong seconds, ulong microseconds)
 {
   long t_seconds;
   // to->neg is not cleared, it may already be set to a useful value
@@ -1130,7 +1130,7 @@ null_date:
 
 bool
 calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
-               int l_sign, longlong *seconds_out, long *microseconds_out)
+               int l_sign, ulonglong *seconds_out, ulong *microseconds_out)
 {
   long days;
   bool neg;
@@ -1172,8 +1172,8 @@ calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
     microseconds= -microseconds;
     neg= 1;
   }
-  *seconds_out= microseconds/1000000L;
-  *microseconds_out= (long) (microseconds%1000000L);
+  *seconds_out= (ulonglong) microseconds/1000000L;
+  *microseconds_out= (ulong) (microseconds%1000000L);
   return neg;
 }
 
@@ -1181,8 +1181,8 @@ calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
 bool calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
                     int l_sign, MYSQL_TIME *l_time3, ulonglong fuzzydate)
 {
-  longlong seconds;
-  long microseconds;
+  ulonglong seconds;
+  ulong microseconds;
   bzero((char *) l_time3, sizeof(*l_time3));
   l_time3->neg= calc_time_diff(l_time1, l_time2, l_sign,
 			       &seconds, &microseconds);
@@ -1201,7 +1201,7 @@ bool calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
     ("invalid" means > TIME_MAX_SECOND)
   */
   set_if_smaller(seconds, INT_MAX32);
-  calc_time_from_sec(l_time3, (long) seconds, microseconds);
+  calc_time_from_sec(l_time3, (ulong) seconds, microseconds);
   return ((fuzzydate & TIME_NO_ZERO_DATE) && (seconds == 0) &&
           (microseconds == 0));
 }
@@ -1335,8 +1335,8 @@ mix_date_and_time_complex(MYSQL_TIME *ldate, const MYSQL_TIME *ltime)
 {
   DBUG_ASSERT(ldate->time_type == MYSQL_TIMESTAMP_DATE ||
               ldate->time_type == MYSQL_TIMESTAMP_DATETIME);
-  longlong seconds;
-  long days, useconds;
+  ulonglong seconds;
+  ulong days, useconds;
   int sign= ltime->neg ? 1 : -1;
   ldate->neg= calc_time_diff(ldate, ltime, sign, &seconds, &useconds);
 

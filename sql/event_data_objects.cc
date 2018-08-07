@@ -758,8 +758,8 @@ bool get_next_time(const Time_zone *time_zone, my_time_t *next,
 
   if (seconds)
   {
-    longlong seconds_diff;
-    long microsec_diff;
+    ulonglong seconds_diff;
+    ulong microsec_diff;
     bool negative= calc_time_diff(&local_now, &local_start, 1,
                                   &seconds_diff, &microsec_diff);
     if (!negative)

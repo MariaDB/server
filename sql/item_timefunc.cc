@@ -2760,8 +2760,8 @@ longlong Item_func_microsecond::val_int()
 longlong Item_func_timestamp_diff::val_int()
 {
   MYSQL_TIME ltime1, ltime2;
-  longlong seconds;
-  long microseconds;
+  ulonglong seconds;
+  ulong microseconds;
   long months= 0;
   int neg= 1;
   THD *thd= current_thd;
@@ -2840,21 +2840,21 @@ longlong Item_func_timestamp_diff::val_int()
   case INTERVAL_MONTH:
     return months*neg;
   case INTERVAL_WEEK:          
-    return seconds / SECONDS_IN_24H / 7L * neg;
+    return ((longlong) (seconds / SECONDS_IN_24H / 7L)) * neg;
   case INTERVAL_DAY:		
-    return seconds / SECONDS_IN_24H * neg;
+    return ((longlong) (seconds / SECONDS_IN_24H)) * neg;
   case INTERVAL_HOUR:		
-    return seconds/3600L*neg;
+    return ((longlong) (seconds / 3600L)) * neg;
   case INTERVAL_MINUTE:		
-    return seconds/60L*neg;
+    return ((longlong) (seconds / 60L)) * neg;
   case INTERVAL_SECOND:		
-    return seconds*neg;
+    return ((longlong) seconds) * neg;
   case INTERVAL_MICROSECOND:
     /*
       In MySQL difference between any two valid datetime values
       in microseconds fits into longlong.
     */
-    return (seconds*1000000L+microseconds)*neg;
+    return ((longlong) ((ulonglong) seconds * 1000000L + microseconds)) * neg;
   default:
     break;
   }

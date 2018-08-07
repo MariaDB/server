@@ -217,15 +217,15 @@ public:
 */
 class Sec6_add
 {
-  longlong m_sec;  // number of seconds
-  long m_usec;     // number of microseconds
+  ulonglong m_sec; // number of seconds
+  ulong m_usec;    // number of microseconds
   bool m_neg;      // false if positive, true if negative
   bool m_error;    // false if the value is OK, true otherwise
   void to_hh24mmssff(MYSQL_TIME *ltime, timestamp_type tstype) const
   {
     bzero(ltime, sizeof(*ltime));
     ltime->neg= m_neg;
-    calc_time_from_sec(ltime, (long) (m_sec % SECONDS_IN_24H), m_usec);
+    calc_time_from_sec(ltime, (ulong) (m_sec % SECONDS_IN_24H), m_usec);
     ltime->time_type= tstype;
   }
 public:

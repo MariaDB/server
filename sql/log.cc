@@ -866,10 +866,10 @@ bool Log_to_csv_event_handler::
   Open_tables_backup open_tables_backup;
   CHARSET_INFO *client_cs= thd->variables.character_set_client;
   bool save_time_zone_used;
-  long query_time= (long) MY_MIN(query_utime/1000000, TIME_MAX_VALUE_SECONDS);
-  long lock_time=  (long) MY_MIN(lock_utime/1000000, TIME_MAX_VALUE_SECONDS);
-  long query_time_micro= (long) (query_utime % 1000000);
-  long lock_time_micro=  (long) (lock_utime % 1000000);
+  ulong query_time= (ulong) MY_MIN(query_utime/1000000, TIME_MAX_VALUE_SECONDS);
+  ulong lock_time=  (ulong) MY_MIN(lock_utime/1000000, TIME_MAX_VALUE_SECONDS);
+  ulong query_time_micro= (ulong) (query_utime % 1000000);
+  ulong lock_time_micro=  (ulong) (lock_utime % 1000000);
 
   DBUG_ENTER("Log_to_csv_event_handler::log_slow");
 
