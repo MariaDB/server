@@ -1910,3 +1910,35 @@ DROP TABLE t1,t2;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # MDEV-16217: Assertion `!table || (!table->read_set ||
+--echo # bitmap_is_set(table->read_set, field_index))'
+--echo # failed in Field_num::get_date
+--echo #
+CREATE TABLE t1 (pk int  default 0, a1 date);
+INSERT INTO t1 VALUES (1,'1900-01-01'),(2,NULL),(3,NULL),(4,NULL);
+
+CREATE VIEW v1 AS
+SELECT t1.pk AS pk, t1.a1 AS a1 FROM t1;
+
+SELECT a1 BETWEEN (('2018-08-24')) AND (DEFAULT(pk)) FROM v1;
+SELECT a1 BETWEEN (('2018-08-24')) AND (~ DEFAULT(pk)) FROM v1;
+
+CREATE TABLE t2 (pk int  default 1, a1 date);
+INSERT INTO t2 VALUES (4,NULL);
+CREATE view v2 as SELECT default(t1.pk), default(t2.pk), t1.pk from t1,t2;
+select * from v2;
+show create view v2;
+CREATE view v3 as SELECT default(pk) from t2;
+select * from v3;
+explain extended select * from v3;
+explain extended select default(pk) from t2;
+show create view v3;
+
+DROP VIEW v1,v2,v3;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

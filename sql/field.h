@@ -630,6 +630,7 @@ public:
   bool utf8;                                    /* Already in utf8 */
   Item *expr;
   LEX_STRING name;                              /* Name of constraint */
+  /* see VCOL_* (VCOL_FIELD_REF, ...) */
   uint flags;
 
   Virtual_column_info()

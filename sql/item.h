@@ -5230,6 +5230,11 @@ public:
     return false;
   }
   table_map used_tables() const;
+  virtual void update_used_tables()
+  {
+    if (field && field->default_value)
+      field->default_value->expr->update_used_tables();
+  }
   Field *get_tmp_table_field() { return 0; }
   Item *get_tmp_table_item(THD *thd) { return this; }
   Item_field *field_for_view_update() { return 0; }
