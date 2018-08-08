@@ -1620,7 +1620,7 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args, uint n,
 				if (AllocSarea(g, ml)) {
 					char errmsg[MAX_STR];
 
-					snprintf(errmsg, sizeof(errmsg)-1, MSG(WORK_AREA), g->Message);
+					snprintf(errmsg, sizeof(errmsg) - 1, MSG(WORK_AREA), g->Message);
 					strcpy(g->Message, errmsg);
 					return true;
 					} // endif SareaAlloc
@@ -1667,7 +1667,7 @@ static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 		int     j = 0, n = args->attribute_lengths[i];
 		my_bool b;  // true if attribute is zero terminated
 		PSZ     p;
-    PCSZ    s = args->attributes[i];
+		PCSZ    s = args->attributes[i];
 
 		if (s && *s && (n || *s == '\'')) {
 			if ((b = (!n || !s[n])))
@@ -4632,7 +4632,7 @@ char *jbin_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			bsp = NULL;
 
 		if (!bsp && (bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-			strncpy(bsp->Msg, g->Message, 139);
+			strncpy(bsp->Msg, g->Message, BMX);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5852,3 +5852,4 @@ long long countin(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	free(str2);
 	return n;
 } // end of countin
+
