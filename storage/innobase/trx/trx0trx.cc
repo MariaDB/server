@@ -142,7 +142,7 @@ trx_create(void)
 
 	trx->global_read_view_heap = mem_heap_create(256);
 
-	trx->xid.formatID = -1;
+	trx->xid.null();
 
 	trx->op_info = "";
 
@@ -851,8 +851,7 @@ trx_start_low(
 	}
 
 #ifdef WITH_WSREP
-        memset(&trx->xid, 0, sizeof(trx->xid));
-        trx->xid.formatID = -1;
+        trx->xid.null();
 #endif /* WITH_WSREP */
 
 	/* The initial value for trx->no: TRX_ID_MAX is used in
@@ -2295,6 +2294,7 @@ trx_get_trx_by_xid_low(
 
 		if (trx->is_recovered
 		    && trx_state_eq(trx, TRX_STATE_PREPARED)
+		    && !trx->xid.is_null()
 		    && xid->gtrid_length == trx->xid.gtrid_length
 		    && xid->bqual_length == trx->xid.bqual_length
 		    && memcmp(xid->data, trx->xid.data,
@@ -2302,8 +2302,7 @@ trx_get_trx_by_xid_low(
 
 			/* Invalidate the XID, so that subsequent calls
 			will not find it. */
-			memset(&trx->xid, 0, sizeof(trx->xid));
-			trx->xid.formatID = -1;
+			trx->xid.null();
 			break;
 		}
 	}

@@ -1609,5 +1609,32 @@ explain select min(a) from t1 where a between "abbbbbbbbbbbbbbbbbbbb" and "Cafe2
 drop table t1;
 
 --echo #
+--echo # MDEV-15433: Optimizer does not use group by optimization with distinct
+--echo #
+
+CREATE TABLE t1 (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, a INT NOT NULL, KEY(a));
+--disable_query_log
+INSERT INTO t1(a) VALUES (1), (2), (3), (4);
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+INSERT INTO t1(a) SELECT a FROM t1;
+--enable_query_log
+OPTIMIZE TABLE t1;
+EXPLAIN SELECT DISTINCT a FROM t1;
+SELECT DISTINCT a FROM t1;
+drop table t1;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #

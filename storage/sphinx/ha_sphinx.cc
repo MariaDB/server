@@ -3440,7 +3440,7 @@ int ha_sphinx::create ( const char * name, TABLE * table_arg, HA_CREATE_INFO * )
 		if (
 			table_arg->s->keys!=1 ||
 			table_arg->key_info[0].user_defined_key_parts!=1 ||
-			strcasecmp ( table_arg->key_info[0].key_part[0].field->field_name, table->field[2]->field_name ) )
+			strcasecmp ( table_arg->key_info[0].key_part[0].field->field_name, table_arg->field[2]->field_name ) )
 		{
 			my_snprintf ( sError, sizeof(sError), "%s: there must be an index on '%s' column",
 				name, table_arg->field[2]->field_name );

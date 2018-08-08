@@ -895,7 +895,7 @@ void Explain_select::print_explain_json(Explain_query *query,
       {
         Sort_and_group_tracker::Iterator iter(&ops_tracker);
         enum_qep_action action;
-        Filesort_tracker *fs_tracker;
+        Filesort_tracker *fs_tracker= NULL;
 
         while ((action= iter.get_next(&fs_tracker)) != EXPL_ACTION_EOF)
         {

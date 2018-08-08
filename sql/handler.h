@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -602,7 +602,7 @@ struct xid_t {
     bqual_length= b;
     memcpy(data, d, g+b);
   }
-  bool is_null() { return formatID == -1; }
+  bool is_null() const { return formatID == -1; }
   void null() { formatID= -1; }
   my_xid quick_get_my_xid()
   {

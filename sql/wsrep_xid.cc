@@ -129,12 +129,11 @@ void wsrep_get_SE_checkpoint(wsrep_uuid_t& uuid, wsrep_seqno_t& seqno)
   seqno= WSREP_SEQNO_UNDEFINED;
 
   XID xid;
-  memset(&xid, 0, sizeof(xid));
-  xid.formatID= -1;
+  xid.null();
 
   wsrep_get_SE_checkpoint(xid);
 
-  if (xid.formatID == -1) return; // nil XID
+  if (xid.is_null()) return;
 
   if (!wsrep_is_wsrep_xid(&xid))
   {
