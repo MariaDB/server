@@ -1,4 +1,4 @@
-## MariaDB: drop-in replacement for MySQL
+## MariaDB: drop-in replacement for MySQL(R)
 
 MariaDB is designed as a drop-in replacement of MySQL(R) with more
 features, new storage engines, fewer bugs, and better performance.
