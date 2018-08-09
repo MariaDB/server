@@ -40,8 +40,10 @@ SELECT 1;
 
 create table
 connection child2_1;
-CHILD2_1_DROP_TABLES
-CHILD2_1_CREATE_TABLES
+CHILD2_1_DROP_TABLE
+CHILD2_1_DROP_TABLE_F
+CHILD2_1_CREATE_TABLE
+CHILD2_1_CREATE_TABLE_F
 TRUNCATE TABLE mysql.general_log;
 connection master_1;
 DROP TABLE IF EXISTS tbl_a;
@@ -51,7 +53,12 @@ col_dt DATETIME,
 col_ts TIMESTAMP NOT NULL
 DEFAULT current_timestamp() ON UPDATE current_timestamp(),
 PRIMARY KEY(col_a),
+UNIQUE INDEX i_ts (col_ts)
 ) MASTER_1_ENGINE MASTER_1_AUTO_INCREMENT_2_1 MASTER_1_COMMENT_2_1
+CREATE TABLE tbl_f (
+col_d DATE,
+col_t TIME
+) ENGINE=Spider COMMENT='database "ts_test_remote", table "tbl_f", srv "s_2_1"'
 SHOW CREATE TABLE tbl_a;
 Table	Create Table
 tbl_a	CREATE TABLE `tbl_a` (
@@ -61,6 +68,12 @@ tbl_a	CREATE TABLE `tbl_a` (
   PRIMARY KEY (`col_a`),
   UNIQUE KEY `i_ts` (`col_ts`)
 ) ENGINE=SPIDER AUTO_INCREMENT=17 DEFAULT CHARSET=utf8mb4 COMMENT='database "ts_test_remote", table "tbl_a", srv "s_2_1"'
+SHOW CREATE TABLE tbl_f;
+Table	Create Table
+tbl_f	CREATE TABLE `tbl_f` (
+  `col_d` date DEFAULT NULL,
+  `col_t` time DEFAULT NULL
+) ENGINE=SPIDER DEFAULT CHARSET=latin1 COMMENT='database "ts_test_remote", table "tbl_f", srv "s_2_1"'
 
 Set a different time zone that has DST
 SET time_zone='+01:00';
@@ -101,7 +114,7 @@ col_a	col_dt	col_ts	unix_timestamp(col_ts)
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
 argument
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a`
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
 SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;
 col_a	col_dt	col_ts	unix_timestamp(col_ts)
@@ -127,7 +140,7 @@ col_a	col_dt	col_ts	unix_timestamp(col_ts)
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
 argument
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a`
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
 SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;
 col_a	col_dt	col_ts	unix_timestamp(col_ts)
@@ -153,7 +166,7 @@ col_a	col_dt	col_ts	unix_timestamp(col_ts)
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
 argument
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a`
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
 SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;
 col_a	col_dt	col_ts	unix_timestamp(col_ts)
@@ -181,7 +194,7 @@ connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
 argument
 select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` for update
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a`
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
 SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;
 col_a	col_dt	col_ts	unix_timestamp(col_ts)
@@ -239,13 +252,13 @@ col_a	col_dt	col_ts	unix_timestamp(col_ts)
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
 argument
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` > '2017-12-31 23:00:00') order by `col_ts`
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` < '2018-10-28 01:30:00') order by `col_ts`
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where ('2018-10-28 01:30:00' > `col_ts`) order by `col_ts`
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where `col_ts` >= '2018-10-28 00:30:00' and `col_ts` <= '2018-10-28 01:30:00' and (`col_ts` between '2018-10-28 00:30:00'  and  '2018-10-28 01:30:00') order by `col_ts`
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where `col_ts` >= '2018-10-28 00:30:00' and `col_ts` <= '2018-10-28 01:30:00' and ((`col_ts` >= '2018-10-28 00:30:00') and (`col_ts` <= '2018-10-28 01:30:00')) order by `col_ts`
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` > '2018-03-25 01:00:00') order by `col_ts`
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` > '1970-01-01 00:00:01') order by `col_ts`
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '2017-12-31 23:00:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` < '2018-10-28 01:30:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ('2018-10-28 01:30:00' > t0.`col_ts`)
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` between '2018-10-28 00:30:00'  and  '2018-10-28 01:30:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ((t0.`col_ts` >= '2018-10-28 00:30:00') and (t0.`col_ts` <= '2018-10-28 01:30:00'))
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '2018-03-25 01:00:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '1970-01-01 00:00:01')
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
 SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;
 col_a	col_dt	col_ts	unix_timestamp(col_ts)
@@ -326,13 +339,13 @@ col_a	col_dt	col_ts	unix_timestamp(col_ts)
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
 argument
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` > '2017-12-31 23:00:00')
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` < '2018-10-28 01:30:00')
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where ('2018-10-28 01:30:00' > `col_ts`)
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` between '2018-10-28 00:30:00'  and  '2018-10-28 01:30:00')
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where ((`col_ts` >= '2018-10-28 00:30:00') and (`col_ts` <= '2018-10-28 01:30:00'))
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` > '2018-03-25 01:00:00')
-select `col_a`,`col_dt`,`col_ts` from `ts_test_remote`.`tbl_a` where (`col_ts` > '1970-01-01 00:00:01')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '2017-12-31 23:00:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` < '2018-10-28 01:30:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ('2018-10-28 01:30:00' > t0.`col_ts`)
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` between '2018-10-28 00:30:00'  and  '2018-10-28 01:30:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where ((t0.`col_ts` >= '2018-10-28 00:30:00') and (t0.`col_ts` <= '2018-10-28 01:30:00'))
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '2018-03-25 01:00:00')
+select t0.`col_a` `col_a`,t0.`col_dt` `col_dt`,t0.`col_ts` `col_ts`,(unix_timestamp(t0.`col_ts`)) `unix_timestamp(col_ts)` from `ts_test_remote`.`tbl_a` t0 where (t0.`col_ts` > '1970-01-01 00:00:01')
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
 SELECT col_a, col_dt, col_ts, unix_timestamp(col_ts) FROM tbl_a ORDER BY col_a;
 col_a	col_dt	col_ts	unix_timestamp(col_ts)
@@ -342,6 +355,54 @@ col_a	col_dt	col_ts	unix_timestamp(col_ts)
 4	2018-10-28 01:30:00	2018-10-28 02:30:00	1540686600
 5	2018-10-28 02:30:00	2018-10-28 02:30:00	1540690200
 6	2038-01-19 04:14:07	2038-01-19 04:14:07	2147483647
+
+Test the TIMESTAMP function
+connection master_1;
+INSERT INTO tbl_f VALUES ('2018-06-24', '01:23:45'),
+('2018-06-24', '01:23:45'),
+('2018-08-01', '12:34:56');
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+SELECT * FROM tbl_f;
+col_d	col_t
+2018-06-24	01:23:45
+2018-06-24	01:23:45
+2018-08-01	12:34:56
+SELECT TIMESTAMP(col_d, col_t) FROM tbl_f;
+TIMESTAMP(col_d, col_t)
+2018-06-24 01:23:45
+2018-06-24 01:23:45
+2018-08-01 12:34:56
+SELECT TIMESTAMP('2018-06-25', col_t) FROM tbl_f;
+TIMESTAMP('2018-06-25', col_t)
+2018-06-25 01:23:45
+2018-06-25 01:23:45
+2018-06-25 12:34:56
+SELECT TIMESTAMP(col_d, '10:43:21') FROM tbl_f;
+TIMESTAMP(col_d, '10:43:21')
+2018-06-24 10:43:21
+2018-06-24 10:43:21
+2018-08-01 10:43:21
+SELECT TIMESTAMP('2018-06-25', '10:43:21') FROM tbl_f;
+TIMESTAMP('2018-06-25', '10:43:21')
+2018-06-25 10:43:21
+2018-06-25 10:43:21
+2018-06-25 10:43:21
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select t0.`col_d` `col_d`,t0.`col_t` `col_t` from `ts_test_remote`.`tbl_f` t0
+select (timestamp(t0.`col_d` , t0.`col_t`)) `TIMESTAMP(col_d, col_t)` from `ts_test_remote`.`tbl_f` t0
+select (timestamp('2018-06-25' , t0.`col_t`)) `TIMESTAMP('2018-06-25', col_t)` from `ts_test_remote`.`tbl_f` t0
+select (timestamp(t0.`col_d` , '10:43:21')) `TIMESTAMP(col_d, '10:43:21')` from `ts_test_remote`.`tbl_f` t0
+select (timestamp('2018-06-25' , '10:43:21')) `TIMESTAMP('2018-06-25', '10:43:21')` from `ts_test_remote`.`tbl_f` t0
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT col_d, col_t FROM tbl_f;
+col_d	col_t
+2018-06-24	01:23:45
+2018-06-24	01:23:45
+2018-08-01	12:34:56
 
 Restore Time Zone settings
 connection master_1;
