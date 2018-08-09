@@ -5,8 +5,10 @@
 --source include/have_perfschema.inc
 
 let $outfile= $MYSQLTEST_VARDIR/tmp/bad_option_4.txt;
+--disable_warnings
 --error 0,1
 --remove_file $outfile
+--enable_warnings
 --error 1
 --exec $MYSQLD_BOOTSTRAP_CMD --loose-console -a -h bad_option_h_param > $outfile 2>&1
 
