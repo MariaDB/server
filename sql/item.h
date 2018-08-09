@@ -1607,7 +1607,6 @@ public:
                        Item **ref, uint flags);
   virtual bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)= 0;
   bool get_date_from_int(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  bool get_date_from_year(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_date_from_real(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_date_from_string(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_time(MYSQL_TIME *ltime)
@@ -6476,9 +6475,13 @@ public:
 class Item_cache_year: public Item_cache_int
 {
 public:
-  Item_cache_year(THD *thd): Item_cache_int(thd, &type_handler_year) { }
+  Item_cache_year(THD *thd, const Type_handler *handler)
+   :Item_cache_int(thd, handler) { }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
-  { return get_date_from_year(ltime, fuzzydate); }
+  {
+    return null_value=
+      VYear(this).to_mysql_time_with_warn(ltime, fuzzydate, NULL);
+  }
 };
 
 

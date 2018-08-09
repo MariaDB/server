@@ -2881,7 +2881,10 @@ public:
     :Field_tiny(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
 		unireg_check_arg, field_name_arg, 1, 1)
     {}
-  const Type_handler *type_handler() const { return &type_handler_year; }
+  const Type_handler *type_handler() const
+  {
+    return field_length == 2 ? &type_handler_year2 : &type_handler_year;
+  }
   Copy_func *get_copy_func(const Field *from) const
   {
     if (eq_def(from))

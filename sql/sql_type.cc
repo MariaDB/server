@@ -42,6 +42,7 @@ Type_handler_olddecimal  type_handler_olddecimal;
 Type_handler_newdecimal  type_handler_newdecimal;
 
 Type_handler_year        type_handler_year;
+Type_handler_year        type_handler_year2;
 Type_handler_time        type_handler_time;
 Type_handler_date        type_handler_date;
 Type_handler_timestamp   type_handler_timestamp;
@@ -317,6 +318,45 @@ VSec6::VSec6(Item *item, const char *type_str, ulonglong limit)
     }
   }
 }
+
+
+Year::Year(longlong value, bool unsigned_flag, uint length)
+{
+  if ((m_truncated= (value < 0 && !unsigned_flag)))
+    m_year= 0;
+  else if (value > 9999)
+  {
+    m_truncated= true;
+    m_year= 9999;
+  }
+  else if (length == 2)
+  {
+    m_year= value < 70 ? (uint) value + 2000 :
+             value <= 1900 ? (uint) value + 1900 :
+             (uint) value;
+  }
+  else
+    m_year= (uint) value;
+  DBUG_ASSERT(m_year <= 9999);
+}
+
+
+uint Year::year_precision(const Item *item) const
+{
+  return item->type_handler() == &type_handler_year2 ? 2 : 4;
+}
+
+
+VYear::VYear(Item *item)
+ :Year_null(Year(item->val_int(), item->unsigned_flag,
+                 year_precision(item)), item->null_value)
+{ }
+
+
+VYear_op::VYear_op(Item_func_hybrid_field_type *item)
+ :Year_null(Year(item->int_op(), item->unsigned_flag,
+                 year_precision(item)), item->null_value)
+{ }
 
 
 void Time::make_from_item(Item *item, const Options opt)
@@ -3061,7 +3101,7 @@ Type_handler_int_result::Item_get_cache(THD *thd, const Item *item) const
 Item_cache *
 Type_handler_year::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_year(thd);
+  return new (thd->mem_root) Item_cache_year(thd, item->type_handler());
 }
 
 Item_cache *
@@ -3611,7 +3651,9 @@ bool Type_handler_int_result::Item_get_date(Item *item, MYSQL_TIME *ltime,
 bool Type_handler_year::Item_get_date(Item *item, MYSQL_TIME *ltime,
                                              ulonglong fuzzydate) const
 {
-  return item->get_date_from_year(ltime, fuzzydate);
+  return item->null_value=
+    VYear(item).to_mysql_time_with_warn(ltime, fuzzydate,
+                                        item->field_name_or_null());
 }
 
 
@@ -3783,6 +3825,17 @@ Type_handler_decimal_result::Item_func_hybrid_field_type_get_date(
                                              ulonglong fuzzydate) const
 {
   return VDec_op(item).to_datetime_with_warn(ltime, fuzzydate, item);
+}
+
+
+bool
+Type_handler_year::Item_func_hybrid_field_type_get_date(
+                                             Item_func_hybrid_field_type *item,
+                                             MYSQL_TIME *ltime,
+                                             ulonglong fuzzydate) const
+{
+  return item->null_value=
+    VYear_op(item).to_mysql_time_with_warn(ltime, fuzzydate, NULL);
 }
 
 

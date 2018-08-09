@@ -1328,26 +1328,6 @@ bool Item::get_date_from_int(MYSQL_TIME *ltime, ulonglong fuzzydate)
 }
 
 
-bool Item::get_date_from_year(MYSQL_TIME *ltime, ulonglong fuzzydate)
-{
-  longlong value= val_int();
-  DBUG_ASSERT(unsigned_flag || value >= 0);
-  if (max_length == 2)
-  {
-    if (value < 70)
-      value+= 2000;
-    else if (value <= 1900)
-      value+= 1900;
-  }
-  value*= 10000; /* make it YYYYMMHH */
-  if (null_value || int_to_datetime_with_warn(false, value,
-                                              ltime, fuzzydate,
-                                              field_name_or_null()))
-    return null_value|= make_zero_date(ltime, fuzzydate);
-  return null_value= false;
-}
-
-
 bool Item::get_date_from_real(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   double value= val_real();

@@ -2528,17 +2528,14 @@ bool Item_datetime_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 bool Item_func_makedate::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
   DBUG_ASSERT(fixed == 1);
-  long daynr=  (long) args[1]->val_int();
-  long year= (long) args[0]->val_int();
-  long days;
+  long year, days, daynr=  (long) args[1]->val_int();
 
-  if (args[0]->null_value || args[1]->null_value ||
-      year < 0 || year > 9999 || daynr <= 0)
+  VYear vyear(args[0]);
+  if (vyear.is_null() || args[1]->null_value || vyear.truncated() || daynr <= 0)
     goto err;
 
-  if (year < 100)
+  if ((year= (long) vyear.year()) < 100)
     year= year_2000_handling(year);
-
   days= calc_daynr(year,1,1) + daynr - 1;
   if (get_date_from_daynr(days, &ltime->year, &ltime->month, &ltime->day))
     goto err;

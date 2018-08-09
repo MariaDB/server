@@ -389,6 +389,61 @@ public:
 };
 
 
+class Year
+{
+protected:
+  uint m_year;
+  bool m_truncated;
+  bool to_mysql_time_with_warn(MYSQL_TIME *to, ulonglong fuzzydate,
+                               const char *field_name) const
+  {
+    longlong value= m_year * 10000; // Make it YYYYMMDD
+    const ErrConvInteger str(value, true);
+    Sec6 sec(false, value, 0);
+    return sec.convert_to_mysql_time(to, fuzzydate, &str, field_name);
+  }
+  uint year_precision(const Item *item) const;
+public:
+  Year(): m_year(0), m_truncated(false) { }
+  Year(longlong value, bool unsigned_flag, uint length);
+  uint year() const { return m_year; }
+  bool truncated() const { return m_truncated; }
+};
+
+
+class Year_null: public Year
+{
+protected:
+  bool m_is_null;
+public:
+  Year_null(const Year &other, bool is_null)
+   :Year(is_null ? Year() : other),
+    m_is_null(is_null)
+  { }
+  bool is_null() const { return m_is_null; }
+  bool to_mysql_time_with_warn(MYSQL_TIME *to, ulonglong fuzzydate,
+                               const char *field_name) const
+  {
+    return m_is_null ? true :
+           Year::to_mysql_time_with_warn(to, fuzzydate, field_name);
+  }
+};
+
+
+class VYear: public Year_null
+{
+public:
+  VYear(Item *item);
+};
+
+
+class VYear_op: public Year_null
+{
+public:
+  VYear_op(Item_func_hybrid_field_type *item);
+};
+
+
 class Temporal: protected MYSQL_TIME
 {
 protected:
@@ -3323,6 +3378,9 @@ public:
                                    uint32 flags) const;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const;
   bool Item_get_date(Item *item, MYSQL_TIME *ltime, ulonglong fuzzydate) const;
+  bool Item_func_hybrid_field_type_get_date(Item_func_hybrid_field_type *item,
+                                            MYSQL_TIME *to,
+                                            ulonglong fuzzydate) const;
 };
 
 
@@ -4562,6 +4620,7 @@ extern MYSQL_PLUGIN_IMPORT Type_handler_newdecimal  type_handler_newdecimal;
 extern MYSQL_PLUGIN_IMPORT Type_handler_olddecimal  type_handler_olddecimal;
 
 extern MYSQL_PLUGIN_IMPORT Type_handler_year        type_handler_year;
+extern MYSQL_PLUGIN_IMPORT Type_handler_year        type_handler_year2;
 extern MYSQL_PLUGIN_IMPORT Type_handler_newdate     type_handler_newdate;
 extern MYSQL_PLUGIN_IMPORT Type_handler_date        type_handler_date;
 extern MYSQL_PLUGIN_IMPORT Type_handler_time        type_handler_time;
