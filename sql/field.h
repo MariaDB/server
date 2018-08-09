@@ -2661,7 +2661,7 @@ public:
 class Field_temporal_with_date: public Field_temporal {
 protected:
   int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str,
-                              int was_cut, int have_smth_to_conv);
+                              int was_cut);
   virtual void store_TIME(MYSQL_TIME *ltime) = 0;
   virtual bool get_TIME(MYSQL_TIME *ltime, const uchar *pos,
                         ulonglong fuzzydate) const = 0;
@@ -2694,8 +2694,7 @@ public:
 class Field_timestamp :public Field_temporal {
 protected:
   sql_mode_t sql_mode_for_timestamp(THD *thd) const;
-  int store_TIME_with_warning(THD *, MYSQL_TIME *, const ErrConv *,
-                              int warnings, bool have_smth_to_conv);
+  int store_TIME_with_warning(THD *, MYSQL_TIME *, const ErrConv *, int warn);
 public:
   Field_timestamp(uchar *ptr_arg, uint32 len_arg,
                   uchar *null_ptr_arg, uchar null_bit_arg,
@@ -3020,8 +3019,7 @@ class Field_time :public Field_temporal {
   long curdays;
 protected:
   virtual void store_TIME(const MYSQL_TIME *ltime);
-  int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str,
-                              int was_cut, int have_smth_to_conv);
+  int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str, int warn);
   void set_warnings(Sql_condition::enum_warning_level level,
                     const ErrConv *str, int was_cut)
   {

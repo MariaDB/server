@@ -368,6 +368,105 @@ void Time::make_from_item(Item *item, const Options opt)
 }
 
 
+/**
+  Create from a DATETIME by subtracting a given number of days,
+  implementing an optimized version of calc_time_diff().
+*/
+void Time::make_from_datetime_with_days_diff(int *warn, const MYSQL_TIME *from,
+                                             long days)
+{
+  *warn= 0;
+  DBUG_ASSERT(from->time_type == MYSQL_TIMESTAMP_DATETIME ||
+              from->time_type == MYSQL_TIMESTAMP_DATE);
+  long daynr= calc_daynr(from->year, from->month, from->day);
+  long daydiff= daynr - days;
+  if (!daynr) // Zero date
+  {
+    set_zero_time(this, MYSQL_TIMESTAMP_TIME);
+    neg= true;
+    hour= TIME_MAX_HOUR + 1; // to report "out of range" in "warn"
+  }
+  else if (daydiff >=0)
+  {
+    neg= false;
+    year= month= day= 0;
+    hhmmssff_copy(from);
+    hour+= daydiff * 24;
+    time_type= MYSQL_TIMESTAMP_TIME;
+  }
+  else
+  {
+    longlong timediff= ((((daydiff * 24LL +
+                           from->hour)   * 60LL +
+                           from->minute) * 60LL +
+                           from->second) * 1000000LL +
+                           from->second_part);
+    unpack_time(timediff, this, MYSQL_TIMESTAMP_TIME);
+  }
+  // The above code can generate TIME values outside of the valid TIME range.
+  adjust_time_range_or_invalidate(warn);
+}
+
+
+void Time::make_from_datetime_move_day_to_hour(int *warn,
+                                               const MYSQL_TIME *from)
+{
+  *warn= 0;
+  DBUG_ASSERT(from->time_type == MYSQL_TIMESTAMP_DATE ||
+              from->time_type == MYSQL_TIMESTAMP_DATETIME);
+  time_type= MYSQL_TIMESTAMP_TIME;
+  neg= false;
+  year= month= day= 0;
+  hhmmssff_copy(from);
+  datetime_to_time_YYYYMMDD_000000DD_mix_to_hours(warn, from->year,
+                                                  from->month, from->day);
+  adjust_time_range_or_invalidate(warn);
+}
+
+
+void Time::make_from_datetime(int *warn, const MYSQL_TIME *from, long curdays)
+{
+  if (!curdays)
+    make_from_datetime_move_day_to_hour(warn, from);
+  else
+    make_from_datetime_with_days_diff(warn, from, curdays);
+}
+
+
+void Time::make_from_time(int *warn, const MYSQL_TIME *from)
+{
+  DBUG_ASSERT(from->time_type == MYSQL_TIMESTAMP_TIME);
+  if (from->year || from->month)
+    make_from_out_of_range(warn);
+  else
+  {
+    *warn= 0;
+    DBUG_ASSERT(from->day == 0);
+    *(static_cast<MYSQL_TIME*>(this))= *from;
+    adjust_time_range_or_invalidate(warn);
+  }
+}
+
+
+Time::Time(int *warn, const MYSQL_TIME *from, long curdays)
+{
+  switch (from->time_type) {
+  case MYSQL_TIMESTAMP_NONE:
+  case MYSQL_TIMESTAMP_ERROR:
+    make_from_out_of_range(warn);
+    break;
+  case MYSQL_TIMESTAMP_DATE:
+  case MYSQL_TIMESTAMP_DATETIME:
+    make_from_datetime(warn, from, curdays);
+    break;
+  case MYSQL_TIMESTAMP_TIME:
+    make_from_time(warn, from);
+    break;
+  }
+  DBUG_ASSERT(is_valid_value_slow());
+}
+
+
 void Temporal_with_date::make_from_item(THD *thd, Item *item, sql_mode_t flags)
 {
   flags&= ~TIME_TIME_ONLY;
@@ -397,6 +496,65 @@ void Temporal_with_date::make_from_item(THD *thd, Item *item, sql_mode_t flags)
 void Temporal_with_date::make_from_item(THD *thd, Item *item)
 {
   return make_from_item(thd, item, sql_mode_for_dates(thd));
+}
+
+
+void Temporal_with_date::check_date_or_invalidate(int *warn, sql_mode_t flags)
+{
+  if (check_date(this, pack_time(this) != 0, flags, warn))
+    time_type= MYSQL_TIMESTAMP_NONE;
+}
+
+
+void Datetime::make_from_time(THD *thd, int *warn, const MYSQL_TIME *from,
+                              sql_mode_t flags)
+{
+  DBUG_ASSERT(from->time_type == MYSQL_TIMESTAMP_TIME);
+  if (time_to_datetime(thd, from, this))
+    make_from_out_of_range(warn);
+  else
+  {
+    *warn= 0;
+    check_date_or_invalidate(warn, flags);
+  }
+}
+
+
+void Datetime::make_from_datetime(THD *thd, int *warn, const MYSQL_TIME *from,
+                                 sql_mode_t flags)
+{
+  DBUG_ASSERT(from->time_type == MYSQL_TIMESTAMP_DATE ||
+              from->time_type == MYSQL_TIMESTAMP_DATETIME);
+  if (from->neg || check_datetime_range(from))
+    make_from_out_of_range(warn);
+  else
+  {
+    *warn= 0;
+    *(static_cast<MYSQL_TIME*>(this))= *from;
+    date_to_datetime(this);
+    check_date_or_invalidate(warn, flags);
+  }
+}
+
+
+Datetime::Datetime(THD *thd, int *warn, const MYSQL_TIME *from,
+                   sql_mode_t flags)
+{
+  DBUG_ASSERT((flags & TIME_TIME_ONLY) == 0);
+  switch (from->time_type) {
+  case MYSQL_TIMESTAMP_ERROR:
+  case MYSQL_TIMESTAMP_NONE:
+    make_from_out_of_range(warn);
+    break;
+  case MYSQL_TIMESTAMP_TIME:
+    make_from_time(thd, warn, from, flags);
+    break;
+  case MYSQL_TIMESTAMP_DATETIME:
+  case MYSQL_TIMESTAMP_DATE:
+    make_from_datetime(thd, warn, from, flags);
+    break;
+  }
+  DBUG_ASSERT(is_valid_value_slow());
 }
 
 

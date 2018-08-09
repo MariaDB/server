@@ -5021,15 +5021,12 @@ my_time_t Field_timestamp::get_timestamp(const uchar *pos,
 
 
 int Field_timestamp::store_TIME_with_warning(THD *thd, MYSQL_TIME *l_time,
-                                             const ErrConv *str,
-                                             int was_cut,
-                                             bool have_smth_to_conv)
+                                             const ErrConv *str, int was_cut)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE;
   uint error = 0;
-  my_time_t timestamp;
 
-  if (MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut) || !have_smth_to_conv)
+  if (MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut) || !l_time)
   {
     error= 1;
     set_datetime_warning(WARN_DATA_TRUNCATED,
@@ -5042,10 +5039,10 @@ int Field_timestamp::store_TIME_with_warning(THD *thd, MYSQL_TIME *l_time,
                          str, MYSQL_TIMESTAMP_DATETIME, 1);
   }
   /* Only convert a correct date (not a zero date) */
-  if (have_smth_to_conv && l_time->month)
+  if (l_time && l_time->month)
   {
     uint conversion_error;
-    timestamp= TIME_to_timestamp(thd, l_time, &conversion_error);
+    my_time_t timestamp= TIME_to_timestamp(thd, l_time, &conversion_error);
     if (timestamp == 0 && l_time->second_part == 0)
       conversion_error= ER_WARN_DATA_OUT_OF_RANGE;
     if (unlikely(conversion_error))
@@ -5054,24 +5051,13 @@ int Field_timestamp::store_TIME_with_warning(THD *thd, MYSQL_TIME *l_time,
                            str, MYSQL_TIMESTAMP_DATETIME, !error);
       error= 1;
     }
+    store_TIME(timestamp, l_time->second_part);
   }
   else
   {
-    timestamp= 0;
-    l_time->second_part= 0;
+    store_TIME(0, 0);
   }
-  store_TIME(timestamp, l_time->second_part);
   return error;
-}
-
-
-static bool
-copy_or_convert_to_datetime(THD *thd, const MYSQL_TIME *from, MYSQL_TIME *to)
-{
-  if (from->time_type == MYSQL_TIMESTAMP_TIME)
-    return time_to_datetime(thd, from, to);
-  *to= *from;
-  return false;
 }
 
 
@@ -5084,14 +5070,13 @@ sql_mode_t Field_timestamp::sql_mode_for_timestamp(THD *thd) const
 
 int Field_timestamp::store_time_dec(const MYSQL_TIME *ltime, uint dec)
 {
-  int unused;
+  int warn;
   ErrConvTime str(ltime);
   THD *thd= get_thd();
-  MYSQL_TIME l_time;
-  bool valid= !copy_or_convert_to_datetime(thd, ltime, &l_time) &&
-              !check_date(&l_time, pack_time(&l_time) != 0,
-                          sql_mode_for_timestamp(thd), &unused);
-  return store_TIME_with_warning(thd, &l_time, &str, false, valid);
+  Datetime dt(thd, &warn, ltime, sql_mode_for_timestamp(thd));
+  ltime= dt.is_valid_datetime() ? dt.get_mysql_time() : NULL;
+  return store_TIME_with_warning(thd, const_cast<MYSQL_TIME*>(ltime),
+                                 &str, warn);
 }
 
 
@@ -5099,14 +5084,12 @@ int Field_timestamp::store(const char *from,size_t len,CHARSET_INFO *cs)
 {
   MYSQL_TIME l_time;
   MYSQL_TIME_STATUS status;
-  bool have_smth_to_conv;
   ErrConvString str(from, len, cs);
   THD *thd= get_thd();
-
-  have_smth_to_conv= !str_to_datetime(cs, from, len, &l_time,
-                                      sql_mode_for_timestamp(thd), &status);
-  return store_TIME_with_warning(thd, &l_time, &str,
-                                 status.warnings, have_smth_to_conv);
+  bool rc= str_to_datetime(cs, from, len, &l_time,
+                           sql_mode_for_timestamp(thd), &status);
+  return store_TIME_with_warning(thd, rc ? NULL : &l_time, &str,
+                                 status.warnings);
 }
 
 
@@ -5117,7 +5100,7 @@ int Field_timestamp::store(double nr)
   ErrConvDouble str(nr);
   THD *thd= get_thd();
   bool rc= Sec6(nr).to_datetime(&l_time, sql_mode_for_timestamp(thd), &error);
-  return store_TIME_with_warning(thd, &l_time, &str, error, !rc);
+  return store_TIME_with_warning(thd, rc ? NULL : &l_time, &str, error);
 }
 
 
@@ -5130,7 +5113,7 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
   bool rc= Sec6(nr, unsigned_val).to_datetime(&l_time,
                                               sql_mode_for_timestamp(thd),
                                               &error);
-  return store_TIME_with_warning(thd, &l_time, &str, error, !rc);
+  return store_TIME_with_warning(thd, rc ? NULL : &l_time, &str, error);
 }
 
 
@@ -5431,7 +5414,7 @@ int Field_timestamp::store_decimal(const my_decimal *d)
   THD *thd= get_thd();
   ErrConvDecimal str(d);
   bool rc= Sec6(d).to_datetime(&ltime, sql_mode_for_timestamp(thd), &error);
-  return store_TIME_with_warning(thd, &ltime, &str, error, !rc);
+  return store_TIME_with_warning(thd, rc ? NULL : &ltime, &str, error);
 }
 
 int Field_timestamp_with_dec::set_time()
@@ -5557,22 +5540,23 @@ void Field_temporal::set_warnings(Sql_condition::enum_warning_level trunc_level,
 */
 int Field_temporal_with_date::store_TIME_with_warning(MYSQL_TIME *ltime,
                                                       const ErrConv *str,
-                                                      int was_cut,
-                                                      int have_smth_to_conv)
+                                                      int was_cut)
 {
   Sql_condition::enum_warning_level trunc_level= Sql_condition::WARN_LEVEL_WARN;
-  int ret= 2;
+  int ret;
   
   ASSERT_COLUMN_MARKED_FOR_WRITE;
 
-  if (was_cut == 0 && have_smth_to_conv == 0) // special case: zero date
+  if (was_cut == 0 && !ltime) // special case: zero date
   {
     was_cut= MYSQL_TIME_WARN_OUT_OF_RANGE;
+    store_TIME(const_cast<MYSQL_TIME*>(Datetime().get_mysql_time()));
+    ret= 2;
   }
-  else if (!have_smth_to_conv)
+  else if (!ltime)
   {
-    bzero(ltime, sizeof(*ltime));
     was_cut=  MYSQL_TIME_WARN_TRUNCATED;
+    store_TIME(const_cast<MYSQL_TIME*>(Datetime().get_mysql_time()));
     ret= 1;
   }
   else if (!MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut) &&
@@ -5582,12 +5566,17 @@ int Field_temporal_with_date::store_TIME_with_warning(MYSQL_TIME *ltime,
   {
     trunc_level= Sql_condition::WARN_LEVEL_NOTE;
     was_cut|=  MYSQL_TIME_WARN_TRUNCATED;
+    store_TIME(ltime);
     ret= 3;
+  }
+  else
+  {
+    store_TIME(ltime);
+    ret= was_cut ? 2 : 0;
   }
   set_warnings(trunc_level, str, was_cut,
                type_handler()->mysql_timestamp_type());
-  store_TIME(ltime);
-  return was_cut ? ret : 0;
+  return ret;
 }
 
 
@@ -5597,10 +5586,9 @@ int Field_temporal_with_date::store(const char *from, size_t len, CHARSET_INFO *
   MYSQL_TIME_STATUS status;
   THD *thd= get_thd();
   ErrConvString str(from, len, cs);
-  bool func_res= !str_to_datetime(cs, from, len, &ltime,
-                                  sql_mode_for_dates(thd),
-                                  &status);
-  return store_TIME_with_warning(&ltime, &str, status.warnings, func_res);
+  bool rc= str_to_datetime(cs, from, len, &ltime, sql_mode_for_dates(thd),
+                           &status);
+  return store_TIME_with_warning(rc ? NULL : &ltime, &str, status.warnings);
 }
 
 
@@ -5611,7 +5599,7 @@ int Field_temporal_with_date::store(double nr)
   THD *thd= get_thd();
   ErrConvDouble str(nr);
   bool rc= Sec6(nr).to_datetime(&ltime, sql_mode_for_dates(thd), &error);
-  return store_TIME_with_warning(&ltime, &str, error, !rc);
+  return store_TIME_with_warning(rc ? NULL : &ltime, &str, error);
 }
 
 
@@ -5623,35 +5611,18 @@ int Field_temporal_with_date::store(longlong nr, bool unsigned_val)
   ErrConvInteger str(nr, unsigned_val);
   bool rc= Sec6(nr, unsigned_val).to_datetime(&ltime, sql_mode_for_dates(thd),
                                               &error);
-  return store_TIME_with_warning(&ltime, &str, error, !rc);
+  return store_TIME_with_warning(rc ? NULL : &ltime, &str, error);
 }
 
 
 int Field_temporal_with_date::store_time_dec(const MYSQL_TIME *ltime, uint dec)
 {
-  int error= 0, have_smth_to_conv= 1;
+  int error;
   ErrConvTime str(ltime);
-  MYSQL_TIME l_time;
-
-  if (copy_or_convert_to_datetime(get_thd(), ltime, &l_time))
-  {
-    /*
-      Set have_smth_to_conv and error in a way to have
-      store_TIME_with_warning do bzero().
-    */
-    have_smth_to_conv= false;
-    error= MYSQL_TIME_WARN_OUT_OF_RANGE;
-  }
-  else
-  {
-    /*
-      We don't perform range checking here since values stored in TIME
-      structure always fit into DATETIME range.
-    */
-    have_smth_to_conv= !check_date(&l_time, pack_time(&l_time) != 0,
-                                   sql_mode_for_dates(get_thd()), &error);
-  }
-  return store_TIME_with_warning(&l_time, &str, error, have_smth_to_conv);
+  THD *thd= get_thd();
+  Datetime dt(thd, &error, ltime, sql_mode_for_dates(thd));
+  ltime= dt.is_valid_datetime() ? dt.get_mysql_time() : NULL;
+  return store_TIME_with_warning(const_cast<MYSQL_TIME*>(ltime), &str, error);
 }
 
 
@@ -5738,16 +5709,14 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
 ** Stored as a 3 byte unsigned int
 ****************************************************************************/
 int Field_time::store_TIME_with_warning(MYSQL_TIME *ltime,
-                                        const ErrConv *str,
-                                        int was_cut,
-                                        int have_smth_to_conv)
+                                        const ErrConv *str, int was_cut)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE;
 
-  if (!have_smth_to_conv)
+  if (!ltime)
   {
-    bzero(ltime, sizeof(*ltime));
-    store_TIME(ltime);
+    Datetime tmp;
+    store_TIME(const_cast<MYSQL_TIME*>(tmp.get_mysql_time()));
     set_warnings(Sql_condition::WARN_LEVEL_WARN, str, MYSQL_TIME_WARN_TRUNCATED);
     return 1;
   }
@@ -5786,54 +5755,19 @@ int Field_time::store(const char *from,size_t len,CHARSET_INFO *cs)
   MYSQL_TIME ltime;
   MYSQL_TIME_STATUS status;
   ErrConvString str(from, len, cs);
-  bool have_smth_to_conv= 
-   !str_to_time(cs, from, len, &ltime, sql_mode_for_dates(get_thd()),
-                &status);
-
-  return store_TIME_with_warning(&ltime, &str,
-                                 status.warnings, have_smth_to_conv);
-}
-
-
-/**
-  subtract a given number of days from DATETIME, return TIME
-
-  optimized version of calc_time_diff()
-
-  @note it might generate TIME values outside of the valid TIME range!
-*/
-static void calc_datetime_days_diff(MYSQL_TIME *ltime, long days)
-{
-  long daydiff= calc_daynr(ltime->year, ltime->month, ltime->day) - days;
-  ltime->year= ltime->month= 0;
-  if (daydiff >=0 )
-  {
-    ltime->day= daydiff;
-    ltime->time_type= MYSQL_TIMESTAMP_TIME;
-  }
-  else
-  {
-    longlong timediff= ((((daydiff        * 24LL +
-                           ltime->hour)   * 60LL +
-                           ltime->minute) * 60LL +
-                           ltime->second) * 1000000LL +
-                           ltime->second_part);
-    unpack_time(timediff, ltime, MYSQL_TIMESTAMP_TIME);
-  }
+  bool rc= str_to_time(cs, from, len, &ltime, sql_mode_for_dates(get_thd()),
+                       &status);
+  return store_TIME_with_warning(rc ? NULL : &ltime, &str, status.warnings);
 }
 
 
 int Field_time::store_time_dec(const MYSQL_TIME *ltime, uint dec)
 {
-  MYSQL_TIME l_time= *ltime;
   ErrConvTime str(ltime);
-  int was_cut= 0;
-
-  if (curdays && l_time.time_type != MYSQL_TIMESTAMP_TIME)
-    calc_datetime_days_diff(&l_time, curdays);
-
-  int have_smth_to_conv= !check_time_range(&l_time, decimals(), &was_cut);
-  return store_TIME_with_warning(&l_time, &str, was_cut, have_smth_to_conv);
+  int warn;
+  Time tm(&warn, ltime, curdays);
+  ltime= tm.is_valid_time() ? tm.get_mysql_time() : NULL;
+  return store_TIME_with_warning(const_cast<MYSQL_TIME *>(ltime), &str, warn);
 }
 
 
@@ -5843,7 +5777,7 @@ int Field_time::store(double nr)
   ErrConvDouble str(nr);
   int was_cut;
   bool rc= Sec6(nr).to_time(&ltime, &was_cut);
-  return store_TIME_with_warning(&ltime, &str, was_cut, !rc);
+  return store_TIME_with_warning(rc ? NULL : &ltime, &str, was_cut);
 }
 
 
@@ -5853,7 +5787,7 @@ int Field_time::store(longlong nr, bool unsigned_val)
   ErrConvInteger str(nr, unsigned_val);
   int was_cut;
   bool rc= Sec6(nr, unsigned_val).to_time(&ltime, &was_cut);
-  return store_TIME_with_warning(&ltime, &str, was_cut, !rc);
+  return store_TIME_with_warning(rc ? NULL : &ltime, &str, was_cut);
 }
 
 
@@ -6012,7 +5946,7 @@ int Field_time::store_decimal(const my_decimal *d)
   MYSQL_TIME ltime;
   int was_cut;
   bool rc= Sec6(d).to_time(&ltime, &was_cut);
-  return store_TIME_with_warning(&ltime, &str, was_cut, !rc);
+  return store_TIME_with_warning(rc ? NULL : &ltime, &str, was_cut);
 }
 
 
@@ -6735,7 +6669,7 @@ int Field_temporal_with_date::store_decimal(const my_decimal *d)
   THD *thd= get_thd();
   ErrConvDecimal str(d);
   bool rc= Sec6(d).to_datetime(&ltime, sql_mode_for_dates(thd), &error);
-  return store_TIME_with_warning(&ltime, &str, error, !rc);
+  return store_TIME_with_warning(rc ? NULL : &ltime, &str, error);
 }
 
 bool Field_datetime_with_dec::send_binary(Protocol *protocol)

@@ -460,6 +460,11 @@ protected:
     return negate ? -d : d;
   }
   longlong to_packed() const { return ::pack_time(this); }
+  void make_from_out_of_range(int *warn)
+  {
+    *warn= MYSQL_TIME_WARN_OUT_OF_RANGE;
+    time_type= MYSQL_TIMESTAMP_NONE;
+  }
 public:
 };
 
@@ -574,7 +579,23 @@ private:
            second <= TIME_MAX_SECOND &&
            second_part <= TIME_MAX_SECOND_PART;
   }
-
+  void hhmmssff_copy(const MYSQL_TIME *from)
+  {
+    hour= from->hour;
+    minute= from->minute;
+    second= from->second;
+    second_part= from->second_part;
+  }
+  void datetime_to_time_YYYYMMDD_000000DD_mix_to_hours(int *warn,
+                                                       uint from_year,
+                                                       uint from_month,
+                                                       uint from_day)
+  {
+    if (from_year != 0 || from_month != 0)
+      *warn|= MYSQL_TIME_NOTE_TRUNCATED;
+    else
+      hour+= from_day * 24;
+  }
   /*
     Convert a valid DATE or DATETIME to TIME.
     Before this call, "this" must be a valid DATE or DATETIME value,
@@ -635,11 +656,23 @@ private:
       break;
     }
   }
+  void adjust_time_range_or_invalidate(int *warn)
+  {
+    if (check_time_range(this, TIME_SECOND_PART_DIGITS, warn))
+      time_type= MYSQL_TIMESTAMP_NONE;
+    DBUG_ASSERT(is_valid_value_slow());
+  }
+  void make_from_datetime_move_day_to_hour(int *warn, const MYSQL_TIME *from);
+  void make_from_datetime_with_days_diff(int *warn, const MYSQL_TIME *from,
+                                         long curdays);
+  void make_from_time(int *warn, const MYSQL_TIME *from);
+  void make_from_datetime(int *warn, const MYSQL_TIME *from, long curdays);
   void make_from_item(class Item *item, const Options opt);
 public:
   Time() { time_type= MYSQL_TIMESTAMP_NONE; }
   Time(Item *item) { make_from_item(item, Options()); }
   Time(Item *item, const Options opt) { make_from_item(item, opt); }
+  Time(int *warn, const MYSQL_TIME *from, long curdays);
   static sql_mode_t flags_for_get_date()
   { return TIME_TIME_ONLY | TIME_INVALID_DATES; }
   static sql_mode_t comparison_flags_for_get_date()
@@ -744,8 +777,13 @@ public:
 class Temporal_with_date: protected Temporal
 {
 protected:
+  void check_date_or_invalidate(int *warn, sql_mode_t flags);
   void make_from_item(THD *thd, Item *item, sql_mode_t flags);
   void make_from_item(THD *thd, Item *item);
+  Temporal_with_date()
+  {
+    time_type= MYSQL_TIMESTAMP_NONE;
+  }
   Temporal_with_date(THD *thd, Item *item, sql_mode_t flags)
   {
     make_from_item(thd, item, flags);
@@ -878,6 +916,10 @@ class Datetime: public Temporal_with_date
     DBUG_ASSERT(time_type == MYSQL_TIMESTAMP_DATETIME);
     return !check_datetime_range(this);
   }
+  void make_from_time(THD *thd, int *warn, const MYSQL_TIME *from,
+                      sql_mode_t flags);
+  void make_from_datetime(THD *thd, int *warn, const MYSQL_TIME *from,
+                          sql_mode_t flags);
 public:
   Datetime(THD *thd, Item *item, sql_mode_t flags)
    :Temporal_with_date(thd, item, flags)
@@ -899,6 +941,11 @@ public:
     if (time_type == MYSQL_TIMESTAMP_DATE)
       date_to_datetime(this);
     DBUG_ASSERT(is_valid_value_slow());
+  }
+  Datetime(THD *thd, int *warn, const MYSQL_TIME *from, sql_mode_t flags);
+  Datetime()
+  {
+    set_zero_time(this, MYSQL_TIMESTAMP_DATETIME);
   }
   bool is_valid_datetime() const
   {
@@ -973,6 +1020,7 @@ public:
     return is_valid_datetime() ? Temporal::to_packed() : 0;
   }
 };
+
 
 /*
   Flags for collation aggregation modes, used in TDCollation::agg():
