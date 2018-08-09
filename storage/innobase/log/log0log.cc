@@ -671,7 +671,6 @@ void log_t::files::create(ulint n_files)
     ? LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED
     : LOG_HEADER_FORMAT_CURRENT;
   file_size= srv_log_file_size;
-  state= LOG_GROUP_OK;
   lsn= LOG_START_LSN;
   lsn_offset= LOG_FILE_HDR_SIZE;
 

@@ -495,14 +495,6 @@ Stored in LOG_HEADER_FORMAT. */
 					header */
 #define LOG_FILE_HDR_SIZE	(4 * OS_FILE_LOG_BLOCK_SIZE)
 
-/** The state of a log group */
-enum log_group_state_t {
-	/** No corruption detected */
-	LOG_GROUP_OK,
-	/** Corrupted */
-	LOG_GROUP_CORRUPTED
-};
-
 typedef ib_mutex_t	LogSysMutex;
 typedef ib_mutex_t	FlushOrderMutex;
 
@@ -560,8 +552,6 @@ struct log_t{
     ulint				format;
     /** individual log file size in bytes, including the header */
     lsn_t				file_size;
-    /** corruption status */
-    log_group_state_t		state;
     /** lsn used to fix coordinates within the log group */
     lsn_t				lsn;
     /** the byte offset of the above lsn */
