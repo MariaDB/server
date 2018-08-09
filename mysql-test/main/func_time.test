@@ -564,12 +564,15 @@ SET NAMES DEFAULT;
 # Bug #31160: MAKETIME() crashes server when returning NULL in ORDER BY using 
 # filesort
 #
+SET TIMESTAMP=UNIX_TIMESTAMP('2001-01-01 11:22:33');
 CREATE TABLE t1 (
   a TIMESTAMP
 );
 INSERT INTO t1 VALUES (now()), (now());
 SELECT 1 FROM t1 ORDER BY MAKETIME(1, 1, a);
 DROP TABLE t1;
+SET TIMESTAMP=DEFAULT;
+
 #
 # Bug #19844 time_format in Union truncates values
 #
@@ -2135,3 +2138,26 @@ DROP TABLE t_ts, t_trig;
 #
 # End of MDEV-13727
 ###################
+
+
+--echo #
+--echo # MDEV-14032 SEC_TO_TIME executes side effect two times
+--echo #
+
+SET @a=10000000;
+SELECT SEC_TO_TIME(@a:=@a+1);
+SELECT @a;
+
+CREATE TABLE t1 (a TEXT);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  INSERT INTO t1 VALUES ('f1 was called');
+  RETURN 10000000;
+END;
+$$
+DELIMITER ;$$
+SELECT SEC_TO_TIME(f1());
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP FUNCTION f1;

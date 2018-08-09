@@ -5116,10 +5116,8 @@ int Field_timestamp::store(double nr)
   int error;
   ErrConvDouble str(nr);
   THD *thd= get_thd();
-
-  longlong tmp= double_to_datetime(nr, &l_time, sql_mode_for_timestamp(thd),
-                                   &error);
-  return store_TIME_with_warning(thd, &l_time, &str, error, tmp != -1);
+  bool rc= Sec6(nr).to_datetime(&l_time, sql_mode_for_timestamp(thd), &error);
+  return store_TIME_with_warning(thd, &l_time, &str, error, !rc);
 }
 
 
@@ -5129,10 +5127,10 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
   int error;
   ErrConvInteger str(nr, unsigned_val);
   THD *thd= get_thd();
-
-  longlong tmp= number_to_datetime(nr, 0, &l_time, sql_mode_for_timestamp(thd),
-                                   &error);
-  return store_TIME_with_warning(thd, &l_time, &str, error, tmp != -1);
+  bool rc= Sec6(nr, unsigned_val).to_datetime(&l_time,
+                                              sql_mode_for_timestamp(thd),
+                                              &error);
+  return store_TIME_with_warning(thd, &l_time, &str, error, !rc);
 }
 
 
@@ -5428,23 +5426,12 @@ my_decimal *Field_timestamp_with_dec::val_decimal(my_decimal *d)
  
 int Field_timestamp::store_decimal(const my_decimal *d)
 {
-  ulonglong nr;
-  ulong sec_part;
   int error;
   MYSQL_TIME ltime;
-  longlong tmp;
   THD *thd= get_thd();
   ErrConvDecimal str(d);
-
-  if (my_decimal2seconds(d, &nr, &sec_part))
-  {
-    tmp= -1;
-    error= 2;
-  }
-  else
-    tmp= number_to_datetime(nr, sec_part, &ltime, sql_mode_for_timestamp(thd),
-                            &error);
-  return store_TIME_with_warning(thd, &ltime, &str, error, tmp != -1);
+  bool rc= Sec6(d).to_datetime(&ltime, sql_mode_for_timestamp(thd), &error);
+  return store_TIME_with_warning(thd, &ltime, &str, error, !rc);
 }
 
 int Field_timestamp_with_dec::set_time()
@@ -5623,10 +5610,8 @@ int Field_temporal_with_date::store(double nr)
   MYSQL_TIME ltime;
   THD *thd= get_thd();
   ErrConvDouble str(nr);
-
-  longlong tmp= double_to_datetime(nr, &ltime,
-                                    (uint) sql_mode_for_dates(thd), &error);
-  return store_TIME_with_warning(&ltime, &str, error, tmp != -1);
+  bool rc= Sec6(nr).to_datetime(&ltime, sql_mode_for_dates(thd), &error);
+  return store_TIME_with_warning(&ltime, &str, error, !rc);
 }
 
 
@@ -5634,13 +5619,11 @@ int Field_temporal_with_date::store(longlong nr, bool unsigned_val)
 {
   int error;
   MYSQL_TIME ltime;
-  longlong tmp;
   THD *thd= get_thd();
   ErrConvInteger str(nr, unsigned_val);
-
-  tmp= number_to_datetime(nr, 0, &ltime, sql_mode_for_dates(thd), &error);
-
-  return store_TIME_with_warning(&ltime, &str, error, tmp != -1);
+  bool rc= Sec6(nr, unsigned_val).to_datetime(&ltime, sql_mode_for_dates(thd),
+                                              &error);
+  return store_TIME_with_warning(&ltime, &str, error, !rc);
 }
 
 
@@ -5859,14 +5842,8 @@ int Field_time::store(double nr)
   MYSQL_TIME ltime;
   ErrConvDouble str(nr);
   int was_cut;
-  bool neg= nr < 0;
-  if (neg)
-    nr= -nr;
-  int have_smth_to_conv= !number_to_time(neg, (ulonglong) nr,
-                                         (ulong)((nr - floor(nr)) * TIME_SECOND_PART_FACTOR),
-                                         &ltime, &was_cut);
-
-  return store_TIME_with_warning(&ltime, &str, was_cut, have_smth_to_conv);
+  bool rc= Sec6(nr).to_time(&ltime, &was_cut);
+  return store_TIME_with_warning(&ltime, &str, was_cut, !rc);
 }
 
 
@@ -5875,13 +5852,8 @@ int Field_time::store(longlong nr, bool unsigned_val)
   MYSQL_TIME ltime;
   ErrConvInteger str(nr, unsigned_val);
   int was_cut;
-  if (nr < 0 && unsigned_val)
-    nr= 99991231235959LL + 1;
-  int have_smth_to_conv= !number_to_time(nr < 0,
-                                         (ulonglong) (nr < 0 ? -nr : nr),
-                                         0, &ltime, &was_cut);
-
-  return store_TIME_with_warning(&ltime, &str, was_cut, have_smth_to_conv);
+  bool rc= Sec6(nr, unsigned_val).to_time(&ltime, &was_cut);
+  return store_TIME_with_warning(&ltime, &str, was_cut, !rc);
 }
 
 
@@ -6036,16 +6008,11 @@ void Field_time_hires::store_TIME(const MYSQL_TIME *ltime)
 
 int Field_time::store_decimal(const my_decimal *d)
 {
-  ulonglong nr;
-  ulong sec_part;
   ErrConvDecimal str(d);
   MYSQL_TIME ltime;
   int was_cut;
-  bool neg= my_decimal2seconds(d, &nr, &sec_part);
-
-  int have_smth_to_conv= !number_to_time(neg, nr, sec_part, &ltime, &was_cut);
-
-  return store_TIME_with_warning(&ltime, &str, was_cut, have_smth_to_conv);
+  bool rc= Sec6(d).to_time(&ltime, &was_cut);
+  return store_TIME_with_warning(&ltime, &str, was_cut, !rc);
 }
 
 
@@ -6763,24 +6730,12 @@ void Field_datetime_hires::store_TIME(MYSQL_TIME *ltime)
 
 int Field_temporal_with_date::store_decimal(const my_decimal *d)
 {
-  ulonglong nr;
-  ulong sec_part;
   int error;
   MYSQL_TIME ltime;
-  longlong tmp;
   THD *thd= get_thd();
   ErrConvDecimal str(d);
-
-  if (my_decimal2seconds(d, &nr, &sec_part))
-  {
-    tmp= -1;
-    error= 2;
-  }
-  else
-    tmp= number_to_datetime(nr, sec_part, &ltime, sql_mode_for_dates(thd),
-                            &error);
-
-  return store_TIME_with_warning(&ltime, &str, error, tmp != -1);
+  bool rc= Sec6(d).to_datetime(&ltime, sql_mode_for_dates(thd), &error);
+  return store_TIME_with_warning(&ltime, &str, error, !rc);
 }
 
 bool Field_datetime_with_dec::send_binary(Protocol *protocol)

@@ -1396,19 +1396,6 @@ bool Item::make_zero_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   return !(fuzzydate & TIME_FUZZY_DATES);
 }
 
-bool Item::get_seconds(ulonglong *sec, ulong *sec_part)
-{
-  if (decimals == 0)
-  { // optimize for an important special case
-    longlong val= val_int();
-    bool neg= val < 0 && !unsigned_flag;
-    *sec= neg ? -val : val;
-    *sec_part= 0;
-    return neg;
-  }
-  VDec tmp(this);
-  return tmp.is_null() ? 0 : my_decimal2seconds(tmp.ptr(), sec, sec_part);
-}
 
 const MY_LOCALE *Item::locale_from_val_str()
 {

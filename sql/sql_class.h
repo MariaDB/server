@@ -4372,6 +4372,69 @@ private:
     return raised;
   }
 
+private:
+  void push_warning_truncated_priv(Sql_condition::enum_warning_level level,
+                                   uint sql_errno,
+                                   const char *type_str, const char *val)
+  {
+    DBUG_ASSERT(sql_errno == ER_TRUNCATED_WRONG_VALUE ||
+                sql_errno == ER_WRONG_VALUE);
+    char buff[MYSQL_ERRMSG_SIZE];
+    CHARSET_INFO *cs= &my_charset_latin1;
+    cs->cset->snprintf(cs, buff, sizeof(buff),
+                       ER_THD(this, sql_errno), type_str, val);
+    /*
+      Note: the format string can vary between ER_TRUNCATED_WRONG_VALUE
+      and ER_WRONG_VALUE, but the code passed to push_warning() is
+      always ER_TRUNCATED_WRONG_VALUE. This is intentional.
+    */
+    push_warning(this, level, ER_TRUNCATED_WRONG_VALUE, buff);
+  }
+public:
+  void push_warning_truncated_wrong_value(Sql_condition::enum_warning_level level,
+                                          const char *type_str, const char *val)
+  {
+    return push_warning_truncated_priv(level, ER_TRUNCATED_WRONG_VALUE,
+                                       type_str, val);
+  }
+  void push_warning_wrong_value(Sql_condition::enum_warning_level level,
+                                const char *type_str, const char *val)
+  {
+    return push_warning_truncated_priv(level, ER_WRONG_VALUE, type_str, val);
+  }
+  void push_warning_truncated_wrong_value(const char *type_str, const char *val)
+  {
+    return push_warning_truncated_wrong_value(Sql_condition::WARN_LEVEL_WARN,
+                                              type_str, val);
+  }
+  void push_warning_truncated_value_for_field(Sql_condition::enum_warning_level
+                                              level, const char *type_str,
+                                              const char *val, const char *name)
+  {
+    DBUG_ASSERT(name);
+    char buff[MYSQL_ERRMSG_SIZE];
+    CHARSET_INFO *cs= &my_charset_latin1;
+    cs->cset->snprintf(cs, buff, sizeof(buff),
+                       ER_THD(this, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
+                       type_str, val, name,
+                       (ulong) get_stmt_da()->current_row_for_warning());
+    push_warning(this, level, ER_TRUNCATED_WRONG_VALUE, buff);
+
+  }
+  void push_warning_wrong_or_truncated_value(Sql_condition::enum_warning_level level,
+                                             bool totally_useless_value,
+                                             const char *type_str,
+                                             const char *val,
+                                             const char *field_name)
+  {
+    if (field_name)
+      push_warning_truncated_value_for_field(level, type_str, val, field_name);
+    else if (totally_useless_value)
+      push_warning_wrong_value(level, type_str, val);
+    else
+      push_warning_truncated_wrong_value(level, type_str, val);
+  }
+
 public:
   /** Overloaded to guard query/query_length fields */
   virtual void set_statement(Statement *stmt);

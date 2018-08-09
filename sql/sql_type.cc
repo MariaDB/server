@@ -181,6 +181,144 @@ Temporal_hybrid::Temporal_hybrid(THD *thd, Item *item)
 }
 
 
+void Sec6::make_from_decimal(const my_decimal *d)
+{
+  m_neg= my_decimal2seconds(d, &m_sec, &m_usec);
+  m_truncated= (m_sec >= LONGLONG_MAX);
+}
+
+
+void Sec6::make_from_double(double nr)
+{
+  if ((m_neg= nr < 0))
+    nr= -nr;
+  if ((m_truncated= nr > (double) LONGLONG_MAX))
+  {
+    m_sec= LONGLONG_MAX;
+    m_usec= 0;
+  }
+  else
+  {
+    m_sec= (ulonglong) nr;
+    m_usec= (ulong) ((nr - floor(nr)) * 1000000);
+  }
+}
+
+
+void Sec6::make_truncated_warning(THD *thd, const char *type_str) const
+{
+  char buff[1 + MAX_BIGINT_WIDTH + 1 + 6 + 1]; // '-' int '.' frac '\0'
+  to_string(buff, sizeof(buff));
+  current_thd->push_warning_truncated_wrong_value(type_str, buff);
+}
+
+
+bool Sec6::to_time_with_warn(MYSQL_TIME *to, const ErrConv *str,
+                             const char *field_name) const
+{
+  int was_cut;
+  bool res= to_time(to, &was_cut);
+  if (res || MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut))
+    current_thd->
+      push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_WARN,
+                                            res, "time", str->ptr(),
+                                            field_name);
+  return res;
+}
+
+
+bool Sec6::to_datetime_with_warn(MYSQL_TIME *to, ulonglong fuzzydate,
+                                 const ErrConv *str,
+                                 const char *field_name) const
+{
+  bool res, have_warnings= false;
+  int was_cut;
+  res= to_datetime(to, fuzzydate, &was_cut);
+  have_warnings= was_cut && (fuzzydate & TIME_NO_ZERO_IN_DATE);
+  if (res || have_warnings)
+    current_thd->
+      push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_WARN,
+                                            res, "datetime", str->ptr(),
+                                            field_name);
+  return res;
+}
+
+
+bool Sec6::convert_to_mysql_time(MYSQL_TIME *ltime, ulonglong fuzzydate,
+                                 const ErrConv *str, const char *field_name)
+                                 const
+{
+  bool is_time= fuzzydate & TIME_TIME_ONLY;
+  if (truncated())
+  {
+    /*
+      The value was already truncated at the constructor call time,
+      and a truncation warning was issued. Here we convert silently
+      to avoid double warnings.
+    */
+    current_thd->
+      push_warning_wrong_or_truncated_value(Sql_condition::WARN_LEVEL_WARN,
+                                            !is_time,
+                                            is_time ? "time" : "datetime",
+                                            str->ptr(), field_name);
+    int warn;
+    return is_time ? to_time(ltime, &warn) :
+                     to_datetime(ltime, fuzzydate, &warn);
+  }
+  return is_time ? to_time_with_warn(ltime, str, field_name) :
+                   to_datetime_with_warn(ltime, fuzzydate, str, field_name);
+}
+
+
+VSec6::VSec6(Item *item, const char *type_str, ulonglong limit)
+{
+  if (item->decimals == 0)
+  { // optimize for an important special case
+    longlong nr= item->val_int();
+    make_from_int(nr, item->unsigned_flag);
+    m_is_null= item->null_value;
+    if (!m_is_null && m_sec > limit)
+    {
+      m_sec= limit;
+      m_truncated= true;
+      ErrConvInteger err(nr, item->unsigned_flag);
+      current_thd->push_warning_truncated_wrong_value(type_str, err.ptr());
+    }
+  }
+  else if (item->cmp_type() == REAL_RESULT)
+  {
+    double nr= item->val_real();
+    make_from_double(nr);
+    m_is_null= item->null_value;
+    if (!m_is_null && m_sec > limit)
+    {
+      m_sec= limit;
+      m_truncated= true;
+    }
+    if (m_truncated)
+    {
+      ErrConvDouble err(nr);
+      current_thd->push_warning_truncated_wrong_value(type_str, err.ptr());
+    }   
+  }
+  else
+  {
+    VDec tmp(item);
+    (m_is_null= tmp.is_null()) ? reset() : make_from_decimal(tmp.ptr());
+    if (!m_is_null && m_sec > limit)
+    {
+      m_sec= limit;
+      m_truncated= true;
+    }
+    if (m_truncated)
+    {
+      ErrConvDecimal err(tmp.ptr());
+      current_thd->push_warning_truncated_wrong_value(type_str, err.ptr());
+    }
+  }
+}
+
+
 void Time::make_from_item(Item *item, const Options opt)
 {
   if (item->get_date(this, opt.get_date_flags()))

@@ -210,6 +210,126 @@ public:
 };
 
 
+/**
+  Class Sec6 represents a fixed point value with 6 fractional digits.
+  Used e.g. to convert double and my_decimal values to TIME/DATETIME.
+*/
+
+class Sec6
+{
+protected:
+  ulonglong m_sec;       // The integer part, between 0 and LONGLONG_MAX
+  ulong     m_usec;      // The fractional part, between 0 and 999999
+  bool      m_neg;       // false if positive, true of negative
+  bool      m_truncated; // Indicates if the constructor truncated the value
+  void make_from_decimal(const my_decimal *d);
+  void make_from_double(double d);
+  void make_from_int(longlong nr, bool unsigned_val)
+  {
+    m_neg= nr < 0 && !unsigned_val;
+    m_sec= m_neg ? (ulonglong) -nr : (ulonglong) nr;
+    m_usec= 0;
+    m_truncated= false;
+  }
+  void reset()
+  {
+    m_sec= m_usec= m_neg= m_truncated= 0;
+  }
+  Sec6() { }
+public:
+  Sec6(bool neg, ulonglong nr, ulong frac)
+   :m_sec(nr), m_usec(frac), m_neg(neg), m_truncated(false)
+  { }
+  Sec6(double nr)
+  {
+    make_from_double(nr);
+  }
+  Sec6(const my_decimal *d)
+  {
+    make_from_decimal(d);
+  }
+  Sec6(longlong nr, bool unsigned_val)
+  {
+    make_from_int(nr, unsigned_val);
+  }
+  bool neg() const { return m_neg; }
+  bool truncated() const { return m_truncated; }
+  ulonglong sec() const { return m_sec; }
+  long usec() const { return m_usec; }
+  /**
+    Converts Sec6 to MYSQL_TIME
+
+    @param ltime         converted value will be written here
+    @param fuzzydate     conversion flags (TIME_INVALID_DATE, etc)
+    @param str           original number, as an ErrConv. For the warning
+    @param field_name    field name or NULL if not a field. For the warning
+    @returns false for success, true for a failure
+  */
+  bool convert_to_mysql_time(MYSQL_TIME *ltime, ulonglong fuzzydate,
+                             const ErrConv *str, const char *field_name) const;
+
+  // Convert a number in format hhhmmss.ff to TIME'hhh:mm:ss.ff'
+  bool to_time(MYSQL_TIME *to, int *warn) const
+  {
+    return number_to_time(m_neg, m_sec, m_usec, to, warn);
+  }
+  bool to_time_with_warn(MYSQL_TIME *to, const ErrConv *str,
+                         const char *field_name) const;
+  /*
+    Convert a number in format YYYYMMDDhhmmss.ff to
+    TIMESTAMP'YYYY-MM-DD hh:mm:ss.ff'
+  */
+  bool to_datetime(MYSQL_TIME *to, ulonglong flags, int *warn) const
+  {
+    if (m_neg)
+    {
+      *warn= MYSQL_TIME_WARN_OUT_OF_RANGE;
+      return true;
+    }
+    return number_to_datetime(m_sec, m_usec, to, flags, warn) == -1;
+  }
+  bool to_datetime_with_warn(MYSQL_TIME *to, ulonglong fuzzydate,
+                             const ErrConv *str, const char *field_name) const;
+  // Convert elapsed seconds to TIME
+  bool sec_to_time(MYSQL_TIME *ltime, uint dec) const
+  {
+    set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
+    ltime->neg= m_neg;
+    if (m_sec > TIME_MAX_VALUE_SECONDS)
+    {
+      // use check_time_range() to set ltime to the max value depending on dec
+      int unused;
+      ltime->hour= TIME_MAX_HOUR + 1;
+      check_time_range(ltime, dec, &unused);
+      return true;
+    }
+    DBUG_ASSERT(usec() <= TIME_MAX_SECOND_PART);
+    ltime->hour=   (uint) (m_sec / 3600);
+    ltime->minute= (uint) (m_sec % 3600) / 60;
+    ltime->second= (uint) m_sec % 60;
+    ltime->second_part= m_usec;
+    return false;
+  }
+  size_t to_string(char *to, size_t nbytes) const
+  {
+    return m_usec ?
+      my_snprintf(to, nbytes, "%s%llu.%06lu",
+                  m_neg ? "-" : "", m_sec, (uint) m_usec) :
+      my_snprintf(to, nbytes, "%s%llu", m_neg ? "-" : "", m_sec);
+  }
+  void make_truncated_warning(THD *thd, const char *type_str) const;
+};
+
+
+class VSec6: public Sec6
+{
+  bool m_is_null;
+public:
+  VSec6(Item *item, const char *type_str, ulonglong limit);
+  bool is_null() const { return m_is_null; }
+};
+
+
 /*
   A heler class to perform additive operations between
   two MYSQL_TIME structures and return the result as a

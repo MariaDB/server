@@ -4575,7 +4575,7 @@ SELECT SEC_TO_TIME(CONVERT(900*24*60*60 USING ucs2));
 SEC_TO_TIME(CONVERT(900*24*60*60 USING ucs2))
 838:59:59.999999
 Warnings:
-Warning	1292	Truncated incorrect time value: '77760000'
+Warning	1292	Truncated incorrect seconds value: '77760000'
 #
 # MDEV-13530 VARBINARY doesn't convert to to BLOB for sizes 65533, 65534 and 65535
 #

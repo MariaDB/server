@@ -1665,7 +1665,6 @@ public:
     return get_date_result(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
   }
 
-  bool get_seconds(ulonglong *sec, ulong *sec_part);
   virtual bool get_date_result(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return get_date(ltime,fuzzydate); }
   /*

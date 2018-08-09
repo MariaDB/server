@@ -840,8 +840,7 @@ bool Item_func_hybrid_field_type::get_date_from_int_op(MYSQL_TIME *ltime,
   longlong value= int_op();
   bool neg= !unsigned_flag && value < 0;
   if (null_value || int_to_datetime_with_warn(neg, neg ? -value : value,
-                                              ltime, fuzzydate,
-                                              field_name_or_null()))
+                                              ltime, fuzzydate, NULL))
     return make_zero_mysql_time(ltime, fuzzydate);
   return (null_value= 0);
 }
@@ -875,8 +874,7 @@ bool Item_func_hybrid_field_type::get_date_from_real_op(MYSQL_TIME *ltime,
                                                         ulonglong fuzzydate)
 {
   double value= real_op();
-  if (null_value || double_to_datetime_with_warn(value, ltime, fuzzydate,
-                                                 field_name_or_null()))
+  if (null_value || double_to_datetime_with_warn(value, ltime, fuzzydate, NULL))
     return make_zero_mysql_time(ltime, fuzzydate);
   return (null_value= 0);
 }

@@ -26,7 +26,7 @@ select sec_to_time('9001.1'), sec_to_time('1234567890123.123');
 sec_to_time('9001.1')	sec_to_time('1234567890123.123')
 02:30:01.100000	838:59:59.999999
 Warnings:
-Warning	1292	Truncated incorrect time value: '1234567890123.123'
+Warning	1292	Truncated incorrect seconds value: '1234567890123.123000'
 select sec_to_time(-9001.1), sec_to_time(-9001.1) / 1,
 sec_to_time(-9001.1) / 1e0, sec_to_time(-9001) div 1;
 sec_to_time(-9001.1)	sec_to_time(-9001.1) / 1	sec_to_time(-9001.1) / 1e0	sec_to_time(-9001) div 1
@@ -35,13 +35,13 @@ select sec_to_time(90011e-1), sec_to_time(1234567890123e30);
 sec_to_time(90011e-1)	sec_to_time(1234567890123e30)
 02:30:01.100000	838:59:59.999999
 Warnings:
-Warning	1292	Truncated incorrect time value: '1.234567890123e42'
+Warning	1292	Truncated incorrect seconds value: '1.234567890123e42'
 select sec_to_time(1234567890123), sec_to_time('99999999999999999999999999999');
 sec_to_time(1234567890123)	sec_to_time('99999999999999999999999999999')
 838:59:59	838:59:59.999999
 Warnings:
-Warning	1292	Truncated incorrect time value: '1234567890123'
-Warning	1292	Truncated incorrect time value: '99999999999999999999999999999'
+Warning	1292	Truncated incorrect seconds value: '1234567890123'
+Warning	1292	Truncated incorrect seconds value: '99999999999999999999999999999'
 select now()-curdate()*1000000-curtime();
 now()-curdate()*1000000-curtime()
 0
@@ -584,6 +584,8 @@ from_unixtime(2147483647)
 select from_unixtime(2147483648);
 from_unixtime(2147483648)
 NULL
+Warnings:
+Warning	1292	Truncated incorrect unixtime value: '2147483648'
 select from_unixtime(0);
 from_unixtime(0)
 1970-01-01 03:00:00
@@ -593,6 +595,8 @@ unix_timestamp(from_unixtime(2147483647))
 select unix_timestamp(from_unixtime(2147483648));
 unix_timestamp(from_unixtime(2147483648))
 NULL
+Warnings:
+Warning	1292	Truncated incorrect unixtime value: '2147483648'
 select unix_timestamp('2039-01-20 01:00:00');
 unix_timestamp('2039-01-20 01:00:00')
 NULL
@@ -960,17 +964,17 @@ SELECT SEC_TO_TIME(3300000);
 SEC_TO_TIME(3300000)
 838:59:59
 Warnings:
-Warning	1292	Truncated incorrect time value: '3300000'
+Warning	1292	Truncated incorrect seconds value: '3300000'
 SELECT SEC_TO_TIME(3300000)+0;
 SEC_TO_TIME(3300000)+0
 8385959
 Warnings:
-Warning	1292	Truncated incorrect time value: '3300000'
+Warning	1292	Truncated incorrect seconds value: '3300000'
 SELECT SEC_TO_TIME(3600 * 4294967296);
 SEC_TO_TIME(3600 * 4294967296)
 838:59:59
 Warnings:
-Warning	1292	Truncated incorrect time value: '15461882265600'
+Warning	1292	Truncated incorrect seconds value: '15461882265600'
 SELECT TIME_TO_SEC('916:40:00');
 TIME_TO_SEC('916:40:00')
 3020399
@@ -1019,6 +1023,8 @@ NULL
 SELECT MAKETIME(0, 0, 4294967296);
 MAKETIME(0, 0, 4294967296)
 NULL
+Warnings:
+Warning	1292	Truncated incorrect seconds value: '4294967296'
 SELECT MAKETIME(CAST(-1 AS UNSIGNED), 0, 0);
 MAKETIME(CAST(-1 AS UNSIGNED), 0, 0)
 838:59:59
@@ -1044,8 +1050,7 @@ SEC_TO_TIME(CAST(-1 AS UNSIGNED))
 838:59:59
 Warnings:
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
-Note	1105	Cast to unsigned converted negative integer to it's positive complement
-Warning	1292	Truncated incorrect time value: '18446744073709551615'
+Warning	1292	Truncated incorrect seconds value: '18446744073709551615'
 SET NAMES latin1;
 SET character_set_results = NULL;
 SHOW VARIABLES LIKE 'character_set_results';
@@ -1058,6 +1063,7 @@ fmtddate	field2
 Sep-4 12:00AM	abcd
 DROP TABLE testBug8868;
 SET NAMES DEFAULT;
+SET TIMESTAMP=UNIX_TIMESTAMP('2001-01-01 11:22:33');
 CREATE TABLE t1 (
 a TIMESTAMP
 );
@@ -1066,7 +1072,11 @@ SELECT 1 FROM t1 ORDER BY MAKETIME(1, 1, a);
 1
 1
 1
+Warnings:
+Warning	1292	Truncated incorrect seconds value: '20010101112233'
+Warning	1292	Truncated incorrect seconds value: '20010101112233'
 DROP TABLE t1;
+SET TIMESTAMP=DEFAULT;
 (select time_format(timediff(now(), DATE_SUB(now(),INTERVAL 5 DAY)),'%H') As H)
 union
 (select time_format(timediff(now(), DATE_SUB(now(),INTERVAL 5 DAY)),'%H') As H);
@@ -2630,7 +2640,7 @@ SELECT DATE_ADD('2001-01-01 10:20:30',INTERVAL 250000000000.0 SECOND) AS c1, DAT
 c1	c2
 9923-03-10 22:47:10.0	NULL
 Warnings:
-Warning	1292	Truncated incorrect DECIMAL value: '2000000000000000000.0'
+Warning	1292	Truncated incorrect seconds value: '2000000000000000000.0'
 #
 # MDEV-4838 Wrong metadata for DATE_ADD('string', INVERVAL)
 #
@@ -2789,13 +2799,12 @@ DO TO_DAYS(SEC_TO_TIME(MAKEDATE('',RAND(~('')))));
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: ''
 Warning	1292	Truncated incorrect INTEGER value: ''
-Warning	1292	Truncated incorrect INTEGER value: ''
-Warning	1292	Truncated incorrect time value: '20000101'
+Warning	1292	Truncated incorrect seconds value: '20000101'
 SELECT SEC_TO_TIME(MAKEDATE(0,RAND(~0)));
 SEC_TO_TIME(MAKEDATE(0,RAND(~0)))
 838:59:59
 Warnings:
-Warning	1292	Truncated incorrect time value: '20000101'
+Warning	1292	Truncated incorrect seconds value: '20000101'
 #
 # End of 5.5 tests
 #
@@ -3544,3 +3553,32 @@ SET @@session.slow_query_log= @sav_slow_query_log;
 DROP FUNCTION fn_sleep_before_now;
 DROP TRIGGER trg_insert_t_ts;
 DROP TABLE t_ts, t_trig;
+#
+# MDEV-14032 SEC_TO_TIME executes side effect two times
+#
+SET @a=10000000;
+SELECT SEC_TO_TIME(@a:=@a+1);
+SEC_TO_TIME(@a:=@a+1)
+838:59:59
+Warnings:
+Warning	1292	Truncated incorrect seconds value: '10000001'
+SELECT @a;
+@a
+10000001
+CREATE TABLE t1 (a TEXT);
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+INSERT INTO t1 VALUES ('f1 was called');
+RETURN 10000000;
+END;
+$$
+SELECT SEC_TO_TIME(f1());
+SEC_TO_TIME(f1())
+838:59:59
+Warnings:
+Warning	1292	Truncated incorrect seconds value: '10000000'
+SELECT * FROM t1;
+a
+f1 was called
+DROP TABLE t1;
+DROP FUNCTION f1;

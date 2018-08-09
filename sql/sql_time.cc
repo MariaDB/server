@@ -313,8 +313,7 @@ adjust_time_range_with_warn(MYSQL_TIME *ltime, uint dec)
   if (check_time_range(ltime, dec, &warnings))
     return true;
   if (warnings)
-    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &str, MYSQL_TIMESTAMP_TIME, NullS);
+    current_thd->push_warning_truncated_wrong_value("time", str.ptr());
   return false;
 }
 
@@ -399,11 +398,14 @@ str_to_datetime_with_warn(CHARSET_INFO *cs,
   THD *thd= current_thd;
   bool ret_val= str_to_datetime(cs, str, length, l_time, flags, &status);
   if (ret_val || status.warnings)
+  {
+    const ErrConvString err(str, length, &my_charset_bin);
     make_truncated_value_warning(thd,
                                  ret_val ? Sql_condition::WARN_LEVEL_WARN :
                                  Sql_condition::time_warn_level(status.warnings),
-                                 str, length, flags & TIME_TIME_ONLY ?
+                                 &err, flags & TIME_TIME_ONLY ?
                                  MYSQL_TIMESTAMP_TIME : l_time->time_type, NullS);
+  }
   DBUG_EXECUTE_IF("str_to_datetime_warn",
                   push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                                ER_YES, str););
@@ -411,77 +413,11 @@ str_to_datetime_with_warn(CHARSET_INFO *cs,
 }
 
 
-/**
-  converts a pair of numbers (integer part, microseconds) to MYSQL_TIME
-
-  @param neg           sign of the time value
-  @param nr            integer part of the number to convert
-  @param sec_part      microsecond part of the number
-  @param ltime         converted value will be written here
-  @param fuzzydate     conversion flags (TIME_INVALID_DATE, etc)
-  @param str           original number, as an ErrConv. For the warning
-  @param field_name    field name or NULL if not a field. For the warning
-  
-  @returns 0 for success, 1 for a failure
-*/
-static bool number_to_time_with_warn(bool neg, ulonglong nr, ulong sec_part,
-                                     MYSQL_TIME *ltime, ulonglong fuzzydate,
-                                     const ErrConv *str,
-                                     const char *field_name)
-{
-  int was_cut;
-  longlong res;
-  enum_mysql_timestamp_type ts_type;
-  bool have_warnings;
-
-  if (fuzzydate & TIME_TIME_ONLY)
-  {
-    fuzzydate= TIME_TIME_ONLY; // clear other flags
-    ts_type= MYSQL_TIMESTAMP_TIME;
-    res= number_to_time(neg, nr, sec_part, ltime, &was_cut);
-    have_warnings= MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut);
-  }
-  else
-  {
-    ts_type= MYSQL_TIMESTAMP_DATETIME;
-    if (neg)
-    {
-      res= -1;
-    }
-    else
-    {
-      res= number_to_datetime(nr, sec_part, ltime, fuzzydate, &was_cut);
-      have_warnings= was_cut && (fuzzydate & TIME_NO_ZERO_IN_DATE);
-    }
-  }
-
-  if (res < 0 || have_warnings)
-  {
-    make_truncated_value_warning(current_thd,
-                                 Sql_condition::WARN_LEVEL_WARN, str,
-                                 res < 0 ? MYSQL_TIMESTAMP_ERROR : ts_type,
-                                 field_name);
-  }
-  return res < 0;
-}
-
-
 bool double_to_datetime_with_warn(double value, MYSQL_TIME *ltime,
                                   ulonglong fuzzydate, const char *field_name)
 {
   const ErrConvDouble str(value);
-  bool neg= value < 0;
-
-  if (neg)
-    value= -value;
-
-  if (value > LONGLONG_MAX)
-    value= static_cast<double>(LONGLONG_MAX);
-
-  longlong nr= static_cast<ulonglong>(floor(value));
-  uint sec_part= static_cast<ulong>((value - floor(value))*TIME_SECOND_PART_FACTOR);
-  return number_to_time_with_warn(neg, nr, sec_part, ltime, fuzzydate, &str,
-                                  field_name);
+  return Sec6(value).convert_to_mysql_time(ltime, fuzzydate, &str, field_name);
 }
 
 
@@ -489,11 +425,7 @@ bool decimal_to_datetime_with_warn(const my_decimal *value, MYSQL_TIME *ltime,
                                    ulonglong fuzzydate, const char *field_name)
 {
   const ErrConvDecimal str(value);
-  ulonglong nr;
-  ulong sec_part;
-  bool neg= my_decimal2seconds(value, &nr, &sec_part);
-  return number_to_time_with_warn(neg, nr, sec_part, ltime, fuzzydate, &str,
-                                  field_name);
+  return Sec6(value).convert_to_mysql_time(ltime, fuzzydate, &str, field_name);
 }
 
 
@@ -501,8 +433,8 @@ bool int_to_datetime_with_warn(bool neg, ulonglong value, MYSQL_TIME *ltime,
                                ulonglong fuzzydate, const char *field_name)
 {
   const ErrConvInteger str(neg ? - (longlong) value : (longlong) value, !neg);
-  return number_to_time_with_warn(neg, value, 0, ltime,
-                                  fuzzydate, &str, field_name);
+  Sec6 sec(neg, value, 0);
+  return sec.convert_to_mysql_time(ltime, fuzzydate, &str, field_name);
 }
 
 
@@ -932,9 +864,7 @@ void make_truncated_value_warning(THD *thd,
 				  timestamp_type time_type,
                                   const char *field_name)
 {
-  char warn_buff[MYSQL_ERRMSG_SIZE];
   const char *type_str;
-  CHARSET_INFO *cs= &my_charset_latin1;
 
   switch (time_type) {
     case MYSQL_TIMESTAMP_DATE: 
@@ -948,23 +878,9 @@ void make_truncated_value_warning(THD *thd,
       type_str= "datetime";
       break;
   }
-  if (field_name)
-    cs->cset->snprintf(cs, warn_buff, sizeof(warn_buff),
-                       ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
-                       type_str, sval->ptr(), field_name,
-                       (ulong) thd->get_stmt_da()->current_row_for_warning());
-  else
-  {
-    if (time_type > MYSQL_TIMESTAMP_ERROR)
-      cs->cset->snprintf(cs, warn_buff, sizeof(warn_buff),
-                         ER_THD(thd, ER_TRUNCATED_WRONG_VALUE),
-                         type_str, sval->ptr());
-    else
-      cs->cset->snprintf(cs, warn_buff, sizeof(warn_buff),
-                         ER_THD(thd, ER_WRONG_VALUE), type_str, sval->ptr());
-  }
-  push_warning(thd, level,
-               ER_TRUNCATED_WRONG_VALUE, warn_buff);
+  return thd->push_warning_wrong_or_truncated_value(level,
+                                           time_type <= MYSQL_TIMESTAMP_ERROR,
+                                           type_str, sval->ptr(), field_name);
 }
 
 
@@ -1442,8 +1358,7 @@ time_to_datetime_with_warn(THD *thd,
         check_date(to, fuzzydate, &warn)))
   {
     ErrConvTime str(from);
-    make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &str, MYSQL_TIMESTAMP_DATETIME, 0); 
+    thd->push_warning_truncated_wrong_value("datetime", str.ptr());
     return true;
   }
   return false;

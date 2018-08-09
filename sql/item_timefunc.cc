@@ -450,10 +450,10 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
     {
       if (!my_isspace(&my_charset_latin1,*val))
       {
+        ErrConvString err(val_begin, length, &my_charset_bin);
         make_truncated_value_warning(current_thd,
                                      Sql_condition::WARN_LEVEL_WARN,
-                                     val_begin, length,
-				     cached_timestamp_type, NullS);
+                                     &err, cached_timestamp_type, NullS);
 	break;
       }
     } while (++val != val_end);
@@ -1335,24 +1335,18 @@ bool get_interval_value(Item *args,interval_type int_type, INTERVAL *interval)
   if (int_type == INTERVAL_SECOND && args->decimals)
   {
     VDec val(args);
-    ulonglong second;
-    ulong second_part;
     if (val.is_null())
       return true;
-    interval->neg= my_decimal2seconds(val.ptr(), &second, &second_part);
-    if (second == LONGLONG_MAX)
+    Sec6 d(val.ptr());
+    interval->neg= d.neg();
+    if (d.sec() >= LONGLONG_MAX)
     {
-      THD *thd= current_thd;
       ErrConvDecimal err(val.ptr());
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_TRUNCATED_WRONG_VALUE,
-                          ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), "DECIMAL",
-                          err.ptr());
+      current_thd->push_warning_truncated_wrong_value("seconds", err.ptr());
       return true;
     }
-
-    interval->second= second;
-    interval->second_part= second_part;
+    interval->second= d.sec();
+    interval->second_part= d.usec();
     return false;
   }
   else if ((int) int_type <= INTERVAL_MICROSECOND)
@@ -1740,52 +1734,12 @@ bool Item_func_sysdate_local::get_date(MYSQL_TIME *res,
 bool Item_func_sec_to_time::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
   DBUG_ASSERT(fixed == 1);
-  bool sign;
-  ulonglong sec;
-  ulong sec_part;
-
-  bzero((char *)ltime, sizeof(*ltime));
-  ltime->time_type= MYSQL_TIMESTAMP_TIME;
-
-  sign= args[0]->get_seconds(&sec, &sec_part);
-
-  if ((null_value= args[0]->null_value))
-    return 1;
-
-  ltime->neg= sign;
-  if (sec > TIME_MAX_VALUE_SECONDS)
-    goto overflow;
-
-  DBUG_ASSERT(sec_part <= TIME_MAX_SECOND_PART);
-  
-  ltime->hour=   (uint) (sec/3600);
-  ltime->minute= (uint) (sec % 3600) /60;
-  ltime->second= (uint) sec % 60;
-  ltime->second_part= sec_part;
-
-  return 0;
-
-overflow:
-  /* use check_time_range() to set ltime to the max value depending on dec */
-  int unused;
-  char buf[100];
-  String tmp(buf, sizeof(buf), &my_charset_bin), *err= args[0]->val_str(&tmp);
-
-  ltime->hour= TIME_MAX_HOUR+1;
-  check_time_range(ltime, decimals, &unused);
-  if (!err)
-  {
-    ErrConvInteger err2(sec, unsigned_flag);
-    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &err2, MYSQL_TIMESTAMP_TIME, NullS);
-  }
-  else
-  {
-    ErrConvString err2(err);
-    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &err2, MYSQL_TIMESTAMP_TIME, NullS);
-  }
-  return 0;
+  VSec6 sec(args[0], "seconds", LONGLONG_MAX);
+  if ((null_value= sec.is_null()))
+    return true;
+  if (sec.sec_to_time(ltime, decimals) && !sec.truncated())
+    sec.make_truncated_warning(current_thd, "seconds");
+  return false;
 }
 
 bool Item_func_date_format::fix_length_and_dec()
@@ -1995,21 +1949,17 @@ bool Item_func_from_unixtime::fix_length_and_dec()
 bool Item_func_from_unixtime::get_date(MYSQL_TIME *ltime,
 				       ulonglong fuzzy_date __attribute__((unused)))
 {
-  bool sign;
-  ulonglong sec;
-  ulong sec_part;
-
   bzero((char *)ltime, sizeof(*ltime));
   ltime->time_type= MYSQL_TIMESTAMP_TIME;
 
-  sign= args[0]->get_seconds(&sec, &sec_part);
+  VSec6 sec(args[0], "unixtime", TIMESTAMP_MAX_VALUE);
+  DBUG_ASSERT(sec.sec() <= TIMESTAMP_MAX_VALUE);
 
-  if (args[0]->null_value || sign || sec > TIMESTAMP_MAX_VALUE)
+  if (sec.is_null() || sec.truncated() || sec.neg())
     return (null_value= 1);
 
-  tz->gmt_sec_to_TIME(ltime, (my_time_t)sec);
-
-  ltime->second_part= sec_part;
+  tz->gmt_sec_to_TIME(ltime, (my_time_t) sec.sec());
+  ltime->second_part= sec.usec();
 
   return (null_value= 0);
 }
@@ -2694,12 +2644,11 @@ bool Item_func_maketime::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   bool overflow= 0;
   longlong hour=   args[0]->val_int();
   longlong minute= args[1]->val_int();
-  ulonglong second;
-  ulong microsecond;
-  bool neg= args[2]->get_seconds(&second, &microsecond);
+  VSec6 sec(args[2], "seconds", 59);
 
-  if (args[0]->null_value || args[1]->null_value || args[2]->null_value ||
-       minute < 0 || minute > 59 || neg || second > 59)
+  DBUG_ASSERT(sec.sec() <= 59);
+  if (args[0]->null_value || args[1]->null_value || sec.is_null() ||
+       minute < 0 || minute > 59 || sec.neg() || sec.truncated())
     return (null_value= 1);
 
   bzero(ltime, sizeof(*ltime));
@@ -2720,8 +2669,8 @@ bool Item_func_maketime::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   {
     ltime->hour=   (uint) ((hour < 0 ? -hour : hour));
     ltime->minute= (uint) minute;
-    ltime->second= (uint) second;
-    ltime->second_part= microsecond;
+    ltime->second= (uint) sec.sec();
+    ltime->second_part= sec.usec();
   }
   else
   {
@@ -2730,10 +2679,10 @@ bool Item_func_maketime::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     ltime->second= TIME_MAX_SECOND;
     char buf[28];
     char *ptr= longlong10_to_str(hour, buf, args[0]->unsigned_flag ? 10 : -10);
-    int len = (int)(ptr - buf) + sprintf(ptr, ":%02u:%02u", (uint)minute, (uint)second);
-    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 buf, len, MYSQL_TIMESTAMP_TIME,
-                                 NullS);
+    int len = (int)(ptr - buf) + sprintf(ptr, ":%02u:%02u",
+                                         (uint) minute, (uint) sec.sec());
+    ErrConvString err(buf, len, &my_charset_bin);
+    current_thd->push_warning_truncated_wrong_value("time", err.ptr());
   }
 
   return (null_value= 0);

@@ -10063,19 +10063,17 @@ err_new_table_cleanup:
   if (unlikely(alter_ctx.error_if_not_empty &&
                thd->get_stmt_da()->current_row_for_warning()))
   {
-    const char *f_val= 0;
-    enum enum_mysql_timestamp_type t_type= MYSQL_TIMESTAMP_DATE;
+    const char *f_val= "0000-00-00";
+    const char *f_type= "date";
     switch (alter_ctx.datetime_field->real_field_type())
     {
       case MYSQL_TYPE_DATE:
       case MYSQL_TYPE_NEWDATE:
-        f_val= "0000-00-00";
-        t_type= MYSQL_TIMESTAMP_DATE;
         break;
       case MYSQL_TYPE_DATETIME:
       case MYSQL_TYPE_DATETIME2:
         f_val= "0000-00-00 00:00:00";
-        t_type= MYSQL_TIMESTAMP_DATETIME;
+        f_type= "datetime";
         break;
       default:
         /* Shouldn't get here. */
@@ -10083,9 +10081,10 @@ err_new_table_cleanup:
     }
     bool save_abort_on_warning= thd->abort_on_warning;
     thd->abort_on_warning= true;
-    make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                                 f_val, strlength(f_val), t_type,
-                                 alter_ctx.datetime_field->field_name.str);
+    thd->push_warning_truncated_value_for_field(Sql_condition::WARN_LEVEL_WARN,
+                                                f_type, f_val,
+                                                alter_ctx.datetime_field->
+                                                field_name.str);
     thd->abort_on_warning= save_abort_on_warning;
   }
 
