@@ -26,7 +26,8 @@ SET(MAN1_SERVER innochecksum.1 my_print_defaults.1 myisam_ftdump.1 myisamchk.1
 		mysqld_safe_helper.1 tokuftdump.1 wsrep_sst_common.1
 		wsrep_sst_mysqldump.1 wsrep_sst_rsync.1
 		wsrep_sst_xtrabackup-v2.1 wsrep_sst_xtrabackup.1
-		galera_recovery.1 galera_new_cluster.1 tokuft_logdump.1)
+		galera_recovery.1 galera_new_cluster.1 tokuft_logdump.1
+		mysql_ldb.1)
 SET(MAN8_SERVER mysqld.8)
 SET(MAN1_CLIENT msql2mysql.1 mysql.1 mysql_find_rows.1 mysql_waitpid.1
 		mysqlaccess.1 mysqladmin.1 mysqlbinlog.1 mysqlcheck.1
