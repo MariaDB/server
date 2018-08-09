@@ -13,5 +13,4 @@
 --source include/auto_increment_offset_restore.inc
 
 # cleanup temporary database files:
---remove_files_wildcard $MYSQL_TMP_DIR/rsync_test *
---rmdir $MYSQL_TMP_DIR/rsync_test
+--remove_files_wildcard $MYSQL_TMP_DIR/rsync_test_2 *
