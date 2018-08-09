@@ -1531,7 +1531,8 @@ parse_log:
 		break;
 	default:
 		ptr = NULL;
-		ib::error() << "Incorrect log record type:" << type;
+		ib::error() << "Incorrect log record type "
+			<< ib::hex(unsigned(type));
 
 		recv_sys->found_corrupt_log = true;
 	}
