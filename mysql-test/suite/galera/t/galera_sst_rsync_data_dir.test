@@ -14,4 +14,3 @@
 
 # cleanup temporary database files:
 --remove_files_wildcard $MYSQL_TMP_DIR/rsync_test_2 *
---rmdir $MYSQL_TMP_DIR/rsync_test_2

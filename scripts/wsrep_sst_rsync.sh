@@ -149,8 +149,8 @@ fi
 
 INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
 # if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
-if [ -z "INNODB_DATA_HOME_DIR" ]; then
-    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir '')
+if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+    INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
 fi
 
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then
@@ -370,6 +370,8 @@ $SILENT
 [$MODULE-data_dir]
     path = $INNODB_DATA_HOME_DIR
 EOF
+
+[ "$(whoami)" != root ] || sed -i '/read only = no/s/.*/&\nuid = root\ngid = root\n/' "$RSYNC_CONF"
 
 #    rm -rf "$DATA"/ib_logfile* # we don't want old logs around
 
