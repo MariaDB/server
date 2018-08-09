@@ -723,6 +723,15 @@ loop:
 					  OS_FILE_LOG_BLOCK_SIZE, true);
 			}
 		}
+
+		ulint dl = log_block_get_data_len(buf);
+		if (dl < LOG_BLOCK_HDR_SIZE
+		    || (dl > OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE
+			&& dl != OS_FILE_LOG_BLOCK_SIZE)) {
+			recv_sys->found_corrupt_log = true;
+			end_lsn = *start_lsn;
+			break;
+		}
 	}
 
 	if (recv_sys->report(ut_time())) {
