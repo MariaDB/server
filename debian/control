@@ -449,5 +449,7 @@ Description: GSSAPI authentication plugin for MariaDB client
 Package: mariadb-backup-10.1
 Section: database
 Architecture: any
-Depends: libarchive12 | libarchive13
+Depends: mariadb-client-core-10.1 (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
 Description: Backup tool for MariaDB server
