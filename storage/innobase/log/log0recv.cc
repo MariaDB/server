@@ -2308,30 +2308,30 @@ recv_report_corrupt_log(
 	ib::error() <<
 		"############### CORRUPT LOG RECORD FOUND ##################";
 
+	const ulint ptr_offset = ulint(ptr - recv_sys->buf);
+
 	ib::info() << "Log record type " << type << ", page " << space << ":"
 		<< page_no << ". Log parsing proceeded successfully up to "
 		<< recv_sys->recovered_lsn << ". Previous log record type "
 		<< recv_previous_parsed_rec_type << ", is multi "
 		<< recv_previous_parsed_rec_is_multi << " Recv offset "
-		<< (ptr - recv_sys->buf) << ", prev "
+		<< ptr_offset << ", prev "
 		<< recv_previous_parsed_rec_offset;
 
 	ut_ad(ptr <= recv_sys->buf + recv_sys->len);
 
 	const ulint	limit	= 100;
-	const ulint	before
-		= std::min(recv_previous_parsed_rec_offset, limit);
-	const ulint	after
-		= std::min(recv_sys->len - (ptr - recv_sys->buf), limit);
+	const ulint	prev_offset = std::min(recv_previous_parsed_rec_offset,
+					       ptr_offset);
+	const ulint	before = std::min(prev_offset, limit);
+	const ulint	after = std::min(recv_sys->len - ptr_offset, limit);
 
 	ib::info() << "Hex dump starting " << before << " bytes before and"
 		" ending " << after << " bytes after the corrupted record:";
 
-	ut_print_buf(stderr,
-		     recv_sys->buf
-		     + recv_previous_parsed_rec_offset - before,
-		     ptr - recv_sys->buf + before + after
-		     - recv_previous_parsed_rec_offset);
+	const byte* start = recv_sys->buf + prev_offset - before;
+
+	ut_print_buf(stderr, start, ulint(ptr - start) + after);
 	putc('\n', stderr);
 
 	if (!srv_force_recovery) {
