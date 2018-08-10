@@ -21,6 +21,7 @@
 #include "sql_time.h"
 #include "item.h"
 #include "log.h"
+#include "tztime.h"
 
 Type_handler_row         type_handler_row;
 
@@ -359,12 +360,13 @@ VYear_op::VYear_op(Item_func_hybrid_field_type *item)
 { }
 
 
-void Time::make_from_item(Item *item, const Options opt)
+void Time::make_from_item(int *warn, Item *item, const Options opt)
 {
+  *warn= 0;
   if (item->get_date(this, opt.get_date_flags()))
     time_type= MYSQL_TIMESTAMP_NONE;
   else
-    valid_MYSQL_TIME_to_valid_value(opt);
+    valid_MYSQL_TIME_to_valid_value(warn, opt);
 }
 
 

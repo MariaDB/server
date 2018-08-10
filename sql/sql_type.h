@@ -466,6 +466,10 @@ protected:
     time_type= MYSQL_TIMESTAMP_NONE;
   }
 public:
+  long fraction_remainder(uint dec) const
+  {
+    return my_time_fraction_remainder(second_part, dec);
+  }
 };
 
 
@@ -474,7 +478,7 @@ public:
   using Item's native timestamp type, without automatic timestamp
   type conversion.
 */
-class Temporal_hybrid: private Temporal
+class Temporal_hybrid: public Temporal
 {
 public:
   Temporal_hybrid(THD *thd, Item *item);
@@ -524,7 +528,7 @@ public:
   Time derives from MYSQL_TIME privately to make sure it is accessed
   externally only in the valid state.
 */
-class Time: private Temporal
+class Time: public Temporal
 {
 public:
   enum datetime_to_time_mode_t
@@ -599,30 +603,27 @@ private:
   /*
     Convert a valid DATE or DATETIME to TIME.
     Before this call, "this" must be a valid DATE or DATETIME value,
-    e.g. returned from Item::get_date().
+    e.g. returned from Item::get_date(), str_to_time(), number_to_time().
     After this call, "this" is a valid TIME value.
   */
-  void valid_datetime_to_valid_time(const Options opt)
+  void valid_datetime_to_valid_time(int *warn, const Options opt)
   {
     DBUG_ASSERT(time_type == MYSQL_TIMESTAMP_DATE ||
                 time_type == MYSQL_TIMESTAMP_DATETIME);
     /*
-      Make sure that day and hour are valid, so the result hour value
+      We're dealing with a DATE or DATETIME returned from
+      str_to_time(), number_to_time() or unpack_time().
+      Do some asserts to make sure the result hour value
       after mixing days to hours does not go out of the valid TIME range.
+      The maximum hour value after mixing days will be 31*24+23=767,
+      which is within the supported TIME range.
+      Thus no adjust_time_range_or_invalidate() is needed here.
     */
     DBUG_ASSERT(day < 32);
     DBUG_ASSERT(hour < 24);
-    if (year == 0 && month == 0 &&
-        opt.datetime_to_time_mode() ==
+    if (opt.datetime_to_time_mode() ==
         DATETIME_TO_TIME_YYYYMMDD_000000DD_MIX_TO_HOURS)
-    {
-      /*
-        The maximum hour value after mixing days will be 31*24+23=767,
-        which is within the supported TIME range.
-        Thus no adjust_time_range_or_invalidate() is needed here.
-      */
-      hour+= day * 24;
-    }
+      datetime_to_time_YYYYMMDD_000000DD_mix_to_hours(warn, year, month, day);
     year= month= day= 0;
     time_type= MYSQL_TIMESTAMP_TIME;
     DBUG_ASSERT(is_valid_time_slow());
@@ -630,6 +631,7 @@ private:
   /**
     Convert valid DATE/DATETIME to valid TIME if needed.
     This method is called after Item::get_date(),
+    str_to_time(), number_to_time().
     which can return only valid TIME/DATE/DATETIME values.
     Before this call, "this" is:
     - either a valid TIME/DATE/DATETIME value
@@ -639,12 +641,12 @@ private:
     - either a valid TIME (within the supported TIME range),
     - or MYSQL_TIMESTAMP_NONE
   */
-  void valid_MYSQL_TIME_to_valid_value(const Options opt)
+  void valid_MYSQL_TIME_to_valid_value(int *warn, const Options opt)
   {
     switch (time_type) {
     case MYSQL_TIMESTAMP_DATE:
     case MYSQL_TIMESTAMP_DATETIME:
-      valid_datetime_to_valid_time(opt);
+      valid_datetime_to_valid_time(warn, opt);
       break;
     case MYSQL_TIMESTAMP_NONE:
       break;
@@ -655,6 +657,19 @@ private:
       DBUG_ASSERT(is_valid_time_slow());
       break;
     }
+  }
+
+  /*
+    This method is called after number_to_time() and str_to_time(),
+    which can return DATE or DATETIME values. Convert to TIME if needed.
+    We trust that xxx_to_time() returns a valid TIME/DATE/DATETIME value,
+    so here we need to do only simple validation.
+  */
+  void xxx_to_time_result_to_valid_value(int *warn, const Options opt)
+  {
+    // str_to_time(), number_to_time() never return MYSQL_TIMESTAMP_ERROR
+    DBUG_ASSERT(time_type != MYSQL_TIMESTAMP_ERROR);
+    valid_MYSQL_TIME_to_valid_value(warn, opt);
   }
   void adjust_time_range_or_invalidate(int *warn)
   {
@@ -667,12 +682,49 @@ private:
                                          long curdays);
   void make_from_time(int *warn, const MYSQL_TIME *from);
   void make_from_datetime(int *warn, const MYSQL_TIME *from, long curdays);
-  void make_from_item(class Item *item, const Options opt);
+  void make_from_item(int *warn, Item *item, const Options opt);
 public:
+  /*
+    All constructors that accept an "int *warn" parameter initialize *warn.
+    The old value gets lost.
+  */
   Time() { time_type= MYSQL_TIMESTAMP_NONE; }
-  Time(Item *item) { make_from_item(item, Options()); }
-  Time(Item *item, const Options opt) { make_from_item(item, opt); }
+  Time(Item *item)
+  {
+    int warn;
+    make_from_item(&warn, item, Options());
+  }
+  Time(Item *item, const Options opt)
+  {
+    int warn;
+    make_from_item(&warn, item, opt);
+  }
   Time(int *warn, const MYSQL_TIME *from, long curdays);
+  Time(int *warn, const char *str, uint len, CHARSET_INFO *cs,
+       const Options opt)
+  {
+    MYSQL_TIME_STATUS status;
+    if (str_to_time(cs, str, len, this, opt.get_date_flags(), &status))
+      time_type= MYSQL_TIMESTAMP_NONE;
+    // The below call will optionally add notes to already collected warnings:
+    xxx_to_time_result_to_valid_value(&status.warnings, opt);
+    *warn= status.warnings;
+  }
+  Time(int *warn, const Sec6 &nr, const Options opt)
+  {
+    if (nr.to_time(this, warn))
+      time_type= MYSQL_TIMESTAMP_NONE;
+    xxx_to_time_result_to_valid_value(warn, opt);
+  }
+  Time(int *warn, double nr)
+   :Temporal(Time(warn, Sec6(nr), Options()))
+  { }
+  Time(int *warn, longlong nr, bool unsigned_val)
+   :Temporal(Time(warn, Sec6(nr, unsigned_val), Options()))
+  { }
+  Time(int *warn, const my_decimal *d)
+   :Temporal(Time(warn, Sec6(d), Options()))
+  { }
   static sql_mode_t flags_for_get_date()
   { return TIME_TIME_ONLY | TIME_INVALID_DATES; }
   static sql_mode_t comparison_flags_for_get_date()
@@ -748,6 +800,12 @@ public:
   {
     return is_valid_time() ? Temporal::to_packed() : 0;
   }
+  Time trunc(uint dec) const
+  {
+    Time tm(*this);
+    my_time_trunc(&tm, dec);
+    return tm;
+  }
 };
 
 
@@ -774,7 +832,7 @@ public:
   it is accessed externally only in the valid state.
 */
 
-class Temporal_with_date: protected Temporal
+class Temporal_with_date: public Temporal
 {
 protected:
   void check_date_or_invalidate(int *warn, sql_mode_t flags);
@@ -791,6 +849,21 @@ protected:
   Temporal_with_date(THD *thd, Item *item)
   {
     make_from_item(thd, item);
+  }
+  Temporal_with_date(int *warn, const Sec6 &nr, sql_mode_t flags)
+  {
+    DBUG_ASSERT((flags & TIME_TIME_ONLY) == 0);
+    if (nr.to_datetime(this, flags, warn))
+      time_type= MYSQL_TIMESTAMP_NONE;
+  }
+  Temporal_with_date(int *warn, const char *str, uint len, CHARSET_INFO *cs,
+                     sql_mode_t flags)
+  {
+    DBUG_ASSERT((flags & TIME_TIME_ONLY) == 0);
+    MYSQL_TIME_STATUS status;
+    if (str_to_datetime(cs, str, len, this, flags, &status))
+      time_type= MYSQL_TIMESTAMP_NONE;
+    *warn= status.warnings;
   }
 public:
   bool check_date_with_warn(ulonglong flags)
@@ -916,6 +989,11 @@ class Datetime: public Temporal_with_date
     DBUG_ASSERT(time_type == MYSQL_TIMESTAMP_DATETIME);
     return !check_datetime_range(this);
   }
+  void date_to_datetime_if_needed()
+  {
+    if (time_type == MYSQL_TIMESTAMP_DATE)
+      date_to_datetime(this);
+  }
   void make_from_time(THD *thd, int *warn, const MYSQL_TIME *from,
                       sql_mode_t flags);
   void make_from_datetime(THD *thd, int *warn, const MYSQL_TIME *from,
@@ -924,22 +1002,19 @@ public:
   Datetime(THD *thd, Item *item, sql_mode_t flags)
    :Temporal_with_date(thd, item, flags)
   {
-    if (time_type == MYSQL_TIMESTAMP_DATE)
-      date_to_datetime(this);
+    date_to_datetime_if_needed();
     DBUG_ASSERT(is_valid_value_slow());
   }
   Datetime(THD *thd, Item *item)
    :Temporal_with_date(thd, item)
   {
-    if (time_type == MYSQL_TIMESTAMP_DATE)
-      date_to_datetime(this);
+    date_to_datetime_if_needed();
     DBUG_ASSERT(is_valid_value_slow());
   }
   Datetime(Item *item)
    :Temporal_with_date(current_thd, item)
   {
-    if (time_type == MYSQL_TIMESTAMP_DATE)
-      date_to_datetime(this);
+    date_to_datetime_if_needed();
     DBUG_ASSERT(is_valid_value_slow());
   }
   Datetime(THD *thd, int *warn, const MYSQL_TIME *from, sql_mode_t flags);
@@ -947,6 +1022,39 @@ public:
   {
     set_zero_time(this, MYSQL_TIMESTAMP_DATETIME);
   }
+  Datetime(int *warn, const char *str, uint len, CHARSET_INFO *cs,
+           sql_mode_t flags)
+   :Temporal_with_date(warn, str, len, cs, flags)
+  {
+    date_to_datetime_if_needed();
+    DBUG_ASSERT(is_valid_value_slow());
+  }
+  Datetime(int *warn, double nr, sql_mode_t flags)
+   :Temporal_with_date(warn, Sec6(nr), flags)
+  {
+    date_to_datetime_if_needed();
+    DBUG_ASSERT(is_valid_value_slow());
+  }
+  Datetime(int *warn, const my_decimal *d, sql_mode_t flags)
+   :Temporal_with_date(warn, Sec6(d), flags)
+  {
+    date_to_datetime_if_needed();
+    DBUG_ASSERT(is_valid_value_slow());
+  }
+  /*
+    Create a Datime object from a longlong number.
+    Note, unlike in Time(), we don't need an "unsigned_val" here,
+    as it's not important if overflow happened because
+    of a negative number, or because of a huge positive number.
+  */
+  Datetime(int *warn, longlong sec, ulong usec, sql_mode_t flags)
+   :Temporal_with_date(warn, Sec6(false, (ulonglong) sec, usec), flags)
+  {
+    Sec6 nr(false, (ulonglong) sec, usec);
+    date_to_datetime_if_needed();
+    DBUG_ASSERT(is_valid_value_slow());
+  }
+
   bool is_valid_datetime() const
   {
     /*
@@ -1018,6 +1126,12 @@ public:
   longlong to_packed() const
   {
     return is_valid_datetime() ? Temporal::to_packed() : 0;
+  }
+  Datetime trunc(uint dec) const
+  {
+    Datetime tm(*this);
+    my_time_trunc(&tm, dec);
+    return tm;
   }
 };
 
