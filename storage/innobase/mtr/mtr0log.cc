@@ -98,7 +98,11 @@ mlog_parse_initial_log_record(
 	}
 
 	*type = mlog_id_t(*ptr & ~MLOG_SINGLE_REC_FLAG);
-	ut_ad(*type <= MLOG_BIGGEST_TYPE || EXTRA_CHECK_MLOG_NUMBER(*type));
+	if (UNIV_UNLIKELY(*type > MLOG_BIGGEST_TYPE
+			  && !EXTRA_CHECK_MLOG_NUMBER(*type))) {
+		recv_sys->found_corrupt_log = true;
+		return NULL;
+	}
 
 	ptr++;
 
