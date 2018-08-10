@@ -5104,7 +5104,7 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
   int error;
   ErrConvInteger str(nr, unsigned_val);
   THD *thd= get_thd();
-  Datetime dt(&error, nr, sql_mode_for_timestamp(thd));
+  Datetime dt(&error, nr, unsigned_val, sql_mode_for_timestamp(thd));
   return store_TIME_with_warning(thd, &dt, &str, error);
 }
 
@@ -5590,7 +5590,7 @@ int Field_temporal_with_date::store(longlong nr, bool unsigned_val)
 {
   int error;
   ErrConvInteger str(nr, unsigned_val);
-  Datetime dt(&error, nr, sql_mode_for_dates(get_thd()));
+  Datetime dt(&error, nr, unsigned_val, sql_mode_for_dates(get_thd()));
   return store_TIME_with_warning(&dt, &str, error);
 }
 
