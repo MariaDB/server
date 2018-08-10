@@ -2401,6 +2401,10 @@ loop:
 		len = recv_parse_log_rec(&type, ptr, end_ptr, &space,
 					 &page_no, apply, &body);
 
+		if (len == 0) {
+			return(false);
+		}
+
 		if (recv_sys->found_corrupt_log) {
 			recv_report_corrupt_log(ptr, type, space, page_no);
 			return(true);
@@ -2408,10 +2412,6 @@ loop:
 
 		if (recv_sys->found_corrupt_fs) {
 			return(true);
-		}
-
-		if (len == 0) {
-			return(false);
 		}
 
 		new_recovered_lsn = recv_calc_lsn_on_data_add(old_lsn, len);
@@ -2540,6 +2540,10 @@ loop:
 				&type, ptr, end_ptr, &space, &page_no,
 				false, &body);
 
+			if (len == 0) {
+				return(false);
+			}
+
 			if (recv_sys->found_corrupt_log
 			    || type == MLOG_CHECKPOINT
 			    || (*ptr & MLOG_SINGLE_REC_FLAG)) {
@@ -2551,10 +2555,6 @@ loop:
 
 			if (recv_sys->found_corrupt_fs) {
 				return(true);
-			}
-
-			if (len == 0) {
-				return(false);
 			}
 
 			recv_previous_parsed_rec_type = type;
