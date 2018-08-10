@@ -2197,7 +2197,7 @@ protected:
     {
       my_bool tmp_null_value;
       m_ptr= udf->val_decimal(&tmp_null_value, &m_buffer);
-      DBUG_ASSERT(is_null() == tmp_null_value);
+      DBUG_ASSERT(is_null() == (tmp_null_value != 0));
       func->null_value= is_null();
     }
   };
