@@ -5952,14 +5952,28 @@ bool Field_time::can_be_substituted_to_equal_item(const Context &ctx,
 Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
                                        Item *const_item)
 {
+  /*
+    Old mode conversion from DATETIME with non-zero YYYYMMDD part
+    to TIME works very inconsistently. Possible variants:
+    - truncate the YYYYMMDD part
+    - add (MM*33+DD)*24 to hours
+    - add (MM*31+DD)*24 to hours
+    Let's disallow propagation of DATETIME with non-zero YYYYMMDD
+    as an equal constant for a TIME field.
+  */
+  Time::datetime_to_time_mode_t mode=
+    (thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST) ?
+    Time::DATETIME_TO_TIME_YYYYMMDD_00000000_ONLY :
+    Time::DATETIME_TO_TIME_MINUS_CURRENT_DATE;
+
   switch (ctx.subst_constraint()) {
   case ANY_SUBST:
     if (const_item->field_type() != MYSQL_TYPE_TIME)
     {
-      MYSQL_TIME ltime;
       // Get the value of const_item with conversion from DATETIME to TIME
-      ulonglong fuzzydate= Time::comparison_flags_for_get_date();
-      if (const_item->get_time_with_conversion(thd, &ltime, fuzzydate))
+      Time tm(const_item,
+              Time::Options(Time::comparison_flags_for_get_date(), mode));
+      if (!tm.is_valid_time())
         return NULL;
       /*
         Replace a DATE/DATETIME constant to a TIME constant:
@@ -5971,8 +5985,9 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
 
         (assuming CURRENT_DATE is '2015-08-30'
       */
-      return new (thd->mem_root) Item_time_literal(thd, &ltime,
-                                                   ltime.second_part ?
+      return new (thd->mem_root) Item_time_literal(thd, tm.get_mysql_time(),
+                                                   tm.get_mysql_time()->
+                                                   second_part ?
                                                    TIME_SECOND_PART_DIGITS :
                                                    0);
     }
@@ -5981,8 +5996,8 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
     if (const_item->field_type() != MYSQL_TYPE_TIME ||
         const_item->decimals != decimals())
     {
-      MYSQL_TIME ltime;
-      if (const_item->get_time_with_conversion(thd, &ltime, TIME_TIME_ONLY))
+      Time tm(const_item, Time::Options(TIME_TIME_ONLY, mode));
+      if (!tm.is_valid_time())
         return NULL;
       /*
         Note, the value returned in "ltime" can have more fractional
@@ -5998,7 +6013,8 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
         The optimized WHERE will return with "Impossible WHERE", without
         having to do the full table scan.
       */
-      return new (thd->mem_root) Item_time_literal(thd, &ltime, decimals());
+      return new (thd->mem_root) Item_time_literal(thd, tm.get_mysql_time(),
+                                                   decimals());
     }
     break;
   }

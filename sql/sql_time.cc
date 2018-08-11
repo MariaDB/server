@@ -1365,26 +1365,6 @@ time_to_datetime_with_warn(THD *thd,
 }
 
 
-bool datetime_to_time_with_warn(THD *thd, const MYSQL_TIME *dt,
-                                MYSQL_TIME *tm, uint dec)
-{
-  if (thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)
-  {
-    *tm= *dt;
-    datetime_to_time(tm);
-    return false;
-  }
-  else /* new mode */
-  {
-    MYSQL_TIME current_date;
-    set_current_date(thd, &current_date);
-    calc_time_diff(dt, &current_date, 1, tm, 0);
-  }
-  int warnings= 0;
-  return check_time_range(tm, dec, &warnings);
-}
-
-
 longlong pack_time(const MYSQL_TIME *my_time)
 {
   return  ((((((my_time->year     * 13ULL +

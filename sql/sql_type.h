@@ -534,7 +534,9 @@ public:
   enum datetime_to_time_mode_t
   {
     DATETIME_TO_TIME_YYYYMMDD_000000DD_MIX_TO_HOURS,
-    DATETIME_TO_TIME_YYYYMMDD_TRUNCATE
+    DATETIME_TO_TIME_YYYYMMDD_TRUNCATE,
+    DATETIME_TO_TIME_YYYYMMDD_00000000_ONLY,
+    DATETIME_TO_TIME_MINUS_CURRENT_DATE
   };
   class Options
   {
@@ -601,6 +603,21 @@ private:
       hour+= from_day * 24;
   }
   /*
+    The result is calculated effectively similar to:
+    TIMEDIFF(dt, CAST(CURRENT_DATE AS DATETIME))
+    If the difference does not fit to the supported TIME range, it's truncated.
+  */
+  void datetime_to_time_minus_current_date(THD *thd)
+  {
+    MYSQL_TIME current_date, tmp;
+    set_current_date(thd, &current_date);
+    calc_time_diff(this, &current_date, 1, &tmp, 0);
+    static_cast<MYSQL_TIME*>(this)[0]= tmp;
+    int warnings= 0;
+    (void) check_time_range(this, TIME_SECOND_PART_DIGITS, &warnings);
+    DBUG_ASSERT(is_valid_time());
+  }
+  /*
     Convert a valid DATE or DATETIME to TIME.
     Before this call, "this" must be a valid DATE or DATETIME value,
     e.g. returned from Item::get_date(), str_to_time(), number_to_time().
@@ -621,11 +638,18 @@ private:
     */
     DBUG_ASSERT(day < 32);
     DBUG_ASSERT(hour < 24);
-    if (opt.datetime_to_time_mode() ==
-        DATETIME_TO_TIME_YYYYMMDD_000000DD_MIX_TO_HOURS)
-      datetime_to_time_YYYYMMDD_000000DD_mix_to_hours(warn, year, month, day);
-    year= month= day= 0;
-    time_type= MYSQL_TIMESTAMP_TIME;
+    if (opt.datetime_to_time_mode() == DATETIME_TO_TIME_MINUS_CURRENT_DATE)
+    {
+      datetime_to_time_minus_current_date(current_thd);
+    }
+    else
+    {
+      if (opt.datetime_to_time_mode() ==
+          DATETIME_TO_TIME_YYYYMMDD_000000DD_MIX_TO_HOURS)
+        datetime_to_time_YYYYMMDD_000000DD_mix_to_hours(warn, year, month, day);
+      year= month= day= 0;
+      time_type= MYSQL_TIMESTAMP_TIME;
+    }
     DBUG_ASSERT(is_valid_time_slow());
   }
   /**
@@ -646,7 +670,12 @@ private:
     switch (time_type) {
     case MYSQL_TIMESTAMP_DATE:
     case MYSQL_TIMESTAMP_DATETIME:
-      valid_datetime_to_valid_time(warn, opt);
+      if (opt.datetime_to_time_mode() ==
+          DATETIME_TO_TIME_YYYYMMDD_00000000_ONLY &&
+          (year || month || day))
+        make_from_out_of_range(warn);
+      else
+        valid_datetime_to_valid_time(warn, opt);
       break;
     case MYSQL_TIMESTAMP_NONE:
       break;

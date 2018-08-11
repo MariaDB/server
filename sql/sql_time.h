@@ -54,50 +54,6 @@ bool time_to_datetime(THD *thd, const MYSQL_TIME *tm, MYSQL_TIME *dt);
 bool time_to_datetime_with_warn(THD *thd,
                                 const MYSQL_TIME *tm, MYSQL_TIME *dt,
                                 ulonglong fuzzydate);
-/*
-  Simply truncate the YYYY-MM-DD part to 0000-00-00
-  and change time_type to MYSQL_TIMESTAMP_TIME
-*/
-inline void datetime_to_time(MYSQL_TIME *ltime)
-{
-  DBUG_ASSERT(ltime->time_type == MYSQL_TIMESTAMP_DATE ||
-              ltime->time_type == MYSQL_TIMESTAMP_DATETIME);
-  DBUG_ASSERT(ltime->neg == 0);
-  ltime->year= ltime->month= ltime->day= 0;
-  ltime->time_type= MYSQL_TIMESTAMP_TIME;
-}
-
-
-/**
-  Convert DATE/DATETIME to TIME(dec)
-  using CURRENT_DATE in a non-old mode,
-  or using simple truncation in old mode (OLD_MODE_ZERO_DATE_TIME_CAST).
-
-  @param      thd - the thread to get the variables.old_behaviour value from
-  @param      dt  - the DATE of DATETIME value to convert
-  @param[out] tm  - store result here
-  @param      dec - the desired scale. The fractional part of the result
-                    is checked according to this parameter before returning
-                    the conversion result. "dec" is important in the corner
-                    cases near the max/min limits.
-                    If the result is '838:59:59.999999' and the desired scale
-                    is less than 6, an error is returned.
-                    Note, dec is not important in the
-                    OLD_MODE_ZERO_DATE_TIME_CAST old mode.
-
-  - in case of OLD_MODE_ZERO_DATE_TIME_CAST
-    the TIME part is simply truncated and "false" is returned.
-  - otherwise, the result is calculated effectively similar to:
-    TIMEDIFF(dt, CAST(CURRENT_DATE AS DATETIME))
-    If the difference fits into the supported TIME range, "false" is returned,
-    otherwise a warning is issued and "true" is returned.
-
-  @return false - on success
-  @return true  - on error
-*/
-bool datetime_to_time_with_warn(THD *, const MYSQL_TIME *dt,
-                                MYSQL_TIME *tm, uint dec);
-
 
 inline void datetime_to_date(MYSQL_TIME *ltime)
 {

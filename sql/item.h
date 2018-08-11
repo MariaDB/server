@@ -1611,40 +1611,6 @@ public:
   bool get_date_from_string(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_time(MYSQL_TIME *ltime)
   { return get_date(ltime, Time::flags_for_get_date()); }
-  /*
-    Get time with automatic DATE/DATETIME to TIME conversion,
-    by subtracting CURRENT_DATE.
-
-    Performce a reverse operation to CAST(time AS DATETIME)
-    Suppose:
-    - we have a set of items (typically with the native MYSQL_TYPE_TIME type)
-      whose item->get_date() return TIME1 value, and
-    - CAST(AS DATETIME) for the same Items return DATETIME1,
-      after applying time-to-datetime conversion to TIME1.
-
-    then all items (typically of the native MYSQL_TYPE_{DATE|DATETIME} types)
-    whose get_date() return DATETIME1 must also return TIME1 from
-    get_time_with_conversion()
-
-    @param thd        - the thread, its variables.old_mode is checked
-                        to decide if use simple YYYYMMDD truncation (old mode),
-                        or perform full DATETIME-to-TIME conversion with
-                        CURRENT_DATE subtraction.
-    @param[out] ltime - store the result here
-    @param fuzzydate  - flags to be used for the get_date() call.
-                        Normally, should include TIME_TIME_ONLY, to let
-                        the called low-level routines, e.g. str_to_date(),
-                        know that we prefer TIME rather that DATE/DATETIME
-                        and do less conversion outside of the low-level
-                        routines.
-
-    @returns true     - on error, e.g. get_date() returned NULL value,
-                        or get_date() returned DATETIME/DATE with non-zero
-                        YYYYMMDD part.
-    @returns false    - on success
-  */
-  bool get_time_with_conversion(THD *thd, MYSQL_TIME *ltime,
-                                ulonglong fuzzydate);
   // Get a DATE or DATETIME value in numeric packed format for comparison
   virtual longlong val_datetime_packed()
   {
