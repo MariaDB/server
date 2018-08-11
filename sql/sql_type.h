@@ -700,7 +700,7 @@ public:
     make_from_item(&warn, item, opt);
   }
   Time(int *warn, const MYSQL_TIME *from, long curdays);
-  Time(int *warn, const char *str, uint len, CHARSET_INFO *cs,
+  Time(int *warn, const char *str, size_t len, CHARSET_INFO *cs,
        const Options opt)
   {
     MYSQL_TIME_STATUS status;
@@ -856,7 +856,7 @@ protected:
     if (nr.to_datetime(this, flags, warn))
       time_type= MYSQL_TIMESTAMP_NONE;
   }
-  Temporal_with_date(int *warn, const char *str, uint len, CHARSET_INFO *cs,
+  Temporal_with_date(int *warn, const char *str, size_t len, CHARSET_INFO *cs,
                      sql_mode_t flags)
   {
     DBUG_ASSERT((flags & TIME_TIME_ONLY) == 0);
@@ -1022,7 +1022,7 @@ public:
   {
     set_zero_time(this, MYSQL_TIMESTAMP_DATETIME);
   }
-  Datetime(int *warn, const char *str, uint len, CHARSET_INFO *cs,
+  Datetime(int *warn, const char *str, size_t len, CHARSET_INFO *cs,
            sql_mode_t flags)
    :Temporal_with_date(warn, str, len, cs, flags)
   {
