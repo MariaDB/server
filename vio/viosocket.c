@@ -442,7 +442,8 @@ int vio_nodelay(Vio *vio, my_bool on)
   int no_delay= MY_TEST(on);
   DBUG_ENTER("vio_nodelay");
 
-  if (vio->type == VIO_TYPE_NAMEDPIPE || vio->type == VIO_TYPE_SHARED_MEMORY)
+  if (vio->type == VIO_TYPE_NAMEDPIPE || vio->type == VIO_TYPE_SHARED_MEMORY
+      || vio->type == VIO_TYPE_SOCKET)
   {
     DBUG_RETURN(0);
   }
