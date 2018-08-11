@@ -2756,11 +2756,7 @@ public:
   }
   void store_TIME(my_time_t timestamp, ulong sec_part)
   {
-    timeval tv;
-    tv.tv_sec= timestamp;
-    tv.tv_usec= sec_part;
-    my_timeval_trunc(&tv, decimals());
-    store_TIMEVAL(tv);
+    store_TIMEVAL(Timeval(timestamp, sec_part).trunc(decimals()));
   }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   uchar *pack(uchar *to, const uchar *from,

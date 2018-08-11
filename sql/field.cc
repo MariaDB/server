@@ -5059,12 +5059,7 @@ int Field_timestamp::store_TIME_with_warning(THD *thd, const Datetime *dt,
   }
 
   // Adjust and store the value
-  timeval tv;
-  tv.tv_sec= timestamp;
-  tv.tv_usec= l_time->second_part;
-
-  my_timeval_trunc(&tv, decimals());
-  store_TIMEVAL(tv);
+  store_TIMEVAL(Timeval(timestamp, l_time->second_part).trunc(decimals()));
 
   // Calculate return value and send warnings if needed
   if (unlikely(conversion_error)) // e.g. DATETIME in the DST gap
