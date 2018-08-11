@@ -4944,7 +4944,9 @@ static void init_ssl()
         sql_print_warning("SSL error: %s", ERR_error_string(err, NULL));
     }
     else
+    {
       ERR_remove_state(0);
+    }
   }
   else
   {
