@@ -89,6 +89,7 @@ size_t	vio_write(Vio *vio, const uchar * buf, size_t size);
 int	vio_blocking(Vio *vio, my_bool onoff, my_bool *old_mode);
 my_bool	vio_is_blocking(Vio *vio);
 /* setsockopt TCP_NODELAY at IPPROTO_TCP level, when possible */
+int vio_nodelay(Vio *vio, my_bool on);
 int	vio_fastsend(Vio *vio);
 /* setsockopt SO_KEEPALIVE at SOL_SOCKET level, when possible */
 int	vio_keepalive(Vio *vio, my_bool	onoff);

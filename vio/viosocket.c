@@ -435,8 +435,34 @@ int vio_socket_timeout(Vio *vio,
   DBUG_RETURN(ret);
 }
 
+/* Set TCP_NODELAY (disable Nagle's algorithm */
+int vio_nodelay(Vio *vio, my_bool on)
+{
+  int r;
+  int no_delay= MY_TEST(on);
+  DBUG_ENTER("vio_nodelay");
 
-int vio_fastsend(Vio * vio __attribute__((unused)))
+  if (vio->type == VIO_TYPE_NAMEDPIPE || vio->type == VIO_TYPE_SHARED_MEMORY)
+  {
+    DBUG_RETURN(0);
+  }
+
+  r = mysql_socket_setsockopt(vio->mysql_socket, IPPROTO_TCP, TCP_NODELAY,
+    IF_WIN((const char*), (void*)) &no_delay,
+    sizeof(no_delay));
+
+  if (r)
+  {
+    DBUG_PRINT("warning",
+     ("Couldn't set socket option for fast send, error %d",
+      socket_errno));
+     r = -1;
+  }
+  DBUG_PRINT("exit", ("%d", r));
+  DBUG_RETURN(r);
+}
+
+int vio_fastsend(Vio * vio)
 {
   int r=0;
   DBUG_ENTER("vio_fastsend");
@@ -454,18 +480,7 @@ int vio_fastsend(Vio * vio __attribute__((unused)))
   }
 #endif                                    /* IPTOS_THROUGHPUT */
   if (!r)
-  {
-#ifdef __WIN__
-    BOOL nodelay= 1;
-#else
-    int nodelay = 1;
-#endif
-
-    r= mysql_socket_setsockopt(vio->mysql_socket, IPPROTO_TCP, TCP_NODELAY,
-                  IF_WIN((const char*), (void*)) &nodelay,
-                  sizeof(nodelay));
-
-  }
+    r = vio_nodelay(vio, TRUE);
   if (r)
   {
     DBUG_PRINT("warning",
