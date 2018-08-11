@@ -784,7 +784,7 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
   {
     MY_STAT stat_info;
     if (!my_stat(name,&stat_info,MYF(0)))
-      return 1;
+      return 0;
     /*
       Ignore world-writable regular files.
       This is mainly done to protect us to not read a file created by
