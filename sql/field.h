@@ -2711,6 +2711,10 @@ protected:
   sql_mode_t sql_mode_for_timestamp(THD *thd) const;
   int store_TIME_with_warning(THD *, const Datetime *,
                               const ErrConv *, int warn);
+  virtual void store_TIMEVAL(const timeval &tv)
+  {
+    int4store(ptr, tv.tv_sec);
+  }
 public:
   Field_timestamp(uchar *ptr_arg, uint32 len_arg,
                   uchar *null_ptr_arg, uchar null_bit_arg,
@@ -2750,9 +2754,11 @@ public:
   {
     return get_timestamp(ptr, sec_part);
   }
-  virtual void store_TIME(my_time_t timestamp, ulong sec_part)
+  void store_TIME(my_time_t timestamp, ulong sec_part)
   {
-    int4store(ptr,timestamp);
+    timeval tv= {timestamp, (uint) sec_part};
+    my_timeval_trunc(&tv, decimals());
+    store_TIMEVAL(tv);
   }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   uchar *pack(uchar *to, const uchar *from,
@@ -2822,6 +2828,7 @@ class Field_timestamp_hires :public Field_timestamp_with_dec {
   {
     return Type_handler_timestamp::sec_part_bytes(dec);
   }
+  void store_TIMEVAL(const timeval &tv);
 public:
   Field_timestamp_hires(uchar *ptr_arg,
                         uchar *null_ptr_arg, uchar null_bit_arg,
@@ -2834,7 +2841,6 @@ public:
     DBUG_ASSERT(dec);
   }
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
-  void store_TIME(my_time_t timestamp, ulong sec_part);
   int cmp(const uchar *,const uchar *);
   uint32 pack_length() const { return 4 + sec_part_bytes(dec); }
   uint size_of() const { return sizeof(*this); }
@@ -2850,6 +2856,7 @@ class Field_timestampf :public Field_timestamp_with_dec {
     *metadata_ptr= (uchar) decimals();
     return 1;
   }
+  void store_TIMEVAL(const timeval &tv);
 public:
   Field_timestampf(uchar *ptr_arg,
                    uchar *null_ptr_arg, uchar null_bit_arg,
@@ -2878,7 +2885,6 @@ public:
   }
   void set_max();
   bool is_max();
-  void store_TIME(my_time_t timestamp, ulong sec_part);
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const;
   my_time_t get_timestamp(ulong *sec_part) const
   {

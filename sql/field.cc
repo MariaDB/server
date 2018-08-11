@@ -5024,41 +5024,53 @@ int Field_timestamp::store_TIME_with_warning(THD *thd, const Datetime *dt,
                                              const ErrConv *str, int was_cut)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE;
-  uint error = 0;
-  if (MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut) || !dt->is_valid_datetime())
+  static const timeval zero= {0, (uint) 0 };
+
+  // Handle totally bad values
+  if (!dt->is_valid_datetime())
   {
-    error= 1;
-    set_datetime_warning(WARN_DATA_TRUNCATED,
-                         str, MYSQL_TIMESTAMP_DATETIME, 1);
-  }
-  else if (MYSQL_TIME_WARN_HAVE_NOTES(was_cut))
-  {
-    error= 3;
-    set_datetime_warning(Sql_condition::WARN_LEVEL_NOTE, WARN_DATA_TRUNCATED,
-                         str, MYSQL_TIMESTAMP_DATETIME, 1);
+    set_datetime_warning(WARN_DATA_TRUNCATED, str, MYSQL_TIMESTAMP_DATETIME, 1);
+    store_TIMEVAL(zero);
+    return 1;
   }
 
-  /* Only convert a correct date (not a zero date) */
-  if (dt->is_valid_datetime() && dt->get_mysql_time()->month)
+  // Handle values that do not need DATETIME to TIMESTAMP conversion
+  if (!dt->get_mysql_time()->month)
   {
-    uint conversion_error;
-    const MYSQL_TIME *l_time= dt->get_mysql_time();
-    my_time_t timestamp= TIME_to_timestamp(thd, l_time, &conversion_error);
-    if (timestamp == 0 && l_time->second_part == 0)
-      conversion_error= ER_WARN_DATA_OUT_OF_RANGE;
-    if (unlikely(conversion_error))
-    {
-      set_datetime_warning(conversion_error,
-                           str, MYSQL_TIMESTAMP_DATETIME, !error);
-      error= 1;
-    }
-    store_TIME(timestamp, l_time->second_part);
+    /*
+      Zero date is allowed by the current sql_mode. Store zero timestamp.
+      Return success or a warning about non-fatal truncation, e.g.:
+        INSERT INTO t1 (ts) VALUES ('0000-00-00 00:00:00 some tail');
+    */
+    store_TIMEVAL(zero);
+    return store_TIME_return_code_with_warnings(was_cut, str,
+                                                MYSQL_TIMESTAMP_DATETIME);
   }
-  else
+
+  // Convert DATETIME to TIMESTAMP
+  uint conversion_error;
+  const MYSQL_TIME *l_time= dt->get_mysql_time();
+  my_time_t timestamp= TIME_to_timestamp(thd, l_time, &conversion_error);
+  if (timestamp == 0 && l_time->second_part == 0)
   {
-    store_TIME(0, 0);
+    set_datetime_warning(ER_WARN_DATA_OUT_OF_RANGE, str, MYSQL_TIMESTAMP_DATETIME, 1);
+    store_TIMEVAL(zero);
+    return 1; // date was fine but pointed to a DST gap
   }
-  return error;
+
+  // Adjust and store the value
+  timeval tv= {timestamp, (uint) l_time->second_part};
+  my_timeval_trunc(&tv, decimals());
+  store_TIMEVAL(tv);
+
+  // Calculate return value and send warnings if needed
+  if (unlikely(conversion_error)) // e.g. DATETIME in the DST gap
+  {
+    set_datetime_warning(conversion_error, str, MYSQL_TIMESTAMP_DATETIME, 1);
+    return 1;
+  }
+  return store_TIME_return_code_with_warnings(was_cut, str,
+                                              MYSQL_TIMESTAMP_DATETIME);
 }
 
 
@@ -5367,10 +5379,10 @@ static longlong read_lowendian(const uchar *from, uint bytes)
   }
 }
 
-void Field_timestamp_hires::store_TIME(my_time_t timestamp, ulong sec_part)
+void Field_timestamp_hires::store_TIMEVAL(const timeval &tv)
 {
-  mi_int4store(ptr, timestamp);
-  store_bigendian(sec_part_shift(sec_part, dec), ptr+4, sec_part_bytes(dec));
+  mi_int4store(ptr, tv.tv_sec);
+  store_bigendian(sec_part_shift(tv.tv_usec, dec), ptr+4, sec_part_bytes(dec));
 }
 
 my_time_t Field_timestamp_hires::get_timestamp(const uchar *pos,
@@ -5449,12 +5461,8 @@ void Field_timestamp_with_dec::make_send_field(Send_field *field)
 ** MySQL-5.6 compatible TIMESTAMP(N)
 **************************************************************/
 
-void Field_timestampf::store_TIME(my_time_t timestamp, ulong sec_part)
+void Field_timestampf::store_TIMEVAL(const timeval &tm)
 {
-  struct timeval tm;
-  tm.tv_sec= timestamp;
-  tm.tv_usec= sec_part;
-  my_timeval_trunc(&tm, dec);
   my_timestamp_to_binary(&tm, ptr, dec);
 }
 
