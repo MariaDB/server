@@ -5059,7 +5059,10 @@ int Field_timestamp::store_TIME_with_warning(THD *thd, const Datetime *dt,
   }
 
   // Adjust and store the value
-  timeval tv= {timestamp, (uint) l_time->second_part};
+  timeval tv;
+  tv.tv_sec= timestamp;
+  tv.tv_usec= l_time->second_part;
+
   my_timeval_trunc(&tv, decimals());
   store_TIMEVAL(tv);
 
