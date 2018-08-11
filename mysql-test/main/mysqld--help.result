@@ -1265,6 +1265,9 @@ The following specify which files/extra groups are read (specified before remain
  first TCP keep-alive packet is sent.If set to 0, system
  dependent default is used. (Automatically configured
  unless set explicitly)
+ --tcp-nodelay       Set option TCP_NODELAY (disable Nagle's algorithm) on
+ socket
+ (Defaults to on; use --skip-tcp-nodelay to disable.)
  --thread-cache-size=# 
  How many threads we should keep in a cache for reuse.
  These are freed after 5 minutes of idle time
@@ -1679,6 +1682,7 @@ tc-heuristic-recover OFF
 tcp-keepalive-interval 0
 tcp-keepalive-probes 0
 tcp-keepalive-time 0
+tcp-nodelay TRUE
 thread-cache-size 151
 thread-pool-idle-timeout 60
 thread-pool-max-threads 65536
