@@ -238,8 +238,7 @@ DROP TABLE t1, connect.emp;
 CREATE TABLE t2 (command varchar(128) not null,number int(5) not null flag=1,message varchar(255) flag=2) ENGINE=CONNECT TABLE_TYPE=JDBC CONNECTION='jdbc:mariadb://localhost:PORT/connect' OPTION_LIST='User=root,Execsrc=1';
 SELECT * FROM t2 WHERE command='drop table tx1';
 command	number	message
-drop table tx1	0	Execute: java.sql.SQLSyntaxErrorException: Unknown table 'connect.tx1'
-Query is : drop table tx1
+drop table tx1	0	Execute: java.sql.SQLSyntaxErrorException: (conn:24) Unknown table 'connect.tx1'
 SELECT * FROM t2 WHERE command = 'create table tx1 (a int not null, b char(32), c double(8,2))';
 command	number	message
 create table tx1 (a int not null, b char(32), c double(8,2))	0	Affected rows

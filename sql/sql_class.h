@@ -4035,6 +4035,10 @@ public:
     *format= (enum_binlog_format) variables.binlog_format;
     *current_format= current_stmt_binlog_format;
   }
+  inline enum_binlog_format get_current_stmt_binlog_format()
+  {
+    return current_stmt_binlog_format;
+  }
   inline void set_binlog_format(enum_binlog_format format,
                                 enum_binlog_format current_format)
   {
@@ -4078,11 +4082,6 @@ public:
       set_current_stmt_binlog_format_row();
 
     DBUG_VOID_RETURN;
-  }
-
-  inline enum_binlog_format get_current_stmt_binlog_format()
-  {
-    return current_stmt_binlog_format;
   }
 
   inline void set_current_stmt_binlog_format(enum_binlog_format format)

@@ -707,20 +707,13 @@ bool JDBConn::SetUUID(PGLOBAL g, PTDBJDBC tjp)
 			goto err;
 		}	// endif rc
 
-		// Returns 666 is case of error
-		//jtyp = env->CallIntMethod(job, typid, 5, nullptr);
-
-		//if (Check((jtyp == 666) ? -1 : 1)) {
-		//	sprintf(g->Message, "Getting jtyp: %s", Msg);
-		//	goto err;
-		//} // endif ctyp
-
+		// Should return 666 is case of error	(not done yet)
 		ctyp = (int)env->CallIntMethod(job, intfldid, 5, nullptr);
 
-		if (Check(ctyp)) {
-			sprintf(g->Message, "Getting ctyp: %s", Msg);
-			goto err;
-		} // endif ctyp
+		//if (Check((ctyp == 666) ? -1 : 1)) {
+		//	sprintf(g->Message, "Getting ctyp: %s", Msg);
+		//	goto err;
+		//} // endif ctyp
 
 		if (ctyp == 1111)
 			((PJDBCCOL)colp)->uuid = true;
@@ -836,11 +829,11 @@ bool JDBConn::Connect(PJPARM sop)
 		jstring s = (jstring)env->CallObjectMethod(job, qcid);
 
 		if (s != nullptr) {
-			char *qch = (char*)env->GetStringUTFChars(s, (jboolean)false);
+			char *qch = GetUTFString(s);
 			m_IDQuoteChar[0] = *qch;
 		} else {
 			s = (jstring)env->CallObjectMethod(job, errid);
-			Msg = (char*)env->GetStringUTFChars(s, (jboolean)false);
+			Msg = GetUTFString(s);
 		}	// endif s
 
 	}	// endif qcid
@@ -1018,7 +1011,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 			cn = nullptr;
 
 		if (cn) {
-			field = env->GetStringUTFChars(cn, (jboolean)false);
+			field = GetUTFString(cn);
 			val->SetValue_psz((PSZ)field);
 		} else
 			val->Reset();
@@ -1092,8 +1085,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 			cn = nullptr;
 
 		if (cn) {
-			const char *field = env->GetStringUTFChars(cn, (jboolean)false);
-			val->SetValue_psz((PSZ)field);
+			val->SetValue_psz((PSZ)GetUTFString(cn));
 		} else
 			val->Reset();
 
@@ -1372,19 +1364,19 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		for (i = 0, n = 0; i < size; i++) {
 			crp = qrp->Colresp;
 			js = (jstring)env->GetObjectArrayElement(s, n++);
-			sval = (PSZ)env->GetStringUTFChars(js, 0);
+			sval = GetUTFString(js);
 			crp->Kdata->SetValue(sval, i);
 			crp = crp->Next;
 			js = (jstring)env->GetObjectArrayElement(s, n++);
-			sval = (PSZ)env->GetStringUTFChars(js, 0);
+			sval = GetUTFString(js);
 			crp->Kdata->SetValue(sval, i);
 			crp = crp->Next;
 			js = (jstring)env->GetObjectArrayElement(s, n++);
-			sval = (PSZ)env->GetStringUTFChars(js, 0);
+			sval = GetUTFString(js);
 			crp->Kdata->SetValue(sval, i);
 			crp = crp->Next;
 			js = (jstring)env->GetObjectArrayElement(s, n++);
-			sval = (PSZ)env->GetStringUTFChars(js, 0);
+			sval = GetUTFString(js);
 			crp->Kdata->SetValue(sval, i);
 		}	// endfor i
 
@@ -1470,7 +1462,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 				return NULL;
 			} // endif label
 
-			name = env->GetStringUTFChars(label, (jboolean)false);
+			name = GetUTFString(label);
 			crp = qrp->Colresp;                    // Column_Name
 			crp->Kdata->SetValue((char*)name, i);
 			n = env->GetIntArrayElements(val, 0);

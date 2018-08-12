@@ -138,6 +138,16 @@ JAVAConn::JAVAConn(PGLOBAL g, PCSZ wrapper)
 //  EndCom();
 
 //  } // end of ~JAVAConn
+char *JAVAConn::GetUTFString(jstring s)
+{
+	char *str;
+	const char *utf = env->GetStringUTFChars(s, nullptr);
+
+	str = PlugDup(m_G, utf);
+	env->ReleaseStringUTFChars(s, utf);
+	env->DeleteLocalRef(s);
+	return str;
+}	// end of GetUTFString
 
 /***********************************************************************/
 /*  Screen for errors.                                                 */
@@ -152,17 +162,15 @@ bool JAVAConn::Check(jint rc)
 			"toString", "()Ljava/lang/String;");
 
 		if (exc != nullptr && tid != nullptr) {
-			jstring s = (jstring)env->CallObjectMethod(exc, tid);
-			const char *utf = env->GetStringUTFChars(s, (jboolean)false);
-			env->DeleteLocalRef(s);
-			Msg = PlugDup(m_G, utf);
+			s = (jstring)env->CallObjectMethod(exc, tid);
+			Msg = GetUTFString(s);
 		} else
 			Msg = "Exception occured";
 
 		env->ExceptionClear();
 	} else if (rc < 0) {
 		s = (jstring)env->CallObjectMethod(job, errid);
-		Msg = (char*)env->GetStringUTFChars(s, (jboolean)false);
+		Msg = GetUTFString(s);
 	} else
 		Msg = NULL;
 
