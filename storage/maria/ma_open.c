@@ -473,13 +473,13 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
     /*
       A transactional table is not usable on this system if:
       - share->state.create_trid > trnman_get_max_trid()
-        - Critical as trid as stored releativel to create_trid.
+        - Critical as trid as stored releative to create_trid.
       - uuid is different
       
         STATE_NOT_MOVABLE is reset when a table is zerofilled
         (has no LSN's and no trids)
 
-      We can ignore testing uuid if STATE_NOT_MOVABLE is set, as in this
+      We can ignore testing uuid if STATE_NOT_MOVABLE is not set, as in this
       case the uuid will be set in _ma_mark_file_changed().
     */
     if (share->base.born_transactional &&
