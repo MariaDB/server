@@ -155,11 +155,17 @@ RESTORE_SLOW_QUERY_LOG="SET GLOBAL SLOW_QUERY_LOG=$SLOW_LOG_OPT;"
 
 if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
 then
-    (echo $STOP_WSREP && echo $RESET_MASTER && \
-     echo $SET_GTID_BINLOG_STATE && echo $SQL_LOG_BIN_OFF && \
-     echo $STOP_WSREP && $MYSQLDUMP && echo $CSV_TABLES_FIX && \
-     echo $RESTORE_GENERAL_LOG && echo $RESTORE_SLOW_QUERY_LOG && \
-     echo $SET_START_POSITION || echo "SST failed to complete;") | $MYSQL
+    # FreeBSD pipefail feature request: https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=224270
+    set -o pipefail
+    {
+         echo $STOP_WSREP && echo $RESET_MASTER && \
+         echo $SET_GTID_BINLOG_STATE && echo $SQL_LOG_BIN_OFF && \
+         $MYSQLDUMP && echo $CSV_TABLES_FIX && \
+         echo $RESTORE_GENERAL_LOG && echo $RESTORE_SLOW_QUERY_LOG && \
+         echo $SET_START_POSITION  || \
+         { wsrep_log_error "SST failed to complete;" ; exit 32 }
+     } | $MYSQL
+     exit $?
 else
     wsrep_log_info "Bypassing state dump."
     echo $SET_START_POSITION | $MYSQL
