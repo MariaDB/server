@@ -74,9 +74,26 @@ dch -b -D ${CODENAME} -v "${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE_EXTR
 
 echo "Creating package version ${UPSTREAM}${PATCHLEVEL}-${RELEASE_NAME}${RELEASE_EXTRA:+-${RELEASE_EXTRA}}1~${CODENAME} ... "
 
+# Check whether to build in parallel or not
+OPTION_LIST=$(echo $DEB_BUILD_OPTIONS | tr -s " " "\n")
+
+for OPTION_ITEM in $OPTION_LIST
+do
+        if [[ $OPTION_ITEM =~ "parallel" ]]; then
+                OPTION_PARALLEL=$(echo $OPTION_ITEM | cut -d'=' -f2)
+        fi
+done
+
+if [ -z "$OPTION_PARALLEL" ]
+then
+      echo "\$OPTION_PARALLEL is empty, setting to number of cores"
+      OPTION_PARALLEL=$(nproc)
+fi
+
+echo "OPTION_PARALLEL: $OPTION_PARALLEL"
 # Build the package.
 #
-fakeroot dpkg-buildpackage -us -uc
+fakeroot dpkg-buildpackage -us -uc -j$OPTION_PARALLEL
 
 [ -e debian/autorm-file ] && rm -vf `cat debian/autorm-file`
 
