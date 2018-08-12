@@ -16616,6 +16616,22 @@ Field *Item::create_tmp_field_int(TABLE *table, uint convert_int_length)
                                       *this, table);
 }
 
+Field *Item::tmp_table_field_from_field_type_maybe_null(TABLE *table,
+                                            Tmp_field_src *src,
+                                            const Tmp_field_param *param,
+                                            bool is_explicit_null)
+{
+  DBUG_ASSERT(!param->make_copy_field());
+  DBUG_ASSERT(!is_result_field());
+  Field *result;
+  if ((result= tmp_table_field_from_field_type(table)))
+  {
+    if (result && is_explicit_null)
+      result->is_created_from_null_item= true;
+  }
+  return result;
+}
+
 
 Field *Item_sum::create_tmp_field(bool group, TABLE *table)
 {
@@ -16846,31 +16862,6 @@ Field *Item_func_sp::create_tmp_field_ex(TABLE *table,
   }
   return result;
 }
-
-
-Field *Item_basic_value::create_tmp_field_ex(TABLE *table,
-                                             Tmp_field_src *src,
-                                             const Tmp_field_param *param)
-{
-  /*
-    create_tmp_field_ex() for this type of Items is called for:
-    - CREATE TABLE ... SELECT
-    - In ORDER BY: SELECT max(a) FROM t1 GROUP BY a ORDER BY 'const';
-    - In CURSORS:
-        DECLARE c CURSOR FOR SELECT 'test';
-        OPEN c;
-  */
-  DBUG_ASSERT(!param->make_copy_field());
-  DBUG_ASSERT(!is_result_field());
-  Field *result;
-  if ((result= tmp_table_field_from_field_type(table)))
-  {
-    if (type() == Item::NULL_ITEM) // Item_null or Item_param
-      result->is_created_from_null_item= true;
-  }
-  return result;
-}
-
 
 /**
   Create field for temporary table.

@@ -1960,7 +1960,6 @@ Item_name_const::Item_name_const(THD *thd, Item *name_arg, Item *val):
   Item_fixed_hybrid(thd), value_item(val), name_item(name_arg)
 {
   Item::maybe_null= TRUE;
-  valid_args= true;
   if (!name_item->basic_const_item())
     goto err;
 
@@ -1979,7 +1978,6 @@ Item_name_const::Item_name_const(THD *thd, Item *name_arg, Item *val):
   }
 
 err:
-  valid_args= false;
   my_error(ER_WRONG_ARGUMENTS, MYF(0), "NAME_CONST");
 }
 
@@ -1987,24 +1985,16 @@ err:
 Item::Type Item_name_const::type() const
 {
   /*
-    As 
-    1. one can try to create the Item_name_const passing non-constant 
-    arguments, although it's incorrect and 
-    2. the type() method can be called before the fix_fields() to get
-    type information for a further type cast, e.g. 
-    if (item->type() == FIELD_ITEM) 
-      ((Item_field *) item)->... 
-    we return NULL_ITEM in the case to avoid wrong casting.
 
-    valid_args guarantees value_item->basic_const_item(); if type is
-    FUNC_ITEM, then we have a fudged item_func_neg() on our hands
-    and return the underlying type.
+    We are guarenteed that value_item->basic_const_item(), if not
+    an error is thrown that WRONG ARGUMENTS are supplied to
+    NAME_CONST function.
+    If type is FUNC_ITEM, then we have a fudged item_func_neg()
+    on our hands and return the underlying type.
     For Item_func_set_collation()
     e.g. NAME_CONST('name', 'value' COLLATE collation) we return its
     'value' argument type. 
   */
-  if (!valid_args)
-    return NULL_ITEM;
   Item::Type value_type= value_item->type();
   if (value_type == FUNC_ITEM)
   {

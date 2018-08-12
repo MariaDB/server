@@ -3334,3 +3334,14 @@ d	x
 00:00:01	00:00:02
 00:00:02	NULL
 DROP TABLE t1;
+#
+# MDEV-16722: Assertion `type() != NULL_ITEM' failed
+#
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+SELECT  row_number() OVER (order by a) FROM t1  order by NAME_CONST('myname',NULL);
+row_number() OVER (order by a)
+1
+2
+3
+drop table t1;

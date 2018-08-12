@@ -2100,3 +2100,12 @@ CREATE TABLE t1 (d time);
 INSERT INTO t1 VALUES ('00:00:01'),('00:00:02');
 SELECT *, LEAD(d) OVER (ORDER BY d) AS x FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16722: Assertion `type() != NULL_ITEM' failed
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+SELECT  row_number() OVER (order by a) FROM t1  order by NAME_CONST('myname',NULL);
+drop table t1;

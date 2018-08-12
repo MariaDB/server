@@ -3313,11 +3313,8 @@ public:
 
 inline bool is_cond_and(Item *item)
 {
-  if (item->type() != Item::COND_ITEM)
-    return FALSE;
-
-  Item_cond *cond_item= (Item_cond*) item;
-  return (cond_item->functype() == Item_func::COND_AND_FUNC);
+  Item_func *func_item= item->get_item_func();
+  return func_item && func_item->functype() == Item_func::COND_AND_FUNC;
 }
 
 class Item_cond_or :public Item_cond
@@ -3418,11 +3415,8 @@ public:
 
 inline bool is_cond_or(Item *item)
 {
-  if (item->type() != Item::COND_ITEM)
-    return FALSE;
-
-  Item_cond *cond_item= (Item_cond*) item;
-  return (cond_item->functype() == Item_func::COND_OR_FUNC);
+  Item_func *func_item= item->get_item_func();
+  return func_item && func_item->functype() == Item_func::COND_OR_FUNC;
 }
 
 Item *and_expressions(Item *a, Item *b, Item **org_item);
