@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -360,14 +361,14 @@ trx_rw_is_active(
 	bool		do_ref_count)	/*!< in: if true then increment the
 					trx_t::n_ref_count */
 {
-	trx_t*		trx;
+	ut_ad(trx_id);
 
 	trx_sys_mutex_enter();
 
-	trx = trx_rw_is_active_low(trx_id, corrupt);
+	trx_t* trx = trx_rw_is_active_low(trx_id, corrupt);
 
-	if (trx != 0) {
-		trx = trx_reference(trx, do_ref_count);
+	if (trx) {
+		trx = trx_reference(do_ref_count ? trx_id : 0, trx);
 	}
 
 	trx_sys_mutex_exit();

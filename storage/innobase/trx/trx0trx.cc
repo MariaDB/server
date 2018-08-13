@@ -111,8 +111,6 @@ trx_init(
 /*=====*/
 	trx_t*	trx)
 {
-	trx->id = 0;
-
 	trx->no = TRX_ID_MAX;
 
 	trx->state = TRX_STATE_NOT_STARTED;
@@ -1223,10 +1221,7 @@ trx_start_low(
 		ut_ad(trx_sys_validate_trx_list());
 
 		trx_sys_mutex_exit();
-
 	} else {
-		trx->id = 0;
-
 		if (!trx_is_autocommit_non_locking(trx)) {
 
 			/* If this is a read-only transaction that is writing
@@ -1668,7 +1663,10 @@ trx_commit_in_memory(
 			trx_erase_lists(trx, serialised);
 		}
 
+		/* trx->id will be cleared in lock_trx_release_locks(trx). */
+		ut_ad(trx->read_only || !trx->rsegs.m_redo.rseg || trx->id);
 		lock_trx_release_locks(trx);
+		ut_ad(trx->id == 0);
 
 		/* Remove the transaction from the list of active
 		transactions now that it no longer holds any user locks. */
@@ -1685,7 +1683,6 @@ trx_commit_in_memory(
 			}
 
 		} else {
-			ut_ad(trx->id > 0);
 			MONITOR_INC(MONITOR_TRX_RW_COMMIT);
 		}
 	}
@@ -1956,6 +1953,7 @@ trx_cleanup_at_db_startup(
 	ut_ad(!trx->in_rw_trx_list);
 	ut_ad(!trx->in_mysql_trx_list);
 	DBUG_LOG("trx", "Cleanup at startup: " << trx);
+	trx->id = 0;
 	trx->state = TRX_STATE_NOT_STARTED;
 }
 

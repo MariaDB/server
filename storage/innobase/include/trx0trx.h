@@ -519,19 +519,6 @@ trx_set_rw_mode(
 	trx_t*		trx);
 
 /**
-Increase the reference count. If the transaction is in state
-TRX_STATE_COMMITTED_IN_MEMORY then the transaction is considered
-committed and the reference count is not incremented.
-@param trx Transaction that is being referenced
-@param do_ref_count Increment the reference iff this is true
-@return transaction instance if it is not committed */
-UNIV_INLINE
-trx_t*
-trx_reference(
-	trx_t*		trx,
-	bool		do_ref_count);
-
-/**
 Release the transaction. Decrease the reference count.
 @param trx Transaction that is being released */
 UNIV_INLINE
@@ -600,7 +587,9 @@ Check transaction state */
 @param t transaction handle */
 #define	assert_trx_is_free(t)	do {					\
 	ut_ad(trx_state_eq((t), TRX_STATE_NOT_STARTED));		\
-	ut_ad(!trx->has_logged());					\
+	ut_ad(!(t)->id);						\
+	ut_ad(!(t)->has_logged());					\
+	ut_ad(!(t)->n_ref);						\
 	ut_ad(!MVCC::is_view_active((t)->read_view));			\
 	ut_ad((t)->lock.wait_thr == NULL);				\
 	ut_ad(UT_LIST_GET_LEN((t)->lock.trx_locks) == 0);		\
@@ -1276,6 +1265,32 @@ struct commit_node_t{
 #define trx_mutex_exit(t) do {			\
 	mutex_exit(&t->mutex);			\
 } while (0)
+
+/**
+Increase the reference count. If the transaction is in state
+TRX_STATE_COMMITTED_IN_MEMORY then the transaction is considered
+committed and the reference count is not incremented.
+@param id the transaction ID; 0 if not to increment the reference count
+@param trx Transaction that is being referenced
+@return trx
+@retval	NULL	if the transaction is no longer active */
+inline trx_t* trx_reference(trx_id_t id, trx_t* trx)
+{
+	trx_mutex_enter(trx);
+
+	if (trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY)) {
+		trx = NULL;
+	} else if (!id) {
+	} else if (trx->id != id) {
+		trx = NULL;
+	} else {
+		ut_ad(trx->n_ref >= 0);
+		++trx->n_ref;
+	}
+
+	trx_mutex_exit(trx);
+	return(trx);
+}
 
 #include "trx0trx.ic"
 

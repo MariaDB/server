@@ -6892,6 +6892,8 @@ lock_trx_release_locks(
 	the is_recovered flag. */
 
 	trx->is_recovered = false;
+	/* Ensure that trx_reference() will not find this transaction. */
+	trx->id = 0;
 
 	trx_mutex_exit(trx);
 
