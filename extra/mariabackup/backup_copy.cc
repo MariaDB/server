@@ -650,7 +650,7 @@ mkdirp(const char *pathname, int Flags, myf MyFlags)
           return(-1);
 
 	for (p = parent + strlen(parent);
-	    !is_path_separator(*p) && p != parent; p--);
+	    !is_path_separator(*p) && p != parent; p--) ;
 
 	*p = 0;
 

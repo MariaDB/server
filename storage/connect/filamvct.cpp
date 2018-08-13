@@ -348,7 +348,7 @@ int VCTFAM::Cardinality(PGLOBAL g)
 
     } // endif split
 
-    return (Block) ? ((Block - 1) * Nrec + Last) : 0;
+  return (Block) ? ((Block - 1) * Nrec + Last) : 0;
   } // end of Cardinality
 
 /***********************************************************************/
@@ -2453,11 +2453,11 @@ int VECFAM::RenameTempFile(PGLOBAL g)
       remove(filetemp);   // May still be there from previous error
   
       if (rename(filename, filetemp)) {    // Save file for security
-        sprintf(g->Message, MSG(RENAME_ERROR),
+        snprintf(g->Message, MAX_STR, MSG(RENAME_ERROR),
                 filename, filetemp, strerror(errno));
         rc = RC_FX;
       } else if (rename(tempname, filename)) {
-        sprintf(g->Message, MSG(RENAME_ERROR),
+        snprintf(g->Message, MAX_STR, MSG(RENAME_ERROR),
                 tempname, filename, strerror(errno));
         rc = rename(filetemp, filename);   // Restore saved file
         rc = RC_FX;

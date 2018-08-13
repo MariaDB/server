@@ -522,7 +522,7 @@ PSZ JMgoConn::GetDocument(void)
 		jdc = (jstring)env->CallObjectMethod(job, getdocid);
 
 		if (jdc)
-			doc = (PSZ)env->GetStringUTFChars(jdc, (jboolean)false);
+			doc = (PSZ)GetUTFString(jdc);
 
 	} // endif getdocid
 
@@ -690,7 +690,7 @@ jobject JMgoConn::MakeDoc(PGLOBAL g, PJNCOL jcp)
 
 		} // endif Jncolp
 
-		return parent;
+	return parent;
 } // end of MakeDoc
 
 /***********************************************************************/
@@ -807,7 +807,7 @@ PSZ JMgoConn::GetColumnValue(PSZ path)
 		fn = (jstring)env->CallObjectMethod(job, objfldid, jn);
 
 		if (fn)
-			fld = (PSZ)env->GetStringUTFChars(fn, (jboolean)false);
+			fld = (PSZ)GetUTFString(fn);
 
 	}	// endif objfldid
 

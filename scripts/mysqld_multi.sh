@@ -492,12 +492,19 @@ sub list_defaults_files
 
   return ($opt{file}) if exists $opt{file};
 
-  return      ('@sysconfdir@/my.cnf',
-               '@sysconfdir@/mysql/my.cnf',
-               '@prefix@/my.cnf',
-               ($ENV{MYSQL_HOME} ? "$ENV{MYSQL_HOME}/my.cnf" : undef),
-               $opt{'extra-file'},
-               ($ENV{HOME} ? "$ENV{HOME}/.my.cnf" : undef));
+  my @dirs;
+
+  # same rule as in mysys/my_default.c
+  if ('@sysconfdir@') {
+    push @dirs, '@sysconfdir@/my.cnf';
+  } else {
+    push @dirs, '/etc/my.cnf', '/etc/mysql/my.cnf';
+  }
+  push @dirs, "$ENV{MYSQL_HOME}/my.cnf" if $ENV{MYSQL_HOME};
+  push @dirs, $opt{'extra-file'} if $opt{'extra-file'};
+  push @dirs, "$ENV{HOME}/.my.cnf" if $ENV{HOME};
+
+  return @dirs;
 }
 
 

@@ -105,6 +105,8 @@ Conflicts: libmariadbclient18 (<< 10.2.0),
            mariadb-server-5.2,
            mariadb-server-5.3,
            mariadb-server-5.5 (<< 5.5.33)
+Breaks: libmariadbclient18 (<< ${source:Version})
+Replaces: libmariadbclient18 (<< ${source:Version})
 Description: MariaDB database client library
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query

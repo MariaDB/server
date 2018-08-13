@@ -14,11 +14,6 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
 
 # This script creates initial database for packaging on Windows
-SET(CMAKE_SOURCE_DIR "@CMAKE_SOURCE_DIR@")
-SET(CMAKE_CURRENT_BINARY_DIR "@CMAKE_CURRENT_BINARY_DIR@")
-SET(MYSQLD_EXECUTABLE "@MYSQLD_EXECUTABLE@")
-SET(CMAKE_CFG_INTDIR "@CMAKE_CFG_INTDIR@")
-SET(WIN32 "@WIN32@")
 # Force Visual Studio to output to stdout
 IF(ENV{VS_UNICODE_OUTPUT})
  SET ($ENV{VS_UNICODE_OUTPUT})
@@ -32,30 +27,27 @@ ENDIF()
 # Create bootstrapper SQL script
 FILE(WRITE bootstrap.sql "use mysql;\n" )
 FOREACH(FILENAME mysql_system_tables.sql mysql_system_tables_data.sql mysql_performance_tables.sql)
-   FILE(STRINGS ${CMAKE_SOURCE_DIR}/scripts/${FILENAME} CONTENTS)
+   FILE(STRINGS ${TOP_SRCDIR}/scripts/${FILENAME} CONTENTS)
    FOREACH(STR ${CONTENTS})
     IF(NOT STR MATCHES "@current_hostname")
       FILE(APPEND bootstrap.sql "${STR}\n")
     ENDIF()
   ENDFOREACH()
 ENDFOREACH()
-FILE(READ ${CMAKE_SOURCE_DIR}/scripts/fill_help_tables.sql CONTENTS)
+FILE(READ ${TOP_SRCDIR}/scripts/fill_help_tables.sql CONTENTS)
 FILE(APPEND bootstrap.sql "${CONTENTS}")
 
 FILE(REMOVE_RECURSE mysql performance_schema)
 FILE(REMOVE ibdata1 ib_logfile0 ib_logfile1)
 
 MAKE_DIRECTORY(mysql)
-IF(WIN32)
-  SET(CONSOLE --console)
-ENDIF()
 
 SET(BOOTSTRAP_COMMAND 
   ${MYSQLD_EXECUTABLE} 
   --no-defaults 
-  ${CONSOLE}
+  --console
   --bootstrap 
-  --lc-messages-dir=${CMAKE_CURRENT_BINARY_DIR}/share
+  --lc-messages-dir=${BINDIR}/share
   --basedir=.
   --datadir=.
   --default-storage-engine=MyISAM
@@ -65,10 +57,10 @@ SET(BOOTSTRAP_COMMAND
 
 GET_FILENAME_COMPONENT(CWD . ABSOLUTE)
 EXECUTE_PROCESS(
-  COMMAND "@CMAKE_COMMAND@" -E echo Executing ${BOOTSTRAP_COMMAND}
+  COMMAND "${CMAKE_COMMAND}" -E echo Executing ${BOOTSTRAP_COMMAND}
 )
 EXECUTE_PROCESS (
-  COMMAND "@CMAKE_COMMAND@" -E
+  COMMAND "${CMAKE_COMMAND}" -E
   echo input file bootstrap.sql, current directory ${CWD}
 )
 EXECUTE_PROCESS (  

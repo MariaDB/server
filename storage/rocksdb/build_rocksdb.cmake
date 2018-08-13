@@ -33,7 +33,7 @@ endif()
 
 # Optional compression libraries.
 
-foreach(compression_lib LZ4 BZIP2 ZSTD snappy)
+foreach(compression_lib LZ4 BZIP2 zstd snappy)
   FIND_PACKAGE(${compression_lib} QUIET)
 
   SET(WITH_ROCKSDB_${compression_lib} AUTO CACHE STRING
@@ -76,7 +76,7 @@ if(ZSTD_FOUND AND (NOT WITH_ROCKSDB_ZSTD STREQUAL "OFF"))
   if (ZSTD_VALID)
     add_definitions(-DZSTD)
     include_directories(${ZSTD_INCLUDE_DIR})
-    list(APPEND THIRDPARTY_LIBS ${ZSTD_LIBRARY})
+    list(APPEND THIRDPARTY_LIBS ${ZSTD_LIBRARIES})
   endif()
 endif()
 
@@ -392,4 +392,3 @@ target_link_libraries(rocksdblib ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set_target_properties(rocksdblib PROPERTIES COMPILE_FLAGS "-fPIC -fno-builtin-memcmp -frtti")
 endif()
-

@@ -17,7 +17,6 @@ Description=MariaDB @VERSION@ database server
 Documentation=man:mysqld(8)
 Documentation=https://mariadb.com/kb/en/library/systemd/
 After=network.target
-After=syslog.target
 
 [Install]
 WantedBy=multi-user.target
