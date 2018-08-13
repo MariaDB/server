@@ -190,7 +190,7 @@ struct TrxFactory {
 		the constructors of the trx_t members. */
 		new(&trx->mod_tables) trx_mod_tables_t();
 
-		new(&trx->lock.table_locks) lock_pool_t();
+		new(&trx->lock.table_locks) lock_list();
 
 		trx_init(trx);
 
@@ -243,7 +243,7 @@ struct TrxFactory {
 
 		ut_ad(trx->read_view == NULL);
 
-		trx->lock.table_locks.~lock_pool_t();
+		trx->lock.table_locks.~lock_list();
 	}
 
 	/** Enforce any invariants here, this is called before the transaction

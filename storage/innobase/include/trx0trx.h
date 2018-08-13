@@ -642,7 +642,7 @@ The tranasction must be in the mysql_trx_list. */
 # define assert_trx_nonlocking_or_in_list(trx) ((void)0)
 #endif /* UNIV_DEBUG */
 
-typedef std::vector<ib_lock_t*, ut_allocator<ib_lock_t*> >	lock_pool_t;
+typedef std::vector<ib_lock_t*, ut_allocator<ib_lock_t*> >	lock_list;
 
 /*******************************************************************//**
 Latching protocol for trx_lock_t::que_state.  trx_lock_t::que_state
@@ -726,7 +726,7 @@ struct trx_lock_t {
 					and lock_sys->mutex; removals are
 					protected by lock_sys->mutex */
 
-	lock_pool_t	table_locks;	/*!< All table locks requested by this
+	lock_list	table_locks;	/*!< All table locks requested by this
 					transaction, including AUTOINC locks */
 
 	bool		cancel;		/*!< true if the transaction is being

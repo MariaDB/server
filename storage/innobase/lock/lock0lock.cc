@@ -4493,24 +4493,15 @@ lock_trx_table_locks_remove(
 		ut_ad(trx_mutex_own(trx));
 	}
 
-	typedef lock_pool_t::reverse_iterator iterator;
-
-	iterator	end = trx->lock.table_locks.rend();
-
-	for (iterator it = trx->lock.table_locks.rbegin(); it != end; ++it) {
-
+	for (lock_list::iterator it = trx->lock.table_locks.begin(),
+             end = trx->lock.table_locks.end(); it != end; ++it) {
 		const lock_t*	lock = *it;
 
-		if (lock == NULL) {
-			continue;
-		}
-
-		ut_a(trx == lock->trx);
-		ut_a(lock_get_type_low(lock) & LOCK_TABLE);
-		ut_a(lock->un_member.tab_lock.table != NULL);
+		ut_ad(!lock || trx == lock->trx);
+		ut_ad(!lock || lock_get_type_low(lock) & LOCK_TABLE);
+		ut_ad(!lock || lock->un_member.tab_lock.table);
 
 		if (lock == lock_to_remove) {
-
 			*it = NULL;
 
 			if (!trx->lock.cancel) {
@@ -5370,11 +5361,8 @@ lock_trx_table_locks_find(
 
 	trx_mutex_enter(trx);
 
-	typedef lock_pool_t::const_reverse_iterator iterator;
-
-	iterator	end = trx->lock.table_locks.rend();
-
-	for (iterator it = trx->lock.table_locks.rbegin(); it != end; ++it) {
+	for (lock_list::const_iterator it = trx->lock.table_locks.begin(),
+             end = trx->lock.table_locks.end(); it != end; ++it) {
 
 		const lock_t*	lock = *it;
 
@@ -7108,10 +7096,8 @@ lock_trx_has_sys_table_locks(
 
 	lock_mutex_enter();
 
-	typedef lock_pool_t::const_reverse_iterator iterator;
-
-	iterator	end = trx->lock.table_locks.rend();
-	iterator	it = trx->lock.table_locks.rbegin();
+	const lock_list::const_iterator end = trx->lock.table_locks.end();
+	lock_list::const_iterator it = trx->lock.table_locks.begin();
 
 	/* Find a valid mode. Note: ib_vector_size() can be 0. */
 

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -388,17 +389,10 @@ lock_table_has(
 	const dict_table_t*	table,	/*!< in: table */
 	lock_mode		in_mode)/*!< in: lock mode */
 {
-	if (trx->lock.table_locks.empty()) {
-		return(NULL);
-	}
-
-	typedef lock_pool_t::const_reverse_iterator iterator;
-
-	iterator	end = trx->lock.table_locks.rend();
-
 	/* Look for stronger locks the same trx already has on the table */
 
-	for (iterator it = trx->lock.table_locks.rbegin(); it != end; ++it) {
+	for (lock_list::const_iterator it = trx->lock.table_locks.begin(),
+             end = trx->lock.table_locks.end(); it != end; ++it) {
 
 		const lock_t*	lock = *it;
 
