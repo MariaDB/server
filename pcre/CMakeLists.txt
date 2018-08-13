@@ -377,7 +377,7 @@ MESSAGE(\" \")
 
   IF(UNIX)
     ADD_TEST(NAME pcre_test
-      COMMAND sh pcre_test.sh
+      COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/pcre_test.sh
         ${PROJECT_SOURCE_DIR}
         $<TARGET_FILE:pcretest>
         $<TARGET_FILE_DIR:pcretest>
@@ -387,7 +387,7 @@ MESSAGE(\" \")
   IF(PCRE_BUILD_PCREGREP)
     IF(UNIX)
       ADD_TEST(NAME pcre_grep_test
-        COMMAND sh pcre_grep_test.sh
+        COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/pcre_grep_test.sh
           ${PROJECT_SOURCE_DIR}
           $<TARGET_FILE:pcregrep>
           $<TARGET_FILE:pcretest>
