@@ -161,19 +161,16 @@ bool
 log_set_capacity(ulonglong file_size)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/******************************************************//**
-This function is called, e.g., when a transaction wants to commit. It checks
-that the log has been written to the log file up to the last log entry written
-by the transaction. If there is a flush running, it waits and checks if the
-flush flushed enough. If not, starts a new flush. */
-void
-log_write_up_to(
-/*============*/
-	lsn_t	lsn,	/*!< in: log sequence number up to which
-			the log should be written, LSN_MAX if not specified */
-	bool	flush_to_disk);
-			/*!< in: true if we want the written log
-			also to be flushed to disk */
+/** Ensure that the log has been written to the log file up to a given
+log entry (such as that of a transaction commit). Start a new write, or
+wait and check if an already running write is covering the request.
+@param[in]	lsn		log sequence number that should be
+included in the redo log file write
+@param[in]	flush_to_disk	whether the written log should also
+be flushed to the file system
+@param[in]	rotate_key	whether to rotate the encryption key */
+void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key = false);
+
 /** write to the log file up to the last log entry.
 @param[in]	sync	whether we want the written log
 also to be flushed to disk. */
@@ -415,13 +412,14 @@ extern my_bool	innodb_log_checksums;
 #define LOG_BLOCK_HDR_SIZE	12	/* size of the log block header in
 					bytes */
 
-/* Offsets of a log block trailer from the end of the block */
+#define	LOG_BLOCK_KEY		4	/* encryption key version
+					before LOG_BLOCK_CHECKSUM;
+					in LOG_HEADER_FORMAT_ENC_10_4 only */
 #define	LOG_BLOCK_CHECKSUM	4	/* 4 byte checksum of the log block
 					contents; in InnoDB versions
 					< 3.23.52 this did not contain the
 					checksum but the same value as
-					.._HDR_NO */
-#define	LOG_BLOCK_TRL_SIZE	4	/* trailer size in bytes */
+					LOG_BLOCK_HDR_NO */
 
 /** Offsets inside the checkpoint pages (redo log format version 1) @{ */
 /** Checkpoint number */
@@ -476,9 +474,8 @@ or the MySQL version that created the redo log file. */
 #define LOG_HEADER_FORMAT_10_2		1
 /** The MariaDB 10.3.2 log format */
 #define LOG_HEADER_FORMAT_10_3		103
-/** The redo log format identifier corresponding to the current format version.
-Stored in LOG_HEADER_FORMAT. */
-#define LOG_HEADER_FORMAT_CURRENT	LOG_HEADER_FORMAT_10_3
+/** The MariaDB 10.4.0 log format (only with innodb_encrypt_log=ON) */
+#define LOG_HEADER_FORMAT_ENC_10_4	(104U | 1U << 31)
 /** Encrypted MariaDB redo log */
 #define LOG_HEADER_FORMAT_ENCRYPTED	(1U<<31)
 
@@ -556,7 +553,7 @@ struct log_t{
   struct files {
     /** number of files */
     ulint				n_files;
-    /** format of the redo log: e.g., LOG_HEADER_FORMAT_CURRENT */
+    /** format of the redo log: e.g., LOG_HEADER_FORMAT_10_3 */
     ulint				format;
     /** individual log file size in bytes, including the header */
     lsn_t				file_size;
@@ -712,10 +709,33 @@ public:
   /** @return whether the redo log is encrypted */
   bool is_encrypted() const { return(log.is_encrypted()); }
 
-  bool is_initialised() { return m_initialised; }
+  bool is_initialised() const { return m_initialised; }
 
   /** Complete an asynchronous checkpoint write. */
   void complete_checkpoint();
+
+  /** @return the log block header + trailer size */
+  unsigned framing_size() const
+  {
+    return log.format == LOG_HEADER_FORMAT_ENC_10_4
+      ? LOG_BLOCK_HDR_SIZE + LOG_BLOCK_KEY + LOG_BLOCK_CHECKSUM
+      : LOG_BLOCK_HDR_SIZE + LOG_BLOCK_CHECKSUM;
+  }
+  /** @return the log block payload size */
+  unsigned payload_size() const
+  {
+    return log.format == LOG_HEADER_FORMAT_ENC_10_4
+      ? OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE - LOG_BLOCK_CHECKSUM -
+      LOG_BLOCK_KEY
+      : OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE - LOG_BLOCK_CHECKSUM;
+  }
+  /** @return the log block trailer offset */
+  unsigned trailer_offset() const
+  {
+    return log.format == LOG_HEADER_FORMAT_ENC_10_4
+      ? OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM - LOG_BLOCK_KEY
+      : OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_CHECKSUM;
+  }
 
   /** Initialise the redo log subsystem. */
   void create();

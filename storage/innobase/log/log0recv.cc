@@ -706,14 +706,17 @@ loop:
 					    << log_block_get_checkpoint_no(buf)
 					    << " expected: " << crc
 					    << " found: " << cksum;
+fail:
 				end_lsn = *start_lsn;
 				success = false;
 				break;
 			}
 
-			if (is_encrypted()) {
-				log_crypt(buf, *start_lsn,
-					  OS_FILE_LOG_BLOCK_SIZE, true);
+			if (is_encrypted()
+			    && !log_crypt(buf, *start_lsn,
+					  OS_FILE_LOG_BLOCK_SIZE,
+					  LOG_DECRYPT)) {
+				goto fail;
 			}
 		}
 	}
@@ -953,8 +956,9 @@ recv_find_max_checkpoint(ulint* max_field)
 		return(recv_find_max_checkpoint_0(max_field));
 	case LOG_HEADER_FORMAT_10_2:
 	case LOG_HEADER_FORMAT_10_2 | LOG_HEADER_FORMAT_ENCRYPTED:
-	case LOG_HEADER_FORMAT_CURRENT:
-	case LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED:
+	case LOG_HEADER_FORMAT_10_3:
+	case LOG_HEADER_FORMAT_10_3 | LOG_HEADER_FORMAT_ENCRYPTED:
+	case LOG_HEADER_FORMAT_ENC_10_4:
 		break;
 	default:
 		ib::error() << "Unsupported redo log format."
@@ -2173,17 +2177,12 @@ recv_calc_lsn_on_data_add(
 	ib_uint64_t	len)	/*!< in: this many bytes of data is
 				added, log block headers not included */
 {
-	ulint		frag_len;
-	ib_uint64_t	lsn_len;
-
-	frag_len = (lsn % OS_FILE_LOG_BLOCK_SIZE) - LOG_BLOCK_HDR_SIZE;
-	ut_ad(frag_len < OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE
-	      - LOG_BLOCK_TRL_SIZE);
-	lsn_len = len;
-	lsn_len += (lsn_len + frag_len)
-		/ (OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE
-		   - LOG_BLOCK_TRL_SIZE)
-		* (LOG_BLOCK_HDR_SIZE + LOG_BLOCK_TRL_SIZE);
+	unsigned frag_len = (lsn % OS_FILE_LOG_BLOCK_SIZE) - LOG_BLOCK_HDR_SIZE;
+	unsigned payload_size = log_sys.payload_size();
+	ut_ad(frag_len < payload_size);
+	lsn_t lsn_len = len;
+	lsn_len += (lsn_len + frag_len) / payload_size
+		* (OS_FILE_LOG_BLOCK_SIZE - payload_size);
 
 	return(lsn + lsn_len);
 }
@@ -2645,11 +2644,7 @@ bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn)
 		start_offset = LOG_BLOCK_HDR_SIZE;
 	}
 
-	end_offset = data_len;
-
-	if (end_offset > OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE) {
-		end_offset = OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE;
-	}
+	end_offset = std::min<ulint>(data_len, log_sys.trailer_offset());
 
 	ut_ad(start_offset <= end_offset);
 

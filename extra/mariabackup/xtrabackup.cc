@@ -2500,8 +2500,7 @@ static lsn_t xtrabackup_copy_log(lsn_t start_lsn, lsn_t end_lsn, bool last)
 		if (data_len == OS_FILE_LOG_BLOCK_SIZE) {
 			/* We got a full log block. */
 			scanned_lsn += data_len;
-		} else if (data_len
-			   >= OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE
+		} else if (data_len >= log_sys.trailer_offset()
 			   || data_len <= LOG_BLOCK_HDR_SIZE) {
 			/* We got a garbage block (abrupt end of the log). */
 			msg("mariabackup: garbage block: " LSN_PF ",%zu\n",
@@ -3946,8 +3945,8 @@ old_format:
 		goto log_fail;
 	}
 
-	ut_ad(!((log_sys.log.format ^ LOG_HEADER_FORMAT_CURRENT)
-		& ~LOG_HEADER_FORMAT_ENCRYPTED));
+	ut_ad(log_sys.log.format == LOG_HEADER_FORMAT_10_3
+	      || log_sys.log.format == LOG_HEADER_FORMAT_ENC_10_4);
 
 	const byte* buf = log_sys.checkpoint_buf;
 
@@ -3965,8 +3964,8 @@ reread_log_header:
 		goto old_format;
 	}
 
-	ut_ad(!((log_sys.log.format ^ LOG_HEADER_FORMAT_CURRENT)
-		& ~LOG_HEADER_FORMAT_ENCRYPTED));
+	ut_ad(log_sys.log.format == LOG_HEADER_FORMAT_10_3
+	      || log_sys.log.format == LOG_HEADER_FORMAT_ENC_10_4);
 
 	log_header_read(max_cp_field);
 

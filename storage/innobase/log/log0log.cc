@@ -258,9 +258,9 @@ log_calculate_actual_len(
 {
 	ut_ad(log_mutex_own());
 
+	const ulint	framing_size = log_sys.framing_size();
 	/* actual length stored per block */
-	const ulint	len_per_blk = OS_FILE_LOG_BLOCK_SIZE
-		- (LOG_BLOCK_HDR_SIZE + LOG_BLOCK_TRL_SIZE);
+	const ulint	len_per_blk = OS_FILE_LOG_BLOCK_SIZE - framing_size;
 
 	/* actual data length in last block already written */
 	ulint	extra_len = (log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE);
@@ -269,8 +269,7 @@ log_calculate_actual_len(
 	extra_len -= LOG_BLOCK_HDR_SIZE;
 
 	/* total extra length for block header and trailer */
-	extra_len = ((len + extra_len) / len_per_blk)
-		* (LOG_BLOCK_HDR_SIZE + LOG_BLOCK_TRL_SIZE);
+	extra_len = ((len + extra_len) / len_per_blk) * framing_size;
 
 	return(len + extra_len);
 }
@@ -402,26 +401,24 @@ log_write_low(
 	ulint		str_len)	/*!< in: string length */
 {
 	ulint	len;
-	ulint	data_len;
-	byte*	log_block;
 
 	ut_ad(log_mutex_own());
+	const ulint trailer_offset = log_sys.trailer_offset();
 part_loop:
 	/* Calculate a part length */
 
-	data_len = (log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE) + str_len;
+	ulint data_len = (log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE) + str_len;
 
-	if (data_len <= OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE) {
+	if (data_len <= trailer_offset) {
 
 		/* The string fits within the current log block */
 
 		len = str_len;
 	} else {
-		data_len = OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE;
+		data_len = trailer_offset;
 
-		len = OS_FILE_LOG_BLOCK_SIZE
-			- (log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE)
-			- LOG_BLOCK_TRL_SIZE;
+		len = trailer_offset
+			- log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE;
 	}
 
 	memcpy(log_sys.buf + log_sys.buf_free, str, len);
@@ -429,18 +426,18 @@ part_loop:
 	str_len -= len;
 	str = str + len;
 
-	log_block = static_cast<byte*>(
+	byte* log_block = static_cast<byte*>(
 		ut_align_down(log_sys.buf + log_sys.buf_free,
 			      OS_FILE_LOG_BLOCK_SIZE));
 
 	log_block_set_data_len(log_block, data_len);
 
-	if (data_len == OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE) {
+	if (data_len == trailer_offset) {
 		/* This block became full */
 		log_block_set_data_len(log_block, OS_FILE_LOG_BLOCK_SIZE);
 		log_block_set_checkpoint_no(log_block,
 					    log_sys.next_checkpoint_no);
-		len += LOG_BLOCK_HDR_SIZE + LOG_BLOCK_TRL_SIZE;
+		len += log_sys.framing_size();
 
 		log_sys.lsn += len;
 
@@ -668,8 +665,7 @@ void log_t::files::create(ulint n_files)
 
   this->n_files= n_files;
   format= srv_encrypt_log
-    ? LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED
-    : LOG_HEADER_FORMAT_CURRENT;
+    ? LOG_HEADER_FORMAT_ENC_10_4 : LOG_HEADER_FORMAT_10_3;
   file_size= srv_log_file_size;
   state= LOG_GROUP_OK;
   lsn= LOG_START_LSN;
@@ -702,8 +698,8 @@ log_file_header_flush(
 	ut_ad(log_write_mutex_own());
 	ut_ad(!recv_no_log_write);
 	ut_a(nth_file < log_sys.log.n_files);
-	ut_ad((log_sys.log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
-	      == LOG_HEADER_FORMAT_CURRENT);
+	ut_ad(log_sys.log.format == LOG_HEADER_FORMAT_10_3
+	      || log_sys.log.format == LOG_HEADER_FORMAT_ENC_10_4);
 
 	buf = log_sys.log.file_header_bufs[nth_file];
 
@@ -939,11 +935,9 @@ wait and check if an already running write is covering the request.
 @param[in]	lsn		log sequence number that should be
 included in the redo log file write
 @param[in]	flush_to_disk	whether the written log should also
-be flushed to the file system */
-void
-log_write_up_to(
-	lsn_t	lsn,
-	bool	flush_to_disk)
+be flushed to the file system
+@param[in]	rotate_key	whether to rotate the encryption key */
+void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key)
 {
 #ifdef UNIV_DEBUG
 	ulint		loop_count	= 0;
@@ -952,6 +946,7 @@ log_write_up_to(
 	lsn_t           write_lsn;
 
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!rotate_key || flush_to_disk);
 
 	if (recv_no_ibuf_operations) {
 		/* Recovery is running and no operations on the log files are
@@ -1095,7 +1090,8 @@ loop:
 
 	if (log_sys.is_encrypted()) {
 		log_crypt(write_buf + area_start, log_sys.write_lsn,
-			  area_end - area_start);
+			  area_end - area_start,
+			  rotate_key ? LOG_ENCRYPT_ROTATE_KEY : LOG_ENCRYPT);
 	}
 
 	/* Do the write to the log files */
@@ -1503,7 +1499,7 @@ log_checkpoint(
 
 	log_mutex_exit();
 
-	log_write_up_to(flush_lsn, true);
+	log_write_up_to(flush_lsn, true, true);
 
 	DBUG_EXECUTE_IF(
 		"using_wa_checkpoint_middle",
@@ -2078,13 +2074,9 @@ log_pad_current_log_block(void)
 	/* We retrieve lsn only because otherwise gcc crashed on HP-UX */
 	lsn = log_reserve_and_open(OS_FILE_LOG_BLOCK_SIZE);
 
-	pad_length = OS_FILE_LOG_BLOCK_SIZE
-		- (log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE)
-		- LOG_BLOCK_TRL_SIZE;
-	if (pad_length
-	    == (OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE
-		- LOG_BLOCK_TRL_SIZE)) {
-
+	pad_length = log_sys.trailer_offset()
+		- log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE;
+	if (pad_length == log_sys.payload_size()) {
 		pad_length = 0;
 	}
 

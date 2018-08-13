@@ -1346,9 +1346,9 @@ srv_prepare_to_delete_redo_log_files(
 		{
 			ib::info	info;
 			if (srv_log_file_size == 0
-			    || (log_sys.log.format
-				& ~LOG_HEADER_FORMAT_ENCRYPTED)
-			    != LOG_HEADER_FORMAT_CURRENT) {
+			    || (log_sys.log.format != LOG_HEADER_FORMAT_10_3
+				&& log_sys.log.format
+				!= LOG_HEADER_FORMAT_ENC_10_4)) {
 				info << "Upgrading redo log: ";
 			} else if (n_files != srv_n_log_files
 				   || srv_log_file_size
@@ -2174,9 +2174,8 @@ files_checked:
 			   && srv_n_log_files_found == srv_n_log_files
 			   && log_sys.log.format
 			   == (srv_encrypt_log
-			       ? LOG_HEADER_FORMAT_CURRENT
-			       | LOG_HEADER_FORMAT_ENCRYPTED
-			       : LOG_HEADER_FORMAT_CURRENT)) {
+			       ? LOG_HEADER_FORMAT_ENC_10_4
+			       : LOG_HEADER_FORMAT_10_3)) {
 			/* No need to upgrade or resize the redo log. */
 		} else {
 			/* Prepare to delete the old redo log files */
