@@ -250,7 +250,7 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
     format_id int not null default 0,
     gtrid_length int not null default 0,
     bqual_length int not null default 0,
-    data char(128) charset binary not null default '',
+    data binary(128) not null default '',
     status char(8) not null default '',
     PRIMARY KEY (data, format_id, gtrid_length),
     KEY idx1 (status)
@@ -260,7 +260,7 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
     format_id int not null default 0,
     gtrid_length int not null default 0,
     bqual_length int not null default 0,
-    data char(128) charset binary not null default '',
+    data binary(128) not null default '',
     scheme char(64) not null default '',
     host char(64) not null default '',
     port char(5) not null default '',
@@ -282,7 +282,7 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
     format_id int not null default 0,
     gtrid_length int not null default 0,
     bqual_length int not null default 0,
-    data char(128) charset binary not null default '',
+    data binary(128) not null default '',
     scheme char(64) not null default '',
     host char(64) not null default '',
     port char(5) not null default '',
@@ -337,8 +337,8 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
   CREATE TABLE mysql.spider_link_mon_servers(
     db_name char(64) not null default '',
     table_name char(199) not null default '',
-    link_id char(5) not null default '',
-    sid int not null default 0,
+    link_id char(64) not null default '',
+    sid int unsigned not null default 0,
     server char(64) default null,
     scheme char(64) default null,
     host char(64) default null,
@@ -360,7 +360,7 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
   CREATE TABLE mysql.spider_link_failed_log(
     db_name char(64) not null default '',
     table_name char(199) not null default '',
-    link_id int not null default 0,
+    link_id char(64) not null default '',
     failed_time timestamp not null default current_timestamp
   ) ENGINE=MYISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
   DROP TABLE IF EXISTS mysql.spider_table_position_for_recovery;
