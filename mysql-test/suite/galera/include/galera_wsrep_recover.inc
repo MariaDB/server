@@ -1,14 +1,5 @@
 --echo Performing --wsrep-recover ...
-#
-# When mysqld is run by a root user it will fail to start unless
-# we specify what user is ran it (using "--user root" option):
-#
-if ($MYSQL_TEST_ROOT == 1) {
---exec $MYSQLD --defaults-group-suffix=.$galera_wsrep_recover_server_id --defaults-file=$MYSQLTEST_VARDIR/my.cnf --log-error=$MYSQL_TMP_DIR/galera_wsrep_recover.log --innodb --wsrep-recover --user root > $MYSQL_TMP_DIR/galera_wsrep_recover.log 2>&1
-}
-if ($MYSQL_TEST_ROOT != 1) {
 --exec $MYSQLD --defaults-group-suffix=.$galera_wsrep_recover_server_id --defaults-file=$MYSQLTEST_VARDIR/my.cnf --log-error=$MYSQL_TMP_DIR/galera_wsrep_recover.log --innodb --wsrep-recover > $MYSQL_TMP_DIR/galera_wsrep_recover.log 2>&1
-}
 
 --perl
 	use strict;

@@ -371,8 +371,6 @@ $SILENT
     path = $INNODB_DATA_HOME_DIR
 EOF
 
-[ "$(whoami)" != root ] || sed -i '/read only = no/s/.*/&\nuid = root\ngid = root\n/' "$RSYNC_CONF"
-
 #    rm -rf "$DATA"/ib_logfile* # we don't want old logs around
 
     readonly RSYNC_PORT=${WSREP_SST_OPT_PORT:-4444}
