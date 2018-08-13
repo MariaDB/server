@@ -190,10 +190,6 @@ struct TrxFactory {
 		the constructors of the trx_t members. */
 		new(&trx->mod_tables) trx_mod_tables_t();
 
-		new(&trx->lock.rec_pool) lock_pool_t();
-
-		new(&trx->lock.table_pool) lock_pool_t();
-
 		new(&trx->lock.table_locks) lock_pool_t();
 
 		trx_init(trx);
@@ -216,8 +212,6 @@ struct TrxFactory {
 
 		mutex_create(LATCH_ID_TRX, &trx->mutex);
 		mutex_create(LATCH_ID_TRX_UNDO, &trx->undo_mutex);
-
-		lock_trx_alloc_locks(trx);
 	}
 
 	/** Release resources held by the transaction object.
@@ -248,26 +242,6 @@ struct TrxFactory {
 		trx->mod_tables.~trx_mod_tables_t();
 
 		ut_ad(trx->read_view == NULL);
-
-		if (!trx->lock.rec_pool.empty()) {
-
-			/* See lock_trx_alloc_locks() why we only free
-			the first element. */
-
-			ut_free(trx->lock.rec_pool[0]);
-		}
-
-		if (!trx->lock.table_pool.empty()) {
-
-			/* See lock_trx_alloc_locks() why we only free
-			the first element. */
-
-			ut_free(trx->lock.table_pool[0]);
-		}
-
-		trx->lock.rec_pool.~lock_pool_t();
-
-		trx->lock.table_pool.~lock_pool_t();
 
 		trx->lock.table_locks.~lock_pool_t();
 	}
@@ -407,7 +381,12 @@ trx_create_low()
 
 	/* Should have been either just initialized or .clear()ed by
 	trx_free(). */
-	ut_a(trx->mod_tables.size() == 0);
+	ut_ad(trx->mod_tables.empty());
+	ut_ad(trx->lock.table_locks.empty());
+	ut_ad(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
+	ut_ad(trx->lock.n_rec_locks == 0);
+	ut_ad(trx->lock.table_cached == 0);
+	ut_ad(trx->lock.rec_cached == 0);
 
 #ifdef WITH_WSREP
 	trx->wsrep_event = NULL;

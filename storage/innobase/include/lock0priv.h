@@ -42,19 +42,6 @@ those functions in lock/ */
 #define UINT32_MAX             (4294967295U)
 #endif
 
-/** A table lock */
-struct lock_table_t {
-	dict_table_t*	table;		/*!< database table in dictionary
-					cache */
-	UT_LIST_NODE_T(lock_t)
-			locks;		/*!< list of locks on the same
-					table */
-	/** Print the table lock into the given output stream
-	@param[in,out]	out	the output stream
-	@return the given output stream. */
-	std::ostream& print(std::ostream& out) const;
-};
-
 /** Print the table lock into the given output stream
 @param[in,out]	out	the output stream
 @return the given output stream. */
@@ -77,131 +64,11 @@ operator<<(std::ostream& out, const lock_table_t& lock)
 	return(lock.print(out));
 }
 
-/** Record lock for a page */
-struct lock_rec_t {
-	ib_uint32_t	space;		/*!< space id */
-	ib_uint32_t	page_no;	/*!< page number */
-	ib_uint32_t	n_bits;		/*!< number of bits in the lock
-					bitmap; NOTE: the lock bitmap is
-					placed immediately after the
-					lock struct */
-
-	/** Print the record lock into the given output stream
-	@param[in,out]	out	the output stream
-	@return the given output stream. */
-	std::ostream& print(std::ostream& out) const;
-};
-
-/** Print the record lock into the given output stream
-@param[in,out]	out	the output stream
-@return the given output stream. */
-inline
-std::ostream& lock_rec_t::print(std::ostream& out) const
-{
-	out << "[lock_rec_t: space=" << space << ", page_no=" << page_no
-		<< ", n_bits=" << n_bits << "]";
-	return(out);
-}
-
-inline
-std::ostream&
-operator<<(std::ostream& out, const lock_rec_t& lock)
-{
-	return(lock.print(out));
-}
-
-/** Lock struct; protected by lock_sys->mutex */
-struct lock_t {
-	trx_t*		trx;		/*!< transaction owning the
-					lock */
-	UT_LIST_NODE_T(lock_t)
-			trx_locks;	/*!< list of the locks of the
-					transaction */
-
-	dict_index_t*	index;		/*!< index for a record lock */
-
-	lock_t*		hash;		/*!< hash chain node for a record
-					lock. The link node in a singly linked
-					list, used during hashing. */
-
-	/* Statistics for how long lock has been held and time
-	how long this lock had to be waited before it was granted */
-	time_t		requested_time; /*!< Lock request time */
-	ulint		wait_time;	/*!< Time waited this lock or 0 */
-
-	union {
-		lock_table_t	tab_lock;/*!< table lock */
-		lock_rec_t	rec_lock;/*!< record lock */
-	} un_member;			/*!< lock details */
-
-	ib_uint32_t	type_mode;	/*!< lock type, mode, LOCK_GAP or
-					LOCK_REC_NOT_GAP,
-					LOCK_INSERT_INTENTION,
-					wait flag, ORed */
-
-	/** Determine if the lock object is a record lock.
-	@return true if record lock, false otherwise. */
-	bool is_record_lock() const
-	{
-		return(type() == LOCK_REC);
-	}
-
-	bool is_waiting() const
-	{
-		return(type_mode & LOCK_WAIT);
-	}
-
-	bool is_gap() const
-	{
-		return(type_mode & LOCK_GAP);
-	}
-
-	bool is_record_not_gap() const
-	{
-		return(type_mode & LOCK_REC_NOT_GAP);
-	}
-
-	bool is_insert_intention() const
-	{
-		return(type_mode & LOCK_INSERT_INTENTION);
-	}
-
-	ulint type() const {
-		return(type_mode & LOCK_TYPE_MASK);
-	}
-
-	enum lock_mode mode() const
-	{
-		return(static_cast<enum lock_mode>(type_mode & LOCK_MODE_MASK));
-	}
-
-	/** Print the lock object into the given output stream.
-	@param[in,out]	out	the output stream
-	@return the given output stream. */
-	std::ostream& print(std::ostream& out) const;
-
-	/** Convert the member 'type_mode' into a human readable string.
-	@return human readable string */
-	std::string type_mode_string() const;
-
-	const char* type_string() const
-	{
-		switch (type_mode & LOCK_TYPE_MASK) {
-		case LOCK_REC:
-			return("LOCK_REC");
-		case LOCK_TABLE:
-			return("LOCK_TABLE");
-		default:
-			ut_error;
-		}
-	}
-};
-
 /** Convert the member 'type_mode' into a human readable string.
 @return human readable string */
 inline
 std::string
-lock_t::type_mode_string() const
+ib_lock_t::type_mode_string() const
 {
 	std::ostringstream sout;
 	sout << type_string();
@@ -227,7 +94,7 @@ lock_t::type_mode_string() const
 
 inline
 std::ostream&
-lock_t::print(std::ostream& out) const
+ib_lock_t::print(std::ostream& out) const
 {
 	out << "[lock_t: type_mode=" << type_mode << "("
 		<< type_mode_string() << ")";
@@ -244,7 +111,7 @@ lock_t::print(std::ostream& out) const
 
 inline
 std::ostream&
-operator<<(std::ostream& out, const lock_t& lock)
+operator<<(std::ostream& out, const ib_lock_t& lock)
 {
 	return(lock.print(out));
 }

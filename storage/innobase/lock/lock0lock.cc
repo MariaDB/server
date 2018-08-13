@@ -59,18 +59,6 @@ ulong innodb_lock_schedule_algorithm;
 /** The value of innodb_deadlock_detect */
 my_bool	innobase_deadlock_detect;
 
-/** Total number of cached record locks */
-static const ulint	REC_LOCK_CACHE = 8;
-
-/** Maximum record lock size in bytes */
-static const ulint	REC_LOCK_SIZE = sizeof(ib_lock_t) + 256;
-
-/** Total number of cached table locks */
-static const ulint	TABLE_LOCK_CACHE = 8;
-
-/** Size in bytes, of the table lock instance */
-static const ulint	TABLE_LOCK_SIZE = sizeof(ib_lock_t);
-
 /*********************************************************************//**
 Checks if a waiting record lock request still has to wait in a queue.
 @return lock that is causing the wait */
@@ -1469,13 +1457,13 @@ lock_rec_create_low(
 		}
 	}
 
- 	if (trx->lock.rec_cached >= trx->lock.rec_pool.size()
-	    || sizeof *lock + n_bytes > REC_LOCK_SIZE) {
+	if (trx->lock.rec_cached >= UT_ARR_SIZE(trx->lock.rec_pool)
+	    || sizeof *lock + n_bytes > sizeof *trx->lock.rec_pool) {
 		lock = static_cast<lock_t*>(
 			mem_heap_alloc(trx->lock.lock_heap,
 				       sizeof *lock + n_bytes));
 	} else {
-		lock = trx->lock.rec_pool[trx->lock.rec_cached++];
+		lock = &trx->lock.rec_pool[trx->lock.rec_cached++].lock;
 	}
 
 	lock->trx = trx;
@@ -3653,8 +3641,9 @@ lock_table_create(
 
 		ib_vector_push(trx->autoinc_locks, &lock);
 
-	} else if (trx->lock.table_cached < trx->lock.table_pool.size()) {
-		lock = trx->lock.table_pool[trx->lock.table_cached++];
+	} else if (trx->lock.table_cached
+		   < UT_ARR_SIZE(trx->lock.table_pool)) {
+		lock = &trx->lock.table_pool[trx->lock.table_cached++];
 	} else {
 
 		lock = static_cast<lock_t*>(
@@ -7678,33 +7667,6 @@ DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 	return(victim_trx);
 }
 
-/**
-Allocate cached locks for the transaction.
-@param trx		allocate cached record locks for this transaction */
-void
-lock_trx_alloc_locks(trx_t* trx)
-{
-	ulint	sz = REC_LOCK_SIZE * REC_LOCK_CACHE;
-	byte*	ptr = reinterpret_cast<byte*>(ut_malloc_nokey(sz));
-
-	/* We allocate one big chunk and then distribute it among
-	the rest of the elements. The allocated chunk pointer is always
-	at index 0. */
-
-	for (ulint i = 0; i < REC_LOCK_CACHE; ++i, ptr += REC_LOCK_SIZE) {
-		trx->lock.rec_pool.push_back(
-			reinterpret_cast<ib_lock_t*>(ptr));
-	}
-
-	sz = TABLE_LOCK_SIZE * TABLE_LOCK_CACHE;
-	ptr = reinterpret_cast<byte*>(ut_malloc_nokey(sz));
-
-	for (ulint i = 0; i < TABLE_LOCK_CACHE; ++i, ptr += TABLE_LOCK_SIZE) {
-		trx->lock.table_pool.push_back(
-			reinterpret_cast<ib_lock_t*>(ptr));
-	}
-
-}
 /*************************************************************//**
 Updates the lock table when a page is split and merged to
 two pages. */
