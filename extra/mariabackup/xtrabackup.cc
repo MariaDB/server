@@ -3804,7 +3804,7 @@ xtrabackup_backup_func()
 		return(false);
 	}
 	msg("mariabackup: cd to %s\n", mysql_real_data_home);
-
+	encryption_plugin_backup_init(mysql_connection);
 	msg("mariabackup: open files limit requested %u, set to %u\n",
 	    (uint) xb_open_files_limit,
 	    xb_set_max_open_files(xb_open_files_limit));
@@ -5277,7 +5277,6 @@ xb_init()
 			return(false);
 		}
 
-		encryption_plugin_backup_init(mysql_connection);
 		history_start_time = time(NULL);
 
 	}
