@@ -1,7 +1,6 @@
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 SET GLOBAL wsrep_provider_options = 'gcs.fc_limit=1';
-SET GLOBAL wsrep_desync = TRUE;
 FLUSH TABLES WITH READ LOCK;
 INSERT INTO t1 VALUES (2);
 INSERT INTO t1 VALUES (3);
@@ -16,7 +15,6 @@ SET SESSION wsrep_sync_wait = 0;
 SELECT COUNT(*) = 1 FROM t1;
 COUNT(*) = 1
 1
-SET GLOBAL wsrep_desync = FALSE;
 UNLOCK TABLES;
 SET SESSION wsrep_sync_wait = 1;
 SELECT COUNT(*) = 10 FROM t1;

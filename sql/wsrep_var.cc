@@ -587,6 +587,12 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
     return true;
   }
 
+  if (thd->global_read_lock.is_acquired())
+  {
+    my_message (ER_CANNOT_USER, "Global read lock acquired. Can't set 'wsrep_desync'", MYF(0));
+    return true;
+  }
+
   bool new_wsrep_desync= (bool) var->save_result.ulonglong_value;
   if (wsrep_desync == new_wsrep_desync) {
     if (new_wsrep_desync) {
