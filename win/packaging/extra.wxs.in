@@ -71,8 +71,8 @@
     <!-- 
       User interface dialogs 
      -->
-    <WixVariable Id='WixUIBannerBmp' Value='@CMAKE_CURRENT_SOURCE_DIR@\WixUIBannerBmp.jpg' />
-    <WixVariable Id='WixUIDialogBmp' Value='@CMAKE_CURRENT_SOURCE_DIR@\WixUIDialogBmp.jpg' />
+    <WixVariable Id='WixUIBannerBmp' Value='@SRCDIR@\WixUIBannerBmp.jpg' />
+    <WixVariable Id='WixUIDialogBmp' Value='@SRCDIR@\WixUIDialogBmp.jpg' />
     <UI>
 
       <!-- Dialog on uninstall of the database -->

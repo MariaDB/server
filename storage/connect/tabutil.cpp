@@ -429,7 +429,7 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
       char buf[MAX_STR];
 
       strcpy(buf, g->Message);
-      sprintf(g->Message, "Error accessing %s.%s: %s", db, name, buf);
+      snprintf(g->Message, MAX_STR, "Error accessing %s.%s: %s", db, name, buf);
       hc->tshp = NULL;
       goto err;
       } // endif Define

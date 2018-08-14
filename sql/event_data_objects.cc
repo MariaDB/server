@@ -1284,7 +1284,11 @@ Event_job_data::construct_sp_sql(THD *thd, String *sp_sql)
   */
   sp_sql->append(STRING_WITH_LEN("() SQL SECURITY INVOKER "));
 
+  if (thd->variables.sql_mode & MODE_ORACLE)
+    sp_sql->append(STRING_WITH_LEN(" AS BEGIN "));
   sp_sql->append(&body);
+  if (thd->variables.sql_mode & MODE_ORACLE)
+    sp_sql->append(STRING_WITH_LEN("; END"));
 
   DBUG_RETURN(thd->is_fatal_error);
 }
@@ -1387,9 +1391,6 @@ Event_job_data::execute(THD *thd, bool drop)
     goto end;
   }
 
-  if (construct_sp_sql(thd, &sp_sql))
-    goto end;
-
   /*
     Set up global thread attributes to reflect the properties of
     this Event. We can simply reset these instead of usual
@@ -1400,6 +1401,9 @@ Event_job_data::execute(THD *thd, bool drop)
 
   thd->variables.sql_mode= sql_mode;
   thd->variables.time_zone= time_zone;
+
+  if (construct_sp_sql(thd, &sp_sql))
+    goto end;
 
   thd->set_query(sp_sql.c_ptr_safe(), sp_sql.length());
 

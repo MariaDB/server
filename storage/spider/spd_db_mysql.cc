@@ -12877,7 +12877,8 @@ int spider_mysql_handler::append_list_item_select(
   uint dbton_id = spider_dbton_mysql.dbton_id, length;
   List_iterator_fast<Item> it(*select);
   Item *item;
-  Field **field_ptr;
+  Field *field;
+  const char *item_name;
   DBUG_ENTER("spider_mysql_handler::append_list_item_select");
   DBUG_PRINT("info",("spider this=%p", this));
   while ((item = it++))
@@ -12888,8 +12889,17 @@ int spider_mysql_handler::append_list_item_select(
     {
       DBUG_RETURN(error_num);
     }
-    field_ptr = fields->get_next_field_ptr();
-    length = (*field_ptr)->field_name.length;
+    field = *(fields->get_next_field_ptr());
+    if (field)
+    {
+      item_name = field->field_name.str;
+      length = field->field_name.length;
+    }
+    else
+    {
+      item_name = item->name.str;
+      length = item->name.length;
+    }
     if (str->reserve(
       SPIDER_SQL_COMMA_LEN + /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 +
       SPIDER_SQL_SPACE_LEN + length
@@ -12897,7 +12907,7 @@ int spider_mysql_handler::append_list_item_select(
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     str->q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
     if ((error_num = spider_db_mysql_utility.append_name(str,
-      (*field_ptr)->field_name.str, length)))
+                                                         item_name, length)))
     {
       DBUG_RETURN(error_num);
     }

@@ -72,7 +72,7 @@ bool JMGDISC::Find(PGLOBAL g)
 bool JMGDISC::ColDesc(PGLOBAL g, jobject obj, char *pcn, char *pfmt,
 											int ncol, int k)
 {
-	const char *key;
+	const char *key, *utf;
 	char    colname[65];
 	char    fmt[129];
 	bool    rc = true;
@@ -101,7 +101,10 @@ bool JMGDISC::ColDesc(PGLOBAL g, jobject obj, char *pcn, char *pfmt,
 			continue;
 
 		jkey = (jstring)Jcp->env->CallObjectMethod(Jcp->job, bvnameid);
-		key = Jcp->env->GetStringUTFChars(jkey, (jboolean)false);
+		utf = Jcp->env->GetStringUTFChars(jkey, nullptr);
+		key = PlugDup(g, utf);
+		Jcp->env->ReleaseStringUTFChars(jkey, utf);
+		Jcp->env->DeleteLocalRef(jkey);
 
 		if (pcn) {
 			strncpy(colname, pcn, 64);
@@ -457,8 +460,8 @@ PSZ JMGCOL::GetJpath(PGLOBAL g, bool proj)
 				} else
 					*p2++ = *p1;
 
-				*p2 = 0;
-				return projpath;
+			*p2 = 0;
+			return projpath;
 		} else
 			return Jpath;
 

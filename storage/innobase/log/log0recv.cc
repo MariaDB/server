@@ -834,8 +834,6 @@ recv_find_max_checkpoint_0(ulint* max_field)
 			*max_field = field;
 			max_no = checkpoint_no;
 
-			log_sys.log.state = LOG_GROUP_OK;
-
 			log_sys.log.lsn = mach_read_from_8(
 				buf + LOG_CHECKPOINT_LSN);
 			log_sys.log.lsn_offset = static_cast<ib_uint64_t>(
@@ -930,8 +928,6 @@ recv_find_max_checkpoint(ulint* max_field)
 
 	buf = log_sys.checkpoint_buf;
 
-	log_sys.log.state = LOG_GROUP_CORRUPTED;
-
 	log_header_read(0);
 	/* Check the header page checksum. There was no
 	checksum in the first redo log format (version 0). */
@@ -998,7 +994,6 @@ recv_find_max_checkpoint(ulint* max_field)
 		if (checkpoint_no >= max_no) {
 			*max_field = field;
 			max_no = checkpoint_no;
-			log_sys.log.state = LOG_GROUP_OK;
 			log_sys.log.lsn = mach_read_from_8(
 				buf + LOG_CHECKPOINT_LSN);
 			log_sys.log.lsn_offset = mach_read_from_8(
@@ -1443,7 +1438,8 @@ parse_log:
 		break;
 	default:
 		ptr = NULL;
-		ib::error() << "Incorrect log record type:" << type;
+		ib::error() << "Incorrect log record type "
+			<< ib::hex(unsigned(type));
 
 		recv_sys->found_corrupt_log = true;
 	}

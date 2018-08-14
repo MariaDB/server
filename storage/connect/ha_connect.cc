@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.06.0007 March 11, 2018";
+       char version[]= "Version 1.06.0007 August 06, 2018";
 #if defined(__WIN__)
        char compver[]= "Version 1.06.0007 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -3301,23 +3301,15 @@ bool ha_connect::get_error_message(int error, String* buf)
 {
   DBUG_ENTER("ha_connect::get_error_message");
 
-  if (xp && xp->g) {
-    PGLOBAL g= xp->g;
-    char    msg[3072];         // MAX_STR * 3
-    uint    dummy_errors;
-    uint32  len= copy_and_convert(msg, strlen(g->Message) * 3,
-                               system_charset_info,
-                               g->Message, strlen(g->Message),
-                               &my_charset_latin1,
-                               &dummy_errors);
+	if (xp && xp->g) {
+		PGLOBAL g = xp->g;
 
-    if (trace(1))
-      htrc("GEM(%d): len=%u %s\n", error, len, g->Message);
+		if (trace(1))
+			htrc("GEM(%d): %s\n", error, g->Message);
 
-    msg[len]= '\0';
-    buf->copy(msg, (uint)strlen(msg), system_charset_info);
-  } else
-    buf->copy("Cannot retrieve msg", 19, system_charset_info);
+		buf->append(g->Message);
+	} else
+    buf->append("Cannot retrieve error message");
 
   DBUG_RETURN(false);
 } // end of get_error_message
