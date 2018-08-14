@@ -1164,7 +1164,6 @@ row_log_table_get_pk_col(
 	field = rec_get_nth_field(rec, offsets, i, &len);
 
 	if (len == UNIV_SQL_NULL) {
-
 		if (!log->allow_not_null) {
 			return(DB_INVALID_NULL);
 		}
@@ -1173,6 +1172,9 @@ row_log_table_get_pk_col(
 
 		field = static_cast<const byte*>(
 			log->defaults->fields[n_default_cols].data);
+		if (!field) {
+			return(DB_INVALID_NULL);
+		}
 		len = log->defaults->fields[i - DATA_N_SYS_COLS].len;
 	}
 
