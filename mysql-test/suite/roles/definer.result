@@ -274,6 +274,8 @@ a	b	c
 111	4	0
 2	20	200
 delete from t1 where a=111;
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 
 CREATE DATABASE /*!32312 IF NOT EXISTS*/ `test` /*!40100 DEFAULT CHARACTER SET latin1 */;
 
@@ -394,10 +396,10 @@ DELIMITER ;;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
 /*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
+/*!40103 SET @saved_time_zone      = @@time_zone */ ;;
+/*!40103 SET time_zone             = 'SYSTEM' */ ;;
 /*!50106 CREATE*/ /*!50117 DEFINER=`role1`*/ /*!50106 EVENT `e1` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 2, 0) */ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
+/*!40103 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
 /*!50003 SET character_set_results = @saved_cs_results */ ;;
@@ -411,10 +413,10 @@ DELIMITER ;;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
 /*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
+/*!40103 SET @saved_time_zone      = @@time_zone */ ;;
+/*!40103 SET time_zone             = 'SYSTEM' */ ;;
 /*!50106 CREATE*/ /*!50117 DEFINER=`role2`*/ /*!50106 EVENT `e2` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 4, 0) */ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
+/*!40103 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
 /*!50003 SET character_set_results = @saved_cs_results */ ;;
@@ -428,10 +430,10 @@ DELIMITER ;;
 /*!50003 SET collation_connection  = latin1_swedish_ci */ ;;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;;
 /*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;;
-/*!50003 SET @saved_time_zone      = @@time_zone */ ;;
-/*!50003 SET time_zone             = 'SYSTEM' */ ;;
+/*!40103 SET @saved_time_zone      = @@time_zone */ ;;
+/*!40103 SET time_zone             = 'SYSTEM' */ ;;
 /*!50106 CREATE*/ /*!50117 DEFINER=`role3`@`%`*/ /*!50106 EVENT `e3` ON SCHEDULE EVERY 1 SECOND STARTS '2000-01-01 00:00:00' ON COMPLETION NOT PRESERVE ENABLE DO insert t1 values (111, 3, 0) */ ;;
-/*!50003 SET time_zone             = @saved_time_zone */ ;;
+/*!40103 SET time_zone             = @saved_time_zone */ ;;
 /*!50003 SET sql_mode              = @saved_sql_mode */ ;;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;;
 /*!50003 SET character_set_results = @saved_cs_results */ ;;
@@ -599,6 +601,7 @@ USE `test`;
 /*!50001 SET collation_connection      = @saved_col_connection */;
 
 USE `mysqltest1`;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 drop trigger tr1;
 drop trigger tr2;
 drop trigger tr3;

@@ -48,6 +48,7 @@
 #include <m_ctype.h>
 #include <hash.h>
 #include <stdarg.h>
+#include <sql_const.h>
 
 #include "client_priv.h"
 #include "mysql.h"
@@ -114,7 +115,7 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_include_master_host_port= 0,
                 opt_events= 0, opt_comments_used= 0,
                 opt_alltspcs=0, opt_notspcs= 0, opt_logging,
-                opt_drop_trigger= 0 ;
+                opt_drop_trigger= 0, opt_dump_history= 0;
 static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0,
                select_field_names_inited= 0;
 static ulong opt_max_allowed_packet, opt_net_buffer_length;
@@ -126,7 +127,7 @@ static char  *opt_password=0,*current_user=0,
              *where=0, *order_by=0,
              *opt_compatible_mode_str= 0,
              *err_ptr= 0,
-             *log_error_file= NULL;
+             *log_error_file= NULL, *opt_asof_timestamp= NULL;
 static char **defaults_argv= 0;
 static char compatible_mode_normal_str[255];
 /* Server supports character_set_results session variable? */
@@ -164,6 +165,7 @@ static char *shared_memory_base_name=0;
 #endif
 static uint opt_protocol= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
+static char time_zone_str[MAX_TIME_ZONE_NAME_LENGTH];
 
 /*
 Dynamic_string wrapper functions. In this file use these
@@ -249,6 +251,9 @@ static struct my_option my_long_options[] =
    "Adds 'STOP SLAVE' prior to 'CHANGE MASTER' and 'START SLAVE' to bottom of dump.",
    &opt_slave_apply, &opt_slave_apply, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
+  {"asof-timestamp", OPT_ASOF_TIMESTAMP,
+   "Dump system versioned table as of specified timestamp.",
+   &opt_asof_timestamp, &opt_asof_timestamp, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"character-sets-dir", OPT_CHARSETS_DIR,
    "Directory for character set files.", (char **)&charsets_dir,
    (char **)&charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -311,6 +316,8 @@ static struct my_option my_long_options[] =
    "'/*!40000 ALTER TABLE tb_name DISABLE KEYS */; and '/*!40000 ALTER "
    "TABLE tb_name ENABLE KEYS */; will be put in the output.", &opt_disable_keys,
    &opt_disable_keys, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
+  {"dump-history", 'H', "Dump tables with history", &opt_dump_history,
+    &opt_dump_history, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"dump-slave", OPT_MYSQLDUMP_SLAVE_DATA,
    "This causes the binary log position and filename of the master to be "
    "appended to the dumped data output. Setting the value to 1, will print"
@@ -690,6 +697,11 @@ static const char *fix_for_comment(const char *ident)
 }
 
 
+static void switch_time_zone(FILE *sql_file, const char *save_var,
+                             const char *delimiter, const char *time_zone);
+static void restore_time_zone(FILE *sql_file, const char *save_var,
+                              const char *delimiter);
+
 static void write_header(FILE *sql_file, char *db_name)
 {
   if (opt_xml)
@@ -705,56 +717,54 @@ static void write_header(FILE *sql_file, char *db_name)
     fputs(">\n", sql_file);
     check_io(sql_file);
   }
-  else if (!opt_compact)
+  else
   {
-    print_comment(sql_file, 0,
-                  "-- MySQL dump %s  Distrib %s, for %s (%s)\n--\n",
-                  DUMP_VERSION, MYSQL_SERVER_VERSION, SYSTEM_TYPE,
-                  MACHINE_TYPE);
-    print_comment(sql_file, 0, "-- Host: %s    ",
-                  fix_for_comment(current_host ? current_host : "localhost"));
-    print_comment(sql_file, 0, "Database: %s\n",
-                  fix_for_comment(db_name ? db_name : ""));
-    print_comment(sql_file, 0,
-                  "-- ------------------------------------------------------\n"
-                 );
-    print_comment(sql_file, 0, "-- Server version\t%s\n",
-                  mysql_get_server_info(&mysql_connection));
+    if (!opt_compact)
+    {
+      print_comment(sql_file, 0,
+                    "-- MySQL dump %s  Distrib %s, for %s (%s)\n--\n",
+                    DUMP_VERSION, MYSQL_SERVER_VERSION, SYSTEM_TYPE,
+                    MACHINE_TYPE);
+      print_comment(sql_file, 0, "-- Host: %s    ",
+                    fix_for_comment(current_host ? current_host : "localhost"));
+      print_comment(sql_file, 0, "Database: %s\n",
+                    fix_for_comment(db_name ? db_name : ""));
+      print_comment(sql_file, 0,
+                    "-- ------------------------------------------------------\n"
+                  );
+      print_comment(sql_file, 0, "-- Server version\t%s\n",
+                    mysql_get_server_info(&mysql_connection));
 
-    if (!opt_logging)
-      fprintf(sql_file,
+      if (!opt_logging)
+        fprintf(sql_file,
 "\n/*M!100101 SET LOCAL SQL_LOG_OFF=0, LOCAL SLOW_QUERY_LOG=0 */;");
 
-    if (opt_set_charset)
-      fprintf(sql_file,
+      if (opt_set_charset)
+        fprintf(sql_file,
 "\n/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;"
 "\n/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;"
 "\n/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;"
 "\n/*!40101 SET NAMES %s */;\n",default_charset);
 
-    if (opt_tz_utc)
-    {
-      fprintf(sql_file, "/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;\n");
-      fprintf(sql_file, "/*!40103 SET TIME_ZONE='+00:00' */;\n");
-    }
-
-    if (!path)
-    {
-      if (!opt_no_create_info)
+      if (!path)
       {
-        /* We don't need unique checks as the table is created just before */
-        fprintf(md_result_file,"\
+        if (!opt_no_create_info)
+        {
+          /* We don't need unique checks as the table is created just before */
+          fprintf(md_result_file,"\
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;\n");
-      }
-      fprintf(md_result_file,"\
+        }
+        fprintf(md_result_file,"\
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;\n\
 ");
+      }
+      fprintf(sql_file,
+              "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='%s%s%s' */;\n"
+              "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n",
+              path?"":"NO_AUTO_VALUE_ON_ZERO",compatible_mode_normal_str[0]==0?"":",",
+              compatible_mode_normal_str);
     }
-    fprintf(sql_file,
-            "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='%s%s%s' */;\n"
-            "/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;\n",
-            path?"":"NO_AUTO_VALUE_ON_ZERO",compatible_mode_normal_str[0]==0?"":",",
-            compatible_mode_normal_str);
+    switch_time_zone(sql_file, "OLD_TIME_ZONE", ";", time_zone_str);
     check_io(sql_file);
   }
 } /* write_header */
@@ -767,40 +777,41 @@ static void write_footer(FILE *sql_file)
     fputs("</mysqldump>\n", sql_file);
     check_io(sql_file);
   }
-  else if (!opt_compact)
+  else
   {
-    if (opt_tz_utc)
-      fprintf(sql_file,"/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;\n");
+    restore_time_zone(sql_file, "OLD_TIME_ZONE", ";");
 
-    fprintf(sql_file,"\n/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;\n");
-    if (!path)
+    if (!opt_compact)
     {
-      fprintf(md_result_file,"\
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;\n");
-      if (!opt_no_create_info)
+      fprintf(sql_file,"\n/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;\n");
+      if (!path)
       {
         fprintf(md_result_file,"\
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;\n");
+        if (!opt_no_create_info)
+        {
+          fprintf(md_result_file,"\
 /*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;\n");
+        }
       }
-    }
-    if (opt_set_charset)
-      fprintf(sql_file,
+      if (opt_set_charset)
+        fprintf(sql_file,
 "/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;\n"
 "/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;\n"
 "/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;\n");
-    fprintf(sql_file,
-            "/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;\n");
-    fputs("\n", sql_file);
+      fprintf(sql_file,
+              "/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;\n");
+      fputs("\n", sql_file);
 
-    if (opt_dump_date)
-    {
-      char time_str[20];
-      get_date(time_str, GETDATE_DATE_TIME, 0);
-      print_comment(sql_file, 0, "-- Dump completed on %s\n", time_str);
+      if (opt_dump_date)
+      {
+        char time_str[20];
+        get_date(time_str, GETDATE_DATE_TIME, 0);
+        print_comment(sql_file, 0, "-- Dump completed on %s\n", time_str);
+      }
+      else
+        print_comment(sql_file, 0, "-- Dump completed\n");
     }
-    else
-      print_comment(sql_file, 0, "-- Dump completed\n");
-
     check_io(sql_file);
   }
 } /* write_footer */
@@ -1075,6 +1086,27 @@ static int get_options(int *argc, char ***argv)
     fprintf(stderr, 
             "%s: --ignore-database can only be used together with --all-databases.\n",
 	    my_progname_short);
+    return(EX_USAGE);
+  }
+  if (opt_xml && path)
+  {
+    fprintf(stderr,
+            "%s: --xml can't be used with --tab.\n",
+            my_progname_short);
+    return(EX_USAGE);
+  }
+  if (opt_xml && opt_dump_history)
+  {
+    fprintf(stderr,
+            "%s: --xml can't be used with --dump-history (not yet supported).\n",
+            my_progname_short);
+    return(EX_USAGE);
+  }
+  if (opt_asof_timestamp && strchr(opt_asof_timestamp, '\''))
+  {
+    fprintf(stderr,
+            "%s: --asof-timestamp wrong argument!\n",
+            my_progname_short);
     return(EX_USAGE);
   }
   if (strcmp(default_charset, charset_info->csname) &&
@@ -1503,12 +1535,14 @@ static void restore_sql_mode(FILE *sql_file,
 
 
 static void switch_time_zone(FILE *sql_file,
+                             const char *save_var,
                              const char *delimiter,
                              const char *time_zone)
 {
   fprintf(sql_file,
-          "/*!50003 SET @saved_time_zone      = @@time_zone */ %s\n"
-          "/*!50003 SET time_zone             = '%s' */ %s\n",
+          "/*!40103 SET @%s      = @@time_zone */ %s\n"
+          "/*!40103 SET time_zone             = '%s' */ %s\n",
+          save_var,
           (const char *) delimiter,
 
           (const char *) time_zone,
@@ -1517,10 +1551,12 @@ static void switch_time_zone(FILE *sql_file,
 
 
 static void restore_time_zone(FILE *sql_file,
+                              const char *save_var,
                               const char *delimiter)
 {
   fprintf(sql_file,
-          "/*!50003 SET time_zone             = @saved_time_zone */ %s\n",
+          "/*!40103 SET time_zone             = @%s */ %s\n",
+          save_var,
           (const char *) delimiter);
 }
 
@@ -1769,6 +1805,42 @@ static int connect_to_db(char *host, char *user,char *passwd)
     my_snprintf(buff, sizeof(buff), "/*!40103 SET TIME_ZONE='+00:00' */");
     if (mysql_query_with_error_report(mysql, 0, buff))
       DBUG_RETURN(1);
+    strncpy(time_zone_str, "+00:00", sizeof(time_zone_str));
+  }
+  else
+  {
+    my_snprintf(buff, sizeof(buff), "/*!40103 SELECT @@TIME_ZONE */");
+    MYSQL_RES  *result;
+    MYSQL_ROW  row;
+    if (mysql_query_with_error_report(mysql, &result, buff))
+      DBUG_RETURN(1);
+    row= mysql_fetch_row(result);
+    if (!row)
+      DBUG_RETURN(1);
+    if (0 != strcmp(row[0], "SYSTEM"))
+    {
+      strncpy(time_zone_str, row[0], sizeof(time_zone_str));
+      mysql_free_result(result);
+    }
+    else
+    {
+      // Convert SYSTEM timezone to corresponding UTC offset
+      mysql_free_result(result);
+      my_snprintf(buff, sizeof(buff),
+                  "/*!50000 SELECT TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), NOW()) */");
+      if (mysql_query_with_error_report(mysql, &result, buff))
+        DBUG_RETURN(1);
+      row= mysql_fetch_row(result);
+      if (!row)
+        DBUG_RETURN(1);
+      int tz_offset= atoi(row[0]);
+      mysql_free_result(result);
+      snprintf(time_zone_str, sizeof(time_zone_str), "%+03d:00", tz_offset);
+      // SYSTEM timezone may be affected by DST, so we can't use it for data retrieval
+      my_snprintf(buff, sizeof(buff), "/*!40103 SET TIME_ZONE='%s' */", time_zone_str);
+      if (mysql_query_with_error_report(mysql, NULL, buff))
+        DBUG_RETURN(1);
+    }
   }
   DBUG_RETURN(0);
 } /* connect_to_db */
@@ -2412,7 +2484,7 @@ static uint dump_events_for_db(char *db)
 
           switch_sql_mode(sql_file, delimiter, row[1]);
 
-          switch_time_zone(sql_file, delimiter, row[2]);
+          switch_time_zone(sql_file, "saved_time_zone", delimiter, row[2]);
 
           query_str= cover_definer_clause(row[3], strlen(row[3]),
                                           C_STRING_WITH_LEN("50117"),
@@ -2425,7 +2497,7 @@ static uint dump_events_for_db(char *db)
                   (const char *) delimiter);
 
           my_free(query_str);
-          restore_time_zone(sql_file, delimiter);
+          restore_time_zone(sql_file, "saved_time_zone", delimiter);
           restore_sql_mode(sql_file, delimiter);
 
           if (mysql_num_fields(event_res) >= 7)
@@ -2721,7 +2793,7 @@ static inline my_bool general_log_or_slow_log_tables(const char *db,
 */
 
 static uint get_table_structure(char *table, char *db, char *table_type,
-                                char *ignore_flag)
+                                char *ignore_flag, my_bool *versioned)
 {
   my_bool    init=0, delayed, write_data, complete_insert;
   my_ulonglong num_fields;
@@ -2744,6 +2816,13 @@ static uint get_table_structure(char *table, char *db, char *table_type,
   my_bool    is_log_table;
   MYSQL_RES  *result;
   MYSQL_ROW  row;
+  my_bool    vers_hidden= 0;
+  if (versioned)
+  {
+    *versioned= 0;
+    if (!opt_dump_history && !opt_asof_timestamp)
+      versioned= NULL;
+  }
   DBUG_ENTER("get_table_structure");
   DBUG_PRINT("enter", ("db: %s  table: %s", db, table));
 
@@ -2796,23 +2875,22 @@ static uint get_table_structure(char *table, char *db, char *table_type,
 
   if (!opt_xml && !mysql_query_with_error_report(mysql, 0, query_buff))
   {
-    /* using SHOW CREATE statement */
+    char buff[20+FN_REFLEN];
+    my_snprintf(buff, sizeof(buff), "show create table %s", result_table);
+
+    if (switch_character_set_results(mysql, "binary") ||
+        mysql_query_with_error_report(mysql, &result, buff) ||
+        switch_character_set_results(mysql, default_charset))
+    {
+      my_free(order_by);
+      order_by= 0;
+      DBUG_RETURN(0);
+    }
+
     if (!opt_no_create_info)
     {
       /* Make an sql-file, if path was given iow. option -T was given */
-      char buff[20+FN_REFLEN];
       MYSQL_FIELD *field;
-
-      my_snprintf(buff, sizeof(buff), "show create table %s", result_table);
-
-      if (switch_character_set_results(mysql, "binary") ||
-          mysql_query_with_error_report(mysql, &result, buff) ||
-          switch_character_set_results(mysql, default_charset))
-      {
-        my_free(order_by);
-        order_by= 0;
-        DBUG_RETURN(0);
-      }
 
       if (path)
       {
@@ -3000,8 +3078,18 @@ static uint get_table_structure(char *table, char *db, char *table_type,
       }
 
       check_io(sql_file);
-      mysql_free_result(result);
     }
+    else
+    {
+      row= mysql_fetch_row(result);
+    }
+    if (versioned && strstr(row[1], "WITH SYSTEM VERSIONING"))
+    {
+      *versioned= 1;
+      if (0 == strstr(row[1], "GENERATED ALWAYS AS ROW START"))
+        vers_hidden= 1;
+    }
+    mysql_free_result(result);
     my_snprintf(query_buff, sizeof(query_buff), "show fields from %s",
                 result_table);
     if (mysql_query_with_error_report(mysql, &result, query_buff))
@@ -3022,6 +3110,19 @@ static uint get_table_structure(char *table, char *db, char *table_type,
       init=1;
       dynstr_append_checked(&select_field_names,
               quote_name(row[SHOW_FIELDNAME], name_buff, 0));
+    }
+    if (vers_hidden)
+    {
+      complete_insert= 1;
+      if (init)
+      {
+        dynstr_append_checked(&select_field_names, ", ");
+      }
+      dynstr_append_checked(&select_field_names,
+              quote_name("row_start", name_buff, 0));
+      dynstr_append_checked(&select_field_names, ", ");
+      dynstr_append_checked(&select_field_names,
+              quote_name("row_end", name_buff, 0));
     }
     init=0;
     /*
@@ -3054,10 +3155,33 @@ static uint get_table_structure(char *table, char *db, char *table_type,
     if (complete_insert)
       dynstr_append_checked(&insert_pat, select_field_names.str);
     num_fields= mysql_num_rows(result);
+    if (vers_hidden)
+      num_fields+= 2;
     mysql_free_result(result);
   }
   else
   {
+    if (versioned)
+    {
+      char buff[20+FN_REFLEN];
+      my_snprintf(buff, sizeof(buff), "show create table %s", result_table);
+
+      if (switch_character_set_results(mysql, "binary") ||
+            mysql_query_with_error_report(mysql, &result, query_buff) ||
+            switch_character_set_results(mysql, default_charset))
+        DBUG_RETURN(0);
+
+      row= mysql_fetch_row(result);
+
+      if (strstr(row[1], "WITH SYSTEM VERSIONING"))
+      {
+        *versioned= 1;
+        if (0 == strstr(row[1], "GENERATED ALWAYS AS ROW START"))
+          vers_hidden= 1;
+      }
+      mysql_free_result(result);
+    }
+
     verbose_msg("%s: Warning: Can't set SQL_QUOTE_SHOW_CREATE option (%s)\n",
                 my_progname_short, mysql_error(mysql));
 
@@ -3122,6 +3246,19 @@ static uint get_table_structure(char *table, char *db, char *table_type,
               quote_name(row[SHOW_FIELDNAME], name_buff, 0));
       init=1;
     }
+    if (vers_hidden)
+    {
+      complete_insert= 1;
+      if (init)
+      {
+        dynstr_append_checked(&select_field_names, ", ");
+      }
+      dynstr_append_checked(&select_field_names,
+              quote_name("row_start", name_buff, 0));
+      dynstr_append_checked(&select_field_names, ", ");
+      dynstr_append_checked(&select_field_names,
+              quote_name("row_end", name_buff, 0));
+    }
     init=0;
     mysql_data_seek(result, 0);
 
@@ -3171,6 +3308,8 @@ static uint get_table_structure(char *table, char *db, char *table_type,
       }
     }
     num_fields= mysql_num_rows(result);
+    if (vers_hidden)
+      num_fields+= 2;
     mysql_free_result(result);
     if (!opt_no_create_info)
     {
@@ -3654,6 +3793,31 @@ static char *alloc_query_str(size_t size)
 }
 
 
+static void vers_append_system_time(DYNAMIC_STRING* query_string)
+{
+  if (opt_asof_timestamp)
+  {
+    if (opt_dump_history)
+    {
+      dynstr_append_checked(query_string, " FOR SYSTEM_TIME BETWEEN TIMESTAMP "
+                            "TIMESTAMP'0-0-0 0:0' AND TIMESTAMP '");
+      dynstr_append_checked(query_string, opt_asof_timestamp);
+      dynstr_append_checked(query_string, "'");
+    }
+    else
+    {
+      dynstr_append_checked(query_string, " FOR SYSTEM_TIME AS OF TIMESTAMP '");
+      dynstr_append_checked(query_string, opt_asof_timestamp);
+      dynstr_append_checked(query_string, "'");
+    }
+  }
+  else
+  {
+    dynstr_append_checked(query_string, " FOR SYSTEM_TIME ALL");
+  }
+}
+
+
 /*
 
  SYNOPSIS
@@ -3681,6 +3845,7 @@ static void dump_table(char *table, char *db)
   ulong         rownr, row_break;
   uint num_fields;
   size_t total_length, init_length;
+  my_bool versioned= 0;
 
   MYSQL_RES     *res;
   MYSQL_FIELD   *field;
@@ -3691,7 +3856,7 @@ static void dump_table(char *table, char *db)
     Make sure you get the create table info before the following check for
     --no-data flag below. Otherwise, the create table info won't be printed.
   */
-  num_fields= get_table_structure(table, db, table_type, &ignore_flag);
+  num_fields= get_table_structure(table, db, table_type, &ignore_flag, &versioned);
 
   /*
     The "table" could be a view.  If so, we don't do anything here.
@@ -3790,6 +3955,8 @@ static void dump_table(char *table, char *db)
 
     dynstr_append_checked(&query_string, " FROM ");
     dynstr_append_checked(&query_string, result_table);
+    if (versioned)
+      vers_append_system_time(&query_string);
 
     if (where)
     {
@@ -3822,6 +3989,8 @@ static void dump_table(char *table, char *db)
     dynstr_append_checked(&query_string, select_field_names.str);
     dynstr_append_checked(&query_string, " FROM ");
     dynstr_append_checked(&query_string, result_table);
+    if (versioned)
+      vers_append_system_time(&query_string);
 
     if (where)
     {
@@ -3881,6 +4050,11 @@ static void dump_table(char *table, char *db)
     {
       fprintf(md_result_file, "/*!40000 ALTER TABLE %s DISABLE KEYS */;\n",
 	      opt_quoted_table);
+      check_io(md_result_file);
+    }
+    if (versioned && !opt_xml)
+    {
+      fprintf(md_result_file, "/*!100308 SET system_versioning_modify_history= ON */;\n");
       check_io(md_result_file);
     }
 
@@ -4142,6 +4316,11 @@ static void dump_table(char *table, char *db)
       goto err;
     }
 
+    if (versioned && !opt_xml)
+    {
+      fprintf(md_result_file, "/*!100308 SET system_versioning_modify_history= OFF */;\n");
+      check_io(md_result_file);
+    }
     /* Moved enable keys to before unlock per bug 15977 */
     if (opt_disable_keys)
     {
@@ -4798,21 +4977,21 @@ static int dump_all_tables_in_db(char *database)
     if (general_log_table_exists)
     {
       if (!get_table_structure((char *) "general_log",
-                               database, table_type, &ignore_flag) )
+                               database, table_type, &ignore_flag, NULL) )
         verbose_msg("-- Warning: get_table_structure() failed with some internal "
                     "error for 'general_log' table\n");
     }
     if (slow_log_table_exists)
     {
       if (!get_table_structure((char *) "slow_log",
-                               database, table_type, &ignore_flag) )
+                               database, table_type, &ignore_flag, NULL) )
         verbose_msg("-- Warning: get_table_structure() failed with some internal "
                     "error for 'slow_log' table\n");
     }
     if (transaction_registry_table_exists)
     {
       if (!get_table_structure((char *) "transaction_registry",
-                               database, table_type, &ignore_flag) )
+                               database, table_type, &ignore_flag, NULL) )
         verbose_msg("-- Warning: get_table_structure() failed with some internal "
                     "error for 'transaction_registry' table\n");
     }
@@ -5219,6 +5398,7 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
       mysql_free_result(master);
       if (!ignore_errors)
       {
+        fflush(md_result_file);
         /* SHOW MASTER STATUS reports nothing and --force is not enabled */
         fprintf(stderr, "%s: Error: Binlogging on server not active\n",
                 my_progname_short);

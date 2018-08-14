@@ -7,19 +7,30 @@ connection slave;
 connection master;
 use test;
 connection slave;
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 -- SET GLOBAL gtid_slave_pos='';
 CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 STOP ALL SLAVES;
 -- SET GLOBAL gtid_slave_pos='';
 CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
 START ALL SLAVES;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 STOP ALL SLAVES;
 -- SET GLOBAL gtid_slave_pos='';
 CHANGE MASTER '' TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_MYPORT, MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
 START ALL SLAVES;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 start slave;
 Warnings:
 Note	1254	Slave is already running
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 -- SET GLOBAL gtid_slave_pos='';
 CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
 start slave;
@@ -37,32 +48,47 @@ DROP TABLE t2;
 
 1. --dump-slave=1
 
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 SET GLOBAL gtid_slave_pos='0-1-1001';
 CHANGE MASTER '' TO MASTER_USE_GTID=slave_pos;
 -- CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 
 2. --dump-slave=2
 
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 -- SET GLOBAL gtid_slave_pos='0-1-1001';
 -- CHANGE MASTER '' TO MASTER_USE_GTID=slave_pos;
 -- CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 *** Test mysqldump --master-data GTID functionality.
 
 1. --master-data=1
 
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 SET GLOBAL gtid_slave_pos='0-2-1003';
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 
 2. --master-data=2
 
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
 -- CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 -- SET GLOBAL gtid_slave_pos='0-2-1003';
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 
 3. --master-data --single-transaction
 
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 SET GLOBAL gtid_slave_pos='0-2-1003';
+/*!40103 SET time_zone             = @OLD_TIME_ZONE */ ;
 include/rpl_end.inc

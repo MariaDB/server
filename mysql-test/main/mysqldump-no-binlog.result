@@ -1,1 +1,3 @@
+/*!40103 SET @OLD_TIME_ZONE      = @@time_zone */ ;
+/*!40103 SET time_zone             = '+00:00' */ ;
 mysqldump: Error: Binlogging on server not active
