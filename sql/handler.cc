@@ -3361,10 +3361,30 @@ int handler::update_auto_increment()
   {
     /*
       first test if the query was aborted due to strict mode constraints
+      or new field value greater than maximum integer value
     */
-    if (thd->killed == KILL_BAD_DATA)
-      DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
-
+    if (thd->killed == KILL_BAD_DATA ||
+        nr > table->next_number_field->get_max_int_value())
+    {
+    /*
+      Setting result instead of immediate return fixes problems
+      with auto-increment locks by setting the correct value of
+      the insert_id_for_cur_row field. In particular, several
+      partitions-related mtr tests may fail because the
+      write_record() function (which located in the sql_insert.cc
+      file) goes to the "before_trg_err" label, and after earlier
+      return from this method the insert_id_for_cur_row field
+      will become zero and, as a result, the subsequent call
+      of the restore_auto_increment() function does not restore
+      value of the next_insert_id field, which in the future
+      results in an error in the release_auto_increment method.
+      To prevent this, we need to set result here (instead of
+      the immediate return):
+    */
+      result= HA_ERR_AUTOINC_ERANGE;
+    }
+    else
+    {
     /*
       field refused this value (overflow) and truncated it, use the result of
       the truncation (which is going to be inserted); however we try to
@@ -3373,9 +3393,10 @@ int handler::update_auto_increment()
       bother shifting the right bound (anyway any other value from this
       interval will cause a duplicate key).
     */
-    nr= prev_insert_id(table->next_number_field->val_int(), variables);
-    if (unlikely(table->next_number_field->store((longlong) nr, TRUE)))
-      nr= table->next_number_field->val_int();
+      nr= prev_insert_id(table->next_number_field->val_int(), variables);
+      if (unlikely(table->next_number_field->store((longlong) nr, TRUE)))
+        nr= table->next_number_field->val_int();
+    }
   }
   if (append)
   {

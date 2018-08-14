@@ -16841,10 +16841,10 @@ ha_innobase::get_auto_increment(
 
 			if (!wsrep_on(ha_thd())) {
 				current = autoinc - m_prebuilt->autoinc_increment;
-			}
 
-			current = innobase_next_autoinc(
-				current, 1, increment, offset, col_max_value);
+				current = innobase_next_autoinc(
+					current, 1, increment, offset, col_max_value);
+			}
 
 			dict_table_autoinc_initialize(
 				m_prebuilt->table, current);
