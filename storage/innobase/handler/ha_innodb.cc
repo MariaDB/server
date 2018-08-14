@@ -16038,13 +16038,14 @@ ha_innobase::get_auto_increment(
 				    increment,
 				    thd_get_thread_id(ha_thd()),
 				    current, autoinc);
+
 			if (!wsrep_on(ha_thd()))
 			{
-			current = autoinc - prebuilt->autoinc_increment;
-			}
+				current = autoinc - prebuilt->autoinc_increment;
 
-			current = innobase_next_autoinc(
-				current, 1, increment, offset, col_max_value);
+				current = innobase_next_autoinc(
+					current, 1, increment, offset, col_max_value);
+			}
 
 			dict_table_autoinc_initialize(prebuilt->table, current);
 

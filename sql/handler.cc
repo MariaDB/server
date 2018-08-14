@@ -3148,7 +3148,8 @@ int handler::update_auto_increment()
     /*
       first test if the query was aborted due to strict mode constraints
     */
-    if (thd->killed == KILL_BAD_DATA)
+    if (thd->killed == KILL_BAD_DATA ||
+        nr > table->next_number_field->get_max_int_value())
       DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
 
     /*
