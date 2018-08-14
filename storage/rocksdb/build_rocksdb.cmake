@@ -376,9 +376,31 @@ SET(SOURCES)
 FOREACH(s ${ROCKSDB_SOURCES})
   list(APPEND SOURCES ${ROCKSDB_SOURCE_DIR}/${s})
 ENDFOREACH()
-IF(MSVC)
+
+if(MSVC)
   add_definitions(-DHAVE_SSE42 -DHAVE_PCLMUL)
-ENDIF()
+else()
+  set(CMAKE_REQUIRED_FLAGS "-msse4.2 -mpclmul ${CXX11_FLAGS}")
+
+  CHECK_CXX_SOURCE_COMPILES("
+#include <cstdint>
+#include <nmmintrin.h>
+#include <wmmintrin.h>
+int main() {
+  volatile uint32_t x = _mm_crc32_u32(0, 0);
+  const auto a = _mm_set_epi64x(0, 0);
+  const auto b = _mm_set_epi64x(0, 0);
+  const auto c = _mm_clmulepi64_si128(a, b, 0x00);
+  auto d = _mm_cvtsi128_si64(c);
+}
+" HAVE_SSE42)
+  if(HAVE_SSE42)
+    set_source_files_properties(${ROCKSDB_SOURCE_DIR}/util/crc32c.cc
+      PROPERTIES COMPILE_FLAGS "-DHAVE_SSE42 -DHAVE_PCLMUL -msse4.2 -mpclmul")
+  endif()
+  unset(CMAKE_REQUIRED_FLAGS)
+endif()
+
 IF(CMAKE_VERSION VERSION_GREATER "2.8.10")
   STRING(TIMESTAMP GIT_DATE_TIME "%Y-%m-%d %H:%M:%S")
 ENDIF()
