@@ -506,6 +506,9 @@ typedef struct st_join_table {
   uint n_sj_tables;
 
   bool preread_init_done;
+  /* Copy of POSITION::filter, set by get_best_combination() */
+  Range_filter_cost_info *filter;
+  Dynamic_array<char*> rowid_filter_pk;
 
   void cleanup();
   inline bool is_using_loose_index_scan()
@@ -656,6 +659,7 @@ typedef struct st_join_table {
   SplM_plan_info *choose_best_splitting(double record_count,
                                         table_map remaining_tables);
   bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables);
+  bool save_filter_explain_data(Explain_table_access *eta);
 } JOIN_TAB;
 
 
@@ -881,6 +885,9 @@ public:
 };
 
 
+class Range_filter_cost_info;
+
+
 /**
   Information about a position of table within a join order. Used in join
   optimization.
@@ -963,6 +970,8 @@ typedef struct st_position
 
   /* Info on splitting plan used at this position */  
   SplM_plan_info *spl_plan;
+  /* The index for which filter can be built */
+  Range_filter_cost_info *filter;
 } POSITION;
 
 typedef Bounds_checked_array<Item_null_result*> Item_null_array;

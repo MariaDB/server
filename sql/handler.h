@@ -3221,6 +3221,8 @@ public:
   */
   virtual double keyread_time(uint index, uint ranges, ha_rows rows);
 
+  double get_io_cost(uint index, ha_rows rows, uint *length);
+
   virtual const key_map *keys_to_use_for_scanning() { return &key_map_empty; }
 
   /*

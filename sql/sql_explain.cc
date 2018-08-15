@@ -1146,6 +1146,15 @@ void Explain_table_access::fill_key_len_str(String *key_len_str) const
     length= longlong10_to_str(hash_next_key.get_key_len(), buf, 10) - buf;
     key_len_str->append(buf, length);
   }
+
+  if (key.get_filter_key_length() != (uint)-1)
+  {
+    char buf[64];
+    size_t length;
+    key_len_str->append(',');
+    length= longlong10_to_str(key.get_filter_key_length(), buf, 10) - buf;
+    key_len_str->append(buf, length);
+  }
 }
 
 
@@ -1274,12 +1283,20 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     push_string_list(thd, &item_list, ref_list, &ref_list_buf);
  
   /* `rows` */
+  StringBuffer<64> rows_str;
   if (rows_set)
   {
+    rows_str.append_ulonglong((ulonglong)rows);
+
+    if (is_filter_set())
+    {
+      rows_str.append(" (");
+      rows_str.append_ulonglong(filter_perc);
+      rows_str.append("%)");
+    }
     item_list.push_back(new (mem_root)
-                        Item_int(thd, (longlong) (ulonglong) rows,
-                                 MY_INT64_NUM_DECIMAL_DIGITS),
-                        mem_root);
+                        Item_string_sys(thd, rows_str.ptr(),
+                                        rows_str.length()), mem_root);
   }
   else
     item_list.push_back(item_null, mem_root);
@@ -1357,6 +1374,15 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     else
       extra_buf.append(STRING_WITH_LEN("; "));
     extra_buf.append(STRING_WITH_LEN("Using filesort"));
+  }
+
+  if (is_filter_set())
+  {
+    if (first)
+      first= false;
+    else
+      extra_buf.append(STRING_WITH_LEN("; "));
+    extra_buf.append(STRING_WITH_LEN("Using filter"));
   }
 
   item_list.push_back(new (mem_root)

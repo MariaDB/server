@@ -55,6 +55,7 @@ class Virtual_column_info;
 class Table_triggers_list;
 class TMP_TABLE_PARAM;
 class SEQUENCE;
+class Range_filter_cost_info;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -1199,8 +1200,10 @@ public:
   */
   key_part_map  const_key_parts[MAX_KEY];
 
-  uint		quick_key_parts[MAX_KEY];
-  uint		quick_n_ranges[MAX_KEY];
+  uint    quick_key_parts[MAX_KEY];
+  uint    quick_n_ranges[MAX_KEY];
+  /* For each key I/O access cost is stored */
+  double  quick_key_io[MAX_KEY];
 
   /* 
     Estimate of number of records that satisfy SARGable part of the table
@@ -1491,6 +1494,21 @@ public:
   void deny_splitting();
   void add_splitting_info_for_key_field(struct KEY_FIELD *key_field);
 
+
+  /**
+    Range filter info
+  */
+  /* Minimum possible #T value to apply filter*/
+  uint best_filter_count;
+  uint range_filter_cost_info_elements;
+  Range_filter_cost_info *range_filter_cost_info;
+  Range_filter_cost_info
+    *best_filter_for_current_join_order(uint ref_key_no,
+                                        double record_count,
+                                        double records);
+  void sort_range_filter_cost_info_array();
+  void prune_range_filters();
+  void select_usable_range_filters(THD *thd);
   /**
     System Versioning support
    */

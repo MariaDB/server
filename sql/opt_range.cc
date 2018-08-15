@@ -10515,6 +10515,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   handler *file= param->table->file;
   ha_rows rows= HA_POS_ERROR;
   uint keynr= param->real_keynr[idx];
+  uint length;
   DBUG_ENTER("check_quick_select");
   
   /* Handle cases when we don't have a valid non-empty list of range */
@@ -10573,6 +10574,8 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
         MY_MIN(param->table->quick_condition_rows, rows);
       param->table->quick_rows[keynr]= rows;
       param->table->quick_costs[keynr]= cost->total_cost();
+      param->table->quick_key_io[keynr]=
+        file->get_io_cost(keynr, param->table->quick_rows[keynr], &length);
     }
   }
   /* Figure out if the key scan is ROR (returns rows in ROWID order) or not */

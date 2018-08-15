@@ -4633,6 +4633,8 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   created= TRUE;
   cond_selectivity= 1.0;
   cond_selectivity_sampling_explain= NULL;
+  best_filter_count= 0;
+  range_filter_cost_info_elements= 0;
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;

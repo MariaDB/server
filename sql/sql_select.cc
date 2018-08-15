@@ -64,6 +64,7 @@
 #include "sys_vars_shared.h"
 #include "sp_head.h"
 #include "sp_rcontext.h"
+#include "rowid_filter.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -4950,6 +4951,10 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         s->needed_reg=select->needed_reg;
         select->quick=0;
         impossible_range= records == 0 && s->table->reginfo.impossible_range;
+        if (join->thd->lex->sql_command == SQLCOM_SELECT &&
+            join->table_count > 1 &&
+            optimizer_flag(join->thd, OPTIMIZER_SWITCH_USE_ROWID_FILTER))
+          s->table->select_usable_range_filters(join->thd);
       }
       if (!impossible_range)
       {
@@ -6744,12 +6749,14 @@ best_access_path(JOIN      *join,
   double best_time=         DBL_MAX;
   double records=           DBL_MAX;
   table_map best_ref_depends_map= 0;
+  Range_filter_cost_info *best_filter= 0;
   double tmp;
   ha_rows rec;
   bool best_uses_jbuf= FALSE;
   MY_BITMAP *eq_join_set= &s->table->eq_join_set;
   KEYUSE *hj_start_key= 0;
   SplM_plan_info *spl_plan= 0;
+  Range_filter_cost_info *filter= 0;
 
   disable_jbuf= disable_jbuf || idx == join->const_tables;  
 
@@ -6781,6 +6788,7 @@ best_access_path(JOIN      *join,
       key_part_map found_part= 0;
       table_map found_ref= 0;
       uint key= keyuse->key;
+      filter= 0;
       bool ft_key=  (keyuse->keypart == FT_KEYPART);
       /* Bitmap of keyparts where the ref access is over 'keypart=const': */
       key_part_map const_part= 0;
@@ -7141,6 +7149,12 @@ best_access_path(JOIN      *join,
         loose_scan_opt.check_ref_access_part2(key, start_key, records, tmp);
       } /* not ft_key */
 
+      filter= table->best_filter_for_current_join_order(start_key->key,
+                                                        records,
+                                                        record_count);
+      if (filter && (filter->get_filter_gain(record_count*records) < tmp))
+        tmp= tmp - filter->get_filter_gain(record_count*records);
+
       if (tmp + 0.0001 < best_time - records/(double) TIME_FOR_COMPARE)
       {
         best_time= tmp + records/(double) TIME_FOR_COMPARE;
@@ -7149,6 +7163,7 @@ best_access_path(JOIN      *join,
         best_key= start_key;
         best_max_key_part= max_key_part;
         best_ref_depends_map= found_ref;
+        best_filter= filter;
       }
     } /* for each key */
     records= best_records;
@@ -7190,6 +7205,7 @@ best_access_path(JOIN      *join,
     best_key= hj_start_key;
     best_ref_depends_map= 0;
     best_uses_jbuf= TRUE;
+    best_filter= 0;
    }
 
   /*
@@ -7294,8 +7310,15 @@ best_access_path(JOIN      *join,
         tmp+= (s->records - rnd_records)/(double) TIME_FOR_COMPARE;
       }
     }
-
+    double best_records= rnd_records;
     tmp += s->startup_cost;
+
+    filter= s->table->best_filter_for_current_join_order(MAX_KEY,
+                                                         rnd_records,
+                                                         record_count);
+    if (filter && (filter->get_filter_gain(record_count*rnd_records) < tmp))
+      tmp= tmp - filter->get_filter_gain(record_count*rnd_records);
+
     /*
       We estimate the cost of evaluating WHERE clause for found records
       as record_count * rnd_records / TIME_FOR_COMPARE. This cost plus
@@ -7311,8 +7334,9 @@ best_access_path(JOIN      *join,
         will ensure that this will be used
       */
       best= tmp;
-      records= rnd_records;
+      records= best_records;
       best_key= 0;
+      best_filter= filter;
       /* range/index_merge/ALL/index access method are "independent", so: */
       best_ref_depends_map= 0;
       best_uses_jbuf= MY_TEST(!disable_jbuf && !((s->table->map &
@@ -7329,6 +7353,7 @@ best_access_path(JOIN      *join,
   pos->loosescan_picker.loosescan_key= MAX_KEY;
   pos->use_join_buffer= best_uses_jbuf;
   pos->spl_plan= spl_plan;
+  pos->filter= best_filter;
    
   loose_scan_opt.save_to_position(s, loose_scan_pos);
 
@@ -9429,6 +9454,7 @@ bool JOIN::inject_cond_into_where(Item *injected_cond)
 
 static Item * const null_ptr= NULL;
 
+
 /*
   Set up join struct according to the picked join order in
   
@@ -9587,6 +9613,8 @@ bool JOIN::get_best_combination()
     if ((j->type == JT_REF || j->type == JT_EQ_REF) &&
         is_hash_join_key_no(j->ref.key))
       hash_join= TRUE; 
+
+    j->filter= best_positions[tablenr].filter;
 
   loop_end:
     /* 
@@ -12448,7 +12476,9 @@ ha_rows JOIN_TAB::get_examined_rows()
   double examined_rows;
   SQL_SELECT *sel= filesort? filesort->select : this->select;
 
-  if (sel && sel->quick && use_quick != 2)
+  if (filter)
+    examined_rows= records_read;
+  else if (sel && sel->quick && use_quick != 2)
     examined_rows= (double)sel->quick->records;
   else if (type == JT_NEXT || type == JT_ALL ||
            type == JT_HASH || type ==JT_HASH_NEXT)
@@ -24883,6 +24913,31 @@ int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table,
 }
 
 
+/**
+  This method saves the data that should be printed in EXPLAIN
+  if any filter was used for this table.
+*/
+
+bool JOIN_TAB::save_filter_explain_data(Explain_table_access *eta)
+{
+  if (!filter)
+    return 0;
+  KEY *pk_key= get_keyinfo_by_key_no(filter->key_no);
+  StringBuffer<64> buff_for_pk;
+  const char *tmp_buff;
+  buff_for_pk.append("filter:");
+  tmp_buff= pk_key->name.str;
+  buff_for_pk.append(tmp_buff, strlen(tmp_buff), system_charset_info);
+  if (!(eta->ref_list.append_str(join->thd->mem_root,
+                                 buff_for_pk.c_ptr_safe())))
+    return 1;
+  eta->key.set_filter_key_length(pk_key->key_length);
+  (filter->selectivity*100 >= 1) ? eta->filter_perc= round(filter->selectivity*100) :
+                                   eta->filter_perc= 1;
+  return 0;
+}
+
+
 bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
                                  table_map prefix_tables, 
                                  bool distinct_arg, JOIN_TAB *first_top_tab)
@@ -25136,6 +25191,13 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
     set_if_smaller(f, 100.0);
     eta->filtered_set= true;
     eta->filtered= f;
+  }
+
+  if ((tab_select && tab_select->quick && tab_type != JT_CONST) ||
+      (key_info && ref.key_parts && tab_type != JT_FT))
+  {
+    if (save_filter_explain_data(eta))
+      return 1;
   }
 
   /* Build "Extra" field and save it */

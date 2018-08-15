@@ -583,6 +583,7 @@ class Explain_index_use : public Sql_alloc
 {
   char *key_name;
   uint key_len;
+  uint key_len_for_filter;
 public:
   String_list key_parts_list;
   
@@ -595,12 +596,16 @@ public:
   {
     key_name= NULL;
     key_len= (uint)-1;
+    key_len_for_filter= (uint)-1;
   }
   bool set(MEM_ROOT *root, KEY *key_name, uint key_len_arg);
   bool set_pseudo_key(MEM_ROOT *root, const char *key_name);
+  void set_filter_key_length(uint key_length_arg)
+  { key_len_for_filter= key_length_arg; }
 
   inline const char *get_key_name() const { return key_name; }
   inline uint get_key_len() const { return key_len; }
+  inline uint get_filter_key_length() const { return key_len_for_filter; }
 };
 
 
@@ -689,7 +694,8 @@ public:
     cache_cond(NULL),
     pushed_index_cond(NULL),
     sjm_nest(NULL),
-    pre_join_sort(NULL)
+    pre_join_sort(NULL),
+    filter_perc(UINT_MAX)
   {}
   ~Explain_table_access() { delete sjm_nest; }
 
@@ -796,6 +802,13 @@ public:
   Exec_time_tracker op_tracker;
   Table_access_tracker jbuf_tracker;
   
+  /**
+    How many rows are left after the filter was applied
+    to the initial rows count in percentages.
+  */
+  double filter_perc;
+  inline bool is_filter_set() const { return (filter_perc != UINT_MAX); }
+
   int print_explain(select_result_sink *output, uint8 explain_flags, 
                     bool is_analyze,
                     uint select_id, const char *select_type,

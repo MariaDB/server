@@ -727,6 +727,7 @@ typedef struct system_variables
   uint column_compression_threshold;
   uint column_compression_zlib_level;
   uint in_subquery_conversion_threshold;
+  ulonglong max_rowid_filter_size;
 
   vers_asof_timestamp_t vers_asof_timestamp;
   ulong vers_alter_history;

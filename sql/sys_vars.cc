@@ -2493,6 +2493,7 @@ export const char *optimizer_switch_names[]=
   "condition_pushdown_for_derived",
   "split_materialized",
   "condition_pushdown_for_subquery",
+  "rowid_filter",
   "default", 
   NullS
 };
@@ -6113,3 +6114,10 @@ static Sys_var_enum Sys_secure_timestamp(
        "historical behavior, anyone can modify session timestamp",
        READ_ONLY GLOBAL_VAR(opt_secure_timestamp), CMD_LINE(REQUIRED_ARG),
        secure_timestamp_levels, DEFAULT(SECTIME_NO));
+
+static Sys_var_ulonglong Sys_max_rowid_filter_size(
+       "max_rowid_filter_size",
+       "The maximum number of rows that fit in memory",
+       SESSION_VAR(max_rowid_filter_size), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1024, (ulonglong)~(intptr)0), DEFAULT(128*1024),
+       BLOCK_SIZE(1));

@@ -2601,6 +2601,22 @@ LEX_CSTRING *handler::engine_name()
 }
 
 
+/**
+  The method returns the cost of the random I/O accesses when
+  index is used.
+*/
+
+double handler::get_io_cost(uint index, ha_rows rows, uint *length)
+{
+  uint len= table->key_info[index].key_length + ref_length;
+  if (index == table->s->primary_key && table->file->primary_key_is_clustered())
+    len= table->s->stored_rec_length;
+  double keys_per_block= (stats.block_size/2.0/len+1);
+  *length= len;
+  return (rows + keys_per_block-1)/ keys_per_block;
+}
+
+
 double handler::keyread_time(uint index, uint ranges, ha_rows rows)
 {
   /*
@@ -2612,11 +2628,8 @@ double handler::keyread_time(uint index, uint ranges, ha_rows rows)
     engines that support that (e.g. InnoDB) may want to overwrite this method.
     The model counts in the time to read index entries from cache.
   */
-  size_t len= table->key_info[index].key_length + ref_length;
-  if (index == table->s->primary_key && table->file->primary_key_is_clustered())
-    len= table->s->stored_rec_length;
-  double keys_per_block= (stats.block_size/2.0/len+1);
-  return (rows + keys_per_block-1)/ keys_per_block +
+  uint len;
+  return get_io_cost(index, rows, &len) +
          len*rows/(stats.block_size+1)/TIME_FOR_COMPARE ;
 }
 

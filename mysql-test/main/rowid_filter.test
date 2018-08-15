@@ -1,0 +1,142 @@
+--disable_warnings
+DROP DATABASE IF EXISTS dbt3_s001;
+--enable_warnings
+
+CREATE DATABASE dbt3_s001;
+
+use dbt3_s001;
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/dbt3_s001.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+--echo # lineitem : {i_l_receiptdate, i_l_shipdate} -> i_l_receiptdate
+EXPLAIN SELECT *
+FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-02-01' AND
+       l_receiptdate BETWEEN '1997-01-10' AND '1997-01-25';
+
+--echo # lineitem : {i_l_receiptdate, i_l_shipdate} -> i_l_receiptdate
+--echo # orders : {i_o_orderdate} -> i_o_orderdate
+EXPLAIN SELECT *
+FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-02-01' AND
+       l_receiptdate BETWEEN '1997-01-10' AND '1997-01-25' AND
+       o_orderdate > '1997-01-15';
+
+--echo # lineitem : {i_l_receiptdate, i_l_shipdate,
+--echo #             i_l_commitdate} -> i_l_receiptdate
+EXPLAIN SELECT *
+FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-02-01' AND
+       l_receiptdate BETWEEN '1997-01-10' AND '1997-01-25' AND
+       l_commitdate BETWEEN '1997-01-05' AND '1997-01-25';
+
+--echo # lineitem : {i_l_receiptdate, i_l_shipdate,
+--echo #             i_l_commitdate} -> i_l_commitdate
+EXPLAIN SELECT *
+FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-02-01' AND
+       l_receiptdate BETWEEN '1997-01-01' AND '1997-01-25' AND
+       l_commitdate BETWEEN '1997-01-15' AND '1997-01-25';
+
+CREATE INDEX i_l_extendedprice ON lineitem(l_extendedprice);
+
+--echo # lineitem : {i_l_receiptdate, i_l_shipdate, i_l_commitdate,
+--echo #             i_l_extendedprice} -> i_l_extendedprice
+EXPLAIN SELECT *
+FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+WHERE  l_shipdate BETWEEN '1996-11-01' AND '1997-01-21' AND
+       l_receiptdate BETWEEN '1996-11-21' AND '1997-01-25' AND
+       l_commitdate BETWEEN '1996-11-25' AND '1997-01-20' AND
+       l_extendedprice BETWEEN 26000 AND 27000;
+
+--echo # lineitem : {i_l_shipdate, i_l_extendedprice} -> i_l_shipdate
+EXPLAIN SELECT *
+FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+WHERE  l_shipdate BETWEEN '1997-01-11' AND '1997-01-21' AND
+       l_extendedprice BETWEEN 26000 AND 27000;
+
+--echo # lineitem : {i_l_shipdate, i_l_extendedprice} -> i_l_extendedprice
+--echo # intersection point in the I quadrant
+EXPLAIN SELECT *
+FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+WHERE (l_shipdate BETWEEN '1997-01-11' AND '1997-01-26' OR
+       l_shipdate BETWEEN '1995-02-01' AND '1995-02-14' OR
+       l_shipdate BETWEEN '1994-12-12' AND '1994-12-28'
+       ) AND l_extendedprice BETWEEN 26000 AND 27000;
+
+--echo # lineitem : {i_l_shipdate, i_l_extendedprice} -> i_l_shipdate
+--echo # parallel lines
+EXPLAIN SELECT *
+FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+WHERE (l_shipdate BETWEEN '1997-01-11' AND '1997-01-26' OR
+       l_shipdate BETWEEN '1995-02-01' AND '1995-02-16' OR
+       l_shipdate BETWEEN '1994-12-12' AND '1994-12-27'
+       ) AND l_extendedprice BETWEEN 26000 AND 27000;
+
+
+CREATE INDEX i_l_discount ON lineitem(l_discount);
+CREATE INDEX i_l_tax ON lineitem(l_tax);
+
+--echo # lineitem : {i_l_receiptdate, i_l_shipdate, i_l_commitdate,
+--echo #             i_l_extendedprice, i_l_discount, i_l_tax}
+--echo #             -> {i_l_extendedprice}
+EXPLAIN SELECT *
+FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+WHERE  l_shipdate BETWEEN '1996-11-01' AND '1997-01-21' AND
+       l_receiptdate BETWEEN '1996-11-21' AND '1997-01-25' AND
+       l_commitdate BETWEEN '1996-11-25' AND '1997-01-20' AND
+       l_extendedprice BETWEEN 26000 AND 27000 AND
+       l_discount BETWEEN 0 AND 0.01 AND
+       l_tax BETWEEN 0.03 AND 0.04;
+
+DROP INDEX i_l_extendedprice on lineitem;
+DROP INDEX i_l_discount on lineitem;
+DROP INDEX i_l_tax on lineitem;
+
+SET max_rowid_filter_size= 1024;
+
+--echo # lineitem : {i_l_shipdate, i_l_receiptdate, i_l_commitdate}
+--echo #             -> i_l_shipdate
+--echo #            i_l_commitdate isn't in-memory -> isn't used
+EXPLAIN SELECT *
+FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+WHERE  l_shipdate BETWEEN '1996-12-28' AND '1997-01-20' AND
+       l_receiptdate BETWEEN '1996-12-21' AND '1997-01-25' AND
+       l_commitdate BETWEEN '1996-12-01' AND '1997-01-25';
+
+SET max_rowid_filter_size= DEFAULT;
+
+--echo # lineitem : {i_l_shipdate, i_l_commitdate} -> i_l_commitdate
+EXPLAIN SELECT *
+FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+WHERE l_shipdate BETWEEN '1993-01-01' AND '1997-01-30' AND
+      l_commitdate BETWEEN '1997-01-10' AND '1997-01-12';
+
+--echo # lineitem : {i_l_shipdate, i_l_commitdate} -> i_l_commitdate
+EXPLAIN SELECT *
+FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+WHERE l_shipdate BETWEEN '1993-01-01' AND '1997-01-30' AND
+      l_commitdate BETWEEN '1993-01-10' AND '1997-01-12';
+
+--echo # lineitem : {i_l_shipdate, i_l_commitdate, i_l_receiptdate}
+--echo #             -> i_l_receiptdate
+EXPLAIN SELECT *
+FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+WHERE l_shipdate BETWEEN '1993-01-01' AND '1997-01-30' AND
+      l_commitdate BETWEEN '1993-01-10' AND '1997-01-12' AND
+      l_receiptdate BETWEEN '1997-01-10' AND '1997-01-12';
+
+--echo # lineitem : {i_l_shipdate, i_l_receiptdate} -> i_l_receiptdate
+--echo # indexes with high selectivity
+EXPLAIN SELECT *
+FROM orders JOIN lineitem ON o_orderkey=l_orderkey
+WHERE l_shipdate BETWEEN '1997-01-09' AND '1997-01-10' AND
+      l_receiptdate BETWEEN '1997-01-09' AND '1997-01-10';
+
+DROP DATABASE dbt3_s001;
