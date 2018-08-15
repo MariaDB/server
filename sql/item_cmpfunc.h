@@ -1422,6 +1422,7 @@ public:
       const_item_cache= args[0]->const_item();
     }
   }
+  virtual void print(String *str, enum_query_type query_type);
   table_map not_null_tables() const { return 0; }
   optimize_type select_optimize() const { return OPTIMIZE_NULL; }
   Item *neg_transformer(THD *thd);

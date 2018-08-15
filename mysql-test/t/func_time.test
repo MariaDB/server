@@ -1697,6 +1697,10 @@ DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(UUID()))));
 DO TO_DAYS(SEC_TO_TIME(MAKEDATE('',RAND(~('')))));
 SELECT SEC_TO_TIME(MAKEDATE(0,RAND(~0)));
 
+#
+# MDEV-16810 AddressSanitizer: stack-buffer-overflow in int10_to_str
+#
+SELECT PERIOD_DIFF(2018, AES_ENCRYPT('Rae Bareli', 'Rae Bareli'));
 
 --echo #
 --echo # End of 5.5 tests

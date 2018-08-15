@@ -4927,6 +4927,19 @@ Item *and_expressions(Item *a, Item *b, Item **org_item)
 }
 
 
+void Item_func_isnull::print(String *str, enum_query_type query_type)
+{
+  str->append(func_name());
+  str->append('(');
+  if (const_item() && !args[0]->maybe_null &&
+      !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)))
+    str->append("/*always not null*/ 1");
+  else
+    args[0]->print(str, query_type);
+  str->append(')');
+}
+
+
 longlong Item_func_isnull::val_int()
 {
   DBUG_ASSERT(fixed == 1);
