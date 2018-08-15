@@ -404,6 +404,12 @@ void Time::make_from_datetime_with_days_diff(int *warn, const MYSQL_TIME *from,
                            from->second) * 1000000LL +
                            from->second_part);
     unpack_time(timediff, this, MYSQL_TIMESTAMP_TIME);
+    if (year || month)
+    {
+      *warn|= MYSQL_TIME_WARN_OUT_OF_RANGE;
+      year= month= day= 0;
+      hour= TIME_MAX_HOUR + 1;
+    }
   }
   // The above code can generate TIME values outside of the valid TIME range.
   adjust_time_range_or_invalidate(warn);
