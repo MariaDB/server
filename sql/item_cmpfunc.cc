@@ -823,7 +823,7 @@ int Arg_comparator::compare_e_real()
 int Arg_comparator::compare_e_decimal()
 {
   VDec val1(*a), val2(*b);
-  if (val1.is_null() || val1.is_null())
+  if (val1.is_null() || val2.is_null())
     return MY_TEST(val1.is_null() && val2.is_null());
   return MY_TEST(val1.cmp(val2) == 0);
 }
