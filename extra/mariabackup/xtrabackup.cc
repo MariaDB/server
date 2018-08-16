@@ -2685,7 +2685,7 @@ void backup_wait_for_lsn(lsn_t lsn) {
 
 extern lsn_t server_lsn_after_lock;
 
-static os_thread_ret_t log_copying_thread(void*)
+static os_thread_ret_t DECLARE_THREAD(log_copying_thread)(void*)
 {
 	/*
 	  Initialize mysys thread-specific memory so we can
