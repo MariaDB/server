@@ -53,6 +53,7 @@ static inline void _ma_set_tmp_trn_for_table(MARIA_HA *tbl, TRN *newtrn)
                      tbl, tbl->trn, newtrn));
   tbl->trn= newtrn;
   tbl->trn_prev= 0;
+  tbl->trn_next= 0;               /* To avoid assert in ha_maria::close() */
 }
 
 
@@ -63,13 +64,36 @@ static inline void _ma_set_tmp_trn_for_table(MARIA_HA *tbl, TRN *newtrn)
 static inline void _ma_reset_trn_for_table(MARIA_HA *tbl)
 {
   DBUG_PRINT("info",("table: %p  trn: %p -> NULL", tbl, tbl->trn));
+
   /* The following is only false if tbl->trn == &dummy_transaction_object */
   if (tbl->trn_prev)
   {
+    if (tbl->trn_next)
+      tbl->trn_next->trn_prev= tbl->trn_prev;
     *tbl->trn_prev= tbl->trn_next;
     tbl->trn_prev= 0;
+    tbl->trn_next= 0;
   }
   tbl->trn= 0;
+}
+
+
+/*
+  Take over the used_instances link from a trn object
+  Reset the link in the trn object
+*/
+
+static inline void relink_trn_used_instances(MARIA_HA **used_tables, TRN *trn)
+{
+  if (likely(*used_tables= (MARIA_HA*) trn->used_instances))
+  {
+    /* Check that first back link is correct */
+    DBUG_ASSERT((*used_tables)->trn_prev == (MARIA_HA **)&trn->used_instances);
+
+    /* Fix back link to point to new base for the list */
+    (*used_tables)->trn_prev= used_tables;
+    trn->used_instances= 0;
+  }
 }
 
 #endif /* _ma_trnman_h */

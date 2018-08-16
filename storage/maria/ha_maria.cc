@@ -1006,6 +1006,8 @@ handler *ha_maria::clone(const char *name, MEM_ROOT *mem_root)
     new_handler->file->state= file->state;
     /* maria_create_trn_for_mysql() is never called for clone() tables */
     new_handler->file->trn= file->trn;
+    DBUG_ASSERT(new_handler->file->trn_prev == 0 &&
+                new_handler->file->trn_next == 0);
   }
   return new_handler;
 }
@@ -1272,6 +1274,7 @@ int ha_maria::close(void)
   if (!tmp)
     return 0;
   DBUG_ASSERT(file->trn == 0 || file->trn == &dummy_transaction_object);
+  DBUG_ASSERT(file->trn_next == 0 && file->trn_prev == 0);
   file= 0;
   return maria_close(tmp);
 }
@@ -1397,7 +1400,10 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
 
   /* Reset trn, that may have been set by repair */
   if (old_trn && old_trn != file->trn)
+  {
+    DBUG_ASSERT(old_trn->used_instances == 0);
     _ma_set_trn_for_table(file, old_trn);
+  }
   thd_proc_info(thd, old_proc_info);
   thd_progress_end(thd);
   return error ? HA_ADMIN_CORRUPT : HA_ADMIN_OK;
@@ -2613,14 +2619,20 @@ int ha_maria::extra(enum ha_extra_function operation)
        operation == HA_EXTRA_PREPARE_FOR_FORCED_CLOSE))
   {
     THD *thd= table->in_use;
-    TRN *trn= THD_TRN;
-    _ma_set_tmp_trn_for_table(file, trn);
+    file->trn= THD_TRN;
   }
   DBUG_ASSERT(file->s->base.born_transactional || file->trn == 0 ||
               file->trn == &dummy_transaction_object);
 
   tmp= maria_extra(file, operation, 0);
-  file->trn= old_trn;                           // Reset trn if was used
+  /*
+    Restore trn if it was changed above.
+    Note that table could be removed from trn->used_tables and
+    trn->used_instances if trn was set and some of the above operations
+    was used. This is ok as the table should not be part of any transaction
+    after this and thus doesn't need to be part of any of the above lists.
+  */
+  file->trn= old_trn;
   return tmp;
 }
 
@@ -2856,9 +2868,12 @@ static void reset_thd_trn(THD *thd, MARIA_HA *first_table)
 {
   DBUG_ENTER("reset_thd_trn");
   THD_TRN= NULL;
-  for (MARIA_HA *table= first_table; table ;
-       table= table->trn_next)
+  MARIA_HA *next;
+  for (MARIA_HA *table= first_table; table ; table= next)
+  {
+    next= table->trn_next;
     _ma_reset_trn_for_table(table);
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -2905,9 +2920,11 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
     DBUG_RETURN(0);
   }
 
+  /* Prepare to move used_instances and locked tables to new TRN object */
   locked_tables= trnman_has_locked_tables(trn);
+  trnman_reset_locked_tables(trn, 0);
+  relink_trn_used_instances(&used_tables, trn);
 
-  used_tables= (MARIA_HA*) trn->used_instances;
   error= 0;
   if (unlikely(ma_commit(trn)))
     error= 1;
@@ -3332,6 +3349,8 @@ static int maria_commit(handlerton *hton __attribute__ ((unused)),
 {
   TRN *trn= THD_TRN;
   DBUG_ENTER("maria_commit");
+
+  DBUG_ASSERT(trnman_has_locked_tables(trn) == 0);
   trnman_reset_locked_tables(trn, 0);
   trnman_set_flags(trn, trnman_get_flags(trn) & ~TRN_STATE_INFO_LOGGED);
 
@@ -3349,9 +3368,12 @@ static int maria_rollback(handlerton *hton __attribute__ ((unused)),
 {
   TRN *trn= THD_TRN;
   DBUG_ENTER("maria_rollback");
+
+  DBUG_ASSERT(trnman_has_locked_tables(trn) == 0);
   trnman_reset_locked_tables(trn, 0);
   /* statement or transaction ? */
-  if ((thd->variables.option_bits & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) && !all)
+  if ((thd->variables.option_bits & (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
+      !all)
   {
     trnman_rollback_statement(trn);
     DBUG_RETURN(0); // end of statement
