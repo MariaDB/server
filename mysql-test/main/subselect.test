@@ -5927,13 +5927,6 @@ call procedure2();
 drop procedure procedure2;
 
 
-SELECT
-  (SELECT user FROM mysql.user
-    WHERE h.host in (SELECT host FROM mysql.user)
-  ) AS sq
-FROM mysql.host h GROUP BY h.host;
-
-
 --echo #
 --echo # MDEV-7846:Server crashes in Item_subselect::fix
 --echo #_fields or fails with Thread stack overrun
