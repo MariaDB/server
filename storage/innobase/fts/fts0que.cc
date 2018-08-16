@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -3920,6 +3920,7 @@ fts_query_can_optimize(
 }
 
 /** FTS Query entry point.
+@param[in,out]	trx		transaction
 @param[in]	index		fts index to search
 @param[in]	flags		FTS search mode
 @param[in]	query_str	FTS query
@@ -3928,6 +3929,7 @@ fts_query_can_optimize(
 @return DB_SUCCESS if successful otherwise error code */
 dberr_t
 fts_query(
+	trx_t*		trx,
 	dict_index_t*	index,
 	uint		flags,
 	const byte*	query_str,
@@ -3940,7 +3942,7 @@ fts_query(
 	ulint		lc_query_str_len;
 	ulint		result_len;
 	bool		boolean_mode;
-	trx_t*		query_trx;
+	trx_t*		query_trx; /* FIXME: use provided trx */
 	CHARSET_INFO*	charset;
 	ulint		start_time_ms;
 	bool		will_be_ignored = false;
@@ -4055,6 +4057,7 @@ fts_query(
 	/* Parse the input query string. */
 	if (fts_query_parse(&query, lc_query_str, result_len)) {
 		fts_ast_node_t*	ast = query.root;
+		ast->trx = trx;
 
 		/* Optimize query to check if it's a single term */
 		fts_query_can_optimize(&query, flags);
@@ -4068,6 +4071,11 @@ fts_query(
 		query.error = fts_ast_visit(
 			FTS_NONE, ast, fts_query_visitor,
 			&query, &will_be_ignored);
+		if (query.error == DB_INTERRUPTED) {
+			error = DB_INTERRUPTED;
+			ut_free(lc_query_str);
+			goto func_exit;
+		}
 
 		/* If query expansion is requested, extend the search
 		with first search pass result */
@@ -4092,6 +4100,15 @@ fts_query(
 		/* still return an empty result set */
 		*result = static_cast<fts_result_t*>(
 			ut_zalloc_nokey(sizeof(**result)));
+	}
+
+	if (trx_is_interrupted(trx)) {
+		error = DB_INTERRUPTED;
+		ut_free(lc_query_str);
+		if (*result) {
+			fts_query_free_result(*result);
+		}
+		goto func_exit;
 	}
 
 	ut_free(lc_query_str);

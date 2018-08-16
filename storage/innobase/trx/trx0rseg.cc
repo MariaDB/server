@@ -545,9 +545,7 @@ trx_rseg_array_init()
 	*trx_sys.recovered_binlog_filename = '\0';
 	trx_sys.recovered_binlog_offset = 0;
 #ifdef WITH_WSREP
-	memset(&trx_sys.recovered_wsrep_xid, 0,
-	       sizeof trx_sys.recovered_wsrep_xid);
-	trx_sys.recovered_wsrep_xid.formatID = -1;
+	trx_sys.recovered_wsrep_xid.null();
 #endif
 
 	for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++) {

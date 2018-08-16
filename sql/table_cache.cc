@@ -50,6 +50,7 @@
 #include "lf.h"
 #include "table.h"
 #include "sql_base.h"
+#include "sql_statistics.h"
 
 
 /** Configuration. */
@@ -991,6 +992,7 @@ void tdc_release_share(TABLE_SHARE *share)
   }
   if (share->tdc->flushed || tdc_records() > tdc_size)
   {
+    delete_stat_values_for_table_share(share);
     mysql_mutex_unlock(&LOCK_unused_shares);
     tdc_delete_share_from_hash(share->tdc);
     DBUG_VOID_RETURN;

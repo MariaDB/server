@@ -228,8 +228,6 @@ FLUSH PRIVILEGES;
 connect  con1, localhost, mysqltest_1,,;
 connection con1;
 CREATE PROCEDURE p1(i INT) BEGIN END;
-Warnings:
-Warning	1404	Failed to grant EXECUTE and ALTER ROUTINE privileges
 disconnect con1;
 connection default;
 DROP PROCEDURE p1;

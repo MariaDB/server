@@ -2141,6 +2141,31 @@ DROP TABLE t_ts, t_trig;
 
 
 --echo #
+--echo # MDEV-16878 Functions ADDTIME and SUBTIME get wrongly removed from WHERE by the equal expression optimizer
+--echo #
+
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES ('00:00:10'),('00:00:20');
+SELECT a, SUBTIME(a,TIME'00:00:01'), ADDTIME(a,TIME'00:00:01') FROM t1;
+SELECT * FROM t1 WHERE SUBTIME(a,TIME'00:00:01')=TIME'00:00:09';
+SELECT * FROM t1 WHERE ADDTIME(a,TIME'00:00:01')<=TIME'00:00:09'; 
+SELECT * FROM t1 WHERE SUBTIME(a,TIME'00:00:01')=TIME'00:00:09' AND ADDTIME(a,TIME'00:00:01')<=TIME'00:00:09'; 
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE SUBTIME(a,TIME'00:00:01')=TIME'00:00:09' AND ADDTIME(a,TIME'00:00:01')<=TIME'00:00:09'; 
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-15363 Wrong result for CAST(LAST_DAY(TIME'00:00:00') AS TIME)
+--echo #
+
+SELECT
+  LAST_DAY(TIME'00:00:00') AS c1,
+  CAST(CAST(LAST_DAY(TIME'00:00:00') AS DATE) AS TIME) AS c2,
+  CAST(LAST_DAY(TIME'00:00:00') AS TIME) AS c3;
+
+--echo # End of 10.3 tests
+
+--echo #
 --echo # MDEV-14032 SEC_TO_TIME executes side effect two times
 --echo #
 

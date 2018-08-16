@@ -169,7 +169,8 @@ extern ulong opt_tc_log_size, tc_log_max_pages_used, tc_log_page_size;
 extern ulong tc_log_page_waits;
 extern my_bool relay_log_purge, opt_innodb_safe_binlog, opt_innodb;
 extern my_bool relay_log_recovery;
-extern uint test_flags,select_errors,ha_open_options;
+extern uint select_errors,ha_open_options;
+extern ulonglong test_flags;
 extern uint protocol_version, mysqld_port, dropping_tables;
 extern ulong delay_key_write_options;
 extern char *opt_logname, *opt_slow_logname, *opt_bin_logname, 

@@ -169,9 +169,21 @@ typedef std::map<
 
 static recv_spaces_t	recv_spaces;
 
-/** Backup function checks whether the space id belongs to
-the skip table list given in the mariabackup option. */
-bool(*check_if_backup_includes)(ulint space_id);
+/** Report optimized DDL operation (without redo log), corresponding to MLOG_INDEX_LOAD.
+@param[in]	space_id	tablespace identifier
+*/
+void (*log_optimized_ddl_op)(ulint space_id);
+
+/** Report an operation to create, delete, or rename a file during backup.
+@param[in]	space_id	tablespace identifier
+@param[in]	flags		tablespace flags (NULL if not create)
+@param[in]	name		file name (not NUL-terminated)
+@param[in]	len		length of name, in bytes
+@param[in]	new_name	new file name (NULL if not rename)
+@param[in]	new_len		length of new_name, in bytes (0 if NULL) */
+void (*log_file_op)(ulint space_id, const byte* flags,
+		    const byte* name, ulint len,
+		    const byte* new_name, ulint new_len);
 
 /** Process a file name from a MLOG_FILE_* record.
 @param[in,out]	name		file name
@@ -381,9 +393,13 @@ fil_name_parse(
 
 		fil_name_process(
 			reinterpret_cast<char*>(ptr), len, space_id, true);
-
-		break;
+		/* fall through */
 	case MLOG_FILE_CREATE2:
+		if (log_file_op) {
+			log_file_op(space_id,
+				    type == MLOG_FILE_CREATE2 ? ptr - 4 : NULL,
+				    ptr, len, NULL, 0);
+		}
 		break;
 	case MLOG_FILE_RENAME2:
 		if (corrupt) {
@@ -423,6 +439,11 @@ fil_name_parse(
 		fil_name_process(
 			reinterpret_cast<char*>(new_name), new_len,
 			space_id, false);
+
+		if (log_file_op) {
+			log_file_op(space_id, NULL,
+				    ptr, len, new_name, new_len);
+		}
 
 		if (!apply) {
 			break;
@@ -719,6 +740,15 @@ fail:
 				goto fail;
 			}
 		}
+
+		ulint dl = log_block_get_data_len(buf);
+		if (dl < LOG_BLOCK_HDR_SIZE
+		    || (dl != OS_FILE_LOG_BLOCK_SIZE
+			&& dl > log_sys.trailer_offset())) {
+			recv_sys->found_corrupt_log = true;
+			end_lsn = *start_lsn;
+			break;
+		}
 	}
 
 	if (recv_sys->report(ut_time())) {
@@ -837,8 +867,6 @@ recv_find_max_checkpoint_0(ulint* max_field)
 			*max_field = field;
 			max_no = checkpoint_no;
 
-			log_sys.log.state = LOG_GROUP_OK;
-
 			log_sys.log.lsn = mach_read_from_8(
 				buf + LOG_CHECKPOINT_LSN);
 			log_sys.log.lsn_offset = static_cast<ib_uint64_t>(
@@ -933,8 +961,6 @@ recv_find_max_checkpoint(ulint* max_field)
 
 	buf = log_sys.checkpoint_buf;
 
-	log_sys.log.state = LOG_GROUP_CORRUPTED;
-
 	log_header_read(0);
 	/* Check the header page checksum. There was no
 	checksum in the first redo log format (version 0). */
@@ -1002,7 +1028,6 @@ recv_find_max_checkpoint(ulint* max_field)
 		if (checkpoint_no >= max_no) {
 			*max_field = field;
 			max_no = checkpoint_no;
-			log_sys.log.state = LOG_GROUP_OK;
 			log_sys.log.lsn = mach_read_from_8(
 				buf + LOG_CHECKPOINT_LSN);
 			log_sys.log.lsn_offset = mach_read_from_8(
@@ -1447,7 +1472,8 @@ parse_log:
 		break;
 	default:
 		ptr = NULL;
-		ib::error() << "Incorrect log record type:" << type;
+		ib::error() << "Incorrect log record type "
+			<< ib::hex(unsigned(type));
 
 		recv_sys->found_corrupt_log = true;
 	}
@@ -2133,7 +2159,8 @@ recv_parse_log_rec(
 	case MLOG_MULTI_REC_END | MLOG_SINGLE_REC_FLAG:
 	case MLOG_DUMMY_RECORD | MLOG_SINGLE_REC_FLAG:
 	case MLOG_CHECKPOINT | MLOG_SINGLE_REC_FLAG:
-		ib::error() << "Incorrect log record type:" << *ptr;
+		ib::error() << "Incorrect log record type "
+			<< ib::hex(unsigned(*ptr));
 		recv_sys->found_corrupt_log = true;
 		return(0);
 	}
@@ -2152,7 +2179,6 @@ recv_parse_log_rec(
 		*type, new_ptr, end_ptr, *space, *page_no, apply, NULL, NULL);
 
 	if (UNIV_UNLIKELY(new_ptr == NULL)) {
-
 		return(0);
 	}
 
@@ -2204,30 +2230,30 @@ recv_report_corrupt_log(
 	ib::error() <<
 		"############### CORRUPT LOG RECORD FOUND ##################";
 
+	const ulint ptr_offset = ulint(ptr - recv_sys->buf);
+
 	ib::info() << "Log record type " << type << ", page " << space << ":"
 		<< page_no << ". Log parsing proceeded successfully up to "
 		<< recv_sys->recovered_lsn << ". Previous log record type "
 		<< recv_previous_parsed_rec_type << ", is multi "
 		<< recv_previous_parsed_rec_is_multi << " Recv offset "
-		<< (ptr - recv_sys->buf) << ", prev "
+		<< ptr_offset << ", prev "
 		<< recv_previous_parsed_rec_offset;
 
 	ut_ad(ptr <= recv_sys->buf + recv_sys->len);
 
 	const ulint	limit	= 100;
-	const ulint	before
-		= std::min(recv_previous_parsed_rec_offset, limit);
-	const ulint	after
-		= std::min(recv_sys->len - ulint(ptr - recv_sys->buf), limit);
+	const ulint	prev_offset = std::min(recv_previous_parsed_rec_offset,
+					       ptr_offset);
+	const ulint	before = std::min(prev_offset, limit);
+	const ulint	after = std::min(recv_sys->len - ptr_offset, limit);
 
 	ib::info() << "Hex dump starting " << before << " bytes before and"
 		" ending " << after << " bytes after the corrupted record:";
 
-	ut_print_buf(stderr,
-		     recv_sys->buf
-		     + recv_previous_parsed_rec_offset - before,
-		     ulint(ptr - recv_sys->buf) + before + after
-		     - recv_previous_parsed_rec_offset);
+	const byte* start = recv_sys->buf + prev_offset - before;
+
+	ut_print_buf(stderr, start, ulint(ptr - start) + after);
 	putc('\n', stderr);
 
 	if (!srv_force_recovery) {
@@ -2298,18 +2324,17 @@ loop:
 		len = recv_parse_log_rec(&type, ptr, end_ptr, &space,
 					 &page_no, apply, &body);
 
-		if (len == 0) {
-			return(false);
-		}
-
 		if (recv_sys->found_corrupt_log) {
-			recv_report_corrupt_log(
-				ptr, type, space, page_no);
+			recv_report_corrupt_log(ptr, type, space, page_no);
 			return(true);
 		}
 
 		if (recv_sys->found_corrupt_fs) {
 			return(true);
+		}
+
+		if (len == 0) {
+			return(false);
 		}
 
 		new_recovered_lsn = recv_calc_lsn_on_data_add(old_lsn, len);
@@ -2399,11 +2424,8 @@ loop:
 			/* fall through */
 		case MLOG_INDEX_LOAD:
 			if (type == MLOG_INDEX_LOAD) {
-				if (check_if_backup_includes
-				    && !check_if_backup_includes(space)) {
-					ut_ad(srv_operation
-					      == SRV_OPERATION_BACKUP);
-					return true;
+				if (log_optimized_ddl_op) {
+					log_optimized_ddl_op(space);
 				}
 			}
 			/* fall through */
@@ -2436,13 +2458,10 @@ loop:
 				&type, ptr, end_ptr, &space, &page_no,
 				false, &body);
 
-			if (len == 0) {
-				return(false);
-			}
-
 			if (recv_sys->found_corrupt_log
 			    || type == MLOG_CHECKPOINT
-			    || (*ptr & MLOG_SINGLE_REC_FLAG)) {
+			    || (ptr != end_ptr
+				&& (*ptr & MLOG_SINGLE_REC_FLAG))) {
 				recv_sys->found_corrupt_log = true;
 				recv_report_corrupt_log(
 					ptr, type, space, page_no);
@@ -2451,6 +2470,10 @@ loop:
 
 			if (recv_sys->found_corrupt_fs) {
 				return(true);
+			}
+
+			if (len == 0) {
+				return(false);
 			}
 
 			recv_previous_parsed_rec_type = type;

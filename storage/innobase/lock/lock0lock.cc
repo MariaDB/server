@@ -59,18 +59,6 @@ ulong innodb_lock_schedule_algorithm;
 /** The value of innodb_deadlock_detect */
 my_bool	innobase_deadlock_detect;
 
-/** Total number of cached record locks */
-static const ulint	REC_LOCK_CACHE = 8;
-
-/** Maximum record lock size in bytes */
-static const ulint	REC_LOCK_SIZE = sizeof(ib_lock_t) + 256;
-
-/** Total number of cached table locks */
-static const ulint	TABLE_LOCK_CACHE = 8;
-
-/** Size in bytes, of the table lock instance */
-static const ulint	TABLE_LOCK_SIZE = sizeof(ib_lock_t);
-
 /*********************************************************************//**
 Checks if a waiting record lock request still has to wait in a queue.
 @return lock that is causing the wait */
@@ -1409,13 +1397,13 @@ lock_rec_create_low(
 		}
 	}
 
- 	if (trx->lock.rec_cached >= trx->lock.rec_pool.size()
-	    || sizeof *lock + n_bytes > REC_LOCK_SIZE) {
+	if (trx->lock.rec_cached >= UT_ARR_SIZE(trx->lock.rec_pool)
+	    || sizeof *lock + n_bytes > sizeof *trx->lock.rec_pool) {
 		lock = static_cast<lock_t*>(
 			mem_heap_alloc(trx->lock.lock_heap,
 				       sizeof *lock + n_bytes));
 	} else {
-		lock = trx->lock.rec_pool[trx->lock.rec_cached++];
+		lock = &trx->lock.rec_pool[trx->lock.rec_cached++].lock;
 	}
 
 	lock->trx = trx;
@@ -1750,7 +1738,10 @@ lock_rec_enqueue_waiting(
 		lock_prdt_set_prdt(lock, prdt);
 	}
 
-	if (const trx_t* victim =
+	if (
+#ifdef UNIV_DEBUG
+	    const trx_t* victim =
+#endif
 	    DeadlockChecker::check_and_resolve(lock, trx)) {
 		ut_ad(victim == trx);
 		lock_reset_lock_and_trx_wait(lock);
@@ -3517,8 +3508,9 @@ lock_table_create(
 
 		ib_vector_push(trx->autoinc_locks, &lock);
 
-	} else if (trx->lock.table_cached < trx->lock.table_pool.size()) {
-		lock = trx->lock.table_pool[trx->lock.table_cached++];
+	} else if (trx->lock.table_cached
+		   < UT_ARR_SIZE(trx->lock.table_pool)) {
+		lock = &trx->lock.table_pool[trx->lock.table_cached++];
 	} else {
 
 		lock = static_cast<lock_t*>(
@@ -4370,24 +4362,15 @@ lock_trx_table_locks_remove(
 		ut_ad(trx_mutex_own(trx));
 	}
 
-	typedef lock_pool_t::reverse_iterator iterator;
-
-	iterator	end = trx->lock.table_locks.rend();
-
-	for (iterator it = trx->lock.table_locks.rbegin(); it != end; ++it) {
-
+	for (lock_list::iterator it = trx->lock.table_locks.begin(),
+             end = trx->lock.table_locks.end(); it != end; ++it) {
 		const lock_t*	lock = *it;
 
-		if (lock == NULL) {
-			continue;
-		}
-
-		ut_a(trx == lock->trx);
-		ut_a(lock_get_type_low(lock) & LOCK_TABLE);
-		ut_a(lock->un_member.tab_lock.table != NULL);
+		ut_ad(!lock || trx == lock->trx);
+		ut_ad(!lock || lock_get_type_low(lock) & LOCK_TABLE);
+		ut_ad(!lock || lock->un_member.tab_lock.table);
 
 		if (lock == lock_to_remove) {
-
 			*it = NULL;
 
 			if (!trx->lock.cancel) {
@@ -4804,11 +4787,8 @@ lock_trx_table_locks_find(
 
 	trx_mutex_enter(trx);
 
-	typedef lock_pool_t::const_reverse_iterator iterator;
-
-	iterator	end = trx->lock.table_locks.rend();
-
-	for (iterator it = trx->lock.table_locks.rbegin(); it != end; ++it) {
+	for (lock_list::const_iterator it = trx->lock.table_locks.begin(),
+             end = trx->lock.table_locks.end(); it != end; ++it) {
 
 		const lock_t*	lock = *it;
 
@@ -6334,6 +6314,9 @@ lock_trx_release_locks(
 	/*--------------------------------------*/
 	trx_mutex_enter(trx);
 	trx->state = TRX_STATE_COMMITTED_IN_MEMORY;
+	/* Ensure that rw_trx_hash_t::find() will no longer find
+	this transaction. */
+	trx->id = 0;
 	trx_mutex_exit(trx);
 	/*--------------------------------------*/
 
@@ -6544,10 +6527,8 @@ lock_trx_has_sys_table_locks(
 
 	lock_mutex_enter();
 
-	typedef lock_pool_t::const_reverse_iterator iterator;
-
-	iterator	end = trx->lock.table_locks.rend();
-	iterator	it = trx->lock.table_locks.rbegin();
+	const lock_list::const_iterator end = trx->lock.table_locks.end();
+	lock_list::const_iterator it = trx->lock.table_locks.begin();
 
 	/* Find a valid mode. Note: ib_vector_size() can be 0. */
 
@@ -7099,33 +7080,6 @@ DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 	return(victim_trx);
 }
 
-/**
-Allocate cached locks for the transaction.
-@param trx		allocate cached record locks for this transaction */
-void
-lock_trx_alloc_locks(trx_t* trx)
-{
-	ulint	sz = REC_LOCK_SIZE * REC_LOCK_CACHE;
-	byte*	ptr = reinterpret_cast<byte*>(ut_malloc_nokey(sz));
-
-	/* We allocate one big chunk and then distribute it among
-	the rest of the elements. The allocated chunk pointer is always
-	at index 0. */
-
-	for (ulint i = 0; i < REC_LOCK_CACHE; ++i, ptr += REC_LOCK_SIZE) {
-		trx->lock.rec_pool.push_back(
-			reinterpret_cast<ib_lock_t*>(ptr));
-	}
-
-	sz = TABLE_LOCK_SIZE * TABLE_LOCK_CACHE;
-	ptr = reinterpret_cast<byte*>(ut_malloc_nokey(sz));
-
-	for (ulint i = 0; i < TABLE_LOCK_CACHE; ++i, ptr += TABLE_LOCK_SIZE) {
-		trx->lock.table_pool.push_back(
-			reinterpret_cast<ib_lock_t*>(ptr));
-	}
-
-}
 /*************************************************************//**
 Updates the lock table when a page is split and merged to
 two pages. */

@@ -77,6 +77,9 @@ IF(NOT VERSION)
           SET(DEFAULT_MACHINE "i386")
         ENDIF()
       ENDIF()
+    ELSEIF(CMAKE_SYSTEM_NAME MATCHES "GNU")
+      SET(DEFAULT_PLATFORM "GNU")
+      SET(DEFAULT_MACHINE "i386")
     ELSEIF(CMAKE_SYSTEM_NAME MATCHES "Darwin")
       IF(CMAKE_OSX_DEPLOYMENT_TARGET)
         SET(DEFAULT_PLATFORM "osx${CMAKE_OSX_DEPLOYMENT_TARGET}")
@@ -132,7 +135,7 @@ IF(NOT VERSION)
 
   SET(package_name "mariadb${PRODUCT_TAG}-${VERSION}-${SYSTEM_NAME_AND_PROCESSOR}")
 
-  MESSAGE(STATUS "Packaging as: ${package_name}")
+  MESSAGE_ONCE(package_name "Packaging as: ${package_name}")
 
   # Sometimes package suffix is added (something like "-icc-glibc23")
   IF(PACKAGE_SUFFIX)

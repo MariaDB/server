@@ -7628,9 +7628,8 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
 		          param->current_table);
 #ifdef HAVE_SPATIAL
   Field::geometry_type sav_geom_type;
-  LINT_INIT_STRUCT(sav_geom_type);
-
-  if (field_item->field->type() == MYSQL_TYPE_GEOMETRY)
+  const bool geometry= field_item->field->type() == MYSQL_TYPE_GEOMETRY;
+  if (geometry)
   {
     sav_geom_type= ((Field_geom*) field_item->field)->geom_type;
     /* We have to be able to store all sorts of spatial features here */
@@ -7665,7 +7664,7 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
   }
 
 #ifdef HAVE_SPATIAL
-  if (field_item->field->type() == MYSQL_TYPE_GEOMETRY)
+  if (geometry)
   {
     ((Field_geom*) field_item->field)->geom_type= sav_geom_type;
   }

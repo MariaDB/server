@@ -1506,6 +1506,46 @@ DROP VIEW v2;
 DROP TABLE t1,t2;
 SET optimizer_switch=@save_optimizer_switch;
 #
+# MDEV-16512
+# Server crashes in find_field_in_table_ref on 2nd execution of SP referring to
+# non-existing field
+#
+CREATE TABLE t (i INT);
+CREATE PROCEDURE p() SELECT t1.f FROM t AS t1 JOIN t AS t2 USING (f);
+CALL p;
+ERROR 42S22: Unknown column 'f' in 'from clause'
+CALL p;
+ERROR 42S22: Unknown column 'f' in 'from clause'
+FLUSH TABLES;
+CALL p;
+ERROR 42S22: Unknown column 'f' in 'from clause'
+DROP TABLE t;
+CREATE TABLE t (f INT);
+CALL p;
+ERROR 42S22: Unknown column 'f' in 'from clause'
+DROP TABLE t;
+CREATE TABLE t (i INT);
+CALL p;
+ERROR 42S22: Unknown column 'f' in 'from clause'
+DROP PROCEDURE p;
+DROP TABLE t;
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (a INT);
+CREATE TABLE t3 (a INT, c INT);
+CREATE TABLE t4 (a INT, c INT);
+CREATE TABLE t5 (a INT, c INT);
+CREATE PROCEDURE p1() SELECT c FROM t1 JOIN (t2 LEFT JOIN t3 USING (a) LEFT JOIN t4 USING (a)
+LEFT JOIN t5 USING (a)) USING (a);
+CALL p1;
+ERROR 23000: Column 'c' in field list is ambiguous
+CALL p1;
+ERROR 23000: Column 'c' in field list is ambiguous
+DROP PROCEDURE p1;
+DROP TABLE t1,t2,t3,t4,t5;
+#
+# End of MariaDB 5.5 tests
+#
+#
 # Bug #35268: Parser can't handle STRAIGHT_JOIN with USING
 #                   
 CREATE TABLE t1 (a int);

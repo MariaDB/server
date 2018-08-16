@@ -82,7 +82,7 @@ ulong bytes_sent = 0L, bytes_received = 0L;
 ulong mysqld_net_retry_count = 10L;
 ulong open_files_limit;
 ulong opt_binlog_rows_event_max_size;
-uint test_flags = 0; 
+ulonglong test_flags = 0;
 static uint opt_protocol= 0;
 static FILE *result_file;
 static char *result_file_name= 0;

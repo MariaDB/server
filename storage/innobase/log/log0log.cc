@@ -667,7 +667,6 @@ void log_t::files::create(ulint n_files)
   format= srv_encrypt_log
     ? LOG_HEADER_FORMAT_ENC_10_4 : LOG_HEADER_FORMAT_10_3;
   file_size= srv_log_file_size;
-  state= LOG_GROUP_OK;
   lsn= LOG_START_LSN;
   lsn_offset= LOG_FILE_HDR_SIZE;
 

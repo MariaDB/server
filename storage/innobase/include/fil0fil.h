@@ -327,6 +327,9 @@ struct fil_node_t {
 	{
 		return(handle != OS_FILE_CLOSED);
 	}
+
+	/** Close the file handle. */
+	void close();
 };
 
 /** Value of fil_node_t::magic_n */

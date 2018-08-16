@@ -593,7 +593,7 @@ struct dict_col_t{
 	inline void detach(const dict_index_t& index);
 
 	/** Data for instantly added columns */
-	struct {
+	struct def_t {
 		/** original default value of instantly added column */
 		const void*	data;
 		/** len of data, or UNIV_SQL_DEFAULT if unavailable */
@@ -770,6 +770,9 @@ struct dict_field_t{
 	unsigned	fixed_len:10;	/*!< 0 or the fixed length of the
 					column if smaller than
 					DICT_ANTELOPE_MAX_INDEX_COL_LEN */
+
+	/** Zero-initialize all fields */
+	dict_field_t() : col(NULL), name(NULL), prefix_len(0), fixed_len(0) {}
 
 	/** Check whether two index fields are equivalent.
 	@param[in]	old	the other index field

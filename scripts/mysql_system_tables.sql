@@ -1,4 +1,4 @@
--- Copyright (c) 2007, 2013, Oracle and/or its affiliates.
+-- Copyright (c) 2007, 2018, Oracle and/or its affiliates.
 -- Copyright (c) 2008, 2014, Monty Program Ab & SkySQL Ab
 -- 
 -- This program is free software; you can redistribute it and/or modify
@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS event ( db char(64) CHARACTER SET utf8 COLLATE utf8_b
 
 SET @create_innodb_table_stats="CREATE TABLE IF NOT EXISTS innodb_table_stats (
 	database_name			VARCHAR(64) NOT NULL,
-	table_name			VARCHAR(64) NOT NULL,
+	table_name			VARCHAR(199) NOT NULL,
 	last_update			TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 	n_rows				BIGINT UNSIGNED NOT NULL,
 	clustered_index_size		BIGINT UNSIGNED NOT NULL,
@@ -117,7 +117,7 @@ SET @create_innodb_table_stats="CREATE TABLE IF NOT EXISTS innodb_table_stats (
 
 SET @create_innodb_index_stats="CREATE TABLE IF NOT EXISTS innodb_index_stats (
 	database_name			VARCHAR(64) NOT NULL,
-	table_name			VARCHAR(64) NOT NULL,
+	table_name			VARCHAR(199) NOT NULL,
 	index_name			VARCHAR(64) NOT NULL,
 	last_update			TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 	/* there are at least:

@@ -41,7 +41,7 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	7
-#define INNODB_VERSION_BUGFIX	22
+#define INNODB_VERSION_BUGFIX	23
 
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;

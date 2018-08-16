@@ -262,7 +262,7 @@ buf_dump(
 #define SHOULD_QUIT()	(SHUTTING_DOWN() && obey_shutdown)
 
 	char	full_filename[OS_FILE_MAX_PATH];
-	char	tmp_filename[OS_FILE_MAX_PATH];
+	char	tmp_filename[OS_FILE_MAX_PATH + sizeof "incomplete"];
 	char	now[32];
 	FILE*	f;
 	ulint	i;

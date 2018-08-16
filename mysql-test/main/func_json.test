@@ -423,6 +423,30 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-16054 simple json functions flatline cpu on garbage input.
+--echo #
+
+select json_array(1,uuid(),compress(5.140264e+307));
+
+--echo #
+--echo # MDEV-16869 String functions don't respect character set of JSON_VALUE.
+--echo #
+
+create table t1(json_col TEXT) DEFAULT CHARSET=latin1;
+insert into t1 values (_latin1 X'7B226B657931223A2253EC227D');
+select JSON_VALUE(json_col, '$.key1')= _latin1 X'53EC' from t1;
+select REPLACE(JSON_VALUE(json_col, '$.key1'), 'null', '') = _latin1 X'53EC' from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-16750 JSON_SET mishandles unicode every second pair of arguments.
+--echo #
+
+SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6);
+SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6, '$.b', _utf8 0xC3B6);
+SELECT JSON_SET('{}', '$.a', _utf8 X'C3B6', '$.x', 1, '$.b', _utf8 X'C3B6');
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

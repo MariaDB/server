@@ -305,4 +305,116 @@ drop database db1;
 drop database db2;
 drop table t1;
 
+--echo #
+--echo # MDEV-16552: [10.0] ASAN global-buffer-overflow in is_stat_table / statistics_for_tables_is_needed
+--echo #
+
+SET use_stat_tables = PREFERABLY;
+SELECT CONVERT_TZ( '1991-09-20 10:11:02', '+00:00', 'GMT' );
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # MDEV-16757: manual addition of min/max statistics for BLOB
+--echo #
+
+SET use_stat_tables= PREFERABLY;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, t TEXT);
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ANALYZE TABLE t1;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+DELETE FROM mysql.column_stats
+  WHERE db_name='test' AND table_name='t1' AND column_name='t';
+INSERT INTO mysql.column_stats VALUES
+  ('test','t1','t','bar','foo', 0.0, 3.0, 1.0, 0, NULL, NULL);
+--sorted_result
+SELECT * FROM mysql.column_stats;
+
+SELECT pk FROM t1;
+
+DROP TABLE t1;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # MDEV-16760: CREATE OR REPLACE TABLE after ANALYZE TABLE
+--echo #
+
+SET use_stat_tables= PREFERABLY;
+
+CREATE TABLE t1 (pk int PRIMARY KEY, c varchar(32));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ANALYZE TABLE t1;
+SELECT * FROM t1;
+SELECT * FROM mysql.column_stats;
+
+CREATE OR REPLACE TABLE t1 (pk int PRIMARY KEY, a char(7));
+SELECT * FROM t1;
+SELECT * FROM mysql.column_stats;
+
+DROP TABLE t1;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # MDEV-16757: manual addition of min/max statistics for BLOB
+--echo #
+
+SET use_stat_tables= PREFERABLY;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, t TEXT);
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ANALYZE TABLE t1;
+--sorted_result
+SELECT * FROM mysql.column_stats;
+DELETE FROM mysql.column_stats
+  WHERE db_name='test' AND table_name='t1' AND column_name='t';
+INSERT INTO mysql.column_stats VALUES
+  ('test','t1','t','bar','foo', 0.0, 3.0, 1.0, 0, NULL, NULL);
+--sorted_result
+SELECT * FROM mysql.column_stats;
+
+SELECT pk FROM t1;
+
+DROP TABLE t1;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # MDEV-16760: CREATE OR REPLACE TABLE after ANALYZE TABLE
+--echo #
+
+SET use_stat_tables= PREFERABLY;
+
+CREATE TABLE t1 (pk int PRIMARY KEY, c varchar(32));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ANALYZE TABLE t1;
+SELECT * FROM t1;
+SELECT * FROM mysql.column_stats;
+
+CREATE OR REPLACE TABLE t1 (pk int PRIMARY KEY, a char(7));
+SELECT * FROM t1;
+SELECT * FROM mysql.column_stats;
+
+DROP TABLE t1;
+
+set use_stat_tables=@save_use_stat_tables;
+
+
+--echo #
+--echo # MDEV-16711:CREATE OR REPLACE TABLE introducing BLOB column
+--echo #
+
+SET use_stat_tables= PREFERABLY;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, t CHAR(60));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ANALYZE TABLE t1;
+CREATE OR REPLACE TABLE t1 (pk INT PRIMARY KEY, t TEXT);
+
+SELECT MAX(pk) FROM t1;
+
+DROP TABLE t1;
+
 set use_stat_tables=@save_use_stat_tables;

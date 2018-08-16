@@ -122,6 +122,16 @@ struct fts_tokenize_ctx {
 	dfield_t		sort_field[FTS_NUM_FIELDS_SORT];
 						/*!< in: sort field */
 	fts_token_list_t	fts_token_list;
+
+	fts_tokenize_ctx() :
+		processed_len(0), init_pos(0), buf_used(0),
+		rows_added(), cached_stopword(NULL), sort_field(),
+		fts_token_list()
+	{
+		memset(rows_added, 0, sizeof rows_added);
+		memset(sort_field, 0, sizeof sort_field);
+		UT_LIST_INIT(fts_token_list, &row_fts_token_t::token_list);
+	}
 };
 
 typedef struct fts_tokenize_ctx fts_tokenize_ctx_t;

@@ -738,42 +738,35 @@ retry:
 	return(true);
 }
 
-/** Close a file node.
-@param[in,out]	node	File node */
-static
-void
-fil_node_close_file(
-	fil_node_t*	node)
+/** Close the file handle. */
+void fil_node_t::close()
 {
 	bool	ret;
 
-	ut_ad(mutex_own(&(fil_system.mutex)));
-	ut_a(node->is_open());
-	ut_a(node->n_pending == 0);
-	ut_a(node->n_pending_flushes == 0);
-	ut_a(!node->being_extended);
-	ut_a(node->modification_counter == node->flush_counter
-	     || node->space->purpose == FIL_TYPE_TEMPORARY
+	ut_ad(mutex_own(&fil_system.mutex));
+	ut_a(is_open());
+	ut_a(n_pending == 0);
+	ut_a(n_pending_flushes == 0);
+	ut_a(!being_extended);
+	ut_a(modification_counter == flush_counter
+	     || space->purpose == FIL_TYPE_TEMPORARY
 	     || srv_fast_shutdown == 2
 	     || !srv_was_started);
 
-	ret = os_file_close(node->handle);
+	ret = os_file_close(handle);
 	ut_a(ret);
 
-	/* printf("Closing file %s\n", node->name); */
+	/* printf("Closing file %s\n", name); */
 
-	node->handle = OS_FILE_CLOSED;
-	ut_ad(!node->is_open());
+	handle = OS_FILE_CLOSED;
+	ut_ad(!is_open());
 	ut_a(fil_system.n_open > 0);
 	fil_system.n_open--;
 	fil_n_file_opened--;
 
-	if (fil_space_belongs_in_lru(node->space)) {
-
+	if (fil_space_belongs_in_lru(space)) {
 		ut_a(UT_LIST_GET_LEN(fil_system.LRU) > 0);
-
-		/* The node is in the LRU list, remove it */
-		UT_LIST_REMOVE(fil_system.LRU, node);
+		UT_LIST_REMOVE(fil_system.LRU, this);
 	}
 }
 
@@ -809,7 +802,7 @@ fil_try_to_close_file_in_LRU(
 		    && node->n_pending_flushes == 0
 		    && !node->being_extended) {
 
-			fil_node_close_file(node);
+			node->close();
 
 			return(true);
 		}
@@ -1239,7 +1232,7 @@ fil_node_close_to_free(
 	ut_a(!node->being_extended);
 
 	if (node->is_open()) {
-		/* We fool the assertion in fil_node_close_file() to think
+		/* We fool the assertion in fil_node_t::close() to think
 		there are no unflushed modifications in the file */
 
 		node->modification_counter = node->flush_counter;
@@ -1258,7 +1251,7 @@ fil_node_close_to_free(
 			UT_LIST_REMOVE(fil_system.unflushed_spaces, space);
 		}
 
-		fil_node_close_file(node);
+		node->close();
 	}
 }
 
@@ -1749,7 +1742,7 @@ void fil_space_t::close()
 	     node != NULL;
 	     node = UT_LIST_GET_NEXT(chain, node)) {
 		if (node->is_open()) {
-			fil_node_close_file(node);
+			node->close();
 		}
 	}
 
@@ -1910,7 +1903,7 @@ fil_close_all_files(void)
 		     node = UT_LIST_GET_NEXT(chain, node)) {
 
 			if (node->is_open()) {
-				fil_node_close_file(node);
+				node->close();
 			}
 		}
 
@@ -1957,7 +1950,7 @@ fil_close_log_files(
 		     node = UT_LIST_GET_NEXT(chain, node)) {
 
 			if (node->is_open()) {
-				fil_node_close_file(node);
+				node->close();
 			}
 		}
 

@@ -107,6 +107,7 @@
 #cmakedefine HAVE_SIGNAL_H
 #cmakedefine HAVE_SYS_MMAN_H
 #cmakedefine HAVE_SYS_PARAM_H
+#cmakedefine HAVE_SYS_POLL_H
 #cmakedefine HAVE_SYS_RESOURCE_H
 #cmakedefine HAVE_SYS_SELECT_H
 #cmakedefine HAVE_SYS_SOCKET_H

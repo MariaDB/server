@@ -33,7 +33,6 @@ ssystag=""
 XTRABACKUP_PID=""
 SST_PORT=""
 REMOTEIP=""
-REMOTEHOST=""
 tcert=""
 tpem=""
 tkey=""
@@ -219,7 +218,7 @@ get_transfer()
                 tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=${tpem},cafile=${tcert}${sockopt} stdio"
             else
                 wsrep_log_info "Encrypting with cert=${tpem}, cafile=${tcert}"
-                tcmd="socat -u stdio openssl-connect:${REMOTEHOST}:${TSST_PORT},cert=${tpem},cafile=${tcert}${sockopt}"
+                tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},cafile=${tcert}${sockopt}"
             fi
         elif [[ $encrypt -eq 3 ]];then
             wsrep_log_info "Using openssl based encryption with socat: with key and crt"
@@ -242,7 +241,7 @@ get_transfer()
                     tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},key=${tkey},verify=0${sockopt}"
                 else
                     wsrep_log_info "Encrypting with cert=${tpem}, key=${tkey}, cafile=${tcert}"
-                    tcmd="socat -u stdio openssl-connect:${REMOTEHOST}:${TSST_PORT},cert=${tpem},key=${tkey},cafile=${tcert}${sockopt}"
+                    tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},key=${tkey},cafile=${tcert}${sockopt}"
                 fi
             fi
 
@@ -512,10 +511,6 @@ setup_ports()
     if [[ "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
         SST_PORT=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $2 }')
         REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F ':' '{ print $1 }')
-        REMOTEHOST=$(getent hosts $REMOTEIP | awk '{ print $2 }')
-        if [[ -z $REMOTEHOST ]];then
-            REMOTEHOST=$REMOTEIP
-        fi
         lsn=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $4 }')
         sst_ver=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $5 }')
     else
@@ -636,6 +631,27 @@ send_donor()
         fi
     done
 
+}
+
+monitor_process()
+{
+    local sst_stream_pid=$1
+
+    while true ; do
+
+        if ! ps --pid "${WSREP_SST_OPT_PARENT}" &>/dev/null; then
+            wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly." 
+            kill -- -"${WSREP_SST_OPT_PARENT}"
+            exit 32
+        fi
+
+        if ! ps --pid "${sst_stream_pid}" &>/dev/null; then 
+            break
+        fi
+
+        sleep 0.1
+
+    done
 }
 
 wsrep_check_programs "$INNOBACKUPEX_BIN"
@@ -923,7 +939,7 @@ then
 
         MAGIC_FILE="${DATA}/${INFO_FILE}"
         wsrep_log_info "Waiting for SST streaming to complete!"
-        wait $jpid
+        monitor_process $jpid
 
         get_proc
 
