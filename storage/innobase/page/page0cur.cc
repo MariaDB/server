@@ -2256,7 +2256,10 @@ page_cur_parse_delete_rec(
 	offset = mach_read_from_2(ptr);
 	ptr += 2;
 
-	ut_a(offset <= srv_page_size);
+	if (UNIV_UNLIKELY(offset >= srv_page_size)) {
+		recv_sys->found_corrupt_log = true;
+		return NULL;
+	}
 
 	if (block) {
 		page_t*		page		= buf_block_get_frame(block);

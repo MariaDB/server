@@ -118,8 +118,6 @@ trx_init(
 /*=====*/
 	trx_t*	trx)
 {
-	trx->id = 0;
-
 	trx->no = TRX_ID_MAX;
 
 	trx->state = TRX_STATE_NOT_STARTED;
@@ -197,11 +195,7 @@ struct TrxFactory {
 		the constructors of the trx_t members. */
 		new(&trx->mod_tables) trx_mod_tables_t();
 
-		new(&trx->lock.rec_pool) lock_pool_t();
-
-		new(&trx->lock.table_pool) lock_pool_t();
-
-		new(&trx->lock.table_locks) lock_pool_t();
+		new(&trx->lock.table_locks) lock_list();
 
 		new(&trx->read_view) ReadView();
 
@@ -225,8 +219,6 @@ struct TrxFactory {
 			&trx_named_savept_t::trx_savepoints);
 
 		mutex_create(LATCH_ID_TRX, &trx->mutex);
-
-		lock_trx_alloc_locks(trx);
 	}
 
 	/** Release resources held by the transaction object.
@@ -256,27 +248,7 @@ struct TrxFactory {
 
 		ut_ad(!trx->read_view.is_open());
 
-		if (!trx->lock.rec_pool.empty()) {
-
-			/* See lock_trx_alloc_locks() why we only free
-			the first element. */
-
-			ut_free(trx->lock.rec_pool[0]);
-		}
-
-		if (!trx->lock.table_pool.empty()) {
-
-			/* See lock_trx_alloc_locks() why we only free
-			the first element. */
-
-			ut_free(trx->lock.table_pool[0]);
-		}
-
-		trx->lock.rec_pool.~lock_pool_t();
-
-		trx->lock.table_pool.~lock_pool_t();
-
-		trx->lock.table_locks.~lock_pool_t();
+		trx->lock.table_locks.~lock_list();
 
 		trx->read_view.~ReadView();
 	}
@@ -412,7 +384,12 @@ trx_t *trx_create()
 
 	/* Should have been either just initialized or .clear()ed by
 	trx_free(). */
-	ut_a(trx->mod_tables.size() == 0);
+	ut_ad(trx->mod_tables.empty());
+	ut_ad(trx->lock.table_locks.empty());
+	ut_ad(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
+	ut_ad(trx->lock.n_rec_locks == 0);
+	ut_ad(trx->lock.table_cached == 0);
+	ut_ad(trx->lock.rec_cached == 0);
 
 #ifdef WITH_WSREP
 	trx->wsrep_event = NULL;
@@ -993,8 +970,6 @@ trx_start_low(
 
 		trx_sys.register_rw(trx);
 	} else {
-		trx->id = 0;
-
 		if (!trx_is_autocommit_non_locking(trx)) {
 
 			/* If this is a read-only transaction that is writing
@@ -1250,9 +1225,6 @@ trx_update_mod_tables_timestamp(
 /*============================*/
 	trx_t*	trx)	/*!< in: transaction */
 {
-
-	ut_ad(trx->id != 0);
-
 	/* consider using trx->start_time if calling time() is too
 	expensive here */
 	time_t	now = ut_time();
@@ -1325,7 +1297,10 @@ trx_commit_in_memory(
 			trx_sys.deregister_rw(trx);
 		}
 
+		/* trx->id will be cleared in lock_trx_release_locks(trx). */
+		ut_ad(trx->read_only || !trx->rsegs.m_redo.rseg || trx->id);
 		lock_trx_release_locks(trx);
+		ut_ad(trx->id == 0);
 
 		/* Remove the transaction from the list of active
 		transactions now that it no longer holds any user locks. */

@@ -1384,6 +1384,30 @@ out:
 	return(ret);
 }
 
+void backup_fix_ddl(void);
+
+#define LSN_PREFIX_IN_SHOW_STATUS  "\nLog sequence number "
+static lsn_t get_current_lsn(MYSQL *connection) {
+	MYSQL_RES *res = xb_mysql_query(connection, "SHOW ENGINE INNODB STATUS", true, false);
+	if (!res)
+		return 0;
+	MYSQL_ROW row = mysql_fetch_row(res);
+	DBUG_ASSERT(row);
+	if (row) {
+		const char *p = strstr(row[2],LSN_PREFIX_IN_SHOW_STATUS);
+		DBUG_ASSERT(p);
+		if (p)
+		{
+			p += sizeof(LSN_PREFIX_IN_SHOW_STATUS) - 1;
+			return (lsn_t)strtoll(p, NULL, 10);
+		}
+	}
+	mysql_free_result(res);
+	return 0;
+}
+
+lsn_t server_lsn_after_lock;
+extern void backup_wait_for_lsn(lsn_t lsn);
 /** Start --backup */
 bool backup_start()
 {
@@ -1403,6 +1427,7 @@ bool backup_start()
 		if (!lock_tables(mysql_connection)) {
 			return(false);
 		}
+		server_lsn_after_lock = get_current_lsn(mysql_connection);
 	}
 
 	if (!backup_files(fil_path_to_mysql_datadir, false)) {
@@ -1416,6 +1441,10 @@ bool backup_start()
 	if (has_rocksdb_plugin()) {
 		rocksdb_create_checkpoint();
 	}
+
+	msg_ts("Waiting for log copy thread to read lsn %llu\n", (ulonglong)server_lsn_after_lock);
+	backup_wait_for_lsn(server_lsn_after_lock);
+	backup_fix_ddl();
 
 	// There is no need to stop slave thread before coping non-Innodb data when
 	// --no-lock option is used because --no-lock option requires that no DDL or
@@ -2226,6 +2255,7 @@ static void rocksdb_lock_checkpoint()
 		msg_ts("Could not obtain rocksdb checkpont lock\n");
 		exit(EXIT_FAILURE);
 	}
+	mysql_free_result(res);
 }
 
 static void rocksdb_unlock_checkpoint()
