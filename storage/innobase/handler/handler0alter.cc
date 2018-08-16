@@ -5350,14 +5350,14 @@ new_clustered_failed:
 				     = dict_table_get_nth_col(user_table, i));
 				ut_d(const dict_index_t* index
 				     = user_table->indexes.start);
-				DBUG_ASSERT(col->mtype == old_col->mtype);
-				DBUG_ASSERT(col->prtype == old_col->prtype);
-				DBUG_ASSERT(col->mbminlen
+				DBUG_SLOW_ASSERT(col->mtype == old_col->mtype);
+				DBUG_SLOW_ASSERT(col->prtype == old_col->prtype);
+				DBUG_SLOW_ASSERT(col->mbminlen
 					    == old_col->mbminlen);
-				DBUG_ASSERT(col->mbmaxlen
+				DBUG_SLOW_ASSERT(col->mbmaxlen
 					    == old_col->mbmaxlen);
-				DBUG_ASSERT(col->len >= old_col->len);
-				DBUG_ASSERT(old_col->is_instant()
+				DBUG_SLOW_ASSERT(col->len >= old_col->len);
+				DBUG_SLOW_ASSERT(old_col->is_instant()
 					    == (dict_col_get_clust_pos(
 							old_col, index)
 						>= index->n_core_fields));

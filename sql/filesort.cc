@@ -1010,7 +1010,9 @@ Type_handler_string_result::make_sort_key(uchar *to, Item *item,
 
   if (use_strnxfrm(cs))
   {
-    IF_DBUG(size_t tmp_length= ,)
+#ifdef DBUG_ASSERT_EXISTS
+    size_t tmp_length=
+#endif
     cs->coll->strnxfrm(cs, to, sort_field->length,
                                    item->max_char_length() *
                                    cs->strxfrm_multiply,

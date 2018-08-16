@@ -1444,7 +1444,7 @@ buf_block_t*
 trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 		    dberr_t* err, mtr_t* mtr)
 {
-	const bool	is_temp = rseg == trx->rsegs.m_noredo.rseg;
+  const bool	is_temp __attribute__((unused)) = rseg == trx->rsegs.m_noredo.rseg;
 
 	ut_ad(rseg == trx->rsegs.m_redo.rseg
 	      || rseg == trx->rsegs.m_noredo.rseg);

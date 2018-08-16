@@ -16065,7 +16065,7 @@ static
 int
 innodb_show_mutex_status(
 	handlerton*
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
 	hton
 #endif
 	,
@@ -16096,7 +16096,7 @@ static
 int
 innodb_show_rwlock_status(
 	handlerton*
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
 	hton
 #endif
 	,
