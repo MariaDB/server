@@ -169,10 +169,15 @@ typedef std::map<
 
 static recv_spaces_t	recv_spaces;
 
-/** Report optimized DDL operation (without redo log), corresponding to MLOG_INDEX_LOAD.
+/** Report optimized DDL operation (without redo log),
+corresponding to MLOG_INDEX_LOAD.
 @param[in]	space_id	tablespace identifier
 */
 void (*log_optimized_ddl_op)(ulint space_id);
+
+/** Report backup-unfriendly TRUNCATE operation (with separate log file),
+corresponding to MLOG_TRUNCATE. */
+void (*log_truncate)();
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
@@ -1196,6 +1201,12 @@ recv_parse_or_apply_log_rec_body(
 		}
 		return(ptr + 8);
 	case MLOG_TRUNCATE:
+		if (log_truncate) {
+			ut_ad(srv_operation != SRV_OPERATION_NORMAL);
+			log_truncate();
+			recv_sys->found_corrupt_fs = true;
+			return NULL;
+		}
 		return(truncate_t::parse_redo_entry(ptr, end_ptr, space_id));
 
 	default:
