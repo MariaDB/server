@@ -569,6 +569,7 @@ typedef struct system_variables
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
   ulong auto_increment_increment, auto_increment_offset;
+  uint eq_range_index_dive_limit;
   ulong lock_wait_timeout;
   ulong join_cache_level;
   ulong max_allowed_packet;
