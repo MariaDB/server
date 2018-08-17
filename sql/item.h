@@ -881,6 +881,7 @@ public:
   */
   String *val_str() { return val_str(&str_value); }
   virtual Item_func *get_item_func() { return NULL; }
+  virtual Item_field *get_item_field() {return NULL;}
 
   const MY_LOCALE *locale_from_val_str();
 
@@ -3261,6 +3262,7 @@ public:
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_date_result(MYSQL_TIME *ltime,ulonglong fuzzydate);
+  Item_field* get_item_field() {return this;}
   bool is_null() { return field->is_null(); }
   void update_null_value();
   void update_table_bitmaps()
