@@ -1434,9 +1434,11 @@ run_again:
 				}
 
 				if (check_ref) {
-					err = DB_SUCCESS;
 #ifdef WITH_WSREP
 					enum wsrep_key_type key_type = WSREP_KEY_EXCLUSIVE;
+#endif /* WITH_WSREP */
+					err = DB_SUCCESS;
+#ifdef WITH_WSREP
 					if (upd_node != NULL) {
 						key_type = WSREP_KEY_SHARED;
 					} else {
