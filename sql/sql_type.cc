@@ -323,8 +323,8 @@ VSec6::VSec6(Item *item, const char *type_str, ulonglong limit)
 
 Year::Year(longlong value, bool unsigned_flag, uint length)
 {
-  if ((m_truncated= (value < 0 && !unsigned_flag)))
-    m_year= 0;
+  if ((m_truncated= (value < 0))) // Negative or huge unsigned
+    m_year= unsigned_flag ? 9999 : 0;
   else if (value > 9999)
   {
     m_truncated= true;
