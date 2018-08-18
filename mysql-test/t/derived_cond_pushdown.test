@@ -1920,3 +1920,47 @@ END;$$
 DELIMITER ;$$
 SELECT a FROM (SELECT "aa" a) t WHERE f1(t.a, (SELECT MAX('aa') FROM DUAL LIMIT 1));
 DROP FUNCTION f1;
+
+--echo #
+--echo # MDEV-17011: condition pushdown into materialized derived used
+--echo #             in INSERT SELECT, multi-table UPDATE and DELETE
+--echo #
+
+CREATE TABLE t1 (a int ,b int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+  (1, 1), (1, 2), (2, 1), (2, 2), (3,1), (3,3), (4,2);
+
+CREATE TABLE t2 (a int) ENGINE MYISAM;
+INSERT INTO t2 VALUES
+  (3), (7), (1), (4), (1);
+
+CREATE TABLE t3 (a int, b int) ENGINE MYISAM;
+
+let $q1=
+INSERT INTO t3
+SELECT * FROM (SELECT a, count(*) as c FROM t1 GROUP BY a) t WHERE a<=2;
+
+eval EXPLAIN FORMAT=JSON $q1;
+eval $q1;
+
+SELECT * FROM t3;
+
+let $q2=
+UPDATE t2, (SELECT a, count(*) as c FROM t1 GROUP BY a) t SET t2.a=t.c+10
+  WHERE t2.a= t.c and t.a>=3;
+
+eval EXPLAIN FORMAT=JSON $q2;
+eval $q2;
+
+SELECT * FROM t2;
+
+let $q3=
+DELETE t2 FROM t2, (SELECT a, count(*) as c FROM t1 GROUP BY a) t
+  WHERE t2.a= t.c+9 and t.a=2;
+
+eval EXPLAIN FORMAT=JSON $q3;
+eval $q3;
+
+SELECT * FROM t2;
+
+DROP TABLE t1,t2,t3;
