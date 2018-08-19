@@ -1321,6 +1321,8 @@ bool st_select_lex_unit::optimize()
           thd->lex->current_select= lex_select_save;
           DBUG_RETURN(TRUE);
         }
+        if (derived)
+	  sl->increase_derived_records(sl->tvc->get_records());
 	continue;
       }
       thd->lex->current_select= sl;

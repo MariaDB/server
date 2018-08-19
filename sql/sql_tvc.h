@@ -50,6 +50,8 @@ public:
     have_query_plan(QEP_NOT_PRESENT_YET), explain(0),
     select_options(select_options_arg)
   { };
+
+  ha_rows get_records() { return lists_of_values.elements; }
   
   bool prepare(THD *thd_arg, SELECT_LEX *sl, 
 	       select_result *tmp_result,
