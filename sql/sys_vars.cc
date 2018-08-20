@@ -2711,17 +2711,6 @@ static Sys_var_ulong Sys_query_prealloc_size(
        BLOCK_SIZE(1024), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_thd_mem_root));
 
-#ifdef HAVE_SMEM
-static Sys_var_mybool Sys_shared_memory(
-       "shared_memory", "Enable the shared memory",
-       READ_ONLY GLOBAL_VAR(opt_enable_shared_memory), CMD_LINE(OPT_ARG),
-       DEFAULT(FALSE));
-
-static Sys_var_charptr Sys_shared_memory_base_name(
-       "shared_memory_base_name", "Base name of shared memory",
-       READ_ONLY GLOBAL_VAR(shared_memory_base_name), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(0));
-#endif
 
 // this has to be NO_CMD_LINE as the command-line option has a different name
 static Sys_var_mybool Sys_skip_external_locking(

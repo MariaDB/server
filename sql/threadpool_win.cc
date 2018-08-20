@@ -75,7 +75,6 @@ static bool skip_completion_port_on_success = false;
 
   io_completion_callback  - handle client request
   timer_callback - handle wait timeout (kill connection)
-  shm_read_callback, shm_close_callback - shared memory stuff
   login_callback - user login (submitted as threadpool work)
 
 */
@@ -88,9 +87,6 @@ static void CALLBACK io_completion_callback(PTP_CALLBACK_INSTANCE instance,
 
 
 static void CALLBACK work_callback(PTP_CALLBACK_INSTANCE instance, PVOID context, PTP_WORK work);
-
-static void CALLBACK shm_read_callback(PTP_CALLBACK_INSTANCE instance,
-  PVOID Context, PTP_WAIT wait,TP_WAIT_RESULT wait_result);
 
 static void pre_callback(PVOID context, PTP_CALLBACK_INSTANCE instance);
 
@@ -120,7 +116,6 @@ public:
   PTP_CALLBACK_INSTANCE callback_instance;
   PTP_IO  io;
   PTP_TIMER timer;
-  PTP_WAIT shm_read;
   PTP_WORK  work;
   bool long_callback;
 
@@ -149,7 +144,6 @@ TP_connection_win::TP_connection_win(CONNECT *c) :
   callback_instance(0),
   io(0),
   timer(0),
-  shm_read(0),
   work(0)
 {
 }
@@ -170,30 +164,20 @@ int TP_connection_win::init()
   case VIO_TYPE_NAMEDPIPE:
     handle= (HANDLE)vio->hPipe;
     break;
-  case VIO_TYPE_SHARED_MEMORY:
-    handle= vio->event_server_wrote;
-    break;
   default:
     abort();
   }
 
-  if (vio_type == VIO_TYPE_SHARED_MEMORY)
-  {
-    CHECK_ALLOC_ERROR(shm_read=  CreateThreadpoolWait(shm_read_callback, this, &callback_environ));
-  }
-  else
-  {
-    /* Performance tweaks (s. MSDN documentation)*/
-    UCHAR flags= FILE_SKIP_SET_EVENT_ON_HANDLE;
-    if (skip_completion_port_on_success)
-    {
-      flags |= FILE_SKIP_COMPLETION_PORT_ON_SUCCESS;
-    }
-    (void)SetFileCompletionNotificationModes(handle, flags);
-    /* Assign io completion callback */
-    CHECK_ALLOC_ERROR(io= CreateThreadpoolIo(handle, io_completion_callback, this, &callback_environ));
-  }
 
+  /* Performance tweaks (s. MSDN documentation)*/
+  UCHAR flags= FILE_SKIP_SET_EVENT_ON_HANDLE;
+  if (skip_completion_port_on_success)
+  {
+    flags |= FILE_SKIP_COMPLETION_PORT_ON_SUCCESS;
+  }
+  (void)SetFileCompletionNotificationModes(handle, flags);
+  /* Assign io completion callback */
+  CHECK_ALLOC_ERROR(io= CreateThreadpoolIo(handle, io_completion_callback, this, &callback_environ));
   CHECK_ALLOC_ERROR(timer= CreateThreadpoolTimer(timer_callback, this,  &callback_environ));
   CHECK_ALLOC_ERROR(work= CreateThreadpoolWork(work_callback, this, &callback_environ));
   return 0;
@@ -214,11 +198,6 @@ int TP_connection_win::start_io()
   DWORD last_error= 0;
 
   int retval;
-  if (shm_read)
-  {
-    SetThreadpoolWait(shm_read, handle, NULL);
-    return 0;
-  }
   StartThreadpoolIo(io);
 
   if (vio_type == VIO_TYPE_TCPIP || vio_type == VIO_TYPE_SSL)
@@ -296,9 +275,6 @@ TP_connection_win::~TP_connection_win()
 {
   if (io)
     CloseThreadpoolIo(io);
-
-  if (shm_read)
-    CloseThreadpoolWait(shm_read);
 
   if (work)
     CloseThreadpoolWork(work);
@@ -419,29 +395,6 @@ static VOID CALLBACK timer_callback(PTP_CALLBACK_INSTANCE instance,
     SetThreadpoolTimer(timer, (PFILETIME)&c->timeout, 0, 1000);
   }
 }
-
-
-/*
-  Shared memory read callback.
-  Invoked when read event is set on connection.
-*/
-
-static void CALLBACK shm_read_callback(PTP_CALLBACK_INSTANCE instance,
-  PVOID context, PTP_WAIT wait,TP_WAIT_RESULT wait_result)
-{
-  TP_connection_win *c= (TP_connection_win *)context;
-  /* Disarm wait. */
-  SetThreadpoolWait(wait, NULL, NULL);
-
-  /* 
-    This is an autoreset event, and one wakeup is eaten already by threadpool,
-    and the current state is "not set". Thus we need to reset the event again, 
-    or vio_read will hang.
-  */
-  SetEvent(c->handle);
-  tp_callback(instance, context);
-}
-
 
 static void CALLBACK work_callback(PTP_CALLBACK_INSTANCE instance, PVOID context, PTP_WORK work)
 {

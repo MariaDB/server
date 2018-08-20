@@ -38,7 +38,7 @@ typedef struct st_vio Vio;
 enum enum_vio_type
 {
   VIO_CLOSED, VIO_TYPE_TCPIP, VIO_TYPE_SOCKET, VIO_TYPE_NAMEDPIPE,
-  VIO_TYPE_SSL, VIO_TYPE_SHARED_MEMORY
+  VIO_TYPE_SSL
 };
 
 /**
@@ -265,17 +265,6 @@ struct st_vio
 #ifdef HAVE_OPENSSL
   void	  *ssl_arg;
 #endif
-#ifdef HAVE_SMEM
-  HANDLE  handle_file_map;
-  char    *handle_map;
-  HANDLE  event_server_wrote;
-  HANDLE  event_server_read;
-  HANDLE  event_client_wrote;
-  HANDLE  event_client_read;
-  HANDLE  event_conn_closed;
-  size_t  shared_memory_remain;
-  char    *shared_memory_pos;
-#endif /* HAVE_SMEM */
 #ifdef _WIN32
   HANDLE hPipe;
   OVERLAPPED overlapped;

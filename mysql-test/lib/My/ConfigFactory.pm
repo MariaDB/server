@@ -209,13 +209,6 @@ my @mysqld_rules=
  { 'bind-address' => \&fix_bind_address },
   );
 
-if (IS_WINDOWS)
-{
-  # For simplicity, we use the same names for shared memory and 
-  # named pipes.
-  push(@mysqld_rules, {'shared-memory-base-name' => \&fix_socket});
-}
- 
 #
 # Rules to run for [client] section
 #  - will be run in order listed here
@@ -281,19 +274,6 @@ sub post_check_client_group {
     }
     $config->insert($client_group_name, $name_to, $option->value())
   }
-  
-  if (IS_WINDOWS)
-  {
-    if (! $self->{ARGS}->{embedded})
-    {
-      # Shared memory base may or may not be defined (e.g not defined in embedded)
-      my $shm = $group_to_copy_from->option("shared-memory-base-name");
-      if (defined $shm)
-      {
-        $config->insert($client_group_name,"shared-memory-base-name", $shm->value());
-      }
-    }
-  }
 }
 
 
@@ -340,7 +320,6 @@ sub post_check_embedded_group {
     (
      'log-error', # Embedded server writes stderr to mysqltest's log file
      'slave-net-timeout', # Embedded server are not build with replication
-     'shared-memory-base-name', # No shared memory for embedded
     );
 
   foreach my $option ( $mysqld->options(), $first_mysqld->options() ) {
