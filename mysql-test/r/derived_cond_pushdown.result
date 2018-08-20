@@ -10017,3 +10017,206 @@ a
 7
 4
 DROP TABLE t1,t2,t3;
+#
+# MDEV-16765: pushdown condition with the CASE structure
+#             defined with Item_cond item
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,2), (3,4), (2,3);
+SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.max_a=1) OR (tab2.max_a=2))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+max_a	b
+1	2
+1	3
+EXPLAIN FORMAT=JSON SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.max_a=1) OR (tab2.max_a=2))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "case when (tab2.max_a = 1 or tab2.max_a = 2) then 1 else 0 end = 1",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "having_condition": "case when (max_a = 1 or max_a = 2) then 1 else 0 end = 1",
+          "filesort": {
+            "sort_key": "t1.b",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 3,
+                "filtered": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.max_a=1) OR ((tab2.max_a>2) AND (tab2.max_a<4)))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+max_a	b
+1	2
+1	4
+EXPLAIN FORMAT=JSON SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.max_a=1) OR ((tab2.max_a>2) AND (tab2.max_a<4)))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "case when (tab2.max_a = 1 or tab2.max_a > 2 and tab2.max_a < 4) then 1 else 0 end = 1",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "having_condition": "case when (max_a = 1 or max_a > 2 and max_a < 4) then 1 else 0 end = 1",
+          "filesort": {
+            "sort_key": "t1.b",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 3,
+                "filtered": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.max_a>1) AND ((tab2.max_a=2) OR (tab2.max_a>2)))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+max_a	b
+1	3
+1	4
+EXPLAIN FORMAT=JSON SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.max_a>1) AND ((tab2.max_a=2) OR (tab2.max_a>2)))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "case when (tab2.max_a > 1 and (tab2.max_a = 2 or tab2.max_a > 2)) then 1 else 0 end = 1",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "having_condition": "case when (max_a > 1 and (max_a = 2 or max_a > 2)) then 1 else 0 end = 1",
+          "filesort": {
+            "sort_key": "t1.b",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 3,
+                "filtered": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.b=2) OR (tab2.b=4))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+max_a	b
+1	2
+1	4
+EXPLAIN FORMAT=JSON SELECT *
+FROM
+(
+SELECT CASE WHEN ((tab2.b=2) OR (tab2.b=4))
+THEN 1 ELSE 0 END AS max_a,b
+FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived3>",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "case when (tab2.b = 2 or tab2.b = 4) then 1 else 0 end = 1",
+      "materialized": {
+        "query_block": {
+          "select_id": 3,
+          "filesort": {
+            "sort_key": "t1.b",
+            "temporary_table": {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 3,
+                "filtered": 100,
+                "attached_condition": "case when (t1.b = 2 or t1.b = 4) then 1 else 0 end = 1"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+DROP TABLE t1;

@@ -4970,6 +4970,19 @@ Item *Item_cond::build_clone(THD *thd, MEM_ROOT *mem_root)
 }
 
 
+bool Item_cond::excl_dep_on_grouping_fields(st_select_lex *sel)
+{
+  List_iterator_fast<Item> li(list);
+  Item *item;
+  while ((item= li++))
+  {
+    if (!item->excl_dep_on_grouping_fields(sel))
+      return false;
+  }
+  return true;
+}
+
+
 void Item_cond_and::mark_as_condition_AND_part(TABLE_LIST *embedding)
 {
   List_iterator<Item> li(list);

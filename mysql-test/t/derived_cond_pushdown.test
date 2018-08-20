@@ -1964,3 +1964,61 @@ eval $q3;
 SELECT * FROM t2;
 
 DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-16765: pushdown condition with the CASE structure
+--echo #             defined with Item_cond item
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,2), (3,4), (2,3);
+
+LET $query=
+SELECT *
+FROM
+(
+  SELECT CASE WHEN ((tab2.max_a=1) OR (tab2.max_a=2))
+    THEN 1 ELSE 0 END AS max_a,b
+  FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT *
+FROM
+(
+  SELECT CASE WHEN ((tab2.max_a=1) OR ((tab2.max_a>2) AND (tab2.max_a<4)))
+    THEN 1 ELSE 0 END AS max_a,b
+  FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT *
+FROM
+(
+  SELECT CASE WHEN ((tab2.max_a>1) AND ((tab2.max_a=2) OR (tab2.max_a>2)))
+    THEN 1 ELSE 0 END AS max_a,b
+  FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT *
+FROM
+(
+  SELECT CASE WHEN ((tab2.b=2) OR (tab2.b=4))
+    THEN 1 ELSE 0 END AS max_a,b
+  FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1;
