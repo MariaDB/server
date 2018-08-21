@@ -8883,12 +8883,6 @@ foreign_fail:
 
 	log_append_on_checkpoint(NULL);
 
-	/* Invalidate the index translation table. In partitioned
-	tables, there is no share. */
-	if (m_share) {
-		m_share->idx_trans_tbl.index_count = 0;
-	}
-
 	/* Tell the InnoDB server that there might be work for
 	utility threads: */
 

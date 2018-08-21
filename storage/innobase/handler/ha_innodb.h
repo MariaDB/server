@@ -23,35 +23,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 system clustered index when there is no primary key. */
 extern const char innobase_index_reserve_name[];
 
-/* Structure defines translation table between mysql index and InnoDB
-index structures */
-struct innodb_idx_translate_t {
-
-	ulint		index_count;	/*!< number of valid index entries
-					in the index_mapping array */
-
-	ulint		array_size;	/*!< array size of index_mapping */
-
-	dict_index_t**	index_mapping;	/*!< index pointer array directly
-					maps to index in InnoDB from MySQL
-					array index */
-};
-
-/** InnoDB table share */
-typedef struct st_innobase_share {
-	THR_LOCK	lock;
-	const char*	table_name;	/*!< InnoDB table name */
-	uint		use_count;	/*!< reference count,
-					incremented in get_share()
-					and decremented in
-					free_share() */
-	void*		table_name_hash;
-					/*!< hash table chain node */
-	innodb_idx_translate_t
-			idx_trans_tbl;	/*!< index translation table between
-					MySQL and InnoDB */
-} INNOBASE_SHARE;
-
 /** Prebuilt structures in an InnoDB table handle used within MySQL */
 struct row_prebuilt_t;
 
@@ -492,9 +463,6 @@ protected:
 
 	THR_LOCK_DATA	lock;
 
-	/** information for MySQL table locking */
-	INNOBASE_SHARE*		m_share;
-
 	/** buffer used in updates */
 	uchar*			m_upd_buf;
 
@@ -630,17 +598,6 @@ Allocates an InnoDB transaction for a MySQL handler object.
 trx_t*
 innobase_trx_allocate(
 	MYSQL_THD	thd);	/*!< in: user thread handle */
-
-/** Match index columns between MySQL and InnoDB.
-This function checks whether the index column information
-is consistent between KEY info from mysql and that from innodb index.
-@param[in]	key_info	Index info from mysql
-@param[in]	index_info	Index info from InnoDB
-@return true if all column types match. */
-bool
-innobase_match_index_columns(
-	const KEY*		key_info,
-	const dict_index_t*	index_info);
 
 /*********************************************************************//**
 This function checks each index name for a table against reserved
