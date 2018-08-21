@@ -160,6 +160,7 @@ extern "C" time_t wsrep_thd_query_start(THD *thd);
 extern "C" query_id_t wsrep_thd_query_id(THD *thd);
 extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
 extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
+extern "C" void wsrep_set_data_home_dir(const char *data_dir);
 
 extern "C" void wsrep_thd_auto_increment_variables(THD*,
                                                    unsigned long long *offset,
