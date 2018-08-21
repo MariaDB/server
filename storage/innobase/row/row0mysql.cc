@@ -3433,6 +3433,7 @@ row_drop_table_for_mysql(
 
 	if (!dict_table_is_temporary(table)) {
 		if (table->space != TRX_SYS_SPACE) {
+#ifdef BTR_CUR_HASH_ADAPT
 			/* On DISCARD TABLESPACE, we would not drop the
 			adaptive hash index entries. If the tablespace is
 			missing here, delete-marking the record in SYS_INDEXES
@@ -3454,6 +3455,7 @@ row_drop_table_for_mysql(
 					goto funct_exit;
 				}
 			}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 			/* Delete the link file if used. */
 			if (DICT_TF_HAS_DATA_DIR(table->flags)) {

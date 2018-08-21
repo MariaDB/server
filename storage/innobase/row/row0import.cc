@@ -3928,7 +3928,7 @@ row_import_for_mysql(
 
 	DBUG_EXECUTE_IF("ib_import_reset_space_and_lsn_failure",
 			err = DB_TOO_MANY_CONCURRENT_TRXS;);
-
+#ifdef BTR_CUR_HASH_ADAPT
 	/* On DISCARD TABLESPACE, we did not drop any adaptive hash
 	index entries. If we replaced the discarded tablespace with a
 	smaller one here, there could still be some adaptive hash
@@ -3945,6 +3945,7 @@ row_import_for_mysql(
 			break;
 		}
 	}
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	if (err != DB_SUCCESS) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
