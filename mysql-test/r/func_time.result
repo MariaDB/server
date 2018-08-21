@@ -2797,6 +2797,11 @@ SEC_TO_TIME(MAKEDATE(0,RAND(~0)))
 838:59:59
 Warnings:
 Warning	1292	Truncated incorrect time value: '20000101'
+SELECT PERIOD_DIFF(2018, AES_ENCRYPT('Rae Bareli', 'Rae Bareli'));
+PERIOD_DIFF(2018, AES_ENCRYPT('Rae Bareli', 'Rae Bareli'))
+24257
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '-3S\xFA\xDE?\x00\x00\xCA\xB3\xEEE\xA4\xD1\xC1\xA8'
 #
 # End of 5.5 tests
 #

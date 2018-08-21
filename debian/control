@@ -571,7 +571,7 @@ Section: database
 Architecture: any
 Breaks: mariadb-backup-10.1
 Replaces: mariadb-backup-10.1
-Depends: mariadb-server-10.2,
+Depends: mariadb-client-core-10.2 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Backup tool for MariaDB server
