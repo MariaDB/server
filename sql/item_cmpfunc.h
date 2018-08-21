@@ -1720,6 +1720,7 @@ public:
   }
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                         bool top_level);
+  virtual void print(String *str, enum_query_type query_type);
   table_map not_null_tables() const { return 0; }
   Item *neg_transformer(THD *thd);
 };
