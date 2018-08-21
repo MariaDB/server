@@ -82,5 +82,12 @@ update t1 set x= 2;
 delete from t1;
 select x from t1 for system_time all;
 
+--echo # MDEV-16783 Assertion `!conds' failed in mysql_delete upon 2nd execution
+--echo #   of SP with DELETE HISTORY
+create or replace table t1 (i int) with system versioning;
+create procedure pr() delete history from t1 before system_time now();
+call pr;
+call pr;
+
 drop database test;
 create database test;
