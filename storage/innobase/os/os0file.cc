@@ -1262,20 +1262,8 @@ os_file_create_tmpfile()
 	os_file_t	fd	= innobase_mysql_tmpfile(NULL);
 
 	if (fd != OS_FILE_CLOSED) {
-#ifdef _WIN32
-		int crt_fd = _open_osfhandle((intptr_t)HANDLE(fd), 0);
-		if (crt_fd != -1) {
-			file = fdopen(crt_fd, "w+b");
-			if (!file) {
-				close(crt_fd);
-			}
-		}
-#else
-		file = fdopen(fd, "w+b");
-		if (!file) {
-			close(fd);
-		}
-#endif
+		file= my_fdopen(fd, NULL, O_RDWR | O_BINARY | O_SEQUENTIAL | O_CLOEXEC,
+				MYF(MY_WME | MY_TEMPORARY | MY_NO_REGISTER));
 	}
 
 	if (file == NULL) {
