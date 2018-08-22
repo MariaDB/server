@@ -561,7 +561,7 @@ void lock_sys_t::close()
 	if (!m_initialised) return;
 
 	if (lock_latest_err_file != NULL) {
-		fclose(lock_latest_err_file);
+		my_fclose(lock_latest_err_file, MYF(0));
 		lock_latest_err_file = NULL;
 	}
 

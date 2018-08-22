@@ -58,6 +58,8 @@ Created 10/21/1995 Heikki Tuuri
 #include "os0event.h"
 #include "os0thread.h"
 
+#include "my_sys.h"
+
 #include <vector>
 
 #ifdef LINUX_NATIVE_AIO
@@ -2340,7 +2342,11 @@ AIO::is_linux_native_aio_supported()
 	}
 
 	ut_free(buf);
-	close(fd);
+	if (!srv_read_only_mode) {
+		my_close(fd, MYF(0));
+	} else {
+		close(fd);
+	}
 
 	switch (err) {
 	case 1:

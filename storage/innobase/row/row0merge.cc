@@ -4178,7 +4178,7 @@ row_merge_file_destroy_low(
 	const pfs_os_file_t& fd)	/*!< in: merge file descriptor */
 {
 	if (fd != OS_FILE_CLOSED) {
-		os_file_close(fd);
+		my_close(fd, MYF(0));
 	}
 }
 /*********************************************************************//**

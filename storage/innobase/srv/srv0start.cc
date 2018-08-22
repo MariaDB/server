@@ -2626,7 +2626,11 @@ void innodb_shutdown()
 	srv_shutdown_all_bg_threads();
 
 	if (srv_monitor_file) {
-		fclose(srv_monitor_file);
+		if (srv_innodb_status) {
+			fclose(srv_monitor_file);
+		} else {
+			my_fclose(srv_monitor_file, MYF(0));
+		}
 		srv_monitor_file = 0;
 		if (srv_monitor_file_name) {
 			unlink(srv_monitor_file_name);
@@ -2635,7 +2639,7 @@ void innodb_shutdown()
 	}
 
 	if (srv_misc_tmpfile) {
-		fclose(srv_misc_tmpfile);
+		my_fclose(srv_misc_tmpfile, MYF(0));
 		srv_misc_tmpfile = 0;
 	}
 
