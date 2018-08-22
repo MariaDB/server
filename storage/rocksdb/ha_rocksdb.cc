@@ -10572,7 +10572,7 @@ THR_LOCK_DATA **ha_rocksdb::store_lock(THD *const thd, THR_LOCK_DATA **to,
     m_lock_rows = RDB_LOCK_WRITE;
   } else if (lock_type == TL_READ_WITH_SHARED_LOCKS) {
     m_lock_rows = RDB_LOCK_READ;
-  } else {
+  } else if (lock_type != TL_IGNORE) {
     m_lock_rows = RDB_LOCK_NONE;
     if (THDVAR(thd, lock_scanned_rows)) {
       /*
