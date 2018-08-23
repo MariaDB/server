@@ -1079,7 +1079,7 @@ static st_plugin_int *plugin_insert_or_reuse(struct st_plugin_int *plugin)
     Requires that a write-lock is held on LOCK_system_variables_hash
 */
 static enum install_status plugin_add(MEM_ROOT *tmp_root, bool if_not_exists,
-                                      const LEX_CSTRING *name, LEX_CSTRING *dl, myf MyFlags)
+                       const LEX_CSTRING *name, LEX_CSTRING *dl, myf MyFlags)
 {
   struct st_plugin_int tmp, *maybe_dupe;
   struct st_maria_plugin *plugin;
@@ -1090,15 +1090,9 @@ static enum install_status plugin_add(MEM_ROOT *tmp_root, bool if_not_exists,
   if (name->str && plugin_find_internal(name, MYSQL_ANY_PLUGIN))
   {
     if (if_not_exists)
-    {
-      my_error(ER_PLUGIN_INSTALLED, MyFlags | ME_NOTE, name->str);
-      DBUG_RETURN(INSTALL_FAIL_WARN_OK);
-    }
-    else
-    {
-      my_error(ER_PLUGIN_INSTALLED, MyFlags, name->str);
-      DBUG_RETURN(INSTALL_FAIL_NOT_OK);
-    }
+      MyFlags|= ME_NOTE;
+    my_error(ER_PLUGIN_INSTALLED, MyFlags, name->str);
+    DBUG_RETURN(if_not_exists ? INSTALL_FAIL_WARN_OK : INSTALL_FAIL_NOT_OK);
   }
   /* Clear the whole struct to catch future extensions. */
   bzero((char*) &tmp, sizeof(tmp));
@@ -1881,7 +1875,7 @@ end:
 static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
 {
   char buffer[FN_REFLEN];
-  LEX_STRING name= {buffer, 0}, dl= {NULL, 0}, *str= &name;
+  LEX_CSTRING name= {buffer, 0}, dl= {NULL, 0}, *str= &name;
   char *p= buffer;
   DBUG_ENTER("plugin_load_list");
   while (list)
@@ -1900,7 +1894,7 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
 #ifndef __WIN__
     case ':':     /* can't use this as delimiter as it may be drive letter */
 #endif
-      str->str[str->length]= '\0';
+      p[-1]= 0;
       if (str == &name)  // load all plugins in named module
       {
         if (!name.length)
@@ -1913,7 +1907,7 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
         mysql_mutex_lock(&LOCK_plugin);
         free_root(tmp_root, MYF(MY_MARK_BLOCKS_FREE));
         name.str= 0; // load everything
-        if (plugin_add(tmp_root, false, (LEX_CSTRING*) &name, (LEX_CSTRING*) &dl,
+        if (plugin_add(tmp_root, false, &name, &dl,
                        MYF(ME_ERROR_LOG)) != INSTALL_GOOD)
           goto error;
       }
@@ -1921,7 +1915,7 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
       {
         free_root(tmp_root, MYF(MY_MARK_BLOCKS_FREE));
         mysql_mutex_lock(&LOCK_plugin);
-        if (plugin_add(tmp_root, false, (LEX_CSTRING*) &name, (LEX_CSTRING*) &dl,
+        if (plugin_add(tmp_root, false, &name, &dl,
                        MYF(ME_ERROR_LOG)) != INSTALL_GOOD)
           goto error;
       }
@@ -1934,7 +1928,7 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
     case '#':
       if (str == &name)
       {
-        name.str[name.length]= '\0';
+        p[-1]= 0;
         str= &dl;
         str->str= p;
         continue;
@@ -2205,7 +2199,8 @@ bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,
     mysql_audit_acquire_plugins(thd, event_class_mask);
 
   mysql_mutex_lock(&LOCK_plugin);
-  error= plugin_add(thd->mem_root, thd->lex->create_info.if_not_exists(), name, &dl, MYF(0));
+  error= plugin_add(thd->mem_root, thd->lex->create_info.if_not_exists(),
+                    name, &dl, MYF(0));
   if (unlikely(error != INSTALL_GOOD))
     goto err;
 
@@ -2249,17 +2244,9 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
   if (!(plugin= plugin_find_internal(name, MYSQL_ANY_PLUGIN)) ||
       plugin->state & (PLUGIN_IS_UNINITIALIZED | PLUGIN_IS_DYING))
   {
-    if (thd->lex->if_exists())
-    {
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_SP_DOES_NOT_EXIST,
-                          ER_THD(thd, ER_SP_DOES_NOT_EXIST), "PLUGIN", name->str);
-      return 0;
-    }
-    else
-    {
-      my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "PLUGIN", name->str);
-      return 1;
-    }
+    myf MyFlags= thd->lex->if_exists() ? ME_NOTE : 0;
+    my_error(ER_SP_DOES_NOT_EXIST, MyFlags, "PLUGIN", name->str);
+    return !MyFlags;
   }
   if (!plugin->plugin_dl)
   {
@@ -2381,15 +2368,9 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_CSTRING *name,
     }
     else
     {
-      if (thd->lex->if_exists())
-      {
-        my_error(ER_SP_DOES_NOT_EXIST, ME_NOTE, "SONAME", dl.str);
-      }
-      else
-      {
-        error= true;
-        my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "SONAME", dl.str);
-      }
+      myf MyFlags= thd->lex->if_exists() ? ME_NOTE : 0;
+      my_error(ER_SP_DOES_NOT_EXIST, MyFlags, "SONAME", dl.str);
+      error|= !MyFlags;
     }
   }
   reap_plugins();

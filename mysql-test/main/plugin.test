@@ -267,9 +267,8 @@ RENAME TABLE t1 TO t2;
 DROP TABLE t1;
 
 --echo #
---echo # INSTALL IF NOT EXISTS [PLUGIN name] SONAME library /
+--echo # INSTALL IF NOT EXISTS PLUGIN name SONAME library /
 --echo # UNINSTALL IF EXISTS PLUGIN|SONAME name
---echo #
 --echo #
 
 select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
@@ -297,9 +296,12 @@ select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins whe
 
 UNINSTALL SONAME IF EXISTS 'ha_example';
 
+--replace_regex /\.dll/.so/
 UNINSTALL SONAME IF EXISTS 'ha_example';
+--replace_regex /\.dll/.so/
 SHOW WARNINGS;
 select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
 
+--replace_regex /\.dll/.so/
 --error 1305
 UNINSTALL SONAME 'ha_example';

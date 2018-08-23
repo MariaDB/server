@@ -332,9 +332,8 @@ RENAME TABLE t1 TO t2;
 ERROR 42S02: Table 'test.t1' doesn't exist
 DROP TABLE t1;
 #
-# INSTALL IF NOT EXISTS [PLUGIN name] SONAME library /
+# INSTALL IF NOT EXISTS PLUGIN name SONAME library /
 # UNINSTALL IF EXISTS PLUGIN|SONAME name
-#
 #
 select PLUGIN_NAME,PLUGIN_STATUS,PLUGIN_TYPE from information_schema.plugins where plugin_library like 'ha_example%';
 PLUGIN_NAME	PLUGIN_STATUS	PLUGIN_TYPE
