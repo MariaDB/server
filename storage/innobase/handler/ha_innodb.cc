@@ -21425,6 +21425,7 @@ static TABLE* innodb_acquire_mdl(THD* thd, dict_table_t* table)
 
 	if (!table_name_parse(table->name, db_buf, tbl_buf,
 			      db_buf_len, tbl_buf_len)) {
+		table->release();
 		return NULL;
 	}
 
@@ -21507,6 +21508,7 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 
 	if (!table_name_parse(table->name, db_buf, tbl_buf,
 			      db_buf_len, tbl_buf_len)) {
+		ut_ad(!"invalid table name");
 		return NULL;
 	}
 
