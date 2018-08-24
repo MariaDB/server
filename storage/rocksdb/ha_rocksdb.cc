@@ -9553,7 +9553,7 @@ int ha_rocksdb::update_pk(const Rdb_key_def &kd,
     }
   }
 
-  if (table->next_number_field) {
+  if (table->found_next_number_field) {
     update_auto_incr_val_from_field();
   }
 
