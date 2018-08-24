@@ -3851,6 +3851,17 @@ static int innodb_init_params()
 	srv_data_home = innobase_data_home_dir
 		? innobase_data_home_dir : default_path;
 
+	os_normalize_path(srv_data_home);
+
+#ifdef WITH_WSREP
+	/* If we use the wsrep API, then we need to tell the server
+	the path to the data files (for passing it to the SST scripts): */
+	if (innobase_data_home_dir) {
+		os_normalize_path(innobase_data_home_dir);
+	}
+	wsrep_set_data_home_dir(innobase_data_home_dir);
+#endif /* WITH_WSREP */
+
 	/*--------------- Shared tablespaces -------------------------*/
 
 	/* Check that the value of system variable innodb_page_size was
