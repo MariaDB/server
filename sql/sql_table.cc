@@ -3328,6 +3328,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       }
     }
 
+    /* Virtual fields are always NULL */
+    if (sql_field->vcol_info)
+      sql_field->flags&= ~NOT_NULL_FLAG;
+
     if (sql_field->sql_type == MYSQL_TYPE_SET ||
         sql_field->sql_type == MYSQL_TYPE_ENUM)
     {
