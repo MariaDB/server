@@ -170,6 +170,17 @@ def	information_schema	GEOMETRY_COLUMNS	SRID	13	0	NO	smallint	NULL	NULL	5	0	NULL
 def	information_schema	GEOMETRY_COLUMNS	STORAGE_TYPE	9	0	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(2)			select		NEVER	NULL
 def	information_schema	GLOBAL_STATUS	VARIABLE_NAME	1	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	GLOBAL_STATUS	VARIABLE_VALUE	2	''	NO	varchar	2048	6144	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(2048)			select		NEVER	NULL
+def	information_schema	GLOBAL_TEMPORARY_TABLES	AVG_ROW_LENGTH	7	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select		NEVER	NULL
+def	information_schema	GLOBAL_TEMPORARY_TABLES	CREATE_TIME	10	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime			select		NEVER	NULL
+def	information_schema	GLOBAL_TEMPORARY_TABLES	DATA_LENGTH	8	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select		NEVER	NULL
+def	information_schema	GLOBAL_TEMPORARY_TABLES	ENGINE	4	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	GLOBAL_TEMPORARY_TABLES	INDEX_LENGTH	9	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select		NEVER	NULL
+def	information_schema	GLOBAL_TEMPORARY_TABLES	NAME	5	''	NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)			select		NEVER	NULL
+def	information_schema	GLOBAL_TEMPORARY_TABLES	SESSION_ID	1	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(4)			select		NEVER	NULL
+def	information_schema	GLOBAL_TEMPORARY_TABLES	TABLE_NAME	3	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	GLOBAL_TEMPORARY_TABLES	TABLE_ROWS	6	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select		NEVER	NULL
+def	information_schema	GLOBAL_TEMPORARY_TABLES	TABLE_SCHEMA	2	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
+def	information_schema	GLOBAL_TEMPORARY_TABLES	UPDATE_TIME	11	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime			select		NEVER	NULL
 def	information_schema	GLOBAL_VARIABLES	VARIABLE_NAME	1	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	GLOBAL_VARIABLES	VARIABLE_VALUE	2	''	NO	varchar	2048	6144	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(2048)			select		NEVER	NULL
 def	information_schema	INDEX_STATISTICS	INDEX_NAME	3	''	NO	varchar	192	576	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(192)			select		NEVER	NULL
@@ -703,6 +714,17 @@ NULL	information_schema	GEOMETRY_COLUMNS	MAX_PPR	tinyint	NULL	NULL	NULL	NULL	tin
 NULL	information_schema	GEOMETRY_COLUMNS	SRID	smallint	NULL	NULL	NULL	NULL	smallint(5)
 3.0000	information_schema	GLOBAL_STATUS	VARIABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	GLOBAL_STATUS	VARIABLE_VALUE	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
+NULL	information_schema	GLOBAL_TEMPORARY_TABLES	SESSION_ID	bigint	NULL	NULL	NULL	NULL	bigint(4)
+3.0000	information_schema	GLOBAL_TEMPORARY_TABLES	TABLE_SCHEMA	varchar	64	192	utf8	utf8_general_ci	varchar(64)
+3.0000	information_schema	GLOBAL_TEMPORARY_TABLES	TABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
+3.0000	information_schema	GLOBAL_TEMPORARY_TABLES	ENGINE	varchar	64	192	utf8	utf8_general_ci	varchar(64)
+3.0000	information_schema	GLOBAL_TEMPORARY_TABLES	NAME	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
+NULL	information_schema	GLOBAL_TEMPORARY_TABLES	TABLE_ROWS	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
+NULL	information_schema	GLOBAL_TEMPORARY_TABLES	AVG_ROW_LENGTH	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
+NULL	information_schema	GLOBAL_TEMPORARY_TABLES	DATA_LENGTH	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
+NULL	information_schema	GLOBAL_TEMPORARY_TABLES	INDEX_LENGTH	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
+NULL	information_schema	GLOBAL_TEMPORARY_TABLES	CREATE_TIME	datetime	NULL	NULL	NULL	NULL	datetime
+NULL	information_schema	GLOBAL_TEMPORARY_TABLES	UPDATE_TIME	datetime	NULL	NULL	NULL	NULL	datetime
 3.0000	information_schema	GLOBAL_VARIABLES	VARIABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	GLOBAL_VARIABLES	VARIABLE_VALUE	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
 3.0000	information_schema	INDEX_STATISTICS	TABLE_SCHEMA	varchar	192	576	utf8	utf8_general_ci	varchar(192)

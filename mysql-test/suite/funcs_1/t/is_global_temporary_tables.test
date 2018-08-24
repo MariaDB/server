@@ -1,0 +1,12 @@
+--source include/have_innodb.inc
+#--source include/have_rocksdb.inc
+#let $engine = rocksdb; # Temporary tables are not supported by rocksdb
+                        # See MDEV 12914
+
+# Engine= MyISAM
+let $engine = MyISAM;
+source include/mariadb_test_commands.inc;
+
+# Engine= InnoDB
+let $engine = InnoDB;
+source include/mariadb_test_commands.inc;
