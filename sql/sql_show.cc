@@ -6788,6 +6788,39 @@ store_constraints(THD *thd, TABLE *table, const LEX_CSTRING *db_name,
   return schema_table_store_record(thd, table);
 }
 
+static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
+                                        TABLE *table, bool res,
+                                        const LEX_CSTRING *db_name,
+                                        const LEX_CSTRING *table_name)
+{
+  DBUG_ENTER("get_check_constraints_record");
+  if (res)
+  {
+    if (thd->is_error())
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   thd->get_stmt_da()->sql_errno(),
+                   thd->get_stmt_da()->message());
+    thd->clear_error();
+    DBUG_RETURN(0);
+  }
+  if (!tables->view)
+  {
+    StringBuffer<MAX_FIELD_WIDTH> str(system_charset_info);
+    for (uint i= 0; i < tables->table->s->table_check_constraints; i++)
+    {
+      Virtual_column_info *check= tables->table->check_constraints[i];
+      table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
+      table->field[3]->store(check->name.str, check->name.length,
+                             system_charset_info);
+      str.length(0);
+      check->print(&str);
+      table->field[4]->store(str.ptr(), str.length(), system_charset_info);
+      if (schema_table_store_record(thd, table))
+        DBUG_RETURN(1);
+    }
+  }
+  DBUG_RETURN(0);
+}
 
 static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
 					 TABLE *table, bool res,
@@ -9708,6 +9741,18 @@ ST_FIELD_INFO spatial_ref_sys_fields_info[]=
 #endif /*HAVE_SPATIAL*/
 
 
+ST_FIELD_INFO check_constraints_fields_info[]=
+{
+  {"CONSTRAINT_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
+  {"CONSTRAINT_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
+   OPEN_FULL_TABLE},
+  {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
+  {"CONSTRAINT_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
+   OPEN_FULL_TABLE},
+  {"CHECK_CLAUSE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
+   OPEN_FULL_TABLE},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+};
 /*
   Description of ST_FIELD_INFO in table.h
 
@@ -9723,6 +9768,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_schema_applicable_roles, 0, 0, -1, -1, 0, 0},
   {"CHARACTER_SETS", charsets_fields_info, 0,
    fill_schema_charsets, make_character_sets_old_format, 0, -1, -1, 0, 0},
+  {"CHECK_CONSTRAINTS", check_constraints_fields_info, 0, get_all_tables, 0,
+    get_check_constraints_record, 1, 2, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
   {"COLLATIONS", collation_fields_info, 0,
    fill_schema_collation, make_old_format, 0, -1, -1, 0, 0},
   {"COLLATION_CHARACTER_SET_APPLICABILITY", coll_charset_app_fields_info,
