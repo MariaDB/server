@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE t1 ( 
+CREATE OR REPLACE TABLE t1 (
 f1 DECIMAL(43,0) NOT NULL,
 f2 TIME(4) NULL,
 f3 BINARY(101) NULL,
@@ -24,3 +24,10 @@ INSERT IGNORE INTO t1 (f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,f12) VALUES
 Warnings:
 Note	1265	Data truncated for column 'f1' at row 1
 DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a INT(45));
+INSERT IGNORE INTO t1 VALUES (1),(2);
+CREATE OR REPLACE TABLE t2 ENGINE=Aria AS SELECT SUM(a) AS f1, IFNULL( 'qux', ExtractValue( 'foo', 'bar' ) ) AS f2 FROM t1;
+select * from t2;
+f1	f2
+3	qux
+DROP TABLE t1, t2;
