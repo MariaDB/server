@@ -13345,7 +13345,7 @@ values_with_names:
             if (unlikely(Lex->insert_list->push_back($4, thd->mem_root)))
                MYSQL_YYABORT;
             // give some name in case of using in table value constuctor (TVC)
-            if (!$4->name.str)
+            if (!$4->name.str || $4->name.str == item_empty_name)
               $4->set_name(thd, $3, (uint) ($5 - $3), thd->charset());
            }
         | remember_name expr_or_default remember_end
@@ -13353,7 +13353,7 @@ values_with_names:
             if (unlikely(Lex->insert_list->push_back($2, thd->mem_root)))
                MYSQL_YYABORT;
             // give some name in case of using in table value constuctor (TVC)
-            if (!$2->name.str)
+            if (!$2->name.str || $2->name.str == item_empty_name)
               $2->set_name(thd, $1, (uint) ($3 - $1), thd->charset());
           }
         ;
