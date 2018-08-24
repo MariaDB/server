@@ -6103,7 +6103,26 @@ Create_func_name_const Create_func_name_const::s_singleton;
 Item*
 Create_func_name_const::create_2_arg(THD *thd, Item *arg1, Item *arg2)
 {
-  return new (thd->mem_root) Item_name_const(thd, arg1, arg2);
+  if (!arg1->basic_const_item())
+    goto err;
+
+  if (arg2->basic_const_item())
+    return new (thd->mem_root) Item_name_const(thd, arg1, arg2);
+
+  if (arg2->type() == Item::FUNC_ITEM)
+  {
+    Item_func *value_func= (Item_func *) arg2;
+    if (value_func->functype() != Item_func::COLLATE_FUNC &&
+        value_func->functype() != Item_func::NEG_FUNC)
+      goto err;
+
+    if (!value_func->key_item()->basic_const_item())
+      goto err;
+    return new (thd->mem_root) Item_name_const(thd, arg1, arg2);
+  }
+err:
+  my_error(ER_WRONG_ARGUMENTS, MYF(0), "NAME_CONST");
+  return NULL;
 }
 
 

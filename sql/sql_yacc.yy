@@ -292,14 +292,13 @@ LEX::set_system_variable(enum enum_var_type var_type,
                          Item *val)
 {
   set_var *setvar;
-  Item_field *item_field;
 
   /* No AUTOCOMMIT from a stored function or trigger. */
   if (spcont && sysvar == Sys_autocommit_ptr)
     sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
 
-  if (val && (item_field= val->get_item_field()) &&
-      item_field->table_name)
+  if (val && val->type() == Item::FIELD_ITEM &&
+      ((Item_field*)val)->table_name)
   {
     my_error(ER_WRONG_TYPE_FOR_VAR, MYF(0), sysvar->name.str);
     return TRUE;
