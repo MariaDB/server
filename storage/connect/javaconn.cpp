@@ -456,7 +456,7 @@ bool JAVAConn::Open(PGLOBAL g)
 
 		//=============== load and initialize Java VM and JNI interface =============
 		rc = CreateJavaVM(&jvm, (void**)&env, &vm_args);  // YES !!
-		delete options;    // we then no longer need the initialisation options.
+		delete[] options;    // we then no longer need the initialisation options.
 
 		switch (rc) {
 			case JNI_OK:
