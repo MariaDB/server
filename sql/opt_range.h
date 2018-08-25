@@ -1664,7 +1664,8 @@ SQL_SELECT *make_select(TABLE *head, table_map const_tables,
 
 bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond);
 
-bool eq_ranges_exceeds_limit(RANGE_SEQ_IF *seq, void *seq_init_param);
+bool eq_ranges_exceeds_limit(RANGE_SEQ_IF *seq, void *seq_init_param,
+                             uint limit);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond);

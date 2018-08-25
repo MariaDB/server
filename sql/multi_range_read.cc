@@ -64,12 +64,14 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   ha_rows rows, total_rows= 0;
   uint n_ranges=0;
   THD *thd= table->in_use;
+  uint limit= thd->variables.eq_range_index_dive_limit;
   
+  bool use_statistics_for_eq_range= eq_ranges_exceeds_limit(seq,
+                                                            seq_init_param,
+                                                            limit);
+
   /* Default MRR implementation doesn't need buffer */
   *bufsz= 0;
-
-  bool use_statistics_for_eq_range= eq_ranges_exceeds_limit(seq,
-                                                            seq_init_param);
 
   seq_it= seq->init(seq_init_param, n_ranges, *flags);
   while (!seq->next(seq_it, &range))

@@ -14619,13 +14619,12 @@ void QUICK_GROUP_MIN_MAX_SELECT::add_keys_and_lengths(String *key_names,
 
 /* Check whether the number for equality ranges exceeds the set threshold */ 
 
-bool eq_ranges_exceeds_limit(RANGE_SEQ_IF *seq, void *seq_init_param)
+bool eq_ranges_exceeds_limit(RANGE_SEQ_IF *seq, void *seq_init_param,
+                             uint limit)
 {
   KEY_MULTI_RANGE range;
   range_seq_t seq_it;
   uint count = 0;
-  PARAM *param= ((SEL_ARG_RANGE_SEQ*) seq_init_param)->param;
-  uint limit= param->thd->variables.eq_range_index_dive_limit;
 
   if (limit == 0)
   {
