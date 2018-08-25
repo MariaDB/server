@@ -7,7 +7,7 @@ create table t0
 (
 t int, check (t>32) # table constraint
 ) ENGINE=myisam;
-SELECT * from information_schema.check_constraints;
+SELECT * from information_schema.check_constraints order by check_clause;
 CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	CONSTRAINT_1
@@ -15,20 +15,20 @@ TABLE_NAME	t0
 CHECK_CLAUSE	`t` > 32
 ALTER TABLE t0
 ADD CONSTRAINT CHK_t0_t CHECK(t<100);
-SELECT * from information_schema.check_constraints;
-CONSTRAINT_CATALOG	def
-CONSTRAINT_SCHEMA	test
-CONSTRAINT_NAME	CONSTRAINT_1
-TABLE_NAME	t0
-CHECK_CLAUSE	`t` > 32
+SELECT * from information_schema.check_constraints order by check_clause;
 CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	CHK_t0_t
 TABLE_NAME	t0
 CHECK_CLAUSE	`t` < 100
+CONSTRAINT_CATALOG	def
+CONSTRAINT_SCHEMA	test
+CONSTRAINT_NAME	CONSTRAINT_1
+TABLE_NAME	t0
+CHECK_CLAUSE	`t` > 32
 ALTER TABLE t0
 DROP CONSTRAINT CHK_t0_t;
-SELECT * from information_schema.check_constraints;
+SELECT * from information_schema.check_constraints order by check_clause;
 CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	CONSTRAINT_1
@@ -38,12 +38,7 @@ CREATE TABLE t1
 ( t int CHECK(t>2), # field constraint
 tt int, CONSTRAINT CHK_tt CHECK(tt<100) # table constraint
 ) ENGINE=InnoDB;
-SELECT * from information_schema.check_constraints;
-CONSTRAINT_CATALOG	def
-CONSTRAINT_SCHEMA	test
-CONSTRAINT_NAME	t
-TABLE_NAME	t1
-CHECK_CLAUSE	`t` > 2
+SELECT * from information_schema.check_constraints order by check_clause;
 CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	CHK_tt
@@ -51,12 +46,17 @@ TABLE_NAME	t1
 CHECK_CLAUSE	`tt` < 100
 CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
+CONSTRAINT_NAME	t
+TABLE_NAME	t1
+CHECK_CLAUSE	`t` > 2
+CONSTRAINT_CATALOG	def
+CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	CONSTRAINT_1
 TABLE_NAME	t0
 CHECK_CLAUSE	`t` > 32
 ALTER TABLE t1
 DROP CONSTRAINT CHK_tt;
-SELECT * from information_schema.check_constraints;
+SELECT * from information_schema.check_constraints order by check_clause;
 CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	t
@@ -74,7 +74,7 @@ start_date DATE,
 end_date DATE,
 CONSTRAINT CHK_dates CHECK(start_date IS NULL) #table constraint
 )ENGINE=Innodb;
-SELECT * from information_schema.check_constraints;
+SELECT * from information_schema.check_constraints order by check_clause;
 CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	name
@@ -97,7 +97,7 @@ TABLE_NAME	t0
 CHECK_CLAUSE	`t` > 32
 ALTER TABLE t1
 ADD CONSTRAINT CHK_new_ CHECK(t>tt);
-SELECT * from information_schema.check_constraints;
+SELECT * from information_schema.check_constraints order by check_clause;
 CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	name
@@ -115,29 +115,29 @@ TABLE_NAME	t1
 CHECK_CLAUSE	`t` > 2
 CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
-CONSTRAINT_NAME	CHK_new_
-TABLE_NAME	t1
-CHECK_CLAUSE	`t` > `tt`
-CONSTRAINT_CATALOG	def
-CONSTRAINT_SCHEMA	test
 CONSTRAINT_NAME	CONSTRAINT_1
 TABLE_NAME	t0
 CHECK_CLAUSE	`t` > 32
+CONSTRAINT_CATALOG	def
+CONSTRAINT_SCHEMA	test
+CONSTRAINT_NAME	CHK_new_
+TABLE_NAME	t1
+CHECK_CLAUSE	`t` > `tt`
 create table t3
 (
 a int,
 b int check (b>0), # field constraint named 'b'
 CONSTRAINT b check (b>10) # table constraint
 ) ENGINE=InnoDB;
-select * from information_schema.check_constraints;
+select * from information_schema.check_constraints order by check_clause;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_NAME	CHECK_CLAUSE
+def	test	name	t2	char_length(`name`) > 2
 def	test	b	t3	`b` > 0
 def	test	b	t3	`b` > 10
-def	test	name	t2	char_length(`name`) > 2
 def	test	CHK_dates	t2	`start_date` is null
 def	test	t	t1	`t` > 2
-def	test	CHK_new_	t1	`t` > `tt`
 def	test	CONSTRAINT_1	t0	`t` > 32
+def	test	CHK_new_	t1	`t` > `tt`
 drop table t0;
 drop table t1;
 drop table t2;
