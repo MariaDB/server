@@ -1687,6 +1687,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 */
 %left   PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE
 %left   TRANSACTION_SYM TIMESTAMP PERIOD_SYM SYSTEM USER
+%left   COMMENT_SYM
 
 
 /*
@@ -2793,6 +2794,7 @@ create:
         | create_or_replace DATABASE opt_if_not_exists ident
           {
             Lex->create_info.default_table_charset= NULL;
+            Lex->create_info.schema_comment= NULL;
             Lex->create_info.used_fields= 0;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
@@ -6043,6 +6045,11 @@ create_database_options:
 create_database_option:
           default_collation {}
         | default_charset {}
+        | COMMENT_SYM opt_equal TEXT_STRING_sys
+          {
+            Lex->create_info.schema_comment= thd->make_clex_string($3);
+            Lex->create_info.used_fields|= HA_CREATE_USED_COMMENT;
+          }
         ;
 
 opt_if_not_exists_table_element:
@@ -7764,6 +7771,7 @@ alter:
         | ALTER DATABASE ident_or_empty
           {
             Lex->create_info.default_table_charset= NULL;
+            Lex->create_info.schema_comment= NULL;
             Lex->create_info.used_fields= 0;
             if (Lex->main_select_push())
               MYSQL_YYABORT;
@@ -7777,6 +7785,22 @@ alter:
                 unlikely(lex->copy_db_to(&lex->name)))
               MYSQL_YYABORT;
             Lex->pop_select(); //main select
+          }
+        | ALTER DATABASE COMMENT_SYM opt_equal TEXT_STRING_sys
+          {
+            Lex->create_info.default_table_charset= NULL;
+            Lex->create_info.used_fields= 0;
+            Lex->create_info.schema_comment= thd->make_clex_string($5);
+            Lex->create_info.used_fields|= HA_CREATE_USED_COMMENT;
+          }
+          opt_create_database_options
+          {
+            LEX *lex=Lex;
+            lex->sql_command=SQLCOM_ALTER_DB;
+            lex->name= Lex_ident_sys();
+            if (lex->name.str == NULL &&
+                unlikely(lex->copy_db_to(&lex->name)))
+              MYSQL_YYABORT;
           }
         | ALTER DATABASE ident UPGRADE_SYM DATA_SYM DIRECTORY_SYM NAME_SYM
           {
@@ -8022,7 +8046,7 @@ opt_ev_sql_stmt:
         ;
 
 ident_or_empty:
-          /* empty */ { $$= Lex_ident_sys(); }
+          /* empty */ %prec PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE { $$= Lex_ident_sys(); }
         | ident
         ;
 

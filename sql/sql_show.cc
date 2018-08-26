@@ -1470,7 +1470,7 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
                            LEX_CSTRING *orig_dbname,
                            const DDL_options_st &options)
 {
-  char buff[2048];
+  char buff[2048+DATABASE_COMMENT_MAXLEN];
   String buffer(buff, sizeof(buff), system_charset_info);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *sctx= thd->security_ctx;
@@ -1506,6 +1506,7 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   {
     *dbname= INFORMATION_SCHEMA_NAME;
     create.default_table_charset= system_charset_info;
+    create.schema_comment= NULL;
   }
   else
   {
@@ -1544,6 +1545,13 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
       buffer.append(create.default_table_charset->name);
     }
     buffer.append(STRING_WITH_LEN(" */"));
+  }
+
+  if (create.schema_comment)
+  {
+    buffer.append(STRING_WITH_LEN(" COMMENT "));
+    append_unescaped(&buffer, create.schema_comment->str,
+                     create.schema_comment->length);
   }
   protocol->store(buffer.ptr(), buffer.length(), buffer.charset());
 
@@ -5306,14 +5314,16 @@ err:
 }
 
 
-bool store_schema_shemata(THD* thd, TABLE *table, LEX_CSTRING *db_name,
-                          CHARSET_INFO *cs)
+bool store_schema_schemata(THD* thd, TABLE *table, LEX_CSTRING *db_name,
+                           CHARSET_INFO *cs, LEX_CSTRING *schema_comment= NULL)
 {
   restore_record(table, s->default_values);
   table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
   table->field[1]->store(db_name->str, db_name->length, system_charset_info);
   table->field[2]->store(cs->csname, strlen(cs->csname), system_charset_info);
   table->field[3]->store(cs->name, strlen(cs->name), system_charset_info);
+  if (schema_comment)
+    table->field[5]->store(schema_comment->str, schema_comment->length, system_charset_info);
   return schema_table_store_record(thd, table);
 }
 
@@ -5366,8 +5376,8 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
     DBUG_ASSERT(db_name->length <= NAME_LEN);
     if (db_name == &INFORMATION_SCHEMA_NAME)
     {
-      if (store_schema_shemata(thd, table, db_name,
-                               system_charset_info))
+      if (store_schema_schemata(thd, table, db_name,
+                                system_charset_info))
         DBUG_RETURN(1);
       continue;
     }
@@ -5380,8 +5390,8 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
 #endif
     {
       load_db_opt_by_name(thd, db_name->str, &create);
-      if (store_schema_shemata(thd, table, db_name,
-                               create.default_table_charset))
+      if (store_schema_schemata(thd, table, db_name,
+                                create.default_table_charset, create.schema_comment))
         DBUG_RETURN(1);
     }
   }
@@ -9044,6 +9054,7 @@ ST_FIELD_INFO schema_fields_info[]=
   {"DEFAULT_COLLATION_NAME", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0,
    SKIP_OPEN_TABLE},
   {"SQL_PATH", FN_REFLEN, MYSQL_TYPE_STRING, 0, 1, 0, SKIP_OPEN_TABLE},
+  {"SCHEMA_COMMENT", DATABASE_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 

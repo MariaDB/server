@@ -26,6 +26,7 @@
 #include "lock.h"                        // lock_schema_name
 #include "sql_table.h"                   // build_table_filename,
                                          // filename_to_tablename
+                                         // validate_comment_length
 #include "sql_rename.h"                  // mysql_rename_tables
 #include "sql_acl.h"                     // SELECT_ACL, DB_ACLS,
                                          // acl_get, check_grant_db
@@ -77,6 +78,7 @@ typedef struct my_dbopt_st
   char *name;			/* Database name                  */
   uint name_length;		/* Database length name           */
   CHARSET_INFO *charset;	/* Database default character set */
+  LEX_STRING comment;           /* Database comment               */
 } my_dbopt_t;
 
 
@@ -235,7 +237,8 @@ void my_dbopt_cleanup(void)
     1 on error.
 */
 
-static my_bool get_dbopt(const char *dbname, Schema_specification_st *create)
+static my_bool get_dbopt(THD *thd, const char *dbname,
+                         Schema_specification_st *create)
 {
   my_dbopt_t *opt;
   uint length;
@@ -247,6 +250,11 @@ static my_bool get_dbopt(const char *dbname, Schema_specification_st *create)
   if ((opt= (my_dbopt_t*) my_hash_search(&dboptions, (uchar*) dbname, length)))
   {
     create->default_table_charset= opt->charset;
+    if (opt->comment.length)
+    {
+      create->schema_comment= thd->make_clex_string(const_cast<char*>(opt->comment.str),
+                                                    opt->comment.length);
+    }
     error= 0;
   }
   mysql_rwlock_unlock(&LOCK_dboptions);
@@ -274,15 +282,17 @@ static my_bool put_dbopt(const char *dbname, Schema_specification_st *create)
   DBUG_ENTER("put_dbopt");
 
   length= (uint) strlen(dbname);
-  
+
   mysql_rwlock_wrlock(&LOCK_dboptions);
   if (!(opt= (my_dbopt_t*) my_hash_search(&dboptions, (uchar*) dbname,
                                           length)))
   { 
     /* Options are not in the hash, insert them */
     char *tmp_name;
+    char *tmp_comment= NULL;
     if (!my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
                          &opt, (uint) sizeof(*opt), &tmp_name, (uint) length+1,
+                         &tmp_comment, (uint) DATABASE_COMMENT_MAXLEN+1,
                          NullS))
     {
       error= 1;
@@ -292,7 +302,7 @@ static my_bool put_dbopt(const char *dbname, Schema_specification_st *create)
     opt->name= tmp_name;
     strmov(opt->name, dbname);
     opt->name_length= length;
-    
+    opt->comment.str= tmp_comment;
     if (unlikely((error= my_hash_insert(&dboptions, (uchar*) opt))))
     {
       my_free(opt);
@@ -302,6 +312,12 @@ static my_bool put_dbopt(const char *dbname, Schema_specification_st *create)
 
   /* Update / write options in hash */
   opt->charset= create->default_table_charset;
+
+  if (create->schema_comment)
+  {
+    strmov(opt->comment.str, create->schema_comment->str);
+    opt->comment.length= create->schema_comment->length;
+  }
 
 end:
   mysql_rwlock_unlock(&LOCK_dboptions);
@@ -328,7 +344,7 @@ static void del_dbopt(const char *path)
   Create database options file:
 
   DESCRIPTION
-    Currently database default charset is only stored there.
+    Currently database default charset, default collation and comment are stored there.
 
   RETURN VALUES
   0	ok
@@ -339,8 +355,30 @@ static bool write_db_opt(THD *thd, const char *path,
                          Schema_specification_st *create)
 {
   File file;
-  char buf[256]; // Should be enough for one option
+  char buf[256+DATABASE_COMMENT_MAXLEN];
   bool error=1;
+
+  if (create->schema_comment)
+  {
+    if (validate_comment_length(thd, create->schema_comment,
+                                DATABASE_COMMENT_MAXLEN, ER_TOO_LONG_DATABASE_COMMENT,
+                                thd->lex->name.str))
+      return error;
+  }
+
+  /* Use existing values of schema_comment and charset for ALTER DATABASE queries */
+  Schema_specification_st tmp;
+  bzero((char*) &tmp,sizeof(tmp));
+  if (thd->lex->sql_command == SQLCOM_ALTER_DB)
+  {
+    load_db_opt(thd, path, &tmp);
+
+    if (!create->schema_comment)
+      create->schema_comment= tmp.schema_comment;
+
+    if (!create->default_table_charset)
+      create->default_table_charset= tmp.default_table_charset;
+  }
 
   if (!create->default_table_charset)
     create->default_table_charset= thd->variables.collation_server;
@@ -357,6 +395,11 @@ static bool write_db_opt(THD *thd, const char *path,
                               "\ndefault-collation=",
                               create->default_table_charset->name,
                               "\n", NullS) - buf);
+
+    if (create->schema_comment)
+      length= (ulong) (strxnmov(buf+length, sizeof(buf)-1-length,
+                                "comment=", create->schema_comment->str,
+                                "\n", NullS) - buf);
 
     /* Error is written by mysql_file_write */
     if (!mysql_file_write(file, (uchar*) buf, length, MYF(MY_NABP+MY_WME)))
@@ -385,7 +428,7 @@ static bool write_db_opt(THD *thd, const char *path,
 bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
 {
   File file;
-  char buf[256];
+  char buf[256+DATABASE_COMMENT_MAXLEN];
   DBUG_ENTER("load_db_opt");
   bool error=1;
   size_t nbytes;
@@ -394,7 +437,7 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
   create->default_table_charset= thd->variables.collation_server;
 
   /* Check if options for this database are already in the hash */
-  if (!get_dbopt(path, create))
+  if (!get_dbopt(thd, path, create))
     DBUG_RETURN(0);
 
   /* Otherwise, load options from the .opt file */
@@ -444,6 +487,8 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
           create->default_table_charset= default_charset_info;
         }
       }
+      else if (!strncmp(buf, "comment", (pos-buf)))
+        create->schema_comment= thd->make_clex_string(pos+1, strlen(pos+1));
     }
   }
   /*
@@ -544,7 +589,7 @@ CHARSET_INFO *get_default_db_collation(THD *thd, const char *db_name)
   Create a database
 
   SYNOPSIS
-  mysql_create_db_iternal()
+  mysql_create_db_internal()
   thd		Thread handler
   db		Name of database to create
 		Function assumes that this is already validated.

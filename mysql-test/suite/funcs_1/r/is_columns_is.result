@@ -326,6 +326,7 @@ def	information_schema	ROUTINES	SQL_PATH	22	NULL	YES	varchar	64	192	NULL	NULL	NU
 def	information_schema	SCHEMATA	CATALOG_NAME	1	''	NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)			select		NEVER	NULL
 def	information_schema	SCHEMATA	DEFAULT_CHARACTER_SET_NAME	3	''	NO	varchar	32	96	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(32)			select		NEVER	NULL
 def	information_schema	SCHEMATA	DEFAULT_COLLATION_NAME	4	''	NO	varchar	32	96	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(32)			select		NEVER	NULL
+def	information_schema	SCHEMATA	SCHEMA_COMMENT	6	''	NO	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)			select		NEVER	NULL
 def	information_schema	SCHEMATA	SCHEMA_NAME	2	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
 def	information_schema	SCHEMATA	SQL_PATH	5	NULL	YES	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)			select		NEVER	NULL
 def	information_schema	SCHEMA_PRIVILEGES	GRANTEE	1	''	NO	varchar	190	570	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(190)			select		NEVER	NULL
@@ -870,6 +871,7 @@ NULL	information_schema	ROUTINES	LAST_ALTERED	datetime	NULL	NULL	NULL	NULL	datet
 3.0000	information_schema	SCHEMATA	DEFAULT_CHARACTER_SET_NAME	varchar	32	96	utf8	utf8_general_ci	varchar(32)
 3.0000	information_schema	SCHEMATA	DEFAULT_COLLATION_NAME	varchar	32	96	utf8	utf8_general_ci	varchar(32)
 3.0000	information_schema	SCHEMATA	SQL_PATH	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
+3.0000	information_schema	SCHEMATA	SCHEMA_COMMENT	varchar	1024	3072	utf8	utf8_general_ci	varchar(1024)
 3.0000	information_schema	SCHEMA_PRIVILEGES	GRANTEE	varchar	190	570	utf8	utf8_general_ci	varchar(190)
 3.0000	information_schema	SCHEMA_PRIVILEGES	TABLE_CATALOG	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
 3.0000	information_schema	SCHEMA_PRIVILEGES	TABLE_SCHEMA	varchar	64	192	utf8	utf8_general_ci	varchar(64)
