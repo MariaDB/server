@@ -71,6 +71,7 @@
 #define COLUMN_COMMENT_MAXLEN 1024
 #define INDEX_COMMENT_MAXLEN 1024
 #define TABLE_PARTITION_COMMENT_MAXLEN 1024
+#define DATABASE_COMMENT_MAXLEN 1024
 
 /*
   Maximum length of protocol packet.
