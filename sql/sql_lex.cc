@@ -4678,18 +4678,18 @@ void SELECT_LEX::increase_derived_records(ha_rows records)
       return; 
   }
   
-  select_unit *result= (select_unit*)unit->result;
+  select_result *result= unit->result;
   switch (linkage)
   {
   case INTERSECT_TYPE:
     // result of intersect can't be more then one of components
-    set_if_smaller(result->records, records);
+    set_if_smaller(result->est_records, records);
   case EXCEPT_TYPE:
     // in worse case none of record will be removed
     break;
   default:
     // usual UNION
-    result->records+= records;
+    result->est_records+= records;
     break;
   }
 }
