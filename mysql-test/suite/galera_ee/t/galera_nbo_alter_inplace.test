@@ -1,0 +1,67 @@
+#
+# Test that ALTER ALGORITHM = INPLACE works with NBO
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SET GLOBAL debug = 'd,sync.alter_locked_tables_inplace';
+
+--connection node_1
+SET SESSION wsrep_osu_method='NBO';
+--send ALTER TABLE t1 LOCK=SHARED, ALGORITHM=INPLACE, ADD PRIMARY KEY (f1);
+
+--connection node_2
+SET SESSION wsrep_sync_wait=0;
+
+# Wait for the ALTER to block in sync point
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: now';
+--source include/wait_condition.inc
+
+# Confirm that unrelated tables can be modified
+INSERT INTO t2 VALUES (2);
+
+ALTER TABLE t2 ALGORITHM=COPY, ADD COLUMN f2 INTEGER;
+
+# Confirm that the ALTER-ed table can not be modified on either node
+SET SESSION lock_wait_timeout=1;
+--error ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1 VALUES (1);
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET SESSION lock_wait_timeout=1;
+INSERT INTO t2 VALUES (3,4);
+
+--error ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t1 VALUES (3);
+
+ALTER TABLE t2 ALGORITHM=COPY, ADD COLUMN f3 INTEGER;
+
+# Unblock the ALTER and confirm that it executed on all nodes
+--connection node_2
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SET GLOBAL debug = '';
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) = 1 FROM t1;
+
+--connection node_1
+--reap
+
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) = 1 FROM t1;
+
+--connection node_2
+
+DROP TABLE t1;
+DROP TABLE t2;

@@ -21,7 +21,8 @@ SELECT @@wsrep_slave_threads = 1;
 
 SET GLOBAL wsrep_slave_threads = 1;
 # There is a separate wsrep_aborter thread at all times
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+SELECT COUNT(*) = 3 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
+SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
 #
 # Increase the number of slave threads. The change takes effect immediately
@@ -33,7 +34,15 @@ SET GLOBAL wsrep_slave_threads = 64;
 INSERT INTO t1 VALUES (1);
 
 --connection node_2
---let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+SELECT COUNT(*) = 1 FROM t1;
+
+#
+# note, in wsrep API #26, we have 2 rollbacker threads, counted as system user's
+#
+SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
+SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
 --source include/wait_condition.inc
 
 #
@@ -53,24 +62,100 @@ while ($count)
 }
 
 --connection node_2
-SELECT COUNT(*) FROM t2;
+SELECT COUNT(*) = 64 FROM t2;
+SET wsrep_sync_wait=0;
 
---let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%')
+SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
+SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%')
 --source include/wait_condition.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
 
+--let $wsrep_cluster_address_node2 = `SELECT @@wsrep_cluster_address`
+--let $wsrep_provider_node2 = `SELECT @@wsrep_provider`
 
+SET GLOBAL wsrep_slave_threads = 5;
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon'
+--source include/wait_condition.inc
+
+SET GLOBAL wsrep_slave_threads = 1;
+
+#
+# test phase for bug https://github.com/codership/mysql-wsrep/issues/319
+#
+
+# shutdown node 2
+--connection node_2
+--echo Shutting down server ...
+--source include/shutdown_mysqld.inc
+
+# wait until node_1 is ready as one node cluster
+--connection node_1
+SET wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+show status like 'wsrep_cluster_size';
+
+# step up slave threads to 6, and make sure all appliers and rollbacker thread are running
+SET GLOBAL wsrep_slave_threads = 6;
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon'
+--source include/wait_condition.inc
+
+# change to invalid cluster address
+SET GLOBAL wsrep_slave_threads = 1;
+SET GLOBAL wsrep_cluster_address='';
+
+# join back to single node cluster
+SET GLOBAL wsrep_cluster_address='gcomm://';
+--source include/wait_until_connected_again.inc
+
+# we should have 1 applier thread now
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon'
+--source include/wait_condition.inc
+
+# test if we can increase applier count now (fails in bug #319)
+SET GLOBAL wsrep_slave_threads = 10;
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon'
+--source include/wait_condition.inc
+
+# restart node 2
+--connection node_2
+--source include/start_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon';
+
+# 
+#
+# cleanup to original state
+#
+--connection node_1
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig
 
-DROP TABLE t1;
-DROP TABLE t2;
+--connection node_2
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig
 
---echo #
---echo # lp:1372840 - Changing wsrep_slave_threads causes future connections to hang
---echo #
+# Generate 64 replication events, to help node 1 to purge excessive applier threads
+--let $count = 64
+while ($count)
+{
+  INSERT INTO t2 VALUES (DEFAULT);
+  --dec $count
+}
 
 --connection node_1
-CREATE TABLE t1 (i INT AUTO_INCREMENT PRIMARY KEY) ENGINE=INNODB;
+# Generate 64 replication events, to help node 2 to purge excessive applier threads
+--let $count = 64
+while ($count)
+{
+  INSERT INTO t2 VALUES (DEFAULT);
+  --dec $count
+}
+
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon'
+--source include/wait_condition.inc
+
 
 --connection node_2
 SET GLOBAL wsrep_slave_threads = 4;
@@ -80,24 +165,10 @@ SET GLOBAL wsrep_slave_threads = 4;
 SET GLOBAL wsrep_slave_threads = 1;
 
 --connection node_1
-INSERT INTO t1 VALUES (DEFAULT);
-INSERT INTO t1 VALUES (DEFAULT);
-INSERT INTO t1 VALUES (DEFAULT);
+--let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND COMMAND != 'Daemon'
+--source include/wait_condition.inc
+
 DROP TABLE t1;
-
---connection node_2
-
-# Wait until above DDL is replicated
---let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
---source include/wait_condition.inc
-
-SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
-
-#
-# make sure that we are left with exactly one applier thread before we leaving the test
-#
---let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%')
---source include/wait_condition.inc
-SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
+DROP TABLE t2;
 
 --echo # End of tests

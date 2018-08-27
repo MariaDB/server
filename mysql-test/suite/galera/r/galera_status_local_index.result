@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 CREATE TABLE wsrep_local_indexes (wsrep_local_index INTEGER);
 INSERT INTO wsrep_local_indexes VALUES ((SELECT variable_value FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE variable_name = 'wsrep_local_index'));

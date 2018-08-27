@@ -3917,14 +3917,19 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
     exec_res= ev->apply_event(rgi);
 
 #ifdef WITH_WSREP
-    if (exec_res && thd->wsrep_conflict_state != NO_CONFLICT)
+  if (WSREP_ON)
+  {
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    if (exec_res && thd->wsrep_conflict_state() != NO_CONFLICT)
     {
       WSREP_DEBUG("SQL apply failed, res %d conflict state: %d",
-                  exec_res, thd->wsrep_conflict_state);
+                  exec_res, thd->wsrep_conflict_state_unsafe());
       rli->abort_slave= 1;
       rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
                   "Node has dropped from cluster");
     }
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  }
 #endif
 
 #ifndef DBUG_OFF
@@ -4217,6 +4222,11 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
   }
   if (ev)
   {
+#ifdef WITH_WSREP
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    thd->set_wsrep_query_state(QUERY_EXEC);
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
     int exec_res;
     Log_event_type typ= ev->get_type_code();
 
@@ -4261,6 +4271,11 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       rli->abort_slave= 1;
       rli->stop_for_until= true;
       mysql_mutex_unlock(&rli->data_lock);
+#ifdef WITH_WSREP
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      thd->set_wsrep_query_state(QUERY_IDLE);
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
       delete ev;
       DBUG_RETURN(1);
     }
@@ -4298,7 +4313,16 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       if (res == 0)
         rli->event_relay_log_pos= rli->future_event_relay_log_pos;
       if (res >= 0)
+#ifdef WITH_WSREP
+      {
+        mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+        thd->set_wsrep_query_state(QUERY_IDLE);
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
         DBUG_RETURN(res);
+#ifdef WITH_WSREP
+      }
+#endif /* WITH_WSREP */
       /*
         Else we proceed to execute the event non-parallel.
         This is the case for pre-10.0 events without GTID, and for handling
@@ -4320,6 +4344,11 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                         "aborted because of out-of-memory error");
         mysql_mutex_unlock(&rli->data_lock);
         delete ev;
+#ifdef WITH_WSREP
+        mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+        thd->set_wsrep_query_state(QUERY_IDLE);
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
         DBUG_RETURN(1);
       }
 
@@ -4334,6 +4363,11 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                           "thread aborted because of out-of-memory error");
           mysql_mutex_unlock(&rli->data_lock);
           delete ev;
+#ifdef WITH_WSREP
+          mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+          thd->set_wsrep_query_state(QUERY_IDLE);
+          mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
           DBUG_RETURN(1);
         }
         /*
@@ -4362,13 +4396,19 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       retry.
     */
     if (unlikely(exec_res == 2))
-      DBUG_RETURN(1);
-
 #ifdef WITH_WSREP
-    mysql_mutex_lock(&thd->LOCK_thd_data);
-    if (thd->wsrep_conflict_state == NO_CONFLICT)
+    { 
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      thd->set_wsrep_query_state(QUERY_IDLE);
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
+      DBUG_RETURN(1);
+#ifdef WITH_WSREP
+    }
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    if (thd->wsrep_conflict_state() == NO_CONFLICT)
     {
-      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 #endif /* WITH_WSREP */
     if (slave_trans_retries)
     {
@@ -4446,10 +4486,15 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #ifdef WITH_WSREP
     }
     else
-      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 #endif /* WITH_WSREP */
 
     thread_safe_increment64(&rli->executed_entries);
+#ifdef WITH_WSREP
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    thd->set_wsrep_query_state(QUERY_IDLE);
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
     DBUG_RETURN(exec_res);
   }
   mysql_mutex_unlock(&rli->data_lock);
@@ -5515,10 +5560,16 @@ pthread_handler_t handle_slave_sql(void *arg)
     if (exec_relay_log_event(thd, rli, serial_rgi))
     {
 #ifdef WITH_WSREP
-      if (thd->wsrep_conflict_state != NO_CONFLICT)
+      if (WSREP_ON)
       {
-        wsrep_node_dropped= TRUE;
-        rli->abort_slave= TRUE;
+        mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+
+        if (thd->wsrep_conflict_state() != NO_CONFLICT)
+        {
+          wsrep_node_dropped= TRUE;
+          rli->abort_slave= TRUE;
+        }
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       }
 #endif /* WITH_WSREP */
 
@@ -5550,6 +5601,9 @@ pthread_handler_t handle_slave_sql(void *arg)
     sql_print_information("Slave SQL thread exiting, replication stopped in "
                           "log '%s' at position %llu%s", RPL_LOG_NAME,
                           rli->group_master_log_pos, tmp.c_ptr_safe());
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    WSREP_DEBUG("SQL thread %lu exec %d query state %d", thd->thread_id, thd->wsrep_exec_mode , thd->wsrep_query_state());
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
   }
 
  err_before_start:
@@ -5662,24 +5716,25 @@ err_during_init:
     trigger automatic restart of slave when node joins back to cluster.
   */
   if (WSREP_ON && wsrep_node_dropped && wsrep_restart_slave)
-  {
-    if (wsrep_ready)
-    {
-      WSREP_INFO("Slave error due to node temporarily non-primary"
-                 "SQL slave will continue");
-      wsrep_node_dropped= FALSE;
-      mysql_mutex_unlock(&rli->run_lock);
-      WSREP_DEBUG("wsrep_conflict_state now: %d", thd->wsrep_conflict_state);
-      WSREP_INFO("slave restart: %d", thd->wsrep_conflict_state);
-      thd->wsrep_conflict_state= NO_CONFLICT;
-      goto wsrep_restart_point;
-    } else {
-      WSREP_INFO("Slave error due to node going non-primary");
-      WSREP_INFO("wsrep_restart_slave was set and therefore slave will be "
-                 "automatically restarted when node joins back to cluster.");
-      wsrep_restart_slave_activated= TRUE;
-    }
-  }
+   {
+     if (wsrep_ready_get())
+     {
+       WSREP_INFO("Slave error due to node temporarily non-primary"
+		  "SQL slave will continue");
+       wsrep_node_dropped= FALSE;
+       mysql_mutex_unlock(&rli->run_lock);
+       goto wsrep_restart_point;
+     } else {
+       WSREP_INFO("Slave error due to node going non-primary");
+       WSREP_INFO("wsrep_restart_slave was set and therefore slave will be "
+		  "automatically restarted when node joins back to cluster");
+       wsrep_restart_slave_activated= TRUE;
+     }
+   }
+  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  thd->set_wsrep_query_state(QUERY_EXITING);
+  if (WSREP(thd)) wsrep->free_connection(wsrep, thd->thread_id);
+  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 #endif /* WITH_WSREP */
 
  /*

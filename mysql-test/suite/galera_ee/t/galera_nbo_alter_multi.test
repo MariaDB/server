@@ -1,0 +1,15 @@
+#
+# Test multi-item ALTER TABLE under NBO
+#
+
+--source include/galera_cluster.inc
+
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+
+SET SESSION wsrep_osu_method=NBO;
+ALTER TABLE t1 LOCK=SHARED, ADD PRIMARY KEY (f1), ADD COLUMN f2 INTEGER;
+
+--connection node_2
+SHOW CREATE TABLE t1;
+
+DROP TABLE t1;

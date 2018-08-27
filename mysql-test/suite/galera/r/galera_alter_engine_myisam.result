@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 SET GLOBAL wsrep_replicate_myisam = TRUE;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (1);

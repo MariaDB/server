@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE ten (f1 INTEGER);
 INSERT INTO ten VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
 CREATE TABLE t1 (f1 INT PRIMARY KEY AUTO_INCREMENT, f2 INTEGER) ENGINE=InnoDB;

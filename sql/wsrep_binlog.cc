@@ -20,6 +20,12 @@
 #include "log_event.h"
 #include "wsrep_applier.h"
 
+#include "transaction.h"
+
+const char *wsrep_fragment_units[] = { "bytes", "events", "rows", "statements", NullS };
+const char *wsrep_SR_store_types[] = { "none", "file", "table", NullS };
+
+
 extern handlerton *binlog_hton;
 /*
   Write the contents of a cache to a memory buffer.
@@ -112,7 +118,7 @@ heap_size(size_t length)
 }
 
 /* append data to writeset */
-static inline wsrep_status_t
+static inline wsrep_trx_status
 wsrep_append_data(wsrep_t*           const wsrep,
                   wsrep_ws_handle_t* const ws,
                   const void*        const data,
@@ -125,9 +131,13 @@ wsrep_append_data(wsrep_t*           const wsrep,
     if (rc != WSREP_OK)
     {
         WSREP_WARN("append_data() returned %d", rc);
+        if (WSREP_SIZE_EXCEEDED == rc)
+            return WSREP_TRX_SIZE_EXCEEDED;
+        else
+            return WSREP_TRX_ERROR;
     }
 
-    return rc;
+    return WSREP_TRX_OK;
 }
 
 /*
@@ -139,28 +149,32 @@ wsrep_append_data(wsrep_t*           const wsrep,
   This version reads all of cache into single buffer and then appends to a
   writeset at once.
  */
-static int wsrep_write_cache_once(wsrep_t*  const wsrep,
-                                  THD*      const thd,
-                                  IO_CACHE* const cache,
-                                  size_t*   const len)
+static wsrep_trx_status wsrep_write_cache_once(wsrep_t*  const wsrep,
+                                               THD*      const thd,
+                                               IO_CACHE* const cache,
+                                               size_t*   const len)
 {
     my_off_t const saved_pos(my_b_tell(cache));
     DBUG_ENTER("wsrep_write_cache_once");
 
-    if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
+    if (reinit_io_cache(cache, READ_CACHE, wsrep_get_fragment_base(thd), 0, 0))
     {
         WSREP_ERROR("failed to initialize io-cache");
-        DBUG_RETURN(ER_ERROR_ON_WRITE);
+        DBUG_RETURN(WSREP_TRX_ERROR);
     }
 
-    int err(WSREP_OK);
+    wsrep_trx_status ret(WSREP_TRX_OK);
 
     size_t total_length(0);
     uchar  stack_buf[STACK_SIZE]; /* to avoid dynamic allocations for few data*/
-    uchar* heap_buf(NULL);
     uchar* buf(stack_buf);
     size_t allocated(sizeof(stack_buf));
     size_t used(0);
+
+    if (thd->wsrep_fragments_sent > 0)
+    {
+      allocated = 0;
+    }
 
     uint length(my_b_bytes_in_cache(cache));
     if (unlikely(0 == length)) length = my_b_fill(cache);
@@ -178,31 +192,31 @@ static int wsrep_write_cache_once(wsrep_t*  const wsrep,
         {
             WSREP_WARN("transaction size limit (%lu) exceeded: %zu",
                        wsrep_max_ws_size, total_length);
-	    err = WSREP_TRX_SIZE_EXCEEDED;
+            ret = WSREP_TRX_SIZE_EXCEEDED;
             goto cleanup;
         }
 
         if (total_length > allocated)
         {
             size_t const new_size(heap_size(total_length));
-            uchar* tmp = (uchar *)my_realloc(heap_buf, new_size,
-                                             MYF(MY_ALLOW_ZERO_PTR));
+            uchar* tmp = (uchar *)my_realloc(thd->wsrep_rbr_buf,
+                                             new_size, MYF(MY_ALLOW_ZERO_PTR));
             if (!tmp)
             {
                 WSREP_ERROR("could not (re)allocate buffer: %zu + %u",
                             allocated, length);
-                err = WSREP_TRX_SIZE_EXCEEDED;
+                ret = WSREP_TRX_ERROR;
                 goto cleanup;
             }
 
-            heap_buf = tmp;
-            buf = heap_buf;
+            thd->wsrep_rbr_buf = tmp;
+            buf = thd->wsrep_rbr_buf;
             allocated = new_size;
 
             if (used <= STACK_SIZE && used > 0) // there's data in stack_buf
             {
                 DBUG_ASSERT(buf == stack_buf);
-                memcpy(heap_buf, stack_buf, used);
+                memcpy(thd->wsrep_rbr_buf, stack_buf, used);
             }
         }
 
@@ -216,23 +230,34 @@ static int wsrep_write_cache_once(wsrep_t*  const wsrep,
     } while ((length = my_b_fill(cache)));
 
     if (used > 0)
-        err = wsrep_append_data(wsrep, &thd->wsrep_ws_handle, buf, used);
+        ret = wsrep_append_data(wsrep, &thd->wsrep_ws_handle, buf, used);
 
-    if (WSREP_OK == err) *len = total_length;
+    if (WSREP_TRX_OK == ret)
+    {
+#ifndef NDEBUG
+      ulong fb= wsrep_get_fragment_base(thd);
+      assert(total_length + fb == saved_pos);
+#endif
+    }
 
 cleanup:
+    *len = total_length;
     if (reinit_io_cache(cache, WRITE_CACHE, saved_pos, 0, 0))
     {
         WSREP_ERROR("failed to reinitialize io-cache");
     }
 
-    if (unlikely(WSREP_OK != err))
+    if (unlikely(WSREP_TRX_OK != ret))
     {
       wsrep_dump_rbr_buf_with_header(thd, buf, used);
     }
+    if (thd->wsrep_fragments_sent == 0)
+    {
+      my_free(thd->wsrep_rbr_buf);
+      thd->wsrep_rbr_buf = NULL;
+    }
 
-    my_free(heap_buf);
-    DBUG_RETURN(err);
+    DBUG_RETURN(ret);
 }
 
 /*
@@ -243,21 +268,21 @@ cleanup:
 
   This version uses incremental data appending as it reads it from cache.
  */
-static int wsrep_write_cache_inc(wsrep_t*  const wsrep,
-                                 THD*      const thd,
-                                 IO_CACHE* const cache,
-                                 size_t*   const len)
+static wsrep_trx_status wsrep_write_cache_inc(wsrep_t*  const wsrep,
+                                              THD*      const thd,
+                                              IO_CACHE* const cache,
+                                              size_t*   const len)
 {
     my_off_t const saved_pos(my_b_tell(cache));
     DBUG_ENTER("wsrep_write_cache_inc");
 
-    if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
+    if (reinit_io_cache(cache, READ_CACHE, wsrep_get_fragment_base(thd), 0, 0))
     {
       WSREP_ERROR("failed to initialize io-cache");
       DBUG_RETURN(WSREP_TRX_ERROR);
     }
 
-    int err(WSREP_OK);
+    wsrep_trx_status ret(WSREP_TRX_OK);
 
     size_t total_length(0);
 
@@ -275,12 +300,12 @@ static int wsrep_write_cache_inc(wsrep_t*  const wsrep,
         {
             WSREP_WARN("transaction size limit (%lu) exceeded: %zu",
                        wsrep_max_ws_size, total_length);
-            err = WSREP_TRX_SIZE_EXCEEDED;
+            ret = WSREP_TRX_SIZE_EXCEEDED;
             goto cleanup;
         }
 
-        if(WSREP_OK != (err=wsrep_append_data(wsrep, &thd->wsrep_ws_handle,
-                                              cache->read_pos, length)))
+        if(WSREP_TRX_OK != (ret=wsrep_append_data(wsrep, &thd->wsrep_ws_handle,
+                                                  cache->read_pos, length)))
                 goto cleanup;
 
         if (cache->file < 0)
@@ -290,15 +315,19 @@ static int wsrep_write_cache_inc(wsrep_t*  const wsrep,
         }
     } while ((length = my_b_fill(cache)));
 
-    if (WSREP_OK == err) *len = total_length;
+    if (WSREP_TRX_OK == ret)
+    {
+      assert(total_length + wsrep_get_fragment_base(thd) == saved_pos);
+    }
 
 cleanup:
+    *len = total_length;
     if (reinit_io_cache(cache, WRITE_CACHE, saved_pos, 0, 0))
     {
         WSREP_ERROR("failed to reinitialize io-cache");
     }
 
-    DBUG_RETURN(err);
+    DBUG_RETURN(ret);
 }
 
 /*
@@ -307,12 +336,12 @@ cleanup:
   This function quite the same as MYSQL_BIN_LOG::write_cache(),
   with the exception that here we write in buffer instead of log file.
  */
-int wsrep_write_cache(wsrep_t*  const wsrep,
-                      THD*      const thd,
-                      IO_CACHE* const cache,
-                      size_t*   const len)
+wsrep_trx_status wsrep_write_cache(wsrep_t*  const wsrep,
+                                   THD*      const thd,
+                                   IO_CACHE* const cache,
+                                   size_t*   const len)
 {
-    if (wsrep_incremental_data_collection) {
+    if (wsrep_incremental_data_collection && thd->wsrep_fragments_sent == 0) {
         return wsrep_write_cache_inc(wsrep, thd, cache, len);
     }
     else {
@@ -512,3 +541,99 @@ cleanup1:
   DBUG_VOID_RETURN;
 }
 
+#include "wsrep_thd_pool.h"
+extern Wsrep_thd_pool *wsrep_thd_pool;
+
+#include "log_event.h"
+// #include "binlog.h"
+
+int wsrep_write_dummy_event_low(THD *thd, const char *msg)
+{
+  int ret= 0;
+  if (mysql_bin_log.is_open() && wsrep_gtid_mode)
+  {
+    DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
+
+    /* For restoring orig thd state before returing it back to pool */
+    int wsrep_on= thd->variables.wsrep_on;
+    int sql_log_bin= thd->variables.sql_log_bin;
+    int option_bits= thd->variables.option_bits;
+    enum wsrep_exec_mode exec_mode= thd->wsrep_exec_mode;
+
+    /*
+      Fake that the connection is local client connection for the duration
+      of mysql_bin_log.write_event(), otherwise the write will fail.
+    */
+    thd->wsrep_exec_mode= LOCAL_STATE;
+    thd->variables.wsrep_on= 1;
+    thd->variables.sql_log_bin= 1;
+    thd->variables.option_bits |= OPTION_BIN_LOG;
+
+    Ignorable_log_event skip_event(thd);
+    ret= mysql_bin_log.write_event(&skip_event);
+
+    /* Restore original thd state */
+    thd->wsrep_exec_mode= exec_mode;
+    thd->variables.wsrep_on= wsrep_on;
+    thd->variables.sql_log_bin= sql_log_bin;
+    thd->variables.option_bits= option_bits;
+
+    if (ret)
+    {
+      WSREP_ERROR("Write to binlog failed: %d", ret);
+      abort();
+      unireg_abort(1);
+    }
+    ret= trans_commit_stmt(thd);
+    if (ret)
+    {
+      WSREP_ERROR("STMT commit failed: %d", ret);
+      abort();
+    }
+  }
+
+  return ret;
+}
+
+int wsrep_write_dummy_event(THD *orig_thd, const char *msg)
+{
+  if (WSREP_EMULATE_BINLOG(orig_thd))
+  {
+    return 0;
+  }
+
+  /* Use tmp thd for the transaction to avoid messing up orig_thd
+     transaction state */
+  THD* thd= wsrep_thd_pool->get_thd(0);
+
+  if (!thd)
+  {
+    return 1;
+  }
+
+  /*
+    Use original THD wsrep TRX meta data and WS handle to make
+    commit generate GTID and go through commit ordering hooks.
+   */
+  wsrep_trx_meta_t meta_save= thd->wsrep_trx_meta;
+  thd->wsrep_trx_meta= orig_thd->wsrep_trx_meta;
+  wsrep_ws_handle_t handle_save= thd->wsrep_ws_handle;
+  thd->wsrep_ws_handle= orig_thd->wsrep_ws_handle;
+
+  int ret= wsrep_write_dummy_event_low(thd, msg);
+
+  if (ret || (ret= trans_commit(thd)))
+  {
+    WSREP_ERROR("Failed to write skip event into binlog");
+    abort();
+    unireg_abort(1);
+  }
+
+  thd->wsrep_trx_meta= meta_save;
+  thd->wsrep_ws_handle= handle_save;
+
+  wsrep_thd_pool->release_thd(thd);
+
+  orig_thd->store_globals();
+  return ret;
+}

@@ -1,0 +1,21 @@
+SET GLOBAL wsrep_on=OFF;
+DROP SCHEMA test;
+SET GLOBAL wsrep_on=OFF;
+CREATE TABLE t1 (f1 INTEGER);
+CREATE TABLE t1 (f1 INTEGER);
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_sync_wait=0;
+Killing server ...
+Killing server ...
+DROP TABLE test.t1;
+CALL mtr.add_suppression("Inconsistent by consensus.");
+CALL mtr.add_suppression("Error_code: 1049");
+CALL mtr.add_suppression("WSREP: Failed to apply trx: source: ");
+CALL mtr.add_suppression("WSREP: Failed to apply app buffer");
+CALL mtr.add_suppression("WSREP: Node consistency compromized, leaving cluster...");
+CALL mtr.add_suppression("Inconsistent by consensus.");
+CALL mtr.add_suppression("Error_code: 1050");
+CALL mtr.add_suppression("WSREP: Failed to apply trx: source: ");
+CALL mtr.add_suppression("WSREP: Failed to apply app buffer");
+CALL mtr.add_suppression("WSREP: Node consistency compromized, leaving cluster...");

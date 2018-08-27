@@ -43,6 +43,9 @@ Created April 08, 2011 Vasil Dimov
 #include "ut0byte.h"
 
 #include <algorithm>
+#ifdef WITH_WSREP_OUT
+extern my_bool wsrep_recovery;
+#endif /* WITH_WSREP */
 
 #include "mysql/service_wsrep.h" /* wsrep_recovery */
 #include <my_service_manager.h>
@@ -824,7 +827,7 @@ DECLARE_THREAD(buf_dump_thread)(void*)
 	if (srv_buffer_pool_load_at_startup) {
 
 #ifdef WITH_WSREP
-		if (!wsrep_recovery) {
+		if (!get_wsrep_recovery()) {
 #endif /* WITH_WSREP */
 			buf_load();
 #ifdef WITH_WSREP

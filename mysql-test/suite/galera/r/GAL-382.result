@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 create table t1 (i int, j int, k int, primary key pk(i)) engine=innodb;
 insert into t1 values (1, 1, 1), (2, 2, 2), (3, 3, 3);

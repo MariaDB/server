@@ -1,0 +1,37 @@
+#
+# This test tests voting for DDLs (TOI events)
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_2
+SET GLOBAL wsrep_on=OFF;
+CREATE TABLE test.t1 (f2 INTEGER);
+SET GLOBAL wsrep_on=ON;
+
+--error ER_TABLE_EXISTS_ERROR
+CREATE TABLE test.t1 (f1 INTEGER);
+
+--connection node_1
+# wait for node_2 to disappear
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+SHOW CREATE TABLE test.t1;
+SHOW STATUS LIKE 'wsrep_cluster_status';
+DROP TABLE test.t1;
+
+--connection node_2
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+SET GLOBAL wsrep_on=OFF;
+SHOW CREATE TABLE test.t1;
+SHOW STATUS LIKE 'wsrep_cluster_status';
+--source include/kill_galera.inc
+--sleep 1
+--source include/start_mysqld.inc
+
+CALL mtr.add_suppression("Inconsistent by consensus.");
+CALL mtr.add_suppression("WSREP: Failed to execute TOI action");
+CALL mtr.add_suppression("WSREP: TO isolation end failed");

@@ -1,0 +1,92 @@
+#
+# Test the case where a master node (node #2) goes non-primary while a DDL is running
+# The DDL times out and the node leaves the cluster, to rejoin via SST.
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+--source include/big_test.inc
+
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+# Issue a DDL
+
+--connection node_2
+SET GLOBAL debug = 'd,sync.alter_locked_tables_inplace';
+SET SESSION wsrep_osu_method=NBO;
+SET SESSION lock_wait_timeout=2;
+--send ALTER TABLE t1 ALGORITHM=INPLACE, LOCK=SHARED, ADD COLUMN f2 INTEGER;
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: now';
+--source include/wait_condition.inc
+
+# Isolate the master (node #2)
+
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+
+--connection node_1
+--source include/wait_until_connected_again.inc
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 2 FROM wsrep_schema.members;
+--source include/wait_condition.inc
+
+# Confirm that the DDL remains blocked in NBO
+
+--connection node_2a
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SET GLOBAL debug = '';
+
+SET SESSION wsrep_on=OFF;
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'acquiring total order isolation for NBO end'
+--source include/wait_condition.inc
+
+# DDL should now return a failure
+
+--connection node_2
+--error ER_ERROR_DURING_COMMIT
+--reap
+
+# Node #2 is now non-prim
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+
+--connection node_1
+INSERT INTO t1 VALUES (2,2);
+
+--connection node_2
+# So we restart it to force SST
+SET SESSION wsrep_on = OFF;
+--source include/restart_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+# Confirm that the nodes are identical
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) = 2 FROM t1;
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
+--source include/wait_condition.inc
+
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) = 2 FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+
+--connection node_2
+CALL mtr.add_suppression("Lock wait timeout while waiting NBO end to replicate");
+CALL mtr.add_suppression("Failed to acquire total order isolation for non-blocking DDL end event, provider returned error code 6");
+CALL mtr.add_suppression("This will leave database in inconsistent state since DDL execution cannot be terminated in order");
+

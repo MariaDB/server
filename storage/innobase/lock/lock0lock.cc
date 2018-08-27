@@ -778,9 +778,7 @@ lock_rec_has_to_wait(
 				<< wsrep_thd_query(lock2->trx->mysql_thd);
 		}
 
-		if (wsrep_trx_order_before(trx->mysql_thd,
-					   lock2->trx->mysql_thd)
-		    && (type_mode & LOCK_MODE_MASK) == LOCK_X
+		if ((type_mode & LOCK_MODE_MASK) == LOCK_X
 		    && (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X) {
 			if (for_locking || wsrep_debug) {
 				/* exclusive lock conflicts are not
@@ -1115,11 +1113,14 @@ wsrep_kill_victim(
 	}
 
 	my_bool bf_this  = wsrep_thd_is_BF(trx->mysql_thd, FALSE);
+	if (!bf_this) return;
+
 	my_bool bf_other = wsrep_thd_is_BF(lock->trx->mysql_thd, TRUE);
 
 	if ((bf_this && !bf_other) ||
-		(bf_this && bf_other && wsrep_trx_order_before(
-			trx->mysql_thd, lock->trx->mysql_thd))) {
+//		(bf_this && bf_other && wsrep_trx_order_before(
+//			trx->mysql_thd, lock->trx->mysql_thd))) {
+            (bf_this)) {
 
 		if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 			if (wsrep_debug) {
@@ -6970,6 +6971,9 @@ DeadlockChecker::trx_rollback()
 	trx_t*	trx = m_wait_lock->trx;
 
 	print("*** WE ROLL BACK TRANSACTION (1)\n");
+#ifdef WITH_WSREP
+        wsrep_handle_SR_rollback(m_start->mysql_thd, trx->mysql_thd);
+#endif
 
 	trx_mutex_enter(trx);
 

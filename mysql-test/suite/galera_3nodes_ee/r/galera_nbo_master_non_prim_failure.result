@@ -1,0 +1,42 @@
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+SET GLOBAL debug = 'd,sync.alter_locked_tables_inplace';
+SET SESSION wsrep_osu_method=NBO;
+SET SESSION lock_wait_timeout=2;
+ALTER TABLE t1 ALGORITHM=INPLACE, LOCK=SHARED, ADD COLUMN f2 INTEGER;;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+SET SESSION wsrep_sync_wait = 0;
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SET GLOBAL debug = '';
+SET SESSION wsrep_on=OFF;
+SET SESSION wsrep_sync_wait = 0;
+ERROR HY000: Got error 6 during COMMIT
+SET SESSION wsrep_sync_wait = 0;
+SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE = 'non-Primary'
+1
+INSERT INTO t1 VALUES (2,2);
+SET SESSION wsrep_on = OFF;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  `f2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) = 2 FROM t1;
+COUNT(*) = 2
+1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  `f2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) = 2 FROM t1;
+COUNT(*) = 2
+1
+DROP TABLE t1;
+CALL mtr.add_suppression("Lock wait timeout while waiting NBO end to replicate");
+CALL mtr.add_suppression("Failed to acquire total order isolation for non-blocking DDL end event, provider returned error code 6");
+CALL mtr.add_suppression("This will leave database in inconsistent state since DDL execution cannot be terminated in order");

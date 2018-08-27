@@ -1,0 +1,11 @@
+# NB-DDL: Assertion `thd->wsrep_nbo_ctx' failed in lock_table_names when starting server with --wsrep-OSU-method=NBO 
+
+--source include/galera_cluster.inc
+
+SET SESSION wsrep_OSU_method=TOI;
+CREATE TABLE t1 (f1 INTEGER);
+SET SESSION wsrep_OSU_method=NBO;
+ALTER TABLE t1 LOCK=SHARED, ADD COLUMN f2 INTEGER;
+SET SESSION wsrep_OSU_method=TOI;
+DROP TABLE t1;
+SET SESSION wsrep_OSU_method=NBO;

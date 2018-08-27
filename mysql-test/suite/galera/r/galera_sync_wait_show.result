@@ -1,4 +1,6 @@
 connection node_2;
+connection node_1;
+connection node_2;
 SET SESSION wsrep_sync_wait = 8;
 connection node_1;
 CREATE DATABASE db1;

@@ -4197,14 +4197,14 @@ reexecute:
 
   if (WSREP_ON)
   {
-    mysql_mutex_lock(&thd->LOCK_thd_data);
-    switch (thd->wsrep_conflict_state)
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    switch (thd->wsrep_conflict_state())
     {
       case CERT_FAILURE:
         WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %lld  err: %d",
 	            (longlong) thd->thread_id,
                     thd->get_stmt_da()->sql_errno() );
-        thd->wsrep_conflict_state = NO_CONFLICT;
+        thd->set_wsrep_conflict_state(NO_CONFLICT);
         break;
 
       case MUST_REPLAY:
@@ -4214,7 +4214,7 @@ reexecute:
       default:
         break;
     }
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
   }
 #endif /* WITH_WSREP */
 
@@ -4393,14 +4393,14 @@ reexecute:
 
     if (WSREP_ON)
     {
-      mysql_mutex_lock(&thd->LOCK_thd_data);
-      switch (thd->wsrep_conflict_state)
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      switch (thd->wsrep_conflict_state())
       {
       case CERT_FAILURE:
         WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %lld  err: %d",
 	            (longlong) thd->thread_id,
                     thd->get_stmt_da()->sql_errno() );
-        thd->wsrep_conflict_state = NO_CONFLICT;
+        thd->set_wsrep_conflict_state(NO_CONFLICT);
         break;
 
       case MUST_REPLAY:

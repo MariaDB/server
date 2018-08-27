@@ -1,0 +1,38 @@
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+SET SESSION wsrep_osu_method=NBO;
+
+--connection node_2
+SET GLOBAL debug = 'd,sync.alter_locked_tables_inplace';
+
+--connection node_1
+--send ALTER TABLE t1 ALGORITHM=INPLACE, LOCK=SHARED, ADD PRIMARY KEY (f1);
+
+--connection node_2
+SET SESSION wsrep_sync_wait=0;
+
+# Wait for the ALTER to block in sync point
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: now';
+--source include/wait_condition.inc
+
+--send INSERT INTO t1 VALUES (1);
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SET GLOBAL debug = '';
+
+--connection node_2
+--error ER_DUP_ENTRY
+--reap
+
+--connection node_1
+--reap
+
+SET SESSION wsrep_OSU_method=TOI;
+DROP TABLE t1;

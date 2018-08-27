@@ -42,6 +42,8 @@
 #include "sql_derived.h"
 #include "sql_show.h"
 
+#include "wsrep_mysqld.h"
+
 extern "C" int _my_b_net_read(IO_CACHE *info, uchar *Buffer, size_t Count);
 
 class XML_TAG {
@@ -106,7 +108,7 @@ static bool wsrep_load_data_split(THD *thd, const TABLE *table,
 {
   DBUG_ENTER("wsrep_load_data_split");
 
-  if (!wsrep_load_data_splitting || !wsrep_on(thd)
+  if (!wsrep_load_data_splitting || !WSREP(thd)
       || !info.records || (info.records % 10000)
       || !thd->transaction.stmt.ha_list
       || thd->transaction.stmt.ha_list->ht() != binlog_hton
@@ -119,10 +121,15 @@ static bool wsrep_load_data_split(THD *thd, const TABLE *table,
     if (hton->db_type != DB_TYPE_INNODB)
       DBUG_RETURN(false);
     WSREP_DEBUG("intermediate transaction commit in LOAD DATA");
+#ifdef OUT /* this is old mariadb implementation... */
     if (wsrep_run_wsrep_commit(thd, true) != WSREP_TRX_OK) DBUG_RETURN(true);
     if (binlog_hton->commit(binlog_hton, thd, true)) DBUG_RETURN(true);
     wsrep_post_commit(thd, true);
     hton->commit(hton, thd, true);
+#else
+    /* ...which is replaced by this */
+    wsrep_tc_log_commit(thd);
+#endif
     table->file->extra(HA_EXTRA_FAKE_START_STMT);
   }
 

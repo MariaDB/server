@@ -5224,3 +5224,104 @@ String *Item_temptable_rowid::val_str(String *str)
   str_value.set((char*)(table->file->ref), max_length, &my_charset_bin);
   return &str_value;
 }
+#ifdef WITH_WSREP
+
+#include "wsrep_mysqld.h"
+
+String * Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
+{
+  wsrep_gtid_t gtid;
+  wsrep_thd_last_written_gtid(current_thd, &gtid);
+  
+  if (gtid_str.alloc(WSREP_GTID_STR_LEN))
+  {
+    my_error(ER_OUTOFMEMORY, WSREP_GTID_STR_LEN);
+    null_value= true;
+    return NULL;
+  }
+  int gtid_len = wsrep_gtid_print(&gtid,
+                                  (char*)gtid_str.ptr(),
+                                  WSREP_GTID_STR_LEN);
+  if (gtid_len < 0)
+  {
+    my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), func_name(),
+             "wsrep_gtid_print failed");
+    null_value= true;
+    return NULL;
+  }
+  gtid_str.length(gtid_len);
+  return &gtid_str;
+}
+
+String * Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
+{
+  wsrep_gtid_t gtid;
+  wsrep_last_committed_id(&gtid);
+  
+  if (gtid_str.alloc(WSREP_GTID_STR_LEN))
+  {
+    my_error(ER_OUTOFMEMORY, WSREP_GTID_STR_LEN);
+    null_value= true;
+    return NULL;
+  }
+  int gtid_len= wsrep_gtid_print(&gtid,
+                                 (char*)gtid_str.ptr(),
+                                 WSREP_GTID_STR_LEN);
+  if (gtid_len < 0)
+  {
+    my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), func_name(),
+             "wsrep_gtid_print failed");
+    null_value= true;
+    return NULL;
+  }
+  gtid_str.length(gtid_len);
+  return &gtid_str;
+}
+
+longlong Item_func_wsrep_sync_wait_upto::val_int()
+{
+  int timeout = -1;
+  String* gtid_str= args[0]->val_str(&value);
+  if (gtid_str == NULL)
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), func_name());
+    return 0LL;
+  }
+
+  if (arg_count == 2)
+  {
+    timeout = args[1]->val_int();
+  }
+
+  wsrep_gtid_t gtid;
+  int gtid_len= wsrep_gtid_scan(gtid_str->ptr(), gtid_str->length(), &gtid);
+  if (gtid_len < 0)
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), func_name());
+    return 0LL;
+  }
+
+  if (gtid.seqno == WSREP_SEQNO_UNDEFINED &&
+      wsrep_uuid_compare(&gtid.uuid, &WSREP_UUID_UNDEFINED) == 0)
+  {
+    return 1LL;
+  }
+
+  wsrep_status_t status= wsrep_sync_wait_upto(current_thd, &gtid, timeout);
+
+  if (status != WSREP_OK)
+  {
+    int err;
+    switch (status) {
+    case WSREP_TRX_MISSING:
+      err= ER_WRONG_ARGUMENTS;
+      break;
+    default:
+      err= ER_LOCK_WAIT_TIMEOUT;
+    }
+    my_error(err, MYF(0), func_name());
+    return 0LL;
+  }
+  return 1LL;
+}
+#endif /* WITH_WSREP */

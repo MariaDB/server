@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
 connection node_2;
 FLUSH TABLES WITH READ LOCK;

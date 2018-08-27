@@ -1,0 +1,63 @@
+#
+# This test tests that TOI failure on 2 nodes (master and slave) for the
+# same reason, wins over success on a third slave.
+# In particular this tests that master and slave TOI cast the same vote for
+# the same error
+#
+--source include/galera_3nodes.inc
+--source include/have_innodb.inc
+
+# create inconsistency on node 3
+--connection node_3
+SET GLOBAL wsrep_on=OFF;
+DROP SCHEMA test;
+
+# This should fail on nodes 1 and 2 and succeed on node 3
+--connection node_1
+--error ER_DB_CREATE_EXISTS
+CREATE SCHEMA test;
+
+--connection node_1
+SET SESSION wsrep_sync_wait=0;
+# wait for node 3 to drop from the cluster
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--connection node_2
+SET SESSION wsrep_sync_wait=0;
+# wait for node 3 to drop from the cluster
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--connection node_3
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+# reconnect node 3, since it failed
+--connection node_3
+--source include/kill_galera.inc
+--sleep 1
+--source include/start_mysqld.inc
+
+--connection node_1
+CALL mtr.add_suppression("Inconsistent by consensus.");
+CALL mtr.add_suppression("Error_code: 1007");
+CALL mtr.add_suppression("WSREP: Failed to apply trx: source: ");
+CALL mtr.add_suppression("WSREP: Failed to apply app buffer: seqno: 4, code: ");
+CALL mtr.add_suppression("WSREP: Node consistency compromized, leaving cluster...");
+
+--connection node_2
+CALL mtr.add_suppression("Inconsistent by consensus.");
+CALL mtr.add_suppression("Error_code: 1007");
+CALL mtr.add_suppression("WSREP: Failed to apply trx: source: ");
+CALL mtr.add_suppression("WSREP: Failed to apply app buffer: seqno: 4, code: ");
+CALL mtr.add_suppression("WSREP: Node consistency compromized, leaving cluster...");
+
+--connection node_3
+CALL mtr.add_suppression("inconsistent with group");
+

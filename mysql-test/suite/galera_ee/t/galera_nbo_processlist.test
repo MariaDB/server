@@ -1,0 +1,81 @@
+#
+# Check that non-blocking DDL indeed runs in a separate thread as seen in SHOW PROCESSLIST
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+--connection node_2
+# At the start, we only have 2 applier threads, 1 standard applier and 
+# 1 aborter and 1 post aborter
+SELECT COUNT(*) = 3 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+
+# Set ALTER TABLE to block in the applier thread. wsrep_sync_wait = 0 for the duration, as causal reads will be blocked
+--let $debug_orig = `SELECT @@debug`
+SET GLOBAL debug = 'd,sync.alter_opened_table';
+SET SESSION wsrep_sync_wait = 0;
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+
+SET SESSION wsrep_osu_method='NBO';
+--send ALTER TABLE t1 LOCK=SHARED, ADD COLUMN f2 INTEGER;
+
+--connection node_2
+# There is a separate applier thread for the ALTER TABLE
+--let $wait_condition = SELECT COUNT(*) = 4 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+--source include/wait_condition.inc
+
+# The applier thread is blocked
+SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST
+WHERE USER = 'system user'
+AND STATE = 'debug sync point: now'
+AND INFO = 'ALTER TABLE t1 LOCK=SHARED, ADD COLUMN f2 INTEGER';
+
+--let $ddl_applier_id = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: now'`
+
+# The DDL has not yet been applied
+SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+
+# The DDL applier thread can not be killed
+--disable_query_log
+--replace_regex /[0-9]+/N/
+--error ER_KILL_DENIED_ERROR
+--eval KILL CONNECTION $ddl_applier_id;
+
+--replace_regex /[0-9]+/N/
+--error ER_KILL_DENIED_ERROR
+--eval KILL QUERY $ddl_applier_id;
+--enable_query_log
+
+# Then, if we unblock the applier thread
+--disable_query_log
+--eval SET GLOBAL debug = '$debug_orig';
+--enable_query_log
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_opened_table';
+SET SESSION wsrep_sync_wait = 7;
+
+# ... the applier thread will terminate
+--let $wait_condition = SELECT COUNT(*) = 3 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user'
+--source include/wait_condition.inc
+
+SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST
+WHERE USER = 'system user'
+AND STATE = 'debug sync point: now'
+AND INFO = 'ALTER TABLE t1 ADD COLUMN f2 INTEGER';
+
+# The alter has now been applied
+SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+
+# Both DDL and DML are now possible
+
+INSERT INTO t1 VALUES (1,2);
+ALTER TABLE t1 LOCK=SHARED, ADD COLUMN t3 INTEGER;
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+--connection node_1
+--reap

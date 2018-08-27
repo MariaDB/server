@@ -55,6 +55,14 @@ INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 --connection node_2
 --source suite/galera/include/galera_load_provider.inc
 
+#
+# client connections were killed by provider load, so have to re-open here
+#
+--disconnect node_2
+--connect node_2, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2
+--enable_reconnect
+
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
 

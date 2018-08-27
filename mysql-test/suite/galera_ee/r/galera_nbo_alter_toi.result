@@ -1,0 +1,38 @@
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+SET GLOBAL debug = 'd,sync.alter_locked_tables_inplace';
+SET SESSION wsrep_osu_method=NBO;
+ALTER TABLE t1 ALGORITHM=INPLACE, LOCK=SHARED, ADD PRIMARY KEY (f1);;
+ALTER TABLE t2 LOCK=SHARED, ADD COLUMN f2 INTEGER;
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL debug = '';
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` int(11) DEFAULT NULL,
+  `f2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` int(11) DEFAULT NULL,
+  `f2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SET SESSION wsrep_osu_method=TOI;
+DROP TABLE t1;
+DROP TABLE t2;

@@ -1,0 +1,45 @@
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+COUNT(*) > 0
+1
+SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+COUNT(*) > 0
+1
+SET GLOBAL wsrep_cluster_address = '';
+INSERT INTO t1 VALUES (6);
+Got one of the listed errors
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+COUNT(*) = 0
+1
+SELECT * FROM wsrep_schema.SR;
+node_uuid	trx_id	seqno	flags	frag
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+COUNT(*) = 0
+1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+INSERT INTO t1 VALUES (5);
+COMMIT;
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+COUNT(*) = 0
+1
+SELECT COUNT(*) = 5 FROM t1;
+COUNT(*) = 5
+1
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+COUNT(*) = 0
+1
+DROP TABLE t1;
+CALL mtr.add_suppression("WSREP: failed to send SR rollback for");

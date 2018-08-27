@@ -81,7 +81,47 @@ if (!$tmp) {
   SHOW SLAVE STATUS;
 }
 
-call mtr.check_testcase();
+if (`SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME='wsrep_schema'`) {
+    if (`SELECT COUNT(*) > 0 FROM wsrep_schema.SR`) {
+    --die The wsrep_schema.SR table is not empty at the end of the test
+    }
+}
+
+--let $mysql_port= `SELECT @@port`
+# The state file is used to distinguish whether this execution of
+# check-testcase.test is before or after a particular test.
+# * If it does not exist, then this is a "before" execution and we create it,
+# * If it exists, then this is an "after" execution and we delete it.
+--let _STATE_FILE= $MYSQL_TMP_DIR/check_testcase_state_$mysql_port
+--let _INC_FILE= $MYSQL_TMP_DIR/check_testcase_state_$mysql_port.inc
+--perl
+use strict;
+my $state_file= $ENV{'_STATE_FILE'};
+my $before= 1;
+if (-e $state_file) {
+  $before= 0;
+}
+my $fh;
+my $inc_file= $ENV{'_INC_FILE'};
+if (!open($fh, ">", $inc_file)) {
+  die "Unable to open '$inc_file' for writing: $!";
+}
+print $fh "--let \$before= $before\n";
+close $fh;
+if ($before) {
+  if (!open($fh, ">", $state_file)) {
+    die "Unable to open '$state_file' for writing: $!";
+  }
+  close $fh;
+} else {
+  if (!unlink($state_file)) {
+    die "Unable to delete '$state_file': $!";
+  }
+}
+EOF
+--source $_INC_FILE
+--remove_file $_INC_FILE
+# Now $before is set to 1 if we are executing before the test and 0 if after the test.
 
 let $datadir=`select @@datadir`;
 list_files $datadir mysql_upgrade_info;
@@ -90,6 +130,52 @@ list_files_write_file $datadir.tempfiles.txt $datadir/test #sql*;
 cat_file $datadir.tempfiles.txt;
 remove_file $datadir.tempfiles.txt;
 list_files $datadir/mysql #sql*;
+
+#
+# Check that SHOW ENGINE INNODB STATUS does not show any active transactions
+# We do this only if wsrep provider is loaded, to avoid disturbing any non-Galera MTR tests
+#
+
+if (`SELECT @@wsrep_on`) {
+  if (`SELECT COUNT(*) FROM information_schema.innodb_trx WHERE trx_mysql_thread_id != 0`) {
+    if ($before) {
+      --echo Before test start.
+    }
+    if (!$before) {
+      --echo After test end.
+    }
+    --echo There is one or more active InnoDB transaction(s) when there should be none. Dumping some diagnostics.
+
+    --enable_query_log
+
+    SET GLOBAL innodb_status_output_locks=ON;
+    SHOW ENGINE INNODB STATUS;
+    SET GLOBAL innodb_status_output_locks=default;
+
+    --vertical_results
+    if ($before) {
+      --replace_regex /$/ /
+    }
+    SELECT * FROM information_schema.processlist;
+
+    if ($before) {
+      --replace_regex /$/ /
+    }
+    SELECT * FROM information_schema.innodb_trx;
+
+    if ($before) {
+      --replace_regex /$/ /
+    }
+    SELECT * FROM information_schema.innodb_locks;
+
+    if ($before) {
+      --replace_regex /$/ /
+    }
+    SELECT * FROM information_schema.innodb_lock_waits;
+    --horizontal_results
+    --disable_query_log
+  }
+}
 
 --enable_query_log
 

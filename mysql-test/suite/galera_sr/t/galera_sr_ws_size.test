@@ -1,0 +1,70 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Test that SR transaction is cumulatively allowed to grow beyond repl.max_ws_size
+# if individual fragements are below that size
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, f2 VARCHAR(254)) ENGINE=InnoDB;
+CREATE TABLE ten (f1 INTEGER);
+INSERT INTO ten VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+
+--let $wsrep_trx_fragment_size_orig = `SELECT @@wsrep_trx_fragment_size`
+--let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
+
+SET SESSION wsrep_trx_fragment_size = 512;
+SET GLOBAL wsrep_provider_options='repl.max_ws_size=4096';
+
+#
+# Create a transaction larger than repl.max_ws_size
+#
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+INSERT INTO t1 (f2) SELECT REPEAT('x', 254) FROM ten AS a1;
+
+#
+# We expect that the transaction can proceed successfully
+# 
+
+--connection node_2
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+--let $wait_condition = SELECT COUNT(*) > 10 FROM t1;
+--source include/wait_condition.inc
+
+--connection node_1
+# Commit succeeds
+COMMIT;
+
+--connection node_2
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+SELECT COUNT(*) = 100 FROM t1;
+
+#
+# Cleanup
+#
+
+DROP TABLE t1;
+DROP TABLE ten;
+
+--connection node_1
+--disable_query_log
+--eval SET GLOBAL wsrep_provider_options = '$wsrep_provider_options_orig';
+--enable_query_log
+
+call mtr.add_suppression('WSREP: transaction size limit.*');
+call mtr.add_suppression('WSREP: rbr write fail.*');
+call mtr.add_suppression('WSREP: Maximum writeset size exceeded by.*');
+call mtr.add_suppression('WSREP: transaction size exceeded.*');

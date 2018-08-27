@@ -1,0 +1,60 @@
+Setting SST method to mysqldump ...
+GRANT ALL PRIVILEGES ON *.* TO 'sst';
+SET GLOBAL wsrep_sst_auth = 'sst:';
+SET GLOBAL wsrep_sst_method = 'mysqldump';
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+SET SESSION wsrep_on=OFF;
+ALTER TABLE t1 ADD PRIMARY KEY (f1);
+SET SESSION wsrep_on=ON;
+ALTER TABLE t1 LOCK=SHARED, DROP PRIMARY KEY;
+ERROR 42000: Can't DROP 'PRIMARY'; check that column/key exists
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE = 'Primary'
+1
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 2
+1
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE = 'Primary'
+1
+SET SESSION wsrep_on=OFF;
+SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE = 'non-Primary'
+1
+SET SESSION wsrep_on=ON;
+SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+VARIABLE_VALUE = 'Primary'
+1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SET SESSION wsrep_on=OFF;
+SET SESSION wsrep_on=ON;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+CALL mtr.add_suppression("is inconsistent with group");
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CALL mtr.add_suppression("Slave SQL: Error 'Can't DROP 'PRIMARY'; check that column/key exists'");
+CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
+DROP USER sst;
+CALL mtr.add_suppression("Slave SQL: Error 'The MySQL server is running with the --skip-grant-tables option so it cannot execute this statement' on query");
+CALL mtr.add_suppression("InnoDB: Error: Table \"mysql\"\\.\"innodb_index_stats\" not found");
+CALL mtr.add_suppression("InnoDB: New log files created");
+CALL mtr.add_suppression("InnoDB: Creating foreign key constraint system tables");
+CALL mtr.add_suppression("Can't open and lock time zone table");
+CALL mtr.add_suppression("Can't open and lock privilege tables");
+CALL mtr.add_suppression("Info table is not ready to be used");
+CALL mtr.add_suppression("Native table .* has the wrong structure");

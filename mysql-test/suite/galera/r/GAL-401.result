@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 SET GLOBAL wsrep_provider_options = 'pc.ignore_sb=true';
 connection node_2;
 SET @@global.wsrep_desync = 1;

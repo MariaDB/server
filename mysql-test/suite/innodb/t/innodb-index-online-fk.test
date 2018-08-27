@@ -105,7 +105,7 @@ SELECT * FROM information_schema.INNODB_SYS_FOREIGN_COLS;
 
 SELECT t2.name, t1.name FROM information_schema.innodb_sys_columns t1, information_schema.innodb_sys_tables t2 WHERE t1.table_id = t2.table_id AND t2.name LIKE "%child" ORDER BY t1.name;
 
-SELECT NAME FROM information_schema.INNODB_SYS_TABLES;
+SELECT NAME FROM information_schema.INNODB_SYS_TABLES WHERE NAME NOT LIKE 'wsrep%';
 
 # this should succeed, since we disabled the foreign key check
 INSERT INTO child VALUES(5,4);
@@ -287,7 +287,7 @@ SET DEBUG_DBUG = @saved_debug_dbug;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS;
 SELECT t2.name, t1.name FROM information_schema.innodb_sys_columns t1, information_schema.innodb_sys_tables t2 WHERE t1.table_id = t2.table_id AND t2.name LIKE "%child" ORDER BY t1.name;
-SELECT NAME FROM information_schema.INNODB_SYS_TABLES;
+SELECT NAME FROM information_schema.INNODB_SYS_TABLES WHERE NAME NOT LIKE 'wsrep%';
 
 # This should be successful. It will also check any left over
 # from previous failed operation (if dictionary entries not cleaned,
@@ -300,7 +300,7 @@ ALGORITHM = INPLACE;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS;
 SELECT t2.name, t1.name FROM information_schema.innodb_sys_columns t1, information_schema.innodb_sys_tables t2 WHERE t1.table_id = t2.table_id AND t2.name LIKE "%child" ORDER BY t1.name;
-SELECT NAME FROM information_schema.INNODB_SYS_TABLES;
+SELECT NAME FROM information_schema.INNODB_SYS_TABLES WHERE NAME NOT LIKE 'wsrep%';
 
 SHOW CREATE TABLE child;
 
@@ -317,7 +317,7 @@ ALGORITHM = INPLACE;
 SELECT * from information_schema.INNODB_SYS_FOREIGN;
 SELECT * from information_schema.INNODB_SYS_FOREIGN_COLS;
 SELECT t2.name, t1.name FROM information_schema.innodb_sys_columns t1, information_schema.innodb_sys_tables t2 WHERE t1.table_id = t2.table_id AND t2.name LIKE "%child" ORDER BY t1.name;
-SELECT NAME FROM information_schema.INNODB_SYS_TABLES;
+SELECT NAME FROM information_schema.INNODB_SYS_TABLES WHERE NAME NOT LIKE 'wsrep%';
 
 SHOW CREATE TABLE child;
 
@@ -333,7 +333,7 @@ ALGORITHM = INPLACE;
 SELECT * from information_schema.INNODB_SYS_FOREIGN;
 SELECT * from information_schema.INNODB_SYS_FOREIGN_COLS;
 SELECT t2.name, t1.name FROM information_schema.innodb_sys_columns t1, information_schema.innodb_sys_tables t2 WHERE t1.table_id = t2.table_id AND t2.name LIKE "%child" ORDER BY t1.name;
-SELECT NAME FROM information_schema.INNODB_SYS_TABLES;
+SELECT NAME FROM information_schema.INNODB_SYS_TABLES WHERE NAME NOT LIKE 'wsrep%';
 
 SHOW CREATE TABLE child;
 

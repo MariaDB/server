@@ -264,7 +264,16 @@ wsrep_recover_position() {
     wsrep_start_position_opt="--wsrep_start_position=$start_pos"
   fi
 
-  [ $ret -eq 0 ] && rm $wr_logfile
+  if [ $ret -eq 0 ] ; then
+    local wr_logfile_permanent="$DATADIR/wsrep_recovery.ok"
+  else
+    local wr_logfile_permanent="$DATADIR/wsrep_recovery.fail"
+  fi
+  touch $wr_logfile_permanent
+  [ "$euid" = "0" ] && chown $user $wr_logfile_permanent
+  chmod 600 $wr_logfile_permanent
+  cat "$wr_logfile" >> $wr_logfile_permanent
+  rm -f "$wr_logfile"
 
   return $ret
 }

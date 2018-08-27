@@ -56,6 +56,14 @@ Created 12/19/1997 Heikki Tuuri
 #include "ha_prototypes.h"
 #include "srv0mon.h"
 #include "ut0new.h"
+#include "m_string.h" /* for my_sys.h */
+#include "my_sys.h" /* DEBUG_SYNC_C */
+#include "wsrep_schema.h"
+
+#include "my_compare.h" /* enum icp_result */
+#include "thr_lock.h"
+#include "handler.h"
+#include "ha_innodb.h"
 
 /* Maximum number of rows to prefetch; MySQL interface has another parameter */
 #define SEL_MAX_N_PREFETCH	16
@@ -4488,6 +4496,13 @@ row_search_mvcc(
 
 		set_also_gap_locks = FALSE;
 	}
+#ifdef WITH_WSREP
+	if (wsrep_thd_skip_locking(trx->mysql_thd)) {
+
+		ut_ad(sr_table_name_full_str == prebuilt->table->name.m_name);
+		set_also_gap_locks = FALSE;
+	}
+#endif /* WITH_WSREP */
 
 	/* Note that if the search mode was GE or G, then the cursor
 	naturally moves upward (in fetch next) in alphabetical order,

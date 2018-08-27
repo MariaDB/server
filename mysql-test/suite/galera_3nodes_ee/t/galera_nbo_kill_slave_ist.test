@@ -1,0 +1,73 @@
+#
+# This test kills a slave while a DDL is being applied there
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/big_test.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+--connection node_3
+# Set so that the applier thread will block in mysql_alter_table()
+--let $debug_orig = `SELECT @@debug`
+SET GLOBAL debug = 'd,sync.alter_opened_table';
+
+--connection node_1
+SET SESSION wsrep_osu_method=NBO;
+--send ALTER TABLE t1 LOCK=SHARED, ADD COLUMN f2 INTEGER;
+
+--connection node_3
+# Wait until the ALTER above has arrived on the slave and has blocked in the applier thread
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = 'ALTER TABLE t1 LOCK=SHARED, ADD COLUMN f2 INTEGER' AND STATE = 'debug sync point: now';
+--source include/wait_condition.inc
+
+# Kill the slave (node #3)
+--source include/kill_galera.inc
+--sleep 5
+
+# Wait until node #3 is completely out of the cluster
+--connection node_2
+--source include/wait_until_connected_again.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+INSERT INTO t1 VALUES (1,2);
+INSERT INTO t1 VALUES (2,3);
+INSERT INTO t1 VALUES (3,4);
+INSERT INTO t1 VALUES (4,5);
+INSERT INTO t1 VALUES (5,6);
+
+# Restart node #3
+--connection node_3
+--let $galera_wsrep_recover_server_id=3
+--source suite/galera/include/galera_wsrep_recover.inc
+
+--source include/start_mysqld.inc
+--sleep 10
+
+# Check that all nodes have the same view of the database
+--source include/wait_until_connected_again.inc
+SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+SELECT COUNT(*) = 5 FROM t1;
+CALL mtr.add_suppression("WSREP: no corresponding NBO begin found for NBO end source");
+
+--connection node_2
+SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+SELECT COUNT(*) = 5 FROM t1;
+CALL mtr.add_suppression("WSREP: gcs_caused\\(\\) returned -1 \\(Operation not permitted\\)");
+
+--connection node_1
+--reap
+SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+SELECT COUNT(*) = 5 FROM t1;
+
+SET SESSION wsrep_OSU_method=TOI;
+DROP TABLE t1;

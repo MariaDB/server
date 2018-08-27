@@ -50,6 +50,8 @@ Created 4/20/1996 Heikki Tuuri
 #include "fts0types.h"
 #include "m_string.h"
 #include "gis0geo.h"
+#include "wsrep_mysqld.h"
+#include "wsrep_schema.h"
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -3226,9 +3228,26 @@ row_ins_clust_index_entry(
 
 	n_uniq = dict_index_is_unique(index) ? index->n_uniq : 0;
 
+#ifdef WITH_WSREP
+	const bool skip_locking
+		= wsrep_thd_skip_locking(thr_get_trx(thr)->mysql_thd);
+	ulint	flags = skip_locking | index->table->is_temporary()
+		? BTR_NO_LOCKING_FLAG
+		: index->table->no_rollback() ? BTR_NO_ROLLBACK : 0;
+#ifdef UNIV_DEBUG
+	if (skip_locking && sr_table_name_full_str != index->table->name.m_name) {
+		WSREP_ERROR("Record locking is disabled in this thread, "
+			    "but the table being modified is not "
+			    "`%s`: `%s`.", sr_table_name_full_str.c_str(),
+			    index->table->name.m_name);
+		ut_error;
+	}
+#endif /* UNIV_DEBUG */
+#else
 	ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
 		: index->table->is_temporary()
 		? BTR_NO_LOCKING_FLAG : 0;
+#endif /* WITH_WSREP */
 	const ulint	orig_n_fields = entry->n_fields;
 
 	/* Try first optimistic descent to the B-tree */

@@ -1,0 +1,73 @@
+#
+# This test kills the master (node_2 for this query) while the DDL is running there
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SET SESSION wsrep_osu_method=NBO;
+# Set the ALTER to block on the master
+SET DEBUG_SYNC = 'alter_table_before_open_tables WAIT_FOR continue';
+--send ALTER TABLE t1 LOCK=SHARED, ADD COLUMN f2 INTEGER;
+
+--let $galera_connection_name = node_2a
+--let $galera_server_number = 2
+--source include/galera_connect.inc
+--connection node_2a
+
+# Wait until the ALTER has blocked on the master
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = 'ALTER TABLE t1 LOCK=SHARED, ADD COLUMN f2 INTEGER' AND STATE = 'debug sync point: alter_table_before_open_tables';
+--source include/wait_condition.inc
+
+# Restart the master
+--source include/kill_galera.inc
+--sleep 5
+
+--connection node_1
+--source include/wait_until_connected_again.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE 'ALTER%';
+--source include/wait_condition.inc
+
+--connection node_2a
+--source include/start_mysqld.inc
+--sleep 5
+
+# Confirm that all nodes have the same view of the database
+--connection node_1
+--source include/wait_until_connected_again.inc
+SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+SELECT COUNT(*) = 1 FROM t1;
+
+--let $galera_connection_name = node_2b
+--let $galera_server_number = 2
+--source include/galera_connect.inc
+--connection node_2b
+SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+SELECT COUNT(*) = 1 FROM t1;
+
+--connection node_3
+SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+SELECT COUNT(*) = 1 FROM t1;
+
+DROP TABLE t1;
+
+# CALL mtr.add_suppression('Failed to send state UUID: -11 \\(Resource temporarily unavailable\\)');
+# CALL mtr.add_suppression('discarding established');
+# CALL mtr.add_suppression('Quorum: No node with complete state');
+
+--connection node_2b
+CALL mtr.add_suppression("WSREP: no corresponding NBO begin found for NBO end source");

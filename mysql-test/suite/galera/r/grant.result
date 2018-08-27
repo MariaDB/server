@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 #
 # MDEV#6266: Changing password fails on galera cluster
 #

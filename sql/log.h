@@ -96,6 +96,11 @@ extern PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
 extern PSI_mutex_key key_LOCK_after_binlog_sync;
 extern PSI_cond_key key_COND_prepare_ordered;
 #endif
+#ifdef WITH_WSREP
+int wsrep_thd_binlog_commit(THD *thd, bool all);
+int wsrep_thd_binlog_rollback(THD *thd, bool all);
+int wsrep_thd_binlog_prepare(THD *thd, bool all);
+#endif /* WITH_WSREP */
 
 class TC_LOG_DUMMY: public TC_LOG // use it to disable the logging
 {
@@ -103,6 +108,11 @@ public:
   TC_LOG_DUMMY() {}
   int open(const char *opt_name)        { return 0; }
   void close()                          { }
+#ifdef WITH_WSREP
+  int commit(THD *thd, bool all) {
+    return wsrep_thd_binlog_commit(thd, all);
+  }
+#endif /* WITH_WSREP */
   /*
     TC_LOG_DUMMY is only used when there are <= 1 XA-capable engines, and we
     only use internal XA during commit when >= 2 XA-capable engines
@@ -1211,6 +1221,15 @@ static inline TC_LOG *get_tc_log_implementation()
     return &mysql_bin_log;
   return &tc_log_mmap;
 }
+#ifdef WITH_WSREP
+IO_CACHE* wsrep_get_trans_cache(THD *);
+void wsrep_thd_binlog_trx_reset(THD * thd);
+#define WSREP_BINLOG_FORMAT(my_format)                         \
+   ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ?     \
+   wsrep_forced_binlog_format : my_format)
+#else
+#define WSREP_BINLOG_FORMAT(my_format) my_format
+#endif /* WITH_WSREP */
 
 
 class Gtid_list_log_event;

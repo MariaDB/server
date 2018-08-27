@@ -1,0 +1,63 @@
+#
+# GCF-563 NB-DDL: Assertion `kep->ref_trx(ke.key().prefix()) == ts' failed in do_clean_nbo with two independent DDLs running at the same time
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+--connection node_2
+SET GLOBAL wsrep_slave_threads=2;
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER NOT NULL) ENGINE=InnoDB;
+
+--connection node_2
+SET GLOBAL debug = 'd,sync.alter_locked_tables_inplace';
+
+--connection node_1
+SET SESSION wsrep_osu_method=NBO;
+--send ALTER TABLE t1 LOCK=SHARED, ADD PRIMARY KEY (f1);
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET SESSION wsrep_osu_method=NBO;
+--send ALTER TABLE t2 LOCK=SHARED, ADD PRIMARY KEY (f1);
+
+--connection node_2
+SET SESSION wsrep_sync_wait=0;
+
+# Wait for the ALTER to block in sync point
+--let $wait_condition = SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: now';
+--source include/wait_condition.inc
+
+SET GLOBAL debug = '';
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+SET DEBUG_SYNC= 'now SIGNAL signal.alter_locked_tables_inplace';
+
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE 'ALTER%';
+--source include/wait_condition.inc
+
+--connection node_1
+--reap
+
+--connection node_1a
+--reap
+
+--connection node_1
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+
+--connection node_2
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+
+DROP TABLE t1;
+DROP TABLE t2;
+
+SET GLOBAL wsrep_slave_threads=1;

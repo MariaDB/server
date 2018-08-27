@@ -469,7 +469,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
 #ifdef WITH_WSREP
 error:
-  WSREP_WARN("ALTER TABLE isolation failure");
+  // Jump to error may happen from WSREP_TO_ISOLATION_BEGIN
   DBUG_RETURN(TRUE);
 #endif /* WITH_WSREP */
 }

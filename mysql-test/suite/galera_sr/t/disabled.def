@@ -1,0 +1,4 @@
+mysql-wsrep-features#29 : binlog_format=STATEMENT not supported with SR
+GCF-574 : CTAS is not supported together with SR
+galera_sr_bf_abort : is worked on with tracker GCF-1015
+galera_sr_sbr : binlog_format=STATEMENT not supported with SR

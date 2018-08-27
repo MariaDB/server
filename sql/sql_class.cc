@@ -612,7 +612,6 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   return buffer;
 }
 
-
 #if MARIA_PLUGIN_INTERFACE_VERSION < 0x0200
 /**
   TODO: This function is for API compatibility, remove it eventually.
@@ -865,6 +864,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   *scramble= '\0';
 
 #ifdef WITH_WSREP
+  mysql_mutex_init(key_LOCK_wsrep_thd, &LOCK_wsrep_thd, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_wsrep_thd, &COND_wsrep_thd, NULL);
   wsrep_ws_handle.trx_id = WSREP_UNDEFINED_TRX_ID;
   wsrep_ws_handle.opaque = NULL;
   wsrep_retry_counter     = 0;
@@ -873,12 +874,20 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   wsrep_retry_query_len   = 0;
   wsrep_retry_command     = COM_CONNECT;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
+  wsrep_status_vars       = 0;
   wsrep_mysql_replicated  = 0;
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
+  wsrep_fragments_sent    = 0;
+  wsrep_trx_fragment_size = 0;
+  wsrep_SR_thd            = false;
+  wsrep_rbr_buf           = NULL;
+  wsrep_nbo_ctx           = NULL;
   wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
   wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
   wsrep_affected_rows     = 0;
+  wsrep_has_ignored_error = false;
+  m_wsrep_next_trx_id       = WSREP_UNDEFINED_TRX_ID;
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
 #endif
@@ -1315,10 +1324,14 @@ void THD::init(bool skip_lock)
   first_successful_insert_id_in_cur_stmt= 0;
 #ifdef WITH_WSREP
   wsrep_exec_mode= wsrep_applier ? REPL_RECV :  LOCAL_STATE;
-  wsrep_conflict_state= NO_CONFLICT;
-  wsrep_query_state= QUERY_IDLE;
+  m_wsrep_conflict_state= NO_CONFLICT;
+  m_wsrep_query_state= QUERY_IDLE;
   wsrep_last_query_id= 0;
+  wsrep_xid.null();
+  wsrep_skip_locking= FALSE;
   wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
+  wsrep_node_uuid(wsrep_trx_meta.stid.node);
+  wsrep_trx_meta.stid.trx= WSREP_UNDEFINED_TRX_ID;
   wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
   wsrep_converted_lock_session= false;
   wsrep_retry_counter= 0;
@@ -1328,8 +1341,16 @@ void THD::init(bool skip_lock)
   wsrep_mysql_replicated  = 0;
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
+  wsrep_fragments_sent    = 0;
+  wsrep_trx_fragment_size = 0;
+  wsrep_SR_thd            = false;
+  wsrep_rbr_buf           = NULL;
+  wsrep_nbo_ctx           = NULL;
   wsrep_sync_wait_gtid    = WSREP_GTID_UNDEFINED;
+  wsrep_last_written_gtid = WSREP_GTID_UNDEFINED;
+  wsrep_SR_rollback_replicated_for_trx = WSREP_UNDEFINED_TRX_ID;
   wsrep_affected_rows     = 0;
+  m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
 #endif /* WITH_WSREP */
@@ -1548,6 +1569,70 @@ void THD::cleanup(void)
   DBUG_ENTER("THD::cleanup");
   DBUG_ASSERT(cleanup_done == 0);
 
+#ifdef WITH_WSREP
+  if (this->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
+  {
+      WSREP_LOG_THD(this, "THD::cleanup");
+  }
+  /*
+    Before cleanup make sure that all wsrep transactions
+    will be rolled back.
+  */
+  if (WSREP_CLIENT_NNULL(this))
+  {
+    mysql_mutex_lock(&this->LOCK_wsrep_thd);
+    DBUG_ASSERT(this->wsrep_query_state() == QUERY_EXITING);
+    /*
+      Background rollback is in process
+    */
+    if (this->wsrep_is_rolling_back())
+    {
+      /*
+        Rollback thread is rolling back a transaction for this thd,
+        wait until it has finished.
+      */
+      while (this->wsrep_is_rolling_back())
+      {
+        mysql_mutex_unlock(&this->LOCK_wsrep_thd);
+        my_sleep(1000);
+        mysql_mutex_lock(&this->LOCK_wsrep_thd);
+      }
+      DBUG_ASSERT(this->wsrep_conflict_state() == ABORTED);
+    }
+
+    /*
+      BF abort happened while the client was idle.
+    */
+    if (this->wsrep_conflict_state() == ABORTED)
+    {
+      wsrep_cleanup_transaction(this);
+    }
+
+    if (this->wsrep_conflict_state() == MUST_ABORT)
+    {
+      wsrep_client_rollback(this);
+    }
+
+    mysql_mutex_unlock(&this->LOCK_wsrep_thd);
+
+    trans_rollback(this);
+    mysql_mutex_lock(&this->LOCK_wsrep_thd);
+
+    if (this->wsrep_exec_mode == LOCAL_ROLLBACK ||
+        this->wsrep_conflict_state() == ABORTING)
+    {
+      wsrep_post_rollback(this);
+      wsrep_cleanup_transaction(this);
+    }
+
+    DBUG_ASSERT(this->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID &&
+                this->wsrep_conflict_state() == NO_CONFLICT);
+
+    mysql_mutex_unlock(&this->LOCK_wsrep_thd);
+  }
+
+  this->wsrep_client_thread= 0;
+#endif /* WITH_WSREP */
   set_killed(KILL_CONNECTION);
 #ifdef ENABLE_WHEN_BINLOG_WILL_BE_ABLE_TO_PREPARE
   if (transaction.xid_state.xa_state == XA_PREPARED)
@@ -1697,15 +1782,25 @@ THD::~THD()
     THD is not deleted while they access it. The following mutex_lock
     ensures that no one else is using this THD and it's now safe to delete
   */
+  if (WSREP(this)) mysql_mutex_lock(&LOCK_wsrep_thd);
   mysql_mutex_lock(&LOCK_thd_kill);
   mysql_mutex_unlock(&LOCK_thd_kill);
+  if (WSREP(this)) mysql_mutex_unlock(&LOCK_wsrep_thd);
 
-#ifdef WITH_WSREP
-  delete wsrep_rgi;
-#endif
   if (!free_connection_done)
     free_connection();
 
+#ifdef WITH_WSREP
+  mysql_mutex_lock(&LOCK_wsrep_thd);
+  mysql_mutex_unlock(&LOCK_wsrep_thd);
+  mysql_mutex_destroy(&LOCK_wsrep_thd);
+  mysql_cond_destroy(&COND_wsrep_thd);
+  if (wsrep_rgi != NULL) {
+    delete wsrep_rgi;
+    wsrep_rgi = NULL;
+  }
+  if (wsrep_status_vars) wsrep->stats_free(wsrep, wsrep_status_vars);
+#endif
   mdl_context.destroy();
 
   free_root(&transaction.mem_root,MYF(0));
@@ -1887,6 +1982,7 @@ void THD::awake_no_mutex(killed_state state_to_set)
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
                        this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
+  if (WSREP(this)) mysql_mutex_assert_owner(&LOCK_wsrep_thd);
   mysql_mutex_assert_owner(&LOCK_thd_kill);
 
   print_aborted_warning(3, "KILLED");
@@ -2071,13 +2167,20 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
         */
         if (!thd_table->needs_reopen())
         {
+#ifdef WITH_WSREP
           signalled|= mysql_lock_abort_for_thread(this, thd_table);
-          if (WSREP(this) && wsrep_thd_is_BF(this, FALSE))
+          if (WSREP_NNULL(this) && wsrep_thd_is_BF((void*)this, FALSE))
           {
             WSREP_DEBUG("remove_table_from_cache: %llu",
                         (unsigned long long) this->real_id);
             wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
           }
+        }
+        else
+        {
+#else
+          signalled|= mysql_lock_abort_for_thread(this, thd_table);
+#endif /* WITH_WSREP */
         }
       }
     }
@@ -5073,11 +5176,13 @@ extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 
 extern "C" int thd_binlog_format(const MYSQL_THD thd)
 {
+#ifdef WITH_WSREP
   if (WSREP(thd))
   {
     /* for wsrep binlog format is meaningful also when binlogging is off */
-    return (int) thd->wsrep_binlog_format();
+    return (int) WSREP_BINLOG_FORMAT(thd->variables.binlog_format);
   }
+#endif /* WITH_WSREP */
   if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
     return (int) thd->variables.binlog_format;
   return BINLOG_FORMAT_UNSPEC;
@@ -5560,6 +5665,13 @@ void THD::set_query_and_id(char *query_arg, uint32 query_length_arg,
   set_query_inner(query_arg, query_length_arg, cs);
   mysql_mutex_unlock(&LOCK_thd_data);
   query_id= new_query_id;
+#ifdef WITH_WSREP
+  if (WSREP_NNULL(this) && wsrep_next_trx_id() == WSREP_UNDEFINED_TRX_ID)
+  {
+    set_wsrep_next_trx_id(query_id);
+    WSREP_DEBUG("assigned new next trx id: %lu", wsrep_next_trx_id());
+  }
+#endif /* WITH_WSREP */
 }
 
 /** Assign a new value to thd->mysys_var.  */
@@ -6005,9 +6117,27 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     binlogging is off, or if the statement is filtered out from the
     binlog by filtering rules.
   */
+#ifdef WITH_WSREP
+  if (WSREP_CLIENT_NNULL(this) && variables.wsrep_trx_fragment_size > 0)
+  {
+    if (!is_current_stmt_binlog_format_row())
+    {
+      my_message(ER_NOT_SUPPORTED_YET,
+                 "Streaming replication not supported with "
+                 "binlog_format=STATEMENT", MYF(0));
+      DBUG_RETURN(-1);
+    }
+  }
+
+  if ((WSREP_EMULATE_BINLOG_NNULL(this) ||
+       (mysql_bin_log.is_open() && (variables.option_bits & OPTION_BIN_LOG))) &&
+      !(wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
+        !binlog_filter->db_ok(db.str)))
+#else
   if (mysql_bin_log.is_open() && (variables.option_bits & OPTION_BIN_LOG) &&
       !(wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
         !binlog_filter->db_ok(db.str)))
+#endif /* WITH_WSREP */
   {
 
     if (is_bulk_op())

@@ -1,0 +1,89 @@
+#
+# This test attempts to perform SST on slave while DDL is still in progress on master
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/big_test.inc
+
+# Shut down node #2 and wait until it is completely gone
+--connection node_2
+--let $MYSQLD2_DATADIR = `SELECT @@datadir`
+--source include/shutdown_mysqld.inc
+--sleep 2
+
+--connection node_1
+--source include/wait_until_connected_again.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+# Remove grastate.dat from node #2 so that SST is guaranteed
+--remove_file $MYSQLD2_DATADIR/grastate.dat
+
+# Begin an ALTER and block
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+SET GLOBAL debug = 'd,sync.alter_locked_tables_inplace';
+SET SESSION wsrep_osu_method=NBO;
+--send  ALTER TABLE t1 LOCK=SHARED, ADD COLUMN f2 INTEGER;
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = 'ALTER TABLE t1 LOCK=SHARED, ADD COLUMN f2 INTEGER' AND STATE = 'debug sync point: now';
+--source include/wait_condition.inc
+
+# Attempt to restart node #2. With grastate.dat removed, SST should be attempted
+
+--connection node_2
+--exec echo "restart" > $_expect_file_name
+--sleep 1
+--exec echo "wait" > $_expect_file_name
+--sleep 5
+
+--connection node_1a
+--let $assert_text= Master should report that it can not donate SST
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_select= Non-blocking operation in progress, cannot donate SST
+--let $assert_match= Non-blocking operation in progress, cannot donate SST
+--source include/assert_grep.inc
+
+--let $assert_text= Slave should report that it could not join
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_select= Will never receive state
+--let $assert_match= Will never receive state
+--source include/assert_grep.inc
+
+
+# Restart node_2 again, now with the DDL out of the way
+--connection node_1a
+SET GLOBAL debug = '';
+SET DEBUG_SYNC='now SIGNAL signal.alter_locked_tables_inplace';
+
+--connection node_1
+--reap
+
+--connection node_2
+--source include/start_mysqld.inc
+SHOW CREATE TABLE t1;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
+--source include/wait_condition.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+SET SESSION wsrep_osu_method=TOI;
+DROP TABLE t1;
+
+--connection node_1
+CALL mtr.add_suppression("Non-blocking operation in progress, cannot donate SST");
+CALL mtr.add_suppression("Resource temporarily unavailable");
+
+--connection node_2
+CALL mtr.add_suppression("Resource temporarily unavailable");
+CALL mtr.add_suppression("Will never receive state");
+CALL mtr.add_suppression("terminated unexpectedly");

@@ -150,21 +150,17 @@ static struct wsrep_service_st wsrep_handler = {
   get_wsrep_load_data_splitting,
   get_wsrep_log_conflicts,
   get_wsrep_protocol_version,
-  wsrep_aborting_thd_contains,
-  wsrep_aborting_thd_enqueue,
   wsrep_consistency_check,
   wsrep_is_wsrep_xid,
   wsrep_xid_seqno,
   wsrep_xid_uuid,
-  wsrep_lock_rollback,
   wsrep_on,
-  wsrep_post_commit,
-  wsrep_prepare_key,
-  wsrep_run_wsrep_commit,
+  wsrep_prepare_key_for_innodb,
   wsrep_thd_LOCK,
   wsrep_thd_UNLOCK,
   wsrep_thd_awake,
   wsrep_thd_conflict_state,
+  wsrep_thd_thread_id,
   wsrep_thd_conflict_state_str,
   wsrep_thd_exec_mode,
   wsrep_thd_exec_mode_str,
@@ -181,7 +177,6 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_thd_ws_handle,
   wsrep_trx_is_aborting,
   wsrep_trx_order_before,
-  wsrep_unlock_rollback
 };
 
 static struct thd_specifics_service_st thd_specifics_handler=

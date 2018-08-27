@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 connection node_1;
 SET GLOBAL wsrep_auto_increment_control = OFF;
 SET GLOBAL auto_increment_increment = 1;
@@ -59,7 +61,7 @@ connection node_1a;
 COMMIT;
 connection node_2a;
 COMMIT;
-ERROR 40001: Deadlock: wsrep aborted transaction
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 connection node_1a;
 SELECT * FROM t1;
 f1	node

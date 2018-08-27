@@ -416,9 +416,20 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
     if (WSREP(thd) &&
         wsrep_to_isolation_begin(thd, table_ref->db.str, table_ref->table_name.str, 0))
         DBUG_RETURN(TRUE);
-    if (lock_table(thd, table_ref, &hton_can_recreate))
-      DBUG_RETURN(TRUE);
 
+    /*
+      When using non-blocking operation for TRUNCATE always fall to
+      handler_truncate() in order to avoid calling lock_table_names()
+      twice.
+     */
+    if (WSREP(thd) && thd->wsrep_nbo_ctx) {
+      hton_can_recreate= false;
+    }
+    else
+    {
+      if (lock_table(thd, table_ref, &hton_can_recreate))
+        DBUG_RETURN(TRUE);
+    }
     if (hton_can_recreate)
     {
      /*

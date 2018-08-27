@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
 connection node_1;
 SET GLOBAL wsrep_slave_threads = 10;

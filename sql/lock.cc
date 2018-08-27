@@ -1134,9 +1134,6 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
     make_global_read_lock_block_commit(), do nothing.
   */
 
-  if (m_state != GRL_ACQUIRED)
-    DBUG_RETURN(0);
-
 #ifdef WITH_WSREP
   if (WSREP(thd) && m_mdl_blocks_commits_lock)
   {
@@ -1145,6 +1142,10 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
     DBUG_RETURN(FALSE);
   }
 #endif /* WITH_WSREP */
+
+  if (m_state != GRL_ACQUIRED)
+    DBUG_RETURN(0);
+
 
   mdl_request.init(MDL_key::COMMIT, "", "", MDL_SHARED, MDL_EXPLICIT);
 
@@ -1194,20 +1195,12 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   }
   else if (ret != -ENOSYS) /* -ENOSYS - no provider */
   {
-    long long ret = wsrep->pause(wsrep);
-    if (ret >= 0)
-    {
-      wsrep_locked_seqno= ret;
-    }
-    else if (ret != -ENOSYS) /* -ENOSYS - no provider */
-    {
-      WSREP_ERROR("Failed to pause provider: %lld (%s)", -ret, strerror(-ret));
+    WSREP_ERROR("Failed to pause provider: %lld (%s)", -ret, strerror(-ret));
 
-      DBUG_ASSERT(m_mdl_blocks_commits_lock == NULL);
-      wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
-      my_error(ER_LOCK_DEADLOCK, MYF(0));
-      DBUG_RETURN(TRUE);
-     }
+    DBUG_ASSERT(m_mdl_blocks_commits_lock == NULL);
+    wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
+    my_error(ER_LOCK_DEADLOCK, MYF(0));
+    DBUG_RETURN(TRUE);
   }
 #endif /* WITH_WSREP */
   DBUG_RETURN(FALSE);

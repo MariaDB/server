@@ -1,0 +1,87 @@
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t3 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t4 (f1 INTEGER) ENGINE=InnoDB;
+SET SESSION wsrep_trx_fragment_size = 1;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1);
+RESET MASTER;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t2 VALUES (1);
+RESET MASTER;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+INSERT INTO t3 VALUES (1);
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t4 VALUES (1);
+INSERT INTO t1 VALUES (2);
+COMMIT;
+INSERT INTO t2 VALUES (2);
+COMMIT;
+INSERT INTO t3 VALUES (2);
+COMMIT;
+INSERT INTO t4 VALUES (2);
+COMMIT;
+SELECT COUNT(*) = 2 FROM t4;
+COUNT(*) = 2
+1
+SHOW BINLOG EVENTS IN '0.000001' FROM 120;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+0.000001	<Pos>	Query	1	<End_log_pos>	BEGIN
+0.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t1)
+0.000001	<Pos>	Write_rows	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t1)
+0.000001	<Pos>	Write_rows	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Xid	1	<End_log_pos>	COMMIT /* xid=### */
+0.000001	<Pos>	Query	1	<End_log_pos>	BEGIN
+0.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t2)
+0.000001	<Pos>	Write_rows	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t2)
+0.000001	<Pos>	Write_rows	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Xid	1	<End_log_pos>	COMMIT /* xid=### */
+0.000001	<Pos>	Query	2	<End_log_pos>	BEGIN
+0.000001	<Pos>	Table_map	2	<End_log_pos>	table_id: ### (test.t3)
+0.000001	<Pos>	Write_rows	2	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Table_map	2	<End_log_pos>	table_id: ### (test.t3)
+0.000001	<Pos>	Write_rows	2	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Xid	2	<End_log_pos>	COMMIT /* xid=### */
+0.000001	<Pos>	Query	2	<End_log_pos>	BEGIN
+0.000001	<Pos>	Table_map	2	<End_log_pos>	table_id: ### (test.t4)
+0.000001	<Pos>	Write_rows	2	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Table_map	2	<End_log_pos>	table_id: ### (test.t4)
+0.000001	<Pos>	Write_rows	2	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Xid	2	<End_log_pos>	COMMIT /* xid=### */
+SELECT COUNT(*) = 2 FROM t4;
+COUNT(*) = 2
+1
+SHOW BINLOG EVENTS IN '0.000001' FROM 120;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+0.000001	<Pos>	Query	1	<End_log_pos>	BEGIN
+0.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t1)
+0.000001	<Pos>	Write_rows	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t1)
+0.000001	<Pos>	Write_rows	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Xid	1	<End_log_pos>	COMMIT /* xid=### */
+0.000001	<Pos>	Query	1	<End_log_pos>	BEGIN
+0.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t2)
+0.000001	<Pos>	Write_rows	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Table_map	1	<End_log_pos>	table_id: ### (test.t2)
+0.000001	<Pos>	Write_rows	1	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Xid	1	<End_log_pos>	COMMIT /* xid=### */
+0.000001	<Pos>	Query	2	<End_log_pos>	BEGIN
+0.000001	<Pos>	Table_map	2	<End_log_pos>	table_id: ### (test.t3)
+0.000001	<Pos>	Write_rows	2	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Table_map	2	<End_log_pos>	table_id: ### (test.t3)
+0.000001	<Pos>	Write_rows	2	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Xid	2	<End_log_pos>	COMMIT /* xid=### */
+0.000001	<Pos>	Query	2	<End_log_pos>	BEGIN
+0.000001	<Pos>	Table_map	2	<End_log_pos>	table_id: ### (test.t4)
+0.000001	<Pos>	Write_rows	2	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Table_map	2	<End_log_pos>	table_id: ### (test.t4)
+0.000001	<Pos>	Write_rows	2	<End_log_pos>	table_id: ### flags: STMT_END_F
+0.000001	<Pos>	Xid	2	<End_log_pos>	COMMIT /* xid=### */
+DROP TABLE t1,t2,t3,t4;

@@ -1,0 +1,87 @@
+#
+# Test voting while an SR transaction is in progress
+#
+
+--source include/galera_cluster.inc
+--source include/big_test.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 BLOB) ENGINE=InnoDB;
+
+# Introduce inconsistency
+--connection node_2
+SET SESSION wsrep_on=OFF;
+INSERT INTO t1 VALUES (5, 'X');
+SET SESSION wsrep_on=ON;
+DELETE FROM t1 WHERE f1 = 2;
+
+# Perform an SR transaction that will hit the inconsistency
+--connection node_1
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size = 131070;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1, REPEAT('A', 65535));
+INSERT INTO t1 VALUES (2, REPEAT('A', 65535));
+INSERT INTO t1 VALUES (3, REPEAT('A', 65535));
+INSERT INTO t1 VALUES (4, REPEAT('A', 65535));
+INSERT INTO t1 VALUES (5, REPEAT('A', 65535));
+COMMIT;
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+
+# Perform another SR transaction in order to have stuff in the wsrep_schema.SR table
+START TRANSACTION;
+INSERT INTO t1 VALUES (11, REPEAT('A', 65535));
+INSERT INTO t1 VALUES (12, REPEAT('A', 65535));
+INSERT INTO t1 VALUES (13, REPEAT('A', 65535));
+INSERT INTO t1 VALUES (14, REPEAT('A', 65535));
+INSERT INTO t1 VALUES (15, REPEAT('A', 65535));
+
+# Node #2 has dropped from the cluster due to voting
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# Bring node #2 back via SST
+--connection node_2
+SET SESSION wsrep_on=OFF;
+--source include/shutdown_mysqld.inc
+
+--sleep 10
+
+--echo Starting mysqld
+--source include/start_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+--source include/wait_condition.inc
+
+# Node #2 should have some entries in its SR table post-restart
+SELECT COUNT(*) > 0 FROM wsrep_schema.SR;
+
+# Commit second SR transaction
+--connection node_1
+COMMIT;
+
+# Confirm that all nodes are identical
+--connection node_1
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 10 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 10 FROM t1;
+CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table test.t1; Duplicate entry '5' for key 'PRIMARY'");
+CALL mtr.add_suppression("Write_rows apply failed");
+CALL mtr.add_suppression("Inconsistent by consensus");
+CALL mtr.add_suppression("no THD for trx");
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connection node_3
+SELECT COUNT(*) = 0 FROM wsrep_schema.SR;
+SELECT COUNT(*) = 10 FROM t1;
+
+--connection node_1
+DROP TABLE t1;
