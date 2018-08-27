@@ -27,10 +27,12 @@ SET GLOBAL wsrep_provider=none;
 
 CALL mtr.add_suppression("WSREP: Could not open saved state file for reading.*");
 
+--disable_result_log
 --disable_query_log
 eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 --let $galera_version=25.3.17
 source include/check_galera_version.inc;
+--enable_result_log
 --enable_query_log
 
 --replace_column 2 #
@@ -101,8 +103,11 @@ SHOW STATUS LIKE 'wsrep_thread_count';
 --echo # Setting wsrep_cluster_address triggers the creation of
 --echo # applier/rollbacker threads.
 SET GLOBAL wsrep_cluster_address= 'gcomm://';
+
 --echo # Wait for applier threads to get created.
-sleep 3; 
+--let $wait_timeout=600
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--source include/wait_condition.inc
 
 --replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
@@ -113,8 +118,11 @@ SHOW STATUS LIKE 'wsrep_thread_count';
 
 SET @wsrep_slave_threads_saved= @@global.wsrep_slave_threads;
 SET GLOBAL wsrep_slave_threads= 10;
+
 --echo # Wait for applier threads to get created.
-sleep 3; 
+--let $wait_condition = SELECT COUNT(*) = 11 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--source include/wait_condition.inc
+
 SHOW STATUS LIKE 'threads_connected';
 SHOW STATUS LIKE 'wsrep_thread_count';
 

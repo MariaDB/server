@@ -34,7 +34,12 @@ SET GLOBAL wsrep_slave_threads = 64;
 INSERT INTO t1 VALUES (1);
 
 --connection node_2
+--let $wait_timeout=600
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+
 SELECT COUNT(*) = 1 FROM t1;
+
 --let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
 --source include/wait_condition.inc
 SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
@@ -47,6 +52,8 @@ SET GLOBAL wsrep_slave_threads = 1;
 
 --connection node_1
 
+--disable_result_log
+--disable_query_log
 # Generate 64 replication events
 --let $count = 64
 while ($count)
@@ -54,9 +61,15 @@ while ($count)
   INSERT INTO t2 VALUES (DEFAULT);
   --dec $count
 }
+--enable_query_log
+--enable_result_log
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 64 FROM t2;
+--source include/wait_condition.inc
+
 SELECT COUNT(*) = 64 FROM t2;
+
 --let $wait_condition = SELECT COUNT(*) = @@wsrep_slave_threads + 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
 --source include/wait_condition.inc
 SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%wsrep aborter%';
