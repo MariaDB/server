@@ -663,34 +663,33 @@ sub run_test_server ($$$) {
                   My::CoreDump->show($core_file, $exe_mysqld, $opt_parallel);
 
                   # Limit number of core files saved
-                  if ($opt_max_save_core > 0 &&
-                      $num_saved_cores >= $opt_max_save_core)
-                  {
-                    mtr_report(" - deleting it, already saved",
-                               "$opt_max_save_core");
-                    unlink("$core_file");
-                  }
-                  else
+                  if ($opt_max_save_core == 0 ||
+                      $num_saved_cores < $opt_max_save_core)
                   {
                     mtr_compress_file($core_file) unless @opt_cases;
                     ++$num_saved_cores;
+                  }
+                  else
+                  {
+                    mtr_report(" - not saving ", "$opt_max_save_core");
+                    unlink("$core_file");
                   }
                 }
               }
             },
             $worker_savedir);
 
-        if ($opt_max_save_datadir > 0 &&
-            $num_saved_datadir >= $opt_max_save_datadir)
-        {
-            mtr_report(" - skipping '$worker_savedir/'");
-            rmtree($worker_savedir);
-        }
-        else
+        if ($opt_max_save_datadir == 0 ||
+            $num_saved_datadir < $opt_max_save_datadir)
         {
             mtr_report(" - saving '$worker_savedir/' to '$savedir/'");
             rename($worker_savedir, $savedir);
             ++$num_saved_datadir;
+        }
+        else
+        {
+            mtr_report(" - skipping '$worker_savedir/'");
+            rmtree($worker_savedir);
         }
         resfile_print_test();
         $num_failed_test++ unless ($result->{retries} || $result->{exp_fail});
@@ -6482,16 +6481,18 @@ Options for debugging the product
                         test(s)
   max-save-core         Limit the number of core files saved (to avoid filling
                         up disks for heavily crashing server). Defaults to
-                        $opt_max_save_core, set to 0 for no limit. Set
-                        it's default with MTR_MAX_SAVE_CORE
+                        $opt_max_save_core, set to 0 for no limit and negative 
+                        number for no saving. Set its default with 
+                        MTR_MAX_SAVE_CORE
   max-save-datadir      Limit the number of datadir saved (to avoid filling
                         up disks for heavily crashing server). Defaults to
-                        $opt_max_save_datadir, set to 0 for no limit. Set
-                        it's default with MTR_MAX_SAVE_DATADIR
+                        $opt_max_save_datadir, set to 0 for no limit and 
+                        negative for no saving. Set its default with 
+                        MTR_MAX_SAVE_DATADIR
   max-test-fail         Limit the number of test failurs before aborting
                         the current test run. Defaults to
                         $opt_max_test_fail, set to 0 for no limit. Set
-                        it's default with MTR_MAX_TEST_FAIL
+                        its default with MTR_MAX_TEST_FAIL
 
 Options for valgrind
 
