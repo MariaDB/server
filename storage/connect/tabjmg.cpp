@@ -101,7 +101,7 @@ bool JMGDISC::ColDesc(PGLOBAL g, jobject obj, char *pcn, char *pfmt,
 			continue;
 
 		jkey = (jstring)Jcp->env->CallObjectMethod(Jcp->job, bvnameid);
-		key = Jcp->env->GetStringUTFChars(jkey, (jboolean)false);
+		key = Jcp->env->GetStringUTFChars(jkey, NULL);
 
 		if (pcn) {
 			strncpy(colname, pcn, 64);
