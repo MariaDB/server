@@ -724,9 +724,9 @@ sub run_test_server ($$$) {
             {
 	      mtr_report(" - saving '$worker_savedir/' to '$savedir/'");
 	      rename($worker_savedir, $savedir);
+	      $num_saved_datadir++;
 	    }
 	    resfile_print_test();
-	    $num_saved_datadir++;
 	    $num_failed_test++ unless ($result->{retries} ||
                                        $result->{exp_fail});
 
