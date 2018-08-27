@@ -680,23 +680,22 @@ sub run_test_server ($$$) {
             },
             $worker_savedir);
 
-	    if ($opt_max_save_datadir > 0 &&
-		$num_saved_datadir >= $opt_max_save_datadir)
-	    {
-	      mtr_report(" - skipping '$worker_savedir/'");
-	      rmtree($worker_savedir);
-	    }
-            else
-            {
-	      mtr_report(" - saving '$worker_savedir/' to '$savedir/'");
-	      rename($worker_savedir, $savedir);
-	    }
-	    resfile_print_test();
-	    $num_saved_datadir++;
-	    $num_failed_test++ unless ($result->{retries} ||
-                                       $result->{exp_fail});
+        if ($opt_max_save_datadir > 0 &&
+            $num_saved_datadir >= $opt_max_save_datadir)
+        {
+            mtr_report(" - skipping '$worker_savedir/'");
+            rmtree($worker_savedir);
+        }
+        else
+        {
+            mtr_report(" - saving '$worker_savedir/' to '$savedir/'");
+            rename($worker_savedir, $savedir);
+        }
+        resfile_print_test();
+        $num_saved_datadir++;
+        $num_failed_test++ unless ($result->{retries} || $result->{exp_fail});
 
-            $test_failure= 1;
+        $test_failure= 1;
 	    if ( !$opt_force ) {
 	      # Test has failed, force is off
 	      push(@$completed, $result);
