@@ -28,6 +28,7 @@ WSREP_SST_OPT_DEFAULT=""
 WSREP_SST_OPT_EXTRA_DEFAULT=""
 WSREP_SST_OPT_SUFFIX_DEFAULT=""
 WSREP_SST_OPT_SUFFIX_VALUE=""
+INNODB_DATA_HOME_DIR_ARG=""
 
 while [ $# -gt 0 ]; do
 case "$1" in
@@ -65,6 +66,10 @@ case "$1" in
         ;;
     '--datadir')
         readonly WSREP_SST_OPT_DATA="$2"
+        shift
+        ;;
+    '--innodb-data-home-dir')
+        readonly INNODB_DATA_HOME_DIR_ARG="$2"
         shift
         ;;
     '--defaults-file')
