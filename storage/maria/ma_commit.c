@@ -98,7 +98,7 @@ int maria_commit(MARIA_HA *info)
   if (!info->s->now_transactional)
     return 0;
   trn= info->trn;
-  info->trn= 0;                                 /* checked in maria_close() */
+  _ma_reset_trn_for_table(info);
   return ma_commit(trn);
 }
 
