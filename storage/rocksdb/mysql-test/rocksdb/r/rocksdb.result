@@ -1503,8 +1503,8 @@ Rocksdb_block_cache_index_miss	#
 Rocksdb_block_cache_miss	#
 Rocksdb_block_cachecompressed_hit	#
 Rocksdb_block_cachecompressed_miss	#
-rocksdb_bloom_filter_full_positive	#
-rocksdb_bloom_filter_full_true_positive	#
+Rocksdb_bloom_filter_full_positive	#
+Rocksdb_bloom_filter_full_true_positive	#
 Rocksdb_bloom_filter_prefix_checked	#
 Rocksdb_bloom_filter_prefix_useful	#
 Rocksdb_bloom_filter_useful	#
@@ -1521,12 +1521,12 @@ Rocksdb_get_hit_l1	#
 Rocksdb_get_hit_l2_and_up	#
 Rocksdb_getupdatessince_calls	#
 Rocksdb_iter_bytes_read	#
+Rocksdb_manual_compactions_processed	#
+Rocksdb_manual_compactions_running	#
 Rocksdb_memtable_hit	#
 Rocksdb_memtable_miss	#
 Rocksdb_no_file_closes	#
 Rocksdb_no_file_errors	#
-rocksdb_manual_compactions_processed	#
-rocksdb_manual_compactions_running	#
 Rocksdb_no_file_opens	#
 Rocksdb_num_iterators	#
 Rocksdb_number_block_not_compressed	#

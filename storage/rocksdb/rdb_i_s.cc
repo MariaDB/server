@@ -1906,7 +1906,7 @@ struct st_maria_plugin rdb_i_s_ddl = {
     nullptr, /* status variables */
     nullptr, /* system variables */
     nullptr, /* config options */
-    0,       /* flags */
+    MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 };
 
 struct st_mysql_plugin rdb_i_s_sst_props = {
