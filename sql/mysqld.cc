@@ -1732,7 +1732,7 @@ static void close_connections(void)
 #endif
     tmp->set_killed(KILL_SERVER_HARD);
     MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (tmp));
-    if (WSREP(tmp)) mysql_mutex_lock(&tmp->LOCK_wsrep_thd);
+    if (WSREP(tmp)) mysql_mutex_lock(&tmp->LOCK_thd_data);
     mysql_mutex_lock(&tmp->LOCK_thd_kill);
     if (tmp->mysys_var)
     {
@@ -1757,7 +1757,7 @@ static void close_connections(void)
       mysql_mutex_unlock(&tmp->mysys_var->mutex);
     }
     mysql_mutex_unlock(&tmp->LOCK_thd_kill);
-    if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_wsrep_thd);
+    if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_thd_data);
   }
   mysql_mutex_unlock(&LOCK_thread_count); // For unlink from list
 

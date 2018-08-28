@@ -864,8 +864,6 @@ THD::THD(my_thread_id id, bool is_wsrep_applier, bool skip_global_sys_var_lock)
   *scramble= '\0';
 
 #ifdef WITH_WSREP
-  mysql_mutex_init(key_LOCK_wsrep_thd, &LOCK_wsrep_thd, MY_MUTEX_INIT_FAST);
-  mysql_cond_init(key_COND_wsrep_thd, &COND_wsrep_thd, NULL);
   wsrep_ws_handle.trx_id = WSREP_UNDEFINED_TRX_ID;
   wsrep_ws_handle.opaque = NULL;
   wsrep_retry_counter     = 0;
@@ -1580,7 +1578,7 @@ void THD::cleanup(void)
   */
   if (WSREP_CLIENT_NNULL(this))
   {
-    mysql_mutex_lock(&this->LOCK_wsrep_thd);
+    mysql_mutex_lock(&this->LOCK_thd_data);
     DBUG_ASSERT(this->wsrep_query_state() == QUERY_EXITING);
     /*
       Background rollback is in process
@@ -1593,9 +1591,9 @@ void THD::cleanup(void)
       */
       while (this->wsrep_is_rolling_back())
       {
-        mysql_mutex_unlock(&this->LOCK_wsrep_thd);
+        mysql_mutex_unlock(&this->LOCK_thd_data);
         my_sleep(1000);
-        mysql_mutex_lock(&this->LOCK_wsrep_thd);
+        mysql_mutex_lock(&this->LOCK_thd_data);
       }
       DBUG_ASSERT(this->wsrep_conflict_state() == ABORTED);
     }
@@ -1613,10 +1611,10 @@ void THD::cleanup(void)
       wsrep_client_rollback(this);
     }
 
-    mysql_mutex_unlock(&this->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&this->LOCK_thd_data);
 
     trans_rollback(this);
-    mysql_mutex_lock(&this->LOCK_wsrep_thd);
+    mysql_mutex_lock(&this->LOCK_thd_data);
 
     if (this->wsrep_exec_mode == LOCAL_ROLLBACK ||
         this->wsrep_conflict_state() == ABORTING)
@@ -1628,7 +1626,7 @@ void THD::cleanup(void)
     DBUG_ASSERT(this->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID &&
                 this->wsrep_conflict_state() == NO_CONFLICT);
 
-    mysql_mutex_unlock(&this->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&this->LOCK_thd_data);
   }
 
   this->wsrep_client_thread= 0;
@@ -1782,19 +1780,15 @@ THD::~THD()
     THD is not deleted while they access it. The following mutex_lock
     ensures that no one else is using this THD and it's now safe to delete
   */
-  if (WSREP(this)) mysql_mutex_lock(&LOCK_wsrep_thd);
+  if (WSREP(this)) mysql_mutex_lock(&LOCK_thd_data);
   mysql_mutex_lock(&LOCK_thd_kill);
   mysql_mutex_unlock(&LOCK_thd_kill);
-  if (WSREP(this)) mysql_mutex_unlock(&LOCK_wsrep_thd);
+  if (WSREP(this)) mysql_mutex_unlock(&LOCK_thd_data);
 
   if (!free_connection_done)
     free_connection();
 
 #ifdef WITH_WSREP
-  mysql_mutex_lock(&LOCK_wsrep_thd);
-  mysql_mutex_unlock(&LOCK_wsrep_thd);
-  mysql_mutex_destroy(&LOCK_wsrep_thd);
-  mysql_cond_destroy(&COND_wsrep_thd);
   if (wsrep_rgi != NULL) {
     delete wsrep_rgi;
     wsrep_rgi = NULL;
@@ -1982,7 +1976,7 @@ void THD::awake_no_mutex(killed_state state_to_set)
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
                        this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
-  if (WSREP(this)) mysql_mutex_assert_owner(&LOCK_wsrep_thd);
+  if (WSREP(this)) mysql_mutex_assert_owner(&LOCK_thd_data);
   mysql_mutex_assert_owner(&LOCK_thd_kill);
 
   print_aborted_warning(3, "KILLED");

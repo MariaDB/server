@@ -1544,15 +1544,15 @@ int ha_commit_trans(THD *thd, bool all)
 #ifdef WITH_WSREP
   if (error)
   {
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     if (thd->wsrep_exec_mode == LOCAL_COMMIT &&
         thd->wsrep_conflict_state() == MUST_ABORT)
     {
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
       (void)tc_log->unlog(cookie, xid);
       goto wsrep_err;
     }
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 #endif /* WITH_WSREP */
   DBUG_EXECUTE_IF("crash_commit_before_unlog", DBUG_SUICIDE(););
@@ -1578,16 +1578,16 @@ done:
   /* Come here if error and we need to rollback. */
 #ifdef WITH_WSREP
  wsrep_err:
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   if (thd->wsrep_exec_mode == LOCAL_COMMIT &&
       thd->wsrep_conflict_state() == MUST_ABORT)
   {
     WSREP_DEBUG("BF abort has happened after prepare & certify");
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
     ha_rollback_trans(thd, TRUE);
   }
   else
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
 
 #endif /* WITH_WSREP */
 err:

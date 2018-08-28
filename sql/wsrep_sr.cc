@@ -355,7 +355,7 @@ bool wsrep_abort_SR_THD(THD *thd, THD *victim_thd)
 
 void wsrep_prepare_SR_trx_info_for_rollback(THD *thd)
 {
-  mysql_mutex_assert_owner(&thd->LOCK_wsrep_thd);
+  mysql_mutex_assert_owner(&thd->LOCK_thd_data);
   wsrep_uuid_t node_uuid;
   wsrep_node_uuid(node_uuid);
 

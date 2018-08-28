@@ -1510,7 +1510,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   bool wsrep_on= WSREP_ON;
   if (wsrep_on)
   {
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     DBUG_ASSERT(thd->wsrep_query_state() == QUERY_IDLE);
     if (thd->wsrep_is_rolling_back())
     {
@@ -1520,9 +1520,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       */
       while (thd->wsrep_is_rolling_back())
       {
-        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+        mysql_mutex_unlock(&thd->LOCK_thd_data);
         my_sleep(1000);
-        mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+        mysql_mutex_lock(&thd->LOCK_thd_data);
       }
       DBUG_ASSERT(thd->wsrep_conflict_state() == ABORTED);
     }
@@ -1572,11 +1572,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         */
         inc_thread_running();
 #endif /* WSREP_TODO */
-	mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+	mysql_mutex_unlock(&thd->LOCK_thd_data);
         goto dispatch_end;
       }
     }
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
 #endif /* WITH_WSREP */
 #if defined(ENABLED_PROFILING)
@@ -1822,11 +1822,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                             is_com_multi, is_next_command))
       {
         WSREP_DEBUG("Deadlock error for: %s", thd->query());
-        mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+        mysql_mutex_lock(&thd->LOCK_thd_data);
         thd->killed               = NOT_KILLED;
         thd->mysys_var->abort     = 0;
         thd->wsrep_retry_counter  = 0;
-        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+        mysql_mutex_unlock(&thd->LOCK_thd_data);
 #ifdef WSREP_TODO
         /*
           Increment threads running to compensate dec_thread_running() called
@@ -1931,11 +1931,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                               is_com_multi, is_next_command))
         {
           WSREP_DEBUG("Deadlock error for: %s", thd->query());
-          mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+          mysql_mutex_lock(&thd->LOCK_thd_data);
           thd->killed               = NOT_KILLED;
           thd->mysys_var->abort     = 0;
           thd->wsrep_retry_counter  = 0;
-          mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+          mysql_mutex_unlock(&thd->LOCK_thd_data);
 #ifdef WSREP_TODO
           /*
             Increment threads running to compensate dec_thread_running() called
@@ -2396,7 +2396,7 @@ com_multi_end:
     /*
       BF aborted before sending response back to client
      */
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     do_end_of_statement= thd->wsrep_conflict_state() != REPLAYING &&
                          thd->wsrep_conflict_state() != RETRY_AUTOCOMMIT;
     if (thd->wsrep_conflict_state() == MUST_ABORT)
@@ -2417,7 +2417,7 @@ com_multi_end:
       wsrep_cleanup_transaction(thd);
       WSREP_LOG_THD(thd, "leave");
     }
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
 
     /*
       Final check after sending response back to client. Handle possible
@@ -2426,7 +2426,7 @@ com_multi_end:
       to ABORTED so that the rollback will be detected when the client
       returns to action.
     */
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     if (thd->wsrep_conflict_state() == MUST_ABORT)
     {
       wsrep_client_rollback(thd);
@@ -2434,7 +2434,7 @@ com_multi_end:
       WSREP_LOG_THD(thd, "after return to client found BF aborted");
     }
     thd->set_wsrep_query_state(QUERY_IDLE);
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   } else { /* if (WSREP(thd))... */
     do_end_of_statement= true;
@@ -5897,13 +5897,13 @@ end_with_restore_list:
     }
 #ifdef WITH_WSREP
     if (WSREP(thd)) {
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
       if (thd->wsrep_conflict_state() == NO_CONFLICT ||
           thd->wsrep_conflict_state() == REPLAYING)
       {
         my_ok(thd);
       }
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
     } else {
 #endif /* WITH_WSREP */
 
@@ -5948,10 +5948,10 @@ end_with_restore_list:
       thd->set_killed(KILL_CONNECTION);
 #ifdef WITH_WSREP
     if (WSREP(thd)) {
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
       bool send_ok= (thd->wsrep_conflict_state() == NO_CONFLICT ||
                      thd->wsrep_conflict_state() == REPLAYING);
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
       if (send_ok)
       {
         my_ok(thd);
@@ -7955,7 +7955,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                               bool is_next_command)
 {
 #ifdef WITH_WSREP
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   bool is_autocommit=
     !thd->in_multi_stmt_transaction_mode()                    &&
     thd->wsrep_conflict_state() == NO_CONFLICT                &&
@@ -7981,11 +7981,11 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                         DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
                       });
     }
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
     mysql_parse(thd, rawbuf, length, parser_state, is_com_multi,
                 is_next_command);
     (void) wsrep_after_command(thd, !thd->in_active_multi_stmt_transaction());
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
 
     /*
       State after after_command hook must be either NO_CONFLICT
@@ -8118,7 +8118,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
     }
 
   }  while (thd->wsrep_conflict_state()== RETRY_AUTOCOMMIT);
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   if (thd->wsrep_retry_query)
   {
@@ -9082,7 +9082,7 @@ THD *find_thread_by_id(longlong id, bool query_id)
       continue;
     if (id == (query_id ? tmp->query_id : (longlong) tmp->thread_id))
     {
-      if (WSREP(tmp)) mysql_mutex_lock(&tmp->LOCK_wsrep_thd);
+      if (WSREP(tmp)) mysql_mutex_lock(&tmp->LOCK_thd_data);
       mysql_mutex_lock(&tmp->LOCK_thd_kill);    // Lock from delete
       break;
     }
@@ -9139,16 +9139,16 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
 	!wsrep_thd_is_BF((void*)tmp, false))
     {
-      //if (WSREP(tmp)) mysql_mutex_lock(&tmp->LOCK_wsrep_thd);
+      //if (WSREP(tmp)) mysql_mutex_lock(&tmp->LOCK_thd_data);
       tmp->awake_no_mutex(kill_signal);
-      //if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_wsrep_thd);
+      //if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_thd_data);
       error=0;
     }
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
                                         ER_KILL_DENIED_ERROR);
     mysql_mutex_unlock(&tmp->LOCK_thd_kill);
-    if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_wsrep_thd);
+    if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_thd_data);
   }
   DBUG_PRINT("exit", ("%d", error));
   DBUG_RETURN(error);
@@ -9207,7 +9207,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
       }
       if (!threads_to_kill.push_back(tmp, thd->mem_root))
       {
-        if (WSREP(tmp)) mysql_mutex_lock(&tmp->LOCK_wsrep_thd);
+        if (WSREP(tmp)) mysql_mutex_lock(&tmp->LOCK_thd_data);
         mysql_mutex_lock(&tmp->LOCK_thd_kill); // Lock from delete
       }
     }
@@ -9231,7 +9231,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
       */
       next_ptr= it2++;
       mysql_mutex_unlock(&ptr->LOCK_thd_kill);
-      if (WSREP(ptr)) mysql_mutex_unlock(&ptr->LOCK_wsrep_thd);
+      if (WSREP(ptr)) mysql_mutex_unlock(&ptr->LOCK_thd_data);
       (*rows)++;
     } while ((ptr= next_ptr));
   }

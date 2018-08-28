@@ -3321,14 +3321,14 @@ public:
   void awake(killed_state state_to_set)
   {
     /*
-      mutex locking order (LOCK_wsrep_thd - LOCK_thd_kill)) requires
-      to grab LOCK_wsrep_thd here
+      mutex locking order (LOCK_thd_data - LOCK_thd_kill)) requires
+      to grab LOCK_thd_data here
     */
-    mysql_mutex_lock(&LOCK_wsrep_thd);
+    mysql_mutex_lock(&LOCK_thd_data);
     mysql_mutex_lock(&LOCK_thd_kill);
     awake_no_mutex(state_to_set);
     mysql_mutex_unlock(&LOCK_thd_kill);
-    mysql_mutex_unlock(&LOCK_wsrep_thd);
+    mysql_mutex_unlock(&LOCK_thd_data);
   }
  
   /** Disconnect the associated communication endpoint. */
@@ -4715,11 +4715,11 @@ public:
   /*
     Set wsrep_query_state
 
-    Asserts LOCK_wsrep_thd ownership.
+    Asserts LOCK_thd_data ownership.
    */
   void set_wsrep_query_state(enum wsrep_query_state state)
   {
-    mysql_mutex_assert_owner(&LOCK_wsrep_thd);
+    mysql_mutex_assert_owner(&LOCK_thd_data);
     /*
       State machine:
 
@@ -4756,18 +4756,18 @@ public:
   /*
     Return current wsrep_query_state
 
-    Asserts LOCK_wsrep_thd ownership
+    Asserts LOCK_thd_data ownership
    */
   enum wsrep_query_state wsrep_query_state() const
   {
-    mysql_mutex_assert_owner(&LOCK_wsrep_thd);
+    mysql_mutex_assert_owner(&LOCK_thd_data);
     return m_wsrep_query_state;
   }
 
   /*
     Return current wsrep_query_state
 
-    Does not assert LOCK_wsrep_thd ownership, useful for
+    Does not assert LOCK_thd_data ownership, useful for
     debugging and logging where strict access is not
     absolutely required.
    */
@@ -4778,7 +4778,7 @@ public:
 
   void set_wsrep_conflict_state(enum wsrep_conflict_state state)
   {
-    mysql_mutex_assert_owner(&LOCK_wsrep_thd);
+    mysql_mutex_assert_owner(&LOCK_thd_data);
     /*
       State machine
 
@@ -4864,18 +4864,18 @@ public:
   /*
     Return wsrep_conflict_state
 
-    Asserts LOCK_wsrep_thd ownership
+    Asserts LOCK_thd_data ownership
    */
   enum wsrep_conflict_state wsrep_conflict_state() const
   {
-    mysql_mutex_assert_owner(&LOCK_wsrep_thd);
+    mysql_mutex_assert_owner(&LOCK_thd_data);
     return m_wsrep_conflict_state;
   }
 
   /*
     Return wsrep_conflict_state
 
-    Does not assert LOCK_wsrep_thd ownership, useful mostly
+    Does not assert LOCK_thd_data ownership, useful mostly
     for debugging and logging where strict access is not
     aboslutely required.
    */
@@ -4901,8 +4901,6 @@ private:
 #endif /* DBUG_OFF */
 public:
 
-  mysql_mutex_t             LOCK_wsrep_thd;
-  mysql_cond_t              COND_wsrep_thd;
   // changed from wsrep_seqno_t to wsrep_trx_meta_t in wsrep API rev 75
   // wsrep_seqno_t             wsrep_trx_seqno;
   wsrep_trx_meta_t          wsrep_trx_meta;

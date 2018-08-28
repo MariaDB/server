@@ -89,7 +89,7 @@ static void wsrep_wait_for_replayers(THD *thd)
   {
 
     mysql_mutex_unlock(&LOCK_wsrep_replaying);
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
 
     mysql_mutex_lock(&thd->mysys_var->mutex);
     thd_proc_info(thd, "wsrep waiting on replaying");
@@ -122,7 +122,7 @@ static void wsrep_wait_for_replayers(THD *thd)
     thd->mysys_var->current_cond=  0;
     mysql_mutex_unlock(&thd->mysys_var->mutex);
 
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     mysql_mutex_lock(&LOCK_wsrep_replaying);
   }
   mysql_mutex_unlock(&LOCK_wsrep_replaying);
@@ -185,11 +185,11 @@ static int wsrep_prepare_data_for_replication(THD *thd)
 /*
   Run wsrep pre_commit phase
 
-  Asserts thd->LOCK_wsrep_thd ownership
+  Asserts thd->LOCK_thd_data ownership
  */
 static wsrep_trx_status wsrep_certify(THD *thd)
 {
-  mysql_mutex_assert_owner(&thd->LOCK_wsrep_thd);
+  mysql_mutex_assert_owner(&thd->LOCK_thd_data);
   DBUG_ENTER("wsrep_certify");
   DBUG_ASSERT(thd->wsrep_conflict_state() == NO_CONFLICT);
   DBUG_ASSERT(thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID);
@@ -217,14 +217,14 @@ static wsrep_trx_status wsrep_certify(THD *thd)
   }
 
   thd->set_wsrep_query_state(QUERY_COMMITTING);
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   DEBUG_SYNC(thd, "wsrep_before_replication");
 
   if (wsrep_prepare_data_for_replication(thd))
   {
     /* Error will be set in function to prepare data */
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->set_wsrep_query_state(QUERY_EXEC);
     DBUG_RETURN(WSREP_TRX_ERROR);
   }
@@ -233,7 +233,7 @@ static wsrep_trx_status wsrep_certify(THD *thd)
   {
     WSREP_INFO("thd %lld killed with signal %d, skipping replication",
                thd->thread_id, thd->killed);
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     wsrep_override_error(thd, ER_LOCK_DEADLOCK);
     thd->set_wsrep_query_state(QUERY_EXEC);
     DBUG_RETURN(WSREP_TRX_ERROR);
@@ -249,7 +249,7 @@ static wsrep_trx_status wsrep_certify(THD *thd)
                thd->thread_id,
                (thd->db.str ? thd->db.str : "(null)"),
                WSREP_QUERY(thd));
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
     thd->set_wsrep_query_state(QUERY_EXEC);
     DBUG_RETURN(WSREP_TRX_ERROR);
@@ -265,7 +265,7 @@ static wsrep_trx_status wsrep_certify(THD *thd)
   {
     if (!wsrep_append_SR_keys(thd))
     {
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
       wsrep_override_error(thd, ER_ERROR_DURING_COMMIT);
       thd->set_wsrep_query_state(QUERY_EXEC);
       DBUG_RETURN(WSREP_TRX_ERROR);
@@ -289,7 +289,7 @@ static wsrep_trx_status wsrep_certify(THD *thd)
                thd->wsrep_trx_meta.gtid.seqno) ||
               WSREP_OK != rcode);
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
 
   DEBUG_SYNC(thd, "wsrep_after_replication");
 
@@ -410,7 +410,7 @@ static wsrep_trx_status wsrep_certify(THD *thd)
 
 static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
 {
-  mysql_mutex_assert_owner(&thd->LOCK_wsrep_thd);
+  mysql_mutex_assert_owner(&thd->LOCK_thd_data);
   DBUG_ENTER("wsrep_replicate_fragment");
   DBUG_ASSERT(thd->wsrep_exec_mode != REPL_RECV &&
               thd->wsrep_exec_mode != TOTAL_ORDER);
@@ -428,7 +428,7 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
 
   thd->set_wsrep_query_state(QUERY_COMMITTING);
 
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   bool reset_trx_meta= false;
   IO_CACHE *cache= wsrep_get_trans_cache(thd);
@@ -453,7 +453,7 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
       WSREP_ERROR("SR rbr write fail, data_len: %zu ret: %d",
                   data_len, rcode);
       --thd->wsrep_fragments_sent;
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
       thd->set_wsrep_query_state(QUERY_EXEC);
       DBUG_RETURN(rcode);
     }
@@ -489,7 +489,7 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
       WSREP_WARN("empty rbr buffer, query: %s", thd->query());
     }
     --thd->wsrep_fragments_sent;
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->set_wsrep_query_state(QUERY_EXEC);
     DBUG_RETURN(WSREP_TRX_ERROR);
   }
@@ -502,7 +502,7 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
                " => Skipping fragment replication",
                thd->thread_id, data_len, thd->query());
     --thd->wsrep_fragments_sent;
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->set_wsrep_query_state(QUERY_EXEC);
     DBUG_RETURN(WSREP_TRX_ERROR);
   }
@@ -516,7 +516,7 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
     {
       my_error(ER_BINLOG_ROW_LOGGING_FAILED, MYF(0));
       --thd->wsrep_fragments_sent;
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
       thd->set_wsrep_query_state(QUERY_EXEC);
       DBUG_RETURN(WSREP_TRX_ERROR);
     }
@@ -548,9 +548,9 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
   {
     DBUG_ASSERT(thd->wsrep_trx_has_seqno());
 
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     my_bool const must_abort= (thd->wsrep_conflict_state() == MUST_ABORT);
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
 
     if (must_abort)
     {
@@ -609,7 +609,7 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
     thd->store_globals();
   }
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   /*
     If the SR transaction was BF aborted at this stage
     we abort whole transaction.
@@ -669,9 +669,9 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
   if (SR_thd && wsrep_thd_trx_seqno(thd) == WSREP_SEQNO_UNDEFINED)
   {
     --thd->wsrep_fragments_sent;
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
     wsrep_SR_store->release_SR_thd(SR_thd);
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->store_globals();
   }
 
@@ -692,7 +692,7 @@ static wsrep_trx_status wsrep_replicate_fragment(THD *thd)
 
 static int wsrep_SR_step(THD *thd, uint unit)
 {
-  mysql_mutex_assert_owner(&thd->LOCK_wsrep_thd);
+  mysql_mutex_assert_owner(&thd->LOCK_thd_data);
   DBUG_ENTER("wsrep_SR_step");
   if (!wsrep_may_produce_SR_step(thd) ||
       unit != thd->variables.wsrep_trx_fragment_unit ||
@@ -847,7 +847,7 @@ static int wsrep_run_hook(const THD* thd, bool is_real_trans,
 static inline
 int wsrep_is_effective_not_to_replay(THD *thd)
 {
-  mysql_mutex_assert_owner(&thd->LOCK_wsrep_thd);
+  mysql_mutex_assert_owner(&thd->LOCK_thd_data);
   int ret= (
             /* effective */
             thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID &&
@@ -901,13 +901,13 @@ int wsrep_after_row(THD* thd, bool all)
 
   if (!ret)
   {
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     if (thd->wsrep_conflict_state() == NO_CONFLICT)
     {
       ret|= wsrep_SR_step(thd, WSREP_FRAG_BYTES);
       ret|= wsrep_SR_step(thd, WSREP_FRAG_ROWS);
     }
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
 #if 0
   /*
@@ -938,7 +938,7 @@ int wsrep_before_prepare(THD* thd, bool all)
 
   int ret= 0;
   DBUG_ASSERT(thd->wsrep_exec_mode == LOCAL_STATE);
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   if (wsrep_is_effective_not_to_replay(thd))
   {
     if (thd->wsrep_is_streaming())
@@ -946,7 +946,7 @@ int wsrep_before_prepare(THD* thd, bool all)
       DBUG_EXECUTE_IF("crash_last_fragment_commit_before_fragment_removal",
                       DBUG_SUICIDE(););
 
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
       /*
         We don't support implicit commit for SR transactions.
        */
@@ -966,12 +966,12 @@ int wsrep_before_prepare(THD* thd, bool all)
         wsrep_remove_SR_fragments(thd);
         thd->variables.wsrep_trx_fragment_size= frag_size_orig;
       }
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
       DBUG_EXECUTE_IF("crash_last_fragment_commit_after_fragment_removal",
                       DBUG_SUICIDE(););
     }
   }
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
@@ -991,7 +991,7 @@ int wsrep_after_prepare(THD* thd, bool all)
     DBUG_RETURN(0);
   }
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
     wsrep_log_thd(thd, is_real_trans, "wsrep_after_prepare enter");
@@ -1029,7 +1029,7 @@ int wsrep_after_prepare(THD* thd, bool all)
   {
     wsrep_log_thd(thd, is_real_trans, "wsrep_after_prepare leave");
   }
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   DBUG_RETURN(ret);
 }
@@ -1056,9 +1056,9 @@ int wsrep_before_commit(THD* thd, bool all)
         WSREP_ERROR("Failed to enter applier commit order critical section");
         DBUG_RETURN(1);
       }
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
       thd->set_wsrep_query_state(QUERY_COMMITTING);
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
     }
     wsrep_log_thd(thd, is_real_trans, "wsrep_before_commit leave");
     DBUG_RETURN(0);
@@ -1070,7 +1070,7 @@ int wsrep_before_commit(THD* thd, bool all)
     DBUG_RETURN(0);
   }
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
     wsrep_log_thd(thd, is_real_trans, "wsrep_before_commit enter");
@@ -1113,11 +1113,11 @@ int wsrep_before_commit(THD* thd, bool all)
     else
     {
       DBUG_ASSERT(thd->wsrep_conflict_state() == NO_CONFLICT);
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
       wsrep_status_t rcode= wsrep->commit_order_enter(wsrep,
                                                       &thd->wsrep_ws_handle,
                                                       &thd->wsrep_trx_meta);
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
       switch (rcode)
       {
       case WSREP_OK:
@@ -1149,7 +1149,7 @@ int wsrep_before_commit(THD* thd, bool all)
     wsrep_log_thd(thd, is_real_trans, "wsrep_before_commit leave");
   }
 
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   DBUG_RETURN(ret);
 }
@@ -1169,10 +1169,10 @@ int wsrep_ordered_commit(THD* thd, bool all, const wsrep_apply_error& err)
     wsrep_log_thd(thd, is_real_trans, "wsrep_ordered_commit enter");
     if (is_real_trans)
     {
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
       bool run_commit_order_leave=
         (thd->wsrep_query_state() != QUERY_ORDERED_COMMIT);
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
       if (run_commit_order_leave)
       {
         wsrep_buf_t const err_buf= err.get_buf();
@@ -1198,9 +1198,9 @@ int wsrep_ordered_commit(THD* thd, bool all, const wsrep_apply_error& err)
           ret= 1;
         }
 
-        mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+        mysql_mutex_lock(&thd->LOCK_thd_data);
         thd->set_wsrep_query_state(QUERY_ORDERED_COMMIT);
-        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+        mysql_mutex_unlock(&thd->LOCK_thd_data);
       }
     }
     DBUG_RETURN(ret);
@@ -1211,7 +1211,7 @@ int wsrep_ordered_commit(THD* thd, bool all, const wsrep_apply_error& err)
     DBUG_RETURN(0);
   }
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
     wsrep_log_thd(thd, is_real_trans, "wsrep_ordered_commit enter");
@@ -1224,7 +1224,7 @@ int wsrep_ordered_commit(THD* thd, bool all, const wsrep_apply_error& err)
   if (wsrep_is_effective_not_to_replay(thd))
   {
     thd->wsrep_SR_fragments.clear();
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
     if (wsrep_thd_trx_seqno(thd) != WSREP_SEQNO_UNDEFINED &&
         wsrep->commit_order_leave(wsrep,
                                   &thd->wsrep_ws_handle,
@@ -1234,7 +1234,7 @@ int wsrep_ordered_commit(THD* thd, bool all, const wsrep_apply_error& err)
       WSREP_ERROR("wsrep::commit_order_leave fail: %llu %d",
                   (long long)thd->thread_id, thd->get_stmt_da()->status());
     }
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->set_wsrep_query_state(QUERY_ORDERED_COMMIT);
   }
 
@@ -1243,7 +1243,7 @@ int wsrep_ordered_commit(THD* thd, bool all, const wsrep_apply_error& err)
     wsrep_log_thd(thd, is_real_trans, "wsrep_ordered_commit leave");
   }
 
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   DBUG_RETURN(0);
 }
@@ -1259,7 +1259,7 @@ int wsrep_after_commit(THD* thd, bool all)
     DBUG_RETURN(0);
   }
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
     wsrep_log_thd(thd, is_real_trans, "wsrep_after_commit enter");
@@ -1277,7 +1277,7 @@ int wsrep_after_commit(THD* thd, bool all)
     if (thd->wsrep_query_state() == QUERY_COMMITTING)
     {
       thd->wsrep_SR_fragments.clear();
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
       if (wsrep_thd_trx_seqno(thd) != WSREP_SEQNO_UNDEFINED &&
           wsrep->commit_order_leave(wsrep,
                                     &thd->wsrep_ws_handle,
@@ -1287,19 +1287,19 @@ int wsrep_after_commit(THD* thd, bool all)
         WSREP_ERROR("wsrep::commit_order_leave fail: %llu %d",
                     (long long)thd->thread_id, thd->get_stmt_da()->status());
       }
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
       thd->set_wsrep_query_state(QUERY_ORDERED_COMMIT);
     }
 
     DBUG_ASSERT(thd->wsrep_query_state() == QUERY_ORDERED_COMMIT);
 
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
     if (wsrep->release(wsrep, &thd->wsrep_ws_handle))
     {
       WSREP_WARN("wsrep::release fail: %lld %d",
                  (long long)thd->thread_id, thd->get_stmt_da()->status());
     }
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->set_wsrep_query_state(QUERY_EXEC);
   }
 
@@ -1317,7 +1317,7 @@ int wsrep_after_commit(THD* thd, bool all)
   {
     wsrep_log_thd(thd, is_real_trans, "wsrep_after_commit leave");
   }
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   DBUG_RETURN(0);
 }
@@ -1333,7 +1333,7 @@ int wsrep_before_rollback(THD* thd, bool all)
     DBUG_RETURN(0);
   }
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
   {
       (void)wsrep_ws_handle_for_trx(&thd->wsrep_ws_handle,
@@ -1378,7 +1378,7 @@ int wsrep_before_rollback(THD* thd, bool all)
     {
       wsrep_prepare_SR_trx_info_for_rollback(thd);
       thd->wsrep_SR_rollback_replicated_for_trx= thd->wsrep_trx_id();
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
       DEBUG_SYNC(thd, "wsrep_before_SR_rollback");
       WSREP_DEBUG("Replicating rollback for %ld %ld",
                   thd->thread_id, thd->wsrep_trx_id());
@@ -1388,7 +1388,7 @@ int wsrep_before_rollback(THD* thd, bool all)
       {
         WSREP_WARN("failed to send SR rollback for %lld", thd->thread_id);
       }
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
     }
     thd->wsrep_exec_mode= LOCAL_ROLLBACK;
   }
@@ -1397,7 +1397,7 @@ int wsrep_before_rollback(THD* thd, bool all)
   {
     wsrep_log_thd(thd, is_real_trans, "wsrep_before_rollback leave");
   }
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   DBUG_RETURN(0);
 }
@@ -1413,7 +1413,7 @@ int wsrep_after_rollback(THD* thd, bool all)
     DBUG_RETURN(0);
   }
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
     wsrep_log_thd(thd, is_real_trans, "wsrep_after_rollback enter");
@@ -1453,12 +1453,12 @@ int wsrep_after_rollback(THD* thd, bool all)
       */
       thd->server_status&=
         ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
       /*
         Calling ha_rollback_trans() here will call rollback hooks recursively.
       */
       ha_rollback_trans(thd, TRUE);
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
       thd->variables.option_bits&= ~OPTION_BEGIN;
       //thd->transaction.all.reset_unsafe_rollback_flags();
       thd->transaction.all.m_unsafe_rollback_flags= 0;
@@ -1484,7 +1484,7 @@ int wsrep_after_rollback(THD* thd, bool all)
   {
     wsrep_log_thd(thd, is_real_trans, "wsrep_after_rollback leave");
   }
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   DBUG_RETURN(0);
 }
@@ -1504,7 +1504,7 @@ int wsrep_after_command(THD* thd, bool all)
     DBUG_RETURN(0);
   }
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
 
   if (thd->wsrep_trx_id() != WSREP_UNDEFINED_TRX_ID)
   {
@@ -1602,7 +1602,7 @@ int wsrep_after_command(THD* thd, bool all)
   }
 
 
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   DBUG_RETURN(ret);
 }
@@ -1619,12 +1619,12 @@ int wsrep_before_GTID_binlog(THD* thd, bool all)
     DBUG_RETURN(0);
   }
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   if (wsrep_replicate_GTID(thd))
   {
     ret = 1;
   }
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   wsrep_status_t rcode;
   if (!ret &&
@@ -1650,10 +1650,10 @@ int wsrep_before_GTID_binlog(THD* thd, bool all)
 
   if (!ret)
   {
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->set_wsrep_query_state(QUERY_ORDERED_COMMIT);
     thd->set_wsrep_query_state(QUERY_EXEC);
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
 
   if (wsrep->release(wsrep, &thd->wsrep_ws_handle))
@@ -1661,9 +1661,9 @@ int wsrep_before_GTID_binlog(THD* thd, bool all)
     WSREP_WARN("wsrep::release fail: %lld %d",
                (long long)thd->thread_id, thd->get_stmt_da()->status());
   }
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   wsrep_cleanup_transaction(thd);
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   DBUG_RETURN(ret);
 }

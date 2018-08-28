@@ -553,7 +553,7 @@ void Protocol::end_statement()
 {
   /*
     Commented out: This sanity check does not hold in general.
-    Thd->LOCK_wsrep_thd() must be unlocked before sending response
+    Thd->LOCK_thd_data() must be unlocked before sending response
     to client, so BF abort may sneak in here.
     DBUG_ASSERT(!WSREP(thd) || thd->wsrep_conflict_state() == NO_CONFLICT);
    */
