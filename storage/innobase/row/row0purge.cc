@@ -1000,9 +1000,7 @@ try_again:
 	ut_ad(!dict_table_is_temporary(node->table));
 
 	if (!fil_table_accessible(node->table)) {
-		dict_table_close(node->table, FALSE, FALSE);
-		node->table = NULL;
-		goto err_exit;
+		goto close_exit;
 	}
 
 	if (node->table->n_v_cols && !node->table->vc_templ
@@ -1031,6 +1029,7 @@ try_again:
 		we do not have an index to call it with. */
 close_exit:
 		dict_table_close(node->table, FALSE, FALSE);
+		node->table = NULL;
 err_exit:
 		rw_lock_s_unlock(dict_operation_lock);
 		return(false);
