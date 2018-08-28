@@ -101,10 +101,8 @@ struct fil_space_t {
 				new write operations because we don't
 				check this flag when doing flush
 				batches. */
+	/** whether undo tablespace truncation is in progress */
 	bool		is_being_truncated;
-				/*!< this is set to true when we prepare to
-				truncate a single-table tablespace and its
-				.ibd file */
 #ifdef UNIV_DEBUG
 	ulint		redo_skipped_count;
 				/*!< reference count for operations who want
@@ -188,12 +186,8 @@ struct fil_space_t {
 
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 
-	/** @return whether the tablespace is about to be dropped or
-	truncated */
-	bool is_stopping() const
-	{
-		return stop_new_ops || is_being_truncated;
-	}
+	/** @return whether the tablespace is about to be dropped */
+	bool is_stopping() const { return stop_new_ops;	}
 
 	/** @return whether doublewrite buffering is needed */
 	bool use_doublewrite() const
@@ -923,7 +917,8 @@ fil_op_replay_rename(
 not (necessarily) protected by meta-data locks.
 (Rollback would generally be protected, but rollback of
 FOREIGN KEY CASCADE/SET NULL is not protected by meta-data locks
-but only by InnoDB table locks, which may be broken by TRUNCATE TABLE.)
+but only by InnoDB table locks, which may be broken by
+lock_remove_all_on_table().)
 @param[in]	table	persistent table
 checked @return whether the table is accessible */
 bool
@@ -941,36 +936,15 @@ fil_delete_tablespace(
 #endif /* BTR_CUR_HASH_ADAPT */
 	);
 
-/** Truncate the tablespace to needed size.
-@param[in]	space_id	id of tablespace to truncate
-@param[in]	size_in_pages	truncate size.
-@return true if truncate was successful. */
-bool
-fil_truncate_tablespace(
-	ulint		space_id,
-	ulint		size_in_pages);
+/** Prepare to truncate an undo tablespace.
+@param[in]	space_id	undo tablespace id
+@return	the tablespace
+@retval	NULL if the tablespace does not exist */
+fil_space_t* fil_truncate_prepare(ulint space_id);
 
-/*******************************************************************//**
-Prepare for truncating a single-table tablespace. The tablespace
-must be cached in the memory cache.
-1) Check pending operations on a tablespace;
-2) Remove all insert buffer entries for the tablespace;
-@return DB_SUCCESS or error */
-dberr_t
-fil_prepare_for_truncate(
-/*=====================*/
-	ulint	id);			/*!< in: space id */
-
-/** Reinitialize the original tablespace header with the same space id
-for single tablespace
-@param[in]	table		table belongs to the tablespace
-@param[in]	size            size in blocks
-@param[in]	trx		Transaction covering truncate */
-void
-fil_reinit_space_header_for_table(
-	dict_table_t*	table,
-	ulint		size,
-	trx_t*		trx);
+/** Write log about an undo tablespace truncate operation. */
+void fil_truncate_log(fil_space_t* space, ulint size, mtr_t* mtr)
+	MY_ATTRIBUTE((nonnull));
 
 /*******************************************************************//**
 Closes a single-table tablespace. The tablespace must be cached in the

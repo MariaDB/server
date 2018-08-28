@@ -2246,13 +2246,14 @@ fil_op_write_log(
 	byte*		log_ptr;
 	ulint		len;
 
-	ut_ad(first_page_no == 0);
+	ut_ad(first_page_no == 0 || type == MLOG_FILE_CREATE2);
 	ut_ad(fsp_flags_is_valid(flags, space_id));
 
 	/* fil_name_parse() requires that there be at least one path
 	separator and that the file path end with ".ibd". */
 	ut_ad(strchr(path, OS_PATH_SEPARATOR) != NULL);
-	ut_ad(strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD) == 0);
+	ut_ad(first_page_no /* trimming an undo tablespace */
+	      || !strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD));
 
 	log_ptr = mlog_open(mtr, 11 + 4 + 2 + 1);
 
@@ -2685,7 +2686,7 @@ fil_op_replay_rename(
 enum fil_operation_t {
 	FIL_OPERATION_DELETE,	/*!< delete a single-table tablespace */
 	FIL_OPERATION_CLOSE,	/*!< close a single-table tablespace */
-	FIL_OPERATION_TRUNCATE	/*!< truncate a single-table tablespace */
+	FIL_OPERATION_TRUNCATE	/*!< truncate an undo tablespace */
 };
 
 /** Check for pending operations.
@@ -2819,8 +2820,6 @@ fil_check_pending_operations(
 
 	/* Check for pending IO. */
 
-	*path = 0;
-
 	for (;;) {
 		sp = fil_space_get_by_id(id);
 
@@ -2833,7 +2832,7 @@ fil_check_pending_operations(
 
 		count = fil_check_pending_io(operation, sp, &node, count);
 
-		if (count == 0) {
+		if (count == 0 && path) {
 			*path = mem_strdup(node->name);
 		}
 
@@ -2921,7 +2920,8 @@ fil_close_tablespace(
 not (necessarily) protected by meta-data locks.
 (Rollback would generally be protected, but rollback of
 FOREIGN KEY CASCADE/SET NULL is not protected by meta-data locks
-but only by InnoDB table locks, which may be broken by TRUNCATE TABLE.)
+but only by InnoDB table locks, which may be broken by
+lock_remove_all_on_table().)
 @param[in]	table	persistent table
 checked @return whether the table is accessible */
 bool
@@ -2937,8 +2937,6 @@ fil_table_accessible(const dict_table_t* table)
 		ut_ad(accessible || dict_table_is_file_per_table(table));
 		return(accessible);
 	} else {
-		/* The tablespace may momentarily be missing during
-		TRUNCATE TABLE. */
 		return(false);
 	}
 }
@@ -3068,152 +3066,33 @@ fil_delete_tablespace(
 	return(err);
 }
 
-/** Truncate the tablespace to needed size.
-@param[in]	space_id	id of tablespace to truncate
-@param[in]	size_in_pages	truncate size.
-@return true if truncate was successful. */
-bool
-fil_truncate_tablespace(
-	ulint		space_id,
-	ulint		size_in_pages)
+/** Prepare to truncate an undo tablespace.
+@param[in]	space_id	undo tablespace id
+@return	the tablespace
+@retval	NULL if tablespace not found */
+fil_space_t* fil_truncate_prepare(ulint space_id)
 {
-	/* Step-1: Prepare tablespace for truncate. This involves
-	stopping all the new operations + IO on that tablespace
-	and ensuring that related pages are flushed to disk. */
-	if (fil_prepare_for_truncate(space_id) != DB_SUCCESS) {
-		return(false);
+	/* Stop all I/O on the tablespace and ensure that related
+	pages are flushed to disk. */
+	fil_space_t* space;
+	if (fil_check_pending_operations(space_id, FIL_OPERATION_TRUNCATE,
+					 &space, NULL) != DB_SUCCESS) {
+		return NULL;
 	}
-
-	/* Step-2: Invalidate buffer pool pages belonging to the tablespace
-	to re-create. Remove all insert buffer entries for the tablespace */
-	buf_LRU_flush_or_remove_pages(space_id, NULL);
-
-	/* Step-3: Truncate the tablespace and accordingly update
-	the fil_space_t handler that is used to access this tablespace. */
-	mutex_enter(&fil_system->mutex);
-	fil_space_t*	space = fil_space_get_by_id(space_id);
-
-	/* The following code must change when InnoDB supports
-	multiple datafiles per tablespace. */
-	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
-
-	fil_node_t*	node = UT_LIST_GET_FIRST(space->chain);
-
-	ut_ad(node->is_open());
-
-	space->size = node->size = size_in_pages;
-
-	bool success = os_file_truncate(node->name, node->handle, 0);
-	if (success) {
-
-		os_offset_t	size = os_offset_t(size_in_pages) * UNIV_PAGE_SIZE;
-
-		success = os_file_set_size(
-			node->name, node->handle, size,
-			FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags));
-
-		if (success) {
-			space->stop_new_ops = false;
-			space->is_being_truncated = false;
-		}
-	}
-
-	mutex_exit(&fil_system->mutex);
-
-	return(success);
+	ut_ad(space != NULL);
+	return space;
 }
 
-/*******************************************************************//**
-Prepare for truncating a single-table tablespace.
-1) Check pending operations on a tablespace;
-2) Remove all insert buffer entries for the tablespace;
-@return DB_SUCCESS or error */
-dberr_t
-fil_prepare_for_truncate(
-/*=====================*/
-	ulint	id)		/*!< in: space id */
+/** Write log about an undo tablespace truncate operation. */
+void fil_truncate_log(fil_space_t* space, ulint size, mtr_t* mtr)
 {
-	char*		path = 0;
-	fil_space_t*	space = 0;
-
-	ut_a(!is_system_tablespace(id));
-
-	dberr_t	err = fil_check_pending_operations(
-		id, FIL_OPERATION_TRUNCATE, &space, &path);
-
-	ut_free(path);
-
-	if (err == DB_TABLESPACE_NOT_FOUND) {
-		ib::error() << "Cannot truncate tablespace " << id
-			<< " because it is not found in the tablespace"
-			" memory cache.";
-	}
-
-	return(err);
-}
-
-/** Reinitialize the original tablespace header with the same space id
-for single tablespace
-@param[in]      table		table belongs to tablespace
-@param[in]      size            size in blocks
-@param[in]      trx             Transaction covering truncate */
-void
-fil_reinit_space_header_for_table(
-	dict_table_t*	table,
-	ulint		size,
-	trx_t*		trx)
-{
-	ulint	id = table->space;
-
-	ut_a(!is_system_tablespace(id));
-
-	/* Invalidate in the buffer pool all pages belonging
-	to the tablespace. The buffer pool scan may take long
-	time to complete, therefore we release dict_sys->mutex
-	and the dict operation lock during the scan and aquire
-	it again after the buffer pool scan.*/
-
-	/* Release the lock on the indexes too. So that
-	they won't violate the latch ordering. */
-	dict_table_x_unlock_indexes(table);
-	row_mysql_unlock_data_dictionary(trx);
-
-	/* Lock the search latch in shared mode to prevent user
-	from disabling AHI during the scan */
-	btr_search_s_lock_all();
-	DEBUG_SYNC_C("buffer_pool_scan");
-	buf_LRU_flush_or_remove_pages(id, NULL);
-	btr_search_s_unlock_all();
-
-	row_mysql_lock_data_dictionary(trx);
-
-	dict_table_x_lock_indexes(table);
-
-	/* Remove all insert buffer entries for the tablespace */
-	ibuf_delete_for_discarded_space(id);
-
-	mutex_enter(&fil_system->mutex);
-
-	fil_space_t*	space = fil_space_get_by_id(id);
-
-	/* The following code must change when InnoDB supports
-	multiple datafiles per tablespace. */
-	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
-
-	fil_node_t*	node = UT_LIST_GET_FIRST(space->chain);
-
-	space->size = node->size = size;
-
-	mutex_exit(&fil_system->mutex);
-
-	mtr_t	mtr;
-
-	mtr_start(&mtr);
-	mtr.set_named_space(id);
-
-	fsp_header_init(id, size, &mtr);
-
-	mtr_commit(&mtr);
+	/* Write a MLOG_FILE_CREATE2 record with the new size, so that
+	recovery and backup will ignore any preceding redo log records
+	for writing pages that are after the new end of the tablespace. */
+	ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+	const fil_node_t* file = UT_LIST_GET_FIRST(space->chain);
+	fil_op_write_log(MLOG_FILE_CREATE2, space->id, size, file->name,
+			 NULL, space->flags & ~FSP_FLAGS_MEM_MASK, mtr);
 }
 
 #ifdef UNIV_DEBUG
@@ -5085,7 +4964,6 @@ fil_io(
 			if (space->id != TRX_SYS_SPACE
 			    && UT_LIST_GET_LEN(space->chain) == 1
 			    && (srv_is_tablespace_truncated(space->id)
-				|| space->is_being_truncated
 				|| srv_was_tablespace_truncated(space))
 			    && req_type.is_read()) {
 
@@ -5766,7 +5644,7 @@ fil_space_validate_for_mtr_commit(
 	fil_space_release() after mtr_commit(). This is why
 	n_pending_ops should not be zero if stop_new_ops is set. */
 	ut_ad(!space->stop_new_ops
-	      || space->is_being_truncated /* TRUNCATE sets stop_new_ops */
+	      || space->is_being_truncated /* fil_truncate_prepare() */
 	      || space->n_pending_ops > 0);
 }
 #endif /* UNIV_DEBUG */
@@ -5992,7 +5870,6 @@ truncate_t::truncate(
 	}
 
 	space->stop_new_ops = false;
-	space->is_being_truncated = false;
 
 	/* If we opened the file in this function, close it. */
 	if (!already_open) {
@@ -6185,7 +6062,7 @@ fil_space_keyrotate_next(
 	}
 
 	/* Skip spaces that are being created by fil_ibd_create(),
-	or dropped or truncated. Note that rotation_list contains only
+	or dropped. Note that rotation_list contains only
 	space->purpose == FIL_TYPE_TABLESPACE. */
 	while (space != NULL
 	       && (UT_LIST_GET_LEN(space->chain) == 0

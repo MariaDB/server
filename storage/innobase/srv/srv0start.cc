@@ -1107,8 +1107,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 			buf_LRU_flush_or_remove_pages(*it, &dummy2);
 
 			/* Remove the truncate redo log file. */
-			undo::Truncate	undo_trunc;
-			undo_trunc.done_logging(*it);
+			undo::done(*it);
 		}
 	}
 

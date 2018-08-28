@@ -9,6 +9,7 @@
 --source include/have_innodb_max_16k.inc
 --source include/have_undo_tablespaces.inc
 
+call mtr.add_suppression("InnoDB: The transaction log size is too large");
 SET GLOBAL innodb_fast_shutdown=0;
 --let $restart_parameters=--innodb_undo_tablespaces=2 --innodb_undo_logs=4
 --source include/restart_mysqld.inc

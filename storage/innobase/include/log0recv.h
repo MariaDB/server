@@ -280,6 +280,15 @@ struct recv_sys_t{
 	ulint		n_addrs;/*!< number of not processed hashed file
 				addresses in the hash table */
 
+	/** Undo tablespaces for which truncate has been logged
+	(indexed by id - srv_undo_space_id_start) */
+	struct trunc {
+		/** log sequence number of MLOG_FILE_CREATE2, or 0 if none */
+		lsn_t		lsn;
+		/** truncated size of the tablespace, or 0 if not truncated */
+		unsigned	pages;
+	} truncated_undo_spaces[127];
+
 	recv_dblwr_t	dblwr;
 
 	/** Lastly added LSN to the hash table of log records. */

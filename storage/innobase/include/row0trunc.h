@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -420,14 +421,4 @@ private:
 		const char*		log_file_name);
 };
 
-
-/**
-Truncates a table for MySQL.
-@param table		table being truncated
-@param trx		transaction covering the truncate
-@return	error code or DB_SUCCESS */
-dberr_t
-row_truncate_table_for_mysql(dict_table_t* table, trx_t* trx);
-
 #endif /* row0trunc_h */
-

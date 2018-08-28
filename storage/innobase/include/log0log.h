@@ -490,10 +490,12 @@ to this checkpoint, or 0 if the information has not been written */
 This used to be called LOG_GROUP_ID and always written as 0,
 because InnoDB never supported more than one copy of the redo log. */
 #define LOG_HEADER_FORMAT	0
-/** 4 unused (zero-initialized) bytes. In format version 0, the
+/** Redo log subformat (originally 0). In format version 0, the
 LOG_FILE_START_LSN started here, 4 bytes earlier than LOG_HEADER_START_LSN,
-which the LOG_FILE_START_LSN was renamed to. */
-#define LOG_HEADER_PAD1		4
+which the LOG_FILE_START_LSN was renamed to.
+Subformat 1 is for the fully redo-logged TRUNCATE
+(no MLOG_TRUNCATE records or extra log checkpoints or log files) */
+#define LOG_HEADER_SUBFORMAT	4
 /** LSN of the start of data in this log file (with format version 1;
 in format version 0, it was called LOG_FILE_START_LSN and at offset 4). */
 #define LOG_HEADER_START_LSN	8

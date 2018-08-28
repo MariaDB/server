@@ -4188,6 +4188,7 @@ reread_log_header:
 	byte MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE) log_hdr[OS_FILE_LOG_BLOCK_SIZE];
 	memset(log_hdr, 0, sizeof log_hdr);
 	mach_write_to_4(LOG_HEADER_FORMAT + log_hdr, log_sys->log.format);
+	mach_write_to_4(LOG_HEADER_SUBFORMAT + log_hdr, 1);
 	mach_write_to_8(LOG_HEADER_START_LSN + log_hdr, checkpoint_lsn_start);
 	strcpy(reinterpret_cast<char*>(LOG_HEADER_CREATOR + log_hdr),
 	       "Backup " MYSQL_SERVER_VERSION);
