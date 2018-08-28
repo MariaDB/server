@@ -4007,7 +4007,7 @@ maria_declare_plugin(aria)
   MYSQL_STORAGE_ENGINE_PLUGIN,
   &maria_storage_engine,
   "Aria",
-  "Monty Program Ab",
+  "MariaDB Corporation Ab",
   "Crash-safe tables with MyISAM heritage. Used for internal temporary tables and privilege tables",
   PLUGIN_LICENSE_GPL,
   ha_maria_init,                /* Plugin Init      */
