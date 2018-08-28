@@ -3123,6 +3123,9 @@ public:
     it returned an error on master, and this is OK on the slave.
   */
   bool       is_slave_error;
+  /* True if we have printed something to the error log for this statement */
+  bool       error_printed_to_log;
+
   /*
     True when a transaction is queued up for binlog group commit.
     Used so that if another transaction needs to wait for a row lock held by

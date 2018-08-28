@@ -500,7 +500,8 @@ call mtr.add_suppression("Checking table");
 insert delayed into t1 values (2,2);
 Warnings:
 Error	145	Table './test/t1' is marked as crashed and should be repaired
-Error	1034	1 client is using or hasn't closed the table properly
+Warning	1034	1 client is using or hasn't closed the table properly
+Note	1034	Table is fixed
 insert delayed into t1 values (3,3);
 flush tables t1;
 select * from t1;

@@ -7593,8 +7593,14 @@ void THD::reset_for_next_command(bool do_clear_error)
   DBUG_ASSERT(!in_sub_stmt);
 
   if (likely(do_clear_error))
+  {
     clear_error(1);
-
+    /*
+      The following variable can't be reset in clear_error() as
+      clear_error() is called during auto_repair of table
+    */
+    error_printed_to_log= 0;
+  }
   free_list= 0;
   /*
     We also assign stmt_lex in lex_start(), but during bootstrap this

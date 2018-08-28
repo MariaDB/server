@@ -1162,6 +1162,10 @@ bool LOGGER::error_log_print(enum loglevel level, const char *format,
 {
   bool error= FALSE;
   Log_event_handler **current_handler;
+  THD *thd= current_thd;
+
+  if (likely(thd))
+    thd->error_printed_to_log= 1;
 
   /* currently we don't need locking here as there is no error_log table */
   for (current_handler= error_log_handler_list ; *current_handler ;)

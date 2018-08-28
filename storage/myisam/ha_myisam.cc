@@ -96,6 +96,10 @@ static MYSQL_THDVAR_ENUM(stats_method, PLUGIN_VAR_RQCMDARG,
   "and NULLS_IGNORED", NULL, NULL,
   MI_STATS_METHOD_NULLS_NOT_EQUAL, &myisam_stats_method_typelib);
 
+const char *MI_CHECK_INFO= "info";
+const char *MI_CHECK_WARNING= "warning";
+const char *MI_CHECK_ERROR= "error";
+
 #ifndef DBUG_OFF
 /**
   Causes the thread to wait in a spin lock for a query kill signal.
@@ -130,6 +134,20 @@ static handler *myisam_create_handler(handlerton *hton,
   return new (mem_root) ha_myisam(hton, table);
 }
 
+
+static void mi_check_print(HA_CHECK *param, const char* msg_type,
+                           const char *msgbuf)
+{
+  if (msg_type == MI_CHECK_INFO)
+    sql_print_information("%s.%s: %s", param->db_name, param->table_name,
+                          msgbuf);
+  else if (msg_type == MI_CHECK_WARNING)
+    sql_print_warning("%s.%s: %s", param->db_name, param->table_name,
+                      msgbuf);
+  else
+    sql_print_error("%s.%s: %s", param->db_name, param->table_name, msgbuf);
+}
+
 // collect errors printed by mi_check routines
 
 static void mi_check_print_msg(HA_CHECK *param,	const char* msg_type,
@@ -151,16 +169,21 @@ static void mi_check_print_msg(HA_CHECK *param,	const char* msg_type,
 
   if (!thd->vio_ok())
   {
-    sql_print_error("%s.%s: %s", param->db_name, param->table_name, msgbuf);
+    mi_check_print(param, msg_type, msgbuf);
     return;
   }
 
   if (param->testflag & (T_CREATE_MISSING_KEYS | T_SAFE_REPAIR |
 			 T_AUTO_REPAIR))
   {
-    my_message(ER_NOT_KEYFILE, msgbuf, MYF(0));
+    myf flag= 0;
+    if (msg_type == MI_CHECK_INFO)
+      flag= ME_NOTE;
+    else if (msg_type == MI_CHECK_WARNING)
+      flag= ME_WARNING;
+    my_message(ER_NOT_KEYFILE, msgbuf, MYF(flag));
     if (thd->variables.log_warnings > 2 && ! thd->log_all_errors)
-      sql_print_error("%s.%s: %s", param->db_name, param->table_name, msgbuf);
+      mi_check_print(param, msg_type, msgbuf);
     return;
   }
   length=(uint) (strxmov(name, param->db_name,".",param->table_name,NullS) -
@@ -185,7 +208,7 @@ static void mi_check_print_msg(HA_CHECK *param,	const char* msg_type,
     sql_print_error("Failed on my_net_write, writing to stderr instead: %s\n",
 		    msgbuf);
   else if (thd->variables.log_warnings > 2)
-    sql_print_error("%s.%s: %s", param->db_name, param->table_name, msgbuf);
+    mi_check_print(param, msg_type, msgbuf);
 
   if (param->need_print_msg_lock)
     mysql_mutex_unlock(&param->print_msg_mutex);
@@ -592,7 +615,7 @@ void mi_check_print_error(HA_CHECK *param, const char *fmt,...)
     return;
   va_list args;
   va_start(args, fmt);
-  mi_check_print_msg(param, "error", fmt, args);
+  mi_check_print_msg(param, MI_CHECK_ERROR, fmt, args);
   va_end(args);
 }
 
@@ -600,7 +623,7 @@ void mi_check_print_info(HA_CHECK *param, const char *fmt,...)
 {
   va_list args;
   va_start(args, fmt);
-  mi_check_print_msg(param, "info", fmt, args);
+  mi_check_print_msg(param, MI_CHECK_INFO, fmt, args);
   param->note_printed= 1;
   va_end(args);
 }
@@ -611,7 +634,7 @@ void mi_check_print_warning(HA_CHECK *param, const char *fmt,...)
   param->out_flag|= O_DATA_LOST;
   va_list args;
   va_start(args, fmt);
-  mi_check_print_msg(param, "warning", fmt, args);
+  mi_check_print_msg(param, MI_CHECK_WARNING, fmt, args);
   va_end(args);
 }
 
@@ -1036,6 +1059,15 @@ int ha_myisam::check(THD* thd, HA_CHECK_OPT* check_opt)
       mysql_mutex_unlock(&share->intern_lock);
       info(HA_STATUS_NO_LOCK | HA_STATUS_TIME | HA_STATUS_VARIABLE |
 	   HA_STATUS_CONST);
+      /*
+        Write a 'table is ok' message to error log if table is ok and
+        we have written to error log that table was getting checked
+      */
+      if (!error && !(table->db_stat & HA_READ_ONLY) &&
+          !mi_is_crashed(file) && thd->error_printed_to_log &&
+          (param->warning_printed || param->error_printed ||
+           param->note_printed))
+        mi_check_print_info(param, "Table is fixed");
     }
   }
   else if (!mi_is_crashed(file) && !thd->killed)

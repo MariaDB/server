@@ -387,6 +387,10 @@ static void init_aria_psi_keys(void)
 #define init_aria_psi_keys() /* no-op */
 #endif /* HAVE_PSI_INTERFACE */
 
+const char *MA_CHECK_INFO= "info";
+const char *MA_CHECK_WARNING= "warning";
+const char *MA_CHECK_ERROR= "error";
+
 /*****************************************************************************
 ** MARIA tables
 *****************************************************************************/
@@ -396,6 +400,20 @@ static handler *maria_create_handler(handlerton *hton,
                                      MEM_ROOT *mem_root)
 {
   return new (mem_root) ha_maria(hton, table);
+}
+
+
+static void _ma_check_print(HA_CHECK *param, const char* msg_type,
+                            const char *msgbuf)
+{
+  if (msg_type == MA_CHECK_INFO)
+    sql_print_information("%s.%s: %s", param->db_name, param->table_name,
+                          msgbuf);
+  else if (msg_type == MA_CHECK_WARNING)
+    sql_print_warning("%s.%s: %s", param->db_name, param->table_name,
+                      msgbuf);
+  else
+    sql_print_error("%s.%s: %s", param->db_name, param->table_name, msgbuf);
 }
 
 
@@ -420,16 +438,21 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
 
   if (!thd->vio_ok())
   {
-    sql_print_error("%s.%s: %s", param->db_name, param->table_name, msgbuf);
+    _ma_check_print(param, msg_type, msgbuf);
     return;
   }
 
   if (param->testflag &
       (T_CREATE_MISSING_KEYS | T_SAFE_REPAIR | T_AUTO_REPAIR))
   {
-    my_message(ER_NOT_KEYFILE, msgbuf, MYF(0));
+    myf flag= 0;
+    if (msg_type == MA_CHECK_INFO)
+      flag= ME_NOTE;
+    else if (msg_type == MA_CHECK_WARNING)
+      flag= ME_WARNING;
+    my_message(ER_NOT_KEYFILE, msgbuf, MYF(flag));
     if (thd->variables.log_warnings > 2)
-      sql_print_error("%s.%s: %s", param->db_name, param->table_name, msgbuf);
+      _ma_check_print(param, msg_type, msgbuf);
     return;
   }
   length= (uint) (strxmov(name, param->db_name, ".", param->table_name,
@@ -451,7 +474,7 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
     sql_print_error("Failed on my_net_write, writing to stderr instead: %s.%s: %s\n",
                     param->db_name, param->table_name, msgbuf);
   else if (thd->variables.log_warnings > 2)
-    sql_print_error("%s.%s: %s", param->db_name, param->table_name, msgbuf);
+    _ma_check_print(param, msg_type, msgbuf);
 
   return;
 }
@@ -879,7 +902,7 @@ void _ma_check_print_error(HA_CHECK *param, const char *fmt, ...)
   if (param->testflag & T_SUPPRESS_ERR_HANDLING)
     DBUG_VOID_RETURN;
   va_start(args, fmt);
-  _ma_check_print_msg(param, "error", fmt, args);
+  _ma_check_print_msg(param, MA_CHECK_ERROR, fmt, args);
   va_end(args);
   DBUG_VOID_RETURN;
 }
@@ -890,7 +913,7 @@ void _ma_check_print_info(HA_CHECK *param, const char *fmt, ...)
   va_list args;
   DBUG_ENTER("_ma_check_print_info");
   va_start(args, fmt);
-  _ma_check_print_msg(param, "info", fmt, args);
+  _ma_check_print_msg(param, MA_CHECK_INFO, fmt, args);
   va_end(args);
   DBUG_VOID_RETURN;
 }
@@ -903,7 +926,7 @@ void _ma_check_print_warning(HA_CHECK *param, const char *fmt, ...)
   param->warning_printed= 1;
   param->out_flag |= O_DATA_LOST;
   va_start(args, fmt);
-  _ma_check_print_msg(param, "warning", fmt, args);
+  _ma_check_print_msg(param, MA_CHECK_WARNING, fmt, args);
   va_end(args);
   DBUG_VOID_RETURN;
 }
@@ -1390,6 +1413,16 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
       mysql_mutex_unlock(&share->intern_lock);
       info(HA_STATUS_NO_LOCK | HA_STATUS_TIME | HA_STATUS_VARIABLE |
            HA_STATUS_CONST);
+
+      /*
+        Write a 'table is ok' message to error log if table is ok and
+        we have written to error log that table was getting checked
+      */
+      if (!error && !(table->db_stat & HA_READ_ONLY) &&
+          !maria_is_crashed(file) && thd->error_printed_to_log &&
+          (param->warning_printed || param->error_printed ||
+           param->note_printed))
+        _ma_check_print_info(param, "Table is fixed");
     }
   }
   else if (!maria_is_crashed(file) && !thd->killed)
