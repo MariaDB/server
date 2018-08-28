@@ -1520,7 +1520,7 @@ SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=DATE'2001-01-04' GROUP BY id;
 DROP TABLE t1;
 
 --echo #
---echo # Query plan changes when we use GROUP BY optimization with optimizer_use_condition_selectivity=4
+--echo # MDEV-17039: Query plan changes when we use GROUP BY optimization with optimizer_use_condition_selectivity=4
 --echo # and use_stat_tables= PREFERABLY
 --echo #
 

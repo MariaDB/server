@@ -3328,7 +3328,8 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
   {
     Column_statistics* col_stats= (*field_ptr)->read_stats;
     if (bitmap_is_set(used_fields, (*field_ptr)->field_index)
-       && col_stats && !col_stats->no_stat_values_provided())
+       && col_stats && !col_stats->no_stat_values_provided()
+       && !((*field_ptr)->type() == MYSQL_TYPE_GEOMETRY))
       parts++;
   }
 
@@ -3349,6 +3350,9 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
     if (bitmap_is_set(used_fields, (*field_ptr)->field_index))
     {
       Field *field= *field_ptr;
+      if (field->type() == MYSQL_TYPE_GEOMETRY)
+        continue;
+
       uint16 store_length;
       uint16 max_key_part_length= (uint16) table->file->max_key_part_length();
       key_part->key= keys;

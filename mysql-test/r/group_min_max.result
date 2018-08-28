@@ -3733,7 +3733,7 @@ id	MIN(a)	MAX(a)
 4	 2001-01-04	 2001-01-04
 DROP TABLE t1;
 #
-# Query plan changes when we use GROUP BY optimization with optimizer_use_condition_selectivity=4
+# MDEV-17039: Query plan changes when we use GROUP BY optimization with optimizer_use_condition_selectivity=4
 # and use_stat_tables= PREFERABLY
 #
 CREATE TABLE t1 (a INT, b INT,c INT DEFAULT 0, INDEX (a,b));
