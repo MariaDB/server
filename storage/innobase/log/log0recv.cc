@@ -169,6 +169,35 @@ typedef std::map<
 
 static recv_spaces_t	recv_spaces;
 
+/** States of recv_addr_t */
+enum recv_addr_state {
+	/** not yet processed */
+	RECV_NOT_PROCESSED,
+	/** page is being read */
+	RECV_BEING_READ,
+	/** log records are being applied on the page */
+	RECV_BEING_PROCESSED,
+	/** log records have been applied on the page */
+	RECV_PROCESSED,
+	/** log records have been discarded because the tablespace
+	does not exist */
+	RECV_DISCARDED
+};
+
+/** Hashed page file address struct */
+struct recv_addr_t{
+	/** recovery state of the page */
+	recv_addr_state	state;
+	/** tablespace identifier */
+	unsigned	space:32;
+	/** page number */
+	unsigned	page_no:32;
+	/** list of log records for this page */
+	UT_LIST_BASE_NODE_T(recv_t) rec_list;
+	/** hash node in the hash bucket chain */
+	hash_node_t	addr_hash;
+};
+
 /** Report optimized DDL operation (without redo log),
 corresponding to MLOG_INDEX_LOAD.
 @param[in]	space_id	tablespace identifier
