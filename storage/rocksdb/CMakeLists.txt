@@ -155,6 +155,9 @@ if (UNIX AND NOT APPLE)
 endif()
 
 TARGET_LINK_LIBRARIES(rocksdb rocksdb_aux_lib)
+  FIND_LIBRARY(LZ4_LIBRARY
+    NAMES liblz4${PIC_EXT}.a lz4
+    HINTS ${WITH_LZ4}/lib)
 
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
@@ -182,8 +185,11 @@ IF(HAVE_SCHED_GETCPU)
 ENDIF()
 
 IF (WITH_TBB)
+  FIND_LIBRARY(TBB_LIBRARY
+    NAMES libtbb${PIC_EXT}.a tbb
+    HINTS ${WITH_TBB}/lib)
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  ${WITH_TBB}/lib/libtbb${PIC_EXT}.a)
+    ${TBB_LIBRARY})
   ADD_DEFINITIONS(-DTBB)
 ENDIF()
 

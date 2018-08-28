@@ -32,23 +32,23 @@ select * from information_schema.rocksdb_deadlock;
 echo Deadlock #1;
 --source include/simple_deadlock.inc
 connection default;
---replace_column 1 DEADLOCK_ID 2 TRANSACTION_ID 4 WAITING_KEY
+--replace_column 1 DEADLOCK_ID 2 TIMESTAMP 3 TRANSACTION_ID 5 WAITING_KEY
 select * from information_schema.rocksdb_deadlock;
 
 echo Deadlock #2;
 --source include/simple_deadlock.inc
 connection default;
---replace_column 1 DEADLOCK_ID 2 TRANSACTION_ID 4 WAITING_KEY
+--replace_column 1 DEADLOCK_ID 2 TIMESTAMP 3 TRANSACTION_ID 5 WAITING_KEY
 select * from information_schema.rocksdb_deadlock;
 set global rocksdb_max_latest_deadlocks = 10;
 
 echo Deadlock #3;
 --source include/simple_deadlock.inc
 connection default;
---replace_column 1 DEADLOCK_ID 2 TRANSACTION_ID 4 WAITING_KEY
+--replace_column 1 DEADLOCK_ID 2 TIMESTAMP 3 TRANSACTION_ID 5 WAITING_KEY
 select * from information_schema.rocksdb_deadlock;
 set global rocksdb_max_latest_deadlocks = 1;
---replace_column 1 DEADLOCK_ID 2 TRANSACTION_ID 4 WAITING_KEY
+--replace_column 1 DEADLOCK_ID 2 TIMESTAMP 3 TRANSACTION_ID 5 WAITING_KEY
 select * from information_schema.rocksdb_deadlock;
 
 connection con3;
@@ -96,7 +96,7 @@ rollback;
 
 connection default;
 set global rocksdb_max_latest_deadlocks = 5;
---replace_column 1 DEADLOCK_ID 2 TRANSACTION_ID 4 WAITING_KEY
+--replace_column 1 DEADLOCK_ID 2 TIMESTAMP 3 TRANSACTION_ID 5 WAITING_KEY
 select * from information_schema.rocksdb_deadlock;
 
 echo Deadlock #5;
@@ -138,7 +138,7 @@ connection con3;
 rollback;
 
 connection default;
---replace_column 1 DEADLOCK_ID 2 TRANSACTION_ID 4 WAITING_KEY
+--replace_column 1 DEADLOCK_ID 2 TIMESTAMP 3 TRANSACTION_ID 5 WAITING_KEY
 select * from information_schema.rocksdb_deadlock;
 
 disconnect con1;
@@ -148,7 +148,7 @@ disconnect con3;
 set global rocksdb_lock_wait_timeout = @prior_lock_wait_timeout;
 set global rocksdb_deadlock_detect = @prior_deadlock_detect;
 drop table t;
---replace_column 1 DEADLOCK_ID 2 TRANSACTION_ID 4 WAITING_KEY 6 INDEX_NAME 7 TABLE_NAME
+--replace_column 1 DEADLOCK_ID 2 TIMESTAMP 3 TRANSACTION_ID 5 WAITING_KEY 7 INDEX_NAME 8 TABLE_NAME
 select * from information_schema.rocksdb_deadlock;
 set global rocksdb_max_latest_deadlocks = 0;
 --echo # Clears deadlock buffer of any existent deadlocks.

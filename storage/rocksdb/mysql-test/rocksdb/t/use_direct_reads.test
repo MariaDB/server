@@ -1,0 +1,37 @@
+--source include/have_rocksdb.inc
+
+--perl
+use Cwd 'abs_path';
+
+open(FILE, ">", "$ENV{MYSQL_TMP_DIR}/data_in_shm.inc") or die;
+my $real_path= abs_path($ENV{'MYSQLTEST_VARDIR'});
+my $in_shm= index($real_path, "/dev/shm") != -1;
+print FILE "let \$DATA_IN_SHM= $in_shm;\n";
+close FILE;
+EOF
+
+--source $MYSQL_TMP_DIR/data_in_shm.inc
+--remove_file $MYSQL_TMP_DIR/data_in_shm.inc
+
+if ($DATA_IN_SHM)
+{
+  --skip DATADIR is in /dev/shm, possibly due to --mem
+}
+
+--echo Checking direct reads
+--let $_mysqld_option=--rocksdb_use_direct_reads=1
+--source include/restart_mysqld_with_option.inc
+
+CREATE TABLE t1 (pk INT PRIMARY KEY DEFAULT '0', a INT(11), b CHAR(8)) ENGINE=rocksdb;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1, 1,'a');
+INSERT INTO t1 (a,b) VALUES (2,'b');
+set global rocksdb_force_flush_memtable_now=1;
+--sorted_result
+SELECT a,b FROM t1;
+DROP TABLE t1;
+
+# cleanup
+--let _$mysqld_option=
+--source include/restart_mysqld.inc
+

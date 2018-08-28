@@ -5,6 +5,11 @@
 #
 --source include/have_debug.inc
 
+--let LOG=$MYSQLTEST_VARDIR/tmp/rocksdb_checksum.err
+--let $_mysqld_option=--log-error=$LOG
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--source include/restart_mysqld_with_option.inc
+
 set @save_rocksdb_store_row_debug_checksums=@@global.rocksdb_store_row_debug_checksums;
 set @save_rocksdb_verify_row_debug_checksums=@@global.rocksdb_verify_row_debug_checksums;
 set @save_rocksdb_checksums_pct=@@global.rocksdb_checksums_pct;
@@ -43,7 +48,7 @@ create table t4 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksd
 --disable_query_log
 let $i=0;
 let $x= 100000;
-while ($i<10000)
+while ($i<4000)
 {
   inc $i;
   eval insert t4(pk,a,b) values($i, $i, $i div 10);
@@ -137,5 +142,8 @@ set session debug_dbug= "-d,myrocks_simulate_bad_key_checksum1";
 set @@global.rocksdb_store_row_debug_checksums=@save_rocksdb_store_row_debug_checksums;
 set @@global.rocksdb_verify_row_debug_checksums=@save_rocksdb_verify_row_debug_checksums;
 set @@global.rocksdb_checksums_pct=@save_rocksdb_checksums_pct;
+
+--source include/restart_mysqld.inc
+--remove_file $LOG
 
 drop table t2,t3,t4;

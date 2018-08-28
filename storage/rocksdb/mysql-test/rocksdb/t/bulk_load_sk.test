@@ -1,0 +1,119 @@
+--source include/have_rocksdb.inc
+
+SET rocksdb_bulk_load_size=15;
+
+CREATE TABLE t4 (a INT, b INT, c INT,
+                 PRIMARY KEY (a),
+                 KEY (b),
+                 KEY (c) COMMENT "rev:cf") ENGINE=ROCKSDB;
+CREATE TABLE t3 (a INT, b INT, c INT,
+                 PRIMARY KEY (a),
+                 KEY (b),
+                 KEY (c) COMMENT "rev:cf") ENGINE=ROCKSDB;
+CREATE TABLE t2 (a INT, b INT, c INT,
+                 PRIMARY KEY (a),
+                 KEY (b),
+                 KEY (c) COMMENT "rev:cf") ENGINE=ROCKSDB;
+CREATE TABLE t1 (a INT, b INT, c INT,
+                 PRIMARY KEY (a),
+                 KEY (b),
+                 KEY (c) COMMENT "rev:cf") ENGINE=ROCKSDB;
+
+### Setup the control table ###
+--disable_query_log
+let $sign = 1;
+let $max = 10;
+let $i = 1;
+while ($i <= $max) {
+  let $a = 1 + $sign * $i;
+  let $b = 1 - $sign * $i;
+  let $sign = -$sign;
+  let $insert = INSERT INTO t3 VALUES ($a, $b, $b);
+  eval $insert;
+  inc $i;
+}
+--enable_query_log
+
+### Bulk load PK only ###
+SET rocksdb_bulk_load=1;
+INSERT INTO t1 SELECT * FROM t3 FORCE INDEX (PRIMARY) ORDER BY a;
+SELECT count(*) FROM t1 FORCE INDEX (PRIMARY);
+SELECT count(*) FROM t1 FORCE INDEX (b);
+SELECT count(*) FROM t1 FORCE INDEX (c);
+SET rocksdb_bulk_load=0;
+SELECT * FROM t1 FORCE INDEX (PRIMARY);
+SELECT b FROM t1 FORCE INDEX (b);
+SELECT c FROM t1 FORCE INDEX (c);
+--echo Checksums should match
+CHECKSUM TABLE t3;
+CHECKSUM TABLE t1;
+
+### Bulk load PK and SK but require PK order ###
+SET rocksdb_bulk_load_allow_sk=1;
+SET rocksdb_bulk_load=1;
+INSERT INTO t4 SELECT * FROM t3 FORCE INDEX (PRIMARY) ORDER BY a;
+SELECT count(*) FROM t4 FORCE INDEX (PRIMARY);
+SELECT count(*) FROM t4 FORCE INDEX (b);
+SELECT count(*) FROM t4 FORCE INDEX (c);
+SET rocksdb_bulk_load=0;
+SELECT * FROM t4 FORCE INDEX (PRIMARY);
+SELECT b FROM t4 FORCE INDEX (b);
+SELECT c FROM t4 FORCE INDEX (c);
+--echo Checksums should match
+CHECKSUM TABLE t3;
+CHECKSUM TABLE t4;
+
+### Bulk load both PK and SK in random order for all ###
+SET rocksdb_bulk_load_allow_unsorted=1;
+SET rocksdb_bulk_load_allow_sk=1;
+SET rocksdb_bulk_load=1;
+
+INSERT INTO t2 SELECT * FROM t3 WHERE b >= 0 ORDER BY b;
+INSERT INTO t2 SELECT * FROM t3 WHERE b < 0 ORDER BY b;
+SELECT count(*) FROM t2 FORCE INDEX (PRIMARY);
+SELECT count(*) FROM t2 FORCE INDEX (b);
+SELECT count(*) FROM t2 FORCE INDEX (c);
+
+--disable_query_log
+let $sign = 1;
+let $max = 20;
+let $i = 11;
+while ($i <= $max) {
+  let $a = 1 + $sign * $i;
+  let $b = 1 - $sign * $i;
+  let $sign = -$sign;
+  let $insert = INSERT INTO t2 VALUES ($a, $b, $b);
+  eval $insert;
+  inc $i;
+}
+--enable_query_log
+SELECT count(*) FROM t2 FORCE INDEX (PRIMARY);
+SELECT count(*) FROM t2 FORCE INDEX (b);
+SELECT count(*) FROM t2 FORCE INDEX (c);
+SET rocksdb_bulk_load=0;
+
+--disable_query_log
+let $sign = 1;
+let $max = 20;
+let $i = 11;
+while ($i <= $max) {
+  let $a = 1 + $sign * $i;
+  let $b = 1 - $sign * $i;
+  let $sign = -$sign;
+  let $insert = INSERT INTO t3 VALUES ($a, $b, $b);
+  eval $insert;
+  inc $i;
+}
+--enable_query_log
+
+SELECT * FROM t2 FORCE INDEX (PRIMARY);
+SELECT b FROM t2 FORCE INDEX (b);
+SELECT c FROM t2 FORCE INDEX (c);
+--echo Checksums should match
+CHECKSUM TABLE t3;
+CHECKSUM TABLE t2;
+
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+DROP TABLE t4;

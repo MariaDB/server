@@ -118,7 +118,7 @@ public:
                                      const rocksdb::Slice &value,
                                      rocksdb::EntryType type,
                                      rocksdb::SequenceNumber seq,
-                                     uint64_t file_size);
+                                     uint64_t file_size) override;
 
   virtual rocksdb::Status
   Finish(rocksdb::UserCollectedProperties *properties) override;
@@ -164,6 +164,7 @@ private:
   uint64_t m_file_size;
   Rdb_compact_params m_params;
   Rdb_tbl_card_coll m_cardinality_collector;
+  bool m_recorded;
 };
 
 class Rdb_tbl_prop_coll_factory
