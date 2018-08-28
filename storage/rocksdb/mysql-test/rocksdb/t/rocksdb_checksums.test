@@ -5,24 +5,25 @@
 #
 --source include/have_debug.inc
 
+--let LOG=$MYSQLTEST_VARDIR/tmp/rocksdb_checksum.err
+--let $_mysqld_option=--log-error=$LOG
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--source include/restart_mysqld_with_option.inc
+
 set @save_rocksdb_store_row_debug_checksums=@@global.rocksdb_store_row_debug_checksums;
 set @save_rocksdb_verify_row_debug_checksums=@@global.rocksdb_verify_row_debug_checksums;
 set @save_rocksdb_checksums_pct=@@global.rocksdb_checksums_pct;
 
-# wiping mysql log for repeatable tests
---exec echo "" > $MYSQLTEST_VARDIR/log/mysqld.1.err
-
 --disable_warnings
 drop table if exists t1,t2,t3;
 --enable_warnings
--- exec echo "" > $MYSQLTEST_VARDIR/log/mysqld.1.err
 
 show variables like 'rocksdb_%checksum%';
 
 create table t1 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksdb;
 insert into t1 values (1,1,1),(2,2,2),(3,3,3);
 check table t1;
---exec grep "^[0-9-]* [0-9:]* [0-9]* \[Note\] CHECKTABLE t1" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+--exec grep "^[0-9-]* [0-9:]* [0-9]* \[Note\] CHECKTABLE t1" $LOG | cut -d] -f2
 
 drop table t1;
 
@@ -30,7 +31,7 @@ set session rocksdb_store_row_debug_checksums=on;
 create table t2 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksdb;
 insert into t2 values (1,1,1),(2,2,2),(3,3,3);
 check table t2;
---exec grep "^[0-9-]* [0-9:]* [0-9]* \[Note\] CHECKTABLE t2" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+--exec grep "^[0-9-]* [0-9:]* [0-9]* \[Note\] CHECKTABLE t2" $LOG | cut -d] -f2
 
 --echo # Now, make a table that has both rows with checksums and without
 create table t3 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksdb;
@@ -39,7 +40,7 @@ set session rocksdb_store_row_debug_checksums=off;
 update t3 set b=3 where a=2;
 set session rocksdb_store_row_debug_checksums=on;
 check table t3;
---exec grep "^[0-9-]* [0-9:]* [0-9]* \[Note\] CHECKTABLE t3" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2
+--exec grep "^[0-9-]* [0-9:]* [0-9]* \[Note\] CHECKTABLE t3" $LOG | cut -d] -f2
 
 set session rocksdb_store_row_debug_checksums=on;
 set session rocksdb_checksums_pct=5;
@@ -47,7 +48,7 @@ create table t4 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksd
 --disable_query_log
 let $i=0;
 let $x= 100000;
-while ($i<10000)
+while ($i<4000)
 {
   inc $i;
   eval insert t4(pk,a,b) values($i, $i, $i div 10);
@@ -56,8 +57,8 @@ while ($i<10000)
 }
 --enable_query_log
 check table t4;
---exec grep "^[0-9-]* [0-9:]* [0-9]* \[Note\] CHECKTABLE t4" $MYSQLTEST_VARDIR/log/mysqld.1.err | cut -d] -f2 > $MYSQL_TMP_DIR/rocksdb_checksums.log
---exec perl suite/rocksdb/t/rocksdb_checksums.pl $MYSQL_TMP_DIR/rocksdb_checksums.log 10000 5
+--exec grep "^[0-9-]* [0-9:]* [0-9]* \[Note\] CHECKTABLE t4" $LOG | cut -d] -f2 > $MYSQL_TMP_DIR/rocksdb_checksums.log
+--exec perl suite/rocksdb/t/rocksdb_checksums.pl $MYSQL_TMP_DIR/rocksdb_checksums.log 4000 5
 --remove_file $MYSQL_TMP_DIR/rocksdb_checksums.log
 set session rocksdb_checksums_pct=100;
 
@@ -123,5 +124,8 @@ set session debug= "-d,myrocks_simulate_bad_key_checksum1";
 set @@global.rocksdb_store_row_debug_checksums=@save_rocksdb_store_row_debug_checksums;
 set @@global.rocksdb_verify_row_debug_checksums=@save_rocksdb_verify_row_debug_checksums;
 set @@global.rocksdb_checksums_pct=@save_rocksdb_checksums_pct;
+
+--source include/restart_mysqld.inc
+--remove_file $LOG
 
 drop table t2,t3,t4;

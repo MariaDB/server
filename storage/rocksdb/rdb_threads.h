@@ -17,6 +17,7 @@
 #pragma once
 
 /* C++ standard header files */
+#include <map>
 #include <string>
 
 /* MySQL includes */
@@ -26,6 +27,7 @@
 
 /* MyRocks header files */
 #include "./rdb_utils.h"
+#include "rocksdb/db.h"
 
 namespace myrocks {
 
@@ -87,8 +89,8 @@ public:
     {
       // NO_LINT_DEBUG
       sql_print_warning(
-          "MyRocks: Failed to set name (%s) for current thread, errno=%d",
-          m_name.c_str(), errno);
+          "MyRocks: Failed to set name (%s) for current thread, errno=%d,%d",
+          m_name.c_str(), errno, err);
     }
 #endif
   }
@@ -127,6 +129,31 @@ public:
 
     RDB_MUTEX_UNLOCK_CHECK(m_signal_mutex);
   }
+};
+
+class Rdb_manual_compaction_thread : public Rdb_thread {
+ private:
+  struct Manual_compaction_request {
+    int mc_id;
+    enum mc_state { INITED = 0, RUNNING } state;
+    rocksdb::ColumnFamilyHandle *cf;
+    rocksdb::Slice *start;
+    rocksdb::Slice *limit;
+    int concurrency = 0;
+  };
+
+  int m_latest_mc_id;
+  mysql_mutex_t m_mc_mutex;
+  std::map<int, Manual_compaction_request> m_requests;
+
+ public:
+  virtual void run() override;
+  int request_manual_compaction(rocksdb::ColumnFamilyHandle *cf,
+                                rocksdb::Slice *start, rocksdb::Slice *limit,
+                                int concurrency = 0);
+  bool is_manual_compaction_finished(int mc_id);
+  void clear_manual_compaction_request(int mc_id, bool init_only = false);
+  void clear_all_manual_compaction_requests();
 };
 
 /*

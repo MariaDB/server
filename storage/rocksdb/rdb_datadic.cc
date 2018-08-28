@@ -4241,6 +4241,9 @@ bool Rdb_ddl_manager::rename(const std::string &from, const std::string &to,
       rec->m_auto_incr_val.load(std::memory_order_relaxed);
   new_rec->m_key_descr_arr = rec->m_key_descr_arr;
 
+  new_rec->m_hidden_pk_val =
+      rec->m_hidden_pk_val.load(std::memory_order_relaxed);
+
   // so that it's not free'd when deleting the old rec
   rec->m_key_descr_arr = nullptr;
 
@@ -4522,7 +4525,7 @@ void Rdb_binlog_manager::update_slave_gtid_info(
   }
 }
 
-bool Rdb_dict_manager::init(rocksdb::DB *const rdb_dict,
+bool Rdb_dict_manager::init(rocksdb::TransactionDB *const rdb_dict,
                             Rdb_cf_manager *const cf_manager) {
   DBUG_ASSERT(rdb_dict != nullptr);
   DBUG_ASSERT(cf_manager != nullptr);
@@ -4596,7 +4599,9 @@ int Rdb_dict_manager::commit(rocksdb::WriteBatch *const batch,
   int res = HA_EXIT_SUCCESS;
   rocksdb::WriteOptions options;
   options.sync = sync;
-  rocksdb::Status s = m_db->Write(options, batch);
+  rocksdb::TransactionDBWriteOptimizations optimize;
+  optimize.skip_concurrency_control = true;
+  rocksdb::Status s = m_db->Write(options, optimize, batch);
   res = !s.ok(); // we return true when something failed
   if (res) {
     rdb_handle_io_error(s, RDB_IO_ERROR_DICT_COMMIT);

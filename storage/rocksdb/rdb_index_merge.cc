@@ -52,6 +52,11 @@ Rdb_index_merge::~Rdb_index_merge() {
       }
 
       my_sleep(m_merge_tmp_file_removal_delay * 1000);
+      // Not aborting on fsync error since the tmp file is not used anymore
+      if (mysql_file_sync(m_merge_file.m_fd, MYF(MY_WME))) {
+        // NO_LINT_DEBUG
+        sql_print_error("Error flushing truncated MyRocks merge buffer.");
+      }
       curr_size -= m_merge_buf_size;
     }
   }

@@ -82,32 +82,43 @@ ENDIF()
 
 SET(rocksdb_static_libs )
 IF (WITH_SNAPPY)
+  FIND_LIBRARY(SNAPPY_LIBRARY
+    NAMES libsnappy${PIC_EXT}.a snappy
+    HINTS ${WITH_SNAPPY}/lib)
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  ${WITH_SNAPPY}/lib/libsnappy${PIC_EXT}.a)
+    ${SNAPPY_LIBRARY})
   ADD_DEFINITIONS(-DSNAPPY)
 ENDIF()
 
 IF (WITH_LZ4)
+  FIND_LIBRARY(LZ4_LIBRARY
+    NAMES liblz4${PIC_EXT}.a lz4
+    HINTS ${WITH_LZ4}/lib)
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  ${WITH_LZ4}/lib/liblz4${PIC_EXT}.a)
+    ${LZ4_LIBRARY})
   ADD_DEFINITIONS(-DLZ4)
 ENDIF()
 
 IF (WITH_BZ2)
+  FIND_LIBRARY(BZ2_LIBRARY
+    NAMES libbz2${PIC_EXT}.a bz2
+    HINTS ${WITH_BZ2}/lib)
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  ${WITH_BZ2}/lib/libbz2${PIC_EXT}.a)
+    ${BZ2_LIBRARY})
   ADD_DEFINITIONS(-DBZIP2)
 ENDIF()
 
 IF (WITH_ZSTD)
-  SET(rocksdb_static_libs ${rocksdb_static_libs}
-  ${WITH_ZSTD}/lib/libzstd${PIC_EXT}.a)
+  SET(rocksdb_static_libs ${rocksdb_static_libs} ${ZSTD_LIBRARY})
   ADD_DEFINITIONS(-DZSTD)
 ENDIF()
 
 IF (WITH_TBB)
+  FIND_LIBRARY(TBB_LIBRARY
+    NAMES libtbb${PIC_EXT}.a tbb
+    HINTS ${WITH_TBB}/lib)
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  ${WITH_TBB}/lib/libtbb${PIC_EXT}.a)
+    ${TBB_LIBRARY})
   ADD_DEFINITIONS(-DTBB)
 ENDIF()
 

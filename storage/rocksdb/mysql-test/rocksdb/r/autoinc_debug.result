@@ -59,12 +59,10 @@ insert into t values ();
 set debug="+d,crash_commit_before";
 commit;
 ERROR HY000: Lost connection to MySQL server during query
-select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
-table_schema	table_name	auto_increment
-test	t	4
-select max(i) from t;
-max(i)
-3
+select max(i) into @row_max from t;
+select table_schema, table_name, auto_increment > @row_max from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment > @row_max
+test	t	1
 # After engine prepare
 begin;
 insert into t values ();
@@ -72,12 +70,10 @@ insert into t values ();
 set debug="+d,crash_commit_after_prepare";
 commit;
 ERROR HY000: Lost connection to MySQL server during query
-select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
-table_schema	table_name	auto_increment
-test	t	4
-select max(i) from t;
-max(i)
-3
+select max(i) into @row_max from t;
+select table_schema, table_name, auto_increment > @row_max from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment > @row_max
+test	t	1
 # After binlog
 begin;
 insert into t values ();
@@ -85,12 +81,10 @@ insert into t values ();
 set debug="+d,crash_commit_after_log";
 commit;
 ERROR HY000: Lost connection to MySQL server during query
-select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
-table_schema	table_name	auto_increment
-test	t	6
-select max(i) from t;
-max(i)
-5
+select max(i) into @row_max from t;
+select table_schema, table_name, auto_increment > @row_max from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment > @row_max
+test	t	1
 # After everything
 begin;
 insert into t values ();
@@ -98,10 +92,8 @@ insert into t values ();
 set debug="+d,crash_commit_after";
 commit;
 ERROR HY000: Lost connection to MySQL server during query
-select table_schema, table_name, auto_increment from information_schema.tables where table_name = 't';
-table_schema	table_name	auto_increment
-test	t	8
-select max(i) from t;
-max(i)
-7
+select max(i) into @row_max from t;
+select table_schema, table_name, auto_increment > @row_max from information_schema.tables where table_name = 't';
+table_schema	table_name	auto_increment > @row_max
+test	t	1
 drop table t;

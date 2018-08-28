@@ -177,8 +177,6 @@ static void harvest_diffs(Rdb_atomic_perf_counters *const counters) {
 static Rdb_atomic_perf_counters rdb_global_perf_counters;
 
 void rdb_get_global_perf_counters(Rdb_perf_counters *const counters) {
-  DBUG_ASSERT(counters != nullptr);
-
   counters->load(rdb_global_perf_counters);
 }
 

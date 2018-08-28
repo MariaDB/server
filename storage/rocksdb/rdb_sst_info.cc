@@ -75,7 +75,9 @@ rocksdb::Status Rdb_sst_file_ordered::Rdb_sst_file::open() {
   const rocksdb::Options options(m_db_options, cf_descr.options);
 
   m_sst_file_writer =
-      new rocksdb::SstFileWriter(env_options, options, m_comparator, m_cf);
+      new rocksdb::SstFileWriter(env_options, options, m_comparator, m_cf, true,
+                                 rocksdb::Env::IOPriority::IO_TOTAL,
+                                 cf_descr.options.optimize_filters_for_hits);
 
   s = m_sst_file_writer->Open(m_name);
   if (m_tracing) {

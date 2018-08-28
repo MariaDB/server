@@ -8,11 +8,11 @@ connection slave;
 --enable_warnings
 
 connection master;
-create table t1 (a int) engine=rocksdb;
+create table t1 (a int, b int, primary key (a), unique key (b)) engine=rocksdb;
 --disable_query_log
 --let $aa= 0
 while ($aa < 1000) {
-  eval insert into t1 values ($aa);
+  eval insert into t1 values ($aa, $aa);
   --inc $aa
 }
 --enable_query_log

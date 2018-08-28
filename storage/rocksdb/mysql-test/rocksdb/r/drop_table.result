@@ -43,6 +43,17 @@ DELETE FROM t4;
 drop table t3;
 DELETE FROM t1;
 DELETE FROM t4;
+SET GLOBAL rocksdb_max_manual_compactions = 2;
+SET GLOBAL rocksdb_debug_manual_compaction_delay = 3600;
+SET GLOBAL rocksdb_compact_cf='cf1';
+SET GLOBAL rocksdb_compact_cf='rev:cf2';
+select * from information_schema.global_status where variable_name='rocksdb_manual_compactions_running';
+VARIABLE_NAME	VARIABLE_VALUE
+ROCKSDB_MANUAL_COMPACTIONS_RUNNING	1
+SET GLOBAL rocksdb_compact_cf='cf1';
+ERROR HY000: Internal error: Can't schedule more manual compactions. Increase rocksdb_max_manual_compactions or stop issuing more manual compactions.
+SET GLOBAL rocksdb_compact_cf='rev:cf2';
+ERROR HY000: Internal error: Can't schedule more manual compactions. Increase rocksdb_max_manual_compactions or stop issuing more manual compactions.
 drop table t4;
 CREATE TABLE t5 (
 a int not null,

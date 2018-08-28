@@ -4,7 +4,8 @@ let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
 let $error_log= $MYSQLTEST_VARDIR/log/my_restart.err;
 select variable_name, variable_value from information_schema.global_variables where variable_name="rocksdb_ignore_unknown_options";
 
---exec find $MYSQLD_DATADIR/.rocksdb/OPTIONS* | sort -n | tail -1 | xargs -0 -I {} -t sh -c "echo hello=world>>{}"
+--exec find $MYSQLD_DATADIR/.rocksdb/OPTIONS* | sort -t- -k 2 -n | tail -1 | xargs -0 -I {} -t sh -c "sed -i 's/rocksdb_version=.*/rocksdb_version=99.9.9/' {}"
+--exec find $MYSQLD_DATADIR/.rocksdb/OPTIONS* | sort -t- -k 2 -n | tail -1 | xargs -0 -I {} -t sh -c "echo hello=world>>{}"
 
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --shutdown_server 10
@@ -17,5 +18,4 @@ let SEARCH_PATTERN= RocksDB: Compatibility check against existing database optio
 --enable_reconnect
 --exec echo "restart" > $restart_file
 --source include/wait_until_connected_again.inc
---exec find $MYSQLD_DATADIR/.rocksdb/OPTIONS* | sort -n | tail -1 | xargs -0 -I {} -t sh -c "sed -i '/hello=world/d' {}"
 select variable_name, variable_value from information_schema.global_variables where variable_name="rocksdb_ignore_unknown_options";

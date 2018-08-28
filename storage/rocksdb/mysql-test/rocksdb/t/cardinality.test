@@ -79,5 +79,24 @@ SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema 
 show index in t1;
 SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
 
-drop table t1;
+CREATE TABLE t2 (a INT, b INT, c INT, d INT, e INT, f INT, g INT,
+                 PRIMARY KEY (a), KEY (c, b, a, d, e, f, g))
+                 ENGINE=ROCKSDB;
+--disable_query_log
+let $i=0;
+while ($i<100)
+{
+  inc $i;
+  eval insert t2 values($i, $i div 10, 1, 1, 1, 1, 1);
+}
+--enable_query_log
+
+# Cardinality of key c should be 1 for c, 10 for b, 100 for a and the other fields.
+SET GLOBAL rocksdb_force_flush_memtable_now = 1;
+ANALYZE TABLE t2;
+--echo cardinality of the columns after 'a' must be equal to the cardinality of column 'a'
+SELECT CARDINALITY INTO @c FROM information_schema.statistics WHERE TABLE_NAME='t2' AND INDEX_NAME='c' AND COLUMN_NAME='a';
+SELECT COLUMN_NAME, CARDINALITY = @c FROM information_schema.statistics WHERE TABLE_NAME='t2' AND INDEX_NAME='c' AND SEQ_IN_INDEX > 3;
+
+drop table t1, t2;
 

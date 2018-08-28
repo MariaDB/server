@@ -76,6 +76,33 @@ let $table = t1;
 let $table = t4;
 --source drop_table_repopulate_table.inc
 
+# Run manual compaction, then restarting mysqld
+# and confirming it is not blocked.
+SET GLOBAL rocksdb_max_manual_compactions = 2;
+SET GLOBAL rocksdb_debug_manual_compaction_delay = 3600;
+connect (con1, localhost, root,,);
+connect (con2, localhost, root,,);
+connect (con3, localhost, root,,);
+connection con1;
+send SET GLOBAL rocksdb_compact_cf='cf1';
+connection con2;
+send SET GLOBAL rocksdb_compact_cf='rev:cf2';
+connection default;
+let $wait_condition = select count(*) = 2 from information_schema.processlist where info like 'SET GLOBAL rocksdb_compact_cf%';
+--source include/wait_condition.inc
+# longer enough than manual compaction thread to start compaction
+--sleep 2
+select * from information_schema.global_status where variable_name='rocksdb_manual_compactions_running';
+
+connection con3;
+--error ER_INTERNAL_ERROR
+SET GLOBAL rocksdb_compact_cf='cf1';
+--error ER_INTERNAL_ERROR
+SET GLOBAL rocksdb_compact_cf='rev:cf2';
+
+connection default;
+--source include/restart_mysqld.inc
+
 drop table t4;
 
 # Restart the server before t4's indices are deleted

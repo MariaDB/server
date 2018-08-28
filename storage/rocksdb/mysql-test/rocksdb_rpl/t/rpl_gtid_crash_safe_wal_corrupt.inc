@@ -42,7 +42,7 @@ select * from mysql.slave_gtid_info;
 
 F=`ls -t $slave_data_dir/.rocksdb/*.log | head -n 1`
 SIZE=`stat -c %s $F`
-NEW_SIZE=`expr $SIZE - 10`
+NEW_SIZE=`expr $SIZE - 30`
 truncate -s $NEW_SIZE $F
 rc=$?
 if [[ $rc != 0 ]]; then

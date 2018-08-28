@@ -33,7 +33,6 @@ select cf_name, option_type, value
   order by cf_name, option_type;
 # restart with cf configs for cf1 and cf2
 
---exec echo "" > $MYSQLTEST_VARDIR/log/mysqld.1.err
 --let $_mysqld_option=--rocksdb_override_cf_options=cf1={write_buffer_size=8m;target_file_size_base=2m};cf2={write_buffer_size=16m;max_bytes_for_level_multiplier=8};z={target_file_size_base=4m};
 --source include/restart_mysqld_with_option.inc
 

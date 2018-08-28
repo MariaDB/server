@@ -12,6 +12,7 @@ count(*)
 select VALUE into @keysIn from INFORMATION_SCHEMA.ROCKSDB_COMPACTION_STATS where CF_NAME = 'default' and LEVEL = 'Sum' and TYPE = 'KeyIn';
 CREATE TABLE t1 (i1 INT, i2 INT, PRIMARY KEY (i1)) ENGINE = ROCKSDB;
 INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3);
+set global rocksdb_force_flush_memtable_now = true;
 select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
 TYPE	NAME	VALUE
 BINLOG	FILE	master-bin.000001

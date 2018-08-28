@@ -63,7 +63,7 @@ ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
 --disable_warnings
 # now do same index using copy algorithm
 # hitting max row locks (1M)
---error ER_RDB_STATUS_GENERAL
+--error ER_GET_ERRMSG 
 ALTER TABLE t1 ADD INDEX kb_copy(b), ALGORITHM=COPY;
 set session rocksdb_bulk_load=1;
 ALTER TABLE t1 ADD INDEX kb_copy(b), ALGORITHM=COPY;

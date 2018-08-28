@@ -104,6 +104,7 @@ struct Rdb_deadlock_info {
     std::string table_name;
   };
   std::vector <Rdb_dl_trx_info> path;
+  int64_t deadlock_time;
   ulonglong victim_trx_id;
 };
 
@@ -143,6 +144,11 @@ const char *const BG_THREAD_NAME = "myrocks-bg";
   Name for the drop index thread.
 */
 const char *const INDEX_THREAD_NAME = "myrocks-index";
+
+/*
+  Name for the manual compaction thread.
+*/
+const char *const MANUAL_COMPACTION_THREAD_NAME = "myrocks-mc";
 
 /*
   Separator between partition name and the qualifier. Sample usage:
@@ -485,6 +491,12 @@ class ha_rocksdb : public my_core::handler {
 
   const rocksdb::Snapshot *m_scan_it_snapshot;
 
+  /* Buffers used for upper/lower bounds for m_scan_it. */
+  uchar *m_scan_it_lower_bound;
+  uchar *m_scan_it_upper_bound;
+  rocksdb::Slice m_scan_it_lower_bound_slice;
+  rocksdb::Slice m_scan_it_upper_bound_slice;
+
   Rdb_tbl_def *m_tbl_def;
 
   /* Primary Key encoder from KeyTupleFormat to StorageFormat */
@@ -547,12 +559,6 @@ class ha_rocksdb : public my_core::handler {
   /* Buffers used for duplicate checking during unique_index_creation */
   uchar *m_dup_sk_packed_tuple;
   uchar *m_dup_sk_packed_tuple_old;
-
-  /* Buffers used for passing upper/bound eq conditions. */
-  uchar *m_eq_cond_lower_bound;
-  uchar *m_eq_cond_upper_bound;
-  rocksdb::Slice m_eq_cond_lower_bound_slice;
-  rocksdb::Slice m_eq_cond_upper_bound_slice;
 
   /*
     Temporary space for packing VARCHARs (we provide it to
@@ -635,13 +641,20 @@ class ha_rocksdb : public my_core::handler {
                     enum ha_rkey_function find_flag) const
       MY_ATTRIBUTE((__nonnull__, __warn_unused_result__));
   void setup_iterator_bounds(const Rdb_key_def &kd,
-                             const rocksdb::Slice &eq_cond);
+                             const rocksdb::Slice &eq_cond, size_t bound_len,
+                             uchar *const lower_bound, uchar *const upper_bound,
+                             rocksdb::Slice *lower_bound_slice,
+                             rocksdb::Slice *upper_bound_slice);
   bool can_use_bloom_filter(THD *thd, const Rdb_key_def &kd,
                             const rocksdb::Slice &eq_cond,
                             const bool use_all_keys);
   bool check_bloom_and_set_bounds(THD *thd, const Rdb_key_def &kd,
                                   const rocksdb::Slice &eq_cond,
-                                  const bool use_all_keys);
+                                  const bool use_all_keys, size_t bound_len,
+                                  uchar *const lower_bound,
+                                  uchar *const upper_bound,
+                                  rocksdb::Slice *lower_bound_slice,
+                                  rocksdb::Slice *upper_bound_slice);
   void setup_scan_iterator(const Rdb_key_def &kd, rocksdb::Slice *slice,
                            const bool use_all_keys, const uint eq_cond_len)
       MY_ATTRIBUTE((__nonnull__));
@@ -834,7 +847,7 @@ public:
                 HA_REC_NOT_IN_SEQ | HA_CAN_INDEX_BLOBS |
                 (m_pk_can_be_decoded ? HA_PRIMARY_KEY_IN_READ_INDEX : 0) |
                 HA_PRIMARY_KEY_REQUIRED_FOR_POSITION | HA_NULL_IN_KEY |
-                HA_PARTIAL_COLUMN_READ);
+                HA_PARTIAL_COLUMN_READ | HA_ONLINE_ANALYZE);
   }
 
   bool init_with_fields() override;
@@ -1009,6 +1022,7 @@ public:
   }
 
   virtual double read_time(uint, uint, ha_rows rows) override;
+  virtual void print_error(int error, myf errflag) override;
 
   int open(const char *const name, int mode, uint test_if_locked) override
       MY_ATTRIBUTE((__warn_unused_result__));
@@ -1123,8 +1137,8 @@ private:
       MY_ATTRIBUTE((__nonnull__));
 
   int compare_key_parts(const KEY *const old_key,
-                        const KEY *const new_key) const;
-  MY_ATTRIBUTE((__nonnull__, __warn_unused_result__));
+                        const KEY *const new_key) const
+      MY_ATTRIBUTE((__nonnull__, __warn_unused_result__));
 
   int compare_keys(const KEY *const old_key, const KEY *const new_key) const
       MY_ATTRIBUTE((__nonnull__, __warn_unused_result__));
@@ -1180,7 +1194,7 @@ private:
   int update_pk(const Rdb_key_def &kd, const struct update_row_info &row_info,
                 const bool &pk_changed) MY_ATTRIBUTE((__warn_unused_result__));
   int update_sk(const TABLE *const table_arg, const Rdb_key_def &kd,
-                const struct update_row_info &row_info)
+                const struct update_row_info &row_info, const bool bulk_load_sk)
       MY_ATTRIBUTE((__warn_unused_result__));
   int update_indexes(const struct update_row_info &row_info,
                      const bool &pk_changed)
@@ -1234,7 +1248,9 @@ private:
   int finalize_bulk_load(bool print_client_error = true)
       MY_ATTRIBUTE((__warn_unused_result__));
 
-public:
+  int calculate_stats_for_table() MY_ATTRIBUTE((__warn_unused_result__));
+
+ public:
   int index_init(uint idx, bool sorted) override
       MY_ATTRIBUTE((__warn_unused_result__));
   int index_end() override MY_ATTRIBUTE((__warn_unused_result__));
@@ -1327,9 +1343,6 @@ public:
       MY_ATTRIBUTE((__warn_unused_result__));
   int analyze(THD *const thd, HA_CHECK_OPT *const check_opt) override
       MY_ATTRIBUTE((__warn_unused_result__));
-  int calculate_stats(const TABLE *const table_arg, THD *const thd,
-                      HA_CHECK_OPT *const check_opt)
-      MY_ATTRIBUTE((__warn_unused_result__));
 
   enum_alter_inplace_result check_if_supported_inplace_alter(
       TABLE *altered_table,
@@ -1356,7 +1369,7 @@ public:
   virtual void rpl_after_delete_rows() override;
   virtual void rpl_before_update_rows() override;
   virtual void rpl_after_update_rows() override;
-  virtual bool use_read_free_rpl();
+  virtual bool use_read_free_rpl() override;
 
 private:
   /* Flags tracking if we are inside different replication operation */

@@ -52,9 +52,9 @@ create table t4 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksd
 check table t4;
 Table	Op	Msg_type	Msg_text
 test.t4	check	status	OK
-10000 index entries had around 500 checksums
-10000 index entries had around 500 checksums
-Around 500 table records had checksums
+4000 index entries had around 200 checksums
+4000 index entries had around 200 checksums
+Around 200 table records had checksums
 set session rocksdb_checksums_pct=100;
 #
 # Ok, table t2 has all rows with checksums. Simulate a few checksum mismatches.

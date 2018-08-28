@@ -36,9 +36,6 @@ namespace myrocks {
 */
 const char *rdb_skip_spaces(const struct charset_info_st *const cs,
                             const char *str) {
-  DBUG_ASSERT(cs != nullptr);
-  DBUG_ASSERT(str != nullptr);
-
   while (my_isspace(cs, *str)) {
     str++;
   }
@@ -52,9 +49,6 @@ const char *rdb_skip_spaces(const struct charset_info_st *const cs,
   of characters in str2.
 */
 bool rdb_compare_strings_ic(const char *const str1, const char *const str2) {
-  DBUG_ASSERT(str1 != nullptr);
-  DBUG_ASSERT(str2 != nullptr);
-
   // Scan through the strings
   size_t ii;
   for (ii = 0; str2[ii]; ii++) {
@@ -75,10 +69,6 @@ const char *rdb_find_in_string(const char *str, const char *pattern,
                                bool *const succeeded) {
   char quote = '\0';
   bool escape = false;
-
-  DBUG_ASSERT(str != nullptr);
-  DBUG_ASSERT(pattern != nullptr);
-  DBUG_ASSERT(succeeded != nullptr);
 
   *succeeded = false;
 
@@ -123,11 +113,6 @@ const char *rdb_find_in_string(const char *str, const char *pattern,
 const char *rdb_check_next_token(const struct charset_info_st *const cs,
                                  const char *str, const char *const pattern,
                                  bool *const succeeded) {
-  DBUG_ASSERT(cs != nullptr);
-  DBUG_ASSERT(str != nullptr);
-  DBUG_ASSERT(pattern != nullptr);
-  DBUG_ASSERT(succeeded != nullptr);
-
   // Move past any spaces
   str = rdb_skip_spaces(cs, str);
 
@@ -146,9 +131,6 @@ const char *rdb_check_next_token(const struct charset_info_st *const cs,
 */
 const char *rdb_parse_id(const struct charset_info_st *const cs,
                          const char *str, std::string *const id) {
-  DBUG_ASSERT(cs != nullptr);
-  DBUG_ASSERT(str != nullptr);
-
   // Move past any spaces
   str = rdb_skip_spaces(cs, str);
 
@@ -208,9 +190,6 @@ const char *rdb_parse_id(const struct charset_info_st *const cs,
 */
 const char *rdb_skip_id(const struct charset_info_st *const cs,
                         const char *str) {
-  DBUG_ASSERT(cs != nullptr);
-  DBUG_ASSERT(str != nullptr);
-
   return rdb_parse_id(cs, str, nullptr);
 }
 
@@ -241,8 +220,6 @@ static const std::array<char, 16> rdb_hexdigit = {{'0', '1', '2', '3', '4', '5',
 */
 std::string rdb_hexdump(const char *data, const std::size_t data_len,
                         const std::size_t maxsize) {
-  DBUG_ASSERT(data != nullptr);
-
   // Count the elements in the string
   std::size_t elems = data_len;
   // Calculate the amount of output needed

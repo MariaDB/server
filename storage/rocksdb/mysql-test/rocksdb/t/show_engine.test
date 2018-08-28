@@ -83,5 +83,18 @@ SHOW ENGINE rocksdb TRANSACTION STATUS;
 
 ROLLBACK;
 
+# Check if explicit snapshots are correctly populated
+START TRANSACTION WITH SHARED ROCKSDB SNAPSHOT;
+--replace_column 2 # 3 #
+SHOW ENGINE rocksdb STATUS;
+ROLLBACK;
+CREATE EXPLICIT rocksdb SNAPSHOT;
+--replace_column 2 # 3 #
+SHOW ENGINE rocksdb STATUS;
+RELEASE EXPLICIT rocksdb SNAPSHOT;
+--replace_column 2 # 3 #
+SHOW ENGINE rocksdb STATUS;
+
+
 # Restore old values
 SET GLOBAL rocksdb_max_background_jobs= @save.rocksdb_max_background_jobs;

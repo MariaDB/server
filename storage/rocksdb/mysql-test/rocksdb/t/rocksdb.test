@@ -1,4 +1,5 @@
 --source include/have_rocksdb.inc
+--source suite/rocksdb/include/have_write_committed.inc
 
 #
 # RocksDB Storage Engine tests
@@ -1141,7 +1142,7 @@ set @a=-1;
 insert into t1 select (@a:=@a+1), 1234 from information_schema.session_variables limit 100;
 set @tmp1= @@rocksdb_max_row_locks;
 set rocksdb_max_row_locks= 20;
---error ER_RDB_STATUS_GENERAL
+--error ER_GET_ERRMSG 
 update t1 set a=a+10;
 DROP TABLE t1;
 

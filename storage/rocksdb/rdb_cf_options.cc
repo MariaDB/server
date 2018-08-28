@@ -332,8 +332,6 @@ Rdb_cf_options::get_cf_merge_operator(const std::string &cf_name) {
 
 void Rdb_cf_options::get_cf_options(const std::string &cf_name,
                                     rocksdb::ColumnFamilyOptions *const opts) {
-  DBUG_ASSERT(opts != nullptr);
-
   *opts = m_default_cf_opts;
   get(cf_name, opts);
 

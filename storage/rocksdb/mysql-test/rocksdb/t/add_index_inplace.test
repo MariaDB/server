@@ -383,6 +383,24 @@ if ($end_max_index_id <= $start_max_index_id) {
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
+# Cardinality checks for indexes statistics
+SET @prior_rocksdb_table_stats_sampling_pct = @@rocksdb_table_stats_sampling_pct;
+set global rocksdb_table_stats_sampling_pct = 100;
 
+CREATE TABLE t1 (a INT, b INT, PRIMARY KEY ka(a)) ENGINE=RocksDB;
 
+INSERT INTO t1 (a, b) VALUES (1, 10);
+INSERT INTO t1 (a, b) VALUES (2, 10);
+INSERT INTO t1 (a, b) VALUES (3, 20);
+INSERT INTO t1 (a, b) VALUES (4, 20);
 
+set global rocksdb_force_flush_memtable_now=1;
+analyze table t1;
+
+SHOW INDEX in t1;
+
+ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
+SHOW INDEX in t1;
+
+DROP TABLE t1;
+SET global rocksdb_table_stats_sampling_pct = @prior_rocksdb_table_stats_sampling_pct;

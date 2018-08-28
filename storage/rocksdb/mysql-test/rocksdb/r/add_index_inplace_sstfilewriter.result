@@ -15,7 +15,7 @@ count(b)
 3000000
 ALTER TABLE t1 ADD INDEX kb(b), ALGORITHM=INPLACE;
 ALTER TABLE t1 ADD INDEX kb_copy(b), ALGORITHM=COPY;
-ERROR HY000: Status error 10 received from RocksDB: Operation aborted: Failed to acquire lock due to max_num_locks limit
+ERROR HY000: Got error 10 'Operation aborted: Failed to acquire lock due to max_num_locks limit' from ROCKSDB
 set session rocksdb_bulk_load=1;
 ALTER TABLE t1 ADD INDEX kb_copy(b), ALGORITHM=COPY;
 set session rocksdb_bulk_load=0;
