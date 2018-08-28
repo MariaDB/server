@@ -3810,10 +3810,7 @@ innobase_init(
         innobase_hton->fake_trx_id=wsrep_fake_trx_id;
 #endif /* WITH_WSREP */
 
-        if (srv_file_per_table) {
-		innobase_hton->tablefile_extensions = ha_innobase_exts;
-	}
-
+	innobase_hton->tablefile_extensions = ha_innobase_exts;
 	innobase_hton->table_options = innodb_table_option_list;
 
 	innodb_remember_check_sysvar_funcs();
