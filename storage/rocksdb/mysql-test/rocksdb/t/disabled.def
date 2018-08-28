@@ -21,6 +21,7 @@ mysqldump2 : MariaDB's mysqldump doesn't support --print-ordering-key
 native_procedure : Not supported in MariaDB
 slow_query_log: MDEV-11480
 select_for_update_skip_locked_nowait: MDEV-11481
+create_no_primary_key_table: MariaDB doesn't have --block_create_no_primary_key
 
 
 ##
