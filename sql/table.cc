@@ -6900,7 +6900,10 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
     for (uint i= 0 ; i < s->fields ; i++)
     {
       if (bitmap_is_set(&tmp_set, i))
+      {
+        s->field[i]->flags|= PART_INDIRECT_KEY_FLAG;
         field[i]->flags|= PART_INDIRECT_KEY_FLAG;
+      }
     }
     bitmap_clear_all(&tmp_set);
   }

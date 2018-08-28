@@ -8,20 +8,21 @@
 --connection node_1
 SET GLOBAL general_log='OFF';
 TRUNCATE TABLE mysql.general_log;
-SELECT COUNT(*) from mysql.general_log;
-SELECT * FROM mysql.general_log;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.general_log;
+--source include/wait_condition.inc
 
 --sleep 1
 --connection node_2
 SET GLOBAL general_log='OFF';
 TRUNCATE TABLE mysql.general_log;
-SELECT COUNT(*) from mysql.general_log;
-SELECT * FROM mysql.general_log;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.general_log;
+--source include/wait_condition.inc
 
 --sleep 1
 --connection node_1
 SET GLOBAL general_log='ON';
-SELECT COUNT(*) from mysql.general_log;
+SELECT argument from mysql.general_log WHERE argument NOT LIKE 'SELECT%';
+
 SET SESSION wsrep_osu_method=TOI;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 SET SESSION wsrep_osu_method=RSU;

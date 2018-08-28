@@ -41,6 +41,8 @@ cleanup_joiner()
     kill -9 $RSYNC_REAL_PID >/dev/null 2>&1 || \
     :
     rm -rf "$RSYNC_CONF"
+    rm -f "$STUNNEL_CONF"
+    rm -f "$STUNNEL_PID"
     rm -rf "$MAGIC_FILE"
     rm -rf "$RSYNC_PID"
     wsrep_log_info "Joiner cleanup done."
@@ -68,7 +70,7 @@ check_pid_and_port()
         local port_info="$(sockstat -46lp ${rsync_port} 2>/dev/null | \
             grep ":${rsync_port}")"
         local is_rsync="$(echo $port_info | \
-            grep '[[:space:]]\+rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)"
+            grep -E '[[:space:]]+(rsync|stunnel)[[:space:]]+'"$rsync_pid" 2>/dev/null)"
         ;;
     *)
         if ! command -v lsof > /dev/null; then
@@ -79,7 +81,7 @@ check_pid_and_port()
         local port_info="$(lsof -i :$rsync_port -Pn 2>/dev/null | \
             grep "(LISTEN)")"
         local is_rsync="$(echo $port_info | \
-            grep -w '^rsync[[:space:]]\+'"$rsync_pid" 2>/dev/null)"
+            grep -E '^(rsync|stunnel)[[:space:]]+'"$rsync_pid" 2>/dev/null)"
         ;;
     esac
 
@@ -120,6 +122,12 @@ is_local_ip()
   $get_addr_bin | grep "$address" > /dev/null
 }
 
+STUNNEL_CONF="$WSREP_SST_OPT_DATA/stunnel.conf"
+rm -f "$STUNNEL_CONF"
+
+STUNNEL_PID="$WSREP_SST_OPT_DATA/stunnel.pid"
+rm -f "$STUNNEL_PID"
+
 MAGIC_FILE="$WSREP_SST_OPT_DATA/rsync_sst_complete"
 rm -rf "$MAGIC_FILE"
 
@@ -157,8 +165,27 @@ fi
 FILTER="-f '- /lost+found' -f '- /.fseventsd' -f '- /.Trashes'
         -f '+ /wsrep_sst_binlog.tar' -f '+ /ib_lru_dump' -f '+ /ibdata*' -f '+ /*/' -f '- /*'"
 
+SSTKEY=$(parse_cnf sst tkey "")
+SSTCERT=$(parse_cnf sst tcert "")
+STUNNEL=""
+if [ -f "$SSTKEY" ] && [ -f "$SSTCERT" ] && wsrep_check_programs stunnel
+then
+    STUNNEL="stunnel ${STUNNEL_CONF}"
+fi
+
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
+
+cat << EOF > "$STUNNEL_CONF"
+CApath = ${SSTCERT%/*}
+foreground = yes
+pid = $STUNNEL_PID
+debug = warning
+client = yes
+connect = ${WSREP_SST_OPT_ADDR%/*}
+TIMEOUTclose = 0
+verifyPeer = yes
+EOF
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
     then
@@ -221,7 +248,8 @@ then
 
         # first, the normal directories, so that we can detect incompatible protocol
         RC=0
-        eval rsync --owner --group --perms --links --specials \
+        eval rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+              --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
               $WHOLE_FILE_OPT ${FILTER} "$WSREP_SST_OPT_DATA/" \
               rsync://$WSREP_SST_OPT_ADDR >&2 || RC=$?
@@ -244,7 +272,8 @@ then
         fi
 
         # second, we transfer InnoDB log files
-        rsync --owner --group --perms --links --specials \
+        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+              --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
               $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' -f '- **' "$WSREP_LOG_DIR/" \
               rsync://$WSREP_SST_OPT_ADDR-log_dir >&2 || RC=$?
@@ -264,7 +293,8 @@ then
 
         find . -maxdepth 1 -mindepth 1 -type d -not -name "lost+found" \
              -print0 | xargs -I{} -0 -P $count \
-             rsync --owner --group --perms --links --specials \
+             rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+             --owner --group --perms --links --specials \
              --ignore-times --inplace --recursive --delete --quiet \
              $WHOLE_FILE_OPT --exclude '*/ib_logfile*' "$WSREP_SST_OPT_DATA"/{}/ \
              rsync://$WSREP_SST_OPT_ADDR/{} >&2 || RC=$?
@@ -287,7 +317,8 @@ then
     echo "continue" # now server can resume updating data
 
     echo "$STATE" > "$MAGIC_FILE"
-    rsync --archive --quiet --checksum "$MAGIC_FILE" rsync://$WSREP_SST_OPT_ADDR
+    rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+          --archive --quiet --checksum "$MAGIC_FILE" rsync://$WSREP_SST_OPT_ADDR
 
     echo "done $STATE"
 
@@ -348,14 +379,37 @@ EOF
     # If the IP is local listen only in it
     if is_local_ip "$RSYNC_ADDR"
     then
-      rsync --daemon --no-detach --address "$RSYNC_ADDR" --port "$RSYNC_PORT" --config "$RSYNC_CONF" &
+      RSYNC_EXTRA_ARGS="--address $RSYNC_ADDR"
+      STUNNEL_ACCEPT="$RSYNC_ADDR:$RSYNC_PORT"
     else
-      # Not local, possibly a NAT, listen in all interface
-      rsync --daemon --no-detach --port "$RSYNC_PORT" --config "$RSYNC_CONF" &
+      # Not local, possibly a NAT, listen on all interfaces
+      RSYNC_EXTRA_ARGS=""
+      STUNNEL_ACCEPT="$RSYNC_PORT"
       # Overwrite address with all
       RSYNC_ADDR="*"
     fi
-    RSYNC_REAL_PID=$!
+
+    if [ -z "$STUNNEL" ]
+    then
+      rsync --daemon --no-detach --port "$RSYNC_PORT" --config "$RSYNC_CONF" ${RSYNC_EXTRA_ARGS} &
+      RSYNC_REAL_PID=$!
+    else
+      cat << EOF > "$STUNNEL_CONF"
+key = $SSTKEY
+cert = $SSTCERT
+foreground = yes
+pid = $STUNNEL_PID
+debug = warning
+client = no
+[rsync]
+accept = $STUNNEL_ACCEPT
+exec = $(which rsync)
+execargs = rsync --server --daemon --config=$RSYNC_CONF .
+EOF
+      stunnel "$STUNNEL_CONF" &
+      RSYNC_REAL_PID=$!
+      RSYNC_PID=$STUNNEL_PID
+    fi
 
     until check_pid_and_port "$RSYNC_PID" "$RSYNC_REAL_PID" "$RSYNC_ADDR" "$RSYNC_PORT"
     do

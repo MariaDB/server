@@ -359,9 +359,8 @@ struct ddl_tracker_t {
 	/* For DDL operation found in redo log,  */
 	space_id_to_name_t id_to_name;
 };
-const space_id_t REMOVED_SPACE_ID = ULINT_MAX;
-static ddl_tracker_t ddl_tracker;
 
+static ddl_tracker_t ddl_tracker;
 
 /* Whether xtrabackup_binlog_info should be created on recovery */
 static bool recover_binlog_info;
@@ -617,9 +616,8 @@ void backup_file_op(ulint space_id, const byte* flags,
 
 
 /** Callback whenever MLOG_INDEX_LOAD happens.
-@param[in]	space_id	space id to check
-@return false */
-void backup_optimized_ddl_op(ulint space_id)
+@param[in]	space_id	space id to check */
+static void backup_optimized_ddl_op(ulint space_id)
 {
 	// TODO : handle incremental
 	if (xtrabackup_incremental)
@@ -628,6 +626,15 @@ void backup_optimized_ddl_op(ulint space_id)
 	pthread_mutex_lock(&backup_mutex);
 	ddl_tracker.optimized_ddl.insert(space_id);
 	pthread_mutex_unlock(&backup_mutex);
+}
+
+/** Callback whenever MLOG_TRUNCATE happens. */
+static void backup_truncate_fail()
+{
+	msg("mariabackup: Incompatible TRUNCATE operation detected.%s\n",
+	    opt_lock_ddl_per_table
+	    ? ""
+	    : " Use --lock-ddl-per-table to lock all tables before backup.");
 }
 
 /* ======== Date copying thread context ======== */
@@ -1209,7 +1216,7 @@ struct my_option xb_server_options[] =
    "Use native AIO if supported on this platform.",
    (G_PTR*) &srv_use_native_aio,
    (G_PTR*) &srv_use_native_aio, 0, GET_BOOL, NO_ARG,
-   FALSE, 0, 0, 0, 0, 0},
+   TRUE, 0, 0, 0, 0, 0},
   {"innodb_page_size", OPT_INNODB_PAGE_SIZE,
    "The universal page size of the database.",
    (G_PTR*) &innobase_page_size, (G_PTR*) &innobase_page_size, 0,
@@ -4182,12 +4189,13 @@ fail_before_log_copying_thread_start:
 	/* copy log file by current position */
 	log_copy_scanned_lsn = checkpoint_lsn_start;
 	recv_sys->recovered_lsn = log_copy_scanned_lsn;
+	log_optimized_ddl_op = backup_optimized_ddl_op;
+	log_truncate = backup_truncate_fail;
 
 	if (xtrabackup_copy_logfile())
 		goto fail_before_log_copying_thread_start;
 
 	log_copying_stop = os_event_create(0);
-	log_optimized_ddl_op = backup_optimized_ddl_op;
 	os_thread_create(log_copying_thread, NULL, &log_copying_thread_id);
 
 	/* FLUSH CHANGED_PAGE_BITMAPS call */

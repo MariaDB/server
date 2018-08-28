@@ -21,7 +21,7 @@ enum enum_use_stat_tables_mode
 {
   NEVER,
   COMPLEMENTARY,
-  PEFERABLY,
+  PREFERABLY,
 } Use_stat_tables_mode;
 
 typedef

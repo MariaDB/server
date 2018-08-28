@@ -258,7 +258,12 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 			       trx_sys.get_max_trx_id(), mtr);
 	}
 
-	/* Before any transaction-generating background threads or the
+	/* After the purge thread has been given permission to exit,
+	we may roll back transactions (trx->undo_no==0)
+	in THD::cleanup() invoked from unlink_thd() in fast shutdown,
+	or in trx_rollback_resurrected() in slow shutdown.
+
+	Before any transaction-generating background threads or the
 	purge have been started, recv_recovery_rollback_active() can
 	start transactions in row_merge_drop_temp_indexes() and
 	fts_drop_orphaned_tables(), and roll back recovered transactions.
@@ -268,17 +273,15 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	innodb_force_recovery=2 or innodb_force_recovery=3.
 	DROP TABLE may be executed at any innodb_force_recovery	level.
 
-	After the purge thread has been given permission to exit,
-	in fast shutdown, we may roll back transactions (trx->undo_no==0)
-	in THD::cleanup() invoked from unlink_thd(), and we may also
-	continue to execute user transactions. */
+	During fast shutdown, we may also continue to execute
+	user transactions. */
 	ut_ad(srv_undo_sources
+	      || trx->undo_no == 0
 	      || (!purge_sys.enabled()
 		  && (srv_startup_is_before_trx_rollback_phase
 		      || trx_rollback_is_active
 		      || srv_force_recovery >= SRV_FORCE_NO_BACKGROUND))
-	      || ((trx->undo_no == 0 || trx->mysql_thd
-		   || trx->internal)
+	      || ((trx->mysql_thd || trx->internal)
 		  && srv_fast_shutdown));
 
 #ifdef	WITH_WSREP

@@ -2417,7 +2417,22 @@ static bool srv_purge_should_exit()
 		return(true);
 	}
 	/* Slow shutdown was requested. */
-	return !trx_sys.any_active_transactions() && !trx_sys.history_size();
+	if (ulint history_size = trx_sys.history_size()) {
+#if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
+		static ib_time_t progress_time;
+		ib_time_t time = ut_time();
+		if (time - progress_time >= 15) {
+			progress_time = time;
+			service_manager_extend_timeout(
+				INNODB_EXTEND_TIMEOUT_INTERVAL,
+				"InnoDB: to purge " ULINTPF " transactions",
+				history_size);
+		}
+#endif
+		return false;
+	}
+
+	return !trx_sys.any_active_transactions();
 }
 
 /*********************************************************************//**
@@ -2583,14 +2598,6 @@ srv_do_purge(ulint* n_total_purged)
 			(++count % rseg_truncate_frequency) == 0);
 
 		*n_total_purged += n_pages_purged;
-
-		if (n_pages_purged) {
-			service_manager_extend_timeout(
-				INNODB_EXTEND_TIMEOUT_INTERVAL,
-				"InnoDB " ULINTPF " pages purged", n_pages_purged);
-			/* The previous round still did some work. */
-			continue;
-		}
 	} while (n_pages_purged > 0 && !purge_sys.paused()
 		 && !srv_purge_should_exit());
 

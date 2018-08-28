@@ -688,7 +688,7 @@ Breaks: mariadb-backup-10.1,
         mariadb-backup-10.2
 Replaces: mariadb-backup-10.1,
           mariadb-backup-10.2
-Depends: mariadb-client-core-10.3,
+Depends: mariadb-client-core-10.3 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Backup tool for MariaDB server

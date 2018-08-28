@@ -959,12 +959,6 @@ log_write_up_to(
 		return;
 	}
 
-	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
-		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-					       "log write up to: " LSN_PF,
-					       lsn);
-	}
-
 loop:
 	ut_ad(++loop_count < 128);
 
@@ -1090,6 +1084,13 @@ loop:
 				srv_log_buffer_size - area_end);
 			::memset(write_buf + area_end, 0, pad_size);
 		}
+	}
+
+	if (UNIV_UNLIKELY(srv_shutdown_state != SRV_SHUTDOWN_NONE)) {
+		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+					       "InnoDB log write: "
+					       LSN_PF "," LSN_PF,
+					       log_sys.write_lsn, lsn);
 	}
 
 	if (log_sys.is_encrypted()) {

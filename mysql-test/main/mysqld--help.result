@@ -231,6 +231,11 @@ The following specify which files/extra groups are read (specified before remain
  cache, etc)
  --enforce-storage-engine=name 
  Force the use of a storage engine for new tables
+ --eq-range-index-dive-limit=# 
+ The optimizer will use existing index statistics instead
+ of doing index dives for equality ranges if the number of
+ equality ranges for the index is larger than or equal to
+ this number. If set to 0, index dives are always used.
  --event-scheduler[=name] 
  Enable the event scheduler. Possible values are ON, OFF,
  and DISABLED (keep the event scheduler completely
@@ -1400,6 +1405,7 @@ encrypt-binlog FALSE
 encrypt-tmp-disk-tables FALSE
 encrypt-tmp-files FALSE
 enforce-storage-engine (No default value)
+eq-range-index-dive-limit 0
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0

@@ -169,10 +169,15 @@ typedef std::map<
 
 static recv_spaces_t	recv_spaces;
 
-/** Report optimized DDL operation (without redo log), corresponding to MLOG_INDEX_LOAD.
+/** Report optimized DDL operation (without redo log),
+corresponding to MLOG_INDEX_LOAD.
 @param[in]	space_id	tablespace identifier
 */
 void (*log_optimized_ddl_op)(ulint space_id);
+
+/** Report backup-unfriendly TRUNCATE operation (with separate log file),
+corresponding to MLOG_TRUNCATE. */
+void (*log_truncate)();
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
@@ -189,11 +194,9 @@ void (*log_file_op)(ulint space_id, const byte* flags,
 @param[in,out]	name		file name
 @param[in]	len		length of the file name
 @param[in]	space_id	the tablespace ID
-@param[in]	deleted		whether this is a MLOG_FILE_DELETE record
-@retval true if able to process file successfully.
-@retval false if unable to process the file */
+@param[in]	deleted		whether this is a MLOG_FILE_DELETE record */
 static
-bool
+void
 fil_name_process(
 	char*	name,
 	ulint	len,
@@ -201,14 +204,12 @@ fil_name_process(
 	bool	deleted)
 {
 	if (srv_operation == SRV_OPERATION_BACKUP) {
-		return true;
+		return;
 	}
 
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
-
-	bool	processed = true;
 
 	/* We will also insert space=NULL into the map, so that
 	further checks can ensure that a MLOG_FILE_NAME record was
@@ -256,7 +257,6 @@ fil_name_process(
 					<< f.name << "' and '" << name << "'."
 					" You must delete one of them.";
 				recv_sys->found_corrupt_fs = true;
-				processed = false;
 			}
 			break;
 
@@ -309,7 +309,6 @@ fil_name_process(
 					" remove the .ibd file, you can set"
 					" --innodb_force_recovery.";
 				recv_sys->found_corrupt_fs = true;
-				processed = false;
 				break;
 			}
 
@@ -320,7 +319,6 @@ fil_name_process(
 			break;
 		}
 	}
-	return(processed);
 }
 
 /** Parse or process a MLOG_FILE_* record.
@@ -1093,6 +1091,12 @@ recv_parse_or_apply_log_rec_body(
 		}
 		return(ptr + 8);
 	case MLOG_TRUNCATE:
+		if (log_truncate) {
+			ut_ad(srv_operation != SRV_OPERATION_NORMAL);
+			log_truncate();
+			recv_sys->found_corrupt_fs = true;
+			return NULL;
+		}
 		return(truncate_t::parse_redo_entry(ptr, end_ptr, space_id));
 
 	default:

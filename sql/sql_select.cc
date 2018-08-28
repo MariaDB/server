@@ -1682,8 +1682,7 @@ JOIN::optimize_inner()
     DBUG_RETURN(1);
   }
 
-  if (thd->lex->sql_command == SQLCOM_SELECT &&
-      optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED))
+  if (optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_DERIVED))
   {
     TABLE_LIST *tbl;
     List_iterator_fast<TABLE_LIST> li(select_lex->leaf_tables);
@@ -1879,6 +1878,14 @@ JOIN::optimize_inner()
     {
       error= 1;
       DBUG_RETURN(1);
+    }
+    if (!group_list)
+    {
+      /* The output has only one row */
+      order=0;
+      simple_order=1;
+      group_optimized_away= 1;
+      select_distinct=0;
     }
   }
   
@@ -6522,7 +6529,7 @@ add_group_and_distinct_keys(JOIN *join, JOIN_TAB *join_tab)
   Item_field *cur_item;
   key_map possible_keys(0);
 
-  if (join->group_list || join->simple_group)
+  if (join->group_list)
   { /* Collect all query fields referenced in the GROUP clause. */
     for (cur_group= join->group_list; cur_group; cur_group= cur_group->next)
       (*cur_group->item)->walk(&Item::collect_item_field_processor, 0,

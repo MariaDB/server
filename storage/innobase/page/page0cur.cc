@@ -846,7 +846,8 @@ page_cur_insert_rec_write_log(
 	ulint	i;
 
 	if (index->table->is_temporary()) {
-		ut_ad(!mlog_open(mtr, 0));
+		mtr->set_modified();
+		ut_ad(mtr->get_log_mode() == MTR_LOG_NO_REDO);
 		return;
 	}
 
