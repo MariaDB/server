@@ -1100,6 +1100,8 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_truncated_status_writes,	  SHOW_LONG},
   {"available_undo_logs",
   (char*) &export_vars.innodb_available_undo_logs,        SHOW_LONG},
+  {"undo_truncations",
+  (char*) &export_vars.innodb_undo_truncations,           SHOW_LONG},
 
   /* Status variables for page compression */
   {"page_compression_saved",

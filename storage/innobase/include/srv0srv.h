@@ -1022,6 +1022,8 @@ struct export_var_t{
 	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
 	ulint innodb_available_undo_logs;       /*!< srv_available_undo_logs
 						*/
+	/** Number of undo tablespace truncation operations */
+	ulong innodb_undo_truncations;
 	ulint innodb_defragment_compression_failures; /*!< Number of
 						defragment re-compression
 						failures */

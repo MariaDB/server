@@ -1076,6 +1076,9 @@ trx_purge_initiate_truncate(
 	os_file_truncate(file->name, file->handle,
 			 os_offset_t(size) << srv_page_size_shift, true);
 
+	/* This is only executed by the srv_coordinator_thread. */
+	export_vars.innodb_undo_truncations++;
+
 	/* TODO: PUNCH_HOLE the garbage (with write-ahead logging) */
 
 	mutex_enter(&fil_system->mutex);
