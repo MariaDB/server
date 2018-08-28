@@ -3895,7 +3895,7 @@ static Sys_var_enum Sys_wsrep_certification_rules(
        "failures. "
        "\"optimized\": relaxed rules that allow more concurrency and "
        "cause less certification failures.",
-       READ_ONLY GLOBAL_VAR(wsrep_certification_rules), CMD_LINE(REQUIRED_ARG),
+       GLOBAL_VAR(wsrep_certification_rules), CMD_LINE(REQUIRED_ARG),
        wsrep_certification_rules_names, DEFAULT(WSREP_CERTIFICATION_RULES_STRICT),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(0));
