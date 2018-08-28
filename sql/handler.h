@@ -1962,13 +1962,6 @@ struct Schema_specification_st
 
 class Create_field;
 
-enum vers_sys_type_t
-{
-  VERS_UNDEFINED= 0,
-  VERS_TIMESTAMP,
-  VERS_TRX_ID
-};
-
 struct Table_period_info: Sql_alloc
 {
   Table_period_info() :
@@ -2051,8 +2044,7 @@ public:
   bool fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_info,
                        TABLE_LIST &src_table, TABLE_LIST &table);
   bool check_sys_fields(const Lex_table_name &table_name,
-                        const Lex_table_name &db, Alter_info *alter_info,
-                        bool can_native) const;
+                        const Lex_table_name &db, Alter_info *alter_info) const;
 
   /**
      At least one field was specified 'WITH/WITHOUT SYSTEM VERSIONING'.

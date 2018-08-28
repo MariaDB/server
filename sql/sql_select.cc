@@ -1023,7 +1023,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
         storing vers_conditions as Item and make some magic related to
         vers_system_time_t/VERS_TRX_ID at stage of fix_fields()
         (this is large refactoring). */
-      if (vers_conditions.resolve_units(thd))
+      if (vers_conditions.check_units(thd))
         DBUG_RETURN(-1);
       if (timestamps_only && (vers_conditions.start.unit == VERS_TRX_ID ||
         vers_conditions.end.unit == VERS_TRX_ID))

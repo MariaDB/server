@@ -7419,11 +7419,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
   if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
     return false;
 
-  bool can_native= ha_check_storage_engine_flag(db_type,
-                                                HTON_NATIVE_SYS_VERSIONING)
-                   || db_type->db_type == DB_TYPE_PARTITION_DB;
-
-  return vers_info.check_sys_fields(table_name, db, alter_info, can_native);
+  return vers_info.check_sys_fields(table_name, db, alter_info);
 }
 
 
@@ -7527,7 +7523,16 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     return false;
   }
 
-  return fix_implicit(thd, alter_info);
+  if (fix_implicit(thd, alter_info))
+    return true;
+
+  if (alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING)
+  {
+    if (check_sys_fields(table_name, share->db, alter_info))
+      return true;
+  }
+
+  return false;
 }
 
 bool
@@ -7628,84 +7633,121 @@ bool Vers_parse_info::check_conditions(const Lex_table_name &table_name,
   return false;
 }
 
-static bool is_versioning_timestamp(const Create_field *f)
+static bool is_versioning_timestamp(const Column_definition *f)
 {
   return f->type_handler() == &type_handler_timestamp2 &&
          f->length == MAX_DATETIME_FULL_WIDTH;
 }
 
-static bool is_some_bigint(const Create_field *f)
+static bool is_some_bigint(const Column_definition *f)
 {
   return f->type_handler() == &type_handler_slonglong ||
          f->type_handler() == &type_handler_ulonglong ||
          f->type_handler() == &type_handler_vers_trx_id;
 }
 
-static bool is_versioning_bigint(const Create_field *f)
+static bool is_versioning_bigint(const Column_definition *f)
 {
   return is_some_bigint(f) && f->flags & UNSIGNED_FLAG &&
          f->length == MY_INT64_NUM_DECIMAL_DIGITS - 1;
 }
 
-static bool require_timestamp(const Create_field *f, Lex_table_name table_name)
+static void require_timestamp_error(const char *field, const char *table)
 {
-  my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str, "TIMESTAMP(6)",
-           table_name.str);
-  return true;
-}
-static bool require_bigint(const Create_field *f, Lex_table_name table_name)
-{
-  my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str,
-           "BIGINT(20) UNSIGNED", table_name.str);
-  return true;
+  my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), field, "TIMESTAMP(6)", table);
 }
 
-bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
-                                       const Lex_table_name &db,
-                                       Alter_info *alter_info,
-                                       bool can_native) const
+static void require_trx_id_error(const char *field, const char *table)
 {
-  if (check_conditions(table_name, db))
+  my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), field, "BIGINT(20) UNSIGNED",
+           table);
+}
+
+
+bool Vers_type_timestamp::check_sys_fields(const LEX_CSTRING &table_name,
+                                           const Column_definition *row_start,
+                                           const Column_definition *row_end) const
+{
+  if (!is_versioning_timestamp(row_start))
+  {
+    require_timestamp_error(row_start->field_name.str, table_name.str);
     return true;
-
-  const Create_field *row_start= NULL;
-  const Create_field *row_end= NULL;
-
-  List_iterator<Create_field> it(alter_info->create_list);
-  while (Create_field *f= it++)
-  {
-    if (!row_start && f->flags & VERS_SYS_START_FLAG)
-      row_start= f;
-    else if (!row_end && f->flags & VERS_SYS_END_FLAG)
-      row_end= f;
   }
 
-  const bool expect_timestamp=
-      !can_native || !is_some_bigint(row_start) || !is_some_bigint(row_end);
-
-  if (expect_timestamp)
+  if (row_end->type_handler()->vers() != this ||
+      !is_versioning_timestamp(row_end))
   {
-    if (!is_versioning_timestamp(row_start))
-      return require_timestamp(row_start, table_name);
-
-    if (!is_versioning_timestamp(row_end))
-      return require_timestamp(row_end, table_name);
-  }
-  else
-  {
-    if (!is_versioning_bigint(row_start))
-      return require_bigint(row_start, table_name);
-
-    if (!is_versioning_bigint(row_end))
-      return require_bigint(row_end, table_name);
+    require_timestamp_error(row_end->field_name.str, table_name.str);
+    return true;
   }
 
-  if (is_versioning_bigint(row_start) && is_versioning_bigint(row_end) &&
-      !TR_table::use_transaction_registry)
+  return false;
+}
+
+
+bool Vers_type_trx::check_sys_fields(const LEX_CSTRING &table_name,
+                                     const Column_definition *row_start,
+                                     const Column_definition *row_end) const
+{
+  if (!is_versioning_bigint(row_start))
+  {
+    require_trx_id_error(row_start->field_name.str, table_name.str);
+    return true;
+  }
+
+  if (row_end->type_handler()->vers() != this ||
+      !is_versioning_bigint(row_end))
+  {
+    require_trx_id_error(row_end->field_name.str, table_name.str);
+    return true;
+  }
+
+  if (!is_some_bigint(row_start))
+  {
+    require_timestamp_error(row_start->field_name.str, table_name.str);
+    return true;
+  }
+
+  if (!TR_table::use_transaction_registry)
   {
     my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
     return true;
   }
+
+  return false;
+}
+
+bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
+                                       const Lex_table_name &db,
+                                       Alter_info *alter_info) const
+{
+  if (check_conditions(table_name, db))
+    return true;
+
+  List_iterator<Create_field> it(alter_info->create_list);
+  const Create_field *row_start= NULL;
+  const Create_field *row_end= NULL;
+  while (const Create_field *f= it++)
+  {
+    if (f->flags & VERS_SYS_START_FLAG && !row_start)
+      row_start= f;
+    if (f->flags & VERS_SYS_END_FLAG && !row_end)
+      row_end= f;
+  }
+
+  DBUG_ASSERT(row_start);
+  DBUG_ASSERT(row_end);
+
+  const Vers_type_handler *row_start_vers= row_start->type_handler()->vers();
+
+  if (!row_start_vers)
+  {
+    require_timestamp_error(row_start->field_name.str, table_name);
+    return true;
+  }
+
+  if (row_start_vers->check_sys_fields(table_name, row_start, row_end))
+    return true;
 
   return false;
 }

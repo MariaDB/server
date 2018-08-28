@@ -110,7 +110,7 @@ FROMTO2_x	y
 7	107
 8	108
 9	109
-select x as BETWAND2_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
+select x as BETWAND2_x, y from t1 for system_time between '0-0-0 0:0:0' and @t1;
 BETWAND2_x	y
 0	100
 1	101

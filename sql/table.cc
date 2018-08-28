@@ -9540,12 +9540,12 @@ bool TR_table::check(bool error)
   return false;
 }
 
-bool vers_select_conds_t::resolve_units(THD *thd)
+bool vers_select_conds_t::check_units(THD *thd)
 {
   DBUG_ASSERT(type != SYSTEM_TIME_UNSPECIFIED);
   DBUG_ASSERT(start.item);
-  return start.resolve_unit(thd) ||
-         end.resolve_unit(thd);
+  return start.check_unit(thd) ||
+         end.check_unit(thd);
 }
 
 bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
@@ -9569,22 +9569,21 @@ bool vers_select_conds_t::eq(const vers_select_conds_t &conds) const
 }
 
 
-bool Vers_history_point::resolve_unit(THD *thd)
+bool Vers_history_point::check_unit(THD *thd)
 {
   if (!item)
     return false;
   if (item->fix_fields_if_needed(thd, &item))
     return true;
-  return item->this_item()->real_type_handler()->
-           type_handler_for_system_time()->
-           Vers_history_point_resolve_unit(thd, this);
-}
-
-
-void Vers_history_point::bad_expression_data_type_error(const char *type) const
-{
-  my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           type, "FOR SYSTEM_TIME");
+  const Type_handler *t= item->this_item()->real_type_handler();
+  DBUG_ASSERT(t);
+  if (!t->vers())
+  {
+    my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
+             t->name().ptr(), "FOR SYSTEM_TIME");
+    return true;
+  }
+  return false;
 }
 
 

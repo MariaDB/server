@@ -83,6 +83,10 @@ Type_handler_blob_compressed type_handler_blob_compressed;
 
 Type_handler_interval_DDhhmmssff type_handler_interval_DDhhmmssff;
 
+Vers_type_timestamp       vers_type_timestamp;
+Vers_type_trx             vers_type_trx;
+
+
 
 class Type_collection_std: public Type_collection
 {
@@ -8200,67 +8204,6 @@ bool Type_handler::
 }
 
 
-/***************************************************************************/
-
-bool Type_handler::Vers_history_point_resolve_unit(THD *thd,
-                                                   Vers_history_point *point)
-                                                   const
-{
-  /*
-    Disallow using non-relevant data types in history points.
-    Even expressions with explicit TRANSACTION or TIMESTAMP units.
-  */
-  point->bad_expression_data_type_error(name().ptr());
-  return true;
-}
-
-
-bool Type_handler_typelib::
-       Vers_history_point_resolve_unit(THD *thd,
-                                       Vers_history_point *point) const
-{
-  /*
-    ENUM/SET have dual type properties (string and numeric).
-    Require explicit CAST to avoid ambiguity.
-  */
-  point->bad_expression_data_type_error(name().ptr());
-  return true;
-}
-
-
-bool Type_handler_general_purpose_int::
-       Vers_history_point_resolve_unit(THD *thd,
-                                       Vers_history_point *point) const
-{
-  return point->resolve_unit_trx_id(thd);
-}
-
-
-bool Type_handler_bit::
-       Vers_history_point_resolve_unit(THD *thd,
-                                       Vers_history_point *point) const
-{
-  return point->resolve_unit_trx_id(thd);
-}
-
-
-bool Type_handler_temporal_result::
-       Vers_history_point_resolve_unit(THD *thd,
-                                       Vers_history_point *point) const
-{
-  return point->resolve_unit_timestamp(thd);
-}
-
-
-bool Type_handler_general_purpose_string::
-       Vers_history_point_resolve_unit(THD *thd,
-                                       Vers_history_point *point) const
-{
-  return point->resolve_unit_timestamp(thd);
-}
-
-/***************************************************************************/
-
 bool Type_handler_null::Item_const_eq(const Item_const *a,
                                       const Item_const *b,
                                       bool binary_cmp) const
@@ -8337,13 +8280,6 @@ Type_handler_temporal_result::Item_const_eq(const Item_const *a,
 
 const Type_handler *
 Type_handler_hex_hybrid::cast_to_int_type_handler() const
-{
-  return &type_handler_ulonglong;
-}
-
-
-const Type_handler *
-Type_handler_hex_hybrid::type_handler_for_system_time() const
 {
   return &type_handler_ulonglong;
 }
