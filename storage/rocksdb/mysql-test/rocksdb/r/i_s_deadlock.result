@@ -14,7 +14,7 @@ show create table information_schema.rocksdb_deadlock;
 Table	Create Table
 ROCKSDB_DEADLOCK	CREATE TEMPORARY TABLE `ROCKSDB_DEADLOCK` (
   `DEADLOCK_ID` bigint(8) NOT NULL DEFAULT 0,
-  `TIMESTAMP` bigint(8) NOT NULL DEFAULT '0',
+  `TIMESTAMP` bigint(8) NOT NULL DEFAULT 0,
   `TRANSACTION_ID` bigint(8) NOT NULL DEFAULT 0,
   `CF_NAME` varchar(193) NOT NULL DEFAULT '',
   `WAITING_KEY` varchar(513) NOT NULL DEFAULT '',

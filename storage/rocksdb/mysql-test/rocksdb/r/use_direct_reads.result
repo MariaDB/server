@@ -3,7 +3,7 @@ CREATE TABLE t1 (pk INT PRIMARY KEY DEFAULT '0', a INT(11), b CHAR(8)) ENGINE=ro
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `pk` int(11) NOT NULL DEFAULT '0',
+  `pk` int(11) NOT NULL DEFAULT 0,
   `a` int(11) DEFAULT NULL,
   `b` char(8) DEFAULT NULL,
   PRIMARY KEY (`pk`)
