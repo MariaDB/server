@@ -7325,6 +7325,74 @@ bool Vers_parse_info::check_conditions(const Lex_table_name &table_name,
   return false;
 }
 
+
+static void require_timestamp_error(const char *field, const char *table)
+{
+  my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), field, "TIMESTAMP(6)", table);
+}
+static void require_trx_id_error(const char *field, const char *table)
+{
+  my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), field, "BIGINT(20) UNSIGNED",
+           table);
+}
+
+
+bool Vers_type_timestamp::check_sys_fields(const LEX_CSTRING &table_name,
+                                           const Column_definition *row_start,
+                                           const Column_definition *row_end) const
+{
+  if (row_start->length != MAX_DATETIME_FULL_WIDTH)
+  {
+    require_timestamp_error(row_start->field_name.str, table_name.str);
+    return true;
+  }
+
+  if (row_end->type_handler()->vers() != this ||
+      row_end->length != MAX_DATETIME_FULL_WIDTH)
+  {
+    require_timestamp_error(row_end->field_name.str, table_name.str);
+    return true;
+  }
+
+  return false;
+}
+
+
+bool Vers_type_trx::check_sys_fields(const LEX_CSTRING &table_name,
+                                     const Column_definition *row_start,
+                                     const Column_definition *row_end) const
+{
+  if (!(row_start->flags & UNSIGNED_FLAG) ||
+      row_start->length != (MY_INT64_NUM_DECIMAL_DIGITS - 1))
+  {
+    require_trx_id_error(row_start->field_name.str, table_name.str);
+    return true;
+  }
+
+  if (row_end->type_handler()->vers() != this ||
+      !(row_end->flags & UNSIGNED_FLAG) ||
+      row_end->length != (MY_INT64_NUM_DECIMAL_DIGITS - 1))
+  {
+    require_trx_id_error(row_end->field_name.str, table_name.str);
+    return true;
+  }
+
+  if (row_start->type_handler() != &type_handler_longlong)
+  {
+    require_timestamp_error(row_start->field_name.str, table_name.str);
+    return true;
+  }
+
+  if (!TR_table::use_transaction_registry)
+  {
+    my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
+    return true;
+  }
+
+  return false;
+}
+
+
 bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
                                        const Lex_table_name &db,
                                        Alter_info *alter_info)
@@ -7333,70 +7401,29 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
     return true;
 
   List_iterator<Create_field> it(alter_info->create_list);
-  uint found_flag= 0;
-  while (Create_field *f= it++)
+  const Create_field *row_start= NULL;
+  const Create_field *row_end= NULL;
+  while (const Create_field *f= it++)
   {
-    vers_sys_type_t f_check_unit= VERS_UNDEFINED;
-    uint sys_flag= f->flags & VERS_SYSTEM_FIELD;
-
-    if (!sys_flag)
-      continue;
-
-    if (sys_flag & found_flag)
-    {
-      my_error(ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
-                found_flag & VERS_SYS_START_FLAG ? "START" : "END",
-               f->field_name.str);
-      return true;
-    }
-
-    sys_flag|= found_flag;
-
-    if ((f->type_handler() == &type_handler_datetime2 ||
-          f->type_handler() == &type_handler_timestamp2) &&
-        f->length == MAX_DATETIME_FULL_WIDTH)
-    {
-      f_check_unit= VERS_TIMESTAMP;
-    }
-    else if (f->type_handler() == &type_handler_longlong
-      && (f->flags & UNSIGNED_FLAG)
-      && f->length == (MY_INT64_NUM_DECIMAL_DIGITS - 1))
-    {
-      f_check_unit= VERS_TRX_ID;
-    }
-    else
-    {
-      if (!check_unit)
-        check_unit= VERS_TIMESTAMP;
-      goto error;
-    }
-
-    if (f_check_unit)
-    {
-      if (check_unit)
-      {
-        if (check_unit == f_check_unit)
-        {
-          if (check_unit == VERS_TRX_ID && !TR_table::use_transaction_registry)
-          {
-            my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
-            return true;
-          }
-          return false;
-        }
-      error:
-        my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str,
-                 check_unit == VERS_TIMESTAMP ?
-                 "TIMESTAMP(6)" :
-                 "BIGINT(20) UNSIGNED",
-                 table_name.str);
-        return true;
-      }
-      check_unit= f_check_unit;
-    }
+    if (f->flags & VERS_SYS_START_FLAG && !row_start)
+      row_start= f;
+    if (f->flags & VERS_SYS_END_FLAG && !row_end)
+      row_end= f;
   }
 
-  my_error(ER_MISSING, MYF(0), table_name.str, found_flag & VERS_SYS_START_FLAG ?
-           "ROW END" : found_flag ? "ROW START" : "ROW START/END");
-  return true;
+  DBUG_ASSERT(row_start);
+  DBUG_ASSERT(row_end);
+
+  const Vers_type_handler *row_start_vers= row_start->type_handler()->vers();
+
+  if (!row_start_vers)
+  {
+    require_timestamp_error(row_start->field_name.str, table_name);
+    return true;
+  }
+
+  if (row_start_vers->check_sys_fields(table_name, row_start, row_end))
+    return true;
+
+  return false;
 }

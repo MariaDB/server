@@ -1912,19 +1912,11 @@ struct Schema_specification_st
 
 class Create_field;
 
-enum vers_sys_type_t
-{
-  VERS_UNDEFINED= 0,
-  VERS_TIMESTAMP,
-  VERS_TRX_ID
-};
-
 extern const LEX_CSTRING null_clex_str;
 
 struct Vers_parse_info
 {
   Vers_parse_info() :
-    check_unit(VERS_UNDEFINED),
     versioned_fields(false),
     unversioned_fields(false)
   {}
@@ -1933,7 +1925,6 @@ struct Vers_parse_info
   {
     system_time= start_end_t(null_clex_str, null_clex_str);
     as_row= start_end_t(null_clex_str, null_clex_str);
-    check_unit= VERS_UNDEFINED;
     versioned_fields= false;
     unversioned_fields= false;
   }
@@ -1951,7 +1942,6 @@ struct Vers_parse_info
 
   start_end_t system_time;
   start_end_t as_row;
-  vers_sys_type_t check_unit;
 
   void set_system_time(Lex_ident start, Lex_ident end)
   {

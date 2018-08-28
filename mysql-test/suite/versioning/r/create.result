@@ -157,7 +157,7 @@ Sys_start bigint as row start invisible,
 Sys_end bigint unsigned as row end invisible,
 period for system_time (Sys_start, Sys_end)
 ) with system versioning engine innodb;
-ERROR HY000: `Sys_start` must be of type TIMESTAMP(6) for system-versioned table `t1`
+ERROR HY000: `Sys_start` must be of type BIGINT(20) UNSIGNED for system-versioned table `t1`
 create or replace table t1 (
 x14 int unsigned,
 Sys_start bigint unsigned as row start invisible,
