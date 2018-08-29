@@ -34,5 +34,4 @@ galera.MW-44 : MDEV-15809 Test failure on galera.MW-44
 galera.galera_pc_ignore_sb : MDEV-15811 Test failure on galera_pc_ignore_sb
 galera_kill_applier : race condition at the start of the test
 galera_ist_progress: MDEV-15236 galera_ist_progress fails when trying to read transfer status
-galera_concurrent_ctas : MDEV-15845 Test failure on galera.galera_concurrent_ctas
 pxc-421: Lock timeout exceeded
