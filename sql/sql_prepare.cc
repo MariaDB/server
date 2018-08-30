@@ -1637,7 +1637,7 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
     DBUG_RETURN(TRUE);
 
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE | DT_CREATE))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
                            *values, MARK_COLUMNS_NONE, 0, NULL, 0));
@@ -1669,7 +1669,7 @@ static bool mysql_test_set_fields(Prepared_statement *stmt,
   if ((tables &&
        check_table_access(thd, SELECT_ACL, tables, FALSE, UINT_MAX, FALSE)) ||
       open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE | DT_CREATE))
     goto error;
 
   while ((var= it++))
@@ -1706,7 +1706,8 @@ static bool mysql_test_call_fields(Prepared_statement *stmt,
 
   if ((tables &&
        check_table_access(thd, SELECT_ACL, tables, FALSE, UINT_MAX, FALSE)) ||
-      open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL, DT_PREPARE))
+      open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
+                                     DT_INIT | DT_PREPARE))
     goto err;
 
   while ((item= it++))
@@ -1833,7 +1834,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
 
     if (open_normal_and_derived_tables(stmt->thd, lex->query_tables,
                                        MYSQL_OPEN_FORCE_SHARED_MDL,
-                                       DT_PREPARE | DT_CREATE))
+                                       DT_INIT | DT_PREPARE | DT_CREATE))
       DBUG_RETURN(TRUE);
 
     select_lex->context.resolve_in_select_list= TRUE;
@@ -1854,7 +1855,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
     */
     if (open_normal_and_derived_tables(stmt->thd, lex->query_tables,
                                        MYSQL_OPEN_FORCE_SHARED_MDL,
-                                       DT_PREPARE))
+                                       DT_INIT | DT_PREPARE))
       DBUG_RETURN(TRUE);
   }
 
@@ -2081,7 +2082,7 @@ static bool mysql_test_create_view(Prepared_statement *stmt)
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VIEW;
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_PREPARE))
+                                     DT_INIT | DT_PREPARE))
     goto err;
 
   res= select_like_stmt_test(stmt, 0, 0);
