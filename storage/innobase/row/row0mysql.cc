@@ -3314,7 +3314,7 @@ fil_wait_crypt_bg_threads(
 		time_t now = time(0);
 		if (now >= last + 30) {
 			fprintf(stderr,
-				"WARNING: waited %ld seconds "
+				"WARNING: waited " TIMETPF " seconds "
 				"for ref-count on table: %s space: %u\n",
 				now - start, table->name, table->space);
 			last = now;
@@ -3322,7 +3322,7 @@ fil_wait_crypt_bg_threads(
 
 		if (now >= start + 300) {
 			fprintf(stderr,
-				"WARNING: after %ld seconds, gave up waiting "
+				"WARNING: after " TIMETPF " seconds, gave up waiting "
 				"for ref-count on table: %s space: %u\n",
 				now - start, table->name, table->space);
 			break;

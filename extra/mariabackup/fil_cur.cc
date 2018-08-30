@@ -357,7 +357,7 @@ read_retry:
 				/* skip doublewrite buffer pages */
 				xb_a(cursor->page_size == UNIV_PAGE_SIZE);
 				msg("[%02u] mariabackup: "
-				    "Page %lu is a doublewrite buffer page, "
+				    "Page " UINT64PF " is a doublewrite buffer page, "
 				    "skipping.\n", cursor->thread_n, page_no);
 			} else {
 				retry_count--;
@@ -372,7 +372,7 @@ read_retry:
 				}
 				msg("[%02u] mariabackup: "
 				    "Database page corruption detected at page "
-				    "%lu, retrying...\n", cursor->thread_n,
+				    UINT64PF ", retrying...\n", cursor->thread_n,
 				    page_no);
 
 				os_thread_sleep(100000);

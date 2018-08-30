@@ -92,8 +92,8 @@ void sql_print_error(const char *format, ...)
 IO_CACHE info;
 #define CACHE_SIZE 16384
 
-#define INFO_TAIL ", pos_in_file = %llu, pos_in_mem = %lu", \
-                info.pos_in_file, (*info.current_pos - info.request_pos)
+#define INFO_TAIL ", pos_in_file = %llu, pos_in_mem = %td", \
+                info.pos_in_file, *info.current_pos - info.request_pos
 
 #define FILL 0x5A
 

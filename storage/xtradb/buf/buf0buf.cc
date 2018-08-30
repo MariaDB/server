@@ -5044,7 +5044,7 @@ database_corrupted:
 		    && fil_page_get_type(frame) == FIL_PAGE_INDEX
 		    && page_is_leaf(frame)) {
 
-			if (bpage && bpage->encrypted) {
+			if (bpage->encrypted) {
 				ib_logf(IB_LOG_LEVEL_WARN,
 					"Table in tablespace " ULINTPF " encrypted."
 					"However key management plugin or used "

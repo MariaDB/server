@@ -666,12 +666,6 @@
 #cmakedefine WSREP_PROC_INFO 1
 #endif
 
-#ifdef _AIX
-/*
-  AIX includes inttypes.h from sys/types.h
-  Explicitly request format macros before the first inclusion of inttypes.h
-*/
 #define __STDC_FORMAT_MACROS
-#endif
 
 #endif

@@ -1677,13 +1677,13 @@ static int binlog_close_connection(handlerton *hton, THD *thd)
     uchar *buf;
     size_t len=0;
     wsrep_write_cache_buf(cache, &buf, &len);
-    WSREP_WARN("binlog trx cache not empty (%lu bytes) @ connection close %lu",
+    WSREP_WARN("binlog trx cache not empty (%zu bytes) @ connection close %lu",
                len, thd->thread_id);
     if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
 
     cache = cache_mngr->get_binlog_cache_log(false);
     wsrep_write_cache_buf(cache, &buf, &len);
-    WSREP_WARN("binlog stmt cache not empty (%lu bytes) @ connection close %lu",
+    WSREP_WARN("binlog stmt cache not empty (%zu bytes) @ connection close %lu",
                len, thd->thread_id);
     if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
   }
