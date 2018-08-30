@@ -5321,5 +5321,48 @@ DROP PROCEDURE p2;
 DROP PROCEDURE p1;
 DROP ROLE testrole;
 #
+# MDEV-16992: prepare of CREATE TABLE, CREATE VIEW, DO, SET, CALL
+#             statements with CTE containing materialized derived
+# (the bug is reproducible on 10.4)        
+#
+prepare stmt from 
+"CREATE TABLE  t1  AS 
+ WITH cte(a) AS (SELECT * FROM (SELECT 1) AS t) SELECT * FROM cte;";
+execute stmt;
+select * from t1;
+a
+1
+prepare stmt from
+"CREATE VIEW  v1  AS 
+ WITH cte(a) AS (SELECT * FROM (SELECT 1) AS t) SELECT * FROM cte;";
+execute stmt;
+select * from v1;
+a
+1
+prepare stmt from 
+"DO (SELECT 1 
+     FROM (WITH cte AS (SELECT * FROM (SELECT 1) AS t)
+           SELECT * FROM cte) AS tt);";
+execute stmt;
+prepare stmt from 
+"SET @a = (SELECT 1
+           FROM (WITH cte AS (SELECT * FROM (SELECT 1) AS t)
+           SELECT * FROM cte) AS t);";
+execute stmt;
+create procedure p (i int) insert into t1 values(i);
+prepare stmt from 
+"CALL p       
+ ((SELECT 1
+   FROM (WITH cte AS (SELECT * FROM (SELECT 1) AS t)
+         SELECT * FROM cte) AS tt));";
+execute stmt;
+select * from t1;
+a
+1
+1
+drop procedure p;
+drop view v1;
+drop table t1;
+#
 # End of 10.2 tests
 #
