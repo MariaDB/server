@@ -57,8 +57,13 @@ shutdown_server 10;
 
 # We should now have an error message
 --echo "Expect errors that we are missing two .frm files"
---let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
---let SEARCH_PATTERN=Schema mismatch
+#--let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
+#--let SEARCH_PATTERN=Schema mismatch
+#--source include/search_pattern_in_file.inc
+#--let SEARCH_PATTERN=RocksDB: Schema mismatch - Table test.t2 is registered in RocksDB but does not have a .frm file
+#--source include/search_pattern_in_file.inc
+--let SEARCH_FILE=$LOG
+--let SEARCH_PATTERN=RocksDB: Schema mismatch - Table test.t1 is registered in RocksDB but does not have a .frm file
 --source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=RocksDB: Schema mismatch - Table test.t2 is registered in RocksDB but does not have a .frm file
 --source include/search_pattern_in_file.inc
