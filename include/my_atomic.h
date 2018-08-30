@@ -328,7 +328,7 @@ make_atomic_store(ptr)
 #define MY_ATOMIC_NOT_1CPU 1
 extern int my_atomic_initialize();
 
-#ifdef __ATOMIC_SEQ_CST
+#ifdef HAVE_GCC_C11_ATOMICS
 #define MY_MEMORY_ORDER_RELAXED __ATOMIC_RELAXED
 #define MY_MEMORY_ORDER_CONSUME __ATOMIC_CONSUME
 #define MY_MEMORY_ORDER_ACQUIRE __ATOMIC_ACQUIRE
