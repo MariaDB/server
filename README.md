@@ -13,8 +13,8 @@ Please read the CREDITS file for details about the MariaDB Foundation,
 and who is developing MariaDB.
 
 MariaDB is developed by many of the original developers of MySQL who
-now work for the MariaDB Foundation and the MariaDB Corporation, and by many people in
-the community.
+now work for the MariaDB Foundation and the MariaDB Corporation, 
+and by many people in the community.
 
 MySQL, which is the base of MariaDB, is a product and trademark of Oracle
 Corporation, Inc. For a list of developers and other contributors,
