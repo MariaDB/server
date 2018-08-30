@@ -911,6 +911,35 @@ SPIDER_TABLE_HOLDER *spider_fields::add_table(
   DBUG_RETURN(return_table_holder);
 }
 
+/**
+  Verify that all fields in the query are members of tables that are in the
+  query.
+
+  @return TRUE              All fields in the query are members of tables
+                            that are in the query.
+          FALSE             At least one field in the query is not a
+                            member of a table that is in the query.
+*/
+
+bool spider_fields::all_query_fields_are_query_table_members()
+{
+  SPIDER_FIELD_HOLDER *field_holder;
+  DBUG_ENTER("spider_fields::all_fields_are_query_table_fields");
+  DBUG_PRINT("info", ("spider this=%p", this));
+
+  set_pos_to_first_field_holder();
+  while ((field_holder = get_next_field_holder()))
+  {
+    if (!field_holder->spider)
+    {
+      DBUG_PRINT("info", ("spider field is not a member of a query table"));
+      DBUG_RETURN(FALSE);
+    }
+  }
+
+  DBUG_RETURN(TRUE);
+}
+
 int spider_fields::create_table_holder(
   uint table_count_arg
 ) {
@@ -1995,6 +2024,13 @@ group_by_handler *spider_create_group_by_handler(
       delete fields;
       DBUG_RETURN(NULL);
     }
+  }
+
+  if (!fields->all_query_fields_are_query_table_members())
+  {
+    DBUG_PRINT("info", ("spider found a query field that is not a query table member"));
+    delete fields;
+    DBUG_RETURN(NULL);
   }
 
   fields->check_support_dbton(dbton_bitmap);
