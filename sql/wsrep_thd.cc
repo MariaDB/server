@@ -676,25 +676,3 @@ bool wsrep_thd_has_explicit_locks(THD *thd)
   assert(thd);
   return thd->mdl_context.has_explicit_locks();
 }
-
-/*
-  Get auto increment variables for THD. Use global settings for
-  applier threads.
- */
-extern "C"
-void wsrep_thd_auto_increment_variables(THD* thd,
-                                        unsigned long long* offset,
-                                        unsigned long long* increment)
-{
-  if (thd->wsrep_exec_mode == REPL_RECV &&
-      thd->wsrep_conflict_state != REPLAYING)
-  {
-    *offset= global_system_variables.auto_increment_offset;
-    *increment= global_system_variables.auto_increment_increment;
-  }
-  else
-  {
-    *offset= thd->variables.auto_increment_offset;
-    *increment= thd->variables.auto_increment_increment;
-  }
-}
