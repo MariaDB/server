@@ -880,6 +880,7 @@ rocksdb_block_restart_interval	16
 rocksdb_block_size	4096
 rocksdb_block_size_deviation	10
 rocksdb_bulk_load	OFF
+rocksdb_bulk_load_allow_sk	OFF
 rocksdb_bulk_load_allow_unsorted	OFF
 rocksdb_bulk_load_size	1000
 rocksdb_bytes_per_sync	0
@@ -887,6 +888,7 @@ rocksdb_cache_index_and_filter_blocks	ON
 rocksdb_checksums_pct	100
 rocksdb_collect_sst_properties	ON
 rocksdb_commit_in_the_middle	OFF
+rocksdb_commit_time_batch_for_recovery	OFF
 rocksdb_compact_cf	
 rocksdb_compaction_readahead_size	0
 rocksdb_compaction_sequential_deletes	0
@@ -900,6 +902,7 @@ rocksdb_datadir	./#rocksdb
 rocksdb_db_write_buffer_size	0
 rocksdb_deadlock_detect	OFF
 rocksdb_deadlock_detect_depth	50
+rocksdb_debug_manual_compaction_delay	0
 rocksdb_debug_optimizer_no_zero_cardinality	ON
 rocksdb_debug_ttl_ignore_pk	OFF
 rocksdb_debug_ttl_read_filter_ts	0
@@ -915,6 +918,7 @@ rocksdb_enable_ttl	ON
 rocksdb_enable_ttl_read_filtering	ON
 rocksdb_enable_write_thread_adaptive_yield	OFF
 rocksdb_error_if_exists	OFF
+rocksdb_error_on_suboptimal_collation	ON
 rocksdb_flush_log_at_trx_commit	0
 rocksdb_force_compute_memtable_stats	ON
 rocksdb_force_compute_memtable_stats_cachetime	0
@@ -934,12 +938,14 @@ rocksdb_lock_scanned_rows	OFF
 rocksdb_lock_wait_timeout	1
 rocksdb_log_file_time_to_roll	0
 rocksdb_manifest_preallocation_size	4194304
+rocksdb_manual_compaction_threads	0
 rocksdb_manual_wal_flush	ON
 rocksdb_master_skip_tx_api	OFF
 rocksdb_max_background_jobs	2
 rocksdb_max_latest_deadlocks	5
 rocksdb_max_log_file_size	0
-rocksdb_max_manifest_file_size	18446744073709551615
+rocksdb_max_manifest_file_size	1073741824
+rocksdb_max_manual_compactions	10
 rocksdb_max_row_locks	1048576
 rocksdb_max_subcompactions	1
 rocksdb_max_total_wal_size	0
@@ -969,6 +975,7 @@ rocksdb_skip_fill_cache	OFF
 rocksdb_skip_unique_check_tables	.*
 rocksdb_sst_mgr_rate_bytes_per_sec	0
 rocksdb_stats_dump_period_sec	600
+rocksdb_stats_recalc_rate	0
 rocksdb_store_row_debug_checksums	OFF
 rocksdb_strict_collation_check	OFF
 rocksdb_strict_collation_exceptions	
@@ -995,6 +1002,7 @@ rocksdb_whole_key_filtering	ON
 rocksdb_write_batch_max_bytes	0
 rocksdb_write_disable_wal	OFF
 rocksdb_write_ignore_missing_column_families	OFF
+rocksdb_write_policy	write_committed
 create table t47 (pk int primary key, col1 varchar(12)) engine=rocksdb;
 insert into t47 values (1, 'row1');
 insert into t47 values (2, 'row2');
@@ -1351,7 +1359,7 @@ insert into t1 select (@a:=@a+1), 1234 from information_schema.session_variables
 set @tmp1= @@rocksdb_max_row_locks;
 set rocksdb_max_row_locks= 20;
 update t1 set a=a+10;
-ERROR HY000: Status error 10 received from RocksDB: Operation aborted: Failed to acquire lock due to max_num_locks limit
+ERROR HY000: Got error 10 'Operation aborted: Failed to acquire lock due to max_num_locks limit' from ROCKSDB
 DROP TABLE t1;
 # 
 # Test AUTO_INCREMENT behavior problem,
@@ -1495,6 +1503,8 @@ Rocksdb_block_cache_index_miss	#
 Rocksdb_block_cache_miss	#
 Rocksdb_block_cachecompressed_hit	#
 Rocksdb_block_cachecompressed_miss	#
+Rocksdb_bloom_filter_full_positive	#
+Rocksdb_bloom_filter_full_true_positive	#
 Rocksdb_bloom_filter_prefix_checked	#
 Rocksdb_bloom_filter_prefix_useful	#
 Rocksdb_bloom_filter_useful	#
@@ -1511,6 +1521,8 @@ Rocksdb_get_hit_l1	#
 Rocksdb_get_hit_l2_and_up	#
 Rocksdb_getupdatessince_calls	#
 Rocksdb_iter_bytes_read	#
+Rocksdb_manual_compactions_processed	#
+Rocksdb_manual_compactions_running	#
 Rocksdb_memtable_hit	#
 Rocksdb_memtable_miss	#
 Rocksdb_no_file_closes	#
@@ -1602,6 +1614,8 @@ ROCKSDB_BLOCK_CACHE_INDEX_MISS
 ROCKSDB_BLOCK_CACHE_MISS
 ROCKSDB_BLOCK_CACHECOMPRESSED_HIT
 ROCKSDB_BLOCK_CACHECOMPRESSED_MISS
+ROCKSDB_BLOOM_FILTER_FULL_POSITIVE
+ROCKSDB_BLOOM_FILTER_FULL_TRUE_POSITIVE
 ROCKSDB_BLOOM_FILTER_PREFIX_CHECKED
 ROCKSDB_BLOOM_FILTER_PREFIX_USEFUL
 ROCKSDB_BLOOM_FILTER_USEFUL
@@ -1618,6 +1632,8 @@ ROCKSDB_GET_HIT_L1
 ROCKSDB_GET_HIT_L2_AND_UP
 ROCKSDB_GETUPDATESSINCE_CALLS
 ROCKSDB_ITER_BYTES_READ
+ROCKSDB_MANUAL_COMPACTIONS_PROCESSED
+ROCKSDB_MANUAL_COMPACTIONS_RUNNING
 ROCKSDB_MEMTABLE_HIT
 ROCKSDB_MEMTABLE_MISS
 ROCKSDB_NO_FILE_CLOSES
@@ -1711,6 +1727,8 @@ ROCKSDB_BLOCK_CACHE_INDEX_MISS
 ROCKSDB_BLOCK_CACHE_MISS
 ROCKSDB_BLOCK_CACHECOMPRESSED_HIT
 ROCKSDB_BLOCK_CACHECOMPRESSED_MISS
+ROCKSDB_BLOOM_FILTER_FULL_POSITIVE
+ROCKSDB_BLOOM_FILTER_FULL_TRUE_POSITIVE
 ROCKSDB_BLOOM_FILTER_PREFIX_CHECKED
 ROCKSDB_BLOOM_FILTER_PREFIX_USEFUL
 ROCKSDB_BLOOM_FILTER_USEFUL
@@ -1727,6 +1745,8 @@ ROCKSDB_GET_HIT_L1
 ROCKSDB_GET_HIT_L2_AND_UP
 ROCKSDB_GETUPDATESSINCE_CALLS
 ROCKSDB_ITER_BYTES_READ
+ROCKSDB_MANUAL_COMPACTIONS_PROCESSED
+ROCKSDB_MANUAL_COMPACTIONS_RUNNING
 ROCKSDB_MEMTABLE_HIT
 ROCKSDB_MEMTABLE_MISS
 ROCKSDB_NO_FILE_CLOSES
