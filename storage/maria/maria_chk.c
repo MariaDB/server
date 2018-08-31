@@ -1128,7 +1128,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
     {
       fprintf(stderr, "Aria table '%s' is not fixed because of errors\n",
 	      filename);
-      return(-1);
+      DBUG_RETURN(-1);
     }
     recreate=1;
     if (!(param->testflag & T_REP_ANY))
@@ -1150,7 +1150,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
     param->total_deleted+=info->state->del;
     descript(param, info, filename);
     maria_close(info);                          /* Should always succeed */
-    return(0);
+    DBUG_RETURN(0);
   }
 
   if (!stopwords_inited++)

@@ -3551,8 +3551,8 @@ void _ma_tmp_disable_logging_for_table(MARIA_HA *info,
     info->state may point to a state that was deleted by
     _ma_trnman_end_trans_hook()
    */
-  share->state.common= *info->state;
-  info->state= &share->state.common;
+  share->state.no_logging= *info->state;
+  info->state= &share->state.no_logging;
   info->switched_transactional= TRUE;
 
   /*
@@ -3607,6 +3607,10 @@ my_bool _ma_reenable_logging_for_table(MARIA_HA *info, my_bool flush_pages)
     */
     _ma_copy_nontrans_state_information(info);
     _ma_reset_history(info->s);
+
+    /* Reset state to point to state.common, as on open() */
+    info->state=  &share->state.common;
+    *info->state=  share->state.state;
 
     if (flush_pages)
     {
