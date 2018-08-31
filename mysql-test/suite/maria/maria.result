@@ -2227,9 +2227,9 @@ Block_size:                      8192
 Recordlength:                      99
 
 Table description:
-Key Start Len Index   Type
-1   2     30  multip. varchar                
-2   33    30  multip. char NULL              
+Key Start Len Index    Type
+1   2     30  multip.  varchar                
+2   33    30  multip.  char NULL              
 DROP TABLE t1;
 create table t1 (n int not null, c char(1)) transactional=1;
 show create table t1;
