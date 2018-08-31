@@ -1909,7 +1909,7 @@ struct st_maria_plugin rdb_i_s_ddl = {
     MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL
 };
 
-struct st_mysql_plugin rdb_i_s_sst_props = {
+struct st_maria_plugin rdb_i_s_sst_props = {
     MYSQL_INFORMATION_SCHEMA_PLUGIN,
     &rdb_i_s_info,
     "ROCKSDB_SST_PROPS",

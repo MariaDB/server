@@ -553,7 +553,7 @@ static char* rocksdb_git_hash;
 
 char *compression_types_val=
   const_cast<char*>(get_rocksdb_supported_compression_types());
-static uint64_t rocksdb_write_policy =
+static unsigned long rocksdb_write_policy =
     rocksdb::TxnDBWritePolicy::WRITE_COMMITTED;
 static my_bool rocksdb_error_on_suboptimal_collation = 1;
 static uint32_t rocksdb_stats_recalc_rate = 0;
@@ -13297,8 +13297,7 @@ void Rdb_manual_compaction_thread::run() {
       break;
     }
     timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    ts.tv_sec += 1;
+    set_timespec(ts, 1);
 
     const auto ret MY_ATTRIBUTE((__unused__)) =
         mysql_cond_timedwait(&m_signal_cond, &m_signal_mutex, &ts);
