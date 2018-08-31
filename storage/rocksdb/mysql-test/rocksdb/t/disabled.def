@@ -36,7 +36,7 @@ rqg_transactions : Test that use RQG are disabled
 allow_no_pk_concurrent_insert: stress test
 rocksdb_deadlock_stress_rc: stress test
 rocksdb_deadlock_stress_rr: stress test
-
+use_direct_reads: Direct IO is not supported on all filesystems
 
 ##
 ##  Tests which hit a problem elsewhere (Upstream, SQL layer, etc)
