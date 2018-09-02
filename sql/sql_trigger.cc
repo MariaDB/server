@@ -531,7 +531,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     /* Under LOCK TABLES we must only accept write locked tables. */
     if (!(tables->table= find_table_for_mdl_upgrade(thd, tables->db,
                                                     tables->table_name,
-                                                    FALSE)))
+                                                    NULL)))
       goto end;
   }
   else

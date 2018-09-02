@@ -2070,7 +2070,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
             in its elements.
           */
           table->table= find_table_for_mdl_upgrade(thd, table->db,
-                                                   table->table_name, false);
+                                                   table->table_name, NULL);
           if (!table->table)
             DBUG_RETURN(true);
           table->mdl_request.ticket= table->table->mdl_ticket;
