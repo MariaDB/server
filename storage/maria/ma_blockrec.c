@@ -53,10 +53,10 @@
   Page header:
 
   LSN            7 bytes   Log position for last page change
-  PAGE_TYPE      1 uchar   1 for head / 2 for tail / 3 for blob
+  PAGE_TYPE      1 uchar   0 unalloced / 1 for head / 2 for tail / 3 for blob
   DIR_COUNT      1 uchar   Number of row/tail entries on page
   FREE_DIR_LINK  1 uchar   Pointer to first free director entry or 255 if no
-  empty space    2 bytes  Empty space on page
+  empty space    2 bytes   Bytes of empty space on page
 
   The most significant bit in PAGE_TYPE is set to 1 if the data on the page
   can be compacted to get more space. (PAGE_CAN_BE_COMPACTED)
@@ -5122,11 +5122,19 @@ int _ma_read_block_record(MARIA_HA *info, uchar *record,
                              info->buff, share->page_type,
                              PAGECACHE_LOCK_LEFT_UNLOCKED, 0)))
     DBUG_RETURN(my_errno);
-  DBUG_ASSERT((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == HEAD_PAGE);
-  if (!(data= get_record_position(buff, block_size, offset, &end_of_data)))
+
+ /*
+   Unallocated page access can happen if this is an access to a page where
+   all rows where deleted as part of this statement.
+ */
+ DBUG_ASSERT((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == HEAD_PAGE ||
+             (buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == UNALLOCATED_PAGE);
+
+ if (((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == UNALLOCATED_PAGE) ||
+     !(data= get_record_position(buff, block_size, offset, &end_of_data)))
   {
     DBUG_ASSERT(!maria_assert_if_crashed_table);
-    DBUG_PRINT("error", ("Wrong directory entry in data block"));
+    DBUG_PRINT("warning", ("Wrong directory entry in data block"));
     my_errno= HA_ERR_RECORD_DELETED;           /* File crashed */
     DBUG_RETURN(HA_ERR_RECORD_DELETED);
   }
