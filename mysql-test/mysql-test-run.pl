@@ -1463,7 +1463,7 @@ sub command_line_setup {
 
     foreach my $fs (@tmpfs_locations)
     {
-      if ( -d $fs && ! -l $fs )
+      if ( -d $fs && ! -l $fs  && -w $fs )
       {
 	my $template= "var_${opt_build_thread}_XXXX";
 	$opt_mem= tempdir( $template, DIR => $fs, CLEANUP => 0);

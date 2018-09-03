@@ -7465,10 +7465,22 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
 
   result= FALSE;
 
-err:
   if (arena)
     thd->restore_active_arena(arena, &backup);
   DBUG_RETURN(result);
+
+err:
+  /*
+     Actually we failed to build join columns list, so we have to
+     clear it to avoid problems with half-build join on next run.
+     The list was created in mark_common_columns().
+   */
+  table_ref_1->remove_join_columns();
+  table_ref_2->remove_join_columns();
+
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+  DBUG_RETURN(TRUE);
 }
 
 
