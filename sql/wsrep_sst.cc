@@ -70,7 +70,6 @@ bool wsrep_sst_method_update (sys_var *self, THD* thd, enum_var_type type)
 
 static const char* data_home_dir = NULL;
 
-extern "C"
 void wsrep_set_data_home_dir(const char *data_dir)
 {
   data_home_dir= (data_dir && *data_dir) ? data_dir : NULL;
