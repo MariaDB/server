@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -600,17 +600,14 @@ fsp_init_file_page_low(
 	buf_block_t*	block)	/*!< in: pointer to a page */
 {
 	page_t*		page	= buf_block_get_frame(block);
-	page_zip_des_t*	page_zip= buf_block_get_page_zip(block);
 
-	if (!fsp_is_system_temporary(block->page.id.space())) {
-		memset(page, 0, UNIV_PAGE_SIZE);
-	}
+	memset(page, 0, UNIV_PAGE_SIZE);
 
 	mach_write_to_4(page + FIL_PAGE_OFFSET, block->page.id.page_no());
 	mach_write_to_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
 			block->page.id.space());
 
-	if (page_zip) {
+	if (page_zip_des_t* page_zip= buf_block_get_page_zip(block)) {
 		memset(page_zip->data, 0, page_zip_get_size(page_zip));
 		memcpy(page_zip->data + FIL_PAGE_OFFSET,
 		       page + FIL_PAGE_OFFSET, 4);
@@ -945,7 +942,7 @@ fsp_try_extend_data_file(fil_space_t* space, fsp_header_t* header, mtr_t* mtr)
 
 	ut_d(fsp_space_modify_check(space, mtr));
 
-	if (space->id == srv_sys_space.space_id()
+	if (space->id == TRX_SYS_SPACE
 	    && !srv_sys_space.can_auto_extend_last_file()) {
 
 		/* We print the error message only once to avoid
@@ -959,7 +956,7 @@ fsp_try_extend_data_file(fil_space_t* space, fsp_header_t* header, mtr_t* mtr)
 			srv_sys_space.set_tablespace_full_status(true);
 		}
 		return(0);
-	} else if (fsp_is_system_temporary(space->id)
+	} else if (space->id == SRV_TMP_SPACE_ID
 		   && !srv_tmp_space.can_auto_extend_last_file()) {
 
 		/* We print the error message only once to avoid
@@ -1108,7 +1105,7 @@ fsp_fill_free_list(
 			skip_resize = !srv_sys_space.can_auto_extend_last_file();
 			break;
 		case SRV_TMP_SPACE_ID:
-			skip_resize = srv_tmp_space.can_auto_extend_last_file();
+			skip_resize = !srv_tmp_space.can_auto_extend_last_file();
 			break;
 		}
 
@@ -3060,7 +3057,7 @@ fseg_free_page_low(
 
 	if (ahi) {
 		btr_search_drop_page_hash_when_freed(
-			page_id_t(space->id, offset), page_size);
+			page_id_t(space->id, offset));
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -3264,8 +3261,7 @@ fseg_free_extent(
 
 				btr_search_drop_page_hash_when_freed(
 					page_id_t(space->id,
-						  first_page_in_extent + i),
-					page_size);
+						  first_page_in_extent + i));
 			}
 		}
 	}

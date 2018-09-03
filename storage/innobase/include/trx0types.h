@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -53,21 +53,6 @@ static const ulint TRX_SYS_SPACE = 0;
 /** Random value to check for corruption of trx_t */
 static const ulint TRX_MAGIC_N = 91118598;
 
-/** If this flag is set then the transaction cannot be rolled back
-asynchronously. */
-static const ib_uint32_t TRX_FORCE_ROLLBACK_DISABLE = 1 << 29;
-
-/** Was the transaction rolled back asynchronously or by the
-owning thread. This flag is relevant only if TRX_FORCE_ROLLBACK
-is set.  */
-static const ib_uint32_t TRX_FORCE_ROLLBACK_ASYNC = 1 << 30;
-
-/** Mark the transaction for forced rollback */
-static const ib_uint32_t TRX_FORCE_ROLLBACK = 1U << 31;
-
-/** For masking out the above four flags */
-static const ib_uint32_t TRX_FORCE_ROLLBACK_MASK = 0x1FFFFFFF;
-
 /** Transaction execution states when trx->state == TRX_STATE_ACTIVE */
 enum trx_que_t {
 	TRX_QUE_RUNNING,		/*!< transaction is running */
@@ -79,12 +64,7 @@ enum trx_que_t {
 
 /** Transaction states (trx_t::state) */
 enum trx_state_t {
-
 	TRX_STATE_NOT_STARTED,
-
-	/** Same as not started but with additional semantics that it
-	was rolled back asynchronously the last time it was active. */
-	TRX_STATE_FORCED_ROLLBACK,
 
 	TRX_STATE_ACTIVE,
 

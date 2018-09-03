@@ -45,10 +45,10 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	6
-#define INNODB_VERSION_BUGFIX	36
+#define INNODB_VERSION_BUGFIX	39
 
 #ifndef PERCONA_INNODB_VERSION
-#define PERCONA_INNODB_VERSION 83.0
+#define PERCONA_INNODB_VERSION 83.1
 #endif
 
 /* Enable UNIV_LOG_ARCHIVE in XtraDB */
@@ -72,6 +72,10 @@ component, i.e. we show M.N.P as M.N */
 #define REFMAN "http://dev.mysql.com/doc/refman/"	\
 	IB_TO_STR(INNODB_VERSION_MAJOR) "."		\
 	IB_TO_STR(INNODB_VERSION_MINOR) "/en/"
+
+/** How far ahead should we tell the service manager the timeout
+(time in seconds) */
+#define INNODB_EXTEND_TIMEOUT_INTERVAL 30
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 /* In the dynamic plugin, redefine some externally visible symbols

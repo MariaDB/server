@@ -766,3 +766,25 @@ b
 NULL
 DROP TABLE t1, t2;
 End of 5.0 tests
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-16190 Server crashes in Item_null_result::field_type on SELECT with time field, ROLLUP and HAVING
+#
+CREATE TABLE t1 (t TIME) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('12:12:12');
+SELECT t, COUNT(*) FROM t1 GROUP BY t WITH ROLLUP HAVING t > '00:00:00';
+t	COUNT(*)
+12:12:12	1
+DROP TABLE t1;
+CREATE TABLE t1 (t TIME) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('12:12:12'),('12:12:13');
+SELECT t, COUNT(*) FROM t1 GROUP BY t WITH ROLLUP HAVING t > '00:00:00';
+t	COUNT(*)
+12:12:12	1
+12:12:13	1
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#

@@ -25,7 +25,7 @@ Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
 #include "my_config.h"
-#include <my_systemd.h>
+#include <my_service_manager.h>
 
 #include "ha_prototypes.h"
 #include "trx0roll.h"
@@ -47,7 +47,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0sys.h"
 #include "trx0trx.h"
 #include "trx0undo.h"
-#include "usr0sess.h"
 #include "ha_prototypes.h"
 
 /** This many pages must be undone before a truncate is tried within
@@ -184,10 +183,7 @@ trx_rollback_for_mysql_low(
 /** Rollback a transaction used in MySQL
 @param[in, out]	trx	transaction
 @return error code or DB_SUCCESS */
-static
-dberr_t
-trx_rollback_low(
-	trx_t*	trx)
+dberr_t trx_rollback_for_mysql(trx_t* trx)
 {
 	/* We are reading trx->state without holding trx_sys->mutex
 	here, because the rollback should be invoked for a running
@@ -195,7 +191,6 @@ trx_rollback_low(
 	that is associated with the current thread. */
 
 	switch (trx->state) {
-	case TRX_STATE_FORCED_ROLLBACK:
 	case TRX_STATE_NOT_STARTED:
 		trx->will_lock = 0;
 		ut_ad(trx->in_mysql_trx_list);
@@ -263,28 +258,6 @@ trx_rollback_low(
 }
 
 /*******************************************************************//**
-Rollback a transaction used in MySQL.
-@return error code or DB_SUCCESS */
-dberr_t
-trx_rollback_for_mysql(
-/*===================*/
-	trx_t*	trx)	/*!< in/out: transaction */
-{
-	/* Avoid the tracking of async rollback killer
-	thread to enter into InnoDB. */
-	if (TrxInInnoDB::is_async_rollback(trx)) {
-
-		return(trx_rollback_low(trx));
-
-	} else {
-
-		TrxInInnoDB	trx_in_innodb(trx, true);
-
-		return(trx_rollback_low(trx));
-	}
-}
-
-/*******************************************************************//**
 Rollback the latest SQL statement for MySQL.
 @return error code or DB_SUCCESS */
 dberr_t
@@ -301,7 +274,6 @@ trx_rollback_last_sql_stat_for_mysql(
 	ut_ad(trx->in_mysql_trx_list);
 
 	switch (trx->state) {
-	case TRX_STATE_FORCED_ROLLBACK:
 	case TRX_STATE_NOT_STARTED:
 		return(DB_SUCCESS);
 
@@ -488,12 +460,9 @@ trx_rollback_to_savepoint_for_mysql(
 
 	switch (trx->state) {
 	case TRX_STATE_NOT_STARTED:
-	case TRX_STATE_FORCED_ROLLBACK:
-
 		ib::error() << "Transaction has a savepoint "
 			<< savep->name
 			<< " though it is not started";
-
 		return(DB_ERROR);
 
 	case TRX_STATE_ACTIVE:
@@ -781,7 +750,6 @@ fake_prepared:
 	case TRX_STATE_PREPARED:
 		goto func_exit;
 	case TRX_STATE_NOT_STARTED:
-	case TRX_STATE_FORCED_ROLLBACK:
 		break;
 	}
 
@@ -797,7 +765,6 @@ trx_roll_must_shutdown()
 	const trx_t* trx = trx_roll_crash_recv_trx;
 	ut_ad(trx);
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
-	ut_ad(trx->in_rollback);
 
 	if (trx_get_dict_operation(trx) == TRX_DICT_OP_NONE
 	    && !srv_is_being_started
@@ -823,10 +790,15 @@ trx_roll_must_shutdown()
 				n_rows += t->undo_no;
 			}
 		}
+		if (n_rows > 0) {
+			service_manager_extend_timeout(
+				INNODB_EXTEND_TIMEOUT_INTERVAL,
+				"To roll back: " ULINTPF " transactions, "
+				"%llu rows", n_trx, n_rows);
+		}
+
 		ib::info() << "To roll back: " << n_trx << " transactions, "
 			   << n_rows << " rows";
-		sd_notifyf(0, "STATUS=To roll back: " ULINTPF " transactions, "
-			   "%llu rows", n_trx, n_rows);
 	}
 
 	mutex_exit(&recv_sys->mutex);
@@ -1031,7 +1003,7 @@ trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 		trx_roll_try_truncate(trx);
 	}
 
-	trx_undo_t*	undo;
+	trx_undo_t*	undo = NULL;
 	trx_undo_t*	insert	= trx->rsegs.m_redo.insert_undo;
 	trx_undo_t*	update	= trx->rsegs.m_redo.update_undo;
 	trx_undo_t*	temp	= trx->rsegs.m_noredo.undo;
@@ -1045,17 +1017,26 @@ trx_roll_pop_top_rec_of_trx(trx_t* trx, roll_ptr_t* roll_ptr, mem_heap_t* heap)
 	      || update->top_undo_no != temp->top_undo_no);
 
 	if (insert && !insert->empty && limit <= insert->top_undo_no) {
-		if (update && !update->empty
-		    && update->top_undo_no > insert->top_undo_no) {
+		undo = insert;
+	}
+
+	if (update && !update->empty && update->top_undo_no >= limit) {
+		if (!undo) {
 			undo = update;
-		} else {
-			undo = insert;
+		} else if (undo->top_undo_no < update->top_undo_no) {
+			undo = update;
 		}
-	} else if (update && !update->empty && limit <= update->top_undo_no) {
-		undo = update;
-	} else if (temp && !temp->empty && limit <= temp->top_undo_no) {
-		undo = temp;
-	} else {
+	}
+
+	if (temp && !temp->empty && temp->top_undo_no >= limit) {
+		if (!undo) {
+			undo = temp;
+		} else if (undo->top_undo_no < temp->top_undo_no) {
+			undo = temp;
+		}
+	}
+
+	if (undo == NULL) {
 		trx_roll_try_truncate(trx);
 		/* Mark any ROLLBACK TO SAVEPOINT completed, so that
 		if the transaction object is committed and reused

@@ -268,13 +268,26 @@ get_transfer()
         wsrep_log_info "Using netcat as streamer"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
             if nc -h 2>&1 | grep -q ncat; then
+                # Ncat
                 tcmd="nc $sockopt -l ${TSST_PORT}"
-            else 
+            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                # Debian netcat
                 tcmd="nc $sockopt -dl ${TSST_PORT}"
+            else
+                # traditional netcat
+                tcmd="nc $sockopt -l -p ${TSST_PORT}"
             fi
         else
-            # netcat doesn't understand [] around IPv6 address
-            tcmd="nc ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            if nc -h 2>&1 | grep -q ncat;then
+                # Ncat
+                tcmd="nc ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                # Debian netcat
+                tcmd="nc ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            else
+                # traditional netcat
+                tcmd="nc -q0 ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            fi
         fi
     else
         tfmt='socat'
@@ -644,7 +657,7 @@ wait_for_listen()
 
     for i in {1..300}
     do
-        LSOF_OUT=$(lsof -sTCP:LISTEN -i TCP:${PORT} -a -c nc -c socat -F c)
+        LSOF_OUT=$(lsof -sTCP:LISTEN -i TCP:${PORT} -a -c nc -c socat -F c 2> /dev/null || :)
         [ -n "${LSOF_OUT}" ] && break
         sleep 0.2
     done
@@ -786,6 +799,27 @@ check_for_version()
     else
         return 0
     fi
+}
+
+monitor_process()
+{
+    local sst_stream_pid=$1
+
+    while true ; do
+
+        if ! ps --pid "${WSREP_SST_OPT_PARENT}" &>/dev/null; then
+            wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly." 
+            kill -- -"${WSREP_SST_OPT_PARENT}"
+            exit 32
+        fi
+
+        if ! ps --pid "${sst_stream_pid}" &>/dev/null; then 
+            break
+        fi
+
+        sleep 0.1
+
+    done
 }
 
 
@@ -1089,7 +1123,7 @@ then
 
         MAGIC_FILE="${DATA}/${INFO_FILE}"
         wsrep_log_info "Waiting for SST streaming to complete!"
-        wait $jpid
+        monitor_process $jpid
 
         get_proc
 

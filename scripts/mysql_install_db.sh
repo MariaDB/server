@@ -242,6 +242,11 @@ cannot_find_file()
   echo "If you don't want to do a full install, you can use the --srcddir"
   echo "option to only install the mysql database and privilege tables"
   echo
+  echo "If you compiled from source, you need to either run 'make install' to"
+  echo "copy the software into the correct location ready for operation."
+  echo "If you don't want to do a full install, you can use the --srcdir"
+  echo "option to only install the mysql database and privilege tables"
+  echo
   echo "If you are using a binary release, you must either be at the top"
   echo "level of the extracted archive, or pass the --basedir option"
   echo "pointing to that location."
@@ -307,6 +312,7 @@ then
   langdir="$basedir/sql/share/english"
   srcpkgdatadir="$srcdir/scripts"
   buildpkgdatadir="$builddir/scripts"
+  plugindir="$builddir/plugin/auth_socket"
 elif test -n "$basedir"
 then
   bindir="$basedir/bin" # only used in the help text
@@ -335,13 +341,15 @@ then
     cannot_find_file fill_help_tables.sql @pkgdata_locations@
     exit 1
   fi
+  plugindir=`find_in_dirs --dir auth_socket.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin`
 else
   basedir="@prefix@"
   bindir="@bindir@"
   resolveip="$bindir/resolveip"
-  mysqld="@libexecdir@/mysqld"
+  mysqld="@sbindir@/mysqld"
   srcpkgdatadir="@pkgdatadir@"
   buildpkgdatadir="@pkgdatadir@"
+  plugindir="@pkgplugindir@"
 fi
 
 # Set up paths to SQL scripts required for bootstrap
@@ -460,6 +468,7 @@ mysqld_install_cmd_line()
 {
   "$mysqld_bootstrap" $defaults $defaults_group_suffix "$mysqld_opt" --bootstrap $silent_startup\
   "--basedir=$basedir" "--datadir=$ldata" --log-warnings=0 --enforce-storage-engine="" \
+  "--plugin-dir=${plugindir}" \
   $args --max_allowed_packet=8M \
   --net_buffer_length=16K
 }
@@ -521,19 +530,24 @@ then
   s_echo "To start mysqld at boot time you have to copy"
   s_echo "support-files/mysql.server to the right place for your system"
 
-  echo
-  echo "PLEASE REMEMBER TO SET A PASSWORD FOR THE MariaDB root USER !"
-  echo "To do so, start the server, then issue the following commands:"
-  echo
-  echo "'$bindir/mysqladmin' -u root password 'new-password'"
-  echo "'$bindir/mysqladmin' -u root -h $hostname password 'new-password'"
-  echo
-  echo "Alternatively you can run:"
-  echo "'$bindir/mysql_secure_installation'"
-  echo
-  echo "which will also give you the option of removing the test"
-  echo "databases and anonymous user created by default.  This is"
-  echo "strongly recommended for production servers."
+  if test "$auth_root_authentication_method" = normal
+  then
+    echo
+    echo
+    echo "PLEASE REMEMBER TO SET A PASSWORD FOR THE MariaDB root USER !"
+    echo "To do so, start the server, then issue the following commands:"
+    echo
+    echo "'$bindir/mysqladmin' -u root password 'new-password'"
+    echo "'$bindir/mysqladmin' -u root -h $hostname password 'new-password'"
+    echo
+    echo "Alternatively you can run:"
+    echo "'$bindir/mysql_secure_installation'"
+    echo
+    echo "which will also give you the option of removing the test"
+    echo "databases and anonymous user created by default.  This is"
+    echo "strongly recommended for production servers."
+  fi
+
   echo
   echo "See the MariaDB Knowledgebase at http://mariadb.com/kb or the"
   echo "MySQL manual for more instructions."

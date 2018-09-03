@@ -286,3 +286,15 @@ SHOW WARNINGS;
 
 DROP TABLE t1;
 DROP FUNCTION f1;
+
+# MDEV-14581 Warning info not cleared when caching THD
+connect (con1,localhost,root,,);
+SELECT TIME('10:10:10.11111111111');
+disconnect con1;
+
+connect (con2,localhost,root,,);
+SHOW WARNINGS;
+disconnect con2;
+
+connection default;
+

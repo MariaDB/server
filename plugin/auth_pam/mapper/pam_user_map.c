@@ -22,14 +22,24 @@ top:  accounting
 @group_ro: readonly
 =========================================================
 
+If something doesn't work as expected you can get verbose
+comments with the 'debug' option like this
+=========================================================
+auth            required        pam_user_map.so debug
+=========================================================
+These comments are written to the syslog as 'authpriv.debug'
+and usually end up in /var/log/secure file.
 */
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <ctype.h>
+#include <string.h>
 #include <syslog.h>
 #include <grp.h>
 #include <pwd.h>
 
+#include <security/pam_ext.h>
 #include <security/pam_modules.h>
 
 #define FILENAME "/etc/security/user_map.conf"
@@ -90,9 +100,42 @@ static int user_in_group(const gid_t *user_groups, int ng,const char *group)
 }
 
 
+static void print_groups(pam_handle_t *pamh, const gid_t *user_groups, int ng)
+{
+  char buf[256];
+  char *c_buf= buf, *buf_end= buf+sizeof(buf)-2;
+  struct group *gr;
+  int cg;
+
+  for (cg=0; cg < ng; cg++)
+  {
+    char *c;
+    if (c_buf == buf_end)
+      break;
+    *(c_buf++)= ',';
+    if (!(gr= getgrgid(user_groups[cg])) ||
+        !(c= gr->gr_name))
+      continue;
+    while (*c)
+    {
+      if (c_buf == buf_end)
+        break;
+      *(c_buf++)= *(c++);
+    }
+  }
+  c_buf[0]= c_buf[1]= 0;
+  pam_syslog(pamh, LOG_DEBUG, "User belongs to %d %s [%s].\n",
+                                 ng, (ng == 1) ? "group" : "groups", buf+1);
+}
+
+
+static const char debug_keyword[]= "debug";
+#define SYSLOG_DEBUG if (mode_debug) pam_syslog 
+
 int pam_sm_authenticate(pam_handle_t *pamh, int flags,
     int argc, const char *argv[])
 {
+  int mode_debug= 0;
   int pam_err, line= 0;
   const char *username;
   char buf[256];
@@ -100,6 +143,14 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
   gid_t group_buffer[GROUP_BUFFER_SIZE];
   gid_t *groups= group_buffer;
   int n_groups= -1;
+
+  for (; argc > 0; argc--) 
+  {
+    if (strcasecmp(argv[argc-1], debug_keyword) == 0)
+      mode_debug= 1;
+  }
+
+  SYSLOG_DEBUG(pamh, LOG_DEBUG, "Opening file '%s'.\n", FILENAME);
 
   f= fopen(FILENAME, "r");
   if (f == NULL)
@@ -110,12 +161,18 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
 
   pam_err = pam_get_item(pamh, PAM_USER, (const void**)&username);
   if (pam_err != PAM_SUCCESS)
+  {
+    pam_syslog(pamh, LOG_ERR, "Cannot get username.\n");
     goto ret;
+  }
+
+  SYSLOG_DEBUG(pamh, LOG_DEBUG, "Incoming username '%s'.\n", username);
 
   while (fgets(buf, sizeof(buf), f) != NULL)
   {
     char *s= buf, *from, *to, *end_from, *end_to;
     int check_group;
+    int cmp_result;
 
     line++;
 
@@ -124,29 +181,51 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
     if ((check_group= *s == '@'))
     {
       if (n_groups < 0)
+      {
         n_groups= populate_user_groups(username, &groups);
+        if (mode_debug)
+          print_groups(pamh, groups, n_groups);
+      }
       s++;
     }
     from= s;
-    skip(isalnum(*s) || (*s == '_') || (*s == '.') || (*s == '-') || (*s == '$'));
+    skip(isalnum(*s) || (*s == '_') || (*s == '.') || (*s == '-') ||
+         (*s == '$') || (*s == '\\') || (*s == '/'));
     end_from= s;
     skip(isspace(*s));
     if (end_from == from || *s++ != ':') goto syntax_error;
     skip(isspace(*s));
     to= s;
-    skip(isalnum(*s) || (*s == '_') || (*s == '.') || (*s == '-') || (*s == '$'));
+    skip(isalnum(*s) || (*s == '_') || (*s == '.') || (*s == '-') ||
+         (*s == '$'));
     end_to= s;
     if (end_to == to) goto syntax_error;
 
     *end_from= *end_to= 0;
-    if (check_group ?
-          user_in_group(groups, n_groups, from) :
-          (strcmp(username, from) == 0))
+
+    if (check_group)
+    {
+      cmp_result= user_in_group(groups, n_groups, from);
+      SYSLOG_DEBUG(pamh, LOG_DEBUG, "Check if user is in group '%s': %s\n",
+                                    from, cmp_result ? "YES":"NO");
+    }
+    else
+    {
+      cmp_result= (strcmp(username, from) == 0);
+      SYSLOG_DEBUG(pamh, LOG_DEBUG, "Check if username '%s': %s\n",
+                                    from, cmp_result ? "YES":"NO");
+    }
+    if (cmp_result)
     {
       pam_err= pam_set_item(pamh, PAM_USER, to);
+      SYSLOG_DEBUG(pamh, LOG_DEBUG, 
+          (pam_err == PAM_SUCCESS) ? "User mapped as '%s'\n" :
+                                     "Couldn't map as '%s'\n", to);
       goto ret;
     }
   }
+
+  SYSLOG_DEBUG(pamh, LOG_DEBUG, "User not found in the list.\n");
   pam_err= PAM_AUTH_ERR;
   goto ret;
 
@@ -161,6 +240,7 @@ ret:
 
   return pam_err;
 }
+
 
 int pam_sm_setcred(pam_handle_t *pamh, int flags,
                    int argc, const char *argv[])

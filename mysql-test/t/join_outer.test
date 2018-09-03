@@ -1972,9 +1972,73 @@ INSERT INTO t1 VALUES (0),(1);
 CREATE TABLE t2 (b2 BIT NOT NULL);
 INSERT INTO t2 VALUES (0),(1);
 
-SET SESSION JOIN_CACHE_LEVEL = 3;
+set @save_join_cache_level= @@join_cache_level;
+SET  @@join_cache_level = 3;
 SELECT t1.b1+'0' , t2.b2 + '0' FROM t1 LEFT JOIN t2 ON b1 = b2;
 DROP TABLE t1, t2;
+set @join_cache_level= @save_join_cache_level;
+
+--echo #
+--echo # MDEV-14779: using left join causes incorrect results with materialization and derived tables
+--echo #
+
+create table t1(id  int);
+insert into t1 values (1),(2);
+create table t2(sid int, id int);
+insert into t2 values (1,1),(2,2);
+
+select * from t1 t
+ left join (select * from t2 where sid in (select max(sid) from t2 where 0=1 group by id)) r
+ on t.id=r.id ;
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-16726: SELECT with STRAGHT JOIN containing NESTED RIGHT JOIN
+--echo #             converted to INNER JOIN with first constant inner table
+--echo #
+
+CREATE TABLE t1 (
+  pk int PRIMARY KEY, i1 int, v1 varchar(1), v2 varchar(1), KEY v1 (v1,i1)
+) engine=MyISAM;
+INSERT INTO t1 VALUES
+  (8,3,'c','c'),(9,4,'z','z'),(10,3,'i','i'),(11,186,'x','x'),
+  (14,226,'m','m'),(15,133,'p','p');
+
+CREATE TABLE t2 (
+  pk int PRIMARY KEY, i1 int, v1 varchar(1), v2 varchar(1)
+) engine=MyISAM;
+INSERT INTO t2 VALUES (10,6,'p','p');
+
+EXPLAIN EXTENDED
+SELECT STRAIGHT_JOIN t2.v2
+FROM
+  (t1 as tb1 LEFT JOIN t1 AS tb2 ON tb2.v1 = tb1.v2)
+  RIGHT JOIN
+  (t2,t1)
+  ON t1.pk = t2.pk AND t2.v2 = tb1.v1
+WHERE tb1.pk = 40
+ORDER BY tb1.i1;
+
+EXPLAIN EXTENDED
+SELECT STRAIGHT_JOIN t2.v2
+FROM
+    (t2,t1)
+    LEFT JOIN
+    (t1 as tb1 LEFT JOIN t1 AS tb2 ON tb2.v1 = tb1.v2)
+   ON t1.pk = t2.pk AND t2.v2 = tb1.v1
+WHERE tb1.pk = 40
+ORDER BY tb1.i1;
+
+SELECT STRAIGHT_JOIN DISTINCT t2.v2
+FROM
+  (t1 as tb1 LEFT JOIN t1 AS tb2 ON tb2.v1 = tb1.v2)
+  RIGHT JOIN
+  (t2,t1)
+  ON t1.pk = t2.pk AND t2.v2 = tb1.v1
+WHERE tb1.pk = 40
+ORDER BY tb1.i1;
+
+DROP TABLE t1,t2;
 
 --echo # end of 5.5 tests
 

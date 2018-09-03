@@ -143,8 +143,17 @@ GRANT USAGE ON *.* TO mysqltest_u1@localhost;
 
 --echo
 let $saved_max_connections = `SELECT @@global.max_connections`;
-SET GLOBAL max_connections = 3;
+SET GLOBAL max_connections = 10;
 SET GLOBAL event_scheduler = ON;
+
+connect (tmp_con1,localhost,mysqltest_u1,,);
+connect (tmp_con2,localhost,mysqltest_u1,,);
+connect (tmp_con3,localhost,mysqltest_u1,,);
+connect (tmp_con4,localhost,mysqltest_u1,,);
+connect (tmp_con5,localhost,mysqltest_u1,,);
+connect (tmp_con6,localhost,mysqltest_u1,,);
+connect (tmp_con7,localhost,mysqltest_u1,,);
+connection default;
 
 --echo
 --echo # -- Waiting for Event Scheduler to start...
@@ -230,6 +239,13 @@ let $wait_condition =
 --disconnect con_2
 --disconnect con_3
 --disconnect con_super_1
+--disconnect tmp_con1
+--disconnect tmp_con2
+--disconnect tmp_con3
+--disconnect tmp_con4
+--disconnect tmp_con5
+--disconnect tmp_con6
+--disconnect tmp_con7
 
 --echo
 --echo # -- Restoring default connection...

@@ -113,8 +113,6 @@ public:
   int compare_e_json_str();
   int compare_e_str_json();
 
-  Item** cache_converted_constant(THD *thd, Item **value, Item **cache,
-                                  Item_result type);
   static arg_cmp_func comparator_matrix [6][2];
   inline bool is_owner_equal_func()
   {
@@ -202,7 +200,7 @@ public:
   Item_bool_func(THD *thd, Item_bool_func *item) :Item_int_func(thd, item) {}
   bool is_bool_type() { return true; }
   virtual CHARSET_INFO *compare_collation() const { return NULL; }
-  void fix_length_and_dec() { decimals=0; max_length=1; }
+  bool fix_length_and_dec() { decimals=0; max_length=1; return FALSE; }
   uint decimal_precision() const { return 1; }
   bool need_parentheses_in_default() { return true; }
 };
@@ -218,7 +216,7 @@ class Item_func_truth : public Item_bool_func
 public:
   virtual bool val_bool();
   virtual longlong val_int();
-  virtual void fix_length_and_dec();
+  virtual bool fix_length_and_dec();
   virtual void print(String *str, enum_query_type query_type);
   enum precedence precedence() const { return CMP_PRECEDENCE; }
 
@@ -347,6 +345,7 @@ public:
   bool is_null();
   longlong val_int();
   void cleanup();
+  enum Functype functype() const   { return IN_OPTIMIZER_FUNC; }
   const char *func_name() const { return "<in_optimizer>"; }
   Item_cache **get_cache() { return &cache; }
   void keep_top_level_cache();
@@ -364,6 +363,8 @@ public:
   void reset_cache() { cache= NULL; }
   virtual void print(String *str, enum_query_type query_type);
   void restore_first_argument();
+  Item* get_wrapped_in_subselect_item()
+  { return args[1]; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_in_optimizer>(thd, mem_root, this); }
 };
@@ -500,7 +501,7 @@ public:
                                       cond);
     return this;
   }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   int set_cmp_func()
   {
     return cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, true);
@@ -529,14 +530,13 @@ public:
       clone->cmp.comparators= 0;
     }
     return clone;
-  }      
-
+  }
 };
 
 /**
   XOR inherits from Item_bool_func because it is not optimized yet.
   Later, when XOR is optimized, it needs to inherit from
-  Item_cond instead. See WL#5800. 
+  Item_cond instead. See WL#5800.
 */
 class Item_func_xor :public Item_bool_func
 {
@@ -711,7 +711,7 @@ public:
   Item_func_equal(THD *thd, Item *a, Item *b):
     Item_bool_rowready_func2(thd, a, b) {}
   longlong val_int();
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   table_map not_null_tables() const { return 0; }
   enum Functype functype() const { return EQUAL_FUNC; }
   enum Functype rev_functype() const { return EQUAL_FUNC; }
@@ -878,7 +878,7 @@ public:
   enum Functype functype() const   { return BETWEEN; }
   const char *func_name() const { return "between"; }
   enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   virtual void print(String *str, enum_query_type query_type);
   bool eval_not_null_tables(void *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
@@ -911,10 +911,12 @@ public:
   longlong val_int();
   uint decimal_precision() const { return 1; }
   const char *func_name() const { return "strcmp"; }
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
-    agg_arg_charsets_for_comparison(cmp_collation, args, 2);
-    fix_char_length(2); // returns "1" or "0" or "-1"
+    if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
+      return TRUE;
+    fix_char_length(2);
+    return FALSE;
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_strcmp>(thd, mem_root, this); }
@@ -941,7 +943,7 @@ public:
   }
   bool fix_fields(THD *, Item **);
   longlong val_int();
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   const char *func_name() const { return "interval"; }
   uint decimal_precision() const { return 2; }
   void print(String *str, enum_query_type query_type)
@@ -966,10 +968,11 @@ public:
   String *str_op(String *);
   my_decimal *decimal_op(my_decimal *);
   bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     set_handler_by_field_type(agg_field_type(args, arg_count, true));
     fix_attributes(args, arg_count);
+    return FALSE;
   }
   const char *func_name() const { return "coalesce"; }
   table_map not_null_tables() const { return 0; }
@@ -986,10 +989,11 @@ public:
 class Item_func_case_abbreviation2 :public Item_func_hybrid_field_type
 {
 protected:
-  void fix_length_and_dec2(Item **items)
+  bool fix_length_and_dec2(Item **items)
   {
     set_handler_by_field_type(agg_field_type(items, 2, true));
     fix_attributes(items, 2);
+    return FALSE;
   }
   uint decimal_precision2(Item **args) const;
 public:
@@ -1010,10 +1014,12 @@ public:
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
   bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
-    Item_func_case_abbreviation2::fix_length_and_dec2(args);
+    if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
+      return TRUE;
     maybe_null= args[1]->maybe_null;
+    return FALSE;
   }
   const char *func_name() const { return "ifnull"; }
   Field *create_field_for_create_select(TABLE *table)
@@ -1041,7 +1047,7 @@ public:
   my_decimal *decimal_op(my_decimal *);
   String *str_op(String *);
   bool fix_fields(THD *, Item **);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   uint decimal_precision() const
   {
     return Item_func_case_abbreviation2::decimal_precision2(args + 1);
@@ -1070,7 +1076,7 @@ class Item_func_nullif :public Item_func_hybrid_field_type
     The left "a" is in a comparison and can be replaced by:
     - Item_func::convert_const_compared_to_int_field()
     - agg_item_set_converter() in set_cmp_func()
-    - Arg_comparator::cache_converted_constant() in set_cmp_func()
+    - cache_converted_constant() in set_cmp_func()
 
     Both "a"s are subject to equal fields propagation and can be replaced by:
     - Item_field::propagate_equal_fields(ANY_SUBST) for the left "a"
@@ -1108,7 +1114,7 @@ public:
   longlong int_op();
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   bool walk(Item_processor processor, bool walk_subquery, void *arg);
   uint decimal_precision() const { return args[2]->decimal_precision(); }
   const char *func_name() const { return "nullif"; }
@@ -1269,20 +1275,15 @@ public:
 
 /*
   Class to represent a vector of constant DATE/DATETIME values.
-  Values are obtained with help of the get_datetime_value() function.
-  If the left item is a constant one then its value is cached in the
-  lval_cache variable.
 */
 class in_datetime :public in_longlong
 {
 public:
   /* An item used to issue warnings. */
   Item *warn_item;
-  /* Cache for the left item. */
-  Item *lval_cache;
 
   in_datetime(THD *thd, Item *warn_item_arg, uint elements)
-    :in_longlong(thd, elements), warn_item(warn_item_arg), lval_cache(0) {};
+    :in_longlong(thd, elements), warn_item(warn_item_arg) {}
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
   Item *create_item(THD *thd);
@@ -1391,6 +1392,13 @@ public:
   {
     value_res= item->val_str(&value);
     m_null_value= item->null_value;
+    // Make sure to cache the result String inside "value"
+    if (value_res && value_res != &value)
+    {
+      if (value.copy(*value_res))
+        value.set("", 0, item->collation.collation);
+      value_res= &value;
+    }
   }
   int cmp(Item *arg)
   {
@@ -1443,9 +1451,6 @@ public:
 
 /*
   Compare items in the DATETIME context.
-  Values are obtained with help of the get_datetime_value() function.
-  If the left item is a constant one then its value is cached in the
-  lval_cache variable.
 */
 class cmp_item_datetime : public cmp_item_scalar
 {
@@ -1453,11 +1458,9 @@ class cmp_item_datetime : public cmp_item_scalar
 public:
   /* Item used for issuing warnings. */
   Item *warn_item;
-  /* Cache for the left item. */
-  Item *lval_cache;
 
   cmp_item_datetime(Item *warn_item_arg)
-    : warn_item(warn_item_arg), lval_cache(0) {}
+    : warn_item(warn_item_arg) {}
   void store_value(Item *item);
   int cmp(Item *arg);
   int compare(cmp_item *ci);
@@ -1558,12 +1561,11 @@ class Item_func_case :public Item_func_hybrid_field_type
   int first_expr_num, else_expr_num;
   enum Item_result left_cmp_type;
   String tmp_value;
-  uint ncases;
+  uint nwhens;
   Item_result cmp_type;
   DTCollation cmp_collation;
   cmp_item *cmp_items[6]; /* For all result types */
   cmp_item *case_item;
-  Item **arg_buffer;
   uint m_found_types;
 public:
   Item_func_case(THD *thd, List<Item> &list, Item *first_expr_arg,
@@ -1574,7 +1576,7 @@ public:
   my_decimal *decimal_op(my_decimal *);
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
   bool fix_fields(THD *thd, Item **ref);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   uint decimal_precision() const;
   table_map not_null_tables() const { return 0; }
   const char *func_name() const { return "case"; }
@@ -1593,7 +1595,6 @@ public:
     if (clone)
     {
       clone->case_item= 0;
-      clone->arg_buffer= 0;
       bzero(&clone->cmp_items, sizeof(cmp_items));
     }
     return clone;
@@ -1653,7 +1654,8 @@ public:
   }
   longlong val_int();
   bool fix_fields(THD *, Item **);
-  void fix_length_and_dec();
+  bool create_array(THD *thd);
+  bool fix_length_and_dec();
   void cleanup()
   {
     uint i;
@@ -1698,16 +1700,7 @@ public:
   bool count_sargable_conds(void *arg);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_in>(thd, mem_root, this); }
-  Item *build_clone(THD *thd, MEM_ROOT *mem_root)
-  {
-    Item_func_in *clone= (Item_func_in *) Item_func::build_clone(thd, mem_root);
-    if (clone)
-    {
-      clone->array= 0;
-      bzero(&clone->cmp_items, sizeof(cmp_items));
-    }
-    return clone;
-  }      
+  Item *build_clone(THD *thd, MEM_ROOT *mem_root);
 };
 
 class cmp_item_row :public cmp_item
@@ -1723,7 +1716,7 @@ public:
   int compare(cmp_item *arg);
   cmp_item *make_same();
   void store_value_by_template(THD *thd, cmp_item *tmpl, Item *);
-  friend void Item_func_in::fix_length_and_dec();
+  friend bool Item_func_in::fix_length_and_dec();
   cmp_item *get_comparator(uint i) { return comparators[i]; }
 };
 
@@ -1736,7 +1729,8 @@ public:
   ~in_row();
   void set(uint pos,Item *item);
   uchar *get_value(Item *item);
-  friend void Item_func_in::fix_length_and_dec();
+  friend bool Item_func_in::create_array(THD *thd);
+  friend bool Item_func_in::fix_length_and_dec();
   Item_result result_type() { return ROW_RESULT; }
   cmp_item *get_cmp_item() { return &tmp; }
 };
@@ -1768,7 +1762,11 @@ public:
   }
   CHARSET_INFO *compare_collation() const
   { return args[0]->collation.collation; }
-  void fix_length_and_dec() { decimals=0; max_length=1; maybe_null=0; }
+  bool fix_length_and_dec()
+  {
+    decimals=0; max_length=1; maybe_null=0;
+    return FALSE;
+  }
   bool count_sargable_conds(void *arg);
 };
 
@@ -1992,10 +1990,10 @@ public:
   const char *func_name() const { return "like"; }
   enum precedence precedence() const { return CMP_PRECEDENCE; }
   bool fix_fields(THD *thd, Item **ref);
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     max_length= 1;
-    agg_arg_charsets_for_comparison(cmp_collation, args, 2);
+    return agg_arg_charsets_for_comparison(cmp_collation, args, 2);
   }
   void cleanup();
 
@@ -2116,19 +2114,10 @@ public:
   }
   longlong val_int();
   bool fix_fields(THD *thd, Item **ref);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
   enum precedence precedence() const { return CMP_PRECEDENCE; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_regex>(thd, mem_root, this); }
-  Item *build_clone(THD *thd, MEM_ROOT *mem_root)
-  {
-    Item_func_regex *clone= (Item_func_regex*) Item_bool_func::build_clone(thd, mem_root);
-    if (clone)
-      clone->re.reset();
-    return clone;
-  }
-
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
   void print(String *str, enum_query_type query_type)
   {
     print_op(str, query_type);
@@ -2154,10 +2143,9 @@ public:
   }
   longlong val_int();
   bool fix_fields(THD *thd, Item **ref);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   const char *func_name() const { return "regexp_instr"; }
-  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
-  { return get_item_copy<Item_func_regexp_instr>(thd, mem_root, this); }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 };
 
 
@@ -2236,6 +2224,7 @@ public:
                 Item_transformer transformer, uchar *arg_t);
   bool eval_not_null_tables(void *opt_arg);
   Item *build_clone(THD *thd, MEM_ROOT *mem_root);
+  bool excl_dep_on_grouping_fields(st_select_lex *sel);
 };
 
 template <template<class> class LI, class T> class Item_equal_iterator;
@@ -2390,8 +2379,13 @@ public:
   longlong val_int(); 
   const char *func_name() const { return "multiple equal"; }
   void sort(Item_field_cmpfunc compare, void *arg);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);
+  void cleanup()
+  {
+    delete eval_item;
+    eval_item= NULL;
+  }
   void update_used_tables();
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
@@ -2626,10 +2620,6 @@ inline bool is_cond_or(Item *item)
 }
 
 Item *and_expressions(Item *a, Item *b, Item **org_item);
-
-longlong get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
-                            enum_field_types f_type, bool *is_null);
-
 
 class Comp_creator
 {

@@ -4274,15 +4274,12 @@ ibuf_restore_pos(
 		return(TRUE);
 	}
 
-	if (fil_space_get_flags(space) == ULINT_UNDEFINED) {
-		/* The tablespace has been dropped.  It is possible
-		that another thread has deleted the insert buffer
-		entry.  Do not complain. */
-		ibuf_btr_pcur_commit_specify_mtr(pcur, mtr);
-	} else {
-		ib::error() << "ibuf cursor restoration fails!."
+	if (fil_space_t* s = fil_space_acquire_silent(space)) {
+		ib::error() << "ibuf cursor restoration fails!"
 			" ibuf record inserted to page "
-			<< space << ":" << page_no;
+			<< space << ":" << page_no
+			<< " in file " << s->chain.start->name;
+		fil_space_release(s);
 
 		ib::error() << BUG_REPORT_MSG;
 
@@ -4292,10 +4289,9 @@ ibuf_restore_pos(
 
 		rec_print_old(stderr,
 			      page_rec_get_next(btr_pcur_get_rec(pcur)));
-
-		ib::fatal() << "Failed to restore ibuf position.";
 	}
 
+	ibuf_btr_pcur_commit_specify_mtr(pcur, mtr);
 	return(FALSE);
 }
 
@@ -5042,6 +5038,11 @@ ibuf_check_bitmap_on_import(
 			ibuf_exit(&mtr);
 			mtr_commit(&mtr);
 			continue;
+		}
+
+		if (!bitmap_page) {
+			mutex_exit(&ibuf_mutex);
+			return DB_CORRUPTION;
 		}
 
 		for (i = FSP_IBUF_BITMAP_OFFSET + 1;

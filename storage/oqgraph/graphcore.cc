@@ -25,7 +25,6 @@
 #include <string.h>
 #include <cstdlib>
 
-#include "graphcore-config.h"
 #include "graphcore-graph.h"
 
 #include <set>

@@ -10,20 +10,20 @@ CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
 --connection node_1
 SET GLOBAL wsrep_slave_threads = 10;
 SET GLOBAL wsrep_slave_threads = 1;
+--let $wait_condition = SELECT COUNT(*) = 11 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--source include/wait_condition.inc
 
 --connection node_2
 INSERT INTO t1 VALUES (1);
 
 --connection node_1
---sleep 0.5
 SET GLOBAL wsrep_slave_threads = 10;
---sleep 0.5
-SELECT COUNT(*) = 11 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+--let $wait_condition = SELECT COUNT(*) = 11 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--source include/wait_condition.inc
 
 SET GLOBAL wsrep_slave_threads = 20;
---sleep 0.5
-SELECT COUNT(*) = 21 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
-
+--let $wait_condition = SELECT COUNT(*) = 21 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--source include/wait_condition.inc
 
 SET GLOBAL wsrep_slave_threads = 1;
 
@@ -40,6 +40,9 @@ INSERT INTO t1 VALUES (9);
 
 
 --connection node_1
+--let $wait_condition = SELECT COUNT(*) = 12 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--source include/wait_condition.inc
+
 SET GLOBAL wsrep_slave_threads = 10;
 SET GLOBAL wsrep_slave_threads = 0;
 
@@ -57,8 +60,8 @@ INSERT INTO t1 VALUES (19);
 INSERT INTO t1 VALUES (20);
 
 --connection node_1
---sleep 0.5
-SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user';
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND (STATE IS NULL OR STATE NOT LIKE 'InnoDB%');
+--source include/wait_condition.inc
 
 SET GLOBAL wsrep_slave_threads = 1;
 DROP TABLE t1;

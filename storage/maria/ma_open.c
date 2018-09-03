@@ -19,6 +19,8 @@
 #include "ma_sp_defs.h"
 #include "ma_rt_index.h"
 #include "ma_blockrec.h"
+#include "trnman.h"
+#include "ma_trnman.h"
 #include <m_ctype.h>
 #include "ma_crypt.h"
 
@@ -184,7 +186,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
   if (!share->base.born_transactional)   /* For transactional ones ... */
   {
     /* ... force crash if no trn given */
-    _ma_set_trn_for_table(&info, &dummy_transaction_object);
+    _ma_set_tmp_trn_for_table(&info, &dummy_transaction_object);
     info.state= &share->state.state;	/* Change global values by default */
   }
   else
@@ -332,13 +334,13 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
                     });
     DEBUG_SYNC_C("mi_open_kfile");
     if ((kfile=mysql_file_open(key_file_kfile, name_buff,
-                               (open_mode=O_RDWR) | O_SHARE | O_NOFOLLOW,
+                               (open_mode=O_RDWR) | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
                                MYF(MY_NOSYMLINKS))) < 0)
     {
       if ((errno != EROFS && errno != EACCES) ||
 	  mode != O_RDONLY ||
 	  (kfile=mysql_file_open(key_file_kfile, name_buff,
-                                 (open_mode=O_RDONLY) | O_SHARE | O_NOFOLLOW,
+                                 (open_mode=O_RDONLY) | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
                                  MYF(MY_NOSYMLINKS))) < 0)
 	goto err;
     }
@@ -1947,7 +1949,7 @@ int _ma_open_datafile(MARIA_HA *info, MARIA_SHARE *share)
   DEBUG_SYNC_C("mi_open_datafile");
   info->dfile.file= share->bitmap.file.file=
     mysql_file_open(key_file_dfile, share->data_file_name.str,
-                    share->mode | O_SHARE, MYF(flags));
+                    share->mode | O_SHARE | O_CLOEXEC, MYF(flags));
   return info->dfile.file >= 0 ? 0 : 1;
 }
 
@@ -1961,7 +1963,7 @@ int _ma_open_keyfile(MARIA_SHARE *share)
   mysql_mutex_lock(&share->intern_lock);
   share->kfile.file= mysql_file_open(key_file_kfile,
                                      share->unique_file_name.str,
-                                     share->mode | O_SHARE | O_NOFOLLOW,
+                                     share->mode | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
                              MYF(MY_WME | MY_NOSYMLINKS));
   mysql_mutex_unlock(&share->intern_lock);
   return (share->kfile.file < 0);

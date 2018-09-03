@@ -707,6 +707,7 @@ bool add_select_to_union_list(LEX *lex, bool is_union_distinct,
     return TRUE;
   mysql_init_select(lex);
   lex->current_select->linkage=UNION_TYPE;
+  lex->current_select->with_all_modifier= !is_union_distinct;
   if (is_union_distinct) /* UNION DISTINCT - remember position */
     lex->current_select->master_unit()->union_distinct=
       lex->current_select;
@@ -7606,7 +7607,8 @@ alter_list_item:
         | CHANGE opt_column opt_if_exists_table_element field_ident
           field_spec opt_place
           {
-            Lex->alter_info.flags|= Alter_info::ALTER_CHANGE_COLUMN;
+            Lex->alter_info.flags|= (Alter_info::ALTER_CHANGE_COLUMN |
+                                     Alter_info::ALTER_RENAME_COLUMN);
             Lex->create_last_non_select_table= Lex->last_table();
             $5->change= $4.str;
             $5->after= $6;
@@ -15173,6 +15175,11 @@ option_value_no_option_type:
         | '@' '@' opt_var_ident_type internal_variable_name equal set_expr_or_default
           {
             struct sys_var_with_base tmp= $4;
+            if (tmp.var == trg_new_row_fake_var)
+            {
+              my_error(ER_UNKNOWN_SYSTEM_VARIABLE, MYF(0), 3, "NEW");
+              MYSQL_YYABORT;
+            }
             /* Lookup if necessary: must be a system variable. */
             if (tmp.var == NULL)
             {

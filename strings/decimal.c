@@ -1000,6 +1000,12 @@ static int ull2dec(ulonglong from, decimal_t *to)
 
   sanity(to);
 
+  if (!from)
+  {
+    decimal_make_zero(to);
+    return E_DEC_OK;
+  }
+
   for (intg1=1; from >= DIG_BASE; intg1++, from/=DIG_BASE) {}
   if (unlikely(intg1 > to->len))
   {

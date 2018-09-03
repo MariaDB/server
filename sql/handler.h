@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -598,7 +598,7 @@ struct xid_t {
     bqual_length= b;
     memcpy(data, d, g+b);
   }
-  bool is_null() { return formatID == -1; }
+  bool is_null() const { return formatID == -1; }
   void null() { formatID= -1; }
   my_xid quick_get_my_xid()
   {
@@ -3230,9 +3230,17 @@ private:
   */
   virtual int rnd_pos_by_record(uchar *record)
   {
+    int error;
     DBUG_ASSERT(table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION);
+
+    error = ha_rnd_init(false);
+    if (error != 0)
+      return error;
+
     position(record);
-    return rnd_pos(record, ref);
+    error = ha_rnd_pos(record, ref);
+    ha_rnd_end();
+    return error;
   }
   virtual int read_first_row(uchar *buf, uint primary_key);
 public:
@@ -3901,7 +3909,7 @@ protected:
 
     @note No errors are allowed during notify_table_changed().
  */
- virtual void notify_table_changed();
+ virtual void notify_table_changed() { }
 
 public:
  /* End of On-line/in-place ALTER TABLE interface. */

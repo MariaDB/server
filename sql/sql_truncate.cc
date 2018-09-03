@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2013, 2015, MariaDB
+   Copyright (c) 2012, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -349,7 +349,8 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
   {
     DEBUG_SYNC(thd, "upgrade_lock_for_truncate");
     /* To remove the table from the cache we need an exclusive lock. */
-    if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_DROP))
+    if (wait_while_table_is_used(thd, table,
+          *hton_can_recreate ? HA_EXTRA_PREPARE_FOR_DROP : HA_EXTRA_NOT_USED))
       DBUG_RETURN(TRUE);
     m_ticket_downgrade= table->mdl_ticket;
     /* Close if table is going to be recreated. */
@@ -426,7 +427,7 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
       */
       error= dd_recreate_table(thd, table_ref->db, table_ref->table_name);
 
-      if (thd->locked_tables_mode && thd->locked_tables_list.reopen_tables(thd))
+      if (thd->locked_tables_mode && thd->locked_tables_list.reopen_tables(thd, false))
           thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
 
       /* No need to binlog a failed truncate-by-recreate. */
@@ -500,4 +501,3 @@ bool Sql_cmd_truncate_table::execute(THD *thd)
 
   DBUG_RETURN(res);
 }
-

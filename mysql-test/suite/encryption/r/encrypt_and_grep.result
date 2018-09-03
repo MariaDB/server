@@ -14,11 +14,11 @@ NAME
 test/t3
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 NAME
-mysql/innodb_table_stats
+innodb_system
 mysql/innodb_index_stats
+mysql/innodb_table_stats
 test/t1
 test/t2
-innodb_system
 # t1 yes on expecting NOT FOUND
 NOT FOUND /foobarsecret/ in t1.ibd
 # t2 ... on expecting NOT FOUND
@@ -32,11 +32,11 @@ SET GLOBAL innodb_encrypt_tables = off;
 # Wait max 10 min for key encryption threads to decrypt all spaces
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 NAME
-mysql/innodb_table_stats
+innodb_system
 mysql/innodb_index_stats
+mysql/innodb_table_stats
 test/t2
 test/t3
-innodb_system
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 NAME
 test/t1
@@ -56,11 +56,11 @@ NAME
 test/t3
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 NAME
-mysql/innodb_table_stats
+innodb_system
 mysql/innodb_index_stats
+mysql/innodb_table_stats
 test/t1
 test/t2
-innodb_system
 # t1 yes on expecting NOT FOUND
 NOT FOUND /foobarsecret/ in t1.ibd
 # t2 ... on expecting NOT FOUND

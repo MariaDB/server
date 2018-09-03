@@ -19,6 +19,9 @@ IF(HAVE_SCHED_GETCPU)
   ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1 -DROCKSDB_SCHED_GETCPU_PRESENT)
 ENDIF()
 
+IF(WITH_VALGRIND)
+  ADD_DEFINITIONS(-DROCKSDB_VALGRIND_RUN=1)
+ENDIF()
 
 # We've had our builders hang during the build process. This prevents MariaRocks
 # to be built on 32 bit intel OS kernels.
@@ -38,6 +41,15 @@ endif()
 #
 IF (WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
   SKIP_ROCKSDB_PLUGIN("32-Bit Windows are temporarily disabled")
+ENDIF()
+
+#
+# RocksDB's port/win/env_win.cc uses parts of Windows API that are not part
+# of the LEAN_AND_MEAN set. Ideally we should undef LEAN_AND_MEAN only for
+# that file, but REMOVE_DEFINITIONS only works per-directory?
+#
+IF (WIN32)
+  REMOVE_DEFINITIONS(-DWIN32_LEAN_AND_MEAN)
 ENDIF()
 
 # This plugin needs recent C++ compilers (it is using C++11 features)
@@ -95,6 +107,8 @@ SET(ROCKSDB_SE_SOURCES
   rdb_threads.h
   rdb_psi.h
   rdb_psi.cc
+  rdb_sst_info.cc
+  rdb_sst_info.h
 )
 
 # MariaDB: the following is added in build_rocksdb.cmake, when appropriate:
@@ -102,7 +116,7 @@ SET(ROCKSDB_SE_SOURCES
 #ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX
 #)
 
-MYSQL_ADD_PLUGIN(rocksdb ${ROCKSDB_SE_SOURCES} STORAGE_ENGINE
+MYSQL_ADD_PLUGIN(rocksdb ${ROCKSDB_SE_SOURCES} MODULE_ONLY STORAGE_ENGINE
                  MODULE_OUTPUT_NAME ha_rocksdb
                  COMPONENT rocksdb-engine)
 
@@ -137,8 +151,6 @@ ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
   event_listener.h
   rdb_perf_context.cc
   rdb_perf_context.h
-  rdb_sst_info.cc
-  rdb_sst_info.h
   rdb_buff.h
   rdb_mariadb_port.h
 )
@@ -152,6 +164,9 @@ if (UNIX AND NOT APPLE)
 endif()
 
 TARGET_LINK_LIBRARIES(rocksdb rocksdb_aux_lib)
+  FIND_LIBRARY(LZ4_LIBRARY
+    NAMES liblz4${PIC_EXT}.a lz4
+    HINTS ${WITH_LZ4}/lib)
 
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
@@ -178,9 +193,12 @@ IF(HAVE_SCHED_GETCPU)
   ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1)
 ENDIF()
 
-IF (NOT "$ENV{WITH_TBB}" STREQUAL "")
+IF (WITH_TBB)
+  FIND_LIBRARY(TBB_LIBRARY
+    NAMES libtbb${PIC_EXT}.a tbb
+    HINTS ${WITH_TBB}/lib)
   SET(rocksdb_static_libs ${rocksdb_static_libs}
-  $ENV{WITH_TBB}/libtbb${PIC_EXT}.a)
+    ${TBB_LIBRARY})
   ADD_DEFINITIONS(-DTBB)
 ENDIF()
 

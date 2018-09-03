@@ -286,7 +286,7 @@ bool TDBEXT::MakeSrcdef(PGLOBAL g)
 	char *catp = strstr(Srcdef, "%s");
 
 	if (catp) {
-		char *fil1, *fil2;
+		char *fil1 = 0, *fil2;
 		PCSZ  ph = ((EXTDEF*)To_Def)->Phpos;
 
 		if (!ph)
@@ -433,7 +433,7 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 	} else
 		Query->Resize(len);
 
-	if (trace)
+	if (trace(33))
 		htrc("Query=%s\n", Query->GetStr());
 
 	return false;
@@ -527,7 +527,7 @@ bool TDBEXT::MakeCommand(PGLOBAL g)
 		return true;
 	} // endif p
 
-	if (trace)
+	if (trace(33))
 		htrc("Command=%s\n", stmt);
 
 	Query = new(g)STRING(g, 0, stmt);
@@ -585,7 +585,7 @@ EXTCOL::EXTCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
 		tdbp->SetColumns(this);
 	} // endif cprec
 
-	if (trace)
+	if (trace(1))
 		htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
 
 	// Set additional remote access method information for column.

@@ -200,7 +200,8 @@ public:
     need to copy elements by value, you should employ
     list_copy_and_replace_each_value after creating a copy.
   */
-  base_list(const base_list &rhs, MEM_ROOT *mem_root);
+  bool copy(const base_list *rhs, MEM_ROOT *mem_root);
+  base_list(const base_list &rhs, MEM_ROOT *mem_root) { copy(&rhs, mem_root); }
   inline base_list(bool error) { }
   inline bool push_back(void *info)
   {
@@ -310,10 +311,13 @@ public:
   */
   inline void swap(base_list &rhs)
   {
+    list_node **rhs_last=rhs.last;
     swap_variables(list_node *, first, rhs.first);
-    swap_variables(list_node **, last, rhs.last);
     swap_variables(uint, elements, rhs.elements);
+    rhs.last= last == &first ? &rhs.first : last;
+    last = rhs_last == &rhs.first ? &first : rhs_last;
   }
+
   inline list_node* last_node() { return *last; }
   inline list_node* first_node() { return first;}
   inline void *head() { return first->info; }
@@ -536,6 +540,8 @@ public:
   inline void disjoin(List<T> *list) { base_list::disjoin(list); }
   inline bool add_unique(T *a, bool (*eq)(T *a, T *b))
   { return base_list::add_unique(a, (List_eq *)eq); }
+  inline bool copy(const List<T> *list, MEM_ROOT *root)
+  { return base_list::copy(list, root); }
   void delete_elements(void)
   {
     list_node *element,*next;

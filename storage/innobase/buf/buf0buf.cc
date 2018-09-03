@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2013, 2018, MariaDB Corporation.
 
@@ -423,6 +423,53 @@ on the io_type */
 	 ? (counter##_READ)				\
 	 : (counter##_WRITTEN))
 
+
+/** Reserve a buffer slot for encryption, decryption or page compression.
+@param[in,out]	buf_pool	buffer pool
+@return reserved buffer slot */
+static buf_tmp_buffer_t* buf_pool_reserve_tmp_slot(buf_pool_t* buf_pool)
+{
+	for (ulint i = 0; i < buf_pool->tmp_arr->n_slots; i++) {
+		buf_tmp_buffer_t* slot = &buf_pool->tmp_arr->slots[i];
+		if (slot->acquire()) {
+			return slot;
+		}
+	}
+
+	/* We assume that free slot is found */
+	ut_error;
+	return NULL;
+}
+
+/** Reserve a buffer for encryption, decryption or decompression.
+@param[in,out]	slot	reserved slot */
+static void buf_tmp_reserve_crypt_buf(buf_tmp_buffer_t* slot)
+{
+	if (!slot->crypt_buf) {
+		slot->crypt_buf = static_cast<byte*>(
+			aligned_malloc(srv_page_size, srv_page_size));
+	}
+}
+
+/** Reserve a buffer for compression.
+@param[in,out]	slot	reserved slot */
+static void buf_tmp_reserve_compression_buf(buf_tmp_buffer_t* slot)
+{
+	if (!slot->comp_buf) {
+		/* Both snappy and lzo compression methods require that
+		output buffer used for compression is bigger than input
+		buffer. Increase the allocated buffer size accordingly. */
+		ulint size = srv_page_size;
+#ifdef HAVE_LZO
+		size += LZO1X_1_15_MEM_COMPRESS;
+#elif defined HAVE_SNAPPY
+		size = snappy_max_compressed_length(size);
+#endif
+		slot->comp_buf = static_cast<byte*>(
+			aligned_malloc(size, srv_page_size));
+	}
+}
+
 /** Registers a chunk to buf_pool_chunk_map
 @param[in]	chunk	chunk of buffers */
 static
@@ -438,10 +485,91 @@ buf_pool_register_chunk(
 @param[in,out]	bpage	Page control block
 @param[in,out]	space	tablespace
 @return whether the operation was successful */
-static
-bool
-buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
-	MY_ATTRIBUTE((nonnull));
+static bool buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
+{
+	ut_ad(space->n_pending_ios > 0);
+	ut_ad(space->id == bpage->id.space());
+
+	byte* dst_frame = bpage->zip.data ? bpage->zip.data :
+		((buf_block_t*) bpage)->frame;
+	bool page_compressed = fil_page_is_compressed(dst_frame);
+	buf_pool_t* buf_pool = buf_pool_from_bpage(bpage);
+
+	if (bpage->id.page_no() == 0) {
+		/* File header pages are not encrypted/compressed */
+		return (true);
+	}
+
+	/* Page is encrypted if encryption information is found from
+	tablespace and page contains used key_version. This is true
+	also for pages first compressed and then encrypted. */
+
+	buf_tmp_buffer_t* slot;
+
+	if (page_compressed) {
+		/* the page we read is unencrypted */
+		/* Find free slot from temporary memory array */
+decompress:
+		slot = buf_pool_reserve_tmp_slot(buf_pool);
+		/* For decompression, use crypt_buf. */
+		buf_tmp_reserve_crypt_buf(slot);
+decompress_with_slot:
+		ut_d(fil_page_type_validate(dst_frame));
+
+		bpage->write_size = fil_page_decompress(slot->crypt_buf,
+							dst_frame);
+		slot->release();
+
+		ut_ad(!bpage->write_size || fil_page_type_validate(dst_frame));
+		ut_ad(space->n_pending_ios > 0);
+		return bpage->write_size != 0;
+	}
+
+	if (space->crypt_data
+	    && mach_read_from_4(FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+			       + dst_frame)) {
+		/* Verify encryption checksum before we even try to
+		decrypt. */
+		if (!fil_space_verify_crypt_checksum(
+			    dst_frame, bpage->size, bpage->id.space(),
+			    bpage->id.page_no())) {
+decrypt_failed:
+			/* Mark page encrypted in case it should be. */
+			if (space->crypt_data->type
+			    != CRYPT_SCHEME_UNENCRYPTED) {
+				bpage->encrypted = true;
+			}
+
+			return false;
+		}
+
+		/* Find free slot from temporary memory array */
+		slot = buf_pool_reserve_tmp_slot(buf_pool);
+		buf_tmp_reserve_crypt_buf(slot);
+
+		ut_d(fil_page_type_validate(dst_frame));
+
+		/* decrypt using crypt_buf to dst_frame */
+		if (!fil_space_decrypt(space, slot->crypt_buf,
+				       dst_frame, &bpage->encrypted)) {
+			slot->release();
+			goto decrypt_failed;
+		}
+
+		ut_d(fil_page_type_validate(dst_frame));
+
+		if (fil_page_is_compressed_encrypted(dst_frame)) {
+			goto decompress_with_slot;
+		}
+
+		slot->release();
+	} else if (fil_page_is_compressed_encrypted(dst_frame)) {
+		goto decompress;
+	}
+
+	ut_ad(space->n_pending_ios > 0);
+	return true;
+}
 
 /* prototypes for new functions added to ha_innodb.cc */
 trx_t* innobase_get_trx();
@@ -2086,8 +2214,8 @@ buf_page_realloc(
 	if (buf_page_can_relocate(&block->page)) {
 		mutex_enter(&new_block->mutex);
 
-		memcpy(new_block->frame, block->frame, UNIV_PAGE_SIZE);
-		memcpy(&new_block->page, &block->page, sizeof block->page);
+		memcpy(new_block->frame, block->frame, srv_page_size);
+		new (&new_block->page) buf_page_t(block->page);
 
 		/* relocate LRU list */
 		ut_ad(block->page.in_LRU_list);
@@ -2869,6 +2997,9 @@ withdraw_retry:
 					= buf_pool->n_chunks;
 				warning = true;
 				buf_pool->chunks_old = NULL;
+				for (ulint j = 0; j < buf_pool->n_chunks_new; j++) {
+					buf_pool_register_chunk(&(buf_pool->chunks[j]));
+				}
 				goto calc_buf_pool_size;
 			}
 
@@ -3213,7 +3344,7 @@ buf_relocate(
 	}
 #endif /* UNIV_DEBUG */
 
-	memcpy(dpage, bpage, sizeof *dpage);
+	new (dpage) buf_page_t(*bpage);
 
 	/* Important that we adjust the hazard pointer before
 	removing bpage from LRU list. */
@@ -4200,10 +4331,12 @@ buf_page_get_gen(
 #ifdef UNIV_DEBUG
 	switch (mode) {
 	case BUF_EVICT_IF_IN_POOL:
+	case BUF_PEEK_IF_IN_POOL:
 		/* After DISCARD TABLESPACE, the tablespace would not exist,
 		but in IMPORT TABLESPACE, PageConverter::operator() must
 		replace any old pages, which were not evicted during DISCARD.
-		Skip the assertion on space_page_size. */
+		Similarly, btr_search_drop_page_hash_when_freed() must
+		remove any old pages. Skip the assertion on page_size. */
 		break;
 	default:
 		ut_error;
@@ -4212,7 +4345,6 @@ buf_page_get_gen(
 		/* fall through */
 	case BUF_GET:
 	case BUF_GET_IF_IN_POOL:
-	case BUF_PEEK_IF_IN_POOL:
 	case BUF_GET_IF_IN_POOL_OR_WATCH:
 	case BUF_GET_POSSIBLY_FREED:
 		bool			found;
@@ -4316,8 +4448,9 @@ loop:
 		case BUF_GET_IF_IN_POOL_OR_WATCH:
 		case BUF_PEEK_IF_IN_POOL:
 		case BUF_EVICT_IF_IN_POOL:
-			ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X));
-			ut_ad(!rw_lock_own(hash_lock, RW_LOCK_S));
+			ut_ad(!rw_lock_own_flagged(
+				      hash_lock,
+				      RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 			return(NULL);
 		}
 
@@ -4339,6 +4472,11 @@ loop:
 					      ibuf_inside(mtr));
 
 			retries = 0;
+		} else if (mode == BUF_GET_POSSIBLY_FREED) {
+			if (err) {
+				*err = local_err;
+			}
+			return NULL;
 		} else if (retries < BUF_PAGE_READ_MAX_RETRIES) {
 			++retries;
 
@@ -4603,6 +4741,8 @@ evict_from_pool:
 				buf_block_unfix(fix_block);
 				buf_pool_mutex_exit(buf_pool);
 				rw_lock_x_unlock(&fix_block->lock);
+
+				*err = DB_PAGE_CORRUPTED;
 				return NULL;
 			}
 		}
@@ -4646,8 +4786,8 @@ evict_from_pool:
 	ut_ad(block == fix_block);
 	ut_ad(fix_block->page.buf_fix_count > 0);
 
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X));
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_S));
+	ut_ad(!rw_lock_own_flagged(hash_lock,
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	ut_ad(buf_block_get_state(fix_block) == BUF_BLOCK_FILE_PAGE);
 
@@ -4823,8 +4963,8 @@ evict_from_pool:
 	ut_a(ibuf_count_get(fix_block->page.id) == 0);
 #endif
 
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X));
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_S));
+	ut_ad(!rw_lock_own_flagged(hash_lock,
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	return(fix_block);
 }
@@ -5500,8 +5640,8 @@ func_exit:
 		ibuf_mtr_commit(&mtr);
 	}
 
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X));
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_S));
+	ut_ad(!rw_lock_own_flagged(hash_lock,
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 	ut_ad(!bpage || buf_page_in_file(bpage));
 
 	return(bpage);
@@ -5885,9 +6025,9 @@ buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 }
 
 /** Complete a read or write request of a file page to or from the buffer pool.
-@param[in,out]		bpage		Page to complete
-@param[in]		evict		whether or not to evict the page
-					from LRU list.
+@param[in,out]	bpage	page to complete
+@param[in]	dblwr	whether the doublewrite buffer was used (on write)
+@param[in]	evict	whether or not to evict the page from LRU list
 @return whether the operation succeeded
 @retval	DB_SUCCESS		always when writing, or if a read page was OK
 @retval	DB_TABLESPACE_DELETED	if the tablespace does not exist
@@ -5897,7 +6037,7 @@ buf_page_check_corrupt(buf_page_t* bpage, fil_space_t* space)
 				not match */
 UNIV_INTERN
 dberr_t
-buf_page_io_complete(buf_page_t* bpage, bool evict)
+buf_page_io_complete(buf_page_t* bpage, bool dblwr, bool evict)
 {
 	enum buf_io_fix	io_type;
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -5920,20 +6060,22 @@ buf_page_io_complete(buf_page_t* bpage, bool evict)
 		ulint	read_page_no = 0;
 		ulint	read_space_id = 0;
 		uint	key_version = 0;
-
-		ut_ad(bpage->zip.data != NULL || ((buf_block_t*)bpage)->frame != NULL);
+		byte*	frame = bpage->zip.data
+			? bpage->zip.data
+			: reinterpret_cast<buf_block_t*>(bpage)->frame;
+		ut_ad(frame);
 		fil_space_t* space = fil_space_acquire_for_io(
 			bpage->id.space());
 		if (!space) {
 			return DB_TABLESPACE_DELETED;
 		}
 
-		buf_page_decrypt_after_read(bpage, space);
-
-		byte*	frame = bpage->zip.data
-			? bpage->zip.data
-			: reinterpret_cast<buf_block_t*>(bpage)->frame;
 		dberr_t	err;
+
+		if (!buf_page_decrypt_after_read(bpage, space)) {
+			err = DB_DECRYPTION_FAILED;
+			goto database_corrupted;
+		}
 
 		if (bpage->zip.data && uncompressed) {
 			my_atomic_addlint(&buf_pool->n_pend_unzip, 1);
@@ -6086,13 +6228,14 @@ database_corrupted:
 		/* io_type == BUF_IO_WRITE */
 		if (bpage->slot) {
 			/* Mark slot free */
-			bpage->slot->reserved = false;
+			bpage->slot->release();
 			bpage->slot = NULL;
 		}
 	}
 
+	BPageMutex* block_mutex = buf_page_get_mutex(bpage);
 	buf_pool_mutex_enter(buf_pool);
-	mutex_enter(buf_page_get_mutex(bpage));
+	mutex_enter(block_mutex);
 
 #ifdef UNIV_IBUF_COUNT_DEBUG
 	if (io_type == BUF_IO_WRITE || uncompressed) {
@@ -6110,8 +6253,7 @@ database_corrupted:
 	buf_page_set_io_fix(bpage, BUF_IO_NONE);
 	buf_page_monitor(bpage, io_type);
 
-	switch (io_type) {
-	case BUF_IO_READ:
+	if (io_type == BUF_IO_READ) {
 		/* NOTE that the call to ibuf may have moved the ownership of
 		the x-latch to this OS thread: do not let this confuse you in
 		debugging! */
@@ -6125,15 +6267,12 @@ database_corrupted:
 					     BUF_IO_READ);
 		}
 
-		mutex_exit(buf_page_get_mutex(bpage));
-
-		break;
-
-	case BUF_IO_WRITE:
+		mutex_exit(block_mutex);
+	} else {
 		/* Write means a flush operation: call the completion
 		routine in the flush system */
 
-		buf_flush_write_complete(bpage);
+		buf_flush_write_complete(bpage, dblwr);
 
 		if (uncompressed) {
 			rw_lock_sx_unlock_gen(&((buf_block_t*) bpage)->lock,
@@ -6152,18 +6291,11 @@ database_corrupted:
 			evict = true;
 		}
 
+		mutex_exit(block_mutex);
+
 		if (evict) {
-			mutex_exit(buf_page_get_mutex(bpage));
 			buf_LRU_free_page(bpage, true);
-		} else {
-			mutex_exit(buf_page_get_mutex(bpage));
 		}
-
-
-		break;
-
-	default:
-		ut_error;
 	}
 
 	DBUG_PRINT("ib_buf", ("%s page %u:%u",
@@ -7267,66 +7399,6 @@ operator<<(
 	return(out);
 }
 
-/********************************************************************//**
-Reserve unused slot from temporary memory array and allocate necessary
-temporary memory if not yet allocated.
-@return reserved slot */
-UNIV_INTERN
-buf_tmp_buffer_t*
-buf_pool_reserve_tmp_slot(
-/*======================*/
-	buf_pool_t*	buf_pool,	/*!< in: buffer pool where to
-					reserve */
-	bool		compressed)	/*!< in: is file space compressed */
-{
-	buf_tmp_buffer_t *free_slot=NULL;
-
-	/* Array is protected by buf_pool mutex */
-	buf_pool_mutex_enter(buf_pool);
-
-	for(ulint i = 0; i < buf_pool->tmp_arr->n_slots; i++) {
-		buf_tmp_buffer_t *slot = &buf_pool->tmp_arr->slots[i];
-
-		if(slot->reserved == false) {
-			free_slot = slot;
-			break;
-		}
-	}
-
-	/* We assume that free slot is found */
-	ut_a(free_slot != NULL);
-	free_slot->reserved = true;
-	/* Now that we have reserved this slot we can release
-	buf_pool mutex */
-	buf_pool_mutex_exit(buf_pool);
-
-	/* Allocate temporary memory for encryption/decryption */
-	if (free_slot->crypt_buf == NULL) {
-		free_slot->crypt_buf = static_cast<byte*>(aligned_malloc(UNIV_PAGE_SIZE, UNIV_PAGE_SIZE));
-		memset(free_slot->crypt_buf, 0, UNIV_PAGE_SIZE);
-	}
-
-	/* For page compressed tables allocate temporary memory for
-	compression/decompression */
-	if (compressed && free_slot->comp_buf == NULL) {
-		ulint size = UNIV_PAGE_SIZE;
-
-		/* Both snappy and lzo compression methods require that
-		output buffer used for compression is bigger than input
-		buffer. Increase the allocated buffer size accordingly. */
-#if HAVE_SNAPPY
-		size = snappy_max_compressed_length(size);
-#endif
-#if HAVE_LZO
-		size += LZO1X_1_15_MEM_COMPRESS;
-#endif
-		free_slot->comp_buf = static_cast<byte*>(aligned_malloc(size, UNIV_PAGE_SIZE));
-		memset(free_slot->comp_buf, 0, size);
-	}
-
-	return (free_slot);
-}
-
 /** Encryption and page_compression hook that is called just before
 a page is written to disk.
 @param[in,out]	space		tablespace
@@ -7375,15 +7447,18 @@ buf_page_encrypt_before_write(
 		return src_frame;
 	}
 
+	ut_ad(!bpage->size.is_compressed() || !page_compressed);
 	buf_pool_t* buf_pool = buf_pool_from_bpage(bpage);
 	/* Find free slot from temporary memory array */
-	buf_tmp_buffer_t* slot = buf_pool_reserve_tmp_slot(buf_pool, page_compressed);
+	buf_tmp_buffer_t* slot = buf_pool_reserve_tmp_slot(buf_pool);
 	slot->out_buf = NULL;
 	bpage->slot = slot;
 
+	buf_tmp_reserve_crypt_buf(slot);
 	byte *dst_frame = slot->crypt_buf;
 
 	if (!page_compressed) {
+not_compressed:
 		/* Encrypt page content */
 		byte* tmp = fil_space_encrypt(space,
 					      bpage->id.page_no(),
@@ -7391,31 +7466,30 @@ buf_page_encrypt_before_write(
 					      src_frame,
 					      dst_frame);
 
+		bpage->real_size = UNIV_PAGE_SIZE;
 		slot->out_buf = dst_frame = tmp;
 
 		ut_d(fil_page_type_validate(tmp));
 	} else {
 		/* First we compress the page content */
-		ulint out_len = 0;
-
-		byte *tmp = fil_compress_page(
-			space,
-			(byte *)src_frame,
-			slot->comp_buf,
-			srv_page_size,
+		buf_tmp_reserve_compression_buf(slot);
+		byte* tmp = slot->comp_buf;
+		ulint out_len = fil_page_compress(
+			src_frame, tmp,
 			fsp_flags_get_page_compression_level(space->flags),
 			fil_space_get_block_size(space, bpage->id.page_no()),
-			encrypted,
-			&out_len);
+			encrypted);
+		if (!out_len) {
+			goto not_compressed;
+		}
 
 		bpage->real_size = out_len;
 
-#ifdef UNIV_DEBUG
-		fil_page_type_validate(tmp);
-#endif
+		/* Workaround for MDEV-15527. */
+		memset(tmp + out_len, 0 , srv_page_size - out_len);
+		ut_d(fil_page_type_validate(tmp));
 
-		if(encrypted) {
-
+		if (encrypted) {
 			/* And then we encrypt the page content */
 			tmp = fil_space_encrypt(space,
 						bpage->id.page_no(),
@@ -7431,112 +7505,6 @@ buf_page_encrypt_before_write(
 
 	// return dst_frame which will be written
 	return dst_frame;
-}
-
-/** Decrypt a page.
-@param[in,out]	bpage	Page control block
-@param[in,out]	space	tablespace
-@return whether the operation was successful */
-static
-bool
-buf_page_decrypt_after_read(buf_page_t* bpage, fil_space_t* space)
-{
-	ut_ad(space->n_pending_ios > 0);
-	ut_ad(space->id == bpage->id.space());
-
-	bool compressed = bpage->size.is_compressed();
-	const page_size_t& size = bpage->size;
-	byte* dst_frame = compressed ? bpage->zip.data :
-		((buf_block_t*) bpage)->frame;
-	unsigned key_version =
-		mach_read_from_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-	bool page_compressed = fil_page_is_compressed(dst_frame);
-	bool page_compressed_encrypted = fil_page_is_compressed_encrypted(dst_frame);
-	buf_pool_t* buf_pool = buf_pool_from_bpage(bpage);
-	bool success = true;
-
-	if (bpage->id.page_no() == 0) {
-		/* File header pages are not encrypted/compressed */
-		return (true);
-	}
-
-	/* Page is encrypted if encryption information is found from
-	tablespace and page contains used key_version. This is true
-	also for pages first compressed and then encrypted. */
-	if (!space->crypt_data) {
-		key_version = 0;
-	}
-
-	if (page_compressed) {
-		/* the page we read is unencrypted */
-		/* Find free slot from temporary memory array */
-		buf_tmp_buffer_t* slot = buf_pool_reserve_tmp_slot(buf_pool, page_compressed);
-
-		ut_d(fil_page_type_validate(dst_frame));
-
-		/* decompress using comp_buf to dst_frame */
-		fil_decompress_page(slot->comp_buf,
-				    dst_frame,
-				    ulong(size.logical()),
-				    &bpage->write_size);
-
-		/* Mark this slot as free */
-		slot->reserved = false;
-		key_version = 0;
-
-		ut_d(fil_page_type_validate(dst_frame));
-	} else {
-		buf_tmp_buffer_t* slot = NULL;
-
-		if (key_version) {
-			/* Verify encryption checksum before we even try to
-			decrypt. */
-			if (!fil_space_verify_crypt_checksum(
-				    dst_frame, size,
-				    bpage->id.space(), bpage->id.page_no())) {
-				if (space->crypt_data->type
-				    != CRYPT_SCHEME_UNENCRYPTED) {
-					bpage->encrypted = true;
-				}
-				return (false);
-			}
-
-			/* Find free slot from temporary memory array */
-			slot = buf_pool_reserve_tmp_slot(buf_pool, page_compressed);
-
-			ut_d(fil_page_type_validate(dst_frame));
-
-			/* decrypt using crypt_buf to dst_frame */
-			if (!fil_space_decrypt(space, slot->crypt_buf,
-					       dst_frame, &bpage->encrypted)) {
-				success = false;
-			}
-
-			ut_d(fil_page_type_validate(dst_frame));
-		}
-
-		if (page_compressed_encrypted && success) {
-			if (!slot) {
-				slot = buf_pool_reserve_tmp_slot(buf_pool, page_compressed);
-			}
-
-			ut_d(fil_page_type_validate(dst_frame));
-			/* decompress using comp_buf to dst_frame */
-			fil_decompress_page(slot->comp_buf,
-					    dst_frame,
-					    ulong(size.logical()),
-					    &bpage->write_size);
-			ut_d(fil_page_type_validate(dst_frame));
-		}
-
-		/* Mark this slot as free */
-		if (slot) {
-			slot->reserved = false;
-		}
-	}
-
-	ut_ad(space->n_pending_ios > 0);
-	return (success);
 }
 
 /**
@@ -7562,6 +7530,4 @@ buf_page_get_trim_length(
 {
 	return (bpage->size.physical() - write_length);
 }
-
-
 #endif /* !UNIV_INNOCHECKSUM */

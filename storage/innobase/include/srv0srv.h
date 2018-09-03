@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -476,7 +476,7 @@ extern uint	srv_fast_shutdown;	/*!< If this is 1, do not do a
 
 /** Signal to shut down InnoDB (NULL if shutdown was signaled, or if
 running in innodb_read_only mode, srv_read_only_mode) */
-extern volatile st_my_thread_var *srv_running;
+extern st_my_thread_var *srv_running;
 
 extern ibool	srv_innodb_status;
 
@@ -919,6 +919,9 @@ srv_release_threads(enum srv_thread_type type, ulint n);
 /** Wakeup the purge threads. */
 void
 srv_purge_wakeup();
+
+/** Shut down the purge threads. */
+void srv_purge_shutdown();
 
 /** Check if tablespace is being truncated.
 (Ignore system-tablespace as we don't re-create the tablespace

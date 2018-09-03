@@ -45,7 +45,6 @@ Created 4/20/1996 Heikki Tuuri
 #include "log0log.h"
 #include "eval0eval.h"
 #include "data0data.h"
-#include "usr0sess.h"
 #include "buf0lru.h"
 #include "fts0fts.h"
 #include "fts0types.h"
@@ -945,6 +944,9 @@ row_ins_foreign_fill_virtual(
 		rec_get_offsets(rec, index, offsets_, true,
 				ULINT_UNDEFINED, &cascade->heap);
 	mem_heap_t*	v_heap = NULL;
+	TABLE*		mysql_table= NULL;
+	VCOL_STORAGE*	vcol_storage= NULL;
+	byte*		record;
 	upd_t*		update = cascade->update;
 	ulint		n_v_fld = index->table->n_v_def;
 	ulint		n_diff;
@@ -964,6 +966,14 @@ row_ins_foreign_fill_virtual(
 		innobase_init_vc_templ(index->table);
 	}
 
+	if (innobase_allocate_row_for_vcol(thd, index, &v_heap,
+                                           &mysql_table,
+                                           &record, &vcol_storage))
+        {
+		*err = DB_OUT_OF_MEMORY;
+                goto func_exit;
+        }
+
 	for (ulint i = 0; i < n_v_fld; i++) {
 
 		dict_v_col_t*     col = dict_table_get_nth_v_col(
@@ -977,8 +987,8 @@ row_ins_foreign_fill_virtual(
 
 		dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
-				&v_heap, update->heap, NULL, thd, NULL,
-				NULL, NULL, NULL);
+				&v_heap, update->heap, NULL, thd, mysql_table,
+                                record, NULL, NULL, NULL);
 
 		if (vfield == NULL) {
 			*err = DB_COMPUTE_VALUE_FAILED;
@@ -1008,7 +1018,8 @@ row_ins_foreign_fill_virtual(
 			dfield_t* new_vfield = innobase_get_computed_value(
 					update->old_vrow, col, index,
 					&v_heap, update->heap, NULL, thd,
-					NULL, NULL, node->update, foreign);
+					mysql_table, record, NULL,
+					node->update, foreign);
 
 			if (new_vfield == NULL) {
 				*err = DB_COMPUTE_VALUE_FAILED;
@@ -1026,6 +1037,8 @@ row_ins_foreign_fill_virtual(
 
 func_exit:
 	if (v_heap) {
+		if (vcol_storage)
+			innobase_free_row_for_vcol(vcol_storage);
 		mem_heap_free(v_heap);
 	}
 }
@@ -1616,7 +1629,8 @@ row_ins_check_foreign_constraint(
 
 	if (check_table == NULL
 	    || !check_table->is_readable()
-	    || check_index == NULL) {
+	    || check_index == NULL
+	    || fil_space_get(check_table->space)->is_being_truncated) {
 
 		if (!srv_read_only_mode && check_ref) {
 			FILE*	ef = dict_foreign_err_file;
@@ -1852,8 +1866,6 @@ do_possible_lock_wait:
 		/* To avoid check_table being dropped, increment counter */
 		my_atomic_addlint(
 			&check_table->n_foreign_key_checks_running, 1);
-
-		trx_kill_blocking(trx);
 
 		lock_wait_suspend_thread(thr);
 
@@ -3689,8 +3701,7 @@ row_ins(
 			node->index = NULL; node->entry = NULL; break;);
 
 		/* Skip corrupted secondary index and its entry */
-		while (node->index && dict_index_is_corrupted(node->index)) {
-
+		while (node->index && node->index->is_corrupted()) {
 			node->index = dict_table_get_next_index(node->index);
 			node->entry = UT_LIST_GET_NEXT(tuple_list, node->entry);
 		}

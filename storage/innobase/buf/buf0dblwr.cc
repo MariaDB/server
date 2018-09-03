@@ -107,9 +107,6 @@ buf_dblwr_sync_datafiles()
 	/* Wait that all async writes to tablespaces have been posted to
 	the OS */
 	os_aio_wait_until_no_pending_writes();
-
-	/* Now we flush the data to disk (for example, with fsync) */
-	fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
 }
 
 /****************************************************************//**
@@ -536,10 +533,11 @@ buf_dblwr_process()
 	}
 
 	unaligned_read_buf = static_cast<byte*>(
-		ut_malloc_nokey(2 * UNIV_PAGE_SIZE));
+		ut_malloc_nokey(3 * UNIV_PAGE_SIZE));
 
 	read_buf = static_cast<byte*>(
 		ut_align(unaligned_read_buf, UNIV_PAGE_SIZE));
+	byte* const buf = read_buf + UNIV_PAGE_SIZE;
 
 	for (recv_dblwr_t::list::iterator i = recv_dblwr.pages.begin();
 	     i != recv_dblwr.pages.end();
@@ -607,24 +605,24 @@ buf_dblwr_process()
 			ignore this page (there should be redo log
 			records to initialize it). */
 		} else {
-			if (fil_page_is_compressed_encrypted(read_buf) ||
-			    fil_page_is_compressed(read_buf)) {
-				/* Decompress the page before
-				validating the checksum. */
-				fil_decompress_page(
-					NULL, read_buf, srv_page_size,
-					NULL, true);
+			/* Decompress the page before
+			validating the checksum. */
+			ulint decomp = fil_page_decompress(buf, read_buf);
+			if (!decomp || (decomp != srv_page_size
+					&& page_size.is_compressed())) {
+				goto bad;
 			}
 
 			if (fil_space_verify_crypt_checksum(
 				    read_buf, page_size, space_id, page_no)
-			   || !buf_page_is_corrupted(
-				   true, read_buf, page_size, space)) {
+			    || !buf_page_is_corrupted(
+				    true, read_buf, page_size, space)) {
 				/* The page is good; there is no need
 				to consult the doublewrite buffer. */
 				continue;
 			}
 
+bad:
 			/* We intentionally skip this message for
 			is_all_zero pages. */
 			ib::info()
@@ -632,19 +630,16 @@ buf_dblwr_process()
 				<< " from the doublewrite buffer.";
 		}
 
-		/* Next, validate the doublewrite page. */
-		if (fil_page_is_compressed_encrypted(page) ||
-		    fil_page_is_compressed(page)) {
-			/* Decompress the page before
-			validating the checksum. */
-			fil_decompress_page(
-				NULL, page, srv_page_size, NULL, true);
+		ulint decomp = fil_page_decompress(buf, page);
+		if (!decomp || (decomp != srv_page_size
+				&& page_size.is_compressed())) {
+			goto bad_doublewrite;
 		}
-
 		if (!fil_space_verify_crypt_checksum(page, page_size,
 						     space_id, page_no)
 		    && buf_page_is_corrupted(true, page, page_size, space)) {
 			if (!is_all_zero) {
+bad_doublewrite:
 				ib::warn() << "A doublewrite copy of page "
 					<< page_id << " is corrupted.";
 			}
@@ -724,12 +719,9 @@ buf_dblwr_update(
 	const buf_page_t*	bpage,	/*!< in: buffer block descriptor */
 	buf_flush_t		flush_type)/*!< in: flush type */
 {
-	if (!srv_use_doublewrite_buf
-	    || buf_dblwr == NULL
-	    || fsp_is_system_temporary(bpage->id.space())) {
-		return;
-	}
-
+	ut_ad(srv_use_doublewrite_buf);
+	ut_ad(buf_dblwr);
+	ut_ad(!fsp_is_system_temporary(bpage->id.space()));
 	ut_ad(!srv_read_only_mode);
 
 	switch (flush_type) {
@@ -957,6 +949,8 @@ buf_dblwr_flush_buffered_writes()
 	if (!srv_use_doublewrite_buf || buf_dblwr == NULL) {
 		/* Sync the writes to the disk. */
 		buf_dblwr_sync_datafiles();
+		/* Now we flush the data to disk (for example, with fsync) */
+		fil_flush_file_spaces(FIL_TYPE_TABLESPACE);
 		return;
 	}
 
@@ -992,7 +986,6 @@ try_again:
 		goto try_again;
 	}
 
-	ut_a(!buf_dblwr->batch_running);
 	ut_ad(buf_dblwr->first_free == buf_dblwr->b_reserved);
 
 	/* Disallow anyone else to post to doublewrite buffer or to

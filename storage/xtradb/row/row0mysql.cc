@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1504,8 +1504,7 @@ error_exit:
 			doc_ids difference should not exceed
 			FTS_DOC_ID_MAX_STEP value. */
 
-			if (next_doc_id > 1
-			    && doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
+			if (doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
 				fprintf(stderr,
 					"InnoDB: Doc ID " UINT64PF " is too"
 					" big. Its difference with largest"
@@ -3405,6 +3404,10 @@ row_truncate_table_for_mysql(
 		return (row_mysql_get_table_status(table, trx, true));
 	}
 
+	if (table->fts) {
+		fts_optimize_remove_table(table);
+	}
+
 	trx_start_for_ddl(trx, TRX_DICT_OP_TABLE);
 
 	trx->op_info = "truncating table";
@@ -3539,6 +3542,14 @@ row_truncate_table_for_mysql(
 
 			flags = space->flags;
 			fil_space_release(space);
+		}
+
+		while (buf_LRU_drop_page_hash_for_tablespace(table)) {
+			if (trx_is_interrupted(trx)
+			    || srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+				err = DB_INTERRUPTED;
+				goto funct_exit;
+			}
 		}
 
 		if (flags != ULINT_UNDEFINED
@@ -3826,6 +3837,9 @@ next_rec:
 
 		/* Reset the Doc ID in cache to 0 */
 		if (has_internal_doc_id && table->fts->cache) {
+			DBUG_EXECUTE_IF("ib_trunc_sleep_before_fts_cache_clear",
+					os_thread_sleep(10000000););
+
 			table->fts->fts_status |= TABLE_DICT_LOCKED;
 			fts_update_next_doc_id(trx, table, NULL, 0);
 			fts_cache_clear(table->fts->cache);
@@ -3848,6 +3862,11 @@ funct_exit:
                 memcached operationse. */
                 table->memcached_sync_count = 0;
         }
+
+	/* Add the table back to FTS optimize background thread. */
+	if (table->fts) {
+		fts_optimize_add_table(table);
+	}
 
 	row_mysql_unlock_data_dictionary(trx);
 
@@ -4200,6 +4219,28 @@ row_drop_table_for_mysql(
 	any table or record locks on it. */
 
 	ut_a(!lock_table_has_locks(table));
+
+	if (table->space != TRX_SYS_SPACE) {
+		/* On DISCARD TABLESPACE, we would not drop the
+		adaptive hash index entries. If the tablespace is
+		missing here, delete-marking the record in SYS_INDEXES
+		would not free any pages in the buffer pool. Thus,
+		dict_index_remove_from_cache() would hang due to
+		adaptive hash index entries existing in the buffer
+		pool.  To prevent this hang, and also to guarantee
+		that btr_search_drop_page_hash_when_freed() will avoid
+		calling btr_search_drop_page_hash_index() while we
+		hold the InnoDB dictionary lock, we will drop any
+		adaptive hash index entries upfront. */
+		while (buf_LRU_drop_page_hash_for_tablespace(table)) {
+			if ((!dict_table_is_temporary(table)
+			     && trx_is_interrupted(trx))
+			    || srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+				err = DB_INTERRUPTED;
+				goto funct_exit;
+			}
+		}
+	}
 
 	switch (trx_get_dict_operation(trx)) {
 	case TRX_DICT_OP_NONE:
@@ -5270,7 +5311,8 @@ row_rename_table_for_mysql(
 		}
 	}
 
-	if (dict_table_has_fts_index(table)
+	if ((dict_table_has_fts_index(table)
+	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
 	    && !dict_tables_have_same_db(old_name, new_name)) {
 		err = fts_rename_aux_tables(table, new_name, trx);
 		if (err != DB_TABLE_NOT_FOUND) {
@@ -5372,6 +5414,7 @@ end:
 			trx_rollback_to_savepoint(trx, NULL);
 			trx->error_state = DB_SUCCESS;
 		}
+		table->data_dir_path= NULL;
 	}
 
 funct_exit:

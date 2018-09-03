@@ -49,9 +49,10 @@ public:
   Item_func_period_add(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "period_add"; }
-  void fix_length_and_dec()
-  { 
+  bool fix_length_and_dec()
+  {
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
+    return FALSE;
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_period_add>(thd, mem_root, this); }
@@ -64,10 +65,11 @@ public:
   Item_func_period_diff(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "period_diff"; }
-  void fix_length_and_dec()
-  { 
+  bool fix_length_and_dec()
+  {
     decimals=0;
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
+    return FALSE;
   }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_period_diff>(thd, mem_root, this); }
@@ -80,11 +82,12 @@ public:
   Item_func_to_days(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "to_days"; }
-  void fix_length_and_dec()
-  { 
+  bool fix_length_and_dec()
+  {
     decimals=0; 
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
-    maybe_null=1; 
+    maybe_null=1;
+    return FALSE;
   }
   enum_monotonicity_info get_monotonicity_info() const;
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
@@ -105,11 +108,12 @@ public:
   Item_func_to_seconds(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "to_seconds"; }
-  void fix_length_and_dec()
-  { 
+  bool fix_length_and_dec()
+  {
     decimals=0; 
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
     maybe_null= 1;
+    return FALSE;
   }
   enum_monotonicity_info get_monotonicity_info() const;
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
@@ -131,11 +135,12 @@ public:
   Item_func_dayofmonth(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "dayofmonth"; }
-  void fix_length_and_dec()
-  { 
+  bool fix_length_and_dec()
+  {
     decimals=0; 
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
-    maybe_null=1; 
+    maybe_null=1;
+    return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
@@ -167,11 +172,12 @@ public:
   const char *func_name() const { return "month"; }
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
-  void fix_length_and_dec()
-  { 
+  bool fix_length_and_dec()
+  {
     decimals= 0;
     fix_char_length(2);
     maybe_null=1;
+    return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
@@ -191,7 +197,7 @@ public:
   Item_func_monthname(THD *thd, Item *a): Item_str_func(thd, a) {}
   const char *func_name() const { return "monthname"; }
   String *val_str(String *str);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   bool check_partition_func_processor(void *int_arg) {return TRUE;}
   bool check_valid_arguments_processor(void *int_arg)
   {
@@ -212,11 +218,12 @@ public:
   Item_func_dayofyear(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "dayofyear"; }
-  void fix_length_and_dec()
-  { 
+  bool fix_length_and_dec()
+  {
     decimals= 0;
     fix_char_length(3);
     maybe_null=1;
+    return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
@@ -235,11 +242,12 @@ public:
   Item_func_hour(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "hour"; }
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
     maybe_null=1;
+    return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
@@ -258,11 +266,12 @@ public:
   Item_func_minute(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "minute"; }
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
     maybe_null=1;
+    return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
@@ -281,11 +290,12 @@ public:
   Item_func_quarter(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "quarter"; }
-  void fix_length_and_dec()
-  { 
+  bool fix_length_and_dec()
+  {
      decimals=0;
      max_length=1*MY_CHARSET_BIN_MB_MAXLEN;
      maybe_null=1;
+     return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
@@ -304,11 +314,12 @@ public:
   Item_func_second(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "second"; }
-  void fix_length_and_dec()
-  { 
+  bool fix_length_and_dec()
+  {
     decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
     maybe_null=1;
+    return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
@@ -328,11 +339,12 @@ public:
   Item_func_week(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "week"; }
-  void fix_length_and_dec()
-  { 
+  bool fix_length_and_dec()
+  {
     decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
     maybe_null=1;
+    return FALSE;
   }
   bool check_vcol_func_processor(void *arg)
   {
@@ -354,11 +366,12 @@ public:
   Item_func_yearweek(THD *thd, Item *a, Item *b): Item_int_func(thd, a, b) {}
   longlong val_int();
   const char *func_name() const { return "yearweek"; }
-  void fix_length_and_dec()
-  { 
+  bool fix_length_and_dec()
+  {
     decimals=0;
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
     maybe_null=1;
+    return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
@@ -379,11 +392,12 @@ public:
   const char *func_name() const { return "year"; }
   enum_monotonicity_info get_monotonicity_info() const;
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
-  void fix_length_and_dec()
-  { 
+  bool fix_length_and_dec()
+  {
     decimals=0;
     max_length=4*MY_CHARSET_BIN_MB_MAXLEN;
     maybe_null=1;
+    return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
@@ -416,11 +430,12 @@ public:
   }
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals= 0;
     fix_char_length(1);
     maybe_null=1;
+    return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
@@ -441,7 +456,7 @@ class Item_func_dayname :public Item_func_weekday
   String *val_str(String *str);
   enum Item_result result_type () const { return STRING_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   bool check_partition_func_processor(void *int_arg) {return TRUE;}
   bool check_vcol_func_processor(void *arg)
   {
@@ -457,7 +472,7 @@ protected:
 public:
   Item_func_seconds_hybrid(THD *thd): Item_func_numhybrid(thd) {}
   Item_func_seconds_hybrid(THD *thd, Item *a): Item_func_numhybrid(thd, a) {}
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     if (arg_count)
       decimals= args[0]->temporal_precision(arg0_expected_type());
@@ -465,6 +480,7 @@ public:
     max_length=17 + (decimals ? decimals + 1 : 0);
     maybe_null= true;
     set_handler_by_result_type(decimals ? DECIMAL_RESULT : INT_RESULT);
+    return FALSE;
   }
   double real_op() { DBUG_ASSERT(0); return 0; }
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
@@ -556,7 +572,7 @@ public:
            save_date_in_field(field);
   }
 #endif
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
 };
 
 
@@ -834,7 +850,7 @@ public:
   String *val_str(String *str);
   const char *func_name() const
     { return is_time_format ? "time_format" : "date_format"; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   uint format_length(const String *format);
   bool eq(const Item *item, bool binary_cmp) const;
   bool check_vcol_func_processor(void *arg)
@@ -854,7 +870,7 @@ class Item_func_from_unixtime :public Item_datetimefunc
  public:
   Item_func_from_unixtime(THD *thd, Item *a): Item_datetimefunc(thd, a) {}
   const char *func_name() const { return "from_unixtime"; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_from_unixtime>(thd, mem_root, this); }
@@ -889,7 +905,7 @@ class Item_func_convert_tz :public Item_datetimefunc
   Item_func_convert_tz(THD *thd, Item *a, Item *b, Item *c):
     Item_datetimefunc(thd, a, b, c), from_tz_cached(0), to_tz_cached(0) {}
   const char *func_name() const { return "convert_tz"; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   void cleanup();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -902,10 +918,10 @@ class Item_func_sec_to_time :public Item_timefunc
 public:
   Item_func_sec_to_time(THD *thd, Item *item): Item_timefunc(thd, item) {}
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals= MY_MIN(args[0]->decimals, TIME_SECOND_PART_DIGITS);
-    Item_timefunc::fix_length_and_dec();
+    return Item_timefunc::fix_length_and_dec();
   }
   const char *func_name() const { return "sec_to_time"; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -923,7 +939,7 @@ public:
     Item_temporal_hybrid_func(thd, a, b),int_type(type_arg),
     date_sub_interval(neg_arg) {}
   const char *func_name() const { return "date_add_interval"; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   bool eq(const Item *item, bool binary_cmp) const;
   void print(String *str, enum_query_type query_type);
@@ -991,7 +1007,7 @@ class Item_extract :public Item_int_func
   longlong val_int();
   enum Functype functype() const { return EXTRACT_FUNC; }
   const char *func_name() const { return "extract"; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   bool eq(const Item *item, bool binary_cmp) const;
   void print(String *str, enum_query_type query_type);
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
@@ -1063,7 +1079,7 @@ public:
   bool eq(const Item *item, bool binary_cmp) const;
   const char *func_name() const { return "cast_as_char"; }
   String *val_str(String *a);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   void print(String *str, enum_query_type query_type);
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1077,11 +1093,11 @@ public:
   Item_temporal_typecast(THD *thd, Item *a): Item_temporal_func(thd, a) {}
   virtual const char *cast_type() const = 0;
   void print(String *str, enum_query_type query_type);
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     if (decimals == NOT_FIXED_DEC)
       decimals= args[0]->temporal_precision(field_type());
-    Item_temporal_func::fix_length_and_dec();
+    return Item_temporal_func::fix_length_and_dec();
   }
 };
 
@@ -1148,7 +1164,7 @@ public:
   Item_func_add_time(THD *thd, Item *a, Item *b, bool type_arg, bool neg_arg):
     Item_temporal_hybrid_func(thd, a, b), is_date(type_arg)
   { sign= neg_arg ? -1 : 1; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   void print(String *str, enum_query_type query_type);
   const char *func_name() const { return "add_time"; }
@@ -1161,11 +1177,11 @@ class Item_func_timediff :public Item_timefunc
 public:
   Item_func_timediff(THD *thd, Item *a, Item *b): Item_timefunc(thd, a, b) {}
   const char *func_name() const { return "timediff"; }
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals= MY_MAX(args[0]->temporal_precision(MYSQL_TYPE_TIME),
                      args[1]->temporal_precision(MYSQL_TYPE_TIME));
-    Item_timefunc::fix_length_and_dec();
+    return Item_timefunc::fix_length_and_dec();
   }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1178,10 +1194,10 @@ public:
   Item_func_maketime(THD *thd, Item *a, Item *b, Item *c):
     Item_timefunc(thd, a, b, c)
   {}
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals= MY_MIN(args[2]->decimals, TIME_SECOND_PART_DIGITS);
-    Item_timefunc::fix_length_and_dec();
+    return Item_timefunc::fix_length_and_dec();
   }
   const char *func_name() const { return "maketime"; }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
@@ -1196,10 +1212,11 @@ public:
   Item_func_microsecond(THD *thd, Item *a): Item_int_func(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "microsecond"; }
-  void fix_length_and_dec()
-  { 
+  bool fix_length_and_dec()
+  {
     decimals=0;
     maybe_null=1;
+    return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
@@ -1220,10 +1237,11 @@ public:
     Item_int_func(thd, a, b), int_type(type_arg) {}
   const char *func_name() const { return "timestampdiff"; }
   longlong val_int();
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals=0;
     maybe_null=1;
+    return FALSE;
   }
   virtual void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1245,11 +1263,12 @@ public:
   {}
   String *val_str_ascii(String *str);
   const char *func_name() const { return "get_format"; }
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     maybe_null= 1;
     decimals=0;
     fix_length_and_charset(17, default_charset());
+    return FALSE;
   }
   virtual void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
@@ -1271,7 +1290,7 @@ public:
   {}
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date);
   const char *func_name() const { return "str_to_date"; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_str_to_date>(thd, mem_root, this); }
 };

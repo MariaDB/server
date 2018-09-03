@@ -1996,9 +1996,11 @@ part_column_list_val *partition_info::add_column_value(THD *thd)
       into the structure used for 1 column. After this we call
       ourselves recursively which should always succeed.
     */
+    num_columns= curr_list_object;
     if (!reorganize_into_single_field_col_val(thd))
     {
-      DBUG_RETURN(add_column_value(thd));
+      if (!init_column_part(thd))
+        DBUG_RETURN(add_column_value(thd));
     }
     DBUG_RETURN(NULL);
   }
@@ -2380,23 +2382,6 @@ bool partition_info::fix_column_value_functions(THD *thd,
   }
 end:
   DBUG_RETURN(result);
-}
-
-
-bool partition_info::error_if_requires_values() const
-{
-  switch (part_type) {
-  case NOT_A_PARTITION:
-  case HASH_PARTITION:
-    break;
-  case RANGE_PARTITION:
-    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "RANGE", "LESS THAN");
-    return true;
-  case LIST_PARTITION:
-    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "LIST", "IN");
-    return true;
-  }
-  return false;
 }
 
 
@@ -2893,3 +2878,19 @@ bool check_partition_dirs(partition_info *part_info)
 }
 
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
+
+bool partition_info::error_if_requires_values() const
+{
+  switch (part_type) {
+  case NOT_A_PARTITION:
+  case HASH_PARTITION:
+    break;
+  case RANGE_PARTITION:
+    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "RANGE", "LESS THAN");
+    return true;
+  case LIST_PARTITION:
+    my_error(ER_PARTITION_REQUIRES_VALUES_ERROR, MYF(0), "LIST", "IN");
+    return true;
+  }
+  return false;
+}

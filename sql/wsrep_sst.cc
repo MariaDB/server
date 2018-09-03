@@ -30,6 +30,8 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include <my_service_manager.h>
+
 static char wsrep_defaults_file[FN_REFLEN * 2 + 10 + 30 +
                                 sizeof(WSREP_SST_OPT_CONF) +
                                 sizeof(WSREP_SST_OPT_CONF_SUFFIX) +
@@ -57,6 +59,13 @@ bool wsrep_sst_method_update (sys_var *self, THD* thd, enum_var_type type)
     return 0;
 }
 
+static const char* data_home_dir = NULL;
+
+extern "C"
+void wsrep_set_data_home_dir(const char *data_dir)
+{
+  data_home_dir= (data_dir && *data_dir) ? data_dir : NULL;
+}
 
 static void make_wsrep_defaults_file()
 {
@@ -79,33 +88,10 @@ static void make_wsrep_defaults_file()
 }
 
 
-// TODO: Improve address verification.
-static bool sst_receive_address_check (const char* str)
-{
-    if (!strncasecmp(str, "127.0.0.1", strlen("127.0.0.1")) ||
-        !strncasecmp(str, "localhost", strlen("localhost")))
-    {
-        return 1;
-    }
-
-    return 0;
-}
-
 bool  wsrep_sst_receive_address_check (sys_var *self, THD* thd, set_var* var)
 {
-  char addr_buf[FN_REFLEN];
-
   if ((! var->save_result.string_value.str) ||
       (var->save_result.string_value.length > (FN_REFLEN - 1))) // safety
-  {
-    goto err;
-  }
-
-  memcpy(addr_buf, var->save_result.string_value.str,
-         var->save_result.string_value.length);
-  addr_buf[var->save_result.string_value.length]= 0;
-
-  if (sst_receive_address_check(addr_buf))
   {
     goto err;
   }
@@ -200,6 +186,9 @@ bool wsrep_before_SE()
 static bool            sst_complete = false;
 static bool            sst_needed   = false;
 
+#define WSREP_EXTEND_TIMEOUT_INTERVAL 30
+#define WSREP_TIMEDWAIT_SECONDS 10
+
 void wsrep_sst_grab ()
 {
   WSREP_INFO("wsrep_sst_grab()");
@@ -211,11 +200,28 @@ void wsrep_sst_grab ()
 // Wait for end of SST
 bool wsrep_sst_wait ()
 {
-  if (mysql_mutex_lock (&LOCK_wsrep_sst)) abort();
+  double total_wtime = 0;
+
+  if (mysql_mutex_lock (&LOCK_wsrep_sst))
+    abort();
+
+  WSREP_INFO("Waiting for SST to complete.");
+
   while (!sst_complete)
   {
-    WSREP_INFO("Waiting for SST to complete.");
-    mysql_cond_wait (&COND_wsrep_sst, &LOCK_wsrep_sst);
+    struct timespec wtime;
+    set_timespec(wtime, WSREP_TIMEDWAIT_SECONDS);
+    time_t start_time = time(NULL);
+    mysql_cond_timedwait (&COND_wsrep_sst, &LOCK_wsrep_sst, &wtime);
+    time_t end_time = time(NULL);
+
+    if (!sst_complete)
+    {
+      total_wtime += difftime(end_time, start_time);
+      WSREP_DEBUG("Waiting for SST to complete. current seqno: %ld waited %f secs.", local_seqno, total_wtime);
+      service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
+        "WSREP state transfer ongoing, current seqno: %ld waited %f secs", local_seqno, total_wtime);
+    }
   }
 
   if (local_seqno >= 0)
@@ -597,6 +603,29 @@ static int sst_append_auth_env(wsp::env& env, const char* sst_auth)
   return -env.error();
 }
 
+#define DATA_HOME_DIR_ENV "INNODB_DATA_HOME_DIR"
+
+static int sst_append_data_dir(wsp::env& env, const char* data_dir)
+{
+  int const data_dir_size= strlen(DATA_HOME_DIR_ENV) + 1 /* = */
+    + (data_dir ? strlen(data_dir) : 0) + 1 /* \0 */;
+
+  wsp::string data_dir_str(data_dir_size); // for automatic cleanup on return
+  if (!data_dir_str()) return -ENOMEM;
+
+  int ret= snprintf(data_dir_str(), data_dir_size, "%s=%s",
+                    DATA_HOME_DIR_ENV, data_dir ? data_dir : "");
+
+  if (ret < 0 || ret >= data_dir_size)
+  {
+    WSREP_ERROR("sst_append_data_dir(): snprintf() failed: %d", ret);
+    return (ret < 0 ? ret : -EMSGSIZE);
+  }
+
+  env.append(data_dir_str());
+  return -env.error();
+}
+
 static ssize_t sst_prepare_other (const char*  method,
                                   const char*  sst_auth,
                                   const char*  addr_in,
@@ -628,11 +657,11 @@ static ssize_t sst_prepare_other (const char*  method,
 
   ret= snprintf (cmd_str(), cmd_len,
                  "wsrep_sst_%s "
-                 WSREP_SST_OPT_ROLE" 'joiner' "
-                 WSREP_SST_OPT_ADDR" '%s' "
-                 WSREP_SST_OPT_DATA" '%s' "
+                 WSREP_SST_OPT_ROLE " 'joiner' "
+                 WSREP_SST_OPT_ADDR " '%s' "
+                 WSREP_SST_OPT_DATA " '%s' "
                  " %s "
-                 WSREP_SST_OPT_PARENT" '%d'"
+                 WSREP_SST_OPT_PARENT " '%d'"
                  " %s '%s' ",
                  method, addr_in, mysql_real_data_home,
                  wsrep_defaults_file,
@@ -656,6 +685,16 @@ static ssize_t sst_prepare_other (const char*  method,
   {
     WSREP_ERROR("sst_prepare_other(): appending auth failed: %d", ret);
     return ret;
+  }
+
+  if (data_home_dir)
+  {
+    if ((ret= sst_append_data_dir(env, data_home_dir)))
+    {
+      WSREP_ERROR("sst_prepare_other(): appending data "
+                  "directory failed: %d", ret);
+      return ret;
+    }
   }
 
   pthread_t tmp;
@@ -914,13 +953,13 @@ static int sst_donate_mysqldump (const char*         addr,
 
   int ret= snprintf (cmd_str(), cmd_len,
                      "wsrep_sst_mysqldump "
-                     WSREP_SST_OPT_ADDR" '%s' "
-                     WSREP_SST_OPT_PORT" '%d' "
-                     WSREP_SST_OPT_LPORT" '%u' "
-                     WSREP_SST_OPT_SOCKET" '%s' "
-                     " '%s' "
-                     WSREP_SST_OPT_GTID" '%s:%lld' "
-                     WSREP_SST_OPT_GTID_DOMAIN_ID" '%d'"
+                     WSREP_SST_OPT_ADDR " '%s' "
+                     WSREP_SST_OPT_PORT " '%d' "
+                     WSREP_SST_OPT_LPORT " '%u' "
+                     WSREP_SST_OPT_SOCKET " '%s' "
+                     " %s "
+                     WSREP_SST_OPT_GTID " '%s:%lld' "
+                     WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
                      "%s",
 	             addr, port, mysqld_port, mysqld_unix_port,
                      wsrep_defaults_file, uuid_str,
@@ -1277,14 +1316,14 @@ static int sst_donate_other (const char*   method,
 
   ret= snprintf (cmd_str(), cmd_len,
                  "wsrep_sst_%s "
-                 WSREP_SST_OPT_ROLE" 'donor' "
-                 WSREP_SST_OPT_ADDR" '%s' "
-                 WSREP_SST_OPT_SOCKET" '%s' "
-                 WSREP_SST_OPT_DATA" '%s' "
+                 WSREP_SST_OPT_ROLE " 'donor' "
+                 WSREP_SST_OPT_ADDR " '%s' "
+                 WSREP_SST_OPT_SOCKET " '%s' "
+                 WSREP_SST_OPT_DATA " '%s' "
                  " %s "
                  " %s '%s' "
-                 WSREP_SST_OPT_GTID" '%s:%lld' "
-                 WSREP_SST_OPT_GTID_DOMAIN_ID" '%d'"
+                 WSREP_SST_OPT_GTID " '%s:%lld' "
+                 WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
                  "%s",
                  method, addr, mysqld_unix_port, mysql_real_data_home,
                  wsrep_defaults_file,
@@ -1349,6 +1388,16 @@ wsrep_cb_status_t wsrep_sst_donate_cb (void* app_ctx, void* recv_ctx,
     return WSREP_CB_FAILURE;
   }
 
+  if (data_home_dir)
+  {
+    if ((ret= sst_append_data_dir(env, data_home_dir)))
+    {
+      WSREP_ERROR("wsrep_sst_donate_cb(): appending data "
+                  "directory failed: %d", ret);
+      return WSREP_CB_FAILURE;
+    }
+  }
+
   if (!strcmp (WSREP_SST_MYSQLDUMP, method))
   {
     ret = sst_donate_mysqldump(data, &current_gtid->uuid, uuid_str,
@@ -1370,10 +1419,25 @@ void wsrep_SE_init_grab()
 
 void wsrep_SE_init_wait()
 {
+  double total_wtime=0;
+
   while (SE_initialized == false)
   {
-    mysql_cond_wait (&COND_wsrep_sst_init, &LOCK_wsrep_sst_init);
+    struct timespec wtime;
+    set_timespec(wtime, WSREP_TIMEDWAIT_SECONDS);
+    time_t start_time = time(NULL);
+    mysql_cond_timedwait (&COND_wsrep_sst_init, &LOCK_wsrep_sst_init, &wtime);
+    time_t end_time = time(NULL);
+
+    if (!SE_initialized)
+    {
+      total_wtime += difftime(end_time, start_time);
+      WSREP_DEBUG("Waiting for SST to complete. current seqno: %ld waited %f secs.", local_seqno, total_wtime);
+      service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
+        "WSREP state transfer ongoing, current seqno: %ld waited %f secs", local_seqno, total_wtime);
+    }
   }
+
   mysql_mutex_unlock (&LOCK_wsrep_sst_init);
 }
 

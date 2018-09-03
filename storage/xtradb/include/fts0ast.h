@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, MariaDB Corporation.
+Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -317,6 +317,8 @@ struct fts_ast_node_t {
 	fts_ast_node_t*	next_alloc;		/*!< For tracking allocations */
 	bool		visited;		/*!< whether this node is
 						already processed */
+	/** current transaction */
+	const trx_t*	trx;
 };
 
 /* To track state during parsing */

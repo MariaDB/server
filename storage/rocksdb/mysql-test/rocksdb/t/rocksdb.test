@@ -1,5 +1,6 @@
 --source include/have_rocksdb.inc
 --source include/have_partition.inc
+--source include/have_write_committed.inc
 
 #
 # RocksDB Storage Engine tests
@@ -574,7 +575,6 @@ insert into t30 values
   ('row3', 'row3-key', 'row3-data'),
   ('row4', 'row4-key', 'row4-data'),
   ('row5', 'row5-key', 'row5-data');
-analyze table t30;
 
 --replace_column 9 #
 explain 
@@ -786,11 +786,15 @@ drop table t45;
 --echo # Now it fails if there is data overlap with what
 --echo # already exists
 --echo #
+# We exclude rocksdb_max_open_files here because it value is dependent on
+# the value of the servers open_file_limit and is expected to be different
+# across distros and installs
 
 --replace_regex /[a-f0-9]{40}/#/
 show variables 
 where 
   variable_name like 'rocksdb%' and 
+  variable_name not like 'rocksdb_max_open_files' and
   variable_name not like 'rocksdb_supported_compression_types';
 
 create table t47 (pk int primary key, col1 varchar(12)) engine=rocksdb;
@@ -1147,7 +1151,7 @@ set @a=-1;
 insert into t1 select (@a:=@a+1), 1234 from information_schema.session_variables limit 100;
 set @tmp1= @@rocksdb_max_row_locks;
 set rocksdb_max_row_locks= 20;
---error ER_RDB_STATUS_GENERAL
+--error ER_GET_ERRMSG 
 update t1 set a=a+10;
 DROP TABLE t1;
 

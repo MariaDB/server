@@ -7954,7 +7954,7 @@ CLOSE cur1;
 end|
 set @tmp_toc= @@table_open_cache;
 set @tmp_tdc= @@table_definition_cache;
-set global table_open_cache=1;
+set global table_open_cache=10;
 set global table_definition_cache=1;
 Warnings:
 Warning	1292	Truncated incorrect table_definition_cache value: '1'
@@ -8250,6 +8250,17 @@ DROP PROCEDURE proc_13;
 DROP PROCEDURE proc_select;
 DROP TABLE t1, t2;
 SET max_sp_recursion_depth=default;
+#
+# MDEV-15347: Valgrind or ASAN errors in mysql_make_view on query
+# from information_schema
+#
+CREATE VIEW v AS SELECT 1;
+CREATE FUNCTION f() RETURNS INT RETURN 1;
+SELECT * FROM INFORMATION_SCHEMA.TABLES JOIN INFORMATION_SCHEMA.PARAMETERS
+UNION
+SELECT * FROM INFORMATION_SCHEMA.TABLES JOIN INFORMATION_SCHEMA.PARAMETERS;
+DROP FUNCTION f;
+DROP VIEW v;
 #End of 10.1 tests
 #
 # MDEV-11081: CURSOR for query with GROUP BY
@@ -8335,3 +8346,39 @@ ERROR 42S22: Unknown column 'name2' in 'field list'
 drop procedure p1;
 drop procedure p2;
 drop procedure p3;
+#
+# MDEV-15328: MariaDB 10.2.13 Crashes upon CALL PROCEDURE PARAM
+# LAST_INSERT_ID ()
+# (part 1, part 2 is in query_cache.test)
+#
+CREATE PROCEDURE foo ( IN i INT UNSIGNED ) BEGIN END;
+CALL foo( LAST_INSERT_ID() );
+DROP PROCEDURE foo;
+#
+# MDEV-15870 Using aggregate and window function in unexpected places can crash the server
+#
+CREATE PROCEDURE p1 (a TEXT) BEGIN END;
+CALL p1(RANK() OVER (ORDER BY 1));
+ERROR HY000: Window function is allowed only in SELECT list and ORDER BY clause
+CALL p1(ROW_NUMBER() OVER ());
+ERROR HY000: Window function is allowed only in SELECT list and ORDER BY clause
+CALL p1(SUM(1));
+ERROR HY000: Invalid use of group function
+DROP PROCEDURE p1;
+#
+# MDEV-16311 Server crash when using a NAME_CONST() with a CURSOR
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+BEGIN NOT ATOMIC
+DECLARE a INT;
+DECLARE c CURSOR FOR SELECT NAME_CONST('x','y') FROM t1;
+OPEN c;
+FETCH c INTO a;
+CLOSE c;
+END;
+$$
+ERROR 22007: Incorrect integer value: 'y' for column 'a' at row 1
+DROP TABLE t1;
+SET sql_mode=DEFAULT;

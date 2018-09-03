@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -22,35 +22,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 /** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
 system clustered index when there is no primary key. */
 extern const char innobase_index_reserve_name[];
-
-/* Structure defines translation table between mysql index and InnoDB
-index structures */
-struct innodb_idx_translate_t {
-
-	ulint		index_count;	/*!< number of valid index entries
-					in the index_mapping array */
-
-	ulint		array_size;	/*!< array size of index_mapping */
-
-	dict_index_t**	index_mapping;	/*!< index pointer array directly
-					maps to index in InnoDB from MySQL
-					array index */
-};
-
-/** InnoDB table share */
-typedef struct st_innobase_share {
-	THR_LOCK	lock;
-	const char*	table_name;	/*!< InnoDB table name */
-	uint		use_count;	/*!< reference count,
-					incremented in get_share()
-					and decremented in
-					free_share() */
-	void*		table_name_hash;
-					/*!< hash table chain node */
-	innodb_idx_translate_t
-			idx_trans_tbl;	/*!< index translation table between
-					MySQL and InnoDB */
-} INNOBASE_SHARE;
 
 /** Prebuilt structures in an InnoDB table handle used within MySQL */
 struct row_prebuilt_t;
@@ -492,9 +463,6 @@ protected:
 
 	THR_LOCK_DATA	lock;
 
-	/** information for MySQL table locking */
-	INNOBASE_SHARE*		m_share;
-
 	/** buffer used in updates */
 	uchar*			m_upd_buf;
 
@@ -631,17 +599,6 @@ trx_t*
 innobase_trx_allocate(
 	MYSQL_THD	thd);	/*!< in: user thread handle */
 
-/** Match index columns between MySQL and InnoDB.
-This function checks whether the index column information
-is consistent between KEY info from mysql and that from innodb index.
-@param[in]	key_info	Index info from mysql
-@param[in]	index_info	Index info from InnoDB
-@return true if all column types match. */
-bool
-innobase_match_index_columns(
-	const KEY*		key_info,
-	const dict_index_t*	index_info);
-
 /*********************************************************************//**
 This function checks each index name for a table against reserved
 system default primary index name 'GEN_CLUST_INDEX'. If a name
@@ -744,6 +701,9 @@ public:
 	/** Get table flags. */
 	ulint flags() const
 	{ return(m_flags); }
+
+	/** Update table flags. */
+	void flags_set(ulint flags) { m_flags |= flags; }
 
 	/** Get table flags2. */
 	ulint flags2() const
@@ -910,11 +870,6 @@ innodb_base_col_setup_for_stored(
 #define normalize_table_name(norm_name, name)           \
 	create_table_info_t::normalize_table_name_low(norm_name, name, FALSE)
 #endif /* _WIN32 */
-
-/** Obtain the InnoDB transaction of a MySQL thread.
-@param[in,out]	thd	MySQL thread handler.
-@return reference to transaction pointer */
-trx_t*& thd_to_trx(THD*	thd);
 
 /** Converts an InnoDB error code to a MySQL error code.
 Also tells to MySQL about a possible transaction rollback inside InnoDB caused

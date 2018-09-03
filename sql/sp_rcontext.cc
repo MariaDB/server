@@ -509,9 +509,15 @@ int sp_cursor::fetch(THD *thd, List<sp_variable> *vars)
 
   result.set_spvar_list(vars);
 
+  DBUG_ASSERT(!thd->is_error());
+
   /* Attempt to fetch one row */
   if (server_side_cursor->is_open())
+  {
     server_side_cursor->fetch(1);
+    if (thd->is_error())
+      return -1; // e.g. data type conversion failed
+  }
 
   /*
     If the cursor was pointing after the last row, the fetch will

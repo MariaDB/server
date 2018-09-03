@@ -139,3 +139,22 @@ ALTER TABLE t1 ADD PARTITION PARTITIONS 2;
 SELECT 1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-15245: Assertion `false' failed in myrocks::ha_rocksdb::position
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1),(2);
+# partitioning
+CREATE TABLE t2 (b INT) ENGINE=RocksDB 
+PARTITION BY RANGE(b) 
+(PARTITION p0 VALUES LESS THAN (1), 
+ PARTITION p1 VALUES LESS THAN MAXVALUE);
+
+
+INSERT INTO t2 VALUES (NULL),(0);
+CREATE ALGORITHM = MERGE VIEW v1 AS SELECT t2.* FROM t1, t2;
+UPDATE v1 SET b = 5;
+
+drop view v1;
+drop table t1,t2;
+

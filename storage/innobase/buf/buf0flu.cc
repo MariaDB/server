@@ -63,6 +63,8 @@ static const int buf_flush_page_cleaner_priority = -20;
 modification lsn */
 static const ulint buf_flush_wait_flushed_sleep_time = 10000;
 
+#include <my_service_manager.h>
+
 /** Number of pages flushed through non flush_list flushes. */
 static ulint buf_lru_flush_page_count = 0;
 
@@ -641,6 +643,17 @@ buf_flush_remove(
 {
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 
+#if 0 // FIXME: Rate-limit the output. Move this to the page cleaner?
+	if (UNIV_UNLIKELY(srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE)) {
+		service_manager_extend_timeout(
+			INNODB_EXTEND_TIMEOUT_INTERVAL,
+			"Flush and remove page with tablespace id %u"
+			", Poolid " ULINTPF ", flush list length " ULINTPF,
+			bpage->space, buf_pool->instance_no,
+			UT_LIST_GET_LEN(buf_pool->flush_list));
+	}
+#endif
+
 	ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(mutex_own(buf_page_get_mutex(bpage)));
 	ut_ad(bpage->in_flush_list);
@@ -776,12 +789,10 @@ buf_flush_relocate_on_flush_list(
 	buf_flush_list_mutex_exit(buf_pool);
 }
 
-/********************************************************************//**
-Updates the flush system data structures when a write is completed. */
-void
-buf_flush_write_complete(
-/*=====================*/
-	buf_page_t*	bpage)	/*!< in: pointer to the block in question */
+/** Update the flush system data structures when a write is completed.
+@param[in,out]	bpage	flushed page
+@param[in]	dblwr	whether the doublewrite buffer was used */
+void buf_flush_write_complete(buf_page_t* bpage, bool dblwr)
 {
 	buf_flush_t	flush_type;
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -804,7 +815,9 @@ buf_flush_write_complete(
 		os_event_set(buf_pool->no_flush[flush_type]);
 	}
 
-	buf_dblwr_update(bpage, flush_type);
+	if (dblwr) {
+		buf_dblwr_update(bpage, flush_type);
+	}
 }
 
 /** Calculate the checksum of a page from compressed table and update
@@ -832,18 +845,14 @@ buf_flush_update_zip_checksum(
 @param[in]	block		buffer block; NULL if bypassing the buffer pool
 @param[in,out]	page		page frame
 @param[in,out]	page_zip_	compressed page, or NULL if uncompressed
-@param[in]	newest_lsn	newest modification LSN to the page
-@param[in]	skip_checksum	whether to disable the page checksum */
+@param[in]	newest_lsn	newest modification LSN to the page */
 void
 buf_flush_init_for_writing(
 	const buf_block_t*	block,
 	byte*			page,
 	void*			page_zip_,
-	lsn_t			newest_lsn,
-	bool			skip_checksum)
+	lsn_t			newest_lsn)
 {
-	ib_uint32_t	checksum = BUF_NO_CHECKSUM_MAGIC;
-
 	ut_ad(block == NULL || block->frame == page);
 	ut_ad(block == NULL || page_zip_ == NULL
 	      || &block->page.zip == page_zip_);
@@ -895,111 +904,96 @@ buf_flush_init_for_writing(
 	mach_write_to_8(page + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM,
 			newest_lsn);
 
-	if (skip_checksum) {
-		ut_ad(block == NULL
-		      || block->page.id.space() == SRV_TMP_SPACE_ID);
-		ut_ad(page_get_space_id(page) == SRV_TMP_SPACE_ID);
-		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
-	} else {
-		if (block != NULL && UNIV_PAGE_SIZE == 16384) {
-			/* The page type could be garbage in old files
-			created before MySQL 5.5. Such files always
-			had a page size of 16 kilobytes. */
-			ulint	page_type = fil_page_get_type(page);
-			ulint	reset_type = page_type;
+	if (block && srv_page_size == 16384) {
+		/* The page type could be garbage in old files
+		created before MySQL 5.5. Such files always
+		had a page size of 16 kilobytes. */
+		ulint	page_type = fil_page_get_type(page);
+		ulint	reset_type = page_type;
 
-			switch (block->page.id.page_no() % 16384) {
-			case 0:
-				reset_type = block->page.id.page_no() == 0
-					? FIL_PAGE_TYPE_FSP_HDR
-					: FIL_PAGE_TYPE_XDES;
+		switch (block->page.id.page_no() % 16384) {
+		case 0:
+			reset_type = block->page.id.page_no() == 0
+				? FIL_PAGE_TYPE_FSP_HDR
+				: FIL_PAGE_TYPE_XDES;
+			break;
+		case 1:
+			reset_type = FIL_PAGE_IBUF_BITMAP;
+			break;
+		case FSP_TRX_SYS_PAGE_NO:
+			if (block->page.id.page_no()
+			    == TRX_SYS_PAGE_NO
+			    && block->page.id.space()
+			    == TRX_SYS_SPACE) {
+				reset_type = FIL_PAGE_TYPE_TRX_SYS;
 				break;
-			case 1:
-				reset_type = FIL_PAGE_IBUF_BITMAP;
-				break;
-			case FSP_TRX_SYS_PAGE_NO:
-				if (block->page.id.page_no()
-				    == TRX_SYS_PAGE_NO
-				    && block->page.id.space()
-				    == TRX_SYS_SPACE) {
-					reset_type = FIL_PAGE_TYPE_TRX_SYS;
-					break;
-				}
-				/* fall through */
-			default:
-				switch (page_type) {
-				case FIL_PAGE_INDEX:
-				case FIL_PAGE_RTREE:
-				case FIL_PAGE_UNDO_LOG:
-				case FIL_PAGE_INODE:
-				case FIL_PAGE_IBUF_FREE_LIST:
-				case FIL_PAGE_TYPE_ALLOCATED:
-				case FIL_PAGE_TYPE_SYS:
-				case FIL_PAGE_TYPE_TRX_SYS:
-				case FIL_PAGE_TYPE_BLOB:
-				case FIL_PAGE_TYPE_ZBLOB:
-				case FIL_PAGE_TYPE_ZBLOB2:
-					break;
-				case FIL_PAGE_TYPE_FSP_HDR:
-				case FIL_PAGE_TYPE_XDES:
-				case FIL_PAGE_IBUF_BITMAP:
-					/* These pages should have
-					predetermined page numbers
-					(see above). */
-				default:
-					reset_type = FIL_PAGE_TYPE_UNKNOWN;
-					break;
-				}
 			}
-
-			if (UNIV_UNLIKELY(page_type != reset_type)) {
-				ib::info()
-					<< "Resetting invalid page "
-					<< block->page.id << " type "
-					<< page_type << " to "
-					<< reset_type << " when flushing.";
-				fil_page_set_type(page, reset_type);
+			/* fall through */
+		default:
+			switch (page_type) {
+			case FIL_PAGE_INDEX:
+			case FIL_PAGE_RTREE:
+			case FIL_PAGE_UNDO_LOG:
+			case FIL_PAGE_INODE:
+			case FIL_PAGE_IBUF_FREE_LIST:
+			case FIL_PAGE_TYPE_ALLOCATED:
+			case FIL_PAGE_TYPE_SYS:
+			case FIL_PAGE_TYPE_TRX_SYS:
+			case FIL_PAGE_TYPE_BLOB:
+			case FIL_PAGE_TYPE_ZBLOB:
+			case FIL_PAGE_TYPE_ZBLOB2:
+				break;
+			case FIL_PAGE_TYPE_FSP_HDR:
+			case FIL_PAGE_TYPE_XDES:
+			case FIL_PAGE_IBUF_BITMAP:
+				/* These pages should have
+				predetermined page numbers
+				(see above). */
+			default:
+				reset_type = FIL_PAGE_TYPE_UNKNOWN;
+				break;
 			}
 		}
 
-		switch ((srv_checksum_algorithm_t) srv_checksum_algorithm) {
-		case SRV_CHECKSUM_ALGORITHM_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-			checksum = buf_calc_page_crc32(page);
-			mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM,
-					checksum);
-			break;
-		case SRV_CHECKSUM_ALGORITHM_INNODB:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-			checksum = (ib_uint32_t) buf_calc_page_new_checksum(
-				page);
-			mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM,
-					checksum);
-			checksum = (ib_uint32_t) buf_calc_page_old_checksum(
-				page);
-			break;
-		case SRV_CHECKSUM_ALGORITHM_NONE:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-			mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM,
-					checksum);
-			break;
-			/* no default so the compiler will emit a warning if
-			new enum is added and not handled here */
+		if (UNIV_UNLIKELY(page_type != reset_type)) {
+			ib::info()
+				<< "Resetting invalid page "
+				<< block->page.id << " type "
+				<< page_type << " to "
+				<< reset_type << " when flushing.";
+			fil_page_set_type(page, reset_type);
 		}
 	}
 
-	/* With the InnoDB checksum, we overwrite the first 4 bytes of
-	the end lsn field to store the old formula checksum. Since it
-	depends also on the field FIL_PAGE_SPACE_OR_CHKSUM, it has to
-	be calculated after storing the new formula checksum.
+	uint32_t checksum = BUF_NO_CHECKSUM_MAGIC;
 
-	In other cases we write the same value to both fields.
-	If CRC32 is used then it is faster to use that checksum
-	(calculated above) instead of calculating another one.
-	We can afford to store something other than
-	buf_calc_page_old_checksum() or BUF_NO_CHECKSUM_MAGIC in
-	this field because the file will not be readable by old
-	versions of MySQL/InnoDB anyway (older than MySQL 5.6.3) */
+	switch (srv_checksum_algorithm_t(srv_checksum_algorithm)) {
+	case SRV_CHECKSUM_ALGORITHM_INNODB:
+	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
+		checksum = buf_calc_page_new_checksum(page);
+		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM,
+				checksum);
+		/* With the InnoDB checksum, we overwrite the first 4 bytes of
+		the end lsn field to store the old formula checksum. Since it
+		depends also on the field FIL_PAGE_SPACE_OR_CHKSUM, it has to
+		be calculated after storing the new formula checksum. */
+		checksum = buf_calc_page_old_checksum(page);
+		break;
+	case SRV_CHECKSUM_ALGORITHM_CRC32:
+	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
+		/* In other cases we write the same checksum to both fields. */
+		checksum = buf_calc_page_crc32(page);
+		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM,
+				checksum);
+		break;
+	case SRV_CHECKSUM_ALGORITHM_NONE:
+	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
+		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM,
+				checksum);
+		break;
+		/* no default so the compiler will emit a warning if
+		new enum is added and not handled here */
+	}
 
 	mach_write_to_4(page + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM,
 			checksum);
@@ -1025,8 +1019,8 @@ buf_flush_write_block_low(
 	ut_ad(space->purpose == FIL_TYPE_TEMPORARY
 	      || space->purpose == FIL_TYPE_IMPORT
 	      || space->purpose == FIL_TYPE_TABLESPACE);
-	const bool	is_temp = space->purpose == FIL_TYPE_TEMPORARY;
-	ut_ad(is_temp == fsp_is_system_temporary(space->id));
+	ut_ad((space->purpose == FIL_TYPE_TEMPORARY)
+	      == fsp_is_system_temporary(space->id));
 	page_t*	frame = NULL;
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -1088,20 +1082,15 @@ buf_flush_write_block_low(
 			reinterpret_cast<const buf_block_t*>(bpage),
 			reinterpret_cast<const buf_block_t*>(bpage)->frame,
 			bpage->zip.data ? &bpage->zip : NULL,
-			bpage->newest_modification, is_temp);
+			bpage->newest_modification);
 		break;
 	}
 
 	frame = buf_page_encrypt_before_write(space, bpage, frame);
 
-	/* Disable use of double-write buffer for temporary tablespace.
-	Given the nature and load of temporary tablespace doublewrite buffer
-	adds an overhead during flushing. */
-
-	if (is_temp || space->atomic_write_supported
-	    || !srv_use_doublewrite_buf
-	    || buf_dblwr == NULL) {
-
+	ut_ad(space->purpose == FIL_TYPE_TABLESPACE
+	      || space->atomic_write_supported);
+	if (!space->use_doublewrite()) {
 		ulint	type = IORequest::WRITE | IORequest::DO_NOT_WAKE;
 
 		IORequest	request(type, bpage);
@@ -1126,7 +1115,7 @@ buf_flush_write_block_low(
 	are working on. */
 	if (sync) {
 		ut_ad(flush_type == BUF_FLUSH_SINGLE_PAGE);
-		if (!is_temp) {
+		if (space->purpose != FIL_TYPE_TEMPORARY) {
 			fil_flush(space);
 		}
 
@@ -1141,7 +1130,7 @@ buf_flush_write_block_low(
 #endif
 		/* true means we want to evict this page from the
 		LRU list as well. */
-		buf_page_io_complete(bpage, true);
+		buf_page_io_complete(bpage, space->use_doublewrite(), true);
 
 		ut_ad(err == DB_SUCCESS);
 	}
@@ -1654,8 +1643,6 @@ buf_flush_LRU_list_batch(
 {
 	buf_page_t*	bpage;
 	ulint		scanned = 0;
-	ulint		evict_count = 0;
-	ulint		count = 0;
 	ulint		free_len = UT_LIST_GET_LEN(buf_pool->free);
 	ulint		lru_len = UT_LIST_GET_LEN(buf_pool->LRU);
 	ulint		withdraw_depth = 0;
@@ -1671,7 +1658,7 @@ buf_flush_LRU_list_batch(
 	}
 
 	for (bpage = UT_LIST_GET_LAST(buf_pool->LRU);
-	     bpage != NULL && count + evict_count < max
+	     bpage != NULL && n->flushed + n->evicted < max
 	     && free_len < srv_LRU_scan_depth + withdraw_depth
 	     && lru_len > BUF_LRU_MIN_LEN;
 	     ++scanned,
@@ -1689,7 +1676,7 @@ buf_flush_LRU_list_batch(
 			clean and is not IO-fixed or buffer fixed. */
 			mutex_exit(block_mutex);
 			if (buf_LRU_free_page(bpage, true)) {
-				++evict_count;
+				++n->evicted;
 			}
 		} else if (buf_flush_ready_for_flush(bpage, BUF_FLUSH_LRU)) {
 			/* Block is ready for flush. Dispatch an IO
@@ -1697,7 +1684,7 @@ buf_flush_LRU_list_batch(
 			free list in IO completion routine. */
 			mutex_exit(block_mutex);
 			buf_flush_page_and_try_neighbors(
-				bpage, BUF_FLUSH_LRU, max, &count);
+				bpage, BUF_FLUSH_LRU, max, &n->flushed);
 		} else {
 			/* Can't evict or dispatch this block. Go to
 			previous. */
@@ -1721,12 +1708,12 @@ buf_flush_LRU_list_batch(
 
 	ut_ad(buf_pool_mutex_own(buf_pool));
 
-	if (evict_count) {
+	if (n->evicted) {
 		MONITOR_INC_VALUE_CUMULATIVE(
 			MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE,
 			MONITOR_LRU_BATCH_EVICT_COUNT,
 			MONITOR_LRU_BATCH_EVICT_PAGES,
-			evict_count);
+			n->evicted);
 	}
 
 	if (scanned) {
@@ -2183,16 +2170,16 @@ buf_flush_lists(
 			failure. */
 			success = false;
 
-			continue;
 		}
+
+		n_flushed += n.flushed;
 	}
 
 	if (n_flushed) {
 		buf_flush_stats(n_flushed, 0);
-	}
-
-	if (n_processed) {
-		*n_processed = n_flushed;
+		if (n_processed) {
+			*n_processed = n_flushed;
+		}
 	}
 
 	return(success);
@@ -2739,25 +2726,6 @@ buf_flush_page_cleaner_init(void)
 	ut_d(page_cleaner.n_disabled_debug = 0);
 
 	page_cleaner.is_running = true;
-}
-
-/**
-Close page_cleaner. */
-static
-void
-buf_flush_page_cleaner_close(void)
-{
-	ut_ad(!page_cleaner.is_running);
-
-	/* waiting for all worker threads exit */
-	while (page_cleaner.n_workers) {
-		os_thread_sleep(10000);
-	}
-
-	mutex_destroy(&page_cleaner.mutex);
-
-	os_event_destroy(page_cleaner.is_finished);
-	os_event_destroy(page_cleaner.is_requested);
 }
 
 /**
@@ -3461,9 +3429,17 @@ thread_exit:
 	and no more access to page_cleaner structure by them.
 	Wakes worker threads up just to make them exit. */
 	page_cleaner.is_running = false;
-	os_event_set(page_cleaner.is_requested);
 
-	buf_flush_page_cleaner_close();
+	/* waiting for all worker threads exit */
+	while (page_cleaner.n_workers) {
+		os_event_set(page_cleaner.is_requested);
+		os_thread_sleep(10000);
+	}
+
+	mutex_destroy(&page_cleaner.mutex);
+
+	os_event_destroy(page_cleaner.is_finished);
+	os_event_destroy(page_cleaner.is_requested);
 
 	buf_page_cleaner_is_active = false;
 
@@ -3759,18 +3735,12 @@ FlushObserver::~FlushObserver()
 	DBUG_LOG("flush", "~FlushObserver(): trx->id=" << m_trx->id);
 }
 
-/** Check whether trx is interrupted
-@return true if trx is interrupted */
-bool
-FlushObserver::check_interrupted()
+/** Check whether the operation has been interrupted */
+void FlushObserver::check_interrupted()
 {
 	if (trx_is_interrupted(m_trx)) {
 		interrupted();
-
-		return(true);
 	}
-
-	return(false);
 }
 
 /** Notify observer of a flush

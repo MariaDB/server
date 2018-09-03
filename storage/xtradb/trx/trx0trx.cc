@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -278,7 +278,7 @@ trx_create(void)
 	trx->distinct_page_access_hash = NULL;
 	trx->take_stats = FALSE;
 
-	trx->xid.formatID = -1;
+	trx->xid.null();
 
 	trx->op_info = "";
 
@@ -1041,8 +1041,7 @@ trx_start_low(
 	}
 
 #ifdef WITH_WSREP
-        memset(&trx->xid, 0, sizeof(trx->xid));
-        trx->xid.formatID = -1;
+        trx->xid.null();
 #endif /* WITH_WSREP */
 
 	/* The initial value for trx->no: TRX_ID_MAX is used in
@@ -1471,6 +1470,8 @@ trx_commit_in_memory(
 
 	if (lsn) {
 		ulint	flush_log_at_trx_commit;
+
+		DEBUG_SYNC_C("after_trx_committed_in_memory");
 
 		if (trx->insert_undo != NULL) {
 
@@ -2571,6 +2572,7 @@ trx_get_trx_by_xid_low(
 
 		if (trx->is_recovered
 		    && trx_state_eq(trx, TRX_STATE_PREPARED)
+		    && !trx->xid.is_null()
 		    && xid->gtrid_length == trx->xid.gtrid_length
 		    && xid->bqual_length == trx->xid.bqual_length
 		    && memcmp(xid->data, trx->xid.data,
@@ -2578,8 +2580,7 @@ trx_get_trx_by_xid_low(
 
 			/* Invalidate the XID, so that subsequent calls
 			will not find it. */
-			memset(&trx->xid, 0, sizeof(trx->xid));
-			trx->xid.formatID = -1;
+			trx->xid.null();
 			break;
 		}
 	}

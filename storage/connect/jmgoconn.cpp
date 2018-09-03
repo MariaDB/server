@@ -254,7 +254,7 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 			all = true;
 
 	if (pipe && Options) {
-		if (trace)
+		if (trace(1))
 			htrc("Pipeline: %s\n", Options);
 
 		p = strrchr(Options, ']');
@@ -312,13 +312,13 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 		*(char*)p = ']';		 // Restore Colist for discovery
 		p = s->GetStr();
 
-		if (trace)
+		if (trace(33))
 			htrc("New Pipeline: %s\n", p);
 
 		return AggregateCollection(p);
 	} else {
 		if (filter || filp) {
-			if (trace) {
+			if (trace(1)) {
 				if (filter)
 					htrc("Filter: %s\n", filter);
 
@@ -346,7 +346,7 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 				tdbp->SetFilter(NULL);     // Not needed anymore
 			} // endif To_Filter
 
-			if (trace)
+			if (trace(33))
 				htrc("selector: %s\n", s->GetStr());
 
 			s->Resize(s->GetLength() + 1);
@@ -355,7 +355,7 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 
 		if (!all) {
 			if (Options && *Options) {
-				if (trace)
+				if (trace(1))
 					htrc("options=%s\n", Options);
 
 				op = Options;
@@ -522,7 +522,7 @@ PSZ JMgoConn::GetDocument(void)
 		jdc = (jstring)env->CallObjectMethod(job, getdocid);
 
 		if (jdc)
-			doc = (PSZ)env->GetStringUTFChars(jdc, (jboolean)false);
+			doc = (PSZ)GetUTFString(jdc);
 
 	} // endif getdocid
 
@@ -690,7 +690,7 @@ jobject JMgoConn::MakeDoc(PGLOBAL g, PJNCOL jcp)
 
 		} // endif Jncolp
 
-		return parent;
+	return parent;
 } // end of MakeDoc
 
 /***********************************************************************/
@@ -751,7 +751,7 @@ int JMgoConn::DocUpdate(PGLOBAL g, PTDB tdbp)
 
 	jlong ar = env->CallLongMethod(job, updateid, upd);
 
-	if (trace)
+	if (trace(1))
 		htrc("DocUpdate: ar = %ld\n", ar);
 
 	if (Check((int)ar)) {
@@ -770,7 +770,7 @@ int JMgoConn::DocDelete(PGLOBAL g, bool all)
 	int   rc = RC_OK;
 	jlong ar = env->CallLongMethod(job, deleteid, all);
 
-	if (trace)
+	if (trace(1))
 		htrc("DocDelete: ar = %ld\n", ar);
 
 	if (Check((int)ar)) {
@@ -807,7 +807,7 @@ PSZ JMgoConn::GetColumnValue(PSZ path)
 		fn = (jstring)env->CallObjectMethod(job, objfldid, jn);
 
 		if (fn)
-			fld = (PSZ)env->GetStringUTFChars(fn, (jboolean)false);
+			fld = (PSZ)GetUTFString(fn);
 
 	}	// endif objfldid
 

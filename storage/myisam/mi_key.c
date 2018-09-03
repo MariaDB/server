@@ -553,7 +553,7 @@ ulonglong retrieve_auto_increment(MI_INFO *info,const uchar *record)
 
   switch (keyseg->type) {
   case HA_KEYTYPE_INT8:
-    s_value= (longlong) *(char*)key;
+    s_value= (longlong) *(const signed char*) key;
     break;
   case HA_KEYTYPE_BINARY:
     value=(ulonglong)  *(uchar*) key;

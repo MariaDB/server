@@ -117,7 +117,7 @@ void wsrep_post_commit(THD* thd, bool all)
 
   switch (thd->wsrep_exec_mode)
   {
-  case LOCAL_COMMIT:
+    case LOCAL_COMMIT:
     {
       DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
       if (wsrep && wsrep->post_commit(wsrep, &thd->wsrep_ws_handle))
@@ -129,18 +129,30 @@ void wsrep_post_commit(THD* thd, bool all)
       wsrep_cleanup_transaction(thd);
       break;
     }
- case LOCAL_STATE:
-   {
-     /*
-       Non-InnoDB statements may have populated events in stmt cache => cleanup
-     */
-     WSREP_DEBUG("cleanup transaction for LOCAL_STATE: %s", thd->query());
-     wsrep_cleanup_transaction(thd);
-     break;
-   }
-  default: break;
+    case LOCAL_STATE:
+    {
+      /* non-InnoDB statements may have populated events in stmt cache
+        => cleanup
+      */
+      WSREP_DEBUG("cleanup transaction for LOCAL_STATE");
+      /*
+        Run post-rollback hook to clean up in the case if
+        some keys were populated for the transaction in provider
+        but during commit time there was no write set to replicate.
+        This may happen when client sets the SAVEPOINT and immediately
+        rolls back to savepoint after first operation.
+      */
+      if (all && thd->wsrep_conflict_state != MUST_REPLAY &&
+          wsrep && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
+      {
+        WSREP_WARN("post_rollback fail: %llu %d",
+		(long long)thd->thread_id, thd->get_stmt_da()->status());
+      }
+      wsrep_cleanup_transaction(thd);
+      break;
+    }
+    default: break;
   }
-
 }
 
 /*
@@ -238,12 +250,12 @@ static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
     DBUG_RETURN(0);
   }
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   switch (thd->wsrep_exec_mode)
   {
   case TOTAL_ORDER:
   case REPL_RECV:
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
       WSREP_DEBUG("Avoiding wsrep rollback for failed DDL: %s", thd->query());
       DBUG_RETURN(0);
   default: break;
@@ -261,7 +273,7 @@ static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
     }
     wsrep_cleanup_transaction(thd);
   }
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
   DBUG_RETURN(0);
 }
 
@@ -274,7 +286,7 @@ int wsrep_commit(handlerton *hton, THD *thd, bool all)
     DBUG_RETURN(0);
   }
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   if ((all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
       (thd->variables.wsrep_on && thd->wsrep_conflict_state != MUST_REPLAY))
   {
@@ -305,7 +317,7 @@ int wsrep_commit(handlerton *hton, THD *thd, bool all)
       wsrep_cleanup_transaction(thd);
     }
   }
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
   DBUG_RETURN(0);
 }
 
@@ -333,20 +345,20 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
 
   if (thd->wsrep_exec_mode == REPL_RECV) {
 
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     if (thd->wsrep_conflict_state == MUST_ABORT) {
       if (wsrep_debug)
         WSREP_INFO("WSREP: must abort for BF");
       DBUG_PRINT("wsrep", ("BF apply commit fail"));
       thd->wsrep_conflict_state = NO_CONFLICT;
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
       //
       // TODO: test all calls of the rollback.
       // rollback must happen automagically innobase_rollback(hton, thd, 1);
       //
       DBUG_RETURN(WSREP_TRX_ERROR);
     }
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
 
   if (thd->wsrep_exec_mode != LOCAL_STATE) DBUG_RETURN(WSREP_TRX_OK);
@@ -358,11 +370,11 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
 
   DBUG_PRINT("wsrep", ("replicating commit"));
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   if (thd->wsrep_conflict_state == MUST_ABORT) {
     DBUG_PRINT("wsrep", ("replicate commit fail"));
     thd->wsrep_conflict_state = ABORTED;
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
     if (wsrep_debug) {
       WSREP_INFO("innobase_commit, abort %s",
                  (thd->query()) ? thd->query() : "void");
@@ -379,7 +391,7 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
   {
 
     mysql_mutex_unlock(&LOCK_wsrep_replaying);
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
 
     mysql_mutex_lock(&thd->mysys_var->mutex);
     thd_proc_info(thd, "wsrep waiting on replaying");
@@ -407,7 +419,7 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
     thd->mysys_var->current_cond=  0;
     mysql_mutex_unlock(&thd->mysys_var->mutex);
 
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     mysql_mutex_lock(&LOCK_wsrep_replaying);
   }
   mysql_mutex_unlock(&LOCK_wsrep_replaying);
@@ -415,14 +427,14 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
   if (thd->wsrep_conflict_state == MUST_ABORT) {
     DBUG_PRINT("wsrep", ("replicate commit fail"));
     thd->wsrep_conflict_state = ABORTED;
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
     WSREP_DEBUG("innobase_commit abort after replaying wait %s",
                 (thd->query()) ? thd->query() : "void");
     DBUG_RETURN(WSREP_TRX_CERT_FAIL);
   }
 
   thd->wsrep_query_state = QUERY_COMMITTING;
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   cache = get_trans_log(thd);
   rcode = 0;
@@ -489,10 +501,10 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
       WSREP_DEBUG("thd: %lld  seqno: %lld  BF aborted by provider, will replay",
                   (longlong) thd->thread_id,
                   (longlong) thd->wsrep_trx_meta.gtid.seqno);
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_lock(&thd->LOCK_thd_data);
       thd->wsrep_conflict_state = MUST_REPLAY;
       DBUG_ASSERT(wsrep_thd_trx_seqno(thd) > 0);
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
       mysql_mutex_lock(&LOCK_wsrep_replaying);
       wsrep_replaying++;
       WSREP_DEBUG("replaying increased: %d, thd: %lld",
@@ -506,7 +518,7 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
     DBUG_RETURN(WSREP_TRX_ERROR);
   }
 
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
 
   DEBUG_SYNC(thd, "wsrep_after_replication");
 
@@ -560,26 +572,26 @@ wsrep_run_wsrep_commit(THD *thd, bool all)
         WSREP_LOG_CONFLICT(NULL, thd, FALSE);
       }
     }
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
 
     DBUG_RETURN(WSREP_TRX_CERT_FAIL);
 
   case WSREP_SIZE_EXCEEDED:
     WSREP_ERROR("transaction size exceeded");
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
     DBUG_RETURN(WSREP_TRX_SIZE_EXCEEDED);
   case WSREP_CONN_FAIL:
     WSREP_ERROR("connection failure");
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
     DBUG_RETURN(WSREP_TRX_ERROR);
   default:
     WSREP_ERROR("unknown connection failure");
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
     DBUG_RETURN(WSREP_TRX_ERROR);
   }
 
   thd->wsrep_query_state= QUERY_EXEC;
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   DBUG_RETURN(WSREP_TRX_OK);
 }

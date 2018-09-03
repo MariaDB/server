@@ -1661,7 +1661,7 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
   {
     /* If we are in bootstrap mode we should not load time zone tables */
     return_val= time_zone_tables_exist= 0;
-    goto end_with_setting_default_tz;
+    goto end_with_cleanup;
   }
 
   /*
@@ -2687,9 +2687,7 @@ main(int argc, char **argv)
   char **default_argv;
   MY_INIT(argv[0]);
 
-  if (load_defaults("my",load_default_groups,&argc,&argv))
-    exit(1);
-
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   default_argv= argv;
 
   if ((handle_options(&argc, &argv, my_long_options, get_one_option)))

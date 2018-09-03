@@ -770,7 +770,7 @@ public:
   /*
     Point to the LEX in which it was created, used in view subquery detection.
 
-    TODO: make also st_select_lex::parent_stmt_lex (see THD::stmt_lex)
+    TODO: make also st_select_lex::parent_stmt_lex (see LEX::stmt_lex)
     and use st_select_lex::parent_lex & st_select_lex::parent_stmt_lex
     instead of global (from THD) references where it is possible.
   */
@@ -862,6 +862,11 @@ public:
   uint select_n_where_fields;
   /* reserved for exists 2 in */
   uint select_n_reserved;
+  /*
+   it counts the number of bit fields in the SELECT list. These are used when DISTINCT is
+   converted to a GROUP BY involving BIT fields.
+  */
+  uint hidden_bit_fields;
   enum_parsing_place parsing_place; /* where we are parsing expression */
   enum_parsing_place context_analysis_place; /* where we are in prepare */
   bool with_sum_func;   /* sum function indicator */
@@ -882,6 +887,11 @@ public:
   bool  braces;   	/* SELECT ... UNION (SELECT ... ) <- this braces */
   /* TRUE when having fix field called in processing of this SELECT */
   bool having_fix_field;
+  /*
+    TRUE when fix field is called for a new condition pushed into the
+    HAVING clause of this SELECT
+  */
+  bool having_fix_field_for_pushed_cond;
   /* List of references to fields referenced from inner selects */
   List<Item_outer_ref> inner_refs_list;
   /* Number of Item_sum-derived objects in this SELECT */
@@ -902,6 +912,7 @@ public:
   */
   bool subquery_in_having;
   /* TRUE <=> this SELECT is correlated w.r.t. some ancestor select */
+  bool with_all_modifier;  /* used for selects in union */
   bool is_correlated;
   /*
     This variable is required to ensure proper work of subqueries and
@@ -2547,6 +2558,21 @@ struct LEX: public Query_tables_list
 
   // type information
   CHARSET_INFO *charset;
+  /*
+    LEX which represents current statement (conventional, SP or PS)
+
+    For example during view parsing THD::lex will point to the views LEX and
+    lex::stmt_lex will point to LEX of the statement where the view will be
+    included
+
+    Currently it is used to have always correct select numbering inside
+    statement (LEX::current_select_number) without storing and restoring a
+    global counter which was THD::select_number.
+
+    TODO: make some unified statement representation (now SP has different)
+    to store such data like LEX::current_select_number.
+  */
+  LEX *stmt_lex;
 
   LEX_STRING name;
   char *help_arg;
@@ -2902,21 +2928,24 @@ public:
   {
     safe_to_cache_query= 0;
 
-    /*
-      There are no sense to mark select_lex and union fields of LEX,
-      but we should merk all subselects as uncacheable from current till
-      most upper
-    */
-    SELECT_LEX *sl;
-    SELECT_LEX_UNIT *un;
-    for (sl= current_select, un= sl->master_unit();
-	 un != &unit;
-	 sl= sl->outer_select(), un= sl->master_unit())
+    if (current_select) // initialisation SP variables has no SELECT
     {
-      sl->uncacheable|= cause;
-      un->uncacheable|= cause;
+      /*
+        There are no sense to mark select_lex and union fields of LEX,
+        but we should merk all subselects as uncacheable from current till
+        most upper
+      */
+      SELECT_LEX *sl;
+      SELECT_LEX_UNIT *un;
+      for (sl= current_select, un= sl->master_unit();
+          un != &unit;
+          sl= sl->outer_select(), un= sl->master_unit())
+      {
+        sl->uncacheable|= cause;
+        un->uncacheable|= cause;
+      }
+      select_lex.uncacheable|= cause;
     }
-    select_lex.uncacheable|= cause;
   }
   void set_trg_event_type_for_tables();
 

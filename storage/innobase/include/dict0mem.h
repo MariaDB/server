@@ -612,6 +612,13 @@ struct dict_col_t{
 	unsigned	max_prefix:12;	/*!< maximum index prefix length on
 					this column. Our current max limit is
 					3072 for Barracuda table */
+
+	/** @return whether this is a virtual column */
+	bool is_virtual() const { return prtype & DATA_VIRTUAL; }
+
+	/** Detach the column from an index.
+	@param[in]	index	index to be detached from */
+	inline void detach(const dict_index_t& index);
 };
 
 /** Index information put in a list of virtual column structure. Index
@@ -726,6 +733,9 @@ struct dict_field_t{
 	unsigned	fixed_len:10;	/*!< 0 or the fixed length of the
 					column if smaller than
 					DICT_ANTELOPE_MAX_INDEX_COL_LEN */
+
+	/** Zero-initialize all fields */
+	dict_field_t() : col(NULL), name(NULL), prefix_len(0), fixed_len(0) {}
 };
 
 /**********************************************************************//**
@@ -980,7 +990,45 @@ struct dict_index_t{
 	{
 		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
 	}
+
+	/** @return whether the index includes virtual columns */
+	bool has_virtual() const { return type & DICT_VIRTUAL; }
+
+	/** @return whether the index is corrupted */
+	inline bool is_corrupted() const;
+
+	/** Detach the columns from the index that is to be freed. */
+	void detach_columns()
+	{
+		if (has_virtual()) {
+			for (unsigned i = 0; i < n_fields; i++) {
+				fields[i].col->detach(*this);
+			}
+
+			n_fields = 0;
+		}
+	}
 };
+
+/** Detach a column from an index.
+@param[in]	index	index to be detached from */
+inline void dict_col_t::detach(const dict_index_t& index)
+{
+	if (!is_virtual()) {
+		return;
+	}
+
+	if (dict_v_idx_list* v_indexes = reinterpret_cast<const dict_v_col_t*>
+	    (this)->v_indexes) {
+		for (dict_v_idx_list::iterator i = v_indexes->begin();
+		     i != v_indexes->end(); i++) {
+			if (i->index == &index) {
+				v_indexes->erase(i);
+				return;
+			}
+		}
+	}
+}
 
 /** The status of online index creation */
 enum online_index_status {
@@ -1312,7 +1360,11 @@ struct dict_table_t {
 
 	/** Get reference count.
 	@return current value of n_ref_count */
-	inline ulint get_ref_count() const;
+	inline int32 get_ref_count()
+	{
+		return my_atomic_load32_explicit(&n_ref_count,
+						 MY_MEMORY_ORDER_RELAXED);
+	}
 
 	/** Acquire the table handle. */
 	inline void acquire();
@@ -1501,8 +1553,8 @@ struct dict_table_t {
 	/** Transactions whose view low limit is greater than this number are
 	not allowed to store to the MySQL query cache or retrieve from it.
 	When a trx with undo logs commits, it sets this to the value of the
-	current time. */
-	trx_id_t				query_cache_inv_id;
+	transaction id. */
+	trx_id_t				query_cache_inv_trx_id;
 
 	/** Transaction id that last touched the table definition. Either when
 	loading the definition or CREATE TABLE, or ALTER TABLE (prepare,
@@ -1692,13 +1744,11 @@ struct dict_table_t {
 	It is protected by lock_sys->mutex. */
 	ulint					n_rec_locks;
 
-#ifndef UNIV_DEBUG
 private:
-#endif
 	/** Count of how many handles are opened to this table. Dropping of the
 	table is NOT allowed until this count gets to zero. MySQL does NOT
 	itself check the number of open handles at DROP. */
-	ulint					n_ref_count;
+	int32					n_ref_count;
 
 public:
 	/** List of locks on the table. Protected by lock_sys->mutex. */
@@ -1722,6 +1772,13 @@ public:
 inline bool dict_index_t::is_readable() const
 {
 	return(UNIV_LIKELY(!table->file_unreadable));
+}
+
+inline bool dict_index_t::is_corrupted() const
+{
+	return UNIV_UNLIKELY(online_status >= ONLINE_INDEX_ABORTED
+			     || (type & DICT_CORRUPT)
+			     || (table && table->corrupted));
 }
 
 /*******************************************************************//**

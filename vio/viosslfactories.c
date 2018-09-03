@@ -211,6 +211,7 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
     none of the provided ciphers could be selected
   */
   if (cipher &&
+      SSL_CTX_set_ciphersuites(ssl_fd->ssl_context, cipher) == 0 &&
       SSL_CTX_set_cipher_list(ssl_fd->ssl_context, cipher) == 0)
   {
     *error= SSL_INITERR_CIPHERS;

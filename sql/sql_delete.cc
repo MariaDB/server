@@ -760,7 +760,8 @@ l
                                     select_lex->leaf_tables, FALSE, 
                                     DELETE_ACL, SELECT_ACL, TRUE))
     DBUG_RETURN(TRUE);
-  if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num)) ||
+  if ((wild_num && setup_wild(thd, table_list, field_list, NULL, wild_num,
+                              &select_lex->hidden_bit_fields)) ||
       setup_fields(thd, Ref_ptr_array(),
                    field_list, MARK_COLUMNS_READ, NULL, NULL, 0) ||
       setup_conds(thd, table_list, select_lex->leaf_tables, conds) ||
@@ -950,7 +951,7 @@ multi_delete::initialize_tables(JOIN *join)
     TABLE_LIST *tbl= walk->correspondent_table->find_table_for_update();
     tables_to_delete_from|= tbl->table->map;
     if (delete_while_scanning &&
-        unique_table(thd, tbl, join->tables_list, false))
+        unique_table(thd, tbl, join->tables_list, 0))
     {
       /*
         If the table we are going to delete from appears

@@ -1503,6 +1503,15 @@ public:
   /* Number of tables actually joined at the top level */
   uint exec_join_tab_cnt() { return tables_list ? top_join_tab_count : 0; }
 
+  /*
+    Number of tables in the join which also includes the temporary tables
+    created for GROUP BY, DISTINCT , WINDOW FUNCTION etc.
+  */
+  uint total_join_tab_cnt()
+  {
+    return exec_join_tab_cnt() + aggr_tables - 1;
+  }
+
   int prepare(TABLE_LIST *tables, uint wind_num,
 	      COND *conds, uint og_num, ORDER *order, bool skip_order_by,
               ORDER *group, Item *having, ORDER *proc_param, SELECT_LEX *select,

@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2014, 2018, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -114,17 +114,17 @@ extern my_bool srv_background_scrub_data_compressed;
 
 /***********************************************************************
 Check if a key needs rotation given a key_state
-@param[in]	encrypt_mode		Encryption mode
+@param[in]	crypt_data		Encryption information
 @param[in]	key_version		Current key version
 @param[in]	latest_key_version	Latest key version
 @param[in]	rotate_key_age		when to rotate
 @return true if key needs rotation, false if not */
 static bool
 fil_crypt_needs_rotation(
-	fil_encryption_t	encrypt_mode,
-	uint			key_version,
-	uint			latest_key_version,
-	uint			rotate_key_age)
+	const fil_space_crypt_t*	crypt_data,
+	uint				key_version,
+	uint				latest_key_version,
+	uint				rotate_key_age)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************
@@ -187,7 +187,8 @@ fil_crypt_get_latest_key_version(
 
 	if (crypt_data->is_key_found()) {
 
-		if (fil_crypt_needs_rotation(crypt_data->encryption,
+		if (fil_crypt_needs_rotation(
+				crypt_data,
 				crypt_data->min_key_version,
 				key_version,
 				srv_fil_crypt_rotate_key_age)) {
@@ -707,60 +708,39 @@ fil_space_encrypt(
 #ifdef UNIV_DEBUG
 	if (tmp) {
 		/* Verify that encrypted buffer is not corrupted */
-		byte* tmp_mem = (byte *)malloc(UNIV_PAGE_SIZE);
 		dberr_t err = DB_SUCCESS;
 		byte* src = src_frame;
 		bool page_compressed_encrypted = (mach_read_from_2(tmp+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
-		byte* comp_mem = NULL;
-		byte* uncomp_mem = NULL;
+		byte uncomp_mem[UNIV_PAGE_SIZE_MAX];
+		byte tmp_mem[UNIV_PAGE_SIZE_MAX];
 		ulint size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
 
 		if (page_compressed_encrypted) {
-			comp_mem = (byte *)malloc(UNIV_PAGE_SIZE);
-			uncomp_mem = (byte *)malloc(UNIV_PAGE_SIZE);
-			memcpy(comp_mem, src_frame, UNIV_PAGE_SIZE);
-			fil_decompress_page(uncomp_mem, comp_mem,
-					    srv_page_size, NULL);
-			src = uncomp_mem;
+			memcpy(uncomp_mem, src, srv_page_size);
+			ulint unzipped1 = fil_page_decompress(
+				tmp_mem, uncomp_mem);
+			ut_ad(unzipped1);
+			if (unzipped1 != srv_page_size) {
+				src = uncomp_mem;
+			}
 		}
 
-		bool corrupted1 = buf_page_is_corrupted(true, src, zip_size, space);
-		bool ok = fil_space_decrypt(crypt_data, tmp_mem, size, tmp, &err);
+		ut_ad(!buf_page_is_corrupted(true, src, zip_size, space));
+		ut_ad(fil_space_decrypt(crypt_data, tmp_mem, size, tmp, &err));
+		ut_ad(err == DB_SUCCESS);
 
 		/* Need to decompress the page if it was also compressed */
 		if (page_compressed_encrypted) {
-			memcpy(comp_mem, tmp_mem, UNIV_PAGE_SIZE);
-			fil_decompress_page(tmp_mem, comp_mem,
-					    srv_page_size, NULL);
+			byte buf[UNIV_PAGE_SIZE_MAX];
+			memcpy(buf, tmp_mem, srv_page_size);
+			ulint unzipped2 = fil_page_decompress(tmp_mem, buf);
+			ut_ad(unzipped2);
 		}
 
-		bool corrupted = buf_page_is_corrupted(true, tmp_mem, zip_size, space);
-		memcpy(tmp_mem+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, src+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 8);
-		bool different = memcmp(src, tmp_mem, size);
-
-		if (!ok || corrupted || corrupted1 || err != DB_SUCCESS || different) {
-			fprintf(stderr, "ok %d corrupted %d corrupted1 %d err %d different %d\n",
-				ok , corrupted, corrupted1, err, different);
-			fprintf(stderr, "src_frame\n");
-			buf_page_print(src_frame, zip_size);
-			fprintf(stderr, "encrypted_frame\n");
-			buf_page_print(tmp, zip_size);
-			fprintf(stderr, "decrypted_frame\n");
-			buf_page_print(tmp_mem, zip_size);
-			ut_ad(0);
-		}
-
-		free(tmp_mem);
-
-		if (comp_mem) {
-			free(comp_mem);
-		}
-
-		if (uncomp_mem) {
-			free(uncomp_mem);
-		}
+		memcpy(tmp_mem + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
+		       src + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 8);
+		ut_ad(!memcmp(src, tmp_mem, size));
 	}
-
 #endif /* UNIV_DEBUG */
 
 	return tmp;
@@ -963,17 +943,17 @@ fil_crypt_get_key_state(
 
 /***********************************************************************
 Check if a key needs rotation given a key_state
-@param[in]	encrypt_mode		Encryption mode
+@param[in]	crypt_data		Encryption information
 @param[in]	key_version		Current key version
 @param[in]	latest_key_version	Latest key version
 @param[in]	rotate_key_age		when to rotate
 @return true if key needs rotation, false if not */
 static bool
 fil_crypt_needs_rotation(
-	fil_encryption_t	encrypt_mode,
-	uint			key_version,
-	uint			latest_key_version,
-	uint			rotate_key_age)
+	const fil_space_crypt_t*	crypt_data,
+	uint				key_version,
+	uint				latest_key_version,
+	uint				rotate_key_age)
 {
 	if (key_version == ENCRYPTION_KEY_VERSION_INVALID) {
 		return false;
@@ -986,11 +966,18 @@ fil_crypt_needs_rotation(
 	}
 
 	if (latest_key_version == 0 && key_version != 0) {
-		if (encrypt_mode == FIL_ENCRYPTION_DEFAULT) {
+		if (crypt_data->encryption == FIL_ENCRYPTION_DEFAULT) {
 			/* this is rotation encrypted => unencrypted */
 			return true;
 		}
 		return false;
+	}
+
+	if (crypt_data->encryption == FIL_ENCRYPTION_DEFAULT
+	    && crypt_data->type == CRYPT_SCHEME_1
+	    && srv_encrypt_tables == 0 ) {
+		/* This is rotation encrypted => unencrypted */
+		return true;
 	}
 
 	/* this is rotation encrypted => encrypted,
@@ -1008,10 +995,17 @@ static inline
 void
 fil_crypt_read_crypt_data(fil_space_t* space)
 {
-	if (space->crypt_data || space->size) {
+	if (space->crypt_data || space->size
+	    || !fil_space_get_size(space->id)) {
 		/* The encryption metadata has already been read, or
 		the tablespace is not encrypted and the file has been
-		opened already. */
+		opened already, or the file cannot be accessed,
+		likely due to a concurrent TRUNCATE or
+		RENAME or DROP (possibly as part of ALTER TABLE).
+		FIXME: The file can become unaccessible any time
+		after this check! We should really remove this
+		function and instead make crypt_data an integral
+		part of fil_space_t. */
 		return;
 	}
 
@@ -1272,9 +1266,10 @@ fil_crypt_space_needs_rotation(
 		}
 
 		bool need_key_rotation = fil_crypt_needs_rotation(
-			crypt_data->encryption,
+			crypt_data,
 			crypt_data->min_key_version,
-			key_state->key_version, key_state->rotate_key_age);
+			key_state->key_version,
+			key_state->rotate_key_age);
 
 		crypt_data->rotate_state.scrubbing.is_active =
 			btr_scrub_start_space(space->id, &state->scrub_data);
@@ -1862,9 +1857,10 @@ fil_crypt_rotate_page(
 			ut_ad(kv == 0);
 			ut_ad(page_get_space_id(frame) == 0);
 		} else if (fil_crypt_needs_rotation(
-				   crypt_data->encryption,
-				   kv, key_state->key_version,
-				   key_state->rotate_key_age)) {
+				crypt_data,
+				kv,
+				key_state->key_version,
+				key_state->rotate_key_age)) {
 
 			modified = true;
 
@@ -2002,6 +1998,12 @@ fil_crypt_rotate_pages(
 			continue;
 		}
 
+		/* If space is marked as stopping, stop rotating
+		pages. */
+		if (state->space->is_stopping()) {
+			break;
+		}
+
 		fil_crypt_rotate_page(key_state, state);
 	}
 }
@@ -2050,20 +2052,22 @@ fil_crypt_flush_space(
 		crypt_data->type = CRYPT_SCHEME_UNENCRYPTED;
 	}
 
-	/* update page 0 */
-	mtr_t mtr;
-	mtr_start(&mtr);
+	if (!space->is_stopping()) {
+		/* update page 0 */
+		mtr_t mtr;
+		mtr_start(&mtr);
 
-	const uint zip_size = fsp_flags_get_zip_size(state->space->flags);
+		const uint zip_size = fsp_flags_get_zip_size(state->space->flags);
 
-	buf_block_t* block = buf_page_get_gen(space->id, zip_size, 0,
+		buf_block_t* block = buf_page_get_gen(space->id, zip_size, 0,
 				RW_X_LATCH, NULL, BUF_GET,
 				__FILE__, __LINE__, &mtr);
-	byte* frame = buf_block_get_frame(block);
+		byte* frame = buf_block_get_frame(block);
 
-	crypt_data->write_page0(frame, &mtr);
+		crypt_data->write_page0(frame, &mtr);
 
-	mtr_commit(&mtr);
+		mtr_commit(&mtr);
+	}
 }
 
 /***********************************************************************

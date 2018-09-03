@@ -1,5 +1,5 @@
 /* Copyright (c) 2005, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, SkySQL Ab.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -614,9 +614,16 @@ static bool create_full_part_field_array(THD *thd, TABLE *table,
     full_part_field_array may be NULL if storage engine supports native
     partitioning.
   */
+  table->vcol_set= table->read_set= &part_info->full_part_field_set;
   if ((ptr= part_info->full_part_field_array))
     for (; *ptr; ptr++)
-      bitmap_set_bit(&part_info->full_part_field_set, (*ptr)->field_index);
+    {
+      if ((*ptr)->vcol_info)
+        table->mark_virtual_col(*ptr);
+      else
+        bitmap_fast_test_and_set(table->read_set, (*ptr)->field_index);
+    }
+  table->default_column_bitmaps();
 
 end:
   DBUG_RETURN(result);
@@ -942,7 +949,7 @@ static bool fix_fields_part_func(THD *thd, Item* func_expr, TABLE *table,
     thd->lex->allow_sum_func= 0;
 
     if (!(error= func_expr->fix_fields(thd, (Item**)&func_expr)))
-      func_expr->walk(&Item::vcol_in_partition_func_processor, 0, NULL);
+      func_expr->walk(&Item::post_fix_fields_part_expr_processor, 0, NULL);
 
     /*
       Restore agg_field/agg_func  and allow_sum_func,
@@ -6283,7 +6290,7 @@ static void alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
       thd->set_stmt_da(&tmp_stmt_da);
     }
 
-    if (thd->locked_tables_list.reopen_tables(thd))
+    if (thd->locked_tables_list.reopen_tables(thd, false))
       sql_print_warning("We failed to reacquire LOCKs in ALTER TABLE");
 
     if (stmt_da)
@@ -6489,7 +6496,7 @@ err_exclusive_lock:
       thd->set_stmt_da(&tmp_stmt_da);
     }
 
-    if (thd->locked_tables_list.reopen_tables(thd))
+    if (thd->locked_tables_list.reopen_tables(thd, false))
       sql_print_warning("We failed to reacquire LOCKs in ALTER TABLE");
 
     if (stmt_da)

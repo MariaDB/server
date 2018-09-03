@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -43,7 +43,6 @@ enum dberr_t {
 	DB_DEADLOCK,
 	DB_ROLLBACK,
 	DB_DUPLICATE_KEY,
-	DB_QUE_THR_SUSPENDED,
 	DB_MISSING_HISTORY,		/*!< required history data has been
 					deleted due to lack of space in
 					rollback segment */

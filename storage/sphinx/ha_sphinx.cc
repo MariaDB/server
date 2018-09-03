@@ -17,7 +17,7 @@
 #pragma implementation // gcc: Class implementation
 #endif
 
-#if _MSC_VER>=1400
+#if defined(_MSC_VER) && _MSC_VER>=1400
 #define _CRT_SECURE_NO_DEPRECATE 1
 #define _CRT_NONSTDC_NO_DEPRECATE 1
 #endif
@@ -64,7 +64,7 @@
 #define MSG_WAITALL 0
 #endif
 
-#if _MSC_VER>=1400
+#if defined(_MSC_VER) && _MSC_VER>=1400
 #pragma warning(push,4)
 #endif
 
@@ -1041,8 +1041,8 @@ static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
 	bool bOk = true;
 	bool bQL = false;
 	char * sScheme = NULL;
-	char * sHost = SPHINXAPI_DEFAULT_HOST;
-	char * sIndex = SPHINXAPI_DEFAULT_INDEX;
+	char * sHost = (char*) SPHINXAPI_DEFAULT_HOST;
+	char * sIndex = (char*) SPHINXAPI_DEFAULT_INDEX;
 	int iPort = SPHINXAPI_DEFAULT_PORT;
 
 	// parse connection string, if any
@@ -1068,12 +1068,12 @@ static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
 			sHost--; // reuse last slash
 			iPort = 0;
 			if (!( sIndex = strrchr ( sHost, ':' ) ))
-				sIndex = SPHINXAPI_DEFAULT_INDEX;
+                          sIndex = (char*) SPHINXAPI_DEFAULT_INDEX;
 			else
 			{
 				*sIndex++ = '\0';
 				if ( !*sIndex )
-					sIndex = SPHINXAPI_DEFAULT_INDEX;
+                                  sIndex = (char*) SPHINXAPI_DEFAULT_INDEX;
 			}
 			bOk = true;
 			break;
@@ -1095,11 +1095,11 @@ static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
 					if ( sIndex )
 						*sIndex++ = '\0';
 					else
-						sIndex = SPHINXAPI_DEFAULT_INDEX;
+                                          sIndex = (char*) SPHINXAPI_DEFAULT_INDEX;
 
 					iPort = atoi(sPort);
 					if ( !iPort )
-						iPort = SPHINXAPI_DEFAULT_PORT;
+                                          iPort = SPHINXAPI_DEFAULT_PORT;
 				}
 			} else
 			{
@@ -1107,7 +1107,7 @@ static bool ParseUrl ( CSphSEShare * share, TABLE * table, bool bCreate )
 				if ( sIndex )
 					*sIndex++ = '\0';
 				else
-					sIndex = SPHINXAPI_DEFAULT_INDEX;
+                                  sIndex = (char*) SPHINXAPI_DEFAULT_INDEX;
 			}
 			bOk = true;
 			break;
@@ -1303,8 +1303,8 @@ CSphSEQuery::CSphSEQuery ( const char * sQuery, int iLength, const char * sIndex
 	, m_sGeoLongAttr ( "" )
 	, m_fGeoLatitude ( 0.0f )
 	, m_fGeoLongitude ( 0.0f )
-	, m_sComment ( "" )
-	, m_sSelect ( "*" )
+	, m_sComment ( (char*) "" )
+	, m_sSelect ( (char*) "*" )
 
 	, m_pBuf ( NULL )
 	, m_pCur ( NULL )
@@ -2538,12 +2538,6 @@ char * ha_sphinx::UnpackString ()
 }
 
 
-static inline const char * FixNull ( const char * s )
-{
-	return s ? s : "(null)";
-}
-
-
 bool ha_sphinx::UnpackSchema ()
 {
 	SPH_ENTER_METHOD();
@@ -3507,8 +3501,11 @@ int ha_sphinx::create ( const char * name, TABLE * table_arg, HA_CREATE_INFO * )
 	// report and bail
 	if ( sError[0] )
 	{
-		my_error ( ER_CANT_CREATE_TABLE, MYF(0),
-		table_arg->s->db.str, table_arg->s->table_name, sError );
+		my_printf_error(ER_CANT_CREATE_TABLE,
+                                "Can\'t create table %s.%s (Error: %s)",
+                                MYF(0),
+                                table_arg->s->db.str,
+                                table_arg->s->table_name.str, sError);
 		SPH_RET(-1);
 	}
 

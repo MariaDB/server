@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, 2018, MariaDB Corporation.
 
@@ -423,7 +423,7 @@ dict_table_try_drop_aborted(
 	dict_table_t*	table,		/*!< in: table, or NULL if it
 					needs to be looked up again */
 	table_id_t	table_id,	/*!< in: table identifier */
-	ulint		ref_count)	/*!< in: expected table->n_ref_count */
+	int32		ref_count)	/*!< in: expected table->n_ref_count */
 {
 	trx_t*		trx;
 
@@ -439,7 +439,8 @@ dict_table_try_drop_aborted(
 		ut_ad(table->id == table_id);
 	}
 
-	if (table && table->get_ref_count() == ref_count && table->drop_aborted) {
+	if (table && table->get_ref_count() == ref_count && table->drop_aborted
+	    && !UT_LIST_GET_FIRST(table->locks)) {
 		/* Silence a debug assertion in row_merge_drop_indexes(). */
 		ut_d(table->acquire());
 		row_merge_drop_indexes(trx, table, TRUE);
@@ -573,7 +574,7 @@ dict_table_close_and_drop(
 	if (err != DB_SUCCESS) {
 		ib::error() << "At " << __FILE__ << ":" << __LINE__
 			    << " row_merge_drop_table returned error: " << err
-			    << " table: " << table->name.m_name;
+			    << " table: " << table->name;
 	}
 }
 
@@ -1352,7 +1353,7 @@ static
 ibool
 dict_table_can_be_evicted(
 /*======================*/
-	const dict_table_t*	table)		/*!< in: table to test */
+	dict_table_t*	table)		/*!< in: table to test */
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
@@ -1452,6 +1453,13 @@ dict_make_room_in_cache(
 
 		if (dict_table_can_be_evicted(table)) {
 
+			DBUG_EXECUTE_IF("crash_if_fts_table_is_evicted",
+			{
+				  if (table->fts &&
+				      dict_table_has_fts_index(table)) {
+					ut_ad(0);
+				  }
+			};);
 			dict_table_remove_from_cache_low(table, TRUE);
 
 			++n_evicted;
@@ -1641,11 +1649,7 @@ dict_table_rename_in_cache(
 			return(DB_OUT_OF_MEMORY);
 		}
 
-		fil_delete_tablespace(table->space
-#ifdef BTR_CUR_HASH_ADAPT
-				      , true
-#endif /* BTR_CUR_HASH_ADAPT */
-				      );
+		fil_delete_tablespace(table->space);
 
 		/* Delete any temp file hanging around. */
 		if (os_file_status(filepath, &exists, &ftype)
@@ -2136,93 +2140,6 @@ dict_col_name_is_reserved(
 }
 
 /****************************************************************//**
-Return maximum size of the node pointer record.
-@return maximum size of the record in bytes */
-ulint
-dict_index_node_ptr_max_size(
-/*=========================*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ulint	comp;
-	ulint	i;
-	/* maximum possible storage size of a record */
-	ulint	rec_max_size;
-
-	if (dict_index_is_ibuf(index)) {
-		/* cannot estimate accurately */
-		/* This is universal index for change buffer.
-		The max size of the entry is about max key length * 2.
-		(index key + primary key to be inserted to the index)
-		(The max key length is UNIV_PAGE_SIZE / 16 * 3 at
-		 ha_innobase::max_supported_key_length(),
-		 considering MAX_KEY_LENGTH = 3072 at MySQL imposes
-		 the 3500 historical InnoDB value for 16K page size case.)
-		For the universal index, node_ptr contains most of the entry.
-		And 512 is enough to contain ibuf columns and meta-data */
-		return(UNIV_PAGE_SIZE / 8 * 3 + 512);
-	}
-
-	comp = dict_table_is_comp(index->table);
-
-	/* Each record has page_no, length of page_no and header. */
-	rec_max_size = comp
-		? REC_NODE_PTR_SIZE + 1 + REC_N_NEW_EXTRA_BYTES
-		: REC_NODE_PTR_SIZE + 2 + REC_N_OLD_EXTRA_BYTES;
-
-	if (comp) {
-		/* Include the "null" flags in the
-		maximum possible record size. */
-		rec_max_size += UT_BITS_IN_BYTES(index->n_nullable);
-	} else {
-		/* For each column, include a 2-byte offset and a
-		"null" flag. */
-		rec_max_size += 2 * index->n_fields;
-	}
-
-	/* Compute the maximum possible record size. */
-	for (i = 0; i < dict_index_get_n_unique_in_tree(index); i++) {
-		const dict_field_t*	field
-			= dict_index_get_nth_field(index, i);
-		const dict_col_t*	col
-			= dict_field_get_col(field);
-		ulint			field_max_size;
-		ulint			field_ext_max_size;
-
-		/* Determine the maximum length of the index field. */
-
-		field_max_size = dict_col_get_fixed_size(col, comp);
-		if (field_max_size) {
-			/* dict_index_add_col() should guarantee this */
-			ut_ad(!field->prefix_len
-			      || field->fixed_len == field->prefix_len);
-			/* Fixed lengths are not encoded
-			in ROW_FORMAT=COMPACT. */
-			rec_max_size += field_max_size;
-			continue;
-		}
-
-		field_max_size = dict_col_get_max_size(col);
-		field_ext_max_size = field_max_size < 256 ? 1 : 2;
-
-		if (field->prefix_len
-		    && field->prefix_len < field_max_size) {
-			field_max_size = field->prefix_len;
-		}
-
-		if (comp) {
-			/* Add the extra size for ROW_FORMAT=COMPACT.
-			For ROW_FORMAT=REDUNDANT, these bytes were
-			added to rec_max_size before this loop. */
-			rec_max_size += field_ext_max_size;
-		}
-
-		rec_max_size += field_max_size;
-	}
-
-	return(rec_max_size);
-}
-
-/****************************************************************//**
 If a record of this index might not fit on a single B-tree page,
 return TRUE.
 @return TRUE if the index record could become too big */
@@ -2420,6 +2337,44 @@ dict_index_add_to_cache(
 		table, index, NULL, page_no, strict));
 }
 
+/** Clears the virtual column's index list before index is
+being freed.
+@param[in]  index   Index being freed */
+void
+dict_index_remove_from_v_col_list(dict_index_t* index) {
+	/* Index is not completely formed */
+	if (!index->cached) {
+		return;
+	}
+        if (dict_index_has_virtual(index)) {
+                const dict_col_t*       col;
+                const dict_v_col_t*     vcol;
+
+                for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
+                        col =  dict_index_get_nth_col(index, i);
+                        if (dict_col_is_virtual(col)) {
+                                vcol = reinterpret_cast<const dict_v_col_t*>(
+                                        col);
+				/* This could be NULL, when we do add
+                                virtual column, add index together. We do not
+                                need to track this virtual column's index */
+				if (vcol->v_indexes == NULL) {
+                                        continue;
+                                }
+				dict_v_idx_list::iterator       it;
+				for (it = vcol->v_indexes->begin();
+                                     it != vcol->v_indexes->end(); ++it) {
+                                        dict_v_idx_t    v_index = *it;
+                                        if (v_index.index == index) {
+                                                vcol->v_indexes->erase(it);
+                                                break;
+                                        }
+				}
+			}
+		}
+	}
+}
+
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
 @param[in,out]	table	table on which the index is
@@ -2611,28 +2566,12 @@ dict_index_remove_from_cache_low(
 	zero. See also: dict_table_can_be_evicted() */
 
 	do {
-		ulint ref_count = btr_search_info_get_ref_count(info, index);
-
-		if (ref_count == 0) {
+		if (!btr_search_info_get_ref_count(info, index)
+		    || !buf_LRU_drop_page_hash_for_tablespace(table)) {
 			break;
 		}
 
-		/* Sleep for 10ms before trying again. */
-		os_thread_sleep(10000);
-		++retries;
-
-		if (retries % 500 == 0) {
-			/* No luck after 5 seconds of wait. */
-			ib::error() << "Waited for " << retries / 100
-				<< " secs for hash index"
-				" ref_count (" << ref_count << ") to drop to 0."
-				" index: " << index->name
-				<< " table: " << table->name;
-		}
-
-		/* To avoid a hang here we commit suicide if the
-		ref_count doesn't drop to zero in 600 seconds. */
-		ut_a(retries < 60000);
+		ut_a(++retries < 10000);
 	} while (srv_shutdown_state == SRV_SHUTDOWN_NONE || !lru_evict);
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -2649,37 +2588,7 @@ dict_index_remove_from_cache_low(
 	UT_LIST_REMOVE(table->indexes, index);
 
 	/* Remove the index from affected virtual column index list */
-	if (dict_index_has_virtual(index)) {
-		const dict_col_t*	col;
-		const dict_v_col_t*	vcol;
-
-		for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
-			col =  dict_index_get_nth_col(index, i);
-			if (dict_col_is_virtual(col)) {
-				vcol = reinterpret_cast<const dict_v_col_t*>(
-					col);
-
-				/* This could be NULL, when we do add virtual
-				column, add index together. We do not need to
-				track this virtual column's index */
-				if (vcol->v_indexes == NULL) {
-					continue;
-				}
-
-				dict_v_idx_list::iterator	it;
-
-				for (it = vcol->v_indexes->begin();
-				     it != vcol->v_indexes->end(); ++it) {
-					dict_v_idx_t	v_index = *it;
-					if (v_index.index == index) {
-						vcol->v_indexes->erase(it);
-						break;
-					}
-				}
-			}
-
-		}
-	}
+	index->detach_columns();
 
 	dict_mem_index_free(index);
 }
@@ -4401,8 +4310,10 @@ dict_foreign_push_index_error(
 		const char*	col_name;
 		field = dict_index_get_nth_field(err_index, err_col);
 
-		col_name = dict_table_get_col_name(
-			table, dict_col_get_no(field->col));
+		col_name = dict_col_is_virtual(field->col)
+			? "(null)"
+			: dict_table_get_col_name(
+				table, dict_col_get_no(field->col));
 		fprintf(ef,
 			"%s table %s with foreign key constraint"
 			" failed. Field type or character set for column '%s' "
@@ -6313,7 +6224,7 @@ dict_table_get_index_on_name(
 
 	while (index != NULL) {
 		if (index->is_committed() == committed
-		    && innobase_strcasecmp(index->name, name) == 0) {
+		    && strcmp(index->name, name) == 0) {
 
 			return(index);
 		}
@@ -6579,8 +6490,17 @@ dict_table_schema_check(
 		compare column types and flags */
 
 		/* check length for exact match */
-		if (req_schema->columns[i].len != table->cols[j].len) {
-
+		if (req_schema->columns[i].len == table->cols[j].len) {
+		} else if (!strcmp(req_schema->table_name, TABLE_STATS_NAME)
+			   || !strcmp(req_schema->table_name,
+				      INDEX_STATS_NAME)) {
+			ut_ad(table->cols[j].len < req_schema->columns[i].len);
+			ib::warn() << "Table " << req_schema->table_name
+				   << " has length mismatch in the"
+				   << " column name "
+				   << req_schema->columns[i].name
+				   << ".  Please run mysql_upgrade";
+		} else {
 			CREATE_TYPES_NAMES();
 
 			snprintf(errstr, errstr_sz,
@@ -6982,17 +6902,18 @@ dict_foreign_qualify_index(
 			return(false);
 		}
 
-		col_name = col_names
-			? col_names[col_no]
-			: dict_table_get_col_name(table, col_no);
-
 		if (dict_col_is_virtual(field->col)) {
+			col_name = "";
 			for (ulint j = 0; j < table->n_v_def; j++) {
 				col_name = dict_table_get_v_col_name(table, j);
 				if (innobase_strcasecmp(field->name,col_name) == 0) {
 					break;
 				}
 			}
+		} else {
+			col_name = col_names
+				? col_names[col_no]
+				: dict_table_get_col_name(table, col_no);
 		}
 
 		if (0 != innobase_strcasecmp(columns[i], col_name)) {

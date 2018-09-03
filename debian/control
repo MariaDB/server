@@ -34,8 +34,8 @@ Build-Depends: bison,
                zlib1g-dev (>= 1:1.1.3-5~)
 Standards-Version: 3.8.2
 Homepage: http://mariadb.org/
-Vcs-Git: https://github.com/MariaDB/server.git
 Vcs-Browser: https://github.com/MariaDB/server/
+Vcs-Git: https://github.com/MariaDB/server.git
 
 Package: libmariadb3
 Architecture: any
@@ -49,7 +49,9 @@ Conflicts: mariadb-galera-server-10.0 (<< 10.0.5),
            mariadb-server-5.3,
            mariadb-server-5.5 (<< 5.5.33),
            libmariadbclient18 (<< 10.2.0)
-Replaces: libmysqlclient19,
+Breaks: libmariadbclient18 (<< ${source:Version})
+Replaces: libmariadbclient18 (<< ${source:Version}),
+          libmysqlclient19,
           libmysqlclient20
 Provides: libmysqlclient19,
           libmysqlclient20
@@ -351,7 +353,7 @@ Depends: bsdutils,
          findutils,
          galera-3 (>=25.3),
          gawk,
-         iproute2,
+         iproute | iproute2,
          libdbi-perl,
          lsb-base (>= 3.0-10),
          lsof,
@@ -477,6 +479,7 @@ Description: OQGraph storage engine for MariaDB
 Package: mariadb-plugin-tokudb
 Architecture: any
 Depends: mariadb-server-10.2 (= ${binary:Version}),
+         libjemalloc1 (>= 3.0.0~),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-server-10.0,
@@ -568,7 +571,7 @@ Section: database
 Architecture: any
 Breaks: mariadb-backup-10.1
 Replaces: mariadb-backup-10.1
-Depends: mariadb-server-10.2,
+Depends: mariadb-client-core-10.2 (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Backup tool for MariaDB server
@@ -589,7 +592,6 @@ Architecture: any
 Breaks: mariadb-aws-key-management-10.1
 Replaces: mariadb-aws-key-management-10.1
 Depends: mariadb-server-10.2,
-         libcurl3,
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Amazon Web Service Key Management Service Plugin for MariaDB

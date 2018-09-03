@@ -21,6 +21,9 @@ sub skip_combinations {
   my %skip = ( 'include/have_innodb.combinations' => [ @combinations ],
                'include/have_xtradb.combinations' => [ @combinations ]);
 
+  $skip{'include/innodb_encrypt_log.combinations'} = [ 'crypt' ]
+                unless $ENV{DEBUG_KEY_MANAGEMENT_SO};
+
   # don't run tests for the wrong platform
   $skip{'include/platform.combinations'} = [ (IS_WINDOWS) ? 'unix' : 'win' ];
 
@@ -33,6 +36,9 @@ sub skip_combinations {
   );
   die "unknown value max-binlog-stmt-cache-size=$longsysvar" unless $val_map{$longsysvar};
   $skip{'include/word_size.combinations'} = [ $val_map{$longsysvar} ];
+
+  $skip{'include/maybe_debug.combinations'} =
+    [ defined $::mysqld_variables{'debug-dbug'} ? 'release' : 'debug' ];
 
   # as a special case, disable certain include files as a whole
   $skip{'include/not_embedded.inc'} = 'Not run for embedded server'

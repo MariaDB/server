@@ -32,7 +32,7 @@ int heap_rsame(register HP_INFO *info, uchar *record, int inx)
   DBUG_ENTER("heap_rsame");
 
   test_active(info);
-  if (info->current_ptr[share->reclength])
+  if (info->current_ptr[share->visible])
   {
     if (inx < -1 || inx >= (int) share->keys)
     {

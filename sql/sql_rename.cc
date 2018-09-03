@@ -221,7 +221,7 @@ do_rename_temporary(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table,
   new_alias= (lower_case_table_names == 2) ? new_table->alias :
                                              new_table->table_name;
 
-  if (is_temporary_table(new_table))
+  if (thd->find_temporary_table(new_table, THD::TMP_TABLE_ANY))
   {
     my_error(ER_TABLE_EXISTS_ERROR, MYF(0), new_alias);
     DBUG_RETURN(1);                     // This can't be skipped

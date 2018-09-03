@@ -406,7 +406,7 @@ LOCK TABLE t1 WRITE;
 HANDLER t1 OPEN;
 ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 HANDLER t1 READ FIRST;
-ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+Got one of the listed errors
 HANDLER t1 CLOSE;
 ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
 UNLOCK TABLES;
@@ -489,3 +489,19 @@ unlock tables;
 disconnect con1;
 connection default;
 drop table t1;
+# 
+# MDEV-15769: Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())' failed in Diagnostics_area::set_ok_status
+# 
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+LOCK TABLE t1 READ;
+connect  con1,localhost,root,,test;
+LOCK TABLE t2 WRITE;
+SET lock_wait_timeout= 1;
+FLUSH TABLES;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+UNLOCK TABLES;
+disconnect con1;
+connection default;
+UNLOCK TABLES;
+DROP TABLE t1, t2;

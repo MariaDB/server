@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -1437,7 +1437,8 @@ os_file_create_simple_func(
 		/* Use default security attributes and no template file. */
 
 		file = CreateFile(
-			(LPCTSTR) name, access, FILE_SHARE_READ, NULL,
+			(LPCTSTR) name, access,
+			FILE_SHARE_READ | FILE_SHARE_DELETE, NULL,
 			create_flag, attributes, NULL);
 
 		if (file == INVALID_HANDLE_VALUE) {
@@ -1508,7 +1509,7 @@ os_file_create_simple_func(
 	}
 
 	do {
-		file = ::open(name, create_flag, os_innodb_umask);
+		file = ::open(name, create_flag | O_CLOEXEC, os_innodb_umask);
 
 		if (file == -1) {
 			*success = FALSE;
@@ -1603,7 +1604,7 @@ os_file_create_simple_no_error_handling_func(
 	DWORD		access;
 	DWORD		create_flag;
 	DWORD		attributes	= 0;
-	DWORD		share_mode	= FILE_SHARE_READ;
+	DWORD		share_mode	= FILE_SHARE_READ | FILE_SHARE_DELETE;
 	ut_a(name);
 
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
@@ -1730,7 +1731,7 @@ os_file_create_simple_no_error_handling_func(
 		return(file);
 	}
 
-	file = open(name, create_flag, os_innodb_umask);
+	file = ::open(name, create_flag | O_CLOEXEC , os_innodb_umask);
 
 	*success = file != -1;
 
@@ -1874,6 +1875,33 @@ os_file_set_atomic_writes(
 #endif
 }
 
+#ifdef _WIN32
+/** Check that IO of specific size is possible for the file
+opened with FILE_FLAG_NO_BUFFERING.
+
+The requirement is that IO is multiple of the disk sector size.
+
+@param[in]	file      file handle
+@param[in]	io_size   expected io size
+@return true - unbuffered io of requested size is possible, false otherwise.
+
+@note: this function only works correctly with Windows 8 or later,
+(GetFileInformationByHandleEx with FileStorageInfo is only supported there).
+It will return true on earlier Windows version.
+*/
+static bool unbuffered_io_possible(HANDLE file, size_t io_size)
+{
+	FILE_STORAGE_INFO info;
+	if (GetFileInformationByHandleEx(
+		file, FileStorageInfo, &info, sizeof(info))) {
+		ULONG sector_size = info.LogicalBytesPerSector;
+		if (sector_size)
+			return io_size % sector_size == 0;
+	}
+	return true;
+}
+#endif
+
 /****************************************************************//**
 NOTE! Use the corresponding macro os_file_create(), not directly
 this function!
@@ -1925,7 +1953,7 @@ os_file_create_func(
 
 #ifdef __WIN__
 	DWORD		create_flag;
-	DWORD		share_mode	= FILE_SHARE_READ;
+	DWORD		share_mode	= FILE_SHARE_READ | FILE_SHARE_DELETE;
 
 	on_error_no_exit = create_mode & OS_FILE_ON_ERROR_NO_EXIT
 		? TRUE : FALSE;
@@ -2040,7 +2068,19 @@ os_file_create_func(
 			(LPCTSTR) name, access, share_mode, NULL,
 			create_flag, attributes, NULL);
 
-		if (file == INVALID_HANDLE_VALUE) {
+		/* If FILE_FLAG_NO_BUFFERING was set, check if this can work at all,
+		for expected IO sizes. Reopen without the unbuffered flag, if it is won't work*/
+		if ((file.m_file != INVALID_HANDLE_VALUE)
+			&& (attributes & FILE_FLAG_NO_BUFFERING)
+			&& (type == OS_LOG_FILE)
+			&& !unbuffered_io_possible(file.m_file, OS_FILE_LOG_BLOCK_SIZE)) {
+			ut_a(CloseHandle(file.m_file));
+			attributes &= ~FILE_FLAG_NO_BUFFERING;
+			create_flag = OPEN_ALWAYS;
+			continue;
+		}
+
+		if (file.m_file == INVALID_HANDLE_VALUE) {
 			const char*	operation;
 
 			operation = (create_mode == OS_FILE_CREATE
@@ -2145,7 +2185,7 @@ os_file_create_func(
 #endif /* O_SYNC */
 
 	do {
-		file = open(name, create_flag, os_innodb_umask);
+		file = ::open(name, create_flag | O_CLOEXEC, os_innodb_umask);
 
 		if (file == -1) {
 			const char*	operation;
@@ -2358,6 +2398,24 @@ loop:
 #endif
 }
 
+/** Handle RENAME error.
+@param name	old name of the file
+@param new_name	new name of the file */
+static void os_file_handle_rename_error(const char* name, const char* new_name)
+{
+	if (os_file_get_last_error(true) != OS_FILE_DISK_FULL) {
+		ib_logf(IB_LOG_LEVEL_ERROR, "Cannot rename file '%s' to '%s'",
+			name, new_name);
+	} else if (!os_has_said_disk_full) {
+		os_has_said_disk_full = true;
+		/* Disk full error is reported irrespective of the
+		on_error_silent setting. */
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Full disk prevents renaming file '%s' to '%s'",
+			name, new_name);
+	}
+}
+
 /***********************************************************************//**
 NOTE! Use the corresponding macro os_file_rename(), not directly this function!
 Renames a file (can also move it to another directory). It is safest that the
@@ -2393,7 +2451,7 @@ os_file_rename_func(
 		return(TRUE);
 	}
 
-	os_file_handle_error_no_exit(oldpath, "rename", FALSE, __FILE__, __LINE__);
+	os_file_handle_rename_error(oldpath, newpath);
 
 	return(FALSE);
 #else
@@ -2403,7 +2461,7 @@ os_file_rename_func(
 	ret = rename(oldpath, newpath);
 
 	if (ret != 0) {
-		os_file_handle_error_no_exit(oldpath, "rename", FALSE, __FILE__, __LINE__);
+		os_file_handle_rename_error(oldpath, newpath);
 
 		return(FALSE);
 	}
@@ -3169,15 +3227,21 @@ try_again:
 	overlapped.hEvent = win_get_syncio_event();
 	ret = ReadFile(file, buf, n, NULL, &overlapped);
 	if (ret) {
-		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, FALSE);
-	}
-	else if(GetLastError() == ERROR_IO_PENDING) {
-		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, TRUE);
+		ret = GetOverlappedResult(file, &overlapped, &len, FALSE);
+	} else if (GetLastError() == ERROR_IO_PENDING) {
+		ret = GetOverlappedResult(file, &overlapped, &len, TRUE);
         }
 	MONITOR_ATOMIC_DEC_LOW(MONITOR_OS_PENDING_READS, monitor);
 
-	if (ret && len == n) {
+	if (!ret) {
+	} else if (len == n) {
 		return(TRUE);
+	} else {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Tried to read " ULINTPF " bytes at offset "
+			UINT64PF ". Was only able to read %lu.",
+			n, offset, ret);
+		return FALSE;
 	}
 #else /* __WIN__ */
 	ibool	retry;
@@ -3204,6 +3268,7 @@ try_again:
 			"Tried to read " ULINTPF " bytes at offset "
 			UINT64PF ". Was only able to read %ld.",
 			n, offset, (lint) ret);
+		return FALSE;
 	}
 #endif /* __WIN__ */
 	retry = os_file_handle_error(NULL, "read", __FILE__, __LINE__);
@@ -3272,15 +3337,21 @@ try_again:
 	overlapped.hEvent = win_get_syncio_event();
 	ret = ReadFile(file, buf, n, NULL, &overlapped);
 	if (ret) {
-		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, FALSE);
-	}
-	else if(GetLastError() == ERROR_IO_PENDING) {
-		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, TRUE);
+		ret = GetOverlappedResult(file, &overlapped, &len, FALSE);
+	} else if (GetLastError() == ERROR_IO_PENDING) {
+		ret = GetOverlappedResult(file, &overlapped, &len, TRUE);
 	}
 	MONITOR_ATOMIC_DEC_LOW(MONITOR_OS_PENDING_READS, monitor);
 
-	if (ret && len == n) {
+	if (!ret) {
+	} else if (len == n) {
 		return(TRUE);
+	} else {
+		ib_logf(IB_LOG_LEVEL_ERROR,
+			"Tried to read " ULINTPF " bytes at offset "
+			UINT64PF ". Was only able to read %lu.",
+			n, offset, len);
+		return FALSE;
 	}
 #else /* __WIN__ */
 	ibool	retry;
@@ -3303,6 +3374,7 @@ try_again:
 			"Tried to read " ULINTPF " bytes at offset "
 			UINT64PF ". Was only able to read %ld.",
 			n, offset, (lint) ret);
+		return FALSE;
 	}
 #endif /* __WIN__ */
 	retry = os_file_handle_error_no_exit(NULL, "read", FALSE, __FILE__, __LINE__);
@@ -3383,10 +3455,9 @@ retry:
 	overlapped.hEvent = win_get_syncio_event();
 	ret = WriteFile(file, buf, n, NULL, &overlapped);
 	if (ret) {
-		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, FALSE);
-	}
-	else if ( GetLastError() == ERROR_IO_PENDING) {
-		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, TRUE);
+		ret = GetOverlappedResult(file, &overlapped, &len, FALSE);
+	} else if (GetLastError() == ERROR_IO_PENDING) {
+		ret = GetOverlappedResult(file, &overlapped, &len, TRUE);
 	}
 
 	MONITOR_ATOMIC_DEC_LOW(MONITOR_OS_PENDING_WRITES, monitor);
@@ -3704,7 +3775,7 @@ os_file_get_status(
 
 		access = !srv_read_only_mode ? O_RDWR : O_RDONLY;
 
-		fh = ::open(path, access, os_innodb_umask);
+		fh = ::open(path, access | O_CLOEXEC, os_innodb_umask);
 
 		if (fh == -1) {
 			stat_info->rw_perm = false;
@@ -4133,7 +4204,7 @@ os_aio_native_aio_supported(void)
 
 		strcpy(name + dirnamelen, "ib_logfile0");
 
-		fd = ::open(name, O_RDONLY);
+		fd = ::open(name, O_RDONLY | O_CLOEXEC);
 
 		if (fd == -1) {
 
@@ -6588,8 +6659,7 @@ os_file_trim(
 	DWORD tmp;
 	if (ret) {
 		ret = GetOverlappedResult(slot->file, &overlapped, &tmp, FALSE);
-	}
-	else if (GetLastError() == ERROR_IO_PENDING) {
+	} else if (GetLastError() == ERROR_IO_PENDING) {
 		ret = GetOverlappedResult(slot->file, &overlapped, &tmp, TRUE);
 	}
 	if (!ret) {

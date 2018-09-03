@@ -14,9 +14,9 @@ CREATE TABLE type_conversions (
        Source TEXT,
        Target TEXT,
        Flags TEXT,
-       On_Master TEXT,
-       On_Slave TEXT,
-       Expected TEXT,
+       On_Master LONGTEXT,
+       On_Slave LONGTEXT,
+       Expected LONGTEXT,
        Compare INT,
        Error TEXT);
 

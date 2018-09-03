@@ -1,0 +1,216 @@
+set @prior_lock_wait_timeout = @@rocksdb_lock_wait_timeout;
+set @prior_deadlock_detect = @@rocksdb_deadlock_detect;
+set @prior_max_latest_deadlocks = @@rocksdb_max_latest_deadlocks;
+set global rocksdb_deadlock_detect = on;
+set global rocksdb_lock_wait_timeout = 10000;
+# Clears deadlock buffer of any prior deadlocks.
+set global rocksdb_max_latest_deadlocks = 0;
+set global rocksdb_max_latest_deadlocks = @prior_max_latest_deadlocks;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connection default;
+show create table information_schema.rocksdb_deadlock;
+Table	Create Table
+ROCKSDB_DEADLOCK	CREATE TEMPORARY TABLE `ROCKSDB_DEADLOCK` (
+  `DEADLOCK_ID` bigint(8) NOT NULL DEFAULT 0,
+  `TIMESTAMP` bigint(8) NOT NULL DEFAULT 0,
+  `TRANSACTION_ID` bigint(8) NOT NULL DEFAULT 0,
+  `CF_NAME` varchar(193) NOT NULL DEFAULT '',
+  `WAITING_KEY` varchar(513) NOT NULL DEFAULT '',
+  `LOCK_TYPE` varchar(193) NOT NULL DEFAULT '',
+  `INDEX_NAME` varchar(193) NOT NULL DEFAULT '',
+  `TABLE_NAME` varchar(193) NOT NULL DEFAULT '',
+  `ROLLED_BACK` bigint(8) NOT NULL DEFAULT 0
+) ENGINE=MEMORY DEFAULT CHARSET=utf8
+create table t (i int primary key) engine=rocksdb;
+insert into t values (1), (2), (3);
+select * from information_schema.rocksdb_deadlock;
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	CF_NAME	WAITING_KEY	LOCK_TYPE	INDEX_NAME	TABLE_NAME	ROLLED_BACK
+Deadlock #1
+connection con1;
+begin;
+select * from t where i=1 for update;
+i
+1
+connection con2;
+begin;
+select * from t where i=2 for update;
+i
+2
+connection con1;
+select * from t where i=2 for update;
+connection con2;
+select * from t where i=1 for update;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+rollback;
+connection con1;
+i
+2
+rollback;
+connection default;
+select * from information_schema.rocksdb_deadlock;
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	CF_NAME	WAITING_KEY	LOCK_TYPE	INDEX_NAME	TABLE_NAME	ROLLED_BACK
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	PRIMARY	test.t	0
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	PRIMARY	test.t	1
+Deadlock #2
+connection con1;
+begin;
+select * from t where i=1 for update;
+i
+1
+connection con2;
+begin;
+select * from t where i=2 for update;
+i
+2
+connection con1;
+select * from t where i=2 for update;
+connection con2;
+select * from t where i=1 for update;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+rollback;
+connection con1;
+i
+2
+rollback;
+connection default;
+select * from information_schema.rocksdb_deadlock;
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	CF_NAME	WAITING_KEY	LOCK_TYPE	INDEX_NAME	TABLE_NAME	ROLLED_BACK
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	PRIMARY	test.t	0
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	PRIMARY	test.t	1
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	PRIMARY	test.t	0
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	PRIMARY	test.t	1
+set global rocksdb_max_latest_deadlocks = 10;
+Deadlock #3
+connection con1;
+begin;
+select * from t where i=1 for update;
+i
+1
+connection con2;
+begin;
+select * from t where i=2 for update;
+i
+2
+connection con1;
+select * from t where i=2 for update;
+connection con2;
+select * from t where i=1 for update;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+rollback;
+connection con1;
+i
+2
+rollback;
+connection default;
+select * from information_schema.rocksdb_deadlock;
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	CF_NAME	WAITING_KEY	LOCK_TYPE	INDEX_NAME	TABLE_NAME	ROLLED_BACK
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	PRIMARY	test.t	0
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	PRIMARY	test.t	1
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	PRIMARY	test.t	0
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	PRIMARY	test.t	1
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	PRIMARY	test.t	0
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	PRIMARY	test.t	1
+set global rocksdb_max_latest_deadlocks = 1;
+select * from information_schema.rocksdb_deadlock;
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	CF_NAME	WAITING_KEY	LOCK_TYPE	INDEX_NAME	TABLE_NAME	ROLLED_BACK
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	PRIMARY	test.t	0
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	PRIMARY	test.t	1
+connection con3;
+set rocksdb_deadlock_detect_depth = 2;
+Deadlock #4
+connection con1;
+begin;
+select * from t where i=1 for update;
+i
+1
+connection con2;
+begin;
+select * from t where i=2 for update;
+i
+2
+connection con3;
+begin;
+select * from t where i=3 for update;
+i
+3
+connection con1;
+select * from t where i=2 for update;
+connection con2;
+select * from t where i=3 for update;
+connection con3;
+select * from t where i=1 for update;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+rollback;
+connection con2;
+i
+3
+rollback;
+connection con1;
+i
+2
+rollback;
+connection default;
+set global rocksdb_max_latest_deadlocks = 5;
+select * from information_schema.rocksdb_deadlock;
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	CF_NAME	WAITING_KEY	LOCK_TYPE	INDEX_NAME	TABLE_NAME	ROLLED_BACK
+Deadlock #5
+connection con1;
+begin;
+select * from t where i=1 for update;
+i
+1
+connection con2;
+begin;
+select * from t where i=2 for update;
+i
+2
+connection con3;
+begin;
+select * from t where i=3 lock in share mode;
+i
+3
+connection con1;
+select * from t where i=100 for update;
+i
+select * from t where i=101 for update;
+i
+select * from t where i=2 for update;
+connection con2;
+select * from t where i=3 lock in share mode;
+i
+3
+select * from t where i=200 for update;
+i
+select * from t where i=201 for update;
+i
+select * from t where i=1 lock in share mode;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+rollback;
+connection con1;
+i
+2
+rollback;
+connection con3;
+rollback;
+connection default;
+select * from information_schema.rocksdb_deadlock;
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	CF_NAME	WAITING_KEY	LOCK_TYPE	INDEX_NAME	TABLE_NAME	ROLLED_BACK
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	PRIMARY	test.t	0
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	SHARED	PRIMARY	test.t	1
+disconnect con1;
+disconnect con2;
+disconnect con3;
+set global rocksdb_lock_wait_timeout = @prior_lock_wait_timeout;
+set global rocksdb_deadlock_detect = @prior_deadlock_detect;
+drop table t;
+select * from information_schema.rocksdb_deadlock;
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	CF_NAME	WAITING_KEY	LOCK_TYPE	INDEX_NAME	TABLE_NAME	ROLLED_BACK
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	EXCLUSIVE	INDEX_NAME	TABLE_NAME	0
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	default	WAITING_KEY	SHARED	INDEX_NAME	TABLE_NAME	1
+set global rocksdb_max_latest_deadlocks = 0;
+# Clears deadlock buffer of any existent deadlocks.
+set global rocksdb_max_latest_deadlocks = @prior_max_latest_deadlocks;
+select * from information_schema.rocksdb_deadlock;
+DEADLOCK_ID	TIMESTAMP	TRANSACTION_ID	CF_NAME	WAITING_KEY	LOCK_TYPE	INDEX_NAME	TABLE_NAME	ROLLED_BACK

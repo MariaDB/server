@@ -3520,6 +3520,14 @@ void _ma_tmp_disable_logging_for_table(MARIA_HA *info,
 {
   MARIA_SHARE *share= info->s;
   DBUG_ENTER("_ma_tmp_disable_logging_for_table");
+
+  /*
+    We have to ensure that bitmap is flushed, as it's checking
+    that share->now_transactional is set
+  */
+  if (share->now_transactional && share->data_file_type == BLOCK_RECORD)
+    _ma_bitmap_flush_all(share);
+
   if (log_incomplete)
   {
     uchar log_data[FILEID_STORE_SIZE];
@@ -3543,8 +3551,8 @@ void _ma_tmp_disable_logging_for_table(MARIA_HA *info,
     info->state may point to a state that was deleted by
     _ma_trnman_end_trans_hook()
    */
-  share->state.common= *info->state;
-  info->state= &share->state.common;
+  share->state.no_logging= *info->state;
+  info->state= &share->state.no_logging;
   info->switched_transactional= TRUE;
 
   /*
@@ -3583,7 +3591,10 @@ my_bool _ma_reenable_logging_for_table(MARIA_HA *info, my_bool flush_pages)
 
   if (share->now_transactional == share->base.born_transactional ||
       !info->switched_transactional)
+  {
+    info->switched_transactional= FALSE;
     DBUG_RETURN(0);
+  }
   info->switched_transactional= FALSE;
 
   if ((share->now_transactional= share->base.born_transactional))
@@ -3596,6 +3607,10 @@ my_bool _ma_reenable_logging_for_table(MARIA_HA *info, my_bool flush_pages)
     */
     _ma_copy_nontrans_state_information(info);
     _ma_reset_history(info->s);
+
+    /* Reset state to point to state.common, as on open() */
+    info->state=  &share->state.common;
+    *info->state=  share->state.state;
 
     if (flush_pages)
     {

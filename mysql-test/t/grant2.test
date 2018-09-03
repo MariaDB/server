@@ -385,7 +385,7 @@ select current_user();
 set password = password('changed');
 disconnect b12302;
 connection default;
-select host, length(password) from mysql.user where user like 'mysqltest\_1';
+select host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
 revoke all on mysqltest_1.* from mysqltest_1@'127.0.0.1';
 delete from mysql.user where user like 'mysqltest\_1';
 flush privileges;
@@ -396,7 +396,7 @@ select current_user();
 set password = password('changed');
 disconnect b12302_2;
 connection default;
-select host, length(password) from mysql.user where user like 'mysqltest\_1';
+select host, length(authentication_string) from mysql.user where user like 'mysqltest\_1';
 revoke all on mysqltest_1.* from mysqltest_1@'127.0.0.0/255.0.0.0';
 delete from mysql.user where user like 'mysqltest\_1';
 flush privileges;
@@ -873,9 +873,8 @@ CACHE INDEX t3 IN keycache1;
 LOAD INDEX INTO CACHE t3;
 
 --echo #
---echo # RENAME (doesn't work for temporary tables, thus should fail).
+--echo # RENAME should work for temporary tables
 --echo #
---error ER_TABLEACCESS_DENIED_ERROR
 RENAME TABLE t3 TO t3_1;
 
 --echo #

@@ -179,6 +179,8 @@ row_sel_sec_rec_is_for_clust_rec(
 	ulint*		clust_offs	= clust_offsets_;
 	ulint*		sec_offs	= sec_offsets_;
 	ibool		is_equal	= TRUE;
+	VCOL_STORAGE*	vcol_storage= 0;
+	byte*		record;
 
 	rec_offs_init(clust_offsets_);
 	rec_offs_init(sec_offsets_);
@@ -226,6 +228,17 @@ row_sel_sec_rec_is_for_clust_rec(
 			dfield_t*		vfield;
 			row_ext_t*		ext;
 
+			if (!vcol_storage)
+			{
+				TABLE *mysql_table= thr->prebuilt->m_mysql_table;
+				innobase_allocate_row_for_vcol(thr_get_trx(thr)->mysql_thd,
+							       clust_index,
+							       &heap,
+							       &mysql_table,
+							       &record,
+							       &vcol_storage);
+			}
+
 			v_col = reinterpret_cast<const dict_v_col_t*>(col);
 
 			row = row_build(ROW_COPY_POINTERS,
@@ -237,8 +250,8 @@ row_sel_sec_rec_is_for_clust_rec(
 					row, v_col, clust_index,
 					&heap, NULL, NULL,
 					thr_get_trx(thr)->mysql_thd,
-					thr->prebuilt->m_mysql_table, NULL,
-					NULL, NULL);
+					thr->prebuilt->m_mysql_table,
+					record, NULL, NULL, NULL);
 
 			clust_len = vfield->len;
 			clust_field = static_cast<byte*>(vfield->data);
@@ -326,6 +339,8 @@ inequal:
 
 func_exit:
 	if (UNIV_LIKELY_NULL(heap)) {
+		if (UNIV_LIKELY_NULL(vcol_storage))
+			innobase_free_row_for_vcol(vcol_storage);
 		mem_heap_free(heap);
 	}
 	return(is_equal);
@@ -1087,8 +1102,8 @@ sel_set_rtr_rec_lock(
 	rw_lock_x_lock(&(match->block.lock));
 retry:
 	cur_block = btr_pcur_get_block(pcur);
-        ut_ad(rw_lock_own(&(match->block.lock), RW_LOCK_X)
-              || rw_lock_own(&(match->block.lock), RW_LOCK_S));
+	ut_ad(rw_lock_own_flagged(&match->block.lock,
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 	ut_ad(page_is_leaf(buf_block_get_frame(cur_block)));
 
 	err = lock_sec_rec_read_check_and_lock(
@@ -2915,7 +2930,9 @@ row_sel_field_store_in_mysql_format_func(
 		      || !(templ->mysql_col_len % templ->mbmaxlen));
 		ut_ad(len * templ->mbmaxlen >= templ->mysql_col_len
 		      || (field_no == templ->icp_rec_field_no
-			  && field->prefix_len > 0));
+			  && field->prefix_len > 0)
+		      || templ->rec_field_is_prefix);
+
 		ut_ad(templ->is_virtual
 		      || !(field->prefix_len % templ->mbmaxlen));
 
@@ -4061,6 +4078,118 @@ row_sel_fill_vrow(
 	}
 }
 
+/** Return the record field length in characters.
+@param[in]	col		table column of the field
+@param[in]	field_no	field number
+@param[in]	rec		physical record
+@param[in]	offsets		field offsets in the physical record
+@return field length in characters. */
+static
+size_t
+rec_field_len_in_chars(
+	const dict_col_t*	col,
+	const ulint		field_no,
+	const rec_t*		rec,
+	const ulint*		offsets)
+{
+	const ulint cset = dtype_get_charset_coll(col->prtype);
+	const CHARSET_INFO* cs = all_charsets[cset];
+	ulint rec_field_len;
+	const char* rec_field = reinterpret_cast<const char *>(
+		rec_get_nth_field(
+			rec, offsets, field_no, &rec_field_len));
+
+	if (UNIV_UNLIKELY(!cs)) {
+		ib::warn() << "Missing collation " << cset;
+		return SIZE_T_MAX;
+	}
+
+	return(cs->cset->numchars(cs, rec_field, rec_field + rec_field_len));
+}
+
+/** Avoid the clustered index lookup if all the following conditions
+are true:
+1) all columns are in secondary index
+2) all values for columns that are prefix-only indexes are shorter
+than the prefix size. This optimization can avoid many IOs for certain schemas.
+@return true, to avoid clustered index lookup. */
+static
+bool row_search_with_covering_prefix(
+	row_prebuilt_t*	prebuilt,
+	const rec_t*	rec,
+	const ulint*	offsets)
+{
+	const dict_index_t*	index = prebuilt->index;
+	ut_ad(!dict_index_is_clust(index));
+
+	if (!srv_prefix_index_cluster_optimization) {
+		return false;
+	}
+
+	/** Optimization only applicable if there the number of secondary index
+	fields are greater than or equal to number of clustered index fields. */
+	if (prebuilt->n_template > index->n_fields) {
+		return false;
+	}
+
+	for (ulint i = 0; i < prebuilt->n_template; i++) {
+		mysql_row_templ_t* templ = prebuilt->mysql_template + i;
+		ulint j = templ->rec_prefix_field_no;
+
+		/** Condition (1) : is the field in the index. */
+		if (j == ULINT_UNDEFINED) {
+			return false;
+		}
+
+		/** Condition (2): If this is a prefix index then
+		row's value size shorter than prefix length. */
+
+		if (!templ->rec_field_is_prefix) {
+			continue;
+		}
+
+		ulint rec_size = rec_offs_nth_size(offsets, j);
+		const dict_field_t* field = dict_index_get_nth_field(index, j);
+		ulint max_chars = field->prefix_len / templ->mbmaxlen;
+
+		ut_a(field->prefix_len > 0);
+
+		if (rec_size < max_chars) {
+			/* Record in bytes shorter than the index
+			prefix length in char. */
+			continue;
+		}
+
+		if (rec_size * templ->mbminlen >= field->prefix_len) {
+			/* Shortest representation string by the
+			byte length of the record is longer than the
+			maximum possible index prefix. */
+			return false;
+		}
+
+		size_t num_chars = rec_field_len_in_chars(
+			field->col, j, rec, offsets);
+
+		if (num_chars >= max_chars) {
+			/* No of chars to store the record exceeds
+			the index prefix character length. */
+			return false;
+		}
+	}
+
+	/* If prefix index optimization condition satisfied then
+	for all columns above, use rec_prefix_field_no instead of
+	rec_field_no, and skip the clustered lookup below. */
+	for (ulint i = 0; i < prebuilt->n_template; i++) {
+		mysql_row_templ_t* templ = prebuilt->mysql_template + i;
+		templ->rec_field_no = templ->rec_prefix_field_no;
+		ut_a(templ->rec_field_no != ULINT_UNDEFINED);
+	}
+
+	srv_stats.n_sec_rec_cluster_reads_avoided.inc();
+	return true;
+}
+
 /** Searches for rows in the database using cursor.
 Function is mainly used for tables that are shared across connections and
 so it employs technique that can help re-construct the rows that
@@ -4120,7 +4249,6 @@ row_search_mvcc(
 	ulint*		offsets				= offsets_;
 	ibool		table_lock_waited		= FALSE;
 	byte*		next_buf			= 0;
-	ibool		use_clustered_index		= FALSE;
 	bool		spatial_search			= false;
 
 	rec_offs_init(offsets_);
@@ -4140,18 +4268,14 @@ row_search_mvcc(
 	ut_ad(!sync_check_iterate(sync_check()));
 
 	if (dict_table_is_discarded(prebuilt->table)) {
-
 		DBUG_RETURN(DB_TABLESPACE_DELETED);
-
 	} else if (!prebuilt->table->is_readable()) {
 		DBUG_RETURN(fil_space_get(prebuilt->table->space)
 			    ? DB_DECRYPTION_FAILED
 			    : DB_TABLESPACE_NOT_FOUND);
 	} else if (!prebuilt->index_usable) {
 		DBUG_RETURN(DB_MISSING_HISTORY);
-
-	} else if (dict_index_is_corrupted(prebuilt->index)) {
-
+	} else if (prebuilt->index->is_corrupted()) {
 		DBUG_RETURN(DB_CORRUPTION);
 	}
 
@@ -4437,17 +4561,12 @@ row_search_mvcc(
 	naturally moves upward (in fetch next) in alphabetical order,
 	otherwise downward */
 
-	if (direction == 0) {
-
-		if (mode == PAGE_CUR_GE
-		    || mode == PAGE_CUR_G
+	if (UNIV_UNLIKELY(direction == 0)) {
+		if (mode == PAGE_CUR_GE || mode == PAGE_CUR_G
 		    || mode >= PAGE_CUR_CONTAIN) {
-
 			moves_up = TRUE;
 		}
-
 	} else if (direction == ROW_SEL_NEXT) {
-
 		moves_up = TRUE;
 	}
 
@@ -4904,6 +5023,13 @@ wrong_offs:
 			if (!rec_get_deleted_flag(rec, comp)) {
 				goto no_gap_lock;
 			}
+
+			/* At most one transaction can be active
+			for temporary table. */
+			if (dict_table_is_temporary(clust_index->table)) {
+				goto no_gap_lock;
+			}
+
 			if (index == clust_index) {
 				trx_id_t trx_id = row_get_rec_trx_id(
 					rec, index, offsets);
@@ -5008,8 +5134,7 @@ no_gap_lock:
 			a deadlock and the transaction had to wait then
 			release the lock it is waiting on. */
 
-			trx->abort_type = TRX_SERVER_ABORT;
-			err = lock_trx_handle_wait(trx, false, false);
+			err = lock_trx_handle_wait(trx);
 
 			switch (err) {
 			case DB_SUCCESS:
@@ -5185,69 +5310,10 @@ locks_ok_del_marked:
 		break;
 	}
 
-	/* Get the clustered index record if needed, if we did not do the
-	search using the clustered index... */
-
-	use_clustered_index =
-		(index != clust_index && prebuilt->need_to_access_clustered);
-
-	if (use_clustered_index && srv_prefix_index_cluster_optimization
-	    && prebuilt->n_template <= index->n_fields) {
-		/* ...but, perhaps avoid the clustered index lookup if
-		all of the following are true:
-		1) all columns are in the secondary index
-		2) all values for columns that are prefix-only
-		   indexes are shorter than the prefix size
-		This optimization can avoid many IOs for certain schemas.
-		*/
-		ibool row_contains_all_values = TRUE;
-		uint i;
-		for (i = 0; i < prebuilt->n_template; i++) {
-			/* Condition (1) from above: is the field in the
-			index (prefix or not)? */
-			mysql_row_templ_t* templ =
-				prebuilt->mysql_template + i;
-			ulint secondary_index_field_no =
-				templ->rec_prefix_field_no;
-			if (secondary_index_field_no == ULINT_UNDEFINED) {
-				row_contains_all_values = FALSE;
-				break;
-			}
-			/* Condition (2) from above: if this is a
-			prefix, is this row's value size shorter
-			than the prefix? */
-			if (templ->rec_field_is_prefix) {
-				ulint record_size = rec_offs_nth_size(
-					offsets,
-					secondary_index_field_no);
-				const dict_field_t *field =
-					dict_index_get_nth_field(
-						index,
-						secondary_index_field_no);
-				ut_a(field->prefix_len > 0);
-				if (record_size >= field->prefix_len) {
-					row_contains_all_values = FALSE;
-					break;
-				}
-			}
+	if (index != clust_index && prebuilt->need_to_access_clustered) {
+		if (row_search_with_covering_prefix(prebuilt, rec, offsets)) {
+			goto use_covering_index;
 		}
-		/* If (1) and (2) were true for all columns above, use
-		rec_prefix_field_no instead of rec_field_no, and skip
-		the clustered lookup below. */
-		if (row_contains_all_values) {
-			for (i = 0; i < prebuilt->n_template; i++) {
-				mysql_row_templ_t* templ =
-					prebuilt->mysql_template + i;
-				templ->rec_field_no =
-					templ->rec_prefix_field_no;
-				ut_a(templ->rec_field_no != ULINT_UNDEFINED);
-			}
-			use_clustered_index = FALSE;
-			srv_stats.n_sec_rec_cluster_reads_avoided.inc();
-		}
-	}
-
-	if (use_clustered_index) {
 requires_clust_rec:
 		ut_ad(index != clust_index);
 		/* We use a 'goto' to the preceding label if a consistent
@@ -5345,6 +5411,7 @@ requires_clust_rec:
 			}
 		}
 	} else {
+use_covering_index:
 		result_rec = rec;
 	}
 
@@ -5683,15 +5750,6 @@ normal_return:
 
 	mtr.commit();
 
-	/* Rollback blocking transactions from hit list for high priority
-	transaction, if any. We should not be holding latches here as
-	we are going to rollback the blocking transactions. */
-	if (!trx->hit_list.empty()) {
-
-		ut_ad(trx_is_high_priority(trx));
-		trx_kill_blocking(trx);
-	}
-
 	DEBUG_SYNC_C("row_search_for_mysql_before_return");
 
 	if (prebuilt->idx_cond != 0) {
@@ -5867,60 +5925,6 @@ func_exit:
 		buf, PAGE_CUR_WITHIN, prebuilt, 0, ROW_SEL_NEXT);
 
 	goto loop;
-}
-
-/*******************************************************************//**
-Checks if MySQL at the moment is allowed for this table to retrieve a
-consistent read result, or store it to the query cache.
-@return whether storing or retrieving from the query cache is permitted */
-bool
-row_search_check_if_query_cache_permitted(
-/*======================================*/
-	trx_t*		trx,		/*!< in: transaction object */
-	const char*	norm_name)	/*!< in: concatenation of database name,
-					'/' char, table name */
-{
-	dict_table_t*	table = dict_table_open_on_name(
-		norm_name, FALSE, FALSE, DICT_ERR_IGNORE_NONE);
-
-	if (table == NULL) {
-
-		return(false);
-	}
-
-	/* Start the transaction if it is not started yet */
-
-	trx_start_if_not_started(trx, false);
-
-	/* If there are locks on the table or some trx has invalidated the
-	cache before this transaction started then this transaction cannot
-	read/write from/to the cache.
-
-	If a read view has not been created for the transaction then it doesn't
-	really matter what this transaction sees. If a read view was created
-	then the view low_limit_id is the max trx id that this transaction
-	saw at the time of the read view creation.  */
-
-	const bool ret = lock_table_get_n_locks(table) == 0
-		&& ((trx->id != 0 && trx->id >= table->query_cache_inv_id)
-		    || !MVCC::is_view_active(trx->read_view)
-		    || trx->read_view->low_limit_id()
-		    >= table->query_cache_inv_id);
-	if (ret) {
-		/* If the isolation level is high, assign a read view for the
-		transaction if it does not yet have one */
-
-		if (trx->isolation_level >= TRX_ISO_REPEATABLE_READ
-		    && !srv_read_only_mode
-		    && !MVCC::is_view_active(trx->read_view)) {
-
-			trx_sys->mvcc->view_open(trx->read_view, trx);
-		}
-	}
-
-	dict_table_close(table, FALSE, FALSE);
-
-	return(ret);
 }
 
 /*******************************************************************//**

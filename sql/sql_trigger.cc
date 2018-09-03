@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2004, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -452,7 +453,6 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     my_error(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER, MYF(0));
     DBUG_RETURN(TRUE);
   }
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
   if (!create)
   {
@@ -514,6 +514,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     if (err_status)
       goto end;
   }
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /* We should have only one table in table list. */
   DBUG_ASSERT(tables->next_global == 0);
@@ -587,7 +588,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     Ignore the return value for now. It's better to
     keep master/slave in consistent state.
   */
-  if (thd->locked_tables_list.reopen_tables(thd))
+  if (thd->locked_tables_list.reopen_tables(thd, false))
     thd->clear_error();
 
   /*
@@ -621,6 +622,7 @@ end:
   DBUG_RETURN(true);
 #endif /* WITH_WSREP */
 }
+
 
 /**
   Build stmt_query to write it in the bin-log, the statement to write in
@@ -1181,6 +1183,12 @@ Table_triggers_list::~Table_triggers_list()
       }
     }
   }
+
+  /* Free blobs used in insert */
+  if (record0_field)
+    for (Field **fld_ptr= record0_field; *fld_ptr; fld_ptr++)
+      (*fld_ptr)->free();
+
   if (record1_field)
     for (Field **fld_ptr= record1_field; *fld_ptr; fld_ptr++)
       delete *fld_ptr;
@@ -1357,12 +1365,12 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
       List_iterator_fast<LEX_STRING> it_connection_cl_name(trigger_list->connection_cl_names);
       List_iterator_fast<LEX_STRING> it_db_cl_name(trigger_list->db_cl_names);
       List_iterator_fast<ulonglong> it_create_times(trigger_list->create_times);
-      LEX *old_lex= thd->lex, *old_stmt_lex= thd->stmt_lex;
+      LEX *old_lex= thd->lex;
       LEX lex;
       sp_rcontext *save_spcont= thd->spcont;
       sql_mode_t save_sql_mode= thd->variables.sql_mode;
 
-      thd->lex= thd->stmt_lex= &lex;
+      thd->lex= &lex;
 
       save_db.str= thd->db;
       save_db.length= thd->db_length;
@@ -1580,7 +1588,6 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
       }
       thd->reset_db(save_db.str, save_db.length);
       thd->lex= old_lex;
-      thd->stmt_lex= old_stmt_lex;
       thd->spcont= save_spcont;
       thd->variables.sql_mode= save_sql_mode;
 
@@ -1594,7 +1601,6 @@ bool Table_triggers_list::check_n_load(THD *thd, const char *db,
 err_with_lex_cleanup:
       lex_end(&lex);
       thd->lex= old_lex;
-      thd->stmt_lex= old_stmt_lex;
       thd->spcont= save_spcont;
       thd->variables.sql_mode= save_sql_mode;
       thd->reset_db(save_db.str, save_db.length);

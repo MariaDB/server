@@ -1808,6 +1808,52 @@ SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-15308
+--echo # Assertion `ha_alter_info->alter_info->drop_list.elements > 0' failed
+--echo # in ha_innodb::prepare_inplace_alter_table
+--echo #
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP COLUMN b;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP INDEX IF EXISTS fk, DROP COLUMN b;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b INT, c INT, KEY(c)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP COLUMN c;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b INT, c INT, KEY c1(c)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP FOREIGN KEY IF EXISTS fk, DROP INDEX c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+ALTER TABLE t1 DROP INDEX IF EXISTS fk, DROP COLUMN IF EXISTS c;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-14668 ADD PRIMARY KEY IF NOT EXISTS on composite key
+--echo #
+CREATE TABLE t1 (
+        `ID` BIGINT(20) NOT NULL,
+            `RANK` MEDIUMINT(4) NOT NULL,
+                `CHECK_POINT` BIGINT(20) NOT NULL,
+                    UNIQUE INDEX `HORIZON_UIDX01` (`ID`, `RANK`)
+    ) ENGINE=InnoDB;
+
+ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS (`ID`, `CHECK_POINT`);
+SHOW CREATE TABLE t1;
+ALTER TABLE t1 ADD PRIMARY KEY IF NOT EXISTS (`ID`, `CHECK_POINT`);
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.0 tests
 --echo #
 
@@ -1881,6 +1927,40 @@ alter table t1 drop column a;
 alter table t1 drop column a, drop index a;
 show create table t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-13508 Check that rename of columns changes defaults, virtual
+--echo # columns and constraints
+--echo #
+
+create table t1 (a int, b int, check(a>b));
+alter table t1 change column a b int, change column b a int;
+show create table t1;
+drop table t1;
+
+create table t1 (a int primary key, b int, c int default (a+b) check (a+b>0),
+                d int as (a+b),
+	        key (b),
+	        constraint test check (a+b > 1));
+alter table t1 change b new_b int not null, add column b char(1), add constraint new check (length(b) > 0);
+show create table t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-11071: Assertion `thd->transaction.stmt.is_empty()' failed
+--echo # in Locked_tables_list::unlock_locked_tables
+--echo #
+
+CREATE TABLE t1 (d DATETIME DEFAULT CURRENT_TIMESTAMP, i INT) ENGINE=InnoDB;
+INSERT INTO t1 (i) VALUES (1),(1);
+LOCK TABLE t1 WRITE;
+--error ER_DUP_ENTRY
+ALTER TABLE t1 ADD UNIQUE(i);
+
+# Cleanup
+UNLOCK TABLES;
+DROP TABLE t1;
+
 
 --echo #
 --echo # End of 10.2 tests

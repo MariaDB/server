@@ -397,3 +397,39 @@ insert into t1 values(null);
 select last_insert_id();
 select * from t1;
 drop table t1;
+
+--echo #
+--echo # End of 5.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-16534 PPC64: Unexpected error with a negative values into auto-increment columns in HEAP, MyISAM, ARIA
+--echo #
+
+CREATE TABLE t1 (
+  id TINYINT NOT NULL AUTO_INCREMENT,
+  name CHAR(30) NOT NULL,
+  PRIMARY KEY (id)
+) ENGINE=MyISAM;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (name) VALUES ('dog');
+UPDATE t1 SET id=-1 WHERE id=1;
+INSERT INTO t1 (name) VALUES ('cat');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-15352 AUTO_INCREMENT breaks after updating a column value to a negative number
+--echo #
+
+SET @engine='MyISAM';
+--source include/autoinc_mdev15353.inc
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+

@@ -569,6 +569,7 @@ typedef struct system_variables
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
   ulong auto_increment_increment, auto_increment_offset;
+  uint eq_range_index_dive_limit;
   ulong lock_wait_timeout;
   ulong join_cache_level;
   ulong max_allowed_packet;
@@ -1053,21 +1054,6 @@ public:
 
   LEX_STRING name; /* name for named prepared statements */
   LEX *lex;                                     // parse tree descriptor
-  /*
-    LEX which represents current statement (conventional, SP or PS)
-
-    For example during view parsing THD::lex will point to the views LEX and
-    THD::stmt_lex will point to LEX of the statement where the view will be
-    included
-
-    Currently it is used to have always correct select numbering inside
-    statement (LEX::current_select_number) without storing and restoring a
-    global counter which was THD::select_number.
-
-    TODO: make some unified statement representation (now SP has different)
-    to store such data like LEX::current_select_number.
-  */
-  LEX *stmt_lex;
   /*
     Points to the query associated with this statement. It's const, but
     we need to declare it char * because all table handlers are written
@@ -1854,7 +1840,7 @@ public:
   void unlink_all_closed_tables(THD *thd,
                                 MYSQL_LOCK *lock,
                                 size_t reopen_count);
-  bool reopen_tables(THD *thd);
+  bool reopen_tables(THD *thd, bool need_reopen);
   bool restore_lock(THD *thd, TABLE_LIST *dst_table_list, TABLE *table,
                     MYSQL_LOCK *lock);
   void add_back_last_deleted_lock(TABLE_LIST *dst_table_list);
@@ -3134,6 +3120,7 @@ public:
     query_id_t first_query_id;
   } binlog_evt_union;
 
+  mysql_cond_t              COND_wsrep_thd;
   /**
     Internal parser state.
     Note that since the parser is not re-entrant, we keep only one parser
@@ -3779,6 +3766,10 @@ public:
     *format= (enum_binlog_format) variables.binlog_format;
     *current_format= current_stmt_binlog_format;
   }
+  inline enum_binlog_format get_current_stmt_binlog_format()
+  {
+    return current_stmt_binlog_format;
+  }
   inline void set_binlog_format(enum_binlog_format format,
                                 enum_binlog_format current_format)
   {
@@ -3960,11 +3951,28 @@ public:
   {
     if (db == NULL)
     {
-      my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
-      return TRUE;
+      /*
+        No default database is set. In this case if it's guaranteed that
+        no CTE can be used in the statement then we can throw an error right
+        now at the parser stage. Otherwise the decision about throwing such
+        a message must be postponed until a post-parser stage when we are able
+        to resolve all CTE names as we don't need this message to be thrown
+        for any CTE references.
+      */
+      if (!lex->with_clauses_list)
+      {
+        my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
+        return TRUE;
+      }
+      /* This will allow to throw an error later for non-CTE references */
+      *p_db= NULL;
+      *p_db_length= 0;
     }
-    *p_db= strmake(db, db_length);
-    *p_db_length= db_length;
+    else
+    {
+     *p_db= strmake(db, db_length);
+     *p_db_length= db_length;
+    }
     return FALSE;
   }
   thd_scheduler event_scheduler;
@@ -4269,7 +4277,13 @@ public:
     The GTID assigned to the last commit. If no GTID was assigned to any commit
     so far, this is indicated by last_commit_gtid.seq_no == 0.
   */
-  rpl_gtid last_commit_gtid;
+private:
+  rpl_gtid m_last_commit_gtid;
+
+public:
+  rpl_gtid get_last_commit_gtid() { return m_last_commit_gtid; }
+  void set_last_commit_gtid(rpl_gtid &gtid);
+
 
   LF_PINS *tdc_hash_pins;
   LF_PINS *xid_hash_pins;
@@ -4277,6 +4291,12 @@ public:
 
 /* Members related to temporary tables. */
 public:
+  /* Opened table states. */
+  enum Temporary_table_state {
+    TMP_TABLE_IN_USE,
+    TMP_TABLE_NOT_IN_USE,
+    TMP_TABLE_ANY
+  };
   bool has_thd_temporary_tables();
 
   TABLE *create_and_open_tmp_table(handlerton *hton,
@@ -4286,8 +4306,10 @@ public:
                                    const char *table_name,
                                    bool open_in_engine);
 
-  TABLE *find_temporary_table(const char *db, const char *table_name);
-  TABLE *find_temporary_table(const TABLE_LIST *tl);
+  TABLE *find_temporary_table(const char *db, const char *table_name,
+                              Temporary_table_state state= TMP_TABLE_IN_USE);
+  TABLE *find_temporary_table(const TABLE_LIST *tl,
+                              Temporary_table_state state= TMP_TABLE_IN_USE);
 
   TMP_TABLE_SHARE *find_tmp_table_share_w_base_key(const char *key,
                                                    uint key_length);
@@ -4313,13 +4335,6 @@ public:
 private:
   /* Whether a lock has been acquired? */
   bool m_tmp_tables_locked;
-
-  /* Opened table states. */
-  enum Temporary_table_state {
-    TMP_TABLE_IN_USE,
-    TMP_TABLE_NOT_IN_USE,
-    TMP_TABLE_ANY
-  };
 
   bool has_temporary_tables();
   uint create_tmp_table_def_key(char *key, const char *db,
@@ -4369,7 +4384,6 @@ public:
   query_id_t                wsrep_last_query_id;
   enum wsrep_query_state    wsrep_query_state;
   enum wsrep_conflict_state wsrep_conflict_state;
-  mysql_mutex_t             LOCK_wsrep_thd;
   wsrep_trx_meta_t          wsrep_trx_meta;
   uint32                    wsrep_rand;
   Relay_log_info            *wsrep_rli;
@@ -5726,11 +5740,15 @@ public:
   sent by the user (ie: stored procedure).
 */
 #define CF_SKIP_QUESTIONS       (1U << 1)
-
+#ifdef WITH_WSREP
 /**
   Do not check that wsrep snapshot is ready before allowing this command
 */
 #define CF_SKIP_WSREP_CHECK     (1U << 2)
+#else
+#define CF_SKIP_WSREP_CHECK     0
+#endif /* WITH_WSREP */
+
 /**
   Do not allow it for COM_MULTI batch
 */
@@ -5796,8 +5814,6 @@ inline int handler::ha_ft_read(uchar *buf)
 inline int handler::ha_rnd_pos_by_record(uchar *buf)
 {
   int error= rnd_pos_by_record(buf);
-  if (!error)
-    update_rows_read();
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }

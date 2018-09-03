@@ -27,10 +27,6 @@ SELECT @@global.wsrep_sst_receive_address;
 
 --echo
 --echo # invalid values
---error ER_WRONG_VALUE_FOR_VAR
-SET @@global.wsrep_sst_receive_address='127.0.0.1:4444';
---error ER_WRONG_VALUE_FOR_VAR
-SET @@global.wsrep_sst_receive_address='127.0.0.1';
 SELECT @@global.wsrep_sst_receive_address;
 --error ER_WRONG_VALUE_FOR_VAR
 SET @@global.wsrep_sst_receive_address=NULL;

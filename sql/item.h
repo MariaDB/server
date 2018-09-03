@@ -27,6 +27,7 @@
 #include "sql_const.h"                 /* RAND_TABLE_BIT, MAX_FIELD_NAME */
 #include "field.h"                              /* Derivation */
 #include "sql_type.h"
+#include "sql_time.h"
 
 C_MODE_START
 #include <ma_dyncol.h>
@@ -704,6 +705,12 @@ protected:
                                          bool fixed_length,
                                          bool set_blob_packlength);
   Field *create_tmp_field(bool group, TABLE *table, uint convert_int_length);
+  /*
+    This method is used if the item was not null but convertion to
+    TIME/DATE/DATETIME failed. We return a zero date if allowed,
+    otherwise - null.
+  */
+  bool make_zero_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
 
   void push_note_converted_to_negative_complement(THD *thd);
   void push_note_converted_to_positive_complement(THD *thd);
@@ -737,6 +744,7 @@ public:
                                            of a query with ROLLUP */ 
   bool null_value;			/* if item is null */
   bool with_sum_func;                   /* True if item contains a sum func */
+  bool with_param;                      /* True if contains an SP parameter */
   bool with_window_func;             /* True if item contains a window func */
   /**
     True if any item except Item_sum contains a field. Set during parsing.
@@ -1361,11 +1369,19 @@ public:
   bool get_time(MYSQL_TIME *ltime)
   { return get_date(ltime, TIME_TIME_ONLY | TIME_INVALID_DATES); }
   // Get date with automatic TIME->DATETIME conversion
+  bool convert_time_to_datetime(THD *thd, MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    MYSQL_TIME tmp;
+    if (time_to_datetime_with_warn(thd, ltime, &tmp, fuzzydate))
+      return null_value= true;
+    *ltime= tmp;
+    return false;
+  }
   bool get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate);
   /*
     Get time with automatic DATE/DATETIME to TIME conversion.
 
-    Performce a reserve operation to get_date_with_conversion().
+    Performes a reverse operation to get_date_with_conversion().
     Suppose:
     - we have a set of items (typically with the native MYSQL_TYPE_TIME type)
       whose item->get_date() return TIME1 value, and
@@ -1598,6 +1614,11 @@ public:
   virtual bool limit_index_condition_pushdown_processor(void *arg) { return 0; }
   virtual bool exists2in_processor(void *arg) { return 0; }
   virtual bool find_selective_predicates_list_processor(void *arg) { return 0; }
+  bool cleanup_is_expensive_cache_processor(void *arg)
+  {
+    is_expensive_cache= (int8)(-1);
+    return 0;
+  }
 
   /* 
     TRUE if the expression depends only on the table indicated by tab_map
@@ -1666,7 +1687,8 @@ public:
     fields.
   */
   virtual bool check_partition_func_processor(void *arg) { return 1;}
-  virtual bool vcol_in_partition_func_processor(void *arg) { return 0; }
+  virtual bool post_fix_fields_part_expr_processor(void *arg) { return 0; }
+  virtual bool rename_fields_processor(void *arg) { return 0; }
   /** Processor used to check acceptability of an item in the defining
       expression for a virtual column 
 
@@ -1679,6 +1701,12 @@ public:
   {
     uint errors;                                /* Bits of possible errors */
     const char *name;                           /* Not supported function */
+  };
+  struct func_processor_rename
+  {
+    LEX_CSTRING db_name;
+    LEX_CSTRING table_name;
+    List<Create_field> fields;
   };
   virtual bool check_vcol_func_processor(void *arg)
   {
@@ -2632,13 +2660,14 @@ public:
   bool register_field_in_write_map(void *arg);
   bool register_field_in_bitmap(void *arg);
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
-  bool vcol_in_partition_func_processor(void *bool_arg);
+  bool post_fix_fields_part_expr_processor(void *bool_arg);
   bool check_valid_arguments_processor(void *bool_arg);
   bool check_field_expression_processor(void *arg);
   bool enumerate_field_refs_processor(void *arg);
   bool update_table_bitmaps_processor(void *arg);
   bool switch_to_nullable_fields_processor(void *arg);
   bool update_vcol_processor(void *arg);
+  bool rename_fields_processor(void *arg);
   bool check_vcol_func_processor(void *arg)
   {
     context= 0;
@@ -2748,6 +2777,7 @@ public:
   longlong val_int();
   String *val_str(String *str);
   my_decimal *val_decimal(my_decimal *);
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   int save_in_field(Field *field, bool no_conversions);
   int save_safe_in_field(Field *field);
   bool send(Protocol *protocol, String *str);
@@ -3834,7 +3864,7 @@ class Item_date_literal_for_invalid_dates: public Item_date_literal
 
     Item_date_literal_for_invalid_dates::get_date()
     (unlike the regular Item_date_literal::get_date())
-    does not check the result for NO_ZERO_IN_DATE and NO_ZER_DATE,
+    does not check the result for NO_ZERO_IN_DATE and NO_ZERO_DATE,
     always returns success (false), and does not produce error/warning messages.
 
     We need these _for_invalid_dates classes to be able to rewrite:
@@ -4193,7 +4223,7 @@ public:
     also to make printing of items inherited from Item_sum uniform.
   */
   virtual const char *func_name() const= 0;
-  virtual void fix_length_and_dec()= 0;
+  virtual bool fix_length_and_dec()= 0;
   bool const_item() const { return const_item_cache; }
   table_map used_tables() const { return used_tables_cache; }
   Item* build_clone(THD *thd, MEM_ROOT *mem_root);
@@ -5534,8 +5564,17 @@ public:
   enum Item_result cmp_type () const
   { return Type_handler_hybrid_field_type::cmp_type(); }
 
-  static Item_cache* get_cache(THD *thd, const Item *item);
-  static Item_cache* get_cache(THD *thd, const Item* item, const Item_result type);
+  static Item_cache* get_cache(THD *thd, const Item* item,
+                         const Item_result type, const enum_field_types f_type);
+  static Item_cache* get_cache(THD *thd, const Item* item,
+                         const Item_result type)
+  {
+    return get_cache(thd, item, type, item->field_type());
+  }
+  static Item_cache* get_cache(THD *thd, const Item *item)
+  {
+    return get_cache(thd, item, item->cmp_type());
+  }
   virtual void keep_array() {}
   virtual void print(String *str, enum_query_type query_type);
   bool eq_def(const Field *field) 
@@ -5580,7 +5619,7 @@ public:
   virtual void store(Item *item);
   virtual bool cache_value()= 0;
   bool basic_const_item() const
-  { return MY_TEST(example && example->basic_const_item()); }
+  { return example && example->basic_const_item(); }
   virtual void clear() { null_value= TRUE; value_cached= FALSE; }
   bool is_null() { return !has_value(); }
   virtual bool is_expensive()

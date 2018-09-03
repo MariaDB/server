@@ -7109,11 +7109,7 @@ static void test_embedded_start_stop()
     MY_INIT(argv[0]);
 
     /* Load the client defaults from the .cnf file[s]. */
-    if (load_defaults("my", client_test_load_default_groups, &argc, &argv))
-    {
-      myerror("load_defaults failed"); 
-      exit(1);
-    }
+    load_defaults_or_exit("my", client_test_load_default_groups, &argc, &argv);
 
     /* Parse the options (including the ones given from defaults files). */
     get_options(&argc, &argv);
@@ -7161,12 +7157,7 @@ static void test_embedded_start_stop()
 
   MY_INIT(argv[0]);
 
-  if (load_defaults("my", client_test_load_default_groups, &argc, &argv))
-  {
-    myerror("load_defaults failed \n "); 
-    exit(1);
-  }
-
+  load_defaults_or_exit("my", client_test_load_default_groups, &argc, &argv);
   get_options(&argc, &argv);
 
   /* Must start the main embedded server again after the test. */
@@ -12324,6 +12315,119 @@ static void test_datetime_ranges()
   verify_col_data("t1", "hour", "270:30:30");
   verify_col_data("t1", "min", "00:00:00");
   verify_col_data("t1", "sec", "00:00:00");
+
+  mysql_stmt_close(stmt);
+
+  stmt_text= "drop table t1";
+  rc= mysql_real_query(mysql, stmt_text, strlen(stmt_text));
+  myquery(rc);
+}
+
+
+/*
+  This test is used in:
+  mysql-test/suite/binlog/binlog_stm_datetime_ranges_mdev15289.test
+*/
+static void test_datetime_ranges_mdev15289()
+{
+  const char *stmt_text;
+  int rc, i;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND my_bind[4];
+  MYSQL_TIME tm[4];
+
+  myheader("test_datetime_ranges_mdev15289");
+
+  stmt_text= "SET sql_mode=''";
+  rc= mysql_real_query(mysql, stmt_text, strlen(stmt_text));
+  myquery(rc);
+
+  stmt_text= "create or replace table t1 "
+             "(t time, d date, dt datetime,ts timestamp)";
+  rc= mysql_real_query(mysql, stmt_text, strlen(stmt_text));
+  myquery(rc);
+
+  stmt= mysql_simple_prepare(mysql, "INSERT INTO t1 VALUES (?, ?, ?, ?)");
+  check_stmt(stmt);
+  verify_param_count(stmt, 4);
+
+  /*** Testing DATETIME ***/
+  bzero((char*) my_bind, sizeof(my_bind));
+  for (i= 0; i < 4; i++)
+  {
+    my_bind[i].buffer_type= MYSQL_TYPE_DATETIME;
+    my_bind[i].buffer= &tm[i];
+  }
+  rc= mysql_stmt_bind_param(stmt, my_bind);
+  check_execute(stmt, rc);
+
+  /* Notice bad year */
+  tm[0].year= 20010; tm[0].month= 1; tm[0].day= 2;
+  tm[0].hour= 03; tm[0].minute= 04; tm[0].second= 05;
+  tm[0].second_part= 0; tm[0].neg= 0;
+  tm[0].time_type= MYSQL_TIMESTAMP_DATETIME;
+  tm[3]= tm[2]= tm[1]= tm[0];
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  my_process_warnings(mysql, 4);
+
+  verify_col_data("t1", "t", "00:00:00");
+  verify_col_data("t1", "d", "0000-00-00");
+  verify_col_data("t1", "dt", "0000-00-00 00:00:00");
+  verify_col_data("t1", "ts", "0000-00-00 00:00:00");
+
+  /*** Testing DATE ***/
+  bzero((char*) my_bind, sizeof(my_bind));
+  for (i= 0; i < 4; i++)
+  {
+    my_bind[i].buffer_type= MYSQL_TYPE_DATE;
+    my_bind[i].buffer= &tm[i];
+  }
+  rc= mysql_stmt_bind_param(stmt, my_bind);
+  check_execute(stmt, rc);
+
+  /* Notice bad year */
+  tm[0].year= 20010; tm[0].month= 1; tm[0].day= 2;
+  tm[0].hour= 00; tm[0].minute= 00; tm[0].second= 00;
+  tm[0].second_part= 0; tm[0].neg= 0;
+  tm[0].time_type= MYSQL_TIMESTAMP_DATE;
+  tm[3]= tm[2]= tm[1]= tm[0];
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  my_process_warnings(mysql, 4);
+
+  verify_col_data("t1", "t", "00:00:00");
+  verify_col_data("t1", "d", "0000-00-00");
+  verify_col_data("t1", "dt", "0000-00-00 00:00:00");
+  verify_col_data("t1", "ts", "0000-00-00 00:00:00");
+
+  /*** Testing TIME ***/
+  bzero((char*) my_bind, sizeof(my_bind));
+  for (i= 0; i < 4; i++)
+  {
+    my_bind[i].buffer_type= MYSQL_TYPE_TIME;
+    my_bind[i].buffer= &tm[i];
+  }
+  rc= mysql_stmt_bind_param(stmt, my_bind);
+  check_execute(stmt, rc);
+
+  /* Notice bad hour */
+  tm[0].year= 0; tm[0].month= 0; tm[0].day= 0;
+  tm[0].hour= 100; tm[0].minute= 64; tm[0].second= 05;
+  tm[0].second_part= 0; tm[0].neg= 0;
+  tm[0].time_type= MYSQL_TIMESTAMP_TIME;
+  tm[3]= tm[2]= tm[1]= tm[0];
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  my_process_warnings(mysql, 4);
+
+  verify_col_data("t1", "t", "00:00:00");
+  verify_col_data("t1", "d", "0000-00-00");
+  verify_col_data("t1", "dt", "0000-00-00 00:00:00");
+  verify_col_data("t1", "ts", "0000-00-00 00:00:00");
 
   mysql_stmt_close(stmt);
 
@@ -19714,6 +19818,7 @@ static struct my_tests_st my_tests[]= {
   { "test_bug6081", test_bug6081 },
   { "test_bug6096", test_bug6096 },
   { "test_datetime_ranges", test_datetime_ranges },
+  { "test_datetime_ranges_mdev15289", test_datetime_ranges_mdev15289 },
   { "test_bug4172", test_bug4172 },
   { "test_conversion", test_conversion },
   { "test_rewind", test_rewind },

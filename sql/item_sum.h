@@ -457,7 +457,8 @@ public:
   */
   virtual void update_field()=0;
   virtual bool keep_field_type(void) const { return 0; }
-  virtual void fix_length_and_dec() { maybe_null=1; null_value=1; }
+  virtual bool fix_length_and_dec()
+  { maybe_null=1; null_value=1; return FALSE; }
   virtual Item *result_item(THD *thd, Field *field);
 
   void update_used_tables ();
@@ -752,8 +753,8 @@ public:
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
-  void fix_length_and_dec()
-  { decimals=0; max_length=21; maybe_null=null_value=0; }
+  bool fix_length_and_dec()
+  { decimals=0; max_length=21; maybe_null=null_value=0; return FALSE; }
 };
 
 
@@ -764,7 +765,7 @@ protected:
   double sum;
   my_decimal dec_buffs[2];
   uint curr_dec_buff;
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
 
 public:
   Item_sum_sum(THD *thd, Item *item_par, bool distinct):
@@ -888,7 +889,7 @@ public:
     :Item_sum_sum(thd, item), count(item->count),
     prec_increment(item->prec_increment) {}
 
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   enum Sumfunctype sum_func () const 
   {
     return has_with_distinct() ? AVG_DISTINCT_FUNC : AVG_FUNC;
@@ -948,7 +949,7 @@ But, this falls prey to catastrophic cancellation.  Instead, use the recurrence 
 
 class Item_sum_variance : public Item_sum_num
 {
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
 
 public:
   double recurrence_m, recurrence_s;    /* Used in recurrence relation. */
@@ -1110,8 +1111,11 @@ public:
   longlong val_int();
   void reset_field();
   void update_field();
-  void fix_length_and_dec()
-  { decimals= 0; max_length=21; unsigned_flag= 1; maybe_null= null_value= 0; }
+  bool fix_length_and_dec()
+  {
+    decimals= 0; max_length=21; unsigned_flag= 1; maybe_null= null_value= 0;
+    return FALSE;
+  }
   void cleanup()
   {
     bits= reset_bits;
@@ -1401,7 +1405,7 @@ class Item_sum_udf_float :public Item_udf_sum
   enum Item_result result_type () const { return REAL_RESULT; }
   enum Item_result cmp_type () const { return REAL_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_DOUBLE; }
-  void fix_length_and_dec() { fix_num_length_and_dec(); }
+  bool fix_length_and_dec() { fix_num_length_and_dec(); return FALSE; }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_sum_udf_float>(thd, mem_root, this); }
@@ -1424,7 +1428,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return INT_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
-  void fix_length_and_dec() { decimals=0; max_length=21; }
+  bool fix_length_and_dec() { decimals=0; max_length=21; return FALSE; }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_sum_udf_int>(thd, mem_root, this); }
@@ -1466,7 +1470,7 @@ public:
   my_decimal *val_decimal(my_decimal *dec);
   enum Item_result result_type () const { return STRING_RESULT; }
   enum_field_types field_type() const { return string_field_type(); }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_sum_udf_str>(thd, mem_root, this); }
@@ -1488,7 +1492,7 @@ public:
   my_decimal *val_decimal(my_decimal *);
   enum Item_result result_type () const { return DECIMAL_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_NEWDECIMAL; }
-  void fix_length_and_dec() { fix_num_length_and_dec(); }
+  bool fix_length_and_dec() { fix_num_length_and_dec(); return FALSE; }
   Item *copy_or_same(THD* thd);
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_sum_udf_decimal>(thd, mem_root, this); }
@@ -1563,7 +1567,7 @@ public:
   double val_real() { DBUG_ASSERT(fixed == 1); null_value=1; return 0.0; }
   longlong val_int() { DBUG_ASSERT(fixed == 1); null_value=1; return 0; }
   enum Item_result result_type () const { return STRING_RESULT; }
-  void fix_length_and_dec() { maybe_null=1; max_length=0; }
+  bool fix_length_and_dec() { maybe_null=1; max_length=0; return FALSE; }
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
   void clear() {}
   bool add() { return 0; }  

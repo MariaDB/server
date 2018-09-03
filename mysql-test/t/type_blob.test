@@ -680,3 +680,21 @@ DROP TABLE t1;
 --echo #
 --echo # End of 5.5 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.2 test
+--echo #
+
+--echo #
+--echo # MDEV-12809 Bad column type created for TEXT(1431655798) CHARACTER SET utf8
+--echo #
+
+CREATE TABLE t1 (a TEXT(1431655798) CHARACTER SET utf8);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.2 test
+--echo #

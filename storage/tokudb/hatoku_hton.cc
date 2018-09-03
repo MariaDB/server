@@ -978,7 +978,7 @@ static bool tokudb_sync_on_prepare(void) {
 }   
 
 static int tokudb_xa_prepare(handlerton* hton, THD* thd, bool all) {
-    TOKUDB_DBUG_ENTER("");
+    TOKUDB_DBUG_ENTER("%u", all);
     TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "enter");
     int r = 0;
 
@@ -1006,6 +1006,22 @@ static int tokudb_xa_prepare(handlerton* hton, THD* thd, bool all) {
         r = txn->xa_prepare(txn, &thd_xid, syncflag);
         // test hook to induce a crash on a debug build
         DBUG_EXECUTE_IF("tokudb_crash_prepare_after", DBUG_SUICIDE(););
+
+        // XA log entries can be interleaved in the binlog since XA prepare on the master
+        // flushes to the binlog.  There can be log entries from different clients pushed
+        // into the binlog before XA commit is executed on the master.  Therefore, the slave
+        // thread must be able to juggle multiple XA transactions.  Tokudb does this by
+        // zapping the client transaction context on the slave when executing the XA prepare
+        // and expecting to process XA commit with commit_by_xid (which supplies the XID so
+        // that the transaction can be looked up and committed).
+        if (r == 0 && all && thd->slave_thread) {
+            TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "zap txn context %u", thd_sql_command(thd));
+            if (thd_sql_command(thd) == SQLCOM_XA_PREPARE) {
+                trx->all = NULL;
+                trx->sub_sp_level = NULL;
+                trx->sp_level = NULL;
+            }
+        }
     } else {
         TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "nothing to prepare %d", all);
     }
@@ -1036,6 +1052,7 @@ static int tokudb_xa_recover(handlerton* hton, XID* xid_list, uint len) {
 static int tokudb_commit_by_xid(handlerton* hton, XID* xid) {
     TOKUDB_DBUG_ENTER("");
     TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "enter");
+    TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "xid %p", xid);
     int r = 0;
     DB_TXN* txn = NULL;
     TOKU_XA_XID* toku_xid = (TOKU_XA_XID*)xid;
@@ -1055,6 +1072,7 @@ cleanup:
 static int tokudb_rollback_by_xid(handlerton* hton, XID*  xid) {
     TOKUDB_DBUG_ENTER("");
     TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "enter");
+    TOKUDB_TRACE_FOR_FLAGS(TOKUDB_DEBUG_XA, "xid %p", xid);
     int r = 0;
     DB_TXN* txn = NULL;
     TOKU_XA_XID* toku_xid = (TOKU_XA_XID*)xid;

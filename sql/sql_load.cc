@@ -104,23 +104,25 @@ the transaction after every 10,000 inserted rows. */
 static bool wsrep_load_data_split(THD *thd, const TABLE *table,
 				  const COPY_INFO &info)
 {
-  extern struct handlerton* innodb_hton_ptr;
-
   DBUG_ENTER("wsrep_load_data_split");
 
-  if (wsrep_load_data_splitting && wsrep_on(thd)
-      && info.records && !(info.records % 10000)
-      && thd->transaction.stmt.ha_list
-      && thd->transaction.stmt.ha_list->ht() == binlog_hton
-      && thd->transaction.stmt.ha_list->next()
-      && thd->transaction.stmt.ha_list->next()->ht() == innodb_hton_ptr
-      && !thd->transaction.stmt.ha_list->next()->next())
+  if (!wsrep_load_data_splitting || !wsrep_on(thd)
+      || !info.records || (info.records % 10000)
+      || !thd->transaction.stmt.ha_list
+      || thd->transaction.stmt.ha_list->ht() != binlog_hton
+      || !thd->transaction.stmt.ha_list->next()
+      || thd->transaction.stmt.ha_list->next()->next())
+    DBUG_RETURN(false);
+
+  if (handlerton* hton= thd->transaction.stmt.ha_list->next()->ht())
   {
+    if (hton->db_type != DB_TYPE_INNODB)
+      DBUG_RETURN(false);
     WSREP_DEBUG("intermediate transaction commit in LOAD DATA");
     if (wsrep_run_wsrep_commit(thd, true) != WSREP_TRX_OK) DBUG_RETURN(true);
     if (binlog_hton->commit(binlog_hton, thd, true)) DBUG_RETURN(true);
     wsrep_post_commit(thd, true);
-    innodb_hton_ptr->commit(innodb_hton_ptr, thd, true);
+    hton->commit(hton, thd, true);
     table->file->extra(HA_EXTRA_FAKE_START_STMT);
   }
 

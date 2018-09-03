@@ -154,3 +154,9 @@ SELECT 1 FROM t1 WHERE (SELECT a FROM t1 group by c) = b;
 Warnings:
 Warning	1292	Incorrect datetime value: ''
 DROP TABLE t1;
+CREATE TABLE t1 (d DATE) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('2012-12-21');
+SELECT * FROM t1 WHERE LEAST( UTC_TIME(), d );
+d
+2012-12-21
+DROP TABLE t1;

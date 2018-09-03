@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -38,7 +38,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "row0mysql.h"
 #include "pars0pars.h"
 #include "trx0roll.h"
-#include "usr0sess.h"
 #include "ut0vec.h"
 #include "dict0priv.h"
 #include "fts0priv.h"
@@ -944,14 +943,10 @@ dict_create_index_tree_in_mem(
 	const trx_t*	trx)	/*!< in: InnoDB transaction handle */
 {
 	mtr_t		mtr;
-	ulint		page_no = FIL_NULL;
+	ulint		page_no;
 
 	ut_ad(mutex_own(&dict_sys->mutex));
-
-	if (index->type == DICT_FTS) {
-		/* FTS index does not need an index tree */
-		return(DB_SUCCESS);
-	}
+	ut_ad(!(index->type & DICT_FTS));
 
 	mtr_start(&mtr);
 	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);

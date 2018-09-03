@@ -62,9 +62,6 @@ inline void toku_debug_sync(struct tokutxn *txn, const char *sync_point_name) {
     void *client_extra;
     THD *thd;
 
-    if (likely(!opt_debug_sync_timeout))
-        return;
-
     toku_txn_get_client_id(txn, &client_id, &client_extra);
     thd = reinterpret_cast<THD *>(client_extra);
     DEBUG_SYNC(thd, sync_point_name);

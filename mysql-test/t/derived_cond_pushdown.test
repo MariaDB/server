@@ -1590,3 +1590,455 @@ eval EXPLAIN FORMAT=JSON $q;
 DROP TABLE t1,t2;
 
 SET  sql_mode = DEFAULT;
+
+--echo #
+--echo # MDEV-15579: incorrect removal of sub-formulas to be pushed
+--echo #             into WHERE of materialized derived with GROUP BY
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, c INT, d INT);
+CREATE TABLE t2 (x INT, y INT, z INT);
+
+INSERT INTO t1 VALUES (1,1,66,1), (1,1,56,2), (3,2,42,3);
+INSERT INTO t2 VALUES (1,1,66), (1,12,32);
+
+LET $query=
+SELECT *
+FROM t2,
+(
+  SELECT a, b, max(c) AS max_c
+  FROM t1
+  GROUP BY a
+  HAVING max_c > 37
+) AS v1
+WHERE (v1.a=1) AND (v1.b=v1.a) AND
+      (v1.a=t2.x) AND (v1.max_c>30);
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT *
+FROM t2,
+(
+  SELECT a, b, d, max(c) AS max_c
+  FROM t1
+  GROUP BY a,d
+  HAVING max_c > 37
+) AS v1
+WHERE (v1.a=1) AND (v1.b=v1.a) AND (v1.b=v1.d) AND
+      (v1.a=t2.x) AND (v1.max_c>30);
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-15765: pushing condition with temporal constants
+--echo #             into constant tables
+--echo #
+
+select * from (select  date('2018-01-01') as d
+               union all
+               select  date('2018-01-01') as d) as t
+  where t.d between date ('2017-01-01') and date ('2019-01-01');
+
+select * from (select  date('2018-01-01') as d) as t
+  where t.d between date ('2017-01-01') and date ('2019-01-01');
+
+--echo #
+--echo # MDEV-16088: pushdown into derived defined in the IN subquery
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (e INT, f INT, g INT);
+INSERT INTO t1 VALUES (1,14),(2,13),(1,19),(2,32),(3,24);
+INSERT INTO t2 VALUES (1,19,2),(3,24,1),(1,12,2),(3,11,3),(2,32,1);
+
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e,d_tab.max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) AS max_f
+      FROM t2
+      GROUP BY t2.e
+      HAVING max_f>18
+    ) as d_tab
+    WHERE d_tab.e>1
+  )
+;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e,d_tab.max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) AS max_f
+      FROM t2
+      GROUP BY t2.e
+      HAVING max_f>18
+    ) as d_tab
+    WHERE d_tab.max_f<25
+  )
+;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e, MAX(d_tab.max_f) AS max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) as max_f, t2.g
+      FROM t2
+      GROUP BY t2.e
+    ) as d_tab
+    WHERE d_tab.e>1
+    GROUP BY d_tab.g
+  )
+;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM t1
+WHERE (t1.a,t1.b) IN
+  (
+    SELECT d_tab.e, MAX(d_tab.max_f) AS max_f
+    FROM (
+      SELECT t2.e, MAX(t2.f) as max_f, t2.g
+      FROM t2
+      GROUP BY t2.e
+    ) as d_tab
+    WHERE d_tab.max_f>20
+    GROUP BY d_tab.g
+  )
+;
+EVAL $query;
+EVAL EXPLAIN $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-15765: pushing condition with IN subquery defined with constants
+--echo #             using substitution
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM
+(
+  SELECT DISTINCT * FROM t1
+) der_tab
+WHERE (a>0 AND a<2 OR a IN (2,3)) AND
+      (a=2 OR 0);
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16386: pushing condition into the HAVING clause when ambiguous
+--echo #             fields warning appears
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+
+INSERT INTO t1 VALUES (1,2),(2,3),(3,4);
+
+LET $query=
+SELECT * FROM
+(
+  SELECT t1.b AS a
+  FROM t1
+  GROUP BY t1.a
+) dt
+WHERE (dt.a=2);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM
+(
+  SELECT t1.b AS a
+  FROM t1
+  GROUP BY t1.a
+  HAVING (t1.a<3)
+) dt
+WHERE (dt.a>1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM
+(
+  SELECT 'ab' AS a
+  FROM t1
+  GROUP BY t1.a
+) dt
+WHERE (dt.a='ab');
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM
+(
+  SELECT 1 AS a
+  FROM t1
+  GROUP BY t1.a
+) dt
+WHERE (dt.a=1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16517: pushdown condition with the IN predicate defined
+--echo #             with non-constant values
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2),(1,3);
+
+LET $query=
+SELECT * FROM
+(
+  SELECT t1.a
+  FROM t1
+  WHERE 1 IN (0,t1.a)
+  GROUP BY t1.a
+) AS dt1
+JOIN
+(
+  SELECT t1.a
+  FROM t1
+  WHERE 1 IN (0,t1.a)
+) AS dt2
+ON dt1.a = dt2.a;
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT * FROM
+(
+  SELECT t1.a,MAX(t1.b)
+  FROM t1
+  GROUP BY t1.a
+) AS dt, t1
+WHERE dt.a=t1.a AND dt.a IN (1,t1.a);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15087: error from inexpensive subquery before check
+--echo #                   for condition pushdown into derived 
+--echo #
+
+CREATE TABLE t1 (i1 int, v1 varchar(1));
+INSERT INTO t1 VALUES (7,'x');
+
+CREATE TABLE t2 (i1 int);
+INSERT INTO t2 VALUES (8);
+
+CREATE TABLE t3 (i1 int ,v1 varchar(1), v2 varchar(1));
+INSERT INTO t3 VALUES (4, 'v','v'),(62,'v','k'),(7, 'n', NULL);
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT 1
+FROM (t1 AS a1
+      JOIN (((SELECT  DISTINCT t3.*
+              FROM t3) AS a2
+             JOIN t1 ON (t1.v1 = a2.v2))) ON (t1.v1 = a2.v1))
+WHERE (SELECT  BIT_COUNT(t2.i1)
+       FROM (t2 JOIN t3)) IS NULL;
+
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # MDEV-16614 signal 7 after calling stored procedure, that uses regexp
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(m1 varchar(5), m2 varchar(5))
+BEGIN
+SELECT a FROM
+	(SELECT "aa" a) t
+	JOIN (SELECT "aa" b) t1 on t.a=t1.b
+WHERE t.a regexp m1 and t1.b regexp m2
+GROUP BY a;
+END$$
+DELIMITER ;$$
+CALL p1('a','a');
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1(m1 varchar(5))
+BEGIN
+  SELECT a FROM (SELECT "aa" a) t WHERE t.a regexp m1;
+END$$
+DELIMITER ;$$
+CALL p1('a');
+DROP PROCEDURE p1;
+
+
+SELECT a FROM (SELECT "aa" a) t WHERE REGEXP_INSTR(t.a, (SELECT MAX('aa') FROM DUAL LIMIT 1));
+
+
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f1(a VARCHAR(10), b VARCHAR(10)) RETURNS INT
+BEGIN
+  RETURN 1;
+END;$$
+CREATE OR REPLACE PROCEDURE p1(m1 varchar(5))
+BEGIN
+  SELECT a FROM (SELECT "aa" a) t WHERE f1(t.a, m1);
+END$$
+DELIMITER ;$$
+CALL p1('a');
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+
+
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f1(a VARCHAR(10), b VARCHAR(10)) RETURNS INT
+BEGIN
+  RETURN 1;
+END;$$
+DELIMITER ;$$
+SELECT a FROM (SELECT "aa" a) t WHERE f1(t.a, (SELECT MAX('aa') FROM DUAL LIMIT 1));
+DROP FUNCTION f1;
+
+--echo #
+--echo # MDEV-17011: condition pushdown into materialized derived used
+--echo #             in INSERT SELECT, multi-table UPDATE and DELETE
+--echo #
+
+CREATE TABLE t1 (a int ,b int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+  (1, 1), (1, 2), (2, 1), (2, 2), (3,1), (3,3), (4,2);
+
+CREATE TABLE t2 (a int) ENGINE MYISAM;
+INSERT INTO t2 VALUES
+  (3), (7), (1), (4), (1);
+
+CREATE TABLE t3 (a int, b int) ENGINE MYISAM;
+
+let $q1=
+INSERT INTO t3
+SELECT * FROM (SELECT a, count(*) as c FROM t1 GROUP BY a) t WHERE a<=2;
+
+eval EXPLAIN FORMAT=JSON $q1;
+eval $q1;
+
+SELECT * FROM t3;
+
+let $q2=
+UPDATE t2, (SELECT a, count(*) as c FROM t1 GROUP BY a) t SET t2.a=t.c+10
+  WHERE t2.a= t.c and t.a>=3;
+
+eval EXPLAIN FORMAT=JSON $q2;
+eval $q2;
+
+SELECT * FROM t2;
+
+let $q3=
+DELETE t2 FROM t2, (SELECT a, count(*) as c FROM t1 GROUP BY a) t
+  WHERE t2.a= t.c+9 and t.a=2;
+
+eval EXPLAIN FORMAT=JSON $q3;
+eval $q3;
+
+SELECT * FROM t2;
+
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-16765: pushdown condition with the CASE structure
+--echo #             defined with Item_cond item
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,2), (3,4), (2,3);
+
+LET $query=
+SELECT *
+FROM
+(
+  SELECT CASE WHEN ((tab2.max_a=1) OR (tab2.max_a=2))
+    THEN 1 ELSE 0 END AS max_a,b
+  FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT *
+FROM
+(
+  SELECT CASE WHEN ((tab2.max_a=1) OR ((tab2.max_a>2) AND (tab2.max_a<4)))
+    THEN 1 ELSE 0 END AS max_a,b
+  FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT *
+FROM
+(
+  SELECT CASE WHEN ((tab2.max_a>1) AND ((tab2.max_a=2) OR (tab2.max_a>2)))
+    THEN 1 ELSE 0 END AS max_a,b
+  FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+LET $query=
+SELECT *
+FROM
+(
+  SELECT CASE WHEN ((tab2.b=2) OR (tab2.b=4))
+    THEN 1 ELSE 0 END AS max_a,b
+  FROM (SELECT MAX(a) as max_a,b FROM t1 GROUP BY t1.b) AS tab2
+) AS tab1
+WHERE (tab1.max_a=1);
+EVAL $query;
+EVAL EXPLAIN FORMAT=JSON $query;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16803: pushdown condition with IN predicate in the derived table
+--echo #             defined with several SELECT statements
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2),(3,2),(1,1);
+
+SELECT * FROM
+(
+  SELECT a,b,1 as c
+  FROM t1
+  UNION ALL
+  SELECT a,b,2 as c
+  FROM t1
+) AS tab
+WHERE ((a,b) IN ((1,2),(3,2)));
+
+DROP TABLE t1;

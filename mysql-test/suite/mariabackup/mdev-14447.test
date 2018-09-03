@@ -18,8 +18,8 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir
 
 --disable_result_log
 echo # Prepare full backup, apply incremental one;
-exec $XTRABACKUP --prepare --apply-log-only --target-dir=$basedir;
-exec $XTRABACKUP --prepare --apply-log-only --target-dir=$basedir --incremental-dir=$incremental_dir ;
+exec $XTRABACKUP --prepare --verbose --apply-log-only --target-dir=$basedir;
+exec $XTRABACKUP --prepare --verbose --apply-log-only --target-dir=$basedir --incremental-dir=$incremental_dir ;
 
 echo # Restore and check results;
 let $targetdir=$basedir;

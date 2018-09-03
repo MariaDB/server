@@ -573,9 +573,6 @@ insert into t30 values
 ('row3', 'row3-key', 'row3-data'),
 ('row4', 'row4-key', 'row4-data'),
 ('row5', 'row5-key', 'row5-data');
-analyze table t30;
-Table	Op	Msg_type	Msg_text
-test.t30	analyze	status	OK
 explain 
 select * from t30 where key1 <='row3-key';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -868,6 +865,7 @@ ERROR 42S02: Unknown table 'test.t45'
 show variables 
 where 
 variable_name like 'rocksdb%' and 
+variable_name not like 'rocksdb_max_open_files' and
 variable_name not like 'rocksdb_supported_compression_types';
 Variable_name	Value
 rocksdb_access_hint_on_compaction_start	1
@@ -875,12 +873,14 @@ rocksdb_advise_random_on_open	ON
 rocksdb_allow_concurrent_memtable_write	OFF
 rocksdb_allow_mmap_reads	OFF
 rocksdb_allow_mmap_writes	OFF
+rocksdb_allow_to_start_after_corruption	OFF
 rocksdb_blind_delete_primary_key	OFF
 rocksdb_block_cache_size	536870912
 rocksdb_block_restart_interval	16
 rocksdb_block_size	4096
 rocksdb_block_size_deviation	10
 rocksdb_bulk_load	OFF
+rocksdb_bulk_load_allow_sk	OFF
 rocksdb_bulk_load_allow_unsorted	OFF
 rocksdb_bulk_load_size	1000
 rocksdb_bytes_per_sync	0
@@ -888,13 +888,13 @@ rocksdb_cache_index_and_filter_blocks	ON
 rocksdb_checksums_pct	100
 rocksdb_collect_sst_properties	ON
 rocksdb_commit_in_the_middle	OFF
+rocksdb_commit_time_batch_for_recovery	OFF
 rocksdb_compact_cf	
 rocksdb_compaction_readahead_size	0
 rocksdb_compaction_sequential_deletes	0
 rocksdb_compaction_sequential_deletes_count_sd	OFF
 rocksdb_compaction_sequential_deletes_file_size	0
 rocksdb_compaction_sequential_deletes_window	0
-rocksdb_concurrent_prepare	ON
 rocksdb_create_checkpoint	
 rocksdb_create_if_missing	ON
 rocksdb_create_missing_column_families	OFF
@@ -902,6 +902,7 @@ rocksdb_datadir	./#rocksdb
 rocksdb_db_write_buffer_size	0
 rocksdb_deadlock_detect	OFF
 rocksdb_deadlock_detect_depth	50
+rocksdb_debug_manual_compaction_delay	0
 rocksdb_debug_optimizer_no_zero_cardinality	ON
 rocksdb_debug_ttl_ignore_pk	OFF
 rocksdb_debug_ttl_read_filter_ts	0
@@ -917,8 +918,8 @@ rocksdb_enable_ttl	ON
 rocksdb_enable_ttl_read_filtering	ON
 rocksdb_enable_write_thread_adaptive_yield	OFF
 rocksdb_error_if_exists	OFF
+rocksdb_error_on_suboptimal_collation	ON
 rocksdb_flush_log_at_trx_commit	0
-rocksdb_flush_memtable_on_analyze	ON
 rocksdb_force_compute_memtable_stats	ON
 rocksdb_force_compute_memtable_stats_cachetime	0
 rocksdb_force_flush_memtable_and_lzero_now	OFF
@@ -926,6 +927,7 @@ rocksdb_force_flush_memtable_now	OFF
 rocksdb_force_index_records_in_range	0
 rocksdb_git_hash	#
 rocksdb_hash_index_allow_collision	ON
+rocksdb_ignore_unknown_options	ON
 rocksdb_index_type	kBinarySearch
 rocksdb_info_log_level	error_level
 rocksdb_io_write_timeout	0
@@ -936,14 +938,15 @@ rocksdb_lock_scanned_rows	OFF
 rocksdb_lock_wait_timeout	1
 rocksdb_log_file_time_to_roll	0
 rocksdb_manifest_preallocation_size	4194304
+rocksdb_manual_compaction_threads	0
 rocksdb_manual_wal_flush	ON
 rocksdb_master_skip_tx_api	OFF
 rocksdb_max_background_jobs	2
 rocksdb_max_latest_deadlocks	5
 rocksdb_max_log_file_size	0
-rocksdb_max_manifest_file_size	18446744073709551615
-rocksdb_max_open_files	-1
-rocksdb_max_row_locks	1073741824
+rocksdb_max_manifest_file_size	1073741824
+rocksdb_max_manual_compactions	10
+rocksdb_max_row_locks	1048576
 rocksdb_max_subcompactions	1
 rocksdb_max_total_wal_size	0
 rocksdb_merge_buf_size	67108864
@@ -962,6 +965,7 @@ rocksdb_print_snapshot_conflict_queries	OFF
 rocksdb_rate_limiter_bytes_per_sec	0
 rocksdb_read_free_rpl_tables	
 rocksdb_records_in_range	50
+rocksdb_remove_mariabackup_checkpoint	OFF
 rocksdb_reset_stats	OFF
 rocksdb_seconds_between_stat_computes	3600
 rocksdb_signal_drop_index_thread	OFF
@@ -971,6 +975,7 @@ rocksdb_skip_fill_cache	OFF
 rocksdb_skip_unique_check_tables	.*
 rocksdb_sst_mgr_rate_bytes_per_sec	0
 rocksdb_stats_dump_period_sec	600
+rocksdb_stats_recalc_rate	0
 rocksdb_store_row_debug_checksums	OFF
 rocksdb_strict_collation_check	OFF
 rocksdb_strict_collation_exceptions	
@@ -978,6 +983,7 @@ rocksdb_table_cache_numshardbits	6
 rocksdb_table_stats_sampling_pct	10
 rocksdb_tmpdir	
 rocksdb_trace_sst_api	OFF
+rocksdb_two_write_queues	ON
 rocksdb_unsafe_for_binlog	OFF
 rocksdb_update_cf_options	
 rocksdb_use_adaptive_mutex	OFF
@@ -996,6 +1002,7 @@ rocksdb_whole_key_filtering	ON
 rocksdb_write_batch_max_bytes	0
 rocksdb_write_disable_wal	OFF
 rocksdb_write_ignore_missing_column_families	OFF
+rocksdb_write_policy	write_committed
 create table t47 (pk int primary key, col1 varchar(12)) engine=rocksdb;
 insert into t47 values (1, 'row1');
 insert into t47 values (2, 'row2');
@@ -1352,7 +1359,7 @@ insert into t1 select (@a:=@a+1), 1234 from information_schema.session_variables
 set @tmp1= @@rocksdb_max_row_locks;
 set rocksdb_max_row_locks= 20;
 update t1 set a=a+10;
-ERROR HY000: Status error 10 received from RocksDB: Operation aborted: Failed to acquire lock due to max_num_locks limit
+ERROR HY000: Got error 10 'Operation aborted: Failed to acquire lock due to max_num_locks limit' from ROCKSDB
 DROP TABLE t1;
 # 
 # Test AUTO_INCREMENT behavior problem,
@@ -1464,6 +1471,7 @@ Rocksdb_rows_read	#
 Rocksdb_rows_updated	#
 Rocksdb_rows_deleted_blind	#
 Rocksdb_rows_expired	#
+Rocksdb_rows_filtered	#
 Rocksdb_system_rows_deleted	#
 Rocksdb_system_rows_inserted	#
 Rocksdb_system_rows_read	#
@@ -1474,16 +1482,29 @@ Rocksdb_queries_point	#
 Rocksdb_queries_range	#
 Rocksdb_covered_secondary_key_lookups	#
 Rocksdb_block_cache_add	#
+Rocksdb_block_cache_add_failures	#
+Rocksdb_block_cache_bytes_read	#
+Rocksdb_block_cache_bytes_write	#
+Rocksdb_block_cache_data_add	#
+Rocksdb_block_cache_data_bytes_insert	#
 Rocksdb_block_cache_data_hit	#
 Rocksdb_block_cache_data_miss	#
+Rocksdb_block_cache_filter_add	#
+Rocksdb_block_cache_filter_bytes_evict	#
+Rocksdb_block_cache_filter_bytes_insert	#
 Rocksdb_block_cache_filter_hit	#
 Rocksdb_block_cache_filter_miss	#
 Rocksdb_block_cache_hit	#
+Rocksdb_block_cache_index_add	#
+Rocksdb_block_cache_index_bytes_evict	#
+Rocksdb_block_cache_index_bytes_insert	#
 Rocksdb_block_cache_index_hit	#
 Rocksdb_block_cache_index_miss	#
 Rocksdb_block_cache_miss	#
 Rocksdb_block_cachecompressed_hit	#
 Rocksdb_block_cachecompressed_miss	#
+Rocksdb_bloom_filter_full_positive	#
+Rocksdb_bloom_filter_full_true_positive	#
 Rocksdb_bloom_filter_prefix_checked	#
 Rocksdb_bloom_filter_prefix_useful	#
 Rocksdb_bloom_filter_useful	#
@@ -1495,7 +1516,13 @@ Rocksdb_compaction_key_drop_new	#
 Rocksdb_compaction_key_drop_obsolete	#
 Rocksdb_compaction_key_drop_user	#
 Rocksdb_flush_write_bytes	#
+Rocksdb_get_hit_l0	#
+Rocksdb_get_hit_l1	#
+Rocksdb_get_hit_l2_and_up	#
 Rocksdb_getupdatessince_calls	#
+Rocksdb_iter_bytes_read	#
+Rocksdb_manual_compactions_processed	#
+Rocksdb_manual_compactions_running	#
 Rocksdb_memtable_hit	#
 Rocksdb_memtable_miss	#
 Rocksdb_no_file_closes	#
@@ -1503,6 +1530,12 @@ Rocksdb_no_file_errors	#
 Rocksdb_no_file_opens	#
 Rocksdb_num_iterators	#
 Rocksdb_number_block_not_compressed	#
+Rocksdb_number_db_next	#
+Rocksdb_number_db_next_found	#
+Rocksdb_number_db_prev	#
+Rocksdb_number_db_prev_found	#
+Rocksdb_number_db_seek	#
+Rocksdb_number_db_seek_found	#
 Rocksdb_number_deletes_filtered	#
 Rocksdb_number_keys_read	#
 Rocksdb_number_keys_updated	#
@@ -1517,11 +1550,11 @@ Rocksdb_number_sst_entry_merge	#
 Rocksdb_number_sst_entry_other	#
 Rocksdb_number_sst_entry_put	#
 Rocksdb_number_sst_entry_singledelete	#
-Rocksdb_number_stat_computes	#
 Rocksdb_number_superversion_acquires	#
 Rocksdb_number_superversion_cleanups	#
 Rocksdb_number_superversion_releases	#
-Rocksdb_rate_limit_delay_millis	#
+Rocksdb_row_lock_deadlocks	#
+Rocksdb_row_lock_wait_timeouts	#
 Rocksdb_snapshot_conflict_errors	#
 Rocksdb_stall_l0_file_count_limit_slowdowns	#
 Rocksdb_stall_locked_l0_file_count_limit_slowdowns	#
@@ -1549,6 +1582,7 @@ ROCKSDB_ROWS_READ
 ROCKSDB_ROWS_UPDATED
 ROCKSDB_ROWS_DELETED_BLIND
 ROCKSDB_ROWS_EXPIRED
+ROCKSDB_ROWS_FILTERED
 ROCKSDB_SYSTEM_ROWS_DELETED
 ROCKSDB_SYSTEM_ROWS_INSERTED
 ROCKSDB_SYSTEM_ROWS_READ
@@ -1559,16 +1593,29 @@ ROCKSDB_QUERIES_POINT
 ROCKSDB_QUERIES_RANGE
 ROCKSDB_COVERED_SECONDARY_KEY_LOOKUPS
 ROCKSDB_BLOCK_CACHE_ADD
+ROCKSDB_BLOCK_CACHE_ADD_FAILURES
+ROCKSDB_BLOCK_CACHE_BYTES_READ
+ROCKSDB_BLOCK_CACHE_BYTES_WRITE
+ROCKSDB_BLOCK_CACHE_DATA_ADD
+ROCKSDB_BLOCK_CACHE_DATA_BYTES_INSERT
 ROCKSDB_BLOCK_CACHE_DATA_HIT
 ROCKSDB_BLOCK_CACHE_DATA_MISS
+ROCKSDB_BLOCK_CACHE_FILTER_ADD
+ROCKSDB_BLOCK_CACHE_FILTER_BYTES_EVICT
+ROCKSDB_BLOCK_CACHE_FILTER_BYTES_INSERT
 ROCKSDB_BLOCK_CACHE_FILTER_HIT
 ROCKSDB_BLOCK_CACHE_FILTER_MISS
 ROCKSDB_BLOCK_CACHE_HIT
+ROCKSDB_BLOCK_CACHE_INDEX_ADD
+ROCKSDB_BLOCK_CACHE_INDEX_BYTES_EVICT
+ROCKSDB_BLOCK_CACHE_INDEX_BYTES_INSERT
 ROCKSDB_BLOCK_CACHE_INDEX_HIT
 ROCKSDB_BLOCK_CACHE_INDEX_MISS
 ROCKSDB_BLOCK_CACHE_MISS
 ROCKSDB_BLOCK_CACHECOMPRESSED_HIT
 ROCKSDB_BLOCK_CACHECOMPRESSED_MISS
+ROCKSDB_BLOOM_FILTER_FULL_POSITIVE
+ROCKSDB_BLOOM_FILTER_FULL_TRUE_POSITIVE
 ROCKSDB_BLOOM_FILTER_PREFIX_CHECKED
 ROCKSDB_BLOOM_FILTER_PREFIX_USEFUL
 ROCKSDB_BLOOM_FILTER_USEFUL
@@ -1580,7 +1627,13 @@ ROCKSDB_COMPACTION_KEY_DROP_NEW
 ROCKSDB_COMPACTION_KEY_DROP_OBSOLETE
 ROCKSDB_COMPACTION_KEY_DROP_USER
 ROCKSDB_FLUSH_WRITE_BYTES
+ROCKSDB_GET_HIT_L0
+ROCKSDB_GET_HIT_L1
+ROCKSDB_GET_HIT_L2_AND_UP
 ROCKSDB_GETUPDATESSINCE_CALLS
+ROCKSDB_ITER_BYTES_READ
+ROCKSDB_MANUAL_COMPACTIONS_PROCESSED
+ROCKSDB_MANUAL_COMPACTIONS_RUNNING
 ROCKSDB_MEMTABLE_HIT
 ROCKSDB_MEMTABLE_MISS
 ROCKSDB_NO_FILE_CLOSES
@@ -1588,6 +1641,12 @@ ROCKSDB_NO_FILE_ERRORS
 ROCKSDB_NO_FILE_OPENS
 ROCKSDB_NUM_ITERATORS
 ROCKSDB_NUMBER_BLOCK_NOT_COMPRESSED
+ROCKSDB_NUMBER_DB_NEXT
+ROCKSDB_NUMBER_DB_NEXT_FOUND
+ROCKSDB_NUMBER_DB_PREV
+ROCKSDB_NUMBER_DB_PREV_FOUND
+ROCKSDB_NUMBER_DB_SEEK
+ROCKSDB_NUMBER_DB_SEEK_FOUND
 ROCKSDB_NUMBER_DELETES_FILTERED
 ROCKSDB_NUMBER_KEYS_READ
 ROCKSDB_NUMBER_KEYS_UPDATED
@@ -1602,11 +1661,11 @@ ROCKSDB_NUMBER_SST_ENTRY_MERGE
 ROCKSDB_NUMBER_SST_ENTRY_OTHER
 ROCKSDB_NUMBER_SST_ENTRY_PUT
 ROCKSDB_NUMBER_SST_ENTRY_SINGLEDELETE
-ROCKSDB_NUMBER_STAT_COMPUTES
 ROCKSDB_NUMBER_SUPERVERSION_ACQUIRES
 ROCKSDB_NUMBER_SUPERVERSION_CLEANUPS
 ROCKSDB_NUMBER_SUPERVERSION_RELEASES
-ROCKSDB_RATE_LIMIT_DELAY_MILLIS
+ROCKSDB_ROW_LOCK_DEADLOCKS
+ROCKSDB_ROW_LOCK_WAIT_TIMEOUTS
 ROCKSDB_SNAPSHOT_CONFLICT_ERRORS
 ROCKSDB_STALL_L0_FILE_COUNT_LIMIT_SLOWDOWNS
 ROCKSDB_STALL_LOCKED_L0_FILE_COUNT_LIMIT_SLOWDOWNS
@@ -1636,6 +1695,7 @@ ROCKSDB_ROWS_READ
 ROCKSDB_ROWS_UPDATED
 ROCKSDB_ROWS_DELETED_BLIND
 ROCKSDB_ROWS_EXPIRED
+ROCKSDB_ROWS_FILTERED
 ROCKSDB_SYSTEM_ROWS_DELETED
 ROCKSDB_SYSTEM_ROWS_INSERTED
 ROCKSDB_SYSTEM_ROWS_READ
@@ -1646,16 +1706,29 @@ ROCKSDB_QUERIES_POINT
 ROCKSDB_QUERIES_RANGE
 ROCKSDB_COVERED_SECONDARY_KEY_LOOKUPS
 ROCKSDB_BLOCK_CACHE_ADD
+ROCKSDB_BLOCK_CACHE_ADD_FAILURES
+ROCKSDB_BLOCK_CACHE_BYTES_READ
+ROCKSDB_BLOCK_CACHE_BYTES_WRITE
+ROCKSDB_BLOCK_CACHE_DATA_ADD
+ROCKSDB_BLOCK_CACHE_DATA_BYTES_INSERT
 ROCKSDB_BLOCK_CACHE_DATA_HIT
 ROCKSDB_BLOCK_CACHE_DATA_MISS
+ROCKSDB_BLOCK_CACHE_FILTER_ADD
+ROCKSDB_BLOCK_CACHE_FILTER_BYTES_EVICT
+ROCKSDB_BLOCK_CACHE_FILTER_BYTES_INSERT
 ROCKSDB_BLOCK_CACHE_FILTER_HIT
 ROCKSDB_BLOCK_CACHE_FILTER_MISS
 ROCKSDB_BLOCK_CACHE_HIT
+ROCKSDB_BLOCK_CACHE_INDEX_ADD
+ROCKSDB_BLOCK_CACHE_INDEX_BYTES_EVICT
+ROCKSDB_BLOCK_CACHE_INDEX_BYTES_INSERT
 ROCKSDB_BLOCK_CACHE_INDEX_HIT
 ROCKSDB_BLOCK_CACHE_INDEX_MISS
 ROCKSDB_BLOCK_CACHE_MISS
 ROCKSDB_BLOCK_CACHECOMPRESSED_HIT
 ROCKSDB_BLOCK_CACHECOMPRESSED_MISS
+ROCKSDB_BLOOM_FILTER_FULL_POSITIVE
+ROCKSDB_BLOOM_FILTER_FULL_TRUE_POSITIVE
 ROCKSDB_BLOOM_FILTER_PREFIX_CHECKED
 ROCKSDB_BLOOM_FILTER_PREFIX_USEFUL
 ROCKSDB_BLOOM_FILTER_USEFUL
@@ -1667,7 +1740,13 @@ ROCKSDB_COMPACTION_KEY_DROP_NEW
 ROCKSDB_COMPACTION_KEY_DROP_OBSOLETE
 ROCKSDB_COMPACTION_KEY_DROP_USER
 ROCKSDB_FLUSH_WRITE_BYTES
+ROCKSDB_GET_HIT_L0
+ROCKSDB_GET_HIT_L1
+ROCKSDB_GET_HIT_L2_AND_UP
 ROCKSDB_GETUPDATESSINCE_CALLS
+ROCKSDB_ITER_BYTES_READ
+ROCKSDB_MANUAL_COMPACTIONS_PROCESSED
+ROCKSDB_MANUAL_COMPACTIONS_RUNNING
 ROCKSDB_MEMTABLE_HIT
 ROCKSDB_MEMTABLE_MISS
 ROCKSDB_NO_FILE_CLOSES
@@ -1675,6 +1754,12 @@ ROCKSDB_NO_FILE_ERRORS
 ROCKSDB_NO_FILE_OPENS
 ROCKSDB_NUM_ITERATORS
 ROCKSDB_NUMBER_BLOCK_NOT_COMPRESSED
+ROCKSDB_NUMBER_DB_NEXT
+ROCKSDB_NUMBER_DB_NEXT_FOUND
+ROCKSDB_NUMBER_DB_PREV
+ROCKSDB_NUMBER_DB_PREV_FOUND
+ROCKSDB_NUMBER_DB_SEEK
+ROCKSDB_NUMBER_DB_SEEK_FOUND
 ROCKSDB_NUMBER_DELETES_FILTERED
 ROCKSDB_NUMBER_KEYS_READ
 ROCKSDB_NUMBER_KEYS_UPDATED
@@ -1689,11 +1774,11 @@ ROCKSDB_NUMBER_SST_ENTRY_MERGE
 ROCKSDB_NUMBER_SST_ENTRY_OTHER
 ROCKSDB_NUMBER_SST_ENTRY_PUT
 ROCKSDB_NUMBER_SST_ENTRY_SINGLEDELETE
-ROCKSDB_NUMBER_STAT_COMPUTES
 ROCKSDB_NUMBER_SUPERVERSION_ACQUIRES
 ROCKSDB_NUMBER_SUPERVERSION_CLEANUPS
 ROCKSDB_NUMBER_SUPERVERSION_RELEASES
-ROCKSDB_RATE_LIMIT_DELAY_MILLIS
+ROCKSDB_ROW_LOCK_DEADLOCKS
+ROCKSDB_ROW_LOCK_WAIT_TIMEOUTS
 ROCKSDB_SNAPSHOT_CONFLICT_ERRORS
 ROCKSDB_STALL_L0_FILE_COUNT_LIMIT_SLOWDOWNS
 ROCKSDB_STALL_LOCKED_L0_FILE_COUNT_LIMIT_SLOWDOWNS
@@ -2080,7 +2165,7 @@ explain
 select kp1,kp2 from t1 force index (kp1) 
 where kp1 between '09:01:00' and '09:05:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	kp1	kp1	4	NULL	#	Using where; Using index
+1	SIMPLE	t1	index	kp1	kp1	9	NULL	#	Using where; Using index
 select kp1,kp2 from t1 force index (kp1) 
 where kp1 between '09:01:00' and '09:05:00';
 kp1	kp2
@@ -2103,7 +2188,7 @@ explain
 select kp1,kp2 from t2 force index (kp1) 
 where kp1 between '09:01:00' and '09:05:00';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	kp1	kp1	3	NULL	#	Using where; Using index
+1	SIMPLE	t2	index	kp1	kp1	8	NULL	#	Using where; Using index
 select kp1,kp2 from t2 force index (kp1) 
 where kp1 between '09:01:00' and '09:05:00';
 kp1	kp2

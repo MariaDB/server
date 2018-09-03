@@ -336,11 +336,12 @@ trx_sys_read_wsrep_checkpoint(XID* xid)
 	if ((magic = mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
 					+ TRX_SYS_WSREP_XID_MAGIC_N_FLD))
 	    != TRX_SYS_WSREP_XID_MAGIC_N) {
-		memset(xid, 0, sizeof(*xid));
-		long long seqno= -1;
-		memcpy(xid->data + 24, &seqno, sizeof(long long));
-		xid->formatID = -1;
-		mtr_commit(&mtr);
+		mtr.commit();
+		xid->null();
+		xid->gtrid_length = 0;
+		xid->bqual_length = 0;
+		memset(xid->data, 0, sizeof xid->data);
+		memset(xid->data + 24, 0xff, 8);
 		return false;
 	}
 
@@ -499,8 +500,6 @@ trx_sys_init_at_db_start()
 
 	mtr.commit();
 	ut_d(trx_sys->rw_max_trx_id = trx_sys->max_trx_id);
-
-	trx_dummy_sess = sess_open();
 
 	trx_lists_init_at_db_start();
 
@@ -926,11 +925,6 @@ trx_sys_close(void)
 	if (ulint size = trx_sys->mvcc->size()) {
 		ib::error() << "All read views were not closed before"
 			" shutdown: " << size << " read views open";
-	}
-
-	if (trx_dummy_sess) {
-		sess_close(trx_dummy_sess);
-		trx_dummy_sess = NULL;
 	}
 
 	/* Only prepared transactions may be left in the system. Free them. */

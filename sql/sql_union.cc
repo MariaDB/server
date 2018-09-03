@@ -185,7 +185,7 @@ select_union::create_result_table(THD *thd_arg, List<Item> *column_types,
 
   table->keys_in_use_for_query.clear_all();
   for (uint i=0; i < table->s->fields; i++)
-    table->field[i]->flags &= ~PART_KEY_FLAG;
+    table->field[i]->flags &= ~(PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG);
 
   if (create_table)
   {
@@ -214,18 +214,12 @@ select_union_recursive::create_result_table(THD *thd_arg,
   if (! (incr_table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
                                       (ORDER*) 0, false, 1,
                                       options, HA_POS_ERROR, "",
-                                      !create_table, keep_row_order)))
+                                      true, keep_row_order)))
     return true;
 
   incr_table->keys_in_use_for_query.clear_all();
   for (uint i=0; i < table->s->fields; i++)
-    incr_table->field[i]->flags &= ~PART_KEY_FLAG;
-
-  if (create_table)
-  {
-    incr_table->file->extra(HA_EXTRA_WRITE_CACHE);
-    incr_table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
-  }
+    incr_table->field[i]->flags &= ~(PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG);
 
   TABLE *rec_table= 0;
   if (! (rec_table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
@@ -236,7 +230,7 @@ select_union_recursive::create_result_table(THD *thd_arg,
 
   rec_table->keys_in_use_for_query.clear_all();
   for (uint i=0; i < table->s->fields; i++)
-    rec_table->field[i]->flags &= ~PART_KEY_FLAG;
+    rec_table->field[i]->flags &= ~(PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG);
 
   if (rec_tables.push_back(rec_table))
     return true;
@@ -270,8 +264,11 @@ void select_union_recursive::cleanup()
 
   if (incr_table)
   {
-    incr_table->file->extra(HA_EXTRA_RESET_STATE);
-    incr_table->file->ha_delete_all_rows();
+    if (incr_table->is_created())
+    {
+      incr_table->file->extra(HA_EXTRA_RESET_STATE);
+      incr_table->file->ha_delete_all_rows();
+    }
     free_tmp_table(thd, incr_table);
   }
 
@@ -456,6 +453,23 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   DBUG_ASSERT(thd == thd_arg);
   DBUG_ASSERT(thd == current_thd);
 
+  if (is_recursive && (sl= first_sl->next_select()))
+  {
+    SELECT_LEX *next_sl;
+    for ( ; ; sl= next_sl)
+    {
+      next_sl= sl->next_select();
+      if (!next_sl)
+        break;
+      if (next_sl->with_all_modifier != sl->with_all_modifier)
+      {
+        my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+         "mix of ALL and DISTINCT UNION operations in recursive CTE spec");
+        DBUG_RETURN(TRUE);
+      }
+    }
+  }
+
   describe= additional_options & SELECT_DESCRIBE;
 
   /*
@@ -524,7 +538,18 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
         with_element->rec_result=
           new (thd_arg->mem_root) select_union_recursive(thd_arg);
         union_result=  with_element->rec_result;
-        fake_select_lex= NULL;
+        if (fake_select_lex)
+	{
+          if (fake_select_lex->order_list.first ||
+              fake_select_lex->explicit_limit)
+          {
+	    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+                     "global ORDER_BY/LIMIT in recursive CTE spec");
+	    goto err;
+          }
+          fake_select_lex->cleanup();
+          fake_select_lex= NULL;
+        }
       }
       if (!(tmp_result= union_result))
         goto err; /* purecov: inspected */
@@ -598,9 +623,9 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
       types= first_sl->item_list;
     else if (sl == first_sl)
     {
-      if (is_recursive)
+      if (with_element)
       {
-        if (derived->with->rename_columns_of_derived_unit(thd, this))
+        if (with_element->rename_columns_of_derived_unit(thd, this))
 	  goto err; 
         if (check_duplicate_names(thd, sl->item_list, 0))
           goto err;
@@ -1228,16 +1253,24 @@ bool st_select_lex_unit::exec_recursive()
   if (!was_executed)
     save_union_explain(thd->lex->explain);
 
-  if ((saved_error= incr_table->file->ha_delete_all_rows()))
-    goto err;
-
   if (with_element->level == 0)
   {
+    if (!incr_table->is_created() &&
+        instantiate_tmp_table(incr_table,
+                              tmp_table_param->keyinfo,
+                              tmp_table_param->start_recinfo,
+                              &tmp_table_param->recinfo,
+                              0))
+      DBUG_RETURN(1);
+    incr_table->file->extra(HA_EXTRA_WRITE_CACHE);
+    incr_table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
     start= first_select();
     if (with_element->with_anchor)
       end= with_element->first_recursive;
   }
-   
+  else if ((saved_error= incr_table->file->ha_delete_all_rows()))
+    goto err;
+
   for (st_select_lex *sl= start ; sl != end; sl= sl->next_select())
   {
     thd->lex->current_select= sl;
@@ -1469,6 +1502,7 @@ bool st_select_lex::cleanup()
   }
   inner_refs_list.empty();
   exclude_from_table_unique_test= FALSE;
+  hidden_bit_fields= 0;
   DBUG_RETURN(error);
 }
 

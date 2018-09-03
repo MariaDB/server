@@ -95,3 +95,56 @@ drop table t1;
 
 --source include/wait_until_count_sessions.inc
 
+#
+# Test of rename with temporary tables
+#
+
+CREATE OR REPLACE TABLE t1 (a INT);
+CREATE OR REPLACE TABLE t2 (a INT);
+CREATE OR REPLACE TEMPORARY TABLE t1_tmp (b INT);
+CREATE OR REPLACE TEMPORARY TABLE t2_tmp (b INT);
+
+# Can't rename table over another one
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to t2;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to tmp, tmp to t2;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1_tmp to t2_tmp;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1_tmp to tmp, tmp to t2_tmp;
+
+show create table t1_tmp;
+show create table t2_tmp;
+
+# The following should work
+rename table t1 to t1_tmp;
+rename table t2_tmp to t2;
+rename table t2 to tmp, tmp to t2;
+rename table t1_tmp to tmp, tmp to t1_tmp;
+show tables;
+SHOW CREATE TABLE t1_tmp;
+drop table t1_tmp;
+SHOW CREATE TABLE t1_tmp;
+drop table t1_tmp;
+SHOW CREATE TABLE t2;
+drop table t2;
+SHOW CREATE TABLE t2;
+drop table t2;
+
+CREATE TABLE t1 (a INT);
+insert into t1 values (1);
+CREATE TEMPORARY TABLE t1 (b INT);
+insert into t1 values (2);
+RENAME TABLE t1 TO tmp, t1 TO t2;
+select * from tmp;
+select * from t2;
+drop table tmp,t2;
+
+#
+# MDEV-11741 handler::ha_reset(): Assertion `bitmap_is_set_all(&table->s->all_set)' failed or server crash in mi_reset or buffer overrun or unexpected ER_CANT_REMOVE_ALL_FIELDS
+#
+create table t1 (a int) engine=memory;
+--error ER_BAD_DB_ERROR
+rename table t1 to non_existent.t2;
+drop table t1;

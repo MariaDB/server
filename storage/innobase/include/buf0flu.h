@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -70,25 +70,21 @@ buf_flush_relocate_on_flush_list(
 /*=============================*/
 	buf_page_t*	bpage,	/*!< in/out: control block being moved */
 	buf_page_t*	dpage);	/*!< in/out: destination block */
-/********************************************************************//**
-Updates the flush system data structures when a write is completed. */
-void
-buf_flush_write_complete(
-/*=====================*/
-	buf_page_t*	bpage);	/*!< in: pointer to the block in question */
+/** Update the flush system data structures when a write is completed.
+@param[in,out]	bpage	flushed page
+@param[in]	dblwr	whether the doublewrite buffer was used */
+void buf_flush_write_complete(buf_page_t* bpage, bool dblwr);
 /** Initialize a page for writing to the tablespace.
 @param[in]	block		buffer block; NULL if bypassing the buffer pool
 @param[in,out]	page		page frame
 @param[in,out]	page_zip_	compressed page, or NULL if uncompressed
-@param[in]	newest_lsn	newest modification LSN to the page
-@param[in]	skip_checksum	whether to disable the page checksum */
+@param[in]	newest_lsn	newest modification LSN to the page */
 void
 buf_flush_init_for_writing(
 	const buf_block_t*	block,
 	byte*			page,
 	void*			page_zip_,
-	lsn_t			newest_lsn,
-	bool			skip_checksum = false);
+	lsn_t			newest_lsn);
 
 # if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 /********************************************************************//**
@@ -375,9 +371,8 @@ public:
 		m_interrupted = true;
 	}
 
-	/** Check whether trx is interrupted
-	@return true if trx is interrupted */
-	bool check_interrupted();
+	/** Check whether the operation has been interrupted */
+	void check_interrupted();
 
 	/** Flush dirty pages. */
 	void flush();
@@ -399,7 +394,7 @@ private:
 	const ulint		m_space_id;
 
 	/** Trx instance */
-	trx_t* const		m_trx;
+	const trx_t* const	m_trx;
 
 	/** Performance schema accounting object, used by ALTER TABLE.
 	If not NULL, then stage->begin_phase_flush() will be called initially,

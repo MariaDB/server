@@ -49,8 +49,8 @@ static int my_b_encr_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 
   if (pos_in_file == info->end_of_file)
   {
-    info->read_pos= info->read_end= info->buffer;
-    info->pos_in_file= pos_in_file;
+    /*  reading past EOF should not empty the cache */
+    info->read_pos= info->read_end;
     info->error= 0;
     DBUG_RETURN(MY_TEST(Count));
   }
@@ -145,9 +145,10 @@ static int my_b_encr_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 
   if (info->seek_not_done)
   {
-    DBUG_ASSERT(info->pos_in_file == 0);
+    DBUG_ASSERT(info->pos_in_file % info->buffer_length == 0);
+    my_off_t wpos= info->pos_in_file / info->buffer_length * crypt_data->block_length;
 
-    if ((mysql_file_seek(info->file, 0, MY_SEEK_SET, MYF(0)) == MY_FILEPOS_ERROR))
+    if ((mysql_file_seek(info->file, wpos, MY_SEEK_SET, MYF(0)) == MY_FILEPOS_ERROR))
     {
       info->error= -1;
       DBUG_RETURN(1);

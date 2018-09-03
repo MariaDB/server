@@ -8022,6 +8022,29 @@ a
 0
 DROP VIEW v1;
 DROP TABLE t1;
+SET NAMES latin1;
+#
+# MDEV-13118 Wrong results with LOWER and UPPER and subquery
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch=_latin1'derived_merge=on';
+CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS t LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `t` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('abcdefghi'),('ABCDEFGHI');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT LOWER(t) t2 FROM t1) sub;
+c2
+abcdefghi-abcdefghi
+abcdefghi-abcdefghi
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT UPPER(t) t2 FROM t1) sub;
+c2
+ABCDEFGHI-ABCDEFGHI
+ABCDEFGHI-ABCDEFGHI
+DROP TABLE t1;
+SET optimizer_switch=@save_optimizer_switch;
 #
 # End of 10.0 tests
 #
@@ -8240,6 +8263,19 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` where coalesce(`test`.`t1`.`c`,0) = '3 ' and coalesce(`test`.`t1`.`d`,0) = '3 '
 DROP TABLE t1;
+#
+# MDEV-15005 ASAN: stack-buffer-overflow in my_strnncollsp_simple
+#
+SET NAMES latin1;
+SELECT CONVERT(1, CHAR) IN ('100', 10, '101');
+CONVERT(1, CHAR) IN ('100', 10, '101')
+0
+SELECT CONVERT(1, CHAR) IN ('100', 10, '1');
+CONVERT(1, CHAR) IN ('100', 10, '1')
+1
+SELECT CONVERT(1, CHAR) IN ('100', '10', '1');
+CONVERT(1, CHAR) IN ('100', '10', '1')
+1
 #
 # End of 10.1 tests
 #

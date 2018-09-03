@@ -34,7 +34,7 @@ Created 2013/03/27 Allen Lai and Jimmy Yang
 #include "rem0cmp.h"
 #include "lock0lock.h"
 #include "ibuf0ibuf.h"
-#include "trx0trx.h"
+#include "trx0undo.h"
 #include "srv0mon.h"
 #include "gis0geo.h"
 
@@ -662,7 +662,7 @@ rtr_adjust_upper_level(
 
 	/* Create a memory heap where the data tuple is stored */
 	heap = mem_heap_create(1024);
-	memset(&cursor, 0, sizeof(cursor));
+	cursor.init();
 
 	cursor.thr = sea_cur->thr;
 
@@ -1379,7 +1379,7 @@ rtr_ins_enlarge_mbr(
 		rtr_page_cal_mbr(index, block, &new_mbr, heap);
 
 		/* Get father block. */
-		memset(&cursor, 0, sizeof(cursor));
+		cursor.init();
 		offsets = rtr_page_get_father_block(
 			NULL, heap, index, block, mtr, btr_cur, &cursor);
 

@@ -61,3 +61,9 @@ SELECT 1;
 SET log_slow_rate_limit=@save1;
 SET long_query_time=@save2;
 
+#
+# MDEV-16153 Server crashes in Apc_target::disable, ASAN heap-use-after-free in Explain_query::~Explain_query upon/after EXECUTE IMMEDIATE
+#
+create table t1 (a int);
+execute immediate "select * from t1 join t1 t2 on (t1.a>5) where exists (select 1)";
+drop table t1;

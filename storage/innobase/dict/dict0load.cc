@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1436,12 +1436,13 @@ dict_check_sys_tables(
 			continue;
 		}
 
-		/* If the table is not a predefined tablespace then it must
-		be in a file-per-table tablespace.
-		Note that flags2 is not available for REDUNDANT tables,
-		so don't check those. */
-		ut_ad(!DICT_TF_GET_COMPACT(flags)
-		      || flags2 & DICT_TF2_USE_FILE_PER_TABLE);
+		/* For tables or partitions using .ibd files, the flag
+		DICT_TF2_USE_FILE_PER_TABLE was not set in MIX_LEN
+		before MySQL 5.6.5. The flag should not have been
+		introduced in persistent storage. MariaDB will keep
+		setting the flag when writing SYS_TABLES entries for
+		newly created or rebuilt tables or partitions, but
+		will otherwise ignore the flag. */
 
 		/* Now that we have the proper name for this tablespace,
 		look to see if it is already in the tablespace cache. */
@@ -1471,8 +1472,6 @@ dict_check_sys_tables(
 		char*	filepath = dict_get_first_path(space_id);
 
 		/* Check that the .ibd file exists. */
-		validate = true; /* Encryption */
-
 		dberr_t	err = fil_ibd_open(
 			validate,
 			!srv_read_only_mode && srv_log_file_size != 0,
@@ -2478,8 +2477,9 @@ dict_load_indexes(
 			    && static_cast<char>(*field)
 			    == static_cast<char>(*TEMP_INDEX_PREFIX_STR)) {
 				/* Skip indexes whose name starts with
-				TEMP_INDEX_PREFIX, because they will
-				be dropped during crash recovery. */
+				TEMP_INDEX_PREFIX_STR, because they will
+				be dropped by row_merge_drop_temp_indexes()
+				during crash recovery. */
 				goto next_rec;
 			}
 		}
@@ -2522,10 +2522,10 @@ dict_load_indexes(
 		}
 
 		ut_ad(index);
+		ut_ad(!dict_index_is_online_ddl(index));
 
 		/* Check whether the index is corrupted */
-		if (dict_index_is_corrupted(index)) {
-
+		if (index->is_corrupted()) {
 			ib::error() << "Index " << index->name
 				<< " of table " << table->name
 				<< " is corrupted";
@@ -2676,11 +2676,13 @@ dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
 	ulint		n_v_col;
 
 	if (const char* error_text = dict_sys_tables_rec_check(rec)) {
+		*table = NULL;
 		return(error_text);
 	}
 
 	if (!dict_sys_tables_rec_read(rec, name, &table_id, &space_id,
 				      &t_num, &flags, &flags2)) {
+		*table = NULL;
 		return(dict_load_table_flags);
 	}
 
@@ -3043,10 +3045,7 @@ err_exit:
 			table = NULL;
 			goto func_exit;
 		} else {
-			dict_index_t*	clust_index;
-			clust_index = dict_table_get_first_index(table);
-
-			if (dict_index_is_corrupted(clust_index)) {
+			if (table->indexes.start->is_corrupted()) {
 				table->corrupted = true;
 			}
 		}
@@ -3078,6 +3077,12 @@ err_exit:
 		} else {
 			dict_mem_table_fill_foreign_vcol_set(table);
 			table->fk_max_recusive_level = 0;
+
+			if (table->space
+			    && !fil_space_get_size(table->space)) {
+				table->corrupted = true;
+				table->file_unreadable = true;
+			}
 		}
 	} else {
 		dict_index_t*   index;
@@ -3088,14 +3093,11 @@ err_exit:
 
 		if (!srv_force_recovery
 		    || !index
-		    || !dict_index_is_clust(index)) {
-
+		    || !index->is_primary()) {
 			dict_table_remove_from_cache(table);
 			table = NULL;
-
-		} else if (dict_index_is_corrupted(index)
+		} else if (index->is_corrupted()
 			   && table->is_readable()) {
-
 			/* It is possible we force to load a corrupted
 			clustered index if srv_load_corrupted is set.
 			Mark the table as corrupted in this case */

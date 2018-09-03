@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -70,7 +70,6 @@ Created 10/8/1995 Heikki Tuuri
 #include "sync0sync.h"
 #include "trx0i_s.h"
 #include "trx0purge.h"
-#include "usr0sess.h"
 #include "ut0crc32.h"
 #include "btr0defragment.h"
 #include "ut0mem.h"
@@ -79,6 +78,12 @@ Created 10/8/1995 Heikki Tuuri
 #include "fil0pagecompress.h"
 #include "btr0scrub.h"
 
+#include <my_service_manager.h>
+
+#ifdef WITH_WSREP
+extern int wsrep_debug;
+extern int wsrep_trx_is_aborting(void *thd_ptr);
+#endif
 /* The following is the maximum allowed duration of a lock wait. */
 UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT;
 
@@ -417,16 +422,6 @@ static ulint		srv_n_system_rows_read_old;
 ulint	srv_truncated_status_writes;
 /** Number of initialized rollback segments for persistent undo log */
 ulong	srv_available_undo_logs;
-
-UNIV_INTERN ib_uint64_t srv_page_compression_saved;
-UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect512;
-UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect4096;
-UNIV_INTERN ib_uint64_t srv_index_pages_written;
-UNIV_INTERN ib_uint64_t srv_non_index_pages_written;
-UNIV_INTERN ib_uint64_t srv_pages_page_compressed;
-UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op;
-UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op_saved;
-UNIV_INTERN ib_uint64_t srv_index_page_decompressed;
 
 /* Defragmentation */
 UNIV_INTERN my_bool	srv_defragment;
@@ -1181,7 +1176,16 @@ srv_refresh_innodb_monitor_stats(void)
 {
 	mutex_enter(&srv_innodb_monitor_mutex);
 
-	srv_last_monitor_time = time(NULL);
+	time_t current_time = time(NULL);
+
+	if (difftime(current_time, srv_last_monitor_time) <= 60) {
+		/* We referesh InnoDB Monitor values so that averages are
+		printed from at most 60 last seconds */
+		mutex_exit(&srv_innodb_monitor_mutex);
+		return;
+	}
+
+	srv_last_monitor_time = current_time;
 
 	os_aio_refresh_stats();
 
@@ -1803,6 +1807,8 @@ loop:
 		}
 	}
 
+	srv_refresh_innodb_monitor_stats();
+
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		goto exit_func;
 	}
@@ -1872,13 +1878,6 @@ loop:
 		}
 
 		old_lsn = new_lsn;
-	}
-
-	if (difftime(time(NULL), srv_last_monitor_time) > 60) {
-		/* We referesh InnoDB Monitor values so that averages are
-		printed from at most 60 last seconds */
-
-		srv_refresh_innodb_monitor_stats();
 	}
 
 	/* Update the statistics collected for deciding LRU
@@ -2448,10 +2447,6 @@ DECLARE_THREAD(srv_master_thread)(
 	ut_a(slot == srv_sys.sys_threads);
 
 loop:
-	if (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND) {
-		goto suspend_thread;
-	}
-
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 
 		srv_master_sleep();
@@ -2466,7 +2461,6 @@ loop:
 		}
 	}
 
-suspend_thread:
 	switch (srv_shutdown_state) {
 	case SRV_SHUTDOWN_NONE:
 		break;
@@ -2518,6 +2512,17 @@ srv_purge_should_exit(ulint n_purged)
 	}
 	/* Slow shutdown was requested. */
 	if (n_purged) {
+#if defined HAVE_SYSTEMD && !defined EMBEDDED_LIBRARY
+		static ib_time_t progress_time;
+		ib_time_t time = ut_time();
+		if (time - progress_time >= 15) {
+			progress_time = time;
+			service_manager_extend_timeout(
+				INNODB_EXTEND_TIMEOUT_INTERVAL,
+				"InnoDB: to purge " ULINTPF " transactions",
+				trx_sys->rseg_history_len);
+		}
+#endif
 		/* The previous round still did some work. */
 		return(false);
 	}
@@ -2589,8 +2594,8 @@ DECLARE_THREAD(srv_worker_thread)(
 	slot = srv_reserve_slot(SRV_WORKER);
 
 	ut_a(srv_n_purge_threads > 1);
-	ut_a(my_atomic_loadlint(&srv_sys.n_threads_active[SRV_WORKER])
-	     < static_cast<lint>(srv_n_purge_threads));
+	ut_a(ulong(my_atomic_loadlint(&srv_sys.n_threads_active[SRV_WORKER]))
+	     < srv_n_purge_threads);
 
 	/* We need to ensure that the worker threads exit after the
 	purge coordinator thread. Otherwise the purge coordinator can
@@ -2709,7 +2714,6 @@ srv_do_purge(ulint* n_total_purged)
 			(++count % rseg_truncate_frequency) == 0);
 
 		*n_total_purged += n_pages_purged;
-
 	} while (!srv_purge_should_exit(n_pages_purged)
 		 && n_pages_purged > 0
 		 && purge_sys->state == PURGE_STATE_RUN);
@@ -2880,8 +2884,18 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 
 	/* Ensure that all the worker threads quit. */
-	if (srv_n_purge_threads > 1) {
-		srv_release_threads(SRV_WORKER, srv_n_purge_threads - 1);
+	if (ulint n_workers = srv_n_purge_threads - 1) {
+		const srv_slot_t* slot;
+		const srv_slot_t* const end = &srv_sys.sys_threads[
+			srv_sys.n_sys_threads];
+
+		do {
+			srv_release_threads(SRV_WORKER, n_workers);
+			srv_sys_mutex_enter();
+			for (slot = &srv_sys.sys_threads[2];
+			     !slot++->in_use && slot < end; );
+			srv_sys_mutex_exit();
+		} while (slot < end);
 	}
 
 	innobase_destroy_background_thd(thd);
@@ -2936,6 +2950,7 @@ void
 srv_purge_wakeup()
 {
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!sync_check_iterate(sync_check()));
 
 	if (srv_force_recovery >= SRV_FORCE_NO_BACKGROUND) {
 		return;
@@ -2949,9 +2964,20 @@ srv_purge_wakeup()
 
 			srv_release_threads(SRV_WORKER, n_workers);
 		}
-	} while (!srv_running
+	} while (!my_atomic_loadptr_explicit(reinterpret_cast<void**>
+					     (&srv_running),
+					     MY_MEMORY_ORDER_RELAXED)
 		 && (srv_sys.n_threads_active[SRV_WORKER]
 		     || srv_sys.n_threads_active[SRV_PURGE]));
+}
+
+/** Shut down the purge threads. */
+void srv_purge_shutdown()
+{
+	do {
+		ut_ad(!srv_undo_sources);
+		srv_purge_wakeup();
+	} while (srv_sys.sys_threads[SRV_PURGE_SLOT].in_use);
 }
 
 /** Check if tablespace is being truncated.

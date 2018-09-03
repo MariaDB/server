@@ -466,17 +466,15 @@ func_exit:
 @param[in]	node	query node
 @param[in]	trx	transaction
 @return	whether the node cannot be ignored */
-inline
-bool
-wsrep_must_process_fk(const upd_node_t* node, const trx_t* trx)
+
+inline bool wsrep_must_process_fk(const upd_node_t* node, const trx_t* trx)
 {
-	if (que_node_get_type(node->common.parent) != QUE_NODE_UPDATE
-	    || !wsrep_on_trx(trx)) {
+	if (!wsrep_on_trx(trx)) {
 		return false;
 	}
-
-	return static_cast<upd_node_t*>(node->common.parent)->cascade_node
-		== node;
+	return que_node_get_type(node->common.parent) != QUE_NODE_UPDATE
+		|| static_cast<upd_node_t*>(node->common.parent)->cascade_node
+		!= node;
 }
 #endif /* WITH_WSREP */
 
@@ -595,7 +593,7 @@ row_upd_changes_field_size_or_external(
 		/* We should ignore virtual field if the index is not
 		a virtual index */
 		if (upd_fld_is_virtual_col(upd_field)
-		    && dict_index_has_virtual(index) != DICT_VIRTUAL) {
+		    && !index->has_virtual()) {
 			continue;
 		}
 
@@ -1025,6 +1023,7 @@ row_upd_build_sec_rec_difference_binary(
 	return(update);
 }
 
+
 /** Builds an update vector from those fields, excluding the roll ptr and
 trx id fields, which in an index entry differ from a record that has
 the equal ordering fields. NOTE: we compare the fields as binary strings!
@@ -1125,6 +1124,9 @@ row_upd_build_difference_binary(
 	if (n_v_fld > 0) {
 		row_ext_t*	ext;
 		mem_heap_t*	v_heap = NULL;
+		byte*		record;
+		VCOL_STORAGE*	vcol_storage;
+
 		THD*		thd;
 
 		if (trx == NULL) {
@@ -1134,6 +1136,10 @@ row_upd_build_difference_binary(
 		}
 
 		ut_ad(!update->old_vrow);
+
+		innobase_allocate_row_for_vcol(thd, index, &v_heap,
+					       &mysql_table,
+					       &record, &vcol_storage);
 
 		for (i = 0; i < n_v_fld; i++) {
 			const dict_v_col_t*     col
@@ -1153,7 +1159,7 @@ row_upd_build_difference_binary(
 
 			dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
-				&v_heap, heap, NULL, thd, mysql_table,
+				&v_heap, heap, NULL, thd, mysql_table, record,
 				NULL, NULL, NULL);
 
 			if (!dfield_data_is_binary_equal(
@@ -1179,6 +1185,8 @@ row_upd_build_difference_binary(
 		}
 
 		if (v_heap) {
+			if (vcol_storage)
+				innobase_free_row_for_vcol(vcol_storage);
 			mem_heap_free(v_heap);
 		}
 	}
@@ -2118,6 +2126,12 @@ row_upd_store_v_row(
 {
 	mem_heap_t*	heap = NULL;
 	dict_index_t*	index = dict_table_get_first_index(node->table);
+        byte*           record= 0;
+	VCOL_STORAGE	*vcol_storage= 0;
+
+	if (!update)
+	  innobase_allocate_row_for_vcol(thd, index, &heap, &mysql_table,
+					 &record, &vcol_storage);
 
 	for (ulint col_no = 0; col_no < dict_table_get_n_v_cols(node->table);
 	     col_no++) {
@@ -2170,7 +2184,7 @@ row_upd_store_v_row(
 					innobase_get_computed_value(
 						node->row, col, index,
 						&heap, node->heap, NULL,
-						thd, mysql_table, NULL,
+						thd, mysql_table, record, NULL,
 						NULL, NULL);
 				}
 			}
@@ -2178,8 +2192,11 @@ row_upd_store_v_row(
 	}
 
 	if (heap) {
+		if (vcol_storage)
+			innobase_free_row_for_vcol(vcol_storage);
 		mem_heap_free(heap);
 	}
+
 }
 
 /** Stores to the heap the row on which the node->pcur is positioned.

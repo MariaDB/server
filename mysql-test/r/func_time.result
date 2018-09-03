@@ -2797,6 +2797,11 @@ SEC_TO_TIME(MAKEDATE(0,RAND(~0)))
 838:59:59
 Warnings:
 Warning	1292	Truncated incorrect time value: '20000101'
+SELECT PERIOD_DIFF(2018, AES_ENCRYPT('Rae Bareli', 'Rae Bareli'));
+PERIOD_DIFF(2018, AES_ENCRYPT('Rae Bareli', 'Rae Bareli'))
+24257
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '-3S\xFA\xDE?\x00\x00\xCA\xB3\xEEE\xA4\xD1\xC1\xA8'
 #
 # End of 5.5 tests
 #
@@ -2901,6 +2906,30 @@ Warnings:
 Warning	1441	Datetime function: datetime field overflow
 SELECT ADDDATE(DATE'0000-01-01', INTERVAL '0:0:5259490559:315569433599' DAY_SECOND);
 ADDDATE(DATE'0000-01-01', INTERVAL '0:0:5259490559:315569433599' DAY_SECOND)
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+#
+# MDEV-13202 Assertion `ltime->neg == 0' failed in date_to_datetime
+#
+CREATE TABLE t1 (i INT, d DATE);
+INSERT INTO t1 VALUES (1, '1970-01-01');
+SELECT MAX(NULLIF(i,1)) FROM t1 ORDER BY DATE_SUB(d,INTERVAL 17300000 HOUR);
+MAX(NULLIF(i,1))
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+DROP TABLE t1;
+CREATE TABLE t1 (i INT, d DATE);
+INSERT INTO t1 VALUES (1, '1970-01-01');
+SELECT CONCAT(DATE_SUB(d, INTERVAL 17300000 HOUR)) FROM t1;
+CONCAT(DATE_SUB(d, INTERVAL 17300000 HOUR))
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+DROP TABLE t1;
+SELECT CONCAT(DATE_SUB(TIMESTAMP'1970-01-01 00:00:00', INTERVAL 17300000 HOUR));
+CONCAT(DATE_SUB(TIMESTAMP'1970-01-01 00:00:00', INTERVAL 17300000 HOUR))
 NULL
 Warnings:
 Warning	1441	Datetime function: datetime field overflow

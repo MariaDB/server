@@ -36,9 +36,10 @@ Created 10/25/1995 Heikki Tuuri
 #include "ibuf0types.h"
 
 #include <list>
-#include <vector>
 
 // Forward declaration
+extern ibool srv_use_doublewrite_buf;
+extern struct buf_dblwr_t* buf_dblwr;
 struct trx_t;
 class page_id_t;
 class truncate_t;
@@ -88,10 +89,6 @@ struct fil_space_t {
 				Protected by log_sys->mutex.
 				If and only if this is nonzero, the
 				tablespace will be in named_spaces. */
-	bool		stop_ios;/*!< true if we want to rename the
-				.ibd file of tablespace and want to
-				stop temporarily posting of new i/o
-				requests on the file */
 	bool		stop_new_ops;
 				/*!< we set this true when we start
 				deleting a single-table tablespace.
@@ -178,9 +175,6 @@ struct fil_space_t {
 	/** MariaDB encryption data */
 	fil_space_crypt_t* crypt_data;
 
-	/** True if we have already printed compression failure */
-	bool		printed_compression_failure;
-
 	/** True if the device this filespace is on supports atomic writes */
 	bool		atomic_write_supported;
 
@@ -199,6 +193,13 @@ struct fil_space_t {
 	bool is_stopping() const
 	{
 		return stop_new_ops || is_being_truncated;
+	}
+
+	/** @return whether doublewrite buffering is needed */
+	bool use_doublewrite() const
+	{
+		return !atomic_write_supported
+			&& srv_use_doublewrite_buf && buf_dblwr;
 	}
 };
 
@@ -1382,90 +1383,6 @@ void
 fil_delete_file(
 /*============*/
 	const char*	path);	/*!< in: filepath of the ibd tablespace */
-
-/** Callback functor. */
-struct PageCallback {
-
-	/** Default constructor */
-	PageCallback()
-		:
-		m_page_size(0, 0, false),
-		m_filepath() UNIV_NOTHROW {}
-
-	virtual ~PageCallback() UNIV_NOTHROW {}
-
-	/** Called for page 0 in the tablespace file at the start.
-	@param file_size size of the file in bytes
-	@param block contents of the first page in the tablespace file
-	@retval DB_SUCCESS or error code. */
-	virtual dberr_t init(
-		os_offset_t		file_size,
-		const buf_block_t*	block) UNIV_NOTHROW = 0;
-
-	/** Called for every page in the tablespace. If the page was not
-	updated then its state must be set to BUF_PAGE_NOT_USED. For
-	compressed tables the page descriptor memory will be at offset:
-		block->frame + UNIV_PAGE_SIZE;
-	@param offset physical offset within the file
-	@param block block read from file, note it is not from the buffer pool
-	@retval DB_SUCCESS or error code. */
-	virtual dberr_t operator()(
-		os_offset_t	offset,
-		buf_block_t*	block) UNIV_NOTHROW = 0;
-
-	/** Set the name of the physical file and the file handle that is used
-	to open it for the file that is being iterated over.
-	@param filename the name of the tablespace file
-	@param file OS file handle */
-	void set_file(const char* filename, pfs_os_file_t file) UNIV_NOTHROW
-	{
-		m_file = file;
-		m_filepath = filename;
-	}
-
-	/**
-	@return the space id of the tablespace */
-	virtual ulint get_space_id() const UNIV_NOTHROW = 0;
-
-	/**
-	@retval the space flags of the tablespace being iterated over */
-	virtual ulint get_space_flags() const UNIV_NOTHROW = 0;
-
-	/** The compressed page size
-	@return the compressed page size */
-	const page_size_t& get_page_size() const
-	{
-		return(m_page_size);
-	}
-
-	/** The tablespace page size. */
-	page_size_t		m_page_size;
-
-	/** File handle to the tablespace */
-	pfs_os_file_t		m_file;
-
-	/** Physical file path. */
-	const char*		m_filepath;
-
-protected:
-	// Disable copying
-	PageCallback(const PageCallback&);
-	PageCallback& operator=(const PageCallback&);
-};
-
-/********************************************************************//**
-Iterate over all the pages in the tablespace.
-@param table the table definiton in the server
-@param n_io_buffers number of blocks to read and write together
-@param callback functor that will do the page updates
-@return DB_SUCCESS or error code */
-dberr_t
-fil_tablespace_iterate(
-/*===================*/
-	dict_table_t*		table,
-	ulint			n_io_buffers,
-	PageCallback&		callback)
-	MY_ATTRIBUTE((warn_unused_result));
 
 /********************************************************************//**
 Looks for a pre-existing fil_space_t with the given tablespace ID

@@ -4,6 +4,12 @@
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_perfschema.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
 
 # Save original auto_increment_offset values.
 --let $node_1=node_1
@@ -49,13 +55,10 @@ SELECT i, variable_name, variable_value FROM t1, information_schema.session_vari
 
 SELECT 1;
 
---error ER_UNKNOWN_COM_ERROR
 USE information_schema;
 
---error ER_UNKNOWN_COM_ERROR
 SELECT * FROM information_schema.session_variables WHERE variable_name LIKE "wsrep_dirty_reads";
 
---error ER_UNKNOWN_COM_ERROR
 SELECT COUNT(*) >= 10 FROM performance_schema.events_statements_history;
 
 --disable_query_log

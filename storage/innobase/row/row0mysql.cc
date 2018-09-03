@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -63,12 +63,20 @@ Created 9/17/2000 Heikki Tuuri
 #include "trx0rec.h"
 #include "trx0roll.h"
 #include "trx0undo.h"
+#include "srv0start.h"
 #include "row0ext.h"
 #include "ut0new.h"
 
 #include <algorithm>
 #include <deque>
 #include <vector>
+
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#include "wsrep.h"
+#include "log.h"
+#include "wsrep_mysqld.h"
+#endif
 
 /** Provide optional 4.x backwards compatibility for 5.0 and above */
 ibool	row_rollback_on_timeout	= FALSE;
@@ -729,9 +737,6 @@ handle_new_error:
 		/* MySQL will roll back the latest SQL statement */
 		break;
 	case DB_LOCK_WAIT:
-
-		trx_kill_blocking(trx);
-
 		lock_wait_suspend_thread(thr);
 
 		if (trx->error_state != DB_SUCCESS) {
@@ -1473,8 +1478,7 @@ error_exit:
 			doc_ids difference should not exceed
 			FTS_DOC_ID_MAX_STEP value. */
 
-			if (next_doc_id > 1
-			    && doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
+			if (doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
 				 ib::error() << "Doc ID " << doc_id
 					<< " is too big. Its difference with"
 					" largest used Doc ID "
@@ -1523,7 +1527,7 @@ error_exit:
 		memcpy(prebuilt->row_id, node->sys_buf, DATA_ROW_ID_LEN);
 	}
 
-	dict_stats_update_if_needed(table);
+	dict_stats_update_if_needed(table, trx->mysql_thd);
 	trx->op_info = "";
 
 	if (blob_heap != NULL) {
@@ -1895,7 +1899,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	}
 
 	if (update_statistics) {
-		dict_stats_update_if_needed(prebuilt->table);
+		dict_stats_update_if_needed(prebuilt->table, trx->mysql_thd);
 	} else {
 		/* Always update the table modification counter. */
 		prebuilt->table->stat_modified_counter++;
@@ -2148,7 +2152,8 @@ row_update_cascade_for_mysql(
 			}
 
 			if (stats) {
-				dict_stats_update_if_needed(node->table);
+				dict_stats_update_if_needed(node->table,
+							    trx->mysql_thd);
 			} else {
 				/* Always update the table
 				modification counter. */
@@ -3155,30 +3160,7 @@ run_again:
 	} else {
 		que_thr_stop_for_mysql(thr);
 
-		if (err != DB_QUE_THR_SUSPENDED) {
-			ibool	was_lock_wait;
-
-			was_lock_wait = row_mysql_handle_errors(
-				&err, trx, thr, NULL);
-
-			if (was_lock_wait) {
-				goto run_again;
-			}
-		} else {
-			que_thr_t*	run_thr;
-			que_node_t*	parent;
-
-			parent = que_node_get_parent(thr);
-
-			run_thr = que_fork_start_command(
-				static_cast<que_fork_t*>(parent));
-
-			ut_a(run_thr == thr);
-
-			/* There was a lock wait but the thread was not
-			in a ready to run or running state. */
-			trx->error_state = DB_LOCK_WAIT;
-
+		if (row_mysql_handle_errors(&err, trx, thr, NULL)) {
 			goto run_again;
 		}
 	}
@@ -3449,12 +3431,37 @@ row_drop_table_for_mysql(
 	/* make sure background stats thread is not running on the table */
 	ut_ad(!(table->stats_bg_flag & BG_STAT_IN_PROGRESS));
 
-	/* Delete the link file if used. */
-	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-		RemoteDatafile::delete_link_file(name);
-	}
-
 	if (!dict_table_is_temporary(table)) {
+		if (table->space != TRX_SYS_SPACE) {
+#ifdef BTR_CUR_HASH_ADAPT
+			/* On DISCARD TABLESPACE, we would not drop the
+			adaptive hash index entries. If the tablespace is
+			missing here, delete-marking the record in SYS_INDEXES
+			would not free any pages in the buffer pool. Thus,
+			dict_index_remove_from_cache() would hang due to
+			adaptive hash index entries existing in the buffer
+			pool.  To prevent this hang, and also to guarantee
+			that btr_search_drop_page_hash_when_freed() will avoid
+			calling btr_search_drop_page_hash_index() while we
+			hold the InnoDB dictionary lock, we will drop any
+			adaptive hash index entries upfront. */
+			while (buf_LRU_drop_page_hash_for_tablespace(table)) {
+				if (trx_is_interrupted(trx)
+				    || srv_shutdown_state
+				    != SRV_SHUTDOWN_NONE) {
+					err = DB_INTERRUPTED;
+					table->to_be_dropped = false;
+					dict_table_close(table, true, false);
+					goto funct_exit;
+				}
+			}
+#endif /* BTR_CUR_HASH_ADAPT */
+
+			/* Delete the link file if used. */
+			if (DICT_TF_HAS_DATA_DIR(table->flags)) {
+				RemoteDatafile::delete_link_file(name);
+			}
+		}
 
 		dict_stats_recalc_pool_del(table);
 		dict_stats_defrag_pool_del(table, NULL);
@@ -3653,7 +3660,6 @@ row_drop_table_for_mysql(
 	/* As we don't insert entries to SYSTEM TABLES for temp-tables
 	we need to avoid running removal of these entries. */
 	if (!dict_table_is_temporary(table)) {
-
 		/* We use the private SQL parser of Innobase to generate the
 		query graphs needed in deleting the dictionary data from system
 		tables in Innobase. Deleting a row from SYS_INDEXES table also
@@ -3664,48 +3670,46 @@ row_drop_table_for_mysql(
 
 		pars_info_add_str_literal(info, "table_name", name);
 
-		std::basic_string<char, std::char_traits<char>,
-				  ut_allocator<char> > sql;
-		sql.reserve(2000);
-
-		sql =	"PROCEDURE DROP_TABLE_PROC () IS\n"
+		err = que_eval_sql(
+			info,
+			"PROCEDURE DROP_TABLE_PROC () IS\n"
 			"sys_foreign_id CHAR;\n"
 			"table_id CHAR;\n"
 			"index_id CHAR;\n"
 			"foreign_id CHAR;\n"
 			"space_id INT;\n"
-			"found INT;\n";
+			"found INT;\n"
 
-		sql +=	"DECLARE CURSOR cur_fk IS\n"
+			"DECLARE CURSOR cur_fk IS\n"
 			"SELECT ID FROM SYS_FOREIGN\n"
 			"WHERE FOR_NAME = :table_name\n"
 			"AND TO_BINARY(FOR_NAME)\n"
 			"  = TO_BINARY(:table_name)\n"
-			"LOCK IN SHARE MODE;\n";
+			"LOCK IN SHARE MODE;\n"
 
-		sql +=	"DECLARE CURSOR cur_idx IS\n"
+			"DECLARE CURSOR cur_idx IS\n"
 			"SELECT ID FROM SYS_INDEXES\n"
 			"WHERE TABLE_ID = table_id\n"
-			"LOCK IN SHARE MODE;\n";
+			"LOCK IN SHARE MODE;\n"
 
-		sql +=	"BEGIN\n";
+			"BEGIN\n"
 
-		sql +=	"SELECT ID INTO table_id\n"
+			"SELECT ID INTO table_id\n"
 			"FROM SYS_TABLES\n"
 			"WHERE NAME = :table_name\n"
 			"LOCK IN SHARE MODE;\n"
 			"IF (SQL % NOTFOUND) THEN\n"
 			"       RETURN;\n"
-			"END IF;\n";
+			"END IF;\n"
 
-		sql +=	"SELECT SPACE INTO space_id\n"
+			"SELECT SPACE INTO space_id\n"
 			"FROM SYS_TABLES\n"
 			"WHERE NAME = :table_name;\n"
 			"IF (SQL % NOTFOUND) THEN\n"
 			"       RETURN;\n"
-			"END IF;\n";
+			"END IF;\n"
 
-		sql +=	"found := 1;\n"
+			"found := 1;\n"
 			"SELECT ID INTO sys_foreign_id\n"
 			"FROM SYS_TABLES\n"
 			"WHERE NAME = 'SYS_FOREIGN'\n"
@@ -3719,9 +3723,9 @@ row_drop_table_for_mysql(
 			"IF (:table_name = 'SYS_FOREIGN_COLS') \n"
 			"THEN\n"
 			"       found := 0;\n"
-			"END IF;\n";
+			"END IF;\n"
 
-		sql +=	"OPEN cur_fk;\n"
+			"OPEN cur_fk;\n"
 			"WHILE found = 1 LOOP\n"
 			"       FETCH cur_fk INTO foreign_id;\n"
 			"       IF (SQL % NOTFOUND) THEN\n"
@@ -3734,9 +3738,9 @@ row_drop_table_for_mysql(
 			"               WHERE ID = foreign_id;\n"
 			"       END IF;\n"
 			"END LOOP;\n"
-			"CLOSE cur_fk;\n";
+			"CLOSE cur_fk;\n"
 
-		sql +=	"found := 1;\n"
+			"found := 1;\n"
 			"OPEN cur_idx;\n"
 			"WHILE found = 1 LOOP\n"
 			"       FETCH cur_idx INTO index_id;\n"
@@ -3750,26 +3754,22 @@ row_drop_table_for_mysql(
 			"               AND TABLE_ID = table_id;\n"
 			"       END IF;\n"
 			"END LOOP;\n"
-			"CLOSE cur_idx;\n";
+			"CLOSE cur_idx;\n"
 
-		sql +=	"DELETE FROM SYS_COLUMNS\n"
+			"DELETE FROM SYS_COLUMNS\n"
 			"WHERE TABLE_ID = table_id;\n"
 			"DELETE FROM SYS_TABLES\n"
-			"WHERE NAME = :table_name;\n";
+			"WHERE NAME = :table_name;\n"
 
-		if (dict_table_is_file_per_table(table)) {
-			sql += "DELETE FROM SYS_TABLESPACES\n"
-				"WHERE SPACE = space_id;\n"
-				"DELETE FROM SYS_DATAFILES\n"
-				"WHERE SPACE = space_id;\n";
-		}
+			"DELETE FROM SYS_TABLESPACES\n"
+			"WHERE SPACE = space_id;\n"
+			"DELETE FROM SYS_DATAFILES\n"
+			"WHERE SPACE = space_id;\n"
 
-		sql +=	"DELETE FROM SYS_VIRTUAL\n"
-			"WHERE TABLE_ID = table_id;\n";
-
-		sql += "END;\n";
-
-		err = que_eval_sql(info, sql.c_str(), FALSE, trx);
+			"DELETE FROM SYS_VIRTUAL\n"
+			"WHERE TABLE_ID = table_id;\n"
+			"END;\n",
+			FALSE, trx);
 	} else {
 		page_no = page_nos;
 		for (dict_index_t* index = dict_table_get_first_index(table);
@@ -4539,7 +4539,8 @@ row_rename_table_for_mysql(
 		}
 	}
 
-	if (dict_table_has_fts_index(table)
+	if ((dict_table_has_fts_index(table)
+	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
 	    && !dict_tables_have_same_db(old_name, new_name)) {
 		err = fts_rename_aux_tables(table, new_name, trx);
 		if (err != DB_TABLE_NOT_FOUND) {
@@ -4655,6 +4656,8 @@ end:
 					DICT_ERR_IGNORE_NONE);
 			fk_tables.pop_front();
 		}
+
+		table->data_dir_path= NULL;
 	}
 
 funct_exit:

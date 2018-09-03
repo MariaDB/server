@@ -12,11 +12,6 @@ INCLUDE_DIRECTORIES(
   ${ROCKSDB_SOURCE_DIR}/third-party/gtest-1.7.0/fused-src
 )
 
-IF(WIN32)
-  INCLUDE_DIRECTORIES(BEFORE
-  ${CMAKE_CURRENT_SOURCE_DIR}/patch)
-ENDIF()
-
 list(APPEND CMAKE_MODULE_PATH "${ROCKSDB_SOURCE_DIR}/cmake/modules/")
 
 if(WIN32)
@@ -69,10 +64,20 @@ if(SNAPPY_FOUND  AND (NOT WITH_ROCKSDB_SNAPPY STREQUAL "OFF"))
   list(APPEND THIRDPARTY_LIBS ${SNAPPY_LIBRARIES})
 endif()
 
+include(CheckFunctionExists)
 if(ZSTD_FOUND AND (NOT WITH_ROCKSDB_ZSTD STREQUAL "OFF"))
-  add_definitions(-DZSTD)
-  include_directories(${ZSTD_INCLUDE_DIR})
-  list(APPEND THIRDPARTY_LIBS ${ZSTD_LIBRARY})
+  SET(CMAKE_REQUIRED_LIBRARIES zstd)
+  CHECK_FUNCTION_EXISTS(ZDICT_trainFromBuffer ZSTD_VALID)
+  UNSET(CMAKE_REQUIRED_LIBRARIES)
+  if (WITH_ROCKSDB_ZSTD STREQUAL "ON" AND NOT ZSTD_VALID)
+    MESSAGE(FATAL_ERROR
+      "WITH_ROCKSDB_ZSTD is ON and ZSTD library was found, but the version needs to be >= 1.1.3")
+  endif()
+  if (ZSTD_VALID)
+    add_definitions(-DZSTD)
+    include_directories(${ZSTD_INCLUDE_DIR})
+    list(APPEND THIRDPARTY_LIBS ${ZSTD_LIBRARY})
+  endif()
 endif()
 
 add_definitions(-DZLIB)
@@ -124,7 +129,6 @@ int main() {
   endif()
 endif()
 
-include(CheckFunctionExists)
 CHECK_FUNCTION_EXISTS(malloc_usable_size HAVE_MALLOC_USABLE_SIZE)
 if(HAVE_MALLOC_USABLE_SIZE)
   add_definitions(-DROCKSDB_MALLOC_USABLE_SIZE)
@@ -174,6 +178,7 @@ set(ROCKSDB_SOURCES
         db/db_info_dumper.cc
         db/db_iter.cc
         db/dbformat.cc
+        db/error_handler.cc
         db/event_helpers.cc
         db/experimental.cc
         db/external_sst_file_ingestion_job.cc
@@ -184,6 +189,7 @@ set(ROCKSDB_SOURCES
         db/internal_stats.cc
         db/log_reader.cc
         db/log_writer.cc
+        db/logs_with_prep_tracker.cc
         db/malloc_stats.cc
         db/managed_iterator.cc
         db/memtable.cc
@@ -245,6 +251,7 @@ set(ROCKSDB_SOURCES
         table/block_based_table_factory.cc
         table/block_based_table_reader.cc
         table/block_builder.cc
+        table/block_fetcher.cc
         table/block_prefix_index.cc
         table/bloom_block.cc
         table/cuckoo_table_builder.cc
@@ -279,6 +286,7 @@ set(ROCKSDB_SOURCES
         util/coding.cc
         util/compaction_job_stats_impl.cc
         util/comparator.cc
+        util/compression_context_cache.cc
         util/concurrent_arena.cc
         util/crc32c.cc
         util/delete_scheduler.cc
@@ -299,6 +307,7 @@ set(ROCKSDB_SOURCES
         util/status_message.cc
         util/string_util.cc
         util/sync_point.cc
+        util/sync_point_impl.cc
         util/testutil.cc
         util/thread_local.cc
         util/threadpool_imp.cc
@@ -340,15 +349,18 @@ set(ROCKSDB_SOURCES
         utilities/transactions/optimistic_transaction_db_impl.cc
         utilities/transactions/pessimistic_transaction.cc
         utilities/transactions/pessimistic_transaction_db.cc
+        utilities/transactions/snapshot_checker.cc
         utilities/transactions/transaction_base.cc
         utilities/transactions/transaction_db_mutex_impl.cc
         utilities/transactions/transaction_lock_mgr.cc
         utilities/transactions/transaction_util.cc
         utilities/transactions/write_prepared_txn.cc
+        utilities/transactions/write_prepared_txn_db.cc
+        utilities/transactions/write_unprepared_txn.cc
+        utilities/transactions/write_unprepared_txn_db.cc
         utilities/ttl/db_ttl_impl.cc
         utilities/write_batch_with_index/write_batch_with_index.cc
         utilities/write_batch_with_index/write_batch_with_index_internal.cc
-
 )
 
 if(WIN32)
@@ -370,6 +382,30 @@ SET(SOURCES)
 FOREACH(s ${ROCKSDB_SOURCES})
   list(APPEND SOURCES ${ROCKSDB_SOURCE_DIR}/${s})
 ENDFOREACH()
+
+if(MSVC)
+  add_definitions(-DHAVE_SSE42 -DHAVE_PCLMUL)
+else()
+  set(CMAKE_REQUIRED_FLAGS "-msse4.2 -mpclmul ${CXX11_FLAGS}")
+
+  CHECK_CXX_SOURCE_COMPILES("
+#include <cstdint>
+#include <nmmintrin.h>
+#include <wmmintrin.h>
+int main() {
+  volatile uint32_t x = _mm_crc32_u32(0, 0);
+  const auto a = _mm_set_epi64x(0, 0);
+  const auto b = _mm_set_epi64x(0, 0);
+  const auto c = _mm_clmulepi64_si128(a, b, 0x00);
+  auto d = _mm_cvtsi128_si64(c);
+}
+" HAVE_SSE42)
+  if(HAVE_SSE42)
+    set_source_files_properties(${ROCKSDB_SOURCE_DIR}/util/crc32c.cc
+      PROPERTIES COMPILE_FLAGS "-DHAVE_SSE42 -DHAVE_PCLMUL -msse4.2 -mpclmul")
+  endif()
+  unset(CMAKE_REQUIRED_FLAGS)
+endif()
 
 IF(CMAKE_VERSION VERSION_GREATER "2.8.10")
   STRING(TIMESTAMP GIT_DATE_TIME "%Y-%m-%d %H:%M:%S")

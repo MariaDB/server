@@ -1,4 +1,6 @@
 /* Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2011, 2018, MariaDB
+
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -58,6 +60,11 @@ enum enum_resolution_type {
 enum find_item_error_report_type {REPORT_ALL_ERRORS, REPORT_EXCEPT_NOT_FOUND,
 				  IGNORE_ERRORS, REPORT_EXCEPT_NON_UNIQUE,
                                   IGNORE_EXCEPT_NON_UNIQUE};
+
+/* Flag bits for unique_table() */
+#define CHECK_DUP_ALLOW_DIFFERENT_ALIAS 1
+#define CHECK_DUP_FOR_CREATE 2
+#define CHECK_DUP_SKIP_TEMP_TABLE 4
 
 uint get_table_def_key(const TABLE_LIST *table_list, const char **key);
 TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
@@ -152,11 +159,12 @@ bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
                                           enum trg_event_type event);
 bool insert_fields(THD *thd, Name_resolution_context *context,
 		   const char *db_name, const char *table_name,
-                   List_iterator<Item> *it, bool any_privileges);
+                   List_iterator<Item> *it, bool any_privileges,
+                   uint *hidden_bit_fields);
 void make_leaves_list(THD *thd, List<TABLE_LIST> &list, TABLE_LIST *tables,
                       bool full_table_list, TABLE_LIST *boundary);
 int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
-	       List<Item> *sum_func_list, uint wild_num);
+	       List<Item> *sum_func_list, uint wild_num, uint * hidden_bit_fields);
 bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> &item, enum_mark_columns mark_used_columns,
                   List<Item> *sum_func_list, List<Item> *pre_fix,
@@ -259,7 +267,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint counter, uint flags);
 int decide_logging_format(THD *thd, TABLE_LIST *tables);
 void close_thread_table(THD *thd, TABLE **table_ptr);
 TABLE_LIST *unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
-                         bool check_alias);
+                         uint check_flag);
 bool is_equal(const LEX_STRING *a, const LEX_STRING *b);
 
 class Open_tables_backup;

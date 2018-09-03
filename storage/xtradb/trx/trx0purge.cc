@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -247,18 +247,20 @@ trx_purge_add_update_undo_to_history(
 			hist_size + undo->size, MLOG_4BYTES, mtr);
 	}
 
-	/* Before any transaction-generating background threads or the
+	/* After the purge thread has been given permission to exit,
+	we may roll back transactions (trx->undo_no==0)
+	in THD::cleanup() invoked from unlink_thd() in fast shutdown,
+	or in trx_rollback_resurrected() in slow shutdown.
+
+	Before any transaction-generating background threads or the
 	purge have been started, recv_recovery_rollback_active() can
 	start transactions in row_merge_drop_temp_indexes() and
-	fts_drop_orphaned_tables(), and roll back recovered transactions.
-	After the purge thread has been given permission to exit,
-	in fast shutdown, we may roll back transactions (trx->undo_no==0)
-	in THD::cleanup() invoked from unlink_thd(). */
+	fts_drop_orphaned_tables(), and roll back recovered transactions. */
 	ut_ad(srv_undo_sources
+	      || trx->undo_no == 0
 	      || ((srv_startup_is_before_trx_rollback_phase
 		   || trx_rollback_or_clean_is_active)
-		  && purge_sys->state == PURGE_STATE_INIT)
-	      || (trx->undo_no == 0 && srv_fast_shutdown));
+		  && purge_sys->state == PURGE_STATE_INIT));
 
 	/* Add the log as the first in the history list */
 	flst_add_first(rseg_header + TRX_RSEG_HISTORY,

@@ -392,3 +392,59 @@ insert into t1 values (2),(1);
 select 1 from t1 where json_extract(a,'$','$[81]');
 drop table t1;
 
+#
+# MDEV-15561 json_extract returns NULL with numbers in scientific notation.
+#
+
+select json_extract('{"test":8.437e-5}','$.test');
+
+#
+# MDEV-15905 select json_value('{"b":true}','$.b')=1 --> false with
+#    "Truncated incorrect DOUBLE value: 'true'"
+#
+select json_value('{"b":true}','$.b')=1;
+
+#
+# MDEV-16209 JSON_EXTRACT in query crashes server.
+#
+
+CREATE TABLE t1 (c VARCHAR(8));
+INSERT INTO t1 VALUES ('foo'),('bar');
+SELECT * FROM t1 WHERE c IN (JSON_EXTRACT('{"a":"b"}', '$.*'));
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16814 CREATE TABLE SELECT JSON_QUOTE(multibyte_charset_expr) makes a field of a wrong length
+--echo #
+
+CREATE TABLE t1 AS SELECT
+  JSON_QUOTE(_latin1'foo') AS c1,
+  JSON_QUOTE(_utf8'foo') AS c2;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16054 simple json functions flatline cpu on garbage input.
+--echo #
+
+select json_array(1,uuid(),compress(5.140264e+307));
+
+
+--echo #
+--echo # MDEV-16869 String functions don't respect character set of JSON_VALUE.
+--echo #
+
+create table t1(json_col TEXT) DEFAULT CHARSET=latin1;
+insert into t1 values (_latin1 X'7B226B657931223A2253EC227D');
+select JSON_VALUE(json_col, '$.key1')= _latin1 X'53EC' from t1;
+select REPLACE(JSON_VALUE(json_col, '$.key1'), 'null', '') = _latin1 X'53EC' from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-16750 JSON_SET mishandles unicode every second pair of arguments.
+--echo #
+
+SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6);
+SELECT JSON_SET('{}', '$.a', _utf8 0xC3B6, '$.b', _utf8 0xC3B6);
+SELECT JSON_SET('{}', '$.a', _utf8 X'C3B6', '$.x', 1, '$.b', _utf8 X'C3B6');
+

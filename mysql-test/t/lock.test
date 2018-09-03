@@ -474,7 +474,7 @@ LOCK TABLE t1 WRITE;
 --echo # HANDLER commands are not allowed in LOCK TABLES mode
 --error ER_LOCK_OR_ACTIVE_TRANSACTION
 HANDLER t1 OPEN;
---error ER_LOCK_OR_ACTIVE_TRANSACTION
+--error ER_LOCK_OR_ACTIVE_TRANSACTION,ER_UNKNOWN_TABLE
 HANDLER t1 READ FIRST;
 --error ER_LOCK_OR_ACTIVE_TRANSACTION
 HANDLER t1 CLOSE;
@@ -598,3 +598,24 @@ unlock tables;
 disconnect con1;
 connection default;
 drop table t1;
+
+--echo # 
+--echo # MDEV-15769: Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())' failed in Diagnostics_area::set_ok_status
+--echo # 
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+LOCK TABLE t1 READ;
+ 
+--connect (con1,localhost,root,,test)
+LOCK TABLE t2 WRITE;
+SET lock_wait_timeout= 1;
+--error ER_LOCK_WAIT_TIMEOUT
+FLUSH TABLES;
+ 
+# Cleanup
+UNLOCK TABLES;
+--disconnect con1
+--connection default
+UNLOCK TABLES;
+DROP TABLE t1, t2;
+

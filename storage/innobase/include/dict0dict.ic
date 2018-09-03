@@ -72,16 +72,6 @@ dict_col_copy_type(
 	type->mbminlen = col->mbminlen;
 	type->mbmaxlen = col->mbmaxlen;
 }
-/** Check if a column is a virtual column
-@param[in]      col     column
-@return true if it is a virtual column, false otherwise */
-UNIV_INLINE
-bool
-dict_col_is_virtual(
-	const dict_col_t*	col)
-{
-	return(col->prtype & DATA_VIRTUAL);
-}
 
 #ifdef UNIV_DEBUG
 /*********************************************************************//**
@@ -323,20 +313,6 @@ dict_index_is_spatial(
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return(index->type & DICT_SPATIAL);
-}
-
-/** Check whether the index contains a virtual column
-@param[in]	index	index
-@return	nonzero for the index has virtual column, zero for other indexes */
-UNIV_INLINE
-ulint
-dict_index_has_virtual(
-	const dict_index_t*	index)
-{
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return(index->type & DICT_VIRTUAL);
 }
 
 /********************************************************************//**
@@ -1487,21 +1463,6 @@ dict_table_is_corrupted(
 }
 
 /********************************************************************//**
-Check whether the index is corrupted.
-@return nonzero for corrupted index, zero for valid indexes */
-UNIV_INLINE
-ulint
-dict_index_is_corrupted(
-/*====================*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return((index->type & DICT_CORRUPT)
-	        || (index->table && index->table->corrupted));
-}
-
-/********************************************************************//**
 Check if the tablespace for the table has been discarded.
 @return true if the tablespace has been discarded. */
 UNIV_INLINE
@@ -1534,26 +1495,7 @@ bool
 dict_table_is_file_per_table(
 	const dict_table_t*	table)	/*!< in: table to check */
 {
-	bool is_file_per_table =
-		!is_system_tablespace(table->space);
-
-	/* If the table is file-per-table and it is not redundant, then
-	it should have the flags2 bit for DICT_TF2_USE_FILE_PER_TABLE. */
-	ut_ad(!is_file_per_table
-	      || !DICT_TF_GET_COMPACT(table->flags)
-	      || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_USE_FILE_PER_TABLE));
-
-	return(is_file_per_table);
-}
-
-/** Get reference count.
-@return current value of n_ref_count */
-inline
-ulint
-dict_table_t::get_ref_count() const
-{
-	ut_ad(mutex_own(&dict_sys->mutex));
-	return(n_ref_count);
+	return !is_system_tablespace(table->space);
 }
 
 /** Acquire the table handle. */
@@ -1562,7 +1504,7 @@ void
 dict_table_t::acquire()
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
-	++n_ref_count;
+	my_atomic_add32_explicit(&n_ref_count, 1, MY_MEMORY_ORDER_RELAXED);
 }
 
 /** Release the table handle.
@@ -1571,9 +1513,10 @@ inline
 bool
 dict_table_t::release()
 {
-	ut_ad(mutex_own(&dict_sys->mutex));
-	ut_ad(n_ref_count > 0);
-	return !--n_ref_count;
+	int32 n = my_atomic_add32_explicit(
+			&n_ref_count, -1, MY_MEMORY_ORDER_RELAXED);
+	ut_ad(n > 0);
+	return n == 1;
 }
 
 /** Encode the number of columns and number of virtual columns in a

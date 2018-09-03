@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1314,8 +1314,7 @@ trx_undo_mem_create_at_db_start(
 	/* Read X/Open XA transaction identification if it exists, or
 	set it to NULL. */
 
-	memset(&xid, 0, sizeof(xid));
-	xid.formatID = -1;
+	xid.null();
 
 	if (xid_exists == TRUE) {
 		trx_undo_read_xid(undo_header, &xid);
@@ -1989,7 +1988,9 @@ trx_undo_insert_cleanup(
 
 		mutex_exit(&(rseg->mutex));
 
-		trx_undo_seg_free(undo);
+		if (!srv_read_only_mode) {
+			trx_undo_seg_free(undo);
+		}
 
 		mutex_enter(&(rseg->mutex));
 

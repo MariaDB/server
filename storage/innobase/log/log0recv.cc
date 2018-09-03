@@ -30,7 +30,7 @@ Created 9/20/1997 Heikki Tuuri
 #include <vector>
 #include <map>
 #include <string>
-#include <my_systemd.h>
+#include <my_service_manager.h>
 
 #include "log0recv.h"
 
@@ -141,12 +141,23 @@ struct file_name_t {
 	std::string	name;
 	/** Tablespace object (NULL if not valid or not found) */
 	fil_space_t*	space;
-	/** Whether the tablespace has been deleted */
-	bool		deleted;
+
+	/** Tablespace status. */
+	enum fil_status {
+		/** Normal tablespace */
+		NORMAL,
+		/** Deleted tablespace */
+		DELETED,
+		/** Missing tablespace */
+		MISSING
+	};
+
+	/** Status of the tablespace */
+	fil_status	status;
 
 	/** Constructor */
-	file_name_t(std::string name_, bool deleted_) :
-		name(name_), space(NULL), deleted (deleted_) {}
+	file_name_t(std::string name_, bool deleted) :
+		name(name_), space(NULL), status(deleted ? DELETED: NORMAL) {}
 };
 
 /** Map of dirty tablespaces during recovery */
@@ -158,22 +169,47 @@ typedef std::map<
 
 static recv_spaces_t	recv_spaces;
 
+/** Report optimized DDL operation (without redo log),
+corresponding to MLOG_INDEX_LOAD.
+@param[in]	space_id	tablespace identifier
+*/
+void (*log_optimized_ddl_op)(ulint space_id);
+
+/** Report backup-unfriendly TRUNCATE operation (with separate log file),
+corresponding to MLOG_TRUNCATE. */
+void (*log_truncate)();
+
+/** Report an operation to create, delete, or rename a file during backup.
+@param[in]	space_id	tablespace identifier
+@param[in]	flags		tablespace flags (NULL if not create)
+@param[in]	name		file name (not NUL-terminated)
+@param[in]	len		length of name, in bytes
+@param[in]	new_name	new file name (NULL if not rename)
+@param[in]	new_len		length of new_name, in bytes (0 if NULL) */
+void (*log_file_op)(ulint space_id, const byte* flags,
+		    const byte* name, ulint len,
+		    const byte* new_name, ulint new_len);
+
 /** Process a file name from a MLOG_FILE_* record.
 @param[in,out]	name		file name
 @param[in]	len		length of the file name
 @param[in]	space_id	the tablespace ID
-@param[in]	deleted		whether this is a MLOG_FILE_DELETE record
-@retval true if able to process file successfully.
-@retval false if unable to process the file */
+@param[in]	deleted		whether this is a MLOG_FILE_DELETE record */
 static
-bool
+void
 fil_name_process(
 	char*	name,
 	ulint	len,
 	ulint	space_id,
 	bool	deleted)
 {
-	bool	processed = true;
+	if (srv_operation == SRV_OPERATION_BACKUP) {
+		return;
+	}
+
+	ut_ad(srv_operation == SRV_OPERATION_NORMAL
+	      || srv_operation == SRV_OPERATION_RESTORE
+	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
 	/* We will also insert space=NULL into the map, so that
 	further checks can ensure that a MLOG_FILE_NAME record was
@@ -190,8 +226,8 @@ fil_name_process(
 	if (deleted) {
 		/* Got MLOG_FILE_DELETE */
 
-		if (!p.second && !f.deleted) {
-			f.deleted = true;
+		if (!p.second && f.status != file_name_t::DELETED) {
+			f.status = file_name_t::DELETED;
 			if (f.space != NULL) {
 				fil_space_free(space_id, false);
 				f.space = NULL;
@@ -214,14 +250,13 @@ fil_name_process(
 			if (f.space == NULL || f.space == space) {
 				f.name = fname.name;
 				f.space = space;
-				f.deleted = false;
+				f.status = file_name_t::NORMAL;
 			} else {
 				ib::error() << "Tablespace " << space_id
 					<< " has been found in two places: '"
 					<< f.name << "' and '" << name << "'."
 					" You must delete one of them.";
 				recv_sys->found_corrupt_fs = true;
-				processed = false;
 			}
 			break;
 
@@ -274,7 +309,6 @@ fil_name_process(
 					" remove the .ibd file, you can set"
 					" --innodb_force_recovery.";
 				recv_sys->found_corrupt_fs = true;
-				processed = false;
 				break;
 			}
 
@@ -285,7 +319,6 @@ fil_name_process(
 			break;
 		}
 	}
-	return(processed);
 }
 
 /** Parse or process a MLOG_FILE_* record.
@@ -358,9 +391,13 @@ fil_name_parse(
 
 		fil_name_process(
 			reinterpret_cast<char*>(ptr), len, space_id, true);
-
-		break;
+		/* fall through */
 	case MLOG_FILE_CREATE2:
+		if (log_file_op) {
+			log_file_op(space_id,
+				    type == MLOG_FILE_CREATE2 ? ptr - 4 : NULL,
+				    ptr, len, NULL, 0);
+		}
 		break;
 	case MLOG_FILE_RENAME2:
 		if (corrupt) {
@@ -400,6 +437,11 @@ fil_name_parse(
 		fil_name_process(
 			reinterpret_cast<char*>(new_name), new_len,
 			space_id, false);
+
+		if (log_file_op) {
+			log_file_op(space_id, NULL,
+				    ptr, len, new_name, new_len);
+		}
 
 		if (!apply) {
 			break;
@@ -557,7 +599,6 @@ recv_sys_init()
 
 	recv_sys->addr_hash = hash_create(size / 512);
 	recv_sys->progress_time = ut_time();
-
 	recv_max_page_lsn = 0;
 
 	/* Call the constructor for recv_sys_t::dblwr member */
@@ -701,12 +742,22 @@ loop:
 					  OS_FILE_LOG_BLOCK_SIZE, true);
 			}
 		}
+
+		ulint dl = log_block_get_data_len(buf);
+		if (dl < LOG_BLOCK_HDR_SIZE
+		    || (dl > OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE
+			&& dl != OS_FILE_LOG_BLOCK_SIZE)) {
+			recv_sys->found_corrupt_log = true;
+			end_lsn = *start_lsn;
+			break;
+		}
 	}
 
 	if (recv_sys->report(ut_time())) {
 		ib::info() << "Read redo log up to LSN=" << *start_lsn;
-		sd_notifyf(0, "STATUS=Read redo log up to LSN=" LSN_PF,
-			   *start_lsn);
+		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+			"Read redo log up to LSN=" LSN_PF,
+			*start_lsn);
 	}
 
 	if (*start_lsn != end_lsn) {
@@ -848,12 +899,11 @@ recv_find_max_checkpoint_0(log_group_t** max_group, ulint* max_field)
 
 /** Determine if a pre-MySQL 5.7.9/MariaDB 10.2.2 redo log is clean.
 @param[in]	lsn	checkpoint LSN
+@param[in]	crypt	whether the log might be encrypted
 @return error code
 @retval	DB_SUCCESS	if the redo log is clean
 @retval DB_ERROR	if the redo log is corrupted or dirty */
-static
-dberr_t
-recv_log_format_0_recover(lsn_t lsn)
+static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 {
 	log_mutex_enter();
 	log_group_t*	group = &log_sys->log;
@@ -888,7 +938,13 @@ recv_log_format_0_recover(lsn_t lsn)
 	}
 
 	if (log_block_get_data_len(buf)
-	    != (source_offset & (OS_FILE_LOG_BLOCK_SIZE - 1))) {
+	    == (source_offset & (OS_FILE_LOG_BLOCK_SIZE - 1))) {
+	} else if (crypt) {
+		ib::error() << "Cannot decrypt log for upgrading."
+			" The encrypted log was created before MariaDB 10.2.2"
+			    << NO_UPGRADE_RTFM_MSG;
+		return DB_ERROR;
+	} else {
 		ib::error() << NO_UPGRADE_RECOVERY_MSG
 			<< NO_UPGRADE_RTFM_MSG;
 		return(DB_ERROR);
@@ -1138,6 +1194,12 @@ recv_parse_or_apply_log_rec_body(
 		}
 		return(ptr + 8);
 	case MLOG_TRUNCATE:
+		if (log_truncate) {
+			ut_ad(srv_operation != SRV_OPERATION_NORMAL);
+			log_truncate();
+			recv_sys->found_corrupt_fs = true;
+			return NULL;
+		}
 		return(truncate_t::parse_redo_entry(ptr, end_ptr, space_id));
 
 	default:
@@ -1503,7 +1565,8 @@ parse_log:
 		break;
 	default:
 		ptr = NULL;
-		ib::error() << "Incorrect log record type:" << type;
+		ib::error() << "Incorrect log record type "
+			<< ib::hex(unsigned(type));
 
 		recv_sys->found_corrupt_log = true;
 	}
@@ -1744,6 +1807,11 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 
 	ut_ad(recv_needed_recovery);
 
+	if (UNIV_UNLIKELY(srv_print_verbose_log == 2)) {
+		fprintf(stderr, "Applying log to page %u:%u\n",
+			recv_addr->space, recv_addr->page_no);
+	}
+
 	DBUG_PRINT("ib_log",
 		   ("Applying log to page %u:%u",
 		    recv_addr->space, recv_addr->page_no));
@@ -1844,6 +1912,13 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 				start_lsn = recv->start_lsn;
 			}
 
+			if (UNIV_UNLIKELY(srv_print_verbose_log == 2)) {
+				fprintf(stderr, "apply " LSN_PF ":"
+					" %d len " ULINTPF " page %u:%u\n",
+					recv->start_lsn, recv->type, recv->len,
+					recv_addr->space, recv_addr->page_no);
+			}
+
 			DBUG_PRINT("ib_log",
 				   ("apply " LSN_PF ":"
 				    " %s len " ULINTPF " page %u:%u",
@@ -1914,8 +1989,8 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 	if (ulint n = --recv_sys->n_addrs) {
 		if (recv_sys->report(time)) {
 			ib::info() << "To recover: " << n << " pages from log";
-			sd_notifyf(0, "STATUS=To recover: " ULINTPF
-				   " pages from log", n);
+			service_manager_extend_timeout(
+				INNODB_EXTEND_TIMEOUT_INTERVAL, "To recover: " ULINTPF " pages from log", n);
 		}
 	}
 
@@ -2182,7 +2257,8 @@ recv_parse_log_rec(
 	case MLOG_MULTI_REC_END | MLOG_SINGLE_REC_FLAG:
 	case MLOG_DUMMY_RECORD | MLOG_SINGLE_REC_FLAG:
 	case MLOG_CHECKPOINT | MLOG_SINGLE_REC_FLAG:
-		ib::error() << "Incorrect log record type:" << *ptr;
+		ib::error() << "Incorrect log record type "
+			<< ib::hex(unsigned(*ptr));
 		recv_sys->found_corrupt_log = true;
 		return(0);
 	}
@@ -2201,7 +2277,6 @@ recv_parse_log_rec(
 		*type, new_ptr, end_ptr, *space, *page_no, apply, NULL, NULL);
 
 	if (UNIV_UNLIKELY(new_ptr == NULL)) {
-
 		return(0);
 	}
 
@@ -2258,30 +2333,30 @@ recv_report_corrupt_log(
 	ib::error() <<
 		"############### CORRUPT LOG RECORD FOUND ##################";
 
+	const ulint ptr_offset = ulint(ptr - recv_sys->buf);
+
 	ib::info() << "Log record type " << type << ", page " << space << ":"
 		<< page_no << ". Log parsing proceeded successfully up to "
 		<< recv_sys->recovered_lsn << ". Previous log record type "
 		<< recv_previous_parsed_rec_type << ", is multi "
 		<< recv_previous_parsed_rec_is_multi << " Recv offset "
-		<< (ptr - recv_sys->buf) << ", prev "
+		<< ptr_offset << ", prev "
 		<< recv_previous_parsed_rec_offset;
 
 	ut_ad(ptr <= recv_sys->buf + recv_sys->len);
 
 	const ulint	limit	= 100;
-	const ulint	before
-		= std::min(recv_previous_parsed_rec_offset, limit);
-	const ulint	after
-		= std::min(recv_sys->len - (ptr - recv_sys->buf), limit);
+	const ulint	prev_offset = std::min(recv_previous_parsed_rec_offset,
+					       ptr_offset);
+	const ulint	before = std::min(prev_offset, limit);
+	const ulint	after = std::min(recv_sys->len - ptr_offset, limit);
 
 	ib::info() << "Hex dump starting " << before << " bytes before and"
 		" ending " << after << " bytes after the corrupted record:";
 
-	ut_print_buf(stderr,
-		     recv_sys->buf
-		     + recv_previous_parsed_rec_offset - before,
-		     ptr - recv_sys->buf + before + after
-		     - recv_previous_parsed_rec_offset);
+	const byte* start = recv_sys->buf + prev_offset - before;
+
+	ut_print_buf(stderr, start, ulint(ptr - start) + after);
 	putc('\n', stderr);
 
 	if (!srv_force_recovery) {
@@ -2297,30 +2372,14 @@ recv_report_corrupt_log(
 	return(true);
 }
 
-/** Whether to store redo log records to the hash table */
-enum store_t {
-	/** Do not store redo log records. */
-	STORE_NO,
-	/** Store redo log records. */
-	STORE_YES,
-	/** Store redo log records if the tablespace exists. */
-	STORE_IF_EXISTS
-};
-
 /** Parse log records from a buffer and optionally store them to a
 hash table to wait merging to file pages.
 @param[in]	checkpoint_lsn	the LSN of the latest checkpoint
 @param[in]	store		whether to store page operations
 @param[in]	apply		whether to apply the records
-@param[out]	err		DB_SUCCESS or error code
 @return whether MLOG_CHECKPOINT record was seen the first time,
 or corruption was noticed */
-static MY_ATTRIBUTE((warn_unused_result))
-bool
-recv_parse_log_recs(
-	lsn_t		checkpoint_lsn,
-	store_t		store,
-	bool		apply)
+bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t store, bool apply)
 {
 	byte*		ptr;
 	byte*		end_ptr;
@@ -2368,18 +2427,17 @@ loop:
 		len = recv_parse_log_rec(&type, ptr, end_ptr, &space,
 					 &page_no, apply, &body);
 
-		if (len == 0) {
-			return(false);
-		}
-
 		if (recv_sys->found_corrupt_log) {
-			recv_report_corrupt_log(
-				ptr, type, space, page_no);
+			recv_report_corrupt_log(ptr, type, space, page_no);
 			return(true);
 		}
 
 		if (recv_sys->found_corrupt_fs) {
 			return(true);
+		}
+
+		if (len == 0) {
+			return(false);
 		}
 
 		new_recovered_lsn = recv_calc_lsn_on_data_add(old_lsn, len);
@@ -2409,6 +2467,16 @@ loop:
 # error SIZE_OF_MLOG_CHECKPOINT != 1 + 8
 #endif
 			lsn = mach_read_from_8(ptr + 1);
+
+			if (UNIV_UNLIKELY(srv_print_verbose_log == 2)) {
+				fprintf(stderr,
+					"MLOG_CHECKPOINT(" LSN_PF ") %s at "
+					LSN_PF "\n", lsn,
+					lsn != checkpoint_lsn ? "ignored"
+					: recv_sys->mlog_checkpoint_lsn
+					? "reread" : "read",
+					recv_sys->recovered_lsn);
+			}
 
 			DBUG_PRINT("ib_log",
 				   ("MLOG_CHECKPOINT(" LSN_PF ") %s at "
@@ -2460,11 +2528,11 @@ loop:
 			}
 			/* fall through */
 		case MLOG_INDEX_LOAD:
-			/* Mariabackup FIXME: Report an error
-			when encountering MLOG_INDEX_LOAD on
-			--prepare or already on --backup. */
-			ut_a(type != MLOG_INDEX_LOAD
-			     || srv_operation == SRV_OPERATION_NORMAL);
+			if (type == MLOG_INDEX_LOAD) {
+				if (log_optimized_ddl_op) {
+					log_optimized_ddl_op(space);
+				}
+			}
 			/* fall through */
 		case MLOG_FILE_NAME:
 		case MLOG_FILE_DELETE:
@@ -2495,13 +2563,10 @@ loop:
 				&type, ptr, end_ptr, &space, &page_no,
 				false, &body);
 
-			if (len == 0) {
-				return(false);
-			}
-
 			if (recv_sys->found_corrupt_log
 			    || type == MLOG_CHECKPOINT
-			    || (*ptr & MLOG_SINGLE_REC_FLAG)) {
+			    || (ptr != end_ptr
+				&& (*ptr & MLOG_SINGLE_REC_FLAG))) {
 				recv_sys->found_corrupt_log = true;
 				recv_report_corrupt_log(
 					ptr, type, space, page_no);
@@ -2510,6 +2575,10 @@ loop:
 
 			if (recv_sys->found_corrupt_fs) {
 				return(true);
+			}
+
+			if (len == 0) {
+				return(false);
 			}
 
 			recv_previous_parsed_rec_type = type;
@@ -2652,17 +2721,13 @@ loop:
 	goto loop;
 }
 
-/*******************************************************//**
-Adds data from a new log block to the parsing buffer of recv_sys if
+/** Adds data from a new log block to the parsing buffer of recv_sys if
 recv_sys->parse_start_lsn is non-zero.
+@param[in]	log_block	log block to add
+@param[in]	scanned_lsn	lsn of how far we were able to find
+				data in this log block
 @return true if more data added */
-static
-bool
-recv_sys_add_to_parsing_buf(
-/*========================*/
-	const byte*	log_block,	/*!< in: log block */
-	lsn_t		scanned_lsn)	/*!< in: lsn of how far we were able
-					to find data in this log block */
+bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn)
 {
 	ulint	more_len;
 	ulint	data_len;
@@ -2727,12 +2792,8 @@ recv_sys_add_to_parsing_buf(
 	return(true);
 }
 
-/*******************************************************//**
-Moves the parsing buffer data left to the buffer start. */
-static
-void
-recv_sys_justify_left_parsing_buf(void)
-/*===================================*/
+/** Moves the parsing buffer data left to the buffer start. */
+void recv_sys_justify_left_parsing_buf()
 {
 	ut_memmove(recv_sys->buf, recv_sys->buf + recv_sys->recovered_offset,
 		   recv_sys->len - recv_sys->recovered_offset);
@@ -2915,6 +2976,12 @@ recv_scan_log_recs(
 
 		if (*store_to_hash != STORE_NO
 		    && mem_heap_get_size(recv_sys->heap) > available_memory) {
+
+			DBUG_PRINT("ib_log", ("Ran out of memory and last "
+					      "stored lsn " LSN_PF,
+					      recv_sys->recovered_lsn));
+
+			recv_sys->last_stored_lsn = recv_sys->recovered_lsn;
 			*store_to_hash = STORE_NO;
 		}
 
@@ -3047,15 +3114,98 @@ recv_init_missing_space(dberr_t err, const recv_spaces_t::const_iterator& i)
 	return(err);
 }
 
+/** Report the missing tablespace and discard the redo logs for the deleted
+tablespace.
+@param[in]	rescan			rescan of redo logs is needed
+					if hash table ran out of memory
+@param[out]	missing_tablespace	missing tablespace exists or not
+@return error code or DB_SUCCESS. */
+static MY_ATTRIBUTE((warn_unused_result))
+dberr_t
+recv_validate_tablespace(bool rescan, bool& missing_tablespace)
+{
+	dberr_t err = DB_SUCCESS;
+
+	for (ulint h = 0; h < hash_get_n_cells(recv_sys->addr_hash); h++) {
+		for (recv_addr_t* recv_addr = static_cast<recv_addr_t*>(
+			     HASH_GET_FIRST(recv_sys->addr_hash, h));
+		     recv_addr != 0;
+		     recv_addr = static_cast<recv_addr_t*>(
+			     HASH_GET_NEXT(addr_hash, recv_addr))) {
+
+			const ulint space = recv_addr->space;
+
+			if (is_predefined_tablespace(space)) {
+				continue;
+			}
+
+			recv_spaces_t::iterator i = recv_spaces.find(space);
+			ut_ad(i != recv_spaces.end());
+
+			switch (i->second.status) {
+			case file_name_t::MISSING:
+				err = recv_init_missing_space(err, i);
+				i->second.status = file_name_t::DELETED;
+				/* fall through */
+			case file_name_t::DELETED:
+				recv_addr->state = RECV_DISCARDED;
+				/* fall through */
+			case file_name_t::NORMAL:
+				continue;
+			}
+			ut_ad(0);
+		}
+	}
+
+	if (err != DB_SUCCESS) {
+		return(err);
+	}
+
+	/* When rescan is not needed then recv_sys->addr_hash will have
+	all space id belongs to redo log. If rescan is needed and
+	innodb_force_recovery > 0 then InnoDB can ignore missing tablespace. */
+	for (recv_spaces_t::iterator i = recv_spaces.begin();
+	     i != recv_spaces.end(); i++) {
+
+		if (i->second.status != file_name_t::MISSING) {
+			continue;
+		}
+
+		missing_tablespace = true;
+
+		if (srv_force_recovery > 0) {
+			ib::warn() << "Tablespace " << i->first
+				<<" was not found at " << i->second.name
+				<<", and innodb_force_recovery was set."
+				<<" All redo log for this tablespace"
+				<<" will be ignored!";
+			continue;
+		}
+
+		if (!rescan) {
+			ib::info() << "Tablespace " << i->first
+				<< " was not found at '"
+				<< i->second.name << "', but there"
+				<<" were no modifications either.";
+		}
+	}
+
+	if (!rescan || srv_force_recovery > 0) {
+		missing_tablespace = false;
+	}
+
+	return DB_SUCCESS;
+}
+
 /** Check if all tablespaces were found for crash recovery.
+@param[in]	rescan			rescan of redo logs is needed
+@param[out]	missing_tablespace	missing table exists
 @return error code or DB_SUCCESS */
 static MY_ATTRIBUTE((warn_unused_result))
 dberr_t
-recv_init_crash_recovery_spaces()
+recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 {
-	typedef std::set<ulint>	space_set_t;
 	bool		flag_deleted	= false;
-	space_set_t	missing_spaces;
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad(recv_needed_recovery);
@@ -3063,9 +3213,9 @@ recv_init_crash_recovery_spaces()
 	for (recv_spaces_t::iterator i = recv_spaces.begin();
 	     i != recv_spaces.end(); i++) {
 		ut_ad(!is_predefined_tablespace(i->first));
-		ut_ad(!i->second.deleted || !i->second.space);
+		ut_ad(i->second.status != file_name_t::DELETED || !i->second.space);
 
-		if (i->second.deleted) {
+		if (i->second.status == file_name_t::DELETED) {
 			/* The tablespace was deleted,
 			so we can ignore any redo log for it. */
 			flag_deleted = true;
@@ -3081,82 +3231,18 @@ recv_init_crash_recovery_spaces()
 			recv_sys->found_corrupt_log = true;
 			return(DB_CORRUPTION);
 		} else {
-			missing_spaces.insert(i->first);
+			i->second.status = file_name_t::MISSING;
 			flag_deleted = true;
 		}
 
-		ut_ad(i->second.deleted || i->second.name != "");
+		ut_ad(i->second.status == file_name_t::DELETED || i->second.name != "");
 	}
 
 	if (flag_deleted) {
-		dberr_t err = DB_SUCCESS;
-
-		for (ulint h = 0;
-		     h < hash_get_n_cells(recv_sys->addr_hash);
-		     h++) {
-			for (recv_addr_t* recv_addr
-				     = static_cast<recv_addr_t*>(
-					     HASH_GET_FIRST(
-						     recv_sys->addr_hash, h));
-			     recv_addr != 0;
-			     recv_addr = static_cast<recv_addr_t*>(
-				     HASH_GET_NEXT(addr_hash, recv_addr))) {
-				const ulint space = recv_addr->space;
-
-				if (is_predefined_tablespace(space)) {
-					continue;
-				}
-
-				recv_spaces_t::iterator i
-					= recv_spaces.find(space);
-				ut_ad(i != recv_spaces.end());
-
-				if (i->second.deleted) {
-					ut_ad(missing_spaces.find(space)
-					      == missing_spaces.end());
-					recv_addr->state = RECV_DISCARDED;
-					continue;
-				}
-
-				space_set_t::iterator m = missing_spaces.find(
-					space);
-
-				if (m != missing_spaces.end()) {
-					missing_spaces.erase(m);
-					err = recv_init_missing_space(err, i);
-					recv_addr->state = RECV_DISCARDED;
-					/* All further redo log for this
-					tablespace should be removed. */
-					i->second.deleted = true;
-				}
-			}
-		}
-
-		if (err != DB_SUCCESS) {
-			return(err);
-		}
+		return recv_validate_tablespace(rescan, missing_tablespace);
 	}
 
-	for (space_set_t::const_iterator m = missing_spaces.begin();
-	     m != missing_spaces.end(); m++) {
-		recv_spaces_t::iterator i = recv_spaces.find(*m);
-		ut_ad(i != recv_spaces.end());
-
-		ib::info() << "Tablespace " << i->first
-			<< " was not found at '" << i->second.name
-			<< "', but there were no modifications either.";
-	}
-
-	buf_dblwr_process();
-
-	if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
-		/* Spawn the background thread to flush dirty pages
-		from the buffer pools. */
-		recv_writer_thread_active = true;
-		os_thread_create(recv_writer_thread, 0, 0);
-	}
-
-	return(DB_SUCCESS);
+	return DB_SUCCESS;
 }
 
 /** Start recovering from a redo log checkpoint.
@@ -3232,7 +3318,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	switch (group->format) {
 	case 0:
 		log_mutex_exit();
-		return(recv_log_format_0_recover(checkpoint_lsn));
+		return recv_log_format_0_recover(checkpoint_lsn,
+						 buf[20 + 32 * 9] == 2);
 	default:
 		if (end_lsn == 0) {
 			break;
@@ -3332,12 +3419,56 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	log_sys->lsn = recv_sys->recovered_lsn;
 
 	if (recv_needed_recovery) {
-		err = recv_init_crash_recovery_spaces();
+		bool missing_tablespace = false;
+
+		err = recv_init_crash_recovery_spaces(
+			rescan, missing_tablespace);
 
 		if (err != DB_SUCCESS) {
 			log_mutex_exit();
 			return(err);
 		}
+
+		/* If there is any missing tablespace and rescan is needed
+		then there is a possiblity that hash table will not contain
+		all space ids redo logs. Rescan the remaining unstored
+		redo logs for the validation of missing tablespace. */
+		while (missing_tablespace) {
+			DBUG_PRINT("ib_log", ("Rescan of redo log to validate "
+					      "the missing tablespace. Scan "
+					      "from last stored LSN " LSN_PF,
+					      recv_sys->last_stored_lsn));
+
+			lsn_t recent_stored_lsn = recv_sys->last_stored_lsn;
+			rescan = recv_group_scan_log_recs(
+				group, checkpoint_lsn,
+				&recent_stored_lsn, false);
+
+			ut_ad(!recv_sys->found_corrupt_fs);
+
+			missing_tablespace = false;
+
+			err = recv_sys->found_corrupt_log
+				? DB_ERROR
+				: recv_validate_tablespace(
+					rescan, missing_tablespace);
+
+			if (err != DB_SUCCESS) {
+				log_mutex_exit();
+				return err;
+			}
+		}
+
+		if (srv_operation == SRV_OPERATION_NORMAL) {
+			buf_dblwr_process();
+		}
+
+		ut_ad(srv_force_recovery <= SRV_FORCE_NO_UNDO_LOG_SCAN);
+
+		/* Spawn the background thread to flush dirty pages
+		from the buffer pools. */
+		recv_writer_thread_active = true;
+		os_thread_create(recv_writer_thread, 0, 0);
 
 		if (rescan) {
 			contiguous_lsn = checkpoint_lsn;

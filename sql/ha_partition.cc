@@ -5079,7 +5079,8 @@ int ha_partition::rnd_pos_by_record(uchar *record)
   if (unlikely(get_part_for_delete(record, m_rec0, m_part_info, &m_last_part)))
     DBUG_RETURN(1);
 
-  DBUG_RETURN(handler::rnd_pos_by_record(record));
+  int err= m_file[m_last_part]->rnd_pos_by_record(record);
+  DBUG_RETURN(err);
 }
 
 
@@ -8877,6 +8878,8 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
   {
     /* Only need to read the partitioning fields. */
     bitmap_union(table->read_set, &m_part_info->full_part_field_set);
+    if (table->vcol_set)
+      bitmap_union(table->vcol_set, &m_part_info->full_part_field_set);
   }
 
   if ((result= m_file[read_part_id]->ha_rnd_init(1)))

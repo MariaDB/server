@@ -224,30 +224,21 @@ buf_LRU_evict_from_unzip_LRU(
 /** Attempts to drop page hash index on a batch of pages belonging to a
 particular space id.
 @param[in]	space_id	space id
-@param[in]	page_size	page size
 @param[in]	arr		array of page_no
 @param[in]	count		number of entries in array */
 static
 void
-buf_LRU_drop_page_hash_batch(
-	ulint			space_id,
-	const page_size_t&	page_size,
-	const ulint*		arr,
-	ulint			count)
+buf_LRU_drop_page_hash_batch(ulint space_id, const ulint* arr, ulint count)
 {
 	ut_ad(count <= BUF_LRU_DROP_SEARCH_SIZE);
 
-	for (ulint i = 0; i < count; ++i, ++arr) {
+	for (const ulint* const end = arr + count; arr != end; ) {
 		/* While our only caller
 		buf_LRU_drop_page_hash_for_tablespace()
 		is being executed for DROP TABLE or similar,
-		the table cannot be evicted from the buffer pool.
-		Note: this should not be executed for DROP TABLESPACE,
-		because DROP TABLESPACE would be refused if tables existed
-		in the tablespace, and a previous DROP TABLE would have
-		already removed the AHI entries. */
+		the table cannot be evicted from the buffer pool. */
 		btr_search_drop_page_hash_when_freed(
-			page_id_t(space_id, *arr), page_size);
+			page_id_t(space_id, *arr++));
 	}
 }
 
@@ -263,15 +254,6 @@ buf_LRU_drop_page_hash_for_tablespace(
 	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
 	ulint		id)		/*!< in: space id */
 {
-	bool			found;
-	const page_size_t	page_size(fil_space_get_page_size(id, &found));
-
-	if (!found) {
-		/* Somehow, the tablespace does not exist.  Nothing to drop. */
-		ut_ad(0);
-		return;
-	}
-
 	ulint*	page_arr = static_cast<ulint*>(ut_malloc_nokey(
 			sizeof(ulint) * BUF_LRU_DROP_SEARCH_SIZE));
 
@@ -338,8 +320,7 @@ next_page:
 		the latching order. */
 		buf_pool_mutex_exit(buf_pool);
 
-		buf_LRU_drop_page_hash_batch(
-			id, page_size, page_arr, num_entries);
+		buf_LRU_drop_page_hash_batch(id, page_arr, num_entries);
 
 		num_entries = 0;
 
@@ -371,8 +352,33 @@ next_page:
 	buf_pool_mutex_exit(buf_pool);
 
 	/* Drop any remaining batch of search hashed pages. */
-	buf_LRU_drop_page_hash_batch(id, page_size, page_arr, num_entries);
+	buf_LRU_drop_page_hash_batch(id, page_arr, num_entries);
 	ut_free(page_arr);
+}
+
+/** Try to drop the adaptive hash index for a tablespace.
+@param[in,out]	table	table
+@return	whether anything was dropped */
+bool buf_LRU_drop_page_hash_for_tablespace(dict_table_t* table)
+{
+	for (dict_index_t* index = dict_table_get_first_index(table);
+	     index != NULL;
+	     index = dict_table_get_next_index(index)) {
+		if (btr_search_info_get_ref_count(btr_search_get_info(index),
+						  index)) {
+			goto drop_ahi;
+		}
+	}
+
+	return false;
+drop_ahi:
+	ulint id = table->space;
+	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
+		buf_LRU_drop_page_hash_for_tablespace(buf_pool_from_array(i),
+						      id);
+	}
+
+	return true;
 }
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -697,26 +703,13 @@ buf_flush_dirty_pages(
 @param[in]	id		tablespace identifier
 @param[in]	observer	flush observer,
 				or NULL if nothing is to be written */
-void
-buf_LRU_flush_or_remove_pages(
-	ulint		id,
-	FlushObserver*	observer
-#ifdef BTR_CUR_HASH_ADAPT
-	, bool drop_ahi /*!< whether to drop the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
-	)
+void buf_LRU_flush_or_remove_pages(ulint id, FlushObserver* observer)
 {
 	/* Pages in the system tablespace must never be discarded. */
 	ut_ad(id || observer);
 
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
-		buf_pool_t* buf_pool = buf_pool_from_array(i);
-#ifdef BTR_CUR_HASH_ADAPT
-		if (drop_ahi) {
-			buf_LRU_drop_page_hash_for_tablespace(buf_pool, id);
-		}
-#endif /* BTR_CUR_HASH_ADAPT */
-		buf_flush_dirty_pages(buf_pool, id, observer);
+		buf_flush_dirty_pages(buf_pool_from_array(i), id, observer);
 	}
 
 	if (observer && !observer->is_interrupted()) {
@@ -1618,7 +1611,7 @@ func_exit:
 	} else if (buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE) {
 		b = buf_page_alloc_descriptor();
 		ut_a(b);
-		memcpy(b, bpage, sizeof *b);
+		new (b) buf_page_t(*bpage);
 	}
 
 	ut_ad(buf_pool_mutex_own(buf_pool));
@@ -1637,8 +1630,8 @@ func_exit:
 	}
 
 	/* buf_LRU_block_remove_hashed() releases the hash_lock */
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X)
-	      && !rw_lock_own(hash_lock, RW_LOCK_S));
+	ut_ad(!rw_lock_own_flagged(hash_lock,
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	/* We have just freed a BUF_BLOCK_FILE_PAGE. If b != NULL
 	then it was a compressed page with an uncompressed frame and
@@ -2191,9 +2184,8 @@ buf_LRU_free_one_page(
 	}
 
 	/* buf_LRU_block_remove_hashed() releases hash_lock and block_mutex */
-	ut_ad(!rw_lock_own(hash_lock, RW_LOCK_X)
-	      && !rw_lock_own(hash_lock, RW_LOCK_S));
-
+	ut_ad(!rw_lock_own_flagged(hash_lock,
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 	ut_ad(!mutex_own(block_mutex));
 }
 

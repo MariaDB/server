@@ -36,6 +36,7 @@
 
 #define DONT_DEFINE_VOID
 #define MYSQL_SERVER
+#include <my_global.h>
 #include "sql_class.h"
 #undef  OFFSET
 
@@ -178,7 +179,7 @@ bool user_connect::CheckCleanup(bool force)
     g->Mrr = 0;
     last_query_id= thdp->query_id;
 
-    if (trace && !force)
+    if (trace(65) && !force)
       printf("=====> Begin new query %llu\n", last_query_id);
 
     return true;

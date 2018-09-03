@@ -7,5 +7,5 @@ count(*)
 10000
 explain select c1 from t1 where c1 > 5 limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	i	i	9	NULL	9900	Using where; Using index
+1	SIMPLE	t1	range	i	i	9	NULL	#	Using where; Using index
 drop table t1;

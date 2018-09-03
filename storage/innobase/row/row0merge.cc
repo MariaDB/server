@@ -36,6 +36,7 @@ Completed by Sunny Bains and Marko Makela
 #include "row0ext.h"
 #include "row0log.h"
 #include "row0ins.h"
+#include "row0row.h"
 #include "row0sel.h"
 #include "log0crypt.h"
 #include "dict0crea.h"
@@ -45,6 +46,7 @@ Completed by Sunny Bains and Marko Makela
 #include "ut0sort.h"
 #include "row0ftsort.h"
 #include "row0import.h"
+#include "row0vers.h"
 #include "handler0alter.h"
 #include "btr0bulk.h"
 #include "fsp0sysspace.h"
@@ -272,7 +274,6 @@ private:
 #define FTS_PENDING_DOC_MEMORY_LIMIT	1000000
 
 /** Insert sorted data tuples to the index.
-@param[in]	trx_id		transaction identifier
 @param[in]	index		index to be inserted
 @param[in]	old_table	old table
 @param[in]	fd		file descriptor
@@ -287,7 +288,6 @@ and then stage->inc() will be called for each record that is processed.
 static	MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_merge_insert_index_tuples(
-	trx_id_t		trx_id,
 	dict_index_t*		index,
 	const dict_table_t*	old_table,
 	int			fd,
@@ -532,6 +532,8 @@ row_merge_buf_add(
 	ulint			bucket = 0;
 	doc_id_t		write_doc_id;
 	ulint			n_row_added = 0;
+	VCOL_STORAGE*		vcol_storage= 0;
+	byte*			record;
 	DBUG_ENTER("row_merge_buf_add");
 
 	if (buf->n_tuples >= buf->max_tuples) {
@@ -604,14 +606,21 @@ row_merge_buf_add(
 				dict_index_t*	clust_index
 					= dict_table_get_first_index(new_table);
 
+                                if (!vcol_storage &&
+                                    innobase_allocate_row_for_vcol(trx->mysql_thd, clust_index, v_heap, &my_table, &record, &vcol_storage)) {
+					*err = DB_OUT_OF_MEMORY;
+					goto error;
+				}
+
 				row_field = innobase_get_computed_value(
 					row, v_col, clust_index,
 					v_heap, NULL, ifield, trx->mysql_thd,
-					my_table, old_table, NULL, NULL);
+					my_table, record, old_table, NULL,
+					NULL);
 
 				if (row_field == NULL) {
 					*err = DB_COMPUTE_VALUE_FAILED;
-					DBUG_RETURN(0);
+					goto error;
 				}
 				dfield_copy(field, row_field);
 			} else {
@@ -647,7 +656,7 @@ row_merge_buf_add(
 						ib::warn() << "FTS Doc ID is"
 							" zero. Record"
 							" skipped";
-						DBUG_RETURN(0);
+						goto error;
 					}
 				}
 
@@ -795,7 +804,7 @@ row_merge_buf_add(
 	/* If this is FTS index, we already populated the sort buffer, return
 	here */
 	if (index->type & DICT_FTS) {
-		DBUG_RETURN(n_row_added);
+		goto end;
 	}
 
 #ifdef UNIV_DEBUG
@@ -829,7 +838,7 @@ row_merge_buf_add(
 
 	/* Reserve bytes for the end marker of row_merge_block_t. */
 	if (buf->total_size + data_size >= srv_sort_buf_size) {
-		DBUG_RETURN(0);
+		goto error;
 	}
 
 	buf->total_size += data_size;
@@ -848,7 +857,15 @@ row_merge_buf_add(
 		mem_heap_empty(conv_heap);
 	}
 
+end:
+        if (vcol_storage)
+		innobase_free_row_for_vcol(vcol_storage);
 	DBUG_RETURN(n_row_added);
+
+error:
+        if (vcol_storage)
+		innobase_free_row_for_vcol(vcol_storage);
+        DBUG_RETURN(0);
 }
 
 /*************************************************************//**
@@ -2383,16 +2400,14 @@ write_buffers:
 					if (clust_btr_bulk == NULL) {
 						clust_btr_bulk = UT_NEW_NOKEY(
 							BtrBulk(index[i],
-								trx->id,
-								observer));
-
-						clust_btr_bulk->init();
+								trx,
+								observer/**/));
 					} else {
 						clust_btr_bulk->latch();
 					}
 
 					err = row_merge_insert_index_tuples(
-						trx->id, index[i], old_table,
+						index[i], old_table,
 						-1, NULL, buf, clust_btr_bulk,
 						table_total_rows,
 						curr_progress,
@@ -2498,12 +2513,11 @@ write_buffers:
 						trx->error_key_num = i;
 						goto all_done;);
 
-					BtrBulk	btr_bulk(index[i], trx->id,
+					BtrBulk	btr_bulk(index[i], trx,
 							 observer);
-					btr_bulk.init();
 
 					err = row_merge_insert_index_tuples(
-						trx->id, index[i], old_table,
+						index[i], old_table,
 						-1, NULL, buf, &btr_bulk,
 						table_total_rows,
 						curr_progress,
@@ -3359,7 +3373,6 @@ row_merge_mtuple_to_dtuple(
 }
 
 /** Insert sorted data tuples to the index.
-@param[in]	trx_id		transaction identifier
 @param[in]	index		index to be inserted
 @param[in]	old_table	old table
 @param[in]	fd		file descriptor
@@ -3374,7 +3387,6 @@ and then stage->inc() will be called for each record that is processed.
 static	MY_ATTRIBUTE((warn_unused_result))
 dberr_t
 row_merge_insert_index_tuples(
-	trx_id_t		trx_id,
 	dict_index_t*		index,
 	const dict_table_t*	old_table,
 	int			fd,
@@ -3412,7 +3424,6 @@ row_merge_insert_index_tuples(
 	ut_ad(!srv_read_only_mode);
 	ut_ad(!(index->type & DICT_FTS));
 	ut_ad(!dict_index_is_spatial(index));
-	ut_ad(trx_id);
 
 	if (stage != NULL) {
 		stage->begin_phase_insert();
@@ -3586,8 +3597,6 @@ row_merge_lock_table(
 
 	trx->op_info = "setting table lock for creating or dropping index";
 	trx->ddl = true;
-	/* Trx for DDL should not be forced to rollback for now */
-	trx->in_innodb |= TRX_FORCE_ROLLBACK_DISABLE;
 
 	return(lock_table_for_trx(table, trx, mode));
 }
@@ -3745,7 +3754,8 @@ row_merge_drop_indexes(
 
 	A concurrent purge will be prevented by dict_operation_lock. */
 
-	if (!locked && table->get_ref_count() > 1) {
+	if (!locked && (table->get_ref_count() > 1
+			|| UT_LIST_GET_FIRST(table->locks))) {
 		/* We will have to drop the indexes later, when the
 		table is guaranteed to be no longer in use.  Mark the
 		indexes as incomplete and corrupted, so that other
@@ -3781,17 +3791,6 @@ row_merge_drop_indexes(
 					ut_ad(prev);
 					ut_a(table->fts);
 					fts_drop_index(table, index, trx);
-					/* Since
-					INNOBASE_SHARE::idx_trans_tbl
-					is shared between all open
-					ha_innobase handles to this
-					table, no thread should be
-					accessing this dict_index_t
-					object. Also, we should be
-					holding LOCK=SHARED MDL on the
-					table even after the MDL
-					upgrade timeout. */
-
 					/* We can remove a DICT_FTS
 					index from the cache, because
 					we do not allow ADD FULLTEXT INDEX
@@ -4443,13 +4442,13 @@ row_merge_is_index_usable(
 	const trx_t*		trx,	/*!< in: transaction */
 	const dict_index_t*	index)	/*!< in: index to check */
 {
-	if (!dict_index_is_clust(index)
+	if (!index->is_primary()
 	    && dict_index_is_online_ddl(index)) {
 		/* Indexes that are being created are not useable. */
 		return(false);
 	}
 
-	return(!dict_index_is_corrupted(index)
+	return(!index->is_corrupted()
 	       && (dict_table_is_temporary(index->table)
 		   || index->trx_id == 0
 		   || !MVCC::is_view_active(trx->read_view)
@@ -4617,11 +4616,15 @@ row_merge_build_indexes(
 	we use bulk load to create all types of indexes except spatial index,
 	for which redo logging is enabled. If we create only spatial indexes,
 	we don't need to flush dirty pages at all. */
-	bool	need_flush_observer = (old_table != new_table);
+	bool	need_flush_observer = bool(innodb_log_optimize_ddl);
 
-	for (i = 0; i < n_indexes; i++) {
-		if (!dict_index_is_spatial(indexes[i])) {
-			need_flush_observer = true;
+	if (need_flush_observer) {
+		need_flush_observer = old_table != new_table;
+
+		for (i = 0; i < n_indexes; i++) {
+			if (!dict_index_is_spatial(indexes[i])) {
+				need_flush_observer = true;
+			}
 		}
 	}
 
@@ -4868,9 +4871,8 @@ wait_again:
 				os_thread_sleep(20000000););  /* 20 sec */
 
 			if (error == DB_SUCCESS) {
-				BtrBulk	btr_bulk(sort_idx, trx->id,
+				BtrBulk	btr_bulk(sort_idx, trx,
 						 flush_observer);
-				btr_bulk.init();
 
 				pct_cost = (COST_BUILD_INDEX_STATIC +
 					(total_dynamic_cost * merge_files[i].offset /
@@ -4889,7 +4891,7 @@ wait_again:
 				}
 
 				error = row_merge_insert_index_tuples(
-					trx->id, sort_idx, old_table,
+					sort_idx, old_table,
 					merge_files[i].fd, block, NULL,
 					&btr_bulk,
 					merge_files[i].n_rec, pct_progress, pct_cost,
@@ -4922,14 +4924,16 @@ wait_again:
 			ut_ad(sort_idx->online_status
 			      == ONLINE_INDEX_COMPLETE);
 		} else {
-			ut_ad(need_flush_observer);
+			if (flush_observer) {
+				flush_observer->flush();
+				row_merge_write_redo(indexes[i]);
+			}
+
 			if (global_system_variables.log_warnings > 2) {
 				sql_print_information(
 					"InnoDB: Online DDL : Applying"
 					" log to index");
 			}
-			flush_observer->flush();
-			row_merge_write_redo(indexes[i]);
 
 			DEBUG_SYNC_C("row_log_apply_before");
 			error = row_log_apply(trx, sort_idx, table, stage);

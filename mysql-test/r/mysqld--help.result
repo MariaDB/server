@@ -2,8 +2,10 @@ Windows bug: happens when a new line is exactly at the right offset.
 The following options may be given as the first argument:
 --print-defaults Print the program argument list and exit.
 --no-defaults Don't read default options from any option file.
+The following specify which files/extra groups are read (specified before remaining options):
 --defaults-file=# Only read default options from the given file #.
 --defaults-extra-file=# Read this file after the global files are read.
+--defaults-group-suffix=# Additionally read default groups with # appended as a suffix.
 
  --allow-suspicious-udfs 
  Allows use of UDFs consisting of only one symbol xxx()
@@ -195,6 +197,11 @@ The following options may be given as the first argument:
  cache, etc)
  --enforce-storage-engine=name 
  Force the use of a storage engine for new tables
+ --eq-range-index-dive-limit=# 
+ The optimizer will use existing index statistics instead
+ of doing index dives for equality ranges if the number of
+ equality ranges for the index is larger than or equal to
+ this number. If set to 0, index dives are always used.
  --event-scheduler[=name] 
  Enable the event scheduler. Possible values are ON, OFF,
  and DISABLED (keep the event scheduler completely
@@ -1257,6 +1264,7 @@ encrypt-binlog FALSE
 encrypt-tmp-disk-tables FALSE
 encrypt-tmp-files FALSE
 enforce-storage-engine (No default value)
+eq-range-index-dive-limit 0
 event-scheduler OFF
 expensive-subquery-limit 100
 expire-logs-days 0
@@ -1508,9 +1516,9 @@ sync-master-info 10000
 sync-relay-log 10000
 sync-relay-log-info 10000
 sysdate-is-now FALSE
-table-cache 431
+table-cache 421
 table-definition-cache 400
-table-open-cache 431
+table-open-cache 421
 table-open-cache-instances 8
 tc-heuristic-recover OFF
 thread-cache-size 151

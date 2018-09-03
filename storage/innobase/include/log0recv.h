@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -121,6 +121,58 @@ recv_sys_var_init(void);
 				performed as part of the operation */
 void
 recv_apply_hashed_log_recs(bool last_batch);
+
+/** Whether to store redo log records to the hash table */
+enum store_t {
+	/** Do not store redo log records. */
+	STORE_NO,
+	/** Store redo log records. */
+	STORE_YES,
+	/** Store redo log records if the tablespace exists. */
+	STORE_IF_EXISTS
+};
+
+
+/** Adds data from a new log block to the parsing buffer of recv_sys if
+recv_sys->parse_start_lsn is non-zero.
+@param[in]	log_block	log block to add
+@param[in]	scanned_lsn	lsn of how far we were able to find
+				data in this log block
+@return true if more data added */
+bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn);
+
+/** Parse log records from a buffer and optionally store them to a
+hash table to wait merging to file pages.
+@param[in]	checkpoint_lsn	the LSN of the latest checkpoint
+@param[in]	store		whether to store page operations
+@param[in]	apply		whether to apply the records
+@return whether MLOG_CHECKPOINT record was seen the first time,
+or corruption was noticed */
+bool recv_parse_log_recs(lsn_t checkpoint_lsn, store_t store, bool apply);
+
+/** Moves the parsing buffer data left to the buffer start. */
+void recv_sys_justify_left_parsing_buf();
+
+/** Report optimized DDL operation (without redo log),
+corresponding to MLOG_INDEX_LOAD.
+@param[in]	space_id	tablespace identifier
+*/
+extern void (*log_optimized_ddl_op)(ulint space_id);
+
+/** Report backup-unfriendly TRUNCATE operation (with separate log file),
+corresponding to MLOG_TRUNCATE. */
+extern void (*log_truncate)();
+
+/** Report an operation to create, delete, or rename a file during backup.
+@param[in]	space_id	tablespace identifier
+@param[in]	flags		tablespace flags (NULL if not create)
+@param[in]	name		file name (not NUL-terminated)
+@param[in]	len		length of name, in bytes
+@param[in]	new_name	new file name (NULL if not rename)
+@param[in]	new_len		length of new_name, in bytes (0 if NULL) */
+extern void (*log_file_op)(ulint space_id, const byte* flags,
+			   const byte* name, ulint len,
+			   const byte* new_name, ulint new_len);
 
 /** Block of log record data */
 struct recv_data_t{
@@ -255,6 +307,9 @@ struct recv_sys_t{
 				addresses in the hash table */
 
 	recv_dblwr_t	dblwr;
+
+	/** Lastly added LSN to the hash table of log records. */
+	lsn_t		last_stored_lsn;
 
 	/** Determine whether redo log recovery progress should be reported.
 	@param[in]	time	the current time

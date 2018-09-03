@@ -481,7 +481,8 @@ err_with_reopen:
       old locks. This should always succeed (unless some external process
       has removed the tables)
     */
-    thd->locked_tables_list.reopen_tables(thd);
+    if (thd->locked_tables_list.reopen_tables(thd, false))
+      result= true;
     /*
       Since downgrade_lock() won't do anything with shared
       metadata lock it is much simpler to go through all open tables rather
@@ -942,7 +943,8 @@ TABLE_LIST *find_table_in_list(TABLE_LIST *table,
   @param  thd                   thread handle
   @param  table                 table which should be checked
   @param  table_list            list of tables
-  @param  check_alias           whether to check tables' aliases
+  @param  check_flag            whether to check tables' aliases
+                                Currently this is only used by INSERT
 
   NOTE: to exclude derived tables from check we use following mechanism:
     a) during derived table processing set THD::derived_tables_processing
@@ -971,9 +973,9 @@ TABLE_LIST *find_table_in_list(TABLE_LIST *table,
 
 static
 TABLE_LIST* find_dup_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
-                           bool check_alias)
+                           uint check_flag)
 {
-  TABLE_LIST *res;
+  TABLE_LIST *res= 0;
   const char *d_name, *t_name, *t_alias;
   DBUG_ENTER("find_dup_table");
   DBUG_PRINT("enter", ("table alias: %s", table->alias));
@@ -1006,17 +1008,15 @@ TABLE_LIST* find_dup_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
 
 retry:
   DBUG_PRINT("info", ("real table: %s.%s", d_name, t_name));
-  for (TABLE_LIST *tl= table_list;;)
+  for (TABLE_LIST *tl= table_list; tl ; tl= tl->next_global, res= 0)
   {
-    if (tl &&
-        tl->select_lex && tl->select_lex->master_unit() &&
+    if (tl->select_lex && tl->select_lex->master_unit() &&
         tl->select_lex->master_unit()->executed)
     {
       /*
         There is no sense to check tables of already executed parts
         of the query
       */
-      tl= tl->next_global;
       continue;
     }
     /*
@@ -1025,21 +1025,35 @@ retry:
     */
     if (! (res= find_table_in_global_list(tl, d_name, t_name)))
       break;
+    tl= res;                       // We can continue search after this table
 
     /* Skip if same underlying table. */
     if (res->table && (res->table == table->table))
-      goto next;
+      continue;
+
+    /* Skip if table is tmp table */
+    if (check_flag & CHECK_DUP_SKIP_TEMP_TABLE &&
+        res->table && res->table->s->tmp_table != NO_TMP_TABLE)
+    {
+      continue;
+    }
+    if (check_flag & CHECK_DUP_FOR_CREATE)
+      DBUG_RETURN(res);
 
     /* Skip if table alias does not match. */
-    if (check_alias)
+    if (check_flag & CHECK_DUP_ALLOW_DIFFERENT_ALIAS)
     {
       if (my_strcasecmp(table_alias_charset, t_alias, res->alias))
-        goto next;
+        continue;
     }
 
     /*
-      Skip if marked to be excluded (could be a derived table) or if
-      entry is a prelocking placeholder.
+      If table is not excluded (could be a derived table) and table is not
+      a prelocking placeholder then we found either a duplicate entry
+      or a table that is part of a derived table (handled below).
+      Examples are:
+      INSERT INTO t1 SELECT * FROM t1;
+      INSERT INTO t1 SELECT * FROM view_containing_t1;
     */
     if (res->select_lex &&
         !res->select_lex->exclude_from_table_unique_test &&
@@ -1051,14 +1065,17 @@ retry:
       processed in derived table or top select of multi-update/multi-delete
       (exclude_from_table_unique_test) or prelocking placeholder.
     */
-next:
-    tl= res->next_global;
     DBUG_PRINT("info",
                ("found same copy of table or table which we should skip"));
   }
   if (res && res->belong_to_derived)
   {
-    /* Try to fix */
+    /*
+      We come here for queries of type:
+      INSERT INTO t1 (SELECT tmp.a FROM (select * FROM t1) as tmp);
+
+      Try to fix by materializing the derived table
+    */
     TABLE_LIST *derived=  res->belong_to_derived;
     if (derived->is_merged_derived() && !derived->derived->is_excluded())
     {
@@ -1090,7 +1107,7 @@ next:
 
 TABLE_LIST*
 unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
-             bool check_alias)
+             uint check_flag)
 {
   TABLE_LIST *dup;
 
@@ -1104,12 +1121,12 @@ unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
     for (child= table->next_global; child && child->parent_l == table;
          child= child->next_global)
     {
-      if ((dup= find_dup_table(thd, child, child->next_global, check_alias)))
+      if ((dup= find_dup_table(thd, child, child->next_global, check_flag)))
         break;
     }
   }
   else
-    dup= find_dup_table(thd, table, table_list, check_alias);
+    dup= find_dup_table(thd, table, table_list, check_flag);
   return dup;
 }
 /*
@@ -1517,6 +1534,12 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       !(flags & (MYSQL_LOCK_LOG_TABLE | MYSQL_OPEN_HAS_MDL_LOCK)))
   {
     my_error(ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION, MYF(0));
+    DBUG_RETURN(true);
+  }
+
+  if (!table_list->db)
+  {
+    my_error(ER_NO_DB_ERROR, MYF(0));
     DBUG_RETURN(true);
   }
 
@@ -2240,7 +2263,8 @@ void Locked_tables_list::unlink_from_list(THD *thd,
     If mode is not LTM_LOCK_TABLES, we needn't do anything. Moreover,
     outside this mode pos_in_locked_tables value is not trustworthy.
   */
-  if (thd->locked_tables_mode != LTM_LOCK_TABLES)
+  if (thd->locked_tables_mode != LTM_LOCK_TABLES &&
+      thd->locked_tables_mode != LTM_PRELOCKED_UNDER_LOCK_TABLES)
     return;
 
   /*
@@ -2344,7 +2368,7 @@ unlink_all_closed_tables(THD *thd, MYSQL_LOCK *lock, size_t reopen_count)
 */
 
 bool
-Locked_tables_list::reopen_tables(THD *thd)
+Locked_tables_list::reopen_tables(THD *thd, bool need_reopen)
 {
   Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN);
   size_t reopen_count= 0;
@@ -2355,8 +2379,20 @@ Locked_tables_list::reopen_tables(THD *thd)
   for (TABLE_LIST *table_list= m_locked_tables;
        table_list; table_list= table_list->next_global)
   {
-    if (table_list->table)                      /* The table was not closed */
-      continue;
+    if (need_reopen)
+    {
+      if (!table_list->table || !table_list->table->needs_reopen())
+        continue;
+      /* no need to remove the table from the TDC here, thus (TABLE*)1 */
+      close_all_tables_for_name(thd, table_list->table->s,
+                                HA_EXTRA_NOT_USED, (TABLE*)1);
+      DBUG_ASSERT(table_list->table == NULL);
+    }
+    else
+    {
+      if (table_list->table)                      /* The table was not closed */
+          continue;
+    }
 
     /* Links into thd->open_tables upon success */
     if (open_table(thd, table_list, &ot_ctx))
@@ -5321,6 +5357,9 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name,
       column reference. See create_view_field() for details.
     */
     item= nj_col->create_item(thd);
+    if (!item)
+      DBUG_RETURN(NULL);
+
     /*
      *ref != NULL means that *ref contains the item that we need to
      replace. If the item was aliased by the user, set the alias to
@@ -6548,6 +6587,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   Query_arena *arena, backup;
   bool result= TRUE;
   List<Natural_join_column> *non_join_columns;
+  List<Natural_join_column> *join_columns;
   DBUG_ENTER("store_natural_using_join_columns");
 
   DBUG_ASSERT(!natural_using_join->join_columns);
@@ -6555,7 +6595,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
   if (!(non_join_columns= new List<Natural_join_column>) ||
-      !(natural_using_join->join_columns= new List<Natural_join_column>))
+      !(join_columns= new List<Natural_join_column>))
     goto err;
 
   /* Append the columns of the first join operand. */
@@ -6564,7 +6604,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
     nj_col_1= it_1.get_natural_column_ref();
     if (nj_col_1->is_common)
     {
-      natural_using_join->join_columns->push_back(nj_col_1, thd->mem_root);
+      join_columns->push_back(nj_col_1, thd->mem_root);
       /* Reset the common columns for the next call to mark_common_columns. */
       nj_col_1->is_common= FALSE;
     }
@@ -6585,7 +6625,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
     {
       const char *using_field_name_ptr= using_field_name->c_ptr();
       List_iterator_fast<Natural_join_column>
-        it(*(natural_using_join->join_columns));
+        it(*join_columns);
       Natural_join_column *common_field;
 
       for (;;)
@@ -6618,7 +6658,8 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   }
 
   if (non_join_columns->elements > 0)
-    natural_using_join->join_columns->append(non_join_columns);
+    join_columns->append(non_join_columns);
+  natural_using_join->join_columns= join_columns;
   natural_using_join->is_join_columns_complete= TRUE;
 
   result= FALSE;
@@ -6850,7 +6891,6 @@ static bool setup_natural_join_row_types(THD *thd,
     DBUG_PRINT("info", ("using cached setup_natural_join_row_types"));
     DBUG_RETURN(false);
   }
-  context->select_lex->first_natural_join_processing= false;
 
   List_iterator_fast<TABLE_LIST> table_ref_it(*from_clause);
   TABLE_LIST *table_ref; /* Current table reference. */
@@ -6895,6 +6935,7 @@ static bool setup_natural_join_row_types(THD *thd,
     change on re-execution
   */
   context->natural_join_first_table= context->first_name_resolution_table;
+  context->select_lex->first_natural_join_processing= false;
   DBUG_RETURN (false);
 }
 
@@ -6905,7 +6946,7 @@ static bool setup_natural_join_row_types(THD *thd,
 
 int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 	       List<Item> *sum_func_list,
-	       uint wild_num)
+	       uint wild_num, uint *hidden_bit_fields)
 {
   if (!wild_num)
     return(0);
@@ -6946,7 +6987,7 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
       else if (insert_fields(thd, ((Item_field*) item)->context,
                              ((Item_field*) item)->db_name,
                              ((Item_field*) item)->table_name, &it,
-                             any_privileges))
+                             any_privileges, hidden_bit_fields))
       {
 	if (arena)
 	  thd->restore_active_arena(arena, &backup);
@@ -6997,7 +7038,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> *sum_func_list, List<Item> *pre_fix,
                   bool allow_sum_func)
 {
-  reg2 Item *item;
+  Item *item;
   enum_mark_columns save_mark_used_columns= thd->mark_used_columns;
   nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
   List_iterator<Item> it(fields);
@@ -7411,7 +7452,7 @@ bool get_key_map_from_key_list(key_map *map, TABLE *table,
 bool
 insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
 	      const char *table_name, List_iterator<Item> *it,
-              bool any_privileges)
+              bool any_privileges, uint *hidden_bit_fields)
 {
   Field_iterator_table_ref field_iterator;
   bool found;
@@ -7530,6 +7571,9 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
       }
       else
         it->after(item);   /* Add 'item' to the SELECT list. */
+
+      if (item->type() == Item::FIELD_ITEM && item->field_type() == MYSQL_TYPE_BIT)
+        (*hidden_bit_fields)++;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
       /*

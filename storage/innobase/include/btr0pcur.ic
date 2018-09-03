@@ -389,6 +389,32 @@ btr_pcur_commit_specify_mtr(
 	pcur->pos_state = BTR_PCUR_WAS_POSITIONED;
 }
 
+/** Commits the mtr and sets the clustered index pcur and secondary index
+pcur latch mode to BTR_NO_LATCHES, that is, the cursor becomes detached.
+Function btr_pcur_store_position should be used for both cursor before
+calling this, if restoration of cursor is wanted later.
+@param[in]	pcur		persistent cursor
+@param[in]	sec_pcur	secondary index persistent cursor
+@param[in]	mtr		mtr to commit */
+UNIV_INLINE
+void
+btr_pcurs_commit_specify_mtr(
+	btr_pcur_t*	pcur,
+	btr_pcur_t*	sec_pcur,
+	mtr_t*		mtr)
+{
+	ut_ad(pcur->pos_state == BTR_PCUR_IS_POSITIONED);
+	ut_ad(sec_pcur->pos_state == BTR_PCUR_IS_POSITIONED);
+
+	pcur->latch_mode = BTR_NO_LATCHES;
+	sec_pcur->latch_mode = BTR_NO_LATCHES;
+
+	mtr_commit(mtr);
+
+	pcur->pos_state = BTR_PCUR_WAS_POSITIONED;
+	sec_pcur->pos_state = BTR_PCUR_WAS_POSITIONED;
+}
+
 /**************************************************************//**
 Sets the old_rec_buf field to NULL. */
 UNIV_INLINE

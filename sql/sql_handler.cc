@@ -155,10 +155,11 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
 {
   THD *thd= handler->thd;
   TABLE *table= handler->table;
+  DBUG_ENTER("mysql_ha_close_table");
 
   /* check if table was already closed */
   if (!table)
-    return;
+    DBUG_VOID_RETURN;
 
   if (!table->s->tmp_table)
   {
@@ -183,6 +184,7 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
   }
   my_free(handler->lock);
   handler->init();
+  DBUG_VOID_RETURN;
 }
 
 /*
@@ -934,6 +936,7 @@ SQL_HANDLER *mysql_ha_read_prepare(THD *thd, TABLE_LIST *tables,
   if (!(handler= mysql_ha_find_handler(thd, tables->alias)))
     DBUG_RETURN(0);
   tables->table= handler->table;         // This is used by fix_fields
+  handler->table->pos_in_table_list= tables;
   if (mysql_ha_fix_cond_and_key(handler, mode, keyname, key_expr, cond, 1))
     DBUG_RETURN(0);
   DBUG_RETURN(handler);

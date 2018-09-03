@@ -126,6 +126,7 @@ scripts/mytop
 scripts/wsrep_sst_common
 scripts/wsrep_sst_mysqldump
 scripts/wsrep_sst_rsync
+scripts/wsrep_sst_rsync_wan
 scripts/wsrep_sst_mariabackup
 scripts/wsrep_sst_xtrabackup
 scripts/wsrep_sst_xtrabackup-v2
@@ -217,6 +218,8 @@ storage/tokudb/PerconaFT/tools/tokudb_load
 storage/tokudb/PerconaFT/tools/tokuftdump
 storage/tokudb/PerconaFT/tools/tokuft_logprint
 storage/tokudb/PerconaFT/xz/
+storage/tokudb/tokudb.cnf
+storage/tokudb/tokudb.conf
 strings/conf_to_src
 support-files/MySQL-shared-compat.spec
 support-files/binary-configure
@@ -492,3 +495,9 @@ UpgradeLog*.htm
 
 # Microsoft Fakes
 FakesAssemblies/
+
+# macOS garbage
+.DS_Store
+
+# QtCreator && CodeBlocks
+*.cbp

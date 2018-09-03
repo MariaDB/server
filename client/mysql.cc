@@ -1176,11 +1176,7 @@ int main(int argc,char *argv[])
       close(stdout_fileno_copy);             /* Clean up dup(). */
   }
 
-  if (load_defaults("my",load_default_groups,&argc,&argv))
-  {
-    my_end(0);
-    exit(1);
-  }
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   defaults_argv=argv;
   if ((status.exit_status= get_options(argc, (char **) argv)))
   {
@@ -1233,15 +1229,17 @@ int main(int argc,char *argv[])
   window_resize(0);
 #endif
 
-  put_info("Welcome to the MariaDB monitor.  Commands end with ; or \\g.",
-	   INFO_INFO);
-  my_snprintf((char*) glob_buffer.ptr(), glob_buffer.alloced_length(),
-	  "Your %s connection id is %lu\nServer version: %s\n",
-          mysql_get_server_name(&mysql),
-	  mysql_thread_id(&mysql), server_version_string(&mysql));
-  put_info((char*) glob_buffer.ptr(),INFO_INFO);
-
-  put_info(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"), INFO_INFO);
+  if (!status.batch)
+  {
+    put_info("Welcome to the MariaDB monitor.  Commands end with ; or \\g.",
+             INFO_INFO);
+    my_snprintf((char*) glob_buffer.ptr(), glob_buffer.alloced_length(),
+            "Your %s connection id is %lu\nServer version: %s\n",
+            mysql_get_server_name(&mysql),
+            mysql_thread_id(&mysql), server_version_string(&mysql));
+    put_info((char*) glob_buffer.ptr(),INFO_INFO);
+    put_info(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"), INFO_INFO);
+  }
 
 #ifdef HAVE_READLINE
   initialize_readline((char*) my_progname);
@@ -3135,7 +3133,7 @@ static int
 com_help(String *buffer __attribute__((unused)),
 	 char *line __attribute__((unused)))
 {
-  reg1 int i, j;
+  int i, j;
   char * help_arg= strchr(line,' '), buff[32], *end;
   if (help_arg)
   {

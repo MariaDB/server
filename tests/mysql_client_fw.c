@@ -768,7 +768,7 @@ static void do_verify_prepare_field(MYSQL_RES *result,
 {
   MYSQL_FIELD *field;
   CHARSET_INFO *cs;
-  ulonglong expected_field_length;
+  ulonglong expected_field_length= length;
 
   if (!(field= mysql_fetch_field_direct(result, no)))
   {
@@ -777,7 +777,7 @@ static void do_verify_prepare_field(MYSQL_RES *result,
   }
   cs= get_charset(field->charsetnr, 0);
   DIE_UNLESS(cs);
-  if ((expected_field_length= length * cs->mbmaxlen) > UINT_MAX32)
+  if ((expected_field_length*= cs->mbmaxlen) > UINT_MAX32)
     expected_field_length= UINT_MAX32;
   if (!opt_silent)
   {
@@ -1410,8 +1410,7 @@ int main(int argc, char **argv)
   for (i= 0; i < argc; i++)
     original_argv[i]= strdup(argv[i]);
 
-  if (load_defaults("my", client_test_load_default_groups, &argc, &argv))
-    exit(1);
+  load_defaults_or_exit("my", client_test_load_default_groups, &argc, &argv);
 
   get_options(&argc, &argv);
   /* Set main opt_count. */

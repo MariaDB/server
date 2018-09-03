@@ -964,3 +964,96 @@ WITH RECURSIVE c1 AS (WITH c3 AS (SELECT * FROM c2) SELECT * FROM c3),
 SELECT * FROM c1;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-14297: Lost name of a explicitly named CTE column used in
+--echo #             the non-recursive CTE via prepared statement
+--echo #
+
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2),(3);
+
+PREPARE stmt FROM "WITH cte(a) AS (SELECT 1) SELECT * FROM cte";
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM "CREATE VIEW v1 AS WITH cte(a) AS (SELECT 1) SELECT * FROM cte";
+EXECUTE stmt;
+SELECT * FROM v1;
+DEALLOCATE PREPARE stmt;
+
+PREPARE stmt FROM "CREATE VIEW v2 AS WITH cte(a) AS (SELECT * FROM t1) SELECT * FROM cte";
+EXECUTE stmt;
+SELECT * FROM v2;
+DEALLOCATE PREPARE stmt;
+
+DROP TABLE t1;
+DROP VIEW v1,v2;
+
+--echo #
+--echo # MDEV-15478: Lost name of a explicitly named CTE column used in
+--echo #             the non-recursive CTE defined with UNION
+--echo #
+
+CREATE TABLE t1 (x int, y int);
+INSERT INTO t1 VALUES (1,2),(2,7),(3,3);
+
+WITH cte(a) AS (SELECT 1 UNION SELECT 2) SELECT * FROM cte;
+
+WITH cte(a) AS (SELECT 1 UNION SELECT 2) SELECT a FROM cte;
+
+WITH cte(a) AS (SELECT 1 UNION ALL SELECT 1) SELECT a FROM cte;
+
+WITH cte(a) AS (SELECT x from t1 UNION SELECT 4) SELECT a FROM cte;
+
+WITH cte(a) AS (SELECT 4 UNION SELECT x FROM t1 UNION SELECT 5)
+SELECT a FROM cte;
+
+WITH cte(a,b) AS (SELECT 4,5 UNION SELECT 4,3) SELECT a,b FROM cte;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-16353: unreferenced CTE specified by query with UNION
+--echo #
+
+with cte as
+  (select 1 union select 2 union select 3)
+select 1 as f;
+
+create table t1 (a int);
+insert into t1 values (2), (1), (7), (1), (4);
+
+with cte as
+  (select * from t1 where a < 2 union select * from t1 where a > 5)
+select 2 as f;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-16473: query with CTE when no database is set
+--echo #
+
+create database db_mdev_16473;
+use db_mdev_16473;
+drop database db_mdev_16473;
+
+--echo # Now no default database is set
+select database();
+
+with cte as (select 1 as a) select * from cte;
+
+create database db_mdev_16473;
+create table db_mdev_16473.t1 (a int);
+insert into db_mdev_16473.t1 values (2), (7), (3), (1);
+with cte as (select * from db_mdev_16473.t1) select * from cte;
+
+--error ER_NO_DB_ERROR
+with cte as (select * from db_mdev_16473.t1)
+select * from cte, t1 as t where cte.a=t.a;
+with cte as (select * from db_mdev_16473.t1)
+select * from cte, db_mdev_16473.t1 as t where cte.a=t.a;
+
+drop database db_mdev_16473;
+
+use test;

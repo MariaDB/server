@@ -1,0 +1,6 @@
+[write_committed]
+loose-rocksdb_write_policy=write_committed
+
+[write_prepared]
+loose-rocksdb_write_policy=write_prepared
+loose-rocksdb_commit_time_batch_for_recovery=on

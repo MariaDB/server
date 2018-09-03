@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+/* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2018, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3460,7 +3460,8 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   ulong query_length= 0;
   bool clear_role= FALSE;
   char buff[512];
-  enum_binlog_format save_binlog_format;
+  enum_binlog_format save_binlog_format=
+    thd->get_current_stmt_binlog_format();
   const CSET_STRING query_save __attribute__((unused)) = thd->query_string;
 
   DBUG_ENTER("acl_set_default_role");
@@ -3500,6 +3501,7 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   if (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0))
   {
     thd->set_query(buff, query_length, system_charset_info);
+    // Attention!!! here is implicit goto error;
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, (char*)"user", NULL);
   }
 
@@ -3864,7 +3866,8 @@ void set_authentication_plugin_from_password(const User_table& user_table,
                                              const char* password,
                                              uint password_length)
 {
-  if (password_length == SCRAMBLED_PASSWORD_CHAR_LENGTH)
+  if (password_length == SCRAMBLED_PASSWORD_CHAR_LENGTH ||
+      password_length == 0)
   {
     user_table.plugin()->store(native_password_plugin_name.str,
                                native_password_plugin_name.length,
@@ -3919,13 +3922,16 @@ static bool update_user_table(THD *thd, const User_table& user_table,
     DBUG_RETURN(1);      /* purecov: deadcode */
   }
   store_record(table,record[1]);
-  /* If the password column is missing, we use the
-     authentication_string column. */
-  if (user_table.password())
-    user_table.password()->store(new_password, new_password_len, system_charset_info);
-  else
+
+  if (user_table.plugin())
+  {
     set_authentication_plugin_from_password(user_table, new_password,
                                             new_password_len);
+    new_password_len= 0;
+  }
+
+  if (user_table.password())
+    user_table.password()->store(new_password, new_password_len, system_charset_info);
 
 
   if ((error=table->file->ha_update_row(table->record[1],table->record[0])) &&
@@ -7577,7 +7583,7 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
       tl->correspondent_table ? tl->correspondent_table : tl;
     sctx= t_ref->security_ctx ? t_ref->security_ctx : thd->security_ctx;
 
-    if (tl->with ||
+    if (tl->with || !tl->db ||
         (tl->select_lex &&
          (tl->with= tl->select_lex->find_table_def_in_with_clauses(tl))))
       continue;
@@ -10933,17 +10939,12 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   if (!(combo=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
     DBUG_RETURN(TRUE);
 
-  combo->user.str= sctx->user;
+  combo->user.str= (char *) sctx->priv_user;
 
   mysql_mutex_lock(&acl_cache->lock);
 
-  if ((au= find_user_wild(combo->host.str=(char*)sctx->host_or_ip, combo->user.str)))
-    goto found_acl;
-  if ((au= find_user_wild(combo->host.str=(char*)sctx->host, combo->user.str)))
-    goto found_acl;
-  if ((au= find_user_wild(combo->host.str=(char*)sctx->ip, combo->user.str)))
-    goto found_acl;
-  if ((au= find_user_wild(combo->host.str=(char*)"%", combo->user.str)))
+ if ((au= find_user_wild(combo->host.str= (char *) sctx->priv_host,
+                         combo->user.str)))
     goto found_acl;
 
   mysql_mutex_unlock(&acl_cache->lock);
@@ -11346,7 +11347,7 @@ int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond)
 
 int wild_case_compare(CHARSET_INFO *cs, const char *str,const char *wildstr)
 {
-  reg3 int flag;
+  int flag;
   DBUG_ENTER("wild_case_compare");
   DBUG_PRINT("enter",("str: '%s'  wildstr: '%s'",str,wildstr));
   while (*wildstr)
@@ -12233,6 +12234,7 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
   const char *client_auth_plugin=
     ((st_mysql_auth *) (plugin_decl(mpvio->plugin)->info))->client_auth_plugin;
 
+  DBUG_EXECUTE_IF("auth_disconnect", { vio_close(net->vio); DBUG_RETURN(1); });
   DBUG_ASSERT(client_auth_plugin);
 
   /*

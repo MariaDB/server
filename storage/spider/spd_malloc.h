@@ -19,7 +19,7 @@
 #define spider_bulk_malloc(A,B,C,...) \
   spider_bulk_alloc_mem(A,B,__func__,__FILE__,__LINE__,C,__VA_ARGS__)
 #define spider_current_trx \
-  (current_thd ? ((SPIDER_TRX *) *thd_ha_data(current_thd, spider_hton_ptr)) : NULL)
+  (current_thd ? ((SPIDER_TRX *) thd_get_ha_data(current_thd, spider_hton_ptr)) : NULL)
 
 #define init_calc_mem(A) init_mem_calc(A,__func__,__FILE__,__LINE__)
 

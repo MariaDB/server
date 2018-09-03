@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2018, Oracle and/or its affiliates.
    Copyright (c) 2010, 2018, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
@@ -151,13 +151,9 @@ bool Item::get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate)
   if (get_date(ltime, fuzzydate | time_flag))
     return true;
   if (ltime->time_type == MYSQL_TIMESTAMP_TIME &&
-      !(fuzzydate & TIME_TIME_ONLY))
-  {
-    MYSQL_TIME tmp;
-    if (time_to_datetime_with_warn(thd, ltime, &tmp, fuzzydate))
-      return null_value= true;
-    *ltime= tmp;
-  }
+      !(fuzzydate & TIME_TIME_ONLY) &&
+      convert_time_to_datetime(thd, ltime, fuzzydate))
+    return true;
   return false;
 }
 
@@ -183,19 +179,21 @@ bool Item::get_time_with_conversion(THD *thd, MYSQL_TIME *ltime,
         - truncate the YYYYMMDD part
         - add (MM*33+DD)*24 to hours
         - add (MM*31+DD)*24 to hours
-        Let's return NULL here, to disallow equal field propagation.
+        Let's return TRUE here, to disallow equal field propagation.
         Note, If we start to use this method in more pieces of the code other
-        than eqial field propagation, we should probably return
-        NULL only if some flag in fuzzydate is set.
+        than equal field propagation, we should probably return
+        TRUE only if some flag in fuzzydate is set.
       */
-      return (null_value= true);
+      return true;
     }
     if (datetime_to_time_with_warn(thd, ltime, &ltime2, TIME_SECOND_PART_DIGITS))
     {
       /*
-        Time difference between CURRENT_DATE and ltime
-        did not fit into the supported TIME range
+        If the time difference between CURRENT_DATE and ltime
+        did not fit into the supported TIME range, then we set the
+        difference to the maximum possible value in the supported TIME range
       */
+      DBUG_ASSERT(0);
       return (null_value= true);
     }
     *ltime= ltime2;
@@ -479,7 +477,9 @@ Item::Item(THD *thd):
   maybe_null=null_value=with_sum_func=with_window_func=with_field=0;
   in_rollup= 0;
   with_subselect= 0;
-   /* Initially this item is not attached to any JOIN_TAB. */
+  with_param= 0;
+
+  /* Initially this item is not attached to any JOIN_TAB. */
   join_tab_idx= MAX_TABLES;
 
   /* Put item in free list so that we can free all items at end */
@@ -521,6 +521,7 @@ Item::Item(THD *thd, Item *item):
   in_rollup(item->in_rollup),
   null_value(item->null_value),
   with_sum_func(item->with_sum_func),
+  with_param(item->with_param),
   with_window_func(item->with_window_func),
   with_field(item->with_field),
   fixed(item->fixed),
@@ -884,6 +885,34 @@ bool Item_field::add_field_to_set_processor(void *arg)
     bitmap_set_bit(&table->tmp_set, field->field_index);
   DBUG_RETURN(FALSE);
 }
+
+
+/**
+   Rename fields in an expression to new field name as speficied by ALTER TABLE
+*/
+
+bool Item_field::rename_fields_processor(void *arg)
+{
+  Item::func_processor_rename *rename= (Item::func_processor_rename*) arg;
+  List_iterator<Create_field> def_it(rename->fields);
+  Create_field *def;
+
+  while ((def=def_it++))
+  {
+    if (def->change &&
+        (!db_name || !db_name[0] ||
+         !my_strcasecmp(table_alias_charset, db_name, rename->db_name.str)) &&
+        (!table_name || !table_name[0] ||
+         !my_strcasecmp(table_alias_charset, table_name, rename->table_name.str)) &&
+        !my_strcasecmp(system_charset_info, field_name, def->change))
+    {
+      field_name= def->field_name;
+      break;
+    }
+  }
+  return 0;
+}
+
 
 /**
   Check if an Item_field references some field from a list of fields.
@@ -1331,7 +1360,7 @@ bool Item::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
                                                 ltime, fuzzydate,
                                                 field_name_or_null()))
       goto err;
-    break;
+    return null_value= false;
   }
   case REAL_RESULT:
   {
@@ -1339,7 +1368,7 @@ bool Item::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
     if (null_value || double_to_datetime_with_warn(value, ltime, fuzzydate,
                                                    field_name_or_null()))
       goto err;
-    break;
+    return null_value= false;
   }
   case DECIMAL_RESULT:
   {
@@ -1348,7 +1377,7 @@ bool Item::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
         decimal_to_datetime_with_warn(res, ltime, fuzzydate,
                                       field_name_or_null()))
       goto err;
-    break;
+    return null_value= false;
   }
   case STRING_RESULT:
   {
@@ -1358,15 +1387,20 @@ bool Item::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
         str_to_datetime_with_warn(res->charset(), res->ptr(), res->length(),
                                   ltime, fuzzydate))
       goto err;
-    break;
+    return null_value= false;
   }
   default:
+    null_value= true;
     DBUG_ASSERT(0);
   }
 
-  return null_value= 0;
-
 err:
+  return null_value|= make_zero_date(ltime, fuzzydate);
+}
+
+
+bool Item::make_zero_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
   /*
     if the item was not null and convertion failed, we return a zero date
     if allowed, otherwise - null.
@@ -1388,7 +1422,7 @@ err:
     */
     ltime->time_type= MYSQL_TIMESTAMP_TIME;
   }
-  return null_value|= !(fuzzydate & TIME_FUZZY_DATES);
+  return !(fuzzydate & TIME_FUZZY_DATES);
 }
 
 bool Item::get_seconds(ulonglong *sec, ulong *sec_part)
@@ -1507,6 +1541,9 @@ bool Item_sp_variable::fix_fields(THD *thd, Item **)
   max_length= it->max_length;
   decimals= it->decimals;
   unsigned_flag= it->unsigned_flag;
+  with_param= 1;
+  if (thd->lex->current_select && thd->lex->current_select->master_unit()->item)
+    thd->lex->current_select->master_unit()->item->with_param= 1;
   fixed= 1;
   collation.set(it->collation.collation, it->collation.derivation);
 
@@ -3334,6 +3371,15 @@ my_decimal *Item_null::val_decimal(my_decimal *decimal_value)
 }
 
 
+bool Item_null::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  // following assert is redundant, because fixed=1 assigned in constructor
+  DBUG_ASSERT(fixed == 1);
+  make_zero_date(ltime, fuzzydate);
+  return (null_value= true);
+}
+
+
 Item *Item_null::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
 {
   return this;
@@ -3534,7 +3580,7 @@ void Item_param::set_time(MYSQL_TIME *tm, timestamp_type time_type,
     ErrConvTime str(&value.time);
     make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                  &str, time_type, 0);
-    set_zero_time(&value.time, MYSQL_TIMESTAMP_ERROR);
+    set_zero_time(&value.time, time_type);
   }
   maybe_null= 0;
   null_value= 0;
@@ -4952,9 +4998,11 @@ static Item** find_field_in_group_list(Item *find_item, ORDER *group_list)
     in the SELECT clause of Q.
     - Search for a column named col_ref_i [in table T_j]
     in the GROUP BY clause of Q.
-    - If found different columns with the same name in GROUP BY and SELECT
-    - issue a warning and return the GROUP BY column,
-    - otherwise
+    - If found different columns with the same name in GROUP BY and SELECT:
+    - if the condition that uses this column name is pushed down into
+    the HAVING clause return the SELECT column
+    - else issue a warning and return the GROUP BY column.
+    - Otherwise
     - if the MODE_ONLY_FULL_GROUP_BY mode is enabled return error
     - else return the found SELECT column.
 
@@ -4993,7 +5041,8 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
     
     /* Check if the fields found in SELECT and GROUP BY are the same field. */
     if (group_by_ref && (select_ref != not_found_item) &&
-        !((*group_by_ref)->eq(*select_ref, 0)))
+        !((*group_by_ref)->eq(*select_ref, 0)) &&
+        (!select->having_fix_field_for_pushed_cond))
     {
       ambiguous_fields= TRUE;
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -5729,18 +5778,15 @@ error:
   return TRUE;
 }
 
-/*
-  @brief
-  Mark virtual columns as used in a partitioning expression 
-*/
-
-bool Item_field::vcol_in_partition_func_processor(void *int_arg)
+bool Item_field::post_fix_fields_part_expr_processor(void *int_arg)
 {
   DBUG_ASSERT(fixed);
   if (field->vcol_info)
-  {
     field->vcol_info->mark_as_in_partitioning_expr();
-  }
+  /*
+    Update table_name to be real table name, not the alias. Because alias is
+    reallocated for every statement, and this item has a long life time */
+  table_name= field->table->s->table_name.str;
   return FALSE;
 }
 
@@ -7356,7 +7402,7 @@ Item_direct_view_ref::derived_grouping_field_transformer_for_where(THD *thd,
 void Item_field::print(String *str, enum_query_type query_type)
 {
   if (field && field->table->const_table &&
-      !(query_type & QT_NO_DATA_EXPANSION))
+      !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)))
   {
     print_value(str);
     return;
@@ -7741,6 +7787,7 @@ void Item_ref::set_properties()
     split_sum_func() doesn't try to change the reference.
   */
   with_sum_func= (*ref)->with_sum_func;
+  with_param= (*ref)->with_param;
   with_window_func= (*ref)->with_window_func;
   with_field= (*ref)->with_field;
   fixed= 1;
@@ -8167,6 +8214,7 @@ Item_cache_wrapper::Item_cache_wrapper(THD *thd, Item *item_arg):
   Type_std_attributes::set(orig_item);
   maybe_null= orig_item->maybe_null;
   with_sum_func= orig_item->with_sum_func;
+  with_param= orig_item->with_param;
   with_field= orig_item->with_field;
   name= item_arg->name;
   name_length= item_arg->name_length;
@@ -9122,10 +9170,10 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
   }
   else
   {
-    Field *tmp_field= field_arg->field;
-    /* charset doesn't matter here, it's to avoid sigsegv only */
-    tmp_field= new Field_null(0, 0, Field::NONE, field_arg->field->field_name,
-                          &my_charset_bin);
+    static uchar null_bit=1;
+    /* charset doesn't matter here */
+    Field *tmp_field= new Field_string(0, 0, &null_bit, 1, Field::NONE,
+                                field_arg->field->field_name, &my_charset_bin);
     if (tmp_field)
     {
       tmp_field->init(field_arg->field->table);
@@ -9337,13 +9385,16 @@ void resolve_const_item(THD *thd, Item **ref, Item *comp_item)
   switch (res_type) {
   case TIME_RESULT:
   {
-    bool is_null;
-    Item **ref_copy= ref;
-    /* the following call creates a constant and puts it in new_item */
     enum_field_types type= item->field_type_for_temporal_comparison(comp_item);
-    get_datetime_value(thd, &ref_copy, &new_item, type, &is_null);
-    if (is_null)
+    longlong value= item->val_temporal_packed(type);
+    if (item->null_value)
       new_item= new (mem_root) Item_null(thd, name);
+    else
+    {
+      Item_cache_temporal *cache= new (mem_root) Item_cache_temporal(thd, type);
+      cache->store_packed(value, item);
+      new_item= cache;
+    }
     break;
   }
   case STRING_RESULT:
@@ -9519,12 +9570,6 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
   return 0;
 }
 
-Item_cache* Item_cache::get_cache(THD *thd, const Item *item)
-{
-  return get_cache(thd, item, item->cmp_type());
-}
-
-
 /**
   Get a cache item of given type.
 
@@ -9535,12 +9580,12 @@ Item_cache* Item_cache::get_cache(THD *thd, const Item *item)
 */
 
 Item_cache* Item_cache::get_cache(THD *thd, const Item *item,
-                                  const Item_result type)
+                         const Item_result type, const enum_field_types f_type)
 {
   MEM_ROOT *mem_root= thd->mem_root;
   switch (type) {
   case INT_RESULT:
-    return new (mem_root) Item_cache_int(thd, item->field_type());
+    return new (mem_root) Item_cache_int(thd, f_type);
   case REAL_RESULT:
     return new (mem_root) Item_cache_real(thd);
   case DECIMAL_RESULT:
@@ -9550,7 +9595,7 @@ Item_cache* Item_cache::get_cache(THD *thd, const Item *item,
   case ROW_RESULT:
     return new (mem_root) Item_cache_row(thd);
   case TIME_RESULT:
-    return new (mem_root) Item_cache_temporal(thd, item->field_type());
+    return new (mem_root) Item_cache_temporal(thd, f_type);
   }
   return 0;                                     // Impossible
 }
@@ -9664,6 +9709,8 @@ Item *Item_cache_int::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
+  if (!value_cached)
+    cache_value();
   new_item= null_value ?
             (Item*) new (thd->mem_root) Item_null(thd) :
 	    (Item*) new (thd->mem_root) Item_int(thd, val_int(), max_length);
@@ -9684,8 +9731,6 @@ Item_cache_temporal::Item_cache_temporal(THD *thd,
 longlong Item_cache_temporal::val_datetime_packed()
 {
   DBUG_ASSERT(fixed == 1);
-  if (Item_cache_temporal::field_type() == MYSQL_TYPE_TIME)
-    return Item::val_datetime_packed(); // TIME-to-DATETIME conversion needed
   if ((!value_cached && !cache_value()) || null_value)
   {
     null_value= TRUE;
@@ -9698,8 +9743,7 @@ longlong Item_cache_temporal::val_datetime_packed()
 longlong Item_cache_temporal::val_time_packed()
 {
   DBUG_ASSERT(fixed == 1);
-  if (Item_cache_temporal::field_type() != MYSQL_TYPE_TIME)
-    return Item::val_time_packed(); // DATETIME-to-TIME conversion needed
+  DBUG_ASSERT(Item_cache_temporal::field_type() == MYSQL_TYPE_TIME);
   if ((!value_cached && !cache_value()) || null_value)
   {
     null_value= TRUE;
@@ -9757,18 +9801,26 @@ double Item_cache_temporal::val_real()
 }
 
 
-bool  Item_cache_temporal::cache_value()
+bool Item_cache_temporal::cache_value()
 {
   if (!example)
     return false;
-
   value_cached= true;
- 
+
   MYSQL_TIME ltime;
-  if (example->get_date_result(&ltime, 0))
-    value=0;
-  else
+  uint fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES;
+  if (Item_cache_temporal::field_type() == MYSQL_TYPE_TIME)
+    fuzzydate|= TIME_TIME_ONLY;
+
+  value= 0;
+  if (!example->get_date_result(&ltime, fuzzydate))
+  {
+    if (ltime.time_type == MYSQL_TIMESTAMP_TIME &&
+        !(fuzzydate & TIME_TIME_ONLY) &&
+        convert_time_to_datetime(current_thd, &ltime, fuzzydate))
+      return true;
     value= pack_time(&ltime);
+  }
   null_value= example->null_value;
   return true;
 }
@@ -9781,18 +9833,22 @@ bool Item_cache_temporal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   if (!has_value())
   {
     bzero((char*) ltime,sizeof(*ltime));
-    return 1;
+    return null_value= true;
   }
 
   unpack_time(value, ltime);
   ltime->time_type= mysql_type_to_time_type(field_type());
   if (ltime->time_type == MYSQL_TIMESTAMP_TIME)
   {
-    ltime->hour+= (ltime->month*32+ltime->day)*24;
-    ltime->month= ltime->day= 0;
+    if (fuzzydate & TIME_TIME_ONLY)
+    {
+      ltime->hour+= (ltime->month*32+ltime->day)*24;
+      ltime->month= ltime->day= 0;
+    }
+    else if (convert_time_to_datetime(current_thd, ltime, fuzzydate))
+      return true;
   }
   return 0;
- 
 }
 
 
@@ -9830,14 +9886,25 @@ Item *Item_cache_temporal::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
+  if (!value_cached)
+    cache_value();
   if (null_value)
     new_item= (Item*) new (thd->mem_root) Item_null(thd);
   else
   {
     MYSQL_TIME ltime;
-    unpack_time(val_datetime_packed(), &ltime);
-    new_item= (Item*) new (thd->mem_root) Item_datetime_literal(thd, &ltime,
-                                                                decimals);
+    if (Item_cache_temporal::field_type() == MYSQL_TYPE_TIME)
+    {
+      unpack_time(val_time_packed(), &ltime);
+      new_item= (Item*) new (thd->mem_root) Item_time_literal(thd, &ltime,
+                                                              decimals);
+    }
+    else
+    {
+      unpack_time(val_datetime_packed(), &ltime);
+      new_item= (Item*) new (thd->mem_root) Item_datetime_literal(thd, &ltime,
+                                                                  decimals);
+    }
   }
   return new_item;
 }
@@ -9895,6 +9962,8 @@ Item *Item_cache_real::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
+  if (!value_cached)
+    cache_value();
   new_item= null_value ?
             (Item*) new (thd->mem_root) Item_null(thd) :
 	    (Item*) new (thd->mem_root) Item_float(thd, val_real(),
@@ -9958,6 +10027,8 @@ Item *Item_cache_decimal::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
+  if (!value_cached)
+    cache_value();
   if (null_value)
     new_item= (Item*) new (thd->mem_root) Item_null(thd);
   else
@@ -10053,6 +10124,8 @@ Item *Item_cache_str::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
+  if (!value_cached)
+    cache_value();
   if (null_value)
     new_item= (Item*) new (thd->mem_root) Item_null(thd);
   else
@@ -10335,6 +10408,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
 
   if (Field::result_merge_type(real_field_type()) == DECIMAL_RESULT)
   {
+    collation.set_numeric();
     decimals= MY_MIN(MY_MAX(decimals, item->decimals), DECIMAL_MAX_SCALE);
     int item_int_part= item->decimal_int_part();
     int item_prec = MY_MAX(prev_decimal_int_part, item_int_part) + decimals;
