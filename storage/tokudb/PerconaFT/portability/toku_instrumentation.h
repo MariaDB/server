@@ -41,7 +41,7 @@ class toku_instr_probe_empty {
 
 extern toku_instr_key toku_uninstrumented;
 
-#ifndef MYSQL_TOKUDB_ENGINE
+#ifndef TOKU_MYSQL_WITH_PFS
 
 #include <pthread.h>
 
@@ -245,10 +245,10 @@ inline void toku_instr_rwlock_wrlock_wait_end(
 
 inline void toku_instr_rwlock_unlock(UU(toku_pthread_rwlock_t &rwlock)) {}
 
-#else  // MYSQL_TOKUDB_ENGINE
+#else  // TOKU_MYSQL_WITH_PFS
 // There can be not only mysql but also mongodb or any other PFS stuff
 #include <toku_instr_mysql.h>
-#endif  // MYSQL_TOKUDB_ENGINE
+#endif  // TOKU_MYSQL_WITH_PFS
 
 extern toku_instr_key toku_uninstrumented;
 

@@ -107,7 +107,7 @@ size_t toku_malloc_usable_size(void *p) __attribute__((__visibility__("default")
 #define XMALLOC(v) CAST_FROM_VOIDP(v, toku_xmalloc(sizeof(*v)))
 #define XMALLOC_N(n,v) CAST_FROM_VOIDP(v, toku_xmalloc((n)*sizeof(*v)))
 #define XCALLOC_N(n,v) CAST_FROM_VOIDP(v, toku_xcalloc((n), (sizeof(*v))))
-#define XCALLOC(v) XCALLOC_N(1,(v))
+#define XCALLOC(v) XCALLOC_N(1,v)
 #define XREALLOC(v,s) CAST_FROM_VOIDP(v, toku_xrealloc(v, s))
 #define XREALLOC_N(n,v) CAST_FROM_VOIDP(v, toku_xrealloc(v, (n)*sizeof(*v)))
 

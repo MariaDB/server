@@ -1,4 +1,4 @@
-SET(TOKUDB_VERSION 5.6.39-83.1)
+SET(TOKUDB_VERSION )
 # PerconaFT only supports x86-64 and cmake-2.8.9+
 IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND
     NOT CMAKE_VERSION VERSION_LESS "2.8.9")
@@ -93,7 +93,11 @@ ELSEIF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ft-index/")
     MESSAGE(WARNING "Found ft-index sources, ft-index is deprecated and replaced with PerconaFT.")
     SET(TOKU_FT_DIR_NAME "ft-index")
 ELSE ()
-        MESSAGE(FATAL_ERROR "Could not find PerconaFT sources.")
+    MESSAGE(FATAL_ERROR "Could not find PerconaFT sources.")
+ENDIF ()
+
+IF (WITH_VALGRIND)
+    SET(USE_VALGRIND "ON")
 ENDIF ()
 
 ADD_SUBDIRECTORY(${TOKU_FT_DIR_NAME})

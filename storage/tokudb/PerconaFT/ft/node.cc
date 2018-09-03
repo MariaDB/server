@@ -156,6 +156,8 @@ void toku_evict_bn_from_memory(FTNODE node, int childnum, FT ft) {
     assert(!node->dirty);
     BASEMENTNODE bn = BLB(node, childnum);
     toku_ft_decrease_stats(&ft->in_memory_stats, bn->stat64_delta);
+    toku_ft_adjust_logical_row_count(ft, -BLB_LRD(node, childnum));
+    BLB_LRD(node, childnum) = 0; 
     destroy_basement_node(bn);
     set_BNULL(node, childnum);
     BP_STATE(node, childnum) = PT_ON_DISK;

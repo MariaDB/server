@@ -8,11 +8,24 @@ foreach(tool ${tools})
 
   # detect when we are being built as a subproject
   if (DEFINED MYSQL_PROJECT_NAME_DOCSTRING)
+    # if we are compiling under a MySQL variant, this macro must be present
+    GET_MYSQL_VERSION()
+
+
     if ((CMAKE_BUILD_TYPE MATCHES "Debug") AND
         (CMAKE_CXX_FLAGS_DEBUG MATCHES " -DENABLED_DEBUG_SYNC"))
-      target_link_libraries(${tool} sql binlog rpl master slave)
-    endif()
-    target_link_libraries(${tool} perconaserverclient)
+      if (MYSQL_BASE_VERSION VERSION_EQUAL "8.0")
+        target_link_libraries(${tool} sql_main sql_gis sql_main binlog rpl master slave ${ICU_LIBRARIES})
+      else ()
+        target_link_libraries(${tool} sql binlog rpl master slave)
+      endif ()
+    else ()
+      if (MYSQL_BASE_VERSION VERSION_EQUAL "8.0")
+        target_link_libraries(${tool} mysqlclient)
+      else ()
+        target_link_libraries(${tool} perconaserverclient)
+      endif ()
+    endif ()
   endif ()
 
   add_space_separated_property(TARGET ${tool} COMPILE_FLAGS -fvisibility=hidden)

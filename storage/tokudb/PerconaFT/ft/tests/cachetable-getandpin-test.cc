@@ -93,12 +93,14 @@ cachetable_getandpin_test (int n) {
     for (i=1; i<=n; i++) {
         uint32_t hi;
         hi = toku_cachetable_hash(f1, make_blocknum(i));
-        void *v; long size;
+        void *v;
         CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
         wc.flush_callback = flush;
-        r = toku_cachetable_get_and_pin(f1, make_blocknum(i), hi, &v, &size, wc, fetch, def_pf_req_callback, def_pf_callback, true, 0);
+        r = toku_cachetable_get_and_pin(f1, make_blocknum(i), hi, &v, wc, fetch, def_pf_req_callback, def_pf_callback, true, 0);
         assert(r == 0);
-        assert(size == i);
+        PAIR_ATTR attr;
+        r = toku_cachetable_get_attr(f1, make_blocknum(i), hi, &attr);
+        assert(r == 0 && attr.size == i);
 
         r = toku_test_cachetable_unpin(f1, make_blocknum(i), hi, CACHETABLE_CLEAN, make_pair_attr(i));
         assert(r == 0);

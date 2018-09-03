@@ -1865,15 +1865,10 @@ static uint32_t pack_desc_pk_info(uchar* buf, KEY_AND_COL_INFO* kc_info, TABLE_S
     return pos - buf;
 }
 
-static uint32_t pack_desc_pk_offset_info(
-    uchar* buf, 
-    KEY_AND_COL_INFO* kc_info, 
-    TABLE_SHARE* table_share, 
-    KEY_PART_INFO* key_part, 
-    KEY* prim_key,
-    uchar* pk_info
-    ) 
-{
+static uint32_t pack_desc_pk_offset_info(uchar* buf,
+                                         KEY_PART_INFO* key_part,
+                                         KEY* prim_key,
+                                         uchar* pk_info) {
     uchar* pos = buf;
     uint16 field_index = key_part->field->field_index;
     bool found_col_in_pk = false;
@@ -1999,7 +1994,9 @@ static uint32_t pack_desc_key_length_info(uchar* buf, KEY_AND_COL_INFO* kc_info,
     return pos - buf;
 }
 
-static uint32_t pack_desc_char_info(uchar* buf, KEY_AND_COL_INFO* kc_info, TABLE_SHARE* table_share, KEY_PART_INFO* key_part) {
+static uint32_t pack_desc_char_info(uchar* buf,
+                                    TABLE_SHARE* table_share,
+                                    KEY_PART_INFO* key_part) {
     uchar* pos = buf;
     uint16 field_index = key_part->field->field_index;
     Field* field = table_share->field[field_index];
@@ -2561,14 +2558,7 @@ static uint32_t create_toku_secondary_key_pack_descriptor (
             pos += sizeof(uint32_t);
         }
         if (is_col_in_pk) {
-            pos += pack_desc_pk_offset_info(
-                pos,
-                kc_info,
-                table_share,
-                &curr_kpi,
-                prim_key,
-                pk_info
-                );
+            pos += pack_desc_pk_offset_info(pos, &curr_kpi, prim_key, pk_info);
         }
         else {
             pos += pack_desc_offset_info(
@@ -2585,12 +2575,7 @@ static uint32_t create_toku_secondary_key_pack_descriptor (
             table_share,
             &curr_kpi
             );
-        pos += pack_desc_char_info(
-            pos,
-            kc_info,
-            table_share,
-            &curr_kpi
-            );
+        pos += pack_desc_char_info(pos, table_share, &curr_kpi);
     }
 
     offset = pos - buf;

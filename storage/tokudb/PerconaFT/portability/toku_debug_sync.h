@@ -40,7 +40,8 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 struct tokutxn;
 
-#if defined(ENABLED_DEBUG_SYNC)
+#if defined(MYSQL_TOKUDB_ENGINE) && MYSQL_TOKUDB_ENGINE && \
+    defined(ENABLED_DEBUG_SYNC) && ENABLED_DEBUG_SYNC
 
 /*
   the below macros are defined in my_global.h, which is included in m_string.h,
