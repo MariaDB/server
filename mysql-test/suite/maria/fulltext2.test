@@ -39,6 +39,8 @@ repair table t1;
 check table t1;
 repair table t1;
 
+select count(*) from t1 where match a against ('aaaxxx' in boolean mode);
+
 # mi_write:
 insert t1 (a) values ('aaaxxx'),('aaayyy');
 
