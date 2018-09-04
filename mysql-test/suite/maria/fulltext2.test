@@ -39,9 +39,39 @@ repair table t1;
 check table t1;
 repair table t1;
 
+select count(*) from t1 where match a against ('aaaxxx');
+select count(*) from t1 where match a against ('aaayyy');
 select count(*) from t1 where match a against ('aaaxxx' in boolean mode);
+select count(*) from t1 where match a against ('aaayyy' in boolean mode);
+
+select count(*) from t1 where match a against ('aaax*' in boolean mode);
+select count(*) from t1 where match a against ('aaay*' in boolean mode);
+select count(*) from t1 where match a against ('aaa*' in boolean mode);
 
 # mi_write:
 insert t1 (a) values ('aaaxxx'),('aaayyy');
+# call to enlarge_root() below
+select count(*) from t1 where match a against ('aaaxxx' in boolean mode);
+select count(*) from t1 where match a against ('aaayyy');
+
+# mi_delete
+insert t1 (a) values ('aaaxxx 000000');
+select count(*) from t1 where match a against ('000000');
+delete from t1 where match a against ('000000');
+select count(*) from t1 where match a against ('000000');
+select count(*) from t1 where match a against ('aaaxxx');
+select count(*) from t1 where match a against ('aaaxxx' in boolean mode);
+select count(*) from t1 where match a against ('aaayyy' in boolean mode);
+# double-check without index
+select count(*) from t1 where a = 'aaaxxx';
+select count(*) from t1 where a = 'aaayyy';
+
+# update
+insert t1 (a) values ('aaaxxx 000000');
+select count(*) from t1 where match a against ('000000');
+select count(*) from t1 where match a against ('aaaxxx' in boolean mode);
+update t1 set a='aaaxxx' where a = 'aaayyy';
+select count(*) from t1 where match a against ('aaaxxx' in boolean mode);
+select count(*) from t1 where match a against ('aaayyy' in boolean mode);
 
 drop table t1;
