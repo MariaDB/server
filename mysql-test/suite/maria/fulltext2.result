@@ -18,4 +18,5 @@ test.t1	check	status	OK
 repair table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	repair	status	OK
+insert t1 (a) values ('aaaxxx'),('aaayyy');
 drop table t1;

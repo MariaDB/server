@@ -39,5 +39,7 @@ repair table t1;
 check table t1;
 repair table t1;
 
+# mi_write:
+insert t1 (a) values ('aaaxxx'),('aaayyy');
 
 drop table t1;
