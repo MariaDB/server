@@ -78,14 +78,17 @@ void init_alloc_root(MEM_ROOT *mem_root, const char *name, size_t block_size,
   if (pre_alloc_size)
   {
     if ((mem_root->free= mem_root->pre_alloc=
-         (USED_MEM*) my_malloc(pre_alloc_size + ALIGN_SIZE(sizeof(USED_MEM)),
+         (USED_MEM*) my_malloc(pre_alloc_size + ALIGN_SIZE(sizeof(USED_MEM)) +
+                               ALIGN_SIZE(strlen(mem_root->name)+ 1 + sizeof(mem_root)),
                                MYF(my_flags))))
     {
-      mem_root->free->size= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM));
-      mem_root->total_alloc= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM));
+      mem_root->free->size= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM)) + ALIGN_SIZE(strlen(mem_root->name)+ 1 + sizeof(mem_root));
+      mem_root->total_alloc= pre_alloc_size+ALIGN_SIZE(sizeof(USED_MEM)) + ALIGN_SIZE(strlen(mem_root->name)+ 1 + sizeof(mem_root));
       mem_root->free->left= pre_alloc_size;
       mem_root->free->next= 0;
       TRASH_MEM(mem_root->free);
+      memcpy((mem_root->free+1), &mem_root, sizeof(mem_root));
+      strmov(((char*) (mem_root->free + 1)) + sizeof(mem_root), mem_root->name);
     }
   }
 #endif
@@ -120,7 +123,7 @@ void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
 #if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
   if (pre_alloc_size)
   {
-    size_t size= pre_alloc_size + ALIGN_SIZE(sizeof(USED_MEM));
+    size_t size= pre_alloc_size + ALIGN_SIZE(sizeof(USED_MEM)) + ALIGN_SIZE(strlen(mem_root->name) + 1 + sizeof(mem_root));
     if (!mem_root->pre_alloc || mem_root->pre_alloc->size != size)
     {
       USED_MEM *mem, **prev= &mem_root->free;
@@ -158,6 +161,8 @@ void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
         mem->next= *prev;
         *prev= mem_root->pre_alloc= mem;
         TRASH_MEM(mem);
+        memcpy((mem+1), &mem_root, sizeof(mem_root));
+        strmov(((char*) (mem + 1)) + sizeof(mem_root), mem_root->name);
       }
       else
       {
@@ -243,7 +248,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   if (! next)
   {						/* Time to alloc new block */
     block_size= (mem_root->block_size & ~1) * (mem_root->block_num >> 2);
-    get_size= length+ALIGN_SIZE(sizeof(USED_MEM));
+    get_size= length+ALIGN_SIZE(sizeof(USED_MEM)) + ALIGN_SIZE(strlen(mem_root->name)+ 1 + sizeof(mem_root));
     get_size= MY_MAX(get_size, block_size);
 
     if (!(next = (USED_MEM*) my_malloc(get_size,
@@ -259,9 +264,11 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     mem_root->total_alloc+= get_size;
     next->next= *prev;
     next->size= get_size;
-    next->left= get_size-ALIGN_SIZE(sizeof(USED_MEM));
+    next->left= get_size-ALIGN_SIZE(sizeof(USED_MEM)) - ALIGN_SIZE(strlen(mem_root->name)+ 1 + sizeof(mem_root));
     *prev=next;
     TRASH_MEM(next);
+    memcpy((void*) (next+1), &mem_root, sizeof(mem_root));
+    strmov(((char*) (next+1)) + sizeof(mem_root), mem_root->name);
   }
 
   point= (uchar*) ((char*) next+ (next->size-next->left));
@@ -347,8 +354,10 @@ static inline void mark_blocks_free(MEM_ROOT* root)
   last= &root->free;
   for (next= root->free; next; next= *(last= &next->next))
   {
-    next->left= next->size - ALIGN_SIZE(sizeof(USED_MEM));
+    next->left= next->size - ALIGN_SIZE(sizeof(USED_MEM)) - ALIGN_SIZE(strlen(root->name)+ 1 + sizeof(root));
     TRASH_MEM(next);
+    memcpy((void*) (next+1), &root, sizeof(root));
+    strmov(((char*) (next+1)) + sizeof(root), root->name);
   }
 
   /* Combine the free and the used list */
@@ -357,8 +366,10 @@ static inline void mark_blocks_free(MEM_ROOT* root)
   /* now go through the used blocks and mark them free */
   for (; next; next= next->next)
   {
-    next->left= next->size - ALIGN_SIZE(sizeof(USED_MEM));
+    next->left= next->size - ALIGN_SIZE(sizeof(USED_MEM)) - ALIGN_SIZE(strlen(root->name)+ 1 + sizeof(root));
     TRASH_MEM(next);
+    memcpy((void*) (next+1), &root, sizeof(root));
+    strmov(((char*) (next+1)) + sizeof(root), root->name);
   }
 
   /* Now everything is set; Indicate that nothing is used anymore */
@@ -431,8 +442,10 @@ void free_root(MEM_ROOT *root, myf MyFlags)
   if (root->pre_alloc)
   {
     root->free=root->pre_alloc;
-    root->free->left=root->pre_alloc->size-ALIGN_SIZE(sizeof(USED_MEM));
+    root->free->left=root->pre_alloc->size-ALIGN_SIZE(sizeof(USED_MEM)) - ALIGN_SIZE(strlen(root->name)+ 1 + sizeof(root));
     TRASH_MEM(root->pre_alloc);
+    memcpy((void*) (root->free+1), &root, sizeof(root));
+    strmov(((char*) (root->free+1)) + sizeof(root), root->name);
     root->free->next=0;
   }
   root->block_num= 4;
