@@ -3,7 +3,7 @@
 path=`dirname $0`
 . "$path/SETUP.sh"
 
-extra_flags="$pentium64_cflags $fast_cflags"
+extra_flags="$pentium64_cflags $fast_cflags -DDBUG_ASSERT_AS_PRINTF -g"
 # On CentOS/Fedora Core 10 amd64, there is system libz.so but not
 # libz.a, so need to use bundled zlib when building static
 # binary. Hence we use --with-zlib-dir=bundled

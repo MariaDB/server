@@ -261,7 +261,8 @@ void thr_end_alarm(thr_alarm_t *alarmed)
   alarm_data= (ALARM*) ((uchar*) *alarmed - offsetof(ALARM,alarmed));
   mysql_mutex_lock(&LOCK_alarm);
   DBUG_ASSERT(alarm_data->index_in_queue != 0);
-  DBUG_ASSERT(queue_element(&alarm_queue, alarm_data->index_in_queue) ==
+  DBUG_ASSERT((ALARM*) queue_element(&alarm_queue,
+                                     alarm_data->index_in_queue) ==
               alarm_data);
   queue_remove(&alarm_queue, alarm_data->index_in_queue);
   mysql_mutex_unlock(&LOCK_alarm);

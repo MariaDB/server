@@ -5719,7 +5719,7 @@ bool LEX::sp_for_loop_condition(THD *thd, const Lex_for_loop_st &loop)
                            &src->name, src->offset, src->type_handler());
     if (args[i] == NULL)
       return true;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     args[i]->m_sp= sphead;
 #endif
   }
@@ -5854,7 +5854,7 @@ bool LEX::sp_for_loop_increment(THD *thd, const Lex_for_loop_st &loop)
                       loop.m_index->type_handler());
   if (splocal == NULL)
     return true;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   splocal->m_sp= sphead;
 #endif
   Item_int *inc= new (thd->mem_root) Item_int(thd, loop.m_direction);
@@ -6715,7 +6715,7 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
                                        pos.pos(), pos.length())))
       return NULL;
   }
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   item->m_sp= sphead;
 #endif
   safe_to_cache_query=0;
@@ -6900,7 +6900,7 @@ Item *LEX::create_item_limit(THD *thd,
                                                spv->offset, spv->type_handler(),
                                                pos.pos(), pos.length())))
     return NULL;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   item->m_sp= sphead;
 #endif
   safe_to_cache_query= 0;
@@ -7026,7 +7026,7 @@ Item *LEX::create_item_ident_sp(THD *thd, LEX_CSTRING *name,
                                        pos.pos(), pos.length());
     if (splocal == NULL)
       return NULL;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
     splocal->m_sp= sphead;
 #endif
     safe_to_cache_query= 0;

@@ -2637,7 +2637,7 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
     {
       Item_splocal *splocal= new (thd->mem_root)
         Item_splocal(thd, rh, &name, spv->offset, spv->type_handler(), 0);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
       if (splocal)
         splocal->m_sp= lex->sphead;
 #endif

@@ -2205,7 +2205,6 @@ void _db_flush_()
   }
 }
 
-
 #ifndef __WIN__
 void _db_suicide_()
 {
@@ -2259,3 +2258,23 @@ int i_am_a_dummy_function() {
 }
 
 #endif /* DBUG_OFF */
+
+/*
+  This function is called by default on DBUG_ASSERT() when compiled with
+  DBUG_ASSERT_AS_PRINTF
+*/
+
+#ifdef DBUG_ASSERT_AS_PRINTF
+
+static void default_my_dbug_assert_failed(const char *assert_expr,
+                                          const char *file,
+                                          unsigned long line)
+{
+  fprintf(stderr, "Warning: assertion failed: %s at %s line %lu\n",
+          assert_expr, file, line);
+}
+
+void (*my_dbug_assert_failed)(const char *assert_expr, const char* file,
+                              unsigned long line)= default_my_dbug_assert_failed;
+
+#endif /* DBUG_ASSERT_AS_PRINTF */

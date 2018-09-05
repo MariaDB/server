@@ -493,10 +493,10 @@ struct OSMutex {
 	}
 
 private:
-#ifdef UNIV_DEBUG
+#ifdef DBUG_ASSERT_EXISTS
 	/** true if the mutex has been freed/destroyed. */
 	bool			m_freed;
-#endif /* UNIV_DEBUG */
+#endif /* DBUG_ASSERT_EXISTS */
 
 	sys_mutex_t		m_mutex;
 };

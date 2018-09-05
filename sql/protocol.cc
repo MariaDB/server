@@ -1235,7 +1235,7 @@ bool Protocol_text::store(Field *field)
   char buff[MAX_FIELD_WIDTH];
   String str(buff,sizeof(buff), &my_charset_bin);
   CHARSET_INFO *tocs= this->thd->variables.character_set_results;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   TABLE *table= field->table;
   my_bitmap_map *old_map= 0;
   if (table->file)
@@ -1243,7 +1243,7 @@ bool Protocol_text::store(Field *field)
 #endif
 
   field->val_str(&str);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   if (old_map)
     dbug_tmp_restore_column_map(table->read_set, old_map);
 #endif

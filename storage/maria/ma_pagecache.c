@@ -2044,7 +2044,7 @@ restart:
         DBUG_ASSERT(block->rlocks_queue == 0);
         DBUG_ASSERT(block->pins == 0);
         block->status= 0;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
         block->type= PAGECACHE_EMPTY_PAGE;
 #endif
         DBUG_ASSERT(reg_req);
@@ -2187,7 +2187,7 @@ restart:
           block->last_hit_time= 0;
           block->status= error ? PCBLOCK_ERROR : 0;
           block->error=  error ? (int16) my_errno : 0;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
           block->type= PAGECACHE_EMPTY_PAGE;
           if (error)
             my_debug_put_break_here();
@@ -4274,7 +4274,7 @@ static my_bool free_block(PAGECACHE *pagecache, PAGECACHE_BLOCK_LINK *block,
   DBUG_ASSERT(block->requests >= 1);
   DBUG_ASSERT(block->next_used == NULL);
   block->status= 0;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   block->type= PAGECACHE_EMPTY_PAGE;
 #endif
   block->rec_lsn= LSN_MAX;
@@ -4781,10 +4781,8 @@ restart:
       wqueue_release_queue(&us_flusher.flush_queue);
   }
 
-#ifndef DBUG_OFF
   DBUG_EXECUTE("check_pagecache",
                test_key_cache(pagecache, "end of flush_pagecache_blocks", 0););
-#endif
   if (cache != cache_buff)
     my_free(cache);
   if (rc != 0)

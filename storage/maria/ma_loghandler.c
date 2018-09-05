@@ -3010,7 +3010,7 @@ restart:
     if (cmp_translog_addr(addr, in_buffers) >= 0)
     {
       uint16 buffer_no= log_descriptor.bc.buffer_no;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
       uint16 buffer_start= buffer_no;
 #endif
       struct st_translog_buffer *buffer_unlock= log_descriptor.bc.buffer;
@@ -6228,7 +6228,7 @@ my_bool translog_write_record(LSN *lsn,
   DBUG_ASSERT(translog_status == TRANSLOG_OK ||
               translog_status == TRANSLOG_READONLY);
   DBUG_ASSERT(type != 0);
-  DBUG_ASSERT((uint)type <= max_allowed_translog_type);
+  DBUG_SLOW_ASSERT((uint)type <= max_allowed_translog_type);
   if (unlikely(translog_status != TRANSLOG_OK))
   {
     DBUG_PRINT("error", ("Transaction log is write protected"));

@@ -4357,17 +4357,17 @@ prepare_inplace_alter_table_dict(
 	ctx = static_cast<ha_innobase_inplace_ctx*>
 		(ha_alter_info->handler_ctx);
 
-	DBUG_ASSERT((ctx->add_autoinc != ULINT_UNDEFINED)
+	DBUG_SLOW_ASSERT((ctx->add_autoinc != ULINT_UNDEFINED)
 		    == (ctx->sequence.m_max_value > 0));
-	DBUG_ASSERT(!ctx->num_to_drop_index == !ctx->drop_index);
-	DBUG_ASSERT(!ctx->num_to_drop_fk == !ctx->drop_fk);
-	DBUG_ASSERT(!add_fts_doc_id || add_fts_doc_id_idx);
-	DBUG_ASSERT(!add_fts_doc_id_idx
+	DBUG_SLOW_ASSERT(!ctx->num_to_drop_index == !ctx->drop_index);
+	DBUG_SLOW_ASSERT(!ctx->num_to_drop_fk == !ctx->drop_fk);
+	DBUG_SLOW_ASSERT(!add_fts_doc_id || add_fts_doc_id_idx);
+	DBUG_SLOW_ASSERT(!add_fts_doc_id_idx
 		    || innobase_fulltext_exist(altered_table));
-	DBUG_ASSERT(!ctx->add_cols);
-	DBUG_ASSERT(!ctx->add_index);
-	DBUG_ASSERT(!ctx->add_key_numbers);
-	DBUG_ASSERT(!ctx->num_to_add_index);
+	DBUG_SLOW_ASSERT(!ctx->add_cols);
+	DBUG_SLOW_ASSERT(!ctx->add_index);
+	DBUG_SLOW_ASSERT(!ctx->add_key_numbers);
+	DBUG_SLOW_ASSERT(!ctx->num_to_add_index);
 
 	user_table = ctx->new_table;
 

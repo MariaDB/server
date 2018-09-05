@@ -6359,7 +6359,7 @@ bool Format_description_log_event::write()
     FD_queue checksum_alg value.
   */
   compile_time_assert(BINLOG_CHECKSUM_ALG_DESC_LEN == 1);
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   data_written= 0; // to prepare for need_checksum assert
 #endif
   uint8 checksum_byte= (uint8)

@@ -73,7 +73,7 @@ KEY_CREATE_INFO default_key_create_info=
 ulong total_ha= 0;
 /* number of storage engines (from handlertons[]) that support 2pc */
 ulong total_ha_2pc= 0;
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
 /*
   Number of non-mandatory 2pc handlertons whose initialization failed
   to estimate total_ha_2pc value under supposition of the failures
@@ -660,7 +660,7 @@ err_deinit:
     (void) plugin->plugin->deinit(NULL);
           
 err:
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
   if (hton->prepare && hton->state == SHOW_OPTION_YES)
     failed_ha_2pc++;
 #endif

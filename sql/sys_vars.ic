@@ -612,7 +612,7 @@ public:
      /* parse and feel list with default values */
      if (thd)
      {
-#ifndef DBUG_OFF
+#ifdef DBUG_ASSERT_EXISTS
        bool res=
 #endif
          sysvartrack_validate_value(thd,

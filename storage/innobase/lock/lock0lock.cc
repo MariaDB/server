@@ -1814,7 +1814,7 @@ lock_queue_validate(
 	hash_table_t*		hash;
 	hash_cell_t*		cell;
 	lock_t*				next;
-	bool				wait_lock = false;
+	bool				wait_lock __attribute__((unused))= false;
 
 	if (in_lock == NULL) {
 		return true;

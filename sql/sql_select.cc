@@ -3360,7 +3360,7 @@ void JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
     If there is SELECT in this statemet with the same number it must be the
     same SELECT
   */
-  DBUG_ASSERT(select_lex->select_number == UINT_MAX ||
+  DBUG_SLOW_ASSERT(select_lex->select_number == UINT_MAX ||
               select_lex->select_number == INT_MAX ||
               !output ||
               !output->get_select(select_lex->select_number) ||
