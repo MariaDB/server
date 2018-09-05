@@ -55,12 +55,10 @@
 /** Configuration. */
 ulong tdc_size; /**< Table definition cache threshold for LRU eviction. */
 ulong tc_size; /**< Table cache threshold for LRU eviction. */
-ulong tc_instances;
 
 /** Data collections. */
 static LF_HASH tdc_hash; /**< Collection of TABLE_SHARE objects. */
 /** Collection of unused TABLE_SHARE objects. */
-static
 I_P_List <TDC_element,
           I_P_List_adapter<TDC_element, &TDC_element::next, &TDC_element::prev>,
           I_P_List_null_counter,
@@ -68,6 +66,8 @@ I_P_List <TDC_element,
 
 static tdc_version_t tdc_version;  /* Increments on each reload */
 static bool tdc_inited;
+
+static int32 tc_count; /**< Number of TABLE objects in table cache. */
 
 
 /**
@@ -81,13 +81,11 @@ static bool tdc_inited;
 static mysql_mutex_t LOCK_unused_shares;
 
 #ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key key_LOCK_unused_shares, key_TABLE_SHARE_LOCK_table_share,
-                     key_LOCK_table_cache;
+static PSI_mutex_key key_LOCK_unused_shares, key_TABLE_SHARE_LOCK_table_share;
 static PSI_mutex_info all_tc_mutexes[]=
 {
   { &key_LOCK_unused_shares, "LOCK_unused_shares", PSI_FLAG_GLOBAL },
-  { &key_TABLE_SHARE_LOCK_table_share, "TABLE_SHARE::tdc.LOCK_table_share", 0 },
-  { &key_LOCK_table_cache, "LOCK_table_cache", 0 }
+  { &key_TABLE_SHARE_LOCK_table_share, "TABLE_SHARE::tdc.LOCK_table_share", 0 }
 };
 
 static PSI_cond_key key_TABLE_SHARE_COND_release;
@@ -95,6 +93,19 @@ static PSI_cond_info all_tc_conds[]=
 {
   { &key_TABLE_SHARE_COND_release, "TABLE_SHARE::tdc.COND_release", 0 }
 };
+
+
+static void init_tc_psi_keys(void)
+{
+  const char *category= "sql";
+  int count;
+
+  count= array_elements(all_tc_mutexes);
+  mysql_mutex_register(category, all_tc_mutexes, count);
+
+  count= array_elements(all_tc_conds);
+  mysql_cond_register(category, all_tc_conds, count);
+}
 #endif
 
 
@@ -114,47 +125,23 @@ static int fix_thd_pins(THD *thd)
   part of table definition cache.
 */
 
-struct Table_cache_instance
-{
-  /**
-    Protects free_tables (TABLE::global_free_next and TABLE::global_free_prev),
-    records, Share_free_tables::List (TABLE::prev and TABLE::next),
-    TABLE::in_use.
-  */
-  mysql_mutex_t LOCK_table_cache;
-  I_P_List <TABLE, I_P_List_adapter<TABLE, &TABLE::global_free_next,
-                                    &TABLE::global_free_prev>,
-            I_P_List_null_counter, I_P_List_fast_push_back<TABLE> >
-    free_tables;
-  ulong records;
-  /** Avoid false sharing between instances */
-  char pad[CPU_LEVEL1_DCACHE_LINESIZE];
-
-  Table_cache_instance(): records(0)
-  {
-    mysql_mutex_init(key_LOCK_table_cache, &LOCK_table_cache,
-                     MY_MUTEX_INIT_FAST);
-  }
-
-  ~Table_cache_instance()
-  {
-    mysql_mutex_destroy(&LOCK_table_cache);
-    DBUG_ASSERT(free_tables.is_empty());
-    DBUG_ASSERT(records == 0);
-  }
-};
-
-
-static Table_cache_instance *tc;
-
-
 static void intern_close_table(TABLE *table)
 {
+  DBUG_ENTER("intern_close_table");
+  DBUG_PRINT("tcache", ("table: '%s'.'%s' 0x%lx",
+                        table->s ? table->s->db.str : "?",
+                        table->s ? table->s->table_name.str : "?",
+                        (long) table));
+
   delete table->triggers;
-  DBUG_ASSERT(table->file);
-  closefrm(table);
-  tdc_release_share(table->s);
+  if (table->file)                              // Not true if placeholder
+  {
+    (void) closefrm(table);
+    tdc_release_share(table->s);
+  }
+  table->alias.free();
   my_free(table);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -164,38 +151,41 @@ static void intern_close_table(TABLE *table)
 
 uint tc_records(void)
 {
-  ulong total= 0;
-  for (ulong i= 0; i < tc_instances; i++)
-  {
-    mysql_mutex_lock(&tc[i].LOCK_table_cache);
-    total+= tc[i].records;
-    mysql_mutex_unlock(&tc[i].LOCK_table_cache);
-  }
-  return total;
+  return my_atomic_load32_explicit(&tc_count, MY_MEMORY_ORDER_RELAXED);
+}
+
+
+/**
+  Wait for MDL deadlock detector to complete traversing tdc.all_tables.
+
+  Must be called before updating TABLE_SHARE::tdc.all_tables.
+*/
+
+static void tc_wait_for_mdl_deadlock_detector(TDC_element *element)
+{
+  while (element->all_tables_refs)
+    mysql_cond_wait(&element->COND_release, &element->LOCK_table_share);
 }
 
 
 /**
   Remove TABLE object from table cache.
+
+  - decrement tc_count
+  - remove object from TABLE_SHARE::tdc.all_tables
 */
 
 static void tc_remove_table(TABLE *table)
 {
-  TDC_element *element= table->s->tdc;
-
-  mysql_mutex_lock(&element->LOCK_table_share);
-  /* Wait for MDL deadlock detector to complete traversing tdc.all_tables. */
-  while (element->all_tables_refs)
-    mysql_cond_wait(&element->COND_release, &element->LOCK_table_share);
-  element->all_tables.remove(table);
-  mysql_mutex_unlock(&element->LOCK_table_share);
-
-  intern_close_table(table);
+  mysql_mutex_assert_owner(&table->s->tdc->LOCK_table_share);
+  tc_wait_for_mdl_deadlock_detector(table->s->tdc);
+  my_atomic_add32_explicit(&tc_count, -1, MY_MEMORY_ORDER_RELAXED);
+  table->s->tdc->all_tables.remove(table);
 }
 
 
 static void tc_remove_all_unused_tables(TDC_element *element,
-                                        Share_free_tables::List *purge_tables,
+                                        TDC_element::TABLE_list *purge_tables,
                                         bool mark_flushed)
 {
   TABLE *table;
@@ -210,18 +200,10 @@ static void tc_remove_all_unused_tables(TDC_element *element,
   */
   if (mark_flushed)
     element->flushed= true;
-  for (ulong i= 0; i < tc_instances; i++)
+  while ((table= element->free_tables.pop_front()))
   {
-    mysql_mutex_lock(&tc[i].LOCK_table_cache);
-    while ((table= element->free_tables[i].list.pop_front()))
-    {
-      tc[i].records--;
-      tc[i].free_tables.remove(table);
-      DBUG_ASSERT(element->all_tables_refs == 0);
-      element->all_tables.remove(table);
-      purge_tables->push_front(table);
-    }
-    mysql_mutex_unlock(&tc[i].LOCK_table_cache);
+    tc_remove_table(table);
+    purge_tables->push_front(table);
   }
 }
 
@@ -243,7 +225,7 @@ static void tc_remove_all_unused_tables(TDC_element *element,
 
 struct tc_purge_arg
 {
-  Share_free_tables::List purge_tables;
+  TDC_element::TABLE_list purge_tables;
   bool mark_flushed;
 };
 
@@ -270,6 +252,20 @@ void tc_purge(bool mark_flushed)
 
 
 /**
+  Get last element of free_tables.
+*/
+
+static TABLE *tc_free_tables_back(TDC_element *element)
+{
+  TDC_element::TABLE_list::Iterator it(element->free_tables);
+  TABLE *entry, *last= 0;
+   while ((entry= it++))
+     last= entry;
+  return last;
+}
+
+
+/**
   Add new TABLE object to table cache.
 
   @pre TABLE object is used by caller.
@@ -285,33 +281,79 @@ void tc_purge(bool mark_flushed)
   - free evicted object
 */
 
+struct tc_add_table_arg
+{
+  char key[MAX_DBKEY_LENGTH];
+  uint key_length;
+  ulonglong purge_time;
+};
+
+
+static my_bool tc_add_table_callback(TDC_element *element, tc_add_table_arg *arg)
+{
+  TABLE *table;
+
+  mysql_mutex_lock(&element->LOCK_table_share);
+  if ((table= tc_free_tables_back(element)) && table->tc_time < arg->purge_time)
+  {
+    memcpy(arg->key, element->m_key, element->m_key_length);
+    arg->key_length= element->m_key_length;
+    arg->purge_time= table->tc_time;
+  }
+  mysql_mutex_unlock(&element->LOCK_table_share);
+  return FALSE;
+}
+
+
 void tc_add_table(THD *thd, TABLE *table)
 {
-  ulong i= thd->thread_id % tc_instances;
-  TABLE *LRU_table= 0;
-  TDC_element *element= table->s->tdc;
-
+  bool need_purge;
   DBUG_ASSERT(table->in_use == thd);
-  mysql_mutex_lock(&element->LOCK_table_share);
-  /* Wait for MDL deadlock detector to complete traversing tdc.all_tables. */
-  while (element->all_tables_refs)
-    mysql_cond_wait(&element->COND_release, &element->LOCK_table_share);
-  element->all_tables.push_front(table);
-  mysql_mutex_unlock(&element->LOCK_table_share);
+  mysql_mutex_lock(&table->s->tdc->LOCK_table_share);
+  tc_wait_for_mdl_deadlock_detector(table->s->tdc);
+  table->s->tdc->all_tables.push_front(table);
+  mysql_mutex_unlock(&table->s->tdc->LOCK_table_share);
 
-  mysql_mutex_lock(&tc[i].LOCK_table_cache);
-  if (tc[i].records == tc_size && (LRU_table= tc[i].free_tables.pop_front()))
+  /* If we have too many TABLE instances around, try to get rid of them */
+  need_purge= my_atomic_add32_explicit(&tc_count, 1, MY_MEMORY_ORDER_RELAXED) >=
+              (int32) tc_size;
+
+  if (need_purge)
   {
-    LRU_table->s->tdc->free_tables[i].list.remove(LRU_table);
-    /* Needed if MDL deadlock detector chimes in before tc_remove_table() */
-    LRU_table->in_use= thd;
-  }
-  else
-    tc[i].records++;
-  mysql_mutex_unlock(&tc[i].LOCK_table_cache);
+    tc_add_table_arg argument;
+    argument.purge_time= ULONGLONG_MAX;
+    tdc_iterate(thd, (my_hash_walk_action) tc_add_table_callback, &argument);
 
-  if (LRU_table)
-    tc_remove_table(LRU_table);
+    if (argument.purge_time != ULONGLONG_MAX)
+    {
+      TDC_element *element= (TDC_element*) lf_hash_search(&tdc_hash,
+                                                          thd->tdc_hash_pins,
+                                                          argument.key,
+                                                          argument.key_length);
+      if (element)
+      {
+        TABLE *entry;
+        mysql_mutex_lock(&element->LOCK_table_share);
+        lf_hash_search_unpin(thd->tdc_hash_pins);
+
+        /*
+          It may happen that oldest table was acquired meanwhile. In this case
+          just go ahead, number of objects in table cache will normalize
+          eventually.
+        */
+        if ((entry= tc_free_tables_back(element)) &&
+            entry->tc_time == argument.purge_time)
+        {
+          element->free_tables.remove(entry);
+          tc_remove_table(entry);
+          mysql_mutex_unlock(&element->LOCK_table_share);
+          intern_close_table(entry);
+        }
+        else
+          mysql_mutex_unlock(&element->LOCK_table_share);
+      }
+    }
+  }
 }
 
 
@@ -327,11 +369,10 @@ void tc_add_table(THD *thd, TABLE *table)
 
 static TABLE *tc_acquire_table(THD *thd, TDC_element *element)
 {
-  ulong i= thd->thread_id % tc_instances;
   TABLE *table;
 
-  mysql_mutex_lock(&tc[i].LOCK_table_cache);
-  table= element->free_tables[i].list.pop_front();
+  mysql_mutex_lock(&element->LOCK_table_share);
+  table= element->free_tables.pop_front();
   if (table)
   {
     DBUG_ASSERT(!table->in_use);
@@ -340,9 +381,8 @@ static TABLE *tc_acquire_table(THD *thd, TDC_element *element)
     DBUG_ASSERT(table->db_stat && table->file);
     /* The children must be detached from the table. */
     DBUG_ASSERT(!table->file->extra(HA_EXTRA_IS_ATTACHED_CHILDREN));
-    tc[i].free_tables.remove(table);
   }
-  mysql_mutex_unlock(&tc[i].LOCK_table_cache);
+  mysql_mutex_unlock(&element->LOCK_table_share);
   return table;
 }
 
@@ -373,27 +413,40 @@ static TABLE *tc_acquire_table(THD *thd, TDC_element *element)
     @retval false object released
 */
 
-void tc_release_table(TABLE *table)
+bool tc_release_table(TABLE *table)
 {
-  ulong i= table->in_use->thread_id % tc_instances;
   DBUG_ASSERT(table->in_use);
   DBUG_ASSERT(table->file);
 
-  mysql_mutex_lock(&tc[i].LOCK_table_cache);
-  if (table->needs_reopen() || table->s->tdc->flushed ||
-      tc[i].records > tc_size)
+  if (table->needs_reopen() || tc_records() > tc_size)
   {
-    tc[i].records--;
-    mysql_mutex_unlock(&tc[i].LOCK_table_cache);
-    tc_remove_table(table);
+    mysql_mutex_lock(&table->s->tdc->LOCK_table_share);
+    goto purge;
   }
-  else
-  {
-    table->in_use= 0;
-    table->s->tdc->free_tables[i].list.push_front(table);
-    tc[i].free_tables.push_back(table);
-    mysql_mutex_unlock(&tc[i].LOCK_table_cache);
-  }
+
+  table->tc_time= my_interval_timer();
+
+  mysql_mutex_lock(&table->s->tdc->LOCK_table_share);
+  if (table->s->tdc->flushed)
+    goto purge;
+  /*
+    in_use doesn't really need mutex protection, but must be reset after
+    checking tdc.flushed and before this table appears in free_tables.
+    Resetting in_use is needed only for print_cached_tables() and
+    list_open_tables().
+  */
+  table->in_use= 0;
+  /* Add table to the list of unused TABLE objects for this share. */
+  table->s->tdc->free_tables.push_front(table);
+  mysql_mutex_unlock(&table->s->tdc->LOCK_table_share);
+  return false;
+
+purge:
+  tc_remove_table(table);
+  mysql_mutex_unlock(&table->s->tdc->LOCK_table_share);
+  table->in_use= 0;
+  intern_close_table(table);
+  return true;
 }
 
 
@@ -403,10 +456,7 @@ static void tdc_assert_clean_share(TDC_element *element)
   DBUG_ASSERT(element->ref_count == 0);
   DBUG_ASSERT(element->m_flush_tickets.is_empty());
   DBUG_ASSERT(element->all_tables.is_empty());
-#ifndef DBUG_OFF
-  for (ulong i= 0; i < tc_instances; i++)
-    DBUG_ASSERT(element->free_tables[i].list.is_empty());
-#endif
+  DBUG_ASSERT(element->free_tables.is_empty());
   DBUG_ASSERT(element->all_tables_refs == 0);
   DBUG_ASSERT(element->next == 0);
   DBUG_ASSERT(element->prev == 0);
@@ -477,8 +527,7 @@ static void lf_alloc_constructor(uchar *arg)
   mysql_cond_init(key_TABLE_SHARE_COND_release, &element->COND_release, 0);
   element->m_flush_tickets.empty();
   element->all_tables.empty();
-  for (ulong i= 0; i < tc_instances; i++)
-    element->free_tables[i].list.empty();
+  element->free_tables.empty();
   element->all_tables_refs= 0;
   element->share= 0;
   element->ref_count= 0;
@@ -524,29 +573,23 @@ static uchar *tdc_hash_key(const TDC_element *element, size_t *length,
   Initialize table definition cache.
 */
 
-bool tdc_init(void)
+void tdc_init(void)
 {
   DBUG_ENTER("tdc_init");
 #ifdef HAVE_PSI_INTERFACE
-  mysql_mutex_register("sql", all_tc_mutexes, array_elements(all_tc_mutexes));
-  mysql_cond_register("sql", all_tc_conds, array_elements(all_tc_conds));
+  init_tc_psi_keys();
 #endif
-  /* Extra instance is allocated to avoid false sharing */
-  if (!(tc= new Table_cache_instance[tc_instances + 1]))
-    DBUG_RETURN(true);
   tdc_inited= true;
   mysql_mutex_init(key_LOCK_unused_shares, &LOCK_unused_shares,
                    MY_MUTEX_INIT_FAST);
   tdc_version= 1L;  /* Increments on each reload */
-  lf_hash_init(&tdc_hash, sizeof(TDC_element) +
-                          sizeof(Share_free_tables) * (tc_instances - 1),
-               LF_HASH_UNIQUE, 0, 0,
+  lf_hash_init(&tdc_hash, sizeof(TDC_element), LF_HASH_UNIQUE, 0, 0,
                (my_hash_get_key) tdc_hash_key,
                &my_charset_bin);
   tdc_hash.alloc.constructor= lf_alloc_constructor;
   tdc_hash.alloc.destructor= lf_alloc_destructor;
   tdc_hash.initializer= (lf_hash_initializer) tdc_hash_initializer;
-  DBUG_RETURN(false);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -588,7 +631,6 @@ void tdc_deinit(void)
     tdc_inited= false;
     lf_hash_destroy(&tdc_hash);
     mysql_mutex_destroy(&LOCK_unused_shares);
-    delete [] tc;
   }
   DBUG_VOID_RETURN;
 }
@@ -998,7 +1040,7 @@ bool tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
                       const char *db, const char *table_name,
                       bool kill_delayed_threads)
 {
-  Share_free_tables::List purge_tables;
+  TDC_element::TABLE_list purge_tables;
   TABLE *table;
   TDC_element *element;
   uint my_refs= 1;

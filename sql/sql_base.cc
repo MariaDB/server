@@ -895,7 +895,8 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
     Do this *before* entering the TABLE_SHARE::tdc.LOCK_table_share
     critical section.
   */
-  MYSQL_UNBIND_TABLE(table->file);
+  if (table->file != NULL)
+    MYSQL_UNBIND_TABLE(table->file);
 
   tc_release_table(table);
   DBUG_VOID_RETURN;

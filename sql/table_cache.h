@@ -18,14 +18,6 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 
-struct Share_free_tables
-{
-  typedef I_P_List <TABLE, TABLE_share> List;
-  List list;
-  /** Avoid false sharing between instances */
-  char pad[CPU_LEVEL1_DCACHE_LINESIZE];
-};
-
 typedef int64 tdc_version_t;
 #define TDC_VERSION_MAX INT_MAX64
 
@@ -37,8 +29,10 @@ struct TDC_element
   bool flushed;
   TABLE_SHARE *share;
 
+  typedef I_P_List <TABLE, TABLE_share> TABLE_list;
   /**
-    Protects ref_count, m_flush_tickets, all_tables, flushed, all_tables_refs.
+    Protects ref_count, m_flush_tickets, all_tables, free_tables, flushed,
+    all_tables_refs.
   */
   mysql_mutex_t LOCK_table_share;
   mysql_cond_t COND_release;
@@ -54,9 +48,7 @@ struct TDC_element
     for this share.
   */
   All_share_tables_list all_tables;
-  /** Avoid false sharing between TDC_element and free_tables */
-  char pad[CPU_LEVEL1_DCACHE_LINESIZE];
-  Share_free_tables free_tables[1];
+  TABLE_list free_tables;
 };
 
 
@@ -70,9 +62,8 @@ enum enum_tdc_remove_table_type
 
 extern ulong tdc_size;
 extern ulong tc_size;
-extern ulong tc_instances;
 
-extern bool tdc_init(void);
+extern void tdc_init(void);
 extern void tdc_start_shutdown(void);
 extern void tdc_deinit(void);
 extern ulong tdc_records(void);
@@ -100,7 +91,7 @@ extern int tdc_iterate(THD *thd, my_hash_walk_action action, void *argument,
 extern uint tc_records(void);
 extern void tc_purge(bool mark_flushed= false);
 extern void tc_add_table(THD *thd, TABLE *table);
-extern void tc_release_table(TABLE *table);
+extern bool tc_release_table(TABLE *table);
 
 /**
   Create a table cache key for non-temporary table.

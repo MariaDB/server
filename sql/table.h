@@ -1044,13 +1044,13 @@ private:
      One should use methods of I_P_List template instead.
   */
   TABLE *share_all_next, **share_all_prev;
-  TABLE *global_free_next, **global_free_prev;
   friend struct All_share_tables;
-  friend struct Table_cache_instance;
 
 public:
 
   THD	*in_use;                        /* Which thread uses this */
+  /* Time when table was released to table cache. Valid for unused tables. */
+  ulonglong tc_time;
 
   uchar *record[2];			/* Pointer to records */
   uchar *write_row_record;		/* Used as optimisation in
