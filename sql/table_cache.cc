@@ -55,7 +55,7 @@
 /** Configuration. */
 ulong tdc_size; /**< Table definition cache threshold for LRU eviction. */
 ulong tc_size; /**< Table cache threshold for LRU eviction. */
-uint32 tc_instances;
+ulong tc_instances;
 static uint32 tc_active_instances= 1;
 static uint32 tc_contention_warning_reported;
 
@@ -172,9 +172,8 @@ struct Table_cache_instance
       {
         if (n_instances < tc_instances)
         {
-          if (my_atomic_cas32_weak_explicit((int32*) &tc_active_instances,
-                                            (int32*) &n_instances,
-                                            (int32) n_instances + 1,
+          if (my_atomic_cas32_weak_explicit(&tc_active_instances, &n_instances,
+                                            n_instances + 1,
                                             MY_MEMORY_ORDER_RELAXED,
                                             MY_MEMORY_ORDER_RELAXED))
           {
@@ -187,8 +186,8 @@ struct Table_cache_instance
                                   n_instances + 1);
           }
         }
-        else if (!my_atomic_fas32_explicit((int32) &tc_contention_warning_reported,
-                                           1, MY_MEMORY_ORDER_RELAXED))
+        else if (!my_atomic_fas32_explicit(&tc_contention_warning_reported, 1,
+                                           MY_MEMORY_ORDER_RELAXED))
         {
           sql_print_warning("Detected table cache mutex contention at instance %d: "
                             "%d%% waits. Additional table cache instance "
@@ -354,8 +353,7 @@ void tc_purge(bool mark_flushed)
 
 void tc_add_table(THD *thd, TABLE *table)
 {
-  uint32 i= thd->thread_id % my_atomic_load32_explicit((int32*) &tc_active_instances,
-                                                       MY_MEMORY_ORDER_RELAXED);
+  uint32 i= thd->thread_id % my_atomic_load32_explicit(&tc_active_instances, MY_MEMORY_ORDER_RELAXED);
   TABLE *LRU_table= 0;
   TDC_element *element= table->s->tdc;
 
@@ -397,8 +395,7 @@ void tc_add_table(THD *thd, TABLE *table)
 static TABLE *tc_acquire_table(THD *thd, TDC_element *element)
 {
   uint32 n_instances=
-    my_atomic_load32_explicit((int32*) &tc_active_instances,
-                              MY_MEMORY_ORDER_RELAXED);
+    my_atomic_load32_explicit(&tc_active_instances, MY_MEMORY_ORDER_RELAXED);
   uint32 i= thd->thread_id % n_instances;
   TABLE *table;
 
