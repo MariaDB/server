@@ -9095,6 +9095,17 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       new_table->file->get_foreign_key_list(thd, &fk_list);
       while ((fk= fk_list_it++))
       {
+        if (lower_case_table_names)
+        {
+         char buf[NAME_LEN];
+         uint len;
+         strmake_buf(buf, fk->referenced_db->str);
+         len = my_casedn_str(files_charset_info, buf);
+         thd->make_lex_string(fk->referenced_db, buf, len);
+         strmake_buf(buf, fk->referenced_table->str);
+         len = my_casedn_str(files_charset_info, buf);
+         thd->make_lex_string(fk->referenced_table, buf, len);
+        }
         if (table_already_fk_prelocked(table_list, fk->referenced_db,
                                        fk->referenced_table, TL_READ_NO_INSERT))
           continue;
