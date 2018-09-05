@@ -410,6 +410,7 @@ void TABLE_SHARE::destroy()
     ha_share= NULL;                             // Safety
   }
 
+  delete_stat_values_for_table_share(this);
   free_root(&stats_cb.mem_root, MYF(0));
   stats_cb.stats_can_be_read= FALSE;
   stats_cb.stats_is_read= FALSE;

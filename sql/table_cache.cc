@@ -52,7 +52,6 @@
 #include "hash.h"
 #include "table.h"
 #include "sql_base.h"
-#include "sql_statistics.h"
 
 /** Configuration. */
 ulong tdc_size; /**< Table definition cache threshold for LRU eviction. */
@@ -870,7 +869,6 @@ void tdc_release_share(TABLE_SHARE *share)
   mysql_mutex_lock(&share->tdc.LOCK_table_share);
   if (share->tdc.flushed)
   {
-    delete_stat_values_for_table_share(share);
     mysql_mutex_unlock(&share->tdc.LOCK_table_share);
     mysql_mutex_unlock(&LOCK_unused_shares);
     tdc_delete_share_from_hash(share);
