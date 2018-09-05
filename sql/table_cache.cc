@@ -187,7 +187,7 @@ struct Table_cache_instance
                                   n_instances + 1);
           }
         }
-        else if (!my_atomic_fas32_explicit((int32*) &tc_contention_warning_reported,
+        else if (!my_atomic_fas32_explicit((int32) &tc_contention_warning_reported,
                                            1, MY_MEMORY_ORDER_RELAXED))
         {
           sql_print_warning("Detected table cache mutex contention at instance %d: "
