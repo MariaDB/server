@@ -56,8 +56,6 @@
 ulong tdc_size; /**< Table definition cache threshold for LRU eviction. */
 ulong tc_size; /**< Table cache threshold for LRU eviction. */
 ulong tc_instances;
-static uint32 tc_active_instances= 1;
-static uint32 tc_contention_warning_reported;
 
 /** Data collections. */
 static LF_HASH tdc_hash; /**< Collection of TABLE_SHARE objects. */
@@ -129,12 +127,10 @@ struct Table_cache_instance
             I_P_List_null_counter, I_P_List_fast_push_back<TABLE> >
     free_tables;
   ulong records;
-  uint mutex_waits;
-  uint mutex_nowaits;
   /** Avoid false sharing between instances */
   char pad[CPU_LEVEL1_DCACHE_LINESIZE];
 
-  Table_cache_instance(): records(0), mutex_waits(0), mutex_nowaits(0)
+  Table_cache_instance(): records(0)
   {
     mysql_mutex_init(key_LOCK_table_cache, &LOCK_table_cache,
                      MY_MUTEX_INIT_FAST);
@@ -145,68 +141,6 @@ struct Table_cache_instance
     mysql_mutex_destroy(&LOCK_table_cache);
     DBUG_ASSERT(free_tables.is_empty());
     DBUG_ASSERT(records == 0);
-  }
-
-  /**
-    Lock table cache mutex and check contention.
-
-    Instance is considered contested if more than 20% of mutex acquisiotions
-    can't be served immediately. Up to 100 000 probes may be performed to avoid
-    instance activation on short sporadic peaks. 100 000 is estimated maximum
-    number of queries one instance can serve in one second.
-
-    These numbers work well on a 2 socket / 20 core / 40 threads Intel Broadwell
-    system, that is expected number of instances is activated within reasonable
-    warmup time. It may have to be adjusted for other systems.
-
-    Only TABLE object acquistion is instrumented. We intentionally avoid this
-    overhead on TABLE object release. All other table cache mutex acquistions
-    are considered out of hot path and are not instrumented either.
-  */
-  void lock_and_check_contention(uint32 n_instances, uint32 instance)
-  {
-    if (mysql_mutex_trylock(&LOCK_table_cache))
-    {
-      mysql_mutex_lock(&LOCK_table_cache);
-      if (++mutex_waits == 20000)
-      {
-        if (n_instances < tc_instances)
-        {
-          if (my_atomic_cas32_weak_explicit(&tc_active_instances, &n_instances,
-                                            n_instances + 1,
-                                            MY_MEMORY_ORDER_RELAXED,
-                                            MY_MEMORY_ORDER_RELAXED))
-          {
-            sql_print_information("Detected table cache mutex contention at instance %d: "
-                                  "%d%% waits. Additional table cache instance "
-                                  "activated. Number of instances after "
-                                  "activation: %d.",
-                                  instance + 1,
-                                  mutex_waits * 100 / (mutex_nowaits + mutex_waits),
-                                  n_instances + 1);
-          }
-        }
-        else if (!my_atomic_fas32_explicit(&tc_contention_warning_reported, 1,
-                                           MY_MEMORY_ORDER_RELAXED))
-        {
-          sql_print_warning("Detected table cache mutex contention at instance %d: "
-                            "%d%% waits. Additional table cache instance "
-                            "cannot be activated: consider raising "
-                            "table_open_cache_instances. Number of active "
-                            "instances: %d.",
-                            instance + 1,
-                            mutex_waits * 100 / (mutex_nowaits + mutex_waits),
-                            n_instances);
-        }
-        mutex_waits= 0;
-        mutex_nowaits= 0;
-      }
-    }
-    else if (++mutex_nowaits == 80000)
-    {
-      mutex_waits= 0;
-      mutex_nowaits= 0;
-    }
   }
 };
 
@@ -353,12 +287,11 @@ void tc_purge(bool mark_flushed)
 
 void tc_add_table(THD *thd, TABLE *table)
 {
-  uint32 i= thd->thread_id % my_atomic_load32_explicit(&tc_active_instances, MY_MEMORY_ORDER_RELAXED);
+  ulong i= thd->thread_id % tc_instances;
   TABLE *LRU_table= 0;
   TDC_element *element= table->s->tdc;
 
   DBUG_ASSERT(table->in_use == thd);
-  table->instance= i;
   mysql_mutex_lock(&element->LOCK_table_share);
   /* Wait for MDL deadlock detector to complete traversing tdc.all_tables. */
   while (element->all_tables_refs)
@@ -394,12 +327,10 @@ void tc_add_table(THD *thd, TABLE *table)
 
 static TABLE *tc_acquire_table(THD *thd, TDC_element *element)
 {
-  uint32 n_instances=
-    my_atomic_load32_explicit(&tc_active_instances, MY_MEMORY_ORDER_RELAXED);
-  uint32 i= thd->thread_id % n_instances;
+  ulong i= thd->thread_id % tc_instances;
   TABLE *table;
 
-  tc[i].lock_and_check_contention(n_instances, i);
+  mysql_mutex_lock(&tc[i].LOCK_table_cache);
   table= element->free_tables[i].list.pop_front();
   if (table)
   {
@@ -444,8 +375,7 @@ static TABLE *tc_acquire_table(THD *thd, TDC_element *element)
 
 void tc_release_table(TABLE *table)
 {
-  uint32 i= table->instance;
-  DBUG_ENTER("tc_release_table");
+  ulong i= table->in_use->thread_id % tc_instances;
   DBUG_ASSERT(table->in_use);
   DBUG_ASSERT(table->file);
 
@@ -464,7 +394,6 @@ void tc_release_table(TABLE *table)
     tc[i].free_tables.push_back(table);
     mysql_mutex_unlock(&tc[i].LOCK_table_cache);
   }
-  DBUG_VOID_RETURN;
 }
 
 

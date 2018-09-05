@@ -3231,9 +3231,9 @@ static Sys_var_ulong Sys_table_cache_size(
        ON_UPDATE(fix_table_open_cache));
 
 static Sys_var_ulong Sys_table_cache_instances(
-       "table_open_cache_instances", "Maximum number of table cache instances",
+       "table_open_cache_instances", "The number of table cache instances",
        READ_ONLY GLOBAL_VAR(tc_instances), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 64), DEFAULT(8), BLOCK_SIZE(1));
+       VALID_RANGE(1, 64), DEFAULT(1), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_thread_cache_size(
        "thread_cache_size",

@@ -1050,7 +1050,6 @@ private:
 
 public:
 
-  uint32 instance; /** Table cache instance this TABLE is belonging to */
   THD	*in_use;                        /* Which thread uses this */
 
   uchar *record[2];			/* Pointer to records */
