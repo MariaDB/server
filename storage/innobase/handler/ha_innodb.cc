@@ -3032,6 +3032,16 @@ ha_innobase::~ha_innobase()
 {
 }
 
+static void check_prebuilt_graphs(const row_prebuilt_t* prebuilt)
+{
+	ut_a(!prebuilt->ins_graph
+	     || prebuilt->ins_graph->common.type == QUE_NODE_FORK);
+	ut_a(!prebuilt->upd_graph
+	     || prebuilt->upd_graph->common.type == QUE_NODE_FORK);
+	ut_a(!prebuilt->sel_graph
+	     || prebuilt->sel_graph->common.type == QUE_NODE_FORK);
+}
+
 /*********************************************************************//**
 Updates the user_thd field in a handle and also allocates a new InnoDB
 transaction handle if needed, and updates the transaction fields in the
@@ -3062,6 +3072,7 @@ ha_innobase::update_thd(
 
 	DBUG_ASSERT(m_prebuilt->trx->magic_n == TRX_MAGIC_N);
 	DBUG_ASSERT(m_prebuilt->trx == thd_to_trx(m_user_thd));
+	check_prebuilt_graphs(m_prebuilt);
 
 	DBUG_VOID_RETURN;
 }
@@ -8319,6 +8330,8 @@ ha_innobase::write_row(
 		build_template(true);
 	}
 
+	check_prebuilt_graphs(m_prebuilt);
+
 	innobase_srv_conc_enter_innodb(m_prebuilt);
 
 	/* Execute insert graph that will result in actual insert. */
@@ -9487,6 +9500,8 @@ ha_innobase::index_read(
 		build_template(false);
 	}
 
+	check_prebuilt_graphs(m_prebuilt);
+
 	if (key_ptr != NULL) {
 		/* Convert the search key value to InnoDB format into
 		m_prebuilt->search_tuple */
@@ -9708,6 +9723,7 @@ ha_innobase::change_active_index(
 
 	ut_ad(m_user_thd == ha_thd());
 	ut_a(m_prebuilt->trx == thd_to_trx(m_user_thd));
+	check_prebuilt_graphs(m_prebuilt);
 
 	active_index = keynr;
 
@@ -14749,6 +14765,8 @@ ha_innobase::check(
 
 		build_template(true);
 	}
+
+	check_prebuilt_graphs(m_prebuilt);
 
 	if (dict_table_is_discarded(m_prebuilt->table)) {
 
