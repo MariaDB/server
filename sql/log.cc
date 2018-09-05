@@ -406,49 +406,8 @@ public:
     Cache to store data before copying it to the binary log.
   */
   IO_CACHE cache_log;
-#ifdef WITH_WSREP
-  void wsrep_reset_fragment_base(ulong size)
-  {
-    wsrep_fragment_base = size;
-  }
-
-  void wsrep_reset_fragment_fill(ulong size)
-  {
-    wsrep_fragment_fill = size;
-  }
-
-  void wsrep_reset_SR_trans()
-  {
-    wsrep_reset_fragment_fill(0);
-    wsrep_reset_fragment_base(0);
-  }
-
-  ulong wsrep_get_fragment_fill()
-  {
-    return (wsrep_fragment_fill);
-  }
-
-  void wsrep_append_fill_rate(ulong size)
-  {
-    wsrep_fragment_fill += size;
-  }
-
-  void wsrep_step_fragment_base(ulong size)
-  {
-    wsrep_fragment_base += size;
-  }
-  ulong wsrep_get_fragment_base()
-  {
-    return(wsrep_fragment_base);
-  }
-#endif /* WITH_WSREP */
 
 private:
-#ifdef WITH_WSREP
-  ulong wsrep_fragment_fill;
-  ulong wsrep_fragment_base;
-#endif /* WITH_WSREP */
-
   /*
     Pending binrows event. This event is the event where the rows are currently
     written.
@@ -574,9 +533,6 @@ public:
       using_xa= FALSE;
       last_commit_pos_file[0]= 0;
       last_commit_pos_offset= 0;
-#ifdef WITH_WSREP
-      trx_cache.wsrep_reset_SR_trans();
-#endif /* WITH_WSREP */
     }
   }
 
@@ -2342,7 +2298,7 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
   /* for streaming replication, we  must replicate savepoint rollback so that 
      slaves can maintain SR transactions
    */
-  if (unlikely(thd->wsrep_is_streaming() ||
+  if (unlikely(thd->wsrep_trx().is_streaming() ||
                (trans_has_updated_non_trans_table(thd)) ||
                (thd->variables.option_bits & OPTION_KEEP_LOG)))
 #else
@@ -6020,7 +5976,9 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
   DBUG_PRINT("enter", ("standalone: %d", standalone));
 
 #ifdef WITH_WSREP
-  if (WSREP(thd) && thd->wsrep_trx_meta.gtid.seqno != -1 && wsrep_gtid_mode && !thd->variables.gtid_seq_no)
+  if (WSREP(thd)                               && 
+      (wsrep_thd_trx_seqno(thd) > 0)           &&
+      wsrep_gtid_mode && !thd->variables.gtid_seq_no)
   {
     domain_id= wsrep_gtid_domain_id;
   } else {
@@ -6336,7 +6294,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
   */
   /* applier and replayer can skip writing binlog events */
   if ((WSREP_EMULATE_BINLOG(thd) &&
-       IF_WSREP(thd->wsrep_exec_mode != REPL_RECV, 0)) || is_open())
+       IF_WSREP(thd->wsrep_cs().mode() == wsrep::client_state::m_local, 0)) || is_open())
   {
     my_off_t UNINIT_VAR(my_org_b_tell);
 #ifdef HAVE_REPLICATION
@@ -7754,7 +7712,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
     if (entry->cache_mngr->using_xa && !entry->error)
 #ifdef WITH_WSREP
     {
-      if (WSREP(entry->thd) && entry->thd->wsrep_trx_must_order_commit() &&
+      if (WSREP(entry->thd) &&
           wsrep_before_commit(entry->thd, entry->all))
       {
         return (true);
@@ -7762,7 +7720,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 #endif /* WITH_WSREP */
       run_commit_ordered(entry->thd, entry->all);
 #ifdef WITH_WSREP
-      if (WSREP(entry->thd) && entry->thd->wsrep_trx_must_order_commit())
+      if (WSREP(entry->thd))
       {
         /*
           TODO: Ordered commit should be done after the transaction
@@ -8161,7 +8119,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
         DBUG_EVALUATE_IF("skip_commit_ordered", 0, 1))
 #ifdef WITH_WSREP
     {
-      if (WSREP(current->thd) && current_thd->wsrep_trx_must_order_commit() &&
+      if (WSREP(current->thd) &&
           wsrep_before_commit(current->thd, current->all))
       {
         DBUG_VOID_RETURN;
@@ -8169,7 +8127,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 #endif /* WITH_WSREP */
       run_commit_ordered(current->thd, current->all);
 #ifdef WITH_WSREP
-      if (WSREP(current->thd) && current_thd->wsrep_trx_must_order_commit())
+      if (WSREP(current->thd))
       {
         /*
           TODO: Ordered commit should be done after the transaction
@@ -9024,7 +8982,7 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
     if (cookie)
     {
 #ifdef WITH_WSREP
-      if (WSREP(thd) && thd->wsrep_trx_must_order_commit() &&
+      if (WSREP(thd) &&
           wsrep_before_commit(thd, all))
       {
         return(0);
@@ -9035,7 +8993,7 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
       mysql_mutex_unlock(&LOCK_commit_ordered);
 #ifdef WITH_WSREP
       //if (WSREP(thd) && !thd->wsrep_apply_toi)
-      if (WSREP(thd) && thd->wsrep_trx_must_order_commit())
+      if (WSREP(thd))
       {
         /*
           TODO: Ordered commit should be done after the transaction
@@ -9746,17 +9704,16 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
   if (err)
     DBUG_RETURN(0);
 #ifdef WITH_WSREP
-  if (WSREP(thd) && thd->wsrep_exec_mode != REPL_RECV &&
-      thd->wsrep_trx_must_order_commit() &&
+  if (WSREP(thd) && 
+      thd->wsrep_cs().mode() == wsrep::client_state::m_local &&
       wsrep_before_commit(thd, all))
   {
     return(0);
   }
 #endif /* WITH_WSREP */
 #ifdef WITH_WSREP
-  //if (WSREP(thd) && !thd->wsrep_apply_toi)
-  if (WSREP(thd) && thd->wsrep_exec_mode != REPL_RECV &&
-      thd->wsrep_trx_must_order_commit())
+  if (WSREP(thd) && 
+      thd->wsrep_cs().mode() == wsrep::client_state::m_local)
   {
     /*
       TODO: Ordered commit should be done after the transaction
@@ -10741,13 +10698,13 @@ maria_declare_plugin_end;
 static int wsrep_plugin_init(void *p)
 {
   WSREP_INFO("wsrep_plugin_init()");
-  return wsrep_register_trans_observer(p);
+  return (0);
 }
 
 static int wsrep_plugin_deinit(void *p)
 {
   WSREP_INFO("wsrep_plugin_deinit()");
-  return wsrep_unregister_trans_observer(p);
+  return (0);
 }
 
 struct Mysql_replication wsrep_plugin= {
@@ -10799,101 +10756,6 @@ uint wsrep_get_trans_cache_position(THD *thd)
   return 0;
 }
 
-void wsrep_reset_SR_trans(THD *thd)
-{
-  DBUG_ENTER("wsrep_reset_SR_trans");
-  if (!binlog_hton || !WSREP(thd)) DBUG_VOID_RETURN;
-  thd->wsrep_fragments_sent = 0;
-
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-  if (cache_mngr)
-  {
-    cache_mngr->trx_cache.wsrep_reset_fragment_base(0);
-    cache_mngr->trx_cache.wsrep_reset_fragment_fill(0);
-  }
-  DBUG_VOID_RETURN;
-}
-
-void wsrep_step_fragment_base(THD *thd, ulong size)
-{
-  DBUG_ASSERT(binlog_hton && WSREP(thd) &&
-              thd->variables.wsrep_trx_fragment_size > 0);
-  if (!binlog_hton || !WSREP(thd) ||
-      thd->variables.wsrep_trx_fragment_size == 0) return;
-
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-
-  if (cache_mngr)
-  {
-    cache_mngr->trx_cache.wsrep_step_fragment_base(size);
-  }
-}
-
-ulong wsrep_get_fragment_base(THD *thd)
-{
-  if (!binlog_hton || !WSREP(thd)) return 0;
-
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-
-
-  if (cache_mngr)
-  {
-    return cache_mngr->trx_cache.wsrep_get_fragment_base();
-  }
-  return 0;
-}
-void wsrep_append_fill_rate(THD *thd, ulong size)
-{
-  DBUG_ASSERT(binlog_hton && WSREP(thd) &&
-              thd->variables.wsrep_trx_fragment_size > 0);
-  if (!binlog_hton || !WSREP(thd) ||
-      thd->variables.wsrep_trx_fragment_size == 0) return;
-
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-
-  if (cache_mngr)
-  {
-    cache_mngr->trx_cache.wsrep_append_fill_rate(size);
-  }
-}
-
-void wsrep_reset_fragment_fill(THD *thd, ulong size)
-{
-  DBUG_ASSERT(binlog_hton && WSREP(thd) &&
-              thd->variables.wsrep_trx_fragment_size > 0);
-  if (!binlog_hton || !WSREP(thd) ||
-      thd->variables.wsrep_trx_fragment_size == 0) return;
-
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-
-  if (cache_mngr)
-  {
-    cache_mngr->trx_cache.wsrep_reset_fragment_fill(size);
-  }
-}
-
-ulong wsrep_get_fragment_fill(THD *thd)
-{
-  DBUG_ASSERT(binlog_hton && WSREP(thd) &&
-              thd->variables.wsrep_trx_fragment_size > 0);
-  if (!binlog_hton || !WSREP(thd) ||
-      thd->variables.wsrep_trx_fragment_size == 0) return 0;
-
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-
-  if (cache_mngr)
-  {
-    return cache_mngr->trx_cache.wsrep_get_fragment_fill();
-  }
-  return 0;
-}
-
 void wsrep_thd_binlog_trx_reset(THD * thd)
 {
   /*
@@ -10930,7 +10792,8 @@ void thd_binlog_rollback_stmt(THD * thd)
 int wsrep_thd_binlog_prepare(THD* thd, bool all)
 {
   /* applier and replayer can skip binlog prepare */
-  if (WSREP_EMULATE_BINLOG(thd) && (thd->wsrep_exec_mode != REPL_RECV))
+  if (WSREP_EMULATE_BINLOG(thd) &&
+      thd->wsrep_cs().mode() == wsrep::client_state::m_local)
     return binlog_hton->prepare(binlog_hton, thd, all);
   else
     return ha_prepare(thd);
@@ -10949,15 +10812,16 @@ bool wsrep_stmt_rollback_is_safe(THD* thd)
   if (binlog_hton && cache_mngr)
   {
     binlog_cache_data * trx_cache = &cache_mngr->trx_cache;
-    if (thd->wsrep_fragments_sent > 0 &&
+    if (thd->wsrep_sr().fragments_certified() > 0 &&
         (trx_cache->get_prev_position() == MY_OFF_T_UNDEF ||
-         trx_cache->get_prev_position() < trx_cache->wsrep_get_fragment_base()))
+         trx_cache->get_prev_position() < thd->wsrep_sr().bytes_certified()))
     {
       WSREP_DEBUG("statement rollback is not safe for streaming replication"
-                  " pre-stmt_pos: %llu, frag repl pos: %lu\nThread: %llu, SQL: %s",
-                  trx_cache->get_prev_position(), trx_cache->wsrep_get_fragment_base(),
+                  " pre-stmt_pos: %llu, frag repl pos: %lu\nThread: %lu, SQL: %s",
+                  trx_cache->get_prev_position(),
+                  thd->wsrep_sr().bytes_certified(),
                   thd->thread_id, thd->query());
-      ret = false;
+       ret = false;
     }
   }
   DBUG_RETURN(ret);

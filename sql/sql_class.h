@@ -4676,7 +4676,7 @@ public:
   }
 
 #ifdef WITH_WSREP
-  const bool                wsrep_applier; /* dedicated slave applier thread */
+  bool                      wsrep_applier; /* dedicated slave applier thread */
   bool                      wsrep_applier_closing; /* applier marked to close */
   bool                      wsrep_client_thread; /* to identify client threads*/
   query_id_t                wsrep_last_query_id;
@@ -4687,6 +4687,7 @@ public:
   that only modifies the wsrep_schema.SR table. */
   my_bool                   wsrep_skip_locking;
 
+  mysql_cond_t              COND_wsrep_thd;
 
   // changed from wsrep_seqno_t to wsrep_trx_meta_t in wsrep API rev 75
   uint32                    wsrep_rand;
@@ -4735,25 +4736,23 @@ public:
     * m_wsrep_next_trx_id is assigned on the first query after
       wsrep_next_trx_id() return WSREP_UNDEFINED_TRX_ID
     * Each storage engine must assign value of wsrep_next_trx_id()
-      via wsrep_ws_handle_for_trx() when the transaction starts.
+      when the transaction starts.
     * Effective transaction id is returned via wsrep_trx_id()
    */
-
   /*
     Return effective transaction id
-   */
+  */
   wsrep_trx_id_t wsrep_trx_id() const
   {
-    return wsrep_ws_handle.trx_id;
+    return m_wsrep_client_state.transaction().id().get();
   }
+
 
   /*
     Set next trx id
    */
   void set_wsrep_next_trx_id(query_id_t query_id)
   {
-    DBUG_ASSERT(wsrep_ws_handle.trx_id == WSREP_UNDEFINED_TRX_ID);
-    //DBUG_ASSERT(query_id != 0);
     m_wsrep_next_trx_id = (wsrep_trx_id_t) query_id;
   }
   /*

@@ -14,6 +14,8 @@
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
 
+#include "my_global.h"
+#include "wsrep_api.h"
 #include "wsrep_mysqld.h"
 #include "wsrep_thd_pool.h"
 #include "wsrep_utils.h"

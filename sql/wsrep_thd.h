@@ -196,8 +196,8 @@ static inline void wsrep_log_thd(THD *thd,
                                  const char *function)
 {
   WSREP_DEBUG("%s %s\n"
-              "    thd: %lu thd_ptr: %p client_mode: %s client_state: %s trx_state: %s\n"
-              "    next_trx_id: %lld trx_id: %lld seqno: %lld\n"
+              "    thd: %llu thd_ptr: %p client_mode: %s client_state: %s trx_state: %s\n"
+              "    next_trx_id: %lld trx_id: %lld seqno: %ld\n"
               "    is_streaming: %d fragments: %zu\n"
               "    sql_errno: %u message: %s\n"
 #define WSREP_THD_LOG_QUERIES
@@ -234,5 +234,4 @@ static inline void wsrep_log_thd(THD *thd,
 #define wsrep_abort_thd(X,Y,Z) do { } while(0)
 #define wsrep_create_appliers(T) do { } while(0)
 
-#endif
 #endif /* WSREP_THD_H */

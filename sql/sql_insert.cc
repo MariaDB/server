@@ -3920,12 +3920,12 @@ bool select_insert::prepare_eof()
                        trans_table, table->file->table_type()));
 
 #ifdef WITH_WSREP
-  error= thd->wsrep_cs().current_error() ? -1 :
-    (bulk_insert_started ?
+  error= (thd->wsrep_cs().current_error()) ? -1 :
+    (thd->locked_tables_mode <= LTM_LOCK_TABLES) ?
 #else
-  error= (bulk_insert_started ?
+    error= (thd->locked_tables_mode <= LTM_LOCK_TABLES) ?
 #endif /* WITH_WSREP */
-          table->file->ha_end_bulk_insert() : 0);
+    table->file->ha_end_bulk_insert() : 0;
 
   if (likely(!error) && unlikely(thd->is_error()))
     error= thd->get_stmt_da()->sql_errno();
@@ -4600,8 +4600,8 @@ bool select_create::send_eof()
         */
         wsrep_key_arr_t key_arr= {0, 0};
         wsrep_prepare_keys_for_isolation(thd,
-                                         create_table->db,
-                                         create_table->table_name,
+                                         create_table->db.str,
+                                         create_table->table_name.str,
                                          table_list,
                                          &key_arr);
         int rcode= wsrep_thd_append_key(thd, key_arr.keys, key_arr.keys_len,

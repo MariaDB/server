@@ -22,7 +22,6 @@
 #include "wsrep_applier.h"
 
 #include "transaction.h"
-#include "binlog.h"
 
 const char *wsrep_fragment_units[] = { "bytes", "rows", "statements", NullS };
 const char *wsrep_SR_store_types[] = { "none", "file", "table", NullS };

@@ -169,7 +169,7 @@ void thr_set_lock_wait_callback(void (*before_wait)(void),
 
 #ifdef WITH_WSREP
   typedef my_bool (* wsrep_thd_is_brute_force_fun)(const void *, my_bool);
-  typedef imy_bool(* wsrep_abort_thd_fun)(const void *, void *, my_bool);
+  typedef my_bool(* wsrep_abort_thd_fun)(const void *, void *, my_bool);
   typedef my_bool (* wsrep_on_fun)(const void *);
   void wsrep_thr_lock_init(
     wsrep_thd_is_brute_force_fun bf_fun, wsrep_abort_thd_fun abort_fun,

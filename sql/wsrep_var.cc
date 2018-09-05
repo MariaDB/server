@@ -347,7 +347,7 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
   wsrep_free_status(thd);
 
   if (wsrep_inited == 1)
-    wsrep_deinit(false);
+    wsrep_deinit();
 
   char* tmp= strdup(wsrep_provider); // wsrep_init() rewrites provider
                                      //when fails
@@ -388,11 +388,6 @@ void wsrep_provider_init (const char* value)
 
 bool wsrep_provider_options_check(sys_var *self, THD* thd, set_var* var)
 {
-  if (wsrep == NULL)
-  {
-    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
-    return true;
-  }
   return false;
 }
 
@@ -466,13 +461,6 @@ bool wsrep_cluster_address_check (sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
 {
-  /* Do not proceed if wsrep provider is not loaded. */
-  if (!wsrep)
-  {
-    WSREP_INFO("wsrep provider is not loaded, can't re(start) replication.");
-    return false;
-  }
-
   /* stop replication is heavy operation, and includes closing all client 
      connections. Closing clients may need to get LOCK_global_system_variables
      at least in MariaDB.
@@ -604,12 +592,6 @@ bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
 
 bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
 {
-  if (wsrep == NULL)
-  {
-    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
-    return true;
-  }
-
   bool new_wsrep_desync= (bool) var->save_result.ulonglong_value;
   if (wsrep_desync == new_wsrep_desync) {
     if (new_wsrep_desync) {
@@ -628,7 +610,7 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
     ret= Wsrep_server_state::instance().provider().desync();
     if (ret) {
       WSREP_WARN ("SET desync failed %d for schema: %s, query: %s", ret,
-                  (thd->db ? thd->db : "(null)"), WSREP_QUERY(thd));
+                  thd->db.str, WSREP_QUERY(thd));
       my_error (ER_CANNOT_USER, MYF(0), "'desync'", thd->query());
       return true;
     }
@@ -652,11 +634,6 @@ bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
 
 bool wsrep_max_ws_size_check(sys_var *self, THD* thd, set_var* var)
 {
-  if (wsrep == NULL)
-  {
-    my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
-    return true;
-  }
   return false;
 }
 

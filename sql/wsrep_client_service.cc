@@ -27,9 +27,9 @@
 #include "sql_parse.h"   /* stmt_causes_implicit_commit() */
 #include "rpl_filter.h"  /* binlog_filter */
 #include "rpl_rli.h"     /* Relay_log_info */
-#include "rpl_slave.h"   /* opt_log_slave_updates */
+#include "slave.h"   /* opt_log_slave_updates */
 #include "transaction.h" /* trans_commit()... */
-#include "binlog.h"      /* stmt_has_updated_trans_table() */
+#include "log.h"      /* stmt_has_updated_trans_table() */
 #include "debug_sync.h"
 
 namespace
@@ -56,7 +56,7 @@ bool Wsrep_client_service::do_2pc() const
   THD_TRANS* trans= &m_thd->transaction.all.ha_list ?
     &m_thd->transaction.all :
     &m_thd->transaction.stmt;
-  return (!trans->no_2pc && trans->rw_ha_count > 1);
+  return (!trans->no_2pc);
 }
 
 void Wsrep_client_service::store_globals()
@@ -69,7 +69,7 @@ void Wsrep_client_service::store_globals()
 void Wsrep_client_service::reset_globals()
 {
   DBUG_ENTER("Wsrep_client_service::reset_globals");
-  m_thd->restore_globals();
+  m_thd->reset_globals();
   DBUG_VOID_RETURN;
 }
 
@@ -77,7 +77,7 @@ bool Wsrep_client_service::interrupted() const
 {
   DBUG_ASSERT(m_thd == current_thd);
   mysql_mutex_lock(&m_thd->LOCK_thd_data);
-  bool ret= (m_thd->killed != THD::NOT_KILLED);
+  bool ret= (m_thd->killed != NOT_KILLED);
   mysql_mutex_unlock(&m_thd->LOCK_thd_data);
   return ret;
 }
@@ -114,7 +114,7 @@ int Wsrep_client_service::prepare_data_for_replication()
                   "sql_log_bin: %d",
                   WSREP_QUERY(m_thd),
                   m_thd->get_stmt_da()->affected_rows(),
-                  stmt_has_updated_trans_table(m_thd->transaction.stmt.ha_list),
+                  stmt_has_updated_trans_table(m_thd),
                   m_thd->variables.sql_log_bin);
     }
     else
@@ -237,7 +237,7 @@ enum wsrep::provider::status Wsrep_client_service::replay()
   Wsrep_replayer_service replayer_service(m_thd);
   wsrep::provider& provider(m_thd->wsrep_cs().provider());
   mysql_mutex_lock(&m_thd->LOCK_thd_data);
-  m_thd->killed= THD::NOT_KILLED;
+  m_thd->killed= NOT_KILLED;
   mysql_mutex_unlock(&m_thd->LOCK_thd_data);
   enum wsrep::provider::status ret=
     provider.replay(m_thd->wsrep_trx().ws_handle(), &replayer_service);

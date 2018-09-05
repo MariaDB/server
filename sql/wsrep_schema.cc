@@ -21,7 +21,6 @@
 #include "sql_parse.h"
 #include "sql_update.h"
 #include "transaction.h"
-#include "global_threads.h"
 
 #include "mysql/service_wsrep.h"
 #include "wsrep_thd_pool.h"
@@ -203,11 +202,7 @@ static int open_table(THD* thd,
                MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY |
                MYSQL_OPEN_IGNORE_FLUSH |
                MYSQL_LOCK_IGNORE_TIMEOUT);
-#ifdef OUT
-  tables.init_one_table(schema_name.str, schema_name.length,
-                        table_name.str, table_name.length,
-                        table_name.str, lock_type);
-#endif
+
   tables.init_one_table(schema_name,
                         table_name,
                         NULL, lock_type);
@@ -245,11 +240,9 @@ static void store(TABLE* table, uint field, const Wsrep_id& id) {
   assert(field < table->s->fields);
   std::ostringstream os;
   os << id;
-  type_conversion_status status;
-  if ((status= table->field[field]->store(os.str().c_str(),os.str().size(),
-                                          &my_charset_bin)) != TYPE_OK) {
-    WSREP_ERROR("type conversion status: %d", status);
-  }
+  table->field[field]->store(os.str().c_str(),
+			     os.str().size(),
+			     &my_charset_bin);
 }
 
 
@@ -866,7 +859,7 @@ int Wsrep_schema::append_fragment(THD* thd,
   DBUG_ENTER("Wsrep_schema::append_fragment");
   std::ostringstream os;
   os << server_id;
-  WSREP_DEBUG("Append fragment(%lu) %s, %llu",
+  WSREP_DEBUG("Append fragment(%llu) %s, %llu",
               thd->thread_id,
               os.str().c_str(),
               transaction_id.get());
@@ -902,7 +895,7 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
   DBUG_ENTER("Wsrep_schema::update_fragment_meta");
   std::ostringstream os;
   os << ws_meta.server_id();
-  WSREP_DEBUG("update_frag_seqno(%lu) %s, %llu, seqno %lld",
+  WSREP_DEBUG("update_frag_seqno(%llu) %s, %llu, seqno %lld",
               thd->thread_id,
               os.str().c_str(),
               ws_meta.transaction_id().get(),
@@ -969,7 +962,7 @@ static int remove_fragment(THD*                  thd,
                            wsrep::transaction_id transaction_id,
                            wsrep::seqno          seqno)
 {
-  WSREP_DEBUG("remove_fragment(%lu) trx %llu, seqno %lld",
+  WSREP_DEBUG("remove_fragment(%llu) trx %llu, seqno %lld",
               thd->thread_id,
               transaction_id.get(),
               seqno.get());
@@ -1034,16 +1027,16 @@ int Wsrep_schema::remove_fragments(THD* thd,
   uint flags= (MYSQL_OPEN_IGNORE_GLOBAL_READ_LOCK |
                MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY |
                MYSQL_OPEN_IGNORE_FLUSH |
-               MYSQL_LOCK_IGNORE_TIMEOUT |
-               MYSQL_LOCK_RPL_INFO_TABLE);
+               MYSQL_LOCK_IGNORE_TIMEOUT);
   Query_tables_list query_tables_list_backup;
   Open_tables_backup open_tables_backup;
   thd->lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
   thd->reset_n_backup_open_tables_state(&open_tables_backup);
   TABLE_LIST tables;
-  tables.init_one_table(wsrep_schema_str.c_str(),
-                        wsrep_schema_str.size(),
-                        "SR", 2, "SR", TL_WRITE);
+  LEX_CSTRING schema_str= { wsrep_schema_str.c_str(), wsrep_schema_str.length() };
+  LEX_CSTRING table_str= { "SR", strlen("SR") };
+  tables.init_one_table(&schema_str,
+                        &table_str, 0, TL_WRITE);
 
   if (!open_n_lock_single_table(thd, &tables, tables.lock_type, flags))
   {
@@ -1292,7 +1285,7 @@ int Wsrep_schema::recover_sr_transactions()
         thd->thread_stack= (char*)&storage_thd;
 
         mysql_mutex_lock(&LOCK_thread_count);
-        thd->thread_id= thread_id++;
+        thd->thread_id= next_thread_id();
         thd->real_id= pthread_self();
         mysql_mutex_unlock(&LOCK_thread_count);
 

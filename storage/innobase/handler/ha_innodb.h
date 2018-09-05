@@ -16,6 +16,10 @@ this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
+#ifdef WITH_WSREP
+#include "wsrep_api.h"
+#include <mysql/service_wsrep.h>
+#endif /* WITH_WSREP */
 
 /* The InnoDB handler: the interface between MySQL and InnoDB. */
 
@@ -467,8 +471,11 @@ protected:
 	dict_index_t* innobase_get_index(uint keynr);
 
 #ifdef WITH_WSREP
-	int wsrep_append_keys(THD *thd, bool shared,
-			      const uchar* record0, const uchar* record1);
+	int wsrep_append_keys(
+		THD *thd,
+		wsrep_key_type key_type,
+		const uchar* record0,
+		const uchar* record1);
 #endif
 	/** Builds a 'template' to the prebuilt struct.
 

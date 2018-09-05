@@ -50,8 +50,8 @@ Created 4/20/1996 Heikki Tuuri
 #include "fts0types.h"
 #include "m_string.h"
 #include "gis0geo.h"
-#include "wsrep_mysqld.h"
-#include "wsrep_schema.h"
+//#include "wsrep_mysqld.h"
+//#include "wsrep_schema.h"
 #include "mysql/service_wsrep.h"
 
 /*************************************************************************

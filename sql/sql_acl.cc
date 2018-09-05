@@ -3342,7 +3342,6 @@ error: // this label is used in WSREP_TO_ISOLATION_BEGIN
     WSREP_TO_ISOLATION_END;
 
     thd->set_query(query_save);
-    thd->wsrep_exec_mode  = LOCAL_STATE;
   }
 #endif /* WITH_WSREP */
   thd->restore_stmt_binlog_format(save_binlog_format);
@@ -3503,7 +3502,6 @@ error: // this label is used in WSREP_TO_ISOLATION_END
     WSREP_TO_ISOLATION_END;
 
     thd->set_query(query_save);
-    thd->wsrep_exec_mode  = LOCAL_STATE;
   }
 #endif /* WITH_WSREP */
 

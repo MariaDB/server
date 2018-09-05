@@ -20,6 +20,7 @@
 #include "wsrep/client_state.hpp"
 #include "my_global.h"
 #include "sql_error.h" /* Diagnostics area */
+#include "sql_class.h" /* rpl_group_info */
 
 class THD;
 class Relay_log_info;
@@ -55,18 +56,20 @@ public:
 protected:
   friend Wsrep_server_service;
   THD* m_thd;
-  Relay_log_info* m_rli;
+  Relay_log_info*   m_rli;
+  rpl_group_info*   m_rgi;
   struct shadow
   {
-    ulonglong option_bits;
-    uint server_status;
+    ulonglong      option_bits;
+    uint           server_status;
     struct st_vio* vio;
-    ulong tx_isolation;
-    char* db;
-    size_t db_length;
-    struct timeval user_time;
-    longlong row_count_func;
-    bool wsrep_applier;
+    ulong          tx_isolation;
+    char*          db;
+    size_t         db_length;
+    //struct timeval user_time;
+    my_hrtime_t user_time;
+    longlong       row_count_func;
+    bool           wsrep_applier;
 } m_shadow;
 };
 

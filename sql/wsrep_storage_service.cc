@@ -13,15 +13,16 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
+#include "my_global.h"
 #include "wsrep_storage_service.h"
 #include "wsrep_trans_observer.h" /* wsrep_open() */
 #include "wsrep_schema.h"
 #include "wsrep_binlog.h"
 
 #include "sql_class.h"
-#include "global_threads.h" /* LOCK_thread_count */
+//#include "global_threads.h" /* LOCK_thread_count */
 #include "mysqld.h" /* next_query_id() */
-#include "rpl_slave.h" /* opt_log_slave_updates() */
+#include "slave.h" /* opt_log_slave_updates() */
 #include "transaction.h" /* trans_commit(), trans_rollback() */
 
 /*
@@ -51,7 +52,7 @@ Wsrep_storage_service::Wsrep_storage_service(THD* thd)
   , m_thd(thd)
 {
   thd->security_ctx->skip_grants();
-  thd->system_thread= SYSTEM_THREAD_SLAVE_WORKER;
+  thd->system_thread= SYSTEM_THREAD_SLAVE_SQL;
 
   /* No binlogging */
   // thd->variables.sql_log_bin  = 0;
@@ -152,7 +153,7 @@ int Wsrep_storage_service::commit(const wsrep::ws_handle& ws_handle,
   WSREP_DEBUG("Storage service commit: %llu, %lld",
               ws_meta.transaction_id().get(), ws_meta.seqno().get());
   int ret= 0;
-  const bool do_binlog_commit= (opt_log_slave_updates && gtid_mode);
+  const bool do_binlog_commit= (opt_log_slave_updates && wsrep_gtid_mode);
   const bool is_ordered= !ws_meta.seqno().is_undefined();
   /*
     Write skip event into binlog if gtid_mode is on. This is to
@@ -238,6 +239,6 @@ void Wsrep_storage_service::reset_globals()
   DBUG_ENTER("Wsrep_storage_service::reset_globals");
   DBUG_PRINT("info", ("Wsrep_storage_service::reset_globals(%lu, %p)",
                       m_thd->thread_id, m_thd));
-  m_thd->restore_globals();
+  m_thd->reset_globals();
   DBUG_VOID_RETURN;
 }

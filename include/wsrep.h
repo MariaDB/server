@@ -27,8 +27,15 @@
   if (WSREP_ON && WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) \
     goto error;
 
-#define WSREP_TO_ISOLATION_END                                              \
-  if (WSREP_ON && (WSREP(thd) || (thd && thd->wsrep_exec_mode==TOTAL_ORDER))) \
+#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_) \
+  if (WSREP(thd) && wsrep_thd_is_local(thd) &&                          \
+      wsrep_to_isolation_begin(thd, db_, table_,                        \
+                               table_list_, alter_info_))               \
+    goto error;
+
+#define WSREP_TO_ISOLATION_END                                          \
+  if ((WSREP(thd) && thd && wsrep_thd_is_local_toi(thd)) ||       \
+      wsrep_thd_is_in_rsu(thd))                                         \
     wsrep_to_isolation_end(thd);
 
 /*
@@ -55,17 +62,16 @@
           wsrep_sync_wait(thd_, before_)) goto error; }
 
 #else
-#define IF_WSREP(A,B) B
-#define DBUG_ASSERT_IF_WSREP(A)
-#define WSREP_DEBUG(...)
-#define WSREP_INFO(...)
-#define WSREP_WARN(...)
-#define WSREP_ERROR(...)
-#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)
-#define WSREP_TO_ISOLATION_END
-#define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)
-#define WSREP_SYNC_WAIT(thd_, before_)
-
+//#define IF_WSREP(A,B) B
+//#define DBUG_ASSERT_IF_WSREP(A)
+//#define WSREP_DEBUG(...)
+//#define WSREP_INFO(...)
+//#define WSREP_WARN(...)
+//#define WSREP_ERROR(...)
+//#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)
+//#define WSREP_TO_ISOLATION_END
+//#define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)
+//#define WSREP_SYNC_WAIT(thd_, before_)
 #endif /* WITH_WSREP */
 
 #endif /* WSREP_INCLUDED */

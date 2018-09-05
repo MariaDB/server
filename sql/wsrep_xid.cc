@@ -48,7 +48,8 @@ void wsrep_xid_init(XID* xid, const wsrep::gtid& gtid)
   memcpy(xid->data + WSREP_XID_SEQNO_OFFSET, &seqno, sizeof(seqno));
 }
 
-extern "C" my_bool wsrep_is_wsrep_xid(const void* xid_ptr)
+//extern "C"
+int wsrep_is_wsrep_xid(const void* xid_ptr)
 {
   const XID* xid= reinterpret_cast<const XID*>(xid_ptr);
   return (xid->formatID      == 1                   &&
@@ -70,7 +71,6 @@ wsrep::id wsrep_xid_uuid(const XID& xid)
 
 wsrep::seqno wsrep_xid_seqno(const XID& xid)
 {
-  wsrep_seqno_t ret= WSREP_SEQNO_UNDEFINED;
   if (wsrep_is_wsrep_xid(&xid))
   {
     wsrep_seqno_t seqno;
@@ -81,13 +81,6 @@ wsrep::seqno wsrep_xid_seqno(const XID& xid)
   {
     return wsrep::seqno::undefined();
   }
-  return ret;
-}
-
-long long wsrep_xid_seqno(const xid_t* xid)
-{
-  DBUG_ASSERT(xid);
-  return wsrep_xid_seqno(*xid);
 }
 
 static my_bool set_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
@@ -95,15 +88,16 @@ static my_bool set_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
   XID* xid= static_cast<XID*>(arg);
   handlerton* hton= plugin_data(plugin, handlerton *);
 
-  if (hton->set_checkpoint)
+  if (hton->db_type == DB_TYPE_INNODB)
   {
     const wsrep::id uuid(wsrep_xid_uuid(*xid));
     std::ostringstream oss;
     oss << uuid;
     WSREP_DEBUG("Set WSREPXid for InnoDB:  %s:%lld",
                 oss.str().c_str(), wsrep_xid_seqno(*xid).get());
-    hton->wsrep_set_checkpoint(hton, xid);
+    hton->set_checkpoint(hton, xid);
   }
+
   return FALSE;
 }
 
@@ -126,7 +120,7 @@ static my_bool get_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
 
   if (hton->get_checkpoint)
   {
-    hton->wsrep_get_checkpoint(hton, xid);
+    hton->get_checkpoint(hton, xid);
     std::ostringstream oss;
     oss << wsrep_xid_uuid(*xid);
     oss << ":";

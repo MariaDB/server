@@ -3601,7 +3601,7 @@ sp_instr_stmt::exec_core(THD *thd, uint *nextp)
   int res= mysql_execute_command(thd);
 #ifdef WITH_WSREP
   if ((thd->is_fatal_error || thd->killed_errno()) &&
-      (thd->wsrep_conflict_state_unsafe() == NO_CONFLICT))
+      (thd->wsrep_trx().state() == wsrep::transaction::s_executing))
   {
     /*
       SP was killed, and it is not due to a wsrep conflict.
@@ -3614,7 +3614,7 @@ sp_instr_stmt::exec_core(THD *thd, uint *nextp)
   }
   else
   {
-    (void) wsrep_after_command(thd, !thd->in_active_multi_stmt_transaction());
+    (void) wsrep_after_statement(thd);
   }
 #endif /* WITH_WSREP */
   MYSQL_QUERY_EXEC_DONE(res);

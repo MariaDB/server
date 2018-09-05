@@ -1426,6 +1426,36 @@ static bool deny_updates_if_read_only_option(THD *thd, TABLE_LIST *all_tables)
   DBUG_RETURN(FALSE);
 }
 
+#ifdef WITH_WSREP
+static my_bool wsrep_read_only_option(THD *thd, TABLE_LIST *all_tables)
+{
+  int opt_readonly_saved = opt_readonly;
+  ulong flag_saved = (ulong)(thd->security_ctx->master_access & SUPER_ACL);
+
+  opt_readonly = 0;
+  thd->security_ctx->master_access &= ~SUPER_ACL;
+
+  my_bool ret = !deny_updates_if_read_only_option(thd, all_tables);
+
+  opt_readonly = opt_readonly_saved;
+  thd->security_ctx->master_access |= flag_saved;
+
+  return ret;
+}
+
+static void wsrep_copy_query(THD *thd)
+{
+  thd->wsrep_retry_command   = thd->get_command();
+  thd->wsrep_retry_query_len = thd->query_length();
+  if (thd->wsrep_retry_query) {
+      my_free(thd->wsrep_retry_query);
+  }
+  thd->wsrep_retry_query     = (char *)my_malloc(
+                                 thd->wsrep_retry_query_len + 1, MYF(0));
+  strncpy(thd->wsrep_retry_query, thd->query(), thd->wsrep_retry_query_len);
+  thd->wsrep_retry_query[thd->wsrep_retry_query_len] = '\0';
+}
+#endif /* WITH_WSREP */
 
 /**
   check COM_MULTI packet
@@ -1530,14 +1560,16 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     }
     else
     {
-      thd->killed               = THD::NOT_KILLED;
+      thd->killed               = NOT_KILLED;
       thd->mysys_var->abort     = 0;
       thd->wsrep_retry_counter  = 0;
+#ifdef WSREP_TODO
       /*
         Increment threads running to compensate dec_thread_running() called
         after dispatch_end label.
       */
       inc_thread_running();
+#endif
       goto dispatch_end;
     }
   }
@@ -1790,7 +1822,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         thd->mysys_var->abort     = 0;
         thd->wsrep_retry_counter  = 0;
         mysql_mutex_unlock(&thd->LOCK_thd_data);
-#ifdef WSREP_TODO
+#ifdef WSREP_TODOa
         /*
           Increment threads running to compensate dec_thread_running() called
           after dispatch_end label.
@@ -2346,7 +2378,7 @@ com_multi_end:
   }
 
 #ifdef WITH_WSREP
-dispatch_end:
+ dispatch_end:
   /*
     BF aborted before sending response back to client
   */
@@ -2371,13 +2403,10 @@ dispatch_end:
                (thd->open_tables == NULL ||
                (thd->locked_tables_mode == LTM_LOCK_TABLES)));
 
-  /* Finalize server status flags after executing a command. */
-  thd->update_server_status();
-  if (thd->killed)
-    thd->send_kill_message();
-  thd->protocol->end_statement();
-  query_cache_end_of_result(thd);
-
+    /* Finalize server status flags after executing a command. */
+    thd->update_server_status();
+  }
+ 
   if (likely(!thd->is_error() && !thd->killed_errno()))
     mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_RESULT, 0, 0);
 
@@ -7605,6 +7634,7 @@ void THD::reset_for_next_command(bool do_clear_error)
   stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
 
 #ifdef WITH_WSREP
+  THD *thd= this;
   /*
     Autoinc variables should be adjusted only for locally executed
     transactions. Appliers and replayers are either processing ROW
@@ -7880,14 +7910,14 @@ static void wsrep_prepare_for_autocommit_retry(THD* thd,
 
   /* DTRACE begin */
   MYSQL_QUERY_START(rawbuf, thd->thread_id,
-                    (char *) (thd->db ? thd->db : ""),
+                    (char *) (thd->db ? thd->db.str : ""),
                     &thd->security_ctx->priv_user[0],
                     (char *) thd->security_ctx->host_or_ip);
 
   /* PSI begin */
   thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
                                               com_statement_info[thd->get_command()].m_key,
-                                              thd->db, thd->db_length,
+                                              thd->db.str, thd->db.length,
                                               thd->charset());
   DBUG_ASSERT(thd->wsrep_trx().active() == false);
   thd->wsrep_cs().reset_error();
@@ -7907,7 +7937,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
   do
   {
     retry_autocommit= false;
-    mysql_parse(thd, rawbuf, length, parser_state);
+    mysql_parse(thd, rawbuf, length, parser_state, is_com_multi, is_next_command);
 
     /*
       Convert all ER_QUERY_INTERRUPTED errors to ER_LOCK_DEADLOCK
@@ -7923,14 +7953,14 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
          !thd->get_stmt_da()->is_set()) &&
         thd->wsrep_trx().bf_aborted())
     {
-      thd->killed = THD::NOT_KILLED;
+      thd->killed = NOT_KILLED;
       wsrep_override_error(thd, ER_LOCK_DEADLOCK);
     }
 
     if (wsrep_after_statement(thd) && is_autocommit)
     {
-      mysql_reset_thd_for_next_command(thd);
-      thd->killed= THD::NOT_KILLED;
+      thd->reset_for_next_command();
+      thd->killed= NOT_KILLED;
       if (is_autocommit                           &&
           thd->lex->sql_command != SQLCOM_SELECT  &&
           thd->wsrep_retry_counter < thd->variables.wsrep_retry_autocommit)
@@ -7950,7 +7980,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                     thd->variables.wsrep_retry_autocommit,
                     WSREP_QUERY(thd));
         my_error(ER_LOCK_DEADLOCK, MYF(0));
-        thd->killed= THD::NOT_KILLED;
+        thd->killed= NOT_KILLED;
         thd->wsrep_retry_counter= 0;             //  reset
       }
     }

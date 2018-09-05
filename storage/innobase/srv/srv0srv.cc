@@ -81,7 +81,7 @@ Created 10/8/1995 Heikki Tuuri
 #include <my_service_manager.h>
 
 #ifdef WITH_WSREP
-extern int wsrep_debug;
+extern my_bool wsrep_debug;
 #include "mysql/service_wsrep.h"
 #endif
 /* The following is the maximum allowed duration of a lock wait. */

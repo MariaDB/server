@@ -32,14 +32,10 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_binlog.cc
     wsrep_applier.cc
     wsrep_thd.cc
-    wsrep_sr_file.cc
-    wsrep_sr_table.cc
     wsrep_thd_pool.cc
     wsrep_schema.cc
-    wsrep_sr.cc
-    wsrep_trans_observer.cc
     wsrep_plugin.cc
-    service_wsrep.cc
+#    service_wsrep.cc
   )
   SET(WSREP_LIB wsrep)
 ELSE()

@@ -429,7 +429,7 @@ INCLUDE(cmake/tags.cmake)
 
 
 
-INCLUDE(for_clients)
+#INCLUDE(for_clients)
 ADD_SUBDIRECTORY(scripts)
 ADD_SUBDIRECTORY(support-files)
 

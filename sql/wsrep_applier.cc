@@ -77,7 +77,9 @@ wsrep_get_apply_format(THD* thd, Relay_log_info* rli)
   if (thd->wsrep_apply_format)
   {
     return (Format_description_log_event*) thd->wsrep_apply_format;
-  return rli->get_rli_description_event();
+  }
+
+  return thd->wsrep_rgi->rli->relay_log.description_event_for_exec;
 }
 
 void wsrep_apply_error::store(const THD* const thd)
@@ -192,7 +194,7 @@ int wsrep_apply_events(THD*        thd,
       (ev->flags & LOG_EVENT_SKIP_REPLICATION_F ?  OPTION_SKIP_REPLICATION : 0);
 
     ev->thd = thd;
-    exec_res = ev->apply_event(rli);
+    exec_res = ev->apply_event(thd->wsrep_rgi);
     DBUG_PRINT("info", ("exec_event result: %d", exec_res));
 
     if (exec_res)
@@ -211,7 +213,7 @@ int wsrep_apply_events(THD*        thd,
   }
 
 error:
-  if (thd->killed == THD::KILL_CONNECTION)
+  if (thd->killed == KILL_CONNECTION)
     WSREP_INFO("applier aborted: %lld", (long long)wsrep_thd_trx_seqno(thd));
 
   DBUG_RETURN(rcode);

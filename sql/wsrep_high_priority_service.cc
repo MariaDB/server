@@ -27,7 +27,8 @@
 #include "rpl_rli.h"
 #define NUMBER_OF_FIELDS_TO_IDENTIFY_COORDINATOR 1
 #define NUMBER_OF_FIELDS_TO_IDENTIFY_WORKER 2
-#include "rpl_info_factory.h"
+#include "slave.h"
+#include "rpl_mi.h"
 
 namespace
 {
@@ -61,15 +62,46 @@ private:
 };
 }
 
-/* Create relay log info for applier context */
-static Relay_log_info* wsrep_relay_log_init(const char* log_fname)
+static rpl_group_info* wsrep_relay_group_init(const char* log_fname)
 {
-  uint rli_option = INFO_REPOSITORY_DUMMY;
-  Relay_log_info *rli= NULL;
-  rli = Rpl_info_factory::create_rli(rli_option, false);
-  rli->set_rli_description_event(
-    new Format_description_log_event(BINLOG_VERSION));
-  return rli;
+  Relay_log_info* rli= new Relay_log_info(false);
+
+  if (!rli->relay_log.description_event_for_exec)
+  {
+    rli->relay_log.description_event_for_exec=
+      new Format_description_log_event(4);
+  }
+
+  static LEX_CSTRING connection_name= { STRING_WITH_LEN("wsrep") };
+
+  /*
+    Master_info's constructor initializes rpl_filter by either an already
+    constructed Rpl_filter object from global 'rpl_filters' list if the
+    specified connection name is same, or it constructs a new Rpl_filter
+    object and adds it to rpl_filters. This object is later destructed by
+    Mater_info's destructor by looking it up based on connection name in
+    rpl_filters list.
+
+    However, since all Master_info objects created here would share same
+    connection name ("wsrep"), destruction of any of the existing Master_info
+    objects (in wsrep_return_from_bf_mode()) would free rpl_filter referenced
+    by any/all existing Master_info objects.
+
+    In order to avoid that, we have added a check in Master_info's destructor
+    to not free the "wsrep" rpl_filter. It will eventually be freed by
+    free_all_rpl_filters() when server terminates.
+  */
+  rli->mi = new Master_info(&connection_name, false);
+
+  struct rpl_group_info *rgi= new rpl_group_info(rli);
+  rgi->thd= rli->sql_driver_thd= current_thd;
+
+  if ((rgi->deferred_events_collecting= rli->mi->rpl_filter->is_on()))
+  {
+    rgi->deferred_events= new Deferred_log_events(rli);
+  }
+
+  return rgi;
 }
 
 static void wsrep_setup_uk_and_fk_checks(THD* thd)
@@ -97,12 +129,14 @@ Wsrep_high_priority_service::Wsrep_high_priority_service(THD* thd)
   , m_thd(thd)
   , m_rli()
 {
+  LEX_CSTRING db_str= { NULL, 0 };
   m_shadow.option_bits   = thd->variables.option_bits;
   m_shadow.server_status = thd->server_status;
   m_shadow.vio           = thd->net.vio;
   m_shadow.tx_isolation  = thd->variables.tx_isolation;
-  m_shadow.db            = thd->db;
-  m_shadow.db_length     = thd->db_length;
+  m_shadow.db            = (char *)thd->db.str;
+  m_shadow.db_length     = thd->db.length;
+  //m_shadow.user_time     = hrtime_to_my_time(thd->user_time);
   m_shadow.user_time     = thd->user_time;
   m_shadow.row_count_func= thd->get_row_count_func();
   m_shadow.wsrep_applier = thd->wsrep_applier;
@@ -116,7 +150,7 @@ Wsrep_high_priority_service::Wsrep_high_priority_service(THD* thd)
     thd->variables.option_bits&= ~(OPTION_BIN_LOG);
 
   thd->net.vio= 0;
-  thd->reset_db(NULL, 0);
+  thd->reset_db(&db_str);
   thd->clear_error();
   thd->variables.tx_isolation = ISO_READ_COMMITTED;
   thd->tx_isolation           = ISO_READ_COMMITTED;
@@ -128,9 +162,11 @@ Wsrep_high_priority_service::Wsrep_high_priority_service(THD* thd)
   /* Make THD wsrep_applier so that it cannot be killed */
   thd->wsrep_applier= true;
 
-  m_rli= wsrep_relay_log_init("wsrep_relay");
-  m_rli->info_thd = thd;
+  if (!thd->wsrep_rgi) thd->wsrep_rgi= wsrep_relay_group_init("wsrep_relay");
 
+  m_rgi= thd->wsrep_rgi;
+  m_rgi->thd = thd;
+  m_rli= m_rgi->rli;
   thd_proc_info(thd, "wsrep applier idle");
 }
 
@@ -141,7 +177,8 @@ Wsrep_high_priority_service::~Wsrep_high_priority_service()
   thd->server_status          = m_shadow.server_status;
   thd->net.vio                = m_shadow.vio;
   thd->variables.tx_isolation = m_shadow.tx_isolation;
-  thd->reset_db(m_shadow.db, m_shadow.db_length);
+  LEX_CSTRING db_str= { m_shadow.db, m_shadow.db_length };
+  thd->reset_db(&db_str);
   thd->user_time              = m_shadow.user_time;
   thd->set_row_count_func(m_shadow.row_count_func);
   thd->wsrep_applier          = m_shadow.wsrep_applier;
@@ -184,7 +221,9 @@ int Wsrep_high_priority_service::append_fragment_and_commit(
     Wsrep_storage_service::commit(). Consider implementing
     common utility function to deal with commit.
    */
-  const bool do_binlog_commit= (opt_log_slave_updates && gtid_mode);
+  const bool do_binlog_commit= (opt_log_slave_updates &&
+				wsrep_gtid_mode       &&
+				m_thd->variables.gtid_seq_no);
    /*
     Write skip event into binlog if gtid_mode is on. This is to
     maintain gtid continuity.
@@ -257,8 +296,7 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
 
   if (ret == 0)
   {
-    m_rli->cleanup_context(thd, 0);
-    thd->variables.gtid_next.set_automatic();
+    m_rgi->cleanup_context(thd, 0);
   }
 
   if (ret == 0 && !opt_log_slave_updates && is_ordered)
@@ -318,15 +356,24 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
     /* todo: error voting */
   }
   trans_commit(thd);
-  TABLE *tmp;
-  while ((tmp = thd->temporary_tables))
+
+  thd->close_temporary_tables();
+#ifdef OUT
+  bool locked;
+  TMP_TABLE_SHARE *share;
+  locked= lock_temporary_tables();
+  All_tmp_tables_list::Iterator it(*thd->temporary_tables);
+  while ((share= it++))
   {
     WSREP_DEBUG("Applier %lu, has temporary tables: %s.%s",
-                thd->thread_id,
-                (tmp->s) ? tmp->s->db.str : "void",
-                (tmp->s) ? tmp->s->table_name.str : "void");
-    close_temporary_table(thd, tmp, 1, 1);
+                thd->thread_id, share->db.str, share->table_name.str);
+    close_temporary_table(thd, share, 1, 1);
   }
+  if (locked)
+  {
+    unlock_temporary_tables();
+  }
+#endif
   wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
 
   must_exit_ = check_exit_status();
@@ -348,7 +395,7 @@ void Wsrep_high_priority_service::store_globals()
 void Wsrep_high_priority_service::reset_globals()
 {
   DBUG_ENTER("Wsrep_high_priority_service::reset_globals");
-  m_thd->restore_globals();
+  m_thd->reset_globals();
   DBUG_VOID_RETURN;
 }
 
@@ -371,7 +418,7 @@ int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_
               ws_meta.seqno().get()));
   m_thd->wsrep_cs().start_transaction(ws_handle, ws_meta);
   WSREP_DEBUG("Log dummy write set %lld", ws_meta.seqno().get());
-  if (!(opt_log_slave_updates && gtid_mode))
+  if (!(opt_log_slave_updates && wsrep_gtid_mode && m_thd->variables.gtid_seq_no))
   {
     m_thd->wsrep_cs().before_rollback();
     m_thd->wsrep_cs().after_rollback();
@@ -440,6 +487,8 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
     wsrep_dump_rbr_buf(thd, data.data(), data.size());
   }
 
+  thd->close_temporary_tables();
+#ifdef OUT
   TABLE *tmp;
   while ((tmp = thd->temporary_tables))
   {
@@ -449,7 +498,7 @@ int Wsrep_applier_service::apply_write_set(const wsrep::ws_meta& ws_meta,
                 (tmp->s) ? tmp->s->table_name.str : "void");
     close_temporary_table(m_thd, tmp, 1, 1);
   }
-
+#endif
   if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit))
   {
     thd->wsrep_cs().fragment_applied(ws_meta.seqno());
@@ -537,7 +586,7 @@ Wsrep_replayer_service::~Wsrep_replayer_service()
   if (m_replay_status == wsrep::provider::success)
   {
     DBUG_ASSERT(thd->wsrep_cs().current_error() == wsrep::e_success);
-    thd->killed= THD::NOT_KILLED;
+    thd->killed= NOT_KILLED;
     if (m_da_shadow.status == Diagnostics_area::DA_OK)
     {
       my_ok(thd,
@@ -559,7 +608,7 @@ Wsrep_replayer_service::~Wsrep_replayer_service()
     DBUG_ASSERT(0);
     WSREP_ERROR("trx_replay failed for: %d, schema: %s, query: %s",
                 m_replay_status,
-                (thd->db ? thd->db : "(null)"), WSREP_QUERY(thd));
+                thd->db.str, WSREP_QUERY(thd));
     unireg_abort(1);
   }
 }
@@ -592,6 +641,8 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
     wsrep_dump_rbr_buf(thd, data.data(), data.size());
   }
 
+  thd->close_temporary_tables();
+#ifdef OUT
   TABLE *tmp;
   while ((tmp = thd->temporary_tables))
   {
@@ -601,7 +652,7 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
                 (tmp->s) ? tmp->s->table_name.str : "void");
     close_temporary_table(m_thd, tmp, 1, 1);
   }
-
+#endif
   if (!ret && !(ws_meta.flags() & wsrep::provider::flag::commit))
   {
     thd->wsrep_cs().fragment_applied(ws_meta.seqno());

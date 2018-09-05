@@ -4101,10 +4101,10 @@ static int innodb_init(void* p)
 		| HTON_NATIVE_SYS_VERSIONING;
 
 #ifdef WITH_WSREP
-        innobase_hton->wsrep_abort_transaction=wsrep_abort_transaction;
-        innobase_hton->wsrep_set_checkpoint=innobase_wsrep_set_checkpoint;
-        innobase_hton->wsrep_get_checkpoint=innobase_wsrep_get_checkpoint;
-        innobase_hton->wsrep_fake_trx_id=NULL;
+        innobase_hton->abort_transaction=wsrep_abort_transaction;
+        innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
+        innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
+        innobase_hton->fake_trx_id=NULL;
 #endif /* WITH_WSREP */
 
 	innobase_hton->tablefile_extensions = ha_innobase_exts;
@@ -5067,9 +5067,8 @@ UNIV_INTERN void lock_cancel_waiting_and_release(lock_t* lock);
 static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels)
 {
 	DBUG_ENTER("innobase_kill_query");
-#ifdef WITH_WSREP
-	if (wsrep_thd_is_wsrep(thd) &&
-	    wsrep_thd_get_conflict_state(thd) != NO_CONFLICT) {
+#ifdef WITH_WSREP_NOT_MERGED
+	if (wsrep_thd_is_wsrep(thd) && wsrep_thd_is_aborting(thd)) {
 		/* if victim has been signaled by BF thread and/or aborting
 		   is already progressing, following query aborting is not necessary
 		   any more.
@@ -8164,7 +8163,7 @@ ha_innobase::write_row(
 					error= DB_SUCCESS;
 					wsrep_thd_self_abort(current_thd);
                                         innobase_srv_conc_exit_innodb(
-						prebuilt->trx);
+						m_prebuilt);
                                         /* jump straight to func exit over
                                          * later wsrep hooks */
                                         goto func_exit;
@@ -8232,13 +8231,13 @@ report_error:
 		error, m_prebuilt->table->flags, m_user_thd);
 
 #ifdef WITH_WSREP
-	if (!error_result && wsrep_thd_is_local(user_thd)           &&
-	    wsrep_on(user_thd) && !wsrep_consistency_check(user_thd)      &&
-	    (sql_command != SQLCOM_CREATE_TABLE)                          &&
-	    (sql_command != SQLCOM_LOAD ||
-	     thd_binlog_format(user_thd) == BINLOG_FORMAT_ROW)) {
+	if (!error_result && wsrep_thd_is_local(m_user_thd)               &&
+	    wsrep_on(m_user_thd) && !wsrep_consistency_check(m_user_thd)  &&
+	    (thd_sql_command(m_user_thd) != SQLCOM_CREATE_TABLE)          &&
+	    (thd_sql_command(m_user_thd) != SQLCOM_LOAD ||
+	     thd_binlog_format(m_user_thd) == BINLOG_FORMAT_ROW)) {
 
-		if (wsrep_append_keys(user_thd, WSREP_KEY_EXCLUSIVE, record,
+		if (wsrep_append_keys(m_user_thd, WSREP_KEY_EXCLUSIVE, record,
 				      NULL)) {
  			DBUG_PRINT("wsrep", ("row key failed"));
  			error_result = HA_ERR_INTERNAL_ERROR;
@@ -8939,7 +8938,8 @@ func_exit:
 
 		DBUG_PRINT("wsrep", ("update row key"));
 
-		if (wsrep_append_keys(m_user_thd, false, old_row, new_row)) {
+		if (wsrep_append_keys(m_user_thd, WSREP_KEY_EXCLUSIVE, old_row,
+				      new_row)) {
 			WSREP_DEBUG("WSREP: UPDATE_ROW_KEY FAILED");
 			DBUG_PRINT("wsrep", ("row key failed"));
 			err = HA_ERR_INTERNAL_ERROR;
@@ -10239,6 +10239,20 @@ wsrep_dict_foreign_find_index(
 	ibool		check_charsets,
 	ulint		check_null);
 
+inline
+const char*
+wsrep_key_type_to_str(wsrep_key_type type)
+{
+	switch (type) {
+	case WSREP_KEY_SHARED:
+		return "shared";
+	case WSREP_KEY_SEMI:
+		return "semi";
+	case WSREP_KEY_EXCLUSIVE:
+		return "exclusive";
+	};
+	return "unknown";
+}
 
 extern dberr_t
 wsrep_append_foreign_key(
@@ -10247,13 +10261,9 @@ wsrep_append_foreign_key(
 	const rec_t*	rec,		/*!<in: clustered index record */
 	dict_index_t*	index,		/*!<in: clustered index */
 	ibool		referenced,	/*!<in: is check for referenced table */
-	ibool		shared)		/*!<in: is shared access */
+	wsrep_key_type	key_type)	/*!< in: access type of this key
+					(shared, exclusive, semi...) */
 {
-	THD* thd = (THD*)trx->mysql_thd;
-	int rcode = 0;
-	char cache_key[513] = {'\0'};
-	int cache_key_len;
-
 	ut_a(trx);
 	THD*  thd = (THD*)trx->mysql_thd;
 	ulint rcode = DB_SUCCESS;
@@ -10351,11 +10361,11 @@ wsrep_append_foreign_key(
 
 	if (rcode != DB_SUCCESS) {
 		WSREP_ERROR(
-			"FK key set failed: " ULINTPF
-			" (" ULINTPF " " ULINTPF "), index: %s %s, %s",
-			rcode, referenced, shared,
-			(index)       ? index->name() : "void index",
-			(index && index->table) ? index->table->name.m_name :
+			"FK key set failed: %d (%lu %s), index: %s %s, %s",
+			rcode, referenced, wsrep_key_type_to_str(key_type),
+			(index && index->name)       ? index->name :
+				"void index",
+			(index) ? index->table->name.m_name :
 				"void table",
 			wsrep_thd_query(thd));
 		return DB_ERROR;
@@ -10403,7 +10413,10 @@ wsrep_append_foreign_key(
 			    wsrep_thd_query(thd) : "void");
 		return DB_ERROR;
 	}
-	rcode = wsrep_thd_append_key(thd, &wkey, 1, (key_type == WSREP_KEY_SHARED) ? wsrep_key_shared : wsrep_key_exclusive);
+	rcode = wsrep_thd_append_key(
+			thd, &wkey, 1,
+			(key_type == WSREP_KEY_SHARED) ? wsrep_key_shared :
+							 wsrep_key_exclusive);
 	if (rcode) {
 		DBUG_PRINT("wsrep", ("row key failed: " ULINTPF, rcode));
 		WSREP_ERROR("Appending cascaded fk row key failed: %s, "
@@ -10423,7 +10436,8 @@ wsrep_append_key(
 	TABLE_SHARE 	*table_share,
 	const char*	key,
 	uint16_t        key_len,
-	bool            shared
+	wsrep_key_type	key_type	/*!< in: access type of this key
+					(shared, exclusive, semi...) */
 )
 {
 	DBUG_ENTER("wsrep_append_key");
@@ -10431,9 +10445,9 @@ wsrep_append_key(
                    ("thd: %lld trx: %lld", wsrep_thd_thread_id(thd),
                     (long long)trx->id));
 #ifdef WSREP_DEBUG_PRINT
-	fprintf(stderr, "%s conn %ld, trx %llu, keylen %d, table %s\n Query: %s ",
-		(shared) ? "Shared" : "Exclusive",
-		thd_get_thread_id(thd), (long long)trx->id, key_len,
+	fprintf(stderr, "%s conn %ld, trx %llu, keylen %d, table %s\n SQL: %s ",
+		wsrep_key_type_to_str(key_type),
+		wsrep_thd_thread_id(thd), (long long)trx->id, key_len,
 		table_share->table_name.str, wsrep_thd_query(thd));
 	for (int i=0; i<key_len; i++) {
 		fprintf(stderr, "%hhX, ", key[i]);
@@ -10500,7 +10514,8 @@ referenced_by_foreign_key2(
 int
 ha_innobase::wsrep_append_keys(
 	THD 		*thd,
-	bool		shared,
+	wsrep_key_type	key_type,	/*!< in: access type of this key
+					(shared, exclusive, semi...) */
 	const uchar*	record0,	/* in: row in MySQL format */
 	const uchar*	record1)	/* in: row in MySQL format */
 {
@@ -10532,7 +10547,7 @@ ha_innobase::wsrep_append_keys(
 		if (!is_null) {
 			rcode = wsrep_append_key(
 				thd, trx, table_share, keyval,
-				len, shared);
+				len, key_type);
 
 			if (rcode) {
 				DBUG_RETURN(rcode);
@@ -10586,12 +10601,13 @@ ha_innobase::wsrep_append_keys(
 				if (!is_null) {
 					rcode = wsrep_append_key(
 						thd, trx, table_share,
-						keyval0, len+1, shared);
+						keyval0, len+1, key_type);
 
 					if (rcode) DBUG_RETURN(rcode);
 
-					if (key_info->flags & HA_NOSAME || shared)
-			  			key_appended = true;
+					if (key_info->flags & HA_NOSAME ||
+					    key_type == WSREP_KEY_SHARED)
+						key_appended = true;
 				} else {
 					WSREP_DEBUG("NULL key skipped: %s",
 						    wsrep_thd_query(thd));
@@ -10606,7 +10622,7 @@ ha_innobase::wsrep_append_keys(
 					if (!is_null && memcmp(key0, key1, len)) {
 						rcode = wsrep_append_key(
 							thd, trx, table_share,
-							keyval1, len+1, shared);
+							keyval1, len+1, key_type);
 						if (rcode) DBUG_RETURN(rcode);
 					}
 				}
@@ -10623,7 +10639,7 @@ ha_innobase::wsrep_append_keys(
 
 		if ((rcode = wsrep_append_key(thd, trx, table_share,
 					      (const char*) digest, 16,
-					      shared))) {
+					      key_type))) {
 			DBUG_RETURN(rcode);
 		}
 
@@ -10632,7 +10648,7 @@ ha_innobase::wsrep_append_keys(
 				digest, record1, table, m_prebuilt);
 			if ((rcode = wsrep_append_key(thd, trx, table_share,
 						      (const char*) digest,
-						      16, shared))) {
+						      16, key_type))) {
 				DBUG_RETURN(rcode);
 			}
 		}
@@ -18754,12 +18770,6 @@ wsrep_innobase_kill_one_trx(
 			and trx_mutex */
 			wsrep_thd_UNLOCK(thd);
 			wsrep_thd_awake(thd, signal);
-
-			/* for BF thd, we need to prevent him from committing */
-			if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
-				wsrep_abort_slave_trx(bf_seqno,
-						    wsrep_thd_trx_seqno(thd));
-			}
 		}
 	}
 	else

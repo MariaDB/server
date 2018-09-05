@@ -76,6 +76,7 @@
 #include "wsrep_var.h"
 #include "wsrep_thd.h"
 #include "wsrep_sst.h"
+#endif /* WITH_WSREP */
 #include "proxy_protocol.h"
 
 #include "sql_callback.h"
@@ -1847,7 +1848,8 @@ static void close_connections(void)
   end_slave();
 #ifdef WITH_WSREP
   if (wsrep_inited == 1)
-    wsrep_deinit(true);
+    wsrep_deinit();
+  wsrep_deinit_server();
 #endif
   /* All threads has now been aborted */
   DBUG_PRINT("quit",("Waiting for threads to die (count=%u)",thread_count));
@@ -2041,7 +2043,7 @@ static void __cdecl kill_server(int sig_ptr)
   close_connections();
 
   if (wsrep_inited == 1)
-    wsrep_deinit(true);
+    wsrep_deinit();
 #ifdef WITH_WSREP
   wsrep_deinit_server();
 #endif
@@ -2148,10 +2150,6 @@ extern "C" void unireg_abort(int exit_code)
   if (Wsrep_server_state::instance().state() != wsrep::server_state::s_disconnected)
   {
     /*
-      Signal SE init waiters to exit with error status
-     */
-    wsrep_SE_init_failed();
-    /*
       This is an abort situation, we cannot expect to gracefully close all
       wsrep threads here, we can only diconnect from service
     */
@@ -2165,7 +2163,8 @@ extern "C" void unireg_abort(int exit_code)
 
     /* In bootstrap mode we deinitialize wsrep here. */
     if (opt_bootstrap && wsrep_inited)
-      wsrep_deinit(true);
+      wsrep_deinit();
+    wsrep_deinit_server();
   }
 #endif // WITH_WSREP
 
@@ -6110,17 +6109,7 @@ int mysqld_main(int argc, char **argv)
     }
     else
     {
-      wsrep_SE_initialized();
-
-      if (wsrep_before_SE())
-      {
-        /*! in case of no SST wsrep waits in view handler callback */
-        wsrep_SE_init_grab();
-        wsrep_SE_init_done();
-        /*! in case of SST wsrep waits for wsrep->sst_received */
-        wsrep_sst_continue();
-      }
-      else
+       if (!wsrep_before_SE())
       {
         wsrep_init_startup (false);
       }

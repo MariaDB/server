@@ -649,7 +649,7 @@ std::string wsrep_sst_prepare()
     {
       WSREP_ERROR("Could not parse wsrep_node_address : %s",
                   wsrep_node_address);
-      return -ENXIO; /* No such device or address */
+      throw wsrep::runtime_error("Failed to prepare for SST. Unrecoverable");
     }
     memcpy(ip_buf, addr.get_address(), addr.get_address_len());
     addr_in= ip_buf;
@@ -824,6 +824,54 @@ static int sst_donate_mysqldump (const char*         addr,
   Wsrep_server_state::instance().sst_sent(sst_sent_gtid, ret);
 
   return ret;
+}
+
+/*
+  Create a file under data directory.
+*/
+static int sst_create_file(const char *name, const char *content)
+{
+  int err= 0;
+  char *real_name;
+  char *tmp_name;
+  ssize_t len;
+  FILE *file;
+
+  len= strlen(mysql_real_data_home) + strlen(name) + 2;
+  real_name= (char *) alloca(len);
+
+  snprintf(real_name, (size_t) len, "%s/%s", mysql_real_data_home, name);
+
+  tmp_name= (char *) alloca(len + 4);
+  snprintf(tmp_name, (size_t) len + 4, "%s.tmp", real_name);
+
+  file= fopen(tmp_name, "w+");
+
+  if (0 == file)
+  {
+    err= errno;
+    WSREP_ERROR("Failed to open '%s': %d (%s)", tmp_name, err, strerror(err));
+  }
+  else
+  {
+    // Write the specified content into the file.
+    if (content != NULL)
+    {
+      fprintf(file, "%s\n", content);
+      fsync(fileno(file));
+    }
+
+    fclose(file);
+
+    if (rename(tmp_name, real_name) == -1)
+    {
+      err= errno;
+      WSREP_ERROR("Failed to rename '%s' to '%s': %d (%s)", tmp_name,
+                  real_name, err, strerror(err));
+    }
+  }
+
+  return err;
 }
 
 static int run_sql_command(THD *thd, const char *query)
@@ -1139,7 +1187,7 @@ static int sst_donate_other (const char*        method,
                  method, addr, mysqld_unix_port, mysql_real_data_home,
                  wsrep_defaults_file,
                  binlog_opt, binlog_opt_val,
-                 uuid_oss.str().c_str(), gtid.seqno().get(),
+                 uuid_oss.str().c_str(), gtid.seqno().get(), wsrep_gtid_domain_id,
                  bypass ? " " WSREP_SST_OPT_BYPASS : "");
   my_free(binlog_opt_val);
 

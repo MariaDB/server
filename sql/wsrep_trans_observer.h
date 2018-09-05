@@ -148,7 +148,7 @@ static inline int wsrep_after_prepare(THD* thd, bool all)
  */
 static inline int wsrep_before_commit(THD* thd, bool all)
 {
-  WSREP_DEBUG("wsrep_before_commit: %d, %lld",
+  WSREP_DEBUG("wsrep_before_commit: %d, %lu",
               wsrep_is_real(thd, all),
               wsrep_thd_trx_seqno(thd));
   return ((wsrep_is_real(thd, all) && wsrep_is_active(thd)) ?
@@ -185,7 +185,7 @@ static inline int wsrep_ordered_commit(THD* thd,
  */
 static inline int wsrep_after_commit(THD* thd, bool all)
 {
-  WSREP_DEBUG("wsrep_after_commit: %d, %d, %lld", wsrep_is_real(thd, all),
+  WSREP_DEBUG("wsrep_after_commit: %d, %d, %lu", wsrep_is_real(thd, all),
               wsrep_is_active(thd), wsrep_thd_trx_seqno(thd));
   bool run_after_commit= (wsrep_is_real(thd, all) && wsrep_is_active(thd));
   if (run_after_commit)
@@ -346,7 +346,7 @@ wsrep_current_error_status(THD* thd)
 static inline void wsrep_commit_empty(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_commit_empty");
-  WSREP_DEBUG("wsrep_commit_empty(%lu)", thd->thread_id);
+  WSREP_DEBUG("wsrep_commit_empty(%llu)", thd->thread_id);
   if (wsrep_is_real(thd, all) &&
       wsrep_thd_is_local(thd) &&
       thd->wsrep_trx().active())

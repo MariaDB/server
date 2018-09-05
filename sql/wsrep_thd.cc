@@ -31,6 +31,16 @@
 static Wsrep_thd_queue* wsrep_rollback_queue = 0;
 static Wsrep_thd_queue* wsrep_post_rollback_queue = 0;
 
+#if (__LP64__)
+static volatile int64 wsrep_bf_aborts_counter(0);
+#define WSREP_ATOMIC_LOAD_LONG my_atomic_load64
+#define WSREP_ATOMIC_ADD_LONG  my_atomic_add64
+#else
+static volatile int32 wsrep_bf_aborts_counter(0);
+#define WSREP_ATOMIC_LOAD_LONG my_atomic_load32
+#define WSREP_ATOMIC_ADD_LONG  my_atomic_add32
+#endif
+
 int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff)
 {
   wsrep_local_bf_aborts = WSREP_ATOMIC_LOAD_LONG(&wsrep_bf_aborts_counter);
@@ -46,7 +56,7 @@ static void wsrep_replication_process(THD *thd,
 
   Wsrep_applier_service applier_service(thd);
 
-  WSREP_INFO("Starting applier thread %lu", thd->thread_id);
+  WSREP_INFO("Starting applier thread %llu", thd->thread_id);
   enum wsrep::provider::status
     ret= Wsrep_server_state::get_provider().run_applier(&applier_service);
 
@@ -132,7 +142,7 @@ static void wsrep_rollback_process(THD *rollbacker,
   thd_proc_info(rollbacker, "wsrep aborter idle");
   while ((thd= wsrep_rollback_queue->pop_front()) != NULL)
   {
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     wsrep::client_state& cs(thd->wsrep_cs());
     const wsrep::transaction& tx(cs.transaction());
     if (tx.state() == wsrep::transaction::s_aborted)
@@ -166,16 +176,16 @@ static void wsrep_rollback_process(THD *rollbacker,
       }
       else
       {
-        mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+        mysql_mutex_lock(&thd->LOCK_thd_data);
         /* prepare THD for rollback processing */
-        mysql_reset_thd_for_next_command(thd);
+        thd->reset_for_next_command(true);
         thd->lex->sql_command= SQLCOM_ROLLBACK;
-        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+        mysql_mutex_unlock(&thd->LOCK_thd_data);
         /* Perform a client rollback, restore globals and signal
            the victim only when all the resources have been
            released */
         thd->wsrep_cs().client_service().bf_rollback();
-        thd->restore_globals();
+        thd->reset_globals();
         thd->wsrep_cs().sync_rollback_complete();
       }
     }
@@ -244,14 +254,13 @@ static void wsrep_rollback_process(THD *rollbacker,
          the victim only when all the resources have been
          released */
       thd->wsrep_cs().client_service().bf_rollback();
-      thd->restore_globals();
+      thd->reset_globals();
       thd->wsrep_cs().sync_rollback_complete();
-      WSREP_DEBUG("rollbacker aborted thd: (%lu %llu)",
+      WSREP_DEBUG("rollbacker aborted thd: (%llu %llu)",
                   thd->thread_id, (long long)thd->real_id);
     }
 
     thd_proc_info(rollbacker, "wsrep aborter idle");
-#endif
   }
   
   delete wsrep_rollback_queue;
@@ -279,7 +288,7 @@ static void wsrep_post_rollback_process(THD *post_rollbacker,
     wsrep::client_state& cs(thd->wsrep_cs());
     mysql_mutex_lock(&thd->LOCK_thd_data);
     DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_aborting);
-    WSREP_DEBUG("post rollbacker calling post rollback for thd %ld, conf %s",
+    WSREP_DEBUG("post rollbacker calling post rollback for thd %llu, conf %s",
                 thd->thread_id, wsrep_thd_transaction_state_str(thd));
 
     cs.after_rollback();
@@ -355,8 +364,8 @@ int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, my_bool signal)
       WSREP_DEBUG("wsrep_abort_thd, by: %llu, victim: %llu", (bf_thd) ?
                   (long long)bf_thd->real_id : 0, (long long)victim_thd->real_id);
       mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
-      ha_wsrep_abort_transaction(bf_thd, victim_thd, signal);
-      mysql_mutex_lock(&victim_thd->LOCK_wsrep_thd);
+      ha_abort_transaction(bf_thd, victim_thd, signal);
+      mysql_mutex_lock(&victim_thd->LOCK_thd_data);
   }
   else
   {

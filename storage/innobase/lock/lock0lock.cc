@@ -788,12 +788,11 @@ lock_rec_has_to_wait(
 					<< type_mode
 					<< " supremum: " << lock_is_on_supremum
 					<< "conflicts states: my "
-					<< wsrep_thd_conflict_state(
-						   trx->mysql_thd, FALSE)
+					<< wsrep_thd_transaction_state_str(
+						   trx->mysql_thd)
 					<< " locked "
-					<< wsrep_thd_conflict_state(
-						   lock2->trx->mysql_thd,
-						   FALSE);
+					<< wsrep_thd_transaction_state_str(
+						   lock2->trx->mysql_thd);
 				lock_rec_print(stderr, lock2);
 				ib::info() << " SQL1: "
 					   << wsrep_thd_query(trx->mysql_thd)
@@ -1857,14 +1856,14 @@ lock_rec_add_to_queue(
 			ib::info() << "WSREP BF lock conflict for my lock:\n BF:" <<
 				((wsrep_thd_is_BF(trx->mysql_thd, FALSE)) ? "BF" : "normal") << " exec: " <<
 				wsrep_thd_exec_mode(trx->mysql_thd) << " conflict: " <<
-				wsrep_thd_conflict_state(trx->mysql_thd, false) << " seqno: " <<
+				wsrep_thd_transaction_state_str(trx->mysql_thd) << " seqno: " <<
 				wsrep_thd_trx_seqno(trx->mysql_thd) << " SQL: " <<
 				wsrep_thd_query(trx->mysql_thd);
 			trx_t* otrx = other_lock->trx;
 			ib::info() << "WSREP other lock:\n BF:" <<
 				((wsrep_thd_is_BF(otrx->mysql_thd, FALSE)) ? "BF" : "normal") << " exec: " <<
 				wsrep_thd_exec_mode(otrx->mysql_thd) << " conflict: " <<
-				wsrep_thd_conflict_state(otrx->mysql_thd, false) << " seqno: " <<
+				wsrep_thd_transaction_state_str(otrx->mysql_thd) << " seqno: " <<
 				wsrep_thd_trx_seqno(otrx->mysql_thd) << " SQL: " <<
 				wsrep_thd_query(otrx->mysql_thd);
 		}
@@ -4029,10 +4028,6 @@ lock_table_dequeue(
 	ut_a(lock_get_type_low(in_lock) == LOCK_TABLE);
 
 	lock_t*	lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, in_lock);
-	trx = ctx->wait_lock->trx;
-#ifdef WITH_WSREP
-	wsrep_handle_SR_rollback(ctx->start->mysql_thd, trx->mysql_thd);
-#endif
 
 	lock_table_remove_low(in_lock);
 
@@ -4968,7 +4963,7 @@ lock_rec_queue_validate(
 					ib::info() << "WSREP impl BF lock conflict for my impl lock:\n BF:" <<
 						((wsrep_thd_is_BF(impl_trx->mysql_thd, FALSE)) ? "BF" : "normal") << " exec: " <<
 						wsrep_thd_exec_mode(impl_trx->mysql_thd) << " conflict: " <<
-						wsrep_thd_conflict_state(impl_trx->mysql_thd, false) << " seqno: " <<
+						wsrep_thd_transaction_state_str(impl_trx->mysql_thd) << " seqno: " <<
 						wsrep_thd_trx_seqno(impl_trx->mysql_thd) << " SQL: " <<
 						wsrep_thd_query(impl_trx->mysql_thd);
 
@@ -4977,7 +4972,7 @@ lock_rec_queue_validate(
 					ib::info() << "WSREP other lock:\n BF:" <<
 						((wsrep_thd_is_BF(otrx->mysql_thd, FALSE)) ? "BF" : "normal")  << " exec: " <<
 						wsrep_thd_exec_mode(otrx->mysql_thd) << " conflict: " <<
-						wsrep_thd_conflict_state(otrx->mysql_thd, false) << " seqno: " <<
+						wsrep_thd_transaction_state_str(otrx->mysql_thd) << " seqno: " <<
 						wsrep_thd_trx_seqno(otrx->mysql_thd) << " SQL: " <<
 						wsrep_thd_query(otrx->mysql_thd);
 				}

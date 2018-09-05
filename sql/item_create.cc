@@ -7429,7 +7429,8 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("WSREP_LAST_WRITTEN_GTID") }, BUILDER(Create_func_wsrep_last_written_gtid)},
   { { STRING_WITH_LEN("WSREP_LAST_SEEN_GTID") }, BUILDER(Create_func_wsrep_last_seen_gtid)},
   { { STRING_WITH_LEN("WSREP_SYNC_WAIT_UPTO_GTID") }, BUILDER(Create_func_wsrep_sync_wait_upto)},
-#endif /* WITH_WSREP */  { { STRING_WITH_LEN("X") }, GEOM_BUILDER(Create_func_x)},
+#endif /* WITH_WSREP */
+  { { STRING_WITH_LEN("X") }, GEOM_BUILDER(Create_func_x)},
   { { STRING_WITH_LEN("Y") }, GEOM_BUILDER(Create_func_y)},
   { { STRING_WITH_LEN("YEARWEEK") }, BUILDER(Create_func_year_week)},
 
