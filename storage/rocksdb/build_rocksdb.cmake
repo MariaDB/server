@@ -385,6 +385,13 @@ ENDFOREACH()
 
 if(MSVC)
   add_definitions(-DHAVE_SSE42 -DHAVE_PCLMUL)
+  # Workaround broken compilation with -DWIN32_LEAN_AND_MEAN
+  # (https://github.com/facebook/rocksdb/issues/4344)
+  set_source_files_properties(${ROCKSDB_SOURCE_DIR}/port/win/env_win.cc
+      PROPERTIES COMPILE_FLAGS "/FI\"windows.h\" /FI\"winioctl.h\"")
+
+  # Workaround Win8.1 SDK bug, that breaks /permissive-
+  string(REPLACE "/permissive-" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 else()
   set(CMAKE_REQUIRED_FLAGS "-msse4.2 -mpclmul ${CXX11_FLAGS}")
 

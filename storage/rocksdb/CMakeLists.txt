@@ -43,15 +43,6 @@ IF (WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
   SKIP_ROCKSDB_PLUGIN("32-Bit Windows are temporarily disabled")
 ENDIF()
 
-#
-# RocksDB's port/win/env_win.cc uses parts of Windows API that are not part
-# of the LEAN_AND_MEAN set. Ideally we should undef LEAN_AND_MEAN only for
-# that file, but REMOVE_DEFINITIONS only works per-directory?
-#
-IF (WIN32)
-  REMOVE_DEFINITIONS(-DWIN32_LEAN_AND_MEAN)
-ENDIF()
-
 # This plugin needs recent C++ compilers (it is using C++11 features)
 # Skip build for the old compilers
 SET(CXX11_FLAGS)
