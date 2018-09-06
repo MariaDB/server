@@ -171,7 +171,6 @@ static void move_number_to_child(
     child = ((random() % 2) == 0) ? (2*parent + 1) : (2*parent + 2); 
     
     void* v1;
-    long s1;
     CACHEKEY parent_key;
     parent_key.b = parent;
     uint32_t parent_fullhash = toku_cachetable_hash(f1, parent_key);
@@ -189,7 +188,6 @@ static void move_number_to_child(
         child_key,
         child_fullhash,
         &v1,
-        &s1,
         wc, fetch, def_pf_req_callback, def_pf_callback,
         PL_WRITE_CHEAP,
         NULL,
@@ -222,7 +220,6 @@ static void *move_numbers(void *arg) {
         int parent = 0;
         int r;
         void* v1;
-        long s1;
         CACHEKEY parent_key;
         parent_key.b = parent;
         uint32_t parent_fullhash = toku_cachetable_hash(f1, parent_key);
@@ -234,7 +231,6 @@ static void *move_numbers(void *arg) {
             parent_key,
             parent_fullhash,
             &v1,
-            &s1,
             wc, fetch, def_pf_req_callback, def_pf_callback,
             PL_WRITE_CHEAP,
             NULL,
@@ -280,7 +276,6 @@ static void merge_and_split_child(
     assert(child != other_child);
     
     void* v1;
-    long s1;
 
     CACHEKEY parent_key;
     parent_key.b = parent;
@@ -299,7 +294,6 @@ static void merge_and_split_child(
         child_key,
         child_fullhash,
         &v1,
-        &s1,
         wc, fetch, def_pf_req_callback, def_pf_callback,
         PL_WRITE_CHEAP,
         NULL,
@@ -325,7 +319,6 @@ static void merge_and_split_child(
         other_child_key,
         other_child_fullhash,
         &v1,
-        &s1,
         wc, fetch, def_pf_req_callback, def_pf_callback,
         PL_WRITE_CHEAP,
         NULL,
@@ -387,7 +380,6 @@ static void *merge_and_split(void *arg) {
         int parent = 0;
         int r;        
         void* v1;
-        long s1;
         CACHEKEY parent_key;
         parent_key.b = parent;
         uint32_t parent_fullhash = toku_cachetable_hash(f1, parent_key);
@@ -399,7 +391,6 @@ static void *merge_and_split(void *arg) {
             parent_key,
             parent_fullhash,
             &v1,
-            &s1,
             wc, fetch, def_pf_req_callback, def_pf_callback,
             PL_WRITE_CHEAP,
             NULL,
