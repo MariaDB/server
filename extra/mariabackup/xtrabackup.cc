@@ -2718,7 +2718,7 @@ static os_thread_ret_t log_copying_thread(void*)
 
 		log_mutex_enter();
 		bool completed = metadata_to_lsn
-			&& metadata_to_lsn < log_copy_scanned_lsn;
+			&& metadata_to_lsn <= log_copy_scanned_lsn;
 		log_mutex_exit();
 		if (completed) {
 			break;
