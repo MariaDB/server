@@ -25,14 +25,15 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #ident "Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved."
 
 #include "hatoku_hton.h"
+#include "PerconaFT/src/ydb.h"
 
 #define TOKU_METADB_NAME "tokudb_meta"
 
 #if defined(HAVE_PSI_MUTEX_INTERFACE)
-static pfs_key_t tokudb_map_mutex_key;
+//static pfs_key_t tokudb_map_mutex_key;
 
 static PSI_mutex_info all_tokudb_mutexes[] = {
-    {&tokudb_map_mutex_key, "tokudb_map_mutex", 0},
+    //{&tokudb_map_mutex_key, "tokudb_map_mutex", 0},
     {&ha_tokudb_mutex_key, "ha_tokudb_mutex", 0},
 };
 
@@ -126,7 +127,7 @@ handlerton* tokudb_hton;
 const char* ha_tokudb_ext = ".tokudb";
 DB_ENV* db_env;
 
-static tokudb::thread::mutex_t tokudb_map_mutex;
+//static tokudb::thread::mutex_t tokudb_map_mutex;
 #if defined(TOKU_THDVAR_MEMALLOC_BUG) && TOKU_THDVAR_MEMALLOC_BUG
 static TREE tokudb_map;
 struct tokudb_map_pair {
@@ -280,7 +281,9 @@ static int tokudb_set_product_name(void) {
 
 static int tokudb_init_func(void *p) {
     TOKUDB_DBUG_ENTER("%p", p);
-    int r;
+
+    int r = toku_ydb_init();
+    assert(r==0);
 
     // 3938: lock the handlerton's initialized status flag for writing
     rwlock_t_lock_write(tokudb_hton_initialized_lock);
@@ -295,7 +298,7 @@ static int tokudb_init_func(void *p) {
     count = array_elements(all_tokudb_rwlocks);
     mysql_rwlock_register("tokudb", all_tokudb_rwlocks, count);
 
-    tokudb_map_mutex.reinit(tokudb_map_mutex_key);
+    //tokudb_map_mutex.reinit(tokudb_map_mutex_key);
 #endif /* HAVE_PSI_INTERFACE */
 
     db_env = NULL;
@@ -682,6 +685,7 @@ static int tokudb_done_func(TOKUDB_UNUSED(void* p)) {
     toku_global_status_variables = NULL;
     tokudb::memory::free(toku_global_status_rows);
     toku_global_status_rows = NULL;
+    toku_ydb_destroy();
     TOKUDB_DBUG_RETURN(0);
 }
 
