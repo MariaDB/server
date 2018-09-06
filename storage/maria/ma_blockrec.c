@@ -5162,15 +5162,15 @@ int _ma_read_block_record(MARIA_HA *info, uchar *record,
                              PAGECACHE_LOCK_LEFT_UNLOCKED, 0)))
     DBUG_RETURN(my_errno);
 
- /*
-   Unallocated page access can happen if this is an access to a page where
-   all rows where deleted as part of this statement.
- */
- DBUG_ASSERT((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == HEAD_PAGE ||
-             (buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == UNALLOCATED_PAGE);
+  /*
+    Unallocated page access can happen if this is an access to a page where
+    all rows where deleted as part of this statement.
+  */
+  DBUG_ASSERT((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == HEAD_PAGE ||
+              (buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == UNALLOCATED_PAGE);
 
-  DBUG_ASSERT((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == HEAD_PAGE);
-  if (!(data= get_record_position(share, buff, offset, &end_of_data)))
+  if (((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == UNALLOCATED_PAGE) ||
+      !(data= get_record_position(share, buff, offset, &end_of_data)))
   {
     DBUG_ASSERT(!maria_assert_if_crashed_table);
     DBUG_PRINT("warning", ("Wrong directory entry in data block"));
