@@ -16761,15 +16761,8 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
                                                        ref_table_buff,
                                                        ref_table_name_length,
                                                        TRUE);
-#ifdef MRN_FOREIGN_KEY_USE_METHOD_ENUM
     f_key_info.update_method = FK_OPTION_RESTRICT;
     f_key_info.delete_method = FK_OPTION_RESTRICT;
-#else
-    f_key_info.update_method = thd_make_lex_string(thd, NULL, "RESTRICT",
-                                                    8, TRUE);
-    f_key_info.delete_method = thd_make_lex_string(thd, NULL, "RESTRICT",
-                                                    8, TRUE);
-#endif
     f_key_info.referenced_key_name = thd_make_lex_string(thd, NULL, "PRIMARY",
                                                           7, TRUE);
     LEX_STRING *field_name = thd_make_lex_string(thd,

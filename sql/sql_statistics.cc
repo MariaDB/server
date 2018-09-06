@@ -3268,6 +3268,9 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
     if (!tl->is_view_or_derived() && !is_temporary_table(tl) && tl->table)
     { 
       TABLE_SHARE *table_share= tl->table->s;
+      if (table_share && !(table_share->table_category == TABLE_CATEGORY_USER))
+        continue;
+
       if (table_share && 
           table_share->stats_cb.stats_can_be_read &&
 	  !table_share->stats_cb.stats_is_read)

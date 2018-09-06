@@ -71,13 +71,10 @@ run_test (void) {
     assert(r==0);
 
     void* vs[8];
-    //void* v2;
-    long ss[8];
-    //long s2;
     for (int i = 0; i < 8; ++i) {
         CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
         wc.cleaner_callback = everything_pinned_cleaner_callback;
-        r = toku_cachetable_get_and_pin(f1, make_blocknum(i+1), i+1, &vs[i], &ss[i],
+        r = toku_cachetable_get_and_pin(f1, make_blocknum(i+1), i+1, &vs[i],
                                         wc,
                                         def_fetch,
                                         def_pf_req_callback,

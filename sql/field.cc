@@ -9782,13 +9782,18 @@ void Create_field::create_length_to_internal_length(void)
     }
     break;
   case MYSQL_TYPE_NEWDECIMAL:
-    key_length= pack_length=
-      my_decimal_get_binary_size(my_decimal_length_to_precision(length,
-								decimals,
-								flags &
-								UNSIGNED_FLAG),
-				 decimals);
+  {
+    /*
+      This code must be identical to code in
+      Field_new_decimal::Field_new_decimal as otherwise the record layout
+      gets out of sync.
+    */
+    uint precision= my_decimal_length_to_precision(length, decimals,
+                                                   flags & UNSIGNED_FLAG);
+    set_if_smaller(precision, DECIMAL_MAX_PRECISION);
+    key_length= pack_length= my_decimal_get_binary_size(precision, decimals);
     break;
+  }
   default:
     key_length= pack_length= calc_pack_length(sql_type, length);
     break;

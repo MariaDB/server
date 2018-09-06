@@ -828,11 +828,11 @@ bool JDBConn::Connect(PJPARM sop)
 		jstring s = (jstring)env->CallObjectMethod(job, qcid);
 
 		if (s != nullptr) {
-			char *qch = (char*)env->GetStringUTFChars(s, (jboolean)false);
+			char *qch = (char*)env->GetStringUTFChars(s, NULL);
 			m_IDQuoteChar[0] = *qch;
 		} else {
 			s = (jstring)env->CallObjectMethod(job, errid);
-			Msg = (char*)env->GetStringUTFChars(s, (jboolean)false);
+			Msg = (char*)env->GetStringUTFChars(s, NULL);
 		}	// endif s
 
 	}	// endif qcid
@@ -1010,7 +1010,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 			cn = nullptr;
 
 		if (cn) {
-			field = env->GetStringUTFChars(cn, (jboolean)false);
+			field = env->GetStringUTFChars(cn, NULL);
 			val->SetValue_psz((PSZ)field);
 		} else
 			val->Reset();
@@ -1084,7 +1084,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 			cn = nullptr;
 
 		if (cn) {
-			const char *field = env->GetStringUTFChars(cn, (jboolean)false);
+			const char *field = env->GetStringUTFChars(cn, NULL);
 			val->SetValue_psz((PSZ)field);
 		} else
 			val->Reset();
@@ -1462,7 +1462,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 				return NULL;
 			} // endif label
 
-			name = env->GetStringUTFChars(label, (jboolean)false);
+			name = env->GetStringUTFChars(label, NULL);
 			crp = qrp->Colresp;                    // Column_Name
 			crp->Kdata->SetValue((char*)name, i);
 			n = env->GetIntArrayElements(val, 0);
