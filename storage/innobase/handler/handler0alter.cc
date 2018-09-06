@@ -8491,36 +8491,17 @@ change_fields_versioning_try(
 		DBUG_RETURN(false);
 	}
 
-	uint virtual_count = 0;
-
 	List_iterator_fast<Create_field> it(
 	    ha_alter_info->alter_info->create_list);
 
-	for (uint i = 0; i < table->s->fields; i++) {
-		const Field* field = table->field[i];
-
-		if (innobase_is_v_fld(field)) {
-			virtual_count++;
-			continue;
-		}
-
-		const Create_field* create_field = NULL;
-		while (const Create_field* cf = it++) {
-			if (cf->field == field) {
-				create_field = cf;
-				break;
-			}
-		}
-		it.rewind();
-		DBUG_ASSERT(create_field);
-
+	while (const Create_field* create_field = it++) {
 		if (create_field->versioning
 		    == Column_definition::VERSIONING_NOT_SET) {
 			continue;
 		}
 
 		const dict_table_t* new_table = ctx->new_table;
-		ulint pos = i - virtual_count;
+		const uint pos = innodb_col_no(create_field->field);
 		const dict_col_t* col = dict_table_get_nth_col(new_table, pos);
 
 		DBUG_ASSERT(!col->vers_sys_start());
@@ -8560,31 +8541,12 @@ change_fields_versioning_cache(
 	DBUG_ASSERT(ctx);
 	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_COLUMN_UNVERSIONED);
 
-	uint virtual_count = 0;
-
 	List_iterator_fast<Create_field> it(
 	    ha_alter_info->alter_info->create_list);
 
-	for (uint i = 0; i < table->s->fields; i++) {
-		const Field* field = table->field[i];
-
-		if (innobase_is_v_fld(field)) {
-			virtual_count++;
-			continue;
-		}
-
-		const Create_field* create_field = NULL;
-		while (const Create_field* cf = it++) {
-			if (cf->field == field) {
-				create_field = cf;
-				break;
-			}
-		}
-		it.rewind();
-		DBUG_ASSERT(create_field);
-
-		dict_col_t* col
-		    = dict_table_get_nth_col(ctx->new_table, i - virtual_count);
+	while (const Create_field* create_field = it++) {
+		dict_col_t* col = dict_table_get_nth_col(
+		    ctx->new_table, innodb_col_no(create_field->field));
 
 		if (create_field->versioning
 		    == Column_definition::WITHOUT_VERSIONING) {
