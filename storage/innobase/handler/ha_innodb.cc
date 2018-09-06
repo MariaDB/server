@@ -13353,6 +13353,7 @@ innobase_rename_table(
 	DEBUG_SYNC_C("innodb_rename_table_ready");
 
 	trx_start_if_not_started(trx, true);
+	ut_ad(trx->will_lock > 0);
 
 	/* Serialize data dictionary operations with dictionary mutex:
 	no deadlocks can occur then in these operations. */
@@ -13504,13 +13505,6 @@ int ha_innobase::truncate()
 	}
 
 	if (err) {
-		/* Before MDEV-14717, rollback of RENAME TABLE fails
-		to undo the rename in the file system, so we do it
-		manually here. In case the server is killed before the
-		TRUNCATE operation is committed, after recovery in
-		MariaDB 10.2, the data file could end up "missing"
-		(remain called temp_name). */
-		innobase_rename_table(trx, temp_name, name);
 		trx_rollback_to_savepoint(trx, NULL);
 	}
 

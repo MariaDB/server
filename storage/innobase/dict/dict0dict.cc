@@ -1692,6 +1692,8 @@ dict_table_rename_in_cache(
 			return(err);
 		}
 
+		fil_name_write_rename(table->space, old_path, new_path);
+
 		bool	success = fil_rename_tablespace(
 			table->space, old_path, new_name, new_path);
 

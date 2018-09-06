@@ -1448,7 +1448,7 @@ dict_check_sys_tables(
 		look to see if it is already in the tablespace cache. */
 		if (fil_space_for_table_exists_in_mem(
 			    space_id, table_name.m_name,
-			    false, true, NULL, 0, flags)) {
+			    false, NULL, flags)) {
 			/* Recovery can open a datafile that does not
 			match SYS_DATAFILES.  If they don't match, update
 			SYS_DATAFILES. */
@@ -2857,8 +2857,7 @@ dict_load_tablespace(
 
 	/* The tablespace may already be open. */
 	if (fil_space_for_table_exists_in_mem(
-		    table->space, space_name, false,
-		    true, heap, table->id, table->flags)) {
+		    table->space, space_name, false, heap, table->flags)) {
 		return;
 	}
 
