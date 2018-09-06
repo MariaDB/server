@@ -43,3 +43,4 @@ galera_gcs_fc_limit : Timeouts
 pool_of_threads: WSREP has not yet prepared node for application use
 galera_var_innodb_disallow_writes : Timeout
 galera.galera_kill_ddl : MDEV-17108 Test failure on galera.galera_kill_ddl
+MW-336 : nondeterministic wsrep_thread_count

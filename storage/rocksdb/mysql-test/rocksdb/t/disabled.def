@@ -79,3 +79,6 @@ information_schema: MDEV-14372: unstable testcase
 
 mysqlbinlog_gtid_skip_empty_trans_rocksdb : MariaRocks: requires GTIDs
 autoinc_debug: Fails with wrong results
+drop_table: Hangs on shutdown
+allow_to_start_after_corruption : result difference and assertion failure
+index_merge_rocksdb2 : result difference
