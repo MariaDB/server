@@ -13509,11 +13509,7 @@ int ha_innobase::truncate()
 
 	if (!err) {
 		/* Reopen the newly created table, and drop the
-		original table that was renamed to temp_name.
-
-		Note: In MariaDB 10.2 (before MDEV-14585), if the
-		server is killed and restarted before the original
-		table is dropped, the table will remain orphaned. */
+		original table that was renamed to temp_name. */
 		close();
 		err = open(name, 0, 0);
 		if (!err) {
