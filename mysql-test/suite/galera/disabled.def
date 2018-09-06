@@ -40,7 +40,6 @@ galera_sst_mysqldump_with_key : MDEV-16890 Galera test failure
 galera_sst_xtrabackup-v2-options : Failed to read uuid:seqno and wsrep_gtid_domain_id from joiner script
 MW-328C : Timeouts
 galera_gcs_fc_limit : Timeouts
-galera_binlog_stmt_autoinc : Unstable results
 pool_of_threads: WSREP has not yet prepared node for application use
-partition: Not stable test: Different auto_increment numbers
 galera_var_innodb_disallow_writes : Timeout
+galera.galera_kill_ddl : MDEV-17108 Test failure on galera.galera_kill_ddl

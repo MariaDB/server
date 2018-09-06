@@ -70,3 +70,13 @@ SELECT * FROM t1 ORDER BY pk;
 
 DROP TABLE t1;
 
+
+#
+# Issue #830 UPDATE with unique constraint does not work
+#
+
+CREATE TABLE t1 (a INT, b CHAR(8), UNIQUE INDEX(a)) ENGINE=RocksDB;
+INSERT INTO t1 (a,b) VALUES (1,'foo'),(2,'bar');
+UPDATE t1 SET a=a+100;
+SELECT * FROM t1;
+DROP TABLE t1;

@@ -53,6 +53,7 @@ LIST OF SNAPSHOTS FOR EACH SESSION:
 
 *** DEADLOCK PATH
 =========================================
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -60,6 +61,7 @@ LOCK TYPE: EXCLUSIVE
 INDEX NAME: PRIMARY
 TABLE NAME: test.t
 ---------------WAITING FOR---------------
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -102,6 +104,7 @@ LIST OF SNAPSHOTS FOR EACH SESSION:
 
 *** DEADLOCK PATH
 =========================================
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -109,6 +112,7 @@ LOCK TYPE: EXCLUSIVE
 INDEX NAME: PRIMARY
 TABLE NAME: test.t
 ---------------WAITING FOR---------------
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -120,6 +124,7 @@ TABLE NAME: test.t
 
 *** DEADLOCK PATH
 =========================================
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -127,6 +132,7 @@ LOCK TYPE: EXCLUSIVE
 INDEX NAME: PRIMARY
 TABLE NAME: test.t
 ---------------WAITING FOR---------------
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -170,6 +176,7 @@ LIST OF SNAPSHOTS FOR EACH SESSION:
 
 *** DEADLOCK PATH
 =========================================
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -177,6 +184,7 @@ LOCK TYPE: EXCLUSIVE
 INDEX NAME: PRIMARY
 TABLE NAME: test.t
 ---------------WAITING FOR---------------
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -188,6 +196,7 @@ TABLE NAME: test.t
 
 *** DEADLOCK PATH
 =========================================
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -195,6 +204,7 @@ LOCK TYPE: EXCLUSIVE
 INDEX NAME: PRIMARY
 TABLE NAME: test.t
 ---------------WAITING FOR---------------
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -206,6 +216,7 @@ TABLE NAME: test.t
 
 *** DEADLOCK PATH
 =========================================
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -213,6 +224,7 @@ LOCK TYPE: EXCLUSIVE
 INDEX NAME: PRIMARY
 TABLE NAME: test.t
 ---------------WAITING FOR---------------
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -240,6 +252,7 @@ LIST OF SNAPSHOTS FOR EACH SESSION:
 
 *** DEADLOCK PATH
 =========================================
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -247,6 +260,7 @@ LOCK TYPE: EXCLUSIVE
 INDEX NAME: PRIMARY
 TABLE NAME: test.t
 ---------------WAITING FOR---------------
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -352,6 +366,7 @@ LIST OF SNAPSHOTS FOR EACH SESSION:
 
 *** DEADLOCK PATH
 =========================================
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -359,6 +374,7 @@ LOCK TYPE: EXCLUSIVE
 INDEX NAME: PRIMARY
 TABLE NAME: test.t
 ---------------WAITING FOR---------------
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -373,6 +389,25 @@ TABLE NAME: test.t
 END OF ROCKSDB TRANSACTION MONITOR OUTPUT
 =========================================
 
+Deadlock #6
+create table t1 (id int primary key, value int) engine=rocksdb;
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+begin;
+update t1 set value=value+100 where id=1;
+update t1 set value=value+100 where id=2;
+begin;
+update t1 set value=value+200 where id=3;
+update t1 set value=value+100 where id=3;
+update t1 set value=value+200 where id=1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+select * from t1;
+id	value
+1	101
+2	102
+3	103
+4	4
+5	5
+drop table t1;
 set global rocksdb_lock_wait_timeout = @prior_lock_wait_timeout;
 set global rocksdb_deadlock_detect = @prior_deadlock_detect;
 drop table t;
@@ -390,6 +425,7 @@ LIST OF SNAPSHOTS FOR EACH SESSION:
 
 *** DEADLOCK PATH
 =========================================
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY
@@ -397,6 +433,27 @@ LOCK TYPE: EXCLUSIVE
 INDEX NAME: NOT FOUND; IDX_ID
 TABLE NAME: NOT FOUND; IDX_ID
 ---------------WAITING FOR---------------
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: NOT FOUND; IDX_ID
+TABLE NAME: NOT FOUND; IDX_ID
+
+--------TXN_ID GOT DEADLOCK---------
+
+*** DEADLOCK PATH
+=========================================
+TSTAMP
+TXN_ID
+COLUMN FAMILY NAME: default
+KEY
+LOCK TYPE: EXCLUSIVE
+INDEX NAME: NOT FOUND; IDX_ID
+TABLE NAME: NOT FOUND; IDX_ID
+---------------WAITING FOR---------------
+TSTAMP
 TXN_ID
 COLUMN FAMILY NAME: default
 KEY

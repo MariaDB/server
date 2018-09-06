@@ -41,27 +41,9 @@ public:
   Rdb_pk_comparator &operator=(const Rdb_pk_comparator &) = delete;
   Rdb_pk_comparator() = default;
 
-  static int bytewise_compare(const rocksdb::Slice &a,
-                              const rocksdb::Slice &b) {
-    const size_t a_size = a.size();
-    const size_t b_size = b.size();
-    const size_t len = (a_size < b_size) ? a_size : b_size;
-    int res;
-
-    if ((res = memcmp(a.data(), b.data(), len)))
-      return res;
-
-    /* Ok, res== 0 */
-    if (a_size != b_size) {
-      return a_size < b_size ? -1 : 1;
-    }
-    return HA_EXIT_SUCCESS;
-  }
-
-  /* Override virtual methods of interest */
-
+  // extracting from rocksdb::BytewiseComparator()->Compare() for optimization
   int Compare(const rocksdb::Slice &a, const rocksdb::Slice &b) const override {
-    return bytewise_compare(a, b);
+    return a.compare(b);
   }
 
   const char *Name() const override { return "RocksDB_SE_v3.10"; }
@@ -72,8 +54,12 @@ public:
 
   // for now, do-nothing implementations:
   void FindShortestSeparator(std::string *start,
-                             const rocksdb::Slice &limit) const override {}
-  void FindShortSuccessor(std::string *key) const override {}
+                             const rocksdb::Slice &limit) const override {
+    rocksdb::BytewiseComparator()->FindShortestSeparator(start, limit);
+  }
+  void FindShortSuccessor(std::string *key) const override {
+    rocksdb::BytewiseComparator()->FindShortSuccessor(key);
+  }
 };
 
 class Rdb_rev_comparator : public rocksdb::Comparator {
@@ -82,18 +68,18 @@ public:
   Rdb_rev_comparator &operator=(const Rdb_rev_comparator &) = delete;
   Rdb_rev_comparator() = default;
 
-  static int bytewise_compare(const rocksdb::Slice &a,
-                              const rocksdb::Slice &b) {
-    return -Rdb_pk_comparator::bytewise_compare(a, b);
-  }
-
+  // extracting from rocksdb::BytewiseComparator()->Compare() for optimization
   int Compare(const rocksdb::Slice &a, const rocksdb::Slice &b) const override {
-    return -Rdb_pk_comparator::bytewise_compare(a, b);
+    return -a.compare(b);
   }
   const char *Name() const override { return "rev:RocksDB_SE_v3.10"; }
   void FindShortestSeparator(std::string *start,
-                             const rocksdb::Slice &limit) const override {}
-  void FindShortSuccessor(std::string *key) const override {}
+                             const rocksdb::Slice &limit) const override {
+    rocksdb::ReverseBytewiseComparator()->FindShortestSeparator(start, limit);
+  }
+  void FindShortSuccessor(std::string *key) const override {
+    rocksdb::ReverseBytewiseComparator()->FindShortSuccessor(key);
+  }
 };
 
 } // namespace myrocks

@@ -155,6 +155,20 @@ else
     WSREP_LOG_DIR=$(cd $WSREP_SST_OPT_DATA; pwd -P)
 fi
 
+INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
+# if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
+if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+    INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
+fi
+
+if [ -n "$INNODB_DATA_HOME_DIR" ]; then
+    # handle both relative and absolute paths
+    INNODB_DATA_HOME_DIR=$(cd $WSREP_SST_OPT_DATA; mkdir -p "$INNODB_DATA_HOME_DIR"; cd $INNODB_DATA_HOME_DIR; pwd -P)
+else
+    # default to datadir
+    INNODB_DATA_HOME_DIR=$(cd $WSREP_SST_OPT_DATA; pwd -P)
+fi
+
 # Old filter - include everything except selected
 # FILTER=(--exclude '*.err' --exclude '*.pid' --exclude '*.sock' \
 #         --exclude '*.conf' --exclude core --exclude 'galera.*' \
@@ -163,7 +177,7 @@ fi
 
 # New filter - exclude everything except dirs (schemas) and innodb files
 FILTER="-f '- /lost+found' -f '- /.fseventsd' -f '- /.Trashes'
-        -f '+ /wsrep_sst_binlog.tar' -f '+ /ib_lru_dump' -f '+ /ibdata*' -f '+ /*/' -f '- /*'"
+        -f '+ /wsrep_sst_binlog.tar' -f '- $INNODB_DATA_HOME_DIR/ib_lru_dump' -f '- $INNODB_DATA_HOME_DIR/ibdata*' -f '+ /*/' -f '- /*'"
 
 SSTKEY=$(parse_cnf sst tkey "")
 SSTCERT=$(parse_cnf sst tcert "")
@@ -271,6 +285,19 @@ EOF
             exit $RC
         fi
 
+        # Transfer InnoDB data files
+        rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+              --owner --group --perms --links --specials \
+              --ignore-times --inplace --dirs --delete --quiet \
+              $WHOLE_FILE_OPT -f '+ /ibdata*' -f '+ /ib_lru_dump' \
+              -f '- **' "$INNODB_DATA_HOME_DIR/" \
+              rsync://$WSREP_SST_OPT_ADDR-data_dir >&2 || RC=$?
+
+        if [ $RC -ne 0 ]; then
+            wsrep_log_error "rsync innodb_data_home_dir returned code $RC:"
+            exit 255 # unknown error
+        fi
+
         # second, we transfer InnoDB log files
         rsync ${STUNNEL:+--rsh="$STUNNEL"} \
               --owner --group --perms --links --specials \
@@ -371,6 +398,8 @@ $SILENT
     path = $WSREP_SST_OPT_DATA
 [$MODULE-log_dir]
     path = $WSREP_LOG_DIR
+[$MODULE-data_dir]
+    path = $INNODB_DATA_HOME_DIR
 EOF
 
 #    rm -rf "$DATA"/ib_logfile* # we don't want old logs around

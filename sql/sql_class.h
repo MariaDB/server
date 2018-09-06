@@ -581,17 +581,6 @@ typedef struct system_variables
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
   ulong auto_increment_increment, auto_increment_offset;
-#ifdef WITH_WSREP
-  /*
-    Variables with stored values of the auto_increment_increment
-    and auto_increment_offset options that are will be needed when
-    wsrep_auto_increment_control will be set to 'OFF', because the
-    setting it to 'ON' leads to overwriting of the original values
-    (which are set by the user) by calculated values (which are
-    based on the cluster's size):
-  */
-  ulong saved_auto_increment_increment, saved_auto_increment_offset;
-#endif /* WITH_WSREP */
   uint eq_range_index_dive_limit;
   ulong column_compression_zlib_strategy;
   ulong lock_wait_timeout;

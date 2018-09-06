@@ -3047,15 +3047,9 @@ compute_next_insert_id(ulonglong nr,struct system_variables *variables)
     nr= nr + 1; // optimization of the formula below
   else
   {
-    /*
-       Calculating the number of complete auto_increment_increment extents:
-    */
     nr= (((nr+ variables->auto_increment_increment -
            variables->auto_increment_offset)) /
          (ulonglong) variables->auto_increment_increment);
-    /*
-       Adding an offset to the auto_increment_increment extent boundary:
-    */
     nr= (nr* (ulonglong) variables->auto_increment_increment +
          variables->auto_increment_offset);
   }
@@ -3111,14 +3105,8 @@ prev_insert_id(ulonglong nr, struct system_variables *variables)
   }
   if (variables->auto_increment_increment == 1)
     return nr; // optimization of the formula below
-  /*
-    Calculating the number of complete auto_increment_increment extents:
-  */
   nr= (((nr - variables->auto_increment_offset)) /
        (ulonglong) variables->auto_increment_increment);
-  /*
-    Adding an offset to the auto_increment_increment extent boundary:
-  */
   return (nr * (ulonglong) variables->auto_increment_increment +
           variables->auto_increment_offset);
 }
@@ -3360,23 +3348,10 @@ int handler::update_auto_increment()
   if (unlikely(tmp))                            // Out of range value in store
   {
     /*
-      first test if the query was aborted due to strict mode constraints
+      It's better to return an error here than getting a confusing
+      'duplicate key error' later.
     */
-    if (thd->killed == KILL_BAD_DATA ||
-        nr > table->next_number_field->get_max_int_value())
-      DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
-
-    /*
-      field refused this value (overflow) and truncated it, use the result of
-      the truncation (which is going to be inserted); however we try to
-      decrease it to honour auto_increment_* variables.
-      That will shift the left bound of the reserved interval, we don't
-      bother shifting the right bound (anyway any other value from this
-      interval will cause a duplicate key).
-    */
-    nr= prev_insert_id(table->next_number_field->val_int(), variables);
-    if (unlikely(table->next_number_field->store((longlong) nr, TRUE)))
-      nr= table->next_number_field->val_int();
+    result= HA_ERR_AUTOINC_ERANGE;
   }
   if (append)
   {

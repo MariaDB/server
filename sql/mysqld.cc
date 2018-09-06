@@ -4389,20 +4389,6 @@ static int init_common_variables()
   DBUG_PRINT("info",("%s  Ver %s for %s on %s\n",my_progname,
 		     server_version, SYSTEM_TYPE,MACHINE_TYPE));
 
-#ifdef WITH_WSREP
-  /*
-    We need to initialize auxiliary variables, that will be
-    further keep the original values of auto-increment options
-    as they set by the user. These variables used to restore
-    user-defined values of the auto-increment options after
-    setting of the wsrep_auto_increment_control to 'OFF'.
-  */
-  global_system_variables.saved_auto_increment_increment=
-    global_system_variables.auto_increment_increment;
-  global_system_variables.saved_auto_increment_offset=
-    global_system_variables.auto_increment_offset;
-#endif /* WITH_WSREP */
-
 #ifdef HAVE_LINUX_LARGE_PAGES
   /* Initialize large page size */
   if (opt_large_pages)

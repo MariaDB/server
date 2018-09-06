@@ -3827,6 +3827,12 @@ static int innodb_init_params()
 
 	srv_data_home = innobase_data_home_dir
 		? innobase_data_home_dir : default_path;
+#ifdef WITH_WSREP
+	/* If we use the wsrep API, then we need to tell the server
+	the path to the data files (for passing it to the SST scripts): */
+	wsrep_set_data_home_dir(srv_data_home);
+#endif /* WITH_WSREP */
+
 
 	/*--------------- Shared tablespaces -------------------------*/
 
@@ -8047,7 +8053,8 @@ ha_innobase::write_row(
 
 		/* We need the upper limit of the col type to check for
 		whether we update the table autoinc counter or not. */
-		col_max_value = table->next_number_field->get_max_int_value();
+		col_max_value = innobase_get_int_col_max_value(
+			table->next_number_field);
 
 		/* Get the value that MySQL attempted to store in the table.*/
 		auto_inc = table->next_number_field->val_uint();
@@ -8122,30 +8129,14 @@ set_max_autoinc:
 				/* This should filter out the negative
 				values set explicitly by the user. */
 				if (auto_inc <= col_max_value) {
+					ut_a(m_prebuilt->autoinc_increment > 0);
+
 					ulonglong	offset;
 					ulonglong	increment;
 					dberr_t		err;
 
-#ifdef WITH_WSREP
-					/* Applier threads which are
-					processing ROW events and don't go
-					through server level autoinc
-					processing, therefore m_prebuilt
-					autoinc values don't get
-					properly assigned. Fetch values from
-					server side. */
-					if (wsrep_on(m_user_thd) &&
-					    wsrep_thd_exec_mode(m_user_thd) == REPL_RECV) {
-						wsrep_thd_auto_increment_variables(m_user_thd, &offset, &increment);
-					} else {
-#endif /* WITH_WSREP */
-						ut_a(m_prebuilt->autoinc_increment > 0);
-
-						offset = m_prebuilt->autoinc_offset;
-						increment = m_prebuilt->autoinc_increment;
-#ifdef WITH_WSREP
-					}
-#endif /* WITH_WSREP */
+					offset = m_prebuilt->autoinc_offset;
+					increment = m_prebuilt->autoinc_increment;
 
 					auto_inc = innobase_next_autoinc(
 						auto_inc,
@@ -8843,27 +8834,12 @@ ha_innobase::update_row(
 		/* A value for an AUTO_INCREMENT column
 		was specified in the UPDATE statement. */
 
-		ulonglong offset, increment;
-#ifdef WITH_WSREP
-		/* Applier threads which are processing ROW events and
-		don't go through server level autoinc processing,
-		therefore m_prebuilt autoinc values don't get properly
-		assigned. Fetch values from server side. */
-		if (wsrep_on(m_user_thd)
-		    && wsrep_thd_exec_mode(m_user_thd) == REPL_RECV) {
-			wsrep_thd_auto_increment_variables(
-				m_user_thd, &offset, &increment);
-		} else {
-#endif /* WITH_WSREP */
-			offset = m_prebuilt->autoinc_offset;
-			increment = m_prebuilt->autoinc_increment;
-#ifdef WITH_WSREP
-		}
-#endif /* WITH_WSREP */
-
 		autoinc = innobase_next_autoinc(
-			autoinc, 1, increment, offset,
-			table->found_next_number_field->get_max_int_value());
+			autoinc, 1,
+			m_prebuilt->autoinc_increment,
+			m_prebuilt->autoinc_offset,
+			innobase_get_int_col_max_value(
+				table->found_next_number_field));
 
 		error = innobase_set_max_autoinc(autoinc);
 
@@ -16511,13 +16487,13 @@ ha_innobase::get_auto_increment(
 				    increment,
 				    thd_get_thread_id(m_user_thd),
 				    current, autoinc);
-
 			if (!wsrep_on(m_user_thd)) {
-				current = innobase_next_autoinc(
-					autoinc
-					- m_prebuilt->autoinc_increment,
-					1, increment, offset, col_max_value);
+				current = autoinc
+					- m_prebuilt->autoinc_increment;
 			}
+
+			current = innobase_next_autoinc(
+				current, 1, increment, offset, col_max_value);
 
 			dict_table_autoinc_initialize(
 				m_prebuilt->table, current);

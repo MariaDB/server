@@ -349,56 +349,13 @@ static Sys_var_long Sys_pfs_connect_attrs_size(
 
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
-#ifdef WITH_WSREP
-
-/*
-  We need to keep the original values set by the user, as they will
-  be lost if wsrep_auto_increment_control set to 'ON':
-*/
-static bool update_auto_increment_increment (sys_var *self, THD *thd, enum_var_type type)
-{
-  if (type == OPT_GLOBAL)
-    global_system_variables.saved_auto_increment_increment=
-      global_system_variables.auto_increment_increment;
-  else
-    thd->variables.saved_auto_increment_increment=
-      thd->variables.auto_increment_increment;
-  return false;
-}
-
-#endif /* WITH_WSREP */
-
 static Sys_var_ulong Sys_auto_increment_increment(
        "auto_increment_increment",
        "Auto-increment columns are incremented by this",
        SESSION_VAR(auto_increment_increment),
        CMD_LINE(OPT_ARG),
        VALID_RANGE(1, 65535), DEFAULT(1), BLOCK_SIZE(1),
-#ifdef WITH_WSREP
-       NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(update_auto_increment_increment));
-#else
        NO_MUTEX_GUARD, IN_BINLOG);
-#endif /* WITH_WSREP */
-
-#ifdef WITH_WSREP
-
-/*
-  We need to keep the original values set by the user, as they will
-  be lost if wsrep_auto_increment_control set to 'ON':
-*/
-static bool update_auto_increment_offset (sys_var *self, THD *thd, enum_var_type type)
-{
-  if (type == OPT_GLOBAL)
-    global_system_variables.saved_auto_increment_offset=
-      global_system_variables.auto_increment_offset;
-  else
-    thd->variables.saved_auto_increment_offset=
-      thd->variables.auto_increment_offset;
-  return false;
-}
-
-#endif /* WITH_WSREP */
 
 static Sys_var_ulong Sys_auto_increment_offset(
        "auto_increment_offset",
@@ -407,12 +364,7 @@ static Sys_var_ulong Sys_auto_increment_offset(
        SESSION_VAR(auto_increment_offset),
        CMD_LINE(OPT_ARG),
        VALID_RANGE(1, 65535), DEFAULT(1), BLOCK_SIZE(1),
-#ifdef WITH_WSREP
-       NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(update_auto_increment_offset));
-#else
        NO_MUTEX_GUARD, IN_BINLOG);
-#endif /* WITH_WSREP */
 
 static Sys_var_mybool Sys_automatic_sp_privileges(
        "automatic_sp_privileges",
@@ -5383,54 +5335,11 @@ static Sys_var_ulong Sys_wsrep_retry_autocommit(
        SESSION_VAR(wsrep_retry_autocommit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 10000), DEFAULT(1), BLOCK_SIZE(1));
 
-static bool update_wsrep_auto_increment_control (sys_var *self, THD *thd, enum_var_type type)
-{
-  if (wsrep_auto_increment_control)
-  {
-    /*
-      The variables that control auto increment shall be calculated
-      automaticaly based on the size of the cluster. This usually done
-      within the wsrep_view_handler_cb callback. However, if the user
-      manually sets the value of wsrep_auto_increment_control to 'ON',
-      then we should to re-calculate these variables again (because
-      these values may be required before wsrep_view_handler_cb will
-      be re-invoked, which is rarely invoked if the cluster stays in
-      the stable state):
-    */
-    global_system_variables.auto_increment_increment=
-       wsrep_cluster_size ? wsrep_cluster_size : 1;
-    global_system_variables.auto_increment_offset=
-       wsrep_local_index >= 0 ? wsrep_local_index + 1 : 1;
-    thd->variables.auto_increment_increment=
-      global_system_variables.auto_increment_increment;
-    thd->variables.auto_increment_offset=
-      global_system_variables.auto_increment_offset;
-  }
-  else
-  {
-    /*
-      We must restore the last values of the variables that
-      are explicitly specified by the user:
-    */
-    global_system_variables.auto_increment_increment=
-      global_system_variables.saved_auto_increment_increment;
-    global_system_variables.auto_increment_offset=
-      global_system_variables.saved_auto_increment_offset;
-    thd->variables.auto_increment_increment=
-      thd->variables.saved_auto_increment_increment;
-    thd->variables.auto_increment_offset=
-      thd->variables.saved_auto_increment_offset;
-  }
-  return false;
-}
-
 static Sys_var_mybool Sys_wsrep_auto_increment_control(
        "wsrep_auto_increment_control", "To automatically control the "
        "assignment of autoincrement variables",
        GLOBAL_VAR(wsrep_auto_increment_control), 
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(update_wsrep_auto_increment_control));
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
 static Sys_var_mybool Sys_wsrep_drupal_282555_workaround(
        "wsrep_drupal_282555_workaround", "Enable a workaround to handle the "

@@ -1472,6 +1472,7 @@ int ha_maria::repair(THD * thd, HA_CHECK_OPT *check_opt)
   while ((error= repair(thd, param, 0)) && param->retry_repair)
   {
     param->retry_repair= 0;
+    file->state->records= start_records;
     if (test_all_bits(param->testflag,
                       (uint) (T_RETRY_WITHOUT_QUICK | T_QUICK)))
     {
@@ -1976,6 +1977,7 @@ int ha_maria::disable_indexes(uint mode)
 int ha_maria::enable_indexes(uint mode)
 {
   int error;
+  ha_rows start_rows= file->state->records;
   DBUG_PRINT("info", ("ha_maria::enable_indexes mode: %d", mode));
   if (maria_is_all_keys_active(file->s->state.key_map, file->s->base.keys))
   {
@@ -2038,6 +2040,7 @@ int ha_maria::enable_indexes(uint mode)
       DBUG_ASSERT(thd->killed != 0);
       /* Repairing by sort failed. Now try standard repair method. */
       param->testflag &= ~T_REP_BY_SORT;
+      file->state->records= start_rows;
       error= (repair(thd, param, 0) != HA_ADMIN_OK);
       /*
         If the standard repair succeeded, clear all error messages which
