@@ -3629,8 +3629,7 @@ row_drop_table_for_mysql(
 		TRX_DICT_OP_INDEX, we should be dropping auxiliary
 		tables for full-text indexes or temp tables. */
 		ut_ad(strstr(table->name.m_name, "/FTS_")
-		      || strstr(table->name.m_name,
-				"/" TEMP_FILE_PREFIX_INNODB));
+		      || strstr(table->name.m_name, TEMP_TABLE_PATH_PREFIX));
 	}
 
 	/* Mark all indexes unavailable in the data dictionary cache
