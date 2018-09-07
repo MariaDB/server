@@ -513,10 +513,17 @@ or the MySQL version that created the redo log file. */
 	IB_TO_STR(MYSQL_VERSION_PATCH)
 
 /** The redo log format identifier corresponding to the current format version.
-Stored in LOG_HEADER_FORMAT. */
-#define LOG_HEADER_FORMAT_CURRENT	1
-/** The MariaDB 10.3.2 log format */
-#define LOG_HEADER_FORMAT_10_3		103
+Stored in LOG_HEADER_FORMAT.
+To prevent crash-downgrade to earlier 10.2 due to the inability to
+roll back a retroactively introduced TRX_UNDO_RENAME_TABLE undo log record,
+MariaDB 10.2.18 and later will use the 10.3 format, but LOG_HEADER_SUBFORMAT
+1 instead of 0. MariaDB 10.3 will use subformat 0 (5.7-style TRUNCATE) or 2
+(MDEV-13564 backup-friendly TRUNCATE). */
+#define LOG_HEADER_FORMAT_CURRENT	103
+/** The old MariaDB 10.2.2..10.2.17 log format */
+#define LOG_HEADER_FORMAT_10_2		1
+/** Future MariaDB 10.4 log format */
+#define LOG_HEADER_FORMAT_10_4		104
 /** Encrypted MariaDB redo log */
 #define LOG_HEADER_FORMAT_ENCRYPTED	(1U<<31)
 
@@ -553,7 +560,10 @@ struct log_group_t{
 	/** number of files in the group */
 	ulint				n_files;
 	/** format of the redo log: e.g., LOG_HEADER_FORMAT_CURRENT */
-	ulint				format;
+	uint32_t			format;
+	/** redo log subformat: 0 with separately logged TRUNCATE,
+	1 with fully redo-logged TRUNCATE */
+	uint32_t			subformat;
 	/** individual log file size in bytes, including the header */
 	lsn_t				file_size;
 	/** corruption status */

@@ -1147,6 +1147,9 @@ recv_find_max_checkpoint(ulint* max_field)
 	/* Check the header page checksum. There was no
 	checksum in the first redo log format (version 0). */
 	group->format = mach_read_from_4(buf + LOG_HEADER_FORMAT);
+	group->subformat = group->format
+		? mach_read_from_4(buf + LOG_HEADER_SUBFORMAT)
+		: 0;
 	if (group->format != 0
 	    && !recv_check_log_header_checksum(buf)) {
 		ib::error() << "Invalid redo log header checksum.";
@@ -1164,8 +1167,11 @@ recv_find_max_checkpoint(ulint* max_field)
 		return(recv_find_max_checkpoint_0(&group, max_field));
 	case LOG_HEADER_FORMAT_CURRENT:
 	case LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED:
-	case LOG_HEADER_FORMAT_10_3:
-	case LOG_HEADER_FORMAT_10_3 | LOG_HEADER_FORMAT_ENCRYPTED:
+	case LOG_HEADER_FORMAT_10_2:
+	case LOG_HEADER_FORMAT_10_2 | LOG_HEADER_FORMAT_ENCRYPTED:
+	case LOG_HEADER_FORMAT_10_4:
+		/* We can only parse the unencrypted LOG_HEADER_FORMAT_10_4.
+		The encrypted format uses a larger redo log block trailer. */
 		break;
 	default:
 		ib::error() << "Unsupported redo log format."
@@ -1240,8 +1246,20 @@ recv_find_max_checkpoint(ulint* max_field)
 	}
 
 	switch (group->format) {
-	case LOG_HEADER_FORMAT_10_3:
-	case LOG_HEADER_FORMAT_10_3 | LOG_HEADER_FORMAT_ENCRYPTED:
+	case LOG_HEADER_FORMAT_CURRENT:
+	case LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED:
+		if (group->subformat == 1) {
+			/* 10.2 with new crash-safe TRUNCATE */
+			break;
+		}
+		/* fall through */
+	case LOG_HEADER_FORMAT_10_4:
+		if (srv_operation == SRV_OPERATION_BACKUP) {
+			ib::error()
+				<< "Incompatible redo log format."
+				" The redo log was created with " << creator;
+			return DB_ERROR;
+		}
 		dberr_t err = recv_log_recover_10_3();
 		if (err != DB_SUCCESS) {
 			ib::error()
@@ -3370,7 +3388,6 @@ of first system tablespace page
 dberr_t
 recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 {
-	log_group_t*	group;
 	ulint		max_cp_field;
 	lsn_t		checkpoint_lsn;
 	bool		rescan;
@@ -3402,13 +3419,28 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	err = recv_find_max_checkpoint(&max_cp_field);
 
-	if (err != DB_SUCCESS
-	    || (log_sys->log.format != 0
-		&& (log_sys->log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
-		!= LOG_HEADER_FORMAT_CURRENT)) {
-
+	if (err != DB_SUCCESS) {
+skip_apply:
 		log_mutex_exit();
 		return(err);
+	}
+
+	switch (log_sys->log.format) {
+	case 0:
+		break;
+	case LOG_HEADER_FORMAT_10_2:
+	case LOG_HEADER_FORMAT_10_2 | LOG_HEADER_FORMAT_ENCRYPTED:
+		break;
+	case LOG_HEADER_FORMAT_CURRENT:
+	case LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED:
+		if (log_sys->log.subformat == 1) {
+			/* 10.2 with new crash-safe TRUNCATE */
+			break;
+		}
+		/* fall through */
+	default:
+		/* This must be a clean log from a newer version. */
+		goto skip_apply;
 	}
 
 	log_group_header_read(&log_sys->log, max_cp_field);
@@ -3426,13 +3458,12 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	ut_ad(RECV_SCAN_SIZE <= log_sys->buf_size);
 
-	group = &log_sys->log;
 	const lsn_t	end_lsn = mach_read_from_8(
 		buf + LOG_CHECKPOINT_END_LSN);
 
 	ut_ad(recv_sys->n_addrs == 0);
 	contiguous_lsn = checkpoint_lsn;
-	switch (group->format) {
+	switch (log_sys->log.format) {
 	case 0:
 		log_mutex_exit();
 		return recv_log_format_0_recover(checkpoint_lsn,
@@ -3451,6 +3482,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	}
 
 	/* Look for MLOG_CHECKPOINT. */
+	log_group_t* group = &log_sys->log;
 	recv_group_scan_log_recs(group, checkpoint_lsn, &contiguous_lsn,
 				 false);
 	/* The first scan should not have stored or applied any records. */

@@ -793,6 +793,7 @@ log_init(ulint n_files)
 	group->format = srv_encrypt_log
 		? LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED
 		: LOG_HEADER_FORMAT_CURRENT;
+	group->subformat = 1;
 	group->file_size = srv_log_file_size;
 	group->state = LOG_GROUP_OK;
 	group->lsn = LOG_START_LSN;
@@ -880,7 +881,7 @@ log_group_file_header_flush(
 
 	memset(buf, 0, OS_FILE_LOG_BLOCK_SIZE);
 	mach_write_to_4(buf + LOG_HEADER_FORMAT, group->format);
-	mach_write_to_4(buf + LOG_HEADER_SUBFORMAT, 1);
+	mach_write_to_4(buf + LOG_HEADER_SUBFORMAT, group->subformat);
 	mach_write_to_8(buf + LOG_HEADER_START_LSN, start_lsn);
 	strcpy(reinterpret_cast<char*>(buf) + LOG_HEADER_CREATOR,
 	       LOG_HEADER_CREATOR_CURRENT);
