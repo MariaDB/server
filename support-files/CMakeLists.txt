@@ -66,6 +66,11 @@ IF(UNIX)
       DESTINATION ${inst_location} COMPONENT Server_Scripts)
   ENDFOREACH()
 
+  CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/wsrep.cnf.sh 
+                 ${CMAKE_CURRENT_BINARY_DIR}/wsrep.cnf @ONLY)
+  INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/wsrep.cnf
+    DESTINATION ${inst_location} COMPONENT SupportFiles)
+
   IF(INSTALL_SUPPORTFILESDIR)
     INSTALL(FILES magic DESTINATION ${inst_location} COMPONENT SupportFiles)
     INSTALL(DIRECTORY policy DESTINATION ${inst_location} COMPONENT SupportFiles)

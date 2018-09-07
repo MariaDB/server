@@ -307,12 +307,17 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 #ifdef WITH_WSREP
   TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
 
-  if ((!thd->is_current_stmt_binlog_format_row() ||
+  if (WSREP(thd) &&
+      (!thd->is_current_stmt_binlog_format_row() ||
        !find_temporary_table(thd, first_table)))
   {
-    WSREP_TO_ISOLATION_BEGIN(((lex->name.str) ? select_lex->db : NULL),
-                             ((lex->name.str) ? lex->name.str : NULL),
-                             first_table);
+    WSREP_TO_ISOLATION_BEGIN_ALTER(((lex->name.str) ? select_lex->db : NULL),
+                                    ((lex->name.str) ? lex->name.str : NULL),
+                                    first_table,
+                                    &alter_info);
+
+    thd->variables.auto_increment_offset = 1;
+    thd->variables.auto_increment_increment = 1;
   }
 #endif /* WITH_WSREP */
 
@@ -325,11 +330,12 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                             lex->ignore);
 
   DBUG_RETURN(result);
-
 #ifdef WITH_WSREP
 error:
-  WSREP_WARN("ALTER TABLE isolation failure");
-  DBUG_RETURN(TRUE);
+  {
+    WSREP_WARN("ALTER TABLE isolation failure");
+    DBUG_RETURN(TRUE);
+  }
 #endif /* WITH_WSREP */
 }
 

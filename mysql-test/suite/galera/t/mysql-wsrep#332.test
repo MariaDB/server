@@ -1,0 +1,113 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source suite/galera/include/galera_have_debug_sync.inc
+
+# Open connection node_1a here, MW-369.inc will use it later
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+#
+# Test the scenario where a foreign key is added to an existing child table, and
+# concurrently UPDATE the parent table so that it violates the constraint.
+#
+# We expect that ALTER TABLE ADD FOREIGN KEY adds a table level key on both
+# parent and child table. And therefore we also expect the UPDATE to fail
+# certification.
+#
+--connection node_1
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER) ENGINE=INNODB;
+
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+
+INSERT INTO c VALUES (1, 1);
+INSERT INTO c VALUES (2, 2);
+
+--let $mw_369_parent_query = UPDATE p SET f1 = f1 + 100
+--let $mw_369_child_query = ALTER TABLE c ADD FOREIGN KEY (p_id) REFERENCES p(f1)
+
+--source MW-369.inc
+
+# Expect certification failure
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection node_2
+SELECT * FROM p;
+SELECT * FROM c;
+
+DROP TABLE c;
+DROP TABLE p;
+
+
+#
+# Same as above, except that two foreign keys pointing to different parent
+# tables are added, p1 and p2. Concurrently UPDATE p1.
+#
+# Expect certification error on UPDATE.
+#
+--connection node_1
+CREATE TABLE p1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE p2 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id1 INTEGER, p_id2 INTEGER) ENGINE=INNODB;
+
+INSERT INTO p1 VALUES (1, 0), (2, 0);
+INSERT INTO p2 VALUES (1, 0), (2, 0);
+
+INSERT INTO c VALUES (1, 1, 1);
+INSERT INTO c VALUES (2, 2, 2);
+
+--let $mw_369_parent_query = UPDATE p1 SET f1 = f1 + 100
+--let $mw_369_child_query = ALTER TABLE c ADD FOREIGN KEY (p_id1) REFERENCES p1(f1), ADD FOREIGN KEY (p_id2) REFERENCES p2(f1)
+
+--source MW-369.inc
+
+# Expect certification failure
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection node_2
+SELECT * FROM p1;
+SELECT * FROM p2;
+SELECT * FROM c;
+
+DROP TABLE c;
+DROP TABLE p1;
+DROP TABLE p2;
+
+
+#
+# Same as above, except that UPDATE is on p2.
+#
+--connection node_1
+CREATE TABLE p1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE p2 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id1 INTEGER, p_id2 INTEGER) ENGINE=INNODB;
+
+INSERT INTO p1 VALUES (1, 0), (2, 0);
+INSERT INTO p2 VALUES (1, 0), (2, 0);
+
+INSERT INTO c VALUES (1, 1, 1);
+INSERT INTO c VALUES (2, 2, 2);
+
+--let $mw_369_parent_query = UPDATE p2 SET f1 = f1 + 100
+--let $mw_369_child_query = ALTER TABLE c ADD FOREIGN KEY (p_id1) REFERENCES p1(f1), ADD FOREIGN KEY (p_id2) REFERENCES p2(f1)
+
+--source MW-369.inc
+
+# Expect certification failure
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection node_2
+SELECT * FROM p1;
+SELECT * FROM p2;
+SELECT * FROM c;
+
+DROP TABLE c;
+DROP TABLE p1;
+DROP TABLE p2;

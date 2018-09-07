@@ -7262,7 +7262,9 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                           "WAIT_FOR wsrep_retry_autocommit_continue";
                         DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
                       });
+      WSREP_DEBUG("Retry autocommit query: %s", thd->query());
     }
+
     mysql_parse(thd, rawbuf, length, parser_state);
 
     if (WSREP(thd)) {
