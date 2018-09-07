@@ -1068,10 +1068,6 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_truncated_status_writes,	  SHOW_LONG},
   {"available_undo_logs",
   (char*) &export_vars.innodb_available_undo_logs,        SHOW_LONG},
-#ifdef UNIV_DEBUG
-  {"ahi_drop_lookups",
-  (char*) &export_vars.innodb_ahi_drop_lookups,           SHOW_LONG},
-#endif /* UNIV_DEBUG */
 
   /* Status variables for page compression */
   {"page_compression_saved",

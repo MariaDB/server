@@ -709,7 +709,6 @@ enum options_xtrabackup
   OPT_INNODB_LOG_CHECKSUMS,
   OPT_XTRA_INCREMENTAL_FORCE_SCAN,
   OPT_DEFAULTS_GROUP,
-  OPT_PLUGIN_LOAD,
   OPT_INNODB_ENCRYPT_LOG,
   OPT_CLOSE_FILES,
   OPT_CORE_FILE,
@@ -1268,11 +1267,7 @@ struct my_option xb_server_options[] =
   &xb_plugin_dir, &xb_plugin_dir,
   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
 
-  { "plugin-load", OPT_PLUGIN_LOAD, "encrypton plugin to load during 'prepare' phase.",
-  &xb_plugin_load, &xb_plugin_load,
-  0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
-
-  { "innodb-encrypt-log", OPT_INNODB_ENCRYPT_LOG, "encrypton plugin to load",
+  { "innodb-encrypt-log", OPT_INNODB_ENCRYPT_LOG, "Whether to encrypt innodb log",
   &srv_encrypt_log, &srv_encrypt_log,
   0, GET_BOOL, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
 
