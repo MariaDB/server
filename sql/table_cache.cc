@@ -376,6 +376,7 @@ bool tc_release_table(TABLE *table)
 {
   DBUG_ASSERT(table->in_use);
   DBUG_ASSERT(table->file);
+  DBUG_ASSERT(!table->pos_in_locked_tables);
 
   if (table->needs_reopen() || tc_records() > tc_size)
   {
