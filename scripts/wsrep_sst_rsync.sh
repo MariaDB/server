@@ -157,9 +157,15 @@ fi
 #         --exclude '*.[0-9][0-9][0-9][0-9][0-9][0-9]' --exclude '*.index')
 
 # New filter - exclude everything except dirs (schemas) and innodb files
-FILTER=(-f '- /lost+found' -f '- /.fseventsd' -f '- /.Trashes'
-        -f '+ /wsrep_sst_binlog.tar' -f '- $INNODB_DATA_HOME_DIR/ib_lru_dump'
-        -f '- $INNODB_DATA_HOME_DIR/ibdata*' -f '+ /*/' -f '- /*')
+FILTER=(-f '- /lost+found'
+        -f '- /.fseventsd'
+        -f '- /.Trashes'
+        -f '+ /wsrep_sst_binlog.tar'
+        -f '- $INNODB_DATA_HOME_DIR/ib_lru_dump'
+        -f '- $INNODB_DATA_HOME_DIR/ibdata*'
+        -f '+ /undo*'
+        -f '+ /*/'
+        -f '- /*')
 
 SSTKEY=$(parse_cnf sst tkey "")
 SSTCERT=$(parse_cnf sst tcert "")

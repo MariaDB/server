@@ -1,0 +1,32 @@
+# galera#505 - Change of pc.weight wsrep param will be correctly stored in wsrep_provider_options variable
+
+--source include/galera_cluster.inc
+
+--disable_query_log
+select CAST(REGEXP_REPLACE(variable_value,'^(\\d+)\\.(\\d+)\\.(\\d+)(r\\d+)','\\3') AS UNSIGNED) FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME LIKE 'wsrep_provider_version' INTO @GALERA_VERSION;
+
+# Make sure that the test is operating on the right version of galera library.
+--let $galera_version=24
+eval SET @REQUIRED_GALERA_VERSION='$galera_version';
+
+SELECT @GALERA_VERSION, @REQUIRED_GALERA_VERSION;
+
+if (!`SELECT (@GALERA_VERSION < @REQUIRED_GALERA_VERSION)`)
+{
+    skip Test requires Galera library version 25.3.$galera_version;
+}
+--enable_query_log
+
+--connection node_1
+
+# Convert "... pc.weight = N; ..." to "N; ..."
+--let $s1 = `SELECT SUBSTR(@@wsrep_provider_options, LOCATE('pc.weight =', @@wsrep_provider_options) + LENGTH('pc.weight = '))`
+# Convert "N; ..." to "N"
+--let $pc_weight_value = `SELECT SUBSTR('$s1', 1, LOCATE(';', '$s1') - 1)`
+
+SET GLOBAL wsrep_provider_options = 'pc.weight=3';
+
+-- replace_regex /.*(pc\.weight = [0-9]+);.*/\1/
+SHOW GLOBAL VARIABLES LIKE 'wsrep_provider_options';
+
+--eval SET GLOBAL wsrep_provider_options = 'pc.weight=$pc_weight_value'

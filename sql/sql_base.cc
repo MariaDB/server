@@ -4870,6 +4870,25 @@ handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
 }
 
 
+/*
+  @note this can be changed to use a hash, instead of scanning the linked
+  list, if the performance of this function will ever become an issue
+*/
+bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_STRING *db,
+                                LEX_STRING *table, thr_lock_type lock_type)
+{
+  for (; tl; tl= tl->next_global )
+  {
+    if (tl->lock_type >= lock_type &&
+        tl->prelocking_placeholder == TABLE_LIST::FK &&
+        strcmp(tl->db, db->str) == 0 &&
+        strcmp(tl->table_name, table->str) == 0)
+      return true;
+  }
+  return false;
+}
+
+
 /**
   Defines how prelocking algorithm for DML statements should handle table list
   elements:
@@ -4908,6 +4927,52 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
       if (table_list->table->triggers->
           add_tables_and_routines_for_triggers(thd, prelocking_ctx, table_list))
         return TRUE;
+    }
+
+    if (table_list->table->file->referenced_by_foreign_key())
+    {
+      List <FOREIGN_KEY_INFO> fk_list;
+      List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
+      FOREIGN_KEY_INFO *fk;
+      Query_arena *arena, backup;
+
+      arena= thd->activate_stmt_arena_if_needed(&backup);
+
+      table_list->table->file->get_parent_foreign_key_list(thd, &fk_list);
+      if (thd->is_error())
+      {
+        if (arena)
+          thd->restore_active_arena(arena, &backup);
+        return TRUE;
+      }
+
+      *need_prelocking= TRUE;
+
+      while ((fk= fk_list_it++))
+      {
+        // FK_OPTION_RESTRICT and FK_OPTION_NO_ACTION only need read access
+        uint8 op= table_list->trg_event_map;
+        thr_lock_type lock_type;
+
+        if ((op & (1 << TRG_EVENT_DELETE) && fk_modifies_child(fk->delete_method))
+         || (op & (1 << TRG_EVENT_UPDATE) && fk_modifies_child(fk->update_method)))
+          lock_type= TL_WRITE_ALLOW_WRITE;
+        else
+          lock_type= TL_READ;
+
+        if (table_already_fk_prelocked(prelocking_ctx->query_tables,
+                                       fk->foreign_db, fk->foreign_table,
+                                       lock_type))
+          continue;
+
+        TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+        tl->init_one_table_for_prelocking(fk->foreign_db->str, fk->foreign_db->length,
+                           fk->foreign_table->str, fk->foreign_table->length,
+                           NULL, lock_type, false, table_list->belong_to_view,
+                           op, &prelocking_ctx->query_tables_last);
+      }
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
     }
   }
 
@@ -7544,10 +7609,22 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
 
   result= FALSE;
 
-err:
   if (arena)
     thd->restore_active_arena(arena, &backup);
   DBUG_RETURN(result);
+
+err:
+  /*
+     Actually we failed to build join columns list, so we have to
+     clear it to avoid problems with half-build join on next run.
+     The list was created in mark_common_columns().
+   */
+  table_ref_1->remove_join_columns();
+  table_ref_2->remove_join_columns();
+
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+  DBUG_RETURN(TRUE);
 }
 
 

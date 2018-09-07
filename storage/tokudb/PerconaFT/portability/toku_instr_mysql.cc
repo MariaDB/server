@@ -1,4 +1,4 @@
-#ifdef MYSQL_TOKUDB_ENGINE
+#ifdef TOKU_MYSQL_WITH_PFS
 #include "toku_portability.h"
 #include "toku_pthread.h"
 
@@ -18,7 +18,7 @@ int toku_pthread_create(const toku_instr_key &key,
                         const pthread_attr_t *attr,
                         void *(*start_routine)(void *),
                         void *arg) {
-#if (MYSQL_VERSION_MAJOR >= 5) && (MYSQL_VERSION_MINOR >= 7)
+#if (50700 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50799)
     return PSI_THREAD_CALL(spawn_thread)(
         key.id(), reinterpret_cast<my_thread_handle *>(thread),
         attr, start_routine, arg);
@@ -362,4 +362,4 @@ void toku_instr_rwlock_unlock(toku_pthread_rwlock_t &rwlock) {
         PSI_RWLOCK_CALL(unlock_rwlock)(rwlock.psi_rwlock);
 }
 
-#endif  // MYSQL_TOKUDB_ENGINE
+#endif  // TOKU_MYSQL_WITH_PFS
