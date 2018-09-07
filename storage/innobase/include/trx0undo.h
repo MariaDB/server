@@ -260,18 +260,6 @@ trx_undo_commit_cleanup(trx_undo_t* undo, bool is_temp);
 void
 trx_undo_free_at_shutdown(trx_t *trx);
 
-/* Forward declaration. */
-namespace undo {
-	class Truncate;
-};
-
-/** Truncate UNDO tablespace, reinitialize header and rseg.
-@param[in]	undo_trunc	UNDO tablespace handler
-@return true if success else false. */
-bool
-trx_undo_truncate_tablespace(
-	undo::Truncate*	undo_trunc);
-
 /** Parse MLOG_UNDO_INIT.
 @param[in]	ptr	log record
 @param[in]	end_ptr	end of log record buffer

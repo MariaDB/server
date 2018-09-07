@@ -4779,7 +4779,7 @@ reset_bit:
 
 /*********************************************************************//**
 Deletes all entries in the insert buffer for a given space id. This is used
-in DISCARD TABLESPACE, IMPORT TABLESPACE and TRUNCATE TABLESPACE.
+in DISCARD TABLESPACE, IMPORT TABLESPACE, and 5.7 TRUNCATE TABLE recovery.
 NOTE: this does not update the page free bitmaps in the space. The space will
 become CORRUPT when you call this function! */
 void

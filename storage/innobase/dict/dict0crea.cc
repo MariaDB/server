@@ -1510,16 +1510,11 @@ dict_create_or_check_foreign_constraint_tables(void)
 	/* Check which incomplete table definition to drop. */
 
 	if (sys_foreign_err == DB_CORRUPTION) {
-		ib::warn() << "Dropping incompletely created"
-			" SYS_FOREIGN table.";
-		row_drop_table_for_mysql("SYS_FOREIGN", trx, TRUE, TRUE);
+		row_drop_table_after_create_fail("SYS_FOREIGN", trx);
 	}
 
 	if (sys_foreign_cols_err == DB_CORRUPTION) {
-		ib::warn() << "Dropping incompletely created"
-			" SYS_FOREIGN_COLS table.";
-
-		row_drop_table_for_mysql("SYS_FOREIGN_COLS", trx, TRUE, TRUE);
+		row_drop_table_after_create_fail("SYS_FOREIGN_COLS", trx);
 	}
 
 	ib::info() << "Creating foreign key constraint system tables.";
@@ -1571,8 +1566,8 @@ dict_create_or_check_foreign_constraint_tables(void)
 		ut_ad(err == DB_OUT_OF_FILE_SPACE
 		      || err == DB_TOO_MANY_CONCURRENT_TRXS);
 
-		row_drop_table_for_mysql("SYS_FOREIGN", trx, TRUE, TRUE);
-		row_drop_table_for_mysql("SYS_FOREIGN_COLS", trx, TRUE, TRUE);
+		row_drop_table_after_create_fail("SYS_FOREIGN", trx);
+		row_drop_table_after_create_fail("SYS_FOREIGN_COLS", trx);
 
 		if (err == DB_OUT_OF_FILE_SPACE) {
 			err = DB_MUST_GET_MORE_FILE_SPACE;
@@ -1640,9 +1635,7 @@ dict_create_or_check_sys_virtual()
 	/* Check which incomplete table definition to drop. */
 
 	if (err == DB_CORRUPTION) {
-		ib::warn() << "Dropping incompletely created"
-			" SYS_VIRTUAL table.";
-		row_drop_table_for_mysql("SYS_VIRTUAL", trx, false, TRUE);
+		row_drop_table_after_create_fail("SYS_VIRTUAL", trx);
 	}
 
 	ib::info() << "Creating sys_virtual system tables.";
@@ -1676,7 +1669,7 @@ dict_create_or_check_sys_virtual()
 		ut_ad(err == DB_OUT_OF_FILE_SPACE
 		      || err == DB_TOO_MANY_CONCURRENT_TRXS);
 
-		row_drop_table_for_mysql("SYS_VIRTUAL", trx, false, TRUE);
+		row_drop_table_after_create_fail("SYS_VIRTUAL", trx);
 
 		if (err == DB_OUT_OF_FILE_SPACE) {
 			err = DB_MUST_GET_MORE_FILE_SPACE;
@@ -2296,16 +2289,11 @@ dict_create_or_check_sys_tablespace(void)
 	/* Check which incomplete table definition to drop. */
 
 	if (sys_tablespaces_err == DB_CORRUPTION) {
-		ib::warn() << "Dropping incompletely created"
-			" SYS_TABLESPACES table.";
-		row_drop_table_for_mysql("SYS_TABLESPACES", trx, TRUE, TRUE);
+		row_drop_table_after_create_fail("SYS_TABLESPACES", trx);
 	}
 
 	if (sys_datafiles_err == DB_CORRUPTION) {
-		ib::warn() << "Dropping incompletely created"
-			" SYS_DATAFILES table.";
-
-		row_drop_table_for_mysql("SYS_DATAFILES", trx, TRUE, TRUE);
+		row_drop_table_after_create_fail("SYS_DATAFILES", trx);
 	}
 
 	ib::info() << "Creating tablespace and datafile system tables.";
@@ -2340,8 +2328,8 @@ dict_create_or_check_sys_tablespace(void)
 		     || err == DB_DUPLICATE_KEY
 		     || err == DB_TOO_MANY_CONCURRENT_TRXS);
 
-		row_drop_table_for_mysql("SYS_TABLESPACES", trx, TRUE, TRUE);
-		row_drop_table_for_mysql("SYS_DATAFILES", trx, TRUE, TRUE);
+		row_drop_table_after_create_fail("SYS_TABLESPACES", trx);
+		row_drop_table_after_create_fail("SYS_DATAFILES", trx);
 
 		if (err == DB_OUT_OF_FILE_SPACE) {
 			err = DB_MUST_GET_MORE_FILE_SPACE;

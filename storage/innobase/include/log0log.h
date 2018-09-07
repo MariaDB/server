@@ -450,10 +450,12 @@ to this checkpoint, or 0 if the information has not been written */
 This used to be called LOG_GROUP_ID and always written as 0,
 because InnoDB never supported more than one copy of the redo log. */
 #define LOG_HEADER_FORMAT	0
-/** 4 unused (zero-initialized) bytes. In format version 0, the
+/** Redo log subformat (originally 0). In format version 0, the
 LOG_FILE_START_LSN started here, 4 bytes earlier than LOG_HEADER_START_LSN,
-which the LOG_FILE_START_LSN was renamed to. */
-#define LOG_HEADER_PAD1		4
+which the LOG_FILE_START_LSN was renamed to.
+Subformat 1 is for the fully redo-logged TRUNCATE
+(no MLOG_TRUNCATE records or extra log checkpoints or log files) */
+#define LOG_HEADER_SUBFORMAT	4
 /** LSN of the start of data in this log file (with format version 1;
 in format version 0, it was called LOG_FILE_START_LSN and at offset 4). */
 #define LOG_HEADER_START_LSN	8
@@ -474,11 +476,18 @@ or the MySQL version that created the redo log file. */
 #define LOG_HEADER_FORMAT_3_23		0
 /** The MySQL 5.7.9/MariaDB 10.2.2 log format */
 #define LOG_HEADER_FORMAT_10_2		1
-/** The MariaDB 10.3.2 log format */
+/** The MariaDB 10.3.2 log format.
+To prevent crash-downgrade to earlier 10.2 due to the inability to
+roll back a retroactively introduced TRX_UNDO_RENAME_TABLE undo log record,
+MariaDB 10.2.18 and later will use the 10.3 format, but LOG_HEADER_SUBFORMAT
+1 instead of 0. MariaDB 10.3 will use subformat 0 (5.7-style TRUNCATE) or 2
+(MDEV-13564 backup-friendly TRUNCATE). */
 #define LOG_HEADER_FORMAT_10_3		103
 /** The redo log format identifier corresponding to the current format version.
 Stored in LOG_HEADER_FORMAT. */
 #define LOG_HEADER_FORMAT_CURRENT	LOG_HEADER_FORMAT_10_3
+/** Future MariaDB 10.4 log format */
+#define LOG_HEADER_FORMAT_10_4		104
 /** Encrypted MariaDB redo log */
 #define LOG_HEADER_FORMAT_ENCRYPTED	(1U<<31)
 
@@ -549,7 +558,10 @@ struct log_t{
     /** number of files */
     ulint				n_files;
     /** format of the redo log: e.g., LOG_HEADER_FORMAT_CURRENT */
-    ulint				format;
+    uint32_t				format;
+    /** redo log subformat: 0 with separately logged TRUNCATE,
+    2 with fully redo-logged TRUNCATE (1 in MariaDB 10.2) */
+    uint32_t				subformat;
     /** individual log file size in bytes, including the header */
     lsn_t				file_size;
     /** lsn used to fix coordinates within the log group */

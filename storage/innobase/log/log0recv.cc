@@ -131,8 +131,7 @@ bool	recv_writer_thread_active;
 /** Return string name of the redo log record type.
 @param[in]	type	record log record enum
 @return string name of record log record */
-const char*
-get_mlog_string(mlog_id_t type);
+static const char* get_mlog_string(mlog_id_t type);
 #endif /* !DBUG_OFF */
 
 /** Tablespace item during recovery */
@@ -218,6 +217,75 @@ void (*log_truncate)();
 void (*log_file_op)(ulint space_id, const byte* flags,
 		    const byte* name, ulint len,
 		    const byte* new_name, ulint new_len);
+
+/** Process a MLOG_CREATE2 record that indicates that a tablespace
+is being shrunk in size.
+@param[in]	space_id	tablespace identifier
+@param[in]	pages		trimmed size of the file, in pages
+@param[in]	lsn		log sequence number of the operation */
+static void recv_addr_trim(ulint space_id, unsigned pages, lsn_t lsn)
+{
+	DBUG_ENTER("recv_addr_trim");
+	DBUG_LOG("ib_log",
+		 "discarding log beyond end of tablespace "
+		 << page_id_t(space_id, pages) << " before LSN " << lsn);
+	ut_ad(mutex_own(&recv_sys->mutex));
+	for (ulint i = recv_sys->addr_hash->n_cells; i--; ) {
+		hash_cell_t* const cell = hash_get_nth_cell(
+			recv_sys->addr_hash, i);
+		for (recv_addr_t* addr = static_cast<recv_addr_t*>(cell->node),
+			     *prev = NULL, *next;
+		     addr;
+		     prev = addr, addr = next) {
+			next = static_cast<recv_addr_t*>(addr->addr_hash);
+
+			if (addr->space != space_id || addr->page_no < pages) {
+				continue;
+			}
+
+			for (recv_t* recv = UT_LIST_GET_FIRST(addr->rec_list);
+			     recv; ) {
+				recv_t* n = UT_LIST_GET_NEXT(rec_list, recv);
+				if (recv->start_lsn < lsn) {
+					DBUG_PRINT("ib_log",
+						   ("Discarding %s for"
+						    " page %u:%u at " LSN_PF,
+						    get_mlog_string(
+							    recv->type),
+						    addr->space, addr->page_no,
+						    recv->start_lsn));
+					UT_LIST_REMOVE(addr->rec_list, recv);
+				}
+				recv = n;
+			}
+
+			if (UT_LIST_GET_LEN(addr->rec_list)) {
+				DBUG_PRINT("ib_log",
+					   ("preserving " ULINTPF
+					    " records for page %u:%u",
+					    UT_LIST_GET_LEN(addr->rec_list),
+					    addr->space, addr->page_no));
+			} else {
+				ut_ad(recv_sys->n_addrs);
+				--recv_sys->n_addrs;
+				if (addr == cell->node) {
+					cell->node = next;
+				} else {
+					prev->addr_hash = next;
+				}
+			}
+		}
+	}
+	if (fil_space_t* space = fil_space_get(space_id)) {
+		ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+		fil_node_t* file = UT_LIST_GET_FIRST(space->chain);
+		ut_ad(file->is_open());
+		os_file_truncate(file->name, file->handle,
+				 os_offset_t(pages) << srv_page_size_shift,
+				 true);
+	}
+	DBUG_VOID_RETURN;
+}
 
 /** Process a file name from a MLOG_FILE_* record.
 @param[in,out]	name		file name
@@ -391,9 +459,8 @@ fil_name_parse(
 	user-created tablespaces. The name must be long enough
 	and end in .ibd. */
 	bool corrupt = is_predefined_tablespace(space_id)
-		|| first_page_no != 0 // TODO: multi-file user tablespaces
 		|| len < sizeof "/a.ibd\0"
-		|| memcmp(ptr + len - 5, DOT_IBD, 5) != 0
+		|| (!first_page_no != !memcmp(ptr + len - 5, DOT_IBD, 5))
 		|| memchr(ptr, OS_PATH_SEPARATOR, len) == NULL;
 
 	byte*	end_ptr	= ptr + len;
@@ -422,7 +489,18 @@ fil_name_parse(
 			reinterpret_cast<char*>(ptr), len, space_id, true);
 		/* fall through */
 	case MLOG_FILE_CREATE2:
-		if (log_file_op) {
+		if (first_page_no) {
+			ut_ad(first_page_no
+			      == SRV_UNDO_TABLESPACE_SIZE_IN_PAGES);
+			ut_a(srv_is_undo_tablespace(space_id));
+			compile_time_assert(
+				UT_ARR_SIZE(recv_sys->truncated_undo_spaces)
+				== TRX_SYS_MAX_UNDO_SPACES);
+			recv_sys_t::trunc& t = recv_sys->truncated_undo_spaces[
+				space_id - srv_undo_space_id_start];
+			t.lsn = recv_sys->recovered_lsn;
+			t.pages = uint32_t(first_page_no);
+		} else if (log_file_op) {
 			log_file_op(space_id,
 				    type == MLOG_FILE_CREATE2 ? ptr - 4 : NULL,
 				    ptr, len, NULL, 0);
@@ -969,6 +1047,54 @@ static dberr_t recv_log_format_0_recover(lsn_t lsn, bool crypt)
 	return(DB_SUCCESS);
 }
 
+/** Determine if a redo log from MariaDB 10.4 is clean.
+@return	error code
+@retval	DB_SUCCESS	if the redo log is clean
+@retval	DB_CORRUPTION	if the redo log is corrupted
+@retval	DB_ERROR	if the redo log is not empty */
+static dberr_t recv_log_recover_10_4()
+{
+	ut_ad(!log_sys.is_encrypted());
+	const lsn_t	lsn = log_sys.log.lsn;
+	log_mutex_enter();
+	const lsn_t	source_offset = log_sys.log.calc_lsn_offset(lsn);
+	log_mutex_exit();
+	const ulint	page_no
+		= (ulint) (source_offset / univ_page_size.physical());
+	byte*		buf = log_sys.buf;
+
+	fil_io(IORequestLogRead, true,
+	       page_id_t(SRV_LOG_SPACE_FIRST_ID, page_no),
+	       univ_page_size,
+	       (ulint) ((source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1))
+			% univ_page_size.physical()),
+	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
+
+	if (log_block_calc_checksum(buf) != log_block_get_checksum(buf)) {
+		return DB_CORRUPTION;
+	}
+
+	/* On a clean shutdown, the redo log will be logically empty
+	after the checkpoint lsn. */
+
+	if (log_block_get_data_len(buf)
+	    != (source_offset & (OS_FILE_LOG_BLOCK_SIZE - 1))) {
+		return DB_ERROR;
+	}
+
+	/* Mark the redo log for downgrading. */
+	srv_log_file_size = 0;
+	recv_sys->parse_start_lsn = recv_sys->recovered_lsn
+		= recv_sys->scanned_lsn
+		= recv_sys->mlog_checkpoint_lsn = lsn;
+	log_sys.last_checkpoint_lsn = log_sys.next_checkpoint_lsn
+		= log_sys.lsn = log_sys.write_lsn
+		= log_sys.current_flush_lsn = log_sys.flushed_to_disk_lsn
+		= lsn;
+	log_sys.next_checkpoint_no = 0;
+	return DB_SUCCESS;
+}
+
 /** Find the latest checkpoint in the log header.
 @param[out]	max_field	LOG_CHECKPOINT_1 or LOG_CHECKPOINT_2
 @return error code or DB_SUCCESS */
@@ -989,6 +1115,9 @@ recv_find_max_checkpoint(ulint* max_field)
 	/* Check the header page checksum. There was no
 	checksum in the first redo log format (version 0). */
 	log_sys.log.format = mach_read_from_4(buf + LOG_HEADER_FORMAT);
+	log_sys.log.subformat = log_sys.log.format != LOG_HEADER_FORMAT_3_23
+		? mach_read_from_4(buf + LOG_HEADER_SUBFORMAT)
+		: 0;
 	if (log_sys.log.format != LOG_HEADER_FORMAT_3_23
 	    && !recv_check_log_header_checksum(buf)) {
 		ib::error() << "Invalid redo log header checksum.";
@@ -1008,6 +1137,9 @@ recv_find_max_checkpoint(ulint* max_field)
 	case LOG_HEADER_FORMAT_10_2 | LOG_HEADER_FORMAT_ENCRYPTED:
 	case LOG_HEADER_FORMAT_CURRENT:
 	case LOG_HEADER_FORMAT_CURRENT | LOG_HEADER_FORMAT_ENCRYPTED:
+	case LOG_HEADER_FORMAT_10_4:
+		/* We can only parse the unencrypted LOG_HEADER_FORMAT_10_4.
+		The encrypted format uses a larger redo log block trailer. */
 		break;
 	default:
 		ib::error() << "Unsupported redo log format."
@@ -1072,7 +1204,19 @@ recv_find_max_checkpoint(ulint* max_field)
 		return(DB_ERROR);
 	}
 
-	return(DB_SUCCESS);
+	if (log_sys.log.format == LOG_HEADER_FORMAT_10_4) {
+		dberr_t err = recv_log_recover_10_4();
+		if (err != DB_SUCCESS) {
+			ib::error()
+				<< "Downgrade after a crash is not supported."
+				" The redo log was created with " << creator
+				<< (err == DB_ERROR
+				    ? "." : ", and it appears corrupted.");
+		}
+		return err;
+	}
+
+	return DB_SUCCESS;
 }
 
 /** Try to parse a single log record body and also applies it if
@@ -2019,6 +2163,14 @@ recv_apply_hashed_log_recs(bool last_batch)
 	}
 	recv_sys->apply_log_recs = TRUE;
 	recv_sys->apply_batch_on = TRUE;
+
+	for (ulint id = srv_undo_tablespaces_open; id--; ) {
+		recv_sys_t::trunc& t = recv_sys->truncated_undo_spaces[id];
+		if (t.lsn) {
+			recv_addr_trim(id + srv_undo_space_id_start, t.pages,
+				       t.lsn);
+		}
+	}
 
 	for (ulint i = 0; i < hash_get_n_cells(recv_sys->addr_hash); i++) {
 		for (recv_addr_t* recv_addr = static_cast<recv_addr_t*>(
@@ -3638,8 +3790,7 @@ recv_dblwr_t::find_page(ulint space_id, ulint page_no)
 /** Return string name of the redo log record type.
 @param[in]	type	record log record enum
 @return string name of record log record */
-const char*
-get_mlog_string(mlog_id_t type)
+static const char* get_mlog_string(mlog_id_t type)
 {
 	switch (type) {
 	case MLOG_SINGLE_REC_FLAG:

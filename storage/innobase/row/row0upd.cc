@@ -286,29 +286,7 @@ row_upd_check_references_constraints(
 					FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 			}
 
-			/* dict_operation_lock is held both here
-			(UPDATE or DELETE with FOREIGN KEY) and by TRUNCATE
-			TABLE operations.
-			If a TRUNCATE TABLE operation is in progress,
-			there can be 2 possible conditions:
-			1) row_truncate_table_for_mysql() is not yet called.
-			2) Truncate releases dict_operation_lock
-			during eviction of pages from buffer pool
-			for a file-per-table tablespace.
-
-			In case of (1), truncate will wait for FK operation
-			to complete.
-			In case of (2), truncate will be rolled forward even
-			if it is interrupted. So if the foreign table is
-			undergoing a truncate, ignore the FK check. */
-
 			if (foreign_table) {
-				if (foreign_table->space
-				    && foreign_table->space
-				    ->is_being_truncated) {
-					continue;
-				}
-
 				foreign_table->inc_fk_checks();
 			}
 

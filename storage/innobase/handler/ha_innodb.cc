@@ -1068,6 +1068,8 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_truncated_status_writes,	  SHOW_LONG},
   {"available_undo_logs",
   (char*) &export_vars.innodb_available_undo_logs,        SHOW_LONG},
+  {"undo_truncations",
+  (char*) &export_vars.innodb_undo_truncations,           SHOW_LONG},
 
   /* Status variables for page compression */
   {"page_compression_saved",
@@ -12372,7 +12374,8 @@ create_table_info_t::create_table()
 			trx_rollback_to_savepoint(m_trx, NULL);
 			m_trx->error_state = DB_SUCCESS;
 
-			row_drop_table_for_mysql(m_table_name, m_trx, true, FALSE);
+			row_drop_table_for_mysql(m_table_name, m_trx,
+						 SQLCOM_DROP_DB);
 
 			m_trx->error_state = DB_SUCCESS;
 			DBUG_RETURN(error);
@@ -12548,17 +12551,21 @@ create_table_info_t::allocate_trx()
 @param[in]	name		Table name, format: "db/table_name".
 @param[in]	form		Table format; columns and index information.
 @param[in]	create_info	Create info (including create statement string).
+@param[in]	file_per_table	whether to create .ibd file
+@param[in,out]	trx		dictionary transaction, or NULL to create new
 @return	0 if success else error number. */
-int
+inline int
 ha_innobase::create(
 	const char*	name,
 	TABLE*		form,
-	HA_CREATE_INFO*	create_info)
+	HA_CREATE_INFO*	create_info,
+	bool		file_per_table,
+	trx_t*		trx)
 {
 	int		error;
 	char		norm_name[FN_REFLEN];	/* {database}/{tablename} */
 	char		remote_path[FN_REFLEN];	/* Absolute path of table */
-	trx_t*		trx;
+
 	DBUG_ENTER("ha_innobase::create");
 
 	DBUG_ASSERT(form->s == table_share);
@@ -12569,7 +12576,8 @@ ha_innobase::create(
 				     form,
 				     create_info,
 				     norm_name,
-				     remote_path);
+				     remote_path,
+				     file_per_table, trx);
 
 	/* Initialize the object. */
 	if ((error = info.initialize())) {
@@ -12581,9 +12589,11 @@ ha_innobase::create(
 		DBUG_RETURN(error);
 	}
 
-	info.allocate_trx();
-
-	trx = info.trx();
+	bool own_trx = !trx;
+	if (own_trx) {
+		info.allocate_trx();
+		trx = info.trx();
+	}
 
 	/* Latch the InnoDB data dictionary exclusively so that no deadlocks
 	or lock waits can happen in it during a table create operation.
@@ -12591,10 +12601,16 @@ ha_innobase::create(
 	row_mysql_lock_data_dictionary(trx);
 
 	if ((error = info.create_table())) {
-		goto cleanup;
+		if (own_trx) {
+			trx_rollback_for_mysql(trx);
+		}
+		row_mysql_unlock_data_dictionary(trx);
+		goto func_exit;
 	}
 
-	innobase_commit_low(trx);
+	if (own_trx) {
+		innobase_commit_low(trx);
+	}
 
 	ut_ad(!srv_read_only_mode);
 	row_mysql_unlock_data_dictionary(trx);
@@ -12609,17 +12625,26 @@ ha_innobase::create(
 	utility threads: */
 
 	srv_active_wake_master_thread();
-
-	trx_free(trx);
-
-	DBUG_RETURN(error);
-
-cleanup:
-	trx_rollback_for_mysql(trx);
-	row_mysql_unlock_data_dictionary(trx);
-	trx_free(trx);
+func_exit:
+	if (own_trx) {
+		trx_free(trx);
+	}
 
 	DBUG_RETURN(error);
+}
+
+/** Create a new table to an InnoDB database.
+@param[in]	name		Table name, format: "db/table_name".
+@param[in]	form		Table format; columns and index information.
+@param[in]	create_info	Create info (including create statement string).
+@return	0 if success else error number. */
+int
+ha_innobase::create(
+	const char*	name,
+	TABLE*		form,
+	HA_CREATE_INFO*	create_info)
+{
+	return create(name, form, create_info, srv_file_per_table);
 }
 
 /*****************************************************************//**
@@ -12742,74 +12767,16 @@ ha_innobase::discard_or_import_tablespace(
 	DBUG_RETURN(convert_error_code_to_mysql(err, dict_table->flags, NULL));
 }
 
-/*****************************************************************//**
-Deletes all rows of an InnoDB table.
-@return error number */
-
-int
-ha_innobase::truncate()
-/*===================*/
-{
-	DBUG_ENTER("ha_innobase::truncate");
-
-	if (high_level_read_only) {
-		DBUG_RETURN(HA_ERR_TABLE_READONLY);
-	}
-
-	/* Get the transaction associated with the current thd, or create one
-	if not yet created, and update m_prebuilt->trx */
-
-	update_thd(ha_thd());
-
-	m_prebuilt->trx->ddl = true;
-	trx_start_if_not_started(m_prebuilt->trx, true);
-
-	dberr_t	err = row_mysql_lock_table(m_prebuilt->trx, m_prebuilt->table,
-					   LOCK_X, "truncate table");
-	if (err == DB_SUCCESS) {
-		err = row_truncate_table_for_mysql(m_prebuilt->table,
-						   m_prebuilt->trx);
-	}
-
-	switch (err) {
-	case DB_FORCED_ABORT:
-	case DB_DEADLOCK:
-		thd_mark_transaction_to_rollback(m_user_thd, 1);
-		DBUG_RETURN(HA_ERR_LOCK_DEADLOCK);
-	case DB_LOCK_TABLE_FULL:
-		thd_mark_transaction_to_rollback(m_user_thd, 1);
-		DBUG_RETURN(HA_ERR_LOCK_TABLE_FULL);
-	case DB_LOCK_WAIT_TIMEOUT:
-		DBUG_RETURN(HA_ERR_LOCK_WAIT_TIMEOUT);
-	case DB_TABLESPACE_DELETED:
-	case DB_TABLESPACE_NOT_FOUND:
-		ib_senderrf(
-			m_prebuilt->trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-			(err == DB_TABLESPACE_DELETED ?
-			ER_TABLESPACE_DISCARDED : ER_TABLESPACE_MISSING),
-			table->s->table_name.str);
-		table->status = STATUS_NOT_FOUND;
-		DBUG_RETURN(HA_ERR_TABLESPACE_MISSING);
-	default:
-		table->status = STATUS_NOT_FOUND;
-		DBUG_RETURN(convert_error_code_to_mysql(
-				    err, m_prebuilt->table->flags,
-				    m_user_thd));
-	}
-}
-
-/*****************************************************************//**
+/**
 Drops a table from an InnoDB database. Before calling this function,
 MySQL calls innobase_commit to commit the transaction of the current user.
 Then the current user cannot have locks set on the table. Drop table
 operation inside InnoDB will remove all locks any user has on the table
 inside InnoDB.
+@param[in]	name	table name
+@param[in]	sqlcom	SQLCOM_DROP_DB, SQLCOM_TRUNCATE, ...
 @return error number */
-
-int
-ha_innobase::delete_table(
-/*======================*/
-	const char*	name)	/*!< in: table name */
+inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 {
 	dberr_t	err;
 	THD*	thd = ha_thd();
@@ -12873,9 +12840,7 @@ ha_innobase::delete_table(
 
 	/* Drop the table in InnoDB */
 
-	err = row_drop_table_for_mysql(
-		norm_name, trx, thd_sql_command(thd) == SQLCOM_DROP_DB,
-		false);
+	err = row_drop_table_for_mysql(norm_name, trx, sqlcom);
 
 	if (err == DB_TABLE_NOT_FOUND
 	    && innobase_get_lower_case_table_names() == 1) {
@@ -12899,9 +12864,7 @@ ha_innobase::delete_table(
 				par_case_name, name, FALSE);
 #endif
 			err = row_drop_table_for_mysql(
-				par_case_name, trx,
-				thd_sql_command(thd) == SQLCOM_DROP_DB,
-				FALSE);
+				par_case_name, trx, sqlcom);
 		}
 	}
 
@@ -12964,9 +12927,7 @@ ha_innobase::delete_table(
 				par_case_name, name, FALSE);
 #endif /* _WIN32 */
 			err = row_drop_table_for_mysql(
-				par_case_name, trx,
-				thd_sql_command(thd) == SQLCOM_DROP_DB,
-				true);
+				par_case_name, trx, sqlcom, true);
 		}
 	}
 
@@ -12982,6 +12943,24 @@ ha_innobase::delete_table(
 	trx_free(trx);
 
 	DBUG_RETURN(convert_error_code_to_mysql(err, 0, NULL));
+}
+
+/** Drop an InnoDB table.
+@param[in]	name	table name
+@return error number */
+int ha_innobase::delete_table(const char* name)
+{
+	enum_sql_command sqlcom = enum_sql_command(thd_sql_command(ha_thd()));
+
+        if (sqlcom == SQLCOM_TRUNCATE
+            && thd_killed(ha_thd())
+            && (m_prebuilt == NULL || m_prebuilt->table->is_temporary())) {
+                sqlcom = SQLCOM_DROP_TABLE;
+        }
+
+	/* SQLCOM_TRUNCATE will be passed via ha_innobase::truncate() only. */
+        DBUG_ASSERT(sqlcom != SQLCOM_TRUNCATE);
+        return delete_table(name, sqlcom);
 }
 
 /** Remove all tables in the named database inside InnoDB.
@@ -13058,7 +13037,7 @@ innobase_drop_database(
 /*********************************************************************//**
 Renames an InnoDB table.
 @return DB_SUCCESS or error code */
-inline MY_ATTRIBUTE((warn_unused_result))
+inline
 dberr_t
 innobase_rename_table(
 /*==================*/
@@ -13071,7 +13050,8 @@ innobase_rename_table(
 	char	norm_from[FN_REFLEN];
 
 	DBUG_ENTER("innobase_rename_table");
-	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
+	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX
+		    || trx_get_dict_operation(trx) == TRX_DICT_OP_TABLE);
 
 	ut_ad(!srv_read_only_mode);
 
@@ -13176,6 +13156,79 @@ innobase_rename_table(
 	log_buffer_flush_to_disk();
 
 	DBUG_RETURN(error);
+}
+
+/** TRUNCATE TABLE
+@return	error code
+@retval	0	on success */
+int ha_innobase::truncate()
+{
+	DBUG_ENTER("ha_innobase::truncate");
+
+	if (high_level_read_only) {
+		DBUG_RETURN(HA_ERR_TABLE_READONLY);
+	}
+
+	update_thd();
+
+	HA_CREATE_INFO	info;
+	mem_heap_t*	heap = mem_heap_create(1000);
+	dict_table_t*	ib_table = m_prebuilt->table;
+	const time_t	update_time = ib_table->update_time;
+	const ulint	stored_lock = m_prebuilt->stored_select_lock_type;
+	memset(&info, 0, sizeof info);
+	update_create_info_from_table(&info, table);
+
+	if (ib_table->is_temporary()) {
+		info.options|= HA_LEX_CREATE_TMP_TABLE;
+	} else {
+		dict_get_and_save_data_dir_path(ib_table, false);
+	}
+
+	char* data_file_name = ib_table->data_dir_path;
+
+	if (data_file_name) {
+		info.data_file_name = data_file_name
+			= mem_heap_strdup(heap, data_file_name);
+	}
+
+	const char* temp_name = dict_mem_create_temporary_tablename(
+		heap, ib_table->name.m_name, ib_table->id);
+	const char* name = mem_heap_strdup(heap, ib_table->name.m_name);
+	trx_t*	trx = innobase_trx_allocate(m_user_thd);
+
+	++trx->will_lock;
+	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
+	int err = convert_error_code_to_mysql(
+		innobase_rename_table(trx, ib_table->name.m_name, temp_name),
+		ib_table->flags, m_user_thd);
+	if (!err) {
+		err = create(name, table, &info,
+			     dict_table_is_file_per_table(ib_table), trx);
+	}
+
+	if (err) {
+		innobase_rename_table(trx, temp_name, name);
+		trx_rollback_to_savepoint(trx, NULL);
+	}
+
+	innobase_commit_low(trx);
+	trx_free(trx);
+
+	if (!err) {
+		/* Reopen the newly created table, and drop the
+		original table that was renamed to temp_name. */
+		close();
+		err = open(name, 0, 0);
+		if (!err) {
+			m_prebuilt->stored_select_lock_type = stored_lock;
+			m_prebuilt->table->update_time = update_time;
+			delete_table(temp_name, SQLCOM_TRUNCATE);
+		}
+	}
+
+	mem_heap_free(heap);
+	DBUG_RETURN(err);
 }
 
 /*********************************************************************//**

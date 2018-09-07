@@ -560,7 +560,8 @@ buf_dblwr_process()
 			is scheduled for truncation or was truncated
 			and we have parsed an MLOG_TRUNCATE record. */
 			if (!srv_is_tablespace_truncated(space_id)
-			    && !srv_was_tablespace_truncated(space)) {
+			    && !srv_was_tablespace_truncated(space)
+			    && !srv_is_undo_tablespace(space_id)) {
 				ib::warn() << "A copy of page " << page_id
 					<< " in the doublewrite buffer slot "
 					<< page_no_dblwr

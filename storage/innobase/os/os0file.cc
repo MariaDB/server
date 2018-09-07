@@ -5407,25 +5407,27 @@ fallback:
 	return(current_size >= size && os_file_flush(file));
 }
 
-/** Truncates a file to a specified size in bytes.
-Do nothing if the size to preserve is greater or equal to the current
-size of the file.
+/** Truncate a file to a specified size in bytes.
 @param[in]	pathname	file path
 @param[in]	file		file to be truncated
-@param[in]	size		size to preserve in bytes
+@param[in]	size		size preserved in bytes
+@param[in]	allow_shrink	whether to allow the file to become smaller
 @return true if success */
 bool
 os_file_truncate(
 	const char*	pathname,
 	os_file_t	file,
-	os_offset_t	size)
+	os_offset_t	size,
+	bool		allow_shrink)
 {
-	/* Do nothing if the size preserved is larger than or equal to the
-	current size of file */
-	os_offset_t	size_bytes = os_file_get_size(file);
+	if (!allow_shrink) {
+		/* Do nothing if the size preserved is larger than or
+		equal to the current size of file */
+		os_offset_t	size_bytes = os_file_get_size(file);
 
-	if (size >= size_bytes) {
-		return(true);
+		if (size >= size_bytes) {
+			return(true);
+		}
 	}
 
 #ifdef _WIN32

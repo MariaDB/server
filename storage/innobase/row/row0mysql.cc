@@ -2608,7 +2608,8 @@ error_handling:
 			trx_rollback_to_savepoint(trx, NULL);
 		}
 
-		row_drop_table_for_mysql(table->name.m_name, trx, FALSE, true);
+		row_drop_table_for_mysql(table->name.m_name, trx,
+					 SQLCOM_DROP_TABLE, true);
 
 		if (trx_is_started(trx)) {
 
@@ -2691,7 +2692,7 @@ row_table_add_foreign_constraints(
 			trx_rollback_to_savepoint(trx, NULL);
 		}
 
-		row_drop_table_for_mysql(name, trx, FALSE, true);
+		row_drop_table_for_mysql(name, trx, SQLCOM_DROP_TABLE, true);
 
 		if (trx_is_started(trx)) {
 
@@ -2731,7 +2732,7 @@ row_drop_table_for_mysql_in_background(
 
 	/* Try to drop the table in InnoDB */
 
-	error = row_drop_table_for_mysql(name, trx, FALSE, FALSE);
+	error = row_drop_table_for_mysql(name, trx, SQLCOM_TRUNCATE);
 
 	trx_commit_for_mysql(trx);
 
@@ -2877,8 +2878,8 @@ row_mysql_drop_garbage_tables()
 
 			if (dict_load_table(table_name, true,
 					    DICT_ERR_IGNORE_ALL)) {
-				row_drop_table_for_mysql(
-					table_name, trx, FALSE, FALSE);
+				row_drop_table_for_mysql(table_name, trx,
+							 SQLCOM_DROP_TABLE);
 				trx_commit_for_mysql(trx);
 			}
 
@@ -2942,6 +2943,7 @@ func_exit:
 @param[in,out]	trx	transaction
 @param[out]	new_id	new table id
 @return error code or DB_SUCCESS */
+static
 dberr_t
 row_mysql_table_id_reassign(
 	dict_table_t*	table,
@@ -3421,20 +3423,20 @@ If the data dictionary was not already locked by the transaction,
 the transaction will be committed.  Otherwise, the data dictionary
 will remain locked.
 @param[in]	name		Table name
-@param[in]	trx		Transaction handle
-@param[in]	drop_db		true=dropping whole database
-@param[in]	create_failed	TRUE=create table failed
+@param[in,out]	trx		Transaction handle
+@param[in]	sqlcom		type of SQL operation
+@param[in]	create_failed	true=create table failed
 				because e.g. foreign key column
 @param[in]	nonatomic	Whether it is permitted to release
 				and reacquire dict_operation_lock
 @return error code or DB_SUCCESS */
 dberr_t
 row_drop_table_for_mysql(
-	const char*	name,
-	trx_t*		trx,
-	bool		drop_db,
-	ibool		create_failed,
-	bool		nonatomic)
+	const char*		name,
+	trx_t*			trx,
+	enum_sql_command	sqlcom,
+	bool			create_failed,
+	bool			nonatomic)
 {
 	dberr_t		err;
 	dict_foreign_t*	foreign;
@@ -3603,7 +3605,7 @@ row_drop_table_for_mysql(
 
 			foreign = *it;
 
-			const bool	ref_ok = drop_db
+			const bool	ref_ok = sqlcom == SQLCOM_DROP_DB
 				&& dict_tables_have_same_db(
 					name,
 					foreign->foreign_table_name_lookup);
@@ -3741,12 +3743,11 @@ defer:
 	dict_drop_index_tree(). */
 	info = pars_info_create();
 	pars_info_add_str_literal(info, "table_name", name);
-	err = que_eval_sql(
+	err = (sqlcom == SQLCOM_TRUNCATE) ? DB_SUCCESS : que_eval_sql(
 		info,
-		"PROCEDURE DROP_TABLE_PROC () IS\n"
+		"PROCEDURE DROP_FOREIGN_PROC () IS\n"
 		"sys_foreign_id CHAR;\n"
 		"table_id CHAR;\n"
-		"index_id CHAR;\n"
 		"foreign_id CHAR;\n"
 		"space_id INT;\n"
 		"found INT;\n"
@@ -3756,19 +3757,14 @@ defer:
 		"WHERE FOR_NAME = :table_name\n"
 		"AND TO_BINARY(FOR_NAME)\n"
 		"  = TO_BINARY(:table_name)\n"
-		"LOCK IN SHARE MODE;\n"
-
-		"DECLARE CURSOR cur_idx IS\n"
-		"SELECT ID FROM SYS_INDEXES\n"
-		"WHERE TABLE_ID = table_id\n"
-		"LOCK IN SHARE MODE;\n"
+		"FOR UPDATE;\n"
 
 		"BEGIN\n"
 
 		"SELECT ID INTO table_id\n"
 		"FROM SYS_TABLES\n"
 		"WHERE NAME = :table_name\n"
-		"LOCK IN SHARE MODE;\n"
+		"FOR UPDATE;\n"
 		"IF (SQL % NOTFOUND) THEN\n"
 		"       RETURN;\n"
 		"END IF;\n"
@@ -3784,7 +3780,7 @@ defer:
 		"SELECT ID INTO sys_foreign_id\n"
 		"FROM SYS_TABLES\n"
 		"WHERE NAME = 'SYS_FOREIGN'\n"
-		"LOCK IN SHARE MODE;\n"
+		"FOR UPDATE;\n"
 		"IF (SQL % NOTFOUND) THEN\n"
 		"       found := 0;\n"
 		"END IF;\n"
@@ -3811,36 +3807,65 @@ defer:
 		"END LOOP;\n"
 		"CLOSE cur_fk;\n"
 
-		"found := 1;\n"
-		"OPEN cur_idx;\n"
-		"WHILE found = 1 LOOP\n"
-		"       FETCH cur_idx INTO index_id;\n"
-		"       IF (SQL % NOTFOUND) THEN\n"
-		"               found := 0;\n"
-		"       ELSE\n"
-		"               DELETE FROM SYS_FIELDS\n"
-		"               WHERE INDEX_ID = index_id;\n"
-		"               DELETE FROM SYS_INDEXES\n"
-		"               WHERE ID = index_id\n"
-		"               AND TABLE_ID = table_id;\n"
-		"       END IF;\n"
-		"END LOOP;\n"
-		"CLOSE cur_idx;\n"
-
-		"DELETE FROM SYS_COLUMNS\n"
-		"WHERE TABLE_ID = table_id;\n"
-		"DELETE FROM SYS_TABLES\n"
-		"WHERE NAME = :table_name;\n"
-
-		"DELETE FROM SYS_TABLESPACES\n"
-		"WHERE SPACE = space_id;\n"
-		"DELETE FROM SYS_DATAFILES\n"
-		"WHERE SPACE = space_id;\n"
-
-		"DELETE FROM SYS_VIRTUAL\n"
-		"WHERE TABLE_ID = table_id;\n"
 		"END;\n",
 		FALSE, trx);
+	if (err == DB_SUCCESS) {
+		if (sqlcom != SQLCOM_TRUNCATE) {
+			info = pars_info_create();
+			pars_info_add_str_literal(info, "table_name", name);
+		}
+
+		err = que_eval_sql(
+			info,
+			"PROCEDURE DROP_TABLE_PROC () IS\n"
+			"table_id CHAR;\n"
+			"space_id INT;\n"
+			"index_id CHAR;\n"
+
+			"DECLARE CURSOR cur_idx IS\n"
+			"SELECT ID FROM SYS_INDEXES\n"
+			"WHERE TABLE_ID = table_id\n"
+			"FOR UPDATE;\n"
+
+			"BEGIN\n"
+			"SELECT ID, SPACE INTO table_id,space_id\n"
+			"FROM SYS_TABLES\n"
+			"WHERE NAME = :table_name FOR UPDATE;\n"
+			"IF (SQL % NOTFOUND) THEN\n"
+			"       RETURN;\n"
+			"END IF;\n"
+
+			"DELETE FROM SYS_COLUMNS\n"
+			"WHERE TABLE_ID = table_id;\n"
+			"DELETE FROM SYS_TABLES\n"
+			"WHERE NAME = :table_name;\n"
+
+			"DELETE FROM SYS_TABLESPACES\n"
+			"WHERE SPACE = space_id;\n"
+			"DELETE FROM SYS_DATAFILES\n"
+			"WHERE SPACE = space_id;\n"
+
+			"DELETE FROM SYS_VIRTUAL\n"
+			"WHERE TABLE_ID = table_id;\n"
+
+			"OPEN cur_idx;\n"
+			"WHILE 1 = 1 LOOP\n"
+			"       FETCH cur_idx INTO index_id;\n"
+			"       IF (SQL % NOTFOUND) THEN\n"
+			"		EXIT;\n"
+			"       ELSE\n"
+			"               DELETE FROM SYS_FIELDS\n"
+			"               WHERE INDEX_ID = index_id;\n"
+			"               DELETE FROM SYS_INDEXES\n"
+			"               WHERE ID = index_id\n"
+			"               AND TABLE_ID = table_id;\n"
+			"       END IF;\n"
+			"END LOOP;\n"
+			"CLOSE cur_idx;\n"
+
+			"END;\n",
+			FALSE, trx);
+	}
 
 	switch (err) {
 		fil_space_t* space;
@@ -3966,6 +3991,13 @@ funct_exit_all_freed:
 	srv_wake_master_thread();
 
 	DBUG_RETURN(err);
+}
+
+/** Drop a table after failed CREATE TABLE. */
+dberr_t row_drop_table_after_create_fail(const char* name, trx_t* trx)
+{
+	ib::warn() << "Dropping incompletely created " << name << " table.";
+	return row_drop_table_for_mysql(name, trx, SQLCOM_DROP_DB, true);
 }
 
 /*******************************************************************//**
@@ -4155,7 +4187,8 @@ loop:
 			goto loop;
 		}
 
-		err = row_drop_table_for_mysql(table_name, trx, TRUE, FALSE);
+		err = row_drop_table_for_mysql(
+			table_name, trx, SQLCOM_DROP_DB);
 		trx_commit_for_mysql(trx);
 
 		if (err != DB_SUCCESS) {

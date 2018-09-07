@@ -306,7 +306,9 @@ trx_rseg_header_create(
 
 	/* Reset the undo log slots */
 	for (ulint i = 0; i < TRX_RSEG_N_SLOTS; i++) {
-
+		/* FIXME: This is generating a lot of redo log.
+		Why not just let it remain zero-initialized,
+		and adjust trx_rsegf_undo_find_free() and friends? */
 		trx_rsegf_set_nth_undo(rsegf, i, FIL_NULL, mtr);
 	}
 

@@ -29,6 +29,8 @@ Created 9/17/2000 Heikki Tuuri
 #define row0mysql_h
 
 #include "ha_prototypes.h"
+#include "sql_list.h"
+#include "sql_cmd.h"
 
 #include "data0data.h"
 #include "que0types.h"
@@ -451,32 +453,28 @@ row_mysql_lock_table(
 	const char*	op_info)	/*!< in: string for trx->op_info */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/*********************************************************************//**
-Truncates a table for MySQL.
-@return error code or DB_SUCCESS */
-dberr_t
-row_truncate_table_for_mysql(
-/*=========================*/
-	dict_table_t*	table,	/*!< in: table handle */
-	trx_t*		trx)	/*!< in: transaction handle */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
-Drops a table for MySQL.  If the data dictionary was not already locked
-by the transaction, the transaction will be committed.  Otherwise, the
-data dictionary will remain locked.
-@return error code or DB_SUCCESS */
+/** Drop a table.
+If the data dictionary was not already locked by the transaction,
+the transaction will be committed.  Otherwise, the data dictionary
+will remain locked.
+@param[in]	name		Table name
+@param[in,out]	trx		Transaction handle
+@param[in]	sqlcom		type of SQL operation
+@param[in]	create_failed	true=create table failed
+				because e.g. foreign key column
+@param[in]	nonatomic	Whether it is permitted to release
+				and reacquire dict_operation_lock
+@return error code */
 dberr_t
 row_drop_table_for_mysql(
-/*=====================*/
-	const char*	name,	/*!< in: table name */
-	trx_t*		trx,	/*!< in: dictionary transaction handle */
-	bool		drop_db,/*!< in: true=dropping whole database */
-	ibool		create_failed,/*!<in: TRUE=create table failed
-					because e.g. foreign key column
-					type mismatch. */
-	bool		nonatomic = true);
-				/*!< in: whether it is permitted
-				to release and reacquire dict_operation_lock */
+	const char*		name,
+	trx_t*			trx,
+	enum_sql_command	sqlcom,
+	bool			create_failed = false,
+	bool			nonatomic = true);
+
+/** Drop a table after failed CREATE TABLE. */
+dberr_t row_drop_table_after_create_fail(const char* name, trx_t* trx);
 
 /*********************************************************************//**
 Discards the tablespace of a table which stored in an .ibd file. Discarding

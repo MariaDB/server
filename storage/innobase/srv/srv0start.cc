@@ -1098,8 +1098,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 			buf_LRU_flush_or_remove_pages(*it, &dummy2);
 
 			/* Remove the truncate redo log file. */
-			undo::Truncate	undo_trunc;
-			undo_trunc.done_logging(*it);
+			undo::done(*it);
 		}
 	}
 
@@ -1330,6 +1329,12 @@ srv_prepare_to_delete_redo_log_files(
 	ulint	pending_io = 0;
 	ulint	count = 0;
 
+	if ((log_sys.log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
+	    != LOG_HEADER_FORMAT_CURRENT
+	    || log_sys.log.subformat != 2) {
+		srv_log_file_size = 0;
+	}
+
 	do {
 		/* Clean the buffer pool. */
 		buf_flush_sync_all_buf_pools();
@@ -1345,11 +1350,12 @@ srv_prepare_to_delete_redo_log_files(
 
 		{
 			ib::info	info;
-			if (srv_log_file_size == 0
-			    || (log_sys.log.format
-				& ~LOG_HEADER_FORMAT_ENCRYPTED)
-			    != LOG_HEADER_FORMAT_CURRENT) {
-				info << "Upgrading redo log: ";
+			if (srv_log_file_size == 0) {
+				info << ((log_sys.log.format
+					  & ~LOG_HEADER_FORMAT_ENCRYPTED)
+					 != LOG_HEADER_FORMAT_10_4
+					 ? "Upgrading redo log: "
+					 : "Downgrading redo log: ");
 			} else if (n_files != srv_n_log_files
 				   || srv_log_file_size
 				   != srv_log_file_size_requested) {
@@ -2176,8 +2182,10 @@ files_checked:
 			   == (srv_encrypt_log
 			       ? LOG_HEADER_FORMAT_CURRENT
 			       | LOG_HEADER_FORMAT_ENCRYPTED
-			       : LOG_HEADER_FORMAT_CURRENT)) {
-			/* No need to upgrade or resize the redo log. */
+			       : LOG_HEADER_FORMAT_CURRENT)
+			   && log_sys.log.subformat == 2) {
+			/* No need to add or remove encryption,
+			upgrade, downgrade, or resize. */
 		} else {
 			/* Prepare to delete the old redo log files */
 			flushed_lsn = srv_prepare_to_delete_redo_log_files(i);

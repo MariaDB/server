@@ -4516,7 +4516,7 @@ row_merge_drop_table(
 	ut_a(table->get_ref_count() == 0);
 
 	return(row_drop_table_for_mysql(table->name.m_name,
-			trx, false, false, false));
+			trx, SQLCOM_DROP_TABLE, false, false));
 }
 
 /** Write an MLOG_INDEX_LOAD record to indicate in the redo-log
