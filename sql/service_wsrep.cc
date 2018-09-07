@@ -12,6 +12,7 @@
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+#include "mariadb.h"
 
 #include "mysql/service_wsrep.h"
 #include "wsrep/key.hpp"
@@ -33,13 +34,13 @@ extern "C" my_bool wsrep_on(const void *thd)
 extern "C" void wsrep_thd_LOCK(void* thd_ptr)
 {
   THD* thd= (THD*)thd_ptr;
-  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
 }
 
 extern "C" void wsrep_thd_UNLOCK(void* thd_ptr)
 {
   THD* thd= (THD*)thd_ptr;
-  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 
 
@@ -76,9 +77,7 @@ extern "C" const char* wsrep_thd_transaction_state_str(const void* thd_ptr)
 extern "C" const char *wsrep_thd_query(const void *thd_ptr)
 {
   THD* thd= (THD*)thd_ptr;
-  return (thd) ? ((!opt_log_raw) && thd->rewritten_query.length() ?
-                  thd->rewritten_query.c_ptr_safe() : thd->query())
-    : NULL;
+  return (thd) ? thd->query() : NULL;
 }
 
 extern "C" query_id_t wsrep_thd_query_id(const void* thd_ptr)
@@ -151,9 +150,9 @@ extern "C" my_bool wsrep_thd_is_BF(const void *thd_ptr, my_bool sync)
   my_bool status = FALSE;
   if (thd_ptr)
   {
-    if (sync) mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    if (sync) mysql_mutex_lock(&thd->LOCK_thd_data);
     status = (wsrep_thd_is_applying(thd) || wsrep_thd_is_toi(thd));
-    if (sync) mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    if (sync) mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
   return status;
 }
@@ -172,7 +171,7 @@ extern "C" void wsrep_handle_SR_rollback(void *bf_thd_ptr,
 
   THD* bf_thd= (THD*)bf_thd_ptr;
   THD* victim_thd= (THD*)victim_thd_ptr;
-  WSREP_DEBUG("handle rollback, for deadlock: thd %lu trx_id %lu frags %lu conf %s",
+  WSREP_DEBUG("handle rollback, for deadlock: thd %llu trx_id %lu frags %lu conf %s",
               victim_thd->thread_id,
               victim_thd->wsrep_trx_id(),
               victim_thd->wsrep_sr().fragments_certified(),
@@ -192,8 +191,6 @@ extern "C" void wsrep_handle_SR_rollback(void *bf_thd_ptr,
   }
   if (bf_thd) bf_thd->store_globals();
 }
-
-
 
 extern "C" void wsrep_thd_xid(const void *thd_ptr, void *xid, size_t xid_size)
 {
@@ -217,7 +214,7 @@ extern "C" void wsrep_thd_awake(const void* thd_ptr, my_bool signal)
   if (signal)
   {
     mysql_mutex_lock(&thd->LOCK_thd_data);
-    thd->awake(THD::KILL_QUERY);
+    thd->awake(KILL_QUERY);
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
   else
@@ -279,7 +276,7 @@ extern "C" my_bool wsrep_thd_is_high_priority(const void* thd_ptr)
 extern "C" my_bool wsrep_thd_is_aborting(const void* thd_ptr)
 {
   const THD* thd= (const THD*)thd_ptr;
-  mysql_mutex_assert_owner(&thd->LOCK_wsrep_thd);
+  mysql_mutex_assert_owner(&thd->LOCK_thd_data);
   if (thd != 0)
   {
     const wsrep::client_state& cs(thd->wsrep_cs());

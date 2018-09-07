@@ -85,13 +85,13 @@ extern struct wsrep_service_st {
   void                        (*wsrep_thd_awake_func)(THD *thd, my_bool signal);
    my_thread_id                (*wsrep_thd_thread_id_func)(THD *thd);
   my_bool                     (*wsrep_thd_is_wsrep_func)(MYSQL_THD thd);
-  char *                      (*wsrep_thd_query_func)(THD *thd);
+  const char *                (*wsrep_thd_query_func)(THD *thd);
   //  int                         (*wsrep_thd_retry_counter_func)(THD *thd);
   bool                        (*wsrep_thd_ignore_table_func)(THD *thd);
-  int64_t                     (*wsrep_thd_trx_seqno_func)(const THD *thd);
+  long long                   (*wsrep_thd_trx_seqno_func)(const THD *thd);
   //int                         (*wsrep_trx_is_aborting_func)(MYSQL_THD thd);
   int                         (*wsrep_trx_order_before_func)(MYSQL_THD, MYSQL_THD);
-  //void                        (wsrep_thd_xid_func)(const void *thd_ptr, void *xid, size_t xid_size);
+  void                        (wsrep_thd_xid_func)(const void *thd_ptr, void *xid, size_t xid_size);
 } *wsrep_service;
 
 
@@ -160,7 +160,7 @@ extern my_thread_id wsrep_thd_thread_id(THD *thd);
   
 bool wsrep_consistency_check(THD *thd);
 bool wsrep_prepare_key_for_innodb(THD* thd, const unsigned char* cache_key, size_t cache_key_len, const unsigned char* row_id, size_t row_id_len, struct wsrep_buf* key, size_t* key_len);
-extern "C" char *wsrep_thd_query(THD *thd);
+extern "C" const char *wsrep_thd_query(THD *thd);
 const char *wsrep_thd_conflict_state_str(THD *thd);
 const char *wsrep_thd_exec_mode_str(THD *thd);
 const char *wsrep_thd_query_state_str(THD *thd);
@@ -179,7 +179,7 @@ int wsrep_thd_retry_counter(THD *thd);
 int wsrep_trx_is_aborting(MYSQL_THD thd);
 int wsrep_trx_order_before(MYSQL_THD thd1, MYSQL_THD thd2);
 long get_wsrep_protocol_version();
-int64_t wsrep_thd_trx_seqno(const THD *thd);
+extern "C" long long wsrep_thd_trx_seqno(const THD *thd);
 my_bool get_wsrep_certify_nonPK();
 my_bool get_wsrep_debug();
 my_bool get_wsrep_drupal_282555_workaround();
@@ -199,7 +199,7 @@ void wsrep_thd_UNLOCK(THD *thd);
 void wsrep_thd_awake(THD *thd, my_bool signal);
 //void wsrep_thd_set_conflict_state(THD *thd, enum wsrep_conflict_state state);
 bool wsrep_thd_ignore_table(THD *thd);
-void wsrep_thd_xid(const void *thd_ptr, void *xid, size_t xid_size);
+//void wsrep_thd_xid(const void *thd_ptr, void *xid, size_t xid_size);
 
 
 /* from mysql wsrep-lib */
@@ -237,7 +237,7 @@ extern "C" query_id_t wsrep_thd_query_id(const void* thd);
 /* Return current transaction id */
 extern "C" query_id_t wsrep_thd_transaction_id(const void* thd);
 /* Return sequence number associated to current transaction or TOI */
-extern "C" long long wsrep_thd_trx_seqno(const void* thd);
+//extern "C" long long wsrep_thd_trx_seqno(const void* thd);
 /* Mark thd own transaction as aborted */
 extern "C" void wsrep_thd_self_abort(void *thd);
 /* Return true if thd is in replicating mode */
@@ -259,7 +259,7 @@ extern "C" my_bool wsrep_thd_is_BF(const void* thd, my_bool sync);
 extern "C" my_bool wsrep_thd_is_SR(const void* thd);
 extern "C" void wsrep_handle_SR_rollback(void *BF_thd_ptr, void *victim_thd_ptr);
 /* Return XID associated to thd */
-//extern "C" void wsrep_thd_xid(const void* thd, void* xid, size_t size);
+extern "C" void wsrep_thd_xid(const void* thd, void* xid, size_t size);
 /* Return true if XID is wsrep XID */
 //extern "C" int wsrep_is_wsrep_xid(const void*);
 /* Return thd retry counter */

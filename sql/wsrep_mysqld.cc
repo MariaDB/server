@@ -491,8 +491,9 @@ static std::string wsrep_server_name()
 
 static std::string wsrep_server_id()
 {
-  std::string ret = std::to_string(server_id);
-  return std::to_string(server_id);
+  std::stringstream ss;
+  ss << server_id;
+  return(ss.str());
 }
 
 static std::string wsrep_server_node_address()

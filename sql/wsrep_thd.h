@@ -230,8 +230,8 @@ static inline void wsrep_log_thd(THD *thd,
 
 #else /* WITH_WSREP */
 
-#define wsrep_thd_is_BF(T, S) (0)
-#define wsrep_abort_thd(X,Y,Z) do { } while(0)
-#define wsrep_create_appliers(T) do { } while(0)
+//#define wsrep_thd_is_BF(T, S) (0)
+//#define wsrep_abort_thd(X,Y,Z) do { } while(0)
+//#define wsrep_create_appliers(T) do { } while(0)
 
 #endif /* WSREP_THD_H */
