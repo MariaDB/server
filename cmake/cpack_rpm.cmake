@@ -81,6 +81,7 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %define _bindir     ${INSTALL_BINDIRABS}
 %define _sbindir    ${INSTALL_SBINDIRABS}
 %define _sysconfdir ${INSTALL_SYSCONFDIR}
+%define restart_flag %{_localstatedir}/lib/rpm-state/mariadb-restart
 ")
 
 # this creative hack is described here: http://www.cmake.org/pipermail/cmake/2012-January/048416.html
@@ -179,6 +180,7 @@ SET(CPACK_RPM_server_PRE_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/r
 SET(CPACK_RPM_server_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-preun.sh)
 SET(CPACK_RPM_server_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-postin.sh)
 SET(CPACK_RPM_server_POST_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-postun.sh)
+SET(CPACK_RPM_server_POST_TRANS_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-posttrans.sh)
 SET(CPACK_RPM_shared_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/shared-post.sh)
 SET(CPACK_RPM_shared_POST_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/shared-post.sh)
 SET(CPACK_RPM_compat_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/shared-post.sh)
