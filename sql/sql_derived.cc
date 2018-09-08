@@ -1083,6 +1083,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   DBUG_ASSERT(derived->table && derived->table->is_created());
   select_union *derived_result= derived->derived_result;
   SELECT_LEX *save_current_select= lex->current_select;
+  bool derived_recursive_is_filled= false;
   
   if (derived_is_recursive)
   {
@@ -1095,6 +1096,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     {
       /* In this case all iteration are performed */
       res= derived->fill_recursive(thd);
+      derived_recursive_is_filled= true;
     }
   }
   else if (unit->is_union())
@@ -1150,7 +1152,9 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     }
   }
 
-  if (res || (!lex->describe && !derived_is_recursive))
+  if (res || (!lex->describe &&
+              (!derived_is_recursive ||
+               derived_recursive_is_filled)))
     unit->cleanup();
   lex->current_select= save_current_select;
 

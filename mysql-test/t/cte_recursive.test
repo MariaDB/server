@@ -2323,3 +2323,70 @@ RETURN
 SELECT func();
 
 DROP FUNCTION func;
+
+--echo #
+--echo # MDEV-17024: two materialized CTEs using the same recursive CTE
+--echo #
+
+create table t1 (id int);
+insert into t1 values (1), (2), (3);
+
+let $q=
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte1, cte2;
+
+eval $q;
+eval explain extended $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+
+create table t2 (c1 int, c2 int);
+eval create procedure p() insert into t2 $q;
+call p();
+select * from t2;
+
+let $q1=
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte1;
+
+eval $q1;
+
+let $q2=
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from t1),
+cte2 as
+(select count(*) as c2 from t2)
+select * from cte1,cte2;
+
+eval $q2;
+
+let $q3=
+with recursive
+rcte(a) as
+(select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
+cte1 as
+(select count(*) as c1 from rcte,t1 where a between 3 and 5 and id=a-3),
+cte2 as
+(select count(*) as c2 from rcte,t1 where a between 7 and 8 and id=a-7)
+select * from cte1, cte2 where cte1.c1 = 3;
+
+eval $q3;
+
+drop procedure p;
+drop table t1,t2;

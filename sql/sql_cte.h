@@ -98,7 +98,14 @@ public:
     for the definition of this element
   */
   bool is_recursive;
-
+  /*
+    For a simple recursive CTE: the number of references to the CTE from
+    outside of the CTE specification.
+    For a CTE mutually recursive with other CTEs : the total number of
+    references to all these CTEs outside of their specification.
+    Each of these mutually recursive CTEs has the same value in this field.
+  */
+  uint rec_outer_references;
   /*
     Any non-recursive select in the specification of a recursive
     with element is a called anchor. In the case mutually recursive
@@ -140,7 +147,7 @@ public:
       top_level_dep_map(0), sq_rec_ref(NULL),
       next_mutually_recursive(NULL), references(0), 
       query_name(name), column_list(list), spec(unit),
-      is_recursive(false), with_anchor(false),
+      is_recursive(false), rec_outer_references(0), with_anchor(false),
       level(0), rec_result(NULL)
   { unit->with_element= this; }
 

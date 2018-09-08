@@ -3295,6 +3295,15 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     */
     if (tables->with)
     {
+      if (tables->is_recursive_with_table() &&
+          !tables->is_with_table_recursive_reference())
+      {
+        tables->with->rec_outer_references++;
+        With_element *with_elem= tables->with;
+        while ((with_elem= with_elem->get_next_mutually_recursive()) !=
+               tables->with)
+	  with_elem->rec_outer_references++;
+      }
       if (tables->set_as_with_table(thd, tables->with))
         DBUG_RETURN(1);
       else
