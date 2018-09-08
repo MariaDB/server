@@ -10,8 +10,15 @@ TRUNCATE TABLE mysql.general_log;
 
 --connection node_2
 TRUNCATE TABLE mysql.general_log;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.general_log WHERE argument LIKE 'TRUNCATE%';
+--source include/wait_condition.inc
+SELECT Argument FROM mysql.general_log;
 
 --connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.general_log WHERE argument LIKE 'TRUNCATE%';
+--source include/wait_condition.inc
+SELECT Argument FROM mysql.general_log;
+
 SET GLOBAL general_log='ON';
 SET SESSION wsrep_osu_method=TOI;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;

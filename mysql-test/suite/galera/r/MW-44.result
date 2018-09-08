@@ -1,5 +1,13 @@
 TRUNCATE TABLE mysql.general_log;
 TRUNCATE TABLE mysql.general_log;
+SELECT Argument FROM mysql.general_log;
+Argument
+SELECT COUNT(*) = 0 FROM mysql.general_log WHERE argument LIKE 'TRUNCATE%'
+SELECT Argument FROM mysql.general_log
+SELECT Argument FROM mysql.general_log;
+Argument
+SELECT COUNT(*) = 0 FROM mysql.general_log WHERE argument LIKE 'TRUNCATE%'
+SELECT Argument FROM mysql.general_log
 SET GLOBAL general_log='ON';
 SET SESSION wsrep_osu_method=TOI;
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
