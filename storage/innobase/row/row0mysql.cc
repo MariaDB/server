@@ -3312,36 +3312,6 @@ run_again:
 	return(err);
 }
 
-static
-void
-fil_wait_crypt_bg_threads(
-	dict_table_t* table)
-{
-	time_t start = time(0);
-	time_t last = start;
-
-	while (table->get_ref_count()> 0) {
-		dict_mutex_exit_for_mysql();
-		os_thread_sleep(20000);
-		dict_mutex_enter_for_mysql();
-		time_t now = time(0);
-
-		if (now >= last + 30) {
-			ib::warn()
-				<< "Waited " << now - start
-				<< " seconds for ref-count on table "
-				<< table->name;
-			last = now;
-		}
-		if (now >= start + 300) {
-			ib::warn()
-				<< "After " << now - start
-				<< " seconds, gave up waiting "
-				<< "for ref-count on table " << table->name;
-			break;
-		}
-	}
-}
 /** Drop ancillary FTS tables as part of dropping a table.
 @param[in,out]	table		Table cache entry
 @param[in,out]	trx		Transaction handle
@@ -3684,9 +3654,6 @@ defer:
 	preserve existing behaviour we remove the locks but ideally we
 	shouldn't have to. There should never be record locks on a table
 	that is going to be dropped. */
-
-	/* Wait on background threads to stop using table */
-	fil_wait_crypt_bg_threads(table);
 
 	if (table->get_ref_count() > 0 || table->n_rec_locks > 0
 	    || lock_table_has_locks(table)) {
