@@ -21244,11 +21244,30 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
       tmp_map.clear_all();       // Force the creation of quick select
       tmp_map.set_bit(best_key); // only best_key.
       select->quick= 0;
+
+      bool cond_saved= false;
+      Item *saved_cond;
+
+      /*
+        Index Condition Pushdown may have removed parts of the condition for
+        this table. Temporarily put them back because we want the whole
+        condition for the range analysis.
+      */
+      if (select->pre_idx_push_select_cond)
+      {
+        saved_cond= select->cond;
+        select->cond= select->pre_idx_push_select_cond;
+        cond_saved= true;
+      }
+
       select->test_quick_select(join->thd, tmp_map, 0,
                                 join->select_options & OPTION_FOUND_ROWS ?
                                 HA_POS_ERROR :
                                 join->unit->select_limit_cnt,
                                 TRUE, FALSE, FALSE);
+
+      if (cond_saved)
+        select->cond= saved_cond;
     }
     order_direction= best_key_direction;
     /*
