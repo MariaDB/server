@@ -888,7 +888,9 @@ trx_resurrect_update(
 
 	if (undo->dict_operation) {
 		trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
-		trx->table_id = undo->table_id;
+		if (!trx->table_id) {
+			trx->table_id = undo->table_id;
+		}
 	}
 
 	if (!undo->empty && undo->top_undo_no >= trx->undo_no) {

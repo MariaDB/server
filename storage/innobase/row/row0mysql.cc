@@ -2527,7 +2527,7 @@ Each foreign key constraint must be accompanied with indexes in
 bot participating tables. The indexes are allowed to contain more
 fields than mentioned in the constraint.
 
-@param[in]	trx		transaction
+@param[in]	trx		transaction (NULL if not adding to dictionary)
 @param[in]	sql_string	table create statement where
 				foreign keys are declared like:
 				FOREIGN KEY (a, b) REFERENCES table2(c, d),
@@ -2536,9 +2536,8 @@ fields than mentioned in the constraint.
 				database id the database of parameter name
 @param[in]	sql_length	length of sql_string
 @param[in]	name		table full name in normalized form
-@param[in]	reject_fks	if TRUE, fail with error code
-				DB_CANNOT_ADD_CONSTRAINT if any
-				foreign keys are found.
+@param[in]	reject_fks	whether to fail with DB_CANNOT_ADD_CONSTRAINT
+				if any foreign keys are found
 @return error code or DB_SUCCESS */
 dberr_t
 row_table_add_foreign_constraints(
@@ -2546,7 +2545,7 @@ row_table_add_foreign_constraints(
 	const char*		sql_string,
 	size_t			sql_length,
 	const char*		name,
-	ibool			reject_fks)
+	bool			reject_fks)
 {
 	dberr_t	err;
 
@@ -2556,19 +2555,23 @@ row_table_add_foreign_constraints(
 	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
 	ut_a(sql_string);
 
-	trx->op_info = "adding foreign keys";
+	if (trx) {
+		trx->op_info = "adding foreign keys";
 
-	trx_start_if_not_started_xa(trx, true);
+		trx_start_if_not_started_xa(trx, true);
 
-	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
+		trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 
-	err = dict_create_foreign_constraints(
-		trx, sql_string, sql_length, name, reject_fks);
+		err = dict_create_foreign_constraints(
+			trx, sql_string, sql_length, name, reject_fks);
 
-	DBUG_EXECUTE_IF("ib_table_add_foreign_fail",
-			err = DB_DUPLICATE_KEY;);
+		DBUG_EXECUTE_IF("ib_table_add_foreign_fail",
+				err = DB_DUPLICATE_KEY;);
 
-	DEBUG_SYNC_C("table_add_foreign_constraints");
+		DEBUG_SYNC_C("table_add_foreign_constraints");
+	} else {
+		err = DB_SUCCESS;
+	}
 
 	if (err == DB_SUCCESS) {
 		/* Check that also referencing constraints are ok */
@@ -2583,7 +2586,7 @@ row_table_add_foreign_constraints(
 		}
 	}
 
-	if (err != DB_SUCCESS) {
+	if (err != DB_SUCCESS && trx) {
 		/* We have special error handling here */
 
 		trx->error_state = DB_SUCCESS;

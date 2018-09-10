@@ -3307,13 +3307,15 @@ if that the old filepath exists and the new filepath does not exist.
 @param[in]	old_path	old filepath
 @param[in]	new_path	new filepath
 @param[in]	is_discarded	whether the tablespace is discarded
+@param[in]	replace_new	whether to ignore the existence of new_path
 @return innodb error code */
 dberr_t
 fil_rename_tablespace_check(
 	ulint		space_id,
 	const char*	old_path,
 	const char*	new_path,
-	bool		is_discarded)
+	bool		is_discarded,
+	bool		replace_new)
 {
 	bool	exists = false;
 	os_file_type_t	ftype;
@@ -3330,7 +3332,11 @@ fil_rename_tablespace_check(
 	}
 
 	exists = false;
-	if (!os_file_status(new_path, &exists, &ftype) || exists) {
+	if (os_file_status(new_path, &exists, &ftype) && !exists) {
+		return DB_SUCCESS;
+	}
+
+	if (!replace_new) {
 		ib::error() << "Cannot rename '" << old_path
 			<< "' to '" << new_path
 			<< "' for space ID " << space_id
@@ -3338,6 +3344,34 @@ fil_rename_tablespace_check(
 			" Remove the target file and try again.";
 		return(DB_TABLESPACE_EXISTS);
 	}
+
+	/* This must be during the ROLLBACK of TRUNCATE TABLE.
+	Because InnoDB only allows at most one data dictionary
+	transaction at a time, and because this incomplete TRUNCATE
+	would have created a new tablespace file, we must remove
+	a possibly existing tablespace that is associated with the
+	new tablespace file. */
+retry:
+	mutex_enter(&fil_system->mutex);
+	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system->space_list);
+	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
+		ulint id = space->id;
+		if (id && id < SRV_LOG_SPACE_FIRST_ID
+		    && space->purpose == FIL_TYPE_TABLESPACE
+		    && !strcmp(new_path,
+			       UT_LIST_GET_FIRST(space->chain)->name)) {
+			ib::info() << "TRUNCATE rollback: " << id
+				<< "," << new_path;
+			mutex_exit(&fil_system->mutex);
+			dberr_t err = fil_delete_tablespace(id);
+			if (err != DB_SUCCESS) {
+				return err;
+			}
+			goto retry;
+		}
+	}
+	mutex_exit(&fil_system->mutex);
+	fil_delete_file(new_path);
 
 	return(DB_SUCCESS);
 }

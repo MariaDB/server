@@ -247,6 +247,11 @@ ulint
 trx_undo_lists_init(
 /*================*/
 	trx_rseg_t*	rseg);	/*!< in: rollback segment memory object */
+/** Mark that an undo log header belongs to a data dictionary transaction.
+@param[in]	trx	dictionary transaction
+@param[in,out]	undo	undo log
+@param[in,out]	mtr	mini-transaction */
+void trx_undo_mark_as_dict(const trx_t* trx, trx_undo_t* undo, mtr_t* mtr);
 /** Assign an undo log for a transaction.
 A new undo log is created or a cached undo log reused.
 @param[in,out]	trx	transaction

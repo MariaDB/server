@@ -1526,20 +1526,16 @@ trx_undo_reuse_cached(
 	return(undo);
 }
 
-/**********************************************************************//**
-Marks an undo log header as a header of a data dictionary operation
-transaction. */
-static
-void
-trx_undo_mark_as_dict_operation(
-/*============================*/
-	trx_t*		trx,	/*!< in: dict op transaction */
-	trx_undo_t*	undo,	/*!< in: assigned undo log */
-	mtr_t*		mtr)	/*!< in: mtr */
+/** Mark that an undo log header belongs to a data dictionary transaction.
+@param[in]	trx	dictionary transaction
+@param[in,out]	undo	undo log
+@param[in,out]	mtr	mini-transaction */
+void trx_undo_mark_as_dict(const trx_t* trx, trx_undo_t* undo, mtr_t* mtr)
 {
-	page_t*	hdr_page;
+	ut_ad(undo == trx->rsegs.m_redo.insert_undo
+	      || undo == trx->rsegs.m_redo.update_undo);
 
-	hdr_page = trx_undo_page_get(
+	page_t*	hdr_page = trx_undo_page_get(
 		page_id_t(undo->space, undo->hdr_page_no), mtr);
 
 	switch (trx_get_dict_operation(trx)) {
@@ -1627,7 +1623,7 @@ trx_undo_assign_undo(
 				  ? rseg->insert_undo_list
 				  : rseg->update_undo_list, *undo);
 		if (trx_get_dict_operation(trx) != TRX_DICT_OP_NONE) {
-			trx_undo_mark_as_dict_operation(trx, *undo, &mtr);
+			trx_undo_mark_as_dict(trx, *undo, &mtr);
 		}
 	}
 

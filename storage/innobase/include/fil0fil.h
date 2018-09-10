@@ -991,13 +991,15 @@ if that the old filepath exists and the new filepath does not exist.
 @param[in]	old_path	old filepath
 @param[in]	new_path	new filepath
 @param[in]	is_discarded	whether the tablespace is discarded
+@param[in]	replace_new	whether to ignore the existence of new_path
 @return innodb error code */
 dberr_t
 fil_rename_tablespace_check(
 	ulint		space_id,
 	const char*	old_path,
 	const char*	new_path,
-	bool		is_discarded);
+	bool		is_discarded,
+	bool		replace_new = false);
 
 /** Rename a single-table tablespace.
 The tablespace must exist in the memory cache.

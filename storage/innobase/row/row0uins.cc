@@ -363,7 +363,8 @@ row_undo_ins_parse_undo_rec(
 		ptr[len] = 0;
 		const char* name = reinterpret_cast<char*>(ptr);
 		if (strcmp(table->name.m_name, name)) {
-			dict_table_rename_in_cache(table, name, false);
+			dict_table_rename_in_cache(table, name, false,
+						   table_id != 0);
 		}
 		goto close_table;
 	}

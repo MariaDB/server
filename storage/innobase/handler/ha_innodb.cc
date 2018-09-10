@@ -11013,8 +11013,6 @@ create_table_info_t::create_table_def()
 		}
 	}
 
-	ut_ad(trx_state_eq(m_trx, TRX_STATE_NOT_STARTED));
-
 	/* Check whether there already exists a FTS_DOC_ID column */
 	if (create_table_check_doc_id_col(m_trx, m_form, &doc_id_col)){
 
@@ -11106,9 +11104,6 @@ create_table_info_t::create_table_def()
 				mem_heap_free(heap);
 				dict_mem_table_free(table);
 
-				ut_ad(trx_state_eq(
-					m_trx, TRX_STATE_NOT_STARTED));
-
 				DBUG_RETURN(ER_CANT_CREATE_TABLE);
 			}
 		}
@@ -11141,7 +11136,6 @@ create_table_info_t::create_table_def()
 err_col:
 			dict_mem_table_free(table);
 			mem_heap_free(heap);
-			ut_ad(trx_state_eq(m_trx, TRX_STATE_NOT_STARTED));
 
 			err = DB_ERROR;
 			goto error_ret;
@@ -11223,8 +11217,6 @@ err_col:
 		fts_add_doc_id_column(table, heap);
 	}
 
-	ut_ad(trx_state_eq(m_trx, TRX_STATE_NOT_STARTED));
-
 	/* If temp table, then we avoid creation of entries in SYSTEM TABLES.
 	Given that temp table lifetime is limited to connection/server lifetime
 	on re-start we don't need to restore temp-table and so no entry is
@@ -11232,25 +11224,18 @@ err_col:
 	if (dict_table_is_temporary(table)) {
 		/* Get a new table ID */
 		dict_table_assign_new_id(table, m_trx);
+		table->space = SRV_TMP_SPACE_ID;
 
-		/* Create temp tablespace if configured. */
-		err = dict_build_tablespace_for_table(table, NULL);
+		/* Temp-table are maintained in memory and so
+		can_be_evicted is FALSE. */
+		mem_heap_t* temp_table_heap = mem_heap_create(256);
 
-		if (err == DB_SUCCESS) {
-			/* Temp-table are maintained in memory and so
-			can_be_evicted is FALSE. */
-			mem_heap_t* temp_table_heap;
+		dict_table_add_to_cache(table, FALSE, temp_table_heap);
 
-			temp_table_heap = mem_heap_create(256);
+		DBUG_EXECUTE_IF("ib_ddl_crash_during_create2",
+				DBUG_SUICIDE(););
 
-			dict_table_add_to_cache(
-				table, FALSE, temp_table_heap);
-
-			DBUG_EXECUTE_IF("ib_ddl_crash_during_create2",
-					DBUG_SUICIDE(););
-
-			mem_heap_free(temp_table_heap);
-		}
+		mem_heap_free(temp_table_heap);
 	} else {
 		if (err == DB_SUCCESS) {
 			err = row_create_table_for_mysql(
@@ -12538,10 +12523,9 @@ create_table_info_t::prepare_create_table(
 	DBUG_RETURN(parse_table_name(name));
 }
 
-/** Create a new table to an InnoDB database.
-@return error number */
-int
-create_table_info_t::create_table()
+/** Create the internal innodb table.
+@param create_fk	whether to add FOREIGN KEY constraints */
+int create_table_info_t::create_table(bool create_fk)
 {
 	int		error;
 	int		primary_key_no;
@@ -12678,7 +12662,7 @@ create_table_info_t::create_table()
 
 	if (stmt) {
 		dberr_t	err = row_table_add_foreign_constraints(
-			m_trx, stmt, stmt_len, m_table_name,
+			create_fk ? m_trx : NULL, stmt, stmt_len, m_table_name,
 			m_create_info->options & HA_LEX_CREATE_TMP_TABLE);
 
 		switch (err) {
@@ -12866,45 +12850,49 @@ ha_innobase::create(
 				     remote_path,
 				     file_per_table, trx);
 
-	/* Initialize the object. */
-	if ((error = info.initialize())) {
+	if ((error = info.initialize())
+	    || (error = info.prepare_create_table(name))) {
+		if (trx) {
+			trx_rollback_for_mysql(trx);
+			row_mysql_unlock_data_dictionary(trx);
+		}
 		DBUG_RETURN(error);
 	}
 
-	/* Prepare for create and validate options. */
-	if ((error = info.prepare_create_table(name))) {
-		DBUG_RETURN(error);
-	}
+	const bool own_trx = !trx;
 
-	bool own_trx = !trx;
 	if (own_trx) {
 		info.allocate_trx();
 		trx = info.trx();
+		/* Latch the InnoDB data dictionary exclusively so that no deadlocks
+		or lock waits can happen in it during a table create operation.
+		Drop table etc. do this latching in row0mysql.cc. */
+		row_mysql_lock_data_dictionary(trx);
+		DBUG_ASSERT(trx_state_eq(trx, TRX_STATE_NOT_STARTED));
 	}
 
-	/* Latch the InnoDB data dictionary exclusively so that no deadlocks
-	or lock waits can happen in it during a table create operation.
-	Drop table etc. do this latching in row0mysql.cc. */
-	row_mysql_lock_data_dictionary(trx);
-
-	if ((error = info.create_table())) {
-		if (own_trx) {
-			trx_rollback_for_mysql(trx);
-		}
+	if ((error = info.create_table(own_trx))) {
+		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
-		goto func_exit;
+		if (own_trx) {
+			trx_free_for_mysql(trx);
+			DBUG_RETURN(error);
+		}
 	}
+
+	innobase_commit_low(trx);
+	row_mysql_unlock_data_dictionary(trx);
 
 	if (own_trx) {
-		innobase_commit_low(trx);
+		trx_free_for_mysql(trx);
 	}
 
-	ut_ad(!srv_read_only_mode);
-	row_mysql_unlock_data_dictionary(trx);
 	/* Flush the log to reduce probability that the .frm files and
 	the InnoDB data dictionary get out-of-sync if the user runs
 	with innodb_flush_log_at_trx_commit = 0 */
 	log_buffer_flush_to_disk();
+
+	ut_ad(!srv_read_only_mode);
 
 	error = info.create_table_update_dict();
 
@@ -12912,10 +12900,6 @@ ha_innobase::create(
 	utility threads: */
 
 	srv_active_wake_master_thread();
-func_exit:
-	if (own_trx) {
-		trx_free_for_mysql(trx);
-	}
 
 	DBUG_RETURN(error);
 }
@@ -13322,16 +13306,19 @@ innobase_drop_database(
 	trx_free_for_mysql(trx);
 }
 
-/*********************************************************************//**
-Renames an InnoDB table.
+/** Rename an InnoDB table.
+@param[in,out]	trx	InnoDB data dictionary transaction
+@param[in]	from	old table name
+@param[in]	to	new table name
+@param[in]	commit	whether to commit trx
 @return DB_SUCCESS or error code */
 inline
 dberr_t
 innobase_rename_table(
-/*==================*/
-	trx_t*		trx,	/*!< in: transaction */
-	const char*	from,	/*!< in: old name of the table */
-	const char*	to)	/*!< in: new name of the table */
+	trx_t*		trx,
+	const char*	from,
+	const char*	to,
+	bool		commit = true)
 {
 	dberr_t	error;
 	char	norm_to[FN_REFLEN];
@@ -13351,10 +13338,11 @@ innobase_rename_table(
 	trx_start_if_not_started(trx, true);
 	ut_ad(trx->will_lock > 0);
 
-	/* Serialize data dictionary operations with dictionary mutex:
-	no deadlocks can occur then in these operations. */
-
-	row_mysql_lock_data_dictionary(trx);
+	if (commit) {
+		/* Serialize data dictionary operations with dictionary mutex:
+		no deadlocks can occur then in these operations. */
+		row_mysql_lock_data_dictionary(trx);
+	}
 
 	dict_table_t*   table = dict_table_open_on_name(norm_from, TRUE, FALSE,
 							DICT_ERR_IGNORE_NONE);
@@ -13382,8 +13370,7 @@ innobase_rename_table(
 	/* FTS sync is in progress. We shall timeout this operation */
 	if (lock_wait_timeout < 0) {
 		error = DB_LOCK_WAIT_TIMEOUT;
-		row_mysql_unlock_data_dictionary(trx);
-		DBUG_RETURN(error);
+		goto func_exit;
 	}
 
 	/* Transaction must be flagged as a locking transaction or it hasn't
@@ -13391,7 +13378,7 @@ innobase_rename_table(
 
 	ut_a(trx->will_lock > 0);
 
-	error = row_rename_table_for_mysql(norm_from, norm_to, trx, TRUE);
+	error = row_rename_table_for_mysql(norm_from, norm_to, trx, commit);
 
 	if (error != DB_SUCCESS) {
 		if (error == DB_TABLE_NOT_FOUND
@@ -13440,7 +13427,10 @@ innobase_rename_table(
 		}
 	}
 
-	row_mysql_unlock_data_dictionary(trx);
+func_exit:
+	if (commit) {
+		row_mysql_unlock_data_dictionary(trx);
+	}
 
 	/* Flush the log to reduce probability that the .frm
 	files and the InnoDB data dictionary get out-of-sync
@@ -13492,19 +13482,18 @@ int ha_innobase::truncate()
 
 	++trx->will_lock;
 	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
+	row_mysql_lock_data_dictionary(trx);
 	int err = convert_error_code_to_mysql(
-		innobase_rename_table(trx, ib_table->name.m_name, temp_name),
+		innobase_rename_table(trx, ib_table->name.m_name, temp_name, false),
 		ib_table->flags, m_user_thd);
-	if (!err) {
+	if (err) {
+		trx_rollback_for_mysql(trx);
+		row_mysql_unlock_data_dictionary(trx);
+	} else {
 		err = create(name, table, &info,
 			     dict_table_is_file_per_table(ib_table), trx);
 	}
 
-	if (err) {
-		trx_rollback_to_savepoint(trx, NULL);
-	}
-
-	innobase_commit_low(trx);
 	trx_free_for_mysql(trx);
 
 	if (!err) {
