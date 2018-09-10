@@ -40,7 +40,6 @@ extern my_bool srv_use_doublewrite_buf;
 extern struct buf_dblwr_t* buf_dblwr;
 struct trx_t;
 class page_id_t;
-class truncate_t;
 
 /** Structure containing encryption specification */
 struct fil_space_crypt_t;
@@ -1086,7 +1085,7 @@ fil_space_extend(
 @param[in]	message		message for aio handler if non-sync aio
 				used, else ignored
 @param[in]	ignore_missing_space true=ignore missing space during read
-@return DB_SUCCESS, DB_TABLESPACE_DELETED or DB_TABLESPACE_TRUNCATED
+@return DB_SUCCESS, or DB_TABLESPACE_DELETED
 if we are trying to do i/o on a tablespace which does not exist */
 dberr_t
 fil_io(

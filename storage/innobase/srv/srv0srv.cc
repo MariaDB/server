@@ -62,7 +62,6 @@ Created 10/8/1995 Heikki Tuuri
 #include "pars0pars.h"
 #include "que0que.h"
 #include "row0mysql.h"
-#include "row0trunc.h"
 #include "row0log.h"
 #include "srv0mon.h"
 #include "srv0srv.h"
@@ -2585,16 +2584,10 @@ srv_do_purge(ulint* n_total_purged)
 			break;
 		}
 
-		ulint	undo_trunc_freq =
-			purge_sys.undo_trunc.get_rseg_truncate_frequency();
-
-		ulint	rseg_truncate_frequency = ut_min(
-			static_cast<ulint>(srv_purge_rseg_truncate_frequency),
-			undo_trunc_freq);
-
 		n_pages_purged = trx_purge(
 			n_use_threads,
-			(++count % rseg_truncate_frequency) == 0);
+			!(++count % srv_purge_rseg_truncate_frequency)
+			|| purge_sys.truncate.current);
 
 		*n_total_purged += n_pages_purged;
 	} while (n_pages_purged > 0 && !purge_sys.paused()
@@ -2729,11 +2722,6 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 	/* Note that we are shutting down. */
 	rw_lock_x_lock(&purge_sys.latch);
 	purge_sys.coordinator_shutdown();
-
-	/* If there are any pending undo-tablespace truncate then clear
-	it off as we plan to shutdown the purge thread. */
-	purge_sys.undo_trunc.clear();
-
 	/* Ensure that the wait in purge_sys_t::stop() will terminate. */
 	os_event_set(purge_sys.event);
 
@@ -2839,39 +2827,4 @@ void srv_purge_shutdown()
 		ut_ad(!srv_undo_sources);
 		srv_purge_wakeup();
 	} while (srv_sys.sys_threads[SRV_PURGE_SLOT].in_use);
-}
-
-/** Check if tablespace is being truncated.
-(Ignore system-tablespace as we don't re-create the tablespace
-and so some of the action that are suppressed by this function
-for independent tablespace are not applicable to system-tablespace).
-@param	space_id	space_id to check for truncate action
-@return true		if being truncated, false if not being
-			truncated or tablespace is system-tablespace. */
-bool
-srv_is_tablespace_truncated(ulint space_id)
-{
-	if (is_system_tablespace(space_id)) {
-		return(false);
-	}
-
-	return(truncate_t::is_tablespace_truncated(space_id)
-	       || undo::Truncate::is_tablespace_truncated(space_id));
-
-}
-
-/** Check if tablespace was truncated.
-@param[in]	space	space object to check for truncate action
-@return true if tablespace was truncated and we still have an active
-MLOG_TRUNCATE REDO log record. */
-bool
-srv_was_tablespace_truncated(const fil_space_t* space)
-{
-	if (space == NULL) {
-		ut_ad(0);
-		return(false);
-	}
-
-	return (!is_system_tablespace(space->id)
-		&& truncate_t::was_tablespace_truncated(space->id));
 }

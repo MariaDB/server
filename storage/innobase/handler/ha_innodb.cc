@@ -100,7 +100,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "row0mysql.h"
 #include "row0quiesce.h"
 #include "row0sel.h"
-#include "row0trunc.h"
 #include "row0upd.h"
 #include "fil0crypt.h"
 #include "ut0timer.h"

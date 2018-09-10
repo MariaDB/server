@@ -94,7 +94,7 @@ PageBulk::init()
 
 		if (new_page_zip) {
 			page_create_zip(new_block, m_index, m_level, 0,
-					NULL, &m_mtr);
+					&m_mtr);
 			memset(FIL_PAGE_PREV + new_page, 0xff, 8);
 			page_zip_write_header(new_page_zip,
 					      FIL_PAGE_PREV + new_page,
@@ -374,7 +374,7 @@ PageBulk::compress()
 	ut_ad(m_page_zip != NULL);
 
 	return(page_zip_compress(m_page_zip, m_page, m_index,
-				 page_zip_level, NULL, &m_mtr));
+				 page_zip_level, &m_mtr));
 }
 
 /** Get node pointer

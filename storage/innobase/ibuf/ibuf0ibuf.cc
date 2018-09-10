@@ -916,10 +916,7 @@ ibuf_set_free_bits_func(
 		ut_ad(0);
 		break;
 	case FIL_TYPE_TABLESPACE:
-		/* Avoid logging while fixing up truncate of table. */
-		if (!srv_is_tablespace_truncated(block->page.id.space())) {
-			break;
-		}
+		break;
 		/* fall through */
 	case FIL_TYPE_TEMPORARY:
 	case FIL_TYPE_IMPORT:

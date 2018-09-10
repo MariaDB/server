@@ -54,7 +54,6 @@ Created 9/20/1997 Heikki Tuuri
 #include "fil0fil.h"
 #include "fsp0sysspace.h"
 #include "ut0new.h"
-#include "row0trunc.h"
 #include "buf0rea.h"
 #include "srv0srv.h"
 #include "srv0start.h"
@@ -202,10 +201,6 @@ corresponding to MLOG_INDEX_LOAD.
 @param[in]	space_id	tablespace identifier
 */
 void (*log_optimized_ddl_op)(ulint space_id);
-
-/** Report backup-unfriendly TRUNCATE operation (with separate log file),
-corresponding to MLOG_TRUNCATE. */
-void (*log_truncate)();
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
@@ -1205,14 +1200,10 @@ recv_parse_or_apply_log_rec_body(
 		}
 		return(ptr + 8);
 	case MLOG_TRUNCATE:
-		if (log_truncate) {
-			ut_ad(srv_operation != SRV_OPERATION_NORMAL);
-			log_truncate();
-			recv_sys->found_corrupt_fs = true;
-			return NULL;
-		}
-		return(truncate_t::parse_redo_entry(ptr, end_ptr, space_id));
-
+		ib::error() << "Cannot crash-upgrade from "
+			"old-style TRUNCATE TABLE";
+		recv_sys->found_corrupt_log = true;
+		return NULL;
 	default:
 		break;
 	}
@@ -1795,13 +1786,10 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 	page_t*		page;
 	page_zip_des_t*	page_zip;
 	recv_addr_t*	recv_addr;
-	recv_t*		recv;
-	byte*		buf;
 	lsn_t		start_lsn;
 	lsn_t		end_lsn;
 	lsn_t		page_lsn;
 	lsn_t		page_newest_lsn;
-	ibool		modification_to_page;
 	mtr_t		mtr;
 
 	mutex_enter(&(recv_sys->mutex));
@@ -1876,57 +1864,19 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 		page_lsn = page_newest_lsn;
 	}
 
-	modification_to_page = FALSE;
 	start_lsn = end_lsn = 0;
 
-	recv = UT_LIST_GET_FIRST(recv_addr->rec_list);
 	fil_space_t* space = fil_space_acquire(block->page.id.space());
 
-	while (recv) {
+	for (recv_t* recv = UT_LIST_GET_FIRST(recv_addr->rec_list);
+	     recv; recv = UT_LIST_GET_NEXT(rec_list, recv)) {
 		end_lsn = recv->end_lsn;
 
 		ut_ad(end_lsn <= log_sys.log.scanned_lsn);
 
-		if (recv->len > RECV_DATA_BLOCK_SIZE) {
-			/* We have to copy the record body to a separate
-			buffer */
-
-			buf = static_cast<byte*>(ut_malloc_nokey(recv->len));
-
-			recv_data_copy_to_buf(buf, recv);
-		} else {
-			buf = ((byte*)(recv->data)) + sizeof(recv_data_t);
-		}
-
-		/* If per-table tablespace was truncated and there exist REDO
-		records before truncate that are to be applied as part of
-		recovery (checkpoint didn't happen since truncate was done)
-		skip such records using lsn check as they may not stand valid
-		post truncate.
-		LSN at start of truncate is recorded and any redo record
-		with LSN less than recorded LSN is skipped.
-		Note: We can't skip complete recv_addr as same page may have
-		valid REDO records post truncate those needs to be applied. */
-
-		/* Ignore applying the redo logs for tablespace that is
-		truncated. Post recovery there is fixup action that will
-		restore the tablespace back to normal state.
-		Applying redo at this stage can result in error given that
-		redo will have action recorded on page before tablespace
-		was re-inited and that would lead to an error while applying
-		such action. */
-		if (recv->start_lsn >= page_lsn
-		    && !srv_is_tablespace_truncated(space->id)
-		    && !(srv_was_tablespace_truncated(space)
-			 && recv->start_lsn
-			 < truncate_t::get_truncated_tablespace_init_lsn(
-				 space->id))) {
-
-			lsn_t	end_lsn;
-
-			if (!modification_to_page) {
-
-				modification_to_page = TRUE;
+		ut_ad(recv->start_lsn);
+		if (recv->start_lsn >= page_lsn) {
+			if (!start_lsn) {
 				start_lsn = recv->start_lsn;
 			}
 
@@ -1942,29 +1892,41 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 				 << " len " << recv->len
 				 << " page " << block->page.id);
 
+			byte* buf;
+
+			if (recv->len > RECV_DATA_BLOCK_SIZE) {
+				/* We have to copy the record body to
+				a separate buffer */
+
+				buf = static_cast<byte*>(ut_malloc_nokey(
+								 recv->len));
+
+				recv_data_copy_to_buf(buf, recv);
+			} else {
+				buf = reinterpret_cast<byte*>(recv->data)
+					+ sizeof *recv->data;
+			}
+
 			recv_parse_or_apply_log_rec_body(
 				recv->type, buf, buf + recv->len,
 				block->page.id.space(),
-				block->page.id.page_no(),
-				true, block, &mtr);
+				block->page.id.page_no(), true, block, &mtr);
 
-			end_lsn = recv->start_lsn + recv->len;
+			lsn_t end_lsn = recv->start_lsn + recv->len;
 			mach_write_to_8(FIL_PAGE_LSN + page, end_lsn);
 			mach_write_to_8(srv_page_size
 					- FIL_PAGE_END_LSN_OLD_CHKSUM
 					+ page, end_lsn);
 
 			if (page_zip) {
-				mach_write_to_8(FIL_PAGE_LSN
-						+ page_zip->data, end_lsn);
+				mach_write_to_8(FIL_PAGE_LSN + page_zip->data,
+						end_lsn);
+			}
+
+			if (recv->len > RECV_DATA_BLOCK_SIZE) {
+				ut_free(buf);
 			}
 		}
-
-		if (recv->len > RECV_DATA_BLOCK_SIZE) {
-			ut_free(buf);
-		}
-
-		recv = UT_LIST_GET_NEXT(rec_list, recv);
 	}
 
 	space->release();
@@ -1978,9 +1940,7 @@ recv_recover_page(bool just_read_in, buf_block_t* block)
 	}
 #endif /* UNIV_ZIP_DEBUG */
 
-	if (modification_to_page) {
-		ut_a(block);
-
+	if (start_lsn) {
 		log_flush_order_mutex_enter();
 		buf_flush_recv_note_modification(block, start_lsn, end_lsn);
 		log_flush_order_mutex_exit();
@@ -2095,6 +2055,17 @@ recv_apply_hashed_log_recs(bool last_batch)
 	ut_d(recv_no_log_write = recv_no_ibuf_operations);
 
 	if (ulint n = recv_sys->n_addrs) {
+		if (!log_sys.log.subformat && !srv_force_recovery
+		    && srv_undo_tablespaces_open) {
+			ib::error() << "Recovery of separately logged"
+				" TRUNCATE operations is no longer supported."
+				" Set innodb_force_recovery=1"
+				" if no *trunc.log files exist";
+			recv_sys->found_corrupt_log = true;
+			mutex_exit(&recv_sys->mutex);
+			return;
+		}
+
 		const char* msg = last_batch
 			? "Starting final batch to recover "
 			: "Starting a batch to recover ";
@@ -2119,15 +2090,6 @@ recv_apply_hashed_log_recs(bool last_batch)
 		     recv_addr;
 		     recv_addr = static_cast<recv_addr_t*>(
 				HASH_GET_NEXT(addr_hash, recv_addr))) {
-
-			if (srv_is_tablespace_truncated(recv_addr->space)) {
-				/* Avoid applying REDO log for the tablespace
-				that is schedule for TRUNCATE. */
-				ut_a(recv_sys->n_addrs);
-				recv_addr->state = RECV_DISCARDED;
-				recv_sys->n_addrs--;
-				continue;
-			}
 
 			if (recv_addr->state == RECV_DISCARDED) {
 				ut_a(recv_sys->n_addrs);

@@ -77,7 +77,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "srv0srv.h"
 #include "btr0defragment.h"
 #include "fsp0sysspace.h"
-#include "row0trunc.h"
 #include "mysql/service_wsrep.h" /* wsrep_recovery */
 #include "trx0rseg.h"
 #include "os0proc.h"
@@ -100,7 +99,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "row0upd.h"
 #include "row0row.h"
 #include "row0mysql.h"
-#include "row0trunc.h"
 #include "btr0pcur.h"
 #include "os0event.h"
 #include "zlib.h"
@@ -815,8 +813,6 @@ srv_check_undo_redo_logs_exists()
 	return(DB_SUCCESS);
 }
 
-undo::undo_spaces_t	undo::Truncate::s_fix_up_spaces;
-
 /** Open the configured number of dedicated undo tablespaces.
 @param[in]	create_new_db	whether the database is being initialized
 @return DB_SUCCESS or error code */
@@ -898,46 +894,8 @@ srv_undo_tablespaces_init(bool create_new_db)
 		prev_space_id = srv_undo_space_id_start - 1;
 		break;
 	case SRV_OPERATION_NORMAL:
-		if (create_new_db) {
-			break;
-		}
-		/* fall through */
 	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_EXPORT:
-		ut_ad(!create_new_db);
-
-		/* Check if any of the UNDO tablespace needs fix-up because
-		server crashed while truncate was active on UNDO tablespace.*/
-		for (i = 0; i < n_undo_tablespaces; ++i) {
-
-			undo::Truncate	undo_trunc;
-
-			if (undo_trunc.needs_fix_up(undo_tablespace_ids[i])) {
-
-				char	name[OS_FILE_MAX_PATH];
-
-				snprintf(name, sizeof(name),
-					 "%s%cundo%03zu",
-					 srv_undo_dir, OS_PATH_SEPARATOR,
-					 undo_tablespace_ids[i]);
-
-				os_file_delete(innodb_data_file_key, name);
-
-				err = srv_undo_tablespace_create(
-					name,
-					SRV_UNDO_TABLESPACE_SIZE_IN_PAGES);
-
-				if (err != DB_SUCCESS) {
-					ib::error() << "Could not fix-up undo "
-						" tablespace truncate '"
-						<< name << "'.";
-					return(err);
-				}
-
-				undo::Truncate::s_fix_up_spaces.push_back(
-					undo_tablespace_ids[i]);
-			}
-		}
 		break;
 	}
 
@@ -1041,64 +999,6 @@ srv_undo_tablespaces_init(bool create_new_db)
 					SRV_UNDO_TABLESPACE_SIZE_IN_PAGES,
 					&mtr);
 			mtr.commit();
-		}
-	}
-
-	if (!undo::Truncate::s_fix_up_spaces.empty()) {
-
-		/* Step-1: Initialize the tablespace header and rsegs header. */
-		mtr_t		mtr;
-
-		mtr_start(&mtr);
-		/* Turn off REDO logging. We are in server start mode and fixing
-		UNDO tablespace even before REDO log is read. Let's say we
-		do REDO logging here then this REDO log record will be applied
-		as part of the current recovery process. We surely don't need
-		that as this is fix-up action parallel to REDO logging. */
-		mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-		buf_block_t* sys_header = trx_sysf_get(&mtr);
-		if (!sys_header) {
-			mtr.commit();
-			return DB_CORRUPTION;
-		}
-
-		for (undo::undo_spaces_t::const_iterator it
-			     = undo::Truncate::s_fix_up_spaces.begin();
-		     it != undo::Truncate::s_fix_up_spaces.end();
-		     ++it) {
-
-			undo::Truncate::add_space_to_trunc_list(*it);
-
-			fil_space_t* space = fil_space_get(*it);
-
-			fsp_header_init(space,
-					SRV_UNDO_TABLESPACE_SIZE_IN_PAGES,
-					&mtr);
-
-			for (ulint i = 0; i < TRX_SYS_N_RSEGS; i++) {
-				if (trx_sysf_rseg_get_space(sys_header, i)
-				    == *it) {
-					trx_rseg_header_create(
-						space, i, sys_header, &mtr);
-				}
-			}
-
-			undo::Truncate::clear_trunc_list();
-		}
-		mtr_commit(&mtr);
-
-		/* Step-2: Flush the dirty pages from the buffer pool. */
-		for (undo::undo_spaces_t::const_iterator it
-			     = undo::Truncate::s_fix_up_spaces.begin();
-		     it != undo::Truncate::s_fix_up_spaces.end();
-		     ++it) {
-			FlushObserver dummy(fil_system.sys_space, NULL, NULL);
-			buf_LRU_flush_or_remove_pages(TRX_SYS_SPACE, &dummy);
-			FlushObserver dummy2(fil_space_get(*it), NULL, NULL);
-			buf_LRU_flush_or_remove_pages(*it, &dummy2);
-
-			/* Remove the truncate redo log file. */
-			undo::done(*it);
 		}
 	}
 
@@ -1943,7 +1843,7 @@ files_checked:
 
 		ulint ibuf_root = btr_create(
 			DICT_CLUSTERED | DICT_IBUF, fil_system.sys_space,
-			DICT_IBUF_ID_MIN, dict_ind_redundant, NULL, &mtr);
+			DICT_IBUF_ID_MIN, dict_ind_redundant, &mtr);
 
 		mtr_commit(&mtr);
 
@@ -1982,22 +1882,6 @@ files_checked:
 			return(srv_init_abort(err));
 		}
 	} else {
-		/* Invalidate the buffer pool to ensure that we reread
-		the page that we read above, during recovery.
-		Note that this is not as heavy weight as it seems. At
-		this point there will be only ONE page in the buf_LRU
-		and there must be no page in the buf_flush list. */
-		buf_pool_invalidate();
-
-		/* Scan and locate truncate log files. Parsed located files
-		and add table to truncate information to central vector for
-		truncate fix-up action post recovery. */
-		err = TruncateLogParser::scan_and_parse(srv_log_group_home_dir);
-		if (err != DB_SUCCESS) {
-
-			return(srv_init_abort(DB_ERROR));
-		}
-
 		/* We always try to do a recovery, even if the database had
 		been shut down normally: this is the normal startup path */
 
@@ -2276,14 +2160,6 @@ files_checked:
 			trx_rollback_recovered(false);
 		}
 
-		/* Fix-up truncate of tables in the system tablespace
-		if server crashed while truncate was active. The non-
-		system tables are done after tablespace discovery. Do
-		this now because this procedure assumes that no pages
-		have changed since redo recovery.  Tablespace discovery
-		can do updates to pages in the system tablespace.*/
-		err = truncate_t::fixup_tables_in_system_tablespace();
-
 		if (srv_force_recovery < SRV_FORCE_NO_IBUF_MERGE) {
 			/* Open or Create SYS_TABLESPACES and SYS_DATAFILES
 			so that tablespace names and other metadata can be
@@ -2320,10 +2196,6 @@ files_checked:
 
 			dict_check_tablespaces_and_store_max_id(validate);
 		}
-
-		/* Fix-up truncate of table if server crashed while truncate
-		was active. */
-		err = truncate_t::fixup_tables_in_non_system_tablespace();
 
 		if (err != DB_SUCCESS) {
 			return(srv_init_abort(err));

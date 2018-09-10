@@ -95,11 +95,9 @@ buffer buf_pool if it is not already there, in which case does nothing.
 Sets the io_fix flag and sets an exclusive lock on the buffer frame. The
 flag is cleared and the x-lock released by an i/o-handler thread.
 
-@param[out] err		DB_SUCCESS, DB_TABLESPACE_DELETED or
-			DB_TABLESPACE_TRUNCATED if we are trying
-			to read from a non-existent tablespace, a
-			tablespace which is just now being dropped,
-			or a tablespace which is truncated
+@param[out] err		DB_SUCCESS or DB_TABLESPACE_DELETED
+			if we are trying
+			to read from a non-existent tablespace
 @param[in] sync		true if synchronous aio is desired
 @param[in] type		IO type, SIMULATED, IGNORE_MISSING
 @param[in] mode		BUF_READ_IBUF_PAGES_ONLY, ...,
@@ -187,20 +185,8 @@ buf_read_page_low(
 	}
 
 	if (*err != DB_SUCCESS) {
-		if (*err == DB_TABLESPACE_TRUNCATED) {
-			/* Remove the page which is outside the
-			truncated tablespace bounds when recovering
-			from a crash happened during a truncation */
-			buf_read_page_handle_error(bpage);
-			if (recv_recovery_on) {
-				mutex_enter(&recv_sys->mutex);
-				ut_ad(recv_sys->n_addrs > 0);
-				recv_sys->n_addrs--;
-				mutex_exit(&recv_sys->mutex);
-			}
-			return(0);
-		} else if (IORequest::ignore_missing(type)
-			   || *err == DB_TABLESPACE_DELETED) {
+		if (IORequest::ignore_missing(type)
+		    || *err == DB_TABLESPACE_DELETED) {
 			buf_read_page_handle_error(bpage);
 			return(0);
 		}
@@ -369,7 +355,6 @@ read_ahead:
 
 			switch (err) {
 			case DB_SUCCESS:
-			case DB_TABLESPACE_TRUNCATED:
 			case DB_ERROR:
 				break;
 			case DB_TABLESPACE_DELETED:
@@ -472,7 +457,6 @@ buf_read_page_background(
 
 	switch (err) {
 	case DB_SUCCESS:
-	case DB_TABLESPACE_TRUNCATED:
 	case DB_ERROR:
 		break;
 	case DB_TABLESPACE_DELETED:
@@ -755,7 +739,6 @@ buf_read_ahead_linear(
 
 			switch (err) {
 			case DB_SUCCESS:
-			case DB_TABLESPACE_TRUNCATED:
 			case DB_TABLESPACE_DELETED:
 			case DB_ERROR:
 				break;
@@ -853,7 +836,6 @@ tablespace_deleted:
 
 		switch(err) {
 		case DB_SUCCESS:
-		case DB_TABLESPACE_TRUNCATED:
 		case DB_ERROR:
 			break;
 		case DB_TABLESPACE_DELETED:

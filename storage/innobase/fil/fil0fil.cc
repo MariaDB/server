@@ -45,7 +45,6 @@ Created 10/25/1995 Heikki Tuuri
 #include "os0file.h"
 #include "page0zip.h"
 #include "row0mysql.h"
-#include "row0trunc.h"
 #include "srv0start.h"
 #include "trx0purge.h"
 #include "ut0new.h"
@@ -553,8 +552,7 @@ fil_node_open_file(
 	if (first_time_open
 	    || (space->purpose == FIL_TYPE_TABLESPACE
 		&& node == UT_LIST_GET_FIRST(space->chain)
-		&& srv_startup_is_before_trx_rollback_phase
-		&& !undo::Truncate::was_tablespace_truncated(space->id))) {
+		&& srv_startup_is_before_trx_rollback_phase)) {
 		/* We do not know the size of the file yet. First we
 		open the file in the normal mode, no async I/O here,
 		for simplicity. Then do some checks, and close the
@@ -4241,7 +4239,7 @@ fil_report_invalid_page_access(
 @param[in] message	message for aio handler if non-sync aio
 			used, else ignored
 @param[in] ignore_missing_space true=ignore missing space duging read
-@return DB_SUCCESS, DB_TABLESPACE_DELETED or DB_TABLESPACE_TRUNCATED
+@return DB_SUCCESS, or DB_TABLESPACE_DELETED
 	if we are trying to do i/o on a tablespace which does not exist */
 dberr_t
 fil_io(
@@ -4373,19 +4371,6 @@ fil_io(
 			break;
 
 		} else {
-			if (space->id != TRX_SYS_SPACE
-			    && UT_LIST_GET_LEN(space->chain) == 1
-			    && (srv_is_tablespace_truncated(space->id)
-				|| srv_was_tablespace_truncated(space))
-			    && req_type.is_read()) {
-
-				/* Handle page which is outside the truncated
-				tablespace bounds when recovering from a crash
-				happened during a truncation */
-				mutex_exit(&fil_system.mutex);
-				return(DB_TABLESPACE_TRUNCATED);
-			}
-
 			cur_page_no -= node->size;
 
 			node = UT_LIST_GET_NEXT(chain, node);
@@ -5124,116 +5109,6 @@ fil_names_clear(
 	}
 
 	return(do_write);
-}
-
-/** Truncate a single-table tablespace. The tablespace must be cached
-in the memory cache.
-@param space_id			space id
-@param dir_path			directory path
-@param tablename		the table name in the usual
-				databasename/tablename format of InnoDB
-@param flags			tablespace flags
-@param trunc_to_default		truncate to default size if tablespace
-				is being newly re-initialized.
-@return DB_SUCCESS or error */
-dberr_t
-truncate_t::truncate(
-/*=================*/
-	ulint		space_id,
-	const char*	dir_path,
-	const char*	tablename,
-	ulint		flags,
-	bool		trunc_to_default)
-{
-	dberr_t		err = DB_SUCCESS;
-	char*		path;
-
-	ut_a(!is_system_tablespace(space_id));
-
-	if (FSP_FLAGS_HAS_DATA_DIR(flags)) {
-		ut_ad(dir_path != NULL);
-		path = fil_make_filepath(dir_path, tablename, IBD, true);
-	} else {
-		path = fil_make_filepath(NULL, tablename, IBD, false);
-	}
-
-	if (path == NULL) {
-		return(DB_OUT_OF_MEMORY);
-	}
-
-	mutex_enter(&fil_system.mutex);
-
-	fil_space_t*	space = fil_space_get_by_id(space_id);
-
-	/* The following code must change when InnoDB supports
-	multiple datafiles per tablespace. */
-	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
-
-	fil_node_t*	node = UT_LIST_GET_FIRST(space->chain);
-
-	if (trunc_to_default) {
-		space->size = node->size = FIL_IBD_FILE_INITIAL_SIZE;
-	}
-
-	const bool already_open = node->is_open();
-
-	if (!already_open) {
-
-		bool	ret;
-
-		node->handle = os_file_create_simple_no_error_handling(
-			innodb_data_file_key, path, OS_FILE_OPEN,
-			OS_FILE_READ_WRITE,
-			space->purpose != FIL_TYPE_TEMPORARY
-			&& srv_read_only_mode, &ret);
-
-		if (!ret) {
-			ib::error() << "Failed to open tablespace file "
-				<< path << ".";
-
-			ut_free(path);
-
-			return(DB_ERROR);
-		}
-
-		ut_a(node->is_open());
-	}
-
-	os_offset_t	trunc_size = trunc_to_default
-		? FIL_IBD_FILE_INITIAL_SIZE
-		: space->size;
-
-	const bool success = os_file_truncate(
-		path, node->handle, trunc_size << srv_page_size_shift);
-
-	if (!success) {
-		ib::error() << "Cannot truncate file " << path
-			<< " in TRUNCATE TABLESPACE.";
-		err = DB_ERROR;
-	}
-
-	space->stop_new_ops = false;
-
-	/* If we opened the file in this function, close it. */
-	if (!already_open) {
-		bool	closed = os_file_close(node->handle);
-
-		if (!closed) {
-
-			ib::error() << "Failed to close tablespace file "
-				<< path << ".";
-
-			err = DB_ERROR;
-		} else {
-			node->handle = OS_FILE_CLOSED;
-		}
-	}
-
-	mutex_exit(&fil_system.mutex);
-
-	ut_free(path);
-
-	return(err);
 }
 
 /* Unit Tests */

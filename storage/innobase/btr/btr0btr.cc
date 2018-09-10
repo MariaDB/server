@@ -438,7 +438,7 @@ btr_page_create(
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 
 	if (page_zip) {
-		page_create_zip(block, index, level, 0, NULL, mtr);
+		page_create_zip(block, index, level, 0, mtr);
 	} else {
 		page_create(block, mtr, dict_table_is_comp(index->table),
 			    dict_index_is_spatial(index));
@@ -1179,21 +1179,18 @@ btr_free_root_check(
 
 /** Create the root node for a new index tree.
 @param[in]	type			type of the index
-@param[in,out]	space			tablespace where created
 @param[in]	index_id		index id
-@param[in]	index			index, or NULL when applying TRUNCATE
-log record during recovery
-@param[in]	btr_redo_create_info	used for applying TRUNCATE log
-@param[in]	mtr			mini-transaction handle
-record during recovery
-@return page number of the created root, FIL_NULL if did not succeed */
+@param[in,out]	space			tablespace where created
+@param[in]	index			index
+@param[in,out]	mtr			mini-transaction
+@return	page number of the created root
+@retval	FIL_NULL	if did not succeed */
 ulint
 btr_create(
 	ulint			type,
 	fil_space_t*		space,
 	index_id_t		index_id,
 	dict_index_t*		index,
-	const btr_create_t*	btr_redo_create_info,
 	mtr_t*			mtr)
 {
 	buf_block_t*		block;
@@ -1208,7 +1205,7 @@ btr_create(
 	(for an ibuf tree, not in the root, but on a separate ibuf header
 	page) */
 
-	if (type & DICT_IBUF) {
+	if (UNIV_UNLIKELY(type & DICT_IBUF)) {
 		/* Allocate first the ibuf header page */
 		buf_block_t*	ibuf_hdr_block = fseg_create(
 			space, 0,
@@ -1273,44 +1270,11 @@ btr_create(
 	page_zip = buf_block_get_page_zip(block);
 
 	if (page_zip) {
-		if (index != NULL) {
-			page = page_create_zip(block, index, 0, 0, NULL, mtr);
-		} else {
-			/* Create a compressed index page when applying
-			TRUNCATE log record during recovery */
-			ut_ad(btr_redo_create_info != NULL);
-
-			redo_page_compress_t	page_comp_info;
-
-			page_comp_info.type = type;
-
-			page_comp_info.index_id = index_id;
-
-			page_comp_info.n_fields =
-				btr_redo_create_info->n_fields;
-
-			page_comp_info.field_len =
-				btr_redo_create_info->field_len;
-
-			page_comp_info.fields = btr_redo_create_info->fields;
-
-			page_comp_info.trx_id_pos =
-				btr_redo_create_info->trx_id_pos;
-
-			page = page_create_zip(block, NULL, 0, 0,
-					       &page_comp_info, mtr);
-		}
+		page = page_create_zip(block, index, 0, 0, mtr);
 	} else {
-		if (index != NULL) {
-			page = page_create(block, mtr,
-					   dict_table_is_comp(index->table),
-					   dict_index_is_spatial(index));
-		} else {
-			ut_ad(btr_redo_create_info != NULL);
-			page = page_create(
-				block, mtr, btr_redo_create_info->format_flags,
-				type == DICT_SPATIAL);
-		}
+		page = page_create(block, mtr,
+				   dict_table_is_comp(index->table),
+				   dict_index_is_spatial(index));
 		/* Set the level of the new index page */
 		btr_page_set_level(page, NULL, 0, mtr);
 	}
@@ -1322,18 +1286,14 @@ btr_create(
 	btr_page_set_next(page, page_zip, FIL_NULL, mtr);
 	btr_page_set_prev(page, page_zip, FIL_NULL, mtr);
 
-	/* We reset the free bits for the page to allow creation of several
-	trees in the same mtr, otherwise the latch on a bitmap page would
-	prevent it because of the latching order.
-
-	index will be NULL if we are recreating the table during recovery
-	on behalf of TRUNCATE.
+	/* We reset the free bits for the page in a separate
+	mini-transaction to allow creation of several trees in the
+	same mtr, otherwise the latch on a bitmap page would prevent
+	it because of the latching order.
 
 	Note: Insert Buffering is disabled for temporary tables given that
 	most temporary tables are smaller in size and short-lived. */
-	if (!(type & DICT_CLUSTERED)
-	    && (index == NULL || !index->table->is_temporary())) {
-
+	if (!(type & DICT_CLUSTERED) && !index->table->is_temporary()) {
 		ibuf_reset_free_bits(block);
 	}
 
@@ -1675,7 +1635,7 @@ btr_page_reorganize_low(
 	}
 
 	if (page_zip
-	    && !page_zip_compress(page_zip, page, index, z_level, NULL, mtr)) {
+	    && !page_zip_compress(page_zip, page, index, z_level, mtr)) {
 
 		/* Restore the old page and exit. */
 #if defined UNIV_DEBUG || defined UNIV_ZIP_DEBUG
@@ -1924,7 +1884,7 @@ btr_page_empty(
 		: 0;
 
 	if (page_zip) {
-		page_create_zip(block, index, level, autoinc, NULL, mtr);
+		page_create_zip(block, index, level, autoinc, mtr);
 	} else {
 		page_create(block, mtr, dict_table_is_comp(index->table),
 			    dict_index_is_spatial(index));

@@ -624,8 +624,7 @@ fsp_space_modify_check(
 	case MTR_LOG_NO_REDO:
 		ut_ad(space->purpose == FIL_TYPE_TEMPORARY
 		      || space->purpose == FIL_TYPE_IMPORT
-		      || my_atomic_loadlint(&space->redo_skipped_count)
-		      || srv_is_tablespace_truncated(space->id));
+		      || my_atomic_loadlint(&space->redo_skipped_count));
 		return;
 	case MTR_LOG_ALL:
 		/* We may only write redo log for a persistent tablespace. */
@@ -1064,13 +1063,6 @@ fsp_fill_free_list(
 
 				mtr_start(&ibuf_mtr);
 				ibuf_mtr.set_named_space(space);
-
-				/* Avoid logging while truncate table
-				fix-up is active. */
-				if (srv_is_tablespace_truncated(space->id)) {
-					mtr_set_log_mode(
-						&ibuf_mtr, MTR_LOG_NO_REDO);
-				}
 
 				const page_id_t	page_id(
 					space->id,

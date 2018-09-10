@@ -628,15 +628,6 @@ static void backup_optimized_ddl_op(ulint space_id)
 	pthread_mutex_unlock(&backup_mutex);
 }
 
-/** Callback whenever MLOG_TRUNCATE happens. */
-static void backup_truncate_fail()
-{
-	msg("mariabackup: Incompatible TRUNCATE operation detected.%s\n",
-	    opt_lock_ddl_per_table
-	    ? ""
-	    : " Use --lock-ddl-per-table to lock all tables before backup.");
-}
-
 /* ======== Date copying thread context ======== */
 
 typedef struct {
@@ -4179,7 +4170,6 @@ fail_before_log_copying_thread_start:
 	log_copy_scanned_lsn = checkpoint_lsn_start;
 	recv_sys->recovered_lsn = log_copy_scanned_lsn;
 	log_optimized_ddl_op = backup_optimized_ddl_op;
-	log_truncate = backup_truncate_fail;
 
 	if (xtrabackup_copy_logfile())
 		goto fail_before_log_copying_thread_start;

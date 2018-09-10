@@ -863,7 +863,7 @@ dict_create_index_tree_step(
 
 		node->page_no = btr_create(
 			index->type, index->table->space,
-			index->id, index, NULL, &mtr);
+			index->id, index, &mtr);
 
 		if (node->page_no == FIL_NULL) {
 			err = DB_OUT_OF_FILE_SPACE;
@@ -909,7 +909,7 @@ dict_create_index_tree_in_mem(
 	ut_ad(!(index->table->flags2 & DICT_TF2_DISCARDED));
 
 	index->page = btr_create(index->type, index->table->space,
-				 index->id, index, NULL, &mtr);
+				 index->id, index, &mtr);
 	mtr_commit(&mtr);
 
 	index->trx_id = trx->id;
@@ -972,13 +972,6 @@ dict_drop_index_tree(
 		/* It is a single table tablespace and the .ibd file is
 		missing: do nothing */
 
-		return(false);
-	}
-
-	/* If tablespace is scheduled for truncate, do not try to drop
-	the indexes in that tablespace. There is a truncate fixup action
-	which will take care of it. */
-	if (srv_is_tablespace_truncated(space)) {
 		return(false);
 	}
 
@@ -1057,7 +1050,7 @@ dict_recreate_index_tree(
 			ulint root_page_no = (index->type & DICT_FTS)
 				? FIL_NULL
 				: btr_create(type, table->space,
-					     index_id, index, NULL, mtr);
+					     index_id, index, mtr);
 			index->page = unsigned(root_page_no);
 			return root_page_no;
 		}

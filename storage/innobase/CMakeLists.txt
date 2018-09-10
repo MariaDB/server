@@ -113,7 +113,6 @@ SET(INNOBASE_SOURCES
 	row/row0purge.cc
 	row/row0row.cc
 	row/row0sel.cc
-	row/row0trunc.cc
 	row/row0uins.cc
 	row/row0umod.cc
 	row/row0undo.cc
@@ -179,7 +178,6 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
       mtr/mtr0mtr.cc
       row/row0merge.cc
       row/row0mysql.cc
-      row/row0trunc.cc
       srv/srv0srv.cc
       COMPILE_FLAGS "-O0"
       )

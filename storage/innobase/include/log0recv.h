@@ -145,10 +145,6 @@ corresponding to MLOG_INDEX_LOAD.
 */
 extern void (*log_optimized_ddl_op)(ulint space_id);
 
-/** Report backup-unfriendly TRUNCATE operation (with separate log file),
-corresponding to MLOG_TRUNCATE. */
-extern void (*log_truncate)();
-
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
 @param[in]	flags		tablespace flags (NULL if not create)

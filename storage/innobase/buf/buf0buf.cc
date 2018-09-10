@@ -6248,7 +6248,6 @@ database_corrupted:
 		    && !recv_no_ibuf_operations
 		    && (bpage->id.space() == 0
 			|| !is_predefined_tablespace(bpage->id.space()))
-		    && !srv_is_tablespace_truncated(bpage->id.space())
 		    && fil_page_get_type(frame) == FIL_PAGE_INDEX
 		    && page_is_leaf(frame)) {
 
