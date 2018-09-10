@@ -1556,9 +1556,14 @@ dict_table_rename_in_cache(
 /*=======================*/
 	dict_table_t*	table,		/*!< in/out: table */
 	const char*	new_name,	/*!< in: new name */
-	ibool		rename_also_foreigns)/*!< in: in ALTER TABLE we want
+	bool		rename_also_foreigns,
+					/*!< in: in ALTER TABLE we want
 					to preserve the original table name
 					in constraints which reference it */
+	bool		replace_new_file)
+					/*!< in: whether to replace the
+					file with the new name
+					(as part of rolling back TRUNCATE) */
 {
 	dberr_t		err;
 	dict_foreign_t*	foreign;
@@ -1658,7 +1663,8 @@ dict_table_rename_in_cache(
 		}
 
 		/* New filepath must not exist. */
-		err = table->space->rename(new_name, new_path, true);
+		err = table->space->rename(new_name, new_path, true,
+					   replace_new_file);
 		ut_free(new_path);
 
 		/* If the tablespace is remote, a new .isl file was created

@@ -675,7 +675,8 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
   if (undo->dict_operation)
   {
     trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
-    trx->table_id= undo->table_id;
+    if (!trx->table_id)
+      trx->table_id= undo->table_id;
   }
 
   trx_sys.rw_trx_hash.insert(trx);
@@ -1458,6 +1459,10 @@ void trx_commit_low(trx_t* trx, mtr_t* mtr)
 		}
 	}
 
+#ifndef DBUG_OFF
+	const bool debug_sync = trx->mysql_thd && trx->has_logged_persistent();
+#endif
+
 	if (mtr != NULL) {
 
 		mtr->set_sync();
@@ -1500,7 +1505,7 @@ void trx_commit_low(trx_t* trx, mtr_t* mtr)
            thd->debug_sync_control defined any longer. However the stack
            is possible only with a prepared trx not updating any data.
         */
-	if (trx->mysql_thd != NULL && trx->has_logged_persistent()) {
+	if (debug_sync) {
 		DEBUG_SYNC_C("before_trx_state_committed_in_memory");
 	}
 #endif

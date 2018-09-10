@@ -399,7 +399,7 @@ Each foreign key constraint must be accompanied with indexes in
 bot participating tables. The indexes are allowed to contain more
 fields than mentioned in the constraint.
 
-@param[in]	trx		transaction
+@param[in]	trx		transaction (NULL if not adding to dictionary)
 @param[in]	sql_string	table create statement where
 				foreign keys are declared like:
 				FOREIGN KEY (a, b) REFERENCES table2(c, d),
@@ -408,9 +408,8 @@ fields than mentioned in the constraint.
 				database id the database of parameter name
 @param[in]	sql_length	length of sql_string
 @param[in]	name		table full name in normalized form
-@param[in]	reject_fks	if TRUE, fail with error code
-				DB_CANNOT_ADD_CONSTRAINT if any
-				foreign keys are found.
+@param[in]	reject_fks	whether to fail with DB_CANNOT_ADD_CONSTRAINT
+				if any foreign keys are found
 @return error code or DB_SUCCESS */
 dberr_t
 row_table_add_foreign_constraints(
@@ -418,7 +417,7 @@ row_table_add_foreign_constraints(
 	const char*		sql_string,
 	size_t			sql_length,
 	const char*		name,
-	ibool			reject_fks)
+	bool			reject_fks)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**

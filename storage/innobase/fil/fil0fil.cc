@@ -74,12 +74,14 @@ if that the old filepath exists and the new filepath does not exist.
 @param[in]	old_path	old filepath
 @param[in]	new_path	new filepath
 @param[in]	is_discarded	whether the tablespace is discarded
+@param[in]	replace_new	whether to ignore the existence of new_path
 @return innodb error code */
 static dberr_t
 fil_rename_tablespace_check(
 	const char*	old_path,
 	const char*	new_path,
-	bool		is_discarded);
+	bool		is_discarded,
+	bool		replace_new = false);
 /** Rename a single-table tablespace.
 The tablespace must exist in the memory cache.
 @param[in]	id		tablespace identifier
@@ -2866,12 +2868,14 @@ if that the old filepath exists and the new filepath does not exist.
 @param[in]	old_path	old filepath
 @param[in]	new_path	new filepath
 @param[in]	is_discarded	whether the tablespace is discarded
+@param[in]	replace_new	whether to ignore the existence of new_path
 @return innodb error code */
 static dberr_t
 fil_rename_tablespace_check(
 	const char*	old_path,
 	const char*	new_path,
-	bool		is_discarded)
+	bool		is_discarded,
+	bool		replace_new)
 {
 	bool	exists = false;
 	os_file_type_t	ftype;
@@ -2887,7 +2891,11 @@ fil_rename_tablespace_check(
 	}
 
 	exists = false;
-	if (!os_file_status(new_path, &exists, &ftype) || exists) {
+	if (os_file_status(new_path, &exists, &ftype) && !exists) {
+		return DB_SUCCESS;
+	}
+
+	if (!replace_new) {
 		ib::error() << "Cannot rename '" << old_path
 			<< "' to '" << new_path
 			<< "' because the target file exists."
@@ -2895,17 +2903,46 @@ fil_rename_tablespace_check(
 		return(DB_TABLESPACE_EXISTS);
 	}
 
+	/* This must be during the ROLLBACK of TRUNCATE TABLE.
+	Because InnoDB only allows at most one data dictionary
+	transaction at a time, and because this incomplete TRUNCATE
+	would have created a new tablespace file, we must remove
+	a possibly existing tablespace that is associated with the
+	new tablespace file. */
+retry:
+	mutex_enter(&fil_system.mutex);
+	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
+	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
+		ulint id = space->id;
+		if (id && id < SRV_LOG_SPACE_FIRST_ID
+		    && space->purpose == FIL_TYPE_TABLESPACE
+		    && !strcmp(new_path,
+			       UT_LIST_GET_FIRST(space->chain)->name)) {
+			ib::info() << "TRUNCATE rollback: " << id
+				<< "," << new_path;
+			mutex_exit(&fil_system.mutex);
+			dberr_t err = fil_delete_tablespace(id);
+			if (err != DB_SUCCESS) {
+				return err;
+			}
+			goto retry;
+		}
+	}
+	mutex_exit(&fil_system.mutex);
+	fil_delete_file(new_path);
+
 	return(DB_SUCCESS);
 }
 
-dberr_t fil_space_t::rename(const char* name, const char* path, bool log)
+dberr_t fil_space_t::rename(const char* name, const char* path, bool log,
+			    bool replace)
 {
 	ut_ad(UT_LIST_GET_LEN(chain) == 1);
 	ut_ad(!is_system_tablespace(id));
 
 	if (log) {
 		dberr_t err = fil_rename_tablespace_check(
-			chain.start->name, path, false);
+			chain.start->name, path, false, replace);
 		if (err != DB_SUCCESS) {
 			return(err);
 		}

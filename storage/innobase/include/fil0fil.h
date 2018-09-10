@@ -218,9 +218,11 @@ struct fil_space_t {
 	@param[in]	name	table name after renaming
 	@param[in]	path	tablespace file name after renaming
 	@param[in]	log	whether to write redo log
+	@param[in]	replace	whether to ignore the existence of path
 	@return	error code
 	@retval	DB_SUCCESS	on success */
-	dberr_t rename(const char* name, const char* path, bool log);
+	dberr_t rename(const char* name, const char* path, bool log,
+		       bool replace = false);
 
 	/** Note that the tablespace has been imported.
 	Initially, purpose=FIL_TYPE_IMPORT so that no redo log is

@@ -38,6 +38,8 @@ Created 1/8/1996 Heikki Tuuri
 #include "row0mysql.h"
 #include "pars0pars.h"
 #include "trx0roll.h"
+#include "trx0rseg.h"
+#include "trx0undo.h"
 #include "ut0vec.h"
 #include "dict0priv.h"
 #include "fts0priv.h"
@@ -370,7 +372,33 @@ dict_build_table_def_step(
 
 		ut_ad(DICT_TF_GET_ZIP_SSIZE(table->flags) == 0
 		      || dict_table_has_atomic_blobs(table));
-
+		trx_t* trx = thr_get_trx(thr);
+		ut_ad(trx->table_id);
+		mtr_t mtr;
+		trx_undo_t* undo = trx->rsegs.m_redo.undo;
+		if (undo && !undo->table_id
+		    && trx_get_dict_operation(trx) == TRX_DICT_OP_TABLE) {
+			/* This must be a TRUNCATE operation where
+			the empty table is created after the old table
+			was renamed. Be sure to mark the transaction
+			associated with the new empty table, so that
+			we can remove it on recovery. */
+			mtr.start();
+			undo->table_id = trx->table_id;
+			undo->dict_operation = TRUE;
+			page_t* page = trx_undo_page_get(
+				page_id_t(trx->rsegs.m_redo.rseg->space->id,
+					  undo->hdr_page_no),
+				&mtr);
+			mlog_write_ulint(page + undo->hdr_offset
+					 + TRX_UNDO_DICT_TRANS,
+					 TRUE, MLOG_1BYTE, &mtr);
+			mlog_write_ull(page + undo->hdr_offset
+				       + TRX_UNDO_TABLE_ID,
+				       trx->table_id, &mtr);
+			mtr.commit();
+			log_write_up_to(mtr.commit_lsn(), true);
+		}
 		/* Get a new tablespace ID */
 		ulint space_id;
 		dict_hdr_get_new_id(NULL, NULL, &space_id, table, false);
@@ -381,7 +409,7 @@ dict_build_table_def_step(
 		);
 
 		if (space_id == ULINT_UNDEFINED) {
-			return(DB_ERROR);
+			return DB_ERROR;
 		}
 
 		/* Determine the tablespace flags. */
@@ -416,7 +444,6 @@ dict_build_table_def_step(
 		}
 
 		table->space_id = space_id;
-		mtr_t mtr;
 		mtr.start();
 		mtr.set_named_space(table->space);
 		fsp_header_init(table->space, FIL_IBD_FILE_INITIAL_SIZE, &mtr);
@@ -426,8 +453,6 @@ dict_build_table_def_step(
 		      != REC_FORMAT_COMPRESSED);
 		table->space = fil_system.sys_space;
 		table->space_id = TRX_SYS_SPACE;
-		DBUG_EXECUTE_IF("ib_ddl_crash_during_tablespace_alloc",
-				DBUG_SUICIDE(););
 	}
 
 	ins_node_set_new_row(node->tab_def,

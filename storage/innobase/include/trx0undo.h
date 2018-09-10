@@ -203,6 +203,11 @@ trx_undo_truncate_start(
 	ulint		hdr_page_no,
 	ulint		hdr_offset,
 	undo_no_t	limit);
+/** Mark that an undo log header belongs to a data dictionary transaction.
+@param[in]	trx	dictionary transaction
+@param[in,out]	undo	undo log
+@param[in,out]	mtr	mini-transaction */
+void trx_undo_mark_as_dict(const trx_t* trx, trx_undo_t* undo, mtr_t* mtr);
 /** Assign an undo log for a persistent transaction.
 A new undo log is created or a cached undo log reused.
 @param[in,out]	trx	transaction
