@@ -79,7 +79,7 @@ create or replace view vt12 as select * from t1 cross join t2;
 select * from vt12;
 a	b
 1	2
-create or replace view vt12 as select * from t1 for system_time as of timestamp ('0-0-0') cross join t2;
+create or replace view vt12 as select * from t1 for system_time as of timestamp ('1970-01-01 00:00') cross join t2;
 select * from vt12;
 a	b
 # VIEW improvements [#183]
