@@ -702,7 +702,7 @@ public:
 	bool create_option_tablespace_is_valid();
 
 	/** Prepare to create a table. */
-	int prepare_create_table(const char*		name);
+	int prepare_create_table(const char* name, bool strict = true);
 
 	void allocate_trx();
 
