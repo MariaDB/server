@@ -45,7 +45,7 @@ ASOF_x	y
 7	107
 8	108
 9	109
-select x as FROMTO_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
+select x as FROMTO_x, y from t1 for system_time from timestamp '1970-01-01 00:00:00' to timestamp @t1;
 FROMTO_x	y
 0	100
 1	101
@@ -57,7 +57,7 @@ FROMTO_x	y
 7	107
 8	108
 9	109
-select x as BETWAND_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
+select x as BETWAND_x, y from t1 for system_time between timestamp '1970-01-01 00:00:00' and timestamp @t1;
 BETWAND_x	y
 0	100
 1	101
@@ -284,7 +284,7 @@ a	b
 select * from (select * from (select * from t1 cross join t2) as tmp1) as tmp2;
 a	b
 1	2
-select * from (select * from t1 cross join t2 for system_time as of timestamp ('0-0-0')) as tmp;
+select * from (select * from t1 cross join t2 for system_time as of timestamp ('1970-01-01 00:00:00')) as tmp;
 a	b
 create or replace table t1(a1 int) with system versioning;
 create or replace table t2(a2 int) with system versioning;

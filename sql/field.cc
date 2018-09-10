@@ -11166,6 +11166,13 @@ bool Field::save_in_field_default_value(bool view_error_processing)
 {
   THD *thd= table->in_use;
 
+  /*
+     TODO: refactor setting the system fields via default_value mechanism.
+     This condition will go away as well as other conditions with VERS_SYSTEM_FIELD.
+  */
+  if (flags & VERS_SYSTEM_FIELD)
+    return false;
+
   if (unlikely(flags & NO_DEFAULT_VALUE_FLAG &&
                real_type() != MYSQL_TYPE_ENUM))
   {

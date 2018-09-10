@@ -1060,7 +1060,8 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
         !f_bit_as_char(field->pack_flag))
       null_count+= field->length & 7;
 
-    error= make_empty_rec_store_default(thd, regfield, field->default_value);
+    if (!(field->flags & VERS_SYSTEM_FIELD))
+      error= make_empty_rec_store_default(thd, regfield, field->default_value);
     delete regfield; // Avoid memory leaks
     if (error)
       goto err;
