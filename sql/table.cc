@@ -2010,9 +2010,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (versioned)
     {
       if (i == row_start_field)
-        flags|= VERS_SYS_START_FLAG;
+        flags|= VERS_SYS_START_FLAG | NO_DEFAULT_VALUE_FLAG;
       else if (i == row_end_field)
-        flags|= VERS_SYS_END_FLAG;
+        flags|= VERS_SYS_END_FLAG | NO_DEFAULT_VALUE_FLAG;
 
       if (flags & VERS_SYSTEM_FIELD)
       {

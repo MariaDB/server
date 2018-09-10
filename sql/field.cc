@@ -10978,7 +10978,7 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
 
     - The column didn't have a default expression
   */
-  if (!(flags & (NO_DEFAULT_VALUE_FLAG | BLOB_FLAG)) &&
+  if (!(flags & (NO_DEFAULT_VALUE_FLAG | BLOB_FLAG | VERS_SYSTEM_FIELD)) &&
       old_field->ptr != NULL && orig_field != NULL)
   {
     if (orig_field->unireg_check != Field::NEXT_NUMBER)

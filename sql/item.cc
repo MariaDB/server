@@ -9304,6 +9304,8 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 
   if (field_arg->default_value && field_arg->default_value->flags)
     return 0; // defaut fields will be set later, no need to do it twice
+  if (field_arg->vers_sys_field())
+    return 0;
   return field_arg->save_in_field_default_value(context->error_processor ==
                                                 &view_error_processor);
 }

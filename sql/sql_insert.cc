@@ -313,6 +313,8 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
 
 static bool has_no_default_value(THD *thd, Field *field, TABLE_LIST *table_list)
 {
+  if (field->vers_sys_field())
+    return false;
   if ((field->flags & NO_DEFAULT_VALUE_FLAG) && field->real_type() != MYSQL_TYPE_ENUM)
   {
     bool view= false;

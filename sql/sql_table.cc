@@ -4177,6 +4177,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     */
     if (!sql_field->default_value &&
         !sql_field->has_default_function() &&
+        !sql_field->vers_sys_field() &&
         (sql_field->flags & NOT_NULL_FLAG) &&
         (!sql_field->is_timestamp_type() ||
          opt_explicit_defaults_for_timestamp)&&
@@ -4188,6 +4189,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
     if (thd->variables.sql_mode & MODE_NO_ZERO_DATE &&
         !sql_field->default_value && !sql_field->vcol_info &&
+        !sql_field->vers_sys_field() &&
         sql_field->is_timestamp_type() &&
         !opt_explicit_defaults_for_timestamp &&
         (sql_field->flags & NOT_NULL_FLAG) &&
@@ -4212,6 +4214,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     }
     if (sql_field->invisible == INVISIBLE_USER &&
         sql_field->flags & NOT_NULL_FLAG &&
+        !sql_field->vers_sys_field() &&
         sql_field->flags & NO_DEFAULT_VALUE_FLAG)
     {
       my_error(ER_INVISIBLE_NOT_NULL_WITHOUT_DEFAULT, MYF(0),
