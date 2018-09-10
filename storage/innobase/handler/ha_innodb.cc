@@ -12220,9 +12220,7 @@ create_table_info_t::gcols_in_fulltext_or_spatial()
 /** Prepare to create a new table to an InnoDB database.
 @param[in]	name	Table name
 @return error number */
-int
-create_table_info_t::prepare_create_table(
-	const char*		name)
+int create_table_info_t::prepare_create_table(const char* name, bool strict)
 {
 	DBUG_ENTER("prepare_create_table");
 
@@ -12245,7 +12243,7 @@ create_table_info_t::prepare_create_table(
 	because InnoDB might actually support the option, but not under
 	the current conditions.  The messages revealing the specific
 	problems are reported inside this function. */
-	if (create_options_are_invalid()) {
+	if (strict && create_options_are_invalid()) {
 		DBUG_RETURN(HA_WRONG_CREATE_OPTION);
 	}
 
@@ -12572,7 +12570,7 @@ ha_innobase::create(
 				     file_per_table, trx);
 
 	if ((error = info.initialize())
-	    || (error = info.prepare_create_table(name))) {
+	    || (error = info.prepare_create_table(name, !trx))) {
 		if (trx) {
 			trx_rollback_for_mysql(trx);
 			row_mysql_unlock_data_dictionary(trx);
