@@ -1173,7 +1173,11 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
     paused_seqno= server_state.desync_and_pause();
   }
   WSREP_INFO("Server paused at: %lld", paused_seqno.get());
-#endif /* WITH_WSREP */
+  if (paused_seqno.get() >= 0)
+  {
+    wsrep_locked_seqno= paused_seqno.get();
+  }
+ #endif /* WITH_WSREP */
   DBUG_RETURN(FALSE);
 }
 

@@ -94,7 +94,7 @@ static my_bool set_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
     std::ostringstream oss;
     oss << uuid;
     WSREP_DEBUG("Set WSREPXid for InnoDB:  %s:%lld",
-                oss.str().c_str(), wsrep_xid_seqno(*xid).get());
+                oss.str().c_str(), get_wsrep_xid_seqno(xid));
     hton->set_checkpoint(hton, xid);
   }
 

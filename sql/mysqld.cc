@@ -2153,7 +2153,7 @@ extern "C" void unireg_abort(int exit_code)
       This is an abort situation, we cannot expect to gracefully close all
       wsrep threads here, we can only diconnect from service
     */
-    wsrep_close_client_connections(FALSE, NULL);
+    wsrep_close_client_connections(FALSE);
     shutdown_in_progress= 1;
     Wsrep_server_state::instance().disconnect();
     WSREP_INFO("Service disconnected.");

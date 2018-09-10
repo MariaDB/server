@@ -1566,7 +1566,7 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
              key.mdl_namespace() == MDL_key::GLOBAL)
     {
       WSREP_DEBUG("global lock granted for BF: %lld %s",
-		  wsrep_thd_thread_id(requestor_ctx->get_thd()),
+		  wsrep_thd_thread_id((const void*)requestor_ctx->get_thd()),
 		  wsrep_thd_query(requestor_ctx->get_thd()));
       can_grant= TRUE;
     }

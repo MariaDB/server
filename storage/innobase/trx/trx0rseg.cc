@@ -58,8 +58,8 @@ trx_rseg_update_wsrep_checkpoint(
 
 #ifdef UNIV_DEBUG
 	/* Check that seqno is monotonically increasing */
-	long long xid_seqno = wsrep_xid_seqno(xid);
-	const byte* xid_uuid = wsrep_xid_uuid(xid);
+	long long xid_seqno  = get_wsrep_xid_seqno(xid);
+	const byte* xid_uuid = get_wsrep_xid_uuid(xid);
 
 	if (!memcmp(xid_uuid, wsrep_uuid, sizeof wsrep_uuid) &&
 	    xid_seqno != -1) {
@@ -109,7 +109,7 @@ void trx_rseg_update_wsrep_checkpoint(const XID* xid)
 
 	trx_rseg_update_wsrep_checkpoint(rseg_header, xid, &mtr);
 
-	const byte* xid_uuid = wsrep_xid_uuid(xid);
+	const byte* xid_uuid = get_wsrep_xid_uuid(xid);
 	if (memcmp(wsrep_uuid, xid_uuid, sizeof wsrep_uuid)) {
 		memcpy(wsrep_uuid, xid_uuid, sizeof wsrep_uuid);
 
@@ -207,8 +207,8 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid)
 			found = trx_rseg_init_wsrep_xid(sys->frame, xid);
 			ut_ad(!found || xid.formatID == 1);
 			if (found) {
-				max_xid_seqno = wsrep_xid_seqno(&xid);
-				memcpy(wsrep_uuid, wsrep_xid_uuid(&xid),
+				max_xid_seqno = get_wsrep_xid_seqno(&xid);
+				memcpy(wsrep_uuid, get_wsrep_xid_uuid(&xid),
 				       sizeof wsrep_uuid);
 			}
 		}
@@ -230,12 +230,12 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid)
 		XID tmp_xid;
 		long long tmp_seqno = 0;
 		if (trx_rseg_read_wsrep_checkpoint(rseg_header, tmp_xid)
-		    && (tmp_seqno = wsrep_xid_seqno(&tmp_xid))
+		    && (tmp_seqno = get_wsrep_xid_seqno(&tmp_xid))
 		    > max_xid_seqno) {
 			found = true;
 			max_xid_seqno = tmp_seqno;
 			xid = tmp_xid;
-			memcpy(wsrep_uuid, wsrep_xid_uuid(&tmp_xid),
+			memcpy(wsrep_uuid, get_wsrep_xid_uuid(&tmp_xid),
 			       sizeof wsrep_uuid);
 		}
 	}

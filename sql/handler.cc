@@ -1363,7 +1363,7 @@ int ha_commit_trans(THD *thd, bool all)
   bool trans_was_empty= true;
 #endif /* WITH_WSREP */
 #ifdef WITH_ARIA_STORAGE_ENGINE
-    ha_maria::implicit_commit(thd, TRUE);
+  ha_maria::implicit_commit(thd, TRUE);
 #endif
 
   if (!ha_info)
@@ -1584,7 +1584,7 @@ done:
     mysql_mutex_unlock(&thd->LOCK_thd_data);
 
 #endif /* WITH_WSREP */
-err:
+ err:
   error= 1;                                  /* Transaction was rolled back */
   /*
     In parallel replication, rollback is delayed, as there is extra replication
@@ -1595,7 +1595,7 @@ err:
     ha_rollback_trans(thd, all);
   else
     {
-      WSREP_DEBUG("WTF, rollback skipped %d %d",thd->rgi_slave, thd->rgi_slave->is_parallel_exec);
+      WSREP_DEBUG("rollback skipped %d %d",thd->rgi_slave, thd->rgi_slave->is_parallel_exec);
     }
 end:
   if (rw_trans && mdl_request.ticket)

@@ -50,8 +50,9 @@ Created 4/20/1996 Heikki Tuuri
 #include "fts0types.h"
 #include "m_string.h"
 #include "gis0geo.h"
-//#include "wsrep_mysqld.h"
-//#include "wsrep_schema.h"
+#include "wsrep_api.h"
+#include "mysql/service_wsrep.h"
+#include "wsrep_mysqld.h"
 #include "mysql/service_wsrep.h"
 
 /*************************************************************************
@@ -1038,7 +1039,7 @@ dberr_t wsrep_append_foreign_key(trx_t *trx,
 			       const rec_t*	clust_rec,
 			       dict_index_t*	clust_index,
 			       ibool		referenced,
-			       ibool            shared);
+			       wsrep_key_type	key_type);
 #endif /* WITH_WSREP */
 
 /*********************************************************************//**
@@ -1423,7 +1424,7 @@ row_ins_foreign_check_on_constraint(
 
 #ifdef WITH_WSREP
 	err = wsrep_append_foreign_key(trx, foreign, clust_rec, clust_index,
-				       FALSE, FALSE);
+				       FALSE,  WSREP_KEY_EXCLUSIVE);
 	if (err != DB_SUCCESS) {
 		fprintf(stderr,
 			"WSREP: foreign key append failed: %d\n", err);
@@ -1798,13 +1799,19 @@ row_ins_check_foreign_constraint(
 				if (check_ref) {
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
+					wsrep_key_type key_type;
+					if (upd_node != NULL) {
+						key_type = WSREP_KEY_SHARED;
+					} else {
+						key_type = WSREP_KEY_SEMI;
+					}
 					err = wsrep_append_foreign_key(
 						thr_get_trx(thr),
 						foreign,
 						rec,
 						check_index,
 						check_ref,
-						(upd_node) ? TRUE : FALSE);
+						key_type);
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {

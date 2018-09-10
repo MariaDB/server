@@ -10442,12 +10442,12 @@ wsrep_append_key(
 {
 	DBUG_ENTER("wsrep_append_key");
         DBUG_PRINT("enter",
-                   ("thd: %lld trx: %lld", wsrep_thd_thread_id(thd),
+                   ("thd: %lld trx: %lld", thd_get_thread_id(thd),
                     (long long)trx->id));
 #ifdef WSREP_DEBUG_PRINT
 	fprintf(stderr, "%s conn %ld, trx %llu, keylen %d, table %s\n SQL: %s ",
 		wsrep_key_type_to_str(key_type),
-		wsrep_thd_thread_id(thd), (long long)trx->id, key_len,
+		thd_get_thread_id(thd), (long long)trx->id, key_len,
 		table_share->table_name.str, wsrep_thd_query(thd));
 	for (int i=0; i<key_len; i++) {
 		fprintf(stderr, "%hhX, ", key[i]);
@@ -18731,12 +18731,12 @@ wsrep_innobase_kill_one_trx(
 			   bf_trx ? bf_trx->id : 0);
 		DBUG_RETURN(1);
 	}
-	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
+	WSREP_LOG_CONFLICT((const void*)bf_thd, (const void*)thd, TRUE);
 
 	wsrep_thd_LOCK(thd);
 	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%llu) trx: %llu",
  		    signal, (long long)bf_seqno,
- 		    (long long)wsrep_thd_thread_id(thd),
+ 		    (long long)thd_get_thread_id(thd),
 		    (long long)victim_trx->id);
 
 	WSREP_DEBUG("Aborting query: %s conf %s trx: %lld",
@@ -18759,7 +18759,7 @@ wsrep_innobase_kill_one_trx(
 				lock_cancel_waiting_and_release(wait_lock);
 			}
 			wsrep_thd_UNLOCK(thd);
-			wsrep_thd_awake(thd, signal); 
+			wsrep_thd_awake((const void*)thd, signal); 
 		} else {
 			/* abort currently executing query */
 			DBUG_PRINT("wsrep",("sending KILL_QUERY to: %lu",
@@ -18768,13 +18768,13 @@ wsrep_innobase_kill_one_trx(
 				thd_get_thread_id(thd));
 			/* Note that innobase_kill_query will take lock_mutex
 			and trx_mutex */
-			wsrep_thd_UNLOCK(thd);
-			wsrep_thd_awake(thd, signal);
+			wsrep_thd_UNLOCK((const void*)thd);
+			wsrep_thd_awake((const void*)thd, signal);
 		}
 	}
 	else
 	{
-		wsrep_thd_UNLOCK(thd);
+		wsrep_thd_UNLOCK((const void*)thd);
 	}
 
 	DBUG_RETURN(0);

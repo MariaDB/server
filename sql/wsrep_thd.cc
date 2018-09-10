@@ -41,7 +41,8 @@ static volatile int32 wsrep_bf_aborts_counter(0);
 #define WSREP_ATOMIC_ADD_LONG  my_atomic_add32
 #endif
 
-int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff)
+int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff,
+                          enum enum_var_type scope)
 {
   wsrep_local_bf_aborts = WSREP_ATOMIC_LOAD_LONG(&wsrep_bf_aborts_counter);
   var->type = SHOW_LONGLONG;
@@ -339,12 +340,12 @@ void wsrep_thd_set_PA_safe(void *thd_ptr, my_bool safe)
 void wsrep_fire_rollbacker(THD *thd)
 {
   DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_aborting);
-  DBUG_PRINT("wsrep",("enqueuing trx abort for %lu", wsrep_thd_thread_id(thd)));
-  WSREP_DEBUG("enqueuing trx abort for (%lu)", wsrep_thd_thread_id(thd));
+  DBUG_PRINT("wsrep",("enqueuing trx abort for %llu", thd->thread_id));
+  WSREP_DEBUG("enqueuing trx abort for (%llu)", thd->thread_id);
   if (wsrep_rollback_queue->push_back(thd))
   {
     WSREP_WARN("duplicate thd %llu for rollbacker",
-               wsrep_thd_thread_id(thd));
+               thd->thread_id);
   }
 }
 
@@ -411,3 +412,23 @@ bool wsrep_bf_abort(const THD* bf_thd, THD* victim_thd)
   }
   return ret;
 }
+#ifdef OUT
+my_bool wsrep_thd_is_BF(THD *thd, my_bool sync)
+{
+  my_bool status = FALSE;
+  if (thd)
+  {
+    // THD can be BF only if provider exists
+    if (wsrep_thd_is_wsrep(thd))
+    {
+      if (sync)
+	mysql_mutex_lock(&thd->LOCK_thd_data);
+
+      status = ((thd->wsrep_cs().mode() == wsrep::client_state::m_high_priority));
+      if (sync)
+        mysql_mutex_unlock(&thd->LOCK_thd_data);
+    }
+  }
+  return status;
+}
+#endif

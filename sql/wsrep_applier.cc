@@ -71,8 +71,8 @@ void wsrep_set_apply_format(THD* thd, Format_description_log_event* ev)
   thd->wsrep_apply_format= ev;
 }
 
-static inline Format_description_log_event*
-wsrep_get_apply_format(THD* thd, Relay_log_info* rli)
+Format_description_log_event*
+wsrep_get_apply_format(THD* thd)
 {
   if (thd->wsrep_apply_format)
   {
@@ -147,7 +147,7 @@ int wsrep_apply_events(THD*        thd,
   {
     int exec_res;
     Log_event* ev= wsrep_read_log_event(&buf, &buf_len,
-                                          wsrep_get_apply_format(thd, rli));
+                                          wsrep_get_apply_format(thd));
     if (!ev)
     {
       WSREP_ERROR("applier could not read binlog event, seqno: %lld, len: %zu",

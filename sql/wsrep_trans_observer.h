@@ -259,7 +259,7 @@ static inline
 // enum wsrep::client_state::after_statement_result
 int wsrep_after_statement(THD* thd)
 {
-  return (wsrep_on(thd) ?
+  return (wsrep_on((const void*)thd) ?
           thd->wsrep_cs().after_statement() : 0);
 }
 

@@ -826,6 +826,8 @@ static int sst_donate_mysqldump (const char*         addr,
   return ret;
 }
 
+wsrep_seqno_t wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
+
 /*
   Create a file under data directory.
 */
@@ -960,6 +962,15 @@ static int sst_flush_tables(THD* thd)
   else
   {
     WSREP_INFO("Tables flushed.");
+    /*
+      Tables have been flushed. Create a file with cluster state ID and
+      wsrep_gtid_domain_id.
+    */
+    char content[100];
+    snprintf(content, sizeof(content), "%s:%lld %d\n", wsrep_cluster_state_uuid,
+             (long long)wsrep_locked_seqno, wsrep_gtid_domain_id);
+    err= sst_create_file(flush_success, content);
+
     const char base_name[]= "tables_flushed";
     ssize_t const full_len= strlen(mysql_real_data_home) + strlen(base_name)+2;
     char *real_name = (char*) malloc(full_len);

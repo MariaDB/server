@@ -31,13 +31,13 @@ extern "C" my_bool wsrep_on(const void *thd)
   return (int)(WSREP(((const THD*)thd)));
 }
 
-extern "C" void wsrep_thd_LOCK(void* thd_ptr)
+extern "C" void wsrep_thd_LOCK(const void* thd_ptr)
 {
   THD* thd= (THD*)thd_ptr;
   mysql_mutex_lock(&thd->LOCK_thd_data);
 }
 
-extern "C" void wsrep_thd_UNLOCK(void* thd_ptr)
+extern "C" void wsrep_thd_UNLOCK(const void* thd_ptr)
 {
   THD* thd= (THD*)thd_ptr;
   mysql_mutex_unlock(&thd->LOCK_thd_data);
@@ -202,12 +202,6 @@ extern "C" void wsrep_thd_xid(const void *thd_ptr, void *xid, size_t xid_size)
   }
 }
 
-extern "C" int wsrep_thd_retry_counter(const void *thd_ptr)
-{
-  const THD* thd= (const THD*)thd_ptr;
-  return thd->wsrep_retry_counter;
-}
-
 extern "C" void wsrep_thd_awake(const void* thd_ptr, my_bool signal)
 {
   THD* thd= (THD*)thd_ptr;
@@ -239,7 +233,7 @@ extern "C" my_bool wsrep_thd_bf_abort(const void* bf_thd_ptr,
    */
   if ((ret || !wsrep_on(victim_thd)) && signal)
   {
-    wsrep_thd_awake(victim_thd, signal);
+    wsrep_thd_awake((const void*)victim_thd, signal);
   }
   return ret;
 }
@@ -328,4 +322,14 @@ extern "C" int wsrep_thd_append_key(void* thd_ptr,
     ret= client_state.append_key(wsrep_key);
   }
   return ret;
+}
+
+extern "C" long long get_wsrep_xid_seqno(const struct xid_t* xid)
+{
+  return wsrep_xid_seqno(*xid).get();
+}
+
+extern  const unsigned char* get_wsrep_xid_uuid(const struct xid_t* xid)
+{
+  return (const unsigned char*)wsrep_xid_uuid(*xid).data();
 }
