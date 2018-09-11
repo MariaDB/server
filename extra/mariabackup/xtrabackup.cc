@@ -4257,19 +4257,6 @@ fail_before_log_copying_thread_start:
 	}
 	debug_sync_point("xtrabackup_suspend_at_start");
 
-	if (xtrabackup_incremental) {
-		if (!xtrabackup_incremental_force_scan) {
-			changed_page_bitmap = xb_page_bitmap_init();
-		}
-		if (!changed_page_bitmap) {
-			msg("mariabackup: using the full scan for incremental "
-			    "backup\n");
-		} else if (incremental_lsn != checkpoint_lsn_start) {
-			/* Do not print that bitmaps are used when dummy bitmap
-			is build for an empty LSN range. */
-			msg("mariabackup: using the changed page bitmap\n");
-		}
-	}
 
 	ut_a(xtrabackup_parallel > 0);
 
