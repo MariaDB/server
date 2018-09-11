@@ -172,9 +172,6 @@ ulint	fil_n_pending_tablespace_flushes	= 0;
 /** Number of files currently open */
 ulint	fil_n_file_opened			= 0;
 
-/** The null file address */
-const fil_addr_t	fil_addr_null = {FIL_NULL, 0};
-
 /** The tablespace memory cache. This variable is NULL before the module is
 initialized. */
 fil_system_t	fil_system;

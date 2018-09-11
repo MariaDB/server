@@ -7499,16 +7499,20 @@ btr_store_big_rec_extern_fields(
 						 + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
 						 rec_page_no,
 						 MLOG_4BYTES, &mtr);
-
-				/* Zero out the unused part of the page. */
-				memset(page + page_zip_get_size(page_zip)
-				       - c_stream.avail_out,
-				       0, c_stream.avail_out);
 				mlog_log_string(page
 						+ FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
 						page_zip_get_size(page_zip)
-						- FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
+						- FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+						- c_stream.avail_out,
 						&mtr);
+				/* Zero out the unused part of the page. */
+				if (c_stream.avail_out) {
+					mlog_memset(block,
+						    page_zip_get_size(page_zip)
+						    - c_stream.avail_out,
+						    c_stream.avail_out,
+						    0, &mtr);
+				}
 				/* Copy the page to compressed storage,
 				because it will be flushed to disk
 				from there. */

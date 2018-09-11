@@ -1237,8 +1237,7 @@ btr_create(
 
 		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE_NEW);
 
-		flst_init(block->frame + PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
-			  mtr);
+		flst_init(block, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST, mtr);
 	} else {
 		block = fseg_create(space, 0,
 				    PAGE_HEADER + PAGE_BTR_SEG_TOP, mtr);

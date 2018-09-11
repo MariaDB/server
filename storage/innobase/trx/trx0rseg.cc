@@ -253,12 +253,10 @@ void trx_rseg_format_upgrade(trx_rsegf_t* rseg_header, mtr_t* mtr)
 	mlog_write_ulint(rseg_format, 0, MLOG_4BYTES, mtr);
 	/* Clear also possible garbage at the end of the page. Old
 	InnoDB versions did not initialize unused parts of pages. */
-	byte* b = rseg_header + TRX_RSEG_MAX_TRX_ID + 8;
-	ulint len = srv_page_size
-		- (FIL_PAGE_DATA_END
-		   + TRX_RSEG + TRX_RSEG_MAX_TRX_ID + 8);
-	memset(b, 0, len);
-	mlog_log_string(b, len, mtr);
+	mlog_memset(TRX_RSEG_MAX_TRX_ID + 8 + rseg_header,
+		    srv_page_size
+		    - (FIL_PAGE_DATA_END
+		       + TRX_RSEG + TRX_RSEG_MAX_TRX_ID + 8), 0, mtr);
 }
 
 /** Create a rollback segment header.
@@ -274,8 +272,6 @@ trx_rseg_header_create(
 	buf_block_t*	sys_header,
 	mtr_t*		mtr)
 {
-	ulint		page_no;
-	trx_rsegf_t*	rsegf;
 	buf_block_t*	block;
 
 	ut_ad(mtr_memo_contains(mtr, &space->latch, MTR_MEMO_X_LOCK));
@@ -292,25 +288,17 @@ trx_rseg_header_create(
 
 	buf_block_dbg_add_level(block, SYNC_RSEG_HEADER_NEW);
 
-	page_no = block->page.id.page_no();
-
-	/* Get the rollback segment file page */
-	rsegf = trx_rsegf_get_new(space->id, page_no, mtr);
-
-	mlog_write_ulint(rsegf + TRX_RSEG_FORMAT, 0, MLOG_4BYTES, mtr);
+	ut_ad(0 == mach_read_from_4(TRX_RSEG_FORMAT + TRX_RSEG
+				    + block->frame));
+	ut_ad(0 == mach_read_from_4(TRX_RSEG_HISTORY_SIZE + TRX_RSEG
+				    + block->frame));
 
 	/* Initialize the history list */
-
-	mlog_write_ulint(rsegf + TRX_RSEG_HISTORY_SIZE, 0, MLOG_4BYTES, mtr);
-	flst_init(rsegf + TRX_RSEG_HISTORY, mtr);
+	flst_init(block, TRX_RSEG_HISTORY + TRX_RSEG, mtr);
 
 	/* Reset the undo log slots */
-	for (ulint i = 0; i < TRX_RSEG_N_SLOTS; i++) {
-		/* FIXME: This is generating a lot of redo log.
-		Why not just let it remain zero-initialized,
-		and adjust trx_rsegf_undo_find_free() and friends? */
-		trx_rsegf_set_nth_undo(rsegf, i, FIL_NULL, mtr);
-	}
+	mlog_memset(block, TRX_RSEG_UNDO_SLOTS + TRX_RSEG,
+		    TRX_RSEG_N_SLOTS * 4, 0xff, mtr);
 
 	if (sys_header) {
 		/* Add the rollback segment info to the free slot in
@@ -325,10 +313,10 @@ trx_rseg_header_create(
 				 + TRX_SYS_RSEG_PAGE_NO
 				 + rseg_id * TRX_SYS_RSEG_SLOT_SIZE
 				 + sys_header->frame,
-				 page_no, MLOG_4BYTES, mtr);
+				 block->page.id.page_no(), MLOG_4BYTES, mtr);
 	}
 
-	return(page_no);
+	return block->page.id.page_no();
 }
 
 /** Free a rollback segment in memory. */

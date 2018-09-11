@@ -1249,9 +1249,8 @@ srv_prepare_to_delete_redo_log_files(
 		{
 			ib::info	info;
 			if (srv_log_file_size == 0
-			    || (log_sys.log.format != LOG_HEADER_FORMAT_10_3
-				&& log_sys.log.format
-				!= LOG_HEADER_FORMAT_ENC_10_4)) {
+			    || (log_sys.log.format & ~LOG_HEADER_FORMAT_ENCRYPTED)
+			    != LOG_HEADER_FORMAT_10_4) {
 				info << "Upgrading redo log: ";
 			} else if (n_files != srv_n_log_files
 				   || srv_log_file_size
@@ -2062,7 +2061,7 @@ files_checked:
 			   && log_sys.log.format
 			   == (srv_encrypt_log
 			       ? LOG_HEADER_FORMAT_ENC_10_4
-			       : LOG_HEADER_FORMAT_10_3)
+			       : LOG_HEADER_FORMAT_10_4)
 			   && log_sys.log.subformat == 2) {
 			/* No need to add or remove encryption,
 			upgrade, downgrade, or resize. */

@@ -366,18 +366,11 @@ typedef	byte	fil_faddr_t;	/*!< 'type' definition in C: an address
 #define	FIL_ADDR_BYTE	4U	/* then comes 2-byte byte offset within page*/
 #define	FIL_ADDR_SIZE	6U	/* address size is 6 bytes */
 
-#ifndef UNIV_INNOCHECKSUM
-
 /** File space address */
 struct fil_addr_t {
 	ulint	page;		/*!< page number within a space */
 	ulint	boffset;	/*!< byte offset within the page */
 };
-
-/** The null file address */
-extern const fil_addr_t	fil_addr_null;
-
-#endif /* !UNIV_INNOCHECKSUM */
 
 /** The byte offsets on a file page for various variables @{ */
 #define FIL_PAGE_SPACE_OR_CHKSUM 0	/*!< in < MySQL-4.0.14 space id the

@@ -1,9 +1,5 @@
 --source include/have_innodb.inc
-# With 32k, truncation could happen on shutdown after the test,
-# and the mtr.add_suppression() would not filter out the warning.
-# With 64k, no truncation seems to happen.
-# --source include/innodb_page_size.inc
---source include/innodb_page_size_small.inc
+--source include/innodb_page_size.inc
 --source include/have_undo_tablespaces.inc
 
 SET @save_undo_logs = @@GLOBAL.innodb_undo_logs;

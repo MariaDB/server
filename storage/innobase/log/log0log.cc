@@ -665,7 +665,7 @@ void log_t::files::create(ulint n_files)
 
   this->n_files= n_files;
   format= srv_encrypt_log
-    ? LOG_HEADER_FORMAT_ENC_10_4 : LOG_HEADER_FORMAT_10_3;
+    ? LOG_HEADER_FORMAT_ENC_10_4 : LOG_HEADER_FORMAT_10_4;
   subformat= 2;
   file_size= srv_log_file_size;
   lsn= LOG_START_LSN;
@@ -698,7 +698,7 @@ log_file_header_flush(
 	ut_ad(log_write_mutex_own());
 	ut_ad(!recv_no_log_write);
 	ut_a(nth_file < log_sys.log.n_files);
-	ut_ad(log_sys.log.format == LOG_HEADER_FORMAT_10_3
+	ut_ad(log_sys.log.format == LOG_HEADER_FORMAT_10_4
 	      || log_sys.log.format == LOG_HEADER_FORMAT_ENC_10_4);
 
 	buf = log_sys.log.file_header_bufs[nth_file];

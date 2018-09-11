@@ -1087,7 +1087,8 @@ recv_find_max_checkpoint(ulint* max_field)
 	case LOG_HEADER_FORMAT_10_2 | LOG_HEADER_FORMAT_ENCRYPTED:
 	case LOG_HEADER_FORMAT_10_3:
 	case LOG_HEADER_FORMAT_10_3 | LOG_HEADER_FORMAT_ENCRYPTED:
-	case LOG_HEADER_FORMAT_ENC_10_4:
+	case LOG_HEADER_FORMAT_10_4:
+	case LOG_HEADER_FORMAT_10_4 | LOG_HEADER_FORMAT_ENCRYPTED:
 		break;
 	default:
 		ib::error() << "Unsupported redo log format."
@@ -1257,6 +1258,7 @@ parse_log:
 		break;
 #endif /* UNIV_LOG_LSN_DEBUG */
 	case MLOG_1BYTE: case MLOG_2BYTES: case MLOG_4BYTES: case MLOG_8BYTES:
+	case MLOG_MEMSET:
 #ifdef UNIV_DEBUG
 		if (page && page_type == FIL_PAGE_TYPE_ALLOCATED
 		    && end_ptr >= ptr + 2) {
@@ -3847,6 +3849,9 @@ static const char* get_mlog_string(mlog_id_t type)
 
 	case MLOG_TRUNCATE:
 		return("MLOG_TRUNCATE");
+
+	case MLOG_MEMSET:
+		return("MLOG_MEMSET");
 
 	case MLOG_FILE_WRITE_CRYPT_DATA:
 		return("MLOG_FILE_WRITE_CRYPT_DATA");

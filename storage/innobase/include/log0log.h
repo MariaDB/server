@@ -481,6 +481,7 @@ MariaDB 10.2.18 and later will use the 10.3 format, but LOG_HEADER_SUBFORMAT
 1 instead of 0. MariaDB 10.3 will use subformat 0 (5.7-style TRUNCATE) or 2
 (MDEV-13564 backup-friendly TRUNCATE). */
 #define LOG_HEADER_FORMAT_10_3		103
+#define LOG_HEADER_FORMAT_10_4		104
 /** The MariaDB 10.4.0 log format (only with innodb_encrypt_log=ON) */
 #define LOG_HEADER_FORMAT_ENC_10_4	(104U | 1U << 31)
 /** Encrypted MariaDB redo log */
@@ -552,7 +553,7 @@ struct log_t{
   struct files {
     /** number of files */
     ulint				n_files;
-    /** format of the redo log: e.g., LOG_HEADER_FORMAT_10_3 */
+    /** format of the redo log: e.g., LOG_HEADER_FORMAT_10_4 */
     uint32_t				format;
     /** redo log subformat: 0 with separately logged TRUNCATE,
     2 with fully redo-logged TRUNCATE (1 in MariaDB 10.2) */

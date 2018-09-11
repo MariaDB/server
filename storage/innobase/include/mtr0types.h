@@ -228,8 +228,11 @@ enum mlog_id_t {
 	of a ROW_FORMAT=COMPRESSED table */
 	MLOG_ZIP_WRITE_TRX_ID = 62,
 
+	/** initialize a page with a string of identical bytes */
+	MLOG_MEMSET = 63,
+
 	/** biggest value (used in assertions) */
-	MLOG_BIGGEST_TYPE = MLOG_ZIP_WRITE_TRX_ID,
+	MLOG_BIGGEST_TYPE = MLOG_MEMSET,
 
 	/** log record for writing/updating crypt data of
 	a tablespace */
