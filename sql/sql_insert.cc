@@ -1748,6 +1748,41 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
                                                  TRG_EVENT_UPDATE))
           goto before_trg_err;
 
+        /*
+          We need to explicitly check that the generated auto-increment
+          value is consumed by UPDATE and not in the range reserved for
+          another row:
+        */
+        bool insert_id_consumed= false;
+        if (// UPDATE clause specifies a value for the auto increment field:
+            table->auto_increment_field_not_null &&
+            // An auto increment value has been generated for this row:
+            insert_id_for_cur_row > 0)
+        {
+          // After-update value:
+          const ulonglong auto_incr_val= table->next_number_field->val_int();
+          if (auto_incr_val == insert_id_for_cur_row)
+          {
+            // UPDATE wants to use the generated value.
+            insert_id_consumed= true;
+          }
+          else if (table->file->auto_inc_interval_for_cur_row.
+                   in_range(auto_incr_val))
+          {
+            /*
+              UPDATE wants to use one auto generated value which we have already
+              reserved for another (previous or following) row. That may cause
+              a duplicate key error if we later try to insert the reserved
+              value. Such conflicts on auto generated values would be strange
+              behavior, so we return a clear error now:
+            */
+            my_error(ER_AUTO_INCREMENT_CONFLICT, MYF(0));
+	    goto before_trg_err;
+          }
+        }
+        if (!insert_id_consumed)
+          table->file->restore_auto_increment(prev_insert_id);
+
         bool different_records= (!records_are_comparable(table) ||
                                  compare_record(table));
         /*
@@ -1777,7 +1812,6 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         if (res == VIEW_CHECK_ERROR)
           goto before_trg_err;
 
-        table->file->restore_auto_increment(prev_insert_id);
         info->touched++;
         if (different_records)
         {
@@ -1862,7 +1896,6 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
             info->deleted++;
           else
             error= 0;
-          thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
           /*
             Since we pretend that we have done insert we should call
             its after triggers.

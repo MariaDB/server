@@ -3015,7 +3015,7 @@ int handler::update_auto_increment()
   bool append= FALSE;
   THD *thd= table->in_use;
   struct system_variables *variables= &thd->variables;
-  int result=0, tmp;
+  int tmp;
   enum enum_check_fields save_count_cuted_fields;
   DBUG_ENTER("handler::update_auto_increment");
 
@@ -3186,10 +3186,6 @@ int handler::update_auto_increment()
     already set.
   */
   insert_id_for_cur_row= nr;
-
-  if (result)                                   // overflow
-    DBUG_RETURN(result);
-
   /*
     Set next insert id to point to next auto-increment value to be able to
     handle multi-row statements.

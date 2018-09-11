@@ -8982,8 +8982,6 @@ set_max_autoinc:
 				/* This should filter out the negative
 				values set explicitly by the user. */
 				if (auto_inc <= col_max_value) {
-					ut_a(prebuilt->autoinc_increment > 0);
-
 					ulonglong	offset;
 					ulonglong	increment;
 					dberr_t		err;

@@ -380,6 +380,13 @@ public:
   ulonglong values()  const { return interval_values; };
   ulonglong maximum() const { return interval_max;    };
   /*
+    Determine if the given value is within the interval:
+  */
+  bool in_range(const ulonglong value) const
+  {
+    return ((value >= interval_min) && (value < interval_max));
+  }
+  /*
     If appending [3,5] to [1,2], we merge both in [1,5] (they should have the
     same increment for that, user of the class has to ensure that). That is
     just a space optimization. Returns 0 if merge succeeded.

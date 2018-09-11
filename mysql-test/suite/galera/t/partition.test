@@ -2,6 +2,17 @@
 --source include/have_innodb.inc
 --source include/have_partition.inc
 
+# The second node can start first, so you need to determine
+# which node we will consider the first in this test:
+--let $node_1=node_1
+--let $node_2=node_2
+--let $auto_increment_offset = `SELECT @@auto_increment_offset`
+--if ($auto_increment_offset == 2) {
+--let $node_1=node_2
+--let $node_2=node_1
+--connection node_2
+}
+
 --echo #
 --echo # MDEV#4953 Galera: DELETE from a partitioned table is not replicated
 --echo #
@@ -16,12 +27,12 @@ SELECT * FROM t1;
 
 --echo
 --echo # On node_1
---connection node_1
+--connection $node_1
 SELECT * FROM t1;
 
 --echo
 --echo # On node_2
---connection node_2
+--connection $node_2
 SELECT * FROM t1;
 
 # Cleanup
@@ -35,7 +46,7 @@ DROP TABLE t1;
 
 --echo
 --echo # On node_1
---connection node_1
+--connection $node_1
 
 CREATE TABLE test.t1 (
   i INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -56,7 +67,7 @@ SELECT * FROM test.p1;
 
 --echo
 --echo # On node_2
---connection node_2
+--connection $node_2
 
 SHOW CREATE TABLE t1;
 SHOW CREATE TABLE p1;
@@ -66,24 +77,24 @@ SELECT * FROM test.p1;
 
 --echo
 --echo # On node_1
---connection node_1
+--connection $node_1
 ALTER TABLE t1 TRUNCATE PARTITION p2;
 SELECT * FROM test.t1;
 
 --echo
 --echo # On node_2
---connection node_2
+--connection $node_2
 SELECT * FROM test.t1;
 
 --echo
 --echo # On node_1
---connection node_1
+--connection $node_1
 ALTER TABLE t1 DROP PARTITION p2;
 SHOW CREATE TABLE t1;
 
 --echo
 --echo # On node_2
---connection node_2
+--connection $node_2
 SHOW CREATE TABLE t1;
 
 
@@ -107,7 +118,7 @@ foreach  my $i (1..101) {
 }
 EOF
 
---connection node_1
+--connection $node_1
 
 --let $wsrep_load_data_splitting_orig = `SELECT @@wsrep_load_data_splitting`
 
@@ -128,7 +139,7 @@ CREATE TABLE t1 (pk INT PRIMARY KEY)
 
 --let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
 
---connection node_2
+--connection $node_2
 SELECT COUNT(*) = 20002 FROM t1;
 
 # LOAD-ing 20002 rows causes 3 commits to be registered
@@ -140,7 +151,7 @@ DROP TABLE t1;
 
 --echo # Case 2: wsrep_load_data_splitting = ON & LOAD DATA with 101 entries.
 
---connection node_1
+--connection $node_1
 
 SET GLOBAL wsrep_load_data_splitting = ON;
 
@@ -156,7 +167,7 @@ CREATE TABLE t1 (pk INT PRIMARY KEY)
 
 --let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
 
---connection node_2
+--connection $node_2
 SELECT COUNT(*) = 101 FROM t1;
 
 # LOAD-ing 101 rows causes 1 commit to be registered
@@ -169,7 +180,7 @@ DROP TABLE t1;
 --echo # Case 3: wsrep_load_data_splitting = OFF & LOAD DATA with 20002
 --echo # entries.
 
---connection node_1
+--connection $node_1
 
 SET GLOBAL wsrep_load_data_splitting = OFF;
 
@@ -185,7 +196,7 @@ CREATE TABLE t1 (pk INT PRIMARY KEY)
 
 --let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
 
---connection node_2
+--connection $node_2
 SELECT COUNT(*) = 20002 FROM t1;
 
 # LOAD-ing 20002 rows causes 1 commit to be registered
@@ -195,7 +206,7 @@ SELECT COUNT(*) = 20002 FROM t1;
 
 DROP TABLE t1;
 
---connection node_1
+--connection $node_1
 # Restore the original value
 --eval SET GLOBAL wsrep_load_data_splitting = $wsrep_load_data_splitting_orig;
 
