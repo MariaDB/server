@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -176,17 +176,6 @@ buf_read_page_low(
 		dst = ((buf_block_t*) bpage)->frame;
 	}
 
-	DBUG_EXECUTE_IF(
-		"innodb_invalid_read_after_truncate",
-		if (fil_space_t* space = fil_space_acquire(page_id.space())) {
-			if (!strcmp(space->name, "test/t1")
-			    && page_id.page_no() == space->size - 1) {
-				type = 0;
-				sync = true;
-			}
-			space->release();
-		});
-
 	IORequest	request(type | IORequest::READ);
 
 	*err = fil_io(
@@ -332,19 +321,6 @@ buf_read_ahead_random(
 	that is, reside near the start of the LRU list. */
 
 	for (i = low; i < high; i++) {
-		DBUG_EXECUTE_IF(
-			"innodb_invalid_read_after_truncate",
-			if (fil_space_t* space = fil_space_acquire(
-				    page_id.space())) {
-				bool skip = !strcmp(space->name, "test/t1");
-				space->release();
-				if (skip) {
-					high = space->size;
-					buf_pool_mutex_exit(buf_pool);
-					goto read_ahead;
-				}
-			});
-
 		const buf_page_t*	bpage = buf_page_hash_get(
 			buf_pool, page_id_t(page_id.space(), i));
 

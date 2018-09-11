@@ -4080,9 +4080,6 @@ old_format:
 		goto log_fail;
 	}
 
-	ut_ad(log_sys.log.format == LOG_HEADER_FORMAT_10_3
-	      || log_sys.log.format == LOG_HEADER_FORMAT_ENC_10_4);
-
 	const byte* buf = log_sys.checkpoint_buf;
 
 reread_log_header:
@@ -4098,9 +4095,6 @@ reread_log_header:
 	if (log_sys.log.format == 0) {
 		goto old_format;
 	}
-
-	ut_ad(log_sys.log.format == LOG_HEADER_FORMAT_10_3
-	      || log_sys.log.format == LOG_HEADER_FORMAT_ENC_10_4);
 
 	log_header_read(max_cp_field);
 
@@ -4129,6 +4123,7 @@ reread_log_header:
 	byte MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE) log_hdr[OS_FILE_LOG_BLOCK_SIZE];
 	memset(log_hdr, 0, sizeof log_hdr);
 	mach_write_to_4(LOG_HEADER_FORMAT + log_hdr, log_sys.log.format);
+	mach_write_to_4(LOG_HEADER_SUBFORMAT + log_hdr, log_sys.log.subformat);
 	mach_write_to_8(LOG_HEADER_START_LSN + log_hdr, checkpoint_lsn_start);
 	strcpy(reinterpret_cast<char*>(LOG_HEADER_CREATOR + log_hdr),
 	       "Backup " MYSQL_SERVER_VERSION);

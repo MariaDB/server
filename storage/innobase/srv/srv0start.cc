@@ -1098,8 +1098,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 			buf_LRU_flush_or_remove_pages(*it, &dummy2);
 
 			/* Remove the truncate redo log file. */
-			undo::Truncate	undo_trunc;
-			undo_trunc.done_logging(*it);
+			undo::done(*it);
 		}
 	}
 
@@ -1329,6 +1328,10 @@ srv_prepare_to_delete_redo_log_files(
 	lsn_t	flushed_lsn;
 	ulint	pending_io = 0;
 	ulint	count = 0;
+
+	if (log_sys.log.subformat != 2) {
+		srv_log_file_size = 0;
+	}
 
 	do {
 		/* Clean the buffer pool. */
@@ -2175,8 +2178,10 @@ files_checked:
 			   && log_sys.log.format
 			   == (srv_encrypt_log
 			       ? LOG_HEADER_FORMAT_ENC_10_4
-			       : LOG_HEADER_FORMAT_10_3)) {
-			/* No need to upgrade or resize the redo log. */
+			       : LOG_HEADER_FORMAT_10_3)
+			   && log_sys.log.subformat == 2) {
+			/* No need to add or remove encryption,
+			upgrade, downgrade, or resize. */
 		} else {
 			/* Prepare to delete the old redo log files */
 			flushed_lsn = srv_prepare_to_delete_redo_log_files(i);

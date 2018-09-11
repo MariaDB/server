@@ -12874,12 +12874,21 @@ int ha_mroonga::delete_all_rows()
 int ha_mroonga::wrapper_truncate()
 {
   int error = 0;
+  MRN_SHARE *tmp_share;
   MRN_DBUG_ENTER_METHOD();
+
+  if (!(tmp_share = mrn_get_share(table->s->table_name.str, table, &error)))
+    DBUG_RETURN(error);
+
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
   MRN_SET_WRAP_TABLE_KEY(this, table);
-  error = wrap_handler->ha_truncate();
+  error = parse_engine_table_options(ha_thd(), tmp_share->hton, table->s)
+    ? MRN_GET_ERROR_NUMBER
+    : wrap_handler->ha_truncate();
   MRN_SET_BASE_SHARE_KEY(share, table->s);
   MRN_SET_BASE_TABLE_KEY(this, table);
+
+  mrn_free_share(tmp_share);
 
   if (!error && wrapper_have_target_index()) {
     error = wrapper_truncate_index();

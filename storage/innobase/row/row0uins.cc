@@ -435,7 +435,8 @@ row_undo_ins_parse_undo_rec(
 		ptr[len] = 0;
 		const char* name = reinterpret_cast<char*>(ptr);
 		if (strcmp(table->name.m_name, name)) {
-			dict_table_rename_in_cache(table, name, false);
+			dict_table_rename_in_cache(table, name, false,
+						   table_id != 0);
 		}
 		goto close_table;
 	}
@@ -444,8 +445,8 @@ row_undo_ins_parse_undo_rec(
 close_table:
 		/* Normally, tables should not disappear or become
 		unaccessible during ROLLBACK, because they should be
-		protected by InnoDB table locks. TRUNCATE TABLE
-		or table corruption could be valid exceptions.
+		protected by InnoDB table locks. Corruption could be
+		a valid exception.
 
 		FIXME: When running out of temporary tablespace, it
 		would probably be better to just drop all temporary

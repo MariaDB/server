@@ -6285,7 +6285,8 @@ ha_innobase::prepare_inplace_alter_table(
 				     altered_table,
 				     ha_alter_info->create_info,
 				     NULL,
-				     NULL);
+				     NULL,
+				     srv_file_per_table);
 
 	info.set_tablespace_type(indexed_table->space != fil_system.sys_space);
 
@@ -8766,11 +8767,11 @@ commit_cache_rebuild(
 	/* We already committed and redo logged the renames,
 	so this must succeed. */
 	error = dict_table_rename_in_cache(
-		ctx->old_table, ctx->tmp_name, FALSE);
+		ctx->old_table, ctx->tmp_name, false);
 	ut_a(error == DB_SUCCESS);
 
 	error = dict_table_rename_in_cache(
-		ctx->new_table, old_name, FALSE);
+		ctx->new_table, old_name, false);
 	ut_a(error == DB_SUCCESS);
 
 	DBUG_VOID_RETURN;

@@ -65,8 +65,10 @@ bool buf_LRU_drop_page_hash_for_tablespace(dict_table_t* table)
 /** Empty the flush list for all pages belonging to a tablespace.
 @param[in]	id		tablespace identifier
 @param[in,out]	observer	flush observer,
-				or NULL if nothing is to be written */
-void buf_LRU_flush_or_remove_pages(ulint id, FlushObserver* observer);
+				or NULL if nothing is to be written
+@param[in]	first		first page to be flushed or evicted */
+void buf_LRU_flush_or_remove_pages(ulint id, FlushObserver* observer,
+				   ulint first = 0);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /********************************************************************//**
